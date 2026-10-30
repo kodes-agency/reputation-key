@@ -7,7 +7,9 @@ import type {
   GuestVoiceV2Read,
   GuestVoiceV2Response,
 } from '#/contexts/ai/application/public-api'
+import type { GuestVoiceGoalFacts } from '#/components/features/property/guest-voice/guest-voice-rating-goal-words'
 import type { GuestVoiceV2View } from '#/components/features/property/guest-voice/guest-voice-v2-body'
+import type { RatingGoalCardView } from '#/contexts/reporting/application/dto/rating-goal.types'
 
 /** What the server function answers: the page, or why today's page is the one to draw. */
 export type GuestVoiceV2Answer =
@@ -28,11 +30,33 @@ export function guestVoiceV2PageOf(
  * no issue is open and naming one opens nothing, so the page offers no door to an empty
  * drawer; the figures, the quotes and the way into the Inbox are all there.
  */
-export function guestVoiceV2View(read: GuestVoiceV2Read): GuestVoiceV2View {
+export function guestVoiceV2View(
+  read: GuestVoiceV2Read,
+  ratingGoal: GuestVoiceGoalFacts | null = null,
+): GuestVoiceV2View {
   return {
     read,
     openIssueId: null,
     onOpenIssueChange: () => undefined,
     drawer: { status: 'pending' },
+    ratingGoal,
+  }
+}
+
+/**
+ * Where the Property's Google rating goal stands, for the line beside the top problem.
+ * Only an active goal is named: one reached, ended or not yet read is not a goal the page
+ * has anything to say about, and a card that could not be read (no goal, no permission,
+ * the capability off) is `undefined` and says nothing.
+ */
+export function guestVoiceGoalOf(
+  card: RatingGoalCardView | null | undefined,
+): GuestVoiceGoalFacts | null {
+  if (card === null || card === undefined || card.state !== 'active') return null
+  return {
+    mode: card.mode,
+    target: card.target,
+    shows: card.google?.shows ?? null,
+    status: card.status,
   }
 }

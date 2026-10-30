@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import type { GuestVoiceV2Read } from '#/contexts/ai/application/public-api'
-import { guestVoiceV2PageOf, guestVoiceV2View } from './-guest-voice-v2'
+import type { RatingGoalCardView } from '#/contexts/reporting/application/dto/rating-goal.types'
+import { guestVoiceGoalOf, guestVoiceV2PageOf, guestVoiceV2View } from './-guest-voice-v2'
 
 const NOT_ENOUGH: GuestVoiceV2Read = {
   status: 'not_enough_reviews',
@@ -34,5 +35,70 @@ describe('guestVoiceV2View', () => {
     expect(view.openIssueId).toBeNull()
     expect(view.onOpenIssueChange('any')).toBeUndefined()
     expect(view.onNotRight).toBeUndefined()
+  })
+
+  it('carries where the Google rating goal stands, and none by default', () => {
+    expect(guestVoiceV2View(NOT_ENOUGH).ratingGoal).toBeNull()
+    const goal = { mode: 'climb', target: 4.6, shows: 4.4, status: 'below_pace' } as const
+
+    expect(guestVoiceV2View(NOT_ENOUGH, goal).ratingGoal).toBe(goal)
+  })
+})
+
+describe('guestVoiceGoalOf', () => {
+  const card = (over: Partial<RatingGoalCardView> = {}) =>
+    ({
+      state: 'active',
+      mode: 'climb',
+      target: 4.6,
+      status: 'below_pace',
+      google: {
+        shows: 4.4,
+        reviewCount: 120,
+        asOf: '2026-10-30T06:00:00.000Z',
+        current: true,
+      },
+      ...over,
+    }) as RatingGoalCardView
+
+  it('names an active goal by its target, Google’s number and its pace', () => {
+    expect(guestVoiceGoalOf(card())).toEqual({
+      mode: 'climb',
+      target: 4.6,
+      shows: 4.4,
+      status: 'below_pace',
+    })
+  })
+
+  it('names a goal Google shows no number for, without one', () => {
+    expect(guestVoiceGoalOf(card({ google: null }))?.shows).toBeNull()
+    expect(
+      guestVoiceGoalOf(
+        card({
+          google: {
+            shows: null,
+            reviewCount: 0,
+            asOf: '2026-10-30T06:00:00.000Z',
+            current: false,
+          },
+        }),
+      )?.shows,
+    ).toBeNull()
+  })
+
+  it('names a keep goal as one', () => {
+    expect(guestVoiceGoalOf(card({ mode: 'keep', status: 'holding' }))).toMatchObject({
+      mode: 'keep',
+      status: 'holding',
+    })
+  })
+
+  it.each(['reached', 'ended'] as const)('says nothing of a goal that is %s', (state) => {
+    expect(guestVoiceGoalOf(card({ state }))).toBeNull()
+  })
+
+  it('says nothing when the card could not be read', () => {
+    expect(guestVoiceGoalOf(undefined)).toBeNull()
+    expect(guestVoiceGoalOf(null)).toBeNull()
   })
 })

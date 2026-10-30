@@ -11,6 +11,7 @@ import type { WindowFacts } from '#/contexts/ai/application/read-models/issue-st
 import type { GuestVoiceRange } from '#/shared/dashboard-range'
 import { PropertyGuestVoicePage } from '../property-guest-voice-page'
 import type { GuestVoiceDrawerRead } from './guest-voice-issue-drawer'
+import type { GuestVoiceGoalFacts } from './guest-voice-rating-goal-words'
 import { PROPERTY_ID } from './guest-voice-fixtures-build'
 import { drawerForIssue } from './guest-voice-fixtures-drawer-for'
 import { FACILITIES_ID, LARGE_READ, LARGE_WINDOW } from './guest-voice-fixtures-large'
@@ -26,6 +27,8 @@ type StoryProps = Readonly<{
   openIssueId?: string
   onRangeChange: (range: GuestVoiceRange) => void
   onNotRight: (issueId: string) => void
+  /** Where the Property's Google rating goal stands, if it has an active one. */
+  ratingGoal?: GuestVoiceGoalFacts | null
 }>
 
 /** The route's part: keeps which drawer is open, and answers it from the fixture. */
@@ -36,6 +39,7 @@ function GuestVoiceV2Story({
   openIssueId = undefined,
   onRangeChange,
   onNotRight,
+  ratingGoal = null,
 }: StoryProps) {
   const [open, setOpen] = useState<string | null>(openIssueId ?? null)
   const issue =
@@ -56,6 +60,7 @@ function GuestVoiceV2Story({
         onOpenIssueChange: setOpen,
         drawer,
         onNotRight,
+        ratingGoal,
       }}
     />
   )
@@ -136,6 +141,75 @@ export const LargeProperty: Story = {
 
 /** The same page on a phone. */
 export const LargePropertyPhone: Story = { parameters: PHONE }
+
+const BELOW_PACE_GOAL: GuestVoiceGoalFacts = {
+  mode: 'climb',
+  target: 4.6,
+  shows: 4.4,
+  status: 'below_pace',
+}
+
+/**
+ * The Google rating goal beside the top problem: where the goal stands in Google's own
+ * number and its pace, the problem the reviews tie most to a lower rating, and the way into
+ * the goal. An association, said as the Fix first card says it.
+ */
+export const LargePropertyWithGoal: Story = {
+  args: { ratingGoal: BELOW_PACE_GOAL },
+  play: async ({ canvas }) => {
+    const goal = within(canvas.getByRole('region', { name: 'Your Google rating goal' }))
+    expect(
+      goal.getByText(
+        'Your Google rating goal is 4.6. Google shows 4.4 and it is below pace.',
+      ),
+    ).toBeVisible()
+    expect(
+      goal.getByText(
+        /is the top problem on this page, worth up to about 0\.2★ on your 90-day average\./u,
+      ),
+    ).toBeVisible()
+    expect(goal.getByRole('link', { name: 'Open the goal' })).toHaveAttribute(
+      'href',
+      `/properties/${PROPERTY_ID}/goals/google-rating`,
+    )
+    // It sits with Fix first: after its list, before Watch.
+    const headings = canvas
+      .getAllByRole('heading', { level: 2 })
+      .map((heading) => heading.textContent)
+    expect(headings.indexOf('Fix first')).toBeLessThan(headings.indexOf('Watch'))
+  },
+}
+
+export const LargePropertyWithGoalPhone: Story = {
+  ...LargePropertyWithGoal,
+  parameters: PHONE,
+}
+
+/** A goal being kept names no pace to miss; it says it is held. */
+export const SmallPropertyKeepingAGoal: Story = {
+  args: {
+    read: SMALL_READ,
+    window: SMALL_WINDOW,
+    ratingGoal: { mode: 'keep', target: 4.8, shows: 4.8, status: 'holding' },
+  },
+  play: async ({ canvas }) => {
+    const goal = within(canvas.getByRole('region', { name: 'Your Google rating goal' }))
+    expect(
+      goal.getByText(
+        'You are keeping 4.8 on Google. Google shows 4.8 and it is holding.',
+      ),
+    ).toBeVisible()
+  },
+}
+
+/** No active goal, or none the reader can read: the page draws nothing of it. */
+export const LargePropertyWithoutAGoal: Story = {
+  play: async ({ canvas }) => {
+    expect(
+      canvas.queryByRole('region', { name: 'Your Google rating goal' }),
+    ).not.toBeInTheDocument()
+  },
+}
 
 /** A title opens its drawer: definition, the year in bars, causes and the guests' words. */
 export const LargePropertyDrawer: Story = {

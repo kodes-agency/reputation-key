@@ -18,7 +18,8 @@ import { can } from '#/shared/domain/permissions'
 import { aiKeys } from '#/shared/queries/query-keys'
 import { guestVoiceRangeSearch, type GuestVoiceRange } from '#/shared/dashboard-range'
 import { guestVoiceRangeOfLocation, keptData } from './-dashboard-range-read'
-import { guestVoiceV2PageOf, guestVoiceV2View } from './-guest-voice-v2'
+import { guestVoiceGoalOf, guestVoiceV2PageOf, guestVoiceV2View } from './-guest-voice-v2'
+import { ratingGoalCardQuery } from './goals/-rating-goal-queries'
 import { RoutePending } from '#/components/layout/route-page-state'
 
 export const propertyGuestsSearchSchema = z.object({ range: guestVoiceRangeSearch })
@@ -112,6 +113,13 @@ function PropertyGuestsRoute() {
     placeholderData: keepPreviousData,
   })
   const v2 = guestVoiceV2PageOf(v2Reading.data)
+  // The Google rating goal is named beside the top problem. A read that fails (no goal, no
+  // permission, the capability off) leaves the page without the line, never in an error.
+  const goalCard = useQuery({
+    ...ratingGoalCardQuery(propertyId),
+    retry: false,
+    enabled: v2 !== null,
+  })
   // Today's page is read only where 2.0 is not drawn. A failed 2.0 read is today's page,
   // not an error page: 2.0 is the newer of the two.
   const reading = useQuery({
@@ -137,7 +145,7 @@ function PropertyGuestsRoute() {
         propertyName={propertyData.property.name}
         range={range}
         onRangeChange={onRangeChange}
-        v2={guestVoiceV2View(v2)}
+        v2={guestVoiceV2View(v2, guestVoiceGoalOf(goalCard.data))}
         busy={v2Reading.isPlaceholderData}
       />
     )

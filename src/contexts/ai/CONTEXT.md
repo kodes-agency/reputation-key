@@ -709,6 +709,15 @@ An Urgent review whose analysis named no problem to put under an issue is counte
 (`urgentOtherCount`) and not dropped. The drawer's own read and the manager's issue commands
 (rename, hide, merge) are not wired yet (slice 4.3).
 
+The page names the Property's Google rating goal beside the top problem, and AI knows nothing
+of it: the route reads the goal card (`ratingGoalCardQuery`, the Reporting context's read) and
+passes the active goal's facts to the page (`guestVoiceGoalOf` in
+`routes/_authenticated/properties/$propertyId/-guest-voice-v2.ts`). A Property with no active
+goal, or a reader who cannot read it, draws no line, and a failed read is never an error on the
+page. The line says where the goal stands in the goal's own words and, when Fix first has a top
+problem, what it could be worth (`upTo` of its statistics, on the page's own window); it links to
+the goal's page and never promises that fixing the problem reaches the goal.
+
 An Urgent analysis raises the one alert an AI finding may start (v3 contract decision 10;
 ADR 0031 and ADR 0046, amended 2026-10-30). `storeAnalysisV3` writes it in the transaction
 that stores the analysis (`infrastructure/adapters/ai-urgent-alert.ts`): one identifier-only

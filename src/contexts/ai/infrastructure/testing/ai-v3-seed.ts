@@ -5,6 +5,11 @@
 // A test builds a seed for its own Organization and Property, calls `setUp()` once, adds
 // reviews, and `seal()`s the head so the analysis reads as complete. `tearDown()` removes
 // the rows and puts the shared execution controls back as it found them.
+//
+// An end-to-end stack already has an Organization with people in it, and a Property is
+// made for the spec the way every other spec makes one. For that, `{ adopt: true }` adds
+// the AI rows to the Organization and Property the caller made and leaves both alone: the
+// seed neither creates nor deletes them, and `tearDown()` removes only what it wrote.
 import { randomUUID } from 'node:crypto'
 import { and, eq, inArray, sql } from 'drizzle-orm'
 import type { Database } from '#/shared/db'
@@ -116,7 +121,13 @@ export function mentionOf(
   }
 }
 
-export function createV3Seed(db: Database, ids: SeededIds) {
+export type SeedOptions = Readonly<{
+  /** The Organization and the Property exist already and are the caller's to remove. */
+  adopt?: boolean
+}>
+
+export function createV3Seed(db: Database, ids: SeededIds, options: SeedOptions = {}) {
+  const adopt = options.adopt === true
   const outputs = createAiOutputStoreAdapter(db)
   const aggregates = createAiPropertyAggregateStoreAdapter(db)
   let initialControls: ReadonlyArray<{
@@ -181,6 +192,7 @@ export function createV3Seed(db: Database, ids: SeededIds) {
   }
 
   async function clear(): Promise<void> {
+    if (adopt) return
     await db
       .delete(properties)
       .where(
@@ -457,20 +469,22 @@ export function createV3Seed(db: Database, ids: SeededIds) {
           admissionState: 'accepting',
         })
       }
-      await db.execute(sql`
-        INSERT INTO organization (id, name, slug, "createdAt")
-        VALUES (${ids.organizationId}, 'AI v3 seed', ${ids.organizationId}, ${NOW})
-      `)
-      await db.insert(properties).values({
-        id: ids.propertyId,
-        organizationId: ids.organizationId,
-        name: 'AI v3 seed property',
-        slug: `ai-v3-seed-${ids.idPrefix}`,
-        timezone: TIMEZONE,
-        countryCode: 'US',
-        profileVersion: PROPERTY_PROFILE_VERSION,
-        sourceEpoch: SOURCE_EPOCH,
-      })
+      if (!adopt) {
+        await db.execute(sql`
+          INSERT INTO organization (id, name, slug, "createdAt")
+          VALUES (${ids.organizationId}, 'AI v3 seed', ${ids.organizationId}, ${NOW})
+        `)
+        await db.insert(properties).values({
+          id: ids.propertyId,
+          organizationId: ids.organizationId,
+          name: 'AI v3 seed property',
+          slug: `ai-v3-seed-${ids.idPrefix}`,
+          timezone: TIMEZONE,
+          countryCode: 'US',
+          profileVersion: PROPERTY_PROFILE_VERSION,
+          sourceEpoch: SOURCE_EPOCH,
+        })
+      }
       await db.insert(reviewAiAnalysisHeads).values({
         organizationId: ids.organizationId,
         propertyId: ids.propertyId,
@@ -580,10 +594,22 @@ export function createV3Seed(db: Database, ids: SeededIds) {
               eq(aiPropertyIssueGroups.propertyId, ids.propertyId),
             ),
           )
-        await db.delete(reviews).where(eq(reviews.organizationId, ids.organizationId))
+        await db
+          .delete(reviews)
+          .where(
+            and(
+              eq(reviews.organizationId, ids.organizationId),
+              eq(reviews.propertyId, ids.propertyId),
+            ),
+          )
         await db
           .delete(aiOperations)
-          .where(eq(aiOperations.organizationId, ids.organizationId))
+          .where(
+            and(
+              eq(aiOperations.organizationId, ids.organizationId),
+              eq(aiOperations.propertyId, ids.propertyId),
+            ),
+          )
         await clear()
       } finally {
         for (const control of initialControls) {

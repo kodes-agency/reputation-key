@@ -14,6 +14,8 @@ import {
   type GuestVoiceDrawerRead,
 } from './guest-voice-issue-drawer'
 import { GuestVoiceNotEnough } from './guest-voice-not-enough'
+import { GuestVoiceRatingGoal } from './guest-voice-rating-goal'
+import type { GuestVoiceGoalFacts } from './guest-voice-rating-goal-words'
 import { GuestVoiceUrgent } from './guest-voice-urgent'
 import { GuestVoiceWatch } from './guest-voice-watch'
 import { GuestVoiceWhatChanged } from './guest-voice-what-changed'
@@ -32,6 +34,12 @@ export type GuestVoiceV2View = Readonly<{
   drawer: GuestVoiceDrawerRead
   /** The manager says an issue is wrong. Absent: "Not right?" is not drawn. */
   onNotRight?: (issueId: string) => void
+  /**
+   * Where the Property's Google rating goal stands, to name it beside the top problem.
+   * Absent or null: the Property has no active goal, or the reader cannot read it, and
+   * the page draws nothing of it.
+   */
+  ratingGoal?: GuestVoiceGoalFacts | null
 }>
 
 /** The name of an issue the page shows, wherever it shows it. */
@@ -58,7 +66,7 @@ export function GuestVoiceV2Body({
   range,
   view,
 }: Readonly<{ propertyId: string; range: GuestVoiceRange; view: GuestVoiceV2View }>) {
-  const { read, openIssueId, onOpenIssueChange, drawer, onNotRight } = view
+  const { read, openIssueId, onOpenIssueChange, drawer, onNotRight, ratingGoal } = view
   if (read.status === 'not_enough_reviews') {
     return <GuestVoiceNotEnough read={read} propertyId={propertyId} />
   }
@@ -80,6 +88,7 @@ export function GuestVoiceV2Body({
         <GuestVoiceBasis read={read} range={range} />
         <GuestVoiceInShort lines={read.inShort} />
         <GuestVoiceFixFirst items={read.fixFirst} />
+        <GuestVoiceRatingGoal goal={ratingGoal} top={read.fixFirst.at(0)} />
         <GuestVoiceWatch items={read.watch} />
         <GuestVoiceGuestsLove items={read.guestsLove} staffPraise={read.staffPraise} />
         <GuestVoiceWhatChanged items={read.whatChanged} provisional={read.provisional} />
