@@ -77,9 +77,9 @@ traced three causes.
 - A 40-review burst on one Property over a pool of 10 (the regression test in
   `src/shared/architecture/property-lock-burst.integration.test.ts`) went from
   37 lock-timeout failures and 16 s to none and under half a second.
-- The worker can open up to 49 connections. Changing a queue's concurrency moves
-  the pool with it; the budget test fails if the total no longer fits the
-  database.
+- The worker can open up to 57 connections (49 when this was decided; see the
+  amendment of 2026-10-30). Changing a queue's concurrency moves the pool with
+  it; the budget test fails if the total no longer fits the database.
 - Parallel reads that fan out per recipient or per cycle are not budgeted.
   They hold no lock while they wait, so past the budget they only queue.
 - The Google import item job still holds its item row while it waits for a
@@ -89,3 +89,12 @@ traced three causes.
   or stronger, or `UPDATE`): it would wait on its own caller until
   `lock_timeout`. None does; only its foreign-key checks touch the row, and
   they no longer wait.
+
+## Amendment 2026-10-30 — the drain runs sixteen at a time
+
+ADR 0058 (amendment of 2026-10-30) raised the Review Analysis drain from eight
+analyses at a time to sixteen. Rule 3 stands: the pool is still the sum of every
+budget, so the background queue's budget grows from 20 clients to 28 and the
+worker's pool from 49 to 57. With both services doubled for the deploy overlap
+and 20 kept for operators, that is 154 of the 497 connections the database
+leaves available.

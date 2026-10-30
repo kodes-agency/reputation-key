@@ -685,7 +685,7 @@ claimed (ADR 0058): interactive work (reply drafts, on-demand analysis) and
 background work (history) have independent global, organization and property
 buckets. Historical and backfill analysis events queue their provider work in
 `ai_review_analysis_backlog`, which a 5-second drain empties newest review
-first, eight analyses at a time, and records an enrollment caught up as soon as
+first, sixteen analyses at a time, and records an enrollment caught up as soon as
 its last review settles; a review opened in the Inbox is analysed ahead of the
 queue. The drain's schedule is tenant-cross, so it asks current platform policy
 about each claimed entry's own Organization and Property before analysing it

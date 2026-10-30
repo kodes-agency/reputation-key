@@ -48,9 +48,9 @@ the capacity a draft needs.
 
 | Scope        | Interactive / min | Background / min | Interactive in flight | Background in flight |
 | ------------ | ----------------- | ---------------- | --------------------- | -------------------- |
-| Global       | 8                 | 150              | 8                     | 16                   |
-| Organization | 4                 | 120              | 4                     | 8                    |
-| Property     | 3                 | 120              | 2                     | 8                    |
+| Global       | 8                 | 125              | 8                     | 24                   |
+| Organization | 4                 | 120              | 4                     | 16                   |
+| Property     | 3                 | 120              | 2                     | 16                   |
 
 Rates are sliding one-minute windows. An in-flight slot is held until release
 or a 90-second lease, which outlives the 70-second provider deadline. An
@@ -58,12 +58,13 @@ on-demand analysis must leave one interactive slot free (`headroom`), so
 clicking through reviews cannot exhaust the lane drafts use.
 
 The background lane is sized against the provider account, because drafts no
-longer share it: the pinned model allows 500 requests and 500,000 tokens a
-minute, and an analysis counts about 1,600 tokens against that (about 600 input
-tokens plus the 1,024-token output ceiling the provider reserves). Both global
-lanes together stay under half of either limit, which a unit test pins. A
-property may use its organization's whole background budget, so one import runs
-as fast as the account allows.
+longer share it: the pinned model (`gpt-6-luna`) allows 5,000 requests and
+2,000,000 tokens a minute, and a v3 analysis counts about 7,900 tokens against
+that (about 3,800 input tokens plus the 4,096-token output ceiling the provider
+reserves). Both global lanes together stay under half of either limit, which a
+unit test pins. A property may use its organization's whole background budget,
+so one import runs as fast as the account allows. How fast history runs is set
+by the in-flight column, not the rates (amendment 2026-10-30).
 
 The table lives in `src/contexts/ai/domain/admission-lanes.ts`. Tuning changes
 that file and this table together.
@@ -87,12 +88,14 @@ retry and a repeated click reuse it, and any finished answer rotates it.
    written; the row is the durable authority for the remaining work.
 2. A recurring drain (every 5 seconds, background queue) claims rounds of at
    most the property background in-flight share per property, newest review
-   first, and runs each entry through the ordinary analysis use case, eight at
-   a time. Eight stays below the worker's ten-client database pool, which a
-   unit test pins: an analysis holds a client only for one short transaction
-   at a time, never across its provider call. It keeps claiming rounds while they settle work, for up to 20
-   seconds, and one drain runs per worker at a time. A busy lane parks the
-   property's remaining entries at the lane's retry time without asking again.
+   first, and runs each entry through the ordinary analysis use case, sixteen
+   at a time (an organization's background in-flight share). The worker's
+   database pool is sized to cover that concurrency (`src/worker/pool-budget.ts`,
+   ADR 0060), which a unit test pins: an analysis holds a client only for one
+   short transaction at a time, never across its provider call. It keeps
+   claiming rounds while they settle work, for up to 20 seconds, and one drain
+   runs per worker at a time. A busy lane parks the property's remaining
+   entries at the lane's retry time without asking again.
    Any settled outcome deletes the entry. A claim expires after three minutes.
    The operation horizon of a drained entry starts when the drain first takes
    it, not when the review was imported.
@@ -136,7 +139,8 @@ retry and a repeated click reuse it, and any finished answer rotates it.
   rounds of eight, the enrollment opens on delivery and closes when its last
   review settles, and the sweep runs every minute as recovery. Measured on the
   first step of this change (4 at a time, 60 a minute): 18 reviews went from
-  about 11 minutes to 18 seconds.
+  about 11 minutes to 18 seconds. The background rate and in-flight numbers
+  here, and the rounds of eight, were resized on 2026-10-30 (below).
 - **2026-09-29** — Reopening an abandoned analysis. An import burst on the
   closed beta (244 reviews in 30 seconds) left three text reviews of one
   Property permanently unanalysed while its enrollment recorded itself caught
@@ -335,3 +339,48 @@ retry and a repeated click reuse it, and any finished answer rotates it.
      while an AI execution stop is in force. A Property that fails is printed
      and the run goes on. The budget still counts their failures, so one that
      fails again waits for the next operator run. Runbook §22.
+- **2026-10-30** — Sized to the limits of the current model. History on the
+  closed beta ran at about 45 to 60 analyses a minute, although the background
+  lane admits 120 a minute per property. The budgets of 2026-09-28 were sized
+  for the old model: an account of 500 requests and 500,000 tokens a minute,
+  and an analysis that counted about 1,600 tokens.
+  1. What was measured, on 2026-10-30. The beta key on `gpt-6-luna` (deployment
+     profile `private-beta-global-v2`) reads 5,000 requests and 2,000,000
+     tokens a minute from the `x-ratelimit-limit-requests` and
+     `x-ratelimit-limit-tokens` headers. A v3 analysis sends about 3,800 input
+     tokens (the quality check of 424 synthetic reviews sent 1,599,608, or
+     3,773 each) and its output ceiling is 4,096 tokens. The provider counts
+     the ceiling when the request arrives, so one analysis counts about 7,900
+     tokens, five times the 1,600 the table was sized for. On the beta an
+     analysis takes 4.8 seconds at the median and 9.3 seconds at the 90th
+     percentile, end to end, and with 8 in flight history ran 45 to 60 a
+     minute: a drain round claims at most 8 entries per property, runs them 8
+     at a time and waits for its slowest call before it claims again.
+  2. The new table. The global background rate goes from 150 to 125.
+     Background in flight goes from 16 to 24 globally, from 8 to 16 per
+     organization and from 8 to 16 per property. The organization and property
+     rates (120) and every interactive value are unchanged.
+  3. Why the global rate went down while in flight went up. A v3 analysis is a
+     bigger request, so half of the account's tokens (1,000,000 of 2,000,000 a
+     minute) pays for 126 analyses a minute, where 150 had been sized against
+     half of 500,000 tokens at 1,600 each. The rate was never the limit: at 4.8
+     to 9.3 seconds a call, 8 in flight could not reach 120 a minute, so in
+     flight held history back. 125 is the round number under 126. In-flight
+     shares of 16 let one property reach its rate; the global 24 leaves the
+     rest of the lane to reviews analysed on delivery.
+  4. What follows without a change to the drain's formulas. The drain runs as
+     many analyses at once as an organization may have in flight, now 16, and
+     a round claims at most the property's share for up to three properties,
+     now 48 entries. The worker's database pool is budgeted from the drain, so
+     it grows from 49 to 57 connections (ADR 0060). The unit test of the rule
+     that both global lanes stay under half of the account limits now takes the
+     analysis that runs: the v3 profile's output ceiling plus 3,800 measured
+     input tokens, or v2's, whichever is larger.
+  5. Expected effect. With several properties waiting, a round claims up to
+     three properties' shares and the drain keeps 16 calls in flight, so the
+     organization and global rates bind: about 100 to 125 analyses a minute,
+     and a full replay of the beta's history (about 14,000 reviews) takes about
+     2 hours where it took 4 to 5. One property alone gains less, because its
+     round claims only its own 16 and waits for the slowest call: about 70 to
+     80 a minute, from 45 to 60. These are what the table should give; neither
+     has been measured at the new setting.

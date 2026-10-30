@@ -170,8 +170,9 @@ async function forEachConcurrently<T>(
 /**
  * Drain Review Analysis waiting in the backlog (ADR 0058). Each round claims a
  * bounded, per-property share of the newest waiting reviews and runs them
- * through the ordinary analysis use case in their lane, a few at a time; the
- * drain keeps claiming rounds while they settle work, up to its time budget.
+ * through the ordinary analysis use case in their lane, up to
+ * `AI_BACKLOG_DRAIN_CONCURRENCY` at a time; the drain keeps claiming rounds
+ * while they settle work, up to its time budget.
  * An entry whose Organization or Property current policy refuses is returned
  * to the queue untried, and so is one whose analysis finds an AI execution
  * control stopped. A busy lane returns the property's remaining entries
