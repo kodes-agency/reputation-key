@@ -84,7 +84,17 @@ function readersFor(ctx: AuthContext, pid: PropertyId): DraftReviewReaders {
         ids.map(reviewId),
         ctx.organizationId,
       )
-      return new Map(ids.map((id) => [id, snippets.get(id)?.text ?? null] as const))
+      return new Map(
+        ids.map((id) => {
+          const snippet = snippets.get(id)
+          return [
+            id,
+            snippet === undefined
+              ? null
+              : { text: snippet.text, sourceRevision: snippet.sourceRevision },
+          ] as const
+        }),
+      )
     },
   }
 }

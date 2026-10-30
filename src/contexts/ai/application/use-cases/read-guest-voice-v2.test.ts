@@ -457,11 +457,36 @@ describe('readGuestVoiceV2 a Property too young for patterns', () => {
     })
     // Newest first. Words only for the one whose analysis is in and names nobody: one has
     // only stars, one names a team member, and one is not analysed yet.
+    // Each carries the revision it was counted at, which the quote is checked against.
     expect(draft.latest).toEqual([
-      { reviewId: id(1), reviewedAt: '2026-08-18', rating: 5, mayShowText: true },
-      { reviewId: id(2), reviewedAt: '2026-08-17', rating: 4, mayShowText: false },
-      { reviewId: id(3), reviewedAt: '2026-08-16', rating: 2, mayShowText: false },
-      { reviewId: id(4), reviewedAt: '2026-08-15', rating: 5, mayShowText: false },
+      {
+        reviewId: id(1),
+        reviewedAt: '2026-08-18',
+        rating: 5,
+        mayShowText: true,
+        sourceRevision: 1,
+      },
+      {
+        reviewId: id(2),
+        reviewedAt: '2026-08-17',
+        rating: 4,
+        mayShowText: false,
+        sourceRevision: 1,
+      },
+      {
+        reviewId: id(3),
+        reviewedAt: '2026-08-16',
+        rating: 2,
+        mayShowText: false,
+        sourceRevision: 1,
+      },
+      {
+        reviewId: id(4),
+        reviewedAt: '2026-08-15',
+        rating: 5,
+        mayShowText: false,
+        sourceRevision: 1,
+      },
     ])
   })
 

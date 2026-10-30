@@ -32,6 +32,7 @@ function draftOf(
 function readers(
   items: Record<string, string>,
   texts: Record<string, string | null>,
+  revisions: Record<string, number> = {},
 ): DraftReviewReaders & {
   inboxItemIds: ReturnType<typeof vi.fn>
   reviewTexts: ReturnType<typeof vi.fn>
@@ -45,7 +46,15 @@ function readers(
     ),
     reviewTexts: vi.fn(
       async (ids: readonly string[]) =>
-        new Map(ids.map((id) => [id, texts[id] ?? null] as const)),
+        new Map(
+          ids.map(
+            (id) =>
+              [
+                id,
+                { text: texts[id] ?? null, sourceRevision: revisions[id] ?? 1 },
+              ] as const,
+          ),
+        ),
     ),
   }
 }
@@ -80,7 +89,9 @@ describe('resolveDraftReviews', () => {
     const resolved = await resolveDraftReviews(draft, reader)
 
     expect(reader.reviewTexts).toHaveBeenCalledWith(['a'])
-    expect([...resolved]).toEqual([['a', { inboxItemId: 'item-a', text: 'Words of a.' }]])
+    expect([...resolved]).toEqual([
+      ['a', { inboxItemId: 'item-a', text: 'Words of a.', sourceRevision: 1 }],
+    ])
   })
 
   it('asks once for a review that more than one card could quote', async () => {
@@ -104,27 +115,77 @@ describe('resolveDraftReviews', () => {
     const draft = draftOf({
       evidence: [],
       latest: [
-        { reviewId: 'x', reviewedAt: '2026-10-18', rating: 5, mayShowText: true },
-        { reviewId: 'y', reviewedAt: '2026-10-17', rating: 4, mayShowText: false },
+        {
+          reviewId: 'x',
+          reviewedAt: '2026-10-18',
+          rating: 5,
+          mayShowText: true,
+          sourceRevision: 1,
+        },
+        {
+          reviewId: 'y',
+          reviewedAt: '2026-10-17',
+          rating: 4,
+          mayShowText: false,
+          sourceRevision: 1,
+        },
       ],
     })
 
     const resolved = await resolveDraftReviews(draft, reader)
 
     expect(reader.reviewTexts).toHaveBeenCalledWith(['x'])
-    expect(resolved.get('y')).toEqual({ inboxItemId: 'item-y', text: null })
-    expect(resolved.get('x')).toEqual({ inboxItemId: 'item-x', text: 'Hello.' })
+    expect(resolved.get('y')).toEqual({
+      inboxItemId: 'item-y',
+      text: null,
+      sourceRevision: null,
+    })
+    expect(resolved.get('x')).toEqual({
+      inboxItemId: 'item-x',
+      text: 'Hello.',
+      sourceRevision: 1,
+    })
   })
 
   it('keeps a review that opens but whose words are gone, so its row still links', async () => {
     const reader = readers({ a: 'item-a' }, { a: null })
     const draft = draftOf({
       evidence: [],
-      latest: [{ reviewId: 'a', reviewedAt: '2026-10-18', rating: 3, mayShowText: true }],
+      latest: [
+        {
+          reviewId: 'a',
+          reviewedAt: '2026-10-18',
+          rating: 3,
+          mayShowText: true,
+          sourceRevision: 1,
+        },
+      ],
     })
 
     const resolved = await resolveDraftReviews(draft, reader)
 
-    expect(resolved.get('a')).toEqual({ inboxItemId: 'item-a', text: null })
+    expect(resolved.get('a')).toEqual({
+      inboxItemId: 'item-a',
+      text: null,
+      sourceRevision: 1,
+    })
+  })
+
+  // S2: the revision Review serves the words at travels with them, so the quote can
+  // be refused where it is not the revision the analysis was made on.
+  it('carries the revision the words were read at', async () => {
+    const reader = readers({ a: 'item-a' }, { a: 'Edited words.' }, { a: 5 })
+    const draft = draftOf({
+      evidence: [{ section: 'fixFirst', issueId: 'i', candidates: [candidate('a')] }],
+      latest: [],
+    })
+
+    const resolved = await resolveDraftReviews(draft, reader)
+
+    expect(resolved.get('a')).toEqual({
+      inboxItemId: 'item-a',
+      text: 'Edited words.',
+      sourceRevision: 5,
+    })
   })
 })

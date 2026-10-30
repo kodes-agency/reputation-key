@@ -191,7 +191,12 @@ beforeEach(() => {
   mocks.readGuestVoiceV2.mockResolvedValue({ status: 'not_v3' })
   mocks.getReviewInboxItemIds.mockResolvedValue(new Map([[REVIEW_ID, ITEM_ID]]))
   mocks.getReviewSnippetsByIds.mockResolvedValue(
-    new Map([[REVIEW_ID, { text: 'Lovely room. The air conditioning broke. Fine.' }]]),
+    new Map([
+      [
+        REVIEW_ID,
+        { text: 'Lovely room. The air conditioning broke. Fine.', sourceRevision: 1 },
+      ],
+    ]),
   )
 })
 
@@ -285,6 +290,27 @@ describe('getGuestVoiceV2Fn answers', () => {
     expect(
       quote?.sentenceRanges.map(({ start, end }) => quote.text.slice(start, end)),
     ).toEqual(['The air conditioning broke.'])
+  })
+
+  // S2: the analysis cited sentence numbers of revision 1. A review edited since is
+  // another text, and the same numbers can point at other sentences, so it is not quoted:
+  // the card keeps its figures.
+  it('quotes nothing from a review edited since the analysis, and still answers the page', async () => {
+    mocks.readGuestVoiceV2.mockResolvedValue(draft())
+    mocks.getReviewSnippetsByIds.mockResolvedValue(
+      new Map([
+        [
+          REVIEW_ID,
+          { text: 'Dreadful room. The staff were rude. Fine.', sourceRevision: 2 },
+        ],
+      ]),
+    )
+
+    const page = await call()
+
+    if (page === undefined || !('fixFirst' in page)) throw new Error('expected the page')
+    expect(page.fixFirst[0]?.quote).toBeNull()
+    expect(page.fixFirst[0]?.statistics).toEqual(STATISTICS)
   })
 
   it('quotes nothing for a reader the policy refuses the Inbox, and still answers the page', async () => {

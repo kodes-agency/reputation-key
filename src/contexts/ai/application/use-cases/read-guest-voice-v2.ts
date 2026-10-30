@@ -198,6 +198,7 @@ async function readNotEnough(
         reviewedAt: review.localDate,
         rating: review.rating,
         mayShowText: review.hasText && found !== undefined && !reviewNamesAPerson(found),
+        sourceRevision: review.sourceRevision,
       }
     })
   return {

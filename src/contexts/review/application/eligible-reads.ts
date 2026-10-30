@@ -30,6 +30,12 @@ export type EligibleReviewSnippet = Readonly<{
   googleReviewUrl: string | null
   rating: number | null
   languageCode: string | null
+  /**
+   * The Review revision these words are: a reader that pairs them with something
+   * stored against a revision (the sentences an analysis cites) uses them only when
+   * the two are the same revision.
+   */
+  sourceRevision: number
 }>
 
 /** Typed eligibility outcome — UI distinguishes without stale content. */
@@ -108,6 +114,7 @@ export const createEligibleReads = (deps: {
         googleReviewUrl: r.googleReviewUrl,
         rating: r.rating,
         languageCode: r.languageCode,
+        sourceRevision: r.sourceRevision,
       },
     } satisfies EligibleReviewSnippetResult
   },
@@ -127,6 +134,7 @@ export const createEligibleReads = (deps: {
         googleReviewUrl: r.googleReviewUrl,
         rating: r.rating,
         languageCode: r.languageCode,
+        sourceRevision: r.sourceRevision,
       })
     }
     return map
