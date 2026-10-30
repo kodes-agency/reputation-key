@@ -237,6 +237,23 @@ describe('the Urgent page', () => {
     expect(link?.[1]).not.toContain('since=')
   })
 
+  it('counts an Urgent review that names no problem, beside the cards, never dropping it', () => {
+    const counted = body({ ...URGENT_READ, urgentOtherCount: 2 })
+
+    expect(counted).toContain('Urgent reviews need you')
+    expect(counted).toContain('2 more urgent reviews name no problem to open here.')
+    expect(counted).toContain('Balcony railing')
+  })
+
+  it('still draws the strip when only such reviews are Urgent', () => {
+    const only = body({ ...LARGE_READ, urgentOtherCount: 1 })
+
+    expect(only).toContain('An urgent review needs you')
+    expect(only).toContain('1 urgent review names no problem to open here.')
+    expect(only).toContain('Open urgent reviews in the inbox')
+    expect(only).not.toContain('Urgent ·')
+  })
+
   it('says "Urgent reviews need you" for more than one', () => {
     const [first] = URGENT_READ.urgent
     if (first === undefined) throw new Error('The Urgent fixture has no issue')

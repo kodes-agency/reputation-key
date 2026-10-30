@@ -144,7 +144,7 @@ const everyTopic: readonly TopicRow[] = TOPIC_SPECS.map((spec) => ({
 export const SMALL_READ: GuestVoiceV2Ready = {
   status: 'ready',
   readModelVersion: 'guest-voice-read-v2',
-  statisticsVersion: 'guest-voice-statistics-v1',
+  statisticsVersion: 'guest-voice-statistics-v2',
   window: '365d',
   startLocalDate: '2025-10-30',
   endLocalDate: '2026-10-29',

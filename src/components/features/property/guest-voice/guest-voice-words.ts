@@ -18,25 +18,7 @@ import {
   formatNumber,
 } from '#/lib/format'
 import { RANGE_PRESET_LABELS, type GuestVoiceRange } from '#/shared/dashboard-range'
-
-/**
- * The twelve topics, as the annotation guide words them. The taxonomy PR-3 adds owns
- * these labels; this table goes when it lands.
- */
-const TOPIC_LABELS: Readonly<Record<ReviewTopicV3, string>> = {
-  staff_service: 'Staff and service',
-  speed_waiting: 'Speed and waiting',
-  booking_arrival: 'Booking and arrival',
-  main_service: 'The main service',
-  food_drink: 'Food and drink',
-  cleanliness: 'Cleanliness',
-  facilities_equipment: 'Facilities and equipment',
-  price_billing: 'Price and billing',
-  atmosphere_noise: 'Atmosphere and noise',
-  location_access: 'Location and access',
-  safety: 'Safety',
-  communication: 'Communication',
-}
+import { REVIEW_TOPIC_LABELS_V3 } from '#/shared/review-topic-taxonomy'
 
 const URGENT_REASON_WORDS: Readonly<Record<UrgentReasonV3, string>> = {
   safety: 'safety',
@@ -46,7 +28,7 @@ const URGENT_REASON_WORDS: Readonly<Record<UrgentReasonV3, string>> = {
 }
 
 export function topicLabel(topic: ReviewTopicV3): string {
-  return TOPIC_LABELS[topic]
+  return REVIEW_TOPIC_LABELS_V3[topic]
 }
 
 /** "safety": the reason that follows "Urgent ·". */

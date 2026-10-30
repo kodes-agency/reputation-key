@@ -215,7 +215,7 @@ const inShort: readonly InShortLine[] = [
 export const LARGE_READ: GuestVoiceV2Ready = {
   status: 'ready',
   readModelVersion: 'guest-voice-read-v2',
-  statisticsVersion: 'guest-voice-statistics-v1',
+  statisticsVersion: 'guest-voice-statistics-v2',
   window: '90d',
   startLocalDate: '2026-07-31',
   endLocalDate: '2026-10-29',

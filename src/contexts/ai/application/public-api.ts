@@ -33,6 +33,10 @@ export type {
 // `Change` and `EvidenceLevel` are the read model's own names; they leave here
 // prefixed, so a consumer's `Window` is still the browser's.
 export type {
+  GuestVoiceV2Range,
+  GuestVoiceV2Response,
+} from './use-cases/read-guest-voice-v2'
+export type {
   ChangedItem,
   FixFirstItem,
   GuestsLoveItem,
@@ -42,6 +46,7 @@ export type {
   InShortLine,
   IssueDrawer,
   IssueStatistics,
+  LatestReview,
   LiveEvidence,
   StaffPraiseLine,
   TopicRow,
@@ -50,10 +55,10 @@ export type {
   EvidenceLevel as GuestVoiceEvidenceLevel,
   Window as GuestVoiceWindow,
 } from './read-models/guest-voice-v2'
-export type {
-  ReviewTopicV3,
-  UrgentReasonV3,
-} from './read-models/guest-voice-v2-v3-vocabulary'
+// The vocabulary is the v3 analysis's own (`src/shared`); the page speaks of an Urgent
+// "reason", not of a review-analysis one.
+export type { ReviewTopicV3 } from '#/shared/review-topic-taxonomy'
+export type { ReviewUrgentReasonV3 as UrgentReasonV3 } from '#/shared/review-analysis-v3'
 
 export type {
   GenerateReplySuggestionInput,

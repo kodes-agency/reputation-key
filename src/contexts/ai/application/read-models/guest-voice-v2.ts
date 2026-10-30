@@ -3,10 +3,11 @@
 // read from the live review text for one response, and never stored.
 //
 // The names and shapes are the contract's. A field the agreed design needs and the
-// contract does not have is marked `ADDED` with the question it raises for the
-// read-model slice (4.1); each is optional or a new variant, so the slice can adopt it
-// as it stands or drop it, and the page degrades by leaving that part out.
-import type { ReviewTopicV3, UrgentReasonV3 } from './guest-voice-v2-v3-vocabulary'
+// contract does not have is marked `ADDED`: the read (`use-cases/read-guest-voice-v2.ts`)
+// fills each, and each is optional or a new variant so a page without it still draws.
+import type { ReviewUrgentReasonV3 as UrgentReasonV3 } from '#/shared/review-analysis-v3'
+import type { ReviewTopicV3 } from '#/shared/review-topic-taxonomy'
+import type { GUEST_VOICE_STATISTICS_VERSION } from '../../domain/guest-voice-statistics'
 
 /** The windows the statistics engine chooses between. */
 export type Window = '30d' | '90d' | '180d' | '365d'
@@ -119,7 +120,8 @@ export type TopicRow = Readonly<{
 export type GuestVoiceV2Ready = Readonly<{
   status: 'ready'
   readModelVersion: 'guest-voice-read-v2'
-  statisticsVersion: 'guest-voice-statistics-v1'
+  /** The engine that worked the figures out (`GUEST_VOICE_STATISTICS_VERSION`). */
+  statisticsVersion: typeof GUEST_VOICE_STATISTICS_VERSION
   window: Window
   startLocalDate: string
   endLocalDate: string
@@ -133,6 +135,13 @@ export type GuestVoiceV2Ready = Readonly<{
   basis: Readonly<{ textReviewCount: number; starOnlyCount: number }>
   inShort: readonly InShortLine[]
   urgent: readonly FixFirstItem[]
+  /**
+   * ADDED. Urgent reviews in the window that no card above stands for: the analysis
+   * found the risk but no problem to put under an issue, or there are more than the page
+   * has room for. They are on the page as a count and in the Inbox, never dropped;
+   * absent when there are none.
+   */
+  urgentOtherCount?: number
   fixFirst: readonly FixFirstItem[]
   guestsLove: readonly GuestsLoveItem[]
   staffPraise: StaffPraiseLine
@@ -146,7 +155,7 @@ export type GuestVoiceV2Ready = Readonly<{
  * the review names a person or has changed or gone: the row then has its stars, its day
  * and the way to the Inbox.
  */
-type LatestReview = Readonly<{
+export type LatestReview = Readonly<{
   inboxItemId: string
   reviewedAt: string
   rating: 1 | 2 | 3 | 4 | 5

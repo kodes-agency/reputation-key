@@ -213,6 +213,8 @@ export const aiKeys = {
   /** `range` is the page's own word for the window: `auto`, `30d`, ... `all`. */
   propertyInsights: (propertyId: string, range: string) =>
     [...aiKeys.all, 'property-insights', propertyId, range] as const,
+  guestVoiceV2: (propertyId: string, range: string) =>
+    [...aiKeys.all, 'guest-voice-v2', propertyId, range] as const,
   /** Paced Review Analysis counts for one property (ADR 0058). */
   reviewAnalysisProgress: (propertyId: string) =>
     [...aiKeys.all, 'review-analysis-progress', propertyId] as const,

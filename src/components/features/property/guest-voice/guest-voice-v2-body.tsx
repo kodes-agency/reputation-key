@@ -76,7 +76,7 @@ export function GuestVoiceV2Body({
       {/* The container the sections lay themselves out by, as a table does: the room
           the page has, not the window, so an open sidebar counts. */}
       <div className="@container flex flex-col gap-6 md:gap-8">
-        <GuestVoiceUrgent items={read.urgent} />
+        <GuestVoiceUrgent items={read.urgent} otherCount={read.urgentOtherCount ?? 0} />
         <GuestVoiceBasis read={read} range={range} />
         <GuestVoiceInShort lines={read.inShort} />
         <GuestVoiceFixFirst items={read.fixFirst} />

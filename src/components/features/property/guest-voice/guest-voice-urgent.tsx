@@ -2,6 +2,7 @@ import { useId } from 'react'
 import { Link } from '@tanstack/react-router'
 import { Alert } from '#/components/ui/alert'
 import { Button } from '#/components/ui/button'
+import { formatNumber } from '#/lib/format'
 import type { FixFirstItem } from '#/contexts/ai/application/public-api'
 import { useGuestVoice } from './guest-voice-context'
 import { urgentReviewsSearch } from './guest-voice-links'
@@ -47,27 +48,41 @@ function UrgentItem({ item }: Readonly<{ item: FixFirstItem }>) {
 /**
  * A guest has reported a risk to safety or health, discrimination or a legal threat.
  * Rare, and above everything else on the page; the reason is on it, and the Inbox is
- * one press away. The only thing here that is also sent as an alert.
+ * one press away. The only thing here that is also sent as an alert. A review the
+ * analysis flagged but could name no problem for is counted, not dropped: it has no
+ * card to open, and the Inbox button is where it is read.
  */
 export function GuestVoiceUrgent({
   items,
-}: Readonly<{ items: readonly FixFirstItem[] }>) {
+  otherCount = 0,
+}: Readonly<{ items: readonly FixFirstItem[]; otherCount?: number }>) {
   const { propertyId } = useGuestVoice()
   const headingId = useId()
-  if (items.length === 0) return null
+  if (items.length === 0 && otherCount === 0) return null
   return (
     // A region, not an alert: it is on the page for as long as it is true, and the
     // alert itself goes out by email and in the bell when the review arrives.
     <Alert variant="destructive" role="region" aria-labelledby={headingId}>
       <h2 id={headingId} className="col-start-2 text-base font-semibold tracking-tight">
-        {items.length === 1 ? 'An urgent review needs you' : 'Urgent reviews need you'}
+        {items.length + otherCount === 1
+          ? 'An urgent review needs you'
+          : 'Urgent reviews need you'}
       </h2>
       <div className="col-start-2 flex flex-col gap-3 pt-1 text-foreground">
-        <ul className="flex flex-col gap-3">
-          {items.map((item) => (
-            <UrgentItem key={item.issueId} item={item} />
-          ))}
-        </ul>
+        {items.length === 0 ? null : (
+          <ul className="flex flex-col gap-3">
+            {items.map((item) => (
+              <UrgentItem key={item.issueId} item={item} />
+            ))}
+          </ul>
+        )}
+        {otherCount === 0 ? null : (
+          <p className="text-sm">
+            {formatNumber(otherCount)}
+            {items.length === 0 ? ' urgent ' : ' more urgent '}
+            {otherCount === 1 ? 'review names' : 'reviews name'} no problem to open here.
+          </p>
+        )}
         <Button asChild variant="outline" size="sm" className="w-fit">
           <Link to="/inbox" search={urgentReviewsSearch(propertyId)}>
             Open urgent reviews in the inbox

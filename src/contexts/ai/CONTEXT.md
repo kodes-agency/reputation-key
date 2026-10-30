@@ -668,17 +668,44 @@ too full to read is answered with 90 days. A recurring issue is a label two or m
 Reviews carry. Topics still come from the v2 analysis (taxonomy v1), where Staff and
 Service overlap, so a Review about the front desk can count under both.
 
-Guest voice 2.0 is drawn from the read-model types in
-`application/read-models/guest-voice-v2.ts` (v3 contract, section 9), built on fixtures
-ahead of the v3 analysis it will read: nothing reads v3 data yet, and the page renders 2.0
-only where the route passes it (`PropertyGuestVoicePage`'s `v2`). The types are
-content-free except `LiveEvidence`, one quote read live from the Review's current text
-(its cited sentences as character ranges) and never stored; a quote that names a person is
-left out of the read. `issueStatistics` (`read-models/issue-statistics.ts`) is how counts
-become the `IssueStatistics` a page prints, every field an output of the statistics engine,
-so the fixtures and the read model cannot disagree. `ReviewTopicV3` and `UrgentReasonV3`
-are stand-ins (`guest-voice-v2-v3-vocabulary.ts`) for the types PR-3 owns in
-`src/shared/review-analysis-v3.ts`: delete the stand-in when PR-3 lands.
+Guest voice 2.0 (`readGuestVoiceV2`, v3 contract section 9) is the page of the agreed design for
+a Property whose reviews have a v3 analysis; the route draws today's page everywhere else
+(`hasV3Analyses`: a ready v3 contribution under the Property's current epochs, and nothing selects
+v3 yet, so no Property is drawn as 2.0 until activation). Its types are
+`application/read-models/guest-voice-v2.ts`, content-free except `LiveEvidence`. The read joins two
+answers (`read-models/guest-voice-v2-join.ts`). Review says which reviews the Property has now
+(`readTrendPopulation`, as the insights read: two years in one read, the last year alone and no
+change claimed when that is too full, 90 days when the year is). The analysis side
+(`AiGuestVoiceFactsPort`, `infrastructure/adapters/ai-guest-voice-facts.adapter.ts`) gives each
+review's latest ready v3 contribution and its effective mentions in one statement under the
+aggregate head's share lock, with the Property's issues. A review is counted only where both agree
+on its revision, analysis sequence and day, so an analysis of a review that has since gone or
+changed is never counted; a review with text that has no analysis yet makes the figures
+`provisional`, which also withdraws any claim of change. Every figure is `issueStatistics`'
+(`read-models/issue-statistics.ts`), the PR-1 engine's: an issue is one thing under one topic
+(`ai_property_issue_groups`), counted in reviews, not mentions; three complaint reviews enter Fix
+first, ranked Urgent first, then by stars at stake; one or two are Watch; praise is Guests love;
+What changed has only moves the engine calls likely, bad news first; a topic with no issue of its
+own is the topic-level issue. A manager's hiding keeps an issue out of every ranking and out of
+nothing else (Every topic still counts it, the Inbox still shows it), and never hides an Urgent
+review. "In short" is three fixed sentence patterns over those lists.
+
+The guests' words are the one thing the read does not hold. It is a draft (`GuestVoiceV2Draft`):
+every figure is final, and for each card it names which reviews could be quoted and the sentence
+numbers their mention cites (`EvidenceSlot`, at most three, strongest then most recent). A review
+that names a person (any mention's `names_person`) is never offered: a quote shows the whole review,
+so a name flagged anywhere in it would be on the page (decision 2 wrote "any mention citing that
+sentence"; this is the stricter reading). The delivery layer (`server/guest-voice-v2.ts`) then reads,
+under the reader's own access, which Inbox Item opens each review and what the review says now
+(`resolveDraftReviews`), and `withLiveEvidence` cuts that text with `review-sentences-v1`, the rule
+the analysis used. A review the reader cannot open, whose text has gone, or that now has fewer
+sentences than the analysis numbered is not quoted, and the card keeps its figures. Nothing is
+stored. A Property with under about 10 reviews with text in 12 months gets `not_enough_reviews`
+and its latest reviews, with words only where the analysis is in and names nobody.
+
+An Urgent review whose analysis named no problem to put under an issue is counted
+(`urgentOtherCount`) and not dropped. The drawer's own read and the manager's issue commands
+(rename, hide, merge) are not wired yet (slice 4.3).
 
 The aggregate head counts every sequence the settlement ledger settles for its
 profile generation, including one a newer sequence of the same review had
