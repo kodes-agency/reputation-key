@@ -259,6 +259,7 @@ const WORK_CHECKS: Readonly<Partial<Record<NotificationType, WorkCheck>>> = {
   'reply.publish_failed': replyStill('publish_failed'),
   'review.created': itemStillOpen,
   'review.updated': itemStillOpen,
+  'review.ai_urgent_detected': itemStillOpen,
   'feedback.created': itemStillOpen,
   'inbox.reopened': itemStillOpen,
   'inbox.response_target_halfway': itemStillOpen,

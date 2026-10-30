@@ -94,8 +94,12 @@ describe('isUrgent', () => {
     expect(isUrgent('portal.health_attention')).toBe(false)
   })
 
-  it('exactly 7 types are urgent', () => {
-    expect(URGENT_TYPES.size).toBe(7)
+  it('exactly 8 types are urgent', () => {
+    expect(URGENT_TYPES.size).toBe(8)
+  })
+
+  it('treats an urgent review as urgent, so it bypasses quiet hours where the reader chose it', () => {
+    expect(isUrgent('review.ai_urgent_detected')).toBe(true)
   })
 
   it('every urgent type returns true from isUrgent', () => {

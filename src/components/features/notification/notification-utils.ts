@@ -162,6 +162,8 @@ const typeIconMap: Record<Exclude<NotificationType, BellType>, LucideIcon> = {
   'account.organization_purge_pending': Trash2,
   'review.created': MessageSquare,
   'review.updated': MessageSquare,
+  // Asks for attention like the other warnings; no glyph of its own.
+  'review.ai_urgent_detected': TriangleAlert,
   'feedback.created': MessageSquare,
   'reply.pending_approval': TriangleAlert,
   'reply.approved': CheckCircle,

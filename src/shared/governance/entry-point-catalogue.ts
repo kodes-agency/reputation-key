@@ -500,6 +500,16 @@ const CONSUMER_ROWS: ReadonlyArray<EntryPointRow> = [
     'goal.use',
     'property',
   ),
+  // The Urgent alert: one notice per review revision an AI analysis found Urgent. It
+  // reads the Inbox and queues the insert; the analysis behind it has passed every AI
+  // gate already, so the route itself is ungated like its siblings. The fact carries
+  // the Property.
+  consumer(
+    'notification.ai-urgent-review-notice-consumers',
+    'system:notification.insert',
+    'none',
+    'property',
+  ),
   consumer(
     'notification.on-google-reauthorization-required',
     'system:notification.insert',

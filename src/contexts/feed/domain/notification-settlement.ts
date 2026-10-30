@@ -31,6 +31,9 @@ export const ACTIONABLE_NOTIFICATION_TYPES: ReadonlySet<NotificationType> = new 
   // the review and reply"), so it is waiting work until the item is handled.
   'review.created',
   'review.updated',
+  // It asks for its review to be read and decided on: waiting work until the
+  // item is handled.
+  'review.ai_urgent_detected',
   'feedback.created',
   'reply.pending_approval',
   'reply.publish_failed',
@@ -123,6 +126,7 @@ const SETTLED_BY: Readonly<Record<SettlingFact, ReadonlyArray<NotificationType>>
   'handling_cycle.closed': [
     'review.created',
     'review.updated',
+    'review.ai_urgent_detected',
     'feedback.created',
     'inbox.reopened',
     'inbox.response_target_halfway',
@@ -151,6 +155,7 @@ const SETTLED_BY: Readonly<Record<SettlingFact, ReadonlyArray<NotificationType>>
   'property.archived': [
     'review.created',
     'review.updated',
+    'review.ai_urgent_detected',
     'feedback.created',
     'reply.pending_approval',
     'reply.publish_failed',

@@ -29,36 +29,16 @@ import type {
   AiOutputStorePort,
   AiTrendReportRead,
 } from '../../application/ports/ai-output-store.port'
-import type {
-  ReviewAnalysisCurrentnessV1,
-  ReviewAnalysisReadV1,
-} from '../../domain/types'
+import type { ReviewAnalysisReadV1 } from '../../domain/types'
 import {
   insertAnalysisMentions,
   readReadyAnalysisV3,
 } from './ai-review-analysis-mentions'
 import { findCurrentAnalysisReviewIds } from './ai-current-analysis-review-ids'
 import { trendEvidence } from './ai-trend-evidence'
+import { currentness } from './ai-review-analysis-currentness'
+import { raiseUrgentAlert } from './ai-urgent-alert'
 
-function currentness(
-  input: Readonly<{
-    sourceEpoch: number
-    sourceRevision: number
-    analysisSequence: number
-    reviewAnalysisEpoch: number
-    propertyProfileVersion: number
-    analysisProfileVersion: string
-  }>,
-): ReviewAnalysisCurrentnessV1 {
-  return {
-    sourceEpoch: input.sourceEpoch,
-    sourceRevision: input.sourceRevision,
-    analysisSequence: input.analysisSequence,
-    reviewAnalysisEpoch: input.reviewAnalysisEpoch,
-    propertyProfileVersion: input.propertyProfileVersion,
-    analysisProfileVersion: input.analysisProfileVersion,
-  }
-}
 function capabilityFence(value: unknown): Readonly<Record<string, unknown>> | null {
   return value !== null && typeof value === 'object' && !Array.isArray(value)
     ? (value as Readonly<Record<string, unknown>>)
@@ -576,6 +556,9 @@ export const createAiOutputStoreAdapter = (
           normalizationFlags: [...input.derivative.normalization.flags],
           droppedMentionCount: input.derivative.normalization.droppedMentionCount,
         })
+        if (input.derivative.attention === 'urgent') {
+          await raiseUrgentAlert(tx, { ...input, occurredAt: verified.completedAt })
+        }
         return true
       })
     },

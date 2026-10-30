@@ -74,7 +74,12 @@ const MENTIONS: readonly InboxMentionV3[] = [
   }),
 ]
 
-function reading(mentions: readonly InboxMentionV3[]): InboxReviewAnalysis {
+type ReadingV3 = Extract<InboxReviewAnalysis, { status: 'ready_v3' }>
+
+function reading(
+  mentions: readonly InboxMentionV3[],
+  over: Partial<Pick<ReadingV3, 'attention' | 'urgentReason'>> = {},
+): InboxReviewAnalysis {
   return {
     status: 'ready_v3',
     analysisSequence: ANALYSIS_SEQUENCE,
@@ -83,6 +88,7 @@ function reading(mentions: readonly InboxMentionV3[]): InboxReviewAnalysis {
     urgentReason: null,
     mentions,
     generatedAtEpochMillis: Date.parse('2026-10-20T09:10:00Z'),
+    ...over,
   }
 }
 
@@ -204,6 +210,80 @@ export const OpenedFromAnIssue: Story = {
       await canvas.findByText('Matched: Air conditioning, not working'),
     ).toBeVisible()
     await expect(canvas.getByText(/matches the issue you followed/)).toBeInTheDocument()
+  },
+}
+
+// ─── an Urgent reading ───────────────────────────────────────────────────────
+
+const PHONE = { viewport: { defaultViewport: 'mobileStaff' } } as const
+
+function urgentDetail(
+  mentions: readonly InboxMentionV3[],
+  urgentReason: 'safety' | 'health' | 'discrimination' | 'legal_threat',
+): InboxItemDetailResult {
+  return {
+    ...detailOf(mentions),
+    analysis: reading(mentions, { attention: 'urgent', urgentReason }),
+  }
+}
+
+// The alert that brings a manager here names no reason; this is where it is told, in
+// the guide's words, above the causes.
+export const UrgentReadingSaysWhy: Story = {
+  args: { detail: urgentDetail(MENTIONS, 'safety') },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+
+    await expect(await canvas.findByText('Urgent')).toBeVisible()
+    await expect(canvas.getByText(/The guest reports a risk to safety\./)).toBeVisible()
+    // The causes are still there, after it.
+    await expect(
+      within(canvas.getByRole('list', { name: 'Review topics' })).getAllByRole(
+        'listitem',
+      ),
+    ).toHaveLength(3)
+  },
+}
+
+export const UrgentReadingSaysWhyPhone: Story = {
+  ...UrgentReadingSaysWhy,
+  parameters: PHONE,
+}
+
+// An Urgent reading can name no cause at all; the reason is told all the same.
+export const UrgentReadingWithNoCauses: Story = {
+  args: { detail: urgentDetail([], 'legal_threat') },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+
+    await expect(
+      await canvas.findByText(
+        /The guest says they will take legal action or report the business\./,
+      ),
+    ).toBeVisible()
+    await expect(canvas.queryByRole('list', { name: 'Review topics' })).toBeNull()
+  },
+}
+
+// A manager's correction changes what was named, not the risk a guest reported.
+export const UrgentReasonStaysAfterACorrection: Story = {
+  args: {
+    detail: urgentDetail(
+      [
+        mention({
+          correction: { kind: 'remove_topic', correctedAtEpochMillis: CORRECTED_AT },
+        }),
+      ],
+      'health',
+    ),
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+
+    await expect(
+      await canvas.findByText(/The guest reports a risk to health\./),
+    ).toBeVisible()
+    await expect(canvas.getByText('Removed')).toBeVisible()
   },
 }
 

@@ -18,7 +18,7 @@ export const CATEGORY_COPY: Readonly<
   urgent_operational: {
     label: 'Action needed',
     description:
-      'Private feedback without a rating, escalations, and delivery issues that may need attention.',
+      'Urgent reviews, private feedback without a rating, escalations, and delivery issues that may need attention.',
   },
   // ADR 0046, amended 2026-09-30: "how low" is the person's, per channel.
   low_ratings: {

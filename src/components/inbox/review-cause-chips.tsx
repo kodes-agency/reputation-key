@@ -1,6 +1,8 @@
 import { ArrowDown, ArrowUp } from 'lucide-react'
 import { Badge, type BadgeVariant } from '#/components/ui/badge'
 import { cn } from '#/lib/utils'
+import { URGENT_REASON_SENTENCES_V3 } from '#/shared/review-urgent-reasons'
+import type { ReviewUrgentReasonV3 } from '#/shared/review-analysis-v3'
 import { INBOX_CHIP_STATIC_CLASS } from './inbox-chip'
 import { prioritySuggestion, prioritySuggestionHint } from './inbox-priority-view'
 import {
@@ -93,6 +95,25 @@ function CauseChipList({
 }
 
 /**
+ * Why the analysis called the review urgent. This is the one place the reason is told:
+ * the alert that brought a manager here, its email and the bell say only that an urgent
+ * review needs them (ADR 0046 r.8). The words are the guide's four reasons, and the line
+ * stands whatever else the reading says or a manager corrects, because a correction
+ * changes a cause and not the risk a guest reported.
+ */
+function UrgentReasonLine({
+  reason,
+}: Readonly<{ reason: ReviewUrgentReasonV3 }>): ReactNode {
+  return (
+    <p className="text-sm text-foreground">
+      <strong className="font-semibold">Urgent</strong>
+      {' · '}
+      {URGENT_REASON_SENTENCES_V3[reason]}
+    </p>
+  )
+}
+
+/**
  * What a v3 review is about, in the causes the analysis named: "Air conditioning, not
  * working · Complaint", not the topic alone. A chip is never a target; a manager's word on
  * it ("Not right?") is the control after the list, and a correction shows here at once.
@@ -118,15 +139,29 @@ export function ReviewCauseChips({
 }>): ReactNode {
   const hint = prioritySuggestionHint(managerPriority, prioritySuggestion(analysis))
   const hintLine = hint ? <p className="text-xs text-muted-foreground">{hint}</p> : null
+  const urgentLine =
+    analysis.urgentReason === null ? null : (
+      <UrgentReasonLine reason={analysis.urgentReason} />
+    )
 
   // A reading may name no cause at all. An empty list is announced as "Review topics,
   // list, 0 items" and still takes its share of the guest article's gap.
-  if (analysis.mentions.length === 0) return hintLine
+  if (analysis.mentions.length === 0) {
+    return urgentLine === null ? (
+      hintLine
+    ) : (
+      <div className="flex flex-col gap-2">
+        {urgentLine}
+        {hintLine}
+      </div>
+    )
+  }
 
   const matched = matchedMentionOrdinals(analysis.mentions, matchedIssue)
   const matchedText = matchedLine(analysis.mentions, matched)
   return (
     <div className="flex flex-col gap-2">
+      {urgentLine}
       <CauseChipList mentions={analysis.mentions} matched={matched} />
       {matchedText === null ? null : (
         <p className="text-xs text-muted-foreground">{matchedText}</p>

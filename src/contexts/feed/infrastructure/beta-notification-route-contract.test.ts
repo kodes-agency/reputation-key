@@ -74,6 +74,7 @@ import {
   inboxNoteAdded,
   inboxResponseTargetReminderDue,
 } from '#/contexts/inbox/domain/events'
+import { aiReviewUrgentDetected } from '#/contexts/ai/domain/events'
 import {
   reviewPropertyHistoryImportFinished,
   reviewReplyApproved,
@@ -124,6 +125,7 @@ import { registerBulkAssignmentNotificationConsumer } from './bulk-assignment-ou
 import { registerAssignmentReleaseNotificationConsumer } from './assignment-release-outbox-consumers'
 import { registerEscalationResolutionNotificationConsumer } from './escalation-resolution-outbox-consumers'
 import { registerGoalNotificationConsumer } from './goal-outbox-consumers'
+import { registerAiUrgentReviewNoticeConsumer } from './ai-urgent-review-notice-consumers'
 import { registerRatingGoalNoticeConsumer } from './rating-goal-notice-consumers'
 import { registerHandlingCycleNotificationConsumers } from './handling-cycle-outbox-consumers'
 import { registerNotificationSettlementConsumers } from './notification-settlement-outbox-consumers'
@@ -518,6 +520,17 @@ const PRODUCED_FACTS: Readonly<Record<string, () => DomainEvent>> = {
       availabilityChanged: false,
       occurredAt: OCCURRED_AT,
     }),
+  // A review analysis found the review Urgent: the revision the Inbox item stands at.
+  'ai.review_analysis.urgent_detected': () =>
+    aiReviewUrgentDetected({
+      organizationId: ORG,
+      propertyId: PROPERTY,
+      reviewId: REVIEW,
+      sourceEpoch: 0,
+      sourceRevision: handlingCycleScope.sourceRevision,
+      analysisSequence: 5,
+      occurredAt: OCCURRED_AT,
+    }),
   'goal.rating_goal.transitioned': () =>
     goalRatingGoalTransitioned({
       organizationId: ORG,
@@ -640,6 +653,7 @@ function registerNotificationRoutes(
   registerResponseTargetNotificationConsumer(registry, deps)
   registerGoalNotificationConsumer(registry, deps)
   registerRatingGoalNoticeConsumer(registry, deps)
+  registerAiUrgentReviewNoticeConsumer(registry, deps)
   registerPortalNotificationConsumers(registry, deps)
   registerPortalDestinationNotificationConsumer(registry, deps)
   registerPortalHealthNotificationConsumer(registry, deps)
@@ -1125,6 +1139,26 @@ const NO_NOTICE: Readonly<
         occurredAt: OCCURRED_AT,
       }),
     status: 'obsolete',
+  },
+  // Somebody handled the review before the alert was read: nothing is left to ask.
+  'ai.review_analysis.urgent_detected': {
+    fact: () => PRODUCED_FACTS['ai.review_analysis.urgent_detected']!(),
+    status: 'obsolete',
+    arrange: (deps) =>
+      deps.inboxItemLookup.findHandlingCycleNotificationFacts.mockResolvedValue({
+        propertyId: PROPERTY,
+        portalId: null,
+        assignedTo: null,
+        propertyName: 'Riverside Hotel',
+        guestRating: null,
+        sourceType: 'review',
+        createdAt: OCCURRED_AT,
+        sourceId: REVIEW,
+        currentCycleNumber: handlingCycleScope.cycleNumber,
+        currentSourceRevision: handlingCycleScope.sourceRevision,
+        stateRevision: handlingCycleScope.stateRevision,
+        status: 'closed',
+      }),
   },
   'goal.monthly_result.closed': {
     fact: () =>

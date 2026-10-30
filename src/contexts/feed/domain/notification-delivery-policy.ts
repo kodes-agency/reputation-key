@@ -52,6 +52,10 @@ const CATEGORY_BY_TYPE: Readonly<Record<NotificationType, NotificationCategory>>
   // Urgency for an unanswered review comes from its Response Target, which
   // Inbox measures, not from Feed (ADR 0046, amended 2026-09-24).
   'review.updated': 'arrivals',
+  // The existing urgent channel and the reader's existing Action needed
+  // preferences decide it (ADR 0046, amended 2026-10-30): in the app always, by
+  // email immediately unless the reader turned that off. No category of its own.
+  'review.ai_urgent_detected': 'urgent_operational',
   // Private feedback asks a manager to review and handle a guest concern. It
   // is Action Required even when it is not marked urgent enough to bypass
   // quiet hours.

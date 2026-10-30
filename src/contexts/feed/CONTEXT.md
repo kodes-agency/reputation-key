@@ -301,6 +301,30 @@ Property-scoped and the delivery check refuses a Property-less notice under
 it. On `/notifications`, rows with no Property are grouped as "Account and
 security" when mandatory and "Organization" otherwise.
 
+An Urgent review raises one alert (`review.ai_urgent_detected`; ADR 0046, amended
+2026-10-30), the one notice an AI finding may start. Review analysis v3 writes one
+identifier-only fact per review revision (`ai.review_analysis.urgent_detected`, from the AI
+context; the fact says which revision and nothing of why), and
+`notification.on-ai-review-urgent-detected`
+(`infrastructure/ai-urgent-review-notice-consumers.ts`) turns it into "An urgent review
+needs you at <Property>" for whoever receives that Property's review notifications: the
+Property's responsible managers, AccountAdmins when none is eligible, under the
+`responsible_scope` audience of `review.created` (the assignee and the people who wrote
+notes are not added). It is `urgent_operational` and in `URGENT_TYPES`, so the reader's
+existing Action needed preferences decide it, in the app always and by email immediately
+unless turned off, past quiet hours where the reader chose the urgent bypass; it has no
+category or preference row of its own. The notice and its email carry no reason, topic,
+rating or word of the review (r.8): the payload is the Property's name, the platform and how
+long the item has waited, and the reason is read in the app, where the notice opens the Inbox
+item. The route reads the Inbox and writes nothing there. It is silent, with an `obsolete`
+receipt, for an item that is gone, closed, at a later revision than the fact (that revision
+has its own analysis and alert), imported Google history, private feedback, or waiting more
+than seven days (`FRESHNESS_HORIZON_MS`: the replay of history after a re-consent must not
+announce a year of old reviews); an item the Inbox has not projected to the fact's revision
+is waited for by throwing, so the dispatch retries, for `PROJECTION_HORIZON_MS` (15
+minutes). The type is actionable: it stands while the item's cycle is open (`itemStillOpen`)
+and is retired by the cycle closing or the Property's archive.
+
 A notice states the governed fact its event carried, never a category of
 event: why an item was reopened, what is wrong with a Portal and whether
 guests can reach it, the target time a reminder is about, and which month a

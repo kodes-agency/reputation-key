@@ -1545,6 +1545,72 @@ action history).
 No migration: the Property-scoped shape and the content-free check already
 admit the type, the resource and the payload.
 
+## Amended 2026-10-30 — an Urgent review raises one alert
+
+Review analysis v3 can find a review Urgent: a guest reports a risk to safety or
+health, discrimination or a legal threat (annotation guide v3; about one review
+in a hundred). ADR 0031 (amended 2026-10-30) allowed exactly one AI-triggered
+message for it and left this ADR to say how it is delivered. The owner decided it
+on 2026-10-29 (v3 contract decision 10). Until review analysis v3 is activated no
+analysis is Urgent, so nothing below fires; it ships dark with the rest of v3.
+
+1. **One new type, `review.ai_urgent_detected`**, raised by one identifier-only
+   fact, `ai.review_analysis.urgent_detected`, which the AI context writes in the
+   transaction that stores the Urgent analysis. The fact names the review
+   revision and the analysis and nothing else. It carries no reason, and could
+   not: a field called `reason` is stripped from an outbox payload as content.
+2. **One alert per review revision.** The fact's id is derived from the Organization,
+   Property, review, source epoch and source revision, and an existing fact is not
+   written again, so a re-analysis of the same revision (a new epoch after a
+   re-consent, a reopened analysis, the replay of history) is the same alert.
+   A fact that has since left the outbox (the retention sweep deletes a published
+   fact after 30 days) is not written again either: the earlier Urgent analysis of
+   that revision, which lives 24 months, says the alert was raised. A guest
+   changing the review is a new revision and a new alert.
+3. **The existing urgent channel and the reader's existing preferences.** Category
+   `urgent_operational` ("Action needed"), priority `urgent`: in the app always,
+   by email immediately unless the reader turned that off, and past quiet hours
+   where the reader chose the urgent bypass (`URGENT_TYPES`). There is no category,
+   preference row or default of its own, so a reader who already receives Action
+   needed notices needs to change nothing and one who muted its email hears
+   nothing by email.
+4. **Recipients: whoever receives this Property's review notifications.** The
+   Property's responsible managers, AccountAdmins when none is eligible, under the
+   same `responsible_scope` audience as `review.created`. The assignee and the
+   people who wrote notes are not added: the alert is not about who is working on
+   the item. Eligibility is asked again at delivery, as for every notice.
+5. **The words.** The title is "An urgent review needs you", followed by "at" and
+   the Property's name where it is known; the body says to open the review and
+   decide what to do. The email's subject is the title, its pill says "Needs
+   attention", and it has one button, "Open review". **No reason, topic, rating,
+   person or word of the review appears in the notice or its email** (r.8). The
+   reason shows in the app, where the notice opens the Inbox item
+   (`/inbox?itemId=`): the item's reading says "Urgent" and the guide's sentence for
+   its reason, and Guest voice's Urgent strip says it beside the issue.
+6. **Actionable, settled by the handling of the review.** It stands while the Inbox
+   item's cycle is open, is retired with the others when the cycle closes or its
+   Property is archived, and is held back from email once read, dismissed or
+   retired (`ACTIONABLE_NOTIFICATION_TYPES`). Inbox answers whether the item is
+   still open before the notice is written, before its mail leaves and before a
+   closing fact retires it.
+7. **When the route stays silent.** It raises none, and records an `obsolete`
+   receipt, when the item is gone, is closed, stands at a later revision than the
+   fact (that revision has its own analysis and its own alert), arrived as imported
+   Google history (never announced, above), is private feedback, or has waited
+   more than seven days. The last rule is what stops the replay of history after a
+   re-consent from announcing a year of old reviews as urgent. An item the Inbox
+   has not projected yet, or still holds at an earlier revision, is waited for by
+   retrying the dispatch for 15 minutes and then dropped.
+8. **It changes nothing about the review.** The route reads the Inbox and writes
+   nothing there: no status, assignment, escalation or priority, and a manager's
+   own priority still wins (ADR 0071).
+9. **r.8 is unchanged.** The payload gains no field. It carries what every Inbox
+   notice carries: the Property's name, the platform and, as a fact beside the
+   sentence, how long the item has waited.
+
+No migration: the Property-scoped shape and the content-free check already admit
+the type, the resource and the payload.
+
 ## Consequences
 
 - Missing preferences cannot silently enable email.

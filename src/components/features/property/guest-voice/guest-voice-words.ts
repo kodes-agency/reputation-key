@@ -19,13 +19,7 @@ import {
 } from '#/lib/format'
 import { RANGE_PRESET_LABELS, type GuestVoiceRange } from '#/shared/dashboard-range'
 import { REVIEW_TOPIC_LABELS_V3 } from '#/shared/review-topic-taxonomy'
-
-const URGENT_REASON_WORDS: Readonly<Record<UrgentReasonV3, string>> = {
-  safety: 'safety',
-  health: 'health',
-  discrimination: 'discrimination',
-  legal_threat: 'legal threat',
-}
+import { URGENT_REASON_WORDS_V3 } from '#/shared/review-urgent-reasons'
 
 export function topicLabel(topic: ReviewTopicV3): string {
   return REVIEW_TOPIC_LABELS_V3[topic]
@@ -33,7 +27,7 @@ export function topicLabel(topic: ReviewTopicV3): string {
 
 /** "safety": the reason that follows "Urgent ·". */
 export function urgentReasonWords(reason: UrgentReasonV3): string {
-  return URGENT_REASON_WORDS[reason]
+  return URGENT_REASON_WORDS_V3[reason]
 }
 
 /** "1 review", "19 reviews". */

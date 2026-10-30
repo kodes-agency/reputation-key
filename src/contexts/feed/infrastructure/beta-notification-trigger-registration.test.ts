@@ -16,6 +16,7 @@ import { registerBulkAssignmentNotificationConsumer } from './bulk-assignment-ou
 import { registerAssignmentReleaseNotificationConsumer } from './assignment-release-outbox-consumers'
 import { registerEscalationResolutionNotificationConsumer } from './escalation-resolution-outbox-consumers'
 import { registerGoalNotificationConsumer } from './goal-outbox-consumers'
+import { registerAiUrgentReviewNoticeConsumer } from './ai-urgent-review-notice-consumers'
 import { registerRatingGoalNoticeConsumer } from './rating-goal-notice-consumers'
 import { registerHandlingCycleNotificationConsumers } from './handling-cycle-outbox-consumers'
 import { registerNotificationSettlementConsumers } from './notification-settlement-outbox-consumers'
@@ -120,6 +121,7 @@ describe('registered durable notification matrix', () => {
       logger: fakes.logger,
       receipts,
     })
+    registerAiUrgentReviewNoticeConsumer(consumerRegistry, { ...fakes, receipts })
     registerPortalNotificationConsumers(consumerRegistry, {
       queue: fakes.queue,
       userLookup: fakes.userLookup,

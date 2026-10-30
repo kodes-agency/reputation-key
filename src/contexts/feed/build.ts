@@ -77,6 +77,7 @@ import { registerBulkAssignmentNotificationConsumer } from './infrastructure/bul
 import { registerAssignmentReleaseNotificationConsumer } from './infrastructure/assignment-release-outbox-consumers'
 import { registerEscalationResolutionNotificationConsumer } from './infrastructure/escalation-resolution-outbox-consumers'
 import { registerGoalNotificationConsumer } from './infrastructure/goal-outbox-consumers'
+import { registerAiUrgentReviewNoticeConsumer } from './infrastructure/ai-urgent-review-notice-consumers'
 import { registerRatingGoalNoticeConsumer } from './infrastructure/rating-goal-notice-consumers'
 import { registerHandlingCycleNotificationConsumers } from './infrastructure/handling-cycle-outbox-consumers'
 import { registerNotificationSettlementConsumers } from './infrastructure/notification-settlement-outbox-consumers'
@@ -806,6 +807,12 @@ const buildNotificationFeed = (input: NotificationBuildInput) => {
       userLookup,
       displayNames,
       logger: input.logger,
+      receipts: input.outboxRepo,
+    })
+    // The one notice an AI finding starts: a review analysis found a review Urgent.
+    registerAiUrgentReviewNoticeConsumer(consumerRegistry, {
+      ...fanoutReads,
+      queue,
       receipts: input.outboxRepo,
     })
     registerPortalNotificationConsumers(consumerRegistry, {

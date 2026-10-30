@@ -47,6 +47,7 @@ describe('which notices a settling fact retires', () => {
       'inbox.reopened',
       'inbox.response_target_halfway',
       'inbox.response_target_passed',
+      'review.ai_urgent_detected',
       'review.created',
       'review.updated',
     ])

@@ -82,5 +82,62 @@ export const aiReviewAnalysisBackfillRequested = (
   }
 }
 
+/**
+ * A review analysis v3 found a review Urgent (a reported risk to safety or health,
+ * discrimination or a legal threat). It is the one finding of a provider's answer that
+ * starts a notification (ADR 0031, amended 2026-10-30; ADR 0046, amended 2026-10-30).
+ *
+ * Identifier-only (ADR 0030), and deliberately less than the analysis: it names the
+ * review revision and the analysis that found it, and says nothing of why. The reason is
+ * stored beside the analysis and read in the app. A field called `reason` would be
+ * stripped from an outbox payload as content in any case.
+ *
+ * One fact per review REVISION: a re-analysis of the same revision (another epoch, a
+ * reopen) is the same alert, so its `eventId` is derived from the revision by the writer
+ * and an existing fact is not written again. A new revision of the review is a new alert.
+ */
+export type AiReviewUrgentDetected = Readonly<{
+  _tag: 'ai.review_analysis.urgent_detected'
+  eventId: string
+  organizationId: OrganizationId
+  propertyId: PropertyId
+  reviewId: ReviewId
+  sourceEpoch: number
+  sourceRevision: number
+  analysisSequence: number
+  occurredAt: Date
+  correlationId: string | null
+}>
+
+export const aiReviewUrgentDetected = (
+  args: Omit<AiReviewUrgentDetected, '_tag' | 'eventId' | 'correlationId'> & {
+    /** The writer's deterministic id for this review revision; random when absent. */
+    eventId?: string
+    correlationId?: string | null
+  },
+): AiReviewUrgentDetected => {
+  assert(args.occurredAt instanceof Date, 'occurredAt must be a Date')
+  assert(
+    Number.isSafeInteger(args.sourceEpoch) && args.sourceEpoch >= 0,
+    'sourceEpoch must be a nonnegative safe integer',
+  )
+  assert(
+    Number.isSafeInteger(args.sourceRevision) && args.sourceRevision > 0,
+    'sourceRevision must be a positive safe integer',
+  )
+  assert(
+    Number.isSafeInteger(args.analysisSequence) && args.analysisSequence > 0,
+    'analysisSequence must be a positive safe integer',
+  )
+  return {
+    ...args,
+    _tag: 'ai.review_analysis.urgent_detected',
+    eventId: args.eventId ?? newEventId(),
+    correlationId: args.correlationId ?? null,
+  }
+}
+
 export type AiEvent =
-  AiPropertyTrendGenerationRequested | AiReviewAnalysisBackfillRequested
+  | AiPropertyTrendGenerationRequested
+  | AiReviewAnalysisBackfillRequested
+  | AiReviewUrgentDetected

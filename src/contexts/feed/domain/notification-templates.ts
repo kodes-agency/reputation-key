@@ -35,6 +35,7 @@ import {
   renderOrganizationPurgePending,
   renderOrganizationRoleChanged,
 } from './notification-templates-account'
+import { renderReviewAiUrgentDetected } from './notification-templates-guest-voice'
 import {
   renderPortalGoalCompleted,
   renderPortalGoalResultRevised,
@@ -811,6 +812,7 @@ const RENDERERS: Record<
   'account.organization_purge_pending': renderOrganizationPurgePending,
   'review.created': renderReviewCreated,
   'review.updated': renderReviewUpdated,
+  'review.ai_urgent_detected': renderReviewAiUrgentDetected,
   'feedback.created': renderFeedbackCreated,
   'reply.pending_approval': renderReplyPendingApproval,
   'reply.approved': renderReplyApproved,

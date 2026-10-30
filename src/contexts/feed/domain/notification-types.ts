@@ -37,6 +37,11 @@ export const NOTIFICATION_TYPES = [
   // Review events
   'review.created',
   'review.updated',
+  // A review analysis v3 found a review Urgent: a reported risk to safety or
+  // health, discrimination or a legal threat. The one notice an AI finding
+  // starts (ADR 0046, amended 2026-10-30). It says that an urgent review needs
+  // its reader and opens the item; the reason is read in the app, never here.
+  'review.ai_urgent_detected',
   // Inbox events (feedback only — reviews use review.created)
   'feedback.created',
   // Reply lifecycle
@@ -339,6 +344,10 @@ export const URGENT_TYPES: ReadonlySet<NotificationType> = new Set([
   'portal.responsibility_needed',
   'property.responsibility_needed',
   'integration.reauthorization_required',
+  // A guest reports a risk to safety or health, discrimination or a legal
+  // threat: the review's reader is told at once, quiet hours bypass included
+  // where the reader chose it (ADR 0046, amended 2026-10-30).
+  'review.ai_urgent_detected',
   // The last chance anybody has to stop an irreversible erasure. The other
   // account notices report something already done and stay calm; this one asks
   // for an answer, so it carries the Urgent badge and appears under the Urgent

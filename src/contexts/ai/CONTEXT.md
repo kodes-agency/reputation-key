@@ -709,6 +709,20 @@ An Urgent review whose analysis named no problem to put under an issue is counte
 (`urgentOtherCount`) and not dropped. The drawer's own read and the manager's issue commands
 (rename, hide, merge) are not wired yet (slice 4.3).
 
+An Urgent analysis raises the one alert an AI finding may start (v3 contract decision 10;
+ADR 0031 and ADR 0046, amended 2026-10-30). `storeAnalysisV3` writes it in the transaction
+that stores the analysis (`infrastructure/adapters/ai-urgent-alert.ts`): one identifier-only
+fact, `ai.review_analysis.urgent_detected`, naming the Organization, Property, review, source
+epoch, source revision and the analysis, and nothing of why (the reason stays in
+`ai_review_analyses.urgent_reason` and is read in the app; a payload field called `reason`
+would be stripped as content). It is one fact per review REVISION: the fact's id is derived
+from the revision and an existing fact is not written again, and an earlier ready analysis of
+the same revision that was already Urgent means it was raised even if its fact has left the
+outbox (a re-consent's new epoch, a reopen and the replay of history all analyse a revision
+again). A new revision of the review is a new alert. Feed owns the rest (its CONTEXT.md): the
+recipients, the words, the silence for old or handled reviews, and the delivery. Nothing here
+changes the review: no status, assignment, escalation or priority.
+
 A manager corrects what the AI said of a review in the Inbox ("Not right?", `correctReviewMention`,
 migration 0080, decision Q11), and the correction takes effect at once. The kept answer is never
 changed: a correction is one row beside a mention (`ai_review_analysis_mention_corrections`, at most
@@ -786,7 +800,7 @@ for an event that is gone.
 2. Every operation is fenced by Organization, Property, source epoch, source revision, authorization epoch, capability epoch, policy/profile versions, model/deployment, idempotency key, and lifecycle generation.
 3. Authorization is a maximum allowed capability set. A PropertyManager may operate only within the AccountAdmin-authorized set and current Property access; operating a feature never expands authorization.
 4. Disable fences new and in-flight work immediately and hides outputs. Erasure purges local derivatives within the policy window while retaining only content-free evidence. Re-enable reuses an output only when every lineage, policy, model, authorization, and freshness fence still matches. An adopted Reply draft is Review-owned, so the control, Authorization and profile transitions withdraw the unedited ones in their own transaction through the AI draft purge (`src/shared/db/ai/ai-draft-purge.ts`; the rule is in the Review context's Model): a Reply nobody confirmed is deleted, and a confirmed one that has not been dispatched is cancelled and emptied while its publication authorization stays as evidence. A Reply whose publication already failed keeps its text, and Review's publish worker withdraws it the same way when a manager tries it again: its read of Google before the claim (an observation of the Review) withdraws it once the ten-minute adoption window has passed, and the claim refuses it when an input changed, claimed before or not.
-5. Provider output is advisory. It cannot mutate Inbox status/assignment/escalation, publish a Reply, change Portal behavior, alter a Goal/Metric/Recognition result, or trigger workforce decisions. It starts no notification either, with one exception that is allowed and not built yet: an Urgent finding of review analysis v3 may raise one content-free alert per review revision, and that alert changes nothing about the review (ADR 0031, amended 2026-10-30).
+5. Provider output is advisory. It cannot mutate Inbox status/assignment/escalation, publish a Reply, change Portal behavior, alter a Goal/Metric/Recognition result, or trigger workforce decisions. It starts no notification either, with one exception: an Urgent finding of review analysis v3 raises one content-free alert per review revision (`ai.review_analysis.urgent_detected`, below), and that alert changes nothing about the review (ADR 0031 and ADR 0046, amended 2026-10-30).
 6. Reply Drafting is never cached as a generic suggestion detached from the Review revision or Brand Profile version. A manager must explicitly request it, may edit it, and must separately adopt, then Confirm & Publish through the Reply workflow.
 7. Review Analysis enrollment is exhaustive for the authorized eligible source population; internal batching controls work size but never becomes a product cap or silently drops older Reviews.
 8. Missing, stale, or unreadable data returns `preparing`/unavailable evidence rather than zero. Coverage-incomplete Property insight aggregates may expose exact applied results only with an explicit provisional marker and coverage counts; period comparisons remain absent until both windows are complete.

@@ -57,7 +57,11 @@ draws one chip per cause ("Air conditioning, not working · Complaint") and unde
 sentences in the guest's own words: the numbers are resolved in the browser with
 `review-sentences-v1` against the text the detail already holds, nothing is stored, a number the
 words no longer reach underlines nothing, and only the original text is marked (never a
-translation). A guest edit is a new analysis, so its corrections start empty. The Guest voice link
+translation). An Urgent reading also says why, in one line above the chips ("Urgent · The guest
+reports a risk to safety."): this is where the reason is told, because the Urgent alert that brings
+a manager here, its email and its bell row carry none (ADR 0046 r.8; `URGENT_REASON_SENTENCES_V3`),
+and the line stays when a manager corrects a cause, which changes what was named and not the risk a
+guest reported. A guest edit is a new analysis, so its corrections start empty. The Guest voice link
 `?issue=<issueId>` (with `polarity`) narrows the list to the Reviews whose current analysis names
 that issue, corrections laid over it (`findCurrentReviewIdsByIssue`; `polarity` then belongs to the
 issue and the topic filter is skipped), and the chips that are that issue wear a ring with one line
