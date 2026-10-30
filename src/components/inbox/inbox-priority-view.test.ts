@@ -120,4 +120,26 @@ describe('prioritySuggestionHint', () => {
     expect(prioritySuggestionHint(null, 'urgent')).toBeNull()
     expect(prioritySuggestionHint('low', null)).toBeNull()
   })
+
+  // Switch-on audit: since v3 is the only analysis, the suggestion is the v3 attention
+  // (attention v2, which an Urgent reason lifts to urgent), not a blank "Not set".
+  it("is a v3 analysis' attention too, an Urgent one included", () => {
+    const readyV3 = (
+      attention: 'low' | 'medium' | 'high' | 'urgent',
+      urgentReason: 'safety' | null,
+    ) =>
+      ({
+        status: 'ready_v3',
+        analysisSequence: 3,
+        sentiment: 'negative',
+        attention,
+        urgentReason,
+        mentions: [],
+        generatedAtEpochMillis: 0,
+      }) as const satisfies InboxReviewAnalysis
+
+    expect(prioritySuggestion(readyV3('high', null))).toBe('high')
+    expect(prioritySuggestion(readyV3('urgent', 'safety'))).toBe('urgent')
+    expect(prioritySuggestion(readyV3('low', null))).toBe('low')
+  })
 })
