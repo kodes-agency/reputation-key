@@ -10,6 +10,7 @@ import { getTableConfig, type PgTable } from 'drizzle-orm/pg-core'
 import { describe, expect, it } from 'vitest'
 import * as schema from '#/shared/db/schema'
 import * as v3Schema from '#/shared/db/schema/ai-review-analysis-v3.schema'
+import * as issueSchema from '#/shared/db/schema/ai-property-issue-groups.schema'
 import { RETENTION_RULES } from '#/shared/jobs/retention-sweep.job'
 import { RETENTION_REGISTRY } from './retention-registry'
 
@@ -17,7 +18,7 @@ function tablesOf(module: Record<string, unknown>): PgTable[] {
   return Object.values(module).filter((value): value is PgTable => isTable(value))
 }
 
-const V3_TABLES = tablesOf(v3Schema)
+const V3_TABLES = [...tablesOf(v3Schema), ...tablesOf(issueSchema)]
 
 const tablesByName = new Map<string, PgTable>(
   tablesOf(schema).map((table) => [getTableName(table), table]),
@@ -46,9 +47,11 @@ function deletedBy(name: string, seen: ReadonlySet<string> = new Set()): string 
 }
 
 describe('Review Analysis v3 retention', () => {
-  it('finds the four v3 tables in the schema module', () => {
+  it('finds every v3 analysis and issue-group table in the schema modules', () => {
     expect(V3_TABLES.map(getTableName).sort()).toEqual([
       'ai_property_aggregate_contribution_mentions',
+      'ai_property_issue_groups',
+      'ai_property_issue_members',
       'ai_property_review_population_daily',
       'ai_review_analysis_mention_sentences',
       'ai_review_analysis_mentions',
@@ -70,6 +73,8 @@ describe('Review Analysis v3 retention', () => {
       ),
     ).toEqual({
       ai_property_aggregate_contribution_mentions: 'ai_review_analyses',
+      ai_property_issue_groups: 'ai_property_issue_groups',
+      ai_property_issue_members: 'ai_property_issue_groups',
       ai_property_review_population_daily: 'ai_property_review_population_daily',
       ai_review_analysis_mention_sentences: 'ai_review_analyses',
       ai_review_analysis_mentions: 'ai_review_analyses',
@@ -122,6 +127,27 @@ describe('Review Analysis v3 retention', () => {
       olderThanMonths: 24,
     })
     expect(rule?.tsColumn).not.toBe('updated_at')
+  })
+
+  it('deletes issue groups only after analyses release their contribution references', () => {
+    const [rule, ...others] = swept('ai_property_issue_groups')
+    const analysisIndex = RETENTION_RULES.findIndex(
+      (candidate) => candidate.subject === 'ai_review_analyses.v3_expired',
+    )
+    const groupIndex = RETENTION_RULES.findIndex(
+      (candidate) => candidate.subject === 'ai_property_issue_groups.expired',
+    )
+
+    expect(others).toEqual([])
+    expect(rule).toMatchObject({
+      subject: 'ai_property_issue_groups.expired',
+      keyColumns: ['id'],
+      tsColumn: 'expires_at',
+      olderThanMs: 0,
+      extraWhere:
+        'NOT EXISTS (SELECT 1 FROM ai_property_aggregate_contribution_mentions m WHERE m.issue_group_id = ai_property_issue_groups.id)',
+    })
+    expect(groupIndex).toBeGreaterThan(analysisIndex)
   })
 
   it('leaves the v2 aspect tables to the rule that still waits for them', () => {

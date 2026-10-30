@@ -30,6 +30,7 @@ import {
   mapUnavailableReview,
 } from './ai-property-aggregate-window-mappers'
 import { copyMentionsToContribution } from './ai-review-analysis-mentions'
+import { assignContributionIssueGroups } from './ai-issue-group-assignment'
 
 // Re-exported: the legacy evidence boundary is tested through this module.
 export { mapAnalyzedReview }
@@ -247,6 +248,7 @@ export const createAiPropertyAggregateStoreAdapter = (
             sentiment: aiReviewAnalyses.sentiment,
             primaryCategory: aiReviewAnalyses.primaryCategory,
             attention: aiReviewAnalyses.attention,
+            expiresAt: aiReviewAnalyses.expiresAt,
             timezone: aiPropertyProcessingProfiles.timezone,
           })
           .from(aiReviewAnalyses)
@@ -398,6 +400,7 @@ export const createAiPropertyAggregateStoreAdapter = (
         if (!inserted) throw new Error('Property aggregate contribution conflict')
         if (mentions && analysis.status === 'ready') {
           await copyMentionsToContribution(tx, input)
+          await assignContributionIssueGroups(tx, input, analysis.expiresAt, appliedAt)
         }
         if (analysisAspects.length > 0) {
           await tx.insert(aiPropertyAggregateContributionAspects).values(

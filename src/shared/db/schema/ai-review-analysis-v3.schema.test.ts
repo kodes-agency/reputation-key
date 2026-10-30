@@ -107,10 +107,11 @@ describe('migration 0078 Review Analysis v3 storage', () => {
         ...config.indexes.map((index) => index.config.name ?? ''),
         ...config.primaryKeys.map((key) => key.getName()),
       ]
-      const v3Names = modelNames.filter((name) =>
-        /^(ai_review_analysis_mention|ai_property_aggregate_contribution_mentions|ai_property_review_population_daily|ai_operations_(provider|vocabulary|normalization|v3)|properties_google_primary|gbp_import_request_items_google_primary)/u.test(
-          name,
-        ),
+      const v3Names = modelNames.filter(
+        (name) =>
+          /^(ai_review_analysis_mention|ai_property_aggregate_contribution_mentions|ai_property_review_population_daily|ai_operations_(provider|vocabulary|normalization|v3)|properties_google_primary|gbp_import_request_items_google_primary)/u.test(
+            name,
+          ) && !name.includes('issue_group'),
       )
       for (const name of v3Names) {
         expect(SQL_TEXT, `${getTableName(table)}: ${name}`).toContain(`"${name}"`)

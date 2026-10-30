@@ -18,6 +18,8 @@ import {
   aiPropertyAggregateContributions,
   aiPropertyAggregateHeads,
   aiPropertyAggregateSettlements,
+  aiPropertyIssueGroups,
+  aiPropertyIssueMembers,
   aiPropertyDailyAggregates,
   aiPropertyProcessingProfiles,
   aiReviewAnalyses,
@@ -54,6 +56,8 @@ const LINEAGE_ID = '76000000-0000-4000-8000-000000000002'
 const REVIEW_ID = reviewId('76000000-0000-4000-8000-000000000003')
 const OPERATION_ID = '76000000-0000-4000-8000-000000000005' as AiOperationId
 const SECOND_OPERATION_ID = '76000000-0000-4000-8000-000000000006' as AiOperationId
+const THIRD_OPERATION_ID = '76000000-0000-4000-8000-000000000007' as AiOperationId
+const SECOND_REVIEW_ID = reviewId('76000000-0000-4000-8000-000000000008')
 const ACTOR_USER_ID = 'ai-v3-flow-test-actor'
 const SOURCE_EPOCH = 0
 const SOURCE_REVISION = 1
@@ -167,7 +171,10 @@ describe.sequential('review analysis v3 through the real stores (PostgreSQL)', (
     id: string,
     operationId: string,
     analysisSequence: number,
-    options: Readonly<{ profile?: 'review-analysis-v2' | 'review-analysis-v3' }> = {},
+    options: Readonly<{
+      profile?: 'review-analysis-v2' | 'review-analysis-v3'
+      reviewAnalysisEpoch?: number
+    }> = {},
   ): Promise<void> {
     const heads = await db
       .select({
@@ -186,6 +193,7 @@ describe.sequential('review analysis v3 through the real stores (PostgreSQL)', (
     const provider = control(CONTROL_SCOPE_KEYS[1])
     const capability = control(CONTROL_SCOPE_KEYS[2])
     const v3 = (options.profile ?? 'review-analysis-v3') === 'review-analysis-v3'
+    const reviewAnalysisEpoch = options.reviewAnalysisEpoch ?? 1
     await db
       .insert(reviews)
       .values({
@@ -264,7 +272,7 @@ describe.sequential('review analysis v3 through the real stores (PostgreSQL)', (
       providerControlGeneration: provider.generation,
       capabilityControlId: capability.controlId,
       capabilityControlGeneration: capability.generation,
-      capabilityFences: { capability: 'review_analysis', reviewAnalysisEpoch: 1 },
+      capabilityFences: { capability: 'review_analysis', reviewAnalysisEpoch },
       routeKey: 'review-analysis',
       state: 'executing',
       executionAttempt: 1,
@@ -465,6 +473,9 @@ describe.sequential('review analysis v3 through the real stores (PostgreSQL)', (
     await db
       .delete(aiPropertyAggregateSettlements)
       .where(eq(aiPropertyAggregateSettlements.propertyId, PROPERTY_ID))
+    await db
+      .delete(aiPropertyIssueGroups)
+      .where(eq(aiPropertyIssueGroups.propertyId, PROPERTY_ID))
     await db.delete(reviews).where(eq(reviews.organizationId, ORGANIZATION_ID))
     await db.delete(aiOperations).where(eq(aiOperations.organizationId, ORGANIZATION_ID))
     await seedReviewWithOperation(REVIEW_ID, OPERATION_ID, 1)
@@ -730,6 +741,110 @@ describe.sequential('review analysis v3 through the real stores (PostgreSQL)', (
         .from(aiPropertyAggregateContributionMentions)
         .where(eq(aiPropertyAggregateContributionMentions.reviewId, REVIEW_ID)),
     ).resolves.toHaveLength(2)
+  })
+
+  it('keeps one stable issue id across reviews, spellings and a newer analysis', async () => {
+    const derivative = (thing: string): AiAnalysisDerivativeV3 => ({
+      sentiment: 'negative',
+      attention: 'high',
+      urgentReason: null,
+      mentions: [
+        {
+          topic: 'facilities_equipment',
+          polarity: 'negative',
+          strength: 'clear',
+          thing,
+          issue: 'noisy',
+          sentences: [1],
+          namesPerson: null,
+        },
+      ],
+      normalization: { flags: [], droppedMentionCount: 0 },
+    })
+    await store({ derivative: derivative('ac') })
+    await apply(1)
+    await seedReviewWithOperation(SECOND_REVIEW_ID, SECOND_OPERATION_ID, 2)
+    await store({
+      operationId: SECOND_OPERATION_ID,
+      reviewId: SECOND_REVIEW_ID,
+      analysisSequence: 2,
+      derivative: derivative('air con'),
+    })
+    await aggregates.applyReviewAnalysis({
+      organizationId: ORGANIZATION_ID,
+      propertyId: PROPERTY_ID,
+      reviewId: SECOND_REVIEW_ID,
+      sourceEpoch: SOURCE_EPOCH,
+      sourceRevision: SOURCE_REVISION,
+      analysisSequence: 2,
+      reviewAnalysisEpoch: 1,
+      propertyProfileVersion: 1,
+      calendarProfileVersion: 'property-calendar-v1',
+    })
+
+    const firstAssignments = await db
+      .select({ issueGroupId: aiPropertyAggregateContributionMentions.issueGroupId })
+      .from(aiPropertyAggregateContributionMentions)
+      .where(
+        inArray(aiPropertyAggregateContributionMentions.reviewId, [
+          REVIEW_ID,
+          SECOND_REVIEW_ID,
+        ]),
+      )
+    expect(new Set(firstAssignments.map(({ issueGroupId }) => issueGroupId)).size).toBe(1)
+    const stableId = firstAssignments[0]?.issueGroupId
+    expect(stableId).toBeTypeOf('string')
+
+    // A newer analysis of the first review, in the canonical spelling.
+    await db.update(reviews).set({ analysisSequence: 3 }).where(eq(reviews.id, REVIEW_ID))
+    await seedReviewWithOperation(REVIEW_ID, THIRD_OPERATION_ID, 3)
+    await store({
+      operationId: THIRD_OPERATION_ID,
+      analysisSequence: 3,
+      derivative: derivative('air conditioning'),
+    })
+    const newer = {
+      organizationId: ORGANIZATION_ID,
+      propertyId: PROPERTY_ID,
+      reviewId: REVIEW_ID,
+      sourceEpoch: SOURCE_EPOCH,
+      sourceRevision: SOURCE_REVISION,
+      analysisSequence: 3,
+      reviewAnalysisEpoch: 1,
+      propertyProfileVersion: 1,
+      calendarProfileVersion: 'property-calendar-v1' as const,
+    }
+    await aggregates.applyReviewAnalysis(newer)
+    await expect(aggregates.applyReviewAnalysis(newer)).resolves.toMatchObject({
+      status: 'replayed',
+    })
+
+    const groups = await db
+      .select({
+        id: aiPropertyIssueGroups.id,
+        canonicalThing: aiPropertyIssueGroups.canonicalThing,
+        canonicalKey: aiPropertyIssueGroups.canonicalKey,
+        displayName: aiPropertyIssueGroups.displayName,
+      })
+      .from(aiPropertyIssueGroups)
+      .where(eq(aiPropertyIssueGroups.propertyId, PROPERTY_ID))
+    const members = await db
+      .select({ memberThing: aiPropertyIssueMembers.memberThing })
+      .from(aiPropertyIssueMembers)
+      .where(eq(aiPropertyIssueMembers.propertyId, PROPERTY_ID))
+    expect(groups).toEqual([
+      {
+        id: stableId,
+        canonicalThing: 'air conditioning',
+        canonicalKey: 'air conditioning',
+        displayName: null,
+      },
+    ])
+    expect(members.map(({ memberThing }) => memberThing).sort()).toEqual([
+      'ac',
+      'air con',
+      'air conditioning',
+    ])
   })
 
   it('takes a v3 contribution off when a newer sequence of the review settles without an analysis', async () => {

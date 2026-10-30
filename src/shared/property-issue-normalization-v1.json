@@ -1,0 +1,43 @@
+{
+  "version": "property-issue-normalization-v1",
+  "ruleVersion": "property-issue-normalization-rules-v1",
+  "singularization": {
+    "anecdotes": "anecdote",
+    "belongings": "belonging",
+    "belts": "belt",
+    "charges": "charge",
+    "cockroaches": "cockroach",
+    "cups": "cup",
+    "directions": "direction",
+    "fees": "fee",
+    "guests": "guest",
+    "hosts": "host",
+    "lockers": "locker",
+    "machines": "machine",
+    "nails": "nail",
+    "prices": "price",
+    "questions": "question",
+    "queues": "queue",
+    "racks": "rack",
+    "rooms": "room",
+    "rules": "rule",
+    "sheets": "sheet",
+    "tools": "tool",
+    "vegetables": "vegetable",
+    "waiters": "waiter"
+  },
+  "synonyms": {
+    "facilities_equipment": {
+      "ac": "air conditioning",
+      "air con": "air conditioning",
+      "air conditioner": "air conditioning"
+    },
+    "price_billing": {
+      "invoice": "bill"
+    },
+    "communication": {
+      "phone line": "phone",
+      "telephone": "phone"
+    }
+  }
+}

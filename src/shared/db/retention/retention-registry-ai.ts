@@ -4,7 +4,7 @@
  * decision 16 of the v3 contract is that nothing v3 stores goes active without
  * a deletion rule that is executed and tested.
  *
- * Five tables, two executing rules:
+ * Seven tables, three executing rules:
  *
  * - `ai_review_analyses.v3_expired` deletes a v3 analysis on the `expires_at`
  *   it stamped at generation. Everything else v3 stores about an analysis
@@ -15,6 +15,9 @@
  *   one of them is removed by a cascade from a table a rule executes.
  * - `ai_property_review_population_daily.expired` deletes a day's star counts
  *   24 UTC calendar months after the day they count.
+ * - `ai_property_issue_groups.expired` deletes an expired group only after the
+ *   analysis rule has removed every contribution mention that references it;
+ *   members and merged redirects cascade with their group.
  *
  * A v2 analysis is not reached by the first rule. It stays under
  * `ai.local_derivatives`, unexecuted, until activation retires its generation.
@@ -106,6 +109,45 @@ export const AI_REVIEW_ANALYSIS_V3_RULES: ReadonlyArray<RetentionRegistryRule> =
           'Live through the scheduled ai_review_analyses.v3_expired subject, by cascade.',
       },
       evidenceSubject: 'ai_review_analyses.v3_expired',
+      restoreImplication: CASCADE_RESTORE_IMPLICATION,
+    }),
+    rule({
+      id: 'ai.property_issue_groups',
+      dataClass: 'ai_derivatives',
+      ownerContext: 'ai',
+      ownerRole: 'AI context owner with the authorizing AccountAdmin',
+      sourceKind: 'table',
+      source: 'ai_property_issue_groups',
+      eligibility: {
+        anchorColumn: 'expires_at',
+        horizon: { kind: 'months', months: 24 },
+        predicate:
+          'expires_at has passed and no aggregate contribution mention references the group',
+        query:
+          'SELECT id FROM ai_property_issue_groups WHERE expires_at < now() AND NOT EXISTS (SELECT 1 FROM ai_property_aggregate_contribution_mentions m WHERE m.issue_group_id = ai_property_issue_groups.id). The deadline only moves forward when a mention is assigned; rename, hide and merge do not extend presentation metadata.',
+        implementedBoundary:
+          'Live as the scheduled subject ai_property_issue_groups.expired, ordered after ai_review_analyses.v3_expired so one run can first remove contribution references. Members and merged redirects cascade from the deleted group.',
+      },
+      evidenceSubject: 'ai_property_issue_groups.expired',
+      restoreImplication: RESTORE_REPLAYS_DELETION,
+    }),
+    rule({
+      id: 'ai.property_issue_members',
+      dataClass: 'ai_derivatives',
+      ownerContext: 'ai',
+      ownerRole: 'AI context owner with the authorizing AccountAdmin',
+      sourceKind: 'table',
+      source: 'ai_property_issue_members',
+      eligibility: {
+        anchorColumn: null,
+        horizon: { kind: 'months', months: 24 },
+        predicate: 'the issue group the member belongs to has been deleted',
+        query:
+          'No query of its own. A member is deleted through its group foreign key (ON DELETE CASCADE) when the group deadline has passed and no contribution mention references that group.',
+        implementedBoundary:
+          'Live through the scheduled ai_property_issue_groups.expired subject, by cascade.',
+      },
+      evidenceSubject: 'ai_property_issue_groups.expired',
       restoreImplication: CASCADE_RESTORE_IMPLICATION,
     }),
     rule({

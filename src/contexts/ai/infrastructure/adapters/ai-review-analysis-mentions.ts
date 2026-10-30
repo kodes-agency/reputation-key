@@ -5,7 +5,7 @@
 // the optional cause and whether a person is named; it never holds review text,
 // a sentence or a name. A mention's place in the answer is its ordinal.
 
-import { and, asc, eq } from 'drizzle-orm'
+import { and, asc, eq, sql } from 'drizzle-orm'
 import type { Database } from '#/shared/db'
 import {
   aiPropertyAggregateContributionMentions,
@@ -190,6 +190,7 @@ export async function copyMentionsToContribution(
           thing: aiReviewAnalysisMentions.thing,
           issue: aiReviewAnalysisMentions.issue,
           namesPerson: aiReviewAnalysisMentions.namesPerson,
+          issueGroupId: sql<string | null>`NULL::uuid`.as('issue_group_id'),
         })
         .from(aiReviewAnalysisMentions)
         .where(keyMatches(aiReviewAnalysisMentions, key)),

@@ -21,6 +21,7 @@ for (const table of [
   'ai_review_analysis_mentions',
   'ai_review_analysis_mention_sentences',
   'ai_property_aggregate_contribution_mentions',
+  'ai_property_issue_members',
 ]) {
   executingTables.add(table)
 }

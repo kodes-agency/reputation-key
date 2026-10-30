@@ -11,6 +11,7 @@ import {
   aiExecutionControlHeads,
   aiOperations,
   aiPropertyAggregateContributions,
+  aiPropertyIssueGroups,
   aiReviewAnalyses,
   materialReviewRevisions,
   properties,
@@ -97,6 +98,9 @@ export async function installAiAnalysisFixture(
     await db
       .delete(aiReviewAnalyses)
       .where(eq(aiReviewAnalyses.organizationId, organizationId))
+    await db
+      .delete(aiPropertyIssueGroups)
+      .where(eq(aiPropertyIssueGroups.organizationId, organizationId))
     await db.delete(reviews).where(eq(reviews.organizationId, organizationId))
     await db.delete(aiOperations).where(eq(aiOperations.organizationId, organizationId))
   }

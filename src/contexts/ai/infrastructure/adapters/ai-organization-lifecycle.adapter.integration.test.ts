@@ -36,6 +36,8 @@ const OWNED_TABLES = [
   'ai_review_analyses',
   'ai_property_daily_aggregates',
   'ai_property_review_population_daily',
+  'ai_property_issue_members',
+  'ai_property_issue_groups',
   'ai_property_trend_schedules',
   'ai_property_trend_outcomes',
   'ai_operations',
@@ -344,6 +346,30 @@ async function seedFixture(): Promise<Fixture> {
        population_revision, updated_at
      ) VALUES ($1, $2, $3, 0, 1, 'property-calendar-v1', 2, 1, 0, 0, 0, 0, 2, 1, $4)`,
     [fixture.organizationId, fixture.propertyId, LOCAL_DATE, ANALYZED_AT],
+  )
+  const issueGroupId = randomUUID()
+  await lease.pool.query(
+    `INSERT INTO ai_property_issue_groups (
+       id, organization_id, property_id, topic, canonical_thing, canonical_key,
+       created_at, updated_at, last_seen_at, expires_at, normalization_version
+     ) VALUES ($1, $2, $3, 'facilities_equipment', 'air conditioning',
+               'air conditioning', $4, $4, $4, $5,
+               'property-issue-normalization-v1')`,
+    [
+      issueGroupId,
+      fixture.organizationId,
+      fixture.propertyId,
+      ANALYZED_AT,
+      new Date(ANALYZED_AT.getTime() + 60_000),
+    ],
+  )
+  await lease.pool.query(
+    `INSERT INTO ai_property_issue_members (
+       issue_group_id, organization_id, property_id, topic, member_key,
+       member_thing, source, created_at, last_seen_at
+     ) VALUES ($1, $2, $3, 'facilities_equipment', 'air conditioning',
+               'air conditioning', 'deterministic', $4, $4)`,
+    [issueGroupId, fixture.organizationId, fixture.propertyId, ANALYZED_AT],
   )
   await lease.pool.query(
     `INSERT INTO ai_property_trend_schedules (

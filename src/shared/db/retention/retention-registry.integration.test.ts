@@ -195,6 +195,7 @@ describe('retention registry report-only mode', () => {
       'guest.deidentified_qualified_scan_facts',
       'guest.deidentified_visit_record_facts',
       'ai.review_analysis_v3_derivatives',
+      'ai.property_issue_groups',
       'ai.property_review_population_daily',
       'notification.delivery_records',
       'notification.coalesced_delivery_records',
@@ -236,6 +237,7 @@ describe('retention registry report-only mode', () => {
       'ai.review_analysis_v3_mentions': CASCADE_CHILD_REASON,
       'ai.review_analysis_v3_mention_sentences': CASCADE_CHILD_REASON,
       'ai.review_analysis_v3_contribution_mentions': CASCADE_CHILD_REASON,
+      'ai.property_issue_members': CASCADE_CHILD_REASON,
       'platform.uploads': 'no counsel-approved horizon exists',
       'lifecycle.organization_exports':
         'object_store sources are not countable from PostgreSQL',

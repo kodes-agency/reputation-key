@@ -482,6 +482,12 @@ touched by a v3 analysis (statistics read the latest effective contributions and
 directly), and the legacy window excludes v3 contributions, so a Property that moved between
 contracts never mixes the two in one number.
 
+Immediately after that copy, under the aggregate transaction's first-statement Property advisory
+lock, every mention is assigned to a stable Property issue group (migration 0079). Assignment
+uses a stored member, then an existing canonical group, then creates a group; the statements are
+set-based for the analysis. Its deadline only moves forward to the latest analysis expiry ever
+assigned to it.
+
 A current-analysis read answers `{ status: 'ready_v3', topics, urgent reason, ... }` for a v3
 row: topics, polarity, strength, the optional cause and the names flag, never a quote or a
 sentence. Nothing above the AI context consumes it yet: `composition.ts` maps it to `none` for the
@@ -493,7 +499,40 @@ analysed, so this flow does not write it) and the statistics that read the menti
 voice read model, PR-4); wiring `AiProviderChoicePort` to the operator's provider choice, the
 runtime catalogue row and the served-contract constants (`isCurrentAuthorizedEffect`, the
 deployment profile string) that activation flips (3.10); the Inbox reading `ready_v3`; including
-v3 derivatives in an organization export.
+v3 derivatives in an organization export. Property issue grouping itself is complete below;
+publishing its manager commands and reads remains PR-4 work.
+
+### Property issue groups (dark)
+
+`ai_property_issue_groups` is one stable random UUID for a normalized `thing` under one Property
+and topic. `ai_property_issue_members` remembers observed normalized spellings. Resolution is
+deterministic and Property-local: stored member, canonical key, then insert. A topic-level mention
+uses `__topic__`. The governed `property-issue-normalization-v1` catalogue applies only explicit
+last-word singular forms and exact topic-scoped synonyms. A reviewed edit moves its digest but
+does not regroup history because stored members win. No model clusters, proposes or learns a
+group across Properties.
+
+An ID survives re-analysis, epochs and new spellings. Merge preserves the target and leaves the
+source as a redirect; redirects into the source are flattened to the target in the same
+transaction, so resolution is one hop. Cross-topic merge is refused by the application and by
+composite database foreign keys: a read-model issue has exactly one topic, and the contract
+permits only same-topic merge proposals. Assignment, rename, hide, show, merge and resolve carry
+Organization and Property predicates. Mutations take the aggregate writer's Property advisory
+lock before locking changed groups `FOR UPDATE`; `resolve` is a read that takes no lock, so
+showing an issue never waits for an analysis to be stored.
+
+`expires_at` is the greatest expiry of any analysis assigned to the group and never moves back.
+Rename, hide and merge do not extend it; merge only raises the target to the greater of target and
+source. The sweep runs `ai_review_analyses.v3_expired` first, then deletes an expired group only
+when no contribution mention references it; members and redirects cascade. Organization
+lifecycle removes contribution mentions before members and groups. A contribution mention's
+foreign key to its group is deferred to commit, because erasing a Property deletes groups and
+mentions along different cascade paths and an immediate check refused the erasure.
+
+The manager command factory is deliberately unwired. PR-4 must publish it behind its chosen
+permission, add the Guest voice read model and drawer, record the manager audit event, and map an
+Inbox mention to its surviving issue. `display_name` is manager text: it is a protected local fact
+and may reach none of provider input, logs or events.
 
 ## Runtime
 

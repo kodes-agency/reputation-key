@@ -310,6 +310,19 @@ export const RETENTION_RULES: ReadonlyArray<RetentionRule> = [
     extraWhere: "analysis_profile_version = 'review-analysis-v3'",
   },
   {
+    // Stable issue identities and manager presentation metadata remain while an
+    // unexpired contribution points at them. Once the analysis rule above has
+    // removed those references, the same run may remove the expired group;
+    // members and redirects cascade with it.
+    subject: 'ai_property_issue_groups.expired',
+    table: 'ai_property_issue_groups',
+    keyColumns: ['id'],
+    tsColumn: 'expires_at',
+    olderThanMs: 0,
+    extraWhere:
+      'NOT EXISTS (SELECT 1 FROM ai_property_aggregate_contribution_mentions m WHERE m.issue_group_id = ai_property_issue_groups.id)',
+  },
+  {
     // How many reviews a Property got on a local day, by stars. Kept from the day
     // it counts, not from the last update: a late review re-counts the day and
     // must not keep it.

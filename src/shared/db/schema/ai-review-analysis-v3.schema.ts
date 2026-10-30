@@ -38,6 +38,7 @@ import {
 } from '../../review-analysis-v3'
 import { REVIEW_TOPICS_V3 } from '../../review-topic-taxonomy'
 import { aiPropertyAggregateContributions, aiReviewAnalyses } from './ai.schema'
+import { aiPropertyIssueGroups } from './ai-property-issue-groups.schema'
 import {
   propertyTenantForeignKey,
   sqlPatternLiteral,
@@ -202,7 +203,10 @@ export const aiReviewAnalysisMentionSentences = pgTable(
  */
 export const aiPropertyAggregateContributionMentions = pgTable(
   'ai_property_aggregate_contribution_mentions',
-  mentionColumns(),
+  {
+    ...mentionColumns(),
+    issueGroupId: uuid('issue_group_id'),
+  },
   (t) => [
     primaryKey({
       columns: [...analysisKey(t), t.mentionOrdinal],
@@ -220,6 +224,19 @@ export const aiPropertyAggregateContributionMentions = pgTable(
       ],
       name: 'ai_property_aggregate_contribution_mentions_contribution_fk',
     }).onDelete('cascade'),
+    foreignKey({
+      columns: [t.organizationId, t.propertyId, t.issueGroupId, t.topic],
+      foreignColumns: [
+        aiPropertyIssueGroups.organizationId,
+        aiPropertyIssueGroups.propertyId,
+        aiPropertyIssueGroups.id,
+        aiPropertyIssueGroups.topic,
+      ],
+      name: 'ai_property_aggregate_contribution_mentions_issue_group_fk',
+    }),
+    index('ai_property_aggregate_contribution_mentions_issue_group_idx')
+      .on(t.organizationId, t.propertyId, t.issueGroupId)
+      .where(sql`${t.issueGroupId} IS NOT NULL`),
     ...mentionRules(t, 'ai_property_aggregate_contribution_mentions'),
   ],
 )

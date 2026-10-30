@@ -211,6 +211,15 @@ export const DATA_FATE_AUTHORITY = Object.freeze([
       'Review Analysis v3 derivatives: the owning lifecycle command hides and erases them, and the retention sweep deletes them 24 months after the analysis (the mention tables with the analysis or contribution they cascade from) or after the day they count (the daily star counts).',
   }),
   ...rows({
+    schemaFile: 'ai-property-issue-groups.schema.ts',
+    exportNames: ['aiPropertyIssueGroups', 'aiPropertyIssueMembers'],
+    owner: 'ai',
+    disposition: 'erasable_source_content',
+    authority: 'AI-01/AI-02/AI-04',
+    exitCriteria:
+      'Property-local Review Analysis v3 issue identities, bounded member phrases and manager presentation metadata. Organization lifecycle erases them; the retention sweep removes expired unreferenced groups and their members after 24 months.',
+  }),
+  ...rows({
     schemaFile: 'audit.ts',
     exportNames: ['auditLogs'],
     owner: 'feed',

@@ -55,6 +55,8 @@ export const PROTECTED_FIELD_REGISTRY = [
   ['properties', 'google_review_destination_profile_version', 'local_operational_fact'],
   ['properties', 'google_primary_category', 'local_operational_fact'],
   ['properties', 'google_primary_category_updated_at', 'local_operational_fact'],
+  ['ai_property_issue_groups', 'display_name', 'local_operational_fact'],
+  ['ai_property_issue_groups', 'hidden_by', 'local_operational_fact'],
   ['inbox_items', 'snippet', 'raw_source_content'],
   ['inbox_items', 'reviewer_name', 'raw_source_content'],
   ['inbox_items', 'rating', 'raw_source_content'],
