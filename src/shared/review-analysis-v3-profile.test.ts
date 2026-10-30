@@ -229,6 +229,14 @@ describe('the review-analysis v3 developer prompt', () => {
     )
   })
 
+  it('keeps a hazard that was fixed during the stay out of Urgent, whatever it was while it lasted', () => {
+    expect(prompt).toContain('incidents the guest says were fixed during the stay')
+    expect(prompt).toContain(
+      'A hazard that staff fixed, removed or moved the guest away from during the stay',
+    )
+    expect(prompt).toContain('is not urgent when nobody was hurt')
+  })
+
   it('sets the names flag on every mention that cites the name', () => {
     expect(prompt).toContain(
       'Set it on every mention whose cited sentences contain the name',
