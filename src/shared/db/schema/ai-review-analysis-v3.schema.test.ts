@@ -44,6 +44,11 @@ const MIGRATION = readFileSync(
   join(ROOT, 'drizzle', '0078_review_analysis_v3.sql'),
   'utf8',
 )
+// 0082 restates the one check that names the normalizer's flags (it added `cause_refused_shape`).
+const FLAGS_MIGRATION = readFileSync(
+  join(ROOT, 'drizzle', '0082_review_analysis_cause_shape_flag.sql'),
+  'utf8',
+)
 const JOURNAL = JSON.parse(
   readFileSync(join(ROOT, 'drizzle', 'meta', '_journal.json'), 'utf8'),
 ) as { entries: ReadonlyArray<{ idx: number; tag: string; when: number }> }
@@ -209,12 +214,26 @@ describe('migration 0078 Review Analysis v3 storage', () => {
     }
   })
 
-  it('admits exactly the normalizer flags, in the migration and in the model', () => {
+  it('admits exactly the normalizer flags, in the migration that restates the check and in the model', () => {
     const listed = quotedList(REVIEW_ANALYSIS_NORMALIZATION_FLAGS)
-    expect(SQL_TEXT).toContain(`"normalization_flags" <@ ARRAY[${listed}]`)
+    expect(FLAGS_MIGRATION).toContain(`"normalization_flags" <@ ARRAY[${listed}]`)
     expect(
       modelChecks(aiOperations).get('ai_operations_normalization_lineage_valid'),
     ).toContain(`ARRAY[${listed}]`)
+  })
+
+  it('keeps every flag 0078 admitted in the list 0082 restates, so no recorded row can become invalid', () => {
+    const written = /"normalization_flags" <@ ARRAY\[([^\]]+)\]/u.exec(SQL_TEXT)?.[1]
+    expect(written).toBeDefined()
+    const admitted = [...(written ?? '').matchAll(/'([a-z_]+)'/gu)].map(
+      (match) => match[1],
+    )
+    expect(admitted.length).toBeGreaterThan(0)
+    for (const flag of admitted) {
+      expect(REVIEW_ANALYSIS_NORMALIZATION_FLAGS).toContain(flag)
+    }
+    expect(REVIEW_ANALYSIS_NORMALIZATION_FLAGS).toContain('cause_refused_shape')
+    expect(admitted).not.toContain('cause_refused_shape')
   })
 
   it('leaves every added ai_operations lineage column nullable, so an older image can still insert', () => {

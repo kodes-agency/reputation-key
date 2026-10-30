@@ -241,8 +241,11 @@ already paid for; any other fault is repaired, or the mention is dropped and cou
 the result carries closed, content-free flags. A cause that holds a person, brand or
 place word (a capitalised word of the review, wherever it stands, the first word of a
 sentence and a heading included, that is neither a common word, nor one of the request's
-vocabulary hints, nor also written in lowercase in the review) or that repeats four or more
-contiguous words of the review is refused and its mention stays as a topic-level mention.
+vocabulary hints, nor also written in lowercase in the review), that repeats four or more
+contiguous words of the review, or whose shape is not one to three lowercase words of letters and
+hyphens (a digit, a comma, an apostrophe, a fourth word, a thing with no issue) is refused and its
+mention stays as a topic-level mention (`cause_refused_name`, `cause_refused_quotation`,
+`cause_refused_shape`; migration 0082 added the last to the check on a settled operation's flags).
 Mentions that repeat a topic, thing and polarity merge; the merged mention keeps the lowest 16
 sentence numbers and reports `sentence_refs_capped`, so a merge can never fail a paid answer.
 The guard reads capitals, so a name the guest writes entirely in lowercase passes it; the

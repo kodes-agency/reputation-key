@@ -36,7 +36,7 @@ describe('review analysis v3 logical artifacts', () => {
         'b7e81ba1117905c6ef567418dba1696af46fa11ab0b2a87c33100214b8fc451a',
       normalizerVersion: 'review-analysis-normalization-v1',
       normalizerDigest:
-        '793a9d95b421469ed9794fb92e922366770736454cd9ef78aea1b7c5df1a1fd2',
+        'b786e88567c1121c9e4ddc38c8db1b0a0f58de3d5905453bb26f3e21435767a9',
       attentionFormulaVersion: 'review-attention-v2',
       attentionFormulaDigest:
         '42473e84ab5b376cd06940ac4060b7e8c875100507247c91e70450d220bed687',
@@ -46,7 +46,7 @@ describe('review analysis v3 logical artifacts', () => {
         '27eb2a788d851796e5e9a11ae69768f4981e7f2b1722154893cac51a9c10b685',
     })
     expect(REVIEW_ANALYSIS_V3_LOGICAL_ARTIFACTS_DIGEST).toBe(
-      '3e1aa101b347f90fc14e037b357602537c6972f8fb0c7eca9267034efcdbb3e2',
+      '17c78ab9e0367e4f334055a88052a5c7f4d226103c80154342ada40edb9655c9',
     )
     expect(Object.isFrozen(REVIEW_ANALYSIS_V3_LOGICAL_ARTIFACTS)).toBe(true)
   })

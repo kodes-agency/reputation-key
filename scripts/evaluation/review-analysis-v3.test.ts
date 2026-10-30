@@ -126,11 +126,12 @@ describe('the fake provider that answers with the gold', () => {
 
     await runEvaluationCli(['--out', OUT], io)
 
-    // Two issues that are numbers of minutes ("30 minutes"), and one cause that
-    // repeats the review. The scorer's reference is the label as it is accepted.
+    // Two issues that are numbers of minutes ("30 minutes") lose their cause, and one cause
+    // repeats the review. The mentions stay: an invalid cause is emptied, never dropped.
+    // The scorer's reference is the label as it is accepted.
     expect(reportOf(files).testSet.goldChangedByNormalizer).toEqual({
       ids: ['cl-0090', 'cl-0147', 'cl-0179'],
-      droppedMentions: 2,
+      droppedMentions: 0,
     })
   })
 

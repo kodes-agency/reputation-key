@@ -44,6 +44,7 @@ const NORMALIZATION_FLAGS = [
   'sentence_refs_repaired',
   'cause_refused_name',
   'cause_refused_quotation',
+  'cause_refused_shape',
   'names_person_invalid',
   'names_person_raised',
   'mentions_merged',

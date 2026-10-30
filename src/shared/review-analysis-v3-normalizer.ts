@@ -39,6 +39,10 @@ import { REVIEW_TOPICS_V3, type ReviewTopicV3 } from './review-topic-taxonomy'
 export const REVIEW_ANALYSIS_NORMALIZATION_VERSION =
   'review-analysis-normalization-v1' as const
 
+// `mention_dropped_cause` is no longer raised: a cause whose shape is invalid is emptied and
+// its mention stays (`cause_refused_shape`). The flag stays in the closed vocabulary because
+// the database check on a settled operation's flags lists it, and a row recorded under it
+// must stay valid.
 export const REVIEW_ANALYSIS_NORMALIZATION_FLAGS = Object.freeze([
   'mentions_capped',
   'sentence_refs_capped',
@@ -50,6 +54,7 @@ export const REVIEW_ANALYSIS_NORMALIZATION_FLAGS = Object.freeze([
   'sentence_refs_repaired',
   'cause_refused_name',
   'cause_refused_quotation',
+  'cause_refused_shape',
   'names_person_invalid',
   'names_person_raised',
   'mentions_merged',
@@ -94,6 +99,8 @@ export const REVIEW_ANALYSIS_NORMALIZATION_MANIFEST = Object.freeze({
   causePatternSource: REVIEW_CAUSE_PHRASE_PATTERN.source,
   causePhraseMaximumWords: REVIEW_CAUSE_PHRASE_MAX_WORDS,
   causePhraseMaximumLength: REVIEW_CAUSE_PHRASE_MAX_LENGTH,
+  // What an invalid cause does to its mention: the cause is emptied and the mention stays.
+  invalidCausePolicy: 'empty-cause-keep-mention',
   quotationRunLength: 4,
   enumVocabularies: Object.freeze({
     topics: REVIEW_TOPICS_V3,
@@ -254,6 +261,26 @@ function addExtraNameTokens(target: Set<string>, tokens: readonly string[]): voi
   }
 }
 
+type CauseShape = Readonly<{
+  thing: string | null
+  issue: string | null
+  shapeValid: boolean
+}>
+
+/**
+ * A cause that is not one to three lowercase words of letters and hyphens, or a thing
+ * with no issue, is refused as a whole and the mention stays as a topic-level mention,
+ * as for a name or a quotation: the guest's topic is evidence, the phrase is not.
+ */
+function readCauseShape(rawThing: unknown, rawIssue: unknown): CauseShape {
+  const thing = normalizeReviewCausePhrase(rawThing)
+  const issue = normalizeReviewCausePhrase(rawIssue)
+  if (!thing.valid || !issue.valid || (thing.value !== null && issue.value === null)) {
+    return { thing: null, issue: null, shapeValid: false }
+  }
+  return { thing: thing.value, issue: issue.value, shapeValid: true }
+}
+
 function normalizeMention(
   raw: unknown,
   context: ReviewAnalysisV3NormalizationContext,
@@ -277,12 +304,6 @@ function normalizeMention(
     flags.add('enum_case_repaired')
   }
 
-  const thing = normalizeReviewCausePhrase(raw.thing)
-  const issue = normalizeReviewCausePhrase(raw.issue)
-  if (!thing.valid || !issue.valid || (thing.value !== null && issue.value === null)) {
-    flags.add('mention_dropped_cause')
-    return null
-  }
   const sentences = normalizeSentenceReferences(
     raw.sentences,
     context.sentences.length,
@@ -293,8 +314,10 @@ function normalizeMention(
     return null
   }
   const namesPerson = normalizeNamesPerson(raw.names_person, flags)
-  let normalizedThing = thing.value
-  let normalizedIssue = issue.value
+  const cause = readCauseShape(raw.thing, raw.issue)
+  if (!cause.shapeValid) flags.add('cause_refused_shape')
+  let normalizedThing = cause.thing
+  let normalizedIssue = cause.issue
   if (
     reviewCauseContainsRefusedName({
       thing: normalizedThing,
