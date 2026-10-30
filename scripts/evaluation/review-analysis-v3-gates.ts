@@ -5,7 +5,9 @@
 //            recall overall, and no more than 2% of the non-urgent gold reviews
 //            flagged Urgent.
 //   Topics   micro F1 at least 0.85 against the gold, and no topic below 0.70.
-//   Causes   thing agreement at least 0.70 after normalisation.
+//   Causes   thing agreement at least 0.70 after normalisation. Of every mention either
+//            side made, the share that is a pair agreeing on the thing: a cause only the
+//            gold has, or only the answer has, counts against it.
 //   Every gate is read per language (en, bg, es) and overall.
 //
 // A gate over nothing is "not measurable", never a pass: the synthetic set holds
@@ -130,7 +132,9 @@ const DEFINITIONS: readonly GateDefinition[] = Object.freeze([
     comparison: 'at_least',
     read: ({ mentions }) => ({
       value: mentions.causes.thingAgreement,
-      note: `${mentions.pairs} paired mentions`,
+      note: `${mentions.causes.thingAgreeing} of ${
+        mentions.pairs + mentions.unmatchedGold + mentions.unmatchedPredicted
+      } mentions agree: ${mentions.pairs} paired, ${mentions.unmatchedGold} only in the gold, ${mentions.unmatchedPredicted} only in the answer`,
     }),
   },
 ])

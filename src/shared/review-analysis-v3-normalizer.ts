@@ -344,6 +344,25 @@ function strongestNamesPerson(
   return null
 }
 
+/**
+ * The sentence numbers two merged mentions cite, ascending and unique. Two mentions of
+ * up to 16 numbers each can hold 32 together, and the stored contract holds 16: the
+ * lowest 16 stay and the cut is reported, so a merge never turns a paid answer into
+ * `output_invalid`.
+ */
+function unionSentenceReferences(
+  first: readonly number[],
+  second: readonly number[],
+  flags: Set<ReviewAnalysisNormalizationFlag>,
+): number[] {
+  const union = [...new Set([...first, ...second])].sort(
+    (earlier, later) => earlier - later,
+  )
+  if (union.length <= REVIEW_ANALYSIS_V3_MAX_SENTENCE_REFS) return union
+  flags.add('sentence_refs_capped')
+  return union.slice(0, REVIEW_ANALYSIS_V3_MAX_SENTENCE_REFS)
+}
+
 function mergeMentions(
   mentions: readonly WorkingMention[],
   flags: Set<ReviewAnalysisNormalizationFlag>,
@@ -364,8 +383,10 @@ function mergeMentions(
     const candidateIsStronger =
       REVIEW_STRENGTH_RANK_V3[mention.strength] >
       REVIEW_STRENGTH_RANK_V3[existing.strength]
-    existing.sentences = [...new Set([...existing.sentences, ...mention.sentences])].sort(
-      (first, second) => first - second,
+    existing.sentences = unionSentenceReferences(
+      existing.sentences,
+      mention.sentences,
+      flags,
     )
     if (candidateIsStronger) {
       existing.strength = mention.strength

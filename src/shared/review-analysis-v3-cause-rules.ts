@@ -22,18 +22,19 @@ const HINT_WORD = /\p{L}+/gu
 /**
  * How person, brand and place words are found in a review's sentences. One object
  * drives the code below and the normalizer's governed manifest, so the two cannot drift.
- * A sentence of at least 4 words in which every word starts with a capital is a heading
- * or shouting: capitals there say nothing about names. Anything less uniform is read as
- * written ("Thanks Maria and John!", "Lovely Hilton Marina Bay stay"), because missing a
- * name costs more than refusing a common word.
+ * Every word that starts with a capital letter is a candidate, wherever it stands: the
+ * first word of a sentence ("Maria at reception was lovely."), a heading ("Lovely Hilton
+ * Marina Bay Stay") and shouting included. A candidate is let through only when the
+ * review also writes the same word entirely in lowercase, or when the cause check
+ * allows it as a common word or a vocabulary hint. Missing a name costs more than
+ * refusing a common word, and a guard that skipped sentence openers would never see a
+ * name in the commonest place a guest writes one.
  */
 export const REVIEW_NAME_TOKEN_RULES = Object.freeze({
   wordPatternSource: WORD_RUN.source,
   ignoredPlaceholderPatternSource: REDACTION_PLACEHOLDER.source,
-  headingMinimumWords: 4,
-  headingRequiresEveryWordCapitalized: true,
   minimumCandidateLetters: 2,
-  ignoreSentenceInitialWord: true,
+  everyCapitalizedWordIsCandidate: true,
   lowercaseOccurrenceSuppressesCandidate: true,
   includeHyphenAndApostropheParts: true,
 })
@@ -77,13 +78,6 @@ function wordsInSentence(sentence: string): readonly string[] {
   )
 }
 
-function isHeadingLike(words: readonly string[]): boolean {
-  return (
-    words.length >= REVIEW_NAME_TOKEN_RULES.headingMinimumWords &&
-    words.every(startsUppercase)
-  )
-}
-
 export function collectReviewNameTokens(
   sentences: readonly string[],
 ): ReadonlySet<string> {
@@ -95,22 +89,18 @@ export function collectReviewNameTokens(
   )
   const candidates = new Set<string>()
 
-  for (const sentence of sentences) {
-    const words = wordsInSentence(sentence)
-    if (isHeadingLike(words)) continue
-    for (const word of words.slice(1)) {
-      const normalized = normalizedNameToken(word)
-      if (
-        letterCount(word) < REVIEW_NAME_TOKEN_RULES.minimumCandidateLetters ||
-        !startsUppercase(word) ||
-        lowercaseForms.has(normalized)
-      ) {
-        continue
-      }
-      candidates.add(normalized)
-      for (const part of normalized.split(NAME_PART_SEPARATOR)) {
-        if (part.length > 0) candidates.add(part)
-      }
+  for (const word of allWords) {
+    const normalized = normalizedNameToken(word)
+    if (
+      letterCount(word) < REVIEW_NAME_TOKEN_RULES.minimumCandidateLetters ||
+      !startsUppercase(word) ||
+      lowercaseForms.has(normalized)
+    ) {
+      continue
+    }
+    candidates.add(normalized)
+    for (const part of normalized.split(NAME_PART_SEPARATOR)) {
+      if (part.length > 0) candidates.add(part)
     }
   }
   return candidates

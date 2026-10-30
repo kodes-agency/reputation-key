@@ -55,6 +55,10 @@ function expectNormalized(
   }
 }
 
+function numbersFrom(first: number, last: number): number[] {
+  return Array.from({ length: last - first + 1 }, (_value, index) => first + index)
+}
+
 function deepFreeze(value: unknown): unknown {
   if (value === null || typeof value !== 'object') return value
   for (const child of Object.values(value)) deepFreeze(child)
@@ -317,18 +321,86 @@ describe('review analysis v3 cause privacy rules', () => {
     expect(canonicalizeRfc8785(result)).not.toContain('solara')
   })
 
-  it('does not infer names from title-case or shouting sentences', () => {
-    for (const sentence of ['Hilton Marina Bay Hotel', 'HILTON MARINA BAY HOTEL']) {
+  it('reads a brand in a title-case or shouting sentence as a name', () => {
+    for (const sentence of [
+      'Hilton Marina Bay Hotel',
+      'HILTON MARINA BAY HOTEL',
+      'Lovely Hilton Marina Bay Stay',
+    ]) {
       const result = normalizeReviewAnalysisV3(
         answer([mention({ thing: 'hilton', issue: 'too loud' })]),
         { sentences: [sentence] },
       )
       expectNormalized(result)
-      expect(result.answer.mentions[0]).toMatchObject({
-        thing: 'hilton',
-        issue: 'too loud',
-      })
+      expect(result.answer.mentions[0]).toMatchObject({ thing: null, issue: null })
+      expect(result.flags).toEqual(['cause_refused_name'])
     }
+  })
+
+  it.each([
+    ['a name opening the only sentence', ['Maria at reception was lovely.'], 'maria'],
+    [
+      'a name opening a later sentence',
+      ['The room was clean.', 'Maria at reception was lovely.'],
+      'maria',
+    ],
+    ['a brand opening a sentence', ['Hilton staff were lovely.'], 'hilton'],
+  ] as const)('refuses %s', (_name, sentences, thing) => {
+    const result = normalizeReviewAnalysisV3(
+      answer([mention({ thing, issue: 'lovely' })]),
+      { sentences },
+    )
+    expectNormalized(result)
+    expect(result.answer.mentions[0]).toMatchObject({ thing: null, issue: null })
+    expect(result.flags).toEqual(['cause_refused_name'])
+    expect(canonicalizeRfc8785(result)).not.toContain(thing)
+  })
+
+  it('never lets a named person become a complaint cause', () => {
+    const result = normalizeReviewAnalysisV3(
+      answer([mention({ topic: 'staff_service', thing: 'maria', issue: 'rude' })]),
+      { sentences: ['Maria at reception was rude.'] },
+    )
+    expectNormalized(result)
+    expect(result.answer.mentions).toEqual([
+      {
+        topic: 'staff_service',
+        polarity: 'negative',
+        strength: 'clear',
+        thing: null,
+        issue: null,
+        sentences: [1],
+        names_person: null,
+      },
+    ])
+    expect(result.flags).toEqual(['cause_refused_name'])
+  })
+
+  it('still allows a common word or a hint word that opens a sentence', () => {
+    const common = normalizeReviewAnalysisV3(
+      answer([mention({ thing: 'air conditioning', issue: 'weak' })]),
+      { sentences: ['Air conditioning was weak overnight.'] },
+    )
+    expectNormalized(common)
+    expect(common.answer.mentions[0]).toMatchObject({
+      thing: 'air conditioning',
+      issue: 'weak',
+    })
+    expect(common.flags).toEqual([])
+
+    const hinted = normalizeReviewAnalysisV3(
+      answer([mention({ thing: 'hydrojet', issue: 'too weak' })]),
+      {
+        sentences: ['Hydrojet pressure was weak during treatment.'],
+        vocabularyHints: { facilities_equipment: ['hydrojet system'] },
+      },
+    )
+    expectNormalized(hinted)
+    expect(hinted.answer.mentions[0]).toMatchObject({
+      thing: 'hydrojet',
+      issue: 'too weak',
+    })
+    expect(hinted.flags).toEqual([])
   })
 
   it('allows a three-word quotation boundary', () => {
@@ -467,6 +539,57 @@ describe('review analysis v3 person marker and merge rules', () => {
     ])
     expect(result.flags).toEqual(['mentions_merged'])
   })
+
+  it.each([
+    [
+      'the first mention holds the lowest numbers',
+      numbersFrom(1, 16),
+      numbersFrom(17, 32),
+      numbersFrom(1, 16),
+      ['mentions_merged', 'sentence_refs_capped'],
+    ],
+    [
+      'the second mention holds the lowest numbers',
+      numbersFrom(17, 32),
+      numbersFrom(1, 16),
+      numbersFrom(1, 16),
+      ['mentions_merged', 'sentence_refs_capped'],
+    ],
+    [
+      'the two overlap',
+      numbersFrom(1, 12),
+      numbersFrom(5, 20),
+      numbersFrom(1, 16),
+      ['mentions_merged', 'sentence_refs_capped'],
+    ],
+    [
+      'the union is exactly 16',
+      numbersFrom(1, 8),
+      numbersFrom(9, 16),
+      numbersFrom(1, 16),
+      ['mentions_merged'],
+    ],
+  ] as const)(
+    'caps merged sentence references at 16 when %s, without failing the answer',
+    (_name, first, second, expected, expectedFlags) => {
+      const sentences = Array.from(
+        { length: 40 },
+        (_value, index) => `Invented sentence ${index + 1}.`,
+      )
+      const result = normalizeReviewAnalysisV3(
+        answer([
+          mention({ sentences: first }),
+          mention({ sentences: second, strength: 'mild', issue: 'noisy' }),
+        ]),
+        { sentences },
+      )
+      expectNormalized(result)
+      expect(result.answer.mentions).toHaveLength(1)
+      expect(result.answer.mentions[0]?.sentences).toEqual(expected)
+      expect(result.flags).toEqual(expectedFlags)
+      expect(REVIEW_ANALYSIS_V3_STORED_SCHEMA.safeParse(result.answer).success).toBe(true)
+    },
+  )
 
   it('keeps separate keys when topic, normalized thing or polarity differs', () => {
     const result = normalizeReviewAnalysisV3(
@@ -716,7 +839,7 @@ describe('review analysis v3 normalization governance', () => {
   it('pins the full manifest and computed digest', () => {
     expect(REVIEW_ANALYSIS_NORMALIZATION_VERSION).toBe('review-analysis-normalization-v1')
     expect(REVIEW_ANALYSIS_NORMALIZATION_DIGEST).toBe(
-      '7cf583439bae856d3cfad81a2056c607791251b05bdf0ff0e831e3030db789c6',
+      '793a9d95b421469ed9794fb92e922366770736454cd9ef78aea1b7c5df1a1fd2',
     )
     expect(REVIEW_ANALYSIS_NORMALIZATION_DIGEST).toBe(
       createHash('sha256')
@@ -737,10 +860,8 @@ describe('review analysis v3 normalization governance', () => {
     expect(REVIEW_ANALYSIS_NORMALIZATION_MANIFEST.nameTokenRules).toEqual({
       wordPatternSource: "\\p{L}+(?:['’-]\\p{L}+)*",
       ignoredPlaceholderPatternSource: '\\[[A-Z_]+\\]',
-      headingMinimumWords: 4,
-      headingRequiresEveryWordCapitalized: true,
       minimumCandidateLetters: 2,
-      ignoreSentenceInitialWord: true,
+      everyCapitalizedWordIsCandidate: true,
       lowercaseOccurrenceSuppressesCandidate: true,
       includeHyphenAndApostropheParts: true,
     })

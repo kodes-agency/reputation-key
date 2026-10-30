@@ -190,7 +190,7 @@ describe('scoreMentions', () => {
     expect(invented.names.other.precision).toBe(0)
   })
 
-  it('has no rates when nothing was paired', () => {
+  it('has no pair rates when nothing was paired', () => {
     const empty = scoreMentions(
       [{ itemId: 'cx-0003', gold: [mention()], predicted: [] }],
       simpleCauseKey,
@@ -199,6 +199,79 @@ describe('scoreMentions', () => {
     expect(empty.pairs).toBe(0)
     expect(empty.unmatchedGold).toBe(1)
     expect(empty.polarityAccuracy).toBeNull()
-    expect(empty.causes.thingAgreement).toBeNull()
+    expect(empty.causes.issueExact).toBeNull()
+  })
+
+  it('has no thing agreement when neither side has a mention', () => {
+    const none = scoreMentions(
+      [{ itemId: 'cx-0006', gold: [], predicted: [] }],
+      simpleCauseKey,
+    )
+
+    expect(none.causes.thingAgreement).toBeNull()
+  })
+})
+
+describe('thing agreement counts the mentions that found no partner', () => {
+  const air = mention({ thing: 'air conditioning', issue: 'not working', sentences: [1] })
+  const wifi = mention({ thing: 'wifi', issue: 'too slow', sentences: [2] })
+
+  it('does not reach 1 when the answer finds only one of two causes under a topic', () => {
+    const scores = scoreMentions(
+      [{ itemId: 'cx-0004', gold: [air, wifi], predicted: [air] }],
+      simpleCauseKey,
+    )
+
+    expect(scores.pairs).toBe(1)
+    expect(scores.unmatchedGold).toBe(1)
+    expect(scores.causes.thingAgreeing).toBe(1)
+    expect(scores.causes.thingAgreement).toBe(0.5)
+  })
+
+  it('counts a cause the gold does not have against the answer too', () => {
+    const scores = scoreMentions(
+      [{ itemId: 'cx-0005', gold: [air], predicted: [air, wifi] }],
+      simpleCauseKey,
+    )
+
+    expect(scores.pairs).toBe(1)
+    expect(scores.unmatchedPredicted).toBe(1)
+    expect(scores.causes.thingAgreement).toBe(0.5)
+  })
+
+  it('is 0, not unmeasurable, when the answer found none of the gold causes', () => {
+    const scores = scoreMentions(
+      [{ itemId: 'cx-0007', gold: [air, wifi], predicted: [] }],
+      simpleCauseKey,
+    )
+
+    expect(scores.pairs).toBe(0)
+    expect(scores.causes.thingAgreement).toBe(0)
+  })
+
+  it('counts a pair that names another thing once, as a disagreement', () => {
+    const scores = scoreMentions(
+      [{ itemId: 'cx-0008', gold: [air], predicted: [wifi] }],
+      simpleCauseKey,
+    )
+
+    expect(scores.pairs).toBe(1)
+    expect(scores.causes.thingAgreeing).toBe(0)
+    expect(scores.causes.thingAgreement).toBe(0)
+  })
+
+  it('reads every review of the set together', () => {
+    const scores = scoreMentions(
+      [
+        { itemId: 'cx-0009', gold: [air, wifi], predicted: [air, wifi] },
+        { itemId: 'cx-0010', gold: [air, wifi], predicted: [air] },
+      ],
+      simpleCauseKey,
+    )
+
+    // Three pairs agree; the gold's second cause in the second review has no partner.
+    expect(scores.pairs).toBe(3)
+    expect(scores.causes.thingAgreeing).toBe(3)
+    expect(scores.causes.thingAgreement).toBe(3 / 4)
   })
 })

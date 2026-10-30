@@ -42,7 +42,7 @@ describe('review analysis v3 cause shape', () => {
 })
 
 describe('review name-token collection', () => {
-  it('collects non-initial capitalized words and compound parts', () => {
+  it('collects every capitalized word and compound parts', () => {
     const tokens = collectReviewNameTokens([
       'Yesterday we met Maria near reception.',
       'Later we thanked Jean-Paul and O’Connor warmly.',
@@ -51,21 +51,27 @@ describe('review name-token collection', () => {
       'connor',
       'jean',
       'jean-paul',
+      'later',
       'maria',
       'o',
       'o’connor',
       'paul',
+      'yesterday',
     ])
   })
 
-  it('ignores sentence-initial, one-letter, title-case and shouting candidates', () => {
+  it('finds a name that opens a sentence, in the first sentence or a later one', () => {
     const tokens = collectReviewNameTokens([
-      'Maria helped us today.',
-      'We met A by reception.',
-      'Wonderful Friendly Helpful Team',
-      'GREAT STAFF MARIA HELPED',
+      'Maria at reception was lovely.',
+      'The room was clean.',
+      'Hilton staff were lovely.',
     ])
-    expect([...tokens]).toEqual([])
+    expect([...tokens].sort()).toEqual(['hilton', 'maria', 'the'])
+  })
+
+  it('ignores one-letter words', () => {
+    const tokens = collectReviewNameTokens(['We met A by reception.'])
+    expect([...tokens]).toEqual(['we'])
   })
 
   it('reads short and partly lower-case sentences as written', () => {
@@ -74,17 +80,33 @@ describe('review name-token collection', () => {
       'Thanks Maria and John!',
       'Lovely Hilton Marina Bay stay.',
     ])
-    expect([...tokens].sort()).toEqual(['bay', 'hilton', 'john', 'maria', 'marina'])
+    expect([...tokens].sort()).toEqual([
+      'bay',
+      'hilton',
+      'john',
+      'lovely',
+      'maria',
+      'marina',
+      'thank',
+      'thanks',
+    ])
   })
 
-  it('treats a sentence of four or more capitalized words as a heading', () => {
+  it('reads title-case and shouting sentences as written, headings included', () => {
     const tokens = collectReviewNameTokens([
       'Great Location Friendly Staff',
-      'SUPER CLEAN ROOMS HERE',
+      'HILTON MARINA BAY HOTEL',
     ])
-    expect([...tokens]).toEqual([])
-    const almost = collectReviewNameTokens(['Great Location and Friendly Staff'])
-    expect([...almost].sort()).toEqual(['friendly', 'location', 'staff'])
+    expect([...tokens].sort()).toEqual([
+      'bay',
+      'friendly',
+      'great',
+      'hilton',
+      'hotel',
+      'location',
+      'marina',
+      'staff',
+    ])
   })
 
   it('ignores redaction placeholders and reads the words around them', () => {
@@ -92,7 +114,7 @@ describe('review name-token collection', () => {
       'The host [PERSON] was kind to Maria.',
       'Write to [CONTACT] or [ADDRESS] soon.',
     ])
-    expect([...tokens]).toEqual(['maria'])
+    expect([...tokens].sort()).toEqual(['maria', 'the', 'write'])
   })
 
   it('drops a candidate also written entirely in lowercase', () => {
@@ -103,11 +125,16 @@ describe('review name-token collection', () => {
     expect(tokens.has('maria')).toBe(false)
   })
 
+  it('drops a sentence-initial word the review also writes in lowercase', () => {
+    const tokens = collectReviewNameTokens(['Staff were lovely.', 'The staff helped.'])
+    expect(tokens.has('staff')).toBe(false)
+  })
+
   it('returns a fresh set on every call', () => {
     const first = collectReviewNameTokens(['We met Maria today.'])
     const second = collectReviewNameTokens(['We met Maria today.'])
-    expect([...first]).toEqual(['maria'])
-    expect([...second]).toEqual(['maria'])
+    expect([...first]).toEqual(['we', 'maria'])
+    expect([...second]).toEqual(['we', 'maria'])
     expect(first).not.toBe(second)
   })
 })

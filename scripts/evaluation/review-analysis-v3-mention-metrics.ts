@@ -125,8 +125,16 @@ export function phraseTokenF1(left: string | null, right: string | null): number
 }
 
 export type CauseMetrics = Readonly<{
-  /** Paired mentions whose normalised `thing` agrees. The release gate (decision 6). */
+  /**
+   * The release gate (decision 6): the share of all the mentions of either side that are
+   * a pair agreeing on the normalised `thing`. A mention only one side has (a second
+   * cause under a topic the answer mentioned once, or one the gold lacks) counts
+   * against it, so an answer cannot reach 1 by returning only the causes it is sure of.
+   * Null when neither side has a mention.
+   */
   thingAgreement: Rate
+  /** The mentions behind `thingAgreement`: pairs whose normalised `thing` agrees. */
+  thingAgreeing: number
   /** F1 over the (topic, polarity, thing) triples of a review, found or not. */
   thingF1: Rate
   issueExact: Rate
@@ -235,6 +243,7 @@ function namesMetrics(pairs: readonly MentionPair[]): NamesMetrics {
 
 function causeMetrics(
   pairs: readonly MentionPair[],
+  unpaired: number,
   sides: readonly MentionSides[],
   causeKey: CauseKey,
 ): CauseMetrics {
@@ -243,8 +252,10 @@ function causeMetrics(
     causeKey(pair.predicted.topic, pair.predicted.thing)
   const sameIssue = (pair: MentionPair) => pair.gold.issue === pair.predicted.issue
   const thingCounts = thingF1Counts(sides, causeKey)
+  const thingAgreeing = pairs.filter(agrees).length
   return Object.freeze({
-    thingAgreement: ratio(pairs.filter(agrees).length, pairs.length),
+    thingAgreement: ratio(thingAgreeing, pairs.length + unpaired),
+    thingAgreeing,
     thingF1: prf(thingCounts.tp, thingCounts.fp, thingCounts.fn).f1,
     issueExact: ratio(pairs.filter(sameIssue).length, pairs.length),
     issueTokenF1: meanOf(
@@ -277,13 +288,15 @@ export function scoreMentions(
         REVIEW_STRENGTH_RANK_V3[pair.predicted.strength],
     )
   const evidence = evidenceCounts(pairs)
+  const unmatchedGold = alignments.reduce((total, one) => total + one.unmatchedGold, 0)
+  const unmatchedPredicted = alignments.reduce(
+    (total, one) => total + one.unmatchedPredicted,
+    0,
+  )
   return Object.freeze({
     pairs: pairs.length,
-    unmatchedGold: alignments.reduce((total, one) => total + one.unmatchedGold, 0),
-    unmatchedPredicted: alignments.reduce(
-      (total, one) => total + one.unmatchedPredicted,
-      0,
-    ),
+    unmatchedGold,
+    unmatchedPredicted,
     polarityAccuracy: ratio(
       pairs.filter((pair) => pair.gold.polarity === pair.predicted.polarity).length,
       pairs.length,
@@ -296,7 +309,7 @@ export function scoreMentions(
       pairs.filter((pair) => strengthDistance(pair) <= 1).length,
       pairs.length,
     ),
-    causes: causeMetrics(pairs, sides, causeKey),
+    causes: causeMetrics(pairs, unmatchedGold + unmatchedPredicted, sides, causeKey),
     evidence: prf(evidence.tp, evidence.fp, evidence.fn),
     names: namesMetrics(pairs),
   })

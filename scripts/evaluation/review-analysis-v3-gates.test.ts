@@ -169,6 +169,53 @@ describe('the boundary of each gate', () => {
   })
 })
 
+describe('the thing agreement gate', () => {
+  const wifi = mention({
+    topic: 'facilities_equipment',
+    thing: 'wifi',
+    issue: 'too slow',
+  })
+
+  /** Every review has two causes under one topic; the answer returns only the first. */
+  function sliceMissingASecondCause(): SliceMetrics {
+    const gold = answer([air, wifi])
+    const found = answer([air])
+    return scoreSlice(
+      ['a', 'b', 'c', 'd'].map((id) => scoredRun(id, gold, acceptedResult(id, found))),
+      simpleCauseKey,
+    )
+  }
+
+  it('fails an answer that finds only one of two causes under a topic', () => {
+    const slice = sliceMissingASecondCause()
+    const report = evaluateGates({ all: slice, en: slice, bg: slice, es: slice })
+    const result = report.results.find(
+      (one) => one.gate === 'thing_agreement' && one.slice === 'all',
+    )
+
+    expect(slice.topics.micro.f1).toBe(1)
+    expect(result).toMatchObject({ status: 'fail', value: 0.5 })
+    expect(result?.note).toBe(
+      '4 of 8 mentions agree: 4 paired, 4 only in the gold, 0 only in the answer',
+    )
+  })
+
+  it('fails an answer that adds a cause the gold lacks', () => {
+    const gold = answer([air])
+    const crowded = answer([air, wifi])
+    const slice = scoreSlice(
+      ['a', 'b'].map((id) => scoredRun(id, gold, acceptedResult(id, crowded))),
+      simpleCauseKey,
+    )
+    const report = evaluateGates({ all: slice, en: slice, bg: slice, es: slice })
+
+    expect(report.results.find((one) => one.gate === 'thing_agreement')).toMatchObject({
+      status: 'fail',
+      value: 0.5,
+    })
+  })
+})
+
 describe('a gate over nothing', () => {
   const noUrgentCases = (slice: SliceMetrics): SliceMetrics => ({
     ...slice,

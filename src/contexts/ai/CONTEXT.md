@@ -239,9 +239,14 @@ Every provider's answer passes one normalizer before it is stored
 that is not an object, has no `mentions` array or has no valid sentiment fails an answer
 already paid for; any other fault is repaired, or the mention is dropped and counted, and
 the result carries closed, content-free flags. A cause that holds a person, brand or
-place word (a capitalised word of the review that is neither a common word nor one of the
-request's vocabulary hints) or that repeats four or more contiguous words of the review is
-refused and its mention stays as a topic-level mention. Attention v2
+place word (a capitalised word of the review, wherever it stands, the first word of a
+sentence and a heading included, that is neither a common word, nor one of the request's
+vocabulary hints, nor also written in lowercase in the review) or that repeats four or more
+contiguous words of the review is refused and its mention stays as a topic-level mention.
+Mentions that repeat a topic, thing and polarity merge; the merged mention keeps the lowest 16
+sentence numbers and reports `sentence_refs_capped`, so a merge can never fail a paid answer.
+The guard reads capitals, so a name the guest writes entirely in lowercase passes it; the
+request's prompt, which forbids names, brands and places in a cause, is the other line. Attention v2
 (`deriveReviewAttentionV2`) is derived from the stored answer and the star rating; Urgent
 exists only when the provider reports one of its four reasons. `aspect-taxonomy-v1` and
 every v2 schema stay as they are for history.
@@ -256,7 +261,8 @@ normalizer, and once settled the closed flags it raised). `ai_review_analyses_re
 tells the two shapes apart by `analysis_profile_version`: a v3 row has no primary category
 and no issue label, and carries an Urgent reason exactly when its attention is urgent. A
 CHECK passes on an unknown, so each v3 arm states IS NOT NULL beside a comparison. The
-execution-control scopes also admit `provider` (`provider:openai`, `provider:anthropic`).
+execution-control scopes also admit `provider` (`provider:openai`, `provider:anthropic`), but
+nothing reads or seeds them yet (see "Left for the slices that need it" below).
 Every v3 derivative expires 24 months after it was generated: the sweep deletes the analysis
 on `expires_at` (`ai_review_analyses.v3_expired`, v3 rows only) and the three mention tables
 go with it by cascade; the daily star counts have a rule of their own, counted from the day
@@ -426,10 +432,20 @@ the e2e provider stub (`e2e/fixtures/ai-provider-stub.ts`) are Messages-shaped f
 Left for the slices that need it, not done here: the
 `AI_OPERATION_PROFILES` entry, the runtime catalogue row, the notice, the `private-beta-global-v2`
 envelope, an Anthropic key, the adapter's registration in the egress runtime and a real-provider
-synthetic canary (3.10); a `provider` execution-control head and its place in the stop fence (the
-binding schema lives in `ai-internal-transport-contract.ts`, which is at its file-length ceiling
-and must be split first, and PR-3 has no migration number left to seed heads); `openai-usage.ts`
-resolving the input ceiling of a profile that is not in the live catalogue.
+synthetic canary (3.10); `openai-usage.ts` resolving the input ceiling of a profile that is not in
+the live catalogue.
+
+One item of that list must be done before the first Anthropic call, because until then an
+operator cannot kill, drain or cap one provider alone, only the whole envelope or the capability:
+the `provider` execution-control head. Migration 0078 admits the scopes `provider:openai` and
+`provider:anthropic`, but the control port knows the global, deployment-profile and capability
+heads only: `resolveAiExecutionStopFence` and the budget admission check read the
+deployment-profile head (`provider:<deployment profile version>`), the fence holds exactly three
+heads, and no head is seeded for a concrete provider. It needs the binding schema in
+`ai-internal-transport-contract.ts` (at its file-length ceiling, to be split first), the stop
+fence, the claim and the admission check wired to it, a seeded head per provider (migration 0081
+or later, since 0078 to 0080 are taken) and a test that kills provider A while B stays eligible.
+Nothing can run on Anthropic while v3 is dark, so nothing is exposed today.
 
 ### Analysing, storing and aggregating v3 (dark)
 
@@ -495,8 +511,9 @@ Inbox until the Inbox learns to read it.
 
 Left for the slices that need it, not done here: the `ai_property_review_population_daily`
 projection (it follows a review's observation, update and deletion whether or not the review is
-analysed, so this flow does not write it) and the statistics that read the mentions (the Guest
-voice read model, PR-4); wiring `AiProviderChoicePort` to the operator's provider choice, the
+analysed, so this flow does not write it, and it needs a backfill of at least the earlier 12
+months of reviews before any percentage or "worth up to" figure reads it; PR-4, slice 4.1) and
+the statistics that read the mentions (the Guest voice read model, PR-4); wiring `AiProviderChoicePort` to the operator's provider choice, the
 runtime catalogue row and the served-contract constants (`isCurrentAuthorizedEffect`, the
 deployment profile string) that activation flips (3.10); the Inbox reading `ready_v3`; including
 v3 derivatives in an organization export. Property issue grouping itself is complete below;
