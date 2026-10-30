@@ -534,6 +534,47 @@ permission, add the Guest voice read model and drawer, record the manager audit 
 Inbox mention to its surviving issue. `display_name` is manager text: it is a protected local fact
 and may reach none of provider input, logs or events.
 
+### Evaluation harness (dark)
+
+`pnpm eval:review-analysis-v3` (`scripts/evaluation/`) measures a provider against the synthetic
+test set in `test-fixtures/review-analysis-v3/` (400 invented reviews, 395 with a settled gold
+label; the owner still settles `cl-0021`, `cl-0054`, `cl-0163`, `cl-0174` and `cl-0188`, which no
+score includes). It asks the production question: each review goes through the Review context's
+source canonicalizer and sentence splitter, the deterministic redactor, the production prompt, answer
+schema and request payload (the Property's vocabulary hints chosen from the review's business), and
+the one place a provider answer becomes the stored contract (`acceptReviewAnalysisV3Answer`).
+Only the transport differs. An answer the production path would not accept, a refusal, a
+truncation, a failed call and a review the redactor refuses are scored as an empty answer: for
+Urgent that is a review whose danger nobody saw.
+
+The reference is the gold as the production normalizer accepts it, so a label the stored contract
+cannot hold (an `issue` such as "30 minutes") does not count against a provider; the report names
+the labels that changed (`cl-0090`, `cl-0147`, `cl-0179`). Causes are compared through
+`property-issue-normalization-v1`, so "ac" agrees with "air conditioning".
+
+The gates are decision 6 of the contract decisions (`docs/plan/guest-voice-2.md`), read for the
+whole set and for English, Bulgarian and Spanish: Urgent with zero safety or health misses, at
+least 95% recall and at most 2% of non-urgent reviews flagged; topic micro F1 at least 0.85 and no
+topic with gold support below 0.70; thing agreement at least 0.70. A gate over nothing is "not
+measurable", never a pass. The set holds no urgent case outside English, so Bulgarian and Spanish
+Urgent recall cannot be read until it does; a provider passes only if no measured gate fails and
+every gate over the whole set could be read. Sentiment, polarity, strength, evidence sentences,
+the names flag (with the count of named people the answer missed), robustness, run-to-run
+disagreement and the context slices (other languages, business family, length, sarcasm, rating
+conflicts, near misses) are reported, not gated.
+
+The providers the command can name are `fake-gold` (answers with the gold: the ceiling and a
+smoke test), `answers:<file>` (scores answers recorded by any governed tool) and `openai` and
+`anthropic`, which are declared and refuse to run. The tests and the package script reach no
+provider: nothing in `scripts/evaluation` imports an HTTP client or an SDK or reads a key, and a
+test pins that. Reports (`report.json`, `report.html`, one labels file per provider and run) go to
+`test-results/review-analysis-v3/`; they hold counts, rates, topic ids and review ids, never a
+review's text or a provider's raw answer.
+
+Left for the slices that need it: the evaluation transport for the real providers with their own
+evaluation keys and the dated model snapshots (decision 4), the live slice's evaluation table
+(ADR 0031, amended 2026-10-30) and urgent cases in Bulgarian and Spanish (3.10, the owner).
+
 ## Runtime
 
 Identity's merchant-AI fact drives one durable lifecycle command, which opens a
@@ -660,7 +701,7 @@ for an event that is gone.
 2. Every operation is fenced by Organization, Property, source epoch, source revision, authorization epoch, capability epoch, policy/profile versions, model/deployment, idempotency key, and lifecycle generation.
 3. Authorization is a maximum allowed capability set. A PropertyManager may operate only within the AccountAdmin-authorized set and current Property access; operating a feature never expands authorization.
 4. Disable fences new and in-flight work immediately and hides outputs. Erasure purges local derivatives within the policy window while retaining only content-free evidence. Re-enable reuses an output only when every lineage, policy, model, authorization, and freshness fence still matches. An adopted Reply draft is Review-owned, so the control, Authorization and profile transitions withdraw the unedited ones in their own transaction through the AI draft purge (`src/shared/db/ai/ai-draft-purge.ts`; the rule is in the Review context's Model): a Reply nobody confirmed is deleted, and a confirmed one that has not been dispatched is cancelled and emptied while its publication authorization stays as evidence. A Reply whose publication already failed keeps its text, and Review's publish worker withdraws it the same way when a manager tries it again: its read of Google before the claim (an observation of the Review) withdraws it once the ten-minute adoption window has passed, and the claim refuses it when an input changed, claimed before or not.
-5. Provider output is advisory. It cannot mutate Inbox status/assignment/escalation, publish a Reply, change Portal behavior, alter a Goal/Metric/Recognition result, or trigger workforce decisions.
+5. Provider output is advisory. It cannot mutate Inbox status/assignment/escalation, publish a Reply, change Portal behavior, alter a Goal/Metric/Recognition result, or trigger workforce decisions. It starts no notification either, with one exception that is allowed and not built yet: an Urgent finding of review analysis v3 may raise one content-free alert per review revision, and that alert changes nothing about the review (ADR 0031, amended 2026-10-30).
 6. Reply Drafting is never cached as a generic suggestion detached from the Review revision or Brand Profile version. A manager must explicitly request it, may edit it, and must separately adopt, then Confirm & Publish through the Reply workflow.
 7. Review Analysis enrollment is exhaustive for the authorized eligible source population; internal batching controls work size but never becomes a product cap or silently drops older Reviews.
 8. Missing, stale, or unreadable data returns `preparing`/unavailable evidence rather than zero. Coverage-incomplete Property insight aggregates may expose exact applied results only with an explicit provisional marker and coverage counts; period comparisons remain absent until both windows are complete.

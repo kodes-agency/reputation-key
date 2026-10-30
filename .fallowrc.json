@@ -20,6 +20,7 @@
     "scripts/generate-ai-zh-orthography-table.ts",
     "scripts/seed-demo-reviews.ts",
     "scripts/adr-index.mjs",
+    "scripts/evaluation/review-analysis-v3.ts",
     "scripts/test-db-setup.ts",
     "vite.config.ts",
     "drizzle.config.ts"

@@ -53,6 +53,7 @@
     "perf:seed-scale": "tsx scripts/perf/seed-scale.ts",
     "perf:evidence": "tsx scripts/perf/write-scale-evidence.ts",
     "perf:cell": "tsx scripts/perf/staging-cell.ts",
+    "eval:review-analysis-v3": "tsx scripts/evaluation/review-analysis-v3.ts",
     "check:schema-drift": "tsx scripts/check-schema-drift.ts",
     "check:migration-journal": "tsx scripts/check-migration-journal.ts",
     "check:bundles": "node scripts/check-bundle-budget.mjs",
