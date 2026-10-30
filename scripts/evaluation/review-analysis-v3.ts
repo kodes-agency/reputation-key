@@ -21,6 +21,7 @@ import {
 } from '#/shared/review-analysis-v3-normalizer'
 import { REVIEW_ANALYSIS_V3_DEVELOPER_PROMPT } from '#/shared/review-analysis-v3-prompt'
 import { REVIEW_ATTENTION_V2_DIGEST } from '#/shared/review-analysis-v3'
+import { REVIEW_ANALYSIS_V3_LOGICAL_PROFILE } from '#/shared/review-analysis-v3-profile'
 import {
   PROPERTY_ISSUE_NORMALIZATION_DIGEST,
   PROPERTY_ISSUE_NORMALIZATION_VERSION,
@@ -236,6 +237,7 @@ function versionsOf(): Readonly<Record<string, string>> {
   return Object.freeze({
     harness: EVALUATION_HARNESS_VERSION,
     gates: RELEASE_GATES_V1.version,
+    operationProfile: REVIEW_ANALYSIS_V3_LOGICAL_PROFILE.logicalDigest,
     normalizer: REVIEW_ANALYSIS_NORMALIZATION_VERSION,
     normalizerDigest: REVIEW_ANALYSIS_NORMALIZATION_DIGEST,
     topicTaxonomy: REVIEW_TOPIC_TAXONOMY_VERSION,
@@ -316,6 +318,19 @@ async function evaluate(
       items: testSet.items.length,
       scored: testSet.scored.length,
       unsettledIds: testSet.unsettledIds,
+      redactionChangedIds: Object.freeze(
+        entries
+          .filter(
+            (entry) =>
+              entry.prepared.status === 'prepared' && entry.prepared.redactionChanged,
+          )
+          .map((entry) => entry.scored.item.id),
+      ),
+      notSentIds: Object.freeze(
+        entries
+          .filter((entry) => entry.prepared.status === 'redaction_blocked')
+          .map((entry) => entry.scored.item.id),
+      ),
       goldChangedByNormalizer: Object.freeze({
         ids: Object.freeze(
           entries

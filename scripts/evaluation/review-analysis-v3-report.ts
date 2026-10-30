@@ -47,6 +47,10 @@ export type EvaluationReport = Readonly<{
     items: number
     scored: number
     unsettledIds: readonly string[]
+    /** Reviews the redactor changed before the provider read them. */
+    redactionChangedIds: readonly string[]
+    /** Reviews the live path would not send at all (source or redaction refused). */
+    notSentIds: readonly string[]
     /** Gold labels the production normalizer would not accept as written. */
     goldChangedByNormalizer: Readonly<{
       ids: readonly string[]
@@ -247,6 +251,14 @@ export function renderReportHtml(report: EvaluationReport): string {
     report.testSet.unsettledIds.length === 0
       ? ''
       : ` (${escapeHtml(report.testSet.unsettledIds.join(', '))})`
+  }. The redactor changed ${report.testSet.redactionChangedIds.length} reviews${
+    report.testSet.redactionChangedIds.length === 0
+      ? ''
+      : ` (${escapeHtml(report.testSet.redactionChangedIds.join(', '))})`
+  } and ${report.testSet.notSentIds.length} were not sent${
+    report.testSet.notSentIds.length === 0
+      ? ''
+      : ` (${escapeHtml(report.testSet.notSentIds.join(', '))})`
   }.</p><ul>${versions}</ul>${providers}</body></html>\n`
 }
 

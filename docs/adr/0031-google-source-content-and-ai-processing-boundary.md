@@ -160,7 +160,7 @@ Review Analysis v3 stores these, per review and per Property. The v3 contract ch
 Three conditions hold for all of them.
 
 1. **One Property.** Grouping, counts and any figure such as "worth up to about 0.2 stars" are worked out inside one Property from that Property's own reviews. Nothing is borrowed across Properties. Cross-Property reports stay denied.
-2. **No raw content.** No field reproduces a sentence or an excerpt of a review, a name, a Google identifier, an exact reply or a content fingerprint.
+2. **No raw content.** No field reproduces a sentence, a passage of four or more words, a name, a Google identifier, an exact reply or a content fingerprint. The two parts of a cause are the only free words: the server holds each to three words and refuses the pair when together they reproduce four or more contiguous words of the review.
 3. **Retention and withdrawal.** The 24-month rule for de-identified insights applies, and every table that stores these fields has a tested 24-month deletion rule in the retention sweep before it is written to. Turning a capability off hides the fields at once. Erasure purges them within the policy window.
 
 **The names result is not a staff measure.** It says that a sentence names a team member or someone else. It has two uses: Guest voice leaves out a quote when any mention citing that sentence carries a name, and Guest voice may show one Property-level line, "N reviews praise a team member by name". There is no name, no per-person figure, no ranking and no complaint version. The denial of review-derived staff goals, badges and leaderboards stands. So does Google's separate-policy row, which lists named mentions among the things that never drive them.

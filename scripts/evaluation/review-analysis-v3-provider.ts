@@ -74,6 +74,8 @@ export type PreparedEvaluationItem =
       request: EvaluationRequest
       /** What the provider reads and the hints it was given; the normalizer needs both. */
       evidence: ReviewEvidence
+      /** The redactor replaced something in the canonical sentences. */
+      redactionChanged: boolean
     }>
   | Readonly<{
       /** The live path would not send this review: its source or its redaction was refused. */
@@ -164,6 +166,9 @@ export function prepareEvaluationItem(
       redactedSentences: Object.freeze([...redaction.sentences]),
       vocabularyHints: structuredClone(propertyContext.vocabularyHints),
     }),
+    redactionChanged: redaction.sentences.some(
+      (sentence, index) => sentence !== sentences[index],
+    ),
   })
 }
 

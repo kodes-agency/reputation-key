@@ -67,6 +67,8 @@ function reportOf(providers: EvaluationReport['providers']): EvaluationReport {
       items: 40,
       scored: 39,
       unsettledIds: ['cl-0021'],
+      redactionChangedIds: ['cl-0138'],
+      notSentIds: [],
       goldChangedByNormalizer: { ids: ['cl-0090'], droppedMentions: 1 },
     },
     thresholds: RELEASE_GATES_V1,

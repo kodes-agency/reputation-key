@@ -549,8 +549,10 @@ Urgent that is a review whose danger nobody saw.
 
 The reference is the gold as the production normalizer accepts it, so a label the stored contract
 cannot hold (an `issue` such as "30 minutes") does not count against a provider; the report names
-the labels that changed (`cl-0090`, `cl-0147`, `cl-0179`). Causes are compared through
-`property-issue-normalization-v1`, so "ac" agrees with "air conditioning".
+the labels that changed (`cl-0090`, `cl-0147`, `cl-0179`). It also names the reviews the redactor
+changed (`cl-0041`, `cl-0138`, `cl-0184`: it reads "oil.For" and "working.Not", a missing space
+after a full stop, as web addresses) and any review the live path would not send. Causes are
+compared through `property-issue-normalization-v1`, so "ac" agrees with "air conditioning".
 
 The gates are decision 6 of the contract decisions (`docs/plan/guest-voice-2.md`), read for the
 whole set and for English, Bulgarian and Spanish: Urgent with zero safety or health misses, at

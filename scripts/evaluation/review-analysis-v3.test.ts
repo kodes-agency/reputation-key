@@ -186,12 +186,26 @@ describe('the fake provider that answers with the gold', () => {
     expect(files.get(join(OUT, 'report.html'))).toContain('<!doctype html>')
   })
 
+  it('names the reviews the redactor changed and the reviews the live path would not send', async () => {
+    const { io, files } = harness()
+
+    await runEvaluationCli(['--out', OUT], io)
+
+    // The redactor reads "oil.For" and "working.Not" (no space after the stop) as
+    // domains and "passport" as an identifier: its real behaviour on invented text.
+    expect(reportOf(files).testSet).toMatchObject({
+      redactionChangedIds: ['cl-0041', 'cl-0138', 'cl-0184'],
+      notSentIds: [],
+    })
+  })
+
   it('records the versions the numbers were measured against', async () => {
     const { io, files } = harness()
 
     await runEvaluationCli(['--out', OUT], io)
 
     expect(reportOf(files).versions).toMatchObject({
+      operationProfile: expect.stringMatching(/^[0-9a-f]{64}$/u),
       normalizer: 'review-analysis-normalization-v1',
       topicTaxonomy: 'review-topic-taxonomy-v3',
       sentenceRules: 'review-sentences-v1',

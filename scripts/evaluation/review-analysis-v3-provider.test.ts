@@ -44,6 +44,7 @@ describe('prepareEvaluationItem', () => {
     const one = prepared()
 
     expect(one.itemId).toBe('cx-0001')
+    expect(one.redactionChanged).toBe(false)
     expect(one.request.developerPrompt).toBe(REVIEW_ANALYSIS_V3_DEVELOPER_PROMPT)
     expect(one.request.answerSchema).toBe(
       AI_ROUTE_OUTPUT_JSON_SCHEMAS['review-analysis-v3'],
@@ -77,6 +78,7 @@ describe('prepareEvaluationItem', () => {
     if (one.status !== 'prepared') return
     expect(JSON.stringify(one.request.payload)).not.toContain('@')
     expect(one.evidence.redactedSentences.join(' ')).toContain('[CONTACT]')
+    expect(one.redactionChanged).toBe(true)
   })
 
   it('names a mixed-language review undetermined', () => {
