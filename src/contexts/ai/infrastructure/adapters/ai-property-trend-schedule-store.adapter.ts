@@ -67,6 +67,14 @@ type Transaction = Parameters<Parameters<Database['transaction']>[0]>[0]
  * Sequences between the authorization's start and the review head that the
  * Review writer gave back, so analysis owes no settlement for them. Both
  * statements below name the same aliases: `aggregate`, `auth`, `review_head`.
+ *
+ * What is owed is compared with the aggregate head's own
+ * `settled_analysis_count`, the coverage the trend run reads
+ * (`readLockedAggregateHead`), and never with the settlement ledger. The ledger
+ * spans profile versions, so it reads a rolled profile generation complete while
+ * that generation's head, and so the run, wait for a rebuild. Counting the
+ * ledger scheduled runs that could only ask to be retried until they were
+ * dead-lettered.
  */
 const releasedInCoverage = releasedAwaitingSequenceCountSql({
   organizationId: sql`aggregate."organization_id"`,
@@ -126,15 +134,8 @@ async function lockCurrentScheduleBinding(tx: Transaction, scheduleId: string) {
       AND profile."source_epoch" = schedule."source_epoch"
       AND profile."profile_version" = schedule."property_profile_version"
       AND profile."timezone" = schedule."timezone"
-      AND (
-        SELECT count(*)
-        FROM "ai_property_aggregate_settlements" AS settlement
-        WHERE settlement."organization_id" = aggregate."organization_id"
-          AND settlement."property_id" = aggregate."property_id"
-          AND settlement."source_epoch" = aggregate."source_epoch"
-          AND settlement."review_analysis_epoch" = aggregate."review_analysis_epoch"
-      ) = review_head."head_sequence" - auth."analysis_start_sequence"
-        - ${releasedInCoverage}
+      AND aggregate."settled_analysis_count" = review_head."head_sequence"
+        - auth."analysis_start_sequence" - ${releasedInCoverage}
       AND aggregate."terminal_analysis_sequence" = schedule."terminal_analysis_sequence"
       AND aggregate."aggregate_revision" = schedule."aggregate_revision"
     FOR SHARE OF property, auth, profile, enrollment, review_head, aggregate
@@ -244,16 +245,8 @@ export const createAiPropertyTrendScheduleStore = (
             AND auth."capability_runtime_profile_versions"->>'property_trends' = 'property-trends-runtime-v1'
             AND auth."authorized_source_epoch" = profile."source_epoch"
             AND profile."lifecycle_state" = 'active'
-            AND (
-              SELECT count(*)
-              FROM "ai_property_aggregate_settlements" AS settlement
-              WHERE settlement."organization_id" = aggregate."organization_id"
-                AND settlement."property_id" = aggregate."property_id"
-                AND settlement."source_epoch" = aggregate."source_epoch"
-                AND settlement."review_analysis_epoch" =
-                  aggregate."review_analysis_epoch"
-            ) = review_head."head_sequence" - auth."analysis_start_sequence"
-              - ${releasedInCoverage}
+            AND aggregate."settled_analysis_count" = review_head."head_sequence"
+              - auth."analysis_start_sequence" - ${releasedInCoverage}
             AND (${head.cursorOrganizationId}::varchar IS NULL OR
               (property."organization_id", property."id") >
               (${head.cursorOrganizationId}::varchar, ${head.cursorPropertyId}::uuid))
