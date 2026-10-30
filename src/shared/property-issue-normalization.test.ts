@@ -170,6 +170,17 @@ describe('property issue normalization', () => {
     ['main_service', 'hair color', 'hair colour'],
     ['food_drink', 'appetizer', 'starter'],
     ['communication', 'allergen warning', 'allergy warning'],
+    ['staff_service', 'desk', 'front desk'],
+    ['staff_service', 'dock attendant', 'attendant'],
+    ['booking_arrival', 'phone booking', 'booking'],
+    ['speed_waiting', 'staff attention', 'attention'],
+    ['speed_waiting', 'session start', 'session'],
+    ['communication', 'written complaint', 'complaint'],
+    ['communication', 'questions', 'answer'],
+    ['communication', 'staff answers', 'answer'],
+    ['communication', 'response', 'answer'],
+    ['facilities_equipment', 'balcony railing', 'railing'],
+    ['safety', 'balcony railing', 'railing'],
   ] as const)(
     'folds %s "%s" into "%s" for the same thing named two ways',
     (topic, alias, canonical) => {

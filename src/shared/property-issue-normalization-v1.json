@@ -73,8 +73,10 @@
   ],
   "synonyms": {
     "staff_service": {
+      "desk": "front desk",
       "desk clerk": "front desk",
       "desk staff": "front desk",
+      "dock attendant": "attendant",
       "front desk agent": "front desk",
       "front desk clerk": "front desk",
       "front desk staff": "front desk",
@@ -93,7 +95,12 @@
     "speed_waiting": {
       "assistance": "help",
       "pick up": "pickup",
-      "pick-up": "pickup"
+      "pick-up": "pickup",
+      "session start": "session",
+      "staff attention": "attention"
+    },
+    "booking_arrival": {
+      "phone booking": "booking"
     },
     "main_service": {
       "blow-dry": "blow dry",
@@ -109,6 +116,7 @@
       "air con": "air conditioning",
       "air conditioner": "air conditioning",
       "aircon": "air conditioning",
+      "balcony railing": "railing",
       "electrical socket": "wall socket",
       "elevator": "lift",
       "hairdryer": "hair dryer",
@@ -135,10 +143,17 @@
       "scent": "smell",
       "vibe": "atmosphere"
     },
+    "safety": {
+      "balcony railing": "railing"
+    },
     "communication": {
       "allergen warning": "allergy warning",
       "phone line": "phone",
-      "telephone": "phone"
+      "question": "answer",
+      "response": "answer",
+      "staff answer": "answer",
+      "telephone": "phone",
+      "written complaint": "complaint"
     }
   }
 }
