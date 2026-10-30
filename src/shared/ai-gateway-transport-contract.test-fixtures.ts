@@ -99,7 +99,7 @@ export function analysisRequest(): ReviewAnalysisGatewayRequestV1 {
 }
 
 /** The provider identity an operation claimed under OpenAI records. */
-export function claimedProvider() {
+function claimedProvider() {
   const profile = providerRequestProfileOf(OPENAI_PROVIDER_ATTESTATION_V1)
   return {
     id: 'openai',

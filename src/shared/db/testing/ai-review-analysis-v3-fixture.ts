@@ -282,32 +282,3 @@ export async function installAiAnalysisFixture(
     },
   })
 }
-
-/** The ids of the analyses a Property currently holds, for assertions. */
-export async function analysisReviewIds(
-  db: Database,
-  organizationId: string,
-): Promise<readonly string[]> {
-  const rows = await db
-    .select({ reviewId: aiReviewAnalyses.reviewId })
-    .from(aiReviewAnalyses)
-    .where(eq(aiReviewAnalyses.organizationId, organizationId))
-  return rows.map((row) => row.reviewId)
-}
-
-export async function countRows(
-  db: Database,
-  table: string,
-  organizationId: string,
-  reviewIds?: readonly string[],
-): Promise<number> {
-  const result = await db.execute(
-    reviewIds === undefined
-      ? sql`SELECT count(*)::int AS count FROM ${sql.identifier(table)} WHERE organization_id = ${organizationId}`
-      : sql`SELECT count(*)::int AS count FROM ${sql.identifier(table)} WHERE organization_id = ${organizationId} AND review_id IN (${sql.join(
-          reviewIds.map((id) => sql`${id}::uuid`),
-          sql`, `,
-        )})`,
-  )
-  return Number((result.rows[0] as { count: number | string }).count)
-}
