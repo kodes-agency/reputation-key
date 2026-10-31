@@ -21,7 +21,17 @@ import type {
 } from '#/components/features/beta-feedback/beta-feedback-form-context'
 import { clearTenantCacheAfterSessionEnd } from '#/shared/queries/tenant-cache-transition'
 import { IconButton } from '#/components/ui/icon-button'
+import { lazy, Suspense, useId } from 'react'
+import type { ProductUpdatesClientGetter } from '#/shared/whats-new/types'
+import {
+  AccountButtonUpdatesDot,
+  WhatsNewMenuItem,
+} from '#/components/features/whats-new/whats-new-menu-item'
 import { RouteProgress } from '#/components/layout/route-progress'
+
+const ProductUpdatesIdle = lazy(
+  () => import('#/components/features/whats-new/product-updates-idle'),
+)
 
 type Props = Readonly<{
   user: { id: string; name: string; email: string; image: string | null }
@@ -36,6 +46,7 @@ type Props = Readonly<{
   /** The page is a full-bleed surface: the phone bar is 44 px, as the Inbox grid is. */
   isFullBleed?: boolean
   listBetaFeedback?: ListMyBetaFeedback
+  getProductUpdatesClient?: ProductUpdatesClientGetter
 }>
 
 export function AppTopBar({
@@ -46,6 +57,7 @@ export function AppTopBar({
   hasSidebar = true,
   isFullBleed = false,
   listBetaFeedback,
+  getProductUpdatesClient,
 }: Props) {
   const navigate = useNavigate()
   const queryClient = useQueryClient()
@@ -53,6 +65,8 @@ export function AppTopBar({
   // step with the stored theme, and with the device while the mode is System.
   // The menu's control mounts only while the menu is open.
   useThemeMode()
+  // Names the "New updates" hint the account button points at when it shows its dot.
+  const updatesHintId = useId()
   const initials = user.name
     ? user.name
         .split(' ')
@@ -100,8 +114,9 @@ export function AppTopBar({
           <IconButton
             variant="ghost"
             size="icon-sm"
-            className="rounded-full max-md:-mr-1"
+            className="relative rounded-full max-md:-mr-1"
             label="Account menu"
+            aria-describedby={getProductUpdatesClient ? updatesHintId : undefined}
           >
             {user.image ? (
               <img src={user.image} alt="" className="size-7 rounded-full object-cover" />
@@ -109,6 +124,12 @@ export function AppTopBar({
               <div className="flex size-7 items-center justify-center rounded-full bg-primary text-[10px] font-semibold text-primary-foreground">
                 {initials}
               </div>
+            )}
+            {getProductUpdatesClient && (
+              <AccountButtonUpdatesDot
+                getClient={getProductUpdatesClient}
+                hintId={updatesHintId}
+              />
             )}
           </IconButton>
         </DropdownMenuTrigger>
@@ -119,6 +140,9 @@ export function AppTopBar({
           </div>
           <DropdownMenuSeparator />
           <ThemeModeMenuControl />
+          {getProductUpdatesClient && (
+            <WhatsNewMenuItem getClient={getProductUpdatesClient} />
+          )}
           <DropdownMenuSeparator />
           <DropdownMenuItem
             onClick={async () => {
@@ -134,6 +158,15 @@ export function AppTopBar({
           </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
+      {getProductUpdatesClient && (
+        <Suspense fallback={null}>
+          <ProductUpdatesIdle
+            userId={user.id}
+            organizationId={organizationId}
+            getClient={getProductUpdatesClient}
+          />
+        </Suspense>
+      )}
       <RouteProgress />
     </header>
   )

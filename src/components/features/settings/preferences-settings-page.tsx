@@ -1,4 +1,4 @@
-import { useId } from 'react'
+import { useId, type ReactNode } from 'react'
 import {
   Card,
   CardContent,
@@ -8,7 +8,9 @@ import {
 } from '#/components/ui/card'
 import { ThemeModeControl } from '#/components/layout/theme-mode-control'
 
-export function PreferencesSettingsPage() {
+export function PreferencesSettingsPage({
+  productUpdates,
+}: Readonly<{ productUpdates?: ReactNode }>) {
   // Generated, not written, so two mounts (a story showing both themes) never
   // share one id and break the group's `aria-labelledby`.
   const themeLabelId = useId()
@@ -28,6 +30,7 @@ export function PreferencesSettingsPage() {
           </div>
         </CardContent>
       </Card>
+      {productUpdates}
     </div>
   )
 }

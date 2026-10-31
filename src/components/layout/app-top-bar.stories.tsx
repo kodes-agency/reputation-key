@@ -10,9 +10,14 @@
 // story feeds plain callables cast to each fn brand — the same pattern every
 // notification/inbox story uses. No value import from #/contexts/*/server/**.
 import type { Meta, StoryObj } from '@storybook/react'
-import { expect, userEvent, within } from 'storybook/test'
+import { expect, userEvent, waitFor, within } from 'storybook/test'
 import { SidebarProvider, SidebarInset, useSidebar } from '#/components/ui/sidebar'
 import type { NotificationServerFns } from '#/components/features/notification/types'
+import { PRODUCT_UPDATES } from '#/shared/whats-new/entries'
+import {
+  productUpdatesStoryClient,
+  productUpdatesStoryState,
+} from '../../../.storybook/stubs/product-updates-server'
 import { AppTopBar } from './app-top-bar'
 
 // Build a notification-fn bundle from a desired unread count. getList returns
@@ -214,5 +219,67 @@ export const ThemeInTheAccountMenu: Story = {
     // Sign out is still the last item, after the three segments.
     await userEvent.keyboard('{ArrowDown}{ArrowDown}')
     expect(page.getByRole('menuitem', { name: 'Sign out' })).toHaveFocus()
+  },
+}
+
+/** A picture that needs no network, so the dot is judged against a real photo's colours. */
+const PHOTO_AVATAR =
+  'data:image/svg+xml,' +
+  encodeURIComponent(
+    '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><rect width="64" height="64" fill="#d9c7a3"/><circle cx="32" cy="25" r="11" fill="#7a5c3e"/><rect x="12" y="40" width="40" height="24" rx="12" fill="#7a5c3e"/></svg>',
+  )
+
+const getProductUpdatesClient = async () => productUpdatesStoryClient
+
+/** The view the server sends a person who has seen none of the published updates. */
+function personWithUnseenUpdates() {
+  productUpdatesStoryState.reads = 0
+  productUpdatesStoryState.view = {
+    entries: PRODUCT_UPDATES,
+    unseenIds: PRODUCT_UPDATES.map(({ id }) => id),
+    autoShow: false,
+    shouldAutoOpen: false,
+  }
+}
+
+// A person with updates they have not seen is told on the closed account button,
+// not only inside the menu. The name stays "Account menu" (people and tests find
+// the button by it); the dot adds a description.
+export const WithUnseenProductUpdates: Story = {
+  args: {
+    user,
+    notificationFns: makeNotificationFns(0),
+    getProductUpdatesClient,
+  },
+  beforeEach: personWithUnseenUpdates,
+  play: async ({ canvasElement }) => {
+    const trigger = await within(canvasElement).findByRole('button', {
+      name: 'Account menu',
+    })
+    await waitFor(() => expect(trigger).toHaveAccessibleDescription('New updates'))
+    expect(trigger).toHaveAccessibleName('Account menu')
+  },
+}
+
+// The same marker over a photo: the ring keeps the dot apart from any picture.
+export const WithUnseenProductUpdatesOnPhoto: Story = {
+  ...WithUnseenProductUpdates,
+  args: { ...WithUnseenProductUpdates.args, user: { ...user, image: PHOTO_AVATAR } },
+}
+
+// The button's dot and the menu item's dot read one query: opening the menu
+// makes no second request.
+export const UnseenProductUpdatesInTheMenu: Story = {
+  ...WithUnseenProductUpdates,
+  play: async ({ canvasElement }) => {
+    const page = within(canvasElement.ownerDocument.body)
+    const trigger = await within(canvasElement).findByRole('button', {
+      name: 'Account menu',
+    })
+    await waitFor(() => expect(trigger).toHaveAccessibleDescription('New updates'))
+    await userEvent.click(trigger)
+    const item = await page.findByRole('menuitem', { name: /What's new.*Unseen updates/ })
+    await waitFor(() => expect(item).toBeVisible())
+    expect(productUpdatesStoryState.reads).toBe(1)
   },
 }

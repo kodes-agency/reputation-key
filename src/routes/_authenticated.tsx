@@ -2,6 +2,7 @@
 // Per better-auth TanStack Start docs: use createServerFn (getSession)
 // in beforeLoad — not authClient.getSession(), which can't forward cookies during SSR.
 import { createFileRoute, Outlet, redirect, isRedirect } from '@tanstack/react-router'
+import { getProductUpdatesClient } from './_authenticated/-product-updates-client'
 import { getSession } from '#/shared/auth/auth.functions'
 import { getActiveOrganization } from '#/contexts/identity/server/organizations'
 import { getLastVisitCountFn } from '#/contexts/inbox/server/inbox'
@@ -348,6 +349,7 @@ function AuthenticatedShell({ children }: Readonly<{ children: ReactNode }>) {
             isFullBleed={isFullBleed}
             organizationId={ctx.activeOrganization?.id ?? 'no-active-organization'}
             notificationFns={notificationFns}
+            getProductUpdatesClient={getProductUpdatesClient}
             submitBetaFeedback={mayReportBeta ? submitBetaFeedbackFn : undefined}
             listBetaFeedback={mayReportBeta ? listMyBetaFeedbackFn : undefined}
           />

@@ -10,6 +10,8 @@
 //   - internal.organizationLifecycleRuntime — named lifecycle/export control,
 //     content-free diagnostics, and contributor-gated maintenance services.
 
+import { createProductUpdates } from './application/use-cases/product-updates'
+import { createProductUpdatesStore } from './infrastructure/repositories/product-updates.repository'
 import type { Database } from '#/shared/db'
 import type { Clock } from '#/shared/domain/clock'
 import type { LoggerPort } from '#/shared/domain/logger.port'
@@ -936,5 +938,14 @@ export const buildIdentityContext = (deps: IdentityContextDeps) => {
     betaFeedback: buildBetaFeedbackRequests(deps),
     /** What still points at an uploaded avatar or logo. Request-facing, so kept off `publicApi`. */
     assetReferences,
+    productUpdates: createProductUpdates({
+      store: createProductUpdatesStore(deps.db),
+      clock: deps.clock,
+      hasCapability: ({ actor, propertyId }, capability) =>
+        checkScopedCapability(
+          { organizationId: actor.organizationId, propertyId },
+          capability,
+        ).allowed,
+    }),
   } as const
 }

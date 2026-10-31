@@ -15,7 +15,8 @@ import { dirname, resolve } from 'node:path'
 import type { E2eSeedState } from '../e2e/helpers/seed-state'
 import { and, desc, eq, isNull, sql } from 'drizzle-orm'
 import { getDb } from '../src/shared/db'
-import { member, organization } from '../src/shared/db/schema/auth'
+import { organization } from '../src/shared/db/schema/auth'
+import { type SeedMembership, upsertSeedMembership } from './e2e/seed-membership'
 
 import { properties } from '../src/shared/db/schema/property.schema'
 import {
@@ -223,16 +224,8 @@ async function ensureLockedOrg(): Promise<void> {
     })
 }
 
-async function ensureMembership(input: {
-  id: string
-  userId: string
-  organizationId: string
-  role: 'owner' | 'admin' | 'member'
-}): Promise<void> {
-  await getDb()
-    .insert(member)
-    .values({ ...input, createdAt: FIXTURE_AT })
-    .onConflictDoUpdate({ target: member.id, set: { role: input.role } })
+async function ensureMembership(input: SeedMembership): Promise<void> {
+  await upsertSeedMembership(getDb(), input, FIXTURE_AT)
 }
 
 async function ensureProperty(

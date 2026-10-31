@@ -88,6 +88,12 @@ const config: StorybookConfig = {
     cfg.resolve = cfg.resolve ?? {}
     const existingAlias = Array.isArray(cfg.resolve.alias) ? cfg.resolve.alias : []
     cfg.resolve.alias = [
+      {
+        find: '#/contexts/identity/server/product-updates',
+        replacement: fileURLToPath(
+          new URL('./stubs/product-updates-server.ts', import.meta.url),
+        ),
+      },
       ...existingAlias,
       {
         find: '#/contexts/identity/server/merchant-ai-notice-updates',

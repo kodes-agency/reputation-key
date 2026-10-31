@@ -129,6 +129,10 @@ export const TallContentScrolls: Story = {
       .closest('[data-slot=dialog-footer]')
     expect(footer?.className).toContain('sticky')
     expect(footer?.className).toContain('-bottom-(--dialog-pad)')
+    // Its controls are positioned, so they paint over the fade above the footer: the
+    // first row sits on the footer's top edge, and the fade would cut the top off
+    // their focus ring. A class pin: Tailwind is not compiled in this runner.
+    expect(footer?.className).toContain('*:relative')
   },
 }
 

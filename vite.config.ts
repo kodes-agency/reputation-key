@@ -39,6 +39,26 @@ function zodJitlessPlugin(): Plugin {
   }
 }
 
+/**
+ * Chunks that load on demand or after idle, whose own preload lists stay empty:
+ * AI announcements and settings load when asked for, and What's new (controller,
+ * modal, history) discovers its imports after idle. Native JS imports resolve
+ * their dependencies by themselves, so their many optional dependency hashes
+ * need not ride in the first-paint map. Separate checks, not one alternation:
+ * an alternation anchored on one side only is a CodeQL
+ * js/regex/missing-regexp-anchor finding.
+ */
+const AI_SETTINGS_CHUNK = /(?:^|\/)ai-[^/]+\.js$/
+
+function isOnDemandChunk(file: string): boolean {
+  return (
+    file.includes('merchant-ai-notice-update') ||
+    AI_SETTINGS_CHUNK.test(file) ||
+    file.includes('product-updates-') ||
+    file.includes('whats-new-')
+  )
+}
+
 const config = defineConfig(({ mode }) => {
   // Load .env into process.env before any server module runs.
   // Vite's loadEnv populates process.env for the current mode.
@@ -75,12 +95,12 @@ const config = defineConfig(({ mode }) => {
       client: {
         build: {
           sourcemap: 'hidden',
-          // AI announcements and settings load on demand. Native JS imports
-          // keep their preload metadata out of first paint; Vite retains CSS.
+          // Chunks first paint never needs keep their preload metadata out of
+          // the entry's map (see `isOnDemandChunk`); Vite retains CSS. Every
+          // other chunk also drops the AI announcement from its dependencies.
           modulePreload: {
             resolveDependencies: (file, dependencies) =>
-              file.includes('merchant-ai-notice-update') ||
-              /(?:^|\/)ai-[^/]+\.js$/.test(file)
+              isOnDemandChunk(file)
                 ? []
                 : dependencies.filter(
                     (dependency) => !dependency.includes('merchant-ai-notice-update'),
@@ -140,6 +160,23 @@ const config = defineConfig(({ mode }) => {
                     includeDependenciesRecursively: false,
                   },
                   {
+                    // The update split otherwise gives CVA its own first-paint
+                    // chunk. Keep the existing class helpers together; no UI
+                    // or feature dependencies can enter this vendor group.
+                    name: 'vendor-classes',
+                    test: /node_modules[\\/](?:class-variance-authority|clsx|tailwind-merge)[\\/]|[\\/]src[\\/]lib[\\/]utils\.ts/,
+                    includeDependenciesRecursively: false,
+                  },
+                  {
+                    // These four primitives already ride first paint. Updates
+                    // add lazy consumers of each; keeping their small modules
+                    // together avoids paying a gzip header and preload hash
+                    // for every child. Dialog and feature code stay separate.
+                    name: 'ui-primitives',
+                    test: /[\\/]src[\\/]components[\\/]ui[\\/](?:button|empty-state|alert|tone)\.tsx?$/,
+                    includeDependenciesRecursively: false,
+                  },
+                  {
                     // `includeDependenciesRecursively` MUST stay false: with it
                     // on, recharts' transitive deps (clsx,
                     // use-sync-external-store, redux, es-toolkit) join this
@@ -166,6 +203,14 @@ const config = defineConfig(({ mode }) => {
                     // first paint, so compare again before raising this.
                     entriesAwareMergeThreshold: 16 * 1024,
                     entriesAware: true,
+                    includeDependenciesRecursively: false,
+                  },
+                  {
+                    // All update presentation is lazy. One feature chunk avoids
+                    // charging first paint for a hash per small shared child in
+                    // the route preload map, without merging any shell module.
+                    name: 'product-updates',
+                    test: /[\\/]src[\\/]components[\\/]features[\\/]whats-new[\\/]/,
                     includeDependenciesRecursively: false,
                   },
                   {

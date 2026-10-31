@@ -24,6 +24,8 @@ type IdentityOrganizationExportPayload = Readonly<{
   canonicalPropertyAccessGrants: readonly ExportRecord[]
   compatibilityPropertyAccessGrants: readonly ExportRecord[]
   merchantAiNoticeUpdateReceipts: readonly ExportRecord[]
+  productUpdateSettings: readonly ExportRecord[]
+  productUpdateReceipts: readonly ExportRecord[]
   policyConsents: readonly ExportRecord[]
   lifecycleAuthority: readonly ExportRecord[]
   excludedRecordClasses: readonly Readonly<{
@@ -117,6 +119,8 @@ function csvEntry(payload: IdentityOrganizationExportPayload): OrganizationExpor
     ['role_policy', payload.rolePolicies],
     ['property_access_grant', payload.canonicalPropertyAccessGrants],
     ['compatibility_property_access_grant', payload.compatibilityPropertyAccessGrants],
+    ['product_update_setting', payload.productUpdateSettings],
+    ['product_update_receipt', payload.productUpdateReceipts],
     ['policy_consent', payload.policyConsents],
     ['merchant_ai_notice_update_receipt', payload.merchantAiNoticeUpdateReceipts],
     ['lifecycle_authority', payload.lifecycleAuthority],
@@ -342,6 +346,14 @@ async function readPayload(
         compatibilityPropertyAccessGrants,
         policyConsents,
         merchantAiNoticeUpdateReceipts,
+        productUpdateSettings: await readRows(
+          snapshot,
+          sql`SELECT * FROM product_update_settings WHERE organization_id = ${organizationId} ORDER BY user_id`,
+        ),
+        productUpdateReceipts: await readRows(
+          snapshot,
+          sql`SELECT * FROM product_update_receipts WHERE organization_id = ${organizationId} ORDER BY user_id, entry_id`,
+        ),
         lifecycleAuthority,
         excludedRecordClasses: EXCLUDED_RECORD_CLASSES,
       }
