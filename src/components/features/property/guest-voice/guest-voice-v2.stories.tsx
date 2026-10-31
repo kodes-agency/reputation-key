@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import type { Meta, StoryObj } from '@storybook/react-vite'
+import type { Decorator, Meta, StoryObj } from '@storybook/react-vite'
 import { expect, userEvent, within } from 'storybook/test'
 import { PageGutterDecorator } from '../../../../../.storybook/PageGutterDecorator'
 import { AuthedRouterDecorator } from '../../../../../.storybook/AuthedRouterDecorator'
@@ -90,10 +90,22 @@ function CheckInStory({
     />
   )
 }
+/** Stands in for the utilities layer, which this runner does not compile: a link in a sentence stays underlined (axe link-in-text-block). */
+const UTILITY_LAYER = `@layer utilities {
+  .underline { text-decoration-line: underline; }
+}`
+
+const UtilityLayerDecorator: Decorator = (Story) => (
+  <>
+    <style>{UTILITY_LAYER}</style>
+    <Story />
+  </>
+)
+
 const meta = {
   title: 'Property/GuestVoice2/Check-in',
   component: CheckInStory,
-  decorators: [AuthedRouterDecorator, PageGutterDecorator],
+  decorators: [UtilityLayerDecorator, AuthedRouterDecorator, PageGutterDecorator],
   parameters: {
     theme: 'light',
     layout: 'fullscreen',
