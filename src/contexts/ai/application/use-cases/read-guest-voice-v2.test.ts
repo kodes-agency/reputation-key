@@ -1,196 +1,18 @@
 import { describe, expect, it, vi } from 'vitest'
-import { organizationId, propertyId, reviewId, userId } from '#/shared/domain/ids'
-import {
-  MERCHANT_AI_NOTICE_DIGEST,
-  MERCHANT_AI_NOTICE_VERSION,
-} from '#/shared/merchant-ai-notice-contract'
-import { getAiRuntimeCapability } from '#/shared/ai-runtime-capability-contract'
-import { buildTestAuthContext } from '#/shared/testing/fixtures'
-import type {
-  AiGuestVoiceFactsPort,
-  GuestVoiceFactsRead,
-  GuestVoiceFactsScope,
-  GuestVoiceMentionRef,
-} from '../ports/ai-guest-voice-facts.port'
 import { mentionRefKey } from '../ports/ai-guest-voice-facts.port'
-import type {
-  GuestVoiceIssueGroup,
-  GuestVoiceMention,
-  GuestVoiceReview,
-  StarValue,
-} from '../read-models/guest-voice-v2-facts'
+import { organizationId, propertyId } from '#/shared/domain/ids'
+import { buildTestAuthContext } from '#/shared/testing/fixtures'
 import {
-  createReadGuestVoiceV2,
-  type GuestVoiceV2Response,
-  type ReadGuestVoiceV2Dependencies,
-} from './read-guest-voice-v2'
-
-const ORGANIZATION_ID = organizationId('11111111-1111-4111-8111-111111111111')
-const PROPERTY_ID = propertyId('22222222-2222-4222-8222-222222222222')
-const ADMIN = buildTestAuthContext({
-  organizationId: ORGANIZATION_ID,
-  userId: userId('33333333-3333-4333-8333-333333333333'),
-  role: 'AccountAdmin',
-})
-const NOW = Date.UTC(2026, 7, 20, 3, 0, 0)
-const END = '2026-08-20'
-const AC = 'a0000000-0000-4000-8000-000000000001'
-
-const GROUP: GuestVoiceIssueGroup = {
-  id: AC,
-  topic: 'facilities_equipment',
-  canonicalThing: 'air conditioning',
-  displayName: null,
-  hidden: false,
-}
-
-function id(sequence: number) {
-  return reviewId(`00000000-0000-4000-8000-${String(sequence).padStart(12, '0')}`)
-}
-
-/** A review as Review counts it. */
-function counted(
-  sequence: number,
-  localDate: string,
-  over: Readonly<{ hasText?: boolean; rating?: StarValue }> = {},
-) {
-  return Object.freeze({
-    reviewId: id(sequence),
-    sourceRevision: 1,
-    analysisSequence: sequence,
-    localDate,
-    hasText: over.hasText ?? true,
-    rating: over.rating ?? (5 as StarValue),
-  })
-}
-
-/** The same review as the analysis counts it. */
-function analysed(
-  sequence: number,
-  localDate: string,
-  mentions: readonly Partial<GuestVoiceMention>[] = [],
-  over: Partial<GuestVoiceReview> = {},
-): GuestVoiceReview {
-  return {
-    reviewId: id(sequence),
-    sourceEpoch: 7,
-    sourceRevision: 1,
-    analysisSequence: sequence,
-    localDate,
-    rating: 5,
-    urgentReason: null,
-    namesAPerson: mentions.some((mention) => (mention.namesPerson ?? null) !== null),
-    mentions: mentions.map((mention, index) => ({
-      mentionOrdinal: index,
-      topic: 'facilities_equipment',
-      polarity: 'negative',
-      strength: 'clear',
-      cause: 'not working',
-      issueGroupId: AC,
-      namesPerson: null,
-      ...mention,
-    })),
-    ...over,
-  }
-}
-
-type Options = Readonly<{
-  capabilities?: readonly string[]
-  localDate?: string | null
-  hasV3?: boolean
-  /** What the consent was recorded under, where it is not the served contract. */
-  consent?: Partial<{
-    noticeVersion: string
-    noticeDigest: string
-    providerDeploymentProfileVersion: string
-  }>
-  population?: readonly ReturnType<typeof counted>[]
-  populationFor?: (request: Readonly<{ startLocalDate: string }>) => unknown
-  facts?: Partial<GuestVoiceFactsRead> | null
-  sentences?: ReadonlyMap<string, readonly number[]>
-  grants?: readonly (typeof PROPERTY_ID)[]
-}>
-
-function harness(options: Options = {}) {
-  const readMerchantAuthorization = vi.fn(async () => ({
-    state: 'enabled',
-    authorizationLineageId: 'lineage-1',
-    capabilities: options.capabilities ?? ['review_analysis'],
-    authorizedSourceEpoch: 7,
-    capabilityEpochs: { review_analysis: { epoch: 4 }, property_trends: { epoch: 9 } },
-    noticeVersion: MERCHANT_AI_NOTICE_VERSION,
-    noticeDigest: MERCHANT_AI_NOTICE_DIGEST,
-    providerDeploymentProfileVersion:
-      getAiRuntimeCapability('review_analysis').providerDeploymentProfileVersion,
-    ...options.consent,
-  }))
-  const readTrendPopulation = vi.fn(async (request: { startLocalDate: string }) => {
-    if (options.populationFor !== undefined) return options.populationFor(request)
-    return {
-      status: 'complete' as const,
-      reviews: options.population ?? [],
-      hasEvidenceBeforeStart: false,
-    }
-  })
-  const facts = {
-    hasV3Analyses: vi.fn(async () => options.hasV3 ?? true),
-    readFacts: vi.fn(async () =>
-      options.facts === null
-        ? null
-        : {
-            coverage: {
-              settledAnalysisCount: 5,
-              expectedAnalysisCount: 5,
-              awaitingAnalysisCount: 0,
-            },
-            reviews: [],
-            unavailable: [],
-            groups: [GROUP],
-            ...options.facts,
-          },
-    ),
-    readMentionSentences: vi.fn(
-      async (_scope: GuestVoiceFactsScope, _refs: readonly GuestVoiceMentionRef[]) =>
-        options.sentences ?? new Map<string, readonly number[]>(),
-    ),
-  } satisfies AiGuestVoiceFactsPort
-  const read = createReadGuestVoiceV2({
-    propertyAccess: async () => options.grants ?? [],
-    authorization: {
-      readMerchantAuthorization,
-    } as unknown as ReadGuestVoiceV2Dependencies['authorization'],
-    processingProfiles: {
-      readForAi: vi.fn(async () => ({
-        status: 'available',
-        profile: { profileVersion: 11, timezone: 'Asia/Tokyo' },
-      })),
-    } as unknown as ReadGuestVoiceV2Dependencies['processingProfiles'],
-    calendar: {
-      resolveLocalDate: vi.fn(async () =>
-        options.localDate === undefined ? END : options.localDate,
-      ),
-    } as unknown as ReadGuestVoiceV2Dependencies['calendar'],
-    facts,
-    reviewSources: {
-      readTrendPopulation,
-    } as unknown as ReadGuestVoiceV2Dependencies['reviewSources'],
-    nowEpochMillis: () => NOW,
-  })
-  return { read, facts, readTrendPopulation, readMerchantAuthorization }
-}
-
-const input = {
-  organizationId: ORGANIZATION_ID,
-  propertyId: PROPERTY_ID,
-  actor: ADMIN,
-  range: 'auto' as const,
-}
-
-function drafted(response: GuestVoiceV2Response) {
-  if (response.status !== 'drafted')
-    throw new Error(`expected a draft, got ${response.status}`)
-  return response.draft
-}
+  ORGANIZATION_ID,
+  END,
+  AC,
+  id,
+  counted,
+  analysed,
+  harness,
+  input,
+  drafted,
+} from '#/test-fixtures/guest-voice-read.test-fixtures'
 
 describe('readGuestVoiceV2 authorization and gates', () => {
   const forbidden = { _tag: 'AiError', code: 'forbidden' }
@@ -347,7 +169,7 @@ describe('readGuestVoiceV2 the page', () => {
     expect(draft.read.fixFirst).toHaveLength(1)
     expect(draft.read.fixFirst[0]).toMatchObject({
       issueId: AC,
-      title: 'Air conditioning',
+      title: 'Air conditioning — not working',
       statistics: { reviewCount: 5, textReviewCount: 65 },
     })
   })
@@ -489,7 +311,7 @@ describe('readGuestVoiceV2 a Property too young for patterns', () => {
 
     const draft = drafted(await read(input))
 
-    expect(draft.read).toEqual({
+    expect(draft.read).toMatchObject({
       status: 'not_enough_reviews',
       readModelVersion: 'guest-voice-read-v2',
       textReviewCount: 3,
@@ -520,13 +342,6 @@ describe('readGuestVoiceV2 a Property too young for patterns', () => {
         mayShowText: false,
         sourceRevision: 1,
       },
-      {
-        reviewId: id(4),
-        reviewedAt: '2026-08-15',
-        rating: 5,
-        mayShowText: false,
-        sourceRevision: 1,
-      },
     ])
   })
 
@@ -549,7 +364,6 @@ describe('readGuestVoiceV2 a Property too young for patterns', () => {
       [id(1), false],
       [id(2), false],
       [id(3), true],
-      [id(4), false],
     ])
   })
 
@@ -560,5 +374,153 @@ describe('readGuestVoiceV2 a Property too young for patterns', () => {
 
     expect(draft.read.status).toBe('not_enough_reviews')
     expect(facts.readMentionSentences).not.toHaveBeenCalled()
+  })
+})
+
+describe('bounded explicit small-state eligibility', () => {
+  it('reads the year when the initial bounded range has too few comments to establish eligibility', async () => {
+    const reviews = [analysed(1, '2026-08-18', [{}]), analysed(2, '2026-01-01')]
+    const { read, readTrendPopulation, facts } = harness({
+      populationFor: (request) =>
+        request.startLocalDate === '2025-07-22'
+          ? { status: 'limit_exceeded' }
+          : {
+              status: 'complete',
+              reviews:
+                request.startLocalDate === '2026-07-22'
+                  ? [counted(1, '2026-08-18')]
+                  : [counted(2, '2026-01-01'), counted(1, '2026-08-18')],
+            },
+      facts: { reviews },
+    })
+    const draft = drafted(await read({ ...input, range: '30d' }))
+    expect(readTrendPopulation).toHaveBeenCalledTimes(3)
+    expect(facts.readFacts).toHaveBeenCalledWith(expect.anything(), {
+      startLocalDate: '2026-07-22',
+      endLocalDate: END,
+    })
+    expect(readTrendPopulation.mock.calls.map(([r]) => r.startLocalDate)).toEqual([
+      '2025-07-22',
+      '2026-07-22',
+      '2025-08-21',
+    ])
+    expect(draft.read).toMatchObject({
+      status: 'not_enough_reviews',
+      textReviewCount: 2,
+      allReviewCount: 1,
+      context: { basis: { textReviewCount: 1 } },
+    })
+  })
+  it('refuses to invent a year count when that bounded eligibility read also exceeds the ceiling', async () => {
+    const { read } = harness({
+      populationFor: (request) =>
+        request.startLocalDate === '2026-07-22'
+          ? { status: 'complete', reviews: [] }
+          : { status: 'limit_exceeded' },
+    })
+    expect(await read({ ...input, range: '30d' })).toEqual({ status: 'preparing' })
+  })
+})
+
+describe('bounded high-volume check-in reads', () => {
+  it.each([128, 20_000])(
+    'joins only the chosen Review population from %i synthetic reviews',
+    async (total) => {
+      const population = Array.from({ length: total }, (_, n) =>
+        counted(n + 1, n < (total === 128 ? 96 : 5_000) ? '2026-08-01' : '2026-01-01'),
+      )
+      const analyses = population.map((r, n) => analysed(n + 1, r.localDate, [{}]))
+      const { read, readTrendPopulation } = harness({
+        populationFor: (request) => {
+          const here = population.filter((r) => r.localDate >= request.startLocalDate)
+          return here.length >= 10_001
+            ? { status: 'limit_exceeded' }
+            : { status: 'complete', reviews: here }
+        },
+        facts: {
+          reviews: analyses,
+          coverage: {
+            settledAnalysisCount: total,
+            expectedAnalysisCount: total,
+            awaitingAnalysisCount: 0,
+          },
+        },
+      })
+      const draft = drafted(await read(input))
+      if (draft.read.status !== 'ready') throw new Error('expected ready')
+      expect(draft.read.basis).toMatchObject({
+        textReviewCount: total === 128 ? 96 : 5_000,
+        analysedTextReviewCount: total === 128 ? 96 : 5_000,
+      })
+      expect(draft.read.ratingTrend.months.reduce((n, m) => n + m.reviewCount, 0)).toBe(
+        total === 128 ? 96 : 5_000,
+      )
+      expect(readTrendPopulation).toHaveBeenCalledTimes(total === 128 ? 1 : 3)
+      expect(draft.read.window).toBe(total === 128 ? '30d' : '90d')
+    },
+  )
+})
+
+describe('calendar history never clips the selected rolling year', () => {
+  it('retains the first selected day when the year fallback starts before the oldest calendar month', async () => {
+    const population = [
+      counted(1, '2025-08-21'),
+      ...Array.from({ length: 9 }, (_, n) => counted(n + 2, '2026-08-01')),
+    ]
+    const reviews = population.map((r, n) =>
+      analysed(n + 1, r.localDate, [{}], { urgentReason: n === 0 ? 'health' : null }),
+    )
+    const { read, facts } = harness({
+      populationFor: (request) =>
+        request.startLocalDate < '2025-08-21'
+          ? { status: 'limit_exceeded' }
+          : { status: 'complete', reviews: population },
+      facts: { reviews },
+    })
+    const draft = drafted(await read({ ...input, range: '365d' }))
+    expect(facts.readFacts).toHaveBeenCalledWith(expect.anything(), {
+      startLocalDate: '2025-08-21',
+      endLocalDate: END,
+    })
+    expect(draft.read).toMatchObject({
+      status: 'ready',
+      provisional: false,
+      basis: { textReviewCount: 10, analysedTextReviewCount: 10 },
+      seriousConcerns: { groupCount: 1, reviewCount: 1 },
+    })
+  })
+})
+
+describe('small-state page context', () => {
+  const population = [counted(1, '2026-08-18')]
+  const reviews = [analysed(1, '2026-08-18', [{}], { urgentReason: 'health' })]
+  it('keeps the year eligibility count but scopes small-state concerns, latest and basis to the explicit range', async () => {
+    const { read } = harness({
+      population: [counted(1, '2026-08-18'), counted(2, '2026-01-01')],
+      facts: {
+        reviews: [
+          ...reviews,
+          analysed(2, '2026-01-01', [{}], { urgentReason: 'safety' }),
+        ],
+      },
+    })
+    const draft = drafted(await read({ ...input, range: '30d' }))
+    expect(draft.read).toMatchObject({
+      status: 'not_enough_reviews',
+      textReviewCount: 2,
+      allReviewCount: 1,
+      latestReviewCount: 1,
+      context: {
+        startLocalDate: '2026-07-22',
+        basis: { textReviewCount: 1, analysedTextReviewCount: 1 },
+      },
+      seriousConcerns: { groupCount: 1, reviewCount: 1, coverage: 'complete' },
+    })
+    expect(draft.latest.map((r) => r.reviewId)).toEqual([id(1)])
+  })
+  it('returns preparing instead of a quiet zero when a small-state facts read fails', async () => {
+    expect(await harness({ population, facts: null }).read(input)).toEqual({
+      status: 'preparing',
+    })
   })
 })

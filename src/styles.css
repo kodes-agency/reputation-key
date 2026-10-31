@@ -206,7 +206,7 @@
      --background, 5.00:1 on --card, 4.60:1 on --surface-elevated — the table in
      `star-rating.tsx` carries all six and the light figures it fails. */
   --rating: oklch(0.82 0.16 78);
-  --ring: oklch(0.52 0.16 290);
+  --ring: oklch(0.62 0.16 290);
   --radius: 0.375rem;
 
   /* Chart palette — purple-shifted */
@@ -386,17 +386,11 @@ pre code {
   }
 }
 
-/* The keyboard-focus ring of a control that is not a Button (a link in a cell, a
-   summary, a row that opens something): the Button's own ring, so focus looks the
-   same on every kind of control. The Button's is a 3px halo in the ring colour at
-   50% around a border that turns the ring colour in full; the halo alone reads
-   1.65:1 on the dark surface and 1.92:1 on the light one, short of the 3:1 a focus
-   indicator needs, and a nav row has no border to carry it. The 1px outline is that
-   border (3.4:1 dark, 4.3:1 light, measured in `nav-contrast.test.ts`). */
+/* A full-strength 2px ring carries keyboard focus at 3:1 in both themes. */
 @utility focus-ring {
   &:focus-visible {
-    outline: 1px solid var(--ring);
-    @apply ring-[3px] ring-ring/50;
+    outline: 2px solid var(--ring);
+    outline-offset: 2px;
   }
 }
 

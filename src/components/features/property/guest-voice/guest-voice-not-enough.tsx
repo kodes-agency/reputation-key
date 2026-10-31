@@ -1,67 +1,88 @@
-import { Alert, AlertDescription, AlertTitle } from '#/components/ui/alert'
-import { InlineLink } from '#/components/ui/inline-link'
+import { TouchInlineLink as InlineLink } from '#/components/ui/inline-touch-link'
+import { usePermissions } from '#/shared/hooks/usePermissions'
+import { useCapabilities } from '#/shared/hooks/useCapabilities'
 import type { GuestVoiceV2NotEnough } from '#/contexts/ai/application/public-api'
-import { GuestVoiceNothingHere, GuestVoiceSection } from './guest-voice-section'
+import { GuestVoiceSection } from './guest-voice-section'
+import { GuestVoiceDisclosure } from './guest-voice-disclosure'
 import { reviewDay, reviewsPhrase } from './guest-voice-words'
 
-/**
- * The page of a property with under about 10 reviews with text in the year: there are
- * no patterns to spot, and the page says so instead of drawing rankings out of two
- * reviews. What it has to show is the latest reviews, and the way to the Inbox.
- */
 export function GuestVoiceNotEnough({
   read,
   propertyId,
 }: Readonly<{ read: GuestVoiceV2NotEnough; propertyId: string }>) {
+  const { can } = usePermissions()
+  const { has } = useCapabilities()
   return (
-    <div className="flex flex-col gap-6 md:gap-8">
-      <Alert variant="info">
-        <AlertTitle>Not enough reviews yet to spot patterns</AlertTitle>
-        <AlertDescription>
-          <p>
-            Guest voice looks for problems and strengths that several guests mention, so
-            it needs about 10 reviews with text in 12 months. This property has{' '}
-            {read.textReviewCount === 0
-              ? 'none'
-              : `${reviewsPhrase(read.textReviewCount)}`}
-            . Until then, here are the latest reviews.
+    <div className="flex flex-col gap-4">
+      <GuestVoiceSection
+        title="What are guests saying?"
+        icon="reviews"
+        answer="Not enough reviews to spot patterns yet"
+        hint={`Guest voice needs about 10 reviews with text in 12 months. This property has ${reviewsPhrase(read.textReviewCount)}. Here are your latest reviews.`}
+      >
+        {!read.latestReviews.length ? (
+          <p className="py-2 text-sm text-muted-foreground">
+            No reviews have come in during this period.
           </p>
-        </AlertDescription>
-      </Alert>
-      <GuestVoiceSection title="Latest reviews">
-        {read.latestReviews.length === 0 ? (
-          <GuestVoiceNothingHere>No reviews have come in yet.</GuestVoiceNothingHere>
         ) : (
-          <ul className="flex flex-col gap-3">
-            {read.latestReviews.map((review) => (
-              <li
-                key={review.inboxItemId}
-                className="flex flex-col gap-1.5 rounded-xl border bg-card p-4"
-              >
-                <p className="flex flex-wrap items-center gap-x-3 text-sm text-muted-foreground">
-                  <span>
-                    <span aria-hidden="true">{review.rating}★</span>
-                    <span className="sr-only">{review.rating} stars</span>
+          <ul className="divide-y">
+            {read.latestReviews.slice(0, 3).map((review) => (
+              <li key={review.inboxItemId} className="py-3">
+                <p className="text-sm text-muted-foreground">
+                  <span aria-hidden="true" className="text-warn">
+                    {'★'.repeat(review.rating)}
+                    {'☆'.repeat(5 - review.rating)}
                   </span>
-                  <span>{reviewDay(review.reviewedAt)}</span>
+                  <span className="sr-only">{review.rating} stars</span> ·{' '}
+                  {reviewDay(review.reviewedAt)}
                 </p>
-                {review.text === null ? null : (
-                  <p className="text-sm leading-relaxed [overflow-wrap:anywhere]">
+                {review.text === null ? (
+                  <p className="py-2 text-sm text-muted-foreground">
+                    The words of this review aren’t available here.
+                  </p>
+                ) : review.text.length <= 140 ? (
+                  <p className="py-2 text-sm leading-relaxed [overflow-wrap:anywhere]">
                     {review.text}
                   </p>
+                ) : (
+                  <GuestVoiceDisclosure label={`${review.text.slice(0, 140)}…`}>
+                    <p className="py-2 text-sm leading-relaxed [overflow-wrap:anywhere]">
+                      {review.text}
+                    </p>
+                  </GuestVoiceDisclosure>
                 )}
-                <InlineLink
-                  to="/inbox"
-                  search={{ propertyId, itemId: review.inboxItemId }}
-                  className="inline-flex min-h-11 w-fit items-center md:min-h-0"
-                >
-                  Open in the inbox
-                </InlineLink>
               </li>
             ))}
           </ul>
         )}
+        {can('inbox.read') ? (
+          <InlineLink
+            underline="always"
+            to="/inbox"
+            search={{
+              propertyId,
+              since: read.context.startLocalDate,
+              until: read.context.endLocalDate,
+            }}
+          >
+            See all {reviewsPhrase(read.allReviewCount)}
+          </InlineLink>
+        ) : null}
       </GuestVoiceSection>
+      {can('portal.read') && has('portal.read') ? (
+        <div className="rounded-xl border bg-muted/30 px-4 py-3 text-sm">
+          <p>
+            Invite more guests to review to see what’s working and what needs attention.
+          </p>
+          <InlineLink
+            underline="always"
+            to="/properties/$propertyId/portals"
+            params={{ propertyId }}
+          >
+            Invite guests to review
+          </InlineLink>
+        </div>
+      ) : null}
     </div>
   )
 }

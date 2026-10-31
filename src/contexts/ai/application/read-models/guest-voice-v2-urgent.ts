@@ -5,16 +5,17 @@
 //
 // A manager hiding an issue does not hide its Urgent reviews: the strip is a safety
 // signal, not a ranking, and the alert has already gone out for each.
-import { REVIEW_STRENGTH_RANK_V3 } from '#/shared/review-analysis-v3'
+import { groupSeriousConcerns, type ConcernGroup } from './guest-voice-v2-concerns'
+import { issueAnswerName, issueDisplayTitle } from './guest-voice-v2-titles'
+import { lastMentionedLocalDate } from './guest-voice-v2-recency'
 import type { FixFirstItem } from './guest-voice-v2'
 import {
   pickUrgentEvidenceCandidates,
   type EvidenceSlot,
 } from './guest-voice-v2-evidence'
-import type { GuestVoiceMention, GuestVoiceReview } from './guest-voice-v2-facts'
+import type { GuestVoiceReview } from './guest-voice-v2-facts'
 import {
   MAX_CAUSES,
-  issueTitle,
   mostSevereUrgentReason,
   statisticsOfIssue,
   topCauses,
@@ -23,37 +24,7 @@ import {
 } from './guest-voice-v2-sections'
 import { issueSenseKey } from './guest-voice-v2-tally'
 
-/** At most this many Urgent cards: more than this is a Property that needs a person, not a page. */
-const MAX_URGENT = 10
-
-/** Safety first, then the strongest, then the first the guest named. */
-function morePrimary(
-  best: GuestVoiceMention | null,
-  mention: GuestVoiceMention,
-): GuestVoiceMention {
-  if (best === null) return mention
-  const bestSafety = best.topic === 'safety'
-  const safety = mention.topic === 'safety'
-  if (bestSafety !== safety) return safety ? mention : best
-  const bestStrength = REVIEW_STRENGTH_RANK_V3[best.strength]
-  const strength = REVIEW_STRENGTH_RANK_V3[mention.strength]
-  if (bestStrength !== strength) return strength > bestStrength ? mention : best
-  return mention.mentionOrdinal < best.mentionOrdinal ? mention : best
-}
-
-/**
- * The problem an Urgent review reports: its safety complaint when it has one (the guide
- * asks for one beside every Urgent safety reason), else its strongest. Null when the
- * review names no problem that belongs to an issue.
- */
-function primaryComplaint(review: GuestVoiceReview): GuestVoiceMention | null {
-  let best: GuestVoiceMention | null = null
-  for (const mention of review.mentions) {
-    if (mention.polarity !== 'negative' || mention.issueGroupId === null) continue
-    best = morePrimary(best, mention)
-  }
-  return best
-}
+import { MAX_URGENT } from './guest-voice-v2-limits'
 
 export type UrgentSection = Readonly<{
   items: readonly FixFirstItem[]
@@ -72,17 +43,17 @@ function latestDay(reviews: readonly GuestVoiceReview[]): string {
 export function urgentSection(
   input: SectionInput,
   counted: CountedReviews,
+  concerns: readonly ConcernGroup[] = groupSeriousConcerns(input.current, input.groups),
 ): UrgentSection {
   const byIssue = new Map<string, GuestVoiceReview[]>()
   let otherCount = 0
-  for (const review of input.current) {
-    if (review.urgentReason === null) continue
-    const groupId = primaryComplaint(review)?.issueGroupId ?? null
-    if (groupId === null || !input.groups.has(groupId)) {
-      otherCount += 1
+  for (const concern of concerns) {
+    const groupId = concern.item.issueId
+    if (groupId === null) {
+      otherCount += concern.reviews.length
       continue
     }
-    byIssue.set(groupId, [...(byIssue.get(groupId) ?? []), review])
+    byIssue.set(groupId, [...(byIssue.get(groupId) ?? []), ...concern.reviews])
   }
 
   const built: Array<
@@ -100,7 +71,11 @@ export function urgentSection(
       day: latestDay(reviews),
       item: {
         issueId: groupId,
-        title: issueTitle(group),
+        title:
+          counted.titles.get('complaint')?.get(groupId) ??
+          issueDisplayTitle(group, tally),
+        answerName: issueAnswerName(group, tally),
+        lastMentionedLocalDate: lastMentionedLocalDate(reviews) ?? '',
         topic: group.topic,
         causes: topCauses(tally, MAX_CAUSES),
         urgentReason: mostSevereUrgentReason(reviews),

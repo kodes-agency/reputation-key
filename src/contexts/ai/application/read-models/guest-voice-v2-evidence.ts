@@ -252,7 +252,8 @@ export function withLiveEvidence(
 ): GuestVoiceV2Read {
   const { read } = draft
   if (read.status === 'not_enough_reviews') {
-    return { ...read, latestReviews: latestReviewsOf(draft.latest, resolved) }
+    const latestReviews = latestReviewsOf(draft.latest, resolved)
+    return { ...read, latestReviews, latestReviewCount: latestReviews.length }
   }
   const slots = new Map(
     draft.evidence.map((slot) => [slotKey(slot.section, slot.issueId), slot]),

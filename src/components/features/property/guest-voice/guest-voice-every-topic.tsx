@@ -1,97 +1,100 @@
-import type { ReactNode } from 'react'
-import { GlossaryTerm } from '#/components/features/shared/glossary-term'
+import { useState } from 'react'
+import { ChevronDown, ChevronRight } from 'lucide-react'
+import { RowButton as Button } from '#/components/ui/button-layouts'
 import {
-  DataTable,
-  DataTableBody,
-  DataTableCell,
-  DataTableHead,
-  DataTableHeader,
-  DataTableRow,
-} from '#/components/ui/data-table'
-import type { TopicRow } from '#/contexts/ai/application/public-api'
-import {
-  ChangeCell,
-  PraiseAndComplaintsCell,
-  ReviewsCell,
-  StarsCell,
-} from './guest-voice-topic-cells'
-import { GuestVoiceNothingHere, GuestVoiceSection } from './guest-voice-section'
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from '#/components/ui/collapsible'
+import { StatusBadge, type StatusMap } from '#/components/ui/status-badge'
+import type {
+  GuestVoiceTopicStatus,
+  TopicRow,
+} from '#/contexts/ai/application/public-api'
+import { GuestVoiceDisclosure } from './guest-voice-disclosure'
+import { topicStatusWords } from './guest-voice-check-in-words'
 import { topicLabel } from './guest-voice-words'
+import { GuestVoiceTopicIcon } from './guest-voice-topic-icon'
+import { useGuestVoice } from './guest-voice-context'
 
-/** What a cell is called while the rows are stacked and the header row is hidden. */
-function StackedLabel({ children }: Readonly<{ children: ReactNode }>) {
-  return <span className="mr-2 text-muted-foreground @3xl:hidden">{children}</span>
+const TOPIC_STATUS: StatusMap<GuestVoiceTopicStatus> = {
+  needs_attention: { label: topicStatusWords.needs_attention, tone: 'warn' },
+  mixed: { label: topicStatusWords.mixed, tone: 'neutral' },
+  doing_well: { label: topicStatusWords.doing_well, tone: 'positive' },
+  great: { label: topicStatusWords.great, tone: 'positive' },
+  unjudged: { label: topicStatusWords.unjudged, tone: 'neutral' },
 }
-
-/**
- * The same twelve topics for every kind of business, with what guests said of each.
- * Counts first; the stars and the change are the engine's, and a topic with too few
- * reviews says so rather than print an average of two.
- */
+const ORDER: readonly GuestVoiceTopicStatus[] = [
+  'needs_attention',
+  'mixed',
+  'doing_well',
+  'great',
+  'unjudged',
+]
 export function GuestVoiceEveryTopic({ rows }: Readonly<{ rows: readonly TopicRow[] }>) {
+  const [open, setOpen] = useState(false)
+  const { onOpenDetail } = useGuestVoice()
+  const sorted = [...rows].sort(
+    (a, b) =>
+      ORDER.indexOf(a.assessment.status) - ORDER.indexOf(b.assessment.status) ||
+      (a.assessment.happyShare ?? 1) - (b.assessment.happyShare ?? 1),
+  )
+  const list = (shown: readonly TopicRow[]) => (
+    <ul className="divide-y">
+      {shown.map((row) => (
+        <li key={row.topic}>
+          <Button
+            type="button"
+            variant="ghost"
+            className="gap-2"
+
+            disabled={!onOpenDetail}
+            aria-haspopup={onOpenDetail ? 'dialog' : undefined}
+            onClick={() => onOpenDetail?.({ kind: 'topic', topic: row.topic })}
+          >
+            <GuestVoiceTopicIcon topic={row.topic} row />
+            <span className="flex-1 text-base font-semibold">
+              {topicLabel(row.topic)}
+            </span>
+            <StatusBadge status={row.assessment.status} map={TOPIC_STATUS} />
+            <ChevronRight aria-hidden="true" />
+          </Button>
+        </li>
+      ))}
+    </ul>
+  )
   return (
-    <GuestVoiceSection
-      title="Every topic"
-      hint="The same 12 topics for every kind of business"
+    <Collapsible
+      open={open}
+      onOpenChange={setOpen}
+      className="rounded-xl border bg-card p-4"
     >
-      {rows.length === 0 ? (
-        <GuestVoiceNothingHere>No topic was named in this period.</GuestVoiceNothingHere>
-      ) : (
-        <DataTable label="Every topic" from="3xl">
-          <DataTableHeader>
-            <DataTableHead>Topic</DataTableHead>
-            <DataTableHead>Reviews</DataTableHead>
-            <DataTableHead className="min-w-60">
-              <GlossaryTerm term="praise-and-complaints" />
-            </DataTableHead>
-            <DataTableHead>
-              <GlossaryTerm term="stars-when-mentioned" />
-            </DataTableHead>
-            <DataTableHead>
-              <GlossaryTerm term="likely-change" />
-            </DataTableHead>
-          </DataTableHeader>
-          <DataTableBody>
-            {rows.map((row, index) => (
-              <DataTableRow key={row.topic} className="last:border-b-0">
-                <DataTableCell className="col-span-2 font-medium whitespace-normal">
-                  {topicLabel(row.topic)}
-                </DataTableCell>
-                <DataTableCell className="col-span-2">
-                  <StackedLabel>Reviews</StackedLabel>
-                  <ReviewsCell row={row} />
-                </DataTableCell>
-                <DataTableCell className="col-span-2">
-                  <StackedLabel>
-                    {index === 0 ? (
-                      <GlossaryTerm term="praise-and-complaints" />
-                    ) : (
-                      'Praise and complaints'
-                    )}
-                  </StackedLabel>
-                  <PraiseAndComplaintsCell row={row} />
-                </DataTableCell>
-                <DataTableCell className="col-span-2 whitespace-normal">
-                  <StackedLabel>
-                    {index === 0 ? (
-                      <GlossaryTerm term="stars-when-mentioned" />
-                    ) : (
-                      'Stars when mentioned'
-                    )}
-                  </StackedLabel>
-                  <StarsCell row={row} />
-                </DataTableCell>
-                <DataTableCell className="col-span-2 whitespace-normal">
-                  <StackedLabel>
-                    {index === 0 ? <GlossaryTerm term="likely-change" /> : 'Change'}
-                  </StackedLabel>
-                  <ChangeCell row={row} />
-                </DataTableCell>
-              </DataTableRow>
-            ))}
-          </DataTableBody>
-        </DataTable>
-      )}
-    </GuestVoiceSection>
+      <CollapsibleTrigger asChild>
+        <Button type="button" variant="ghost">
+          <span>
+            <span className="block text-base font-semibold">
+              Every part of your property
+            </span>
+            <span className="block font-normal text-muted-foreground">
+              How guests feel about {rows.length} parts, the ones that need attention
+              first
+            </span>
+          </span>
+          <ChevronDown aria-hidden="true" className={open ? 'rotate-180' : undefined} />
+        </Button>
+      </CollapsibleTrigger>
+      <CollapsibleContent>
+        <p className="py-2 text-sm text-muted-foreground">
+          Grouped by how guests feel, with the parts needing attention first. Fewer than
+          six reviews means this part stays unjudged.
+        </p>
+        {list(sorted.slice(0, 3))}
+        {sorted.length > 3 ? (
+          <GuestVoiceDisclosure label={`Show ${sorted.length - 3} more parts`}>
+            {list(sorted.slice(3))}
+          </GuestVoiceDisclosure>
+        ) : null}
+      </CollapsibleContent>
+    </Collapsible>
   )
 }

@@ -760,7 +760,7 @@ review's latest ready v3 contribution and its effective mentions in one statemen
 aggregate head's share lock, with the Property's issues. A review is counted only where both agree
 on its revision, analysis sequence and day, so an analysis of a review that has since gone or
 changed is never counted; a review with text that has no analysis yet makes the figures
-`provisional`, which also withdraws any claim of change. Every figure is `issueStatistics`'
+`provisional`, which also withdraws any claim of change. Issue impact figures are `issueStatistics`'
 (`read-models/issue-statistics.ts`), the PR-1 engine's: an issue is one thing under one topic
 (`ai_property_issue_groups`), counted in reviews, not mentions; three complaint reviews enter Fix
 first, ranked Urgent first, then by stars at stake; one or two are Watch; praise is Guests love;
@@ -777,7 +777,7 @@ so a name flagged anywhere in it would be on the page (decision 2 wrote "any men
 sentence"; this is the stricter reading). The flag is read from the answer as the provider gave it
 (`GuestVoiceReview.namesAPerson`, an `EXISTS` over the stored mentions), not from the mentions left
 after a manager's corrections: removing the mention that carried a name takes a topic out of the
-counts, not the name out of the text, so the review stays unquotable. The delivery layer (`server/guest-voice-v2.ts`) then reads,
+counts, not the name out of the text, so the review stays unquotable. The delivery layer (`server/guest-voice-evidence.server.ts`) then reads,
 under the reader's own access, which Inbox Item opens each review and what the review says now
 (`resolveDraftReviews`), and `withLiveEvidence` cuts that text with `review-sentences-v1`, the rule
 the analysis used. A review the reader cannot open, whose text has gone, or that now has fewer
@@ -790,11 +790,53 @@ so this closes the gap before the text read, in which an edit could have underli
 sentences. Nothing is stored. A Property with under about 10 reviews with text in 12 months gets `not_enough_reviews`
 and its latest reviews, with words only where the analysis is in and names nobody.
 
-An Urgent review whose analysis named no problem to put under an issue is counted
-(`urgentOtherCount`) and not dropped. The drawer's own read and the manager's issue commands
-(rename, hide, merge) are not wired yet (slice 4.3): until they are the route passes the page no
-drawer (`GuestVoiceV2View.drawer` is absent), so an issue's name is plain text, not a button that
-announces a dialog and opens nothing.
+The weekly check-in read (`guest-voice-check-in-v1`, within the existing v2 read
+family) adds serious concerns, comment-rating comparison, per-issue recency,
+exact section totals/overflow and all twelve topic assessments. The intended page
+order is concerns → happier → fix → praise → collapsed topics. Legacy `urgent`,
+`inShort`, `whatChanged` and capped rankings remain for Overview/Monday consumers.
+One shared grouping pass assigns each urgent review to its primary surviving
+negative issue and reason, else a fixed reason-only group. Safety-topic complaints
+win, then strength, then ordinal. Hidden issues stay in concerns. Group counts
+are distinct from report counts, recency/counts use urgent members only, and
+coverage is complete/provisional. Small states use the same selected-window path
+before returning: the year decides eligibility, while selected-window basis,
+concerns and up to three previews describe exactly the selected days. Failed
+facts reads are preparing, never quiet zeroes.
+
+`guest-voice-rating-trend-v1` reads current servable comments from the chosen
+Review population, including unanalysed comments and excluding star-only ones.
+The fixed recent split is min(90, max(7, floor(inclusive days / 4))); before is
+the remainder. At least 20 before and 10 recent comments and complete analysis
+are needed for a verdict. The existing independent Beta(1,1) happy-share
+comparison uses a .05 margin and central 95% threshold, and requires an
+unrounded mean change of at least .20 stars in the same direction. Steady is
+not equivalence. Monthly means weight raw rating counts, retain empty months
+and partial calendar bounds, and may span thirteen months. These are comment
+ratings, not Google's rating; dataThrough is the calendar cut-off, not sync time.
+Topic status needs six unique mentioning reviews and uses happy share of all
+mentions (including mixed/neutral), at .45/.65/.80 cut-offs. The four per-review
+categories are disjoint. Hidden groups remain in topic evidence. Transient
+titles use a manager's nonempty rename verbatim, else thing/topic plus top
+normalized cause; automatic collisions receive topic/id context. Answer and
+clipboard copy belongs to pure UI functions; summaries use fixed topics and
+unique topic counts, never titles or causes.
+
+`readGuestVoiceDetail` and `getGuestVoiceDetailFn` now provide live issue,
+concern and topic reads. `guest-voice-read-context.ts` shares Property admission,
+AI/served-contract gates, local calendar, bounded population reads and current
+revision/sequence/day joins with the page. Details accept Property/range/current
+ISO bounds/target; stale bounds return `refresh_required`, unknown targets
+`not_found`. Disabled/preparing reads never fabricate a ready sheet. Issue bars
+compare current analysed comments with their set difference, separate from
+all-review impact statistics. Linked concerns indicate shared review ids only.
+History is twelve calendar months when covered; bounded fallback is window-only.
+`guest-voice-evidence.server.ts` shares reader-authorized live resolution; drafts
+contain references only, and evidence keeps sentence ranges (clause underlining
+is deferred). A reason-only concern with no surviving cited negative issue may
+have no safe quote. Issue rename/hide/merge commands remain unpublished.
+Existing issue/polarity/day and urgent Inbox searches are retained; there are
+no new topic/concern identifier filters or All reviews queue in this change.
 
 The page names the Property's Google rating goal beside the top problem, and AI knows nothing
 of it: the route reads the goal card (`ratingGoalCardQuery`, the Reporting context's read) and

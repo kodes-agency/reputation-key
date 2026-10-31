@@ -49,9 +49,8 @@ export function guestVoiceV2RangeOf(range: GuestVoiceRange): GuestVoiceRange {
 }
 
 /**
- * The drawer of an issue is the next slice's (4.3): it needs its own read. Until it lands
- * the view has no drawer, so an issue's name is plain text and the page offers no door to
- * an empty one; the figures, the quotes and the way into the Inbox are all there.
+ * Page and independent goal facts; the route attaches the URL-backed detail read.
+ * Live words are fetched only while a detail target is open.
  */
 export function guestVoiceV2View(
   read: GuestVoiceV2Read,
@@ -61,7 +60,7 @@ export function guestVoiceV2View(
 }
 
 /**
- * Where the Property's Google rating goal stands, for the line beside the top problem.
+ * Where the Property's active Google rating goal stands, for the header meta line.
  * Only an active goal is named: one reached, ended or not yet read is not a goal the page
  * has anything to say about, and a card that could not be read (no goal, no permission,
  * the capability off) is `undefined` and says nothing.

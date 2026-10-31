@@ -1,3 +1,4 @@
+import { assembleGuestVoiceV2 } from './guest-voice-v2-build'
 import { describe, expect, it } from 'vitest'
 import { GUEST_VOICE_STATISTICS_VERSION } from '../../domain/guest-voice-statistics'
 import type { GuestVoiceV2Ready } from './guest-voice-v2'
@@ -28,6 +29,18 @@ const STATS = {
 
 function read(over: Partial<GuestVoiceV2Ready> = {}): GuestVoiceV2Ready {
   return {
+    ...assembleGuestVoiceV2({
+      propertyId: 'fixture',
+      window: '90d',
+      startLocalDate: '2026-08-02',
+      endLocalDate: '2026-10-30',
+      provisional: false,
+      population: { stars: [0, 0, 0, 0, 0], textReviews: 0 },
+      currentPopulation: [],
+      current: [],
+      baseline: [],
+      groups: new Map(),
+    }).read,
     status: 'ready',
     readModelVersion: 'guest-voice-read-v2',
     statisticsVersion: GUEST_VOICE_STATISTICS_VERSION,
@@ -36,7 +49,7 @@ function read(over: Partial<GuestVoiceV2Ready> = {}): GuestVoiceV2Ready {
     endLocalDate: '2026-11-09',
     dataThroughLocalDate: '2026-11-09',
     provisional: false,
-    basis: { textReviewCount: 128, starOnlyCount: 96 },
+    basis: { textReviewCount: 128, starOnlyCount: 96, analysedTextReviewCount: 128 },
     inShort: [],
     urgent: [],
     fixFirst: [],
@@ -53,6 +66,8 @@ const issue = (issueId: string, topic: 'cleanliness' | 'staff_service' = 'cleanl
   ({
     issueId,
     title: `Title of ${issueId}`,
+    answerName: `Title of ${issueId}`,
+    lastMentionedLocalDate: '2026-10-29',
     topic,
     causes: [],
     urgentReason: null,
@@ -153,6 +168,8 @@ describe('the three lines', () => {
           {
             issueId: 'c',
             title: 'Friendly staff',
+            answerName: 'Friendly staff',
+            lastMentionedLocalDate: '2026-10-29',
             topic: 'staff_service',
             statistics: STATS,
           },
@@ -161,6 +178,8 @@ describe('the three lines', () => {
           {
             issueId: 'd',
             title: 'Dirty rooms',
+            answerName: 'Dirty rooms',
+            lastMentionedLocalDate: '2026-10-29',
             topic: 'cleanliness',
             change: 'falling',
             evidenceLevel: 'likely',
@@ -259,6 +278,8 @@ describe('a quiet week', () => {
     const watching = (id: string) => ({
       issueId: id,
       title: id,
+      answerName: id,
+      lastMentionedLocalDate: '2026-10-29',
       topic: 'cleanliness' as const,
       reviewCount: 1 as const,
     })
@@ -275,6 +296,8 @@ describe('a quiet week', () => {
     const watching = (id: string) => ({
       issueId: id,
       title: id,
+      answerName: id,
+      lastMentionedLocalDate: '2026-10-29',
       topic: 'cleanliness' as const,
       reviewCount: 2 as const,
     })

@@ -24,7 +24,7 @@ export type DraftReviewReaders = Readonly<{
 export type ReviewWords = Readonly<{ text: string | null; sourceRevision: number }>
 
 /** The reviews a draft wants to quote or list, and the ones whose words it will print. */
-function wantedReviews(draft: GuestVoiceV2Draft): Readonly<{
+function wantedReviews(draft: Pick<GuestVoiceV2Draft, 'evidence' | 'latest'>): Readonly<{
   all: readonly string[]
   withText: readonly string[]
 }> {
@@ -44,13 +44,15 @@ function wantedReviews(draft: GuestVoiceV2Draft): Readonly<{
 }
 
 export async function resolveDraftReviews(
-  draft: GuestVoiceV2Draft,
+  draft: Pick<GuestVoiceV2Draft, 'evidence' | 'latest'>,
   readers: DraftReviewReaders,
 ): Promise<ReadonlyMap<string, ResolvedReview>> {
   const wanted = wantedReviews(draft)
   if (wanted.all.length === 0) return new Map()
   const items = await readers.inboxItemIds(wanted.all)
-  const openable = wanted.withText.filter((reviewId) => items.has(reviewId))
+  const openable = wanted.withText.filter(
+    (reviewId) => wanted.all.includes(reviewId) && items.has(reviewId),
+  )
   const texts =
     openable.length === 0
       ? new Map<string, ReviewWords | null>()

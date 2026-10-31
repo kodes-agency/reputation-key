@@ -84,7 +84,7 @@
         "googlePerformanceLease"
       ],
       "owner": "Dashboard query lifecycle",
-      "policy": "Fleet is a real prefix above range-specific infinite entries. Staff/property callers include their property and view filters in the argument object. Google performance is isolated by property, preset, catalogue version, and view epoch; an authorization lease adds leaseRef beneath that exact report."
+      "policy": "Fleet is a real prefix above range-specific infinite entries. Staff/property callers include their property and view filters in the argument object. Google performance is isolated by property, preset, catalogue version, and view epoch; an authorization lease adds leaseRef beneath that exact report. The independent Google snapshot header read is keyed by propertyId and view 'google-numbers' under property, apart from goal permission and goal state, and its failure never replaces the Guest voice page."
     },
     {
       "id": "aiKeys",
@@ -97,7 +97,7 @@
         "organizationSpend"
       ],
       "owner": "AI read-model query lifecycle",
-      "policy": "The trend projection is a property-scoped sibling under the AI root, and globally unique propertyId prevents cross-property reuse (the aggregate and insights projections left with the v2 read model at the switch-on of review analysis v3). Guest voice 2.0, which the Guest voice page and the Overview row both read, is another property-scoped sibling: guestVoiceV2Property is the prefix of every window (guestVoiceV2 adds the page's range word), so a manager's correction in the Inbox refreshes all of a property's windows by that one prefix. Review-analysis progress is another property-scoped sibling: it polls only while analysis is running and is invalidated when the property's AI authorization changes. Organization spend is the one organization-scoped leaf: a monthly amount read by the AI overview, stale after a minute and never mutated by the client."
+      "policy": "The trend projection is a property-scoped sibling under the AI root, and globally unique propertyId prevents cross-property reuse (the aggregate and insights projections left with the v2 read model at the switch-on of review analysis v3). Guest voice 2.0, which the Guest voice page and the Overview row both read, is another property-scoped sibling: guestVoiceV2Property is the prefix of every window (guestVoiceV2 adds the page's range word), so a manager's correction in the Inbox refreshes all of a property's windows by that one prefix. Review-analysis progress is another property-scoped sibling: it polls only while analysis is running and is invalidated when the property's AI authorization changes. Organization spend is the one organization-scoped leaf: a monthly amount read by the AI overview, stale after a minute and never mutated by the client. Live Guest voice details are sibling leaves below guestVoiceV2Property, keyed by range, both exact local-day bounds and complete target (including sense or reason); a correction refreshes them through the same property prefix. Live words have staleTime and gcTime zero."
     },
     {
       "id": "goalKeys",

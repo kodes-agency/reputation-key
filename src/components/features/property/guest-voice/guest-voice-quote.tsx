@@ -1,4 +1,4 @@
-import { InlineLink } from '#/components/ui/inline-link'
+import { TouchInlineLink as InlineLink } from '#/components/ui/inline-touch-link'
 import type { LiveEvidence } from '#/contexts/ai/application/public-api'
 import { cn } from '#/lib/utils'
 import { quoteSegments } from './guest-voice-quote-segments'
@@ -45,18 +45,18 @@ export function GuestVoiceQuote({
         )}
         ”
       </blockquote>
-      <figcaption className="flex flex-wrap items-center gap-x-3 gap-y-0.5 text-xs text-muted-foreground">
+      <figcaption className="flex flex-wrap items-center gap-x-3 gap-y-0.5 text-sm text-muted-foreground">
         <span>
           <span aria-hidden="true">{evidence.rating}★</span>
           <span className="sr-only">{evidence.rating} stars</span>
         </span>
         {day === null ? null : <span>{day}</span>}
         <InlineLink
+          underline="always"
           to="/inbox"
           search={{ propertyId, itemId: evidence.inboxItemId }}
-          className="inline-flex min-h-11 items-center max-md:-my-2.5 md:min-h-0"
         >
-          Open in the inbox
+          Open in the Inbox
         </InlineLink>
       </figcaption>
     </figure>

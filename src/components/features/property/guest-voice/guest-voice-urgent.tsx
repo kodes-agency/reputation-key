@@ -1,98 +1,120 @@
-import { useId } from 'react'
-import { Link } from '@tanstack/react-router'
-import { Alert } from '#/components/ui/alert'
-import { Button } from '#/components/ui/button'
-import { formatNumber } from '#/lib/format'
-import type { FixFirstItem } from '#/contexts/ai/application/public-api'
+import { ChevronRight } from 'lucide-react'
+import { RowButton as Button } from '#/components/ui/button-layouts'
+import { TouchInlineLink as InlineLink } from '#/components/ui/inline-touch-link'
+import { usePermissions } from '#/shared/hooks/usePermissions'
+import type { GuestVoiceSeriousConcerns } from '#/contexts/ai/application/public-api'
 import { useGuestVoice } from './guest-voice-context'
+import { GuestVoiceSection } from './guest-voice-section'
+import { lastReportedText, periodWords, urgentAnswer } from './guest-voice-check-in-words'
+import { reviewsPhrase } from './guest-voice-words'
+import { GuestVoiceTopicIcon } from './guest-voice-topic-icon'
 import { urgentReviewsSearch } from './guest-voice-links'
-import { GuestVoiceQuote } from './guest-voice-quote'
-import { topicLabel, urgentReasonWords } from './guest-voice-words'
 
-function UrgentItem({ item }: Readonly<{ item: FixFirstItem }>) {
-  const { propertyId, onOpenIssue } = useGuestVoice()
-  return (
-    <li className="flex flex-col gap-2">
-      <p className="text-sm text-foreground">
-        <strong className="font-semibold">
-          Urgent
-          {item.urgentReason === null
-            ? null
-            : ` · ${urgentReasonWords(item.urgentReason)}`}
-        </strong>
-        {' · '}
-        {onOpenIssue === undefined ? (
-          <span className="font-medium">{item.title}</span>
-        ) : (
-          <Button
-            type="button"
-            variant="link"
-            size="inline"
-            touch
-            aria-haspopup="dialog"
-            className="whitespace-normal"
-            onClick={() => onOpenIssue(item.issueId)}
-          >
-            {item.title}
-          </Button>
-        )}
-        <span className="text-muted-foreground"> · {topicLabel(item.topic)}</span>
-      </p>
-      {item.quote == null ? null : (
-        <GuestVoiceQuote
-          evidence={item.quote}
-          sense="complaint"
-          propertyId={propertyId}
-        />
-      )}
-    </li>
-  )
-}
+export const CONCERN_WORDS = {
+  safety: 'Safety risk',
+  health: 'Health risk',
+  discrimination: 'Discrimination',
+  legal_threat: 'Legal threat',
+} as const
 
-/**
- * A guest has reported a risk to safety or health, discrimination or a legal threat.
- * Rare, and above everything else on the page; the reason is on it, and the Inbox is
- * one press away. The only thing here that is also sent as an alert. A review the
- * analysis flagged but could name no problem for is counted, not dropped: it has no
- * card to open, and the Inbox button is where it is read.
- */
 export function GuestVoiceUrgent({
-  items,
-  otherCount = 0,
-}: Readonly<{ items: readonly FixFirstItem[]; otherCount?: number }>) {
-  const { propertyId } = useGuestVoice()
-  const headingId = useId()
-  if (items.length === 0 && otherCount === 0) return null
-  return (
-    // A region, not an alert: it is on the page for as long as it is true, and the
-    // alert itself goes out by email and in the bell when the review arrives.
-    <Alert variant="destructive" role="region" aria-labelledby={headingId}>
-      <h2 id={headingId} className="col-start-2 text-base font-semibold tracking-tight">
-        {items.length + otherCount === 1
-          ? 'An urgent review needs you'
-          : 'Urgent reviews need you'}
-      </h2>
-      <div className="col-start-2 flex flex-col gap-3 pt-1 text-foreground">
-        {items.length === 0 ? null : (
-          <ul className="flex flex-col gap-3">
-            {items.map((item) => (
-              <UrgentItem key={item.issueId} item={item} />
-            ))}
-          </ul>
-        )}
-        {otherCount === 0 ? null : (
-          <p className="text-sm">
-            {formatNumber(otherCount)}
-            {items.length === 0 ? ' urgent ' : ' more urgent '}
-            {otherCount === 1 ? 'review names' : 'reviews name'} no problem to open here.
+  concerns,
+}: Readonly<{ concerns: GuestVoiceSeriousConcerns }>) {
+  const { propertyId, window, startLocalDate, endLocalDate, onOpenDetail } =
+    useGuestVoice()
+  const { can } = usePermissions()
+  if (!concerns.groupCount)
+    return (
+      <GuestVoiceSection
+        title="Anything urgent?"
+        icon="quiet"
+        tone="positive"
+        compact
+        answer={
+          concerns.coverage === 'complete'
+            ? `No serious concerns reported in ${periodWords(window)}`
+            : 'No serious concerns found so far'
+        }
+      >
+        {concerns.coverage === 'provisional' ? (
+          <p className="py-2 text-sm text-muted-foreground">
+            Some reviews are still being analysed.
           </p>
-        )}
-        <Button asChild variant="outline" size="sm" className="w-fit">
-          <Link to="/inbox" search={urgentReviewsSearch(propertyId)}>
-            Open urgent reviews in the inbox
-          </Link>
-        </Button>
-      </div>
-    </Alert>
+        ) : null}
+      </GuestVoiceSection>
+    )
+  return (
+    <GuestVoiceSection
+      title="Anything urgent?"
+      icon="urgent"
+      answer={urgentAnswer(concerns.groupCount)}
+      tone="negative"
+    >
+      <ul className="divide-y">
+        {concerns.items.map((item) => (
+          <li key={item.key}>
+            <Button
+              type="button"
+              variant="ghost"
+
+              className="gap-3"
+              aria-haspopup={onOpenDetail ? 'dialog' : undefined}
+              disabled={!onOpenDetail}
+              onClick={() =>
+                onOpenDetail?.({
+                  kind: 'concern',
+                  issueId: item.issueId,
+                  reason: item.urgentReason,
+                })
+              }
+            >
+              {item.topic ? <GuestVoiceTopicIcon topic={item.topic} row /> : null}
+              <span className="flex min-w-0 flex-1 flex-col gap-1">
+                <span data-issue-title className="text-base font-semibold">
+                  {item.title}{' '}
+                  <span className="whitespace-nowrap text-sm text-negative">Read ›</span>
+                </span>
+                <span className="font-normal text-muted-foreground">
+                  <span className="font-medium text-negative">
+                    {CONCERN_WORDS[item.urgentReason]}
+                  </span>{' '}
+                  · {item.reviewCount} {item.reviewCount === 1 ? 'guest' : 'guests'} ·{' '}
+                  {lastReportedText(item.lastReportedLocalDate)}
+                </span>
+              </span>
+              <ChevronRight aria-hidden="true" />
+            </Button>
+          </li>
+        ))}
+      </ul>
+      {concerns.remainingGroupCount ? (
+        <p className="py-2 text-sm text-muted-foreground">
+          {concerns.remainingGroupCount} more serious{' '}
+          {concerns.remainingGroupCount === 1 ? 'concern' : 'concerns'} ·{' '}
+          {reviewsPhrase(concerns.remainingReviewCount)} beyond this list.
+          {can('inbox.read') ? (
+            <>
+              {' '}
+              <InlineLink
+                underline="always"
+                to="/inbox"
+                search={{
+                  ...urgentReviewsSearch(propertyId),
+                  since: startLocalDate,
+                  until: endLocalDate,
+                }}
+              >
+                Open these reviews in the Inbox
+              </InlineLink>
+            </>
+          ) : null}
+        </p>
+      ) : null}
+      {concerns.coverage === 'provisional' ? (
+        <p className="text-sm text-muted-foreground">
+          Some reviews are still being analysed. More concerns may appear.
+        </p>
+      ) : null}
+    </GuestVoiceSection>
   )
 }

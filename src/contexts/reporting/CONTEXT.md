@@ -17,6 +17,14 @@ metric authority.
   daily evaluation of every Property Google rating goal.
 - Contribute Reporting-owned records to organization export and lifecycle operations.
 
+Guest voice's independent Google headline uses `readPropertyGoogleNumbers`
+(`getPropertyGoogleNumbersFn`), a narrow `dashboard.read` Property read that
+requires same-Organization current access before snapshot/binding reads. It
+reuses `readGoogleNumbers` / `GoogleNumbersView` unchanged, with the real `asOf`
+and stale/disconnected `current` flag; no snapshot is null. It needs neither an
+active goal nor goal/fleet permission and performs no goal setup/history scans.
+The caller isolates a failed side read from the primary Guest voice page.
+
 ## Core model
 
 - **Metric definition/version**: frozen code-reviewed measurement policy.

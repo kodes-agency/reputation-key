@@ -14,6 +14,7 @@ import { createElement } from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { describe, expect, it } from 'vitest'
 import { Button } from './button'
+import { RowButton, SummaryButton } from './button-layouts'
 
 const STYLES = readFileSync(join(import.meta.dirname, '..', '..', 'styles.css'), 'utf8')
 
@@ -184,5 +185,25 @@ describe('density tokens', () => {
 
   it('is 36px in a compact workspace', () => {
     expect(Number(compact?.[1])).toBe(2.25)
+  })
+})
+
+describe('multi-line row and summary action sizes', () => {
+  it('lets linked concern rows grow around all their content', () => {
+    const html = renderToStaticMarkup(
+      createElement(RowButton, { variant: 'outline' }, 'Concern'),
+    )
+    expect(html).toContain('h-auto')
+    expect(html).toContain('whitespace-normal')
+    expect(html).toContain('max-md:min-h-(--control-touch)')
+    expect(html).not.toContain(' h-9 ')
+  })
+  it('keeps the summary width stable when its label changes', () => {
+    expect(renderToStaticMarkup(createElement(SummaryButton, {}, 'Copied'))).toContain(
+      'min-width:14rem',
+    )
+    expect(renderToStaticMarkup(createElement(SummaryButton, {}, 'Copy'))).toContain(
+      'rounded-full',
+    )
   })
 })

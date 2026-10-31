@@ -62,7 +62,7 @@ describe('PageHeader meta', () => {
 
   it('separates the items with a dot a screen reader skips, and puts none around one', () => {
     const several = render({ title: 'Group', meta: ['Group', '2 portals', 'Hotel'] })
-    const dots = several.match(/<span aria-hidden="true">·<\/span>/gu) ?? []
+    const dots = several.match(/<span aria-hidden="true">· ?<\/span>/gu) ?? []
     expect(dots).toHaveLength(2)
 
     const one = render({ title: 'Overview', meta: ['Hotel Aurora'] })
@@ -184,4 +184,13 @@ describe('PageHeader placeholder lines', () => {
     expect(bars(render({ title: 'Ratings', placeholderLines: 1 }))).toBe(1)
     expect(bars(render({ title: 'Ratings', placeholderLines: 2 }))).toBe(2)
   })
+})
+
+it('drops absent meta entries before drawing separators', () => {
+  expect(render({ title: 'Guest voice', meta: [null, undefined, false] })).not.toContain(
+    'page-header-meta',
+  )
+  expect(render({ title: 'Guest voice', meta: ['Hotel', null, false] })).not.toContain(
+    '·',
+  )
 })

@@ -195,3 +195,27 @@ The same measurement fixed what was the prompt's and the gold's, not the gates':
 **Whose reviews.** A Property's reviews only while the Property has an in-force Merchant AI Authorization for Review Analysis, under a notice that names the provider doing the test. Until the new notice is in force, Anthropic sees synthetic items and the reviews of the owner's own Organization, on the owner's decision as controller (2026-10-29). That is not a consent recorded in the app.
 
 **When an item leaves.** A review whose source is `provider_deleted` or `source_expired` drops out of every run. When AI is turned off for the Property, or an AccountAdmin erases AI data, the Property's rows are hidden at once and purged within the policy window. No row lives longer than 24 months from creation, and the table has its tested deletion rule in the retention sweep before it is written to.
+
+## Amended 2026-10-30 — Guest voice weekly check-in reads
+
+The check-in (`guest-voice-check-in-v1`) computes recency days, monthly comment
+means, topic assessments and concern groups at read time from the current
+servable Review population and the existing effective v3 facts of one Property.
+These response fields are transient: no additional derivative, migration,
+provider call, prompt/schema change or authorization/capability epoch change.
+The v3 retention and withdrawal rules above remain in force.
+
+Monthly stars may describe fewer than ten comments within this already
+approved, reader-authorized live population read. This does not change the
+separate Reporting rating-goal aggregate port's ten-review sum rule. A comparison
+verdict still needs at least twenty before and ten recent comments and complete
+analysis; the happy-share posterior is distinct from a claim about a star mean.
+
+Evidence offsets are response-only sentence ranges over live, revision-checked
+Review text, resolved only after the reader's Inbox access. Clause underlining
+is deferred. The named-person safeguard is review-wide, including original
+mentions subsequently removed or corrected by a manager. Neither page nor
+detail may quote any part of such a review. Missing, expired, changed or
+inaccessible words leave the counts visible without a quote. Issue labels and
+manager names never enter the manual team summary, stored facts or provider
+input as a result of this change.

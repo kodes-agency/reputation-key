@@ -1,3 +1,5 @@
+import type { GuestVoiceIssueGroup } from './guest-voice-v2-facts'
+import { issueTitle } from './guest-voice-v2-titles'
 // "In short": the page in up to three lines, from fixed sentence patterns filled with
 // the analysis's own numbers (decision Q9). There is no model in it, so there is no
 // wording the figures below could contradict. Each line is "Lead: rest" because the page
@@ -62,13 +64,18 @@ export function inShortLines(
     guestsLove: readonly GuestsLoveItem[]
     whatChanged: readonly ChangedItem[]
   }>,
+  groups: ReadonlyMap<string, GuestVoiceIssueGroup>,
 ): readonly InShortLine[] {
+  const summaryItem = <T extends { issueId: string; title: string }>(item: T): T => {
+    const group = groups.get(item.issueId)
+    return group ? { ...item, title: issueTitle(group) } : item
+  }
   const lines: InShortLine[] = []
   const problem = sections.fixFirst.at(0)
   const strength = sections.guestsLove.at(0)
   const change = sections.whatChanged.at(0)
-  if (problem !== undefined) lines.push(topProblemLine(problem))
-  if (strength !== undefined) lines.push(topStrengthLine(strength))
-  if (change !== undefined) lines.push(changeLine(change))
+  if (problem !== undefined) lines.push(topProblemLine(summaryItem(problem)))
+  if (strength !== undefined) lines.push(topStrengthLine(summaryItem(strength)))
+  if (change !== undefined) lines.push(changeLine(summaryItem(change)))
   return lines
 }

@@ -211,8 +211,8 @@ export const aiKeys = {
   /** Every window of the Guest voice 2.0 read for one Property: what a correction refreshes. */
   guestVoiceV2Property: (propertyId: string) =>
     [...aiKeys.all, 'guest-voice-v2', propertyId] as const,
-  guestVoiceV2: (propertyId: string, range: string) =>
-    [...aiKeys.guestVoiceV2Property(propertyId), range] as const,
+  guestVoiceV2: (propertyId: string, ...scope: readonly string[]) =>
+    [...aiKeys.guestVoiceV2Property(propertyId), ...scope] as const,
   /** Paced Review Analysis counts for one property (ADR 0058). */
   reviewAnalysisProgress: (propertyId: string) =>
     [...aiKeys.all, 'review-analysis-progress', propertyId] as const,

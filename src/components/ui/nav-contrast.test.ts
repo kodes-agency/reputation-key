@@ -62,6 +62,9 @@ describe.each(THEMES)('$name theme nav ink', (theme) => {
 const FOCUS_NEIGHBOURS: ReadonlyArray<readonly [fill: string, where: string]> = [
   ['--background', 'the page'],
   ['--card', 'a card'],
+  ['--warn-muted', 'the fix band'],
+  ['--success-muted', 'the praise band'],
+  ['--destructive-muted', 'the urgent band'],
   ['--accent-muted', 'the current row'],
 ]
 
@@ -77,11 +80,11 @@ describe('the focus-ring utility', () => {
   const rule = /@utility focus-ring \{([\s\S]*?)\n\}/u.exec(css)?.[1] ?? ''
 
   it('draws the full-strength edge the measurement above is of', () => {
-    expect(rule).toContain('outline: 1px solid var(--ring)')
+    expect(rule).toContain('outline: 2px solid var(--ring)')
   })
 
-  it('keeps the Button halo around it', () => {
-    expect(rule).toContain('ring-[3px]')
-    expect(rule).toContain('ring-ring/50')
+  it('separates the solid outline from the control edge', () => {
+    expect(rule).toContain('outline-offset: 2px')
+    expect(rule).not.toContain('ring-ring/50')
   })
 })

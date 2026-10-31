@@ -150,6 +150,7 @@ import {
   getPropertyOverview,
   type GetPropertyOverview,
 } from './application/use-cases/get-property-overview'
+import { createReadPropertyGoogleNumbers } from './application/use-cases/read-property-google-numbers'
 import { readGoogleNumbers } from './application/google-numbers-read'
 import {
   getFleetOverview,
@@ -620,6 +621,12 @@ function buildDashboardModule(
   // about its own reader before it reads (application/dashboard-property-access).
   const propertyAccess: DashboardPropertyAccess = (organizationId, userId, orgWide) =>
     input.staffPublicApi.getAccessiblePropertyIds(organizationId, userId, orgWide)
+  const readPropertyGoogleNumbers = createReadPropertyGoogleNumbers({
+    propertyAccess,
+    clock: input.clock,
+    readGoogleNumbers: (organizationId, propertyId, now) =>
+      readGoogleNumbers(googleNumbersDeps, organizationId, propertyId, now),
+  })
   const getDashboard = getDashboardData({ repo: dashboardRepo, propertyAccess })
   const getPortal = getPortalAnalytics({
     portalMetrics,
@@ -677,6 +684,7 @@ function buildDashboardModule(
 
   return {
     publicApi: {
+      readPropertyGoogleNumbers,
       getDashboardData: getDashboard,
       getPortalAnalytics: getPortal,
       getPortalResultsOverview: getResultsOverview,

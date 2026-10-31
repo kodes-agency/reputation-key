@@ -270,6 +270,24 @@ logic goes in the lazy module, and modules only it needs (like the
 server-function error check, recognised by shape) are not imported into the route
 files.
 
+## Guest voice details
+
+The Guest voice page keeps its range in the URL and replaces history when the shared
+header RangeControl changes it. One optional `detail` token (kind, identifier and sense/reason) is bounded tolerantly in
+`-guest-voice-search.ts`; the lazy `-guest-voice-details.ts` validates the complete
+UUID/sense, concern/reason or taxonomy topic before requesting anything and normalizes
+the address to that one complete target. Direct links have no
+invented Back step. Linked navigation keeps only transient focus and scroll snapshots.
+
+`-guest-voice-queries.ts` owns the shared page, exact-bounds detail and independent
+Reporting Google-number options. The loader dynamically imports the page query; details
+are enabled only for an open target with settled page bounds, with zero stale/gc time
+for live words. A refresh-required response refreshes the page and retries through its
+new bounds key. Detail keys descend from `aiKeys.guestVoiceV2Property`, so existing Inbox
+corrections refresh them. Header Google/goal reads are independent browser side reads,
+not loader prerequisites; their failures cannot replace Guest voice. No side read is
+prefetched or serialized beyond a grace window.
+
 ## Verification
 
 Colocated route tests cover auth redirects, search normalization, server-function

@@ -81,6 +81,7 @@ function review(
       topic: spec.topic,
       polarity: spec.polarity,
       strength: spec.strength ?? 'clear',
+      thing: null,
       cause: spec.cause ?? null,
       issueGroupId: spec.group,
       namesPerson: spec.namesPerson ?? null,
@@ -104,6 +105,7 @@ function input(over: Partial<GuestVoiceBuildInput> = {}): GuestVoiceBuildInput {
     startLocalDate: '2026-08-02',
     endLocalDate: '2026-10-30',
     provisional: false,
+    currentPopulation: [],
     population: { stars: STARS_OF_THE_WINDOW, textReviews: 40 },
     groups: GROUPS,
     current: [],
@@ -128,18 +130,25 @@ describe('assembleGuestVoiceV2', () => {
       }),
     )
 
-    expect(read.fixFirst.map((item) => item.title)).toEqual(['Air conditioning'])
+    expect(read.fixFirst.map((item) => item.title)).toEqual([
+      'Air conditioning — not working',
+    ])
     expect(read.fixFirst[0]).toMatchObject({
       issueId: AC,
       topic: 'facilities_equipment',
       causes: ['Not working'],
       urgentReason: null,
     })
-    expect(read.watch).toEqual([
-      { issueId: SHOWER, title: 'Shower', topic: 'facilities_equipment', reviewCount: 2 },
+    expect(read.watch).toMatchObject([
+      {
+        issueId: SHOWER,
+        title: 'Shower — cold',
+        topic: 'facilities_equipment',
+        reviewCount: 2,
+      },
       {
         issueId: NOISE,
-        title: 'Street noise',
+        title: 'Street noise — loud',
         topic: 'atmosphere_noise',
         reviewCount: 1,
       },
@@ -215,10 +224,12 @@ describe('assembleGuestVoiceV2', () => {
     )
 
     expect(read.fixFirst).toEqual([])
-    expect(read.watch).toEqual([])
-    expect(read.everyTopic.map((row) => [row.topic, row.complaintReviews])).toEqual([
-      ['facilities_equipment', 4],
-    ])
+    expect(read.watch).toMatchObject([])
+    expect(
+      read.everyTopic
+        .filter((row) => row.statistics.reviewCount > 0)
+        .map((row) => [row.topic, row.complaintReviews]),
+    ).toEqual([['facilities_equipment', 4]])
   })
 
   it('lists praise from three reviews, most named first', () => {
@@ -234,7 +245,7 @@ describe('assembleGuestVoiceV2', () => {
 
     expect(read.guestsLove.map((item) => item.title)).toEqual([
       'Staff and service',
-      'Breakfast',
+      'Breakfast — fresh',
     ])
     expect(read.guestsLove[0]?.statistics.shareText).toBe('5 of 10')
   })
@@ -282,7 +293,7 @@ describe('assembleGuestVoiceV2', () => {
     expect(read.urgent).toHaveLength(1)
     expect(read.urgent[0]).toMatchObject({
       issueId: RAILING,
-      title: 'Balcony railing',
+      title: 'Balcony railing — loose',
       topic: 'safety',
       urgentReason: 'safety',
       causes: ['Loose'],
@@ -351,7 +362,7 @@ describe('assembleGuestVoiceV2', () => {
     )
 
     expect(read.urgent.map((item) => item.issueId)).toEqual([RAILING])
-    expect(read.watch).toEqual([])
+    expect(read.watch).toMatchObject([])
   })
 
   it('reports the moves the engine calls likely, bad news before good', () => {
@@ -378,6 +389,7 @@ describe('assembleGuestVoiceV2', () => {
     ]
     const { read } = assembleGuestVoiceV2(
       input({
+        currentPopulation: [],
         population: { stars: [0, 20, 0, 0, 40], textReviews: 60 },
         current,
         baseline: before,
@@ -408,6 +420,7 @@ describe('assembleGuestVoiceV2', () => {
     ]
     const { read } = assembleGuestVoiceV2(
       input({
+        currentPopulation: [],
         population: { stars: [0, 4, 0, 0, 56], textReviews: 60 },
         current,
         baseline: before,
@@ -429,6 +442,7 @@ describe('assembleGuestVoiceV2', () => {
     ]
     const { read } = assembleGuestVoiceV2(
       input({
+        currentPopulation: [],
         population: { stars: [0, 2, 0, 0, 58], textReviews: 60 },
         current,
         baseline: before,
@@ -454,6 +468,7 @@ describe('assembleGuestVoiceV2', () => {
     const { read } = assembleGuestVoiceV2(
       input({
         provisional: true,
+        currentPopulation: [],
         population: { stars: [0, 20, 0, 0, 40], textReviews: 60 },
         current,
         baseline: baselineReviews,
@@ -490,17 +505,19 @@ describe('assembleGuestVoiceV2', () => {
     )
 
     expect(
-      read.everyTopic.map((row) => [
-        row.topic,
-        row.praiseReviews,
-        row.complaintReviews,
-        row.neutralReviews,
-        row.statistics.reviewCount,
-      ]),
+      read.everyTopic
+        .filter((row) => row.statistics.reviewCount > 0)
+        .map((row) => [
+          row.topic,
+          row.praiseReviews,
+          row.complaintReviews,
+          row.neutralReviews,
+          row.statistics.reviewCount,
+        ]),
     ).toEqual([
       ['staff_service', 2, 0, 0, 2],
-      ['facilities_equipment', 1, 2, 0, 2],
       ['food_drink', 0, 0, 1, 1],
+      ['facilities_equipment', 1, 2, 0, 2],
     ])
   })
 
@@ -520,7 +537,6 @@ describe('assembleGuestVoiceV2', () => {
       watch: [],
       guestsLove: [],
       whatChanged: [],
-      everyTopic: [],
       inShort: [],
       staffPraise: null,
     })

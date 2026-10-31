@@ -79,6 +79,7 @@ function mentionsOf(contribution: SQL) {
           'topic', mention.topic,
           'polarity', CASE WHEN correction.kind = 'not_a_problem' THEN 'neutral' ELSE mention.polarity END,
           'strength', mention.strength,
+          'thing', CASE WHEN correction.kind = 'change_cause' THEN correction.replacement_thing ELSE mention.thing END,
           'cause', CASE WHEN correction.kind = 'change_cause' THEN correction.replacement_issue ELSE mention.issue END,
           'group', CASE WHEN correction.kind = 'change_cause'
             THEN COALESCE(replacement_group.merged_into_issue_id, correction.replacement_issue_group_id)

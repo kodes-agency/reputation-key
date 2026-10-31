@@ -133,7 +133,7 @@ describe('the Inbox queue rail', () => {
   })
 
   it('keeps the Button focus ring, which is the shared one', () => {
-    expect(html).toContain('focus-visible:ring-[3px]')
+    expect(html).toContain('focus-ring')
   })
 
   it('keeps the active fill under the pointer, where the ghost Button would dim it', () => {
@@ -188,7 +188,7 @@ describe('the Inbox queue bar', () => {
 
   it('has the shared keyboard focus ring on its controls', () => {
     for (const button of queueButtons(bar())) {
-      expect(button).toContain('focus-visible:ring-[3px]')
+      expect(button).toContain('focus-ring')
     }
   })
 })

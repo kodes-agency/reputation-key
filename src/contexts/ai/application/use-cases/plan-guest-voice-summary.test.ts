@@ -76,6 +76,7 @@ function reviewsOf(specs: readonly Spec[]) {
         topic: GROUPS.find((group) => group.id === issue)?.topic ?? 'safety',
         polarity,
         strength: 'clear',
+        thing: null,
         cause: 'not working',
         issueGroupId: issue,
         namesPerson: null,

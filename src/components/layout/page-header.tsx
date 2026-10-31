@@ -1,4 +1,4 @@
-import { Fragment, type ReactNode } from 'react'
+import { Children, type ReactNode } from 'react'
 import { Link } from '@tanstack/react-router'
 import { cn } from '#/lib/utils'
 import { Skeleton } from '#/components/ui/skeleton'
@@ -32,6 +32,8 @@ type Props = Readonly<{
   breadcrumbs?: readonly Crumb[]
   /** Primary-action slot, right-aligned. */
   actions?: ReactNode
+  /** A compact explanation alongside the title, separate from primary actions. */
+  titleAside?: ReactNode
   /**
    * For the page's loading state only: bars where the loaded header draws its
    * meta and description lines (20 px each), so the content below starts where
@@ -52,9 +54,11 @@ export function PageHeader({
   description,
   breadcrumbs,
   actions,
+  titleAside,
   placeholderLines,
   className,
 }: Props) {
+  const metaItems = Children.toArray(meta)
   return (
     <div className={cn('space-y-3', className)}>
       {breadcrumbs && breadcrumbs.length > 0 && (
@@ -63,60 +67,61 @@ export function PageHeader({
             {breadcrumbs.map((c, i) => (
               <BreadcrumbItem key={i}>
                 {i > 0 && <BreadcrumbSeparator />}
-                <TrailCrumb crumb={c} last={i === breadcrumbs.length - 1} />
+                {i === breadcrumbs.length - 1 ? (
+                  <BreadcrumbPage>{c.label}</BreadcrumbPage>
+                ) : c.to ? (
+                  <BreadcrumbLink asChild>
+                    <Link to={c.to as never}>{c.label}</Link>
+                  </BreadcrumbLink>
+                ) : (
+                  <span>{c.label}</span>
+                )}
               </BreadcrumbItem>
             ))}
           </BreadcrumbList>
         </Breadcrumb>
       )}
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div className="space-y-1">
-          <h1 className="text-2xl font-semibold tracking-tight">{title}</h1>
-          <HeaderMeta items={meta} />
+      <div
+        className={cn(
+          'flex flex-wrap items-start justify-between gap-3',
+          titleAside && 'md:flex-nowrap',
+        )}
+      >
+        <div className={cn('space-y-1', titleAside && 'min-w-0 max-md:w-full')}>
+          <div className="flex items-center justify-between gap-2">
+            <h1 className="text-2xl font-semibold tracking-tight">{title}</h1>
+            {titleAside}
+          </div>
+          {metaItems.length ? (
+            <p
+              data-slot="page-header-meta"
+              className="flex flex-wrap items-center gap-x-2 text-sm text-muted-foreground"
+            >
+              {metaItems.map((item, index) => (
+                <span key={index}>
+                  {index > 0 && <span aria-hidden="true">· </span>}
+                  {item}
+                </span>
+              ))}
+            </p>
+          ) : null}
           {description && <p className="text-sm text-muted-foreground">{description}</p>}
-          {placeholderLines && <HeaderPlaceholder lines={placeholderLines} />}
+          {placeholderLines ? (
+            <>
+              <Skeleton className="h-5 w-72 max-w-full" />
+              {placeholderLines === 2 && <Skeleton className="h-5 w-56 max-w-full" />}
+            </>
+          ) : null}
         </div>
-        {actions && <div className="flex flex-wrap items-center gap-2">{actions}</div>}
+        {actions && (
+          <div
+            data-slot="page-header-actions"
+            className="flex shrink-0 flex-wrap items-center gap-2"
+          >
+            {actions}
+          </div>
+        )}
       </div>
     </div>
-  )
-}
-
-function HeaderPlaceholder({ lines }: Readonly<{ lines: 1 | 2 }>) {
-  return (
-    <>
-      <Skeleton className="h-5 w-72 max-w-full" />
-      {lines === 2 && <Skeleton className="h-5 w-56 max-w-full" />}
-    </>
-  )
-}
-
-function TrailCrumb({ crumb, last }: Readonly<{ crumb: Crumb; last: boolean }>) {
-  if (last) return <BreadcrumbPage>{crumb.label}</BreadcrumbPage>
-  if (crumb.to) {
-    return (
-      <BreadcrumbLink asChild>
-        <Link to={crumb.to as never}>{crumb.label}</Link>
-      </BreadcrumbLink>
-    )
-  }
-  // A place with no address yet is not the page: no link, no current mark.
-  return <span>{crumb.label}</span>
-}
-
-function HeaderMeta({ items }: Readonly<{ items: readonly ReactNode[] | undefined }>) {
-  if (!items || items.length === 0) return null
-  return (
-    <p
-      data-slot="page-header-meta"
-      className="flex flex-wrap items-center gap-x-2 text-sm text-muted-foreground"
-    >
-      {items.map((item, index) => (
-        <Fragment key={index}>
-          {index > 0 && <span aria-hidden="true">·</span>}
-          <span>{item}</span>
-        </Fragment>
-      ))}
-    </p>
   )
 }

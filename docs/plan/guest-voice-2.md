@@ -60,3 +60,89 @@ These settle the open questions of the technical contract. Where the contract an
 18. **Legacy trends.** The v1 trend schedules and daily aggregate tables retire in PR-4's cleanup, once "What changed" runs on the statistics engine.
 19. **Performance.** Measure on the 128-review fixture and a 20,000-review scale fixture before adding any materialised projection.
 20. **Activation.** The owner re-consents. The release lead runs the activation deploy, watches re-analysis cost and coverage, holds the kill switch and writes the runbook entry.
+
+## Amended 2026-10-30 — weekly check-in display and read contract
+
+The H check-in asks, in order, about serious concerns, happier guests, recurring
+fixes and praise, followed by the twelve universal topics. Keep the shared
+`RangeControl` in header actions and the existing `auto|30d|90d|180d|365d`
+values. This amendment supersedes the older page order and 90% statement above.
+The read family remains `guest-voice-read-v2`, with required
+`checkInVersion: guest-voice-check-in-v1` for ready and small results.
+
+Rating comparison uses current servable comments, including those awaiting
+analysis, excluding star-only reviews. Split the inclusive window before
+looking at ratings: recent is min(90, max(7, floor(days/4))) days ending today;
+before is the rest. No verdict with fewer than 20 before or 10 recent comments,
+or while analysis is provisional. Reuse independent Beta(1,1) posteriors with
+the existing .05 happy-share margin and central 95% threshold (2.5% per tail).
+A rising/falling happy share also needs an unrounded mean difference of at
+least .20 stars in the same direction. Steady means no clear change under
+this rule, not statistical equivalence. Monthly means are weighted raw stars,
+with gaps and all overlapping edge months (up to thirteen), in Property days.
+These are comment ratings, never the Google headline rating.
+
+Topic status counts each mentioning review once, partitioned into happy,
+unhappy, mixed and neutral-only. Fewer than six mentions is unjudged; otherwise
+happy share cut-offs are .45/.65/.80. Mixed and neutral reviews stay in the
+denominator. Issue rankings keep their existing three-review floor and impact
+statistics. Row titles honor manager names, otherwise thing plus top cause;
+answer lines name deduplicated friendly areas in rank order. Manual summaries
+use only fixed topic labels and their unique review counts, never issue labels.
+
+Serious concerns group one urgent review by primary surviving issue and reason,
+with reason-only fallback groups. Hidden issues remain. Counts/dates use urgent
+members only; group totals and report totals are separate, including overflow.
+Small-state eligibility is the year's text count, but selected-window counts,
+concerns and at most three latest previews use the selected range. Provisional
+empty coverage cannot make an absolute absence claim.
+
+Page and issue/concern/topic detail reads share authorization, gates and current
+Review joins. Detail requests pin actual ISO bounds to the currently selected
+window and return `refresh_required` when stale. Comment bars use analysed
+comments and set difference; impact statistics retain the all-review population.
+Linked concerns mean overlapping current reviews, not causation. Twelve-month
+history is supplied only when read coverage permits it; bounded fallback
+history is explicitly window-only. Evidence remains reader-authorized live
+sentence ranges, with the review-wide original names safeguard. Clause-level
+underlining, the Inbox All reviews view, new topic/concern id filters and issue
+redirect metadata are deferred. Use existing issue/polarity/day or urgent Inbox
+searches and say "Open these reviews in the Inbox"; area sheets have no Inbox
+link. Manager issue commands stay dormant; correction remains in the Inbox.
+
+## Frontend delivery amendment — 2026-10-31
+
+The H composition now uses the four question/answer bands, with a compact quiet line
+in place of an empty urgent band. Answers use the approved friendly topic phrases,
+while rows retain specific manager-first titles. Other recurring issues and one/two-review
+concerns are separate disclosures inside Fix; praise starts with three rows. Universal
+parts are collapsed, ordered by status and remain unjudged below six mentioning reviews.
+The month chart is the only page chart, initially closed on phones and open on desktop;
+its keyboard inspection and accessible list include empty and partial calendar months.
+
+The period control remains the shared `RangeControl` in `PageHeader.actions`, as on
+Ratings, Google and Portal results. Google’s dated number and the permitted active goal
+are independent header facts. “How we count” distinguishes review records from people,
+Google’s number from comment means, and explains analysis coverage, the fixed split,
+95% happy-share test and 0.20-star agreement rule. It makes no confidence claim for a mean.
+
+One lazy responsive Sheet hosts issue, concern and topic targets. Linked Back restores
+scroll and initiating-control focus; closing restores the page row, or the question
+heading if that row disappeared. Phone actions are outside the scrolling body in the
+shared safe-area footer. A topic opens issue evidence from liked/disliked causes and
+has no Inbox action. Other detail actions say “Open these reviews in the Inbox”: existing
+issue/polarity/day or effective-priority urgent filters can omit handled reviews, so
+there is no promise of “all N”, new archive queue, topic filter or concern-id filter.
+“Not right?” explains the existing per-review Inbox correction workflow; group mutation
+commands remain dormant. Safe quotes retain the whole cited sentence, with the approved
+sentence caption; clause underlining is deferred.
+
+Small reads retain selected-period concerns, three safe expandable previews and the
+permission/capability-gated Portals invitation destination. Copy team summary is manual,
+uses only fixed topic labels and unique topic/polarity totals, and offers selected text
+for manual copy when the clipboard fails. No guest words, issue titles, causes or manager
+renames enter the note. It does not change Monday mail or send a notice.
+
+Acceptance fixtures use entirely invented dated review/fact populations and production
+builders, including a two-group/five-report busy state and partial edge month. Browser,
+Storybook interaction and integration acceptance still run on the disposable CI stack.

@@ -117,6 +117,7 @@ function readEndingOn(
     endLocalDate,
     provisional,
     population: now.population,
+    currentPopulation: now.currentPopulation,
     groups: new Map(facts.groups.map((group) => [group.id, group])),
     current: now.analysed,
     baseline: earlier?.analysed ?? [],

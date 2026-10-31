@@ -686,3 +686,14 @@ portal goal moves onto ([ADR 0068](0068-monthly-portal-goal.md), amended
 - **RepKey's cache average as the headline.** The goal is about what guests see
   on Google, so screens lead with Google's own number and use the exact average
   for progress.
+
+## Amended 2026-10-30 — Guest voice header numbers
+
+Guest voice can reuse Reporting's `GoogleNumbersView` through the narrow
+`readPropertyGoogleNumbers` dashboard read, even without an active goal or goal
+permission. It reads only the current-binding snapshot and binding facts, under
+same-Organization Property authorization and an injected clock. The header
+preserves `asOf` and `current`; disconnected or stale numbers retain their real
+date, and a missing snapshot remains unavailable. It never substitutes the
+comment-only mean. Goal evaluation and the meaning of "worth up to" are
+unchanged: an association in Guest voice is no promise of reaching a target.

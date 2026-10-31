@@ -1,4 +1,4 @@
-import { Badge } from '#/components/ui/badge'
+import { ReadableBadge as Badge } from '#/components/ui/readable-badge'
 import { formatNumber } from '#/lib/format'
 
 /**
@@ -19,14 +19,12 @@ export function GuestVoiceCauses({
     <ul aria-label={label} className="flex flex-wrap gap-1.5">
       {causes.map(({ cause, reviewCount }) => (
         <li key={cause}>
-          <Badge variant="neutral" className="text-[13px]">
+          <Badge variant="neutral">
             {cause}
             {reviewCount === undefined ? null : (
               <span className="font-semibold tabular-nums text-foreground">
                 {formatNumber(reviewCount)}
-                <span className="sr-only">
-                  {reviewCount === 1 ? ' review' : ' reviews'}
-                </span>
+                <span>{reviewCount === 1 ? ' review' : ' reviews'}</span>
               </span>
             )}
           </Badge>

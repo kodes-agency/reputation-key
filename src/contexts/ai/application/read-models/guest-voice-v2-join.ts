@@ -5,13 +5,20 @@
 // analysis of a review that has since gone, or changed and awaits a new analysis, is
 // never counted as though it still stood.
 import type { AiTrendPopulationReview } from '#/contexts/review/application/public-api'
-import { ratingCountsOf } from '../aspect-review-evidence'
+import { ratingCountsOf, type RatingCounts } from '../aspect-review-evidence'
 import type {
   GuestVoiceFactsRead,
   GuestVoiceUnavailableReview,
 } from '../ports/ai-guest-voice-facts.port'
-import type { WindowPopulation } from './guest-voice-v2-build'
 import type { GuestVoiceReview } from './guest-voice-v2-facts'
+
+/** What Review counted for the window: every review, those with only stars included. */
+export type WindowPopulation = Readonly<{
+  /** How many of them gave 1, 2, 3, 4 and 5 stars. */
+  stars: RatingCounts
+  /** Of those, the ones with text. */
+  textReviews: number
+}>
 
 export type Period = Readonly<{ startLocalDate: string; endLocalDate: string }>
 
@@ -19,6 +26,7 @@ export type JoinedPeriod = Readonly<{
   /** Reviews of the period with a current analysis. */
   analysed: readonly GuestVoiceReview[]
   /** What Review counted in the period: its stars, and how many have text. */
+  currentPopulation: readonly AiTrendPopulationReview[]
   population: WindowPopulation
   /** Reviews with text that have no analysis yet, and so make a figure provisional. */
   awaitingAnalysis: number
@@ -62,6 +70,7 @@ export function joinPeriod(
   const withText = here.filter((review) => review.hasText)
   return {
     analysed: counted,
+    currentPopulation: here,
     population: { stars: ratingCountsOf(here), textReviews: withText.length },
     awaitingAnalysis: withText.filter((review) => !settled.has(reviewVersionKey(review)))
       .length,

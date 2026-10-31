@@ -36,6 +36,7 @@ describe('buildReportingContext', () => {
     ])
     expect(typeof context.publicApi.findMonthlyResultNotificationFacts).toBe('function')
     expect(typeof context.publicApi.getDashboardData).toBe('function')
+    expect(typeof context.publicApi.readPropertyGoogleNumbers).toBe('function')
     expect(typeof context.publicApi.getFleetOverview).toBe('function')
     expect(typeof context.publicApi.getPortalResultsOverview).toBe('function')
     expect(typeof context.publicApi.getPropertySetup).toBe('function')

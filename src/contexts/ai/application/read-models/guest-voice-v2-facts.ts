@@ -27,6 +27,7 @@ export type GuestVoiceMention = Readonly<{
   polarity: ReviewPolarityV3
   strength: ReviewStrengthV3
   /** What was wrong or right ("not working"): the second half of the cause. */
+  thing: string | null
   cause: string | null
   /** The Property's issue this mention belongs to; null only for a row written before grouping. */
   issueGroupId: string | null
