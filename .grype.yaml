@@ -69,6 +69,22 @@ ignore:
   - vulnerability: CVE-2026-5928 # wont-fix
   - vulnerability: CVE-2026-19499 # strfmon overflow, no-dsa minor issue on trixie
 
+  # ── glibc 2.41-12+deb13u4 gettext LANGUAGE paths: no fix anywhere (1 CVE) ─
+  # owner: platform — reason: CVE-2026-84243 (added 2026-10-31, first reported
+  # by the grype DB the PR #1046 scan used): `libc-bin`/`libc6`
+  # 2.41-12+deb13u4 deb CVE-2026-84243 High, no fixed version. The gettext
+  # family accepts LANGUAGE entries containing "/" or "..", so whoever controls
+  # LANGUAGE can make a program load a message catalog from any path, and a
+  # crafted .mo file can crash it or run code; it also needs another installed
+  # locale selected through LANG or LC_ALL (GLIBC-SA-2026-0025). The Debian
+  # tracker (read 2026-10-31) lists bookworm, trixie, forky and sid all
+  # vulnerable and unfixed (bug 1152640), so there is nothing to pin. In the
+  # images nobody but the deployment sets the environment, no locale beyond the
+  # slim base's C locale is installed, and the CMD is node, which takes its
+  # messages from its bundled ICU, not gettext. Drop this entry at the first
+  # trixie glibc update that fixes it. expiresAt: 2026-11-30
+  - vulnerability: CVE-2026-84243 # gettext LANGUAGE path traversal, unfixed in every Debian release
+
   # ── libgcc-s1 / libstdc++6 / gcc-14-base 14.2.0-19: no fix yet (1 CVE) ─
   # owner: platform — reason: CVE-2026-102010 (High) appeared in grype's
   # database 2026-10-01 against the gcc-14 runtime libraries with no fixed
