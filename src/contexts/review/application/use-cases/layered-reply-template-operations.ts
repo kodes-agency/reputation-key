@@ -1,3 +1,4 @@
+import { templateFrameChoices } from '../template-frame-choices'
 import type { StaffPublicApi } from '#/contexts/identity/application/public-api'
 import type { AuthContext } from '#/shared/domain/auth-context'
 import type { ReviewId } from '#/shared/domain/ids'
@@ -340,7 +341,13 @@ export const loadReplyTemplate =
         templateWordingKey: wording.key,
         ...(rendered === null
           ? {}
-          : { voiceDigest: rendered.voiceDigest, voiceChoices: rendered.choices }),
+          : {
+              voiceDigest: rendered.voiceDigest,
+              voiceChoices: templateFrameChoices(
+                rendered.choices,
+                replyBand(review.rating, Boolean(review.text?.trim())),
+              ),
+            }),
       },
       ctx,
     )

@@ -1,6 +1,6 @@
 {
   "scripts/seed-e2e-user.ts": 1223,
-  "src/contexts/ai/infrastructure/adapters/ai-output-store.adapter.ts": 1160,
+  "src/contexts/ai/infrastructure/adapters/ai-output-store.adapter.ts": 1150,
   "src/contexts/inbox/infrastructure/inbox-command-store.ts": 2603,
   "src/contexts/integration/build.ts": 1169,
   "src/contexts/integration/infrastructure/google-import-v2-store.ts": 1809,
@@ -10,9 +10,9 @@
   "src/contexts/review/infrastructure/repositories/review-provider-snapshot.repository.ts": 1400,
   "src/shared/ai-internal-transport-contract.ts": 1055,
   "src/shared/db/schema-drift.ts": 947,
-  "src/shared/db/schema/ai.schema.ts": 1175,
+  "src/shared/db/schema/ai.schema.ts": 1174,
   "src/shared/db/schema/inbox.schema.ts": 842,
-  "src/shared/db/schema/review.schema.ts": 1470,
+  "src/shared/db/schema/review.schema.ts": 1409,
   "src/shared/events/schema-registrations.ts": 1555,
   "src/shared/testing/scenarios/executors.ts": 1335
 }

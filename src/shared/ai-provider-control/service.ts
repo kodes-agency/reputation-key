@@ -625,11 +625,12 @@ export function createAiEgressGatewayService(
                     outcome.retryAfterSeconds * 1_000,
                 )
               : null
-          return errorResponse(
+          const failure = errorResponse(
             route,
             dispositionCode(settlement.receipt.disposition),
             retryAfter,
           )
+          return withReplyRewriteIssues(failure, settlement.receipt, prepared)
         }
         const response = parseAiGatewayRouteResponse(
           accepted.buildResponse(settlement.receipt, grant),
@@ -683,4 +684,18 @@ export function createAiEgressGatewayService(
       return dependencies.admission.readiness(signal)
     },
   })
+}
+
+function withReplyRewriteIssues(
+  failure: AiGatewayRouteResponseV1,
+  receipt: AiSettlementReceiptV1,
+  prepared: ReturnType<AiGatewayRoutePreparer['prepare']>,
+): AiGatewayRouteResponseV1 {
+  const rewriteIssues = prepared.repairIssues?.() ?? []
+  return failure.status === 'error' &&
+    failure.route === 'reply-suggestion' &&
+    receipt.disposition === 'output_invalid' &&
+    rewriteIssues.length > 0
+    ? { ...failure, rewriteIssues: [...rewriteIssues] }
+    : failure
 }

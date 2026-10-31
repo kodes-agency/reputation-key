@@ -1,3 +1,4 @@
+import type { ReplyFrameBand } from '../domain/reply-frame'
 import { BUILTIN_REPLY_LIBRARY, type BuiltinReplyLibrary } from './builtin-library'
 import {
   BUILTIN_REPLY_VOICE_LANGUAGE_GROUPS,
@@ -7,7 +8,7 @@ import {
 export type ReplyVoiceSource = 'builtin' | 'account' | 'property'
 export type GreetingStyle = 'hi' | 'hello' | 'dear'
 export type EmojiMode = 'off' | 'positive'
-export type ReplyBand = 'positiveText' | 'positiveRatingOnly' | 'threeStar' | 'negative'
+export type ReplyBand = ReplyFrameBand
 
 export type ReplyVoiceSettings = Readonly<{
   useFirstName: boolean

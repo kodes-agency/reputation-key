@@ -1,3 +1,4 @@
+import type { ReplyDraftingV2Binding } from '#/shared/domain/reply-drafting-v2'
 import type { Brand } from '#/shared/domain/brand'
 import type { OrganizationId, PropertyId, ReviewId, UserId } from '#/shared/domain/ids'
 import type { MerchantAiCapability } from '#/shared/domain/merchant-ai-capability'
@@ -72,6 +73,7 @@ export type ConcreteReplyLanguage = Readonly<{
 }>
 
 export type AiExecutionBinding = Readonly<{
+  replyDraftingV2?: ReplyDraftingV2Binding
   authorizationLineageId: string
   noticeVersion: string
   noticeDigest: string

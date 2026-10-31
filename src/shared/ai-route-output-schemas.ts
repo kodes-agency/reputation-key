@@ -1,3 +1,4 @@
+import { replyDraftingV2OutputSchema } from './reply-drafting-v2-schema'
 import { z } from 'zod/v4'
 import { ASPECT_POLARITIES_V1, ASPECT_TAXONOMY_V1 } from './aspect-taxonomy'
 import { AI_ISSUE_LABEL_MAX_LENGTH, AI_ISSUE_LABEL_PATTERN } from './ai-issue-label'
@@ -206,6 +207,7 @@ export const AI_ROUTE_OUTPUT_JSON_SCHEMAS = Object.freeze({
   'review-analysis-v3': deriveAiRouteOutputJsonSchema(
     REVIEW_ANALYSIS_V3_PROVIDER_ANSWER_SCHEMA,
   ),
+  'reply-suggestion-v2': deriveAiRouteOutputJsonSchema(replyDraftingV2OutputSchema),
   'reply-suggestion': deriveAiRouteOutputJsonSchema(AI_PERSONALIZED_REPLY_OUTPUT_SCHEMA),
   'property-trend': deriveAiRouteOutputJsonSchema(AI_TREND_SELECTION_OUTPUT_SCHEMA),
   'synthetic-canary': deriveAiRouteOutputJsonSchema(AI_SYNTHETIC_CANARY_OUTPUT_SCHEMA),

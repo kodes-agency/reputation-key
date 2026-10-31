@@ -1,3 +1,4 @@
+import type { ReplyFrameBand } from '#/shared/domain/reply-frame'
 // Review context — domain types
 // Per architecture: "Domain types use Readonly<> on every field."
 
@@ -111,6 +112,7 @@ export type Reply = Readonly<{
   templateWordingKey?: string | null
   voiceDigest?: string | null
   voiceChoices?: Readonly<{
+    ratingBand?: ReplyFrameBand
     closing: number
     signOff: number
     contactSentence: number

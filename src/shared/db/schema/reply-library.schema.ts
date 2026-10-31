@@ -1,3 +1,4 @@
+import type { ReplyFrameBand } from '#/shared/domain/reply-frame'
 import { sql } from 'drizzle-orm'
 import {
   type AnyPgColumn,
@@ -27,6 +28,7 @@ const replyTemplateAspectSql = ASPECT_TAXONOMY_V1.map((aspect) => `'${aspect}'`)
 )
 
 type ReplyVoiceChoices = Readonly<{
+  ratingBand?: ReplyFrameBand
   closing: number
   signOff: number
   contactSentence: number
@@ -405,6 +407,43 @@ export const replyTemplateVisibility = pgTable(
     check(
       'reply_template_visibility_one_ref',
       sql`num_nonnulls(${t.builtinKey}, ${t.templateId}) = 1`,
+    ),
+  ],
+)
+
+/** Content-free generation reservations rotate drafts before any adoption/publication. */
+export const replyAiFrameReservations = pgTable(
+  'reply_ai_frame_reservations',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    organizationId: varchar('organization_id', { length: 255 }).notNull(),
+    propertyId: uuid('property_id').notNull(),
+    languageGroup: varchar('language_group', { length: 35 }).notNull(),
+    ratingBand: varchar('rating_band', { length: 30 }).notNull(),
+    voiceDigest: varchar('voice_digest', { length: 64 }).notNull(),
+    generationSeed: varchar('generation_seed', { length: 64 }).notNull(),
+    choices: jsonb('choices').$type<ReplyVoiceChoices>().notNull(),
+    closingOrder: integer('closing_order').array().notNull(),
+    adoptedAt: timestamp('adopted_at', { withTimezone: true }),
+    createdAt: createdAtColumn(),
+  },
+  (t) => [
+    uniqueIndex('reply_ai_frame_generation_unique').on(
+      t.organizationId,
+      t.propertyId,
+      t.languageGroup,
+      t.ratingBand,
+      t.voiceDigest,
+      t.generationSeed,
+    ),
+    foreignKey({
+      name: 'reply_ai_frame_property_tenant_fk',
+      columns: [t.organizationId, t.propertyId],
+      foreignColumns: [properties.organizationId, properties.id],
+    }).onDelete('cascade'),
+    check(
+      'reply_ai_frame_digest_valid',
+      sql`${t.voiceDigest} ~ '^[0-9a-f]{64}$' AND ${t.generationSeed} ~ '^[0-9a-f]{64}$'`,
     ),
   ],
 )

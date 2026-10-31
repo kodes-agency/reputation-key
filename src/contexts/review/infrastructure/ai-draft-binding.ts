@@ -1,3 +1,4 @@
+import { getAiRuntimeCapability } from '#/shared/ai-runtime-capability-contract'
 // The AI draft binding: an AI-assisted reply is only publishable while every
 // input its draft was generated from is still the current one. WP3.3-B moved
 // this from assert_current_ai_draft_binding_v1 (PL/pgSQL) into the same
@@ -122,8 +123,7 @@ async function bindingHolds(
               AND merchant.authorized_source_epoch = draft.origin_source_epoch
               AND merchant.reply_drafting_epoch = draft.origin_reply_drafting_epoch
               AND merchant.capabilities @> ARRAY['reply_drafting']::text[]
-              AND merchant.capability_runtime_profile_versions->>'reply_drafting'
-                = ${REPLY_DRAFTING_RUNTIME_PROFILE}
+              AND ${draftRuntimeBinding()}
               AND operation.command = 'reply'
               AND operation.capability = 'reply_drafting'
               AND operation.organization_id = draft.organization_id
@@ -164,4 +164,26 @@ async function bindingHolds(
           ) AS "current"
         `)
   return current.rows[0]?.current === true
+}
+
+/** The historical arm stays exact; v4 follows the deliberately served execution. */
+function draftRuntimeBinding(): SQL {
+  const served = getAiRuntimeCapability('reply_drafting')
+  const notice = sql.join(
+    served.noticesInForce.map(
+      (n) =>
+        sql`(merchant.notice_version = ${n.noticeVersion} AND merchant.notice_digest = ${n.noticeDigest})`,
+    ),
+    sql` OR `,
+  )
+  return sql`(
+    (draft.origin_ai_profile_version <> 'reply-draft-v4'
+      AND merchant.capability_runtime_profile_versions->>'reply_drafting' = ${REPLY_DRAFTING_RUNTIME_PROFILE})
+    OR (draft.origin_ai_profile_version = 'reply-draft-v4'
+      AND operation.operation_profile_version = 'reply-suggestion-v2'
+      AND (${served.noticesInForce.length ? notice : sql`FALSE`})
+      AND operation.operation_profile_version = ${served.operationProfileVersion}
+      AND operation.capability_runtime_profile_version = ${served.runtimeProfileVersion}
+      AND operation.provider_deployment_profile_version = ${served.providerDeploymentProfileVersion})
+  )`
 }

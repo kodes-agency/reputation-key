@@ -1,3 +1,6 @@
+import { REPLY_DRAFTING_V2_VERSIONS } from './reply-drafting-v2-schema'
+import { replyBodyIssueCodeSchema } from './reply-drafting-v2-binding'
+import { replyDraftingV2FrameSchema } from './reply-drafting-v2-frame'
 import { z } from 'zod/v4'
 import {
   aiExecutionBindingSchema,
@@ -296,12 +299,16 @@ const replySuggestionGatewayRequestSchema = z
     actorId: actorIdSchema,
     redactionCountry: z.string().regex(/^[A-Z]{2}$/),
     observedContentExpiresAtEpochMillis: positiveSafeInteger,
-    replyProfileVersion: z.literal(AI_PERSONALIZED_REPLY_PROFILE_VERSION),
+    replyProfileVersion: z.enum([
+      AI_PERSONALIZED_REPLY_PROFILE_VERSION,
+      REPLY_DRAFTING_V2_VERSIONS.profile,
+    ]),
     brandProfile: replyBrandProfileSchema,
     /** Local framing context. It is deliberately excluded from providerPayload. */
     replyLocalFrame: replyLocalFrameSchema.nullable().optional(),
+    replyV2Frame: replyDraftingV2FrameSchema.optional(),
     tone: z.enum(['professional', 'friendly', 'casual']),
-    source: reviewSourceSchema,
+    source: reviewAnalysisSourceSchema,
   })
   .strict()
 
@@ -372,6 +379,43 @@ function addReviewEvidenceIssue(
   if (evidenceIssue !== null) context.addIssue({ code: 'custom', message: evidenceIssue })
 }
 
+function addReplyV2Issue(
+  value: z.infer<typeof replySuggestionGatewayRequestSchema>,
+  context: z.RefinementCtx,
+): void {
+  const v2 =
+    value.binding.operationProfileVersion === REPLY_DRAFTING_V2_VERSIONS.operation
+  if (!v2) {
+    if (
+      value.binding.replyDraftingV2 !== undefined ||
+      value.replyV2Frame !== undefined ||
+      value.source.sentences !== undefined ||
+      value.replyProfileVersion !== AI_PERSONALIZED_REPLY_PROFILE_VERSION
+    )
+      context.addIssue({ code: 'custom', message: 'V1 forbids V2 fields' })
+    return
+  }
+  if (
+    !value.binding.replyDraftingV2 ||
+    !value.replyV2Frame ||
+    !value.source.sentences ||
+    value.replyProfileVersion !== REPLY_DRAFTING_V2_VERSIONS.profile
+  ) {
+    context.addIssue({
+      code: 'custom',
+      message: 'V2 requires numbered source, options and frame',
+    })
+    return
+  }
+  if (
+    value.replyLocalFrame != null ||
+    value.replyV2Frame.voiceDigest !== value.binding.replyDraftingV2.voiceDigest ||
+    !reviewSentencesAreNumberedFromOne(value.source.sentences) ||
+    !reviewSentencesMatchText(value.source.text ?? '', value.source.sentences)
+  )
+    context.addIssue({ code: 'custom', message: 'V2 request binding mismatch' })
+}
+
 export const aiGatewayRouteRequestSchema = z
   .discriminatedUnion('route', [
     reviewAnalysisGatewayRequestSchema,
@@ -428,6 +472,7 @@ export const aiGatewayRouteRequestSchema = z
     }
     addReviewEvidenceIssue(value, context)
     if (value.route === 'reply-suggestion') {
+      addReplyV2Issue(value, context)
       const language = value.binding.concreteReplyLanguage
       if (
         language === null ||
@@ -549,6 +594,38 @@ const replyPayloadSchema = personalizedReplyDraftOutputSchema
     }
   })
 
+const replyV2PayloadSchema = z
+  .object({
+    profileVersion: z.literal(REPLY_DRAFTING_V2_VERSIONS.profile),
+    concreteLanguageTag: z.string().min(1).max(35),
+    templateGroup: z.enum(['en-Latn', 'es-Latn', 'bg-Cyrl']),
+    replyText: z
+      .string()
+      .trim()
+      .min(24)
+      .max(16_384)
+      .refine((text) => utf8ByteLength(text) <= 4_096),
+    case: z.enum([
+      'praise',
+      'praise_with_issue',
+      'mixed',
+      'complaint',
+      'serious',
+      'money',
+      'unclear',
+    ]),
+    mainPoint: z.array(z.number().int().positive()).min(1).max(2),
+    provenanceToken: z.string().min(1).max(32_768),
+    expiresAtEpochMillis: positiveSafeInteger,
+    baseReplyStateRevision: nonnegativeSafeInteger,
+  })
+  .strict()
+  .refine(
+    (v) =>
+      parseCanonicalReplyLanguageTag(v.concreteLanguageTag)?.templateGroup ===
+      v.templateGroup,
+  )
+
 const trendPayloadSchema = AI_TREND_SELECTION_OUTPUT_SCHEMA
 
 function successSchema<Route extends string, Payload extends z.ZodTypeAny>(
@@ -585,10 +662,15 @@ function errorSchema<Route extends string>(route: Route) {
 }
 
 const analysisSuccessSchema = successSchema('review-analysis', analysisPayloadSchema)
-const replySuccessSchema = successSchema('reply-suggestion', replyPayloadSchema)
+const replySuccessSchema = successSchema(
+  'reply-suggestion',
+  z.union([replyPayloadSchema, replyV2PayloadSchema]),
+)
 const trendSuccessSchema = successSchema('property-trend', trendPayloadSchema)
 const analysisErrorSchema = errorSchema('review-analysis')
 const replyErrorSchema = errorSchema('reply-suggestion')
+  .extend({ rewriteIssues: z.array(replyBodyIssueCodeSchema).min(1).max(30).optional() })
+  .refine((v) => v.rewriteIssues === undefined || v.code === 'output_invalid')
 const trendErrorSchema = errorSchema('property-trend')
 
 const aiGatewayRouteResponseSchema = z.union([

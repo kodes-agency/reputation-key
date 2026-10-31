@@ -1,3 +1,4 @@
+import { canonicalizeRfc8785 } from '#/shared/canonical-json'
 import { randomBytes, randomUUID } from 'node:crypto'
 import { and, eq } from 'drizzle-orm'
 import { drizzle } from 'drizzle-orm/node-postgres'
@@ -123,6 +124,7 @@ export function createPostgresAiAdmissionAuthority(
             state: aiOperations.state,
             executionAttempt: aiOperations.executionAttempt,
             executionPermitId: aiOperations.executionPermitId,
+            replyDraftingV2: aiOperations.replyDraftingV2,
             sourceDigest: aiOperations.sourceDigest,
             sourceByteCount: aiOperations.sourceByteCount,
             requestBindingKeyId: aiOperations.requestBindingKeyId,
@@ -148,7 +150,9 @@ export function createPostgresAiAdmissionAuthority(
           operation.executionAttempt !== descriptor.attemptNumber ||
           operation.executionPermitId !== descriptor.permitId ||
           operation.sourceDigest !== descriptor.sourceDigest ||
-          operation.sourceByteCount !== descriptor.sourceByteCount
+          operation.sourceByteCount !== descriptor.sourceByteCount ||
+          canonicalizeRfc8785(operation.replyDraftingV2) !==
+            canonicalizeRfc8785(descriptor.binding.replyDraftingV2 ?? null)
         ) {
           return { status: 'denied' as const, code: 'subject_mismatch' as const }
         }

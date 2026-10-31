@@ -1,3 +1,4 @@
+import { createReserveAiFrame } from './ai-frame-reservation'
 import { and, desc, eq, isNull, or, sql } from 'drizzle-orm'
 import type { AnyPgColumn } from 'drizzle-orm/pg-core'
 import { isDeepStrictEqual } from 'node:util'
@@ -518,6 +519,7 @@ export const createReplyLibraryRepository = (
   db: Database,
   clock: () => Date,
 ): ReplyLibraryRepository => ({
+  reserveAiFrame: createReserveAiFrame(db),
   loadSnapshot: (orgId, propId) =>
     trace('replyLibrary.loadSnapshot', async () => {
       const [property] = await db

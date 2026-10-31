@@ -689,6 +689,15 @@ export const DATA_FATE_AUTHORITY = Object.freeze([
   }),
   ...rows({
     schemaFile: 'reply-library.schema.ts',
+    exportNames: ['replyAiFrameReservations'],
+    owner: 'review',
+    disposition: 'active_authority',
+    authority: 'Reply drafting v2 contract (B1, dark)',
+    exitCriteria:
+      'Content-free option identities only. Unadopted reservations are eligible for fifteen minutes and pruned on the next generation; adopted usage survives edits until Property deletion cascades it. No source/manager text and no manager-authored export.',
+  }),
+  ...rows({
+    schemaFile: 'reply-library.schema.ts',
     exportNames: [
       'organizationReplyVoices',
       'propertyReplyProfiles',

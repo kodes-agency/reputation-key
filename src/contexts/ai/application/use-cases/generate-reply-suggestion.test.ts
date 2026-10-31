@@ -1,4 +1,10 @@
 import { describe, expect, it, vi } from 'vitest'
+import { generateKeyPairSync } from 'node:crypto'
+import {
+  createAiGatewayRoutePreparer,
+  type AiReplyOutputRefusal,
+} from '#/shared/ai-provider-control/route-preparer'
+import { createVersionedHmacKeyring } from '#/shared/security/versioned-hmac-keyring'
 import { organizationId, propertyId, reviewId, userId } from '#/shared/domain/ids'
 import { parseAiGatewayRouteRequest } from '#/shared/ai-gateway-transport-contract'
 import {
@@ -422,6 +428,7 @@ function createHarness(
   } as unknown as GenerateReplySuggestionDependencies
 
   return {
+    dependencies,
     generate: createGenerateReplySuggestion(dependencies),
     mocks: {
       readMerchantAuthorization: dependencies.authorization.readMerchantAuthorization,
@@ -1473,4 +1480,429 @@ describe('generate reply suggestion: a consent recorded under an earlier notice'
     })
     expect(harness.mocks.readMerchantAuthorization).not.toHaveBeenCalled()
   })
+})
+
+const REJECTED_V2_OUTPUT = {
+  languageCode: 'en-Latn',
+  case: 'complaint',
+  mainPoint: [1],
+  avoidTerms: ['zephyrmarker', 'quartzmarker'],
+  replyText: 'We are sorry. Call us about the zephyrmarker and quartzmarker, please.',
+}
+const V2_PROVENANCE_KEYS = generateKeyPairSync('ed25519')
+
+// The dark factory seam exercises the new lifecycle without changing the served catalogue.
+function createV2Harness(
+  outcomes: readonly (
+    'accepted' | 'hard' | 'refused' | 'ambiguous' | 'scanner_unavailable'
+  )[],
+  afterFirst?: (base: ReturnType<typeof createHarness>) => void,
+) {
+  const frame = {
+    prefix: '',
+    suffix: '',
+    voiceDigest: SHA,
+    reviewerDisplayName: null,
+    contact: null,
+    signerName: null,
+    signerTitle: null,
+    businessName: 'Example Hotel',
+  }
+  const base = createHarness({
+    replyLocalFrame: frame,
+    reviewText: 'We waited a long time for the room to be ready.',
+  })
+  const records = new Map<
+    string,
+    import('../ports/ai-operation-store.port').AiOperationRecord
+  >()
+  const byId = new Map<
+    string,
+    import('../ports/ai-operation-store.port').AiOperationRecord
+  >()
+  const charges = new Map<string, number>()
+  const refusals: AiReplyOutputRefusal[] = []
+  const gatewayPreparer = createAiGatewayRoutePreparer({
+    requestBindingKeys: createVersionedHmacKeyring(`request-v1:${'07'.repeat(32)}`),
+    safetyIdentifierKey: Buffer.alloc(32, 8),
+    provenanceKid: 'reply-v1',
+    provenancePrivateKey: V2_PROVENANCE_KEYS.privateKey,
+    replyLanguageDetector: {
+      detect: () => ({ language: 'en', probability: 0.99, reliable: true }),
+    },
+    now: () => NOW,
+    onOutputRefused: (refusal) => refusals.push(refusal),
+  })
+
+  const claim = vi.fn<AiOperationStorePort['claim']>(async (request) => {
+    const previous = records.get(request.idempotencyKey)
+    if (previous)
+      return {
+        status:
+          previous.requestFingerprint === request.requestFingerprint
+            ? 'replayed'
+            : 'conflict',
+        operation: previous,
+      }
+    const original = await base.dependencies.operations.claim(request)
+    const concurrent = records.get(request.idempotencyKey)
+    if (concurrent)
+      return {
+        status:
+          concurrent.requestFingerprint === request.requestFingerprint
+            ? 'replayed'
+            : 'conflict',
+        operation: concurrent,
+      }
+    const operation = {
+      ...original.operation,
+      id: (records.size === 0
+        ? OPERATION_ID
+        : '72000000-0000-4000-8000-000000000204') as AiOperationId,
+    }
+    records.set(request.idempotencyKey, operation)
+    byId.set(operation.id, operation)
+    return { status: 'created', operation }
+  })
+  const claimExecution = vi.fn<AiOperationStorePort['claimExecution']>(async (input) => {
+    const row = byId.get(input.operationId)
+    if (!row || row.state !== 'pending' || input.expectedAttempt !== 1) return null
+    const next = {
+      ...row,
+      state: 'executing' as const,
+      executionAttempt: 1,
+      executionPermitId: row.id.replace(/104$/u, '105').replace(/204$/u, '205'),
+    }
+    byId.set(row.id, next)
+    records.set(row.idempotencyKey, next)
+    return next
+  })
+  let providerCalls = 0
+  const generateReply: ReturnType<
+    typeof vi.fn<GenerateReplySuggestionDependencies['inference']['generateReply']>
+  > = vi.fn<GenerateReplySuggestionDependencies['inference']['generateReply']>(
+    async (request, signal) => {
+      charges.set(request.operationId, (charges.get(request.operationId) ?? 0) + 1)
+      const outcome = outcomes[providerCalls++] ?? 'hard'
+      if (providerCalls === 1) afterFirst?.(base)
+      let rewriteIssues: ReturnType<typeof gatewayPreparer.prepare>['repairIssues']
+      if (outcome === 'hard') {
+        const prepared = gatewayPreparer.prepare(request)
+        expect(prepared.acceptProviderResult(REJECTED_V2_OUTPUT)).toBeNull()
+        rewriteIssues = prepared.repairIssues
+      }
+      if (outcome !== 'accepted')
+        return {
+          route: 'reply-suggestion',
+          status: 'error',
+          code:
+            outcome === 'ambiguous'
+              ? 'operation_ambiguous'
+              : outcome === 'refused'
+                ? 'provider_refused'
+                : outcome === 'scanner_unavailable'
+                  ? 'policy_unavailable'
+                  : 'output_invalid',
+          retryAfterEpochMillis: null,
+          ...(outcome === 'hard' ? { rewriteIssues: [...rewriteIssues!()] } : {}),
+        }
+      const response = await base.dependencies.inference.generateReply(request, signal)
+      if (response.status !== 'success') throw new Error('Expected fixture success')
+      return {
+        ...response,
+        result: {
+          ...response.result,
+          profileVersion: 'reply-draft-v4',
+          case: 'complaint',
+          mainPoint: [1],
+          templateGroup: 'en-Latn',
+        },
+      }
+    },
+  )
+  const dependencies: GenerateReplySuggestionDependencies = {
+    ...base.dependencies,
+    operations: {
+      ...base.dependencies.operations,
+      claim,
+      claimExecution,
+      recordFailure: async (input) => {
+        const row = byId.get(input.operationId)!
+        const next = { ...row, state: 'failed' as const, failureCode: input.failureCode }
+        byId.set(row.id, next)
+        records.set(row.idempotencyKey, next)
+        return true
+      },
+    },
+    inference: { ...base.dependencies.inference, generateReply },
+    replyVoices: {
+      ...base.dependencies.replyVoices!,
+      resolveV2Frame: async () => ({
+        ...frame,
+        candidates: [
+          {
+            prefix: '',
+            suffix: '',
+            thanks: false,
+            choices: {
+              closing: -1,
+              signOff: 0,
+              contactSentence: 0,
+              emoji: 0,
+              includeContact: true,
+            },
+          },
+        ],
+      }),
+    },
+    reviewSources: {
+      ...base.dependencies.reviewSources,
+      readForAi: async (input) => {
+        const source = await base.dependencies.reviewSources.readForAi(input)
+        return source.status === 'available'
+          ? {
+              ...source,
+              observation: {
+                ...source.observation,
+                sentences: [{ number: 1, text: source.observation.text ?? '' }],
+              },
+            }
+          : source
+      },
+    },
+  }
+  return {
+    base,
+    dependencies,
+    generate: createGenerateReplySuggestion(dependencies, {
+      parentOperationId: null,
+      rewriteOrdinal: 0,
+      rewriteIssues: [],
+    }),
+    generateReply,
+    claim,
+    claimExecution,
+    records,
+    byId,
+    refusals,
+    charges,
+  }
+}
+
+describe('dark reply v2 rewrite orchestration', () => {
+  it.each(['refused', 'busy'] as const)(
+    'writes nothing before a %s admission',
+    async (outcome) => {
+      const h = createV2Harness(['accepted'])
+      const reserveFrame = vi.spyOn(h.dependencies.replyVoices!, 'resolveV2Frame')
+      if (outcome === 'refused')
+        vi.mocked(h.base.mocks.readMerchantAuthorization).mockResolvedValue(null)
+      else
+        vi.mocked(h.base.mocks.acquire).mockResolvedValue({
+          ok: false,
+          code: 'admission_busy',
+          retryAfterEpochMillis: NOW + 10_000,
+        })
+      expect(await h.generate(INPUT)).toMatchObject({
+        status: 'unavailable',
+        code: outcome === 'refused' ? 'not_authorized' : 'busy',
+      })
+      expect(reserveFrame).not.toHaveBeenCalled()
+      expect(h.claim).not.toHaveBeenCalled()
+      expect(h.claimExecution).not.toHaveBeenCalled()
+      expect(h.generateReply).not.toHaveBeenCalled()
+      expect(h.records.size).toBe(0)
+    },
+  )
+
+  it('releases admission when the frame cannot be reserved', async () => {
+    const h = createV2Harness(['accepted'])
+    vi.spyOn(h.dependencies.replyVoices!, 'resolveV2Frame').mockResolvedValue(null)
+    expect(await h.generate(INPUT)).toMatchObject({
+      status: 'unavailable',
+      code: 'policy_unavailable',
+    })
+    expect(h.base.mocks.acquire).toHaveBeenCalledTimes(1)
+    expect(h.base.mocks.release).toHaveBeenCalledTimes(1)
+    expect(h.claim).not.toHaveBeenCalled()
+  })
+
+  it('makes one separately admitted call for an accepted body', async () => {
+    const h = createV2Harness(['accepted'])
+    expect((await h.generate(INPUT)).status).toBe('ready')
+    expect(h.generateReply).toHaveBeenCalledTimes(1)
+    expect(h.base.mocks.acquire).toHaveBeenCalledTimes(1)
+    expect(h.base.mocks.release).toHaveBeenCalledTimes(1)
+    expect([...h.charges.values()]).toEqual([1])
+    expect(h.generateReply.mock.calls[0]![0].source.sentences).toEqual([
+      { number: 1, text: 'We waited a long time for the room to be ready.' },
+    ])
+  })
+  it('admits, permits and charges a distinct child once and delivers only the accepted result', async () => {
+    const h = createV2Harness(['hard', 'accepted'])
+    expect((await h.generate(INPUT)).status).toBe('ready')
+    expect(h.generateReply).toHaveBeenCalledTimes(2)
+    expect([...h.charges.values()]).toEqual([1, 1])
+    expect(h.base.mocks.acquire).toHaveBeenCalledTimes(2)
+    expect(h.base.mocks.release).toHaveBeenCalledTimes(2)
+    const [parent, child] = h.generateReply.mock.calls.map(([request]) => request)
+    expect(child!.operationId).not.toBe(parent!.operationId)
+    expect(child!.permitId).not.toBe(parent!.permitId)
+    expect(child!.binding.replyDraftingV2).toMatchObject({
+      parentOperationId: parent!.operationId,
+      rewriteOrdinal: 1,
+      rewriteIssues: expect.arrayContaining(['invitation']),
+      options: parent!.binding.replyDraftingV2!.options,
+    })
+    expect(h.base.mocks.settleEphemeralReply).toHaveBeenCalledTimes(1)
+  })
+  it('keeps actual rejected body and avoidance values out of rewrite, logs, events and stored rows', async () => {
+    const h = createV2Harness(['hard', 'accepted'])
+    const stdout = vi.spyOn(process.stdout, 'write').mockImplementation(() => true)
+    const stderr = vi.spyOn(process.stderr, 'write').mockImplementation(() => true)
+    const consoleSpies = ['log', 'info', 'warn', 'error', 'debug'].map((method) =>
+      vi.spyOn(console, method as 'log').mockImplementation(() => {}),
+    )
+    try {
+      const result = await h.generate(INPUT)
+      expect(result.status).toBe('ready')
+      expect(h.generateReply).toHaveBeenCalledTimes(2)
+      expect(h.refusals).toContainEqual({
+        route: 'reply-suggestion',
+        reason: 'avoidance',
+      })
+      const surfaces = {
+        rewrite: h.generateReply.mock.calls[1]![0],
+        logs: [
+          stdout.mock.calls,
+          stderr.mock.calls,
+          ...consoleSpies.map((spy) => spy.mock.calls),
+        ],
+        events: h.refusals,
+        persisted: [
+          [...h.records.values()],
+          [...h.byId.values()],
+          h.base.mocks.settleEphemeralReply.mock.calls,
+        ],
+        delivered: result,
+      }
+      for (const surface of Object.values(surfaces)) {
+        const serialized = JSON.stringify(surface)
+        for (const secret of [
+          REJECTED_V2_OUTPUT.replyText,
+          ...REJECTED_V2_OUTPUT.avoidTerms,
+        ])
+          expect(serialized).not.toContain(secret)
+      }
+    } finally {
+      stdout.mockRestore()
+      stderr.mockRestore()
+      for (const spy of consoleSpies) spy.mockRestore()
+    }
+  })
+
+  it('waits for the parent admission release before admitting the child', async () => {
+    const h = createV2Harness(['hard', 'accepted'])
+    let completeRelease!: () => void
+    const parentRelease = new Promise<void>((resolve) => {
+      completeRelease = resolve
+    })
+    h.base.mocks.release.mockImplementationOnce(async () => parentRelease)
+    const result = h.generate(INPUT)
+    await vi.waitFor(() => expect(h.base.mocks.release).toHaveBeenCalledTimes(1))
+    try {
+      expect(h.base.mocks.acquire).toHaveBeenCalledTimes(1)
+    } finally {
+      completeRelease()
+    }
+    expect((await result).status).toBe('ready')
+    expect(h.base.mocks.acquire).toHaveBeenCalledTimes(2)
+  })
+  it('refuses a second hard failure and never makes a third call, including a replay', async () => {
+    const h = createV2Harness(['hard', 'hard', 'accepted'])
+    expect((await h.generate(INPUT)).status).toBe('unavailable')
+    expect((await h.generate(INPUT)).status).toBe('unavailable')
+    expect(h.generateReply).toHaveBeenCalledTimes(2)
+    expect([...h.charges.values()]).toEqual([1, 1])
+    expect(h.base.mocks.settleEphemeralReply).not.toHaveBeenCalled()
+  })
+  it('shares concurrent claims so that only one rewrite can execute', async () => {
+    const h = createV2Harness(['hard', 'accepted'])
+    const results = await Promise.all([h.generate(INPUT), h.generate(INPUT)])
+    expect(results.filter((result) => result.status === 'ready')).toHaveLength(1)
+    expect(h.generateReply).toHaveBeenCalledTimes(2)
+    expect([...h.charges.values()]).toEqual([1, 1])
+    expect(h.records.size).toBe(2)
+  })
+  it.each(['source', 'consent', 'voice', 'reply_revision'] as const)(
+    'rechecks %s after settlement before delivery',
+    async (change) => {
+      const h = createV2Harness(['accepted'])
+      vi.mocked(h.dependencies.outputs.settleEphemeralReply).mockImplementation(
+        async () => {
+          if (change === 'source')
+            vi.mocked(h.base.dependencies.reviewSources.assertCurrent).mockResolvedValue({
+              status: 'source_revision_changed',
+            })
+          if (change === 'consent')
+            vi.mocked(
+              h.base.dependencies.authorization.readMerchantAuthorization,
+            ).mockResolvedValue(null)
+          if (change === 'voice')
+            vi.mocked(
+              h.base.dependencies.replyVoices!.resolveLocalFrame,
+            ).mockResolvedValue(null)
+          if (change === 'reply_revision')
+            vi.mocked(
+              h.base.dependencies.reviewSources.readReplyStateRevision,
+            ).mockResolvedValue(4)
+          return true
+        },
+      )
+      expect((await h.generate(INPUT)).status).toBe('unavailable')
+      expect(h.base.mocks.markDelivered).not.toHaveBeenCalled()
+      expect(h.generateReply).toHaveBeenCalledTimes(1)
+    },
+  )
+  it.each(['refused', 'ambiguous', 'scanner_unavailable'] as const)(
+    'does not rewrite %s',
+    async (outcome) => {
+      const h = createV2Harness([outcome, 'accepted'])
+      expect((await h.generate(INPUT)).status).toBe('unavailable')
+      expect(h.generateReply).toHaveBeenCalledTimes(1)
+    },
+  )
+  it.each(['source', 'consent', 'voice', 'reply_revision'] as const)(
+    'refuses a %s change between calls',
+    async (change) => {
+      const h = createV2Harness(['hard', 'accepted'], (base) => {
+        if (change === 'source')
+          vi.mocked(base.dependencies.reviewSources.assertCurrent).mockResolvedValue({
+            status: 'source_revision_changed',
+          })
+        if (change === 'consent')
+          vi.mocked(
+            base.dependencies.authorization.readMerchantAuthorization,
+          ).mockResolvedValue(null)
+        if (change === 'voice')
+          vi.mocked(base.dependencies.replyVoices!.resolveLocalFrame).mockResolvedValue({
+            prefix: '',
+            suffix: '',
+            voiceDigest: 'b'.repeat(64),
+            reviewerDisplayName: null,
+            contact: null,
+            signerName: null,
+            signerTitle: null,
+            businessName: 'Example Hotel',
+          })
+        if (change === 'reply_revision')
+          vi.mocked(
+            base.dependencies.reviewSources.readReplyStateRevision,
+          ).mockResolvedValue(4)
+      })
+      expect((await h.generate(INPUT)).status).toBe('unavailable')
+      expect(h.generateReply).toHaveBeenCalledTimes(1)
+      expect(h.base.mocks.settleEphemeralReply).not.toHaveBeenCalled()
+    },
+  )
 })

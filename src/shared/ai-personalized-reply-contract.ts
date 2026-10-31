@@ -248,6 +248,11 @@ function containsProhibitedContent(
   )
 }
 
+/** Historical en/bg commitment authority, reused by the additive v2 contract. */
+export function hasProhibitedReplyCommitment(replyText: string): boolean {
+  return PROHIBITED_REPLY_PATTERNS.some((pattern) => pattern.test(replyText))
+}
+
 /**
  * Validate provider output before it can enter the browser's ephemeral reply
  * draft. The validator accepts only English/Bulgarian, requires bidirectional

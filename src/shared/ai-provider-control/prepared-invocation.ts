@@ -212,7 +212,10 @@ export function createPreparedAiInvocation(
             })
       if (
         cacheRoute !== descriptor.route ||
-        promptVersion !== OPENAI_PROMPT_VERSIONS[descriptor.route] ||
+        promptVersion !==
+          (descriptor.binding?.operationProfileVersion === 'reply-suggestion-v2'
+            ? 'reply-suggestion-prompt-v2'
+            : OPENAI_PROMPT_VERSIONS[descriptor.route]) ||
         promptCacheShard !== expectedShard ||
         descriptor.promptCacheShard !== expectedShard
       ) {

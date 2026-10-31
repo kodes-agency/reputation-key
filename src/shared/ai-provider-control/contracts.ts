@@ -101,6 +101,7 @@ export type PreparedGatewayRouteExecution = Readonly<{
   invocation: PreparedInvocationBase
   outputSchema: z.ZodTypeAny
   acceptProviderResult(result: unknown): AcceptedGatewayResult | null
+  repairIssues?(): readonly ReplyBodyIssueCode[]
 }>
 
 export type AiGatewayRoutePreparer = Readonly<{
@@ -118,3 +119,5 @@ export type GatewayExecutionResult<T> =
       code: string
       retryAfterEpochMillis: number | null
     }>
+
+import type { ReplyBodyIssueCode } from '#/shared/domain/reply-body-lint-policy'

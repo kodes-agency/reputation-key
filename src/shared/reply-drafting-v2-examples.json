@@ -1,0 +1,144 @@
+{
+  "positive": [
+    {
+      "rating": 5,
+      "review": "Best almond croissant I've had outside Paris. The pastry chef deserves a raise.",
+      "reply": "An almond croissant that stands up to Paris is about the best compliment our pastry kitchen could hope for. Thank you for taking the time to say so."
+    },
+    {
+      "rating": 5,
+      "review": "Quiet room, comfy bed, friendly check-in. Exactly what we needed after a long drive.",
+      "reply": "After hours on the road, peace and a proper night's sleep are what count, and we're glad you found both here. Thank you for staying with us."
+    },
+    {
+      "rating": 5,
+      "review": "Lena always knows what I want before I say it. Five years and counting.",
+      "reply": "Five years is a long time to trust someone with your hair, and Lena clearly earns it. Thank you for being with us all this time."
+    },
+    {
+      "rating": 5,
+      "review": "Great massage.",
+      "reply": "Thank you, we're glad the massage did its job."
+    },
+    {
+      "rating": 4,
+      "review": "Lovely dinner and a great wine list, but our mains took almost forty minutes.",
+      "reply": "We're glad the dinner and the wine list made for a good evening. Waiting that long for your main course is another matter, and we're sorry it slowed the night down."
+    },
+    {
+      "rating": 4,
+      "review": "Spotless room and the staff couldn't do enough for us. Breakfast was a bit repetitive after a week.",
+      "reply": "Thank you for such a warm review. A team that goes out of its way is what we hope every guest meets, and we're sorry breakfast started to feel the same by the end of your week."
+    }
+  ],
+  "mixed": [
+    {
+      "rating": 3,
+      "review": "Beautiful location and friendly staff. The room was tired though, a stained carpet and a lamp that didn't work.",
+      "reply": "The setting and a friendly welcome are a good start, and we're glad you had both. Coming back to a worn room with a broken lamp spoils that, though, and we're sorry the room let your stay down."
+    },
+    {
+      "rating": 3,
+      "review": "Food was good. Service was slow and nobody checked on us once.",
+      "reply": "We're sorry you were left waiting without anyone checking on your table, because that takes the pleasure out of even a good meal. We're glad the food itself was worth it."
+    },
+    {
+      "rating": 3,
+      "review": "Nice cut, but they ran forty-five minutes late and never said why.",
+      "reply": "Thank you for an honest review. We're glad you liked the cut, and we're sorry you were kept waiting so long without a word of explanation."
+    },
+    {
+      "rating": 3,
+      "review": "Good massage, but the changing room was cold and a bit grubby.",
+      "reply": "The massage itself sounds like it went well, and we're glad of that. A cold, untidy changing room is a poor start to an hour that's meant to relax you, and we're sorry."
+    }
+  ],
+  "complaint": [
+    {
+      "rating": 1,
+      "review": "Waited an hour past our booking for a table. Staff just kept saying soon.",
+      "reply": "An hour past your booking with only vague promises of a table is a frustrating way to start an evening, and we're sorry. When we run late, you deserve honest information about how long it will really be."
+    },
+    {
+      "rating": 2,
+      "review": "Our room wasn't cleaned once in three days even though we asked twice.",
+      "reply": "We're sorry your room went three days without being made up, even after you asked. Coming back to a fresh room is part of what makes a stay restful, and you shouldn't have had to ask at all."
+    },
+    {
+      "rating": 2,
+      "review": "Check-in was chaos and our room wasn't ready until six. Breakfast was excellent though.",
+      "reply": "Arriving to a chaotic check-in and then waiting until evening for your room would wear anyone down. We're sorry your stay started that way. We're glad breakfast was a bright spot."
+    },
+    {
+      "rating": 1,
+      "review": "The stylist barely spoke to me and the color came out nothing like the photo I showed.",
+      "reply": "We're sorry the color didn't match what you asked for and that you didn't feel listened to during your appointment. Bringing a photo should make the result easy to agree on, and it should have been a conversation from the start."
+    },
+    {
+      "rating": 2,
+      "review": "Ordered medium-rare, got well done, twice. Waiter shrugged.",
+      "reply": "Getting your steak cooked the wrong way twice is maddening, and we're sorry. When a dish goes back to the kitchen, it should come back right, along with a proper apology at the table."
+    },
+    {
+      "rating": 1,
+      "review": "Treatment started twenty minutes late and still finished on time, so I paid for less.",
+      "reply": "Starting late and then ending on schedule meant you lost part of the treatment you came for, and we're sorry. Your time with us should be yours in full, however the day is running."
+    }
+  ],
+  "serious": [
+    {
+      "rating": 1,
+      "review": "There was a cockroach in the bathroom and reception didn't do anything until the next morning.",
+      "reply": "We're very sorry about the cleanliness problem in your bathroom and about how slowly it was dealt with once you told us. Something like that needs an immediate response, and you should never have had to wait until morning."
+    },
+    {
+      "rating": 1,
+      "review": "My husband was sick all night after the seafood platter.",
+      "reply": "We're so sorry to hear your husband felt unwell after his meal with us. Your health matters far more than any dish, and what you describe concerns us."
+    },
+    {
+      "rating": 1,
+      "review": "We were clearly treated differently from the other guests because we're foreigners.",
+      "reply": "We're very sorry you left feeling you weren't treated fairly. Every guest deserves the same welcome and the same care, and what you describe about your visit matters to us."
+    },
+    {
+      "rating": 1,
+      "review": "Burned my scalp with the bleach. Expect to hear from my lawyer.",
+      "reply": "We're very sorry about what happened during your appointment and the pain it caused you. Your safety in the chair comes before anything else, and we're concerned to read this."
+    }
+  ],
+  "money": [
+    {
+      "rating": 1,
+      "review": "Charged twice for one night and nobody at reception could explain it.",
+      "reply": "We're sorry you were left without a clear answer about the charges on your card. Questions about a bill deserve straight answers, and you should be able to leave knowing exactly what you paid for."
+    },
+    {
+      "rating": 2,
+      "review": "Hidden service charge on the bill that nobody mentioned. Feels like a trick.",
+      "reply": "Finding a charge on your bill that you weren't expecting would leave anyone feeling caught out, and we're sorry. Nobody should finish a meal unsure of what they're paying for."
+    },
+    {
+      "rating": 2,
+      "review": "Still waiting for my deposit back after two weeks.",
+      "reply": "We're sorry the wait over your deposit has gone on this long. Not knowing where things stand is stressful, and you deserve a clear answer."
+    }
+  ],
+  "unclear": [
+    {
+      "rating": 1,
+      "review": "Terrible. Avoid.",
+      "reply": "We're sorry to read this."
+    },
+    {
+      "rating": 1,
+      "review": "Never got my booking confirmation, total scam.",
+      "reply": "We're sorry about the confusion over your booking and the frustration it caused."
+    },
+    {
+      "rating": 2,
+      "review": "Not what I expected at all.",
+      "reply": "We're sorry this wasn't what you had hoped for."
+    }
+  ]
+}

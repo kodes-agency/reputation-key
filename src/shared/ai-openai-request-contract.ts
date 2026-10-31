@@ -169,6 +169,13 @@ export function renderOpenAiStaticTokenBearingMaterial(
   })
 }
 
+function isKnownPromptVersion(route: AiGatewayRoute, version: string): boolean {
+  return (
+    version === OPENAI_PROMPT_VERSIONS[route] ||
+    (route === 'reply-suggestion' && version === 'reply-suggestion-prompt-v2')
+  )
+}
+
 export function buildClosedOpenAiRequest(
   input: Readonly<{
     route: AiGatewayRoute
@@ -184,7 +191,7 @@ export function buildClosedOpenAiRequest(
 ): ClosedOpenAiRequest {
   if (
     !TOKEN.test(input.route) ||
-    input.promptVersion !== OPENAI_PROMPT_VERSIONS[input.route] ||
+    !isKnownPromptVersion(input.route, input.promptVersion) ||
     !Number.isSafeInteger(input.promptCacheShard) ||
     input.promptCacheShard < 0 ||
     input.promptCacheShard > 15 ||

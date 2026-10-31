@@ -88,9 +88,9 @@ describe('AI runtime capability contract', () => {
 
   // A grant is append-only evidence and a deploy rewrites none: the store reads a grant
   // under any runtime profile one has held, and the newest of them is the one served.
-  it('serves, for every capability, the newest runtime profile a grant has been recorded under', () => {
+  it('serves only explicitly selected profiles from the recorded runtime catalogue', () => {
     for (const entry of AI_RUNTIME_CAPABILITIES_V1) {
-      expect(RECORDED_RUNTIME_PROFILE_VERSIONS[entry.capability].at(-1)).toBe(
+      expect(RECORDED_RUNTIME_PROFILE_VERSIONS[entry.capability]).toContain(
         entry.runtimeProfileVersion,
       )
     }

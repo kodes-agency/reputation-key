@@ -1,3 +1,9 @@
+import {
+  aiOperationsReplyV2Valid,
+  aiOperationsBudgetValid,
+  aiOperationsSafeIntegers,
+} from './ai-operation-checks'
+import type { ReplyDraftingV2Binding } from '#/shared/domain/reply-drafting-v2'
 import { sql } from 'drizzle-orm'
 import {
   bigint,
@@ -186,6 +192,8 @@ export const aiOperations = pgTable(
     reviewedAtEpochMillis: bigint('reviewed_at_epoch_millis', { mode: 'number' }),
     analysisSequence: bigint('analysis_sequence', { mode: 'number' }),
     tone: varchar('tone', { length: 20 }),
+    replyDraftingV2: jsonb('reply_drafting_v2').$type<ReplyDraftingV2Binding>(),
+    rewriteParentOperationId: uuid('rewrite_parent_operation_id'),
     baseReplyStateRevision: bigint('base_reply_state_revision', { mode: 'number' }),
     dueLocalDate: date('due_local_date', { mode: 'string' }),
     terminalAnalysisSequence: bigint('terminal_analysis_sequence', { mode: 'number' }),
@@ -291,6 +299,15 @@ export const aiOperations = pgTable(
     droppedMentionCount: integer('dropped_mention_count').notNull().default(0),
   },
   (t) => [
+    uniqueIndex('ai_operations_one_rewrite_unique')
+      .on(t.rewriteParentOperationId)
+      .where(sql`${t.rewriteParentOperationId} IS NOT NULL`),
+    foreignKey({
+      columns: [t.rewriteParentOperationId],
+      foreignColumns: [t.id],
+      name: 'ai_operations_rewrite_parent_fk',
+    }).onDelete('restrict'),
+    aiOperationsReplyV2Valid(t),
     uniqueIndex('ai_operations_idempotency_unique').on(
       t.idempotencyScope,
       t.idempotencyKey,
@@ -339,26 +356,8 @@ export const aiOperations = pgTable(
       'ai_operations_attempt_valid',
       sql`${t.executionAttempt} >= 0 AND ${t.expiresAt} > ${t.createdAt} AND ${t.updatedAt} >= ${t.createdAt} AND (${t.nextAttemptAt} IS NULL OR ${t.nextAttemptAt} >= ${t.updatedAt})`,
     ),
-    check(
-      'ai_operations_budget_valid',
-      sql`${t.reservedMicros} BETWEEN 0 AND '9007199254740991'::bigint
-        AND (${t.actualMicros} IS NULL OR ${t.actualMicros} BETWEEN 0 AND ${t.reservedMicros})
-        AND ((${t.costWindowId} IS NULL AND ${t.reservedMicros} = 0 AND ${t.budgetReservedAt} IS NULL)
-          OR (${t.costWindowId} IS NOT NULL AND ${t.reservedMicros} > 0 AND ${t.budgetReservedAt} IS NOT NULL))
-        AND ((${t.budgetSettledAt} IS NULL AND ${t.actualMicros} IS NULL)
-          OR (${t.budgetSettledAt} IS NOT NULL AND ${t.actualMicros} IS NOT NULL AND ${t.budgetSettledAt} >= ${t.budgetReservedAt}))`,
-    ),
-    check(
-      'ai_operations_safe_integers',
-      sql`COALESCE(${t.sourceRevision}, 0) BETWEEN 0 AND '9007199254740991'::bigint
-        AND COALESCE(${t.reviewedAtEpochMillis}, 0) BETWEEN 0 AND '9007199254740991'::bigint
-        AND COALESCE(${t.analysisSequence}, 0) BETWEEN 0 AND '9007199254740991'::bigint
-        AND COALESCE(${t.baseReplyStateRevision}, 0) BETWEEN 0 AND '9007199254740991'::bigint
-        AND COALESCE(${t.terminalAnalysisSequence}, 0) BETWEEN 0 AND '9007199254740991'::bigint
-        AND COALESCE(${t.aggregateRevision}, 0) BETWEEN 0 AND '9007199254740991'::bigint
-        AND COALESCE(${t.adoptedReplyRevision}, 0) BETWEEN 0 AND '9007199254740991'::bigint
-        AND COALESCE(${t.adoptedReviewReplyStateRevision}, 0) BETWEEN 0 AND '9007199254740991'::bigint`,
-    ),
+    aiOperationsBudgetValid(t),
+    aiOperationsSafeIntegers(t),
     check(
       'ai_operations_branch_valid',
       sql`(

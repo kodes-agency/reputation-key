@@ -1,3 +1,9 @@
+import { REPLY_DRAFTING_V2_PROFILE_DIGEST } from './reply-drafting-v2-contract'
+import {
+  REPLY_DRAFTING_V2_VERSIONS,
+  REPLY_DRAFTING_V2_LANGUAGES,
+} from './reply-drafting-v2-schema'
+import { replyVoiceChoicesSchema } from './reply-drafting-v2-binding'
 import { createHash, sign, verify, type KeyObject } from 'node:crypto'
 import { z } from 'zod/v4'
 import { canonicalizeRfc8785 } from './merchant-ai-notice-contract'
@@ -16,11 +22,13 @@ const DOMAINS = Object.freeze({
   'ai-reply-provenance-v1': 'repkey-ai-reply-provenance-v1\0',
   'ai-reply-provenance-v2': 'repkey-ai-reply-provenance-v2\0',
   'ai-reply-provenance-v3': 'repkey-ai-reply-provenance-v3\0',
+  'ai-reply-provenance-v4': 'repkey-ai-reply-provenance-v4\0',
 })
 const TOKEN_PREFIXES = Object.freeze({
   'ai-reply-provenance-v1': 'rk_ai_reply_v1',
   'ai-reply-provenance-v2': 'rk_ai_reply_v2',
   'ai-reply-provenance-v3': 'rk_ai_reply_v3',
+  'ai-reply-provenance-v4': 'rk_ai_reply_v4',
 })
 // Preserve the exact V2 profile pin. V2 predates public Property Brand
 // Profile grounding and must not silently inherit the active V3 profile.
@@ -140,10 +148,40 @@ const groundedPersonalizedPayloadSchema = z
   .strict()
   .superRefine(personalizedRefinement)
 
+const sentencePersonalizedPayloadSchema = z
+  .object({
+    version: z.literal(REPLY_DRAFTING_V2_VERSIONS.provenance),
+    ...commonPayloadShape,
+    operationProfileVersion: z.literal(REPLY_DRAFTING_V2_VERSIONS.operation),
+    promptVersion: z.literal(REPLY_DRAFTING_V2_VERSIONS.prompt),
+    replyProfileVersion: z.literal(REPLY_DRAFTING_V2_VERSIONS.profile),
+    replyProfileDigest: z.literal(REPLY_DRAFTING_V2_PROFILE_DIGEST),
+    replyBrandProfileVersion: positive,
+    replyBrandDisplayNameDigest: digest,
+    replyVoiceDigest: digest,
+    voiceChoices: replyVoiceChoicesSchema,
+    parentOperationId: canonicalUuid.nullable(),
+    rewriteOrdinal: z.union([z.literal(0), z.literal(1)]),
+  })
+  .strict()
+  .superRefine((value, context) => {
+    expiryRefinement(value, context)
+    const group = REPLY_DRAFTING_V2_LANGUAGES.find((tag) => tag === value.templateGroup)
+    if (
+      !group ||
+      (value.concreteLanguageTag !== group &&
+        !value.concreteLanguageTag.startsWith(`${group}-`))
+    )
+      context.addIssue({ code: 'custom', message: 'Unapproved v2 reply language' })
+    if ((value.parentOperationId === null) !== (value.rewriteOrdinal === 0))
+      context.addIssue({ code: 'custom', message: 'Invalid rewrite lineage' })
+  })
+
 const payloadSchema = z.union([
   legacyPayloadSchema,
   personalizedPayloadSchema,
   groundedPersonalizedPayloadSchema,
+  sentencePersonalizedPayloadSchema,
 ])
 
 export type AiReplyProvenancePayloadV1 = z.infer<typeof legacyPayloadSchema>
@@ -230,7 +268,8 @@ export function verifyAiReplyProvenance(
     parts.length !== 3 ||
     (parts[0] !== TOKEN_PREFIXES['ai-reply-provenance-v1'] &&
       parts[0] !== TOKEN_PREFIXES['ai-reply-provenance-v2'] &&
-      parts[0] !== TOKEN_PREFIXES['ai-reply-provenance-v3'])
+      parts[0] !== TOKEN_PREFIXES['ai-reply-provenance-v3'] &&
+      parts[0] !== TOKEN_PREFIXES['ai-reply-provenance-v4'])
   )
     return null
   let payloadBytes: Buffer | null = null

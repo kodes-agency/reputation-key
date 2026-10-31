@@ -1,3 +1,6 @@
+import type { AiReplyOutputRefusal } from './reply-output-refusal'
+import { prepareReplyDraftingV2 } from './reply-drafting-v2'
+import { replyDynamicDeveloperBytes } from '#/shared/reply-drafting-v2-request'
 import type { KeyObject } from 'node:crypto'
 import { z } from 'zod/v4'
 import { canonicalizeRfc8785 } from '#/shared/merchant-ai-notice-contract'
@@ -158,7 +161,8 @@ function reservationMicros(
       {
         staticTokenBearingBytes:
           profile.pairings?.[provider.providerId]?.staticTokenBearing.bytes ??
-          profile.staticTokenBearingBytes,
+          profile.staticTokenBearingBytes +
+            replyDynamicDeveloperBytes(profile.profileVersion),
         maxOutputTokens: profile.maxOutputTokens,
       },
       providerPayloadBytes,
@@ -338,20 +342,7 @@ function reviewSourceBytes(
   }).bytes
 }
 
-/** Which reply-output rule refused. Identifiers only, no provider content. */
-export type AiReplyOutputRefusal = Readonly<{
-  route: 'reply-suggestion'
-  reason:
-    | 'shape'
-    | 'language'
-    | 'grounding'
-    | 'brand'
-    | 'prohibited_content'
-    | 'profile_version_mismatch'
-    | 'language_verification'
-    | 'reply_limits'
-    | 'adoption_window_elapsed'
-}>
+export type { AiReplyOutputRefusal } from './reply-output-refusal'
 
 export function createAiGatewayRoutePreparer(
   dependencies: Readonly<{
@@ -391,16 +382,11 @@ export function createAiGatewayRoutePreparer(
   return Object.freeze({
     prepare: (request): PreparedGatewayRouteExecution => {
       const profile = profileFor(profiles, request)
-      if (
-        request.binding.operationProfileVersion !== profile.profileVersion ||
-        request.binding.providerDeploymentProfileVersion !==
-          profile.providerDeploymentProfileVersion ||
-        request.binding.capabilityRuntimeProfileVersion !==
-          profile.capabilityRuntimeProfileVersion
-      )
-        throw new GatewayPreparationError('policy_unavailable')
+      assertPreparationProfile(request, profile)
       const provider = providerFor(registry, profile)
       assertClaimedProvider(request, profile, provider)
+      const v2 = prepareReplyV2Route(request, profile, provider, dependencies, now)
+      if (v2) return v2
 
       let providerPayload: Readonly<Record<string, unknown>>
       let outputSchema: z.ZodTypeAny
@@ -573,7 +559,7 @@ export function createAiGatewayRoutePreparer(
             operationProfileVersion: profile.profileVersion,
             modelSnapshot: AI_PROVIDER_DEPLOYMENT_PROFILE_V2.modelSnapshot,
             promptVersion: OPENAI_PROMPT_VERSIONS['reply-suggestion'],
-            replyProfileVersion: request.replyProfileVersion,
+            replyProfileVersion: AI_PERSONALIZED_REPLY_PROFILE_VERSION,
             concreteLanguage: concrete,
             redactedReviewText: text,
             rating: request.source.rating,
@@ -819,4 +805,53 @@ export function createAiGatewayRoutePreparer(
       })
     },
   })
+}
+
+function prepareReplyV2Route(
+  request: AiGatewayRouteRequestV1,
+  profile: RoutePreparationProfile,
+  provider: AiProviderPreparation,
+  dependencies: Parameters<typeof createAiGatewayRoutePreparer>[0],
+  now: () => number,
+): PreparedGatewayRouteExecution | null {
+  if (
+    request.route !== 'reply-suggestion' ||
+    profile.profileVersion !== 'reply-suggestion-v2'
+  )
+    return null
+  const sourceBytes = reviewSourceBytes(request)
+  try {
+    return prepareReplyDraftingV2(request, {
+      ...dependencies,
+      now,
+      profile,
+      provider,
+      sourceBytes,
+      text: redactedText(request),
+      evaluated: languageFor(request),
+      createDescriptor: (facts) =>
+        createDescriptor(
+          request,
+          profile,
+          facts,
+          reservationMicros(profile, provider, facts.providerPayloadByteCount),
+        ),
+    })
+  } finally {
+    sourceBytes.fill(0)
+  }
+}
+
+function assertPreparationProfile(
+  request: AiGatewayRouteRequestV1,
+  profile: RoutePreparationProfile,
+): void {
+  if (
+    request.binding.operationProfileVersion !== profile.profileVersion ||
+    request.binding.providerDeploymentProfileVersion !==
+      profile.providerDeploymentProfileVersion ||
+    request.binding.capabilityRuntimeProfileVersion !==
+      profile.capabilityRuntimeProfileVersion
+  )
+    throw new GatewayPreparationError('policy_unavailable')
 }

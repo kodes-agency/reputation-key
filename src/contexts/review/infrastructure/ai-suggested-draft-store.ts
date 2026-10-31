@@ -1,3 +1,5 @@
+import { replyAiFrameReservations } from '#/shared/db/schema'
+import { isExecutionCompatibleWithConsent } from '#/shared/ai-runtime-capability-contract'
 import { timingSafeEqual } from 'node:crypto'
 import { and, eq, isNull, sql } from 'drizzle-orm'
 import type { Database } from '#/shared/db'
@@ -83,7 +85,7 @@ export const createAiSuggestedDraftStore = (
         return { status: 'rejected', reason: 'invalid' }
       }
       const personalized = provenance.version !== 'ai-reply-provenance-v1'
-      const grounded = provenance.version === 'ai-reply-provenance-v3'
+      const grounded = isGroundedProvenance(provenance)
       const replyVoiceDigest = grounded ? provenance.replyVoiceDigest : undefined
       const replyProfileVersion = personalized
         ? provenance.replyProfileVersion
@@ -214,7 +216,7 @@ export const createAiSuggestedDraftStore = (
           operation.propertyProfileVersion !== provenance.propertyProfileVersion ||
           provenance.providerDeploymentProfileVersion !==
             AI_PROVIDER_DEPLOYMENT_PROFILE.profileVersion ||
-          provenance.operationProfileVersion !== 'reply-suggestion-v1' ||
+          operation.operationProfileVersion !== provenance.operationProfileVersion ||
           operation.outputLeakageProfileVersion !==
             provenance.outputLeakageProfileVersion ||
           operation.outputLeakageProfileDigest !==
@@ -319,8 +321,7 @@ export const createAiSuggestedDraftStore = (
           authorization.providerDeploymentProfileVersion !==
             AI_PROVIDER_DEPLOYMENT_PROFILE.profileVersion ||
           !authorization.capabilities.includes('reply_drafting') ||
-          authorization.capabilityRuntimeProfileVersions.reply_drafting !==
-            REPLY_DRAFTING_RUNTIME_PROFILE ||
+          !adoptionRuntimeMatches(authorization, operation) ||
           !review ||
           review.propertyId !== input.propertyId ||
           review.sourceEpoch !== provenance.sourceEpoch ||
@@ -385,7 +386,7 @@ export const createAiSuggestedDraftStore = (
               templateRevision: null,
               templateWordingKey: null,
               voiceDigest: replyVoiceDigest ?? null,
-              voiceChoices: null,
+              voiceChoices: replyV2VoiceChoices(provenance),
               status: 'draft',
               aiGenerated: true,
               authorship: 'ai_assisted',
@@ -425,6 +426,7 @@ export const createAiSuggestedDraftStore = (
               templateId: null,
               templateVersion: null,
               voiceDigest: replyVoiceDigest ?? null,
+              voiceChoices: replyV2VoiceChoices(provenance),
               status: 'draft',
               source: 'internal',
               createdBy: input.actorUserId,
@@ -467,6 +469,13 @@ export const createAiSuggestedDraftStore = (
         if (!acceptedRow) {
           return { status: 'rejected', reason: 'stale' } as const
         }
+        await adoptReplyV2Frame(
+          tx,
+          input,
+          operation.replyDraftingV2,
+          provenance,
+          databaseNow,
+        )
         const [adoptedReview] = await tx
           .select({ replyStateRevision: reviews.replyStateRevision })
           .from(reviews)
@@ -508,4 +517,80 @@ export const createAiSuggestedDraftStore = (
       return db.transaction((tx) => assertCurrentAiDraftBinding(tx, input))
     },
   }
+}
+
+function adoptionRuntimeMatches(
+  authorization: Readonly<{
+    noticeVersion: string
+    noticeDigest: string
+    capabilityRuntimeProfileVersions: Readonly<Partial<Record<string, string>>>
+  }>,
+  operation: Readonly<{
+    operationProfileVersion: string
+    capabilityRuntimeProfileVersion: string | null
+    providerDeploymentProfileVersion: string
+  }>,
+): boolean {
+  if (operation.operationProfileVersion === 'reply-suggestion-v1')
+    return (
+      authorization.capabilityRuntimeProfileVersions.reply_drafting ===
+      REPLY_DRAFTING_RUNTIME_PROFILE
+    )
+  return isExecutionCompatibleWithConsent({
+    capability: 'reply_drafting',
+    acknowledgedNotice: authorization,
+    servedExecution: {
+      runtimeProfileVersion: operation.capabilityRuntimeProfileVersion ?? '',
+      operationProfileVersion: operation.operationProfileVersion,
+      providerDeploymentProfileVersion: operation.providerDeploymentProfileVersion,
+    },
+  })
+}
+
+type Provenance = NonNullable<ReturnType<typeof verifyAiReplyProvenance>>
+type GroundedProvenance = Extract<
+  Provenance,
+  { version: 'ai-reply-provenance-v3' | 'ai-reply-provenance-v4' }
+>
+
+function isGroundedProvenance(provenance: Provenance): provenance is GroundedProvenance {
+  return (
+    provenance.version === 'ai-reply-provenance-v3' ||
+    provenance.version === 'ai-reply-provenance-v4'
+  )
+}
+
+function replyV2VoiceChoices(provenance: Provenance) {
+  return provenance.version === 'ai-reply-provenance-v4' ? provenance.voiceChoices : null
+}
+
+async function adoptReplyV2Frame(
+  tx: Parameters<Parameters<Database['transaction']>[0]>[0],
+  input: Parameters<AiSuggestedDraftStore['accept']>[0],
+  selected: typeof aiOperations.$inferSelect.replyDraftingV2,
+  provenance: Provenance,
+  databaseNow: Date,
+): Promise<void> {
+  if (provenance.version !== 'ai-reply-provenance-v4') return
+  if (
+    !selected ||
+    selected.voiceDigest !== provenance.replyVoiceDigest ||
+    selected.parentOperationId !== provenance.parentOperationId ||
+    selected.rewriteOrdinal !== provenance.rewriteOrdinal
+  )
+    throw new Error('AI reply frame binding conflict')
+  const reserved = await tx
+    .update(replyAiFrameReservations)
+    .set({ choices: provenance.voiceChoices, adoptedAt: databaseNow })
+    .where(
+      and(
+        eq(replyAiFrameReservations.organizationId, input.organizationId),
+        eq(replyAiFrameReservations.propertyId, input.propertyId),
+        eq(replyAiFrameReservations.languageGroup, provenance.templateGroup),
+        eq(replyAiFrameReservations.voiceDigest, provenance.replyVoiceDigest),
+        eq(replyAiFrameReservations.generationSeed, selected.generationSeed),
+      ),
+    )
+    .returning({ id: replyAiFrameReservations.id })
+  if (reserved.length !== 1) throw new Error('AI reply frame reservation missing')
 }

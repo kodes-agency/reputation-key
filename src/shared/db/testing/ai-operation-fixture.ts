@@ -1,3 +1,4 @@
+import type { ReplyDraftingV2Binding } from '#/shared/domain/reply-drafting-v2'
 // A real-PostgreSQL fixture for tests that drive the AI reservation ledger:
 // one organization, one property, the reply-drafting capability control
 // opened for the run, and pending `ai_operations` rows on demand.
@@ -34,6 +35,7 @@ export type AiOperationFixtureInput = Readonly<{
 }>
 
 export type AiOperationSeed = Readonly<{
+  replyDraftingV2?: ReplyDraftingV2Binding
   id?: string
   state?: 'pending' | 'executing'
   executionAttempt?: number
@@ -213,9 +215,14 @@ export async function installAiOperationFixture(
         propertyProfileVersion: 1,
         providerDeploymentProfileVersion:
           AI_REPLY_OPERATION_PROFILE.providerDeploymentProfileVersion,
-        operationProfileVersion: AI_REPLY_OPERATION_PROFILE.profileVersion,
-        capabilityRuntimeProfileVersion:
-          AI_REPLY_OPERATION_PROFILE.capabilityRuntimeProfileVersion,
+        operationProfileVersion: seed.replyDraftingV2
+          ? 'reply-suggestion-v2'
+          : AI_REPLY_OPERATION_PROFILE.profileVersion,
+        replyDraftingV2: seed.replyDraftingV2 ?? null,
+        rewriteParentOperationId: seed.replyDraftingV2?.parentOperationId ?? null,
+        capabilityRuntimeProfileVersion: seed.replyDraftingV2
+          ? 'reply-drafting-runtime-v2'
+          : AI_REPLY_OPERATION_PROFILE.capabilityRuntimeProfileVersion,
         globalControlId: global.controlId,
         globalControlGeneration: global.generation,
         providerControlId: provider.controlId,
