@@ -185,7 +185,7 @@ describe.sequential(
       expect(page.basis.textReviewCount).toBe(REVIEWS.length)
       expect(
         page.fixFirst.map((item) => [item.title, item.statistics.reviewCount]),
-      ).toEqual([['Air conditioning', 4]])
+      ).toEqual([['Air conditioning — not working', 4]])
     })
   },
 )
