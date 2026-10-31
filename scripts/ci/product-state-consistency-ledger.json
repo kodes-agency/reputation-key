@@ -200,6 +200,12 @@
       "members": ["all", "organizations"],
       "owner": "Platform operator console query lifecycle",
       "policy": "One cross-tenant Organization list beneath a Platform-only root, apart from every tenant subtree: the operator holds no role in the Organizations it lists, so the key carries no Organization id. Every tenant switch and every session end clears it together with the rest of the cache (queryClient.clear()), which is what keeps a cached cross-tenant list from surviving a sign-out into a later user's session in the same tab. Every console change (create, invite, resend, cancel) invalidates the list, which is the only read the console has."
+    },
+    {
+      "id": "productUpdateKeys",
+      "members": ["all", "scope"],
+      "owner": "Identity personal product updates",
+      "policy": "The active-person family is cleared with the whole QueryClient on confirmed session or tenant changes. Property scope distinguishes capability-filtered entry sets; an Organization-only read has its own leaf. The lazy controller, account-menu dot, preferences and history share these reads. Receipt and preference writes invalidate only this family, because both apply across its property scopes. A switch snapshots and optimistically changes all cached scopes, rolls them back on failure, and waits for the server to decide automatic eligibility after a successful save. No browser persistence is added: session attempts live only in module memory, while settings, cooldown and receipts are server-owned."
     }
   ],
   "queryKeyDelegates": [

@@ -792,6 +792,7 @@ function buildContainer(
       betaFeedbackHmacSecret: env.BETTER_AUTH_SECRET,
     }),
     identityBetaFeedback: identity.betaFeedback,
+    identityProductUpdates: identity.productUpdates,
     // ADR 0065: the platform operator console. Off identityPublicApi — no
     // context receives it; only its server functions, after
     // requirePlatformOperator.

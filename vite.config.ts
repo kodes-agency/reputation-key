@@ -75,6 +75,12 @@ const config = defineConfig(({ mode }) => {
       client: {
         build: {
           sourcemap: 'hidden',
+          // Background updates discover their imports after idle. Their many
+          // optional dependency hashes need not ride in the first-paint map.
+          modulePreload: {
+            resolveDependencies: (file, dependencies) =>
+              /(?:product-updates|whats-new)-/.test(file) ? [] : dependencies,
+          },
           rolldownOptions: {
             output: {
               codeSplitting: {
@@ -129,6 +135,23 @@ const config = defineConfig(({ mode }) => {
                     includeDependenciesRecursively: false,
                   },
                   {
+                    // The update split otherwise gives CVA its own first-paint
+                    // chunk. Keep the existing class helpers together; no UI
+                    // or feature dependencies can enter this vendor group.
+                    name: 'vendor-classes',
+                    test: /node_modules[\\/](?:class-variance-authority|clsx|tailwind-merge)[\\/]|[\\/]src[\\/]lib[\\/]utils\.ts$/,
+                    includeDependenciesRecursively: false,
+                  },
+                  {
+                    // These four primitives already ride first paint. Updates
+                    // add lazy consumers of each; keeping their small modules
+                    // together avoids paying a gzip header and preload hash
+                    // for every child. Dialog and feature code stay separate.
+                    name: 'ui-primitives',
+                    test: /[\\/]src[\\/]components[\\/]ui[\\/](?:button|empty-state|alert|tone)\.tsx?$/,
+                    includeDependenciesRecursively: false,
+                  },
+                  {
                     // `includeDependenciesRecursively` MUST stay false: with it
                     // on, recharts' transitive deps (clsx,
                     // use-sync-external-store, redux, es-toolkit) join this
@@ -155,6 +178,14 @@ const config = defineConfig(({ mode }) => {
                     // first paint, so compare again before raising this.
                     entriesAwareMergeThreshold: 16 * 1024,
                     entriesAware: true,
+                    includeDependenciesRecursively: false,
+                  },
+                  {
+                    // All update presentation is lazy. One feature chunk avoids
+                    // charging first paint for a hash per small shared child in
+                    // the route preload map, without merging any shell module.
+                    name: 'product-updates',
+                    test: /[\\/]src[\\/]components[\\/]features[\\/]whats-new[\\/]/,
                     includeDependenciesRecursively: false,
                   },
                   {
