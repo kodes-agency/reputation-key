@@ -47,14 +47,10 @@ export type PropertyInsightsPreset = (typeof PROPERTY_INSIGHTS_PRESETS)[number]
  * 90 days, 6 months and 12 months that holds enough reviews with text
  * (`chooseEvidenceWindow`). The answer names the window it chose (`range`).
  */
-export const PROPERTY_INSIGHTS_RANGES = [
-  'auto',
-  ...PROPERTY_INSIGHTS_PRESETS,
-  'all',
-] as const
+const PROPERTY_INSIGHTS_RANGES = ['auto', ...PROPERTY_INSIGHTS_PRESETS, 'all'] as const
 export type PropertyInsightsRange = (typeof PROPERTY_INSIGHTS_RANGES)[number]
 
-export function isPropertyInsightsRange(value: unknown): value is PropertyInsightsRange {
+function isPropertyInsightsRange(value: unknown): value is PropertyInsightsRange {
   return PROPERTY_INSIGHTS_RANGES.some((candidate) => candidate === value)
 }
 

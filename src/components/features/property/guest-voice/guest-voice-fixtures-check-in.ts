@@ -56,41 +56,65 @@ function mention(index: number, ordinal: number): GuestVoiceMention {
     namesPerson: null,
   }
 }
+// Inclusive review-index ranges, in mention order. Quiet populations omit complaints.
+const issuePopulations = [
+  { issue: 0, start: 0, end: 8, quiet: false },
+  { issue: 1, start: 9, end: 17, quiet: false },
+  { issue: 2, start: 18, end: 25, quiet: false },
+  { issue: 3, start: 26, end: 30, quiet: false },
+  { issue: 4, start: 70, end: Infinity, quiet: true },
+  { issue: 5, start: 90, end: 111, quiet: true },
+  { issue: 6, start: 100, end: 119, quiet: true },
+  { issue: 7, start: 115, end: 126, quiet: true },
+  { issue: 8, start: 126, end: Infinity, quiet: true },
+  { issue: 9, start: 40, end: 40, quiet: false },
+  { issue: 10, start: 41, end: 41, quiet: false },
+  { issue: 11, start: 3, end: 4, quiet: false },
+] as const
+
+function syntheticMentions(index: number, quiet: boolean): GuestVoiceMention[] {
+  return issuePopulations
+    .filter(
+      (population) =>
+        index >= population.start &&
+        index <= population.end &&
+        (!quiet || population.quiet),
+    )
+    .map((population, ordinal) => mention(population.issue, ordinal))
+    .map((m) =>
+      index === 70 && m.topic === 'staff_service'
+        ? { ...m, namesPerson: 'team_member' }
+        : m,
+    )
+}
+
+function syntheticReviewDate(index: number, quiet: boolean): string {
+  if (index < 31 && !quiet) return addDays('2026-09-01', index % 28)
+  if (index < 92) return addDays('2025-10-02', Math.floor((index * 270) / 92))
+  return addDays('2026-07-04', Math.floor(((index - 92) * 89) / 39))
+}
+
+function syntheticUrgentReason(
+  index: number,
+  quiet: boolean,
+): GuestVoiceReview['urgentReason'] {
+  if (quiet) return null
+  if (index < 3) return 'health'
+  if (index < 5) return 'safety'
+  return null
+}
+
 function syntheticReview(index: number, quiet = false): GuestVoiceReview {
-  const issueIndexes: number[] = []
-  if (index < 9 && !quiet) issueIndexes.push(0)
-  if (index >= 9 && index < 18 && !quiet) issueIndexes.push(1)
-  if (index >= 18 && index < 26 && !quiet) issueIndexes.push(2)
-  if (index >= 26 && index < 31 && !quiet) issueIndexes.push(3)
-  if (index >= 70) issueIndexes.push(4)
-  if (index >= 90 && index < 112) issueIndexes.push(5)
-  if (index >= 100 && index < 120) issueIndexes.push(6)
-  if (index >= 115 && index < 127) issueIndexes.push(7)
-  if (index >= 126) issueIndexes.push(8)
-  if (index === 40 && !quiet) issueIndexes.push(9)
-  if (index === 41 && !quiet) issueIndexes.push(10)
-  if ((index === 3 || index === 4) && !quiet) issueIndexes.push(11)
   return {
     reviewId: fixtureId('b', index + 1),
     sourceEpoch: 1,
     sourceRevision: 1,
     analysisSequence: index + 1,
-    localDate:
-      index < 31 && !quiet
-        ? addDays('2026-09-01', index % 28)
-        : index < 92
-          ? addDays('2025-10-02', Math.floor((index * 270) / 92))
-          : addDays('2026-07-04', Math.floor(((index - 92) * 89) / 39)),
+    localDate: syntheticReviewDate(index, quiet),
     rating: index < 92 ? (index % 2 ? 3 : 2) : 5,
-    urgentReason: quiet ? null : index < 3 ? 'health' : index < 5 ? 'safety' : null,
+    urgentReason: syntheticUrgentReason(index, quiet),
     namesAPerson: index === 70,
-    mentions: issueIndexes
-      .map(mention)
-      .map((m) =>
-        index === 70 && m.topic === 'staff_service'
-          ? { ...m, namesPerson: 'team_member' }
-          : m,
-      ),
+    mentions: syntheticMentions(index, quiet),
   }
 }
 function build(

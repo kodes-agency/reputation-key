@@ -8,10 +8,6 @@ export type {
   AiSentimentDay,
 } from './use-cases/read-property-aggregates'
 
-export {
-  PROPERTY_INSIGHTS_RANGES,
-  isPropertyInsightsRange,
-} from './use-cases/read-property-insights'
 export type {
   AiPropertyInsightAspect,
   AiPropertyInsightAspectEvidenceState,
