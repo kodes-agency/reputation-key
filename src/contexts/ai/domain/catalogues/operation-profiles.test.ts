@@ -1,3 +1,4 @@
+import { openAiAttestationOf } from '#/shared/ai-openai-provider-attestation'
 import { createHash } from 'node:crypto'
 import { describe, expect, it } from 'vitest'
 import {
@@ -167,7 +168,7 @@ describe('PR5 immutable AI execution catalogues', () => {
       ['reply-suggestion-v1', 'private-beta-global-v2'],
       ['property-trend-v1', 'private-beta-global-v2'],
       ['synthetic-canary-v1', 'private-beta-global-v2'],
-      ['reply-suggestion-v2', 'private-beta-global-v2'],
+      ['reply-suggestion-v2', 'private-beta-global-v3'],
       ['review-analysis-v3', 'private-beta-global-v2'],
     ])
   })
@@ -256,7 +257,7 @@ describe('PR5 immutable AI execution catalogues', () => {
         sourceByteLimit: 16_384,
         providerPayloadByteLimit: 57_344,
         preparedRequestByteLimit: 131_072,
-        responseByteLimit: 131_072,
+        responseByteLimit: 1_048_576,
         maxOutputTokens: 2_048,
         reasoningEffort: 'medium',
         providerDeadlineMs: 60_000,
@@ -377,7 +378,7 @@ describe('PR5 immutable AI execution catalogues', () => {
       expect(profile.staticTokenBearingBytes).toBeGreaterThan(0)
       expect(profile.staticTokenBearingDigest).toMatch(/^[0-9a-f]{64}$/)
       expect(profile.sdkRequestShapeDigest).toBe(
-        AI_PROVIDER_DEPLOYMENT_PROFILE.deploymentContract.requestShapeDigest,
+        openAiAttestationOf(profile).requestShape.digest,
       )
       expect(profile.artifactAttestationsDigest).toBe(
         sha256('repkey-ai-operation-artifacts-v1\0', profile.artifactAttestations),

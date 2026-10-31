@@ -1,4 +1,4 @@
-import type { OrganizationId, PropertyId } from '#/shared/domain/ids'
+import type { OrganizationId, PropertyId, UserId } from '#/shared/domain/ids'
 import type { AiAdmissionLane } from '../../domain/admission-lanes'
 
 export type AiAdmissionClaim =
@@ -34,6 +34,8 @@ export type AiAdmissionPort = Readonly<{
       nowEpochMillis: number
       /** Slots that must remain free in every rate scope after this admission. */
       headroom?: number
+      /** Trusted drafting use case only; adds actor/Organization draft caps atomically. */
+      backgroundDraftActorUserId?: UserId
     }>,
   ): Promise<AiAdmissionClaim>
   release(input: Readonly<{ admissionId: string }>): Promise<void>

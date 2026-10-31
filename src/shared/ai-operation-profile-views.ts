@@ -1,3 +1,5 @@
+import { REPLY_STREAM_SDK_ATTESTATION } from './ai-openai-stream-profile'
+import { openAiAttestationOf } from './ai-openai-provider-attestation'
 import {
   defineLogicalOperationProfile,
   type LogicalOperationProfile,
@@ -67,7 +69,8 @@ export function operationProfileForCatalogue(
 ): AiOperationProfile {
   if (
     pairing.providerId !== 'openai' ||
-    pairing.logicalDigest !== logical.logicalDigest
+    pairing.logicalDigest !== logical.logicalDigest ||
+    pairing.attestationDigest !== openAiAttestationOf(logical).digest
   ) {
     throw new TypeError('the pairing is not this profile served by OpenAI')
   }
@@ -87,7 +90,10 @@ export function operationProfileForCatalogue(
     developerPrompt: logical.developerPrompt,
     artifactAttestations: Object.freeze({
       ...logical.logicalArtifacts,
-      sdk: SDK_ATTESTATION,
+      sdk:
+        logical.profileVersion === 'reply-suggestion-v2'
+          ? REPLY_STREAM_SDK_ATTESTATION
+          : SDK_ATTESTATION,
     }),
     ...logical.limits,
   })

@@ -1,3 +1,4 @@
+import { hasCurrentReplyForAi } from './repositories/unanswered-review'
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 import { Pool } from 'pg'
 import { getDb } from '#/shared/db'
@@ -1661,4 +1662,34 @@ describe.sequential('RPL evidence-chain relational fences (real PostgreSQL)', ()
       'reply_publication_attempts_exact_confirmation_fk',
     )
   })
+})
+
+it('background eligibility follows local and externally observed reply truth', async () => {
+  const db = getDb()
+  const repository = createReviewRepository(db, () => NOW)
+  const review = await repository.upsert(makeReview(REVIEW_A, 'background-eligibility'))
+  const scope = { organizationId: ORG, propertyId: PROP_A, reviewId: REVIEW_A }
+  expect(await hasCurrentReplyForAi(db, scope)).toBe(false)
+  await createGoogleReplyObservationStore(db).record(
+    observationInput(review, { observedText: 'A reply written directly on Google.' }),
+  )
+  expect(await hasCurrentReplyForAi(db, scope)).toBe(true)
+  await createGoogleReplyObservationStore(db).record(
+    observationInput(review, {
+      observedText: null,
+      observationKey: sha256Hex('background-absent'),
+    }),
+  )
+  expect(await hasCurrentReplyForAi(db, scope)).toBe(false)
+  await pool.query(
+    "INSERT INTO replies (id, review_id, organization_id, text, status, source) VALUES ($1, $2, $3, 'A local draft.', 'draft', 'internal')",
+    [REPLY_A, REVIEW_A, ORG],
+  )
+  expect(await hasCurrentReplyForAi(db, scope)).toBe(true)
+  expect(
+    await hasCurrentReplyForAi(db, {
+      ...scope,
+      organizationId: organizationId('other-tenant'),
+    }),
+  ).toBe(true)
 })

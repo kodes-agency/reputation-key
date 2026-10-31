@@ -123,6 +123,14 @@ export type AiTrendPopulationResult =
   | Readonly<{ status: 'limit_exceeded' | 'policy_unavailable' }>
 
 export type AiReviewSourcePort = Readonly<{
+  hasCurrentReply(
+    input: Readonly<{
+      organizationId: OrganizationId
+      propertyId: PropertyId
+      reviewId: ReviewId
+    }>,
+  ): Promise<boolean>
+
   readCurrentSource(
     input: Readonly<{
       organizationId: OrganizationId

@@ -1,9 +1,12 @@
+import {
+  REPLY_STREAM_SDK_ATTESTATION,
+  REPLY_STREAM_RESPONSE_MAX_BYTES,
+} from './ai-openai-stream-profile'
 import { REPLY_DRAFTING_V2_APOLOGIES } from './domain/reply-drafting-v2'
 import {
   defineOperationProfile,
   REVIEW_SOURCE_ATTESTATION,
   PROPERTY_CALENDAR_ATTESTATION,
-  SDK_ATTESTATION,
 } from './ai-operation-profile-core'
 import { AI_ROUTE_OUTPUT_JSON_SCHEMAS } from './ai-route-output-schemas'
 import { REPLY_DRAFTING_V2_PROMPT } from './reply-drafting-v2-prompt'
@@ -28,14 +31,14 @@ export const REPLY_DRAFTING_V2_OPERATION_PROFILE = defineOperationProfile({
   gatewayPath: '/v1/reply-suggestion',
   callerRole: 'web',
   capabilityRuntimeProfileVersion: REPLY_DRAFTING_V2_VERSIONS.runtime,
-  providerDeploymentProfileVersion: 'private-beta-global-v2',
+  providerDeploymentProfileVersion: 'private-beta-global-v3',
   outputSchemaName: 'reply_draft_v4',
   outputSchema: AI_ROUTE_OUTPUT_JSON_SCHEMAS['reply-suggestion-v2'],
   developerPrompt: REPLY_DRAFTING_V2_PROMPT,
   artifactAttestations: {
     source: REVIEW_SOURCE_ATTESTATION,
     calendar: PROPERTY_CALENDAR_ATTESTATION,
-    sdk: SDK_ATTESTATION,
+    sdk: REPLY_STREAM_SDK_ATTESTATION,
     replyProfile: REPLY_DRAFTING_V2_VERSIONS.profile,
     replyProfileDigest: REPLY_DRAFTING_V2_PROFILE_DIGEST,
     promptVersion: REPLY_DRAFTING_V2_VERSIONS.prompt,
@@ -57,7 +60,7 @@ export const REPLY_DRAFTING_V2_OPERATION_PROFILE = defineOperationProfile({
   sourceByteLimit: 16_384,
   providerPayloadByteLimit: 57_344,
   preparedRequestByteLimit: REPLY_DRAFTING_V2_ROUTE_MAX_BYTES,
-  responseByteLimit: 131_072,
+  responseByteLimit: REPLY_STREAM_RESPONSE_MAX_BYTES,
   maxOutputTokens: 2_048,
   reasoningEffort: 'medium',
   providerDeadlineMs: 60_000,

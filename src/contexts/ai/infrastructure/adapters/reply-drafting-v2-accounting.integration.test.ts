@@ -59,8 +59,8 @@ beforeAll(async () => {
     stopFence: {
       globalControlId: head('global').controlId,
       globalGeneration: head('global').generation,
-      providerControlId: head('provider:private-beta-global-v2').controlId,
-      providerGeneration: head('provider:private-beta-global-v2').generation,
+      providerControlId: head('provider:private-beta-global-v3').controlId,
+      providerGeneration: head('provider:private-beta-global-v3').generation,
       capabilityControlId: head('capability:reply_drafting').controlId,
       capabilityGeneration: head('capability:reply_drafting').generation,
     },
@@ -124,7 +124,7 @@ function descriptor(
       sourceBytes: 16384,
       providerPayloadBytes: 57344,
       preparedRequestBytes: 131072,
-      responseBytes: 131072,
+      responseBytes: 1_048_576,
       outputTokens: 2048,
       costMicros: 1000000,
     },
@@ -281,4 +281,32 @@ describe.sequential('v2 rewrite identity and accounting (PostgreSQL)', () => {
     })
     expect(third.status).toBe('conflict')
   })
+})
+
+it('deduplicates the same key per actor and retains only content-free request metadata', async () => {
+  const key = randomUUID()
+  const firstInput = { ...root, idempotencyKey: key }
+  const rootIdentity = root.identity
+  if (rootIdentity.command !== 'reply') throw new Error('Expected reply fixture')
+  const secondIdentity = { ...rootIdentity, actorId: userId('another-reply-manager') }
+  const secondInput = {
+    ...firstInput,
+    identity: secondIdentity,
+    requestFingerprint: aiRequestFingerprint({
+      identity: secondIdentity,
+      binding: root.binding,
+    }),
+  }
+  const [first, duplicate, other] = await Promise.all([
+    operations.claim(firstInput),
+    operations.claim(firstInput),
+    operations.claim(secondInput),
+  ])
+  expect(first.operation.id).toBe(duplicate.operation.id)
+  expect(other.operation.id).not.toBe(first.operation.id)
+  const metadata = await db
+    .select({ binding: aiOperations.replyDraftingV2 })
+    .from(aiOperations)
+    .where(eq(aiOperations.id, other.operation.id))
+  expect(JSON.stringify(metadata)).not.toMatch(/replyText|avoidTerms|A local draft/)
 })

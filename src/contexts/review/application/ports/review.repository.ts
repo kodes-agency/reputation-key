@@ -48,6 +48,14 @@ export type StableReviewSourceIdentity = Readonly<{
  * because analysis settles `policy_unavailable` as a terminal skip.
  */
 export type ReviewRepository = Readonly<{
+  hasCurrentReplyForAi(
+    input: Readonly<{
+      organizationId: OrganizationId
+      propertyId: PropertyId
+      reviewId: ReviewId
+    }>,
+  ): Promise<boolean>
+
   findById(id: ReviewId, organizationId: OrganizationId): Promise<Review | null>
   readForAi(input: AiReviewSourceReadRequest): Promise<AiReviewSourceResult>
   readTrendPopulation(input: AiTrendPopulationRequest): Promise<AiTrendPopulationResult>

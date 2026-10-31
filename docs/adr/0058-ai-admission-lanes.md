@@ -69,6 +69,14 @@ by the in-flight column, not the rates (amendment 2026-10-30).
 The table lives in `src/contexts/ai/domain/admission-lanes.ts`. Tuning changes
 that file and this table together.
 
+Background reply drafts (v2, registered dark) also use the background lane.
+Because intent is client-asserted and this capacity is shared with the analysis
+backlog, each provider call, including a rewrite, must additionally fit sliding
+one-minute caps of 6 drafts per actor and 30 per Organization. Redis checks and
+records these caps atomically with ordinary lane admission; a denial consumes
+no capacity and returns quiet `deferred` without a provider call. Explicit
+requests retain their existing interactive admission.
+
 ### Honest interactive answers
 
 A reply draft waits up to four seconds for an interactive slot that frees in

@@ -1,5 +1,8 @@
+import { readOpenAiReplyStream } from './openai-stream-response'
 import { type KeyObject } from 'node:crypto'
 import OpenAI from 'openai'
+export type OpenAiStreamClient = Pick<OpenAI, 'responses'>
+export type OpenAiTerminalResponse = OpenAI.Responses.Response
 import { zodTextFormat } from 'openai/helpers/zod'
 import type { Dispatcher } from 'undici'
 import { z } from 'zod/v4'
@@ -118,6 +121,8 @@ export function createOneShotOpenAiFetch(
     responseBytes: number
     outboundFetch: typeof fetch
     signal: AbortSignal
+    eventStream?: boolean
+    onDispatch?(): void
   }>,
 ): Readonly<{
   fetch: typeof fetch
@@ -125,6 +130,8 @@ export function createOneShotOpenAiFetch(
   dispose(): void
 }> {
   return createOneShotProviderFetch({
+    eventStream: input.eventStream,
+    onDispatch: input.onDispatch,
     apiKey: input.apiKey,
     url: OPENAI_RESPONSES_URL,
     canonicalProviderBytes: input.canonicalProviderBytes,
@@ -384,6 +391,7 @@ export function createOpenAiConnector(
       grant: AiExecutionGrantV1,
       outputSchema: z.ZodTypeAny,
       signal: AbortSignal,
+      observer?: Readonly<{ onText(text: string): void; onDispatch(): void }>,
     ): Promise<OpenAiConnectorOutcome<unknown>> => {
       const gateRefusal = refusalAtProviderDispatchGate({
         invocation,
@@ -410,6 +418,8 @@ export function createOpenAiConnector(
           responseBytes: grant.limits.responseBytes,
           outboundFetch,
           signal,
+          eventStream: invocation.sdkRequest.stream,
+          onDispatch: observer?.onDispatch,
         })
         const client = new OpenAI({
           apiKey: dependencies.apiKey,
@@ -437,15 +447,24 @@ export function createOpenAiConnector(
         ) {
           throw new InvalidOpenAiRequestError()
         }
-        const response = await client.responses.parse(
-          {
-            ...invocation.sdkRequest,
-            input: invocation.sdkRequest.input.map((message) => ({ ...message })),
-            text: { format: parseableFormat },
-            tools: [],
-          },
-          { signal },
-        )
+        const response = invocation.sdkRequest.stream
+          ? await readOpenAiReplyStream(
+              client,
+              invocation,
+              outputSchema,
+              signal,
+              observer?.onText,
+            )
+          : await client.responses.parse(
+              {
+                ...invocation.sdkRequest,
+                stream: false,
+                input: invocation.sdkRequest.input.map((message) => ({ ...message })),
+                text: { format: parseableFormat },
+                tools: [],
+              },
+              { signal },
+            )
         return outcomeOfOpenAiResponse(response, invocation, outputSchema)
       } catch (error) {
         return outcomeOfProviderThrow({

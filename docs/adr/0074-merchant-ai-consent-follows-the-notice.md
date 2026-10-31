@@ -28,8 +28,9 @@ Keep three concepts separate:
    exact listed capability/runtime/operation/deployment/notice pair. Unknown
    digests, capabilities and execution combinations fail closed.
 
-The served catalogue rows supply the compatibility rules for starting new
-provider work and settling it. No retained v2 analysis execution is added to
+Explicit catalogue rows supply compatibility rules; a compatible execution may
+be registered before serving. Starting provider work additionally requires the
+gateway's exact served selection. No retained v2 analysis execution is added to
 settlement compatibility.
 
 Reading and delivering already-produced outputs keep their previous rules,
@@ -102,3 +103,14 @@ consent writes or epoch bumps; out-of-force notices without provider work;
 unknown digests and execution pairs; drafting-only material changes in the
 TypeScript and SQL paths; readable historical evidence; and the existing
 source/disable/revoke fences on delivery, adoption and publication.
+
+## Dark reply streaming registration (B2, 2026-10-31)
+
+Reply drafting v2 registers `private-beta-global-v3` and its streaming OpenAI
+attestation as compatible with the existing in-force notice. The input, purpose,
+provider and processing posture remain inside that notice. Compatibility and
+serving are separate: the v2 catalogue entry remains unserved, and the gateway's
+exact served-execution check still denies it. V1's served deployment and pins
+remain unchanged. This registration neither records consent nor advances epochs.
+Migration 0086 only widens historical deployment CHECKs and seeds the new control
+head. It stores no draft/progress content; browser-owned drafts remain ephemeral.

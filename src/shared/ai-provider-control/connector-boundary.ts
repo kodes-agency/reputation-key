@@ -2,6 +2,8 @@ import { createHash, timingSafeEqual, type KeyObject } from 'node:crypto'
 import { lookup as dnsLookup } from 'node:dns'
 import { BlockList, isIP } from 'node:net'
 import { Agent, request as undiciRequest, type Dispatcher } from 'undici'
+import { REPLY_STREAM_RESPONSE_MAX_BYTES } from '#/shared/ai-openai-stream-profile'
+import { boundedProviderEventStream } from './bounded-event-stream'
 import { z } from 'zod/v4'
 import {
   parseAiInternalJsonBytes,
@@ -14,7 +16,12 @@ import {
 import { canonicalizeRfc8785 } from '#/shared/merchant-ai-notice-contract'
 import type { VersionedHmacKeyring } from '#/shared/security/versioned-hmac-keyring'
 import type { PreparedInvocationBase } from './provider-contracts'
-import type { AiProviderOutcome, AiProviderUsage } from './provider-contracts'
+import type {
+  AiProviderOutcome,
+  AiProviderUsage,
+  OneShotProviderFetchState,
+} from './provider-contracts'
+export type { OneShotProviderFetchState } from './provider-contracts'
 
 const PREPARED_DOMAIN = 'ai-prepared-v1\0'
 
@@ -78,14 +85,6 @@ export const PINNED_PROVIDER_DISPATCHER_LIMITS = Object.freeze({
   keepAliveMaxTimeout: 1,
 } as const)
 
-export type OneShotProviderFetchState = {
-  outboundFetchUsed: boolean
-  completeStatus: number | null
-  retryAfterSeconds: number | null
-  decodedResponseBytes: Uint8Array | null
-  sdkRequestBytes: Uint8Array | null
-}
-
 function preparedProviderBytesDigest(bytes: Uint8Array): Buffer {
   return createHash('sha256').update(PREPARED_DOMAIN, 'utf8').update(bytes).digest()
 }
@@ -128,6 +127,8 @@ type OneShotProviderFetchInput = Readonly<{
   invalidOutputError(reason: string): Error
   parseRetryAfter(value: string | null): number | null
   validJsonContentType(value: string | null): boolean
+  eventStream?: boolean
+  onDispatch?(): void
   onSecondInvocation?(requestInfo: string | URL | Request, init?: RequestInit): void
   onInvalidJson?(bytes: Uint8Array, response: Response): void
 }>
@@ -241,7 +242,7 @@ export function createOneShotProviderFetch(input: OneShotProviderFetchInput): Re
     input.apiKey.length === 0 ||
     !Number.isSafeInteger(input.responseBytes) ||
     input.responseBytes < 1 ||
-    input.responseBytes > 131_072
+    input.responseBytes > (input.eventStream ? REPLY_STREAM_RESPONSE_MAX_BYTES : 131_072)
   ) {
     throw input.invalidError()
   }
@@ -274,7 +275,17 @@ export function createOneShotProviderFetch(input: OneShotProviderFetchInput): Re
     // never sent, not an ambiguous one.
     const outboundHeaders = input.outboundHeaders()
     state.outboundFetchUsed = true
-    const response = await dispatchOneShotProviderRequest(input, outboundHeaders)
+    const dispatched = dispatchOneShotProviderRequest(input, outboundHeaders)
+    input.onDispatch?.()
+    const response = await dispatched
+    if (input.eventStream && response.status === 200) {
+      state.completeStatus = response.status
+      return boundedProviderEventStream(
+        response,
+        input.responseBytes,
+        input.invalidOutputError,
+      )
+    }
     const bytes = await readBoundedProviderResponse(
       response,
       input.responseBytes,

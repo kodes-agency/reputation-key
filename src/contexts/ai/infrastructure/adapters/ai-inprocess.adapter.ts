@@ -1,3 +1,4 @@
+import type { ReplyDraftingProgressSink } from '#/shared/reply-drafting-progress'
 import { REPLY_DRAFTING_V2_ROUTE_MAX_BYTES } from '#/shared/reply-drafting-v2-request'
 // WP2.3 — the AI inference port, calling the egress gateway in this process.
 //
@@ -110,6 +111,7 @@ export const createAiInProcessInference = (
   const invoke = async (
     rawRequest: AiGatewayRouteRequestV1,
     signal: AbortSignal,
+    progress?: ReplyDraftingProgressSink,
   ): Promise<AiGatewayRouteResponseV1> => {
     if (signal.aborted) throw new Error('AI gateway request was aborted')
     const request = parseAiGatewayRouteRequest(rawRequest)
@@ -135,7 +137,9 @@ export const createAiInProcessInference = (
     const gateway = await input.gateway()
     const lease = leaseFor(request)
     try {
-      return await gateway.execute(lease, signal)
+      return await (progress
+        ? gateway.execute(lease, signal, progress)
+        : gateway.execute(lease, signal))
     } finally {
       // `execute` disposes the lease on every path it owns; this covers the
       // paths it does not reach, and disposal is idempotent.
@@ -151,8 +155,8 @@ export const createAiInProcessInference = (
       }
       return result
     },
-    generateReply: async (request, signal): Promise<ReplySuggestionResult> => {
-      const result = await invoke(request, signal)
+    generateReply: async (request, signal, progress): Promise<ReplySuggestionResult> => {
+      const result = await invoke(request, signal, progress)
       if (result.route !== 'reply-suggestion') {
         throw new TypeError('AI gateway response is invalid')
       }

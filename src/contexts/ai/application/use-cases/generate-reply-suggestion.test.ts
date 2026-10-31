@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 import { generateKeyPairSync } from 'node:crypto'
+import { replyProgressResponse } from '../../server/reply-progress-stream.server'
 import {
   createAiGatewayRoutePreparer,
   type AiReplyOutputRefusal,
@@ -384,6 +385,7 @@ function createHarness(
           analysisSequence: 1,
         },
       })),
+      hasCurrentReply: vi.fn(async () => false),
       readReplyStateRevision,
       assertCurrent: vi.fn(async () => ({
         status: options.assertCurrentStatus ?? ('current' as const),
@@ -441,6 +443,7 @@ function createHarness(
       settleEphemeralReply,
       markDelivered,
       release,
+      hasCurrentReply: vi.fn(async () => false),
       readReplyStateRevision,
       readDefaultReplyLanguage:
         dependencies.propertyReplyLanguages.readDefaultReplyLanguage,
@@ -1829,7 +1832,7 @@ describe('dark reply v2 rewrite orchestration', () => {
   it('shares concurrent claims so that only one rewrite can execute', async () => {
     const h = createV2Harness(['hard', 'accepted'])
     const results = await Promise.all([h.generate(INPUT), h.generate(INPUT)])
-    expect(results.filter((result) => result.status === 'ready')).toHaveLength(1)
+    expect(results.filter((result) => result.status === 'ready')).toHaveLength(2)
     expect(h.generateReply).toHaveBeenCalledTimes(2)
     expect([...h.charges.values()]).toEqual([1, 1])
     expect(h.records.size).toBe(2)
@@ -1905,4 +1908,266 @@ describe('dark reply v2 rewrite orchestration', () => {
       expect(h.base.mocks.settleEphemeralReply).not.toHaveBeenCalled()
     },
   )
+})
+
+describe('dark v2 background drafting', () => {
+  it('uses only background admission, including the independently charged rewrite', async () => {
+    const h = createV2Harness(['hard', 'accepted'])
+    const progress = vi.fn()
+    expect(
+      (await h.generate({ ...INPUT, intent: 'background', onProgress: progress })).status,
+    ).toBe('ready')
+    expect(
+      vi.mocked(h.base.mocks.acquire).mock.calls.map(([request]) => request.lane),
+    ).toEqual(['background', 'background'])
+    expect(h.base.mocks.acquire).toHaveBeenCalledWith(
+      expect.objectContaining({
+        backgroundDraftActorUserId: INPUT.actorUserId,
+      }),
+    )
+    expect(progress.mock.calls.map(([event]) => event.step)).toEqual([
+      'reading',
+      'rewording',
+    ])
+    expect(h.generateReply).toHaveBeenCalledTimes(2)
+  })
+  it('defers busy background work immediately without claiming or reserving anything', async () => {
+    const h = createV2Harness(['accepted'])
+    vi.mocked(h.base.mocks.acquire).mockResolvedValue({
+      ok: false,
+      code: 'admission_busy',
+      retryAfterEpochMillis: NOW + 1000,
+    })
+    const response = replyProgressResponse(
+      (onProgress) => h.generate({ ...INPUT, intent: 'background', onProgress }),
+      'background',
+    )
+    expect(JSON.parse((await response.text()).trim())).toEqual({
+      step: 'deferred',
+      retryAfterEpochMillis: NOW + 1000,
+      sequence: 1,
+    })
+    expect(h.base.mocks.acquire).toHaveBeenCalledTimes(1)
+    expect(h.claim).not.toHaveBeenCalled()
+    expect(h.generateReply).not.toHaveBeenCalled()
+  })
+  it('never prefetches when the authoritative local/Google reply read is answered', async () => {
+    const h = createV2Harness(['accepted'])
+    vi.mocked(h.dependencies.reviewSources.hasCurrentReply).mockResolvedValue(true)
+    await h.generate({ ...INPUT, intent: 'background' })
+    expect(h.base.mocks.acquire).not.toHaveBeenCalled()
+    expect(h.claim).not.toHaveBeenCalled()
+  })
+  it.each(['no_text', 'source_changed', 'consent', 'voice'] as const)(
+    'performs no background provider work with %s',
+    async (condition) => {
+      const h = createV2Harness(['accepted'])
+      if (condition === 'no_text')
+        vi.spyOn(h.dependencies.reviewSources, 'readForAi').mockResolvedValue({
+          status: 'available',
+          observation: {
+            kind: 'review',
+            organizationId: ORGANIZATION_ID,
+            propertyId: PROPERTY_ID,
+            reviewId: REVIEW_ID,
+            text: null,
+            rating: 5,
+            languageCode: 'en-US',
+            reviewedAtEpochMillis: NOW - 1000,
+            contentExpiresAtEpochMillis: NOW + 60000,
+            sourceEpoch: 2,
+            sourceRevision: 5,
+            analysisSequence: 1,
+          },
+        })
+      if (condition === 'source_changed')
+        vi.spyOn(h.dependencies.reviewSources, 'readForAi').mockResolvedValue({
+          status: 'source_revision_changed',
+        })
+      if (condition === 'consent')
+        vi.mocked(h.base.mocks.readMerchantAuthorization).mockResolvedValue(null)
+      if (condition === 'voice')
+        vi.spyOn(h.dependencies.replyVoices!, 'resolveV2Frame').mockResolvedValue(null)
+      expect((await h.generate({ ...INPUT, intent: 'background' })).status).toBe(
+        'unavailable',
+      )
+      expect(h.generateReply).not.toHaveBeenCalled()
+      expect(h.claim).not.toHaveBeenCalled()
+    },
+  )
+  it('joins Strict Mode duplicates and explicit reveal, replaying content-free progress', async () => {
+    const h = createV2Harness(['accepted'])
+    const explicit = vi.fn()
+    const results = await Promise.all([
+      h.generate({ ...INPUT, intent: 'background' }),
+      h.generate({ ...INPUT, intent: 'explicit', onProgress: explicit }),
+    ])
+    expect(results[0]).toEqual(results[1])
+    expect(h.generateReply).toHaveBeenCalledOnce()
+    expect(h.base.mocks.acquire).toHaveBeenCalledOnce()
+    expect(vi.mocked(h.base.mocks.acquire).mock.calls[0]![0].lane).toBe('background')
+    expect(explicit).toHaveBeenCalledWith({ step: 'reading' })
+  })
+  it('refuses a changed request under the same key and does not share between actors', async () => {
+    const h = createV2Harness(['accepted'])
+    const results = await Promise.all([
+      h.generate(INPUT),
+      h.generate({ ...INPUT, tone: 'casual' }),
+    ])
+    expect(results[1]).toMatchObject({
+      status: 'unavailable',
+      code: 'policy_unavailable',
+    })
+    expect(h.generateReply).toHaveBeenCalledOnce()
+    const perActor = createV2Harness(['accepted'])
+    await Promise.all([
+      perActor.generate(INPUT),
+      perActor.generate({ ...INPUT, actorUserId: userId('different-manager') }),
+    ])
+    // Both actors reach the durable claim, whose actor-scoped idempotency protects their provenance.
+    expect(perActor.claim).toHaveBeenCalledTimes(2)
+    expect(
+      perActor.claim.mock.calls.map(([request]) => request.identity.actorId),
+    ).toEqual([INPUT.actorUserId, 'different-manager'])
+  })
+})
+
+it.each(['cancel', 'abort'] as const)(
+  'settles the real v2 use case once after browser %s during provider work',
+  async (disconnect) => {
+    const h = createV2Harness(['accepted'])
+    const browser = new AbortController()
+    let finish!: () => void
+    const providerGate = new Promise<void>((resolve) => {
+      finish = resolve
+    })
+    const original = h.generateReply.getMockImplementation()!
+    h.generateReply.mockImplementation(async (request, signal, onProgress) => {
+      onProgress?.({ step: 'thinking' })
+      await providerGate
+      expect(signal.aborted).toBe(false)
+      return original(request, signal, onProgress)
+    })
+    const completed = vi.fn()
+    const response = replyProgressResponse(
+      async (onProgress) => {
+        const result = await h.generate({
+          ...INPUT,
+          onProgress,
+          variation: undefined,
+          length: undefined,
+          maxWords: undefined,
+        })
+        completed(result)
+        return result
+      },
+      'explicit',
+      browser.signal,
+    )
+    const reader = response.body!.getReader()
+    await vi.waitFor(() => expect(h.generateReply).toHaveBeenCalledOnce())
+    expect(new TextDecoder().decode((await reader.read()).value)).toContain('reading')
+    expect(new TextDecoder().decode((await reader.read()).value)).toContain('thinking')
+    if (disconnect === 'cancel') await reader.cancel()
+    else browser.abort()
+    expect(await reader.read()).toEqual({ done: true, value: undefined })
+    expect(h.base.mocks.settleEphemeralReply).not.toHaveBeenCalled()
+    finish()
+    await vi.waitFor(() =>
+      expect(completed).toHaveBeenCalledWith(
+        expect.objectContaining({ status: 'ready' }),
+      ),
+    )
+    expect(h.base.mocks.settleEphemeralReply).toHaveBeenCalledOnce()
+    expect(h.dependencies.admission.release).toHaveBeenCalledOnce()
+    expect(h.base.mocks.markDelivered).toHaveBeenCalledOnce()
+    expect(h.generateReply).toHaveBeenCalledOnce()
+    expect([...h.charges.values()]).toEqual([1])
+    expect(await reader.read()).toEqual({ done: true, value: undefined })
+  },
+)
+
+it('does not dispatch background work when Google replies during admission', async () => {
+  const h = createV2Harness(['accepted'])
+  const acquire = h.base.mocks.acquire
+  const original = vi.mocked(acquire).getMockImplementation()!
+  vi.mocked(acquire).mockImplementation(async (input) => {
+    vi.mocked(h.dependencies.reviewSources.hasCurrentReply).mockResolvedValue(true)
+    return original(input)
+  })
+  expect(await h.generate({ ...INPUT, intent: 'background' })).toMatchObject({
+    status: 'unavailable',
+    code: 'source_changed',
+  })
+  expect(h.generateReply).not.toHaveBeenCalled()
+})
+
+it('drops a background result when Google replies during provider work', async () => {
+  const h = createV2Harness(['accepted'], () => {
+    vi.mocked(h.dependencies.reviewSources.hasCurrentReply).mockResolvedValue(true)
+  })
+  expect(await h.generate({ ...INPUT, intent: 'background' })).toMatchObject({
+    status: 'unavailable',
+    code: 'source_changed',
+  })
+  expect(h.generateReply).toHaveBeenCalledOnce()
+  expect(h.base.mocks.settleEphemeralReply).not.toHaveBeenCalled()
+})
+
+it.each(['voice', 'language', 'profile'] as const)(
+  'does not join an in-flight draft after its %s identity changed',
+  async (changed) => {
+    const h = createV2Harness(['accepted'])
+    vi.mocked(h.base.mocks.readDefaultReplyLanguage).mockResolvedValue('en-Latn')
+    let finish!: () => void
+    const held = new Promise<void>((resolve) => {
+      finish = resolve
+    })
+    const provider = h.generateReply.getMockImplementation()!
+    h.generateReply.mockImplementation(async (...args) => {
+      await held
+      return provider(...args)
+    })
+    const request = { ...INPUT, targetLanguage: { kind: 'property_default' as const } }
+    const running = h.generate(request)
+    await vi.waitFor(() => expect(h.generateReply).toHaveBeenCalledOnce())
+    if (changed === 'voice')
+      vi.spyOn(h.dependencies.replyVoices!, 'resolveLocalFrame').mockResolvedValue(null)
+    if (changed === 'language')
+      vi.mocked(h.base.mocks.readDefaultReplyLanguage).mockResolvedValue('es-Latn')
+    if (changed === 'profile')
+      vi.spyOn(h.dependencies.processingProfiles, 'readForAi').mockResolvedValue({
+        status: 'policy_unavailable',
+      })
+    expect(await h.generate(request)).toMatchObject({
+      status: 'unavailable',
+      code: 'source_changed',
+    })
+    expect(h.generateReply).toHaveBeenCalledOnce()
+    finish()
+    await running
+  },
+)
+
+it('lets concurrent explicit joins take interactive capacity after a zero-work background deferral', async () => {
+  const h = createV2Harness(['accepted'])
+  const original = vi.mocked(h.base.mocks.acquire).getMockImplementation()!
+  vi.mocked(h.base.mocks.acquire).mockImplementation(async (input) =>
+    input.lane === 'background'
+      ? { ok: false, code: 'admission_busy', retryAfterEpochMillis: NOW + 1000 }
+      : original(input),
+  )
+  const [background, explicit, duplicate] = await Promise.all([
+    h.generate({ ...INPUT, intent: 'background' }),
+    h.generate({ ...INPUT, intent: 'explicit' }),
+    h.generate({ ...INPUT, intent: 'explicit' }),
+  ])
+  expect(background).toMatchObject({ status: 'unavailable', code: 'busy' })
+  expect(explicit.status).toBe('ready')
+  expect(duplicate).toEqual(explicit)
+  expect(vi.mocked(h.base.mocks.acquire).mock.calls.map(([input]) => input.lane)).toEqual(
+    ['background', 'interactive'],
+  )
+  expect(h.generateReply).toHaveBeenCalledOnce()
+  expect(h.claim).toHaveBeenCalledOnce()
 })

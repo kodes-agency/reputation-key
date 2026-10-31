@@ -526,7 +526,7 @@ function insertionValues(input: ClaimInput, idGen: () => string) {
   const profile = operationProfile(identity.command, binding.operationProfileVersion)
   return {
     id: idGen(),
-    idempotencyScope: scopeDigest(identity),
+    idempotencyScope: replyActorScope(input),
     idempotencyKey: input.idempotencyKey,
     requestFingerprint: input.requestFingerprint,
     sourceDigest: input.sourceProvenance.digest,
@@ -846,4 +846,13 @@ export const createAiOperationStoreAdapter = (
 
 function gtExpiry(now: Date) {
   return gt(aiOperations.expiresAt, now)
+}
+
+function replyActorScope(input: ClaimInput): string {
+  const base = scopeDigest(input.identity)
+  return input.binding.replyDraftingV2
+    ? createHash('sha256')
+        .update([base, input.identity.actorId].join('\0'), 'utf8')
+        .digest('hex')
+    : base
 }

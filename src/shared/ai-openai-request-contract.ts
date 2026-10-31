@@ -94,7 +94,7 @@ export type ClosedOpenAiRequest = Readonly<{
   prompt_cache_retention: typeof OPENAI_PROMPT_CACHE_RETENTION
   service_tier: 'default'
   store: false
-  stream: false
+  stream: boolean
   background: false
   tools: readonly []
   truncation: 'disabled'
@@ -227,7 +227,9 @@ export function buildClosedOpenAiRequest(
     prompt_cache_retention: OPENAI_PROMPT_CACHE_RETENTION,
     service_tier: 'default',
     store: false,
-    stream: false,
+    stream:
+      input.route === 'reply-suggestion' &&
+      input.promptVersion === 'reply-suggestion-prompt-v2',
     background: false,
     tools: [],
     truncation: 'disabled',

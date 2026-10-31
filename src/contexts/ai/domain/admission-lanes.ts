@@ -20,6 +20,12 @@ type ScopeBudget = Readonly<Record<AiAdmissionScope, LaneBudget>>
 /** Sliding window over which admissions per scope and lane are counted. */
 export const AI_ADMISSION_RATE_WINDOW_MILLIS = 60_000
 
+/** Background drafts share analysis capacity, so their own sliding-minute caps are lower. */
+export const AI_BACKGROUND_DRAFT_RATE_PER_MINUTE = Object.freeze({
+  actor: 6,
+  organization: 30,
+})
+
 /**
  * How long an admission holds its in-flight slot when its owner never releases
  * it. It outlives the provider request deadline of every admitted profile

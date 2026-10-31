@@ -966,8 +966,9 @@ for an event that is gone.
 
 The served drafting selection remains `reply-drafting-runtime-v1` / `reply-suggestion-v1`.
 The notice, UI, historical profile readers and v1 wire pins are unchanged. The registered
-v2 catalogue row has `served: false` and no admitted notices. B3 must deliberately select
-it and acknowledge its notice; registration is not consent compatibility.
+v2 catalogue row still has `served: false`. B2 registers its streaming execution as
+compatible with the notice already in force (ADR 0074); only a later serving selection
+can admit it through the gateway. No new notice or consent write accompanies B2.
 
 The new identities are operation `reply-suggestion-v2`, profile `reply-draft-v4`, runtime
 `reply-drafting-runtime-v2`, prompt `reply-suggestion-prompt-v2` and provenance v4.
@@ -1016,6 +1017,78 @@ Re-verified map items 1–6 on the supplied stacked base `af57b9c36` (current im
 | 4 — lint/one independently charged rewrite | `src/shared/reply-drafting-v2-contract.ts:89`, `src/contexts/ai/application/reply-drafting-v2-workflow.ts:44`, `src/contexts/ai/infrastructure/adapters/reply-rewrite-parent.ts:16`                            |
 | 5 — Spanish/historical readers/schema      | `src/shared/reply-drafting-v2-contract.ts:89`, `src/shared/ai-reply-provenance.ts:151`, `src/shared/db/schema/reply-ai-provenance-check.ts:4`, `drizzle/0085_reply_drafting_v2_contract.sql:1`                 |
 | 6 — frame choice/usage/adoption            | `src/contexts/review/application/ai-reply-v2-frame.ts:21`, `src/contexts/review/infrastructure/repositories/ai-frame-reservation.ts:156`, `src/contexts/review/infrastructure/ai-suggested-draft-store.ts:481` |
+
+## Reply drafting progress and background intent — dark (B2, 2026-10-31)
+
+The authenticated `generateReplySuggestionStreamFn` POST returns a raw streamed
+`Response` with NDJSON and private/no-store headers. Installed Start server core
+1.169.39 returns a Response body directly with `x-tss-raw`; client core 1.170.34
+returns that raw Response without JSON buffering. This avoids another API/auth
+boundary. The existing lazily loaded server module imports the new transport so
+Start discovers its endpoint; the production build manifest confirms it. The
+composer still calls the original server function and has no new UI.
+
+Only v2 sends `stream: true`. Its separate OpenAI request/transport attestation and
+`private-beta-global-v3` deployment are compatible technical refreshes under the
+unchanged notice. Migration 0086 seeds that deployment's control head only. The
+switch-on PR widens the consent-evidence and enablement deployment CHECKs; no
+grant is rewritten. Every v1 wire/deployment pin remains unchanged. SSE is bounded
+at 1 MiB including ignored events, validated
+as UTF-8 across chunk boundaries, and the accumulated JSON text at 16 KiB. The
+larger response envelope accounts for SSE event overhead. Terminal usage is
+validated through the original usage authority and settled once, including when
+output is refused, malformed, truncated, or a browser disconnects. Trailing bad
+frames invalidate delivery without discarding terminal usage already received.
+
+Progress is metadata only: admitted/source-read `reading`, dispatched `thinking`,
+complete schema-valid/source-valid `answering` sentence numbers, first reply
+characters `writing`, validator/lint `checking`, and admitted child `rewording`
+ordinal. The ordered JSON-prefix scanner never repairs partial JSON or emits
+strings. Unavailable/out-of-order metadata stages are skipped. The final strict
+parse, body/language/Google checks, local framing, settlement, freshness and signed
+provenance use the existing acceptance path. Its accepted result or the unchanged
+governed local template fallback enters `done`; explicit failures use controlled
+`refused` reasons. Sequence numbers and
+step ordering are browser-stream local, with one bounded rewrite cycle.
+
+`intent: background` uses only background admission, never waits for capacity and
+returns `deferred` quietly on the stream when no result is available. Atomic
+sliding-minute draft caps of 6 per actor and 30 per Organization protect the
+shared analysis lane; a denial consumes no lane capacity or provider call. Explicit
+requests retain their interactive lane and actionable refusal codes. An explicit
+join of background work that defers before admission starts one deduplicated
+interactive successor under the same key; an already admitted generation is joined
+without another provider call. Background
+eligibility reads current local and Google-observed reply truth, eligible current
+source, notice/capability, language, profile and voice. Reply truth is rechecked
+before dispatch, rewrite and delivery; it is not inferred from reply revision alone.
+The authenticated adapter asks the same tenant/Property execution policy as v1.
+
+Same-key requests join only within an actor's running logical generation. The
+request fingerprint binds tenant, Property, Review, source epoch/revision, base
+reply revision, tone, concrete language, voice digest, contract and options; late
+joins recheck current identity before receiving progress. The durable idempotency
+scope includes actor for v2 only, preventing cross-manager key collisions. The
+in-flight map retains promises and content-free progress/identity only while work
+runs; completion removes the entry. No completed draft/result cache, table or new
+content class exists. A browser owns its final result in memory. Cancelling or
+aborting its response closes that browser's stream and drops future delivery;
+the provider/settlement deadline is independent and the operation continues.
+Each stream logs one content-free outcome (done/refused/deferred/cancelled),
+contract, intent, duration and rewrite flag; unexpected failures log only error
+name/code, with no exception message or draft content.
+A later request cannot recover a completed result or cause same-key regeneration.
+The two-second timer, session owner and reveal behavior belong to B3.
+
+Re-verified map items 7–8 against origin/main `cf1e33c66` (B1 merged):
+
+| Map item                                                | Current authority                                                                                                                                                                      |
+| ------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 7 — authenticated POST / cancellation                   | `src/contexts/ai/server/reply-suggestion-stream.ts:32`, `src/contexts/ai/server/reply-progress-stream.server.ts:16`                                                                    |
+| 7 — safe incremental metadata / bounded provider stream | `src/shared/ai-provider-control/reply-progress-parser.ts:15`, `src/shared/ai-provider-control/bounded-event-stream.ts:2`, `src/shared/ai-provider-control/openai-stream-response.ts:7` |
+| 7 — v2-only request attestation / deployment            | `src/shared/ai-openai-stream-profile.ts:32`, `src/shared/reply-drafting-v2-profile.ts:25`, `drizzle/0086_reply_drafting_progress.sql:1`                                                |
+| 8 — lane / active actor ownership / identity            | `src/contexts/ai/application/reply-drafting-requests.ts:20`, `src/contexts/ai/infrastructure/adapters/ai-operation-store.adapter.ts:851`                                               |
+| 8 — authoritative local/Google reply eligibility        | `src/contexts/review/infrastructure/repositories/unanswered-review.ts:11`                                                                                                              |
 
 ## Invariants
 

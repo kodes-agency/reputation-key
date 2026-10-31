@@ -1,3 +1,8 @@
+import { createReplyProgressParser } from './reply-progress-parser'
+import {
+  reportReplyProgress,
+  type ReplyDraftingProgressSink,
+} from '#/shared/reply-drafting-progress'
 import type { KeyObject } from 'node:crypto'
 import type { AiReplyOutputRefusal } from './reply-output-refusal'
 import type { ReplySuggestionGatewayRequestV1 } from '#/shared/ai-gateway-transport-contract'
@@ -295,10 +300,19 @@ export function prepareReplyDraftingV2(
     requestBindingKeys: deps.requestBindingKeys,
   })
   let issues: readonly ReplyBodyIssueCode[] = []
+  let progressSink: ReplyDraftingProgressSink | undefined
+  const observeText = createReplyProgressParser(
+    sentences.map(({ n }) => n),
+    (event) => reportReplyProgress(progressSink, event),
+  )
   return {
     providerId: deps.provider.providerId,
     invocation,
     outputSchema: replyDraftingV2OutputSchema,
+    observeProviderText: (text, sink) => {
+      progressSink = sink
+      observeText(text)
+    },
     repairIssues: () => issues,
     acceptProviderResult: (output) => {
       issues = []

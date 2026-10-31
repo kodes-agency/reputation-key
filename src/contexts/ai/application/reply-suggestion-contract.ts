@@ -27,6 +27,12 @@ export type GenerateReplySuggestionInput = Readonly<{
   targetLanguage:
     Readonly<{ kind: 'property_default' }> | Readonly<{ kind: 'review_language' }>
   idempotencyKey: string
+  intent?: 'explicit' | 'background'
+  /** Trusted in-process observer, never accepted from request JSON. */
+  onProgress?: import('#/shared/reply-drafting-progress').ReplyDraftingProgressSink
+  onIdentity?: (
+    identity: import('./reply-drafting-requests').DraftingRequestIdentity,
+  ) => void
   /** Explicitly request the governed local catalogue without AI admission or execution. */
   templateOnly?: boolean
   variation?: number

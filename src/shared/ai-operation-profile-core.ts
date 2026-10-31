@@ -77,7 +77,8 @@ export type AiOperationProfile = Readonly<{
     | 'internal:synthetic-canary'
   callerRole: 'web' | 'worker' | 'release_canary'
   capabilityRuntimeProfileVersion: string | null
-  providerDeploymentProfileVersion: 'private-beta-global-v1' | 'private-beta-global-v2'
+  providerDeploymentProfileVersion:
+    'private-beta-global-v1' | 'private-beta-global-v2' | 'private-beta-global-v3'
   outputSchemaName: string
   outputSchema: Readonly<Record<string, unknown>>
   outputSchemaDigest: string
@@ -134,7 +135,9 @@ export function defineOperationProfile(
   })
   const staticTokenBearingBytes = staticTokenBearing.byteLength
   const staticTokenBearingDigest = staticTokenBearing.digest
-  const sdkRequestShapeDigest = OPENAI_REQUEST_SHAPE_V1_DIGEST
+  const sdkRequestShapeDigest = (
+    source.artifactAttestations.sdk as typeof SDK_ATTESTATION
+  ).requestShapeDigest
   const {
     outputSchema: _outputSchema,
     developerPrompt: _developerPrompt,
