@@ -24,7 +24,7 @@ type Props = Readonly<{
   fixes: readonly ProductUpdate[]
   propertyId: string | null
   onClose: () => void
-  /** Reserved for an AccountAdmin's pending AI update; supplied by its future owner. */
+  /** An AccountAdmin's pending AI update, which comes before everything else. */
   leadingItem?: ReactNode
   onReturnFocus?: () => void
 }>
@@ -59,6 +59,8 @@ function Highlights({
   propertyId,
   onClose,
 }: Pick<Props, 'highlights' | 'propertyId' | 'onClose'>) {
+  // An AI update can be all the modal has to say: no empty block to take a gap.
+  if (!highlights.length) return null
   return (
     <div className="space-y-6">
       {highlights.map((entry) => (

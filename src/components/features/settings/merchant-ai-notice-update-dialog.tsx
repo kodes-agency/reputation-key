@@ -9,8 +9,8 @@ import {
   DialogHeader,
   DialogTitle,
 } from '#/components/ui/dialog'
-import { InlineLink } from '#/components/ui/inline-link'
 import { formatDayMonthYear } from '#/lib/format'
+import { MerchantAiNoticeUpdateDetails } from './merchant-ai-notice-update-details'
 
 export function focusAfterAiUpdate(trigger?: HTMLButtonElement | null) {
   if (trigger?.isConnected) {
@@ -69,17 +69,7 @@ function UpdateDetails({
           Updated automatically on {formatDayMonthYear(update?.renewedAt)}
         </DialogDescription>
       </DialogHeader>
-      <ul className="list-disc space-y-3 pl-5 text-sm">
-        {update?.points.map((point) => (
-          <li key={point}>{point}</li>
-        ))}
-      </ul>
-      <p className="text-sm">
-        You can turn AI features off in each property&apos;s settings.
-      </p>
-      <InlineLink to="/settings/ai" onClick={onClose}>
-        Read the full AI notice
-      </InlineLink>
+      {update && <MerchantAiNoticeUpdateDetails update={update} onFollow={onClose} />}
     </>
   )
 }

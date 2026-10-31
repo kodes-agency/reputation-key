@@ -1,4 +1,8 @@
 import { PRODUCT_UPDATES } from '../../src/shared/whats-new/entries'
+import {
+  getMerchantAiNoticeUpdateFn,
+  markMerchantAiNoticeUpdateSeenFn,
+} from './merchant-ai-notice-updates-server'
 import type {
   ProductUpdatesClient,
   ProductUpdatesView,
@@ -14,12 +18,18 @@ export const productUpdatesStoryState = {
   failSave: false,
   /** How many times the page asked for the view: two consumers of one query make one. */
   reads: 0,
+  /** How many times the page asked to open the modal by itself, and whether it won. */
+  claims: 0,
+  claimWins: false,
 }
 export const getProductUpdatesFn = async () => {
   productUpdatesStoryState.reads += 1
   return productUpdatesStoryState.view
 }
-export const claimProductUpdatesAutoOpenFn = async () => false
+export const claimProductUpdatesAutoOpenFn = async () => {
+  productUpdatesStoryState.claims += 1
+  return productUpdatesStoryState.claimWins
+}
 export const markProductUpdatesSeenFn = async ({
   data,
 }: {
@@ -50,4 +60,8 @@ export const productUpdatesStoryClient: ProductUpdatesClient = {
   claim: claimProductUpdatesAutoOpenFn,
   markSeen: markProductUpdatesSeenFn,
   setAutoShow: setProductUpdatesAutoShowFn,
+  aiNoticeUpdate: {
+    get: getMerchantAiNoticeUpdateFn,
+    markSeen: markMerchantAiNoticeUpdateSeenFn,
+  },
 }

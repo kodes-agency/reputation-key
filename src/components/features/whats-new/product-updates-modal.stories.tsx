@@ -1,6 +1,8 @@
 import type { Meta, StoryObj } from '@storybook/react'
 import { expect, fn, userEvent, waitFor, within } from 'storybook/test'
 import { PRODUCT_UPDATES } from '#/shared/whats-new/entries'
+import { storyAiNoticeUpdate } from '../../../../.storybook/stubs/merchant-ai-notice-updates-server'
+import { AiUpdateSection } from './ai-update-section'
 import { ProductUpdatesModal } from './product-updates-modal'
 
 const meta = {
@@ -55,5 +57,55 @@ export const WithoutProperty: Story = {
   play: async ({ canvasElement }) => {
     const page = within(canvasElement.ownerDocument.body)
     await expect(page.getAllByRole('link', { name: /Show me/ })).toHaveLength(1)
+  },
+}
+
+/** What an AccountAdmin's modal leads with: the real shape of the server function's answer. */
+const aiItem = <AiUpdateSection update={storyAiNoticeUpdate} onFollow={fn()} />
+
+export const WithAiUpdate: Story = {
+  args: { leadingItem: aiItem, fixes: PRODUCT_UPDATES.filter((e) => e.kind === 'fix') },
+  play: async ({ canvasElement }) => {
+    const page = within(canvasElement.ownerDocument.body)
+    await waitFor(() =>
+      expect(page.getByRole('dialog', { name: "What's new" })).toBeVisible(),
+    )
+    const ai = page.getByRole('region', { name: 'AI update' })
+    await expect(
+      within(ai).getByRole('heading', { name: storyAiNoticeUpdate.title }),
+    ).toBeVisible()
+    await expect(within(ai).getAllByRole('listitem')).toHaveLength(
+      storyAiNoticeUpdate.points.length,
+    )
+    await expect(
+      within(ai).getByRole('link', { name: 'Read the full AI notice' }),
+    ).toHaveAttribute('href', '/settings/ai')
+    // It leads: it comes before the first highlight.
+    const [firstHighlight] = page.getAllByRole('article')
+    expect(
+      ai.compareDocumentPosition(firstHighlight!) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy()
+  },
+}
+export const AiUpdatePhone: Story = {
+  ...WithAiUpdate,
+  globals: { viewport: { value: 'mobileStaff', isRotated: false } },
+}
+export const AiUpdateLight: Story = { ...WithAiUpdate, parameters: { theme: 'light' } }
+/** An update with nothing else unseen: the modal is the AI update, and the way to the history. */
+export const AiUpdateAlone: Story = {
+  args: { leadingItem: aiItem, highlights: [], fixes: [] },
+  play: async ({ canvasElement, args }) => {
+    const page = within(canvasElement.ownerDocument.body)
+    await waitFor(() =>
+      expect(page.getByRole('region', { name: 'AI update' })).toBeVisible(),
+    )
+    await expect(page.queryByRole('link', { name: /Show me/ })).not.toBeInTheDocument()
+    await expect(
+      page.queryByRole('button', { name: /Also fixed/ }),
+    ).not.toBeInTheDocument()
+    await expect(page.getByRole('link', { name: 'See all updates' })).toBeVisible()
+    await userEvent.click(page.getByRole('button', { name: 'Close' }))
+    await expect(args.onClose).toHaveBeenCalled()
   },
 }

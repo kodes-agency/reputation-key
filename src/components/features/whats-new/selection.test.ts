@@ -32,6 +32,21 @@ describe('update presentation selection', () => {
     expect(result.highlights).toHaveLength(3)
     expect(result.fixes).toHaveLength(3)
   })
+  describe('with an AI update leading the modal', () => {
+    const leading = { hasLeadingItem: true }
+    it('shows only what is unseen, so an AI update alone is not padded with old entries', () => {
+      expect(selectModalUpdates({ ...view, unseenIds: [] }, leading)).toEqual({
+        highlights: [],
+        fixes: [],
+      })
+    })
+    it('still shows the unseen highlights and fixes beneath it', () => {
+      const unseen = [PRODUCT_UPDATES[1]!.id, PRODUCT_UPDATES[4]!.id]
+      const result = selectModalUpdates({ ...view, unseenIds: unseen }, leading)
+      expect(result.highlights.map(({ id }) => id)).toEqual([PRODUCT_UPDATES[1]!.id])
+      expect(result.fixes.map(({ id }) => id)).toEqual([PRODUCT_UPDATES[4]!.id])
+    })
+  })
   it('groups history newest first without losing earlier entries', () => {
     const previous = { ...PRODUCT_UPDATES[0]!, id: 'previous', publishedOn: '2026-09-01' }
     const groups = updatesByMonth([previous, ...PRODUCT_UPDATES])

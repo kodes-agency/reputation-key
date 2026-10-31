@@ -2,58 +2,104 @@ import type {
   ProductUpdatesClientGetter,
   ProductUpdatesView,
 } from '#/shared/whats-new/types'
-import { lazy, Suspense, useEffect, useRef, useState } from 'react'
+import type { MerchantAiNoticeUpdate } from '#/shared/merchant-ai-notice-announcements'
+import {
+  lazy,
+  Suspense,
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  type RefObject,
+} from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { usePropertyId } from '#/components/hooks/use-property-id'
 import { productUpdatesQuery } from './queries'
-import { productUpdatesSession } from './auto-open'
+import { planAutoOpen, productUpdatesSession, winOpening } from './auto-open'
 import { selectModalUpdates } from './selection'
 import { useMarkProductUpdatesSeen } from './use-product-update-actions'
+import { useLeadingAiUpdate } from './use-leading-ai-update'
+import { AiUpdateSection } from './ai-update-section'
 
 const loadModal = () => import('./product-updates-modal')
 const Modal = lazy(() => loadModal().then((m) => ({ default: m.ProductUpdatesModal })))
-type Selection = ReturnType<typeof selectModalUpdates> & { propertyId: string | null }
-type Props = Readonly<{ person: string; getClient: ProductUpdatesClientGetter }>
+type Selection = ReturnType<typeof selectModalUpdates> & {
+  propertyId: string | null
+  aiUpdate: MerchantAiNoticeUpdate | null
+}
+type Props = Readonly<{
+  userId: string
+  organizationId: string
+  getClient: ProductUpdatesClientGetter
+}>
 
-function useAutomaticOpening(
-  { person, getClient }: Props,
-  data: ProductUpdatesView | undefined,
-  propertyId: string | null,
-  open: (value: Selection) => void,
-) {
-  const current = useRef({ data, propertyId, mounted: true })
+/** What the opening decides from, read again at every step: never the render it began in. */
+type Latest = Readonly<{
+  data: ProductUpdatesView | undefined
+  aiUpdate: MerchantAiNoticeUpdate | null
+  propertyId: string | null
+  mounted: boolean
+}>
+
+function useLatest(value: Omit<Latest, 'mounted'>): RefObject<Latest> {
+  const latest = useRef<Latest>({ ...value, mounted: true })
   useEffect(() => {
-    current.current = { data, propertyId, mounted: true }
+    latest.current = { ...value, mounted: true }
     return () => {
-      current.current.mounted = false
+      latest.current = { ...latest.current, mounted: false }
     }
   })
+  return latest
+}
+
+/** The terms the modal may open on now, and what it would show; null when it may not. */
+function dueNow(latest: Latest, propertyId: string | null) {
+  const { data, aiUpdate } = latest
+  if (!latest.mounted || latest.propertyId !== propertyId || !data) return null
+  const plan = planAutoOpen(data, aiUpdate !== null)
+  if (!plan) return null
+  const shown = selectModalUpdates(data, { hasLeadingItem: aiUpdate !== null })
+  return { plan, selection: { ...shown, propertyId, aiUpdate } }
+}
+
+function useAutomaticOpening(
+  { userId, organizationId, getClient }: Props,
+  {
+    propertyId,
+    ready,
+    latest,
+    open,
+  }: Readonly<{
+    propertyId: string | null
+    ready: boolean
+    latest: RefObject<Latest>
+    open: (value: Selection) => void
+  }>,
+) {
   useEffect(() => {
-    if (!data) return
+    if (!ready) return
     const conditions = () => ({
-      shouldAutoOpen:
-        current.current.mounted &&
-        current.current.propertyId === propertyId &&
-        current.current.data?.shouldAutoOpen === true,
+      shouldAutoOpen: dueNow(latest.current, propertyId) !== null,
       visible: document.visibilityState === 'visible',
       focused: document.hasFocus(),
       dialogOpen: !!document.querySelector('[role="dialog"], [role="alertdialog"]'),
     })
-    void productUpdatesSession
-      .attempt(
-        person,
-        conditions,
-        async () => {
-          // Download before claiming, so waiting for code cannot open over another dialog.
-          await loadModal()
-          return (await getClient()).claim({
-            data: { propertyId: propertyId ?? undefined },
-          })
-        },
-        () => open({ ...selectModalUpdates(data), propertyId }),
+    const claim = async () => {
+      // Download before claiming, so waiting for code cannot open over another dialog.
+      await loadModal()
+      const due = dueNow(latest.current, propertyId)
+      if (!due) return false
+      return winOpening(due.plan, async () =>
+        (await getClient()).claim({ data: { propertyId: propertyId ?? undefined } }),
       )
+    }
+    void productUpdatesSession
+      .attempt(`${organizationId}:${userId}`, conditions, claim, () => {
+        const due = dueNow(latest.current, propertyId)
+        if (due) open(due.selection)
+      })
       .catch(() => undefined)
-  }, [person, data, propertyId, getClient, open])
+  }, [userId, organizationId, getClient, propertyId, ready, latest, open])
 }
 
 function restoreFocus(target: HTMLElement | null) {
@@ -62,31 +108,41 @@ function restoreFocus(target: HTMLElement | null) {
 }
 
 export default function ProductUpdatesController(props: Props) {
+  const { userId, organizationId, getClient } = props
   const propertyId = usePropertyId()
-  const query = useQuery(productUpdatesQuery(propertyId, props.getClient))
+  const query = useQuery(productUpdatesQuery(propertyId, getClient))
+  const ai = useLeadingAiUpdate({ userId, organizationId }, getClient)
   const [selection, setSelection] = useState<Selection | null>(null)
   const returnFocus = useRef<HTMLElement | null>(null)
   const markSeen = useMarkProductUpdatesSeen(
     selection?.propertyId ?? propertyId,
-    props.getClient,
+    getClient,
   )
-  const open = (value: Selection) => {
+  const open = useCallback((value: Selection) => {
     returnFocus.current =
       document.activeElement instanceof HTMLElement ? document.activeElement : null
     setSelection(value)
-  }
-  useAutomaticOpening(props, query.data, propertyId, open)
+  }, [])
+  const latest = useLatest({ data: query.data, aiUpdate: ai.update, propertyId })
+  // Both reads first: the one attempt of the session must know whether an AI update leads.
+  const ready = query.data !== undefined && ai.settled
+  useAutomaticOpening(props, { propertyId, ready, latest, open })
   if (!selection) return null
   const close = () => {
-    void markSeen(
-      [...selection.highlights, ...selection.fixes].map(({ id }) => id),
-    ).catch(() => undefined)
+    const ids = [...selection.highlights, ...selection.fixes].map(({ id }) => id)
+    if (ids.length > 0) void markSeen(ids).catch(() => undefined)
+    // It was on screen, so it is seen: the banner goes with the shared entry.
+    if (selection.aiUpdate) void ai.markSeen(selection.aiUpdate).catch(() => undefined)
     setSelection(null)
   }
+  const { highlights, fixes, aiUpdate } = selection
   return (
     <Suspense fallback={null}>
       <Modal
-        {...selection}
+        highlights={highlights}
+        fixes={fixes}
+        propertyId={selection.propertyId}
+        leadingItem={aiUpdate && <AiUpdateSection update={aiUpdate} onFollow={close} />}
         onClose={close}
         onReturnFocus={() => restoreFocus(returnFocus.current)}
       />

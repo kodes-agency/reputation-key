@@ -4,9 +4,14 @@ import { lazy, Suspense, useEffect, useState } from 'react'
 const Controller = lazy(() => import('./product-updates-controller'))
 
 export default function ProductUpdatesIdle({
-  person,
+  userId,
+  organizationId,
   getClient,
-}: Readonly<{ person: string; getClient: ProductUpdatesClientGetter }>) {
+}: Readonly<{
+  userId: string
+  organizationId: string
+  getClient: ProductUpdatesClientGetter
+}>) {
   const [ready, setReady] = useState(false)
   useEffect(() => {
     if ('requestIdleCallback' in window) {
@@ -18,7 +23,7 @@ export default function ProductUpdatesIdle({
   }, [])
   return ready ? (
     <Suspense fallback={null}>
-      <Controller person={person} getClient={getClient} />
+      <Controller userId={userId} organizationId={organizationId} getClient={getClient} />
     </Suspense>
   ) : null
 }

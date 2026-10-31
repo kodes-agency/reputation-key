@@ -32,3 +32,17 @@ export type MerchantAiNoticeUpdate = MerchantAiNoticeAnnouncement &
     noticeDigest: string
     renewedAt: string
   }>
+
+/**
+ * The two server calls behind the pending update, handed to components by the
+ * route layer (a component never imports a server module). The settings banner
+ * and What's new read and mark the same update through them.
+ */
+export type MerchantAiNoticeUpdateClient = Readonly<{
+  get: () => Promise<MerchantAiNoticeUpdate | null>
+  markSeen: (input: {
+    data: { noticeVersion: string; noticeDigest: string }
+  }) => Promise<void>
+}>
+export type MerchantAiNoticeUpdateClientGetter =
+  () => Promise<MerchantAiNoticeUpdateClient>

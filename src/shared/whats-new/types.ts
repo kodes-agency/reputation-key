@@ -1,4 +1,5 @@
 import type { Capability } from '#/shared/governance/capability-fate'
+import type { MerchantAiNoticeUpdateClient } from '#/shared/merchant-ai-notice-announcements'
 
 // Deliberately finite: copy validation checks these against Lucide and the router.
 export const PRODUCT_UPDATE_ICONS = [
@@ -42,5 +43,7 @@ export type ProductUpdatesClient = Readonly<{
     data: { propertyId?: string; entryIds: string[] }
   }) => Promise<void>
   setAutoShow: (input: { data: { autoShow: boolean } }) => Promise<void>
+  /** The AI update an AccountAdmin is told first; only a person who may read it asks. */
+  aiNoticeUpdate: MerchantAiNoticeUpdateClient
 }>
 export type ProductUpdatesClientGetter = () => Promise<ProductUpdatesClient>

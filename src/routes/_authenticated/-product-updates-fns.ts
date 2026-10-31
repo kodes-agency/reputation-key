@@ -1,3 +1,5 @@
+import { merchantAiNoticeUpdateClient } from './-merchant-ai-notice-update-client'
+
 // This bundle and its query consumers are loaded only after first paint.
 //
 // Getters, not an object literal: `route-server-fn-bundles.test.ts` guards the shape
@@ -23,5 +25,9 @@ export const productUpdatesFns = {
   get setAutoShow() {
     return async (input: Parameters<Server['setProductUpdatesAutoShowFn']>[0]) =>
       (await server()).setProductUpdatesAutoShowFn(input)
+  },
+  // The AI update an AccountAdmin is told first: the settings banner's own calls.
+  get aiNoticeUpdate() {
+    return merchantAiNoticeUpdateClient
   },
 }

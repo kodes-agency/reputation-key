@@ -161,7 +161,8 @@ export function AppTopBar({
       {getProductUpdatesClient && (
         <Suspense fallback={null}>
           <ProductUpdatesIdle
-            person={`${organizationId}:${user.id}`}
+            userId={user.id}
+            organizationId={organizationId}
             getClient={getProductUpdatesClient}
           />
         </Suspense>
