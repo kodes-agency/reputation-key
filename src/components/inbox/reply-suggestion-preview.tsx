@@ -1,3 +1,5 @@
+import type { DraftSessionSnapshot } from './reply-draft-session'
+import { framedReplyParts } from '#/shared/domain/reply-frame'
 import { ShieldCheck, Sparkles } from 'lucide-react'
 import { Button } from '#/components/ui/button'
 import { languageDisplayName } from './reply-language-options'
@@ -8,6 +10,7 @@ import {
 } from './reply-suggestion-contract'
 
 type Props = Readonly<{
+  frame?: DraftSessionSnapshot['frame']
   suggestion: PendingReplySuggestion
   propertyLanguage: string | null
   disabled: boolean
@@ -44,6 +47,7 @@ const PROPOSAL_CLASS =
   'mt-2 max-h-[28svh] overflow-y-auto overscroll-contain whitespace-pre-wrap text-sm focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring'
 
 export const ReplySuggestionPreview = (props: Props) => {
+  const parts = framedReplyParts(props.suggestion.draft.text, props.frame ?? null)
   const languageTag = props.suggestion.draft.languageTag
   const languageName = languageDisplayName(languageTag)
   const templateLoadedMessage =
@@ -84,7 +88,11 @@ export const ReplySuggestionPreview = (props: Props) => {
         )}
       </div>
       <p className={PROPOSAL_CLASS} tabIndex={0} {...{ [INBOX_SCROLL_REGION]: '' }}>
-        {props.suggestion.draft.text}
+        {parts.prefix && `${parts.prefix}\n\n`}
+        <span className="animate-in fade-in duration-200 motion-reduce:animate-none">
+          {parts.body}
+        </span>
+        {parts.suffix && `\n\n${parts.suffix}`}
       </p>
       {templateLoadedMessage !== null && (
         <p className="mt-2 text-xs text-muted-foreground">{templateLoadedMessage}</p>

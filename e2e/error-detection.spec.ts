@@ -12,8 +12,59 @@
 // test.fail(): the harness's own teardown failure becomes a pass, proving the
 // gate bites on a real spec.
 
+import { createServer } from 'node:http'
+import type { AddressInfo } from 'node:net'
 import { test, expect } from '@playwright/test'
+import type { Page } from '@playwright/test'
 import { attachErrorDetection, test as gatedTest } from './helpers/error-detection'
+
+const STREAM_PROBE = '/_serverFn/e2e-stream-probe'
+
+/**
+ * A real streamed server-function answer: a fulfilled route delivers its body
+ * at once, so it cannot be cut off after its 2xx head. The page loads from this
+ * server so the probe stays same-origin.
+ */
+async function startStreamServer(options: Readonly<{ answerAfterMs?: number }> = {}) {
+  const steps = ['reading', 'thinking', 'writing', 'checking', 'done']
+  const server = createServer((request, response) => {
+    if (request.method !== 'POST') {
+      response.writeHead(200, { 'content-type': 'text/html' })
+      response.end('<!doctype html><title>stream probe</title>')
+      return
+    }
+    setTimeout(() => {
+      response.writeHead(200, { 'content-type': 'application/x-ndjson; charset=utf-8' })
+      steps.forEach((step, index) =>
+        setTimeout(() => {
+          response.write(`${JSON.stringify({ step })}\n`)
+          if (index === steps.length - 1) response.end()
+        }, index * 150),
+      )
+    }, options.answerAfterMs ?? 0)
+  })
+  await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve))
+  return {
+    url: `http://127.0.0.1:${(server.address() as AddressInfo).port}/`,
+    close: () => {
+      server.closeAllConnections()
+      return new Promise<void>((resolve) => server.close(() => resolve()))
+    },
+  }
+}
+
+/** Resolves once the browser has finished or failed the probe request. */
+function probeSettled(page: Page): Promise<string> {
+  return new Promise((resolve) => {
+    page.on('requestfinished', (request) => {
+      if (request.url().includes(STREAM_PROBE)) resolve('finished')
+    })
+    page.on('requestfailed', (request) => {
+      if (request.url().includes(STREAM_PROBE))
+        resolve(request.failure()?.errorText ?? 'failed')
+    })
+  })
+}
 
 test.describe('error detection — collector injection proof', () => {
   test('captures pageerror from an uncaught exception', async ({ page }) => {
@@ -90,6 +141,55 @@ test.describe('error detection — collector injection proof', () => {
       .toBe(1)
     expect(collector.detections[0].message).toContain('/_server/e2e-probe')
     collector.detach()
+  })
+
+  test('records a stream that ends ERR_ABORTED after its 2xx answer as delivered', async ({
+    page,
+  }) => {
+    const server = await startStreamServer()
+    try {
+      await page.goto(server.url)
+      const collector = attachErrorDetection(page)
+      const settled = probeSettled(page)
+      await page.evaluate(async (path) => {
+        const controller = new AbortController()
+        const response = await fetch(path, { method: 'POST', signal: controller.signal })
+        const reader = response.body!.getReader()
+        await reader.read()
+        controller.abort()
+        await reader.read().catch(() => undefined)
+      }, STREAM_PROBE)
+      expect(await settled).toContain('ERR_ABORTED')
+      expect(collector.detections).toEqual([])
+      collector.detach()
+    } finally {
+      await server.close()
+    }
+  })
+
+  test('still fails a streamed mutation aborted before its server answered', async ({
+    page,
+  }) => {
+    const server = await startStreamServer({ answerAfterMs: 10_000 })
+    try {
+      await page.goto(server.url)
+      const collector = attachErrorDetection(page)
+      await page.evaluate(async (path) => {
+        const controller = new AbortController()
+        const pending = fetch(path, { method: 'POST', signal: controller.signal })
+        controller.abort()
+        await pending.catch(() => undefined)
+      }, STREAM_PROBE)
+      await expect
+        .poll(
+          () => collector.detections.filter((d) => d.kind === 'request-failed').length,
+        )
+        .toBe(1)
+      expect(collector.detections[0]?.message).toContain(STREAM_PROBE)
+      collector.detach()
+    } finally {
+      await server.close()
+    }
   })
 })
 

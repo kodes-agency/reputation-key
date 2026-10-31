@@ -112,3 +112,39 @@ describe('MerchantAiPropertyAuthorization pending state', () => {
     },
   )
 })
+
+it('shows drafting re-consent for the replaced notice and keeps a disabled property disabled', () => {
+  const props: MerchantAiPropertyAuthorizationProps = {
+    property: { id: PROPERTY_ID, name: 'Harbor & Pine', googleBindingState: 'active' },
+    snapshot: {
+      ...enabled,
+      noticeVersion: 'merchant-ai-notice-2026-10-30.v1',
+      noticeDigest: 'dadad7b81dbda360678fc57f7265b104c7311cbc213f877f32306c53b4852a5e',
+    },
+    notice: MERCHANT_AI_NOTICE,
+    enable: action(false),
+    change: action(false),
+    revoke: action(false),
+  }
+  const markup = renderToStaticMarkup(
+    createElement(MerchantAiPropertyAuthorization, props),
+  )
+  expect(markup).toContain(
+    'Drafts may be prepared when a manager opens a review or asks for one.',
+  )
+  expect(markup).toContain('Save feature access')
+  expect(acknowledgement(markup)).not.toContain('disabled=""')
+  const disabled = renderToStaticMarkup(
+    createElement(MerchantAiPropertyAuthorization, {
+      ...props,
+      snapshot: {
+        ...enabled,
+        state: 'disabled',
+        capabilities: [],
+        capabilityRuntimeProfileVersions: {},
+      },
+    }),
+  )
+  expect(disabled).toContain('Enable AI features')
+  expect(disabled).not.toContain('Turn off AI features')
+})

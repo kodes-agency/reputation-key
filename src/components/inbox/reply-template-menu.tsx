@@ -76,6 +76,8 @@ export type ReplyTemplateMenuProps = Readonly<{
   onLoadRecommended: () => Promise<void>
   onLoadTemplate: (templateId: string, title: string) => Promise<void>
   onLoadLocalSafe: () => Promise<void>
+  menuOpen?: boolean
+  onMenuOpenChange?: (open: boolean) => void
 }>
 
 type SwitchProps = Readonly<{
@@ -219,7 +221,9 @@ export function ReplyTemplateMenu(props: ReplyTemplateMenuProps) {
           </span>
         </Button>
         <DropdownMenu
+          open={props.menuOpen}
           onOpenChange={(open) => {
+            props.onMenuOpenChange?.(open)
             if (open) props.onPrepareTemplateMenu()
           }}
         >

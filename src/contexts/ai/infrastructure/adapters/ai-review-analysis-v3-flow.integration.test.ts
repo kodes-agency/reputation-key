@@ -1,3 +1,4 @@
+// Analysis and Urgent alerts keep running under 10-30 consent after the drafting-only notice.
 // A review analysis v3 through the real stores (migration 0078): the output store
 // writes the analysis, its mentions and the sentence numbers each cites, and
 // closes the operation with what the normalizer did; the aggregate store files the
@@ -36,10 +37,6 @@ import {
 } from '#/shared/db/schema'
 import { organizationId, propertyId, reviewId, userId } from '#/shared/domain/ids'
 import { outboxEvents } from '#/shared/db/schema/outbox.schema'
-import {
-  MERCHANT_AI_NOTICE_DIGEST,
-  MERCHANT_AI_NOTICE_VERSION,
-} from '#/shared/merchant-ai-notice-contract'
 import { AI_PROVIDER_DEPLOYMENT_PROFILE } from '#/shared/ai-operation-profiles'
 import { REVIEW_ANALYSIS_NORMALIZATION_DIGEST } from '#/shared/review-analysis-v3-normalizer'
 import type { AiOperationId } from '../../domain/types'
@@ -259,8 +256,8 @@ describe.sequential('review analysis v3 through the real stores (PostgreSQL)', (
       reviewedAtEpochMillis: REVIEWED_AT.getTime(),
       analysisSequence,
       authorizationLineageId: LINEAGE_ID,
-      noticeVersion: MERCHANT_AI_NOTICE_VERSION,
-      noticeDigest: MERCHANT_AI_NOTICE_DIGEST,
+      noticeVersion: 'merchant-ai-notice-2026-10-30.v1',
+      noticeDigest: 'dadad7b81dbda360678fc57f7265b104c7311cbc213f877f32306c53b4852a5e',
       evaluatedLanguage: 'en',
       propertyProfileVersion: 1,
       routingPolicyVersion: 1,
@@ -416,8 +413,8 @@ describe.sequential('review analysis v3 through the real stores (PostgreSQL)', (
       propertyTrendsEpoch: 1,
       authorizedSourceEpoch: SOURCE_EPOCH,
       analysisStartSequence: 0,
-      noticeVersion: MERCHANT_AI_NOTICE_VERSION,
-      noticeDigest: MERCHANT_AI_NOTICE_DIGEST,
+      noticeVersion: 'merchant-ai-notice-2026-10-30.v1',
+      noticeDigest: 'dadad7b81dbda360678fc57f7265b104c7311cbc213f877f32306c53b4852a5e',
       sourcePolicyId: 'google-business-profile-source-policy-v1',
       routingPolicyVersion: 1,
       processingRegion: 'global',

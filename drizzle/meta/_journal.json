@@ -624,6 +624,13 @@
       "when": 1797000000000,
       "tag": "0089_merchant_ai_standing_renewal",
       "breakpoints": true
+    },
+    {
+      "idx": 89,
+      "version": "7",
+      "when": 1797100000000,
+      "tag": "0088_reply_drafting_v2_release",
+      "breakpoints": true
     }
   ]
 }

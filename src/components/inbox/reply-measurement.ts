@@ -44,7 +44,7 @@ export function createDraftMeasurementSession(
   let previousTone = 'professional'
   let requested = Boolean(generationId)
   let mountVersion = 0
-  let pressed: 'draft' | 'try_again' | 'tone' = 'draft'
+  let pressed: 'draft' | 'try_again' | 'shorter' | 'tone' = 'draft'
   const record = (identity: Identity | null, event: DraftMeasurementEvent['event']) => {
     if (identity && !(event === 'superseded' && adopted.has(identity.generationId)))
       emit?.({ ...identity, event })
@@ -65,7 +65,7 @@ export function createDraftMeasurementSession(
     },
     request(
       tone: string,
-      explicitTrigger?: 'draft' | 'try_again' | 'tone',
+      explicitTrigger?: 'draft' | 'try_again' | 'shorter' | 'tone',
       templateOnly = false,
     ) {
       if (templateOnly) return 'draft'
@@ -119,14 +119,18 @@ export function measuredDraftSnapshot(
   result: ReplySuggestionResult,
   draft: ReplyDraftSnapshot,
 ): ReplyDraftSnapshot {
+  const framed =
+    result.status === 'ready' && result.localFrame
+      ? { ...draft, bodyFrame: result.localFrame }
+      : draft
   if (result.status === 'ready' && result.measurementGenerationId)
     return {
-      ...draft,
+      ...framed,
       measurementBaseReplyRevision: result.baseReplyStateRevision,
       measurementGenerationId: result.measurementGenerationId,
       measurementBaseline: result.replyText,
     }
-  return { ...draft, measurementGenerationId: null }
+  return { ...framed, measurementGenerationId: null }
 }
 
 export function draftEditMetric(

@@ -1,3 +1,4 @@
+import { REPLY_DRAFTING_V2_SERVED_LANGUAGES } from './reply-drafting-v2-schema'
 import { z } from 'zod/v4'
 import { describe, expect, it } from 'vitest'
 import { REPLY_DRAFTING_V2_OPERATION_PROFILE as profile } from './reply-drafting-v2-profile'
@@ -33,7 +34,10 @@ const PINS = {
   examples: '92b0f476a682aa90215900acf458898c112aa7da9243be336bff570db3a0fa90',
 }
 
-describe('reply drafting v2, registered dark', () => {
+describe('reply drafting v2, served release', () => {
+  it('serves Spanish with English and Bulgarian through one serving selection', () => {
+    expect(REPLY_DRAFTING_V2_SERVED_LANGUAGES).toEqual(['en-Latn', 'es-Latn', 'bg-Cyrl'])
+  })
   it('pins every new artifact independently of v1', () => {
     expect({
       profile: profile.profileDigest,
@@ -50,18 +54,18 @@ describe('reply drafting v2, registered dark', () => {
       developerPrompt: REPLY_DRAFTING_V2_PROMPT,
     })
   })
-  it('registers streaming compatibility without serving v2', () => {
+  it('serves v2 with streaming compatibility', () => {
     const dark = AI_RUNTIME_CAPABILITY_CATALOGUE.find(
       (row) => row.runtimeProfileVersion === 'reply-drafting-runtime-v2',
     )!
-    expect(dark.served).toBe(false)
+    expect(dark.served).toBe(true)
     expect(dark.noticesInForce).toContainEqual({
       noticeVersion: MERCHANT_AI_NOTICE_VERSION,
       noticeDigest: MERCHANT_AI_NOTICE_DIGEST,
     })
     expect(getAiRuntimeCapability('reply_drafting')).toMatchObject({
-      runtimeProfileVersion: 'reply-drafting-runtime-v1',
-      operationProfileVersion: 'reply-suggestion-v1',
+      runtimeProfileVersion: 'reply-drafting-runtime-v2',
+      operationProfileVersion: 'reply-suggestion-v2',
     })
     expect(
       isExecutionCompatibleWithConsent({

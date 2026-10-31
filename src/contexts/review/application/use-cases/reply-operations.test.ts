@@ -368,6 +368,43 @@ const MEMBER_CTX = { role: 'Member' as const, userId: USER_ID, organizationId: O
 // ── draftReply ──────────────────────────────────────────────────────────
 
 describe('draftReply', () => {
+  it.each(['Hello Alexandra,', 'Regards, The management'])(
+    'clears persisted frame boundaries after a greeting or sign-off edit: %s',
+    async (replacement) => {
+      const prefix = 'Hello Anna,'
+      const suffix = 'Regards, Our team'
+      const text = `${prefix}\n\nThe reply body stays the same.\n\n${suffix}`
+      const existing = makeReply({
+        text,
+        voiceChoices: {
+          closing: 0,
+          signOff: 0,
+          contactSentence: 0,
+          emoji: 0,
+          includeContact: true,
+          bodyPrefixLength: prefix.length,
+          bodySuffixLength: suffix.length,
+        },
+      })
+      const deps = makeDeps({ replyRepo: replyRepoWith(existing) })
+      const next = replacement.startsWith('Hello')
+        ? text.replace(prefix, replacement)
+        : text.replace(suffix, replacement)
+      await draftReply(deps)({ reviewId: REVIEW_ID, text: next }, MANAGER_CTX)
+      expect(deps.replyRepo.saveDraft).toHaveBeenCalledWith(
+        existing,
+        expect.objectContaining({
+          text: next,
+          voiceChoices: {
+            ...existing.voiceChoices,
+            bodyPrefixLength: undefined,
+            bodySuffixLength: undefined,
+          },
+        }),
+        NOW,
+      )
+    },
+  )
   it('creates a new draft reply', async () => {
     const deps = makeDeps()
     const result = await draftReply(deps)(

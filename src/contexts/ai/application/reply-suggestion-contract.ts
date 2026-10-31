@@ -51,6 +51,7 @@ export type GenerateReplySuggestionResult =
       profileVersion:
         | typeof AI_PERSONALIZED_REPLY_PROFILE_VERSION
         | typeof REPLY_DRAFTING_V2_VERSIONS.profile
+      localFrame?: Readonly<{ prefix: string; suffix: string }>
       mainPoint?: readonly number[]
       case?: string
       replyText: string

@@ -4,7 +4,7 @@ import type {
   MerchantAiSnapshot,
 } from '#/contexts/identity/application/public-api'
 import {
-  isMerchantAiNoticeInForce,
+  isMerchantAiNoticeInForceForCapabilities,
   type MerchantAiNoticeDto,
 } from '#/contexts/identity/application/dto/merchant-ai-notice.dto'
 import type { Action } from '#/components/hooks/use-action'
@@ -92,7 +92,7 @@ export function MerchantAiPropertyAuthorization({
   // screen. A notice the served one keeps in force (2026-09-15, which differed
   // only in its call to action) needs nothing, so Save waits for a capability
   // change, as it does under the served notice.
-  const contractChanged = !isMerchantAiNoticeInForce(snapshot)
+  const contractChanged = !isMerchantAiNoticeInForceForCapabilities(snapshot)
 
   const toggleCapability = (
     capability: CurrentMerchantAiCapability,

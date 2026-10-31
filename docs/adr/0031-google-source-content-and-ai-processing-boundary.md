@@ -219,3 +219,17 @@ detail may quote any part of such a review. Missing, expired, changed or
 inaccessible words leave the counts visible without a quote. Issue labels and
 manager names never enter the manual team summary, stored facts or provider
 input as a result of this change.
+
+### 2026-10-31 amendment — drafting v2 preparation
+
+With the new merchant notice acknowledged, a manager leaving an eligible review
+open for two seconds may prepare an actor-bound draft before pressing Draft with AI.
+The detail keeps its stream/result in memory for that session; it saves or adopts
+nothing automatically. This is application background preparation, not provider
+background execution. It grants no new publication authority or retention period.
+The provider writes the body from numbered review sentences, rating, tone and
+language; RepKey renders greeting, contact, closing and signature locally. The
+notice also names facts the Property chose to share; this release adds no facts
+editor or new facts storage. Consent renewal materially affects reply drafting
+alone, preserving Review Analysis/trends epochs under ADR 0074. Deployment remains
+subject to the owner's go and completed release verification.

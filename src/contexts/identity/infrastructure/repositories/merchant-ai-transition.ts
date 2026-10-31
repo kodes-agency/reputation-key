@@ -162,7 +162,8 @@ export function mapSnapshot(row: SnapshotRow): MerchantAiSnapshot {
   const providerDeploymentProfileVersion = row.provider_deployment_profile_version
   if (
     providerDeploymentProfileVersion !== 'private-beta-global-v1' &&
-    providerDeploymentProfileVersion !== 'private-beta-global-v2'
+    providerDeploymentProfileVersion !== 'private-beta-global-v2' &&
+    providerDeploymentProfileVersion !== 'private-beta-global-v3'
   ) {
     failInvalidRecord('Invalid Merchant AI deployment profile row')
   }

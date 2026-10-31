@@ -474,9 +474,10 @@ export function createAnalyzeReviewEvent(
         authorization.state === 'enabled',
         authorization.authorizedSourceEpoch === input.sourceEpoch,
         authorization.capabilities.includes('review_analysis'),
-        // A consent under a notice no longer in force. Re-consent bumps the
-        // Review Analysis epoch and the enrollment replay analyses the history
-        // again, so the review is settled here rather than held.
+        // A consent under a notice no longer in force for Review Analysis.
+        // Re-consent to a notice that changes analysis bumps its epoch and the
+        // enrollment replay analyses the history again, so the review is
+        // settled here rather than held.
         contract.isServedContract(authorization),
       ].every(Boolean)
     ) {

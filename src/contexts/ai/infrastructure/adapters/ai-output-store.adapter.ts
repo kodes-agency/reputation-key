@@ -36,6 +36,7 @@ import { findCurrentAnalysisReviewIds } from './ai-current-analysis-review-ids'
 import { trendEvidence } from './ai-trend-evidence'
 import { currentness } from './ai-review-analysis-currentness'
 import { raiseUrgentAlert } from './ai-urgent-alert'
+import { analysisNoticeStillCovers } from './ai-analysis-notice-coverage'
 
 function capabilityFence(value: unknown): Readonly<Record<string, unknown>> | null {
   return value !== null && typeof value === 'object' && !Array.isArray(value)
@@ -838,8 +839,7 @@ export const createAiOutputStoreAdapter = (
             analysis.operationAnalysisSequence === input.analysisSequence,
             analysis.operationAuthorizationLineageId === input.authorizationLineageId,
             analysis.operationPropertyProfileVersion === input.propertyProfileVersion,
-            analysis.operationNoticeVersion === authorization.noticeVersion,
-            analysis.operationNoticeDigest === authorization.noticeDigest,
+            analysisNoticeStillCovers(analysis, authorization),
             analysis.operationSourcePolicyId === authorization.sourcePolicyId,
             analysis.operationRedactionProfileVersion ===
               authorization.redactionProfileFamily,

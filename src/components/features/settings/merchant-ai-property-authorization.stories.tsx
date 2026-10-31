@@ -10,13 +10,16 @@ import {
 } from '../../../../.storybook/AuthedRouterDecorator'
 import type { Action } from '#/components/hooks/use-action'
 import { MERCHANT_AI_NOTICE } from '#/contexts/identity/application/dto/merchant-ai-notice.dto'
-import type { MerchantAiSnapshot } from '#/contexts/identity/application/public-api'
 import { ServerFunctionError } from '#/shared/auth/server-function-error'
 import {
   AI_CONSENT_ACKNOWLEDGEMENT,
   consentToAi,
 } from './merchant-ai-consent.stories.play'
-import { MerchantAiPropertyAuthorization } from './merchant-ai-property-authorization'
+import {
+  MerchantAiPropertyAuthorization,
+  type MerchantAiPropertyAuthorizationProps,
+} from './merchant-ai-property-authorization'
+type MerchantAiSnapshot = MerchantAiPropertyAuthorizationProps['snapshot']
 
 const PROPERTY_ID = '10000000-0000-4000-8000-000000000001'
 const property = {
@@ -317,16 +320,13 @@ export const ReconsentAfterNoticeReversion: Story = {
   },
 }
 
-// The switch-on of review analysis v3 (2026-10-30) put every earlier notice out of force on
-// purpose: nothing carries forward. A Property consented under the notice before it
-// (2026-10-17) is asked to consent again, and ticking the acknowledgement alone is enough to
-// save: its capabilities are untouched.
-export const ReconsentUnderTheNoticeBeforeTheSwitchOn: Story = {
+// The 11-01 notice requires renewal only when drafting is enabled.
+export const ReconsentForDraftingV2: Story = {
   args: {
     snapshot: {
       ...enabled,
-      noticeVersion: 'merchant-ai-notice-2026-10-17.v1',
-      noticeDigest: '2bcd2be15cbb81f324f9a9390ad00baff3ffbb25a6c0db8bff71fbb2b1b0975e',
+      noticeVersion: 'merchant-ai-notice-2026-10-30.v1',
+      noticeDigest: 'dadad7b81dbda360678fc57f7265b104c7311cbc213f877f32306c53b4852a5e',
     },
   },
   play: async ({ canvasElement }) => {
@@ -377,6 +377,22 @@ export const PausedUntilGoogleIsReconnected: Story = {
     await expect(
       canvas.getByRole('button', { name: /turn off ai features/i }),
     ).toBeEnabled()
+  },
+}
+
+export const AnalysisAndTrendsKeepTheirConsent: Story = {
+  args: {
+    snapshot: {
+      ...enabled,
+      noticeVersion: 'merchant-ai-notice-2026-10-30.v1',
+      noticeDigest: 'dadad7b81dbda360678fc57f7265b104c7311cbc213f877f32306c53b4852a5e',
+      capabilities: ['review_analysis', 'property_trends'],
+    },
+  },
+  play: async ({ canvasElement }) => {
+    const c = within(canvasElement)
+    await userEvent.click(c.getByRole('checkbox', { name: AI_CONSENT_ACKNOWLEDGEMENT }))
+    expect(c.getByRole('button', { name: /save feature access/i })).toBeDisabled()
   },
 }
 

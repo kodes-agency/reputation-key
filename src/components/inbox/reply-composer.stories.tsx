@@ -82,7 +82,7 @@ import {
   reviewId,
   userId,
 } from '#/shared/domain/ids'
-import { MAX_REPLY_LENGTH } from '#/contexts/review/application/public-api'
+import { GOOGLE_REPLY_COMMENT_MAX_BYTES as MAX_REPLY_LENGTH } from '#/shared/google-provider-control/reply-comment'
 import { hasPendingComposerWork } from './composer-policy'
 import { FeedbackHandlingBody } from './feedback-handling-body'
 import { feedbackHandlingAction } from './feedback-handling-presentation'
@@ -969,7 +969,7 @@ export const ReplyWithTextAt390: Story = onPhone(ReplyWithTextAt720)
  * tag survives the reload.
  *
  * It is a MENU here, because Hotel Elegance has a second target — the tag's
- * one row regenerates in Turkish. `Friendlier` and `Try again` remain available
+ * one row regenerates in Turkish. `Tone` and `Try again` remain available
  * as one-click rewrites beside the menus.
  */
 export const SavedAiDraftAt720: Story = atPane({
@@ -995,7 +995,7 @@ export const SavedAiDraftAt720: Story = atPane({
         .map((row) => row.textContent),
     ).toEqual(['Regenerate in Turkish · review language'])
     await closeMenu()
-    expect(canvas.getByRole('button', { name: 'Friendlier' })).toBeVisible()
+    expect(canvas.getByRole('button', { name: 'Tone' })).toBeVisible()
     expect(canvas.getByRole('button', { name: 'Try again' })).toBeVisible()
     expectSolePrimary(canvasElement, 'Submit for approval')
     expectNoRemovedSentences(canvasElement)

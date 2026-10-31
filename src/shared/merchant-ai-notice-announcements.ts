@@ -6,6 +6,15 @@ export type MerchantAiNoticeAnnouncement = Readonly<{
 export const MERCHANT_AI_NOTICE_ANNOUNCEMENTS: Readonly<
   Record<string, MerchantAiNoticeAnnouncement>
 > = {
+  'merchant-ai-notice-2026-11-01.v1': {
+    title: 'AI reply drafts got better',
+    points: [
+      "Drafts now answer what the guest said, framed by your property's own greeting and sign-off.",
+      'A draft may be prepared as soon as you open a review, so it is ready when you ask for it.',
+      'While a draft is written you can see each step, keep working, or press Stop.',
+      'New Shorter, Tone and Try again buttons, and drafts in Spanish too.',
+    ],
+  },
   'merchant-ai-notice-2026-10-30.v1': {
     title: 'AI review insights got an upgrade',
     points: [

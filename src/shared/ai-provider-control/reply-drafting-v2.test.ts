@@ -106,8 +106,10 @@ describe('reply v2 provider preparation and acceptance', () => {
     })
   })
 
-  it('cannot pass the served gateway while dark', () =>
-    expect(() => parseAiGatewayRouteRequest(replyV2Request())).toThrow(/cross-wired/u))
+  it('passes the served gateway after switch-on', () =>
+    expect(
+      parseAiGatewayRouteRequest(replyV2Request()).binding.operationProfileVersion,
+    ).toBe('reply-suggestion-v2'))
   it('uses numbered redaction, fixed knobs, synthetic examples and the v2 prompt identity', () => {
     const request = replyV2Request(
       'We waited a long time.\nContact person@example.test for more information.',

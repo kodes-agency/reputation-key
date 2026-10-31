@@ -1,3 +1,4 @@
+import { getAiRuntimeCapability } from '#/shared/ai-runtime-capability-contract'
 import type {
   GenerateReplySuggestionDependencies,
   GenerateReplySuggestionInput,
@@ -15,7 +16,7 @@ export type ReplyDraftingV2Attempt = Readonly<{
   logicalDeadlineEpochMillis?: number
 }>
 
-export function rootReplyDraftingV2Attempt(): ReplyDraftingV2Attempt {
+function rootReplyDraftingV2Attempt(): ReplyDraftingV2Attempt {
   return { parentOperationId: null, rewriteOrdinal: 0, rewriteIssues: [] }
 }
 
@@ -149,4 +150,17 @@ export async function admitInteractiveDraft(
     await sleep(Math.max(50, claim.retryAfterEpochMillis - nowEpochMillis))
     nowEpochMillis = Math.max(nowEpochMillis + 1, dependencies.nowEpochMillis())
   }
+}
+
+/** The explicit attempt is a contract-test seam; production follows the served catalogue. */
+export function selectedReplyDraftingAttempt(
+  attempt?: ReplyDraftingV2Attempt,
+): ReplyDraftingV2Attempt | undefined {
+  return (
+    attempt ??
+    (getAiRuntimeCapability('reply_drafting').operationProfileVersion ===
+    'reply-suggestion-v2'
+      ? rootReplyDraftingV2Attempt()
+      : undefined)
+  )
 }

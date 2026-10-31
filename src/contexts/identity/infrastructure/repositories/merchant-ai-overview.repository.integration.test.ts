@@ -7,7 +7,7 @@ import type { Database } from '#/shared/db'
 import { getEnv } from '#/shared/config/env'
 import type { Permission } from '#/shared/domain/permissions'
 import {
-  isMerchantAiNoticeInForce,
+  isMerchantAiNoticeInForceForCapabilities,
   MERCHANT_AI_NOTICE_DIGEST,
   MERCHANT_AI_NOTICE_VERSION,
 } from '#/shared/merchant-ai-notice-contract'
@@ -334,7 +334,7 @@ describe('Organization AI overview', () => {
         at: input.now,
       }),
     clock: () => AT,
-    isNoticeInForce: isMerchantAiNoticeInForce,
+    isNoticeInForce: isMerchantAiNoticeInForceForCapabilities,
   })
 
   it('shows an AccountAdmin every Property with state, pause flag and deferral', async () => {

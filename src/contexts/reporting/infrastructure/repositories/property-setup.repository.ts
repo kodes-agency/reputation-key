@@ -140,7 +140,7 @@ function propertyFactsSql(organizationId: OrganizationId, scope: SQL): SQL {
       (p.google_binding_state = 'active') AS google_binding_active,
       (synced.property_id IS NOT NULL) AS reviews_synced,
       (p.default_reply_language IS NOT NULL) AS reply_language_chosen,
-      CASE WHEN enablement.state = 'enabled' AND NOT ${merchantAiNoticeInForceSql(sql`enablement.notice_version`, sql`enablement.notice_digest`)}
+      CASE WHEN enablement.state = 'enabled' AND NOT ${merchantAiNoticeInForceSql(sql`enablement.notice_version`, sql`enablement.notice_digest`, sql`enablement.capabilities`)}
         THEN 'paused' ELSE enablement.state END AS merchant_ai_state,
       EXISTS (
         SELECT 1

@@ -10,6 +10,13 @@ export const REPLY_DRAFTING_V2_VERSIONS = Object.freeze({
 } as const)
 
 export const REPLY_DRAFTING_V2_LANGUAGES = ['en-Latn', 'es-Latn', 'bg-Cyrl'] as const
+// Serving selection is independent of the immutable contract/history catalogue.
+// Owner can withdraw Spanish by removing es-Latn on this line alone.
+export const REPLY_DRAFTING_V2_SERVED_LANGUAGES = [
+  'en-Latn',
+  'es-Latn',
+  'bg-Cyrl',
+] as const
 const REPLY_DRAFTING_V2_CASES = [
   'praise',
   'praise_with_issue',

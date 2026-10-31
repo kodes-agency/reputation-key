@@ -43,6 +43,29 @@ describe('execution compatibility with merchant consent', () => {
     ).toBe(false)
   })
 
+  it('keeps 10-30 consent in force for analysis and trends, while drafting alone needs renewal', () => {
+    const notice = {
+      noticeVersion: 'merchant-ai-notice-2026-10-30.v1',
+      noticeDigest: 'dadad7b81dbda360678fc57f7265b104c7311cbc213f877f32306c53b4852a5e',
+    }
+    for (const entry of AI_RUNTIME_CAPABILITIES_V1) {
+      expect(
+        isExecutionCompatibleWithConsent({
+          capability: entry.capability,
+          acknowledgedNotice: notice,
+          servedExecution: entry,
+        }),
+      ).toBe(entry.capability !== 'reply_drafting')
+      expect(
+        isExecutionCompatibleWithConsent({
+          capability: entry.capability,
+          acknowledgedNotice,
+          recordedNotice: notice,
+          servedExecution: entry,
+        }),
+      ).toBe(entry.capability !== 'reply_drafting')
+    }
+  })
   it('explicitly admits every served execution under the notice in force', () => {
     for (const entry of AI_RUNTIME_CAPABILITIES_V1) {
       expect(

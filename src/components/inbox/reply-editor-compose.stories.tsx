@@ -1055,7 +1055,7 @@ export const TypingDuringGenerationDoesNotLockTheComposer: Story = {
     // While the request runs the button reads `Drafting…` and is disabled.
     await expect(
       canvas.findByRole('button', { name: /drafting/i }),
-    ).resolves.toBeDisabled()
+    ).resolves.toHaveAttribute('aria-disabled', 'true')
     await userEvent.type(canvas.getByRole('textbox'), 'x')
     resolveDelayed(readySuggestion())
 
@@ -1101,7 +1101,7 @@ export const SaveFailureBeforeDraftingIsNotAGenerationFailure: Story = {
     await userEvent.click(canvas.getByRole('button', { name: /draft with ai/i }))
     await expect(
       canvas.findByRole('button', { name: /drafting/i }),
-    ).resolves.toBeDisabled()
+    ).resolves.toHaveAttribute('aria-disabled', 'true')
     await waitFor(() =>
       expect(canvas.getByRole('button', { name: /draft with ai/i })).toBeEnabled(),
     )
@@ -1115,12 +1115,7 @@ export const SaveFailureBeforeDraftingIsNotAGenerationFailure: Story = {
   },
 }
 
-/**
- * Generation fails after the manager typed while it ran. The keystroke retired
- * the pending ANSWER (`dismiss()`), but not the request: its failure still
- * belongs to the request's owner and is printed. Gated on the answer's
- * currency instead, the failure vanished and the spinner simply stopped.
- */
+/** Typing retires the waiting draft, so its later failure stays quiet. */
 let rejectDelayedSuggestion: ((error: Error) => void) | undefined
 const onGenerateDelayedFailure = fn(
   () =>
@@ -1133,21 +1128,23 @@ const rejectDelayed = (error: Error): void => {
     throw new Error('Delayed suggestion request was not started')
   rejectDelayedSuggestion(error)
 }
-export const GenerationFailureAfterTypingIsReported: Story = {
+export const GenerationFailureAfterTypingIsQuiet: Story = {
   args: { onGenerateSuggestion: onGenerateDelayedFailure },
   play: async ({ canvas }) => {
     rejectDelayedSuggestion = undefined
     await userEvent.click(canvas.getByRole('button', { name: /draft with ai/i }))
     await expect(
       canvas.findByRole('button', { name: /drafting/i }),
-    ).resolves.toBeDisabled()
+    ).resolves.toHaveAttribute('aria-disabled', 'true')
     await userEvent.type(canvas.getByRole('textbox'), 'x')
     rejectDelayed(new Error('provider timeout'))
 
-    await expect(
-      canvas.findByText('The draft suggestion could not be generated. Try again.'),
-    ).resolves.toBeVisible()
-    expect(canvas.getByRole('button', { name: /draft with ai/i })).toBeEnabled()
+    await waitFor(() =>
+      expect(canvas.getByRole('button', { name: /draft with ai/i })).toBeEnabled(),
+    )
+    expect(
+      canvas.queryByText('The draft suggestion could not be generated. Try again.'),
+    ).not.toBeInTheDocument()
   },
 }
 

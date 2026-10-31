@@ -1,3 +1,4 @@
+import { createReadReplyDraftingConsent } from './application/read-reply-drafting-consent'
 import { recordDraftMeasurementEvent } from '#/shared/db/ai/draft-measurement-events'
 import { recordDraftGeneration } from '#/shared/db/ai/draft-generation-measurement'
 import type { OrganizationId } from '#/shared/domain/ids'
@@ -319,6 +320,10 @@ export const buildAiContext = (input: AiContextBuildInput) => {
 
   return Object.freeze({
     publicApi: Object.freeze({
+      readReplyDraftingConsent: createReadReplyDraftingConsent(
+        authorization,
+        input.propertyAccess,
+      ),
       recordDraftMeasurement: (
         scope: Parameters<typeof recordDraftMeasurementEvent>[1],
         event: Parameters<typeof recordDraftMeasurementEvent>[2],

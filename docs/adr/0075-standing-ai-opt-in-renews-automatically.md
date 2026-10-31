@@ -66,16 +66,17 @@ is still deliberate, recorded, per Property and per capability.
 
 ## Shipping a new notice
 
-The sweep renews only Properties whose notice has lapsed. Between the web deploy
-and the worker's first sweep their AI work is refused, and a review event
-handled in those minutes settles as not analysable; it is analysed again only
-when the Review Analysis epoch advances. Stored per-review analyses are
-delivered only while the head is on the notice they were produced under
-(`ai-output-store.adapter.ts`, `readAnalysisForDelivery`). A notice that does not
-materially change review analysis therefore still has to say how existing
-analyses stay visible after renewal: count review analysis as materially
-changed and replay, or widen the delivery fence in the same release. Each new
-notice also needs its announcement entry.
+The sweep renews only Properties with an enabled capability whose notice has
+lapsed; notices in force are listed per capability (ADR 0074, "Drafting-only
+notice activation"). Between the web deploy and the worker's first sweep, work
+for a lapsed capability is refused. Under a notice that changes review analysis,
+a review event handled in those minutes settles as not analysable and is analysed
+again only when the Review Analysis epoch advances. A notice that leaves review
+analysis unchanged lists the earlier notice as still in force for it, so analysis
+carries on through those minutes, and stored per-review analyses stay delivered
+after the renewal: delivery applies the per-capability material-change rule that
+settlement uses (`ai-analysis-notice-coverage.ts`). Each new notice also needs its
+announcement entry.
 
 ## What this changes in ADR 0074
 

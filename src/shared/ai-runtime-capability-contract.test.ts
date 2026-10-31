@@ -51,8 +51,12 @@ describe('AI runtime capability contract', () => {
     expect(AI_RUNTIME_CAPABILITIES_V1_DIGEST).toMatch(/^[0-9a-f]{64}$/)
     for (const entry of AI_RUNTIME_CAPABILITIES_V1) {
       // Execution selection currently uses one deployment for every capability.
-      expect(entry.providerDeploymentProfileVersion).toBe('private-beta-global-v2')
-      expect(entry.noticesInForce).toEqual(MERCHANT_AI_NOTICES_IN_FORCE)
+      expect(entry.providerDeploymentProfileVersion).toBe(
+        entry.capability === 'reply_drafting'
+          ? 'private-beta-global-v3'
+          : 'private-beta-global-v2',
+      )
+      expect(entry.noticesInForce).toEqual(MERCHANT_AI_NOTICES_IN_FORCE[entry.capability])
     }
   })
 
@@ -73,9 +77,9 @@ describe('AI runtime capability contract', () => {
       ],
       [
         'reply_drafting',
-        'reply-suggestion-v1',
-        'reply-drafting-runtime-v1',
-        'reply-suggestion-gateway-v1',
+        'reply-suggestion-v2',
+        'reply-drafting-runtime-v2',
+        'reply-suggestion-gateway-v2',
       ],
       [
         'property_trends',

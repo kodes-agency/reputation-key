@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 import {
-  isMerchantAiNoticeInForce,
+  isMerchantAiNoticeInForceForCapabilities,
   MERCHANT_AI_NOTICE_DIGEST,
   MERCHANT_AI_NOTICE_VERSION,
 } from '#/shared/merchant-ai-notice-contract'
@@ -61,7 +61,7 @@ function harness(
     reader: { listOverview: vi.fn(async () => records) },
     resolveManagementScope: vi.fn(async () => scope),
     clock: () => NOW,
-    isNoticeInForce: isMerchantAiNoticeInForce,
+    isNoticeInForce: isMerchantAiNoticeInForceForCapabilities,
   } satisfies MerchantAiOverviewDeps
   return { deps, list: listMerchantAiOverview(deps) }
 }

@@ -1,7 +1,9 @@
+import { getAiRuntimeCapability } from '#/shared/ai-runtime-capability-contract'
 import {
   manageReplyDraftingRequests,
   admitReplyDraft,
   reportReplyReading,
+  deliveredReplyFrame,
   replyProgressArguments,
   assertReplyDraftSourceCurrent,
   publishReplyDraftingIdentity,
@@ -22,19 +24,18 @@ export type {
 } from '../reply-suggestion-contract'
 import { REPLY_DRAFTING_V2_OPERATION_PROFILE } from '#/shared/reply-drafting-v2-profile'
 import {
-  REPLY_DRAFTING_V2_LANGUAGES,
+  REPLY_DRAFTING_V2_SERVED_LANGUAGES,
   REPLY_DRAFTING_V2_VERSIONS,
 } from '#/shared/reply-drafting-v2-schema'
 import {
   bindReplyDraftingV2,
   replyDraftingV2GenerationSeed,
-  rootReplyDraftingV2Attempt,
+  selectedReplyDraftingAttempt,
   rewriteReplyDraftingV2,
   releaseReplyAdmissionOnce,
   admitInteractiveDraft,
   type ReplyDraftingV2Attempt,
 } from '../reply-drafting-v2-workflow'
-import { getAiRuntimeCapability } from '#/shared/ai-runtime-capability-contract'
 import type { OrganizationId } from '#/shared/domain/ids'
 import {
   AI_OPERATION_PROFILES,
@@ -492,12 +493,7 @@ export function createGenerateReplySuggestion(
   dependencies: GenerateReplySuggestionDependencies,
   v2Attempt?: ReplyDraftingV2Attempt,
 ): (input: GenerateReplySuggestionInput) => Promise<GenerateReplySuggestionResult> {
-  const v2 =
-    v2Attempt ??
-    (getAiRuntimeCapability('reply_drafting').operationProfileVersion ===
-    REPLY_DRAFTING_V2_VERSIONS.operation
-      ? rootReplyDraftingV2Attempt()
-      : undefined)
+  const v2 = selectedReplyDraftingAttempt(v2Attempt)
   const operationProfile = v2 ? REPLY_DRAFTING_V2_OPERATION_PROFILE : PROFILE
   // fallow-ignore-next-line complexity -- fail-closed AI operation lifecycle must settle every claimed state in one boundary
   const generate = manageReplyDraftingRequests(dependencies, v2, async (input) => {
@@ -527,7 +523,7 @@ export function createGenerateReplySuggestion(
       dependencies,
       input,
       observation,
-      v2 ? new Set(REPLY_DRAFTING_V2_LANGUAGES) : PERSONALIZED_LANGUAGE_SET,
+      v2 ? new Set(REPLY_DRAFTING_V2_SERVED_LANGUAGES) : PERSONALIZED_LANGUAGE_SET,
     )
     if (language.kind === 'settled') {
       if (language.result.status !== 'fallback') return language.result
@@ -578,7 +574,6 @@ export function createGenerateReplySuggestion(
       ? releaseReplyAdmissionOnce(dependencies.admission, admission.admissionId)
       : async () => {}
     try {
-      reportReplyReading(input, v2)
       const generationSeed = replyDraftingV2GenerationSeed(input)
       const replyV2Frame = v2
         ? await dependencies.replyVoices?.resolveV2Frame?.({
@@ -589,6 +584,7 @@ export function createGenerateReplySuggestion(
           })
         : undefined
       if (v2 && !replyV2Frame) return unavailable('policy_unavailable')
+      reportReplyReading(input, v2, replyV2Frame?.candidates[0], reviewText)
       const canonicalSource = encodeCanonicalAiReviewSource({
         text: reviewText,
         rating: observation.rating,
@@ -851,6 +847,7 @@ export function createGenerateReplySuggestion(
         ...(response.result.profileVersion === REPLY_DRAFTING_V2_VERSIONS.profile
           ? { mainPoint: response.result.mainPoint, case: response.result.case }
           : {}),
+        ...deliveredReplyFrame(replyV2Frame, response.result.replyText),
         replyText: response.result.replyText,
         provenanceToken: response.result.provenanceToken,
         expiresAtEpochMillis: response.result.expiresAtEpochMillis,

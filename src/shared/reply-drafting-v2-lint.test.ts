@@ -19,6 +19,21 @@ const codes = (input: Partial<LintInput>) =>
   lintReplyDraftingV2Body({ ...BASE, ...input }).map((f) => f.code)
 
 describe('AI body lint, content-free findings', () => {
+  it('allows Shorter below the advisory case band while enforcing its hard word cap', () => {
+    const input: LintInput = {
+      ...BASE,
+      body: 'We are sorry the room was not comfortable.',
+      modelCase: 'complaint',
+      rating: 1,
+      maxWords: 8,
+    }
+    expect(lintReplyDraftingV2Body(input).filter((f) => f.severity === 'hard')).toEqual(
+      [],
+    )
+    expect(
+      lintReplyDraftingV2Body({ ...input, body: `${input.body} Again.` }),
+    ).toContainEqual({ code: 'max_words', severity: 'hard' })
+  })
   it.each([
     ['empty_body', '', {}],
     ['digits', 'We waited ٢ days.', {}],

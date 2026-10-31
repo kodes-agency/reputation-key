@@ -38,6 +38,7 @@ import {
   getReplyForReview,
   getInboxItemForReview,
   callServerFn,
+  callServerFnGet,
   callServerFnExpectError,
   waitFor,
 } from '../../helpers/fixtures'
@@ -160,6 +161,167 @@ test.describe('Critical workflow: reply lifecycle', () => {
     reviewer: { displayName: `Reply Reviewer ${name}` },
     createTime: '2026-07-27T12:00:00Z',
   })
+
+  for (const width of [1280, 390]) {
+    test(`(g) v2 background draft → reveal → adopt → submit at ${width}px`, async ({
+      page,
+    }) => {
+      test.setTimeout(90_000)
+      const name = `stream-${width}`
+      const s = await setupScenario(name, {
+        reviews: [
+          {
+            ...stubReview(name),
+            comment:
+              'Check-in took forty minutes and nobody apologised. The room smelled of smoke. The pool area was lovely though.',
+          },
+        ],
+      })
+      const admin = await getUserByEmail(seed.email)
+      await dbQuery(
+        `INSERT INTO property_portal_brand_profiles (id, organization_id, property_id, display_name, primary_color, background_color, text_color, updated_by) VALUES (gen_random_uuid(), $1, $2::uuid, 'Seabreeze Hotel', '#5b3fd0', '#ffffff', '#111111', $3) ON CONFLICT (organization_id, property_id) DO NOTHING`,
+        [seed.organizationId, s.propertyId, admin!.id],
+      )
+      const previous = await dbQuery<{
+        scope_key: string
+        execution_state: string
+        admission_state: string
+      }>(
+        `SELECT scope_key, execution_state, admission_state FROM ai_execution_control_heads WHERE scope_key = ANY($1::text[])`,
+        [['global', 'provider:private-beta-global-v3', 'capability:reply_drafting']],
+      )
+      const posture = async (scope: string, execution: string, admission: string) => {
+        await dbQuery(
+          `WITH head AS (SELECT * FROM ai_execution_control_heads WHERE scope_key = $1 FOR UPDATE), transition AS (INSERT INTO ai_execution_control_transitions (control_id, generation, predecessor_generation, scope_key, scope_kind, scope_value, execution_state, admission_state, reason_code, actor_user_id, occurred_at, ticket_reference) SELECT control_id, generation + 1, generation, scope_key, scope_kind, scope_value, $2, $3, 'e2e_release', NULL, now(), 'PR-B3b' FROM head RETURNING generation) UPDATE ai_execution_control_heads SET generation = transition.generation, execution_state = $2, admission_state = $3, updated_at = now() FROM transition WHERE scope_key = $1`,
+          [scope, execution, admission],
+        )
+      }
+      try {
+        for (const control of previous)
+          await posture(control.scope_key, 'enabled', 'accepting')
+        const armed = await fetch('http://127.0.0.1:4102/__control/arm', {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({
+            operationKind: 'reply',
+            delayMillis: 2_000,
+            parsed: {
+              languageCode: 'en-Latn',
+              case: 'complaint',
+              mainPoint: [1, 2],
+              avoidTerms: [],
+              replyText:
+                'We are sorry the long check-in and smoke in your room made the arrival uncomfortable. You should have been able to settle in promptly and comfortably.',
+            },
+          }),
+        })
+        expect(armed.ok).toBe(true)
+        await page.setViewportSize({ width, height: 900 })
+        await signIn(page)
+        const identity = 'src/contexts/identity/server/merchant-ai.ts'
+        const { notice } = await callServerFnGet<{
+          notice: { version: string; digest: string }
+        }>(page, {
+          file: identity,
+          exportName: 'getMerchantAiAuthorizationFn',
+          data: { propertyId: s.propertyId },
+        })
+        await callServerFn(page, {
+          file: identity,
+          exportName: 'enableMerchantAiForPropertiesFn',
+          data: {
+            propertyIds: [s.propertyId],
+            capabilities: ['reply_drafting'],
+            acknowledgement: {
+              noticeVersion: notice.version,
+              noticeDigest: notice.digest,
+            },
+            idempotencyKey: `${name}-${e2eRunId}`,
+          },
+        })
+        await dbQuery(
+          `INSERT INTO ai_property_processing_profiles (organization_id, property_id, country_code, timezone, processing_region, routing_policy_version, provider_deployment_profile_version, source_epoch, profile_version, lifecycle_state, updated_at) SELECT organization_id, id, country_code, timezone, 'global', 1, 'private-beta-global-v2', source_epoch, 1, 'active', now() FROM properties WHERE id = $1::uuid ON CONFLICT DO NOTHING`,
+          [s.propertyId],
+        )
+        await page.goto(`/inbox?itemId=${s.inboxItemId}`)
+        await waitFor(
+          async () =>
+            (
+              await dbQuery<{ id: string }>(
+                `SELECT id FROM ai_operations WHERE review_id = $1::uuid AND operation_profile_version = 'reply-suggestion-v2' AND state = 'executing'`,
+                [s.reviewId],
+              )
+            )[0] ?? null,
+          { timeoutMs: 20_000, description: 'hidden background stream executing' },
+        )
+        await expect(page.getByRole('region', { name: 'Draft suggestion' })).toHaveCount(
+          0,
+        )
+        // A phone opens on the "Reply…" bar. The draft is held above the
+        // composer, so opening it joins the running draft instead of starting one.
+        if (width < 768)
+          await page.getByRole('button', { name: 'Reply…', exact: true }).click()
+        await page.getByRole('button', { name: 'Draft with AI', exact: true }).click()
+        await expect(
+          page.getByRole('button', { name: 'Stop', exact: true }),
+        ).toBeVisible()
+        await expect(page.getByRole('textbox', { name: 'Public reply' })).toBeEnabled()
+        await expect(
+          page.getByRole('button', { name: 'Choose a reply template' }),
+        ).toBeEnabled()
+        await expect(
+          page.getByText('Personalized AI suggestion', { exact: true }),
+        ).toBeVisible({ timeout: 20_000 })
+        await page.getByRole('button', { name: 'Use draft', exact: true }).click()
+        await expect(page.getByRole('textbox', { name: 'Public reply' })).toHaveValue(
+          /long check-in/,
+        )
+        await expect(
+          page.getByRole('button', { name: 'Shorter', exact: true }),
+        ).toBeVisible()
+        await expect(
+          page.getByRole('button', { name: 'Tone', exact: true }),
+        ).toBeVisible()
+        const frame = await dbQuery<{ prefix: number; suffix: number }>(
+          `SELECT (voice_choices->>'bodyPrefixLength')::integer AS prefix, (voice_choices->>'bodySuffixLength')::integer AS suffix FROM replies WHERE review_id = $1::uuid AND source = 'internal'`,
+          [s.reviewId],
+        )
+        expect(frame[0]!.prefix).toBeGreaterThan(0)
+        expect(frame[0]!.suffix).toBeGreaterThan(0)
+        await page.reload()
+        await expect(
+          page.getByRole('button', { name: 'Shorter', exact: true }),
+        ).toBeVisible()
+        await page
+          .getByRole('button', { name: 'Submit for approval', exact: true })
+          .click()
+        await waitFor(
+          async () => {
+            const reply = await getReplyForReview(s.reviewId)
+            return reply?.status === 'pending_approval' ? reply : null
+          },
+          { timeoutMs: 15_000, description: 'v2 draft adopted and submitted' },
+        )
+        const operations = await dbQuery<{
+          operation_profile_version: string
+          requests: number
+        }>(
+          `SELECT operation_profile_version, count(*)::integer AS requests FROM ai_operations WHERE review_id = $1::uuid GROUP BY operation_profile_version`,
+          [s.reviewId],
+        )
+        expect(operations).toEqual([
+          { operation_profile_version: 'reply-suggestion-v2', requests: 1 },
+        ])
+      } finally {
+        for (const control of previous)
+          await posture(
+            control.scope_key,
+            control.execution_state,
+            control.admission_state,
+          )
+      }
+    })
+  }
 
   test('(a) draft → edit → submit → approve → published (UI-driven)', async ({
     page,

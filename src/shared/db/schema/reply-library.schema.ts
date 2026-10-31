@@ -29,6 +29,8 @@ const replyTemplateAspectSql = ASPECT_TAXONOMY_V1.map((aspect) => `'${aspect}'`)
 
 type ReplyVoiceChoices = Readonly<{
   ratingBand?: ReplyFrameBand
+  bodyPrefixLength?: number
+  bodySuffixLength?: number
   closing: number
   signOff: number
   contactSentence: number

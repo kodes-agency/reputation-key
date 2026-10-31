@@ -2,7 +2,7 @@ import { sql } from 'drizzle-orm'
 import type { Database } from '#/shared/db'
 import type { Tx } from '#/shared/outbox/commit'
 import { merchantAiNoticeInForceSql } from '#/shared/db/merchant-ai-notice-in-force'
-import { isMerchantAiNoticeInForce } from '#/shared/merchant-ai-notice-contract'
+import { isMerchantAiNoticeInForceForCapabilities } from '#/shared/merchant-ai-notice-contract'
 import type { MerchantAiSnapshot } from '../../domain/merchant-ai-authorization'
 import type { MerchantAiCapability } from '#/shared/domain/merchant-ai-capability'
 import {
@@ -90,7 +90,10 @@ async function readCandidate(tx: Tx, input: Input, policy: Policy) {
   const head = mapSnapshot(row)
   if (head.state !== 'enabled' || head.stateVersion !== input.stateVersion)
     return { skip: 'head_changed' } as const
-  if (isMerchantAiNoticeInForce(head)) return { skip: 'already_renewed' } as const
+  // A head is current only when every capability it has on is under a notice
+  // in force for that capability (ADR 0074).
+  if (isMerchantAiNoticeInForceForCapabilities(head))
+    return { skip: 'already_renewed' } as const
   const noticeSkip = standingRenewalTargetSkip(head.noticeVersion, policy.noticeVersion)
   if (noticeSkip) return { skip: noticeSkip }
   const skip = standingRenewalPropertySkip({
@@ -163,7 +166,7 @@ export function createStandingRenewalStore(deps: Deps): StandingRenewalStore {
         state_version: number
       }>(sql`
         SELECT organization_id, property_id, state_version FROM merchant_ai_enablement
-        WHERE state = 'enabled' AND NOT ${merchantAiNoticeInForceSql(sql`notice_version`, sql`notice_digest`)}
+        WHERE state = 'enabled' AND NOT ${merchantAiNoticeInForceSql(sql`notice_version`, sql`notice_digest`, sql`capabilities`)}
         ORDER BY property_id
       `)
       return result.rows.map((row) => ({

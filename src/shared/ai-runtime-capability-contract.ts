@@ -81,7 +81,7 @@ export const AI_RUNTIME_CAPABILITY_CATALOGUE = Object.freeze([
     caller: 'worker',
     operationProfileVersion: REVIEW_ANALYSIS_V3_VERSIONS.analysisOperation,
     providerDeploymentProfileVersion: SERVED_PROVIDER_DEPLOYMENT_PROFILE,
-    noticesInForce: MERCHANT_AI_NOTICES_IN_FORCE,
+    noticesInForce: MERCHANT_AI_NOTICES_IN_FORCE.review_analysis,
     served: true,
   }),
   Object.freeze({
@@ -94,7 +94,20 @@ export const AI_RUNTIME_CAPABILITY_CATALOGUE = Object.freeze([
     caller: 'web',
     operationProfileVersion: 'reply-suggestion-v1',
     providerDeploymentProfileVersion: SERVED_PROVIDER_DEPLOYMENT_PROFILE,
-    noticesInForce: MERCHANT_AI_NOTICES_IN_FORCE,
+    noticesInForce: MERCHANT_AI_NOTICES_IN_FORCE.reply_drafting,
+    served: false,
+  }),
+  Object.freeze({
+    capability: 'reply_drafting',
+    runtimeProfileVersion: 'reply-drafting-runtime-v2',
+    purpose: 'ai.generate_reply',
+    sourceRoute: 'reply-suggestion',
+    gatewayPath: '/v1/reply-suggestion',
+    gatewayProfileVersion: 'reply-suggestion-gateway-v2',
+    caller: 'web',
+    operationProfileVersion: 'reply-suggestion-v2',
+    providerDeploymentProfileVersion: 'private-beta-global-v3',
+    noticesInForce: MERCHANT_AI_NOTICES_IN_FORCE.reply_drafting,
     served: true,
   }),
   Object.freeze({
@@ -107,21 +120,8 @@ export const AI_RUNTIME_CAPABILITY_CATALOGUE = Object.freeze([
     caller: 'worker',
     operationProfileVersion: 'property-trend-v1',
     providerDeploymentProfileVersion: SERVED_PROVIDER_DEPLOYMENT_PROFILE,
-    noticesInForce: MERCHANT_AI_NOTICES_IN_FORCE,
+    noticesInForce: MERCHANT_AI_NOTICES_IN_FORCE.property_trends,
     served: true,
-  }),
-  Object.freeze({
-    capability: 'reply_drafting',
-    runtimeProfileVersion: 'reply-drafting-runtime-v2',
-    purpose: 'ai.generate_reply',
-    sourceRoute: 'reply-suggestion',
-    gatewayPath: '/v1/reply-suggestion',
-    gatewayProfileVersion: 'reply-suggestion-gateway-v2',
-    caller: 'web',
-    operationProfileVersion: 'reply-suggestion-v2',
-    providerDeploymentProfileVersion: 'private-beta-global-v3',
-    noticesInForce: MERCHANT_AI_NOTICES_IN_FORCE,
-    served: false,
   }),
 ] as const)
 
@@ -215,10 +215,10 @@ export function getAiRuntimeCapability(
  * asks it again, so the two cannot disagree.
  */
 export function isAiRuntimeNoticeInForce(
-  entry: Pick<AiRuntimeCapabilityV1, 'noticesInForce'>,
+  entry: Pick<AiRuntimeCapabilityV1, 'capability' | 'noticesInForce'>,
   notice: MerchantAiNoticeReference,
 ): boolean {
-  return isMerchantAiNoticeInForce(notice, entry.noticesInForce)
+  return isMerchantAiNoticeInForce(notice, entry.capability, entry.noticesInForce)
 }
 
 export type AiConsentExecution = Readonly<{
@@ -254,7 +254,7 @@ export function isExecutionCompatibleWithConsent(
 ): boolean {
   const { capability, acknowledgedNotice, servedExecution } = input
   return (
-    isMerchantAiNoticeInForce(acknowledgedNotice) &&
+    isMerchantAiNoticeInForce(acknowledgedNotice, capability) &&
     (!input.recordedNotice ||
       !materiallyChangedMerchantAiCapabilities(
         input.recordedNotice,

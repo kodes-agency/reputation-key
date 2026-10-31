@@ -1,14 +1,24 @@
+import { isDraftWaiting } from './reply-draft-session'
+import {
+  useStreamedReplyDraft,
+  useRestoreStreamedReplyDraft,
+} from './use-streamed-reply-draft'
 import { createDraftMeasurementSession, measuredDraftSnapshot } from './reply-measurement'
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { replyCommentProblem } from '#/shared/google-provider-control/reply-comment'
 import type { ReplyDraftSnapshot } from './use-reply-autosave'
 import {
+  isReplySuggestionVerifiable,
+  retryPendingReply,
+  chooseReplyTone,
+  type PendingReplyRequest,
+  type ReplyAssistScope,
   replySuggestionFixTarget,
   replySuggestionOffersTemplate,
   replySuggestionUnavailableMessage,
   type PendingReplySuggestion,
   type ReplySuggestionFixTarget,
   type ReplySuggestionGenerate,
+  type ReplySuggestionResult,
   type ReplyTone,
 } from './reply-suggestion-contract'
 import {
@@ -41,10 +51,7 @@ export type { ReplySuggestionResult, ReplyTone } from './reply-suggestion-contra
  * never persist a language nobody chose. Omitted, `request` reads the render's
  * draft and target exactly as before.
  */
-export type ReplyAssistScope = Readonly<{
-  draft: ReplyDraftSnapshot
-  target: ReplyLanguageTarget | null
-}>
+export type { ReplyAssistScope } from './reply-suggestion-contract'
 
 type Input = Readonly<{
   draft: ReplyDraftSnapshot
@@ -71,14 +78,19 @@ function requestIdentity(
   tone: ReplyTone,
   target: ReplyLanguageTarget,
   templateOnly: boolean,
+  trigger?: string,
+  maxWords?: number,
 ): string {
-  return `${templateOnly ? 'template' : 'ai'}:${tone}:${target.kind}`
+  return `${templateOnly ? 'template' : 'ai'}:${tone}:${target.kind}:${trigger ?? 'draft'}:${maxWords ?? 'standard'}`
 }
 
 export function useReplySuggestion(input: Input) {
-  const [tone, setTone] = useState<ReplyTone>('professional')
-  const [isGenerating, setIsGenerating] = useState(false)
-  const [isAdopting, setIsAdopting] = useState(false)
+  const stream = useStreamedReplyDraft(input.onGenerate)
+  const [tone, setTone] = useState<ReplyTone>(stream.initialTone)
+  const [{ isGenerating, isAdopting }, setActivity] = useState({
+    isGenerating: false,
+    isAdopting: false,
+  })
   const [error, setError] = useState<string | null>(null)
   const [errorFixTarget, setErrorFixTarget] = useState<ReplySuggestionFixTarget | null>(
     null,
@@ -97,9 +109,7 @@ export function useReplySuggestion(input: Input) {
   )
   useEffect(() => measurement.setEmitter(input.onMeasure), [measurement, input.onMeasure])
   const sequence = useRef(0)
-  const idempotencyKeys = useRef(
-    new Map<string, Readonly<{ key: string; trigger: 'draft' | 'try_again' | 'tone' }>>(),
-  )
+  const idempotencyKeys = useRef(new Map<string, PendingReplyRequest>())
   const inFlight = useRef<Readonly<{ identity: string; promise: Promise<void> }> | null>(
     null,
   )
@@ -132,17 +142,63 @@ export function useReplySuggestion(input: Input) {
     }
   }, [measurement])
 
+  const showResult = useCallback(
+    (
+      result: Extract<ReplySuggestionResult, { status: 'ready' | 'fallback' }>,
+      baseDraft: ReplyDraftSnapshot,
+      target: ReplyLanguageTarget,
+    ) => {
+      const verifiedLanguageTag = resolveSuggestedReplyLanguageTag(
+        result.concreteLanguageTag,
+        baseDraft.languageTag,
+        target,
+      )
+      if (!isReplySuggestionVerifiable(result, verifiedLanguageTag)) {
+        setError('The AI draft could not be verified. Try again.')
+        return
+      }
+      measurement.show(result)
+      const nextDraft = measuredDraftSnapshot(result, {
+        text: result.replyText,
+        languageTag: verifiedLanguageTag,
+      })
+      setSuggestion(
+        result.status === 'ready'
+          ? {
+              draft: nextDraft,
+              kind: 'personalized',
+              provenanceToken: result.provenanceToken,
+            }
+          : {
+              draft: nextDraft,
+              kind: 'local_fallback',
+              provenanceToken: null,
+              reason: result.reason,
+              languageSource: result.languageSource,
+            },
+      )
+    },
+    [measurement],
+  )
+
   const request = useCallback(
     (
       requestedTone: ReplyTone = tone,
       templateOnly = false,
       scope?: ReplyAssistScope,
-      explicitTrigger?: 'draft' | 'try_again' | 'tone',
+      explicitTrigger?: 'draft' | 'try_again' | 'shorter' | 'tone',
+      options?: Readonly<{ length: 'short'; maxWords: number }>,
     ): Promise<void> => {
       const target = scope ? scope.target : input.target
-      const onGenerate = input.onGenerate
+      const onGenerate = stream.generate
       if (!onGenerate || !target) return Promise.resolve()
-      const identity = requestIdentity(requestedTone, target, templateOnly)
+      const identity = requestIdentity(
+        requestedTone,
+        target,
+        templateOnly,
+        explicitTrigger,
+        options?.maxWords,
+      )
       // A repeated click while the same draft is being written joins it
       // instead of racing it: the later answer would otherwise win.
       if (inFlight.current?.identity === identity) return inFlight.current.promise
@@ -157,9 +213,15 @@ export function useReplySuggestion(input: Input) {
       const baseRevision = input.revision.current
       const baseDraft = scope ? scope.draft : input.draft
       const idempotencyKey = pending?.key ?? crypto.randomUUID()
-      idempotencyKeys.current.set(identity, { key: idempotencyKey, trigger })
+      idempotencyKeys.current.set(identity, {
+        key: idempotencyKey,
+        trigger,
+        args: [requestedTone, templateOnly, scope, explicitTrigger, options],
+      })
       setTone(requestedTone)
-      setIsGenerating(true)
+      stream.session?.reveal()
+      setActivity((current) => ({ ...current, isGenerating: true }))
+      setSuggestion(null)
       setError(null)
       setErrorFixTarget(null)
       setBusyUntil(null)
@@ -181,12 +243,14 @@ export function useReplySuggestion(input: Input) {
             idempotencyKeys.current.delete(identity)
             return
           }
+          if (requestSequence !== sequence.current) return
           const result = await onGenerate(
             requestedTone,
             target,
             templateOnly,
             idempotencyKey,
             trigger,
+            ...(options ? ([options] as const) : []),
           )
           // Busy is the only answer that keeps the key: the retry belongs to
           // the same request. Everything else finished that request, so the
@@ -208,103 +272,96 @@ export function useReplySuggestion(input: Input) {
             }
             return
           }
-          const verifiedLanguageTag = resolveSuggestedReplyLanguageTag(
-            result.concreteLanguageTag,
-            baseDraft.languageTag,
-            target,
-          )
-          if (
-            !result.replyText ||
-            replyCommentProblem(result.replyText) !== null ||
-            (result.status === 'ready' &&
-              (result.profileVersion !== 'reply-draft-v3' ||
-                result.expiresAtEpochMillis <= Date.now())) ||
-            verifiedLanguageTag === null
-          ) {
-            setError('The AI draft could not be verified. Try again.')
-            return
-          }
-          measurement.show(result)
-          const nextDraft = measuredDraftSnapshot(result, {
-            text: result.replyText,
-            languageTag: verifiedLanguageTag,
-          })
-          setSuggestion(
-            result.status === 'ready'
-              ? {
-                  draft: nextDraft,
-                  kind: 'personalized',
-                  provenanceToken: result.provenanceToken,
-                }
-              : {
-                  draft: nextDraft,
-                  kind: 'local_fallback',
-                  provenanceToken: null,
-                  reason: result.reason,
-                  languageSource: result.languageSource,
-                },
-          )
+          showResult(result, baseDraft, target)
         } catch {
           idempotencyKeys.current.delete(identity)
-          // Owner, not currency — the same question the `finally` asks. A
-          // THROWN failure of this request belongs to whoever started it;
-          // gating it on `sequence` meant one keystroke during generation
-          // (which calls `dismiss()`) swallowed it entirely, leaving a spinner
-          // that simply stopped and an assist row that said nothing. A
-          // returned refusal (`result.status === 'unavailable'`) does not come
-          // here: it is an ANSWER, and like a draft it must pass the
-          // `sequence` and revision check where the result is applied, so an
-          // edit made while it was pending still drops it without a word. The
-          // next click asks again, and a `busy` refusal has kept its key.
-          if (generatingRequest.current === requestSequence) {
+          // Typing or dismissal retires thrown failures as well as returned refusals.
+          if (requestSequence === sequence.current) {
             setError('The draft suggestion could not be generated. Try again.')
           }
         } finally {
           if (inFlight.current?.identity === identity) inFlight.current = null
-          if (generatingRequest.current === requestSequence) setIsGenerating(false)
+          if (generatingRequest.current === requestSequence)
+            setActivity((current) => ({ ...current, isGenerating: false }))
         }
       }
       const promise = run()
       inFlight.current = { identity, promise }
       return promise
     },
-    [input, tone, measurement],
+    [input, tone, measurement, stream, showResult],
   )
 
+  useRestoreStreamedReplyDraft({
+    stream,
+    isGenerating,
+    suggestion,
+    restore: (result, options) => {
+      measurement.request(options.tone, options.trigger)
+      setTone(options.tone)
+      showResult(
+        result,
+        { ...input.draft, languageTag: result.concreteLanguageTag },
+        options.targetLanguage,
+      )
+    },
+    retire: () => {
+      sequence.current += 1
+      setSuggestion(null)
+      setActivity((current) => ({ ...current, isGenerating: false }))
+      measurement.dismiss(false)
+    },
+  })
+
   /** The explicit choice after a refusal: the governed template, never a substitute. */
-  const requestTemplate = useCallback(() => request(tone, true), [request, tone])
+  const requestTemplate = () => request(tone, true)
 
   const dismiss = useCallback(
     (explicit = true) => {
       measurement.dismiss(explicit)
+      stream.session?.dismiss()
       sequence.current += 1
+      inFlight.current = null
+      idempotencyKeys.current.clear()
       setSuggestion(null)
+      setError(null)
+      setErrorFixTarget(null)
+      setBusyUntil(null)
+      setOffersTemplate(false)
+      setActivity((current) => ({ ...current, isGenerating: false }))
     },
-    [measurement],
+    [measurement, stream.session],
   )
 
   const adopt = useCallback(async () => {
     if (suggestion === null || isAdopting) return
-    setIsAdopting(true)
+    setActivity((current) => ({ ...current, isAdopting: true }))
     setError(null)
     setErrorFixTarget(null)
     try {
       await input.onAccept(suggestion.draft, suggestion.provenanceToken)
       input.onAdopt(suggestion.draft, suggestion.kind)
       measurement.adopt()
+      stream.session?.dismiss()
       setSuggestion(null)
     } catch {
       setError('The suggested draft could not be saved. Try again.')
     } finally {
-      setIsAdopting(false)
+      setActivity((current) => ({ ...current, isAdopting: false }))
     }
-  }, [input, isAdopting, suggestion, measurement])
+  }, [input, isAdopting, suggestion, measurement, stream.session])
 
   return {
     restoreMeasurement: measurement.restore,
     tone,
-    setTone,
+    changeTone: (tone: ReplyTone) => chooseReplyTone(tone, setTone),
+    stream,
+    stop: () => {
+      dismiss(false)
+      setActivity((current) => ({ ...current, isGenerating: false }))
+    },
     isGenerating,
+    isWaiting: isDraftWaiting(Boolean(stream.session), isGenerating, stream.state),
     isAdopting,
     error,
     errorFixTarget,
@@ -313,6 +370,9 @@ export function useReplySuggestion(input: Input) {
     suggestion,
     request,
     requestTemplate,
+    retry: () => retryPendingReply(idempotencyKeys.current, request),
+    requestAi: (tone?: ReplyTone, trigger?: Parameters<typeof request>[3]) =>
+      request(tone, false, undefined, trigger),
     adopt,
     dismiss,
   }

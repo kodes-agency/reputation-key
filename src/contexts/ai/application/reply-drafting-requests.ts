@@ -1,7 +1,8 @@
+import { createHash } from 'node:crypto'
 import { measureReplyDraftingAttempt } from './reply-drafting-measurement'
 import { AI_PERSONALIZED_REPLY_LANGUAGES } from '#/shared/ai-personalized-reply-contract'
 import type { AiOperationState } from './ports/ai-operation-store.port'
-import { REPLY_DRAFTING_V2_LANGUAGES } from '#/shared/reply-drafting-v2-schema'
+import { REPLY_DRAFTING_V2_SERVED_LANGUAGES } from '#/shared/reply-drafting-v2-schema'
 import { aiRequestFingerprint } from './ai-workflow-support'
 import type {
   GenerateReplySuggestionDependencies,
@@ -36,13 +37,25 @@ export async function admitReplyDraft(
 export function reportReplyReading(
   input: GenerateReplySuggestionInput,
   attempt?: ReplyDraftingV2Attempt,
+  frame?: Readonly<{ prefix: string; suffix: string }>,
+  reviewText?: string,
 ): void {
   if (!attempt) return
   reportReplyProgress(
     input.onProgress,
     attempt.rewriteOrdinal === 1
       ? { step: 'rewording', ordinal: 1 }
-      : { step: 'reading' },
+      : {
+          step: 'reading',
+          ...(frame ? { frame: { prefix: frame.prefix, suffix: frame.suffix } } : {}),
+          ...(reviewText === undefined
+            ? {}
+            : {
+                reviewTextDigest: createHash('sha256')
+                  .update(reviewText, 'utf8')
+                  .digest('hex'),
+              }),
+        },
   )
 }
 
@@ -256,7 +269,7 @@ export async function isReplyDraftingIdentityCurrent(
     deps,
     input,
     source.observation,
-    new Set(REPLY_DRAFTING_V2_LANGUAGES),
+    new Set(REPLY_DRAFTING_V2_SERVED_LANGUAGES),
   )
   const grant = await resolvers.grant(deps, input)
   return (
@@ -307,4 +320,18 @@ async function joinActiveDraft(
   } finally {
     if (onProgress) existing.sinks.delete(onProgress)
   }
+}
+
+/** The accepted closing may omit a second thank-you; deliver the actual local frame. */
+export function deliveredReplyFrame(
+  frame:
+    import('#/shared/reply-drafting-v2-frame').ReplyDraftingV2Frame | null | undefined,
+  text: string,
+): Readonly<{ localFrame?: Readonly<{ prefix: string; suffix: string }> }> {
+  const selected = frame?.candidates.find(
+    (candidate) => text.startsWith(candidate.prefix) && text.endsWith(candidate.suffix),
+  )
+  return selected
+    ? { localFrame: { prefix: selected.prefix, suffix: selected.suffix } }
+    : {}
 }

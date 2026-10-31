@@ -103,26 +103,28 @@ const validExecutionContract = (
   >,
 ) =>
   sql`(
-          (${t.noticeVersion} = 'merchant-ai-notice-2026-08-15.v1'
-            AND ${t.noticeDigest} = '4ae20219b3ba1ae575ccd567ec88f20201c0c47289606c614ac0bead2c3edc6b')
-          OR (${t.noticeVersion} = 'merchant-ai-notice-2026-08-19.v1'
-            AND ${t.noticeDigest} = 'f0d809baa42995be174a536561a56f4c6656e9b1a60feb5773466f2d1eb2bf31')
-          OR (${t.noticeVersion} = 'merchant-ai-notice-2026-09-06.v1'
-            AND ${t.noticeDigest} = '7bb8d9bddbec630d90f546ba4d0f308076840e25786389a19e1c651dd21434a8')
-          OR (${t.noticeVersion} = 'merchant-ai-notice-2026-09-08.v1'
-            AND ${t.noticeDigest} = 'c24030bc98918d3fa6a8e820bf6bca6489a4c8835cf61bd12ab6b84a8f0a0865')
-          OR (${t.noticeVersion} = 'merchant-ai-notice-2026-09-09.v1'
-            AND ${t.noticeDigest} = 'd80fe3b03f89697cde6c46810053248206aa3745b5f4a5522a24c1c2fdb438e1')
-          OR (${t.noticeVersion} = 'merchant-ai-notice-2026-09-15.v1'
-            AND ${t.noticeDigest} = '6c98ae3bb57b5b142afed1749a1b9f59be8d6ca7edaca3250e39055897289a9c')
-          OR (${t.noticeVersion} = 'merchant-ai-notice-2026-10-17.v1'
-            AND ${t.noticeDigest} = '2bcd2be15cbb81f324f9a9390ad00baff3ffbb25a6c0db8bff71fbb2b1b0975e')
-          OR (${t.noticeVersion} = 'merchant-ai-notice-2026-10-30.v1'
-            AND ${t.noticeDigest} = 'dadad7b81dbda360678fc57f7265b104c7311cbc213f877f32306c53b4852a5e')
+          (${t.noticeVersion}::text = 'merchant-ai-notice-2026-08-15.v1'::text
+            AND ${t.noticeDigest}::text = '4ae20219b3ba1ae575ccd567ec88f20201c0c47289606c614ac0bead2c3edc6b'::text)
+          OR (${t.noticeVersion}::text = 'merchant-ai-notice-2026-08-19.v1'::text
+            AND ${t.noticeDigest}::text = 'f0d809baa42995be174a536561a56f4c6656e9b1a60feb5773466f2d1eb2bf31'::text)
+          OR (${t.noticeVersion}::text = 'merchant-ai-notice-2026-09-06.v1'::text
+            AND ${t.noticeDigest}::text = '7bb8d9bddbec630d90f546ba4d0f308076840e25786389a19e1c651dd21434a8'::text)
+          OR (${t.noticeVersion}::text = 'merchant-ai-notice-2026-09-08.v1'::text
+            AND ${t.noticeDigest}::text = 'c24030bc98918d3fa6a8e820bf6bca6489a4c8835cf61bd12ab6b84a8f0a0865'::text)
+          OR (${t.noticeVersion}::text = 'merchant-ai-notice-2026-09-09.v1'::text
+            AND ${t.noticeDigest}::text = 'd80fe3b03f89697cde6c46810053248206aa3745b5f4a5522a24c1c2fdb438e1'::text)
+          OR (${t.noticeVersion}::text = 'merchant-ai-notice-2026-09-15.v1'::text
+            AND ${t.noticeDigest}::text = '6c98ae3bb57b5b142afed1749a1b9f59be8d6ca7edaca3250e39055897289a9c'::text)
+          OR (${t.noticeVersion}::text = 'merchant-ai-notice-2026-10-17.v1'::text
+            AND ${t.noticeDigest}::text = '2bcd2be15cbb81f324f9a9390ad00baff3ffbb25a6c0db8bff71fbb2b1b0975e'::text)
+          OR (${t.noticeVersion}::text = 'merchant-ai-notice-2026-10-30.v1'::text
+            AND ${t.noticeDigest}::text = 'dadad7b81dbda360678fc57f7265b104c7311cbc213f877f32306c53b4852a5e'::text)
+          OR (${t.noticeVersion}::text = 'merchant-ai-notice-2026-11-01.v1'::text
+            AND ${t.noticeDigest}::text = 'e9574380fd1ba5f4b7bd7b9899bc5e6bdf371f9d9871584f33c5c1e6131290ef'::text)
         )
-        AND ${t.sourcePolicyId} = 'google-business-profile-source-policy-v1'
-        AND ${t.routingPolicyVersion} = 1
-        AND ${t.redactionProfileFamily} = 'gbp-review-global-v1'`
+        AND ${t.sourcePolicyId}::text = 'google-business-profile-source-policy-v1'::text
+        AND ${t.routingPolicyVersion} = 1::integer
+        AND ${t.redactionProfileFamily}::text = 'gbp-review-global-v1'::text`
 
 export const merchantAiConsentEvidence = pgTable(
   'merchant_ai_consent_evidence',
@@ -225,7 +227,7 @@ export const merchantAiConsentEvidence = pgTable(
     ),
     check(
       'merchant_ai_consent_evidence_profile_valid',
-      sql`${t.providerDeploymentProfileVersion} IN ('private-beta-global-v1', 'private-beta-global-v2')`,
+      sql`${t.providerDeploymentProfileVersion}::text = ANY (ARRAY['private-beta-global-v1'::text, 'private-beta-global-v2'::text, 'private-beta-global-v3'::text])`,
     ),
     check(
       'merchant_ai_consent_evidence_notice_digest_valid',
@@ -326,7 +328,7 @@ export const merchantAiEnablement = pgTable(
     check('merchant_ai_enablement_region_valid', sql`${t.processingRegion} = 'global'`),
     check(
       'merchant_ai_enablement_profile_valid',
-      sql`${t.providerDeploymentProfileVersion} IN ('private-beta-global-v1', 'private-beta-global-v2')`,
+      sql`${t.providerDeploymentProfileVersion}::text = ANY (ARRAY['private-beta-global-v1'::text, 'private-beta-global-v2'::text, 'private-beta-global-v3'::text])`,
     ),
     check(
       'merchant_ai_enablement_notice_digest_valid',

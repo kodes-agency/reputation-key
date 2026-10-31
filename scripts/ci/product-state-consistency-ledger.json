@@ -616,6 +616,12 @@
       "policy": "Latch the first successful list page's viewedUpTo value for the active organization and ignore later visit-stamp refetches, so rows that were new when the workspace opened keep their marker for that visit. An organization change clears the rendered value immediately and the reconciliation effect seeds the new organization's first page; the query result remains the server authority for every other list field."
     },
     {
+      "id": "src/components/inbox/use-reply-suggestion.ts:useState(tone)",
+      "classification": "local_runtime",
+      "owner": "Inbox reply drafting session",
+      "policy": "Seed the editor's tone from the detail-owned session when it mounts, then let explicit Tone selections and requests own it. Collapse and mode changes preserve the session options; this local choice grants no server authority and never mirrors a durable reply field."
+    },
+    {
       "id": "src/components/inbox/use-reply-suggestion.ts:useState(measurement)",
       "classification": "local_runtime",
       "owner": "Inbox draft usage measurement",

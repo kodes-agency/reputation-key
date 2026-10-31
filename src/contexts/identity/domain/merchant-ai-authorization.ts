@@ -18,7 +18,7 @@ export type CurrentMerchantAiCapability = MerchantAiCapability
  * again, and execution compatibility is decided by its notice, not this evidence.
  */
 export type MerchantAiProviderDeploymentProfile =
-  'private-beta-global-v1' | 'private-beta-global-v2'
+  'private-beta-global-v1' | 'private-beta-global-v2' | 'private-beta-global-v3'
 
 export type MerchantAiState = 'disabled' | 'enabled' | 'revoked'
 

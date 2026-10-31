@@ -95,8 +95,9 @@ Drizzle derives every historical combination from the append-only
 The construct file now states the live function and notice-change helper. Old
 migrations remain immutable: these two named forward-only definitions are the
 explicit exception to 0001 being a byte copy of `db-constructs.sql`. Construct
-parity checks require both to equal migration 0084; no superseded transition
-body remains authoritative.
+parity checks require the transition to equal migration 0084 and the notice-change
+helper to equal its latest restatement (0088, which adds the 2026-11-01 notice); no
+superseded transition body remains authoritative.
 
 Regressions cover compatible runtime/operation/deployment refreshes without
 consent writes or epoch bumps; out-of-force notices without provider work;
@@ -122,3 +123,22 @@ move to it automatically with the capabilities they had
 ([ADR 0075](0075-standing-ai-opt-in-renews-automatically.md)). The "explicit
 acknowledgement" above applies only to capabilities a Property does not already
 have on. Everything else in this ADR is unchanged.
+
+## Drafting-only notice activation (2026-11-01)
+
+Notices in force are per capability, in the browser-safe notice contract and each
+runtime catalogue entry. The 2026-11-01 notice is alone in force for
+`reply_drafting`; `review_analysis` and `property_trends` also keep the 2026-10-30
+notice in force because their data use is unchanged. The same capability-specific
+check governs admission, settlement, gateway validation, SQL drafting fences and the
+delivery of stored analysis. Until a Property moves to the 2026-11-01 notice,
+analysis, trends and Urgent alerts continue under its 10-30 consent while only
+drafting answers `consent_renewal_required`, with the `ai_notice` fix target. A head
+counts as lapsed, for Settings and for the standing renewal of ADR 0075, when any of
+its enabled capabilities is under a notice out of force for that capability, so the
+renewal job moves it.
+
+The move advances only the drafting epoch. Analysis and trends epochs and the
+analysis watermark remain unchanged, so it neither replays analysis nor interrupts
+its alerts or trends, and analysis stored under the 10-30 notice stays visible.
+Disabled Properties remain disabled.

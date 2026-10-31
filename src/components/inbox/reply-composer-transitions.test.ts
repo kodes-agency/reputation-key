@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   adoptionRevealsReviewLanguage,
+  draftInText,
   regenerateScope,
   restoreSnapshot,
   submitAfterSave,
@@ -13,6 +14,19 @@ const detectable = {
   reviewLanguage: 'tr-Latn-TR',
   reviewLanguageReadiness: 'detectable',
 } as const
+
+it('preserves body boundaries when the manager edits the greeting', () => {
+  const draft = {
+    text: 'Hello Anna,\n\nA useful body.\n\nThe team',
+    languageTag: 'en-Latn',
+    bodyFrame: { prefix: 'Hello Anna,', suffix: 'The team' },
+  }
+  expect(draftInText(draft, draft.text.replace('Anna', 'Alexandra'))).toEqual({
+    ...draft,
+    text: 'Hello Alexandra,\n\nA useful body.\n\nThe team',
+    bodyFrame: { prefix: 'Hello Alexandra,', suffix: 'The team' },
+  })
+})
 
 describe('what Undo restores', () => {
   const typed: ReplyComposerSnapshot = {

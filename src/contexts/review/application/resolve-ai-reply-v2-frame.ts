@@ -58,3 +58,46 @@ export async function resolveAiReplyV2Frame(
     throw error
   }
 }
+
+export type ResolveSavedReplyFrameInput = Readonly<{
+  organizationId: OrganizationId
+  propertyId: PropertyId
+  reviewId: ReviewId
+  languageGroup: string
+  voiceDigest: string
+  choices: import('#/shared/reply-drafting-v2-binding').ReplyVoiceChoices
+  text: string
+}>
+
+/** Reconstruct saved boundaries from persisted voice choices without reserving another frame. */
+export async function resolveSavedReplyFrame(
+  deps: Readonly<{ repository: ReplyLibraryRepository; reviews: ReviewRepository }>,
+  input: ResolveSavedReplyFrameInput,
+): Promise<Readonly<{ prefix: string; suffix: string }> | null> {
+  const resolved = await readAiReplyVoiceSnapshot(deps, input)
+  if (!resolved) return null
+  const { snapshot, review, voice, languageGroup } = resolved
+  if (digestResolvedReplyVoice(voice, languageGroup) !== input.voiceDigest) return null
+  try {
+    const frame = buildAiReplyV2Frame(
+      {
+        voice,
+        languageGroup,
+        rating: review.rating,
+        hasText: Boolean(review.text?.trim()),
+        reviewerDisplayName: review.reviewerName,
+        propertyDisplayName: snapshot.propertyName,
+      },
+      { choices: input.choices, closingOrder: [input.choices.closing] },
+    )
+    const candidate = frame.candidates[0]
+    return candidate &&
+      input.text.startsWith(candidate.prefix) &&
+      input.text.endsWith(candidate.suffix)
+      ? { prefix: candidate.prefix, suffix: candidate.suffix }
+      : null
+  } catch (error) {
+    if (isReplyRenderError(error)) return null
+    throw error
+  }
+}

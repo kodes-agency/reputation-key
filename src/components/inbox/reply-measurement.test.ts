@@ -1,3 +1,5 @@
+import { replyBodyWords } from '#/shared/domain/reply-frame'
+import { restoreSnapshot } from './reply-composer-transitions'
 import { describe, expect, it } from 'vitest'
 import { normalizedDraftEditDistance } from './reply-measurement'
 
@@ -136,4 +138,42 @@ it('never supersedes an adopted draft on leave, replacement, restore or late com
   detach()
   await Promise.resolve()
   expect(events.filter((event) => event.event === 'superseded')).toEqual([])
+})
+
+it('keeps the adopted body frame independent from the next preview and restores it with Undo', () => {
+  const frameA = {
+    prefix: 'Hello Anna,',
+    suffix: 'Contact our team. Kind regards, Management',
+  }
+  const frameB = {
+    prefix: 'Dear Anna,',
+    suffix: 'We hope to see you again. Yours sincerely, Team',
+  }
+  const body = 'One two three four five six seven eight.'
+  const text = `${frameA.prefix}\n\n${body}\n\n${frameA.suffix}`
+  const adopted = measuredDraftSnapshot(
+    { ...ready('a'), localFrame: frameA },
+    { text, languageTag: 'en-Latn' },
+  )
+  const preview = measuredDraftSnapshot(
+    { ...ready('b'), localFrame: frameB },
+    { text: 'A different proposed reply.', languageTag: 'en-Latn' },
+  )
+  expect(replyBodyWords(adopted.text, adopted.bodyFrame ?? null)).toBe(8)
+  expect(preview.bodyFrame).toEqual(frameB)
+  const restored = restoreSnapshot(
+    {
+      draft: adopted,
+      adoption: { kind: 'personalized', languageTag: 'en-Latn', template: null },
+      hasAiDraft: true,
+    },
+    { detectedReviewLanguage: 'en-Latn', reviewLanguageReadiness: 'detectable' },
+  )
+  expect(restored.snapshot.draft.bodyFrame).toEqual(frameA)
+  expect(
+    replyBodyWords(
+      restored.snapshot.draft.text,
+      restored.snapshot.draft.bodyFrame ?? null,
+    ),
+  ).toBe(8)
 })

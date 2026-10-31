@@ -3,6 +3,8 @@ import { z } from 'zod/v4'
 export { canonicalizeRfc8785 } from './canonical-json'
 
 // Changelog — every entry is a new version; the newest is first.
+// 2026-11-01: background/body-only drafting v2; materially changes reply_drafting
+// alone. Review Analysis and trends retain their epochs (ADR 0074).
 //
 // merchant-ai-notice-2026-10-30.v1 — the switch-on of review analysis v3
 // (the text the owner approved on 2026-10-30, served word for word):
@@ -60,7 +62,7 @@ export { canonicalizeRfc8785 } from './canonical-json'
 // (merchant-ai-authorization.schema.ts), and a head granted under an earlier
 // version is re-granted, not rewritten. Whether it still admits AI work is
 // `isMerchantAiNoticeInForce`.
-export const MERCHANT_AI_NOTICE_VERSION = 'merchant-ai-notice-2026-10-30.v1' as const
+export const MERCHANT_AI_NOTICE_VERSION = 'merchant-ai-notice-2026-11-01.v1' as const
 
 const capabilitySchema = z
   .object({
@@ -131,7 +133,7 @@ export const MERCHANT_AI_NOTICE_PAYLOAD: MerchantAiNoticePayload = Object.freeze
       id: 'data_and_features',
       title: 'Data and selected features',
       body: Object.freeze([
-        'RepKey may use the Google review body, star rating, review time, evaluated language, and property context needed for the selected feature. Property context includes the business category Google lists for the property, such as "Hotel", and example words RepKey picks for that category. Reviewer names, profile photos, Google identifiers, exact provider resource names, and raw organization, property, user, and review identifiers are excluded from the provider request.',
+        'RepKey may use the Google review body, star rating, review time, evaluated language, and property context needed for the selected feature, and facts your property chose to share with the AI. Property context includes the business category Google lists for the property, such as "Hotel", and example words RepKey picks for that category. Reviewer names, profile photos, Google identifiers, exact provider resource names, and raw organization, property, user, and review identifiers are excluded from the provider request.',
         "Before provider processing, RepKey applies automated minimization and redaction. It removes contact details, addresses, financial details, identifiers and secrets that it can recognise, and the reviewer's own name. It does not remove other names: if a review names a staff member or another guest, that name goes to the provider as part of the text. Other personal details can also be missed. A rotating pseudonymous safety identifier contains no raw actor, organization, property, or review identifier.",
         'Supported analysis groups are und, en-Latn, es-Latn, fr-Latn, de-Latn, pt-Latn, it-Latn, nl-Latn, pl-Latn, tr-Latn, uk-Cyrl, ru-Cyrl, ar-Arab, he-Hebr, hi-Deva, bn-Beng, ta-Taml, th-Thai, vi-Latn, id-Latn, zh-Hans, zh-Hant, ja-Jpan, ko-Kore, and bg-Cyrl. Explicit languages outside this catalogue are skipped before provider work.',
         'Review analysis keeps a record of what each review says about the business. The next section lists exactly what it keeps.',
@@ -225,7 +227,7 @@ export const MERCHANT_AI_NOTICE_PAYLOAD: MerchantAiNoticePayload = Object.freeze
       title: 'Human control and AI limitations',
       body: Object.freeze([
         'AI output can be inaccurate. Review analysis and trend summaries are decision support, not facts or professional advice. An analysis can mark a review Urgent when it is not, and can miss one that is. Do not treat the Urgent alert as your only way to find a serious report.',
-        "A reply suggestion is drafted by the AI provider from the review text and the Property's public display name, grounded in exact excerpts of the review and verified for language before it is shown; when the provider cannot produce a valid draft, a fixed application-owned localized starting point is offered instead. Suggestions remain editable and are never published without the existing separate human submit, approve, and publish workflow.",
+        "Drafts may be prepared when a manager opens a review or asks for one. The AI provider drafts the reply body from the review text (numbered sentences), the rating, the language, the tone, and facts your property chose to share with the AI. RepKey adds the property's greeting, contact line, closing and signature locally. The draft is verified for language before it is shown; when the provider cannot produce a valid draft, a fixed application-owned localized starting point is offered instead. Suggestions remain editable and are never published without the existing separate human submit, approve, and publish workflow.",
         "AI output cannot publish a reply, change an Inbox item's status, assignment, escalation or priority, or decide anything about a person. The only message it can send on its own is an Urgent alert.",
       ]),
       links: Object.freeze([]),
@@ -242,7 +244,7 @@ export const MERCHANT_AI_NOTICE_PAYLOAD: MerchantAiNoticePayload = Object.freeze
       id: 'reply_drafting',
       title: 'Reply drafting',
       description:
-        'Draft an editable, grounded reply suggestion from the review when a manager asks.',
+        'Prepare an editable reply suggestion when a manager opens a review or asks for one.',
     }),
     Object.freeze({
       id: 'property_trends',
@@ -285,7 +287,7 @@ export const MERCHANT_AI_NOTICE_PAYLOAD: MerchantAiNoticePayload = Object.freeze
 noticePayloadSchema.parse(MERCHANT_AI_NOTICE_PAYLOAD)
 
 export const MERCHANT_AI_NOTICE_DIGEST =
-  'dadad7b81dbda360678fc57f7265b104c7311cbc213f877f32306c53b4852a5e' as const
+  'e9574380fd1ba5f4b7bd7b9899bc5e6bdf371f9d9871584f33c5c1e6131290ef' as const
 
 /** The notice a consent was recorded under, by version and digest. */
 export type MerchantAiNoticeReference = Readonly<{
@@ -305,6 +307,15 @@ export const MERCHANT_AI_NOTICE_CHANGES: ReadonlyArray<MerchantAiNoticeChange> =
     Object.freeze({
       noticeVersion: MERCHANT_AI_NOTICE_VERSION,
       noticeDigest: MERCHANT_AI_NOTICE_DIGEST,
+      replaces: Object.freeze({
+        noticeVersion: 'merchant-ai-notice-2026-10-30.v1',
+        noticeDigest: 'dadad7b81dbda360678fc57f7265b104c7311cbc213f877f32306c53b4852a5e',
+      }),
+      materiallyChanges: Object.freeze(['reply_drafting'] as const),
+    }),
+    Object.freeze({
+      noticeVersion: 'merchant-ai-notice-2026-10-30.v1',
+      noticeDigest: 'dadad7b81dbda360678fc57f7265b104c7311cbc213f877f32306c53b4852a5e',
       replaces: Object.freeze({
         noticeVersion: 'merchant-ai-notice-2026-10-17.v1',
         noticeDigest: '2bcd2be15cbb81f324f9a9390ad00baff3ffbb25a6c0db8bff71fbb2b1b0975e',
@@ -327,35 +338,50 @@ export const MERCHANT_AI_NOTICE_CHANGES: ReadonlyArray<MerchantAiNoticeChange> =
     }),
   ])
 
-/**
- * The notices whose consent is in force: the served one alone. 2026-10-30 changes
- * what a merchant agrees to (a second provider, what review analysis v3 keeps, the
- * Urgent alert, quality testing), so no earlier notice is carried forward: consent
- * under 2026-10-17 and 2026-09-15 lapses at the deploy and every enabled Property
- * re-consents (2026-09-09 and 2026-09-15 did the same). A version that only changes
- * how consent is asked, as 2026-10-17 did, is listed beside its successor so nobody
- * re-consents; this one is not that.
- */
-export const MERCHANT_AI_NOTICES_IN_FORCE: ReadonlyArray<MerchantAiNoticeReference> =
-  Object.freeze([
-    Object.freeze({
-      noticeVersion: MERCHANT_AI_NOTICE_VERSION,
-      noticeDigest: MERCHANT_AI_NOTICE_DIGEST,
-    }),
-  ])
+/** Notices remain in force for each capability's unchanged data use (ADR 0074). */
+const SERVED_NOTICE = Object.freeze({
+  noticeVersion: MERCHANT_AI_NOTICE_VERSION,
+  noticeDigest: MERCHANT_AI_NOTICE_DIGEST,
+})
+const ANALYSIS_NOTICES = Object.freeze([
+  SERVED_NOTICE,
+  Object.freeze({
+    noticeVersion: 'merchant-ai-notice-2026-10-30.v1',
+    noticeDigest: 'dadad7b81dbda360678fc57f7265b104c7311cbc213f877f32306c53b4852a5e',
+  }),
+])
+export const MERCHANT_AI_NOTICES_IN_FORCE: Readonly<
+  Record<MerchantAiCapability, ReadonlyArray<MerchantAiNoticeReference>>
+> = Object.freeze({
+  review_analysis: ANALYSIS_NOTICES,
+  property_trends: ANALYSIS_NOTICES,
+  reply_drafting: Object.freeze([SERVED_NOTICE]),
+})
 
-/**
- * Whether consent recorded under `notice` is in force: its version, with its own
- * digest, is listed in `inForce` (by default the notices this build serves).
- */
 export function isMerchantAiNoticeInForce(
   notice: MerchantAiNoticeReference,
-  inForce: ReadonlyArray<MerchantAiNoticeReference> = MERCHANT_AI_NOTICES_IN_FORCE,
+  capability: MerchantAiCapability,
+  inForce = MERCHANT_AI_NOTICES_IN_FORCE[capability],
 ): boolean {
   return inForce.some(
     (listed) =>
       listed.noticeVersion === notice.noticeVersion &&
       listed.noticeDigest === notice.noticeDigest,
+  )
+}
+
+/** Settings renews consent if any selected capability needs a newer notice. */
+export function isMerchantAiNoticeInForceForCapabilities(
+  authorization: MerchantAiNoticeReference &
+    Readonly<{
+      capabilities: ReadonlyArray<MerchantAiCapability>
+    }>,
+): boolean {
+  const capabilities = authorization.capabilities.length
+    ? authorization.capabilities
+    : (['review_analysis', 'reply_drafting', 'property_trends'] as const)
+  return capabilities.every((capability) =>
+    isMerchantAiNoticeInForce(authorization, capability),
   )
 }
 

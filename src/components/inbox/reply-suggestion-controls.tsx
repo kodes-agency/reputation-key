@@ -1,9 +1,15 @@
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '#/components/ui/dropdown-menu'
 import { Link } from '@tanstack/react-router'
 import { FileText, RotateCcw, Undo2 } from 'lucide-react'
 import { usePermissions } from '#/shared/hooks/usePermissions'
 import { Button } from '#/components/ui/button'
 import { cn } from '#/lib/utils'
-import { ReplyAiMenu, type ReplyAiMenuProps } from './reply-ai-menu'
+import { ReplyAiMenu, TONES, TONE_LABEL, type ReplyAiMenuProps } from './reply-ai-menu'
 import type { ReplySuggestionFixTarget } from './reply-suggestion-contract'
 import { ReplyTemplateMenu, type ReplyTemplateMenuProps } from './reply-template-menu'
 import { useRetryCountdown } from './use-retry-countdown'
@@ -23,6 +29,8 @@ type Props = Omit<ReplyAiMenuProps & ReplyTemplateMenuProps, 'isPrimary'> &
     primaryMode: SuggestionMode
     canUndo: boolean
     hasAiDraft: boolean
+    bodyWordCount?: number
+    onShorter?: () => void
     aiError: string | null
     /** Our own AI capacity is busy until this instant (`use-reply-suggestion.ts`). */
     aiBusyUntil: number | null
@@ -32,6 +40,7 @@ type Props = Omit<ReplyAiMenuProps & ReplyTemplateMenuProps, 'isPrimary'> &
     templateError: string | null
     errorFixTarget?: ReplySuggestionFixTarget | null
     onUndo: () => void
+    onRetryAi?: () => void
   }>
 
 /*
@@ -74,15 +83,39 @@ export function ReplySuggestionControls(props: Props) {
       {props.primaryMode === 'ai' ? [ai, template] : [template, ai]}
       {props.hasAiDraft && (
         <>
-          <Button
-            type="button"
-            size="sm"
-            variant="outline"
-            disabled={props.disabled || props.aiDisabled}
-            onClick={() => void props.onRequestAi('friendly', 'tone')}
-          >
-            Friendlier
-          </Button>
+          {(props.bodyWordCount ?? 0) > 12 && (
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              disabled={props.disabled || props.aiDisabled}
+              onClick={props.onShorter}
+            >
+              Shorter
+            </Button>
+          )}
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                disabled={props.disabled || props.aiDisabled}
+              >
+                Tone
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent>
+              {TONES.map((tone) => (
+                <DropdownMenuItem
+                  key={tone}
+                  onSelect={() => void props.onRequestAi(tone, 'tone')}
+                >
+                  {TONE_LABEL[tone]}
+                </DropdownMenuItem>
+              ))}
+            </DropdownMenuContent>
+          </DropdownMenu>
           <Button
             type="button"
             size="sm"
@@ -161,6 +194,7 @@ type SuggestionErrorLineProps = Pick<
   | 'disabled'
   | 'aiDisabled'
   | 'onRequestAi'
+  | 'onRetryAi'
 >
 
 /**
@@ -190,7 +224,9 @@ function SuggestionErrorLine(props: SuggestionErrorLineProps) {
               key={props.aiBusyUntil}
               retryAtEpochMillis={props.aiBusyUntil}
               disabled={props.disabled || props.aiDisabled}
-              onRetry={() => void props.onRequestAi(undefined, 'try_again')}
+              onRetry={
+                props.onRetryAi ?? (() => void props.onRequestAi(undefined, 'try_again'))
+              }
             />
           )}
           {props.aiOffersTemplate && (

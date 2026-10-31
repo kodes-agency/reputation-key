@@ -11,15 +11,15 @@ const migration = (name: string) =>
 
 describe('dark streaming deployment migration', () => {
   it.each([merchantAiConsentEvidence, merchantAiEnablement])(
-    'keeps the consent deployment CHECK at its served v1/v2 migration',
+    'admits the streaming deployment only at release',
     (table) => {
       const config = getTableConfig(table)
       const check = config.checks.find(
         (candidate) => candidate.name === `${config.name}_profile_valid`,
       )!
       const predicate = new PgDialect().sqlToQuery(check.value).sql
-      expect(predicate).not.toContain('private-beta-global-v3')
-      expect(migration('0083_review_analysis_v3_switch_on')).toContain(
+      expect(predicate).toContain('private-beta-global-v3')
+      expect(migration('0088_reply_drafting_v2_release')).toContain(
         `ADD CONSTRAINT "${check.name}" CHECK (${predicate})`,
       )
     },

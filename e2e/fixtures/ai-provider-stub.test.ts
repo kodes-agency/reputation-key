@@ -67,6 +67,41 @@ const anthropicHeaders = Object.freeze({
 })
 
 describe('AI Responses provider stub', () => {
+  it('serves v2 metadata/body deltas and exactly one terminal with billed usage', async () => {
+    handle = await startAiProviderStub(0)
+    const parsed = {
+      languageCode: 'en-Latn',
+      case: 'complaint',
+      mainPoint: [1],
+      avoidTerms: [],
+      replyText:
+        'We are sorry the arrival was disappointing and appreciate your feedback.',
+    }
+    await arm({ operationKind: 'reply', parsed })
+    const response = await fetch(`${handle.baseUrl}/v1/responses`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ ...providerRequest('reply_draft_v4'), stream: true }),
+    })
+    expect(response.headers.get('content-type')).toBe('text/event-stream')
+    const events = (await response.text())
+      .split('\n\n')
+      .filter((part) => part.startsWith('data: {'))
+      .map((part) => JSON.parse(part.slice(6)))
+    expect(events.map((event) => event.type)).toEqual([
+      'response.output_text.delta',
+      'response.output_text.delta',
+      'response.completed',
+    ])
+    expect(
+      events
+        .slice(0, 2)
+        .map((event) => event.delta)
+        .join(''),
+    ).toBe(JSON.stringify(parsed))
+    expect(events[2].response.usage).toMatchObject({ input_tokens: 10, output_tokens: 5 })
+    expect(events[2].response.output[0].content[0].text).toBe(JSON.stringify(parsed))
+  })
   it('serves one ordered scripted response without recording provider input', async () => {
     handle = await startAiProviderStub(0)
     expect(

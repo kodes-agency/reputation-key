@@ -1,4 +1,7 @@
-import { useEffect, useRef } from 'react'
+import { stopReplyDraft } from './reply-ai-menu'
+import { ReplyDraftWaiting, draftStepText } from './reply-draft-waiting'
+import { replyBodyWords, shorterReplyMaxWords } from '#/shared/domain/reply-frame'
+import { useEffect, useRef, useState } from 'react'
 import { Textarea } from '#/components/ui/textarea'
 import {
   GOOGLE_REPLY_COMMENT_MAX_BYTES,
@@ -31,6 +34,7 @@ export type { ReplySuggestionResult, ReplyTone } from './use-reply-suggestion'
 
 export type ReplyComposeProps = Readonly<{
   propertyId: string
+  initialBodyFrame?: import('./reply-autosave-coordinator').ReplyDraftSnapshot['bodyFrame']
   initialText: string
   initialLanguageTag: string | null
   initialMeasurementBaseReplyRevision?: number | null
@@ -114,6 +118,7 @@ function aiUnavailableReason(
 export function ReplyCompose(props: ReplyComposeProps) {
   const state = useReplyComposer({
     initialText: props.initialText,
+    initialBodyFrame: props.initialBodyFrame,
     initialLanguageTag: props.initialLanguageTag,
     initialMeasurementBaseReplyRevision: props.initialMeasurementBaseReplyRevision,
     initialMeasurementGenerationId: props.initialMeasurementGenerationId,
@@ -142,19 +147,29 @@ export function ReplyCompose(props: ReplyComposeProps) {
   // the text it produced. Not while adopting: the textarea is disabled then,
   // and a disabled element takes no focus. A failed adoption keeps its
   // preview, and `Use draft` with it, so nothing moves.
+  const draftButton = useRef<HTMLButtonElement>(null)
   const textarea = useRef<HTMLTextAreaElement>(null)
   const returnCaretAfterAdopt = useRef(false)
+  const [templateMenuOpen, setTemplateMenuOpen] = useState(false)
+  const openTemplates = () => {
+    state.templates.prepareMenu()
+    setTemplateMenuOpen(true)
+  }
   const { isAdopting, suggestion } = state.ai
   useEffect(() => {
     if (!returnCaretAfterAdopt.current || isAdopting) return
     returnCaretAfterAdopt.current = false
     if (suggestion === null) textarea.current?.focus()
   }, [isAdopting, suggestion])
-  const busy =
-    props.isSaving ||
-    state.ai.isGenerating ||
-    state.ai.isAdopting ||
-    state.templates.isLoading
+  const busy = props.isSaving || state.ai.isAdopting || state.templates.isLoading
+  // The mounted status announces progress without duplicating the head's save state.
+  const waiting = state.ai.isWaiting
+  const bodyWords = replyBodyWords(state.draft.text, state.draft.bodyFrame)
+  const requestShorter = () =>
+    void state.ai.request(undefined, false, undefined, 'shorter', {
+      length: 'short',
+      maxWords: Math.min(80, shorterReplyMaxWords(bodyWords)),
+    })
   const usesTemplatePath = props.reviewLanguageReadiness !== 'detectable'
   const templateBlockedReason = templateUnavailableReason(
     state.target !== null,
@@ -162,7 +177,7 @@ export function ReplyCompose(props: ReplyComposeProps) {
   )
   const aiBlockedReason = aiUnavailableReason(
     state.target !== null,
-    Boolean(props.onGenerateSuggestion),
+    Boolean(props.onGenerateSuggestion || state.ai.stream.session),
     props.reviewLanguageReadiness,
   )
   const primaryExplanation = PRIMARY_EXPLANATIONS[props.reviewLanguageReadiness]
@@ -192,6 +207,18 @@ export function ReplyCompose(props: ReplyComposeProps) {
     // why it is refused while the language is unresolved (`submitBlockedReason`).
     <div className="flex min-h-0 grow basis-auto flex-col">
       <div className={DOCK_TEXT_ROW_CLASS}>
+        <p role="status" className="sr-only">
+          {waiting ? draftStepText(state.ai.stream.state) : ''}
+        </p>
+        {waiting && (
+          <div className="px-3 pt-2.5">
+            <ReplyDraftWaiting
+              state={state.ai.stream.state}
+              onStop={() => stopReplyDraft(state.ai.stop, draftButton)}
+              onTemplates={openTemplates}
+            />
+          </div>
+        )}
         {state.ai.suggestion && (
           // The preview's own box stays: it is a proposal ABOUT the text, not
           // the text, and the dashed/solid vocabulary of the dock does not
@@ -199,6 +226,7 @@ export function ReplyCompose(props: ReplyComposeProps) {
           <div className="px-3 pt-2.5">
             <ReplySuggestionPreview
               suggestion={state.ai.suggestion}
+              frame={state.ai.stream.state.frame}
               propertyLanguage={props.propertyDefaultReplyLanguage}
               disabled={busy}
               isAdopting={state.ai.isAdopting}
@@ -219,9 +247,6 @@ export function ReplyCompose(props: ReplyComposeProps) {
               props.reviewLanguageReadiness === 'detectable'
             }
             disabled={busy}
-            // Asks in the other language WITHOUT selecting it: the draft keeps
-            // its text, tag and saved language until the preview is adopted
-            // (`regenerateScope`, `reply-composer-transitions.ts`).
             onRegenerate={(languageTag) => void state.regenerateIn(languageTag)}
             onAnotherWording={state.anotherWording ?? undefined}
             anotherWordingNeedsConfirmation={state.anotherWordingNeedsConfirmation}
@@ -265,6 +290,7 @@ export function ReplyCompose(props: ReplyComposeProps) {
             line rather than overflow the dock. */}
         <div className="flex min-w-0 flex-auto">
           <ReplySuggestionControls
+            draftButtonRef={draftButton}
             primaryMode={usesTemplatePath ? 'template' : 'ai'}
             primaryExplanation={primaryExplanation}
             tone={state.ai.tone}
@@ -273,14 +299,19 @@ export function ReplyCompose(props: ReplyComposeProps) {
             aiDisabled={aiBlockedReason !== null}
             templateUnavailableReason={templateBlockedReason}
             aiUnavailableReason={aiBlockedReason}
-            isGenerating={state.ai.isGenerating}
+            isGenerating={state.ai.isGenerating || waiting}
             isLoadingTemplate={state.templates.isLoading}
             hasAiDraft={state.hasAiDraft}
             canUndo={state.historyCount > 0}
             aiError={state.ai.error}
             aiBusyUntil={state.ai.busyUntil}
+            onRetryAi={state.ai.retry}
             aiOffersTemplate={state.ai.offersTemplate}
             onUseTemplateInstead={() => void state.ai.requestTemplate()}
+            menuOpen={templateMenuOpen}
+            onMenuOpenChange={setTemplateMenuOpen}
+            bodyWordCount={bodyWords}
+            onShorter={requestShorter}
             templateError={state.templates.error}
             errorFixTarget={state.ai.errorFixTarget}
             propertyId={props.propertyId}
@@ -292,10 +323,8 @@ export function ReplyCompose(props: ReplyComposeProps) {
             }
             languageChoices={languageChoices}
             reviewLanguageReadiness={props.reviewLanguageReadiness}
-            onToneChange={state.ai.setTone}
-            onRequestAi={(tone, trigger) =>
-              state.ai.request(tone, false, undefined, trigger)
-            }
+            onToneChange={state.ai.changeTone}
+            onRequestAi={state.ai.requestAi}
             onPrepareTemplateMenu={state.templates.prepareMenu}
             onLoadRecommended={state.templates.loadRecommended}
             onLoadTemplate={state.templates.load}

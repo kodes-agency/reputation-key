@@ -1,4 +1,3 @@
-import * as runtimeCatalogue from '#/shared/ai-runtime-capability-contract'
 import { REPLY_DRAFTING_V2_PROFILE_DIGEST } from '#/shared/reply-drafting-v2-contract'
 import { resolveReplyDraftingV2Options } from '#/shared/reply-drafting-v2-request'
 import { verifyAiReplyProvenance } from '#/shared/ai-reply-provenance'
@@ -6,7 +5,7 @@ import { replyAiFrameReservations } from '#/shared/db/schema'
 import { assertCurrentAiDraftBinding } from './ai-draft-binding'
 import { generateKeyPairSync } from 'node:crypto'
 import { AI_REPLY_TEMPLATE_CATALOGUE_DIGEST } from '#/shared/ai-reply-template-catalogue'
-import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
+import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { eq, sql } from 'drizzle-orm'
 import { getDb } from '#/shared/db'
 import { deleteTestOrganizations } from '#/shared/testing/integration-helpers'
@@ -602,7 +601,7 @@ describe.sequential('AI suggested draft acceptance (real PostgreSQL)', () => {
     }
   })
 
-  it('adopts Spanish v4 with authenticated frame choices and makes publication a catalogue switch', async () => {
+  it('adopts Spanish v4 with authenticated frame choices on the served reply drafting v2 execution', async () => {
     const newReview = reviewId('74000000-0000-4000-8000-000000000090')
     const operationId = '74000000-0000-4000-8000-000000000091'
     const permitId = '74000000-0000-4000-8000-000000000092'
@@ -661,80 +660,95 @@ describe.sequential('AI suggested draft acceptance (real PostgreSQL)', () => {
     if (previous.version !== 'ai-reply-provenance-v3')
       throw new Error('Expected historical fixture')
     const text = 'Sentimos que la espera fuera tan larga. Su tiempo merece más atención.'
-    const token = signAiReplyProvenance(
-      {
-        ...previous,
-        version: 'ai-reply-provenance-v4',
-        operationId,
-        reviewId: newReview,
-        baseReplyStateRevision: 0,
-        operationProfileVersion: 'reply-suggestion-v2',
-        replyProfileVersion: 'reply-draft-v4',
-        replyProfileDigest: REPLY_DRAFTING_V2_PROFILE_DIGEST,
-        replyVoiceDigest: selected.voiceDigest,
-        voiceChoices: choices,
-        parentOperationId: null,
-        rewriteOrdinal: 0,
-        concreteLanguageTag: 'es-Latn',
-        templateGroup: 'es-Latn',
-        promptVersion: 'reply-suggestion-prompt-v2',
-        renderedSuggestionDigest: digestRenderedReply(text),
-      },
-      privateKey,
-    )
+    // The gateway signs the deployment the v2 operation recorded: the streaming one.
+    const v4Token = (providerDeploymentProfileVersion: string) =>
+      signAiReplyProvenance(
+        {
+          ...previous,
+          version: 'ai-reply-provenance-v4',
+          operationId,
+          reviewId: newReview,
+          baseReplyStateRevision: 0,
+          providerDeploymentProfileVersion,
+          operationProfileVersion: 'reply-suggestion-v2',
+          replyProfileVersion: 'reply-draft-v4',
+          replyProfileDigest: REPLY_DRAFTING_V2_PROFILE_DIGEST,
+          replyVoiceDigest: selected.voiceDigest,
+          voiceChoices: choices,
+          parentOperationId: null,
+          rewriteOrdinal: 0,
+          concreteLanguageTag: 'es-Latn',
+          templateGroup: 'es-Latn',
+          promptVersion: 'reply-suggestion-prompt-v2',
+          renderedSuggestionDigest: digestRenderedReply(text),
+        },
+        privateKey,
+      )
     const input = {
       organizationId: ORGANIZATION_ID,
       propertyId: PROPERTY_ID,
       reviewId: newReview,
       actorUserId: ACTOR_USER_ID,
       text,
-      provenanceToken: token,
+      provenanceToken: v4Token('private-beta-global-v3'),
       now: NOW,
     }
-    expect((await store.accept(input)).status).toBe('rejected')
-    const compatibility = vi
-      .spyOn(runtimeCatalogue, 'isExecutionCompatibleWithConsent')
-      .mockReturnValue(true)
-    const served = runtimeCatalogue.getAiRuntimeCapability('reply_drafting')
-    const selection = vi
-      .spyOn(runtimeCatalogue, 'getAiRuntimeCapability')
-      .mockReturnValue({
-        ...served,
-        operationProfileVersion: 'reply-suggestion-v2',
-        runtimeProfileVersion: 'reply-drafting-runtime-v2',
+    // A v4 token never names the pre-release deployment, and an operation that
+    // recorded the v2 profile on that deployment is a pair the catalogue does not
+    // list: neither is adoptable.
+    expect(
+      await store.accept({
+        ...input,
+        provenanceToken: v4Token('private-beta-global-v2'),
+      }),
+    ).toEqual({ status: 'rejected', reason: 'invalid' })
+    expect(await store.accept(input)).toEqual({ status: 'rejected', reason: 'stale' })
+
+    // The served execution is the catalogue's own: no stubbed compatibility or
+    // selection. Recording the v2 operation on its streaming deployment (and that
+    // deployment's control head, as the admission does) is all adoption needs.
+    const [streamingControl] = await db
+      .select()
+      .from(aiExecutionControlHeads)
+      .where(eq(aiExecutionControlHeads.scopeKey, 'provider:private-beta-global-v3'))
+      .limit(1)
+    if (!streamingControl) throw new Error('Streaming deployment control is not seeded')
+    await db
+      .update(aiOperations)
+      .set({
+        providerDeploymentProfileVersion: 'private-beta-global-v3',
+        providerControlId: streamingControl.controlId,
+        providerControlGeneration: streamingControl.generation,
       })
-    try {
-      const accepted = await store.accept(input)
-      expect(accepted.status).toBe('accepted')
-      if (accepted.status !== 'accepted') throw new Error('Expected v4 adoption')
-      const [stored] = await db
-        .select()
-        .from(replies)
-        .where(eq(replies.id, accepted.reply.id))
-      expect(stored).toMatchObject({
-        originAiProfileVersion: 'reply-draft-v4',
-        originTemplateGroup: 'es-Latn',
-        voiceChoices: choices,
-        voiceDigest: selected.voiceDigest,
-      })
-      const [usage] = await db
-        .select()
-        .from(replyAiFrameReservations)
-        .where(eq(replyAiFrameReservations.generationSeed, selected.generationSeed))
-      expect(usage!.adoptedAt).not.toBeNull()
-      expect(usage!.choices).toEqual(choices)
-      expect(
-        await db.transaction((tx) =>
-          assertCurrentAiDraftBinding(tx, {
-            organizationId: ORGANIZATION_ID,
-            replyId: accepted.reply.id,
-          }),
-        ),
-      ).toBe('current')
-    } finally {
-      compatibility.mockRestore()
-      selection.mockRestore()
-    }
+      .where(eq(aiOperations.id, operationId))
+
+    const accepted = await store.accept(input)
+    expect(accepted.status).toBe('accepted')
+    if (accepted.status !== 'accepted') throw new Error('Expected v4 adoption')
+    const [stored] = await db
+      .select()
+      .from(replies)
+      .where(eq(replies.id, accepted.reply.id))
+    expect(stored).toMatchObject({
+      originAiProfileVersion: 'reply-draft-v4',
+      originTemplateGroup: 'es-Latn',
+      voiceChoices: choices,
+      voiceDigest: selected.voiceDigest,
+    })
+    const [usage] = await db
+      .select()
+      .from(replyAiFrameReservations)
+      .where(eq(replyAiFrameReservations.generationSeed, selected.generationSeed))
+    expect(usage!.adoptedAt).not.toBeNull()
+    expect(usage!.choices).toEqual(choices)
+    expect(
+      await db.transaction((tx) =>
+        assertCurrentAiDraftBinding(tx, {
+          organizationId: ORGANIZATION_ID,
+          replyId: accepted.reply.id,
+        }),
+      ),
+    ).toBe('current')
   })
 
   it('persists exact signed provenance and replays the same adoption idempotently', async () => {

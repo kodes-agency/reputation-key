@@ -112,7 +112,7 @@ describe('capability-specific merchant AI consent epochs', () => {
       CURRENT_MERCHANT_AI_CAPABILITIES,
     )
   })
-  it('advances all three epochs when standing renewal skips from 09-15 to 10-30', () => {
+  it('advances all three epochs when standing renewal skips from 09-15 to the served notice', () => {
     const previous = {
       ...current,
       noticeVersion: 'merchant-ai-notice-2026-09-15.v1',
@@ -127,9 +127,13 @@ describe('capability-specific merchant AI consent epochs', () => {
       property_trends: 8,
     })
   })
-  it('records the material scope of the existing switch-on notice', () => {
+  it('records the drafting-only release and the preceding all-capability switch-on', () => {
     const notice = MERCHANT_AI_NOTICE_CHANGES[0]!
-    expect(materiallyChangedMerchantAiCapabilities(notice.replaces!, notice)).toEqual(
+    expect(materiallyChangedMerchantAiCapabilities(notice.replaces!, notice)).toEqual([
+      'reply_drafting',
+    ])
+    const previous = MERCHANT_AI_NOTICE_CHANGES[1]!
+    expect(materiallyChangedMerchantAiCapabilities(previous.replaces!, previous)).toEqual(
       CURRENT_MERCHANT_AI_CAPABILITIES,
     )
   })

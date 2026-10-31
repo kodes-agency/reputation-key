@@ -34,6 +34,7 @@ import {
   withLastOwnerGuardDisabled,
 } from '#/shared/db/disable-guard-triggers'
 import { createAiAdvisoryScope } from '#/shared/ai-lock-order-v1'
+import { holdTransaction } from '#/shared/db/testing/held-transaction'
 import {
   getAiRuntimeCapability,
   isExecutionCompatibleWithConsent,
@@ -55,6 +56,23 @@ const NOTICE_2026_10_17 = {
 } as const
 
 const store = createMerchantAiAuthorizationStore(db, randomUUID)
+
+/** The migrations that state the notice catalogue function, oldest first. */
+const FORWARD_MIGRATIONS = [
+  new URL(
+    '../../../../../drizzle/0084_merchant_ai_consent_follows_notice.sql',
+    import.meta.url,
+  ),
+  new URL('../../../../../drizzle/0088_reply_drafting_v2_release.sql', import.meta.url),
+] as const
+
+/** A migration's statements, split the way the Drizzle migrator splits them. */
+function statementsOf(migration: URL): string[] {
+  return readFileSync(migration, 'utf8')
+    .split('--> statement-breakpoint')
+    .map((chunk) => chunk.trim())
+    .filter((chunk) => chunk.length > 0)
+}
 
 function command(overrides: Record<string, unknown> = {}) {
   return {
@@ -296,6 +314,105 @@ afterAll(async () => {
 })
 
 describe('Merchant AI authorization store', () => {
+  it('renews the drafting-only notice once, retains analysis/trends epochs, and reads streaming deployment evidence', async () => {
+    const before = await store.mutate(
+      command({
+        noticeVersion: 'merchant-ai-notice-2026-10-30.v1',
+        noticeDigest: 'dadad7b81dbda360678fc57f7265b104c7311cbc213f877f32306c53b4852a5e',
+      }),
+    )
+    for (const capability of CURRENT_MERCHANT_AI_CAPABILITIES) {
+      expect(underServedContract(before, capability)).toBe(
+        capability !== 'reply_drafting',
+      )
+      expect(
+        await hasActiveMerchantAiConsent(db, {
+          organizationId: ORG,
+          propertyId: PROPERTY,
+          purpose: {
+            review_analysis: 'ai.analyze',
+            property_trends: 'ai.detect_trends',
+            reply_drafting: 'ai.generate_reply',
+          }[capability],
+          expectedFence: fence(before, capability),
+        }),
+      ).toBe(capability !== 'reply_drafting')
+    }
+    await advanceAnalysisHead()
+    const after = await store.mutate(
+      command({
+        operation: 'change',
+        idempotencyKey: 'drafting-v2-notice',
+        expectedStateVersion: before.stateVersion,
+        reasonCode: 'capabilities_changed',
+      }),
+    )
+    for (const capability of CURRENT_MERCHANT_AI_CAPABILITIES) {
+      expect(underServedContract(after, capability)).toBe(true)
+      expect(
+        await hasActiveMerchantAiConsent(db, {
+          organizationId: ORG,
+          propertyId: PROPERTY,
+          purpose: {
+            review_analysis: 'ai.analyze',
+            property_trends: 'ai.detect_trends',
+            reply_drafting: 'ai.generate_reply',
+          }[capability],
+          expectedFence: fence(after, capability),
+        }),
+      ).toBe(true)
+    }
+    expect(after.capabilityEpochs).toEqual({
+      review_analysis: before.capabilityEpochs.review_analysis,
+      reply_drafting: before.capabilityEpochs.reply_drafting + 1,
+      property_trends: before.capabilityEpochs.property_trends,
+    })
+    expect(after.analysisStartSequence).toBe(before.analysisStartSequence)
+    const again = await store.mutate(
+      command({
+        operation: 'change',
+        idempotencyKey: 'drafting-v2-notice',
+        expectedStateVersion: before.stateVersion,
+        reasonCode: 'capabilities_changed',
+      }),
+    )
+    expect(again).toEqual(after)
+    // CHECK expansion and mapSnapshot admit the streaming deployment; the evidence
+    // remains historical and is not rewritten by the actual switch-on migration.
+    // No transition writes this value (a technical refresh writes nothing), and the
+    // head guard refuses a row edit outside one, so the guard is set aside for the
+    // one synthetic edit inside a held transaction that is always rolled back.
+    const held = await holdTransaction()
+    try {
+      await held.client.query(
+        'ALTER TABLE merchant_ai_enablement DISABLE TRIGGER merchant_ai_enablement_transition_guard',
+      )
+      await held.client.query(
+        `UPDATE merchant_ai_enablement SET provider_deployment_profile_version = 'private-beta-global-v3' WHERE organization_id = $1`,
+        [ORG],
+      )
+      await held.client.query(
+        'ALTER TABLE merchant_ai_enablement ENABLE TRIGGER merchant_ai_enablement_transition_guard',
+      )
+      await expect(
+        createMerchantAiAuthorizationStore(held.db, randomUUID).getSnapshot({
+          organizationId: ORG,
+          propertyId: PROPERTY,
+        }),
+      ).resolves.toMatchObject({
+        providerDeploymentProfileVersion: 'private-beta-global-v3',
+      })
+    } finally {
+      await held.rollBack()
+    }
+    // The rolled-back edit left the committed head as the transition wrote it.
+    await expect(
+      store.getSnapshot({ organizationId: ORG, propertyId: PROPERTY }),
+    ).resolves.toMatchObject({
+      providerDeploymentProfileVersion: 'private-beta-global-v2',
+    })
+  })
+
   it('returns null before a merchant makes a choice', async () => {
     await expect(
       store.getSnapshot({ organizationId: ORG, propertyId: PROPERTY }),
@@ -669,7 +786,7 @@ describe('Merchant AI authorization store', () => {
         review_analysis: 'review-analysis-runtime-v1',
       },
     })
-    expect(isMerchantAiNoticeInForce(before)).toBe(false)
+    expect(isMerchantAiNoticeInForce(before, 'reply_drafting')).toBe(false)
     for (const capability of CURRENT_MERCHANT_AI_CAPABILITIES) {
       expect(underServedContract(before, capability)).toBe(false)
     }
@@ -700,7 +817,7 @@ describe('Merchant AI authorization store', () => {
         property_trends: before.capabilityEpochs.property_trends + 1,
       },
     })
-    expect(isMerchantAiNoticeInForce(reconsented)).toBe(true)
+    expect(isMerchantAiNoticeInForce(reconsented, 'reply_drafting')).toBe(true)
     for (const capability of CURRENT_MERCHANT_AI_CAPABILITIES) {
       expect(underServedContract(reconsented, capability)).toBe(true)
     }
@@ -765,33 +882,39 @@ describe('Merchant AI authorization store', () => {
     ])
   })
 
-  it('keeps pre-existing historical evidence readable across the forward migration', async () => {
+  it('keeps pre-existing historical evidence readable across the forward migrations', async () => {
     const before = await enableAsBeforeTheSwitchOn()
-    const migration = readFileSync(
-      new URL(
-        '../../../../../drizzle/0084_merchant_ai_consent_follows_notice.sql',
-        import.meta.url,
-      ),
-      'utf8',
-    )
-    await db.transaction(async (tx) => {
-      for (const statement of migration.split('--> statement-breakpoint')) {
-        await tx.execute(sql.raw(statement))
+    // Both migrations state merchant_ai_notice_material_changes_v1, and the later one
+    // wins, so they are replayed in journal order inside a held transaction that is
+    // always rolled back. A committed replay of 0084 alone would put the superseded
+    // catalogue back for every test and every suite that runs after this one.
+    const held = await holdTransaction()
+    try {
+      for (const migration of FORWARD_MIGRATIONS) {
+        for (const statement of statementsOf(migration)) {
+          await held.client.query(statement)
+        }
       }
-    })
-    expect(
-      await store.getSnapshot({ organizationId: ORG, propertyId: PROPERTY }),
-    ).toEqual(before)
-    const evidence = await db.execute(
-      sql`SELECT notice_version, notice_digest, capability_runtime_profile_versions FROM merchant_ai_consent_evidence WHERE organization_id = ${ORG} AND property_id = ${PROPERTY}::uuid`,
-    )
-    expect(evidence.rows).toEqual([
-      {
-        notice_version: before.noticeVersion,
-        notice_digest: before.noticeDigest,
-        capability_runtime_profile_versions: before.capabilityRuntimeProfileVersions,
-      },
-    ])
+      expect(
+        await createMerchantAiAuthorizationStore(held.db, randomUUID).getSnapshot({
+          organizationId: ORG,
+          propertyId: PROPERTY,
+        }),
+      ).toEqual(before)
+      const evidence = await held.client.query(
+        `SELECT notice_version, notice_digest, capability_runtime_profile_versions FROM merchant_ai_consent_evidence WHERE organization_id = $1 AND property_id = $2::uuid`,
+        [ORG, PROPERTY],
+      )
+      expect(evidence.rows).toEqual([
+        {
+          notice_version: before.noticeVersion,
+          notice_digest: before.noticeDigest,
+          capability_runtime_profile_versions: before.capabilityRuntimeProfileVersions,
+        },
+      ])
+    } finally {
+      await held.rollBack()
+    }
   })
 
   it('allows served work with historical runtime/deployment evidence, without a consent write or epoch bump', async () => {

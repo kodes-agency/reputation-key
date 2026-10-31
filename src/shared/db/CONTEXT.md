@@ -181,8 +181,9 @@ runs the real functions in a forced parallel plan. PostgreSQL prints no clause f
 `PARALLEL UNSAFE`, so a function stated with none is unsafe.
 
 ADR 0074 names a forward-only exception to the baseline byte-copy rule:
-`apply_merchant_ai_transition_v1` and `merchant_ai_notice_material_changes_v1`
-are stated at migration 0084's definitions in `db-constructs.sql`, while 0001
+`apply_merchant_ai_transition_v1` (migration 0084's definition) and
+`merchant_ai_notice_material_changes_v1` (restated by 0088 with the 2026-11-01 notice) are
+stated in `db-constructs.sql`, while 0001
 and 0016 remain immutable historical SQL. The transition has only its live
 27-argument signature, including the ceremony id; never recreate the retired
 26-argument overload. Construct parity checks cover the exception explicitly.

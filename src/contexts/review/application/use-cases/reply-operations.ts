@@ -1,3 +1,4 @@
+import { storedReplyFrame } from '#/shared/domain/reply-frame'
 // Review context — reply lifecycle use cases
 // Draft, submit, approve, reject, edit-resubmit, delete, retry.
 
@@ -452,6 +453,10 @@ export const draftReply =
       // text, or loading a template over it, makes the reply the manager's own
       // (domain/reply-ai-text.ts), however long ago it was generated.
       assertReplyCommandMayStart('save_draft', existing)
+      const frame = storedReplyFrame(existing.text, existing.voiceChoices)
+      const frameChanged =
+        frame &&
+        (!input.text.startsWith(frame.prefix) || !input.text.endsWith(frame.suffix))
       const redrafted = await deps.replyRepo.saveDraft(
         existing,
         {
@@ -476,7 +481,15 @@ export const draftReply =
             : {}),
           ...(input.voiceDigest !== undefined
             ? { voiceDigest: input.voiceDigest, voiceChoices: input.voiceChoices ?? null }
-            : {}),
+            : frameChanged && existing.voiceChoices
+              ? {
+                  voiceChoices: {
+                    ...existing.voiceChoices,
+                    bodyPrefixLength: undefined,
+                    bodySuffixLength: undefined,
+                  },
+                }
+              : {}),
         },
         now,
       )

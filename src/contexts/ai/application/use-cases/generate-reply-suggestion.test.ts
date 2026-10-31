@@ -1,3 +1,11 @@
+// Historical v1 remains readable; these contract regressions deliberately pin its old execution.
+vi.mock('#/shared/ai-runtime-capability-contract', async (importOriginal) => {
+  const actual =
+    await importOriginal<typeof import('#/shared/ai-runtime-capability-contract')>()
+  const { historicalReplyRuntime } =
+    await import('#/shared/testing/historical-reply-runtime')
+  return historicalReplyRuntime(actual)
+})
 import { describe, expect, it, vi } from 'vitest'
 import { generateKeyPairSync } from 'node:crypto'
 import { replyProgressResponse } from '../../server/reply-progress-stream.server'
@@ -1420,6 +1428,13 @@ describe('generate reply suggestion: a consent recorded under an earlier notice'
   })
 
   it.each([
+    [
+      'the 2026-10-30 notice, which needs renewal for drafting only',
+      {
+        noticeVersion: 'merchant-ai-notice-2026-10-30.v1',
+        noticeDigest: 'dadad7b81dbda360678fc57f7265b104c7311cbc213f877f32306c53b4852a5e',
+      },
+    ],
     ['the 2026-10-17 notice, in force until the switch-on', NOTICE_2026_10_17],
     ['the 2026-09-15 notice, in force until the switch-on', NOTICE_2026_09_15],
     ['an earlier notice version', EARLIER_NOTICE],
@@ -2006,7 +2021,12 @@ describe('dark v2 background drafting', () => {
     expect(h.generateReply).toHaveBeenCalledOnce()
     expect(h.base.mocks.acquire).toHaveBeenCalledOnce()
     expect(vi.mocked(h.base.mocks.acquire).mock.calls[0]![0].lane).toBe('background')
-    expect(explicit).toHaveBeenCalledWith({ step: 'reading' })
+    expect(explicit).toHaveBeenCalledWith({
+      step: 'reading',
+      frame: { prefix: '', suffix: '' },
+      reviewTextDigest:
+        '71b1b8c0a0be16aa23b72385f5052adcf9449f62c76d8b7e46f219397b9f6718',
+    })
   })
   it('refuses a changed request under the same key and does not share between actors', async () => {
     const h = createV2Harness(['accepted'])

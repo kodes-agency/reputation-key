@@ -27,6 +27,7 @@ import {
   adoptionRevealsReviewLanguage,
   assistTargetFor,
   draftInLanguage,
+  draftInText,
   regenerateScope,
   restoreSnapshot,
   submitAfterSave,
@@ -138,6 +139,7 @@ export function useReplyComposer(input: ReplyComposerInput) {
     reviewTag: reviewLanguage,
   })
   const [draft, setDraft] = useState<ReplyDraftSnapshot>({
+    bodyFrame: input.initialBodyFrame,
     measurementBaseReplyRevision: input.initialMeasurementBaseReplyRevision,
     measurementGenerationId: input.initialMeasurementGenerationId,
     text: input.initialText,
@@ -233,6 +235,7 @@ export function useReplyComposer(input: ReplyComposerInput) {
   })
   const updateDraft = (next: ReplyDraftSnapshot, nextSelection = selectedLanguage) => {
     ai.dismiss(false)
+    ai.stream.session?.replyEdited()
     templates.clearLoadedMessage()
     history.advanceRevision()
     setDraft(next)
@@ -278,7 +281,8 @@ export function useReplyComposer(input: ReplyComposerInput) {
     // language it was saved in), which `flush` alone leaves reading `Not saved`.
     if (hasText) autosave.schedule(next, canSave)
     if (hasText && canSave) void autosave.flush(next).catch(() => undefined)
-    return { draft: next, target: assistTargetFor(languageTag, languageContext) }
+    const scope = { draft: next, target: assistTargetFor(languageTag, languageContext) }
+    return scope
   }
   const languageChoices: ReplyLanguageChoices = {
     options,
@@ -330,10 +334,9 @@ export function useReplyComposer(input: ReplyComposerInput) {
       validDraft(draft) &&
       submitBlockedReason === null &&
       autosave.status !== 'error' &&
-      !ai.isGenerating &&
       !ai.isAdopting,
     submitBlockedReason,
-    updateText: (text: string) => updateDraft({ ...draft, text }),
+    updateText: (text: string) => updateDraft(draftInText(draft, text)),
     flushOnBlur: () => {
       if (validDraft(draft) && !isAutoDetectingLanguage)
         void autosave.flush(draft).catch(() => undefined)

@@ -1,0 +1,38 @@
+/* Body-only draft placeholder. The local voice stays readable while it writes. */
+[data-slot='skeleton'][data-variant='reply-body'] {
+  height: 4rem;
+  background: linear-gradient(
+    100deg,
+    var(--border) 30%,
+    var(--accent) 50%,
+    var(--border) 70%
+  );
+  background-size: 200% 100%;
+  animation: reply-body-shimmer 1.6s ease-in-out infinite;
+  mask-image:
+    linear-gradient(#000 0 0), linear-gradient(#000 0 0), linear-gradient(#000 0 0);
+  mask-size:
+    94% 10px,
+    86% 10px,
+    62% 10px;
+  mask-position:
+    0 4px,
+    0 25px,
+    0 46px;
+  mask-repeat: no-repeat;
+}
+@keyframes reply-body-shimmer {
+  to {
+    background-position: -200% 0;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  [data-slot='skeleton'][data-variant='reply-body'] {
+    animation: none;
+  }
+}
+
+[data-reduced-motion='true'] [data-variant='reply-body'],
+[data-reduced-motion='true'] .animate-pulse {
+  animation: none;
+}

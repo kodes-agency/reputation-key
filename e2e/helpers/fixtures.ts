@@ -1682,6 +1682,18 @@ export async function cleanupE2eData(input: {
            AND (p.slug LIKE $2 OR gc.google_subject LIKE $2))`,
     [input.organizationId, like],
   )
+  // A spec may give its fixture Property a Portal brand profile, whose name the
+  // reply voice signs with; the profile RESTRICTs the Property delete below.
+  await dbQuery(
+    `DELETE FROM property_portal_brand_profiles
+     WHERE organization_id = $1 AND property_id IN (
+       SELECT p.id
+       FROM properties p
+       LEFT JOIN google_connections gc ON gc.id = p.google_connection_id
+       WHERE p.organization_id = $1
+         AND (p.slug LIKE $2 OR gc.google_subject LIKE $2))`,
+    [input.organizationId, like],
+  )
   await dbQuery(
     // Delete a fixture Property only after its Reviews are gone. The
     // defensive NOT EXISTS keeps unexpected retained Review data from being
