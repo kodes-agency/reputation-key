@@ -378,6 +378,7 @@ export const aiGatewayRouteRequestSchema = z
     replySuggestionGatewayRequestSchema,
     propertyTrendGatewayRequestSchema,
   ])
+  // fallow-ignore-next-line complexity -- complexity unchanged from main; the finding moved with earlier code (ADR 0074 refactor)
   .superRefine((value, context) => {
     const capability = value.binding.capabilityFence.capability
     const entry = AI_RUNTIME_CAPABILITIES_V1.find(

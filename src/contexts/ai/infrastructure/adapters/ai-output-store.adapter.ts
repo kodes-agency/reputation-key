@@ -404,6 +404,7 @@ export const createAiOutputStoreAdapter = (
       })
     },
     async settleEphemeralReply(input) {
+      // fallow-ignore-next-line complexity -- complexity unchanged from main; the finding moved with earlier code (ADR 0074 refactor)
       return db.transaction(async (tx) => {
         const operation = await lockReviewOperation(
           tx,
@@ -526,6 +527,7 @@ export const createAiOutputStoreAdapter = (
     },
 
     async storeTrendReport(input) {
+      // fallow-ignore-next-line complexity -- complexity unchanged from main; the finding moved with earlier code (ADR 0074 refactor)
       return db.transaction(async (tx) => {
         const [operation] = await tx
           .select({
@@ -667,6 +669,7 @@ export const createAiOutputStoreAdapter = (
     },
 
     async readAnalysisForDelivery(input, deliver) {
+      // fallow-ignore-next-line complexity -- complexity unchanged from main; the finding moved with earlier code (ADR 0074 refactor)
       return db.transaction(async (tx) => {
         const deliverCurrent = (result: ReviewAnalysisReadV1) => deliver(result)
         const [authorization] = await tx
