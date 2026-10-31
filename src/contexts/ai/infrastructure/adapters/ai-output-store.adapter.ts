@@ -1,3 +1,4 @@
+import { isCurrentAuthorizedEffect } from './ai-authorized-effect'
 import { and, desc, eq, exists, gt, inArray, isNotNull, isNull, sql } from 'drizzle-orm'
 import type { Database } from '#/shared/db'
 import { readAggregateCoverageFence } from './ai-aggregate-coverage-fence'
@@ -10,7 +11,6 @@ import {
 } from '#/shared/ai-property-trend-contract'
 import {
   aiOperations,
-  aiExecutionControlHeads,
   aiPropertyProcessingProfiles,
   aiPropertyTrendOutcomes,
   aiPropertyTrendSchedules,
@@ -21,8 +21,6 @@ import {
   reviews,
 } from '#/shared/db/schema'
 import { AI_PERSONALIZED_REPLY_PROFILE_VERSION } from '#/shared/ai-personalized-reply-profile'
-import { AI_PROVIDER_DEPLOYMENT_PROFILE } from '#/shared/ai-operation-profiles'
-import { getAiRuntimeCapability } from '#/shared/ai-runtime-capability-contract'
 import { isAspectTaxonomyV1Id } from '#/shared/aspect-taxonomy'
 import { isAiIssueLabel } from '#/shared/ai-issue-label'
 import type {
@@ -45,8 +43,6 @@ function capabilityFence(value: unknown): Readonly<Record<string, unknown>> | nu
     : null
 }
 
-type AiOutputCapability = 'review_analysis' | 'reply_drafting' | 'property_trends'
-
 type Transaction = Parameters<Parameters<Database['transaction']>[0]>[0]
 const authorizedEffectOperationColumns = {
   state: aiOperations.state,
@@ -62,6 +58,9 @@ const authorizedEffectOperationColumns = {
   propertyProfileVersion: aiOperations.propertyProfileVersion,
   sourcePolicyId: aiOperations.sourcePolicyId,
   redactionProfileVersion: aiOperations.redactionProfileVersion,
+  operationProfileVersion: aiOperations.operationProfileVersion,
+  capabilityRuntimeProfileVersion: aiOperations.capabilityRuntimeProfileVersion,
+  providerDeploymentProfileVersion: aiOperations.providerDeploymentProfileVersion,
   capabilityFences: aiOperations.capabilityFences,
   globalControlId: aiOperations.globalControlId,
   globalControlGeneration: aiOperations.globalControlGeneration,
@@ -106,164 +105,6 @@ async function lockReviewOperation(
     .limit(1)
     .for('update')
   return operation
-}
-
-type AuthorizedEffectOperation = Readonly<{
-  organizationId: string
-  propertyId: string
-  sourceEpoch: number | null
-  authorizationLineageId: string | null
-  noticeVersion: string | null
-  noticeDigest: string | null
-  propertyProfileVersion: number | null
-  sourcePolicyId: string | null
-  redactionProfileVersion: string | null
-  globalControlId: string
-  globalControlGeneration: number
-  providerControlId: string
-  providerControlGeneration: number
-  capabilityControlId: string
-  capabilityControlGeneration: number
-}>
-
-async function isCurrentAuthorizedEffect(
-  tx: Transaction,
-  input: Readonly<{
-    capability: AiOutputCapability
-    operation: AuthorizedEffectOperation
-    capabilityFence: Readonly<Record<string, unknown>>
-  }>,
-): Promise<boolean> {
-  const operation = input.operation
-  if (
-    operation.sourceEpoch === null ||
-    operation.authorizationLineageId === null ||
-    operation.noticeVersion === null ||
-    operation.noticeDigest === null ||
-    operation.propertyProfileVersion === null ||
-    operation.sourcePolicyId === null ||
-    operation.redactionProfileVersion === null
-  ) {
-    return false
-  }
-  const runtime = getAiRuntimeCapability(input.capability)
-  const [authorization] = await tx
-    .select({
-      state: merchantAiEnablement.state,
-      authorizationLineageId: merchantAiEnablement.authorizationLineageId,
-      capabilities: merchantAiEnablement.capabilities,
-      capabilityRuntimeProfileVersions:
-        merchantAiEnablement.capabilityRuntimeProfileVersions,
-      reviewAnalysisEpoch: merchantAiEnablement.reviewAnalysisEpoch,
-      replyDraftingEpoch: merchantAiEnablement.replyDraftingEpoch,
-      propertyTrendsEpoch: merchantAiEnablement.propertyTrendsEpoch,
-      authorizedSourceEpoch: merchantAiEnablement.authorizedSourceEpoch,
-      noticeVersion: merchantAiEnablement.noticeVersion,
-      noticeDigest: merchantAiEnablement.noticeDigest,
-      sourcePolicyId: merchantAiEnablement.sourcePolicyId,
-      providerDeploymentProfileVersion:
-        merchantAiEnablement.providerDeploymentProfileVersion,
-      redactionProfileFamily: merchantAiEnablement.redactionProfileFamily,
-    })
-    .from(merchantAiEnablement)
-    .where(
-      and(
-        eq(merchantAiEnablement.organizationId, operation.organizationId),
-        eq(merchantAiEnablement.propertyId, operation.propertyId),
-      ),
-    )
-    .limit(1)
-    .for('share')
-  if (
-    !authorization ||
-    authorization.state !== 'enabled' ||
-    authorization.authorizationLineageId !== operation.authorizationLineageId ||
-    !authorization.capabilities.includes(input.capability) ||
-    authorization.capabilityRuntimeProfileVersions[input.capability] !==
-      runtime.runtimeProfileVersion ||
-    authorization.authorizedSourceEpoch !== operation.sourceEpoch ||
-    authorization.noticeVersion !== operation.noticeVersion ||
-    authorization.noticeDigest !== operation.noticeDigest ||
-    authorization.sourcePolicyId !== operation.sourcePolicyId ||
-    authorization.providerDeploymentProfileVersion !==
-      AI_PROVIDER_DEPLOYMENT_PROFILE.profileVersion ||
-    authorization.redactionProfileFamily !== operation.redactionProfileVersion ||
-    (input.capability !== 'reply_drafting' &&
-      authorization.reviewAnalysisEpoch !== input.capabilityFence.reviewAnalysisEpoch) ||
-    (input.capability === 'reply_drafting' &&
-      authorization.replyDraftingEpoch !== input.capabilityFence.replyDraftingEpoch) ||
-    (input.capability === 'property_trends' &&
-      authorization.propertyTrendsEpoch !== input.capabilityFence.propertyTrendsEpoch)
-  ) {
-    return false
-  }
-
-  const [profile] = await tx
-    .select({
-      lifecycleState: aiPropertyProcessingProfiles.lifecycleState,
-      sourceEpoch: aiPropertyProcessingProfiles.sourceEpoch,
-      profileVersion: aiPropertyProcessingProfiles.profileVersion,
-    })
-    .from(aiPropertyProcessingProfiles)
-    .where(
-      and(
-        eq(aiPropertyProcessingProfiles.organizationId, operation.organizationId),
-        eq(aiPropertyProcessingProfiles.propertyId, operation.propertyId),
-      ),
-    )
-    .limit(1)
-    .for('share')
-  if (
-    !profile ||
-    profile.lifecycleState !== 'active' ||
-    profile.sourceEpoch !== operation.sourceEpoch ||
-    profile.profileVersion !== operation.propertyProfileVersion
-  ) {
-    return false
-  }
-
-  const providerScope = `provider:${AI_PROVIDER_DEPLOYMENT_PROFILE.profileVersion}`
-  const controls = await tx
-    .select({
-      scopeKey: aiExecutionControlHeads.scopeKey,
-      controlId: aiExecutionControlHeads.controlId,
-      generation: aiExecutionControlHeads.generation,
-      executionState: aiExecutionControlHeads.executionState,
-      admissionState: aiExecutionControlHeads.admissionState,
-    })
-    .from(aiExecutionControlHeads)
-    .where(
-      inArray(aiExecutionControlHeads.scopeKey, [
-        'global',
-        providerScope,
-        `capability:${input.capability}`,
-      ]),
-    )
-    .for('share')
-  if (controls.length !== 3) return false
-  const byScope = new Map(controls.map((control) => [control.scopeKey, control]))
-  const matches = (scopeKey: string, controlId: string, generation: number): boolean => {
-    const control = byScope.get(scopeKey)
-    return (
-      control?.controlId === controlId &&
-      control.generation === generation &&
-      control.executionState === 'enabled' &&
-      control.admissionState === 'accepting'
-    )
-  }
-  return (
-    matches('global', operation.globalControlId, operation.globalControlGeneration) &&
-    matches(
-      providerScope,
-      operation.providerControlId,
-      operation.providerControlGeneration,
-    ) &&
-    matches(
-      `capability:${input.capability}`,
-      operation.capabilityControlId,
-      operation.capabilityControlGeneration,
-    )
-  )
 }
 
 type AnalysisWriteFacts = Readonly<{
@@ -563,6 +404,7 @@ export const createAiOutputStoreAdapter = (
       })
     },
     async settleEphemeralReply(input) {
+      // fallow-ignore-next-line complexity -- complexity unchanged from main; the finding moved with earlier code (ADR 0074 refactor)
       return db.transaction(async (tx) => {
         const operation = await lockReviewOperation(
           tx,
@@ -685,6 +527,7 @@ export const createAiOutputStoreAdapter = (
     },
 
     async storeTrendReport(input) {
+      // fallow-ignore-next-line complexity -- complexity unchanged from main; the finding moved with earlier code (ADR 0074 refactor)
       return db.transaction(async (tx) => {
         const [operation] = await tx
           .select({
@@ -826,6 +669,7 @@ export const createAiOutputStoreAdapter = (
     },
 
     async readAnalysisForDelivery(input, deliver) {
+      // fallow-ignore-next-line complexity -- complexity unchanged from main; the finding moved with earlier code (ADR 0074 refactor)
       return db.transaction(async (tx) => {
         const deliverCurrent = (result: ReviewAnalysisReadV1) => deliver(result)
         const [authorization] = await tx

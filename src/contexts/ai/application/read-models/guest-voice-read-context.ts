@@ -6,7 +6,10 @@ import {
   type AiPropertyAccess,
 } from '../ai-property-read-access'
 import { resolveAiReadGate } from '../ai-read-gate'
-import { isAiAuthorizationUnderServedContract } from '../ai-workflow-support'
+import {
+  getAiRuntimeCapability,
+  isAiRuntimeNoticeInForce,
+} from '#/shared/ai-runtime-capability-contract'
 import { addDays } from '../local-date'
 import type { AiAuthorizationPort } from '../ports/ai-authorization.port'
 import type {
@@ -144,7 +147,12 @@ export async function loadGuestVoiceReadContext(
   const gate = await resolveAiReadGate(deps, input, 'review_analysis')
   if (
     gate.status === 'disabled' ||
-    !isAiAuthorizationUnderServedContract(gate.authorization, 'review_analysis')
+    !isAiRuntimeNoticeInForce(
+      getAiRuntimeCapability('review_analysis'),
+      gate.authorization,
+    ) ||
+    gate.authorization.providerDeploymentProfileVersion !==
+      getAiRuntimeCapability('review_analysis').providerDeploymentProfileVersion
   )
     return { status: 'disabled' }
   const endLocalDate = await deps.calendar.resolveLocalDate({

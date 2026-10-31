@@ -13,8 +13,8 @@ export type CapabilityRuntimeProfileVersions = Readonly<
 >
 
 /**
- * Every runtime profile version a Merchant AI grant has been recorded under, per
- * capability, oldest first; the last is the one served now. A grant is append-only
+ * Every runtime profile version may be recorded as Merchant AI grant evidence, per
+ * capability, oldest first; the last is the one served now. Runtime/deployment evidence is historical, never execution permission (ADR 0074). A grant is append-only
  * evidence: a deploy rewrites none, so a Property enabled before the switch-on of
  * review analysis v3 (2026-10-30) still holds `review-analysis-runtime-v1` until an
  * AccountAdmin confirms the notice again, and the store must read it (the consent

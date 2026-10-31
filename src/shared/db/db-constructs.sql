@@ -151,7 +151,51 @@ END;
 $function$
 ;
 --> statement-breakpoint
-CREATE OR REPLACE FUNCTION public.apply_merchant_ai_transition_v1(p_authorization_lineage_id uuid, p_expected_state_version integer, p_state_version integer, p_organization_id character varying, p_property_id uuid, p_transition_kind text, p_state text, p_capabilities text[], p_runtime_profiles jsonb, p_review_analysis_epoch integer, p_reply_drafting_epoch integer, p_property_trends_epoch integer, p_authorized_source_epoch integer, p_analysis_start_sequence bigint, p_notice_version character varying, p_notice_digest character varying, p_source_policy_id character varying, p_routing_policy_version integer, p_processing_region character varying, p_provider_deployment_profile_version character varying, p_redaction_profile_family character varying, p_actor_user_id character varying, p_reason_code character varying, p_idempotency_key character varying, p_request_hash character varying, p_occurred_at timestamp with time zone)
+CREATE OR REPLACE FUNCTION public.merchant_ai_notice_material_changes_v1(p_previous_version character varying, p_previous_digest character varying, p_next_version character varying, p_next_digest character varying)
+ RETURNS text[]
+ LANGUAGE plpgsql
+ IMMUTABLE PARALLEL SAFE
+AS $function$
+DECLARE
+  cursor_version character varying := p_next_version;
+  cursor_digest character varying := p_next_digest;
+  prior_version character varying;
+  prior_digest character varying;
+  changed text[];
+  affected text[] := ARRAY[]::text[];
+  seen text[] := ARRAY[]::text[];
+BEGIN
+  WHILE (cursor_version, cursor_digest) IS DISTINCT FROM (p_previous_version, p_previous_digest) LOOP
+    IF cursor_version || ':' || cursor_digest = ANY(seen) THEN
+      RETURN ARRAY['review_analysis', 'reply_drafting', 'property_trends']::text[];
+    END IF;
+    seen := array_append(seen, cursor_version || ':' || cursor_digest);
+    SELECT replaces_version, replaces_digest, materially_changes
+      INTO prior_version, prior_digest, changed
+    FROM (VALUES
+      ('merchant-ai-notice-2026-10-30.v1', 'dadad7b81dbda360678fc57f7265b104c7311cbc213f877f32306c53b4852a5e',
+       'merchant-ai-notice-2026-10-17.v1', '2bcd2be15cbb81f324f9a9390ad00baff3ffbb25a6c0db8bff71fbb2b1b0975e',
+       ARRAY['review_analysis', 'reply_drafting', 'property_trends']::text[]),
+      ('merchant-ai-notice-2026-10-17.v1', '2bcd2be15cbb81f324f9a9390ad00baff3ffbb25a6c0db8bff71fbb2b1b0975e',
+       'merchant-ai-notice-2026-09-15.v1', '6c98ae3bb57b5b142afed1749a1b9f59be8d6ca7edaca3250e39055897289a9c',
+       ARRAY[]::text[])
+    ) AS notices(version, digest, replaces_version, replaces_digest, materially_changes)
+    WHERE version = cursor_version AND digest = cursor_digest;
+    IF NOT FOUND OR prior_version IS NULL OR prior_digest IS NULL THEN
+      RETURN ARRAY['review_analysis', 'reply_drafting', 'property_trends']::text[];
+    END IF;
+    affected := affected || changed;
+    cursor_version := prior_version;
+    cursor_digest := prior_digest;
+  END LOOP;
+  RETURN ARRAY(SELECT capability
+    FROM unnest(ARRAY['review_analysis', 'reply_drafting', 'property_trends']::text[]) AS capability
+    WHERE capability = ANY(affected));
+END;
+$function$
+;
+--> statement-breakpoint
+CREATE OR REPLACE FUNCTION public.apply_merchant_ai_transition_v1(p_authorization_lineage_id uuid, p_expected_state_version integer, p_state_version integer, p_organization_id character varying, p_property_id uuid, p_transition_kind text, p_state text, p_capabilities text[], p_runtime_profiles jsonb, p_review_analysis_epoch integer, p_reply_drafting_epoch integer, p_property_trends_epoch integer, p_authorized_source_epoch integer, p_analysis_start_sequence bigint, p_notice_version character varying, p_notice_digest character varying, p_source_policy_id character varying, p_routing_policy_version integer, p_processing_region character varying, p_provider_deployment_profile_version character varying, p_redaction_profile_family character varying, p_actor_user_id character varying, p_reason_code character varying, p_idempotency_key character varying, p_request_hash character varying, p_occurred_at timestamp with time zone, p_ceremony_id uuid DEFAULT NULL)
  RETURNS merchant_ai_consent_evidence
  LANGUAGE plpgsql
  SECURITY DEFINER
@@ -168,7 +212,8 @@ DECLARE
   property_deleted_at timestamp with time zone;
   review_head_sequence bigint;
   head_found boolean;
-  contract_changed boolean;
+  materially_changed text[];
+  data_use_policy_changed boolean;
   reset_analysis_watermark boolean;
   expected_review_analysis_epoch integer;
   expected_reply_drafting_epoch integer;
@@ -332,32 +377,22 @@ BEGIN
     expected_review_analysis_epoch := 1;
     expected_reply_drafting_epoch := 1;
     expected_property_trends_epoch := 1;
-    IF p_transition_kind <> 'restore_reset'
-      AND p_analysis_start_sequence <> review_head_sequence
-    THEN
-      RAISE EXCEPTION 'merchant_ai_invalid_analysis_sequence' USING ERRCODE = 'P0001';
-    END IF;
   ELSIF p_transition_kind = 'enable' THEN
     expected_review_analysis_epoch := current_head.review_analysis_epoch + 1;
     expected_reply_drafting_epoch := current_head.reply_drafting_epoch + 1;
     expected_property_trends_epoch := current_head.property_trends_epoch + 1;
-    IF p_analysis_start_sequence <> review_head_sequence THEN
-      RAISE EXCEPTION 'merchant_ai_invalid_analysis_sequence' USING ERRCODE = 'P0001';
-    END IF;
   ELSIF p_transition_kind = 'revoke' THEN
     expected_review_analysis_epoch := current_head.review_analysis_epoch + 1;
     expected_reply_drafting_epoch := current_head.reply_drafting_epoch + 1;
     expected_property_trends_epoch := current_head.property_trends_epoch + 1;
   ELSE
-    contract_changed :=
-      current_head.notice_version <> p_notice_version
-      OR current_head.notice_digest <> p_notice_digest
-      OR current_head.source_policy_id <> p_source_policy_id
+    data_use_policy_changed :=
+      current_head.source_policy_id <> p_source_policy_id
       OR current_head.routing_policy_version <> p_routing_policy_version
-      OR current_head.provider_deployment_profile_version
-        <> p_provider_deployment_profile_version
       OR current_head.redaction_profile_family <> p_redaction_profile_family;
-
+    materially_changed := merchant_ai_notice_material_changes_v1(
+      current_head.notice_version, current_head.notice_digest, p_notice_version, p_notice_digest
+    );
     expected_review_analysis_epoch := current_head.review_analysis_epoch + CASE
       WHEN (
         (
@@ -367,9 +402,8 @@ BEGIN
         OR (
           (
             current_head.authorized_source_epoch <> p_authorized_source_epoch
-            OR contract_changed
-            OR current_head.capability_runtime_profile_versions->>'review_analysis'
-              IS DISTINCT FROM p_runtime_profiles->>'review_analysis'
+            OR data_use_policy_changed
+            OR 'review_analysis' = ANY(materially_changed)
           )
           AND (
             'review_analysis' = ANY(current_head.capabilities)
@@ -387,9 +421,8 @@ BEGIN
         OR (
           (
             current_head.authorized_source_epoch <> p_authorized_source_epoch
-            OR contract_changed
-            OR current_head.capability_runtime_profile_versions->>'reply_drafting'
-              IS DISTINCT FROM p_runtime_profiles->>'reply_drafting'
+            OR data_use_policy_changed
+            OR 'reply_drafting' = ANY(materially_changed)
           )
           AND (
             'reply_drafting' = ANY(current_head.capabilities)
@@ -407,9 +440,8 @@ BEGIN
         OR (
           (
             current_head.authorized_source_epoch <> p_authorized_source_epoch
-            OR contract_changed
-            OR current_head.capability_runtime_profile_versions->>'property_trends'
-              IS DISTINCT FROM p_runtime_profiles->>'property_trends'
+            OR data_use_policy_changed
+            OR 'property_trends' = ANY(materially_changed)
           )
           AND (
             'property_trends' = ANY(current_head.capabilities)
@@ -419,17 +451,20 @@ BEGIN
       ) THEN 1 ELSE 0
     END;
 
+  END IF;
+
+  IF p_transition_kind IN ('enable', 'change') THEN
     reset_analysis_watermark :=
       'review_analysis' = ANY(p_capabilities)
-      AND (
-        NOT ('review_analysis' = ANY(current_head.capabilities))
-        OR current_head.authorized_source_epoch <> p_authorized_source_epoch
-      );
+      AND expected_review_analysis_epoch
+        > COALESCE(current_head.review_analysis_epoch, 0);
     IF reset_analysis_watermark THEN
       IF p_analysis_start_sequence <> review_head_sequence THEN
         RAISE EXCEPTION 'merchant_ai_invalid_analysis_sequence' USING ERRCODE = 'P0001';
       END IF;
-    ELSIF p_analysis_start_sequence <> current_head.analysis_start_sequence THEN
+    ELSIF p_analysis_start_sequence
+      <> COALESCE(current_head.analysis_start_sequence, 0)
+    THEN
       RAISE EXCEPTION 'merchant_ai_invalid_analysis_sequence' USING ERRCODE = 'P0001';
     END IF;
   END IF;
@@ -441,6 +476,20 @@ BEGIN
     RAISE EXCEPTION 'merchant_ai_invalid_capability_epoch' USING ERRCODE = 'P0001';
   END IF;
 
+  IF p_transition_kind = 'change' THEN
+    -- A technical refresh alone never writes consent evidence.
+    IF current_head.notice_version = p_notice_version
+      AND current_head.notice_digest = p_notice_digest
+      AND current_head.capabilities = p_capabilities
+      AND current_head.authorized_source_epoch = p_authorized_source_epoch
+      AND current_head.source_policy_id = p_source_policy_id
+      AND current_head.routing_policy_version = p_routing_policy_version
+      AND current_head.redaction_profile_family = p_redaction_profile_family
+    THEN
+      RAISE EXCEPTION 'merchant_ai_no_op' USING ERRCODE = 'P0001';
+    END IF;
+  END IF;
+
   PERFORM set_config('repkey.merchant_ai_transition', '1', true);
   INSERT INTO merchant_ai_consent_evidence (
     authorization_lineage_id, state_version, organization_id, property_id,
@@ -449,7 +498,8 @@ BEGIN
     authorized_source_epoch, analysis_start_sequence, notice_version, notice_digest,
     source_policy_id, routing_policy_version, processing_region,
     provider_deployment_profile_version, redaction_profile_family,
-    actor_user_id, reason_code, idempotency_key, request_hash, occurred_at
+    actor_user_id, reason_code, idempotency_key, request_hash, occurred_at,
+    ceremony_id
   ) VALUES (
     p_authorization_lineage_id, p_state_version, p_organization_id, p_property_id,
     p_transition_kind, p_state, p_capabilities, p_runtime_profiles,
@@ -458,7 +508,7 @@ BEGIN
     p_notice_digest, p_source_policy_id, p_routing_policy_version,
     p_processing_region, p_provider_deployment_profile_version,
     p_redaction_profile_family, p_actor_user_id, p_reason_code,
-    p_idempotency_key, p_request_hash, p_occurred_at
+    p_idempotency_key, p_request_hash, p_occurred_at, p_ceremony_id
   )
   RETURNING * INTO inserted_evidence;
 

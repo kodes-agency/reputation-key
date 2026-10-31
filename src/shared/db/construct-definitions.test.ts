@@ -9,6 +9,7 @@
 import { readFileSync } from 'node:fs'
 import { describe, expect, it } from 'vitest'
 import {
+  FORWARD_ONLY_CONSTRUCT_DEFINITIONS,
   MIGRATION_CREATED_CONSTRUCTS,
   SUPERSEDED_CONSTRUCT_DEFINITIONS,
   compareConstructDefinitions,
@@ -22,6 +23,7 @@ import {
 } from './construct-definitions'
 import { readMigrationJournal } from './migration-journal-order'
 import { DB_ONLY_CONSTRUCTS } from './schema/db-only-constructs'
+import { withoutForwardOnlyConstructs } from './construct-baseline-parity.test-fixtures'
 
 const FILE_FUNCTION = `CREATE OR REPLACE FUNCTION public.count_rows(p_table text, p_limit integer DEFAULT 10)
  RETURNS public.row_summary
@@ -276,14 +278,30 @@ describe('the committed constructs file', () => {
     )
   }
 
-  it('is copied byte for byte into drizzle/0001_db_constructs.sql', () => {
+  it('keeps the historical baseline unchanged except the named forward-only definitions', () => {
     const read = (path: string) =>
       readFileSync(new URL(`../../../${path}`, import.meta.url), 'utf8')
-
-    // Compared as a boolean: a mismatch would print both 3,600-line files.
     expect(
-      read('drizzle/0001_db_constructs.sql') === read('src/shared/db/db-constructs.sql'),
+      withoutForwardOnlyConstructs(read('drizzle/0001_db_constructs.sql')) ===
+        withoutForwardOnlyConstructs(read('src/shared/db/db-constructs.sql')),
     ).toBe(true)
+    for (const name of FORWARD_ONLY_CONSTRUCT_DEFINITIONS) {
+      expect(
+        readMigrationDefinitions('0084_merchant_ai_consent_follows_notice').find(
+          (entry) => entry.name === name,
+        )?.definition,
+      ).toBe(
+        readConstructsFileDefinitions().find((entry) => entry.name === name)?.definition,
+      )
+    }
+  })
+
+  it('preserves whitespace outside the forward-only exception', () => {
+    const changed = FILE_FUNCTION.replace('two  spaces', 'two spaces')
+    expect(withoutForwardOnlyConstructs(FILE_FUNCTION)).toBe(FILE_FUNCTION)
+    expect(withoutForwardOnlyConstructs(changed)).not.toBe(
+      withoutForwardOnlyConstructs(FILE_FUNCTION),
+    )
   })
 
   it('states one definition for every function and trigger the register names', () => {

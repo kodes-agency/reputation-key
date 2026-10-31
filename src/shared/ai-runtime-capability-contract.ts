@@ -1,3 +1,4 @@
+import { materiallyChangedMerchantAiCapabilities } from './merchant-ai-notice-change'
 import { createHash } from 'node:crypto'
 import { z } from 'zod/v4'
 import {
@@ -13,9 +14,7 @@ import {
   type MerchantAiCapability,
 } from './domain/merchant-ai-capability'
 
-// The deployment profile this catalogue serves, for every capability: a Property's
-// consent records one deployment profile, so all three capabilities move together
-// (`private-beta-global-v2`, `ai-provider-deployment-profile.ts`).
+// Execution selection, independent of the deployment recorded as consent evidence.
 const SERVED_PROVIDER_DEPLOYMENT_PROFILE = REVIEW_ANALYSIS_V3_VERSIONS.providerDeployment
 
 const noticeInForceSchema = z
@@ -193,4 +192,55 @@ export function isAiRuntimeNoticeInForce(
   notice: MerchantAiNoticeReference,
 ): boolean {
   return isMerchantAiNoticeInForce(notice, entry.noticesInForce)
+}
+
+export type AiConsentExecution = Readonly<{
+  runtimeProfileVersion: string
+  operationProfileVersion: string
+  providerDeploymentProfileVersion: string
+}>
+
+export type AiConsentCompatibility = AiConsentExecution &
+  Readonly<{
+    capability: MerchantAiCapability
+    noticesInForce: ReadonlyArray<MerchantAiNoticeReference>
+  }>
+
+/** Only the served profiles authorize new provider work and its settlement. */
+const AI_CONSENT_COMPATIBILITY: ReadonlyArray<AiConsentCompatibility> =
+  AI_RUNTIME_CAPABILITIES_V1
+
+/**
+ * Consent follows the notice. Recorded runtime/deployment evidence is deliberately
+ * absent: only an in-force version/digest and an explicitly listed execution pair
+ * authorize work. The optional catalogue is a pure seam for contract regressions.
+ */
+export function isExecutionCompatibleWithConsent(
+  input: Readonly<{
+    capability: MerchantAiCapability
+    acknowledgedNotice: MerchantAiNoticeReference
+    servedExecution: AiConsentExecution
+    /** Original operation notice, when settling provider work. */
+    recordedNotice?: MerchantAiNoticeReference
+  }>,
+  catalogue: ReadonlyArray<AiConsentCompatibility> = AI_CONSENT_COMPATIBILITY,
+): boolean {
+  const { capability, acknowledgedNotice, servedExecution } = input
+  return (
+    isMerchantAiNoticeInForce(acknowledgedNotice) &&
+    (!input.recordedNotice ||
+      !materiallyChangedMerchantAiCapabilities(
+        input.recordedNotice,
+        acknowledgedNotice,
+      ).includes(capability)) &&
+    catalogue.some(
+      (entry) =>
+        entry.capability === capability &&
+        entry.runtimeProfileVersion === servedExecution.runtimeProfileVersion &&
+        entry.operationProfileVersion === servedExecution.operationProfileVersion &&
+        entry.providerDeploymentProfileVersion ===
+          servedExecution.providerDeploymentProfileVersion &&
+        isAiRuntimeNoticeInForce(entry, acknowledgedNotice),
+    )
+  )
 }

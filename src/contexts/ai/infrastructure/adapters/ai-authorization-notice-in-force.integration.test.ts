@@ -235,7 +235,7 @@ describe('AI authorization after the switch-on (real PostgreSQL)', () => {
     },
   )
 
-  it('refuses every capability of a consent recorded under the deployment profile that was replaced, whatever its notice', async () => {
+  it('admits served execution under the in-force notice despite historical runtime/deployment evidence', async () => {
     const snapshot = await authorization.readMerchantAuthorization({
       organizationId: ORGANIZATION_ID,
       propertyId: OLD_PROFILE_PROPERTY,
@@ -246,7 +246,7 @@ describe('AI authorization after the switch-on (real PostgreSQL)', () => {
       providerDeploymentProfileVersion: 'private-beta-global-v1',
     })
     for (const capability of CURRENT_MERCHANT_AI_CAPABILITIES) {
-      expect(isAiAuthorizationUnderServedContract(snapshot!, capability)).toBe(false)
+      expect(isAiAuthorizationUnderServedContract(snapshot!, capability)).toBe(true)
     }
   })
 })

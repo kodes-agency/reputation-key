@@ -441,6 +441,22 @@ describe('the review analysis use case under the v3 contract', () => {
     expect(mocks.markDelivered).toHaveBeenCalledTimes(1)
   })
 
+  it('uses served execution while retaining older runtime/deployment evidence unchanged', async () => {
+    const { analyze, mocks } = harness({
+      runtimeProfile: 'review-analysis-runtime-v1',
+      providerDeployment: 'private-beta-global-v1',
+    })
+    await expect(analyze(input)).resolves.toEqual({ status: 'completed' })
+    expect(mocks.claim.mock.calls[0]?.[0].binding).toMatchObject({
+      operationProfileVersion: 'review-analysis-v3',
+      capabilityRuntimeProfileVersion: 'review-analysis-runtime-v2',
+      providerDeploymentProfileVersion: 'private-beta-global-v2',
+    })
+    expect(() =>
+      parseAiGatewayRouteRequest(mocks.analyzeReview.mock.calls[0]?.[0]),
+    ).not.toThrow()
+  })
+
   it.each([
     {
       name: 'an Urgent reason makes the attention urgent',
@@ -532,14 +548,6 @@ describe('the review analysis use case under the v3 contract', () => {
             '6c98ae3bb57b5b142afed1749a1b9f59be8d6ca7edaca3250e39055897289a9c',
         },
       },
-    },
-    {
-      name: 'the v2 runtime profile',
-      options: { runtimeProfile: 'review-analysis-runtime-v1' },
-    },
-    {
-      name: 'the v1 provider deployment',
-      options: { providerDeployment: 'private-beta-global-v1' },
     },
   ])(
     'does not serve a consent recorded under $name, and asks no provider',

@@ -49,6 +49,7 @@ import { createAiPropertyAggregateStoreAdapter } from './ai-property-aggregate-s
 import { createAiOperationStoreAdapter } from './ai-operation-store.adapter'
 import { createAiReviewAnalysisReceiptWriter } from './ai-review-analysis-receipt.adapter'
 import { createAiReviewEventStoreAdapter } from './ai-review-event-store.adapter'
+import { REVIEW_ANALYSIS_NORMALIZATION_DIGEST } from '#/shared/review-analysis-v3-normalizer'
 
 const NOW = new Date('2026-09-08T10:00:00.000Z')
 const COMPLETED_AT = new Date('2026-09-08T10:05:00.000Z')
@@ -266,6 +267,7 @@ describe.sequential('AI output store analysis persistence (real PostgreSQL)', ()
       createdAt: NOW,
       updatedAt: NOW,
     })
+    // Consent evidence may predate execution selection while the notice remains in force.
     await db.transaction(async (tx) => {
       await tx.execute(sql`SELECT set_config('repkey.merchant_ai_transition', '1', true)`)
       await tx.insert(merchantAiConsentEvidence).values({
@@ -277,7 +279,7 @@ describe.sequential('AI output store analysis persistence (real PostgreSQL)', ()
         state: 'enabled',
         capabilities: ['review_analysis'],
         capabilityRuntimeProfileVersions: {
-          review_analysis: 'review-analysis-runtime-v2',
+          review_analysis: 'review-analysis-runtime-v1',
         },
         reviewAnalysisEpoch: 1,
         replyDraftingEpoch: 1,
@@ -289,7 +291,7 @@ describe.sequential('AI output store analysis persistence (real PostgreSQL)', ()
         sourcePolicyId: 'google-business-profile-source-policy-v1',
         routingPolicyVersion: 1,
         processingRegion: 'global',
-        providerDeploymentProfileVersion: AI_PROVIDER_DEPLOYMENT_PROFILE.profileVersion,
+        providerDeploymentProfileVersion: 'private-beta-global-v1',
         redactionProfileFamily: 'gbp-review-global-v1',
         actorUserId: ACTOR_USER_ID,
         reasonCode: 'merchant_enabled',
@@ -304,7 +306,7 @@ describe.sequential('AI output store analysis persistence (real PostgreSQL)', ()
         state: 'enabled',
         capabilities: ['review_analysis'],
         capabilityRuntimeProfileVersions: {
-          review_analysis: 'review-analysis-runtime-v2',
+          review_analysis: 'review-analysis-runtime-v1',
         },
         reviewAnalysisEpoch: 1,
         replyDraftingEpoch: 1,
@@ -317,7 +319,7 @@ describe.sequential('AI output store analysis persistence (real PostgreSQL)', ()
         sourcePolicyId: 'google-business-profile-source-policy-v1',
         routingPolicyVersion: 1,
         processingRegion: 'global',
-        providerDeploymentProfileVersion: AI_PROVIDER_DEPLOYMENT_PROFILE.profileVersion,
+        providerDeploymentProfileVersion: 'private-beta-global-v1',
         redactionProfileFamily: 'gbp-review-global-v1',
         updatedBy: ACTOR_USER_ID,
         updatedAt: NOW,
@@ -432,8 +434,19 @@ describe.sequential('AI output store analysis persistence (real PostgreSQL)', ()
       propertyProfileVersion: 1,
       routingPolicyVersion: 1,
       providerDeploymentProfileVersion: AI_PROVIDER_DEPLOYMENT_PROFILE.profileVersion,
-      operationProfileVersion: 'review-analysis-v2',
-      capabilityRuntimeProfileVersion: 'review-analysis-runtime-v1',
+      operationProfileVersion: 'review-analysis-v3',
+      capabilityRuntimeProfileVersion: 'review-analysis-runtime-v2',
+      // A v3 operation carries its provider and vocabulary lineage
+      // (ai_operations_v3_lineage_required).
+      providerId: 'openai',
+      providerModel: 'synthetic-model-2026-10-01',
+      providerRequestProfileVersion: 'synthetic-request-profile-v1',
+      providerRequestProfileDigest: '1'.repeat(64),
+      vocabularyHintSetId: 'generic-service',
+      vocabularyHintSetVersion: 'review-vocabulary-hints-v1',
+      vocabularyHintSetDigest: '2'.repeat(64),
+      normalizationProfileVersion: 'review-analysis-normalization-v1',
+      normalizationProfileDigest: REVIEW_ANALYSIS_NORMALIZATION_DIGEST,
       sourcePolicyId: 'google-business-profile-source-policy-v1',
       sourceCanonicalizerDigest: 'e'.repeat(64),
       redactionProfileVersion: 'gbp-review-global-v1',
@@ -478,6 +491,8 @@ describe.sequential('AI output store analysis persistence (real PostgreSQL)', ()
       .update(aiOperations)
       .set({
         state: 'executing',
+        operationProfileVersion: 'review-analysis-v3',
+        capabilityRuntimeProfileVersion: 'review-analysis-runtime-v2',
         failureCode: null,
         nextAttemptAt: null,
         noticeVersion: MERCHANT_AI_NOTICE_VERSION,
@@ -506,7 +521,7 @@ describe.sequential('AI output store analysis persistence (real PostgreSQL)', ()
   })
 
   const storeReviewA = () =>
-    outputs.storeAnalysis({
+    outputs.storeAnalysisV3({
       operationId: OPERATION_ID,
       providerCompletion: {
         expectedAttempt: 1,
@@ -524,22 +539,62 @@ describe.sequential('AI output store analysis persistence (real PostgreSQL)', ()
       authorizationLineageId: LINEAGE_ID,
       reviewAnalysisEpoch: 1,
       propertyProfileVersion: 1,
-      analysisProfileVersion: 'review-analysis-v2',
-      result: {
-        status: 'ready',
-        derivative: {
-          sentiment: 'positive',
-          primaryCategory: ASPECT_TAXONOMY_V1[0],
-          attention: 'low',
-          aspects: [
-            { aspect: ASPECT_TAXONOMY_V1[0], polarity: 'positive', intensity: 75 },
-          ],
-          issueLabel: 'helpful service',
-        },
+      analysisProfileVersion: 'review-analysis-v3',
+      derivative: {
+        sentiment: 'positive',
+        attention: 'low',
+        urgentReason: null,
+        mentions: [],
+        normalization: { flags: [], droppedMentionCount: 0 },
       },
       generatedAtEpochMillis: COMPLETED_AT.getTime(),
       expiresAtEpochMillis: ANALYSIS_EXPIRES_AT.getTime(),
     })
+
+  /** Already-produced v2 output remains readable/aggregatable without admitting
+   * its retired execution profile for a new settlement. */
+  const seedStoredReviewA = async () => {
+    await db.insert(aiReviewAnalyses).values({
+      organizationId: ORGANIZATION_ID,
+      propertyId: PROPERTY_ID,
+      reviewId: REVIEW_A_ID,
+      sourceEpoch: SOURCE_EPOCH,
+      sourceRevision: SOURCE_REVISION,
+      analysisSequence: 1,
+      operationId: OPERATION_ID,
+      authorizationLineageId: LINEAGE_ID,
+      reviewAnalysisEpoch: 1,
+      propertyProfileVersion: 1,
+      analysisProfileVersion: 'review-analysis-v2',
+      status: 'ready',
+      sentiment: 'positive',
+      primaryCategory: ASPECT_TAXONOMY_V1[0],
+      attention: 'low',
+      issueLabel: 'helpful service',
+      generatedAt: COMPLETED_AT,
+      expiresAt: ANALYSIS_EXPIRES_AT,
+    })
+    await db.insert(aiReviewAnalysisAspects).values({
+      organizationId: ORGANIZATION_ID,
+      propertyId: PROPERTY_ID,
+      reviewId: REVIEW_A_ID,
+      sourceEpoch: SOURCE_EPOCH,
+      sourceRevision: SOURCE_REVISION,
+      analysisSequence: 1,
+      aspect: ASPECT_TAXONOMY_V1[0],
+      polarity: 'positive',
+      intensity: 75,
+    })
+    await db
+      .update(aiOperations)
+      .set({
+        operationProfileVersion: 'review-analysis-v2',
+        capabilityRuntimeProfileVersion: 'review-analysis-runtime-v1',
+        state: 'succeeded_pending_delivery',
+        updatedAt: COMPLETED_AT,
+      })
+      .where(eq(aiOperations.id, OPERATION_ID))
+  }
 
   const readReviewA = () =>
     outputs.readAnalysisForDelivery(
@@ -560,6 +615,42 @@ describe.sequential('AI output store analysis persistence (real PostgreSQL)', ()
       async (result) => result,
     )
 
+  it('keeps a stored analysis readable under a lapsed notice until its grant changes', async () => {
+    await seedStoredReviewA()
+    const setGrantNotice = async (noticeVersion: string, noticeDigest: string) => {
+      await db.transaction(async (tx) => {
+        // The head guard refuses a notice edit outside a transition; this synthetic
+        // lapse switches it off for the one row edit, inside the transaction.
+        await tx.execute(
+          sql`ALTER TABLE merchant_ai_enablement DISABLE TRIGGER merchant_ai_enablement_transition_guard`,
+        )
+        await tx
+          .update(merchantAiEnablement)
+          .set({ noticeVersion, noticeDigest })
+          .where(eq(merchantAiEnablement.propertyId, PROPERTY_ID))
+        await tx.execute(
+          sql`ALTER TABLE merchant_ai_enablement ENABLE TRIGGER merchant_ai_enablement_transition_guard`,
+        )
+      })
+    }
+    try {
+      await setGrantNotice(EARLIER_NOTICE_VERSION, EARLIER_NOTICE_DIGEST)
+      await db
+        .update(aiOperations)
+        .set({
+          noticeVersion: EARLIER_NOTICE_VERSION,
+          noticeDigest: EARLIER_NOTICE_DIGEST,
+        })
+        .where(eq(aiOperations.id, OPERATION_ID))
+      await expect(readReviewA()).resolves.toMatchObject({
+        status: 'ready',
+        sentiment: 'positive',
+      })
+    } finally {
+      await setGrantNotice(MERCHANT_AI_NOTICE_VERSION, MERCHANT_AI_NOTICE_DIGEST)
+    }
+  })
+
   /** The operation as one claimed under another notice, and nothing else moved. */
   const claimUnderAnotherNotice = (
     notice: Readonly<{ noticeVersion?: string; noticeDigest?: string }>,
@@ -578,7 +669,7 @@ describe.sequential('AI output store analysis persistence (real PostgreSQL)', ()
     it.each(DRIFTS)(
       'withholds its stored analysis (notice %s)',
       async (_field, notice) => {
-        await expect(storeReviewA()).resolves.toBe(true)
+        await seedStoredReviewA()
         // The control: under the notice the Property consented to, it is read.
         await expect(readReviewA()).resolves.toMatchObject({ status: 'ready' })
 
@@ -623,9 +714,9 @@ describe.sequential('AI output store analysis persistence (real PostgreSQL)', ()
       analysisSequence: 1,
       status: 'ready',
       sentiment: 'positive',
-      primaryCategory: ASPECT_TAXONOMY_V1[0],
+      primaryCategory: null,
       attention: 'low',
-      issueLabel: 'helpful service',
+      issueLabel: null,
     })
     const aspects = await db
       .select({
@@ -641,9 +732,7 @@ describe.sequential('AI output store analysis persistence (real PostgreSQL)', ()
           eq(aiReviewAnalysisAspects.reviewId, REVIEW_A_ID),
         ),
       )
-    expect(aspects).toEqual([
-      { aspect: ASPECT_TAXONOMY_V1[0], polarity: 'positive', intensity: 75 },
-    ])
+    expect(aspects).toEqual([])
 
     const [operation] = await db
       .select({ state: aiOperations.state, updatedAt: aiOperations.updatedAt })
@@ -981,7 +1070,7 @@ describe.sequential('AI output store analysis persistence (real PostgreSQL)', ()
     })
 
     it('still delivers a stored analysis whose event was retired before the reaper reached it', async () => {
-      await expect(storeReviewA()).resolves.toBe(true)
+      await seedStoredReviewA()
       await seedOriginEvent(ORIGIN_EVENT_ID)
       await db.delete(outboxEvents).where(eq(outboxEvents.id, ORIGIN_EVENT_ID))
       const reaper = createAiOperationExecutionReaper({
@@ -1051,7 +1140,7 @@ describe.sequential('AI output store analysis persistence (real PostgreSQL)', ()
   })
 
   it('reads current v1 analysis evidence with no aspect children', async () => {
-    await expect(storeReviewA()).resolves.toBe(true)
+    await seedStoredReviewA()
     await db
       .update(aiReviewAnalyses)
       .set({ analysisProfileVersion: 'review-analysis-v1' })
@@ -1086,7 +1175,7 @@ describe.sequential('AI output store analysis persistence (real PostgreSQL)', ()
   })
 
   it('projects v2 aspects through per-review and daily aggregate rows', async () => {
-    await expect(storeReviewA()).resolves.toBe(true)
+    await seedStoredReviewA()
     const aggregates = createAiPropertyAggregateStoreAdapter(db)
     const windowRequest = {
       organizationId: ORGANIZATION_ID,
@@ -1182,7 +1271,7 @@ describe.sequential('AI output store analysis persistence (real PostgreSQL)', ()
     // contributions this coverage summarises are not: the new generation has
     // no rows yet. Coverage read from the ledger reported it complete over an
     // empty window, so the insights report showed a confidently empty period.
-    await expect(storeReviewA()).resolves.toBe(true)
+    await seedStoredReviewA()
     const aggregates = createAiPropertyAggregateStoreAdapter(db)
     await expect(
       aggregates.applyReviewAnalysis({
@@ -1233,7 +1322,7 @@ describe.sequential('AI output store analysis persistence (real PostgreSQL)', ()
   })
 
   it('reads current v1 analysis evidence that predates aspect children', async () => {
-    await expect(storeReviewA()).resolves.toBe(true)
+    await seedStoredReviewA()
     const aggregates = createAiPropertyAggregateStoreAdapter(db)
     await expect(
       aggregates.applyReviewAnalysis({

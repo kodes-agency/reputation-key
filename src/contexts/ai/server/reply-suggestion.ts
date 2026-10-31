@@ -55,6 +55,9 @@ export const generateReplySuggestionFn = createServerFn({ method: 'POST' })
           // not asked for it. It is still a reply for one Property's Review,
           // chosen from that review's rating: either path is decided at the
           // stored review's Property, never skipped.
+          // Tenant, permission and Property access come first. Consent eligibility
+          // stays in the use case so an out-of-force notice reaches the composer
+          // as consent_renewal_required with its actionable notice fix target.
           await requireExecutionAllowed({
             actor: ctx,
             action: data.templateOnly ? 'reply.manage' : 'ai.reply.generate',

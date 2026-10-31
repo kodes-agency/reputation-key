@@ -287,9 +287,30 @@ describe('advance Review Analysis first-enablement enrollment', () => {
     })
   })
 
+  it('keeps an unchanged analysis enrollment pending while the consent event refreshes its exact state-version fence', async () => {
+    const test = harness({
+      currentEnrollment: evidence(),
+      currentAuthorization: authorization({ stateVersion: 5 }),
+    })
+    await expect(
+      test.advance.advanceProperty({
+        organizationId: ORGANIZATION_ID,
+        propertyId: PROPERTY_ID,
+      }),
+    ).resolves.toEqual({ status: 'runtime_blocked' })
+    expect(test.markSuperseded).not.toHaveBeenCalled()
+    expect(test.reconcile).not.toHaveBeenCalled()
+  })
+
   it('supersedes a queued enrollment whose authorization generation moved', async () => {
     const test = harness({
-      currentAuthorization: authorization({ stateVersion: 5 }),
+      currentAuthorization: authorization({
+        stateVersion: 5,
+        capabilityEpochs: {
+          ...authorization().capabilityEpochs,
+          review_analysis: { epoch: 4, changedAtEpochMillis: NOW.getTime() },
+        },
+      }),
     })
 
     const result = await test.advance.sweep()
@@ -394,7 +415,13 @@ describe('advance one Property enrollment now', () => {
   it('retires an enrollment whose authorization moved on', async () => {
     const test = harness({
       currentEnrollment: evidence(),
-      currentAuthorization: authorization({ stateVersion: 5 }),
+      currentAuthorization: authorization({
+        stateVersion: 5,
+        capabilityEpochs: {
+          ...authorization().capabilityEpochs,
+          review_analysis: { epoch: 4, changedAtEpochMillis: NOW.getTime() },
+        },
+      }),
     })
 
     await expect(test.advance.advanceProperty(scope)).resolves.toEqual({

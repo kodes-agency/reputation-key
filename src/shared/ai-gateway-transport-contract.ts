@@ -19,7 +19,7 @@ import {
 } from './ai-review-language-catalogue'
 import {
   AI_RUNTIME_CAPABILITIES_V1,
-  isAiRuntimeNoticeInForce,
+  isExecutionCompatibleWithConsent,
 } from './ai-runtime-capability-contract'
 import {
   AI_ANALYSIS_V2_OUTPUT_SCHEMA,
@@ -378,6 +378,7 @@ export const aiGatewayRouteRequestSchema = z
     replySuggestionGatewayRequestSchema,
     propertyTrendGatewayRequestSchema,
   ])
+  // fallow-ignore-next-line complexity -- complexity unchanged from main; the finding moved with earlier code (ADR 0074 refactor)
   .superRefine((value, context) => {
     const capability = value.binding.capabilityFence.capability
     const entry = AI_RUNTIME_CAPABILITIES_V1.find(
@@ -390,7 +391,16 @@ export const aiGatewayRouteRequestSchema = z
       value.binding.operationProfileVersion !== entry.operationProfileVersion ||
       value.binding.providerDeploymentProfileVersion !==
         entry.providerDeploymentProfileVersion ||
-      !isAiRuntimeNoticeInForce(entry, value.binding)
+      !isExecutionCompatibleWithConsent({
+        capability: entry.capability,
+        acknowledgedNotice: value.binding,
+        servedExecution: {
+          runtimeProfileVersion: value.binding.capabilityRuntimeProfileVersion,
+          operationProfileVersion: value.binding.operationProfileVersion,
+          providerDeploymentProfileVersion:
+            value.binding.providerDeploymentProfileVersion,
+        },
+      })
     ) {
       context.addIssue({ code: 'custom', message: 'route binding is cross-wired' })
     }

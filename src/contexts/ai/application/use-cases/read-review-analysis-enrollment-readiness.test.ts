@@ -104,7 +104,7 @@ function read(
             {
               scope: {
                 kind: 'provider_deployment_profile' as const,
-                providerDeploymentProfileVersion: 'private-beta-global-v1',
+                providerDeploymentProfileVersion: 'private-beta-global-v2',
               },
               controlId: '47acc8e8-8a64-4601-be43-029423bd0996',
               generation: 1,

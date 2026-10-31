@@ -2,7 +2,6 @@ import type {
   CapabilityRuntimeProfileVersions,
   MerchantAiCapability,
 } from '#/shared/domain/merchant-ai-capability'
-import { sameRecordEntries } from '#/shared/domain/record-entries'
 
 export {
   CURRENT_MERCHANT_AI_CAPABILITIES,
@@ -16,7 +15,7 @@ export type CurrentMerchantAiCapability = MerchantAiCapability
  * profile it was consented under: `private-beta-global-v2` since the switch-on of
  * review analysis v3 (2026-10-30), `private-beta-global-v1` for every consent before
  * it. A v1 grant is still read, so the settings page can ask for the confirmation
- * again, but it is never served (`isMerchantAiExecutionContractCurrent`).
+ * again, and execution compatibility is decided by its notice, not this evidence.
  */
 export type MerchantAiProviderDeploymentProfile =
   'private-beta-global-v1' | 'private-beta-global-v2'
@@ -71,7 +70,7 @@ export type MerchantAiDesiredGrant = MerchantAiExecutionContract &
     authorizedSourceEpoch: number
   }>
 
-export function isMerchantAiExecutionContractCurrent(
+function isMerchantAiExecutionContractCurrent(
   recorded: MerchantAiExecutionContract,
   served: MerchantAiExecutionContract,
 ): boolean {
@@ -80,8 +79,6 @@ export function isMerchantAiExecutionContractCurrent(
     recorded.noticeDigest === served.noticeDigest &&
     recorded.sourcePolicyId === served.sourcePolicyId &&
     recorded.routingPolicyVersion === served.routingPolicyVersion &&
-    recorded.providerDeploymentProfileVersion ===
-      served.providerDeploymentProfileVersion &&
     recorded.redactionProfileFamily === served.redactionProfileFamily
   )
 }
@@ -96,16 +93,10 @@ function sameCapabilities(
   )
 }
 
-function sameRuntimeProfiles(
-  left: CapabilityRuntimeProfileVersions,
-  right: CapabilityRuntimeProfileVersions,
-): boolean {
-  return sameRecordEntries(left, right)
-}
-
 /**
  * True when a grant already records exactly the desired one: the same
- * capabilities, runtime profiles, source epoch, and execution contract.
+ * capabilities, source epoch, notice and data-use policy. Technical runtime and
+ * deployment refreshes are historical evidence, never consent transitions.
  * Recording it again would be a transition that changes nothing, so it never
  * bumps an epoch or writes evidence. Callers check the grant's state.
  */
@@ -115,10 +106,6 @@ export function isMerchantAiGrantCurrent(
 ): boolean {
   return (
     sameCapabilities(current.capabilities, desired.capabilities) &&
-    sameRuntimeProfiles(
-      current.capabilityRuntimeProfileVersions,
-      desired.capabilityRuntimeProfileVersions,
-    ) &&
     current.authorizedSourceEpoch === desired.authorizedSourceEpoch &&
     isMerchantAiExecutionContractCurrent(current, desired)
   )

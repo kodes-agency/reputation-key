@@ -618,4 +618,80 @@ describe('Review Analysis enrollment adapter (real PostgreSQL)', () => {
       caughtUpAnalysisSequence: 1,
     })
   })
+  it('preserves caught-up analysis and its progress across a drafting-only authorization change', async () => {
+    const [before] = await db
+      .select()
+      .from(aiReviewAnalysisEnrollments)
+      .where(eq(aiReviewAnalysisEnrollments.id, ENROLLMENT_ID))
+    expect(before?.state).toBe('caught_up')
+    if (!before) throw new Error('Missing caught-up enrollment')
+    const occurredAt = new Date(before.updatedAt.getTime() + 1)
+    const eventId = '74000000-0000-4000-8000-000000000099'
+    await db.transaction(async (tx) => {
+      const [evidence] = await tx
+        .select()
+        .from(merchantAiConsentEvidence)
+        .where(
+          and(
+            eq(merchantAiConsentEvidence.authorizationLineageId, LINEAGE_ID),
+            eq(merchantAiConsentEvidence.stateVersion, 1),
+          ),
+        )
+      if (!evidence) throw new Error('Missing original consent evidence')
+      await tx.execute(sql`SELECT set_config('repkey.merchant_ai_transition', '1', true)`)
+      await tx.insert(merchantAiConsentEvidence).values({
+        ...evidence,
+        stateVersion: 2,
+        transitionKind: 'change',
+        replyDraftingEpoch: 2,
+        idempotencyKey: 'drafting-only-notice-refresh',
+        occurredAt,
+      })
+      await tx
+        .update(merchantAiEnablement)
+        .set({ stateVersion: 2, replyDraftingEpoch: 2, updatedAt: occurredAt })
+        .where(eq(merchantAiEnablement.propertyId, PROPERTY_ID))
+      await tx.insert(outboxEvents).values({
+        id: eventId,
+        eventType: 'identity.merchant_ai.changed',
+        eventVersion: 1,
+        payload: { state: 'enabled' },
+        organizationId: ORGANIZATION_ID,
+        propertyId: PROPERTY_ID,
+        sourceContext: 'identity',
+        sourceAggregateId: PROPERTY_ID,
+        createdAt: occurredAt,
+      })
+    })
+    const result = await enrollments.applyAuthorizationLifecycle({
+      eventEnvelopeId: eventId,
+      organizationId: ORGANIZATION_ID,
+      propertyId: PROPERTY_ID,
+      authorizationState: 'enabled',
+      correlationId: null,
+      occurredAt,
+      fence: {
+        authorizationLineageId: LINEAGE_ID,
+        authorizationStateVersion: 2,
+        sourceEpoch: 0,
+        reviewAnalysisEpoch: 1,
+        replyDraftingEpoch: 2,
+        propertyTrendsEpoch: 1,
+        analysisStartSequence: 0,
+      },
+    })
+    expect(result).toEqual({
+      status: 'applied',
+      enrollment: { status: 'preserved', enrollmentId: ENROLLMENT_ID },
+    })
+    const [after] = await db
+      .select()
+      .from(aiReviewAnalysisEnrollments)
+      .where(eq(aiReviewAnalysisEnrollments.id, ENROLLMENT_ID))
+    expect(after).toEqual({
+      ...before,
+      authorizationStateVersion: 2,
+      updatedAt: occurredAt,
+    })
+  })
 })

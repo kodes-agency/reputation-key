@@ -1,3 +1,5 @@
+import { readFileSync } from 'node:fs'
+import { nextMerchantAiCapabilityEpochs } from '../../domain/merchant-ai-capability-epochs'
 import { randomUUID } from 'node:crypto'
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 import { eq, sql } from 'drizzle-orm'
@@ -34,7 +36,7 @@ import {
 import { createAiAdvisoryScope } from '#/shared/ai-lock-order-v1'
 import {
   getAiRuntimeCapability,
-  isAiRuntimeNoticeInForce,
+  isExecutionCompatibleWithConsent,
 } from '#/shared/ai-runtime-capability-contract'
 
 const db = getDb()
@@ -87,10 +89,11 @@ function underServedContract(
   capability: keyof MerchantAiSnapshot['capabilityEpochs'],
 ): boolean {
   const served = getAiRuntimeCapability(capability)
-  return (
-    isAiRuntimeNoticeInForce(served, snapshot) &&
-    snapshot.providerDeploymentProfileVersion === served.providerDeploymentProfileVersion
-  )
+  return isExecutionCompatibleWithConsent({
+    capability,
+    acknowledgedNotice: snapshot,
+    servedExecution: served,
+  })
 }
 
 /**
@@ -100,7 +103,9 @@ function underServedContract(
  * through the database function the application uses, with the values that deploy
  * left behind, because the application can no longer write them.
  */
-async function enableAsBeforeTheSwitchOn(): Promise<MerchantAiSnapshot> {
+async function enableAsBeforeTheSwitchOn(
+  notice: { noticeVersion: string; noticeDigest: string } = NOTICE_2026_10_17,
+): Promise<MerchantAiSnapshot> {
   const head = await db.execute(sql`
     SELECT head_sequence
     FROM review_ai_analysis_heads
@@ -126,8 +131,8 @@ async function enableAsBeforeTheSwitchOn(): Promise<MerchantAiSnapshot> {
       1,
       3,
       ${Number(head.rows[0]?.head_sequence)},
-      ${NOTICE_2026_10_17.noticeVersion},
-      ${NOTICE_2026_10_17.noticeDigest},
+      ${notice.noticeVersion},
+      ${notice.noticeDigest},
       'google-business-profile-source-policy-v1',
       1,
       'global',
@@ -160,7 +165,8 @@ function fence(
     authorizedSourceEpoch: snapshot.authorizedSourceEpoch,
     stateVersion: snapshot.stateVersion,
     noticeDigest: snapshot.noticeDigest,
-    runtimeProfileVersion,
+    recordedRuntimeProfileVersion: runtimeProfileVersion,
+    servedExecution: getAiRuntimeCapability(capability),
   }
 }
 
@@ -480,7 +486,14 @@ describe('Merchant AI authorization store', () => {
     for (const changedFence of [
       { ...expectedFence, stateVersion: expectedFence.stateVersion + 1 },
       { ...expectedFence, noticeDigest: '0'.repeat(64) },
-      { ...expectedFence, runtimeProfileVersion: 'wrong-runtime' },
+      { ...expectedFence, recordedRuntimeProfileVersion: 'wrong-runtime' },
+      {
+        ...expectedFence,
+        servedExecution: {
+          ...expectedFence.servedExecution,
+          runtimeProfileVersion: 'wrong-runtime',
+        },
+      },
       {
         ...expectedFence,
         authorizationLineageId: '30000000-0000-4000-8000-000000000001',
@@ -751,6 +764,202 @@ describe('Merchant AI authorization store', () => {
       },
     ])
   })
+
+  it('keeps pre-existing historical evidence readable across the forward migration', async () => {
+    const before = await enableAsBeforeTheSwitchOn()
+    const migration = readFileSync(
+      new URL(
+        '../../../../../drizzle/0084_merchant_ai_consent_follows_notice.sql',
+        import.meta.url,
+      ),
+      'utf8',
+    )
+    await db.transaction(async (tx) => {
+      for (const statement of migration.split('--> statement-breakpoint')) {
+        await tx.execute(sql.raw(statement))
+      }
+    })
+    expect(
+      await store.getSnapshot({ organizationId: ORG, propertyId: PROPERTY }),
+    ).toEqual(before)
+    const evidence = await db.execute(
+      sql`SELECT notice_version, notice_digest, capability_runtime_profile_versions FROM merchant_ai_consent_evidence WHERE organization_id = ${ORG} AND property_id = ${PROPERTY}::uuid`,
+    )
+    expect(evidence.rows).toEqual([
+      {
+        notice_version: before.noticeVersion,
+        notice_digest: before.noticeDigest,
+        capability_runtime_profile_versions: before.capabilityRuntimeProfileVersions,
+      },
+    ])
+  })
+
+  it('allows served work with historical runtime/deployment evidence, without a consent write or epoch bump', async () => {
+    const initial = await enableAsBeforeTheSwitchOn({
+      noticeVersion: MERCHANT_AI_NOTICE_VERSION,
+      noticeDigest: MERCHANT_AI_NOTICE_DIGEST,
+    })
+    for (const purpose of ['ai.analyze', 'ai.generate_reply', 'ai.detect_trends']) {
+      await expect(
+        hasActiveMerchantAiConsent(db, {
+          organizationId: ORG,
+          propertyId: PROPERTY,
+          purpose,
+        }),
+      ).resolves.toBe(true)
+    }
+    await expect(
+      hasActiveMerchantAiConsent(db, {
+        organizationId: ORG,
+        propertyId: PROPERTY,
+        purpose: 'ai.analyze',
+        expectedFence: fence(initial, 'review_analysis'),
+      }),
+    ).resolves.toBe(true)
+    await expect(
+      hasActiveMerchantAiConsent(db, {
+        organizationId: ORG,
+        propertyId: PROPERTY,
+        purpose: 'ai.analyze',
+        expectedFence: {
+          ...fence(initial, 'review_analysis'),
+          servedExecution: {
+            ...getAiRuntimeCapability('review_analysis'),
+            operationProfileVersion: 'unknown',
+          },
+        },
+      }),
+    ).resolves.toBe(false)
+    await expect(
+      store.mutate(
+        command({
+          operation: 'change',
+          expectedStateVersion: 1,
+          idempotencyKey: 'technical-refresh',
+        }),
+      ),
+    ).rejects.toMatchObject({ code: 'no_op' })
+    expect(
+      await store.getSnapshot({ organizationId: ORG, propertyId: PROPERTY }),
+    ).toEqual(initial)
+    const evidence = await db.execute(
+      sql`SELECT count(*)::integer AS count FROM merchant_ai_consent_evidence WHERE organization_id = ${ORG} AND property_id = ${PROPERTY}::uuid`,
+    )
+    expect(evidence.rows[0]?.count).toBe(1)
+  })
+
+  it('matches TypeScript epochs and preserves the analysis frontier for a drafting-only material notice', async () => {
+    const initial = await enableAsBeforeTheSwitchOn()
+    const expected = nextMerchantAiCapabilityEpochs(
+      initial,
+      { ...initial, operation: 'change', capabilities: CURRENT_MERCHANT_AI_CAPABILITIES },
+      false,
+      ['reply_drafting'],
+    )
+    // Simulate the next notice's catalogue metadata only, inside a
+    // transaction that restores it before commit. Production notice text, identities and material scope stay pinned.
+    await db.transaction(async (tx) => {
+      const definition = await tx.execute(
+        sql`SELECT pg_get_functiondef('public.merchant_ai_notice_material_changes_v1(character varying, character varying, character varying, character varying)'::regprocedure) AS definition`,
+      )
+      const original = String(definition.rows[0]?.definition)
+      const replacement = original.replace(
+        "ARRAY['review_analysis', 'reply_drafting', 'property_trends']::text[]),",
+        "ARRAY['reply_drafting']::text[]),",
+      )
+      expect(replacement).not.toBe(original)
+      await tx.execute(sql.raw(replacement))
+      await tx.execute(
+        sql`UPDATE review_ai_analysis_heads SET head_sequence = 38 WHERE organization_id = ${ORG} AND property_id = ${PROPERTY}::uuid AND source_epoch = 3`,
+      )
+      const result = await tx.execute(sql`SELECT (apply_merchant_ai_transition_v1(
+        ${initial.authorizationLineageId}::uuid, 1, 2, ${ORG}, ${PROPERTY}::uuid, 'change', 'enabled',
+        ARRAY['review_analysis', 'reply_drafting', 'property_trends']::text[],
+        ${JSON.stringify({ review_analysis: 'review-analysis-runtime-v2', reply_drafting: 'reply-drafting-runtime-v1', property_trends: 'property-trends-runtime-v1' })}::jsonb,
+        ${expected.review_analysis}, ${expected.reply_drafting}, ${expected.property_trends},
+        3, ${initial.analysisStartSequence}, ${MERCHANT_AI_NOTICE_VERSION}, ${MERCHANT_AI_NOTICE_DIGEST},
+        'google-business-profile-source-policy-v1', 1, 'global', 'private-beta-global-v2', 'gbp-review-global-v1',
+        ${USER}, 'notice_reconsented', 'drafting-material-only', ${'c'.repeat(64)}, ${NOW}, ${randomUUID()}::uuid
+      )).*`)
+      expect(result.rows[0]).toMatchObject({
+        review_analysis_epoch: 1,
+        reply_drafting_epoch: 2,
+        property_trends_epoch: 1,
+        analysis_start_sequence: String(initial.analysisStartSequence),
+      })
+      // Restore the metadata before commit; no synthetic catalogue can escape.
+      await tx.execute(sql.raw(original))
+    })
+  })
+
+  it.each([
+    [
+      'source_policy_id',
+      { sourcePolicyId: 'previous-source-policy' },
+      'previous-source-policy',
+    ],
+    ['routing_policy_version', { routingPolicyVersion: 2 }, 2],
+    [
+      'redaction_profile_family',
+      { redactionProfileFamily: 'previous-redaction' },
+      'previous-redaction',
+    ],
+  ] as const)(
+    'matches TypeScript epoch invalidation when %s changes',
+    async (column, previousPolicy, value) => {
+      const initial = await store.mutate(command())
+      const desired = command({ operation: 'change', expectedStateVersion: 1 })
+      const expected = nextMerchantAiCapabilityEpochs(
+        { ...initial, ...previousPolicy },
+        desired,
+        false,
+        [],
+      )
+      expect(expected).toEqual({
+        review_analysis: 2,
+        reply_drafting: 2,
+        property_trends: 2,
+      })
+      const rollback = new Error('rollback synthetic prior data-use policy')
+      await expect(
+        db.transaction(async (tx) => {
+          // Simulate an older policy without expanding the production CHECK catalogue.
+          // The whole fixture, including this DDL, is rolled back at the end.
+          await tx.execute(
+            sql`ALTER TABLE merchant_ai_enablement DROP CONSTRAINT merchant_ai_enablement_contract_valid`,
+          )
+          await tx.execute(
+            sql`SELECT set_config('repkey.merchant_ai_transition', '1', true)`,
+          )
+          // The head guard refuses a policy edit outside a transition; switch it off for
+          // this one synthetic row edit only, then back on before the real transition.
+          await tx.execute(
+            sql`ALTER TABLE merchant_ai_enablement DISABLE TRIGGER merchant_ai_enablement_transition_guard`,
+          )
+          await tx.execute(sql`UPDATE merchant_ai_enablement SET ${sql.identifier(column)} = ${value}
+        WHERE organization_id = ${ORG} AND property_id = ${PROPERTY}::uuid`)
+          await tx.execute(
+            sql`ALTER TABLE merchant_ai_enablement ENABLE TRIGGER merchant_ai_enablement_transition_guard`,
+          )
+          const result = await tx.execute(sql`SELECT (apply_merchant_ai_transition_v1(
+        ${initial.authorizationLineageId}::uuid, 1, 2, ${ORG}, ${PROPERTY}::uuid, 'change', 'enabled',
+        ARRAY['review_analysis', 'reply_drafting', 'property_trends']::text[],
+        ${JSON.stringify(initial.capabilityRuntimeProfileVersions)}::jsonb,
+        ${expected.review_analysis}, ${expected.reply_drafting}, ${expected.property_trends},
+        3, ${initial.analysisStartSequence}, ${MERCHANT_AI_NOTICE_VERSION}, ${MERCHANT_AI_NOTICE_DIGEST},
+        'google-business-profile-source-policy-v1', 1, 'global', 'private-beta-global-v2', 'gbp-review-global-v1',
+        ${USER}, 'notice_reconsented', 'data-use-policy-change', ${'c'.repeat(64)}, ${NOW}, ${randomUUID()}::uuid
+      )).*`)
+          expect(result.rows[0]).toMatchObject({
+            review_analysis_epoch: expected.review_analysis,
+            reply_drafting_epoch: expected.reply_drafting,
+            property_trends_epoch: expected.property_trends,
+          })
+          throw rollback
+        }),
+      ).rejects.toBe(rollback)
+    },
+  )
 
   it('enforces transition, optimistic-version, and material-change rules', async () => {
     await expect(

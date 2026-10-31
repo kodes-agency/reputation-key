@@ -435,6 +435,27 @@ describe('generateReplySuggestionFn — resolved outcomes reach the hook intact'
     },
   )
 
+  it('preserves actionable notice renewal after tenant and access checks', async () => {
+    const renewal: GenerateReplySuggestionResult = {
+      status: 'unavailable',
+      code: 'consent_renewal_required',
+      retryAfterEpochMillis: null,
+    }
+    mocks.generateReplySuggestion.mockResolvedValue(renewal)
+    await expect(call()).resolves.toEqual(renewal)
+    expect(mocks.resolveTenantContext.mock.invocationCallOrder[0]).toBeLessThan(
+      mocks.requireExecutionAllowed.mock.invocationCallOrder[0]!,
+    )
+    expect(mocks.requireExecutionAllowed.mock.invocationCallOrder[0]).toBeLessThan(
+      mocks.generateReplySuggestion.mock.invocationCallOrder[0]!,
+    )
+    expect(mocks.requireExecutionAllowed).toHaveBeenCalledWith({
+      actor: ACTOR,
+      action: REPLY_GENERATE,
+      propertyId: PROPERTY_ID,
+    })
+  })
+
   it('keeps every code the reply hook distinguishes inside the use-case union', () => {
     // Guards the direction the per-code tests cannot: a code deleted from the
     // use case while the hook still branches on it.

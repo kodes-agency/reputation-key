@@ -36,57 +36,45 @@ const validCapabilitySet = (state: { name: string }, capabilities: { name: strin
     OR ("${state.name}" IN ('disabled', 'revoked') AND "${capabilities.name}" = ARRAY[]::text[])
   )`)
 
-// The runtime profile each capability is recorded under. Review analysis has two:
-// v1 is what every consent before the switch-on of v3 (2026-10-30) recorded and stays
-// valid at its own version; v2 is what a consent records since. The set is an
-// append-only OR-chain, like the notice versions below.
-const REVIEW_ANALYSIS_RUNTIME_VERSIONS = RECORDED_RUNTIME_PROFILE_VERSIONS.review_analysis
-
+// Append-only catalogue product: every historical runtime combination remains readable.
 const validRuntimeProfileMap = (
   capabilities: { name: string },
   runtimeProfiles: { name: string },
 ) => {
   const caps = `"${capabilities.name}"`
   const map = `"${runtimeProfiles.name}"`
+  const sets = [
+    ['review_analysis'],
+    ['reply_drafting'],
+    ['review_analysis', 'reply_drafting'],
+    ['review_analysis', 'property_trends'],
+    ['review_analysis', 'reply_drafting', 'property_trends'],
+  ] as const
   const arms = [`(${caps} = ARRAY[]::text[] AND ${map} = '{}'::jsonb)`]
-  const withReviewAnalysis = (
-    capabilitySet: string,
-    others: string,
-    reviewAnalysisRuntime: string,
-  ) =>
-    `(${caps} = ARRAY[${capabilitySet}]::text[] AND ${map} = '{${others}"review_analysis": "${reviewAnalysisRuntime}"}'::jsonb)`
-  for (const runtime of REVIEW_ANALYSIS_RUNTIME_VERSIONS) {
-    arms.push(withReviewAnalysis("'review_analysis'", '', runtime))
-  }
-  arms.push(
-    `(${caps} = ARRAY['reply_drafting']::text[] AND ${map} = '{"reply_drafting": "reply-drafting-runtime-v1"}'::jsonb)`,
-  )
-  for (const runtime of REVIEW_ANALYSIS_RUNTIME_VERSIONS) {
-    arms.push(
-      withReviewAnalysis(
-        "'review_analysis', 'reply_drafting'",
-        '"reply_drafting": "reply-drafting-runtime-v1", ',
-        runtime,
-      ),
-    )
-  }
-  for (const runtime of REVIEW_ANALYSIS_RUNTIME_VERSIONS) {
-    arms.push(
-      withReviewAnalysis(
-        "'review_analysis', 'property_trends'",
-        '"property_trends": "property-trends-runtime-v1", ',
-        runtime,
-      ),
-    )
-  }
-  for (const runtime of REVIEW_ANALYSIS_RUNTIME_VERSIONS) {
-    arms.push(
-      withReviewAnalysis(
-        "'review_analysis', 'reply_drafting', 'property_trends'",
-        '"reply_drafting": "reply-drafting-runtime-v1", "property_trends": "property-trends-runtime-v1", ',
-        runtime,
-      ),
-    )
+  for (const set of sets) {
+    let maps: Record<string, string>[] = [{}]
+    for (const capability of set) {
+      maps = maps.flatMap((recorded) =>
+        RECORDED_RUNTIME_PROFILE_VERSIONS[capability].map((version) => ({
+          ...recorded,
+          [capability]: version,
+        })),
+      )
+    }
+    for (const recorded of maps) {
+      const json = JSON.stringify(
+        Object.fromEntries(
+          ['reply_drafting', 'property_trends', 'review_analysis']
+            .filter((key) => key in recorded)
+            .map((key) => [key, recorded[key]]),
+        ),
+      )
+        .replaceAll(':', ': ')
+        .replaceAll(',', ', ')
+      arms.push(
+        `(${caps} = ARRAY[${set.map((capability) => `'${capability}'`).join(', ')}]::text[] AND ${map} = '${json}'::jsonb)`,
+      )
+    }
   }
   return sql.raw(`(\n    ${arms.join('\n    OR ')}\n  )`)
 }

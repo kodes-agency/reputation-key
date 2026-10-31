@@ -1,3 +1,5 @@
+import { nextMerchantAiCapabilityEpochs } from '../../domain/merchant-ai-capability-epochs'
+import { materiallyChangedMerchantAiCapabilities } from '#/shared/merchant-ai-notice-change'
 import { createHash } from 'node:crypto'
 import { sql } from 'drizzle-orm'
 import { resolveAiRuntimeCapabilitySet } from '#/shared/ai-runtime-capability-contract'
@@ -14,7 +16,6 @@ import { organizationId } from '#/shared/domain/ids'
 import { purgeAiDraftsForAuthorization } from '#/shared/db/ai/ai-draft-purge'
 import { identityMerchantAiChanged } from '../../domain/events'
 import {
-  isMerchantAiExecutionContractCurrent,
   isMerchantAiGrantCurrent,
   type MerchantAiCapabilityEpochs,
   type MerchantAiSnapshot,
@@ -217,51 +218,6 @@ function canonicalRequestHash(input: MerchantAiMutationInput): string {
     .digest('hex')
 }
 
-function nextCapabilityEpochs(
-  current: MerchantAiSnapshot | null,
-  input: MerchantAiMutationInput,
-  runtimeProfiles: CapabilityRuntimeProfileVersions,
-  sourceRebound: boolean,
-  contractChanged: boolean,
-): MerchantAiCapabilityEpochs {
-  if (!current) {
-    return Object.freeze({
-      review_analysis: 1,
-      reply_drafting: 1,
-      property_trends: 1,
-    })
-  }
-
-  const previous = new Set(current.capabilities)
-  const next = new Set(input.capabilities)
-  const incrementAll = input.operation === 'enable' || input.operation === 'revoke'
-  const epochFor = (capability: MerchantAiCapability): number => {
-    const membershipChanged = previous.has(capability) !== next.has(capability)
-    const capabilityMappingChanged =
-      contractChanged ||
-      current.capabilityRuntimeProfileVersions[capability] !== runtimeProfiles[capability]
-    const enabledAcrossMappingChange =
-      capabilityMappingChanged && (previous.has(capability) || next.has(capability))
-    const enabledAcrossSourceRebind =
-      sourceRebound && (previous.has(capability) || next.has(capability))
-    return (
-      current.capabilityEpochs[capability] +
-      (incrementAll ||
-      membershipChanged ||
-      enabledAcrossMappingChange ||
-      enabledAcrossSourceRebind
-        ? 1
-        : 0)
-    )
-  }
-
-  return Object.freeze({
-    review_analysis: epochFor('review_analysis'),
-    reply_drafting: epochFor('reply_drafting'),
-    property_trends: epochFor('property_trends'),
-  })
-}
-
 /**
  * Fence the Property source the transition authorizes and take its
  * provider-source advisory lock. A revoke fences the epoch it authorized; any
@@ -444,8 +400,8 @@ export async function commitMerchantAiTransition(
   const { current, runtimeProfiles, authorizedSourceEpoch, requestHash } = facts
   const sourceRebound =
     current !== null && current.authorizedSourceEpoch !== authorizedSourceEpoch
-  const contractChanged =
-    current !== null && !isMerchantAiExecutionContractCurrent(current, input)
+  const materiallyChanged =
+    current === null ? [] : materiallyChangedMerchantAiCapabilities(current, input)
 
   let currentAnalysisHeadSequence: number | null = null
   if (input.operation !== 'revoke') {
@@ -493,12 +449,11 @@ export async function commitMerchantAiTransition(
 
   const authorizationLineageId = current?.authorizationLineageId ?? idGen()
   const stateVersion = (current?.stateVersion ?? 0) + 1
-  const capabilityEpochs = nextCapabilityEpochs(
+  const capabilityEpochs = nextMerchantAiCapabilityEpochs(
     current,
     input,
-    runtimeProfiles,
     sourceRebound,
-    contractChanged,
+    materiallyChanged,
   )
   const analysisWillBeEnabled = input.capabilities.includes('review_analysis')
   const previousReviewAnalysisEpoch = current?.capabilityEpochs.review_analysis ?? 0

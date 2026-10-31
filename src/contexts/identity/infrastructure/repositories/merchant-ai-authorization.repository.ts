@@ -1,6 +1,10 @@
 import { createHash } from 'node:crypto'
 import { sql } from 'drizzle-orm'
-import { AI_RUNTIME_CAPABILITIES_V1 } from '#/shared/ai-runtime-capability-contract'
+import {
+  getAiRuntimeCapability,
+  isExecutionCompatibleWithConsent,
+} from '#/shared/ai-runtime-capability-contract'
+import type { MerchantAiConsentFence } from '#/shared/auth/execution-policy'
 import type {
   MerchantAiCapability,
   MerchantAiPurpose,
@@ -26,14 +30,7 @@ import {
 } from './merchant-ai-transition'
 import { runMerchantAiConsentCeremony } from './merchant-ai-consent-ceremony'
 
-export type MerchantAiAuthorizationFence = Readonly<{
-  authorizationLineageId: string
-  capabilityEpoch: number
-  authorizedSourceEpoch: number
-  stateVersion: number
-  noticeDigest: string
-  runtimeProfileVersion: string
-}>
+export type MerchantAiAuthorizationFence = MerchantAiConsentFence
 
 const CAPABILITY_BY_PURPOSE = {
   'ai.analyze': 'review_analysis',
@@ -46,13 +43,6 @@ const EPOCH_COLUMN_BY_CAPABILITY = {
   reply_drafting: 'reply_drafting_epoch',
   property_trends: 'property_trends_epoch',
 } as const satisfies Readonly<Record<MerchantAiCapability, string>>
-
-const RUNTIME_PROFILE_BY_CAPABILITY = Object.fromEntries(
-  AI_RUNTIME_CAPABILITIES_V1.map((entry) => [
-    entry.capability,
-    entry.runtimeProfileVersion,
-  ]),
-) as Readonly<Record<MerchantAiCapability, string>>
 
 async function getMerchantAiAuthorizationSnapshot(
   db: Database,
@@ -82,10 +72,10 @@ export async function hasActiveMerchantAiConsent(
     CAPABILITY_BY_PURPOSE[input.purpose as keyof typeof CAPABILITY_BY_PURPOSE]
   if (!capability) return false
   const epochColumn = sql.identifier(EPOCH_COLUMN_BY_CAPABILITY[capability])
-  const runtimeProfileVersion = RUNTIME_PROFILE_BY_CAPABILITY[capability]
+  const served = getAiRuntimeCapability(capability)
   const fence = input.expectedFence
   const result = await db.execute(sql`
-    SELECT 1 AS one
+    SELECT enablement.notice_version, enablement.notice_digest
     FROM merchant_ai_enablement AS enablement
     INNER JOIN properties AS property
       ON property.id = enablement.property_id
@@ -94,7 +84,6 @@ export async function hasActiveMerchantAiConsent(
       AND enablement.property_id = ${input.propertyId}::uuid
       AND enablement.state = 'enabled'
       AND ${capability} = ANY(enablement.capabilities)
-      AND enablement.capability_runtime_profile_versions->>${capability} = ${runtimeProfileVersion}
       AND enablement.authorized_source_epoch = property.source_epoch
       AND property.lifecycle_state = 'active'
       AND property.google_binding_state = 'active'
@@ -106,12 +95,23 @@ export async function hasActiveMerchantAiConsent(
           AND enablement.authorized_source_epoch = ${fence?.authorizedSourceEpoch ?? null}::integer
           AND enablement.state_version = ${fence?.stateVersion ?? null}::integer
           AND enablement.notice_digest = ${fence?.noticeDigest ?? null}
-          AND enablement.capability_runtime_profile_versions->>${capability} = ${fence?.runtimeProfileVersion ?? null}
+          AND enablement.capability_runtime_profile_versions->>${capability} = ${fence?.recordedRuntimeProfileVersion ?? null}
         )
       )
     LIMIT 1
   `)
-  return result.rows.length === 1
+  const row = result.rows[0]
+  return (
+    row !== undefined &&
+    isExecutionCompatibleWithConsent({
+      capability,
+      acknowledgedNotice: {
+        noticeVersion: String(row.notice_version),
+        noticeDigest: String(row.notice_digest),
+      },
+      servedExecution: fence?.servedExecution ?? served,
+    })
+  )
 }
 
 export const createMerchantAiAuthorizationStore = (
