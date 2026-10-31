@@ -23,6 +23,7 @@ type IdentityOrganizationExportPayload = Readonly<{
   rolePolicies: readonly ExportRecord[]
   canonicalPropertyAccessGrants: readonly ExportRecord[]
   compatibilityPropertyAccessGrants: readonly ExportRecord[]
+  merchantAiNoticeUpdateReceipts: readonly ExportRecord[]
   policyConsents: readonly ExportRecord[]
   lifecycleAuthority: readonly ExportRecord[]
   excludedRecordClasses: readonly Readonly<{
@@ -117,6 +118,7 @@ function csvEntry(payload: IdentityOrganizationExportPayload): OrganizationExpor
     ['property_access_grant', payload.canonicalPropertyAccessGrants],
     ['compatibility_property_access_grant', payload.compatibilityPropertyAccessGrants],
     ['policy_consent', payload.policyConsents],
+    ['merchant_ai_notice_update_receipt', payload.merchantAiNoticeUpdateReceipts],
     ['lifecycle_authority', payload.lifecycleAuthority],
   ]
   const header = [
@@ -301,6 +303,14 @@ async function readPayload(
             WHERE organization_id = ${organizationId}
             ORDER BY recorded_at, id`,
       )
+      const merchantAiNoticeUpdateReceipts = await readRows(
+        snapshot,
+        sql`
+        SELECT user_id, organization_id, notice_version, notice_digest, seen_at
+        FROM merchant_ai_notice_update_receipts WHERE organization_id = ${organizationId}
+        ORDER BY user_id, notice_version, notice_digest
+      `,
+      )
       const lifecycleAuthority = await readRows(
         snapshot,
         sql`SELECT
@@ -331,6 +341,7 @@ async function readPayload(
         canonicalPropertyAccessGrants,
         compatibilityPropertyAccessGrants,
         policyConsents,
+        merchantAiNoticeUpdateReceipts,
         lifecycleAuthority,
         excludedRecordClasses: EXCLUDED_RECORD_CLASSES,
       }

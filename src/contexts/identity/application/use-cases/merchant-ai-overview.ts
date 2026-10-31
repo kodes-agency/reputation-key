@@ -1,3 +1,4 @@
+import type { MerchantAiNoticeUpdate } from '#/shared/merchant-ai-notice-announcements'
 // Organization AI overview — every manageable Property's Merchant AI standing.
 //
 // Read-only. It lists, for each Property the actor may manage AI for, the
@@ -23,6 +24,7 @@ export type MerchantAiOverviewRecord = Readonly<{
     noticeVersion: string
     noticeDigest: string
   }> | null
+  pauseReason?: string | null
   decisionDeferredAt: Date | null
 }>
 
@@ -50,6 +52,14 @@ export type MerchantAiOverviewDeps = Readonly<{
   resolveManagementScope(
     input: Readonly<{ organizationId: string; actorUserId: string; now: Date }>,
   ): Promise<MerchantAiManagementScope>
+  pauseReason?: (
+    record: MerchantAiOverviewRecord,
+    organizationId: string,
+    propertyId: string,
+  ) => string | null
+  readLatestUpdate?: (
+    input: MerchantAiOverviewInput,
+  ) => Promise<MerchantAiNoticeUpdate | null>
   clock: () => Date
   /**
    * Whether consent recorded under a notice is in force: the served notice, or
@@ -72,8 +82,9 @@ export type MerchantAiOverviewEntry = Readonly<{
   capabilities: ReadonlyArray<MerchantAiCapability>
   /** The notice the current state was recorded under; null when never authorized. */
   noticeVersion: string | null
-  /** An enabled or revoked authorization recorded under a notice no longer in force. */
+  /** An enabled authorization recorded under a notice no longer in force. */
   reconsentRequired: boolean
+  pauseReason?: string | null
   /** ISO-8601 instant of a standing "not now" decision, or null. */
   decisionDeferredAt: string | null
   googleBindingActive: boolean
@@ -81,6 +92,7 @@ export type MerchantAiOverviewEntry = Readonly<{
 
 export type MerchantAiOverview = Readonly<{
   properties: readonly MerchantAiOverviewEntry[]
+  latestUpdate?: MerchantAiNoticeUpdate | null
 }>
 
 function validateInput(input: MerchantAiOverviewInput): void {
@@ -97,9 +109,7 @@ function toEntry(
   isNoticeInForce: MerchantAiOverviewDeps['isNoticeInForce'],
 ): MerchantAiOverviewEntry {
   const authorization = record.authorization
-  const consented =
-    authorization !== null &&
-    (authorization.state === 'enabled' || authorization.state === 'revoked')
+  const consented = authorization !== null && authorization.state === 'enabled'
   return Object.freeze({
     propertyId: record.propertyId,
     propertyName: record.propertyName,
@@ -107,6 +117,13 @@ function toEntry(
     capabilities: authorization?.capabilities ?? Object.freeze([]),
     noticeVersion: authorization?.noticeVersion ?? null,
     reconsentRequired: consented && !isNoticeInForce(authorization),
+    ...(consented && !isNoticeInForce(authorization)
+      ? {
+          pauseReason:
+            record.pauseReason ??
+            (record.googleBindingActive ? 'update_pending' : 'google_unbound'),
+        }
+      : {}),
     decisionDeferredAt: record.decisionDeferredAt?.toISOString() ?? null,
     googleBindingActive: record.googleBindingActive,
   })
@@ -131,13 +148,27 @@ export const listMerchantAiOverview =
       return Object.freeze({ properties: Object.freeze([]) })
     }
 
+    const latestUpdate = deps.readLatestUpdate
+      ? { latestUpdate: await deps.readLatestUpdate(input) }
+      : {}
     const records = await deps.reader.listOverview({
       organizationId: input.organizationId,
       propertyIds: scope.kind === 'organization' ? null : scope.propertyIds,
     })
     return Object.freeze({
+      ...latestUpdate,
       properties: Object.freeze(
-        records.map((record) => toEntry(record, deps.isNoticeInForce)),
+        records.map((record) =>
+          toEntry(
+            {
+              ...record,
+              pauseReason:
+                deps.pauseReason?.(record, input.organizationId, record.propertyId) ??
+                record.pauseReason,
+            },
+            deps.isNoticeInForce,
+          ),
+        ),
       ),
     })
   }

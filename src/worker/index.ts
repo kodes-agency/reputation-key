@@ -1,3 +1,5 @@
+import { JOB_NAME as MERCHANT_AI_RENEWAL_JOB_NAME } from '#/contexts/identity/infrastructure/jobs/merchant-ai-standing-renewal.job'
+import { jobEnqueueOptions } from '#/shared/jobs/job-policy'
 // Worker entry point — plain Node script, no Nitro
 // Built separately with tsup, runs as: node dist/worker.js
 
@@ -279,6 +281,13 @@ async function main() {
       upsertedSchedulerIds: scheduleReconciliation.upsertedSchedulerIds,
     },
     'Background job scheduler set reconciled',
+  )
+
+  // Every boot repairs lapse immediately, even with an unchanged scheduler.
+  await container.backgroundQueue.add(
+    MERCHANT_AI_RENEWAL_JOB_NAME,
+    {},
+    jobEnqueueOptions(MERCHANT_AI_RENEWAL_JOB_NAME),
   )
 
   const bootObservation = {

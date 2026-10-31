@@ -1,3 +1,7 @@
+import {
+  createMerchantAiStandingRenewalHandler,
+  JOB_NAME as MERCHANT_AI_RENEWAL_JOB_NAME,
+} from '#/contexts/identity/infrastructure/jobs/merchant-ai-standing-renewal.job'
 // Bootstrap — registers event handlers and background jobs at startup.
 // This is separate from composition.ts so that construction and registration
 // are easy to understand independently.
@@ -613,6 +617,13 @@ export async function bootstrap(
   logger.info(
     { job: AI_EXECUTION_REAPER_JOB_NAME },
     'registered AI operation abandoned-execution reaper job handler',
+  )
+
+  container.jobRegistry.register(
+    MERCHANT_AI_RENEWAL_JOB_NAME,
+    createMerchantAiStandingRenewalHandler(
+      container.identityWorkerRuntime.renewLapsedMerchantAiAuthorizations,
+    ),
   )
 
   // ── AI first-enablement enrollment recovery ───────────────────────

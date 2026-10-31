@@ -436,6 +436,13 @@ export const DATA_FATE_AUTHORITY = Object.freeze([
     exitCriteria: RETAINED_HISTORY,
   }),
   ...rows({
+    schemaFile: 'merchant-ai-notice-update.schema.ts',
+    exportNames: ['merchantAiNoticeUpdateReceipts'],
+    owner: 'identity',
+    disposition: 'active_authority',
+    authority: 'AI-01',
+  }),
+  ...rows({
     schemaFile: 'merchant-ai-authorization.schema.ts',
     // The decision deferral is Merchant AI authorization state beside the
     // head: organization-scoped (so the tenant-predicate canary governs it),

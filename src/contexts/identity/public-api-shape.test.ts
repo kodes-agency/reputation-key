@@ -34,6 +34,8 @@ const EXPECTED_REQUEST_KEYS = [
   // AccountAdmins edit a PropertyManager's Properties from Members.
   'listMemberPropertyAccess',
   'merchantAiAuthorization',
+  // AccountAdmins: the after-the-fact announcement of an automatic AI renewal.
+  'merchantAiNoticeUpdates',
   'registerInvitedUser',
   'removeMember',
   'resendInvitation',
@@ -107,6 +109,11 @@ describe('Identity public API', () => {
       'listOverview',
       'revoke',
     ])
+    expect(Object.keys(api.requests.merchantAiNoticeUpdates).sort()).toEqual([
+      'get',
+      'latest',
+      'markSeen',
+    ])
 
     expect(Object.isFrozen(api)).toBe(true)
     expect(Object.isFrozen(api.managerFacts)).toBe(true)
@@ -116,6 +123,7 @@ describe('Identity public API', () => {
     expect(Object.isFrozen(api.people.management)).toBe(true)
     expect(Object.isFrozen(api.requests)).toBe(true)
     expect(Object.isFrozen(api.requests.merchantAiAuthorization)).toBe(true)
+    expect(Object.isFrozen(api.requests.merchantAiNoticeUpdates)).toBe(true)
   })
 
   /**

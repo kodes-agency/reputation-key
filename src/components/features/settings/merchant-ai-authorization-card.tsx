@@ -3,10 +3,12 @@ import type {
   MerchantAiState,
 } from '#/contexts/identity/application/public-api'
 import type { MerchantAiNoticeDto } from '#/contexts/identity/application/dto/merchant-ai-notice.dto'
+import { Alert, AlertDescription, AlertTitle } from '#/components/ui/alert'
 import { StatusBadge, type StatusMap } from '#/components/ui/status-badge'
 import {
   Card,
   CardAction,
+  CardContent,
   CardDescription,
   CardHeader,
   CardTitle,
@@ -22,6 +24,8 @@ const AI_STATE_STATUS: StatusMap<MerchantAiState> = {
 
 type Props = Readonly<{
   propertyName: string
+  paused?: boolean
+  pauseReason?: string
   state: MerchantAiState
   sourceActive: boolean
   notice: MerchantAiNoticeDto
@@ -40,16 +44,36 @@ type Props = Readonly<{
   onResetSelection: () => void
 }>
 
+/**
+ * A grant whose automatic update has not landed is paused, never "On". It is said as a
+ * notice under the header: the header's action cell is as wide as its content, so a
+ * badge and a sentence there squeeze the title to a sliver on a phone.
+ */
+function PausedNotice({ reason }: Readonly<{ reason?: string }>) {
+  return (
+    <CardContent>
+      <Alert variant="warning">
+        <AlertTitle>Paused — needs attention</AlertTitle>
+        {reason ? <AlertDescription>{reason}</AlertDescription> : null}
+      </Alert>
+    </CardContent>
+  )
+}
+
 export function MerchantAiAuthorizationCard(props: Props) {
   return (
     <Card className="min-w-0">
       <CardHeader className="border-b">
         <CardTitle as="h2">{props.notice.payload.title}</CardTitle>
         <CardDescription>{props.notice.payload.summary}</CardDescription>
-        <CardAction>
-          <StatusBadge status={props.state} map={AI_STATE_STATUS} />
-        </CardAction>
+        {props.paused ? null : (
+          <CardAction>
+            <StatusBadge status={props.state} map={AI_STATE_STATUS} />
+          </CardAction>
+        )}
       </CardHeader>
+
+      {props.paused ? <PausedNotice reason={props.pauseReason} /> : null}
 
       <MerchantAiSettingsContent
         propertyName={props.propertyName}

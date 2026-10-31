@@ -2,14 +2,14 @@
 status: accepted
 accepted_by: Bozhidar Denev
 accepted_on: 2026-09-08
-amended_on: 2026-10-14
+amended_on: 2026-11-01
 ---
 
 # Google Business Profile Access Disclosure
 
 **Status:** Accepted for publication
-**Effective date:** 2026-10-14
-**Version:** 2.1
+**Effective date:** 2026-11-01
+**Version:** 2.2
 **Accountable owner:** Bozhidar Denev
 
 ## What access Reputation Key requests
@@ -96,8 +96,13 @@ one blanket AI permission:
 - Property Trends, which also depends on Review Analysis.
 
 Each capability remains unavailable unless the merchant has deliberately
-enabled that capability for the Property and current notice, provider,
-regional, source-content, and release controls all agree. Before external
+enabled that capability for the Property, and provider, regional,
+source-content, and release controls all agree. The merchant enables each
+capability once. When a later merchant AI notice replaces the one the merchant
+acknowledged, an enabled capability moves to it automatically, and the
+merchant's administrators are told in the product what changed. A capability
+that is off is never turned on this way, and the merchant can turn any
+capability off at any time. Before external
 inference, structured reviewer identity is removed and free text is minimized
 and redacted under the approved policy. The provider must not train on the
 submitted data and must use the approved minimum-retention and regional
@@ -209,8 +214,19 @@ AI purpose, or publication behavior changes.
 
 ## Changes
 
-This disclosure takes effect on 2026-10-14 and is version 2.1. It replaces
-version 2.0, which took effect on 2026-09-08.
+This disclosure takes effect on 2026-11-01 and is version 2.2. It replaces
+version 2.1, which took effect on 2026-10-14 and had replaced version 2.0, which
+took effect on 2026-09-08.
+
+Version 2.2 changes one statement under "How Google data is used": the
+merchant's deliberate opt-in for a capability, recorded per Property, now
+carries over to each later merchant AI notice, and the merchant's
+administrators are told in the product what changed after the change takes
+effect. A capability that is off is never turned on by a notice change, and the
+merchant can turn any capability off at any time. No data flow, provider,
+region, retention period, AI purpose, or publication behavior changes. Version
+2.2 takes effect on the day it is published, on the accountable owner's
+decision for the closed beta.
 
 Version 2.1 adds the subsection on the Property Google rating goal under "How
 Google data is used", and a paragraph on the limits of that goal under "Uses the

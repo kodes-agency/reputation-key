@@ -33,6 +33,7 @@ import {
 import { identityError } from './domain/errors'
 import { createAtomicIdentityCommandStore } from './infrastructure/identity-command-store'
 import { buildInvitationUseCases, type InvitationUseCaseDeps } from './build-invitations'
+import { buildMerchantAiUpdates } from './build-merchant-ai-updates'
 import { buildMemberAccessUseCases } from './build-member-access'
 import { buildOrganizationSettingsUseCases } from './build-organization-settings'
 import { buildCapabilityPolicyHandle } from './infrastructure/policy-store-init'
@@ -629,6 +630,7 @@ export const buildIdentityContext = (deps: IdentityContextDeps) => {
       policyStore,
       managerMembershipRepo,
     })
+  const merchantAiUpdates = buildMerchantAiUpdates(deps)
   const merchantAiDecisionDeferrals = createMerchantAiDecisionDeferralStore(deps.db)
   const authorizeMerchantAiManagement = async (
     input: Readonly<{
@@ -671,6 +673,8 @@ export const buildIdentityContext = (deps: IdentityContextDeps) => {
       }),
     clock: deps.clock,
     isNoticeInForce: isMerchantAiNoticeInForce,
+    readLatestUpdate: merchantAiUpdates.latestForOverview,
+    pauseReason: merchantAiUpdates.pauseReason,
   })
   const merchantAiAuthorization = createMerchantAiAuthorization({
     store: createMerchantAiAuthorizationStore(deps.db, deps.idGen),
@@ -846,6 +850,7 @@ export const buildIdentityContext = (deps: IdentityContextDeps) => {
     updateCustomRole: useCases.updateCustomRole,
     deleteCustomRole: useCases.deleteCustomRole,
     merchantAiAuthorization: merchantAiRequestApi,
+    merchantAiNoticeUpdates: merchantAiUpdates.updates,
     ...memberAccess,
   })
   const managerFacts = Object.freeze({
@@ -883,6 +888,7 @@ export const buildIdentityContext = (deps: IdentityContextDeps) => {
     publicApi,
     worker: Object.freeze({
       recoverInvitedRegistrations: useCases.recoverInvitedRegistrations,
+      renewLapsedMerchantAiAuthorizations: merchantAiUpdates.renewal,
     }),
     // ARC-03-T11/T12: named capability groups replace the former `internal`
     // grab-bag. The composition root was its only consumer, so the root now

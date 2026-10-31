@@ -2390,8 +2390,10 @@ It leaves the global and capability heads alone, so an operator's stop on either
 survives the release (a stop on the earlier profile's provider head does not: see
 the check above). Nobody enables AI while web and the worker deploy.
 
-**Re-consent (the owner, after the deploy):** For each Organization, Settings,
-then AI, then "Enable AI features" (one ceremony can cover several Properties).
+**Re-consent (the owner, after the deploy):** Since ADR 0075 (2026-11-01) nobody
+re-consents: the worker renews every enabled Property to the served notice within
+minutes of the deploy (section 33). Before it, each Property was confirmed on its
+own AI page (Settings, then AI, is a read-only overview).
 Check what it did, read-only: the Property's enablement head reads the new
 notice version, `private-beta-global-v2` and `review-analysis-runtime-v2`, and its
 review analysis epoch is one higher than before. Confirm with a test Property
@@ -2464,5 +2466,58 @@ the first day's settled cost with the invoice. The notice says the pinned model
 does not support volatile in-memory prompt caching; that was observed for
 `gpt-5.6-luna`, and the quality check of `gpt-6-luna` proved only that the
 24-hour setting works, so the clause is not verified for the new model.
+
+**Escalation:** Bozhidar Denev.
+
+## 33. Automatic AI Renewal (Standing Opt-In, ADR 0075)
+
+**What it does:** When a deploy serves a new merchant AI notice, the worker job
+`merchant-ai-standing-renewal` moves every Property whose AI is on and whose
+notice is no longer in force to the served notice, with the capabilities and
+source scope it had. It runs when the worker starts and every 10 minutes; with
+nothing lapsed it is one indexed read. Each Property is its own transaction
+through the ordinary change transition: evidence `reason_code =
+'standing_renewal'`, one ceremony id per run, and as actor the AccountAdmin
+whose opt-in stands. Epochs advance only for capabilities the notice materially
+changed (ADR 0074); a Review Analysis epoch bump erases the retired derivatives
+and replays the history, which you watch as in section 32.
+
+**Never touched:** Properties whose AI is off (revoked or disabled) and
+capabilities that are off. A new capability still needs an AccountAdmin's
+opt-in on the Property's AI page.
+
+**Logs:** one `Merchant AI standing renewal` line per Property, with `outcome`
+`renewed`, `skipped:<reason>` or `failed:<code>`, and one `Merchant AI standing
+renewal sweep completed` line per run with visited, renewed, skipped and failed
+counts.
+
+**Skip reasons and repair:**
+
+- `google_unbound`, `source_changed`: reconnect Google for the Property; the
+  next run renews it.
+- `no_account_admin`: the Organization has no live owner; restore one.
+- `org_suspended`, `policy_denied`: the Organization is suspended or the
+  capability is off by beta policy; renewal resumes when that is lifted.
+- `property_not_manageable`: the Property is deleted or not active.
+- `head_changed`, `lock_timeout`: someone changed the Property's AI at the same
+  moment, or a lock was busy; the next run retries.
+- `already_renewed`, `newer_notice`: nothing to do (a worker still on the
+  previous release meets a head already on a newer notice).
+
+A Property left on a lapsed notice reads "Paused — needs attention" on its AI
+page and on Settings, then AI, and its setup step is not done.
+
+**Check, read-only:** every enabled `merchant_ai_enablement` head reads a notice
+in `MERCHANT_AI_NOTICES_IN_FORCE`; the run's evidence rows carry
+`standing_renewal` and one ceremony id. AccountAdmins see the update banner until
+they open it or press "Got it" (`merchant_ai_notice_update_receipts`).
+
+**Shipping a new notice:** add its plain-language entry to
+`src/shared/merchant-ai-notice-announcements.ts` (a test fails without it). If
+the notice does not materially change review analysis, decide in the same
+release how stored analyses stay visible after renewal: they are delivered only
+under the notice they were produced under (ADR 0075, "Shipping a new notice"). A
+newly named AI provider still receives no Google review before the 14th day
+after the email to Participants (Privacy Notice section 9).
 
 **Escalation:** Bozhidar Denev.

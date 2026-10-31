@@ -1,3 +1,11 @@
+import { MerchantAiDataHandling } from '#/components/features/settings/merchant-ai-data-handling'
+import { MERCHANT_AI_NOTICE } from '#/contexts/identity/application/dto/merchant-ai-notice.dto'
+import {
+  useActionMutation,
+  actionFailureMessage,
+} from '#/components/hooks/use-action-mutation'
+import { identityKeys } from '#/shared/queries/query-keys'
+import type { MerchantAiNoticeUpdate } from '#/shared/merchant-ai-notice-announcements'
 import { createFileRoute, redirect } from '@tanstack/react-router'
 import { roleUnavailable } from '#/shared/auth/route-notice'
 import { useQueries, useQuery, useSuspenseQuery } from '@tanstack/react-query'
@@ -36,6 +44,22 @@ export const Route = createFileRoute('/_authenticated/settings/ai')({
 })
 
 function AiOverviewRoute() {
+  const markUpdateSeen = useActionMutation(
+    async (update: MerchantAiNoticeUpdate) => {
+      const { markMerchantAiNoticeUpdateSeenFn } =
+        await import('#/contexts/identity/server/merchant-ai-notice-updates')
+      await markMerchantAiNoticeUpdateSeenFn({
+        data: { noticeVersion: update.noticeVersion, noticeDigest: update.noticeDigest },
+      })
+    },
+    {
+      invalidateKeys: [
+        [...identityKeys.merchantAiNotice(), 'updates'],
+        identityKeys.merchantAiOverview(),
+      ],
+      errorMessage: actionFailureMessage("Couldn't mark this AI update as seen."),
+    },
+  )
   const { data: overview } = useSuspenseQuery(merchantAiOverviewQuery)
   const { data: spend } = useQuery(organizationAiSpendQuery)
   const analysed = overview.properties.filter(
@@ -59,8 +83,16 @@ function AiOverviewRoute() {
       <div className="mt-6">
         <OrganizationAiOverviewPage
           overview={overview}
+          onUpdateSeen={markUpdateSeen}
           spend={spend}
           progressByProperty={progressByProperty}
+        />
+      </div>
+      <div className="mt-8">
+        <MerchantAiDataHandling
+          notice={MERCHANT_AI_NOTICE}
+          title="AI notice"
+          showReference={false}
         />
       </div>
     </>

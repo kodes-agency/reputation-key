@@ -146,6 +146,12 @@ export function MerchantAiPropertyAuthorization({
     <MerchantAiAuthorizationCard
       propertyName={property.name}
       state={state}
+      paused={state === 'enabled' && contractChanged}
+      pauseReason={
+        sourceActive
+          ? 'The automatic update is waiting. If it stays paused, contact support.'
+          : 'Reconnect Google'
+      }
       sourceActive={sourceActive}
       notice={notice}
       selectedCapabilities={selectedCapabilities}

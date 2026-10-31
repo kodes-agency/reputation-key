@@ -19,6 +19,10 @@ import {
 } from '#/shared/db/ai/ai-draft-purge'
 import { identityMerchantAiChanged } from '../../domain/events'
 import {
+  STANDING_RENEWAL_REASON,
+  standingRenewalKeepsSavedDrafts,
+} from '../../domain/merchant-ai-standing-renewal'
+import {
   isMerchantAiGrantCurrent,
   type MerchantAiCapabilityEpochs,
   type MerchantAiSnapshot,
@@ -516,13 +520,10 @@ export async function commitMerchantAiTransition(
   `)
   const evidence = evidenceResult.rows[0] as SnapshotRow
 
-  const purgeDrafts =
-    input.state !== 'enabled' || !input.capabilities.includes('reply_drafting')
-      ? purgeAiDraftsForAuthorization
-      : purgeAiDraftsForProfile
-  await purgeDrafts(tx, {
-    organizationId: input.organizationId,
-    propertyId: input.propertyId,
+  await withdrawStaleDrafts(tx, input, current, {
+    capabilityEpochs,
+    runtimeProfiles,
+    providerDeploymentProfileVersion: input.providerDeploymentProfileVersion,
   })
   if (input.state === 'enabled') {
     // The decision is made: a standing "not now" ends with the enable that
@@ -565,11 +566,47 @@ function allowsTransition(
   )
 }
 
+/** Withdraw the saved AI drafts this transition leaves stale, unless a standing renewal keeps them. */
+async function withdrawStaleDrafts(
+  tx: Tx,
+  input: MerchantAiMutationInput,
+  current: MerchantAiSnapshot | null,
+  next: Parameters<typeof standingRenewalKeepsSavedDrafts>[2],
+): Promise<void> {
+  if (standingRenewalKeepsSavedDrafts(input.reasonCode, current, next)) return
+  const purgeDrafts =
+    input.state !== 'enabled' || !input.capabilities.includes('reply_drafting')
+      ? purgeAiDraftsForAuthorization
+      : purgeAiDraftsForProfile
+  await purgeDrafts(tx, {
+    organizationId: input.organizationId,
+    propertyId: input.propertyId,
+  })
+}
+
+async function requireStandingRenewalOwner(
+  tx: Tx,
+  input: MerchantAiMutationInput,
+  role: string,
+) {
+  if (input.reasonCode !== STANDING_RENEWAL_REASON) return
+  const liveUser = await tx.execute(
+    sql`SELECT id FROM "user" WHERE id = ${input.actorUserId} FOR SHARE`,
+  )
+  if (role !== 'owner' || liveUser.rows.length !== 1) {
+    throw new MerchantAiAuthorizationStoreError(
+      'membership_denied',
+      'A live account admin is required',
+    )
+  }
+}
+
 /** One single-property enable, change, or revoke inside the caller's transaction. */
 export async function runMerchantAiMutation(
   tx: Tx,
   input: MerchantAiMutationInput,
   idGen: () => string,
+  replayIsNoOp = false,
 ): Promise<MerchantAiSnapshot> {
   const requestHash = canonicalRequestHash(input)
   const discoveredSourceEpoch = await lockProviderSource(tx, input, input.operation)
@@ -582,6 +619,8 @@ export async function runMerchantAiMutation(
         'Idempotency key was already used for a different command',
       )
     }
+    if (replayIsNoOp)
+      throw new MerchantAiAuthorizationStoreError('no_op', 'Already renewed')
     return mapSnapshot(replay)
   }
 
@@ -591,7 +630,8 @@ export async function runMerchantAiMutation(
     input.operation,
     discoveredSourceEpoch,
   )
-  await requireManagementAuthority(tx, input)
+  const memberRole = await requireManagementAuthority(tx, input)
+  await requireStandingRenewalOwner(tx, input, memberRole)
 
   const current = await lockMerchantAiHead(tx, input)
   if (!allowsTransition(input.operation, current?.state)) {
@@ -604,6 +644,15 @@ export async function runMerchantAiMutation(
     throw new MerchantAiAuthorizationStoreError(
       'version_conflict',
       'Merchant AI state changed; reload before retrying',
+    )
+  }
+  if (
+    input.reasonCode === STANDING_RENEWAL_REASON &&
+    current?.authorizedSourceEpoch !== lockedPropertySourceEpoch
+  ) {
+    throw new MerchantAiAuthorizationStoreError(
+      'property_inactive',
+      'Standing renewal cannot change the source',
     )
   }
   const expectedState: MerchantAiState =

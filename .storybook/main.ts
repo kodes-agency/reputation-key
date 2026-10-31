@@ -49,6 +49,10 @@ const observabilityLoggerStub = fileURLToPath(
 // @tanstack/start-server-core via createServerFn. See ./stubs/portal-links.ts.
 const portalLinksStub = fileURLToPath(new URL('./stubs/portal-links.ts', import.meta.url))
 
+const merchantAiUpdatesStub = fileURLToPath(
+  new URL('./stubs/merchant-ai-notice-updates-server.ts', import.meta.url),
+)
+
 const config: StorybookConfig = {
   stories: ['../src/**/*.stories.@(ts|tsx)'],
   // The guest stylesheet and its woff2 files live in public/fonts/guest and are
@@ -85,6 +89,10 @@ const config: StorybookConfig = {
     const existingAlias = Array.isArray(cfg.resolve.alias) ? cfg.resolve.alias : []
     cfg.resolve.alias = [
       ...existingAlias,
+      {
+        find: '#/contexts/identity/server/merchant-ai-notice-updates',
+        replacement: merchantAiUpdatesStub,
+      },
       { find: 'node:async_hooks', replacement: asyncHooksStub },
       { find: 'async_hooks', replacement: asyncHooksStub },
       {

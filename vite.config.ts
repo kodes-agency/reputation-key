@@ -75,6 +75,16 @@ const config = defineConfig(({ mode }) => {
       client: {
         build: {
           sourcemap: 'hidden',
+          // AI announcements and settings load on demand. Native JS imports
+          // keep their preload metadata out of first paint; Vite retains CSS.
+          modulePreload: {
+            resolveDependencies: (file, dependencies) =>
+              /merchant-ai-notice-update|(?:^|\/)ai-[^/]+\.js$/.test(file)
+                ? []
+                : dependencies.filter(
+                    (dependency) => !dependency.includes('merchant-ai-notice-update'),
+                  ),
+          },
           rolldownOptions: {
             output: {
               codeSplitting: {

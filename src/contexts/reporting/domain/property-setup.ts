@@ -57,7 +57,7 @@ export type PropertySetupStep = Readonly<{
   section: PropertySetupSection | null
 }>
 
-export type PropertySetupMerchantAiState = 'disabled' | 'enabled' | 'revoked'
+export type PropertySetupMerchantAiState = 'disabled' | 'enabled' | 'revoked' | 'paused'
 
 /** Current, content-free facts about one live Property. */
 export type PropertySetupFacts = Readonly<{
@@ -68,7 +68,7 @@ export type PropertySetupFacts = Readonly<{
   reviewsSyncedForCurrentSource: boolean
   /** `properties.default_reply_language` is set. */
   replyLanguageChosen: boolean
-  /** Merchant AI authorization state; `disabled` when never authorized. */
+  /** Authorization standing; `paused` is an enabled head whose notice lapsed. */
   merchantAiState: PropertySetupMerchantAiState
   /** A standing "not now" AI decision exists. */
   aiDecisionDeferred: boolean
@@ -162,11 +162,13 @@ const STATUS_OF = {
     ),
   reply_language: (facts) => doneOr(facts.replyLanguageChosen, 'pending'),
   ai_decision: (facts, viewer) =>
-    decided(
-      facts.merchantAiState === 'enabled',
-      facts.aiDecisionDeferred,
-      accountAdminWork(viewer),
-    ),
+    facts.merchantAiState === 'paused'
+      ? accountAdminWork(viewer)
+      : decided(
+          facts.merchantAiState === 'enabled',
+          facts.aiDecisionDeferred,
+          accountAdminWork(viewer),
+        ),
   responsible_manager: (facts) => doneOr(facts.responsibleManagerAssigned, 'pending'),
   reply_voice: (facts) => doneOr(facts.replyVoiceConfigured, 'pending'),
   portal_published: (facts) => doneOr(facts.portalPublished, 'pending'),

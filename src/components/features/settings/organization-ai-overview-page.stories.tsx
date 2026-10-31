@@ -75,12 +75,12 @@ export const MixedOrganization: Story = {
   },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
-    expect(canvas.getByText('1 of 3')).toBeVisible()
+    expect(canvas.getByText('0 of 3')).toBeVisible()
     expect(canvas.getByText('$3.42')).toBeVisible()
-    expect(canvas.getByText('Re-consent needed', { selector: 'span' })).toBeVisible()
+    expect(canvas.getByText('Paused — needs attention')).toBeVisible()
     expect(canvas.getByText('Not now')).toBeVisible()
     expect(canvas.getByText('Google not linked')).toBeVisible()
-    expect(canvas.getByText('54 analysed · 42 to go')).toBeVisible()
+    expect(canvas.queryByText('54 analysed · 42 to go')).not.toBeInTheDocument()
     expect(canvas.getByRole('link', { name: /pine lodge/i })).toHaveAttribute(
       'href',
       `/properties/${PINE}/settings/ai`,
@@ -98,5 +98,53 @@ export const NoProperties: Story = {
     expect(
       within(canvasElement).getByText('No properties to manage AI for'),
     ).toBeVisible()
+  },
+}
+
+export const AutomaticallyUpdated: Story = {
+  args: {
+    ...MixedOrganization.args,
+    overview: {
+      properties: [
+        { ...MixedOrganization.args!.overview.properties[0]!, reconsentRequired: false },
+      ],
+      latestUpdate: {
+        noticeVersion: 'merchant-ai-notice-2026-10-30.v1',
+        noticeDigest: 'a'.repeat(64),
+        renewedAt: '2026-10-31T09:00:00Z',
+        title: 'AI review insights got an upgrade',
+        points: [
+          'Past reviews are read again, so topics and counts can shift for a short while.',
+        ],
+      },
+    },
+  },
+}
+export const PausedAndOff: Story = {
+  args: {
+    ...MixedOrganization.args,
+    overview: {
+      properties: [
+        {
+          ...MixedOrganization.args!.overview.properties[0]!,
+          pauseReason: 'google_unbound',
+          googleBindingActive: false,
+        },
+        {
+          ...MixedOrganization.args!.overview.properties[0]!,
+          propertyId: PINE,
+          propertyName: 'Pine Lodge',
+          pauseReason: 'no_account_admin',
+        },
+        {
+          ...MixedOrganization.args!.overview.properties[0]!,
+          propertyId: CAFE,
+          propertyName: 'Harbor Café',
+          state: 'revoked',
+          capabilities: [],
+          reconsentRequired: false,
+        },
+      ],
+    },
   },
 }

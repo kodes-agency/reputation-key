@@ -52,10 +52,11 @@ function action<TInput>(isPending: boolean): Action<TInput, MerchantAiSnapshot> 
 
 function render(
   inFlight: Partial<Record<'enable' | 'change' | 'revoke', boolean>>,
+  snapshot = enabled,
 ): string {
   const props: MerchantAiPropertyAuthorizationProps = {
     property: { id: PROPERTY_ID, name: 'Harbor & Pine', googleBindingState: 'active' },
-    snapshot: enabled,
+    snapshot,
     notice: MERCHANT_AI_NOTICE,
     enable: action(inFlight.enable ?? false),
     change: action(inFlight.change ?? false),
@@ -80,6 +81,20 @@ const turnOff = (markup: string) => {
 }
 
 describe('MerchantAiPropertyAuthorization pending state', () => {
+  it('labels an enabled lapsed head as paused and keeps turning AI off available', () => {
+    const markup = render(
+      {},
+      {
+        ...enabled,
+        noticeVersion: 'merchant-ai-notice-2026-09-15.v1',
+        noticeDigest: '6c98ae3bb57b5b142afed1749a1b9f59be8d6ca7edaca3250e39055897289a9c',
+      },
+    )
+    expect(markup).toContain('Paused — needs attention')
+    expect(markup).not.toContain('>On</')
+    expect(turnOff(markup)).not.toContain('disabled=""')
+  })
+
   it('leaves the controls live while no command is in flight', () => {
     const markup = render({})
 
