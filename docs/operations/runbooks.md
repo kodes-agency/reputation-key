@@ -2513,11 +2513,48 @@ in `MERCHANT_AI_NOTICES_IN_FORCE`; the run's evidence rows carry
 they open it or press "Got it" (`merchant_ai_notice_update_receipts`).
 
 **Shipping a new notice:** add its plain-language entry to
-`src/shared/merchant-ai-notice-announcements.ts` (a test fails without it). If
-the notice does not materially change review analysis, decide in the same
-release how stored analyses stay visible after renewal: they are delivered only
-under the notice they were produced under (ADR 0075, "Shipping a new notice"). A
-newly named AI provider still receives no Google review before the 14th day
-after the email to Participants (Privacy Notice section 9).
+`src/shared/merchant-ai-notice-announcements.ts` (a test fails without it). A
+stored analysis stays visible across a notice that leaves review analysis
+unchanged: delivery applies the per-capability material-change rule that
+settlement uses (`ai-analysis-notice-coverage.ts`). A newly named AI provider
+still receives no Google review before the 14th day after the email to
+Participants (Privacy Notice section 9).
 
 **Escalation:** Bozhidar Denev.
+
+## 34. Switch-On of Reply Drafting v2
+
+**Trigger/Symptoms.** Reply drafting v2 is served with
+`merchant-ai-notice-2026-11-01.v1`. Until the standing renewal (section 33) moves a
+Property to that notice, AI drafting answers `consent_renewal_required` and the AI
+page reads "Paused — needs attention"; analysis, trends and Urgent alerts keep
+running.
+
+**Impact.** The 2026-11-01 notice is alone in force for `reply_drafting`;
+`review_analysis` and `property_trends` also keep 2026-10-30. The renewal advances
+only the drafting epoch: Review Analysis/trends epochs and the analysis watermark
+remain unchanged, so nothing is replayed and stored analysis stays visible.
+Unedited AI drafts are withdrawn because the drafting epoch moved. Disabled
+Properties stay disabled. The reply runtime is v2 on the v3 streaming deployment.
+
+**Prerequisites/Diagnostics.** Verify both 1280 px and 390 px flows with the
+provider stub (`e2e/critical/workflows/reply-lifecycle.spec.ts`, scenario (g)),
+including background join, Stop, templates/typing, highlight clearing,
+Shorter/Tone/Try again, and adoption/submission. Retain existing
+execution-control postures until the owner deliberately changes them.
+
+**Recovery.** Apply forward migration 0088 (journalled after 0089) with the deploy
+runner's existing 5 s lock timeout. The slow reopen sweep (#1049) reads the consent
+tables; if the lock timeout fires, rerun deployment after that transaction
+finishes. Do not rewrite consent evidence or enable a Property that is off. A bad
+release follows section 28's forward-only recovery; stop reply drafting with its
+existing capability control while preserving Review Analysis controls and epochs.
+
+**Verification/Evidence.** Confirm the notice version/digest, v2 runtime/operation,
+v3 deployment CHECKs and mapper, and that the renewal job logged `renewed` for each
+enabled Property with drafting (a drafting-only epoch bump each). Follow a held
+draft through adoption and submission; verify one provider call for an explicit
+join and no second call on Stop. Record operation/generation identifiers and
+control state, never review text, local frame text, drafts, or provenance tokens.
+Escalate to the incident commander if evidence, consent epochs or provider
+accounting diverges.

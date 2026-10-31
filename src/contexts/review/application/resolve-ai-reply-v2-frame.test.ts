@@ -104,3 +104,37 @@ describe('AI reply v2 frame resolution', () => {
     expect(frame).not.toBeNull()
   })
 })
+
+describe('saved AI body boundaries', () => {
+  it('restores the accepted frame, including an omitted closing, without rotating it', async () => {
+    const d = deps()
+    const { resolveSavedReplyFrame } = await import('./resolve-ai-reply-v2-frame')
+    const frame = await resolveAiReplyV2Frame(d, INPUT)
+    const candidate = frame!.candidates.at(-1)!
+    const text = [
+      candidate.prefix,
+      'We are sorry the arrival took so long.',
+      candidate.suffix,
+    ]
+      .filter(Boolean)
+      .join('\n\n')
+    const reserveCalls = d.reserveAiFrame.mock.calls.length
+    expect(
+      await resolveSavedReplyFrame(d, {
+        ...INPUT,
+        voiceDigest: frame!.voiceDigest,
+        choices: candidate.choices,
+        text,
+      }),
+    ).toEqual({ prefix: candidate.prefix, suffix: candidate.suffix })
+    expect(d.reserveAiFrame).toHaveBeenCalledTimes(reserveCalls)
+    expect(
+      await resolveSavedReplyFrame(d, {
+        ...INPUT,
+        voiceDigest: '0'.repeat(64),
+        choices: candidate.choices,
+        text,
+      }),
+    ).toBeNull()
+  })
+})

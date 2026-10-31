@@ -287,9 +287,12 @@ describe('the committed constructs file', () => {
     ).toBe(true)
     for (const name of FORWARD_ONLY_CONSTRUCT_DEFINITIONS) {
       expect(
-        readMigrationDefinitions('0084_merchant_ai_consent_follows_notice').find(
-          (entry) => entry.name === name,
-        )?.definition,
+        [
+          ...readMigrationDefinitions('0084_merchant_ai_consent_follows_notice'),
+          ...readMigrationDefinitions('0088_reply_drafting_v2_release'),
+        ]
+          .reverse()
+          .find((entry) => entry.name === name)?.definition,
       ).toBe(
         readConstructsFileDefinitions().find((entry) => entry.name === name)?.definition,
       )

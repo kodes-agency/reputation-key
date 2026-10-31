@@ -1,3 +1,4 @@
+import { storedReplyFrame } from '#/shared/domain/reply-frame'
 // Inbox detail — which reply EDITOR the pane renders, if any.
 //
 // `resolveReplyView` stays the one place the reply's lifecycle is read: the
@@ -188,6 +189,10 @@ export function ReplyStatusView({
         <div ref={composeRef} className="flex min-h-0 grow basis-auto flex-col">
           <ReplyCompose
             propertyId={propertyId}
+            initialBodyFrame={storedReplyFrame(
+              view.reply?.text ?? '',
+              view.reply?.voiceChoices,
+            )}
             initialText={view.reply?.text ?? ''}
             initialLanguageTag={view.reply?.replyLanguageTag ?? null}
             initialMeasurementBaseReplyRevision={view.reply?.measurementBaseReplyRevision}

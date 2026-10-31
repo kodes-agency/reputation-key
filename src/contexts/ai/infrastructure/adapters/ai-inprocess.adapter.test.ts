@@ -1,3 +1,12 @@
+// Historical v1 remains readable; these contract regressions deliberately pin its old execution.
+vi.mock('#/shared/ai-runtime-capability-contract', async (importOriginal) => {
+  const actual =
+    await importOriginal<typeof import('#/shared/ai-runtime-capability-contract')>()
+  const { historicalReplyRuntime } =
+    await import('#/shared/testing/historical-reply-runtime')
+  return historicalReplyRuntime(actual)
+})
+import { vi } from 'vitest'
 // The caller/route authorization survived WP2.3; the mechanism carrying it did not.
 //
 // Before the collapse this rule was enforced from an mTLS client certificate:

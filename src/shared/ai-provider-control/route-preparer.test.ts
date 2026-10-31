@@ -1,3 +1,11 @@
+// Historical v1 remains readable; these contract regressions deliberately pin its old execution.
+vi.mock('#/shared/ai-runtime-capability-contract', async (importOriginal) => {
+  const actual =
+    await importOriginal<typeof import('#/shared/ai-runtime-capability-contract')>()
+  const { historicalReplyRuntime } =
+    await import('#/shared/testing/historical-reply-runtime')
+  return historicalReplyRuntime(actual)
+})
 import { generateKeyPairSync } from 'node:crypto'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {

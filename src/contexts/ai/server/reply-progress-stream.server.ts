@@ -142,6 +142,14 @@ function terminalEvent(
 }
 
 function progressEvent(event: ReplyDraftingProgress): ReplyDraftingProgress {
+  if (event.step === 'reading')
+    return {
+      step: 'reading',
+      ...(event.reviewTextDigest ? { reviewTextDigest: event.reviewTextDigest } : {}),
+      ...(event.frame
+        ? { frame: { prefix: event.frame.prefix, suffix: event.frame.suffix } }
+        : {}),
+    }
   if (event.step === 'answering')
     return { step: 'answering', sentenceNumbers: [...event.sentenceNumbers] }
   if (event.step === 'rewording') return { step: 'rewording', ordinal: 1 }

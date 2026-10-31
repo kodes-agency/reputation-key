@@ -104,6 +104,12 @@ const config: StorybookConfig = {
         find: '#/contexts/ai/server/draft-measurement',
         replacement: aiDraftMeasurementStub,
       },
+      {
+        find: '#/contexts/ai/server/reply-suggestion-stream',
+        replacement: fileURLToPath(
+          new URL('./stubs/ai-reply-suggestion-stream.ts', import.meta.url),
+        ),
+      },
       { find: '#/shared/observability/logger', replacement: observabilityLoggerStub },
       { find: '#/contexts/portal/server/portal-links', replacement: portalLinksStub },
     ]

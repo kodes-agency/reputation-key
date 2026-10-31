@@ -134,6 +134,10 @@ function createHarness(
     aggregateRevision: 6,
     terminalAnalysisSequence: 5,
   },
+  consentNotice: Readonly<{ noticeVersion: string; noticeDigest: string }> = {
+    noticeVersion: MERCHANT_AI_NOTICE_VERSION,
+    noticeDigest: MERCHANT_AI_NOTICE_DIGEST,
+  },
 ) {
   const recordProviderFreeOutcome = vi.fn(async () => 'recorded' as const)
   const recordDeterministicReport = vi.fn(async () => 'recorded' as const)
@@ -193,8 +197,7 @@ function createHarness(
           property_trends: { epoch: 7, changedAtEpochMillis: NOW },
         },
         reviewAnalysisStartSequence: 1,
-        noticeVersion: MERCHANT_AI_NOTICE_VERSION,
-        noticeDigest: MERCHANT_AI_NOTICE_DIGEST,
+        ...consentNotice,
         sourcePolicyId: 'google-business-profile-source-policy-v1',
         sourceCanonicalizerDigest: SHA,
         redactionProfileFamily: 'gbp-review-global-v1',
@@ -372,63 +375,81 @@ describe('generate property trend', () => {
     expect(harness.generateTrend).not.toHaveBeenCalled()
   })
 
-  it('commits the deterministically ranked report without calling inference', async () => {
-    const harness = createHarness([trendDay('2024-02-01', 2), trendDay('2024-03-01', 8)])
+  it.each([
+    {
+      noticeVersion: MERCHANT_AI_NOTICE_VERSION,
+      noticeDigest: MERCHANT_AI_NOTICE_DIGEST,
+    },
+    {
+      noticeVersion: 'merchant-ai-notice-2026-10-30.v1',
+      noticeDigest: 'dadad7b81dbda360678fc57f7265b104c7311cbc213f877f32306c53b4852a5e',
+    },
+  ])(
+    'commits the deterministically ranked report under $noticeVersion without calling inference',
+    async (consentNotice) => {
+      const harness = createHarness(
+        [trendDay('2024-02-01', 2), trendDay('2024-03-01', 8)],
+        undefined,
+        undefined,
+        undefined,
+        consentNotice,
+      )
 
-    await expect(harness.generate(RUN)).resolves.toEqual({
-      status: 'completed',
-    })
-    expect(harness.recordDeterministicReport).toHaveBeenCalledWith(
-      expect.objectContaining({
-        scheduleId: SCHEDULE_ID,
-        selectedSignalIds: expect.arrayContaining(['sentiment.positive.up']),
-        report: expect.objectContaining({
-          signalKey: 'sentiment.neutral.down',
-          direction: 'improving',
-          changeMagnitudeBasisPoints: 3000,
-        }),
-        evidence: expect.objectContaining({
-          definitionVersion: 'property-trend-definition-v1',
-          baseline: expect.objectContaining({
-            textCandidateCount: 20,
-            analyzedCount: 20,
-            excludedCount: 0,
-            starOnlyCount: 1,
-            coverageBasisPoints: 10_000,
+      await expect(harness.generate(RUN)).resolves.toEqual({
+        status: 'completed',
+      })
+      expect(harness.recordDeterministicReport).toHaveBeenCalledWith(
+        expect.objectContaining({
+          scheduleId: SCHEDULE_ID,
+          selectedSignalIds: expect.arrayContaining(['sentiment.positive.up']),
+          report: expect.objectContaining({
+            signalKey: 'sentiment.neutral.down',
+            direction: 'improving',
+            changeMagnitudeBasisPoints: 3000,
           }),
-          current: expect.objectContaining({
-            textCandidateCount: 20,
-            analyzedCount: 20,
-            excludedCount: 0,
-            starOnlyCount: 1,
-            coverageBasisPoints: 10_000,
+          evidence: expect.objectContaining({
+            definitionVersion: 'property-trend-definition-v1',
+            baseline: expect.objectContaining({
+              textCandidateCount: 20,
+              analyzedCount: 20,
+              excludedCount: 0,
+              starOnlyCount: 1,
+              coverageBasisPoints: 10_000,
+            }),
+            current: expect.objectContaining({
+              textCandidateCount: 20,
+              analyzedCount: 20,
+              excludedCount: 0,
+              starOnlyCount: 1,
+              coverageBasisPoints: 10_000,
+            }),
+            modelLineage: [
+              {
+                analysisProfileVersion: 'review-analysis-v2',
+                providerDeploymentProfileVersion: 'private-beta-global-v1',
+                modelSnapshot: 'gpt-5.4-mini-2026-03-17',
+              },
+            ],
+            selectedSignals: expect.arrayContaining([
+              expect.objectContaining({
+                signalId: 'sentiment.neutral.down',
+                baseline: { count: 18, total: 20 },
+                current: { count: 12, total: 20 },
+                changeMagnitudeBasisPoints: 3000,
+              }),
+            ]),
+            supportingReviews: expect.arrayContaining([
+              expect.objectContaining({
+                window: 'current',
+                localDate: '2024-03-01',
+              }),
+            ]),
           }),
-          modelLineage: [
-            {
-              analysisProfileVersion: 'review-analysis-v2',
-              providerDeploymentProfileVersion: 'private-beta-global-v1',
-              modelSnapshot: 'gpt-5.4-mini-2026-03-17',
-            },
-          ],
-          selectedSignals: expect.arrayContaining([
-            expect.objectContaining({
-              signalId: 'sentiment.neutral.down',
-              baseline: { count: 18, total: 20 },
-              current: { count: 12, total: 20 },
-              changeMagnitudeBasisPoints: 3000,
-            }),
-          ]),
-          supportingReviews: expect.arrayContaining([
-            expect.objectContaining({
-              window: 'current',
-              localDate: '2024-03-01',
-            }),
-          ]),
         }),
-      }),
-    )
-    expect(harness.generateTrend).not.toHaveBeenCalled()
-  })
+      )
+      expect(harness.generateTrend).not.toHaveBeenCalled()
+    },
+  )
 
   it('records Updating instead of a complete result below ninety-percent coverage', async () => {
     const evidence = defaultEvidence()

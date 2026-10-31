@@ -1,3 +1,4 @@
+import { editedReplyFrame } from '#/shared/domain/reply-frame'
 import {
   AUTO_DETECT_REVIEW_LANGUAGE,
   equivalentReplyLanguageTags,
@@ -56,6 +57,14 @@ export function draftInLanguage(
   return {
     ...draft,
     languageTag: languageTag === AUTO_DETECT_REVIEW_LANGUAGE ? null : languageTag,
+  }
+}
+
+export function draftInText(draft: ReplyDraftSnapshot, text: string): ReplyDraftSnapshot {
+  return {
+    ...draft,
+    text,
+    bodyFrame: editedReplyFrame(draft.text, text, draft.bodyFrame ?? null),
   }
 }
 

@@ -2,6 +2,7 @@ import { createHash } from 'node:crypto'
 import { describe, expect, it } from 'vitest'
 import {
   isMerchantAiNoticeInForce,
+  isMerchantAiNoticeInForceForCapabilities,
   MERCHANT_AI_NOTICE_DIGEST,
   MERCHANT_AI_NOTICE_PAYLOAD,
   MERCHANT_AI_NOTICE_VERSION,
@@ -69,7 +70,7 @@ describe('Merchant AI notice contract', () => {
   })
 
   it('binds the immutable notice version and structured payload into the digest', () => {
-    expect(MERCHANT_AI_NOTICE_VERSION).toBe('merchant-ai-notice-2026-10-30.v1')
+    expect(MERCHANT_AI_NOTICE_VERSION).toBe('merchant-ai-notice-2026-11-01.v1')
     expect(MERCHANT_AI_NOTICE_DIGEST).toMatch(/^[0-9a-f]{64}$/)
     expect(MERCHANT_AI_NOTICE_DIGEST).toBe(
       noticeDigestOf(
@@ -80,7 +81,7 @@ describe('Merchant AI notice contract', () => {
       ),
     )
     expect(MERCHANT_AI_NOTICE_DIGEST).toBe(
-      'dadad7b81dbda360678fc57f7265b104c7311cbc213f877f32306c53b4852a5e',
+      'e9574380fd1ba5f4b7bd7b9899bc5e6bdf371f9d9871584f33c5c1e6131290ef',
     )
   })
 
@@ -156,18 +157,39 @@ describe('Merchant AI notice contract', () => {
     }
   })
 
+  it('requests renewal only for selected capabilities whose notice is no longer in force', () => {
+    const notice = {
+      noticeVersion: 'merchant-ai-notice-2026-10-30.v1',
+      noticeDigest: 'dadad7b81dbda360678fc57f7265b104c7311cbc213f877f32306c53b4852a5e',
+    }
+    expect(
+      isMerchantAiNoticeInForceForCapabilities({
+        ...notice,
+        capabilities: ['review_analysis', 'property_trends'],
+      }),
+    ).toBe(true)
+    expect(
+      isMerchantAiNoticeInForceForCapabilities({
+        ...notice,
+        capabilities: ['review_analysis', 'property_trends', 'reply_drafting'],
+      }),
+    ).toBe(false)
+  })
   it('keeps the served notice in force alone: every earlier consent lapses', () => {
-    expect(MERCHANT_AI_NOTICES_IN_FORCE).toEqual([
+    expect(MERCHANT_AI_NOTICES_IN_FORCE.reply_drafting).toEqual([
       {
         noticeVersion: MERCHANT_AI_NOTICE_VERSION,
         noticeDigest: MERCHANT_AI_NOTICE_DIGEST,
       },
     ])
     expect(
-      isMerchantAiNoticeInForce({
-        noticeVersion: MERCHANT_AI_NOTICE_VERSION,
-        noticeDigest: MERCHANT_AI_NOTICE_DIGEST,
-      }),
+      isMerchantAiNoticeInForce(
+        {
+          noticeVersion: MERCHANT_AI_NOTICE_VERSION,
+          noticeDigest: MERCHANT_AI_NOTICE_DIGEST,
+        },
+        'reply_drafting',
+      ),
     ).toBe(true)
 
     for (const lapsed of [
@@ -186,7 +208,7 @@ describe('Merchant AI notice contract', () => {
         noticeDigest: NOTICE_2026_10_17.noticeDigest,
       },
     ]) {
-      expect(isMerchantAiNoticeInForce(lapsed)).toBe(false)
+      expect(isMerchantAiNoticeInForce(lapsed, 'reply_drafting')).toBe(false)
     }
   })
 
@@ -211,4 +233,25 @@ describe('Merchant AI notice contract', () => {
       }),
     ).toThrow(/Unrecognized key|copy/i)
   })
+})
+
+it('changes only the three drafting passages and keeps every other word of the prior notice', () => {
+  const previous = JSON.parse(
+    JSON.stringify(MERCHANT_AI_NOTICE_PAYLOAD)
+      .replace(
+        'property context needed for the selected feature, and facts your property chose to share with the AI.',
+        'property context needed for the selected feature.',
+      )
+      .replace(
+        "Drafts may be prepared when a manager opens a review or asks for one. The AI provider drafts the reply body from the review text (numbered sentences), the rating, the language, the tone, and facts your property chose to share with the AI. RepKey adds the property's greeting, contact line, closing and signature locally. The draft is verified for language before it is shown;",
+        "A reply suggestion is drafted by the AI provider from the review text and the Property's public display name, grounded in exact excerpts of the review and verified for language before it is shown;",
+      )
+      .replace(
+        'Prepare an editable reply suggestion when a manager opens a review or asks for one.',
+        'Draft an editable, grounded reply suggestion from the review when a manager asks.',
+      ),
+  )
+  expect(noticeDigestOf(previous)).toBe(
+    'dadad7b81dbda360678fc57f7265b104c7311cbc213f877f32306c53b4852a5e',
+  )
 })

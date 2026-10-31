@@ -1,6 +1,8 @@
 import { readAiReplyVoiceSnapshot } from './ai-reply-voice-snapshot'
 import {
   resolveAiReplyV2Frame,
+  resolveSavedReplyFrame,
+  type ResolveSavedReplyFrameInput,
   type ResolveAiReplyV2FrameInput,
 } from './resolve-ai-reply-v2-frame'
 import type { ReplyDraftingV2Frame } from '#/shared/reply-drafting-v2-frame'
@@ -29,6 +31,9 @@ export type AiReplyLocalFrame = Readonly<{
 }>
 
 export type AiReplyVoicePublicApi = Readonly<{
+  resolveSavedFrame?(
+    input: ResolveSavedReplyFrameInput,
+  ): Promise<Readonly<{ prefix: string; suffix: string }> | null>
   resolveV2Frame?(input: ResolveAiReplyV2FrameInput): Promise<ReplyDraftingV2Frame | null>
   resolveLocalFrame(
     input: Readonly<{
@@ -58,6 +63,7 @@ export function createAiReplyVoicePublicApi(
   }>,
 ): AiReplyVoicePublicApi {
   return Object.freeze({
+    resolveSavedFrame: (input) => resolveSavedReplyFrame(deps, input),
     resolveV2Frame: (input) => resolveAiReplyV2Frame(deps, input),
     resolveLocalFrame: async (input) => {
       const resolved = await readAiReplyVoiceSnapshot(deps, input)

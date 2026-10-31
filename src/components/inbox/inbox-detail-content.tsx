@@ -1,3 +1,4 @@
+import { ReplyDraftSessionProvider } from './reply-draft-session-context'
 import { useState } from 'react'
 import { usePermissions } from '#/shared/hooks/usePermissions'
 import { InboxCaseToolbar } from './inbox-case-toolbar'
@@ -19,7 +20,7 @@ import type { NoteDraft } from './composer-policy'
 import { DetailComposerRegion, DetailThreadRegion } from './inbox-detail-regions'
 import { inboxDetailFeedbackPresentation } from './inbox-detail-feedback'
 import type { InboxDetailFns } from './types'
-import type { InboxItem } from '#/contexts/inbox/application/public-api'
+type InboxItem = NonNullable<InboxDetailState['currentItem']>
 
 // `ReplyEditTarget` and `ComposerMode` are this pane's state and reach their
 // consumers from here, but both are DECLARED beside the control that reads them
@@ -215,77 +216,79 @@ export function InboxDetailContent({
   })
 
   return (
-    <ReplyConfirmationHold value={onConfirmationOpenChange}>
-      {/* Region 2 (plan v2.1 rows 2-6). The bag is built by a pure selector
+    <ReplyDraftSessionProvider item={currentItem} detail={detailState.detail}>
+      <ReplyConfirmationHold value={onConfirmationOpenChange}>
+        {/* Region 2 (plan v2.1 rows 2-6). The bag is built by a pure selector
           rather than inline: this file was at 296 of 300 counted lines, and row
           5 routes `escalate` / `resolveEscalation` here from the header. */}
-      <InboxCaseToolbar
-        {...buildInboxCaseToolbarProps({
-          item: currentItem,
-          detail,
-          assignmentOptions,
-          currentUser,
-          onReopen: () => setReopenOpen(true),
-          updateStatus,
-          escalate,
-          resolveEscalation,
-          assign,
-          setPriority,
-          markFeedbackHandled,
-          correctFeedbackHandlingOutcome,
-          priorityMenu: detailState.priorityMenu,
-        })}
-      />
+        <InboxCaseToolbar
+          {...buildInboxCaseToolbarProps({
+            item: currentItem,
+            detail,
+            assignmentOptions,
+            currentUser,
+            onReopen: () => setReopenOpen(true),
+            updateStatus,
+            escalate,
+            resolveEscalation,
+            assign,
+            setPriority,
+            markFeedbackHandled,
+            correctFeedbackHandlingOutcome,
+            priorityMenu: detailState.priorityMenu,
+          })}
+        />
 
-      <DetailThreadRegion
-        currentItem={currentItem}
-        detail={detail}
-        notes={notes}
-        notesUnavailable={notesUnavailable}
-        currentUserId={currentUser?.id}
-        getInboxItemHistory={detailFns.getInboxItemHistory}
-        replyActions={threadReplyActions}
-        correctReviewMention={detailFns.correctReviewMention}
-        reopen={edit.reopen}
-      />
+        <DetailThreadRegion
+          currentItem={currentItem}
+          detail={detail}
+          notes={notes}
+          notesUnavailable={notesUnavailable}
+          currentUserId={currentUser?.id}
+          getInboxItemHistory={detailFns.getInboxItemHistory}
+          replyActions={threadReplyActions}
+          correctReviewMention={detailFns.correctReviewMention}
+          reopen={edit.reopen}
+        />
 
-      <DetailComposerRegion
-        currentItem={currentItem}
-        detail={detail}
-        detailFns={detailFns}
-        modes={modes}
-        mode={mode}
-        setMode={setMode}
-        editTarget={editTarget}
-        reopen={edit.reopen}
-        replyView={replyView}
-        replyActions={replyActions}
-        noteDraft={noteDraft}
-        setNoteDraft={setNoteDraft}
-        addInboxNote={detailFns.addInboxNote}
-        canAddNotes={canAddNotes}
-        handlingAction={feedback.action}
-        feedbackPrimary={feedback.primary}
-        focusComposer={focusComposer}
-        caretFor={caretFor}
-        onEditDone={() => setEdit(null)}
-      />
+        <DetailComposerRegion
+          currentItem={currentItem}
+          detail={detail}
+          detailFns={detailFns}
+          modes={modes}
+          mode={mode}
+          setMode={setMode}
+          editTarget={editTarget}
+          reopen={edit.reopen}
+          replyView={replyView}
+          replyActions={replyActions}
+          noteDraft={noteDraft}
+          setNoteDraft={setNoteDraft}
+          addInboxNote={detailFns.addInboxNote}
+          canAddNotes={canAddNotes}
+          handlingAction={feedback.action}
+          feedbackPrimary={feedback.primary}
+          focusComposer={focusComposer}
+          caretFor={caretFor}
+          onEditDone={() => setEdit(null)}
+        />
 
-      <InboxReopenDialog
-        open={reopenOpen}
-        onOpenChange={setReopenOpen}
-        pending={updateStatus.isPending}
-        onConfirm={({ reason, explanation }) =>
-          updateStatus({
-            data: {
-              ...expected,
-              status: 'open',
-              reopenReason: reason,
-              reopenExplanation: explanation,
-            },
-          })
-        }
-      />
-    </ReplyConfirmationHold>
+        <InboxReopenDialog
+          open={reopenOpen}
+          onOpenChange={setReopenOpen}
+          pending={updateStatus.isPending}
+          onConfirm={({ reason, explanation }) =>
+            updateStatus({
+              data: {
+                ...expected,
+                status: 'open',
+                reopenReason: reason,
+                reopenExplanation: explanation,
+              },
+            })
+          }
+        />
+      </ReplyConfirmationHold>
+    </ReplyDraftSessionProvider>
   )
 }

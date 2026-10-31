@@ -1,3 +1,11 @@
+// Historical v1 remains readable; these contract regressions deliberately pin its old execution.
+vi.mock('#/shared/ai-runtime-capability-contract', async (importOriginal) => {
+  const actual =
+    await importOriginal<typeof import('#/shared/ai-runtime-capability-contract')>()
+  const { historicalReplyRuntime } =
+    await import('#/shared/testing/historical-reply-runtime')
+  return historicalReplyRuntime(actual)
+})
 // What OpenAI is sent, and what pins the profiles that send it, for every route in
 // the live catalogue.
 //
@@ -170,7 +178,7 @@ const PINNED_ROUTES = {
       costMicros: 3797,
     },
     requestBindingKeyId: 'request-v1',
-    requestBindingHmac: 'H93J-0k0aKRvvTpVtOCO4lIFUFKBW5A9ttVZ7Xk_Epo',
+    requestBindingHmac: 'mSdoo-ZQhdE2GD5-rORP8XOnRbgQl5mxQUdqDZu_8yk',
     canonicalProviderBytesSha256:
       'b6f063d3da8527243da1bb8ade4597edb704afb8031fb7d162f207ae558c6dc4',
     canonicalProviderByteLength: 18090,
@@ -191,7 +199,7 @@ const PINNED_ROUTES = {
       costMicros: 719,
     },
     requestBindingKeyId: 'request-v1',
-    requestBindingHmac: '2s7rTr-vYNP0K2nsK70I6RFv54wJZrCxXCpvQ4gI0iI',
+    requestBindingHmac: 'l5GpgfpEwQTyNctaVruYpWMY6LUrLBcwHDksNk949Fk',
     canonicalProviderBytesSha256:
       'b4cb8a3a87ff7777837bcb997c816e1d3849f32f3c867af03b042f0d290f2d23',
     canonicalProviderByteLength: 2441,
@@ -212,7 +220,7 @@ const PINNED_ROUTES = {
       costMicros: 1267,
     },
     requestBindingKeyId: 'request-v1',
-    requestBindingHmac: '9esk-eyWRd1L9TkyvNHgqnvuo6kY19f1SUi3_jM9LpQ',
+    requestBindingHmac: 'aXbAWv9xBVA_LikOADVdqQv_sAHxrCtHFr6e_hXXbFg',
     canonicalProviderBytesSha256:
       '1ccada2805a47972a921007fc81325b31652b42dd632382239b535893ee6372e',
     canonicalProviderByteLength: 2962,

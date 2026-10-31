@@ -1125,12 +1125,24 @@ describe('analyze review event: a consent recorded under an earlier notice', () 
     noticeDigest: 'd80fe3b03f89697cde6c46810053248206aa3745b5f4a5522a24c1c2fdb438e1',
   }
 
-  it('analyses under the served notice', async () => {
-    const harness = createHarness()
+  it.each([
+    {
+      noticeVersion: MERCHANT_AI_NOTICE_VERSION,
+      noticeDigest: MERCHANT_AI_NOTICE_DIGEST,
+    },
+    {
+      noticeVersion: 'merchant-ai-notice-2026-10-30.v1',
+      noticeDigest: 'dadad7b81dbda360678fc57f7265b104c7311cbc213f877f32306c53b4852a5e',
+    },
+  ])(
+    'analyses under $noticeVersion after the drafting-only notice activation',
+    async (consentNotice) => {
+      const harness = createHarness({ consentNotice })
 
-    await expect(harness.analyze(input)).resolves.toEqual({ status: 'completed' })
-    expect(harness.mocks.analyzeReview).toHaveBeenCalledOnce()
-  })
+      await expect(harness.analyze(input)).resolves.toEqual({ status: 'completed' })
+      expect(harness.mocks.analyzeReview).toHaveBeenCalledOnce()
+    },
+  )
 
   it.each([
     ['the 2026-10-17 notice, in force until the switch-on', NOTICE_2026_10_17],

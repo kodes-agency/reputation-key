@@ -1,3 +1,4 @@
+import { readDraftStream, type DraftStream } from './reply-draft-stream'
 import { useRef } from 'react'
 // Server import exception per src/components/CONTEXT.md "Server-function boundary" —
 // this hook owns the reply command family (8 commands) plus the template
@@ -263,4 +264,12 @@ export function useReplyActions(input: Input): ReplyActions {
       }),
     checkDraft: (text: string) => checkDraft({ data: { reviewId, text } }),
   }
+}
+
+export const streamReplyDraft: DraftStream = async (data, signal, receive) => {
+  const { generateReplySuggestionStreamFn } =
+    await import('#/contexts/ai/server/reply-suggestion-stream')
+  if (signal.aborted) return
+  const response = await generateReplySuggestionStreamFn({ data, signal })
+  await readDraftStream(response, signal, receive)
 }

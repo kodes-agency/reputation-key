@@ -21,7 +21,7 @@ import { REPLY_BODY_LINT_DIGEST, REPLY_BODY_LINT_VERSION } from './reply-draftin
 import { AI_REPLY_LANGUAGE_VERIFIER_PROFILE_DIGEST } from './ai-reply-language-verifier'
 import { AI_LANGUAGE_SCRIPT_CONSISTENCY_PROFILE_DIGEST } from './ai-language-script-consistency'
 
-/** Registered, unserved. The notice/catalogue switch is a later release. */
+/** Served for reply drafting after the drafting-only notice renewal (PR-B3b). */
 export const REPLY_DRAFTING_V2_OPERATION_PROFILE = defineOperationProfile({
   profileVersion: REPLY_DRAFTING_V2_VERSIONS.operation,
   command: 'reply',

@@ -1,3 +1,4 @@
+import { replyCommentProblem } from '#/shared/google-provider-control/reply-comment'
 import type {
   GenerateReplySuggestionInput,
   GenerateReplySuggestionResult,
@@ -30,6 +31,7 @@ export type ReplySuggestionGenerate = (
   templateOnly: boolean,
   idempotencyKey: string,
   trigger?: 'draft' | 'try_again' | 'shorter' | 'tone',
+  options?: Readonly<{ length: 'short'; maxWords: number }>,
 ) => Promise<ReplySuggestionResult>
 
 type FallbackSuggestionResult = Extract<ReplySuggestionResult, { status: 'fallback' }>
@@ -58,6 +60,7 @@ export type LoadedReplyTemplateDraft = Readonly<{
 }>
 
 export type ReplyComposerInput = Readonly<{
+  initialBodyFrame?: ReplyDraftSnapshot['bodyFrame']
   initialText: string
   initialLanguageTag: string | null
   initialMeasurementBaseReplyRevision?: number | null
@@ -165,3 +168,49 @@ export const replySuggestionOffersTemplate = (code: string): boolean =>
   code === 'provider_unavailable' ||
   code === 'not_authorized' ||
   code === 'consent_renewal_required'
+
+/** Both retained v1 and served v2 drafts must pass the same browser adoption checks. */
+export function isReplySuggestionVerifiable(
+  result: Exclude<ReplySuggestionResult, { status: 'unavailable' }>,
+  languageTag: string | null,
+): boolean {
+  return (
+    Boolean(result.replyText) &&
+    replyCommentProblem(result.replyText) === null &&
+    languageTag !== null &&
+    (result.status !== 'ready' ||
+      (['reply-draft-v3', 'reply-draft-v4'].includes(result.profileVersion) &&
+        result.expiresAtEpochMillis > Date.now()))
+  )
+}
+
+export type ReplyAssistScope = Readonly<{
+  draft: ReplyDraftSnapshot
+  target: ReplyLanguageTarget | null
+}>
+
+export type PendingReplyRequest = Readonly<{
+  key: string
+  trigger: 'draft' | 'try_again' | 'shorter' | 'tone'
+  args: ReplyRequestArguments
+}>
+type ReplyRequestArguments = [
+  ReplyTone,
+  boolean,
+  ReplyAssistScope | undefined,
+  'draft' | 'try_again' | 'shorter' | 'tone' | undefined,
+  Readonly<{ length: 'short'; maxWords: number }> | undefined,
+]
+export function retryPendingReply(
+  pending: Map<string, PendingReplyRequest>,
+  request: (...args: ReplyRequestArguments) => Promise<void>,
+): void {
+  const latest = Array.from(pending.values()).at(-1)
+  if (latest) void request(...latest.args)
+}
+export function chooseReplyTone(
+  tone: ReplyTone,
+  setTone: (tone: ReplyTone) => void,
+): void {
+  setTone(tone)
+}

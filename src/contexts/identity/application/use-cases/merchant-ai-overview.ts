@@ -66,7 +66,11 @@ export type MerchantAiOverviewDeps = Readonly<{
    * an earlier one it keeps in force (`isMerchantAiNoticeInForce`).
    */
   isNoticeInForce(
-    notice: Readonly<{ noticeVersion: string; noticeDigest: string }>,
+    notice: Readonly<{
+      noticeVersion: string
+      noticeDigest: string
+      capabilities: ReadonlyArray<MerchantAiCapability>
+    }>,
   ): boolean
 }>
 

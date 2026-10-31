@@ -113,6 +113,8 @@ export type Reply = Readonly<{
   voiceDigest?: string | null
   voiceChoices?: Readonly<{
     ratingBand?: ReplyFrameBand
+    bodyPrefixLength?: number
+    bodySuffixLength?: number
     closing: number
     signOff: number
     contactSentence: number

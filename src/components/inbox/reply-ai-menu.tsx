@@ -29,6 +29,7 @@ import type { ReplyTone } from './use-reply-suggestion'
 import { IconButton } from '#/components/ui/icon-button'
 
 export type ReplyAiMenuProps = Readonly<{
+  draftButtonRef?: React.Ref<HTMLButtonElement>
   tone: ReplyTone
   /** Whether AI drafting is the recommended path for this review. */
   isPrimary: boolean
@@ -53,17 +54,17 @@ export type ReplyAiMenuProps = Readonly<{
   onToneChange: (tone: ReplyTone) => void
   onRequestAi: (
     tone?: ReplyTone,
-    trigger?: 'draft' | 'try_again' | 'tone',
+    trigger?: 'draft' | 'try_again' | 'shorter' | 'tone',
   ) => Promise<void>
 }>
 
-const TONE_LABEL: Readonly<Record<ReplyTone, string>> = {
+export const TONE_LABEL: Readonly<Record<ReplyTone, string>> = {
   professional: 'Professional',
   friendly: 'Friendly',
   casual: 'Casual',
 }
 
-const TONES = Object.keys(TONE_LABEL) as ReadonlyArray<ReplyTone>
+export const TONES = Object.keys(TONE_LABEL) as ReadonlyArray<ReplyTone>
 
 /**
  * `Draft with AI ▾` (plan v2.1 row 17). The dropdown holds everything the
@@ -81,7 +82,7 @@ const TONES = Object.keys(TONE_LABEL) as ReadonlyArray<ReplyTone>
  * inside this menu: a chevron disabled by that reason would lock the only door
  * to its fix. The primary half carries `aiDisabled` and its reason.
  */
-export function ReplyAiMenu(props: ReplyAiMenuProps) {
+export function ReplyAiMenu({ draftButtonRef, ...props }: ReplyAiMenuProps) {
   const reasonId = useId()
   const toneLabelId = useId()
   const writeInLabelId = useId()
@@ -91,12 +92,16 @@ export function ReplyAiMenu(props: ReplyAiMenuProps) {
     languageChoices.selectedTag,
   )
   const languageName = selectedReplyLanguageName(entries)
-  const describedBy = props.aiUnavailableReason ? reasonId : undefined
+  const reason = props.isGenerating
+    ? 'A reply is being drafted. Press Stop to stop waiting.'
+    : props.aiUnavailableReason
+  const describedBy = reason ? reasonId : undefined
 
   return (
     <>
       <ButtonGroup>
         <Button
+          ref={draftButtonRef}
           type="button"
           size="sm"
           variant="outline"
@@ -109,11 +114,11 @@ export function ReplyAiMenu(props: ReplyAiMenuProps) {
           // `disabled` stays for an in-flight write, which has nothing to say,
           // and for a block that somehow arrives without its sentence.
           disabled={props.disabled || (props.aiDisabled && !props.aiUnavailableReason)}
-          aria-disabled={props.aiDisabled || undefined}
+          aria-disabled={props.aiDisabled || props.isGenerating || undefined}
           title={props.isPrimary ? props.primaryExplanation : undefined}
           aria-describedby={describedBy}
           onClick={() => {
-            if (props.aiDisabled) return
+            if (props.aiDisabled || props.isGenerating) return
             void props.onRequestAi(undefined, 'draft')
           }}
         >
@@ -160,7 +165,7 @@ export function ReplyAiMenu(props: ReplyAiMenuProps) {
                 <LanguageRow
                   key={entry.tag}
                   entry={entry}
-                  updateLanguage={languageChoices.updateLanguage}
+                  updateLanguage={(tag) => languageChoices.updateLanguage(tag)}
                 />
               ))}
               {!hasPropertyDefaultOption(languageChoices.options) && (
@@ -174,11 +179,20 @@ export function ReplyAiMenu(props: ReplyAiMenuProps) {
           </DropdownMenuContent>
         </DropdownMenu>
       </ButtonGroup>
-      {props.aiUnavailableReason && (
+      {reason && (
         <span id={reasonId} className="sr-only">
-          {props.aiUnavailableReason}
+          {reason}
         </span>
       )}
     </>
   )
+}
+
+/** Stop removes its button; return keyboard focus to the drafting control. */
+export function stopReplyDraft(
+  stop: () => void,
+  button: React.RefObject<HTMLButtonElement | null>,
+) {
+  stop()
+  button.current?.focus()
 }

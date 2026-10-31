@@ -18,6 +18,7 @@ import {
 import { AI_REPLY_TEMPLATE_CATALOGUE_DIGEST } from '#/shared/ai-reply-template-catalogue'
 import { CURRENT_MERCHANT_AI_CAPABILITIES } from '#/shared/domain/merchant-ai-capability'
 import { CURRENT_MERCHANT_AI_NOTICE } from '#/shared/merchant-ai-notice-contract'
+import { MERCHANT_AI_NOTICE_ANNOUNCEMENTS } from '#/shared/merchant-ai-notice-announcements'
 import { renewLapsedMerchantAiAuthorizations } from '../../application/use-cases/renew-lapsed-merchant-ai-authorizations'
 import { createStandingRenewalStore } from './merchant-ai-standing-renewal.repository'
 import { createMerchantAiAuthorizationStore } from './merchant-ai-authorization.repository'
@@ -65,6 +66,11 @@ const POLICY = {
   routingPolicyVersion: 1,
   providerDeploymentProfileVersion: 'private-beta-global-v2' as const,
   redactionProfileFamily: 'gbp-review-global-v1',
+}
+// Still in force for analysis and trends: the served notice changed drafting alone.
+const ANALYSIS_KEPT = {
+  noticeVersion: 'merchant-ai-notice-2026-10-30.v1',
+  noticeDigest: 'dadad7b81dbda360678fc57f7265b104c7311cbc213f877f32306c53b4852a5e',
 }
 // 2026-09-15 -> 2026-10-17 changed no data use, so no epoch moves.
 const IMMATERIAL_TARGET = {
@@ -281,6 +287,32 @@ describe('standing renewal persistence', () => {
     ])
     expect(await sweep()).toMatchObject({ visited: 0, renewed: 0 })
   })
+  it('renews a head for drafting alone and leaves one without drafting on its notice', async () => {
+    const drafting = await seedProperty()
+    const analysisOnly = await seedProperty()
+    const store = createMerchantAiAuthorizationStore(db, randomUUID)
+    const before = await store.mutate({ ...command(drafting), ...ANALYSIS_KEPT })
+    await store.mutate({
+      ...command(analysisOnly),
+      ...ANALYSIS_KEPT,
+      capabilities: ['review_analysis', 'property_trends'],
+    })
+    expect(await sweep()).toMatchObject({ visited: 1, renewed: 1, failed: 0 })
+    expect(outcomeOf(drafting)).toBe('renewed')
+    expect(outcomeOf(analysisOnly)).toBeUndefined()
+    expect(await store.getSnapshot(drafting)).toMatchObject({
+      noticeVersion: POLICY.noticeVersion,
+      capabilityEpochs: {
+        ...before.capabilityEpochs,
+        reply_drafting: before.capabilityEpochs.reply_drafting + 1,
+      },
+      analysisStartSequence: before.analysisStartSequence,
+    })
+    expect(await store.getSnapshot(analysisOnly)).toMatchObject({
+      noticeVersion: ANALYSIS_KEPT.noticeVersion,
+      stateVersion: 1,
+    })
+  })
   it('falls back to the longest-standing live owner after the consent author is demoted', async () => {
     const f = await seedProperty()
     await createMerchantAiAuthorizationStore(db, randomUUID).mutate(command(f))
@@ -404,9 +436,10 @@ describe('saved AI reply drafts under standing renewal', () => {
       epoch: 1,
     },
     {
+      // Every consent from before the v2 release recorded the v1 runtime.
       why: 'the served drafting runtime differs from the one consented under',
       consent: {},
-      consentRuntime: 'reply-drafting-runtime-v2',
+      consentRuntime: 'reply-drafting-runtime-v1',
       target: IMMATERIAL_TARGET,
       epoch: 1,
     },
@@ -489,7 +522,7 @@ describe('AI update receipts', () => {
     const update = await receipts.latest(reader)
     expect(update).toMatchObject({
       noticeVersion: POLICY.noticeVersion,
-      title: 'AI review insights got an upgrade',
+      title: MERCHANT_AI_NOTICE_ANNOUNCEMENTS[POLICY.noticeVersion]?.title,
     })
     const input = {
       ...reader,

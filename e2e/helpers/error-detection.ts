@@ -62,6 +62,24 @@
 // asserts it. Correlation is order-independent — an echo that arrives before
 // its response event is recorded and dropped when the response lands.
 //
+// Streamed-delivery correlation: a server function may answer with a stream
+// (application/x-ndjson — the AI reply drafting progress stream). Chromium can
+// report a streamed fetch that the page read to its clean end as CANCELLED
+// (net::ERR_ABORTED, `canceled: true`, at the last chunk), whatever the page
+// does after the last read: the drafting stream does in the reply lifecycle,
+// and a plain node server streaming five lines over two seconds did outside
+// the app. By then the server has answered 2xx and the page has every byte, so
+// a critical mutation whose 2xx NDJSON response this harness itself observed
+// is recorded as delivered, not failed, when it ends in ERR_ABORTED.
+// Cancelling delivery on purpose (Stop) is the same signal and is equally
+// benign: the drafting stream owns delivery only, never the provider work
+// behind it. Two properties keep this narrow:
+//   - only a response seen arriving with a 2xx status and an NDJSON content
+//     type counts — a mutation aborted before its server answered, or answered
+//     with JSON, stays gated;
+//   - only ERR_ABORTED is excused — a reset or a truncated stream is another
+//     error and still fails.
+//
 // Fail mode: detections are collected, and fixture teardown throws ONE error
 // listing all of them (with the page URL for each), attaching the full
 // transcript (detections + every console warning/error line) via
@@ -164,6 +182,7 @@ function findAllowlistMatch(
  * both the mutation gate and the navigation-abort correlation.
  */
 const SERVER_FN_PATH_PREFIX = '/_server'
+const STREAM_CONTENT_TYPE = 'application/x-ndjson'
 
 /** Critical mutations the network gate watches (browser-issued traffic only —
  * page.request APIRequestContext calls never surface as page events). */
@@ -233,6 +252,9 @@ export function attachErrorDetection(
   // correlation" in the file header.
   const unspentServerFnGetAborts: number[] = []
   const NAVIGATION_ABORT_WINDOW_MS = 3_000
+  // Critical mutations answered 2xx with a stream — see "Streamed-delivery
+  // correlation" in the file header.
+  const deliveredStreams = new WeakSet<Request>()
   // `${status} ${url}` for every >=400 MAIN-FRAME DOCUMENT response seen on
   // this page, and the console echoes still waiting for one — see
   // "Document-status correlation" in the file header.
@@ -371,6 +393,8 @@ export function attachErrorDetection(
     const fullUrl = response.url()
     if (status >= 200 && status < 300) {
       if (pendingConflicts.has(fullUrl)) pendingConflicts.delete(fullUrl)
+      if (response.headers()['content-type']?.includes(STREAM_CONTENT_TYPE))
+        deliveredStreams.add(request)
       return
     }
     if (status === 409) {
@@ -404,6 +428,12 @@ export function attachErrorDetection(
     const method = request.method()
     const errorText = request.failure()?.errorText ?? 'unknown'
     if (isCriticalMutation(method, url)) {
+      if (deliveredStreams.has(request) && errorText.includes('ERR_ABORTED')) {
+        transcript.push(
+          `[stream-delivered] ${method} ${request.url()} ended ${errorText} after its 2xx stream (page: ${page.url()})`,
+        )
+        return
+      }
       detections.push({
         kind: 'request-failed',
         message: `${method} ${request.url()} failed at network level: ${errorText}`,

@@ -50,7 +50,7 @@ export function reviewEvidenceOf(
 export type EvidenceSegment = Readonly<{
   text: string
   /** Null for text no mention cites. */
-  cited: Readonly<{ sense: MentionSense; matched: boolean }> | null
+  cited: Readonly<{ sense: MentionSense; matched: boolean; drafting?: boolean }> | null
 }>
 
 const SENSE_PRIORITY: Readonly<Record<MentionSense, number>> = {
@@ -79,7 +79,7 @@ function citedSentences(
   sentenceCount: number,
   mentions: readonly InboxMentionV3[],
   matched: ReadonlySet<number>,
-): ReadonlyMap<number, Cited> {
+): Map<number, Cited> {
   const cited = new Map<number, Cited>()
   for (const mention of mentions) {
     if (isRemoved(mention)) continue
@@ -103,9 +103,17 @@ export function evidenceSegments(
   text: string,
   mentions: readonly InboxMentionV3[],
   matched: ReadonlySet<number>,
+  drafting: readonly number[] = [],
 ): readonly EvidenceSegment[] {
   const sentences = locateReviewSentences(text)
   const cited = citedSentences(sentences.length, mentions, matched)
+  for (const number of drafting) {
+    if (number < 1 || number > sentences.length) continue
+    cited.set(number, {
+      ...(cited.get(number) ?? { sense: 'neutral', matched: false }),
+      drafting: true,
+    })
+  }
   if (cited.size === 0) return [{ text, cited: null }]
 
   const segments: EvidenceSegment[] = []

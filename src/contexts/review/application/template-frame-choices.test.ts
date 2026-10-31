@@ -10,7 +10,16 @@ const CHOICES = {
 }
 describe('template frame metadata activation', () => {
   it('keeps the exact served v1 metadata while B1 is dark', () => {
-    expect(templateFrameChoices(CHOICES, 'positiveText')).toBe(CHOICES)
+    const historical = vi.spyOn(catalogue, 'getAiRuntimeCapability').mockReturnValue({
+      ...catalogue.getAiRuntimeCapability('reply_drafting'),
+      runtimeProfileVersion: 'reply-drafting-runtime-v1',
+      operationProfileVersion: 'reply-suggestion-v1',
+    })
+    try {
+      expect(templateFrameChoices(CHOICES, 'positiveText')).toBe(CHOICES)
+    } finally {
+      historical.mockRestore()
+    }
   })
   it('records the selected band when the catalogue deliberately serves v2', () => {
     const served = catalogue.getAiRuntimeCapability('reply_drafting')

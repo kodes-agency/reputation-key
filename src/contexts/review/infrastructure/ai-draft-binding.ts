@@ -26,7 +26,6 @@ import { getAiRuntimeCapability } from '#/shared/ai-runtime-capability-contract'
 // would have withdrawn.
 
 import { and, eq, sql, type SQL } from 'drizzle-orm'
-import { AI_PROVIDER_DEPLOYMENT_PROFILE } from '#/shared/ai-operation-profiles'
 import { replies } from '#/shared/db/schema'
 import type { Tx } from '#/shared/outbox/commit'
 
@@ -146,7 +145,7 @@ async function bindingHolds(
               AND EXISTS (
                 SELECT 1
                 FROM ai_execution_control_heads AS control
-                WHERE control.scope_key = 'provider:' || ${AI_PROVIDER_DEPLOYMENT_PROFILE.profileVersion}
+                WHERE control.scope_key = 'provider:' || operation.provider_deployment_profile_version
                   AND control.control_id = operation.provider_control_id
                   AND control.generation = operation.provider_control_generation
                   AND control.execution_state = 'enabled'

@@ -91,8 +91,10 @@ function parseOperationKind(body: unknown): AiProviderStubOperationKind | null {
   const format = (text as Record<string, unknown>).format
   if (format === null || typeof format !== 'object' || Array.isArray(format)) return null
   switch ((format as Record<string, unknown>).name) {
+    case 'review_analysis_v3':
     case 'review_analysis_v2':
       return 'analysis'
+    case 'reply_draft_v4':
     case 'reply_draft_v1':
       return 'reply'
     case 'property_trend_v1':
@@ -419,6 +421,45 @@ function synthesizedReply(
   }
 }
 
+/** V2 drafts only a body; the application's real voice supplies its frame. */
+function synthesizedReplyV2(payload: Record<string, unknown>): Record<string, unknown> {
+  const languageCode =
+    typeof payload.languageCode === 'string' ? payload.languageCode : 'en-Latn'
+  const rating = typeof payload.rating === 'number' ? payload.rating : 5
+  const replies: Record<string, string> = {
+    'en-Latn': 'We appreciate you sharing this experience with us.',
+    'es-Latn': 'Agradecemos que haya compartido su experiencia con nosotros.',
+    'bg-Cyrl': 'Благодарим ви, че споделихте преживяването си с нас.',
+  }
+  return {
+    languageCode,
+    case: rating >= 4 ? 'praise' : 'complaint',
+    mainPoint: [1],
+    avoidTerms: [],
+    replyText: replies[languageCode] ?? replies['en-Latn'],
+  }
+}
+
+function providerStreamResponse(
+  response: ServerResponse,
+  script: AiProviderStubResponse,
+): void {
+  response.writeHead(200, {
+    'content-type': 'text/event-stream',
+    'cache-control': 'no-store',
+  })
+  const text = JSON.stringify(script.parsed ?? {})
+  const split = Math.max(1, text.indexOf('"replyText"'))
+  for (const delta of [text.slice(0, split), text.slice(split)]) {
+    response.write(
+      `data: ${JSON.stringify({ type: 'response.output_text.delta', delta })}\n\n`,
+    )
+  }
+  response.end(
+    `data: ${JSON.stringify({ type: 'response.completed', response: providerResponse(script) })}\n\ndata: [DONE]\n\n`,
+  )
+}
+
 function synthesizedParsed(
   operationKind: AiProviderStubOperationKind,
   payload: Record<string, unknown> | null,
@@ -451,7 +492,11 @@ function synthesizedParsed(
             }
     }
     case 'reply':
-      return payload === null ? null : synthesizedReply(payload)
+      return payload === null
+        ? null
+        : payload.replyProfileVersion === 'reply-draft-v4'
+          ? synthesizedReplyV2(payload)
+          : synthesizedReply(payload)
     case 'trend':
       return { selectedSignalIds: ['sentiment.positive.up'] }
     case 'synthetic_canary':
@@ -568,6 +613,14 @@ async function handler(
       : status === 200
         ? providerResponse(script)
         : {}
+    if (
+      !isAnthropic &&
+      status === 200 &&
+      (body as Record<string, unknown>).stream === true
+    ) {
+      providerStreamResponse(response, script)
+      return
+    }
     json(response, status, value, headers)
   } catch {
     json(response, 400, { error: 'invalid_json' })

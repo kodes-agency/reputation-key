@@ -1,6 +1,11 @@
 /** Content-free observations. A terminal result is delivered separately, after settlement. */
 export type ReplyDraftingProgress =
-  | Readonly<{ step: 'reading' | 'thinking' | 'writing' | 'checking' }>
+  | Readonly<{
+      step: 'reading'
+      reviewTextDigest?: string
+      frame?: Readonly<{ prefix: string; suffix: string }>
+    }>
+  | Readonly<{ step: 'thinking' | 'writing' | 'checking' }>
   | Readonly<{ step: 'answering'; sentenceNumbers: readonly number[] }>
   | Readonly<{ step: 'rewording'; ordinal: 1 }>
 

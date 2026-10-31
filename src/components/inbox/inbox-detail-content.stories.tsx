@@ -20,6 +20,11 @@ import { openConfirmation } from './reply-editor.stories.play'
 import { makeInboxItem } from '../../../.storybook/in-memory/inbox-container'
 import { mockServerFn } from '../../../.storybook/mocks/mock-action'
 import { scriptReplyCommand } from '../../../.storybook/stubs/review-reply-server'
+import {
+  draftStreamResponse,
+  scriptReplySuggestionStream,
+} from '../../../.storybook/stubs/ai-reply-suggestion-stream'
+import { REPLY_DRAFTING_V2_VERSIONS } from '#/shared/reply-drafting-v2-schema'
 import { withRole } from '../../../.storybook/AuthedRouterDecorator'
 import type { ComposerFocusBox, DetailContentProps } from './inbox-detail-content'
 import type {
@@ -510,6 +515,30 @@ export const ReplyToolbarDetectsMissingReviewLanguage: Story = {
       notes,
     }),
   },
+  // The pane's session writes a draft through the progress stream, not through
+  // `detailFns.generateReplySuggestion` (which now only serves the governed
+  // template). The stream answers what that mock did: a Bulgarian draft, tagged
+  // with the language the boundary detected.
+  beforeEach: () =>
+    scriptReplySuggestionStream(() =>
+      draftStreamResponse([
+        { sequence: 1, step: 'reading' },
+        {
+          sequence: 2,
+          step: 'done',
+          result: {
+            status: 'ready',
+            profileVersion: REPLY_DRAFTING_V2_VERSIONS.profile,
+            replyText:
+              'Благодарим Ви за отзива. Радваме се, че престоят Ви е бил приятен.',
+            provenanceToken: 'storybook-provenance-token',
+            expiresAtEpochMillis: Date.now() + 60_000,
+            baseReplyStateRevision: 0,
+            concreteLanguageTag: 'bg-Cyrl',
+          },
+        },
+      ]),
+    ),
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
     const body = within(document.body)

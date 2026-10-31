@@ -35,6 +35,7 @@ import {
 } from '#/shared/db/schema'
 import { organizationId, propertyId, reviewId, userId } from '#/shared/domain/ids'
 import {
+  MERCHANT_AI_NOTICE_CHANGES,
   MERCHANT_AI_NOTICE_DIGEST,
   MERCHANT_AI_NOTICE_VERSION,
 } from '#/shared/merchant-ai-notice-contract'
@@ -660,6 +661,9 @@ describe.sequential('AI output store analysis persistence (real PostgreSQL)', ()
   // re-consent also advances the capability epochs, and the epoch comparisons
   // beside these would refuse first. Here the lineage, the epochs and the state
   // version all stay where they were, so the notice comparison alone decides.
+  // A newer notice that left Review Analysis unchanged is no drift for it
+  // (ADR 0074): a drafting-only re-consent keeps the epochs, so only this
+  // comparison could hide the history.
   describe('an operation claimed under another notice', () => {
     const DRIFTS = [
       ['version', { noticeVersion: EARLIER_NOTICE_VERSION }],
@@ -680,6 +684,22 @@ describe.sequential('AI output store analysis persistence (real PostgreSQL)', ()
         expect(withheld).not.toHaveProperty('sentiment')
       },
     )
+
+    it('keeps its stored analysis when the newer notice changed only drafting', async () => {
+      const served = MERCHANT_AI_NOTICE_CHANGES.find(
+        (change) => change.noticeVersion === MERCHANT_AI_NOTICE_VERSION,
+      )
+      // The premise: the served notice replaced one without changing analysis.
+      expect(served?.materiallyChanges).not.toContain('review_analysis')
+      await seedStoredReviewA()
+
+      await claimUnderAnotherNotice(served!.replaces!)
+
+      await expect(readReviewA()).resolves.toMatchObject({
+        status: 'ready',
+        sentiment: 'positive',
+      })
+    })
 
     it.each(DRIFTS)('stores nothing for it (notice %s)', async (_field, notice) => {
       await claimUnderAnotherNotice(notice)

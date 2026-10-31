@@ -67,6 +67,9 @@ export type GetInboxItemDetailDeps = Readonly<{
  *  row (`inbox.mapper.ts:37`). */
 export type InboxItemDetailResult = Readonly<
   InboxItemDetail & {
+    /** Server policy and current Property drafting consent; background eligibility only. */
+    replyDraftingAvailable?: boolean
+    replyBodyFrame?: Readonly<{ prefix: string; suffix: string }> | null
     reply: ReplyView | null
     analysis: InboxReviewAnalysis | null
     propertyDefaultReplyLanguage?: string | null

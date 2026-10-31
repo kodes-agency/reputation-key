@@ -1146,3 +1146,29 @@ start at `use-reply-suggestion.ts:251/256`, composer adoption/Undo/submit at
 `use-reply-composer.ts:185/237/294`, and save/submit callbacks at
 `use-reply-actions.ts:199/214`. The first-save clearing rule remains
 `reply-ai-text.ts:65` and the write guard at `reply-write-guards.ts:168`.
+
+## Reply drafting v2 release — PR-B3b (pending owner deployment approval)
+
+The B1/B2 sections above record the earlier dark stages. The served selection now
+uses `reply-suggestion-v2`, `reply-drafting-runtime-v2`, and `private-beta-global-v3`.
+`merchant-ai-notice-2026-11-01.v1` alone is in force. Its material-change scope is
+`reply_drafting`; renewal preserves analysis/trends epochs and the analysis watermark.
+Migration 0088 expands historical notice/deployment CHECKs and replaces the SQL notice
+change catalogue; it rewrites no grants. `mapSnapshot` reads the v3 deployment.
+
+The first admitted `reading` event carries only the local frame's prefix/suffix and
+an ephemeral SHA-256 digest of the exact original review text. Sentence highlighting
+requires that digest to match the original on screen. No review text is streamed as
+progress. The accepted result carries the actual frame (a duplicate thank-you closing
+may have been omitted), so Shorter counts body words only. Adoption stores two numeric frame lengths in the existing Reply voice-choice metadata.
+Saved body boundaries therefore survive voice changes without duplicating any text;
+historical rows can be reconstructed from their choices when the voice still matches,
+without reserving or rotating a frame.
+
+The detail owns dwell, cancellation, request keys, variation and held results above
+conditional editors. Hidden work has no UI/error/save/adoption side effects. Explicit
+intent wins over the dwell timer. Deferred background work may take an interactive
+successor only when requested; busy retries retain key/options/variation. Expired
+results are evicted. Stop closes browser delivery; provider accounting finishes once.
+Serving languages are selected on one line in `REPLY_DRAFTING_V2_SERVED_LANGUAGES`,
+separately from the immutable language contract/history catalogue.
