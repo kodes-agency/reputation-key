@@ -1065,17 +1065,24 @@ const REFUSED_AUTHORIZATIONS: ReadonlyArray<
     'an authorization without reply drafting',
     (a) => ({ ...a, capabilities: ['review_analysis'] }),
   ],
-  [
-    'another reply-drafting runtime profile',
-    (a) => ({
-      ...a,
-      capabilityRuntimeProfileVersions: {
-        ...a.capabilityRuntimeProfileVersions,
-        reply_drafting: 'reply-drafting-runtime-v0',
-      },
-    }),
-  ],
 ]
+
+describe('generate reply suggestion: compatible execution refresh', () => {
+  it('executes the served profile despite different recorded runtime and deployment evidence', async () => {
+    const harness = createHarness()
+    authorizeOnceAs(harness, (authorization) => ({
+      ...authorization,
+      capabilityRuntimeProfileVersions: { reply_drafting: 'historical-recorded-runtime' },
+      providerDeploymentProfileVersion: 'private-beta-global-v1',
+    }))
+    await expect(harness.generate(INPUT)).resolves.toMatchObject({ status: 'ready' })
+    const request = harness.mocks.generateReply.mock.calls[0]?.[0]
+    expect(() => parseAiGatewayRouteRequest(request)).not.toThrow()
+    expect(request).toMatchObject({
+      binding: { providerDeploymentProfileVersion: 'private-beta-global-v2' },
+    })
+  })
+})
 
 describe('generate reply suggestion: refusals before provider work', () => {
   it.each(REFUSED_AUTHORIZATIONS)(
@@ -1433,6 +1440,23 @@ describe('generate reply suggestion: a consent recorded under an earlier notice'
       )
     },
   )
+
+  it('keeps notice renewal actionable when the processing profile is also unavailable', async () => {
+    const harness = createHarness({ consentNotice: NOTICE_2026_10_17 })
+    vi.mocked(harness.mocks.readProcessingProfile).mockResolvedValue({
+      status: 'policy_unavailable',
+    })
+    await expect(harness.generate(INPUT)).resolves.toMatchObject({
+      status: 'unavailable',
+      code: 'consent_renewal_required',
+    })
+    expectNoAiExecution(
+      harness.mocks.readHeads,
+      harness.mocks.claim,
+      harness.mocks.acquire,
+      harness.mocks.generateReply,
+    )
+  })
 
   it('still loads the governed template, which needs no AI consent', async () => {
     const harness = createHarness({

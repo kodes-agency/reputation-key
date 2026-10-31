@@ -1,3 +1,4 @@
+import { getAiRuntimeCapability } from '#/shared/ai-runtime-capability-contract'
 import type { OrganizationId, PropertyId, ReviewId, UserId } from '#/shared/domain/ids'
 import {
   AI_OPERATION_PROFILES,
@@ -539,7 +540,7 @@ async function resolveSuggestionLanguage(
 /**
  * The AccountAdmin authorization a personalized draft may run under: enabled,
  * with a lineage, for the source epoch the manager saw, and granting reply
- * drafting on this runtime profile.
+ * drafting; execution compatibility is checked separately.
  */
 function isReplyDraftingAuthorized(
   authorization: MerchantAuthorization | null,
@@ -550,9 +551,7 @@ function isReplyDraftingAuthorized(
     authorization.state === 'enabled' &&
     authorization.authorizationLineageId !== null &&
     authorization.authorizedSourceEpoch === input.expectedSourceEpoch &&
-    authorization.capabilities.includes('reply_drafting') &&
-    authorization.capabilityRuntimeProfileVersions.reply_drafting ===
-      PROFILE.capabilityRuntimeProfileVersion
+    authorization.capabilities.includes('reply_drafting')
   )
 }
 
@@ -601,10 +600,7 @@ async function resolveDraftingGrant(
       input.propertyId,
     ),
   ])
-  if (
-    !isReplyDraftingAuthorized(authorization, input) ||
-    runtime.status !== 'available'
-  ) {
+  if (!isReplyDraftingAuthorized(authorization, input)) {
     return refusedWith('not_authorized')
   }
   // Enabled, but under a notice this build no longer holds in force. The
@@ -613,9 +609,11 @@ async function resolveDraftingGrant(
   if (!isAiAuthorizationUnderServedContract(authorization, 'reply_drafting')) {
     return refusedWith('consent_renewal_required')
   }
+  if (runtime.status !== 'available') return refusedWith('not_authorized')
   if (brandProfile === null) return refusedWith('brand_profile_unavailable')
   const stopFence = await resolveAiExecutionStopFence(dependencies.control, {
-    providerDeploymentProfileVersion: authorization.providerDeploymentProfileVersion,
+    providerDeploymentProfileVersion:
+      getAiRuntimeCapability('reply_drafting').providerDeploymentProfileVersion,
     capability: 'reply_drafting',
   })
   if (stopFence === null) return refusedWith('policy_unavailable')

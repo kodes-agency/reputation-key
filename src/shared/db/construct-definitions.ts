@@ -1,7 +1,8 @@
 // Definitions of the DB-only functions and triggers, compared with the catalog.
 //
 // `./db-constructs.sql` is the authority for these objects and
-// `drizzle/0001_db_constructs.sql` is its byte copy (docs/BETA.md §6). The drift
+// `drizzle/0001_db_constructs.sql` is its historical byte copy except the named
+// forward-only definitions below (docs/BETA.md §6, ADR 0074). The drift
 // check used to compare them with the catalog by NAME, so a body or signature
 // that a later migration changed without restating it in the file was invisible:
 // the file said one function, every database ran another, and the next edit
@@ -141,35 +142,15 @@ export type SupersededConstructDefinition = Readonly<{
   migration: string
 }>
 
-/**
- * Definitions `db-constructs.sql` states wrongly, each with the migration that
- * holds the one every database runs. The target is an empty list.
- *
- * `apply_merchant_ai_transition_v1`: migration 0006 changed the body and 0016
- * replaced the 26-argument signature with a 27-argument one (`p_ceremony_id`);
- * neither was restated in the file, which still carries the pre-0006 text. The
- * file and its byte copy 0001 cannot simply be brought up to 0016: 0016 creates
- * the function with a plain `CREATE FUNCTION`, so an empty database that
- * already got the 27-argument function from 0001 fails there ("already exists
- * with same argument types"). Reconciling therefore changes the rule in
- * docs/BETA.md §6 one way or the other, which is the owner's decision: either
- * 0016 also becomes `CREATE OR REPLACE FUNCTION` (a second edited migration and
- * a second expected journal line), or the file alone takes the live text and
- * 0001 stops being its byte copy for this one statement. Until then the drift
- * check expects 0016's statement, so the function cannot drift further unseen,
- * and DO NOT restate it from the file's text: that adds a second overload and
- * makes every 26-argument call ambiguous.
- * construct-definitions.test.ts fails as soon as an entry here is no longer
- * superseded, or a later migration redefines the function.
- */
+/** No known superseded definitions remain in the live construct file. */
 export const SUPERSEDED_CONSTRUCT_DEFINITIONS: readonly SupersededConstructDefinition[] =
-  [
-    {
-      kind: 'function',
-      name: 'apply_merchant_ai_transition_v1',
-      migration: '0016_merchant_ai_notice_v2_ceremony',
-    },
-  ]
+  []
+
+/** Forward-only reconciliation in 0084; 0001 remains immutable historical SQL. */
+export const FORWARD_ONLY_CONSTRUCT_DEFINITIONS = [
+  'apply_merchant_ai_transition_v1',
+  'merchant_ai_notice_material_changes_v1',
+] as const
 
 export type MigrationCreatedConstruct = Readonly<{
   kind: ConstructKind

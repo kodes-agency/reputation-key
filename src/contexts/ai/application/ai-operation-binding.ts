@@ -1,3 +1,4 @@
+import { getAiRuntimeCapability } from '#/shared/ai-runtime-capability-contract'
 // AI context — the identity and execution binding an AI operation is claimed
 // and fenced on. Both feed the RFC 8785 request fingerprint that makes a claim
 // idempotent (ai-workflow-support.ts), so a changed field, key or null is a
@@ -39,10 +40,7 @@ type MerchantAuthorization = NonNullable<
 /** The authorization facts every binding pins, besides its proven lineage. */
 type BindingAuthorization = Pick<
   MerchantAuthorization,
-  | 'noticeVersion'
-  | 'noticeDigest'
-  | 'redactionProfileFamily'
-  | 'providerDeploymentProfileVersion'
+  'noticeVersion' | 'noticeDigest' | 'redactionProfileFamily'
 >
 
 type BindingOperationProfile = Pick<
@@ -143,7 +141,8 @@ export function replyExecutionBinding(
     outputLeakageProfileDigest: AI_REPLY_OUTPUT_LEAKAGE_PROFILE_DIGEST,
     replyTemplateCatalogueVersion: AI_REPLY_TEMPLATE_CATALOGUE_VERSION,
     replyTemplateCatalogueDigest: AI_REPLY_TEMPLATE_CATALOGUE_DIGEST,
-    providerDeploymentProfileVersion: authorization.providerDeploymentProfileVersion,
+    providerDeploymentProfileVersion:
+      getAiRuntimeCapability('reply_drafting').providerDeploymentProfileVersion,
     operationProfileVersion: facts.operationProfile.profileVersion,
     capabilityRuntimeProfileVersion:
       facts.operationProfile.capabilityRuntimeProfileVersion!,
@@ -223,7 +222,8 @@ export function analysisExecutionBinding(
     outputLeakageProfileDigest: null,
     replyTemplateCatalogueVersion: null,
     replyTemplateCatalogueDigest: null,
-    providerDeploymentProfileVersion: authorization.providerDeploymentProfileVersion,
+    providerDeploymentProfileVersion:
+      getAiRuntimeCapability('review_analysis').providerDeploymentProfileVersion,
     operationProfileVersion: facts.operationProfile.profileVersion,
     capabilityRuntimeProfileVersion:
       facts.operationProfile.capabilityRuntimeProfileVersion!,

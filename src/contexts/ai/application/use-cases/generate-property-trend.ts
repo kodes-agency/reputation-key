@@ -1,3 +1,4 @@
+import { isAiAuthorizationUnderServedContract } from '../ai-workflow-support'
 import { AI_OPERATION_PROFILES } from '#/shared/ai-operation-profiles'
 import {
   AI_PROPERTY_TREND_DEFINITION_DIGEST,
@@ -331,8 +332,7 @@ function scheduleInputsAreCurrent(
     authorization.state === 'enabled' &&
     authorization.authorizationLineageId !== null &&
     authorization.capabilities.includes('property_trends') &&
-    authorization.capabilityRuntimeProfileVersions.property_trends ===
-      PROFILE.capabilityRuntimeProfileVersion &&
+    isAiAuthorizationUnderServedContract(authorization, 'property_trends') &&
     authorization.authorizedSourceEpoch === schedule.sourceEpoch &&
     authorization.capabilityEpochs.review_analysis.epoch ===
       schedule.reviewAnalysisEpoch &&

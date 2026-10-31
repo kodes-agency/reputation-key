@@ -589,6 +589,13 @@
       "when": 1796400000000,
       "tag": "0083_review_analysis_v3_switch_on",
       "breakpoints": true
+    },
+    {
+      "idx": 84,
+      "version": "7",
+      "when": 1796500000000,
+      "tag": "0084_merchant_ai_consent_follows_notice",
+      "breakpoints": true
     }
   ]
 }

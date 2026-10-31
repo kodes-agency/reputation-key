@@ -37,7 +37,12 @@ const CONSENT_FENCE = {
   authorizedSourceEpoch: 3,
   stateVersion: 5,
   noticeDigest: 'a'.repeat(64),
-  runtimeProfileVersion: 'review-analysis-runtime-v1',
+  recordedRuntimeProfileVersion: 'review-analysis-runtime-v1',
+  servedExecution: {
+    runtimeProfileVersion: 'review-analysis-runtime-v1',
+    operationProfileVersion: 'review-analysis-v3',
+    providerDeploymentProfileVersion: 'private-beta-global-v2',
+  },
 } as const
 
 function ctx(overrides: Partial<AuthContext> = {}): AuthContext {

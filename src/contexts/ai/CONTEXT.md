@@ -45,24 +45,28 @@ Review Analysis and never make a second provider-generation call.
 
 All three are dark until the AccountAdmin authorization, live access, notice version, provider policy, platform gate, runtime catalogue, and cell-local admission/egress controls agree. Property Trends additionally requires Review Analysis. A capability being present in code or schema is not activation.
 
-An authorization recorded under a notice the runtime catalogue does not hold
-in force, or under another provider deployment profile than the one this build
-serves, is refused before an operation is claimed
-(`isAiAuthorizationUnderServedContract`, `application/ai-workflow-support.ts`).
-The notices in force are the served one and each earlier notice whose data use
-it repeats word for word (`MERCHANT_AI_NOTICES_IN_FORCE`). Today that is the
-2026-10-30 notice alone: it changed what a merchant agrees to (a second named
-provider, a fuller analysis record, the Urgent alert), so consent recorded under
-2026-09-09, 2026-09-15 and 2026-10-17 lapsed at the switch-on and every enabled
-Property re-consents. An earlier notice is carried only by a successor that
-changes how consent is asked and nothing else (2026-10-17 did that for
-2026-09-15). A reply draft under a lapsed notice
-answers `consent_renewal_required`, which the composer shows as the notice
-needing an AccountAdmin's confirmation. A review is settled as not analysable,
-with no operation: re-consent bumps the Review Analysis epoch and the enrollment
-replay analyses the history again. The gateway's request check compares the
-same catalogue values (`isAiRuntimeNoticeInForce`) and stays as the second line;
-it throws, so it must never be the first.
+Merchant authorization follows the acknowledged notice, independently of the
+runtime/deployment recorded as historical evidence (ADR 0074). The shared pure
+`isExecutionCompatibleWithConsent` requires an in-force version/digest and an
+explicit catalogue entry for the capability and served execution triple. Unknown
+pairs fail closed. Operations and execution controls use the served selection;
+the gateway still requires the exact served operation/runtime/deployment.
+New provider work and settlement use this compatibility rule while retaining
+lineage, state, membership, source, epoch and control-generation fences. Reads
+and delivery of already-produced outputs, draft adoption/publication and trend
+scheduling retain their previous rules, including stored analysis under an
+unchanged grant whose notice has lapsed.
+
+Today only the 2026-10-30 notice is in force. Its introduction materially changed
+all three capabilities, so earlier consent requires renewal. An out-of-force
+notice answers `consent_renewal_required` for drafting, after tenant/access
+checks and before claiming work, with the notice fix target. Re-consent advances
+only capabilities whose membership/source scope changed or whose notice data
+use materially changed across intervening versions. Source policy, routing policy
+and redaction family changes still advance every previously or newly enabled
+capability epoch. A drafting-only material
+notice preserves Review Analysis and trends epochs and the analysis frontier.
+A technical runtime/deployment refresh writes no consent evidence or epoch.
 
 Operations, settlements, derivative generations, enrollment heads, schedules,
 and output lineage pin authorization, source, policy, model, and lifecycle fences.
@@ -251,7 +255,7 @@ constant and the owner's date from the Privacy Notice (docs/BETA.md section 2). 
 new deployment profile and no new consent.
 
 Consent: a consent recorded under any earlier notice is refused before work is claimed, and
-re-consent moves the notice and the deployment profile, which advances the capability epochs
+re-consent moves the notice; its declared material changes advance the affected capability epochs
 (`apply_merchant_ai_transition_v1`). The review analysis epoch bump makes the enrollment
 replay analyse the history again, and `eraseRetiredDerivatives` deletes the retired epoch's
 derivatives. Turning AI off, revoking or erasing also deletes the per-Property issue groups and
@@ -261,7 +265,7 @@ rollback are `docs/operations/runbooks.md` section 32.
 
 What reads analysis data, after the switch-on: Guest voice reads one thing, the v3 read, and
 says "AI analysis is off" or "being prepared" where there is no page (a consent recorded under a
-notice or deployment profile no longer in force reads as off, because nothing is being prepared
+notice no longer in force reads as off, because nothing is being prepared
 for it until an AccountAdmin confirms the served one); a live quote is shown
 only when the review's current source revision equals the analysed revision; the Overview row
 reads the same v3 read; a manager-typed cause passes the same name and four-word guards as an
@@ -750,7 +754,7 @@ Guest voice 2.0 (`readGuestVoiceV2`, v3 contract section 9) is the Guest voice p
 switch-on (2026-10-30) the only one: the route reads it once. A Property whose reviews have a v3
 analysis gets the page; any other gets a reason instead (`hasV3Analyses`: a ready v3 contribution
 under the Property's current epochs): "being prepared", or "AI analysis is off" when AI is off or
-the consent was recorded under a notice or deployment profile no longer in force. Its types are
+the consent was recorded under a notice no longer in force. Its types are
 `application/read-models/guest-voice-v2.ts`, content-free except `LiveEvidence`. The read joins two
 answers (`read-models/guest-voice-v2-join.ts`). Review says which reviews the Property has now
 (`readTrendPopulation`, as the insights read: two years in one read, the last year alone and no
@@ -962,7 +966,7 @@ for an event that is gone.
 
 1. AI processes only currently eligible Google Review content loaded through the Review public source port plus the exact public Property display name loaded through Portal's narrow Brand authority. Brand image URLs, colors, localized content, Private Portal ratings, feedback, contact details, Inbox notes, manager-internal text, and Guest media never enter AI admission, prompts, outputs, logs, or derived tables.
 2. Every operation is fenced by Organization, Property, source epoch, source revision, authorization epoch, capability epoch, policy/profile versions, model/deployment, idempotency key, and lifecycle generation.
-3. Authorization is a maximum allowed capability set. A PropertyManager may operate only within the AccountAdmin-authorized set and current Property access; operating a feature never expands authorization.
+3. Consent follows the notice, with explicit per-capability execution compatibility (ADR 0074); recorded runtime/deployment is historical evidence. Authorization is a maximum allowed capability set. A PropertyManager may operate only within the AccountAdmin-authorized set and current Property access; operating a feature never expands authorization.
 4. Disable fences new and in-flight work immediately and hides outputs. Erasure purges local derivatives within the policy window while retaining only content-free evidence. Re-enable reuses an output only when every lineage, policy, model, authorization, and freshness fence still matches. An adopted Reply draft is Review-owned, so the control, Authorization and profile transitions withdraw the unedited ones in their own transaction through the AI draft purge (`src/shared/db/ai/ai-draft-purge.ts`; the rule is in the Review context's Model): a Reply nobody confirmed is deleted, and a confirmed one that has not been dispatched is cancelled and emptied while its publication authorization stays as evidence. A Reply whose publication already failed keeps its text, and Review's publish worker withdraws it the same way when a manager tries it again: its read of Google before the claim (an observation of the Review) withdraws it once the ten-minute adoption window has passed, and the claim refuses it when an input changed, claimed before or not.
 5. Provider output is advisory. It cannot mutate Inbox status/assignment/escalation, publish a Reply, change Portal behavior, alter a Goal/Metric/Recognition result, or trigger workforce decisions. It starts no notification either, with one exception: an Urgent finding of review analysis v3 raises one content-free alert per review revision (`ai.review_analysis.urgent_detected`, below), and that alert changes nothing about the review (ADR 0031 and ADR 0046, amended 2026-10-30).
 6. Reply Drafting is never cached as a generic suggestion detached from the Review revision or Brand Profile version. A manager must explicitly request it, may edit it, and must separately adopt, then Confirm & Publish through the Reply workflow.

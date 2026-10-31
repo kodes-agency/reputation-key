@@ -110,7 +110,6 @@ async function analysisRequest() {
       noticeVersion: MERCHANT_AI_NOTICE_VERSION,
       noticeDigest: MERCHANT_AI_NOTICE_DIGEST,
       redactionProfileFamily: 'gbp-review-global-v1',
-      providerDeploymentProfileVersion: 'private-beta-global-v2',
     },
     authorizationLineageId: randomUUID(),
     operationProfile: {

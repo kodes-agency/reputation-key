@@ -175,7 +175,7 @@ function envelopeFence(value: unknown): MerchantAiConsentFence | null | undefine
   if (value === undefined) return undefined
   if (
     !isRecord(value) ||
-    Object.keys(value).length !== 6 ||
+    Object.keys(value).length !== 7 ||
     typeof value.authorizationLineageId !== 'string' ||
     typeof value.capabilityEpoch !== 'number' ||
     !Number.isSafeInteger(value.capabilityEpoch) ||
@@ -188,7 +188,12 @@ function envelopeFence(value: unknown): MerchantAiConsentFence | null | undefine
     !Number.isSafeInteger(value.stateVersion) ||
     value.stateVersion < 1 ||
     typeof value.noticeDigest !== 'string' ||
-    typeof value.runtimeProfileVersion !== 'string'
+    typeof value.recordedRuntimeProfileVersion !== 'string' ||
+    !isRecord(value.servedExecution) ||
+    Object.keys(value.servedExecution).length !== 3 ||
+    typeof value.servedExecution.runtimeProfileVersion !== 'string' ||
+    typeof value.servedExecution.operationProfileVersion !== 'string' ||
+    typeof value.servedExecution.providerDeploymentProfileVersion !== 'string'
   ) {
     return null
   }
@@ -198,7 +203,13 @@ function envelopeFence(value: unknown): MerchantAiConsentFence | null | undefine
     authorizedSourceEpoch: value.authorizedSourceEpoch,
     stateVersion: value.stateVersion,
     noticeDigest: value.noticeDigest,
-    runtimeProfileVersion: value.runtimeProfileVersion,
+    recordedRuntimeProfileVersion: value.recordedRuntimeProfileVersion,
+    servedExecution: {
+      runtimeProfileVersion: value.servedExecution.runtimeProfileVersion,
+      operationProfileVersion: value.servedExecution.operationProfileVersion,
+      providerDeploymentProfileVersion:
+        value.servedExecution.providerDeploymentProfileVersion,
+    },
   }
 }
 

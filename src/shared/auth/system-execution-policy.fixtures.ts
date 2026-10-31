@@ -98,7 +98,12 @@ export const DELAYED_CONTRACT_FIXTURES: ReadonlyArray<DelayedContractFixture> = 
           authorizedSourceEpoch: 2,
           stateVersion: 6,
           noticeDigest: 'a'.repeat(64),
-          runtimeProfileVersion: 'review-analysis-runtime-v1',
+          recordedRuntimeProfileVersion: 'review-analysis-runtime-v1',
+          servedExecution: {
+            runtimeProfileVersion: 'review-analysis-runtime-v1',
+            operationProfileVersion: 'review-analysis-v3',
+            providerDeploymentProfileVersion: 'private-beta-global-v2',
+          },
         },
       },
       policyVersionAtEnqueue: EXECUTION_POLICY_VERSION,

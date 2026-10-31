@@ -50,7 +50,7 @@ describe('AI runtime capability contract', () => {
     )
     expect(AI_RUNTIME_CAPABILITIES_V1_DIGEST).toMatch(/^[0-9a-f]{64}$/)
     for (const entry of AI_RUNTIME_CAPABILITIES_V1) {
-      // One deployment profile for every capability: a consent records one.
+      // Execution selection currently uses one deployment for every capability.
       expect(entry.providerDeploymentProfileVersion).toBe('private-beta-global-v2')
       expect(entry.noticesInForce).toEqual(MERCHANT_AI_NOTICES_IN_FORCE)
     }

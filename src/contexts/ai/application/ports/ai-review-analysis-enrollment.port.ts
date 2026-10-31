@@ -29,6 +29,7 @@ export type AiAuthorizationLifecycleTrigger = Readonly<{
 }>
 
 export type ReviewAnalysisEnrollmentTriggerResult =
+  | Readonly<{ status: 'preserved'; enrollmentId: string }>
   | Readonly<{ status: 'queued'; enrollmentId: string }>
   | Readonly<{
       status: 'awaiting_assisted_approval'

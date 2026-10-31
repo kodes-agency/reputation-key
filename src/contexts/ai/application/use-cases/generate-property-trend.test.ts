@@ -1,6 +1,9 @@
 import { describe, expect, it, vi } from 'vitest'
 import { organizationId, propertyId } from '#/shared/domain/ids'
-import { MERCHANT_AI_NOTICE_VERSION } from '#/shared/merchant-ai-notice-contract'
+import {
+  MERCHANT_AI_NOTICE_VERSION,
+  MERCHANT_AI_NOTICE_DIGEST,
+} from '#/shared/merchant-ai-notice-contract'
 import type {
   AiPropertyAggregateCoverage,
   AiPropertyAnalyzedReview,
@@ -191,7 +194,7 @@ function createHarness(
         },
         reviewAnalysisStartSequence: 1,
         noticeVersion: MERCHANT_AI_NOTICE_VERSION,
-        noticeDigest: SHA,
+        noticeDigest: MERCHANT_AI_NOTICE_DIGEST,
         sourcePolicyId: 'google-business-profile-source-policy-v1',
         sourceCanonicalizerDigest: SHA,
         redactionProfileFamily: 'gbp-review-global-v1',

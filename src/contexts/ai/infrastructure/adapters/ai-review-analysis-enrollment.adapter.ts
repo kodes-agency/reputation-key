@@ -1,3 +1,4 @@
+import { preserveAnalysisEnrollment } from './ai-enrollment-consent-refresh'
 import { and, eq, inArray, sql } from 'drizzle-orm'
 import type { Database } from '#/shared/db'
 import { aiReviewAnalysisEnrollments, eventConsumerReceipts } from '#/shared/db/schema'
@@ -506,6 +507,19 @@ export const createReviewAnalysisEnrollmentAdapter = (
         ? row.capabilities.map(String)
         : []
       await eraseRetiredDerivatives(tx, input, capabilities)
+      if (
+        input.authorizationState === 'enabled' &&
+        capabilities.includes('review_analysis')
+      ) {
+        const preserved = await preserveAnalysisEnrollment(tx, input)
+        if (preserved !== null) {
+          await insertReceipt(tx, input, 'applied')
+          return {
+            status: 'applied',
+            enrollment: { status: 'preserved', enrollmentId: preserved },
+          }
+        }
+      }
       await tx.execute(sql`
         UPDATE ai_review_analysis_enrollments
         SET state = 'superseded', terminal_reason = 'authorization_changed',

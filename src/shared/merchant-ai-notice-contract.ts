@@ -1,3 +1,4 @@
+import type { MerchantAiCapability } from './domain/merchant-ai-capability'
 import { z } from 'zod/v4'
 export { canonicalizeRfc8785 } from './canonical-json'
 
@@ -292,6 +293,40 @@ export type MerchantAiNoticeReference = Readonly<{
   noticeDigest: string
 }>
 
+/** Data-use changes relative to the notice replaced, separate from immutable text. */
+export type MerchantAiNoticeChange = MerchantAiNoticeReference &
+  Readonly<{
+    replaces: MerchantAiNoticeReference | null
+    materiallyChanges: ReadonlyArray<MerchantAiCapability>
+  }>
+
+export const MERCHANT_AI_NOTICE_CHANGES: ReadonlyArray<MerchantAiNoticeChange> =
+  Object.freeze([
+    Object.freeze({
+      noticeVersion: MERCHANT_AI_NOTICE_VERSION,
+      noticeDigest: MERCHANT_AI_NOTICE_DIGEST,
+      replaces: Object.freeze({
+        noticeVersion: 'merchant-ai-notice-2026-10-17.v1',
+        noticeDigest: '2bcd2be15cbb81f324f9a9390ad00baff3ffbb25a6c0db8bff71fbb2b1b0975e',
+      }),
+      // The provider envelope and data-use promises changed for all three.
+      materiallyChanges: Object.freeze([
+        'review_analysis',
+        'reply_drafting',
+        'property_trends',
+      ] as const),
+    }),
+    Object.freeze({
+      noticeVersion: 'merchant-ai-notice-2026-10-17.v1',
+      noticeDigest: '2bcd2be15cbb81f324f9a9390ad00baff3ffbb25a6c0db8bff71fbb2b1b0975e',
+      replaces: Object.freeze({
+        noticeVersion: 'merchant-ai-notice-2026-09-15.v1',
+        noticeDigest: '6c98ae3bb57b5b142afed1749a1b9f59be8d6ca7edaca3250e39055897289a9c',
+      }),
+      materiallyChanges: Object.freeze([]),
+    }),
+  ])
+
 /**
  * The notices whose consent is in force: the served one alone. 2026-10-30 changes
  * what a merchant agrees to (a second provider, what review analysis v3 keeps, the
@@ -346,6 +381,7 @@ export type MerchantAiNoticeCatalogueEntry = Readonly<{
   version: typeof MERCHANT_AI_NOTICE_VERSION
   digest: string
   payload: MerchantAiNoticePayload
+  materiallyChanges: ReadonlyArray<MerchantAiCapability>
 }>
 
 export function parseMerchantAiNoticeCatalogueEntry(
@@ -361,6 +397,7 @@ export function parseMerchantAiNoticeCatalogueEntry(
     version: MERCHANT_AI_NOTICE_VERSION,
     digest: MERCHANT_AI_NOTICE_DIGEST,
     payload: MERCHANT_AI_NOTICE_PAYLOAD,
+    materiallyChanges: MERCHANT_AI_NOTICE_CHANGES[0]!.materiallyChanges,
   })
 }
 

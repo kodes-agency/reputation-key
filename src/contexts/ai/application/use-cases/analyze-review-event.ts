@@ -1,3 +1,4 @@
+import { getAiRuntimeCapability } from '#/shared/ai-runtime-capability-contract'
 import type { OrganizationId, PropertyId, ReviewId } from '#/shared/domain/ids'
 import { mapReviewLanguageMetadata } from '#/shared/ai-review-language-catalogue'
 import { encodeCanonicalAiReviewSource } from '#/shared/ai-review-source-contract'
@@ -473,8 +474,6 @@ export function createAnalyzeReviewEvent(
         authorization.state === 'enabled',
         authorization.authorizedSourceEpoch === input.sourceEpoch,
         authorization.capabilities.includes('review_analysis'),
-        authorization.capabilityRuntimeProfileVersions.review_analysis ===
-          contract.operationProfile.capabilityRuntimeProfileVersion,
         // A consent under a notice no longer in force. Re-consent bumps the
         // Review Analysis epoch and the enrollment replay analyses the history
         // again, so the review is settled here rather than held.
@@ -562,7 +561,8 @@ export function createAnalyzeReviewEvent(
     const provenance = aiReviewSourceProvenance(canonicalSource.bytes)
     canonicalSource.bytes.fill(0)
     const stopFence = await resolveAiExecutionStopFence(dependencies.control, {
-      providerDeploymentProfileVersion: authorization.providerDeploymentProfileVersion,
+      providerDeploymentProfileVersion:
+        getAiRuntimeCapability('review_analysis').providerDeploymentProfileVersion,
       capability: 'review_analysis',
     })
     // Everything above settles without a provider call. From here on the

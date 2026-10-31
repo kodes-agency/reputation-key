@@ -33,6 +33,7 @@
 // Deps are injected at composition (identity infrastructure owns the grant
 // and consent repositories); this module stays drizzle-free (boundary rule).
 
+import type { AiConsentExecution } from '#/shared/ai-runtime-capability-contract'
 import type { AuthContext } from '#/shared/domain/auth-context'
 import type { Permission } from '#/shared/domain/permissions'
 import { canForContext, scopeForPermission } from '#/shared/domain/permissions'
@@ -86,7 +87,8 @@ export type MerchantAiConsentFence = Readonly<{
   authorizedSourceEpoch: number
   stateVersion: number
   noticeDigest: string
-  runtimeProfileVersion: string
+  recordedRuntimeProfileVersion: string
+  servedExecution: AiConsentExecution
 }>
 
 export type PublicConsentAssertions = Readonly<Record<PublicConsent, boolean>>
@@ -103,6 +105,38 @@ const MERCHANT_AI_CONSENT_PURPOSES: ReadonlySet<string> = new Set([
   'ai.detect_trends',
 ])
 
+function isValidConsentExecution(execution: AiConsentExecution | undefined): boolean {
+  return (
+    execution !== undefined &&
+    execution !== null &&
+    execution.runtimeProfileVersion.length > 0 &&
+    execution.operationProfileVersion.length > 0 &&
+    execution.providerDeploymentProfileVersion.length > 0
+  )
+}
+
+function isValidMerchantAiConsentFence(
+  fence: MerchantAiConsentFence | undefined,
+): boolean {
+  return (
+    fence !== undefined &&
+    /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
+      fence.authorizationLineageId,
+    ) &&
+    Number.isSafeInteger(fence.capabilityEpoch) &&
+    fence.capabilityEpoch >= 1 &&
+    Number.isSafeInteger(fence.authorizedSourceEpoch) &&
+    // Source epoch is 0-based (drizzle/0060); the other counters are 1-based.
+    fence.authorizedSourceEpoch >= 0 &&
+    Number.isSafeInteger(fence.stateVersion) &&
+    fence.stateVersion >= 1 &&
+    /^[0-9a-f]{64}$/.test(fence.noticeDigest) &&
+    typeof fence.recordedRuntimeProfileVersion === 'string' &&
+    fence.recordedRuntimeProfileVersion.length > 0 &&
+    isValidConsentExecution(fence.servedExecution)
+  )
+}
+
 export function isConsentSelectorBoundToScope(
   consent: ConsentSelector,
   scope: Readonly<{
@@ -112,25 +146,11 @@ export function isConsentSelectorBoundToScope(
   }>,
 ): boolean {
   if (MERCHANT_AI_CONSENT_PURPOSES.has(consent.purpose)) {
-    const fence = consent.expectedFence
     return (
       consent.subjectType === 'property' &&
       scope.propertyId !== undefined &&
       consent.subjectId === scope.propertyId &&
-      fence !== undefined &&
-      /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
-        fence.authorizationLineageId,
-      ) &&
-      Number.isSafeInteger(fence.capabilityEpoch) &&
-      fence.capabilityEpoch >= 1 &&
-      Number.isSafeInteger(fence.authorizedSourceEpoch) &&
-      // 0-based source epoch (drizzle/0060); capabilityEpoch and stateVersion
-      // above are genuinely 1-based.
-      fence.authorizedSourceEpoch >= 0 &&
-      Number.isSafeInteger(fence.stateVersion) &&
-      fence.stateVersion >= 1 &&
-      /^[0-9a-f]{64}$/.test(fence.noticeDigest) &&
-      fence.runtimeProfileVersion.length > 0
+      isValidMerchantAiConsentFence(consent.expectedFence)
     )
   }
   return (

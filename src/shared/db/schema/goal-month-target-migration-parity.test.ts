@@ -8,6 +8,7 @@
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
+import { withoutForwardOnlyConstructs } from '../construct-baseline-parity.test-fixtures'
 
 const ROOT = join(import.meta.dirname, '..', '..', '..', '..')
 const read = (...path: readonly string[]): string =>
@@ -210,8 +211,9 @@ describe('guard_goal_monthly_result_v1 after migration 0054', () => {
     expect(guardFunction(CONSTRUCTS_MIGRATION)).toBe(guardFunction(CONSTRUCTS))
     // Compared as a boolean: a mismatch would print both 3,500-line files.
     expect(
-      CONSTRUCTS_MIGRATION === CONSTRUCTS,
-      'drizzle/0001_db_constructs.sql is a file copy of db-constructs.sql',
+      withoutForwardOnlyConstructs(CONSTRUCTS_MIGRATION) ===
+        withoutForwardOnlyConstructs(CONSTRUCTS),
+      'constructs are a byte copy except the named forward-only definitions',
     ).toBe(true)
   })
 

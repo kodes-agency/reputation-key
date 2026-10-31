@@ -130,7 +130,24 @@ describe('Merchant AI consent ceremony plan', () => {
     })
   })
 
-  it('re-grants an enabled grant that differs in any recorded term', () => {
+  it('ignores a technical runtime/deployment refresh without a consent transition', () => {
+    const current = {
+      ...ENABLED,
+      providerDeploymentProfileVersion: 'private-beta-global-v1' as const,
+    }
+    expect(
+      planMerchantAiConsentTransition(current, {
+        ...DESIRED,
+        providerDeploymentProfileVersion: 'private-beta-global-v2',
+        capabilityRuntimeProfileVersions: {
+          ...ALL_RUNTIME_PROFILES,
+          review_analysis: 'review-analysis-runtime-v2',
+        },
+      }),
+    ).toEqual({ kind: 'unchanged', current })
+  })
+
+  it('re-grants an enabled grant that differs in a consent term', () => {
     const drifted: ReadonlyArray<Partial<MerchantAiSnapshot>> = [
       { noticeVersion: 'merchant-ai-notice-2026-09-09.v1' },
       { noticeDigest: 'c'.repeat(64) },
@@ -138,12 +155,6 @@ describe('Merchant AI consent ceremony plan', () => {
         capabilities: ['review_analysis'],
         capabilityRuntimeProfileVersions: {
           review_analysis: ALL_RUNTIME_PROFILES.review_analysis,
-        },
-      },
-      {
-        capabilityRuntimeProfileVersions: {
-          ...ALL_RUNTIME_PROFILES,
-          reply_drafting: 'reply-drafting-runtime-v0',
         },
       },
       { authorizedSourceEpoch: 2 },

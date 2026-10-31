@@ -18,10 +18,7 @@
 //   attention is derived here with the v2 formula (`review-attention-v2`) and
 //   stored beside the mentions; a refused or truncated answer never gets this far.
 
-import {
-  getAiRuntimeCapability,
-  isAiRuntimeNoticeInForce,
-} from '#/shared/ai-runtime-capability-contract'
+import { isAiAuthorizationUnderServedContract } from './ai-workflow-support'
 import {
   REVIEW_ANALYSIS_V3_VERSIONS,
   deriveReviewAttentionV2,
@@ -97,15 +94,8 @@ export function createReviewAnalysisContractV3(
       capabilityRuntimeProfileVersion: REVIEW_ANALYSIS_V3_VERSIONS.capabilityRuntime,
       requestDeadlineMs: REVIEW_ANALYSIS_V3_LOGICAL_PROFILE.limits.requestDeadlineMs,
     }),
-    // The notices in force are the catalogue's for review analysis; the provider
-    // deployment is the v3 envelope that names both providers.
     isServedContract: (authorization) =>
-      isAiRuntimeNoticeInForce(
-        getAiRuntimeCapability('review_analysis'),
-        authorization,
-      ) &&
-      authorization.providerDeploymentProfileVersion ===
-        REVIEW_ANALYSIS_V3_VERSIONS.providerDeployment,
+      isAiAuthorizationUnderServedContract(authorization, 'review_analysis'),
     sourceRead: Object.freeze({ sentences: true as const }),
     prepare,
     accept: async (input) => {

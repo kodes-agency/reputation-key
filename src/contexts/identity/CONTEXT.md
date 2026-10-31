@@ -76,6 +76,15 @@ adapter; no other context reads its tables directly.
   No CSV cell may start a spreadsheet formula: contributors write cells with
   `csvCell`, and the bundle builder refuses a CSV that does not pass
   `isFormulaSafeCsv`.
+- Merchant AI consent follows its acknowledged notice version/digest, selected
+  capabilities and source scope (ADR 0074). Recorded runtime/deployment fields
+  are historical evidence; served execution must be explicitly compatible with
+  an in-force notice. Technical refreshes write no consent and move no epoch.
+  Re-consent advances only capabilities whose membership/source changed or whose
+  notice data use materially changed; source/routing/redaction policy changes
+  still advance every previously or newly enabled capability epoch. A
+  drafting-only notice preserves Review Analysis and trends epochs. Reads and
+  delivery of existing outputs retain their previous rules. Lineage, state, source and control fences remain exact.
 - A Merchant AI decision deferral ("not now") is a per-Property marker, not consent:
   it records no evidence, notice or epoch, is refused while AI is enabled, keeps the
   first deferral on a repeat, and is deleted in the same transaction as an enable.

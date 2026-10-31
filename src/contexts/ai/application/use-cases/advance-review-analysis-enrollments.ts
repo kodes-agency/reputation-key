@@ -1,3 +1,4 @@
+import { getAiRuntimeCapability } from '#/shared/ai-runtime-capability-contract'
 import type { OrganizationId, PropertyId } from '#/shared/domain/ids'
 import type { LoggerPort } from '#/shared/domain/logger.port'
 import { AI_PROVIDER_DEPLOYMENT_PROFILE } from '#/shared/ai-operation-profiles'
@@ -123,6 +124,19 @@ export function createAdvanceReviewAnalysisEnrollments(
       organizationId: target.organizationId,
       propertyId: target.propertyId,
     })
+    // The lifecycle event will carry an unchanged analysis epoch's enrollment
+    // forward to the new state-version fence. Until then, refuse replay without
+    // retiring its progress; a sweep can race that event after re-consent.
+    if (
+      authorization !== null &&
+      authorization.stateVersion > target.fence.authorizationStateVersion &&
+      matchesFence(authorization, {
+        ...target.fence,
+        authorizationStateVersion: authorization.stateVersion,
+      })
+    ) {
+      return { status: 'runtime_blocked' }
+    }
     const moved = supersessionReason(authorization, target)
     if (moved !== null) {
       const marked = await dependencies.enrollments.markSuperseded({
@@ -135,10 +149,9 @@ export function createAdvanceReviewAnalysisEnrollments(
       return { status: 'fence_moved', marked }
     }
 
-    // Non-null and enabled by matchesFence above.
-    const current = authorization!
     const stopFence = await resolveAiExecutionStopFence(dependencies.control, {
-      providerDeploymentProfileVersion: current.providerDeploymentProfileVersion,
+      providerDeploymentProfileVersion:
+        getAiRuntimeCapability('review_analysis').providerDeploymentProfileVersion,
       capability: 'review_analysis',
     })
     if (stopFence === null) return { status: 'runtime_blocked' }

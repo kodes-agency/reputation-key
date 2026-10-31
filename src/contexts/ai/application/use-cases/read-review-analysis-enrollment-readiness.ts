@@ -1,3 +1,4 @@
+import { getAiRuntimeCapability } from '#/shared/ai-runtime-capability-contract'
 import type { OrganizationId, PropertyId } from '#/shared/domain/ids'
 import type { AiAuthorizationPort } from '../ports/ai-authorization.port'
 import type { AiControlPort } from '../ports/ai-control.port'
@@ -157,7 +158,8 @@ export function createReadReviewAnalysisEnrollmentReadiness(
     }
 
     const stopFence = await resolveAiExecutionStopFence(dependencies.control, {
-      providerDeploymentProfileVersion: authorization.providerDeploymentProfileVersion,
+      providerDeploymentProfileVersion:
+        getAiRuntimeCapability('review_analysis').providerDeploymentProfileVersion,
       capability: 'review_analysis',
     })
     if (stopFence === null) {

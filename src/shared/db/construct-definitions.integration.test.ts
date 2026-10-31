@@ -79,18 +79,15 @@ describe('construct definition drift against the migrated catalog', () => {
       'function apply_merchant_ai_transition_v1',
       async (run) => {
         // Migration 0006 is the 26-argument text; 0016 dropped that signature for
-        // a 27-argument one. Restating the old text does not replace the live
-        // function: it adds a second one, and every 26-argument call turns
-        // ambiguous.
+        // a 27-argument one, whose body 0084 replaced and db-constructs.sql now
+        // states. Restating the old text does not replace the live function: it
+        // adds a second one, and every 26-argument call turns ambiguous.
         await run(readFileSync(WATERMARK_MIGRATION, 'utf8'))
       },
     )
 
     expect(drifts.map(({ kind, detail }) => [kind, detail])).toEqual([
-      [
-        'mismatch',
-        '2 definition(s) in db vs 1 in drizzle/0016_merchant_ai_notice_v2_ceremony.sql',
-      ],
+      ['mismatch', '2 definition(s) in db vs 1 in src/shared/db/db-constructs.sql'],
     ])
   })
 

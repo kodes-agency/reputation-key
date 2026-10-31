@@ -180,18 +180,12 @@ reads the file for that, and `local-date-functions-parallel.integration.test.ts`
 runs the real functions in a forced parallel plan. PostgreSQL prints no clause for
 `PARALLEL UNSAFE`, so a function stated with none is unsafe.
 
-One function is a named exception. `apply_merchant_ai_transition_v1` was changed
-by 0006 and 0016 without being restated, so `db-constructs.sql` still carries a
-26-argument text no database runs; `SUPERSEDED_CONSTRUCT_DEFINITIONS` makes the
-comparator expect 0016's statement instead. Do not edit or restate the file's
-text of that function: a `CREATE OR REPLACE` of the 26-argument signature adds a
-second overload beside the live 27-argument one. Bringing the file up to date
-is an open owner decision between two changes to the rule in `docs/BETA.md` §6.
-Either the file and 0001 take the live text and 0016 changes from
-`CREATE FUNCTION` to `CREATE OR REPLACE FUNCTION` (otherwise an empty database
-fails at 0016 once 0001 creates the same signature), which makes 0016 a second
-edited migration. Or the file alone takes the live text and no migration is
-edited, which leaves 0001 a byte copy in all but that one statement.
+ADR 0074 names a forward-only exception to the baseline byte-copy rule:
+`apply_merchant_ai_transition_v1` and `merchant_ai_notice_material_changes_v1`
+are stated at migration 0084's definitions in `db-constructs.sql`, while 0001
+and 0016 remain immutable historical SQL. The transition has only its live
+27-argument signature, including the ceremony id; never recreate the retired
+26-argument overload. Construct parity checks cover the exception explicitly.
 
 Never run `pnpm db:push` against a shared database; it bypasses the journal.
 

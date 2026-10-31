@@ -4,7 +4,7 @@ import type { MerchantAiCapability } from '#/shared/domain/merchant-ai-capabilit
 import { AI_REVIEW_SOURCE_CONTRACT_VERSION } from '#/shared/ai-review-source-contract'
 import {
   getAiRuntimeCapability,
-  isAiRuntimeNoticeInForce,
+  isExecutionCompatibleWithConsent,
 } from '#/shared/ai-runtime-capability-contract'
 import type { AiMerchantAuthorizationSnapshot } from './ports/ai-authorization.port'
 import type { AiControlPort } from './ports/ai-control.port'
@@ -30,22 +30,7 @@ export function aiReviewSourceProvenance(
   })
 }
 
-/**
- * Whether a Property's AI authorization was recorded under the contract this
- * build serves for `capability`: a notice, by version and digest, that the
- * runtime catalogue holds in force, and the provider deployment profile. A new
- * notice ships with a deploy, and a Property enabled under the previous one
- * keeps that version on its enablement. When the new notice changes only how
- * consent is asked (2026-10-17: the call to action), the previous one stays in
- * force and AI keeps running; otherwise it lapses until an AccountAdmin
- * confirms the new one (docs/BETA.md, section 2).
- *
- * The gateway refuses any other binding, but by throwing from its request
- * check ("route binding is cross-wired"), after an operation and an execution
- * attempt have been claimed. So a use case asks here first, beside its other
- * authorization facts, and answers in its own terms. The served values come
- * from the catalogue the gateway reads, so the two cannot disagree.
- */
+/** Whether the served execution is within the acknowledged notice's data use. */
 export function isAiAuthorizationUnderServedContract(
   authorization: Pick<
     AiMerchantAuthorizationSnapshot,
@@ -54,11 +39,11 @@ export function isAiAuthorizationUnderServedContract(
   capability: MerchantAiCapability,
 ): boolean {
   const served = getAiRuntimeCapability(capability)
-  return (
-    isAiRuntimeNoticeInForce(served, authorization) &&
-    authorization.providerDeploymentProfileVersion ===
-      served.providerDeploymentProfileVersion
-  )
+  return isExecutionCompatibleWithConsent({
+    capability,
+    acknowledgedNotice: authorization,
+    servedExecution: served,
+  })
 }
 
 export async function resolveAiExecutionStopFence(

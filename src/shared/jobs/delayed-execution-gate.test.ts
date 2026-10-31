@@ -43,7 +43,12 @@ const CONSENT_FENCE = {
   authorizedSourceEpoch: 3,
   stateVersion: 5,
   noticeDigest: 'a'.repeat(64),
-  runtimeProfileVersion: 'reply-drafting-runtime-v1',
+  recordedRuntimeProfileVersion: 'reply-drafting-runtime-v1',
+  servedExecution: {
+    runtimeProfileVersion: 'reply-drafting-runtime-v1',
+    operationProfileVersion: 'reply-suggestion-v1',
+    providerDeploymentProfileVersion: 'private-beta-global-v2',
+  },
 } as const
 
 const decideMock = vi.fn<(r: DelayedDecisionRequest) => Promise<DelayedDecision>>()

@@ -84,22 +84,21 @@ describe('the review analysis contract a build runs', () => {
     expect(v2.sourceRead).toEqual({})
   })
 
-  it('serves no consent recorded under the deployment profile it ran under: v2 is retired', () => {
-    // The retired contract still compares against the live catalogue, so it can only
-    // agree with what the catalogue serves now, and a consent recorded before the
-    // switch-on (deployment profile v1) is served by neither contract.
+  it('decides consent by the notice independently of recorded deployment evidence', () => {
+    // Both contracts decide compatibility against served execution. Historical
+    // deployment evidence does not select the execution or require new consent.
     expect(
       v2.isServedContract({
         ...SERVED_NOTICE,
         providerDeploymentProfileVersion: 'private-beta-global-v1',
       }),
-    ).toBe(false)
+    ).toBe(true)
     expect(
       v3.isServedContract({
         ...SERVED_NOTICE,
         providerDeploymentProfileVersion: 'private-beta-global-v1',
       }),
-    ).toBe(false)
+    ).toBe(true)
   })
 
   it('states the v3 profile as the v3 versions and the v3 logical profile state it', () => {
@@ -112,7 +111,7 @@ describe('the review analysis contract a build runs', () => {
     expect(v3.sourceRead).toEqual({ sentences: true })
   })
 
-  it('serves a consent recorded under the v3 deployment and the notice in force, and none under v1 or an unknown notice', () => {
+  it('serves a consent recorded under the v3 deployment and the notice in force, including historical deployment evidence, and refuses an unknown notice', () => {
     expect(
       v3.isServedContract({
         ...SERVED_NOTICE,
@@ -124,7 +123,7 @@ describe('the review analysis contract a build runs', () => {
         ...SERVED_NOTICE,
         providerDeploymentProfileVersion: 'private-beta-global-v1',
       }),
-    ).toBe(false)
+    ).toBe(true)
     expect(
       v3.isServedContract({
         noticeVersion: 'merchant-ai-notice-1999-01-01.v1',
