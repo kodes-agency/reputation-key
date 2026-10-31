@@ -79,7 +79,8 @@ const config = defineConfig(({ mode }) => {
           // keep their preload metadata out of first paint; Vite retains CSS.
           modulePreload: {
             resolveDependencies: (file, dependencies) =>
-              /merchant-ai-notice-update|(?:^|\/)ai-[^/]+\.js$/.test(file)
+              file.includes('merchant-ai-notice-update') ||
+              /(?:^|\/)ai-[^/]+\.js$/.test(file)
                 ? []
                 : dependencies.filter(
                     (dependency) => !dependency.includes('merchant-ai-notice-update'),
