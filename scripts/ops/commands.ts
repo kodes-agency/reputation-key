@@ -44,3 +44,13 @@ export const COMMANDS: Readonly<
   'storage-cors': ['scripts/ops/storage-cors.ts'],
   'triage-beta-feedback': ['scripts/ops/triage-beta-feedback.ts'],
 })
+
+/** The AI family shares its top-level command while selecting one script per action. */
+export function resolveOperatorCommand(
+  name: string,
+  args: readonly string[],
+): readonly [string, ...string[]] | undefined {
+  return name === 'ai' && args[0] === 'drafts-report'
+    ? ['scripts/ops/ai-drafts-report.ts']
+    : COMMANDS[name]
+}

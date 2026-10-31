@@ -122,6 +122,7 @@ export type ReplyCommandStore = Readonly<{
     updates: ConditionalReplyUpdate,
     event: ReviewReplySubmitted,
     now?: Date,
+    measurement?: import('#/shared/domain/draft-measurement').DraftEditMetric,
   ): Promise<Reply | null>
   /**
    * BQC-3.8: the approve/retry authorization write. Guarded status update +

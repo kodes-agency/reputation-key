@@ -9,14 +9,18 @@
 //
 //   control        an AI execution control transition (every Organization)
 //   authorization  a Merchant AI Authorization change (one Property)
-//   profile        a processing-profile change (one Property)
-//   property       a Property archive or a Google binding change (one Property)
+//   profile        a processing-profile, archive or Google binding change (one Property)
+//   property       a Property deletion
 //   organization   an Organization closing
 //   review         a new Material Review Revision or source epoch, or erased
 //                  source content (one Review). When a guest edit also stops a
 //                  cycle the worker had claimed, Review calls the purge again
 //                  after that stop, so the Reply it returned to draft is
 //                  emptied in the same transaction.
+//
+// Measurement metadata survives input/control changes and Organization closing.
+// Only consent withdrawal, Property deletion and irreversible Organization purge
+// erase it; operation deletion also cascades its metadata retention.
 //
 // One input changes without a transaction: time. The binding ends when
 // `ai_draft_expires_at` passes (the adoption window,
@@ -241,11 +245,24 @@ async function withdrawAiDrafts(tx: AiBudgetTx, scope: SQL): Promise<void> {
   }
 }
 
+async function erasePropertyDraftMeasurements(
+  tx: AiBudgetTx,
+  input: PropertyDraftScope,
+): Promise<void> {
+  await tx.execute(
+    sql`SELECT pg_advisory_xact_lock(hashtext('ai-draft-measurement'), hashtext(${input.organizationId}))`,
+  )
+  await tx.execute(
+    sql`DELETE FROM ai_draft_measurements WHERE organization_id = ${input.organizationId} AND property_id = ${input.propertyId}::uuid`,
+  )
+  await withdrawAiDrafts(tx, inProperty(input))
+}
+
 export function purgeAiDraftsForProperty(
   tx: AiBudgetTx,
   input: PropertyDraftScope,
 ): Promise<void> {
-  return withdrawAiDrafts(tx, inProperty(input))
+  return erasePropertyDraftMeasurements(tx, input)
 }
 
 export function purgeAiDraftsForProfile(
@@ -259,7 +276,7 @@ export function purgeAiDraftsForAuthorization(
   tx: AiBudgetTx,
   input: PropertyDraftScope,
 ): Promise<void> {
-  return withdrawAiDrafts(tx, inProperty(input))
+  return erasePropertyDraftMeasurements(tx, input)
 }
 
 export async function purgeAiDraftsForControl(
@@ -277,18 +294,18 @@ export async function purgeAiDraftsForControl(
   await withdrawAiDrafts(tx, EVERY_ORGANIZATION)
 }
 
-export function purgeAiDraftsForOrganization(
+export async function purgeAiDraftsForOrganization(
   tx: AiBudgetTx,
   closingOrganizationId: string,
 ): Promise<void> {
-  return withdrawAiDrafts(tx, sql`reply.organization_id = ${closingOrganizationId}`)
+  await withdrawAiDrafts(tx, sql`reply.organization_id = ${closingOrganizationId}`)
 }
 
-export function purgeAiDraftsForReview(
+export async function purgeAiDraftsForReview(
   tx: AiBudgetTx,
   input: ReviewDraftScope,
 ): Promise<void> {
-  return withdrawAiDrafts(tx, inReview(input))
+  await withdrawAiDrafts(tx, inReview(input))
 }
 
 /**

@@ -1,3 +1,4 @@
+import { adoptDraftMeasurement } from '#/shared/db/ai/draft-measurement-lineage'
 import { replyAiFrameReservations } from '#/shared/db/schema'
 import { isExecutionCompatibleWithConsent } from '#/shared/ai-runtime-capability-contract'
 import { timingSafeEqual } from 'node:crypto'
@@ -469,6 +470,7 @@ export const createAiSuggestedDraftStore = (
         if (!acceptedRow) {
           return { status: 'rejected', reason: 'stale' } as const
         }
+        await adoptDraftMeasurement(tx, operation.id, acceptedRow)
         await adoptReplyV2Frame(
           tx,
           input,

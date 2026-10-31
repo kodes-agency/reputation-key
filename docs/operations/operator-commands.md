@@ -238,3 +238,14 @@ apply/cutover drill and evidence remain external work; procedure:
 docs/operations/backup-and-lifecycle.md).
 
 ---
+
+### AI draft usage aggregates
+
+`pnpm ops ai drafts-report --operator <id> [--since <ISO timestamp>] [--property <UUID>]`
+uses the named-operator read harness and returns aggregates from first-party draft
+measurement. It prints no draft, review, avoidance term, rejected output or text
+fingerprint. Generation groups distinguish contracts, triggers and v2 cases;
+adoption, refusal codes, rewrite rate, latency percentiles and available submitted
+edit distances describe tenant usage. Unavailable distances are counted separately;
+a reload cannot recover the browser's adopted baseline. Published counts require a
+confirmed Google observation, rather than approval or dispatch. No `--apply` mode.

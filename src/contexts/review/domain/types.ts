@@ -132,6 +132,8 @@ export type Reply = Readonly<{
   approvedBy: UserId | null
   rejectedBy: UserId | null
   rejectionReason: string | null
+  measurementBaseReplyRevision?: number | null
+  measurementGenerationId?: string | null
   aiGenerated: boolean
   /** Monotonic lifecycle revision used to bind ephemeral AI suggestions. */
   stateRevision: number

@@ -12,8 +12,9 @@
 // The pane now calls that hook from two places, so the inbox-page story reaches
 // it on both paths (InboxPageV2 → inbox-detail-content directly for the
 // approve/reject/check/retry family, and → ReplyEditor for the draft and the
-// open editor). Every command answers undefined gracefully; the exports exist
-// primarily so the static import resolves in the browser bundle.
+// open editor). Every command answers undefined gracefully, except the draft
+// save (`savedDraft`); the exports exist primarily so the static import
+// resolves in the browser bundle.
 //
 // A story about what a command ANSWERS (a refusal, say) scripts that one
 // command for its own run with `scriptReplyCommand`, so the story drives the
@@ -36,11 +37,24 @@ type ReplyCommandName =
 
 const noop: ReplyCommand = async () => undefined
 
-/** The commands a story scripted for its own run; every other one is the no-op. */
+/**
+ * What a draft save answers. The real `draftReplyFn` resolves the saved reply,
+ * and `useReplyActions.saveDraft` reads its `id` and `stateRevision` (the
+ * revision a submit's measurement is pinned to), so the no-op's `undefined`
+ * rejects every save made through the real hook: an AI draft could never be
+ * adopted. Only that identity is answered. A story that needs a whole reply in
+ * the cache scripts one with `scriptReplyCommand`.
+ */
+const savedDraft: ReplyCommand = async () => ({
+  id: 'storybook-reply',
+  stateRevision: 1,
+})
+
+/** The commands a story scripted for its own run; every other one answers its default. */
 const scripted = new Map<ReplyCommandName, ReplyCommand>()
 
 /**
- * Script what one command answers. Returns the function that puts the no-op
+ * Script what one command answers. Returns the function that puts the default
  * back: a story's `beforeEach` returns it, so the script ends with the story.
  */
 export function scriptReplyCommand(
@@ -54,11 +68,11 @@ export function scriptReplyCommand(
 }
 
 const command =
-  (name: ReplyCommandName): ReplyCommand =>
+  (name: ReplyCommandName, unscripted: ReplyCommand = noop): ReplyCommand =>
   (input) =>
-    (scripted.get(name) ?? noop)(input)
+    (scripted.get(name) ?? unscripted)(input)
 
-export const draftReplyFn = command('draftReplyFn')
+export const draftReplyFn = command('draftReplyFn', savedDraft)
 export const submitReplyFn = command('submitReplyFn')
 export const approveReplyFn = command('approveReplyFn')
 export const rejectReplyFn = command('rejectReplyFn')

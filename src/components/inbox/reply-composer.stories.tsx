@@ -1981,6 +1981,7 @@ export const AiDraftTagAt720: Story = atPane({
         { kind: 'property_default' },
         false,
         expect.any(String),
+        'draft',
       ),
     )
     await userEvent.click(await canvas.findByRole('button', { name: 'Use draft' }))
@@ -2012,6 +2013,7 @@ export const AiDraftTagAt720: Story = atPane({
         { kind: 'review_language' },
         false,
         expect.any(String),
+        'try_again',
       ),
     )
     await expect(canvas.findByText(TR_AI_TEXT)).resolves.toBeVisible()

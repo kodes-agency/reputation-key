@@ -1,5 +1,5 @@
 import { spawnSync } from 'node:child_process'
-import { COMMANDS } from './commands'
+import { COMMANDS, resolveOperatorCommand } from './commands'
 
 function printCommands(): void {
   const names = Object.keys(COMMANDS).sort()
@@ -16,7 +16,7 @@ if (!name) {
   process.exit(0)
 }
 
-const command = COMMANDS[name]
+const command = resolveOperatorCommand(name, args)
 if (!command) {
   console.error(`Unknown operator command: ${name}`)
   printCommands()

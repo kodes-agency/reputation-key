@@ -98,6 +98,8 @@ async function aiFootprint(tx: Tx, organizationId: string): Promise<number> {
         WHERE organization_id = ${organizationId})
       + (SELECT count(*)::int FROM ai_review_analyses
         WHERE organization_id = ${organizationId})
+      + (SELECT count(*)::int FROM ai_draft_measurements
+        WHERE organization_id = ${organizationId})
       + (SELECT count(*)::int FROM ai_operations
         WHERE organization_id = ${organizationId})
     ) AS footprint
@@ -199,6 +201,7 @@ const verifyPurgeReadiness = async (
  * aggregate heads so a later sweep cannot rebuild the derivative.
  */
 const PURGE_DELETE_TABLES = Object.freeze([
+  'ai_draft_measurements',
   'ai_review_analysis_backlog',
   'ai_review_analysis_enrollments',
   'ai_property_trend_outcomes',
@@ -244,6 +247,9 @@ const purge = async (
   // so a replay after a rolled-back attempt reports the same outcome.
   const footprint = await aiFootprint(tx, request.organizationId)
 
+  await tx.execute(
+    sql`SELECT pg_advisory_xact_lock(hashtext('ai-draft-measurement'), hashtext(${request.organizationId}))`,
+  )
   let deleted = 0
   for (const table of PURGE_DELETE_TABLES) {
     const result = await tx.execute(

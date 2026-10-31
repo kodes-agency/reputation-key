@@ -4,7 +4,7 @@ import { createServerFn } from '@tanstack/react-start'
 import { setResponseHeader } from '@tanstack/react-start/server'
 import { tracedHandler } from '#/shared/observability/traced-server-fn'
 import { replyId, reviewId } from '#/shared/domain/ids'
-import { approveReplyDto, reviewIdDto, draftReplyDto } from './reply-read'
+import { approveReplyDto, submitReplyDto, draftReplyDto } from './reply-read'
 import { runReplyCommand } from './reply-command'
 
 // ── draftReply ───────────────────────────────────────────────────────
@@ -24,6 +24,7 @@ export const draftReplyFn = createServerFn({ method: 'POST' })
               text: data.text,
               replyLanguageTag: data.replyLanguageTag,
               provenanceToken: data.provenanceToken,
+              measurementGenerationId: data.measurementGenerationId,
             },
             ctx,
           ),
@@ -37,12 +38,15 @@ export const draftReplyFn = createServerFn({ method: 'POST' })
 // ── submitReply ──────────────────────────────────────────────────────
 
 export const submitReplyFn = createServerFn({ method: 'POST' })
-  .validator(reviewIdDto)
+  .validator(submitReplyDto)
   .handler(
     tracedHandler(
       async ({ data }) =>
         runReplyCommand((reply, ctx) =>
-          reply.submit({ reviewId: reviewId(data.reviewId) }, ctx),
+          reply.submit(
+            { reviewId: reviewId(data.reviewId), measurement: data.measurement },
+            ctx,
+          ),
         ),
       'POST',
       'review.submitReply',

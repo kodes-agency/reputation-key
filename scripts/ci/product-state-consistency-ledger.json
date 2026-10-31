@@ -616,6 +616,12 @@
       "policy": "Latch the first successful list page's viewedUpTo value for the active organization and ignore later visit-stamp refetches, so rows that were new when the workspace opened keep their marker for that visit. An organization change clears the rendered value immediately and the reconciliation effect seeds the new organization's first page; the query result remains the server authority for every other list field."
     },
     {
+      "id": "src/components/inbox/use-reply-suggestion.ts:useState(measurement)",
+      "classification": "local_runtime",
+      "owner": "Inbox draft usage measurement",
+      "policy": "One advisory measurement session per mounted composer owns preview/adopted identities and deferred navigation events. Reload may seed only generation identity and base revision; the adopted text baseline remains browser memory only. This coordinator neither renders server state nor grants reply or publication authority. StrictMode effect replay cancels a pending navigation event."
+    },
+    {
       "id": "src/components/inbox/use-reply-autosave.ts:useState(coordinator)",
       "classification": "local_runtime",
       "owner": "Inbox reply autosave",

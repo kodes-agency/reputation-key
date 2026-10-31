@@ -1,3 +1,8 @@
+import {
+  carryDraftMeasurement,
+  submitDraftMeasurement,
+  submittedMeasurementIdentity,
+} from '#/shared/db/ai/draft-measurement-lineage'
 // Compare-and-set guards for reply writes.
 //
 // A guarded write names the reply it decided on: the row must still have the
@@ -25,7 +30,9 @@
 import { and, eq, inArray, isNull, type SQL } from 'drizzle-orm'
 import type { Database } from '#/shared/db'
 import { replies, replyPublicationAttempts } from '#/shared/db/schema/review.schema'
-import type { Tx } from '#/shared/outbox/commit'
+import { insertOutboxRow, type Tx } from '#/shared/outbox/commit'
+import { trace } from '#/shared/observability/trace'
+import type { ReplyCommandStore } from '../application/ports/reply-command-store.port'
 import type { Reply } from '../domain/types'
 import {
   replyCommandMayStart,
@@ -171,6 +178,8 @@ export async function guardedReplyUpdate(
     )
     .where(replySnapshotWhere(reply, command))
     .returning()
+  if (result[0])
+    await carryDraftMeasurement(tx, reply, result[0], updates.measurementGenerationId)
   return result[0] ? replyFromRow(result[0]) : null
 }
 
@@ -241,4 +250,29 @@ export async function updateCurrentAttempt(
       'Reply publication attempt evidence is missing',
     )
   }
+}
+
+/** Submit and its scalar measurement share the same guarded transaction. */
+export function submitMeasuredReply(
+  db: Database,
+  clock: () => Date,
+  ...[reply, updates, event, now, measurement]: Parameters<
+    ReplyCommandStore['submitReply']
+  >
+): Promise<Reply | null> {
+  return trace('reply.commandStore.submitReply', () =>
+    db.transaction(async (tx) => {
+      const row = await guardedReplyUpdate(tx, reply, 'submit', updates, now ?? clock())
+      if (!row) return null
+      await carryDraftMeasurement(
+        tx,
+        reply,
+        row,
+        submittedMeasurementIdentity(reply, measurement),
+      )
+      await submitDraftMeasurement(tx, reply, row, measurement)
+      await insertOutboxRow(tx, event)
+      return row
+    }),
+  )
 }

@@ -108,12 +108,14 @@ type ReplyStatusViewProps = Readonly<{
   propertyDefaultReplyLanguage: string | null
   reviewReplyLanguage: string | null
   reviewLanguageReadiness: ReviewLanguageReadiness
+  onMeasure?: ReplyComposeProps['onMeasure']
   onSaveDraft: (
     text: string,
     provenanceToken?: string,
     replyLanguageTag?: string,
+    measurementGenerationId?: string | null,
   ) => Promise<unknown>
-  onSubmitReply: () => Promise<unknown>
+  onSubmitReply: ReplyComposeProps['onSubmit']
   onDeleteDraft: (() => Promise<unknown>) | undefined
   onSaveEdit: (text: string) => Promise<unknown>
   /** The editor closed itself — saved or cancelled. Clears the edit target. */
@@ -144,6 +146,7 @@ export function ReplyStatusView({
   onListTemplates,
   onLoadTemplate,
   onCheckDraft,
+  onMeasure,
 }: ReplyStatusViewProps) {
   const composeRef = useRef<HTMLDivElement>(null)
   /**
@@ -187,6 +190,8 @@ export function ReplyStatusView({
             propertyId={propertyId}
             initialText={view.reply?.text ?? ''}
             initialLanguageTag={view.reply?.replyLanguageTag ?? null}
+            initialMeasurementBaseReplyRevision={view.reply?.measurementBaseReplyRevision}
+            initialMeasurementGenerationId={view.reply?.measurementGenerationId}
             initialAiGenerated={view.reply?.aiGenerated ?? false}
             {...languageProps}
             isSaving={isSaving}
@@ -197,6 +202,7 @@ export function ReplyStatusView({
             onListTemplates={onListTemplates}
             onLoadTemplate={onLoadTemplate}
             onCheckDraft={onCheckDraft}
+            onMeasure={onMeasure}
           />
         </div>
       )

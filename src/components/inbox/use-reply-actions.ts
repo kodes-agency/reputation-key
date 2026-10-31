@@ -1,3 +1,4 @@
+import { useRef } from 'react'
 // Server import exception per src/components/CONTEXT.md "Server-function boundary" —
 // this hook owns the reply command family (8 commands) plus the template
 // list/load actions. The reply's read-only states render in the thread while the
@@ -47,12 +48,18 @@ const checkReplyDraftLazily = async (
 
 export type ReplyActions = Readonly<{
   isSaving: boolean
+  measureDraft: (
+    event: import('#/shared/domain/draft-measurement').DraftMeasurementEvent,
+  ) => void
   saveDraft: (
     text: string,
     provenanceToken?: string,
     replyLanguageTag?: string,
+    measurementGenerationId?: string | null,
   ) => Promise<unknown>
-  submitReply: () => Promise<unknown>
+  submitReply: (
+    metric?: import('./reply-measurement').BrowserDraftEditMetric,
+  ) => Promise<unknown>
   deleteDraft: () => Promise<unknown>
   /**
    * Confirm & publish `expectedReply`: the reply the pane showed when the
@@ -117,6 +124,11 @@ type Input = Readonly<{
 export function useReplyActions(input: Input): ReplyActions {
   const { reviewId, onReplyChanged } = input
   const qc = useQueryClient()
+  const savedRevision = useRef<{
+    reviewId: string
+    id: string
+    stateRevision: number
+  } | null>(null)
   // The review a result belongs to comes from the command's own input, never
   // from `reviewId` above: a command that settles after the manager opened
   // another item runs these callbacks as that item's render built them
@@ -196,16 +208,42 @@ export function useReplyActions(input: Input): ReplyActions {
 
   return {
     isSaving,
-    saveDraft: (text, provenanceToken, replyLanguageTag) =>
-      draft({
+    saveDraft: async (
+      text,
+      provenanceToken,
+      replyLanguageTag,
+      measurementGenerationId,
+    ) => {
+      const saved = await draft({
         data: {
           reviewId,
           text,
+          measurementGenerationId,
           ...(replyLanguageTag ? { replyLanguageTag } : {}),
           ...(provenanceToken ? { provenanceToken } : {}),
         },
-      }),
-    submitReply: () => submit({ data: { reviewId } }),
+      })
+      // Measurement bookkeeping only: an unexpected answer must never fail the save.
+      savedRevision.current = saved
+        ? { reviewId, id: saved.id, stateRevision: saved.stateRevision }
+        : null
+      return saved
+    },
+    measureDraft: (event) => {
+      void import('#/contexts/ai/server/draft-measurement')
+        .then(({ recordDraftMeasurementFn }) =>
+          recordDraftMeasurementFn({ data: { reviewId, ...event } }),
+        )
+        .catch(() => undefined)
+    },
+    submitReply: (metric) => {
+      const saved = savedRevision.current
+      const measurement =
+        metric && saved?.reviewId === reviewId
+          ? { ...metric, replyId: saved.id, replyRevision: saved.stateRevision }
+          : undefined
+      return submit({ data: { reviewId, measurement } })
+    },
     deleteDraft: () => del({ data: { reviewId } }),
     approve: (expectedReply) => approve({ data: { reviewId, expectedReply } }),
     reject: (reason) => reject({ data: { reviewId, reason } }),

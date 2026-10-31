@@ -1,3 +1,5 @@
+import { recordDraftMeasurementEvent } from '#/shared/db/ai/draft-measurement-events'
+import { recordDraftGeneration } from '#/shared/db/ai/draft-generation-measurement'
 import type { OrganizationId } from '#/shared/domain/ids'
 import type { LoggerPort } from '#/shared/domain/logger.port'
 import type { Database } from '#/shared/db'
@@ -317,7 +319,15 @@ export const buildAiContext = (input: AiContextBuildInput) => {
 
   return Object.freeze({
     publicApi: Object.freeze({
+      recordDraftMeasurement: (
+        scope: Parameters<typeof recordDraftMeasurementEvent>[1],
+        event: Parameters<typeof recordDraftMeasurementEvent>[2],
+      ) => recordDraftMeasurementEvent(input.db, scope, event),
       generateReplySuggestion: createGenerateReplySuggestion({
+        logger: input.logger,
+        measurements: {
+          record: (measurement) => recordDraftGeneration(input.db, measurement),
+        },
         authorization,
         control,
         inference,

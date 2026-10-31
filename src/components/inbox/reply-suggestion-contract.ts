@@ -29,6 +29,7 @@ export type ReplySuggestionGenerate = (
   target: ReplyLanguageTarget,
   templateOnly: boolean,
   idempotencyKey: string,
+  trigger?: 'draft' | 'try_again' | 'shorter' | 'tone',
 ) => Promise<ReplySuggestionResult>
 
 type FallbackSuggestionResult = Extract<ReplySuggestionResult, { status: 'fallback' }>
@@ -59,6 +60,8 @@ export type LoadedReplyTemplateDraft = Readonly<{
 export type ReplyComposerInput = Readonly<{
   initialText: string
   initialLanguageTag: string | null
+  initialMeasurementBaseReplyRevision?: number | null
+  initialMeasurementGenerationId?: string | null
   initialAiGenerated: boolean
   propertyLanguage: string | null
   reviewLanguage: string | null
@@ -67,8 +70,14 @@ export type ReplyComposerInput = Readonly<{
     text: string,
     provenanceToken?: string,
     replyLanguageTag?: string,
+    measurementGenerationId?: string | null,
   ) => Promise<unknown>
-  onSubmit: () => Promise<unknown>
+  onSubmit: (
+    metric?: import('./reply-measurement').BrowserDraftEditMetric,
+  ) => Promise<unknown>
+  onMeasure?: (
+    event: import('#/shared/domain/draft-measurement').DraftMeasurementEvent,
+  ) => void
   onGenerate?: ReplySuggestionGenerate
   onListTemplates?: (
     target: ReplyLanguageTarget,

@@ -3,6 +3,7 @@
 
 import {
   and,
+  getTableColumns,
   asc,
   eq,
   gt,
@@ -147,12 +148,26 @@ export const createReplyRepository = (
   findByReviewId: async (reviewId: ReviewId, organizationId: OrganizationId) => {
     return trace('reply.findByReviewId', async () => {
       const rows = await db
-        .select()
+        .select({
+          ...getTableColumns(replies),
+          measurementBaseReplyRevision: sql<
+            number | null
+          >`(SELECT m.base_reply_revision FROM ai_draft_measurement_links l LEFT JOIN ai_draft_measurements m ON m.id = l.generation_id WHERE l.reply_id = "replies"."id" AND l.reply_revision <= "replies"."state_revision" ORDER BY l.reply_revision DESC LIMIT 1)`.mapWith(
+            Number,
+          ),
+          measurementGenerationId: sql<
+            string | null
+          >`(SELECT l.generation_id FROM ai_draft_measurement_links l WHERE l.reply_id = "replies"."id" AND l.reply_revision <= "replies"."state_revision" ORDER BY l.reply_revision DESC LIMIT 1)`,
+        })
         .from(replies)
         .where(
           and(eq(replies.reviewId, reviewId), eq(replies.organizationId, organizationId)),
         )
-      return rows.map(replyFromRow)
+      return rows.map((row) => ({
+        ...replyFromRow(row),
+        measurementGenerationId: row.measurementGenerationId,
+        measurementBaseReplyRevision: row.measurementBaseReplyRevision,
+      }))
     })
   },
 

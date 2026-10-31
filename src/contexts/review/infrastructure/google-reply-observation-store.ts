@@ -1,3 +1,8 @@
+import { resultFromRow } from './google-reply-observation-result'
+import {
+  carryDraftMeasurement,
+  publishDraftMeasurement,
+} from '#/shared/db/ai/draft-measurement-lineage'
 import { and, desc, eq, inArray, or, sql } from 'drizzle-orm'
 import type { Database } from '#/shared/db'
 import {
@@ -14,7 +19,6 @@ import { replyId } from '#/shared/domain/ids'
 import { trace } from '#/shared/observability/trace'
 import type {
   CurrentGoogleReplyObservation,
-  GoogleReplyObservationResult,
   GoogleReplyObservationLookup,
   GoogleReplyObservationStore,
   GoogleReplyPublicationTarget,
@@ -51,20 +55,6 @@ const UNCERTAIN_PUBLICATION_STATES = [
 ] as const
 
 const CLAIMABLE_PUBLICATION_STATUSES = ['approved', 'publish_failed'] as const
-
-function resultFromRow(
-  row: ObservationRow,
-  duplicate: boolean,
-): GoogleReplyObservationResult {
-  return {
-    observationRevision: row.observationRevision,
-    change: row.change as GoogleReplyObservationResult['change'],
-    resolution: row.resolution as GoogleReplyObservationResult['resolution'],
-    matchedReplyId: row.matchedReplyId ? replyId(row.matchedReplyId) : null,
-    matchedPublicationCycle: row.matchedPublicationCycle,
-    duplicate,
-  }
-}
 
 /** The Review this observation names, locked for the rest of the transaction. */
 async function lockObservationSubject(tx: Tx, input: RecordGoogleReplyObservation) {
@@ -532,13 +522,15 @@ async function confirmReplyOnGoogle(
         inArray(replies.publicationState, [...UNCERTAIN_PUBLICATION_STATES, 'terminal']),
       ),
     )
-    .returning({ id: replies.id })
+    .returning({ id: replies.id, stateRevision: replies.stateRevision })
   if (!confirmed[0]) {
     throw reviewError(
       'invalid_transition',
       'Reply changed while confirming the Google observation',
     )
   }
+  await carryDraftMeasurement(tx, internal, confirmed[0])
+  await publishDraftMeasurement(tx, confirmed[0])
   await tx
     .update(replyPublicationAttempts)
     .set({

@@ -5,7 +5,7 @@
   "src/contexts/integration/build.ts": 1169,
   "src/contexts/integration/infrastructure/google-import-v2-store.ts": 1809,
   "src/contexts/property/infrastructure/property-google-binding-store.ts": 806,
-  "src/contexts/review/infrastructure/google-reply-observation-store.ts": 813,
+  "src/contexts/review/infrastructure/google-reply-observation-store.ts": 806,
   "src/contexts/review/infrastructure/reply-command-store.ts": 918,
   "src/contexts/review/infrastructure/repositories/review-provider-snapshot.repository.ts": 1400,
   "src/shared/ai-internal-transport-contract.ts": 1055,

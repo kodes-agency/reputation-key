@@ -466,6 +466,7 @@ export const LegacyDraftPersistsDefaultLanguageOnSubmit: Story = {
         'Thank you for your feedback!',
         undefined,
         'bg-Cyrl',
+        undefined,
       ),
     )
     await waitFor(() => expect(onSubmit).toHaveBeenCalledOnce())
@@ -493,6 +494,7 @@ export const AiSuggestionAdoption: Story = {
         SUGGESTED_REPLY,
         'test-provenance-token',
         'en-Latn',
+        null,
       ),
     )
     // Row 18: the tag names the language the draft was made in. The property
@@ -519,7 +521,12 @@ export const LocalFallbackRequiresAdoption: Story = {
 
     await waitFor(() => expect(canvas.getByRole('textbox')).toHaveValue(FALLBACK_REPLY))
     await waitFor(() =>
-      expect(onSaveDraft).toHaveBeenCalledWith(FALLBACK_REPLY, undefined, 'en-Latn'),
+      expect(onSaveDraft).toHaveBeenCalledWith(
+        FALLBACK_REPLY,
+        undefined,
+        'en-Latn',
+        null,
+      ),
     )
   },
 }
@@ -589,6 +596,7 @@ export const AiDetectsMissingReviewLanguage: Story = {
         { kind: 'review_language' },
         false,
         expect.any(String),
+        'draft',
       ),
     )
     expect(onSaveDraft).not.toHaveBeenCalled()
@@ -598,6 +606,7 @@ export const AiDetectsMissingReviewLanguage: Story = {
         SUGGESTED_REPLY,
         'test-provenance-token',
         'en-Latn',
+        null,
       ),
     )
     // The detected language becomes the review language: the tag names it and
@@ -616,11 +625,12 @@ export const AiDetectsMissingReviewLanguage: Story = {
       ),
     )
     await waitFor(() =>
-      expect(onSaveDraft).toHaveBeenLastCalledWith(
+      // Text, provenance token and language; the measurement id is not this story's subject.
+      expect(onSaveDraft.mock.lastCall?.slice(0, 3)).toEqual([
         'Thank you for sharing your experience.',
         undefined,
         'en-Latn',
-      ),
+      ]),
     )
     // Undo restores the text, not the detection: the language stays known.
     await openMenu('AI tone and language: Professional, English')
@@ -669,6 +679,7 @@ export const ChooseReviewLanguageWhenMetadataIsMissing: Story = {
         { kind: 'review_language' },
         false,
         expect.any(String),
+        'draft',
       ),
     )
     await userEvent.click(canvas.getByRole('button', { name: /use draft/i }))
@@ -731,6 +742,7 @@ export const AiDraftTagRegeneratesInTheOtherLanguage: Story = {
         { kind: 'property_default' },
         false,
         expect.any(String),
+        'try_again',
       ),
     )
     // Still a preview: nothing replaces the text until it is adopted.
@@ -793,6 +805,7 @@ export const RatingOnlyUsesPropertyTemplate: Story = {
         BULGARIAN_TEMPLATE,
         undefined,
         'bg-Cyrl-BG',
+        null,
       ),
     )
     expect(onGenerateNoTextTemplate).toHaveBeenCalledWith(
@@ -800,6 +813,7 @@ export const RatingOnlyUsesPropertyTemplate: Story = {
       { kind: 'property_default' },
       true,
       expect.any(String),
+      'draft',
     )
   },
 }
@@ -833,6 +847,7 @@ export const ShortReviewUsesPropertyTemplate: Story = {
       { kind: 'property_default' },
       true,
       expect.any(String),
+      'draft',
     )
     await expect(
       canvas.findByText(
@@ -937,7 +952,12 @@ export const LibraryTemplateLoadsAsManualDraft: Story = {
       'status',
     )
     await waitFor(() =>
-      expect(onSaveDraft).toHaveBeenCalledWith(LIBRARY_REPLY, undefined, 'en-Latn-US'),
+      expect(onSaveDraft).toHaveBeenCalledWith(
+        LIBRARY_REPLY,
+        undefined,
+        'en-Latn-US',
+        undefined,
+      ),
     )
   },
 }
@@ -986,6 +1006,7 @@ export const ShortReviewNeedsPropertyLanguage: Story = {
       { kind: 'review_language' },
       true,
       expect.any(String),
+      'draft',
     )
   },
 }
@@ -1239,6 +1260,7 @@ const onGenerateBusy = fn(
     _target: ReplyLanguageTarget,
     templateOnly: boolean,
     _idempotencyKey: string,
+    _trigger?: 'draft' | 'try_again' | 'shorter' | 'tone',
   ): Promise<ReplySuggestionResult> =>
     templateOnly
       ? {
@@ -1283,6 +1305,7 @@ export const BusyOffersRetryAndTemplate: Story = {
         { kind: 'property_default' },
         true,
         expect.any(String),
+        'draft',
       ),
     )
     await expect(canvas.findByText('Local safe starting point')).resolves.toBeVisible()
@@ -1298,15 +1321,24 @@ export const BusyRetryReusesTheRequest: Story = {
   },
   play: async ({ canvas }) => {
     onGenerateBusy.mockClear()
+    onGenerateBusy.mockResolvedValueOnce({
+      status: 'unavailable',
+      code: 'busy',
+      retryAfterEpochMillis: Date.now(),
+    })
 
     await userEvent.click(canvas.getByRole('button', { name: /draft with ai/i }))
     await canvas.findByText('AI drafting is handling other requests for this property.')
-    await userEvent.click(canvas.getByRole('button', { name: /draft with ai/i }))
+    const retry = await canvas.findByRole('button', { name: /^Try again$/ })
+    await waitFor(() => expect(retry).toBeEnabled())
+    await userEvent.click(retry)
 
     await waitFor(() => expect(onGenerateBusy).toHaveBeenCalledTimes(2))
     const [first, second] = onGenerateBusy.mock.calls
     expect(first?.[3]).toEqual(expect.any(String))
     expect(second?.[3]).toBe(first?.[3])
+    expect(first?.[4]).toBe('draft')
+    expect(second?.[4]).toBe(first?.[4])
   },
 }
 
@@ -1561,6 +1593,7 @@ export const RegenerateDismissedChangesNothing: Story = {
       { kind: 'property_default' },
       false,
       expect.any(String),
+      'try_again',
     )
     expect(canvas.queryByRole('button', { name: /^Reply language:/ })).toBeNull()
 

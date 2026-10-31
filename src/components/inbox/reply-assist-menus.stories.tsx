@@ -581,9 +581,9 @@ export const UndoAndError: Story = {
   play: async ({ canvasElement, args }) => {
     const canvas = within(canvasElement)
     await userEvent.click(canvas.getByRole('button', { name: 'Friendlier' }))
-    await expect(args.onRequestAi).toHaveBeenCalledWith('friendly')
+    await expect(args.onRequestAi).toHaveBeenCalledWith('friendly', 'tone')
     await userEvent.click(canvas.getByRole('button', { name: 'Try again' }))
-    await expect(args.onRequestAi).toHaveBeenCalledWith()
+    await expect(args.onRequestAi).toHaveBeenCalledWith(undefined, 'try_again')
     await userEvent.click(canvas.getByRole('button', { name: 'Undo' }))
     await expect(args.onUndo).toHaveBeenCalledOnce()
     const status = canvas.getByRole('status')

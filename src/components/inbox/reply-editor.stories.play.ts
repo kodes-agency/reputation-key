@@ -5,13 +5,14 @@ type Canvas = ReturnType<typeof within>
 /**
  * What choosing "Local safe template" asks the suggestion function for: the
  * professional tone, the property default language, template only, and a fresh
- * idempotency key. Shared by the compose editor and composer stories.
+ * idempotency key and the draft trigger. Shared by the compose editor and composer stories.
  */
 export const LOCAL_SAFE_TEMPLATE_REQUEST = [
   'professional',
   { kind: 'property_default' },
   true,
   expect.any(String),
+  'draft',
 ] as const
 
 /**

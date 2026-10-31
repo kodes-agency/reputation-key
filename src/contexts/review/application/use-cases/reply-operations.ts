@@ -365,6 +365,7 @@ export type DraftReplyInput = Readonly<{
   text: string
   replyLanguageTag?: string
   provenanceToken?: string
+  measurementGenerationId?: string | null
   /** Internal-only provenance set by the property template loader. */
   templateId?: string
   templateVersion?: number
@@ -455,6 +456,7 @@ export const draftReply =
         existing,
         {
           text: input.text,
+          measurementGenerationId: input.measurementGenerationId,
           ...(input.replyLanguageTag !== undefined
             ? { replyLanguageTag: input.replyLanguageTag }
             : {}),
@@ -523,6 +525,7 @@ export const draftReply =
 // ── Submit for approval ───────────────────────────────────────────────
 
 export type SubmitReplyInput = Readonly<{
+  measurement?: import('#/shared/domain/draft-measurement').DraftEditMetric
   reviewId: ReviewId
 }>
 
@@ -560,6 +563,7 @@ export const submitReply =
           occurredAt: now,
         }),
         now,
+        input.measurement,
       ),
     )
     if (submitted.isErr()) throw submitted.error

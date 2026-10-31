@@ -14,7 +14,7 @@ import { aiReleaseOrphanSequencesCommandSpec } from '../../src/shared/ops/ai-rel
 import { inboxExcludeRestatedRevisionTargetsCommandSpec } from '../../src/shared/ops/inbox-exclude-restated-revision-targets-command'
 import { jobRepairCommandSpec } from '../../src/shared/ops/job-repair-command'
 import { reviewObservationsCommandSpec } from '../../src/shared/ops/review-observations-command'
-import { COMMANDS } from './commands'
+import { COMMANDS, resolveOperatorCommand } from './commands'
 
 const ROOT = resolve(import.meta.dirname, '../..')
 
@@ -333,4 +333,11 @@ describe('pnpm ops review-observations prune', () => {
       destructive: true,
     })
   })
+})
+
+it('dispatches aggregate draft reporting without changing existing AI actions', () => {
+  expect(
+    resolveOperatorCommand('ai', ['drafts-report', '--property', 'property']),
+  ).toEqual(['scripts/ops/ai-drafts-report.ts'])
+  expect(resolveOperatorCommand('ai', ['release-orphan-sequences'])).toEqual(COMMANDS.ai)
 })

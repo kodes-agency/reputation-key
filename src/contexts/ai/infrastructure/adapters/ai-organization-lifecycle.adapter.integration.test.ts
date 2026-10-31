@@ -41,6 +41,7 @@ const OWNED_TABLES = [
   'ai_property_trend_schedules',
   'ai_property_trend_outcomes',
   'ai_operations',
+  'ai_draft_measurements',
   'ai_review_analysis_enrollments',
 ] as const
 
@@ -427,6 +428,17 @@ async function seedFixture(): Promise<Fixture> {
       randomUUID(),
       EMPTY_REVISION_SET_DIGEST,
       ANALYZED_AT,
+    ],
+  )
+  await lease.pool.query(
+    `INSERT INTO ai_draft_measurements (operation_id, organization_id, property_id, review_id, actor_user_id, request_key, contract, intent, trigger, tone, language, rating_band, provider_attempts, outcome, latency_ms, base_reply_revision, created_at)
+     VALUES ($1, $2, $3, $4, 'measurement-test-manager', $5, 'v1', 'explicit', 'draft', 'professional', 'en-Latn-US', 'high', 1, 'ready', 100, 0, now())`,
+    [
+      fixture.operationId,
+      fixture.organizationId,
+      fixture.propertyId,
+      fixture.reviewId,
+      randomUUID(),
     ],
   )
   return fixture

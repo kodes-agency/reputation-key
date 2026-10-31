@@ -41,6 +41,8 @@ export type ReplyEntityView = Readonly<{
   approvedBy: UserId | null
   rejectedBy: UserId | null
   rejectionReason: string | null
+  measurementBaseReplyRevision?: number | null
+  measurementGenerationId?: string | null
   aiGenerated: boolean
   /** Monotonic durable reply lifecycle revision. */
   stateRevision: number

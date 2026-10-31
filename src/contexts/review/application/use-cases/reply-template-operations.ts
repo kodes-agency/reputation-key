@@ -336,6 +336,7 @@ export const loadReplyTemplate =
         reviewId: review.id,
         text,
         replyLanguageTag: target.language.tag,
+        measurementGenerationId: null,
         templateId: template.id,
         templateVersion: template.version,
       },

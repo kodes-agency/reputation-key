@@ -21,12 +21,18 @@ type ExportValue =
 type ExportRecord = Readonly<Record<string, ExportValue>>
 
 export type AiOrganizationExportCollection =
-  'review_analyses' | 'property_daily_aggregates' | 'property_trend_outcomes'
+  | 'review_analyses'
+  | 'property_daily_aggregates'
+  | 'property_trend_outcomes'
+  | 'draft_measurements'
+  | 'draft_measurement_links'
 
 export type AiOrganizationExportPayload = Readonly<{
   version: 'ai-organization-export/v2'
   requestedAsOf: string
   snapshotBound: 'repeatable_read_within_15m_of_request'
+  draftMeasurements?: readonly ExportRecord[]
+  draftMeasurementLinks?: readonly ExportRecord[]
   reviewAnalyses: readonly ExportRecord[]
   propertyDailyAggregates: readonly ExportRecord[]
   propertyTrendOutcomes: readonly ExportRecord[]
@@ -295,7 +301,55 @@ type AiExportFile = Readonly<{
   select: (payload: AiOrganizationExportPayload) => readonly ExportRecord[]
 }>
 
+const DRAFT_MEASUREMENT_COLUMNS = [
+  'id',
+  'organization_id',
+  'property_id',
+  'review_id',
+  'actor_user_id',
+  'contract',
+  'intent',
+  'trigger',
+  'tone',
+  'language',
+  'rating_band',
+  'case',
+  'provider_attempts',
+  'outcome',
+  'refusal_code',
+  'latency_ms',
+  'base_reply_revision',
+  'draft_pressed',
+  'try_again_pressed',
+  'shorter_pressed',
+  'tone_pressed',
+  'shown_at',
+  'dismissed_at',
+  'superseded_at',
+  'adopted_at',
+  'adopted_reply_id',
+  'adopted_revision',
+  'submitted_at',
+  'submitted_revision',
+  'edit_distance',
+  'edited_before_submit',
+  'published_at',
+  'created_at',
+] as const
+
 const EXPORT_FILES: readonly AiExportFile[] = Object.freeze([
+  {
+    collection: 'draft_measurements',
+    stem: 'draft-measurements',
+    columns: DRAFT_MEASUREMENT_COLUMNS,
+    select: (payload) => payload.draftMeasurements ?? [],
+  },
+  {
+    collection: 'draft_measurement_links',
+    stem: 'draft-measurement-links',
+    columns: ['reply_id', 'reply_revision', 'generation_id'],
+    select: (payload) => payload.draftMeasurementLinks ?? [],
+  },
   {
     collection: 'review_analyses',
     stem: 'review-analyses',
@@ -607,7 +661,33 @@ async function readPayload(
         (record) => [record.property_id, record.due_local_date, record.schedule_id],
       )
 
+      const draftMeasurements = await readRows(
+        snapshot,
+        sql`SELECT ${sql.join(
+          DRAFT_MEASUREMENT_COLUMNS.map((column) => sql`m.${sql.identifier(column)}`),
+          sql`, `,
+        )} FROM ai_draft_measurements m
+          JOIN merchant_ai_enablement merchant ON merchant.organization_id = m.organization_id
+            AND merchant.property_id = m.property_id
+          WHERE m.organization_id = ${organizationId} AND merchant.state = 'enabled'
+            AND merchant.capabilities @> ARRAY['reply_drafting']::text[]`,
+        (record) => [record.property_id, record.created_at, record.id],
+      )
+      const draftMeasurementLinks = await readRows(
+        snapshot,
+        sql`SELECT l.* FROM ai_draft_measurement_links l
+          JOIN replies r ON r.id = l.reply_id
+          JOIN reviews review ON review.id = r.review_id
+            AND review.organization_id = r.organization_id
+          JOIN merchant_ai_enablement merchant ON merchant.organization_id = r.organization_id
+            AND merchant.property_id = review.property_id
+          WHERE r.organization_id = ${organizationId} AND merchant.state = 'enabled'
+            AND merchant.capabilities @> ARRAY['reply_drafting']::text[]`,
+        (record) => [record.reply_id, record.reply_revision],
+      )
       return {
+        draftMeasurements,
+        draftMeasurementLinks,
         version: 'ai-organization-export/v2',
         requestedAsOf: asOfIso,
         snapshotBound: 'repeatable_read_within_15m_of_request',
