@@ -13,7 +13,10 @@ import { canonicalizeRfc8785 } from '#/shared/merchant-ai-notice-contract'
 import { createAiAdvisoryScope } from '#/shared/ai-lock-order-v1'
 import { insertOutboxRow, type Tx } from '#/shared/outbox/commit'
 import { organizationId } from '#/shared/domain/ids'
-import { purgeAiDraftsForAuthorization } from '#/shared/db/ai/ai-draft-purge'
+import {
+  purgeAiDraftsForAuthorization,
+  purgeAiDraftsForProfile,
+} from '#/shared/db/ai/ai-draft-purge'
 import { identityMerchantAiChanged } from '../../domain/events'
 import {
   isMerchantAiGrantCurrent,
@@ -513,7 +516,11 @@ export async function commitMerchantAiTransition(
   `)
   const evidence = evidenceResult.rows[0] as SnapshotRow
 
-  await purgeAiDraftsForAuthorization(tx, {
+  const purgeDrafts =
+    input.state !== 'enabled' || !input.capabilities.includes('reply_drafting')
+      ? purgeAiDraftsForAuthorization
+      : purgeAiDraftsForProfile
+  await purgeDrafts(tx, {
     organizationId: input.organizationId,
     propertyId: input.propertyId,
   })

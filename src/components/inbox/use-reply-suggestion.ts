@@ -1,3 +1,4 @@
+import { createDraftMeasurementSession, measuredDraftSnapshot } from './reply-measurement'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { replyCommentProblem } from '#/shared/google-provider-control/reply-comment'
 import type { ReplyDraftSnapshot } from './use-reply-autosave'
@@ -53,6 +54,11 @@ type Input = Readonly<{
   onFlush: (draft: ReplyDraftSnapshot) => Promise<void>
   onAccept: (draft: ReplyDraftSnapshot, provenanceToken: string | null) => Promise<void>
   onAdopt: (draft: ReplyDraftSnapshot, kind: 'personalized' | 'local_fallback') => void
+  initialMeasurementGenerationId?: string | null
+  initialMeasurementBaseReplyRevision?: number | null
+  onMeasure?: (
+    event: import('#/shared/domain/draft-measurement').DraftMeasurementEvent,
+  ) => void
   onGenerate?: ReplySuggestionGenerate
 }>
 
@@ -82,8 +88,18 @@ export function useReplySuggestion(input: Input) {
   const [busyUntil, setBusyUntil] = useState<number | null>(null)
   /** The last refusal leaves the governed template as a sound, explicit choice. */
   const [offersTemplate, setOffersTemplate] = useState(false)
+  const [measurement] = useState(() =>
+    createDraftMeasurementSession(
+      input.onMeasure,
+      input.initialMeasurementGenerationId,
+      input.initialMeasurementBaseReplyRevision,
+    ),
+  )
+  useEffect(() => measurement.setEmitter(input.onMeasure), [measurement, input.onMeasure])
   const sequence = useRef(0)
-  const idempotencyKeys = useRef(new Map<string, string>())
+  const idempotencyKeys = useRef(
+    new Map<string, Readonly<{ key: string; trigger: 'draft' | 'try_again' | 'tone' }>>(),
+  )
   const inFlight = useRef<Readonly<{ identity: string; promise: Promise<void> }> | null>(
     null,
   )
@@ -108,18 +124,20 @@ export function useReplySuggestion(input: Input) {
    */
   const generatingRequest = useRef(0)
 
-  useEffect(
-    () => () => {
+  useEffect(() => {
+    const detach = measurement.attach()
+    return () => {
       sequence.current += 1
-    },
-    [],
-  )
+      detach()
+    }
+  }, [measurement])
 
   const request = useCallback(
     (
       requestedTone: ReplyTone = tone,
       templateOnly = false,
       scope?: ReplyAssistScope,
+      explicitTrigger?: 'draft' | 'try_again' | 'tone',
     ): Promise<void> => {
       const target = scope ? scope.target : input.target
       const onGenerate = input.onGenerate
@@ -128,12 +146,18 @@ export function useReplySuggestion(input: Input) {
       // A repeated click while the same draft is being written joins it
       // instead of racing it: the later answer would otherwise win.
       if (inFlight.current?.identity === identity) return inFlight.current.promise
+      const pending = idempotencyKeys.current.get(identity)
+      const trigger = measurement.request(
+        requestedTone,
+        pending?.trigger ?? explicitTrigger,
+        templateOnly,
+      )
       const requestSequence = ++sequence.current
       generatingRequest.current = requestSequence
       const baseRevision = input.revision.current
       const baseDraft = scope ? scope.draft : input.draft
-      const idempotencyKey = idempotencyKeys.current.get(identity) ?? crypto.randomUUID()
-      idempotencyKeys.current.set(identity, idempotencyKey)
+      const idempotencyKey = pending?.key ?? crypto.randomUUID()
+      idempotencyKeys.current.set(identity, { key: idempotencyKey, trigger })
       setTone(requestedTone)
       setIsGenerating(true)
       setError(null)
@@ -162,6 +186,7 @@ export function useReplySuggestion(input: Input) {
             target,
             templateOnly,
             idempotencyKey,
+            trigger,
           )
           // Busy is the only answer that keeps the key: the retry belongs to
           // the same request. Everything else finished that request, so the
@@ -173,7 +198,7 @@ export function useReplySuggestion(input: Input) {
             requestSequence !== sequence.current ||
             baseRevision !== input.revision.current
           )
-            return
+            return measurement.discard(result)
           if (result.status === 'unavailable') {
             setError(replySuggestionUnavailableMessage(result.code))
             setErrorFixTarget(replySuggestionFixTarget(result.code))
@@ -199,10 +224,11 @@ export function useReplySuggestion(input: Input) {
             setError('The AI draft could not be verified. Try again.')
             return
           }
-          const nextDraft = {
+          measurement.show(result)
+          const nextDraft = measuredDraftSnapshot(result, {
             text: result.replyText,
             languageTag: verifiedLanguageTag,
-          }
+          })
           setSuggestion(
             result.status === 'ready'
               ? {
@@ -242,16 +268,20 @@ export function useReplySuggestion(input: Input) {
       inFlight.current = { identity, promise }
       return promise
     },
-    [input, tone],
+    [input, tone, measurement],
   )
 
   /** The explicit choice after a refusal: the governed template, never a substitute. */
   const requestTemplate = useCallback(() => request(tone, true), [request, tone])
 
-  const dismiss = useCallback(() => {
-    sequence.current += 1
-    setSuggestion(null)
-  }, [])
+  const dismiss = useCallback(
+    (explicit = true) => {
+      measurement.dismiss(explicit)
+      sequence.current += 1
+      setSuggestion(null)
+    },
+    [measurement],
+  )
 
   const adopt = useCallback(async () => {
     if (suggestion === null || isAdopting) return
@@ -261,15 +291,17 @@ export function useReplySuggestion(input: Input) {
     try {
       await input.onAccept(suggestion.draft, suggestion.provenanceToken)
       input.onAdopt(suggestion.draft, suggestion.kind)
+      measurement.adopt()
       setSuggestion(null)
     } catch {
       setError('The suggested draft could not be saved. Try again.')
     } finally {
       setIsAdopting(false)
     }
-  }, [input, isAdopting, suggestion])
+  }, [input, isAdopting, suggestion, measurement])
 
   return {
+    restoreMeasurement: measurement.restore,
     tone,
     setTone,
     isGenerating,

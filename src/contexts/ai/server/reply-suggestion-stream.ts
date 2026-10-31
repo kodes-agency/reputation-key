@@ -21,6 +21,7 @@ const requestSchema = z
     ]),
     idempotencyKey: z.uuid(),
     intent: z.enum(['explicit', 'background']).default('explicit'),
+    trigger: z.enum(['draft', 'try_again', 'shorter', 'tone']).optional(),
     variation: z.number().int().nonnegative().safe().optional(),
     length: z.enum(['standard', 'short']).optional(),
     maxWords: z.number().int().min(8).max(80).optional(),

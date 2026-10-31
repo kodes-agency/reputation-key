@@ -1,5 +1,6 @@
+import { draftEditMetric, restoredMeasurementSnapshot } from './reply-measurement'
 import { useMemo, useRef, useState } from 'react'
-import { unfilledReplySlotsMessage } from '#/contexts/review/application/public-api'
+import * as replyRules from '#/contexts/review/application/public-api'
 import {
   GOOGLE_REPLY_COMMENT_MAX_BYTES,
   replyCommentByteLength,
@@ -137,6 +138,8 @@ export function useReplyComposer(input: ReplyComposerInput) {
     reviewTag: reviewLanguage,
   })
   const [draft, setDraft] = useState<ReplyDraftSnapshot>({
+    measurementBaseReplyRevision: input.initialMeasurementBaseReplyRevision,
+    measurementGenerationId: input.initialMeasurementGenerationId,
     text: input.initialText,
     languageTag: initialTag,
   })
@@ -170,6 +173,8 @@ export function useReplyComposer(input: ReplyComposerInput) {
   )
   const autosave = useReplyAutosave(
     {
+      measurementBaseReplyRevision: input.initialMeasurementBaseReplyRevision,
+      measurementGenerationId: input.initialMeasurementGenerationId,
       text: input.initialText,
       languageTag: input.initialLanguageTag,
     },
@@ -178,6 +183,7 @@ export function useReplyComposer(input: ReplyComposerInput) {
         snapshot.text,
         provenanceToken,
         snapshot.languageTag ?? undefined,
+        snapshot.measurementGenerationId,
       ),
   )
   const isAutoDetectingLanguage = selectedLanguage === AUTO_DETECT_REVIEW_LANGUAGE
@@ -210,6 +216,9 @@ export function useReplyComposer(input: ReplyComposerInput) {
     },
     onAdopt: adoptDraft,
     onGenerate: input.onGenerate,
+    onMeasure: input.onMeasure,
+    initialMeasurementGenerationId: input.initialMeasurementGenerationId,
+    initialMeasurementBaseReplyRevision: input.initialMeasurementBaseReplyRevision,
   })
   const templates = useReplyTemplate({
     target,
@@ -220,10 +229,10 @@ export function useReplyComposer(input: ReplyComposerInput) {
     onServerDraftUnknown: autosave.invalidate,
     onAdopt: (nextDraft, template) => adoptDraft(nextDraft, 'library_template', template),
     onLoadLocalSafe: () => ai.request(undefined, true),
-    onDismissSuggestion: ai.dismiss,
+    onDismissSuggestion: () => ai.dismiss(false),
   })
   const updateDraft = (next: ReplyDraftSnapshot, nextSelection = selectedLanguage) => {
-    ai.dismiss()
+    ai.dismiss(false)
     templates.clearLoadedMessage()
     history.advanceRevision()
     setDraft(next)
@@ -242,10 +251,11 @@ export function useReplyComposer(input: ReplyComposerInput) {
       detectedReviewLanguage: effectiveReviewLanguage,
       reviewLanguageReadiness: input.reviewLanguageReadiness,
     })
+    ai.restoreMeasurement(restored.snapshot.draft)
     setSelectedLanguage(restored.selection)
     setAdoption(restored.snapshot.adoption)
     setHasAiDraft(restored.snapshot.hasAiDraft)
-    updateDraft(restored.snapshot.draft, restored.selection)
+    updateDraft(restoredMeasurementSnapshot(restored.snapshot.draft), restored.selection)
   }
   // The autosave branches are the select's: the sentinel is scheduled with
   // `canSave` false — an auto-detect draft must not persist a language it has
@@ -255,7 +265,7 @@ export function useReplyComposer(input: ReplyComposerInput) {
   // for a language pick on a composer nobody had written in (PR 4 review),
   // which `composer-mode-row.tsx` rules out for an empty box.
   const updateLanguage = (languageTag: string): ReplyAssistScope => {
-    ai.dismiss()
+    ai.dismiss(false)
     templates.clearLoadedMessage()
     const next = draftInLanguage(draft, languageTag)
     setSelectedLanguage(languageTag)
@@ -284,7 +294,7 @@ export function useReplyComposer(input: ReplyComposerInput) {
     (draftChecks && draftChecks.blocks.length > 0
       ? 'Fix the blocked reply checks before submitting.'
       : null) ??
-    unfilledReplySlotsMessage(draft.text) ??
+    replyRules.unfilledReplySlotsMessage(draft.text) ??
     (isAutoDetectingLanguage && validDraft(draft)
       ? unresolvedLanguageSubmitReason(hasPropertyDefaultOption(options))
       : null)
@@ -293,7 +303,10 @@ export function useReplyComposer(input: ReplyComposerInput) {
   // reason is already on screen, in the footer's own line.
   const submit = async () => {
     if (submitBlockedReason !== null) return
-    await submitAfterSave(() => autosave.flush(draft), input.onSubmit)
+    await submitAfterSave(
+      () => autosave.flush(draft),
+      () => input.onSubmit(draftEditMetric(draft)),
+    )
   }
 
   return {

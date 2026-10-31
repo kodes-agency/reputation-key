@@ -1118,3 +1118,31 @@ The context contains substantial control, admission, lifecycle, analysis, drafti
 The unconditional recurring enrollment sweep is registered, catalogued, and scheduled through the shared operational authority; deployed scheduler/runtime observation remains release evidence rather than a local-code claim. A broader manager-facing analyzed/candidate/excluded/failed and Verified Through surface remains a product gap. Deployed scheduler/runtime observations remain release evidence, not a local-code claim. Reply Draft cross-context deletion proof, provider-side deletion evidence where applicable, and deployed recovery evidence remain release gates.
 
 The first-enablement Review Analysis enrollment replay and the sweep's reopen pass are the only producers of `ai.review_analysis.backfill_requested`; a reopened review's event is correlated to the operation it replaces, never to an enrollment. Migration 0157 adds the fixed whole-snapshot safety pause, assisted-approval evidence, readiness counts, and `ops:ai-approve-enrollment`; a broader manager-facing analyzed/candidate/excluded/failed and Verified Through surface remains a product gap.
+
+## Text-free draft measurement — live (B3a, 2026-10-31)
+
+`application/reply-drafting-measurement.ts` observes both served contracts, once per
+logical root request; the separately admitted rewrite remains a provider attempt.
+The content-free recorder is `shared/db/ai/draft-generation-measurement.ts`.
+Generation rows and Reply revision links are tenant-exportable and cascade from
+operation metadata through a separate operation reference. Only Organization purge,
+Property deletion and disabling or revoking Reply Drafting consent erase them.
+Profile, binding, Review revisions and execution controls retain measurement metadata.
+They grant no authorization and are never evidence of AI authorship.
+
+Map item 10 was re-verified on stacked base `2add7d844`: adoption is at
+`ai-suggested-draft-store.ts:378–513` (binary receipt 495–511); first save is at
+`reply.repository.ts:580–597`; provenance clearing remains
+`reply-write-guards.ts:159–170` and `reply-set-clause.ts:30–47`; submission is
+`reply-operations.ts:529–568`; confirmed observation is
+`google-reply-observation-store.ts:510–565`. The map itself starts item 10 at
+line 383. Those are base references; this change adds measurement alongside them.
+
+Other map-10 base references: the adoption columns in `ai.schema.ts` are now
+271–276 (the map's 263–269 is stale), with their CHECK at 375; Reply AI fields
+start at `review.schema.ts:836`, authorship CHECK at 919, and the provenance CHECK
+is delegated at 932 to `reply-ai-provenance-check.ts:26`. Browser dismiss/adopt
+start at `use-reply-suggestion.ts:251/256`, composer adoption/Undo/submit at
+`use-reply-composer.ts:185/237/294`, and save/submit callbacks at
+`use-reply-actions.ts:199/214`. The first-save clearing rule remains
+`reply-ai-text.ts:65` and the write guard at `reply-write-guards.ts:168`.

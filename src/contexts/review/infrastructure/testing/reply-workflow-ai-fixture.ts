@@ -1,3 +1,4 @@
+import { recordDraftGeneration } from '#/shared/db/ai/draft-generation-measurement'
 // Test-only: everything an AI-assisted reply is bound to, for the reply
 // workflow harness.
 //
@@ -375,6 +376,20 @@ export function createReplyWorkflowAiFixture(
       updatedAt: now,
       expiresAt: new Date(now.getTime() + 60 * MINUTE_MS),
       deliveredAt: now,
+    })
+    await recordDraftGeneration(db, {
+      organizationId,
+      propertyId,
+      reviewId,
+      actorUserId,
+      requestKey: operationId,
+      contract: 'v1',
+      intent: 'explicit',
+      trigger: 'draft',
+      outcome: 'ready',
+      refusalCode: null,
+      case: null,
+      latencyMs: 100,
     })
     return signAiReplyProvenance(
       {

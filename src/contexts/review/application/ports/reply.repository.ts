@@ -70,6 +70,7 @@ export type PublicationAttemptObservationProgress = Readonly<{
   absentObservationCount: number
 }>
 export type ConditionalReplyUpdate = Readonly<{
+  measurementGenerationId?: string | null
   status?: ReplyStatus
   text?: string
   replyLanguageTag?: string | null
@@ -101,6 +102,7 @@ export type ConditionalReplyUpdate = Readonly<{
 /** What a manager's draft save may change. Status, rejection and authorship
  * are the store's to set. */
 export type DraftReplyContent = Readonly<{
+  measurementGenerationId?: string | null
   text: string
   replyLanguageTag?: string | null
   templateId?: string | null

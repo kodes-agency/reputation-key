@@ -283,8 +283,8 @@ async function seedFixture(): Promise<Fixture> {
     `SELECT (
        apply_merchant_ai_transition_v1(
          $1::uuid, 0, 1, $2, $3::uuid, 'enable', 'enabled',
-         ARRAY['review_analysis', 'property_trends']::text[],
-         '{"review_analysis":"review-analysis-runtime-v1","property_trends":"property-trends-runtime-v1"}'::jsonb,
+         ARRAY['review_analysis', 'reply_drafting', 'property_trends']::text[],
+         '{"review_analysis":"review-analysis-runtime-v1","reply_drafting":"reply-drafting-runtime-v1","property_trends":"property-trends-runtime-v1"}'::jsonb,
          1, 1, 1, 0, 0, $4, $5, 'google-business-profile-source-policy-v1', 1,
          'global', 'private-beta-global-v2', 'gbp-review-global-v1', $6,
          'merchant_enabled', $7, $8, now()
@@ -428,6 +428,17 @@ async function seedFixture(): Promise<Fixture> {
     )
   }
 
+  await lease.pool.query(
+    `INSERT INTO ai_draft_measurements (operation_id, organization_id, property_id, review_id, actor_user_id, request_key, contract, intent, trigger, tone, language, rating_band, provider_attempts, outcome, latency_ms, base_reply_revision, created_at)
+     VALUES ($1, $2, $3, $4, 'measurement-test-manager', $5, 'v1', 'explicit', 'draft', 'professional', 'en-Latn-US', 'high', 1, 'ready', 100, 0, now())`,
+    [
+      fixture.currentOperationId,
+      fixture.organizationId,
+      fixture.propertyId,
+      fixture.currentReviewId,
+      randomUUID(),
+    ],
+  )
   return fixture
 }
 
@@ -503,6 +514,16 @@ describe.sequential('AI Organization Export contributor', () => {
     expect(
       first.entries.map(({ path, classification }) => ({ path, classification })),
     ).toEqual([
+      { path: 'ai/draft-measurements.csv', classification: 'retained_ai_derivative' },
+      { path: 'ai/draft-measurements.json', classification: 'retained_ai_derivative' },
+      {
+        path: 'ai/draft-measurement-links.csv',
+        classification: 'retained_ai_derivative',
+      },
+      {
+        path: 'ai/draft-measurement-links.json',
+        classification: 'retained_ai_derivative',
+      },
       { path: 'ai/review-analyses.csv', classification: 'retained_ai_derivative' },
       { path: 'ai/review-analyses.json', classification: 'retained_ai_derivative' },
       {
@@ -525,6 +546,12 @@ describe.sequential('AI Organization Export contributor', () => {
 
     // The retired-generation row and the retention-expired row are absent long
     // before the 24-hour physical erasure worker touches them.
+    const draftMeasurements = jsonRecords(first.entries, 'ai/draft-measurements.json')
+    expect(draftMeasurements).toHaveLength(1)
+    // The measurement row has its own id; the operation id never leaves the system.
+    expect(draftMeasurements[0]).toMatchObject({ edit_distance: null })
+    expect(draftMeasurements[0]?.id).not.toBe(fixture.currentOperationId)
+    expect(draftMeasurements[0]).not.toHaveProperty('operation_id')
     const analyses = jsonRecords(first.entries, 'ai/review-analyses.json')
     expect(analyses).toHaveLength(1)
     expect(analyses[0]).toMatchObject({
@@ -588,7 +615,7 @@ describe.sequential('AI Organization Export contributor', () => {
     }
     expect(archive).not.toContain(fixture.currentOperationId)
     expect(archive).not.toMatch(
-      /operation_id|subject_hmac|request_fingerprint|source_digest|maximum_cost_micros/u,
+      /operation_id|request_key|subject_hmac|request_fingerprint|source_digest|maximum_cost_micros/u,
     )
 
     const payload = JSON.parse(

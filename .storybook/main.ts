@@ -35,6 +35,11 @@ const reviewReplyStub = fileURLToPath(
 const reviewReplyTemplatesStub = fileURLToPath(
   new URL('./stubs/review-reply-templates-server.ts', import.meta.url),
 )
+// Stub for #/contexts/ai/server/draft-measurement, loaded lazily by
+// use-reply-actions (measureDraft); it leaks the same server runtime. See the stub file.
+const aiDraftMeasurementStub = fileURLToPath(
+  new URL('./stubs/ai-draft-measurement-server.ts', import.meta.url),
+)
 // Stub for #/shared/observability/logger — pino pulls Node builtins that crash
 // the preview if a throwing event handler loads it. See ./stubs/observability-logger.ts.
 const observabilityLoggerStub = fileURLToPath(
@@ -87,6 +92,10 @@ const config: StorybookConfig = {
         replacement: reviewReplyTemplatesStub,
       },
       { find: '#/contexts/review/server/reply', replacement: reviewReplyStub },
+      {
+        find: '#/contexts/ai/server/draft-measurement',
+        replacement: aiDraftMeasurementStub,
+      },
       { find: '#/shared/observability/logger', replacement: observabilityLoggerStub },
       { find: '#/contexts/portal/server/portal-links', replacement: portalLinksStub },
     ]

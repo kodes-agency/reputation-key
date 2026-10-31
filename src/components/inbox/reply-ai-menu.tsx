@@ -51,7 +51,10 @@ export type ReplyAiMenuProps = Readonly<{
   /** Selects which sentence explains a missing property default. */
   reviewLanguageReadiness: ReviewLanguageReadiness
   onToneChange: (tone: ReplyTone) => void
-  onRequestAi: (tone?: ReplyTone) => Promise<void>
+  onRequestAi: (
+    tone?: ReplyTone,
+    trigger?: 'draft' | 'try_again' | 'tone',
+  ) => Promise<void>
 }>
 
 const TONE_LABEL: Readonly<Record<ReplyTone, string>> = {
@@ -111,7 +114,7 @@ export function ReplyAiMenu(props: ReplyAiMenuProps) {
           aria-describedby={describedBy}
           onClick={() => {
             if (props.aiDisabled) return
-            void props.onRequestAi()
+            void props.onRequestAi(undefined, 'draft')
           }}
         >
           <Sparkles aria-hidden="true" />

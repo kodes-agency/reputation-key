@@ -934,14 +934,17 @@ export async function createReplyWorkflowHarness(
       observeReviewAgain: ai.observeReviewAgain,
     },
     commands: {
-      draft: (text: string) => useCases.draft({ ...reviewInput, text }, MANAGER_CTX),
+      draft: (text: string, measurementGenerationId?: string | null) =>
+        useCases.draft({ ...reviewInput, text, measurementGenerationId }, MANAGER_CTX),
       /** A manager adopts an AI suggestion, unedited, as the review's draft. */
       adoptAiSuggestion: async (text: string) =>
         useCases.draft(
           { ...reviewInput, text, provenanceToken: await ai.issueSuggestion(text) },
           MANAGER_CTX,
         ),
-      submit: () => useCases.submit(reviewInput, MANAGER_CTX),
+      submit: (
+        measurement?: import('#/shared/domain/draft-measurement').DraftEditMetric,
+      ) => useCases.submit({ ...reviewInput, measurement }, MANAGER_CTX),
       /** `expectedReply`: the reply the manager's screen showed, and its revision. */
       approve: (expectedReply?: ReplyOnScreen) =>
         useCases.approve(

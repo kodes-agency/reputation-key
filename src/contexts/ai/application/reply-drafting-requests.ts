@@ -1,3 +1,4 @@
+import { measureReplyDraftingAttempt } from './reply-drafting-measurement'
 import { AI_PERSONALIZED_REPLY_LANGUAGES } from '#/shared/ai-personalized-reply-contract'
 import type { AiOperationState } from './ports/ai-operation-store.port'
 import { REPLY_DRAFTING_V2_LANGUAGES } from '#/shared/reply-drafting-v2-schema'
@@ -46,13 +47,25 @@ export function reportReplyReading(
 }
 
 /** Only the currently executing promise/metadata is owned here. No completed draft cache. */
+type DraftingRequestDependencies = Pick<
+  GenerateReplySuggestionDependencies,
+  'measurements' | 'nowEpochMillis'
+> &
+  Readonly<{
+    reviewSources: Pick<
+      GenerateReplySuggestionDependencies['reviewSources'],
+      'hasCurrentReply'
+    >
+  }>
+
 export function manageReplyDraftingRequests(
-  deps: GenerateReplySuggestionDependencies,
+  deps: DraftingRequestDependencies,
   attempt: ReplyDraftingV2Attempt | undefined,
   execute: (
     input: GenerateReplySuggestionInput,
   ) => Promise<GenerateReplySuggestionResult>,
 ): typeof execute {
+  const measuredExecute = measureReplyDraftingAttempt(deps, attempt, execute)
   if (!attempt)
     return (input) =>
       input.intent === 'background'
@@ -61,8 +74,8 @@ export function manageReplyDraftingRequests(
             code: 'policy_unavailable',
             retryAfterEpochMillis: null,
           })
-        : execute(input)
-  if (attempt.rewriteOrdinal !== 0) return execute
+        : measuredExecute(input)
+  if (attempt.rewriteOrdinal !== 0) return measuredExecute
   const active = new Map<string, ActiveDraft>()
   const generate = async (
     input: GenerateReplySuggestionInput,
@@ -91,7 +104,7 @@ export function manageReplyDraftingRequests(
             entry.resolvedIdentity = identity
           },
         },
-        execute,
+        measuredExecute,
         (event) => {
           if (event.step === 'reading') entry.admitted = true
           entry.history.push(event)
@@ -140,7 +153,7 @@ function draftRequestFingerprint(input: GenerateReplySuggestionInput): string {
 }
 
 async function runEligibleDraft(
-  deps: GenerateReplySuggestionDependencies,
+  deps: DraftingRequestDependencies,
   input: GenerateReplySuggestionInput,
   execute: (
     input: GenerateReplySuggestionInput,

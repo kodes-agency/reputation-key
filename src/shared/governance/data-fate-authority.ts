@@ -153,6 +153,13 @@ export const DATA_FATE_AUTHORITY = Object.freeze([
       'Retain append-oriented action records and honor legal holds. The proposed 365-day horizon remains report-only until counsel approves a destructive lifecycle authority and restore/export evidence.',
   }),
   ...rows({
+    schemaFile: 'ai-draft-measurements.schema.ts',
+    exportNames: ['aiDraftMeasurements', 'aiDraftMeasurementLinks'],
+    owner: 'ai',
+    disposition: 'active_authority',
+    authority: 'Phase 1 B3a / A-Q7',
+  }),
+  ...rows({
     schemaFile: 'ai.schema.ts',
     exportNames: [
       'aiExecutionControlHeads',

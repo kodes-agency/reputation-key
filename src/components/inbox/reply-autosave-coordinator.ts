@@ -1,6 +1,9 @@
 import { staleTab } from '#/shared/stale-tab/stale-tab'
 
 export type ReplyDraftSnapshot = Readonly<{
+  measurementBaseReplyRevision?: number | null
+  measurementGenerationId?: string | null
+  measurementBaseline?: string
   text: string
   languageTag: string | null
 }>

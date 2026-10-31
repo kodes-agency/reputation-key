@@ -158,6 +158,26 @@ describe('AI Organization Export entries', () => {
       })),
     ).toEqual([
       {
+        path: 'ai/draft-measurements.csv',
+        mediaType: 'text/csv',
+        classification: 'retained_ai_derivative',
+      },
+      {
+        path: 'ai/draft-measurements.json',
+        mediaType: 'application/json',
+        classification: 'retained_ai_derivative',
+      },
+      {
+        path: 'ai/draft-measurement-links.csv',
+        mediaType: 'text/csv',
+        classification: 'retained_ai_derivative',
+      },
+      {
+        path: 'ai/draft-measurement-links.json',
+        mediaType: 'application/json',
+        classification: 'retained_ai_derivative',
+      },
+      {
         path: 'ai/review-analyses.csv',
         mediaType: 'text/csv',
         classification: 'retained_ai_derivative',

@@ -500,7 +500,7 @@ export function createGenerateReplySuggestion(
       : undefined)
   const operationProfile = v2 ? REPLY_DRAFTING_V2_OPERATION_PROFILE : PROFILE
   // fallow-ignore-next-line complexity -- fail-closed AI operation lifecycle must settle every claimed state in one boundary
-  return manageReplyDraftingRequests(dependencies, v2, async (input) => {
+  const generate = manageReplyDraftingRequests(dependencies, v2, async (input) => {
     const [source, baseReplyStateRevision] = await Promise.all([
       dependencies.reviewSources.readForAi({
         organizationId: input.organizationId,
@@ -861,4 +861,5 @@ export function createGenerateReplySuggestion(
       await releaseAdmission()
     }
   })
+  return generate
 }

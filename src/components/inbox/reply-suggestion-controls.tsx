@@ -79,7 +79,7 @@ export function ReplySuggestionControls(props: Props) {
             size="sm"
             variant="outline"
             disabled={props.disabled || props.aiDisabled}
-            onClick={() => void props.onRequestAi('friendly')}
+            onClick={() => void props.onRequestAi('friendly', 'tone')}
           >
             Friendlier
           </Button>
@@ -88,7 +88,7 @@ export function ReplySuggestionControls(props: Props) {
             size="sm"
             variant="outline"
             disabled={props.disabled || props.aiDisabled}
-            onClick={() => void props.onRequestAi()}
+            onClick={() => void props.onRequestAi(undefined, 'try_again')}
           >
             <RotateCcw aria-hidden="true" /> Try again
           </Button>
@@ -190,7 +190,7 @@ function SuggestionErrorLine(props: SuggestionErrorLineProps) {
               key={props.aiBusyUntil}
               retryAtEpochMillis={props.aiBusyUntil}
               disabled={props.disabled || props.aiDisabled}
-              onRetry={() => void props.onRequestAi()}
+              onRetry={() => void props.onRequestAi(undefined, 'try_again')}
             />
           )}
           {props.aiOffersTemplate && (

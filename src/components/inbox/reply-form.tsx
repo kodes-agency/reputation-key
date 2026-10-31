@@ -80,9 +80,10 @@ export function ReplyEditor({
       onListTemplates={actions.listTemplates}
       onLoadTemplate={actions.loadTemplate}
       onCheckDraft={actions.checkDraft}
+      onMeasure={actions.measureDraft}
       onGenerateSuggestion={
         generateReplySuggestion
-          ? (tone, targetLanguage, templateOnly, idempotencyKey) =>
+          ? (tone, targetLanguage, templateOnly, idempotencyKey, trigger) =>
               generateReplySuggestion({
                 data: {
                   reviewId,
@@ -91,6 +92,7 @@ export function ReplyEditor({
                   // The composer owns the key (`use-reply-suggestion.ts`): a
                   // busy retry or a repeated click reuses it, Regenerate does not.
                   idempotencyKey,
+                  trigger,
                   ...(templateOnly ? { templateOnly: true } : {}),
                 },
               })

@@ -27,6 +27,7 @@ const generateReplySuggestionDto = z
     ]),
     idempotencyKey: z.uuid(),
     templateOnly: z.boolean().optional(),
+    trigger: z.enum(['draft', 'try_again', 'shorter', 'tone']).optional(),
   })
   .strict()
 
@@ -78,6 +79,7 @@ export const generateReplySuggestionFn = createServerFn({ method: 'POST' })
             tone: data.tone,
             targetLanguage: data.targetLanguage,
             idempotencyKey: data.idempotencyKey,
+            trigger: data.trigger,
             ...(data.templateOnly ? { templateOnly: true } : {}),
             expectedSourceEpoch: current.source.sourceEpoch,
             expectedSourceRevision: current.source.sourceRevision,

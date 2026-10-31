@@ -52,6 +52,7 @@ import {
   guardedPublicationUpdate,
   guardedReplyUpdate,
   updateCurrentAttempt,
+  submitMeasuredReply,
 } from './reply-write-guards'
 import { cancelUnclaimablePublication } from './unclaimable-publication'
 import {
@@ -586,8 +587,7 @@ export const createAtomicReplyCommandStore = (
   }
 
   return {
-    submitReply: (reply, updates, event, now) =>
-      transition('reply.commandStore.submitReply', reply, 'submit', updates, event, now),
+    submitReply: (...args) => submitMeasuredReply(db, clock, ...args),
     rejectReply: (reply, updates, event, now) =>
       transition('reply.commandStore.rejectReply', reply, 'reject', updates, event, now),
     // BQC-3.8: publish also persists publication_state='published' and clears

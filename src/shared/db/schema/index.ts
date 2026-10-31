@@ -2,6 +2,7 @@
 // so Drizzle kit and the DB connection can reference a single entry point.
 
 export * from './ai.schema'
+export * from './ai-draft-measurements.schema'
 export * from './ai-property-trend.schema'
 export * from './ai-review-analysis-v3.schema'
 export * from './ai-property-issue-groups.schema'

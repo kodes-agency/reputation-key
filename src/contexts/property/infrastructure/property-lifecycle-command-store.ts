@@ -3,7 +3,7 @@ import type { Database } from '#/shared/db'
 import { properties } from '#/shared/db/schema/property.schema'
 import { insertOutboxRow } from '#/shared/outbox/commit'
 import { trace } from '#/shared/observability/trace'
-import { purgeAiDraftsForProperty } from '#/shared/db/ai/ai-draft-purge'
+import { purgeAiDraftsForProfile } from '#/shared/db/ai/ai-draft-purge'
 import { propertyError } from '../domain/errors'
 import { googleReviewDestinationStateAfterLifecycleTransition } from '../domain/google-review-destination'
 import { assertValidTransition } from '../domain/property-lifecycle'
@@ -131,7 +131,7 @@ export const createPropertyLifecycleCommandStore = (
             'Property changed while its lifecycle transition was being committed',
           )
         }
-        await purgeAiDraftsForProperty(tx, {
+        await purgeAiDraftsForProfile(tx, {
           organizationId: command.organizationId,
           propertyId: command.propertyId,
         })

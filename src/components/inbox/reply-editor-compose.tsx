@@ -33,6 +33,8 @@ export type ReplyComposeProps = Readonly<{
   propertyId: string
   initialText: string
   initialLanguageTag: string | null
+  initialMeasurementBaseReplyRevision?: number | null
+  initialMeasurementGenerationId?: string | null
   initialAiGenerated?: boolean
   propertyDefaultReplyLanguage: string | null
   reviewReplyLanguage: string | null
@@ -43,9 +45,15 @@ export type ReplyComposeProps = Readonly<{
     text: string,
     provenanceToken?: string,
     replyLanguageTag?: string,
+    measurementGenerationId?: string | null,
   ) => Promise<unknown>
-  onSubmit: () => Promise<unknown>
+  onSubmit: (
+    metric?: import('./reply-measurement').BrowserDraftEditMetric,
+  ) => Promise<unknown>
   onDelete?: () => Promise<unknown>
+  onMeasure?: (
+    event: import('#/shared/domain/draft-measurement').DraftMeasurementEvent,
+  ) => void
   onGenerateSuggestion?: ReplySuggestionGenerate
   onListTemplates?: (target: ReplyLanguageTarget) => Promise<ReplyTemplateListResult>
   onLoadTemplate?: (
@@ -107,6 +115,8 @@ export function ReplyCompose(props: ReplyComposeProps) {
   const state = useReplyComposer({
     initialText: props.initialText,
     initialLanguageTag: props.initialLanguageTag,
+    initialMeasurementBaseReplyRevision: props.initialMeasurementBaseReplyRevision,
+    initialMeasurementGenerationId: props.initialMeasurementGenerationId,
     initialAiGenerated: props.initialAiGenerated ?? false,
     propertyLanguage: props.propertyDefaultReplyLanguage,
     reviewLanguage: props.reviewReplyLanguage,
@@ -114,6 +124,7 @@ export function ReplyCompose(props: ReplyComposeProps) {
     onSaveDraft: props.onSaveDraft,
     onSubmit: props.onSubmit,
     onGenerate: props.onGenerateSuggestion,
+    onMeasure: props.onMeasure,
     onListTemplates: props.onListTemplates,
     onLoadTemplate: props.onLoadTemplate,
     onCheckDraft: props.onCheckDraft,
@@ -282,7 +293,9 @@ export function ReplyCompose(props: ReplyComposeProps) {
             languageChoices={languageChoices}
             reviewLanguageReadiness={props.reviewLanguageReadiness}
             onToneChange={state.ai.setTone}
-            onRequestAi={state.ai.request}
+            onRequestAi={(tone, trigger) =>
+              state.ai.request(tone, false, undefined, trigger)
+            }
             onPrepareTemplateMenu={state.templates.prepareMenu}
             onLoadRecommended={state.templates.loadRecommended}
             onLoadTemplate={state.templates.load}

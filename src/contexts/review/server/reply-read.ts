@@ -41,6 +41,18 @@ export const reviewErrorStatus = (code: ReviewErrorCode): number =>
 
 // ── DTOs ─────────────────────────────────────────────────────────────
 
+export const draftEditMetricDto = z
+  .object({
+    generationId: z.uuid().nullable(),
+    replyId: z.uuid(),
+    replyRevision: z.number().int().positive().safe(),
+    distance: z.number().min(0).max(1).nullable(),
+  })
+  .strict()
+export const submitReplyDto = z
+  .object({ reviewId: z.uuid(), measurement: draftEditMetricDto.optional() })
+  .strict()
+
 export const reviewIdDto = z.object({ reviewId: z.uuid() })
 
 /**
@@ -79,6 +91,7 @@ export const draftReplyDto = z.object({
       message: 'Unsupported reply language',
     })
     .optional(),
+  measurementGenerationId: z.uuid().nullable().optional(),
   provenanceToken: z.string().min(1).max(16_384).optional(),
 })
 

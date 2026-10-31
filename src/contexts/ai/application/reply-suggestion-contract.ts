@@ -28,6 +28,7 @@ export type GenerateReplySuggestionInput = Readonly<{
     Readonly<{ kind: 'property_default' }> | Readonly<{ kind: 'review_language' }>
   idempotencyKey: string
   intent?: 'explicit' | 'background'
+  trigger?: 'draft' | 'try_again' | 'shorter' | 'tone'
   /** Trusted in-process observer, never accepted from request JSON. */
   onProgress?: import('#/shared/reply-drafting-progress').ReplyDraftingProgressSink
   onIdentity?: (
@@ -46,6 +47,7 @@ export type GenerateReplySuggestionInput = Readonly<{
 export type GenerateReplySuggestionResult =
   | Readonly<{
       status: 'ready'
+      measurementGenerationId?: string
       profileVersion:
         | typeof AI_PERSONALIZED_REPLY_PROFILE_VERSION
         | typeof REPLY_DRAFTING_V2_VERSIONS.profile
@@ -98,6 +100,12 @@ export type GenerateReplySuggestionResult =
     }>
 
 export type GenerateReplySuggestionDependencies = Readonly<{
+  logger?: Pick<import('#/shared/domain/logger.port').LoggerPort, 'warn'>
+  measurements?: Readonly<{
+    record(
+      input: import('#/shared/domain/draft-measurement').DraftGenerationMeasurement,
+    ): Promise<string | null>
+  }>
   authorization: AiAuthorizationPort
   control: AiControlPort
   inference: AiInferencePort

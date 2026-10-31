@@ -174,3 +174,44 @@ External obligations (§2) → this page → ADRs → `docs/standards.md` → co
 - **2026-09-15:** Merchant AI notice `merchant-ai-notice-2026-09-15.v1`: AI consent is an explicit acknowledgement of the served notice, the password step-up is removed, and one consent ceremony may cover several Properties (§2).
 - **2026-09-08:** Privacy Notice version 2.0, Google Business Profile Access Disclosure version 2.0, and Closed Beta Participation Agreement version 2.0 accepted by accountable owner Bozhidar Denev without external counsel review.
 - **2026-08-11:** Initial legal registry created from the final EU beta legal copy pack and the consent/privacy engineering specification.
+
+### Draft usage measurement (Phase 1 B3a, 2026-10-31)
+
+Reply drafting v1 and v2 record first-party usage metadata immediately on deploy,
+independently of the dark v2 rollout. One `ai_draft_measurements` row represents a
+logical provider generation, keyed by tenant, actor and drafting request key. An
+automatic rewrite is its second independently admitted provider attempt. Local
+catalogue fallbacks and refusals before any provider operation are not provider
+generations. Rows hold controlled generation attributes, timestamps, button flags
+and bounded edit scalars (rating bands: 1–2 low, 3 middle, 4–5 high), never draft/review text, avoidance terms, rejected output
+or text fingerprints. No new provider payload or notice version is introduced.
+
+`ai_draft_measurement_links` associates Reply revisions with those generations.
+It is measurement only: a manager save still ends AI authorship and clears active
+AI provenance. Adoption, submission and Google-observed publication commit their
+measurement in the corresponding transaction. Approval, dispatch and provider
+acknowledgement do not count as publication. Advisory client events cannot grant
+access, alter a reply or relax a publication or withdrawal fence.
+
+The browser calculates character Levenshtein distance over Unicode scalar values
+after NFC, whitespace collapse and trimming, divided by the longer normalized
+length (two empty strings have distance zero). Its adopted baseline lives only in
+compose-session memory, including Undo history. A reload preserves the measurement
+identity but loses that baseline; submission records unavailable rather than zero.
+Scalars are accepted only for the generation and saved Reply revision submitted.
+
+Organization export includes generation rows and revision links under enabled merchant
+authorization, with independent measurement IDs and no operation IDs or request keys. Organization
+purge, Property deletion and disabling or revoking Reply Drafting consent for a
+Property erase them. Profile, Google binding, material Review revisions and execution
+control changes retain them; deletion of the owning
+`ai_operations` metadata cascades to the generation and its links, so measurement
+shares that metadata retention, with no independent extension or text cache.
+There is no new age-based deletion rule for operation metadata in this PR.
+
+`pnpm ops ai drafts-report --operator <id> [--since <ISO timestamp>]
+[--property <UUID>]` uses the existing named-operator read harness and prints
+aggregates only: generation groups, adoption, refusals, rewrite rate, button/event
+counts, confirmed publication, distance and latency percentiles. Adoption rate is
+adopted / ready generations. Sent-unchanged share uses submitted drafts with an
+available distance; unavailable submissions are counted separately.

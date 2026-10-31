@@ -28,6 +28,7 @@
   "dynamicallyLoaded": [
     "server/plugins/*.ts",
     "scripts/ops/ai-approve-enrollment.ts",
+    "scripts/ops/ai-drafts-report.ts",
     "scripts/ops/ai-execution-control.ts",
     "scripts/ops/ai-release-orphan-sequences.ts",
     "scripts/ops/ai-reopen-analyses.ts",
