@@ -104,12 +104,15 @@ function DialogOverlay({
  * content edge, not its padding edge, so `-bottom-(--dialog-pad)` is what puts the
  * stuck footer flush with the dialog's bottom. When the dialog fits, this draws
  * what the grid's own gap and padding would. When it scrolls, the body slides
- * under the footer and fades out just above it. It must sit in the dialog's
+ * under the footer and fades out just above it. The footer's own children are
+ * positioned (`*:relative`) so that they paint over that fade: the first row of
+ * controls sits on the footer's top edge, and the fade, a positioned box, would
+ * otherwise cover the top of its focus ring. It must sit in the dialog's
  * scroll box, directly or as the last thing in the form that is, and be the last
  * thing in it.
  */
 const PINNED_FOOTER =
-  'sticky -bottom-(--dialog-pad) z-10 -mx-(--dialog-pad) -mb-(--dialog-pad) bg-background px-(--dialog-pad) pb-(--dialog-pad) before:pointer-events-none before:absolute before:inset-x-0 before:bottom-full before:h-4 before:bg-[linear-gradient(to_top,var(--background),transparent)]'
+  'sticky -bottom-(--dialog-pad) z-10 -mx-(--dialog-pad) -mb-(--dialog-pad) bg-background px-(--dialog-pad) pb-(--dialog-pad) *:relative before:pointer-events-none before:absolute before:inset-x-0 before:bottom-full before:h-4 before:bg-[linear-gradient(to_top,var(--background),transparent)]'
 
 /**
  * Whether the dialog draws the corner close. Its header reads this, wherever it

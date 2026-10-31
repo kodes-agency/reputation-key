@@ -1,0 +1,63 @@
+import type { ProductUpdate } from './types'
+
+/** Append in publication order. IDs and publication dates never change after shipping. */
+export const PRODUCT_UPDATES: readonly ProductUpdate[] = [
+  {
+    id: '2026-10-31-guest-voice-check-in',
+    publishedOn: '2026-10-31',
+    kind: 'highlight',
+    audience: 'everyone',
+    requires: { capability: 'ai.analyze' },
+    title: 'Guest voice is now a weekly check-in',
+    body: 'It answers four questions: is anything urgent, are guests happier lately, what to fix first, and what is going well.',
+    icon: 'MessageCircle',
+    showMe: { to: '/properties/$propertyId/guests', needsProperty: true },
+  },
+  {
+    id: '2026-10-31-reply-voice-and-templates',
+    publishedOn: '2026-10-31',
+    kind: 'highlight',
+    audience: 'everyone',
+    title: "Replies now speak in your property's voice",
+    body: 'Set one greeting and sign-off for each property, and start from about 30 ready-made replies in English and Spanish.',
+    icon: 'MessagesSquare',
+    showMe: { to: '/properties/$propertyId/settings/replies', needsProperty: true },
+  },
+  {
+    id: '2026-10-31-inbox-priority',
+    publishedOn: '2026-10-31',
+    kind: 'highlight',
+    audience: 'everyone',
+    title: "Set a review's priority yourself",
+    body: 'The Inbox keeps reviews and private feedback apart, and you choose how urgent a review is. The AI suggestion stays next to yours.',
+    icon: 'ListFilter',
+    showMe: { to: '/inbox' },
+  },
+  {
+    id: '2026-10-31-steady-pages',
+    publishedOn: '2026-10-31',
+    kind: 'fix',
+    audience: 'everyone',
+    title: 'Pages no longer jump while they load',
+    body: '',
+    icon: 'Check',
+  },
+  {
+    id: '2026-10-31-soft-photo-warning',
+    publishedOn: '2026-10-31',
+    kind: 'fix',
+    audience: 'everyone',
+    title: 'Slightly soft photos now warn instead of blocking a print',
+    body: '',
+    icon: 'Check',
+  },
+  {
+    id: '2026-10-31-what-went-wrong-wording',
+    publishedOn: '2026-10-31',
+    kind: 'fix',
+    audience: 'everyone',
+    title: 'The guest page now asks “What went wrong?”',
+    body: 'The private note has a clearer question.',
+    icon: 'Check',
+  },
+]
