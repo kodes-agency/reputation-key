@@ -213,6 +213,54 @@ describe.sequential('Identity Organization lifecycle contributor receipts', () =
     }
   })
 
+  it('erases personal update state in the Identity purge transaction', async () => {
+    const contributionInput = input({ lifecycleRevision: 4 })
+    await seedAuthority(contributionInput, 'purging')
+    const userId = `updates-purge-${randomUUID()}`
+    await lease.pool.query(
+      `INSERT INTO "user" (id, name, email, "emailVerified", "createdAt", "updatedAt") VALUES ($1, 'Manager', $2, true, now(), now())`,
+      [userId, `${userId}@example.test`],
+    )
+    try {
+      await lease.pool.query(
+        'INSERT INTO product_update_settings (user_id, organization_id, auto_show) VALUES ($1, $2, false)',
+        [userId, contributionInput.organizationId],
+      )
+      await lease.pool.query(
+        "INSERT INTO product_update_receipts (user_id, organization_id, entry_id) VALUES ($1, $2, 'one')",
+        [userId, contributionInput.organizationId],
+      )
+      await lease.pool.query(
+        `INSERT INTO merchant_ai_notice_update_receipts
+        (user_id, organization_id, notice_version, notice_digest) VALUES ($1, $2, 'fixture-v1', $3)`,
+        [userId, contributionInput.organizationId, 'b'.repeat(64)],
+      )
+      const lifecycle = contributor(async () => ({
+        outcome: 'no_data',
+        evidenceRef: 'identity:purge',
+      }))
+      const first = await lifecycle.purge(contributionInput)
+      expect(await lifecycle.purge(contributionInput)).toEqual(first)
+      expect(first).toMatchObject({
+        outcome: 'complete',
+        evidenceRef: 'identity:purge:product-updates-2',
+      })
+      for (const table of [
+        'product_update_settings',
+        'product_update_receipts',
+        'merchant_ai_notice_update_receipts',
+      ]) {
+        const result = await lease.pool.query(
+          `SELECT count(*)::int AS count FROM ${table} WHERE organization_id = $1`,
+          [contributionInput.organizationId],
+        )
+        expect(result.rows).toEqual([{ count: 0 }])
+      }
+    } finally {
+      await lease.pool.query('DELETE FROM "user" WHERE id = $1', [userId])
+    }
+  })
+
   it('executes concurrent first attempts once and replays the durable result', async () => {
     const contributionInput = input({ lifecycleRevision: 1 })
     await seedAuthority(contributionInput, 'closure_requested')

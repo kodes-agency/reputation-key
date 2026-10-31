@@ -631,6 +631,13 @@
       "when": 1797100000000,
       "tag": "0088_reply_drafting_v2_release",
       "breakpoints": true
+    },
+    {
+      "idx": 90,
+      "version": "7",
+      "when": 1797200000000,
+      "tag": "0090_product_updates",
+      "breakpoints": true
     }
   ]
 }

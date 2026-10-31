@@ -475,6 +475,15 @@ export const DATA_FATE_AUTHORITY = Object.freeze([
     authority: 'MET-01',
   }),
   ...rows({
+    schemaFile: 'product-updates.schema.ts',
+    exportNames: ['productUpdateSettings', 'productUpdateReceipts'],
+    owner: 'identity',
+    disposition: 'active_authority',
+    authority: 'PR-2',
+    exitCriteria:
+      'Personal update preferences and receipts are exported and erased with the Organization.',
+  }),
+  ...rows({
     schemaFile: 'notification.schema.ts',
     exportNames: [
       'notificationCategoryDefaults',

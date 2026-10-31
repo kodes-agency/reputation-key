@@ -70,6 +70,7 @@ const EXPECTED_TOP_LEVEL_KEYS = [
   // after requirePlatformOperator; no context receives it.
   'identityPlatform',
   'identityPort',
+  'identityProductUpdates',
   'identityPublicApi',
   'identityRequestSecurity',
   'identityWorkerRuntime',

@@ -22,6 +22,7 @@ import { Route as AuthenticatedDashboardRouteImport } from './routes/_authentica
 import { Route as AuthenticatedNotificationsRouteImport } from './routes/_authenticated/notifications'
 import { Route as AuthenticatedProgressRouteImport } from './routes/_authenticated/progress'
 import { Route as AuthenticatedSettingsRouteImport } from './routes/_authenticated/settings'
+import { Route as AuthenticatedWhatsNewRouteImport } from './routes/_authenticated/whats-new'
 import { Route as ApiPortalMediaRouteImport } from './routes/api/portal-media'
 import { Route as PTokenRouteImport } from './routes/p/$token'
 import { Route as PrivacyBetaAgreementRouteImport } from './routes/privacy_.beta-agreement'
@@ -148,6 +149,11 @@ const AuthenticatedProgressRoute = AuthenticatedProgressRouteImport.update({
 const AuthenticatedSettingsRoute = AuthenticatedSettingsRouteImport.update({
   id: '/settings',
   path: '/settings',
+  getParentRoute: () => AuthenticatedRoute,
+} as any)
+const AuthenticatedWhatsNewRoute = AuthenticatedWhatsNewRouteImport.update({
+  id: '/whats-new',
+  path: '/whats-new',
   getParentRoute: () => AuthenticatedRoute,
 } as any)
 const ApiPortalMediaRoute = ApiPortalMediaRouteImport.update({
@@ -523,6 +529,7 @@ export interface FileRoutesByFullPath {
   '/notifications': typeof AuthenticatedNotificationsRoute
   '/progress': typeof AuthenticatedProgressRoute
   '/settings': typeof AuthenticatedSettingsRouteWithChildren
+  '/whats-new': typeof AuthenticatedWhatsNewRoute
   '/api/portal-media': typeof ApiPortalMediaRoute
   '/p/$token': typeof PTokenRoute
   '/privacy/beta-agreement': typeof PrivacyBetaAgreementRoute
@@ -598,6 +605,7 @@ export interface FileRoutesByTo {
   '/dashboard': typeof AuthenticatedDashboardRoute
   '/notifications': typeof AuthenticatedNotificationsRoute
   '/progress': typeof AuthenticatedProgressRoute
+  '/whats-new': typeof AuthenticatedWhatsNewRoute
   '/api/portal-media': typeof ApiPortalMediaRoute
   '/p/$token': typeof PTokenRoute
   '/privacy/beta-agreement': typeof PrivacyBetaAgreementRoute
@@ -672,6 +680,7 @@ export interface FileRoutesById {
   '/_authenticated/notifications': typeof AuthenticatedNotificationsRoute
   '/_authenticated/progress': typeof AuthenticatedProgressRoute
   '/_authenticated/settings': typeof AuthenticatedSettingsRouteWithChildren
+  '/_authenticated/whats-new': typeof AuthenticatedWhatsNewRoute
   '/api/portal-media': typeof ApiPortalMediaRoute
   '/p/$token': typeof PTokenRoute
   '/privacy_/beta-agreement': typeof PrivacyBetaAgreementRoute
@@ -750,6 +759,7 @@ export interface FileRouteTypes {
     | '/notifications'
     | '/progress'
     | '/settings'
+    | '/whats-new'
     | '/api/portal-media'
     | '/p/$token'
     | '/privacy/beta-agreement'
@@ -825,6 +835,7 @@ export interface FileRouteTypes {
     | '/dashboard'
     | '/notifications'
     | '/progress'
+    | '/whats-new'
     | '/api/portal-media'
     | '/p/$token'
     | '/privacy/beta-agreement'
@@ -898,6 +909,7 @@ export interface FileRouteTypes {
     | '/_authenticated/notifications'
     | '/_authenticated/progress'
     | '/_authenticated/settings'
+    | '/_authenticated/whats-new'
     | '/api/portal-media'
     | '/p/$token'
     | '/privacy_/beta-agreement'
@@ -1082,6 +1094,13 @@ declare module '@tanstack/react-router' {
       path: '/settings'
       fullPath: '/settings'
       preLoaderRoute: typeof AuthenticatedSettingsRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
+    '/_authenticated/whats-new': {
+      id: '/_authenticated/whats-new'
+      path: '/whats-new'
+      fullPath: '/whats-new'
+      preLoaderRoute: typeof AuthenticatedWhatsNewRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
     '/api/portal-media': {
@@ -1696,6 +1715,7 @@ interface AuthenticatedRouteChildren {
   AuthenticatedNotificationsRoute: typeof AuthenticatedNotificationsRoute
   AuthenticatedProgressRoute: typeof AuthenticatedProgressRoute
   AuthenticatedSettingsRoute: typeof AuthenticatedSettingsRouteWithChildren
+  AuthenticatedWhatsNewRoute: typeof AuthenticatedWhatsNewRoute
   AuthenticatedPropertiesPropertyIdRoute: typeof AuthenticatedPropertiesPropertyIdRouteWithChildren
   AuthenticatedInboxIndexRoute: typeof AuthenticatedInboxIndexRoute
   AuthenticatedPortalsIndexRoute: typeof AuthenticatedPortalsIndexRoute
@@ -1709,6 +1729,7 @@ const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
   AuthenticatedNotificationsRoute: AuthenticatedNotificationsRoute,
   AuthenticatedProgressRoute: AuthenticatedProgressRoute,
   AuthenticatedSettingsRoute: AuthenticatedSettingsRouteWithChildren,
+  AuthenticatedWhatsNewRoute: AuthenticatedWhatsNewRoute,
   AuthenticatedPropertiesPropertyIdRoute:
     AuthenticatedPropertiesPropertyIdRouteWithChildren,
   AuthenticatedInboxIndexRoute: AuthenticatedInboxIndexRoute,

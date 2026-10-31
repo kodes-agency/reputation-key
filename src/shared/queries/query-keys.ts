@@ -475,3 +475,9 @@ export const platformKeys = {
   all: ['platform'] as const,
   organizations: () => [...platformKeys.all, 'organizations'] as const,
 }
+
+export const productUpdateKeys = {
+  all: ['product-updates'] as const,
+  scope: (propertyId: string | null) =>
+    [...productUpdateKeys.all, propertyId ?? 'organization'] as const,
+}
