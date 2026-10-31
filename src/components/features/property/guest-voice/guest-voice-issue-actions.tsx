@@ -49,7 +49,7 @@ export function GuestVoiceIssueActions({
         <PopoverContent>
           <p className="text-sm">
             Choose a review in the Inbox, then correct its reading.{' '}
-            <InlineLink to="/inbox" search={search}>
+            <InlineLink underline="always" to="/inbox" search={search}>
               Open the Inbox
             </InlineLink>
           </p>

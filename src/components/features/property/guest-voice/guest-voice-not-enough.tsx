@@ -57,6 +57,7 @@ export function GuestVoiceNotEnough({
         )}
         {can('inbox.read') ? (
           <InlineLink
+            underline="always"
             to="/inbox"
             search={{
               propertyId,
@@ -73,7 +74,11 @@ export function GuestVoiceNotEnough({
           <p>
             Invite more guests to review to see what’s working and what needs attention.
           </p>
-          <InlineLink to="/properties/$propertyId/portals" params={{ propertyId }}>
+          <InlineLink
+            underline="always"
+            to="/properties/$propertyId/portals"
+            params={{ propertyId }}
+          >
             Invite guests to review
           </InlineLink>
         </div>

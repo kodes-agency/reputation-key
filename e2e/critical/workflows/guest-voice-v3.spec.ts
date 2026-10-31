@@ -190,8 +190,12 @@ test.describe('Critical workflow: Guest voice 2.0 and the Inbox reading, v3 anal
     const sheet = page.getByRole('dialog')
     await expect(sheet.getByText('These guests')).toBeVisible()
     await expect(sheet.getByText('Other guests')).toBeVisible()
+    // The seeded reviews are quotable: the sheet shows them with the counted-sentence note.
+    await expect(sheet.locator('blockquote').first()).toBeVisible()
     await expect(
-      sheet.getByText('None of these reviews can be quoted here.', { exact: false }),
+      sheet.getByText('The underlined sentence is the part we counted.', {
+        exact: false,
+      }),
     ).toBeVisible()
     await sheet.getByRole('button', { name: /Linked serious concern/u }).click()
     await expect(

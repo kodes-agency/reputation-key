@@ -81,6 +81,7 @@ export function GuestVoiceGuestsLove({ read }: Readonly<{ read: GuestVoiceV2Read
               {' '}
               ·{' '}
               <InlineLink
+                underline="always"
                 to="/inbox"
                 search={{ propertyId, since: startLocalDate, until: endLocalDate }}
               >

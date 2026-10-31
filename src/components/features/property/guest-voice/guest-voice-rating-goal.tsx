@@ -24,6 +24,7 @@ export function GuestVoiceRatingGoal({
         <>
           {googleRatingLine(google) ? <span aria-hidden="true">·</span> : null}
           <InlineLink
+            underline="always"
             to="/properties/$propertyId/goals/google-rating"
             params={{ propertyId }}
           >

@@ -96,6 +96,7 @@ export function GuestVoiceUrgent({
             <>
               {' '}
               <InlineLink
+                underline="always"
                 to="/inbox"
                 search={{
                   ...urgentReviewsSearch(propertyId),

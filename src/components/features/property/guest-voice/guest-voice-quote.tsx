@@ -51,7 +51,11 @@ export function GuestVoiceQuote({
           <span className="sr-only">{evidence.rating} stars</span>
         </span>
         {day === null ? null : <span>{day}</span>}
-        <InlineLink to="/inbox" search={{ propertyId, itemId: evidence.inboxItemId }}>
+        <InlineLink
+          underline="always"
+          to="/inbox"
+          search={{ propertyId, itemId: evidence.inboxItemId }}
+        >
           Open in the Inbox
         </InlineLink>
       </figcaption>

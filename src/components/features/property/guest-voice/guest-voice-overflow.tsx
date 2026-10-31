@@ -20,6 +20,7 @@ export function GuestVoiceOverflow({
         <>
           {' '}
           <InlineLink
+            underline="always"
             to="/inbox"
             search={{ propertyId, since: startLocalDate, until: endLocalDate }}
           >
