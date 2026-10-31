@@ -77,6 +77,7 @@ export type OpenAiConnector = Readonly<{
     grant: AiExecutionGrantV1,
     outputSchema: z.ZodTypeAny,
     signal: AbortSignal,
+    observer?: Readonly<{ onText(text: string): void; onDispatch(): void }>,
   ): Promise<OpenAiConnectorOutcome<unknown>>
   readiness?(): boolean
   close?(): Promise<void> | void
@@ -101,6 +102,10 @@ export type PreparedGatewayRouteExecution = Readonly<{
   invocation: PreparedInvocationBase
   outputSchema: z.ZodTypeAny
   acceptProviderResult(result: unknown): AcceptedGatewayResult | null
+  observeProviderText?(
+    text: string,
+    sink: import('#/shared/reply-drafting-progress').ReplyDraftingProgressSink,
+  ): void
   repairIssues?(): readonly ReplyBodyIssueCode[]
 }>
 

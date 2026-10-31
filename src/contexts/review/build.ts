@@ -705,6 +705,7 @@ export const buildReviewContext = (input: ReviewContextBuildInput): ReviewContex
     readTrendPopulation: reviewRepo.readTrendPopulation,
     assertCurrentForAi: reviewRepo.assertCurrentForAi,
     readReplyStateRevision: reviewRepo.readReplyStateRevision,
+    hasCurrentReplyForAi: reviewRepo.hasCurrentReplyForAi,
   })
   const registerOutboxConsumers = (consumerRegistry: ConsumerRegistry) =>
     registerReplyPublicationConsumers(consumerRegistry, {

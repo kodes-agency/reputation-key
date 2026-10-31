@@ -25,7 +25,7 @@ import ENGLISH from './reply-drafting-v2-examples.json'
 import BULGARIAN from './reply-drafting-v2-examples-bg.json'
 
 const PINS = {
-  profile: '593d2ec2a473189fd138ddcbcb55e29a10bff397ffe7bfa2ca64d8218787492c',
+  profile: 'b4364da25d5ba74de7393cef31225da1d256ca1dc0a961a8b35be5aa3e72ad34',
   prompt: 'b6de6db2e52bd85713e81277b7b4eddc1a5788b37c2427bb872dae6c3581016f',
   schema: '2f7afcc12b767302d60d6b1f931fd7996d010dd7c24ba32246fff415c1d4dcd7',
   personalized: '876b60bd0893b91ad366741d57014834358dabda054bfaf3407237157c4cd96c',
@@ -50,12 +50,15 @@ describe('reply drafting v2, registered dark', () => {
       developerPrompt: REPLY_DRAFTING_V2_PROMPT,
     })
   })
-  it('registers v2 without serving it or extending consent compatibility', () => {
+  it('registers streaming compatibility without serving v2', () => {
     const dark = AI_RUNTIME_CAPABILITY_CATALOGUE.find(
       (row) => row.runtimeProfileVersion === 'reply-drafting-runtime-v2',
     )!
     expect(dark.served).toBe(false)
-    expect(dark.noticesInForce).toEqual([])
+    expect(dark.noticesInForce).toContainEqual({
+      noticeVersion: MERCHANT_AI_NOTICE_VERSION,
+      noticeDigest: MERCHANT_AI_NOTICE_DIGEST,
+    })
     expect(getAiRuntimeCapability('reply_drafting')).toMatchObject({
       runtimeProfileVersion: 'reply-drafting-runtime-v1',
       operationProfileVersion: 'reply-suggestion-v1',
@@ -69,7 +72,7 @@ describe('reply drafting v2, registered dark', () => {
         },
         servedExecution: dark,
       }),
-    ).toBe(false)
+    ).toBe(true)
   })
   it('uses the harness selection for every rating band and its separate Bulgarian book', () => {
     expect(pickReplyDraftingV2Examples(5, 0, 'es-Latn')).toEqual([

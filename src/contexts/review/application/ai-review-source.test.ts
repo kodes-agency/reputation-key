@@ -63,6 +63,7 @@ describe('createAiReviewSource', () => {
     }))
     const readReplyStateRevision = vi.fn(async () => 7)
     const source = createAiReviewSource({
+      hasCurrentReplyForAi: async () => false,
       readForAi,
       readTrendPopulation,
       assertCurrentForAi,
@@ -122,6 +123,7 @@ describe('createAiReviewSource', () => {
 
   it('returns a content-free not-found result without leaking repository shape', async () => {
     const source = createAiReviewSource({
+      hasCurrentReplyForAi: async () => false,
       readForAi: vi.fn(),
       readTrendPopulation: vi.fn(),
       assertCurrentForAi: vi.fn(),

@@ -92,6 +92,7 @@ export function bindReplyDraftingV2(
   if (!facts.voiceDigest) throw new TypeError('V2 reply requires a bound voice')
   return {
     ...base,
+    providerDeploymentProfileVersion: 'private-beta-global-v3',
     replyDraftingV2: {
       options: resolveReplyDraftingV2Options({
         languageCode: facts.languageCode,

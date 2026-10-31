@@ -1,7 +1,7 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 import { randomUUID } from 'node:crypto'
 import Redis from 'ioredis'
-import { organizationId, propertyId } from '#/shared/domain/ids'
+import { organizationId, propertyId, userId } from '#/shared/domain/ids'
 import {
   AI_ADMISSION_IN_FLIGHT,
   AI_ADMISSION_RATE_PER_MINUTE,
@@ -126,6 +126,89 @@ describe('AI lane admission adapter (real Redis)', () => {
     await expect(
       acquire('background', NOW + AI_ADMISSION_RATE_WINDOW_MILLIS + 1),
     ).resolves.toMatchObject({ ok: true })
+  })
+
+  it('atomically caps an actor at six background drafts across properties and organizations', async () => {
+    const actor = userId('manager')
+    const claims = await Promise.all(
+      Array.from({ length: 7 }, (_, index) =>
+        admission.acquire({
+          organizationId: organizationId(`org-${index}`),
+          propertyId: propertyId(randomUUID()),
+          lane: 'background',
+          backgroundDraftActorUserId: actor,
+          nowEpochMillis: NOW + index,
+        }),
+      ),
+    )
+    expect(claims.filter((claim) => claim.ok)).toHaveLength(6)
+    expect(claims.filter((claim) => !claim.ok)).toEqual([
+      {
+        ok: false,
+        code: 'admission_busy',
+        retryAfterEpochMillis: NOW + AI_ADMISSION_RATE_WINDOW_MILLIS,
+      },
+    ])
+    expect(await redis.zcard(`${base}:rate:global:background`)).toBe(6)
+    for (const claim of claims)
+      if (claim.ok) await admission.release({ admissionId: claim.admissionId })
+    const request = {
+      organizationId: organization,
+      propertyId: property,
+      lane: 'background' as const,
+      backgroundDraftActorUserId: actor,
+    }
+    expect(
+      (await admission.acquire({ ...request, nowEpochMillis: NOW + 59_999 })).ok,
+    ).toBe(false)
+    expect(
+      (await admission.acquire({ ...request, nowEpochMillis: NOW + 60_000 })).ok,
+    ).toBe(true)
+  })
+
+  it('caps Organization drafts at thirty while leaving analysis and explicit admission available', async () => {
+    for (let index = 0; index < 30; index += 1) {
+      const claim = await admission.acquire({
+        organizationId: organization,
+        propertyId: property,
+        lane: 'background',
+        backgroundDraftActorUserId: userId(`manager-${index}`),
+        nowEpochMillis: NOW + index,
+      })
+      expect(claim.ok).toBe(true)
+      if (claim.ok) await admission.release({ admissionId: claim.admissionId })
+    }
+    const denied = await admission.acquire({
+      organizationId: organization,
+      propertyId: property,
+      lane: 'background',
+      backgroundDraftActorUserId: userId('fresh-manager'),
+      nowEpochMillis: NOW + 30,
+    })
+    expect(denied).toEqual({
+      ok: false,
+      code: 'admission_busy',
+      retryAfterEpochMillis: NOW + AI_ADMISSION_RATE_WINDOW_MILLIS,
+    })
+    expect(await redis.zcard(`${base}:rate:global:background`)).toBe(30)
+    expect(
+      await redis.zcard(
+        `${base}:rate:draft:actor:${Buffer.from('fresh-manager').toString('base64url')}`,
+      ),
+    ).toBe(0)
+    expect((await acquire('background', NOW + 31)).ok).toBe(true)
+    expect((await acquire('interactive', NOW + 31)).ok).toBe(true)
+    expect(
+      (
+        await admission.acquire({
+          organizationId: organizationId('other-org'),
+          propertyId: propertyId(randomUUID()),
+          lane: 'background',
+          backgroundDraftActorUserId: userId('fresh-manager'),
+          nowEpochMillis: NOW + 31,
+        })
+      ).ok,
+    ).toBe(true)
   })
 
   it('leaves the requested headroom free in the lane', async () => {

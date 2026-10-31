@@ -1,3 +1,5 @@
+// Register the dark transport in Start's module graph without changing the composer call.
+import './reply-suggestion-stream'
 import { createServerFn } from '@tanstack/react-start'
 import { setResponseHeader } from '@tanstack/react-start/server'
 import { z } from 'zod/v4'

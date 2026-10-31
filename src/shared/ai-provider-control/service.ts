@@ -1,3 +1,7 @@
+import {
+  reportReplyProgress,
+  type ReplyDraftingProgressSink,
+} from '#/shared/reply-drafting-progress'
 import { timingSafeEqual, type KeyObject } from 'node:crypto'
 import {
   aiSettlementRequestSchema,
@@ -310,6 +314,7 @@ export type AiEgressGatewayService = Readonly<{
   execute(
     lease: SensitiveSourceLease<AiGatewayRouteRequestV1>,
     signal: AbortSignal,
+    progress?: ReplyDraftingProgressSink,
   ): Promise<AiGatewayRouteResponseV1>
   readiness(signal: AbortSignal): Promise<boolean>
 }>
@@ -354,7 +359,7 @@ export function createAiEgressGatewayService(
   const now = dependencies.now ?? Date.now
   const registry = providerRegistryOf(dependencies)
   return Object.freeze({
-    execute: async (lease, signal) => {
+    execute: async (lease, signal, progress) => {
       let attemptedRoute: string = 'review-analysis'
       let preparedEnvelope: Readonly<{
         request: AiGatewayRouteRequestV1
@@ -502,11 +507,13 @@ export function createAiEgressGatewayService(
             'provider_deadline',
           )
           try {
-            outcome = await adapter.invoke(
+            outcome = await invokeProviderWithProgress(
+              adapter,
               prepared.invocation,
               grant,
               prepared.outputSchema,
               providerDeadline.signal,
+              replyProviderObserver(prepared, progress),
             )
           } catch {
             outcome = {
@@ -524,6 +531,7 @@ export function createAiEgressGatewayService(
           }
         }
         outcome = enforceOutboundFetchDisposition(outcome)
+        reportReplyChecking(prepared, outcome, progress)
         let accepted = null
         if (outcome.disposition === 'success' && outcome.result !== null) {
           try {
@@ -698,4 +706,38 @@ function withReplyRewriteIssues(
     rewriteIssues.length > 0
     ? { ...failure, rewriteIssues: [...rewriteIssues] }
     : failure
+}
+
+function replyProviderObserver(
+  prepared: ReturnType<AiGatewayRoutePreparer['prepare']>,
+  sink?: ReplyDraftingProgressSink,
+) {
+  if (!prepared.observeProviderText) return undefined
+  return {
+    onText: (text: string) =>
+      prepared.observeProviderText?.(text, (event) => reportReplyProgress(sink, event)),
+    onDispatch: () => reportReplyProgress(sink, { step: 'thinking' }),
+  }
+}
+function invokeProviderWithProgress(
+  adapter: AiProviderAdapter,
+  ...args: Parameters<AiProviderAdapter['invoke']>
+) {
+  const [invocation, grant, schema, signal, observer] = args
+  return observer
+    ? adapter.invoke(invocation, grant, schema, signal, observer)
+    : adapter.invoke(invocation, grant, schema, signal)
+}
+
+function reportReplyChecking(
+  prepared: ReturnType<AiGatewayRoutePreparer['prepare']>,
+  outcome: OpenAiConnectorOutcome<unknown>,
+  sink?: ReplyDraftingProgressSink,
+): void {
+  if (
+    prepared.observeProviderText &&
+    outcome.usageKnown &&
+    (outcome.disposition === 'success' || outcome.disposition === 'output_invalid')
+  )
+    reportReplyProgress(sink, { step: 'checking' })
 }

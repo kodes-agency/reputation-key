@@ -11,6 +11,7 @@ import {
 import {
   OPENAI_PROVIDER_ATTESTATION_V1,
   openAiPairingOf,
+  openAiAttestationOf,
 } from './ai-openai-provider-attestation'
 import {
   logicalOperationProfileOf,
@@ -27,6 +28,7 @@ describe.each(ALL_PROFILES.map((profile) => [profile.profileVersion, profile] as
   (_version, profile) => {
     const logical = logicalOperationProfileOf(profile)
     const pairing = openAiPairingOf(logical)
+    const attestation = openAiAttestationOf(logical)
 
     it('keeps the schema, the prompt and every limit as they were', () => {
       expect(logical.outputSchemaDigest).toBe(profile.outputSchemaDigest)
@@ -55,12 +57,10 @@ describe.each(ALL_PROFILES.map((profile) => [profile.profileVersion, profile] as
     })
 
     it("moves OpenAI's request shape and reserved tokens to the attestation and the pairing, unchanged", () => {
-      expect(OPENAI_PROVIDER_ATTESTATION_V1.requestShape.digest).toBe(
-        profile.sdkRequestShapeDigest,
-      )
+      expect(attestation.requestShape.digest).toBe(profile.sdkRequestShapeDigest)
       expect(profile.artifactAttestations.sdk).toMatchObject({
-        requestShapeVersion: OPENAI_PROVIDER_ATTESTATION_V1.requestShape.version,
-        requestShapeDigest: OPENAI_PROVIDER_ATTESTATION_V1.requestShape.digest,
+        requestShapeVersion: attestation.requestShape.version,
+        requestShapeDigest: attestation.requestShape.digest,
       })
       expect(pairing.staticTokenBearing).toEqual({
         bytes: profile.staticTokenBearingBytes,
@@ -68,7 +68,7 @@ describe.each(ALL_PROFILES.map((profile) => [profile.profileVersion, profile] as
       })
       expect(pairing.providerId).toBe('openai')
       expect(pairing.logicalDigest).toBe(logical.logicalDigest)
-      expect(pairing.attestationDigest).toBe(OPENAI_PROVIDER_ATTESTATION_V1.digest)
+      expect(pairing.attestationDigest).toBe(attestation.digest)
     })
 
     it('comes back as the same catalogue entry, every digest included', () => {

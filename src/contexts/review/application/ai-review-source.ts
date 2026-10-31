@@ -214,6 +214,7 @@ export type AiReviewSourceDependencies = Readonly<{
     | 'sourceRevision'
     | 'analysisSequence'
   > | null>
+  hasCurrentReplyForAi: ReviewRepository['hasCurrentReplyForAi']
   readForAi: ReviewRepository['readForAi']
   readTrendPopulation: ReviewRepository['readTrendPopulation']
   assertCurrentForAi: ReviewRepository['assertCurrentForAi']
@@ -226,6 +227,7 @@ export type AiReviewSourceDependencies = Readonly<{
 export const createAiReviewSource = (
   dependencies: AiReviewSourceDependencies,
 ): AiReviewSourcePort => ({
+  hasCurrentReply: (input) => dependencies.hasCurrentReplyForAi(input),
   readCurrentSource: async (input) => {
     const review = await dependencies.findById(input.reviewId, input.organizationId)
     if (!review) return { status: 'not_found' }

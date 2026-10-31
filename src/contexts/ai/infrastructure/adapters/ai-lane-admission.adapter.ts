@@ -5,6 +5,7 @@ import {
   AI_ADMISSION_LEASE_MILLIS,
   AI_ADMISSION_RATE_PER_MINUTE,
   AI_ADMISSION_RATE_WINDOW_MILLIS,
+  AI_BACKGROUND_DRAFT_RATE_PER_MINUTE,
   isAiAdmissionLane,
   type AiAdmissionLane,
 } from '../../domain/admission-lanes'
@@ -17,9 +18,9 @@ import {
  * minute); in-flight sets are scored by lease expiry.
  *
  * KEYS: rate global, rate organization, rate property, in-flight global,
- *       in-flight organization, in-flight property, lease.
+ *       in-flight organization, in-flight property, lease; optional draft actor/org rates.
  * ARGV: now, lease expiry, window, three rate caps, three in-flight caps,
- *       token, headroom.
+ *       token, headroom, draft actor cap, draft organization cap.
  */
 const ACQUIRE_SCRIPT = `
 local now = tonumber(ARGV[1])
@@ -54,6 +55,17 @@ for i = 4, 6 do
     if freeAt > retryAt then retryAt = freeAt end
   end
 end
+for i = 8, #KEYS do
+  redis.call('ZREMRANGEBYSCORE', KEYS[i], '-inf', now - window)
+  local allowed = tonumber(ARGV[i + 4])
+  local count = redis.call('ZCARD', KEYS[i])
+  if count >= allowed then
+    denied = true
+    local freeing = redis.call('ZRANGE', KEYS[i], count - allowed, count - allowed, 'WITHSCORES')
+    local freeAt = tonumber(freeing[2]) + window
+    if freeAt > retryAt then retryAt = freeAt end
+  end
+end
 if denied then
   return {0, retryAt}
 end
@@ -64,6 +76,10 @@ end
 for i = 4, 6 do
   redis.call('ZADD', KEYS[i], expires, token)
   redis.call('PEXPIRE', KEYS[i], (expires - now) + window)
+end
+for i = 8, #KEYS do
+  redis.call('ZADD', KEYS[i], now, token)
+  redis.call('PEXPIRE', KEYS[i], window * 2)
 end
 redis.call('SET', KEYS[7], '1', 'PX', expires - now)
 return {1, expires}
@@ -88,6 +104,25 @@ const NAMESPACE = /^[a-z0-9][a-z0-9-]{0,63}$/
 const TOKEN =
   /^a1\.(interactive|background)\.([0-9a-f-]{36})\.([A-Za-z0-9_-]{1,400})\.([0-9a-f-]{36})$/
 const DEFAULT_NAMESPACE = 'private-beta-global-v1'
+
+function validDraftActor(input: Parameters<AiAdmissionPort['acquire']>[0]): boolean {
+  return (
+    input.backgroundDraftActorUserId === undefined ||
+    (input.lane === 'background' &&
+      ORGANIZATION_ID.test(input.backgroundDraftActorUserId))
+  )
+}
+
+function draftRateKeys(
+  namespace: string,
+  input: Parameters<AiAdmissionPort['acquire']>[0],
+): string[] {
+  if (input.backgroundDraftActorUserId === undefined) return []
+  const base = `ai-admission:{${namespace}}:rate:draft`
+  const organization = encodeOrganization(input.organizationId)
+  const actor = encodeOrganization(input.backgroundDraftActorUserId)
+  return [`${base}:actor:${actor}`, `${base}:organization:${organization}`]
+}
 
 type AdmissionKeys = Readonly<{
   rate: readonly [string, string, string]
@@ -151,6 +186,7 @@ export const createRedisAiLaneAdmissionAdapter = (
     async acquire(input) {
       const headroom = input.headroom ?? 0
       if (
+        !validDraftActor(input) ||
         !isAiAdmissionLane(input.lane) ||
         !UUID.test(input.propertyId) ||
         !ORGANIZATION_ID.test(input.organizationId) ||
@@ -174,13 +210,15 @@ export const createRedisAiLaneAdmissionAdapter = (
         token,
       )
       const expiresAtEpochMillis = input.nowEpochMillis + AI_ADMISSION_LEASE_MILLIS
+      const draftKeys = draftRateKeys(namespace, input)
       try {
         const raw = await redis.eval(
           ACQUIRE_SCRIPT,
-          7,
+          7 + draftKeys.length,
           ...keys.rate,
           ...keys.inFlight,
           keys.lease,
+          ...draftKeys,
           input.nowEpochMillis,
           expiresAtEpochMillis,
           AI_ADMISSION_RATE_WINDOW_MILLIS,
@@ -192,6 +230,8 @@ export const createRedisAiLaneAdmissionAdapter = (
           AI_ADMISSION_IN_FLIGHT.property[lane],
           token,
           headroom,
+          AI_BACKGROUND_DRAFT_RATE_PER_MINUTE.actor,
+          AI_BACKGROUND_DRAFT_RATE_PER_MINUTE.organization,
         )
         if (!Array.isArray(raw) || raw.length !== 2) {
           return { ok: false, code: 'admission_unavailable' }

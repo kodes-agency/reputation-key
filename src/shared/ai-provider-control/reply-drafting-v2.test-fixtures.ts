@@ -31,6 +31,7 @@ export function replyV2Request(
       ...base.binding,
       languageCatalogueDigest: LANGUAGE_CATALOGUE_DIGEST,
       operationProfileVersion: 'reply-suggestion-v2',
+      providerDeploymentProfileVersion: 'private-beta-global-v3',
       capabilityRuntimeProfileVersion: 'reply-drafting-runtime-v2',
       evaluatedLanguage: languageCode,
       concreteReplyLanguage: { tag: languageCode, templateGroup: languageCode },

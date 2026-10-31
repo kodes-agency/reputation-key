@@ -23,6 +23,7 @@
 // findStableIdentityByProviderSubjects returns tombstones on purpose: a
 // re-observation needs the erased Review's identity to restore it.
 
+import { hasCurrentReplyForAi } from './unanswered-review'
 import { timingSafeEqual } from 'node:crypto'
 import {
   and,
@@ -151,6 +152,7 @@ export const createReviewRepository = (
     })
   },
 
+  hasCurrentReplyForAi: (input) => hasCurrentReplyForAi(db, input),
   readReplyStateRevision: async (organizationId, reviewId) => {
     return trace('review.readReplyStateRevision', async () => {
       const [row] = await db

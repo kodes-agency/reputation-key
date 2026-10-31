@@ -132,6 +132,7 @@ export type AiProviderConnection<
     grant: AiExecutionGrantV1,
     outputSchema: z.ZodTypeAny,
     signal: AbortSignal,
+    observer?: Readonly<{ onText(text: string): void; onDispatch(): void }>,
   ): Promise<AiProviderOutcome<unknown>>
   readiness?(): boolean
   close?(): Promise<void> | void
@@ -146,3 +147,11 @@ export type AiProviderConnection<
 export type AiProviderAdapter<
   Invocation extends PreparedInvocationBase = PreparedInvocationBase,
 > = AiProviderPreparation<Invocation> & AiProviderConnection<Invocation>
+
+export type OneShotProviderFetchState = {
+  outboundFetchUsed: boolean
+  completeStatus: number | null
+  retryAfterSeconds: number | null
+  decodedResponseBytes: Uint8Array | null
+  sdkRequestBytes: Uint8Array | null
+}

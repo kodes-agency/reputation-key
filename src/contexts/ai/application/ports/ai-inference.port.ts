@@ -31,6 +31,7 @@ export type AiInferencePort = Readonly<{
   generateReply(
     input: ReplySuggestionSourceInput,
     signal: AbortSignal,
+    progress?: import('#/shared/reply-drafting-progress').ReplyDraftingProgressSink,
   ): Promise<ReplySuggestionResult>
   generateTrend(
     input: PropertyTrendSourceInput,

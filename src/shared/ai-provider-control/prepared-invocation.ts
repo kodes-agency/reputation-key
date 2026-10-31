@@ -199,6 +199,7 @@ export function createPreparedAiInvocation(
     },
     validateDescriptor: (descriptor) => {
       if (cacheMatch === null) throw new TypeError('OpenAI prompt cache key is invalid')
+      assertReplyStreamRequest(input.sdkRequest, descriptor)
       const cacheRoute = cacheMatch[1]!
       const promptVersion = cacheMatch[2]!
       const promptCacheShard = Number.parseInt(cacheMatch[3]!, 16)
@@ -232,4 +233,13 @@ export function createPreparedAiInvocation(
         [preparedAiInvocationBrand]: PREPARED_AI_INVOCATION_BRAND_VALUE,
       }),
   })
+}
+
+function assertReplyStreamRequest(
+  request: ClosedOpenAiRequest,
+  descriptor: AiAdmissionDescriptorV1,
+): void {
+  const v2 = descriptor.binding?.operationProfileVersion === 'reply-suggestion-v2'
+  if (request.stream !== v2)
+    throw new TypeError('OpenAI stream shape does not match the operation')
 }

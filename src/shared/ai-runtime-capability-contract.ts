@@ -53,7 +53,10 @@ const runtimeEntrySchema = z
       'reply-suggestion-v2',
       'property-trend-v1',
     ]),
-    providerDeploymentProfileVersion: z.literal(SERVED_PROVIDER_DEPLOYMENT_PROFILE),
+    providerDeploymentProfileVersion: z.enum([
+      SERVED_PROVIDER_DEPLOYMENT_PROFILE,
+      'private-beta-global-v3',
+    ]),
     // The notices whose consent admits this capability: the served one first,
     // then each earlier one it keeps in force (merchant-ai-notice-contract.ts).
     noticesInForce: z.array(noticeInForceSchema).min(1),
@@ -116,8 +119,8 @@ export const AI_RUNTIME_CAPABILITY_CATALOGUE = Object.freeze([
     gatewayProfileVersion: 'reply-suggestion-gateway-v2',
     caller: 'web',
     operationProfileVersion: 'reply-suggestion-v2',
-    providerDeploymentProfileVersion: SERVED_PROVIDER_DEPLOYMENT_PROFILE,
-    noticesInForce: Object.freeze([]),
+    providerDeploymentProfileVersion: 'private-beta-global-v3',
+    noticesInForce: MERCHANT_AI_NOTICES_IN_FORCE,
     served: false,
   }),
 ] as const)
@@ -230,9 +233,9 @@ export type AiConsentCompatibility = AiConsentExecution &
     noticesInForce: ReadonlyArray<MerchantAiNoticeReference>
   }>
 
-/** Only the served profiles authorize new provider work and its settlement. */
+/** Compatibility is registered independently of serving; gateway serving remains exact. */
 const AI_CONSENT_COMPATIBILITY: ReadonlyArray<AiConsentCompatibility> =
-  AI_RUNTIME_CAPABILITIES_V1
+  AI_RUNTIME_CAPABILITY_CATALOGUE
 
 /**
  * Consent follows the notice. Recorded runtime/deployment evidence is deliberately

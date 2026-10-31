@@ -89,8 +89,10 @@ export function createOpenAiProviderAdapter(
 ): AiProviderAdapter<PreparedAiInvocation> {
   return Object.freeze({
     ...createOpenAiProviderPreparation(),
-    invoke: (invocation, grant, outputSchema, signal) =>
-      connector.invoke(invocation, grant, outputSchema, signal),
+    invoke: (invocation, grant, outputSchema, signal, observer) =>
+      observer
+        ? connector.invoke(invocation, grant, outputSchema, signal, observer)
+        : connector.invoke(invocation, grant, outputSchema, signal),
     readiness: () => connector.readiness?.() ?? true,
     close: () => connector.close?.(),
     destroy: () => connector.destroy?.(),

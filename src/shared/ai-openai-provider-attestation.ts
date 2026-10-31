@@ -1,3 +1,4 @@
+import { OPENAI_REPLY_STREAM_ATTESTATION } from './ai-openai-stream-profile'
 import {
   OPENAI_MODEL_SNAPSHOT,
   renderOpenAiStaticTokenBearingMaterial,
@@ -59,6 +60,7 @@ export const OPENAI_PROVIDER_ATTESTATION_V1 = defineProviderAttestation(
  */
 export function openAiPairingOf(
   profile: Readonly<{
+    profileVersion?: string
     logicalDigest: string
     developerPrompt: string
     outputSchemaName: string
@@ -77,7 +79,7 @@ export function openAiPairingOf(
   return defineOperationProviderPairing({
     providerId: 'openai',
     logicalDigest: profile.logicalDigest,
-    attestationDigest: OPENAI_PROVIDER_ATTESTATION_V1.digest,
+    attestationDigest: openAiAttestationOf(profile).digest,
     schemaTransform: {
       version: 'openai-strict-json-schema-identity-v1',
       digest: digestProviderAttestationValue(
@@ -90,4 +92,10 @@ export function openAiPairingOf(
       digest: staticMaterial.digest,
     },
   })
+}
+
+export function openAiAttestationOf(profile: Readonly<{ profileVersion?: string }>) {
+  return profile.profileVersion === 'reply-suggestion-v2'
+    ? OPENAI_REPLY_STREAM_ATTESTATION
+    : OPENAI_PROVIDER_ATTESTATION_V1
 }
