@@ -1,3 +1,4 @@
+import { merchantAiNoticeInForceSql } from '#/shared/db/merchant-ai-notice-in-force'
 import { sql, type SQL } from 'drizzle-orm'
 import type { Database } from '#/shared/db'
 import { propertyIdInScope } from '#/shared/db/property-scope'
@@ -43,6 +44,7 @@ const MERCHANT_AI_STATES: ReadonlySet<string> = new Set([
   'disabled',
   'enabled',
   'revoked',
+  'paused',
 ])
 
 function readFlag(row: FactRow, column: keyof FactRow): boolean {
@@ -138,7 +140,8 @@ function propertyFactsSql(organizationId: OrganizationId, scope: SQL): SQL {
       (p.google_binding_state = 'active') AS google_binding_active,
       (synced.property_id IS NOT NULL) AS reviews_synced,
       (p.default_reply_language IS NOT NULL) AS reply_language_chosen,
-      enablement.state AS merchant_ai_state,
+      CASE WHEN enablement.state = 'enabled' AND NOT ${merchantAiNoticeInForceSql(sql`enablement.notice_version`, sql`enablement.notice_digest`)}
+        THEN 'paused' ELSE enablement.state END AS merchant_ai_state,
       EXISTS (
         SELECT 1
         FROM ${merchantAiDecisionDeferrals} deferral

@@ -2,14 +2,14 @@
 status: accepted
 accepted_by: Bozhidar Denev
 accepted_on: 2026-09-08
-amended_on: 2026-10-14
+amended_on: 2026-11-01
 ---
 
 # Closed Beta Participation Agreement — Reputation Key
 
 **Status:** Accepted for publication and invited-beta use
-**Effective date:** 2026-10-14
-**Version:** 2.1
+**Effective date:** 2026-11-01
+**Version:** 2.2
 **Accountable owner:** Bozhidar Denev
 
 ## 1. Parties and beta purpose
@@ -47,7 +47,7 @@ release readiness, the core product includes:
 
 Core analytics are part of the Service. There is no product option to decline
 the affected operational metrics while continuing to use the workflow. The
-accepted [Privacy Notice version 2.2](/privacy), effective 2026-10-13, forms part
+accepted [Privacy Notice version 3.1](/privacy), effective 2026-11-01, forms part
 of this agreement and states the applicable roles, legal bases, and rights
 process.
 
@@ -230,7 +230,7 @@ agreement does not create them.
 
 ## 9. Data handling, retention, and providers
 
-The accepted [Privacy Notice version 2.2](/privacy), effective 2026-10-13, and
+The accepted [Privacy Notice version 3.1](/privacy), effective 2026-11-01, and
 its retention and provider schedules form part of this agreement. They cover
 Participant, Google source, Portal and Guest, manager-authored, AI-derived,
 monitoring, export, backup, and independently retained evidence classes.
@@ -281,8 +281,8 @@ capability schedule are available.
 
 This agreement is accepted together with:
 
-- Privacy Notice version 2.2, effective 2026-10-13, at `/privacy`;
-- Google Business Profile Access Disclosure version 2.1, effective 2026-10-14,
+- Privacy Notice version 3.1, effective 2026-11-01, at `/privacy`;
+- Google Business Profile Access Disclosure version 2.2, effective 2026-11-01,
   at `/privacy/google-access-disclosure`;
 - the activated-capability schedule in `docs/BETA.md` section 4; and
 - the retention, provider, transfer, rights, deployment, and change rules in
@@ -295,8 +295,9 @@ invited Participant accepts the Participant obligations by joining.
 
 ## 13. Changes
 
-This agreement takes effect on 2026-10-14 and is version 2.1. It replaces
-version 2.0, which took effect on 2026-09-08.
+This agreement takes effect on 2026-11-01 and is version 2.2. It replaces
+version 2.1, which took effect on 2026-10-14 and had replaced version 2.0, which
+took effect on 2026-09-08.
 
 Version 2.1 adds the Property Google rating goal to sections 2.2 and 6, and
 section 12 names version 2.1 of the Google Business Profile Access Disclosure,
@@ -315,3 +316,16 @@ term of the Privacy Notice.
 
 Nothing else changes. For these reasons the changes in version 2.1 are not
 material, and version 2.1 takes effect on the day it is published.
+
+Version 2.2 names the current versions of the two documents it is accepted
+with: Privacy Notice version 3.1, effective 2026-11-01, in sections 2.1, 9, and
+12, and Google Business Profile Access Disclosure version 2.2, effective
+2026-11-01, in section 12. Version 2.1 of this agreement named Privacy Notice
+version 2.2, which has since been replaced by versions 2.3, 2.4, 2.5, 3.0, and
+3.1. Privacy Notice version 3.1 and Disclosure version 2.2 change how a new
+Merchant AI notice takes effect: an AccountAdmin's opt-in for a Property carries
+over to each later Merchant AI notice for the AI features already on, and
+AccountAdmins are told in the Service what changed afterwards. This agreement
+adds no term of its own to that rule and no duty for Participants. Version 2.2
+takes effect on the day it is published, on the accountable owner's decision
+for the closed beta.

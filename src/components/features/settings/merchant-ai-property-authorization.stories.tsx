@@ -341,6 +341,45 @@ export const ReconsentUnderTheNoticeBeforeTheSwitchOn: Story = {
   },
 }
 
+// ADR 0075: a Property whose AI is on moves to a newer notice by itself. Until the
+// update lands, a head on a notice that is no longer in force is Paused, never
+// "On": the badge says so, a plain sentence says why, and turning AI off stays
+// available.
+const lapsed: MerchantAiSnapshot = {
+  ...enabled,
+  noticeVersion: 'merchant-ai-notice-2026-09-15.v1',
+  noticeDigest: '6c98ae3bb57b5b142afed1749a1b9f59be8d6ca7edaca3250e39055897289a9c',
+}
+
+export const PausedNeedsAttention: Story = {
+  args: { snapshot: lapsed },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    await expect(canvas.getByText('Paused — needs attention')).toBeVisible()
+    await expect(canvas.queryByText('On')).not.toBeInTheDocument()
+    await expect(canvas.getByText(/the automatic update is waiting/i)).toBeVisible()
+    await expect(
+      canvas.getByRole('button', { name: /turn off ai features/i }),
+    ).toBeEnabled()
+  },
+}
+
+export const PausedUntilGoogleIsReconnected: Story = {
+  args: {
+    property: { ...property, googleBindingState: 'disconnected' },
+    snapshot: lapsed,
+  },
+  decorators: [withRole('AccountAdmin')],
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    await expect(canvas.getByText('Paused — needs attention')).toBeVisible()
+    await expect(canvas.getByText('Reconnect Google')).toBeVisible()
+    await expect(
+      canvas.getByRole('button', { name: /turn off ai features/i }),
+    ).toBeEnabled()
+  },
+}
+
 export const Revoked: Story = {
   args: {
     snapshot: {

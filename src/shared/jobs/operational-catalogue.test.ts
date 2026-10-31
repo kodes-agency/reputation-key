@@ -111,6 +111,28 @@ describe('job operational catalogue', () => {
     })
   })
 
+  it('schedules standing renewal every ten minutes without gating tenant enumeration', () => {
+    expect(
+      JOB_OPERATIONAL_CONTRACTS.find(
+        (row) => row.jobName === 'merchant-ai-standing-renewal',
+      ),
+    ).toMatchObject({
+      owner: 'identity',
+      capability: 'none',
+      posture: 'active',
+      schedule: 'every:600000',
+      queue: 'background',
+    })
+    expect(
+      createOperationalSchedulerPlan().desired.find(
+        (row) => row.jobName === 'merchant-ai-standing-renewal',
+      ),
+    ).toMatchObject({
+      schedulerId: 'merchant-ai-standing-renewal-recurring',
+      repeat: { every: 600_000 },
+    })
+  })
+
   describe('repair command', () => {
     const activeScheduled = JOB_OPERATIONAL_CONTRACTS.filter(
       ({ posture, schedule }) => posture === 'active' && schedule !== 'none',

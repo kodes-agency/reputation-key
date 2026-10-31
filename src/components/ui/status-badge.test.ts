@@ -27,6 +27,20 @@ function render(status: string): string {
 const iconClass = (html: string): string | undefined => /lucide-[\w-]+/u.exec(html)?.[0]
 
 describe('StatusBadge', () => {
+  it('wraps a long status when requested while preserving single-line defaults', () => {
+    const html = renderToStaticMarkup(
+      createElement(StatusBadge, {
+        tone: 'warn',
+        label: 'Paused — needs attention',
+        wrap: true,
+      }),
+    )
+    expect(html).toContain('whitespace-normal')
+    expect(html).toContain('max-w-full')
+    expect(html).not.toContain('whitespace-nowrap')
+    expect(html).not.toContain('wrap=')
+    expect(render('active')).toContain('whitespace-nowrap')
+  })
   it('prints the label, not the status token', () => {
     const html = render('active')
 

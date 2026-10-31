@@ -183,6 +183,36 @@ describe.sequential('Identity Organization lifecycle contributor receipts', () =
     organizations.clear()
   })
 
+  it('purges AI update seen receipts even when the other Identity phase has no data', async () => {
+    const current = input({ lifecycleRevision: 4 })
+    await seedAuthority(current, 'purging')
+    const userId = `ai-update-receipt-${randomUUID()}`
+    await lease.pool.query(
+      `INSERT INTO "user" (id, name, email, "emailVerified", "createdAt", "updatedAt")
+      VALUES ($1, 'Manager', $2, true, now(), now())`,
+      [userId, `${userId}@example.test`],
+    )
+    try {
+      await lease.pool.query(
+        `INSERT INTO merchant_ai_notice_update_receipts
+        (user_id, organization_id, notice_version, notice_digest) VALUES ($1, $2, 'fixture-v1', $3)`,
+        [userId, current.organizationId, 'a'.repeat(64)],
+      )
+      const lifecycle = contributor(async () => ({
+        outcome: 'no_data',
+        evidenceRef: 'identity:fixture',
+      }))
+      expect(await lifecycle.purge(current)).toMatchObject({ outcome: 'complete' })
+      const result = await lease.pool.query(
+        'SELECT user_id FROM merchant_ai_notice_update_receipts WHERE organization_id = $1',
+        [current.organizationId],
+      )
+      expect(result.rows).toEqual([])
+    } finally {
+      await lease.pool.query('DELETE FROM "user" WHERE id = $1', [userId])
+    }
+  })
+
   it('executes concurrent first attempts once and replays the durable result', async () => {
     const contributionInput = input({ lifecycleRevision: 1 })
     await seedAuthority(contributionInput, 'closure_requested')

@@ -112,6 +112,21 @@ describe('capability-specific merchant AI consent epochs', () => {
       CURRENT_MERCHANT_AI_CAPABILITIES,
     )
   })
+  it('advances all three epochs when standing renewal skips from 09-15 to 10-30', () => {
+    const previous = {
+      ...current,
+      noticeVersion: 'merchant-ai-notice-2026-09-15.v1',
+      noticeDigest: '6c98ae3bb57b5b142afed1749a1b9f59be8d6ca7edaca3250e39055897289a9c',
+    }
+    const served = MERCHANT_AI_NOTICE_CHANGES[0]!
+    const changes = materiallyChangedMerchantAiCapabilities(previous, served)
+    expect(changes).toEqual(CURRENT_MERCHANT_AI_CAPABILITIES)
+    expect(nextMerchantAiCapabilityEpochs(previous, input, false, changes)).toEqual({
+      review_analysis: 4,
+      reply_drafting: 6,
+      property_trends: 8,
+    })
+  })
   it('records the material scope of the existing switch-on notice', () => {
     const notice = MERCHANT_AI_NOTICE_CHANGES[0]!
     expect(materiallyChangedMerchantAiCapabilities(notice.replaces!, notice)).toEqual(

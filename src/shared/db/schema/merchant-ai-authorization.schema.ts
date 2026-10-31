@@ -191,6 +191,9 @@ export const merchantAiConsentEvidence = pgTable(
       ],
       name: 'merchant_ai_consent_evidence_review_head_fk',
     }).onDelete('restrict'),
+    index('merchant_ai_consent_evidence_standing_update_idx')
+      .on(t.organizationId, t.noticeVersion, t.noticeDigest, t.occurredAt.desc())
+      .where(sql`${t.reasonCode} = 'standing_renewal'`),
     uniqueIndex('merchant_ai_consent_evidence_idempotency_unique').on(
       t.organizationId,
       t.idempotencyKey,
@@ -342,6 +345,9 @@ export const merchantAiEnablement = pgTable(
       'merchant_ai_enablement_runtime_map_valid',
       validRuntimeProfileMap(t.capabilities, t.capabilityRuntimeProfileVersions),
     ),
+    index('merchant_ai_enablement_enabled_notice_idx')
+      .on(t.noticeVersion, t.noticeDigest)
+      .where(sql`${t.state} = 'enabled'`),
     index('merchant_ai_enablement_org_idx').on(t.organizationId, t.updatedAt.desc()),
   ],
 )

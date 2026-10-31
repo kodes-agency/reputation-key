@@ -1,3 +1,4 @@
+import { sql } from 'drizzle-orm'
 import type { Database } from '#/shared/db'
 import {
   createOrganizationLifecycleContributorScaffold,
@@ -37,6 +38,12 @@ export const createIdentityOrganizationLifecycleContributor = (
       deps.prepareClosing(tx, request),
     verifyPurgeReadiness: (tx, request: OrganizationLifecycleContributionRequest) =>
       deps.verifyPurgeReadiness(tx, request),
-    purge: (tx, request: OrganizationLifecycleContributionRequest) =>
-      deps.purge(tx, request),
+    purge: async (tx, request: OrganizationLifecycleContributionRequest) => {
+      const result = await deps.purge(tx, request)
+      const removed = await tx.execute(sql`DELETE FROM merchant_ai_notice_update_receipts
+        WHERE organization_id = ${request.organizationId} RETURNING user_id`)
+      return removed.rows.length > 0
+        ? { ...result, outcome: 'complete' as const }
+        : result
+    },
   })

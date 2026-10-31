@@ -114,3 +114,11 @@ exact served-execution check still denies it. V1's served deployment and pins
 remain unchanged. This registration neither records consent nor advances epochs.
 Migration 0086 only widens historical deployment CHECKs and seeds the new control
 head. It stores no draft/progress content; browser-owned drafts remain ephemeral.
+
+## Amended 2026-10-31 by ADR 0075
+
+A merchant's opt-in now stands: when a new notice is served, enabled Properties
+move to it automatically with the capabilities they had
+([ADR 0075](0075-standing-ai-opt-in-renews-automatically.md)). The "explicit
+acknowledgement" above applies only to capabilities a Property does not already
+have on. Everything else in this ADR is unchanged.

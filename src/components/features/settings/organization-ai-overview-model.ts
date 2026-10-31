@@ -6,20 +6,21 @@ import type {
 import type { StatusMap } from '#/components/ui/status-badge'
 import { formatNumber } from '#/lib/format'
 
-export type AiOverviewStatus = 'on' | 'not_now' | 'turned_off' | 'off'
+export type AiOverviewStatus = 'on' | 'paused' | 'not_now' | 'turned_off' | 'off'
 
 export function aiOverviewStatus(entry: MerchantAiOverviewEntry): AiOverviewStatus {
-  if (entry.state === 'enabled') return 'on'
-  if (entry.decisionDeferredAt !== null) return 'not_now'
+  if (entry.state === 'enabled') return entry.reconsentRequired ? 'paused' : 'on'
   if (entry.state === 'revoked') return 'turned_off'
+  if (entry.decisionDeferredAt !== null) return 'not_now'
   return 'off'
 }
 
 /** How a property's AI state reads as a pill: only "On" is a colour. */
 export const AI_OVERVIEW_STATUS: StatusMap<AiOverviewStatus> = {
+  paused: { label: 'Paused — needs attention', tone: 'warn' },
   on: { label: 'On', tone: 'positive' },
   not_now: { label: 'Not now', tone: 'neutral' },
-  turned_off: { label: 'Turned off', tone: 'neutral' },
+  turned_off: { label: 'Off', tone: 'neutral' },
   off: { label: 'Off', tone: 'neutral' },
 }
 
@@ -44,9 +45,9 @@ export function summarizeAiOverview(
   entries: ReadonlyArray<MerchantAiOverviewEntry>,
 ): AiOverviewSummary {
   return {
-    on: entries.filter((entry) => entry.state === 'enabled').length,
+    on: entries.filter((entry) => aiOverviewStatus(entry) === 'on').length,
     total: entries.length,
-    reconsent: entries.filter((entry) => entry.reconsentRequired).length,
+    reconsent: entries.filter((entry) => aiOverviewStatus(entry) === 'paused').length,
     undecided: entries.filter((entry) => aiOverviewStatus(entry) === 'off').length,
   }
 }
@@ -71,4 +72,19 @@ export function analysisSummary(progress: ReviewAnalysisProgress | undefined): s
   if (progress.status === 'caught_up') return `${progress.analysed} analysed`
   const waiting = progress.queued + progress.inProgress
   return `${progress.analysed} analysed · ${waiting} to go`
+}
+
+/** A paused Property needs a practical next step, never a new consent ceremony. */
+export function aiPauseReason(reason: string | null | undefined): string {
+  const reasons: Readonly<Record<string, string>> = {
+    google_unbound: 'Reconnect Google',
+    no_account_admin: 'No account admin',
+    property_not_manageable: 'Restore this property to continue',
+    source_changed: 'Check this property’s Google connection',
+    org_suspended: 'Your account is paused — contact support',
+    policy_denied: 'AI is unavailable — contact support',
+    update_pending:
+      'The automatic update is waiting. If it stays paused, contact support.',
+  }
+  return reasons[reason ?? 'update_pending'] ?? reasons.update_pending!
 }

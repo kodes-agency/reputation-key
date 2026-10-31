@@ -240,6 +240,7 @@ describe('Merchant AI overview reader', () => {
           noticeVersion: MERCHANT_AI_NOTICE_VERSION,
           noticeDigest: MERCHANT_AI_NOTICE_DIGEST,
         },
+        pauseReason: null,
         decisionDeferredAt: null,
       },
       {
@@ -252,6 +253,7 @@ describe('Merchant AI overview reader', () => {
           noticeVersion: PREVIOUS_NOTICE_VERSION,
           noticeDigest: PREVIOUS_NOTICE_DIGEST,
         },
+        pauseReason: null,
         decisionDeferredAt: AT,
       },
       {
@@ -259,6 +261,7 @@ describe('Merchant AI overview reader', () => {
         propertyName: 'gamma',
         googleBindingActive: false,
         authorization: null,
+        pauseReason: 'google_unbound',
         decisionDeferredAt: null,
       },
     ])
@@ -334,7 +337,7 @@ describe('Organization AI overview', () => {
     isNoticeInForce: isMerchantAiNoticeInForce,
   })
 
-  it('shows an AccountAdmin every Property with state, re-consent flag and deferral', async () => {
+  it('shows an AccountAdmin every Property with state, pause flag and deferral', async () => {
     const { properties } = await overview({ organizationId: ORG, actorUserId: OWNER })
 
     expect(properties).toEqual([
@@ -354,7 +357,7 @@ describe('Organization AI overview', () => {
         state: 'revoked',
         capabilities: [],
         noticeVersion: PREVIOUS_NOTICE_VERSION,
-        reconsentRequired: true,
+        reconsentRequired: false,
         decisionDeferredAt: AT.toISOString(),
         googleBindingActive: true,
       },
@@ -381,5 +384,59 @@ describe('Organization AI overview', () => {
     await expect(
       overview({ organizationId: ORG, actorUserId: OUTSIDER }),
     ).rejects.toMatchObject({ code: 'capability_denied' })
+  })
+})
+
+// A Property whose AI is on but whose notice lapsed waits for the automatic update.
+// The reader says what, if anything, stands in its way; the page words it.
+describe('Merchant AI overview reader: why a lapsed Property is paused', () => {
+  it('names the first thing that blocks the update, and nothing for a Property that can renew', async () => {
+    const ready = randomUUID()
+    const unbound = randomUUID()
+    const moved = randomUUID()
+    const archived = randomUUID()
+    for (const [id, name] of [
+      [ready, 'ready'],
+      [unbound, 'unbound'],
+      [moved, 'moved'],
+      [archived, 'archived'],
+    ] as const) {
+      await insertProperty({ id, organization: ORG, name, bound: true })
+      await pool.query(
+        `INSERT INTO review_ai_analysis_heads (organization_id, property_id, source_epoch, head_sequence)
+         VALUES ($1, $2, 0, 0)`,
+        [ORG, id],
+      )
+      await transitionMerchantAi({
+        property: id,
+        lineage: randomUUID(),
+        kind: 'enable',
+        noticeVersion: PREVIOUS_NOTICE_VERSION,
+        noticeDigest: PREVIOUS_NOTICE_DIGEST,
+      })
+    }
+    await pool.query(
+      `UPDATE properties SET google_binding_state = 'unbound', google_connection_id = NULL,
+         gbp_account_id = NULL, gbp_location_id = NULL WHERE id = $1`,
+      [unbound],
+    )
+    await pool.query('UPDATE properties SET source_epoch = 1 WHERE id = $1', [moved])
+    await pool.query(`UPDATE properties SET lifecycle_state = 'archived' WHERE id = $1`, [
+      archived,
+    ])
+
+    const rows = await createMerchantAiOverviewReader(db).listOverview({
+      organizationId: ORG,
+      propertyIds: [ready, unbound, moved, archived],
+    })
+
+    expect(
+      Object.fromEntries(rows.map((row) => [row.propertyName, row.pauseReason])),
+    ).toEqual({
+      ready: null,
+      unbound: 'google_unbound',
+      moved: 'source_changed',
+      archived: 'property_not_manageable',
+    })
   })
 })

@@ -69,6 +69,7 @@ function toRecord(row: Row): MerchantAiOverviewRecord {
     propertyName: readText(row, 'property_name'),
     googleBindingActive: row.google_binding_active as boolean,
     authorization,
+    pauseReason: typeof row.pause_reason === 'string' ? row.pause_reason : null,
     decisionDeferredAt: readDeferredAt(row.deferred_at),
   })
 }
@@ -82,6 +83,13 @@ export const createMerchantAiOverviewReader = (
         property.id::text AS property_id,
         property.name AS property_name,
         (property.google_binding_state = 'active') AS google_binding_active,
+        CASE
+          WHEN property.lifecycle_state <> 'active' THEN 'property_not_manageable'
+          WHEN property.google_binding_state <> 'active' THEN 'google_unbound'
+          WHEN NOT EXISTS (SELECT 1 FROM member m JOIN "user" u ON u.id = m."userId"
+            WHERE m."organizationId" = property.organization_id AND m.role = 'owner') THEN 'no_account_admin'
+          WHEN enablement.authorized_source_epoch <> property.source_epoch THEN 'source_changed'
+          ELSE NULL END AS pause_reason,
         enablement.state,
         enablement.capabilities,
         enablement.notice_version,

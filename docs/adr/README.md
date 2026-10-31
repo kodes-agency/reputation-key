@@ -45,3 +45,4 @@ Missing numbers are retired, merged, or never issued: `0001–0006`, `0009–001
 | [0072](0072-shell-checks-remembered-in-the-browser.md)                    | The shell's checks are remembered in the browser for 30 seconds | accepted | —             |
 | [0073](0073-reply-voice-and-shared-reply-templates.md)                    | Reply voice and shared reply templates                          | accepted | —             |
 | [0074](0074-merchant-ai-consent-follows-the-notice.md)                    | Merchant AI consent follows the notice                          | accepted | —             |
+| [0075](0075-standing-ai-opt-in-renews-automatically.md)                   | A standing AI opt-in renews automatically                       | accepted | —             |

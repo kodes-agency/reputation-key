@@ -725,6 +725,18 @@ const BACKGROUND_QUEUE_ROWS: ReadonlyArray<JobFamilyRow> = [
     { timeoutMs: 300_000 },
   ),
   job(
+    'merchant-ai-standing-renewal',
+    'src/contexts/identity/infrastructure/jobs/merchant-ai-standing-renewal.job.ts',
+    {
+      queue: 'background',
+      capability: 'none',
+      action: 'system:identity.merchant_ai_standing_renewal',
+      schedule: 'every:600000',
+      registration: 'enabled',
+    },
+    { timeoutMs: 300_000 },
+  ),
+  job(
     'ai-review-analysis-enrollment-sweep',
     'src/shared/jobs/ai-review-analysis-enrollment-sweep.job.ts',
     {

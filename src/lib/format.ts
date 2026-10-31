@@ -92,6 +92,19 @@ export function formatDate(
   return formatShape('date', value, zone)
 }
 
+/** "12 Sep 2026", for dated AI-update announcements. */
+export function formatDayMonthYear(
+  value: InstantInput | null | undefined,
+  zone: DisplayZone = DEFAULT_ZONE,
+): string | null {
+  const instant = toInstant(value)
+  if (!instant) return null
+  const parts = dateFormatter('date', zone).formatToParts(instant)
+  return ['day', 'month', 'year']
+    .map((type) => parts.find((part) => part.type === type)?.value)
+    .join(' ')
+}
+
 /** "Sep 12" */
 export function formatMonthDay(
   value: InstantInput | null | undefined,

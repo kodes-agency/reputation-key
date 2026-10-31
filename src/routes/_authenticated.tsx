@@ -45,7 +45,11 @@ import {
   listMyBetaFeedbackFn,
   submitBetaFeedbackFn,
 } from '#/contexts/identity/server/beta-feedback'
-import type { ComponentProps, ReactNode } from 'react'
+import { lazy, Suspense, type ComponentProps, type ReactNode } from 'react'
+
+const MerchantAiNoticeUpdate = lazy(
+  () => import('./_authenticated/-merchant-ai-notice-update'),
+)
 
 /**
  * What the shell knows about the person, read by every page below it.
@@ -300,7 +304,8 @@ function AuthenticatedShell({ children }: Readonly<{ children: ReactNode }>) {
   useRememberAppLocation()
   // The launcher is offered to whoever the server lets report, which is a
   // permission and not a rank.
-  const mayReportBeta = usePermissions().can('feedback.beta_report')
+  const permissions = usePermissions()
+  const mayReportBeta = permissions.can('feedback.beta_report')
   const isManager = hasRole(ctx.role, 'PropertyManager')
 
   // One tree whatever the page: the provider, sidebar, inset, top bar and `<main>`
@@ -346,6 +351,11 @@ function AuthenticatedShell({ children }: Readonly<{ children: ReactNode }>) {
             submitBetaFeedback={mayReportBeta ? submitBetaFeedbackFn : undefined}
             listBetaFeedback={mayReportBeta ? listMyBetaFeedbackFn : undefined}
           />
+          {permissions.can('ai.manage') && (
+            <Suspense>
+              <MerchantAiNoticeUpdate />
+            </Suspense>
+          )}
           {/* The only element that pads a page (PAGE_GUTTER); nothing below adds a second gutter. */}
           <main
             className={`min-w-0 flex-1 ${

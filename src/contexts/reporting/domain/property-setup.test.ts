@@ -221,6 +221,12 @@ describe('derivePropertySetupSteps', () => {
     expect(statuses(revoked, 'PropertyManager').ai_decision).toBe('needs_admin')
   })
 
+  it('does not complete AI setup for a lapsed enabled head', () => {
+    const paused = facts({ merchantAiState: 'paused', aiDecisionDeferred: true })
+    expect(statuses(paused, 'AccountAdmin').ai_decision).toBe('pending')
+    expect(statuses(paused, 'PropertyManager').ai_decision).toBe('needs_admin')
+  })
+
   it('lets an enabled authorization complete the decision even beside a stale deferral', () => {
     const enabled = facts({ merchantAiState: 'enabled', aiDecisionDeferred: true })
 

@@ -2,6 +2,8 @@ import { describe, expect, it } from 'vitest'
 import type { MerchantAiOverviewEntry } from '#/contexts/identity/application/public-api'
 import {
   aiOverviewStatus,
+  aiPauseReason,
+  AI_OVERVIEW_STATUS,
   analysisSummary,
   formatMicros,
   spendShare,
@@ -29,6 +31,11 @@ describe('organization AI overview model', () => {
       aiOverviewStatus(entry({ decisionDeferredAt: '2026-09-15T10:00:00.000Z' })),
     ).toBe('not_now')
     expect(aiOverviewStatus(entry({ state: 'revoked' }))).toBe('turned_off')
+    expect(
+      aiOverviewStatus(
+        entry({ state: 'revoked', decisionDeferredAt: '2026-10-31T09:00:00Z' }),
+      ),
+    ).toBe('turned_off')
     expect(aiOverviewStatus(entry())).toBe('off')
   })
 
@@ -40,7 +47,18 @@ describe('organization AI overview model', () => {
         entry({ decisionDeferredAt: '2026-09-15T10:00:00.000Z' }),
         entry(),
       ]),
-    ).toEqual({ on: 2, total: 4, reconsent: 1, undecided: 1 })
+    ).toEqual({ on: 1, total: 4, reconsent: 1, undecided: 1 })
+  })
+
+  it('shows lapsed enabled heads as paused with practical reasons, and revoked heads as off', () => {
+    expect(aiOverviewStatus(entry({ state: 'enabled', reconsentRequired: true }))).toBe(
+      'paused',
+    )
+    expect(AI_OVERVIEW_STATUS.paused.label).toBe('Paused — needs attention')
+    expect(AI_OVERVIEW_STATUS.turned_off.label).toBe('Off')
+    expect(aiPauseReason('google_unbound')).toBe('Reconnect Google')
+    expect(aiPauseReason('no_account_admin')).toBe('No account admin')
+    expect(aiPauseReason('org_suspended')).toContain('contact support')
   })
 
   it('formats spend and caps the share at the monthly limit', () => {

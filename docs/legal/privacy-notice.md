@@ -3,14 +3,14 @@ status: accepted
 accepted_by: Bozhidar Denev
 accepted_on: 2026-09-08
 corrected_on: 2026-10-13
-amended_on: 2026-10-30
+amended_on: 2026-11-01
 ---
 
 # Privacy Notice — Reputation Key Closed Beta
 
 **Status:** Accepted for publication
-**Effective date:** 2026-10-30
-**Version:** 3.0
+**Effective date:** 2026-11-01
+**Version:** 3.1
 **Accountable owner:** Bozhidar Denev
 
 ## 1. About this notice
@@ -39,9 +39,12 @@ Organization's documented instructions. Guest private ratings and feedback are
 voluntary submissions processed for the Organization's legitimate interest in
 service quality.
 
-AI features run only after an Organization administrator records an opt-in to
-the current Merchant AI notice. A new notice version requires a new recorded
-opt-in.
+AI features run only after an Organization administrator records an opt-in for
+a Property under the current Merchant AI notice. When a later Merchant AI notice
+replaces it, the opt-in carries over automatically to the AI features the
+Property already has on, and the Organization's administrators are told in the
+Service what changed. A feature that is off, or a new feature, needs a new
+recorded opt-in. An administrator can turn AI features off at any time.
 
 ## 2. Information handled by the Service
 
@@ -406,15 +409,31 @@ West); no EU deployment exists.
 
 ## 9. Changes and contact
 
-This notice takes effect on 2026-10-30 and is version 3.0. It replaces version
+This notice takes effect on 2026-11-01 and is version 3.1. It replaces version
+3.0, which took effect on 2026-10-30 and had replaced version
 2.5, which took effect on 2026-10-16 and had replaced version 2.4, which took
 effect on 2026-10-16 and had replaced version 2.3, which took
 effect on 2026-10-16 and had replaced version 2.2, which took effect on
 2026-10-13 and had replaced version 2.1, which took effect on 2026-10-12 and had
 replaced version 2.0, which took effect on 2026-09-08.
 Material changes will be announced to Participants by email at least 14 days
-before they take effect. The version and effective date will remain shown on
-this page.
+before they take effect, with one exception: a new Merchant AI notice takes
+effect when it is published, and each Organization's administrators are told in
+the Service what changed (section 1). When a change names a new AI provider,
+that provider receives no Google review before the 14th day after Participants
+are told by email. The version and effective date will remain shown on this
+page.
+
+Version 3.1 changes how a new Merchant AI notice takes effect (sections 1 and
+9). An Organization administrator's opt-in for a Property now carries over to
+each later Merchant AI notice for the AI features the Property already has on,
+and administrators are told in the Service what changed after the change takes
+effect. A feature that is off, or a new feature, still needs its own opt-in, and
+an administrator can turn AI features off at any time. A new AI provider still
+receives no Google review before the 14th day after Participants are told by
+email. Version 3.1 takes effect on the day it is published, on the accountable
+owner's decision for the closed beta. Nothing else about the Service changes
+with version 3.1.
 
 Version 3.0 adds Anthropic as a second AI provider (sections 2, 4 and 5).
 Participants are told by email on the day this version is published. Anthropic

@@ -1,3 +1,5 @@
+import { MerchantAiNoticeUpdateLine } from './merchant-ai-notice-update-line'
+import type { MerchantAiNoticeUpdate } from '#/shared/merchant-ai-notice-announcements'
 import { Link } from '@tanstack/react-router'
 import { ArrowRight, BrainCircuit } from 'lucide-react'
 import { Badge } from '#/components/ui/badge'
@@ -14,6 +16,7 @@ import { ROW_LINK_SURFACE } from '#/components/ui/row-link'
 import {
   AI_OVERVIEW_STATUS,
   aiCapabilityLabel,
+  aiPauseReason,
   aiOverviewStatus,
   analysisSummary,
   formatMicros,
@@ -22,6 +25,7 @@ import {
 } from './organization-ai-overview-model'
 
 type Props = Readonly<{
+  onUpdateSeen?: (update: MerchantAiNoticeUpdate) => Promise<unknown>
   overview: MerchantAiOverview
   spend: AiOrganizationMonthSpend | undefined
   progressByProperty: ReadonlyMap<string, ReviewAnalysisProgress | undefined>
@@ -36,20 +40,35 @@ export function OrganizationAiOverviewPage({
   overview,
   spend,
   progressByProperty,
+  onUpdateSeen,
 }: Props) {
   if (overview.properties.length === 0) {
     return (
-      <EmptyState
-        icon={BrainCircuit}
-        title="No properties to manage AI for"
-        description="Import a property from Google, then turn on AI in its settings."
-      />
+      <div className="flex flex-col gap-6">
+        {overview.latestUpdate && (
+          <MerchantAiNoticeUpdateLine
+            update={overview.latestUpdate}
+            onSeen={onUpdateSeen}
+          />
+        )}
+        <EmptyState
+          icon={BrainCircuit}
+          title="No properties to manage AI for"
+          description="Import a property from Google, then turn on AI in its settings."
+        />
+      </div>
     )
   }
   const summary = summarizeAiOverview(overview.properties)
 
   return (
     <div className="flex w-full min-w-0 flex-col gap-6">
+      {overview.latestUpdate && (
+        <MerchantAiNoticeUpdateLine
+          update={overview.latestUpdate}
+          onSeen={onUpdateSeen}
+        />
+      )}
       <section aria-label="AI summary" className="flex flex-col gap-4">
         <MetricStrip aria-label="AI at a glance" variant="tiles">
           <Metric label="AI on">
@@ -58,7 +77,7 @@ export function OrganizationAiOverviewPage({
               detail="properties"
             />
           </Metric>
-          <Metric label="Re-consent needed">
+          <Metric label="Needs attention">
             <MetricValue value={String(summary.reconsent)} />
           </Metric>
           <Metric label="Not decided">
@@ -104,7 +123,7 @@ export function OrganizationAiOverviewPage({
                   to="/properties/$propertyId/settings/ai"
                   params={{ propertyId: entry.propertyId }}
                   className={cn(
-                    'group grid gap-2 p-4 md:grid-cols-[minmax(0,1.4fr)_7rem_minmax(0,1.6fr)_minmax(0,1fr)_1rem] md:items-center md:gap-4',
+                    'group grid gap-2 p-4 md:grid-cols-[minmax(0,1.4fr)_9rem_minmax(0,1.6fr)_minmax(0,1fr)_1rem] md:items-center md:gap-4 lg:grid-cols-[minmax(0,1.4fr)_11.5rem_minmax(0,1.6fr)_minmax(0,1fr)_1rem]',
                     ROW_LINK_SURFACE,
                   )}
                 >
@@ -112,13 +131,18 @@ export function OrganizationAiOverviewPage({
                     {entry.propertyName}
                   </span>
                   <span className="flex flex-wrap items-center gap-1.5">
-                    <StatusBadge status={status} map={AI_OVERVIEW_STATUS} />
+                    <StatusBadge
+                      status={status}
+                      map={AI_OVERVIEW_STATUS}
+                      wrap={status === 'paused'}
+                    />
                   </span>
-                  <span className="flex min-w-0 flex-wrap gap-1.5 text-xs">
-                    {entry.reconsentRequired ? (
-                      <StatusBadge tone="warn" label="Re-consent needed" />
+                  <span className="flex min-w-0 flex-wrap items-center gap-1.5 text-xs">
+                    {status === 'paused' ? (
+                      <span>{aiPauseReason(entry.pauseReason)}</span>
                     ) : null}
-                    {!entry.googleBindingActive ? (
+                    {!entry.googleBindingActive &&
+                    entry.pauseReason !== 'google_unbound' ? (
                       <StatusBadge tone="warn" label="Google not linked" />
                     ) : null}
                     {entry.state === 'enabled'
@@ -134,8 +158,7 @@ export function OrganizationAiOverviewPage({
                       : null}
                   </span>
                   <span className="text-sm tabular-nums text-muted-foreground">
-                    {entry.state === 'enabled' &&
-                    entry.capabilities.includes('review_analysis')
+                    {status === 'on' && entry.capabilities.includes('review_analysis')
                       ? analysisSummary(progressByProperty.get(entry.propertyId))
                       : null}
                   </span>

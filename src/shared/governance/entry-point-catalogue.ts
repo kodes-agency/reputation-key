@@ -30,6 +30,7 @@ export type ResourceScope =
 
 /** Canonical actions for session, public, delayed, and operator work. */
 export type SystemAction =
+  | 'system:identity.merchant_ai_standing_renewal'
   // session / identity bootstrap
   | 'system:session.read'
   | 'system:session.mutate'
@@ -267,6 +268,12 @@ const JOB_ROWS: ReadonlyArray<EntryPointRow> = [
     'rating-goal.evaluate',
     'system:goal.evaluate_rating_goals',
     'goal.use',
+    'tenant_cross',
+  ),
+  job(
+    'merchant-ai-standing-renewal',
+    'system:identity.merchant_ai_standing_renewal',
+    'none',
     'tenant_cross',
   ),
   job('retention-sweep', 'system:retention.sweep', 'none', 'tenant_cross'),
@@ -769,6 +776,12 @@ const SCHEDULE_ROWS: ReadonlyArray<EntryPointRow> = [
   schedule(
     'ai-operation-execution-reaper-recurring',
     'system:ai.execution_reap',
+    'none',
+    'tenant_cross',
+  ),
+  schedule(
+    'merchant-ai-standing-renewal-recurring',
+    'system:identity.merchant_ai_standing_renewal',
     'none',
     'tenant_cross',
   ),

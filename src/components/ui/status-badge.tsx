@@ -42,7 +42,7 @@ const STATUS_ICON: Readonly<Record<StatusTone, LucideIcon>> = {
 
 const UNKNOWN_STATUS: StatusPresentation = { label: 'Unknown', tone: 'neutral' }
 
-type StatusBadgeProps = Readonly<{ className?: string }> &
+type StatusBadgeProps = Readonly<{ className?: string; wrap?: boolean }> &
   (
     | Readonly<{
         /** A string, not the map's union: a row from a server newer than the page reads as "Unknown". */
@@ -60,12 +60,12 @@ function presentationOf(
   return (Object.hasOwn(map, status) ? map[status] : undefined) ?? UNKNOWN_STATUS
 }
 
-export function StatusBadge({ className, ...source }: StatusBadgeProps) {
+export function StatusBadge({ className, wrap, ...source }: StatusBadgeProps) {
   const { label, tone }: StatusPresentation =
     'map' in source ? presentationOf(source.map, source.status) : source
   const Icon = STATUS_ICON[tone]
   return (
-    <Badge variant={tone} className={className}>
+    <Badge variant={tone} wrap={wrap} className={className}>
       <Icon aria-hidden="true" />
       {label}
     </Badge>

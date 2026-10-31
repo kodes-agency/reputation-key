@@ -1,3 +1,4 @@
+import type { MerchantAiNoticeUpdates } from './use-cases/merchant-ai-notice-updates'
 // Identity context — public API surface for cross-context consumers.
 // Other contexts consume event types and port interfaces from this barrel.
 // Per ADR-0001.
@@ -126,6 +127,7 @@ export type IdentityRequestApi = Readonly<{
   createCustomRole: CreateCustomRole
   updateCustomRole: UpdateCustomRole
   deleteCustomRole: DeleteCustomRole
+  merchantAiNoticeUpdates: MerchantAiNoticeUpdates
   merchantAiAuthorization: MerchantAiRequestApi
   /** AccountAdmins: which Properties each PropertyManager can work. */
   listMemberPropertyAccess: ListMemberPropertyAccess

@@ -5,16 +5,16 @@ import type { MerchantAiNoticeDto } from '#/contexts/identity/application/dto/me
 
 export function MerchantAiDataHandling({
   notice,
-}: Readonly<{ notice: MerchantAiNoticeDto }>) {
+  title = 'Data handling and risks',
+  showReference = true,
+}: Readonly<{ notice: MerchantAiNoticeDto; title?: string; showReference?: boolean }>) {
   const { payload } = notice
 
   return (
     <section aria-labelledby="merchant-ai-data-handling" className="flex flex-col gap-5">
       <div className="flex items-center gap-2">
         <ShieldCheck aria-hidden="true" />
-        <SectionTitle id="merchant-ai-data-handling">
-          Data handling and risks
-        </SectionTitle>
+        <SectionTitle id="merchant-ai-data-handling">{title}</SectionTitle>
       </div>
       {payload.sections.map((section) => (
         <div key={section.id} className="flex flex-col gap-2">
@@ -63,10 +63,12 @@ export function MerchantAiDataHandling({
           ))}
         </ul>
       </div>
-      <p className="text-xs text-muted-foreground">
-        Processing region: {payload.processingRegion}. Notice version: {notice.version}.
-        Digest: <span className="break-all font-mono">{notice.digest}</span>.
-      </p>
+      {showReference && (
+        <p className="text-xs text-muted-foreground">
+          Processing region: {payload.processingRegion}. Notice version: {notice.version}.
+          Digest: <span className="break-all font-mono">{notice.digest}</span>.
+        </p>
+      )}
     </section>
   )
 }

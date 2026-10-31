@@ -144,7 +144,7 @@ describe('listMerchantAiOverview', () => {
       'enabled-2026-10-17': true,
       'enabled-2026-09-15': true,
       'enabled-previous': true,
-      'revoked-previous': true,
+      'revoked-previous': false,
       'revoked-current': false,
       'disabled-previous': false,
       'digest-drift': true,

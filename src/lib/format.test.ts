@@ -6,6 +6,7 @@ import { describe, expect, it } from 'vitest'
 import {
   formatClock,
   formatDate,
+  formatDayMonthYear,
   formatDayKey,
   formatLocalDate,
   formatLongDate,
@@ -223,5 +224,14 @@ describe('formatNumber', () => {
 
   it('prints money in dollars', () => {
     expect(formatNumber(1234.5, { style: 'currency', currency: 'USD' })).toBe('$1,234.50')
+  })
+})
+
+describe('dated AI update announcements', () => {
+  it('uses day, short month and year in UTC with a safe missing-date result', () => {
+    expect(formatDayMonthYear('2026-10-31T23:30:00Z')).toBe('31 Oct 2026')
+    expect(formatDayMonthYear('2026-10-31T23:30:00Z', 'Europe/Sofia')).toBe('1 Nov 2026')
+    expect(formatDayMonthYear(null)).toBeNull()
+    expect(formatDayMonthYear('invalid')).toBeNull()
   })
 })
