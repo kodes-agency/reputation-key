@@ -567,9 +567,9 @@ const capabilityFenceSchema = z.discriminatedUnion('capability', [
 ])
 
 const concreteLanguageSchema = z.object({ tag: safeId, templateGroup: safeId }).strict()
-
 export const aiExecutionBindingSchema = z
   .object({
+    replyDraftingV2: replyDraftingV2BindingSchema.optional(),
     authorizationLineageId: canonicalUuid,
     noticeVersion: safeId,
     noticeDigest: digest,
@@ -966,10 +966,10 @@ export const aiSettlementReceiptSchema = receiptSchema
 export type AiSettlementReceiptUnsignedV1 = z.infer<typeof unsignedReceiptSchema>
 export type AiSettlementReceiptV1 = z.infer<typeof receiptSchema>
 
-function canonicalBytes(domain: string, value: unknown): Buffer {
-  return Buffer.from(`${domain}${canonicalizeRfc8785(value)}`, 'utf8')
-}
-
+/**
+ * Validates the admission envelope before binding its descriptor or issuing
+ * a signed execution grant.
+ */
 export function parseAiAdmissionRequest(value: unknown): AiAdmissionRequestV1 {
   return admissionRequestSchema.parse(value)
 }
@@ -1012,7 +1012,7 @@ export function signAiExecutionGrant(
   privateKey: KeyObject,
 ): AiExecutionGrantV1 {
   const parsed = unsignedGrantSchema.parse(unsigned)
-  const canonical = canonicalBytes(GRANT_DOMAIN, parsed)
+  const canonical = canonicalAiSigningBytes(GRANT_DOMAIN, parsed)
   let signature: Buffer | null = null
   try {
     signature = sign(null, canonical, privateKey)
@@ -1035,7 +1035,7 @@ export function verifyAiExecutionGrant(
   const { grantSignature, ...unsigned } = parsed.data
   const key = publicKeys.get(unsigned.grantKid)
   if (key === undefined) return false
-  const canonical = canonicalBytes(GRANT_DOMAIN, unsigned)
+  const canonical = canonicalAiSigningBytes(GRANT_DOMAIN, unsigned)
   const signature = Buffer.from(grantSignature, 'base64url')
   try {
     return verify(null, canonical, key, signature)
@@ -1054,7 +1054,7 @@ export function signAiSettlementReceipt(
   privateKey: KeyObject,
 ): AiSettlementReceiptV1 {
   const parsed = unsignedReceiptSchema.parse(unsigned)
-  const canonical = canonicalBytes(RECEIPT_DOMAIN, parsed)
+  const canonical = canonicalAiSigningBytes(RECEIPT_DOMAIN, parsed)
   let signature: Buffer | null = null
   try {
     signature = sign(null, canonical, privateKey)
@@ -1077,7 +1077,7 @@ export function verifyAiSettlementReceipt(
   const { receiptSignature, ...unsigned } = parsed.data
   const key = publicKeys.get(unsigned.receiptKid)
   if (key === undefined) return false
-  const canonical = canonicalBytes(RECEIPT_DOMAIN, unsigned)
+  const canonical = canonicalAiSigningBytes(RECEIPT_DOMAIN, unsigned)
   const signature = Buffer.from(receiptSignature, 'base64url')
   try {
     return verify(null, canonical, key, signature)
@@ -1135,3 +1135,6 @@ export const aiSettlementRequestSchema = z
     }
   })
 export type AiSettlementRequestV1 = z.infer<typeof aiSettlementRequestSchema>
+
+import { canonicalAiSigningBytes } from './security/ai-signing-bytes'
+import { replyDraftingV2BindingSchema } from './reply-drafting-v2-binding'

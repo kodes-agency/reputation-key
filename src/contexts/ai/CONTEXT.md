@@ -962,6 +962,61 @@ the outbox and unreceipted: the retention sweep deletes a published event, and
 its receipts with it, 30 days after publication, and a receipt cannot be written
 for an event that is gone.
 
+## Reply drafting v2 contract — registered dark (B1, 2026-10-31)
+
+The served drafting selection remains `reply-drafting-runtime-v1` / `reply-suggestion-v1`.
+The notice, UI, historical profile readers and v1 wire pins are unchanged. The registered
+v2 catalogue row has `served: false` and no admitted notices. B3 must deliberately select
+it and acknowledge its notice; registration is not consent compatibility.
+
+The new identities are operation `reply-suggestion-v2`, profile `reply-draft-v4`, runtime
+`reply-drafting-runtime-v2`, prompt `reply-suggestion-prompt-v2` and provenance v4.
+The Phase 0 final prompt and synthetic English/Bulgarian example books are versioned and
+pinned. Numbered source uses Review's existing raw-text sentence identities and the
+joined-scan, sentence-preserving redactor. The provider receives only rating, tone, target
+language, bounded length/opening/apology options, numbered redacted sentences and profile
+identity. Those options, the resolved language and voice configuration are execution-bound
+and fingerprinted. Dynamic examples/rewrite instructions have a separately reserved byte
+ceiling. V2 uses medium effort and 2,048 output tokens; v1 retains its own settings.
+
+Sentence references validate reference integrity, not factual truth. The existing
+commitment/leakage authorities remain, with Spanish stems added only to the new contract.
+AI-body lint has fixed codes/severity/digest; hard findings contain no matched terms.
+The operation writer and database CHECK admit only closed metadata keys, fixed apology
+starts and hard rule codes; avoidance terms cannot be stored in rewrite metadata.
+An invalid billed draft ends its operation. At most one rewrite child is independently
+claimed, admitted, permitted, reserved and settled. A locked failed/settled root and the
+unique parent index prevent duplicate children and grandchildren. Its instructions contain
+fixed rule descriptions, never rejected text or avoidance terms. Provider refusals,
+transport ambiguity and unavailable scanners do not cause a rewrite. The child re-reads
+source, reply revision, consent and voice, and v2 checks them again after settlement before
+delivery. Only accepted text is framed, signed and delivered; unadopted text stays ephemeral.
+
+Frame usage is scoped by Property, language, rating band and configuration digest. The
+Review-owned reservation ledger holds option identities only: recent reservations rotate
+concurrent/unpublished regenerations; adopted usage survives subsequent text edits.
+Published template usage is aggregated under that exact scope at publication time.
+When v2 is served, template generation records the frame band in content-free voice choices, so later
+source edits cannot reclassify an option. Historical choices without a recorded band stay
+unknown and are not assigned a guessed band. A thanking body excludes thanking closings,
+with omission when none remain. The signed v4
+choices survive adoption. Choice changes do not change the voice configuration digest.
+Unadopted reservations expire from eligibility after fifteen minutes and are pruned on the
+next generation; Property deletion cascades the ledger. It contains no source/manager
+text and is not manager-authored export content. Migration 0085 appends the runtime,
+provenance, rewrite uniqueness and reservation schema without rewriting historical grants.
+
+Re-verified map items 1–6 on the supplied stacked base `af57b9c36` (current implementation anchors):
+
+| Map item                                   | Authority                                                                                                                                                                                                      |
+| ------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1 — profile/prompt/schema/provenance       | `src/shared/reply-drafting-v2-profile.ts:22`, `src/shared/reply-drafting-v2-schema.ts:24`, `src/shared/ai-reply-provenance.ts:151`                                                                             |
+| 2 — numbered input/options/binding         | `src/shared/reply-drafting-v2-request.ts:152`, `src/contexts/ai/application/reply-drafting-v2-workflow.ts:72`, `src/shared/ai-provider-control/reply-drafting-v2.ts:248`                                       |
+| 3 — effort/output/reservation bounds       | `src/shared/reply-drafting-v2-profile.ts:22`, `src/shared/db/ai/ai-budget.ts:96`                                                                                                                               |
+| 4 — lint/one independently charged rewrite | `src/shared/reply-drafting-v2-contract.ts:89`, `src/contexts/ai/application/reply-drafting-v2-workflow.ts:44`, `src/contexts/ai/infrastructure/adapters/reply-rewrite-parent.ts:16`                            |
+| 5 — Spanish/historical readers/schema      | `src/shared/reply-drafting-v2-contract.ts:89`, `src/shared/ai-reply-provenance.ts:151`, `src/shared/db/schema/reply-ai-provenance-check.ts:4`, `drizzle/0085_reply_drafting_v2_contract.sql:1`                 |
+| 6 — frame choice/usage/adoption            | `src/contexts/review/application/ai-reply-v2-frame.ts:21`, `src/contexts/review/infrastructure/repositories/ai-frame-reservation.ts:156`, `src/contexts/review/infrastructure/ai-suggested-draft-store.ts:481` |
+
 ## Invariants
 
 1. AI processes only currently eligible Google Review content loaded through the Review public source port plus the exact public Property display name loaded through Portal's narrow Brand authority. Brand image URLs, colors, localized content, Private Portal ratings, feedback, contact details, Inbox notes, manager-internal text, and Guest media never enter AI admission, prompts, outputs, logs, or derived tables.

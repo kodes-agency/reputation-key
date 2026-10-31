@@ -430,8 +430,10 @@ export const createAiOutputStoreAdapter = (
             (input.replyBrandProfileVersion ?? null) ||
           operation.replyBrandDisplayNameDigest !==
             (input.replyBrandDisplayNameDigest ?? null) ||
-          input.operationProfileVersion !== 'reply-suggestion-v1' ||
-          input.replyProfileVersion !== AI_PERSONALIZED_REPLY_PROFILE_VERSION ||
+          !replyProfilePairMatches(
+            input.operationProfileVersion,
+            input.replyProfileVersion,
+          ) ||
           fence?.capability !== 'reply_drafting' ||
           fence.replyDraftingEpoch !== input.replyDraftingEpoch
         ) {
@@ -1216,4 +1218,12 @@ export const createAiOutputStoreAdapter = (
       })
     },
   }
+}
+
+function replyProfilePairMatches(operation: string, profile: string): boolean {
+  return (
+    (operation === 'reply-suggestion-v1' &&
+      profile === AI_PERSONALIZED_REPLY_PROFILE_VERSION) ||
+    (operation === 'reply-suggestion-v2' && profile === 'reply-draft-v4')
+  )
 }

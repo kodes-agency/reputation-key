@@ -48,7 +48,7 @@ function prepareOpenAiInvocation(
   input: PrepareProviderInvocationInput,
 ): PreparedAiInvocation {
   const { logical } = input
-  const promptVersion = OPENAI_PROMPT_VERSIONS[logical.route]
+  const promptVersion = logical.promptVersion ?? OPENAI_PROMPT_VERSIONS[logical.route]
   const sdkRequest = buildClosedOpenAiRequest({
     route: logical.route,
     promptVersion,

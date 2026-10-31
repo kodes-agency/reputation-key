@@ -30,6 +30,7 @@ const runtimeEntrySchema = z
     runtimeProfileVersion: z.enum([
       'review-analysis-runtime-v2',
       'reply-drafting-runtime-v1',
+      'reply-drafting-runtime-v2',
       'property-trends-runtime-v1',
     ]),
     purpose: z.enum(['ai.analyze', 'ai.generate_reply', 'ai.detect_trends']),
@@ -42,12 +43,14 @@ const runtimeEntrySchema = z
     gatewayProfileVersion: z.enum([
       'review-analysis-gateway-v2',
       'reply-suggestion-gateway-v1',
+      'reply-suggestion-gateway-v2',
       'property-trend-gateway-v1',
     ]),
     caller: z.enum(['web', 'worker']),
     operationProfileVersion: z.enum([
       'review-analysis-v3',
       'reply-suggestion-v1',
+      'reply-suggestion-v2',
       'property-trend-v1',
     ]),
     providerDeploymentProfileVersion: z.literal(SERVED_PROVIDER_DEPLOYMENT_PROFILE),
@@ -63,7 +66,8 @@ export type AiRuntimeCapabilityV1 = Readonly<
   }
 >
 
-const EXPECTED_RUNTIME_CAPABILITIES = Object.freeze([
+/** Registered profiles; only an explicit serving selection authorizes execution. */
+export const AI_RUNTIME_CAPABILITY_CATALOGUE = Object.freeze([
   Object.freeze({
     capability: 'review_analysis',
     runtimeProfileVersion: REVIEW_ANALYSIS_V3_VERSIONS.capabilityRuntime,
@@ -75,6 +79,7 @@ const EXPECTED_RUNTIME_CAPABILITIES = Object.freeze([
     operationProfileVersion: REVIEW_ANALYSIS_V3_VERSIONS.analysisOperation,
     providerDeploymentProfileVersion: SERVED_PROVIDER_DEPLOYMENT_PROFILE,
     noticesInForce: MERCHANT_AI_NOTICES_IN_FORCE,
+    served: true,
   }),
   Object.freeze({
     capability: 'reply_drafting',
@@ -87,6 +92,7 @@ const EXPECTED_RUNTIME_CAPABILITIES = Object.freeze([
     operationProfileVersion: 'reply-suggestion-v1',
     providerDeploymentProfileVersion: SERVED_PROVIDER_DEPLOYMENT_PROFILE,
     noticesInForce: MERCHANT_AI_NOTICES_IN_FORCE,
+    served: true,
   }),
   Object.freeze({
     capability: 'property_trends',
@@ -99,8 +105,26 @@ const EXPECTED_RUNTIME_CAPABILITIES = Object.freeze([
     operationProfileVersion: 'property-trend-v1',
     providerDeploymentProfileVersion: SERVED_PROVIDER_DEPLOYMENT_PROFILE,
     noticesInForce: MERCHANT_AI_NOTICES_IN_FORCE,
+    served: true,
+  }),
+  Object.freeze({
+    capability: 'reply_drafting',
+    runtimeProfileVersion: 'reply-drafting-runtime-v2',
+    purpose: 'ai.generate_reply',
+    sourceRoute: 'reply-suggestion',
+    gatewayPath: '/v1/reply-suggestion',
+    gatewayProfileVersion: 'reply-suggestion-gateway-v2',
+    caller: 'web',
+    operationProfileVersion: 'reply-suggestion-v2',
+    providerDeploymentProfileVersion: SERVED_PROVIDER_DEPLOYMENT_PROFILE,
+    noticesInForce: Object.freeze([]),
+    served: false,
   }),
 ] as const)
+
+const EXPECTED_RUNTIME_CAPABILITIES = AI_RUNTIME_CAPABILITY_CATALOGUE.filter(
+  (entry) => entry.served,
+).map(({ served: _served, ...entry }) => entry)
 
 function failContract(message: string): never {
   throw new TypeError(`Invalid AI runtime capability catalogue: ${message}`)

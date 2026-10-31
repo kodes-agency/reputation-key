@@ -1,3 +1,4 @@
+import { invalidReplyRewriteParent, replyV2InsertionValues } from './reply-rewrite-parent'
 import { createHash } from 'node:crypto'
 import { and, eq, exists, gt, isNull, lte, or, sql } from 'drizzle-orm'
 import type { Database } from '#/shared/db'
@@ -192,6 +193,7 @@ function parseBinding(
     noticeVersion: requireValue(row.noticeVersion, 'noticeVersion'),
     noticeDigest: requireValue(row.noticeDigest, 'noticeDigest'),
     capabilityFence: row.capabilityFences,
+    ...(row.replyDraftingV2 === null ? {} : { replyDraftingV2: row.replyDraftingV2 }),
     sourceEpoch: requireValue(row.sourceEpoch, 'sourceEpoch'),
     evaluatedLanguage: row.evaluatedLanguage,
     concreteReplyLanguage,
@@ -580,6 +582,7 @@ function insertionValues(input: ClaimInput, idGen: () => string) {
     capabilityControlId: binding.stopFence.capabilityControlId,
     capabilityControlGeneration: binding.stopFence.capabilityGeneration,
     capabilityFences: binding.capabilityFence,
+    ...replyV2InsertionValues(binding),
     routeKey: profile.sourceRoute,
     state: 'pending',
     executionAttempt: 0,
@@ -599,6 +602,12 @@ export const createAiOperationStoreAdapter = (
   return {
     async claim(input) {
       return db.transaction(async (tx) => {
+        const invalidParent = await invalidReplyRewriteParent(tx, input, {
+          parseIdentity,
+          parseBinding,
+        })
+        if (invalidParent)
+          return { status: 'conflict', operation: mapOperation(invalidParent) }
         const values = insertionValues(input, idGen)
         const [inserted] = await tx
           .insert(aiOperations)

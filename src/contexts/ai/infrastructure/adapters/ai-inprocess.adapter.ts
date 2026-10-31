@@ -1,3 +1,4 @@
+import { REPLY_DRAFTING_V2_ROUTE_MAX_BYTES } from '#/shared/reply-drafting-v2-request'
 // WP2.3 — the AI inference port, calling the egress gateway in this process.
 //
 // This replaces `ai-gateway.adapter.ts`, which spoke to a sidecar over mTLS.
@@ -54,6 +55,11 @@ const REQUEST_MAX_BYTES = Object.freeze({
 // A review-analysis v3 request carries its sentences beside its text, so it has
 // a bound of its own; a v2 request keeps the route's.
 export function aiGatewayRequestMaxBytes(request: AiGatewayRouteRequestV1): number {
+  if (
+    request.route === 'reply-suggestion' &&
+    request.binding.operationProfileVersion === 'reply-suggestion-v2'
+  )
+    return REPLY_DRAFTING_V2_ROUTE_MAX_BYTES
   return request.route === 'review-analysis' && request.source.sentences !== undefined
     ? AI_REVIEW_V3_ROUTE_MAX_BYTES
     : REQUEST_MAX_BYTES[request.route]

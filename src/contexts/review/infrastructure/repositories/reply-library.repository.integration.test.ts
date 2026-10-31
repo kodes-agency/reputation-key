@@ -1,4 +1,7 @@
+import { reviews, replies } from '#/shared/db/schema'
+import { GOOGLE_LOCATION_PRIMARY_RESOURCE } from '#/test-fixtures/generated/google-provider-identifiers-v1'
 import { Pool } from 'pg'
+import { eq } from 'drizzle-orm'
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 import { getEnv } from '#/shared/config/env'
 import { getDb, type Database } from '#/shared/db'
@@ -16,6 +19,8 @@ const repository = createReplyLibraryRepository(db, () => NOW)
 let pool: Pool
 
 async function clean(): Promise<void> {
+  await pool.query('DELETE FROM replies WHERE organization_id = $1', [ORG])
+  await pool.query('DELETE FROM reviews WHERE organization_id = $1', [ORG])
   await pool.query('DELETE FROM reply_template_visibility WHERE organization_id = $1', [
     ORG,
   ])
@@ -310,5 +315,129 @@ describe.sequential('createReplyLibraryRepository (PostgreSQL)', () => {
       }),
     ).resolves.toBe(true)
     expect((await repository.loadSnapshot(ORG, PROPERTY))?.propertyTemplates).toEqual([])
+  })
+})
+
+describe.sequential('AI frame reservations (PostgreSQL)', () => {
+  const scope = {
+    organizationId: ORG,
+    propertyId: PROPERTY,
+    languageGroup: 'en-Latn',
+    ratingBand: 'positiveText' as const,
+    voiceDigest: 'a'.repeat(64),
+    nowEpochMillis: NOW.getTime(),
+    optionCounts: { closing: 3, signOff: 3, contactSentence: 3, emoji: 0 },
+  }
+  it('allows a frame reservation while an import holds the Property foreign-key lock', async () => {
+    const importing = await pool.connect()
+    try {
+      await importing.query('BEGIN')
+      await importing.query('SELECT id FROM properties WHERE id = $1 FOR KEY SHARE', [
+        PROPERTY,
+      ])
+      // The pending FK check must not block the generation's Property fence.
+      const reserved = await repository.reserveAiFrame!({
+        ...scope,
+        generationSeed: 'f'.repeat(64),
+      })
+      expect(reserved).not.toBeNull()
+    } finally {
+      await importing.query('ROLLBACK')
+      importing.release()
+    }
+  })
+
+  it('serializes concurrent generations and rotates unpublished regeneration', async () => {
+    const frames = await Promise.all(
+      [0, 1, 2].map((n) =>
+        repository.reserveAiFrame!({ ...scope, generationSeed: String(n).repeat(64) }),
+      ),
+    )
+    expect(new Set(frames.map((frame) => frame!.choices.closing)).size).toBe(3)
+    expect(new Set(frames.map((frame) => frame!.choices.signOff)).size).toBe(3)
+    const replay = await repository.reserveAiFrame!({
+      ...scope,
+      generationSeed: '0'.repeat(64),
+    })
+    expect(replay).toEqual(frames[0])
+    const next = await repository.reserveAiFrame!({
+      ...scope,
+      generationSeed: '3'.repeat(64),
+      nowEpochMillis: NOW.getTime() + 1,
+    })
+    expect(next!.closingOrder).toHaveLength(3)
+    expect(next!.choices.closing).not.toBe(frames[2]!.choices.closing)
+  })
+  it('keeps a published option in its recorded band after the source rating changes', async () => {
+    const ids = [
+      '81000000-0000-4000-8000-000000000031',
+      '81000000-0000-4000-8000-000000000032',
+    ]
+    for (const [index, id] of ids.entries()) {
+      await db.insert(reviews).values({
+        id,
+        organizationId: ORG,
+        propertyId: PROPERTY,
+        platform: 'google',
+        externalId: `frame-band-${index}`,
+        externalLocationId: GOOGLE_LOCATION_PRIMARY_RESOURCE,
+        rating: 1,
+        text: 'The review now has a low rating.',
+        reviewedAt: NOW,
+        sourceEpoch: 0,
+        sourceRevision: 1,
+        analysisSequence: 1,
+      })
+      await db.insert(replies).values({
+        organizationId: ORG,
+        reviewId: id,
+        source: 'internal',
+        text: 'A historical template reply.',
+        status: 'published',
+        authorship: 'human',
+        aiGenerated: false,
+        createdBy: ACTOR,
+        replyLanguageTag: 'en-Latn',
+        templateLayer: 'builtin',
+        templateRef: 'builtin:frame-band',
+        templateRevision: 1,
+        templateWordingKey: 'wording',
+        voiceDigest: scope.voiceDigest,
+        voiceChoices: {
+          closing: index,
+          signOff: 0,
+          contactSentence: 0,
+          emoji: 0,
+          includeContact: true,
+          ratingBand: index === 0 ? 'positiveText' : 'negative',
+        },
+        publishedAt: new Date(NOW.getTime() - index * 60_000),
+      })
+    }
+    const selected = await repository.reserveAiFrame!({
+      ...scope,
+      ratingBand: 'negative',
+      generationSeed: 'd'.repeat(64),
+      optionCounts: { closing: 2, signOff: 1, contactSentence: 1, emoji: 0 },
+    })
+    expect(selected!.choices.closing).toBe(0)
+    await db.delete(replies).where(eq(replies.organizationId, ORG))
+    await db.delete(reviews).where(eq(reviews.organizationId, ORG))
+  })
+  it('separates language, band and configuration and handles zero options', async () => {
+    const empty = await repository.reserveAiFrame!({
+      ...scope,
+      optionCounts: { closing: 0, signOff: 0, contactSentence: 0, emoji: 0 },
+      generationSeed: '4'.repeat(64),
+    })
+    expect(empty).toMatchObject({ closingOrder: [], choices: { closing: -1, emoji: 0 } })
+    const other = await repository.reserveAiFrame!({
+      ...scope,
+      languageGroup: 'bg-Cyrl',
+      ratingBand: 'negative',
+      voiceDigest: 'b'.repeat(64),
+      generationSeed: '4'.repeat(64),
+    })
+    expect(other!.closingOrder).toHaveLength(3)
   })
 })

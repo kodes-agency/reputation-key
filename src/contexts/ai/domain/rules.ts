@@ -469,8 +469,8 @@ function replyBindingValid(
     value.aiSubjectHmacKeyVersion === null &&
     nonEmptyString(value.outputLeakageProfileVersion, 100) &&
     nonEmptyString(value.replyTemplateCatalogueVersion, 100) &&
-    value.operationProfileVersion === 'reply-suggestion-v1' &&
-    value.capabilityRuntimeProfileVersion === 'reply-drafting-runtime-v1' &&
+    // Each reply version binds its own runtime and payload contract.
+    replyProfilePairValid(value) &&
     replyBindingDigestsValid(value)
   )
 }
@@ -522,7 +522,7 @@ export function parseAiExecutionBinding(
       replyBrandDisplayNameDigest: null,
     }
   }
-  if (!isRecord(value) || !exactKeys(value, BINDING_KEYS) || !commonBindingValid(value)) {
+  if (!isRecord(value) || !bindingKeysValid(value) || !commonBindingValid(value)) {
     return invalid('AI execution binding has unknown, missing, or invalid common fields')
   }
   if (!isRecord(value.capabilityFence)) return invalid('capability fence is invalid')
@@ -708,4 +708,31 @@ export function createAiOperationIdentity(
   }
 
   return invalid('operation command is not supported')
+}
+
+import { isReplyDraftingV2Binding } from '#/shared/domain/reply-drafting-v2'
+
+function replyProfilePairValid(value: Readonly<Record<string, unknown>>): boolean {
+  if (value.operationProfileVersion === 'reply-suggestion-v1')
+    return (
+      value.capabilityRuntimeProfileVersion === 'reply-drafting-runtime-v1' &&
+      value.replyDraftingV2 === undefined
+    )
+  return (
+    value.operationProfileVersion === 'reply-suggestion-v2' &&
+    value.capabilityRuntimeProfileVersion === 'reply-drafting-runtime-v2' &&
+    isReplyDraftingV2Binding(value.replyDraftingV2)
+  )
+}
+
+function bindingKeysValid(value: Readonly<Record<string, unknown>>): boolean {
+  const keys =
+    value.replyDraftingV2 === undefined
+      ? BINDING_KEYS
+      : [...BINDING_KEYS, 'replyDraftingV2']
+  return (
+    exactKeys(value, keys) &&
+    (value.replyDraftingV2 === undefined ||
+      value.operationProfileVersion === 'reply-suggestion-v2')
+  )
 }

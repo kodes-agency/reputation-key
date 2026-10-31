@@ -1,3 +1,4 @@
+import { replyDynamicDeveloperBytes } from '#/shared/reply-drafting-v2-request'
 import { and, eq, inArray, isNull, sql } from 'drizzle-orm'
 import type { Database } from '#/shared/db'
 import {
@@ -86,7 +87,16 @@ function reservationFor(
   const pricing = priceCatalogueOfProvider(providerId)
   if (pricing === null) return null
   if (providerId === null) {
-    return maximumCostMicrosWith(pricing, profile, providerPayloadBytes)
+    return maximumCostMicrosWith(
+      pricing,
+      {
+        ...profile,
+        staticTokenBearingBytes:
+          profile.staticTokenBearingBytes +
+          replyDynamicDeveloperBytes(profile.profileVersion),
+      },
+      providerPayloadBytes,
+    )
   }
   if (!(AI_PROVIDER_IDS as readonly string[]).includes(providerId)) return null
   const pairing = operationProviderPairing(
@@ -97,7 +107,9 @@ function reservationFor(
   return maximumCostMicrosWith(
     pricing,
     {
-      staticTokenBearingBytes: pairing.staticTokenBearing.bytes,
+      staticTokenBearingBytes:
+        pairing.staticTokenBearing.bytes +
+        replyDynamicDeveloperBytes(profile.profileVersion),
       maxOutputTokens: profile.maxOutputTokens,
     },
     providerPayloadBytes,

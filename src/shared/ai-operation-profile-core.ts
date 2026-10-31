@@ -62,6 +62,7 @@ export type AiOperationProfile = Readonly<{
     // entry derived from the v3 logical profile will carry (`ai-operation-profile-views.ts`).
     | 'review-analysis-v3'
     | 'reply-suggestion-v1'
+    | 'reply-suggestion-v2'
     | 'property-trend-v1'
     | 'synthetic-canary-v1'
   command: 'analysis' | 'reply' | 'trend' | 'synthetic_canary'

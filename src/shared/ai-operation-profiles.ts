@@ -1,3 +1,4 @@
+import { REPLY_DRAFTING_V2_OPERATION_PROFILE } from './reply-drafting-v2-profile'
 import { createHash } from 'node:crypto'
 import { canonicalizeRfc8785 } from '#/shared/merchant-ai-notice-contract'
 import { AI_REPLY_OUTPUT_LEAKAGE_PROFILE_DIGEST } from '#/shared/ai-reply-output-leakage'
@@ -103,6 +104,7 @@ const TREND_ATTESTATION = Object.freeze({
 // still described by it. No catalogue row names it, so nothing new is claimed under
 // it: the gateway refuses a binding that does not match the row.
 export const AI_OPERATION_PROFILES: ReadonlyArray<AiOperationProfile> = Object.freeze([
+  // Additive dark profile; route selection remains in the served runtime catalogue.
   defineOperationProfile({
     profileVersion: 'review-analysis-v2',
     command: 'analysis',
@@ -237,6 +239,7 @@ export const AI_OPERATION_PROFILES: ReadonlyArray<AiOperationProfile> = Object.f
     requestDeadlineMs: 70_000,
     executionLeaseMs: 120_000,
   }),
+  REPLY_DRAFTING_V2_OPERATION_PROFILE,
   // Review analysis v3 as OpenAI carries it (`review-analysis-v3-profile.ts`): the
   // entry the runtime catalogue serves for review analysis. The same profile is
   // attested for Anthropic (`REVIEW_ANALYSIS_V3_ANTHROPIC_PAIRING`), but nothing

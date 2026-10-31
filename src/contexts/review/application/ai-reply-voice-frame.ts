@@ -1,3 +1,9 @@
+import { readAiReplyVoiceSnapshot } from './ai-reply-voice-snapshot'
+import {
+  resolveAiReplyV2Frame,
+  type ResolveAiReplyV2FrameInput,
+} from './resolve-ai-reply-v2-frame'
+import type { ReplyDraftingV2Frame } from '#/shared/reply-drafting-v2-frame'
 import type { OrganizationId, PropertyId, ReviewId } from '#/shared/domain/ids'
 import { isBuiltinReplyVoiceLanguageGroup } from '#/shared/reply-library/reply-voice-language-groups'
 import type { ReplyTemplateLanguageGroup } from '#/shared/reply-language-catalogue'
@@ -23,6 +29,7 @@ export type AiReplyLocalFrame = Readonly<{
 }>
 
 export type AiReplyVoicePublicApi = Readonly<{
+  resolveV2Frame?(input: ResolveAiReplyV2FrameInput): Promise<ReplyDraftingV2Frame | null>
   resolveLocalFrame(
     input: Readonly<{
       organizationId: OrganizationId
@@ -51,19 +58,11 @@ export function createAiReplyVoicePublicApi(
   }>,
 ): AiReplyVoicePublicApi {
   return Object.freeze({
+    resolveV2Frame: (input) => resolveAiReplyV2Frame(deps, input),
     resolveLocalFrame: async (input) => {
-      if (!isBuiltinReplyVoiceLanguageGroup(input.languageGroup)) return null
-      const [snapshot, review] = await Promise.all([
-        deps.repository.loadSnapshot(input.organizationId, input.propertyId),
-        deps.reviews.findById(input.reviewId, input.organizationId),
-      ])
-      if (!snapshot || !review || review.propertyId !== input.propertyId) return null
-      const languageGroup = input.languageGroup
-      const voice = resolveVoice(
-        BUILTIN_REPLY_VOICE,
-        snapshot.accountVoice,
-        snapshot.propertyVoice,
-      )
+      const resolved = await readAiReplyVoiceSnapshot(deps, input)
+      if (resolved === null) return null
+      const { snapshot, review, languageGroup, voice } = resolved
       const rendered = renderFrameOrNull({
         body: BODY_MARKER,
         voice,

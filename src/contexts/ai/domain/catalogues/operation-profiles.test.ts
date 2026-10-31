@@ -136,6 +136,7 @@ describe('PR5 immutable AI execution catalogues', () => {
       'reply-suggestion-v1',
       'property-trend-v1',
       'synthetic-canary-v1',
+      'reply-suggestion-v2',
       'review-analysis-v3',
     ])
     expect(AI_OPERATION_PROFILES.map((profile) => profile.capability)).toEqual([
@@ -143,6 +144,7 @@ describe('PR5 immutable AI execution catalogues', () => {
       'reply_drafting',
       'property_trends',
       null,
+      'reply_drafting',
       'review_analysis',
     ])
     expect(AI_OPERATION_PROFILES.map((profile) => profile.gatewayPath)).toEqual([
@@ -150,6 +152,7 @@ describe('PR5 immutable AI execution catalogues', () => {
       '/v1/reply-suggestion',
       '/v1/property-trend',
       'internal:synthetic-canary',
+      '/v1/reply-suggestion',
       '/v1/review-analysis',
     ])
     // Every profile a runtime row serves is under the deployment profile now served;
@@ -164,6 +167,7 @@ describe('PR5 immutable AI execution catalogues', () => {
       ['reply-suggestion-v1', 'private-beta-global-v2'],
       ['property-trend-v1', 'private-beta-global-v2'],
       ['synthetic-canary-v1', 'private-beta-global-v2'],
+      ['reply-suggestion-v2', 'private-beta-global-v2'],
       ['review-analysis-v3', 'private-beta-global-v2'],
     ])
   })
@@ -243,6 +247,18 @@ describe('PR5 immutable AI execution catalogues', () => {
         // provider runaway into a fast failure instead of a ~55s one.
         maxOutputTokens: 512,
         reasoningEffort: 'low',
+        providerDeadlineMs: 60_000,
+        requestDeadlineMs: 70_000,
+        executionLeaseMs: 120_000,
+      },
+      {
+        profileVersion: 'reply-suggestion-v2',
+        sourceByteLimit: 16_384,
+        providerPayloadByteLimit: 57_344,
+        preparedRequestByteLimit: 131_072,
+        responseByteLimit: 131_072,
+        maxOutputTokens: 2_048,
+        reasoningEffort: 'medium',
         providerDeadlineMs: 60_000,
         requestDeadlineMs: 70_000,
         executionLeaseMs: 120_000,

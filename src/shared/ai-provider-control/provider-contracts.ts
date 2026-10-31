@@ -84,6 +84,7 @@ export type ProductAiGatewayRoute = Exclude<AiGatewayRoute, 'synthetic-canary'>
 export type LogicalAiInvocation = Readonly<{
   route: ProductAiGatewayRoute
   operationId: string
+  promptVersion?: string
   developerPrompt: string
   outputSchemaName: string
   /** The answer's schema; each adapter derives the wire schema its provider accepts. */

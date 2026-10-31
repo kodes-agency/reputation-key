@@ -113,6 +113,21 @@ const PINNED_PROFILES = [
     staticTokenBearingDigest:
       '11c7e44c309c144fa7ef7904710350bfeea1c829e36fa0b51ae736b9bdf02cf4',
   },
+  // B1: new dark identity; every historical pin above and below stays unchanged.
+  {
+    profileVersion: 'reply-suggestion-v2',
+    profileDigest: '593d2ec2a473189fd138ddcbcb55e29a10bff397ffe7bfa2ca64d8218787492c',
+    outputSchemaDigest:
+      '2f7afcc12b767302d60d6b1f931fd7996d010dd7c24ba32246fff415c1d4dcd7',
+    promptDigest: 'b6de6db2e52bd85713e81277b7b4eddc1a5788b37c2427bb872dae6c3581016f',
+    artifactAttestationsDigest:
+      '79fe4a21823662b981cbb6a2748d04e07951b7505be1a7371664e55375d76e60',
+    sdkRequestShapeDigest:
+      '0bf52569683db47a551f212b33a8e19dfdd768f0a70047740b5f57a72c11ce37',
+    staticTokenBearingBytes: 9747,
+    staticTokenBearingDigest:
+      'ee79a0538c93071fd36298d3822152c0a9f97fade74e4b6d6d754a0a3fe62221',
+  },
   {
     profileVersion: 'review-analysis-v3',
     profileDigest: 'e2abbbfab2b18ee88c75b9c63e9375258577486fcb6710b5f3f612972d53dd66',

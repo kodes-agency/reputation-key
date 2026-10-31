@@ -1,3 +1,5 @@
+import type { AiFrameReservation } from '../ai-reply-v2-frame'
+import type { ReplyBand } from '#/shared/reply-library/reply-voice'
 import type { OrganizationId, PropertyId } from '#/shared/domain/ids'
 import type {
   LocalizedReplyVoiceOverride,
@@ -114,6 +116,23 @@ export type ReplyLibraryRepository = Readonly<{
     ref: ReplyLibraryRef
     actorId: string
   }): Promise<boolean>
+  reserveAiFrame?(
+    input: Readonly<{
+      organizationId: OrganizationId
+      propertyId: PropertyId
+      languageGroup: string
+      ratingBand: ReplyBand
+      voiceDigest: string
+      generationSeed: string
+      nowEpochMillis: number
+      optionCounts: Readonly<{
+        closing: number
+        signOff: number
+        contactSentence: number
+        emoji: number
+      }>
+    }>,
+  ): Promise<AiFrameReservation | null>
   findPublishedUsage?(input: {
     organizationId: OrganizationId
     propertyId: PropertyId
