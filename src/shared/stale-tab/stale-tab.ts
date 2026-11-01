@@ -9,10 +9,15 @@
 //     page load of the navigation's target;
 //   - a read the server refuses just after a navigation (FRESH_VIEW_MS), which
 //     reloads the current address: that view has only just been drawn;
+//   - a read the server refuses just after the person came back to the tab, when
+//     they hold nothing a reload would lose: everything the page reads is about
+//     to fail, and they have not started anything yet;
 //   - a route that already failed to draw (use-guarded-route-error.tsx):
-//     refused, missing its chunk, or failing in an already armed tab.
-// A read refused later than that (a focus refetch, a poll) only arms the tab.
-// It never reloads under a mutation still in flight, never in a loop
+//     refused, missing its chunk, or failing in an already armed tab;
+//   - Try again pressed on a failed read in an armed tab: that read can only be
+//     refused again, so the press does the one thing that helps.
+// Any other refused read (a poll, a part of the page that mounted late) only arms
+// the tab. It never reloads under a mutation still in flight, never in a loop
 // (reload-guard.ts), and never when it does not know its own release: a
 // development server, a test, Storybook and a server render all stay inert. A
 // page still here a while after asking (a cancelled navigation) draws its
@@ -40,6 +45,26 @@ type ReleaseDocument = Readonly<{
 }>
 
 type FailureTarget = Pick<Window, 'addEventListener' | 'removeEventListener'>
+
+type PersonTarget = FailureTarget &
+  Readonly<{ document: Pick<Document, 'visibilityState'> }>
+
+/** A form control the person changed, as much of it as the tab asks about. */
+type ChangedControl = Pick<Element, 'isConnected' | 'closest'>
+
+/**
+ * A control whose changes a reload cannot lose, for now: its form saves itself and
+ * guards the page while it cannot, so it says so only while that holds. A value,
+ * not a bare attribute, so a field can stop saying so.
+ */
+const RELOAD_SAFE = '[data-reload-safe="true"]'
+
+/**
+ * The controls changed by pressing them, which fire no `input` or `change` of their
+ * own (Radix's). A radio outside a form is a view switch (Draft or Live, a range):
+ * it holds nothing.
+ */
+const PRESSED_CONTROL = '[role="checkbox"], [role="switch"], form [role="radio"]'
 
 type NavigationEvent = Readonly<{
   pathChanged: boolean
@@ -90,9 +115,10 @@ export const RELOAD_SETTLE_MS = 10_000
  * refuses before any handler runs, so the refusal is back in about one round
  * trip. Three seconds holds a slow phone connection with a chunk to fetch first,
  * and is still too short for anyone to have written something worth keeping in
- * a view that has just appeared. A refusal after that is a focus refetch, a poll
- * or a part of the page that mounted late, when the person may be in the middle
- * of something: it only arms the tab.
+ * a view that has just appeared. Coming back to the tab and pressing Try again
+ * start their reads as promptly, so the same window answers for them. A refusal
+ * after that is a poll or a part of the page that mounted late, when the person
+ * may be in the middle of something: it only arms the tab.
  */
 export const FRESH_VIEW_MS = 3_000
 
@@ -106,7 +132,13 @@ function drawsAnotherView(event: NavigationEvent): boolean {
 }
 
 export type StaleTabDeps = ReloadGuardDeps &
-  Readonly<{ later: (run: () => void, ms: number) => void }>
+  Readonly<{
+    later: (run: () => void, ms: number) => void
+    /** A dialog is open: the person is in the middle of something the address does not keep. */
+    dialogOpen: () => boolean
+    /** Have the browser ask the person before the page is next left. */
+    askBeforeLeaving: () => void
+  }>
 
 export function createStaleTab(deps: StaleTabDeps) {
   const guard = createReloadGuard(deps)
@@ -116,11 +148,50 @@ export function createStaleTab(deps: StaleTabDeps) {
   let reloading = false
   /** When the latest navigation to another view began; none yet is never fresh. */
   let navigatedAt = Number.NaN
+  /** When the person last came back to this tab. */
+  let returnedAt = Number.NaN
+  /** When the person last pressed Try again on a read. */
+  let pressedAt = Number.NaN
+  /** The form controls the person changed. */
+  let changed: readonly ChangedControl[] = []
   const watchers = new Set<() => void>()
 
   function setReloading(value: boolean): void {
     reloading = value
     watchers.forEach((watcher) => watcher())
+  }
+
+  /** The page is leaving. Still here after a while: the reload did not happen, so the failure is drawn. */
+  function settleReload(): void {
+    setReloading(true)
+    deps.later(() => setReloading(false), RELOAD_SETTLE_MS)
+  }
+
+  /** Within FRESH_VIEW_MS of a moment. None yet gives NaN, a clock set back a negative age: neither is. */
+  function justAfter(moment: number): boolean {
+    const age = deps.now() - moment
+    return age >= 0 && age < FRESH_VIEW_MS
+  }
+
+  /**
+   * Whether a reload would lose something the person changed. Asked when a reload
+   * is in question, not when they typed: a form that has left the page took its
+   * words with it, and a field marked reload-safe may have stopped being safe, or
+   * started to, since.
+   */
+  function holdsChanges(): boolean {
+    changed = changed.filter((control) => control.isConnected)
+    return changed.some((control) => !control.closest(RELOAD_SAFE))
+  }
+
+  /** The reload the person pressed for. Only a mutation in flight holds it back, as it does every reload. */
+  function reloadAsked(activeRelease: string): ReloadOutcome {
+    if (reloading) return 'reloading'
+    if (mutationsInFlight > 0) return 'deferred'
+    if (holdsChanges()) deps.askBeforeLeaving()
+    guard.insist(activeRelease)
+    settleReload()
+    return 'reloading'
   }
 
   const tab = {
@@ -156,12 +227,9 @@ export function createStaleTab(deps: StaleTabDeps) {
       if (reloading) return 'reloading'
       if (mutationsInFlight > 0) return 'deferred'
       const outcome = guard.request(release, sitePath(target))
-      if (outcome === 'reloading') {
-        setReloading(true)
-        // Still here: the reload did not happen. The guard has counted it, so
-        // a second ask inside its window is refused and the failure is drawn.
-        deps.later(() => setReloading(false), RELOAD_SETTLE_MS)
-      }
+      // The guard has counted it, so if the page is still here after a while, a
+      // second ask inside its window is refused and the failure is drawn.
+      if (outcome === 'reloading') settleReload()
       return outcome
     },
 
@@ -173,18 +241,45 @@ export function createStaleTab(deps: StaleTabDeps) {
       return () => void watchers.delete(watcher)
     },
 
+    /** The person came back to this tab, or it came back to the network: its reads run again now. */
+    noteReturn(): void {
+      returnedAt = deps.now()
+    },
+
+    /** The person changed a form control. */
+    noteEdit(control: ChangedControl): void {
+      if (!changed.includes(control)) changed = [...changed, control]
+    },
+
     /**
      * The server refused a read because this tab's code is stale. Reload the
-     * current address when the view is fresh from a navigation (FRESH_VIEW_MS);
-     * otherwise, or when the reload is deferred or refused, the tab stays armed
-     * for its next navigation. By then the router has written the navigation's
-     * address, so the current one is the view that asked.
+     * current address when that read answers Try again, or when the view is fresh
+     * from a navigation or the person has just come back to it (all within
+     * FRESH_VIEW_MS) and they hold nothing a reload would lose; otherwise, or when
+     * the reload is deferred or refused, the tab stays armed for its next
+     * navigation. By then the router has written the navigation's address, so the
+     * current one is the view that asked.
      */
     readRefused(): ReloadOutcome | 'armed' {
       tab.markStale()
-      if (!stale) return 'unavailable'
-      const age = deps.now() - navigatedAt
-      return age >= 0 && age < FRESH_VIEW_MS ? tab.reload() : 'armed'
+      if (!release || !stale) return 'unavailable'
+      if (justAfter(pressedAt)) return reloadAsked(release)
+      if (holdsChanges()) return 'armed'
+      const back = justAfter(returnedAt) && !deps.dialogOpen()
+      return justAfter(navigatedAt) || back ? tab.reload() : 'armed'
+    },
+
+    /**
+     * Try again, pressed on a read that failed. A tab whose code is stale gets
+     * the same refusal however often it asks, so in an armed tab the press loads
+     * the page afresh, with the browser's own question first if the person holds
+     * something a reload would lose. A retry that is not a read (a save) never
+     * comes here: it goes through in a stale tab, and a reload could lose it.
+     */
+    tryAgain(retry: () => void): void {
+      if (release && stale && reloadAsked(release) === 'reloading') return
+      pressedAt = deps.now()
+      retry()
     },
 
     /**
@@ -248,6 +343,44 @@ export function watchBrowserFailures(tab: StaleTab, target: FailureTarget): () =
   }
 }
 
+/**
+ * Note what decides whether coming back to a stale tab may reload it: that the
+ * person came back (or the network did, which reads everything again too), and
+ * which form controls they changed. A search is left out: the address keeps it.
+ * Captured, so a control that stops its event's propagation is still counted. The
+ * signed-in app's layout calls this: a guest's page holds what they did in the
+ * page, and its failures draw no panel to get stuck on, so it waits for its next
+ * navigation. Returns the undo.
+ */
+export function watchPerson(tab: StaleTab, target: PersonTarget): () => void {
+  const onVisibility = (): void => {
+    if (target.document.visibilityState === 'visible') tab.noteReturn()
+  }
+  const onOnline = (): void => tab.noteReturn()
+  const onEdit = (event: Event): void => {
+    const control = event.target as unknown as ChangedControl &
+      Readonly<{ type?: string }>
+    if (control.type !== 'search') tab.noteEdit(control)
+  }
+  const onPress = (event: Event): void => {
+    const pressed = event.target as Partial<ChangedControl> | null
+    const control = pressed?.closest?.(PRESSED_CONTROL)
+    if (control) tab.noteEdit(control)
+  }
+  target.addEventListener('visibilitychange', onVisibility)
+  target.addEventListener('online', onOnline)
+  target.addEventListener('input', onEdit, true)
+  target.addEventListener('change', onEdit, true)
+  target.addEventListener('click', onPress, true)
+  return () => {
+    target.removeEventListener('visibilitychange', onVisibility)
+    target.removeEventListener('online', onOnline)
+    target.removeEventListener('input', onEdit, true)
+    target.removeEventListener('change', onEdit, true)
+    target.removeEventListener('click', onPress, true)
+  }
+}
+
 /** The browser's tab. Touches `window` only when asked to act, so a server render is untouched. */
 export const staleTab: StaleTab = createStaleTab({
   storage: () => (typeof sessionStorage === 'undefined' ? null : sessionStorage),
@@ -257,6 +390,12 @@ export const staleTab: StaleTab = createStaleTab({
     else window.location.reload()
   },
   later: (run, ms) => void setTimeout(run, ms),
+  dialogOpen: () =>
+    document.querySelector('[role="dialog"], [role="alertdialog"]') !== null,
+  askBeforeLeaving: () =>
+    window.addEventListener('beforeunload', (event) => event.preventDefault(), {
+      once: true,
+    }),
 })
 
 /** Called once by the browser entry, before the page hydrates. */

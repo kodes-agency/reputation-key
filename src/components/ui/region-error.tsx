@@ -1,11 +1,13 @@
 import { CircleAlert, Loader2 } from 'lucide-react'
 import type { ReactNode } from 'react'
+import { useReadRetry } from '#/components/hooks/use-read-retry'
 import { Button } from '#/components/ui/button'
 import { EmptyState } from '#/components/ui/empty-state'
 
 // A region of a page (a list, a strip, a card, a rail, a preview) that could
 // not be read. It says what failed and always offers the same recovery, "Try
-// again", wired to the region's own refetch. Page-level failures (a route that
+// again", wired to the region's own refetch (`useReadRetry`: in a tab whose code
+// is older than the server's, a reload instead). Page-level failures (a route that
 // could not load) are PageState's; a failed *action* (a save, a publish) is the
 // form's banner or a toast.
 //
@@ -21,7 +23,9 @@ type RetryButtonProps = Readonly<{
 
 /**
  * "Try again", for a failure shown inline in a notice or a status line where a
- * whole RegionError panel would be too much. One variant, one label.
+ * whole RegionError panel would be too much. One variant, one label. It presses
+ * what it is given: a retry of a read gives it `useReadRetry`'s, a retry of a save
+ * its own.
  */
 export function RetryButton({
   onRetry,
@@ -79,6 +83,7 @@ export function RegionError({
   size = 'default',
   onCancel,
 }: Props) {
+  const { tryAgain, reloading } = useReadRetry(onRetry)
   return (
     <EmptyState
       icon={CircleAlert}
@@ -88,7 +93,7 @@ export function RegionError({
       description={description}
       action={
         <div className="flex flex-wrap items-center justify-center gap-2">
-          <RetryButton onRetry={onRetry} retrying={retrying} />
+          <RetryButton onRetry={tryAgain} retrying={retrying || reloading} />
           {onCancel ? (
             <Button type="button" variant="outline" size="sm" onClick={onCancel}>
               Cancel

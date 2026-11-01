@@ -1,6 +1,7 @@
 // Authenticated layout route — protects all nested routes and renders the app shell.
 // Per better-auth TanStack Start docs: use createServerFn (getSession)
 // in beforeLoad — not authClient.getSession(), which can't forward cookies during SSR.
+import { useEffect } from 'react'
 import { createFileRoute, Outlet, redirect, isRedirect } from '@tanstack/react-router'
 import { getProductUpdatesClient } from './_authenticated/-product-updates-client'
 import { getSession } from '#/shared/auth/auth.functions'
@@ -8,6 +9,7 @@ import { getActiveOrganization } from '#/contexts/identity/server/organizations'
 import { getLastVisitCountFn } from '#/contexts/inbox/server/inbox'
 import { notificationFns } from '#/routes/-notification-fns'
 import { readViewportHint } from '#/routes/-viewport-hint'
+import { staleTab, watchPerson } from '#/shared/stale-tab/stale-tab'
 import type { Role } from '#/shared/domain/roles'
 import type { ClientAuthz } from '#/shared/domain/auth-context'
 import {
@@ -381,6 +383,8 @@ function AuthenticatedShell({ children }: Readonly<{ children: ReactNode }>) {
 }
 
 function AuthenticatedLayout() {
+  // Back at a tab left open across a deploy, a manager gets the current code at once.
+  useEffect(() => watchPerson(staleTab, window), [])
   return (
     <AuthenticatedShell>
       <Outlet />

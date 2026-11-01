@@ -206,7 +206,7 @@ export function ReplyCompose(props: ReplyComposeProps) {
     // preview names the language it was drafted in, and Submit is described by
     // why it is refused while the language is unresolved (`submitBlockedReason`).
     <div className="flex min-h-0 grow basis-auto flex-col">
-      <div className={DOCK_TEXT_ROW_CLASS}>
+      <div data-reload-safe={state.autosave.reloadSafe} className={DOCK_TEXT_ROW_CLASS}>
         <p role="status" className="sr-only">
           {waiting ? draftStepText(state.ai.stream.state) : ''}
         </p>

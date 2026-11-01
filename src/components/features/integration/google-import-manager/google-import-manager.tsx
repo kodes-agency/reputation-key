@@ -7,6 +7,7 @@ import {
   SetupWizard,
 } from '#/components/features/property-setup'
 import { ratingGoalImportProperty } from '#/components/features/property-setup/setup-rating-goal-offer'
+import { staleTab } from '#/shared/stale-tab/stale-tab'
 import type { GoogleImportManagerProps } from './google-import-manager-contract'
 import { GoogleImportManagerView } from './google-import-manager-view'
 import { GoogleImportProgressView } from './google-import-progress-view'
@@ -220,7 +221,7 @@ export function GoogleImportManager({
           isRefreshing={progress.isRefreshing}
           retryingItemId={progress.retryingItemId}
           isCancelling={progress.isCancelling}
-          onRefresh={() => void progress.refresh()}
+          onRefresh={() => staleTab.tryAgain(() => void progress.refresh())}
           onRetry={(item) => void progress.retry(item)}
           onCancel={() => void progress.cancel()}
           setupStep={

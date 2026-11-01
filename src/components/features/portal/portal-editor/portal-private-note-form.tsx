@@ -53,7 +53,11 @@ export function PortalPrivateNoteForm({ portal, mutation, disabled = false }: Pr
   })
 
   return (
-    <form className="flex flex-col gap-6" onSubmit={(event) => event.preventDefault()}>
+    <form
+      data-reload-safe
+      className="flex flex-col gap-6"
+      onSubmit={(event) => event.preventDefault()}
+    >
       <form.Field name="skipPrivateRating">
         {(field) => (
           <SettingSwitchRow

@@ -84,26 +84,51 @@ path on this site is loaded); a change of hash alone does not reload. A read the
 server refuses within `FRESH_VIEW_MS` (3 s) of such a navigation reloads the
 current address at once, armed or not: the refusal answers the view the
 navigation has just drawn, so nothing in it can be lost, and this is what spares
-the first item selected in the Inbox after a deploy. A refusal later than that (a
-focus refetch, a poll, a part of the page that mounted late) only arms the tab,
-because the person may be in the middle of something. A tab also reloads at once
+the first item selected in the Inbox after a deploy. So does a read refused within
+that window of the person **coming back to the tab** (or the network coming back),
+which is how most tabs learn of a deploy: every read on the page is about to fail
+and flip to its failure, and they have not started anything yet. Both hold while
+a form control the person changed is still on screen (`watchPerson`, from the
+signed-in layout: any control but a search, which the address keeps), and coming
+back also holds while a dialog is open. A control under `data-reload-safe="true"`
+does not count, and the question is asked when a reload is in question, so the
+attribute can come and go: it means the words are saved or guarded right now, as
+in the autosaved Portal forms, whose `PortalUnsavedChangesPrompt` guards the page,
+and the reply composer, whose coordinator holds the reload until they are saved
+and which drops the attribute when it cannot save them. Leave a form unmarked
+unless all of that is true of it: an unmarked form costs a question, a wrongly
+marked one costs the person's words. A guest's page is not watched: it holds what
+they did in the page. Any other
+refusal (a poll, a part of the page that mounted late) only arms the tab, because
+the person may be in the middle of something. A tab also reloads at once
 when a route already failed to draw (`useGuardedRouteError`): because of a stale
 refusal, a missing chunk, or any failure at all once the tab is armed, since old
-code meeting a newer answer fails in ways no shape can name. It never reloads
-under a mutation in flight (the reload waits for the next moment), and never in
-a loop: `reload-guard.ts` allows one reload per release being left per two
-minutes, remembered in `sessionStorage` before the reload, and refuses when it
-cannot remember. A navigation that would lose unsaved work is held by the page's
+code meeting a newer answer fails in ways no shape can name.
+
+**Try again on a read reloads an armed tab** (`useReadRetry`, `staleTab.tryAgain`:
+`RegionError`, `PageState`, `LoadMoreButton`, the Google Refresh buttons). The read
+can only be refused again, so asking for it again is a button that does nothing,
+however often it is pressed. A press cannot loop, so the guard counts it and lets
+it through, with the browser's own "Leave site?" first if the person holds
+something a reload would lose. So does a read refused within `FRESH_VIEW_MS` of a
+press, for a tab that had not yet learned it is stale. A retry that is not a read
+(a save) never comes here: it goes through in a stale tab, and a reload could lose
+it, so `RetryButton` alone presses exactly what it is given.
+
+A tab never reloads under a mutation in flight (the reload waits for the next
+moment), and never in a loop: `reload-guard.ts` allows one reload of its own per
+release being left per two minutes, remembered in `sessionStorage` before the
+reload, and refuses when it cannot remember. A navigation that would lose unsaved work is held by the page's
 own blocker (`useBlocker`) before the router announces it, and a reload still
 meets the page's `beforeunload`. A page still here ten seconds after asking (a
 navigation that was cancelled) draws its failure again instead of a loading state
 that never ends. The whole reload path is in first paint because it runs exactly
 when a lazy chunk may be gone.
 
-A read refused outside that window on a page that stays put (a focus refetch on
-the Inbox) shows the refusal's own sentence ("Reload to continue") in place of
-that read until the person's next navigation (another item or another page),
-which reloads.
+A read refused outside those windows on a page that stays put (a poll, or coming
+back while the person holds something) draws that read's own failure until their
+next navigation (another item or another page) or their Try again, either of which
+reloads.
 
 A call can also name a server function the new release no longer has (removed or
 renamed; production ids are a hash of file and function name, so an unchanged

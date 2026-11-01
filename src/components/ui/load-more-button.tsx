@@ -8,6 +8,7 @@
 // `pending` is natively disabled, so this one draws its own spinner (the same
 // allowance as `RetryButton`).
 import { Loader2 } from 'lucide-react'
+import { useReadRetry } from '#/components/hooks/use-read-retry'
 import { Button, type ButtonProps } from '#/components/ui/button'
 import { cn } from '#/lib/utils'
 
@@ -39,20 +40,26 @@ export function LoadMoreButton({
   className,
   ...props
 }: Props) {
+  const { tryAgain, reloading } = useReadRetry(onLoadMore)
+  const busy = loading || reloading
   return (
     <Button
       type="button"
       variant="outline"
       size={size}
-      aria-disabled={loading || undefined}
-      aria-busy={loading || undefined}
+      aria-disabled={busy || undefined}
+      aria-busy={busy || undefined}
       onClick={() => {
-        if (!loading) onLoadMore()
+        if (busy) return
+        // Only a page that already failed: the first press may hold a selection
+        // above it, and nothing yet says this read cannot be answered.
+        if (failed) tryAgain()
+        else onLoadMore()
       }}
       className={cn('aria-disabled:cursor-default', block && 'w-full', className)}
       {...props}
     >
-      {loading ? (
+      {busy ? (
         <>
           <Loader2
             className="animate-spin motion-reduce:animate-none"

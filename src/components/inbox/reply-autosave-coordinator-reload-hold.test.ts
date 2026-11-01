@@ -6,6 +6,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   createReplyAutosaveCoordinator,
+  isReloadSafe,
+  type ReplyAutosaveStatus,
   type ReplyDraftSnapshot,
 } from './reply-autosave-coordinator'
 
@@ -45,6 +47,22 @@ beforeEach(() => {
 })
 
 afterEach(() => vi.useRealTimers())
+
+describe('whether a reload could lose the words', () => {
+  it.each<ReplyAutosaveStatus>(['idle', 'pending', 'saving', 'saved'])(
+    'it cannot while the status is %s: they are saved, or the reload is held until they are',
+    (status) => {
+      expect(isReloadSafe(status)).toBe(true)
+    },
+  )
+
+  it.each<ReplyAutosaveStatus>(['unsaved', 'error'])(
+    'it could while the status is %s: nothing holds the reload, and the words are on this page alone',
+    (status) => {
+      expect(isReloadSafe(status)).toBe(false)
+    },
+  )
+})
 
 describe('reply autosave holds a stale tab reload', () => {
   it('while typed words wait for the debounce and until their save lands', async () => {
