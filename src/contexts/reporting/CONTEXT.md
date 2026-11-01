@@ -549,7 +549,7 @@ the normal domain/application/infrastructure layer rules.
 
 The Monthly portal goal's recommendation reads Portal's `listGoalReadinessFacts`
 (`PortalPublicApi`): each non-archived Portal's state, live since and live intervals, code
-date and marker, in name order, at most 100. Its request surface is the Monthly portal
+date and marker, in name order, including every non-archived Portal. Its request surface is the Monthly portal
 goal's card (`programs.monthlyPortalGoal.card`, `getMonthlyPortalGoalCard`), which gathers
 it after its own `goal.create` check, and its set command
 (`programs.monthlyPortalGoal.set`, `setMonthlyPortalGoal`), which reads it only to check a
@@ -596,8 +596,7 @@ all of them, a manager only those currently granted). A refusal is a tagged `Das
 `forbidden`, raised before anything is read. `getPropertyOverview` and `getAttentionSignals`
 ask for more: their attention band is work state (reply targets past due, items to triage,
 escalations), so the reader must also hold `dashboard.fleet_read` and reach the Property with
-it. A Member, who holds `dashboard.read` for the staff dashboard, is refused the overview
-whether or not the Property is granted. `getDashboardData` also hides reply state from a
+it. A Member holds no `dashboard.read` and reaches no manager reporting function; its separate staff self door is governed by ADR 0076. `getDashboardData` also hides reply state from a
 reader without `reply.manage` (`domain/reply-workflow-redaction.ts`); that covers the
 `dashboard` half of the overview, and the `dashboard.fleet_read` requirement covers its
 `signals` half. The server functions still ask the execution policy first, with the same
@@ -671,3 +670,11 @@ tenths a week `paceTenthsPerWeek` beside its whole weekly legacy mirror `pacePer
 - `infrastructure/runtime-dependency-injection.test.ts` rejects ambient runtime state.
 - Unit tests remain beside their domain, use-case, repository, adapter, and server subjects.
 - Integration tests exercise PostgreSQL constraints, projections, lifecycle, and exports.
+
+## Staff self reads — 2026-11-01 (ADR 0076)
+
+The dormant Property-wide staff dashboard is removed. `staff-self-results.ts` reads only the session's own personal Portal, under `staff.self` and `staff.accounts` (off). DTOs allow scans, delayed rating count and average, scan-only targets, or an enabled colleague list. No Google fact, private note or manager field is returned. Colleagues are one accepted active roster and one batch scan read, including zeroes, in name order. The default-off Property setting gates that read.
+
+Today, week and month use the Property calendar (US Sunday, otherwise Monday). Scans are current. Ratings end at the start of today and use only readings and corrections recorded before that cutoff, so late projection or correction cannot move the same day's figure. Today has no rating fields and averages below five ratings are absent. Staff query keys are separate and name participation, period and rating cutoff.
+
+`staff_self` is a permitted consumer of qualified scans, numeric private ratings, rating count and rating average. Their worker-data metadata marks the new person-linked audience; retention stays with their 24-month Guest facts and metric formulae, version ids and source rules are unchanged. No click, note or Google metric gains this consumer. It is a read audience, not a gamification consumer. Only qualified scans may drive a target on a personal Portal or a Group holding one; `STAFF_SCAN_TARGETS_ENABLED` is default off and gates new targets and staff goal reads.

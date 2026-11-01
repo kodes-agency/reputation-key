@@ -8,7 +8,7 @@
 // pixels.
 import type { Meta, StoryObj } from '@storybook/react-vite'
 import { expect, fn, userEvent, waitFor, within } from 'storybook/test'
-import { withRole } from '../../../.storybook/AuthedRouterDecorator'
+import { withPermissions } from '../../../.storybook/AuthedRouterDecorator'
 import { tailwindIsCompiled } from '../../../.storybook/tailwind-compiled'
 import { ServerFunctionError } from '#/shared/auth/server-function-error'
 import { RatingGoalDetail, RatingGoalMissing } from './rating-goal-detail'
@@ -597,7 +597,7 @@ export const EndRefused: StoryObj<typeof RatingGoalDetailActions> = {
 
 /** Without goal.update and goal.cancel there is nothing to press. */
 export const ActionsHiddenWithoutPermission: StoryObj<typeof RatingGoalDetailActions> = {
-  decorators: [withRole('Member')],
+  decorators: [withPermissions(['goal.read', 'portal.read', 'property.read'])],
   render: () => (
     <div data-testid="actions" className="flex gap-2">
       <RatingGoalDetailActions

@@ -16,8 +16,8 @@ assignment, and governed access artifacts.
   read their stores.
 - Reporting's Monthly portal goal reads `listGoalReadinessFacts(org, property, asOf)`
   on `PortalPublicApi` (`application/goal-readiness-facts.ts`): every non-archived,
-  non-deleted Portal of the Property in name order, at most 100 (`truncated` says
-  there were more), each with its publication state, `liveSince`, the live
+  non-deleted Portal of the Property in name order, including the complete roster
+  (`truncated` is always false), each with its publication state, `liveSince`, the live
   intervals that overlap the last 60 days, when its current code was made, whether
   that code's QR or NFC marker is published (`codeReady`, the scan-goal rule) and
   its group. Names, states, identifiers and instants only. It checks no permission:
@@ -1217,3 +1217,9 @@ turning it on and refuses while a running rating goal targets that Portal, or
 when it is the last rating collector for a running Group or Property rating
 goal (only published Portals count for the Property check);
 it imports no Reporting implementation.
+
+## Personal Portal foundation — 2026-11-01 (ADR 0076)
+
+Portal kind is `place` or `personal`, set only at creation. A personal Portal keeps the person's name in `name` for managers and a fixed guest name in `public_name`; publication sources, guest data and print metadata use `public_name ?? name`. Its slug is always derived from its reserved id. The copy path supplies wording, links and look; a source with unpublished changes or an archived source is refused, and preflight names links the copy omits. Without a source it starts from the Property wording and public name. Address recovery must be configured. Code issuance precedes first publication, using the manager's own context.
+
+Only Staff Remove archives a personal Portal, under `staff.remove`. The ordinary update refuses its rename, slug change, Archive and Restore; Disable remains available. The own-code read checks the session's personal assignment, uses the same sealed-address reader and ledger, and returns QR wording only. It records one `show` per user and token version and spends no Organization address budget. `Portal` and `PortalOverviewRow` carry kind; this foundation changes no list presentation.

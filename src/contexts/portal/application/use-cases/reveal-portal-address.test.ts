@@ -1,3 +1,4 @@
+import { getOwnPersonalCode } from './get-own-personal-code'
 import { describe, expect, it, vi } from 'vitest'
 import type { StaffPublicApi } from '#/contexts/identity/application/public-api'
 import type { PortalAddressFormat } from '../portal-address-urls'
@@ -128,6 +129,21 @@ function harness(
         reportPrintCodeProblem,
         clock: () => NOW,
         address,
+      }),
+    ownCode: (assigned = true) =>
+      getOwnPersonalCode({
+        portalRepo,
+        staffPublicApi: {
+          getAccessiblePropertyIds: async () => [],
+          getAssignedPortals: async () => (assigned ? [portal.id] : []),
+        },
+        portalAddressRepo: addressRepo,
+        addressCipher,
+        tokenCodec,
+        reportPrintCodeProblem,
+        clock: () => NOW,
+        address,
+        propertyLifecycleApi: { isPropertyActive: async () => true },
       }),
     reveal: revealPortalAddress({
       portalRepo,
@@ -483,5 +499,46 @@ describe('revealPortalAddress — print codes (ADR 0069)', () => {
     expect(revealed.publicUrls.qr).toContain('?accessArtifact=')
     expect(revealed.publicUrls.nfc).toContain('?accessArtifact=')
     expect(h.reported).toEqual(['derive_mismatch'])
+  })
+})
+
+describe('getOwnPersonalCode', () => {
+  it('shows paused after revocation without suggesting that staff replace the code', async () => {
+    const h = harness()
+    h.deps.portalRepo.seed([{ ...h.portal, kind: 'personal', publicName: 'Harbor' }])
+    await h.issue({ portalId: h.portal.id }, h.ctx)
+    await h.revoke({ portalId: h.portal.id, reason: 'leaked' }, h.ctx)
+    expect(
+      await h.ownCode()(
+        { portalId: h.portal.id },
+        buildTestAuthContext({ role: 'Member' }),
+      ),
+    ).toEqual({ state: 'paused' })
+    expect(h.addressRepo.downloads()).toEqual([])
+  })
+  it('reads only QR for a Member and audits once per token version, refreshing after replacement', async () => {
+    const h = harness({ address: SHORT })
+    h.deps.portalRepo.seed([{ ...h.portal, kind: 'personal', publicName: 'Harbor' }])
+    await h.issue({ portalId: h.portal.id }, h.ctx)
+    const member = buildTestAuthContext({ role: 'Member' })
+    const first = await h.ownCode()({ portalId: h.portal.id }, member)
+    expect(Object.keys(first).sort()).toEqual(['qr', 'state', 'wordingKey'])
+    await h.ownCode()({ portalId: h.portal.id }, member)
+    expect(h.addressRepo.downloads()).toHaveLength(1)
+    h.useRaw(ROTATED_RAW)
+    await h.rotate({ portalId: h.portal.id, replacementKind: 'security' }, h.ctx)
+    const next = await h.ownCode()({ portalId: h.portal.id }, member)
+    expect(next).not.toEqual(first)
+    expect(h.addressRepo.downloads()).toHaveLength(2)
+  })
+  it('refuses a Portal that is not the caller personal assignment', async () => {
+    const h = harness()
+    h.deps.portalRepo.seed([{ ...h.portal, kind: 'personal', publicName: 'Harbor' }])
+    await expect(
+      h.ownCode(false)(
+        { portalId: h.portal.id },
+        buildTestAuthContext({ role: 'Member' }),
+      ),
+    ).rejects.toMatchObject({ code: 'forbidden' })
   })
 })

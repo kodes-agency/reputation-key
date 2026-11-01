@@ -5,7 +5,7 @@
 //
 // The `role` in route context defaults to `AccountAdmin` (the owner role, which
 // the permission table grants every statement), so create/update/delete
-// affordances all render. Use `withRole('Member')` for a read-only member view.
+// affordances all render. Use `withPermissions` for an exact restricted reader.
 //
 // The router boots on `/`. A story whose component reads the location (a nav that
 // marks the page it is on) passes `{ at }`: the router then also answers any other
@@ -25,15 +25,23 @@ import {
 } from '@tanstack/react-router'
 import { useMemo, type ReactNode } from 'react'
 import type { Role } from '#/shared/domain/roles'
+import type { ClientAuthz } from '#/shared/domain/auth-context'
+import type { Permission } from '#/shared/domain/permissions'
+import { EMPTY_CLIENT_AUTHZ } from '#/shared/domain/auth-context'
 
-type AuthContext = Readonly<{ role: Role }>
+type AuthContext = Readonly<{ role: Role; authz: ClientAuthz }>
 
 type AuthedRouterOptions = Readonly<{
   /** The address the story is "on". Defaults to `/`. */
   at?: string
 }>
 
-function makeAuthedRouter(Story: () => ReactNode, role: Role, at = '/') {
+function makeAuthedRouter(
+  Story: () => ReactNode,
+  role: Role,
+  at = '/',
+  authz = EMPTY_CLIENT_AUTHZ,
+) {
   const rootRoute = createRootRouteWithContext<AuthContext>()({
     component: Outlet,
   })
@@ -61,7 +69,7 @@ function makeAuthedRouter(Story: () => ReactNode, role: Role, at = '/') {
   return createRouter({
     routeTree,
     history: createMemoryHistory({ initialEntries: [at] }),
-    context: { role },
+    context: { role, authz },
   })
 }
 
@@ -71,13 +79,32 @@ export function AuthedRouterDecorator(Story: () => ReactNode) {
   return <RouterProvider router={router} />
 }
 
-/** Build a decorator that renders as a specific role (e.g. 'Member' for a
- *  permission-restricted view). Usage: `decorators: [withRole('Member')]`;
- *  `withRole('Member', { at: '/properties/1/settings/google' })` also puts the
+/** Build a decorator that renders as a specific role.
+ *  `withRole('PropertyManager', { at: '/properties/1/settings/google' })` also puts the
  *  story on that address. */
 export function withRole(role: Role, { at }: AuthedRouterOptions = {}) {
   return function AuthedRouterDecoratorForRole(Story: () => ReactNode) {
     const router = useMemo(() => makeAuthedRouter(Story, role, at), [Story])
+    return <RouterProvider router={router} />
+  }
+}
+
+/** A reader's precise permissions, independent of the built-in staff login role. */
+export function withPermissions(
+  permissions: readonly Permission[],
+  { at }: AuthedRouterOptions = {},
+) {
+  return function AuthedRouterDecoratorForPermissions(Story: () => ReactNode) {
+    const router = useMemo(
+      () =>
+        makeAuthedRouter(Story, 'PropertyManager', at, {
+          effectivePermissions: permissions,
+          scopeByPermission: Object.fromEntries(
+            permissions.map((permission) => [permission, 'all' as const]),
+          ),
+        }),
+      [Story],
+    )
     return <RouterProvider router={router} />
   }
 }

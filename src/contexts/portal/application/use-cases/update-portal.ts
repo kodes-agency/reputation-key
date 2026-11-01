@@ -1,3 +1,4 @@
+import { assertPersonalPortalPublicText } from '../../domain/personal-portal-public-text'
 // Portal context — update portal use case
 
 import type { PortalRepository } from '../ports/portal.repository'
@@ -54,6 +55,9 @@ export type UpdatePortalDeps = Readonly<{
       portalId: string,
     ): Promise<'portal' | 'last_collector' | null>
   }>
+  personalArchive?: boolean
+  /** The already-authorized member departure must also retire staff Portals outside manager grants. */
+  memberDepartureArchive?: boolean
   portalRepo: PortalRepository
   commandStore: PortalCommandStore
   publicationRepo: PortalPublicationRepository
@@ -272,13 +276,18 @@ async function buildPublicationMutation(
         'Portal publication content is unavailable',
       )
     }
+    const publicSource = applyPatchToPublicationSource(workingCopy, {
+      ...patch,
+      name: existing.publicName ?? patch.name,
+    })
+    assertPersonalPortalPublicText(existing, publicSource)
     const snapshot = buildPortalPublicationSnapshot({
       id: deps.idGen(),
       portalId: unbrand(existing.id),
       organizationId: unbrand(existing.organizationId),
       propertyId: unbrand(existing.propertyId),
       version: cursor.nextSnapshotVersion,
-      source: applyPatchToPublicationSource(workingCopy, patch),
+      source: publicSource,
       destination,
       createdBy: unbrand(ctx.userId),
       createdAt: at,
@@ -406,13 +415,70 @@ async function assertSkipSwitchAllowed(
   )
 }
 
+function assertPersonalMutation(
+  existing: Portal,
+  input: UpdatePortalInput,
+  personalArchive: boolean,
+): void {
+  if (personalArchive && existing.kind !== 'personal') {
+    throw portalError('forbidden', 'Only a personal Portal can be removed through Staff')
+  }
+  if (existing.kind === 'personal' && !personalArchive) {
+    if (
+      (input.name !== undefined && input.name !== existing.name) ||
+      (input.slug !== undefined && input.slug !== existing.slug)
+    ) {
+      throw portalError('personal_portal_rename_locked', 'Rename this person from Staff')
+    }
+    if (input.publicationState === 'archived') {
+      throw portalError(
+        'personal_portal_archive_locked',
+        'Remove this person from Staff to archive their Portal',
+      )
+    }
+    if (existing.publicationState === 'archived') {
+      throw portalError(
+        'personal_portal_restore_locked',
+        'A removed staff Portal cannot be restored. Add the person again',
+      )
+    }
+  }
+}
+
+async function loadPortalForUpdate(
+  deps: UpdatePortalDeps,
+  input: UpdatePortalInput,
+  ctx: AuthContext,
+) {
+  const pid = toPortalId(input.portalId)
+  const existing =
+    deps.memberDepartureArchive && deps.personalArchive
+      ? await deps.portalRepo.findById(ctx.organizationId, pid)
+      : await loadPortalOrThrow(
+          deps,
+          ctx,
+          pid,
+          deps.personalArchive
+            ? {
+                permission: 'staff.remove',
+                forbiddenMessage: 'This role cannot remove staff',
+              }
+            : requiredPermission(input),
+        )
+  if (!existing)
+    throw portalError('portal_not_found', 'Portal not found in this Organization')
+
+  return existing
+}
+
 export const updatePortal =
   (deps: UpdatePortalDeps) =>
   async (input: UpdatePortalInput, ctx: AuthContext): Promise<Portal> => {
-    const pid = toPortalId(input.portalId)
     // Role, then the Portal, then the Property scope (D6-001), on that permission.
-    const existing = await loadPortalOrThrow(deps, ctx, pid, requiredPermission(input))
+    const existing = await loadPortalForUpdate(deps, input, ctx)
+    const pid = existing.id
 
+    assertPersonalMutation(existing, input, deps.personalArchive ?? false)
     assertArchivedMutationIsRestore(input, existing)
     await assertSkipSwitchAllowed(deps, ctx, input, existing)
 

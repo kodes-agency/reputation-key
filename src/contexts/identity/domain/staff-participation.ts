@@ -17,6 +17,7 @@ export interface StaffParticipation {
   readonly organizationId: string
   readonly propertyId: string
   readonly staffParticipantId: string
+  readonly personalPortalId: string | null
   readonly linkedUserId: string | null
   readonly displayName: string
   readonly status: ParticipationStatus
@@ -43,6 +44,7 @@ export function createParticipation(params: {
     propertyId: params.propertyId,
     staffParticipantId: params.staffParticipantId,
     linkedUserId: null,
+    personalPortalId: null,
     displayName: params.displayName,
     status: 'active',
     startedAt: params.now,

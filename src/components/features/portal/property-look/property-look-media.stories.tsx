@@ -11,7 +11,7 @@ import { openAlertDialog } from '#/components/ui/confirmation-dialog.stories.ope
 import { ServerFunctionError } from '#/shared/auth/server-function-error'
 import {
   AuthedRouterDecorator,
-  withRole,
+  withPermissions,
 } from '../../../../../.storybook/AuthedRouterDecorator'
 import { previewReader } from '../portal-preview/__fixtures__/portal-preview-fixtures'
 import {
@@ -636,7 +636,7 @@ export const RemovingTheLogo: Story = {
 
 /** Everyone but an account admin sees the photograph and logo, and none of the controls. */
 export const ReadOnlySeesNoControls: Story = {
-  decorators: [withRole('Member')],
+  decorators: [withPermissions(['portal.read', 'property.read'])],
   args: {
     canEdit: false,
     media: {

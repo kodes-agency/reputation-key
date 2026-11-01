@@ -22,7 +22,7 @@ export type InvitationPreview =
       invitationId: string
       organizationName: string
       inviterName: string | null
-      role: BetaInteractiveRole
+      role: BetaInteractiveRole | 'Member'
       propertyNames: ReadonlyArray<string>
       email: string
       expiresAt: Date
@@ -50,7 +50,10 @@ export const getInvitationPreview =
   async (id) => {
     const row = await deps.invitations.findForPreview(id)
     if (!row) return unavailable()
-    const role = betaInvitationRole(row.role)
+    const role =
+      row.role === 'member' && row.staffParticipationId
+        ? 'Member'
+        : betaInvitationRole(row.role)
     if (!role) return unavailable()
 
     const state = invitationState(row.status, row.expiresAt, deps.clock())

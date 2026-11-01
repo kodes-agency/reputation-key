@@ -35,7 +35,7 @@ export async function loadPortalPrintKitContext(
     )
   }
   if (isImmersiveConfiguration(live.configuration)) {
-    return printKitContextOfLive(portal.name, live.configuration)
+    return printKitContextOfLive(portal.publicName ?? portal.name, live.configuration)
   }
   const source = await deps.publicationRepo.loadWorkingCopy(organizationId, portal.id)
   if (!source) throw portalError('portal_not_found', 'portal not found')

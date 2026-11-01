@@ -2,7 +2,7 @@ import type { Meta, StoryObj } from '@storybook/react-vite'
 import { expect, fn, userEvent, within } from 'storybook/test'
 import {
   AuthedRouterDecorator,
-  withRole,
+  withPermissions,
 } from '../../../../.storybook/AuthedRouterDecorator'
 import type {
   AiPropertyInsightsAllTimeReady,
@@ -465,7 +465,7 @@ export const AnalysisOff: Story = {
 
 export const AnalysisOffForMember: Story = {
   ...AnalysisOff,
-  decorators: [withRole('Member')],
+  decorators: [withPermissions(['property.read', 'dashboard.read'])],
   play: async ({ canvas }) => {
     expect(await canvas.findByText(/An account admin can enable it/)).toBeVisible()
     expect(

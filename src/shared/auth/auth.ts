@@ -268,7 +268,7 @@ export function createAuth() {
         // true above but false for invitation acceptance. Inert while the raw
         // accept-invitation route is not served; kept aligned regardless.
         requireEmailVerificationOnInvitation: env.EMAIL_VERIFICATION_REQUIRED,
-        // Custom fields on invitation (propertyIds) and supported Organization
+        // Custom fields on invitation (propertyIds, staffParticipationId) and supported Organization
         // settings (contact/response target).
         // Shared with auth-cli.ts via ./org-schema so the migration CLI manages
         // the same columns as the runtime (prevents drift).

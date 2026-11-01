@@ -25,6 +25,7 @@ import type {
   CreatePortalCopiedContent,
   PortalCommandStore,
 } from '../application/ports/portal-command-store.port'
+import { assertPersonalSourceFence } from './personal-portal-source-fence'
 import { portalError } from '../domain/errors'
 import { categoryToRow, newLinkToRow } from './mappers/portal-link.mapper'
 import { portalToRow } from './mappers/portal.mapper'
@@ -214,6 +215,7 @@ export const createPortalCreateCommand = (db: Database): PortalCreateCommandStor
 
 async function commitCreate(db: Database, command: CreatePortalCommand): Promise<void> {
   await db.transaction(async (tx) => {
+    await assertPersonalSourceFence(tx, command)
     const [created] = await tx
       .insert(portals)
       .values(portalToRow(command.portal))

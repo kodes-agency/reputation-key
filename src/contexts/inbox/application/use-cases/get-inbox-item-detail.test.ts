@@ -538,14 +538,17 @@ describe('getInboxItemDetail', () => {
     expect(replyCalls).toHaveLength(1)
   })
 
-  it('does NOT attach reply for Member and never calls the lookup', async () => {
+  it('does NOT attach reply for a reader without reply permission and never calls the lookup', async () => {
     const scopedApi = createScopedStaffApi([PROP_ID])
     const reply = makeReply()
     const { repo, staffApi, replyLookup, replyCalls, setDetail } = setup(scopedApi, reply)
     setDetail(makeDetail(makeItem()))
 
     const useCase = getInboxItemDetail({ repo, staffPublicApi: staffApi, replyLookup })
-    const result = await useCase({ inboxItemId: ITEM_ID }, ctxFor('Member'))
+    const result = await useCase(
+      { inboxItemId: ITEM_ID },
+      ctxWith('inbox.read', 'review.read'),
+    )
 
     expect(result.reply).toBeNull()
     expect(replyCalls).toHaveLength(0)

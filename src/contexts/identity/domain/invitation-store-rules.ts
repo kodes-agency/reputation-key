@@ -45,9 +45,15 @@ export const encodePropertyIds = (propertyIds: ReadonlyArray<string>): string | 
  * (owner or admin); null for a Member or custom role, which are retained as
  * data but never become logins.
  */
-export function grantedRoleToken(raw: string | null): string | null {
+export function grantedRoleToken(
+  raw: string | null,
+  staffParticipationId?: string | null,
+): string | null {
   const role = (raw ?? 'member').trim().toLowerCase()
-  return isBetaInteractiveMemberRoleToken(role) ? role : null
+  return isBetaInteractiveMemberRoleToken(role) ||
+    (role === 'member' && !!staffParticipationId)
+    ? role
+    : null
 }
 
 /** What an acceptance reports from the invitation row it consumed. */
@@ -56,10 +62,11 @@ export const consumedInvitation = (
     organizationId: string
     propertyIds: string | null
     inviterId: string | null
+    staffParticipationId?: string | null
   }>,
 ) => ({
   organizationId: toOrganizationId(row.organizationId),
-  propertyIds: parsePropertyIds(row.propertyIds),
+  propertyIds: row.staffParticipationId ? [] : parsePropertyIds(row.propertyIds),
   inviterId: row.inviterId ? toUserId(row.inviterId) : null,
 })
 
@@ -96,6 +103,7 @@ export function assertInvitationOpenForRegistration(
     | Readonly<{
         email: string
         role: string | null
+        staffParticipationId?: string | null
         status: string
         expiresAt: Date
       }>
@@ -108,7 +116,7 @@ export function assertInvitationOpenForRegistration(
   if (inv.email.toLowerCase() !== input.email.toLowerCase()) {
     throw identityError('forbidden', 'Invitation is not addressed to this email')
   }
-  if (!isBetaInteractiveMemberRoleToken(inv.role ?? 'member')) {
+  if (grantedRoleToken(inv.role, inv.staffParticipationId) === null) {
     throw identityError('forbidden', INELIGIBLE_ROLE_MESSAGE)
   }
 }
@@ -142,12 +150,16 @@ export function assertInvitationAcceptable(
  * beta login may still hold. Returns the row with that role token.
  */
 export function renewableInvitation<
-  T extends Readonly<{ status: string; role: string | null }>,
+  T extends Readonly<{
+    status: string
+    role: string | null
+    staffParticipationId?: string | null
+  }>,
 >(inv: T | undefined): Readonly<{ inv: T; role: string }> {
   if (!inv || (inv.status !== 'pending' && inv.status !== 'expired')) {
     throw identityError('invitation_not_found', INVITATION_CONSUMED_MESSAGE)
   }
-  const role = grantedRoleToken(inv.role)
+  const role = grantedRoleToken(inv.role, inv.staffParticipationId)
   if (role === null) throw identityError('forbidden', INELIGIBLE_ROLE_MESSAGE)
   return { inv, role }
 }

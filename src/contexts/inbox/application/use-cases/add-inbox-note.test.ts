@@ -198,7 +198,7 @@ describe('addInboxNote', () => {
 
     const note = await useCase(
       { inboxItemId: ITEM_ID, text: 'test note' },
-      ctxFor('Member'),
+      ctxFor('PropertyManager'),
     )
 
     expect(note.text).toBe('test note')

@@ -168,6 +168,12 @@ export const archiveStaffParticipation =
       ctx,
       input.staffParticipationId,
     )
+    if (participation.personalPortalId) {
+      throw staffError(
+        'staff_personal_portal_locked',
+        'Remove this person from Staff to end their personal Portal',
+      )
+    }
     if (participation.status === 'archived') return participation
     const reason = input.reason.trim()
     if (reason.length === 0) {
@@ -205,6 +211,12 @@ export const updatePortalResponsibilities =
       ctx,
       input.staffParticipationId,
     )
+    if (participation.personalPortalId) {
+      throw staffError(
+        'staff_personal_portal_locked',
+        'A personal Portal stays with its person',
+      )
+    }
     if (participation.status !== 'active') {
       throw staffError(
         'participation_archived',

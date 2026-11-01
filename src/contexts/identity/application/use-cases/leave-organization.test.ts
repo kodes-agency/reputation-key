@@ -58,6 +58,10 @@ function setup(
     eligible?: boolean
     /** Responsibilities appearing on the SECOND read (a concurrent write). */
     afterTransfer?: readonly OutstandingResponsibility[]
+    removeStaff?: (
+      userId: string,
+      ctx: import('#/shared/domain/auth-context').AuthContext,
+    ) => Promise<void>
   }>,
 ) {
   const identity = createInMemoryIdentityPort()
@@ -88,6 +92,7 @@ function setup(
   const prepareGoogleConnectorDeparture = vi.fn(async () => {})
   const cancelGoogleImportsForUser = vi.fn(async () => {})
   const useCase = leaveOrganization({
+    removeStaffForMemberDeparture: input.removeStaff,
     identity,
     commandStore,
     offboarding,
@@ -112,6 +117,22 @@ function setup(
 }
 
 describe('leaveOrganization', () => {
+  it('stops Leave until staff cleanup succeeds and permits retry', async () => {
+    const removeStaff = vi
+      .fn()
+      .mockRejectedValueOnce(new Error('Staff removal is unfinished'))
+      .mockResolvedValue(undefined)
+    const h = setup({ members: [OWNER, LEAVER], actor: LEAVER, removeStaff })
+    await expect(h.useCase({ transfers: [] }, h.ctx)).rejects.toThrow(
+      'Staff removal is unfinished',
+    )
+    expect(h.commandStore.memberById(LEAVER.id)).not.toBeNull()
+    expect(await h.useCase({ transfers: [] }, h.ctx)).toEqual({
+      success: true,
+      transferred: 0,
+    })
+    expect(removeStaff).toHaveBeenCalledWith(LEAVER.userId, h.ctx)
+  })
   it('refuses the sole AccountAdmin', async () => {
     const { useCase, ctx, commandStore } = setup({
       members: [OWNER, LEAVER],

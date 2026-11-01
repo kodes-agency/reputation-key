@@ -9,6 +9,7 @@ import { ServerFunctionError } from '#/shared/auth/server-function-error'
 import {
   AuthedRouterDecorator,
   withRole,
+  withPermissions,
 } from '../../../../../.storybook/AuthedRouterDecorator'
 import { previewReader } from '../portal-preview/__fixtures__/portal-preview-fixtures'
 import {
@@ -528,7 +529,7 @@ export const OnePortalWithItsOwnPhoto: Story = {
 
 /** Only an Account Admin edits it; everyone else reads it. */
 export const ReadOnly: Story = {
-  decorators: [withRole('Member')],
+  decorators: [withPermissions(['portal.read', 'property.read'])],
   args: { canEdit: false },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
@@ -587,7 +588,7 @@ export const NoPublicDisplayName: Story = {
 
 /** Someone who cannot set the name is told who can, and sees no field. */
 export const NoPublicDisplayNameForAReader: Story = {
-  decorators: [withRole('Member')],
+  decorators: [withPermissions(['portal.read', 'property.read'])],
   args: { profile: null, canEdit: false },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)

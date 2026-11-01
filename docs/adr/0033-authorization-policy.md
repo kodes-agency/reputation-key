@@ -111,3 +111,9 @@ reset link's token segment matches any value), and the same test fails when a
 listed route is not decided the way its list says.
 `src/routes/api/auth/-$.integration.test.ts` proves the refusals against the
 real provider and database.
+
+## Amendment 2026-11-01 — staff accounts and personal Portals
+
+[ADR 0076](0076-staff-accounts-and-personal-portals.md) amends this decision.
+
+Staff-only logins use a separate resolver for `staff.self`; `resolveTenant` still refuses the `member` token. The staff resolver checks the session's sole Organization membership on every request and asks the execution policy under `staff.accounts`. Identity then requires the active login link and an active personal participation belonging to that session. These reads grant no manager Property access. AccountAdmins and PropertyManagers may invite, rename, resend and remove staff only at Properties they can work. Only an AccountAdmin changes the colleague-list setting. A PropertyManager cannot choose another login role.

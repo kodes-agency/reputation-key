@@ -9,7 +9,7 @@
 import { useState } from 'react'
 import type { Meta, StoryObj } from '@storybook/react-vite'
 import { expect, fn, userEvent, within } from 'storybook/test'
-import { withRole } from '../../../.storybook/AuthedRouterDecorator'
+import { withPermissions } from '../../../.storybook/AuthedRouterDecorator'
 import { Button } from '#/components/ui/button'
 import { RatingGoalHistory } from './rating-goal-history'
 import { RatingGoalSection } from './rating-goal-section'
@@ -628,10 +628,10 @@ export const LowRatingPicksAPlan: Story = {
   },
 }
 
-/** Members can read goals they cannot set: the door is words, not a button. */
+/** A goal reader without create permission sees an explanation for unavailable setup. */
 export const SetYourGoalReadOnly: Story = {
   args: { card: cardRead(null), setup: read(SETUP) },
-  decorators: [withRole('Member')],
+  decorators: [withPermissions(['goal.read', 'portal.read', 'property.read'])],
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
     await expect(canvas.queryByRole('button', { name: 'Set goal' })).toBeNull()

@@ -18,6 +18,7 @@ export const createGoalProgramSubjectReader = (
   propertyApi: PropertyFactsPublicApi,
   portalApi: PortalPublicApi,
   portalGroupApi: PortalGroupPublicApi,
+  staffScanTargetsEnabled = false,
 ): GoalProgramSubjectReader & GoalSubjectNameReader => {
   /** The Portal when it is a current Portal of the Property; archived ones are not. */
   const currentPortal = async (
@@ -52,6 +53,24 @@ export const createGoalProgramSubjectReader = (
         }),
       )
       return results.some(Boolean)
+    },
+    staffTargetAllowed: async (organizationId, propertyId, subject, metric) => {
+      if (subject.kind === 'property') return true
+      const portals =
+        subject.kind === 'portal'
+          ? [await currentPortal(organizationId, propertyId, subject.portalId)]
+          : await Promise.all(
+              (
+                await portalGroupApi.getGroupPortalIds(
+                  toOrganizationId(organizationId),
+                  toPortalGroupId(subject.portalGroupId),
+                )
+              ).map((id) => currentPortal(organizationId, propertyId, id)),
+            )
+      return (
+        !portals.some((portal) => portal?.kind === 'personal') ||
+        (staffScanTargetsEnabled && metric === 'qualified_scans')
+      )
     },
     getTimezone: (organizationId, propertyId) =>
       propertyApi.getPropertyTimezone(

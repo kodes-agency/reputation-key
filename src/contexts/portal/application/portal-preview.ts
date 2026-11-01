@@ -134,6 +134,7 @@ export type DraftPortalPreviewInput = Readonly<{
     Portal,
     | 'id'
     | 'name'
+    | 'publicName'
     | 'description'
     | 'primaryGuestLocale'
     | 'additionalGuestLocales'
@@ -207,7 +208,7 @@ function brandOf(input: DraftPortalPreviewInput): PublicImmersiveExperience['bra
   )
   const { hero, logo } = media
   return {
-    displayName: firstWritten(profile?.displayName) ?? portal.name,
+    displayName: firstWritten(profile?.displayName) ?? portal.publicName ?? portal.name,
     wordmark: firstWritten(profile?.wordmark) ?? null,
     logo: logo ? { url: logo.url, width: logo.width, height: logo.height } : null,
     hero: hero
@@ -247,7 +248,7 @@ function contentOf(
   // The Linktree view already carries the titles a manager wrote.
   const customTitle = firstWritten(input.linktree.titles[locale])
   return {
-    title: textIn(locale, primary, wordingIn('title'), portal.name),
+    title: textIn(locale, primary, wordingIn('title'), portal.publicName ?? portal.name),
     shortDescription: textIn(
       locale,
       primary,

@@ -272,6 +272,8 @@ export function createExecutionPolicy(deps: ExecutionPolicyDeps): ExecutionPolic
     // Org-scope roles pass; assigned-scope roles need an ACTIVE GRANT —
     // missing grant data is deny, never organization-wide allow.
     if (!request.propertyId || !isPermissionAction(request.action)) return null
+    // staff.self is scoped by the session's current personal participation, never a manager grant.
+    if (request.action === 'staff.self') return null
     const scope = scopeForPermission(ctx, request.action)
     if (scope === 'none') return finish(request, false, 'scope_denied')
     if (scope !== 'assigned-properties') return null

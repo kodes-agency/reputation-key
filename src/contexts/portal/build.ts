@@ -1,3 +1,11 @@
+import { buildPortalAddressOperations } from './build-address-operations'
+import { renamePersonalPortalLabels } from './application/use-cases/rename-personal-portal-labels'
+import { writePersonalPortalLabels } from './infrastructure/adapters/personal-portal-labels.writer'
+import {
+  createPersonalPortal,
+  checkPersonalPortalSource,
+} from './application/use-cases/create-personal-portal'
+import { archivePersonalPortal } from './application/use-cases/archive-personal-portal'
 import { createPortalResultsLinksReader } from './infrastructure/repositories/portal-results-links.reader'
 // Portal context — build function.
 // Wires portal repos, storage, and all portal use cases.
@@ -97,10 +105,7 @@ import { addPortalToGroup } from './application/use-cases/add-portal-to-group'
 import { removePortalFromGroup } from './application/use-cases/remove-portal-from-group'
 import { movePortalToGroup } from './application/use-cases/move-portal-to-group'
 import { listPortalGroupHistory } from './application/use-cases/list-portal-group-history'
-import { issuePortalToken } from './application/use-cases/issue-portal-token'
-import { rotatePortalToken } from './application/use-cases/rotate-portal-token'
 import { revokePortalTokens } from './application/use-cases/revoke-portal-tokens'
-import { revealPortalAddress } from './application/use-cases/reveal-portal-address'
 import type { PortalAddressFormat } from './application/portal-address-urls'
 import { createPrintCodeReporter } from './infrastructure/print-code-reporter'
 import { buildPortalPrintKit } from './build-print-kit'
@@ -268,6 +273,7 @@ export const buildPortalContext = (deps: PortalContextDeps) => {
   const portalGroupIdGen = () => portalGroupId(deps.idGen())
   const linkIdGen = () => deps.idGen()
   const publishChangesDeps = {
+    ratingGoalGuard: deps.ratingGoalGuard,
     portalRepo,
     commandStore: portalCommandStore,
     publicationRepo: portalPublicationRepo,
@@ -278,7 +284,11 @@ export const buildPortalContext = (deps: PortalContextDeps) => {
     idGen: deps.idGen,
     clock: deps.clock,
   }
-  const revealAddress = revealPortalAddress({
+  const addressOperations = buildPortalAddressOperations({
+    propertyLifecycleApi: deps.propertyApi,
+    portalTokenRepo,
+    commandStore: portalCommandStore,
+    idGen: deps.idGen,
     portalRepo,
     staffPublicApi: deps.staffPublicApi,
     portalAddressRepo,
@@ -288,7 +298,31 @@ export const buildPortalContext = (deps: PortalContextDeps) => {
     clock: deps.clock,
     address: addressFormat,
   })
+  const revealAddress = addressOperations.revealPortalAddress
+  const personalCreationDeps = {
+    ...{
+      portalRepo,
+      portalGroupRepo,
+      portalLinkRepo,
+      destinationRepo: portalApprovedDestinationRepo,
+      experienceRepo: portalExperienceRepo,
+      portalLookRepo,
+      commandStore: portalCommandStore,
+      propertyApi: deps.propertyApi,
+      staffPublicApi: deps.staffPublicApi,
+      identityPublicApi: deps.identityManagerFacts,
+      idGen: portalIdGen,
+      entityIdGen: deps.idGen,
+      clock: deps.clock,
+    },
+    publicationRepo: portalPublicationRepo,
+    addressRecoverable: portalAddressCipher !== null,
+  }
   const useCases = {
+    renamePersonalPortalLabels: renamePersonalPortalLabels({
+      write: writePersonalPortalLabels,
+      clock: deps.clock,
+    }),
     revalidatePortalApprovedDestinations: revalidatePortalApprovedDestinations({
       destinationRepo: portalApprovedDestinationRepo,
       destinationNetworkValidator: portalDestinationNetworkValidator,
@@ -363,21 +397,17 @@ export const buildPortalContext = (deps: PortalContextDeps) => {
       factStore: portalWorkflowFactStore,
       clock: deps.clock,
     }),
-    createPortal: createPortal({
-      portalRepo,
-      portalGroupRepo,
-      portalLinkRepo,
-      destinationRepo: portalApprovedDestinationRepo,
-      experienceRepo: portalExperienceRepo,
-      portalLookRepo,
-      commandStore: portalCommandStore,
-      propertyApi: deps.propertyApi,
-      staffPublicApi: deps.staffPublicApi,
-      identityPublicApi: deps.identityManagerFacts,
-      idGen: portalIdGen,
-      entityIdGen: deps.idGen,
-      clock: deps.clock,
-    }),
+    createPortal: createPortal(personalCreationDeps),
+    createPersonalPortal: createPersonalPortal(personalCreationDeps),
+    checkPersonalPortalSource: checkPersonalPortalSource(personalCreationDeps),
+    archivePersonalPortal: archivePersonalPortal(publishChangesDeps),
+    archivePersonalPortalForMemberDeparture: archivePersonalPortal(
+      {
+        ...publishChangesDeps,
+        ratingGoalGuard: deps.ratingGoalGuard,
+      },
+      true,
+    ),
     getPortalCreationOptions: getPortalCreationOptions({
       propertyApi: deps.propertyApi,
       staffPublicApi: deps.staffPublicApi,
@@ -597,32 +627,7 @@ export const buildPortalContext = (deps: PortalContextDeps) => {
       portalGroupHistoryRepo,
       staffPublicApi: deps.staffPublicApi,
     }),
-    issuePortalToken: issuePortalToken({
-      portalRepo,
-      portalTokenRepo,
-      tokenCodec: portalTokenCodec,
-      addressCipher: portalAddressCipher,
-      staffPublicApi: deps.staffPublicApi,
-      commandStore: portalCommandStore,
-      reportPrintCodeProblem,
-      idGen: deps.idGen,
-      address: addressFormat,
-      clock: deps.clock,
-    }),
-    rotatePortalToken: rotatePortalToken({
-      portalRepo,
-      portalTokenRepo,
-      tokenCodec: portalTokenCodec,
-      addressCipher: portalAddressCipher,
-      staffPublicApi: deps.staffPublicApi,
-      commandStore: portalCommandStore,
-      reportPrintCodeProblem,
-      idGen: deps.idGen,
-      clock: deps.clock,
-      address: addressFormat,
-      defaultGracePeriodSeconds: 30 * 24 * 60 * 60,
-    }),
-    revealPortalAddress: revealAddress,
+    ...addressOperations,
     ...buildPortalPrintKit({
       portalRepo,
       staffPublicApi: deps.staffPublicApi,
@@ -673,11 +678,16 @@ export const buildPortalContext = (deps: PortalContextDeps) => {
     resolvePortalContext: (portalIdParam: PortalId) =>
       portalRepo.resolvePortalContext(portalIdParam),
     getPortalInfo: (orgId: OrganizationId, pid: PortalId) =>
-      portalRepo
-        .findById(orgId, pid)
-        .then((p) =>
-          p ? { id: p.id, name: p.name, publicationState: p.publicationState } : null,
-        ),
+      portalRepo.findById(orgId, pid).then((p) =>
+        p
+          ? {
+              id: p.id,
+              kind: p.kind,
+              name: p.name,
+              publicationState: p.publicationState,
+            }
+          : null,
+      ),
     listPortalIdsByProperty: async (orgId: OrganizationId, pid: PropertyId) =>
       (await portalRepo.listByProperty(orgId, pid)).map((p) => p.id),
     listCurrentPortalIds: (

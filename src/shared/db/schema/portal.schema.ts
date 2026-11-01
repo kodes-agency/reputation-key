@@ -40,6 +40,8 @@ export const portals = pgTable(
     propertyId: uuid('property_id').notNull(),
     entityType: varchar('entity_type', { length: 20 }).notNull().default('property'),
     entityId: varchar('entity_id', { length: 255 }).notNull(),
+    kind: varchar('kind', { length: 16 }).notNull().default('place'),
+    publicName: varchar('public_name', { length: 100 }),
     name: varchar('name', { length: 100 }).notNull(),
     slug: varchar('slug', { length: 64 }).notNull(),
     description: varchar('description', { length: 500 }),
@@ -71,6 +73,11 @@ export const portals = pgTable(
     deletedAt: deletedAtColumn(),
   },
   (t) => [
+    check('portals_kind_valid', sql`${t.kind} IN ('place', 'personal')`),
+    check(
+      'portals_personal_public_name_required',
+      sql`${t.kind} = 'place' OR ${t.publicName} IS NOT NULL`,
+    ),
     uniqueIndex('portals_org_property_slug_unique')
       .on(t.organizationId, t.propertyId, t.slug)
       .where(sql`deleted_at IS NULL`),

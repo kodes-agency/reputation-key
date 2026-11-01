@@ -414,7 +414,7 @@ describe('bulkUpdateInboxStatus', () => {
     expectItemStatuses(repo, 'open', 'open', 'closed')
   })
 
-  it('denies access to all items when Member has no Property access grants', async () => {
+  it('denies access to all items when PropertyManager has no Property access grants', async () => {
     const peopleApi: StaffPublicApi = {
       getAccessiblePropertyIds: async () => [],
       getAssignedPortals: async () => [],
@@ -428,7 +428,7 @@ describe('bulkUpdateInboxStatus', () => {
         items: bulkCommands('ii-1', 'ii-2'),
         newStatus: 'open',
       },
-      ctxFor('Member'),
+      ctxFor('PropertyManager'),
     )
 
     expect(result.updated).toBe(0)
@@ -440,7 +440,7 @@ describe('bulkUpdateInboxStatus', () => {
     expect(repo.items[1].status).toBe('closed')
   })
 
-  it('filters out items from inaccessible properties for Member', async () => {
+  it('filters out items from inaccessible properties for PropertyManager', async () => {
     const peopleApi: StaffPublicApi = {
       getAccessiblePropertyIds: async () => [propertyId('prop-1')],
       getAssignedPortals: async () => [],
@@ -454,7 +454,7 @@ describe('bulkUpdateInboxStatus', () => {
         items: bulkCommands('ii-1', 'ii-2'),
         newStatus: 'open',
       },
-      ctxFor('Member'),
+      ctxFor('PropertyManager'),
     )
 
     expect(result.updated).toBe(1)

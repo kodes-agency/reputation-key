@@ -29,18 +29,15 @@
 // all), so the same roles and names must hold. Where the pane is only 720 px (the desktop split) or 390 px (the
 // phone sheet), `pnpm storybook` shows the real layout.
 //
-// Two permission splits drive the branches, reached with `withRole`. Member
-// holds `inbox.write` but not `inbox.manage` — reopening, reassigning and
-// escalating are manager moves. Member also holds no `feedback.*` permission,
-// and every inbox command is `inbox.write` AND the owning context's handle
-// permission, so the same Member who may claim a review gets no menu on a
-// private-feedback item.
+// Two permission splits use exact permissions through `withPermissions`.
+// The reader holds inbox.write, without inbox.manage or feedback.handle.
+// Claiming a review remains possible; manager moves and feedback handling do not.
 import type { Meta, StoryObj } from '@storybook/react'
 import { expect, fn, userEvent, waitFor, within } from 'storybook/test'
 import { feedbackId, userId } from '#/shared/domain/ids'
 import { InboxCaseToolbar } from './inbox-case-toolbar'
 import { makeInboxItem } from '../../../.storybook/in-memory/inbox-container'
-import { withRole } from '../../../.storybook/AuthedRouterDecorator'
+import { withPermissions } from '../../../.storybook/AuthedRouterDecorator'
 import type {
   FeedbackHandlingState,
   InboxItem,
@@ -814,7 +811,7 @@ export const AssignedToYou390: Story = { ...AssignedToYou, parameters: PHONE }
 // ─── member: facts where a manager has controls ─────────────────────────────
 
 /**
- * Member, on a closed, escalated review held by someone else — the widest
+ * restricted reader, on a closed, escalated review held by someone else — the widest
  * composition a caller with NO move at all can reach. Every member of the
  * group becomes a fact: reopening is a manager move, stealing an item held by
  * Grace needs `inbox.manage`, and so does escalation. Not one control is
@@ -824,8 +821,10 @@ export const AssignedToYou390: Story = { ...AssignedToYou, parameters: PHONE }
  * The reply-due detail is still a button, which is right: it opens timing
  * prose and issues nothing.
  */
-export const MemberView: Story = {
-  decorators: [withRole('Member')],
+export const ReaderView: Story = {
+  decorators: [
+    withPermissions(['inbox.read', 'inbox.write', 'review.read', 'feedback.read']),
+  ],
   args: {
     item: assignedTo({ ...closedItem, isEscalated: true }, GRACE_ID),
     target: repliedOnTimeTarget,
@@ -851,16 +850,18 @@ export const MemberView: Story = {
     await expect(canvas.getByRole('button', { name: DETAIL_NAME })).toBeEnabled()
   },
 }
-export const MemberView390: Story = { ...MemberView, parameters: PHONE }
+export const ReaderView390: Story = { ...ReaderView, parameters: PHONE }
 
 /**
- * The same Member on an unclaimed, unescalated review may do exactly one
+ * The same restricted reader on an unclaimed, unescalated review may do exactly one
  * thing: claim it. Handing it to Grace or Ada is a manager move and must not
  * appear, and with nothing escalated there is no escalation fact to state — the
  * third member renders nothing and the group closes up around the owner.
  */
-export const MemberClaimsUnassigned: Story = {
-  decorators: [withRole('Member')],
+export const ReaderClaimsUnassigned: Story = {
+  decorators: [
+    withPermissions(['inbox.read', 'inbox.write', 'review.read', 'feedback.read']),
+  ],
   args: { target: activeTarget },
   play: async ({ canvasElement }) => {
     onAssign.mockClear()
@@ -881,9 +882,11 @@ export const MemberClaimsUnassigned: Story = {
   },
 }
 
-/** A Member holding the item may release it, and only that. */
-export const MemberReleasesOwnItem: Story = {
-  decorators: [withRole('Member')],
+/** A restricted reader holding the item may release it, and only that. */
+export const ReaderReleasesOwnItem: Story = {
+  decorators: [
+    withPermissions(['inbox.read', 'inbox.write', 'review.read', 'feedback.read']),
+  ],
   args: { item: assignedTo(reviewItem, VIEWER.id), target: activeTarget },
   play: async () => {
     onAssign.mockClear()
@@ -901,11 +904,13 @@ export const MemberReleasesOwnItem: Story = {
  * The second permission split, the one `inbox.write` alone does not answer.
  * Every inbox command runs `canHandleInboxSource` after its write check, so a
  * private-feedback item needs `inbox.write` AND `feedback.handle`, which
- * Member does not hold. The identical unassigned item that gives this Member
+ * restricted reader does not hold. The identical unassigned item that gives this restricted reader
  * an `Assign to me` menu on a review must be a fact here.
  */
-export const MemberSeesFeedbackOwnerAsText: Story = {
-  decorators: [withRole('Member')],
+export const ReaderSeesFeedbackOwnerAsText: Story = {
+  decorators: [
+    withPermissions(['inbox.read', 'inbox.write', 'review.read', 'feedback.read']),
+  ],
   args: { item: feedbackItem, target: feedbackTarget, feedbackHandling: OPEN_CYCLE },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
@@ -915,16 +920,18 @@ export const MemberSeesFeedbackOwnerAsText: Story = {
 }
 
 /**
- * A Member has no `member.list`, so the page never fetches the directory and
+ * A restricted reader has no `member.list`, so the page never fetches the directory and
  * `assignmentOptions` is empty: every colleague's item resolves to `Assigned`.
- * It is a fact for this Member (taking it is a manager move), and the fact
- * keeps its word at every width. Beside `MemberClaimsUnassigned` this is the
+ * It is a fact for this restricted reader (taking it is a manager move), and the fact
+ * keeps its word at every width. Beside `ReaderClaimsUnassigned` this is the
  * pair a phone must tell apart — "taken by a colleague" against "free to
  * claim" — which before review differed only by a fill: both drew `UserRound`
  * and both hid their word below `md`.
  */
-export const MemberSeesColleagueWithoutDirectory: Story = {
-  decorators: [withRole('Member')],
+export const ReaderSeesColleagueWithoutDirectory: Story = {
+  decorators: [
+    withPermissions(['inbox.read', 'inbox.write', 'review.read', 'feedback.read']),
+  ],
   args: {
     item: assignedTo(reviewItem, GRACE_ID),
     target: activeTarget,
@@ -940,8 +947,8 @@ export const MemberSeesColleagueWithoutDirectory: Story = {
     await expect(canvas.queryByText(GRACE_ID)).toBeNull()
   },
 }
-export const MemberSeesColleagueWithoutDirectory390: Story = {
-  ...MemberSeesColleagueWithoutDirectory,
+export const ReaderSeesColleagueWithoutDirectory390: Story = {
+  ...ReaderSeesColleagueWithoutDirectory,
   parameters: PHONE,
 }
 
@@ -1101,7 +1108,9 @@ export const PriorityFeedbackEscalatedUrgent320: Story = {
  * attention: Urgent or High as a box-less fact (copy C-11), never a menu.
  */
 export const PriorityReadOnlyUrgent: Story = {
-  decorators: [withRole('Member')],
+  decorators: [
+    withPermissions(['inbox.read', 'inbox.write', 'review.read', 'feedback.read']),
+  ],
   args: {
     item: setPriority(reviewItem, 'urgent', GRACE_ID),
     prioritySuggestion: 'low',

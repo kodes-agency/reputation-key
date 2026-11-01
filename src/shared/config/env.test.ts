@@ -389,3 +389,19 @@ describe('GBP_PUBSUB_NOTIFICATION_TYPES', () => {
     ).toBe('NEW_REVIEW')
   })
 })
+
+describe('STAFF_SCAN_TARGETS_ENABLED', () => {
+  const parse = (value?: string) =>
+    parseEnvironment({
+      ...testEnvironment({}),
+      ...(value === undefined ? {} : { STAFF_SCAN_TARGETS_ENABLED: value }),
+    }).STAFF_SCAN_TARGETS_ENABLED
+  it('defaults off and accepts exactly true or false', () => {
+    expect(parse()).toBe(false)
+    expect(parse('true')).toBe(true)
+    expect(parse('false')).toBe(false)
+  })
+  it.each(['True', '1', 'yes', 'on', ' true', ''])('refuses %j', (value) => {
+    expect(() => parse(value)).toThrow('STAFF_SCAN_TARGETS_ENABLED')
+  })
+})

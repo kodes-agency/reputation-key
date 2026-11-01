@@ -19,6 +19,11 @@ export const organizationSchema = {
     additionalFields: {
       // JSON-stringified array of property IDs selected at invite time;
       // consumed after acceptance to create explicit PropertyAccessGrants.
+      staffParticipationId: {
+        type: 'string' as const,
+        input: false,
+        required: false,
+      },
       propertyIds: {
         type: 'string' as const,
         input: true,

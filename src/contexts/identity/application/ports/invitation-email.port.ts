@@ -11,7 +11,7 @@ export type InvitationEmail = Readonly<{
   organizationName: string
   /** absoluteUrl(baseUrl, '/accept-invitation', { id }) */
   inviteLink: string
-  role: 'AccountAdmin' | 'PropertyManager'
+  role: 'AccountAdmin' | 'PropertyManager' | 'Member'
   /** The invited Properties' names; [] for an AccountAdmin. */
   propertyNames: ReadonlyArray<string>
   /** invitationExpiresInDays(invitationExpiresInMs) — true at send time. */

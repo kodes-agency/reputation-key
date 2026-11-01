@@ -202,7 +202,9 @@ describe('guest response server-fn gates', () => {
     expect(ratingGate).toBeGreaterThan(receipt)
     expect(metric).toBeGreaterThan(ratingGate)
     expect(fn).toContain("destinationKind: 'google_review'")
-    expect(fn).toContain('if (qualified)')
+    expect(fn).toContain(
+      'shouldCountGuestVisit(bound.headers, bound.scope.organizationId)',
+    )
     expect(fn).toContain('true,')
     expect(fn).toContain('sessionExpiresAt: bound.session.expiresAt')
     expect(fn).toContain('bound.portal.reviewGateway.googleReview')

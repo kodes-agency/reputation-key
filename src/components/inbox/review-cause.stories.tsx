@@ -7,7 +7,7 @@
 // and what the dialog sends, which are real in this runner.
 import type { Meta, StoryObj } from '@storybook/react'
 import { expect, fn, userEvent, waitFor, within } from 'storybook/test'
-import { withRole } from '../../../.storybook/AuthedRouterDecorator'
+import { withRole, withPermissions } from '../../../.storybook/AuthedRouterDecorator'
 import { makeInboxItem } from '../../../.storybook/in-memory/inbox-container'
 import { mockServerFn } from '../../../.storybook/mocks/mock-action'
 import { InboxThread, type ThreadReplyActions } from './inbox-thread'
@@ -472,9 +472,11 @@ export const GivesATopicBack: Story = {
 
 // ─── who is offered it ───────────────────────────────────────────────────────
 
-// A Member may add notes but is not a manager of the Inbox: no way to correct the reading.
-export const NotOfferedToAMember: Story = {
-  decorators: [withRole('Member')],
+// A restricted reader may add notes but is not a manager of the Inbox: no way to correct the reading.
+export const NotOfferedToAReader: Story = {
+  decorators: [
+    withPermissions(['inbox.read', 'inbox.write', 'review.read', 'feedback.read']),
+  ],
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
 

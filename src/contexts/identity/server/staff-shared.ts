@@ -17,6 +17,7 @@ export const staffErrorStatus = (code: StaffErrorCode): number =>
     .with('participation_not_found', 'property_not_found', () => HTTP_STATUS.NOT_FOUND)
     .with(
       'participation_archived',
+      'staff_personal_portal_locked',
       'responsibility_conflict',
       'revision_conflict',
       () => HTTP_STATUS.CONFLICT,

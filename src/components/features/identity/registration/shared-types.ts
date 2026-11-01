@@ -10,7 +10,7 @@ export type PendingInvitation = Readonly<{
 }>
 
 /** The roles an invitation can carry in the beta. */
-export type InvitationRole = 'AccountAdmin' | 'PropertyManager'
+export type InvitationRole = 'AccountAdmin' | 'PropertyManager' | 'Member'
 
 /** What an invitation link states, as its preview reports it. */
 export type InvitationDetails = Readonly<{

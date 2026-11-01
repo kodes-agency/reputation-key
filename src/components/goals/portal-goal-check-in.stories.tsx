@@ -14,7 +14,7 @@ import { toast } from 'sonner'
 import { expect, fn, userEvent, waitFor, within } from 'storybook/test'
 import type { PortalGoalCardView } from '#/contexts/reporting/application/dto/monthly-portal-goal.types'
 import { ServerFunctionError } from '#/shared/auth/server-function-error'
-import { withRole } from '../../../.storybook/AuthedRouterDecorator'
+import { withPermissions } from '../../../.storybook/AuthedRouterDecorator'
 import { ToasterDecorator } from '../../../.storybook/ToasterDecorator'
 import type { PortalGoalCheckInCommands } from './portal-goal-check-in'
 import {
@@ -440,9 +440,9 @@ export const CheckInNothingCounted: Story = {
   },
 }
 
-/** Without `goal.update` (a Member) nothing is asked: the running card shows. */
+/** Without `goal.update` (a restricted reader) nothing is asked: the running card shows. */
 export const CheckInNotAllowed: Story = {
-  decorators: [withRole('Member')],
+  decorators: [withPermissions(['goal.read', 'portal.read', 'property.read'])],
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
     await expect(canvas.queryByRole('region', { name: 'For December' })).toBeNull()

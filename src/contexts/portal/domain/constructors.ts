@@ -43,6 +43,8 @@ export type BuildPortalInput = Readonly<{
   organizationId: OrganizationId
   propertyId: PropertyId
   name: string
+  kind?: Portal['kind']
+  publicName?: string | null
   providedSlug?: string
   description?: string | null
   theme?: Partial<PortalTheme>
@@ -77,6 +79,8 @@ export const buildPortal = (input: BuildPortalInput): Result<Portal, PortalError
       id: input.id,
       organizationId: input.organizationId,
       propertyId: input.propertyId,
+      kind: input.kind ?? 'place',
+      publicName: input.publicName ?? null,
       entityType: 'property',
       entityId: input.propertyId,
       name: validName,

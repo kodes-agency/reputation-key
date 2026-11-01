@@ -39,7 +39,7 @@ import {
   type RoleDefinitionDatabase,
 } from '#/shared/db/role-definitions'
 import { getDb } from '#/shared/db'
-import { checkUserOrganizationMembership } from './user-organization-membership-authority'
+import { resolveSessionOrganization } from './session-organization'
 import { isBetaInteractiveMemberRoleToken } from '#/shared/domain/beta-interactive-role'
 
 import {
@@ -376,40 +376,7 @@ export async function resolveTenant(headers: Headers): Promise<AuthContext> {
     return reqCtx.resolvedTenantCtx
   }
 
-  // Stage 1 — session decode before the cache lookup so the key can include the
-  // active org. getSession is a JWT verify (no DB); the cache dedupes the expensive
-  // getActiveMember() call + permission resolution, not the session decode.
-  const session = await getAuth().api.getSession({ headers })
-  if (!session) {
-    throwAuthError('unauthorized', 'Valid session required')
-  }
-  const activeOrgId = session.session.activeOrganizationId
-  if (!activeOrgId) {
-    throwAuthError('no_active_org', 'No active organization selected')
-  }
-
-  let membershipDecision
-  try {
-    membershipDecision = await checkUserOrganizationMembership(
-      session.user.id,
-      activeOrgId,
-    )
-  } catch {
-    throwAuthError(
-      'authorization_unavailable',
-      'Organization membership could not be verified',
-    )
-  }
-  if (membershipDecision.kind === 'deny') {
-    getLogger().warn(
-      { reason: membershipDecision.reason },
-      'auth.organization_membership_denied: session Organization is not the sole membership',
-    )
-    throwAuthError(
-      'organization_membership_conflict',
-      'This account needs Organization access assistance',
-    )
-  }
+  const { session, activeOrgId } = await resolveSessionOrganization(headers)
 
   // Stage 2 — tenant-cache freshness decision table. Keyed per (session, org) so
   // an org switch A→B resolves fresh instead of serving org A's context.

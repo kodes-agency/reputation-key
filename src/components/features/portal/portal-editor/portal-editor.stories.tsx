@@ -16,6 +16,7 @@ import type { PortalEditorResources } from './portal-editor-types'
 import {
   AuthedRouterDecorator,
   withRole,
+  withPermissions,
 } from '../../../../../.storybook/AuthedRouterDecorator'
 
 type EditorStoryProps = Readonly<{
@@ -577,9 +578,9 @@ export const UnofferedSectionFallsBackToWelcome: Story = {
 
 // A viewer reads the values at full contrast (read-only, not greyed out), and
 // nothing on the page promises that edits save as they are typed.
-export const MemberSeesTheFieldsReadOnly: Story = {
+export const ReaderSeesTheFieldsReadOnly: Story = {
   args: { resources: makeResources(action(async () => undefined)) },
-  decorators: [withRole('Member')],
+  decorators: [withPermissions(['portal.read', 'property.read'])],
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
     await expect(canvas.getByLabelText('Name')).toHaveAttribute('readonly')

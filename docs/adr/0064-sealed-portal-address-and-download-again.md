@@ -134,3 +134,9 @@ token version]`. A ciphertext copied to another tenant, Portal, token or
 - **A separate "view" permission.** Whoever can make a code can already replace
   it and get its address, so a narrower permission would only add a second place
   to keep in step.
+
+## Amendment 2026-11-01 — staff accounts and personal Portals
+
+[ADR 0076](0076-staff-accounts-and-personal-portals.md) amends this decision.
+
+An active StaffUserLink may read its own personal Portal's QR address without `portal.update`, through the separate `staff.self` door. The person is taken from the session and the chosen participation is rechecked. This read returns the QR string and Portal wording key only, never the direct or NFC address. It has a separate limit of 120 reads per user per hour and does not spend the Organization's download budget. The existing download ledger records `show` once per user and token version before disclosure. Replacing the code changes the version read next. A Portal that is not published or whose Property is not active returns paused. Adding staff requires an address keyring, so the code can be read after sign-in.

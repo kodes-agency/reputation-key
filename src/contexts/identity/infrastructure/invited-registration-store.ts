@@ -9,7 +9,7 @@ import {
   user as userTable,
   verification,
 } from '#/shared/db/schema/auth'
-import { isBetaInteractiveMemberRoleToken } from '#/shared/domain/beta-interactive-role'
+import { grantedRoleToken } from '../domain/invitation-store-rules'
 import { organizationId as toOrganizationId } from '#/shared/domain/ids'
 import { identityError } from '../domain/errors'
 import {
@@ -259,6 +259,7 @@ export const createInvitedRegistrationStore = (
           organizationId: invitation.organizationId,
           email: invitation.email,
           role: invitation.role,
+          staffParticipationId: invitation.staffParticipationId,
           status: invitation.status,
           expiresAt: invitation.expiresAt,
         })
@@ -283,7 +284,12 @@ export const createInvitedRegistrationStore = (
       if (currentInvitation.email.toLowerCase() !== command.email.toLowerCase()) {
         throw identityError('forbidden', 'Invitation is not addressed to this email')
       }
-      if (!isBetaInteractiveMemberRoleToken(currentInvitation.role ?? 'member')) {
+      if (
+        grantedRoleToken(
+          currentInvitation.role,
+          currentInvitation.staffParticipationId,
+        ) === null
+      ) {
         throw identityError('forbidden', INELIGIBLE_ROLE_MESSAGE)
       }
 

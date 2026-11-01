@@ -3,7 +3,7 @@
 // none, and asked only while that state shows (ADR 0057, amended 2026-10-28).
 import type { Meta, StoryObj } from '@storybook/react'
 import { expect, fn, waitFor, within } from 'storybook/test'
-import { withRole } from '../../../.storybook/AuthedRouterDecorator'
+import { withPermissions } from '../../../.storybook/AuthedRouterDecorator'
 import { InboxFeedbackSetup } from './inbox-feedback-setup'
 import type { InboxServerFns } from './types'
 
@@ -77,7 +77,9 @@ export const ScopeWithAPortal: Story = {
 
 /** Someone who may not create a Portal is not asked, and is offered nothing. */
 export const ReaderWhoCannotCreate: Story = {
-  decorators: [withRole('Member')],
+  decorators: [
+    withPermissions(['inbox.read', 'inbox.write', 'review.read', 'feedback.read']),
+  ],
   play: async ({ canvasElement, args }) => {
     await expect(within(canvasElement).queryByRole('link')).toBeNull()
     await expect(args.getPortalPresence).not.toHaveBeenCalled()

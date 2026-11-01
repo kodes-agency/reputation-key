@@ -8,7 +8,7 @@
 import type { Meta, StoryObj } from '@storybook/react-vite'
 import { toast } from 'sonner'
 import { expect, fn, userEvent, waitFor, within } from 'storybook/test'
-import { withRole } from '../../../.storybook/AuthedRouterDecorator'
+import { withPermissions } from '../../../.storybook/AuthedRouterDecorator'
 import { ToasterDecorator } from '../../../.storybook/ToasterDecorator'
 import { RATING_GOAL_HEADING_ID } from './rating-goal-card-header'
 import {
@@ -315,7 +315,7 @@ export const TooLow: Story = {
 
 /** A viewer who cannot change the goal sees the card alone. */
 export const CannotChange: Story = {
-  decorators: [withRole('Member')],
+  decorators: [withPermissions(['goal.read', 'portal.read', 'property.read'])],
   play: async ({ canvasElement }) => expectNoRecap(canvasElement),
 }
 

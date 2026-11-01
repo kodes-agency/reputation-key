@@ -189,3 +189,7 @@ withdrawal/reveal serialization, outbox readiness, and tenant fences.
 The activation lifecycle remains absent from `build.ts`, server functions, routes, workers, and public API. Manager relationships are freshly resolved immediately before a Guest operation; the documented cross-transaction revocation interval must be accepted or replaced by a transactional permit before activation.
 
 `portal.guest_contact` is safety-blocked for beta. The backend foundation and tests do not create an activation path. Tenant allowlists, E2E overrides, routes, UI, workers, and public APIs cannot enable it. The only composed job path is fail-closed cleanup of encrypted material already present in migration-compatible storage. Activation still requires named approval evidence for the guest notice, 30-day retention wording, manager handling, and delivery channel, plus an accepted disposition for the documented authority-revocation interval and production key lifecycle; phone remains excluded.
+
+## Own-Organization visits — 2026-11-01 (ADR 0076)
+
+The server excludes a browser signed in to the Portal's own Organization from Qualified Scan, Google-open and Linktree-tap observation. The page and destinations still work. An anonymous browser has no auth lookup. Another Organization's login and an unavailable auth lookup keep the ordinary counting behavior. This changes observation only, never the guest response flow.

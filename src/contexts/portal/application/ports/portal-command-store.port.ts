@@ -102,6 +102,11 @@ export type CreatePortalCommand = Readonly<{
   initialResponsibleManagerIds: ReadonlyArray<UserId>
   event: PortalCreated
   groupMembership?: CreatePortalGroupMembership
+  personalSourceFence?: Readonly<{
+    portalId: PortalId
+    updatedAt: Date
+    snapshot: PortalPublicationSnapshot
+  }>
   copiedContent?: CreatePortalCopiedContent
   responsibilityNeededEvent?: PortalResponsibilityNeeded
   health?: Readonly<{

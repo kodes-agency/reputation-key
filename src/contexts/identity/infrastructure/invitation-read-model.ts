@@ -25,6 +25,7 @@ export const createInvitationReadModel = (db: Database): InvitationReadModel => 
           organizationName: organization.name,
           email: invitation.email,
           role: invitation.role,
+          staffParticipationId: invitation.staffParticipationId,
           status: invitation.status,
           expiresAt: invitation.expiresAt,
           inviterName: inviter.name,

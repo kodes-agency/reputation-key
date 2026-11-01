@@ -37,6 +37,10 @@ export type Permission =
   | 'property.read_gbp_performance'
   | 'staff.read'
   | 'staff.manage'
+  | 'staff.self'
+  | 'staff.invite'
+  | 'staff.remove'
+  | 'staff.settings'
   // Reserved for future use — access control context (not yet implemented)
   | 'ac.create'
   | 'ac.read'

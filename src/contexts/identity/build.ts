@@ -1,3 +1,6 @@
+import { decidePublicExecution } from '#/shared/auth/execution-policy'
+import { buildStaffAccounts, type StaffAccountBindings } from './build-staff-accounts'
+import { createStaffSelfReader } from './infrastructure/adapters/staff-self.reader'
 // Identity context — build function.
 // Wires identity port, the atomic command store (BQC-3.5), and use cases.
 // Per ADR-0001: the composition root calls this and merges useCases into the container.
@@ -185,6 +188,7 @@ type AuthSession = Readonly<{
 }>
 
 type IdentityContextDeps = Readonly<{
+  staffAccounts?: StaffAccountBindings
   db: Database
   identityPort: IdentityPort
   clock: Clock
@@ -475,12 +479,18 @@ function buildPeopleSurface(deps: Pick<IdentityContextDeps, 'db' | 'clock' | 'id
         propertyId,
         userId,
       )
-      if (!participation) return []
+      if (!participation?.personalPortalId) return []
       const responsibilities = await participationRepo.listActiveResponsibilities(
         organizationId,
         participation.id,
       )
-      return responsibilities.map((responsibility) => portalId(responsibility.portalId))
+      return responsibilities
+        .filter(
+          (responsibility) =>
+            responsibility.kind === 'primary' &&
+            responsibility.portalId === participation.personalPortalId,
+        )
+        .map((responsibility) => portalId(responsibility.portalId))
     },
   } as const
 
@@ -584,7 +594,19 @@ export const buildIdentityContext = (deps: IdentityContextDeps) => {
     },
   )
   // BQC-3.5: every identity state mutation + fact commits atomically here.
-  const commandStore = createAtomicIdentityCommandStore(deps.db, deps.idGen)
+  const commandStore = createAtomicIdentityCommandStore(
+    deps.db,
+    deps.idGen,
+    async (organizationId) =>
+      (
+        await decidePublicExecution({
+          action: 'system:identity.accept_invitation',
+          capability: 'staff.accounts',
+          organizationId,
+          now: deps.clock(),
+        })
+      ).allowed,
+  )
   /**
    * LIF-01-T21 fail-closed default. Refusing to answer is the only safe
    * answer: reporting an empty worklist would let a member walk out leaving
@@ -792,6 +814,7 @@ export const buildIdentityContext = (deps: IdentityContextDeps) => {
     }>,
   ) => decideCurrentManagerPropertyAuthorities(tx, input)
 
+  const staffAccounts = buildStaffAccounts({ ...deps, commandStore })
   const useCases = {
     ...invitationUseCases,
     updateMemberRole: updateMemberRole({
@@ -802,6 +825,7 @@ export const buildIdentityContext = (deps: IdentityContextDeps) => {
       prepareGoogleConnectorDeparture: deps.prepareGoogleConnectorDeparture,
     }),
     removeMember: removeMember({
+      removeStaffForMemberDeparture: staffAccounts.removeForMemberDeparture,
       identity: deps.identityPort,
       commandStore,
       clock: deps.clock,
@@ -810,6 +834,7 @@ export const buildIdentityContext = (deps: IdentityContextDeps) => {
       releaseMemberAuthorities: deps.releaseMemberAuthorities,
     }),
     leaveOrganization: leaveOrganization({
+      removeStaffForMemberDeparture: staffAccounts.removeForMemberDeparture,
       identity: deps.identityPort,
       commandStore,
       offboarding: memberOffboarding,
@@ -883,6 +908,8 @@ export const buildIdentityContext = (deps: IdentityContextDeps) => {
     accountAdminAuthority,
     offboardingFacts,
     people: people.publicApi,
+    staffSelf: Object.freeze(createStaffSelfReader(deps.db, deps.clock)),
+    staffAccounts,
     requests: requestApi,
   })
 

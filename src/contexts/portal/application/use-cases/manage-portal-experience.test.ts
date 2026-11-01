@@ -225,9 +225,13 @@ const withHeroImageUrl = (
   >[0]
 
 describe('getPropertyPortalExperience', () => {
-  it('returns the Property experience with no overrides and no brand authority for Member', async () => {
+  it('returns the Property experience with no overrides and no brand authority for a read-only manager', async () => {
     const { deps, experienceRepo } = setup([PROPERTY])
-    const ctx = buildTestAuthContext({ role: 'Member' })
+    const ctx = buildTestAuthContext({
+      role: 'PropertyManager',
+      effectivePermissions: new Set(['portal.read']),
+      scopeByPermission: new Map([['portal.read', 'organization']]),
+    })
 
     const result = await getPropertyPortalExperience(deps)({ propertyId: PROPERTY }, ctx)
 

@@ -56,6 +56,8 @@ const FIXTURE_TABLES = [
   'staff_user_links',
   'staff_participations',
   'staff_participants',
+  'staff_onboardings',
+  'staff_property_settings',
   'properties',
 ] as const
 
@@ -184,6 +186,14 @@ const seedPeople = async (
   propertyId: string,
   userId: string,
 ): Promise<void> => {
+  await lease.pool.query(
+    `INSERT INTO staff_property_settings (organization_id, property_id, updated_by) VALUES ($1, $2, 'user-admin')`,
+    [organizationId, propertyId],
+  )
+  await lease.pool.query(
+    `INSERT INTO staff_onboardings (id, organization_id, property_id, requested_by, status, step) VALUES ($1, $2, $3, 'user-admin', 'cancelled', 'person')`,
+    [randomUUID(), organizationId, propertyId],
+  )
   const participantId = randomUUID()
   const participationId = randomUUID()
   await lease.pool.query(
@@ -319,7 +329,7 @@ describe.sequential('Staff Organization lifecycle contributor (real PostgreSQL)'
 
     expect(result).toEqual({
       outcome: 'complete',
-      evidenceRef: 'staff:closing:complete:5',
+      evidenceRef: 'staff:closing:complete:7',
     })
     // Closing opens a recoverable window: every row is still exactly there.
     expect(await staffRowCounts(ORGANIZATION_ID)).toEqual(before)
@@ -328,7 +338,7 @@ describe.sequential('Staff Organization lifecycle contributor (real PostgreSQL)'
         context: 'staff',
         phase: 'closing',
         outcome: 'complete',
-        evidence_ref: 'staff:closing:complete:5',
+        evidence_ref: 'staff:closing:complete:7',
       },
     ])
   })
@@ -339,7 +349,7 @@ describe.sequential('Staff Organization lifecycle contributor (real PostgreSQL)'
       contributor.prepareClosing(
         contribution(ORGANIZATION_ID, 1, new Date('2026-08-02T01:00:00.000Z')),
       ),
-    ).resolves.toEqual({ outcome: 'complete', evidenceRef: 'staff:closing:complete:5' })
+    ).resolves.toEqual({ outcome: 'complete', evidenceRef: 'staff:closing:complete:7' })
     expect(await receiptRows(ORGANIZATION_ID)).toHaveLength(1)
   })
 
@@ -407,7 +417,7 @@ describe.sequential('Staff Organization lifecycle contributor (real PostgreSQL)'
 
     expect(result).toEqual({
       outcome: 'complete',
-      evidenceRef: 'staff:purge_readiness:complete:5',
+      evidenceRef: 'staff:purge_readiness:complete:7',
     })
     expect(await staffRowCounts(ORGANIZATION_ID)).toEqual(before)
   })
@@ -434,7 +444,7 @@ describe.sequential('Staff Organization lifecycle contributor (real PostgreSQL)'
       contribution(ORGANIZATION_ID, 4, new Date('2026-09-03T00:00:00.000Z')),
     )
 
-    expect(result).toEqual({ outcome: 'complete', evidenceRef: 'staff:purge:complete:5' })
+    expect(result).toEqual({ outcome: 'complete', evidenceRef: 'staff:purge:complete:7' })
     expect(await staffRowCounts(ORGANIZATION_ID)).toEqual(
       Object.fromEntries(STAFF_LIFECYCLE_TABLES.map((table) => [table, 0])),
     )
@@ -472,7 +482,7 @@ describe.sequential('Staff Organization lifecycle contributor (real PostgreSQL)'
       contributor.purge(
         contribution(ORGANIZATION_ID, 4, new Date('2026-09-03T02:00:00.000Z')),
       ),
-    ).resolves.toEqual({ outcome: 'complete', evidenceRef: 'staff:purge:complete:5' })
+    ).resolves.toEqual({ outcome: 'complete', evidenceRef: 'staff:purge:complete:7' })
 
     const receipts = await receiptRows(ORGANIZATION_ID)
     expect(receipts.map(({ phase }) => phase)).toEqual([

@@ -38,6 +38,17 @@ const setup = (accessible: ReadonlyArray<PropertyId> | null = null, revokedCount
 }
 
 describe('softDeletePortal', () => {
+  it('requires staff removal for a personal Portal instead of ordinary deletion', async () => {
+    const h = setup()
+    const portal = buildTestPortal({ kind: 'personal', publicName: 'Harbor' })
+    h.portalRepo.seed([portal])
+    await expect(
+      h.useCase({ portalId: portal.id }, buildTestAuthContext({ role: 'AccountAdmin' })),
+    ).rejects.toMatchObject({ code: 'personal_portal_archive_locked' })
+    expect(h.outbox.facts).toHaveLength(0)
+    expect(h.portalRepo.all()[0]?.deletedAt).toBeNull()
+  })
+
   it('soft-deletes an existing portal', async () => {
     const { useCase, portalRepo } = setup()
     const ctx = buildTestAuthContext({ role: 'AccountAdmin' })

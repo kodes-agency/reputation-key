@@ -131,7 +131,7 @@ describe('assignInboxItem', () => {
     expect(updated.assignedTo).toBe(ASSIGNEE_ID)
   })
 
-  it('rejects Member role with assignment_not_allowed', async () => {
+  it('rejects Member role with forbidden', async () => {
     const { useCase, repo } = setup()
     repo.items.push(seedItem())
 
@@ -143,9 +143,7 @@ describe('assignInboxItem', () => {
         },
         ctxFor('Member'),
       ),
-    ).rejects.toSatisfy(
-      (e: unknown) => isInboxError(e) && e.code === 'assignment_not_allowed',
-    )
+    ).rejects.toSatisfy((e: unknown) => isInboxError(e) && e.code === 'forbidden')
   })
 
   it('allows an eligible user to claim an unassigned item without inbox.manage', async () => {

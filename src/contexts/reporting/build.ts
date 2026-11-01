@@ -1,4 +1,5 @@
 import { findPortalRatingGoalBlock } from './application/running-portal-rating-goal'
+import { createStaffResultsReader } from './infrastructure/repositories/staff-results.reader'
 import { getPortalLinkTaps } from './application/use-cases/get-portal-link-taps'
 // Reporting context — one composition root for governed metrics, Goal Programs,
 // and dashboard read models.
@@ -143,7 +144,6 @@ import {
   type GetPortalAnalyticsDeps,
 } from './application/use-cases/get-portal-analytics'
 import { getPortalResultsOverview } from './application/use-cases/get-portal-results-overview'
-import { getStaffDashboardData } from './application/use-cases/get-staff-dashboard-data'
 import {
   getAttentionSignals,
   type GetAttentionSignals,
@@ -174,6 +174,7 @@ import {
 } from './application/use-cases/list-property-setup-summaries'
 
 export type ReportingContextBuildInput = Readonly<{
+  staffScanTargetsEnabled?: boolean
   db: Database
   clock: () => Date
   idGen: () => string
@@ -333,6 +334,7 @@ function buildGoalModule(input: ReportingContextBuildInput, metricApi: MetricPub
     input.propertyApi,
     input.portalApi,
     input.portalGroupApi,
+    input.staffScanTargetsEnabled ?? false,
   )
   const goalProgramDeps = (policy: GoalExecutionPolicy) => ({
     repository: goalProgramRepo,
@@ -633,7 +635,6 @@ function buildDashboardModule(
   const metricStats = createMetricStatsAdapter(input.db)
   const attentionSignals = createAttentionSignalsAdapter(input.db, input.clock)
   const fleetOverviewProjection = createFleetOverviewProjectionAdapter(input.db)
-  const staffPortalResolver = createStaffPortalResolverAdapter(input.staffPublicApi)
   const dashboardRepo = createDashboardRepository(input.reviewServingStats, metricStats)
   const setupChecklistRepo = createSetupChecklistRepository(input.db)
   const propertySetupRepo = createPropertySetupRepository(input.db)
@@ -659,11 +660,6 @@ function buildDashboardModule(
     results: createPortalResultsOverviewRepository(input.db, input.clock),
     now: input.clock,
     propertyAccess,
-  })
-  const getStaffDashboard = getStaffDashboardData({
-    repo: dashboardRepo,
-    staffPortalResolver,
-    clock: input.clock,
   })
   const getAttention: GetAttentionSignals = getAttentionSignals({
     signals: attentionSignals,
@@ -704,12 +700,17 @@ function buildDashboardModule(
 
   return {
     publicApi: {
+      staffSelf: createStaffResultsReader(
+        input.db,
+        input.clock,
+        metricApi.queryGoalMetric,
+        input.staffScanTargetsEnabled ?? false,
+      ),
       readPropertyGoogleNumbers,
       getDashboardData: getDashboard,
       getPortalLinkTaps: getPortalLinkTaps({ portalMetrics, propertyAccess }),
       getPortalAnalytics: getPortal,
       getPortalResultsOverview: getResultsOverview,
-      getStaffDashboardData: getStaffDashboard,
       getAttentionSignals: getAttention,
       getPropertyOverview: getOverview,
       getFleetOverview: getFleet,
@@ -724,7 +725,6 @@ function buildDashboardModule(
         getPortalLinkTaps: getPortalLinkTaps({ portalMetrics, propertyAccess }),
         getPortalAnalytics: getPortal,
         getPortalResultsOverview: getResultsOverview,
-        getStaffDashboardData: getStaffDashboard,
         getAttentionSignals: getAttention,
         getPropertyOverview: getOverview,
         getFleetOverview: getFleet,

@@ -20,6 +20,8 @@ import type { PortalGroupRepository } from '../ports/portal-group.repository'
 import type { PortalLinkRepository } from '../ports/portal-link.repository'
 import type { PortalLookRepository } from '../ports/portal-look.repository'
 import { resolveNewPortalLocales } from '../../domain/portal-new-locales'
+import type { PortalCopySource } from '../portal-content-copy'
+import type { CreatePortalCommand } from '../ports/portal-command-store.port'
 import { buildCreatePortalCommand, type NewPortalPlan } from '../create-portal-commit'
 import {
   allocateSlug,
@@ -33,6 +35,11 @@ const isSlugTaken = (error: unknown): boolean =>
   isPortalError(error) && error.code === 'slug_taken'
 
 export type CreatePortalDeps = Readonly<{
+  personalPortal?: Readonly<{
+    publicName: string
+    copySource?: PortalCopySource
+    sourceFence?: CreatePortalCommand['personalSourceFence']
+  }>
   portalRepo: PortalRepository
   portalGroupRepo: Pick<PortalGroupRepository, 'findById'>
   portalLinkRepo: Pick<
@@ -72,9 +79,10 @@ export const createPortal =
       ? await loadTargetGroup(deps, ctx, pid, input.groupId)
       : null
     const source =
-      input.startFrom?.kind === 'portal'
+      deps.personalPortal?.copySource ??
+      (input.startFrom?.kind === 'portal'
         ? await loadCopySource(deps, ctx, pid, input.startFrom.portalId)
-        : null
+        : null)
     const managerIds = await resolveResponsibleManagers(
       deps,
       ctx,
@@ -92,7 +100,15 @@ export const createPortal =
 
     // 4. Build the domain object (a copy's settings first; what was typed wins).
     const portalId = deps.idGen()
-    const plan: NewPortalPlan = { portalId, input, locales, managerIds, group, source }
+    const plan: NewPortalPlan = {
+      portalId,
+      input,
+      locales,
+      managerIds,
+      group,
+      source,
+      personalPortal: deps.personalPortal,
+    }
     const commit = async (slug: string): Promise<Portal> => {
       const command = buildCreatePortalCommand(deps, ctx, plan, slug)
       await deps.commandStore.createPortal(command)
@@ -101,12 +117,26 @@ export const createPortal =
 
     // The address is checked now and unique at commit; another create may take
     // it in between. A derived address then moves to the next free one, once.
-    const slug = await allocateSlug(deps, ctx, pid, input, portalId)
+    const slug = await allocateSlug(
+      deps,
+      ctx,
+      pid,
+      deps.personalPortal ? { name: '' } : input,
+      portalId,
+    )
     try {
       return await commit(slug)
     } catch (error) {
       if (!isSlugTaken(error) || input.slug !== undefined) throw error
-      return commit(await allocateSlug(deps, ctx, pid, input, portalId))
+      return commit(
+        await allocateSlug(
+          deps,
+          ctx,
+          pid,
+          deps.personalPortal ? { name: '' } : input,
+          portalId,
+        ),
+      )
     }
   }
 

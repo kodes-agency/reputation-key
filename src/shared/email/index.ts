@@ -8,6 +8,7 @@ export { absoluteUrl, originOf } from './urls'
 export { warnOnceOnSenderMisalignment } from './sender-alignment'
 export {
   renderInvitationEmail,
+  renderStaffCodeReadyEmail,
   renderPasswordResetEmail,
   renderVerificationEmail,
 } from './transactional'

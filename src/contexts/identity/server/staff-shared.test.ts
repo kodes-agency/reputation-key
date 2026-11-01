@@ -11,6 +11,7 @@ import { staffErrorStatus } from './staff-shared'
 
 const STATUS_BY_CODE: Readonly<Record<StaffErrorCode, number>> = {
   forbidden: 403,
+  staff_personal_portal_locked: 409,
   invalid_input: 400,
   participation_not_found: 404,
   property_not_found: 404,

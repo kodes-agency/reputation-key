@@ -26,7 +26,7 @@
 import { useState, type ComponentProps } from 'react'
 import type { Meta, StoryObj } from '@storybook/react-vite'
 import { expect, fn, userEvent, waitFor, within } from 'storybook/test'
-import { withRole } from '../../../.storybook/AuthedRouterDecorator'
+import { withPermissions } from '../../../.storybook/AuthedRouterDecorator'
 import {
   AUTO_DETECT_REVIEW_LANGUAGE,
   replyLanguageOptions,
@@ -517,13 +517,15 @@ export const NoDefaultManagerGetsTheFix390: Story = {
 }
 
 /**
- * The same state for a Member, who holds no `property.update`: the read-only
+ * The same state for a restricted reader, who holds no `property.update`: the read-only
  * sentence instead of the link. It is `aria-disabled` but still reachable, and
  * choosing it neither navigates nor closes the menu.
  */
-export const NoDefaultMemberReadsTheSentence: Story = {
+export const NoDefaultReaderReadsTheSentence: Story = {
   ...NoDefaultManagerGetsTheFix,
-  decorators: [withRole('Member')],
+  decorators: [
+    withPermissions(['inbox.read', 'inbox.write', 'review.read', 'feedback.read']),
+  ],
   play: async () => {
     await openMenu(TEMPLATE_TRIGGER)
     await expect(
@@ -539,8 +541,8 @@ export const NoDefaultMemberReadsTheSentence: Story = {
     await closeMenu()
   },
 }
-export const NoDefaultMemberReadsTheSentence390: Story = {
-  ...NoDefaultMemberReadsTheSentence,
+export const NoDefaultReaderReadsTheSentence390: Story = {
+  ...NoDefaultReaderReadsTheSentence,
   parameters: PHONE,
 }
 

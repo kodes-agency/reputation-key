@@ -27,7 +27,7 @@ import { FeedbackHandlingPrimary } from './feedback-handling-primary'
 import { InboxDetailContent } from './inbox-detail-content'
 import { makeInboxItem } from '../../../.storybook/in-memory/inbox-container'
 import { mockServerFn } from '../../../.storybook/mocks/mock-action'
-import { withRole } from '../../../.storybook/AuthedRouterDecorator'
+import { withRole, withPermissions } from '../../../.storybook/AuthedRouterDecorator'
 import type { InboxHistoryEntry } from './inbox-thread-model'
 import type { InboxDetailFns } from './types'
 import type { InboxDetailState } from './use-inbox-detail'
@@ -663,7 +663,7 @@ const mkDetailState = (overrides: Partial<InboxDetailState> = {}): InboxDetailSt
  * PropertyManager by default: `inbox.write ∧ feedback.handle` is what the
  * server checks before it populates `feedbackHandling` at all, and
  * `inbox.manage` is what turns the closed chip into a reopen menu. A caller
- * holding neither handling permission is `FeedbackAsMemberReadsButCannotHandle`
+ * holding neither handling permission is `FeedbackAsReaderReadsButCannotHandle`
  * below, which is the same pane with the action taken out.
  */
 const meta: Meta<typeof InboxDetailContent> = {
@@ -1211,7 +1211,7 @@ export const FeedbackInternalNoteWithheld: Story = {
 // ─── the caller who may read but not handle ──────────────────────────────────
 
 /**
- * A Member: `inbox.read` and `inbox.write`, no `feedback.handle`.
+ * A restricted reader: `inbox.read` and `inbox.write`, no `feedback.handle`.
  *
  * The server withholds `feedbackHandling` entirely for this caller
  * (`get-inbox-item-detail.ts:133-155`), so the pane is handed `null` — and the
@@ -1219,13 +1219,15 @@ export const FeedbackInternalNoteWithheld: Story = {
  * fallback the strip states, and the reason it reads a bare `Handled` rather
  * than `Handled · undefined`.
  *
- * Region 4 survives intact: a Member may still write an internal note, so the
+ * Region 4 survives intact: a restricted reader may still write an internal note, so the
  * composer is mounted with Note mode and its own submit, and only the item
  * action is missing. A pane that gated the whole region on the handling
  * permission would take the note form with it.
  */
-export const FeedbackAsMemberReadsButCannotHandle: Story = {
-  decorators: [withRole('Member')],
+export const FeedbackAsReaderReadsButCannotHandle: Story = {
+  decorators: [
+    withPermissions(['inbox.read', 'inbox.write', 'review.read', 'feedback.read']),
+  ],
   args: {
     currentItem: closedItem,
     detailFns: detailFns([
@@ -1271,7 +1273,7 @@ export const FeedbackAsMemberReadsButCannotHandle: Story = {
  *
  * What it pins is the PANE's gate, and only that. `inbox-detail-content.tsx`
  * reads the same pair before it builds the slot at all (`:378-380`), so under a
- * Member `handlingState` is null, `feedbackPrimary` is null, and
+ * restricted reader `handlingState` is null, `feedbackPrimary` is null, and
  * `FeedbackHandlingPrimary` never mounts — its own `can()` pair is unreachable
  * from here, and replacing that local `canHandle` with `true` leaves this story
  * green. The doc used to claim the opposite; the claim was vacuous, and the
@@ -1282,7 +1284,9 @@ export const FeedbackAsMemberReadsButCannotHandle: Story = {
  * the component directly: `HandlingPrimaryAloneWithoutPermission` below.
  */
 export const FeedbackActionIsPermissionGatedNotStateGated: Story = {
-  decorators: [withRole('Member')],
+  decorators: [
+    withPermissions(['inbox.read', 'inbox.write', 'review.read', 'feedback.read']),
+  ],
   args: {
     currentItem: closedItem,
     detailFns: detailFns([OPENED_FROM_FEEDBACK]),
@@ -1320,7 +1324,7 @@ export const FeedbackActionIsPermissionGatedNotStateGated: Story = {
  * `feedback-handling-primary.tsx` and THIS story fails while every pane story
  * stays green.
  *
- * `Member` exercises the second conjunct (`inbox.write` without
+ * `restricted reader` exercises the second conjunct (`inbox.write` without
  * `feedback.handle`). There is no built-in role for the first — the three roles
  * are ordered and `feedback.handle` sits above `inbox.write` in all of them —
  * so the `&&` is pinned from the only side a role can reach it from.
@@ -1330,7 +1334,9 @@ export const FeedbackActionIsPermissionGatedNotStateGated: Story = {
  * any role at all would pass this.
  */
 export const HandlingPrimaryAloneWithoutPermission: Story = {
-  decorators: [withRole('Member')],
+  decorators: [
+    withPermissions(['inbox.read', 'inbox.write', 'review.read', 'feedback.read']),
+  ],
   render: () => (
     <FeedbackHandlingPrimary
       item={closedItem}

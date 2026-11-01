@@ -49,6 +49,7 @@ export type RecordAddressDownloadInput = Readonly<{
   tokenId: string
   downloadedBy: UserId
   purpose: AddressDownloadPurpose
+  oncePerUserToken?: boolean
   at: Date
 }>
 

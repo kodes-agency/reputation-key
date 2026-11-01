@@ -19,9 +19,17 @@ const staffApi = (accessible: readonly string[] | null): StaffPublicApi =>
   }) as unknown as StaffPublicApi
 
 function setup(
-  options: Readonly<{ enabled?: boolean; accessible?: readonly string[] | null }> = {},
+  options: Readonly<{
+    enabled?: boolean
+    accessible?: readonly string[] | null
+    personal?: boolean
+  }> = {},
 ) {
-  const portal = buildTestPortal({ name: 'Reception' })
+  const portal = buildTestPortal(
+    options.personal
+      ? { kind: 'personal', name: 'Polly Smith', publicName: 'Harbor' }
+      : { name: 'Reception' },
+  )
   const portalRepo = createInMemoryPortalRepo()
   portalRepo.seed([portal])
   const wordingRepo = createInMemoryPortalPrintWordingRepo()
@@ -42,6 +50,20 @@ const ctx = buildTestAuthContext()
 const OWN = { en: { headline: '  Thanks for\nstaying ', subline: 'Tell us more' } }
 
 describe('savePortalPrintWording', () => {
+  it('refuses a staff name in saved print wording without saving it', async () => {
+    const { portal, save, wordingRepo } = setup({ personal: true })
+    await expect(
+      save(
+        parsed({
+          portalId: portal.id,
+          callToAction: 'how_was_stay',
+          customWords: { en: { headline: 'Ask Polly', subline: '' } },
+        }),
+        ctx,
+      ),
+    ).rejects.toMatchObject({ code: 'personal_portal_name_private' })
+    expect(wordingRepo.saved()).toEqual([])
+  })
   it('saves the wording and the own words, normalised, as the Portal’s', async () => {
     const { portal, save, wordingRepo } = setup()
 

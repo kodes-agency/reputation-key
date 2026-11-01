@@ -75,6 +75,8 @@ describe('Identity public API', () => {
       'offboardingFacts',
       'people',
       'requests',
+      'staffAccounts',
+      'staffSelf',
     ])
     expect(Object.keys(api.managerFacts)).toEqual([
       'listActiveManagers',

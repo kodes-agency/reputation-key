@@ -101,6 +101,7 @@ describe.sequential('invitation read model (integration)', () => {
       inviterName: 'Ada Admin',
       propertyIds: ['prop-a', 'prop-b'],
       accountExists: false,
+      staffParticipationId: null,
     })
   })
 

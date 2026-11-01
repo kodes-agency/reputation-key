@@ -18,7 +18,7 @@
 import type { Meta, StoryObj } from '@storybook/react'
 import { expect, within } from 'storybook/test'
 import { SidebarProvider } from '#/components/ui/sidebar'
-import { withRole } from '../../../.storybook/AuthedRouterDecorator'
+import { withRole, withPermissions } from '../../../.storybook/AuthedRouterDecorator'
 import { SettingsSidebar } from './settings-sidebar'
 
 const meta: Meta<typeof SettingsSidebar> = {
@@ -86,15 +86,15 @@ export const AsPropertyManager: Story = {
   },
 }
 
-// Member lacks organization.update / member.list / ai.manage / integration.manage,
+// restricted reader lacks organization.update / member.list / ai.manage / integration.manage,
 // so the gated entries are absent. Only Profile, Security,
 // Preferences, Notifications render. "Back to app" → /.
-export const AsMember: Story = {
-  decorators: [withRole('Member')],
+export const AsReader: Story = {
+  decorators: [withPermissions(['identity.profile.update'])],
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
     await expectAlwaysOnEntries(canvasElement)
-    // Gated entries must NOT render for Member.
+    // Gated entries must NOT render for restricted reader.
     for (const gated of [
       /^organization$/i,
       /^members$/i,

@@ -73,6 +73,12 @@ export type GoalProgramSubjectReader = Readonly<{
     subjects: readonly GoalSubject[],
     asOf: Date,
   ): Promise<boolean>
+  staffTargetAllowed?: (
+    organizationId: string,
+    propertyId: string,
+    subject: GoalSubject,
+    metric: GoalMetric,
+  ) => Promise<boolean>
   getTimezone(organizationId: string, propertyId: string): Promise<string | null>
   subjectBelongsToProperty(
     organizationId: string,
@@ -373,6 +379,19 @@ export async function resolveGoalDefinition(
     subjects: readonly GoalSubject[]
   }>,
 ) {
+  if (deps.subjects.staffTargetAllowed) {
+    const allowed = await Promise.all(
+      input.subjects.map((subject) =>
+        deps.subjects.staffTargetAllowed!(
+          organizationId,
+          input.propertyId,
+          subject,
+          input.metric,
+        ),
+      ),
+    )
+    if (allowed.some((value) => !value)) throw new GoalProgramError('invalid_subject')
+  }
   const target = validateGoalTarget(input.metric, input.targetValue)
   if (!target.ok) throw new GoalProgramError('invalid_target')
   const [timezone, governed] = await Promise.all([

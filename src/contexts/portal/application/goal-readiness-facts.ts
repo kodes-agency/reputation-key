@@ -7,7 +7,7 @@
 // only; Reporting decides what they mean (live days, readiness, rows).
 //
 // Every non-archived Portal of the Property is listed, a draft or a disabled one
-// too, in name order, at most 100. Each source is asked once for that set.
+// too, in name order. Each source is asked once for that set.
 //
 // No permission is checked here. This is a cross-context read on
 // `PortalPublicApi`, called only by Reporting's use case, which asks
@@ -27,8 +27,6 @@ import type {
   PropertyId,
 } from '#/shared/domain/ids'
 
-/** The most Portals one read lists; the rest are named only by `truncated`. */
-const MAX_PORTALS = 100
 /** How far back the live intervals reach: the 28-day basis and this month, with room. */
 const LIVE_INTERVAL_LOOKBACK_MS = 60 * 24 * 60 * 60 * 1000
 
@@ -56,7 +54,7 @@ type GoalReadinessFact = Readonly<{
 
 export type GoalReadinessFacts = Readonly<{
   portals: readonly GoalReadinessFact[]
-  /** More than 100 Portals: the list holds the first 100 by name. */
+  /** Kept for existing consumers; this read includes the complete roster. */
   truncated: boolean
 }>
 
@@ -82,8 +80,8 @@ export const createGoalReadinessFacts = (deps: GoalReadinessFactsDeps) => ({
     const candidates = (await deps.portalRepo.listByProperty(organizationId, propertyId))
       .filter(isCandidate)
       .sort(comparePortalsByName)
-    const portals = candidates.slice(0, MAX_PORTALS)
-    const truncated = candidates.length > portals.length
+    const portals = candidates
+    const truncated = false
     if (portals.length === 0) return { portals: [], truncated }
 
     const portalIds = portals.map((portal) => portal.id)

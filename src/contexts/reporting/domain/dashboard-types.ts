@@ -292,13 +292,6 @@ export type PortalAnalyticsData = Readonly<{
   responseIntegrity: PortalResponseIntegritySummary
 }>
 
-// ─── Staff Dashboard ───
-
-export type StaffDashboardData = Readonly<{
-  kpis: KPIs
-  hasAssignments: boolean
-}>
-
 // ─── Attention Band ───
 
 /** Compact signal counts shown in the property dashboard attention band. */

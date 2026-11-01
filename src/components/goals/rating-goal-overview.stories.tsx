@@ -6,7 +6,7 @@
 // Tailwind, so the plays assert words, roles and what each door opens.
 import type { Meta, StoryObj } from '@storybook/react-vite'
 import { expect, fn, userEvent, waitFor, within } from 'storybook/test'
-import { withRole } from '../../../.storybook/AuthedRouterDecorator'
+import { withPermissions } from '../../../.storybook/AuthedRouterDecorator'
 import { RatingGoalOverview } from './rating-goal-overview'
 import type { RatingGoalRecapCommands } from './rating-goal-recap'
 import { CARD_RECAP_MONDAY } from './rating-goal-recap.stories.fixtures'
@@ -237,7 +237,7 @@ export const AfterNotNow: Story = {
 /** A viewer who may not set goals gets no prompt. */
 export const CannotSetGoals: Story = {
   args: { card: null, setup: SETUP, history: [] },
-  decorators: [withRole('Member')],
+  decorators: [withPermissions(['goal.read', 'portal.read', 'property.read'])],
   play: async ({ canvasElement }) => {
     await expect(
       within(canvasElement).queryByRole('button', {

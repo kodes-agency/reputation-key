@@ -104,6 +104,7 @@ const participation = () => ({
   organizationId: ORG_A,
   propertyId: PROPERTY_A,
   staffParticipantId: PARTICIPANT,
+  personalPortalId: null,
   linkedUserId: null,
   displayName: 'Alex',
   status: 'active' as const,
@@ -160,6 +161,29 @@ const primaryFor = (staffParticipationId: string, portalId: string, at: Date) =>
 })
 
 describe('staff participation repository', () => {
+  it('locks personal ownership and refuses Supporting on another person personal Portal', async () => {
+    const repo = createStaffParticipationRepository(getDb())
+    await createFixture(repo)
+    await pool.query(
+      "UPDATE portals SET kind = 'personal', public_name = 'Property A' WHERE id = $1",
+      [PORTAL_A],
+    )
+    await expect(
+      repo.replaceResponsibilities({
+        ...primaryFor(PARTICIPATION, PORTAL_A, START),
+        selections: [{ portalId: PORTAL_A, kind: 'supporting' }],
+      }),
+    ).rejects.toMatchObject({ code: 'staff_personal_portal_locked' })
+    await pool.query(
+      'UPDATE staff_participations SET personal_portal_id = $1 WHERE id = $2',
+      [PORTAL_A, PARTICIPATION],
+    )
+    await expect(
+      repo.replaceResponsibilities(primaryFor(PARTICIPATION, PORTAL_C, CHANGE)),
+    ).rejects.toMatchObject({ code: 'staff_personal_portal_locked' })
+    expect(await repo.listActiveResponsibilities(ORG_A, PARTICIPATION)).toEqual([])
+  })
+
   it('creates a participant without a login and isolates tenant reads', async () => {
     const repo = createStaffParticipationRepository(getDb())
     const first = await createFixture(repo)
@@ -191,6 +215,7 @@ describe('staff participation repository', () => {
     )
 
     await expect(repo.findById(ORG_A, PARTICIPATION)).resolves.toMatchObject({
+      personalPortalId: null,
       linkedUserId: 'current-linked-user',
     })
     await expect(
@@ -218,6 +243,7 @@ describe('staff participation repository', () => {
       repo.findActiveByUser(ORG_A, PROPERTY_A, 'current-linked-user'),
     ).resolves.toBeNull()
     await expect(repo.findById(ORG_A, PARTICIPATION)).resolves.toMatchObject({
+      personalPortalId: null,
       linkedUserId: null,
     })
     await pool.query('DELETE FROM staff_user_links WHERE id = $1', [ambiguousLink])

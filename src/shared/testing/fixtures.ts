@@ -107,6 +107,8 @@ export function buildTestPortal(
     id,
     organizationId: organizationId('org-00000000-0000-0000-0000-000000000001'),
     propertyId: propertyId('a0000000-0000-0000-0000-000000000001'),
+    kind: 'place',
+    publicName: null,
     entityType: 'property',
     entityId: propertyId('a0000000-0000-0000-0000-000000000001'),
     name: 'Test Portal',

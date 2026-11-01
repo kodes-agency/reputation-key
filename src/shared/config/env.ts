@@ -235,6 +235,11 @@ const baseEnvSchema = z.object({
     .enum(['true', 'false'])
     .default('false')
     .transform((value) => value === 'true'),
+  // Personal scan targets (ADR 0076): optional, default off; web reads at startup.
+  STAFF_SCAN_TARGETS_ENABLED: z
+    .enum(['true', 'false'])
+    .default('false')
+    .transform((value) => value === 'true'),
   // A Portal's own look (ADR 0070): an Account Admin may give one Portal its own
   // photo, colours, or name and logo. 'true' lets the three portal-look saves
   // through and shows their controls in the portal editor's Look section; unset

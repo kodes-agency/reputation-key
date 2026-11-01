@@ -91,13 +91,13 @@ describe('requireDashboardPropertyAccess', () => {
 })
 
 describe('requirePropertyOverviewAccess', () => {
-  it('refuses a Member, who holds dashboard.read alone, on a granted Property', async () => {
+  it('refuses a Member on a granted Property', async () => {
     const grants = granting(GRANTED_PROPERTY)
 
-    // The same reader passes the plain dashboard decision: the overview asks more.
+    // Staff has no manager dashboard permission, even with an old grant.
     await expect(
       requireDashboardPropertyAccess(grants, member, on(GRANTED_PROPERTY)),
-    ).resolves.toBeUndefined()
+    ).rejects.toMatchObject({ code: 'forbidden' })
     const refusal = await requirePropertyOverviewAccess(
       granting(GRANTED_PROPERTY),
       member,

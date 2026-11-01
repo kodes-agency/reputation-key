@@ -1,3 +1,5 @@
+import { assertPersonalPortalNameSeparation } from '#/shared/testing/personal-portal-public-assertions'
+import { archivePersonalPortal } from './archive-personal-portal'
 // Portal context — update portal use case tests
 
 import { describe, it, expect } from 'vitest'
@@ -138,6 +140,8 @@ const setup = (
   const useCase = updatePortal(deps)
   return {
     useCase,
+    archive: archivePersonalPortal(deps),
+    archiveForDeparture: archivePersonalPortal(deps, true),
     portalRepo,
     outbox,
     destinationLookups: () => destinationLookups,
@@ -839,5 +843,104 @@ it('shows the wider-goal refusal for the last rating collector', async () => {
     code: 'running_rating_goal',
     message:
       'This is the last portal collecting ratings for a running goal. End the goal first.',
+  })
+})
+
+describe('personal Portal ordinary edits', () => {
+  it.each([
+    [{ name: 'Another person' }, 'personal_portal_rename_locked'],
+    [{ slug: 'polly-smith' }, 'personal_portal_rename_locked'],
+    [{ publicationState: 'archived' as const }, 'personal_portal_archive_locked'],
+  ] as const)(
+    'refuses %j without changing ownership or publication',
+    async (patch, code) => {
+      const { useCase, portalRepo, commandWrites } = setup()
+      const portal = buildTestPortal({
+        kind: 'personal',
+        publicName: 'Harbor',
+        name: 'Polly Smith',
+      })
+      portalRepo.seed([portal])
+      await expect(
+        useCase(
+          { portalId: portal.id, ...patch },
+          buildTestAuthContext({ role: 'AccountAdmin' }),
+        ),
+      ).rejects.toMatchObject({ code })
+      expect(commandWrites()).toBe(0)
+    },
+  )
+  it('refuses Restore of an archived personal Portal', async () => {
+    const { useCase, portalRepo } = setup()
+    const portal = buildTestPortal({
+      kind: 'personal',
+      publicName: 'Harbor',
+      publicationState: 'archived',
+    })
+    portalRepo.seed([portal])
+    await expect(
+      useCase(
+        { portalId: portal.id, publicationState: 'disabled' },
+        buildTestAuthContext(),
+      ),
+    ).rejects.toMatchObject({ code: 'personal_portal_restore_locked' })
+  })
+  it('keeps the manager name out of the first publication snapshot', async () => {
+    const { useCase, portalRepo, lastUpdateCommand } = setup()
+    const portal = buildTestPortal({
+      kind: 'personal',
+      publicName: 'Harbor',
+      name: 'Polly Smith',
+      slug: 'portal-12345678',
+      publicationState: 'draft',
+    })
+    portalRepo.seed([portal])
+    await useCase(
+      { portalId: portal.id, publicationState: 'published' },
+      buildTestAuthContext(),
+    )
+    const command = lastUpdateCommand()!
+    expect(JSON.stringify(command.publication)).not.toMatch(/Polly|Smith/i)
+    expect(JSON.stringify(command.publication)).toContain('Harbor')
+    if (command.publication?.kind !== 'publish')
+      throw new Error('Expected a first publication')
+    await assertPersonalPortalNameSeparation(portal, command.publication.snapshot)
+  })
+})
+
+describe('archivePersonalPortal', () => {
+  it('archives for an authorized manager departure outside current Property grants', async () => {
+    const h = setup([])
+    const portal = buildTestPortal({ kind: 'personal', publicName: 'Harbor' })
+    h.portalRepo.seed([portal])
+    const ctx = {
+      ...buildTestAuthContext(),
+      effectivePermissions: new Set(['identity.leave_org'] as const),
+    }
+    await expect(h.archive({ portalId: portal.id }, ctx)).rejects.toMatchObject({
+      code: 'forbidden',
+    })
+    expect(
+      (await h.archiveForDeparture({ portalId: portal.id }, ctx)).publicationState,
+    ).toBe('archived')
+  })
+  it('lets a PropertyManager remove a personal Portal and repeats safely', async () => {
+    const { archive, portalRepo } = setup()
+    const portal = buildTestPortal({ kind: 'personal', publicName: 'Harbor' })
+    portalRepo.seed([portal])
+    expect(
+      (await archive({ portalId: portal.id }, buildTestAuthContext())).publicationState,
+    ).toBe('archived')
+    expect(
+      (await archive({ portalId: portal.id }, buildTestAuthContext())).publicationState,
+    ).toBe('archived')
+  })
+  it('refuses an ordinary place Portal', async () => {
+    const { archive, portalRepo } = setup()
+    const portal = buildTestPortal()
+    portalRepo.seed([portal])
+    await expect(
+      archive({ portalId: portal.id }, buildTestAuthContext()),
+    ).rejects.toMatchObject({ code: 'forbidden' })
   })
 })

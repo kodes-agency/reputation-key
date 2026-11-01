@@ -463,7 +463,11 @@ export async function readPortalWorkingCopyWithLook(
     source: {
       organizationId: scope.organizationId,
       propertyId: portal.propertyId,
-      portal: { id: portal.id, name: portal.name, slug: portal.slug },
+      portal: {
+        id: portal.id,
+        name: portal.publicName ?? portal.name,
+        slug: portal.slug,
+      },
       privateFeedbackThreshold: portal.privateFeedbackThreshold,
       skipPrivateRating: portal.skipPrivateRating,
       primaryGuestLocale,

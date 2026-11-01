@@ -123,7 +123,7 @@ function copyLook(
 }
 
 /** Approved links in the order a guest sees them, at most as many as a Portal may carry. */
-function linksToCopy(source: PortalCopySource): readonly PortalLink[] {
+export function linksToCopy(source: PortalCopySource): readonly PortalLink[] {
   const categoryRank = new Map(
     [...source.categories]
       .sort((a, b) => a.sortKey.localeCompare(b.sortKey))

@@ -1,3 +1,4 @@
+import { assertPersonalPortalPublicText } from '../../domain/personal-portal-public-text'
 // Portal context — publish changes while live.
 //
 // A Portal that is already Published can publish its working copy again: a new
@@ -112,6 +113,7 @@ const planPortalRepublish =
         pid,
       ) ?? Promise.resolve([]),
     ])
+    if (workingCopy) assertPersonalPortalPublicText(portal, workingCopy)
     if (!workingCopy) {
       throw portalError(
         'publication_snapshot_unavailable',

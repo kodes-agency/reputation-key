@@ -1,3 +1,4 @@
+import { assertPersonalPortalPublicText } from '../../domain/personal-portal-public-text'
 import type { AuthContext } from '#/shared/domain/auth-context'
 import { canForContext } from '#/shared/domain/permissions'
 import type { OfferedGuestLocale } from '#/shared/domain/guest-locale'
@@ -361,6 +362,7 @@ export const savePortalLocalizedOverride =
     if (portal.publicationState === 'archived') {
       throw portalError('portal_inactive', 'Restore this Portal before changing content')
     }
+    assertPersonalPortalPublicText(portal, [input.title, input.shortDescription])
     return deps.experienceRepo.savePortalOverride({
       id: deps.idGen(),
       organizationId: ctx.organizationId,

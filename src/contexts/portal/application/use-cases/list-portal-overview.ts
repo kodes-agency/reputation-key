@@ -66,6 +66,7 @@ export type ListPortalOverviewDeps = Readonly<{
 export type PortalOverviewRow = Readonly<{
   portalId: PortalId
   propertyId: PropertyId
+  kind: 'place' | 'personal'
   name: string
   slug: string
   skipPrivateRating: boolean
@@ -164,6 +165,7 @@ export const listPortalOverview =
       return {
         portalId: portal.id,
         propertyId: portal.propertyId,
+        kind: portal.kind,
         name: portal.name,
         slug: portal.slug,
         publicationState: portal.publicationState,

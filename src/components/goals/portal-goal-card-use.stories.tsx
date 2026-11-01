@@ -11,7 +11,7 @@ import { toast } from 'sonner'
 import { expect, fn, userEvent, waitFor, within } from 'storybook/test'
 import type { PortalGoalCardView } from '#/contexts/reporting/application/dto/monthly-portal-goal.types'
 import { ServerFunctionError } from '#/shared/auth/server-function-error'
-import { withRole } from '../../../.storybook/AuthedRouterDecorator'
+import { withPermissions } from '../../../.storybook/AuthedRouterDecorator'
 import { ToasterDecorator } from '../../../.storybook/ToasterDecorator'
 import type { PortalGoalCommands } from './portal-goal-card-ready'
 import { PortalGoalSection } from './portal-goal-section'
@@ -314,13 +314,13 @@ export const ScheduledChange: Story = {
   },
 }
 
-/** Without `goal.update` (a Member) the scheduled card draws no "Change". */
+/** Without `goal.update` (a restricted reader) the scheduled card draws no "Change". */
 export const ScheduledChangeNotAllowed: Story = {
   args: {
     card: read(CARD_SCHEDULED),
     commands: { setMonthlyPortalGoalFn: setMock, onSet: onSetMock, openSheet: fn() },
   },
-  decorators: [withRole('Member')],
+  decorators: [withPermissions(['goal.read', 'portal.read', 'property.read'])],
   play: async ({ canvasElement, args }) => {
     const canvas = within(canvasElement)
     await expect(canvas.getByText('November · 40 private ratings')).toBeVisible()

@@ -93,3 +93,9 @@ excludes Google review solicitation, ratings and review volume from competitive
 staff goals and says Portal Goals use the Portal's own qualified scans and
 private rating metrics (`docs/legal/google-access-disclosure.md`, "Uses the
 product does not allow"). No legal document changes.
+
+## Amendment 2026-11-01 — staff accounts and personal Portals
+
+[ADR 0076](0076-staff-accounts-and-personal-portals.md) amends this decision.
+
+Rule 2 permits one staff target: `qualified_scans` on a person's personal Portal or on a Portal Group holding one. Ratings, Google facts, clicks, notes, AI and named mentions never drive a target on a person. The target is shown only while `STAFF_SCAN_TARGETS_ENABLED` is on (default off). Nothing ranks people, offers rewards or makes an employment decision; `employmentDecisionEligible` stays false and `gbp.review_solicitation_gamification` stays permanently denied. Every other rule stands.

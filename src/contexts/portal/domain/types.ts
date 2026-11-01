@@ -36,6 +36,8 @@ export type Portal = Readonly<{
   id: PortalId
   organizationId: OrganizationId
   propertyId: PropertyId
+  kind: 'place' | 'personal'
+  publicName: string | null
   entityType: EntityType
   entityId: PropertyId | TeamId | UserId
   name: string

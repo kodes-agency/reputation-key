@@ -18,6 +18,7 @@ export type RemoveMemberOutput = Readonly<{
   success: boolean
 }>
 export type RemoveMemberDeps = Readonly<{
+  removeStaffForMemberDeparture?: (userId: string, ctx: AuthContext) => Promise<void>
   identity: IdentityPort
   commandStore: IdentityCommandStore
   clock: () => Date
@@ -63,6 +64,8 @@ export const removeMember =
     if (!targetMember) {
       throw identityError('member_not_found', 'Member not found in this organization')
     }
+    if (targetMember.rawRole === 'member')
+      throw identityError('forbidden', 'Remove this person from Staff')
 
     // 2a. Nobody removes themselves. Removal releases what the member held
     // because another AccountAdmin is present to reassign it; a member who
@@ -95,6 +98,7 @@ export const removeMember =
     // moved OUT of `releaseMemberAuthorities` and INTO the command-store
     // transaction for the same reason — Identity owns that table, so there is
     // no excuse for revoking it in a separate commit.
+    await deps.removeStaffForMemberDeparture?.(targetMember.userId, ctx)
     await deps.prepareGoogleConnectorDeparture?.(
       ctx.organizationId,
       targetMember.userId,
