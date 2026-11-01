@@ -3,7 +3,7 @@
 // The play functions add what axe cannot see: where a tap goes before and after a
 // rating, the language of a copied text, and that no word is clipped.
 import type { Decorator, Meta, StoryObj } from '@storybook/react'
-import { expect, fn, userEvent, waitFor, within } from 'storybook/test'
+import { expect, fn, waitFor, within } from 'storybook/test'
 import { GUEST_FONT_STYLESHEET } from '#/shared/font-sets'
 import { bindLinkTapCounter } from './linktree-follow'
 import { trackedLinkHref } from '../portal-link-href'
@@ -94,7 +94,6 @@ export const BeforeARating: Story = {
 }
 
 const countTap = fn((_linkId: string) => undefined)
-const hashHref = (linkId: string) => `#tile-${linkId}`
 
 /** What the tile's own click handler decided, read after it has run and before the browser acts. */
 type TapObservation = { clickedHref: string | null; takenOver: boolean }
@@ -142,16 +141,16 @@ const tapAfterARating = (
   linkId: string,
   links: readonly ImmersiveLinktreeLink[] = LINKTREE_LINKS_EN,
 ): Story => ({
-  args: { links, countTap, hrefFor: hashHref },
+  args: { links, countTap },
   beforeEach: () => {
     countTap.mockClear()
-    window.location.hash = ''
   },
   play: async ({ canvasElement }) => {
-    await userEvent.click(within(canvasElement).getByRole('link', { name }))
+    const seen = tap(within(canvasElement).getByRole('link', { name }))
+    expect(seen.takenOver).toBe(false)
+    expect(seen.clickedHref).toBe(trackedLinkHref(TOKEN, linkId))
     expect(countTap).toHaveBeenCalledTimes(1)
     expect(countTap).toHaveBeenCalledWith(linkId)
-    await waitFor(() => expect(window.location.hash).toBe(`#tile-${linkId}`))
   },
 })
 

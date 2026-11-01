@@ -154,24 +154,21 @@ test.describe('Critical: public Portal basics', () => {
     const beforeReadings = await countTaps()
     const beforeFacts = await countFacts()
     const clickPath = `/api/public/p/${encodeURIComponent(seed.portalToken)}/click/${seed.portalLinkId}`
-    // Keep the native document navigation local: this test observes the unload,
-    // while the click route's destination validation has its own tests.
-    await page.route(`**${clickPath}`, (route) =>
-      route.fulfill({ contentType: 'text/html', body: '<h1>Destination</h1>' }),
-    )
-    const followTile = async () => {
-      const counted = page.waitForResponse(
-        (response) =>
-          response.url().includes('/_serverFn/') &&
-          response.request().method() === 'POST',
-      )
-      await seededTile(page).click()
-      await expect(page).toHaveURL(new RegExp(`${seed.portalLinkId}$`, 'u'))
-      expect((await counted).ok()).toBe(true)
-    }
+    // Keep the native document navigation local: the click route's destination
+    // validation has its own tests. `holdNavigation` keeps the page alive until the
+    // action has answered, for the one tap whose answer the test must see.
+    let holdNavigation: Promise<unknown> = Promise.resolve()
+    await page.route(`**${clickPath}`, async (route) => {
+      await holdNavigation
+      await route.fulfill({ contentType: 'text/html', body: '<h1>Destination</h1>' })
+    })
+    const onTileUrl = new RegExp(`${seed.portalLinkId}$`, 'u')
+
+    // Before a rating, with the page leaving at once: the count still lands.
     await page.goto(`/p/${seed.portalToken}`)
     await waitForHydration(page)
-    await followTile()
+    await seededTile(page).click()
+    await expect(page).toHaveURL(onTileUrl)
     await expect.poll(countTaps, { timeout: 20_000 }).toBe(beforeReadings + 1)
     expect(await countFacts()).toBe(beforeFacts + 1)
 
@@ -180,7 +177,18 @@ test.describe('Critical: public Portal basics', () => {
     await selectRating(page, 5)
     await page.getByRole('button', { name: 'Send', exact: true }).click()
     await expect(receipt(page, 5)).toBeVisible()
-    await followTile()
+
+    // After it, the same session and link: the action answers and nothing more counts.
+    const counted = page.waitForResponse(
+      (response) =>
+        response.url().includes('/_serverFn/') &&
+        response.request().method() === 'POST' &&
+        (response.request().postData() ?? '').includes(seed.portalLinkId),
+    )
+    holdNavigation = counted
+    await seededTile(page).click()
+    expect((await counted).ok()).toBe(true)
+    await expect(page).toHaveURL(onTileUrl)
     expect(await countFacts()).toBe(beforeFacts + 1)
     expect(await countTaps()).toBe(beforeReadings + 1)
   })
