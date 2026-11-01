@@ -5,7 +5,7 @@
 // `rating-goal-detail.stories.tsx`.
 import type { Meta, StoryObj } from '@storybook/react-vite'
 import { expect, fn, userEvent, waitFor, within } from 'storybook/test'
-import { withRole } from '../../../.storybook/AuthedRouterDecorator'
+import { withPermissions } from '../../../.storybook/AuthedRouterDecorator'
 import { ServerFunctionError } from '#/shared/auth/server-function-error'
 import { RatingGoalDetailActions } from './rating-goal-detail-actions'
 import { withRatingGoalRefusals } from './rating-goal-refusal'
@@ -100,7 +100,7 @@ export const EndRefused: Story = {
 
 /** Without goal.update and goal.cancel there is nothing to press. */
 export const ActionsHiddenWithoutPermission: Story = {
-  decorators: [withRole('Member')],
+  decorators: [withPermissions(['goal.read', 'portal.read', 'property.read'])],
   render: () => (
     <div data-testid="actions" className="flex gap-2">
       <RatingGoalDetailActions

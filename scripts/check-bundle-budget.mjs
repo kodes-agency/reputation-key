@@ -1157,8 +1157,9 @@
 // is new code in first paint: Rolldown split one shared Radix chunk in two now that
 // the Google goal's page and the results page open a Collapsible (about +190 B), the
 // entry's lazy-chunk map grew with the new modules (about +150 B), and one-off values
-// went inline so the stylesheet grew only 10 B. The budget moves to 319,400 B: the
-// measurement plus about 150 B for chunk-hash jitter, to the nearest 100.
+// went inline so the stylesheet grew only 10 B. On main 78f27e9af the same head measures
+// 319,321 B, so the budget moves to 319,500 B: the measurement plus about 150 B for
+// chunk-hash jitter, to the nearest 100.
 
 import { readdirSync, readFileSync, existsSync } from 'node:fs'
 import { join, dirname, basename } from 'node:path'
@@ -1173,7 +1174,7 @@ const BUDGETS = {
   // PR-B3b (2026-10-31): +600 B budget, measured 318,640 B. Drafting remains
   // in lazy chunks; the eager cost is the shared Skeleton variant, generated
   // typography/motion utilities and the entry's lazy-chunk preload map.
-  initialClosureGzip: 319_400, // raised to 319,400 on 2026-11-02 for the goal pages' check-in (a Radix chunk split in two and the entry's lazy-chunk map; no new first-paint code), measured 319,272 on this head; see the note above
+  initialClosureGzip: 319_500, // raised to 319,500 on 2026-11-02 for the goal pages' check-in (a Radix chunk split in two and the entry's lazy-chunk map; no new first-paint code), measured 319,272 on this head; see the note above
   lazyChunkGzip: 125 * 1024, // 128,000 (chunks outside the closure)
 }
 
