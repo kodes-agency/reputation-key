@@ -28,6 +28,15 @@ export const PUSH_MISSED_AFTER_MS = 60 * 60 * 1000
  */
 export const PUSH_PAIRING_WINDOW_MS = 24 * 60 * 60 * 1000
 
+/**
+ * A Review Google dates this long before RepKey first saw it was not a new
+ * arrival. Polling lists a Property about every six hours, so a Review that old
+ * was not in Google's listing until now: Google published it late. Google does
+ * not reliably announce those, so a missing push for one says nothing about the
+ * fast path (ADR 0055, note 2026-11-01).
+ */
+export const LATE_PUBLISHED_AFTER_MS = 24 * 60 * 60 * 1000
+
 /** The window a location's or an account's health is judged over. */
 export const PUSH_HEALTH_WINDOW_MS = 7 * 24 * 60 * 60 * 1000
 
@@ -62,6 +71,8 @@ export type FirstSightingFacts = Readonly<{
   firstSeenAt: Date
   /** When Pub/Sub accepted the push for this Review; null when none was paired. */
   pushAcceptedAt: Date | null
+  /** The date Google gives the Review; null when the read has none for it. */
+  sourceCreatedAt: Date | null
 }>
 
 /**
@@ -76,6 +87,14 @@ export type PushCoverage = Readonly<{
   missed: boolean
 }>
 
+function publishedLate(sighting: FirstSightingFacts): boolean {
+  return (
+    sighting.sourceCreatedAt !== null &&
+    sighting.firstSeenAt.getTime() - sighting.sourceCreatedAt.getTime() >
+      LATE_PUBLISHED_AFTER_MS
+  )
+}
+
 /** Judge one first sighting at `now`. */
 export function classifyFirstSighting(
   sighting: FirstSightingFacts,
@@ -84,7 +103,9 @@ export function classifyFirstSighting(
   const seenAt = sighting.firstSeenAt.getTime()
   const accepted = sighting.pushAcceptedAt?.getTime() ?? null
   const healthy =
-    PUSH_COVERED.has(sighting.firstSeenVia) || (accepted !== null && accepted <= seenAt)
+    PUSH_COVERED.has(sighting.firstSeenVia) ||
+    (accepted !== null && accepted <= seenAt) ||
+    publishedLate(sighting)
   if (healthy) return { healthy: true, pending: false, late: false, missed: false }
 
   const windowEndsAt = seenAt + PUSH_MISSED_AFTER_MS
@@ -121,6 +142,8 @@ export type LedgerSummary = Readonly<{
   pending: number
   missed24h: number
   late24h: number
+  /** Polled Reviews of the last day that Google published late: not new arrivals. */
+  latePublished24h: number
   locationsSuspect: number
   accountsDark: number
 }>
@@ -140,6 +163,7 @@ export function summarizeLedger(
   let pending = 0
   let missed24h = 0
   let late24h = 0
+  let latePublished24h = 0
   const missedByLocation = new Map<string, number>()
   const missedByAccount = new Map<string, number>()
   for (const sighting of sightings) {
@@ -148,6 +172,7 @@ export function summarizeLedger(
     if (recent && coverage.pending) pending += 1
     if (recent && coverage.late) late24h += 1
     if (recent && coverage.missed) missed24h += 1
+    if (recent && publishedLate(sighting)) latePublished24h += 1
     if (coverage.missed) {
       missedByLocation.set(
         sighting.locationKey,
@@ -163,6 +188,7 @@ export function summarizeLedger(
     pending,
     missed24h,
     late24h,
+    latePublished24h,
     locationsSuspect: [...missedByLocation.values()].filter(
       (missed) => locationPushHealth(missed) === 'suspect',
     ).length,

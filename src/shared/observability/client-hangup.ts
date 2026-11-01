@@ -7,9 +7,9 @@
 // failure and not on a broad class: a reset on our own Postgres, Redis or
 // Google sockets must still report, so a rule wider than its evidence is a bug.
 //
-// Server only. The browser has its own rule for the one browser failure it
-// drops (browser-error-event.ts), and this module is not importable from
-// browser code (vite.config.ts importProtection).
+// Server only. The browser has its own rules for the browser failures it drops
+// (browser-error-event.ts), and this module is not importable from browser code
+// (vite.config.ts importProtection).
 
 import type { SentryEventHint } from './sentry-event-scrub'
 

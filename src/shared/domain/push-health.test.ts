@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
+  LATE_PUBLISHED_AFTER_MS,
   PUSH_MISSED_AFTER_MS,
   accountPushHealth,
   classifyFirstSighting,
@@ -18,6 +19,7 @@ const sighting = (over: Partial<FirstSightingFacts> = {}): FirstSightingFacts =>
   firstSeenVia: 'snapshot',
   firstSeenAt: SEEN,
   pushAcceptedAt: null,
+  sourceCreatedAt: at(-5),
   ...over,
 })
 
@@ -85,6 +87,44 @@ describe('classifyFirstSighting', () => {
     const result = classifyFirstSighting(sighting({ firstSeenVia: 'demand' }), at(120))
     expect(result.missed).toBe(true)
   })
+
+  describe('a Review Google published late', () => {
+    const LATE_PUBLISHED_MINUTES = LATE_PUBLISHED_AFTER_MS / MINUTE
+
+    it('does not count as a missed push when Google dates it over a day before it was seen', () => {
+      const result = classifyFirstSighting(
+        sighting({ sourceCreatedAt: at(-(LATE_PUBLISHED_MINUTES + 1)) }),
+        at(120),
+      )
+      expect(result).toEqual({
+        healthy: true,
+        pending: false,
+        late: false,
+        missed: false,
+      })
+    })
+
+    it('is not pending in its first hour either', () => {
+      const result = classifyFirstSighting(
+        sighting({ sourceCreatedAt: at(-(7 * LATE_PUBLISHED_MINUTES)) }),
+        at(10),
+      )
+      expect(result.pending).toBe(false)
+    })
+
+    it('still counts as missed when Google dates it exactly a day before it was seen', () => {
+      const result = classifyFirstSighting(
+        sighting({ sourceCreatedAt: at(-LATE_PUBLISHED_MINUTES) }),
+        at(120),
+      )
+      expect(result.missed).toBe(true)
+    })
+
+    it('still counts as missed when Google gave it no date', () => {
+      const result = classifyFirstSighting(sighting({ sourceCreatedAt: null }), at(120))
+      expect(result.missed).toBe(true)
+    })
+  })
 })
 
 describe('locationPushHealth', () => {
@@ -119,6 +159,7 @@ describe('summarizeLedger', () => {
     firstSeenVia: 'snapshot',
     firstSeenAt: ago(minutesAgo),
     pushAcceptedAt: null,
+    sourceCreatedAt: ago(minutesAgo + 5),
     locationKey,
     accountKey: over.accountKey ?? 'account-1',
     ...over,
@@ -129,6 +170,28 @@ describe('summarizeLedger', () => {
       pending: 0,
       missed24h: 0,
       late24h: 0,
+      latePublished24h: 0,
+      locationsSuspect: 0,
+      accountsDark: 0,
+    })
+  })
+
+  it('counts a Review Google published late apart, and holds no location or account against it', () => {
+    const weekBefore = (minutesAgo: number) => ago(minutesAgo + 7 * 24 * 60)
+    const summary = summarizeLedger(
+      [
+        found('a', 180, { sourceCreatedAt: weekBefore(180) }),
+        found('b', 180, { sourceCreatedAt: weekBefore(180) }),
+        found('a', 2 * 24 * 60, { sourceCreatedAt: weekBefore(2 * 24 * 60) }),
+      ],
+      NOW,
+    )
+
+    expect(summary).toEqual({
+      pending: 0,
+      missed24h: 0,
+      late24h: 0,
+      latePublished24h: 2,
       locationsSuspect: 0,
       accountsDark: 0,
     })

@@ -25,6 +25,7 @@ import type { Database } from '#/shared/db'
 import { googleConnections } from '#/shared/db/schema/google-connection.schema'
 import { idempotencyReceipts } from '#/shared/db/schema/outbox.schema'
 import { properties } from '#/shared/db/schema/property.schema'
+import { reviews } from '#/shared/db/schema/review.schema'
 import { reviewGoogleReputationSnapshotFacts } from '#/shared/db/schema/review-reputation.schema'
 import {
   reviewFirstSightings,
@@ -44,7 +45,10 @@ export type SyncPushHealth = Readonly<{
   push: Readonly<{
     /** Reviews first seen in the last day by a push, or by the snapshot a push handed off to. */
     newByPush24h: number
-    /** Reviews first seen in the last day by polling or an on-demand read. */
+    /**
+     * Reviews first seen in the last day by polling or an on-demand read, less
+     * the ones Google published late: those are not new arrivals.
+     */
     newByPoll24h: number
     /** Polled Reviews under the missed window with no push yet. */
     pending: number
@@ -147,6 +151,7 @@ async function readPolledSightings(db: Database): Promise<LedgerSighting[]> {
       firstSeenVia: reviewFirstSightings.firstSeenVia,
       firstSeenAt: reviewFirstSightings.firstSeenAt,
       pushAcceptedAt: reviewFirstSightings.pushAcceptedAt,
+      sourceCreatedAt: reviews.sourceCreatedAt,
     })
     .from(reviewFirstSightings)
     .innerJoin(
@@ -157,6 +162,14 @@ async function readPolledSightings(db: Database): Promise<LedgerSighting[]> {
       ),
     )
     .innerJoin(googleConnections, eq(googleConnections.id, properties.googleConnectionId))
+    // Left: a Review can be gone while its ledger row stays, and that row is still judged.
+    .leftJoin(
+      reviews,
+      and(
+        eq(reviews.organizationId, reviewFirstSightings.organizationId),
+        eq(reviews.id, reviewFirstSightings.reviewId),
+      ),
+    )
     .where(
       and(
         propertyIsSyncable,
@@ -170,6 +183,7 @@ async function readPolledSightings(db: Database): Promise<LedgerSighting[]> {
     firstSeenVia: row.firstSeenVia as LedgerSighting['firstSeenVia'],
     firstSeenAt: row.firstSeenAt,
     pushAcceptedAt: row.pushAcceptedAt,
+    sourceCreatedAt: row.sourceCreatedAt,
     locationKey: `${row.organizationId}/${row.propertyId}`,
     accountKey: `${row.organizationId}/${row.connectionId}/${row.accountId}`,
   }))
@@ -194,7 +208,7 @@ async function readPushHealth(db: Database): Promise<SyncPushHealth['push']> {
   const summary = summarizeLedger(await readPolledSightings(db), counts.now)
   return {
     newByPush24h: counts.byPush,
-    newByPoll24h: counts.byPoll,
+    newByPoll24h: Math.max(0, counts.byPoll - summary.latePublished24h),
     pending: summary.pending,
     missed24h: summary.missed24h,
     late24h: summary.late24h,

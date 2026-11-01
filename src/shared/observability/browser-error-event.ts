@@ -86,8 +86,54 @@ function isBrowserAbort(value: unknown): boolean {
   )
 }
 
+/** The errors React makes when it recovers from a throw while hydrating. */
+const HYDRATION_RECOVERY = /^Minified React error #42[23];/u
+/** What the router's bare `invariant()` throws in a production build. */
+const ROUTER_INVARIANT = 'Invariant failed'
+
+export type BrowserPagePaths = Readonly<{ loadedPath?: string; currentPath?: string }>
+
+/**
+ * A page the visitor left while it was still hydrating. A link in the part that
+ * had hydrated moved the router on; when React came to the rest of the old page,
+ * its route hooks could no longer find their match and the router threw. React
+ * recovers by itself, rendering on the client what by then is the new page, and
+ * hands `window.reportError` its own error with the router's as the `cause`. The
+ * visitor saw nothing.
+ *
+ * Narrow on every side: only React's two hydration-recovery errors, only with the
+ * router's exact error as the cause, and only once the page is no longer the one
+ * the document loaded. The same error on the page that loaded (a route hook with
+ * no match to find) is a real defect and keeps reporting, as does every other
+ * hydration failure.
+ */
+export function isHydrationOfPageAlreadyLeft(
+  exception: unknown,
+  page: BrowserPagePaths,
+): boolean {
+  if (page.loadedPath === undefined || page.loadedPath === page.currentPath) return false
+  return (
+    exception instanceof Error &&
+    HYDRATION_RECOVERY.test(exception.message) &&
+    exception.cause instanceof Error &&
+    exception.cause.message === ROUTER_INVARIANT
+  )
+}
+
+function currentPagePaths(): BrowserPagePaths {
+  if (typeof performance === 'undefined' || typeof location === 'undefined') return {}
+  const [loaded] = performance.getEntriesByType('navigation')
+  return {
+    loadedPath: loaded && new URL(loaded.name).pathname,
+    currentPath: location.pathname,
+  }
+}
+
 export function beforeSend<T>(event: T, hint?: SentryEventHint): T | null {
   if (isCancelledLoadRejection(event, hint)) return null
+  if (isHydrationOfPageAlreadyLeft(hint?.originalException, currentPagePaths())) {
+    return null
+  }
   return dropExpectedRefusals<T>((candidate, candidateHint) =>
     scrubErrorEvent(withBrowserFacts(candidate, currentFacts()), candidateHint),
   )(event, hint)

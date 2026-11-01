@@ -102,7 +102,26 @@ type SeedSighting = Readonly<{
   /** Minutes after the first sighting that Pub/Sub accepted the push. */
   pushAfterMinutes?: number
   pushBeforeMinutes?: number
+  /** Stores the Review too, with the date Google gave it, this long before now. */
+  writtenMinutesAgo?: number
 }>
+
+async function seedReview(propertyId: string, writtenMinutesAgo: number) {
+  const id = crypto.randomUUID()
+  await db.execute(sql`
+    INSERT INTO reviews
+      (id, organization_id, property_id, platform, external_id, reviewer_name, rating,
+       text, language_code, reviewed_at, source_created_at, content_expires_at,
+       source_epoch, source_revision, analysis_sequence, ai_source_byte_length,
+       ai_source_digest)
+    VALUES (${id}, ${ORG}, ${propertyId}, 'google', ${`obs-sync-push-${id}`},
+            'Synthetic reviewer', 2, 'Synthetic review', 'en',
+            NOW() - (${writtenMinutesAgo} * INTERVAL '1 minute'),
+            NOW() - (${writtenMinutesAgo} * INTERVAL '1 minute'),
+            NOW() + INTERVAL '30 days', 0, 1, 1, 16, ${'a'.repeat(64)})
+  `)
+  return id
+}
 
 async function seedSighting(propertyId: string, sighting: SeedSighting) {
   const accepted =
@@ -111,11 +130,15 @@ async function seedSighting(propertyId: string, sighting: SeedSighting) {
       : sighting.pushBeforeMinutes !== undefined
         ? sql`NOW() - (${sighting.seenMinutesAgo + sighting.pushBeforeMinutes} * INTERVAL '1 minute')`
         : sql`NULL`
+  const reviewId =
+    sighting.writtenMinutesAgo !== undefined
+      ? await seedReview(propertyId, sighting.writtenMinutesAgo)
+      : crypto.randomUUID()
   await db.execute(sql`
     INSERT INTO review_first_sightings
       (organization_id, property_id, review_id, source_epoch, first_seen_at,
        first_seen_via, push_accepted_at)
-    VALUES (${ORG}, ${propertyId}, ${crypto.randomUUID()}, 0,
+    VALUES (${ORG}, ${propertyId}, ${reviewId}, 0,
             NOW() - (${sighting.seenMinutesAgo} * INTERVAL '1 minute'),
             ${sighting.via}, ${accepted})
   `)
@@ -207,6 +230,38 @@ describe('push health read (real reads)', () => {
 
     expect(after.late24h).toBe(baseline.late24h + 1)
     expect(after.missed24h).toBe(baseline.missed24h + 1)
+  })
+
+  it('does not hold a push against a Review Google published days after it was written', async () => {
+    const baseline = (await read()).push
+    const property = await seedProperty({ suffix: '0a' })
+    await seedSighting(property, {
+      via: 'snapshot',
+      seenMinutesAgo: 2 * HOUR,
+      writtenMinutesAgo: 7 * DAY,
+    })
+
+    const after = (await read()).push
+
+    expect(after.missed24h).toBe(baseline.missed24h)
+    expect(after.newByPoll24h).toBe(baseline.newByPoll24h)
+    expect(after.locationsSuspect).toBe(baseline.locationsSuspect)
+  })
+
+  it('still holds a missing push against a Review Google dates just before polling saw it', async () => {
+    const baseline = (await read()).push
+    const property = await seedProperty({ suffix: '0b' })
+    await seedSighting(property, {
+      via: 'snapshot',
+      seenMinutesAgo: 2 * HOUR,
+      writtenMinutesAgo: 2 * HOUR + 10,
+    })
+
+    const after = (await read()).push
+
+    expect(after.missed24h).toBe(baseline.missed24h + 1)
+    expect(after.newByPoll24h).toBe(baseline.newByPoll24h + 1)
+    expect(after.locationsSuspect).toBe(baseline.locationsSuspect + 1)
   })
 
   it('makes a location suspect after one miss in a week and an account dark after two across it', async () => {
