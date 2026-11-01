@@ -211,7 +211,7 @@ test.describe('Critical workflow: reply lifecycle', () => {
               mainPoint: [1, 2],
               avoidTerms: [],
               replyText:
-                'We are sorry the long check-in and smoke in your room made the arrival uncomfortable. You should have been able to settle in promptly and comfortably.',
+                "We're sorry your arrival wasn't what you hoped for. We'll check what happened with the long check-in and the smoke in your room, and if it was as you describe, we'll take the right steps.",
             },
           }),
         })
