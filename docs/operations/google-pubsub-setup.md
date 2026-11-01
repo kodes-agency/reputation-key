@@ -307,7 +307,7 @@ under `syncPush` in `GET /api/health/metrics`:
 | Metric                                                                | Meaning                                                                                                               |
 | --------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------- |
 | `sync.push_new_by_push_24h` / `sync.push_new_by_poll_24h`             | New reviews of the last day first seen through push, and through polling                                              |
-| `sync.push_missed_24h`                                                | Found by polling with no push accepted within 60 minutes of being seen                                                |
+| `sync.push_missed_24h`                                                | Found by polling with no push accepted within 60 minutes of being seen; a late-published one is not counted           |
 | `sync.push_late_24h`                                                  | Found by polling before the push was accepted (any delay)                                                             |
 | `sync.push_accepted_24h`                                              | Pushes Pub/Sub accepted, one per Property that holds the location                                                     |
 | `sync.push_locations_healthy` / `_suspect`, `sync.push_accounts_dark` | The last 7 days: a location is suspect after one missed push, a Google account is dark after two across its locations |

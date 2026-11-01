@@ -1108,6 +1108,42 @@ failure recorded, the replay), `parked-snapshot-failure.test.ts` (the table of
 every code) and `review-provider-snapshot-failure.test.ts` (the closed lists
 agree).
 
+## Note 2026-11-01 — a review Google publishes late is not a missed push
+
+On the beta on 2026-11-01, `sync.push-missed` fired for the first time since it
+was added (note 2026-10-21 (b)). The one review it counted was dated seven days
+before RepKey first saw it, and the six-hourly listing proved the review was new
+to Google's listing: the count and the unique reviews read 804 at 14:03 UTC and
+805 at 20:03 UTC. So Google published it a week after it was written. No push
+arrived for that location in the window, and none was ignored. The push path was
+healthy throughout: the other 19 new reviews of that day all had their push. Of
+the 96 first sightings in the ledger by then, only 2 were dated more than 24 hours
+before they were seen, and nothing lay between about 2 hours and 5 days. Of the
+two, one came with a push and this one did not, so Google does not reliably
+announce a review it publishes late.
+
+**Decision.** A review Google dates more than 24 hours before RepKey first saw it
+(`LATE_PUBLISHED_AFTER_MS`) is _late published_ and push health does not judge it.
+It is not missed, late or pending, holds no location or account against it, and
+does not count in `sync.push_new_by_poll_24h`, so it cannot raise
+`sync.push-missed` or `sync.push-silent`. The rule is read-side
+(`classifyFirstSighting`): the ledger row is written as before, and the date comes
+from the Review it names. A row whose Review is gone, or has no date, is judged as
+before.
+
+**Why the push cannot be expected.** The alert measures the fast path for a new
+arrival. Polling lists a Property about every six hours, so an ordinary review
+with a lost push is found within hours of being written and still counts. A review
+this old was simply not there to find.
+
+**Accepted limit.** If push and polling both fail for more than a day for one
+location, the reviews polling then finds are not counted as missed. That case
+already raises `sync.reconciliation-age` or `sync.failed-nonzero`.
+
+Enforced by `push-health.test.ts` (the rule and its boundary) and
+`sync-push-health.integration.test.ts` (the date read from the Review, and the
+control just inside the limit).
+
 ## Merged from ADR 0003
 
 Introduce a new `review` bounded context for external platform reviews,

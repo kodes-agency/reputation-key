@@ -216,6 +216,8 @@ const coverageOf = (sighting: Sighting, now: Date) =>
       firstSeenVia: sighting.via as ReviewFirstSeenVia,
       firstSeenAt: sighting.firstSeenAt,
       pushAcceptedAt: sighting.pushAcceptedAt,
+      // This suite is about pairing a push with a sighting, not Google's date.
+      sourceCreatedAt: null,
     },
     now,
   )

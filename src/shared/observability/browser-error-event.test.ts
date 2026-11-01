@@ -7,6 +7,7 @@ import {
 import {
   beforeSend,
   isCancelledLoadRejection,
+  isHydrationOfPageAlreadyLeft,
   withBrowserFacts,
 } from './browser-error-event'
 import { setBrowserRouteSource } from './browser-route'
@@ -93,6 +94,50 @@ describe('isCancelledLoadRejection', () => {
   })
 })
 
+/** What React hands to `window.reportError` when it recovers from a hydration error. */
+const hydrationRecovery = (code: number, cause: unknown): Error =>
+  new Error(`Minified React error #${code}; visit https://react.dev/errors/${code}`, {
+    cause,
+  })
+const routerInvariant = (): Error => new Error('Invariant failed')
+
+describe('isHydrationOfPageAlreadyLeft', () => {
+  const left = { loadedPath: '/properties', currentPath: '/settings/profile' }
+
+  it.each([422, 423])(
+    'recognises the page the visitor left while React hydrated it (#%i)',
+    (code) => {
+      expect(
+        isHydrationOfPageAlreadyLeft(hydrationRecovery(code, routerInvariant()), left),
+      ).toBe(true)
+    },
+  )
+
+  it.each([
+    [
+      'the same error on the page that loaded',
+      hydrationRecovery(423, routerInvariant()),
+      { loadedPath: '/properties', currentPath: '/properties' },
+    ],
+    [
+      'a hydration recovery caused by anything else',
+      hydrationRecovery(423, new TypeError('x is undefined')),
+      left,
+    ],
+    ['a hydration recovery with no cause', hydrationRecovery(423, undefined), left],
+    ['a hydration mismatch', hydrationRecovery(418, routerInvariant()), left],
+    ['the router invariant on its own', routerInvariant(), left],
+    [
+      'a page whose loaded address is not known',
+      hydrationRecovery(423, routerInvariant()),
+      { loadedPath: undefined, currentPath: '/settings/profile' },
+    ],
+    ['something that is not an error', 'Invariant failed', left],
+  ])('keeps reporting %s', (_label, exception, page) => {
+    expect(isHydrationOfPageAlreadyLeft(exception, page)).toBe(false)
+  })
+})
+
 describe('the browser beforeSend', () => {
   afterEach(() => {
     setBrowserRouteSource(undefined)
@@ -142,6 +187,38 @@ describe('the browser beforeSend', () => {
         originalException: new TypeError('x is undefined'),
       }),
     ).not.toBeNull()
+  })
+
+  describe('a page the visitor left while it hydrated', () => {
+    const loadedAt = (path: string): void => {
+      vi.stubGlobal('performance', {
+        getEntriesByType: () => [{ name: `https://app.example.invalid${path}?a=1` }],
+      })
+    }
+    const event = { exception: { values: [{ type: 'Error', value: 'x' }] } }
+
+    it('is never sent', () => {
+      loadedAt('/properties')
+      vi.stubGlobal('location', { pathname: '/settings/profile' })
+
+      expect(
+        beforeSend(event, {
+          originalException: hydrationRecovery(423, routerInvariant()),
+        }),
+      ).toBeNull()
+    })
+
+    it('is still sent when the visitor is on the page that loaded', () => {
+      loadedAt('/properties')
+      vi.stubGlobal('location', { pathname: '/properties' })
+      vi.stubGlobal('navigator', { userAgent: CHROME_ON_MAC })
+
+      expect(
+        beforeSend(event, {
+          originalException: hydrationRecovery(423, routerInvariant()),
+        }),
+      ).not.toBeNull()
+    })
   })
 
   it('never sends an expected refusal', () => {
