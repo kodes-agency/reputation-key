@@ -384,6 +384,28 @@ const requiredPermission = (
       }
     : { permission: 'portal.update', forbiddenMessage: 'this role cannot edit portals' }
 
+/** Turning the switch on must not starve a running goal on private ratings. */
+async function assertSkipSwitchAllowed(
+  deps: UpdatePortalDeps,
+  ctx: AuthContext,
+  input: UpdatePortalInput,
+  existing: Portal,
+): Promise<void> {
+  if (input.skipPrivateRating !== true || existing.skipPrivateRating) return
+  const block = await deps.ratingGoalGuard.findRunningRatingGoalBlock(
+    ctx.organizationId,
+    existing.propertyId,
+    existing.id,
+  )
+  if (!block) return
+  throw portalError(
+    'running_rating_goal',
+    block === 'portal'
+      ? 'This portal has a running goal on private ratings. End the goal first.'
+      : 'This is the last portal collecting ratings for a running goal. End the goal first.',
+  )
+}
+
 export const updatePortal =
   (deps: UpdatePortalDeps) =>
   async (input: UpdatePortalInput, ctx: AuthContext): Promise<Portal> => {
@@ -392,21 +414,7 @@ export const updatePortal =
     const existing = await loadPortalOrThrow(deps, ctx, pid, requiredPermission(input))
 
     assertArchivedMutationIsRestore(input, existing)
-    if (input.skipPrivateRating === true && !existing.skipPrivateRating) {
-      const block = await deps.ratingGoalGuard.findRunningRatingGoalBlock(
-        ctx.organizationId,
-        existing.propertyId,
-        existing.id,
-      )
-      if (block) {
-        throw portalError(
-          'running_rating_goal',
-          block === 'portal'
-            ? 'This portal has a running goal on private ratings. End the goal first.'
-            : 'This is the last portal collecting ratings for a running goal. End the goal first.',
-        )
-      }
-    }
+    await assertSkipSwitchAllowed(deps, ctx, input, existing)
 
     const { patch, publicationDestination } = await buildPortalPatch(
       input,
