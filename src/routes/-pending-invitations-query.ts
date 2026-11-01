@@ -21,7 +21,10 @@ export const pendingInvitationsQuery = queryOptions({
       .map((inv) => ({
         id: inv.id,
         organizationName: inv.organizationName ?? 'Unknown Organization',
-        role: inv.role ?? inv.rawRole,
+        role:
+          inv.role === 'Member' || inv.rawRole === 'member'
+            ? 'Staff'
+            : (inv.role ?? inv.rawRole),
         expiresAt: inv.expiresAt,
       }))
   },

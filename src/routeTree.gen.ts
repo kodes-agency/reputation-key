@@ -14,11 +14,13 @@ import { Route as AuthenticatedRouteImport } from './routes/_authenticated'
 import { Route as AcceptInvitationRouteImport } from './routes/accept-invitation'
 import { Route as JoinRouteImport } from './routes/join'
 import { Route as LoginRouteImport } from './routes/login'
+import { Route as MyRouteImport } from './routes/my'
 import { Route as OperatorRouteImport } from './routes/operator'
 import { Route as PrivacyRouteImport } from './routes/privacy'
 import { Route as ResetPasswordRouteImport } from './routes/reset-password'
 import { Route as UnavailableRouteImport } from './routes/unavailable'
 import { Route as AuthenticatedDashboardRouteImport } from './routes/_authenticated/dashboard'
+import { Route as AuthenticatedMyCodeRouteImport } from './routes/_authenticated/my-code'
 import { Route as AuthenticatedNotificationsRouteImport } from './routes/_authenticated/notifications'
 import { Route as AuthenticatedProgressRouteImport } from './routes/_authenticated/progress'
 import { Route as AuthenticatedSettingsRouteImport } from './routes/_authenticated/settings'
@@ -110,6 +112,11 @@ const LoginRoute = LoginRouteImport.update({
   path: '/login',
   getParentRoute: () => rootRouteImport,
 } as any)
+const MyRoute = MyRouteImport.update({
+  id: '/my',
+  path: '/my',
+  getParentRoute: () => rootRouteImport,
+} as any).lazy(() => import('./routes/my.lazy').then((d) => d.Route))
 const OperatorRoute = OperatorRouteImport.update({
   id: '/operator',
   path: '/operator',
@@ -135,6 +142,13 @@ const AuthenticatedDashboardRoute = AuthenticatedDashboardRouteImport.update({
   path: '/dashboard',
   getParentRoute: () => AuthenticatedRoute,
 } as any)
+const AuthenticatedMyCodeRoute = AuthenticatedMyCodeRouteImport.update({
+  id: '/my-code',
+  path: '/my-code',
+  getParentRoute: () => AuthenticatedRoute,
+} as any).lazy(() =>
+  import('./routes/_authenticated/my-code.lazy').then((d) => d.Route),
+)
 const AuthenticatedNotificationsRoute =
   AuthenticatedNotificationsRouteImport.update({
     id: '/notifications',
@@ -521,11 +535,13 @@ export interface FileRoutesByFullPath {
   '/accept-invitation': typeof AcceptInvitationRoute
   '/join': typeof JoinRoute
   '/login': typeof LoginRoute
+  '/my': typeof MyRoute
   '/operator': typeof OperatorRoute
   '/privacy': typeof PrivacyRoute
   '/reset-password': typeof ResetPasswordRoute
   '/unavailable': typeof UnavailableRoute
   '/dashboard': typeof AuthenticatedDashboardRoute
+  '/my-code': typeof AuthenticatedMyCodeRoute
   '/notifications': typeof AuthenticatedNotificationsRoute
   '/progress': typeof AuthenticatedProgressRoute
   '/settings': typeof AuthenticatedSettingsRouteWithChildren
@@ -598,11 +614,13 @@ export interface FileRoutesByTo {
   '/accept-invitation': typeof AcceptInvitationRoute
   '/join': typeof JoinRoute
   '/login': typeof LoginRoute
+  '/my': typeof MyRoute
   '/operator': typeof OperatorRoute
   '/privacy': typeof PrivacyRoute
   '/reset-password': typeof ResetPasswordRoute
   '/unavailable': typeof UnavailableRoute
   '/dashboard': typeof AuthenticatedDashboardRoute
+  '/my-code': typeof AuthenticatedMyCodeRoute
   '/notifications': typeof AuthenticatedNotificationsRoute
   '/progress': typeof AuthenticatedProgressRoute
   '/whats-new': typeof AuthenticatedWhatsNewRoute
@@ -672,11 +690,13 @@ export interface FileRoutesById {
   '/accept-invitation': typeof AcceptInvitationRoute
   '/join': typeof JoinRoute
   '/login': typeof LoginRoute
+  '/my': typeof MyRoute
   '/operator': typeof OperatorRoute
   '/privacy': typeof PrivacyRoute
   '/reset-password': typeof ResetPasswordRoute
   '/unavailable': typeof UnavailableRoute
   '/_authenticated/dashboard': typeof AuthenticatedDashboardRoute
+  '/_authenticated/my-code': typeof AuthenticatedMyCodeRoute
   '/_authenticated/notifications': typeof AuthenticatedNotificationsRoute
   '/_authenticated/progress': typeof AuthenticatedProgressRoute
   '/_authenticated/settings': typeof AuthenticatedSettingsRouteWithChildren
@@ -751,11 +771,13 @@ export interface FileRouteTypes {
     | '/accept-invitation'
     | '/join'
     | '/login'
+    | '/my'
     | '/operator'
     | '/privacy'
     | '/reset-password'
     | '/unavailable'
     | '/dashboard'
+    | '/my-code'
     | '/notifications'
     | '/progress'
     | '/settings'
@@ -828,11 +850,13 @@ export interface FileRouteTypes {
     | '/accept-invitation'
     | '/join'
     | '/login'
+    | '/my'
     | '/operator'
     | '/privacy'
     | '/reset-password'
     | '/unavailable'
     | '/dashboard'
+    | '/my-code'
     | '/notifications'
     | '/progress'
     | '/whats-new'
@@ -901,11 +925,13 @@ export interface FileRouteTypes {
     | '/accept-invitation'
     | '/join'
     | '/login'
+    | '/my'
     | '/operator'
     | '/privacy'
     | '/reset-password'
     | '/unavailable'
     | '/_authenticated/dashboard'
+    | '/_authenticated/my-code'
     | '/_authenticated/notifications'
     | '/_authenticated/progress'
     | '/_authenticated/settings'
@@ -980,6 +1006,7 @@ export interface RootRouteChildren {
   AcceptInvitationRoute: typeof AcceptInvitationRoute
   JoinRoute: typeof JoinRoute
   LoginRoute: typeof LoginRoute
+  MyRoute: typeof MyRoute
   OperatorRoute: typeof OperatorRoute
   PrivacyRoute: typeof PrivacyRoute
   ResetPasswordRoute: typeof ResetPasswordRoute
@@ -1040,6 +1067,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof LoginRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/my': {
+      id: '/my'
+      path: '/my'
+      fullPath: '/my'
+      preLoaderRoute: typeof MyRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/operator': {
       id: '/operator'
       path: '/operator'
@@ -1073,6 +1107,13 @@ declare module '@tanstack/react-router' {
       path: '/dashboard'
       fullPath: '/dashboard'
       preLoaderRoute: typeof AuthenticatedDashboardRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
+    '/_authenticated/my-code': {
+      id: '/_authenticated/my-code'
+      path: '/my-code'
+      fullPath: '/my-code'
+      preLoaderRoute: typeof AuthenticatedMyCodeRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
     '/_authenticated/notifications': {
@@ -1712,6 +1753,7 @@ const AuthenticatedPropertiesPropertyIdRouteWithChildren =
 
 interface AuthenticatedRouteChildren {
   AuthenticatedDashboardRoute: typeof AuthenticatedDashboardRoute
+  AuthenticatedMyCodeRoute: typeof AuthenticatedMyCodeRoute
   AuthenticatedNotificationsRoute: typeof AuthenticatedNotificationsRoute
   AuthenticatedProgressRoute: typeof AuthenticatedProgressRoute
   AuthenticatedSettingsRoute: typeof AuthenticatedSettingsRouteWithChildren
@@ -1726,6 +1768,7 @@ interface AuthenticatedRouteChildren {
 
 const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
   AuthenticatedDashboardRoute: AuthenticatedDashboardRoute,
+  AuthenticatedMyCodeRoute: AuthenticatedMyCodeRoute,
   AuthenticatedNotificationsRoute: AuthenticatedNotificationsRoute,
   AuthenticatedProgressRoute: AuthenticatedProgressRoute,
   AuthenticatedSettingsRoute: AuthenticatedSettingsRouteWithChildren,
@@ -1751,6 +1794,7 @@ const rootRouteChildren: RootRouteChildren = {
   AcceptInvitationRoute: AcceptInvitationRoute,
   JoinRoute: JoinRoute,
   LoginRoute: LoginRoute,
+  MyRoute: MyRoute,
   OperatorRoute: OperatorRoute,
   PrivacyRoute: PrivacyRoute,
   ResetPasswordRoute: ResetPasswordRoute,

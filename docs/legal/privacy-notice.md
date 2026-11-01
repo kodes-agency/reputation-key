@@ -3,14 +3,14 @@ status: accepted
 accepted_by: Bozhidar Denev
 accepted_on: 2026-09-08
 corrected_on: 2026-10-13
-amended_on: 2026-11-02
+amended_on: 2026-11-03
 ---
 
 # Privacy Notice — Reputation Key Closed Beta
 
 **Status:** Accepted for publication
-**Effective date:** 2026-11-02
-**Version:** 3.2
+**Effective date:** 2026-11-03
+**Version:** 3.3
 **Accountable owner:** Bozhidar Denev
 
 ## 1. About this notice
@@ -20,15 +20,16 @@ Business Profile reviews, publish deliberate human-approved replies, operate a
 Property-owned public review gateway, and understand Property and Portal
 performance. Kodes Agency operates the closed beta.
 
-This notice covers two groups:
+This notice covers three groups:
 
 - **Participants** — invited account administrators and property managers who
-  use the authenticated manager application; and
+  use the authenticated manager application;
+- **Staff** — people a business adds with a login to use their personal Portal; and
 - **Guests** — people who open a published Portal and may submit a private
   rating, optional private feedback, or choose a destination link.
 
 Kodes Agency, operating as Reputation Key, is the controller for Participant
-account data, security and monitoring signals, and beta feedback. Participant
+and Staff account data, security and monitoring signals, and beta feedback. This
 account data and beta feedback are processed to perform the closed beta
 agreement. Security, abuse-prevention, and diagnostic signals are processed for
 Kodes Agency's legitimate interests in protecting and operating the Service.
@@ -67,6 +68,22 @@ may also separately choose to create a preview containing only quantized,
 text-free layout blocks. That preview excludes page text, field values, URLs,
 pixels, images, account details, and ordinary screen replay, and can be
 reviewed or removed before submission.
+
+### Staff information
+
+Staff are people a business adds with a login. We keep their name and email,
+their code's scans, rating count and average, private notes and Google
+selections on that code, and scan targets. Guests never see a staff name.
+
+Managers with access see all of this information. A staff member sees their own
+scans, rating count, average and targets, and never private notes or Google
+selections. Rating counts and averages update once a day. If the business turns
+it on, colleagues at the Property see each other's scan counts.
+
+The business is the controller of staff performance data and must tell its
+staff what is kept and who sees it. These numbers follow the retention of the
+facts they read: 24 months. That 24-month retention for Reporting's readings of
+Guest facts is not enforced by code yet, as section 6 explains.
 
 ### Google Business Profile information
 
@@ -236,8 +253,16 @@ for complaints, and it does not count per person.
 - Account administrators can manage their Organization and view authorized
   Organization-wide product information.
 - Property managers see only Properties they can currently access.
-- Portal private feedback and Portal workflow notifications are limited to the
-  current responsible managers assigned to that Portal. A creator is assigned
+- Managers with access see staff names, emails, scans, rating counts and
+  averages, private notes, Google selections and targets. Staff see only their
+  own scans, rating count, average and targets; they never see private notes or
+  Google selections. When the business turns it on, colleagues at the Property
+  see each other's scan counts. Guests never see a staff name.
+- The guest line “Only {name} sees your rating” names the business that receives
+  it. A staff member at that business can see the count and average for their
+  own code, updated once a day; they cannot see an individual guest's rating.
+- Portal workflow notifications are limited to the current responsible
+  managers assigned to that Portal. A creator is assigned
   initially when eligible; creation is not permanent exclusive ownership.
 - Account administrators are a recovery recipient only when a Portal has no
   eligible responsible manager; notifications do not fan out to every Property
@@ -414,7 +439,7 @@ West); no EU deployment exists.
 
 ## 9. Changes and contact
 
-This notice takes effect on 2026-11-02 and is version 3.2. It replaces version 3.1, effective 2026-11-01, which replaced version
+This notice takes effect on 2026-11-03 and is version 3.3. It replaces version 3.2, effective 2026-11-02, which replaced version 3.1, effective 2026-11-01, which replaced version
 3.0, which took effect on 2026-10-30 and had replaced version
 2.5, which took effect on 2026-10-16 and had replaced version 2.4, which took
 effect on 2026-10-16 and had replaced version 2.3, which took
@@ -518,3 +543,10 @@ rating and note and shows the Google action straight away. It takes effect on
 release without a waiting period, on the accountable owner’s decision of
 2026-11-01 for the two beta Organizations the owner controls. Existing response
 correction and withdrawal remain available.
+
+Version 3.3 (2026-11-03) explains staff accounts, what staff and managers see,
+the optional colleague scan list, and the business's duty to tell its staff.
+Staff performance numbers follow the facts' 24-month retention, which is not
+enforced by code for Reporting's readings yet. It takes effect on release
+without a waiting period, on the accountable owner's decision of 2026-11-01
+for the two beta Organizations the owner controls.

@@ -76,13 +76,24 @@ const IN_COMPONENT_MODES: Readonly<Record<string, string>> = {
 }
 
 describe('page-level view switchers', () => {
+  it('keeps the approved staff phone surface on the canonical bottom tabs', () => {
+    const staff = FILES.find(
+      (file) => file.path === 'src/components/features/staff-home/staff-home.tsx',
+    )
+    expect(staff?.text).toContain('variant="bottom"')
+  })
   it('draw a TabsList as the underline, except for a mode inside a component', () => {
     const offenders = FILES.filter(
       (file) =>
         file.path !== 'src/components/ui/tabs.tsx' &&
         !(file.path in IN_COMPONENT_MODES) &&
         tabsListTags(stripComments(file.text)).some(
-          (tag) => !/variant="line"/u.test(tag),
+          (tag) =>
+            !/variant="line"/u.test(tag) &&
+            !(
+              file.path === 'src/components/features/staff-home/staff-home.tsx' &&
+              /variant="bottom"/u.test(tag)
+            ),
         ),
     ).map((file) => file.path)
 

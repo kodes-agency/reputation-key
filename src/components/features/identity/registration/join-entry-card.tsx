@@ -9,11 +9,12 @@ import { AuthCard } from '#/components/layout/auth-layout'
 import { InlineLink } from '#/components/ui/inline-link'
 
 type Props = Readonly<{
+  staff?: boolean
   status: 'entering' | 'failed'
   onRetry: () => void
 }>
 
-export function JoinEntryCard({ status, onRetry }: Props) {
+export function JoinEntryCard({ status, onRetry, staff = false }: Props) {
   return (
     <AuthCard title="Account created!" description="Your email is verified.">
       <div className="space-y-4 text-center">
@@ -34,8 +35,8 @@ export function JoinEntryCard({ status, onRetry }: Props) {
             Signing you in…
           </p>
         )}
-        <InlineLink to="/properties" className="block text-sm">
-          Continue to your workspace
+        <InlineLink to={staff ? '/my' : '/properties'} className="block text-sm">
+          {staff ? 'Continue to your code' : 'Continue to your workspace'}
         </InlineLink>
       </div>
     </AuthCard>

@@ -443,7 +443,7 @@ way.
 | --- | --- | --- | --- | --- | --- |
 | Page header and title | `PageHeader` from `#/components/layout/page-header`<br>`trailCrumbs` from `#/components/layout/page-identity`<br>`NAV_LABEL` from `#/components/layout/nav-labels` | The title, breadcrumbs, state line, purpose and actions of every page, and its one `h1`. A trail is `trailCrumbs`, the places named as the sidebar names them | `breadcrumbs`, `meta` (where you are, what state it is in), `description` (one sentence of purpose, never a count, a name or a status), `actions` (primary controls and their captions); `titleAside` (a short explanation beside the title); the tab title comes from the route's `staticData.page` | The Inbox list header, the Portal workspace header and an `AuthCard` title are compact `h1`s of surfaces that own their frame; two pages print a dynamic `description` and say why | `ui/heading-sources.test.ts`, `layout/header-sources.test.ts` |
 | Back control | `BackLink`, `BackButton` from `#/components/ui/back-link`<br>`BackIconButton` from `#/components/ui/back-icon-button` | The way back where there is no breadcrumb trail: a surface with no room for one, and a step that returns to the step before. A ghost small Button with the one arrow, `Back to <place>` | `BackLink` for an address, `BackButton` for a step or a view; `iconBelow` (the arrow alone on a narrow row), `flush` (the arrow on the content edge) | The Inbox detail pane has no room for words: it is the arrow alone, `BackIconButton`; the settings sidebar keeps its "Back to app" row, a menu item | `layout/header-sources.test.ts` |
-| Top bar, account menu, theme | `AppTopBar` from `#/components/layout/app-top-bar`<br>`ThemeModeControl` from `#/components/layout/theme-mode-control` | The signed-in chrome; the theme as one Light / Dark / System control in the menu and on Preferences | | The public Header and Footer keep the public chrome | Review (`layout/theme-mode-control.test.ts` covers the control) |
+| Top bar, account menu, theme | `AppTopBar` from `#/components/layout/app-top-bar`<br>`ThemeModeControl` from `#/components/layout/theme-mode-control` | The signed-in chrome; the theme as one Light / Dark / System control in the menu and on Preferences | | The public Header and Footer keep the public chrome; the approved personal-Portal staff surface has its own Property/account bar in `features/staff-home/staff-home.tsx`, without manager navigation or notifications | Review (`layout/theme-mode-control.test.ts` covers the control) |
 | Page gutter and width | `PageShell`, `FullBleedFrame` from `#/components/layout/page-shell`<br>`isFullBleedRoute` from `#/components/layout/full-bleed-route` | `<main>` owns the gutter and the document scrolls padded pages; the sticky top bar and page elements share `--app-top-bar-height`. A page picks a width `tier`; a surface that owns its pane scroll asks `isFullBleedRoute` and takes the gutter back from `FullBleedFrame` | `tier`: `dashboard` 1200, `standard` 1024 (lists, management), `narrow` 768 (forms, settings) | The Inbox, property Reviews and the Portal workspace are full-bleed | `layout/page-shell.test.ts`, `layout/full-bleed-route.test.ts` |
 | Sidebar | `Sidebar` from `#/components/ui/sidebar` | The app and settings sidebars, one collapse mode (the icon rail) | | Account and Organization settings swap the sidebar; a Property's settings keep it beside an in-page nav | `ui/sidebar.test.ts` |
 | Page state | `PageState` from `#/components/layout/page-state`<br>`RoutePending`, `RouteError`, `RouteNotFound` from `#/components/layout/route-page-state` | A page that is loading, failed, missing or unavailable, in the page's own title and tier. A loading page draws the shape of its content: the title and the header lines under it, then a body that holds the content's place. A route never writes its own | `kind`: `loading`, `error`, `notFound`, `unavailable`; a page's `staticData.page` may add `loading` (`scorecard` for a dashboard page, `list`, `cards` for anything else, `split`, `workspace` for a full-bleed surface, `inbox`) and `headerLines` (0, 1 or 2 lines under the title; 1 when left out) | `/unavailable` is only for an account with no workspace; a missing entity names itself through `RouteNotFound`. The workspace and Inbox shapes are whole surfaces: they draw their own header, tabs and panes with no `PageShell` or gutter around them | `src/routes/route-boundaries.test.ts`, `src/routes/page-identities.test.ts`, `layout/page-state.test.ts` |
@@ -773,3 +773,20 @@ Group with people starts folded; Other staff and the flat Staff section come
 last. People always stay in name order, including Needs attention. Search opens
 the matching section. Initials use OwnerDisc; the manager-only small-sample hint
 uses ExplainTrigger with its touch target variant. Staff settings use SettingSwitchRow and default off.
+
+## Staff home (ADR 0076)
+
+`features/staff-home/` is the canonical personal Code and My results family,
+shared by `/my` and the manager's My code. It receives its server functions
+from the lazy route bundle. `StaffHome` owns the small Property/account bar,
+the full-screen modal notice (`DialogContent presentation="screen"`, no dismissal before acknowledgement) and URL-backed bottom `Tabs` (`bottom` variant, 44px targets).
+`StaffCode` draws only through `portal-qr.ts`, refreshes on focus and hides an
+old symbol during refresh or refusal. `useScreenWakeLock` is best-effort and
+releases pending locks when leaving Code.
+
+Results use `SegmentedControl`, the `MetricStrip` `personal` variant for scans,
+`GoalMeter` without pace and a plain colleague list in server order. Ratings
+are cached under the server's returned `ratingsCutoff`; the browser never
+works out a Property's day. Staff account actions reuse the password form
+(`staff` omits its coaching) and the existing beta feedback dialog body through
+staff-only endpoints. No guest address, download or link opens on this phone.

@@ -210,9 +210,17 @@
     },
     {
       "id": "staffSelfKeys",
-      "members": ["all", "home", "code", "results", "goals", "colleagues"],
+      "members": [
+        "all",
+        "home",
+        "code",
+        "results",
+        "goals",
+        "colleagues",
+        "resultsCurrent"
+      ],
       "owner": "Identity and Reporting staff self query lifecycle",
-      "policy": "A separate staff-self root never aliases manager reads. Home includes the signed-in user, and every personal projection names the owned participation. Results additionally name the period and Property-local daily ratings cutoff; colleagues name the period and remain scan-only. Staff routes clear this family on sign-out or account change, refresh home after notice acknowledgement, and refresh the code on focus or replacement. The later UI pull requests own these callers and mutation invalidations."
+      "policy": "A separate staff-self root never aliases manager reads. Home includes the signed-in user, and every personal projection names the owned participation. Results additionally name the period and Property-local daily ratings cutoff; colleagues name the period and remain scan-only. Staff routes clear this family on sign-out or account change, refresh home after notice acknowledgement, and refresh the code on focus or replacement. The current-results read discovers the server cutoff and seeds the exact results snapshot key; it never computes a Property day in the browser."
     }
   ],
   "queryKeyDelegates": [

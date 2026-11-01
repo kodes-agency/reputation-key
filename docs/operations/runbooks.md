@@ -2561,4 +2561,4 @@ accounting diverges.
 
 ## Staff scan-target switch — 2026-11-01
 
-`STAFF_SCAN_TARGETS_ENABLED` accepts exactly `true` or `false`, defaults to `false`, and is non-secret. Web reads it at startup, in the same way as `PORTAL_OWN_LOOK_ENABLED`. Restart web to apply a change. Off refuses new targets on a personal Portal or a Group holding one and returns no staff targets; existing manager history is retained. It does not enable `staff.accounts`, which stays `beta_disabled` until the last pull request of `docs/plan/staff-accounts.md`. Migration 0093 follows the skip-rating migration 0092.
+`STAFF_SCAN_TARGETS_ENABLED` accepts exactly `true` or `false`, defaults to `false`, and is non-secret. Web reads it at startup, in the same way as `PORTAL_OWN_LOOK_ENABLED`. Restart web to apply a change. Off refuses new targets on a personal Portal or a Group holding one and returns no staff targets; existing manager history is retained. It does not enable `staff.accounts`, which is separately `controlled_beta` under ADR 0076 and the published staff documents (2026-11-03). Migration 0093 follows the skip-rating migration 0092.

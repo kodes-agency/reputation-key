@@ -53,6 +53,7 @@ export function InvitationLinkPage({
   if (accepted) {
     return (
       <AcceptedView
+        staff={link.state === 'pending' && link.details.role === 'Member'}
         organizationName={
           link.state === 'pending' ? link.details.organizationName : undefined
         }

@@ -24,7 +24,8 @@ export const Route = createFileRoute('/login')({
   beforeLoad: async () => {
     const session = await getSession()
     if (session) {
-      throw redirect({ to: '/properties' })
+      const { signInDestination } = await import('./-sign-in-destination')
+      throw redirect({ to: await signInDestination() })
     }
   },
   component: LoginPage,
@@ -40,9 +41,13 @@ function LoginPage() {
 
   const mutation = wrapAction(signIn, async () => {
     await ensureActiveOrg()
+    const { signInDestination } = await import('./-sign-in-destination')
+    const destination = await signInDestination()
     await clearTenantCacheBeforeNavigation(queryClient, async () => {
       await router.invalidate()
-      if (search.redirect) {
+      if (destination === '/my') {
+        await navigate({ to: '/my' })
+      } else if (search.redirect) {
         router.history.push(search.redirect)
       } else {
         await navigate({ to: '/properties' })

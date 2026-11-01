@@ -53,16 +53,16 @@ the presence of a route, table, or retained legacy module.
 
 ### Roles & Permissions
 
-| Term                       | Definition                                                                                                                                            |
-| -------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Role**                   | A named set of permissions assigned to an organization member. Org-wide — not per-property.                                                           |
-| **AccountAdmin**           | Organization owner. Receives all active built-in beta permissions, including policy administration. Team remains excluded.                            |
-| **PropertyManager**        | Manager role whose Property actions are limited by current PropertyAccessGrant. Team is not a beta permission.                                        |
-| **Member**                 | Staff-only login role (`member`), limited to own identity actions and `staff.self`; the manager resolver refuses it and `staff.accounts` remains off. |
-| **Permission**             | A `resource.action` string (e.g. `portal.create`). The atomic unit of authorization.                                                                  |
-| **Dynamic Access Control** | Better-auth feature that loads org-specific role overrides from the DB at permission-check time. Built-in roles are the fallback.                     |
-| **Staff Assignment**       | Legacy combined row retained for reconciliation only; it is not an access or Portal-attribution authority.                                            |
-| **Platform Operator**      | A named person whose account is in `OPS_OPERATOR_IDENTITIES` (`user:<user id>`); provisions Organizations, holds no role in them.                     |
+| Term                       | Definition                                                                                                                                                   |
+| -------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| **Role**                   | A named set of permissions assigned to an organization member. Org-wide — not per-property.                                                                  |
+| **AccountAdmin**           | Organization owner. Receives all active built-in beta permissions, including policy administration. Team remains excluded.                                   |
+| **PropertyManager**        | Manager role whose Property actions are limited by current PropertyAccessGrant. Team is not a beta permission.                                               |
+| **Member**                 | Staff-only login role (`member`), limited to own identity actions and `staff.self`; the manager resolver refuses it and `staff.accounts` is controlled beta. |
+| **Permission**             | A `resource.action` string (e.g. `portal.create`). The atomic unit of authorization.                                                                         |
+| **Dynamic Access Control** | Better-auth feature that loads org-specific role overrides from the DB at permission-check time. Built-in roles are the fallback.                            |
+| **Staff Assignment**       | Legacy combined row retained for reconciliation only; it is not an access or Portal-attribution authority.                                                   |
+| **Platform Operator**      | A named person whose account is in `OPS_OPERATOR_IDENTITIES` (`user:<user id>`); provisions Organizations, holds no role in them.                            |
 
 ### Auth Architecture
 

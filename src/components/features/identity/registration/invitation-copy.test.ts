@@ -137,3 +137,8 @@ describe('formatInvitationExpiry', () => {
     )
   })
 })
+
+it('gives Staff no Property access wording', () => {
+  expect(invitationPropertyLines('Member', [])).toEqual([])
+  expect(invitationPropertyLines('Member', ['Harbor'])).toEqual([])
+})

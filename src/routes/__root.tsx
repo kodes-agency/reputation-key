@@ -12,6 +12,7 @@ import { Footer } from '#/components/layout/footer'
 import { Header } from '#/components/layout/header'
 import { initWebVitals } from '#/components/hooks/web-vitals'
 import { authClient } from '#/shared/auth/auth-client'
+import { showsPublicChrome } from '#/shared/public-chrome'
 import { documentLanguageOfMatches } from '#/shared/document-language'
 import { FontSetLinks } from '#/components/layout/font-set-links'
 import { fontSetOfMatches } from '#/shared/font-sets'
@@ -61,7 +62,7 @@ function RootDocument({ children }: { children: React.ReactNode }) {
   const showChrome = useRouterState({
     select: (s) => {
       const ids = s.matches.map((m) => m.routeId)
-      return !ids.includes('/_authenticated') && !ids.includes('/p/$token')
+      return showsPublicChrome(ids)
     },
   })
 

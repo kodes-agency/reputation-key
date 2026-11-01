@@ -173,8 +173,8 @@ export const CAPABILITY_FATE = Object.freeze({
   'staff.use': CORE(
     'Staff Participants/participation/attribution are core; this does not activate Member login.',
   ),
-  'staff.accounts': DISABLED(
-    'ADR 0076: staff accounts open with the last pull request of docs/plan/staff-accounts.md.',
+  'staff.accounts': CONTROLLED(
+    'ADR 0076 and owner decision D18 (2026-11-01): personal Portals and staff self reads are open to the beta cohort; scan targets have the separate STAFF_SCAN_TARGETS_ENABLED switch.',
   ),
   'integration.use': CORE('Google integration lifecycle is beta core.'),
   'activity.use': CORE('Privacy-aware Recent Activity is beta core.'),
