@@ -26,7 +26,9 @@ export const HighlightsOnly: Story = {
     await waitFor(() =>
       expect(page.getByRole('dialog', { name: "What's new" })).toBeVisible(),
     )
-    await expect(page.getAllByRole('link', { name: /Show me/ })).toHaveLength(3)
+    await expect(page.getAllByRole('link', { name: /Show me/ })).toHaveLength(
+      PRODUCT_UPDATES.filter((e) => e.kind === 'highlight' && e.showMe).length,
+    )
     await expect(
       page.queryByRole('button', { name: /Also fixed/ }),
     ).not.toBeInTheDocument()

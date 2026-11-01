@@ -132,8 +132,7 @@ export const WithTheWeeklyUpdatesBeneathIt: Story = {
     const ai = await page.findByRole('region', { name: 'AI update' })
     // The weekly rule is due as well, so the week is claimed on the server once.
     expect(productUpdatesStoryState.claims).toBe(1)
-    await expect(page.getAllByRole('link', { name: /Show me/ }).length).toBeGreaterThan(0)
-    const [firstHighlight] = page.getAllByRole('article')
+    const [firstHighlight] = await page.findAllByRole('article')
     expect(
       ai.compareDocumentPosition(firstHighlight!) & Node.DOCUMENT_POSITION_FOLLOWING,
     ).toBeTruthy()

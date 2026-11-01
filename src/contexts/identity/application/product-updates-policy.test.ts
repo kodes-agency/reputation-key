@@ -14,7 +14,12 @@ const state: ProductUpdateState = {
   lastAutoOpenedAt: null,
   seenIds: [],
 }
-const view = (override: Partial<ProductUpdateState> = {}, entries = PRODUCT_UPDATES) =>
+// The entries published on the day these cases are written around: a later entry
+// must not change what they pin.
+const THAT_DAYS_ENTRIES = PRODUCT_UPDATES.filter(
+  ({ publishedOn }) => publishedOn === '2026-10-31',
+)
+const view = (override: Partial<ProductUpdateState> = {}, entries = THAT_DAYS_ENTRIES) =>
   productUpdatesView(entries, { ...state, ...override }, now)
 
 describe('personal product update eligibility', () => {
@@ -40,7 +45,7 @@ describe('personal product update eligibility', () => {
     expect(
       view(
         {},
-        PRODUCT_UPDATES.filter(({ kind }) => kind === 'fix'),
+        THAT_DAYS_ENTRIES.filter(({ kind }) => kind === 'fix'),
       ).shouldAutoOpen,
     ).toBe(false)
     expect(view({ autoShow: false }).shouldAutoOpen).toBe(false)
