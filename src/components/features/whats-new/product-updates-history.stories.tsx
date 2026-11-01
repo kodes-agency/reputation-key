@@ -32,6 +32,13 @@ export const AllUpdates: Story = {
       await canvas.findByRole('heading', { name: 'October 2026' }),
     ).toBeVisible()
     await expect(canvas.getAllByRole('article')).toHaveLength(PRODUCT_UPDATES.length)
+    // Every update shows its own day under the month. Registry dates never change.
+    await expect(canvasElement.querySelectorAll('article time')).toHaveLength(
+      PRODUCT_UPDATES.length,
+    )
+    await expect(
+      canvasElement.querySelector('article time[datetime="2026-10-31"]'),
+    ).toHaveTextContent('Oct 31')
   },
 }
 export const Phone: Story = {
