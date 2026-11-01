@@ -53,11 +53,11 @@ export type MetricPublicApi = Readonly<{
 
 // Goal contracts.
 export type PortalRatingGoalReadApi = Readonly<{
-  hasRunningPortalRatingGoal(
+  findPortalRatingGoalBlock(
     organizationId: string,
     propertyId: string,
     portalId: string,
-  ): Promise<boolean>
+  ): Promise<'portal' | 'last_collector' | null>
 }>
 export type { GoalProgram, GoalSubjectAssignment } from './ports/goal-program.repository'
 export type {

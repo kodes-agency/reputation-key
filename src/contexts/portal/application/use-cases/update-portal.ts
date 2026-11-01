@@ -47,12 +47,12 @@ import type { PortalTokenRepository } from '../ports/portal-token.repository'
 import { derivePortalHealth } from '../../domain/portal-health'
 
 export type UpdatePortalDeps = Readonly<{
-  ratingGoalGuard?: Readonly<{
-    hasRunningRatingGoal(
+  ratingGoalGuard: Readonly<{
+    findRunningRatingGoalBlock(
       organizationId: string,
       propertyId: string,
       portalId: string,
-    ): Promise<boolean>
+    ): Promise<'portal' | 'last_collector' | null>
   }>
   portalRepo: PortalRepository
   commandStore: PortalCommandStore
@@ -392,19 +392,20 @@ export const updatePortal =
     const existing = await loadPortalOrThrow(deps, ctx, pid, requiredPermission(input))
 
     assertArchivedMutationIsRestore(input, existing)
-    if (
-      input.skipPrivateRating === true &&
-      !existing.skipPrivateRating &&
-      (await deps.ratingGoalGuard?.hasRunningRatingGoal(
+    if (input.skipPrivateRating === true && !existing.skipPrivateRating) {
+      const block = await deps.ratingGoalGuard.findRunningRatingGoalBlock(
         ctx.organizationId,
         existing.propertyId,
         existing.id,
-      ))
-    ) {
-      throw portalError(
-        'running_rating_goal',
-        'This portal has a running goal on private ratings. End the goal first.',
       )
+      if (block) {
+        throw portalError(
+          'running_rating_goal',
+          block === 'portal'
+            ? 'This portal has a running goal on private ratings. End the goal first.'
+            : 'This is the last portal collecting ratings for a running goal. End the goal first.',
+        )
+      }
     }
 
     const { patch, publicationDestination } = await buildPortalPatch(

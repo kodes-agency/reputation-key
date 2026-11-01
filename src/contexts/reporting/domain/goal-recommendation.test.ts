@@ -873,3 +873,23 @@ it('offers scans when every candidate Portal skips the private rating, even with
   expect(result.defaultMeasure).toBe('qualified_scans')
   expect(result.ratingsAvailable).toBe(false)
 })
+
+it('uses published candidates for rating availability before draft and disabled candidates', () => {
+  const published = livePortal('Direct', '2026-10-01', { skipPrivateRating: true })
+  const draft = {
+    ...published,
+    portalId: 'draft',
+    publicationState: 'draft' as const,
+    skipPrivateRating: false,
+  }
+  const disabled = {
+    ...published,
+    portalId: 'disabled',
+    publicationState: 'disabled' as const,
+    skipPrivateRating: false,
+  }
+  const result = recommend({ portals: [published, draft, disabled] })
+  expect(result.ratingsAvailable).toBe(false)
+  expect(result.defaultMeasure).toBe('qualified_scans')
+  expect(recommend({ portals: [draft, disabled] }).ratingsAvailable).toBe(true)
+})

@@ -29,7 +29,7 @@ describe('Results for a Portal that skips ratings', () => {
       )
       expect(
         html.includes(
-          'This portal skips the private rating, so it collects no new ratings or notes.',
+          'This portal is set to skip the private rating, so it collects no new ratings or notes once published.',
         ),
       ).toBe(skipPrivateRating)
       expect(html).toContain('Are they happy?')

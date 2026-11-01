@@ -75,7 +75,8 @@ export function ImmersiveAfterRating({
         openFailed={failure === 'google'}
         onOpen={onGoogleReview}
       />
-      {(response.privateFeedbackEligible || response.hasPrivateFeedback) && (
+      {(response.hasPrivateFeedback ||
+        (response.privateFeedbackEligible && !skipPrivateRating)) && (
         <ImmersiveNoteCard
           pack={pack}
           displayName={displayName}

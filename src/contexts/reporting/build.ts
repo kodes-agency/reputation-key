@@ -1,4 +1,4 @@
-import { hasRunningPortalRatingGoal } from './application/running-portal-rating-goal'
+import { findPortalRatingGoalBlock } from './application/running-portal-rating-goal'
 import { getPortalLinkTaps } from './application/use-cases/get-portal-link-taps'
 // Reporting context — one composition root for governed metrics, Goal Programs,
 // and dashboard read models.
@@ -530,13 +530,19 @@ function buildGoalModule(input: ReportingContextBuildInput, metricApi: MetricPub
   })
 
   const portalRatingGoalRead: PortalRatingGoalReadApi = {
-    hasRunningPortalRatingGoal: async (
+    findPortalRatingGoalBlock: async (
       organizationId: string,
       propertyId: string,
       portalId: string,
     ) => {
       const programs = await goalProgramRepo.list(organizationId, propertyId)
-      return hasRunningPortalRatingGoal(programs, portalId, input.clock())
+      return findPortalRatingGoalBlock(programs, portalId, input.clock(), (subject) =>
+        input.portalApi.listPortalRatingFacts(
+          toOrganizationId(organizationId),
+          toPropertyId(propertyId),
+          subject,
+        ),
+      )
     },
   }
 

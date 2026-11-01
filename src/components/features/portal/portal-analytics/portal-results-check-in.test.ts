@@ -255,3 +255,17 @@ it('does not suggest collecting ratings on a switched Portal', () => {
   const result = portalResultsCheckIn(noRatings, { ...place, skipPrivateRating: true })
   expect(result.happy.lines).toEqual([])
 })
+
+it('does not describe rating-first Google opens on a switched Portal', () => {
+  const switched = { ...place, skipPrivateRating: true }
+  const zero = { ...data, kpis: { ...data.kpis, googleOpens: resultsCount(0, null) } }
+  expect(portalResultsCheckIn(zero, switched).google.lines).toEqual([])
+  const history = {
+    ...data,
+    kpis: { ...data.kpis, googleOpens: resultsCount(2, null) },
+    engagementFunnel: { ...data.engagementFunnel!, ratings: 3 },
+  }
+  expect(portalResultsCheckIn(history, switched).google.lines).toEqual([
+    'We can’t see whether they posted a review.',
+  ])
+})

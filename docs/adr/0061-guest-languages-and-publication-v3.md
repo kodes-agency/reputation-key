@@ -86,6 +86,13 @@ immutable evidence:
    the closed beta that happens when the pack is drafted, with no
    native-speaker check (owner decision, 2026-09-30). Any later guest-visible
    field needs its own schema version and its own reader-first release.
+
+   **Note 2026-11-02:** `reviewGateway.skipPrivateRating` is an optional v3
+   key written only when true. Absence means false, so no switched-off Portal's
+   snapshot or digest changes. Reader and writer ship in one release. This is
+   safe because recovery is forward-only and an image older than the database
+   refuses to start (ADR 0038, amendment 2026-10-12).
+
 7. **Schema version 3 has one complete shape, and is read before it is
    written.** Release A (this ADR, slice 8) ships the v3 reader, the verifier
    and the resolver with no writer, so the JSON shape is fixed in full now. The
@@ -110,6 +117,13 @@ immutable evidence:
    abbreviation. The mirrored `brand_profile_version` column holds the Property
    Brand Profile version on a v2 row and the look version on a v3 row; the
    organisation export emits it under the same name.
+
+   **Note 2026-11-02:** `reviewGateway.skipPrivateRating` is an optional v3
+   key written only when true. Absence means false, so no switched-off Portal's
+   snapshot or digest changes. Reader and writer ship in one release. This is
+   safe because recovery is forward-only and an image older than the database
+   refuses to start (ADR 0038, amendment 2026-10-12).
+
 8. **The manager app stays English.** Guest languages are a property of the
    guest page. Geographic availability is not localization (BETA.md §3), and
    the operational email stays English.

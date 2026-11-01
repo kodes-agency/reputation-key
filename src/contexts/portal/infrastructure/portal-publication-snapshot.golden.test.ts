@@ -182,8 +182,8 @@ describe('golden publication snapshots', () => {
 
     it('refuses a row digested over a field this reader does not know', () => {
       // zod strips the unknown key, so the digest recomputed on read no longer
-      // matches the one stored at write. This is why the v3 shape is complete
-      // in this release: a later field needs a v4 with its own reader first.
+      // matches the one stored at write. A later digest-bearing field needs
+      // reader support under the publication release rules (ADR 0061).
       const configuration = { ...row.configuration, futureField: { v: 4 } }
       const digested = {
         ...row,
@@ -236,3 +236,25 @@ describe('golden publication snapshots', () => {
     })
   })
 })
+
+it.each([undefined, false, true])(
+  'preserves a stored optional v3 skip key: %s',
+  (skipPrivateRating) => {
+    const original = GOLDEN_V3_BG_PRIMARY_ROW
+    const configuration = {
+      ...original.configuration,
+      reviewGateway: {
+        ...original.configuration.reviewGateway,
+        ...(skipPrivateRating === undefined ? {} : { skipPrivateRating }),
+      },
+    }
+    const row = {
+      ...original,
+      configuration,
+      configurationDigest: digestPortalPublicationConfiguration(configuration),
+    }
+    const snapshot = snapshotFromRow(row)
+    expect(snapshot?.configuration).toEqual(configuration)
+    expect(snapshot && verifyPortalPublicationSnapshot(snapshot)).toBe(true)
+  },
+)

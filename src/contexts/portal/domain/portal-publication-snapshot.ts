@@ -131,12 +131,11 @@ export type LocalizedPortalPublicationConfiguration = PortalPublicationConfigura
 
 // ── schema version 3: the Immersive Hub shape ────────────────────────────────
 //
-// The v3 JSON shape began here, in the release that only read it
-// (ADR 0061). The digest is recomputed over the zod-parsed object on every
-// read, so a field this shape does not name would be stripped, change the
-// digest and turn the portal unavailable. Any later guest-visible field
-// needs a reader that preserves it. The optional skipPrivateRating field stays
-// absent in older digests and reads as false (ADR 0044, 2026-11-02).
+// A reader must preserve every named field because its parsed JSON is digested.
+// reviewGateway.skipPrivateRating is an optional v3 key, written only when true.
+// Absence reads as false, so switched-off publications keep their earlier bytes.
+// Reader and writer ship together under forward-only recovery and the older-image
+// startup fence (ADR 0061, 2026-11-02 note; ADR 0038, 2026-10-12 amendment).
 
 /**
  * A piece of guest-facing text. `fallbackFrom` is null when the text was

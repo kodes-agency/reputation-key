@@ -117,11 +117,15 @@ async function assertPrivateRatingsAvailable(
     scope.propertyId,
     now,
   )
+  const published = listed.portals.filter(
+    (portal) => portal.publicationState === 'published',
+  )
+  const candidates = published.length > 0 ? published : listed.portals
   const skipped =
     subject.kind === 'property'
       ? !listed.truncated &&
-        listed.portals.length > 0 &&
-        listed.portals.every((portal) => portal.skipPrivateRating === true)
+        candidates.length > 0 &&
+        candidates.every((portal) => portal.skipPrivateRating === true)
       : ratingSubjectSkipsPrivateRating(listed.portals, subject)
   if (skipped) throw new GoalProgramError('private_ratings_skipped')
 }

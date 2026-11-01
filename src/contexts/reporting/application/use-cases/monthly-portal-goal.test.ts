@@ -318,6 +318,25 @@ describe('setMonthlyPortalGoal', () => {
     expect(deps.recommendation.facts.readDailyCounts).not.toHaveBeenCalled()
   })
 
+  it.each(['own', 'recommended'] as const)(
+    'refuses %s rating targets when only unpublished siblings still collect ratings',
+    async (targetSource) => {
+      const { deps } = fakeWorld()
+      deps.recommendation.facts.listPortalReadiness.mockResolvedValue({
+        portals: [
+          { ...portal('Reception', '2026-10-09'), skipPrivateRating: true },
+          { ...portal('Restaurant', '2026-10-09'), publicationState: 'draft' },
+        ],
+        truncated: false,
+      })
+
+      await expect(
+        setMonthlyPortalGoal(deps, { ...NOVEMBER_40, targetSource }, actor),
+      ).rejects.toMatchObject({ code: 'private_ratings_skipped' })
+      expect(deps.programs.create).not.toHaveBeenCalled()
+    },
+  )
+
   it('a refused actor reads and writes nothing', async () => {
     const { deps, calls } = fakeWorld()
     deps.policy.authorize.mockRejectedValueOnce(new GoalProgramError('forbidden'))

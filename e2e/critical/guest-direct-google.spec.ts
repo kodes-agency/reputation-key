@@ -42,14 +42,14 @@ test('a published direct Portal opens Google without a private response and coun
   await expect(page.getByRole('textbox')).toHaveCount(0)
   await expect(page.getByRole('button', { name: /^Your response/u })).toHaveCount(0)
   await page.getByRole('button', { name: /^Continue to Google/u }).click()
-  await expect(page).toHaveURL(/^https:\/\/search\.google\.com/u)
+  await expect(page).toHaveURL(/^https:\/\/search\.google\.com\//u)
   await waitFor(async () => (await opens()) === before + 1, {
     description: 'direct Google open counted',
   })
   await page.goBack()
   await expect(page.getByRole('button', { name: /^Continue to Google/u })).toBeVisible()
   await page.getByRole('button', { name: /^Continue to Google/u }).click()
-  await expect(page).toHaveURL(/^https:\/\/search\.google\.com/u)
+  await expect(page).toHaveURL(/^https:\/\/search\.google\.com\//u)
   expect(await receipts()).toBe(beforeReceipts + 1)
   expect(await opens()).toBe(before + 1)
 })

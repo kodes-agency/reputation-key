@@ -312,8 +312,8 @@ function buildContainer(
 
   const portal = buildPortalContext({
     ratingGoalGuard: {
-      hasRunningRatingGoal: (...args) =>
-        reporting.publicApi.hasRunningPortalRatingGoal(...args),
+      findRunningRatingGoalBlock: (...args) =>
+        reporting.publicApi.findPortalRatingGoalBlock(...args),
     },
     db,
     outboxRepo,

@@ -340,3 +340,5 @@ rating and note and shows the Google action straight away. It takes effect on
 release without a waiting period, on the accountable owner’s decision of
 2026-11-01 for the two beta Organizations the owner controls. Existing response
 correction and withdrawal remain available.
+
+Version 2.3 also updates sections 2.1, 9 and 12 to name Privacy Notice 3.2 and, in section 12, Google Business Profile Access Disclosure 2.3, both effective 2026-11-02.

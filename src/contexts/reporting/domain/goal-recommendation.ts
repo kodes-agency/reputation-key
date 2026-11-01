@@ -454,10 +454,14 @@ export function recommendPortalGoal(
     const state = measureState(spoiled.measures.has(measure), rate)
     return measureRecommendation(state, rate, months, month[measure])
   })
+  const published = input.portals.filter(
+    (portal) => portal.publicationState === 'published',
+  )
+  const candidates = published.length > 0 ? published : input.portals
   const ratingsAvailable =
     input.truncated ||
-    input.portals.length === 0 ||
-    input.portals.some((portal) => portal.skipPrivateRating !== true)
+    candidates.length === 0 ||
+    candidates.some((portal) => portal.skipPrivateRating !== true)
   const state = recommendationState(
     perMeasure((measure) =>
       measure === 'portal_rating_count' && !ratingsAvailable

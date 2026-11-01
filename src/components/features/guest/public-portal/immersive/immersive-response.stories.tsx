@@ -710,6 +710,7 @@ export const FullWithdrawalAsksFirst: Story = {
 export const StartsOver: Story = {
   args: {
     state: { kind: 'rated', rating: 5 },
+    overrides: { skipPrivateRating: true },
     live: true,
     section: { open: true, handlers: sectionActions() },
   },

@@ -46,7 +46,8 @@ export function PortalAnalyticsContent({
       />
       {place?.skipPrivateRating ? (
         <p className="text-sm text-muted-foreground">
-          This portal skips the private rating, so it collects no new ratings or notes.
+          This portal is set to skip the private rating, so it collects no new ratings or
+          notes once published.
         </p>
       ) : null}
       <div

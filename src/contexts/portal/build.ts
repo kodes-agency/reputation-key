@@ -116,6 +116,7 @@ import {
   updatePortalResponsibleManagers,
 } from './application/use-cases/portal-responsible-managers'
 import { getPortalContactRequestManagerAuthorityFacts } from './application/use-cases/portal-contact-request-authority'
+import { createPortalRatingFacts } from './application/portal-rating-facts'
 import { createGoalReadinessFacts } from './application/goal-readiness-facts'
 import { createPortalWorkflowFactStore } from './infrastructure/portal-workflow-fact-store'
 import { createAtomicPortalCommandStore } from './infrastructure/portal-command-store'
@@ -185,8 +186,8 @@ type PortalContextDeps = Readonly<{
   imageProcessor?: ImageProcessorPort
   /** PRINT_KIT_FINAL_ENABLED: the Share tab shows the final print kit. Absent = today's kit. */
   printKitFinalEnabled?: boolean
+  ratingGoalGuard: UpdatePortalDeps['ratingGoalGuard']
   /** PORTAL_OWN_LOOK_ENABLED: a Portal's own look may be changed (ADR 0070). Absent = off. */
-  ratingGoalGuard?: UpdatePortalDeps['ratingGoalGuard']
   portalOwnLookEnabled?: boolean
 }>
 
@@ -746,6 +747,7 @@ export const buildPortalContext = (deps: PortalContextDeps) => {
     }),
     listResultsLinks: createPortalResultsLinksReader(deps.db),
     listPublicationActivationsBetween: portalPublicationRepo.listActivationsBetween,
+    ...createPortalRatingFacts({ portalRepo, portalGroupRepo }),
     ...createGoalReadinessFacts({
       portalRepo,
       publicationRepo: portalPublicationRepo,

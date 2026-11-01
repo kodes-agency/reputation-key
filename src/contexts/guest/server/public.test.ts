@@ -14,6 +14,7 @@ import {
   submitPrivateFeedbackFn,
   correctGuestResponseFn,
   withdrawGuestResponseFn,
+  startNewGuestResponseFn,
 } from './public'
 
 // ── Server-fn gates (source-pinned) ───────────────────────────────
@@ -190,11 +191,13 @@ describe('guest response server-fn gates', () => {
     expect(feedback).toContain("setResponseHeader('Set-Cookie'")
   })
 
-  it('admits Google after a rating or on a published direct Portal', () => {
+  it('admits Google after a rating or with the published skipPrivateRating switch', () => {
     const fn = slice('selectGoogleReviewFn')
     const receipt = fn.indexOf('responseLifecycle.getState')
     const ratingGate = fn.indexOf('if (!isQualifiedGuestResponse(response))')
     const metric = fn.indexOf('trackReviewLinkClick')
+    expect(fn).toContain('bound.portal.reviewGateway.skipPrivateRating')
+    expect(fn).toContain('response !== null')
     expect(receipt).toBeGreaterThan(-1)
     expect(ratingGate).toBeGreaterThan(receipt)
     expect(metric).toBeGreaterThan(ratingGate)
@@ -356,6 +359,7 @@ const mocks = vi.hoisted(() => ({
   verifySession: vi.fn(),
   verifyCsrf: vi.fn(),
   renewUntil: vi.fn(),
+  issue: vi.fn(),
   hashNetworkPseudonym: vi.fn(),
   consumeGuestNetworkPressure: vi.fn(),
   reportObservationLoss: vi.fn(),
@@ -425,6 +429,7 @@ vi.mock('#/composition', () => ({
           verify: mocks.verifySession,
           verifyCsrf: mocks.verifyCsrf,
           renewUntil: mocks.renewUntil,
+          issue: mocks.issue,
         },
         guestPublicRuntime: {
           expectedOrigin: ORIGIN,
@@ -621,6 +626,31 @@ describe('published direct Google journey', () => {
       sessionId: SESSION_ID,
       linkId: `google-review:${PORTAL_ID}`,
     })
+  })
+
+  it('refuses a withdrawn direct session until Start over rotates it', async () => {
+    switchOn()
+    mocks.getState.mockResolvedValue({ status: 'deleted', rating: null })
+    await expect(selectGoogleReviewFn({ data })).rejects.toMatchObject({
+      status: 404,
+      code: 'unavailable',
+    })
+    expect(mocks.trackReviewLinkClick).not.toHaveBeenCalled()
+    const fresh = { ...SESSION, sessionId: 'fresh-session', csrfNonce: CSRF_NONCE }
+    mocks.issue.mockImplementation(() => {
+      mocks.verifySession.mockReturnValue(fresh)
+      mocks.getState.mockResolvedValue(null)
+      return { session: fresh, cookies: ['rk_guest=fresh'] }
+    })
+    await expect(startNewGuestResponseFn({ data })).resolves.toEqual({
+      csrfNonce: CSRF_NONCE,
+    })
+    await expect(selectGoogleReviewFn({ data })).resolves.toEqual({
+      url: 'https://g.page/r/venue',
+    })
+    expect(mocks.trackReviewLinkClick).toHaveBeenCalledExactlyOnceWith(
+      expect.objectContaining({ sessionId: fresh.sessionId }),
+    )
   })
 
   it('refuses a new rating and note without enumeration', async () => {

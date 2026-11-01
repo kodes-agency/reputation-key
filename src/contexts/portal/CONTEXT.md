@@ -1204,13 +1204,16 @@ read-only repository boundary.
 A Portal's skipPrivateRating setting defaults to false, is copied with its
 content, and is saved under portal.update above the Private note threshold.
 It is a pending page-settings edit until Review & publish writes it into the
-schema-3 review gateway. Older schema-3 snapshots read a missing field as false
-without changing their digest; versions 1 and 2 ignore it. Guest owns the
+schema-3 review gateway only when true. Absence means false, so switched-off
+publications keep their existing bytes and digest. Older schema-3 snapshots
+read a missing field as false without changing their digest; versions 1 and 2 ignore it. Guest owns the
 direct card and server admission, including the Google-unavailable fallback
 and earlier responses' correction and withdrawal.
 
 The overview says “Skips rating”, and Results keeps history with a quiet
-explanation that no new ratings or notes are collected. Goal readiness facts
-carry the setting to Reporting. Portal asks an injected rating-goal port before
-turning it on and refuses while a running rating goal targets that Portal;
+explanation that no new ratings or notes are collected once the setting is
+published. Goal readiness facts carry the setting to Reporting. Portal asks an injected rating-goal port before
+turning it on and refuses while a running rating goal targets that Portal, or
+when it is the last rating collector for a running Group or Property rating
+goal (only published Portals count for the Property check);
 it imports no Reporting implementation.

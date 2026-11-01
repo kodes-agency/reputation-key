@@ -243,7 +243,8 @@ of the 2026-10-26 phone and email links amendment.
 Owner decision 2026-11-01. A manager with portal.update may turn on “Skip the
 private rating” in the Portal editor. It is off by default, is copied with a
 Portal, and reaches guests only through Review & publish. Schema version 3
-stores it in the review gateway; older snapshots read a missing value as false.
+stores it in the review gateway only when true; absence means false, so switched-off
+publications keep their earlier bytes and digest.
 Versions 1 and 2 keep their earlier journey.
 
 When it is on and Google is available, a guest without an existing response
@@ -262,8 +263,14 @@ switch is on and Google is available; it still accepts correction and
 withdrawal of an existing response. Qualified Scans and Linktree taps are
 unchanged. Opened Google still means a selection, never a completed review.
 
-Rating goals cannot target a switched Portal or a group whose Portals all skip
-ratings; mixed groups may count what exists. A running single-Portal rating
-goal must be ended before the switch can be turned on. When every candidate
-Portal skips ratings, the Monthly portal goal defaults to scans and offers no
+Creating or changing a rating Goal is refused for a switched Portal or a
+group whose members all skip ratings; mixed groups may count what exists.
+Turning on the switch is refused while a running rating Goal has that Portal
+as its subject, or when it is the last Portal collecting ratings for a running
+Group or Property rating Goal, including the Monthly portal goal. For Property
+goals, only published Portals count in that last-collector check. End the Goal
+first. These checks and the overview label use the working copy deliberately.
+When any candidate Portal is published, published candidates decide whether
+the Monthly portal goal offers private ratings; otherwise all candidates do.
+With every such candidate skipping ratings, it defaults to scans and offers no
 private rating measure (ADR 0068, P-2). Historical results remain visible.

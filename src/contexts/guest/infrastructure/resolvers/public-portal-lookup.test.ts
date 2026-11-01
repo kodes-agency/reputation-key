@@ -12,6 +12,7 @@ function createPortalApiStub(
     listPortalIdsByProperty: async () => [],
     listResultsLinks: async () => ({ enabled: true, rows: [] }),
     listPublicationActivationsBetween: async () => [],
+    listPortalRatingFacts: async () => [],
     listGoalReadinessFacts: async () => ({ portals: [], truncated: false }),
     getResponsibleManagerUserIds: async () => [],
     findPortalHealthNotificationFacts: async () => null,

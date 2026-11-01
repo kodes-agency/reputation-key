@@ -9,7 +9,11 @@ import {
 import { immersiveResponseProps } from './immersive-response-preview'
 import { ImmersiveResponseView } from './immersive-response-view'
 
-const body = (html: string) => html.replace(/<style[\s\S]*?<\/style>/gu, '')
+const body = (html: string) =>
+  html
+    .split('</style>')
+    .map((part) => part.split('<style')[0])
+    .join('')
 
 describe('other states', () => {
   const pack = PACKS[0]

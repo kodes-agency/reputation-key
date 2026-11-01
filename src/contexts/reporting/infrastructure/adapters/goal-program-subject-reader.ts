@@ -39,22 +39,19 @@ export const createGoalProgramSubjectReader = (
   }
 
   return {
-    ratingSubjectsSkipPrivateRating: async (
-      organizationId,
-      propertyId,
-      subjects,
-      asOf,
-    ) => {
-      if (subjects.every((subject) => subject.kind === 'property')) return false
-      const facts = await portalApi.listGoalReadinessFacts(
-        toOrganizationId(organizationId),
-        toPropertyId(propertyId),
-        asOf,
+    ratingSubjectsSkipPrivateRating: async (organizationId, propertyId, subjects) => {
+      const results = await Promise.all(
+        subjects.map(async (subject) => {
+          if (subject.kind === 'property') return false
+          const facts = await portalApi.listPortalRatingFacts(
+            toOrganizationId(organizationId),
+            toPropertyId(propertyId),
+            subject,
+          )
+          return ratingSubjectSkipsPrivateRating(facts, subject)
+        }),
       )
-      if (facts.truncated) throw new Error('Portal rating eligibility is incomplete')
-      return subjects.some((subject) =>
-        ratingSubjectSkipsPrivateRating(facts.portals, subject),
-      )
+      return results.some(Boolean)
     },
     getTimezone: (organizationId, propertyId) =>
       propertyApi.getPropertyTimezone(

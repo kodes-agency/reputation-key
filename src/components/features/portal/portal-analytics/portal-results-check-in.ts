@@ -148,7 +148,7 @@ function happy(data: PortalAnalyticsData): Card {
     tone,
   )
 }
-function google(data: PortalAnalyticsData): Card {
+function google(data: PortalAnalyticsData, skipPrivateRating = false): Card {
   const opens = data.kpis.googleOpens
   if (
     opens.value === null ||
@@ -159,12 +159,17 @@ function google(data: PortalAnalyticsData): Card {
   if (opens.value === 0)
     return card(
       'No guest went on to Google',
-      ['Every guest sees the Google button after they rate.'],
+      skipPrivateRating ? [] : ['Every guest sees the Google button after they rate.'],
       change(opens, data),
     )
   const funnel = data.engagementFunnel
   const lines: string[] = []
-  if (funnel && funnel.ratings > 0 && opens.value <= funnel.ratings) {
+  if (
+    !skipPrivateRating &&
+    funnel &&
+    funnel.ratings > 0 &&
+    opens.value <= funnel.ratings
+  ) {
     lines.push(
       funnel.ratings >= 20
         ? `That’s ${Math.round((opens.value / funnel.ratings) * 100)}% of the guests who rated.`
@@ -214,7 +219,7 @@ export function portalResultsCheckIn(
       place?.skipPrivateRating && data.kpis.ratings.value === 0
         ? card('No guest rated in these days', [])
         : happy(data),
-    google: google(data),
+    google: google(data, place?.skipPrivateRating),
     links: links(data),
     notes:
       notes !== null && notes > 0 && data.kpis.feedback.evidence.state === 'ready'

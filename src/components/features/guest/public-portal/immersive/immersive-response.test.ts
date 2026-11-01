@@ -297,7 +297,11 @@ it.each(PACKS)(
   'keeps direct Google card markup identical across earlier ratings [$locale]',
   (pack) => {
     const normaliseIds = (html: string) => html.replace(/_R_[^"]*/gu, 'id')
-    const direct = normaliseIds(body(renderResponse(pack, { kind: 'direct' })))
+    const direct = normaliseIds(
+      responseChildren(body(renderResponse(pack, { kind: 'direct' }))).find((child) =>
+        child.includes(pack.copy.googleTitle),
+      ) ?? '',
+    )
     for (const rating of RATINGS) {
       const html = body(
         renderResponse(pack, { kind: 'rated', rating }, { skipPrivateRating: true }),

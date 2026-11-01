@@ -27,7 +27,7 @@ const setup = (
   destinationState: 'verified' | 'unavailable' = 'verified',
   propertyLifecycle: 'active' | 'inactive' | 'error' = 'active',
   workingCopy: Partial<PortalPublicationSource> = {},
-  hasRunningRatingGoal = false,
+  goalBlock: boolean | 'last_collector' = false,
 ) => {
   const portalRepo = createInMemoryPortalRepo()
   const outbox = createRecordedOutbox()
@@ -78,7 +78,10 @@ const setup = (
     resolveActiveByTokenDigest: async () => null,
   }
   const deps = {
-    ratingGoalGuard: { hasRunningRatingGoal: async () => hasRunningRatingGoal },
+    ratingGoalGuard: {
+      findRunningRatingGoalBlock: async () =>
+        goalBlock === true ? ('portal' as const) : goalBlock || null,
+    },
     portalRepo,
     commandStore: {
       ...baseCommandStore,
@@ -823,5 +826,18 @@ describe('skip private rating through the goal port', () => {
     )
     expect(saved.skipPrivateRating).toBe(true)
     expect(commandWrites()).toBe(1)
+  })
+})
+
+it('shows the wider-goal refusal for the last rating collector', async () => {
+  const { portalRepo, useCase } = setup(null, 'verified', 'active', {}, 'last_collector')
+  const portal = buildTestPortal()
+  portalRepo.seed([portal])
+  await expect(
+    useCase({ portalId: portal.id, skipPrivateRating: true }, buildTestAuthContext()),
+  ).rejects.toMatchObject({
+    code: 'running_rating_goal',
+    message:
+      'This is the last portal collecting ratings for a running goal. End the goal first.',
   })
 })
