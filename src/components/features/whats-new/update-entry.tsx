@@ -3,6 +3,7 @@ import type { ProductUpdate } from '#/shared/whats-new/types'
 import { TONE_FILL, TONE_INK } from '#/components/ui/tone'
 import { SectionTitle } from '#/components/ui/section-title'
 import { TouchInlineLink } from '#/components/ui/inline-touch-link'
+import { formatLocalDate } from '#/lib/format'
 import { usePermissions } from '#/shared/hooks/usePermissions'
 import { useCapabilities } from '#/shared/hooks/useCapabilities'
 
@@ -44,11 +45,14 @@ export function UpdateEntry({
   propertyId,
   onFollow,
   level = 3,
+  dated = false,
 }: Readonly<{
   entry: ProductUpdate
   propertyId: string | null
   onFollow?: () => void
   level?: 2 | 3
+  /** Shows the update's day; the history page has months that need it, the modal does not. */
+  dated?: boolean
 }>) {
   const Icon = ICON[entry.icon]
   return (
@@ -61,6 +65,14 @@ export function UpdateEntry({
       </span>
       <div className="min-w-0 space-y-1">
         <SectionTitle level={level}>{entry.title}</SectionTitle>
+        {dated && (
+          <time
+            dateTime={entry.publishedOn}
+            className="block text-xs text-muted-foreground"
+          >
+            {formatLocalDate(entry.publishedOn, { year: false })}
+          </time>
+        )}
         {entry.body && <p className="text-sm text-muted-foreground">{entry.body}</p>}
         <ShowMe entry={entry} propertyId={propertyId} onFollow={onFollow} />
       </div>

@@ -32,6 +32,10 @@ export const HighlightsOnly: Story = {
     await expect(
       page.queryByRole('button', { name: /Also fixed/ }),
     ).not.toBeInTheDocument()
+    // Days belong to the history page's months; the modal is what changed lately.
+    await expect(
+      canvasElement.ownerDocument.querySelector('[role="dialog"] article time'),
+    ).toBeNull()
   },
 }
 export const WithFixes: Story = {

@@ -30,7 +30,7 @@ export function ProductUpdatesHistoryContent({
             {formatMonthYear(`${month}-01`)}
           </SectionTitle>
           {updates.map((entry) => (
-            <UpdateEntry key={entry.id} entry={entry} propertyId={propertyId} />
+            <UpdateEntry key={entry.id} entry={entry} propertyId={propertyId} dated />
           ))}
         </section>
       ))}
