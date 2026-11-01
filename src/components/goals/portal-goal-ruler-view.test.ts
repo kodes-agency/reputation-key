@@ -64,6 +64,7 @@ describe('the running month on the goal ruler', () => {
         at: 22 / 30,
         value: '29',
         note: 'steady pace',
+        noteWideOnly: false,
         reached: false,
         align: 'center',
       },

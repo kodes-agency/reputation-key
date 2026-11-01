@@ -31,6 +31,10 @@ import { tenthsText } from './rating-goal-view'
 const TICKS_ALL_NAMED = 6
 /** Today's words need this much of the plot's height under the goal's line. */
 const TODAY_WORDS_ROOM = 11
+/** Words to the left of a point this near the chart's left edge would leave the plot. */
+const LEFT_EDGE = 20
+/** Where a point is chosen is never narrower, even with today alone on the line. */
+const MIN_CHOOSING_WIDTH = 20
 /** A move's words give way to today's this close to them. */
 const WORDS_APART = 25
 /** This near the chart's floor, the set's words go above its point, clear of the months. */
@@ -78,8 +82,10 @@ function todayWords(
 ): LineChartWords {
   const past = place.y <= goalY
   const above = past || (rising && place.y - goalY >= TODAY_WORDS_ROOM)
-  // Under the point the climbing line runs to its left, so the words go right of it.
-  const side = !above && rising && place.x < 75 ? 'right' : 'left'
+  // Under the point the climbing line runs to its left, so the words go right of it;
+  // and they always do at the chart's left edge, where there is no room for them.
+  const side =
+    place.x < LEFT_EDGE || (!above && rising && place.x < 75) ? 'right' : 'left'
   return { ...place, words, above, side }
 }
 
@@ -259,10 +265,14 @@ export function lineChartModel(detail: RatingGoalDetailView): LineChartModel | n
   const today = todayWords(todayPlace, todayText(detail), goalY, rising)
   const moves = movesOf(chart, points, scale, today)
   const { shown: setShown, place: setPlace, ...line } = splitAtSet(points, chart, scale)
-  // A named move right after the set says the more useful thing: the set keeps its dot.
-  const setCrowded = moves.some(
-    (move) => move.words !== null && Math.abs(move.x - setPlace.x) < WORDS_APART,
-  )
+  const setAbove = setPlace.y > NEAR_FLOOR
+  // A named move right after the set, or today's words beside it, say the more useful
+  // thing: the set keeps its dot.
+  const setCrowded =
+    moves.some(
+      (move) => move.words !== null && Math.abs(move.x - setPlace.x) < WORDS_APART,
+    ) ||
+    (setAbove === today.above && Math.abs(today.x - setPlace.x) < WORDS_APART)
   return {
     sentence: sentenceOf(detail, chart),
     ...line,
@@ -281,13 +291,13 @@ export function lineChartModel(detail: RatingGoalDetailView): LineChartModel | n
       ? {
           ...setPlace,
           words: `Goal set, ${dayText(chart.todayKey, chart.setDay)}`,
-          above: setPlace.y > NEAR_FLOOR,
+          above: setAbove,
           side: setPlace.x < 70 ? 'right' : 'left',
           named: !setCrowded,
         }
       : null,
     moves,
-    pastWidth: todayPlace.x,
+    pastWidth: Math.max(todayPlace.x, MIN_CHOOSING_WIDTH),
     stops: stopsOf(detail, chart, points, scale),
   }
 }

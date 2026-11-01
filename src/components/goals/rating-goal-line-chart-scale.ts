@@ -164,7 +164,7 @@ export const pathOf = (
     )
     .join('')
 
-/** Each first of a month inside the chart, named; past eight of them, every other one. */
+/** Each first of a month inside the chart, named; past eight of them, evenly fewer. */
 export function monthsOf(
   todayKey: string,
   { x, first, end }: Scale,
@@ -182,7 +182,7 @@ export function monthsOf(
     })
     days.push({ day, label: (label ?? '').split(' ')[0] ?? '' })
   }
-  const step = days.length > MONTHS_ALL_NAMED ? 2 : 1
+  const step = Math.max(1, Math.ceil(days.length / MONTHS_ALL_NAMED))
   return days
     .filter((_, index) => index % step === 0)
     .map(({ day, label }) => ({ x: x(day), label }))

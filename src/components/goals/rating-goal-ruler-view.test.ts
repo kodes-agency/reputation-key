@@ -228,6 +228,12 @@ describe('the words under a stop', () => {
     expect(forty).toMatchObject({ value: '4.0', note: '12 new reviews' })
   })
 
+  it('says about under the next tenth while the exact average is Google’s own figure', () => {
+    const rounded = { ...CARD_GETTING_STARTED, exactAverageSource: 'google' as const }
+
+    expect(ruler(rounded).stops[0]?.note).toBe('About 12 new reviews')
+  })
+
   it('says one new review in the singular', () => {
     const one = {
       ...CARD_GETTING_STARTED,

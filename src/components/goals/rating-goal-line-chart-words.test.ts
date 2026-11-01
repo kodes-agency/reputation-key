@@ -221,6 +221,42 @@ describe('the words of a move of Google’s own number', () => {
     expect(drawn.moves[0]?.words).not.toBeNull()
     expect(drawn.set).toMatchObject({ named: true })
   })
+
+  it('take the set’s words when today’s stand close to them, on the same side of the line', () => {
+    // 4.04 puts today's words under the point, where the set's words are.
+    const drawn = model(withChart({ ...endingAt(4040), setDay: -4, shownChanges: [] }))
+
+    expect(drawn.today.above).toBe(false)
+    expect(drawn.set).toMatchObject({ above: false, named: false })
+  })
+
+  it('leave the set its words when today’s stand close to them, across the line', () => {
+    const drawn = model(withChart({ setDay: -4, shownChanges: [] }))
+
+    expect(drawn.today.above).toBe(true)
+    expect(drawn.set).toMatchObject({ above: false, named: true })
+  })
+})
+
+describe('a goal set today, with one point on its line', () => {
+  const alone = model(
+    withChart({
+      history: [{ day: 0, thousandths: 3912 }],
+      firstDay: 0,
+      setDay: 0,
+      today: 3912,
+      shownChanges: [],
+    }),
+  )
+
+  it('stands at the chart’s left edge, with today’s words to its right, inside the plot', () => {
+    expect(alone.today).toMatchObject({ x: 0, side: 'right' })
+  })
+
+  it('still has a place to choose that point, by pointer and by keys', () => {
+    expect(alone.pastWidth).toBe(20)
+    expect(alone.stops).toHaveLength(1)
+  })
 })
 
 describe('the months under the line', () => {
@@ -234,10 +270,10 @@ describe('the months under the line', () => {
     )
   })
 
-  it('names every other month on a chart of a year', () => {
+  it('names eight months at most, evenly, however long the chart', () => {
     const labels = model(DETAIL_OLD_GOAL).months.map((month) => month.label)
 
-    expect(labels.slice(0, 4)).toEqual(['Nov', 'Jan', 'Mar', 'May'])
-    expect(labels).toHaveLength(12)
+    expect(labels.slice(0, 4)).toEqual(['Nov', 'Feb', 'May', 'Aug'])
+    expect(labels).toHaveLength(8)
   })
 })

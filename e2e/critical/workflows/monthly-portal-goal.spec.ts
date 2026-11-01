@@ -154,7 +154,7 @@ function daysLineOf(monthName: string | null, daysLeft: number, left: number): s
   const aDay =
     perDay < 1
       ? 'Under 1 a day gets you there.'
-      : `About ${Math.round(perDay)} a day gets you there.`
+      : `About ${Math.ceil(perDay)} a day gets you there.`
   return `${days}. ${aDay}`
 }
 

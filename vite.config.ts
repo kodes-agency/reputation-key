@@ -187,6 +187,21 @@ const config = defineConfig(({ mode }) => {
                     priority: 30,
                     includeDependenciesRecursively: false,
                   },
+                  {
+                    // Recharts' own dependencies, named one by one and apart from
+                    // it. Left to the default splitting they land in whichever
+                    // chunk its consumers share (`chart-frame`, a route's), which
+                    // imports vendor-charts back: in that cycle recharts reads
+                    // `createSelector` as undefined at load and the page throws,
+                    // only in a production build (found 2026-11-02, when a third
+                    // consumer of recharts left and the split moved).
+                    // `check-bundle-budget.mjs` now fails on a cycle through any
+                    // vendor chunk.
+                    name: 'vendor-charts-deps',
+                    test: /node_modules[\\/](?:es-toolkit|reselect|redux|redux-thunk|immer|@reduxjs|react-redux|decimal\.js-light|internmap|eventemitter3|react-is|tiny-invariant|use-sync-external-store)[\\/]/,
+                    priority: 29,
+                    includeDependenciesRecursively: false,
+                  },
                   // Components intentionally use Rolldown's default route-aware
                   // splitting. A broad `/src/components/` group re-joins eager
                   // route-validation leaves with their lazy feature trees.

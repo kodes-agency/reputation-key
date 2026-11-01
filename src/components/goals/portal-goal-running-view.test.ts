@@ -157,14 +157,14 @@ describe('the days left in the month, and what a day gets you there', () => {
     )
   })
 
-  it('rounds the day’s share to the nearest whole number, halves up', () => {
+  it('rounds the day’s share up: fewer a day would not get you there', () => {
     // 10 left over 4 days is 2.5.
     expect(line({ value: 30, daysAfterToday: 3 })).toBe(
       '4 days left in November. About 3 a day gets you there.',
     )
     // 10 left over 7 days is 1.43.
     expect(line({ value: 30, daysAfterToday: 6 })).toBe(
-      '7 days left in November. About 1 a day gets you there.',
+      '7 days left in November. About 2 a day gets you there.',
     )
   })
 

@@ -23,6 +23,17 @@ function weekPaceWords(perWeek: number): string {
   return `about ${formatNumber(Math.round(perWeek))} a week`
 }
 
+/**
+ * The same pace when it is not enough. Where the whole number would reach the plan it
+ * keeps a decimal, cut rather than rounded: "Not enough: about 3 a week. You planned 3
+ * a week." would contradict itself.
+ */
+function shortPaceWords(perWeek: number, planned: number): string {
+  if (perWeek < 1 || Math.round(perWeek) < planned) return weekPaceWords(perWeek)
+  const cut = Math.floor(perWeek * 10) / 10
+  return `about ${formatNumber(cut, { maximumFractionDigits: 1 })} a week`
+}
+
 /** "Before the goal it was about 2 a month.": the pace it started from, when the chart reaches it. */
 function beforeSentence(detail: Detail): string | null {
   const before = detail.planSoFar.prePlan
@@ -49,15 +60,19 @@ type ReviewFacts = Readonly<{
   /** The reviews a week the plan asks for, and "about 3 a week" lately. */
   planned: number
   lately: string
+  /** `lately`, for when it is not enough. */
+  short: string
   before: string | null
   average: string | null
   plannedStars: string | null
 }>
 
 function reviewFacts(detail: Detail): ReviewFacts {
+  const planned = weeklyTarget(detail.paceTenthsPerWeek ?? 0)
   return {
-    planned: weeklyTarget(detail.paceTenthsPerWeek ?? 0),
+    planned,
     lately: weekPaceWords(detail.lastFourWeeksPerWeek),
+    short: shortPaceWords(detail.lastFourWeeksPerWeek, planned),
     before: beforeSentence(detail),
     average: averageWords(detail),
     plannedStars:
@@ -82,6 +97,7 @@ function closedReviews(detail: Detail, facts: ReviewFacts): BandWords {
 /** The stars are too low for the goal, whether or not enough reviews come in. */
 function tooLowReviews(detail: Detail, facts: ReviewFacts): BandWords {
   const enough = detail.lastFourWeeksPerWeek >= facts.planned * ENOUGH_OF_PLAN
+  const pace = enough ? facts.lately : facts.short
   const at = facts.average === null ? '' : ` at ${facts.average}`
   const plannedAt = facts.plannedStars === null ? '' : ` at ${facts.plannedStars}`
   return {
@@ -90,7 +106,7 @@ function tooLowReviews(detail: Detail, facts: ReviewFacts): BandWords {
     answer: enough
       ? 'Enough, but the stars are low'
       : 'Not enough, and the stars are low',
-    hint: `${capitalised(facts.lately)}${at}. You planned ${formatNumber(facts.planned)} a week${plannedAt}.`,
+    hint: `${capitalised(pace)}${at}. You planned ${formatNumber(facts.planned)} a week${plannedAt}.`,
     tone: 'warn',
   }
 }
@@ -100,6 +116,9 @@ export function reviewsBand(detail: Detail): BandWords {
   const { planned, lately, before } = facts
   if (detail.state !== 'active') return closedReviews(detail, facts)
   const words = { title: REVIEWS, icon: 'reviews' } as const
+  // Too low comes first, as the other questions have it: ten low reviews in the first
+  // week are not too early to say.
+  if (detail.status === 'reviews_too_low') return tooLowReviews(detail, facts)
   if (detail.justSet || detail.status === 'getting_started') {
     return {
       ...words,
@@ -108,20 +127,21 @@ export function reviewsBand(detail: Detail): BandWords {
       tone: 'neutral',
     }
   }
+  // The status judges the pace from when it came into force, and the last four weeks
+  // can reach back before that: a figure that disagrees with the answer stays out of it.
+  const perWeek = detail.lastFourWeeksPerWeek
   switch (detail.status) {
-    case 'reviews_too_low':
-      return tooLowReviews(detail, facts)
     case 'below_pace':
       return {
         ...words,
-        answer: `Not enough: ${lately}`,
+        answer: perWeek >= planned ? 'Not enough lately' : `Not enough: ${facts.short}`,
         hint: `You planned ${formatNumber(planned)} a week.`,
         tone: 'warn',
       }
     case 'on_pace':
       return {
         ...words,
-        answer: `Yes, ${lately}`,
+        answer: perWeek >= planned * ENOUGH_OF_PLAN ? `Yes, ${lately}` : 'Yes, on pace',
         hint: `You planned ${paceText(detail.paceTenthsPerWeek ?? 0)}. ${before ?? ''}`.trim(),
         tone: 'positive',
       }

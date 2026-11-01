@@ -14,6 +14,8 @@ export type GoalRulerStop = Readonly<{
   /** Its figure; null draws the stop with no words, where they would not fit. */
   value: string | null
   note: string | null
+  /** The note fits only on a wider ruler. */
+  noteWideOnly: boolean
   reached: boolean
   /** Centred under the stop, or ending at it near the ruler's right end. */
   align: 'center' | 'end'
@@ -57,14 +59,28 @@ type StopInput = Readonly<{
   note: string | null
 }>
 
+/** The narrowest rulers a stop's note is laid out on: a small phone's, and from `@lg`. */
+const NARROW_RULER_PX = 240
+const WIDE_RULER_PX = 490
+/** How far the start's words reach along the track, and half a character of a stop's note. */
+const START_WORDS_PX = 40
+const HALF_CHARACTER_PX = 3
+
+/** Whether a centred note clears the start's words on a ruler this wide. */
+const noteClears = (share: number, note: string, ruler: number): boolean =>
+  share * ruler - note.length * HALF_CHARACTER_PX >= START_WORDS_PX
+
 function stopOf(stop: StopInput, at: number): GoalRulerStop {
   const share = clampShare(stop.at)
   const fits = share >= STOP_EDGE_START && share <= STOP_LAST
+  const note = stop.note
+  const noteFits = fits && note !== null && noteClears(share, note, WIDE_RULER_PX)
   return {
     key: stop.key,
     at: share,
     value: fits ? stop.value : null,
-    note: fits ? stop.note : null,
+    note: noteFits ? note : null,
+    noteWideOnly: noteFits && !noteClears(share, note, NARROW_RULER_PX),
     reached: share <= at,
     align: share > STOP_EDGE_END ? 'end' : 'center',
   }

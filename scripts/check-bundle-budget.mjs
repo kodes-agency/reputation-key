@@ -1153,11 +1153,11 @@
 // purpose), the entry chunk the rest. The budget moves to 319,100 B: the measurement
 // plus about 150 B for chunk-hash jitter, to the nearest 100.
 // 2026-11-02 (the goal pages become a check-in): a fresh production build of this
-// head measured 319,250 B against main 9cf35928d's 318,911 B, +339 B, and none of it
+// head measured 319,272 B against main 9cf35928d's 318,911 B, +361 B, and none of it
 // is new code in first paint: Rolldown split one shared Radix chunk in two now that
-// the Google goal's page and the results page open a Collapsible (`dist` +187 B), the
-// entry's lazy-chunk map grew with the new modules (+134 B), and one-off values went
-// inline so the stylesheet grew only 10 B. The budget moves to 319,400 B: the
+// the Google goal's page and the results page open a Collapsible (about +190 B), the
+// entry's lazy-chunk map grew with the new modules (about +150 B), and one-off values
+// went inline so the stylesheet grew only 10 B. The budget moves to 319,400 B: the
 // measurement plus about 150 B for chunk-hash jitter, to the nearest 100.
 
 import { readdirSync, readFileSync, existsSync } from 'node:fs'
@@ -1173,7 +1173,7 @@ const BUDGETS = {
   // PR-B3b (2026-10-31): +600 B budget, measured 318,640 B. Drafting remains
   // in lazy chunks; the eager cost is the shared Skeleton variant, generated
   // typography/motion utilities and the entry's lazy-chunk preload map.
-  initialClosureGzip: 319_400, // raised to 319,400 on 2026-11-02 for the goal pages' check-in (a Radix chunk split in two and the entry's lazy-chunk map; no new first-paint code), measured 319,250 on this head; see the note above
+  initialClosureGzip: 319_400, // raised to 319,400 on 2026-11-02 for the goal pages' check-in (a Radix chunk split in two and the entry's lazy-chunk map; no new first-paint code), measured 319,272 on this head; see the note above
   lazyChunkGzip: 125 * 1024, // 128,000 (chunks outside the closure)
 }
 
@@ -1271,10 +1271,12 @@ function importCycles(graph) {
 // One side of an ESM import cycle evaluates while the other is uninitialized,
 // and the bundler emits `var`, so a read across the cycle yields `undefined`
 // instead of throwing. Build, typecheck and the size budgets all pass; the
-// browser does not (see "Cycles" above). Only cycles that reach first paint
-// are gated here.
-const firstPaintCycles = importCycles(edges).filter((cycle) =>
-  cycle.some((file) => closure.has(file)),
+// browser does not (see "Cycles" above). Cycles that reach first paint are gated
+// here, and so is any cycle through a vendor chunk: a library that imports the app
+// back breaks every page that loads it, first paint or not (2026-11-02: recharts'
+// dependencies moved into `chart-frame`, and the Google page threw at load).
+const gatedCycles = importCycles(edges).filter((cycle) =>
+  cycle.some((file) => closure.has(file) || file.startsWith('vendor-')),
 )
 
 const failures = []
@@ -1282,9 +1284,9 @@ const fmt = (n) => `${n.toLocaleString('en-US')} B`
 const over = (what, actual, budget) =>
   failures.push(`${what}: ${fmt(actual)} exceeds budget ${fmt(budget)}`)
 
-for (const cycle of firstPaintCycles) {
+for (const cycle of gatedCycles) {
   failures.push(
-    `static import cycle through the initial closure (${cycle.length} chunks): ${cycle.join(' ↔ ')}`,
+    `static import cycle through first paint or a vendor chunk (${cycle.length} chunks): ${cycle.join(' ↔ ')}`,
   )
 }
 
@@ -1330,7 +1332,7 @@ if (failures.length > 0) {
 }
 
 console.log(
-  '[bundle-budget] OK — all chunks within budget, no static import cycle through the initial closure:',
+  '[bundle-budget] OK — all chunks within budget, no static import cycle through first paint or a vendor chunk:',
 )
 console.log(`  entry ${entry}: ${fmt(entrySize)} / ${fmt(BUDGETS.mainEntryGzip)} gzip`)
 console.log(

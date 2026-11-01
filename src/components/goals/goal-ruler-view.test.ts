@@ -125,6 +125,20 @@ describe('a stop’s words', () => {
     expect(near).toMatchObject({ value: null, note: null, at: 0.1 })
   })
 
+  it('leaves a note to the wide ruler where a phone’s would run it into the start’s words', () => {
+    const [near, far] = ruler({ stops: [stop('near', 0.25), stop('far', 0.6)] }).stops
+
+    expect(near).toMatchObject({ note: 'note near', noteWideOnly: true })
+    expect(far).toMatchObject({ note: 'note far', noteWideOnly: false })
+  })
+
+  it('keeps the number and drops a note too long for any ruler this near the start', () => {
+    const long = { ...stop('long', 0.15), note: 'About 1,240 new reviews' }
+    const [drawn] = ruler({ stops: [long] }).stops
+
+    expect(drawn).toMatchObject({ value: 'Stop long', note: null, noteWideOnly: false })
+  })
+
   it('draws them from 0.14 of the way', () => {
     const [first] = ruler({ stops: [stop('first', 0.14)] }).stops
 

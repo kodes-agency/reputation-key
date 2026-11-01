@@ -71,12 +71,15 @@ function daysLine(month: PortalGoalRunningMonth, left: number): string {
   return left <= 0 ? days : `${days}. ${aDayWords(left, month.daysAfterToday + 1)}`
 }
 
-/** "About 3 a day gets you there.": what is left over the days left, today included. */
+/**
+ * "About 3 a day gets you there.": what is left over the days left, today included,
+ * rounded up: rounded down, it would not get them there.
+ */
 function aDayWords(left: number, daysLeft: number): string {
   const perDay = left / Math.max(1, daysLeft)
   return perDay < 1
     ? 'Under 1 a day gets you there.'
-    : `About ${formatNumber(Math.round(perDay))} a day gets you there.`
+    : `About ${formatNumber(Math.ceil(perDay))} a day gets you there.`
 }
 
 /**

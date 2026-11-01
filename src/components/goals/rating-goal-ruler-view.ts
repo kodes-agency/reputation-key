@@ -4,8 +4,8 @@
 // Google shows it, so the bar reaches a stop when Google can show that number, and
 // a manager never sees 4.02 or 4.05. Pure.
 import type { RatingGoalCardView } from '#/contexts/reporting/application/dto/rating-goal.types'
-import { formatNumber } from '#/lib/format'
 import { rulerModel, type GoalRulerModel } from './goal-ruler-view'
+import { reviewCountText } from './rating-goal-tracking-words'
 import { tenthsText } from './rating-goal-view'
 
 const tenthsOf = (rating: number): number => Math.round(rating * 10)
@@ -48,7 +48,7 @@ function stopsOf(card: RatingGoalCardView, shown: number, start: number) {
     const countWords =
       next === null
         ? null
-        : `${formatNumber(next.reviewsNeeded)} new ${next.reviewsNeeded === 1 ? 'review' : 'reviews'}`
+        : reviewCountText(next.reviewsNeeded, card.exactAverageSource === 'google')
     const note = isNext ? countWords : tenth <= shown ? 'reached' : null
     return {
       key: String(tenth),

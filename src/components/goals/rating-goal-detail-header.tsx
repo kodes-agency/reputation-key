@@ -10,7 +10,7 @@ import { RatingGoalClimbHeadline } from './rating-goal-climb-headline'
 import { detailHeaderLines } from './rating-goal-detail-view'
 import { RatingGoalHeadline } from './rating-goal-headline'
 import { ratingGoalRuler } from './rating-goal-ruler-view'
-import { goalLineText, headlineOf, soonText } from './rating-goal-tracking-words'
+import { goalLineText, soonText } from './rating-goal-tracking-words'
 import {
   APPROXIMATE_NUMBERS,
   googleShows,
@@ -45,7 +45,7 @@ function Headline({ detail }: Pick<Props, 'detail'>) {
   if (detail.state === 'reached') {
     return <p className={BIG}>Google shows {target}. You did it.</p>
   }
-  if (detail.status === 'reviews_too_low' || headlineOf(detail) === null) {
+  if (detail.status === 'reviews_too_low') {
     return <p className={BIG}>New reviews are too low for {target}</p>
   }
   return <RatingGoalClimbHeadline card={detail} />

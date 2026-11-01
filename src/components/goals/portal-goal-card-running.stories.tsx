@@ -197,7 +197,7 @@ export const FirstDays: Story = {
     await expect(canvas.queryByText(/below pace/iu)).toBeNull()
     await expect(headlineOf(canvas, '39 private ratings to 40')).toBeVisible()
     await expect(
-      canvas.getByText('29 days left in November. About 1 a day gets you there.'),
+      canvas.getByText('29 days left in November. About 2 a day gets you there.'),
     ).toBeVisible()
     const ruler = rulerOf(canvas, '1 of 40 private ratings so far.')
     await expect(within(ruler).getByText('1 so far')).toBeVisible()

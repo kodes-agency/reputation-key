@@ -323,7 +323,7 @@ export const FirstDays: Story = {
     ).toBeVisible()
     await expect(headlineOf(where, '39 private ratings to 40')).toBeVisible()
     await expect(
-      where.getByText('29 days left in November. About 1 a day gets you there.'),
+      where.getByText('29 days left in November. About 2 a day gets you there.'),
     ).toBeVisible()
     // The ruler has no steady stop yet.
     const ruler = where.getByRole('img', { name: '1 of 40 private ratings so far.' })

@@ -95,7 +95,31 @@ describe('are enough good reviews coming in?', () => {
     [10.5, 'Not enough: about 11 a week'],
     [1234, 'Not enough: about 1,234 a week'],
   ])('says the pace of %f a week as “%s”', (perWeek, answer) => {
-    expect(reviewsBand(lately({ ...DETAIL_BELOW_PACE }, perWeek)).answer).toBe(answer)
+    const farBehind = { ...DETAIL_BELOW_PACE, paceTenthsPerWeek: 20_000 }
+
+    expect(reviewsBand(lately(farBehind, perWeek)).answer).toBe(answer)
+  })
+
+  it('keeps a decimal, cut, rather than round up onto the plan it falls short of', () => {
+    // The plan is 7 a week: 6.75 would read "about 7", and 6.96 "about 7.0".
+    expect(reviewsBand(lately(DETAIL_BELOW_PACE, 6.75)).answer).toBe(
+      'Not enough: about 6.7 a week',
+    )
+    expect(reviewsBand(lately(DETAIL_BELOW_PACE, 6.96)).answer).toBe(
+      'Not enough: about 6.9 a week',
+    )
+  })
+
+  it('gives no figure when the last four weeks reached a plan the goal’s own weeks did not', () => {
+    expect(reviewsBand(lately(DETAIL_BELOW_PACE, 8)).answer).toBe('Not enough lately')
+  })
+
+  it('gives no figure when the goal is on pace but the last four weeks reach back before it', () => {
+    // A goal of three weeks at 7 a week, with a quiet week before it: 5 a week over four.
+    expect(reviewsBand(lately(DETAIL_HARBORLINE, 5))).toMatchObject({
+      answer: 'Yes, on pace',
+      tone: 'positive',
+    })
   })
 
   it('says it is too early to say while the goal is new, and what to aim for', () => {
@@ -134,6 +158,21 @@ describe('are enough good reviews coming in?', () => {
 })
 
 describe('are enough good reviews coming in, with the stars too low', () => {
+  it('says so from the goal’s first days: ten low reviews are not too early to say', () => {
+    expect(reviewsBand({ ...DETAIL_TOO_LOW, justSet: true }).answer).toBe(
+      'Enough, but the stars are low',
+    )
+  })
+
+  it('keeps a decimal when too few reviews would round up onto the plan', () => {
+    const few = { ...DETAIL_TOO_LOW, paceTenthsPerWeek: 30 }
+
+    expect(reviewsBand(lately(few, 2.5))).toMatchObject({
+      answer: 'Not enough, and the stars are low',
+      hint: 'About 2.5 a week at 3.8★. You planned 3 a week at 4.5★.',
+    })
+  })
+
   it('says enough, but the stars are low, with their average and the plan’s', () => {
     expect(reviewsBand(DETAIL_TOO_LOW)).toEqual({
       title: 'Are enough good reviews coming in?',

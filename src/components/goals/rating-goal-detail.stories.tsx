@@ -550,6 +550,7 @@ export const WaitingForGoogle: Story = {
     detail: {
       ...DETAIL_HARBORLINE,
       status: 'waiting_for_google',
+      next: null,
       google: {
         ...DETAIL_HARBORLINE.google!,
         current: false,
@@ -562,6 +563,8 @@ export const WaitingForGoogle: Story = {
     const where = whereOf(canvasElement)
     await expect(where.getByText('as of Oct 12')).toBeVisible()
     await expect(where.getByText('Waiting for Google’s latest numbers.')).toBeVisible()
+    // With no number to count to it says nothing big, least of all that reviews are too low.
+    await expect(where.queryByText(/too low/u)).toBeNull()
     await expect(
       where.getByRole('img', {
         name: 'Started at 3.9. Google showed 4.0 last. Your goal is 4.1.',

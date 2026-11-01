@@ -44,7 +44,11 @@ function StopWords({ stop }: Readonly<{ stop: GoalRulerStop }>) {
       }}
     >
       <span className={NUMBER}>{stop.value}</span>
-      {stop.note === null ? null : <span className={NOTE}>{stop.note}</span>}
+      {stop.note === null ? null : (
+        <span className={cn(NOTE, stop.noteWideOnly && 'hidden @lg:block')}>
+          {stop.note}
+        </span>
+      )}
     </span>
   )
 }
