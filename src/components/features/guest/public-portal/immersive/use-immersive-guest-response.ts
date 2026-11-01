@@ -17,7 +17,7 @@ export type ImmersiveSessionProps = Omit<
   'pack' | 'displayName' | 'yourResponse'
 > &
   Readonly<{
-    /** The session's current nonce: a tile's selector is bound to it. */
+    /** The session's current nonce: a tile's tap counter is bound to it. */
     csrfNonce: string
     /** The handlers "Your response" binds; the page adds the clock. */
     yourResponse: Omit<NonNullable<ImmersiveResponseViewProps['yourResponse']>, 'clock'>

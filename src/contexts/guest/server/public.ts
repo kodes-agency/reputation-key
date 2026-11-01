@@ -167,19 +167,26 @@ async function rateLimit(
   // network-pressure authority map, null for requests that have none. A
   // correction has none: it would spend the venue's room for new ratings, and
   // the aggregate's one-correction rule, the session budget and the Redis
-  // network budget already bound it.
+  // network budget already bound it. A Linktree tap has none either: tiles are
+  // tapped from arrival, and a busy venue's taps must not spend the room its Google
+  // opens have. Its session and Redis network budgets bound it, and a limiter outage
+  // counts nothing.
   const pressureActionByRequest = {
     submit: 'rating',
     feedback: 'private_feedback',
     google: 'destination_action',
-    secondary: 'destination_action',
   } as const
   const pressureAction =
     action in pressureActionByRequest
       ? pressureActionByRequest[action as keyof typeof pressureActionByRequest]
       : null
   const pseudonymAction =
-    pressureAction ?? (action === 'feedback_withdraw' ? 'private_feedback' : 'rating')
+    pressureAction ??
+    (action === 'secondary'
+      ? 'destination_action'
+      : action === 'feedback_withdraw'
+        ? 'private_feedback'
+        : 'rating')
   const limits = rateLimitBudgetFor(action)
   const keyKind = action === 'google' || action === 'secondary' ? 'click' : 'response'
   const portalId = scope.portalId

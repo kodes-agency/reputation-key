@@ -297,7 +297,8 @@ describe('guest response server-fn gates', () => {
     expect(helper).not.toContain("correct: 'rating'")
     expect(helper).toContain("feedback: 'private_feedback'")
     expect(helper).toContain("google: 'destination_action'")
-    expect(helper).toContain("secondary: 'destination_action'")
+    // Nor does a Linktree tap: it would spend the room a venue's Google opens have.
+    expect(helper).not.toContain("secondary: 'destination_action'")
     expect(helper).not.toContain("feedback_withdraw: 'private_feedback'")
     expect(helper).not.toContain("new_response: 'rating'")
   })
@@ -530,7 +531,7 @@ describe('secondary tap admission', () => {
     },
   )
 
-  it.each(['session', 'network', 'durable'] as const)(
+  it.each(['session', 'network'] as const)(
     'returns the URL without recording when the %s budget is exhausted',
     async (layer) => {
       mocks.rateLimiterCheck.mockImplementation(async (key: string) =>
@@ -542,12 +543,17 @@ describe('secondary tap admission', () => {
             ? EXHAUSTED
             : WITHIN,
       )
-      if (layer === 'durable')
-        mocks.consumeGuestNetworkPressure.mockResolvedValue(EXHAUSTED)
       await expect(tap()).resolves.toEqual({ url: 'https://example.test/menu' })
       expect(mocks.trackSecondary).not.toHaveBeenCalled()
     },
   )
+
+  it('neither spends nor is stopped by the durable budget a Google open uses', async () => {
+    mocks.consumeGuestNetworkPressure.mockResolvedValue(EXHAUSTED)
+    await expect(tap()).resolves.toEqual({ url: 'https://example.test/menu' })
+    expect(mocks.trackSecondary).toHaveBeenCalledOnce()
+    expect(mocks.consumeGuestNetworkPressure).not.toHaveBeenCalled()
+  })
 
   it('keeps scope equality when the link resolves after the session is bound', async () => {
     mocks.getPublicPortal

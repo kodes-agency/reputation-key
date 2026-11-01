@@ -211,14 +211,19 @@ of the 2026-10-26 phone and email links amendment.
 - **A Qualified Link Action from arrival.** A Qualified Link Action no longer needs
   a rated session. It is still only the origin-, CSRF- and signed-session-bound POST,
   accepted once per session per link through the existing destination-action receipt,
-  with the same session and network limits (including the PostgreSQL pressure twin).
+  with the same session and Redis network limits.
 - **Navigation never waits for counting.** In every state the tile is a plain anchor
-  to the GET click route, followed natively at once in the same tab; modified clicks
-  keep the browser's new-tab behaviour and count too. Its click handler sends the
-  POST in the background with an unload-safe fetch. A rejected observation is dropped
-  by the page; the server reports observation loss itself. The GET still records
-  nothing, and counting can never slow or block a link. The POST keeps its `{ url }`
-  answer for a page opened before this deploy.
+  to the GET click route, followed natively at once in the same tab. Its click handler
+  sends the POST in the background with an unload-safe fetch. A Ctrl or Cmd click keeps
+  the browser's new-tab behaviour and counts too; a middle click or a menu's "open in
+  new tab" fires no click and is not counted. A POST that is refused, such as from a
+  page whose 24-hour session has ended, counts nothing and the page drops it; only a
+  failure while recording reports an observation loss. The GET still records nothing,
+  and counting can never slow or block a link. The POST keeps its `{ url }` answer for
+  a page opened before this deploy.
+- **Not on Google's budget.** A tap spends its session and Redis network budgets but
+  not the durable network-pressure budget a Google open uses, so a busy venue's taps
+  cannot hide its Google opens. A limiter outage counts nothing.
 - **Google is unaffected.** The anti-gating rule is untouched: the Google Review
   Action still appears only after a rating, identical for ratings 1–5, and nothing
   in the Linktree steers it. Its rated-session admission and Google-open figures
