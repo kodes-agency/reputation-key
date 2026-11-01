@@ -3,7 +3,8 @@ import { z } from 'zod/v4'
 import { describe, expect, it } from 'vitest'
 import { REPLY_DRAFTING_V2_OPERATION_PROFILE as profile } from './reply-drafting-v2-profile'
 import { REPLY_DRAFTING_V2_PROFILE_DIGEST } from './reply-drafting-v2-contract'
-import { REPLY_BODY_LINT_DIGEST } from './reply-drafting-v2-lint'
+import { REPLY_BODY_LINT_DIGEST, lintReplyDraftingV2Body } from './reply-drafting-v2-lint'
+import { REPLY_DRAFTING_V2_APOLOGIES } from './domain/reply-drafting-v2'
 import {
   REPLY_DRAFTING_V2_EXAMPLES_DIGEST,
   pickReplyDraftingV2Examples,
@@ -26,13 +27,68 @@ import ENGLISH from './reply-drafting-v2-examples.json'
 import BULGARIAN from './reply-drafting-v2-examples-bg.json'
 
 const PINS = {
-  profile: 'a34e49f68d6249a1fb6242b5a7b7ce13a32d9b86b4182cbdead527bae888dd69',
-  prompt: 'b6de6db2e52bd85713e81277b7b4eddc1a5788b37c2427bb872dae6c3581016f',
+  profile: '47cc99c7edfdb3b767ed071fd2a14d1a82a01dc1467cce640f7eb1b4de3926d8',
+  prompt: '9c7c78dfc1e63b32e5916ecaceb33fca5eb0dd28a485066535df3772eb1dc805',
   schema: '2f7afcc12b767302d60d6b1f931fd7996d010dd7c24ba32246fff415c1d4dcd7',
-  personalized: 'a7a78df2a8c208f211b902bf712d83b1f69a493d57444e3a638f08605d8a2802',
-  lint: 'd4132531ab3caa7586c28931f8b87a899f07757527ea5ebcc235a02377685a3f',
-  examples: '92b0f476a682aa90215900acf458898c112aa7da9243be336bff570db3a0fa90',
+  personalized: '41c1bdf74408dd526d2b29983e3e0c371d818a548575b46e3df2c78024884658',
+  lint: '6f4c77231fda1f6642949cee9d2107c5bed4b7d81d64eea27266d6f44c0ade5b',
+  examples: '6fe9ecfd870155b005157494eff115c8f625eca28f5fad371fa015b2f103bf96',
 }
+
+describe('reply drafting v2, what a draft is taught', () => {
+  it('starts new drafts only with words the database check admits, never with we apologize', () => {
+    const admitted = Object.values(REPLY_DRAFTING_V2_APOLOGIES).flat()
+    const starts = ['en-Latn-US', 'es-Latn', 'bg-Cyrl'].flatMap((languageCode) =>
+      Array.from(
+        { length: 12 },
+        (_, variation) =>
+          resolveReplyDraftingV2Options({ languageCode, variation }).apologyStart,
+      ),
+    )
+    expect(starts.filter((start) => !(admitted as string[]).includes(start))).toEqual([])
+    expect(starts).not.toContain('We apologize')
+    expect(starts).not.toContain('Извиняваме се')
+    expect(starts).not.toContain('Le pedimos disculpas')
+  })
+
+  const lowRated = [
+    ...[ENGLISH.mixed, ENGLISH.complaint, ENGLISH.serious, ENGLISH.money, ENGLISH.unclear]
+      .flat()
+      .map((example) => ({ ...example, language: 'en' as const })),
+    ...[BULGARIAN.mixed, BULGARIAN.complaint, BULGARIAN.serious, BULGARIAN.money]
+      .flat()
+      .map((example) => ({ ...example, language: 'bg' as const })),
+  ]
+  it.each(lowRated.map((example) => [example.reply, example] as const))(
+    'passes its own hard rules: %s',
+    (_, example) => {
+      const hard = lintReplyDraftingV2Body({
+        body: example.reply,
+        reviewText: example.review,
+        language: example.language,
+        rating: example.rating,
+        modelCase: 'complaint',
+        avoidTerms: [],
+        reviewWordCount: example.review.split(/\s+/u).length,
+      }).filter((finding) => finding.severity === 'hard')
+      expect(hard).toEqual([])
+    },
+  )
+
+  it('promises to check in every complaint, serious and money example', () => {
+    const CHECK =
+      /we'll (?:check|look into)|we want to find out|ще проверим|ще видим|искаме да разберем/iu
+    const examples = [
+      ENGLISH.complaint,
+      ENGLISH.serious,
+      ENGLISH.money,
+      BULGARIAN.complaint,
+      BULGARIAN.serious,
+      BULGARIAN.money,
+    ].flat()
+    expect(examples.filter((example) => !CHECK.test(example.reply))).toEqual([])
+  })
+})
 
 describe('reply drafting v2, served release', () => {
   it('serves Spanish with English and Bulgarian through one serving selection', () => {
@@ -50,7 +106,7 @@ describe('reply drafting v2, served release', () => {
     expect(profile).toMatchObject({
       profileVersion: 'reply-suggestion-v2',
       reasoningEffort: 'medium',
-      maxOutputTokens: 2048,
+      maxOutputTokens: 4096,
       developerPrompt: REPLY_DRAFTING_V2_PROMPT,
     })
   })

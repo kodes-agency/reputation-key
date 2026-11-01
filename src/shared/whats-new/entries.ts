@@ -71,4 +71,15 @@ export const PRODUCT_UPDATES: readonly ProductUpdate[] = [
     icon: 'QrCode',
     showMe: { to: '/properties/$propertyId/portals', needsProperty: true },
   },
+  {
+    id: '2026-11-01-ai-drafts-check-first',
+    publishedOn: '2026-11-01',
+    kind: 'highlight',
+    audience: 'everyone',
+    requires: { capability: 'ai.generate_reply' },
+    title: 'AI drafts no longer agree with every complaint',
+    body: "A draft now apologizes and says you will check what happened, without stating the guest's account as fact. Post it only if you will check.",
+    icon: 'MessagesSquare',
+    showMe: { to: '/inbox' },
+  },
 ]

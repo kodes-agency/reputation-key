@@ -258,7 +258,7 @@ describe('PR5 immutable AI execution catalogues', () => {
         providerPayloadByteLimit: 57_344,
         preparedRequestByteLimit: 131_072,
         responseByteLimit: 1_048_576,
-        maxOutputTokens: 2_048,
+        maxOutputTokens: 4_096,
         reasoningEffort: 'medium',
         providerDeadlineMs: 60_000,
         requestDeadlineMs: 70_000,

@@ -141,6 +141,20 @@ block only for platform rules, law and broken text; Q16 the release plan.
     wording; the one profile becomes property voice overrides. Legacy
     `template_id`/`template_version` pairs on replies stay as legacy provenance.
 
+## Amended 2026-11-01: an AI draft does not admit
+
+An AI draft on a review of 1-3 stars never states what the guest reports as fact: nobody
+at the business has checked it when the draft is written, and the reply is public (owner,
+2026-11-01). The body is sorry for how the visit went for the guest, then says the business
+will check what happened, naming what it will check, and act if it is as the guest
+describes. Checking is the one promise a draft may make; the commitment, compensation and
+private-data checks are unchanged. It says nothing about how things should have been.
+
+So the draft ends on the check. On these ratings a built-in closing is left out, because a
+thank-you right after it reads as agreeing with the complaint. A closing the property or
+account wrote stays, and a library template keeps its closing. The manager reads the draft
+before posting it, and the promise is theirs once they do.
+
 ## Data model (direction, not a migration)
 
 ```text

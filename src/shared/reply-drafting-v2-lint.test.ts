@@ -18,6 +18,135 @@ const BASE: LintInput = {
 const codes = (input: Partial<LintInput>) =>
   lintReplyDraftingV2Body({ ...BASE, ...input }).map((f) => f.code)
 
+describe('AI body lint, talking to the guest', () => {
+  const complaint = { rating: 1, modelCase: 'complaint' } as const
+
+  it.each([
+    ['en', 'We are sorry for the wait. The main problem was the room.'],
+    ['es', 'Lamentamos la espera. El principal problema fue la habitacion.'],
+    ['bg', 'Разминаването около цената е основният проблем. Съжаляваме.'],
+  ] as const)('refuses naming "the main problem" in %s', (language, body) => {
+    expect(codes({ ...complaint, language, body })).toContain('prohibited_content')
+  })
+
+  it.each([
+    ['en', 'We are sorry for the confusion over your stay.', 'The room was cold.'],
+    ['es', 'Lamentamos la confusion con su reserva.', 'La habitacion estaba fria.'],
+    ['bg', 'Съжаляваме за объркването.', 'Стаята беше студена.'],
+  ] as const)(
+    'refuses calling it confusion unprompted in %s',
+    (language, body, review) => {
+      expect(codes({ ...complaint, language, body, reviewText: review })).toContain(
+        'prohibited_content',
+      )
+    },
+  )
+
+  it('allows confusion when the guest called it that first', () => {
+    expect(
+      codes({
+        ...complaint,
+        body: 'We are sorry for the confusion over your booking.',
+        reviewText: 'Everyone at the desk seemed confused about our booking.',
+      }),
+    ).not.toContain('prohibited_content')
+  })
+
+  // A hard rule the rewrite cannot act on ends as a failed draft, so an ordinary word in
+  // an ordinary sentence must stay allowed.
+  it('allows a discrepancy described in plain words', () => {
+    expect(
+      codes({
+        ...complaint,
+        language: 'bg',
+        body: 'Съжаляваме за разминаването между заявения изглед и този от стаята.',
+      }),
+    ).not.toContain('prohibited_content')
+  })
+})
+
+describe('AI body lint, lecturing', () => {
+  const complaint = { rating: 1, modelCase: 'complaint' } as const
+
+  it.each([
+    ['en', 'We are sorry to read this. You should have had a quiet room.'],
+    ['en', 'We are sorry to read this. You deserved better.'],
+    ['en', 'We are sorry to read this. Every guest needs a quiet room.'],
+    ['es', 'Lamentamos leer esto. Debería haber tenido una habitación tranquila.'],
+    ['es', 'Lamentamos leer esto. Todo cliente espera una habitación tranquila.'],
+    ['bg', 'Съжаляваме. Трябваше да имате тиха стая.'],
+    ['bg', 'Съжаляваме. Всеки гост иска тиха стая.'],
+  ] as const)(
+    'refuses telling a low rater how it should have been: %s, %s',
+    (language, body) => {
+      expect(codes({ ...complaint, language, body })).toContain('prohibited_content')
+    },
+  )
+
+  it('leaves the compliment alone on praise', () => {
+    expect(
+      codes({
+        rating: 5,
+        modelCase: 'praise',
+        body: 'You deserve a break, and we are glad you had one.',
+      }),
+    ).not.toContain('prohibited_content')
+  })
+
+  it.each([
+    [
+      'en',
+      "We're sorry your stay wasn't what you hoped for. We'll check what happened with the room, and if it was as you describe, we'll take the right steps.",
+    ],
+    [
+      'es',
+      'Sentimos que su estancia no fuera como esperaba. Revisaremos qué ocurrió con la habitación y, si fue como lo describe, tomaremos las medidas necesarias.',
+    ],
+    [
+      'bg',
+      'Съжаляваме, че престоят Ви не е минал така, както сте очаквали. Ще проверим какво се е случило със стаята и ако е така, както го описвате, ще вземем нужните мерки.',
+    ],
+  ] as const)('accepts the conditional promise to check in %s', (language, body) => {
+    expect(
+      codes({ ...complaint, language, body, reviewText: 'The room was cold.' }),
+    ).toEqual([])
+  })
+})
+
+describe('AI body lint, avoidance terms', () => {
+  it.each([
+    ['an inflection', 'петна', 'Съжаляваме за петната по чаршафите.', true],
+    ['another word', 'петна', 'Чакахте повече от петнадесет минути.', false],
+    ['an English plural', 'stain', 'We are sorry about the stains on the sheets.', true],
+  ])('reads %s', (_label, term, body, found) => {
+    expect(hasReplyAvoidanceTerm(body, [term])).toBe(found)
+  })
+})
+
+describe('AI body lint, names', () => {
+  it('reads Wi-Fi as the wifi the guest wrote, not an invented name', () => {
+    expect(
+      codes({
+        rating: 1,
+        modelCase: 'complaint',
+        body: 'We are sorry the Wi-Fi kept dropping during your stay.',
+        reviewText: 'wifi dropped every 10 mins',
+      }),
+    ).not.toContain('invented_name')
+  })
+
+  it('still refuses a name the guest never wrote', () => {
+    expect(
+      codes({
+        rating: 1,
+        modelCase: 'complaint',
+        body: 'We are sorry that Maria kept you waiting during your stay.',
+        reviewText: 'Waited an hour at the desk.',
+      }),
+    ).toContain('invented_name')
+  })
+})
+
 describe('AI body lint, content-free findings', () => {
   it('allows Shorter below the advisory case band while enforcing its hard word cap', () => {
     const input: LintInput = {

@@ -9,7 +9,7 @@ import { parseBuiltinReplyLibrary } from './builtin-library.schema'
 import { canonicalizeRfc8785 } from '../canonical-json'
 import { checkReplyText } from './reply-checks'
 
-const DIGEST_GOLDEN = 'b7ec93ccf1409d985e8c87461eb09afcf2097ea7af29504032c7bace4cfb7963'
+const DIGEST_GOLDEN = 'bec4a34039db5adc43f194a334ce7e9c1e1d047a55e46eaef2ce9a3109f6afce'
 
 describe('built-in reply library v1', () => {
   it('binds the canonical owner-approved library to a stable digest', () => {

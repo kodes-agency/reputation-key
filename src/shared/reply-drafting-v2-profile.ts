@@ -2,7 +2,7 @@ import {
   REPLY_STREAM_SDK_ATTESTATION,
   REPLY_STREAM_RESPONSE_MAX_BYTES,
 } from './ai-openai-stream-profile'
-import { REPLY_DRAFTING_V2_APOLOGIES } from './domain/reply-drafting-v2'
+import { REPLY_DRAFTING_V2_APOLOGY_STARTS } from './domain/reply-drafting-v2'
 import {
   defineOperationProfile,
   REVIEW_SOURCE_ATTESTATION,
@@ -43,7 +43,7 @@ export const REPLY_DRAFTING_V2_OPERATION_PROFILE = defineOperationProfile({
     replyProfileDigest: REPLY_DRAFTING_V2_PROFILE_DIGEST,
     promptVersion: REPLY_DRAFTING_V2_VERSIONS.prompt,
     options: {
-      apologyStarts: REPLY_DRAFTING_V2_APOLOGIES,
+      apologyStarts: REPLY_DRAFTING_V2_APOLOGY_STARTS,
       opening: [1, 3],
       maxWords: [8, 80],
       maxWordsRequiresShort: true,
@@ -61,7 +61,10 @@ export const REPLY_DRAFTING_V2_OPERATION_PROFILE = defineOperationProfile({
   providerPayloadByteLimit: 57_344,
   preparedRequestByteLimit: REPLY_DRAFTING_V2_ROUTE_MAX_BYTES,
   responseByteLimit: REPLY_STREAM_RESPONSE_MAX_BYTES,
-  maxOutputTokens: 2_048,
+  // Medium effort spends most of this on reasoning, and more on a long review: on the
+  // realistic test set Bulgarian reached 1,609 at the 90th percentile and one draft used
+  // all of 2,048, which returned no reply at all. Only what is used is charged.
+  maxOutputTokens: 4_096,
   reasoningEffort: 'medium',
   providerDeadlineMs: 60_000,
   requestDeadlineMs: 70_000,

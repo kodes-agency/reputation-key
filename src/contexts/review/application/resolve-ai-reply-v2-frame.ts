@@ -1,6 +1,10 @@
 import { readAiReplyVoiceSnapshot } from './ai-reply-voice-snapshot'
 import type { OrganizationId, PropertyId, ReviewId } from '#/shared/domain/ids'
-import { replyBand } from '#/shared/reply-library/reply-voice'
+import {
+  replyBand,
+  type ReplyBand,
+  type ReplyVoiceSource,
+} from '#/shared/reply-library/reply-voice'
 import {
   digestResolvedReplyVoice,
   isReplyRenderError,
@@ -18,6 +22,15 @@ export type ResolveAiReplyV2FrameInput = Readonly<{
   nowEpochMillis: number
 }>
 
+/**
+ * On a low rating the AI body ends by saying what the business will check, and a built-in
+ * closing would thank the guest straight after it. A closing the business wrote is its own
+ * choice and stays.
+ */
+function endsOnTheCheck(band: ReplyBand, source: ReplyVoiceSource): boolean {
+  return (band === 'negative' || band === 'threeStar') && source === 'builtin'
+}
+
 export async function resolveAiReplyV2Frame(
   deps: Readonly<{ repository: ReplyLibraryRepository; reviews: ReviewRepository }>,
   input: ResolveAiReplyV2FrameInput,
@@ -33,7 +46,9 @@ export async function resolveAiReplyV2Frame(
     ratingBand: band,
     voiceDigest: digestResolvedReplyVoice(voice, languageGroup),
     optionCounts: {
-      closing: locale.closings[band].value.length,
+      closing: endsOnTheCheck(band, locale.closings[band].source)
+        ? 0
+        : locale.closings[band].value.length,
       signOff:
         locale.signOffWords[review.rating >= 4 ? 'positive' : 'negative'].value.length,
       contactSentence: locale.contactSentences.value.length,

@@ -972,13 +972,14 @@ can admit it through the gateway. No new notice or consent write accompanies B2.
 
 The new identities are operation `reply-suggestion-v2`, profile `reply-draft-v4`, runtime
 `reply-drafting-runtime-v2`, prompt `reply-suggestion-prompt-v2` and provenance v4.
-The Phase 0 final prompt and synthetic English/Bulgarian example books are versioned and
-pinned. Numbered source uses Review's existing raw-text sentence identities and the
+The prompt and synthetic English/Bulgarian example books are versioned and pinned. On a
+review of 1-3 stars a draft never states what the guest reports as fact and promises only
+to check (ADR 0073, amended 2026-11-01). Numbered source uses Review's existing raw-text sentence identities and the
 joined-scan, sentence-preserving redactor. The provider receives only rating, tone, target
 language, bounded length/opening/apology options, numbered redacted sentences and profile
 identity. Those options, the resolved language and voice configuration are execution-bound
 and fingerprinted. Dynamic examples/rewrite instructions have a separately reserved byte
-ceiling. V2 uses medium effort and 2,048 output tokens; v1 retains its own settings.
+ceiling. V2 uses medium effort and 4,096 output tokens; v1 retains its own settings.
 
 Sentence references validate reference integrity, not factual truth. The existing
 commitment/leakage authorities remain, with Spanish stems added only to the new contract.

@@ -7,7 +7,7 @@ import { replyDraftingV2OutputSchema } from './reply-drafting-v2-schema'
 import * as leakage from './ai-reply-output-leakage'
 
 const BODY =
-  'We are sorry the wait took so long. Your time should have been treated with more care.'
+  'We are sorry the wait took so long. We will check what happened with your table.'
 const OUTPUT = {
   languageCode: 'en-Latn',
   case: 'complaint',
@@ -47,20 +47,20 @@ describe('reply drafting v2 body punctuation', () => {
     [
       'en-Latn',
       'US',
-      'We are sorry the wait took so long; your time should have been treated with more care.',
-      'We are sorry the wait took so long. Your time should have been treated with more care.',
+      'We are sorry the wait took so long; we will check what happened with your table.',
+      'We are sorry the wait took so long. We will check what happened with your table.',
     ],
     [
       'es-Latn',
       'ES',
-      'Lamentamos que la espera fuera tan larga; su tiempo merecía más atención.',
-      'Lamentamos que la espera fuera tan larga. Su tiempo merecía más atención.',
+      'Lamentamos que la espera fuera tan larga; revisaremos lo ocurrido con su mesa.',
+      'Lamentamos que la espera fuera tan larga. Revisaremos lo ocurrido con su mesa.',
     ],
     [
       'bg-Cyrl',
       'BG',
-      'Съжаляваме, че чакането беше толкова дълго; времето Ви заслужаваше повече внимание.',
-      'Съжаляваме, че чакането беше толкова дълго. Времето Ви заслужаваше повече внимание.',
+      'Съжаляваме, че чакането беше толкова дълго; ще проверим какво се е случило.',
+      'Съжаляваме, че чакането беше толкова дълго. Ще проверим какво се е случило.',
     ],
   ])('turns a prose semicolon into a full stop in %s', (tag, country, raw, delivered) => {
     expect(accepted(raw, tag, country)).toMatchObject({
