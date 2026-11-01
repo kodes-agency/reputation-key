@@ -35,6 +35,8 @@ describe('staff batch', () => {
     expect(staffProblem('source_has_unpublished_changes', 'Reception')).toBe(
       'Reception has unpublished changes. Publish them or pick another portal.',
     )
+    expect(staffProblem('brand_profile_missing')).toMatch(/no public name yet/u)
+    expect(staffProblem('invalid_name')).toMatch(/over 100 characters/u)
     expect(staffProblem('address_keyring_missing')).toContain('code recovery')
   })
   it('sends in order, continues after failure, and retries the original operation', async () => {

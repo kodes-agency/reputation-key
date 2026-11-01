@@ -45,7 +45,7 @@ export function StaffAddDialog({
             propertyId={propertyId}
             initialGroupId={groupId}
             portals={sources
-              .filter((p) => p.publicationState === 'published')
+              .filter((p) => p.publicationState === 'published' && p.kind !== 'personal')
               .map((p) => ({ id: p.id, name: p.name }))}
             groups={groupOptions}
           />

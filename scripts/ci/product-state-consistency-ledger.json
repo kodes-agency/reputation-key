@@ -877,6 +877,12 @@
       "policy": "One batch draft per dialog opening, with stable operation ids retained through retries. Closing unmounts and discards the draft; completion refreshes server lists."
     },
     {
+      "id": "src/components/features/staff/accounts/use-staff-batch.ts:useState(source)",
+      "classification": "local_runtime",
+      "owner": "Manager Add staff dialog",
+      "policy": "The initial source is the first published place Portal, or the Property's wording when there is none. The dialog is remounted on each opening; subsequent choices belong to it."
+    },
+    {
       "id": "src/components/features/staff/accounts/use-staff-batch.ts:useState(group)",
       "classification": "local_runtime",
       "owner": "Manager Add staff dialog",

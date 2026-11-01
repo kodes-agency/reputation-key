@@ -13,6 +13,7 @@ import {
   waitFor,
 } from '../helpers/fixtures'
 import { mailStubControl } from '../fixtures/mail-stub'
+import { seedPortalLookProperty } from '../helpers/portal-look-fixtures'
 
 const seed = requireE2eSeedState()
 const STAFF = 'src/contexts/identity/server/staff-accounts.ts'
@@ -29,7 +30,16 @@ test('a staff invitation, a guest scan, closed manager routes and removal', asyn
 }) => {
   test.setTimeout(120_000)
   await signIn(page)
-  await page.goto(`/properties/${seed.propertyId}/portals`)
+  // A Property of its own with a published Portal to copy, made through the real
+  // commands: the shared seed's Portal is a fixture snapshot, which Add staff
+  // rightly refuses as having unpublished changes.
+  const { propertyId } = await seedPortalLookProperty(
+    page,
+    suffix,
+    test.info().retry,
+    '#6366f1',
+  )
+  await page.goto(`/properties/${propertyId}/portals`)
   await waitForHydration(page)
   await clickWhenReady(page.getByRole('button', { name: 'Add staff', exact: true }))
   const add = page.getByRole('dialog', { name: 'Add staff', exact: true })
@@ -50,7 +60,7 @@ test('a staff invitation, a guest scan, closed manager routes and removal', asyn
   ).toHaveValue(sam)
   await add.getByRole('button', { name: 'Add', exact: true }).click()
   await expect(add.getByText('Invited', { exact: true })).toHaveCount(2)
-  await add.getByRole('button', { name: 'Close', exact: true }).click()
+  await add.getByRole('button', { name: 'Close', exact: true }).first().click()
 
   const staffContext = await browser.newContext({
     storageState: { cookies: [], origins: [] },
@@ -65,7 +75,7 @@ test('a staff invitation, a guest scan, closed manager routes and removal', asyn
     )
     const email = (await mailStubControl.sends()).find((send) => send.to === polly)
     const href = email?.html
-      .match(/href="([^"]*accept-invitation[^\"]*)"/u)?.[1]
+      .match(/href="([^"]*accept-invitation[^"]*)"/u)?.[1]
       ?.replaceAll('&amp;', '&')
     if (!href) throw new Error('Staff invitation has no acceptance link')
     const staffPage = await staffContext.newPage()
@@ -142,13 +152,13 @@ test('a staff invitation, a guest scan, closed manager routes and removal', asyn
     })
     expect(denied.code).toBe('beta_role_inactive')
 
-    await page.reload()
+    await page.goto(`/properties/${propertyId}/people`)
+    await waitForHydration(page)
     await page.getByRole('button', { name: `More actions for ${name}` }).click()
-    await page.getByRole('menuitem', { name: 'Remove', exact: true }).click()
-    await page
-      .getByRole('alertdialog')
-      .getByRole('button', { name: 'Remove', exact: true })
-      .click()
+    await page.getByRole('menuitem', { name: /^Remove/u }).click()
+    const confirm = page.getByRole('alertdialog')
+    await confirm.getByRole('button', { name: 'Remove', exact: true }).click()
+    await expect(confirm).toHaveCount(0)
     const removed = await callServerFnGetExpectError(staffPage, {
       file: SELF,
       exportName: 'getMyStaffHome',
@@ -156,9 +166,7 @@ test('a staff invitation, a guest scan, closed manager routes and removal', asyn
     expect(removed.status).toBe(401)
     await guest.goto(code.qr)
     await expect(guest.getByRole('radio')).toHaveCount(0)
-    await expect(
-      guest.getByText(/unavailable|no longer available/iu).first(),
-    ).toBeVisible()
+    await expect(guest.getByText(/page isn.t available/iu).first()).toBeVisible()
   } finally {
     await staffContext.close()
     await guestContext.close()

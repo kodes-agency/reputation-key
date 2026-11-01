@@ -44,6 +44,10 @@ const PROBLEMS: Readonly<Record<string, string>> = {
   already_staff_here: 'This person is already here. Use Resend invitation.',
   other_organization: 'This email belongs to another organisation.',
   source_archived: 'This portal is archived. Pick another portal.',
+  brand_profile_missing:
+    'This property has no public name yet. Set it in Property settings, or pick a portal to copy.',
+  invalid_name:
+    "This property's public name is over 100 characters. Shorten it, or pick a portal to copy.",
   address_keyring_missing:
     'Codes cannot be recovered yet. Ask your account admin to set up code recovery.',
   rate_limited: 'Please wait before sending more invitations.',

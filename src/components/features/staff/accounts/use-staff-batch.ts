@@ -24,7 +24,7 @@ export function useStaffBatch({
   const [rows, setRows] = useState<readonly StaffDraftRow[]>(
     () => initialRows ?? [newStaffRow(crypto.randomUUID())],
   )
-  const [source, setSource] = useState('property')
+  const [source, setSource] = useState(portals[0]?.id ?? 'property')
   const [group, setGroup] = useState(initialGroupId ?? 'none')
   const [busy, setBusy] = useState(false)
   const [started, setStarted] = useState(false)
