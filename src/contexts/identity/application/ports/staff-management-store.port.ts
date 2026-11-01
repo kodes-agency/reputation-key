@@ -13,6 +13,7 @@ export type StaffRemovalTarget = Readonly<{
   email: string | null
 }>
 export type StaffManagementStore = Readonly<{
+  removalsForUser(organizationId: string, userId: string): Promise<readonly string[]>
   target(
     organizationId: string,
     participationId: string,

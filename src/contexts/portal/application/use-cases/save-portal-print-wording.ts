@@ -10,6 +10,7 @@
 // the last print's memory, a failure is the manager's to hear of: they asked.
 
 import type { AuthContext } from '#/shared/domain/auth-context'
+import { assertPersonalPortalPublicText } from '../../domain/personal-portal-public-text'
 import { portalId } from '#/shared/domain/ids'
 import { printFinalWordsOffer } from '#/shared/domain/portal-print-final-warnings'
 import {
@@ -48,6 +49,7 @@ export const savePortalPrintWording =
       throw portalError('print_format_not_offered', 'This print is not available yet.')
     }
     const words = { preset: input.callToAction, custom: input.customWords ?? null }
+    assertPersonalPortalPublicText(portal, input.customWords)
     // Judged in the languages the words are written in: the save names no print.
     const languages = Object.keys(input.customWords ?? {}) as GuestLocale[]
     if (printFinalWordsOffer(words, languages)) {

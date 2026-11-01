@@ -9,6 +9,7 @@ import type { ManageStaffDeps } from './application/use-cases/manage-staff-accou
 import {
   checkStaffBatch,
   removeStaffMember,
+  removeStaffForMemberDeparture,
   renameStaffMember,
   listStaffMembers,
   setColleagueListEnabled,
@@ -20,6 +21,8 @@ import { createStaffManagementStore } from './infrastructure/adapters/staff-mana
 import type { IdentityCommandStore } from './application/ports/identity-command-store.port'
 import { identityMemberRemoved } from './domain/events'
 import { userId } from '#/shared/domain/ids'
+import type { LoggerPort } from '#/shared/domain/logger.port'
+import { createStaffAddressCheckBudget } from './infrastructure/staff-address-check-budget'
 
 export type StaffAccountBindings = Pick<
   ManageStaffDeps,
@@ -28,6 +31,7 @@ export type StaffAccountBindings = Pick<
   | 'spendInvitationBudget'
   | 'invitationBudget'
   | 'deliverAccess'
+  | 'spendAddressCheckBudget'
 >
 const unavailable = async (): Promise<never> => {
   throw new Error('Staff account bindings are unavailable')
@@ -39,6 +43,7 @@ export function buildStaffAccounts(
     clock: () => Date
     idGen: () => string
     commandStore: IdentityCommandStore
+    logger: LoggerPort
     staffAccounts?: StaffAccountBindings
   }>,
 ) {
@@ -53,6 +58,7 @@ export function buildStaffAccounts(
     ...(deps.staffAccounts ?? {
       authorizeProperty: unavailable,
       portals: {
+        archiveForMemberDeparture: unavailable,
         rename: unavailable,
         check: unavailable,
         create: unavailable,
@@ -63,7 +69,15 @@ export function buildStaffAccounts(
       spendInvitationBudget: unavailable,
       invitationBudget: unavailable,
       deliverAccess: unavailable,
+      spendAddressCheckBudget: unavailable,
     }),
+    reportDeliveryFailure: (row) =>
+      deps.logger.warn(
+        {
+          correlationId: row.id,
+        },
+        'Staff access email delivery failed',
+      ),
     removeLogin: async (memberId, targetUserId, ctx) => {
       try {
         await deps.commandStore.removeMember({
@@ -89,6 +103,7 @@ export function buildStaffAccounts(
     },
   }
   return Object.freeze({
+    removeForMemberDeparture: removeStaffForMemberDeparture(input),
     checkStaffBatch: checkStaffBatch(input),
     addStaffMember: addStaffMember(input),
     removeStaffMember: removeStaffMember(input),
@@ -112,6 +127,7 @@ export function createStaffInvitationBudget(
     organizationId: ctx.organizationId,
   })
   return {
+    checkAddresses: createStaffAddressCheckBudget(rateLimiter, keyHmacSecret),
     spend: async (ctx: AuthContext) => {
       if (!(await spendInvitationSendBudget(input(ctx))))
         throw staffAccountError(

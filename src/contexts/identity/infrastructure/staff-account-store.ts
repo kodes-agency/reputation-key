@@ -1,3 +1,4 @@
+import { takeStaffAddressSlot } from './staff-address-slots'
 import { resolveMemberAuthContextWithDatabase } from '#/shared/auth/tenant-resolver'
 import { sql } from 'drizzle-orm'
 import type { Database } from '#/shared/db'
@@ -21,25 +22,6 @@ const operation = (rows: unknown[]): StaffOnboarding => {
   return rows[0] as StaffOnboarding
 }
 
-// Leave pool capacity for the Portal commits made while an address is reserved.
-let addressSlots = 2
-let addressWaiters: readonly (() => void)[] = []
-async function takeAddressSlot(): Promise<void> {
-  if (addressSlots > 0) {
-    addressSlots -= 1
-    return
-  }
-  await new Promise<void>((resolve) => {
-    addressWaiters = [...addressWaiters, resolve]
-  })
-}
-function releaseAddressSlot(): void {
-  const [next, ...rest] = addressWaiters
-  addressWaiters = rest
-  if (next) next()
-  else addressSlots += 1
-}
-
 /** All checkpoint writes commit independently, including a failed step. */
 export function createStaffAccountStore(
   db: Omit<Database, '$client'>,
@@ -47,8 +29,8 @@ export function createStaffAccountStore(
   pool: Readonly<{ connect: () => Promise<PoolClient> }>,
 ): StaffAccountStore {
   const store: StaffAccountStore = {
-    withAddressLock: async (email, run) => {
-      await takeAddressSlot()
+    withAddressLock: async (organizationId, email, run) => {
+      const releaseAddressSlot = await takeStaffAddressSlot(organizationId)
       const client = await pool.connect().catch((error: unknown) => {
         releaseAddressSlot()
         throw error
@@ -114,6 +96,9 @@ export function createStaffAccountStore(
       const unfinished = await db.execute(
         sql`SELECT id FROM staff_onboardings WHERE organization_id = ${org} AND property_id = ${property}::uuid AND email = ${email} AND status IN ('running', 'failed') LIMIT 1`,
       )
+      const invited = await db.execute(
+        sql`SELECT id FROM invitation WHERE "organizationId" = ${org} AND lower(email) = ${email} AND status = 'pending' AND "expiresAt" > ${clock()} LIMIT 1`,
+      )
       const competing = await db.execute(
         sql`SELECT "organizationId" AS id FROM invitation WHERE lower(email) = ${email} AND "organizationId" <> ${org} AND status = 'pending' AND "expiresAt" > ${clock()}`,
       )
@@ -126,6 +111,7 @@ export function createStaffAccountStore(
         ...(typeof links.rows[0]?.staffDisplayName === 'string'
           ? { staffDisplayName: links.rows[0].staffDisplayName }
           : {}),
+        alreadyInvited: invited.rows.length > 0,
         alreadyStaffHere: active.rows.length > 0 || unfinished.rows.length > 0,
       }
     },
@@ -224,6 +210,11 @@ export function createStaffAccountStore(
         const existing = await tx.execute(
           sql`SELECT id FROM invitation WHERE id = ${row.invitationId} AND "organizationId" = ${row.organizationId}`,
         )
+        if (facts.alreadyInvited && !existing.rows.length)
+          throw staffAccountError(
+            'already_invited',
+            "This address already has an open invitation. Add them here once they've accepted.",
+          )
         if (!existing.rows.length) await spendInvitationBudget()
         const inserted =
           await tx.execute(sql`INSERT INTO invitation (id, "organizationId", email, role, status, "expiresAt", "staffParticipationId", "propertyIds", "inviterId", "createdAt")

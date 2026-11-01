@@ -26,6 +26,7 @@
 // the store by its asset id.
 
 import type { AuthContext } from '#/shared/domain/auth-context'
+import { assertPersonalPortalPublicText } from '../../domain/personal-portal-public-text'
 import { portalId } from '#/shared/domain/ids'
 import type { OrganizationId, PropertyId } from '#/shared/domain/ids'
 import {
@@ -175,6 +176,7 @@ export const createPortalPrintFinal =
       permission: 'portal.update',
       forbiddenMessage: 'Insufficient permissions to make a print kit',
     })
+    assertPersonalPortalPublicText(portal, input.customWords)
     if (!deps.finalKitEnabled) {
       throw portalError('print_format_not_offered', 'This print is not available yet.')
     }

@@ -432,6 +432,14 @@ export const createAtomicIdentityCommandStore = (
             })
           }
 
+          // 7. Create membership, link staff and mark accepted in this transaction.
+          await tx.insert(member).values({
+            id: idGen(),
+            organizationId: inv.organizationId,
+            userId: command.acceptorUserId as string,
+            role,
+            createdAt: command.now,
+          })
           if (inv.staffParticipationId) {
             await linkStaffInvitation(tx, {
               organizationId: inv.organizationId,
@@ -441,14 +449,6 @@ export const createAtomicIdentityCommandStore = (
               at: command.now,
             })
           }
-          // 7. Create the membership + mark accepted.
-          await tx.insert(member).values({
-            id: idGen(),
-            organizationId: inv.organizationId,
-            userId: command.acceptorUserId as string,
-            role,
-            createdAt: command.now,
-          })
           await tx
             .update(invitation)
             .set({ status: 'accepted' })
@@ -564,12 +564,23 @@ export const createAtomicIdentityCommandStore = (
             command.memberId,
           )
           if (command.staffOnly && target.role !== 'member') return
+          if (!command.staffOnly && target.role === 'member')
+            throw identityError('forbidden', 'Remove this person from Staff')
           if (target.userId !== (command.event.userId as string)) {
             throw identityError(
               'organization_conflict',
               'Member removal fact does not match the locked member authority',
             )
           }
+          const staff =
+            await tx.execute(sql`SELECT p.id FROM staff_participations p JOIN staff_user_links l ON l.organization_id = p.organization_id AND l.staff_participant_id = p.staff_participant_id
+            WHERE p.organization_id = ${command.organizationId} AND l.user_id = ${target.userId} AND l.effective_to IS NULL AND p.status = 'active'
+              AND (p.personal_portal_id IS NOT NULL OR EXISTS (SELECT 1 FROM staff_onboardings o WHERE o.organization_id = p.organization_id AND o.staff_participation_id = p.id)) FOR UPDATE OF p, l`)
+          if (staff.rows.length)
+            throw identityError(
+              'forbidden',
+              'Staff removal is unfinished. Retry removing this member before continuing',
+            )
           // Membership removal is also login offboarding. Revoke every
           // current Better Auth session in the same transaction as the
           // membership deletion and durable fact, so a stale cookie cannot

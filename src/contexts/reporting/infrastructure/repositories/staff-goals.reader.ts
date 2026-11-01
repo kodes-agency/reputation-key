@@ -28,7 +28,11 @@ export const createStaffGoalsReader =
     LEFT JOIN goal_monthly_results month ON month.assignment_id = a.id AND month.organization_id = p.organization_id AND month.period_start <= ${now} AND month.period_end > ${now}
     WHERE p.organization_id = ${scope.organizationId} AND p.property_id = ${scope.propertyId}::uuid AND p.status = 'active' AND v.metric_key = 'qualified_scans' AND v.metric_definition_version_id = ${METRIC_VERSION_IDS.qualifiedScanGoal}::uuid
       AND v.effective_from <= ${now} AND (v.effective_to IS NULL OR v.effective_to > ${now}) AND a.effective_from <= ${now} AND (a.effective_to IS NULL OR a.effective_to > ${now})
-      AND (a.portal_id = ${scope.portalId}::uuid OR a.portal_group_id = ${scope.groupId}::uuid) ORDER BY p.name, p.id`)
+      AND (a.portal_id = ${scope.portalId}::uuid OR (a.portal_group_id = ${scope.groupId}::uuid AND (
+        EXISTS (SELECT 1 FROM staff_property_settings setting WHERE setting.organization_id = p.organization_id AND setting.property_id = p.property_id AND setting.colleague_list_enabled)
+        OR (SELECT count(DISTINCT membership.portal_id) FROM portal_group_memberships membership JOIN portals personal ON personal.organization_id = membership.organization_id AND personal.property_id = membership.property_id AND personal.id = membership.portal_id
+          WHERE membership.organization_id = p.organization_id AND membership.property_id = p.property_id AND membership.portal_group_id = a.portal_group_id AND membership.effective_from <= ${now} AND (membership.effective_to IS NULL OR membership.effective_to > ${now}) AND personal.kind = 'personal' AND personal.deleted_at IS NULL AND personal.publication_state <> 'archived') >= 3
+      ))) ORDER BY p.name, p.id`)
     const rows = await Promise.all(
       programs.rows.map(async (row) => {
         const timezone = String(row.timezone)

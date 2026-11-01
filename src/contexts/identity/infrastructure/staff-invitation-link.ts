@@ -13,6 +13,14 @@ export async function linkStaffInvitation(
     at: Date
   }>,
 ) {
+  // Member removal locks this row first too. A committed departure cannot acquire a new staff link.
+  const membership = await tx.execute(sql`SELECT id FROM member
+    WHERE "organizationId" = ${input.organizationId} AND "userId" = ${input.userId} FOR KEY SHARE`)
+  if (!membership.rows.length)
+    throw identityError(
+      'forbidden',
+      'This staff invitation has ended. Ask your manager to add you again',
+    )
   const rows = await tx.execute(sql`
     SELECT p.staff_participant_id AS id
     FROM staff_participations p

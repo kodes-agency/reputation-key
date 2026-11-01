@@ -16,7 +16,7 @@ import {
 } from './portal-list-page-stories-data'
 import {
   AuthedRouterDecorator,
-  withRole,
+  withPermissions,
 } from '../../../../.storybook/AuthedRouterDecorator'
 
 const meta: Meta<typeof ControlledPage> = {
@@ -564,9 +564,9 @@ export const SearchStopsAtItsLimit: Story = {
   },
 }
 
-export const MemberReadOnly: Story = {
+export const ReaderReadOnly: Story = {
   args: baseArgs,
-  decorators: [withRole('Member')],
+  decorators: [withPermissions(['portal.read', 'property.read'])],
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
     await expect(canvas.queryByRole('link', { name: /new portal/i })).toBeNull()

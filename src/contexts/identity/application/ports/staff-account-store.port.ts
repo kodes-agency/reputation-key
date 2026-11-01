@@ -7,9 +7,11 @@ export type StaffAddressFacts = Readonly<{
   alreadyStaffHere: boolean
   staffParticipantId: string | null
   staffDisplayName?: string
+  alreadyInvited: boolean
 }>
 export type StaffAccountStore = Readonly<{
   withAddressLock<T>(
+    organizationId: string,
     email: string,
     run: (store: StaffAccountStore) => Promise<T>,
   ): Promise<T>

@@ -5,6 +5,7 @@ import { requireStaffProperty, staffRowProblem } from './add-staff-member'
 import type { StaffManagementStore } from '../ports/staff-management-store.port'
 import type { StaffPortalPlan } from '../ports/staff-portal-provisioner.port'
 import { staffAccountError } from '../../domain/staff-account'
+import { identityError } from '../../domain/errors'
 
 export type ManageStaffDeps = StaffAccountDeps &
   Readonly<{
@@ -42,6 +43,7 @@ export const checkStaffBatch =
     await deps.authorizeProperty(ctx, input.propertyId, 'staff.invite')
     if (input.rows.length > 20)
       throw staffAccountError('operation_conflict', 'Check at most 20 people at once')
+    await deps.spendAddressCheckBudget(ctx, input.rows.length)
     const emails = input.rows.map((row) => row.email.trim().toLowerCase())
     const rows = await Promise.all(
       input.rows.map(async (row, index) => {
@@ -77,33 +79,75 @@ export const checkStaffBatch =
     }
   }
 
+async function finishRemoval(
+  deps: ManageStaffDeps,
+  found: NonNullable<Awaited<ReturnType<StaffManagementStore['target']>>>,
+  ctx: AuthContext,
+  archive = deps.portals.archive,
+  memberDeparture = false,
+) {
+  if (found.removalComplete) return { removed: true as const }
+  const run = async () => {
+    const locked = memberDeparture
+      ? await deps.management.target(ctx.organizationId, found.participationId)
+      : await target(deps, found.participationId, ctx, 'staff.remove')
+    if (!locked)
+      throw staffAccountError('participation_not_found', 'Staff member not found')
+    if (locked.removalComplete) return { removed: true as const }
+    await deps.management.denyAccess(ctx.organizationId, locked)
+    const current = await deps.management.target(
+      ctx.organizationId,
+      found.participationId,
+    )
+    if (
+      !memberDeparture &&
+      current &&
+      !current.otherParticipations &&
+      current.memberRole === 'member' &&
+      current.memberId &&
+      current.userId
+    )
+      await deps.removeLogin(current.memberId, current.userId, ctx)
+    await deps.management.cancelOnboardings(ctx.organizationId, locked)
+    if (locked.portalId) await archive(locked.portalId, ctx)
+    await deps.management.completeRemoval(ctx.organizationId, locked)
+    return { removed: true as const }
+  }
+  return found.email
+    ? deps.store.withAddressLock(ctx.organizationId, found.email, run)
+    : run()
+}
+
 export const removeStaffMember =
   (deps: ManageStaffDeps) =>
   async (input: Readonly<{ participationId: string }>, ctx: AuthContext) => {
     const found = await target(deps, input.participationId, ctx, 'staff.remove')
-    if (found.removalComplete) return { removed: true as const }
-    const run = async () => {
-      const locked = await target(deps, input.participationId, ctx, 'staff.remove')
-      if (locked.removalComplete) return { removed: true as const }
-      await deps.management.denyAccess(ctx.organizationId, locked)
-      const current = await deps.management.target(
-        ctx.organizationId,
-        found.participationId,
+    return finishRemoval(deps, found, ctx)
+  }
+
+/** Called only after Remove member or Leave has authorized the departing login. */
+export const removeStaffForMemberDeparture =
+  (deps: ManageStaffDeps) =>
+  async (userId: string, ctx: AuthContext): Promise<void> => {
+    const ids = await deps.management.removalsForUser(ctx.organizationId, userId)
+    try {
+      for (const id of ids) {
+        const found = await deps.management.target(ctx.organizationId, id)
+        if (found)
+          await finishRemoval(
+            deps,
+            found,
+            ctx,
+            deps.portals.archiveForMemberDeparture,
+            true,
+          )
+      }
+    } catch {
+      throw identityError(
+        'forbidden',
+        'Staff removal is unfinished. Retry removing this member before continuing',
       )
-      if (
-        current &&
-        !current.otherParticipations &&
-        current.memberRole === 'member' &&
-        current.memberId &&
-        current.userId
-      )
-        await deps.removeLogin(current.memberId, current.userId, ctx)
-      await deps.management.cancelOnboardings(ctx.organizationId, locked)
-      if (locked.portalId) await deps.portals.archive(locked.portalId, ctx)
-      await deps.management.completeRemoval(ctx.organizationId, locked)
-      return { removed: true as const }
     }
-    return found.email ? deps.store.withAddressLock(found.email, run) : run()
   }
 
 export const renameStaffMember =
@@ -174,7 +218,7 @@ export const resendStaffInvitation =
         'participation_not_found',
         'This staff invitation has ended',
       )
-    return deps.store.withAddressLock(found.email, async (store) => {
+    return deps.store.withAddressLock(ctx.organizationId, found.email, async (store) => {
       await target(deps, input.participationId, ctx, 'staff.invite')
       const facts = await store.addressFacts(
         ctx.organizationId,
@@ -186,11 +230,11 @@ export const resendStaffInvitation =
           'other_organization',
           'This address belongs to another Organization',
         )
-      await deps.spendInvitationBudget(ctx)
       const row = await deps.management.renewInvitation(
         ctx.organizationId,
         input.participationId,
       )
+      await deps.spendInvitationBudget(ctx)
       await deps.deliverAccess(row, { invited: true, userId: null })
       return { sent: true as const }
     })

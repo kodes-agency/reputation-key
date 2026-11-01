@@ -1,3 +1,4 @@
+import { withLastOwnerGuardDisabled } from '#/shared/db/disable-guard-triggers'
 import { randomUUID } from 'node:crypto'
 import type { Pool } from 'pg'
 import { deleteTestOrganizations } from './integration-helpers'
@@ -122,7 +123,9 @@ export async function cleanStaffAccountFixture(pool: Pool, row: StaffAccountFixt
   await pool.query('DELETE FROM invitation WHERE "organizationId" = $1', [
     row.organizationId,
   ])
-  await pool.query('DELETE FROM member WHERE "organizationId" = $1', [row.organizationId])
+  await withLastOwnerGuardDisabled(pool, (client) =>
+    client.query('DELETE FROM member WHERE "organizationId" = $1', [row.organizationId]),
+  )
   await deleteTestOrganizations(pool, [row.organizationId])
   await pool.query('DELETE FROM "user" WHERE id IN ($1, $2)', [row.userId, row.inviterId])
 }

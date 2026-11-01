@@ -141,6 +141,7 @@ const setup = (
   return {
     useCase,
     archive: archivePersonalPortal(deps),
+    archiveForDeparture: archivePersonalPortal(deps, true),
     portalRepo,
     outbox,
     destinationLookups: () => destinationLookups,
@@ -908,6 +909,21 @@ describe('personal Portal ordinary edits', () => {
 })
 
 describe('archivePersonalPortal', () => {
+  it('archives for an authorized manager departure outside current Property grants', async () => {
+    const h = setup([])
+    const portal = buildTestPortal({ kind: 'personal', publicName: 'Harbor' })
+    h.portalRepo.seed([portal])
+    const ctx = {
+      ...buildTestAuthContext(),
+      effectivePermissions: new Set(['identity.leave_org'] as const),
+    }
+    await expect(h.archive({ portalId: portal.id }, ctx)).rejects.toMatchObject({
+      code: 'forbidden',
+    })
+    expect(
+      (await h.archiveForDeparture({ portalId: portal.id }, ctx)).publicationState,
+    ).toBe('archived')
+  })
   it('lets a PropertyManager remove a personal Portal and repeats safely', async () => {
     const { archive, portalRepo } = setup()
     const portal = buildTestPortal({ kind: 'personal', publicName: 'Harbor' })

@@ -13,7 +13,7 @@ import type {
 } from '#/contexts/portal/application/public-api'
 import {
   AuthedRouterDecorator,
-  withRole,
+  withPermissions,
 } from '../../../../../.storybook/AuthedRouterDecorator'
 import { ServerFunctionError } from '#/shared/auth/server-function-error'
 import { FACE_TYPE_PT } from '#/shared/domain/portal-print-kit-size-type'
@@ -895,7 +895,7 @@ export const ServerSaysNothingIsLive: Story = {
 
 export const ViewerGetsNoPrintKit: Story = {
   args: baseArgs,
-  decorators: [withRole('Member')],
+  decorators: [withPermissions(['portal.read', 'property.read'])],
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
     await expect(canvas.queryByRole('heading', { name: 'Print kit' })).toBeNull()

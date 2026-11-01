@@ -1,10 +1,14 @@
 # Staff account foundation handoff
 
-Date: 2026-11-01. Implements PR B of [the plan](staff-accounts.md), under [ADR 0076](../adr/0076-staff-accounts-and-personal-portals.md). No routes or components are added. The two existing component-directory changes are shared data types and a test fixture. The capability remains beta_disabled.
+Date: 2026-11-01. Implements PR B of [the plan](staff-accounts.md), under [ADR 0076](../adr/0076-staff-accounts-and-personal-portals.md). No product routes or components are added. Existing manager stories use exact reader permissions instead of the staff-only Member role. The capability remains beta_disabled.
 
 ## Server contracts
 
 All inputs are strict objects. The session chooses the person and Organization. A participation id is only a choice among that person's current participations. No self function accepts a user or participant id.
+
+Batch checks and Add spend from a separate allowance of 200 address checks per actor per hour. A pending, unexpired invitation at any Property in the Organization returns `already_invited`: “This address already has an open invitation. Add them here once they've accepted.” Checks never spend the invitation-send allowance.
+
+Settings hides staff-only logins and refuses their removal with “Remove this person from Staff”. Removing or leaving a manager login first ends its personal participations and archives their Portals; a failure keeps the login and can be retried. A Group scan target appears to staff only when the colleague list is on or the Group holds at least three personal Portals.
 
 Manager functions are exported by src/contexts/identity/server/staff-accounts.ts:
 
@@ -54,13 +58,13 @@ Added staff_self as a permitted consumer of the existing private Portal rating v
 - Personal Portal public wording is checked for normalized name words on direct localized-title/description writes and on initial publication, republishing and rollback. Names stay out of guest output even when wording is entered by hand.
 - Source copies carry the one loaded copy and original revision/snapshot into the create transaction, which takes the existing publication fences and rechecks the source. A changed source is refused before inserting a copy.
 - Group membership and Goal definition commits share a Property advisory fence. Neither a later Group move nor a Goal edit may turn a personal Portal into a rating target.
-- Removal cancels unfinished address operations within the authorized Property; work at other Properties remains intact. A login is resolved even if onboarding has not created its StaffUserLink yet. Access ends first; unfinished operation contact details remain available for a failed login-revocation retry, then cancellation scrubs them before Portal archival.
+- Removal cancels only the original participation’s unfinished operations. A login is resolved even if onboarding has not created its StaffUserLink yet. Access ends first; unfinished operation contact details remain available for a failed login-revocation retry, then cancellation scrubs them before Portal archival.
 - An unfinished personal setup also locks the ordinary participation actions, before its Portal FK exists; only Remove can cancel that setup.
 - Ordinary Delete is refused for personal Portals too; it must not bypass staff removal. Disable remains available.
 - Recommendation readiness includes the whole roster. The existing manager overview limit remains a per-request bound for the later UI to batch; no list presentation changes here.
 - The staff Portal resolver port/adapter remain because Goal visibility still uses them. Only the dormant staff dashboard use case, wiring, type and tests were removed.
-- No ADR requirement was found impossible or changed to excuse existing code. The independently planned skip-rating field is absent and has no special case here.
-- Migration 0093 is appended after 0091 in this worktree's journal. The independent PR owns 0092; rebase the journal after it lands, without rewriting applied entries.
+- No ADR requirement was found impossible or changed to excuse existing code. Copies carry skipPrivateRating from the source; the next pull request enforces ADR 0076 item 17.
+- Migration 0093 follows migration 0092 in the journal.
 
 ## PostgreSQL and browser verification
 

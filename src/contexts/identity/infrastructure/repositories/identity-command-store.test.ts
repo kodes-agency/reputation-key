@@ -580,7 +580,7 @@ describe.sequential('identityCommandStore (integration)', () => {
     await pool.query(
       `INSERT INTO member (id, "organizationId", "userId", role, "createdAt")
        VALUES ('member-idcmd-owner', $1, $2, 'owner', NOW()),
-              ('member-idcmd-staff', $1, $3, 'member', NOW())`,
+              ('member-idcmd-staff', $1, $3, 'admin', NOW())`,
       [ORG_ID, INVITER_ID, ACCEPTOR_ID],
     )
     await pool.query(

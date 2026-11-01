@@ -56,6 +56,8 @@ export type UpdatePortalDeps = Readonly<{
     ): Promise<'portal' | 'last_collector' | null>
   }>
   personalArchive?: boolean
+  /** The already-authorized member departure must also retire staff Portals outside manager grants. */
+  memberDepartureArchive?: boolean
   portalRepo: PortalRepository
   commandStore: PortalCommandStore
   publicationRepo: PortalPublicationRepository
@@ -443,22 +445,38 @@ function assertPersonalMutation(
   }
 }
 
+async function loadPortalForUpdate(
+  deps: UpdatePortalDeps,
+  input: UpdatePortalInput,
+  ctx: AuthContext,
+) {
+  const pid = toPortalId(input.portalId)
+  const existing =
+    deps.memberDepartureArchive && deps.personalArchive
+      ? await deps.portalRepo.findById(ctx.organizationId, pid)
+      : await loadPortalOrThrow(
+          deps,
+          ctx,
+          pid,
+          deps.personalArchive
+            ? {
+                permission: 'staff.remove',
+                forbiddenMessage: 'This role cannot remove staff',
+              }
+            : requiredPermission(input),
+        )
+  if (!existing)
+    throw portalError('portal_not_found', 'Portal not found in this Organization')
+
+  return existing
+}
+
 export const updatePortal =
   (deps: UpdatePortalDeps) =>
   async (input: UpdatePortalInput, ctx: AuthContext): Promise<Portal> => {
-    const pid = toPortalId(input.portalId)
     // Role, then the Portal, then the Property scope (D6-001), on that permission.
-    const existing = await loadPortalOrThrow(
-      deps,
-      ctx,
-      pid,
-      deps.personalArchive
-        ? {
-            permission: 'staff.remove',
-            forbiddenMessage: 'This role cannot remove staff',
-          }
-        : requiredPermission(input),
-    )
+    const existing = await loadPortalForUpdate(deps, input, ctx)
+    const pid = existing.id
 
     assertPersonalMutation(existing, input, deps.personalArchive ?? false)
     assertArchivedMutationIsRestore(input, existing)

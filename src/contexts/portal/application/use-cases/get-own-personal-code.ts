@@ -41,7 +41,17 @@ export const getOwnPersonalCode =
       { purpose: 'show', oncePerUserToken: true },
       portal,
       ctx,
-    )
+    ).catch((error: unknown) => {
+      if (
+        typeof error === 'object' &&
+        error !== null &&
+        'code' in error &&
+        error.code === 'address_unavailable'
+      )
+        return null
+      throw error
+    })
+    if (!address) return { state: 'paused' as const }
     return {
       state: 'live' as const,
       qr: address.publicUrls.qr,

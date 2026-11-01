@@ -5,7 +5,7 @@
 import { useState, type MouseEvent } from 'react'
 import type { Meta, StoryObj } from '@storybook/react'
 import { expect, userEvent, within } from 'storybook/test'
-import { withRole } from '../../../../.storybook/AuthedRouterDecorator'
+import { withRole, withPermissions } from '../../../../.storybook/AuthedRouterDecorator'
 import type { PropertySetupStep } from '#/contexts/reporting/application/public-api'
 import {
   PropertyListPage,
@@ -394,7 +394,7 @@ export const StaleGoogleNumbers: Story = {
 /** A reader who may not set goals sees each goal and no "Set goal". */
 export const GoogleGoalColumnReadOnly: Story = {
   args: ready,
-  decorators: [withRole('Member')],
+  decorators: [withPermissions(['property.read', 'dashboard.read'])],
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
     expect(canvas.queryByRole('link', { name: /^Set goal:/ })).toBeNull()

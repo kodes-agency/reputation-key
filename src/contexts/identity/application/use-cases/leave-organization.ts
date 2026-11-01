@@ -85,6 +85,7 @@ export type LeaveOrganizationOutput = Readonly<{
 }>
 
 export type LeaveOrganizationDeps = Readonly<{
+  removeStaffForMemberDeparture?: (userId: string, ctx: AuthContext) => Promise<void>
   identity: IdentityPort
   commandStore: IdentityCommandStore
   offboarding: MemberOffboarding
@@ -199,6 +200,8 @@ export const leaveOrganization =
     }
     const missing = outstanding.filter((item) => !supplied.has(key(item)))
     if (missing.length > 0) throw new OutstandingResponsibilitiesError(missing)
+
+    await deps.removeStaffForMemberDeparture?.(self.userId, ctx)
 
     for (const transfer of input.transfers) {
       await deps.offboarding.transfer({

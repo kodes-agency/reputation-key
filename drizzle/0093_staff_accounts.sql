@@ -17,8 +17,6 @@ ALTER TABLE staff_user_links ADD COLUMN notice_version varchar(64);
 --> statement-breakpoint
 ALTER TABLE staff_user_links ADD COLUMN notice_acknowledged_at timestamptz;
 --> statement-breakpoint
-ALTER TABLE invitation ADD COLUMN "staffParticipationId" text;
---> statement-breakpoint
 CREATE TABLE staff_onboardings (
   id uuid PRIMARY KEY,
   organization_id varchar(255) NOT NULL,

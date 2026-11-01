@@ -35,7 +35,7 @@ function setup(fail?: StaffOnboardingStep, existingMember = false) {
     }
   }
   const store: StaffAccountStore = {
-    withAddressLock: async (_email, run) => {
+    withAddressLock: async (_org, _email, run) => {
       const previous = queue
       let release = () => {}
       queue = new Promise<void>((resolve) => {
@@ -54,6 +54,7 @@ function setup(fail?: StaffOnboardingStep, existingMember = false) {
       userId: existingMember ? 'account' : null,
       organizationIds: existingMember ? [ctx.organizationId] : [],
       alreadyStaffHere: linked.size > 0,
+      alreadyInvited: false,
       staffParticipantId: null,
     }),
     findOperation: async (_org, id) => operations.get(id) ?? null,
@@ -95,11 +96,14 @@ function setup(fail?: StaffOnboardingStep, existingMember = false) {
   const deps: StaffAccountDeps = {
     authorizeProperty: async () => undefined,
     store,
+    spendAddressCheckBudget: async () => undefined,
+    reportDeliveryFailure: () => undefined,
     idGen: () => `id-${++counter}`,
     invitationBudget: async () => 20,
     spendInvitationBudget: vi.fn(async () => undefined),
     deliverAccess: vi.fn(async () => undefined),
     portals: {
+      archiveForMemberDeparture: async () => undefined,
       rename: async () => undefined,
       check: async () => ({ omittedLinks: [] }),
       create: async (row) => {
@@ -120,6 +124,67 @@ function setup(fail?: StaffOnboardingStep, existingMember = false) {
 }
 
 describe('addStaffMember', () => {
+  it('refuses a competing invitation under the address lock before creating anything', async () => {
+    const h = setup()
+    const store = {
+      ...h.deps.store,
+      addressFacts: async () => ({
+        userId: null,
+        organizationIds: [],
+        staffParticipantId: null,
+        alreadyStaffHere: false,
+        alreadyInvited: true,
+      }),
+    }
+    const deps = {
+      ...h.deps,
+      store: {
+        ...store,
+        withAddressLock: async <T>(
+          _org: string,
+          _email: string,
+          run: (store: StaffAccountStore) => Promise<T>,
+        ) => run(store),
+      },
+    }
+    await expect(addStaffMember(deps)(input, ctx)).rejects.toThrow(
+      "This address already has an open invitation. Add them here once they've accepted.",
+    )
+    expect(h.people.size).toBe(0)
+    expect(h.operations.size).toBe(0)
+  })
+  it('does not inspect an address after the actor check budget is exhausted', async () => {
+    const h = setup()
+    const facts = vi.fn(h.deps.store.addressFacts)
+    await expect(
+      addStaffMember({
+        ...h.deps,
+        store: { ...h.deps.store, addressFacts: facts },
+        spendAddressCheckBudget: async () => {
+          throw Object.assign(new Error('Wait'), { code: 'rate_limited' })
+        },
+      })(input, ctx),
+    ).rejects.toMatchObject({ code: 'rate_limited' })
+    expect(facts).not.toHaveBeenCalled()
+  })
+  it('reports a failed access email using the completed operation and keeps Add successful', async () => {
+    const h = setup()
+    const report = vi.fn()
+    const result = await addStaffMember({
+      ...h.deps,
+      deliverAccess: async () => {
+        throw new Error('Mail unavailable')
+      },
+      reportDeliveryFailure: report,
+    })(input, ctx)
+    expect(result.status).toBe('done')
+    expect(report).toHaveBeenCalledWith(
+      expect.objectContaining({
+        id: input.operationId,
+        invitationId: expect.any(String),
+      }),
+    )
+  })
   it('reuses the linked person canonical name instead of renaming them from another Property', async () => {
     const h = setup(undefined, true)
     const facts = await h.deps.store.addressFacts(
@@ -130,7 +195,7 @@ describe('addStaffMember', () => {
     const create = vi.fn(h.deps.portals.create)
     const store: StaffAccountStore = {
       ...h.deps.store,
-      withAddressLock: async (_email, run) => run(store),
+      withAddressLock: async (_org, _email, run) => run(store),
       addressFacts: async () => ({
         ...facts,
         staffParticipantId: 'existing-person',
@@ -213,6 +278,7 @@ describe('addStaffMember', () => {
         userId: 'other',
         organizationIds: ['other-organization'],
         alreadyStaffHere: false,
+        alreadyInvited: false,
         staffParticipantId: null,
       }),
     }
@@ -221,6 +287,7 @@ describe('addStaffMember', () => {
       store: {
         ...store,
         withAddressLock: async <T>(
+          _org: string,
           _email: string,
           run: (value: StaffAccountStore) => Promise<T>,
         ) => run(store),

@@ -814,6 +814,7 @@ export const buildIdentityContext = (deps: IdentityContextDeps) => {
     }>,
   ) => decideCurrentManagerPropertyAuthorities(tx, input)
 
+  const staffAccounts = buildStaffAccounts({ ...deps, commandStore })
   const useCases = {
     ...invitationUseCases,
     updateMemberRole: updateMemberRole({
@@ -824,6 +825,7 @@ export const buildIdentityContext = (deps: IdentityContextDeps) => {
       prepareGoogleConnectorDeparture: deps.prepareGoogleConnectorDeparture,
     }),
     removeMember: removeMember({
+      removeStaffForMemberDeparture: staffAccounts.removeForMemberDeparture,
       identity: deps.identityPort,
       commandStore,
       clock: deps.clock,
@@ -832,6 +834,7 @@ export const buildIdentityContext = (deps: IdentityContextDeps) => {
       releaseMemberAuthorities: deps.releaseMemberAuthorities,
     }),
     leaveOrganization: leaveOrganization({
+      removeStaffForMemberDeparture: staffAccounts.removeForMemberDeparture,
       identity: deps.identityPort,
       commandStore,
       offboarding: memberOffboarding,
@@ -906,7 +909,7 @@ export const buildIdentityContext = (deps: IdentityContextDeps) => {
     offboardingFacts,
     people: people.publicApi,
     staffSelf: Object.freeze(createStaffSelfReader(deps.db, deps.clock)),
-    staffAccounts: buildStaffAccounts({ ...deps, commandStore }),
+    staffAccounts,
     requests: requestApi,
   })
 

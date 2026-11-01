@@ -21,9 +21,9 @@ function setup(unlockFails = false) {
 describe('staff address reservation cleanup', () => {
   it('uses the invitation address key and releases after a successful operation', async () => {
     const h = setup()
-    expect(await h.store.withAddressLock('polly@example.com', async () => 'done')).toBe(
-      'done',
-    )
+    expect(
+      await h.store.withAddressLock('org', 'polly@example.com', async () => 'done'),
+    ).toBe('done')
     expect(h.query.mock.calls[0]).toEqual([
       'SELECT pg_advisory_lock(hashtextextended($1, 0))',
       ['beta-invitation-email:polly@example.com'],
@@ -33,7 +33,7 @@ describe('staff address reservation cleanup', () => {
   it('unlocks and releases when the operation fails', async () => {
     const h = setup()
     await expect(
-      h.store.withAddressLock('polly@example.com', async () => {
+      h.store.withAddressLock('org', 'polly@example.com', async () => {
         throw new Error('Step failed')
       }),
     ).rejects.toThrow('Step failed')
@@ -43,7 +43,7 @@ describe('staff address reservation cleanup', () => {
   it('destroys a connection whose advisory unlock cannot be confirmed', async () => {
     const h = setup(true)
     await expect(
-      h.store.withAddressLock('polly@example.com', async () => undefined),
+      h.store.withAddressLock('org', 'polly@example.com', async () => undefined),
     ).rejects.toThrow('Connection lost')
     expect(h.release.mock.calls).toEqual([[true]])
   })

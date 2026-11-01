@@ -3,7 +3,7 @@ import type { Meta, StoryObj } from '@storybook/react'
 import { expect, fn, screen, userEvent, waitFor, within } from 'storybook/test'
 import {
   AuthedRouterDecorator,
-  withRole,
+  withPermissions,
 } from '../../../../../.storybook/AuthedRouterDecorator'
 import { PageGutterDecorator } from '../../../../../.storybook/PageGutterDecorator'
 import { action, baseArgs } from '../portal-list-page-stories-data'
@@ -305,7 +305,7 @@ export const WithoutResults: Story = {
 
 // A reader who may not update sees the group and its portals, and changes nothing.
 export const ViewOnly: Story = {
-  decorators: [withRole('Member')],
+  decorators: [withPermissions(['portal.read', 'property.read'])],
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
     await expect(canvas.queryByRole('button', { name: 'Rename' })).toBeNull()

@@ -176,7 +176,7 @@ deleted, and Recent Activity keeps projecting and replaying the facts recorded b
 People rows are Identity-owned, but durable lifecycle receipt context `staff` and
 export paths under `staff/` remain stable persisted identifiers. The moved
 `staff-organization-lifecycle` and `staff-organization-export` adapters therefore
-retain those keys while living under Identity infrastructure. Purge order remains
+retain those keys while living under Identity infrastructure. Purge order is `staff_onboardings`, `staff_property_settings`,
 Portal Responsibilities, Portal Group memberships, Staff Participations, Staff user
 links, then Staff Participants; it never deletes users, memberships, sessions, or
 Property access grants.

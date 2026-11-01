@@ -8,6 +8,7 @@ export type StaffPortalPlan = Readonly<{
 
 /** Identity owns the operation; Portal owns each independently committed step. */
 export type StaffPortalProvisioner = Readonly<{
+  archiveForMemberDeparture: (portalId: string, ctx: AuthContext) => Promise<void>
   rename(
     input: Readonly<{ portalIds: readonly string[]; displayName: string }>,
     ctx: AuthContext,

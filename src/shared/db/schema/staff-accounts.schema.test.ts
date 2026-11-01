@@ -10,6 +10,12 @@ const migration = readFileSync('drizzle/0093_staff_accounts.sql', 'utf8')
 const dialect = new PgDialect()
 
 describe('staff account schema and migration contract', () => {
+  it('leaves the invitation extension to the earlier Better Auth migration track', () => {
+    expect(invitation.staffParticipationId.name).toBe('staffParticipationId')
+    expect(migration).not.toContain(
+      'ALTER TABLE invitation ADD COLUMN "staffParticipationId"',
+    )
+  })
   it('keeps personal ownership in the same Organization and Property and restricts deletion', () => {
     const config = getTableConfig(staffParticipations)
     const fk = config.foreignKeys.find(

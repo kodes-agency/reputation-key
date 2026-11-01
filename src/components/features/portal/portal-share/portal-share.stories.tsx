@@ -8,7 +8,7 @@ import type { Action } from '#/components/hooks/use-action'
 import type { PortalTokenStatus } from '#/contexts/portal/application/public-api'
 import {
   AuthedRouterDecorator,
-  withRole,
+  withPermissions,
 } from '../../../../../.storybook/AuthedRouterDecorator'
 
 type IssueInput = { data: { portalId: string } }
@@ -200,7 +200,7 @@ export const MutationError: Story = {
 // (PortalReadOnlyNotice); Share says only whom to ask.
 export const PermissionDenied: Story = {
   args: baseArgs,
-  decorators: [withRole('Member')],
+  decorators: [withPermissions(['portal.read', 'property.read'])],
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
     await expect(canvas.getByText(/for the QR code or print kit\./)).toBeInTheDocument()
@@ -217,7 +217,7 @@ export const ViewerSeesTheCode: Story = {
     tokenStatus: activeToken,
     managerNames: ['Georgi Ivanov', 'Eli Petrova'],
   },
-  decorators: [withRole('Member')],
+  decorators: [withPermissions(['portal.read', 'property.read'])],
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
     await expect(
@@ -236,7 +236,7 @@ export const ViewerSeesTheCode: Story = {
 // Without the managers' names a viewer is still told to ask, in general terms.
 export const ViewerWithoutKnownManagers: Story = {
   args: { ...baseArgs, tokenStatus: activeToken },
-  decorators: [withRole('Member')],
+  decorators: [withPermissions(['portal.read', 'property.read'])],
   play: async ({ canvasElement }) => {
     await expect(
       within(canvasElement).getByText(
@@ -282,7 +282,7 @@ export const ViewerOfADraftPortal: Story = {
     publicationState: 'draft',
     propertyId: 'property-1',
   },
-  decorators: [withRole('Member')],
+  decorators: [withPermissions(['portal.read', 'property.read'])],
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
     await expect(
@@ -515,7 +515,7 @@ export const DownloadAgainRefused: Story = {
 // A viewer cannot fetch the address, whatever the code holds.
 export const ViewerCannotDownloadAgain: Story = {
   args: { ...baseArgs, tokenStatus: recoverableToken },
-  decorators: [withRole('Member')],
+  decorators: [withPermissions(['portal.read', 'property.read'])],
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
     await expect(canvas.queryByRole('button', { name: /download again/i })).toBeNull()

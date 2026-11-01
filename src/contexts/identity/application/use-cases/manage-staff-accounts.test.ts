@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from 'vitest'
 import { buildTestAuthContext } from '#/shared/testing/fixtures'
 import {
   removeStaffMember,
+  removeStaffForMemberDeparture,
   renameStaffMember,
   listStaffMembers,
   setColleagueListEnabled,
@@ -45,13 +46,14 @@ function setup(
     }
   }
   const store: StaffAccountStore = {
-    withAddressLock: async (_email, run) => run(store),
+    withAddressLock: async (_org, _email, run) => run(store),
     currentActor: async (ctx) => ctx,
     propertyIds: async () => null,
     addressFacts: async () => ({
       userId: null,
       organizationIds: [],
       alreadyStaffHere: false,
+      alreadyInvited: false,
       staffParticipantId: null,
     }),
     findOperation: async () => null,
@@ -66,11 +68,14 @@ function setup(
   const deps: ManageStaffDeps = {
     authorizeProperty: async () => undefined,
     store,
+    spendAddressCheckBudget: async () => undefined,
+    reportDeliveryFailure: () => undefined,
     idGen: () => 'id',
     invitationBudget: async () => 12,
     spendInvitationBudget: async () => undefined,
     deliverAccess: async () => undefined,
     portals: {
+      archiveForMemberDeparture: async () => undefined,
       rename: async () => undefined,
       check: async () => ({ omittedLinks: [{ id: 'omitted', label: 'Old link' }] }),
       create: async () => undefined,
@@ -81,6 +86,7 @@ function setup(
       },
     },
     management: {
+      removalsForUser: async () => [],
       completeRemoval: vi.fn(async () => undefined),
       cancelOnboardings: async () => {
         fail('cancel')
@@ -126,6 +132,27 @@ function setup(
 }
 
 describe('staff removal convergence', () => {
+  it('retries a manager departure through the same removal steps without manager Property grants', async () => {
+    const h = setup({ fail: 'archive', role: 'admin' })
+    const departing = {
+      ...ctx,
+      effectivePermissions: new Set(['identity.leave_org'] as const),
+    }
+    const deps = {
+      ...h.deps,
+      management: {
+        ...h.deps.management,
+        removalsForUser: async () => ['participation'],
+      },
+      portals: { ...h.deps.portals, archiveForMemberDeparture: h.deps.portals.archive },
+    }
+    const remove = removeStaffForMemberDeparture(deps)
+    await expect(remove('user', departing)).rejects.toThrow('Staff removal is unfinished')
+    expect(h.accessDenied()).toBe(true)
+    await remove('user', departing)
+    expect(h.calls).toEqual(['deny', 'cancel', 'archive', 'deny', 'cancel', 'archive'])
+    expect(h.loginRemoved()).toBe(false)
+  })
   it('does nothing when an old completed removal is replayed after the user returns', async () => {
     const h = setup()
     const previous = (await h.deps.management.target(
@@ -205,6 +232,7 @@ describe('staff removal convergence', () => {
       store: {
         ...h.deps.store,
         withAddressLock: async <T>(
+          _org: string,
           _email: string,
           run: (store: StaffAccountStore) => Promise<T>,
         ) => {
@@ -250,6 +278,73 @@ describe('staff removal convergence', () => {
 })
 
 describe('staff manager reads and settings', () => {
+  it('spends one address unit per batch row before reading any address facts', async () => {
+    const h = setup()
+    const facts = vi.fn(h.deps.store.addressFacts)
+    const spend = vi.fn(async () => {
+      throw Object.assign(new Error('Budget used'), { code: 'rate_limited' })
+    })
+    const deps = {
+      ...h.deps,
+      spendAddressCheckBudget: spend,
+      store: { ...h.deps.store, addressFacts: facts },
+    }
+    await expect(
+      checkStaffBatch(deps)(
+        {
+          propertyId: 'property',
+          rows: [
+            { email: 'one@example.com', displayName: 'One' },
+            { email: 'two@example.com', displayName: 'Two' },
+          ],
+        },
+        ctx,
+      ),
+    ).rejects.toMatchObject({ code: 'rate_limited' })
+    expect(spend).toHaveBeenCalledWith(ctx, 2)
+    expect(facts).not.toHaveBeenCalled()
+  })
+  it('reports an open invitation as already_invited without spending invitation budget', async () => {
+    const h = setup()
+    const spend = vi.fn(h.deps.spendInvitationBudget)
+    const deps = {
+      ...h.deps,
+      spendInvitationBudget: spend,
+      store: {
+        ...h.deps.store,
+        addressFacts: async () => ({
+          userId: null,
+          organizationIds: [],
+          staffParticipantId: null,
+          alreadyStaffHere: false,
+          alreadyInvited: true,
+        }),
+      },
+    }
+    expect(
+      (
+        await checkStaffBatch(deps)(
+          {
+            propertyId: 'property',
+            rows: [{ email: 'one@example.com', displayName: 'One' }],
+          },
+          ctx,
+        )
+      ).rows,
+    ).toEqual([{ code: 'already_invited' }])
+    expect(spend).not.toHaveBeenCalled()
+  })
+  it('does not spend a resend invitation when renewal checks refuse', async () => {
+    const h = setup()
+    const spend = vi.fn(h.deps.spendInvitationBudget)
+    await expect(
+      resendStaffInvitation({ ...h.deps, spendInvitationBudget: spend })(
+        { participationId: 'participation' },
+        ctx,
+      ),
+    ).rejects.toThrow('Not a resend')
+    expect(spend).not.toHaveBeenCalled()
+  })
   it('refuses Resend if removal ended the participation while it waited for the lock', async () => {
     const h = setup()
     const previous = (await h.deps.management.target(

@@ -1,7 +1,7 @@
 // Inbox detail content — regions 2 and 3 of the detail pane: the case strip
 // and the single scroller. Permission-gated: usePermissions() → can('reply.manage')
 // decides whether the ReplyEditor mounts for review items. PropertyManager grants
-// reply.manage (gate ON); Member does not (gate OFF). The scroller is one
+// reply.manage (gate ON); restricted reader does not (gate OFF). The scroller is one
 // thread now — guest message, handling events, notes — so stories supply a mock
 // getInboxItemHistory alongside the detail fn; the thread's own states live in
 // inbox-thread.stories.tsx. Case state (work status, owner, escalation, reply
@@ -25,7 +25,7 @@ import {
   scriptReplySuggestionStream,
 } from '../../../.storybook/stubs/ai-reply-suggestion-stream'
 import { REPLY_DRAFTING_V2_VERSIONS } from '#/shared/reply-drafting-v2-schema'
-import { withRole } from '../../../.storybook/AuthedRouterDecorator'
+import { withRole, withPermissions } from '../../../.storybook/AuthedRouterDecorator'
 import type { ComposerFocusBox, DetailContentProps } from './inbox-detail-content'
 import type {
   addInboxNoteFn,
@@ -570,9 +570,11 @@ export const ReplyToolbarDetectsMissingReviewLanguage: Story = {
   },
 }
 
-// Review item as Member — reply.manage denied → ReplyEditor is absent.
-export const ReviewAsMember: Story = {
-  decorators: [withRole('Member')],
+// Review item as restricted reader — reply.manage denied → ReplyEditor is absent.
+export const ReviewAsReader: Story = {
+  decorators: [
+    withPermissions(['inbox.read', 'inbox.write', 'review.read', 'feedback.read']),
+  ],
   args: {
     currentItem: reviewItem,
     detailFns,

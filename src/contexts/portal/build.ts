@@ -273,6 +273,7 @@ export const buildPortalContext = (deps: PortalContextDeps) => {
   const portalGroupIdGen = () => portalGroupId(deps.idGen())
   const linkIdGen = () => deps.idGen()
   const publishChangesDeps = {
+    ratingGoalGuard: deps.ratingGoalGuard,
     portalRepo,
     commandStore: portalCommandStore,
     publicationRepo: portalPublicationRepo,
@@ -399,10 +400,14 @@ export const buildPortalContext = (deps: PortalContextDeps) => {
     createPortal: createPortal(personalCreationDeps),
     createPersonalPortal: createPersonalPortal(personalCreationDeps),
     checkPersonalPortalSource: checkPersonalPortalSource(personalCreationDeps),
-    archivePersonalPortal: archivePersonalPortal({
-      ...publishChangesDeps,
-      ratingGoalGuard: deps.ratingGoalGuard,
-    }),
+    archivePersonalPortal: archivePersonalPortal(publishChangesDeps),
+    archivePersonalPortalForMemberDeparture: archivePersonalPortal(
+      {
+        ...publishChangesDeps,
+        ratingGoalGuard: deps.ratingGoalGuard,
+      },
+      true,
+    ),
     getPortalCreationOptions: getPortalCreationOptions({
       propertyApi: deps.propertyApi,
       staffPublicApi: deps.staffPublicApi,

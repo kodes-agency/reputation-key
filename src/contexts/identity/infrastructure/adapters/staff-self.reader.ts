@@ -22,7 +22,7 @@ export const createStaffSelfReader = (
     }
     const rows =
       await db.execute(sql`SELECT s.id AS "participationId", s.property_id AS "propertyId", p.id AS "portalId", COALESCE(brand.display_name, property.name) AS "propertyName",
-      property.status = 'active' AS "propertyActive", CASE WHEN p.publication_state = 'published' AND property.status = 'active' THEN 'live' ELSE 'paused' END AS "portalState",
+      (property.lifecycle_state = 'active' AND property.deleted_at IS NULL) AS "propertyActive", CASE WHEN p.publication_state = 'published' AND (property.lifecycle_state = 'active' AND property.deleted_at IS NULL) THEN 'live' ELSE 'paused' END AS "portalState",
       COALESCE(settings.colleague_list_enabled, false) AS "colleagueListEnabled", property.timezone, property.country_code AS "countryCode", g.portal_group_id AS "groupId"
       FROM staff_participations s
       JOIN portals p ON p.organization_id = s.organization_id AND p.property_id = s.property_id AND p.id = s.personal_portal_id AND p.kind = 'personal' AND p.deleted_at IS NULL

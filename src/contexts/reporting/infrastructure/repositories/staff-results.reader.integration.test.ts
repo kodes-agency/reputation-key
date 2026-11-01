@@ -59,7 +59,7 @@ async function reading(
   const id = randomUUID()
   await lease.pool.query(
     `INSERT INTO metric_readings (id, organization_id, property_id, portal_id, metric_key, value, exact_value, definition_version_id, source_event_id, source_policy, sample_count, attribution_quality, event_at, property_local_date, data_quality, retention_class, recorded_at)
-    VALUES ($1, $2, $3, $4, $5, $6, $6, $7, $1, $8, 1, 'exact', $9, $10, 'exact', 'guest_gateway_24_month', $11)`,
+    VALUES ($1::uuid, $2, $3, $4, $5, $6::real, $6::numeric, $7, $1::varchar, $8, 1, 'exact', $9, $10, 'exact', 'guest_gateway_24_month', $11)`,
     [
       id,
       row.organizationId,
@@ -80,6 +80,44 @@ async function reading(
 }
 
 describe.sequential('staff private results and accepted roster (PostgreSQL)', () => {
+  it('finds own personal participations and pauses a closing or deleted Property', async () => {
+    const row = await seed()
+    await seedStaffAccountUser(lease.pool, row)
+    await lease.pool.query(
+      "INSERT INTO staff_user_links (organization_id, staff_participant_id, user_id, effective_from, created_by) VALUES ($1,$2,$3,$4,'test')",
+      [row.organizationId, row.participantId, row.userId, NOW],
+    )
+    await lease.pool.query(
+      "UPDATE portals SET publication_state = 'published' WHERE id = $1",
+      [row.portalId],
+    )
+    const reader = createStaffSelfReader(db, () => NOW)
+    const find = () => reader.find(row.organizationId, row.userId)
+    expect(await find()).toMatchObject({
+      participantId: row.participantId,
+      participations: [
+        {
+          participationId: row.participationId,
+          propertyActive: true,
+          portalState: 'live',
+        },
+      ],
+    })
+    await lease.pool.query(
+      "UPDATE properties SET lifecycle_state = 'suspended' WHERE id = $1",
+      [row.propertyId],
+    )
+    expect(await find()).toMatchObject({
+      participations: [{ propertyActive: false, portalState: 'paused' }],
+    })
+    await lease.pool.query(
+      "UPDATE properties SET lifecycle_state = 'active', deleted_at = $2 WHERE id = $1",
+      [row.propertyId, NOW],
+    )
+    expect(await find()).toMatchObject({
+      participations: [{ propertyActive: false, portalState: 'paused' }],
+    })
+  })
   it('counts 23:59 yesterday, omits 00:01 today and withholds an average under five', async () => {
     const row = await seed()
     await reading(row, 'rating', '2026-11-03T21:59:00Z', 5)

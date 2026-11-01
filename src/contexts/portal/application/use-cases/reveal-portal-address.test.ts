@@ -503,6 +503,19 @@ describe('revealPortalAddress — print codes (ADR 0069)', () => {
 })
 
 describe('getOwnPersonalCode', () => {
+  it('shows paused after revocation without suggesting that staff replace the code', async () => {
+    const h = harness()
+    h.deps.portalRepo.seed([{ ...h.portal, kind: 'personal', publicName: 'Harbor' }])
+    await h.issue({ portalId: h.portal.id }, h.ctx)
+    await h.revoke({ portalId: h.portal.id, reason: 'leaked' }, h.ctx)
+    expect(
+      await h.ownCode()(
+        { portalId: h.portal.id },
+        buildTestAuthContext({ role: 'Member' }),
+      ),
+    ).toEqual({ state: 'paused' })
+    expect(h.addressRepo.downloads()).toEqual([])
+  })
   it('reads only QR for a Member and audits once per token version, refreshing after replacement', async () => {
     const h = harness({ address: SHORT })
     h.deps.portalRepo.seed([{ ...h.portal, kind: 'personal', publicName: 'Harbor' }])

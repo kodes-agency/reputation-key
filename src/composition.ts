@@ -229,6 +229,12 @@ function buildContainer(
           capability: 'staff.accounts',
         }),
       portals: {
+        archiveForMemberDeparture: async (portalIdValue, ctx) => {
+          await portal.publicApi.management.archivePersonalPortalForMemberDeparture(
+            { portalId: portalIdValue },
+            ctx,
+          )
+        },
         rename: (input, ctx, transaction) =>
           portal.publicApi.management.renamePersonalPortalLabels(input, ctx, transaction),
         check: async (input, ctx) => ({
@@ -258,6 +264,7 @@ function buildContainer(
         },
       },
       spendInvitationBudget: staffInvitationBudget.spend,
+      spendAddressCheckBudget: staffInvitationBudget.checkAddresses,
       invitationBudget: staffInvitationBudget.remaining,
       deliverAccess: async (row, access) => {
         if (!row.email) return

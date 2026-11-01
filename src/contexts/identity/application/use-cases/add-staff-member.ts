@@ -28,6 +28,8 @@ export type StaffAccountDeps = Readonly<{
   store: StaffAccountStore
   portals: StaffPortalProvisioner
   idGen: () => string
+  spendAddressCheckBudget: (ctx: AuthContext, units: number) => Promise<void>
+  reportDeliveryFailure: (row: StaffOnboarding) => void
   invitationBudget: (ctx: AuthContext) => Promise<number>
   spendInvitationBudget: (ctx: AuthContext) => Promise<void>
   deliverAccess: (
@@ -60,6 +62,7 @@ export function staffRowProblem(
   if ((facts?.staffDisplayName?.length ?? 0) > 100) return 'name_required'
   if (facts?.organizationIds.some((id) => id !== organizationId))
     return 'other_organization'
+  if (facts?.alreadyInvited) return 'already_invited'
   return facts?.alreadyStaffHere ? 'already_staff_here' : null
 }
 
@@ -71,6 +74,12 @@ const failureCodeOf = (error: unknown) =>
   /^[a-z0-9_]{1,64}$/.test(error.code)
     ? error.code
     : 'step_failed'
+
+const rowMessages: Partial<Record<StaffRowCode, string>> = {
+  already_invited:
+    "This address already has an open invitation. Add them here once they've accepted.",
+  other_organization: 'This address belongs to another Organization',
+}
 
 async function runSteps(
   deps: StaffAccountDeps,
@@ -127,7 +136,9 @@ async function runSteps(
           )
           const completed = await store.checkpoint(row.id, 'access', 'done', null)
           // Delivery follows the commit. Resend is the repair for a failed send.
-          await deps.deliverAccess(row, access).catch(() => undefined)
+          await deps
+            .deliverAccess(row, access)
+            .catch(() => deps.reportDeliveryFailure(row))
           return staffOnboardingResult(completed)
         }
       }
@@ -145,7 +156,8 @@ export const addStaffMember =
     await requireStaffProperty(deps.store, ctx, input.propertyId, 'staff.invite')
     await deps.authorizeProperty(ctx, input.propertyId, 'staff.invite')
     const email = input.email.trim().toLowerCase()
-    return deps.store.withAddressLock(email, async (store) => {
+    await deps.spendAddressCheckBudget(ctx, 1)
+    return deps.store.withAddressLock(ctx.organizationId, email, async (store) => {
       const previous = await store.findOperation(ctx.organizationId, input.operationId)
       if (previous) {
         if (
@@ -165,9 +177,8 @@ export const addStaffMember =
       if (code)
         throw staffAccountError(
           code,
-          code === 'other_organization'
-            ? 'This address belongs to another Organization'
-            : 'Check the staff name and email, or use Resend for someone already added',
+          rowMessages[code] ??
+            'Check the staff name and email, or use Resend for someone already added',
         )
       if (
         (!facts.userId || !facts.organizationIds.includes(ctx.organizationId)) &&

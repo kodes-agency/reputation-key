@@ -15,6 +15,7 @@ export type StaffRowCode =
   | 'name_required'
   | 'duplicate_in_batch'
   | 'already_staff_here'
+  | 'already_invited'
   | 'other_organization'
 export type StaffAccountErrorCode =
   | StaffRowCode

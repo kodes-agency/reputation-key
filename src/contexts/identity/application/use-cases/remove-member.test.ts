@@ -50,8 +50,8 @@ const MEMBER_RECORD: MemberRecord = {
   userId: 'user-target',
   email: 'target@test.com',
   name: 'Target Member',
-  role: 'Member',
-  rawRole: 'member',
+  role: 'PropertyManager',
+  rawRole: 'admin',
   image: null,
   createdAt: new Date('2026-01-01'),
 }
@@ -68,6 +68,35 @@ const ADMIN_MEMBER: MemberRecord = {
 }
 
 describe('removeMember', () => {
+  it('directs a staff-only login to Staff without removing access', async () => {
+    const target = { ...MEMBER_RECORD, role: 'Member' as const, rawRole: 'member' }
+    const h = setup([target, ADMIN_MEMBER])
+    await expect(
+      h.useCase({ memberId: target.id }, buildTestAuthContext({ role: 'AccountAdmin' })),
+    ).rejects.toThrow('Remove this person from Staff')
+    expect(h.commandStore.memberById(target.id)).not.toBeNull()
+    expect(h.outbox.facts).toEqual([])
+  })
+  it('keeps the manager membership when staff cleanup fails and completes on retry', async () => {
+    const h = setup([MEMBER_RECORD, ADMIN_MEMBER])
+    const cleanup = vi
+      .fn()
+      .mockRejectedValueOnce(new Error('Staff removal is unfinished'))
+      .mockResolvedValue(undefined)
+    const remove = removeMember({
+      identity: h.identity,
+      commandStore: h.commandStore,
+      clock: () => FIXED_TIME,
+      removeStaffForMemberDeparture: cleanup,
+    })
+    const ctx = buildTestAuthContext({ role: 'AccountAdmin' })
+    await expect(remove({ memberId: MEMBER_RECORD.id }, ctx)).rejects.toThrow(
+      'Staff removal is unfinished',
+    )
+    expect(h.commandStore.memberById(MEMBER_RECORD.id)).not.toBeNull()
+    expect(await remove({ memberId: MEMBER_RECORD.id }, ctx)).toEqual({ success: true })
+    expect(cleanup).toHaveBeenCalledWith(MEMBER_RECORD.userId, ctx)
+  })
   it('allows AccountAdmin to remove a member', async () => {
     const { useCase, outbox, commandStore } = setup([MEMBER_RECORD, ADMIN_MEMBER])
     const ctx = buildTestAuthContext({ role: 'AccountAdmin' })

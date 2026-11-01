@@ -1,5 +1,6 @@
 import {
   removeStaffMember,
+  removeStaffForMemberDeparture,
   renameStaffMember,
   resendStaffInvitation,
 } from '../application/use-cases/manage-staff-accounts'
@@ -59,6 +60,7 @@ async function setup(fault?: StaffOnboardingStep) {
     [randomUUID(), row.organizationId, row.inviterId, 'owner', NOW],
   )
   const ctx = buildTestAuthContext({
+    role: 'AccountAdmin',
     organizationId: organizationId(row.organizationId),
     userId: userId(row.inviterId),
   })
@@ -74,8 +76,8 @@ async function setup(fault?: StaffOnboardingStep) {
   const base = createStaffAccountStore(db, () => NOW, lease.pool)
   const decorate = (store: typeof base): typeof base => ({
     ...store,
-    withAddressLock: (email, run) =>
-      store.withAddressLock(email, (locked) => run(decorate(locked))),
+    withAddressLock: (org, email, run) =>
+      store.withAddressLock(org, email, (locked) => run(decorate(locked))),
     createPerson: async (operation) => {
       await store.createPerson(operation)
       fail('person')
@@ -92,16 +94,26 @@ async function setup(fault?: StaffOnboardingStep) {
   })
   const deps: StaffAccountDeps = {
     store: decorate(base),
+    spendAddressCheckBudget: async () => undefined,
+    reportDeliveryFailure: () => undefined,
     idGen: randomUUID,
     authorizeProperty: async () => undefined,
     invitationBudget: async () => 20,
     spendInvitationBudget: async () => undefined,
     deliverAccess: async () => undefined,
     portals: {
+      archiveForMemberDeparture: async () => undefined,
       check: async () => ({ omittedLinks: [] }),
       rename: async (input, _ctx, transaction) => {
         await (transaction as Tx).execute(
-          sql`UPDATE portals SET name = ${input.displayName} WHERE organization_id = ${row.organizationId} AND id = ANY(${[...input.portalIds]}::uuid[])`,
+          sql`UPDATE portals SET name = ${input.displayName} WHERE organization_id = ${row.organizationId} AND id IN (${
+            input.portalIds.length
+              ? sql.join(
+                  input.portalIds.map((id) => sql`${id}::uuid`),
+                  sql`, `,
+                )
+              : sql`NULL::uuid`
+          })`,
         )
       },
       create: async (input) => {
@@ -136,6 +148,180 @@ async function setup(fault?: StaffOnboardingStep) {
 }
 
 describe.sequential('staff onboarding checkpoints and constraints (PostgreSQL)', () => {
+  it('cannot create a staff link across a concurrent membership deletion', async () => {
+    const h = await setup()
+    await seedStaffAccountUser(lease.pool, h.row)
+    const memberId = randomUUID()
+    await lease.pool.query(
+      'INSERT INTO member (id, "organizationId", "userId", role, "createdAt") VALUES ($1,$2,$3,\'admin\',$4)',
+      [memberId, h.row.organizationId, h.row.userId, NOW],
+    )
+    const client = await lease.pool.connect()
+    try {
+      await client.query('BEGIN')
+      await client.query('DELETE FROM member WHERE id = $1', [memberId])
+      const result = db
+        .transaction((tx) =>
+          linkStaffInvitation(tx, {
+            organizationId: h.row.organizationId,
+            participationId: h.row.participationId,
+            userId: h.row.userId,
+            actorId: h.row.inviterId,
+            at: NOW,
+          }),
+        )
+        .then(
+          () => ({ linked: true, error: null }),
+          (error: unknown) => ({ linked: false, error }),
+        )
+      await client.query('COMMIT')
+      expect(await result).toMatchObject({
+        linked: false,
+        error: {
+          message: 'This staff invitation has ended. Ask your manager to add you again',
+        },
+      })
+      expect(
+        (
+          await lease.pool.query(
+            'SELECT id FROM staff_user_links WHERE organization_id = $1',
+            [h.row.organizationId],
+          )
+        ).rows,
+      ).toEqual([])
+    } finally {
+      await client.query('ROLLBACK')
+      client.release()
+    }
+  })
+  it('keeps a manager login until a failed staff departure is retried and its Portal archived', async () => {
+    const h = await setup()
+    await seedStaffAccountUser(lease.pool, h.row)
+    await lease.pool.query('DELETE FROM invitation WHERE id = $1', [h.row.invitationId])
+    const memberId = randomUUID()
+    await lease.pool.query(
+      'INSERT INTO member (id, "organizationId", "userId", role, "createdAt") VALUES ($1,$2,$3,\'admin\',$4)',
+      [memberId, h.row.organizationId, h.row.userId, NOW],
+    )
+    const added = await addStaffMember(h.deps)({ ...h.input, email: h.row.email }, h.ctx)
+    expect(added.status).toBe('done')
+    await lease.pool.query(
+      'INSERT INTO session (id, "userId", token, "expiresAt", "createdAt", "updatedAt") VALUES ($1,$2,$3,$4,$5,$5)',
+      [randomUUID(), h.row.userId, randomUUID(), new Date(NOW.getTime() + 86400000), NOW],
+    )
+    const commands = createAtomicIdentityCommandStore(db, randomUUID)
+    const command = {
+      organizationId: h.ctx.organizationId,
+      memberId,
+      event: identityMemberRemoved({
+        organizationId: h.ctx.organizationId,
+        userId: userId(h.row.userId),
+        removedBy: h.ctx.userId,
+        occurredAt: NOW,
+      }),
+    }
+    await expect(commands.removeMember(command)).rejects.toThrow(
+      'Staff removal is unfinished',
+    )
+    let fail = true
+    const depart = removeStaffForMemberDeparture({
+      ...h.deps,
+      management: createStaffManagementStore(db, () => NOW),
+      removeLogin: async () => {
+        throw new Error('Manager cleanup must not remove the login itself')
+      },
+      portals: {
+        ...h.deps.portals,
+        archiveForMemberDeparture: async (id) => {
+          if (fail) {
+            fail = false
+            throw new Error('Portal unavailable')
+          }
+          await lease.pool.query(
+            "UPDATE portals SET publication_state = 'archived' WHERE id = $1",
+            [id],
+          )
+        },
+      },
+    })
+    await expect(depart(h.row.userId, h.ctx)).rejects.toThrow(
+      'Staff removal is unfinished',
+    )
+    expect(
+      (await lease.pool.query('SELECT id FROM member WHERE id = $1', [memberId])).rows,
+    ).toHaveLength(1)
+    expect(
+      (
+        await lease.pool.query('SELECT id FROM session WHERE "userId" = $1', [
+          h.row.userId,
+        ])
+      ).rows,
+    ).toHaveLength(1)
+    await depart(h.row.userId, h.ctx)
+    expect(
+      (
+        await lease.pool.query('SELECT publication_state FROM portals WHERE id = $1', [
+          added.portalId,
+        ])
+      ).rows,
+    ).toEqual([{ publication_state: 'archived' }])
+    await commands.removeMember(command)
+    expect(
+      (await lease.pool.query('SELECT id FROM member WHERE id = $1', [memberId])).rows,
+    ).toEqual([])
+    expect(
+      (
+        await lease.pool.query('SELECT id FROM session WHERE "userId" = $1', [
+          h.row.userId,
+        ])
+      ).rows,
+    ).toEqual([])
+  })
+  it('leaves legacy participations to the existing archive and out of the staff-account roster', async () => {
+    const h = await setup()
+    await lease.pool.query(
+      'UPDATE staff_participations SET personal_portal_id = NULL WHERE id = $1',
+      [h.row.participationId],
+    )
+    const management = createStaffManagementStore(db, () => NOW)
+    expect(
+      await management.target(h.row.organizationId, h.row.participationId),
+    ).toBeNull()
+    expect(await management.list(h.row.organizationId, h.row.propertyId)).toEqual([])
+    await createStaffParticipationRepository(db).archive(
+      h.row.organizationId,
+      h.row.participationId,
+      NOW,
+      'removed',
+      1,
+    )
+  })
+  it.each(['member', 'admin'])(
+    'refuses a pending %s invitation at another Property before creating a setup',
+    async (role) => {
+      const h = await setup()
+      await lease.pool.query('UPDATE invitation SET role = $2 WHERE id = $1', [
+        h.row.invitationId,
+        role,
+      ])
+      const propertyId = randomUUID()
+      await lease.pool.query(
+        "INSERT INTO properties (id, organization_id, name, slug, timezone) VALUES ($1::uuid,$2,'Second Property',$1::text,'UTC')",
+        [propertyId, h.row.organizationId],
+      )
+      await expect(
+        addStaffMember(h.deps)({ ...h.input, propertyId, email: h.row.email }, h.ctx),
+      ).rejects.toMatchObject({ code: 'already_invited' })
+      expect(
+        (
+          await lease.pool.query(
+            'SELECT id FROM staff_onboardings WHERE organization_id = $1',
+            [h.row.organizationId],
+          )
+        ).rows,
+      ).toEqual([])
+    },
+  )
   it.each([true, false])(
     'preserves the returning person on an old removal retry (completed: %s)',
     async (completed) => {
@@ -431,7 +617,7 @@ describe.sequential('staff onboarding checkpoints and constraints (PostgreSQL)',
     ])
     expect(results.filter((result) => result.status === 'fulfilled')).toHaveLength(1)
     expect(results.find((result) => result.status === 'rejected')).toMatchObject({
-      reason: { code: 'already_staff_here' },
+      reason: { code: 'already_invited' },
     })
     expect(
       (
