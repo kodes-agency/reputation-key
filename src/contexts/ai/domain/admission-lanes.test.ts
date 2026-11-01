@@ -19,6 +19,9 @@ import { REVIEW_ANALYSIS_V3_LOGICAL_PROFILE } from '#/shared/review-analysis-v3-
 // input tokens, 3,773 each).
 const V2_ANALYSIS_INPUT_TOKENS = 600
 const V3_ANALYSIS_INPUT_TOKENS = 3_800
+// A reply draft, as the provider counts it: an upper bound on its input read from
+// the beta's charges on 2026-11-01 (at most 825 micros), plus its output ceiling.
+const V2_DRAFT_TOKENS = 5_000 + 2_048
 
 describe('AI admission lanes', () => {
   it('gives every scope and lane a positive integer budget', () => {
@@ -49,7 +52,14 @@ describe('AI admission lanes', () => {
     }
   })
 
-  it('keeps both global lanes under half of the provider account limits', () => {
+  it('lets one manager use every draft button back to back within a minute', () => {
+    // A draft takes about ten seconds (`gpt-6-luna`, medium effort, on the beta,
+    // 2026-11-01), so Draft, Shorter, Tone and Try again straight through ask for
+    // six a minute. A manager should never be told others are busy for that.
+    expect(AI_ADMISSION_RATE_PER_MINUTE.property.interactive).toBeGreaterThanOrEqual(6)
+  })
+
+  it('keeps the global lanes well inside the provider account limits', () => {
     // v2 is retired and its profile stays; v3 is the analysis that runs. The
     // larger of the two bounds what the lane may admit.
     const v2 = AI_OPERATION_PROFILES.find(
@@ -68,6 +78,9 @@ describe('AI admission lanes', () => {
     expect(global.background * analysisTokens).toBeLessThanOrEqual(
       AI_PROVIDER_ACCOUNT_LIMITS_PER_MINUTE.tokens / 2,
     )
+    expect(
+      global.background * analysisTokens + global.interactive * V2_DRAFT_TOKENS,
+    ).toBeLessThanOrEqual(AI_PROVIDER_ACCOUNT_LIMITS_PER_MINUTE.tokens * 0.6)
   })
 
   it('holds an in-flight slot longer than any admitted request deadline', () => {

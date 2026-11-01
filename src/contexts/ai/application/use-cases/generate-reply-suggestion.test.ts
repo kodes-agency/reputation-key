@@ -1774,6 +1774,25 @@ describe('dark reply v2 rewrite orchestration', () => {
     })
     expect(h.base.mocks.settleEphemeralReply).toHaveBeenCalledTimes(1)
   })
+  it('says the draft failed, not that others are busy, when its rewrite finds the lane full', async () => {
+    const h = createV2Harness(['hard', 'accepted'])
+    vi.mocked(h.base.mocks.acquire)
+      .mockResolvedValueOnce({
+        ok: true,
+        admissionId: 'first-admission',
+        expiresAtEpochMillis: NOW + 90_000,
+      })
+      .mockResolvedValue({
+        ok: false,
+        code: 'admission_busy',
+        retryAfterEpochMillis: NOW + 60_000,
+      })
+    expect(await h.generate(INPUT)).toMatchObject({
+      status: 'unavailable',
+      code: 'provider_unavailable',
+    })
+    expect(h.generateReply).toHaveBeenCalledTimes(1)
+  })
   it('keeps actual rejected body and avoidance values out of rewrite, logs, events and stored rows', async () => {
     const h = createV2Harness(['hard', 'accepted'])
     const stdout = vi.spyOn(process.stdout, 'write').mockImplementation(() => true)

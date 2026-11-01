@@ -57,12 +57,33 @@ describe('reply v2 provider preparation and acceptance', () => {
       'invitation',
       { ...OUTPUT, replyText: 'We are sorry. Call us about the wait, please.' },
     ],
+    [
+      'symbols',
+      {
+        ...OUTPUT,
+        replyText: 'We are sorry about the wait;the room was not ready on time.',
+      },
+    ],
   ])('attributes %s using controlled codes only', (reason, output) => {
     const refused = vi.fn()
     const prepared = preparer('en', refused).prepare(replyV2Request())
     expect(prepared.acceptProviderResult(output)).toBeNull()
     expect(refused).toHaveBeenCalledWith({ route: 'reply-suggestion', reason })
     expect(JSON.stringify(refused.mock.calls)).not.toContain(output.replyText)
+  })
+
+  it('accepts a prose semicolon without a refusal or a rewrite', () => {
+    const refused = vi.fn()
+    const prepared = preparer('en', refused).prepare(replyV2Request())
+    expect(
+      prepared.acceptProviderResult({
+        ...OUTPUT,
+        replyText:
+          'We are sorry the wait took so long; your time should have been treated with more care.',
+      }),
+    ).not.toBeNull()
+    expect(refused).not.toHaveBeenCalled()
+    expect(prepared.repairIssues?.()).toEqual([])
   })
 
   it('attributes unavailable scanners without a rewrite', () => {

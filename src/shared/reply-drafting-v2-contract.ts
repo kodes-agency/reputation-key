@@ -45,6 +45,7 @@ export const REPLY_DRAFTING_V2_PROFILE_DIGEST = createHash('sha256')
     canonicalizeRfc8785({
       version: REPLY_DRAFTING_V2_VERSIONS.profile,
       languages: REPLY_DRAFTING_V2_LANGUAGES,
+      bodyNormalization: 'nfkc;collapse-whitespace;prose-semicolon-to-full-stop',
       historicalCommitmentAuthority: AI_PERSONALIZED_REPLY_PROFILE_DIGEST,
       spanish: [SPANISH_COMMITMENTS, SPANISH_FREE].map((p) => p.toString()),
       schema: {
@@ -85,6 +86,23 @@ function languageOf(tag: string): Language | null {
   return group === 'bg-Cyrl' ? 'bg' : null
 }
 
+/**
+ * What the provider writes by habit and the output scanner refuses, settled here
+ * so that it costs neither a second provider call nor the manager's wait. The
+ * scanner then reads the text that will be delivered, so it is as strict as ever.
+ * Only prose changes: a semicolon glued between two tokens is not punctuation, so
+ * it stays and is refused.
+ */
+export function normalizeReplyDraftingV2Body(text: string): string {
+  return text
+    .normalize('NFKC')
+    .replace(/\s+/gu, ' ')
+    .replace(/ ?;+( (\p{L})?|$)/gu, (_match, gap: string, letter?: string) =>
+      gap ? `. ${letter?.toUpperCase() ?? ''}` : '.',
+    )
+    .trim()
+}
+
 /** Metadata and rejected bodies never leave this acceptance seam. */
 export function acceptReplyDraftingV2(
   input: Readonly<{
@@ -98,7 +116,10 @@ export function acceptReplyDraftingV2(
 ): ReplyDraftingV2Acceptance {
   const parsed = replyDraftingV2OutputSchema.safeParse(input.output)
   if (!parsed.success) return { status: 'refused', reason: 'shape' }
-  const draft = parsed.data
+  const draft = {
+    ...parsed.data,
+    replyText: normalizeReplyDraftingV2Body(parsed.data.replyText),
+  }
   const language = languageOf(input.targetLanguageTag)
   if (language === null || language !== languageOf(draft.languageCode))
     return { status: 'refused', reason: 'language' }
@@ -132,7 +153,12 @@ export function acceptReplyDraftingV2(
     hasSpanishReplyCommitment(draft.replyText)
   )
     findings.push(replyBodyFinding('prohibited_content'))
-  if (scan !== 'safe') findings.push(replyBodyFinding('private_data'))
+  // A forbidden character is not private data, and saying so is what lets the
+  // rewrite fix it: its instruction is all the provider is told.
+  if (scan === 'forbidden_scalar') {
+    if (!findings.some(({ code }) => code === 'symbols'))
+      findings.push(replyBodyFinding('symbols'))
+  } else if (scan !== 'safe') findings.push(replyBodyFinding('private_data'))
   if (findings.some((finding) => finding.severity === 'hard'))
     return { status: 'hard_failure', findings }
   return { status: 'accepted', draft, findings }

@@ -779,6 +779,7 @@ export function createGenerateReplySuggestion(
               variation: binding.replyDraftingV2?.options.variation,
             }),
           refused: unavailable('provider_unavailable', retryAtEpochMillis),
+          isBusy: (result) => result.status === 'unavailable' && result.code === 'busy',
         })
       }
       const currentness = await isReplySuggestionStillCurrent(
