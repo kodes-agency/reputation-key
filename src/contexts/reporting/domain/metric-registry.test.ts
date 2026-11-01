@@ -140,7 +140,6 @@ describe('MetricRegistry', () => {
       // all five measures, so no measure may be Portal-only in the registry.
       const resultsMeasures = [
         METRIC_VERSION_IDS.qualifiedScanGoal,
-        METRIC_VERSION_IDS.portalRatingAnalytics,
         METRIC_VERSION_IDS.portalRatingCountGoal,
         METRIC_VERSION_IDS.portalRatingAverageGoal,
         METRIC_VERSION_IDS.portalDestinationClickAnalytics,
@@ -182,10 +181,9 @@ describe('MetricRegistry', () => {
       })
     })
 
-    it('keeps the widened measures private to Portal analytics', () => {
+    it('keeps notes and destination actions private to Portal analytics', () => {
       // Widening the scope is not widening the audience.
       const widened = [
-        METRIC_VERSION_IDS.portalRatingAnalytics,
         METRIC_VERSION_IDS.portalDestinationClickAnalytics,
         METRIC_VERSION_IDS.portalFeedbackAnalytics,
       ]
@@ -195,5 +193,26 @@ describe('MetricRegistry', () => {
         ])
       }
     })
+  })
+})
+
+describe('staff self metric audience', () => {
+  it('permits only numeric own-Portal reads, with worker linkage and no employment use', () => {
+    const allowed = [
+      METRIC_VERSION_IDS.qualifiedScanGoal,
+      METRIC_VERSION_IDS.portalRatingAnalytics,
+      METRIC_VERSION_IDS.portalRatingCountGoal,
+      METRIC_VERSION_IDS.portalRatingAverageGoal,
+    ]
+    const versions = METRIC_DEFINITIONS.flatMap((entry) => entry.versions).filter(
+      (version) => version.permittedConsumers.includes('staff_self'),
+    )
+    expect(versions.map((version) => version.id).sort()).toEqual([...allowed].sort())
+    for (const id of allowed) {
+      const metric = findMetricVersionById(id)!
+      expect(metric.definition.workerDataFlag).toBe(true)
+      expect(metric.version.employmentDecisionEligible).toBe(false)
+      expect(isGamificationViolation(metric.version)).toBe(false)
+    }
   })
 })

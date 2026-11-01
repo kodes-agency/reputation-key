@@ -42,6 +42,7 @@ export type RateLimitCheckOptions = Readonly<{
 export type RateLimiter = Readonly<{
   /** Check if a request with the given key is allowed. */
   check(key: string, override?: RateLimitCheckOptions): Promise<RateLimitResult>
+  remaining?(key: string, limits: RateLimitCheckOptions): Promise<number>
 }>
 
 // Atomic Lua script: increment the counter and ensure it has a TTL. The
@@ -76,6 +77,15 @@ export function createRateLimiter(
   }
 
   return {
+    async remaining(key, limits) {
+      if (!redis) return failClosed ? 0 : limits.maxRequests
+      try {
+        const count = Number((await redis.get(`${opts.keyPrefix}:${key}`)) ?? 0)
+        return Math.max(0, limits.maxRequests - count)
+      } catch {
+        return failClosed ? 0 : limits.maxRequests
+      }
+    },
     async check(key: string, override?: RateLimitCheckOptions): Promise<RateLimitResult> {
       const limits = override ?? opts
       if (!redis) {

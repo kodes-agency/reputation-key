@@ -125,6 +125,8 @@ export const staffUserLinks = pgTable(
     effectiveTo: timestamp('effective_to', { withTimezone: true }),
     createdBy: varchar('created_by', { length: 255 }).notNull(),
     endReason: text('end_reason'),
+    noticeVersion: varchar('notice_version', { length: 64 }),
+    noticeAcknowledgedAt: timestamp('notice_acknowledged_at', { withTimezone: true }),
   },
   (t) => [
     index('staff_user_links_org_participant_idx').on(
@@ -164,6 +166,7 @@ export const staffParticipations = pgTable(
     // Compatibility shadow for the legacy login-bound reader. New beta writes
     // leave this null and identify the person through staffParticipantId.
     userId: varchar('user_id', { length: 255 }),
+    personalPortalId: uuid('personal_portal_id'),
     displayName: varchar('display_name', { length: 255 }).notNull(),
     status: participationStatusEnum('status').notNull().default('active'),
     startedAt: timestamp('started_at', { withTimezone: true }).notNull().defaultNow(),
@@ -175,6 +178,14 @@ export const staffParticipations = pgTable(
     updatedAt: updatedAtColumn(),
   },
   (t) => [
+    uniqueIndex('sp_unique_active_personal_portal')
+      .on(t.organizationId, t.propertyId, t.personalPortalId)
+      .where(sql`status = 'active' AND personal_portal_id IS NOT NULL`),
+    foreignKey({
+      name: 'sp_personal_portal_tenant_fk',
+      columns: [t.organizationId, t.propertyId, t.personalPortalId],
+      foreignColumns: [portals.organizationId, portals.propertyId, portals.id],
+    }).onDelete('restrict'),
     index('sp_org_prop_user_idx').on(t.organizationId, t.propertyId, t.userId),
     uniqueIndex('sp_unique_active')
       .on(t.organizationId, t.propertyId, t.userId)

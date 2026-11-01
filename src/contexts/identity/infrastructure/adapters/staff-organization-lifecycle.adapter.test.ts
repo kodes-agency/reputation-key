@@ -4,6 +4,8 @@ import { STAFF_LIFECYCLE_TABLES } from './staff-organization-lifecycle.adapter'
 describe('Staff Organization lifecycle contribution', () => {
   it('names the exact reviewed Staff tables in FK-safe delete order', () => {
     expect(STAFF_LIFECYCLE_TABLES).toEqual([
+      'staff_onboardings',
+      'staff_property_settings',
       'portal_responsibilities',
       'portal_group_memberships',
       'staff_participations',

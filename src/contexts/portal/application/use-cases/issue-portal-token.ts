@@ -4,6 +4,7 @@ import type { PortalRepository } from '../ports/portal.repository'
 import type { PortalTokenRepository } from '../ports/portal-token.repository'
 import type { PortalTokenCodec } from '../ports/portal-token-codec.port'
 import type { PortalAddressCipher } from '../ports/portal-address-cipher.port'
+import type { PortalAddressRepository } from '../ports/portal-address.repository'
 import type { PrintCodeReporter } from '../ports/print-code-reporter.port'
 import {
   portalPublicUrls,
@@ -146,3 +147,53 @@ export const issuePortalToken =
   }
 
 export type IssuePortalToken = ReturnType<typeof issuePortalToken>
+
+/** A checkpoint retry must keep the existing code recoverable for its person. */
+export const ensurePersonalPortalToken =
+  (
+    deps: IssuePortalTokenDeps & Readonly<{ portalAddressRepo: PortalAddressRepository }>,
+  ) =>
+  async (input: Readonly<{ portalId: string }>, ctx: AuthContext): Promise<void> => {
+    if (!deps.addressCipher)
+      throw portalError(
+        'address_keyring_missing',
+        'Configure Portal address recovery before adding staff',
+      )
+    const portal = await loadPortalOrThrow(deps, ctx, portalId(input.portalId), {
+      permission: 'staff.invite',
+      forbiddenMessage: 'This account cannot add staff',
+    })
+    if (portal.kind !== 'personal')
+      throw portalError('forbidden', 'Choose a personal Portal')
+    const latest = await deps.portalTokenRepo.findLatestForPortal(
+      ctx.organizationId,
+      portal.id,
+    )
+    if (!latest || latest.status === 'revoked') {
+      await issuePortalToken(deps)(input, ctx)
+      return
+    }
+    const address = await deps.portalAddressRepo.findRevealable(
+      ctx.organizationId,
+      portal.id,
+    )
+    if (!address || !deps.addressCipher.canOpen(address.sealed.keyVersion))
+      throw portalError(
+        'address_keyring_missing',
+        'Restore the address recovery key before continuing staff setup',
+      )
+    try {
+      deps.addressCipher.open(address.sealed, {
+        organizationId: ctx.organizationId,
+        propertyId: portal.propertyId,
+        portalId: portal.id,
+        tokenId: address.tokenId,
+        version: address.version,
+      })
+    } catch {
+      throw portalError(
+        'address_keyring_missing',
+        'Restore the address recovery key before continuing staff setup',
+      )
+    }
+  }

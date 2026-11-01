@@ -45,6 +45,11 @@ export const softDeletePortal =
       existing.propertyId,
     )
 
+    if (existing.kind === 'personal')
+      throw portalError(
+        'personal_portal_archive_locked',
+        'Remove this person from Staff to close their Portal',
+      )
     const occurredAt = deps.clock()
     const revision = nextPortalCommandAt(occurredAt, existing.updatedAt)
     await deps.commandStore.deletePortal({

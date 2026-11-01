@@ -46,3 +46,4 @@ Missing numbers are retired, merged, or never issued: `0001–0006`, `0009–001
 | [0073](0073-reply-voice-and-shared-reply-templates.md)                    | Reply voice and shared reply templates                          | accepted | —             |
 | [0074](0074-merchant-ai-consent-follows-the-notice.md)                    | Merchant AI consent follows the notice                          | accepted | —             |
 | [0075](0075-standing-ai-opt-in-renews-automatically.md)                   | A standing AI opt-in renews automatically                       | accepted | —             |
+| [0076](0076-staff-accounts-and-personal-portals.md)                       | Staff accounts and personal Portals                             | accepted | —             |

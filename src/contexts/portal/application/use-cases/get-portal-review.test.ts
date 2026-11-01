@@ -88,6 +88,7 @@ type Options = Readonly<{
   /** The live version's number (lower than the newest when an older one was made live again). */
   liveVersion?: number
   role?: 'AccountAdmin' | 'PropertyManager' | 'Member'
+  readOnly?: boolean
 }>
 
 function setup(options: Options = {}) {
@@ -264,7 +265,15 @@ function setup(options: Options = {}) {
     historyRepo,
     actorDirectory,
     useCase: getPortalReview(deps),
-    ctx: buildTestAuthContext({ role: options.role ?? 'PropertyManager' }),
+    ctx: buildTestAuthContext({
+      role: options.role ?? 'PropertyManager',
+      ...(options.readOnly
+        ? {
+            effectivePermissions: new Set(['portal.read'] as const),
+            scopeByPermission: new Map([['portal.read', 'organization']] as const),
+          }
+        : {}),
+    }),
   }
 }
 
@@ -448,7 +457,8 @@ describe('getPortalReview', () => {
 
   it('does not offer to publish to someone who may only read the Portal', async () => {
     const harness = setup({
-      role: 'Member',
+      role: 'PropertyManager',
+      readOnly: true,
       workingCopy: { privateFeedbackThreshold: 4 },
     })
 

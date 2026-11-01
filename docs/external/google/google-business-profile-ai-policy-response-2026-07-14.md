@@ -54,6 +54,8 @@ The verbatim response below was supplied by the product owner. Repository mainta
 
 This satisfies the external written-clarification gate for the described Phase 17 and per-property Phase 18 design. It does not complete the internal implementation gate: ADR 0031, executable source policy, provider review, merchant consent, raw-content lifecycle, PII redaction, regional routing, and release evidence remain required.
 
+**2026-11-01 — ADR 0076.** RepKey permits scans to drive a scan target on a person's personal Portal or a Portal Group holding one. No Google fact, rating or click may drive that target. No badge or leaderboard exists. This dated product decision narrows the scan-target disposition above; the original response and its recorded disposition row are unchanged.
+
 ## 4. Executable policy baseline
 
 ADR 0031 and `SourceContentPolicy` should encode at least the following versioned decisions:

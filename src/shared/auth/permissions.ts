@@ -35,7 +35,7 @@ export const statement = {
     'import_gbp_v2',
     'read_gbp_performance',
   ],
-  staff: ['read', 'manage'],
+  staff: ['read', 'manage', 'self', 'invite', 'remove', 'settings'],
   ac: ['create', 'read', 'update', 'delete'],
   // `admin` is Property-wide Portal authority (brand and custom destination
   // approval). It is narrower than ordinary Portal mutation permission.
@@ -87,7 +87,7 @@ export const admin = ac.newRole({
   member: ['list'],
   dashboard: ['read', 'fleet_read'],
   property: ['read', 'create', 'update', 'admin', 'read_gbp_performance'],
-  staff: ['read', 'manage'],
+  staff: ['read', 'manage', 'self', 'invite', 'remove'],
   portal: ['read', 'create', 'update'],
   review: ['read'],
   reply: ['manage'],
@@ -106,20 +106,8 @@ export const admin = ac.newRole({
 })
 
 export const memberRole = ac.newRole({
-  property: ['read'],
-  review: ['read'],
-  dashboard: ['read'],
-  portal: ['read'],
-  staff: ['read'],
-  notification: ['read', 'update'],
-  inbox: ['read', 'write'],
-  identity: [
-    'avatar_upload',
-    'leave_org',
-    'password.change',
-    'profile.update',
-    'avatar.set',
-  ],
+  staff: ['self'],
+  identity: ['avatar_upload', 'password.change', 'profile.update', 'avatar.set'],
 })
 
 // ── Build and inject the permission table ──────────────────────────

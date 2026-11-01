@@ -131,6 +131,7 @@ export type CancelInvitationCommand = Readonly<{
  * `member_not_found` — both record NO fact.
  */
 export type RemoveMemberCommand = Readonly<{
+  staffOnly?: boolean
   organizationId: OrganizationId
   memberId: string
   event: IdentityMemberRemoved

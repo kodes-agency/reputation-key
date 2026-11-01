@@ -483,3 +483,20 @@ export const productUpdateKeys = {
   scope: (propertyId: string | null) =>
     [...productUpdateKeys.all, propertyId ?? 'organization'] as const,
 }
+
+/** Staff reads never alias a manager query, another participation or a rating cutoff. */
+export const staffSelfKeys = {
+  all: ['staff-self'] as const,
+  home: (userId: string) => [...staffSelfKeys.all, 'home', userId] as const,
+  code: (participationId: string) =>
+    [...staffSelfKeys.all, participationId, 'code'] as const,
+  results: (
+    participationId: string,
+    period: 'today' | 'week' | 'month',
+    ratingsCutoff: string,
+  ) => [...staffSelfKeys.all, participationId, 'results', period, ratingsCutoff] as const,
+  goals: (participationId: string) =>
+    [...staffSelfKeys.all, participationId, 'goals'] as const,
+  colleagues: (participationId: string, period: 'today' | 'week' | 'month') =>
+    [...staffSelfKeys.all, participationId, 'colleagues', period] as const,
+}

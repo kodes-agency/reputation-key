@@ -1,3 +1,4 @@
+import { assertPersonalGoalAssignments } from './personal-goal-assignment-guard'
 import { and, asc, desc, eq, gt, inArray, isNull, ne, or, sql } from 'drizzle-orm'
 import type { Database } from '#/shared/db'
 import { auditLogs } from '#/shared/db/schema/audit'
@@ -169,6 +170,7 @@ async function reviseInTx(
   tx: Tx,
   input: Parameters<GoalProgramRepository['revise']>[0],
 ): Promise<boolean> {
+  await assertPersonalGoalAssignments(tx, input.version, input.assignments)
   const [program] = await tx
     .update(goalPrograms)
     .set({
@@ -353,6 +355,7 @@ export const createGoalProgramRepository = (db: Database): GoalProgramRepository
       const { bundle } = input
       const write = () =>
         db.transaction(async (tx) => {
+          await assertPersonalGoalAssignments(tx, bundle.version, bundle.assignments)
           await tx.insert(goalPrograms).values(programValues(bundle.program))
           await tx.insert(goalProgramVersions).values(versionValues(bundle.version))
           if (bundle.assignments.length > 0) {

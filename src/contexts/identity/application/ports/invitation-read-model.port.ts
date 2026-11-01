@@ -12,6 +12,7 @@ export type InvitationPreviewRow = Readonly<{
   organizationId: OrganizationId
   organizationName: string
   email: string
+  staffParticipationId?: string | null
   role: string | null
   status: string
   expiresAt: Date

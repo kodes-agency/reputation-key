@@ -19,7 +19,7 @@ describe('createMetricRegistryRepository', () => {
         id: '11111111-1111-4111-8111-111111110303',
         key: 'portal.rating_average',
         name: 'Portal rating average',
-        privacyClass: 'deidentified_guest_gateway_numeric',
+        privacyClass: 'guest_gateway_numeric_with_worker_link',
       }),
       version: expect.objectContaining({
         id: METRIC_VERSION_IDS.portalRatingAverageGoal,
@@ -34,6 +34,7 @@ describe('createMetricRegistryRepository', () => {
           'notification',
           'export',
           'portal_analytics',
+          'staff_self',
         ],
         employmentDecisionEligible: false,
       }),

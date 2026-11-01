@@ -61,6 +61,17 @@ export function createInMemoryPortalAddressRepo(): InMemoryPortalAddressRepo {
         portalId: unbrand(input.portalId),
       }
       if (live.get(keyOf(scope))?.tokenId !== input.tokenId) return false
+      if (
+        input.oncePerUserToken &&
+        recorded.some(
+          (row) =>
+            row.organizationId === input.organizationId &&
+            row.tokenId === input.tokenId &&
+            row.downloadedBy === input.downloadedBy &&
+            row.purpose === input.purpose,
+        )
+      )
+        return true
       recorded.push({
         ...scope,
         tokenId: input.tokenId,

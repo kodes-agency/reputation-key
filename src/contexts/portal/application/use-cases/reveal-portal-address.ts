@@ -1,3 +1,4 @@
+import type { Portal } from '../../domain/types'
 // Portal context — "Download again" (round 4, slice 33; ADR 0064).
 //
 // Hands a manager the address of the Portal's live code, decrypted from the
@@ -67,61 +68,69 @@ export const revealPortalAddress =
       permission: 'portal.update',
       forbiddenMessage: 'Insufficient permissions to download portal codes',
     })
-    const { addressCipher } = deps
-    if (addressCipher === null) throw unavailable()
+    return revealLoadedPortalAddress(deps, input, portal, ctx)
+  }
 
-    const live = await deps.portalAddressRepo.findRevealable(
-      ctx.organizationId,
-      portal.id,
-    )
-    if (live === null || !addressCipher.canOpen(live.sealed.keyVersion)) {
-      throw unavailable()
-    }
+/** Shared disclosure mechanics; authorization belongs to the two named callers. */
+export async function revealLoadedPortalAddress(
+  deps: RevealPortalAddressDeps,
+  input: Readonly<{ purpose: AddressDownloadPurpose; oncePerUserToken?: boolean }>,
+  portal: Portal,
+  ctx: AuthContext,
+): Promise<RevealedPortalAddress> {
+  const { addressCipher } = deps
+  if (addressCipher === null) throw unavailable()
 
-    const recorded = await deps.portalAddressRepo.recordDownload({
+  const live = await deps.portalAddressRepo.findRevealable(ctx.organizationId, portal.id)
+  if (live === null || !addressCipher.canOpen(live.sealed.keyVersion)) {
+    throw unavailable()
+  }
+
+  const recorded = await deps.portalAddressRepo.recordDownload({
+    organizationId: ctx.organizationId,
+    propertyId: portal.propertyId,
+    portalId: portal.id,
+    tokenId: live.tokenId,
+    downloadedBy: ctx.userId,
+    purpose: input.purpose,
+    oncePerUserToken: input.oncePerUserToken,
+    at: deps.clock(),
+  })
+  if (!recorded) throw unavailable()
+
+  let rawToken: string
+  try {
+    rawToken = addressCipher.open(live.sealed, {
+      organizationId: ctx.organizationId,
+      propertyId: live.propertyId,
+      portalId: portal.id,
+      tokenId: live.tokenId,
+      version: live.version,
+    })
+  } catch {
+    throw unavailable()
+  }
+  const printCodes = await revealedPrintCodes(
+    deps,
+    {
       organizationId: ctx.organizationId,
       propertyId: portal.propertyId,
       portalId: portal.id,
-      tokenId: live.tokenId,
-      downloadedBy: ctx.userId,
-      purpose: input.purpose,
-      at: deps.clock(),
-    })
-    if (!recorded) throw unavailable()
-
-    let rawToken: string
-    try {
-      rawToken = addressCipher.open(live.sealed, {
-        organizationId: ctx.organizationId,
-        propertyId: live.propertyId,
-        portalId: portal.id,
-        tokenId: live.tokenId,
-        version: live.version,
-      })
-    } catch {
-      throw unavailable()
-    }
-    const printCodes = await revealedPrintCodes(
-      deps,
-      {
-        organizationId: ctx.organizationId,
-        propertyId: portal.propertyId,
-        portalId: portal.id,
-      },
-      live,
-      rawToken,
-    )
-    const publicUrls = portalPublicUrls(deps.address, {
-      rawToken,
-      artifacts: live.accessArtifactIds,
-      printCodes,
-    })
-    return {
-      publicUrl: publicUrls.qr,
-      publicUrls,
-      version: live.version,
-      issuedAt: live.issuedAt,
-    }
+    },
+    live,
+    rawToken,
+  )
+  const publicUrls = portalPublicUrls(deps.address, {
+    rawToken,
+    artifacts: live.accessArtifactIds,
+    printCodes,
+  })
+  return {
+    publicUrl: publicUrls.qr,
+    publicUrls,
+    version: live.version,
+    issuedAt: live.issuedAt,
   }
+}
 
 export type RevealPortalAddress = ReturnType<typeof revealPortalAddress>

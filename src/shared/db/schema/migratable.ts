@@ -60,3 +60,5 @@ export * from './review-reputation.schema'
 export * from './reply-library.schema'
 export * from './review-sync.schema'
 export * from './product-updates.schema'
+
+export * from './staff-accounts.schema'

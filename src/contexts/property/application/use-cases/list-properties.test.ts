@@ -72,12 +72,12 @@ describe('listProperties', () => {
     expect(properties.map((p) => p.name).sort()).toEqual(['Hotel A', 'Hotel C'])
   })
 
-  it('filters to assigned properties for Member', async () => {
+  it('filters to assigned properties for PropertyManager', async () => {
     const propertyRepo = createInMemoryPropertyRepo()
     const p1 = buildTestProperty({ id: 'p1' })
     propertyRepo.seed([p1])
 
-    const ctx = buildTestAuthContext({ role: 'Member' })
+    const ctx = buildTestAuthContext({ role: 'PropertyManager' })
     const userAssignments = new Map([
       [ctx.userId as string, []], // no assignments
     ])

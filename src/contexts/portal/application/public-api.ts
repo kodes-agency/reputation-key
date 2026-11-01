@@ -342,6 +342,7 @@ export type PortalPublicApi = Readonly<{
     portalId: PortalId,
   ) => Promise<Readonly<{
     id: PortalId
+    kind?: 'place' | 'personal'
     name: string
     publicationState: 'draft' | 'published' | 'disabled' | 'archived'
   }> | null>
@@ -442,7 +443,7 @@ export type PortalPublicApi = Readonly<{
   /**
    * What the Monthly portal goal needs about a Property's Portals: live since
    * and live intervals, code, marker and group, for every non-archived Portal in
-   * name order, at most 100. No content; the caller has already authorized.
+   * name order, including the complete roster. No content; the caller has already authorized.
    */
   listGoalReadinessFacts: (
     orgId: OrganizationId,

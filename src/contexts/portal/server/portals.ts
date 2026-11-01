@@ -65,6 +65,8 @@ export const portalErrorStatus = (code: PortalErrorCode): number =>
       'link_limit_reached',
       'brand_profile_missing',
       'feature_unavailable',
+      'personal_portal_name_private',
+      'personal_portal_goal_locked',
       () => 409,
     )
     .with(
@@ -78,7 +80,16 @@ export const portalErrorStatus = (code: PortalErrorCode): number =>
     )
     .with('group_not_found', 'portal_not_in_group', () => 404)
     .with('group_name_taken', 'portal_already_grouped', () => 409)
-    .with('portal_inactive', () => 410)
+    .with(
+      'portal_inactive',
+      'personal_portal_rename_locked',
+      'personal_portal_archive_locked',
+      'personal_portal_restore_locked',
+      'source_has_unpublished_changes',
+      'source_archived',
+      'address_keyring_missing',
+      () => 410,
+    )
     .with('rate_limited', () => 429)
     .with(
       'invalid_publication_transition',

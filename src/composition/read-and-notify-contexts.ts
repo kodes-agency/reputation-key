@@ -28,6 +28,7 @@ import type { InboxContextApi } from '#/contexts/inbox/build'
 import type { IntegrationContextApi } from '#/contexts/integration/build'
 
 export type ReadAndNotifyContextsInput = Readonly<{
+  staffScanTargetsEnabled?: boolean
   db: Database
   clock: Clock
   idGen: () => string
@@ -130,6 +131,7 @@ export function buildReadAndNotifyContexts(input: ReadAndNotifyContextsInput) {
   } as const
 
   const reporting = buildReportingContext({
+    staffScanTargetsEnabled: input.staffScanTargetsEnabled ?? false,
     db: input.db,
     clock: input.clock,
     idGen: input.idGen,

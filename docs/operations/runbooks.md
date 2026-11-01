@@ -2558,3 +2558,7 @@ join and no second call on Stop. Record operation/generation identifiers and
 control state, never review text, local frame text, drafts, or provenance tokens.
 Escalate to the incident commander if evidence, consent epochs or provider
 accounting diverges.
+
+## Staff scan-target switch — 2026-11-01
+
+`STAFF_SCAN_TARGETS_ENABLED` accepts exactly `true` or `false`, defaults to `false`, and is non-secret. Web reads it at startup, in the same way as `PORTAL_OWN_LOOK_ENABLED`. Restart web to apply a change. Off refuses new targets on a personal Portal or a Group holding one and returns no staff targets; existing manager history is retained. It does not enable `staff.accounts`, which stays `beta_disabled` until the last pull request of `docs/plan/staff-accounts.md`. Migration 0093 reserves its number around the independent 0092 pull request; rebase only the unapplied new journal entry after that pull request lands.

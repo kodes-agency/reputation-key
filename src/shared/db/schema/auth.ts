@@ -114,6 +114,7 @@ export const invitation = pgTable('invitation', {
   status: text('status').notNull(),
   expiresAt: timestamptz('expiresAt').notNull(),
   propertyIds: text('propertyIds'),
+  staffParticipationId: text('staffParticipationId'),
   inviterId: text('inviterId').notNull(),
   createdAt: timestamptz('createdAt').notNull().defaultNow(),
 })

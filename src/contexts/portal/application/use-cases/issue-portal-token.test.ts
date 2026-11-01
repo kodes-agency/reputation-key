@@ -1,3 +1,4 @@
+import { buildPortalAddressOperations } from '../../build-address-operations'
 import { describe, expect, it, vi } from 'vitest'
 import type { StaffPublicApi } from '#/contexts/identity/application/public-api'
 import type { PortalCommandStore } from '../ports/portal-command-store.port'
@@ -13,7 +14,7 @@ import { createInMemoryPortalAddressRepo } from '#/shared/testing/in-memory-port
 import { createInMemoryPortalAddressCipher } from '#/shared/testing/in-memory-portal-address-cipher'
 import { unbrand } from '#/shared/domain/ids'
 import { testPortalTokenCodec } from '../../infrastructure/testing/portal-token-codec-fixture'
-import { issuePortalToken } from './issue-portal-token'
+import { ensurePersonalPortalToken, issuePortalToken } from './issue-portal-token'
 
 const NOW = new Date('2026-08-16T12:00:00.000Z')
 const CURRENT_REVISION = new Date('2026-08-20T12:00:00.000Z')
@@ -390,5 +391,64 @@ describe('issuePortalToken — print codes (ADR 0069)', () => {
       expect(secret).toBeTruthy()
       expect(recorded).not.toContain(secret)
     }
+  })
+})
+
+describe('staff code checkpoint retry', () => {
+  it('keeps a recoverable existing token, and refuses a missing keyring or sealed address', async () => {
+    const portalRepo = createInMemoryPortalRepo()
+    const portal = buildTestPortal({ kind: 'personal', publicName: 'Harbor' })
+    portalRepo.seed([portal])
+    const portalTokenRepo = {
+      findLatestForPortal: async () => ({ status: 'active' }),
+    } as unknown as PortalTokenRepository
+    const portalAddressRepo = createInMemoryPortalAddressRepo()
+    const addressCipher = createInMemoryPortalAddressCipher()
+    const context = {
+      organizationId: portal.organizationId,
+      propertyId: portal.propertyId,
+      portalId: portal.id,
+      tokenId: 'token',
+      version: 1,
+    }
+    portalAddressRepo.store(context, {
+      tokenId: 'token',
+      propertyId: portal.propertyId,
+      version: 1,
+      issuedAt: NOW,
+      sealed: addressCipher.seal('raw-code', context),
+      accessArtifactIds: { qr: QR_ID, nfc: NFC_ID },
+      printCodeHashes: { qr: null, nfc: null },
+    })
+    const deps = {
+      portalRepo,
+      portalTokenRepo,
+      portalAddressRepo,
+      addressCipher,
+      staffPublicApi,
+      tokenCodec: testPortalTokenCodec(),
+      commandStore: {} as PortalCommandStore,
+      reportPrintCodeProblem: vi.fn(),
+      idGen: idSource(),
+      clock: () => NOW,
+      address: ADDRESS,
+    }
+    await expect(
+      buildPortalAddressOperations({
+        ...deps,
+        propertyLifecycleApi: { isPropertyActive: async () => true },
+      }).ensurePersonalPortalToken({ portalId: portal.id }, buildTestAuthContext()),
+    ).resolves.toBeUndefined()
+    expect(portalAddressRepo.sealedCount()).toBe(1)
+    await expect(
+      ensurePersonalPortalToken({ ...deps, addressCipher: null })(
+        { portalId: portal.id },
+        buildTestAuthContext(),
+      ),
+    ).rejects.toMatchObject({ code: 'address_keyring_missing' })
+    portalAddressRepo.clear(context)
+    await expect(
+      ensurePersonalPortalToken(deps)({ portalId: portal.id }, buildTestAuthContext()),
+    ).rejects.toMatchObject({ code: 'address_keyring_missing' })
   })
 })

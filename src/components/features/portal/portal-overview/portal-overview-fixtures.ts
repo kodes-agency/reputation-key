@@ -41,6 +41,7 @@ export function overviewRow(
 ): PortalOverviewRow {
   return {
     portalId: portalId(id),
+    kind: 'place',
     propertyId: propertyId('prop-1'),
     name: id,
     slug: id,

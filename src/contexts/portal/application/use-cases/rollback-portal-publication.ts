@@ -1,3 +1,4 @@
+import { assertPersonalPortalPublicText } from '../../domain/personal-portal-public-text'
 import type { AuthContext } from '#/shared/domain/auth-context'
 import { portalId, unbrand } from '#/shared/domain/ids'
 import type { StaffPublicApi } from '#/contexts/identity/application/public-api'
@@ -69,6 +70,7 @@ export const rollbackPortalPublication =
       )
     }
 
+    assertPersonalPortalPublicText(portal, target.configuration)
     const occurredAt = deps.clock()
     const revision = nextPortalCommandAt(occurredAt, portal.updatedAt)
     await deps.commandStore.updatePortal({

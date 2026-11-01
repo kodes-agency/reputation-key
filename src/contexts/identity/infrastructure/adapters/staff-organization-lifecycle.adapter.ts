@@ -66,6 +66,8 @@ const byOrganization =
  *     and leaves every identity row to Identity.
  */
 const STAFF_TENANT_TABLES: readonly StaffLifecycleTable[] = Object.freeze([
+  { table: 'staff_onboardings', scope: byOrganization('staff_onboardings') },
+  { table: 'staff_property_settings', scope: byOrganization('staff_property_settings') },
   // Effective-dated responsibility for a Portal; references staff_participations.
   { table: 'portal_responsibilities', scope: byOrganization('portal_responsibilities') },
   // Event-time Portal Group membership (ADR 0040). It is people data, not

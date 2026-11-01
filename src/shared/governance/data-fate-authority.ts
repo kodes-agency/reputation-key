@@ -552,6 +552,13 @@ export const DATA_FATE_AUTHORITY = Object.freeze([
     authority: 'ARC-01',
   }),
   ...rows({
+    schemaFile: 'staff-accounts.schema.ts',
+    exportNames: ['staffOnboardings', 'staffPropertySettings'],
+    owner: 'identity',
+    disposition: 'active_authority',
+    authority: 'ADR 0076',
+  }),
+  ...rows({
     schemaFile: 'people-access.schema.ts',
     exportNames: [
       'portalGroupMemberships',

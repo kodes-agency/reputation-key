@@ -18,39 +18,18 @@
 //      credentials, sessions, and tokens outright. No such table is queried.
 
 import { sql, type SQL } from 'drizzle-orm'
-import { canonicalizeRfc8785 } from '#/shared/canonical-json'
 import type { Database } from '#/shared/db'
-import { csvCell } from '#/shared/security/csv-cell'
 // Cross-context adapter implementing a foreign port — src/contexts/CONTEXT.md
 // "Dependency rules" permits infrastructure/adapters/** to reach application/ports/**.
-import type {
-  OrganizationExportContributor,
-  OrganizationExportEntry,
-} from '#/contexts/identity/application/ports/organization-export-contributor.port'
+import type { OrganizationExportContributor } from '#/contexts/identity/application/ports/organization-export-contributor.port'
 
-type ExportScalar = string | number | boolean | null
-type ExportRecord = Readonly<Record<string, ExportScalar>>
-
-type ExportCollection = Readonly<{
-  recordType: string
-  columns: readonly string[]
-  records: readonly ExportRecord[]
-}>
-
-type ExcludedRecordClass = Readonly<{ recordClass: string; reasonCode: string }>
-
-type StaffOrganizationExportPayload = Readonly<{
-  version: 'staff-organization-export/v1'
-  requestedAsOf: string
-  snapshotBound: 'repeatable_read_within_15m_of_request'
-  participants: readonly ExportRecord[]
-  participantUserLinks: readonly ExportRecord[]
-  participations: readonly ExportRecord[]
-  portalResponsibilities: readonly ExportRecord[]
-  portalGroupMemberships: readonly ExportRecord[]
-  excludedRecordClasses: readonly ExcludedRecordClass[]
-}>
-
+import {
+  normalizeRows,
+  type ExportRecord,
+  type StaffOrganizationExportPayload,
+  type ExcludedRecordClass,
+} from './staff-organization-export-format'
+import { buildEntries, countRecords } from './staff-organization-export-collections'
 const MAX_SNAPSHOT_LAG_MS = 15 * 60 * 1000
 
 const EXCLUDED_RECORD_CLASSES: readonly ExcludedRecordClass[] = Object.freeze([
@@ -66,28 +45,6 @@ const EXCLUDED_RECORD_CLASSES: readonly ExcludedRecordClass[] = Object.freeze([
   },
 ])
 
-function normalizeScalar(value: unknown, field: string): ExportScalar {
-  if (value === null || typeof value === 'string' || typeof value === 'boolean') {
-    return value
-  }
-  if (typeof value === 'number') {
-    if (!Number.isFinite(value))
-      throw new Error(`Staff export field is invalid: ${field}`)
-    return value
-  }
-  if (typeof value === 'bigint') return value.toString()
-  if (value instanceof Date && !Number.isNaN(value.getTime())) return value.toISOString()
-  throw new Error(`Staff export field has an unsupported value: ${field}`)
-}
-
-function normalizeRows(rows: readonly Record<string, unknown>[]): ExportRecord[] {
-  return rows.map((row) =>
-    Object.fromEntries(
-      Object.entries(row).map(([field, value]) => [field, normalizeScalar(value, field)]),
-    ),
-  )
-}
-
 async function readRows(
   snapshot: Parameters<Parameters<Database['transaction']>[0]>[0],
   query: SQL,
@@ -95,105 +52,6 @@ async function readRows(
   const result = await snapshot.execute(query)
   return normalizeRows(result.rows as Record<string, unknown>[])
 }
-
-/**
- * One CSV per file group. The header is the ordered union of the declared
- * columns of every collection in that group, so a record that has no value for
- * a sibling collection's column renders an empty cell rather than shifting the
- * row. Column order is declared, never derived from a driver row's key order.
- */
-function csvEntry(
-  path: string,
-  collections: readonly ExportCollection[],
-): OrganizationExportEntry {
-  const columns = [...new Set(collections.flatMap(({ columns }) => columns))]
-  const lines = [
-    ['record_type', ...columns].join(','),
-    ...collections.flatMap(({ recordType, records }) =>
-      records.map((record) =>
-        [csvCell(recordType), ...columns.map((column) => csvCell(record[column]))].join(
-          ',',
-        ),
-      ),
-    ),
-  ]
-  return {
-    path,
-    mediaType: 'text/csv',
-    classification: 'tenant_visible',
-    bytes: Buffer.from(`${lines.join('\n')}\n`, 'utf8'),
-  }
-}
-
-function jsonEntry(path: string, value: unknown): OrganizationExportEntry {
-  return {
-    path,
-    mediaType: 'application/json',
-    classification: 'tenant_visible',
-    bytes: Buffer.from(`${canonicalizeRfc8785(value)}\n`, 'utf8'),
-  }
-}
-
-const PARTICIPANT_COLUMNS = [
-  'id',
-  'display_name',
-  'status',
-  'revision',
-  'archived_at',
-  'archive_reason',
-  'created_by',
-  'created_at',
-  'updated_at',
-] as const
-
-const PARTICIPANT_USER_LINK_COLUMNS = [
-  'id',
-  'staff_participant_id',
-  'user_id',
-  'effective_from',
-  'effective_to',
-  'end_reason',
-  'created_by',
-] as const
-
-const PARTICIPATION_COLUMNS = [
-  'id',
-  'property_id',
-  'staff_participant_id',
-  'user_id',
-  'display_name',
-  'status',
-  'revision',
-  'started_at',
-  'ended_at',
-  'archive_reason',
-  'created_by',
-  'created_at',
-  'updated_at',
-] as const
-
-const PORTAL_RESPONSIBILITY_COLUMNS = [
-  'id',
-  'property_id',
-  'portal_id',
-  'staff_participation_id',
-  'kind',
-  'effective_from',
-  'effective_to',
-  'end_reason',
-  'created_by',
-] as const
-
-const PORTAL_GROUP_MEMBERSHIP_COLUMNS = [
-  'id',
-  'property_id',
-  'portal_id',
-  'portal_group_id',
-  'effective_from',
-  'effective_to',
-  'end_reason',
-  'created_by',
-] as const
 
 async function readPayload(
   db: Database,
@@ -245,6 +103,8 @@ async function readPayload(
               id,
               staff_participant_id,
               user_id,
+              notice_version,
+              to_char(notice_acknowledged_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS notice_acknowledged_at,
               to_char(effective_from AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS effective_from,
               to_char(effective_to AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS effective_to,
               end_reason,
@@ -259,6 +119,7 @@ async function readPayload(
               id,
               property_id,
               staff_participant_id,
+              personal_portal_id,
               user_id,
               display_name,
               status,
@@ -308,7 +169,22 @@ async function readPayload(
             ORDER BY portal_id, effective_from, id`,
       )
 
+      const onboardings = await readRows(
+        snapshot,
+        sql`SELECT id, property_id, email, display_name, source_portal_id, portal_group_id, requested_by, status, step, staff_participant_id, staff_participation_id, portal_id, invitation_id, failure_code,
+        to_char(created_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS created_at,
+        to_char(updated_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS updated_at
+        FROM staff_onboardings WHERE organization_id = ${organizationId} ORDER BY created_at, id`,
+      )
+      const propertySettings = await readRows(
+        snapshot,
+        sql`SELECT property_id, colleague_list_enabled, updated_by,
+        to_char(updated_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS updated_at
+        FROM staff_property_settings WHERE organization_id = ${organizationId} ORDER BY property_id`,
+      )
       return {
+        onboardings,
+        propertySettings,
         version: 'staff-organization-export/v1',
         requestedAsOf: asOf.toISOString(),
         snapshotBound: 'repeatable_read_within_15m_of_request',
@@ -321,99 +197,6 @@ async function readPayload(
       }
     },
     { isolationLevel: 'repeatable read', accessMode: 'read only' },
-  )
-}
-
-function buildEntries(
-  payload: StaffOrganizationExportPayload,
-): readonly OrganizationExportEntry[] {
-  const groups: readonly Readonly<{
-    slug: string
-    collections: readonly ExportCollection[]
-    json: unknown
-  }>[] = [
-    {
-      slug: 'participants',
-      collections: [
-        {
-          recordType: 'staff_participant',
-          columns: PARTICIPANT_COLUMNS,
-          records: payload.participants,
-        },
-        {
-          recordType: 'staff_participant_user_link',
-          columns: PARTICIPANT_USER_LINK_COLUMNS,
-          records: payload.participantUserLinks,
-        },
-      ],
-      json: {
-        version: payload.version,
-        requestedAsOf: payload.requestedAsOf,
-        participants: payload.participants,
-        participantUserLinks: payload.participantUserLinks,
-        excludedRecordClasses: payload.excludedRecordClasses,
-      },
-    },
-    {
-      slug: 'participations',
-      collections: [
-        {
-          recordType: 'staff_participation',
-          columns: PARTICIPATION_COLUMNS,
-          records: payload.participations,
-        },
-      ],
-      json: {
-        version: payload.version,
-        requestedAsOf: payload.requestedAsOf,
-        participations: payload.participations,
-      },
-    },
-    {
-      slug: 'portal-responsibilities',
-      collections: [
-        {
-          recordType: 'portal_responsibility',
-          columns: PORTAL_RESPONSIBILITY_COLUMNS,
-          records: payload.portalResponsibilities,
-        },
-      ],
-      json: {
-        version: payload.version,
-        requestedAsOf: payload.requestedAsOf,
-        portalResponsibilities: payload.portalResponsibilities,
-      },
-    },
-    {
-      slug: 'portal-group-memberships',
-      collections: [
-        {
-          recordType: 'portal_group_membership',
-          columns: PORTAL_GROUP_MEMBERSHIP_COLUMNS,
-          records: payload.portalGroupMemberships,
-        },
-      ],
-      json: {
-        version: payload.version,
-        requestedAsOf: payload.requestedAsOf,
-        portalGroupMemberships: payload.portalGroupMemberships,
-      },
-    },
-  ]
-
-  return groups.flatMap(({ slug, collections, json }) => [
-    csvEntry(`staff/${slug}.csv`, collections),
-    jsonEntry(`staff/${slug}.json`, json),
-  ])
-}
-
-function countRecords(payload: StaffOrganizationExportPayload): number {
-  return (
-    payload.participants.length +
-    payload.participantUserLinks.length +
-    payload.participations.length +
-    payload.portalResponsibilities.length +
-    payload.portalGroupMemberships.length
   )
 }
 

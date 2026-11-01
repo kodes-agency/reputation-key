@@ -292,7 +292,7 @@ describe('listGoalReadinessFacts', () => {
     )
   })
 
-  it('caps at 100', async () => {
+  it('includes the complete roster beyond 100', async () => {
     // 101 portals named so that name order differs from storage order.
     const portals = Array.from({ length: 101 }, (_, index) =>
       portal(index + 1, `Portal ${String(101 - index).padStart(3, '0')}`),
@@ -301,11 +301,11 @@ describe('listGoalReadinessFacts', () => {
 
     const read = await facts.listGoalReadinessFacts(ORG, PROPERTY, AS_OF)
 
-    expect(read.truncated).toBe(true)
-    expect(read.portals).toHaveLength(100)
+    expect(read.truncated).toBe(false)
+    expect(read.portals).toHaveLength(101)
     expect(read.portals[0]?.name).toBe('Portal 001')
     expect(read.portals[99]?.name).toBe('Portal 100')
-    expect(listActivationsForPortals.mock.calls[0]?.[1]).toHaveLength(100)
+    expect(listActivationsForPortals.mock.calls[0]?.[1]).toHaveLength(101)
 
     const exactly = setup({ portals: portals.slice(1) })
     await expect(

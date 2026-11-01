@@ -114,7 +114,7 @@ describe('Staff Organization Export contributor', () => {
     expect(lines[0]).toBe(
       'record_type,id,display_name,status,revision,archived_at,archive_reason,' +
         'created_by,created_at,updated_at,staff_participant_id,user_id,' +
-        'effective_from,effective_to,end_reason',
+        'notice_version,notice_acknowledged_at,effective_from,effective_to,end_reason',
     )
     expect(lines[1]).toContain('"Front Desk, Dana ""D"" Rivera"')
     // The user-link row leaves the participant-only columns blank rather than

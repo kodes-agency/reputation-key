@@ -1,3 +1,4 @@
+import { assertPersonalGroupTarget } from './personal-portal-group-guard'
 // Portal command store — the writes the group commands share: the group fence,
 // the Portal and membership locks, ending and beginning a membership, and the
 // history ledger. Every group command takes its fences before it locks a Portal
@@ -179,6 +180,7 @@ export async function beginMembership(
     createdBy: string
   }>,
 ): Promise<void> {
+  await assertPersonalGroupTarget(tx, membership)
   await tx.insert(portalGroupMemberships).values({
     organizationId: unbrand(membership.organizationId),
     propertyId: unbrand(membership.propertyId),

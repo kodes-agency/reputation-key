@@ -29,6 +29,10 @@ export type NewPortalPlan = Readonly<{
   managerIds: readonly UserId[]
   group: PortalGroup | null
   source: PortalCopySource | null
+  personalPortal?: Readonly<{
+    publicName: string
+    sourceFence?: CreatePortalCommand['personalSourceFence']
+  }>
 }>
 
 /** The command for the Portal at `slug` (a copy's settings first; what was typed wins), with every fact. */
@@ -53,6 +57,8 @@ export function buildCreatePortalCommand(
     organizationId: ctx.organizationId,
     propertyId: propertyId(input.propertyId),
     name: input.name,
+    kind: plan.personalPortal ? 'personal' : 'place',
+    publicName: plan.personalPortal?.publicName ?? null,
     providedSlug: slug,
     description: input.description ?? copy?.settings.description,
     theme: input.theme ?? copy?.settings.theme,
@@ -89,6 +95,9 @@ export function buildCreatePortalCommand(
       : { responsibilityNeededEvent: portalResponsibilityNeeded(factBase) }),
     ...(group ? { groupMembership: buildGroupMembership(group, portal) } : {}),
     ...(copy ? { copiedContent: copy.content } : {}),
+    ...(plan.personalPortal?.sourceFence
+      ? { personalSourceFence: plan.personalPortal.sourceFence }
+      : {}),
     health: {
       id: deps.entityIdGen(),
       value: derivePortalHealth({

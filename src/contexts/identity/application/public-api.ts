@@ -1,3 +1,6 @@
+export { STAFF_NOTICE_VERSION } from '../domain/staff-account'
+import type { StaffAccountsApi } from './staff-accounts-api'
+import type { StaffSelfReader } from './ports/staff-self-reader.port'
 import type { MerchantAiNoticeUpdates } from './use-cases/merchant-ai-notice-updates'
 // Identity context — public API surface for cross-context consumers.
 // Other contexts consume event types and port interfaces from this barrel.
@@ -159,6 +162,8 @@ export type IdentityPublicApi = Readonly<{
   managerFacts: IdentityManagerFactsPublicApi
   accountAdminAuthority: IdentityAccountAdminAuthorityPublicApi
   offboardingFacts: IdentityOffboardingFactsPublicApi
+  staffAccounts: StaffAccountsApi
+  staffSelf: StaffSelfReader
   people: StaffPublicApi
   requests: IdentityRequestApi
 }>
@@ -166,3 +171,8 @@ export type {
   MerchantAiOverview,
   MerchantAiOverviewEntry,
 } from './use-cases/merchant-ai-overview'
+
+export {
+  requireOwnStaffParticipation,
+  requireStaffSelfPerson,
+} from './staff-self-context'

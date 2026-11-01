@@ -12,6 +12,8 @@ const sampleRow: PortalRow = {
   id: 'portal-uuid',
   organizationId: 'org-uuid',
   propertyId: 'prop-uuid',
+  kind: 'place',
+  publicName: null,
   entityType: 'property',
   entityId: 'prop-uuid',
   name: 'Test Portal',

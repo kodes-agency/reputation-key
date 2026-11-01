@@ -20,6 +20,7 @@ const participationSelection = {
   organizationId: staffParticipations.organizationId,
   propertyId: staffParticipations.propertyId,
   staffParticipantId: staffParticipations.staffParticipantId,
+  personalPortalId: staffParticipations.personalPortalId,
   linkedUserId: staffUserLinks.userId,
   displayName: staffParticipants.displayName,
   status: staffParticipations.status,
@@ -36,6 +37,7 @@ type ParticipationRow = Readonly<{
   organizationId: string
   propertyId: string
   staffParticipantId: string | null
+  personalPortalId: string | null
   linkedUserId: string | null
   displayName: string
   status: StaffParticipation['status']
@@ -56,6 +58,7 @@ function participationFromRow(row: ParticipationRow): StaffParticipation {
     organizationId: row.organizationId,
     propertyId: row.propertyId,
     staffParticipantId: row.staffParticipantId,
+    personalPortalId: row.personalPortalId,
     linkedUserId: row.linkedUserId,
     displayName: row.displayName,
     status: row.status,
@@ -338,6 +341,12 @@ export const createStaffParticipationRepository = (
         linkedUserId: participant.linkedUserId,
         displayName: participant.displayName,
       })
+      await assertStaffPortalUnlocked(
+        tx,
+        organizationId,
+        current.id,
+        current.personalPortalId,
+      )
       if (current.status === 'archived') return currentView
       if (current.revision !== expectedRevision) {
         throw staffError('revision_conflict', 'staff participation changed; reload it')
@@ -409,6 +418,7 @@ export const createStaffParticipationRepository = (
           .select({
             id: staffParticipations.id,
             revision: staffParticipations.revision,
+            personalPortalId: staffParticipations.personalPortalId,
           })
           .from(staffParticipations)
           .where(
@@ -423,6 +433,12 @@ export const createStaffParticipationRepository = (
         if (!participation) {
           throw staffError('participation_not_found', 'active participation not found')
         }
+        await assertStaffPortalUnlocked(
+          tx,
+          input.organizationId,
+          participation.id,
+          participation.personalPortalId,
+        )
         if (participation.revision !== input.expectedRevision) {
           throw staffError('revision_conflict', 'staff participation changed; reload it')
         }
@@ -430,7 +446,7 @@ export const createStaffParticipationRepository = (
         const portalIds = input.selections.map((selection) => selection.portalId)
         if (portalIds.length > 0) {
           const ownedPortals = await tx
-            .select({ id: portals.id })
+            .select({ id: portals.id, kind: portals.kind })
             .from(portals)
             .where(
               and(
@@ -440,6 +456,12 @@ export const createStaffParticipationRepository = (
                 isNull(portals.deletedAt),
               ),
             )
+          if (ownedPortals.some((portal) => portal.kind === 'personal')) {
+            throw staffError(
+              'staff_personal_portal_locked',
+              'A personal Portal cannot be reassigned or used as Supporting',
+            )
+          }
           if (ownedPortals.length !== new Set(portalIds).size) {
             throw staffError(
               'invalid_input',
@@ -546,3 +568,23 @@ export const createStaffParticipationRepository = (
       })
       .catch(rethrowPrimaryConflict),
 })
+
+async function assertStaffPortalUnlocked(
+  db: Pick<Database, 'execute'>,
+  organizationId: string,
+  participationId: string,
+  personalPortalId: string | null,
+): Promise<void> {
+  const locked =
+    personalPortalId ||
+    (
+      await db.execute(sql`SELECT id FROM staff_onboardings
+    WHERE organization_id = ${organizationId} AND staff_participation_id = ${participationId}::uuid
+      AND status IN ('running', 'failed') LIMIT 1`)
+    ).rows.length > 0
+  if (locked)
+    throw staffError(
+      'staff_personal_portal_locked',
+      'Remove this person from Staff to end their personal Portal setup',
+    )
+}

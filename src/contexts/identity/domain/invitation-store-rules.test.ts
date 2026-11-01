@@ -336,3 +336,11 @@ describe('assertRenewalHasNoCompetitor', () => {
     ).toMatchObject({ code: 'organization_conflict' })
   })
 })
+
+describe('staff invitation roles', () => {
+  it('admits Member only when bound to a staff participation', () => {
+    expect(grantedRoleToken('member')).toBeNull()
+    expect(grantedRoleToken('member', 'participation-1')).toBe('member')
+    expect(grantedRoleToken('custom', 'participation-1')).toBeNull()
+  })
+})

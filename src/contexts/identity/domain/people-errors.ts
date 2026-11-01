@@ -4,6 +4,7 @@ import { createErrorFactory } from '#/shared/domain/errors'
 
 export type StaffErrorCode =
   | 'forbidden'
+  | 'staff_personal_portal_locked'
   | 'invalid_input'
   | 'participation_not_found'
   | 'participation_archived'

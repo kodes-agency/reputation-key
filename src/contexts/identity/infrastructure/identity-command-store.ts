@@ -1,3 +1,4 @@
+import { linkStaffInvitation } from './staff-invitation-link'
 // Atomic identity command store (BQC-3.5).
 //
 // One PostgreSQL transaction per command commits the better-auth-owned state
@@ -292,6 +293,7 @@ type IdentityCommandStoreDatabase = Pick<Database, 'select' | 'transaction'>
 export const createAtomicIdentityCommandStore = (
   db: IdentityCommandStoreDatabase,
   idGen: () => string,
+  admitStaffInvitation: (organizationId: string) => Promise<boolean> = async () => false,
 ): IdentityCommandStore => {
   return {
     validateInvitationRegistration: async (
@@ -300,13 +302,25 @@ export const createAtomicIdentityCommandStore = (
       const rows = await db
         .select({
           email: invitation.email,
+          organizationId: invitation.organizationId,
           role: invitation.role,
+          staffParticipationId: invitation.staffParticipationId,
           status: invitation.status,
           expiresAt: invitation.expiresAt,
         })
         .from(invitation)
         .where(eq(invitation.id, command.invitationId as string))
         .limit(1)
+      if (
+        rows[0]?.staffParticipationId &&
+        !(await admitStaffInvitation(
+          'organizationId' in rows[0] ? String(rows[0].organizationId) : '',
+        ))
+      )
+        throw identityError(
+          'forbidden',
+          'This staff invitation cannot be accepted right now. Try again later',
+        )
       assertInvitationOpenForRegistration(rows[0], command)
     },
 
@@ -358,6 +372,7 @@ export const createAtomicIdentityCommandStore = (
               organizationId: invitation.organizationId,
               email: invitation.email,
               role: invitation.role,
+              staffParticipationId: invitation.staffParticipationId,
               status: invitation.status,
               expiresAt: invitation.expiresAt,
               propertyIds: invitation.propertyIds,
@@ -372,10 +387,18 @@ export const createAtomicIdentityCommandStore = (
           }
           // 2-3. Email-match invariant and lifecycle gate: only the invitee
           //      may accept, and only a pending invitation.
+          if (
+            inv.staffParticipationId &&
+            !(await admitStaffInvitation(inv.organizationId))
+          )
+            throw identityError(
+              'forbidden',
+              'This staff invitation cannot be accepted right now. Try again later',
+            )
           assertInvitationAcceptable(inv, acceptorEmail, command.now)
           // 4. Re-validate the role at acceptance. Member users and custom
           //    roles are retained as data but cannot become beta logins.
-          const role = grantedRoleToken(inv.role)
+          const role = grantedRoleToken(inv.role, inv.staffParticipationId)
           if (role === null) {
             await tx
               .update(invitation)
@@ -409,6 +432,15 @@ export const createAtomicIdentityCommandStore = (
             })
           }
 
+          if (inv.staffParticipationId) {
+            await linkStaffInvitation(tx, {
+              organizationId: inv.organizationId,
+              participationId: inv.staffParticipationId,
+              userId: command.acceptorUserId,
+              actorId: inv.inviterId,
+              at: command.now,
+            })
+          }
           // 7. Create the membership + mark accepted.
           await tx.insert(member).values({
             id: idGen(),
@@ -470,6 +502,7 @@ export const createAtomicIdentityCommandStore = (
               id: invitation.id,
               email: invitation.email,
               role: invitation.role,
+              staffParticipationId: invitation.staffParticipationId,
               status: invitation.status,
               propertyIds: invitation.propertyIds,
             })
@@ -530,6 +563,7 @@ export const createAtomicIdentityCommandStore = (
             command.organizationId as string,
             command.memberId,
           )
+          if (command.staffOnly && target.role !== 'member') return
           if (target.userId !== (command.event.userId as string)) {
             throw identityError(
               'organization_conflict',

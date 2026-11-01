@@ -159,6 +159,7 @@ describe('listPortalOverview', () => {
     expect(rows).toEqual([
       {
         portalId: pool.id,
+        kind: 'place',
         propertyId: PROPERTY_A,
         name: 'Pool side',
         slug: 'pool-side',

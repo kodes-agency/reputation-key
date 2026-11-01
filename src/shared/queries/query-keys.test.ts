@@ -7,6 +7,7 @@ import {
   platformKeys,
   portalKeys,
   propertyKeys,
+  staffSelfKeys,
 } from './query-keys'
 
 describe('identity query keys', () => {
@@ -326,5 +327,25 @@ describe('platform operator console query keys', () => {
     // The console reads across tenants: no Organization id, and no overlap
     // with the identity subtree a tenant switch tears down.
     expect(platformKeys.all).not.toEqual(identityKeys.all)
+  })
+})
+
+describe('staff self cache identities', () => {
+  it('separates people, owned participations, periods and daily rating cutoffs', () => {
+    const keys = [
+      staffSelfKeys.home('polly'),
+      staffSelfKeys.home('alex'),
+      staffSelfKeys.code('polly-participation'),
+      staffSelfKeys.code('alex-participation'),
+      staffSelfKeys.results('polly-participation', 'week', '2026-11-01'),
+      staffSelfKeys.results('polly-participation', 'month', '2026-11-01'),
+      staffSelfKeys.results('polly-participation', 'week', '2026-11-02'),
+      staffSelfKeys.colleagues('polly-participation', 'week'),
+      staffSelfKeys.goals('polly-participation'),
+    ].map((key) => JSON.stringify(key))
+    expect(new Set(keys).size).toBe(keys.length)
+    expect(keys.some((key) => key === JSON.stringify(portalKeys.list('property')))).toBe(
+      false,
+    )
   })
 })

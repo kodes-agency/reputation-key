@@ -21,7 +21,13 @@ export type SourcePolicyClass =
   | 'manager_confirmed_recognition'
 export type MetricScope = 'property' | 'portal_group' | 'portal'
 export type PermittedConsumer =
-  'dashboard' | 'goal' | 'recognition' | 'notification' | 'export' | 'portal_analytics'
+  | 'dashboard'
+  | 'goal'
+  | 'recognition'
+  | 'notification'
+  | 'export'
+  | 'portal_analytics'
+  | 'staff_self'
 
 export type InsufficientDataBehavior = 'unavailable' | 'quarantine'
 
@@ -448,10 +454,11 @@ export const METRIC_DEFINITIONS = Object.freeze([
       name: 'Private Portal ratings',
       entityLevel: 'portal',
       valueType: 'average',
-      description: 'Private guest rating aggregate for Portal analytics only.',
+      description:
+        'Private guest numeric ratings for Portal analytics and own staff results.',
       valueKind: 'average',
-      workerDataFlag: false,
-      privacyClass: 'private_response',
+      workerDataFlag: true,
+      privacyClass: 'private_response_with_worker_link',
       retentionClass: 'short',
       lifecycleStatus: 'approved',
       approvalOwner: 'privacy',
@@ -475,7 +482,7 @@ export const METRIC_DEFINITIONS = Object.freeze([
         minimumSample: 5,
         insufficientDataBehavior: 'unavailable',
         sourcePolicyAllowlist: ['first_party_guest_private'],
-        permittedConsumers: ['portal_analytics'],
+        permittedConsumers: ['portal_analytics', 'staff_self'],
         employmentDecisionEligible: false,
         correctionBehavior: 'append_delta',
         fairnessReviewStatus: 'approved_for_consumers',
@@ -621,8 +628,8 @@ export const METRIC_DEFINITIONS = Object.freeze([
       description:
         'Server-verified QR or NFC Access Artifact arrivals, deduplicated per response session and Portal over 24 hours.',
       valueKind: 'counter',
-      workerDataFlag: false,
-      privacyClass: 'deidentified_guest_gateway_numeric',
+      workerDataFlag: true,
+      privacyClass: 'guest_gateway_numeric_with_worker_link',
       retentionClass: 'guest_gateway_24_month',
       lifecycleStatus: 'approved',
       approvalOwner: 'product-governance',
@@ -654,10 +661,11 @@ export const METRIC_DEFINITIONS = Object.freeze([
           'notification',
           'export',
           'portal_analytics',
+          'staff_self',
         ],
         employmentDecisionEligible: false,
         correctionBehavior: 'append_delta',
-        fairnessReviewStatus: 'approved_manager_context',
+        fairnessReviewStatus: 'approved_manager_and_staff_self_context',
         createdAt: '2026-09-05 23:07:05.351486+03',
       },
     ],
@@ -672,8 +680,8 @@ export const METRIC_DEFINITIONS = Object.freeze([
       description:
         'Count of eligible first-party private numeric Portal ratings from every arrival channel.',
       valueKind: 'counter',
-      workerDataFlag: false,
-      privacyClass: 'deidentified_guest_gateway_numeric',
+      workerDataFlag: true,
+      privacyClass: 'guest_gateway_numeric_with_worker_link',
       retentionClass: 'guest_gateway_24_month',
       lifecycleStatus: 'approved',
       approvalOwner: 'product-governance',
@@ -704,10 +712,11 @@ export const METRIC_DEFINITIONS = Object.freeze([
           'notification',
           'export',
           'portal_analytics',
+          'staff_self',
         ],
         employmentDecisionEligible: false,
         correctionBehavior: 'append_delta',
-        fairnessReviewStatus: 'approved_manager_context',
+        fairnessReviewStatus: 'approved_manager_and_staff_self_context',
         createdAt: '2026-09-05 23:07:05.351486+03',
       },
     ],
@@ -722,8 +731,8 @@ export const METRIC_DEFINITIONS = Object.freeze([
       description:
         'Rating-weighted average of eligible first-party private numeric Portal ratings from every arrival channel.',
       valueKind: 'average',
-      workerDataFlag: false,
-      privacyClass: 'deidentified_guest_gateway_numeric',
+      workerDataFlag: true,
+      privacyClass: 'guest_gateway_numeric_with_worker_link',
       retentionClass: 'guest_gateway_24_month',
       lifecycleStatus: 'approved',
       approvalOwner: 'product-governance',
@@ -754,10 +763,11 @@ export const METRIC_DEFINITIONS = Object.freeze([
           'notification',
           'export',
           'portal_analytics',
+          'staff_self',
         ],
         employmentDecisionEligible: false,
         correctionBehavior: 'append_delta',
-        fairnessReviewStatus: 'approved_manager_context',
+        fairnessReviewStatus: 'approved_manager_and_staff_self_context',
         createdAt: '2026-09-05 23:07:05.351486+03',
       },
     ],

@@ -247,6 +247,10 @@ const baseEnvSchema = z.object({
   // on only once web and worker both run a release whose reader applies the rows
   // (the worker needs no switch), and never put back a release without it while
   // rows exist.
+  STAFF_SCAN_TARGETS_ENABLED: z
+    .enum(['true', 'false'])
+    .default('false')
+    .transform((value) => value === 'true'),
   PORTAL_OWN_LOOK_ENABLED: z
     .enum(['true', 'false'])
     .default('false')

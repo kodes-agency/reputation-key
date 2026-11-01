@@ -330,3 +330,9 @@ recommendation reads), [ADR 0046](0046-notification-policy.md) (Goal notices and
 categories), [ADR 0049](0049-beta-local-acceptance.md) (rule 2),
 [ADR 0066](0066-goal-months-carry-their-own-target.md) (a month's own target),
 [ADR 0067](0067-property-google-rating-goal.md) (the Property Google rating goal).
+
+## Amendment 2026-11-01 — staff accounts and personal Portals
+
+[ADR 0076](0076-staff-accounts-and-personal-portals.md) amends this decision.
+
+“No staff goal” gains one exception: a scan target on a person's personal Portal or a Portal Group holding one. It counts `qualified_scans` only, never a rating, Google fact or click. `STAFF_SCAN_TARGETS_ENABLED` defaults off; off, no new personal target can be set and staff see none. Person and Team subjects remain absent from Goal Programs; the subject is still a Portal or Portal Group. There is no leaderboard, badge, reward or automatic consequence. The Property Google rating goal remains manager-only and is never split across people.

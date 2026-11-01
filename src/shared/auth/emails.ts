@@ -11,6 +11,7 @@ import { getLogger } from '#/shared/observability/logger'
 import { maskEmail } from '#/shared/observability/pii'
 import {
   renderInvitationEmail,
+  renderStaffCodeReadyEmail,
   renderPasswordResetEmail,
   renderVerificationEmail,
   warnOnceOnSenderMisalignment,
@@ -114,7 +115,7 @@ export type InvitationEmailParams = Readonly<{
   invitedByUsername: string
   organizationName: string
   inviteLink: string
-  role: 'AccountAdmin' | 'PropertyManager'
+  role: 'AccountAdmin' | 'PropertyManager' | 'Member'
   /** The invited Properties' names; [] for an Account Admin. */
   propertyNames: ReadonlyArray<string>
   /** Whole days the invitation stays valid (INVITATION_EXPIRY_SECONDS). */
@@ -124,4 +125,12 @@ export type InvitationEmailParams = Readonly<{
 /** Send organization invitation email */
 export async function sendInvitationEmail(params: InvitationEmailParams): Promise<void> {
   await sendEmail(params.email, renderInvitationEmail(params))
+}
+
+export async function sendStaffCodeReadyEmail(
+  email: string,
+  propertyName: string,
+  url: string,
+): Promise<void> {
+  await sendEmail(email, renderStaffCodeReadyEmail(propertyName, url))
 }

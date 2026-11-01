@@ -81,7 +81,7 @@ export type InvitationEmailContent = Readonly<{
   invitedByUsername: string
   organizationName: string
   inviteLink: string
-  role: 'AccountAdmin' | 'PropertyManager'
+  role: 'AccountAdmin' | 'PropertyManager' | 'Member'
   /** The invited Properties' names; [] for an Account Admin. */
   propertyNames: ReadonlyArray<string>
   /** Whole days the invitation stays valid; true at send because Resend renews. */
@@ -91,6 +91,7 @@ export type InvitationEmailContent = Readonly<{
 const ROLE_LABEL: Readonly<Record<InvitationEmailContent['role'], string>> = {
   AccountAdmin: 'Account Admin',
   PropertyManager: 'Property Manager',
+  Member: 'Staff',
 }
 
 /** "A", "A and B", "A, B and C". */
@@ -150,3 +151,27 @@ export const renderInvitationEmail = (content: InvitationEmailContent): Rendered
     ),
   }
 }
+
+/** Existing Organization members receive no invitation or new role. */
+export const renderStaffCodeReadyEmail = (
+  propertyName: string,
+  url: string,
+): RenderedEmail => ({
+  subject: `Your code is ready at ${propertyName}`,
+  html: renderEmailDocument(
+    <EmailLayout
+      preheader={`Your code is ready at ${propertyName}.`}
+      documentTitle="Your code is ready"
+      whyReceived="Your manager added your personal Portal."
+    >
+      <EmailHeadline>Your code is ready</EmailHeadline>
+      <EmailParagraph>Your code is ready at {propertyName}.</EmailParagraph>
+      <EmailButton href={url}>Sign in</EmailButton>
+    </EmailLayout>,
+  ),
+  text: composeText(
+    `Your code is ready at ${propertyName}.`,
+    `Sign in: ${url}`,
+    EMAIL_SIGNATURE,
+  ),
+})

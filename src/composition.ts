@@ -1,3 +1,5 @@
+import { requireExecutionAllowed } from '#/shared/auth/execution-policy'
+import { createStaffInvitationBudget } from '#/contexts/identity/build-staff-accounts'
 // Composition root — the only place a full container is built. It SELECTS
 // implementations and configuration rather than being one.
 //
@@ -32,7 +34,7 @@ import {
 import { buildIdentityContext } from '#/contexts/identity/build'
 import { buildPlatformConsole } from '#/contexts/identity/build-platform'
 import { INVITATION_EXPIRY_SECONDS } from '#/shared/auth/auth'
-import { sendInvitationEmail } from '#/shared/auth/emails'
+import { sendInvitationEmail, sendStaffCodeReadyEmail } from '#/shared/auth/emails'
 import { getEnv, getReleaseSha } from '#/shared/config/env'
 import {
   assertDirectCredentialEgressAllowed,
@@ -213,7 +215,78 @@ function buildContainer(
 
   // ── Context builds (dependency order) ──────────────────────────────
 
+  const staffInvitationBudget = createStaffInvitationBudget(
+    infra.rateLimiter,
+    env.BETTER_AUTH_SECRET,
+  )
   const identity = buildIdentityContext({
+    staffAccounts: {
+      authorizeProperty: (ctx, propertyId, action) =>
+        requireExecutionAllowed({
+          actor: ctx,
+          propertyId,
+          action,
+          capability: 'staff.accounts',
+        }),
+      portals: {
+        rename: (input, ctx, transaction) =>
+          portal.publicApi.management.renamePersonalPortalLabels(input, ctx, transaction),
+        check: async (input, ctx) => ({
+          omittedLinks:
+            (await portal.publicApi.management.checkPersonalPortalSource(input, ctx))
+              ?.omittedLinks ?? [],
+        }),
+        create: async (input, ctx) => {
+          await portal.publicApi.management.createPersonalPortal(input, ctx)
+        },
+        issueCode: (portalIdValue, ctx) =>
+          portal.publicApi.management.ensurePersonalPortalToken(
+            { portalId: portalIdValue },
+            ctx,
+          ),
+        publish: async (portalIdValue, ctx) => {
+          await portal.publicApi.management.updatePortal(
+            { portalId: portalIdValue, publicationState: 'published' },
+            ctx,
+          )
+        },
+        archive: async (portalIdValue, ctx) => {
+          await portal.publicApi.management.archivePersonalPortal(
+            { portalId: portalIdValue },
+            ctx,
+          )
+        },
+      },
+      spendInvitationBudget: staffInvitationBudget.spend,
+      invitationBudget: staffInvitationBudget.remaining,
+      deliverAccess: async (row, access) => {
+        if (!row.email) return
+        const names = await property.publicApi.getPropertyNames(
+          organizationId(row.organizationId),
+          [propertyId(row.propertyId)],
+        )
+        const propertyName = names[0]?.name ?? 'your Property'
+        if (access.invited)
+          await (options?.email ?? sendInvitationEmail)({
+            email: row.email,
+            invitedByUsername: 'Your manager',
+            organizationName: propertyName,
+            inviteLink: new URL(
+              `/accept-invitation?id=${row.invitationId}`,
+              env.BETTER_AUTH_URL,
+            ).href,
+            role: 'Member',
+            propertyNames: [],
+            expiresInDays: 7,
+          })
+        else
+          await sendStaffCodeReadyEmail(
+            row.email,
+            propertyName,
+            new URL('/login', env.BETTER_AUTH_URL).href,
+          )
+      },
+    },
     db,
     identityPort,
     clock,
@@ -619,6 +692,7 @@ function buildContainer(
   // ARC-03-T10: downstream Reporting and Feed are composed as one named
   // group after their upstream dependencies.
   const { reporting, goalCorrectionPolicy, feed } = buildReadAndNotifyContexts({
+    staffScanTargetsEnabled: env.STAFF_SCAN_TARGETS_ENABLED,
     db,
     clock,
     idGen: randomUUID,

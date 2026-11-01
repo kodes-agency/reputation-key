@@ -116,10 +116,10 @@ const pmCtx = {
   role: 'PropertyManager' as const,
 } as AuthContext
 
-const memberCtx = {
+const assignedManagerCtx = {
   organizationId: ORG_ID,
   userId: USER_ID,
-  role: 'Member' as const,
+  role: 'PropertyManager' as const,
 } as AuthContext
 
 const dynamicCtx = (...permissions: Permission[]): AuthContext => ({
@@ -678,24 +678,24 @@ describe('getInboxItems', () => {
     ).rejects.toSatisfy((e: unknown) => isInboxError(e) && e.code === 'forbidden')
   })
 
-  it('Member is property-scoped to accessible properties only', async () => {
+  it('PropertyManager is property-scoped to accessible properties only', async () => {
     const scopedApi = createScopedStaffApi(['prop-1'])
     const { useCase, repo } = setup(scopedApi)
     repo.items.push(seedItem({ id: 'ii-1', propertyId: PROP_ID }))
     repo.items.push(seedItem({ id: 'ii-2', propertyId: OTHER_PROP_ID }))
 
-    const result = await useCase({ filters: {} }, memberCtx)
+    const result = await useCase({ filters: {} }, assignedManagerCtx)
 
     expect(result.items).toHaveLength(1)
     expect(result.items[0].propertyId).toBe(PROP_ID)
   })
 
-  it('Member with no accessible properties sees nothing', async () => {
+  it('PropertyManager with no accessible properties sees nothing', async () => {
     const scopedApi = createScopedStaffApi([])
     const { useCase, repo } = setup(scopedApi)
     repo.items.push(seedItem({ id: 'ii-1' }))
 
-    const result = await useCase({ filters: {} }, memberCtx)
+    const result = await useCase({ filters: {} }, assignedManagerCtx)
 
     expect(result.items).toHaveLength(0)
   })
@@ -706,16 +706,16 @@ describe('getInboxItems', () => {
     repo.items.push(seedItem({ id: 'ii-1' }))
 
     await expect(
-      useCase({ filters: { propertyId: OTHER_PROP_ID } }, memberCtx),
+      useCase({ filters: { propertyId: OTHER_PROP_ID } }, assignedManagerCtx),
     ).rejects.toSatisfy((e: unknown) => isInboxError(e) && e.code === 'forbidden')
   })
 
-  it('Member can filter by an accessible property', async () => {
+  it('PropertyManager can filter by an accessible property', async () => {
     const scopedApi = createScopedStaffApi(['prop-1'])
     const { useCase, repo } = setup(scopedApi)
     repo.items.push(seedItem({ id: 'ii-1', propertyId: PROP_ID }))
 
-    const result = await useCase({ filters: { propertyId: PROP_ID } }, memberCtx)
+    const result = await useCase({ filters: { propertyId: PROP_ID } }, assignedManagerCtx)
 
     expect(result.items).toHaveLength(1)
     expect(result.items[0].propertyId).toBe(PROP_ID)

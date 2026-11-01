@@ -1,3 +1,4 @@
+import { shouldCountGuestVisit } from './count-guest-visit'
 // Guest context — scan & public portal read server functions (split from public.ts)
 
 import { createServerFn } from '@tanstack/react-start'
@@ -192,6 +193,8 @@ export const recordScanFn = createServerFn({ method: 'POST' })
         }
 
         try {
+          if (!(await shouldCountGuestVisit(headers, portal.organizationId)))
+            return { success: true, retryable: false }
           const outcome = await useCases.recordScan({
             organizationId: organizationId(portal.organizationId),
             portalId: portalId(portal.portal.id),

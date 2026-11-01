@@ -105,6 +105,8 @@ const seedPortal = (): Portal => ({
   id: TEST_PORTAL_ID,
   organizationId: organizationId('org-test-create-group-000001'),
   propertyId: TEST_PROPERTY_ID,
+  kind: 'place',
+  publicName: null,
   entityType: 'property',
   entityId: TEST_PROPERTY_ID,
   name: 'Test Portal',

@@ -14,7 +14,7 @@ import {
 import type { AccessiblePropertyLookupPort } from '../../application/ports/accessible-property-lookup.port'
 
 export const createGrantAccessLookup = (
-  db: Database,
+  db: Pick<Database, 'execute'>,
   clock: () => Date,
 ): AccessiblePropertyLookupPort => {
   return async (orgId: OrganizationId, uid: UserId) => {

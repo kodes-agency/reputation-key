@@ -1,3 +1,4 @@
+import { shouldCountGuestVisit } from './count-guest-visit'
 import { createServerFn } from '@tanstack/react-start'
 import { setResponseHeader } from '@tanstack/react-start/server'
 import { getContainer } from '#/composition'
@@ -588,7 +589,10 @@ export const selectGoogleReviewFn = createServerFn({ method: 'POST' })
           undefined,
           'fail_open_navigation',
         )
-        if (qualified) {
+        if (
+          qualified &&
+          (await shouldCountGuestVisit(bound.headers, bound.scope.organizationId))
+        ) {
           await bound.useCases.trackReviewLinkClick({
             linkId: portalLinkId(`google-review:${bound.scope.portalId}`),
             destinationKind: 'google_review',
@@ -637,11 +641,16 @@ export const selectSecondaryLinkFn = createServerFn({ method: 'POST' })
           data.linkId,
           'fail_open_navigation',
         )
+        const countVisit = await shouldCountGuestVisit(
+          bound.headers,
+          bound.scope.organizationId,
+        )
         const result = await bound.useCases.resolveLinkAndTrack({
           token: data.token,
           linkId: portalLinkId(data.linkId),
           qualifyObservation: async (scope) =>
             qualified &&
+            countVisit &&
             scope.organizationId === bound.scope.organizationId &&
             scope.propertyId === bound.scope.propertyId &&
             scope.portalId === bound.scope.portalId

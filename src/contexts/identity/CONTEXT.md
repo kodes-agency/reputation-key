@@ -61,8 +61,8 @@ adapter; no other context reads its tables directly.
   manager assignments never grant membership or Property access, and never gate
   Property work.
 - Staff Participants may exist without users. Login links and participation are
-  effective-dated and ambiguity-denying; they drive attribution only and are never
-  read for command authority or manager eligibility.
+  effective-dated and ambiguity-denying; they drive attribution and, behind `staff.accounts`, own personal-Portal reads. They are never
+  read for manager command authority or manager eligibility.
 - Participation and responsibility intervals are half-open. Replacing a responsibility
   set preserves unchanged rows and closes removed relationships.
 - At most one active primary Portal attribution exists. Supporting attribution does
@@ -180,3 +180,11 @@ retain those keys while living under Identity infrastructure. Purge order remain
 Portal Responsibilities, Portal Group memberships, Staff Participations, Staff user
 links, then Staff Participants; it never deletes users, memberships, sessions, or
 Property access grants.
+
+## Staff account foundation — 2026-11-01 (ADR 0076)
+
+`staff-accounts.ts` exposes Property-scoped batch checking, Add, Remove, Rename, Resend, list and colleague settings through execution policy under `staff.accounts` (off). The session-only self door requires current membership, an active link and active personal participation. It never accepts a person id. Members keep only their own password/profile actions and `staff.self`; no manager function admits them.
+
+Add reserves one operation and stable identifiers under the invitation email lock before creating anything. Each step commits independently and a failed step resumes; completion or cancellation clears email and name in the checkpoint statement. Staff invitation acceptance creates membership and login link in the same transaction on signed-in, registration and recovery paths, with no Property grant. Existing Organization members link directly. Remove first cancels acceptance and ends participation access, then converges on Portal archival and, at the last Property, link closure and Member-only login removal. A manager login survives. Personal responsibilities cannot be replaced through the older participation commands.
+
+`staff_onboardings` and `staff_property_settings` belong to Identity's retained `staff` export and purge contribution. The former holds contact data only while unfinished. The latter defaults the colleague list off. The notice version and acknowledgement time live on the effective-dated login link.

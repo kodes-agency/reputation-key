@@ -228,6 +228,7 @@ async function readPayload(
               status,
               to_char("expiresAt" AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS expires_at,
               "propertyIds" AS property_ids,
+              "staffParticipationId" AS staff_participation_id,
               "inviterId" AS inviter_id,
               to_char("createdAt" AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS created_at
             FROM invitation

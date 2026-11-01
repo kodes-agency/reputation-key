@@ -3,8 +3,33 @@ import type { Database } from '#/shared/db'
 import { portalAccessArtifacts, portalTokens } from '#/shared/db/schema/portal.schema'
 import { unbrand } from '#/shared/domain/ids'
 import { trace } from '#/shared/observability/trace'
-import type { PortalAddressRepository } from '../../application/ports/portal-address.repository'
+import type {
+  RecordAddressDownloadInput,
+  PortalAddressRepository,
+} from '../../application/ports/portal-address.repository'
 import { refusingPrintCodeCollision } from '../portal-print-code-hashes'
+
+async function insertDownload(
+  executor: Pick<Database, 'execute'>,
+  input: RecordAddressDownloadInput,
+): Promise<boolean> {
+  const inserted = await executor.execute(sql`
+        INSERT INTO portal_address_downloads
+          (organization_id, property_id, portal_id, portal_token_id,
+           downloaded_by, purpose, downloaded_at)
+        SELECT t.organization_id, t.property_id, t.portal_id, t.id,
+               ${unbrand(input.downloadedBy)}, ${input.purpose}, ${input.at}
+        FROM portal_tokens t
+        WHERE t.organization_id = ${unbrand(input.organizationId)}
+          AND t.property_id = ${unbrand(input.propertyId)}
+          AND t.portal_id = ${unbrand(input.portalId)}
+          AND t.id = ${input.tokenId}
+          AND t.status = 'active'
+          AND t.encrypted_raw_token IS NOT NULL
+        RETURNING id
+      `)
+  return inserted.rows.length === 1
+}
 
 /**
  * The only reader of `portal_tokens.encrypted_raw_token`. Every read is scoped
@@ -67,24 +92,22 @@ export const createPortalAddressRepository = (db: Database): PortalAddressReposi
 
   recordDownload: (input) =>
     trace('portalAddress.recordDownload', async () => {
+      if (input.oncePerUserToken) {
+        return db.transaction(async (tx) => {
+          const live = await tx.execute(
+            sql`SELECT id FROM portal_tokens WHERE organization_id = ${input.organizationId} AND portal_id = ${input.portalId} AND id = ${input.tokenId}::uuid AND status = 'active' AND encrypted_raw_token IS NOT NULL FOR UPDATE`,
+          )
+          if (!live.rows.length) return false
+          const previous = await tx.execute(
+            sql`SELECT id FROM portal_address_downloads WHERE organization_id = ${input.organizationId} AND portal_token_id = ${input.tokenId}::uuid AND downloaded_by = ${input.downloadedBy} AND purpose = 'show' LIMIT 1`,
+          )
+          if (previous.rows.length) return true
+          return insertDownload(tx, input)
+        })
+      }
       // One statement, so the row exists only for a code that is still active
       // and still holds a sealed address at the instant it is written.
-      const inserted = await db.execute(sql`
-        INSERT INTO portal_address_downloads
-          (organization_id, property_id, portal_id, portal_token_id,
-           downloaded_by, purpose, downloaded_at)
-        SELECT t.organization_id, t.property_id, t.portal_id, t.id,
-               ${unbrand(input.downloadedBy)}, ${input.purpose}, ${input.at}
-        FROM portal_tokens t
-        WHERE t.organization_id = ${unbrand(input.organizationId)}
-          AND t.property_id = ${unbrand(input.propertyId)}
-          AND t.portal_id = ${unbrand(input.portalId)}
-          AND t.id = ${input.tokenId}
-          AND t.status = 'active'
-          AND t.encrypted_raw_token IS NOT NULL
-        RETURNING id
-      `)
-      return inserted.rows.length === 1
+      return insertDownload(db, input)
     }),
 
   fillPrintCodeHashes: (input) =>

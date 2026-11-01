@@ -84,7 +84,12 @@ const accountAdmin: AuthContext = {
 const member: AuthContext = {
   organizationId: ORG_ID,
   userId: VIEWER,
-  role: 'Member',
+  role: 'PropertyManager',
+  effectivePermissions: new Set(['inbox.read', 'review.read']),
+  scopeByPermission: new Map([
+    ['inbox.read', 'assigned-properties'],
+    ['review.read', 'assigned-properties'],
+  ]),
 }
 
 /** Needs reply: Elegance 2, Rila 1. Awaiting approval: Elegance 1. Feedback: Black Sea 1. */

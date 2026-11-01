@@ -254,8 +254,8 @@ describe('admin role (PropertyManager)', () => {
 })
 
 describe('memberRole (Member)', () => {
-  it('can only read reviews', () => {
-    expect(can('Member', 'review.read')).toBe(true)
+  it('cannot read manager reviews', () => {
+    expect(can('Member', 'review.read')).toBe(false)
   })
 
   it('does not expose manager-facing Goal metrics before a Member dashboard exists', () => {
@@ -293,7 +293,7 @@ describe('memberRole (Member)', () => {
 
   it('cannot manage staff participation lifecycle', () => {
     expect(can('Member', 'staff.manage')).toBe(false)
-    expect(can('Member', 'staff.read')).toBe(true)
+    expect(can('Member', 'staff.read')).toBe(false)
   })
 
   it('cannot manage organizations', () => {
@@ -327,7 +327,7 @@ describe('initPermissionTable', () => {
   it('resets the permission table to the default configuration', () => {
     initPermissionTable()
     expect(can('AccountAdmin', 'member.create')).toBe(true)
-    expect(can('Member', 'review.read')).toBe(true)
+    expect(can('Member', 'review.read')).toBe(false)
   })
 })
 

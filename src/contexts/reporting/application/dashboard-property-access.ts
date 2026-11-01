@@ -40,8 +40,8 @@ export async function requireDashboardPropertyAccess(
 /**
  * The Property overview and its attention band also carry work state
  * `dashboard.read` alone does not reach: reply targets past due, items to
- * triage, escalations (§9). A Member holds `dashboard.read` for the staff
- * dashboard and must not read them, so their reader needs
+ * triage, escalations (§9). Members use a separate staff-self door and hold
+ * neither manager dashboard permission. This reader needs
  * `dashboard.fleet_read` as well, held and reaching the Property: what the
  * overview's server function asks the execution policy. One grant lookup
  * answers both permissions.

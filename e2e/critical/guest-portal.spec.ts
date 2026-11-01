@@ -548,6 +548,7 @@ test.describe('Critical: public Portal basics', () => {
       throw new Error('portal.scan readings did not settle within 20s')
     }
     const before = await settledScanCount()
+    await context.clearCookies()
 
     // One visit records exactly one, and a reload does not add another: the
     // guard is storage-backed plus a use-case dedupe on the signed session, so

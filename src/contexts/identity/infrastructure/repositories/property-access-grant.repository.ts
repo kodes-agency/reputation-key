@@ -116,7 +116,7 @@ export async function revokeAllPropertyAccessForUser(
 }
 
 export async function listActiveGrantsForUser(
-  db: Database,
+  db: PolicySqlExecutor,
   organizationId: string,
   userId: string,
   at: Date,
