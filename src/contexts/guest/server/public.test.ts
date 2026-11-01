@@ -7,7 +7,14 @@ import { beforeEach, describe, it, expect, vi } from 'vitest'
 import { readFileSync } from 'node:fs'
 import { resolveLinkAndTrack } from '../application/use-cases/resolve-link-and-track'
 
-import { selectGoogleReviewFn, selectSecondaryLinkFn } from './public'
+import {
+  selectGoogleReviewFn,
+  selectSecondaryLinkFn,
+  submitGuestResponseFn,
+  submitPrivateFeedbackFn,
+  correctGuestResponseFn,
+  withdrawGuestResponseFn,
+} from './public'
 
 // ── Server-fn gates (source-pinned) ───────────────────────────────
 //
@@ -183,7 +190,7 @@ describe('guest response server-fn gates', () => {
     expect(feedback).toContain("setResponseHeader('Set-Cookie'")
   })
 
-  it('reveals the Google action only after this signed session has a rating', () => {
+  it('admits Google after a rating or on a published direct Portal', () => {
     const fn = slice('selectGoogleReviewFn')
     const receipt = fn.indexOf('responseLifecycle.getState')
     const ratingGate = fn.indexOf('if (!isQualifiedGuestResponse(response))')
@@ -272,7 +279,7 @@ describe('guest response server-fn gates', () => {
     expect(fn).toContain("'new_response'")
     expect(fn).not.toContain('responseLifecycle.withdraw')
     expect(fn).not.toContain('responseLifecycle.correct')
-    // Google still requires a rating; secondary links count from arrival.
+    // Google checks the rating or published switch; secondary links count from arrival.
     expect(fn).not.toContain('isQualifiedGuestResponse')
     expect(slice('selectGoogleReviewFn')).toContain(
       'if (!isQualifiedGuestResponse(response))',
@@ -358,6 +365,8 @@ const mocks = vi.hoisted(() => ({
   setResponseHeader: vi.fn(),
   submit: vi.fn(),
   correct: vi.fn(),
+  addPrivateFeedback: vi.fn(),
+  withdraw: vi.fn(),
   getState: vi.fn(),
   trackReviewLinkClick: vi.fn(),
   logError: vi.fn(),
@@ -433,6 +442,8 @@ vi.mock('#/composition', () => ({
         responseLifecycle: {
           submit: mocks.submit,
           correct: mocks.correct,
+          addPrivateFeedback: mocks.addPrivateFeedback,
+          withdraw: mocks.withdraw,
           getState: mocks.getState,
         },
       },
@@ -568,5 +579,82 @@ describe('secondary tap admission', () => {
       selectGoogleReviewFn({ data: { token: 'pt_live', csrfNonce: CSRF_NONCE } }),
     ).rejects.toMatchObject({ status: 404, code: 'unavailable' })
     expect(mocks.trackReviewLinkClick).not.toHaveBeenCalled()
+  })
+})
+
+describe('published direct Google journey', () => {
+  const data = { token: 'pt_live', csrfNonce: CSRF_NONCE }
+  const switchOn = (available = true) =>
+    mocks.getPublicPortal.mockResolvedValue({
+      ...PORTAL,
+      reviewGateway: {
+        ...PORTAL.reviewGateway,
+        skipPrivateRating: true,
+        googleReview: available
+          ? PORTAL.reviewGateway.googleReview
+          : { status: 'unavailable' },
+      },
+    })
+
+  it('admits an unrated signed session to Google through the existing receipt recorder', async () => {
+    switchOn()
+    await expect(selectGoogleReviewFn({ data })).resolves.toEqual({
+      url: 'https://g.page/r/venue',
+    })
+    expect(mocks.trackReviewLinkClick).toHaveBeenCalledExactlyOnceWith(
+      expect.objectContaining({
+        sessionId: SESSION_ID,
+        sessionExpiresAt: SESSION.expiresAt,
+        destinationKind: 'google_review',
+      }),
+    )
+  })
+
+  it('uses the same once-per-session receipt identity on a repeated direct open', async () => {
+    switchOn()
+    await selectGoogleReviewFn({ data })
+    await selectGoogleReviewFn({ data })
+    const calls = mocks.trackReviewLinkClick.mock.calls
+    expect(calls).toHaveLength(2)
+    expect(calls[1]).toEqual(calls[0])
+    expect(calls[0]?.[0]).toMatchObject({
+      sessionId: SESSION_ID,
+      linkId: `google-review:${PORTAL_ID}`,
+    })
+  })
+
+  it('refuses a new rating and note without enumeration', async () => {
+    switchOn()
+    await expect(
+      submitGuestResponseFn({ data: { ...data, rating: 3, responseConsent: true } }),
+    ).rejects.toMatchObject({ status: 404, code: 'unavailable' })
+    await expect(
+      submitPrivateFeedbackFn({
+        data: { ...data, text: 'A note', responseConsent: true, textConsent: true },
+      }),
+    ).rejects.toMatchObject({ status: 404, code: 'unavailable' })
+    expect(mocks.submit).not.toHaveBeenCalled()
+    expect(mocks.addPrivateFeedback).not.toHaveBeenCalled()
+  })
+
+  it('keeps correction and withdrawal available for an earlier response', async () => {
+    switchOn()
+    mocks.correct.mockResolvedValue({ rating: 4 })
+    mocks.withdraw.mockResolvedValue({ status: 'deleted' })
+    await expect(
+      correctGuestResponseFn({ data: { ...data, rating: 4, responseConsent: true } }),
+    ).resolves.toEqual({ rating: 4 })
+    await expect(withdrawGuestResponseFn({ data })).resolves.toEqual({
+      status: 'deleted',
+    })
+  })
+
+  it('keeps the rating path when Google is unavailable', async () => {
+    switchOn(false)
+    mocks.submit.mockResolvedValue({ rating: 3 })
+    await expect(
+      submitGuestResponseFn({ data: { ...data, rating: 3, responseConsent: true } }),
+    ).resolves.toEqual({ rating: 3 })
+    expect(mocks.submit).toHaveBeenCalledOnce()
   })
 })

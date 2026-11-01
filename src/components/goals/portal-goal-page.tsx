@@ -295,7 +295,11 @@ function usePageActions(props: Props) {
     canChange: props.canChange,
     canStop: props.canStop,
     openSheet,
-    canSwitch: props.single?.canSwitch,
+    canSwitch:
+      props.single?.canSwitch ??
+      (card.state !== 'goal' ||
+        card.goal.measure !== 'qualified_scans' ||
+        card.sheet.ratingsAvailable !== false),
     stop: props.stop,
     focusTitle: focusPortalGoalPageTitle,
   })

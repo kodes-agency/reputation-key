@@ -45,6 +45,7 @@ describe('createPublicPortalLookup', () => {
       categories: [],
       links: [],
       reviewGateway: {
+        skipPrivateRating: false,
         privateFeedbackThreshold: 3,
         googleReview: {
           status: 'available' as const,

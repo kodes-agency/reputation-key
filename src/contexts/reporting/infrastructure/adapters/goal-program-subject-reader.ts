@@ -1,3 +1,4 @@
+import { ratingSubjectSkipsPrivateRating } from '../../application/goal-rating-eligibility'
 import type { PropertyFactsPublicApi } from '#/contexts/property/application/public-api'
 import type {
   PortalGroupPublicApi,
@@ -38,6 +39,23 @@ export const createGoalProgramSubjectReader = (
   }
 
   return {
+    ratingSubjectsSkipPrivateRating: async (
+      organizationId,
+      propertyId,
+      subjects,
+      asOf,
+    ) => {
+      if (subjects.every((subject) => subject.kind === 'property')) return false
+      const facts = await portalApi.listGoalReadinessFacts(
+        toOrganizationId(organizationId),
+        toPropertyId(propertyId),
+        asOf,
+      )
+      if (facts.truncated) throw new Error('Portal rating eligibility is incomplete')
+      return subjects.some((subject) =>
+        ratingSubjectSkipsPrivateRating(facts.portals, subject),
+      )
+    },
     getTimezone: (organizationId, propertyId) =>
       propertyApi.getPropertyTimezone(
         toOrganizationId(organizationId),

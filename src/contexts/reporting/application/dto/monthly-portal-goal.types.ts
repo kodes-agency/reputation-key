@@ -116,6 +116,7 @@ export type PortalGoalMeasureOffers = Readonly<{
  * months, and, in the first weeks, the day the recommended number is ready.
  */
 export type PortalGoalSheetFacts = Readonly<{
+  ratingsAvailable?: boolean
   /** The month the card offers: this month through the 20th local day, else the next. */
   month: string
   ownNumber: Readonly<{

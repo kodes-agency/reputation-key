@@ -15,6 +15,7 @@ import type { PortalEditorSection } from './portal-editor-sections'
 export type PortalEditorSummaryInput = Readonly<{
   portalName: string
   privateFeedbackThreshold: number
+  skipPrivateRating?: boolean
   linkCount: number
   /** Tiles guests cannot see because their address is not approved. */
   hiddenLinkCount?: number
@@ -100,8 +101,12 @@ export function summarizePortalEditorSections(
         ? { attention: languagesWithoutWordingLine(input.languagesWithoutWording ?? 0) }
         : {}),
     },
-    rating: fixed('Always included'),
-    'private-note': open(`${input.privateFeedbackThreshold}★ or below`),
+    rating: fixed(input.skipPrivateRating ? 'Google review' : 'Always included'),
+    'private-note': open(
+      input.skipPrivateRating
+        ? 'Skips rating'
+        : `${input.privateFeedbackThreshold}★ or below`,
+    ),
     linktree: open(linktreeLine(input.linkCount, input.hiddenLinkCount ?? 0)),
     footer: fixed('Privacy notice'),
     languages: {
@@ -155,6 +160,7 @@ export function portalEditorSummaryInput(
   return {
     portalName: portal.name,
     privateFeedbackThreshold: portal.privateFeedbackThreshold,
+    skipPrivateRating: portal.skipPrivateRating,
     linkCount: resources.links.length,
     hiddenLinkCount: countHiddenLinks(resources.linktree.links),
     languageCount: locales.length,

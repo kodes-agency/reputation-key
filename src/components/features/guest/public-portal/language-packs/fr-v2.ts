@@ -59,6 +59,8 @@ export const frV2 = defineGuestCopyV2({
     ratingUpdated: 'Votre note a été modifiée.',
 
     googleTitle: 'Partagez votre expérience sur Google',
+    googleDirectBody:
+      'Si vous le souhaitez, vous pouvez laisser un avis public sur Google.',
     googleBody:
       'Si vous le souhaitez, vous pouvez aussi laisser un avis public sur Google.',
     googleAction: 'Continuer vers Google',

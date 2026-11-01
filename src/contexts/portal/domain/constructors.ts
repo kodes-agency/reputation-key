@@ -47,6 +47,7 @@ export type BuildPortalInput = Readonly<{
   description?: string | null
   theme?: Partial<PortalTheme>
   privateFeedbackThreshold?: number
+  skipPrivateRating?: boolean
   publicationState?: Portal['publicationState']
   createdBy?: UserId | null
   hasInitialResponsibleManager?: boolean
@@ -84,6 +85,7 @@ export const buildPortal = (input: BuildPortalInput): Result<Portal, PortalError
       heroImageUrl: null,
       theme: validTheme,
       privateFeedbackThreshold: validPrivateFeedbackThreshold,
+      skipPrivateRating: input.skipPrivateRating ?? false,
       publicationState: input.publicationState ?? 'draft',
       createdBy: input.createdBy ?? null,
       responsibleManagerRevision: 1,

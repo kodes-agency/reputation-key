@@ -160,6 +160,12 @@ const publicationConfigurationSchema = z.discriminatedUnion('schemaVersion', [
   publicationConfigurationBaseSchema
     .pick({ reviewGateway: true, googleReviewBinding: true })
     .extend(immersiveConfigurationFields)
+    .extend({
+      reviewGateway: publicationConfigurationBaseSchema.shape.reviewGateway
+        .unwrap()
+        .extend({ skipPrivateRating: z.boolean().optional() })
+        .readonly(),
+    })
     .readonly(),
 ])
 

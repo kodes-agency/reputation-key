@@ -249,3 +249,9 @@ it('says three quiet observations in plain English', () =>
       'Guests who rated read the page mostly in English (58%), then Bulgarian (24%).',
     busiest: 'Busiest around 12–2 pm and 7–9 pm, and on Saturdays.',
   }))
+
+it('does not suggest collecting ratings on a switched Portal', () => {
+  const noRatings = { ...data, kpis: { ...data.kpis, ratings: resultsCount(0, null) } }
+  const result = portalResultsCheckIn(noRatings, { ...place, skipPrivateRating: true })
+  expect(result.happy.lines).toEqual([])
+})

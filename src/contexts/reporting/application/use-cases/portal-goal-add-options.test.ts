@@ -334,3 +334,31 @@ describe('what Add a portal goal offers', () => {
     )
   })
 })
+
+it('filters switched Portals and all-switched groups from rating choices, retaining mixed groups', async () => {
+  const { options } = read({
+    now: NOV_18,
+    portals: [
+      portal('Reception', '2026-10-01', {
+        skipPrivateRating: true,
+        portalGroupId: 'group-direct',
+      }),
+      portal('Spa', '2026-10-01', {
+        skipPrivateRating: true,
+        portalGroupId: 'group-mixed',
+      }),
+      portal('Restaurant', '2026-10-01', { portalGroupId: 'group-mixed' }),
+    ],
+    counts: {
+      days: readings('portal-restaurant', 'portal_rating_count', days('2026-10-21', 14)),
+    },
+    subjectNames: {
+      'portal_group:group-direct': 'Direct',
+      'portal_group:group-mixed': 'Mixed',
+    },
+  })
+  const result = await options
+  expect(result.measure).toBe('portal_rating_count')
+  expect(result.onePortal.map((offer) => offer.name)).toEqual(['Restaurant'])
+  expect(result.groups.map((offer) => offer.name)).toEqual(['Mixed'])
+})

@@ -26,6 +26,7 @@ export type PortalData = Readonly<{
   heroImageUrl: string | null
   theme: PortalThemeDraft
   privateFeedbackThreshold: number
+  skipPrivateRating: boolean
   publicationState: PortalPublicationState
   primaryGuestLocale?: GuestLocale
   additionalGuestLocales?: readonly GuestLocale[]
@@ -40,6 +41,7 @@ export type UpdatePortalVariables = {
     heroImageUrl?: null
     theme?: PortalThemeDraft
     privateFeedbackThreshold?: number
+    skipPrivateRating?: boolean
     publicationState?: PortalPublicationState
     primaryGuestLocale?: OfferedGuestLocale
     additionalGuestLocales?: OfferedGuestLocale[]

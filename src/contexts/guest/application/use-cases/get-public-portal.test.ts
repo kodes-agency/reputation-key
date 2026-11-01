@@ -16,6 +16,7 @@ const fakeData: PublicPortalData = {
   categories: [],
   links: [],
   reviewGateway: {
+    skipPrivateRating: false,
     privateFeedbackThreshold: 3,
     googleReview: {
       status: 'available',

@@ -6,6 +6,7 @@ const portalApi = {
   resolvePortalContext: vi.fn(),
   getPortalInfo: vi.fn(),
   listCurrentPortalIds: vi.fn(),
+  listGoalReadinessFacts: vi.fn(),
 }
 const portalGroupApi = { portalGroupBelongsToProperty: vi.fn(), getGroupInfo: vi.fn() }
 const reader = () =>
@@ -163,6 +164,46 @@ describe('Goal Program subject reader', () => {
       'org-1',
       'property-1',
       251,
+    )
+  })
+})
+
+describe('private-rating eligibility from Portal facts', () => {
+  const asOf = new Date('2026-11-02T12:00:00.000Z')
+  it.each([true, false])('an all-switched group: %s', (allSwitched) => {
+    portalApi.listGoalReadinessFacts.mockResolvedValue({
+      truncated: false,
+      portals: [
+        { portalId: 'one', portalGroupId: 'group', skipPrivateRating: true },
+        { portalId: 'two', portalGroupId: 'group', skipPrivateRating: allSwitched },
+      ],
+    })
+    return expect(
+      reader().ratingSubjectsSkipPrivateRating!(
+        'org',
+        'property',
+        [{ kind: 'portal_group', portalGroupId: 'group' }],
+        asOf,
+      ),
+    ).resolves.toBe(allSwitched)
+  })
+  it('reads the current eligibility fact through the scoped Portal API', async () => {
+    portalApi.listGoalReadinessFacts.mockResolvedValue({
+      truncated: false,
+      portals: [{ portalId: 'one', portalGroupId: null, skipPrivateRating: true }],
+    })
+    await expect(
+      reader().ratingSubjectsSkipPrivateRating!(
+        'org',
+        'property',
+        [{ kind: 'portal', portalId: 'one' }],
+        asOf,
+      ),
+    ).resolves.toBe(true)
+    expect(portalApi.listGoalReadinessFacts).toHaveBeenLastCalledWith(
+      'org',
+      'property',
+      asOf,
     )
   })
 })

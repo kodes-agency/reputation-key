@@ -201,6 +201,7 @@ describe('resolvePublicPortalToken', () => {
         links: [],
         reviewGateway: {
           privateFeedbackThreshold: 3,
+          skipPrivateRating: false,
           googleReview: { status: 'available', uri: GOOGLE_REVIEW_URI },
         },
         localization: {

@@ -27,6 +27,7 @@ const setup = (
   destinationState: 'verified' | 'unavailable' = 'verified',
   propertyLifecycle: 'active' | 'inactive' | 'error' = 'active',
   workingCopy: Partial<PortalPublicationSource> = {},
+  hasRunningRatingGoal = false,
 ) => {
   const portalRepo = createInMemoryPortalRepo()
   const outbox = createRecordedOutbox()
@@ -47,6 +48,7 @@ const setup = (
           propertyId: portal.propertyId,
           portal: { id: portal.id, name: portal.name, slug: portal.slug },
           privateFeedbackThreshold: portal.privateFeedbackThreshold,
+          skipPrivateRating: portal.skipPrivateRating,
           links: [],
           ...workingCopy,
         })
@@ -76,6 +78,7 @@ const setup = (
     resolveActiveByTokenDigest: async () => null,
   }
   const deps = {
+    ratingGoalGuard: { hasRunningRatingGoal: async () => hasRunningRatingGoal },
     portalRepo,
     commandStore: {
       ...baseCommandStore,
@@ -750,6 +753,7 @@ describe('resolvePortalContentFields', () => {
       heroImageUrl: 'https://cdn.example.com/hero.png',
       theme: { primaryColor: '#112233' },
       privateFeedbackThreshold: 3,
+      skipPrivateRating: false,
       primaryGuestLocale: 'en',
       additionalGuestLocales: [],
     })
@@ -786,5 +790,38 @@ describe('resolvePortalContentFields', () => {
     expect(() =>
       resolvePortalContentFields({ portalId: existing.id, name: '   ' }, existing),
     ).toThrow(expect.objectContaining({ code: 'invalid_name' }))
+  })
+})
+
+describe('skip private rating through the goal port', () => {
+  it('refuses the switch while this Portal has a running rating goal', async () => {
+    const { portalRepo, useCase, commandWrites } = setup(
+      null,
+      'verified',
+      'active',
+      {},
+      true,
+    )
+    const portal = buildTestPortal()
+    portalRepo.seed([portal])
+    await expect(
+      useCase({ portalId: portal.id, skipPrivateRating: true }, buildTestAuthContext()),
+    ).rejects.toMatchObject({
+      _tag: 'PortalError',
+      code: 'running_rating_goal',
+      message: 'This portal has a running goal on private ratings. End the goal first.',
+    })
+    expect(commandWrites()).toBe(0)
+  })
+  it('saves the switch when no single-Portal rating goal holds it', async () => {
+    const { portalRepo, useCase, commandWrites } = setup()
+    const portal = buildTestPortal()
+    portalRepo.seed([portal])
+    const saved = await useCase(
+      { portalId: portal.id, skipPrivateRating: true },
+      buildTestAuthContext(),
+    )
+    expect(saved.skipPrivateRating).toBe(true)
+    expect(commandWrites()).toBe(1)
   })
 })

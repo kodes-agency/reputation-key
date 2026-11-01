@@ -45,6 +45,7 @@ export function overviewRow(
     name: id,
     slug: id,
     publicationState: 'published',
+    skipPrivateRating: false,
     primaryGuestLocale: 'en',
     additionalGuestLocales: [],
     health: { status: 'healthy', reason: 'operational' },

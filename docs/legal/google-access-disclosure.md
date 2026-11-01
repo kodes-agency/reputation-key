@@ -2,14 +2,14 @@
 status: accepted
 accepted_by: Bozhidar Denev
 accepted_on: 2026-09-08
-amended_on: 2026-11-01
+amended_on: 2026-11-02
 ---
 
 # Google Business Profile Access Disclosure
 
 **Status:** Accepted for publication
-**Effective date:** 2026-11-01
-**Version:** 2.2
+**Effective date:** 2026-11-02
+**Version:** 2.3
 **Accountable owner:** Bozhidar Denev
 
 ## What access Reputation Key requests
@@ -64,6 +64,11 @@ The same Property-owned Google Review action is then offered with the same
 order, timing, copy, and prominence for every private rating. A low private
 rating may additionally reveal an optional private-feedback form; it does not
 hide or demote the Google action.
+
+A business may switch a Portal to skip the private rating and show the Google
+action straight away, with no private rating or note. If Google is unavailable,
+the standard private rating journey is offered. Correction and withdrawal of an
+existing response remain available.
 
 Reputation Key records only a qualified selection of the Google action. It
 does not claim that the guest completed or published a Google review.
@@ -214,7 +219,7 @@ AI purpose, or publication behavior changes.
 
 ## Changes
 
-This disclosure takes effect on 2026-11-01 and is version 2.2. It replaces
+This disclosure takes effect on 2026-11-02 and is version 2.3. It replaces version 2.2, effective 2026-11-01, which replaced
 version 2.1, which took effect on 2026-10-14 and had replaced version 2.0, which
 took effect on 2026-09-08.
 
@@ -238,3 +243,9 @@ goal uses no new class of Google data, keeps no review content, changes no
 retention period or provider, and changes nothing a guest sees, and it exists
 only once a manager sets it. For these reasons it is not a material change, and
 version 2.1 takes effect on the day it is published.
+
+Version 2.3 (2026-11-02) adds the optional Portal journey that skips the private
+rating and note and shows the Google action straight away. It takes effect on
+release without a waiting period, on the accountable owner’s decision of
+2026-11-01 for the two beta Organizations the owner controls. Existing response
+correction and withdrawal remain available.

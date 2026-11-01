@@ -52,6 +52,13 @@ export type MetricPublicApi = Readonly<{
 }>
 
 // Goal contracts.
+export type PortalRatingGoalReadApi = Readonly<{
+  hasRunningPortalRatingGoal(
+    organizationId: string,
+    propertyId: string,
+    portalId: string,
+  ): Promise<boolean>
+}>
 export type { GoalProgram, GoalSubjectAssignment } from './ports/goal-program.repository'
 export type {
   MonthlyResultNotificationFactsLookup,

@@ -2,14 +2,14 @@
 status: accepted
 accepted_by: Bozhidar Denev
 accepted_on: 2026-09-08
-amended_on: 2026-11-01
+amended_on: 2026-11-02
 ---
 
 # Closed Beta Participation Agreement — Reputation Key
 
 **Status:** Accepted for publication and invited-beta use
-**Effective date:** 2026-11-01
-**Version:** 2.2
+**Effective date:** 2026-11-02
+**Version:** 2.3
 **Accountable owner:** Bozhidar Denev
 
 ## 1. Parties and beta purpose
@@ -47,7 +47,7 @@ release readiness, the core product includes:
 
 Core analytics are part of the Service. There is no product option to decline
 the affected operational metrics while continuing to use the workflow. The
-accepted [Privacy Notice version 3.1](/privacy), effective 2026-11-01, forms part
+accepted [Privacy Notice version 3.2](/privacy), effective 2026-11-02, forms part
 of this agreement and states the applicable roles, legal bases, and rights
 process.
 
@@ -93,7 +93,7 @@ available.
 ## 3. Portal and Guest behavior
 
 A Portal is primarily a Property-owned review gateway and secondarily an
-optional link tree. The Guest first leaves a private 1–5 rating. The same
+optional link tree. In the standard journey, the Guest first leaves a private 1–5 rating. The same
 Property-owned Google Review action is then offered with the same order, timing,
 copy, and prominence for every rating. A rating at or below the Portal's
 inclusive threshold (default `3`) may additionally reveal optional private
@@ -112,6 +112,11 @@ Manager.
 Guests may use the signed response session for the documented correction and
 24-hour withdrawal windows. Contact Request is email-only if later activated;
 phone collection and Guest media remain outside the beta.
+
+A business may switch a Portal to skip the private rating and show the Google
+action straight away, with no private rating or note. If Google is unavailable,
+the standard private rating journey is offered. Correction and withdrawal of an
+existing response remain available.
 
 ## 4. Google Business Profile
 
@@ -230,7 +235,7 @@ agreement does not create them.
 
 ## 9. Data handling, retention, and providers
 
-The accepted [Privacy Notice version 3.1](/privacy), effective 2026-11-01, and
+The accepted [Privacy Notice version 3.2](/privacy), effective 2026-11-02, and
 its retention and provider schedules form part of this agreement. They cover
 Participant, Google source, Portal and Guest, manager-authored, AI-derived,
 monitoring, export, backup, and independently retained evidence classes.
@@ -281,8 +286,8 @@ capability schedule are available.
 
 This agreement is accepted together with:
 
-- Privacy Notice version 3.1, effective 2026-11-01, at `/privacy`;
-- Google Business Profile Access Disclosure version 2.2, effective 2026-11-01,
+- Privacy Notice version 3.2, effective 2026-11-02, at `/privacy`;
+- Google Business Profile Access Disclosure version 2.3, effective 2026-11-02,
   at `/privacy/google-access-disclosure`;
 - the activated-capability schedule in `docs/BETA.md` section 4; and
 - the retention, provider, transfer, rights, deployment, and change rules in
@@ -295,7 +300,7 @@ invited Participant accepts the Participant obligations by joining.
 
 ## 13. Changes
 
-This agreement takes effect on 2026-11-01 and is version 2.2. It replaces
+This agreement takes effect on 2026-11-02 and is version 2.3. It replaces version 2.2, effective 2026-11-01, which replaced
 version 2.1, which took effect on 2026-10-14 and had replaced version 2.0, which
 took effect on 2026-09-08.
 
@@ -329,3 +334,9 @@ AccountAdmins are told in the Service what changed afterwards. This agreement
 adds no term of its own to that rule and no duty for Participants. Version 2.2
 takes effect on the day it is published, on the accountable owner's decision
 for the closed beta.
+
+Version 2.3 (2026-11-02) adds the optional Portal journey that skips the private
+rating and note and shows the Google action straight away. It takes effect on
+release without a waiting period, on the accountable owner’s decision of
+2026-11-01 for the two beta Organizations the owner controls. Existing response
+correction and withdrawal remain available.

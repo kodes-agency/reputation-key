@@ -85,6 +85,7 @@ export type PortalPreview = Readonly<{
   locales: readonly GuestLocale[]
   /** Ratings at or below this inclusive value are offered a private note. */
   privateFeedbackThreshold: number
+  skipPrivateRating: boolean
   experiences: Readonly<Partial<Record<GuestLocale, PortalPreviewExperience>>>
 }>
 
@@ -138,6 +139,7 @@ export type DraftPortalPreviewInput = Readonly<{
     | 'additionalGuestLocales'
     | 'linktreeEnabled'
     | 'privateFeedbackThreshold'
+    | 'skipPrivateRating'
   >
   linktree: PortalLinktreeView
   /**
@@ -308,6 +310,7 @@ export function buildDraftPortalPreview(input: DraftPortalPreviewInput): PortalP
     primaryLocale: primary,
     locales,
     privateFeedbackThreshold: portal.privateFeedbackThreshold,
+    skipPrivateRating: portal.skipPrivateRating,
     experiences,
   }
 }
@@ -379,6 +382,9 @@ function buildPublishedPortalPreview(
       primaryLocale: configuration.guestLocale,
       locales: configuration.localeSet,
       privateFeedbackThreshold: configuration.reviewGateway.privateFeedbackThreshold,
+      skipPrivateRating:
+        configuration.schemaVersion === 3 &&
+        configuration.reviewGateway.skipPrivateRating === true,
       experiences,
     },
   }

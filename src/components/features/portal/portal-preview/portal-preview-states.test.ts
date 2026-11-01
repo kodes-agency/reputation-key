@@ -140,3 +140,15 @@ describe('guestPreviewState', () => {
     })
   })
 })
+
+it('offers only the direct Google state when private ratings are skipped', () => {
+  expect(previewStateOptions(3, true)).toEqual([
+    {
+      id: 'arrival',
+      label: 'Google review',
+      name: 'Google review',
+      state: { phase: 'direct' },
+    },
+  ])
+  expect(guestPreviewState({ phase: 'direct' })).toEqual({ kind: 'direct' })
+})

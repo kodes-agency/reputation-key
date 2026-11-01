@@ -56,8 +56,11 @@ describe('an autosaved form', () => {
   const bannersAndAutosaves = (file: { text: string }) =>
     autosaves(file) && RENDERS_BANNER.test(file.text)
 
-  it('leaves its failure to the editor header and renders no FormErrorBanner', () => {
-    expect(offendersOf(bannersAndAutosaves)).toEqual([])
+  it('leaves failures to the editor header, except the private-rating switch’s inline refusal', () => {
+    // ADR 0044, 2026-11-02: the running-rating-goal refusal belongs beside the switch.
+    expect(offendersOf(bannersAndAutosaves)).toEqual([
+      'src/components/features/portal/portal-editor/portal-private-note-form.tsx',
+    ])
   })
 
   it('sees the forms that autosave, so the rule cannot pass for lack of matches', () => {

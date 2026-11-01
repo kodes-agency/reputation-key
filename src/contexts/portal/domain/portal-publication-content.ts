@@ -75,6 +75,7 @@ export type PublicationContentView = Readonly<{
     photoFocus: string | null
   }>
   feedbackThreshold: number
+  skipPrivateRating: boolean
   reviewAddress: string
 }>
 
@@ -161,6 +162,7 @@ function immersiveView(
         : null,
     },
     feedbackThreshold: configuration.reviewGateway.privateFeedbackThreshold,
+    skipPrivateRating: configuration.reviewGateway.skipPrivateRating === true,
     reviewAddress: configuration.reviewGateway.googleReview.uri,
   }
 }
@@ -178,6 +180,7 @@ function localizedView(
     previewTexts: {},
     headings: configuration.categories.map(({ id, title }) => ({ id, title })),
     feedbackThreshold: configuration.reviewGateway.privateFeedbackThreshold,
+    skipPrivateRating: false,
     reviewAddress: configuration.reviewGateway.googleReview.uri,
   } as const
   if (!isLocalizedConfiguration(configuration)) {
@@ -287,6 +290,7 @@ export type PublicationContentChange =
   | Readonly<{ kind: 'look_changed'; facets: readonly PublicationLookFacet[] }>
   | Readonly<{ kind: 'design_changed'; to: 'immersive' | 'legacy' }>
   | Readonly<{ kind: 'feedback_threshold_changed'; from: number; to: number }>
+  | Readonly<{ kind: 'skip_private_rating_changed'; enabled: boolean }>
   | Readonly<{ kind: 'review_address_changed' }>
 
 const changedLocales = (
@@ -499,6 +503,14 @@ export function diffPublicationContent(
     ...changedHeadings(prior, next),
     ...changedHeroPhotos(prior, next),
     ...changedLook(prior, next),
+    ...(prior.skipPrivateRating !== next.skipPrivateRating
+      ? [
+          {
+            kind: 'skip_private_rating_changed',
+            enabled: next.skipPrivateRating,
+          } as const,
+        ]
+      : []),
     ...(prior.feedbackThreshold !== next.feedbackThreshold
       ? [
           {

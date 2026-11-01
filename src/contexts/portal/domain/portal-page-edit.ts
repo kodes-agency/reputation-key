@@ -43,6 +43,7 @@ const PORTAL_SETTING_FIELDS = [
   'hero_image',
   'theme',
   'feedback_threshold',
+  'skip_private_rating',
   'primary_language',
   'additional_languages',
 ] as const
@@ -56,6 +57,7 @@ const SETTING_BY_PATCH_KEY: Readonly<Record<string, PortalSettingField>> = {
   heroImageUrl: 'hero_image',
   theme: 'theme',
   privateFeedbackThreshold: 'feedback_threshold',
+  skipPrivateRating: 'skip_private_rating',
   primaryGuestLocale: 'primary_language',
   additionalGuestLocales: 'additional_languages',
 }

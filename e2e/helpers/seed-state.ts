@@ -43,6 +43,8 @@ export type E2eSeedState = Readonly<{
   p2PortalToken: string
   p3PortalId: string
   p3PortalToken: string
+  directPortalId: string
+  directPortalToken: string
   portalGroupId: string
   emailQueueFixtureIds: readonly string[]
   portalLinkId: string
@@ -92,6 +94,8 @@ export function readE2eSeedState(): E2eSeedState | null {
       'p2PortalToken',
       'p3PortalId',
       'p3PortalToken',
+      'directPortalId',
+      'directPortalToken',
       'portalGroupId',
       'portalLinkId',
       'managerParticipationId',

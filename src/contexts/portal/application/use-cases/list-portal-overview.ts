@@ -68,6 +68,7 @@ export type PortalOverviewRow = Readonly<{
   propertyId: PropertyId
   name: string
   slug: string
+  skipPrivateRating: boolean
   publicationState: PortalPublicationState
   primaryGuestLocale: GuestLocale
   additionalGuestLocales: readonly GuestLocale[]
@@ -166,6 +167,7 @@ export const listPortalOverview =
         name: portal.name,
         slug: portal.slug,
         publicationState: portal.publicationState,
+        skipPrivateRating: portal.skipPrivateRating,
         primaryGuestLocale: portal.primaryGuestLocale,
         additionalGuestLocales: portal.additionalGuestLocales,
         health: health ? { status: health.status, reason: health.reason } : null,

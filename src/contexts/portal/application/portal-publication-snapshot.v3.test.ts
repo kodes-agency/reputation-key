@@ -1,3 +1,4 @@
+import { publicationSource } from '../domain/__fixtures__/publication-source'
 import { describe, expect, it } from 'vitest'
 import {
   currentGuestLanguagePack,
@@ -15,6 +16,7 @@ import {
   immersiveSnapshotWith,
 } from './__fixtures__/immersive-snapshot'
 import {
+  buildPortalPublicationSnapshot,
   digestPortalPublicationConfiguration,
   verifyPortalPublicationSnapshot,
 } from './portal-publication-snapshot'
@@ -136,5 +138,37 @@ describe('pack generation is bound to the schema version', () => {
 
       expect(verifyPortalPublicationSnapshot(german)).toBe(false)
     }
+  })
+})
+
+describe('the optional schema-3 private rating switch', () => {
+  it('keeps a historical snapshot without the field valid', () => {
+    const snapshot = immersiveSnapshot()
+    expect(snapshot.configuration.reviewGateway).not.toHaveProperty('skipPrivateRating')
+    expect(verifyPortalPublicationSnapshot(snapshot)).toBe(true)
+  })
+
+  it.each([false, true])('writes %s on every new publication', (skipPrivateRating) => {
+    const source = publicationSource({ skipPrivateRating })
+    const old = immersiveSnapshot()
+    const snapshot = buildPortalPublicationSnapshot({
+      ...old,
+      source,
+      portalId: source.portal.id,
+      organizationId: source.organizationId,
+      propertyId: source.propertyId,
+      destination: {
+        state: 'verified',
+        uri: old.destinationUri,
+        retrievedAt: old.destinationRetrievedAt,
+        sourceEpoch: old.destinationSourceEpoch,
+        profileVersion: old.destinationProfileVersion,
+      },
+    })
+    expect(snapshot.configuration.reviewGateway).toHaveProperty(
+      'skipPrivateRating',
+      skipPrivateRating,
+    )
+    expect(verifyPortalPublicationSnapshot(snapshot)).toBe(true)
   })
 })

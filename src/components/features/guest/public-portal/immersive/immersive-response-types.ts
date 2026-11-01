@@ -45,6 +45,7 @@ export type ImmersiveResponseViewProps = Readonly<{
   /** The guest's response, or null before they rate. */
   response: GuestResponseView | null
   googleReviewAvailable: boolean
+  skipPrivateRating?: boolean
   /** A call is on its way: the choices wait. */
   pending?: boolean
   failure?: ImmersiveResponseFailure | null

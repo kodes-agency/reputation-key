@@ -25,6 +25,7 @@ import {
 } from '../portal-preview/portal-preview-rules'
 import {
   stateCaption,
+  previewStateOptions,
   type PreviewPageState,
   type PreviewStateId,
 } from '../portal-preview/portal-preview-states'
@@ -153,11 +154,19 @@ function PreviewBody({
       copy={copy}
       locale={locale}
       hasLanguageChip={preview.locales.length > 1}
-      state={state}
+      state={preview.skipPrivateRating ? { phase: 'direct' } : state}
       onAction={onAction}
     />
   )
-  const googleCard = describeGoogleCard(preview.privateFeedbackThreshold)
+  const googleCard = preview.skipPrivateRating
+    ? {
+        title: 'Guests go straight to Google',
+        body: 'Guests can open Google without a private rating or note.',
+      }
+    : describeGoogleCard(preview.privateFeedbackThreshold)
+  const pairStates = preview.skipPrivateRating
+    ? previewStateOptions(preview.privateFeedbackThreshold, true)
+    : reviewPairStates(preview.privateFeedbackThreshold)
   const isTrying = view.kind === 'try'
   return (
     <>
@@ -204,7 +213,7 @@ function PreviewBody({
         className="flex scroll-mt-4 scroll-mb-28 flex-wrap items-start justify-center gap-x-8 gap-y-6 lg:scroll-mb-4"
       >
         {view.kind === 'pair' ? (
-          reviewPairStates(preview.privateFeedbackThreshold).map((option) => (
+          pairStates.map((option) => (
             <figure key={option.id} className="flex flex-col items-center gap-2">
               <figcaption className="text-sm">
                 <b className="font-medium">{option.label}</b>

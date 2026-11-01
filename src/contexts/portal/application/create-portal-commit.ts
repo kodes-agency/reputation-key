@@ -58,6 +58,7 @@ export function buildCreatePortalCommand(
     theme: input.theme ?? copy?.settings.theme,
     privateFeedbackThreshold:
       input.privateFeedbackThreshold ?? copy?.settings.privateFeedbackThreshold,
+    skipPrivateRating: input.skipPrivateRating ?? copy?.settings.skipPrivateRating,
     createdBy: ctx.userId,
     hasInitialResponsibleManager: managerIds.length > 0,
     primaryGuestLocale: locales.primary,

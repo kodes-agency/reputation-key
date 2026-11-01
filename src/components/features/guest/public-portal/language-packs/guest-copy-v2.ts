@@ -64,6 +64,7 @@ export const GUEST_COPY_V2_PLACEHOLDERS = {
   // The Google card.
   googleTitle: [],
   googleBody: [],
+  googleDirectBody: [],
   googleAction: [],
   googleOpensLabel: [],
   googleHint: [],

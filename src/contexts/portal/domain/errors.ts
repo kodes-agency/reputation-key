@@ -11,6 +11,8 @@ export type PortalErrorCode =
   | 'invalid_description'
   | 'invalid_theme'
   | 'invalid_threshold'
+  | 'invalid_skip_private_rating'
+  | 'running_rating_goal'
   | 'invalid_url'
   | 'invalid_label'
   | 'invalid_icon'

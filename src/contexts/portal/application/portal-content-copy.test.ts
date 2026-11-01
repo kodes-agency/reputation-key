@@ -90,6 +90,7 @@ function source(patch: Partial<PortalCopySource> = {}): PortalCopySource {
       additionalGuestLocales: ['bg'],
       description: 'Welcome to the pool',
       privateFeedbackThreshold: 4,
+      skipPrivateRating: true,
       linktreeEnabled: false,
       theme: { primaryColor: '#112233' },
     }),
@@ -120,6 +121,7 @@ describe('planPortalContentCopy', () => {
     expect(settings).toEqual({
       description: 'Welcome to the pool',
       privateFeedbackThreshold: 4,
+      skipPrivateRating: true,
       linktreeEnabled: false,
       theme: { primaryColor: '#112233' },
     })
@@ -330,6 +332,7 @@ describe('planPortalContentCopy', () => {
       'description',
       'linktreeEnabled',
       'privateFeedbackThreshold',
+      'skipPrivateRating',
       'theme',
     ])
     expect(content.sourcePortalId).toBe(SOURCE)

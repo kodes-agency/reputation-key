@@ -10,6 +10,7 @@ export type PortalResultsPlace = Readonly<{
   portalId: string
   /** Guests can open it now. A portal that is not live has no results to wait for. */
   isLive: boolean
+  skipPrivateRating?: boolean
   publicationState?: PortalPublicationState
   /**
    * The live code's scans are counted. False for a code that predates scan

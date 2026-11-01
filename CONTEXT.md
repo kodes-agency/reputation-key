@@ -33,21 +33,21 @@ the presence of a route, table, or retained legacy module.
 
 ## Bounded contexts
 
-|     | Context     | Responsibility                                                                                   | Key Entities                                        |
-| --- | ----------- | ------------------------------------------------------------------------------------------------ | --------------------------------------------------- |
-|     | Identity    | Users, organizations, members, invitations, Property access, and Staff participation/attribution | User, Member, StaffParticipant, StaffParticipation  |
-|     | Property    | Properties (hotels/restaurants) owned by organizations                                           | Property                                            |
-|     | Portal      | Review gateway first, secondary link tree, lifecycle, groups, and manager responsibility         | Portal, Link, LinkCategory, PortalGroup             |
-|     | Guest       | Private rating-first Guest Responses, optional feedback/contact, and destination actions         | GuestResponse, Rating, Feedback                     |
-|     | Team        | Quarantined historical Team data and reconciliation; no beta surface                             | Team, TeamMembership                                |
-|     | Integration | Organization-owned Google authority, import, discovery, notifications, and provider I/O          | GoogleConnection, GoogleImportSaga                  |
-|     | Review      | Stable Reviews, source observations/lifecycle, and RepKey-owned Reply workflow                   | Review, ReviewSourceObservation, Reply              |
-|     | AI          | Governed review analysis, reply drafting, and Property trends                                    | AiOperation, AiReviewAnalysis                       |
-|     | Inbox       | Stable Inbox Items with numbered Handling Cycles for Google and private feedback work            | InboxItem, HandlingCycle, InboxNote                 |
-|     | Reporting   | Governed metrics, monthly Goal Programs, Property Google rating goals, and dashboard read models | MetricReading, GoalProgram, GoalMonthlyResult       |
-|     | Badge       | Inert legacy recognition inventory; no beta product behavior                                     | Historical BadgeAward envelope                      |
-|     | Leaderboard | Legacy ranking data retained for controlled contraction; not a beta product authority            | LeaderboardEntry, LeaderboardSnapshot               |
-|     | Feed        | Recent Activity, restricted Operational Action History, and user-facing notifications            | RecentActivityEntry, OperationalActionHistoryRecord |
+|     | Context     | Responsibility                                                                                        | Key Entities                                        |
+| --- | ----------- | ----------------------------------------------------------------------------------------------------- | --------------------------------------------------- |
+|     | Identity    | Users, organizations, members, invitations, Property access, and Staff participation/attribution      | User, Member, StaffParticipant, StaffParticipation  |
+|     | Property    | Properties (hotels/restaurants) owned by organizations                                                | Property                                            |
+|     | Portal      | Review gateway first, secondary link tree, lifecycle, groups, and manager responsibility              | Portal, Link, LinkCategory, PortalGroup             |
+|     | Guest       | Private Guest Responses and direct Google actions, optional feedback/contact, and destination actions | GuestResponse, Rating, Feedback                     |
+|     | Team        | Quarantined historical Team data and reconciliation; no beta surface                                  | Team, TeamMembership                                |
+|     | Integration | Organization-owned Google authority, import, discovery, notifications, and provider I/O               | GoogleConnection, GoogleImportSaga                  |
+|     | Review      | Stable Reviews, source observations/lifecycle, and RepKey-owned Reply workflow                        | Review, ReviewSourceObservation, Reply              |
+|     | AI          | Governed review analysis, reply drafting, and Property trends                                         | AiOperation, AiReviewAnalysis                       |
+|     | Inbox       | Stable Inbox Items with numbered Handling Cycles for Google and private feedback work                 | InboxItem, HandlingCycle, InboxNote                 |
+|     | Reporting   | Governed metrics, monthly Goal Programs, Property Google rating goals, and dashboard read models      | MetricReading, GoalProgram, GoalMonthlyResult       |
+|     | Badge       | Inert legacy recognition inventory; no beta product behavior                                          | Historical BadgeAward envelope                      |
+|     | Leaderboard | Legacy ranking data retained for controlled contraction; not a beta product authority                 | LeaderboardEntry, LeaderboardSnapshot               |
+|     | Feed        | Recent Activity, restricted Operational Action History, and user-facing notifications                 | RecentActivityEntry, OperationalActionHistoryRecord |
 
 ## Glossary
 

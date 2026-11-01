@@ -345,7 +345,9 @@ none` is not in the outline. Under it a section's title is a `CardTitle as="h2"`
   `goals/goal-refusal.ts` gives each code its sentence and the banner or the
   toast prints that. An autosaved portal
   form (`usePortalFormAutosave`) has no actions to sit above and renders no
-  banner: the editor header's save status reports its failure.
+  banner: the editor header's save status reports its failure. The Private note
+  form also shows a refusal beside its private-rating switch, so the manager
+  can see why a running rating goal prevents that change (ADR 0044, 2026-11-02).
   `feedback-ownership.test.ts` reads the sources and fails on a file that does
   both, a hand-built red paragraph, or a toast that
   echoes `error.message`. Typed toasts take their colours from the tone tokens
@@ -478,7 +480,7 @@ way.
 | --- | --- | --- | --- | --- | --- |
 | Status and tone | `Badge` from `#/components/ui/badge`<br>`StatusBadge` from `#/components/ui/status-badge`<br>`RoleBadge` from `#/components/features/identity/shared/role-badge`<br>`TONE_ICON` from `#/components/ui/tone` | A status pill: a `Badge` tone, or a `StatusBadge` where a feature maps its domain status to a label and a tone | Tones `positive`, `warn`, `negative`, `neutral` | | `ui/tone-sources.test.ts`, `ui/token-contrast.test.ts` |
 | Notice | `Alert` from `#/components/ui/alert` | A notice on the page, with the tone's one icon | `destructive`, `warning`, `success`, `info`, `default` | | `ui/tone-sources.test.ts` |
-| Feedback ownership | `FormErrorBanner` from `#/components/forms/form-error-banner`<br>`useActionMutation` from `#/components/hooks/use-action-mutation`<br>`Toaster` from `#/components/ui/sonner` | A form's failure is a banner above its actions; a row or immediate action reports in a toast. Never both | `DialogErrorBanner` for a dialog | An autosaved Portal form reports in the editor header | `forms/feedback-ownership.test.ts` |
+| Feedback ownership | `FormErrorBanner` from `#/components/forms/form-error-banner`<br>`useActionMutation` from `#/components/hooks/use-action-mutation`<br>`Toaster` from `#/components/ui/sonner` | A form's failure is a banner above its actions; a row or immediate action reports in a toast. Never both | `DialogErrorBanner` for a dialog | An autosaved Portal form reports in the editor header; the private-rating switch also shows its refusal inline | `forms/feedback-ownership.test.ts` |
 | Hints and tooltips | `ExplainTrigger` from `#/components/ui/explain-trigger`<br>`Tooltip` from `#/components/ui/tooltip` | Text that explains itself on request; the name of an icon-only control | | | `ui/button-sources.test.ts` |
 
 ### Actions and dialogs

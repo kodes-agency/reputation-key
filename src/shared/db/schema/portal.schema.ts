@@ -46,6 +46,7 @@ export const portals = pgTable(
     heroImageUrl: varchar('hero_image_url', { length: 500 }),
     theme: jsonb('theme').default({}),
     privateFeedbackThreshold: integer('private_feedback_threshold').notNull().default(3),
+    skipPrivateRating: boolean('skip_private_rating').notNull().default(false),
     publicationState: varchar('publication_state', { length: 20 })
       .notNull()
       .default('draft'),

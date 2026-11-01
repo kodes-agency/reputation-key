@@ -20,6 +20,7 @@ import { GOAL_VERSION_REASONS } from '../goal-version-reasons'
 import { loadCaughtUpProgram } from './goal-program-maintenance'
 import {
   assignmentFor,
+  assertRatingSubjectsAllowed,
   GoalProgramError,
   noteOf,
   type GoalActor,
@@ -168,6 +169,12 @@ export async function changeAssignments(
       outcomes,
     }
   }
+
+  await assertRatingSubjectsAllowed(deps, actor.organizationId, {
+    propertyId: input.propertyId,
+    metric: current.version.metric,
+    subjects: [...nextByIdentity.values()],
+  })
 
   const versionId = deps.id()
   const version: GoalProgramVersion = {

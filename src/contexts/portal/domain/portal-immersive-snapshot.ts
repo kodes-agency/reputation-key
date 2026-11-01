@@ -273,6 +273,8 @@ export function isCompleteImmersiveConfiguration(
   configuration: ImmersivePortalPublicationConfiguration,
 ): boolean {
   return (
+    (configuration.reviewGateway.skipPrivateRating === undefined ||
+      typeof configuration.reviewGateway.skipPrivateRating === 'boolean') &&
     hasValidLocaleSet(configuration) &&
     hasGenerationTwoPacks(configuration) &&
     hasCompleteContent(configuration) &&

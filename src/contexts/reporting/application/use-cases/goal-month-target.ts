@@ -34,6 +34,7 @@ import type {
 import { loadCaughtUpProgram } from './goal-program-maintenance'
 import {
   assignmentFor,
+  assertRatingSubjectsAllowed,
   GoalProgramError,
   isMetricSourceInactive,
   noteOf,
@@ -343,6 +344,15 @@ async function readMonth(
   // The measure of the month, not of a change still waiting for its month.
   const target = validateGoalTarget(plan.inForceVersion.metric, input.targetValue)
   if (!target.ok) throw new GoalProgramError('invalid_target')
+  await assertRatingSubjectsAllowed(deps, actor.organizationId, {
+    propertyId: input.propertyId,
+    metric: plan.inForceVersion.metric,
+    subjects: current.assignments
+      .filter((assignment) =>
+        plan.runningRows.some((row) => row.assignmentId === assignment.id),
+      )
+      .map((assignment) => assignment.subject),
+  })
   const next = target.normalizedTarget
   const months = plan.runningRows.map((row) => ({
     row,

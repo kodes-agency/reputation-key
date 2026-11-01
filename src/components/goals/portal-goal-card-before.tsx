@@ -38,11 +38,13 @@ type Props = Readonly<{
 
 type FirstWeeksView = Extract<PortalGoalBeforeView, { state: 'getting_ready' }>
 
-/** G-12: a number of the manager's own, counting private ratings first (P-2). */
+/** G-12: the manager's own number, on scans when every candidate skips ratings. */
 function OwnNumberDoor({
   state,
   openSheet,
+  ratingsAvailable,
 }: Readonly<{
+  ratingsAvailable?: boolean
   state: Parameters<typeof ownNumberDoorWords>[0]
   openSheet: Props['openSheet']
 }>) {
@@ -53,7 +55,11 @@ function OwnNumberDoor({
       size="inline"
       touch
       className="self-start"
-      onClick={() => openSheet({ measure: 'portal_rating_count' })}
+      onClick={() =>
+        openSheet({
+          measure: ratingsAvailable === false ? 'qualified_scans' : 'portal_rating_count',
+        })
+      }
     >
       {ownNumberDoorWords(state)}
     </Button>
@@ -123,7 +129,11 @@ function FirstWeeks({
       <div className="flex flex-col gap-2 border-t pt-4 text-sm">
         <p className="text-muted-foreground">{soFarWords(card.month, card.soFar)}</p>
         <p>{readyOnWords(card.readyOn)}</p>
-        <OwnNumberDoor state={card.state} openSheet={openSheet} />
+        <OwnNumberDoor
+          state={card.state}
+          openSheet={openSheet}
+          ratingsAvailable={card.sheet.ratingsAvailable}
+        />
       </div>
     </div>
   )
@@ -149,7 +159,11 @@ export function PortalGoalCardBefore({
         <div className="flex flex-col gap-3">
           <p className="text-sm">{words.text}</p>
           <GateAction action={words.action} propertyId={propertyId} />
-          <OwnNumberDoor state={card.state} openSheet={openSheet} />
+          <OwnNumberDoor
+            state={card.state}
+            openSheet={openSheet}
+            ratingsAvailable={card.sheet.ratingsAvailable}
+          />
         </div>
       )
     }
@@ -159,7 +173,11 @@ export function PortalGoalCardBefore({
           <p className="text-sm text-muted-foreground">
             {RECOMMENDATION_UNREADABLE_WORDS}
           </p>
-          <OwnNumberDoor state={card.state} openSheet={openSheet} />
+          <OwnNumberDoor
+            state={card.state}
+            openSheet={openSheet}
+            ratingsAvailable={card.sheet.ratingsAvailable}
+          />
         </div>
       )
   }

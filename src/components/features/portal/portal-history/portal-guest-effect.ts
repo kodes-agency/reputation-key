@@ -139,6 +139,15 @@ const HANDLERS: { readonly [K in Kind]: Handler<K> } = {
           : 'Guests see the earlier design',
       ),
     ),
+  skip_private_rating_changed: (c) =>
+    effect(
+      'Settings',
+      plain(
+        c.enabled
+          ? 'Guests go straight to the Google button'
+          : 'Guests can leave a private rating and note',
+      ),
+    ),
   feedback_threshold_changed: (c) =>
     effect(
       'Settings',

@@ -58,6 +58,7 @@ export type PortalDetailPortal = Readonly<{
   heroImageUrl: string | null
   theme: PortalThemeDraft
   privateFeedbackThreshold: number
+  skipPrivateRating: boolean
   propertyId: string
   organizationId: string
   publicationState: PortalPublicationState

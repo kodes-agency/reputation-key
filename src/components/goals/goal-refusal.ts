@@ -28,6 +28,7 @@ const SENTENCES: Readonly<Record<GoalProgramError['code'], string>> = {
     'This goal’s status no longer allows that. Reload the page to see where it stands.',
   revision_conflict:
     'This goal changed while you were working on it. Reload the page and try again.',
+  private_ratings_skipped: 'This subject skips private ratings. Choose scans instead.',
   subject_has_goal: 'A subject you chose already has a goal for this measure.',
   start_month_changed: 'The month has changed. Check the start and save again.',
   month_locked: 'This month has ended. Its target can’t be changed.',

@@ -116,6 +116,13 @@ async function resolveBoundSession(
   return { useCases, scope, session, headers: requestHeaders, portal }
 }
 
+function skipsPrivateRating(portal: PublicPortalData): boolean {
+  return (
+    portal.reviewGateway.skipPrivateRating === true &&
+    portal.reviewGateway.googleReview.status === 'available'
+  )
+}
+
 function lifecycleFailure(error: unknown): never {
   if (!(error instanceof GuestResponseLifecycleError)) throw error
   const conflict: Record<string, true> = {
@@ -318,6 +325,7 @@ export const submitGuestResponseFn = createServerFn({ method: 'POST' })
             assertions: assertions(data),
             requiredConsents: ['response'],
           })
+          if (skipsPrivateRating(bound.portal)) return denyWithoutEnumeration()
           // A new rating is never refused for network volume: past the network
           // layer it is kept and filtered below. This device's own budget, or a
           // limiter that cannot answer, still refuses.
@@ -474,6 +482,7 @@ export const submitPrivateFeedbackFn = createServerFn({ method: 'POST' })
           },
           requiredConsents: ['response', 'freeText'],
         })
+        if (skipsPrivateRating(bound.portal)) return denyWithoutEnumeration()
         await rateLimit('feedback', bound.session.sessionId, bound.scope, bound.headers)
         try {
           const response = await bound.useCases.responseLifecycle.addPrivateFeedback(
@@ -538,8 +547,8 @@ export const withdrawPrivateFeedbackFn = createServerFn({ method: 'POST' })
   )
 
 /**
- * Qualified Google Review Selection. The response must already contain the
- * session's durable private rating; observation failure never blocks navigation.
+ * Qualified Google Review Selection. A durable rating is required unless the
+ * published Portal skips it. Observation failure never blocks navigation.
  */
 export const selectGoogleReviewFn = createServerFn({ method: 'POST' })
   .validator(guestPublicResponseValidator(guestResponseMutationDto))
@@ -564,7 +573,11 @@ export const selectGoogleReviewFn = createServerFn({ method: 'POST' })
           bound.scope,
           bound.session.sessionId,
         )
-        if (!isQualifiedGuestResponse(response)) return denyWithoutEnumeration()
+        if (!isQualifiedGuestResponse(response)) {
+          if (!bound.portal.reviewGateway.skipPrivateRating || response !== null) {
+            return denyWithoutEnumeration()
+          }
+        }
         const googleReview = bound.portal.reviewGateway.googleReview
         if (googleReview.status !== 'available') return denyWithoutEnumeration()
         const qualified = await rateLimit(

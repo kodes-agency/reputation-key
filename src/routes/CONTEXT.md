@@ -12,7 +12,7 @@ business rules or persistence.
 - `_authenticated.tsx` resolves session, Organization, role, and the app shell.
 - `_authenticated/` contains manager dashboard, inbox, Property, import, settings,
   notification, and progress routes.
-- `p/$token.tsx` is the public rating-first Portal route.
+- `p/$token.tsx` is the public Portal route.
 - `operator.tsx` is the platform operator console. It sits outside the authenticated
   layout because the operator holds no role in the Organizations it lists. A
   non-operator gets Not Found, and every server function re-checks the operator

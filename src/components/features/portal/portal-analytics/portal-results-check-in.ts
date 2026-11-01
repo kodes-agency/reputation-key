@@ -210,7 +210,10 @@ export function portalResultsCheckIn(
   const notes = data.kpis.feedback.value
   return {
     using: using(data, place),
-    happy: happy(data),
+    happy:
+      place?.skipPrivateRating && data.kpis.ratings.value === 0
+        ? card('No guest rated in these days', [])
+        : happy(data),
     google: google(data),
     links: links(data),
     notes:

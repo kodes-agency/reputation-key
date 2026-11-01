@@ -53,6 +53,7 @@ export type PublicPortalLoaderData = Readonly<{
   >
   reviewGateway: Readonly<{
     privateFeedbackThreshold: number
+    skipPrivateRating: boolean
     googleReview: Readonly<{
       status: PublicPortalData['reviewGateway']['googleReview']['status']
     }>
@@ -147,6 +148,7 @@ export function toPublicPortalLoaderData(
     })),
     reviewGateway: {
       privateFeedbackThreshold: portal.reviewGateway.privateFeedbackThreshold,
+      skipPrivateRating: portal.reviewGateway.skipPrivateRating,
       googleReview: { status: portal.reviewGateway.googleReview.status },
     },
     localization: {

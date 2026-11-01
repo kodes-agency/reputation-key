@@ -3,6 +3,7 @@ import type { GuestResponseView } from '#/contexts/guest/application/use-cases/g
 import { GlassSurface } from './glass-surface'
 import { ImmersiveAfterRating } from './immersive-after-rating'
 import { ImmersiveRatingCard } from './immersive-rating-card'
+import { ImmersiveGoogleCard } from './immersive-google-card'
 import { ImmersiveRemovedResponse } from './immersive-removed-response'
 import type { ImmersiveResponseViewProps } from './immersive-response-types'
 import {
@@ -19,7 +20,8 @@ export type {
 
 /**
  * The response area of the Immersive Hub, a pure view of its props. Before a
- * rating it is the rating card. After one it is, in this order and at every
+ * rating it is the rating card, or the Google card on a published direct
+ * Portal with Google available. After one it is, in this order and at every
  * rating: the receipt strip, the Google card, the private note card when the
  * server says the guest may write one (`privateFeedbackEligible`), and "Your
  * response". The threshold is the server's; the view never compares a rating
@@ -113,6 +115,19 @@ function ResponseBody(props: ImmersiveResponseViewProps) {
         failed={props.failure === 'start-over'}
         headingRef={removedHeading}
         onStartOver={props.yourResponse?.onStartOver}
+      />
+    )
+  }
+  if (response === null && props.skipPrivateRating && props.googleReviewAvailable) {
+    return (
+      <ImmersiveGoogleCard
+        pack={pack}
+        displayName={props.displayName}
+        available
+        direct
+        pending={props.pending === true}
+        openFailed={props.failure === 'google'}
+        onOpen={props.onGoogleReview}
       />
     )
   }

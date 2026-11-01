@@ -47,6 +47,7 @@ export async function readPortalSettings(
       heroImageUrl: portals.heroImageUrl,
       theme: portals.theme,
       privateFeedbackThreshold: portals.privateFeedbackThreshold,
+      skipPrivateRating: portals.skipPrivateRating,
       primaryGuestLocale: portals.primaryGuestLocale,
       additionalGuestLocales: portals.additionalGuestLocales,
     })

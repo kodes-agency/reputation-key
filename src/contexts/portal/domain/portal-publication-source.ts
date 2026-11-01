@@ -103,6 +103,7 @@ export type PortalPublicationSource = Readonly<{
   propertyId: string
   portal: Readonly<{ id: string; name: string; slug: string }>
   privateFeedbackThreshold: number
+  skipPrivateRating: boolean
   primaryGuestLocale: GuestLocale
   /** The primary first, then the additional languages. */
   localeSet: readonly GuestLocale[]

@@ -244,6 +244,7 @@ export type PublicPortalResult = Readonly<{
   reviewGateway: Readonly<{
     /** Ratings at or below this inclusive threshold may add private feedback. */
     privateFeedbackThreshold: number
+    skipPrivateRating: boolean
     /** A stale/unavailable Property URI is never serialized to the guest. */
     googleReview: PublicGoogleReviewDestination
   }>

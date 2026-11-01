@@ -127,6 +127,7 @@ function AnalyticsPanel({
 >) {
   return (
     <PortalAnalyticsTab
+      skipPrivateRating={portal.skipPrivateRating}
       portalId={portal.id}
       propertyId={propertyId}
       getPortalAnalytics={getPortalAnalytics}

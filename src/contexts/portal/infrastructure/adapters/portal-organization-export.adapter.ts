@@ -251,7 +251,7 @@ async function readPayload(
         snapshot,
         sql`SELECT id::text AS id, property_id::text AS property_id, entity_type,
                    entity_id, name, slug, description, hero_image_url,
-                   theme::text AS theme, private_feedback_threshold,
+                   theme::text AS theme, private_feedback_threshold, skip_private_rating,
                    publication_state, created_by, responsible_manager_revision,
                    ${utc('responsibility_needed_since')} AS responsibility_needed_since,
                    primary_guest_locale,

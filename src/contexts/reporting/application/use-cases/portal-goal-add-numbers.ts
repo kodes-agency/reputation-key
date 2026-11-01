@@ -37,6 +37,7 @@ import type {
   PortalGoalAddChoices,
   PortalGoalAddSubject,
 } from '../dto/monthly-portal-goal-add.types'
+import { ratingSubjectSkipsPrivateRating } from '../goal-rating-eligibility'
 import type { PortalGoalFacts } from './goal-recommendation-read'
 
 /** The month and measure the add sheet offers, and what its numbers stand on. */
@@ -208,7 +209,16 @@ export function narrowedFor(
   basis: PortalGoalAddBasis,
   subject: PortalGoalAddSubject,
 ): PortalGoalRecommendation {
-  const { recommendation } = basis
+  const recommendation = ratingSubjectSkipsPrivateRating(
+    basis.facts.listed.portals,
+    subject,
+  )
+    ? {
+        ...basis.recommendation,
+        ratingsAvailable: false,
+        defaultMeasure: 'qualified_scans' as const,
+      }
+    : basis.recommendation
   if (subject.kind === 'portal_group') {
     return narrowedRecommendation(
       recommendation,

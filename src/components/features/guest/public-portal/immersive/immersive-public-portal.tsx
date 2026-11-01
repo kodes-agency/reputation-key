@@ -31,6 +31,7 @@ export type ImmersivePublicPortalProps = Readonly<{
   /** Every language the portal offers, in its own order. */
   availableLocales: readonly GuestLocale[]
   googleReview: Readonly<{ status: 'available' | 'unavailable' }>
+  skipPrivateRating?: boolean
   /** The signed session's nonce and the guest's response so far. */
   csrfNonce: string
   initialResponse: GuestResponseView | null
@@ -107,6 +108,7 @@ export function ImmersivePublicPortal(props: ImmersivePublicPortalProps) {
       />
       <ImmersiveResponseView
         {...response}
+        skipPrivateRating={props.skipPrivateRating}
         pack={pack}
         displayName={brand.displayName}
         yourResponse={{

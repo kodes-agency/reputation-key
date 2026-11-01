@@ -79,6 +79,7 @@ export type PortalGoalRecommendation = Readonly<{
   timezone: string
   window: Readonly<{ firstDay: string; lastDay: string }>
   state: PortalGoalRecommendationState
+  ratingsAvailable?: boolean
   defaultMeasure: PortalGoalMeasure
   defaultMonthKey: string
   /** While getting ready: the local day the closest live Portal joins. */
@@ -115,6 +116,7 @@ export type RecommendationPortal = Readonly<{
   codeIssuedAt: Date | null
   codeReady: boolean
   /** Its Portal Group now; null when it is in none. */
+  skipPrivateRating?: boolean
   portalGroupId: string | null
 }>
 

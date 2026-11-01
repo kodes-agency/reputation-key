@@ -308,13 +308,14 @@ describe('setMonthlyPortalGoal', () => {
     expect(created(deps)?.targetSource).toBe('own')
   })
 
-  it('records own as told, without reading the recommendation', async () => {
+  it('records own as told while checking rating eligibility', async () => {
     const { deps } = fakeWorld()
 
     await setMonthlyPortalGoal(deps, { ...NOVEMBER_40, targetSource: 'own' }, actor)
 
     expect(created(deps)?.targetSource).toBe('own')
-    expect(deps.recommendation.facts.listPortalReadiness).not.toHaveBeenCalled()
+    expect(deps.recommendation.facts.listPortalReadiness).toHaveBeenCalled()
+    expect(deps.recommendation.facts.readDailyCounts).not.toHaveBeenCalled()
   })
 
   it('a refused actor reads and writes nothing', async () => {

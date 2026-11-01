@@ -26,6 +26,7 @@ const portal = {
     },
   ],
   reviewGateway: {
+    skipPrivateRating: false,
     privateFeedbackThreshold: 3,
     googleReview: {
       status: 'available',

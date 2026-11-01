@@ -155,6 +155,7 @@ describe('listGoalReadinessFacts', () => {
           portalId: lobby.id,
           name: 'Lobby',
           publicationState: 'disabled',
+          skipPrivateRating: false,
           liveSince: null,
           liveIntervals: [
             {
@@ -170,6 +171,7 @@ describe('listGoalReadinessFacts', () => {
           portalId: reception.id,
           name: 'Reception',
           publicationState: 'published',
+          skipPrivateRating: false,
           liveSince: new Date('2026-10-09T06:00:00.000Z'),
           liveIntervals: [{ from: new Date('2026-10-09T06:00:00.000Z'), to: null }],
           codeIssuedAt: null,
@@ -180,6 +182,7 @@ describe('listGoalReadinessFacts', () => {
           portalId: restaurant.id,
           name: 'restaurant',
           publicationState: 'draft',
+          skipPrivateRating: false,
           liveSince: null,
           liveIntervals: [],
           codeIssuedAt: null,
@@ -190,6 +193,7 @@ describe('listGoalReadinessFacts', () => {
           portalId: spa.id,
           name: 'Spa',
           publicationState: 'published',
+          skipPrivateRating: false,
           liveSince: new Date('2026-10-15T07:00:00.000Z'),
           liveIntervals: [{ from: new Date('2026-10-15T07:00:00.000Z'), to: null }],
           codeIssuedAt: null,

@@ -333,6 +333,7 @@ function setup(initialNow = new Date('2026-03-01T00:00:00.000Z')) {
   }
   const policy: GoalExecutionPolicy = { authorize: vi.fn(async () => undefined) }
   const subjects: GoalProgramSubjectReader = {
+    ratingSubjectsSkipPrivateRating: vi.fn(async () => false),
     getTimezone: vi.fn(async () => 'UTC'),
     subjectBelongsToProperty: vi.fn<GoalProgramSubjectReader['subjectBelongsToProperty']>(
       async () => true,
@@ -2834,5 +2835,106 @@ describe('canonical Goal Program service', () => {
       }),
     ).resolves.toMatchObject({ status: 'pending' })
     expect(repository.appendResultRevision).not.toHaveBeenCalled()
+  })
+})
+
+describe('rating goals on switched Portals', () => {
+  const request = {
+    propertyId: 'property-1',
+    name: 'A goal',
+    description: null,
+    metric: 'portal_rating_count' as const,
+    targetValue: 10,
+    subjects: [{ kind: 'portal' as const, portalId: 'portal-1' }],
+  }
+  it.each(['portal_rating_count', 'portal_rating_average'] as const)(
+    'refuses %s for a switched subject',
+    async (metric) => {
+      const { service, subjects, repository } = setup()
+      vi.mocked(subjects.ratingSubjectsSkipPrivateRating!).mockResolvedValue(true)
+      await expect(
+        service.create(
+          {
+            ...request,
+            metric,
+            targetValue: metric === 'portal_rating_average' ? 4 : 10,
+          },
+          actor,
+        ),
+      ).rejects.toMatchObject({
+        _tag: 'GoalProgramError',
+        code: 'private_ratings_skipped',
+        message: 'This subject skips private ratings. Choose scans instead.',
+      })
+      expect(repository.create).not.toHaveBeenCalled()
+    },
+  )
+  it('refuses a change to ratings but keeps scans available', async () => {
+    const { service, subjects } = setup()
+    await service.create({ ...request, metric: 'qualified_scans' }, actor)
+    vi.mocked(subjects.ratingSubjectsSkipPrivateRating!).mockResolvedValue(true)
+    await expect(
+      service.revise(
+        {
+          propertyId: 'property-1',
+          programId: 'ignored',
+          metric: 'portal_rating_count',
+          targetValue: 10,
+          subjects: request.subjects,
+        },
+        actor,
+      ),
+    ).rejects.toMatchObject({ code: 'private_ratings_skipped' })
+  })
+})
+
+describe('rating-goal changes after its subjects skip ratings', () => {
+  const input = {
+    propertyId: 'property-1',
+    name: 'Ratings',
+    metric: 'portal_rating_count' as const,
+    targetValue: 10,
+    subjects: [{ kind: 'portal' as const, portalId: 'portal-1' }],
+  }
+  it('refuses a running month target change', async () => {
+    const { service, subjects } = setup()
+    const goal = await service.create(input, actor)
+    vi.mocked(subjects.ratingSubjectsSkipPrivateRating!).mockResolvedValue(true)
+    await expect(
+      service.changeMonthTarget(
+        {
+          propertyId: input.propertyId,
+          programId: goal.program.id,
+          month: '2026-03',
+          targetValue: 12,
+          expectedTarget: 10,
+          expectedVersion: 1,
+          expectedFollowingMonth: '2026-04',
+          applyToFollowing: false,
+        },
+        actor,
+      ),
+    ).rejects.toMatchObject({ code: 'private_ratings_skipped' })
+  })
+  it('refuses resumption but permits ending the goal', async () => {
+    const { service, subjects } = setup()
+    const goal = await service.create(input, actor)
+    await service.changeStatus(
+      { propertyId: input.propertyId, programId: goal.program.id, status: 'paused' },
+      actor,
+    )
+    vi.mocked(subjects.ratingSubjectsSkipPrivateRating!).mockResolvedValue(true)
+    await expect(
+      service.changeStatus(
+        { propertyId: input.propertyId, programId: goal.program.id, status: 'active' },
+        actor,
+      ),
+    ).rejects.toMatchObject({ code: 'private_ratings_skipped' })
+    await expect(
+      service.changeStatus(
+        { propertyId: input.propertyId, programId: goal.program.id, status: 'ended' },
+        actor,
+      ),
+    ).resolves.toMatchObject({ status: 'ended' })
   })
 })

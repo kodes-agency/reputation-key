@@ -39,6 +39,7 @@ export function immersiveResponseProps(
     displayName: options.displayName,
     availability: 'available',
     ...previewResponseState(state, threshold),
+    skipPrivateRating: state.kind === 'direct',
     pending: false,
     failure: null,
     noteDraft:

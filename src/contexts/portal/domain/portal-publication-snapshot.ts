@@ -131,11 +131,12 @@ export type LocalizedPortalPublicationConfiguration = PortalPublicationConfigura
 
 // ── schema version 3: the Immersive Hub shape ────────────────────────────────
 //
-// The complete v3 JSON shape is fixed here, in the release that only reads it
+// The v3 JSON shape began here, in the release that only read it
 // (ADR 0061). The digest is recomputed over the zod-parsed object on every
 // read, so a field this shape does not name would be stripped, change the
 // digest and turn the portal unavailable. Any later guest-visible field
-// therefore needs a v4 with its own reader-first release.
+// needs a reader that preserves it. The optional skipPrivateRating field stays
+// absent in older digests and reads as false (ADR 0044, 2026-11-02).
 
 /**
  * A piece of guest-facing text. `fallbackFrom` is null when the text was
@@ -193,7 +194,17 @@ export type ImmersiveBrandProfile = Readonly<{
   lookVersion: number
 }>
 
-export type ImmersivePortalPublicationConfiguration = PortalPublicationGatewayFacts &
+export type ImmersivePortalPublicationConfiguration = Omit<
+  PortalPublicationGatewayFacts,
+  'reviewGateway'
+> &
+  Readonly<{
+    reviewGateway: PortalPublicationGatewayFacts['reviewGateway'] &
+      Readonly<{
+        /** Absent in snapshots published before this setting existed; reads as false. */
+        skipPrivateRating?: boolean
+      }>
+  }> &
   Readonly<{
     schemaVersion: typeof IMMERSIVE_HUB_SCHEMA_VERSION
     portal: Readonly<{ id: string; slug: string }>

@@ -49,7 +49,9 @@ export const lookNames = (facets: readonly PublicationLookFacet[]): string =>
 type Clause = Readonly<{ verb: 'added' | 'removed' | 'changed'; item: Phrase }>
 
 /** One change as a clause of a summary: what was added, removed, or done. */
-function clauseOf(change: PublicationContentChange): Clause {
+function clauseOf(
+  change: Exclude<PublicationContentChange, { kind: 'skip_private_rating_changed' }>,
+): Clause {
   switch (change.kind) {
     case 'language_added':
       return { verb: 'added', item: [nativeLanguage(change.locale)] }
@@ -175,7 +177,18 @@ export function summarizeChanges(
     const none: Phrase = [plain('nothing changed on the guest page')]
     return options.capitalised ? capitalise(none) : none
   }
-  const clauses = changes.map(clauseOf)
+  const clauses = changes.map((change): Clause =>
+    change.kind === 'skip_private_rating_changed'
+      ? {
+          verb: 'changed',
+          item: [
+            plain(
+              change.enabled ? 'skips the private rating' : 'collects private ratings',
+            ),
+          ],
+        }
+      : clauseOf(change),
+  )
   const listed = clauses.slice(0, MAX_LISTED_CHANGES)
   const parts: Phrase[] = VERB_ORDER.flatMap((verb) => {
     const items = listed.filter((clause) => clause.verb === verb).map((c) => c.item)

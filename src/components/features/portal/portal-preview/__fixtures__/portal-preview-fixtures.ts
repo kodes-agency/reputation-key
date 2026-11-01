@@ -108,6 +108,7 @@ export const PREVIEW_DRAFT: PortalPreview = {
   primaryLocale: 'en',
   locales: ['en', 'bg'],
   privateFeedbackThreshold: 3,
+  skipPrivateRating: false,
   experiences: { en: ENGLISH, bg: BULGARIAN },
 }
 

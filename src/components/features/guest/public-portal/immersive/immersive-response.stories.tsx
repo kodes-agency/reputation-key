@@ -82,7 +82,11 @@ function useLiveHandlers(
       onSubmitNote: async (value) => {
         const accepted = (await overrides?.onSubmitNote?.(value)) ?? true
         if (accepted)
-          setState({ kind: 'done', rating: state.kind === 'arrival' ? 1 : state.rating })
+          setState({
+            kind: 'done',
+            rating:
+              state.kind === 'arrival' || state.kind === 'direct' ? 1 : state.rating,
+          })
         return accepted
       },
     },
@@ -893,5 +897,17 @@ export const BulgarianYourResponse: Story = {
     const frame = canvasElement.closest('[data-testid="phone-frame"]') ?? canvasElement
     expect(frame.scrollWidth).toBeLessThanOrEqual(frame.clientWidth)
     expect(canvas.getByRole('button', { name: bgV2.copy.startOverAction })).toBeEnabled()
+  },
+}
+
+export const DirectGoogle: Story = {
+  args: { state: { kind: 'direct' } },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    await expect(
+      canvas.getByRole('button', { name: /^Continue to Google/u }),
+    ).toBeVisible()
+    expect(canvas.queryByRole('radio')).toBeNull()
+    expect(canvas.queryByRole('textbox')).toBeNull()
   },
 }

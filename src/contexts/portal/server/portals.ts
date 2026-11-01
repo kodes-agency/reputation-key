@@ -59,6 +59,7 @@ export const portalErrorStatus = (code: PortalErrorCode): number =>
     .with(
       'slug_taken',
       'revision_conflict',
+      'running_rating_goal',
       'print_code_collision',
       'destination_not_approved',
       'link_limit_reached',
@@ -91,6 +92,7 @@ export const portalErrorStatus = (code: PortalErrorCode): number =>
       'invalid_description',
       'invalid_theme',
       'invalid_threshold',
+      'invalid_skip_private_rating',
       'invalid_url',
       'invalid_label',
       'invalid_icon',

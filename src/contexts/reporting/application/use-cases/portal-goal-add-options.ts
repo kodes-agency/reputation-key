@@ -19,6 +19,7 @@
 // numbers.ts`) in the month and measure the Property's recommendation offers,
 // and "Has a goal" when one already counts that measure for it from that
 // month: a subject takes one goal per measure at a time. It writes nothing.
+import { ratingSubjectSkipsPrivateRating } from '../goal-rating-eligibility'
 import { minimumSampleForGoalMetric } from '../../domain/goal-program'
 import type { PortalFacts } from '../../domain/goal-recommendation-types'
 import { goalStartOptions } from '../../domain/goal-start'
@@ -175,7 +176,16 @@ function portalGoalAddOptionsOf(
   const portals =
     live.length < MIN_LIVE_PORTALS
       ? []
-      : live.map((portal) => portalOffer(basis, portal, holds))
+      : live
+          .filter(
+            (portal) =>
+              measure === 'qualified_scans' ||
+              !ratingSubjectSkipsPrivateRating(facts.listed.portals, {
+                kind: 'portal',
+                portalId: portal.portalId,
+              }),
+          )
+          .map((portal) => portalOffer(basis, portal, holds))
   const ratings = recommendation.windowTotals.portal_rating_count
   return {
     month,
@@ -183,7 +193,16 @@ function portalGoalAddOptionsOf(
     measure,
     onePortal: portals,
     eachPortal: portals.map(eachRow),
-    groups: groups.map((group) => groupOffer(basis, group, holds)),
+    groups: groups
+      .filter(
+        (group) =>
+          measure === 'qualified_scans' ||
+          !ratingSubjectSkipsPrivateRating(facts.listed.portals, {
+            kind: 'portal_group',
+            portalGroupId: group.id,
+          }),
+      )
+      .map((group) => groupOffer(basis, group, holds)),
     average: {
       available: ratings >= minimumSampleForGoalMetric('portal_rating_average'),
       last4Weeks: ratings,

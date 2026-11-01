@@ -41,6 +41,7 @@ const createPortalFieldsSchema = z.object({
     .optional(),
   description: z.string().max(500).optional(),
   privateFeedbackThreshold: z.number().int().min(1).max(5).optional(),
+  skipPrivateRating: z.boolean().optional(),
   propertyId: z.string().min(1, 'Property ID is required'),
   entityType: z.literal('property').optional(),
   entityId: z.string().optional(),

@@ -72,7 +72,10 @@ export function PortalPreviewStage({
   selection,
   phoneScale = PHONE_SCALE,
 }: Props) {
-  const options = previewStateOptions(preview.privateFeedbackThreshold)
+  const options = previewStateOptions(
+    preview.privateFeedbackThreshold,
+    preview.skipPrivateRating,
+  )
   // A threshold change can drop the chosen state; fall back to arrival.
   const chosen = options.find((option) => option.id === stateId) ?? options[0]
   if (chosen === undefined) return null
@@ -93,7 +96,7 @@ export function PortalPreviewStage({
       copy={copy}
       locale={locale}
       hasLanguageChip={hasLanguageChip}
-      state={state}
+      state={preview.skipPrivateRating ? { phase: 'direct' } : state}
       onAction={onAction}
       languageSheet={languageSheet}
     />

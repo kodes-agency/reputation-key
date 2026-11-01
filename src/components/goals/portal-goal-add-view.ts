@@ -4,7 +4,7 @@
 // and what Set says once done. The number steps are
 // `portal-goal-add-number-view.ts`, and "A goal for each portal"
 // `portal-goal-add-each-view.ts`. The read decides which choices are open,
-// every number, and "Has a goal" (PLAN E12).
+// every number, private-rating eligibility, and "Has a goal" (PLAN E12).
 import type {
   AddPortalGoalRequest,
   PortalGoalAddHeld,

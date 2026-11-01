@@ -55,6 +55,7 @@ type PortalSetValues = {
   heroImageUrl?: string | null
   theme?: Record<string, unknown>
   privateFeedbackThreshold?: number
+  skipPrivateRating?: boolean
   publicationState?: Portal['publicationState']
   primaryGuestLocale?: Portal['primaryGuestLocale']
   additionalGuestLocales?: Portal['additionalGuestLocales']
@@ -69,6 +70,8 @@ function buildPortalSetClause(patch: Readonly<Partial<Portal>>): PortalSetValues
   if (patch.heroImageUrl !== undefined) set.heroImageUrl = patch.heroImageUrl
   if (patch.theme !== undefined)
     set.theme = patch.theme as PortalTheme as Record<string, unknown>
+  if (patch.skipPrivateRating !== undefined)
+    set.skipPrivateRating = patch.skipPrivateRating
   if (patch.privateFeedbackThreshold !== undefined)
     set.privateFeedbackThreshold = patch.privateFeedbackThreshold
   if (patch.publicationState !== undefined) set.publicationState = patch.publicationState

@@ -25,6 +25,7 @@ export const PORTAL_GOAL_ALREADY_STOPPED =
 export const PORTAL_GOAL_BEHIND: ReadonlySet<string> = new Set([
   'revision_conflict',
   'subject_has_goal',
+  'private_ratings_skipped',
   'start_month_changed',
   'month_locked',
 ])

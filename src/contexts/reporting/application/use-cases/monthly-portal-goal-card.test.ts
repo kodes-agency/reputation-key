@@ -413,6 +413,7 @@ describe('readMonthlyPortalGoalCard', () => {
 
     await expect(sheetOf(deps)).resolves.toEqual({
       month: '2026-10',
+      ratingsAvailable: true,
       ownNumber: {
         current: { key: '2026-10', soFar: { ratings: 5, scans: 15 } },
         next: { key: '2026-11' },

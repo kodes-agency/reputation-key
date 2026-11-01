@@ -67,6 +67,12 @@ const GOAL_METRIC_VERSION_IDS: Readonly<Record<GoalMetric, string>> = {
 }
 
 export type GoalProgramSubjectReader = Readonly<{
+  ratingSubjectsSkipPrivateRating?(
+    organizationId: string,
+    propertyId: string,
+    subjects: readonly GoalSubject[],
+    asOf: Date,
+  ): Promise<boolean>
   getTimezone(organizationId: string, propertyId: string): Promise<string | null>
   subjectBelongsToProperty(
     organizationId: string,
@@ -94,6 +100,7 @@ export type GoalProgramDependencies = Readonly<{
 }>
 
 export class GoalProgramError extends Error {
+  readonly _tag = 'GoalProgramError'
   constructor(
     readonly code:
       | 'forbidden'
@@ -101,6 +108,7 @@ export class GoalProgramError extends Error {
       | 'invalid_name'
       | 'invalid_target'
       | 'invalid_subject'
+      | 'private_ratings_skipped'
       | 'duplicate_subject'
       | 'assignment_limit_exceeded'
       | 'metric_unavailable'
@@ -119,7 +127,11 @@ export class GoalProgramError extends Error {
       // past the month's 7th local day, or the month is not the one running.
       | 'check_in_closed',
   ) {
-    super(code)
+    super(
+      code === 'private_ratings_skipped'
+        ? 'This subject skips private ratings. Choose scans instead.'
+        : code,
+    )
     this.name = 'GoalProgramError'
   }
 }
@@ -367,6 +379,7 @@ export async function resolveGoalDefinition(
     deps.subjects.getTimezone(organizationId, input.propertyId),
     resolveMetricVersion(deps, input.metric),
     validateSubjects(deps, organizationId, input.propertyId, input.subjects),
+    assertRatingSubjectsAllowed(deps, organizationId, input),
   ])
   if (!timezone) throw new GoalProgramError('not_found')
   const readinessSubject = input.subjects[0]
@@ -401,4 +414,23 @@ export async function isMetricSourceInactive(
     throw new GoalProgramError('metric_unavailable')
   }
   return sourceInactive
+}
+
+export async function assertRatingSubjectsAllowed(
+  deps: GoalProgramDependencies,
+  organizationId: string,
+  input: Readonly<{
+    propertyId: string
+    metric: GoalMetric
+    subjects: readonly GoalSubject[]
+  }>,
+): Promise<void> {
+  if (input.metric === 'qualified_scans') return
+  const skipped = await deps.subjects.ratingSubjectsSkipPrivateRating?.(
+    organizationId,
+    input.propertyId,
+    input.subjects,
+    deps.now(),
+  )
+  if (skipped) throw new GoalProgramError('private_ratings_skipped')
 }

@@ -3,14 +3,14 @@ status: accepted
 accepted_by: Bozhidar Denev
 accepted_on: 2026-09-08
 corrected_on: 2026-10-13
-amended_on: 2026-11-01
+amended_on: 2026-11-02
 ---
 
 # Privacy Notice — Reputation Key Closed Beta
 
 **Status:** Accepted for publication
-**Effective date:** 2026-11-01
-**Version:** 3.1
+**Effective date:** 2026-11-02
+**Version:** 3.2
 **Accountable owner:** Bozhidar Denev
 
 ## 1. About this notice
@@ -95,6 +95,11 @@ optional link tree. The standard journey is:
 3. when the private rating is at or below the Portal's inclusive threshold
    (default `3`), the Guest may also leave optional private feedback; and
 4. optional secondary links may follow the primary review actions.
+
+A business may switch a Portal to skip the private rating and show the Google
+action straight away, with no private rating or note. If Google is unavailable,
+the standard private rating journey is offered. Correction and withdrawal of an
+existing response remain available.
 
 The private rating is not a Google rating and is not sent to Google. The
 Service can record that the Guest selected the Google action, but cannot know
@@ -409,7 +414,7 @@ West); no EU deployment exists.
 
 ## 9. Changes and contact
 
-This notice takes effect on 2026-11-01 and is version 3.1. It replaces version
+This notice takes effect on 2026-11-02 and is version 3.2. It replaces version 3.1, effective 2026-11-01, which replaced version
 3.0, which took effect on 2026-10-30 and had replaced version
 2.5, which took effect on 2026-10-16 and had replaced version 2.4, which took
 effect on 2026-10-16 and had replaced version 2.3, which took
@@ -507,3 +512,9 @@ material change and takes effect on the day it is published.
 
 The data-protection, security, and rights-request contact is
 [denev@kodes.agency](mailto:denev@kodes.agency).
+
+Version 3.2 (2026-11-02) adds the optional Portal journey that skips the private
+rating and note and shows the Google action straight away. It takes effect on
+release without a waiting period, on the accountable owner’s decision of
+2026-11-01 for the two beta Organizations the owner controls. Existing response
+correction and withdrawal remain available.

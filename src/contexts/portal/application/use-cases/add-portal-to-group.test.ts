@@ -119,6 +119,7 @@ const seedPortal = (): Portal => ({
   heroImageUrl: null,
   theme: { primaryColor: '#000000' },
   privateFeedbackThreshold: 3,
+  skipPrivateRating: false,
   publicationState: 'published',
   createdBy: null,
   responsibleManagerRevision: 1,

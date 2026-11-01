@@ -42,6 +42,7 @@ const first = <T>(items: readonly T[]): T => {
 /** One change to the working copy for every v3 field a guest could see. */
 const MOVES: ReadonlyArray<readonly [string, PortalPublicationSource]> = [
   ['the portal address', { ...SOURCE, portal: { ...SOURCE.portal, slug: 'other' } }],
+  ['the private rating switch', { ...SOURCE, skipPrivateRating: true }],
   ['the threshold', { ...SOURCE, privateFeedbackThreshold: 4 }],
   ['the Linktree switch', { ...SOURCE, linktreeEnabled: false }],
   ['the time zone', { ...SOURCE, timeZone: 'Europe/London' }],

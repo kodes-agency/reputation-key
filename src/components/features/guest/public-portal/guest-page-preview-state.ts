@@ -10,6 +10,7 @@ import type { GuestResponseFormViewProps } from './guest-response-form-view'
  */
 export type GuestPagePreviewState =
   | Readonly<{ kind: 'arrival' }>
+  | Readonly<{ kind: 'direct' }>
   /** Rated, with the Google card. The note card follows the threshold unless pinned. */
   | Readonly<{ kind: 'rated'; rating: number; noteEligible?: boolean }>
   /**
@@ -89,6 +90,7 @@ export function previewResponseState(
   const rated = (rating: number, noteEligible: boolean, noteSent = false) =>
     previewResponse({ rating, noteEligible, noteSent })
   switch (state.kind) {
+    case 'direct':
     case 'arrival':
       return { response: null, googleReviewAvailable: true }
     case 'rated':

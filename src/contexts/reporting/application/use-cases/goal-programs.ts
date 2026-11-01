@@ -34,6 +34,7 @@ import {
 } from './goal-program-maintenance'
 import {
   assertOrganizationFreeToStartGoals,
+  assertRatingSubjectsAllowed,
   assertSubjectsAreFree,
   assignmentFor,
   GoalProgramError,
@@ -329,6 +330,13 @@ export function createGoalProgramService(deps: GoalProgramDependencies) {
       // closure may not do; pausing and ending only stop work.
       if (input.status === 'active') {
         await assertOrganizationFreeToStartGoals(deps, actor.organizationId)
+        await assertRatingSubjectsAllowed(deps, actor.organizationId, {
+          propertyId: input.propertyId,
+          metric: current.version.metric,
+          subjects: current.assignments
+            .filter((assignment) => assignment.programVersionId === current.version.id)
+            .map((assignment) => assignment.subject),
+        })
       }
       if (
         current.program.status === 'scheduled' &&
