@@ -35,12 +35,8 @@ const DASHED_ALLOWED: Readonly<Record<string, string>> = {
     'the frame a photograph will fill',
   'src/components/features/property/settings/property-setup-strip.tsx':
     'a step chip that is not yet done',
-  'src/components/goals/rating-goal-detail.tsx':
-    'the key of the climb chart: the dashed swatch is the plan’s cone, a chart line',
-  'src/components/goals/rating-goal-ladder.tsx':
-    'a number the rating goal climbs to that is still ahead',
-  'src/components/goals/rating-goal-slots.tsx':
-    'one empty square per new review a rating goal still needs, a count and not a message',
+  'src/components/goals/goal-columns.tsx':
+    'a bar still counting, as a Portal’s Results chart draws its part week, not a message',
   'src/components/goals/portal-goal-month-strip.tsx':
     'a month chip of the monthly portal goal still counting or being read, not a message',
 }

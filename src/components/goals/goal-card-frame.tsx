@@ -1,6 +1,6 @@
 // The frame every goal's card is drawn in (ADR 0068, amended 2026-10-19: one goal
-// design system): the card, its title with the one status pill in the corner, the
-// columns a card with a signature visual lays out, and the row its actions sit in.
+// design system): the card, its title with the one status pill in the corner, its
+// two columns, and the row its actions sit in.
 // Nothing here knows which goal it is drawing: the data-slot, the title and the
 // pill come in from the goal, and the markup is the reference goal's, so a card
 // that moves onto this frame does not move on the page.
@@ -66,34 +66,18 @@ export function GoalCardFrame({
 }
 
 type ColumnsProps = Readonly<{
-  /**
-   * True when there is a signature visual to give a column to, from a card 48rem
-   * wide. Said by the goal and not guessed from `signature`: a goal that has none
-   * to draw keeps the plain two-column card.
-   */
-  wide: boolean
-  /** The goal's signature visual, upright in the wide card's own column. */
-  signature: ReactNode
-  /** What the goal says: its headline and the lines under it. */
+  /** What the goal says: its headline, the lines under it and how far along it is. */
   story: ReactNode
-  /** How the goal stands: its meter and its way on. */
+  /** How this week or this month stands, and the way on. */
   side: ReactNode
 }>
 
-/**
- * The card's body: the signature visual in a column of its own on a wide card,
- * then the story and the side by side from 40rem, one under the other below it.
- */
-export function GoalCardColumns({ wide, signature, story, side }: ColumnsProps) {
+/** The card's body: the story and the side beside it from 48rem, one under the other below it. */
+export function GoalCardColumns({ story, side }: ColumnsProps) {
   return (
-    <CardContent
-      className={cn('grid gap-5', wide && '@3xl:grid-cols-[14rem_minmax(0,1fr)]')}
-    >
-      {signature}
-      <div className="grid gap-5 @2xl:grid-cols-2">
-        <div className="flex min-w-0 flex-col gap-3">{story}</div>
-        <div className="flex min-w-0 flex-col gap-4 @2xl:border-l @2xl:pl-6">{side}</div>
-      </div>
+    <CardContent className="grid gap-5 @3xl:grid-cols-[minmax(0,1fr)_15rem]">
+      <div className="flex min-w-0 flex-col gap-1.5">{story}</div>
+      <div className="flex min-w-0 flex-col gap-4 @3xl:border-l @3xl:pl-6">{side}</div>
     </CardContent>
   )
 }

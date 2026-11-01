@@ -1,17 +1,9 @@
-// "How this goal counts" on the Monthly portal goal's page (copy deck P-13,
-// P-14): closed until asked, in what the goal counts now, on the Property's
-// time; on a Portal's or a group's own page, where it counts (PLAN PG-21). The
-// words are `howItCountsWords`'. The Button's own `px-3` (its icon rule) outranks
-// the `px-1` here, so `-ml-3` pulls the chevron back onto the column's edge, as
-// every other block of the page starts; the hover fill reaches back into the gutter.
-import { ChevronRight } from 'lucide-react'
+// "How this goal counts" on the Monthly portal goal's page (copy deck P-13, P-14):
+// closed until asked, in the same closed card as "What changed", in what the goal
+// counts now, on the Property's time; on a Portal's or a group's own page, where it
+// counts (PLAN PG-21). The words are `howItCountsWords`'.
 import type { PortalGoalMeasure } from '#/contexts/reporting/application/dto/goal-recommendation.types'
-import { Button } from '#/components/ui/button'
-import {
-  Collapsible,
-  CollapsibleContent,
-  CollapsibleTrigger,
-} from '#/components/ui/collapsible'
+import { GoalClosedCard } from './goal-history-list'
 import { HOW_IT_COUNTS_TITLE, howItCountsWords } from './portal-goal-page-view'
 
 type Props = Readonly<{
@@ -23,25 +15,10 @@ type Props = Readonly<{
 
 export function PortalGoalHowItCounts({ measure, timezone, where }: Props) {
   return (
-    <Collapsible>
-      <CollapsibleTrigger asChild>
-        <Button
-          type="button"
-          variant="ghost"
-          className="group -ml-3 h-auto w-full justify-start gap-3 px-1 py-3 text-left font-normal"
-        >
-          <ChevronRight
-            aria-hidden="true"
-            className="shrink-0 text-muted-foreground transition-transform group-data-[state=open]:rotate-90"
-          />
-          <span className="font-medium">{HOW_IT_COUNTS_TITLE}</span>
-        </Button>
-      </CollapsibleTrigger>
-      <CollapsibleContent>
-        <p className="px-1 pb-3 text-sm text-muted-foreground">
-          {howItCountsWords(measure, timezone, where)}
-        </p>
-      </CollapsibleContent>
-    </Collapsible>
+    <GoalClosedCard title={HOW_IT_COUNTS_TITLE}>
+      <p className="text-sm text-muted-foreground">
+        {howItCountsWords(measure, timezone, where)}
+      </p>
+    </GoalClosedCard>
   )
 }

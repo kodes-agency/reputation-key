@@ -1,7 +1,7 @@
 // The Portal goal results page, `/goals/portal-results` (ADR 0068 decision 14;
-// PLAN PG-18): every month's result of the Portal goals, the matrix the Goals
-// page used to carry (its months as sections, newest first), and the Portal
-// goals that have ended, each with the day it ended. A part with nothing to
+// PLAN PG-18; amended 2026-11-01): every month's result of the Portal goals, each
+// goal with its months in a manager's words, and the Portal goals that have ended,
+// each with the day it ended. A part with nothing to
 // show is not drawn: the ways here (the Portal goals section's foot and the goal
 // page's "All monthly results") appear only once a month has closed or a goal
 // has ended.
@@ -14,7 +14,7 @@ import { PageShell } from '#/components/layout/page-shell'
 import { Card, CardContent, CardHeader, CardTitle } from '#/components/ui/card'
 import { ROW_NAME_LINK } from '#/components/ui/row-link'
 import { cn } from '#/lib/utils'
-import { GoalResultsMatrix } from './goal-results-matrix'
+import { PortalGoalResultsList } from './portal-goal-results-list'
 import {
   ENDED_PORTAL_GOALS_ID,
   ENDED_PORTAL_GOALS_TITLE,
@@ -114,7 +114,7 @@ export function PortalGoalResults({
         )}
       />
       {matrix.months.length === 0 ? null : (
-        <GoalResultsMatrix matrix={matrix} now={now} personName={personName} />
+        <PortalGoalResultsList matrix={matrix} now={now} personName={personName} />
       )}
       {ended.length === 0 ? null : (
         <EndedPortalGoals propertyId={propertyId} ended={ended} />

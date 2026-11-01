@@ -229,49 +229,40 @@ export type RatingGoalPlanProgressView = Readonly<{
 /** One day of the detail's chart: 0 is today, negative before it; a star in thousandths. */
 export type RatingGoalChartPoint = Readonly<{ day: number; thousandths: number }>
 
-/** One week of the plan's cone or the likely band, in thousandths of a star. */
-export type RatingGoalBandPoint = Readonly<{ day: number; low: number; high: number }>
+/** One week of the detail's bars: the day its Monday is, and the new reviews it brought. */
+export type RatingGoalChartWeek = Readonly<{ day: number; count: number }>
 
 /**
- * "The climb, step by step" (round 5, PLAN-D E12–E16): Google's exact average
- * over time, the plan as a cone from its latest change (else the set), the
- * likely band from today, the lines where Google shows each tenth and when
- * Google's own number changed. Days are whole Property-local days from today,
- * every star value in thousandths: the page draws, it works nothing out.
+ * What the detail page's two charts draw (2026-11-01, ADR 0067): Google's exact
+ * average over time up to the goal, and the new reviews each week against the
+ * plan. Days are whole Property-local days from today, every star value in
+ * thousandths: the page draws, it works nothing out.
  */
 export type RatingGoalChartView = Readonly<{
+  /** Today, the Property's local day (`YYYY-MM-DD`): the page dates the days from it. */
+  todayKey: string
   /** The chart's first day: four weeks before the set's week, a year back at most. */
   firstDay: number
+  /** The day the goal was set: the line is quiet before it. */
+  setDay: number
   /** At the start, at each week's end and today; null while RepKey lacks some of Google's reviews. */
   history: readonly RatingGoalChartPoint[] | null
   /** The exact average at which Google shows each tenth, from below the start to above the goal. */
   thresholds: readonly Readonly<{ tenths: number; thousandths: number }>[]
-  /** Where the plan's cone starts: the set, or the latest change of the plan. */
-  anchor: Readonly<{
-    day: number
-    kind: 'set' | 'changed'
-    paceTenthsPerWeek: number
-    qualityTenths: number
-  }>
-  /** Empty when there is no cone (a changed plan without the history to start it from). */
-  plan: readonly RatingGoalBandPoint[]
-  /** Empty when the goal has no arrival to draw (no pace, out of reach, reached). */
-  likely: readonly RatingGoalBandPoint[]
   /** Each day Google's own number moved, up or down. */
   shownChanges: readonly Readonly<{ day: number; tenths: number; up: boolean }>[]
   /** Today's exact average; null while it is Google's own figure. */
   today: number | null
+  /** The new reviews of each week from the chart's first Monday to this week, oldest first. */
+  weeks: readonly RatingGoalChartWeek[]
 }>
 
-/** "Your plan, so far": the pace before the goal, and the tenth reached since. */
+/** The pace before the goal: the four full weeks before the set's week, a month; null when the chart does not reach them. */
 export type RatingGoalPlanSoFarView = Readonly<{
-  /** The four full weeks before the set's week, a month; null when the chart does not reach them. */
   prePlan: Readonly<{ perMonth: number; trend: 'up' | 'down' | 'same' }> | null
-  /** What Google shows now, when it is more than when the goal was set. */
-  reachedTenths: number | null
 }>
 
-/** "What moved you" without a per-review value (D-2): Google's number moving and what the goal was set with. */
+/** "What happened" without a per-review value: Google's number moving and what the goal was set with. */
 export type RatingGoalMovedEvents = Readonly<{
   /** Each change of Google's own number since the goal was set, newest first. */
   shownChanges: readonly Readonly<{ at: string; tenths: number; up: boolean }>[]
@@ -312,13 +303,15 @@ export type RatingGoalLowReviewRead = Readonly<{
 export type RatingGoalLowReviewView = Omit<RatingGoalLowReviewRead, 'reviewId'> &
   Readonly<{ inboxItemId: string | null }>
 
-/** "What moved you": the events, this week's stars and the low reviews since the set. */
+/** "What happened": the events, this week's stars and the low reviews since the set. */
 export type RatingGoalMovedView<LowReview = RatingGoalLowReviewView> =
   RatingGoalMovedEvents &
     Readonly<{
       thisWeek: RatingGoalThisWeekView
       /** Newest first, ten at most; none for a keep goal or one reached or ended. */
       lowReviews: readonly LowReview[]
+      /** How many of the new reviews since the set gave 3★ or less; null for a keep goal or one reached or ended. */
+      lowSinceSet: number | null
     }>
 
 export type RatingGoalDetailView<LowReview = RatingGoalLowReviewView> =

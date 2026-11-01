@@ -542,6 +542,75 @@ describe('the detail read’s low reviews and this week’s stars', () => {
     })
   })
 
+  it('counts the new reviews since the set that gave 3★ or less, from their stars since the set', async () => {
+    world.goals = [activeGoal()]
+    // 1 + 2 + 1 reviews at 1★, 2★ and 3★; the 5 at 4★ and 7 at 5★ are not low.
+    world.stars = [1, 2, 3, 4, 5].map((stars) => ({
+      stars,
+      count: [1, 2, 1, 5, 7][stars - 1] ?? 0,
+    }))
+
+    const detail = await getRatingGoalDetail(dependencies(world), input, actor)
+
+    expect(detail?.moved.lowSinceSet).toBe(4)
+    // The stars are read twice: this week's, then everything since the set.
+    expect(world.evidenceRequests.filter((request) => request.read === 'stars')).toEqual([
+      { read: 'stars', since: new Date('2026-10-11T21:00:00.000Z') },
+      { read: 'stars', since: activeGoal().createdAt },
+    ])
+  })
+
+  it('leaves a 4★ review out of the count even when it set the goal back and is named', async () => {
+    world.goals = [activeGoal()]
+    world.lowReviews = [lowReview('1', 4, 3)]
+    world.stars = [1, 2, 3, 4, 5].map((stars) => ({ stars, count: stars === 4 ? 6 : 0 }))
+
+    const detail = await getRatingGoalDetail(dependencies(world), input, actor)
+
+    expect(detail?.moved.lowReviews).toEqual([expect.objectContaining({ stars: 4 })])
+    expect(detail?.moved.lowSinceSet).toBe(0)
+  })
+
+  it('counts none, not nothing known, when no new review since the set gave 3★ or less', async () => {
+    world.goals = [activeGoal()]
+    world.stars = [1, 2, 3, 4, 5].map((stars) => ({ stars, count: stars >= 4 ? 3 : 0 }))
+
+    const detail = await getRatingGoalDetail(dependencies(world), input, actor)
+
+    expect(detail?.moved.lowSinceSet).toBe(0)
+  })
+
+  it('counts no low review since the set for a goal set to keep a number, and reads only this week’s stars', async () => {
+    world.goals = [
+      activeGoal({
+        mode: 'keep',
+        targetTenths: 43,
+        qualityTenths: null,
+        paceTenthsPerWeek: null,
+      }),
+    ]
+    world.stars = [1, 2, 3, 4, 5].map((stars) => ({ stars, count: 2 }))
+
+    const detail = await getRatingGoalDetail(dependencies(world), input, actor)
+
+    expect(detail?.moved.lowSinceSet).toBeNull()
+    expect(world.evidenceRequests.filter((request) => request.read === 'stars')).toEqual([
+      { read: 'stars', since: new Date('2026-10-11T21:00:00.000Z') },
+    ])
+  })
+
+  it('counts no low review since the set once the read finds the goal reached', async () => {
+    // Google shows 4.5: the goal is reached as it is read.
+    world.goals = [activeGoal()]
+    world.snapshot = { ...world.snapshot!, averageRating: 4.5 }
+    world.stars = [1, 2, 3, 4, 5].map((stars) => ({ stars, count: 2 }))
+
+    const detail = await getRatingGoalDetail(dependencies(world), input, actor)
+
+    expect(detail?.state).toBe('reached')
+    expect(detail?.moved.lowSinceSet).toBeNull()
+  })
+
   it('reads no low review for a goal set to keep a number', async () => {
     world.goals = [
       activeGoal({

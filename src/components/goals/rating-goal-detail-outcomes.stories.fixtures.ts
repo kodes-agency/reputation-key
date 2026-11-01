@@ -1,4 +1,4 @@
-// The Google rating goal's detail page (round 5, PLAN-D D-2, mock D3) where
+// The Google rating goal's detail page (2026-11-01, ADR 0067) where
 // Google's number moved both ways, and where the read found the goal reached
 // or ended, for stories and tests: Harborline (rating-goal-detail.stories.fixtures.ts)
 // with the chart and rows each state draws.
@@ -8,9 +8,8 @@ import { DETAIL_HARBORLINE } from './rating-goal-detail.stories.fixtures'
 const CHART = DETAIL_HARBORLINE.chart!
 
 /**
- * The read found the goal reached: Google shows 4.1 and the exact average is
- * 4.07, above the goal's line. The read draws no likely band for a goal that
- * is no longer active; `next` and `nextUp` still come with the card.
+ * The read found the goal reached: Google moved to 4.1 yesterday and the exact
+ * average is 4.07, above the goal's line. `next` and `nextUp` still come with the card.
  */
 export const DETAIL_FOUND_REACHED: RatingGoalDetailView = {
   ...DETAIL_HARBORLINE,
@@ -21,24 +20,29 @@ export const DETAIL_FOUND_REACHED: RatingGoalDetailView = {
   chart: {
     ...CHART,
     history: [...CHART.history!.slice(0, -1), { day: 0, thousandths: 4072 }],
-    likely: [],
+    shownChanges: [...CHART.shownChanges, { day: -1, tenths: 41, up: true }],
     today: 4072,
   },
-  planSoFar: { ...DETAIL_HARBORLINE.planSoFar, reachedTenths: 41 },
+  moved: {
+    ...DETAIL_HARBORLINE.moved,
+    shownChanges: [
+      { at: '2026-10-13T07:00:00.000Z', tenths: 41, up: true },
+      ...DETAIL_HARBORLINE.moved.shownChanges,
+    ],
+  },
 }
 
-/** The read found the goal ended (Google's location changed): no likely band. */
+/** The read found the goal ended (Google's location changed). */
 export const DETAIL_FOUND_ENDED: RatingGoalDetailView = {
   ...DETAIL_HARBORLINE,
   state: 'ended',
   endedReason: 'google_location_changed',
-  chart: { ...CHART, likely: [] },
 }
 
 /**
  * Google showed 4.0 on 30 Sep and went back to 3.9 on 5 Oct (the exact average
  * hovering at 3.95, 3.948 today): the warn-coloured dot and row beside the
- * positive one. The band is left out; this fixture is for Google's two moves.
+ * positive one.
  */
 export const DETAIL_WENT_BACK: RatingGoalDetailView = {
   ...DETAIL_HARBORLINE,
@@ -54,14 +58,12 @@ export const DETAIL_WENT_BACK: RatingGoalDetailView = {
       { day: -2, thousandths: 3949 },
       { day: 0, thousandths: 3948 },
     ],
-    likely: [],
     shownChanges: [
       { day: -14, tenths: 40, up: true },
       { day: -9, tenths: 39, up: false },
     ],
     today: 3948,
   },
-  planSoFar: { ...DETAIL_HARBORLINE.planSoFar, reachedTenths: null },
   moved: {
     ...DETAIL_HARBORLINE.moved,
     shownChanges: [

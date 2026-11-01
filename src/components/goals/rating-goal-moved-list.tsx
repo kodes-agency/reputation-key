@@ -1,22 +1,18 @@
-// "What moved you" on the Google rating goal's detail page (round 5, PLAN-D
-// D-2 and D-2b, mock D3): this week's new reviews and their stars, each day
+// "What happened" on the Google rating goal's detail page (2026-11-01; closed until
+// asked): this week's new reviews and their stars, each day
 // Google's own number moved (up in the positive ink, back in the warning ink),
 // each change of the plan and each low review since the set with what it set
 // the goal back and a link to it in the Inbox ("Open in the inbox": it may be
-// answered already), newest first, and the day the goal was set; then how
-// fresh Google's numbers are and who sees this page. The rows say in words
-// what the chart draws, so the chart is never the only way to know it.
+// answered already), newest first, and the day the goal was set. The rows say in
+// words what the chart draws, so the chart is never the only way to know it.
 import type { RatingGoalDetailView } from '#/contexts/reporting/application/dto/rating-goal.types'
 import { InlineLink } from '#/components/ui/inline-link'
 import { GoalHistoryList } from './goal-history-list'
-import { freshnessText } from './rating-goal-detail-view'
 import { movedRows, type MovedContext, type MovedRow } from './rating-goal-moved-view'
 
 type Props = MovedContext &
   Readonly<{
     detail: RatingGoalDetailView
-    /** When the detail was read: Google's numbers are "checked N minutes ago" from it. */
-    readAt: Date
     /** The low reviews open in this Property's Inbox. */
     propertyId: string
   }>
@@ -24,18 +20,6 @@ type Props = MovedContext &
 const TONE: Readonly<Record<NonNullable<MovedRow['tone']>, string>> = {
   positive: 'text-positive',
   warn: 'text-warn',
-}
-
-/** How fresh Google's numbers are, and who sees this page. */
-function Foot({ detail, readAt }: Pick<Props, 'detail' | 'readAt'>) {
-  return (
-    <p className="text-xs text-muted-foreground">
-      {detail.google === null
-        ? 'Google’s numbers are not in yet'
-        : freshnessText(detail.google.asOf, readAt)}
-      {' · '}Owners and managers only
-    </p>
-  )
 }
 
 /**
@@ -69,16 +53,15 @@ function RowText({ row, propertyId }: Readonly<{ row: MovedRow; propertyId: stri
   )
 }
 
-export function RatingGoalMovedList({ detail, readAt, propertyId, ...context }: Props) {
+export function RatingGoalMovedList({ detail, propertyId, ...context }: Props) {
   return (
     <GoalHistoryList
-      title="What moved you"
+      title="What happened"
       rows={movedRows(detail, context).map((row) => ({
         key: row.key,
         when: row.when,
         content: <RowText row={row} propertyId={propertyId} />,
       }))}
-      foot={<Foot detail={detail} readAt={readAt} />}
     />
   )
 }

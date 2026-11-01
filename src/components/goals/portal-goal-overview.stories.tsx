@@ -1,7 +1,7 @@
 // The Monthly portal goal on the Property Overview (PLAN PG-16; copy deck
 // O-1…O-6): the number ready to use in one line ("See it", "Not now", which
-// hides it), the running month as the Goals page's card draws it (with each
-// Portal's count in one line in a narrow slot), the month-start check-in as the
+// hides it), the running month as the Goals page's card draws it (what is left, the
+// ruler, and each Portal's count in name order), the month-start check-in as the
 // strip above that card, and nothing for a goal that has not started. At 320,
 // 390, 820 and 1440 px and on the light theme. The Storybook Vitest project
 // compiles no Tailwind, so the plays assert words, roles, links and what is
@@ -17,7 +17,11 @@ import { CARD_CHECK_IN } from './portal-goal-check-in.stories.fixtures'
 import { PortalGoalOverview } from './portal-goal-overview'
 import { overviewPortalGoalView } from './portal-goal-overview-view'
 import { CARD_RUNNING } from './portal-goal-running.stories.fixtures'
-import { expectRunningCardUnderTheStrip, headlineOf } from './portal-goal.stories.play'
+import {
+  expectRunningCardUnderTheStrip,
+  headlineOf,
+  portalRows,
+} from './portal-goal.stories.play'
 import { CARD_READY, CARD_SCHEDULED, SEAVIEW } from './portal-goal.stories.fixtures'
 
 const notNowMock = fn<(month: string) => void>()
@@ -116,11 +120,21 @@ export const Running: Story = {
     await expectTitle(canvas)
     await expect(canvas.getByText('Below pace', { exact: true })).toBeVisible()
     await expect(headlineOf(canvas, '17 private ratings to 40')).toBeVisible()
-    await expect(canvas.getByText('9 days left in November')).toBeVisible()
-    await expect(canvas.getByText('23 of 40', { exact: true })).toBeVisible()
+    await expect(
+      canvas.getByText('9 days left in November. About 2 a day gets you there.'),
+    ).toBeVisible()
+    await expect(
+      canvas.getByRole('img', {
+        name: '23 of 40 private ratings so far. A steady month would be at about 29 by today.',
+      }),
+    ).toBeVisible()
     await expect(canvas.queryByText(/on pace/iu)).toBeNull()
-    // Name order, never by count (P-1): the one line a narrow slot says it in.
-    await expect(canvas.getByText('Reception 3 · Restaurant 0 · Spa 20')).toBeVisible()
+    // Name order, never by count (P-1), in a narrow slot as in a wide one.
+    await expect(portalRows(canvas)).toEqual([
+      ['Reception', '3'],
+      ['Restaurant', '0'],
+      ['Spa', '20'],
+    ])
     const details = canvas.getByRole('link', { name: 'View details' })
     await expect(details).toHaveAttribute(
       'href',

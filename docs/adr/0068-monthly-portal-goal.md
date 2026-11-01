@@ -158,7 +158,8 @@ The owner approved decisions P-1 to P-8 and the smaller calls of the proposal on
     rules; see below.)
 14. **The results table has its own page.** The monthly results table of Portal
     goals moves off the Goals page to its own page, `/goals/portal-results`,
-    which also lists the ended Portal goals.
+    which also lists the ended Portal goals. (Amended 2026-11-01: a card and a
+    chart for each goal, not a table; see the last amendment.)
 
 ## Guardrails
 
@@ -254,7 +255,8 @@ how the goals are drawn, and nothing else in them.
 3. **One signature visual per goal.** The Google rating goal keeps its ladder and
    its climb chart; the Portal goal keeps its month meter and its per-Portal
    counts. Both headlines say what is left ("18 new reviews to 4.1", "17 private
-   ratings to 40", U-2).
+   ratings to 40", U-2). (Amended 2026-11-01: both goals draw how far along they
+   are on the same ruler; see the last amendment.)
 4. **A part is cut from the Google rating goal first.** Each shared part is
    extracted from the Google files in a commit that changes none of their output
    (checked by a DOM and pixel comparison of every Google goal story), in the
@@ -294,6 +296,9 @@ how the goals are drawn, and nothing else in them.
    words beside it, still the region named "Changes", with "Show all" after twelve.
    Its words, rows, the "How this goal counts" disclosure, "More portal goals" and
    the plain page of a goal for several subjects are the Portal goal's own.
+   (Amended 2026-11-01: the Monthly portal goal's page is where the goal stands and
+   three questions, with no signature visual card and no tiles; its change log is
+   the region "What changed", closed until asked; see the last amendment.)
 8. **The Goals page's rows wear the pill too.** A row of a Portal goal with one
    subject on a count measure (`GoalLiveLine`) draws the same pill where `goalPace`
    judged the month, "On pace" or "Below pace", in place of the quiet amber
@@ -307,6 +312,68 @@ how the goals are drawn, and nothing else in them.
    subjects keeps "3 subjects · 2 below pace" as words (it has several paces, a pill
    is one), and the attention band's "Portal goal below pace" chip and the
    Properties list keep their words.
+
+## Amended 2026-11-01 — the page, the card and the results are a check-in
+
+The Google rating goal's tracking became a check-in the same day (ADR 0067, amended
+2026-11-01: the owner found the progress screens poor), and the Monthly portal goal's
+card, page and results page follow it. This changes how they are drawn and what they
+say, and nothing else: the numbers, the counts' rule (P-1), the pace (decision 7),
+the month-start check-in, the sheets, the notices and the reads are untouched. It
+replaces the signature visuals (item 3) and the page's order and tiles (item 7) of
+the 2026-10-19 amendment, and the table of decision 14.
+
+1. **One ruler, with a steady stop that says what it is.** The card and the top of
+   the page draw how far along the month is on the shared ruler (`goal-ruler.tsx`,
+   the Google rating goal's too): from none on the month's first day to the month's
+   number, "23 so far" at the place the month stands and, after the first quiet days
+   and until the number is passed, one stop labelled "steady pace" where a steady
+   month would stand today. The meter's tick and axis and the "November so far"
+   section are gone. Under the headline ("17 private ratings to 40") the days line
+   now says what a day takes: "9 days left in November. About 2 a day gets you
+   there." ("Under 1 a day" when it is less); the pace itself stays the pill's word.
+2. **The page is where it stands, then three questions.** What is left, the days
+   left and the ruler come first, in a card of their own (a stopped goal's notice
+   above it). Then the bands Guest voice, Portal Results and the Google rating
+   goal's page use, each with its answer first: "Where are they coming from?" (each
+   Portal's count in name order, "Other portals" when the rest brought something in,
+   and the total), "How does this month compare?" (each month as a bar against its
+   own number from the second month; what the Property usually gets in a month; and,
+   from the seventh day, where the month would end at its pace so far) and "What can
+   you do this week?" (rows: check the code of a Portal gone quiet, open your
+   portals, change the number). "What changed" and "How this goal counts" are one
+   closed card each, closed until asked; "What changed" is still the region of that
+   name, with "Show all" after twelve. The tiles ("Your goal, so far"), "Month by
+   month" and the line "Private ratings from all 3 portals at …" are gone from this
+   page. A goal for one Portal or group has the same page without the first band.
+3. **It never names a winner (P-1 stands).** The first band answers how many Portals
+   are bringing ratings in ("All 3 portals are bringing them in", "From 2 of your 3
+   portals") and the one Portal it names is one that has gone quiet, with the fact
+   the read already had and the way to its code. Counts stay plain numbers in name
+   order with no bar, share or rank, and are listed only when they add up to the
+   month's figure. On the card the list "From your portals" is drawn at every width;
+   the narrow card's one line is gone.
+4. **Results are one chart and one list.** `/goals/portal-results` has a card for
+   each goal, titled by its name (and, for a goal of one Portal or group, whom it
+   counted), a bar chart of its months against their own numbers once it has two
+   counted months (an average has none), and a row for each month, newest first, in
+   a manager's words: "41 of 40" with Met, Missed by 4, Still counting, The final
+   figure is on its way, More ratings needed: 6 of 10 or No result for this month.
+   The audit fields are one tap away on the row: the day the figure was counted
+   through, the number and when it was set, who changed the month's own number, a
+   correction. The matrix is still what decides every figure; the table, its five
+   columns and its "Monthly results" heading are gone, and the ended Portal goals
+   below it are as they were.
+5. **The average goal's page waits.** It keeps its tiles and its month strip for
+   now; only its change log became the closed "What changed" card, which every goal
+   page shares.
+6. **Shared parts, still neutral.** The ruler, the bars (`goal-columns.tsx`), the
+   whole-row actions (`goal-action-row.tsx`), the card that says where a goal
+   stands and the card that is closed until asked (`GoalWhere`, `GoalClosedCard`)
+   are `goal-*` modules like the other design parts: they say no product word,
+   import no `rating-goal-*` or `portal-goal-*` module and no server context, and
+   each goal passes in its own words. Names, notices, calendar months against
+   Monday-to-Sunday weeks and every number stay apart (decision 13).
 
 ## Rejected alternatives
 

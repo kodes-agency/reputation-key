@@ -1,22 +1,19 @@
 import { describe, expect, it } from 'vitest'
 import type { PortalGoalPageMonth } from '#/contexts/reporting/application/dto/monthly-portal-goal-page.types'
-import type { PortalGoalOfCard } from '#/contexts/reporting/application/dto/monthly-portal-goal.types'
 import {
+  HOW_IT_COUNTS_TITLE,
   TILES_LABEL,
   TILES_TITLE,
   extrasSubjectName,
   fromPortalsWords,
   howItCountsWords,
-  monthAxis,
   pageBodyLine,
-  portalGoalTiles,
   stripChips,
 } from './portal-goal-page-view'
-import { CARD_RUNNING } from './portal-goal-running.stories.fixtures'
-import { GOAL_SCHEDULED } from './portal-goal.stories.fixtures'
-
-const RUNNING: PortalGoalOfCard =
-  CARD_RUNNING.state === 'goal' ? CARD_RUNNING.goal : GOAL_SCHEDULED
+import {
+  PAGE_RUNNING,
+  PAGE_WITH_NO_SCAN_FACTS,
+} from './portal-goal-page.stories.fixtures'
 
 /** A month on the strip: November, 36 of 40 private ratings, not met. */
 const month = (patch: Partial<PortalGoalPageMonth> = {}): PortalGoalPageMonth => ({
@@ -46,76 +43,10 @@ describe('pageBodyLine', () => {
   })
 })
 
-describe('portalGoalTiles', () => {
+describe('the average goal’s tiles', () => {
   it('are titled "Your goal, so far", and named so for a screen reader', () => {
     expect(TILES_TITLE).toBe('Your goal, so far')
     expect(TILES_LABEL).toBe('Your goal, so far, in numbers')
-  })
-
-  it('tiles say No goal yet before the first month', () => {
-    const tiles = portalGoalTiles(
-      RUNNING,
-      { lastMonth: { key: '2026-10', outcome: 'no_goal' }, usual: null },
-      '2026-11-22',
-    )
-
-    expect(tiles).toEqual([
-      {
-        key: 'this',
-        label: 'November',
-        value: '23 of 40',
-        detail: '17 to go · 9 days left',
-      },
-      { key: 'last', label: 'October', value: 'No goal yet', detail: null },
-    ])
-  })
-
-  it('your usual rounds to about 34 a month', () => {
-    const [, , usual] = portalGoalTiles(
-      RUNNING,
-      {
-        lastMonth: { key: '2026-10', outcome: 'no_goal' },
-        usual: { about: 34, weeks: 4 },
-      },
-      '2026-11-22',
-    )
-
-    expect(usual).toEqual({
-      key: 'usual',
-      label: 'Your usual',
-      value: 'About 34 a month',
-      detail: 'last 4 weeks',
-    })
-  })
-
-  it('last month says its result, and a scheduled goal its first month', () => {
-    const [first, last] = portalGoalTiles(
-      GOAL_SCHEDULED,
-      { lastMonth: month({ key: '2026-10', value: 41, outcome: 'met' }), usual: null },
-      '2026-10-23',
-    )
-
-    expect(first).toEqual({
-      key: 'this',
-      label: 'November',
-      value: '40 private ratings',
-      detail: 'Starts on Nov 1',
-    })
-    expect(last).toEqual({
-      key: 'last',
-      label: 'October',
-      value: '41 of 40',
-      detail: 'met',
-    })
-  })
-})
-
-describe('monthAxis', () => {
-  it('runs from the first to the last day of the month', () => {
-    expect(monthAxis({ key: '2026-11', totalDays: 30 })).toEqual({
-      from: 'Nov 1',
-      to: 'Nov 30',
-    })
   })
 })
 
@@ -268,7 +199,20 @@ describe('fromPortalsWords', () => {
     })
   })
 
-  it('says a quiet portal’s last scan and its usual week', () => {
+  it('keeps the read’s name order even when one portal brought in most of it', () => {
+    const { rows, facts, portals: listed } = PAGE_RUNNING
+    const words = fromPortalsWords(rows, facts, listed)
+
+    // Spa has 20 of the 23 and Reception 3: never sorted, never ranked (P-1).
+    expect(words.rows?.map(({ name, count }) => `${name} ${count}`)).toEqual([
+      'Reception 3',
+      'Restaurant 0',
+      'Spa 20',
+    ])
+    expect(words.total).toBe('23')
+  })
+
+  it('says a quiet portal’s name, its last scan, its usual week and the way to open it', () => {
     const words = fromPortalsWords(
       null,
       { 'portal-spa': { noScansSince: '2026-11-15', usualPerWeek: 7 } },
@@ -278,11 +222,40 @@ describe('fromPortalsWords', () => {
     expect(words.quiet).toEqual([
       {
         portalId: 'portal-spa',
+        name: 'Spa',
+        since: 'No scans since Nov 15',
         text: 'Spa: no scans since Nov 15. It usually gets about 7 a week.',
         open: 'Open Spa',
       },
     ])
     expect(words.rows).toBeNull()
+  })
+
+  it('lists the quiet portals in the read’s order, not the facts’', () => {
+    const words = fromPortalsWords(
+      null,
+      {
+        'portal-spa': { noScansSince: '2026-11-15', usualPerWeek: 7 },
+        'portal-reception': { noScansSince: '2026-11-08', usualPerWeek: 12 },
+      },
+      portals,
+    )
+
+    expect(words.quiet.map(({ name, since }) => `${name}: ${since}`)).toEqual([
+      'Reception: No scans since Nov 8',
+      'Spa: No scans since Nov 15',
+    ])
+  })
+
+  it('leaves out a fact about a portal the page does not list', () => {
+    const { rows, facts, portals: listed } = PAGE_WITH_NO_SCAN_FACTS
+    const words = fromPortalsWords(
+      rows,
+      { ...facts, 'portal-gone': { noScansSince: '2026-11-01', usualPerWeek: 3 } },
+      listed,
+    )
+
+    expect(words.quiet.map(({ portalId }) => portalId)).toEqual(['portal-spa'])
   })
 
   it('says when only the first 100 portals are listed', () => {
@@ -315,6 +288,10 @@ describe('extrasSubjectName', () => {
 })
 
 describe('howItCountsWords', () => {
+  it('is the closed card’s title', () => {
+    expect(HOW_IT_COUNTS_TITLE).toBe('How this goal counts')
+  })
+
   it('How this goal counts has a scans version', () => {
     expect(howItCountsWords('portal_rating_count', 'Europe/Sofia')).toBe(
       'Counts the 1–5 star private ratings guests give at any of your portals. Low and high ratings count the same. Months follow Sofia time, from the 1st to the last day. A month’s result arrives about a day after it ends. If a guest corrects or withdraws a rating, the month updates.',

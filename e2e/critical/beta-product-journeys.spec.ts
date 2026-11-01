@@ -1,7 +1,7 @@
 import type { Locator, Page } from '@playwright/test'
 import { test, expect } from '../helpers/error-detection'
 import { signIn } from '../helpers/auth'
-import { waitForHydration, clickWhenReady } from '../helpers/interaction'
+import { waitForHydration, clickWhenReady, dismissToasts } from '../helpers/interaction'
 import { expectOneH1 } from '../helpers/page-structure'
 import { requireE2eSeedState } from '../helpers/seed-state'
 import { expectPortalUnavailable } from '../helpers/guest-unavailable'
@@ -757,6 +757,8 @@ test.describe('Critical: beta-local-1 product journeys', () => {
     if (!portal) throw new Error('The per-run published Portal was not created')
 
     const qualifiedScanCount = 2
+    // The goal's number, far above the scans: the month is judged and missed.
+    const scanGoalTarget = 20
     await resetGuestRateLimits()
     await drainFixtureQueue()
     await waitForQueuesIdle()
@@ -929,7 +931,7 @@ test.describe('Critical: beta-local-1 product journeys', () => {
           name: activeGoalName,
           description: 'Active goal program backed by joined qualified scan facts.',
           metric: 'qualified_scans',
-          targetValue: 20,
+          targetValue: scanGoalTarget,
           subjects: [{ kind: 'portal_group', portalGroupId: portal.groupId }],
           startMonth: nextMonth,
         },
@@ -1081,18 +1083,24 @@ test.describe('Critical: beta-local-1 product journeys', () => {
     expect(Number(evaluated.value)).toBe(qualifiedScanCount)
     expect(evaluated.sample_count).toBe(qualifiedScanCount)
 
-    // Each month's result has its own page (PG-18), off the Goals page.
+    // Each month's result has its own page (PG-18), off the Goals page: a card for the
+    // goal, titled by its name, and a row for its month in plain words. The row says
+    // the figure against the goal's number and that it was missed, which only a month
+    // whose final figure is ready can.
     await page.goto(`/properties/${seed.p1PropertyId}/goals/portal-results`)
     await expect(
       page.getByRole('heading', { level: 1, name: 'Portal goal results' }),
     ).toBeVisible()
     const resultRow = page
-      .getByRole('row')
-      .filter({ hasText: activeGoalName })
-      .filter({ hasText: `${qualifiedScanCount} scans` })
+      .locator('[data-slot="portal-goal-results-goal"]')
+      .filter({ has: page.getByRole('heading', { level: 2, name: activeGoalName }) })
+      .getByRole('list', { name: `Each month of ${activeGoalName}` })
+      .getByRole('listitem')
+      .filter({ hasText: `${qualifiedScanCount} of ${scanGoalTarget}` })
     await expect(resultRow).toHaveCount(1)
-    await expect(resultRow).toContainText('Ready')
-    await expect(resultRow).toContainText(`${qualifiedScanCount} scans`)
+    await expect(resultRow).toContainText(
+      `Missed by ${scanGoalTarget - qualifiedScanCount}`,
+    )
     await page.reload()
     await expect(resultRow).toHaveCount(1)
 
@@ -1106,7 +1114,7 @@ test.describe('Critical: beta-local-1 product journeys', () => {
     // way to every month's result (PG-18), and no results of its own.
     await expect(page.getByRole('heading', { level: 1, name: 'Goals' })).toBeVisible()
     await expect(page.getByRole('link', { name: 'All monthly results' })).toHaveCount(0)
-    await expect(page.getByRole('heading', { name: 'Monthly results' })).toHaveCount(0)
+    await expect(page.locator('[data-slot="portal-goal-results-goal"]')).toHaveCount(0)
     await page.goto(`/properties/${seed.p3PropertyId}/goals/${governedGoalDefinitionId}`)
     await expect(page.getByText(/doesn't exist|not found/i).first()).toBeVisible()
     await expect(page.getByText(activeGoalName)).toHaveCount(0)
@@ -1484,15 +1492,19 @@ test.describe('Critical: beta-local-1 product journeys', () => {
       await expect(page.getByText(`${monthName} goal: 3 private ratings`)).toBeVisible()
       await expect(sheet).toHaveCount(0)
 
-      // The log says the month's own number, and survives a reload.
+      // The log says the month's own number, and survives a reload. It is closed
+      // until asked, so a reload closes it again.
+      await dismissToasts(page)
       for (const attempt of ['after saving', 'after a reload']) {
         if (attempt === 'after a reload') {
           await page.reload()
           await waitForHydration(page)
         }
-        await expect(
-          page.getByRole('region', { name: 'Changes' }).getByRole('listitem').first(),
-        ).toHaveText(new RegExp(`set ${monthName} to 3$`, 'u'))
+        const log = page.getByRole('region', { name: 'What changed' })
+        await clickWhenReady(log.getByRole('button', { name: 'What changed' }))
+        await expect(log.getByRole('listitem').first()).toHaveText(
+          new RegExp(`set ${monthName} to 3$`, 'u'),
+        )
       }
 
       // What was written: the month carries its own number, one change is

@@ -1,22 +1,26 @@
-// Round 5 of the Google rating goal (PLAN-D D-1, D-2, D-2b, D-3): the card
-// that counts the new reviews to the next number Google can show, on the Goals
-// page and on the Property Overview, the detail page one click from it (mock
-// D3), and the Monday check-in above the card (mock D4), for the people who may
+// Round 5 of the Google rating goal (PLAN-D D-1, D-2, D-2b, D-3), as the check-in
+// of 2026-11-01 draws its tracking (ADR 0067): the card that counts the new
+// reviews to the next number Google can show and puts the goal on a ruler, on the
+// Goals page and on the Property Overview, the detail page one click from it (where
+// the goal stands, then three questions in the bands Guest voice and Portal Results
+// use), and the Monday check-in above the card (mock D4), for the people who may
 // see them and for no one else.
 //
 // Journeys:
 //   1. the owner sets a goal (the setup's own command) and sees the card on the
-//      Property's Goals page and on its Overview: "2 new reviews to 4.0", two
-//      empty squares, the ladder and when it arrives;
+//      Property's Goals page and on its Overview: "2 new reviews to 4.0", the ruler
+//      from 3.9 to the goal and when it arrives;
 //   2. manager-one (granted the Property) sees the same card; manager-zero (no
 //      grant: `scope_denied`) and the staff Member (`beta_role_inactive`) are
 //      refused the card read;
-//   3. the owner opens the detail: the headline, "The climb, step by step" with
-//      its chart, "Your plan, so far" and "What moved you" ending in the set's
-//      row; both goals pages pass the axe scan;
-//   4. a 2★ review after the set is named in "What moved you" with what it set
-//      the goal back, and its link opens its Inbox item; an expired 1★ review
-//      since the set is not named (D-2b, the owner’s exception);
+//   3. the owner opens the detail: the headline and the ruler, "Is your rating going
+//      up?" with its line to the goal, "Are enough good reviews coming in?" with its
+//      weekly bars, "What can you do this week?", and "What happened", closed until
+//      asked, ending in the set's row; "Owners and managers only" is the page's foot,
+//      outside that card; both goals pages pass the axe scan;
+//   4. a 2★ review after the set is named in "What happened" with what it set the
+//      goal back, and its link opens its Inbox item; an expired 1★ review since the
+//      set is not named (D-2b, the owner’s exception);
 //   5. a goal set 15 days ago gets the Monday check-in, on manager-one's
 //      Overview too: the owner keeps the pace, and it is gone after a reload
 //      and, reloaded, from manager-one's Overview; asked again,
@@ -30,7 +34,7 @@
 //   - Google's numbers older than 24 hours make a goal wait, so they are
 //     written at the start of the run;
 //   - the cache holds exactly Google's count, so the exact average is the
-//     cache's (squares are drawn only then);
+//     cache's (every count reads exact, with no "About");
 //   - the goal tables hold RESTRICT foreign keys onto the Property, so its
 //     rating goal rows go before the prefix cleanup removes the Property.
 import type { Page } from '@playwright/test'
@@ -130,6 +134,12 @@ async function setGoalAsOwner(page: Page, propertyId: string): Promise<void> {
   })
 }
 
+/**
+ * The ruler's one sentence for this Property: Google showed 3.9 when the goal was set
+ * and shows it still, so there is no "Started at", and 3.9 to 4.0 has no stop between.
+ */
+const RULER_NAME = 'Google shows 3.9 now. Your goal is 4.0.'
+
 /** 12 × (3.95 − 3.917) / (4.2 − 3.95) = 1.6: two new reviews to 4.0. */
 async function expectClimbCard(page: Page, propertyId: string): Promise<void> {
   const card = page.locator('[data-slot="rating-goal-card"]')
@@ -137,21 +147,10 @@ async function expectClimbCard(page: Page, propertyId: string): Promise<void> {
     card.getByRole('heading', { level: 2, name: 'Google rating goal' }),
   ).toBeVisible()
   await expect(card.getByText('2 new reviews to 4.0', { exact: true })).toBeVisible()
-  await expect(
-    card.getByRole('img', {
-      name: '2 empty squares, one for each new review still needed',
-    }),
-  ).toBeVisible()
-  // The ladder names the goal, upright or across, whichever this width draws.
-  await expect(
-    card.getByRole('img', {
-      name: 'Google shows 3.9 now. Your goal is 4.0. 4.1 is possible after that.',
-    }),
-  ).toBeVisible()
-  // When it arrives: the full sentence on a wide card, the one line on a narrow one (D4).
-  await expect(
-    card.getByText(/4\.0 in about 2 days/u).filter({ visible: true }),
-  ).toHaveCount(1)
+  // The ruler is a picture named by one sentence; Google's number leads, never the exact average.
+  await expect(card.getByRole('img', { name: RULER_NAME, exact: true })).toBeVisible()
+  // When it arrives: the one sentence, at every width.
+  await expect(card.getByText(/4\.0 in about 2 days/u)).toBeVisible()
   await expect(card.getByRole('link', { name: 'View details' })).toHaveAttribute(
     'href',
     `/properties/${propertyId}/goals/google-rating`,
@@ -220,7 +219,7 @@ test.describe('Critical workflow: the Google rating goal card (round 5)', () => 
     }
   })
 
-  test('the owner opens the detail: the climb, the plan so far and what moved it', async ({
+  test('the owner opens the detail: where the goal stands, its three questions and what happened', async ({
     page,
   }) => {
     await signIn(page)
@@ -229,23 +228,40 @@ test.describe('Critical workflow: the Google rating goal card (round 5)', () => 
     await assertNoAxeViolations(page, 'Goals page with the rating goal card')
 
     await page.goto(`/properties/${propertyId}/goals/google-rating`)
+    // "What happened" opens on a press, which sends nothing before React hydrates.
+    await waitForHydration(page)
     const detail = page.locator('[data-slot="rating-goal-detail"]')
+    // Where the goal stands comes first: the card's headline and its ruler.
     await expect(detail.getByText('2 new reviews to 4.0', { exact: true })).toBeVisible()
+    await expect(detail.getByRole('img', { name: RULER_NAME, exact: true })).toBeVisible()
+    // Then three questions, each in a band of its own.
+    for (const question of [
+      'Is your rating going up?',
+      'Are enough good reviews coming in?',
+      'What can you do this week?',
+    ]) {
+      await expect(
+        detail.getByRole('heading', { level: 2, name: question }),
+      ).toBeVisible()
+    }
+    // The line up to the goal and the weeks against the plan: each a figure named by its caption.
     await expect(
-      detail.getByRole('heading', { level: 2, name: 'The climb, step by step' }),
+      detail.getByRole('figure', { name: 'Your rating on Google' }),
     ).toBeVisible()
-    // The chart is a chunk of its own, drawn after the words.
     await expect(
-      detail.getByRole('img', { name: 'The climb, step by step' }),
-    ).toBeVisible({ timeout: 15_000 })
-    await expect(detail.getByRole('region', { name: 'Your plan, so far' })).toBeVisible()
+      detail.getByRole('figure', { name: 'New reviews each week' }),
+    ).toBeVisible()
+    // "What happened" is closed until asked: its rows show after a press.
     const moved = detail
       .locator('[data-slot="card"]')
-      .filter({ has: page.getByRole('heading', { name: 'What moved you' }) })
-    await expect(moved.getByText(/set the goal: 4\.0 at 1 a day$/u)).toBeVisible()
-    await expect(
-      moved.getByText('Owners and managers only', { exact: false }),
-    ).toBeVisible()
+      .filter({ has: page.getByRole('heading', { name: 'What happened' }) })
+    const setRow = moved.getByText(/set the goal: 4\.0 at 1 a day$/u)
+    await expect(setRow).toHaveCount(0)
+    await clickWhenReady(moved.getByRole('button', { name: 'What happened' }))
+    await expect(setRow).toBeVisible()
+    // How fresh Google's numbers are, and who sees the page, are the page's foot, not that card's.
+    await expect(detail.getByText('Owners and managers only')).toBeVisible()
+    await expect(moved.getByText('Owners and managers only')).toHaveCount(0)
     await assertNoAxeViolations(page, 'the rating goal detail (/goals/google-rating)')
   })
 
@@ -287,9 +303,14 @@ test.describe('Critical workflow: the Google rating goal card (round 5)', () => 
 
     await signIn(page)
     await page.goto(`/properties/${propertyId}/goals/google-rating`)
+    await waitForHydration(page)
     const moved = page
       .locator('[data-slot="card"]')
-      .filter({ has: page.getByRole('heading', { name: 'What moved you' }) })
+      .filter({ has: page.getByRole('heading', { name: 'What happened' }) })
+    // "What happened" is closed until asked, on every load of the page.
+    const openMoved = () =>
+      clickWhenReady(moved.getByRole('button', { name: 'What happened' }))
+    await openMoved()
     // 13 × (3.95 − 3.769) / (4.1 − 3.95) = 15.7 with it (the blend held at
     // 4.1 before the tenth review); 1.6 at the plan's 4.2 without it.
     await expect(moved.getByText('2★ review', { exact: true })).toBeVisible()
@@ -307,6 +328,9 @@ test.describe('Critical workflow: the Google rating goal card (round 5)', () => 
     await assertNoAxeViolations(page, 'the rating goal detail with a low review')
     await page.evaluate(() => window.localStorage.setItem('theme', 'light'))
     await page.reload()
+    // The reload closed the card again: ask for it before reading a row or following its link.
+    await waitForHydration(page)
+    await openMoved()
     await expect(moved.getByText('set you back about 14 new reviews')).toBeVisible()
     await expect(page.locator('html')).toHaveClass(/\blight\b/u)
     await assertNoAxeViolations(page, 'the rating goal detail with a low review (light)')

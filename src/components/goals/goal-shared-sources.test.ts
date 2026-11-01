@@ -15,19 +15,31 @@ import { readUiSources, type SourceFile } from '#/shared/testing/source-tree'
  * adds its file here.
  */
 const SHARED_PARTS = [
+  'goal-action-row.tsx',
   'goal-card-frame.tsx',
   'goal-check-in.tsx',
+  'goal-columns-view.ts',
+  'goal-columns.tsx',
   'goal-detail-layout.tsx',
   'goal-headline.tsx',
   'goal-history-list.tsx',
   'goal-meter.tsx',
   'goal-pace-status.ts',
+  'goal-ruler-view.ts',
+  'goal-ruler.tsx',
   'goal-setup-parts.tsx',
   'goal-sheet-frame.tsx',
 ] as const
 
-/** The only shared parts that may write the link ink: it is the colour of the one figure a goal leads with. */
-const LINK_INK_PARTS: readonly string[] = ['goal-headline.tsx', 'goal-setup-parts.tsx']
+/**
+ * The only shared parts that may write the link ink: it is the colour of the one
+ * figure a goal leads with, and of the number its ruler ends at.
+ */
+const LINK_INK_PARTS: readonly string[] = [
+  'goal-headline.tsx',
+  'goal-ruler.tsx',
+  'goal-setup-parts.tsx',
+]
 
 const PARTS_DIR = 'src/components/goals/'
 
@@ -73,7 +85,7 @@ describe('the shared goal design parts', () => {
     ).toEqual([])
   })
 
-  it('keeps the link ink for the headline and the recommendation', () => {
+  it('keeps the link ink for the headline, the end of the ruler and the recommendation', () => {
     expect(
       offenders(
         SOURCES.filter(
@@ -90,5 +102,13 @@ describe('the shared goal design parts', () => {
     expect(
       headline && writtenTexts(headline).some((text) => /\btext-link\b/u.test(text)),
     ).toBe(true)
+  })
+
+  it('writes the link ink at the end of the ruler, where the goal’s number stands', () => {
+    const ruler = SOURCES.find(({ path }) => path === `${PARTS_DIR}goal-ruler.tsx`)
+
+    expect(ruler && writtenTexts(ruler).some((text) => /\btext-link\b/u.test(text))).toBe(
+      true,
+    )
   })
 })

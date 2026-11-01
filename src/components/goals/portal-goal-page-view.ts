@@ -1,6 +1,6 @@
-// The Monthly portal goal page's words (copy deck P-2, P-4…P-9, P-13…P-15): the
-// line under the title, the tiles, what each Portal brought in and the quiet
-// ones, the month strip and each month's popover, and how the goal counts. The
+// The Monthly portal goal page's words (copy deck P-4…P-9, P-13…P-15): what each
+// Portal brought in and the quiet ones, each month's facts (the average goal's strip
+// and the bars both say them), and how the goal counts. The
 // read decides every state, day and number (PLAN E12); this only says them, in
 // one place, so the page, its stories and its tests spell each line once. The
 // running month itself is `portal-goal-running-view.ts`', and what changed is
@@ -10,13 +10,10 @@ import type { GoalSubject } from '#/contexts/reporting/application/public-api'
 import type {
   PortalGoalPageMonth,
   PortalGoalPageRows,
-  PortalGoalPageTiles,
   PortalGoalQuietFact,
 } from '#/contexts/reporting/application/dto/monthly-portal-goal-page.types'
-import type { PortalGoalOfCard } from '#/contexts/reporting/application/dto/monthly-portal-goal.types'
 import { formatNumber } from '#/lib/format'
 import { goalFigure } from './goal-so-far'
-import { runningWords } from './portal-goal-running-view'
 import {
   dayWords,
   monthName,
@@ -32,8 +29,8 @@ function unitTitle(measure: PortalGoalMeasure): string {
 }
 
 /**
- * P-2: what the goal counts, from where, under the page's title: "Private
- * ratings from all 3 portals at Seaview Hotel."
+ * P-2: what the goal counts, from where: "Private ratings from all 3 portals at
+ * Seaview Hotel."
  */
 export function pageBodyLine(
   measure: PortalGoalMeasure,
@@ -56,36 +53,6 @@ export type PortalGoalTileWords = Readonly<{
   detail: string | null
 }>
 
-/** The month the goal counts now, as the first tile says it. */
-function thisMonthTile(goal: PortalGoalOfCard, today: string): PortalGoalTileWords {
-  if (goal.month !== null) {
-    const words = runningWords(goal.month)
-    const label = monthName(goal.month.key)
-    return words.kind === 'unreadable'
-      ? { key: 'this', label, value: null, detail: words.line }
-      : { key: 'this', label, value: words.figure, detail: words.line }
-  }
-  if (goal.status === 'scheduled' && goal.startsOn !== null) {
-    return {
-      key: 'this',
-      label: monthName(goal.startsOn.slice(0, 7)),
-      value: portalGoalCount(goal.measure, goal.target),
-      detail: `Starts on ${dayWords(goal.startsOn)}`,
-    }
-  }
-  const counting = goal.countingMonth ?? {
-    key: today.slice(0, 7),
-    measure: goal.measure,
-    target: goal.target,
-  }
-  return {
-    key: 'this',
-    label: monthName(counting.key),
-    value: portalGoalCount(counting.measure, counting.target),
-    detail: null,
-  }
-}
-
 /** What a month's result is called after its figure. */
 const OUTCOME_WORDS: Readonly<Record<PortalGoalPageMonth['outcome'], string>> = {
   running: 'running',
@@ -95,63 +62,16 @@ const OUTCOME_WORDS: Readonly<Record<PortalGoalPageMonth['outcome'], string>> = 
   unavailable: 'no usable result',
 }
 
-/** U5: the tiles' title on the shared detail layout, and the strip's name for a screen reader. */
+/** U5: the average goal's tiles' title on the shared detail layout, and the strip's name for a screen reader. */
 export const TILES_TITLE = 'Your goal, so far'
 export const TILES_LABEL = 'Your goal, so far, in numbers'
 
-/** P-4: the month counting, the month before, and the usual. */
-export function portalGoalTiles(
-  goal: PortalGoalOfCard,
-  tiles: PortalGoalPageTiles,
-  today: string,
-): readonly PortalGoalTileWords[] {
-  const { lastMonth, usual } = tiles
-  const before: PortalGoalTileWords =
-    lastMonth.outcome === 'no_goal'
-      ? {
-          key: 'last',
-          label: monthName(lastMonth.key),
-          value: 'No goal yet',
-          detail: null,
-        }
-      : {
-          key: 'last',
-          label: monthName(lastMonth.key),
-          value:
-            lastMonth.value === null
-              ? null
-              : `${formatNumber(lastMonth.value)} of ${formatNumber(lastMonth.target)}`,
-          detail: OUTCOME_WORDS[lastMonth.outcome],
-        }
-  return [
-    thisMonthTile(goal, today),
-    before,
-    ...(usual === null
-      ? []
-      : [
-          {
-            key: 'usual',
-            label: 'Your usual',
-            value: `About ${formatNumber(usual.about)} a month`,
-            detail: `last ${usual.weeks} weeks`,
-          },
-        ]),
-  ]
-}
-
-/** P-5: the month's first and last day under its bar. */
-export function monthAxis(
-  month: Readonly<{ key: string; totalDays: number }>,
-): Readonly<{ from: string; to: string }> {
-  return {
-    from: dayWords(`${month.key}-01`),
-    to: dayWords(`${month.key}-${String(month.totalDays).padStart(2, '0')}`),
-  }
-}
-
 export type PortalGoalQuietWords = Readonly<{
   portalId: string
+  name: string
   text: string
+  /** "No scans since Nov 8", under its row. */
+  since: string
   open: string
 }>
 
@@ -173,6 +93,8 @@ export function fromPortalsWords(
       : [
           {
             portalId,
+            name,
+            since: `No scans since ${dayWords(fact.noScansSince)}`,
             text: `${name}: no scans since ${dayWords(fact.noScansSince)}. It usually gets about ${formatNumber(fact.usualPerWeek)} a week.`,
             open: `Open ${name}`,
           },

@@ -1,7 +1,7 @@
 // What is left, as the line every goal's card and page leads with (ADR 0068,
 // amended 2026-10-19: one goal design system): the figure large, then its words,
-// then the number it counts to in the link ink. This is the one place a figure
-// wears that ink; a goal passes its three parts and none of its own words.
+// then the number it counts to in the link ink, which only this and the end of the
+// ruler it leads to wear; a goal passes its three parts and none of its own words.
 
 type Props = Readonly<{
   /** The figure that opens the line, already formatted. */

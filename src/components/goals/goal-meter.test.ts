@@ -1,7 +1,6 @@
-// The goal meter as the server draws it. Its placements are spelled whole
-// because `rating-goal-card.test.ts` pins the Google meter's class string in
-// that order; these name the branches that goal never takes (no caption, no
-// foot, a tick, an axis), which the other goal's meter will.
+// The goal meter as the server draws it: a quiet caption, the figure, a bar with no
+// verdict and a foot line, every one of them optional but the figure and the bar. A
+// goal's way on a ruler (a tick, the way's two ends) is the goal ruler, not the meter.
 import { createElement } from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { describe, expect, it } from 'vitest'
@@ -22,15 +21,8 @@ const meter = (props: Partial<Parameters<typeof GoalMeter>[0]> = {}) =>
   )
 
 describe('GoalMeter', () => {
-  it('draws at every width unless it is wide-only', () => {
+  it('draws at every width, in the column the card gives it', () => {
     expect(meter()).toContain('class="flex flex-col gap-1.5"')
-    expect(meter({ wideOnly: false })).toContain('class="flex flex-col gap-1.5"')
-  })
-
-  it('draws only on a card 48rem wide when it is wide-only, the classes in the order the Google card pins', () => {
-    expect(meter({ wideOnly: true })).toContain(
-      'class="hidden flex-col gap-1.5 @3xl:flex"',
-    )
   })
 
   it('draws the caption, the figure, the bar and the foot in that order, under the slot it was given', () => {
@@ -44,6 +36,14 @@ describe('GoalMeter', () => {
     expect(html).toContain('aria-valuetext="3 of 7 counted"')
   })
 
+  it('gives the bar its value and its end for a reader who cannot see it', () => {
+    const html = meter()
+
+    expect(html).toContain('aria-valuenow="3"')
+    expect(html).toContain('aria-valuemax="7"')
+    expect(html).toContain('data-tone="neutral"')
+  })
+
   it('draws no caption and no foot when the goal has none to add', () => {
     const html = meter({ caption: null, foot: null })
 
@@ -52,49 +52,12 @@ describe('GoalMeter', () => {
     expect(html).toContain('role="progressbar"')
   })
 
-  it('draws the bar on its own when it is given no tick, as the first goal does', () => {
+  it('draws the bar alone under the figure: no tick and no ends beside it', () => {
     const html = meter()
 
-    expect(html).not.toContain('data-slot="goal-meter-bar"')
-    expect(html).not.toContain('data-slot="goal-meter-tick"')
-  })
-
-  it('draws a tick as a transform of its layer, clipped at the bar sides only', () => {
-    const html = meter({ bar: { ...BAR, tick: 22 / 30 } })
-
-    expect(html).toContain('data-slot="goal-meter-bar"')
-    expect(html).toContain('style="overflow-x:clip"')
-    expect(html).toMatch(
-      /data-slot="goal-meter-tick"[^>]*style="transform:translateX\(73\.3+\d*%\)"/u,
-    )
-    expect(html).toContain('aria-hidden="true"')
-  })
-
-  it('keeps the tick on the bar: before the way begins and past its end', () => {
-    expect(meter({ bar: { ...BAR, tick: -0.5 } })).toContain('translateX(0%)')
-    expect(meter({ bar: { ...BAR, tick: 2 } })).toContain('translateX(100%)')
-    expect(meter({ bar: { ...BAR, tick: 1 } })).toContain('translateX(100%)')
-  })
-
-  it('keeps the clipping wrapper but draws no tick when none stands today', () => {
-    const html = meter({ bar: { ...BAR, tick: null } })
-
-    expect(html).toContain('data-slot="goal-meter-bar"')
-    expect(html).not.toContain('data-slot="goal-meter-tick"')
-  })
-
-  it("draws the way's first and last point under the bar, out of reach of assistive technology", () => {
-    const html = meter({ axis: { from: 'First', to: 'Last' } })
-
-    expect(html.indexOf('role="progressbar"')).toBeLessThan(html.indexOf('First'))
-    expect(html.indexOf('First')).toBeLessThan(html.indexOf('Last'))
-    expect(html.indexOf('Last')).toBeLessThan(html.indexOf('A foot line'))
-    expect(html).toMatch(
-      /<p aria-hidden="true"[^>]*><span>First<\/span><span>Last<\/span><\/p>/u,
-    )
-  })
-
-  it('draws no axis unless it is asked', () => {
-    expect(meter()).not.toContain('justify-between')
+    expect(html.match(/role="progressbar"/gu)).toHaveLength(1)
+    expect(html).not.toContain('goal-meter-tick')
+    expect(html).not.toContain('goal-meter-bar')
+    expect(html).not.toContain('aria-hidden')
   })
 })

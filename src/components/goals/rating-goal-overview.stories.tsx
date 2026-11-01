@@ -1,9 +1,11 @@
 // The Google rating goal on the Property Overview in each state it can be in:
-// the card of an active goal (round 5, D4) with the Monday check-in above it while one is due, a goal reached lately, the one-line prompt
-// into the wizard (to climb, or to keep the number when nothing higher is in
-// reach), and nothing at all (too few Google reviews, "Not now" chosen, a viewer
-// who may not set goals, a read on its way or failed). The Storybook Vitest project compiles no
-// Tailwind, so the plays assert words, roles and what each door opens.
+// the card of an active goal (2026-11-01: the headline, when the goal arrives, the
+// ruler, this week and the way to the detail) with the Monday check-in above it while
+// one is due, a goal reached lately, the one-line prompt into the wizard (to climb, or
+// to keep the number when nothing higher is in reach), and nothing at all (too few
+// Google reviews, "Not now" chosen, a viewer who may not set goals, a read on its way
+// or failed). The Storybook Vitest project compiles no Tailwind, so the plays assert
+// words, roles and what each door opens.
 import type { Meta, StoryObj } from '@storybook/react-vite'
 import { expect, fn, userEvent, waitFor, within } from 'storybook/test'
 import { withPermissions } from '../../../.storybook/AuthedRouterDecorator'
@@ -65,24 +67,24 @@ const words = (text: string) => (_content: string, element: Element | null) =>
   element?.textContent === text &&
   Array.from(element.children).every((child) => child.textContent !== text)
 
-/** Harborline's headline and its 18 squares, drawn at every width. */
-async function expectHeadlineAndSquares(card: ReturnType<typeof within>) {
+/** Harborline's headline and its ruler, drawn at every width. */
+async function expectHeadlineAndRuler(card: ReturnType<typeof within>) {
   await expect(card.getByText(words('18 new reviews to 4.1'))).toBeVisible()
   await expect(
     card.getByRole('img', {
-      name: '18 empty squares, one for each new review still needed',
+      name: 'Started at 3.9. Google shows 4.0 now. Your goal is 4.1.',
     }),
   ).toBeVisible()
 }
 
-/** The same card as the Goals page (D4): the ladder, the new reviews to the next number, this week. */
+/** The same card as the Goals page: the new reviews to the next number, the ruler, this week. */
 export const ActiveGoal: Story = {
   play: async ({ canvasElement }) => {
     const card = within(canvasElement)
     await expect(
       card.getByRole('heading', { level: 2, name: 'Google rating goal' }),
     ).toBeVisible()
-    await expectHeadlineAndSquares(card)
+    await expectHeadlineAndRuler(card)
     await expect(card.getByText('2 of 7')).toBeVisible()
     await expect(
       card.getByText('4.1 in about 3 weeks at your 1 a day, likely 2–4 weeks.'),
@@ -152,29 +154,34 @@ export const CheckInDueWithoutCommands: Story = {
 }
 
 /**
- * The Overview on a phone: the card's own container draws D4's short card, so
- * this week and when are one line and the rest waits for the wide card.
+ * The Overview on a phone: the card's own container puts this week under the story
+ * and the way to the detail under it; the ruler and the words are the wide card's.
  */
 export const ActiveGoalPhone: Story = {
   parameters: { viewport: { defaultViewport: 'mobileStaff' } },
   play: async ({ canvasElement }) => {
     const card = within(canvasElement)
-    await expectHeadlineAndSquares(card)
-    await expect(card.getByText('This week 2 of 7 · 4.1 in about 3 weeks')).toBeVisible()
+    await expectHeadlineAndRuler(card)
+    await expect(card.getByText('2 of 7')).toBeVisible()
+    await expect(
+      card.getByText('4.1 in about 3 weeks at your 1 a day, likely 2–4 weeks.'),
+    ).toBeVisible()
     await expect(card.getByRole('link', { name: 'View details' })).toBeVisible()
   },
 }
 
 export const ActiveGoalLight: Story = { ...ActiveGoal, parameters: { theme: 'light' } }
 
-/** A far goal: 31 to 4.4 and the goal's own total, no squares. */
+/** A far goal: 31 to 4.4 and the goal's own total, and a ruler half the way. */
 export const FarGoal: Story = {
   args: { card: CARD_FAR_GOAL },
   play: async ({ canvasElement }) => {
     const card = within(canvasElement)
     await expect(card.getByText(words('31 new reviews to 4.4'))).toBeVisible()
     await expect(card.getByText('212 new reviews to your goal, 4.5.')).toBeVisible()
-    await expect(card.queryByRole('img', { name: /empty square/u })).toBeNull()
+    await expect(
+      card.getByRole('img', { name: 'Google shows 4.3 now. Your goal is 4.5.' }),
+    ).toBeVisible()
   },
 }
 

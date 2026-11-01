@@ -15,7 +15,12 @@ const rows = [
 
 const list = (props: Partial<Parameters<typeof GoalHistoryList>[0]> = {}) =>
   renderToStaticMarkup(
-    createElement(GoalHistoryList, { title: 'What happened', rows, ...props }),
+    createElement(GoalHistoryList, {
+      title: 'What happened',
+      rows,
+      defaultOpen: true,
+      ...props,
+    }),
   )
 
 /** The row (an li) that holds this text, as drawn: its opening tag. */
@@ -31,10 +36,17 @@ describe('GoalHistoryList', () => {
   it('draws the title as an h2, then one row to a fact, the date before its words', () => {
     const html = list()
 
-    expect(html).toMatch(/<h2 data-slot="card-title"[^>]*>What happened<\/h2>/u)
+    expect(html).toMatch(/<h2 data-slot="card-title"[^>]*>.*What happened.*<\/h2>/u)
     expect(html.match(/<li/gu)).toHaveLength(3)
     expect(html.indexOf('Oct 23')).toBeLessThan(html.indexOf('First fact'))
     expect(html.indexOf('First fact')).toBeLessThan(html.indexOf('Oct 9'))
+  })
+
+  it('is closed until asked: its title is a button, and its rows are not drawn yet', () => {
+    const html = list({ defaultOpen: false })
+
+    expect(html).toMatch(/<button[^>]*aria-expanded="false"[^>]*>What happened/u)
+    expect(html).not.toContain('First fact')
   })
 
   it('is no landmark unless asked: the title only heads the card', () => {
@@ -67,8 +79,9 @@ describe('GoalHistoryList', () => {
   it('draws neither a foot nor a control when it is given none', () => {
     const html = list()
 
-    expect(html).not.toContain('<button')
-    expect(html).not.toContain('<p')
+    // The one button is the title's.
+    expect(html.match(/<button/gu)).toHaveLength(1)
+    expect(html).not.toMatch(/<p[\s>]/u)
   })
 
   it('gives the date five rem, and six inline when a date carries a year', () => {
@@ -76,7 +89,7 @@ describe('GoalHistoryList', () => {
     const wide = list({ wideDates: true })
 
     expect(narrow).toContain('class="w-20 shrink-0 text-muted-foreground tabular-nums"')
-    expect(narrow).not.toContain('style=')
+    expect(narrow).not.toContain('style="width')
     expect(wide).toContain('style="width:6rem"')
     expect(wide).not.toContain('w-20')
     expect(wide).toContain('class="shrink-0 text-muted-foreground tabular-nums"')

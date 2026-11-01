@@ -1,13 +1,9 @@
-// What the Google rating goal card says about the climb (round 5, PLAN-D D-1,
-// the D2/D4 mocks): the ladder of numbers from where the goal started, the new
-// reviews to the next number Google can show, one empty square for each of
-// them, this week against the plan and the first step taken. Plain words,
-// sentence case; "review" is a Google review. While the exact average is
-// Google's own rounded figure every count is "about" and no square is drawn,
-// because a square promises a count it cannot know (E7).
+// What the Google rating goal card says about the climb: the new reviews to the
+// next number Google can show, and this week against the plan. Plain words,
+// sentence case; "review" is a Google review. While the exact average is Google's
+// own rounded figure every count is "about".
 import type { RatingGoalCardView } from '#/contexts/reporting/application/dto/rating-goal.types'
 import { formatNumber } from '#/lib/format'
-import { possibleSentence, shortArrival } from './rating-goal-arrival-words'
 import { actualPaceText, newReviewsAim, weeklyTarget } from './rating-goal-pace-words'
 import { tenthsText } from './rating-goal-view'
 
@@ -16,9 +12,6 @@ import { tenthsText } from './rating-goal-view'
  * reviews at the plan's average, not of five-star ones.
  */
 const REVIEW_UNIT = { one: 'new review', many: 'new reviews' } as const
-
-/** Squares are drawn for this many reviews at most; past it the number stands alone. */
-const MAX_SLOTS = 30
 
 const WEEKDAYS = [
   'Monday',
@@ -96,83 +89,6 @@ export function goalLineText(card: Card): string | null {
   return `${reviewCountText(card.stillNeeded, isAbout(card))} to your goal, ${tenthsText(card.targetTenths)}.`
 }
 
-/** One empty square per review the headline counts, from 1 to 30, only from RepKey's full copy. */
-export function slotCount(card: Card): number {
-  const count = card.next?.reviewsNeeded ?? 0
-  if (card.googleShowsSoon || isAbout(card) || count < 1 || count > MAX_SLOTS) return 0
-  return count
-}
-
-/** "18 empty squares, one for each new review still needed". */
-export const slotsLabel = (count: number): string =>
-  count === 1
-    ? `1 empty square for the ${REVIEW_UNIT.one} still needed`
-    : `${formatNumber(count)} empty squares, one for each ${REVIEW_UNIT.one} still needed`
-
-export type RungTag = 'start' | 'today' | 'soon' | 'next' | 'goal' | 'possible'
-export type Rung = Readonly<{ tenths: number; tag: RungTag }>
-
-/** The ladder shows five numbers at most: where the goal started goes first. */
-const MAX_RUNGS = 5
-
-const tenthsOf = (rating: number): number => Math.round(rating * 10)
-
-/**
- * The numbers of the climb, lowest first (E6): where it started (while Google
- * shows more now), today, a tenth Google should show soon, the next number when
- * it is not the goal, the goal, and the number above it when it is possible.
- */
-export function rungsOf(card: Card): readonly Rung[] {
-  const shows = card.google?.shows
-  if (shows === null || shows === undefined) return []
-  const today = tenthsOf(shows)
-  const start = tenthsOf(card.baseline.googleShows)
-  const next = card.next?.targetTenths ?? null
-  const candidates: (Rung | null)[] = [
-    start < today ? { tenths: start, tag: 'start' } : null,
-    { tenths: today, tag: 'today' },
-    card.earnedTenths === null || card.googleShowsSoon
-      ? null
-      : { tenths: card.earnedTenths, tag: 'soon' },
-    next === null || next === card.targetTenths ? null : { tenths: next, tag: 'next' },
-    card.targetTenths > today ? { tenths: card.targetTenths, tag: 'goal' } : null,
-    // Only when the card says it is possible (not past three years, not while waiting).
-    card.nextUp === null || possibleSentence(card) === null
-      ? null
-      : { tenths: card.nextUp.targetTenths, tag: 'possible' },
-  ]
-  const rungs = candidates.filter((rung): rung is Rung => rung !== null)
-  return rungs.length > MAX_RUNGS ? rungs.filter((rung) => rung.tag !== 'start') : rungs
-}
-
-const RUNG_SENTENCE: Readonly<Record<RungTag, (tenths: string) => string>> = {
-  start: (tenths) => `Started at ${tenths}.`,
-  today: (tenths) => `Google shows ${tenths} now.`,
-  soon: (tenths) => `Google should show ${tenths} soon.`,
-  next: (tenths) => `Next is ${tenths}.`,
-  goal: (tenths) => `Your goal is ${tenths}.`,
-  possible: (tenths) => `${tenths} is possible after that.`,
-}
-
-/** Google's last number while its numbers are stale: not "now". */
-const staleToday = (tenths: string): string => `Google showed ${tenths} last.`
-
-/**
- * The ladder as a reader hears it: "Started at 3.9. Google shows 4.0 now. Your
- * goal is 4.1." While Google's numbers are stale, "Google showed 4.0 last."
- */
-export function ladderLabel(
-  rungs: readonly Rung[],
-  { current }: Readonly<{ current: boolean }> = { current: true },
-): string {
-  return rungs
-    .map((rung) => {
-      const say = rung.tag === 'today' && !current ? staleToday : RUNG_SENTENCE[rung.tag]
-      return say(tenthsText(rung.tenths))
-    })
-    .join(' ')
-}
-
 export type ThisWeekView =
   | Readonly<{ kind: 'aim'; text: string }>
   | Readonly<{
@@ -185,7 +101,7 @@ export type ThisWeekView =
     }>
 
 /** "It’s Tuesday" from the server's day of the Property week. */
-const weekdayName = (weekday: number): string => WEEKDAYS[weekday - 1] ?? 'Today'
+export const weekdayName = (weekday: number): string => WEEKDAYS[weekday - 1] ?? 'Today'
 
 /**
  * This week against the plan (R3-7: counted per week, "2 of 7"), with the day
@@ -210,30 +126,4 @@ export function thisWeekOf(card: Card): ThisWeekView | null {
         ? `${day} · ${actualPaceText(card.lastFourWeeksPerWeek, pace)} over the last 4 weeks`
         : day,
   }
-}
-
-/**
- * The narrow card's one line under the squares (D4): "This week 2 of 7 · 4.1
- * in about 3 weeks", the aim a day while the goal is new, and no time while
- * Google should show the goal or its numbers are stale.
- */
-export function narrowWeekLine(card: Card): string | null {
-  const week = thisWeekOf(card)
-  const timed = !card.googleShowsSoon && card.status !== 'waiting_for_google'
-  const parts = [
-    week === null ? null : week.kind === 'aim' ? week.text : `This week ${week.value}`,
-    timed ? shortArrival(card) : null,
-  ].filter((part) => part !== null)
-  return parts.length === 0 ? null : parts.join(' · ')
-}
-
-/**
- * "Google shows 4.0 now, up from 3.9 when you started.": the first step, once
- * taken, and only while Google's numbers are current (stale ones are not "now").
- */
-export function firstStepText(card: Card): string | null {
-  const shows = card.google?.shows
-  if (shows === null || shows === undefined || card.google?.current === false) return null
-  if (tenthsOf(shows) <= tenthsOf(card.baseline.googleShows)) return null
-  return `Google shows ${tenthsText(tenthsOf(shows))} now, up from ${tenthsText(tenthsOf(card.baseline.googleShows))} when you started.`
 }

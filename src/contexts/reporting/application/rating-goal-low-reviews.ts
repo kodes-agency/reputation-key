@@ -1,7 +1,7 @@
 // Property Google rating goal — the detail's per-review rows (round 5, PLAN-D
 // D-2b; the owner's exception, ADR 0067 2026-10-17).
 //
-// "What moved you" names the low reviews since the set with the new reviews
+// "What happened" names the low reviews since the set with the new reviews
 // each one set the goal back (domain/rating-goal-setback.ts), and says this
 // week's stars. Both are read live for the goal's managers and kept nowhere.
 // The rows still carry Review's id here: the server function turns it into
@@ -52,7 +52,7 @@ export function setbackNumbers(
   }
 }
 
-/** The rows "What moved you" names, newest first: ten at most (whatSetYouBack). */
+/** The rows "What happened" names, newest first: ten at most (whatSetYouBack). */
 export function lowReviewRows(
   numbers: SetbackNumbers | null,
   reviews: readonly GoogleRatingLowReview[],
@@ -65,6 +65,15 @@ export function lowReviewRows(
     setBack: review.setBack,
   }))
 }
+
+/** A low review, as the page counts them: 3★ or less, whatever the goal needs. */
+const LOW_STARS = 3
+
+/** How many of a star split gave 3★ or less. */
+export const lowStarCount = (split: readonly GoogleRatingStarCount[]): number =>
+  split
+    .filter((row) => row.stars <= LOW_STARS)
+    .reduce((total, row) => total + row.count, 0)
 
 /** This week's count, their stars when all are the same, and their average as a tenth. */
 export function thisWeekView(

@@ -1,6 +1,7 @@
 // The running Monthly portal goal's story fixtures: Seaview Hotel's goal of 40
 // private ratings a month, set on Oct 23 for November (PLAN goldens G10, G11
-// and G18). Nov 22 is the mock's day: 23 of 40, 9 days left, below pace. Every
+// and G18). Nov 22 is the mock's day: 23 of 40, 9 days left, below pace, and a
+// steady month would be at 29 on the ruler. Every
 // shape is the read's own type, from Reporting's application layer; nothing
 // here is worked out, only stated.
 import type {
@@ -89,7 +90,7 @@ export const CARD_CHANGED_TO_SCANS = goalCard('2026-11-22', {
   change: CHANGE_NOVEMBER_BEFORE_SCANS,
 })
 
-/** Nov 2: the first days are never judged, and the bar has no tick yet. */
+/** Nov 2: the first days are never judged, and the ruler has no steady stop yet. */
 export const CARD_FIRST_DAYS = goalCard(
   '2026-11-02',
   {
@@ -125,7 +126,7 @@ export const CARD_ON_PACE = goalCard(
 
 /**
  * P-6, Nov 29: a goal of 4 expects fewer than 5 by today, so the rule judges
- * nothing: no pill, though the bar still has its tick.
+ * nothing: no pill, though the ruler still marks where a steady month stands.
  */
 export const CARD_NOT_JUDGED = goalCard(
   '2026-11-29',
@@ -163,7 +164,7 @@ export const CARD_PASSED = goalCard(
   { value: 41, elapsedDays: 27, daysAfterToday: 3, belowPace: false },
 )
 
-/** The governed read could not be trusted: no figure, no bar, no rows. */
+/** The governed read could not be trusted: no figure, no ruler, no rows. */
 export const CARD_UNREADABLE = goalCard(
   '2026-11-22',
   { rows: null },

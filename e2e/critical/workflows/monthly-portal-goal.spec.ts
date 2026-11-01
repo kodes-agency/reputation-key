@@ -19,15 +19,19 @@
 //       with the box empty and "Set goal" disabled; 12 typed enables "Set 12
 //       for {month}"; Cancel closes it with nothing set.
 //   J5. the running month: a goal set for this month through the server
-//       function shows the governed figure against its number, what is left
-//       to the number as the headline with the days left in the month under
-//       it, the pill in the card's corner named for what `goalPace` says
-//       (Below pace, On pace, Getting started, or none for a month it does not
-//       judge), the bar's sentence, and each Portal's count in name order.
+//       function shows what is left to the number as the headline with the
+//       days left in the month and what a day takes under it, the pill in the
+//       card's corner named for what `goalPace` says (Below pace, On pace,
+//       Getting started, or none for a month it does not judge), the ruler of
+//       the governed figure against its number (a picture named by one
+//       sentence), and each Portal's count in name order.
 //   J6. the goal page: "View details" on the card opens `/goals/portals`, with
-//       what it counts, the pace pill in its header, the tiles, each Portal's
-//       count with the total, the month on its strip, and the change log (the
-//       set, as recommended, and each Portal going live); both themes pass axe.
+//       the pace pill in its header, where the goal stands (what is left, the
+//       days left and the ruler), the check-in bands that follow it (where
+//       they are coming from, with each Portal's count and the total; how the
+//       month compares; what to do this week), and the cards that are closed
+//       until asked: "What changed" (the set, as recommended, and each Portal
+//       going live) and "How this goal counts"; both themes pass axe.
 //   J7. change from next month, then stop: on the goal page, "Change number",
 //       "From {next month} 1" and a new number set from next month say so in a
 //       toast; Stop asks first, stops, and the Goals page's card says the goal
@@ -53,7 +57,9 @@
 //       Neither page shifts (CLS < 0.1).
 //   J11. all monthly results: once a Portal goal's month has closed and another
 //       has ended, the Portal goals section's foot opens `/goals/portal-results`:
-//       the closed month's result in plain words, and the ended goal with the
+//       a card for the goal, titled by its name and whom it counted, with the
+//       closed month as a row in plain words ("12 of 20", "Missed by 8") whose
+//       tap opens the number it was judged against, and the ended goal with the
 //       day it ended, where "Ended portal goals (1)" lands and hands its title
 //       the focus; both themes pass axe.
 //   J12. History belongs to the Google section (P-7a): on `?view=history` the
@@ -133,6 +139,40 @@ const PACE_PILL: Readonly<Record<string, string | undefined>> = {
   behind: 'Below pace',
   on_pace: 'On pace',
   too_early: 'Getting started',
+}
+
+/**
+ * U-C4 as the running month says it: the days left in it, then what a day takes to
+ * get there ("9 days left in November. About 2 a day gets you there."). `daysLeft` is
+ * the whole days after today, `left` what is left to the number: above zero, or the
+ * month says only the days.
+ */
+function daysLineOf(monthName: string | null, daysLeft: number, left: number): string {
+  if (daysLeft + 1 <= 1) return `Last day of ${monthName}`
+  const days = `${daysLeft + 1} days left in ${monthName}`
+  const perDay = left / (daysLeft + 1)
+  const aDay =
+    perDay < 1
+      ? 'Under 1 a day gets you there.'
+      : `About ${Math.round(perDay)} a day gets you there.`
+  return `${days}. ${aDay}`
+}
+
+/**
+ * The ruler's one sentence for a running month: "23 of 40 private ratings so far. A
+ * steady month would be at about 21 by today." The steady month's sentence is left out
+ * in the first quiet days and once the number is passed. A caller that cannot tell
+ * which day it is leaves `steady` out and matches the figure alone; one that does not
+ * know the count so far passes `'\\d+'` for it.
+ */
+function monthRulerName(
+  value: number | string,
+  target: number,
+  steady?: boolean,
+): RegExp {
+  const steadyWords = ' A steady month would be at about \\d+ by today\\.'
+  const tail = steady === undefined ? '' : `${steady ? steadyWords : ''}$`
+  return new RegExp(`^${value} of ${target} private ratings? so far\\.${tail}`, 'u')
 }
 
 const BASE_ORIGIN = process.env.E2E_BASE_URL ?? 'http://localhost:3000'
@@ -346,7 +386,9 @@ test.describe('Critical workflow: the Monthly portal goal', () => {
     ).toBeVisible()
     // The card now shows the goal it set, and offers nothing more.
     if (current) {
-      await expect(card.getByText(`${soFar} of ${number}`, { exact: true })).toBeVisible()
+      await expect(
+        card.getByRole('img', { name: monthRulerName(soFar, number) }),
+      ).toBeVisible()
     } else {
       await expect(
         card.getByText(`${monthName} · ${number} private ratings`),
@@ -483,7 +525,6 @@ test.describe('Critical workflow: the Monthly portal goal', () => {
       recommendation.measures.portal_rating_count.fromToday?.aBitMore ?? soFar + 10
     const period = calendarPeriodRange(input.now, input.timezone, 'monthly')
     const { daysLeft } = goalMonthDays(period, input.now, input.timezone)
-    const left = daysLeft + 1 <= 1 ? 'last day' : `${daysLeft + 1} days left`
     const pace = goalPace({
       metric: 'portal_rating_count',
       value: soFar,
@@ -493,11 +534,8 @@ test.describe('Critical workflow: the Monthly portal goal', () => {
       timezone: input.timezone,
     })
     const monthName = formatMonthName(`${month}-15T12:00:00.000Z`)
-    const daysLine =
-      daysLeft + 1 <= 1
-        ? `Last day of ${monthName}`
-        : `${daysLeft + 1} days left in ${monthName}`
     const leftCount = target - soFar
+    const daysLine = daysLineOf(monthName, daysLeft, leftCount)
     // The one pill, by the rule's verdict: none for a month it does not judge.
     const pill = PACE_PILL[pace.state]
 
@@ -517,8 +555,7 @@ test.describe('Critical workflow: the Monthly portal goal', () => {
     await page.goto(`/properties/${propertyId}/goals`)
     await waitForHydration(page)
     const card = page.locator('#portal-goals [data-slot="portal-goal-card"]')
-    await expect(card.getByText(`${soFar} of ${target}`, { exact: true })).toBeVisible()
-    // What is left, led by its figure, then the days left in the month.
+    // What is left, led by its figure, then the days left in the month and what a day takes.
     await expect(
       card.getByText(
         `${leftCount} ${leftCount === 1 ? 'private rating' : 'private ratings'} to ${target}`,
@@ -531,9 +568,13 @@ test.describe('Critical workflow: the Monthly portal goal', () => {
     await expect(paceBadge).toHaveCount(pill === undefined ? 0 : 1)
     if (pill !== undefined) await expect(paceBadge).toHaveText(pill)
     await expect(card.getByText(/below pace/u)).toHaveCount(0)
+    // The month so far against its number, on a ruler named by one sentence. A steady
+    // month's stop is drawn after the first quiet days.
     await expect(
-      card.getByRole('progressbar', { name: `Private ratings in ${monthName}` }),
-    ).toHaveAttribute('aria-valuetext', `${soFar} of ${target} private ratings, ${left}`)
+      card.getByRole('img', {
+        name: monthRulerName(soFar, target, pace.state !== 'too_early'),
+      }),
+    ).toBeVisible()
 
     // Each Portal's count of the month, in name order, never by count.
     const rows = card
@@ -551,7 +592,7 @@ test.describe('Critical workflow: the Monthly portal goal', () => {
     }
     await expect(card.getByText('Other portals')).toHaveCount(0)
   })
-  test("J6 the goal page: tiles, each portal's count, the change log; both themes pass axe", async ({
+  test("J6 the goal page: where it stands, each portal's count, the change log; both themes pass axe", async ({
     page,
   }, testInfo) => {
     await signIn(page, seed.email, seed.password, BASE_ORIGIN)
@@ -598,23 +639,18 @@ test.describe('Critical workflow: the Monthly portal goal', () => {
     const monthName = formatMonthName(`${month}-15T12:00:00.000Z`)
     const period = calendarPeriodRange(input.now, input.timezone, 'monthly')
     const { daysLeft } = goalMonthDays(period, input.now, input.timezone)
-    const daysLine =
-      daysLeft + 1 <= 1
-        ? `Last day of ${monthName}`
-        : `${daysLeft + 1} days left in ${monthName}`
     const leftCount = target - soFar
+    const daysLine = daysLineOf(monthName, daysLeft, leftCount)
+    const pace = goalPace({
+      metric: 'portal_rating_count',
+      value: soFar,
+      target,
+      period,
+      now: input.now,
+      timezone: input.timezone,
+    })
     // The pill in the page's header, by the rule's verdict: none for a month it does not judge.
-    const pill =
-      PACE_PILL[
-        goalPace({
-          metric: 'portal_rating_count',
-          value: soFar,
-          target,
-          period,
-          now: input.now,
-          timezone: input.timezone,
-        }).state
-      ]
+    const pill = PACE_PILL[pace.state]
     const today = await localToday(propertyId)
     const dayOf = (daysAgo: number): string => {
       const day = formatLocalDate(addLocalDays(today, -daysAgo), { year: false })
@@ -651,30 +687,37 @@ test.describe('Critical workflow: the Monthly portal goal', () => {
       .getByText(/^(Getting started|On pace|Below pace)$/u)
     await expect(headerPill).toHaveCount(pill === undefined ? 0 : 1)
     if (pill !== undefined) await expect(headerPill).toHaveText(pill)
-    // What is left leads the page, as it leads the card; then the days left, then what it counts.
+    // Where the goal stands leads the page, as it leads the card: what is left, the
+    // days left and what a day takes, then the month so far on its ruler.
+    const where = page.locator('[data-slot="goal-where"]')
     await expect(
-      page.getByText(
+      where.getByText(
         `${leftCount} ${leftCount === 1 ? 'private rating' : 'private ratings'} to ${target}`,
         { exact: true },
       ),
     ).toBeVisible()
-    await expect(page.getByText(daysLine, { exact: true })).toBeVisible()
+    await expect(where.getByText(daysLine, { exact: true })).toBeVisible()
     await expect(
-      page.getByText(/^Private ratings from all 3 portals at .+\.$/u),
+      where.getByRole('img', {
+        name: monthRulerName(soFar, target, pace.state !== 'too_early'),
+      }),
     ).toBeVisible()
-    // The tiles, in the section the first goal's page names the same way: this
-    // month so far, and no goal the month before.
+    // Then three questions, each a band with its answer first.
+    for (const question of [
+      'Where are they coming from?',
+      'How does this month compare?',
+      'What can you do this week?',
+    ]) {
+      await expect(page.getByRole('heading', { level: 2, name: question })).toBeVisible()
+    }
+    // This is the goal's only month so far, so there is nothing to compare yet: from
+    // the second month each is a bar against its own number.
     await expect(
-      page.getByRole('heading', { level: 2, name: 'Your goal, so far' }),
-    ).toBeVisible()
-    const tiles = page.locator('[data-slot="metric-strip"]')
-    await expect(tiles.getByText(`${soFar} of ${target}`, { exact: true })).toBeVisible()
-    await expect(tiles.getByText('No goal yet', { exact: true })).toBeVisible()
-    await expect(
-      page.getByRole('heading', { level: 2, name: `${monthName} so far` }),
+      page.getByText('Each month will build up here, against its own number.'),
     ).toBeVisible()
 
-    // Each Portal's count in name order, then the total.
+    // Each Portal's count in name order, then the total. A Portal gone quiet says so on
+    // its own row, so the name is matched on its own and the count is the row's last cell.
     const rows = page
       .getByRole('list', { name: 'From your portals' })
       .getByRole('listitem')
@@ -682,23 +725,21 @@ test.describe('Critical workflow: the Monthly portal goal', () => {
     for (const [index, name] of PORTAL_NAMES.entries()) {
       const facts = recommendation.portals.find((portal) => portal.name === name)
       if (!facts) throw new Error(`The rule lists no ${name}`)
-      await expect(rows.nth(index).locator('span').first()).toHaveText(name)
+      await expect(rows.nth(index).getByText(name, { exact: true })).toBeVisible()
       await expect(rows.nth(index).locator('span').last()).toHaveText(
         String(facts.monthToDate.portal_rating_count),
       )
     }
     await expect(rows.last()).toHaveText(`All portals${soFar}`)
 
-    // The month on its strip, still running.
-    await expect(
-      page
-        .getByRole('list', { name: 'Month by month' })
-        .getByRole('button', { name: new RegExp(`^${monthName}: .+, running$`, 'u') }),
-    ).toBeVisible()
-
-    // The change log: the set, then each Portal going live, newest first. The
-    // History list keeps each date in a cell of its own, apart from the words.
-    const changes = page.getByRole('region', { name: 'Changes' }).getByRole('listitem')
+    // The change log is closed until asked: the set, then each Portal going live,
+    // newest first. The History list keeps each date in a cell of its own, apart from
+    // the words.
+    const changed = page.getByRole('region', { name: 'What changed' })
+    const openChanged = () =>
+      clickWhenReady(changed.getByRole('button', { name: 'What changed' }))
+    await openChanged()
+    const changes = changed.getByRole('listitem')
     const cells = (index: number) => changes.nth(index).locator(':scope > span')
     await expect(cells(0).first()).toHaveText(dayOf(0))
     await expect(cells(0).last()).toHaveText(
@@ -712,6 +753,16 @@ test.describe('Critical workflow: the Monthly portal goal', () => {
     await expect(cells(2).first()).toHaveText(dayOf(20))
     await expect(cells(2).last()).toHaveText('Reception and Restaurant went live')
 
+    // How the goal counts is closed until asked too: what it counts and where.
+    const openCounts = () =>
+      clickWhenReady(page.getByRole('button', { name: 'How this goal counts' }))
+    await openCounts()
+    await expect(
+      page.getByText(
+        /^Counts the 1–5 star private ratings guests give at any of your portals\./u,
+      ),
+    ).toBeVisible()
+
     await dismissToasts(page)
     await assertNoAxeViolations(page, 'the monthly portal goal page (/goals/portals)')
     await page.evaluate(() => window.localStorage.setItem('theme', 'light'))
@@ -719,6 +770,9 @@ test.describe('Critical workflow: the Monthly portal goal', () => {
     await waitForHydration(page)
     await expect(page.locator('html')).toHaveClass(/\blight\b/u)
     await expect(rows).toHaveCount(PORTAL_NAMES.length + 1)
+    // The reload closed both cards again: the light scan reads them open, as the dark one did.
+    await openChanged()
+    await openCounts()
     await assertNoAxeViolations(page, 'the monthly portal goal page (light)')
   })
 
@@ -796,12 +850,14 @@ test.describe('Critical workflow: the Monthly portal goal', () => {
       page.getByText(`From ${nextName}: ${changed} private ratings`),
     ).toBeVisible()
     await expect(sheet).toHaveCount(0)
-    // This month is unchanged; the log has the change from next month.
-    await expect(
-      page.getByRole('region', { name: 'Changes' }).getByRole('listitem').first(),
-    ).toHaveText(new RegExp(`[Ss]et ${changed} a month from ${nextName}$`, 'u'))
-
     await dismissToasts(page)
+    // This month is unchanged; the log (closed until asked) has the change from next month.
+    const log = page.getByRole('region', { name: 'What changed' })
+    await clickWhenReady(log.getByRole('button', { name: 'What changed' }))
+    await expect(log.getByRole('listitem').first()).toHaveText(
+      new RegExp(`[Ss]et ${changed} a month from ${nextName}$`, 'u'),
+    )
+
     await clickWhenReady(
       page.getByRole('button', { name: 'More actions for Monthly portal goal' }),
     )
@@ -901,19 +957,25 @@ test.describe('Critical workflow: the Monthly portal goal', () => {
     await expect(
       page.getByRole('heading', { level: 1, name: 'Portal goal results' }),
     ).toBeVisible()
-    await expect(
-      page.getByRole('heading', {
-        level: 3,
-        name: formatMonthYear(closed.periodStart, closed.timezone) ?? '',
-      }),
-    ).toBeVisible()
-    // The month that has closed; a month the maintenance job opens since is
-    // a row of its own.
-    const row = page
-      .getByRole('row')
-      .filter({ hasText: 'Not met: 12 private ratings, the goal was 20.' })
-    await expect(row).toHaveCount(1)
-    await expect(row).toContainText('Reception ratings')
+    // The goal is a card titled by its name and whom it counted. The month that has
+    // closed is one row of it, in plain words (a month the maintenance job opens since
+    // is a row of its own).
+    const goal = page
+      .locator('[data-slot="portal-goal-results-goal"]')
+      .filter({ has: page.getByRole('heading', { level: 2, name: 'Reception ratings' }) })
+    await expect(goal).toHaveCount(1)
+    const month = goal
+      .getByRole('list', { name: 'Each month of Reception ratings' })
+      .getByRole('listitem')
+      .filter({ hasText: '12 of 20' })
+    await expect(month).toHaveCount(1)
+    await expect(month).toContainText(
+      formatMonthYear(closed.periodStart, closed.timezone) ?? '',
+    )
+    await expect(month).toContainText('Missed by 8')
+    // The audit fields are one tap away, on the row: the number the month was judged against.
+    await clickWhenReady(month.getByRole('button'))
+    await expect(month.getByText(/^The number was 20/u)).toBeVisible()
 
     // The ended goal, with the day it ended; the section's foot lands here.
     const ended = page
@@ -1307,10 +1369,10 @@ test.describe('Critical workflow: the Monthly portal goal', () => {
       await expect(checkIn).toHaveCount(0)
       await expect(section.getByRole('button', { name: `Keep ${target}` })).toHaveCount(0)
     }
-    // Either way the card shows this month against the goal's own number.
+    // Either way the card shows this month against the goal's own number, on its ruler.
     await expect(
-      card.getByRole('progressbar', { name: `Private ratings in ${monthName}` }),
-    ).toHaveAttribute('aria-valuemax', String(target))
+      card.getByRole('img', { name: monthRulerName('\\d+', target) }),
+    ).toBeVisible()
   })
 
   test("J9 the Overview slot and the portal's Results line, with no layout shift", async ({
@@ -1455,16 +1517,19 @@ test.describe('Critical workflow: the Monthly portal goal', () => {
     })
 
     // The Overview's slot: the card the Goals page draws, with the running
-    // month and each Portal's count in name order. At this width the card is
-    // wider than 48rem, so the counts are the list "From your portals"; a narrow
-    // slot says them in one line instead (the story at 390 px asserts that form).
+    // month on its ruler and each Portal's count in name order, in the list
+    // "From your portals" at every width.
     await page.goto(`/properties/${propertyId}`)
     await waitForHydration(page)
     const card = page.locator('[data-slot="portal-goal-overview"]')
     await expect(
       card.getByRole('heading', { level: 2, name: 'Monthly portal goal' }),
     ).toBeVisible()
-    await expect(card.getByText(`${soFar} of ${target}`, { exact: true })).toBeVisible()
+    await expect(
+      card.getByRole('img', {
+        name: monthRulerName(soFar, target, pace.state !== 'too_early'),
+      }),
+    ).toBeVisible()
     const rows = card
       .getByRole('list', { name: 'From your portals' })
       .getByRole('listitem')
@@ -1585,12 +1650,22 @@ test.describe('Critical workflow: the Monthly portal goal', () => {
     await expect(
       page.getByRole('heading', { level: 1, name: 'Reception · portal goal' }),
     ).toBeVisible()
+    // Where it stands: this month's count so far against the goal's own number, on its ruler.
     await expect(
-      page.getByText(/^Private ratings from Reception at .+\.$/u),
+      page
+        .locator('[data-slot="goal-where"]')
+        .getByRole('img', { name: monthRulerName('\\d+', target) }),
     ).toBeVisible()
-    await expect(page.getByRole('heading', { name: `${monthName} so far` })).toBeVisible()
+    // What it counts, and where, is closed until asked: Reception's ratings alone.
+    await clickWhenReady(page.getByRole('button', { name: 'How this goal counts' }))
+    await expect(
+      page.getByText(/^Counts the 1–5 star private ratings guests give at Reception\./u),
+    ).toBeVisible()
     // Its own page has no portals' rows and no other goals.
-    await expect(page.getByRole('heading', { name: 'From your portals' })).toHaveCount(0)
+    await expect(page.getByRole('list', { name: 'From your portals' })).toHaveCount(0)
+    await expect(
+      page.getByRole('heading', { name: 'Where are they coming from?' }),
+    ).toHaveCount(0)
     await expect(page.getByRole('heading', { name: 'More portal goals' })).toHaveCount(0)
     await assertNoAxeViolations(page, "a goal for one portal's page")
 
@@ -1605,9 +1680,13 @@ test.describe('Critical workflow: the Monthly portal goal', () => {
       page.getByText(`From ${nextName}: ${changed} private ratings`),
     ).toBeVisible()
     await expect(sheet).toHaveCount(0)
-    await expect(
-      page.getByRole('region', { name: 'Changes' }).getByRole('listitem').first(),
-    ).toHaveText(new RegExp(`[Ss]et ${changed} a month from ${nextName}$`, 'u'))
+    await dismissToasts(page)
+    // The log is closed until asked.
+    const log = page.getByRole('region', { name: 'What changed' })
+    await clickWhenReady(log.getByRole('button', { name: 'What changed' }))
+    await expect(log.getByRole('listitem').first()).toHaveText(
+      new RegExp(`[Ss]et ${changed} a month from ${nextName}$`, 'u'),
+    )
     // Still Reception's goal: the change kept its one subject.
     const stored = await callServerFnGet<{
       version: { targetValue: number }

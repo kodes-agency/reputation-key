@@ -2,11 +2,10 @@
 // amended 2026-10-19: one goal design system). The frame is the Google rating
 // goal's: the goal's name with the one pace pill in the corner (`portal-goal-
 // status-view.ts`), then the columns. While the goal runs: what is left to the
-// month's number and the days left (U-C2…U-C4), what is stopped or unchanged
-// under them, the month so far as the meter with today's tick beside or under
-// it (U-C5…U-C8), what each Portal brought in as the list in a column of its own
-// from 48rem of card and one line under the days left below that (G-26, G-27),
-// and "View details" to the goal's page (G-28). A month whose figure cannot be
+// month's number and the days left (U-C2…U-C4), what is stopped or unchanged under
+// them, the ruler of how far along the month is with a steady month's stop on it;
+// beside them what each Portal brought in (G-26, G-27), and "View details" to the
+// goal's page (G-28). A month whose figure cannot be
 // read has no meter, so its lines stand in one column with "View details"
 // under them, as a goal with no month running does (G-25). While it waits for
 // its first month, or has no month running, its month and number (G-20), with
@@ -40,16 +39,11 @@ import {
 import { PORTAL_GOAL_NAME } from './portal-goal-copy'
 import {
   PortalGoalMonthHeadline,
-  PortalGoalMonthMeter,
+  PortalGoalMonthRuler,
   PortalGoalMonthUnreadable,
 } from './portal-goal-month-meter'
 import { PortalGoalPortalCounts } from './portal-goal-portal-counts'
-import {
-  countsLine,
-  lastMonthWords,
-  runningWords,
-  stoppedWords,
-} from './portal-goal-running-view'
+import { lastMonthWords, runningWords, stoppedWords } from './portal-goal-running-view'
 import type { PortalGoalSheetIntent } from './portal-goal-sheet-intent'
 import { portalGoalPace } from './portal-goal-status-view'
 import { goalLines, monthName, shownMeasure } from './portal-goal-words'
@@ -158,29 +152,6 @@ function GoalLines({
   )
 }
 
-/**
- * G-26 and G-27: each Portal's count. The list is the card's signature visual,
- * drawn in a column of its own from 48rem of card; a card too narrow for it says
- * the same in one line under the days left. A sentence (one Portal, or 5 and
- * more with "See each") is drawn at every width.
- */
-function StoryCounts({
-  rows,
-  propertyId,
-}: Readonly<{ rows: PortalGoalOfCard['rows']; propertyId: string }>) {
-  if (rows === null) return null
-  const line = countsLine(rows)
-  if (line === null) return <PortalGoalPortalCounts rows={rows} propertyId={propertyId} />
-  return <p className="text-sm text-muted-foreground tabular-nums @3xl:hidden">{line}</p>
-}
-
-/**
- * Air between the list and the headline beside it: the list fills its column,
- * so without it the counts end at the grid gap from the headline's figure.
- * Inline, because a new utility class would grow the stylesheet in first paint.
- */
-const SIGNATURE_AIR = { paddingInlineEnd: '1.5rem' } as const
-
 type RunningProps = Readonly<{
   goal: PortalGoalOfCard
   month: PortalGoalRunningMonth
@@ -191,32 +162,23 @@ type RunningProps = Readonly<{
   asking: boolean
 }>
 
-/** The running month: its headline and what is stopped, its meter, and the Portals' counts beside them. */
+/** The running month: its headline, what is stopped and its ruler, and the Portals' counts beside them. */
 function MonthColumns({ goal, month, propertyId, openSheet, sameNumber }: RunningProps) {
-  const { rows } = goal
-  // A column of its own only with a list of Portals to put in it.
-  const listed = rows !== null && countsLine(rows) !== null
   return (
     <GoalCardColumns
-      wide={listed}
-      signature={
-        listed ? (
-          <div className="hidden @3xl:block" style={SIGNATURE_AIR}>
-            <PortalGoalPortalCounts rows={rows} propertyId={propertyId} />
-          </div>
-        ) : null
-      }
       story={
         <>
           <PortalGoalMonthHeadline month={month} />
-          <StoryCounts rows={rows} propertyId={propertyId} />
           <PortalGoalStopped goal={goal} monthKey={month.key} openSheet={openSheet} />
           {sameNumber ? <SameNumberLine goal={goal} openSheet={openSheet} /> : null}
+          <PortalGoalMonthRuler month={month} />
         </>
       }
       side={
         <>
-          <PortalGoalMonthMeter month={month} />
+          {goal.rows === null ? null : (
+            <PortalGoalPortalCounts rows={goal.rows} propertyId={propertyId} />
+          )}
           <Details propertyId={propertyId} />
         </>
       }
@@ -225,8 +187,7 @@ function MonthColumns({ goal, month, propertyId, openSheet, sameNumber }: Runnin
 }
 
 /**
- * G-25: a month whose figure cannot be read has no meter to put in a column of
- * its own, so it takes the shape of a goal with no month running: one column
+ * G-25: a month whose figure cannot be read has no ruler to draw beside anything, so it takes the shape of a goal with no month running: one column
  * of lines, then "View details" under them.
  */
 function UnreadableMonth({

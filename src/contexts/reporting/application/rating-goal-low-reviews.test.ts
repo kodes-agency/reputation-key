@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { thisWeekView } from './rating-goal-low-reviews'
+import { lowStarCount, thisWeekView } from './rating-goal-low-reviews'
 
 const split = (counts: readonly [number, number, number, number, number]) =>
   counts.map((count, index) => ({ stars: index + 1, count }))
@@ -37,5 +37,39 @@ describe('this week’s stars', () => {
     expect(thisWeekView(split([0, 0, 0, 1, 1])).averageTenths).toBe(45)
     // 1 + 4 + 4 + 4 = 13 over 4 = 3.25: 3.3 (half up).
     expect(thisWeekView(split([1, 0, 0, 3, 0])).averageTenths).toBe(33)
+  })
+})
+
+describe('the low reviews counted since the set', () => {
+  it('counts the reviews that gave 3★ or less', () => {
+    // 1 + 2 + 3 reviews at 1★, 2★ and 3★; the 4★ and 5★ ones are not low.
+    expect(lowStarCount(split([1, 2, 3, 4, 5]))).toBe(6)
+  })
+
+  it('counts a 3★ review as low and a 4★ review as not', () => {
+    expect(lowStarCount(split([0, 0, 1, 0, 0]))).toBe(1)
+    expect(lowStarCount(split([0, 0, 0, 1, 0]))).toBe(0)
+  })
+
+  it('counts none when every review gave 4★ or more', () => {
+    expect(lowStarCount(split([0, 0, 0, 6, 9]))).toBe(0)
+  })
+
+  it('counts every review when all of them are low', () => {
+    expect(lowStarCount(split([4, 3, 2, 0, 0]))).toBe(9)
+  })
+
+  it('counts none for a split without a single review', () => {
+    expect(lowStarCount(split([0, 0, 0, 0, 0]))).toBe(0)
+    expect(lowStarCount([])).toBe(0)
+  })
+
+  it('counts from the star levels it is given, however few it names', () => {
+    expect(
+      lowStarCount([
+        { stars: 2, count: 3 },
+        { stars: 5, count: 8 },
+      ]),
+    ).toBe(3)
   })
 })

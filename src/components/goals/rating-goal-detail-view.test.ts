@@ -1,35 +1,38 @@
-// The detail page of the Google rating goal, worked out (round 5, mock D3): the
-// sentences under the headline, the tiles of "Your plan, so far" and how fresh
-// Google's numbers are.
+// The detail page of the Google rating goal, worked out (2026-11-01, ADR 0067): the
+// sentences under the headline (when the goal arrives at the card's own pace, and the
+// other pace once the goal works at its actual one) and how fresh Google's numbers
+// are. Every time is a duration, never a date.
 import { describe, expect, it } from 'vitest'
-import {
-  detailHeaderLines,
-  freshnessText,
-  planSoFarTiles,
-} from './rating-goal-detail-view'
+import { detailHeaderLines, freshnessText } from './rating-goal-detail-view'
 import {
   DETAIL_GOOGLE_SOURCE,
   DETAIL_HARBORLINE,
   DETAIL_LAGS,
-  DETAIL_LAGS_MIDDLE,
   DETAIL_OLD_GOAL,
   DETAIL_TOO_LOW,
 } from './rating-goal-detail.stories.fixtures'
 import {
+  DETAIL_BELOW_PACE,
+  DETAIL_JUST_SET,
+} from './rating-goal-detail-states.stories.fixtures'
+import {
   DETAIL_FOUND_ENDED,
   DETAIL_FOUND_REACHED,
 } from './rating-goal-detail-outcomes.stories.fixtures'
-import { DETAIL_BEFORE_TEN } from './rating-goal-plan.stories.fixtures'
 import { CARD_ACTUAL_PACE } from './rating-goal-tracking.stories.fixtures'
 
 describe('the header’s sentences', () => {
-  it('says when at the card’s pace, where Google stands and what is possible after', () => {
+  it('says when the goal arrives at the card’s pace, and the range it is likely in', () => {
     expect(detailHeaderLines(DETAIL_HARBORLINE)).toEqual({
       arrival: '4.1 in about 3 weeks at your 1 a day, likely 2–4 weeks.',
-      started: 'Google shows 4.0 today, up from 3.9 when you started.',
-      possible: '4.2 is possible in about 3 months.',
       otherPace: null,
     })
+  })
+
+  it('says it at the plan while the goal is new, in the setup’s own words', () => {
+    expect(detailHeaderLines(DETAIL_JUST_SET).arrival).toBe(
+      '4.1 in about 3 months at your 1 a day, likely 9 weeks to 4 months.',
+    )
   })
 
   it('gives the chosen pace’s time too once the goal works at its actual pace', () => {
@@ -54,129 +57,42 @@ describe('the header’s sentences', () => {
     ).toBeNull()
   })
 
-  it('says Google shows what it showed at the set, as when you started', () => {
-    expect(
-      detailHeaderLines({
-        ...DETAIL_HARBORLINE,
-        google: { ...DETAIL_HARBORLINE.google!, shows: 3.9 },
-      }).started,
-    ).toBe('Google shows 3.9 today, as when you started.')
+  it('says both times for a goal behind its pace: the pace it has, and the one it chose', () => {
+    expect(detailHeaderLines(DETAIL_BELOW_PACE)).toEqual({
+      arrival: '4.1 in about 5 weeks at your pace of the last 4 weeks, likely 4–7 weeks.',
+      otherPace: 'At your 1 a day: in about 3 weeks.',
+    })
+  })
+
+  it('names a pace of more than a day with its decimal', () => {
+    expect(detailHeaderLines(DETAIL_OLD_GOAL).otherPace).toBe(
+      'At your 1.5 a day: in about 10 months.',
+    )
+  })
+
+  it('says the same while RepKey lacks some of Google’s reviews, whose counts it marks elsewhere', () => {
+    expect(detailHeaderLines(DETAIL_GOOGLE_SOURCE)).toEqual(
+      detailHeaderLines(DETAIL_HARBORLINE),
+    )
   })
 
   it('gives no time while Google should show the goal soon or new reviews are too low', () => {
-    expect(detailHeaderLines(DETAIL_LAGS)).toMatchObject({
-      arrival: null,
-      possible: null,
-    })
-    expect(detailHeaderLines(DETAIL_TOO_LOW)).toMatchObject({
-      arrival: null,
-      possible: null,
-    })
+    expect(detailHeaderLines(DETAIL_LAGS)).toEqual({ arrival: null, otherPace: null })
+    expect(detailHeaderLines(DETAIL_TOO_LOW)).toEqual({ arrival: null, otherPace: null })
   })
 
-  it('says nothing more of a goal the read found reached', () => {
-    expect(detailHeaderLines({ ...DETAIL_HARBORLINE, state: 'reached' })).toEqual({
-      arrival: null,
-      started: null,
-      possible: null,
-      otherPace: null,
-    })
+  it('gives no time while Google’s numbers are stale', () => {
+    const stale = { ...DETAIL_HARBORLINE, status: 'waiting_for_google' as const }
+
+    expect(detailHeaderLines(stale)).toEqual({ arrival: null, otherPace: null })
   })
 
-  it('says nothing of today while Google’s numbers are stale', () => {
-    const stale = { ...DETAIL_HARBORLINE.google!, current: false }
+  it('says nothing more of a goal the read found reached or ended', () => {
+    const none = { arrival: null, otherPace: null }
 
-    expect(detailHeaderLines({ ...DETAIL_HARBORLINE, google: stale }).started).toBeNull()
-  })
-})
-
-describe('your plan, so far', () => {
-  it('sets the pace, the new reviews’ average and the steps against the plan', () => {
-    expect(planSoFarTiles(DETAIL_HARBORLINE)).toEqual([
-      {
-        label: 'Pace',
-        value: '1 a day · plan 1 a day',
-        detail: 'Last 4 weeks · up from about 2 a month before the goal',
-      },
-      {
-        label: 'New reviews average',
-        value: '4.57★ · plan 4.5★',
-        detail:
-          '35 reviews since the goal was set · forecasts use 4.55★, your plan mixed with them',
-      },
-      {
-        label: 'Steps',
-        value: '4.0 reached · 4.1 next',
-        detail: 'After 4.1: 4.2 is about 80 more',
-      },
-    ])
-  })
-
-  it('says the pace was the same before the goal, or leaves it out when unknown', () => {
-    expect(planSoFarTiles(DETAIL_LAGS_MIDDLE)[0]?.detail).toBe(
-      'Last 4 weeks · about 30 a month before the goal too',
-    )
-    expect(planSoFarTiles(DETAIL_OLD_GOAL)[0]?.detail).toBe('Last 4 weeks')
-  })
-
-  it('says there were none before the goal rather than about 0 a month', () => {
-    const none = (trend: 'up' | 'same') =>
-      planSoFarTiles({
-        ...DETAIL_HARBORLINE,
-        planSoFar: { ...DETAIL_HARBORLINE.planSoFar, prePlan: { perMonth: 0, trend } },
-      })[0]?.detail
-
-    expect(none('up')).toBe('Last 4 weeks · none in the 4 weeks before the goal')
-    expect(none('same')).toBe('Last 4 weeks · none in the 4 weeks before the goal')
-  })
-
-  it('gives no average before ten reviews, and says the numbers use theirs while too low', () => {
-    expect(planSoFarTiles(DETAIL_BEFORE_TEN)[1]).toEqual({
-      label: 'New reviews average',
-      value: 'after 10 reviews · plan 4.5★',
-      detail:
-        '4 reviews since the goal was set · forecasts use 4.55★, your plan mixed with them',
-    })
-    expect(
-      planSoFarTiles({
-        ...DETAIL_TOO_LOW,
-        plan: {
-          ...DETAIL_TOO_LOW.plan!,
-          sinceSet: { reviewCount: 12, average: 3.75, averageTenths: 38 },
-          qualityBasis: 'since_set',
-        },
-      })[1],
-    ).toMatchObject({
-      value: '3.75★ · plan 4.5★',
-      detail: '12 reviews since the goal was set · the numbers use their average',
-    })
-  })
-
-  it('names only the next step until Google shows more than at the set', () => {
-    expect(
-      planSoFarTiles({
-        ...DETAIL_HARBORLINE,
-        planSoFar: { ...DETAIL_HARBORLINE.planSoFar, reachedTenths: null },
-      })[2]?.value,
-    ).toBe('4.1 next')
-    expect(planSoFarTiles(DETAIL_GOOGLE_SOURCE)).toHaveLength(3)
-  })
-
-  it('names no next step of a goal the read found reached or ended', () => {
-    expect(planSoFarTiles(DETAIL_FOUND_REACHED)[2]).toEqual({
-      label: 'Steps',
-      value: '4.1 reached',
-      detail: 'Your goal was 4.1',
-    })
-    expect(planSoFarTiles(DETAIL_FOUND_ENDED)[2]).toEqual({
-      label: 'Steps',
-      value: '4.0 reached',
-      detail: 'Your goal was 4.1',
-    })
-  })
-
-  it('has no tiles for a goal without a plan', () => {
-    expect(planSoFarTiles({ ...DETAIL_HARBORLINE, plan: null })).toEqual([])
+    expect(detailHeaderLines(DETAIL_FOUND_REACHED)).toEqual(none)
+    expect(detailHeaderLines(DETAIL_FOUND_ENDED)).toEqual(none)
+    expect(detailHeaderLines({ ...DETAIL_HARBORLINE, state: 'reached' })).toEqual(none)
   })
 })
 

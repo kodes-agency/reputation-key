@@ -138,7 +138,8 @@ These hold for the goal and for every surface that shows it.
   text, reviewer, identifier or per-review value leaves Review, and a read neither
   extends the cache clock nor copies content. The tracking page's two per-review
   exceptions (the owner's, 2026-10-17: low reviews since the set and this week's
-  star split) are named in their amendment below, and nothing else is.
+  star split, the second extended on 2026-11-01 to a count of the low ones since
+  the set) are named in their amendments below, and nothing else is.
 - **The goal stores only Property-level figures:** target, mode, pace, state,
   the Google binding it was set under, the figures it started from (Google's count
   and average, the exact average), the tenth and status it last saw, and a change
@@ -489,11 +490,13 @@ low-review rows and the Monday check-in follow in their own amendments.
    The "possible" number is drawn only when the card says it: not past three
    years and not while the card waits for Google's latest numbers. While
    Google's numbers are stale the ladder says what Google "showed last", not
-   what it "shows now".
+   what it "shows now". (Replaced 2026-11-01 by the ruler; see the last
+   amendment.)
 4. **One empty square per review the headline counts**, from 1 to 30, and only
    while RepKey holds every review Google counts: past 30 the squares are
    noise, and under Google's own rounded figure (where every count reads
-   "about") a row of squares would promise a count nobody knows.
+   "about") a row of squares would promise a count nobody knows. (Retired
+   2026-11-01.)
 5. **This week and the first step.** "This week: 2 of 7" with the day of the
    Property week ("It’s Tuesday", worked out on the server at every card read)
    and, once the goal works at its actual pace, the last four weeks' pace a
@@ -505,7 +508,8 @@ low-review rows and the Monday check-in follow in their own amendments.
    line "This week 2 of 7 · 4.1 in about 3 weeks" and View details; the pace
    and the likely range, the possible line, the week's bar, the first step and
    Open Portals are on the wide card (a reason there is no time, such as no
-   pace, is said at every width).
+   pace, is said at every width). (Replaced 2026-11-01: the card says the same
+   at every width and View details is its one way on; see the last amendment.)
 6. **No new read.** The card read computes everything from the numbers it
    already reads (the next number, what the goal still needs, the number above
    it, the last four weeks, the baseline and the weekday): no extra query, no
@@ -564,7 +568,9 @@ ten reviews, and no read returns a review.
    set with (each field's first logged change, so a long log cannot lose it).
    The exact-average bar, the tiles, the weekly bars, the star mix since the
    set, the best case and the separate change log are retired (Q7's detail;
-   R3-8 replaces it).
+   R3-8 replaces it). (Replaced 2026-11-01: the line to the goal, the weekly
+   bars and three questions; "What moved you" became "What happened"; see the
+   last amendment.)
 
 The per-review rows the mock also shows (low reviews and this week's stars)
 are not part of this amendment: they need the owner's exception (PLAN-D Q2)
@@ -697,3 +703,88 @@ preserves `asOf` and `current`; disconnected or stale numbers retain their real
 date, and a missing snapshot remains unavailable. It never substitutes the
 comment-only mean. Goal evaluation and the meaning of "worth up to" are
 unchanged: an association in Guest voice is no promise of reaching a target.
+
+## Amended 2026-11-01 — tracking is a check-in
+
+The owner looked at the screens that show a goal's progress and found them poor:
+the setup is good, but "The climb, step by step", the fan chart that round 3
+recommended, is too complicated and too uncommon to read, and it turns managers
+off. Tracking is drawn the way Guest voice and Portal Results are: where the goal
+stands, then a few questions, each with its answer first. This replaces the ladder,
+the squares and the short card of the 2026-10-16 card amendment (its items 3 to 5)
+and the climb, "Your plan, so far" and "What moved you" of its detail amendment
+(item 3); the rest of both stands, and so does everything they decided about
+numbers, words and who sees them.
+
+1. **A ruler, not a ladder.** The card and the top of the detail put the goal on
+   the setup screen's ruler with the way already climbed filled in: what Google
+   showed when the goal was set on the left, the goal on the right, the tenths on
+   the way as stops, and a label for where the goal stands now. A tenth's stop sits
+   at the exact average at which Google shows it, so the bar reaches a stop exactly
+   when Google can show that number. The ruler is a picture named by one sentence
+   ("Google shows 3.9 now. Your goal is 4.0."; "Started at 3.9." first once Google
+   has moved up). The card is the headline ("18 new reviews to 4.1"), when the goal
+   arrives, the ruler, this week against the plan and View details, and says the
+   same at every width: a narrow card puts its second column under the first. The
+   squares, the ladder, "4.2 is possible" and the first-step line are gone; the
+   ruler's sentence and the page's first question tell the first step.
+2. **The detail is where the goal stands, then three questions.** A card first:
+   the headline, when it arrives and the ruler. Then check-in bands, each the
+   question and its answer beside what shows it: "Is your rating going up?" (a
+   plain line), "Are enough good reviews coming in?" (the weeks as bars against the
+   plan, with what the new reviews average and how many gave 3★ or less) and "What
+   can you do this week?" (rows: read the newest low review, ask every guest, see
+   what to fix first when new reviews are too low, change the plan when the goal
+   is below pace). A goal to keep a number asks "Is it holding?"; a goal found
+   reached or ended asks in the past tense ("Did you get there?", "Where did it get
+   to?"). "What happened" is "What moved you" in the same rows and words, in a card
+   closed until asked. How fresh Google's numbers are and who sees the page
+   ("Owners and managers only") moved to the page's foot.
+3. **A plain line up to the goal.** "Your rating on Google" draws the exact average
+   over time, quiet before the goal was set and strong since, the goal as one
+   straight line with Google's tenths up the side, one dotted line for the way
+   left and real months under it, a dot where Google's own number moved. Each
+   tenth's line sits at the average at which Google shows it, so crossing 4.0 is
+   Google showing 4.0. While RepKey lacks some of Google's reviews there is no
+   exact line and the chart steps through Google's own numbers. It is a plain SVG
+   (no chart library, no chunk of its own), named by its caption, with every point
+   also read out as a list.
+4. **Weekly bars against the plan.** The new reviews of each week from the
+   chart's start (four weeks before the set's week, a year back at most), the last
+   thirteen at most, with one line across for the plan ("Your plan: 7 a week"): the
+   weeks before the goal in a quieter ink, the week still counting dashed. They
+   draw the weekly history the detail already reads.
+5. **The exact average is on no screen.** Google's one-decimal number leads, as it
+   always has; the exact average (4.02) is printed nowhere, which ends "the exact
+   average stays on the detail page" of the 2026-10-16 card amendment. It still
+   works out the progress: the ruler's place, the headline's count, the arrival
+   and the line's height.
+6. **The cone and the likely band leave the read.** The chart view loses the
+   plan's cone, the likely band and their anchor (`plan`, `likely`, `anchor`) and
+   gains today's date, the day the goal was set and the weeks (`todayKey`, `setDay`,
+   `weeks`); "Your plan, so far" loses the tenth reached (`reachedTenths`); the
+   climb domain loses `planCone`, `likelyBand` and `averageAfter`; the weekly
+   history is read from the chart's start in every case (it started from the latest
+   plan change's week when that was earlier, to feed the cone). Arrival is still one
+   duration from today at the card's pace, never a date (R4-3), and the chart draws
+   no range around it.
+7. **Low reviews, counted since the set.** The detail says how many of the new
+   reviews since the set gave 3★ or less ("4 of the 52 new reviews gave 3★ or
+   less.", "None of the 52 new reviews gave 3★ or less."), from two new reviews and
+   only while the goal climbs. It is the star split Review already serves
+   (`getStarDistribution`), read from the set instead of from this Monday, and it
+   extends the owner's exception of 2026-10-17 (this week's star split) from this
+   week's stars to a count since the set. The limits are that exception's: the
+   goal's managers only (`goal.read` under `goal.use`), read live with the page and
+   kept nowhere, and the browser gets the count of the low ones and nothing of the
+   split. The star mix since the set was on this page from round 2 until the
+   tracking detail retired it; a count of the low ones says less than that. The low
+   reviews' own rows are unchanged: below the goal's threshold and at most 4★, ten
+   at most, each with its Inbox link.
+
+What stays: arrival is a duration from today, never a date; Google's own number
+leads every screen; the goal is for the Property's managers only, never staff-facing
+and never a quota, ranking, incentive or employment input; the statuses, the
+notices, the Monday check-in, the setup and the permissions are untouched. The
+amendment stores, exports and retains nothing new: no migration, no new Review
+read, one more call of an existing one.

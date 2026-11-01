@@ -1,13 +1,10 @@
 // A goal's measure is named in one place and copied nowhere.
 //
 // `goalMetricLabel` (Reporting's) is what every goal surface calls a measure:
-// the Goals page, its results matrix, a group's goal card, a goal's own page,
-// its forms and the name a goal is given. The Goals list, the results matrix
-// under it and the metric select each carried a hand copy once, and a goal's
-// page had a second spelling ("Private rating count" under a list that said
-// "Private ratings").
-import { createElement } from 'react'
-import { renderToStaticMarkup } from 'react-dom/server'
+// the Goals page, the Portal goals' results, a group's goal card, a goal's own page,
+// its forms and the name a goal is given. The Goals list, the results page under it
+// and the metric select each carried a hand copy once, and a goal's page had a second
+// spelling ("Private rating count" under a list that said "Private ratings").
 import { describe, expect, it } from 'vitest'
 import type {
   GoalMetric,
@@ -15,7 +12,7 @@ import type {
 } from '#/contexts/reporting/application/public-api'
 import { readUiSources } from '#/shared/testing/source-tree'
 import { goalMetricLabel } from './goal-metric-label'
-import { GoalResultsMatrix } from './goal-results-matrix'
+import { resultGoals } from './portal-goal-results-list-view'
 
 const GOAL_SOURCES = [
   'src/components/goals/',
@@ -29,18 +26,21 @@ const SPELLED_LABEL =
 /** The files under the goal sources that own a spelling: none, Reporting owns it. */
 const OWNERS: Readonly<Record<string, string>> = {}
 
-const MONTH_START = new Date('2026-09-01T00:00:00.000Z')
+/** The first of a month, in UTC. */
+const monthStart = (month: number) => new Date(Date.UTC(2026, month - 1, 1))
 
-function matrixOf(metric: GoalMetric): GoalResultsMatrixModel {
+/** One goal's months, newest first, each counting the measure it is given. */
+function matrixOf(...metrics: readonly GoalMetric[]): GoalResultsMatrixModel {
   return {
-    months: [
-      {
-        periodStart: MONTH_START,
-        periodEnd: new Date('2026-10-01T00:00:00.000Z'),
+    months: metrics.map((metric, index) => {
+      const start = monthStart(9 - index)
+      return {
+        periodStart: start,
+        periodEnd: monthStart(10 - index),
         propertyTimezone: 'UTC',
         rows: [
           {
-            resultId: 'result-1',
+            resultId: `result-${index}`,
             programId: 'program-1',
             assignmentId: 'assignment-1',
             scope: 'property',
@@ -51,7 +51,7 @@ function matrixOf(metric: GoalMetric): GoalResultsMatrixModel {
             outcome: 'met',
             evidence: { kind: 'count', value: 40, sampleCount: 40 },
             explanation: 'Met.',
-            dataThrough: MONTH_START,
+            dataThrough: start,
             resultStatus: 'closed',
             correction: null,
             targetProvenance: {
@@ -59,16 +59,18 @@ function matrixOf(metric: GoalMetric): GoalResultsMatrixModel {
               programVersion: 1,
               metricDefinitionVersionId: '11111111-1111-4111-8111-111111111301',
               targetValue: 30,
-              effectiveFrom: MONTH_START,
-              setAt: MONTH_START,
+              effectiveFrom: start,
+              setAt: start,
             },
             monthTarget: null,
           },
         ],
-      },
-    ],
+      }
+    }),
   }
 }
+
+const frame = { now: monthStart(10), personName: () => null }
 
 describe("a goal's measure", () => {
   it("spells a measure only in Reporting's goal-metric-label", () => {
@@ -81,24 +83,25 @@ describe("a goal's measure", () => {
   })
 
   it.each(['qualified_scans', 'portal_rating_count', 'portal_rating_average'] as const)(
-    'reads in the results matrix as the Goals list above it names it: %s',
+    'names %s in the results of a goal that counted more than one thing as the Goals list above it does',
     (metric) => {
-      const markup = renderToStaticMarkup(
-        createElement(GoalResultsMatrix, {
-          matrix: matrixOf(metric),
-          now: MONTH_START,
-          personName: () => null,
-        }),
-      )
-      // The measure is the first line of the row's second cell, under the
-      // column's name that the cell shows only where the table reflows.
-      const [, measure] = [
-        ...markup.matchAll(
-          /<td[^>]*>(?:<span[^>]*@4xl:hidden[^>]*>[^<]*<\/span>)?<span[^>]*>([^<]*)<\/span>/gu,
-        ),
-      ]
+      const other =
+        metric === 'qualified_scans' ? 'portal_rating_count' : 'qualified_scans'
+      const [goal] = resultGoals(matrixOf(other, metric), frame)
 
-      expect(measure?.[1]).toBe(goalMetricLabel(metric))
+      const measure = goal?.measures.find((one) => one.metric === metric)
+      expect(measure?.title).toBe(`Counted ${goalMetricLabel(metric).toLowerCase()}`)
+    },
+  )
+
+  it.each(['qualified_scans', 'portal_rating_count'] as const)(
+    'names %s on the bars of its months as the Goals list above it does',
+    (metric) => {
+      const [goal] = resultGoals(matrixOf(metric, metric), frame)
+
+      expect(
+        goal?.bars?.caption.startsWith(`${goalMetricLabel(metric)} each month`),
+      ).toBe(true)
     },
   )
 

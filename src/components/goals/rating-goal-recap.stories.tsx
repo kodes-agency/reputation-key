@@ -121,9 +121,14 @@ export const Monday: Story = {
       'Raise to 2 a day',
       'Ease to 3 a week',
     ])
-    // The card is still there, under it.
+    // The card is still there, under it, with its ruler.
     await expect(
       canvas.getByRole('heading', { level: 2, name: 'Google rating goal' }),
+    ).toBeVisible()
+    await expect(
+      canvas.getByRole('img', {
+        name: 'Started at 3.9. Google shows 4.0 now. Your goal is 4.1.',
+      }),
     ).toBeVisible()
   },
 }

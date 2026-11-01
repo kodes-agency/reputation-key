@@ -57,6 +57,16 @@ describe('the Monthly portal goal sources', () => {
     expect(paths).toContain(RESULTS_LINE_HOST)
     expect(paths).toContain(`${GOALS_ROUTE}-portal-goal-overview.tsx`)
     expect(paths).toContain(`${GOALS_ROUTE}$goalId.tsx`)
+    // The page's questions and ruler, and the results list that replaced the matrix.
+    for (const name of [
+      'portal-goal-bands.tsx',
+      'portal-goal-bands-view.ts',
+      'portal-goal-ruler-view.ts',
+      'portal-goal-results-list.tsx',
+      'portal-goal-results-list-view.ts',
+    ]) {
+      expect(paths).toContain(`src/components/goals/${name}`)
+    }
   })
 
   it('never imports the Google rating goal', () => {
@@ -83,6 +93,27 @@ describe('the Monthly portal goal sources', () => {
     expect(
       offenders(SOURCES, (file) =>
         writtenTexts(file).some((text) => /\btext-link\b/u.test(text)),
+      ),
+    ).toEqual([])
+  })
+
+  it('never sorts or ranks the Portals’ counts: they stay in the read’s name order (P-1)', () => {
+    // The files that say what each Portal brought in: the page's band, its list, the
+    // card's list, and the words for both. A sort here would crown a Portal.
+    const counting = [
+      'portal-goal-bands.tsx',
+      'portal-goal-bands-view.ts',
+      'portal-goal-from-portals.tsx',
+      'portal-goal-page-view.ts',
+      'portal-goal-portal-counts.tsx',
+      'portal-goal-running-view.ts',
+    ].map((name) => `src/components/goals/${name}`)
+    const files = SOURCES.filter(({ path }) => counting.includes(path))
+
+    expect(files.map(({ path }) => path).sort()).toEqual([...counting].sort())
+    expect(
+      offenders(files, (file) =>
+        /\.(sort|toSorted)\(|\b(rank|ranking|leaderboard)\b/iu.test(file.text),
       ),
     ).toEqual([])
   })
