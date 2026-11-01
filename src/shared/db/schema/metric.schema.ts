@@ -65,6 +65,8 @@ export const metricReadings = pgTable(
     // anonymous lifetime aggregate can rebuild Google/secondary selections
     // without retaining a response, session, destination, or click id.
     portalDestinationKind: varchar('portal_destination_kind', { length: 24 }),
+    /** The Linktree link a secondary-link tap went to. No foreign key: a reading outlives its link. */
+    portalLinkId: uuid('portal_link_id'),
     attributedStaffParticipantId: uuid('attributed_staff_participant_id'),
     attributedStaffParticipationId: uuid('attributed_staff_participation_id'),
     attributionResponsibilityId: uuid('attribution_responsibility_id'),
@@ -127,6 +129,10 @@ export const metricReadings = pgTable(
     check(
       'metric_readings_staff_attribution_complete',
       sql`(${t.attributedStaffParticipantId} IS NULL AND ${t.attributedStaffParticipationId} IS NULL AND ${t.attributionResponsibilityId} IS NULL AND ${t.staffAttributionEffectiveFrom} IS NULL AND ${t.staffAttributionEffectiveTo} IS NULL) OR (${t.portalId} IS NOT NULL AND ${t.attributedStaffParticipantId} IS NOT NULL AND ${t.attributedStaffParticipationId} IS NOT NULL AND ${t.attributionResponsibilityId} IS NOT NULL AND ${t.staffAttributionEffectiveFrom} IS NOT NULL AND (${t.staffAttributionEffectiveTo} IS NULL OR ${t.staffAttributionEffectiveTo} > ${t.staffAttributionEffectiveFrom}))`,
+    ),
+    check(
+      'metric_readings_portal_link_check',
+      sql`${t.portalLinkId} IS NULL OR (${t.metricKey} = 'portal.review_link_click' AND ${t.portalDestinationKind} = 'secondary_link')`,
     ),
     check(
       'metric_readings_portal_destination_kind_check',
