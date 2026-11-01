@@ -19,6 +19,7 @@ export type PreviewNoteState = 'none' | 'offered' | 'sent'
 export type PreviewPageState =
   /** Before a rating: the rating card. */
   | Readonly<{ phase: 'arrival' }>
+  | Readonly<{ phase: 'direct' }>
   /** After a rating was sent: the receipt, the Google card, and maybe the note. */
   | Readonly<{ phase: 'rated'; rating: number; note: PreviewNoteState }>
 
@@ -29,6 +30,7 @@ export const ARRIVAL_STATE: PreviewPageState = Object.freeze({ phase: 'arrival' 
  * draws, so the preview and the page agree on what each state means.
  */
 export function guestPreviewState(state: PreviewPageState): GuestPagePreviewState {
+  if (state.phase === 'direct') return { kind: 'direct' }
   if (state.phase === 'arrival') return { kind: 'arrival' }
   if (state.note === 'sent') return { kind: 'done', rating: state.rating }
   return { kind: 'rated', rating: state.rating, noteEligible: state.note === 'offered' }
@@ -59,7 +61,19 @@ const HIGH_RATING = 5
  * or the threshold itself when that is lower; with no rating offered a note
  * there is no low rating to show.
  */
-export function previewStateOptions(threshold: number): readonly PreviewStateOption[] {
+export function previewStateOptions(
+  threshold: number,
+  skipPrivateRating = false,
+): readonly PreviewStateOption[] {
+  if (skipPrivateRating)
+    return [
+      {
+        id: 'arrival',
+        label: 'Google review',
+        name: 'Google review',
+        state: { phase: 'direct' },
+      },
+    ]
   const arrival: PreviewStateOption = {
     id: 'arrival',
     label: 'Arrival',

@@ -64,7 +64,10 @@ import { createPortalLastPrintRepository } from './infrastructure/repositories/p
 import { createPortalPrintWordingRepository } from './infrastructure/repositories/portal-print-wording.repository'
 import { createPortal } from './application/use-cases/create-portal'
 import { getPortalCreationOptions } from './application/use-cases/get-portal-creation-options'
-import { updatePortal } from './application/use-cases/update-portal'
+import {
+  updatePortal,
+  type UpdatePortalDeps,
+} from './application/use-cases/update-portal'
 import { buildExperienceUseCases } from './build-experience'
 import { rollbackPortalPublication } from './application/use-cases/rollback-portal-publication'
 import {
@@ -113,6 +116,7 @@ import {
   updatePortalResponsibleManagers,
 } from './application/use-cases/portal-responsible-managers'
 import { getPortalContactRequestManagerAuthorityFacts } from './application/use-cases/portal-contact-request-authority'
+import { createPortalRatingFacts } from './application/portal-rating-facts'
 import { createGoalReadinessFacts } from './application/goal-readiness-facts'
 import { createPortalWorkflowFactStore } from './infrastructure/portal-workflow-fact-store'
 import { createAtomicPortalCommandStore } from './infrastructure/portal-command-store'
@@ -182,6 +186,7 @@ type PortalContextDeps = Readonly<{
   imageProcessor?: ImageProcessorPort
   /** PRINT_KIT_FINAL_ENABLED: the Share tab shows the final print kit. Absent = today's kit. */
   printKitFinalEnabled?: boolean
+  ratingGoalGuard: UpdatePortalDeps['ratingGoalGuard']
   /** PORTAL_OWN_LOOK_ENABLED: a Portal's own look may be changed (ADR 0070). Absent = off. */
   portalOwnLookEnabled?: boolean
 }>
@@ -380,6 +385,7 @@ export const buildPortalContext = (deps: PortalContextDeps) => {
       experienceRepo: portalExperienceRepo,
     }),
     updatePortal: updatePortal({
+      ratingGoalGuard: deps.ratingGoalGuard,
       portalRepo,
       commandStore: portalCommandStore,
       publicationRepo: portalPublicationRepo,
@@ -741,6 +747,7 @@ export const buildPortalContext = (deps: PortalContextDeps) => {
     }),
     listResultsLinks: createPortalResultsLinksReader(deps.db),
     listPublicationActivationsBetween: portalPublicationRepo.listActivationsBetween,
+    ...createPortalRatingFacts({ portalRepo, portalGroupRepo }),
     ...createGoalReadinessFacts({
       portalRepo,
       publicationRepo: portalPublicationRepo,

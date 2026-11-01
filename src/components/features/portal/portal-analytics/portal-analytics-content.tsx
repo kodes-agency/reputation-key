@@ -44,6 +44,12 @@ export function PortalAnalyticsContent({
         localDays={data.localDays}
         timezone={data.period.timezone}
       />
+      {place?.skipPrivateRating ? (
+        <p className="text-sm text-muted-foreground">
+          This portal is set to skip the private rating, so it collects no new ratings or
+          notes once published.
+        </p>
+      ) : null}
       <div
         className={cn(
           'flex flex-col gap-4 transition-opacity md:gap-6',

@@ -53,6 +53,8 @@ function portalGoalOfferFor(
   measure: PortalGoalMeasure,
   wholeMonth = false,
 ): PortalGoalOffer | null {
+  if (measure === 'portal_rating_count' && recommendation.ratingsAvailable === false)
+    return null
   const { months, basis } = recommendation
   const thisMonth = month === months.current.key
   const current = thisMonth && !wholeMonth
@@ -149,6 +151,7 @@ export function portalGoalSheetFactsOf(
   })
   return {
     month: recommendation.defaultMonthKey,
+    ratingsAvailable: recommendation.ratingsAvailable,
     ownNumber: {
       current: {
         key: months.current.key,

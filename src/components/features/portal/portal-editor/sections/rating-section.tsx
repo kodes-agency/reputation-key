@@ -1,5 +1,5 @@
-// Rating & Google: the rating card and the Google review action are part of
-// every portal, so this section explains them and shows where Google stands; it
+// Rating & Google: the Google action and the Portal's usual private rating
+// journey. A Portal may skip the rating in Private note. This section
 // has nothing to switch. The link check lives here too: the manager records
 // that the live page's Google link and Linktree links open the pages they
 // should.
@@ -13,7 +13,11 @@ export function RatingSection({ resources, canEdit }: PortalEditorSectionProps) 
   return (
     <PortalEditorSectionFrame
       section="rating"
-      description="Guests rate first, then are offered a Google review. Both are part of every portal and cannot be turned off."
+      description={
+        resources.portal.skipPrivateRating
+          ? 'Guests go straight to the Google button. If Google is unavailable, guests can leave a private rating.'
+          : 'Guests rate first, then are offered a Google review. To skip the private rating, use the Private note section.'
+      }
     >
       <GoogleReviewDestinationCard destination={resources.googleReviewDestination} />
       <ContentReviewCard

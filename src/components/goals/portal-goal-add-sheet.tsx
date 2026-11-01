@@ -11,7 +11,8 @@
 // host mounts it afresh, with a key, for every opening): the step, the rows of
 // each Portal and the number box, above the frame, so a phone turned on its side
 // (a sheet becoming a dialog) keeps what was typed. It owns the two commands; it
-// works from the add read the host hands it, the latest one, so a refusal that
+// works from the add read’s filtered subjects (including private-rating eligibility),
+// so a refusal that
 // means the read is behind reads it again and the steps follow. A refusal is
 // said once, in the banner above the footer; a save for each Portal that kept
 // some rows and not others says so on those rows. While Set is on its way the

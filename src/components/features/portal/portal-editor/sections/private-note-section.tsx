@@ -1,5 +1,5 @@
-// Private note: the one setting behind the optional private note a guest can
-// leave after a low rating.
+// Private note: whether to skip the private rating, and the threshold for an
+// optional private note when ratings are collected.
 
 import { PortalEditorSectionFrame } from '../portal-editor-section-frame'
 import { PortalPrivateNoteForm } from '../portal-private-note-form'
@@ -11,8 +11,8 @@ export function PrivateNoteSection({ resources, canEdit }: PortalEditorSectionPr
       section="private-note"
       description={
         canEdit
-          ? 'Choose how low a rating has to be before a guest is offered a private note. It saves as you change it.'
-          : 'How low a rating has to be before a guest is offered a private note.'
+          ? 'Choose whether guests leave a private rating and when to offer a private note. It saves as you change it.'
+          : 'Whether guests leave a private rating and when a private note is offered.'
       }
     >
       <PortalPrivateNoteForm

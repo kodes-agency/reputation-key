@@ -1,3 +1,4 @@
+import { ratingSubjectSkipsPrivateRating } from '../../application/goal-rating-eligibility'
 import type { PropertyFactsPublicApi } from '#/contexts/property/application/public-api'
 import type {
   PortalGroupPublicApi,
@@ -38,6 +39,20 @@ export const createGoalProgramSubjectReader = (
   }
 
   return {
+    ratingSubjectsSkipPrivateRating: async (organizationId, propertyId, subjects) => {
+      const results = await Promise.all(
+        subjects.map(async (subject) => {
+          if (subject.kind === 'property') return false
+          const facts = await portalApi.listPortalRatingFacts(
+            toOrganizationId(organizationId),
+            toPropertyId(propertyId),
+            subject,
+          )
+          return ratingSubjectSkipsPrivateRating(facts, subject)
+        }),
+      )
+      return results.some(Boolean)
+    },
     getTimezone: (organizationId, propertyId) =>
       propertyApi.getPropertyTimezone(
         toOrganizationId(organizationId),

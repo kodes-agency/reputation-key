@@ -1,3 +1,4 @@
+import { publicationSource } from '../domain/__fixtures__/publication-source'
 import { describe, expect, it } from 'vitest'
 import {
   currentGuestLanguagePack,
@@ -15,6 +16,7 @@ import {
   immersiveSnapshotWith,
 } from './__fixtures__/immersive-snapshot'
 import {
+  buildPortalPublicationSnapshot,
   digestPortalPublicationConfiguration,
   verifyPortalPublicationSnapshot,
 } from './portal-publication-snapshot'
@@ -136,5 +138,52 @@ describe('pack generation is bound to the schema version', () => {
 
       expect(verifyPortalPublicationSnapshot(german)).toBe(false)
     }
+  })
+})
+
+describe('the optional schema-3 private rating switch', () => {
+  it('keeps a historical snapshot without the field valid', () => {
+    const snapshot = immersiveSnapshot()
+    expect(snapshot.configuration.reviewGateway).not.toHaveProperty('skipPrivateRating')
+    expect(verifyPortalPublicationSnapshot(snapshot)).toBe(true)
+  })
+
+  const publish = (skipPrivateRating: boolean) => {
+    const source = publicationSource({ skipPrivateRating })
+    const old = immersiveSnapshot()
+    return buildPortalPublicationSnapshot({
+      ...old,
+      source,
+      portalId: source.portal.id,
+      organizationId: source.organizationId,
+      propertyId: source.propertyId,
+      destination: {
+        state: 'verified',
+        uri: old.destinationUri,
+        retrievedAt: old.destinationRetrievedAt,
+        sourceEpoch: old.destinationSourceEpoch,
+        profileVersion: old.destinationProfileVersion,
+      },
+    })
+  }
+
+  it('leaves a switched-off publication byte-identical to the pre-switch v3 configuration', () => {
+    const snapshot = publish(false)
+    expect(snapshot.configuration.reviewGateway).not.toHaveProperty('skipPrivateRating')
+    // Pinned legacy v3 canonical bytes for publicationSource(), before the optional key.
+    expect(snapshot.configurationDigest).toBe(
+      '45d0a0363b311fd1191b5ae59e7015b21c22aae24e9bdbd42f89f60d1ca5c172',
+    )
+    expect(digestPortalPublicationConfiguration(snapshot.configuration)).toBe(
+      snapshot.configurationDigest,
+    )
+    expect(verifyPortalPublicationSnapshot(snapshot)).toBe(true)
+  })
+
+  it('writes the optional key only for a switched-on publication', () => {
+    const snapshot = publish(true)
+    expect(snapshot.configuration.reviewGateway).toHaveProperty('skipPrivateRating', true)
+    expect(snapshot.configurationDigest).not.toBe(publish(false).configurationDigest)
+    expect(verifyPortalPublicationSnapshot(snapshot)).toBe(true)
   })
 })

@@ -23,6 +23,7 @@ export function publicationSource(
     propertyId: SOURCE_FIXTURE_SCOPE.propertyId,
     portal: { id: SOURCE_FIXTURE_SCOPE.portalId, name: 'Harbor lobby', slug: 'harbor' },
     privateFeedbackThreshold: 3,
+    skipPrivateRating: false,
     primaryGuestLocale: 'en',
     localeSet: ['en', 'bg'],
     linktreeEnabled: true,

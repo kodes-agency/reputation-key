@@ -313,3 +313,10 @@ describe('portalGoalSheetModel', () => {
     })
   })
 })
+
+it('offers only scans when every candidate Portal skips private ratings', () => {
+  const facts = { ...READY, ratingsAvailable: false }
+  const draft = openingDraft(facts, ratings)
+  expect(draft.measure).toBe('qualified_scans')
+  expect(portalGoalSheetModel(draft, facts).switchMeasure).toBeNull()
+})

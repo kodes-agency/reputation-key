@@ -154,7 +154,7 @@ function LinksRow({
         <PortalGoalWorkedOut offer={offer} triggerClassName={GOAL_SETUP_LINK} />
       )}
       {offer !== null && canSwitch ? <span aria-hidden="true">·</span> : null}
-      {canSwitch ? (
+      {canSwitch && model.switchMeasure ? (
         <Button
           type="button"
           variant="link"
@@ -238,8 +238,9 @@ export function PortalGoalSheetBody({
         model={model}
         small={small}
         pending={pending}
-        canSwitch={canSwitch}
+        canSwitch={canSwitch && model.switchMeasure !== null}
         onSwitch={() =>
+          model.switchMeasure &&
           onChange({ kind: 'measure', measure: model.switchMeasure.measure })
         }
       />

@@ -237,3 +237,40 @@ of the 2026-10-26 phone and email links amendment.
 - **The same privacy notice.** The Privacy Notice already lists the destination
   selection and its receipt. No new personal data is stored, so the notice does not
   change.
+
+## Amendment 2026-11-02 — a Portal may skip the private rating
+
+Owner decision 2026-11-01. A manager with portal.update may turn on “Skip the
+private rating” in the Portal editor. It is off by default, is copied with a
+Portal, and reaches guests only through Review & publish. Schema version 3
+stores it in the review gateway only when true; absence means false, so switched-off
+publications keep their earlier bytes and digest.
+Versions 1 and 2 keep their earlier journey.
+
+When it is on and Google is available, a guest without an existing response
+sees the usual Portal with the Google card as its main action and the Linktree
+below. There are no stars, private note or “Your response” section. One tap
+opens Google through the same server action and once-per-session receipt.
+The card's title and action words stay the same for everyone on that Portal;
+its body says the guest may leave a public review, without “also”. Anti-gating
+still holds: there is no rating to gate on, and no guest's rating changes the
+Google action's words or prominence.
+
+If Google is unavailable, the normal private rating journey is offered. A
+session that already holds a response keeps its response view, correction and
+withdrawal. The server refuses new ratings and notes while the published
+switch is on and Google is available; it still accepts correction and
+withdrawal of an existing response. Qualified Scans and Linktree taps are
+unchanged. Opened Google still means a selection, never a completed review.
+
+Creating or changing a rating Goal is refused for a switched Portal or a
+group whose members all skip ratings; mixed groups may count what exists.
+Turning on the switch is refused while a running rating Goal has that Portal
+as its subject, or when it is the last Portal collecting ratings for a running
+Group or Property rating Goal, including the Monthly portal goal. For Property
+goals, only published Portals count in that last-collector check. End the Goal
+first. These checks and the overview label use the working copy deliberately.
+When any candidate Portal is published, published candidates decide whether
+the Monthly portal goal offers private ratings; otherwise all candidates do.
+With every such candidate skipping ratings, it defaults to scans and offers no
+private rating measure (ADR 0068, P-2). Historical results remain visible.

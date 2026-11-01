@@ -1,3 +1,4 @@
+import { ratingSubjectSkipsPrivateRating } from '../goal-rating-eligibility'
 // Reporting — setting the Property's Monthly portal goal (ADR 0068, PLAN PG-09).
 //
 // The card's Use (and, later, the set sheet) makes an ordinary Goal Program:
@@ -104,6 +105,31 @@ export type MonthlyPortalGoalSetDeps = Readonly<{
   now: () => Date
 }>
 
+/** An own number needs eligibility facts, never a readable recommendation. */
+async function assertPrivateRatingsAvailable(
+  reads: PortalGoalRecommendationReads,
+  scope: Readonly<{ organizationId: string; propertyId: string }>,
+  subject: GoalSubject,
+  now: Date,
+): Promise<void> {
+  const listed = await reads.facts.listPortalReadiness(
+    scope.organizationId,
+    scope.propertyId,
+    now,
+  )
+  const published = listed.portals.filter(
+    (portal) => portal.publicationState === 'published',
+  )
+  const candidates = published.length > 0 ? published : listed.portals
+  const skipped =
+    subject.kind === 'property'
+      ? !listed.truncated &&
+        candidates.length > 0 &&
+        candidates.every((portal) => portal.skipPrivateRating === true)
+      : ratingSubjectSkipsPrivateRating(listed.portals, subject)
+  if (skipped) throw new GoalProgramError('private_ratings_skipped')
+}
+
 const isRunning = (bundle: GoalProgramBundle): boolean =>
   isPropertyCountGoal(bundle) && bundle.program.status !== 'ended'
 
@@ -132,9 +158,20 @@ export async function setMonthlyPortalGoal(
           now: deps.now(),
         })
       : null,
+    metric === 'portal_rating_count' && !claimsRecommended
+      ? assertPrivateRatingsAvailable(
+          deps.recommendation,
+          { organizationId, propertyId },
+          { kind: 'property', propertyId },
+          deps.now(),
+        )
+      : undefined,
   ])
+  if (metric === 'portal_rating_count' && recommendation?.ratingsAvailable === false)
+    throw new GoalProgramError('private_ratings_skipped')
   if (programs.some(isRunning)) throw new GoalProgramError('subject_has_goal')
   const recommended =
+    claimsRecommended &&
     recommendation !== null &&
     offeredChoices(recommendation, startMonth, metric)?.aBitMore === targetValue
   return deps.programs.create(
@@ -272,7 +309,20 @@ async function recordedSource(
   actor: GoalActor,
   asked: Readonly<{ month: string; metric: GoalMetric; subject: GoalSubject }> | null,
 ): Promise<'recommended' | 'own'> {
-  if (claim.targetSource !== 'recommended') return 'own'
+  if (claim.targetSource !== 'recommended') {
+    if (asked?.metric === 'portal_rating_count') {
+      await assertPrivateRatingsAvailable(
+        deps.recommendation,
+        {
+          organizationId: actor.organizationId,
+          propertyId: claim.propertyId,
+        },
+        asked.subject,
+        deps.now(),
+      )
+    }
+    return 'own'
+  }
   if (asked === null || !isPortalGoalMeasure(asked.metric)) return 'own'
   const recommendation = await recommendationOf(
     deps,
@@ -280,6 +330,8 @@ async function recordedSource(
     asked.subject,
   )
   const measure: PortalGoalMeasure = asked.metric
+  if (measure === 'portal_rating_count' && recommendation.ratingsAvailable === false)
+    throw new GoalProgramError('private_ratings_skipped')
   return offeredChoices(recommendation, asked.month, measure)?.aBitMore ===
     claim.targetValue
     ? 'recommended'

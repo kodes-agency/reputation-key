@@ -61,6 +61,8 @@ export const deV2 = defineGuestCopyV2({
     ratingUpdated: 'Ihre Bewertung wurde geändert.',
 
     googleTitle: 'Teilen Sie Ihre Erfahrung auf Google',
+    googleDirectBody:
+      'Wenn Sie möchten, können Sie eine öffentliche Bewertung auf Google hinterlassen.',
     googleBody:
       'Wenn Sie möchten, können Sie auch eine öffentliche Bewertung auf Google hinterlassen.',
     googleAction: 'Weiter zu Google',

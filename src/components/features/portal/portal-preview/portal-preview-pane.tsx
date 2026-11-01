@@ -93,7 +93,10 @@ export function PortalPreviewPane({
       stateIdForPart(
         previewPartOf(selection?.active),
         stateId,
-        previewStateOptions(preview?.privateFeedbackThreshold ?? MAX_THRESHOLD),
+        previewStateOptions(
+          preview?.privateFeedbackThreshold ?? MAX_THRESHOLD,
+          preview?.skipPrivateRating,
+        ),
       ),
     )
   }

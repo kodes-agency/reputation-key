@@ -55,6 +55,7 @@ export const esV2 = defineGuestCopyV2({
     ratingUpdated: 'Su valoración se ha actualizado.',
 
     googleTitle: 'Comparta su experiencia en Google',
+    googleDirectBody: 'Si lo desea, puede dejar una reseña pública en Google.',
     googleBody: 'Si lo desea, también puede dejar una reseña pública en Google.',
     googleAction: 'Continuar a Google',
     googleOpensLabel: '(abre Google)',

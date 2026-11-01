@@ -1,3 +1,5 @@
+import type { createPortalRatingFacts } from './portal-rating-facts'
+export type { PortalRatingFact, PortalRatingSubject } from './portal-rating-facts'
 /**
  * Public API for external consumers (components, routes, other contexts).
  * Re-exports ports for cross-context dependency injection.
@@ -244,6 +246,7 @@ export type PublicPortalResult = Readonly<{
   reviewGateway: Readonly<{
     /** Ratings at or below this inclusive threshold may add private feedback. */
     privateFeedbackThreshold: number
+    skipPrivateRating: boolean
     /** A stale/unavailable Property URI is never serialized to the guest. */
     googleReview: PublicGoogleReviewDestination
   }>
@@ -432,6 +435,10 @@ export type PortalPublicApi = Readonly<{
       Readonly<{ version: number; kind: 'publish' | 'rollback'; activatedAt: Date }>
     >
   >
+  /** Current working-copy rating eligibility for only the subject's Portals, without a cap. */
+  listPortalRatingFacts: ReturnType<
+    typeof createPortalRatingFacts
+  >['listPortalRatingFacts']
   /**
    * What the Monthly portal goal needs about a Property's Portals: live since
    * and live intervals, code, marker and group, for every non-archived Portal in

@@ -52,6 +52,7 @@ export const enV2 = defineGuestCopyV2({
     ratingUpdated: 'Your rating was updated.',
 
     googleTitle: 'Share your experience on Google',
+    googleDirectBody: 'If you’d like, you can leave a public review on Google.',
     googleBody: 'If you’d like, you can also leave a public review on Google.',
     googleAction: 'Continue to Google',
     googleOpensLabel: '(opens Google)',

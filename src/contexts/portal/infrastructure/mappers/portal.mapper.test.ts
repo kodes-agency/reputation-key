@@ -20,6 +20,7 @@ const sampleRow: PortalRow = {
   heroImageUrl: null,
   theme: { primaryColor: '#6366F1' },
   privateFeedbackThreshold: 3,
+  skipPrivateRating: false,
   publicationState: 'published',
   createdBy: 'creator-1',
   responsibleManagerRevision: 1,

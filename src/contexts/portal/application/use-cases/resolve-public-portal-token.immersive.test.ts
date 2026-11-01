@@ -511,3 +511,18 @@ describe('resolvePublicPortalToken for a schema version 3 publication', () => {
     expect(serialized).not.toContain('link:1:label:bg')
   })
 })
+
+describe('published private rating switch', () => {
+  it('reads an older snapshot with no switch as false', async () => {
+    const { resolve } = setup({ resolvePortalMediaUrls: servesAllMedia })
+    expect((await found(resolve)).reviewGateway.skipPrivateRating).toBe(false)
+  })
+  it('carries a published switch to the guest read', async () => {
+    const configuration = immersiveConfiguration()
+    const snapshot = immersiveSnapshotWith({
+      reviewGateway: { ...configuration.reviewGateway, skipPrivateRating: true },
+    })
+    const { resolve } = setup({ snapshot, resolvePortalMediaUrls: servesAllMedia })
+    expect((await found(resolve)).reviewGateway.skipPrivateRating).toBe(true)
+  })
+})

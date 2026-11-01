@@ -1,8 +1,9 @@
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, type RefObject } from 'react'
 import type { GuestResponseView } from '#/contexts/guest/application/use-cases/guest-response-lifecycle'
 import { GlassSurface } from './glass-surface'
 import { ImmersiveAfterRating } from './immersive-after-rating'
 import { ImmersiveRatingCard } from './immersive-rating-card'
+import { ImmersiveGoogleCard } from './immersive-google-card'
 import { ImmersiveRemovedResponse } from './immersive-removed-response'
 import type { ImmersiveResponseViewProps } from './immersive-response-types'
 import {
@@ -19,11 +20,12 @@ export type {
 
 /**
  * The response area of the Immersive Hub, a pure view of its props. Before a
- * rating it is the rating card. After one it is, in this order and at every
+ * rating it is the rating card, or the Google card on a published direct
+ * Portal with Google available. After one it is, in this order and at every
  * rating: the receipt strip, the Google card, the private note card when the
- * server says the guest may write one (`privateFeedbackEligible`), and "Your
- * response". The threshold is the server's; the view never compares a rating
- * with anything.
+ * server says the guest may write one (`privateFeedbackEligible`) and the
+ * Portal still collects notes, and "Your response". An existing note stays
+ * visible. The threshold is the server's; the view never compares a rating.
  *
  * Like `GuestPageView` it binds no action: the container hands in the finished
  * state, which is what lets a preview, a story and the anti-gating test render
@@ -83,6 +85,22 @@ function ResponseBody(props: ImmersiveResponseViewProps) {
   const stage = stageOf(response)
   const { receiptHeading, startedOver, removedHeading } = useFocusOnStageChange(stage)
 
+  if (response === null && props.skipPrivateRating && props.googleReviewAvailable) {
+    return (
+      <div className="ih-response" data-ih-response="direct">
+        <StartedOverNotice pack={pack} notice={props.notice} focusRef={startedOver} />
+        <ImmersiveGoogleCard
+          pack={pack}
+          displayName={props.displayName}
+          available
+          direct
+          pending={props.pending === true}
+          openFailed={props.failure === 'google'}
+          onOpen={props.onGoogleReview}
+        />
+      </div>
+    )
+  }
   if (availability === 'loading') {
     return (
       <GlassSurface
@@ -119,14 +137,7 @@ function ResponseBody(props: ImmersiveResponseViewProps) {
   if (response === null) {
     return (
       <div className="ih-response" data-ih-response="arrival">
-        {(props.notice === 'started-over' ||
-          props.notice === 'started-over-after-removal') && (
-          <p role="status" tabIndex={-1} ref={startedOver} className="ih-yr__ready">
-            {props.notice === 'started-over'
-              ? pack.copy.startOverDone
-              : pack.copy.startOverDoneAfterRemoval}
-          </p>
-        )}
+        <StartedOverNotice pack={pack} notice={props.notice} focusRef={startedOver} />
         <ImmersiveRatingCard
           pack={pack}
           displayName={props.displayName}
@@ -144,5 +155,22 @@ function ResponseBody(props: ImmersiveResponseViewProps) {
       rating={response.rating}
       receiptHeading={receiptHeading}
     />
+  )
+}
+
+function StartedOverNotice({
+  pack,
+  notice,
+  focusRef,
+}: Pick<ImmersiveResponseViewProps, 'pack' | 'notice'> & {
+  focusRef: RefObject<HTMLParagraphElement | null>
+}) {
+  if (notice !== 'started-over' && notice !== 'started-over-after-removal') return null
+  return (
+    <p role="status" tabIndex={-1} ref={focusRef} className="ih-yr__ready">
+      {notice === 'started-over'
+        ? pack.copy.startOverDone
+        : pack.copy.startOverDoneAfterRemoval}
+    </p>
   )
 }

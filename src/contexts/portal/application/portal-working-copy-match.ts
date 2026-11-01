@@ -25,6 +25,7 @@ type ComparableContent = Readonly<{
   organizationId: string
   propertyId: string
   privateFeedbackThreshold: number
+  skipPrivateRating: boolean
   content: ImmersivePublicationContent
 }>
 
@@ -38,6 +39,9 @@ export function publishedContent(
     organizationId: snapshot.organizationId,
     propertyId: snapshot.propertyId,
     privateFeedbackThreshold: configuration.reviewGateway.privateFeedbackThreshold,
+    skipPrivateRating:
+      configuration.schemaVersion === 3 &&
+      configuration.reviewGateway.skipPrivateRating === true,
     content: {
       portal: configuration.portal,
       guestLocale: configuration.guestLocale,
@@ -66,6 +70,7 @@ function comparableWorkingContent(
     organizationId: workingCopy.organizationId,
     propertyId: workingCopy.propertyId,
     privateFeedbackThreshold: workingCopy.privateFeedbackThreshold,
+    skipPrivateRating: workingCopy.skipPrivateRating,
     content: resolvePortalPublication(workingCopy).content,
   }
 }

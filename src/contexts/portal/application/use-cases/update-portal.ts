@@ -47,6 +47,13 @@ import type { PortalTokenRepository } from '../ports/portal-token.repository'
 import { derivePortalHealth } from '../../domain/portal-health'
 
 export type UpdatePortalDeps = Readonly<{
+  ratingGoalGuard: Readonly<{
+    findRunningRatingGoalBlock(
+      organizationId: string,
+      propertyId: string,
+      portalId: string,
+    ): Promise<'portal' | 'last_collector' | null>
+  }>
   portalRepo: PortalRepository
   commandStore: PortalCommandStore
   publicationRepo: PortalPublicationRepository
@@ -65,6 +72,7 @@ type PortalPatch = {
   heroImageUrl: string | null
   theme: PortalTheme
   privateFeedbackThreshold: number
+  skipPrivateRating: boolean
   publicationState: Portal['publicationState']
   primaryGuestLocale: Portal['primaryGuestLocale']
   additionalGuestLocales: Portal['additionalGuestLocales']
@@ -86,9 +94,19 @@ export function resolvePortalContentFields(
   | 'heroImageUrl'
   | 'theme'
   | 'privateFeedbackThreshold'
+  | 'skipPrivateRating'
   | 'primaryGuestLocale'
   | 'additionalGuestLocales'
 > {
+  if (
+    input.skipPrivateRating !== undefined &&
+    typeof input.skipPrivateRating !== 'boolean'
+  ) {
+    throw portalError(
+      'invalid_skip_private_rating',
+      'Choose whether this portal skips the private rating.',
+    )
+  }
   const requestedHeroImageUrl = (input as { heroImageUrl?: unknown }).heroImageUrl
   if (requestedHeroImageUrl !== undefined && requestedHeroImageUrl !== null) {
     throw portalError(
@@ -113,6 +131,7 @@ export function resolvePortalContentFields(
       input.privateFeedbackThreshold !== undefined
         ? unwrap(validatePrivateFeedbackThreshold(input.privateFeedbackThreshold))
         : existing.privateFeedbackThreshold,
+    skipPrivateRating: input.skipPrivateRating ?? existing.skipPrivateRating,
     primaryGuestLocale: input.primaryGuestLocale ?? existing.primaryGuestLocale,
     additionalGuestLocales:
       input.additionalGuestLocales ?? existing.additionalGuestLocales,
@@ -220,6 +239,7 @@ function applyPatchToPublicationSource(
     ...source,
     portal: { ...source.portal, name: patch.name, slug: patch.slug },
     privateFeedbackThreshold: patch.privateFeedbackThreshold,
+    skipPrivateRating: patch.skipPrivateRating,
   }
 }
 
@@ -298,6 +318,7 @@ function hasPortalChanges(existing: Portal, patch: PortalPatch): boolean {
     patch.heroImageUrl !== existing.heroImageUrl ||
     JSON.stringify(patch.theme) !== JSON.stringify(existing.theme) ||
     patch.privateFeedbackThreshold !== existing.privateFeedbackThreshold ||
+    patch.skipPrivateRating !== existing.skipPrivateRating ||
     patch.primaryGuestLocale !== existing.primaryGuestLocale ||
     JSON.stringify(patch.additionalGuestLocales) !==
       JSON.stringify(existing.additionalGuestLocales) ||
@@ -363,6 +384,28 @@ const requiredPermission = (
       }
     : { permission: 'portal.update', forbiddenMessage: 'this role cannot edit portals' }
 
+/** Turning the switch on must not starve a running goal on private ratings. */
+async function assertSkipSwitchAllowed(
+  deps: UpdatePortalDeps,
+  ctx: AuthContext,
+  input: UpdatePortalInput,
+  existing: Portal,
+): Promise<void> {
+  if (input.skipPrivateRating !== true || existing.skipPrivateRating) return
+  const block = await deps.ratingGoalGuard.findRunningRatingGoalBlock(
+    ctx.organizationId,
+    existing.propertyId,
+    existing.id,
+  )
+  if (!block) return
+  throw portalError(
+    'running_rating_goal',
+    block === 'portal'
+      ? 'This portal has a running goal on private ratings. End the goal first.'
+      : 'This is the last portal collecting ratings for a running goal. End the goal first.',
+  )
+}
+
 export const updatePortal =
   (deps: UpdatePortalDeps) =>
   async (input: UpdatePortalInput, ctx: AuthContext): Promise<Portal> => {
@@ -371,6 +414,7 @@ export const updatePortal =
     const existing = await loadPortalOrThrow(deps, ctx, pid, requiredPermission(input))
 
     assertArchivedMutationIsRestore(input, existing)
+    await assertSkipSwitchAllowed(deps, ctx, input, existing)
 
     const { patch, publicationDestination } = await buildPortalPatch(
       input,

@@ -12,6 +12,7 @@ function createPortalApiStub(
     listPortalIdsByProperty: async () => [],
     listResultsLinks: async () => ({ enabled: true, rows: [] }),
     listPublicationActivationsBetween: async () => [],
+    listPortalRatingFacts: async () => [],
     listGoalReadinessFacts: async () => ({ portals: [], truncated: false }),
     getResponsibleManagerUserIds: async () => [],
     findPortalHealthNotificationFacts: async () => null,
@@ -45,6 +46,7 @@ describe('createPublicPortalLookup', () => {
       categories: [],
       links: [],
       reviewGateway: {
+        skipPrivateRating: false,
         privateFeedbackThreshold: 3,
         googleReview: {
           status: 'available' as const,

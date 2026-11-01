@@ -401,6 +401,9 @@ export const resolvePublicPortalToken =
 
     const reviewGateway = {
       privateFeedbackThreshold: configuration.reviewGateway.privateFeedbackThreshold,
+      skipPrivateRating:
+        configuration.schemaVersion === 3 &&
+        configuration.reviewGateway.skipPrivateRating === true,
       googleReview,
     }
     const exactResolvedConfiguration = {
@@ -413,7 +416,13 @@ export const resolvePublicPortalToken =
       portal: localizedPortal,
       categories,
       links,
-      reviewGateway,
+      reviewGateway:
+        configuration.schemaVersion === 3
+          ? reviewGateway
+          : {
+              privateFeedbackThreshold: reviewGateway.privateFeedbackThreshold,
+              googleReview,
+            },
       // Only a v3 publication has one, so every v1 and v2 digest is unchanged.
       ...(immersive ? { immersive } : {}),
     }

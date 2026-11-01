@@ -15,6 +15,7 @@ export const REVIEW_PORTAL: PortalData = {
   heroImageUrl: null,
   theme: { primaryColor: '#6366f1' },
   privateFeedbackThreshold: 3,
+  skipPrivateRating: false,
   publicationState: 'published',
 }
 

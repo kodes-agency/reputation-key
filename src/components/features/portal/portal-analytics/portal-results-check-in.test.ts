@@ -249,3 +249,23 @@ it('says three quiet observations in plain English', () =>
       'Guests who rated read the page mostly in English (58%), then Bulgarian (24%).',
     busiest: 'Busiest around 12–2 pm and 7–9 pm, and on Saturdays.',
   }))
+
+it('does not suggest collecting ratings on a switched Portal', () => {
+  const noRatings = { ...data, kpis: { ...data.kpis, ratings: resultsCount(0, null) } }
+  const result = portalResultsCheckIn(noRatings, { ...place, skipPrivateRating: true })
+  expect(result.happy.lines).toEqual([])
+})
+
+it('does not describe rating-first Google opens on a switched Portal', () => {
+  const switched = { ...place, skipPrivateRating: true }
+  const zero = { ...data, kpis: { ...data.kpis, googleOpens: resultsCount(0, null) } }
+  expect(portalResultsCheckIn(zero, switched).google.lines).toEqual([])
+  const history = {
+    ...data,
+    kpis: { ...data.kpis, googleOpens: resultsCount(2, null) },
+    engagementFunnel: { ...data.engagementFunnel!, ratings: 3 },
+  }
+  expect(portalResultsCheckIn(history, switched).google.lines).toEqual([
+    'We can’t see whether they posted a review.',
+  ])
+})

@@ -106,7 +106,7 @@ export type PortalGoalSheetModel = Readonly<{
   /** U-S3: how the goal counts, said before the links under the choices. */
   counts: string
   /** S-9. */
-  switchMeasure: Readonly<{ label: string; measure: PortalGoalMeasure }>
+  switchMeasure: Readonly<{ label: string; measure: PortalGoalMeasure }> | null
   /** S-10. */
   primary: Readonly<{ label: string; disabled: boolean }>
   submission: Omit<SetMonthlyPortalGoalRequest, 'propertyId'> | null
@@ -150,10 +150,11 @@ export function openingDraft(
   intent: PortalGoalSetIntent,
 ): PortalGoalSheetDraft {
   const month = intent.month ?? facts.month
+  const measure = facts.ratingsAvailable === false ? 'qualified_scans' : intent.measure
   return {
     month,
-    measure: intent.measure,
-    text: recommendedText(offerFor(facts, month, intent.measure)),
+    measure,
+    text: recommendedText(offerFor(facts, month, measure)),
     ...(intent.month === undefined ? {} : { only: intent.month }),
   }
 }
@@ -312,7 +313,10 @@ export function portalGoalSheetModel(
     asksEveryGuest: measure === RATINGS,
     offer,
     counts: countsLine(measure),
-    switchMeasure: switchOf(measure),
+    switchMeasure:
+      measure === 'qualified_scans' && facts.ratingsAvailable === false
+        ? null
+        : switchOf(measure),
     primary: primaryOf(measure, month, value),
     submission:
       value === null

@@ -465,6 +465,7 @@ export async function readPortalWorkingCopyWithLook(
       propertyId: portal.propertyId,
       portal: { id: portal.id, name: portal.name, slug: portal.slug },
       privateFeedbackThreshold: portal.privateFeedbackThreshold,
+      skipPrivateRating: portal.skipPrivateRating,
       primaryGuestLocale,
       localeSet,
       linktreeEnabled: portal.linktreeEnabled,

@@ -42,6 +42,7 @@ const SETTING_ACTION: Readonly<Record<string, string>> = {
   hero_image: 'changed the hero photo',
   theme: 'changed the colours',
   feedback_threshold: 'changed the private feedback threshold',
+  skip_private_rating: 'changed whether the portal skips the private rating',
   primary_language: 'changed the main language',
   additional_languages: 'changed the languages',
 }

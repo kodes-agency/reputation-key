@@ -10,8 +10,8 @@ import { ArrowUpRightIcon, InfoIcon } from './immersive-icons'
  *
  * ADR 0044, anti-gating: it takes no rating, no threshold and no note state,
  * so the card is the same markup, in the same place, with the same words and
- * the same prominence after every rating. It is the one card the page always
- * shows after a rating.
+ * the same prominence after every rating. A published direct Portal also
+ * shows it from arrival, with its optional direct body line.
  */
 export function ImmersiveGoogleCard({
   pack,
@@ -20,7 +20,9 @@ export function ImmersiveGoogleCard({
   pending,
   openFailed,
   onOpen,
+  direct = false,
 }: Readonly<{
+  direct?: boolean
   pack: GuestPortalCopyV2
   displayName: string
   available: boolean
@@ -62,7 +64,9 @@ export function ImmersiveGoogleCard({
       <h2 id={`${id}-title`} className="ih-display ih-card-title">
         {pack.copy.googleTitle}
       </h2>
-      <p className="ih-card-body">{pack.copy.googleBody}</p>
+      <p className="ih-card-body">
+        {direct ? pack.copy.googleDirectBody : pack.copy.googleBody}
+      </p>
       <button
         type="button"
         className="ih-button ih-button--primary"

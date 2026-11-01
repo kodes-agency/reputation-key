@@ -297,7 +297,10 @@ export function portalGoalChangeModel(
     asksEveryGuest: measure === 'portal_rating_count',
     offer,
     counts: countsLine(measure),
-    switchMeasure: switchOf(measure),
+    switchMeasure:
+      measure === 'qualified_scans' && context.facts.ratingsAvailable === false
+        ? null
+        : switchOf(measure),
     primary: ready
       ? { label: `Set ${count} ${verb}`, disabled: false }
       : { label: value === null ? 'Set goal' : `Set ${count} ${verb}`, disabled: true },

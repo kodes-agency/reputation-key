@@ -311,6 +311,10 @@ function buildContainer(
   })
 
   const portal = buildPortalContext({
+    ratingGoalGuard: {
+      findRunningRatingGoalBlock: (...args) =>
+        reporting.publicApi.findPortalRatingGoalBlock(...args),
+    },
     db,
     outboxRepo,
     clock,

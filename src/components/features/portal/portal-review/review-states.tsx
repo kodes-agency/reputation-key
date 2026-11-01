@@ -32,7 +32,10 @@ type Props = Readonly<{
 export function ReviewStates({ data, view, onViewChange, languageCount }: Props) {
   if (data.status !== 'ready') return null
   const { preview, experience, copy, locale } = data
-  const options = previewStateOptions(preview.privateFeedbackThreshold)
+  const options = previewStateOptions(
+    preview.privateFeedbackThreshold,
+    preview.skipPrivateRating,
+  )
   const active = view.kind === 'state' ? view.id : null
   return (
     <Collapsible>
@@ -48,7 +51,7 @@ export function ReviewStates({ data, view, onViewChange, languageCount }: Props)
           />
           <span className="font-medium">See every guest state</span>
           <span className="min-w-0 whitespace-normal text-xs text-muted-foreground">
-            {describeStatesSummary(languageCount)}
+            {describeStatesSummary(languageCount, preview.skipPrivateRating)}
           </span>
         </Button>
       </CollapsibleTrigger>
@@ -78,7 +81,7 @@ export function ReviewStates({ data, view, onViewChange, languageCount }: Props)
             />
           )}
         />
-        {view.kind === 'pair' ? null : (
+        {view.kind === 'pair' || preview.skipPrivateRating ? null : (
           <BackButton
             label="Back to the 1★ and 5★ pair"
             onClick={() => onViewChange({ kind: 'pair' })}

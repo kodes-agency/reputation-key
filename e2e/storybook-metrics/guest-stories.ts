@@ -64,6 +64,7 @@ export const MEASURED_GUEST_STORIES: ReadonlyArray<string> = [
   'features-guest-immersiveshell--hero-is-bounded-on-a-desktop',
   'features-guest-immersiveshell--no-photo-page-does-not-grow',
   // Features/Guest/ImmersiveResponse
+  'features-guest-immersiveresponse--direct-google',
   'features-guest-immersiveresponse--g-03-rating-chosen',
   'features-guest-immersiveresponse--keyboard-chooses-a-star',
   'features-guest-immersiveresponse--asks-for-a-rating',

@@ -35,6 +35,7 @@ const LIVE_INTERVAL_LOOKBACK_MS = 60 * 24 * 60 * 60 * 1000
 type GoalReadinessFact = Readonly<{
   portalId: PortalId
   name: string
+  skipPrivateRating: boolean
   /**
    * The Portal's stored state. `published` does not by itself mean live: an
    * Organization closing closes the activation and keeps the state, and a guest
@@ -107,6 +108,7 @@ export const createGoalReadinessFacts = (deps: GoalReadinessFactsDeps) => ({
         return {
           portalId: portal.id,
           name: portal.name,
+          skipPrivateRating: portal.skipPrivateRating,
           publicationState: portal.publicationState,
           liveSince: liveRunStart(own),
           liveIntervals: liveIntervals(own, since, asOf),

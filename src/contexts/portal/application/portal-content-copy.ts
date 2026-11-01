@@ -57,7 +57,11 @@ export type PortalCopySource = Readonly<{
 /** The Portal fields a copy carries into `buildPortal`. */
 export type CopiedPortalSettings = Pick<
   Portal,
-  'description' | 'privateFeedbackThreshold' | 'linktreeEnabled' | 'theme'
+  | 'description'
+  | 'privateFeedbackThreshold'
+  | 'skipPrivateRating'
+  | 'linktreeEnabled'
+  | 'theme'
 >
 
 export type PortalContentCopyPlan = Readonly<{
@@ -215,10 +219,22 @@ function copyLinksAndTexts(
 
 export function planPortalContentCopy(input: PlanInput): PortalContentCopyPlan {
   const { source, target, idGen } = input
-  const { description, privateFeedbackThreshold, linktreeEnabled, theme } = source.portal
+  const {
+    description,
+    privateFeedbackThreshold,
+    skipPrivateRating,
+    linktreeEnabled,
+    theme,
+  } = source.portal
   const offered = targetLocaleList(target.locales)
   return {
-    settings: { description, privateFeedbackThreshold, linktreeEnabled, theme },
+    settings: {
+      description,
+      privateFeedbackThreshold,
+      skipPrivateRating,
+      linktreeEnabled,
+      theme,
+    },
     content: {
       sourcePortalId: source.portal.id,
       overrides: copyOverrides(source, offered, idGen),

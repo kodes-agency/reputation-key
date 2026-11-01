@@ -33,6 +33,7 @@ type Props = Readonly<{
    */
   publicationState?: PortalPublicationState
   pageIsLive?: boolean
+  skipPrivateRating?: boolean
   /**
    * The live code's scans are counted. Left out, they are taken to be; a code
    * that predates scan counting has its scans shown as a dash with the reason.
@@ -90,6 +91,7 @@ function ResultsBody({
   propertyId,
   getPortalAnalytics,
   pageIsLive = true,
+  skipPrivateRating = false,
   publicationState,
   scansCounted = true,
   holding = false,
@@ -151,6 +153,7 @@ function ResultsBody({
         propertyId,
         portalId,
         isLive: pageIsLive,
+        skipPrivateRating,
         publicationState,
         scansCounted,
         // The link opens the manager Inbox, whose route refuses anyone without this.

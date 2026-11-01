@@ -242,6 +242,7 @@ function PublicPortalView({
         selectedLocale={data.localization.selectedLocale}
         availableLocales={data.localization.availableLocales}
         googleReview={data.reviewGateway.googleReview}
+        skipPrivateRating={data.reviewGateway.skipPrivateRating}
         csrfNonce={csrfNonce}
         initialResponse={data.response}
         availability={formAvailability[data.responseForm.availability]}

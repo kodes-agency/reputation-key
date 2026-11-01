@@ -454,8 +454,20 @@ export function recommendPortalGoal(
     const state = measureState(spoiled.measures.has(measure), rate)
     return measureRecommendation(state, rate, months, month[measure])
   })
+  const published = input.portals.filter(
+    (portal) => portal.publicationState === 'published',
+  )
+  const candidates = published.length > 0 ? published : input.portals
+  const ratingsAvailable =
+    input.truncated ||
+    candidates.length === 0 ||
+    candidates.some((portal) => portal.skipPrivateRating !== true)
   const state = recommendationState(
-    perMeasure((measure) => measures[measure].state),
+    perMeasure((measure) =>
+      measure === 'portal_rating_count' && !ratingsAvailable
+        ? 'nothing'
+        : measures[measure].state,
+    ),
     bases.some((basis) => basis.live),
     established.length > 0,
   )
@@ -464,7 +476,11 @@ export function recommendPortalGoal(
     timezone,
     window: { firstDay: window.firstDay, lastDay: window.lastDay },
     state,
-    defaultMeasure: state === 'scans_only' ? 'qualified_scans' : 'portal_rating_count',
+    ratingsAvailable,
+    defaultMeasure:
+      state === 'scans_only' || !ratingsAvailable
+        ? 'qualified_scans'
+        : 'portal_rating_count',
     defaultMonthKey: defaultGoalStartMonth(now, timezone),
     readyOn: state === 'getting_ready' ? readyOnOf(bases, window.today) : null,
     basis: basisOf(established.map(({ facts }) => facts)),

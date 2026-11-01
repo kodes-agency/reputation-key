@@ -27,6 +27,7 @@ export function ImmersiveAfterRating({
   response,
   rating,
   googleReviewAvailable,
+  skipPrivateRating,
   pending = false,
   failure = null,
   noteDraft,
@@ -69,11 +70,13 @@ export function ImmersiveAfterRating({
         pack={pack}
         displayName={displayName}
         available={googleReviewAvailable}
+        direct={skipPrivateRating}
         pending={pending}
         openFailed={failure === 'google'}
         onOpen={onGoogleReview}
       />
-      {(response.privateFeedbackEligible || response.hasPrivateFeedback) && (
+      {(response.hasPrivateFeedback ||
+        (response.privateFeedbackEligible && !skipPrivateRating)) && (
         <ImmersiveNoteCard
           pack={pack}
           displayName={displayName}

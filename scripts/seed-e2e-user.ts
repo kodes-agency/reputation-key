@@ -8,6 +8,14 @@
 //   DATABASE_URL=... BETTER_AUTH_SECRET=... PORTAL_TOKEN_HASH_SECRET=... \
 //     pnpm exec tsx scripts/seed-e2e-user.ts
 
+import {
+  DIRECT_PORTAL_FIXTURE,
+  E2E_PORTAL_IDS,
+  P1_PORTAL_FIXTURE,
+  P2_PORTAL_FIXTURE,
+  P3_PORTAL_FIXTURE,
+  type PortalFixture,
+} from './local/e2e-portal-fixtures'
 import 'dotenv/config'
 import { mkdirSync, writeFileSync } from 'node:fs'
 import { homedir } from 'node:os'
@@ -122,15 +130,10 @@ const LOCKED_ORG_ID = 'e2e-locked-org-b'
 const FIXTURE_AT = new Date('2026-08-01T12:00:00.000Z')
 
 const IDS = {
+  ...E2E_PORTAL_IDS,
   p1: '11111111-1111-4111-8111-111111111111',
   p2: '22222222-2222-4222-8222-222222222222',
   p3: '33333333-3333-4333-8333-333333333333',
-  p1Portal: '11111111-1111-4111-9111-111111111111',
-  p2Portal: '22222222-2222-4222-9222-222222222222',
-  p3Portal: '33333333-3333-4333-9333-333333333333',
-  p1PortalToken: '11111111-1111-4111-a111-111111111111',
-  p2PortalToken: '22222222-2222-4222-a222-222222222222',
-  p3PortalToken: '33333333-3333-4333-a333-333333333333',
   p1Category: '11111111-1111-4111-b111-111111111111',
   p1Link: '11111111-1111-4111-8111-111111111119',
   p1LinkDestination: '11111111-1111-4111-8111-111111111154',
@@ -164,15 +167,6 @@ const BOUNDED_PROPERTIES = Array.from({ length: 7 }, (_, index) => ({
 const seedStatePath = resolve(process.cwd(), 'e2e/.seed-state.json')
 
 type PropertyFixture = Readonly<{ id: string; name: string; slug: string }>
-type PortalFixture = Readonly<{
-  id: string
-  tokenId: string
-  snapshotId: string
-  activationId: string
-  name: string
-  slug: string
-  tokenByte: number
-}>
 
 // Typed against the consumer's contract: a key the specs require but the seed
 // forgets to emit is a compile error here, not an `undefined` read at runtime.
@@ -279,36 +273,6 @@ async function ensureProperty(
 // Named so that ensurePortal and publishPortalSnapshot cannot drift apart: the
 // publish step runs later, in a separate call, and would silently target the
 // wrong snapshot id if these were restated at either site.
-const P1_PORTAL_FIXTURE: PortalFixture = {
-  id: IDS.p1Portal,
-  tokenId: IDS.p1PortalToken,
-  snapshotId: '11111111-1111-4111-a111-111111111111',
-  activationId: '11111111-1111-4111-b111-111111111111',
-  name: 'E2E Guest Portal P1',
-  slug: 'e2e-guest-portal-p1',
-  tokenByte: 0x11,
-}
-
-const P2_PORTAL_FIXTURE: PortalFixture = {
-  id: IDS.p2Portal,
-  tokenId: IDS.p2PortalToken,
-  snapshotId: '22222222-2222-4222-a222-222222222222',
-  activationId: '22222222-2222-4222-b222-222222222222',
-  name: 'E2E Guest Portal P2',
-  slug: 'e2e-guest-portal-p2',
-  tokenByte: 0x22,
-}
-
-const P3_PORTAL_FIXTURE: PortalFixture = {
-  id: IDS.p3Portal,
-  tokenId: IDS.p3PortalToken,
-  snapshotId: '33333333-3333-4333-a333-333333333333',
-  activationId: '33333333-3333-4333-b333-333333333333',
-  name: 'E2E Guest Portal P3',
-  slug: 'e2e-guest-portal-p3',
-  tokenByte: 0x33,
-}
-
 async function ensurePortal(
   organizationId: string,
   propertyId: string,
@@ -326,6 +290,7 @@ async function ensurePortal(
       name: fixture.name,
       slug: fixture.slug,
       description: 'Published Portal fixture for local beta acceptance.',
+      skipPrivateRating: fixture.skipPrivateRating ?? false,
       theme: { primaryColor: '#6366F1' },
       publicationState: 'published',
       // Explicit, and therefore MILLISECOND precision. updated_at is the
@@ -342,6 +307,7 @@ async function ensurePortal(
       set: {
         name: fixture.name,
         description: 'Published Portal fixture for local beta acceptance.',
+        skipPrivateRating: fixture.skipPrivateRating ?? false,
         theme: { primaryColor: '#6366F1' },
         publicationState: 'published',
         deletedAt: null,
@@ -497,6 +463,7 @@ async function publishPortalSnapshot(input: {
       propertyId,
       portal: { id: fixture.id, name: fixture.name, slug: fixture.slug },
       privateFeedbackThreshold: 3,
+      skipPrivateRating: fixture.skipPrivateRating ?? false,
       // Every offered guest locale, because the cross-browser gate proves the
       // Bulgarian, German and French contracts render and reflow. A snapshot
       // published with `en` alone makes `?locale=bg` fall back to English:
@@ -1263,6 +1230,26 @@ async function main(): Promise<void> {
   const p1Portal = await ensurePortal(orgAId, p1Id, P1_PORTAL_FIXTURE)
   const p2Portal = await ensurePortal(orgAId, p2Id, P2_PORTAL_FIXTURE)
   const p3Portal = await ensurePortal(LOCKED_ORG_ID, p3Id, P3_PORTAL_FIXTURE)
+  const directPropertyId = boundedIds[6]
+  if (!directPropertyId)
+    throw new Error('Direct Google fixture needs its bounded Property')
+  const directPortal = await ensurePortal(orgAId, directPropertyId, DIRECT_PORTAL_FIXTURE)
+  await ensureResponsibleManagers({
+    organizationId: orgAId,
+    propertyId: directPropertyId,
+    portalId: directPortal.portalId,
+    userId: managerUserId,
+  })
+  await ensurePortalHealthy({
+    organizationId: orgAId,
+    propertyId: directPropertyId,
+    portalId: directPortal.portalId,
+  })
+  await publishPortalSnapshot({
+    organizationId: orgAId,
+    propertyId: directPropertyId,
+    fixture: DIRECT_PORTAL_FIXTURE,
+  })
 
   await ensurePortalFixtures(orgAId, p1Id, managerUserId)
 
@@ -1384,6 +1371,8 @@ async function main(): Promise<void> {
     p2PortalToken: p2Portal.portalToken,
     p3PortalId: p3Portal.portalId,
     p3PortalToken: p3Portal.portalToken,
+    directPortalId: directPortal.portalId,
+    directPortalToken: directPortal.portalToken,
     portalGroupId: IDS.p1Group,
     portalLinkId: IDS.p1Link,
     managerParticipationId: IDS.managerParticipation,

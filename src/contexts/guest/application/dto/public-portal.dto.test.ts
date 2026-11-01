@@ -22,6 +22,7 @@ const portal: PublicPortalData = {
     },
   ],
   reviewGateway: {
+    skipPrivateRating: false,
     privateFeedbackThreshold: 3,
     googleReview: {
       status: 'available',
@@ -164,6 +165,7 @@ describe('public Portal loader projection', () => {
       {
         ...portal,
         reviewGateway: {
+          skipPrivateRating: false,
           privateFeedbackThreshold: 3,
           googleReview: { status: 'unavailable' },
         },

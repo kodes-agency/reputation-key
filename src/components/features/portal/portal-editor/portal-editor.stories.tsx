@@ -491,7 +491,11 @@ export const PrivateNoteThreshold: Story = {
     await waitFor(
       () =>
         expect(args.resources.autosaveUpdateMutation).toHaveBeenCalledWith({
-          data: { portalId: 'p-1', privateFeedbackThreshold: 2 },
+          data: {
+            portalId: 'p-1',
+            privateFeedbackThreshold: 2,
+            skipPrivateRating: false,
+          },
         }),
       AUTOSAVE_WAIT,
     )
@@ -726,5 +730,22 @@ export const UnsavedResponsibleTicksAskBeforeLeaving: Story = {
     await expect(
       canvas.getByRole('checkbox', { name: /Elena Petrova/ }),
     ).not.toBeChecked()
+  },
+}
+
+export const SkipsPrivateRating: Story = {
+  args: {
+    ...PrivateNoteThreshold.args,
+    resources: {
+      ...makeResources(action(async () => undefined)),
+      portal: { ...portal, skipPrivateRating: true },
+    },
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    await expect(
+      canvas.getByRole('switch', { name: 'Skip the private rating' }),
+    ).toBeChecked()
+    expect(canvas.queryByRole('combobox', { name: 'Offer a private note at' })).toBeNull()
   },
 }

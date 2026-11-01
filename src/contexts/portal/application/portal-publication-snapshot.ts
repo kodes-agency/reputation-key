@@ -164,6 +164,7 @@ export function buildPortalPublicationSnapshot(
     ...content,
     reviewGateway: {
       privateFeedbackThreshold: input.source.privateFeedbackThreshold,
+      ...(input.source.skipPrivateRating === true ? { skipPrivateRating: true } : {}),
       googleReview: { status: 'available', uri: input.destination.uri },
     },
     googleReviewBinding: {

@@ -24,13 +24,13 @@ and the separately consented but inactive Contact Request backend.
 
 ## Model
 
-A response begins with a required private rating. Every rating first offers the
+A response begins with a private rating when the published Portal collects one. Every rating first offers the
 same Google Review Action; eligible private feedback is additive. Each response
 binds the exact Portal snapshot/configuration/locale evidence observed by the
 Guest. Corrections and withdrawals are append-only and source-addressed.
 
 The Immersive Hub (snapshot schema v3) shows the Linktree from arrival, below the
-rating card, which stays first and dominant (ADR 0044, amendment 2026-10-01).
+rating card or the direct Google card (ADR 0044, amendments 2026-10-01 and 2026-11-02).
 Every tap is a Qualified Link Action, before or after a rating (amendment 2026-11-01):
 the origin-, CSRF- and session-bound POST counts it once per session per link, within
 the existing network limits. Every tile navigates natively through the navigation-only
@@ -149,6 +149,18 @@ may expose it to a manager.
 
 Cleanup remains live even while `portal.guest_contact` is hard-blocked; it cannot submit, read, reveal, or withdraw a request.
 Organization closure waits for Guest outbox publication before scrubbing guest-authored values.
+
+## Published direct Google journey
+
+Schema version 3 may publish reviewGateway.skipPrivateRating (off by default;
+absent in older snapshots reads false). With Google available and no existing
+response, the same Google card leads the page without stars, a note or “Your
+response”. Its body uses googleDirectBody in all six packs; the card takes no
+rating. An unrated signed session can open Google through the same checks,
+limiter and once-per-session receipt. New ratings and notes are refused while
+this published mode is available. Google unavailable restores the rating path.
+Existing responses keep the normal view, correction and withdrawal. Scans and
+Linktree taps are unchanged. Legacy schema versions 1 and 2 ignore the switch.
 
 ## Invariants
 

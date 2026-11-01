@@ -38,6 +38,7 @@ describe('createPortal', () => {
     expect(portal.entityType).toBe('property')
     expect(portal.entityId).toBe(portal.propertyId)
     expect(portal.privateFeedbackThreshold).toBe(3)
+    expect(portal.skipPrivateRating).toBe(false)
     expect(portal.createdBy).toBe(ctx.userId)
     expect(portal.responsibilityNeededSince).toBeNull()
     expect(portalRepo.all()).toHaveLength(1)
@@ -54,6 +55,7 @@ describe('createPortal', () => {
         propertyId: 'a0000000-0000-0000-0000-000000000001',
         theme: { primaryColor: '#FF5500' },
         privateFeedbackThreshold: 4,
+        skipPrivateRating: true,
       },
       ctx,
     )
@@ -62,6 +64,7 @@ describe('createPortal', () => {
     expect(portal.theme.primaryColor).toBe('#FF5500')
     expect(portal.publicationState).toBe('draft')
     expect(portal.privateFeedbackThreshold).toBe(4)
+    expect(portal.skipPrivateRating).toBe(true)
   })
 
   it('rejects users who cannot create portals', async () => {

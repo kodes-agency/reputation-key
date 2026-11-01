@@ -11,3 +11,7 @@ describe('describeStatesSummary', () => {
     )
   })
 })
+
+it('offers a direct Google preview without rating-state words', () => {
+  expect(describeStatesSummary(6, true)).toBe('Google review · in 6 languages')
+})

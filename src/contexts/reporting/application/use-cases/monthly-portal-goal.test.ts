@@ -308,14 +308,34 @@ describe('setMonthlyPortalGoal', () => {
     expect(created(deps)?.targetSource).toBe('own')
   })
 
-  it('records own as told, without reading the recommendation', async () => {
+  it('records own as told while checking rating eligibility', async () => {
     const { deps } = fakeWorld()
 
     await setMonthlyPortalGoal(deps, { ...NOVEMBER_40, targetSource: 'own' }, actor)
 
     expect(created(deps)?.targetSource).toBe('own')
-    expect(deps.recommendation.facts.listPortalReadiness).not.toHaveBeenCalled()
+    expect(deps.recommendation.facts.listPortalReadiness).toHaveBeenCalled()
+    expect(deps.recommendation.facts.readDailyCounts).not.toHaveBeenCalled()
   })
+
+  it.each(['own', 'recommended'] as const)(
+    'refuses %s rating targets when only unpublished siblings still collect ratings',
+    async (targetSource) => {
+      const { deps } = fakeWorld()
+      deps.recommendation.facts.listPortalReadiness.mockResolvedValue({
+        portals: [
+          { ...portal('Reception', '2026-10-09'), skipPrivateRating: true },
+          { ...portal('Restaurant', '2026-10-09'), publicationState: 'draft' },
+        ],
+        truncated: false,
+      })
+
+      await expect(
+        setMonthlyPortalGoal(deps, { ...NOVEMBER_40, targetSource }, actor),
+      ).rejects.toMatchObject({ code: 'private_ratings_skipped' })
+      expect(deps.programs.create).not.toHaveBeenCalled()
+    },
+  )
 
   it('a refused actor reads and writes nothing', async () => {
     const { deps, calls } = fakeWorld()

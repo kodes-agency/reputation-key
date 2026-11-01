@@ -4,7 +4,7 @@
 
 ## Responsibility
 
-Property-owned public review gateways. The private rating-first → Google Review
+Property-owned public review gateways. The private rating or direct Google Review
 Action journey is primary; optional secondary links are a subordinate link tree.
 The context also owns publication lifecycle, Portal Groups, responsible-manager
 assignment, and governed access artifacts.
@@ -34,7 +34,7 @@ assignment, and governed access artifacts.
 ## Model
 
 A Portal is Property-owned and may contain ordered secondary-link categories. A
-Portal Publication Snapshot is the immutable, manager-approved rating-first
+Portal Publication Snapshot is the immutable, manager-approved guest
 experience. Editing the working copy never mutates an active snapshot.
 Publishing writes schema version 3 (the Immersive Hub) only, from a publication
 source that `resolvePortalPublication` turns into the snapshot's content: the
@@ -1198,3 +1198,22 @@ contracts. PostgreSQL integration tests cover command atomicity, revision fences
 public resolution, lifecycle contributors, and the POR-01 read-only reconciliation.
 The build and architecture tests pin public surfaces, worker reachability, and the
 read-only repository boundary.
+
+## Skip the private rating (2026-11-02)
+
+A Portal's skipPrivateRating setting defaults to false, is copied with its
+content, and is saved under portal.update above the Private note threshold.
+It is a pending page-settings edit until Review & publish writes it into the
+schema-3 review gateway only when true. Absence means false, so switched-off
+publications keep their existing bytes and digest. Older schema-3 snapshots
+read a missing field as false without changing their digest; versions 1 and 2 ignore it. Guest owns the
+direct card and server admission, including the Google-unavailable fallback
+and earlier responses' correction and withdrawal.
+
+The overview says “Skips rating”, and Results keeps history with a quiet
+explanation that no new ratings or notes are collected once the setting is
+published. Goal readiness facts carry the setting to Reporting. Portal asks an injected rating-goal port before
+turning it on and refuses while a running rating goal targets that Portal, or
+when it is the last rating collector for a running Group or Property rating
+goal (only published Portals count for the Property check);
+it imports no Reporting implementation.

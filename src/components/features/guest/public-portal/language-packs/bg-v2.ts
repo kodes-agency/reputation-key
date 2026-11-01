@@ -55,6 +55,7 @@ export const bgV2 = defineGuestCopyV2({
     ratingUpdated: 'Оценката ви беше променена.',
 
     googleTitle: 'Споделете преживяването си в Google',
+    googleDirectBody: 'Ако желаете, можете да оставите публичен отзив в Google.',
     googleBody: 'Ако желаете, можете да оставите и публичен отзив в Google.',
     googleAction: 'Продължи към Google',
     googleOpensLabel: '(отваря Google)',

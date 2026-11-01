@@ -1,3 +1,4 @@
+import { findPortalRatingGoalBlock } from './application/running-portal-rating-goal'
 import { getPortalLinkTaps } from './application/use-cases/get-portal-link-taps'
 // Reporting context — one composition root for governed metrics, Goal Programs,
 // and dashboard read models.
@@ -24,7 +25,7 @@ import type {
   ReviewServingStats,
 } from '#/contexts/review/application/public-api'
 import type { InboxPublicApi } from '#/contexts/inbox/application/public-api'
-import type { MetricPublicApi } from './application/public-api'
+import type { MetricPublicApi, PortalRatingGoalReadApi } from './application/public-api'
 
 import { createMetricRepository } from './infrastructure/repositories/metric.repository'
 import { createMetricRegistryRepository } from './infrastructure/repositories/metric-registry.repository'
@@ -528,9 +529,27 @@ function buildGoalModule(input: ReportingContextBuildInput, metricApi: MetricPub
     portalGoalSingle,
   })
 
+  const portalRatingGoalRead: PortalRatingGoalReadApi = {
+    findPortalRatingGoalBlock: async (
+      organizationId: string,
+      propertyId: string,
+      portalId: string,
+    ) => {
+      const programs = await goalProgramRepo.list(organizationId, propertyId)
+      return findPortalRatingGoalBlock(programs, portalId, input.clock(), (subject) =>
+        input.portalApi.listPortalRatingFacts(
+          toOrganizationId(organizationId),
+          toPropertyId(propertyId),
+          subject,
+        ),
+      )
+    },
+  }
+
   return {
     publicApi: {
       programs,
+      ...portalRatingGoalRead,
       findMonthlyResultNotificationFacts:
         monthlyResultNotificationFacts.findMonthlyResultNotificationFacts,
       findMonthlyResultRevisionNotificationFacts:

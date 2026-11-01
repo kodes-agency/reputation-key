@@ -11,6 +11,7 @@ export const updatePortalInputSchema = z
     slug: z.string().min(2, 'Must be at least 2 characters').max(64).optional(),
     description: z.string().max(500).nullable().optional(),
     privateFeedbackThreshold: z.number().int().min(1).max(5).optional(),
+    skipPrivateRating: z.boolean().optional(),
     // Only removal is client-controlled. Non-null URLs are published solely by
     // the issuance-bound derivative worker.
     heroImageUrl: z.null().optional(),

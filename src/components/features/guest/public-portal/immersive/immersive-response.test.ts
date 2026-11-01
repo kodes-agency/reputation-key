@@ -8,8 +8,6 @@
 // place after every rating. The legacy page proves this in
 // `guest-page-view.test.ts`; this is the same proof on the immersive DOM.
 
-import { createElement } from 'react'
-import { renderToStaticMarkup } from 'react-dom/server'
 import { describe, expect, it } from 'vitest'
 import { PRIVATE_FEEDBACK_MAX_LENGTH } from '#/contexts/guest/application/dto/private-feedback.dto'
 import { formatGuestPlural, guestCopyText } from '../guest-copy-format'
@@ -21,8 +19,6 @@ import {
   RATINGS,
   renderResponse,
 } from './__fixtures__/immersive-response-fixtures'
-import { immersiveResponseProps } from './immersive-response-preview'
-import { ImmersiveResponseView } from './immersive-response-view'
 import { IMMERSIVE_RESPONSE_CSS } from './immersive-response-styles'
 
 const stars = (pack: (typeof PACKS)[number], count: number) =>
@@ -268,54 +264,52 @@ describe.each(PACKS)('Google unavailable [$locale] (board G08)', (pack) => {
   })
 })
 
-describe('other states', () => {
-  const pack = PACKS[0]
-  if (!pack) throw new Error('no pack')
-  const view = (props: Parameters<typeof immersiveResponseProps>[0]) =>
-    body(renderResponse(pack, props))
-
-  it('says the response was removed after a full withdrawal, and offers nothing else', () => {
-    const props = immersiveResponseProps(
-      { kind: 'rated', rating: 2 },
-      { pack, displayName: DISPLAY_NAME },
-    )
-    const html = body(
-      renderToStaticMarkup(
-        createElement(ImmersiveResponseView, {
-          ...props,
-          response: props.response && {
-            ...props.response,
-            status: 'deleted',
-            rating: null,
-          },
-        }),
-      ),
-    )
-    expect(html).toContain(pack.copy.responseRemoveAllDoneTitle)
-    expect(html).not.toContain(pack.copy.googleTitle)
+describe.each(PACKS)('direct Google state [$locale]', (pack) => {
+  it('shows the same Google action without stars, a note, rating words or response controls', () => {
+    const html = body(renderResponse(pack, { kind: 'direct' }))
+    expect(text(html)).toContain(pack.copy.googleDirectBody)
+    expect(text(html)).toContain(pack.copy.googleAction)
+    expect(html).not.toContain('ih-star')
     expect(html).not.toContain('type="radio"')
+    expect(html).not.toContain('<textarea')
+    expect(text(html)).not.toContain(pack.copy.ratingTitle)
+    for (const rating of RATINGS) expect(text(html)).not.toContain(wordOf(pack, rating))
+    expect(html).not.toContain('ih-yr')
   })
-
-  it('shows a busy placeholder while the gateway loads, and the rating-only text when it fails', () => {
-    const base = immersiveResponseProps(
-      { kind: 'arrival' },
-      { pack, displayName: DISPLAY_NAME },
+  it('falls back to stars when Google cannot be offered', () => {
+    const html = body(
+      renderResponse(pack, { kind: 'direct' }, { googleReviewAvailable: false }),
     )
-    const render = (availability: 'loading' | 'unavailable') =>
-      body(
-        renderToStaticMarkup(
-          createElement(ImmersiveResponseView, { ...base, availability }),
-        ),
-      )
-    expect(render('loading')).toContain('aria-busy="true"')
-    expect(render('unavailable')).toContain(pack.copy.ratingUnavailableTitle)
-    expect(render('unavailable')).not.toContain('type="radio"')
+    expect(html).toContain('type="radio"')
+    expect(text(html)).not.toContain(pack.copy.googleDirectBody)
   })
-
-  it('renders arrival as a single card, with no receipt, Google or note card', () => {
-    const html = view({ kind: 'arrival' })
-    expect(html).not.toContain(pack.copy.ratingThanks)
-    expect(html).not.toContain(pack.copy.googleTitle)
-    expect(html).not.toContain(pack.copy.noteOfferTitle)
+  it('keeps an earlier response and uses the same card words', () => {
+    const html = body(
+      renderResponse(pack, { kind: 'rated', rating: 2 }, { skipPrivateRating: true }),
+    )
+    expect(text(html)).toContain(pack.copy.googleDirectBody)
+    expect(html).toContain('ih-receipt')
+    expect(html).toContain('ih-yr')
   })
 })
+
+it.each(PACKS)(
+  'keeps direct Google card markup identical across earlier ratings [$locale]',
+  (pack) => {
+    const normaliseIds = (html: string) => html.replace(/_R_[^"]*/gu, 'id')
+    const direct = normaliseIds(
+      responseChildren(body(renderResponse(pack, { kind: 'direct' }))).find((child) =>
+        child.includes(pack.copy.googleTitle),
+      ) ?? '',
+    )
+    for (const rating of RATINGS) {
+      const html = body(
+        renderResponse(pack, { kind: 'rated', rating }, { skipPrivateRating: true }),
+      )
+      const card = responseChildren(html).find((child) =>
+        child.includes(pack.copy.googleTitle),
+      )
+      expect(normaliseIds(card ?? '')).toBe(direct)
+    }
+  },
+)

@@ -162,6 +162,7 @@ describe('listPortalOverview', () => {
         propertyId: PROPERTY_A,
         name: 'Pool side',
         slug: 'pool-side',
+        skipPrivateRating: false,
         publicationState: 'published',
         primaryGuestLocale: 'en',
         additionalGuestLocales: ['bg', 'de'],

@@ -57,6 +57,7 @@ export function PortalMetaLine({
   return (
     <p className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
       <span>{item.channel}</span>
+      {item.row.skipPrivateRating ? <span>Skips rating</span> : null}
       <PortalLocaleChips locales={item.locales} />
       {showGroup && groupName ? <span>· {groupName}</span> : null}
     </p>
