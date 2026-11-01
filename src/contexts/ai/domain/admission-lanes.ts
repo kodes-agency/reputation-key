@@ -53,12 +53,14 @@ export const AI_PROVIDER_ACCOUNT_LIMITS_PER_MINUTE = Object.freeze({
  * of either account limit. Half of the token limit is 126 analyses a minute, so
  * the global background lane admits 125. One property may use its
  * organization's whole background budget, so a single import runs as fast as
- * the account allows.
+ * the account allows. The interactive lane is sized against a manager: a draft
+ * takes about ten seconds, so Draft, Shorter, Tone and Try again straight through
+ * ask for six a minute, and that must never read as other requests being busy.
  */
 export const AI_ADMISSION_RATE_PER_MINUTE: ScopeBudget = Object.freeze({
-  global: Object.freeze({ interactive: 8, background: 125 }),
-  organization: Object.freeze({ interactive: 4, background: 120 }),
-  property: Object.freeze({ interactive: 3, background: 120 }),
+  global: Object.freeze({ interactive: 24, background: 125 }),
+  organization: Object.freeze({ interactive: 12, background: 120 }),
+  property: Object.freeze({ interactive: 6, background: 120 }),
 })
 
 /**

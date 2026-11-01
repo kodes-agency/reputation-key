@@ -56,6 +56,7 @@ export async function rewriteReplyDraftingV2<Result>(
     release: () => Promise<void>
     execute: (attempt: ReplyDraftingV2Attempt, idempotencyKey: string) => Promise<Result>
     refused: Result
+    isBusy: (result: Result) => boolean
   }>,
 ): Promise<Result> {
   const { attempt, issues } = input
@@ -63,7 +64,7 @@ export async function rewriteReplyDraftingV2<Result>(
   const deadline = attempt.logicalDeadlineEpochMillis ?? input.nowEpochMillis + 150_000
   if (input.nowEpochMillis >= deadline || !(await input.recheck())) return input.refused
   await input.release()
-  return input.execute(
+  const rewritten = await input.execute(
     {
       parentOperationId: input.operationId,
       rewriteOrdinal: 1,
@@ -72,6 +73,9 @@ export async function rewriteReplyDraftingV2<Result>(
     },
     aiRequestFingerprint({ parentOperationId: input.operationId, rewriteOrdinal: 1 }),
   )
+  // The manager's draft has already failed. A lane too full for its one rewrite
+  // leaves that the answer, and a new press is a new draft, not a busy retry.
+  return input.isBusy(rewritten) ? input.refused : rewritten
 }
 
 export function bindReplyDraftingV2(

@@ -48,9 +48,9 @@ the capacity a draft needs.
 
 | Scope        | Interactive / min | Background / min | Interactive in flight | Background in flight |
 | ------------ | ----------------- | ---------------- | --------------------- | -------------------- |
-| Global       | 8                 | 125              | 8                     | 24                   |
-| Organization | 4                 | 120              | 4                     | 16                   |
-| Property     | 3                 | 120              | 2                     | 16                   |
+| Global       | 24                | 125              | 8                     | 24                   |
+| Organization | 12                | 120              | 4                     | 16                   |
+| Property     | 6                 | 120              | 2                     | 16                   |
 
 Rates are sliding one-minute windows. An in-flight slot is held until release
 or a 90-second lease, which outlives the 70-second provider deadline. An
@@ -61,10 +61,17 @@ The background lane is sized against the provider account, because drafts no
 longer share it: the pinned model (`gpt-6-luna`) allows 5,000 requests and
 2,000,000 tokens a minute, and a v3 analysis counts about 7,900 tokens against
 that (about 3,800 input tokens plus the 4,096-token output ceiling the provider
-reserves). Both global lanes together stay under half of either limit, which a
-unit test pins. A property may use its organization's whole background budget,
-so one import runs as fast as the account allows. How fast history runs is set
-by the in-flight column, not the rates (amendment 2026-10-30).
+reserves). The background lane alone stays under half of the token limit, and
+both global lanes together stay under half of the request limit and under 60% of
+the token limit, counting a draft at about 7,000 tokens. A unit test pins all
+three. A property may use its organization's whole background budget, so one
+import runs as fast as the account allows. How fast history runs is set by the
+in-flight column, not the rates (amendment 2026-10-30).
+
+The interactive rates are sized against a manager (amendment 2026-11-01). A draft
+takes about ten seconds, so Draft, Shorter, Tone and Try again straight through
+ask for six a minute at one property. At 3 a minute a manager retrying one review
+read that "other requests" were busy when the only requests were their own.
 
 The table lives in `src/contexts/ai/domain/admission-lanes.ts`. Tuning changes
 that file and this table together.
@@ -81,7 +88,8 @@ requests retain their existing interactive admission.
 
 A reply draft waits up to four seconds for an interactive slot that frees in
 time, and otherwise answers `busy` with the retry time. Provider and output
-failures answer `unavailable`. The governed template is returned only when the
+failures answer `unavailable`, including a draft whose automatic rewrite finds the
+lane full: it has already failed, so a full lane is not the answer to give. The governed template is returned only when the
 manager asks for it or the language has no personalized drafting profile. The
 composer keeps one idempotency key per compose session, tone and target: a busy
 retry and a repeated click reuse it, and any finished answer rotates it.

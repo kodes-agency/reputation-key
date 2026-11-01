@@ -26,6 +26,104 @@ const INPUT = {
   output: OUTPUT,
 }
 
+// The provider writes these by habit; the output scanner refuses them. A refusal
+// charged a second call and told the rewrite only "no private data", which named
+// nothing it could fix: 25% of English, 48% of Spanish and 15-33% of Bulgarian
+// drafts in the synthetic evaluation, every one for a semicolon.
+describe('reply drafting v2 body punctuation', () => {
+  const accepted = (
+    replyText: string,
+    targetLanguageTag = 'en-Latn',
+    countryCode = 'US',
+  ) =>
+    acceptReplyDraftingV2({
+      ...INPUT,
+      targetLanguageTag,
+      countryCode,
+      output: { ...OUTPUT, languageCode: targetLanguageTag, replyText },
+    })
+
+  it.each([
+    [
+      'en-Latn',
+      'US',
+      'We are sorry the wait took so long; your time should have been treated with more care.',
+      'We are sorry the wait took so long. Your time should have been treated with more care.',
+    ],
+    [
+      'es-Latn',
+      'ES',
+      'Lamentamos que la espera fuera tan larga; su tiempo merecía más atención.',
+      'Lamentamos que la espera fuera tan larga. Su tiempo merecía más atención.',
+    ],
+    [
+      'bg-Cyrl',
+      'BG',
+      'Съжаляваме, че чакането беше толкова дълго; времето Ви заслужаваше повече внимание.',
+      'Съжаляваме, че чакането беше толкова дълго. Времето Ви заслужаваше повече внимание.',
+    ],
+  ])('turns a prose semicolon into a full stop in %s', (tag, country, raw, delivered) => {
+    expect(accepted(raw, tag, country)).toMatchObject({
+      status: 'accepted',
+      draft: { replyText: delivered },
+    })
+  })
+
+  it('ends on a full stop when the semicolon is last', () => {
+    expect(
+      accepted('We are sorry the wait took so long and that it spoiled the evening;'),
+    ).toMatchObject({
+      status: 'accepted',
+      draft: {
+        replyText: 'We are sorry the wait took so long and that it spoiled the evening.',
+      },
+    })
+  })
+
+  it('delivers one paragraph of plain spaces and normalized characters', () => {
+    expect(
+      accepted(
+        'We are sorry the check\u2011in took so long.\n\nYour\u00a0time should have been\u202ftreated with more care\u2026',
+      ),
+    ).toMatchObject({
+      status: 'accepted',
+      draft: {
+        replyText:
+          'We are sorry the check\u2010in took so long. Your time should have been treated with more care...',
+      },
+    })
+  })
+
+  it('names a forbidden character as symbols, which a rewrite can act on', () => {
+    const result = accepted('We are sorry about the wait;the room was not ready on time.')
+    expect(result).toMatchObject({
+      status: 'hard_failure',
+      findings: [{ code: 'symbols', severity: 'hard' }],
+    })
+  })
+
+  it.each([
+    [
+      'a bare domain',
+      'We are sorry about the wait; more details are at example.com for all.',
+    ],
+    [
+      'a closed placeholder',
+      'We are sorry about the wait; [PERSON] will be told of this soon.',
+    ],
+    [
+      'a fullwidth domain',
+      'We are sorry about the wait, more details are at \uff45\uff58\uff41\uff4d\uff50\uff4c\uff45\uff0e\uff43\uff4f\uff4d for all.',
+    ],
+  ])('still refuses %s as private data', (_label, replyText) => {
+    const result = accepted(replyText)
+    expect(result.status).toBe('hard_failure')
+    expect(result).toMatchObject({
+      findings: expect.arrayContaining([{ code: 'private_data', severity: 'hard' }]),
+    })
+  })
+})
+
 describe('reply drafting v2 acceptance', () => {
   it('accepts actual sentence slots including an empty redacted slot', () => {
     expect(acceptReplyDraftingV2(INPUT).status).toBe('accepted')

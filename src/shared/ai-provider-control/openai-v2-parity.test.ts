@@ -26,6 +26,11 @@ vi.mock('#/shared/ai-runtime-capability-contract', async (importOriginal) => {
 // (two bytes shorter); their sources, payloads, shards and limits other than the price
 // are the earlier ones. A change that moves any of these is a change to a live contract
 // and must say so by editing this file in the same commit, with its reason.
+//
+// 2026-11-01: `reply-suggestion-v2` moved its profile and attestation digests, and
+// nothing it sends. Its acceptance contract now normalizes the body before the output
+// checks (`normalizeReplyDraftingV2Body`), because the provider's semicolons were
+// refused as private data; its prompt, schema and request shape are unchanged.
 
 import { createHash, generateKeyPairSync } from 'node:crypto'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -124,12 +129,12 @@ const PINNED_PROFILES = [
   // B2: dark v2 alone now attests streaming and deployment v3. Historical pins stay unchanged.
   {
     profileVersion: 'reply-suggestion-v2',
-    profileDigest: 'b4364da25d5ba74de7393cef31225da1d256ca1dc0a961a8b35be5aa3e72ad34',
+    profileDigest: 'a34e49f68d6249a1fb6242b5a7b7ce13a32d9b86b4182cbdead527bae888dd69',
     outputSchemaDigest:
       '2f7afcc12b767302d60d6b1f931fd7996d010dd7c24ba32246fff415c1d4dcd7',
     promptDigest: 'b6de6db2e52bd85713e81277b7b4eddc1a5788b37c2427bb872dae6c3581016f',
     artifactAttestationsDigest:
-      '92c3228015c25df9f27672564a4ecc0023ab894f3d920563405bc79761e97152',
+      '3d61dbff069bda2d78b5c8c1853a92b870564c3cbce980dd3f4364e19bcd7b58',
     sdkRequestShapeDigest:
       'f67f33645f1a50218dc369daa627337738b540db44840f9faf11bc403034f9f0',
     staticTokenBearingBytes: 9747,
