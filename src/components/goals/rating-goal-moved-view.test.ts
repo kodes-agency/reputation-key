@@ -1,6 +1,6 @@
-// "What moved you" (round 5, PLAN-D D-2 and D-2b, mock D3): this week first
-// with its stars, Google's moves, the plan's changes and the low reviews
-// newest first with their short dates, the set last.
+// "What happened" (2026-11-01; was "What moved you"): this week first with its stars,
+// Google's moves, the plan's changes and the low reviews newest first with their
+// short dates, the set last.
 import { describe, expect, it } from 'vitest'
 import { movedRows, thisWeekText } from './rating-goal-moved-view'
 import {
@@ -15,7 +15,7 @@ const context = {
   now: new Date(FIXTURE_NOW),
 }
 
-describe('what moved you', () => {
+describe('what happened', () => {
   it('starts with this week, then Google’s move, and ends with the set', () => {
     expect(movedRows(DETAIL_HARBORLINE, context)).toEqual([
       { key: 'week', when: 'This week', text: '2 new reviews, both 5★', tone: null },

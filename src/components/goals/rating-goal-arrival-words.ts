@@ -11,7 +11,7 @@ import type {
 } from '#/contexts/reporting/application/dto/rating-goal.types'
 import type { RatingFraction } from '#/contexts/reporting/application/dto/rating-goal-setup.types'
 import { paceText } from './rating-goal-pace-words'
-import { likelyText, spanText, whenText } from './rating-goal-setup-time'
+import { likelyText, whenText } from './rating-goal-setup-time'
 import { ratingText } from './rating-goal-view'
 
 type DaysArrival = Extract<RatingArrivalView, { kind: 'days' }>
@@ -74,9 +74,9 @@ export function arrivalSentence(
 }
 
 /**
- * The narrow card's arrival (D4): "4.1 in about 3 months", or "4.1 is more than
- * 3 years away"; the pace and the likely range are on the wide card and the
- * detail. Null without a time, where the full sentence says why.
+ * The arrival in the fewest words, on the goal's line in the chart: "4.1 in about
+ * 3 months", or "4.1 is more than 3 years away". Null without a time, where the
+ * full sentence says why.
  */
 export function shortArrival(
   card: Pick<RatingGoalCardView, 'forecast' | 'target'>,
@@ -87,18 +87,4 @@ export function shortArrival(
   return beyondThreeYears(arrival)
     ? `${target} is more than 3 years away`
     : `${target} ${whenText(arrival.central)}`
-}
-
-/**
- * "4.2 is possible in about 6 months." (R4-4); none past three years, nor while
- * the card waits for Google's latest numbers (it gives no time then). The
- * ladder's "possible" rung follows this sentence.
- */
-export function possibleSentence(
-  card: Pick<RatingGoalCardView, 'nextUp' | 'status'>,
-): string | null {
-  const up = card.nextUp
-  if (up === null || card.status === 'waiting_for_google' || !withinThreeYears(up.days))
-    return null
-  return `${ratingText(up.targetTenths / 10)} is possible in ${spanText(up.days)}.`
 }

@@ -1,7 +1,7 @@
-// The Google rating goal card as the server draws it (round 5, PLAN-D D-1): the
-// ladder, the new reviews to the next number with a square for each, when the
-// goal arrives, this week, the first step and the ways on. A goal to keep keeps
-// its quiet card.
+// The Google rating goal card as the server draws it (2026-11-01, ADR 0067): the new
+// reviews to the next number, when the goal arrives, the ruler of how far along it
+// is, this week against the plan and the way to the detail, and nothing else. A goal to
+// keep has its quiet card.
 import { createElement } from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
 import {
@@ -10,7 +10,7 @@ import {
   createRouter,
   RouterContextProvider,
 } from '@tanstack/react-router'
-import { describe, expect, it, vi } from 'vitest'
+import { describe, expect, it } from 'vitest'
 import type { RatingGoalCardView } from '#/contexts/reporting/application/dto/rating-goal.types'
 import { RatingGoalCard } from './rating-goal-card'
 import { RATING_GOAL_HEADING_ID } from './rating-goal-card-header'
@@ -31,14 +31,6 @@ import {
   FIXTURE_PROPERTY_ID,
   FIXTURE_TIMEZONE,
 } from './rating-goal.stories.fixtures'
-
-const permissions = vi.hoisted(() => ({ granted: new Set(['portal.read']) }))
-
-vi.mock('#/shared/hooks/usePermissions', () => ({
-  usePermissions: () => ({
-    can: (permission: string) => permissions.granted.has(permission),
-  }),
-}))
 
 function render(card: RatingGoalCardView): string {
   const router = createRouter({
@@ -65,11 +57,12 @@ const textOf = (html: string) =>
     .replace(/\s+/gu, ' ')
     .replace(/ ([.,])/gu, '$1')
 
-const squares = (html: string) =>
-  (html.match(/border-dashed border-primary"><\/span>/gu) ?? []).length
+/** The names of the pictures on the card (the ruler is its one). */
+const picturesOf = (html: string) =>
+  [...html.matchAll(/role="img" aria-label="([^"]*)"/gu)].map((match) => match[1])
 
 describe('RatingGoalCard', () => {
-  it('leads with the title, the chip and the new reviews to the next number', () => {
+  it('leads with the title, the chip, the new reviews to the next number and when the goal arrives', () => {
     const html = render(CARD_HARBORLINE)
     const text = textOf(html)
 
@@ -79,57 +72,54 @@ describe('RatingGoalCard', () => {
     expect(text).toContain('On pace')
     expect(text).toContain('18 new reviews to 4.1')
     expect(text).toContain('4.1 in about 3 weeks at your 1 a day, likely 2–4 weeks.')
-    expect(text).toContain('4.2 is possible in about 3 months.')
   })
 
-  it('draws the ladder as one picture, upright and across, with its words as its name', () => {
+  it('says nothing of the number after the goal, nor of the first step: the ruler shows the way', () => {
+    const text = textOf(render(CARD_HARBORLINE))
+
+    expect(text).not.toContain('is possible')
+    expect(text).not.toContain('up from 3.9 when you started')
+  })
+
+  it('draws where the goal stands as one ruler, named by its sentence', () => {
     const html = render(CARD_HARBORLINE)
-    const label =
-      'Started at 3.9. Google shows 4.0 now. Your goal is 4.1. 4.2 is possible after that.'
 
-    expect(html.match(new RegExp(`role="img" aria-label="${label}"`, 'gu'))).toHaveLength(
-      2,
-    )
+    expect(picturesOf(html)).toEqual([
+      'Started at 3.9. Google shows 4.0 now. Your goal is 4.1.',
+    ])
+    expect(html).toContain('data-slot="goal-ruler"')
   })
 
-  it('keeps a narrow card to D4’s: one line for this week and when, the rest wide only', () => {
+  it('writes the ruler’s ends and its tenth in Google’s numbers, never the exact average', () => {
+    const text = textOf(render(CARD_HARBORLINE))
+
+    expect(text).toContain('Today')
+    expect(text).toContain('3.9 started')
+    expect(text).toContain('4.0 reached')
+    expect(text).toContain('4.1 your goal')
+    expect(text).not.toContain('4.02')
+  })
+
+  it('draws one card for every width: the wide card puts the week beside the story, no part is for it alone', () => {
     const html = render(CARD_HARBORLINE)
-    const wideOnly = (words: string) =>
-      new RegExp(`class="[^"]*hidden @3xl:(block|flex)[^"]*">${words}`, 'u')
 
-    expect(html).toMatch(
-      /class="text-sm @3xl:hidden">This week 2 of 7 · 4.1 in about 3 weeks</u,
-    )
-    expect(html).toMatch(wideOnly('4.1 in about 3 weeks at your 1 a day'))
-    expect(html).toMatch(wideOnly('4.2 is possible'))
-    expect(html).toMatch(
-      /data-slot="rating-goal-this-week" class="hidden[^"]*@3xl:flex"/u,
-    )
+    expect(html).toContain('@3xl:grid-cols-[minmax(0,1fr)_15rem]')
+    expect(html).not.toContain('@3xl:hidden')
+    expect(html).not.toMatch(/hidden @3xl:(block|flex)/u)
+    expect(html).toMatch(/data-slot="rating-goal-this-week" class="flex flex-col/u)
   })
 
-  it('draws the squares under the headline they count', () => {
+  it('counts to the next number and to the goal in a new goal’s first headline', () => {
     const text = textOf(render(CARD_HARBORLINE_JUST_SET))
-    const html = render(CARD_HARBORLINE_JUST_SET)
 
     expect(text).toContain('19 new reviews to 4.0 81 new reviews to your goal, 4.1.')
-    expect(html.indexOf('data-slot="rating-goal-slots"')).toBeLessThan(
-      html.indexOf('81 new reviews to your goal'),
-    )
   })
 
-  it('draws one empty square per review still needed, up to 30', () => {
-    expect(squares(render(CARD_HARBORLINE))).toBe(18)
-    expect(render(CARD_HARBORLINE)).toContain(
-      'aria-label="18 empty squares, one for each new review still needed"',
-    )
-    expect(squares(render(CARD_FAR_GOAL))).toBe(0)
-  })
-
-  it('counts about, with no squares, while the exact average is Google’s own figure', () => {
+  it('counts about while the exact average is Google’s own figure, and still draws the ruler', () => {
     const html = render(CARD_GOOGLE_SOURCE)
 
     expect(textOf(html)).toContain('About 18 new reviews to 4.1')
-    expect(squares(html)).toBe(0)
+    expect(picturesOf(html)).toHaveLength(1)
   })
 
   it('gives the goal’s own total when the headline counts to a nearer number', () => {
@@ -147,15 +137,15 @@ describe('RatingGoalCard', () => {
     expect(text).not.toContain('0 new reviews to 4.4')
   })
 
-  it('says Google should show the goal soon, with no squares or time, once it is earned', () => {
+  it('says Google should show the goal soon, with no time, once it is earned', () => {
     const html = render(CARD_LAGS)
 
     expect(textOf(html)).toContain('Google should show 4.1 soon')
-    expect(squares(html)).toBe(0)
     expect(textOf(html)).not.toContain('likely')
+    expect(picturesOf(html)).toHaveLength(1)
   })
 
-  it('counts this week against the plan, on its day, and tells the first step', () => {
+  it('counts this week against the plan, on its day, at every width', () => {
     const html = render(CARD_HARBORLINE)
     const text = textOf(html)
 
@@ -163,18 +153,19 @@ describe('RatingGoalCard', () => {
     expect(html).toContain('aria-valuetext="2 of 7 new reviews this week"')
     expect(text).toContain('This week 2 of 7')
     expect(text).toContain('It’s Tuesday')
-    expect(text).toContain('Google shows 4.0 now, up from 3.9 when you started.')
   })
 
-  it('asks for a pace a day while the goal is new', () => {
-    const text = textOf(render(CARD_JUST_SET))
+  it('asks for a pace a day while the goal is new, and draws a ruler that has not begun', () => {
+    const html = render(CARD_JUST_SET)
+    const text = textOf(html)
 
     expect(text).toContain('Getting started')
     expect(text).toContain('Aim for about 1.6 new reviews a day')
     expect(text).not.toContain('This week')
+    expect(picturesOf(html)).toEqual(['Google shows 4.3 now. Your goal is 4.5.'])
   })
 
-  it('says why, with what helps, while new reviews are too low', () => {
+  it('says why, with what helps, while new reviews are too low, above a ruler still drawn', () => {
     const html = render(CARD_TOO_LOW)
     const text = textOf(html)
 
@@ -182,33 +173,32 @@ describe('RatingGoalCard', () => {
       'Since you set the goal, new reviews average below what 4.1 needs.',
     )
     expect(text).toContain('Asking every guest')
-    expect(squares(html)).toBe(0)
     expect(text).not.toContain('likely')
+    expect(picturesOf(html)).toHaveLength(1)
   })
 
-  it('keeps Google’s last number with its date while it waits for Google', () => {
+  it('keeps Google’s last number with its date while it waits for Google, and the ruler says “last”', () => {
     const html = render(CARD_WAITING)
     const text = textOf(html)
 
     expect(text).toContain('Waiting for Google')
     expect(text).toContain('as of Oct 12')
     expect(text).toContain('Waiting for Google’s latest numbers.')
-    expect(squares(html)).toBe(0)
+    expect(picturesOf(html)).toEqual([
+      'Started at 3.9. Google showed 4.0 last. Your goal is 4.1.',
+    ])
     expect(text).not.toMatch(/GMT|likely/u)
   })
 
-  it('leads on to the detail and, with Portals in reach, to the Portals', () => {
+  it('leads on to the detail, and to nowhere else', () => {
     const html = render(CARD_HARBORLINE)
 
     expect(html).toContain(
       `href="/properties/${FIXTURE_PROPERTY_ID}/goals/google-rating"`,
     )
-    expect(html).toContain(`href="/properties/${FIXTURE_PROPERTY_ID}/portals"`)
     expect(textOf(html)).toContain('View details')
-
-    permissions.granted.delete('portal.read')
-    expect(render(CARD_HARBORLINE)).not.toContain('Open Portals')
-    permissions.granted.add('portal.read')
+    expect(html.match(/href="/gu)).toHaveLength(1)
+    expect(textOf(html)).not.toContain('Open Portals')
   })
 
   it('keeps a number with its status and no climb', () => {
@@ -220,6 +210,7 @@ describe('RatingGoalCard', () => {
     expect(text).toContain('Google shows 4.9')
     expect(text).not.toContain('your goal')
     expect(html).not.toContain('progressbar')
+    expect(html).not.toContain('goal-ruler')
     expect(text).not.toMatch(/new reviews|likely|This week/u)
   })
 })

@@ -1,8 +1,8 @@
 // The running Monthly portal goal's words (copy deck G-21…G-27, G-29…G-32,
-// ADR 0068 amended 2026-10-19): the headline that says what is left to the
-// month's number, the days left in the month, the meter's caption, figure and
-// foot, the bar's tick and what a screen reader hears for it, what each Portal
-// brought in, a stop, and the month before. The read decides every state, day
+// ADR 0068 amended 2026-10-19 and 2026-11-01): the headline that says what is left
+// to the month's number, the days left in the month and what a day that leaves,
+// what each Portal brought in, a stop, and the month before. The ruler's words are
+// `portal-goal-ruler-view.ts`'. The read decides every state, day
 // and number (PLAN E12): the pace (P-6 included), the first quiet days, whether
 // the counts add up, and what each month counts (its own version's measure, not
 // the goal's latest). This only says them, in one place, so the card, its
@@ -21,19 +21,8 @@ import {
   dayWords,
   monthName,
   monthNumberWords,
-  monthSoFarHeading,
   portalGoalUnit,
 } from './portal-goal-words'
-
-/** The bar under the figure, with the words a screen reader hears for it. */
-export type PortalGoalBarWords = Readonly<{
-  value: number
-  max: number
-  /** Where a steady month would be today, as a share of the bar; null for none. */
-  tick: number | null
-  label: string
-  valueText: string
-}>
 
 /** What the card and the page lead with: what is left, or that the number is passed. */
 export type PortalGoalHeadlineWords =
@@ -58,13 +47,8 @@ export type PortalGoalRunningWords =
       passed: boolean
       /** U-C2, U-C3: "17 private ratings to 40", or "Goal passed: 43 private ratings". */
       headline: PortalGoalHeadlineWords
-      /** U-C4: "9 days left in November", or "Last day of November". */
+      /** U-C4: "9 days left in November. About 2 a day gets you there.", or "Last day of November". */
       daysLine: string
-      /** U-C5: "November so far", the meter's caption. */
-      caption: string
-      /** U-C7: "It’s Nov 22", the meter's foot. */
-      foot: string
-      bar: PortalGoalBarWords
     }>
   | Readonly<{
       kind: 'unreadable'
@@ -76,27 +60,26 @@ export type PortalGoalRunningWords =
 /** G-25: a month whose figure cannot be read, never a zero. */
 export const MONTH_FIGURE_UNREADABLE = 'This month’s figure can’t be read right now.'
 
-/** G-32: "Private ratings in November", "Scans in November". */
-function barLabel(measure: PortalGoalMeasure, monthKey: string): string {
-  const unit = portalGoalUnit(measure, 2)
-  return `${unit.charAt(0).toUpperCase()}${unit.slice(1)} in ${monthName(monthKey)}`
-}
-
 /**
  * U-C4: how long the month has to run, in its own name. "last day" is what
  * `daysLeftWords` calls the day with nothing after it.
  */
-function daysLine(month: PortalGoalRunningMonth): string {
+function daysLine(month: PortalGoalRunningMonth, left: number): string {
   const name = monthName(month.key)
-  return month.daysAfterToday < 1
-    ? `Last day of ${name}`
-    : `${daysLeftWords(month.daysAfterToday)} in ${name}`
+  if (month.daysAfterToday < 1) return `Last day of ${name}`
+  const days = `${daysLeftWords(month.daysAfterToday)} in ${name}`
+  return left <= 0 ? days : `${days}. ${aDayWords(left, month.daysAfterToday + 1)}`
 }
 
-/** U-C7: today's date, from the month's key and the days that have begun. */
-function todayFoot(month: PortalGoalRunningMonth): string {
-  const day = String(month.elapsedDays).padStart(2, '0')
-  return `It’s ${dayWords(`${month.key}-${day}`)}`
+/**
+ * "About 3 a day gets you there.": what is left over the days left, today included,
+ * rounded up: rounded down, it would not get them there.
+ */
+function aDayWords(left: number, daysLeft: number): string {
+  const perDay = left / Math.max(1, daysLeft)
+  return perDay < 1
+    ? 'Under 1 a day gets you there.'
+    : `About ${formatNumber(Math.ceil(perDay))} a day gets you there.`
 }
 
 /**
@@ -125,11 +108,8 @@ function headlineWords(
 }
 
 /**
- * G-21…G-25 and G-32: the month so far, in the measure it counts. The tick
- * marks where a steady month would be today; it is not drawn in the first
- * quiet days, once the goal has passed, or with no figure. A figure that cannot
- * be read says so and is never a zero. The bar's sentence leaves the pace word
- * to the pill (Q-5).
+ * G-21…G-25: the month so far, in the measure it counts. A figure that cannot be
+ * read says so and is never a zero.
  */
 export function runningWords(month: PortalGoalRunningMonth): PortalGoalRunningWords {
   const { value, target, measure } = month
@@ -141,7 +121,6 @@ export function runningWords(month: PortalGoalRunningMonth): PortalGoalRunningWo
     }
   }
   const figure = `${formatNumber(value)} of ${formatNumber(target)}`
-  const unit = portalGoalUnit(measure, target)
   const left = daysLeftWords(month.daysAfterToday)
   const passed = value >= target
   return {
@@ -152,18 +131,7 @@ export function runningWords(month: PortalGoalRunningMonth): PortalGoalRunningWo
       : `${formatNumber(target - value)} to go · ${left}`,
     passed,
     headline: headlineWords(measure, value, target),
-    daysLine: daysLine(month),
-    caption: monthSoFarHeading(month.key),
-    foot: todayFoot(month),
-    bar: {
-      value,
-      max: target,
-      tick: passed || month.quietDays ? null : month.elapsedDays / month.totalDays,
-      label: barLabel(measure, month.key),
-      valueText: [`${figure} ${unit}`, passed ? 'goal passed' : null, left]
-        .filter((part): part is string => part !== null)
-        .join(', '),
-    },
+    daysLine: daysLine(month, target - value),
   }
 }
 
@@ -221,18 +189,6 @@ export function portalCountsWords(rows: PortalGoalRows): PortalGoalCountsWords {
           ]
         : listed,
   }
-}
-
-/**
- * O-2: each Portal's count in one line, in the read's name order, with "Other
- * portals" when something came from them: what a card too narrow for the list
- * says instead. One Portal that brought in all of it, or from 5 Portals how
- * many, is the card's own sentence (G-27): null here.
- */
-export function countsLine(rows: PortalGoalRows): string | null {
-  const words = portalCountsWords(rows)
-  if (words.kind === 'sentence') return null
-  return words.rows.map(({ name, count }) => `${name} ${count}`).join(' · ')
 }
 
 /** G-29: a stopped goal still counts to the end of its month. */

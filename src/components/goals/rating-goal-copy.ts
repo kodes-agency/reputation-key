@@ -12,6 +12,15 @@ export const HOW_TO_ASK_LINE = {
   text: 'ask every guest before they leave, and let them post on their own phone. A few each day works better than one big email to past guests. Never offer anything in return.',
 } as const
 
+/**
+ * The way to ask, as a row on the goal's page: R3-12's approved words, split into
+ * what to do and how (2026-11-01).
+ */
+export const ASK_EVERY_GUEST_ROW = {
+  title: 'Ask every guest before they leave',
+  note: 'Let them post on their own phone. A few each day works better than one big email to past guests. Never offer anything in return.',
+} as const
+
 /** R3-9: why the planned average is above what the Property has now. */
 export const UNASKED_REVIEWS_LINE =
   'Reviews that arrive unasked lean towards complaints. Asking everyone brings in the happy majority, so the average usually rises.'

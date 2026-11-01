@@ -44,14 +44,11 @@ import {
   planProgressView,
 } from '../rating-goal-views'
 import { forecastFor } from '../rating-goal-tracking-views'
-import {
-  detailChartStart,
-  detailHistoryStart,
-  detailTracking,
-} from '../rating-goal-detail-views'
+import { detailChartStart, detailTracking } from '../rating-goal-detail-views'
 import {
   LOW_REVIEW_READ_LIMIT,
   lowReviewRows,
+  lowStarCount,
   setbackNumbers,
   thisWeekView,
 } from '../rating-goal-low-reviews'
@@ -137,27 +134,18 @@ export async function getRatingGoalDetail(
   const { goal, reading } = evaluated
   const org = toOrganizationId(goal.organizationId)
   const property = toPropertyId(goal.propertyId)
-  // The chart reads from four weeks before the set's week (a year back at most);
-  // the weekly history from the latest plan change's week when that is earlier,
-  // so it starts once the change log is in, beside Google's number.
+  // The charts read from four weeks before the set's week (a year back at most).
   const chartFrom = detailChartStart(goal, reading).instant
-  const changesRead = deps.repository.listChanges(
-    goal.organizationId,
-    goal.propertyId,
-    goal.id,
-    RATING_GOAL_CHANGE_LOG_LIMIT,
-  )
   const setback = setbackNumbers(goal, reading)
   const lowBelow = setback === null ? null : lowReviewReadBelow(setback)
-  const [changes, history, shown, low, thisWeek] = await Promise.all([
-    changesRead,
-    changesRead.then((log) =>
-      deps.reviews.getWeeklyHistory(
-        org,
-        property,
-        detailHistoryStart(goal, reading, log).instant,
-      ),
+  const [changes, history, shown, low, thisWeek, sinceSet] = await Promise.all([
+    deps.repository.listChanges(
+      goal.organizationId,
+      goal.propertyId,
+      goal.id,
+      RATING_GOAL_CHANGE_LOG_LIMIT,
     ),
+    deps.reviews.getWeeklyHistory(org, property, chartFrom),
     deps.reviews.getShownNumberChanges(org, property, chartFrom),
     lowBelow === null
       ? []
@@ -173,6 +161,10 @@ export async function getRatingGoalDetail(
       property,
       weekStartInstant(reading.now, reading.facts.timezone),
     ),
+    // The stars since the set say how many were low; only while a goal climbs.
+    setback === null
+      ? null
+      : deps.reviews.getStarDistribution(org, property, goal.createdAt),
   ])
   // At the quality the goal now expects of new reviews: the plan's, the plan
   // mixed with new reviews, or theirs while too low (trackingMix).
@@ -201,6 +193,7 @@ export async function getRatingGoalDetail(
       ...tracking.moved,
       thisWeek: thisWeekView(thisWeek),
       lowReviews: lowReviewRows(setback, low),
+      lowSinceSet: sinceSet === null ? null : lowStarCount(sinceSet),
     },
   }
 }

@@ -158,6 +158,11 @@ function GoogleRatingGoalRoute() {
           timezone={timezone}
           now={now}
           personName={goalPersonNames(members.data?.members)}
+          onChangePlan={
+            active && canDo('goal.update')
+              ? () => start({ kind: 'change', goal: detail })
+              : undefined
+          }
         />
       )}
       {wizard}

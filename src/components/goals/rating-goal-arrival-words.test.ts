@@ -1,11 +1,7 @@
 // What the card and the detail say about when a goal arrives: durations from
 // today in the setup's words, never a month (round 5, PLAN-D E1).
 import { describe, expect, it } from 'vitest'
-import {
-  arrivalSentence,
-  possibleSentence,
-  shortArrival,
-} from './rating-goal-arrival-words'
+import { arrivalSentence, shortArrival } from './rating-goal-arrival-words'
 import { CARD, CARD_KEEP } from './rating-goal.stories.fixtures'
 
 /** Harborline at the set: 81 reviews at 1 a day; 60 at the fast end, 103 at the slow one. */
@@ -73,11 +69,14 @@ describe('when the card says the goal arrives', () => {
         'at the new reviews’ average',
       ),
     ).toBe('No pace reaches 4.1 at the new reviews’ average.')
+    expect(
+      arrivalSentence({ ...HARBORLINE_CARD, forecast: { kind: 'earned' } }, AVERAGE),
+    ).toBe('Google should show 4.1 soon.')
     expect(arrivalSentence(CARD_KEEP, AVERAGE)).toBeNull()
   })
 })
 
-describe('the narrow card’s short arrival (D4)', () => {
+describe('the short arrival, on the goal’s line in the chart', () => {
   it('names the goal and when, without the pace or the range', () => {
     expect(shortArrival(HARBORLINE_CARD)).toBe('4.1 in about 3 months')
   })
@@ -96,28 +95,5 @@ describe('the narrow card’s short arrival (D4)', () => {
   it('has none without a time: the full sentence says why', () => {
     expect(shortArrival({ ...HARBORLINE_CARD, forecast: { kind: 'no_pace' } })).toBeNull()
     expect(shortArrival(CARD_KEEP)).toBeNull()
-  })
-})
-
-describe('the number above the goal', () => {
-  it('is possible in about N (R4-4: Harborline’s 4.2 in about 6 months)', () => {
-    const nextUp = { targetTenths: 42, reviewsBeyondGoal: 97, days: { num: 178, den: 1 } }
-
-    expect(possibleSentence({ nextUp, status: 'on_pace' })).toBe(
-      '4.2 is possible in about 6 months.',
-    )
-  })
-
-  it('is not said past three years, nor without one', () => {
-    const far = { targetTenths: 42, reviewsBeyondGoal: 900, days: { num: 1100, den: 1 } }
-
-    expect(possibleSentence({ nextUp: far, status: 'on_pace' })).toBeNull()
-    expect(possibleSentence({ nextUp: null, status: 'on_pace' })).toBeNull()
-  })
-
-  it('is not said while the card waits for Google’s latest numbers', () => {
-    const nextUp = { targetTenths: 42, reviewsBeyondGoal: 97, days: { num: 178, den: 1 } }
-
-    expect(possibleSentence({ nextUp, status: 'waiting_for_google' })).toBeNull()
   })
 })

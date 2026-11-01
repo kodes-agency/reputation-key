@@ -1,6 +1,6 @@
 // The Google rating goal detail's low reviews (round 5, PLAN-D D-2b, mock D3)
 // as the server function hands them to the page: Harborline Suites twenty
-// days in (300 reviews at 4.02, 35 since the set summing 160, goal 4.1 at
+// days in (300 reviews at 4.02, 27 since the set, goal 4.1 at
 // 4.5★), with each review's setback worked out by the domain's own rule
 // (rating-goal-setback.ts) and the Inbox item that opens it. The page never
 // has a review id.
@@ -32,7 +32,14 @@ const TWO_STARS: RatingGoalLowReviewView = {
 const withLowReviews = (
   detail: RatingGoalDetailView,
   lowReviews: readonly RatingGoalLowReviewView[],
-): RatingGoalDetailView => ({ ...detail, moved: { ...detail.moved, lowReviews } })
+): RatingGoalDetailView => ({
+  ...detail,
+  moved: {
+    ...detail.moved,
+    lowReviews,
+    lowSinceSet: lowReviews.filter((review) => review.stars <= 3).length,
+  },
+})
 
 /** Two low reviews since the set, each with the Inbox item that opens it. */
 export const DETAIL_LOW_REVIEWS = withLowReviews(DETAIL_HARBORLINE, [ONE_STAR, TWO_STARS])

@@ -87,6 +87,10 @@ export const daysFromToday = (dateKey: string, now: Date, timezone: string): num
 export const dayOfInstant = (instant: Date, now: Date, timezone: string): number =>
   daysFromToday(keyOf(civilDateAt(instant, timezone)), now, timezone)
 
+/** The Property-local date an instant falls on, `YYYY-MM-DD`. */
+export const localDateKey = (instant: Date, timezone: string): string =>
+  keyOf(civilDateAt(instant, timezone))
+
 /** A date `YYYY-MM-DD` moved by whole days. */
 export const shiftDateKey = (dateKey: string, days: number): string =>
   keyOf(addDays(dateOfKey(dateKey), days))

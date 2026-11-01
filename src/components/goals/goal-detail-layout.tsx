@@ -1,11 +1,12 @@
 // The page every goal's detail is laid out in (ADR 0068, amended 2026-10-19: one
-// goal design system): a column of blocks six units apart, and the tiles that
-// read "so far" in a strip of three. A goal's page brings its blocks in the order
+// goal design system): a column of blocks, where a goal stands in a card of its
+// own, and the tiles that read "so far" in a strip of three. A goal's page brings its blocks in the order
 // it wants them: the layout is the column and the gap, not a fixed order, so the
 // order is decided where the page is written. The tiles arrive finished; the
 // strip only lays them out: stacked until there is room for all three, never two
 // and one.
 import type { ReactNode } from 'react'
+import { Card, CardContent } from '#/components/ui/card'
 import { Metric, MetricStrip, MetricValue } from '#/components/ui/metric-strip'
 import { SectionTitle } from '#/components/ui/section-title'
 
@@ -17,9 +18,19 @@ type LayoutProps = Readonly<{
 
 export function GoalDetailLayout({ slot, children }: LayoutProps) {
   return (
-    <div data-slot={slot} className="flex flex-col gap-6">
+    // Its own container: a check-in band and a chart lay out against the page, not the screen.
+    <div data-slot={slot} className="@container flex flex-col gap-4">
       {children}
     </div>
+  )
+}
+
+/** Where the goal stands, first on its page: what is left, the lines under it and the ruler. */
+export function GoalWhere({ children }: Readonly<{ children: ReactNode }>) {
+  return (
+    <Card data-slot="goal-where">
+      <CardContent className="flex flex-col gap-1.5">{children}</CardContent>
+    </Card>
   )
 }
 

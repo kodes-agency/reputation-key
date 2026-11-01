@@ -1,34 +1,27 @@
-// The Monthly portal goal's page (PLAN PG-13): Seaview Hotel's goal on Nov 22,
-// the mock's day (its tiles, November so far with the month's first and last
-// day, each Portal's count in name order with the total, each month, what
-// changed and how it counts); set and not yet begun; a quiet Portal; December
-// with November and October closed (each month's facts on its chip); a
-// corrected month; scans; one Portal; across a stop; stopped; many changes;
-// no goal yet, where the page is the card's own state with its doors to the
-// set sheet; and no goal after a stop, with that goal's months and changes.
-// At 320, 390, 820 and 1440 px and on the light theme. The Storybook Vitest
-// project compiles no Tailwind, so the plays assert words, roles, the heading
-// outline and the calls. The sheet those doors open, as the page hosts it, is
-// in the route's `-portal-goal-sheet-host.stories.tsx`. Its actions (PLAN
-// PG-14): "Change number" and the menu's other measure open the change sheet,
-// and Stop asks first, in the destructive tone (at 320 and 820 px too), then
-// stops, says so and hands over to the route (which leaves for the Goals
-// page); a goal that has not started is told it frees its month at once; a
-// second Stop is said in place. "More portal goals" has its way to add one, as
-// the route hands it in when the add sheet offers something; with nothing to
-// add and no other goal there is no such block. A goal for one Portal or one
-// group (PLAN PG-21) has the same page, titled for its subject, with no
-// Portals' rows and the same actions; the average has it without a bar, with
-// its months, what changed, its own "Change number" and Stop (at 1440, 820, 390
-// and 320 px and on the light theme). The other states of those pages, and the
-// average's change sheet, are `portal-goal-single-page.stories.tsx`'.
+// The Monthly portal goal's page (PLAN PG-13; ADR 0068 amended 2026-11-01): Seaview
+// Hotel's goal on Nov 22, the mock's day. Where the goal stands comes first (what is
+// left, the days left and what a day takes, the ruler with a steady month's stop on
+// it); then three questions in bands: where they are coming from (each Portal's
+// count in name order with the total, a Portal gone quiet named), how this month
+// compares (each month's bar against its own number once there are two) and what to
+// do this week; "What changed" and "How this goal counts" are closed until asked.
+// Also: set and not yet begun; the first quiet days; the number passed; a quiet
+// Portal; December with November and October closed; a corrected month; scans; one
+// Portal; across a stop; stopped; many changes; no goal yet, where the page is the
+// card's own state with its doors to the set sheet; and no goal after a stop, with
+// that goal's months and changes. At 320, 390, 820 and 1440 px and on the light
+// theme. The Storybook Vitest project compiles no Tailwind, so the plays assert
+// words, roles, the heading outline and the calls. The sheet those doors open, as
+// the page hosts it, is in the route's `-portal-goal-sheet-host.stories.tsx`. Its
+// actions (PLAN PG-14) are in `portal-goal-page-actions.stories.tsx`, and the other
+// goals' pages (PLAN PG-21: one Portal, one group, the average) in
+// `portal-goal-single-page.stories.tsx`. "More portal goals" has its way to add one,
+// as the route hands it in when the add sheet offers something; with nothing to add
+// and no other goal there is no such block.
 import type { Meta, StoryObj } from '@storybook/react-vite'
 import { toast } from 'sonner'
 import { expect, fn, userEvent, waitFor, within } from 'storybook/test'
 import { Button } from '#/components/ui/button'
-import { ServerFunctionError } from '#/shared/auth/server-function-error'
-import { ToasterDecorator } from '../../../.storybook/ToasterDecorator'
-import { PortalGoalAveragePage } from './portal-goal-average-page'
 import { PortalGoalPage } from './portal-goal-page'
 import {
   PAGE_ACROSS_A_STOP,
@@ -46,32 +39,22 @@ import {
   SEAVIEW,
   personName,
 } from './portal-goal-page.stories.fixtures'
+import { CARD_FIRST_DAYS, CARD_PASSED } from './portal-goal-running.stories.fixtures'
 import {
+  barLines,
+  barsOf,
   changeCells,
   changeDateWidths,
   changeTexts,
   chipNames,
-  expectStopAloneInMenu,
+  expectBarsReadByKeyboard,
   headlineOf,
+  openClosedCard,
+  openWhatChanged,
   outline,
   portalRows,
-  tilesOf,
+  whereOf,
 } from './portal-goal.stories.play'
-import {
-  AVERAGE_MORE_NEEDED,
-  AVERAGE_RUNNING,
-  SINGLE_RECEPTION,
-  SINGLE_ROOMS,
-} from './portal-goal-single-page.stories.fixtures'
-import {
-  singleGoalTitle,
-  singleSubjectWords,
-  subjectPlace,
-} from './portal-goal-single-page-view'
-
-const stopMock = fn(async () => ({ programId: 'program-monthly' }))
-const onStoppedMock = fn(async () => undefined)
-const onRefusedMock = fn(async () => undefined)
 
 const meta: Meta<typeof PortalGoalPage> = {
   title: 'Goals/PortalGoalPage',
@@ -88,9 +71,9 @@ const meta: Meta<typeof PortalGoalPage> = {
     // As the route hands them in: before a goal, the card's doors open the set sheet.
     commands: { setMonthlyPortalGoalFn: fn(), onSet: fn(), openSheet: fn() },
     stop: {
-      stopMonthlyPortalGoalFn: stopMock,
-      onStopped: onStoppedMock,
-      onRefused: onRefusedMock,
+      stopMonthlyPortalGoalFn: fn(async () => ({ programId: 'program-monthly' })),
+      onStopped: fn(async () => undefined),
+      onRefused: fn(async () => undefined),
     },
     personName,
     addLink: (
@@ -100,9 +83,8 @@ const meta: Meta<typeof PortalGoalPage> = {
     ),
   },
   beforeEach: () => {
-    // Sonner's store outlives a story: no toast of a stop here reaches another.
+    // Sonner's store outlives a story: no toast of Use reaches another.
     toast.dismiss()
-    for (const mock of [stopMock, onStoppedMock, onRefusedMock]) mock.mockClear()
     return () => void toast.dismiss()
   },
 }
@@ -111,60 +93,67 @@ export default meta
 type Story = StoryObj<typeof meta>
 type Canvas = ReturnType<typeof within>
 
-async function expectRunning(canvas: Canvas, canvasElement: HTMLElement) {
-  await expect(outline(canvasElement)).toEqual([
-    'h1 Monthly portal goal',
-    'h2 November so far',
-    'h2 Your goal, so far',
-    'h2 From your portals',
-    'h2 Month by month',
-    'h2 Changes',
-    'h2 More portal goals',
-  ])
-  // What is left comes first, as on the first goal's page: the headline, the days left, then what it counts.
-  const headline = headlineOf(canvas, '17 private ratings to 40')
-  const days = canvas.getByText('9 days left in November')
-  const counts = canvas.getByText('Private ratings from all 3 portals at Seaview Hotel.')
-  await expect(headline).toBeVisible()
-  await expect(days).toBeVisible()
-  await expect(counts).toBeVisible()
+const WHERE = 'Where are they coming from?'
+const COMPARE = 'How does this month compare?'
+const TODO = 'What can you do this week?'
+const MONTH_BARS = 'Private ratings each month. The short line is that month’s number.'
+
+/** One of the three questions, as the region it is. */
+const band = (canvas: Canvas, question: string) =>
+  within(canvas.getByRole('region', { name: question }))
+
+/** The page's pace is the pill in its header, where the first goal's page wears its own. */
+const headerOf = (canvasElement: HTMLElement) =>
+  within(
+    canvasElement.querySelector<HTMLElement>('#portal-goal-page-header') ?? canvasElement,
+  )
+
+/** The three questions, the closed cards and the other goals, in the order a manager reads them. */
+const PAGE_OUTLINE = [
+  'h1 Monthly portal goal',
+  `h2 ${WHERE}`,
+  `h2 ${COMPARE}`,
+  `h2 ${TODO}`,
+  'h2 What changed',
+  'h2 How this goal counts',
+  'h2 More portal goals',
+]
+
+/** Nov 22: what is left comes first, then the days left and what a day takes, then the ruler. */
+async function expectWhereItStands(canvasElement: HTMLElement) {
+  const where = whereOf(canvasElement)
+  const headline = headlineOf(where, '17 private ratings to 40')
+  const days = where.getByText('9 days left in November. About 2 a day gets you there.')
+  const ruler = where.getByRole('img', {
+    name: '23 of 40 private ratings so far. A steady month would be at about 29 by today.',
+  })
+  for (const part of [headline, days, ruler]) await expect(part).toBeVisible()
   await expect(
     headline.compareDocumentPosition(days) & Node.DOCUMENT_POSITION_FOLLOWING,
   ).toBeTruthy()
   await expect(
-    days.compareDocumentPosition(counts) & Node.DOCUMENT_POSITION_FOLLOWING,
+    days.compareDocumentPosition(ruler) & Node.DOCUMENT_POSITION_FOLLOWING,
   ).toBeTruthy()
-  const trail = within(canvas.getByRole('navigation', { name: 'breadcrumb' }))
-  await expect(trail.getByRole('link', { name: 'Goals' })).toHaveAttribute(
-    'href',
-    '/properties/p1/goals',
-  )
-  // The tiles: November so far, October before the goal, the usual.
-  await expect(canvas.getByRole('region', { name: 'Your goal, so far' })).toBeVisible()
-  const tiles = tilesOf(canvasElement)
-  await expect(tiles.getByText('November')).toBeVisible()
-  await expect(tiles.getByText('23 of 40')).toBeVisible()
-  await expect(tiles.getByText('17 to go · 9 days left')).toBeVisible()
-  await expect(tiles.getByText('October')).toBeVisible()
-  await expect(tiles.getByText('No goal yet')).toBeVisible()
-  await expect(tiles.getByText('Your usual')).toBeVisible()
-  await expect(tiles.getByText('About 34 a month')).toBeVisible()
-  await expect(tiles.getByText('last 4 weeks')).toBeVisible()
-  // November so far, with the month's first and last day under its bar, and
-  // today's date under that.
-  const month = within(canvas.getByRole('region', { name: 'November so far' }))
-  await expect(
-    month.getByRole('progressbar', { name: 'Private ratings in November' }),
-  ).toHaveAttribute('aria-valuetext', '23 of 40 private ratings, 9 days left')
-  await expect(month.getByText('Nov 1')).toBeVisible()
-  await expect(month.getByText('Nov 30')).toBeVisible()
-  await expect(month.getByText('It’s Nov 22')).toBeVisible()
-  await expect(month.queryByText(/pace/iu)).toBeNull()
-  // The pace is the pill in the page's header, where the first goal's page wears its own.
-  const header = within(
-    canvasElement.querySelector<HTMLElement>('#portal-goal-page-header') ?? canvasElement,
-  )
-  await expect(header.getByText('Below pace', { exact: true })).toBeVisible()
+  // The ruler's own words: where it starts, a steady month's stop, its end and where the month stands.
+  for (const words of [
+    '0',
+    'Nov 1',
+    '29',
+    'steady pace',
+    '40',
+    'your number',
+    '23 so far',
+  ]) {
+    await expect(within(ruler).getByText(words, { exact: true })).toBeInTheDocument()
+  }
+  // The pace is the pill in the header and in no other words.
+  await expect(where.queryByText(/below pace|on pace/iu)).toBeNull()
+}
+
+/** Nov 22: each Portal in name order, the usual and the pace so far, and what to do. */
+async function expectBands(canvas: Canvas) {
+  const where = band(canvas, WHERE)
+  await expect(where.getByText('From 2 of your 3 portals')).toBeVisible()
   // Name order, even with Spa on 20 and Reception on 3; then the total.
   await expect(portalRows(canvas)).toEqual([
     ['Reception', '3'],
@@ -172,17 +161,75 @@ async function expectRunning(canvas: Canvas, canvasElement: HTMLElement) {
     ['Spa', '20'],
     ['All portals', '23'],
   ])
+  const compare = band(canvas, COMPARE)
+  await expect(compare.getByText('About your usual')).toBeVisible()
+  await expect(
+    compare.getByText(
+      'You usually get about 34 a month. At this pace you’d end around 31.',
+    ),
+  ).toBeVisible()
+  // One month so far: the bars wait for a second.
+  await expect(
+    compare.getByText('Each month will build up here, against its own number.'),
+  ).toBeVisible()
+  const todo = band(canvas, TODO)
+  await expect(todo.getByText('Ask every guest', { exact: true })).toBeVisible()
+  await expect(
+    todo.getByText(
+      'Ask every guest, not only happy ones. Low and high ratings count the same.',
+    ),
+  ).toBeVisible()
+  await expect(todo.getByRole('link', { name: /^Open your portals/u })).toHaveAttribute(
+    'href',
+    '/properties/p1/portals',
+  )
+  await expect(todo.getByRole('button', { name: /^Change the number/u })).toBeVisible()
+  await expect(todo.getByText('Your usual is about 34 a month.')).toBeVisible()
+}
+
+/** "What changed" and "How this goal counts": closed until asked, then read. */
+async function expectClosedCards(canvas: Canvas) {
+  await expect(canvas.getByRole('button', { name: 'What changed' })).toHaveAttribute(
+    'aria-expanded',
+    'false',
+  )
+  const counts = canvas.getByRole('button', { name: 'How this goal counts' })
+  await expect(counts).toHaveAttribute('aria-expanded', 'false')
+  await expect(canvas.queryByText(/^Counts the 1–5 star private ratings/u)).toBeNull()
   // The History list: the date in its cell, the words in theirs.
-  await expect(changeCells(canvas)).toEqual([
+  await expect(await changeCells(canvas)).toEqual([
     ['Oct 23', 'Elena set 40 a month from November (recommended)'],
     ['Oct 15', 'Spa went live'],
     ['Oct 9', 'Reception and Restaurant went live'],
   ])
   // Every date is of this year: the cells keep their class's five rem.
-  await expect(changeDateWidths(canvas)).toEqual(['', '', ''])
+  await expect(await changeDateWidths(canvas)).toEqual(['', '', ''])
+  await openClosedCard(canvas, 'How this goal counts')
   await expect(
-    canvas.getByRole('button', { name: 'How this goal counts' }),
-  ).toHaveAttribute('aria-expanded', 'false')
+    canvas.getByText(
+      /^Counts the 1–5 star private ratings guests give at any of your portals\./u,
+    ),
+  ).toBeVisible()
+}
+
+async function expectRunning(canvas: Canvas, canvasElement: HTMLElement) {
+  await expect(outline(canvasElement)).toEqual(PAGE_OUTLINE)
+  const trail = within(canvas.getByRole('navigation', { name: 'breadcrumb' }))
+  await expect(trail.getByRole('link', { name: 'Goals' })).toHaveAttribute(
+    'href',
+    '/properties/p1/goals',
+  )
+  await expect(
+    headerOf(canvasElement).getByText('Below pace', { exact: true }),
+  ).toBeVisible()
+  await expectWhereItStands(canvasElement)
+  await expectBands(canvas)
+  await expectClosedCards(canvas)
+  // What this page no longer has: tiles, a meter, a month strip or a count in a line.
+  await expect(canvasElement.querySelector('[data-slot="metric-strip"]')).toBeNull()
+  await expect(canvas.queryByRole('progressbar')).toBeNull()
+  await expect(canvas.queryByRole('list', { name: 'Month by month' })).toBeNull()
+  await expect(canvas.queryByText(/^Private ratings from all 3 portals/u)).toBeNull()
   // No month has closed yet, so no results to see; behind, so never "on pace".
   await expect(canvas.queryByRole('link', { name: 'All monthly results' })).toBeNull()
   await expect(canvas.queryByText(/on pace/u)).toBeNull()
@@ -229,100 +276,210 @@ export const Scheduled: Story = {
   args: { page: PAGE_SCHEDULED },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
-    const tiles = tilesOf(canvasElement)
-    await expect(tiles.getByText('November')).toBeVisible()
-    await expect(tiles.getByText('40 private ratings')).toBeVisible()
-    await expect(tiles.getByText('Starts on Nov 1')).toBeVisible()
-    await expect(tiles.getByText('No goal yet')).toBeVisible()
-    await expect(canvas.queryByRole('region', { name: 'November so far' })).toBeNull()
-    await expect(canvas.queryByRole('region', { name: 'Month by month' })).toBeNull()
-    await expect(canvas.getByRole('region', { name: 'Changes' })).toBeVisible()
+    const where = whereOf(canvasElement)
+    await expect(where.getByText('November · 40 private ratings')).toBeVisible()
+    await expect(where.getByText('Starts on Nov 1 · October so far: 12')).toBeVisible()
+    // Nothing counts yet: no ruler, no Portals' counts, and nothing to compare.
+    await expect(where.queryByRole('img')).toBeNull()
+    await expect(canvas.queryByRole('region', { name: WHERE })).toBeNull()
+    await expect(
+      band(canvas, COMPARE).getByText('No month is counting now'),
+    ).toBeVisible()
+    await expect(
+      band(canvas, COMPARE).getByText('You usually get about 34 a month.'),
+    ).toBeVisible()
+    await expect(canvas.queryByRole('list', { name: 'Month by month' })).toBeNull()
+    await expect(canvas.getByRole('region', { name: 'What changed' })).toBeVisible()
   },
 }
 
-/** Spa has gone quiet: the page says since when, and its usual week. */
+/** Nov 2, the first quiet days: 1 of 40, from Reception only, and no pace to judge. */
+const PAGE_FIRST_DAYS: typeof PAGE_RUNNING = {
+  ...PAGE_RUNNING,
+  card: CARD_FIRST_DAYS,
+  today: '2026-11-02',
+  rows: {
+    portals: [
+      { portalId: 'portal-reception', name: 'Reception', count: 1 },
+      { portalId: 'portal-restaurant', name: 'Restaurant', count: 0 },
+      { portalId: 'portal-spa', name: 'Spa', count: 0 },
+    ],
+    elsewhere: 0,
+    total: 1,
+    truncated: false,
+  },
+  months: PAGE_RUNNING.months.map((month) => ({ ...month, value: 1 })),
+  changes: PAGE_RUNNING.changes.slice(0, 1),
+}
+
+/** The first quiet days: nothing is judged yet, and it is too early to say how the month compares. */
+export const FirstDays: Story = {
+  args: { page: PAGE_FIRST_DAYS },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    const where = whereOf(canvasElement)
+    await expect(
+      headerOf(canvasElement).getByText('Getting started', { exact: true }),
+    ).toBeVisible()
+    await expect(headlineOf(where, '39 private ratings to 40')).toBeVisible()
+    await expect(
+      where.getByText('29 days left in November. About 2 a day gets you there.'),
+    ).toBeVisible()
+    // The ruler has no steady stop yet.
+    const ruler = where.getByRole('img', { name: '1 of 40 private ratings so far.' })
+    await expect(within(ruler).queryByText('steady pace')).toBeNull()
+    await expect(band(canvas, WHERE).getByText('From 1 of your 3 portals')).toBeVisible()
+    await expect(band(canvas, COMPARE).getByText('Too early to say')).toBeVisible()
+    await expect(
+      band(canvas, COMPARE).getByText('You usually get about 34 a month.'),
+    ).toBeVisible()
+  },
+}
+
+/** Nov 27, G18: 41 of 40, passed with 4 days left; Reception brought in most of it. */
+const PAGE_PASSED: typeof PAGE_RUNNING = {
+  ...PAGE_RUNNING,
+  card: CARD_PASSED,
+  today: '2026-11-27',
+  rows: {
+    portals: [
+      { portalId: 'portal-reception', name: 'Reception', count: 22 },
+      { portalId: 'portal-restaurant', name: 'Restaurant', count: 11 },
+      { portalId: 'portal-spa', name: 'Spa', count: 8 },
+    ],
+    elsewhere: 0,
+    total: 41,
+    truncated: false,
+  },
+  months: PAGE_RUNNING.months.map((month) => ({ ...month, value: 41 })),
+}
+
+/** The number passed with 4 days left: the ruler is full and checked, the month is better than usual. */
+export const Passed: Story = {
+  args: { page: PAGE_PASSED },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    const where = whereOf(canvasElement)
+    await expect(
+      headerOf(canvasElement).getByText('On pace', { exact: true }),
+    ).toBeVisible()
+    await expect(headlineOf(where, 'Goal passed: 41 private ratings')).toBeVisible()
+    // Nothing left to get, so no word of what a day takes.
+    await expect(
+      where.getByText('4 days left in November', { exact: true }),
+    ).toBeVisible()
+    const ruler = where.getByRole('img', { name: '41 of 40 private ratings so far.' })
+    await expect(within(ruler).queryByText('steady pace')).toBeNull()
+    await expect(
+      band(canvas, WHERE).getByText('All 3 portals are bringing them in'),
+    ).toBeVisible()
+    await expect(band(canvas, COMPARE).getByText('Better than usual')).toBeVisible()
+    await expect(
+      band(canvas, COMPARE).getByText(
+        'You usually get about 34 a month. At this pace you’d end around 46.',
+      ),
+    ).toBeVisible()
+    await expect(band(canvas, TODO).getByText('Keep going')).toBeVisible()
+  },
+}
+
+/** Spa has gone quiet: the band names it, its row says since when, and the way to its code is there twice. */
 export const WithNoScanFacts: Story = {
   args: { page: PAGE_WITH_NO_SCAN_FACTS },
   play: async ({ canvasElement }) => {
-    const section = within(
-      within(canvasElement).getByRole('region', { name: 'From your portals' }),
-    )
+    const canvas = within(canvasElement)
+    const where = band(canvas, WHERE)
+    await expect(where.getByText('Spa has gone quiet')).toBeVisible()
     await expect(
-      section.getByText(
-        /^Spa: no scans since Nov 15\. It usually gets about 7 a week\./u,
+      where.getByText(
+        'Spa: no scans since Nov 15. It usually gets about 7 a week. Is it where guests can see it?',
       ),
     ).toBeVisible()
-    await expect(section.getByRole('link', { name: 'Open Spa' })).toHaveAttribute(
+    // On its own row, with the way to its code; nothing else is named.
+    const row = within(where.getByRole('list', { name: 'From your portals' }))
+    await expect(row.getByText('No scans since Nov 15')).toBeVisible()
+    await expect(row.getByRole('link', { name: 'Open Spa' })).toHaveAttribute(
       'href',
       '/properties/p1/portals/portal-spa?tab=share',
     )
+    // What to do about it comes first among the ways on.
+    const todo = band(canvas, TODO)
+    await expect(todo.getByRole('link', { name: /^Check Spa’s code/u })).toHaveAttribute(
+      'href',
+      '/properties/p1/portals/portal-spa?tab=share',
+    )
+    await expect(todo.queryByRole('link', { name: /^Open your portals/u })).toBeNull()
   },
 }
 
-/** Dec 22: each month a chip; one opens its facts and Escape brings the focus back. */
-export const StripLater: Story = {
+/** Dec 22: each month a bar against its own number; the keyboard reads them one by one. */
+export const BarsLater: Story = {
   args: { page: PAGE_LATER },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
-    const strip = within(canvas.getByRole('list', { name: 'Month by month' }))
-    const chips = strip.getAllByRole('button')
-    await expect(chips.map((chip) => chip.getAttribute('aria-label'))).toEqual([
-      'December: 12 of 45 private ratings, running',
-      'November: 41 of 40 private ratings, met',
-      'October: 36 of 40 private ratings, not met',
+    const compare = band(canvas, COMPARE)
+    await expect(compare.getByText('A slower month so far')).toBeVisible()
+    await expect(
+      compare.getByText(
+        'You usually get about 38 a month. At this pace you’d end around 17.',
+      ),
+    ).toBeVisible()
+    await expect(
+      compare.queryByText('Each month will build up here, against its own number.'),
+    ).toBeNull()
+    const bars = barsOf(compare, MONTH_BARS)
+    // Oldest first, each with its own number, as the list a screen reader reads.
+    const october =
+      'October: 36 of 40 private ratings · not met · Final on Nov 2 · Number in October: 40'
+    const december =
+      'December: 12 of 45 private ratings · running · Final on Jan 2 · Number in December: 45'
+    await expect(barLines(bars)).toEqual([
+      october,
+      'November: 41 of 40 private ratings · met · Final on Dec 2 · Number in November: 40',
+      december,
     ])
-    await expect(chips.map((chip) => chip.dataset['outcome'])).toEqual([
-      'open',
-      'met',
-      'closed',
-    ])
-    const october = strip.getByRole('button', {
-      name: 'October: 36 of 40 private ratings, not met',
+    await expectBarsReadByKeyboard(bars, {
+      hint: 'Hover or tap a bar to read that month.',
+      first: october,
+      last: december,
     })
-    await userEvent.click(october)
-    const facts = within(
-      await within(document.body).findByRole('dialog', { name: 'October' }),
-    )
-    await expect(facts.getByText('36 of 40 private ratings · not met')).toBeVisible()
-    await expect(facts.getByText('Final on Nov 2')).toBeVisible()
-    await expect(facts.getByText('Number in October: 40')).toBeVisible()
-    await userEvent.keyboard('{Escape}')
-    await waitFor(() => expect(october).toHaveFocus())
     // A month has closed: every month's result is a click away.
     await expect(
       canvas.getByRole('link', { name: 'All monthly results' }),
     ).toHaveAttribute('href', '/properties/p1/goals/portal-results')
-    await expect(changeTexts(canvas)).toContain(
+    await expect(await changeTexts(canvas)).toContain(
       'Dec 1 · Elena set December to 45 (recommended)',
     )
   },
 }
 
-/** November was corrected on Dec 5: its chip's facts say so. */
+/** November was corrected on Dec 5: its bar's words say so. */
 export const Corrected: Story = {
   args: { page: PAGE_CORRECTED },
   play: async ({ canvasElement }) => {
-    const canvas = within(canvasElement)
-    await userEvent.click(
-      canvas.getByRole('button', { name: 'November: 41 of 40 private ratings, met' }),
+    const bars = barsOf(band(within(canvasElement), COMPARE), MONTH_BARS)
+    await expect(barLines(bars)[1]).toBe(
+      'November: 41 of 40 private ratings · met · Final on Dec 2 · Number in November: 40 · Corrected on Dec 5: 41 of 40, now met.',
     )
-    const facts = within(
-      await within(document.body).findByRole('dialog', { name: 'November' }),
-    )
-    await expect(facts.getByText('Corrected on Dec 5: 41 of 40, now met.')).toBeVisible()
   },
 }
 
-/** Counting scans: the body line and how it counts say scans. */
+/** Counting scans: the ruler, the way on and how scans count all say scans. */
 export const HowThisGoalCountsScans: Story = {
   args: { page: PAGE_SCANS },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
+    const where = whereOf(canvasElement)
+    await expect(headlineOf(where, '17 scans to 40')).toBeVisible()
     await expect(
-      canvas.getByText('Scans from all 3 portals at Seaview Hotel.'),
+      where.getByRole('img', {
+        name: '23 of 40 scans so far. A steady month would be at about 29 by today.',
+      }),
     ).toBeVisible()
-    const toggle = canvas.getByRole('button', { name: 'How this goal counts' })
-    await userEvent.click(toggle)
+    await expect(
+      band(canvas, TODO).getByText('Put your codes where guests can see them.'),
+    ).toBeVisible()
+    const toggle = await openClosedCard(canvas, 'How this goal counts')
     await expect(toggle).toHaveAttribute('aria-expanded', 'true')
     await expect(
       canvas.getByText(/^Counts guests who open a portal from its code\./u),
@@ -331,14 +488,57 @@ export const HowThisGoalCountsScans: Story = {
   },
 }
 
-/** One published Portal: the page names it. */
+/** It counted private ratings in September and scans since October. */
+const PAGE_EARLIER_RATINGS: typeof PAGE_SCANS = {
+  ...PAGE_SCANS,
+  months: [
+    ...PAGE_SCANS.months,
+    {
+      key: '2026-10',
+      measure: 'qualified_scans',
+      value: 52,
+      target: 55,
+      outcome: 'not_met',
+      finalOn: '2026-11-02',
+      correction: null,
+    },
+    {
+      key: '2026-09',
+      measure: 'portal_rating_count',
+      value: 38,
+      target: 40,
+      outcome: 'not_met',
+      finalOn: '2026-10-02',
+      correction: null,
+    },
+  ],
+}
+
+/** The bars are of what the goal counts now; the months it counted something else are left out, and said so. */
+export const EarlierMonthsCountedSomethingElse: Story = {
+  args: { page: PAGE_EARLIER_RATINGS },
+  play: async ({ canvasElement }) => {
+    const compare = band(within(canvasElement), COMPARE)
+    const bars = barsOf(
+      compare,
+      'Scans each month. The short line is that month’s number.',
+    )
+    await expect(barLines(bars)).toEqual([
+      'October: 52 of 55 scans · not met · Final on Nov 2 · Number in October: 55',
+      'November: 23 of 40 scans · running · Final on Dec 2 · Number in November: 40',
+    ])
+    await expect(
+      compare.getByText('Earlier months counted private ratings.'),
+    ).toBeVisible()
+  },
+}
+
+/** One published Portal: the band names it, as the only one there is. */
 export const OnePortal: Story = {
   args: { page: PAGE_ONE_PORTAL },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
-    await expect(
-      canvas.getByText('Private ratings from Reception at Seaview Hotel.'),
-    ).toBeVisible()
+    await expect(band(canvas, WHERE).getByText('All from Reception')).toBeVisible()
     await expect(portalRows(canvas)).toEqual([
       ['Reception', '23'],
       ['All portals', '23'],
@@ -346,17 +546,18 @@ export const OnePortal: Story = {
   },
 }
 
-/** After a stop: the months and changes of the goal before carry on, newest first. */
+/** After a stop: the months and changes of the goal before carry on, the months oldest first. */
 export const AcrossAStop: Story = {
   args: { page: PAGE_ACROSS_A_STOP },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
-    await expect(chipNames(canvas)).toEqual([
-      'December: 12 of 45 private ratings, running',
-      'November: 36 of 40 private ratings, not met',
-      'October: 41 of 40 private ratings, met',
+    const bars = barsOf(band(canvas, COMPARE), MONTH_BARS)
+    await expect(barLines(bars)).toEqual([
+      'October: 41 of 40 private ratings · met · Final on Nov 2 · Number in October: 40',
+      'November: 36 of 40 private ratings · not met · Final on Dec 2 · Number in November: 40',
+      'December: 12 of 45 private ratings · running · Final on Jan 2 · Number in December: 45',
     ])
-    await expect(changeTexts(canvas).slice(0, 3)).toEqual([
+    await expect((await changeTexts(canvas)).slice(0, 3)).toEqual([
       'Nov 20 · Elena set 45 a month from December“Spa reopens in December”',
       'Nov 12 · Marco stopped the goal',
       'Sep 23 · Elena set 40 a month from October (recommended)',
@@ -365,7 +566,7 @@ export const AcrossAStop: Story = {
   },
 }
 
-/** Stopped on Nov 12: November still counts to its end. */
+/** Stopped on Nov 12: November still counts to its end, and there is nothing left to do. */
 export const Stopped: Story = {
   args: { page: PAGE_STOPPED },
   play: async ({ canvasElement }) => {
@@ -378,7 +579,14 @@ export const Stopped: Story = {
     await expect(
       notice.getByRole('button', { name: 'Set a goal from December' }),
     ).toBeVisible()
-    await expect(changeTexts(canvas)).toContain('Nov 12 · Marco stopped the goal')
+    // Where it stood, and the questions about the past; no "what can you do this week".
+    await expect(
+      whereOf(canvasElement).getByRole('img', {
+        name: /^23 of 40 private ratings so far/u,
+      }),
+    ).toBeVisible()
+    await expect(canvas.queryByRole('region', { name: TODO })).toBeNull()
+    await expect(await changeTexts(canvas)).toContain('Nov 12 · Marco stopped the goal')
   },
 }
 
@@ -398,12 +606,12 @@ export const ChangesAcrossAYear: Story = {
   parameters: { viewport: { defaultViewport: 'mobileNarrow' } },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
-    await expect(changeCells(canvas)).toEqual([
+    await expect(await changeCells(canvas)).toEqual([
       ['Oct 23', 'Elena set 40 a month from November (recommended)'],
       ['Dec 28, 2025', 'Spa went live'],
       ['Mar 3, 2025', 'Reception and Restaurant went live'],
     ])
-    await expect(changeDateWidths(canvas)).toEqual(['6rem', '6rem', '6rem'])
+    await expect(await changeDateWidths(canvas)).toEqual(['6rem', '6rem', '6rem'])
   },
 }
 
@@ -412,11 +620,9 @@ export const ManyChanges: Story = {
   args: { page: PAGE_MANY_CHANGES },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
-    await expect(changeTexts(canvas)).toHaveLength(12)
+    await expect(await changeTexts(canvas)).toHaveLength(12)
     await userEvent.click(canvas.getByRole('button', { name: 'Show all' }))
-    const items = within(canvas.getByRole('region', { name: 'Changes' })).getAllByRole(
-      'listitem',
-    )
+    const items = (await openWhatChanged(canvas)).getAllByRole('listitem')
     await expect(items).toHaveLength(14)
     await waitFor(() => expect(items[12]).toHaveFocus())
     await expect(canvas.queryByRole('button', { name: 'Show all' })).toBeNull()
@@ -467,11 +673,11 @@ export const NoGoalAfterAStop: Story = {
     await expect(outline(canvasElement)).toEqual([
       'h1 Monthly portal goal',
       'h2 Month by month',
-      'h2 Changes',
+      'h2 What changed',
       'h2 More portal goals',
     ])
     await expect(chipNames(canvas)).toEqual(['November: 41 of 40 private ratings, met'])
-    await expect(changeTexts(canvas).slice(0, 2)).toEqual([
+    await expect((await changeTexts(canvas)).slice(0, 2)).toEqual([
       'Nov 12 · Marco stopped the goal',
       'Oct 23 · Elena set 40 a month from November (recommended)',
     ])
@@ -495,354 +701,5 @@ export const NothingMoreToAdd: Story = {
         'Want a number for one portal as well? Most properties don’t need one.',
       ),
     ).toBeNull()
-  },
-}
-
-/** Opens the goal's menu and picks an item, which hands over once the menu has closed. */
-async function pickFromMenu(canvas: Canvas, item: string) {
-  await userEvent.click(
-    canvas.getByRole('button', { name: 'More actions for Monthly portal goal' }),
-  )
-  await userEvent.click(
-    await within(document.body).findByRole('menuitem', { name: item }),
-  )
-}
-
-/** "Stop this goal…" from the menu: the confirmation it opens. */
-async function openStop(canvasElement: HTMLElement) {
-  await pickFromMenu(within(canvasElement), 'Stop this goal…')
-  const dialog = await within(document.body).findByRole('alertdialog', {
-    name: 'Stop the monthly portal goal?',
-  })
-  return { dialog, in: within(dialog) }
-}
-
-/** "Change number" and "Count scans instead" open the change sheet; the measure only from next month. */
-export const Actions: Story = {
-  play: async ({ canvasElement, args }) => {
-    const canvas = within(canvasElement)
-    await userEvent.click(canvas.getByRole('button', { name: 'Change number' }))
-    await expect(args.commands.openSheet).toHaveBeenLastCalledWith({
-      mode: 'change',
-      measure: 'portal_rating_count',
-    })
-    await pickFromMenu(canvas, 'Count scans instead…')
-    await waitFor(() =>
-      expect(args.commands.openSheet).toHaveBeenLastCalledWith({
-        mode: 'change',
-        measure: 'qualified_scans',
-      }),
-    )
-    // The menu's trigger keeps the focus for the sheet to hand back.
-    await expect(
-      canvas.getByRole('button', { name: 'More actions for Monthly portal goal' }),
-    ).toHaveFocus()
-  },
-}
-
-/** Without goal.update or goal.cancel the actions are not drawn. */
-export const ActionsNotAllowed: Story = {
-  args: { canChange: false, canStop: false },
-  play: async ({ canvasElement }) => {
-    const canvas = within(canvasElement)
-    await expect(canvas.queryByRole('button', { name: 'Change number' })).toBeNull()
-    await expect(
-      canvas.queryByRole('button', { name: 'More actions for Monthly portal goal' }),
-    ).toBeNull()
-  },
-}
-
-/** Stop asks first; the focus stays in the dialog; then it stops, says so and hands over. */
-export const StopDialog: Story = {
-  decorators: [ToasterDecorator],
-  play: async ({ canvasElement, args }) => {
-    const { dialog, in: inDialog } = await openStop(canvasElement)
-    await expect(
-      inDialog.getByText(
-        'November keeps counting to Nov 30 and keeps its result. You can set a new goal from December.',
-      ),
-    ).toBeVisible()
-    await waitFor(() =>
-      expect(dialog).toContainElement(document.activeElement as HTMLElement),
-    )
-    await userEvent.tab()
-    await expect(dialog).toContainElement(document.activeElement as HTMLElement)
-    await userEvent.tab()
-    await expect(dialog).toContainElement(document.activeElement as HTMLElement)
-    await userEvent.click(inDialog.getByRole('button', { name: 'Stop the goal' }))
-    await expect(args.stop.stopMonthlyPortalGoalFn).toHaveBeenCalledWith({
-      data: { propertyId: SEAVIEW.propertyId, programId: 'program-monthly' },
-    })
-    const said = await within(document.body).findByText('Monthly portal goal stopped')
-    await waitFor(() => expect(said).toBeVisible())
-    // The route leaves for the Goals page from here.
-    await waitFor(() => expect(args.stop.onStopped).toHaveBeenCalledOnce())
-  },
-}
-
-/** 320 px: the question, what happens and both buttons, in the destructive dialog. */
-export const StopDialogOnANarrowPhone: Story = {
-  play: async ({ canvasElement }) => {
-    const { in: inDialog } = await openStop(canvasElement)
-    await expect(
-      inDialog.getByText(
-        'November keeps counting to Nov 30 and keeps its result. You can set a new goal from December.',
-      ),
-    ).toBeVisible()
-    await expect(inDialog.getByRole('button', { name: 'Keep the goal' })).toBeVisible()
-    await expect(inDialog.getByRole('button', { name: 'Stop the goal' })).toBeVisible()
-  },
-  parameters: { viewport: { defaultViewport: 'mobileNarrow' } },
-}
-
-export const StopDialogOnATablet: Story = {
-  ...StopDialogOnANarrowPhone,
-  parameters: { viewport: { defaultViewport: 'tablet' } },
-}
-
-/** "Keep the goal" stops nothing, and the focus goes back to the menu's trigger. */
-export const StopKept: Story = {
-  play: async ({ canvasElement, args }) => {
-    const canvas = within(canvasElement)
-    const { dialog, in: inDialog } = await openStop(canvasElement)
-    await userEvent.click(inDialog.getByRole('button', { name: 'Keep the goal' }))
-    await waitFor(() => expect(dialog).not.toBeInTheDocument())
-    await expect(args.stop.stopMonthlyPortalGoalFn).not.toHaveBeenCalled()
-    await waitFor(() =>
-      expect(
-        canvas.getByRole('button', { name: 'More actions for Monthly portal goal' }),
-      ).toHaveFocus(),
-    )
-  },
-}
-
-/** A goal that has not started frees its month at once. */
-export const StopScheduled: Story = {
-  args: { page: PAGE_SCHEDULED },
-  play: async ({ canvasElement, args }) => {
-    const { in: dialog } = await openStop(canvasElement)
-    await expect(
-      dialog.getByText(
-        'November has not started, so nothing has counted yet. You can set a new goal straight away.',
-      ),
-    ).toBeVisible()
-    await userEvent.click(dialog.getByRole('button', { name: 'Stop the goal' }))
-    await waitFor(() => expect(args.stop.onStopped).toHaveBeenCalledOnce())
-  },
-}
-
-/** F-5: stopped a moment ago elsewhere. The dialog says so and the page is read again. */
-export const StopAlreadyStopped: Story = {
-  args: {
-    stop: {
-      stopMonthlyPortalGoalFn: fn(async () => {
-        throw new ServerFunctionError(
-          'GoalProgramError',
-          'invalid_transition',
-          'invalid_transition',
-          409,
-        )
-      }),
-      onStopped: fn(async () => undefined),
-      onRefused: fn(async () => undefined),
-    },
-  },
-  play: async ({ canvasElement, args }) => {
-    const { in: dialog } = await openStop(canvasElement)
-    await userEvent.click(dialog.getByRole('button', { name: 'Stop the goal' }))
-    await expect(
-      await dialog.findByText('This goal was already stopped. Here is the latest.'),
-    ).toBeVisible()
-    await expect(args.stop.onRefused).toHaveBeenCalledOnce()
-    await expect(args.stop.onStopped).not.toHaveBeenCalled()
-  },
-}
-
-/** A stopped goal takes no change and no second stop: no actions; the next goal from December. */
-export const StoppedHasNoActions: Story = {
-  args: { page: PAGE_STOPPED },
-  play: async ({ canvasElement, args }) => {
-    const canvas = within(canvasElement)
-    await expect(canvas.queryByRole('button', { name: 'Change number' })).toBeNull()
-    await userEvent.click(
-      canvas.getByRole('button', { name: 'Set a goal from December' }),
-    )
-    await expect(args.commands.openSheet).toHaveBeenCalledWith({
-      measure: 'portal_rating_count',
-      month: '2026-12',
-    })
-  },
-}
-
-// ─── A goal for one portal, one group or the average (PLAN PG-21) ──────────
-
-/** What the route hands in for a Portal's or a group's goal: its page, titled for it. */
-const singleArgs = (view: typeof SINGLE_RECEPTION) => ({
-  page: view.page,
-  single: {
-    title: singleGoalTitle(view.subject),
-    name: singleSubjectWords(view.subject),
-    where: subjectPlace(view.subject) ?? '',
-    canSwitch: !view.otherMeasureHeld,
-  },
-  extras: null,
-  addLink: null,
-})
-
-const SINGLE_OUTLINE = [
-  'h2 November so far',
-  'h2 Your goal, so far',
-  'h2 Month by month',
-  'h2 Changes',
-]
-
-/** Reception's own goal: its month and changes, no Portals' rows, and the same actions. */
-export const SinglePortalGoal: Story = {
-  args: singleArgs(SINGLE_RECEPTION),
-  decorators: [ToasterDecorator],
-  parameters: { viewport: { defaultViewport: 'desktopManager' } },
-  play: async ({ canvasElement, args }) => {
-    const canvas = within(canvasElement)
-    await expect(outline(canvasElement)).toEqual([
-      'h1 Reception · portal goal',
-      ...SINGLE_OUTLINE,
-    ])
-    await expect(
-      canvas.getByText('Private ratings from Reception at Seaview Hotel.'),
-    ).toBeVisible()
-    const tiles = tilesOf(canvasElement)
-    await expect(tiles.getByText('13 of 22')).toBeVisible()
-    await expect(tiles.getByText('About 20 a month')).toBeVisible()
-    await expect(canvas.queryByRole('region', { name: 'From your portals' })).toBeNull()
-    await expect(changeTexts(canvas)).toEqual([
-      'Oct 23 · Elena set 22 a month from November (recommended)',
-      'Oct 9 · Reception went live',
-    ])
-    await userEvent.click(canvas.getByRole('button', { name: 'Change number' }))
-    await expect(args.commands.openSheet).toHaveBeenLastCalledWith({
-      mode: 'change',
-      measure: 'portal_rating_count',
-    })
-    await userEvent.click(
-      canvas.getByRole('button', { name: 'More actions for Reception · portal goal' }),
-    )
-    const body = within(document.body)
-    await expect(
-      await body.findByRole('menuitem', { name: 'Count scans instead…' }),
-    ).toBeVisible()
-    await userEvent.click(body.getByRole('menuitem', { name: 'Stop this goal…' }))
-    const dialog = await body.findByRole('alertdialog', {
-      name: 'Stop this portal goal?',
-    })
-    await userEvent.click(within(dialog).getByRole('button', { name: 'Stop the goal' }))
-    await expect(args.stop.stopMonthlyPortalGoalFn).toHaveBeenCalledWith({
-      data: { propertyId: SEAVIEW.propertyId, programId: 'program-reception' },
-    })
-    const said = await body.findByText('Portal goal stopped')
-    await waitFor(() => expect(said).toBeVisible())
-    await waitFor(() => expect(args.stop.onStopped).toHaveBeenCalledOnce())
-  },
-}
-
-export const SinglePortalGoalLight: Story = {
-  args: singleArgs(SINGLE_RECEPTION),
-  parameters: { theme: 'light' },
-  play: async ({ canvasElement }) => {
-    await expect(outline(canvasElement)[0]).toBe('h1 Reception · portal goal')
-  },
-}
-
-/** The Rooms group's goal: named as the Goals list names a group, its Portals' go-live. */
-export const GroupGoal: Story = {
-  args: singleArgs(SINGLE_ROOMS),
-  parameters: { viewport: { defaultViewport: 'tablet' } },
-  play: async ({ canvasElement }) => {
-    const canvas = within(canvasElement)
-    await expect(outline(canvasElement)).toEqual([
-      'h1 Rooms (group) · portal goal',
-      ...SINGLE_OUTLINE,
-    ])
-    await expect(
-      canvas.getByText('Private ratings from Rooms (group) at Seaview Hotel.'),
-    ).toBeVisible()
-    await expect(tilesOf(canvasElement).getByText('21 of 35')).toBeVisible()
-    await expect(changeTexts(canvas)).toEqual([
-      'Oct 23 · Elena set 35 a month from November (recommended)',
-      'Oct 9 · Reception and Restaurant went live',
-    ])
-  },
-}
-
-/** What the route hands the average's page: its read, its change and its stop. */
-const averageCommands = {
-  changeMonthlyPortalGoalNowFn: fn(async () => ({})),
-  reviseMonthlyPortalGoalFn: fn(async () => ({})),
-  onChanged: fn(async () => undefined),
-  reread: fn(async () => undefined),
-}
-
-/** The average: its page without a bar, its months and changes, Change number and Stop. */
-export const AverageGoal: Story = {
-  render: (args) => (
-    <PortalGoalAveragePage
-      propertyId={args.propertyId}
-      propertyName={args.propertyName}
-      view={AVERAGE_RUNNING}
-      canChange={args.canChange}
-      canStop={args.canStop}
-      commands={averageCommands}
-      stop={args.stop}
-      personName={args.personName}
-    />
-  ),
-  parameters: { viewport: { defaultViewport: 'mobileStaff' } },
-  play: async ({ canvasElement }) => {
-    const canvas = within(canvasElement)
-    await expect(outline(canvasElement)).toEqual([
-      'h1 Average private rating',
-      'h2 Your goal, so far',
-      'h2 Month by month',
-      'h2 Changes',
-    ])
-    await expect(
-      canvas.getByText(
-        'The average private rating guests give at your portals. A month needs at least 10 ratings.',
-      ),
-    ).toBeVisible()
-    const tiles = tilesOf(canvasElement)
-    await expect(tiles.getByText('November')).toBeVisible()
-    await expect(tiles.getByText('4.6 so far · goal 4.5')).toBeVisible()
-    await expect(tiles.getByText('9 days left')).toBeVisible()
-    await expect(canvas.queryByRole('progressbar')).toBeNull()
-    await expect(chipNames(canvas)).toEqual([
-      'November: 4.6 · goal 4.5, running',
-      'October: 4.6 · goal 4.5, met',
-    ])
-    await expect(changeTexts(canvas)).toEqual(['Sep 28 · Elena set 4.5 from October'])
-    await expect(canvas.getByRole('button', { name: 'Change number' })).toBeVisible()
-    await expectStopAloneInMenu(canvas, 'Average private rating')
-  },
-}
-
-/** Six of the ten ratings a month needs: no average is shown yet. */
-export const AverageMoreNeeded: Story = {
-  ...AverageGoal,
-  render: (args) => (
-    <PortalGoalAveragePage
-      propertyId={args.propertyId}
-      propertyName={args.propertyName}
-      view={AVERAGE_MORE_NEEDED}
-      canChange={args.canChange}
-      canStop={args.canStop}
-      commands={averageCommands}
-      stop={args.stop}
-      personName={args.personName}
-    />
-  ),
-  parameters: { viewport: { defaultViewport: 'mobileNarrow' } },
-  play: async ({ canvasElement }) => {
-    const tiles = tilesOf(canvasElement)
-    await expect(tiles.getByText('More ratings needed · 6 of 10')).toBeVisible()
-    await expect(tiles.getByText('9 days left')).toBeVisible()
   },
 }

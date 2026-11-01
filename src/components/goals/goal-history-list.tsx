@@ -11,8 +11,59 @@
 // makes the card a landmark named by its title; and `wideDates`, a date column
 // with room for a year. A list that passes none draws a card with no landmark and
 // a column of five rem, as it always did.
+//
+// On a goal's page it is closed until asked (2026-11-01): the page leads with how
+// the goal stands, and the dated facts are one tap away.
 import { useCallback, useId, useRef, type ReactNode } from 'react'
+import { ChevronDown } from 'lucide-react'
+import { RowButton } from '#/components/ui/button-layouts'
 import { Card, CardContent, CardHeader, CardTitle } from '#/components/ui/card'
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from '#/components/ui/collapsible'
+
+/** A card closed until asked: its title is the way to open it. */
+export function GoalClosedCard({
+  title,
+  region = false,
+  defaultOpen = false,
+  children,
+}: Readonly<{
+  title: string
+  region?: boolean
+  defaultOpen?: boolean
+  children: ReactNode
+}>) {
+  const titleId = useId()
+  return (
+    <Card
+      className="gap-0 py-0"
+      role={region ? 'region' : undefined}
+      aria-labelledby={region ? titleId : undefined}
+    >
+      <Collapsible defaultOpen={defaultOpen}>
+        <CardHeader>
+          <CardTitle as="h2" id={region ? titleId : undefined}>
+            <CollapsibleTrigger asChild>
+              <RowButton variant="ghost" className="group font-semibold">
+                {title}
+                <ChevronDown
+                  aria-hidden="true"
+                  className="size-4 shrink-0 text-muted-foreground transition-transform group-data-[state=open]:rotate-180"
+                />
+              </RowButton>
+            </CollapsibleTrigger>
+          </CardTitle>
+        </CardHeader>
+        <CollapsibleContent>
+          <CardContent className="flex flex-col gap-3 pb-3">{children}</CardContent>
+        </CollapsibleContent>
+      </Collapsible>
+    </Card>
+  )
+}
 
 /** One dated fact. */
 type GoalHistoryRow = Readonly<{
@@ -37,10 +88,12 @@ type Props = Readonly<{
   region?: boolean
   /** The date column is wide enough for a year ("Dec 28, 2025"), which five rem cannot hold on one line. */
   wideDates?: boolean
+  /** Opens already, where nothing needs asking first; closed until asked otherwise. */
+  defaultOpen?: boolean
 }>
 
 /** The row's classes, spelled whole. The row the focus is sent to has no ring of its own. */
-const ROW = 'flex gap-x-4 py-2 first:pt-0 last:pb-0'
+const ROW = 'flex gap-x-4 py-2 last:pb-0'
 const REVEALED_ROW = `${ROW} outline-none`
 
 /** The date cell's classes: five rem wide, or the width below for a date with its year. */
@@ -58,8 +111,8 @@ export function GoalHistoryList({
   revealedFrom = null,
   region = false,
   wideDates = false,
+  defaultOpen = false,
 }: Props) {
-  const titleId = useId()
   // Once, however often the list is drawn again: a row's key moves with its index.
   const focused = useRef(false)
   const focusRevealed = useCallback((item: HTMLLIElement | null) => {
@@ -68,41 +121,30 @@ export function GoalHistoryList({
     item.focus()
   }, [])
   return (
-    <Card
-      className="gap-4"
-      role={region ? 'region' : undefined}
-      aria-labelledby={region ? titleId : undefined}
-    >
-      <CardHeader>
-        <CardTitle as="h2" id={region ? titleId : undefined}>
-          {title}
-        </CardTitle>
-      </CardHeader>
-      <CardContent className="flex flex-col gap-3">
-        <ul className="flex flex-col divide-y text-sm">
-          {rows.map((row, index) => {
-            const revealed = index === revealedFrom
-            return (
-              <li
-                key={row.key}
-                ref={revealed ? focusRevealed : undefined}
-                tabIndex={revealed ? -1 : undefined}
-                className={revealed ? REVEALED_ROW : ROW}
+    <GoalClosedCard title={title} region={region} defaultOpen={defaultOpen}>
+      <ul className="flex flex-col divide-y border-t text-sm">
+        {rows.map((row, index) => {
+          const revealed = index === revealedFrom
+          return (
+            <li
+              key={row.key}
+              ref={revealed ? focusRevealed : undefined}
+              tabIndex={revealed ? -1 : undefined}
+              className={revealed ? REVEALED_ROW : ROW}
+            >
+              <span
+                className={wideDates ? WHEN_WIDE : WHEN}
+                style={wideDates ? WIDE_WHEN_WIDTH : undefined}
               >
-                <span
-                  className={wideDates ? WHEN_WIDE : WHEN}
-                  style={wideDates ? WIDE_WHEN_WIDTH : undefined}
-                >
-                  {row.when}
-                </span>
-                {row.content}
-              </li>
-            )
-          })}
-        </ul>
-        {more}
-        {foot}
-      </CardContent>
-    </Card>
+                {row.when}
+              </span>
+              {row.content}
+            </li>
+          )
+        })}
+      </ul>
+      {more}
+      {foot}
+    </GoalClosedCard>
   )
 }

@@ -4,10 +4,10 @@
 // "Other number", "How we worked this out", November closed met and not met,
 // December at the recommended number already (one line under the card), nothing
 // counted, a refusal, someone who may not change the goal, and Dec 8 (folded
-// away). At 320, 390, 820 and 1440 px and on the light theme. The Storybook
-// Vitest project compiles no Tailwind, so the plays assert words, roles, order,
-// what is sent, where the focus goes, and the classes that wrap the buttons and
-// keep them touch-sized.
+// away). The card under the strip is the running month on its ruler. At 320, 390,
+// 820 and 1440 px and on the light theme. The Storybook Vitest project compiles no
+// Tailwind, so the plays assert words, roles, order, what is sent, where the focus
+// goes, and the classes that wrap the buttons and keep them touch-sized.
 import { useState } from 'react'
 import type { Meta, StoryObj } from '@storybook/react-vite'
 import { toast } from 'sonner'
@@ -292,9 +292,9 @@ export const CheckInKeep: Story = {
     await waitFor(() =>
       expect(canvas.queryByRole('region', { name: 'For December' })).toBeNull(),
     )
-    // The running month is back: December's bar, from its first day.
+    // The running month is back: December's ruler, from its first day.
     await expect(
-      canvas.getByRole('progressbar', { name: 'Private ratings in December' }),
+      canvas.getByRole('img', { name: '0 of 40 private ratings so far.' }),
     ).toBeVisible()
   },
 }
@@ -398,9 +398,9 @@ export const CheckInSameLine: Story = {
     await expect(
       canvas.getByText('December stays at 45. It is still the recommended number.'),
     ).toBeVisible()
-    // December's progress stays: no region, no choice.
+    // December's progress stays, against its 45: no region, no choice.
     await expect(
-      canvas.getByRole('progressbar', { name: 'Private ratings in December' }),
+      canvas.getByRole('img', { name: '0 of 45 private ratings so far.' }),
     ).toBeVisible()
     await expect(canvas.queryByRole('region', { name: 'For December' })).toBeNull()
     await expect(canvas.queryByRole('button', { name: /Use|Keep/u })).toBeNull()
@@ -447,7 +447,7 @@ export const CheckInNotAllowed: Story = {
     const canvas = within(canvasElement)
     await expect(canvas.queryByRole('region', { name: 'For December' })).toBeNull()
     await expect(
-      canvas.getByRole('progressbar', { name: 'Private ratings in December' }),
+      canvas.getByRole('img', { name: '0 of 40 private ratings so far.' }),
     ).toBeVisible()
   },
 }
@@ -459,6 +459,11 @@ export const Day8Hidden: Story = {
     const canvas = within(canvasElement)
     await expect(canvas.queryByRole('region', { name: 'For December' })).toBeNull()
     await expect(canvas.queryByRole('button', { name: /Keep|Use/u })).toBeNull()
-    await expect(canvas.getByText('9 of 40')).toBeVisible()
+    // 9 of 40 on the 8th: a steady month would be at about 10.
+    await expect(
+      canvas.getByRole('img', {
+        name: '9 of 40 private ratings so far. A steady month would be at about 10 by today.',
+      }),
+    ).toBeVisible()
   },
 }

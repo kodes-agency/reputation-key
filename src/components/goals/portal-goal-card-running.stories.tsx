@@ -1,17 +1,16 @@
 // The running Monthly portal goal on its card (PLAN PG-12; ADR 0068 amended
-// 2026-10-19): the shared card frame with the pace pill in its corner (Getting
-// started, On pace, Below pace, or none for a month the rule does not judge),
-// what is left to the number as the headline with the days left under it, the
-// month so far as the meter with today's tick and date, what each Portal
-// brought in (in name order, one Portal, five, and Other portals), the first
-// quiet days, the last day, a goal passed, a figure that cannot be read, a
-// stopped goal (with its way to the next goal), the month before while it is
-// read and once it closed, and "View details" to the goal's page. Each at 320,
-// 390, 820 and 1440 px and on the light theme where the layout changes. The
-// Storybook Vitest project compiles no Tailwind, so the plays assert words,
-// roles, the tick's place and the bar's own clip on x (inline style, so it
-// holds there too); where Tailwind is compiled they also measure that nothing
-// scrolls sideways.
+// 2026-10-19 and 2026-11-01): the shared card frame with the pace pill in its corner
+// (Getting started, On pace, Below pace, or none for a month the rule does not
+// judge), what is left to the number as the headline with the days left and what a
+// day takes under it, the month so far on the ruler with a steady month's stop, what
+// each Portal brought in (in name order, one Portal, five, and Other portals), the
+// first quiet days, the last day, a goal passed, a figure that cannot be read, a
+// stopped goal (with its way to the next goal), the month before while it is read and
+// once it closed, and "View details" to the goal's page. Each at 320, 390, 820 and
+// 1440 px and on the light theme where the layout changes. The Storybook Vitest
+// project compiles no Tailwind, so the plays assert words, roles and the ruler's
+// sentence (its words are in it); where Tailwind is compiled they also measure that
+// nothing scrolls sideways.
 import type { Meta, StoryObj } from '@storybook/react-vite'
 import { expect, fn, userEvent, within } from 'storybook/test'
 import type { PortalGoalCardView } from '#/contexts/reporting/application/dto/monthly-portal-goal.types'
@@ -66,22 +65,15 @@ export default meta
 type Story = StoryObj<typeof meta>
 type Canvas = ReturnType<typeof within>
 
-const BAR_LABEL = 'Private ratings in November'
+/** The ruler's sentence on Nov 22: 23 of 40, and where a steady month would be today. */
+const RULER =
+  '23 of 40 private ratings so far. A steady month would be at about 29 by today.'
 
-/** The tick's layer, when one is drawn. */
-const tickOf = (canvasElement: HTMLElement) =>
-  canvasElement.querySelector<HTMLElement>('[data-slot="goal-meter-tick"]')
+/** The ruler is a picture named by one sentence; its words are in it. */
+const rulerOf = (canvas: Canvas, name: string) => canvas.getByRole('img', { name })
 
-/**
- * The tick's layer hangs past the bar's end by the tick's share of the bar:
- * the bar clips it at its sides only, so the page never scrolls sideways and
- * the tick still stands above and below the track.
- */
+/** The card is no wider than the screen: the ruler and its words stay inside it. */
 async function expectNoSidewaysScroll(canvasElement: HTMLElement) {
-  const bar = canvasElement.querySelector<HTMLElement>('[data-slot="goal-meter-bar"]')
-  if (!bar) throw new Error('expected the bar')
-  await expect(getComputedStyle(bar).overflowX).toBe('clip')
-  await expect(getComputedStyle(bar).overflowY).toBe('visible')
   await expect(canvasElement.scrollWidth).toBeLessThanOrEqual(canvasElement.clientWidth)
 }
 
@@ -95,35 +87,34 @@ async function expectRunning(canvas: Canvas, canvasElement: HTMLElement) {
   // Behind: the pill in the corner says so, and nothing else does.
   await expect(canvas.getByText('Below pace', { exact: true })).toBeVisible()
   await expect(canvas.queryByText(/on pace/iu)).toBeNull()
-  // What is left, led by its figure, with the days left in the month under it.
+  // What is left, led by its figure, with the days left and what a day takes under it.
   await expect(headlineOf(canvas, '17 private ratings to 40')).toBeVisible()
-  await expect(canvas.getByText('9 days left in November')).toBeVisible()
-  // The month so far: caption, figure, the bar and today's date.
-  await expect(canvas.getByText('November so far')).toBeVisible()
-  await expect(canvas.getByText('23 of 40')).toBeVisible()
-  await expect(canvas.getByText('It’s Nov 22')).toBeVisible()
-  const bar = canvas.getByRole('progressbar', { name: BAR_LABEL })
-  await expect(bar).toHaveAttribute(
-    'aria-valuetext',
-    '23 of 40 private ratings, 9 days left',
-  )
-  await expect(bar).toHaveAttribute('aria-valuenow', '23')
-  await expect(bar).toHaveAttribute('aria-valuemax', '40')
-  // The tick: 22 of 30 days gone.
-  await expect(tickOf(canvasElement)?.style.transform).toMatch(
-    /^translateX\(73\.3+\d*%\)$/u,
-  )
+  await expect(
+    canvas.getByText('9 days left in November. About 2 a day gets you there.'),
+  ).toBeVisible()
+  // The month so far on the ruler: from none to the number, with a steady month's stop.
+  const ruler = rulerOf(canvas, RULER)
+  await expect(ruler).toBeVisible()
+  // A narrow ruler leaves out the end's note where the stop's words reach it: drawn, not always seen.
+  for (const words of [
+    '0',
+    'Nov 1',
+    '29',
+    'steady pace',
+    '40',
+    'your number',
+    '23 so far',
+  ]) {
+    await expect(within(ruler).getByText(words, { exact: true })).toBeInTheDocument()
+  }
+  await expect(canvas.queryByRole('progressbar')).toBeNull()
   await expectNoSidewaysScroll(canvasElement)
-  // Name order, even with Spa on 20 and Reception on 3: the list on a wide
-  // card, and the same counts in one line under the days on a narrow one.
+  // Name order, even with Spa on 20 and Reception on 3.
   await expect(portalRows(canvas)).toEqual([
     ['Reception', '3'],
     ['Restaurant', '0'],
     ['Spa', '20'],
   ])
-  await expect(
-    canvas.getByText('Reception 3 · Restaurant 0 · Spa 20'),
-  ).toBeInTheDocument()
   // Nothing to press on the card yet: the way on is the goal's page, a link.
   await expect(canvas.queryByRole('button')).toBeNull()
   await expect(canvas.getByRole('link', { name: 'View details' })).toHaveAttribute(
@@ -162,7 +153,7 @@ export const RunningLight: Story = {
   parameters: { theme: 'light' },
 }
 
-/** Nov 22: 30 of 40, on the way: the pill says On pace, in the words of the first goal. */
+/** Nov 22: 30 of 40, on the way: the pill says On pace, and the month stands past the steady stop. */
 export const OnPace: Story = {
   args: { card: read(CARD_ON_PACE) },
   play: async ({ canvasElement }) => {
@@ -170,24 +161,34 @@ export const OnPace: Story = {
     await expect(canvas.getByText('On pace', { exact: true })).toBeVisible()
     await expect(canvas.queryByText(/below pace|getting started/iu)).toBeNull()
     await expect(headlineOf(canvas, '10 private ratings to 40')).toBeVisible()
-    await expect(canvas.getByText('30 of 40')).toBeVisible()
-    await expect(tickOf(canvasElement)).not.toBeNull()
+    const ruler = rulerOf(
+      canvas,
+      '30 of 40 private ratings so far. A steady month would be at about 29 by today.',
+    )
+    await expect(within(ruler).getByText('30 so far')).toBeVisible()
   },
 }
 
-/** A goal of 4 on Nov 29: too few expected to judge, so no pill, and the tick still marks the day. */
+/** A goal of 4 on Nov 29: too few expected to judge, so no pill, and the ruler still says where a steady month stands. */
 export const NotJudged: Story = {
   args: { card: read(CARD_NOT_JUDGED) },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
     await expect(headlineOf(canvas, '3 private ratings to 4')).toBeVisible()
-    await expect(canvas.getByText('2 days left in November')).toBeVisible()
+    await expect(
+      canvas.getByText('2 days left in November. About 2 a day gets you there.'),
+    ).toBeVisible()
     await expect(canvas.queryByText(/pace|getting started/iu)).toBeNull()
-    await expect(tickOf(canvasElement)).not.toBeNull()
+    await expect(
+      rulerOf(
+        canvas,
+        '1 of 4 private ratings so far. A steady month would be at about 4 by today.',
+      ),
+    ).toBeVisible()
   },
 }
 
-/** Nov 2: the first days are never judged: "Getting started", and no tick. */
+/** Nov 2: the first days are never judged: "Getting started", and no steady stop on the ruler. */
 export const FirstDays: Story = {
   args: { card: read(CARD_FIRST_DAYS) },
   play: async ({ canvasElement }) => {
@@ -195,13 +196,12 @@ export const FirstDays: Story = {
     await expect(canvas.getByText('Getting started', { exact: true })).toBeVisible()
     await expect(canvas.queryByText(/below pace/iu)).toBeNull()
     await expect(headlineOf(canvas, '39 private ratings to 40')).toBeVisible()
-    await expect(canvas.getByText('29 days left in November')).toBeVisible()
-    await expect(canvas.getByText('1 of 40')).toBeVisible()
-    await expect(canvas.getByRole('progressbar', { name: BAR_LABEL })).toHaveAttribute(
-      'aria-valuetext',
-      '1 of 40 private ratings, 29 days left',
-    )
-    await expect(tickOf(canvasElement)).toBeNull()
+    await expect(
+      canvas.getByText('29 days left in November. About 2 a day gets you there.'),
+    ).toBeVisible()
+    const ruler = rulerOf(canvas, '1 of 40 private ratings so far.')
+    await expect(within(ruler).getByText('1 so far')).toBeVisible()
+    await expect(within(ruler).queryByText('steady pace')).toBeNull()
   },
 }
 
@@ -212,12 +212,12 @@ export const LastDay: Story = {
     const canvas = within(canvasElement)
     await expect(canvas.getByText('Last day of November')).toBeVisible()
     await expect(headlineOf(canvas, '17 private ratings to 40')).toBeVisible()
-    await expect(canvas.getByText('It’s Nov 30')).toBeVisible()
-    await expect(canvas.getByRole('progressbar', { name: BAR_LABEL })).toHaveAttribute(
-      'aria-valuetext',
-      '23 of 40 private ratings, last day',
+    // A steady month is at the number today: the end of the ruler says it, so the stop has no words.
+    const ruler = rulerOf(
+      canvas,
+      '23 of 40 private ratings so far. A steady month would be at about 40 by today.',
     )
-    await expect(tickOf(canvasElement)?.style.transform).toBe('translateX(100%)')
+    await expect(within(ruler).queryByText('steady pace')).toBeNull()
     await expectNoSidewaysScroll(canvasElement)
   },
 }
@@ -229,7 +229,7 @@ export const LastDayOnANarrowPhone: Story = {
 
 /**
  * Nov 27: 41 of 40, passed with 4 days left: "On pace" in green, a headline
- * that says so, a full bar, no tick, no celebration.
+ * that says so, a full ruler with no steady stop, no celebration.
  */
 export const Passed: Story = {
   args: { card: read(CARD_PASSED) },
@@ -237,16 +237,14 @@ export const Passed: Story = {
     const canvas = within(canvasElement)
     await expect(canvas.getByText('On pace', { exact: true })).toBeVisible()
     await expect(headlineOf(canvas, 'Goal passed: 41 private ratings')).toBeVisible()
-    await expect(canvas.getByText('4 days left in November')).toBeVisible()
-    await expect(canvas.getByText('41 of 40')).toBeVisible()
-    const bar = canvas.getByRole('progressbar', { name: BAR_LABEL })
-    await expect(bar).toHaveAttribute(
-      'aria-valuetext',
-      '41 of 40 private ratings, goal passed, 4 days left',
-    )
-    // A count past its number fills the bar and no more.
-    await expect(bar).toHaveAttribute('aria-valuenow', '40')
-    await expect(tickOf(canvasElement)).toBeNull()
+    // Nothing left to get, so no word of what a day takes.
+    await expect(
+      canvas.getByText('4 days left in November', { exact: true }),
+    ).toBeVisible()
+    await expect(canvas.queryByText(/a day gets you there/u)).toBeNull()
+    // A count past its number fills the ruler and no more.
+    const ruler = rulerOf(canvas, '41 of 40 private ratings so far.')
+    await expect(within(ruler).queryByText('steady pace')).toBeNull()
     await expect(canvas.queryByText(/to go/u)).toBeNull()
   },
 }
@@ -264,12 +262,8 @@ export const ChangedToScans: Story = {
   args: { card: read(CARD_CHANGED_TO_SCANS) },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
-    await expect(canvas.getByText('23 of 40')).toBeVisible()
     await expect(headlineOf(canvas, '17 private ratings to 40')).toBeVisible()
-    await expect(canvas.getByRole('progressbar', { name: BAR_LABEL })).toHaveAttribute(
-      'aria-valuetext',
-      '23 of 40 private ratings, 9 days left',
-    )
+    await expect(rulerOf(canvas, RULER)).toBeVisible()
     await expect(canvas.queryByText(/\bscans\b/u)).toBeNull()
   },
 }
@@ -283,21 +277,19 @@ export const Unreadable: Story = {
     await expect(
       canvas.getByText('This month’s figure can’t be read right now.'),
     ).toBeVisible()
-    await expect(canvas.queryByRole('progressbar')).toBeNull()
+    await expect(canvas.queryByRole('img')).toBeNull()
     await expect(canvas.queryByText(/\b0 of\b/u)).toBeNull()
     // Nothing is judged without a figure: no pill, no headline.
     await expect(canvas.queryByText(/pace|getting started/iu)).toBeNull()
     await expect(canvas.queryByText(/ to 40$/u)).toBeNull()
     await expect(canvas.queryByRole('list', { name: 'From your portals' })).toBeNull()
-    // No meter to put in a column of its own, so the card is one column of
+    // No ruler to put in a column of its own, so the card is one column of
     // lines, and the way on is still the goal's page, under them.
-    await expect(
-      canvasElement.querySelector('[data-slot="portal-goal-month-meter"]'),
-    ).toBeNull()
+    await expect(canvasElement.querySelector('[data-slot="goal-ruler"]')).toBeNull()
     const details = canvas.getByRole('link', { name: 'View details' })
     await expect(details).toHaveAttribute('href', '/properties/p1/goals/portals')
     // Not alone in a side column behind a divider, next to the lines.
-    await expect(details.closest('[class~="@2xl:border-l"]')).toBeNull()
+    await expect(details.closest('[class~="@3xl:border-l"]')).toBeNull()
   },
 }
 
@@ -351,8 +343,8 @@ export const Stopped: Story = {
     await expect(
       canvas.getByText('Stopped on Nov 12. November still counts to Nov 30.'),
     ).toBeVisible()
-    await expect(canvas.getByText('23 of 40')).toBeVisible()
-    await expect(canvas.getByRole('progressbar', { name: BAR_LABEL })).toBeVisible()
+    await expect(headlineOf(canvas, '17 private ratings to 40')).toBeVisible()
+    await expect(rulerOf(canvas, RULER)).toBeVisible()
   },
 }
 
@@ -397,10 +389,7 @@ export const LastMonthUpdating: Story = {
   args: { card: read(CARD_LAST_MONTH_UPDATING) },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
-    await expect(canvas.getByText('0 of 40')).toBeVisible()
-    await expect(
-      canvas.getByRole('progressbar', { name: 'Private ratings in December' }),
-    ).toBeVisible()
+    await expect(rulerOf(canvas, '0 of 40 private ratings so far.')).toBeVisible()
     await expect(
       canvas.getByText('November: counting the last ratings. Final figure on Dec 2.'),
     ).toBeVisible()

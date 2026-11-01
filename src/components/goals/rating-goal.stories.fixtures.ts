@@ -196,9 +196,9 @@ export const DETAIL: RatingGoalDetailView = {
     lastFourWeeksPerWeek: 9.5,
     forecast: inDays(156, 120, 230),
   },
-  // Drawn by the round 5 detail; the detail's own fixtures carry the climb.
+  // The detail's own fixtures carry the charts.
   chart: null,
-  planSoFar: { prePlan: null, reachedTenths: null },
+  planSoFar: { prePlan: null },
   moved: {
     shownChanges: [],
     setBy: 'user-ana',
@@ -206,6 +206,7 @@ export const DETAIL: RatingGoalDetailView = {
     initialPaceTenthsPerWeek: 140,
     thisWeek: { count: 6, allStars: null, averageTenths: 47 },
     lowReviews: [],
+    lowSinceSet: 0,
   },
 }
 

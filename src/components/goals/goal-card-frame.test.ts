@@ -1,16 +1,15 @@
 // The goal card frame as the server draws it. The Google rating goal passes the
 // frame everything it takes, so the branches below are the ones a goal that
-// passes less (no title, no pill, no signature column) will take; the other
-// goal's card moves onto them in the next slices, and a branch no test names
-// would change under it unseen.
+// passes less (no title, no pill) will take; and a branch no test names would
+// change under it unseen.
 import { createElement } from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { describe, expect, it } from 'vitest'
 import { GoalCardActions, GoalCardColumns, GoalCardFrame } from './goal-card-frame'
 import { GOAL_PACE_STATUS } from './goal-pace-status'
 
-/** The grid column a card with a signature visual gives it, from a card 48rem wide. */
-const SIGNATURE_COLUMN = '@3xl:grid-cols-[14rem_minmax(0,1fr)]'
+/** The two columns of the card's body, from a card 48rem wide: the story, then 15rem for the side. */
+const TWO_COLUMNS = '@3xl:grid-cols-[minmax(0,1fr)_15rem]'
 
 const frame = (props: Partial<Parameters<typeof GoalCardFrame>[0]> = {}) =>
   renderToStaticMarkup(
@@ -25,11 +24,9 @@ const frame = (props: Partial<Parameters<typeof GoalCardFrame>[0]> = {}) =>
 /** The card's own opening tag: the header inside it names a container of its own. */
 const cardTag = (html: string) => html.slice(0, html.indexOf('>') + 1)
 
-const columns = (wide: boolean) =>
+const columns = () =>
   renderToStaticMarkup(
     createElement(GoalCardColumns, {
-      wide,
-      signature: createElement('i', null, 'the signature'),
       story: createElement('b', null, 'the story'),
       side: createElement('u', null, 'the side'),
     }),
@@ -77,21 +74,33 @@ describe('GoalCardFrame', () => {
 })
 
 describe('GoalCardColumns', () => {
-  it('gives the signature visual a column of its own on a wide card', () => {
-    expect(columns(true)).toContain(SIGNATURE_COLUMN)
+  it('lays the story and the side in two columns from a card 48rem wide', () => {
+    expect(columns()).toContain(TWO_COLUMNS)
   })
 
-  it('keeps the plain two-column card for a goal with no signature visual', () => {
-    // The Google goal with no rungs (waiting for Google, too few new reviews).
-    expect(columns(false)).not.toContain(SIGNATURE_COLUMN)
-    expect(columns(false)).toContain('@2xl:grid-cols-2')
+  it('stacks the side under the story below that width, with no column of its own', () => {
+    const html = columns()
+
+    expect(html).not.toMatch(/(?<!@3xl:)grid-cols-/u)
+    expect(html).not.toContain('@2xl:')
   })
 
-  it('lays the signature before the story and the story before the side', () => {
-    const html = columns(true)
+  it('lays the story before the side', () => {
+    const html = columns()
 
-    expect(html.indexOf('the signature')).toBeLessThan(html.indexOf('the story'))
     expect(html.indexOf('the story')).toBeLessThan(html.indexOf('the side'))
+  })
+
+  it('draws a rule between the two from 48rem, and none above the side when it is stacked', () => {
+    const html = columns()
+
+    expect(html).toContain('@3xl:border-l')
+    expect(html).toContain('@3xl:pl-6')
+    expect(html).not.toMatch(/class="[^"]*(?<!@3xl:)border-l/u)
+  })
+
+  it('lets either column shrink, so a long line cannot widen the card', () => {
+    expect(columns().match(/min-w-0/gu)).toHaveLength(2)
   })
 })
 

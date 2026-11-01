@@ -1,18 +1,15 @@
-// The Google rating goal's detail page of round 5 (PLAN-D D-2, mock D3): the
-// headline with when the goal arrives, "The climb, step by step" (the exact
-// average, the plan's cone and the likely band, in a lazy chart), "Your plan,
-// so far" and "What moved you"; and its actions, which only a manager allowed
-// to change or end a goal sees; the low reviews since the set, each linked to
-// the Inbox item that opens it (D-2b). The Storybook Vitest project compiles no
-// Tailwind, so the plays assert words, roles and what the actions do, not
-// pixels.
+// The Google rating goal's detail page (2026-11-01, ADR 0067) in the states it can be
+// in: the card that says where the goal stands, its ruler, then three bands as Guest
+// voice and Portal Results draw theirs (is the rating going up, with a plain line to
+// the goal; are enough good reviews coming in, with bars against the plan; what can
+// you do this week), and "What happened", closed until asked. Also the low reviews
+// since the set, each linked to the Inbox item that opens it (D-2b), and the actions
+// only a manager allowed to change or end a goal sees are `rating-goal-detail-actions.stories.tsx`.
+// The Storybook Vitest project compiles no Tailwind, so the plays assert words and
+// roles, not pixels.
 import type { Meta, StoryObj } from '@storybook/react-vite'
-import { expect, fn, userEvent, waitFor, within } from 'storybook/test'
-import { withPermissions } from '../../../.storybook/AuthedRouterDecorator'
-import { tailwindIsCompiled } from '../../../.storybook/tailwind-compiled'
-import { ServerFunctionError } from '#/shared/auth/server-function-error'
+import { expect, fn, userEvent, within } from 'storybook/test'
 import { RatingGoalDetail, RatingGoalMissing } from './rating-goal-detail'
-import { RatingGoalDetailActions } from './rating-goal-detail-actions'
 import {
   DETAIL_CHANGED_PARTIAL,
   DETAIL_GOOGLE_SOURCE,
@@ -29,45 +26,41 @@ import {
   DETAIL_WENT_BACK,
 } from './rating-goal-detail-outcomes.stories.fixtures'
 import {
+  DETAIL_BELOW_PACE,
+  DETAIL_JUST_SET,
+  DETAIL_KEEP,
+} from './rating-goal-detail-states.stories.fixtures'
+import {
   DETAIL_LOW_REVIEWS,
   DETAIL_LOW_REVIEWS_WITHOUT_INBOX,
   DETAIL_SETBACK_NULL,
   LOW_REVIEW_ITEM_ONE,
   LOW_REVIEW_ITEM_TWO,
 } from './rating-goal-low-reviews.stories.fixtures'
-import { withRatingGoalRefusals } from './rating-goal-refusal'
 import {
-  DETAIL,
+  bandOf,
+  expectNoExactAverage,
+  figureOf,
+  QUESTION,
+  readByKey,
+  readoutsOf,
+  whatHappened,
+  whereOf,
+} from './rating-goal-detail.stories.play'
+import {
   FIXTURE_NOW,
   FIXTURE_PROPERTY_ID,
   FIXTURE_TIMEZONE,
-  SETUP,
-  SETUP_KEEP_FIRST,
 } from './rating-goal.stories.fixtures'
+import { wholeText } from './rating-goal-wizard.stories.play'
 
 const NOW = new Date(FIXTURE_NOW)
-
-/**
- * The chart's frame where Tailwind is not compiled (the Vitest story runner):
- * `h-60` is inert there, so recharts would measure no height and draw nothing.
- * The frame's 240 px stands in, so the plays can read the chart's own words.
- * Where Tailwind is compiled the classes decide and nothing stands in.
- */
-const CHART_FRAME = `[data-slot='chart'] { display: flex; width: 100%; height: 240px; }`
 const NAMES: Readonly<Record<string, string>> = { 'user-ana': 'Ana Petrova' }
 
 const meta: Meta<typeof RatingGoalDetail> = {
   title: 'Goals/RatingGoalDetail',
   component: RatingGoalDetail,
   parameters: { layout: 'padded' },
-  decorators: [
-    (Story) => (
-      <>
-        {tailwindIsCompiled() ? null : <style>{CHART_FRAME}</style>}
-        <Story />
-      </>
-    ),
-  ],
   args: {
     propertyId: FIXTURE_PROPERTY_ID,
     detail: DETAIL_HARBORLINE,
@@ -86,80 +79,65 @@ const meta: Meta<typeof RatingGoalDetail> = {
 export default meta
 type Story = StoryObj<typeof meta>
 
-/** The chart, from its own chunk (recharts can take a while on a loaded runner). */
-const findChart = (canvasElement: HTMLElement) =>
-  within(canvasElement).findByRole(
-    'img',
-    { name: 'The climb, step by step' },
-    { timeout: 10_000 },
-  )
+const PHONE = { viewport: { defaultViewport: 'mobileStaff' } } as const
+const LINE = 'Your rating on Google'
+const BARS = 'New reviews each week'
+const ITEM_HREF = (item: string) =>
+  `/properties/${FIXTURE_PROPERTY_ID}/reviews?itemId=${item}`
 
-/** The chart's caption, its reading and its accessible description. */
-const caption = (canvasElement: HTMLElement) =>
-  canvasElement.querySelector('figcaption')?.textContent ?? null
-
-/** The climb's headline count ("18 new reviews to 4.1"), when the page shows one. */
-const headlineCount = (canvasElement: HTMLElement) =>
-  within(canvasElement).queryByText(
-    (_, element) =>
-      element?.tagName === 'P' &&
-      /new reviews? to \d\.\d$/u.test(element.textContent ?? ''),
-  )
-
-/** The rows of "What moved you", as text. */
-function movedRows(canvasElement: HTMLElement): string[] {
-  const card = within(canvasElement)
-    .getByRole('heading', { name: 'What moved you' })
-    .closest('[data-slot="card"]')
-  return [...(card?.querySelectorAll('li') ?? [])].map((row) => row.textContent ?? '')
-}
-
-/** Harborline twenty days in: every section, the climb drawn. */
+/** Harborline twenty days in: where it stands, the three bands, and what happened. */
 export const Monitoring: Story = {
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
+    const where = whereOf(canvasElement)
+    await expect(where.getByText(wholeText('18 new reviews to 4.1'))).toBeVisible()
     await expect(
-      canvas.getByText(
-        (_, element) =>
-          element?.tagName === 'P' && element.textContent === '18 new reviews to 4.1',
-      ),
+      where.getByText('4.1 in about 3 weeks at your 1 a day, likely 2–4 weeks.'),
     ).toBeVisible()
     await expect(
-      canvas.getByText(
-        '4.1 in about 3 weeks at your 1 a day, likely 2–4 weeks. Google shows 4.0 today, up from 3.9 when you started.',
-      ),
+      where.getByRole('img', {
+        name: 'Started at 3.9. Google shows 4.0 now. Your goal is 4.1.',
+      }),
     ).toBeVisible()
-    await expect(canvas.getByText('4.2 is possible in about 3 months.')).toBeVisible()
 
+    const rising = bandOf(canvas, QUESTION.rising)
+    await expect(rising.getByText('Yes, from 3.9 to 4.0')).toBeVisible()
+    await expect(rising.getByText('Google started showing 4.0 on Oct 8.')).toBeVisible()
+    const line = figureOf(canvas, LINE)
+    await expect(line).toBeVisible()
     await expect(
-      canvas.getByRole('heading', { name: 'The climb, step by step' }),
-    ).toBeVisible()
-    const key = within(canvas.getByRole('list', { name: 'Chart key' }))
-    await expect(key.getByText('Google’s exact average')).toBeVisible()
-    await expect(key.getByText('Your plan')).toBeVisible()
-    await expect(key.getByText('Likely')).toBeVisible()
-    const chart = await findChart(canvasElement)
-    // Words, not a Tab stop: nothing inside the figure takes focus.
-    await expect(chart.querySelector('[tabindex]:not([tabindex="-1"])')).toBeNull()
-    await expect(chart.querySelector('[role="application"]')).toBeNull()
-    await expect(within(chart).getByText('4.1 likely in 2–4 weeks')).toBeInTheDocument()
-    await expect(
-      within(chart).getByText('Your goal: Google shows 4.1 above this line'),
+      within(line).getByText(
+        'Google showed 3.9 when you set the goal and shows 4.0 today. 4.1 in about 3 weeks.',
+      ),
     ).toBeInTheDocument()
-    await expect(caption(canvasElement)).toBe(
-      'Google’s exact average went from 3.91 when you set the goal to 4.02 today. 4.1 is likely in 2–4 weeks.',
-    )
+    await expect(within(line).getByText('Goal set, Sep 24')).toBeInTheDocument()
+    await expect(within(line).getByText('Today 4.0')).toBeInTheDocument()
+    await expect(readoutsOf(line)).toHaveLength(9)
+    await expect(readoutsOf(line).at(-1)).toBe('Today · Google shows 4.0')
 
-    const plan = within(canvas.getByRole('region', { name: 'Your plan, so far' }))
-    await expect(plan.getByText('1 a day · plan 1 a day')).toBeVisible()
+    const reviews = bandOf(canvas, QUESTION.reviews)
+    await expect(reviews.getByText('Yes, about 7 a week')).toBeVisible()
     await expect(
-      plan.getByText('Last 4 weeks · up from about 2 a month before the goal'),
+      reviews.getByText('You planned 1 a day. Before the goal it was about 2 a month.'),
     ).toBeVisible()
-    await expect(plan.getByText('4.57★ · plan 4.5★')).toBeVisible()
-    await expect(plan.getByText('4.0 reached · 4.1 next')).toBeVisible()
-    await expect(plan.getByText('After 4.1: 4.2 is about 80 more')).toBeVisible()
+    const bars = figureOf(canvas, BARS)
+    await expect(within(bars).getByText('Your plan: 7 a week')).toBeVisible()
+    await expect(readoutsOf(bars).at(-1)).toBe('Week of Oct 12 · 2 new reviews so far')
+    await expect(reviews.getByText('They average 4.6★. You planned 4.5★.')).toBeVisible()
+    await expect(
+      reviews.getByText('None of the 27 new reviews gave 3★ or less.'),
+    ).toBeVisible()
 
-    await expect(movedRows(canvasElement)).toEqual([
+    const week = bandOf(canvas, QUESTION.week)
+    await expect(week.getByText('Keep asking every guest')).toBeVisible()
+    await expect(
+      week.getByText('2 new reviews so far this week. It’s Tuesday.'),
+    ).toBeVisible()
+    await expect(
+      week.getByRole('link', { name: /^Ask every guest before they leave/u }),
+    ).toHaveAttribute('href', `/properties/${FIXTURE_PROPERTY_ID}/portals`)
+
+    await expect(await whatHappened(canvasElement)).toEqual([
       'This week2 new reviews, both 5★',
       'Oct 8Google started showing 4.0',
       'Sep 24Ana Petrova set the goal: 4.1 at 1 a day',
@@ -169,37 +147,76 @@ export const Monitoring: Story = {
         'Google numbers checked 12 minutes ago · Owners and managers only',
       ),
     ).toBeVisible()
+    await expectNoExactAverage(canvasElement)
   },
 }
 
-/** The links "What moved you" offers to the Inbox, by name. */
-const inboxLinks = (canvasElement: HTMLElement) =>
-  within(canvasElement).queryAllByRole('link', { name: /^Open in the inbox: /u })
+export const MonitoringLight: Story = {
+  parameters: { theme: 'light' },
+  play: async ({ canvasElement }) => {
+    await expect(figureOf(within(canvasElement), LINE)).toBeVisible()
+    await expect(figureOf(within(canvasElement), BARS)).toBeVisible()
+  },
+}
 
-/** Two low reviews since the set: what each set the goal back, opened in the Inbox. */
+/** The line and the bars read point by point from the keyboard, as under a pointer. */
+export const ReadByKeyboard: Story = {
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    const line = figureOf(canvas, LINE)
+    await expect(await readByKey(line, 'Home')).toBe('Aug 24 · Google showed 3.9')
+    await expect(await readByKey(line, 'End')).toBe('Today · Google shows 4.0')
+    await expect(await readByKey(line, 'ArrowLeft')).toBe('Oct 12 · Google showed 4.0')
+
+    const bars = figureOf(canvas, BARS)
+    await expect(await readByKey(bars, 'Home')).toBe('Week of Aug 24 · 0 new reviews')
+    await expect(await readByKey(bars, 'End')).toBe(
+      'Week of Oct 12 · 2 new reviews so far',
+    )
+    await expect(await readByKey(bars, 'ArrowLeft')).toBe(
+      'Week of Oct 5 · 10 new reviews',
+    )
+  },
+}
+
+/** Each link to the Inbox, by name: the band's, the todo row's, and the rows of "What happened". */
+const inboxLinks = (canvasElement: HTMLElement) =>
+  within(canvasElement).queryAllByRole('link', { name: /inbox|^Read the \d★ review/u })
+
+/** Two low reviews since the set: how many, what each set the goal back, opened in the Inbox. */
 export const LowReviews: Story = {
   args: { detail: DETAIL_LOW_REVIEWS },
   play: async ({ canvasElement }) => {
-    await expect(movedRows(canvasElement)).toEqual([
+    const canvas = within(canvasElement)
+    const reviews = bandOf(canvas, QUESTION.reviews)
+    await expect(
+      reviews.getByText(/^2 of the 27 new reviews gave 3★ or less\./u),
+    ).toBeVisible()
+    await expect(
+      reviews.getByRole('link', { name: 'Open in the inbox' }),
+    ).toHaveAttribute('href', ITEM_HREF(LOW_REVIEW_ITEM_ONE))
+
+    const week = bandOf(canvas, QUESTION.week)
+    const row = week.getByRole('link', { name: /^Read the 1★ review from Oct 12/u })
+    await expect(row).toHaveAttribute('href', ITEM_HREF(LOW_REVIEW_ITEM_ONE))
+    await expect(row).toHaveTextContent('It set you back about 8 new reviews.')
+
+    await expect(await whatHappened(canvasElement)).toEqual([
       'This week2 new reviews, both 5★',
       'Oct 121★ review · set you back about 8 new reviewsOpen in the inbox',
       'Oct 8Google started showing 4.0',
       'Oct 62★ review · set you back about 5 new reviewsOpen in the inbox',
       'Sep 24Ana Petrova set the goal: 4.1 at 1 a day',
     ])
-    const [first, second] = inboxLinks(canvasElement)
+    const [first, second] = canvas.getAllByRole('link', { name: /^Open in the inbox: / })
     await expect(first).toHaveAccessibleName('Open in the inbox: the 1★ review of Oct 12')
-    await expect(first).toHaveAttribute(
-      'href',
-      `/properties/${FIXTURE_PROPERTY_ID}/reviews?itemId=${LOW_REVIEW_ITEM_ONE}`,
-    )
-    await expect(second).toHaveAttribute(
-      'href',
-      `/properties/${FIXTURE_PROPERTY_ID}/reviews?itemId=${LOW_REVIEW_ITEM_TWO}`,
-    )
+    await expect(first).toHaveAttribute('href', ITEM_HREF(LOW_REVIEW_ITEM_ONE))
+    await expect(second).toHaveAttribute('href', ITEM_HREF(LOW_REVIEW_ITEM_TWO))
     for (const link of inboxLinks(canvasElement)) {
       // The Inbox item opens the review; no review id ever reaches the page.
       await expect(link.getAttribute('href')).not.toContain('reviewId=')
+    }
+    for (const link of canvas.getAllByRole('link', { name: /^Open in the inbox: / })) {
       // Label in name (WCAG 2.5.3): saying the visible words finds the link.
       await expect(link.textContent).toBe('Open in the inbox')
       await expect(link.getAttribute('aria-label')).toContain(link.textContent)
@@ -215,26 +232,34 @@ export const LowReviewsLight: Story = {
 /** On a phone the link's touch target grows without moving its words off the date's line. */
 export const LowReviewsPhone: Story = {
   ...LowReviews,
-  parameters: { viewport: { defaultViewport: 'mobileStaff' } },
+  parameters: PHONE,
 }
 
-/** A viewer the policy refuses the Inbox: the rows say the same, with no link. */
+/** A viewer the policy refuses the Inbox: the same words everywhere, with no link to it. */
 export const LowReviewWithoutInbox: Story = {
   args: { detail: DETAIL_LOW_REVIEWS_WITHOUT_INBOX },
   play: async ({ canvasElement }) => {
-    await expect(movedRows(canvasElement)).toContain(
+    const reviews = bandOf(within(canvasElement), QUESTION.reviews)
+    await expect(
+      reviews.getByText('2 of the 27 new reviews gave 3★ or less.'),
+    ).toBeVisible()
+    await expect(await whatHappened(canvasElement)).toContain(
       'Oct 121★ review · set you back about 8 new reviews',
     )
     await expect(inboxLinks(canvasElement)).toEqual([])
   },
 }
 
-/** No low review since the set: no row and no link to the Inbox. */
+/** No low review since the set: it says none, and offers no link to the Inbox. */
 export const NoLowReviews: Story = {
   play: async ({ canvasElement }) => {
-    await expect(movedRows(canvasElement).some((row) => row.includes('★ review'))).toBe(
-      false,
-    )
+    const reviews = bandOf(within(canvasElement), QUESTION.reviews)
+    await expect(
+      reviews.getByText('None of the 27 new reviews gave 3★ or less.'),
+    ).toBeVisible()
+    await expect(
+      (await whatHappened(canvasElement)).some((row) => row.includes('★ review')),
+    ).toBe(false)
     await expect(inboxLinks(canvasElement)).toEqual([])
   },
 }
@@ -243,26 +268,29 @@ export const NoLowReviews: Story = {
 export const SetbackNull: Story = {
   args: { detail: DETAIL_SETBACK_NULL },
   play: async ({ canvasElement }) => {
-    await expect(movedRows(canvasElement)).toContain('Oct 121★ reviewOpen in the inbox')
-    await expect(inboxLinks(canvasElement)).toHaveLength(1)
+    const week = bandOf(within(canvasElement), QUESTION.week)
+    const row = week.getByRole('link', { name: /^Read the 1★ review from Oct 12/u })
+    await expect(row).not.toHaveTextContent('set you back')
+    await expect(await whatHappened(canvasElement)).toContain(
+      'Oct 121★ reviewOpen in the inbox',
+    )
   },
 }
 
-export const MonitoringLight: Story = {
-  parameters: { theme: 'light' },
-  play: async ({ canvasElement }) => {
-    await expect(await findChart(canvasElement)).toBeInTheDocument()
-  },
-}
-
-/** Google showed 4.0, then went back to 3.9: the warn-coloured dot and row, in both themes. */
+/** Google showed 4.0, then went back to 3.9: said in the band, on the chart and in the rows. */
 export const WentBack: Story = {
   args: { detail: DETAIL_WENT_BACK },
   play: async ({ canvasElement }) => {
-    const chart = await findChart(canvasElement)
-    // Under today's words on the chart, so named in the list only.
-    await expect(within(chart).queryByText('Back to 3.9')).toBeNull()
-    await expect(movedRows(canvasElement)).toEqual([
+    const canvas = within(canvasElement)
+    const rising = bandOf(canvas, QUESTION.rising)
+    await expect(rising.getByText('Not lately. Google went back to 3.9')).toBeVisible()
+    await expect(
+      rising.getByText('It went back on Oct 5. 1 new review to 4.0.'),
+    ).toBeVisible()
+    await expect(
+      within(figureOf(canvas, LINE)).getByText('Back to 3.9, Oct 5'),
+    ).toBeInTheDocument()
+    await expect(await whatHappened(canvasElement)).toEqual([
       'This week2 new reviews, both 5★',
       'Oct 5Google went back to 3.9',
       'Sep 30Google started showing 4.0',
@@ -276,12 +304,12 @@ export const WentBackLight: Story = {
   parameters: { theme: 'light' },
 }
 
-/** The pace changed on 1 Oct: the cone starts at that week's Monday, the row says who. */
+/** The pace changed on 1 Oct: the rows say who and when; the line to the goal does not mark it. */
 export const PlanChanged: Story = {
   args: { detail: DETAIL_PLAN_CHANGED },
   play: async ({ canvasElement }) => {
-    await expect(await findChart(canvasElement)).toBeInTheDocument()
-    await expect(movedRows(canvasElement)).toEqual([
+    await expect(figureOf(within(canvasElement), LINE)).toBeVisible()
+    await expect(await whatHappened(canvasElement)).toEqual([
       'This week2 new reviews, both 5★',
       'Oct 8Google started showing 4.0',
       'Oct 1Ana Petrova changed the plan: Pace 5 a week → 1 a day',
@@ -290,59 +318,158 @@ export const PlanChanged: Story = {
   },
 }
 
-/** RepKey holds fewer reviews than Google counts: no line yet, every count "about". */
+/** RepKey holds fewer reviews than Google counts: every count is "about", the line follows Google's number. */
 export const GoogleSource: Story = {
   args: { detail: DETAIL_GOOGLE_SOURCE },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
+    const where = whereOf(canvasElement)
+    await expect(where.getByText(wholeText('About 18 new reviews to 4.1'))).toBeVisible()
     await expect(
-      canvas.getByText(
+      where.getByText(
         'RepKey doesn’t hold every review Google counts yet, so these numbers are approximate.',
       ),
     ).toBeVisible()
-    await expect(await findChart(canvasElement)).toBeInTheDocument()
-    await expect(caption(canvasElement)).toBe(
-      'Your review cache is still filling, so Google’s exact average is not drawn yet. 4.1 is likely in 2–4 weeks.',
-    )
-    const key = within(canvas.getByRole('list', { name: 'Chart key' }))
-    await expect(key.queryByText('Google’s exact average')).toBeNull()
-    await expect(key.getByText('Your plan')).toBeVisible()
+    const line = figureOf(canvas, LINE)
+    await expect(
+      within(line).getByText(
+        /RepKey doesn’t hold every review yet, so this follows Google’s own number\./u,
+      ),
+    ).toBeInTheDocument()
+    await expect(readoutsOf(line)[0]).toBe('Aug 24 · Google showed 3.9')
+    await expect(readoutsOf(line).at(-1)).toBe('Today · Google shows 4.0')
+    await expectNoExactAverage(canvasElement)
   },
 }
 
-/** The same with a changed plan: no history to start its cone from, so no cone. */
+/** The same with a changed plan: the line follows Google's number, and the rows say who changed it. */
 export const ChangedPartialCache: Story = {
   args: { detail: DETAIL_CHANGED_PARTIAL },
   play: async ({ canvasElement }) => {
-    const key = within(within(canvasElement).getByRole('list', { name: 'Chart key' }))
-    await expect(key.queryByText('Your plan')).toBeNull()
-    await expect(key.getByText('Likely')).toBeVisible()
+    const line = figureOf(within(canvasElement), LINE)
+    await expect(readoutsOf(line).at(-1)).toBe('Today · Google shows 4.0')
+    await expect(await whatHappened(canvasElement)).toContain(
+      'Oct 1Ana Petrova changed the plan: Pace 5 a week → 1 a day',
+    )
   },
 }
 
-/** Set 200 days ago: a year of history, the cone to today, nothing before the goal to compare. */
+/** Set 200 days ago: a year of line, the last 13 weeks of bars, nothing before the goal to compare. */
 export const OldGoal: Story = {
   args: { detail: DETAIL_OLD_GOAL },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
-    await expect(await findChart(canvasElement)).toBeInTheDocument()
-    const plan = within(canvas.getByRole('region', { name: 'Your plan, so far' }))
-    await expect(plan.getByText('Last 4 weeks')).toBeVisible()
-    await expect(canvas.getByText(/^At your 1\.5 a day: in about /)).toBeVisible()
+    await expect(
+      whereOf(canvasElement).getByText(/^At your 1\.5 a day: in about /u),
+    ).toBeVisible()
+    await expect(readoutsOf(figureOf(canvas, LINE))).toHaveLength(53)
+    const bars = readoutsOf(figureOf(canvas, BARS))
+    await expect(bars).toHaveLength(13)
+    await expect(bars[0]).toBe('Week of Jul 20 · 8 new reviews')
+    const reviews = bandOf(canvas, QUESTION.reviews)
+    await expect(reviews.getByText('Not enough: about 10 a week')).toBeVisible()
+    await expect(reviews.getByText('You planned 11 a week.')).toBeVisible()
+    await expect(canvas.queryByText(/Before the goal/u)).toBeNull()
   },
 }
 
-/** New reviews too low for 4.1: said once with what helps, no time, no likely band. */
+/** A goal behind its plan: both times, the weeks short of the line, and the way to change the plan. */
+export const BelowPace: Story = {
+  args: { detail: DETAIL_BELOW_PACE, onChangePlan: fn() },
+  play: async ({ canvasElement, args }) => {
+    const canvas = within(canvasElement)
+    const where = whereOf(canvasElement)
+    await expect(
+      where.getByText(
+        '4.1 in about 5 weeks at your pace of the last 4 weeks, likely 4–7 weeks.',
+      ),
+    ).toBeVisible()
+    await expect(where.getByText('At your 1 a day: in about 3 weeks.')).toBeVisible()
+    const reviews = bandOf(canvas, QUESTION.reviews)
+    await expect(reviews.getByText('Not enough: about 4 a week')).toBeVisible()
+    await expect(reviews.getByText('You planned 7 a week.')).toBeVisible()
+    const week = bandOf(canvas, QUESTION.week)
+    await expect(week.getByText('Ask more guests')).toBeVisible()
+    await userEvent.click(week.getByRole('button', { name: /^Change the plan/u }))
+    await expect(args.onChangePlan).toHaveBeenCalledOnce()
+  },
+}
+
+/** Without the way to change the plan (a viewer who may not), the rows are the link alone. */
+export const BelowPaceCannotChange: Story = {
+  args: { detail: DETAIL_BELOW_PACE },
+  play: async ({ canvasElement }) => {
+    const week = bandOf(within(canvasElement), QUESTION.week)
+    await expect(week.queryByRole('button')).toBeNull()
+    await expect(
+      week.getByRole('link', { name: /^Ask every guest before they leave/u }),
+    ).toBeVisible()
+  },
+}
+
+/** Set yesterday: Google has not moved, no review came in yet, and it is too early to say. */
+export const JustSet: Story = {
+  args: { detail: DETAIL_JUST_SET },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    const where = whereOf(canvasElement)
+    await expect(where.getByText(wholeText('19 new reviews to 4.0'))).toBeVisible()
+    await expect(where.getByText('81 new reviews to your goal, 4.1.')).toBeVisible()
+    await expect(
+      where.getByText(
+        '4.1 in about 3 months at your 1 a day, likely 9 weeks to 4 months.',
+      ),
+    ).toBeVisible()
+    await expect(
+      where.getByRole('img', { name: 'Google shows 3.9 now. Your goal is 4.1.' }),
+    ).toBeVisible()
+    const rising = bandOf(canvas, QUESTION.rising)
+    await expect(rising.getByText('You’ve just started')).toBeVisible()
+    await expect(
+      rising.getByText('Google shows 3.9. New reviews take a few weeks to show there.'),
+    ).toBeVisible()
+    await expect(
+      within(figureOf(canvas, LINE)).getByText('Goal set, Oct 13'),
+    ).toBeInTheDocument()
+    const reviews = bandOf(canvas, QUESTION.reviews)
+    await expect(reviews.getByText('Too early to say')).toBeVisible()
+    await expect(
+      reviews.getByText('We’ll compare their stars with your 4.5★ after 10 new reviews.'),
+    ).toBeVisible()
+    await expect(readoutsOf(figureOf(canvas, BARS)).at(-1)).toBe(
+      'Week of Oct 12 · 0 new reviews so far',
+    )
+    await expect(
+      bandOf(canvas, QUESTION.week).getByText('Start asking every guest'),
+    ).toBeVisible()
+  },
+}
+
+/** New reviews too low for 4.1: said once with what helps, no time, no dotted line. */
 export const TooLow: Story = {
   args: { detail: DETAIL_TOO_LOW },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
-    await expect(canvas.getByRole('alert')).toHaveTextContent(
-      'Since you set the goal, new reviews average below what 4.1 needs.',
-    )
+    await expect(
+      whereOf(canvasElement).getByText('New reviews are too low for 4.1'),
+    ).toBeVisible()
+    const rising = bandOf(canvas, QUESTION.rising)
+    await expect(rising.getByText('Up to 4.0, but not on course for 4.1')).toBeVisible()
+    await expect(
+      rising.getByText(
+        'Since you set the goal, new reviews average below what 4.1 needs.',
+      ),
+    ).toBeVisible()
+    const reviews = bandOf(canvas, QUESTION.reviews)
+    await expect(reviews.getByText('Enough, but the stars are low')).toBeVisible()
+    await expect(reviews.getByText('They average 3.8★. You planned 4.5★.')).toBeVisible()
+    const week = bandOf(canvas, QUESTION.week)
+    await expect(week.getByText('Fix what guests complain about')).toBeVisible()
+    await expect(
+      week.getByRole('link', { name: /^See what to fix first/u }),
+    ).toHaveAttribute('href', `/properties/${FIXTURE_PROPERTY_ID}/guests`)
     await expect(canvas.queryByText(/likely/u)).toBeNull()
-    const key = within(canvas.getByRole('list', { name: 'Chart key' }))
-    await expect(key.queryByText('Likely')).toBeNull()
+    await expect(canvas.queryByText(/ in about /u)).toBeNull()
   },
 }
 
@@ -351,9 +478,13 @@ export const Lags: Story = {
   args: { detail: DETAIL_LAGS },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
-    await expect(canvas.getByText('Google should show 4.1 soon')).toBeVisible()
     await expect(
-      canvas.getByText(/^Your reviews already clear 4\.1\. Google’s number can take/),
+      whereOf(canvasElement).getByText('Google should show 4.1 soon'),
+    ).toBeVisible()
+    const rising = bandOf(canvas, QUESTION.rising)
+    await expect(rising.getByText('Yes. Google should show 4.1 soon')).toBeVisible()
+    await expect(
+      rising.getByText(/^Your reviews already clear 4\.1\. Google’s number can take/u),
     ).toBeVisible()
     await expect(canvas.queryByText(/ in about /u)).toBeNull()
   },
@@ -364,58 +495,52 @@ export const LagsMiddle: Story = {
   args: { detail: DETAIL_LAGS_MIDDLE },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
+    const where = whereOf(canvasElement)
+    await expect(where.getByText(wholeText('180 new reviews to 4.5'))).toBeVisible()
+    await expect(where.getByText('Google should show 4.4 soon')).toBeVisible()
+    await expect(canvas.queryByText(wholeText('0 new reviews to 4.4'))).toBeNull()
+    // Far past the line's own length: the dotted line runs off the chart, with an arrow.
     await expect(
-      canvas.getByText(
-        (_, element) =>
-          element?.tagName === 'P' && element.textContent === '180 new reviews to 4.5',
-      ),
-    ).toBeVisible()
-    await expect(canvas.getByText('Google should show 4.4 soon')).toBeVisible()
-    await expect(canvas.queryByText(/0 new reviews to 4\.4/u)).toBeNull()
+      within(figureOf(canvas, LINE)).getByText('4.5 in about 6 months →'),
+    ).toBeInTheDocument()
   },
 }
 
-/** A goal to keep a number: its headline and what moved, no chart and no plan. */
+/** A goal to keep a number: one question and this week's reviews, no line, no bars, no ruler. */
 export const KeepGoal: Story = {
+  args: { detail: DETAIL_KEEP },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    await expect(canvas.getByText('Keeping 4.8 on Google')).toBeVisible()
+    const holding = bandOf(canvas, 'Is it holding?')
+    await expect(holding.getByText('Yes. Google shows 4.8')).toBeVisible()
+    await expect(
+      canvas.getByRole('region', { name: 'Is it holding?' }),
+    ).toHaveTextContent('This week: 2 new reviews, both 5★')
+    await expect(canvas.queryByRole('figure')).toBeNull()
+    await expect(canvas.queryByRole('img')).toBeNull()
+    await expect(canvas.queryByRole('region', { name: QUESTION.rising })).toBeNull()
+    await expect((await whatHappened(canvasElement)).at(-1)).toBe(
+      'Sep 24Ana Petrova set the goal: keep 4.8',
+    )
+  },
+}
+
+/** Google shows less than the number being kept: said plainly, with what moves it. */
+export const KeepGoalDroppedBelow: Story = {
   args: {
     detail: {
-      ...DETAIL_HARBORLINE,
-      mode: 'keep',
-      targetTenths: 48,
-      target: 4.8,
-      threshold: 4.75,
-      google: { ...DETAIL_HARBORLINE.google!, shows: 4.8 },
-      qualityTenths: null,
-      quality: null,
-      qualityBasis: null,
-      paceTenthsPerWeek: null,
-      status: 'holding',
-      next: null,
-      stillNeeded: null,
-      nextUp: null,
-      forecast: null,
-      forecastAtChosenPace: null,
-      forecastAtActualPace: null,
-      plan: null,
-      chart: null,
-      planSoFar: { prePlan: null, reachedTenths: null },
-      moved: {
-        ...DETAIL_HARBORLINE.moved,
-        initialTargetTenths: 48,
-        initialPaceTenthsPerWeek: null,
-      },
+      ...DETAIL_KEEP,
+      status: 'dropped_below',
+      google: { ...DETAIL_KEEP.google!, shows: 4.7 },
     },
   },
   play: async ({ canvasElement }) => {
-    const canvas = within(canvasElement)
-    await expect(canvas.getByText('Google shows')).toBeVisible()
+    const holding = bandOf(within(canvasElement), 'Is it holding?')
+    await expect(holding.getByText('Not right now. Google shows 4.7')).toBeVisible()
     await expect(
-      canvas.queryByRole('heading', { name: 'The climb, step by step' }),
-    ).toBeNull()
-    await expect(canvas.queryByRole('region', { name: 'Your plan, so far' })).toBeNull()
-    await expect(movedRows(canvasElement).at(-1)).toBe(
-      'Sep 24Ana Petrova set the goal: keep 4.8',
-    )
+      holding.getByText(/^You’re keeping 4\.8\. Asking every guest/u),
+    ).toBeVisible()
   },
 }
 
@@ -425,6 +550,7 @@ export const WaitingForGoogle: Story = {
     detail: {
       ...DETAIL_HARBORLINE,
       status: 'waiting_for_google',
+      next: null,
       google: {
         ...DETAIL_HARBORLINE.google!,
         current: false,
@@ -434,49 +560,77 @@ export const WaitingForGoogle: Story = {
   },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
-    await expect(canvas.getByText('as of Oct 12')).toBeVisible()
-    await expect(canvas.getByText('Waiting for Google’s latest numbers.')).toBeVisible()
+    const where = whereOf(canvasElement)
+    await expect(where.getByText('as of Oct 12')).toBeVisible()
+    await expect(where.getByText('Waiting for Google’s latest numbers.')).toBeVisible()
+    // With no number to count to it says nothing big, least of all that reviews are too low.
+    await expect(where.queryByText(/too low/u)).toBeNull()
+    await expect(
+      where.getByRole('img', {
+        name: 'Started at 3.9. Google showed 4.0 last. Your goal is 4.1.',
+      }),
+    ).toBeVisible()
+    await expect(
+      bandOf(canvas, QUESTION.rising).getByText('Waiting for Google’s latest numbers'),
+    ).toBeVisible()
+    await expect(within(figureOf(canvas, LINE)).getByText('Last 4.0')).toBeInTheDocument()
     await expect(
       canvas.getByText('Google numbers checked 2 days ago · Owners and managers only'),
     ).toBeVisible()
   },
 }
 
-/** Nothing that looks ahead: no count, no next step, no time, no likely band. */
-async function looksAheadNoMore(canvasElement: HTMLElement) {
-  const canvas = within(canvasElement)
-  await expect(headlineCount(canvasElement)).toBeNull()
-  await expect(canvas.queryByText(/ next$/u)).toBeNull()
-  await expect(canvas.queryByText(/^After \d\.\d:/u)).toBeNull()
-  await expect(canvas.queryByText(/ in about /u)).toBeNull()
-  await expect(await findChart(canvasElement)).toBeInTheDocument()
-  await expect(caption(canvasElement)).not.toMatch(/likely/u)
-}
-
-/** Found reached (the exact average 4.07, past the goal's line): said first, nothing that looks ahead. */
+/** Found reached (the exact average past the goal's line): said first, nothing that looks ahead. */
 export const FoundReached: Story = {
   args: { detail: DETAIL_FOUND_REACHED },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
+    const where = whereOf(canvasElement)
+    await expect(where.getByText('Google shows 4.1. You did it.')).toBeVisible()
     await expect(
-      canvas.getByText(/^Google shows 4\.1: the goal is reached\./),
+      where.getByRole('img', { name: 'Started at 3.9. Reached 4.1.' }),
     ).toBeVisible()
-    await looksAheadNoMore(canvasElement)
+    const rising = bandOf(canvas, 'Did you get there?')
+    await expect(rising.getByText('Yes. Google shows 4.1')).toBeVisible()
+    await expect(rising.getByText('From 3.9 in 3 weeks.')).toBeVisible()
+    const reviews = bandOf(canvas, 'What got you there?')
+    await expect(reviews.getByText('27 new reviews at 4.6★')).toBeVisible()
+    const next = bandOf(canvas, 'What’s next?')
+    await expect(next.getByText('Set your next goal')).toBeVisible()
+    await expect(next.getByRole('link', { name: /^Go to your goals/u })).toHaveAttribute(
+      'href',
+      `/properties/${FIXTURE_PROPERTY_ID}/goals`,
+    )
+    await expect(canvas.queryByText(/ in about /u)).toBeNull()
+    await expect(canvas.queryByText(/likely/u)).toBeNull()
     // Today's dot stays inside the chart, above the goal's line.
     await expect(
-      within(await findChart(canvasElement)).getByText('Today 4.07'),
+      within(figureOf(canvas, LINE)).getByText('Today 4.1'),
     ).toBeInTheDocument()
   },
 }
 
+export const FoundReachedLight: Story = {
+  ...FoundReached,
+  parameters: { theme: 'light' },
+}
+
+/** Found ended: said first, how it went, and no card of where it stands. */
 export const FoundEnded: Story = {
   args: { detail: DETAIL_FOUND_ENDED },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
     await expect(
-      canvas.getByText(/^Ended: Google location changed\. It is in History now/),
+      canvas.getByText(/^Ended: Google location changed\. It is in History now/u),
     ).toBeVisible()
-    await looksAheadNoMore(canvasElement)
+    await expect(canvasElement.querySelector('[data-slot="goal-where"]')).toBeNull()
+    const rising = bandOf(canvas, 'Where did it get to?')
+    await expect(rising.getByText('Google shows 4.0')).toBeVisible()
+    await expect(canvas.queryByRole('region', { name: QUESTION.reviews })).toBeNull()
+    await expect(canvas.queryByRole('region', { name: QUESTION.week })).toBeNull()
+    await expect(
+      bandOf(canvas, 'What’s next?').getByText('Set your next goal'),
+    ).toBeVisible()
   },
 }
 
@@ -495,141 +649,32 @@ export const NoGoal: StoryObj<typeof RatingGoalMissing> = {
   },
 }
 
+/** On a phone the bands stack under the card; every figure is still named and every question asked. */
 export const Phone: Story = {
-  parameters: { viewport: { defaultViewport: 'mobileStaff' } },
+  parameters: PHONE,
   play: async ({ canvasElement }) => {
-    const chart = within(await findChart(canvasElement))
-    // A phone's short words: the line labels short, the band and dots left to the caption.
-    await expect(chart.getByText('Goal 4.1')).toBeInTheDocument()
-    await expect(chart.getByText('Plan set')).toBeInTheDocument()
-    await expect(chart.queryByText('4.1 likely in 2–4 weeks')).toBeNull()
-    await expect(chart.queryByText('Google shows 4.0')).toBeNull()
-    // Ticks every 8 weeks.
-    await expect(chart.getByText('In 8 weeks')).toBeInTheDocument()
-    await expect(chart.queryByText('In 4 weeks')).toBeNull()
+    const canvas = within(canvasElement)
     await expect(
-      within(canvasElement).getByText(
-        'Last 4 weeks · up from about 2 a month before the goal',
-      ),
+      whereOf(canvasElement).getByRole('img', {
+        name: 'Started at 3.9. Google shows 4.0 now. Your goal is 4.1.',
+      }),
     ).toBeVisible()
+    for (const question of Object.values(QUESTION)) {
+      await expect(canvas.getByRole('region', { name: question })).toBeVisible()
+    }
+    await expect(figureOf(canvas, LINE)).toBeVisible()
+    await expect(figureOf(canvas, BARS)).toBeVisible()
+    await expect(canvas.getByRole('button', { name: 'What happened' })).toBeVisible()
   },
 }
 
 export const PhoneLight: Story = {
-  parameters: { viewport: { defaultViewport: 'mobileStaff' }, theme: 'light' },
-  play: async ({ canvasElement }) => {
-    await expect(await findChart(canvasElement)).toBeInTheDocument()
-  },
+  parameters: { ...PHONE, theme: 'light' },
+  play: Phone.play,
 }
 
-const onChange = fn()
-const onEnd = fn(async () => undefined)
-
-/** A manager sees both actions; ending confirms first, in the destructive tone. */
-export const Actions: StoryObj<typeof RatingGoalDetailActions> = {
-  render: () => (
-    <div className="flex gap-2">
-      <RatingGoalDetailActions
-        propertyId={FIXTURE_PROPERTY_ID}
-        goal={DETAIL}
-        setup={SETUP}
-        onChange={onChange}
-        onEnd={onEnd}
-      />
-    </div>
-  ),
-  play: async ({ canvasElement }) => {
-    onChange.mockClear()
-    onEnd.mockClear()
-    const canvas = within(canvasElement)
-    await expect(canvas.getByRole('link', { name: 'Open Portals' })).toHaveAttribute(
-      'href',
-      `/properties/${FIXTURE_PROPERTY_ID}/portals`,
-    )
-    await userEvent.click(canvas.getByRole('button', { name: 'Change plan' }))
-    await expect(onChange).toHaveBeenCalledOnce()
-
-    await userEvent.click(canvas.getByRole('button', { name: 'End goal' }))
-    const dialog = within(await within(document.body).findByRole('alertdialog'))
-    await expect(dialog.getByText('End the Google rating goal?')).toBeVisible()
-    await userEvent.click(dialog.getByRole('button', { name: 'End goal' }))
-    await waitFor(() => expect(onEnd).toHaveBeenCalledOnce())
-  },
-}
-
-const refusedEnd = withRatingGoalRefusals(async (_: void): Promise<never> => {
-  throw new ServerFunctionError(
-    'RatingGoalError',
-    'version_conflict',
-    'version_conflict',
-    409,
-  )
-})
-const endRefused = fn(() => refusedEnd(undefined))
-
-/** Ending refused (another manager changed it first): the confirmation stays and says why. */
-export const EndRefused: StoryObj<typeof RatingGoalDetailActions> = {
-  render: () => (
-    <div className="flex gap-2">
-      <RatingGoalDetailActions
-        propertyId={FIXTURE_PROPERTY_ID}
-        goal={DETAIL}
-        setup={SETUP}
-        onChange={fn()}
-        onEnd={endRefused}
-      />
-    </div>
-  ),
-  play: async ({ canvasElement }) => {
-    endRefused.mockClear()
-    await userEvent.click(within(canvasElement).getByRole('button', { name: 'End goal' }))
-    const dialog = within(await within(document.body).findByRole('alertdialog'))
-    await userEvent.click(dialog.getByRole('button', { name: 'End goal' }))
-    await expect(
-      await dialog.findByText(
-        'This goal changed after you opened this. Close it and open it again to start from the latest.',
-      ),
-    ).toBeVisible()
-    await expect(endRefused).toHaveBeenCalledOnce()
-    await expect(dialog.getByRole('button', { name: 'Keep goal' })).toBeEnabled()
-  },
-}
-
-/** Without goal.update and goal.cancel there is nothing to press. */
-export const ActionsHiddenWithoutPermission: StoryObj<typeof RatingGoalDetailActions> = {
-  decorators: [withPermissions(['goal.read', 'portal.read', 'property.read'])],
-  render: () => (
-    <div data-testid="actions" className="flex gap-2">
-      <RatingGoalDetailActions
-        propertyId={FIXTURE_PROPERTY_ID}
-        goal={DETAIL}
-        setup={SETUP}
-        onChange={fn()}
-        onEnd={fn()}
-      />
-    </div>
-  ),
-  play: async ({ canvasElement }) => {
-    await expect(within(canvasElement).queryByRole('button')).toBeNull()
-  },
-}
-
-/** A goal to keep changes only to a plan the setup offers: none while Google shows 5.0. */
-export const KeepGoalWithNothingHigher: StoryObj<typeof RatingGoalDetailActions> = {
-  render: () => (
-    <div className="flex gap-2">
-      <RatingGoalDetailActions
-        propertyId={FIXTURE_PROPERTY_ID}
-        goal={{ ...DETAIL, mode: 'keep', paceTenthsPerWeek: null }}
-        setup={SETUP_KEEP_FIRST}
-        onChange={fn()}
-        onEnd={fn()}
-      />
-    </div>
-  ),
-  play: async ({ canvasElement }) => {
-    const canvas = within(canvasElement)
-    await expect(canvas.queryByRole('button', { name: /Change|Aim/ })).toBeNull()
-    await expect(canvas.getByRole('button', { name: 'End goal' })).toBeVisible()
-  },
+/** On the narrowest phone the same page, the same words. */
+export const PhoneNarrow: Story = {
+  ...Phone,
+  parameters: { viewport: { defaultViewport: 'mobileNarrow' } },
 }

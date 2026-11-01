@@ -1,5 +1,5 @@
-// "What moved you" on the Google rating goal's detail page (round 5, PLAN-D
-// D-2 and D-2b, mock D3), worked out (pure): this week's new reviews and their
+// "What happened" on the Google rating goal's detail page (2026-11-01, was "What
+// moved you", round 5), worked out (pure): this week's new reviews and their
 // stars first, then each day Google's own number moved, each change of the
 // plan and each low review since the set, newest first, and the day the goal
 // was set, always last. Google's moves and the plan's changes keep their

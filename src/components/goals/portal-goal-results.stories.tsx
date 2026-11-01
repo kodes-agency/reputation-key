@@ -1,15 +1,17 @@
-// The Portal goal results page (PLAN PG-18): Seaview Hotel on Dec 3, 2026.
-// `Months`: the Monthly portal goal's months as sections, newest first, each
-// result in plain words. `Ended`: the scans goal stopped on Sep 12, Reception's
-// goal ended last year (the day prints its year) and a Spa goal ended before
-// the day was kept, newest end first, each opening its goal. At 320, 390, 820
-// and 1440 px and on the light theme: below about 56rem of card the months'
-// tables reflow into one block per result, so nothing is squeezed or left in a
-// scroller. Arriving at `#ended` from the Portal goals section's link hands the
-// list's title the focus. The Storybook Vitest project compiles no Tailwind, so
-// there the plays assert words, roles, the heading outline, links, the focus and
-// the reflow's classes; where Tailwind is compiled they also measure that every
-// result is inside its card and nothing scrolls sideways.
+// The Portal goal results page (PLAN PG-18; ADR 0068 amended 2026-11-01): Seaview
+// Hotel on Dec 3, 2026. `Months`: the Monthly portal goal in one card titled by its
+// name, a bar for each month against its own number, then a row for each month, newest
+// first ("41 of 40", Met, Missed by 4), each opening the day its figure was counted
+// through and who set the number. `Ended`: the scans goal stopped on Sep 12 is the same
+// goal by name, so its months sit in the same card under what they counted; then the
+// goals that have ended, newest end first: Reception's ended last year (the day prints
+// its year) and a Spa goal ended before the day was kept, each opening its goal. At
+// 320, 390, 820 and 1440 px and on the light theme. Arriving at `#ended` from the
+// Portal goals section's link hands the list's title the focus. The Storybook Vitest
+// project compiles no Tailwind, so there the plays assert words, roles, the heading
+// outline, links and the focus; where Tailwind is compiled they also measure that
+// every result is inside its row and nothing scrolls sideways. The list's own states
+// are `portal-goal-results-list.stories.tsx`'.
 import type { Meta, StoryObj } from '@storybook/react-vite'
 import { useNavigate, useRouterState } from '@tanstack/react-router'
 import { expect, userEvent, waitFor, within } from 'storybook/test'
@@ -24,6 +26,7 @@ import {
   personName,
   resultsOf,
 } from './portal-goal-results.stories.fixtures'
+import { barLines, barsOf } from './portal-goal.stories.play'
 
 const meta: Meta<typeof PortalGoalResults> = {
   title: 'Goals/PortalGoalResults',
@@ -40,9 +43,10 @@ const meta: Meta<typeof PortalGoalResults> = {
 
 export default meta
 type Story = StoryObj<typeof meta>
+type Canvas = ReturnType<typeof within>
 
 /**
- * The page's headings, in document order, as "h2 Monthly results", once it is
+ * The page's headings, in document order, as "h2 Monthly portal goal", once it is
  * drawn: in a compiled Storybook the story's router draws it after the play
  * starts.
  */
@@ -53,29 +57,56 @@ async function outline(canvasElement: HTMLElement): Promise<string[]> {
   )
 }
 
+/** A goal's months, by the goal's name or by what a block of them counted. */
+const monthsOf = (canvas: Canvas, name: string) =>
+  within(canvas.getByRole('list', { name }))
+
+/** Each month's row: its month, then what the row says of its figure and its verdict. */
+async function expectMonths(
+  list: Canvas,
+  months: readonly (readonly [month: string, figure: string, verdict: string])[],
+) {
+  const rows = list.getAllByRole('button')
+  await expect(rows).toHaveLength(months.length)
+  for (const [index, [month, figure, verdict]] of months.entries()) {
+    const row = rows[index]
+    if (row === undefined) throw new Error(`expected a row for ${month}`)
+    await expect(row.textContent?.startsWith(month)).toBe(true)
+    await expect(within(row).getByText(figure, { exact: true })).toBeVisible()
+    await expect(within(row).getByText(verdict, { exact: true })).toBeVisible()
+    await expect(row).toHaveAttribute('aria-expanded', 'false')
+  }
+}
+
 export const Months: Story = {
   args: resultsOf([MONTHLY_GOAL]),
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
+    // The goal's name is the card's title: no "Monthly results", no table per month.
     await expect(await outline(canvasElement)).toEqual([
       'h1 Portal goal results',
-      'h2 Monthly results',
-      'h3 December 2026',
-      'h3 November 2026',
-      'h3 October 2026',
+      'h2 Monthly portal goal',
     ])
+    await expect(canvas.queryByRole('table')).toBeNull()
+    // October met, November missed by 4; December has no figure yet, so no bar.
     await expect(
-      canvas.getByText('Each month’s result for your portal goals.'),
-    ).toBeVisible()
-    await expect(
-      canvas.getByText('Updating: the final figure is on its way.'),
-    ).toBeVisible()
-    await expect(
-      canvas.getByText('Not met: 36 private ratings, the goal was 40.'),
-    ).toBeVisible()
-    await expect(
-      canvas.getByText('Met: 41 private ratings, the goal was 40.'),
-    ).toBeVisible()
+      barLines(
+        barsOf(
+          canvas,
+          'Private ratings each month. The short line is that month’s number.',
+        ),
+      ),
+    ).toEqual(['October 2026: 41 of 40. Met.', 'November 2026: 36 of 40. Missed by 4.'])
+    const months = monthsOf(canvas, 'Each month of Monthly portal goal')
+    await expectMonths(months, [
+      ['December 2026', '–', 'The final figure is on its way'],
+      ['November 2026', '36 of 40', 'Missed by 4'],
+      ['October 2026', '41 of 40', 'Met'],
+    ])
+    // One tap on a row: when its figure was final and who set the number.
+    await userEvent.click(months.getByRole('button', { name: /^November 2026/u }))
+    await expect(canvas.getByText('Counted through Nov 30, 2026.')).toBeVisible()
+    await expect(canvas.getByText('The number was 40, set on Sep 21.')).toBeVisible()
     // No goal has ended: the page has no part for them.
     await expect(canvas.queryByRole('heading', { name: 'Ended portal goals' })).toBeNull()
   },
@@ -86,13 +117,19 @@ export const Ended: Story = {
     const canvas = within(canvasElement)
     await expect(await outline(canvasElement)).toEqual([
       'h1 Portal goal results',
-      'h2 Monthly results',
-      'h3 December 2026',
-      'h3 November 2026',
-      'h3 October 2026',
-      'h3 September 2026',
-      'h3 August 2026',
+      'h2 Monthly portal goal',
       'h2 Ended portal goals',
+    ])
+    // The scans goal it took over from has the same name: its months are in the same
+    // card, under what each block of months counted.
+    await expectMonths(monthsOf(canvas, 'Counted private ratings'), [
+      ['December 2026', '–', 'The final figure is on its way'],
+      ['November 2026', '36 of 40', 'Missed by 4'],
+      ['October 2026', '41 of 40', 'Met'],
+    ])
+    await expectMonths(monthsOf(canvas, 'Counted scans'), [
+      ['September 2026', '90 of 120', 'Missed by 30'],
+      ['August 2026', '130 of 120', 'Met'],
     ])
     // Where the Portal goals section's "Ended portal goals (3)" lands.
     await expect(
@@ -114,45 +151,24 @@ export const Ended: Story = {
   },
 }
 
-/** The words a month's result is told in, one per result. */
-const RESULT_LINE = /^(Met|Not met|Updating):/u
-
 /**
- * Every result reads whole at this width. Compiled, it is measured: no month's
- * table scrolls sideways (a scroller holding no control cannot be reached by
- * keyboard), and each result's badge and words stay inside its row. Without
- * Tailwind there is no layout to measure, so the reflow's parts are checked:
- * each month is a table named by its month that is drawn as blocks below the
- * card's `@4xl`, and each result names its columns for that block.
+ * Every row reads whole at this width. Compiled, it is measured: the page does not
+ * scroll sideways, and each row's figure and verdict stay inside the row. Without
+ * Tailwind there is no layout to measure, so the rows are checked to be what the
+ * layout is made of: one button each, closed until asked.
  */
 async function expectEveryResultInView(canvasElement: HTMLElement) {
-  const canvas = within(canvasElement)
-  const tables = canvas.getAllByRole('table')
-  await expect(
-    tables.map((table) => table.getAttribute('aria-labelledby')),
-  ).not.toContain(null)
-  const results = canvas.getAllByRole('row').filter((row) => row.closest('tbody'))
-  if (!tailwindIsCompiled()) {
-    for (const table of tables) await expect(table).toHaveClass('block', '@4xl:table')
-    for (const row of results) {
-      for (const column of ['Measure and evidence', 'Result', 'Data through', 'Number']) {
-        await expect(within(row).getByText(column)).toBeInTheDocument()
-      }
-    }
-    return
-  }
-  for (const table of tables) {
-    const scroller = table.closest<HTMLElement>('[data-slot="table-container"]')
-    if (scroller === null) throw new Error('expected each month in its table container')
-    await expect(scroller.scrollWidth).toBeLessThanOrEqual(scroller.clientWidth)
-  }
-  for (const row of results) {
+  const rows = within(canvasElement)
+    .getAllByRole('button')
+    .filter((button) => button.closest('[data-slot="portal-goal-results-goal"]') !== null)
+  await expect(rows).toHaveLength(5)
+  for (const row of rows) await expect(row).toHaveAttribute('aria-expanded', 'false')
+  if (!tailwindIsCompiled()) return
+  const page = canvasElement.ownerDocument.documentElement
+  await expect(page.scrollWidth).toBeLessThanOrEqual(page.clientWidth)
+  for (const row of rows) {
     const edge = row.getBoundingClientRect().right
-    const parts = [
-      ...row.querySelectorAll<HTMLElement>('[data-slot="badge"]'),
-      ...within(row).getAllByText(RESULT_LINE),
-    ]
-    for (const part of parts) {
+    for (const part of row.querySelectorAll<HTMLElement>('span')) {
       await expect(part.getBoundingClientRect().right).toBeLessThanOrEqual(edge + 0.5)
     }
   }

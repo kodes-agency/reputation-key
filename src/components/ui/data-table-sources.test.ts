@@ -32,8 +32,6 @@ const RAW_ALLOWED: Readonly<Record<string, string>> = {
     'the Portals table: a group head row that spans the table and folds its rows',
   'src/components/features/portal/portal-overview/portal-overview-property-head.tsx':
     'the Portals table: a Property head row that spans the table and folds its rows',
-  'src/components/goals/goal-results-matrix.tsx':
-    'a matrix of goals against months: wide by nature, read across, not a list of rows',
   'src/components/features/property-setup/setup-review.tsx':
     'a wizard step: a review of what the person just entered, not a list of records',
   'src/components/features/property/google-performance-chart.tsx':

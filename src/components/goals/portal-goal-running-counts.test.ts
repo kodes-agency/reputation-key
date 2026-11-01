@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { PortalGoalRows } from '#/contexts/reporting/application/dto/monthly-portal-goal.types'
-import { countsLine, portalCountsWords } from './portal-goal-running-view'
+import { portalCountsWords } from './portal-goal-running-view'
 
 describe('what each portal brought in, in words', () => {
   const rows = (patch: Partial<Extract<PortalGoalRows, { kind: 'rows' }>> = {}) =>
@@ -15,7 +15,7 @@ describe('what each portal brought in, in words', () => {
       ...patch,
     }) satisfies PortalGoalRows
 
-  it("rows stay in the read's name order", () => {
+  it("rows stay in the read's name order, never sorted by count", () => {
     // Spa has the most and Reception the fewest: the order is the read's.
     expect(portalCountsWords(rows())).toEqual({
       kind: 'rows',
@@ -44,6 +44,16 @@ describe('what each portal brought in, in words', () => {
     })
   })
 
+  it('groups a large count', () => {
+    const words = portalCountsWords(
+      rows({ portals: [{ portalId: 'portal-spa', name: 'Spa', count: 1234 }] }),
+    )
+
+    expect(words.kind === 'rows' ? words.rows : []).toEqual([
+      { key: 'portal-spa', name: 'Spa', count: '1,234' },
+    ])
+  })
+
   it('one portal: All from Reception.', () => {
     expect(portalCountsWords({ kind: 'one', name: 'Reception' })).toEqual({
       kind: 'sentence',
@@ -58,40 +68,5 @@ describe('what each portal brought in, in words', () => {
       text: 'From 5 portals',
       seeEach: 'See each',
     })
-  })
-})
-
-describe('what each portal brought in, in one line', () => {
-  it("says each portal's count in the read's order, never sorted by count", () => {
-    expect(
-      countsLine({
-        kind: 'rows',
-        portals: [
-          { portalId: 'portal-reception', name: 'Reception', count: 3 },
-          { portalId: 'portal-restaurant', name: 'Restaurant', count: 0 },
-          { portalId: 'portal-spa', name: 'Spa', count: 20 },
-        ],
-        elsewhere: 0,
-      }),
-    ).toBe('Reception 3 · Restaurant 0 · Spa 20')
-  })
-
-  it('ends with Other portals when something came from them', () => {
-    expect(
-      countsLine({
-        kind: 'rows',
-        portals: [
-          { portalId: 'portal-reception', name: 'Reception', count: 13 },
-          { portalId: 'portal-restaurant', name: 'Restaurant', count: 6 },
-          { portalId: 'portal-spa', name: 'Spa', count: 2 },
-        ],
-        elsewhere: 2,
-      }),
-    ).toBe('Reception 13 · Restaurant 6 · Spa 2 · Other portals 2')
-  })
-
-  it('leaves All from Reception. and From 5 portals to the card’s own sentences', () => {
-    expect(countsLine({ kind: 'one', name: 'Reception' })).toBeNull()
-    expect(countsLine({ kind: 'many', count: 5 })).toBeNull()
   })
 })

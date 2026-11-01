@@ -29,15 +29,8 @@ describe('the running Monthly portal goal, in words', () => {
     const words = figureOf(runningWords(month()))
 
     expect(words.figure).toBe('23 of 40')
-    // The detail page's first tile reads these two, as they always were.
     expect(words.line).toBe('17 to go · 9 days left')
-    expect(words.bar).toEqual({
-      value: 23,
-      max: 40,
-      tick: 22 / 30,
-      label: 'Private ratings in November',
-      valueText: '23 of 40 private ratings, 9 days left',
-    })
+    expect(words.passed).toBe(false)
   })
 
   it('leads with what is left: 17 private ratings to 40', () => {
@@ -49,7 +42,6 @@ describe('the running Monthly portal goal, in words', () => {
       words: 'private ratings to',
       target: '40',
     })
-    expect(words.passed).toBe(false)
   })
 
   it('counts what is left in its own unit: one is singular, scans are scans', () => {
@@ -81,47 +73,36 @@ describe('the running Monthly portal goal, in words', () => {
     ).toEqual({ kind: 'passed', text: 'Goal passed: 1 private rating' })
   })
 
-  it('names the days left in the month, and the last day by its name', () => {
-    const line = (patch: Partial<PortalGoalRunningMonth>) =>
-      figureOf(runningWords(month(patch))).daysLine
-
-    expect(line({})).toBe('9 days left in November')
-    expect(line({ daysAfterToday: 1 })).toBe('2 days left in November')
-    expect(line({ daysAfterToday: 0 })).toBe('Last day of November')
-    expect(line({ key: '2026-12', daysAfterToday: 0 })).toBe('Last day of December')
-  })
-
-  it('agrees with "17 to go · last day" on which day is the last, for every day of a month', () => {
-    for (let after = 0; after < 31; after += 1) {
-      const words = figureOf(runningWords(month({ daysAfterToday: after })))
-
-      expect(words.daysLine.startsWith('Last day')).toBe(words.line.endsWith('last day'))
-    }
-  })
-
-  it('captions the meter and dates its foot from the days that have begun', () => {
-    const words = figureOf(runningWords(month()))
-
-    expect(words.caption).toBe('November so far')
-    expect(words.foot).toBe('It’s Nov 22')
-    expect(figureOf(runningWords(month({ key: '2026-12', elapsedDays: 3 }))).foot).toBe(
-      'It’s Dec 3',
-    )
-  })
-
-  it('the scans month: its own unit on the bar, the label and the headline', () => {
-    // The month's own measure: scans.
+  it('a scans month says scans in its headline', () => {
     const words = figureOf(
       runningWords(month({ belowPace: false, measure: 'qualified_scans' })),
     )
 
-    expect(words.bar.label).toBe('Scans in November')
-    expect(words.bar.valueText).toBe('23 of 40 scans, 9 days left')
     expect(words.headline).toMatchObject({ words: 'scans to' })
   })
 
-  it('no tick in the quiet days', () => {
-    // Nov 2: the first days are never judged, and the bar has no tick yet.
+  it('Goal passed · 4 days left on Nov 27, 41 of 40', () => {
+    // G18.
+    const words = figureOf(
+      runningWords(
+        month({ value: 41, elapsedDays: 27, daysAfterToday: 3, belowPace: false }),
+      ),
+    )
+
+    expect(words.figure).toBe('41 of 40')
+    expect(words.line).toBe('Goal passed · 4 days left')
+  })
+
+  it('the last day says so in the line', () => {
+    const words = figureOf(
+      runningWords(month({ elapsedDays: 30, daysAfterToday: 0, belowPace: true })),
+    )
+
+    expect(words.line).toBe('17 to go · last day')
+  })
+
+  it('the first quiet days keep the same words', () => {
+    // Nov 2: the first days are never judged, and the ruler has no steady stop yet.
     const words = figureOf(
       runningWords(
         month({
@@ -136,48 +117,9 @@ describe('the running Monthly portal goal, in words', () => {
 
     expect(words.line).toBe('39 to go · 29 days left')
     expect(words.headline).toMatchObject({ count: '39' })
-    expect(words.daysLine).toBe('29 days left in November')
-    expect(words.bar.tick).toBeNull()
   })
 
-  it('fewer than 5 expected: the tick still shows the day', () => {
-    const words = figureOf(
-      runningWords(month({ target: 10, value: 0, elapsedDays: 14, belowPace: null })),
-    )
-
-    expect(words.bar.tick).toBe(14 / 30)
-  })
-
-  it('Goal passed · 4 days left, no tick, full bar', () => {
-    // G18: 41 of 40 on Nov 27.
-    const words = figureOf(
-      runningWords(
-        month({ value: 41, elapsedDays: 27, daysAfterToday: 3, belowPace: false }),
-      ),
-    )
-
-    expect(words.figure).toBe('41 of 40')
-    expect(words.line).toBe('Goal passed · 4 days left')
-    expect(words.bar).toMatchObject({ value: 41, max: 40, tick: null })
-    expect(words.bar.valueText).toBe('41 of 40 private ratings, goal passed, 4 days left')
-  })
-
-  it('last day', () => {
-    const words = figureOf(
-      runningWords(month({ elapsedDays: 30, daysAfterToday: 0, belowPace: true })),
-    )
-
-    expect(words.line).toBe('17 to go · last day')
-    expect(words.bar.valueText).toBe('23 of 40 private ratings, last day')
-  })
-
-  it('counts in the target: one is singular', () => {
-    const words = figureOf(runningWords(month({ target: 1, value: 0, belowPace: null })))
-
-    expect(words.bar.valueText).toBe('0 of 1 private rating, 9 days left')
-  })
-
-  it('unreadable shows no bar and no zero', () => {
+  it('unreadable shows no figure and no zero', () => {
     const words = runningWords(month({ value: null, target: 45, belowPace: null }))
 
     expect(words).toEqual({
@@ -189,15 +131,79 @@ describe('the running Monthly portal goal, in words', () => {
 
   it('never says the pace in a word: the pill says it (Q-5)', () => {
     // Behind, on the way, not judged and in the quiet days read the same.
-    const spoken = (patch: Partial<PortalGoalRunningMonth>) =>
-      figureOf(runningWords(month(patch))).bar.valueText
+    const spoken = (patch: Partial<PortalGoalRunningMonth>) => runningWords(month(patch))
 
-    expect(spoken({ belowPace: true })).toBe('23 of 40 private ratings, 9 days left')
-    expect(spoken({ belowPace: false })).toBe('23 of 40 private ratings, 9 days left')
-    expect(spoken({ belowPace: null })).toBe('23 of 40 private ratings, 9 days left')
-    expect(spoken({ daysAfterToday: 1, belowPace: false })).toBe(
-      '23 of 40 private ratings, 2 days left',
+    const behind = spoken({ belowPace: true })
+    expect(spoken({ belowPace: false })).toEqual(behind)
+    expect(spoken({ belowPace: null })).toEqual(behind)
+    expect(JSON.stringify(behind)).not.toMatch(/pace/iu)
+  })
+})
+
+describe('the days left in the month, and what a day gets you there', () => {
+  const line = (patch: Partial<PortalGoalRunningMonth>) =>
+    figureOf(runningWords(month(patch))).daysLine
+
+  it('names the days left in the month and what a day takes: 9 days left in November. About 2 a day gets you there.', () => {
+    expect(line({})).toBe('9 days left in November. About 2 a day gets you there.')
+    expect(line({ key: '2026-12', daysAfterToday: 9 })).toBe(
+      '10 days left in December. About 2 a day gets you there.',
     )
+  })
+
+  it('counts today as a day left: 17 over 2 days is about 9 a day', () => {
+    expect(line({ daysAfterToday: 1 })).toBe(
+      '2 days left in November. About 9 a day gets you there.',
+    )
+  })
+
+  it('rounds the day’s share up: fewer a day would not get you there', () => {
+    // 10 left over 4 days is 2.5.
+    expect(line({ value: 30, daysAfterToday: 3 })).toBe(
+      '4 days left in November. About 3 a day gets you there.',
+    )
+    // 10 left over 7 days is 1.43.
+    expect(line({ value: 30, daysAfterToday: 6 })).toBe(
+      '7 days left in November. About 2 a day gets you there.',
+    )
+  })
+
+  it('says under 1 a day when there is less than a rating to get each day', () => {
+    // 8 left over 9 days is 0.89.
+    expect(line({ value: 32 })).toBe(
+      '9 days left in November. Under 1 a day gets you there.',
+    )
+    // 9 left over 9 days is exactly 1.
+    expect(line({ value: 31 })).toBe(
+      '9 days left in November. About 1 a day gets you there.',
+    )
+  })
+
+  it('groups a large share', () => {
+    expect(line({ target: 12_000, value: 0, daysAfterToday: 9 })).toBe(
+      '10 days left in November. About 1,200 a day gets you there.',
+    )
+  })
+
+  it('names the last day by its name, with no pace to keep up', () => {
+    expect(line({ daysAfterToday: 0 })).toBe('Last day of November')
+    expect(line({ key: '2026-12', daysAfterToday: 0, value: 39 })).toBe(
+      'Last day of December',
+    )
+  })
+
+  it('says only the days once the number is passed, or met to the number', () => {
+    expect(line({ value: 41, daysAfterToday: 3 })).toBe('4 days left in November')
+    expect(line({ value: 40, daysAfterToday: 3 })).toBe('4 days left in November')
+    expect(line({ value: 43, daysAfterToday: 0 })).toBe('Last day of November')
+  })
+
+  it('agrees with "17 to go · last day" on which day is the last, for every day of a month', () => {
+    for (let after = 0; after < 31; after += 1) {
+      const words = figureOf(runningWords(month({ daysAfterToday: after })))
+
+      expect(words.daysLine.startsWith('Last day')).toBe(words.line.endsWith('last day'))
+    }
   })
 })
 

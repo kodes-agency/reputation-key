@@ -1,11 +1,11 @@
-// The detail layout and the tiles as the server draws them. The Google rating
-// goal passes the tiles a full strip; the branches below are the ones a goal that
-// passes less (no tiles to show, a tile with no figure) takes, and a branch no
-// test names would change under it unseen.
+// The detail layout, the card that says where a goal stands, and the tiles as the
+// server draws them. The average goal's page passes the tiles a full strip; the
+// branches below are the ones a goal that passes less (no tiles to show, a tile with
+// no figure) takes, and a branch no test names would change under it unseen.
 import { createElement, Fragment } from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { describe, expect, it } from 'vitest'
-import { GoalDetailLayout, GoalTiles } from './goal-detail-layout'
+import { GoalDetailLayout, GoalTiles, GoalWhere } from './goal-detail-layout'
 
 const layout = () =>
   renderToStaticMarkup(
@@ -18,6 +18,16 @@ const layout = () =>
         createElement('p', null, 'second'),
       ),
     }),
+  )
+
+const where = () =>
+  renderToStaticMarkup(
+    createElement(
+      GoalWhere,
+      null,
+      createElement('p', null, 'the headline'),
+      createElement('p', null, 'the line under it'),
+    ),
   )
 
 const tiles = (props: Partial<Parameters<typeof GoalTiles>[0]> = {}) =>
@@ -40,8 +50,32 @@ describe('GoalDetailLayout', () => {
     const html = layout()
 
     expect(html).toContain('data-slot="a-goal-detail"')
-    expect(html).toContain('flex flex-col gap-6')
+    expect(html).toContain('flex flex-col gap-4')
     expect(html.indexOf('first')).toBeLessThan(html.indexOf('second'))
+  })
+
+  it('is its own container, so a band and a chart lay out against the page, not the screen', () => {
+    expect(layout()).toMatch(/class="@container flex flex-col gap-4"/u)
+  })
+})
+
+describe('GoalWhere', () => {
+  it('is a card of its own, found by its slot', () => {
+    const html = where()
+
+    expect(html).toContain('data-slot="goal-where"')
+    expect(html).toContain('data-slot="card-content"')
+  })
+
+  it('stacks what it is given, closely, in the order it was given', () => {
+    const html = where()
+
+    expect(html).toContain('flex flex-col gap-1.5')
+    expect(html.indexOf('the headline')).toBeLessThan(html.indexOf('the line under it'))
+  })
+
+  it('adds no heading of its own: the page’s one h1 is the page header’s', () => {
+    expect(where()).not.toMatch(/<h[1-6]/u)
   })
 })
 
