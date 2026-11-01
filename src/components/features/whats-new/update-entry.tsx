@@ -1,4 +1,4 @@
-import { Check, ListFilter, MessageCircle, MessagesSquare } from 'lucide-react'
+import { Check, ListFilter, MessageCircle, MessagesSquare, QrCode } from 'lucide-react'
 import type { ProductUpdate } from '#/shared/whats-new/types'
 import { TONE_FILL, TONE_INK } from '#/components/ui/tone'
 import { SectionTitle } from '#/components/ui/section-title'
@@ -6,7 +6,7 @@ import { TouchInlineLink } from '#/components/ui/inline-touch-link'
 import { usePermissions } from '#/shared/hooks/usePermissions'
 import { useCapabilities } from '#/shared/hooks/useCapabilities'
 
-const ICON = { Check, ListFilter, MessageCircle, MessagesSquare }
+const ICON = { Check, ListFilter, MessageCircle, MessagesSquare, QrCode }
 
 function ShowMe({
   entry,
@@ -25,6 +25,7 @@ function ShowMe({
     return null
   if (link.to.endsWith('/replies') && !can('reply.manage')) return null
   if (link.to.endsWith('/guests') && !can('dashboard.read')) return null
+  if (link.to.endsWith('/portals') && !can('portal.read')) return null
   if (link.to === '/inbox' && !can('inbox.read')) return null
   return (
     <TouchInlineLink

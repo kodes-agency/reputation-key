@@ -49,7 +49,10 @@ describe('update presentation selection', () => {
   })
   it('groups history newest first without losing earlier entries', () => {
     const previous = { ...PRODUCT_UPDATES[0]!, id: 'previous', publishedOn: '2026-09-01' }
-    const groups = updatesByMonth([previous, ...PRODUCT_UPDATES])
+    const october = PRODUCT_UPDATES.filter(({ publishedOn }) =>
+      publishedOn.startsWith('2026-10'),
+    )
+    const groups = updatesByMonth([previous, ...october])
     expect(groups.map(([month]) => month)).toEqual(['2026-10', '2026-09'])
     expect(groups[1]?.[1]).toEqual([previous])
   })

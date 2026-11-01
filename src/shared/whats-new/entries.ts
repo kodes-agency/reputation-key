@@ -60,4 +60,15 @@ export const PRODUCT_UPDATES: readonly ProductUpdate[] = [
     body: 'The private note has a clearer question.',
     icon: 'Check',
   },
+  {
+    id: '2026-11-01-portal-results-check-in',
+    publishedOn: '2026-11-01',
+    kind: 'highlight',
+    audience: 'everyone',
+    requires: { capability: 'dashboard.use' },
+    title: 'Portal results now answer four plain questions',
+    body: 'Open a portal’s Results to see how guests use it, in plain words and with an easier graph. Each link now shows how many guests tapped it.',
+    icon: 'QrCode',
+    showMe: { to: '/properties/$propertyId/portals', needsProperty: true },
+  },
 ]

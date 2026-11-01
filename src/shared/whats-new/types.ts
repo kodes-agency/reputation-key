@@ -6,11 +6,13 @@ export const PRODUCT_UPDATE_ICONS = [
   'MessageCircle',
   'MessagesSquare',
   'ListFilter',
+  'QrCode',
   'Check',
 ] as const
 export const PRODUCT_UPDATE_ROUTES = [
   '/properties/$propertyId/guests',
   '/properties/$propertyId/settings/replies',
+  '/properties/$propertyId/portals',
   '/inbox',
 ] as const
 

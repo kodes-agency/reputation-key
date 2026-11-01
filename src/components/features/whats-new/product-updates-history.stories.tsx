@@ -31,7 +31,7 @@ export const AllUpdates: Story = {
     await expect(
       await canvas.findByRole('heading', { name: 'October 2026' }),
     ).toBeVisible()
-    await expect(canvas.getAllByRole('article')).toHaveLength(6)
+    await expect(canvas.getAllByRole('article')).toHaveLength(PRODUCT_UPDATES.length)
   },
 }
 export const Phone: Story = {
