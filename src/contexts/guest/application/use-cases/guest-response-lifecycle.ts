@@ -101,9 +101,9 @@ export type GuestResponseView = Readonly<{
 
 /**
  * Whether the session's response admits a qualified follow-up action (a fresh
- * response on a shared device, a Google Review selection, a secondary-link
- * selection): it holds a durable private rating and was not withdrawn. The
- * switch is exhaustive, so a new status must decide here.
+ * response on a shared device, a Google Review selection): it holds a durable
+ * private rating and was not withdrawn. A Linktree tap needs no rating (ADR 0044,
+ * amendment 2026-11-01). The switch is exhaustive, so a new status must decide here.
  */
 export function isQualifiedGuestResponse(view: GuestResponseView | null): boolean {
   if (view === null) return false

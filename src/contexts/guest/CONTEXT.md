@@ -30,16 +30,18 @@ binds the exact Portal snapshot/configuration/locale evidence observed by the
 Guest. Corrections and withdrawals are append-only and source-addressed.
 
 The Immersive Hub (snapshot schema v3) shows the Linktree from arrival, below the
-rating card, which stays first and dominant (ADR 0044, amendment 2026-10-01). A tap
-before any rating follows the navigation-only click route and is not a Qualified Link
-Action; only a rated session may record one, and the page does not call the recording
-action before then. Schema v1/v2 snapshots keep the legacy renderer, where the
-destinations follow the rating.
+rating card, which stays first and dominant (ADR 0044, amendment 2026-10-01).
+Every tap is a Qualified Link Action, before or after a rating (amendment 2026-11-01):
+the origin-, CSRF- and session-bound POST counts it once per session per link, within
+the existing network limits. Every tile navigates natively through the navigation-only
+GET click route while an unload-safe request counts in the background, so counting
+cannot delay or block the guest. Schema v1/v2 snapshots keep the legacy renderer,
+where the destinations follow the rating; their taps use the same counting rule.
 
 "Start over" on a shared device issues a fresh signed session. The server allows it to a
 session whose response holds a durable rating and to one whose response the guest withdrew
 (`canStartNewGuestResponse`): a session takes one response, so a withdrawn one can only be
-replaced by a fresh session. Google and link actions still need a rating.
+replaced by a fresh session. Google actions still need a rating; Linktree taps do not.
 
 No command moderates a response. `moderated` stays a stored status that the staff reads
 honour (the text of a moderated response is withheld from Inbox snippets and content

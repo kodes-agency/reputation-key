@@ -1,35 +1,26 @@
-import { isPortalContactUri } from '#/shared/domain/portal-contact-address'
-import type { GuestResponseAction } from '../guest-response-form-types'
+import type { SelectSecondaryLinkAction } from '../guest-response-form-types'
 
-/** Resolves a link to its destination and records the qualified link action. */
-export type LinktreeSelect = (linkId: string) => Promise<Readonly<{ url: string }>>
+/** Counts in the background; the tile's anchor owns navigation. */
+export type LinktreeTapCounter = (linkId: string) => void
 
-type SelectSecondaryLink = GuestResponseAction<
-  { token: string; csrfNonce: string; linkId: string },
-  { url: string }
->
-
-/**
- * The selector a tile calls on a plain click, or undefined when the tile should
- * be a plain link to its click route.
- *
- * Only a guest who has rated holds a qualifying session: before that the server
- * action refuses (it answers 404 without saying why), so calling it would break
- * the tap. The Linktree is visible from arrival, so a tap before any rating is
- * navigation only and is never a qualified link action. The caller passes
- * `afterRating` from the branch of the page it is rendering.
- */
-export function bindLinkSelector(
+/** Every bound session can count a tap; an inert preview has no handler. */
+export function bindLinkTapCounter(
   input: Readonly<{
-    afterRating: boolean
     token?: string
     csrfNonce?: string
-    selectSecondaryLink?: SelectSecondaryLink
+    selectSecondaryLink?: SelectSecondaryLinkAction
   }>,
-): LinktreeSelect | undefined {
-  const { afterRating, token, csrfNonce, selectSecondaryLink } = input
-  if (!afterRating || !token || !csrfNonce || !selectSecondaryLink) return undefined
-  return (linkId) => selectSecondaryLink({ data: { token, csrfNonce, linkId } })
+): LinktreeTapCounter | undefined {
+  const { token, csrfNonce, selectSecondaryLink } = input
+  if (!token || !csrfNonce || !selectSecondaryLink) return undefined
+  return (linkId) => {
+    void selectSecondaryLink({
+      data: { token, csrfNonce, linkId },
+      fetch: (input, init) => fetch(input, { ...init, keepalive: true }),
+    }).catch(() => {
+      // The guest is already on their way; the server reports a lost observation.
+    })
+  }
 }
 
 /** Whether `value` is an absolute https URL: the only kind of website a guest is sent to. */
@@ -39,53 +30,4 @@ export function isHttpsUrl(value: string): boolean {
   } catch {
     return false
   }
-}
-
-/**
- * Records the qualified action, then goes to the destination it resolved, in
- * this tab: a website, or the guest's phone or mail app for a phone number or
- * an email address. When the action fails the guest still arrives, through the
- * click route. A resolved destination that is neither an https URL nor a
- * phone number or email address in its stored form is never navigated to (ADR
- * 0044 abuse rule 4, no arbitrary redirects): the click route, which checks it
- * again, takes the guest instead.
- */
-export async function followLinktreeLink(
-  input: Readonly<{
-    linkId: string
-    href: string
-    select: LinktreeSelect
-    navigate: (url: string) => void
-  }>,
-): Promise<void> {
-  const { linkId, href, select, navigate } = input
-  let url = href
-  try {
-    const resolved = (await select(linkId)).url
-    if (isHttpsUrl(resolved) || isPortalContactUri(resolved)) url = resolved
-  } catch {
-    // The navigation has been approved already: losing the record must not lose the guest.
-  }
-  navigate(url)
-}
-
-/** A click the page may take over; a modified or non-primary click is the browser's own. */
-export function isPlainPrimaryClick(
-  event: Readonly<{
-    button: number
-    metaKey: boolean
-    ctrlKey: boolean
-    shiftKey: boolean
-    altKey: boolean
-    defaultPrevented: boolean
-  }>,
-): boolean {
-  return (
-    event.button === 0 &&
-    !event.metaKey &&
-    !event.ctrlKey &&
-    !event.shiftKey &&
-    !event.altKey &&
-    !event.defaultPrevented
-  )
 }

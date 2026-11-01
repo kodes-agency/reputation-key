@@ -3,6 +3,7 @@ import {
   organizationId,
   portalGroupId,
   portalId,
+  portalLinkId,
   propertyId,
   ratingId,
 } from '#/shared/domain/ids'
@@ -10,6 +11,7 @@ import {
   makeDurablePortalMetricRetractionHandler,
   makeDurableRecordMetricHandler,
   onRatingSubmittedDurably,
+  onReviewLinkClickedDurably,
 } from './record-portal-metric'
 
 const event = {
@@ -216,4 +218,45 @@ describe('durable Portal metric retraction', () => {
       })(retractionEvent),
     ).rejects.toThrow('metric source reading is not available for retraction')
   })
+})
+
+describe('destination link attribution', () => {
+  it.each([
+    [
+      'secondary_link',
+      '10000000-0000-4000-8000-000000000006',
+      '10000000-0000-4000-8000-000000000006',
+    ],
+    [
+      'secondary_link',
+      'ABCDEF12-0000-4000-8000-000000000006',
+      'abcdef12-0000-4000-8000-000000000006',
+    ],
+    ['google_review', 'google-review:portal-1', null],
+    ['secondary_link', 'old-link-label', null],
+    ['google_review', '10000000-0000-4000-8000-000000000006', null],
+  ] as const)(
+    'projects %s / %s without losing the event',
+    async (destinationKind, linkId, expected) => {
+      const recordMetrics = vi.fn().mockResolvedValue([{ status: 'recorded' }])
+      await onReviewLinkClickedDurably({
+        recordMetrics,
+        findGroupForPortal: vi.fn().mockResolvedValue(null),
+      })({
+        _tag: 'guest.review_link.clicked',
+        eventId: 'tap-1',
+        correlationId: null,
+        organizationId: event.organizationId,
+        propertyId: event.propertyId,
+        portalId: event.portalId,
+        occurredAt: event.occurredAt,
+        linkId: portalLinkId(linkId),
+        destinationKind,
+      })
+      expect(recordMetrics).toHaveBeenCalledWith({
+        readings: [expect.objectContaining({ portalLinkId: expected, destinationKind })],
+        sourceReceipt: { eventId: 'tap-1', consumerName: 'metric.guest-analytics' },
+      })
+    },
+  )
 })

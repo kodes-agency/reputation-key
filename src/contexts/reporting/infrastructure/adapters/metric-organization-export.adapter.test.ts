@@ -57,6 +57,7 @@ const READING_ROW: Row = {
   id: '20000000-0000-4000-8000-000000000001',
   property_id: '10000000-0000-4000-8000-000000000001',
   portal_id: '10000000-0000-4000-8000-000000000002',
+  portal_link_id: null,
   group_id: null,
   metric_key: 'portal.rating_count',
   definition_version_id: '11111111-1111-4111-8111-111111111302',
@@ -82,6 +83,24 @@ const READING_ROW: Row = {
 }
 
 describe('Metric Organization Export contributor', () => {
+  it('exports the link identifier alongside the content-free Portal identifier', async () => {
+    const contribution = await createMetricOrganizationExportAdapter(
+      fakeDatabase({ readings: [READING_ROW] }),
+    ).contribute({
+      organizationId: 'org-metric-export',
+      requestId: 'a',
+      asOf: AS_OF,
+    })
+    const json = contribution.entries.find(({ path }) => path === 'metric/readings.json')!
+    expect(
+      JSON.parse(Buffer.from(json.bytes).toString('utf8')).records.metric_reading[0],
+    ).toHaveProperty('portal_link_id', null)
+    const csv = contribution.entries.find(({ path }) => path === 'metric/readings.csv')!
+    expect(Buffer.from(csv.bytes).toString('utf8').split('\n')[0]).toContain(
+      'portal_id,portal_link_id,group_id',
+    )
+  })
+
   it('fails closed when the request is older than the bounded snapshot window', async () => {
     const adapter = createMetricOrganizationExportAdapter(
       fakeDatabase({ readings: [READING_ROW] }, '2026-08-28T09:16:01.000Z'),

@@ -3,8 +3,9 @@
 // The play functions add what axe cannot see: where a tap goes before and after a
 // rating, the language of a copied text, and that no word is clipped.
 import type { Decorator, Meta, StoryObj } from '@storybook/react'
-import { expect, fn, userEvent, waitFor, within } from 'storybook/test'
+import { expect, fn, waitFor, within } from 'storybook/test'
 import { GUEST_FONT_STYLESHEET } from '#/shared/font-sets'
+import { bindLinkTapCounter } from './linktree-follow'
 import { trackedLinkHref } from '../portal-link-href'
 import {
   LINKTREE_LINKS_CONTACT,
@@ -92,8 +93,7 @@ export const BeforeARating: Story = {
   },
 }
 
-const selectLink = fn(async (_linkId: string) => ({ url: '#resolved-destination' }))
-const hashHref = (linkId: string) => `#tile-${linkId}`
+const countTap = fn((_linkId: string) => undefined)
 
 /** What the tile's own click handler decided, read after it has run and before the browser acts. */
 type TapObservation = { clickedHref: string | null; takenOver: boolean }
@@ -101,7 +101,7 @@ type TapObservation = { clickedHref: string | null; takenOver: boolean }
 /**
  * Sends a click to a tile and reports whether the page took it over
  * (`preventDefault`). The observer then cancels the browser's navigation so the
- * story stays in place. Before a rating nothing may take a tap over.
+ * story stays in place. Every tap must stay with the browser.
  */
 function tap(tile: HTMLElement, init: MouseEventInit = {}): TapObservation {
   const seen: TapObservation = { clickedHref: tile.getAttribute('href'), takenOver: true }
@@ -120,53 +120,43 @@ function tap(tile: HTMLElement, init: MouseEventInit = {}): TapObservation {
   return seen
 }
 
-/**
- * The core rule of the slice: before a rating a tap is a plain navigation. The
- * page holds no selector, so nothing can reach the recording action; the tile
- * leaves the click to the browser, which follows its click route.
- */
+/** Before a rating, a tap counts in the background and follows its anchor. */
 export const TapBeforeARatingIsPlainNavigation: Story = {
+  args: { countTap },
+  beforeEach: () => {
+    countTap.mockClear()
+  },
   play: async ({ canvasElement }) => {
     const seen = tap(within(canvasElement).getByRole('link', { name: /Spa/u }))
     expect(seen.takenOver).toBe(false)
     expect(seen.clickedHref).toBe(trackedLinkHref(TOKEN, 'link-spa'))
+    expect(countTap).toHaveBeenCalledTimes(1)
+    expect(countTap).toHaveBeenCalledWith('link-spa')
   },
 }
 
-/**
- * The same tiles after a rating: a tap records the qualified action first. The
- * destination the action resolves here is not an https URL, so the page falls
- * back to the click route (the tile's href) instead of going to it.
- */
-/** A tap on the tile named `name` after a rating: the action first, then the tile's href. */
+/** After a rating the same native anchor owns navigation. */
 const tapAfterARating = (
   name: RegExp,
   linkId: string,
   links: readonly ImmersiveLinktreeLink[] = LINKTREE_LINKS_EN,
 ): Story => ({
-  args: { links, selectLink, hrefFor: hashHref },
+  args: { links, countTap },
   beforeEach: () => {
-    selectLink.mockClear()
-    window.location.hash = ''
+    countTap.mockClear()
   },
   play: async ({ canvasElement }) => {
-    await userEvent.click(within(canvasElement).getByRole('link', { name }))
-    expect(selectLink).toHaveBeenCalledTimes(1)
-    expect(selectLink).toHaveBeenCalledWith(linkId)
-    await waitFor(() => expect(window.location.hash).toBe(`#tile-${linkId}`))
+    const seen = tap(within(canvasElement).getByRole('link', { name }))
+    expect(seen.takenOver).toBe(false)
+    expect(seen.clickedHref).toBe(trackedLinkHref(TOKEN, linkId))
+    expect(countTap).toHaveBeenCalledTimes(1)
+    expect(countTap).toHaveBeenCalledWith(linkId)
   },
 })
 
 export const AfterARating: Story = tapAfterARating(/Spa/u, 'link-spa')
 
-/**
- * A phone tile and an email tile are tiles like any other: before a rating each
- * is a plain link to the click route, in this tab (no `target`), so the click
- * route hands the guest's phone or mail app the number or address. After a
- * rating a tap records the qualified action first, as a website's does; where
- * it then goes (`tel:`/`mailto:` in this tab) is held by linktree-follow.test.ts,
- * because a story cannot follow one.
- */
+/** Phone and email tiles follow the click route in the same tab in every state. */
 export const PhoneAndEmailTiles: Story = {
   args: { links: LINKTREE_LINKS_CONTACT },
   play: async ({ canvasElement }) => {
@@ -191,19 +181,42 @@ export const PhoneTileAfterARating: Story = tapAfterARating(
   LINKTREE_LINKS_CONTACT,
 )
 
-/** A modified click is the browser's own (a new tab): the page must not take it over or record it. */
+/** Modified clicks count too, while the browser chooses the destination tab. */
 export const ModifiedClickLeavesTheTapToTheBrowser: Story = {
-  args: { selectLink },
+  args: { countTap },
   beforeEach: () => {
-    selectLink.mockClear()
+    countTap.mockClear()
   },
   play: async ({ canvasElement }) => {
     const spa = within(canvasElement).getByRole('link', { name: /Spa/u })
     for (const init of [{ ctrlKey: true }, { metaKey: true }, { shiftKey: true }]) {
       expect(tap(spa, init).takenOver).toBe(false)
     }
-    expect(tap(spa, { button: 1 }).takenOver).toBe(false)
-    expect(selectLink).not.toHaveBeenCalled()
+    expect(countTap).toHaveBeenCalledTimes(3)
+  },
+}
+
+const rejectedAction = fn(async () => {
+  throw new Error('observation unavailable')
+})
+
+/** A rejected observation never takes over or delays the native click. */
+export const RejectedTapStillNavigates: Story = {
+  args: {
+    countTap: bindLinkTapCounter({
+      token: TOKEN,
+      csrfNonce: 'nonce',
+      selectSecondaryLink: rejectedAction,
+    }),
+  },
+  beforeEach: () => {
+    rejectedAction.mockClear()
+  },
+  play: async ({ canvasElement }) => {
+    expect(tap(within(canvasElement).getByRole('link', { name: /Spa/u })).takenOver).toBe(
+      false,
+    )
+    await waitFor(() => expect(rejectedAction).toHaveBeenCalledOnce())
   },
 }
 

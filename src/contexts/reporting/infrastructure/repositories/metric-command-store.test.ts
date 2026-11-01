@@ -22,6 +22,7 @@ import { clearEventSchemas } from '#/shared/events/schema-registry'
 import {
   organizationId,
   portalId,
+  portalLinkId,
   propertyId,
   metricReadingId,
   portalAccessArtifactId,
@@ -36,11 +37,17 @@ import {
 import { metricRecorded, type MetricRecorded } from '../../domain/metric-events'
 import { portalLifetimeFactForMetric } from '../../domain/portal-lifetime-aggregate'
 import { createAtomicMetricCommandStore } from '../metric-command-store'
-import type { GuestQualifiedScanRecorded } from '#/contexts/guest/application/public-api'
+import type {
+  GuestReviewLinkClicked,
+  GuestQualifiedScanRecorded,
+} from '#/contexts/guest/application/public-api'
 import { recordMetric, recordMetrics } from '../../application/use-cases/record-metric'
 import { createMetricRegistryRepository } from './metric-registry.repository'
 import { createPropertyLocalDateResolver } from './property-local-date'
-import { onQualifiedScanRecordedDurably } from '../record-portal-metric'
+import {
+  onQualifiedScanRecordedDurably,
+  onReviewLinkClickedDurably,
+} from '../record-portal-metric'
 import { createConsumerRegistry } from '#/shared/outbox/consumer-registry'
 import { registerPublicReputationMetricConsumers } from '../public-reputation-outbox-consumers'
 import { registerMetricCorrectionConsumer } from '../correction-outbox-consumers'
@@ -304,6 +311,165 @@ describe.sequential('metricCommandStore (integration)', () => {
       [ORG_ID, event.eventId],
     )
     expect(facts.rows).toHaveLength(1)
+  })
+
+  it.each([
+    [
+      'secondary_link',
+      '10000000-0000-4000-8000-000000000006',
+      '10000000-0000-4000-8000-000000000006',
+    ],
+    ['google_review', `google-review:${PORTAL_ID}`, null],
+    ['secondary_link', 'legacy-non-uuid-link', null],
+  ] as const)(
+    'keeps %s link attribution for %s and applies the event once',
+    async (destinationKind, linkId, expectedLinkId) => {
+      const sourceEvent: GuestReviewLinkClicked = {
+        _tag: 'guest.review_link.clicked',
+        eventId: randomUUID(),
+        correlationId: null,
+        organizationId: ORG_ID,
+        propertyId: PROP_ID,
+        portalId: PORTAL_ID,
+        linkId: portalLinkId(linkId),
+        destinationKind,
+        occurredAt: QUALIFIED_AT,
+      }
+      await pool.query(
+        `INSERT INTO outbox_events (
+      id, event_type, event_version, payload, organization_id, property_id, source_context, source_aggregate_id
+    ) VALUES ($1, $2, 1, $3::jsonb, $4, $5, 'guest', $6)`,
+        [
+          sourceEvent.eventId,
+          sourceEvent._tag,
+          JSON.stringify(sourceEvent),
+          ORG_ID,
+          PROP_ID,
+          PORTAL_ID,
+        ],
+      )
+      const project = recordMetrics({
+        commandStore: createAtomicMetricCommandStore(db, randomUUID),
+        registry: createMetricRegistryRepository(),
+        clock: () => QUALIFIED_AT,
+        idGen: () => metricReadingId(randomUUID()),
+        resolvePropertyLocalDate: createPropertyLocalDateResolver(db),
+      })
+      const handler = onReviewLinkClickedDurably({
+        recordMetrics: project,
+        findGroupForPortal: async () => null,
+      })
+      await handler(sourceEvent)
+      await handler(sourceEvent)
+      const readings = await pool.query(
+        `SELECT portal_link_id, portal_destination_kind FROM metric_readings WHERE source_event_id = $1`,
+        [sourceEvent.eventId],
+      )
+      expect(readings.rows).toEqual([
+        { portal_link_id: expectedLinkId, portal_destination_kind: destinationKind },
+      ])
+      const receipts = await pool.query(
+        `SELECT status FROM event_consumer_receipts WHERE event_id = $1 AND consumer_name = 'metric.guest-analytics'`,
+        [sourceEvent.eventId],
+      )
+      expect(receipts.rows).toEqual([{ status: 'applied' }])
+      const lifetime = await pool.query(
+        `SELECT google_review_selection_count::int AS google_review_selection_count, secondary_link_selection_count::int AS secondary_link_selection_count FROM portal_metric_lifetime_aggregates WHERE portal_id = $1`,
+        [PORTAL_ID],
+      )
+      expect(lifetime.rows).toEqual([
+        {
+          google_review_selection_count: destinationKind === 'google_review' ? 1 : 0,
+          secondary_link_selection_count: destinationKind === 'secondary_link' ? 1 : 0,
+        },
+      ])
+      if (expectedLinkId) {
+        await expect(
+          pool.query(
+            `UPDATE metric_readings SET portal_destination_kind = 'google_review' WHERE source_event_id = $1`,
+            [sourceEvent.eventId],
+          ),
+        ).rejects.toMatchObject({ constraint: 'metric_readings_portal_link_check' })
+      }
+    },
+  )
+
+  it('keeps a link on an append-only replacement and leaves legacy readings null on replay', async () => {
+    const store = createAtomicMetricCommandStore(db, randomUUID)
+    const linkId = '10000000-0000-4000-8000-000000000006'
+    const original = makeReading({
+      portalId: PORTAL_ID,
+      portalLinkId: linkId,
+      metricKey: 'portal.review_link_click',
+      sourcePolicy: 'review_solicitation_analytics_only',
+      value: 1,
+      definitionVersionId: '11111111-1111-4111-8111-111111111204',
+    })
+    const fact = portalLifetimeFactForMetric({
+      metricKey: original.metricKey,
+      value: 1,
+      destinationKind: 'secondary_link',
+    })
+    await store.recordMetric({
+      reading: original,
+      event: recordedEvent(original),
+      portalLifetimeFact: fact,
+    })
+    const otherLinkReading = { ...original, portalLinkId: randomUUID() }
+    await expect(
+      store.recordMetric({
+        reading: otherLinkReading,
+        event: recordedEvent(otherLinkReading),
+        portalLifetimeFact: fact,
+      }),
+    ).rejects.toThrow('Duplicate metric reading Portal link does not match')
+    const wrongReplacement = {
+      ...otherLinkReading,
+      id: metricReadingId(randomUUID()),
+      sourceEventId: 'wrong-link-replacement',
+    }
+    await expect(
+      store.recordMetric({
+        reading: wrongReplacement,
+        event: recordedEvent(wrongReplacement),
+        portalLifetimeFact: fact,
+        supersedesSourceEventId: original.sourceEventId,
+      }),
+    ).rejects.toThrow('Replacement metric Portal link does not match its source reading')
+    const replacement = {
+      ...original,
+      id: metricReadingId(randomUUID()),
+      sourceEventId: 'replacement-link-tap',
+    }
+    await store.recordMetric({
+      reading: replacement,
+      event: recordedEvent(replacement),
+      portalLifetimeFact: fact,
+      supersedesSourceEventId: original.sourceEventId,
+    })
+    const rows = await pool.query(
+      `SELECT portal_link_id FROM metric_readings WHERE organization_id = $1 ORDER BY source_event_id`,
+      [ORG_ID],
+    )
+    expect(rows.rows).toEqual([{ portal_link_id: linkId }, { portal_link_id: linkId }])
+    // A pre-deploy reading stays unattributed even when the source is delivered again.
+    await pool.query(`UPDATE metric_readings SET portal_link_id = NULL WHERE id = $1`, [
+      original.id,
+    ])
+    expect(
+      (
+        await store.recordMetric({
+          reading: original,
+          event: recordedEvent(original),
+          portalLifetimeFact: fact,
+        })
+      ).status,
+    ).toBe('duplicate')
+    const legacy = await pool.query(
+      `SELECT portal_link_id FROM metric_readings WHERE id = $1`,
+      [original.id],
+    )
+    expect(legacy.rows).toEqual([{ portal_link_id: null }])
   })
 
   it('commits the qualified-scan reading and consumer receipt once or neither', async () => {

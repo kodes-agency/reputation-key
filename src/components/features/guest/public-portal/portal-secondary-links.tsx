@@ -1,6 +1,5 @@
-import type { MouseEvent } from 'react'
-import type { GuestResponseAction } from './guest-response-form'
-import { followLinktreeLink } from './immersive/linktree-follow'
+import type { SelectSecondaryLinkAction } from './guest-response-form-types'
+import { bindLinkTapCounter } from './immersive/linktree-follow'
 import { trackedLinkHref } from './portal-link-href'
 import {
   getGuestPortalCopy,
@@ -26,11 +25,6 @@ const DESTINATION_STYLE = {
 }
 const HEADING_STYLE = { color: 'var(--portal-primary)' }
 
-type SelectSecondaryLink = GuestResponseAction<
-  { token: string; csrfNonce: string; linkId: string },
-  { url: string }
->
-
 export function PortalSecondaryLinks({
   token,
   csrfNonce,
@@ -46,7 +40,7 @@ export function PortalSecondaryLinks({
   organizationName: string
   categories: ReadonlyArray<PortalCategory>
   links: ReadonlyArray<PortalLinkItem>
-  selectSecondaryLink?: SelectSecondaryLink
+  selectSecondaryLink?: SelectSecondaryLinkAction
   locale?: GuestPortalLocale
   languagePackVersion?: GuestPortalLanguagePackVersion
 }>) {
@@ -54,26 +48,12 @@ export function PortalSecondaryLinks({
   const copy = getGuestPortalCopy(locale, languagePackVersion)
   const destinationHref = (link: PortalLinkItem) =>
     token ? trackedLinkHref(token, link.id) : (link.url ?? '#')
-  const selectDestination = (
-    event: MouseEvent<HTMLAnchorElement>,
-    link: PortalLinkItem,
-  ) => {
-    if (!token || !csrfNonce || !selectSecondaryLink) return
-    event.preventDefault()
-    // The Linktree's own rule: go only to a website or a stored phone number
-    // or email address the action resolved, else take the click route.
-    void followLinktreeLink({
-      linkId: link.id,
-      href: destinationHref(link),
-      select: (linkId) => selectSecondaryLink({ data: { token, csrfNonce, linkId } }),
-      navigate: (url) => window.location.assign(url),
-    })
-  }
+  const countTap = bindLinkTapCounter({ token, csrfNonce, selectSecondaryLink })
   const renderLink = (link: PortalLinkItem) => (
     <a
       key={link.id}
       href={destinationHref(link)}
-      onClick={(event) => selectDestination(event, link)}
+      onClick={countTap ? () => countTap(link.id) : undefined}
       rel="noreferrer"
       className={DESTINATION_CLASS}
       style={DESTINATION_STYLE}

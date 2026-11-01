@@ -5,6 +5,7 @@ import type {
   PortalId,
   PropertyId,
 } from '#/shared/domain/ids'
+import { secondaryPortalLinkId } from '../../domain/portal-link-attribution'
 import type { AttributionQuality } from '../../domain/attribution-quality'
 import { metricRecorded } from '../../domain/metric-events'
 import {
@@ -51,6 +52,7 @@ export type RecordMetricInput = Readonly<{
   staffAttribution?: PrimaryStaffAttributionSnapshot | null
   /** Required only for a qualified destination-selection fact. */
   destinationKind?: PortalDestinationKind | null
+  portalLinkId?: string | null
   /** Source-consumer settlement committed atomically with the reading. */
   sourceReceipt?: MetricSourceReceipt
 }>
@@ -173,6 +175,7 @@ export async function buildRecordMetricEntry(
     organizationId: input.organizationId,
     propertyId: input.propertyId,
     portalId: input.portalId,
+    portalLinkId: secondaryPortalLinkId(input.destinationKind, input.portalLinkId),
     portalGroupId: input.portalGroupId,
     value: input.value,
     numerator,

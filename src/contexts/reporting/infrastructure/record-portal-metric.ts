@@ -28,6 +28,7 @@ import { trace } from '#/shared/observability/trace'
 import type { AttributionQuality } from '../domain/attribution-quality'
 import type { ReadingResult } from '../domain/metric-reading'
 import { METRIC_VERSION_IDS, type SourcePolicyClass } from '../domain/metric-registry'
+import { secondaryPortalLinkId } from '../domain/portal-link-attribution'
 import type { PortalDestinationKind } from '../domain/portal-lifetime-aggregate'
 
 /** Common shape of Guest facts that record a Portal metric. */
@@ -60,6 +61,7 @@ export type PortalMetricHandlerOptions<E extends PortalMetricEvent> = Readonly<{
   /** Producer-owned event-time attribution must not be recomputed during replay. */
   portalGroupId?: (event: E) => PortalGroupId | null
   destinationKind?: (event: E) => PortalDestinationKind
+  portalLinkId?: (event: E) => string | null
   /** Consumer receipt to commit with this source reading. */
   sourceReceiptConsumer?: string
 }>
@@ -119,6 +121,7 @@ async function recordPortalMetrics<E extends PortalMetricEvent>(
     occurredAt: event.occurredAt,
     attributionQuality,
     staffAttribution: event.staffAttribution ?? null,
+    ...(opts.portalLinkId ? { portalLinkId: opts.portalLinkId(event) } : {}),
     ...(opts.destinationKind ? { destinationKind: opts.destinationKind(event) } : {}),
   }))
 
@@ -284,6 +287,8 @@ const reviewLinkOptions = {
   sourcePolicy: 'review_solicitation_analytics_only',
   span: 'metric.event.onReviewLinkClicked',
   destinationKind: (event: GuestReviewLinkClicked) => event.destinationKind,
+  portalLinkId: (event: GuestReviewLinkClicked) =>
+    secondaryPortalLinkId(event.destinationKind, event.linkId),
   sourceReceiptConsumer: 'metric.guest-analytics',
 } as const
 

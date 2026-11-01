@@ -345,7 +345,7 @@ export const getPublicPortal = createServerFn({ method: 'GET' })
   )
 
 // ── resolvePublicPortalLink ───────────────────────────────────────
-// Navigation-only fallback for no-JavaScript and failed mutation paths. A GET
+// Navigation for every Linktree tap, including without JavaScript. A GET
 // deliberately never creates the Qualified Link Action product metric.
 
 const resolveLinkSchema = z.object({

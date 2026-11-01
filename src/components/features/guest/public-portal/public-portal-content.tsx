@@ -1,5 +1,6 @@
+import type { SelectSecondaryLinkAction } from './guest-response-form-types'
 import type { ReactNode } from 'react'
-import type { GuestResponseAction, GuestResponseFormProps } from './guest-response-form'
+import type { GuestResponseFormProps } from './guest-response-form'
 import {
   PortalSecondaryLinks,
   type PortalCategory,
@@ -30,10 +31,7 @@ export type PublicPortalContentProps = Readonly<{
     googleReview: Readonly<{ status: PublicGoogleReviewDestination['status'] }>
   }>
   localization?: PortalLocalization
-  selectSecondaryLink?: GuestResponseAction<
-    { token: string; csrfNonce: string; linkId: string },
-    { url: string }
-  >
+  selectSecondaryLink?: SelectSecondaryLinkAction
   responseForm?: Omit<
     GuestResponseFormProps,
     'token' | 'googleReview' | 'locale' | 'languagePackVersion'

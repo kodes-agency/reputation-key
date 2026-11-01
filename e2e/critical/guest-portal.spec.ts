@@ -1,5 +1,6 @@
 import type { Page } from '@playwright/test'
 import { test, expect } from '../helpers/error-detection'
+import { waitForHydration } from '../helpers/interaction'
 import { signIn } from '../helpers/auth'
 import { requireE2eSeedState } from '../helpers/seed-state'
 import { attachRequestLog } from '../helpers/request-log'
@@ -127,6 +128,71 @@ test.describe('Critical: public Portal basics', () => {
     )
   })
 
+  test('a Linktree tap counts before a rating and stays once per session after it', async ({
+    page,
+  }) => {
+    const countTaps = async () =>
+      Number(
+        (
+          await dbQuery<{ n: string }>(
+            `SELECT count(*)::text AS n FROM metric_readings
+       WHERE portal_id = $1 AND portal_link_id = $2 AND metric_key = 'portal.review_link_click'`,
+            [seed.portalId, seed.portalLinkId],
+          )
+        )[0]?.n ?? '0',
+      )
+    const countFacts = async () =>
+      Number(
+        (
+          await dbQuery<{ n: string }>(
+            `SELECT count(*)::text AS n FROM outbox_events
+       WHERE event_type = 'guest.review_link.clicked' AND payload->>'portalId' = $1 AND payload->>'linkId' = $2`,
+            [seed.portalId, seed.portalLinkId],
+          )
+        )[0]?.n ?? '0',
+      )
+    const beforeReadings = await countTaps()
+    const beforeFacts = await countFacts()
+    const clickPath = `/api/public/p/${encodeURIComponent(seed.portalToken)}/click/${seed.portalLinkId}`
+    // Keep the native document navigation local: the click route's destination
+    // validation has its own tests. `holdNavigation` keeps the page alive until the
+    // action has answered, for the one tap whose answer the test must see.
+    let holdNavigation: Promise<unknown> = Promise.resolve()
+    await page.route(`**${clickPath}`, async (route) => {
+      await holdNavigation
+      await route.fulfill({ contentType: 'text/html', body: '<h1>Destination</h1>' })
+    })
+    const onTileUrl = new RegExp(`${seed.portalLinkId}$`, 'u')
+
+    // Before a rating, with the page leaving at once: the count still lands.
+    await page.goto(`/p/${seed.portalToken}`)
+    await waitForHydration(page)
+    await seededTile(page).click()
+    await expect(page).toHaveURL(onTileUrl)
+    await expect.poll(countTaps, { timeout: 20_000 }).toBe(beforeReadings + 1)
+    expect(await countFacts()).toBe(beforeFacts + 1)
+
+    await page.goBack()
+    await waitForHydration(page)
+    await selectRating(page, 5)
+    await page.getByRole('button', { name: 'Send', exact: true }).click()
+    await expect(receipt(page, 5)).toBeVisible()
+
+    // After it, the same session and link: the action answers and nothing more counts.
+    const counted = page.waitForResponse(
+      (response) =>
+        response.url().includes('/_serverFn/') &&
+        response.request().method() === 'POST' &&
+        (response.request().postData() ?? '').includes(seed.portalLinkId),
+    )
+    holdNavigation = counted
+    await seededTile(page).click()
+    expect((await counted).ok()).toBe(true)
+    await expect(page).toHaveURL(onTileUrl)
+    expect(await countFacts()).toBe(beforeFacts + 1)
+    expect(await countTaps()).toBe(beforeReadings + 1)
+  })
+
   test('rating, private note, one correction, and withdrawal survive reload', async ({
     page,
   }) => {
@@ -139,8 +205,8 @@ test.describe('Critical: public Portal basics', () => {
     await page.getByRole('button', { name: 'Send', exact: true }).click()
     await expect(receipt(page, 2)).toBeVisible()
     // The tile was a plain link before the rating and stays one: a tap on it
-    // goes through the click route, which attributes it and keeps the guest's
-    // referrer off the target.
+    // goes through the navigation-only click route, which keeps the guest's
+    // referrer off the target. The bound POST counts the tap in the background.
     await expect(seededTile(page)).toHaveAttribute('href', expectedDestination)
 
     // A rating at or below the threshold is offered a private note.
