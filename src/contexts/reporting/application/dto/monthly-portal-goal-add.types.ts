@@ -27,6 +27,8 @@ export type PortalGoalAddHeld = Readonly<{ programId: string; name: string }>
 
 /** One Portal or Portal Group a goal can be added for, in the month and measure offered. */
 export type PortalGoalAddOffer = Readonly<{
+  staffTarget?: boolean
+  measure?: PortalGoalMeasure
   subject: PortalGoalAddSubject
   name: string
   /**

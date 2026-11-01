@@ -1,3 +1,4 @@
+import { staffSectionMeasures } from './portal-staff-measures'
 // The Portals overview's results as the page prints them: a figure per measure
 // for every Portal, group and Property row, and the strip above the table. Pure:
 // the read (`getPortalResultsOverview`) says what was counted and how sure it is,
@@ -128,6 +129,14 @@ export type OrganizationSortFigures = OverviewSortFigures &
   Readonly<{ property: (propertyId: string) => number | null }>
 
 export type OverviewResultsIndex = Readonly<{
+  section?: (portalIds: readonly string[]) => GroupFigures | null
+  staffFigures?: (portalId: string) => Readonly<{
+    portalId: string
+    scans: number | null
+    ratings: number | null
+    average: number | null
+  }>
+
   portal: (portalId: string) => RowMeasures | null
   group: (groupId: string) => GroupFigures | null
   ungrouped: (propertyId: string) => GroupFigures | null
@@ -213,6 +222,17 @@ export function indexOverviewResults(
     }),
   )
   return {
+    section: (ids) => {
+      const rows = ids.flatMap((id) => (portals.get(id) ? [portals.get(id)!.row] : []))
+      const measures = rows.length === ids.length ? staffSectionMeasures(rows) : null
+      return measures ? { measures, memberCount: ids.length } : null
+    },
+    staffFigures: (portalId) => ({
+      portalId,
+      scans: portals.get(portalId)?.row.kpis.scans.value ?? null,
+      ratings: portals.get(portalId)?.row.kpis.ratings.value ?? null,
+      average: portals.get(portalId)?.row.kpis.avgRating.value ?? null,
+    }),
     portal: (portalId) => portals.get(portalId)?.measures ?? null,
     group: (groupId) => groups.get(groupId)?.figures ?? null,
     ungrouped: (propertyId) => ungrouped.get(propertyId) ?? null,

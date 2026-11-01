@@ -25,6 +25,8 @@ import type {
 } from '#/components/features/staff/types'
 
 interface StaffTabProps {
+  lockedParticipationIds?: readonly string[]
+  accountsEnabled?: boolean
   propertyId: string
   participations: ReadonlyArray<StaffParticipationView>
   responsibilities: ReadonlyArray<PortalResponsibilitySelection>
@@ -41,6 +43,8 @@ interface StaffTabProps {
 }
 
 export function StaffTab({
+  lockedParticipationIds = [],
+  accountsEnabled = false,
   propertyId,
   participations,
   responsibilities,
@@ -94,7 +98,7 @@ export function StaffTab({
           onOpenChange={onCreateOpenChange}
         >
           <DialogTrigger asChild>
-            <AddAction>Add staff</AddAction>
+            <AddAction>{accountsEnabled ? 'Add profile' : 'Add staff'}</AddAction>
           </DialogTrigger>
           <DialogContent>
             <DialogHeader>
@@ -125,26 +129,31 @@ export function StaffTab({
 
       <StaffParticipationList
         participations={participations}
+        lockedParticipationIds={lockedParticipationIds}
         archiveAction={archiveMutation}
         canManageResponsibilities={!portalsDenied}
         onEditResponsibilities={setEditingParticipationId}
       />
 
-      {editingParticipation && !portalsDenied && (
-        <PortalResponsibilitiesModal
-          key={editingParticipation.id}
-          staffParticipationId={editingParticipation.id}
-          displayName={editingParticipation.displayName}
-          currentPrimaryPortalId={editingResponsibilities?.primaryPortalId ?? null}
-          currentSupportingPortalIds={editingResponsibilities?.supportingPortalIds ?? []}
-          expectedRevision={editingParticipation.revision}
-          allPortals={portalOptions}
-          updateAction={updateResponsibilitiesMutation}
-          onOpenChange={(open) => {
-            if (!open) setEditingParticipationId(null)
-          }}
-        />
-      )}
+      {editingParticipation &&
+        !lockedParticipationIds.includes(editingParticipation.id) &&
+        !portalsDenied && (
+          <PortalResponsibilitiesModal
+            key={editingParticipation.id}
+            staffParticipationId={editingParticipation.id}
+            displayName={editingParticipation.displayName}
+            currentPrimaryPortalId={editingResponsibilities?.primaryPortalId ?? null}
+            currentSupportingPortalIds={
+              editingResponsibilities?.supportingPortalIds ?? []
+            }
+            expectedRevision={editingParticipation.revision}
+            allPortals={portalOptions}
+            updateAction={updateResponsibilitiesMutation}
+            onOpenChange={(open) => {
+              if (!open) setEditingParticipationId(null)
+            }}
+          />
+        )}
     </section>
   )
 }

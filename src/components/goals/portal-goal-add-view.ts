@@ -117,6 +117,9 @@ export function chooseModel(
   const chosen = choices.find(({ kind }) => kind === picked)
   return {
     description: 'What do you want to add?',
+    showSpotLine: ![...options.onePortal, ...options.groups].some(
+      (offer) => offer.staffTarget,
+    ),
     choices,
     next: { disabled: chosen === undefined || chosen.disabled },
   }
@@ -218,7 +221,7 @@ export function addedToast(
     return `${goalMetricLabel(AVERAGE_METRIC)} goal set: ${averageWords(targetValue)} for ${month}`
   }
   const name = offerOf(options, keyOfSubject(subject))?.name ?? ''
-  return `${name} goal set: ${portalGoalCount(options.measure, targetValue)} for ${month}`
+  return `${name} goal set: ${portalGoalCount(offerOf(options, keyOfSubject(subject))?.measure ?? options.measure, targetValue)} for ${month}`
 }
 
 /** What an address asks the sheet to open on: `?add=` and its subject. */
@@ -248,4 +251,18 @@ export function openingOf(
     offered !== null &&
     offered.subject.kind === (add === 'portal' ? 'portal' : 'portal_group')
   return { step: add, subject: fits ? subjectKey(offered) : null }
+}
+
+/** Staff choices stay hidden while the account capability is off, including old links. */
+export function staffGoalOptions(
+  options: PortalGoalAddOptions,
+  enabled: boolean,
+): PortalGoalAddOptions {
+  if (enabled) return options
+  return {
+    ...options,
+    onePortal: options.onePortal.filter((offer) => !offer.staffTarget),
+    groups: options.groups.filter((offer) => !offer.staffTarget),
+    eachPortal: options.eachPortal.filter(({ offer }) => !offer.staffTarget),
+  }
 }

@@ -1,3 +1,9 @@
+import { withStaffSetupRows } from '#/components/features/staff/accounts/staff-overview-rows'
+import { useStaffAccounts } from '#/components/features/staff/accounts/staff-accounts-context'
+import { portalListModel } from './portal-overview/portal-list-model'
+import { StaffAccountsProvider } from '#/components/features/staff/accounts/staff-accounts-provider'
+import { StaffAddAction } from '#/components/features/staff/accounts/staff-accounts-list'
+import { useCapabilities } from '#/shared/hooks/useCapabilities'
 // Portals — every portal of a property, grouped, with the few that need
 // something marked (docs/design/portal-experience/round-4-admin, boards 01 and
 // 11). Status is deliberately not a panel: a live portal that needs nothing
@@ -10,11 +16,7 @@
 // Groups are made in the New group dialog and managed on each group's page; the
 // head of a group in the table links there and carries the group's actions.
 import { useState, type ReactNode } from 'react'
-import { usePermissions } from '#/shared/hooks/usePermissions'
 import { PageShell } from '#/components/layout/page-shell'
-import { PageHeader } from '#/components/layout/page-header'
-import { NAV_LABEL } from '#/components/layout/nav-labels'
-import { trailCrumbs } from '#/components/layout/page-identity'
 import { AddAction } from '#/components/ui/add-action'
 import type { PortalOverviewRow } from '#/contexts/portal/application/public-api'
 import { PortalGroupDialog } from './portal-group/portal-group-dialogs'
@@ -25,7 +27,7 @@ import type { PortalGroupMutations } from './portal-group/portal-group-mutations
 import type { PortalArchiveMutations } from './portal-overview/portal-archive-dialog'
 import { uncountedScanPortals } from './portal-overview/portal-attention'
 import { PortalChangesOffNote } from './portal-overview/portal-changes-off-note'
-import { PortalListHeaderActions } from './portal-overview/portal-list-header-actions'
+import { PortalListHeader } from './portal-overview/portal-list-header-actions'
 import {
   PortalOverviewEmpty,
   PortalOverviewNoMatch,
@@ -52,13 +54,8 @@ import {
   PORTAL_OVERVIEW_LONG_LIST,
   PortalOverviewToolbar,
 } from './portal-overview/portal-overview-toolbar'
-import { sortFiguresWithoutUncounted } from './portal-overview/portal-overview-uncounted'
 import { usePortalAccess } from './portal-overview/use-portal-access'
-import {
-  PORTAL_OVERVIEW_PAGE_SIZE,
-  buildPortalOverview,
-  type PortalManagerName,
-} from './portal-overview/portal-overview-view'
+import type { PortalManagerName } from './portal-overview/portal-overview-view'
 
 export type PortalListPageProps = PortalArchiveMutations &
   Readonly<{
@@ -80,11 +77,6 @@ export type PortalListPageProps = PortalArchiveMutations &
   }> &
   Pick<PortalGroupMutations, 'createMutation' | 'renameMutation' | 'archiveGroupMutation'>
 
-const describe = (count: number, propertyName: string): readonly string[] | undefined => {
-  if (count === 0) return undefined
-  return [`${count === 1 ? '1 portal' : `${count} portals`} at ${propertyName}`]
-}
-
 type PortalListBodyProps = Readonly<{
   isEmpty: boolean
   /** The Property has a group, so the list is headed by groups and offers Group by. */
@@ -95,7 +87,7 @@ type PortalListBodyProps = Readonly<{
   uncounted: readonly UncountedScanPortal[]
   resultsState: PortalOverviewResultsState
   listSearch: PortalOverviewSearch
-  overview: ReturnType<typeof buildPortalOverview>
+  overview: ReturnType<typeof portalListModel>['overview']
   propertyId: string
   propertyName: string
   archiveMutation: PortalListPageProps['archiveMutation']
@@ -197,8 +189,23 @@ function PortalListBody({
 }
 
 // fallow-ignore-next-line complexity
-export function PortalListPage({
-  rows,
+export function PortalListPage(props: PortalListPageProps) {
+  const { has } = useCapabilities()
+  return (
+    <StaffAccountsProvider propertyId={props.propertyId}>
+      <PortalListPageBody
+        {...props}
+        rows={
+          has('staff.accounts')
+            ? props.rows
+            : props.rows.filter((row) => row.kind !== 'personal')
+        }
+      />
+    </StaffAccountsProvider>
+  )
+}
+function PortalListPageBody({
+  rows: inputRows,
   members = [],
   propertyId,
   propertyName,
@@ -215,32 +222,17 @@ export function PortalListPage({
   archiveGroupMutation,
   newPortal,
 }: PortalListPageProps) {
-  const { can } = usePermissions()
+  const accounts = useStaffAccounts()
+  const rows = withStaffSetupRows(inputRows, accounts?.members ?? [], propertyId)
   const access = usePortalAccess()
   const [creatingGroup, setCreatingGroup] = useState(false)
-  const resultsState: PortalOverviewResultsState = results?.state ?? { status: 'off' }
-  // Without results there is nothing to sort by scans, whatever a bookmark says.
-  const searchWithScans =
-    resultsState.status === 'off' && search.sort === 'scans'
-      ? { ...search, sort: undefined, dir: undefined }
-      : search
-  // A Property with no group has no group to head: the list is flat, and Group by
-  // is not offered until the first group exists.
-  const hasGroups = groups.length > 0 || rows.some((row) => row.group !== null)
-  const listSearch = hasGroups
-    ? searchWithScans
-    : { ...searchWithScans, groupBy: 'none' as const }
-  const overview = buildPortalOverview(
+  const { resultsState, hasGroups, listSearch, overview } = portalListModel({
     rows,
-    listSearch,
-    members,
-    PORTAL_OVERVIEW_PAGE_SIZE,
-    sortFiguresWithoutUncounted(
-      resultsState.status === 'ready' ? resultsState.index.sortFigures : undefined,
-      rows,
-    ),
+    results,
+    search,
     groups,
-  )
+    members,
+  })
   const update = (patch: Partial<PortalOverviewSearch>) =>
     onSearchChange(portalOverviewSearchPatch(search, patch))
 
@@ -248,9 +240,7 @@ export function PortalListPage({
   // while the organisation's `portal.write` capability is off.
   const { canCreate } = access
   const openNewPortal = () => update({ new: true })
-  const newPortalButton = canCreate ? (
-    <AddAction onClick={openNewPortal}>New portal</AddAction>
-  ) : undefined
+  const newPortalButton = createPortalButton(canCreate, openNewPortal)
   const isEmpty = rows.length === 0 && groups.length === 0
   // An empty list offers New portal in its own message; a list has the phone bar.
   const hasPhoneBar = canCreate && !isEmpty
@@ -260,24 +250,15 @@ export function PortalListPage({
       tier="dashboard"
       className={hasPhoneBar ? PHONE_NEW_PORTAL_BAR_CLEARANCE : undefined}
     >
-      <PageHeader
-        title="Portals"
-        meta={describe(rows.length, propertyName)}
-        breadcrumbs={trailCrumbs(
-          'property',
-          { propertyId, propertyName },
-          NAV_LABEL.portals,
-        )}
-        actions={
-          <PortalListHeaderActions
-            propertyId={propertyId}
-            // The look is read by everyone who may read portals; only an Account Admin edits it.
-            showPropertyLook={can('portal.read')}
-            onNewGroup={canCreate ? () => setCreatingGroup(true) : undefined}
-            newPortalButton={newPortalButton}
-            newPortalFromSm={hasPhoneBar}
-          />
-        }
+      <PortalListHeader
+        propertyId={propertyId}
+        propertyName={propertyName}
+        count={rows.length}
+        canCreate={canCreate}
+        onNewGroup={() => setCreatingGroup(true)}
+        newPortalButton={newPortalButton}
+        newPortalFromSm={hasPhoneBar}
+        addStaffButton={<StaffAddAction variant="outline" />}
       />
       <PortalChangesOffNote />
       <PortalListBody
@@ -303,18 +284,21 @@ export function PortalListPage({
         open={creatingGroup}
         onOpenChange={setCreatingGroup}
         propertyId={propertyId}
-        rows={rows}
+        rows={inputRows}
         createMutation={createMutation}
       />
       {hasPhoneBar ? <PortalPhoneNewPortalBar onClick={openNewPortal} /> : null}
-      {canCreate ? (
-        <PortalNewDialog
-          open={search.new === true}
-          onOpenChange={(open) => update({ new: open ? true : undefined })}
-          data={newPortal.data}
-          loadError={newPortal.loadError}
-        />
-      ) : null}
+      <PortalNewDialog
+        allowed={canCreate}
+        open={search.new === true}
+        onOpenChange={(open) => update({ new: open ? true : undefined })}
+        data={newPortal.data}
+        loadError={newPortal.loadError}
+      />
     </PageShell>
   )
+}
+
+function createPortalButton(allowed: boolean, onClick: () => void): ReactNode {
+  return allowed ? <AddAction onClick={onClick}>New portal</AddAction> : undefined
 }

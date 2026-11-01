@@ -240,6 +240,7 @@ describe('addStaffMember', () => {
         displayName: null,
       })
       expect(Object.keys(result).sort()).toEqual([
+        'access',
         'code',
         'operationId',
         'participationId',

@@ -177,3 +177,21 @@ describe('withGoalProgramVisibility', () => {
     expect(visibility).not.toHaveBeenCalled()
   })
 })
+
+it('projects a disabled staff target as paused while leaving the stored bundle intact', async () => {
+  const raw = {
+    ...portalOnly,
+    program: { ...portalOnly.program, status: 'active' as const },
+  }
+  const { reads, visibility } = setup([raw])
+  const paused = withGoalProgramVisibility(reads, visibility, async () => true)
+  const [shown] = await paused.list(PROPERTY_ID, actorWith('goal.create'))
+  expect(shown?.program.status).toBe('paused')
+  expect(raw.program.status).toBe('active')
+  expect(
+    await paused.get(
+      { propertyId: PROPERTY_ID, programId: raw.program.id },
+      actorWith('goal.create'),
+    ),
+  ).toMatchObject({ program: { status: 'paused' } })
+})

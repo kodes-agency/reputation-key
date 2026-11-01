@@ -93,6 +93,12 @@ async function sourcesOf(
   return rows.map(({ subject, targetValue, targetSource }) =>
     targetSource === 'recommended' &&
     offered &&
+    !(
+      subject.kind === 'portal' &&
+      basis.facts.listed.portals.some(
+        (portal) => portal.portalId === subject.portalId && portal.kind === 'personal',
+      )
+    ) &&
     recommendedNumberFor(basis, subject) === targetValue
       ? 'recommended'
       : 'own',

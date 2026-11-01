@@ -1,7 +1,11 @@
-// Property › Staff (the address stays /people): the profiles without a login who
-// work at the Property and the Portals each is responsible for. People who sign
-// in are the Organization's members, managed in Settings › Members, so this page
-// has no Directory of them.
+import { StaffAccountsProvider } from '#/components/features/staff/accounts/staff-accounts-provider'
+import {
+  StaffAccountsList,
+  StaffAddAction,
+} from '#/components/features/staff/accounts/staff-accounts-list'
+import { useStaffAccounts } from '#/components/features/staff/accounts/staff-accounts-context'
+// Property Staff (the URL stays /people): personal Portal accounts above the
+// existing participation profiles. Organization manager logins stay in Members.
 import { useState } from 'react'
 import type { Action } from '#/components/hooks/use-action'
 import { StaffTab } from '#/components/features/property/people/staff-tab'
@@ -37,7 +41,7 @@ interface PeoplePageProps {
   }>
 }
 
-export function PeoplePage({
+function PeoplePageBody({
   propertyId,
   propertyName,
   participations,
@@ -49,20 +53,20 @@ export function PeoplePage({
   archiveParticipationMutation,
   updateResponsibilitiesMutation,
 }: PeoplePageProps) {
+  const accounts = useStaffAccounts()
   const [createParticipationOpen, setCreateParticipationOpen] = useState(false)
   return (
     <PageShell tier="dashboard">
-      <PageHeader
-        title="Staff"
-        description="Who works at this property and the Portals they are responsible for; people who sign in are managed in Settings › Members."
-        breadcrumbs={trailCrumbs(
-          'property',
-          { propertyId, propertyName },
-          NAV_LABEL.staff,
-        )}
+      <PeopleHeader
+        propertyId={propertyId}
+        propertyName={propertyName}
+        accountsEnabled={accounts !== null}
       />
 
+      <StaffAccountsList />
       <StaffTab
+        lockedParticipationIds={accounts?.members.map((member) => member.participationId)}
+        accountsEnabled={accounts !== null}
         propertyId={propertyId}
         participations={participations}
         responsibilities={responsibilities}
@@ -76,5 +80,34 @@ export function PeoplePage({
         updateResponsibilitiesMutation={updateResponsibilitiesMutation}
       />
     </PageShell>
+  )
+}
+
+export function PeoplePage(props: PeoplePageProps) {
+  return (
+    <StaffAccountsProvider propertyId={props.propertyId}>
+      <PeoplePageBody {...props} />
+    </StaffAccountsProvider>
+  )
+}
+
+function PeopleHeader({
+  propertyId,
+  propertyName,
+  accountsEnabled,
+}: Readonly<{ propertyId: string; propertyName: string; accountsEnabled: boolean }>) {
+  const breadcrumbs = trailCrumbs(
+    'property',
+    { propertyId, propertyName },
+    NAV_LABEL.staff,
+  )
+  return accountsEnabled ? (
+    <PageHeader title="Staff" breadcrumbs={breadcrumbs} actions={<StaffAddAction />} />
+  ) : (
+    <PageHeader
+      title="Staff"
+      description="Who works at this property and the Portals they are responsible for; people who sign in are managed in Settings › Members."
+      breadcrumbs={breadcrumbs}
+    />
   )
 }

@@ -1,6 +1,7 @@
+import { staffGrouping } from '../portal-overview/portal-staff-sections'
 // "Portals in this group" on a group's page (board 13): the same rows as the
-// overview, with no group heads, ordered by qualified scans where the results
-// are shown. Under the table: a quiet "Add portal", the one-group rule, and what
+// overview, ordered by qualified scans where results are shown. A Group with
+// people keeps its folding head and people stay in name order. Under the table: a quiet "Add portal", the one-group rule, and what
 // the group's results count.
 import { useState } from 'react'
 import { Globe, Info } from 'lucide-react'
@@ -68,7 +69,10 @@ export function PortalGroupPortals({
   const byScans = resultsState.status === 'ready'
   const overview = buildPortalOverview(
     rows,
-    byScans ? { groupBy: 'none', sort: 'scans' } : { groupBy: 'none' },
+    {
+      groupBy: staffGrouping(rows),
+      ...(byScans ? { sort: 'scans' as const } : {}),
+    },
     members,
     Math.max(rows.length, 1),
     byScans

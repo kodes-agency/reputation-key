@@ -1,3 +1,4 @@
+import { StaffAccountsContext } from '#/components/features/staff/accounts/staff-accounts-context'
 import type { Meta, StoryObj } from '@storybook/react'
 import { expect, userEvent, within } from 'storybook/test'
 import { PeoplePage } from './people-page'
@@ -105,5 +106,53 @@ export const PortalsDenied: Story = {
       canvas.queryByRole('button', { name: /edit portal responsibilities/i }),
     ).not.toBeInTheDocument()
     await expect(canvas.getByRole('button', { name: /add staff/i })).toBeInTheDocument()
+  },
+}
+
+export const WithPersonalPortals: Story = {
+  args: { ...seededArgs },
+  decorators: [
+    (Story) => (
+      <StaffAccountsContext
+        value={{
+          propertyId: 'prop-1',
+          members: [
+            {
+              participationId: 'sp-1',
+              displayName: 'Alice Adams',
+              operationId: null,
+              portalId: 'p-1',
+              access: 'active',
+              step: null,
+              code: null,
+              endsSignIn: true,
+            },
+          ],
+          colleagueListEnabled: false,
+          canInvite: true,
+          canRemove: true,
+          canSettings: true,
+          openAdd: () => undefined,
+          refresh: async () => undefined,
+        }}
+      >
+        <Story />
+      </StaffAccountsContext>
+    ),
+  ],
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    await expect(
+      canvas.getByRole('table', { name: 'Staff with personal portals' }),
+    ).toBeVisible()
+    await expect(canvas.getByRole('button', { name: 'Add staff' })).toBeVisible()
+    expect(
+      canvas.queryByRole('button', {
+        name: 'Edit portal responsibilities for Alice Adams',
+      }),
+    ).toBeNull()
+    await expect(
+      canvas.getByRole('button', { name: 'Edit portal responsibilities for Bob Baker' }),
+    ).toBeVisible()
   },
 }

@@ -683,6 +683,7 @@ export const buildPortalContext = (deps: PortalContextDeps) => {
           ? {
               id: p.id,
               kind: p.kind,
+              skipPrivateRating: p.skipPrivateRating,
               name: p.name,
               publicationState: p.publicationState,
             }

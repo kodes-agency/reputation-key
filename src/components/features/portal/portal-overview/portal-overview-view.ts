@@ -13,6 +13,7 @@ import {
   type GuestLocale,
 } from '#/shared/domain/guest-locale'
 import { needsAttention, portalAttention, type PortalAttention } from './portal-attention'
+import { overviewBuckets } from './portal-staff-sections'
 import { compareItems, orderGroups } from './portal-overview-order'
 import type { OverviewSortFigures } from './portal-overview-results'
 import {
@@ -64,8 +65,11 @@ export type PortalOverviewItem = Readonly<{
 }>
 
 export type PortalOverviewSection = Readonly<{
-  /** `group` and `ungrouped` carry a head row; `flat` is the list with no grouping. */
-  kind: 'group' | 'ungrouped' | 'flat'
+  /** `group`, `ungrouped` and `staff` carry a head; `flat` has none. */
+  kind: 'group' | 'ungrouped' | 'flat' | 'staff'
+  staff?: Readonly<{ count: number; places: number; names: readonly string[] }>
+  portalIds?: readonly string[]
+  searchExpanded?: boolean
   key: string
   group: PortalOverviewRow['group']
   /** Every Portal in the group, whatever the search left. */
@@ -181,55 +185,6 @@ function matchesSearch(
   return search.show !== 'attention' || needsAttention(item.attention)
 }
 
-type Bucket = Readonly<{
-  kind: 'group' | 'ungrouped'
-  key: string
-  group: PortalOverviewRow['group']
-  memberCount: number
-  items: readonly PortalOverviewItem[]
-}>
-
-function bucketByGroup(
-  items: readonly PortalOverviewItem[],
-  memberCounts: ReadonlyMap<string, number>,
-  ungroupedCount: number,
-): readonly Bucket[] {
-  const byGroup = new Map<string, PortalOverviewItem[]>()
-  const ungrouped: PortalOverviewItem[] = []
-  for (const item of items) {
-    const group = item.row.group
-    if (!group) ungrouped.push(item)
-    else byGroup.set(group.id, [...(byGroup.get(group.id) ?? []), item])
-  }
-  const groups = [...byGroup.values()].flatMap((groupItems): Bucket[] => {
-    const group = groupItems[0]?.row.group
-    if (!group) return []
-    return [
-      {
-        kind: 'group',
-        key: group.id,
-        group,
-        memberCount: memberCounts.get(group.id) ?? groupItems.length,
-        items: groupItems,
-      },
-    ]
-  })
-  return [
-    ...groups,
-    ...(ungrouped.length > 0
-      ? [
-          {
-            kind: 'ungrouped' as const,
-            key: 'ungrouped',
-            group: null,
-            memberCount: ungroupedCount,
-            items: ungrouped,
-          },
-        ]
-      : []),
-  ]
-}
-
 const clamp = (value: number, low: number, high: number): number =>
   Math.min(Math.max(value, low), high)
 
@@ -285,7 +240,9 @@ export function buildPortalOverview(
   const dir = search.dir ?? defaultSortDirection(sort)
   const grouping = (search.groupBy ?? DEFAULT_PORTAL_OVERVIEW_GROUP_BY) === 'group'
 
-  const all = rows.map((row) => toItem(row, members))
+  const all = rows
+    .filter((row) => row.kind !== 'personal' || row.publicationState !== 'archived')
+    .map((row) => toItem(row, members))
   const matchesText = searchMatcher(search.q ?? '')
   const matched = all
     .filter((item) => matchesSearch(item, search, matchesText))
@@ -296,26 +253,12 @@ export function buildPortalOverview(
     const id = item.row.group?.id
     if (id) memberCounts.set(id, (memberCounts.get(id) ?? 0) + 1)
   }
-  const ungroupedCount = all.filter((item) => !item.row.group).length
-
-  const buckets: readonly Bucket[] = grouping
-    ? orderGroups(
-        bucketByGroup(matched, memberCounts, ungroupedCount),
-        sort,
-        dir,
-        figures,
-      )
-    : matched.length === 0
-      ? []
-      : [
-          {
-            kind: 'group',
-            key: 'flat',
-            group: null,
-            memberCount: all.length,
-            items: matched,
-          },
-        ]
+  const buckets = orderGroups(
+    overviewBuckets(all, matched, grouping, Boolean(search.q?.trim())),
+    sort,
+    dir,
+    figures,
+  )
 
   const ordered = buckets.flatMap((bucket) => bucket.items)
   const lastPage = Math.max(1, Math.ceil(ordered.length / pageSize))
@@ -328,7 +271,10 @@ export function buildPortalOverview(
     if (items.length === 0) return []
     return [
       {
-        kind: grouping ? bucket.kind : 'flat',
+        kind: bucket.kind === 'staff' ? 'staff' : grouping ? bucket.kind : 'flat',
+        portalIds: bucket.portalIds,
+        staff: bucket.staff,
+        searchExpanded: bucket.searchExpanded,
         key: bucket.key,
         group: bucket.group,
         memberCount: bucket.memberCount,

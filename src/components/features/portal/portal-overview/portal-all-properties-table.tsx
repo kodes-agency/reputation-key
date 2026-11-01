@@ -3,6 +3,9 @@
 // when it has groups). The same row, group head and header as the Portals page of
 // one Property, so a Portal reads the same in both. A folded Property stays
 // folded for the reader (`collapsed-properties-store`); a group's fold is local.
+import { StaffAccountsProvider } from '#/components/features/staff/accounts/staff-accounts-provider'
+import type { PortalOverviewSection } from './portal-overview-view'
+import { sectionExpanded } from './portal-staff-sections'
 import { useState } from 'react'
 import { DataTable, DataTableBody } from '#/components/ui/data-table'
 import type { PortalArchiveMutations } from './portal-archive-dialog'
@@ -37,11 +40,12 @@ export function PortalAllPropertiesTable({
   restoreMutation,
   disableMutation,
 }: Props) {
-  const [foldedGroups, setFoldedGroups] = useState<readonly string[]>([])
-  const toggleGroup = (key: string) =>
-    setFoldedGroups((current) =>
-      current.includes(key) ? current.filter((k) => k !== key) : [...current, key],
-    )
+  const [foldedGroups, setFoldedGroups] = useState<Readonly<Record<string, boolean>>>({})
+  const toggleGroup = (key: string, section: PortalOverviewSection) =>
+    setFoldedGroups((current) => ({
+      ...current,
+      [key]: sectionExpanded(section, current[key]),
+    }))
 
   return (
     <DataTable label="Portals at all properties" layout="cards" busy={busy}>
@@ -50,37 +54,41 @@ export function PortalAllPropertiesTable({
         const expanded = !collapsed.includes(property.propertyId)
         const head = groupSlot(results, (index) => index.property(property.propertyId))
         return (
-          <DataTableBody key={property.propertyId}>
-            <PortalOverviewPropertyHead
-              property={property}
-              divided={position > 0}
-              figures={head.slot}
-              readCount={head.memberCount}
-              expanded={expanded}
-              onToggle={() => onToggleProperty(property.propertyId)}
-            />
-            {expanded
-              ? property.sections.map((section) => {
-                  const groupKey = `${property.propertyId}/${section.key}`
-                  return (
-                    <PortalOverviewSectionRows
-                      key={groupKey}
-                      section={section}
-                      propertyId={property.propertyId}
-                      results={results}
-                      expanded={
-                        section.kind === 'flat' || !foldedGroups.includes(groupKey)
-                      }
-                      onToggle={() => toggleGroup(groupKey)}
-                      nested
-                      archiveMutation={archiveMutation}
-                      restoreMutation={restoreMutation}
-                      disableMutation={disableMutation}
-                    />
-                  )
-                })
-              : null}
-          </DataTableBody>
+          <StaffAccountsProvider
+            key={property.propertyId}
+            propertyId={property.propertyId}
+            inTable
+          >
+            <DataTableBody>
+              <PortalOverviewPropertyHead
+                property={property}
+                divided={position > 0}
+                figures={head.slot}
+                readCount={head.memberCount}
+                expanded={expanded}
+                onToggle={() => onToggleProperty(property.propertyId)}
+              />
+              {expanded
+                ? property.sections.map((section) => {
+                    const groupKey = `${property.propertyId}/${section.key}`
+                    return (
+                      <PortalOverviewSectionRows
+                        key={groupKey}
+                        section={section}
+                        propertyId={property.propertyId}
+                        results={results}
+                        expanded={sectionExpanded(section, foldedGroups[groupKey])}
+                        onToggle={() => toggleGroup(groupKey, section)}
+                        nested
+                        archiveMutation={archiveMutation}
+                        restoreMutation={restoreMutation}
+                        disableMutation={disableMutation}
+                      />
+                    )
+                  })
+                : null}
+            </DataTableBody>
+          </StaffAccountsProvider>
         )
       })}
     </DataTable>

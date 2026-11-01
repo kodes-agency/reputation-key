@@ -121,7 +121,9 @@ export function buildAllPropertiesOverview(
         dir,
         ...(nameMatches ? {} : { q: search.q }),
         show: search.show,
-        groupBy: propertyRows.some((row) => row.group) ? 'group' : 'none',
+        groupBy: propertyRows.some((row) => row.group || row.kind === 'personal')
+          ? 'group'
+          : 'none',
       },
       members,
       propertyRows.length,
@@ -144,7 +146,21 @@ export function buildAllPropertiesOverview(
   })
 
   const ordered = [...built].sort(compareProperties(sort, dir, figures))
-  const isFolded = (propertyId: string): boolean => folded.includes(propertyId)
+  const opensStaff = new Set(
+    built
+      .filter(
+        (property) =>
+          Boolean(search.q?.trim()) &&
+          property.sections.some((section) =>
+            section.items.some(
+              (item) => item.row.kind === 'personal' && matchesText(item.row.name),
+            ),
+          ),
+      )
+      .map((property) => property.propertyId),
+  )
+  const isFolded = (propertyId: string): boolean =>
+    folded.includes(propertyId) && !opensStaff.has(propertyId)
   const everyItem = ordered.flatMap((property) =>
     isFolded(property.propertyId) ? [] : itemsOf(property.sections),
   )

@@ -22,12 +22,18 @@ export const EXPLAIN_UNDERLINE =
  */
 function ExplainTrigger({
   className,
+  touch = false,
   ...props
-}: React.ComponentProps<typeof PopoverTrigger>) {
+}: React.ComponentProps<typeof PopoverTrigger> & { touch?: boolean }) {
   return (
     <PopoverTrigger
       data-slot="explain-trigger"
-      className={cn('cursor-help rounded focus-ring', EXPLAIN_UNDERLINE, className)}
+      className={cn(
+        'cursor-help rounded focus-ring',
+        EXPLAIN_UNDERLINE,
+        touch && 'max-md:min-h-(--control-touch)',
+        className,
+      )}
       {...props}
     />
   )

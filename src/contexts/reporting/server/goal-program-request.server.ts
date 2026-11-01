@@ -63,6 +63,9 @@ const goalProgramStatus = (error: GoalProgramError): number => {
     case 'revision_conflict':
     case 'metric_unavailable':
     case 'subject_has_goal':
+    case 'staff_scan_only':
+    case 'staff_scan_targets_disabled':
+    case 'staff_private_ratings_skipped':
     case 'private_ratings_skipped':
     case 'start_month_changed':
     case 'month_locked':

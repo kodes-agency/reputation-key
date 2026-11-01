@@ -117,7 +117,7 @@
     },
     {
       "id": "staffKeys",
-      "members": ["all", "participations"],
+      "members": ["all", "participations", "accounts"],
       "owner": "Staff participation query lifecycle",
       "policy": "The participation projection is property-scoped, allowing focused refresh while the family root remains available for full Staff teardown. The portals the Staff page lists are a Portal read: portalKeys.listOrDenied, under the Property's portal list, so a Portal write refreshes them."
     },
@@ -861,6 +861,18 @@
       "classification": "local_runtime",
       "owner": "Share tab final Print cards section",
       "policy": "What the manager has chosen for a print (the piece, each piece's orientation, the look, who prints, the paper, the quantity as typed, the spares, the count a sheet, the languages and the call to action), starting on the board's wide table tent. It is the manager's own choice, not server state: the read's languages and the property's country are applied when the choice is resolved, never written into it, and a remount of the tab is its reset boundary. The one server fact it takes in is the wording Share opens on (the saved wording, else the last print's, else the default): applied once, when the read first arrives (`usePrintFinalWording`), so a later read never overwrites words on show; it is written back only by the manager's own \"Save wording\" and by a download."
+    },
+    {
+      "id": "src/components/features/staff/accounts/use-staff-batch.ts:useState(rows)",
+      "classification": "local_runtime",
+      "owner": "Manager Add staff dialog",
+      "policy": "One batch draft per dialog opening, with stable operation ids retained through retries. Closing unmounts and discards the draft; completion refreshes server lists."
+    },
+    {
+      "id": "src/components/features/staff/accounts/use-staff-batch.ts:useState(group)",
+      "classification": "local_runtime",
+      "owner": "Manager Add staff dialog",
+      "policy": "The initial Group is the Add people entry choice. The dialog is remounted on each opening; subsequent choices belong to its local draft."
     }
   ],
   "classificationDefinitions": {

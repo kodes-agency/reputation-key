@@ -47,6 +47,7 @@ export type StaffOnboarding = Readonly<{
   failureCode: string | null
 }>
 export type StaffOnboardingResult = Readonly<{
+  access?: 'active' | 'invited'
   operationId: string
   participationId: string
   portalId: string

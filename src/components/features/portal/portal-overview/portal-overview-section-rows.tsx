@@ -1,7 +1,11 @@
+import { overviewSectionName } from './portal-staff-sections'
+import { highRatingFromFewGuests } from '#/components/features/staff/accounts/staff-rating-hint'
 // One group's part of a Portals table: its head row (unless the list is flat) and
 // the Portals the group holds, unless the reader folded it. Shared by the page of
 // one Property and the page of the whole Organization, so a group reads the same
 // in both.
+import { RowActionsItem, RowActionsMenu } from '#/components/ui/row-actions-menu'
+import { useStaffAccounts } from '#/components/features/staff/accounts/staff-accounts-context'
 import type { ReactNode } from 'react'
 import { groupSlot, type PortalOverviewResultsState } from './portal-overview-results'
 import { portalMeasureSlot } from './portal-overview-uncounted'
@@ -42,16 +46,29 @@ export function PortalOverviewSectionRows({
   restoreMutation,
   disableMutation,
 }: Props) {
+  const accounts = useStaffAccounts()
+  const hints =
+    results.status === 'ready' && results.index.staffFigures && accounts
+      ? highRatingFromFewGuests(
+          accounts.members.map((member) =>
+            results.index.staffFigures!(member.portalId ?? member.participationId),
+          ),
+        )
+      : new Set<string>()
   const headed = section.kind !== 'flat'
   const head = groupSlot(results, (index) =>
-    section.group ? index.group(section.group.id) : index.ungrouped(propertyId),
+    section.group
+      ? index.group(section.group.id)
+      : section.portalIds
+        ? (index.section?.(section.portalIds) ?? null)
+        : index.ungrouped(propertyId),
   )
   return (
     <>
       {headed ? (
         <PortalOverviewGroupHead
           propertyId={propertyId}
-          actions={section.group ? groupActions?.(section.group) : undefined}
+          actions={<SectionActions section={section} groupActions={groupActions} />}
           section={section}
           figures={head.slot}
           readCount={head.memberCount}
@@ -65,6 +82,7 @@ export function PortalOverviewSectionRows({
             <PortalOverviewTableRow
               key={item.row.portalId}
               item={item}
+              staffHint={hints.has(item.row.portalId)}
               figures={portalMeasureSlot(results, item.row)}
               propertyId={propertyId}
               showGroup={showGroup ?? !headed}
@@ -76,5 +94,21 @@ export function PortalOverviewSectionRows({
           ))
         : null}
     </>
+  )
+}
+
+function SectionActions({
+  section,
+  groupActions,
+}: Pick<Props, 'section' | 'groupActions'>) {
+  const accounts = useStaffAccounts()
+  if (section.group && groupActions) return groupActions(section.group)
+  if (!accounts?.canInvite || (!section.group && section.kind !== 'staff')) return null
+  return (
+    <RowActionsMenu name={overviewSectionName(section)}>
+      <RowActionsItem opensDialog onSelect={() => accounts.openAdd(section.group?.id)}>
+        Add people
+      </RowActionsItem>
+    </RowActionsMenu>
   )
 }

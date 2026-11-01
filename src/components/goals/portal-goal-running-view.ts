@@ -1,3 +1,4 @@
+import { staffPortalCounts } from './portal-goal-staff-counts'
 // The running Monthly portal goal's words (copy deck G-21…G-27, G-29…G-32,
 // ADR 0068 amended 2026-10-19 and 2026-11-01): the headline that says what is left
 // to the month's number, the days left in the month and what a day that leaves,
@@ -169,11 +170,13 @@ export function portalCountsWords(rows: PortalGoalRows): PortalGoalCountsWords {
       seeEach: 'See each',
     }
   }
-  const listed: PortalGoalCountRow[] = rows.portals.map(({ portalId, name, count }) => ({
-    key: portalId,
-    name,
-    count: formatNumber(count),
-  }))
+  const listed: PortalGoalCountRow[] = staffPortalCounts(rows.portals).map(
+    ({ portalId, name, count }) => ({
+      key: portalId,
+      name,
+      count: formatNumber(count),
+    }),
+  )
   return {
     kind: 'rows',
     heading: 'From your portals',

@@ -1,3 +1,5 @@
+import { useStaffOverviewRows } from '#/components/features/staff/accounts/staff-accounts-query'
+import { useCapabilities } from '#/shared/hooks/useCapabilities'
 // Portals across the whole Organization (docs/design/portal-experience/round-4-admin,
 // board 10): the Organization's results strip, then every Portal under the
 // Property it belongs to, each Property headed by its own subtotal. The page of
@@ -129,8 +131,8 @@ function PortalAllPropertiesList({
   )
 }
 
-export function PortalAllPropertiesPage({
-  rows,
+function PortalAllPropertiesPageBody({
+  rows: inputRows,
   properties,
   newPortalProperties,
   members = [],
@@ -143,6 +145,7 @@ export function PortalAllPropertiesPage({
   restoreMutation,
   disableMutation,
 }: PortalAllPropertiesPageProps) {
+  const rows = useStaffOverviewRows(inputRows, properties)
   const { collapsed, toggle } = useCollapsedProperties()
   const resultsState: PortalOverviewResultsState = results?.state ?? { status: 'off' }
   const listSearch = searchWithoutScansSort(search, resultsState)
@@ -224,5 +227,19 @@ export function PortalAllPropertiesPage({
         </>
       )}
     </PageShell>
+  )
+}
+
+export function PortalAllPropertiesPage(props: PortalAllPropertiesPageProps) {
+  const { has } = useCapabilities()
+  return (
+    <PortalAllPropertiesPageBody
+      {...props}
+      rows={
+        has('staff.accounts')
+          ? props.rows
+          : props.rows.filter((row) => row.kind !== 'personal')
+      }
+    />
   )
 }

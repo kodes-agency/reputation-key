@@ -1,3 +1,5 @@
+import { StaffAccountFunctionsContext } from '#/components/features/staff/accounts/staff-account-functions'
+import { STAFF_ACCOUNT_FUNCTIONS } from './_authenticated/-staff-account-functions'
 // Authenticated layout route — protects all nested routes and renders the app shell.
 // Per better-auth TanStack Start docs: use createServerFn (getSession)
 // in beforeLoad — not authClient.getSession(), which can't forward cookies during SSR.
@@ -386,9 +388,11 @@ function AuthenticatedLayout() {
   // Back at a tab left open across a deploy, a manager gets the current code at once.
   useEffect(() => watchPerson(staleTab, window), [])
   return (
-    <AuthenticatedShell>
-      <Outlet />
-    </AuthenticatedShell>
+    <StaffAccountFunctionsContext value={STAFF_ACCOUNT_FUNCTIONS}>
+      <AuthenticatedShell>
+        <Outlet />
+      </AuthenticatedShell>
+    </StaffAccountFunctionsContext>
   )
 }
 

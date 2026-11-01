@@ -411,6 +411,7 @@ describe('staff manager reads and settings', () => {
       ctx,
     )
     expect(result).toEqual({
+      invitationsRequired: 0,
       rows: [
         { code: 'duplicate_in_batch' },
         { code: 'duplicate_in_batch' },

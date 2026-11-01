@@ -292,3 +292,26 @@ describe('personal Portal scan targets', () => {
     ).toBe(true)
   })
 })
+
+it('refuses a scan target when a place sibling skips ratings in a staff Group', async () => {
+  portalApi.resolvePortalContext.mockResolvedValue({
+    organizationId: 'org',
+    propertyId: 'property',
+  })
+  portalApi.getPortalInfo.mockImplementation(async (_org, id) => ({
+    id,
+    kind: id === 'personal' ? 'personal' : 'place',
+    name: id,
+    publicationState: 'published',
+    skipPrivateRating: id === 'place',
+  }))
+  portalGroupApi.getGroupPortalIds.mockResolvedValue(['personal', 'place'])
+  expect(
+    await reader(true).staffTargetProblem!(
+      'org',
+      'property',
+      { kind: 'portal_group', portalGroupId: 'group' },
+      'qualified_scans',
+    ),
+  ).toBe('staff_private_ratings_skipped')
+})

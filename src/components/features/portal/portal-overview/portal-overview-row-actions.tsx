@@ -3,6 +3,8 @@
 // is finished (a draft has a code to give out: publishing needs one). Its place
 // stays, unseen, in a table row, so Edit sits in one column in every row. An
 // archived Portal's Edit says View, as it opens a page that cannot be changed.
+import { useStaffAccounts } from '#/components/features/staff/accounts/staff-accounts-context'
+import { StaffMemberMenu } from '#/components/features/staff/accounts/staff-member-actions'
 import { useState, type ReactNode } from 'react'
 import { Link } from '@tanstack/react-router'
 import { Pencil, QrCode } from 'lucide-react'
@@ -50,7 +52,7 @@ export function PortalRowButtons({ item, propertyId }: RowProps) {
           {verb}
         </Link>
       </Button>
-      {canShare ? (
+      {canShare && row.kind !== 'personal' ? (
         <ShareButton
           item={item}
           propertyId={propertyId}
@@ -149,10 +151,16 @@ export function PortalRowMenu({
     /** Entries a page adds of its own, between the links and the archive entry. */
     extra?: ReactNode
   }>) {
+  const staffAccounts = useStaffAccounts()
   const { can } = usePermissions()
   const { has } = useCapabilities()
   const [confirming, setConfirming] = useState<LifecycleId | null>(null)
   const { row } = item
+  const person = staffAccounts?.members.find(
+    (member) =>
+      member.portalId === row.portalId || member.participationId === row.portalId,
+  )
+  if (row.kind === 'personal') return person ? <StaffMemberMenu member={person} /> : null
   const menu = portalRowMenu(row, {
     canUpdate: can('portal.update'),
     canArchive: can('portal.delete'),

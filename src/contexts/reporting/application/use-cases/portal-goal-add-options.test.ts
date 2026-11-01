@@ -362,3 +362,42 @@ it('filters switched Portals and all-switched groups from rating choices, retain
   expect(result.onePortal.map((offer) => offer.name)).toEqual(['Restaurant'])
   expect(result.groups.map((offer) => offer.name)).toEqual(['Mixed'])
 })
+
+describe('staff target choices', () => {
+  const world = () =>
+    fakeWorld({
+      now: NOV_18,
+      portals: [
+        { ...portal('Ana', '2026-10-01'), kind: 'personal' },
+        portal('Lobby', '2026-10-01'),
+      ],
+      counts: {
+        days: readings('portal-lobby', 'portal_rating_count', days('2026-10-25', 10)),
+      },
+    })
+  it('offers no personal target with the switch off', async () => {
+    const { deps } = world()
+    const options = await readPortalGoalAddOptions(
+      deps,
+      { propertyId: PROPERTY_ID },
+      actor,
+    )
+    expect(options.onePortal.map((offer) => offer.name)).not.toContain('Ana')
+  })
+  it('offers scans and an own number for a person even when places count ratings', async () => {
+    const { deps } = world()
+    const options = await readPortalGoalAddOptions(
+      { ...deps, staffScanTargetsEnabled: true },
+      { propertyId: PROPERTY_ID },
+      actor,
+    )
+    const ana = options.onePortal.find((offer) => offer.name === 'Ana')
+    expect(options.measure).toBe('portal_rating_count')
+    expect(ana).toMatchObject({
+      measure: 'qualified_scans',
+      choices: null,
+      staffTarget: true,
+    })
+    expect(options.eachPortal.some(({ offer }) => offer.name === 'Ana')).toBe(false)
+  })
+})

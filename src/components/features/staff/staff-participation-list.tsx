@@ -14,6 +14,7 @@ import type {
 } from '#/components/features/staff/types'
 
 type Props = Readonly<{
+  lockedParticipationIds?: readonly string[]
   participations: ReadonlyArray<StaffParticipationView>
   canManageResponsibilities: boolean
   archiveAction: Action<{ data: ArchiveStaffParticipationMutationInput }>
@@ -21,6 +22,7 @@ type Props = Readonly<{
 }>
 
 export function StaffParticipationList({
+  lockedParticipationIds = [],
   participations,
   canManageResponsibilities,
   archiveAction,
@@ -48,7 +50,11 @@ export function StaffParticipationList({
           <StaffParticipationRow
             key={participation.id}
             participation={participation}
-            canManageResponsibilities={canManageResponsibilities}
+            canManageResponsibilities={
+              canManageResponsibilities &&
+              !lockedParticipationIds.includes(participation.id)
+            }
+            locked={lockedParticipationIds.includes(participation.id)}
             archiveAction={archiveAction}
             onEditResponsibilities={() => onEditResponsibilities(participation.id)}
           />

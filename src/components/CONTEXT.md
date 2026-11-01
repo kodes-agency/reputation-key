@@ -755,3 +755,21 @@ Keep behavior-focused unit tests and stories beside components. Verify forms acr
 success, tagged error, pending, and disabled states; verify query transitions and
 cache preservation at observable boundaries. Use a running browser for layout,
 hydration, keyboard, responsive, and visual behavior.
+
+## Staff account manager surfaces (ADR 0076)
+
+`features/staff/accounts/` holds Add staff, the Property roster provider and the
+shared Rename, Resend and Remove controls. The provider requires an explicit
+`staff.accounts` capability and reads `listStaffMembers` once per Property query
+key; a nested overview reuses its parent. The route binds server functions through
+StaffAccountFunctionsContext; components import only their types. No loader or shell starts a staff read
+while the capability is off. Add uses the standard Dialog, field frames and
+footer, keeps one operation id per draft row, checks the batch before sending,
+and sends sequentially with independent retry states. Remove uses the destructive
+ConfirmationDialog and says sign-in ends only when the roster confirms it.
+
+The Portals overview's shared builder separates place Portals and people. A
+Group with people starts folded; Other staff and the flat Staff section come
+last. People always stay in name order, including Needs attention. Search opens
+the matching section. Initials use OwnerDisc; the manager-only small-sample hint
+uses ExplainTrigger with its touch target variant. Staff settings use SettingSwitchRow and default off.

@@ -43,7 +43,7 @@ describe('staff target commit guard', () => {
     const execute = vi
       .fn()
       .mockResolvedValueOnce({ rows: [] })
-      .mockResolvedValueOnce({ rows: [{ id: 'personal' }] })
+      .mockResolvedValueOnce({ rows: [{ kind: 'personal', skip_private_rating: false }] })
     const version = {
       organizationId: 'org',
       propertyId: 'property',
@@ -55,7 +55,7 @@ describe('staff target commit guard', () => {
     } as GoalSubjectAssignment
     await expect(
       assertPersonalGoalAssignments({ execute } as unknown as Tx, version, [assignment]),
-    ).rejects.toMatchObject({ code: 'invalid_subject' })
+    ).rejects.toMatchObject({ code: 'staff_scan_only' })
     expect(execute).toHaveBeenCalledTimes(2)
   })
   it('allows scans while holding the same definition and membership lock', async () => {

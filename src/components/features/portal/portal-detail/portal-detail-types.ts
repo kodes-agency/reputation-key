@@ -51,6 +51,8 @@ import type {
 } from '../portal-settings/portal-experience-settings-types'
 
 export type PortalDetailPortal = Readonly<{
+  kind?: 'place' | 'personal'
+  publicName?: string | null
   id: string
   name: string
   slug: string
