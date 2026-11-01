@@ -9,7 +9,8 @@ import {
 import { InlineLink } from '#/components/ui/inline-link'
 import { usePortalEditAccess } from '../portal-detail/use-portal-edit-access'
 import { LINK_ICONS, linkIconKeyOrDefault } from '../link-tree/link-icons'
-import type { PortalResultsPlace } from './portal-results-place'
+import { portalLinkName } from './portal-results-check-in'
+import { RESULTS_LINK_CLASS, type PortalResultsPlace } from './portal-results-place'
 import { formatNumber } from '#/lib/format'
 
 const tapsText = (taps: number) =>
@@ -39,7 +40,7 @@ export function PortalResultsLinks({
     return (
       <li key={row.linkId} className="flex min-w-0 items-center gap-3 py-2 text-sm">
         <Icon aria-hidden="true" className="size-4 shrink-0 text-muted-foreground" />
-        <span className="min-w-0 flex-1 truncate">{row.label}</span>
+        <span className="min-w-0 flex-1 truncate">{portalLinkName(row.label)}</span>
         <span className="shrink-0 text-muted-foreground tabular-nums">
           {tapsText(row.taps)}
         </span>
@@ -69,6 +70,7 @@ export function PortalResultsLinks({
           to="/properties/$propertyId/portals/$portalId"
           params={{ propertyId: place.propertyId, portalId: place.portalId }}
           search={{ tab: 'page', section: 'linktree' }}
+          className={RESULTS_LINK_CLASS}
         >
           Edit links
         </InlineLink>

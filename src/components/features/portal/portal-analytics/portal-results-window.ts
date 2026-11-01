@@ -83,6 +83,13 @@ function monthName(month: number): string {
   return MONTHS[month - 1] ?? ''
 }
 
+const WEEKDAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'] as const
+
+/** "Mon": the same fixed spelling on every reader's device. */
+export function weekdayName(localDate: string): string {
+  return WEEKDAYS[new Date(utcDay(parseDay(localDate))).getUTCDay()] ?? ''
+}
+
 /** "1–30 Sep", "28 Aug – 3 Sep", or with years when the range crosses one. */
 export function formatDayRange(startLocalDate: string, endLocalDate: string): string {
   const start = parseDay(startLocalDate)

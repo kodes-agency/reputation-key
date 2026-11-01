@@ -6,7 +6,7 @@ import { portalResultsCheckIn } from './portal-results-check-in'
 import { portalResultsQuietLines } from './portal-results-quiet-lines'
 import { PortalResultsTrend } from './portal-results-trend'
 import { PortalResultsLinks } from './portal-results-links'
-import type { PortalResultsPlace } from './portal-results-place'
+import { RESULTS_LINK_CLASS, type PortalResultsPlace } from './portal-results-place'
 import { INBOX_WAITING_QUEUE } from '../portal-overview/portal-overview-inbox'
 
 type CardsProps = Readonly<{ data: PortalAnalyticsData; place?: PortalResultsPlace }>
@@ -39,6 +39,7 @@ function ScansEvidence({ data, place }: CardsProps) {
           to="/properties/$propertyId/portals/$portalId"
           params={{ propertyId: place.propertyId, portalId: place.portalId }}
           search={{ tab: 'share' }}
+          className={RESULTS_LINK_CLASS}
         >
           See the code
         </InlineLink>
@@ -67,6 +68,7 @@ function NotesEvidence({
         <InlineLink
           to="/inbox"
           search={{ propertyId: place.propertyId, queue: INBOX_WAITING_QUEUE }}
+          className={RESULTS_LINK_CLASS}
         >
           Read in inbox
         </InlineLink>
@@ -133,7 +135,11 @@ export function PortalResultsCards({ data, place }: CardsProps) {
           {...cards.links}
           hint={cards.links.hint ?? undefined}
         >
-          <PortalResultsLinks taps={data.linkTaps} place={place} />
+          {cards.links.lines.length > 0 ? (
+            <Evidence lines={cards.links.lines} />
+          ) : (
+            <PortalResultsLinks taps={data.linkTaps} place={place} />
+          )}
         </CheckInSection>
       ) : null}
       <QuietLines data={data} place={place} />

@@ -174,15 +174,27 @@ function google(data: PortalAnalyticsData): Card {
   lines.push('We can’t see whether they posted a review.')
   return card(`${guests(opens.value)} went on to Google`, lines, change(opens, data))
 }
+/** A link's name in the manager's words: a link with no text yet still has one. */
+export function portalLinkName(label: string): string {
+  return label.trim() === '' ? 'Untitled link' : label
+}
 function links(data: PortalAnalyticsData): Card | null {
   const taps = data.linkTaps
   if (!taps) return null
+  // Taps are read from the same click readings as Google opens.
+  const clicks = data.kpis.googleOpens
+  if (
+    clicks.evidence.state === 'updating' ||
+    clicks.evidence.state === 'temporarily_unavailable'
+  ) {
+    return card('Link taps are updating', [evidence(clicks, data, 'google_opens')])
+  }
   const top = taps.rows[0]
   const answer =
     taps.total === 0
       ? 'No taps yet'
       : taps.total >= 5 && top && top.taps * 2 >= taps.total
-        ? `Mostly ${top.label}`
+        ? `Mostly ${portalLinkName(top.label)}`
         : `${formatNumber(taps.total)} ${taps.total === 1 ? 'tap' : 'taps'} on your links`
   const hint =
     data.localDays === null || data.localDays.start < taps.countedSince

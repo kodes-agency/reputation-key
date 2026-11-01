@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { portalResultsCheckIn } from './portal-results-check-in'
+import { portalLinkName, portalResultsCheckIn } from './portal-results-check-in'
 import { portalResultsQuietLines } from './portal-results-quiet-lines'
 import {
   RESULTS_HEALTHY as data,
@@ -190,6 +190,15 @@ describe('Are they going on to Google?', () => {
     expect(read().google.hint).toBe('4 more than the 30 days before'))
 })
 describe('What else do they tap?', () => {
+  it('keeps taps unknown while the click readings are updating', () => {
+    const updating = {
+      ...data.kpis.googleOpens,
+      evidence: { ...data.kpis.googleOpens.evidence, state: 'updating' as const },
+    }
+    expect(read({ kpis: { ...data.kpis, googleOpens: updating } }).links?.answer).toBe(
+      'Link taps are updating',
+    )
+  })
   it('can be absent', () => expect(read({ linkTaps: null }).links).toBeNull())
   it.each([
     [0, 0, 'No taps yet'],
@@ -222,6 +231,16 @@ it.each([
   expect(portalResultsQuietLines({ ...data, scanPatterns: patterns }, true).channel).toBe(
     channel,
   )
+})
+it('says one QR scan in the singular beside the NFC tag', () => {
+  const patterns = { channels: { qr: 1, nfc: 5 }, busiest: null }
+  expect(portalResultsQuietLines({ ...data, scanPatterns: patterns }, true).channel).toBe(
+    '1 scan came from the QR code and 5 from the NFC tag.',
+  )
+})
+it('never says a link has no name', () => {
+  expect(portalLinkName('  ')).toBe('Untitled link')
+  expect(portalLinkName('Menu')).toBe('Menu')
 })
 it('says three quiet observations in plain English', () =>
   expect(portalResultsQuietLines(data, true)).toEqual({

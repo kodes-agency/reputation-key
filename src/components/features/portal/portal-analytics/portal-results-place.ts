@@ -1,3 +1,4 @@
+import { buttonVariants } from '#/components/ui/button'
 import type { PortalPublicationState } from '../shared/types'
 /**
  * Where a portal's Results tab is: what its empty states and its Private notes
@@ -18,3 +19,10 @@ export type PortalResultsPlace = Readonly<{
   /** The reader may open the Inbox, where the private notes are read and answered. */
   canOpenInbox: boolean
 }>
+
+/** A link under a card's evidence: a tap target on a phone, its line's height on a desktop. */
+export const RESULTS_LINK_CLASS = buttonVariants({
+  variant: 'link',
+  size: 'inline',
+  touch: true,
+})

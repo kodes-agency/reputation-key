@@ -8,6 +8,7 @@ import { CircleAlert, EyeOff } from 'lucide-react'
 import { RowActionsItem, RowActionsMenu } from '#/components/ui/row-actions-menu'
 import type { PortalLinktreeLink } from '#/contexts/portal/application/public-api'
 import type { GuestLocale } from '#/shared/domain/guest-locale'
+import { formatNumber } from '#/lib/format'
 import { DeleteLinkDialog } from './delete-link-dialog'
 import { LINK_ICONS, linkIconKeyOrDefault } from './link-icons'
 import { describeHiddenFromGuests } from './linktree-approval-rules'
@@ -225,5 +226,5 @@ function LinktreeActionsMenu({ name, isOpen, canDelete, onToggle, onDelete }: Me
 function tapCountText(taps: number) {
   return taps === 0
     ? 'No taps yet'
-    : `${taps.toLocaleString('en-GB')} ${taps === 1 ? 'tap' : 'taps'}`
+    : `${formatNumber(taps)} ${taps === 1 ? 'tap' : 'taps'}`
 }

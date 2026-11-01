@@ -14,7 +14,7 @@ function channelLine(data: PortalAnalyticsData): string | null {
   if (!channels || channels.qr + channels.nfc === 0) return null
   const { qr, nfc } = channels
   if (qr > 0 && nfc > 0)
-    return `${formatNumber(qr)} scans came from the QR code and ${formatNumber(nfc)} from the NFC tag.`
+    return `${formatNumber(qr)} ${qr === 1 ? 'scan' : 'scans'} came from the QR code and ${formatNumber(nfc)} from the NFC tag.`
   const total = qr + nfc
   return `${scansWord(total)} came from the ${qr > 0 ? 'QR code' : 'NFC tag'}.`
 }

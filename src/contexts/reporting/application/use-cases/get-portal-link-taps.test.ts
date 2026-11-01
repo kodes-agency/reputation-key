@@ -41,6 +41,6 @@ it('refuses a reader without dashboard access before reading counts', async () =
         role: 'PropertyManager',
       }),
     ),
-  ).rejects.toThrow()
+  ).rejects.toMatchObject({ code: 'forbidden' })
   expect(getPortalLinkTapCounts).not.toHaveBeenCalled()
 })

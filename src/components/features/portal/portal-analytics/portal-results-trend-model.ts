@@ -3,7 +3,7 @@ import type {
   PortalVersionMarker,
 } from '#/contexts/reporting/application/public-api'
 import { formatNumber } from '#/lib/format'
-import { formatDayRange } from './portal-results-window'
+import { formatDayRange, weekdayName } from './portal-results-window'
 
 /** Update names are kept below the plot, never positioned against a bar. */
 export function markerLabel(marker: PortalVersionMarker): string {
@@ -26,10 +26,7 @@ export function trendModel(
   const columns = series.buckets.map((bucket, index) => {
     const scans = bucket.scans ?? 0
     const updated = markers.some((marker) => marker.bucket === bucket.index)
-    const weekday = new Intl.DateTimeFormat('en-GB', {
-      weekday: 'short',
-      timeZone: 'UTC',
-    }).format(new Date(`${bucket.startLocalDate}T12:00:00Z`))
+    const weekday = weekdayName(bucket.startLocalDate)
     const date = formatDayRange(bucket.startLocalDate, bucket.endLocalDate)
     return {
       ...bucket,

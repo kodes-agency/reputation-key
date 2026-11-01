@@ -6,9 +6,7 @@
 //   - qualified scans and private notes: the change against the period before;
 //   - private ratings and Google opens: the share of qualified scans, unless
 //     scans are not known or fewer than the step counted (a share over 100% is
-//     a bug to a reader), when it falls back to the change. Where the reader
-//     can switch the comparison (the Results tab), the share and the change are
-//     both said, so the switch visibly does something to these two cells;
+//     a bug to a reader), when it falls back to the change;
 //   - the average: the sample it rests on, and its comparison in stars.
 // A figure that is not ready is a dash with the reason, never a zero. Every
 // floor comes from the server (`thresholds`); this file keeps none.
@@ -43,15 +41,7 @@ export type ResultsCell = Readonly<{
   detail: string | null
 }>
 
-type Options = Readonly<{
-  compare: boolean
-  /**
-   * Say the change beside the share ("16% of scans · +9 vs the 30 days
-   * before") instead of only the share. The Results tab's, whose switch turns
-   * the comparison on and off; a strip that always compares keeps the share.
-   */
-  shareAndChange?: boolean
-}>
+type Options = Readonly<{ compare: boolean }>
 type Count = PortalCountKPIValue
 type LocalDays = NonNullable<PortalAnalyticsData['localDays']>
 
@@ -157,18 +147,13 @@ function shareOfScans(
 }
 
 /** The one line under ratings or Google opens: the share, the change, or both when asked. */
-function shareAndChangeLine(
+function shareOrChangeLine(
   key: 'ratings' | 'googleOpens',
   kpi: Count,
   data: ResultsMeasuresInput,
   options: Options,
 ): string | null {
-  const share = shareOfScans(key, data)
-  const change = changeLine(kpi, data, options)
-  if (options.shareAndChange === true && share !== null && change !== null) {
-    return `${share} · ${change}`
-  }
-  return share ?? change
+  return shareOfScans(key, data) ?? changeLine(kpi, data, options)
 }
 
 function countCell(
@@ -255,7 +240,7 @@ export function measureCells(
       RESULTS_LABELS.ratings,
       'ratings',
       kpis.ratings,
-      shareAndChangeLine('ratings', kpis.ratings, data, options),
+      shareOrChangeLine('ratings', kpis.ratings, data, options),
       zone,
     ),
     averageCell(data, options),
@@ -264,7 +249,7 @@ export function measureCells(
       RESULTS_LABELS.googleOpens,
       'google_opens',
       kpis.googleOpens,
-      shareAndChangeLine('googleOpens', kpis.googleOpens, data, options),
+      shareOrChangeLine('googleOpens', kpis.googleOpens, data, options),
       zone,
     ),
     countCell(

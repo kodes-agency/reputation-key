@@ -32,7 +32,10 @@ export function useBarSelection(count: number) {
       onKeyDown,
       onPointerDown: selectPointer,
       onPointerMove: selectPointer,
-      onPointerLeave: () => setActive(null),
+      // A finger leaves as it lifts: the tapped bar stays selected until focus moves on.
+      onPointerLeave: (event: PointerEvent<HTMLDivElement>) => {
+        if (event.pointerType !== 'touch') setActive(null)
+      },
       onBlur: () => setActive(null),
     },
   }

@@ -15,7 +15,7 @@ const cellsFor = (data: PortalAnalyticsData, options: Readonly<{ compare: boolea
       timezone: data.period.timezone,
       localDays: data.localDays,
     },
-    { ...options, shareAndChange: true },
+    options,
   )
 
 const cell = (
@@ -46,14 +46,14 @@ describe('cellsFor on a healthy window', () => {
     })
   })
 
-  it('gives ratings and Google opens as a share of qualified scans, and the change beside it', () => {
+  it('gives ratings and Google opens as a share of qualified scans', () => {
     expect(cell(RESULTS_HEALTHY, 'ratings')).toMatchObject({
       value: '118',
-      detail: '29% of scans · +15 vs the 30 days before',
+      detail: '29% of scans',
     })
     expect(cell(RESULTS_HEALTHY, 'googleOpens')).toMatchObject({
       value: '64',
-      detail: '16% of scans · +4 vs the 30 days before',
+      detail: '16% of scans',
     })
   })
 
@@ -94,9 +94,7 @@ describe('cellsFor: signs and the comparison toggle', () => {
       kpis: { ...RESULTS_HEALTHY.kpis, googleOpens: resultsCount(52, 61) },
     }
 
-    expect(cell(fell, 'googleOpens')?.detail).toBe(
-      '13% of scans · −9 vs the 30 days before',
-    )
+    expect(cell(fell, 'googleOpens')?.detail).toBe('13% of scans')
   })
 
   it('drops every comparison when the toggle is off, keeping the shares', () => {
