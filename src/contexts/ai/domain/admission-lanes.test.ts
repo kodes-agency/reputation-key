@@ -19,9 +19,9 @@ import { REVIEW_ANALYSIS_V3_LOGICAL_PROFILE } from '#/shared/review-analysis-v3-
 // input tokens, 3,773 each).
 const V2_ANALYSIS_INPUT_TOKENS = 600
 const V3_ANALYSIS_INPUT_TOKENS = 3_800
-// A reply draft, as the provider counts it: an upper bound on its input read from
-// the beta's charges on 2026-11-01 (at most 825 micros), plus its output ceiling.
-const V2_DRAFT_TOKENS = 5_000 + 2_048
+// A reply draft, as the provider counts it: its input (at most 4,015 tokens on the
+// realistic test set of 2026-11-01), plus its output ceiling.
+const V2_DRAFT_TOKENS = 4_200 + 4_096
 
 describe('AI admission lanes', () => {
   it('gives every scope and lane a positive integer budget', () => {

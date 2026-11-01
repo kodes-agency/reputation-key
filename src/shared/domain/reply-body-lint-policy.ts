@@ -21,7 +21,7 @@ export const REPLY_BODY_RULES = Object.freeze({
   sentence_reference: ['hard', 'Select only sentence numbers present in the source'],
   prohibited_content: [
     'hard',
-    'Do not make commitments, compensation offers or admissions',
+    'Promise only to check what happened. Do not offer compensation or admit fault, do not say how things should have been, and talk to the guest about what happened, not about the problem as a topic',
   ],
   private_data: ['hard', 'Do not include private or structured data'],
   stock_phrase: ['soft', 'Use fresh everyday wording'],

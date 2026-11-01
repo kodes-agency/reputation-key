@@ -2,7 +2,10 @@ import { describe, expect, it, vi } from 'vitest'
 import { organizationId, propertyId, reviewId } from '#/shared/domain/ids'
 import type { Review } from '../domain/types'
 import { readAiReplyVoiceSnapshot } from './ai-reply-voice-snapshot'
-import type { ReplyLibraryRepository } from './ports/reply-library.repository'
+import type {
+  ReplyLibraryRepository,
+  StoredReplyVoice,
+} from './ports/reply-library.repository'
 import type { ReviewRepository } from './ports/review.repository'
 import { resolveAiReplyV2Frame } from './resolve-ai-reply-v2-frame'
 
@@ -12,7 +15,12 @@ const OTHER_PROPERTY = propertyId('10000000-0000-4000-8000-000000000002')
 const REVIEW = reviewId('20000000-0000-4000-8000-000000000001')
 
 function deps(
-  options: Readonly<{ reviewProperty?: typeof PROPERTY; withReservation?: boolean }> = {},
+  options: Readonly<{
+    reviewProperty?: typeof PROPERTY
+    withReservation?: boolean
+    rating?: number
+    propertyVoice?: StoredReplyVoice
+  }> = {},
 ) {
   const reserveAiFrame = vi.fn(async () => ({
     choices: {
@@ -29,7 +37,7 @@ function deps(
       propertyName: 'Harbor House',
       defaultReplyLanguage: 'en-Latn-US',
       accountVoice: null,
-      propertyVoice: null,
+      propertyVoice: options.propertyVoice ?? null,
       accountTemplates: [],
       propertyTemplates: [],
       visibility: [],
@@ -43,7 +51,7 @@ function deps(
   const review = {
     id: REVIEW,
     propertyId: options.reviewProperty ?? PROPERTY,
-    rating: 2,
+    rating: options.rating ?? 2,
     text: 'Check-in took forty minutes.',
     reviewerName: 'Anna K.',
   } as Review
@@ -95,13 +103,60 @@ describe('AI reply v2 frame resolution', () => {
         ratingBand: 'negative',
         generationSeed: INPUT.generationSeed,
         optionCounts: expect.objectContaining({
-          closing: 3,
+          closing: 0,
           signOff: 3,
           contactSentence: 3,
         }),
       }),
     )
     expect(frame).not.toBeNull()
+  })
+
+  // The body ends by saying what the business will check; a built-in thank-you after it reads
+  // as agreeing with the complaint.
+  it.each([
+    [1, 'negative'],
+    [2, 'negative'],
+    [3, 'threeStar'],
+  ])('offers no built-in closing on a %i star review', async (rating, ratingBand) => {
+    const { repository, reviews, reserveAiFrame } = deps({ rating })
+    await resolveAiReplyV2Frame({ repository, reviews }, INPUT)
+    expect(reserveAiFrame).toHaveBeenCalledWith(
+      expect.objectContaining({
+        ratingBand,
+        optionCounts: expect.objectContaining({ closing: 0 }),
+      }),
+    )
+  })
+
+  it('keeps the built-in closing on a five star review', async () => {
+    const { repository, reviews, reserveAiFrame } = deps({ rating: 5 })
+    await resolveAiReplyV2Frame({ repository, reviews }, INPUT)
+    expect(reserveAiFrame).toHaveBeenCalledWith(
+      expect.objectContaining({
+        optionCounts: expect.objectContaining({ closing: 3 }),
+      }),
+    )
+  })
+
+  it('keeps a closing the business wrote itself on a low rating', async () => {
+    const { repository, reviews, reserveAiFrame } = deps({
+      propertyVoice: {
+        organizationId: ORGANIZATION,
+        propertyId: PROPERTY,
+        version: 1,
+        overriddenFields: [],
+        localized: {
+          'en-Latn': { closings: { negative: ['Our door is always open.'] } },
+        },
+      },
+    })
+    await resolveAiReplyV2Frame({ repository, reviews }, INPUT)
+    expect(reserveAiFrame).toHaveBeenCalledWith(
+      expect.objectContaining({
+        optionCounts: expect.objectContaining({ closing: 1 }),
+      }),
+    )
   })
 })
 

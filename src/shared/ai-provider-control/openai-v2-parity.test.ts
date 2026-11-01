@@ -31,6 +31,13 @@ vi.mock('#/shared/ai-runtime-capability-contract', async (importOriginal) => {
 // nothing it sends. Its acceptance contract now normalizes the body before the output
 // checks (`normalizeReplyDraftingV2Body`), because the provider's semicolons were
 // refused as private data; its prompt, schema and request shape are unchanged.
+//
+// 2026-11-01, later: `reply-suggestion-v2` moved its prompt, attestation, profile and static
+// token digests. The owner rejected drafts that state what the guest reports as fact and
+// lecture about how it should have been, so the prompt and the examples now apologize for how
+// the visit went and promise only to check (ADR 0073, amended). The output ceiling went to
+// 4,096 because reasoning could use all of 2,048 and return no reply. Its output schema and
+// request shape are unchanged, and no consent or epoch moved (ADR 0074).
 
 import { createHash, generateKeyPairSync } from 'node:crypto'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -129,17 +136,17 @@ const PINNED_PROFILES = [
   // B2: dark v2 alone now attests streaming and deployment v3. Historical pins stay unchanged.
   {
     profileVersion: 'reply-suggestion-v2',
-    profileDigest: 'a34e49f68d6249a1fb6242b5a7b7ce13a32d9b86b4182cbdead527bae888dd69',
+    profileDigest: '47cc99c7edfdb3b767ed071fd2a14d1a82a01dc1467cce640f7eb1b4de3926d8',
     outputSchemaDigest:
       '2f7afcc12b767302d60d6b1f931fd7996d010dd7c24ba32246fff415c1d4dcd7',
-    promptDigest: 'b6de6db2e52bd85713e81277b7b4eddc1a5788b37c2427bb872dae6c3581016f',
+    promptDigest: '9c7c78dfc1e63b32e5916ecaceb33fca5eb0dd28a485066535df3772eb1dc805',
     artifactAttestationsDigest:
-      '3d61dbff069bda2d78b5c8c1853a92b870564c3cbce980dd3f4364e19bcd7b58',
+      'a2654e1b0d457dc04b82151e73e9579c0d398d7b65809870fc0fd1a0a3f3a895',
     sdkRequestShapeDigest:
       'f67f33645f1a50218dc369daa627337738b540db44840f9faf11bc403034f9f0',
-    staticTokenBearingBytes: 9747,
+    staticTokenBearingBytes: 14764,
     staticTokenBearingDigest:
-      'ee79a0538c93071fd36298d3822152c0a9f97fade74e4b6d6d754a0a3fe62221',
+      'bcfb513a7965dd991081ed779eef7fd5ebfb7b9df65aea277f39f282b61ca1ab',
   },
   {
     profileVersion: 'review-analysis-v3',

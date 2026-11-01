@@ -58,7 +58,11 @@ export const WithoutProperty: Story = {
   args: { propertyId: null },
   play: async ({ canvasElement }) => {
     const page = within(canvasElement.ownerDocument.body)
-    await expect(page.getAllByRole('link', { name: /Show me/ })).toHaveLength(1)
+    await expect(page.getAllByRole('link', { name: /Show me/ })).toHaveLength(
+      PRODUCT_UPDATES.filter(
+        (e) => e.kind === 'highlight' && e.showMe && !e.showMe.needsProperty,
+      ).length,
+    )
   },
 }
 

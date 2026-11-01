@@ -63,7 +63,7 @@ export const REPLY_DRAFTING_V2_PROFILE_DIGEST = createHash('sha256')
         replyText: [24, 1200],
       },
       sentenceReferences: 'all-present',
-      avoidance: 'accent-case-fold;word-edge-through-four;word-start-above',
+      avoidance: 'accent-case-fold;word-edge-through-four;word-start-plus-four-above',
       lint: REPLY_BODY_LINT_DIGEST,
       leakage: AI_REPLY_OUTPUT_LEAKAGE_PROFILE_DIGEST,
     }),

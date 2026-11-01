@@ -354,12 +354,12 @@ const SIGN_OFF: Readonly<Record<Language, RegExp>> = {
 
 const LENGTH_BANDS: Readonly<Record<string, readonly [number, number]>> = {
   praise: [15, 40],
-  praise_with_issue: [25, 55],
-  mixed: [25, 55],
-  complaint: [30, 70],
-  serious: [25, 60],
-  money: [20, 55],
-  unclear: [12, 35],
+  praise_with_issue: [15, 40],
+  mixed: [15, 45],
+  complaint: [20, 45],
+  serious: [15, 40],
+  money: [15, 40],
+  unclear: [5, 25],
 }
 
 function normalize(text: string): string {
@@ -376,9 +376,46 @@ function termPattern(term: string, dictionarySyntax: boolean): RegExp | null {
   const clean = normalize(wholeWord ? term.slice(0, -1) : term).trim()
   if (clean.length < 2) return null
   const escaped = clean.replace(/[.*+?^${}()|[\]\\]/gu, '\\$&').replace(/\s+/gu, '\\s+')
-  const tail = wholeWord || clean.length <= 4 ? '(?![\\p{L}\\p{N}])' : ''
+  // A term the provider supplied is a word, so its stem reaches inflections, not another
+  // word: "петна" (stains) must not match "петнадесет" (fifteen).
+  const inflection = dictionarySyntax ? '' : '[\\p{L}\\p{N}]{0,4}(?![\\p{L}\\p{N}])'
+  const tail = wholeWord || clean.length <= 4 ? '(?![\\p{L}\\p{N}])' : inflection
   // eslint-disable-next-line security/detect-non-literal-regexp -- metacharacters are escaped; only a bounded literal term and Unicode word edges enter the expression
   return new RegExp(`(?<![\\p{L}\\p{N}])${escaped}${tail}`, 'u')
+}
+
+// A reply talks to the guest about what happened, not about the problem as a topic.
+const ANALYST: Readonly<Record<Language, readonly string[]>> = {
+  en: [
+    'the main problem',
+    'the main issue',
+    'the core problem',
+    'the core issue',
+    'the key issue',
+  ],
+  es: ['el principal problema', 'el problema principal'],
+  bg: ['основният проблем', 'основния проблем', 'главният проблем', 'главния проблем'],
+}
+// Lectures the business and admits the complaint at once. Only on ratings of three or less:
+// on praise, "you deserve" is a compliment.
+const LECTURE: Readonly<Record<Language, readonly string[]>> = {
+  en: [
+    'you should have',
+    "you shouldn't have",
+    'you should not have',
+    'you deserve',
+    'you deserved',
+    'every guest',
+    'every customer',
+  ],
+  es: ['deberia haber', 'usted merece', 'merecia', 'todo cliente', 'todos los clientes'],
+  bg: ['трябваше да', 'трябвало е', 'всеки гост', 'заслужавате', 'заслужавахте'],
+}
+// Plays the problem down, unless the guest called it that first.
+const CONFUSION: Readonly<Record<Language, readonly string[]>> = {
+  en: ['confus', 'misunderstand'],
+  es: ['confus', 'malentend'],
+  bg: ['объркв', 'объркан', 'недоразумен'],
 }
 
 function findTerms(
@@ -399,6 +436,18 @@ function englishFirstPerson(body: string): boolean {
     /(^|[^\p{L}])I(['’](m|ve|d|ll))?(?![\p{L}])/u.test(body) ||
     /\b(me|my|mine|myself)\b/iu.test(body)
   )
+}
+
+function analystVoice({ body, language, reviewText }: LintInput): boolean {
+  if (findTerms(body, ANALYST[language]).length > 0) return true
+  return (
+    findTerms(body, CONFUSION[language]).length > 0 &&
+    findTerms(reviewText ?? '', CONFUSION[language]).length === 0
+  )
+}
+
+function lectures({ body, language, rating }: LintInput): boolean {
+  return rating <= 3 && findTerms(body, LECTURE[language]).length > 0
 }
 
 function lowercasePoliteBulgarian(body: string): boolean {
@@ -429,7 +478,8 @@ function namesNotInReview(body: string, reviewText: string): string[] {
         /^Ваш\p{L}*$/u.test(word)
       )
         continue
-      if (!review.includes(normalize(word))) found.add(word)
+      if (!review.replaceAll('-', '').includes(normalize(word).replaceAll('-', '')))
+        found.add(word)
     }
   }
   return [...found]
@@ -496,6 +546,7 @@ function styleChecks(
       // eslint-disable-next-line security/detect-unsafe-regex -- a letter stem followed by at most one fixed reflexive word and literal health wording; bounded body
       language === 'bg' && /почувств\p{L}*\s+(се\s+)?(зле|неразположен)/iu.test(body),
     ],
+    ['prohibited_content', analystVoice(input) || lectures(input)],
     ['multiple_apologies', apologies > 1],
     ['max_words', input.maxWords !== undefined && wordCount(body) > input.maxWords],
     ['stock_phrase', findTerms(body, STOCK[language]).length > 0],
@@ -542,6 +593,9 @@ export const REPLY_BODY_LINT_DIGEST = createHash('sha256')
       singular: FIRST_PERSON_SINGULAR,
       invitations: INVITATIONS,
       stock: STOCK,
+      analyst: ANALYST,
+      confusion: CONFUSION,
+      lecture: LECTURE,
       praise: PRAISE_WORDS,
       bands: LENGTH_BANDS,
       apologies: Object.values(APOLOGY).map((p) => p.toString()),
@@ -551,8 +605,9 @@ export const REPLY_BODY_LINT_DIGEST = createHash('sha256')
         version: 'phase0-final-v1',
         normalization: 'NFD-strip-M-lower-apostrophes',
         terms:
-          'Unicode-letter-number-edges;whole-through-four;stem-above;dictionary-dollar-forces-whole;avoidance-literals;skip-normalized-under-two',
-        namePolicy: 'capitalized-noninitial-word-normalized-substring-in-source',
+          'Unicode-letter-number-edges;whole-through-four;stem-above;provider-terms-stem-plus-four;dictionary-dollar-forces-whole;avoidance-literals;skip-normalized-under-two',
+        namePolicy:
+          'capitalized-noninitial-word-normalized-hyphenless-substring-in-source',
         guestAdjectives: 'es-bg-phase0-final',
         politePronouns: 'es-bg-phase0-final',
         unicodeDigits: true,

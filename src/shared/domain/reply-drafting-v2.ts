@@ -16,6 +16,17 @@ export const REPLY_DRAFTING_V2_APOLOGIES = Object.freeze({
   ]),
 })
 
+/**
+ * What new drafts start with. The list above stays the stored and database-checked
+ * vocabulary; "we apologize" reads as admitting what the guest reports, so no new draft
+ * uses it.
+ */
+export const REPLY_DRAFTING_V2_APOLOGY_STARTS = Object.freeze({
+  en: Object.freeze(["We're sorry", "We're so sorry"]),
+  es: Object.freeze(['Sentimos', 'Lamentamos', 'Nos apena']),
+  bg: Object.freeze(['Съжаляваме', 'Много съжаляваме', 'Искрено съжаляваме']),
+})
+
 const APOLOGY_SET = new Set(Object.values(REPLY_DRAFTING_V2_APOLOGIES).flat())
 
 export type ReplyDraftingV2Binding = Readonly<{

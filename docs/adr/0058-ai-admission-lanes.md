@@ -63,7 +63,7 @@ longer share it: the pinned model (`gpt-6-luna`) allows 5,000 requests and
 that (about 3,800 input tokens plus the 4,096-token output ceiling the provider
 reserves). The background lane alone stays under half of the token limit, and
 both global lanes together stay under half of the request limit and under 60% of
-the token limit, counting a draft at about 7,000 tokens. A unit test pins all
+the token limit, counting a draft at about 8,300 tokens. A unit test pins all
 three. A property may use its organization's whole background budget, so one
 import runs as fast as the account allows. How fast history runs is set by the
 in-flight column, not the rates (amendment 2026-10-30).

@@ -156,7 +156,7 @@ describe('reply v2 provider preparation and acceptance', () => {
     expect(wire.prompt_cache_key).toContain('reply-suggestion-prompt-v2')
     expect(wire).toMatchObject({
       reasoning: { effort: 'medium' },
-      max_output_tokens: 2048,
+      max_output_tokens: 4096,
     })
     expect(wire.input[0].content).toContain('Examples of the style')
     expect(JSON.stringify(payload)).not.toMatch(/Jane|Manager|Owner|private@example/)

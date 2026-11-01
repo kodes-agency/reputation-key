@@ -1,4 +1,4 @@
-import { REPLY_DRAFTING_V2_APOLOGIES as APOLOGIES } from './domain/reply-drafting-v2'
+import { REPLY_DRAFTING_V2_APOLOGY_STARTS as APOLOGIES } from './domain/reply-drafting-v2'
 import { createHash } from 'node:crypto'
 import { canonicalizeRfc8785 } from './canonical-json'
 import EXAMPLES from './reply-drafting-v2-examples.json'
@@ -105,9 +105,10 @@ function pickBulgarian(rating: number, variation: number): readonly Example[] {
       at(BULGARIAN.positive, variation + 2),
       at(BULGARIAN.complaint, variation),
     ]
+  const special = at([BULGARIAN.serious, BULGARIAN.money], variation)
   return [
     at(BULGARIAN.complaint, variation),
-    at(BULGARIAN.serious, variation),
+    at(special, variation),
     at(BULGARIAN.complaint, variation + 1),
   ]
 }
