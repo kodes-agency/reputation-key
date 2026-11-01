@@ -10,6 +10,9 @@
 // left is always known to the tab; the target is not (a missing chunk says the
 // server moved on, not where to). A reload that lands on the same release is the
 // loop worth stopping, and the next deploy is a different release.
+//
+// A reload the person pressed for is not the tab's own: it takes a press each
+// time, so it cannot loop. The guard counts it and lets it through (`insist`).
 
 export const RELOAD_WINDOW_MS = 120_000
 
@@ -27,6 +30,7 @@ export type ReloadGuardDeps = Readonly<{
 
 export type ReloadGuard = Readonly<{
   request: (release: string, target?: string) => 'reloading' | 'refused'
+  insist: (release: string) => void
 }>
 
 // Each ask is counted, so a second one for the same release inside the window is
@@ -53,6 +57,10 @@ export function createReloadGuard(deps: ReloadGuardDeps): ReloadGuard {
       if (!note(release)) return 'refused'
       deps.reload(target)
       return 'reloading'
+    },
+    insist(release) {
+      note(release)
+      deps.reload(undefined)
     },
   }
 }

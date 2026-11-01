@@ -42,7 +42,7 @@ export function PortalWelcomeForm({
 
   return (
     // The write is the coordinator's, so Enter must not also submit natively.
-    <form onSubmit={(event) => event.preventDefault()}>
+    <form data-reload-safe onSubmit={(event) => event.preventDefault()}>
       <form.Field name="name">
         {(field: BaseFieldApi) => (
           <FormTextField

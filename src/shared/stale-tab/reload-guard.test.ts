@@ -35,6 +35,42 @@ function setup(overrides: { storage?: ReturnType<typeof storage> | null } = {}) 
   }
 }
 
+describe('a reload the person asked for', () => {
+  it('goes ahead inside the window, where a reload of the tab’s own is refused: a press cannot loop', () => {
+    const { guard, reload } = setup()
+    guard.request(RELEASE)
+
+    guard.insist(RELEASE)
+
+    expect(reload).toHaveBeenCalledTimes(2)
+  })
+
+  it('is counted, so a reload of the tab’s own after it is refused', () => {
+    const { guard, reload } = setup()
+
+    guard.insist(RELEASE)
+
+    expect(guard.request(RELEASE)).toBe('refused')
+    expect(reload).toHaveBeenCalledOnce()
+  })
+
+  it('reloads the current page', () => {
+    const { guard, reload } = setup()
+
+    guard.insist(RELEASE)
+
+    expect(reload).toHaveBeenCalledWith(undefined)
+  })
+
+  it('goes ahead with nowhere to remember it', () => {
+    const { guard, reload } = setup({ storage: null })
+
+    guard.insist(RELEASE)
+
+    expect(reload).toHaveBeenCalledOnce()
+  })
+})
+
 describe('createReloadGuard', () => {
   it('reloads the first time a release asks', () => {
     const { guard, reload } = setup()

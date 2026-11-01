@@ -11,6 +11,7 @@ import {
   type PropertyPerformancePreset,
 } from '#/shared/google-performance-report-contract'
 import { dashboardKeys } from '#/shared/queries/query-keys'
+import { staleTab } from '#/shared/stale-tab/stale-tab'
 import {
   useClearPerformanceOnLifecycle,
   usePerformanceExpiry,
@@ -212,7 +213,7 @@ export function useGooglePerformance(
         setReportEnabled(true)
         return
       }
-      void query.refetch()
+      staleTab.tryAgain(() => void query.refetch())
     },
   })
 }

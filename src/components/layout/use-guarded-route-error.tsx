@@ -9,7 +9,8 @@
 //     quiet for an expected 4xx refusal;
 //   - sends a 401 to /login, because that is an expired session under an open
 //     page, not a failure;
-//   - offers "Try again", which re-runs the route's loaders;
+//   - offers "Try again", which re-runs the route's loaders (`useReadRetry`: in a
+//     tab whose code is older than the server's, loads the page afresh instead);
 //   - loads the page afresh when the failure means this tab's code is older than
 //     the server's (a read the server refused, a chunk a deploy removed), once,
 //     and says nothing of it: that is not a failure of the page.
@@ -18,9 +19,10 @@
 // used to render `errorMessage(error)` and nothing else, so they lost all four.
 // They, and the router default, now take their behaviour from here and keep only
 // their own frame (title, breadcrumbs, tier). PageState builds on this hook.
-import { useEffect, useSyncExternalStore } from 'react'
+import { useEffect } from 'react'
 import { Navigate, useRouter } from '@tanstack/react-router'
 import { useQueryClient } from '@tanstack/react-query'
+import { useReadRetry } from '#/components/hooks/use-read-retry'
 import {
   GENERIC_CLIENT_ERROR_MESSAGE,
   publicErrorMessage,
@@ -88,11 +90,7 @@ export function useGuardedRouteError(
   fallback?: string,
 ): GuardedRouteError {
   const router = useRouter()
-  const reloading = useSyncExternalStore(
-    staleTab.onReloading,
-    staleTab.isReloading,
-    () => false,
-  )
+  const { tryAgain, reloading } = useReadRetry(() => void router.invalidate())
   const { signedOut, refused, message, report } = routeErrorFacts(
     error,
     import.meta.env.PROD,
@@ -114,7 +112,7 @@ export function useGuardedRouteError(
     if (report) captureBrowserException(error)
   }, [error, report])
 
-  return { signedOut, message, retry: () => void router.invalidate(), reloading }
+  return { signedOut, message, retry: tryAgain, reloading }
 }
 
 /** The 401 outcome: sign in again, and come back to this page afterwards. */

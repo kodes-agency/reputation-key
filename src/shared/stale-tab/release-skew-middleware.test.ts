@@ -130,6 +130,8 @@ describe('release skew, in the tab', () => {
       now: () => 1,
       reload: vi.fn(),
       later: vi.fn(),
+      dialogOpen: () => false,
+      askBeforeLeaving: vi.fn(),
     })
     tab.remember(release)
     return tab
@@ -151,6 +153,8 @@ describe('release skew, in the tab', () => {
       now: () => clock.now,
       reload,
       later: vi.fn(),
+      dialogOpen: () => false,
+      askBeforeLeaving: vi.fn(),
     })
     tab.remember(OLD)
     let announce: (event: NavigationEvent) => void = () => undefined

@@ -711,7 +711,10 @@ One list of words for what every page repeats.
 - **Try again.** Every retry is "Try again" (`RegionError`, `PageState`,
   `LoadMoreButton`), and never "Retry". A control that runs one named action again
   says which: "Try saving again" (a draft), "Try this property again" (an import
-  step), "Try publishing again", "Check Google again".
+  step), "Try publishing again", "Check Google again". A retry of a read presses
+  through `useReadRetry`, which those three do for you: in a tab left open across a
+  deploy the read can only be refused again, so the press loads the page afresh
+  (`src/shared/CONTEXT.md`, Stale tabs). A retry of a save does not.
 - **Clear.** One meaning: take the search and the filters off a list ("Clear filters",
   "Clear search and filters", "Clear search": `ClearFiltersButton`). Deselecting is
   "Clear selection". Nothing else says Clear.

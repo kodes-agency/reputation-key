@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import {
   createReplyAutosaveCoordinator,
+  isReloadSafe,
   type ReplyAutosaveState,
   type ReplyAutosaveStatus,
   type ReplyDraftSnapshot,
@@ -69,6 +70,7 @@ export function useReplyAutosave(initial: ReplyDraftSnapshot, saveDraft: SaveDra
   return {
     status: state.status,
     error: state.error,
+    reloadSafe: isReloadSafe(state.status),
     schedule: coordinator.schedule,
     flush: coordinator.flush,
     acceptAiDraft: coordinator.acceptAiDraft,

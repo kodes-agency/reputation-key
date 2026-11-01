@@ -53,7 +53,7 @@ export function LinktreeTitleForm({
   const defaultTitle = linktreeDefaultTitle(locale)
 
   return (
-    <form onSubmit={(event) => event.preventDefault()}>
+    <form data-reload-safe onSubmit={(event) => event.preventDefault()}>
       <form.Field name={`titles[${index}].title`}>
         {(field: BaseFieldApi) => {
           const isInvalid = field.state.meta.isTouched && !field.state.meta.isValid

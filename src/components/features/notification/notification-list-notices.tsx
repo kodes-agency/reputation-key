@@ -9,6 +9,7 @@
 import { useState } from 'react'
 import { Link, useRouterState } from '@tanstack/react-router'
 import { LogIn } from 'lucide-react'
+import { useReadRetry } from '#/components/hooks/use-read-retry'
 import { Button } from '#/components/ui/button'
 import { EmptyState } from '#/components/ui/empty-state'
 import { LoadMoreButton } from '#/components/ui/load-more-button'
@@ -67,6 +68,10 @@ export function NotificationErrorState({ error, onRetry }: FailureProps) {
 export function NotificationRefreshNotice({ error, onRetry }: FailureProps) {
   const ended = isSessionEnded(error)
   const [triedFor, setTriedFor] = useState<Error | null>(null)
+  const { tryAgain, reloading } = useReadRetry(() => {
+    setTriedFor(error)
+    onRetry()
+  })
   return (
     <div className="flex flex-wrap items-center justify-between gap-2 px-3 py-2">
       <p className="text-xs text-muted-foreground">
@@ -77,11 +82,8 @@ export function NotificationRefreshNotice({ error, onRetry }: FailureProps) {
       ) : (
         <RetryButton
           size="xs"
-          retrying={triedFor === error}
-          onRetry={() => {
-            setTriedFor(error)
-            onRetry()
-          }}
+          retrying={triedFor === error || reloading}
+          onRetry={tryAgain}
         />
       )}
     </div>

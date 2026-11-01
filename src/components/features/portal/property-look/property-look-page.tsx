@@ -203,7 +203,12 @@ function PropertyLookEditor({
   return (
     <>
       <PortalUnsavedChangesPrompt description={LEAVE_COPY} />
-      <div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_21rem] min-[90rem]:grid-cols-[minmax(0,1fr)_21rem_15rem]">
+      {/* Every edit here is saved or guarded by that prompt, so a stale tab need
+          not hold its reload for them. */}
+      <div
+        data-reload-safe
+        className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_21rem] min-[90rem]:grid-cols-[minmax(0,1fr)_21rem_15rem]"
+      >
         <div className="min-w-0 space-y-4 lg:row-span-2 min-[90rem]:row-span-1">
           {canEdit ? null : (
             <Alert variant="info">

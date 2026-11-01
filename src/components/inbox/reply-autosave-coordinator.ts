@@ -21,6 +21,14 @@ type SaveDraft = (
   provenanceToken?: string,
 ) => Promise<unknown>
 
+/**
+ * A stale tab's reload cannot lose the words: they are saved, or the coordinator
+ * holds the reload until they are. A failed save and words it refuses to save (over
+ * the limit, no language yet) are on this page alone.
+ */
+export const isReloadSafe = (status: ReplyAutosaveStatus): boolean =>
+  status !== 'unsaved' && status !== 'error'
+
 const same = (left: ReplyDraftSnapshot, right: ReplyDraftSnapshot | null) =>
   right !== null && left.text === right.text && left.languageTag === right.languageTag
 

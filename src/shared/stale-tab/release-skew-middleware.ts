@@ -69,12 +69,12 @@ export async function sendWithRelease<R extends Settled>(
     if (isFlagged(result)) tab.markStale()
     return result
   } catch (error) {
-    // A refused read arms the tab, and reloads it when the read belongs to a
-    // view a navigation has just drawn. So does a read of a function a deploy
-    // removed: only code older than the server asks for one, so no release
-    // comparison is needed. A mutation of one only arms the tab, so the
-    // reload waits for the next navigation and what the person typed stays.
-    // The caller still sees the failure.
+    // A refused read arms the tab, and reloads it when the read follows a
+    // navigation, the person's return or their Try again (`readRefused`). So does
+    // a read of a function a deploy removed: only code older than the server asks
+    // for one, so no release comparison is needed. A mutation of one only arms the
+    // tab, so the reload waits for the next navigation and what the person typed
+    // stays. The caller still sees the failure.
     if (isStaleClientError(error)) tab.readRefused()
     else if (isUnknownServerFunctionReply(error)) {
       if (mutation) tab.markStale()

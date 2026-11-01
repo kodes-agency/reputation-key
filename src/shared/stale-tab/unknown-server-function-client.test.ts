@@ -98,6 +98,8 @@ describe('against the framework’s own client', () => {
       now: () => 1,
       reload: vi.fn(),
       later: vi.fn(),
+      dialogOpen: () => false,
+      askBeforeLeaving: vi.fn(),
     })
     tab.remember('a'.repeat(40))
 
