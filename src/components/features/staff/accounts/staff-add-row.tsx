@@ -33,7 +33,7 @@ export function StaffAddRow({
     failed: row.problem,
   }[row.state]
   return (
-    <fieldset className="flex min-w-0 flex-col gap-2 rounded-md border p-3">
+    <fieldset className="flex min-w-0 flex-col gap-2">
       <legend className="sr-only">Person {index + 1}</legend>
       <div className="flex items-start gap-2">
         <div
@@ -53,6 +53,7 @@ export function StaffAddRow({
                 key={field}
                 id={id}
                 label={field === 'email' ? 'Email' : 'Name'}
+                labelClassName={index > 0 ? 'sm:sr-only' : undefined}
                 invalid={Boolean(row.problem)}
                 errors={
                   row.state === 'editing' && row.problem
@@ -94,9 +95,11 @@ export function StaffAddRow({
         </p>
       ) : null}
       {row.state === 'failed' ? (
-        <Button variant="outline" disabled={busy} onClick={onRetry}>
-          Try again
-        </Button>
+        <div>
+          <Button variant="outline" disabled={busy} onClick={onRetry}>
+            Try again
+          </Button>
+        </div>
       ) : null}
     </fieldset>
   )

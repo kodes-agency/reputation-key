@@ -402,10 +402,7 @@ export const buildPortalContext = (deps: PortalContextDeps) => {
     checkPersonalPortalSource: checkPersonalPortalSource(personalCreationDeps),
     archivePersonalPortal: archivePersonalPortal(publishChangesDeps),
     archivePersonalPortalForMemberDeparture: archivePersonalPortal(
-      {
-        ...publishChangesDeps,
-        ratingGoalGuard: deps.ratingGoalGuard,
-      },
+      publishChangesDeps,
       true,
     ),
     getPortalCreationOptions: getPortalCreationOptions({

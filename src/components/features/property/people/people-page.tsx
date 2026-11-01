@@ -65,7 +65,9 @@ function PeoplePageBody({
 
       <StaffAccountsList />
       <StaffTab
-        lockedParticipationIds={accounts?.members.map((member) => member.participationId)}
+        personalParticipationIds={accounts?.members.map(
+          (member) => member.participationId,
+        )}
         accountsEnabled={accounts !== null}
         propertyId={propertyId}
         participations={participations}

@@ -77,7 +77,7 @@ describe.sequential('personal Goal SQL guards (PostgreSQL)', () => {
       } as GoalSubjectAssignment
       const run = () =>
         db.transaction((tx) => assertPersonalGoalAssignments(tx, version, [assignment]))
-      await expect(run()).rejects.toMatchObject({ code: 'invalid_subject' })
+      await expect(run()).rejects.toMatchObject({ code: 'staff_scan_only' })
       await lease.pool.query("UPDATE portals SET kind = 'place' WHERE id = $1", [
         row.portalId,
       ])
@@ -169,7 +169,7 @@ describe.sequential('personal Goal SQL guards (PostgreSQL)', () => {
       countryCode: 'BG',
     })
     expect(result).toEqual(
-      visible ? [{ id: programId, name: 'Scan target', target: 25, scans: 9 }] : [],
+      visible ? [{ id: programId, name: 'Desk', target: 25, scans: 9 }] : [],
     )
   })
 })

@@ -1160,6 +1160,13 @@
 // went inline so the stylesheet grew only 10 B. On main 78f27e9af the same head measures
 // 319,321 B, so the budget moves to 319,500 B: the measurement plus about 150 B for
 // chunk-hash jitter, to the nearest 100.
+//
+// Re-measured 2026-11-02 for staff accounts (ADR 0076): 320,454 B against the
+// foundation's closure. Every staff screen and the Add staff dialog are lazy
+// chunks; the eager cost is the route tree's two new routes in the entry chunk
+// (+784 B), their search schema and key family, and the sign-in destination that
+// sends a staff login to its own home. The budget moves to 320,600 B: the
+// measurement plus about 150 B for chunk-hash jitter, to the nearest 100.
 
 import { readdirSync, readFileSync, existsSync } from 'node:fs'
 import { join, dirname, basename } from 'node:path'
@@ -1174,7 +1181,7 @@ const BUDGETS = {
   // PR-B3b (2026-10-31): +600 B budget, measured 318,640 B. Drafting remains
   // in lazy chunks; the eager cost is the shared Skeleton variant, generated
   // typography/motion utilities and the entry's lazy-chunk preload map.
-  initialClosureGzip: 319_500, // raised to 319,500 on 2026-11-02 for the goal pages' check-in (a Radix chunk split in two and the entry's lazy-chunk map; no new first-paint code), measured 319,272 on this head; see the note above
+  initialClosureGzip: 320_600, // raised to 320,600 on 2026-11-02 for staff accounts (see the note above)
   lazyChunkGzip: 125 * 1024, // 128,000 (chunks outside the closure)
 }
 

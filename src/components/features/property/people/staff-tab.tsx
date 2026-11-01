@@ -8,6 +8,8 @@ import {
 import type { PortalOption } from '#/components/features/staff/portal-selector'
 import { Alert, AlertDescription, AlertTitle } from '#/components/ui/alert'
 import { AddAction } from '#/components/ui/add-action'
+import { SectionTitle } from '#/components/ui/section-title'
+import { cn } from '#/lib/utils'
 import {
   Dialog,
   DialogContent,
@@ -25,7 +27,8 @@ import type {
 } from '#/components/features/staff/types'
 
 interface StaffTabProps {
-  lockedParticipationIds?: readonly string[]
+  /** People with a personal Portal are listed above, under Add staff. */
+  personalParticipationIds?: readonly string[]
   accountsEnabled?: boolean
   propertyId: string
   participations: ReadonlyArray<StaffParticipationView>
@@ -42,8 +45,56 @@ interface StaffTabProps {
   }>
 }
 
+function StaffProfilesHeader({
+  accountsEnabled,
+  propertyId,
+  createMutation,
+  createOpen,
+  onCreateOpenChange,
+}: Pick<
+  StaffTabProps,
+  'propertyId' | 'createMutation' | 'createOpen' | 'onCreateOpenChange'
+> &
+  Readonly<{ accountsEnabled: boolean }>) {
+  return (
+    <div
+      className={cn(
+        'flex items-center gap-4',
+        accountsEnabled ? 'justify-between' : 'justify-end',
+      )}
+    >
+      {accountsEnabled ? <SectionTitle>Profiles without a login</SectionTitle> : null}
+      <Dialog
+        open={createOpen}
+        busy={createMutation.isPending}
+        onOpenChange={onCreateOpenChange}
+      >
+        <DialogTrigger asChild>
+          <AddAction variant={accountsEnabled ? 'outline' : undefined}>
+            {accountsEnabled ? 'Add profile' : 'Add staff'}
+          </AddAction>
+        </DialogTrigger>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Add staff participation</DialogTitle>
+            <DialogDescription>
+              Add a person to this property for operational attribution. A login account
+              is not required, and Portal responsibilities are managed separately.
+            </DialogDescription>
+          </DialogHeader>
+          <StaffParticipationForm
+            propertyId={propertyId}
+            mutation={createMutation}
+            onSuccess={() => onCreateOpenChange(false)}
+          />
+        </DialogContent>
+      </Dialog>
+    </div>
+  )
+}
+
 export function StaffTab({
-  lockedParticipationIds = [],
+  personalParticipationIds = [],
   accountsEnabled = false,
   propertyId,
   participations,
@@ -66,6 +117,13 @@ export function StaffTab({
         (participation) => participation.id === editingParticipationId,
       ) ?? null,
     [editingParticipationId, participations],
+  )
+  const profiles = useMemo(
+    () =>
+      participations.filter(
+        (participation) => !personalParticipationIds.includes(participation.id),
+      ),
+    [participations, personalParticipationIds],
   )
   const editingResponsibilities = useMemo(
     () =>
@@ -91,31 +149,13 @@ export function StaffTab({
 
   return (
     <section aria-label="Staff" className="space-y-4">
-      <div className="flex justify-end">
-        <Dialog
-          open={createOpen}
-          busy={createMutation.isPending}
-          onOpenChange={onCreateOpenChange}
-        >
-          <DialogTrigger asChild>
-            <AddAction>{accountsEnabled ? 'Add profile' : 'Add staff'}</AddAction>
-          </DialogTrigger>
-          <DialogContent>
-            <DialogHeader>
-              <DialogTitle>Add staff participation</DialogTitle>
-              <DialogDescription>
-                Add a person to this property for operational attribution. A login account
-                is not required, and Portal responsibilities are managed separately.
-              </DialogDescription>
-            </DialogHeader>
-            <StaffParticipationForm
-              propertyId={propertyId}
-              mutation={createMutation}
-              onSuccess={() => onCreateOpenChange(false)}
-            />
-          </DialogContent>
-        </Dialog>
-      </div>
+      <StaffProfilesHeader
+        accountsEnabled={accountsEnabled}
+        propertyId={propertyId}
+        createMutation={createMutation}
+        createOpen={createOpen}
+        onCreateOpenChange={onCreateOpenChange}
+      />
 
       {portalsDenied && (
         <Alert variant="info">
@@ -127,16 +167,17 @@ export function StaffTab({
         </Alert>
       )}
 
-      <StaffParticipationList
-        participations={participations}
-        lockedParticipationIds={lockedParticipationIds}
-        archiveAction={archiveMutation}
-        canManageResponsibilities={!portalsDenied}
-        onEditResponsibilities={setEditingParticipationId}
-      />
+      {accountsEnabled && profiles.length === 0 ? null : (
+        <StaffParticipationList
+          participations={profiles}
+          archiveAction={archiveMutation}
+          canManageResponsibilities={!portalsDenied}
+          onEditResponsibilities={setEditingParticipationId}
+        />
+      )}
 
       {editingParticipation &&
-        !lockedParticipationIds.includes(editingParticipation.id) &&
+        !personalParticipationIds.includes(editingParticipation.id) &&
         !portalsDenied && (
           <PortalResponsibilitiesModal
             key={editingParticipation.id}

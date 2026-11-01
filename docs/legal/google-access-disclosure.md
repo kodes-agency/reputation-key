@@ -2,13 +2,13 @@
 status: accepted
 accepted_by: Bozhidar Denev
 accepted_on: 2026-09-08
-amended_on: 2026-11-03
+amended_on: 2026-11-02
 ---
 
 # Google Business Profile Access Disclosure
 
 **Status:** Accepted for publication
-**Effective date:** 2026-11-03
+**Effective date:** 2026-11-02
 **Version:** 2.4
 **Accountable owner:** Bozhidar Denev
 
@@ -221,7 +221,7 @@ AI purpose, or publication behavior changes.
 
 ## Changes
 
-This disclosure takes effect on 2026-11-03 and is version 2.4. It replaces version 2.3, effective 2026-11-02, which replaced version 2.2, effective 2026-11-01, which replaced
+This disclosure takes effect on 2026-11-02 and is version 2.4. It replaces version 2.3, effective 2026-11-02, which replaced version 2.2, effective 2026-11-01, which replaced
 version 2.1, which took effect on 2026-10-14 and had replaced version 2.0, which
 took effect on 2026-09-08.
 
@@ -252,7 +252,7 @@ release without a waiting period, on the accountable owner’s decision of
 2026-11-01 for the two beta Organizations the owner controls. Existing response
 correction and withdrawal remain available.
 
-Version 2.4 (2026-11-03) states that staff can see scan-only targets and
+Version 2.4 (2026-11-02) states that staff can see scan-only targets and
 managers can see Google-action selections on each staff member's Portal. The
 ban under “Uses the product does not allow” is unchanged. It takes effect on
 release without a waiting period, on the accountable owner's decision of

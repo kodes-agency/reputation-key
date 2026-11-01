@@ -9,7 +9,7 @@ describe('staff account release documents', () => {
   ])('publishes %s version %s on the approved release date', (file, version) => {
     const text = readFileSync(`docs/legal/${file}.md`, 'utf8')
     expect(text).toContain(`**Version:** ${version}`)
-    expect(text).toContain('**Effective date:** 2026-11-03')
+    expect(text).toContain('**Effective date:** 2026-11-02')
     expect(text).toContain('without a waiting period')
   })
   it('preserves the Google ban and states the staff scan target and manager Google selection plainly', () => {

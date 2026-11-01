@@ -81,9 +81,14 @@ export function PortalOverviewTableRow({
             {unmade ? null : <PortalAttentionLine item={item} propertyId={propertyId} />}
           </div>
           {row.kind === 'personal' ? (
-            <StaffPortalMeta portalId={row.portalId} hint={staffHint} />
-          ) : null}
-          <PortalMetaLine item={item} showGroup={showGroup} />
+            <StaffPortalMeta
+              portalId={row.portalId}
+              hint={staffHint}
+              skipsRating={row.skipPrivateRating === true}
+            />
+          ) : (
+            <PortalMetaLine item={item} showGroup={showGroup} />
+          )}
           {summary ? <p className={cn('text-sm', classes.cardOnly)}>{summary}</p> : null}
         </div>
       </TableHead>

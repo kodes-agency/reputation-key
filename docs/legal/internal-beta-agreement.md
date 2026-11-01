@@ -2,13 +2,13 @@
 status: accepted
 accepted_by: Bozhidar Denev
 accepted_on: 2026-09-08
-amended_on: 2026-11-03
+amended_on: 2026-11-02
 ---
 
 # Closed Beta Participation Agreement — Reputation Key
 
 **Status:** Accepted for publication and invited-beta use
-**Effective date:** 2026-11-03
+**Effective date:** 2026-11-02
 **Version:** 2.4
 **Accountable owner:** Bozhidar Denev
 
@@ -47,7 +47,7 @@ release readiness, the core product includes:
 
 Core analytics are part of the Service. There is no product option to decline
 the affected operational metrics while continuing to use the workflow. The
-accepted [Privacy Notice version 3.3](/privacy), effective 2026-11-03, forms part
+accepted [Privacy Notice version 3.3](/privacy), effective 2026-11-02, forms part
 of this agreement and states the applicable roles, legal bases, and rights
 process.
 
@@ -250,7 +250,7 @@ agreement does not create them.
 
 ## 9. Data handling, retention, and providers
 
-The accepted [Privacy Notice version 3.3](/privacy), effective 2026-11-03, and
+The accepted [Privacy Notice version 3.3](/privacy), effective 2026-11-02, and
 its retention and provider schedules form part of this agreement. They cover
 Participant, Google source, Portal and Guest, manager-authored, AI-derived,
 monitoring, export, backup, and independently retained evidence classes.
@@ -301,8 +301,8 @@ capability schedule are available.
 
 This agreement is accepted together with:
 
-- Privacy Notice version 3.3, effective 2026-11-03, at `/privacy`;
-- Google Business Profile Access Disclosure version 2.4, effective 2026-11-03,
+- Privacy Notice version 3.3, effective 2026-11-02, at `/privacy`;
+- Google Business Profile Access Disclosure version 2.4, effective 2026-11-02,
   at `/privacy/google-access-disclosure`;
 - the activated-capability schedule in `docs/BETA.md` section 4; and
 - the retention, provider, transfer, rights, deployment, and change rules in
@@ -315,7 +315,7 @@ invited Participant accepts the Participant obligations by joining.
 
 ## 13. Changes
 
-This agreement takes effect on 2026-11-03 and is version 2.4. It replaces version 2.3, effective 2026-11-02, which replaced version 2.2, effective 2026-11-01, which replaced
+This agreement takes effect on 2026-11-02 and is version 2.4. It replaces version 2.3, effective 2026-11-02, which replaced version 2.2, effective 2026-11-01, which replaced
 version 2.1, which took effect on 2026-10-14 and had replaced version 2.0, which
 took effect on 2026-09-08.
 
@@ -358,7 +358,7 @@ correction and withdrawal remain available.
 
 Version 2.3 also updates sections 2.1, 9 and 12 to name Privacy Notice 3.2 and, in section 12, Google Business Profile Access Disclosure 2.3, both effective 2026-11-02.
 
-Version 2.4 (2026-11-03) includes staff accounts, their own numbers, optional
+Version 2.4 (2026-11-02) includes staff accounts, their own numbers, optional
 colleague scan counts and scan-only targets, and adds the business's duties
 for offering codes and using staff numbers. Competitive Badge/Leaderboard
 behavior and Google-review solicitation gamification or review-derived staff

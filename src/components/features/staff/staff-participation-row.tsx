@@ -11,7 +11,6 @@ import type {
 } from '#/components/features/staff/types'
 
 type Props = Readonly<{
-  locked?: boolean
   participation: StaffParticipationView
   canManageResponsibilities: boolean
   archiveAction: Action<{ data: ArchiveStaffParticipationMutationInput }>
@@ -19,7 +18,6 @@ type Props = Readonly<{
 }>
 
 export function StaffParticipationRow({
-  locked = false,
   participation,
   canManageResponsibilities,
   archiveAction,
@@ -58,7 +56,7 @@ export function StaffParticipationRow({
               <span className="hidden sm:inline">Responsibilities</span>
             </Button>
           )}
-          {active && !locked && (
+          {active && (
             <ConfirmationDialog
               trigger={
                 <Button

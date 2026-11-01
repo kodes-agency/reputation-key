@@ -3,13 +3,13 @@ status: accepted
 accepted_by: Bozhidar Denev
 accepted_on: 2026-09-08
 corrected_on: 2026-10-13
-amended_on: 2026-11-03
+amended_on: 2026-11-02
 ---
 
 # Privacy Notice — Reputation Key Closed Beta
 
 **Status:** Accepted for publication
-**Effective date:** 2026-11-03
+**Effective date:** 2026-11-02
 **Version:** 3.3
 **Accountable owner:** Bozhidar Denev
 
@@ -439,7 +439,7 @@ West); no EU deployment exists.
 
 ## 9. Changes and contact
 
-This notice takes effect on 2026-11-03 and is version 3.3. It replaces version 3.2, effective 2026-11-02, which replaced version 3.1, effective 2026-11-01, which replaced version
+This notice takes effect on 2026-11-02 and is version 3.3. It replaces version 3.2, effective 2026-11-02, which replaced version 3.1, effective 2026-11-01, which replaced version
 3.0, which took effect on 2026-10-30 and had replaced version
 2.5, which took effect on 2026-10-16 and had replaced version 2.4, which took
 effect on 2026-10-16 and had replaced version 2.3, which took
@@ -544,7 +544,7 @@ release without a waiting period, on the accountable owner’s decision of
 2026-11-01 for the two beta Organizations the owner controls. Existing response
 correction and withdrawal remain available.
 
-Version 3.3 (2026-11-03) explains staff accounts, what staff and managers see,
+Version 3.3 (2026-11-02) explains staff accounts, what staff and managers see,
 the optional colleague scan list, and the business's duty to tell its staff.
 Staff performance numbers follow the facts' 24-month retention, which is not
 enforced by code for Reporting's readings yet. It takes effect on release
