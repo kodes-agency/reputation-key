@@ -40,7 +40,7 @@ const build = (search: Parameters<typeof buildPortalOverview>[1], withFigures = 
 const names = (page: ReturnType<typeof build>) =>
   page.sections.map((section) => section.items.map((item) => item.row.name))
 
-describe('the overview sorted by qualified scans', () => {
+describe('the overview sorted by scans', () => {
   it('puts the Portal with the most scans first inside a group, and the group with the most first', () => {
     const page = build({ sort: 'scans' })
 

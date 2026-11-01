@@ -108,12 +108,12 @@ export const StripIsTheOrganizationTotal: Story = {
     const canvas = within(canvasElement)
     const strip = within(canvas.getByLabelText('Portal results'))
     for (const text of [
-      'Qualified scans',
+      'Scans',
       '3,420',
       '+212 vs the 30 days before',
       '951',
       '28% of scans',
-      'Average private rating',
+      'Average rating',
       '498',
       '15% of scans',
       '71',
@@ -123,7 +123,7 @@ export const StripIsTheOrganizationTotal: Story = {
     await expect(canvas.getByText('all properties')).toBeInTheDocument()
     await expect(
       canvas.getByText(
-        /Last 30 days · each property’s local time · an average needs 5 private ratings · collapsed properties stay collapsed for you/,
+        /Last 30 days · each property’s local time · an average needs 5 ratings · collapsed properties stay collapsed for you/,
       ),
     ).toBeInTheDocument()
     // Google's own review average is not part of these totals.
@@ -279,7 +279,7 @@ export const OlderCodeScansAreLeftOutAndSaid: Story = {
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
     await expect(
-      canvas.getByRole('button', { name: 'Qualified scans: Not counted: older code' }),
+      canvas.getByRole('button', { name: 'Scans: Not counted: older code' }),
     ).toBeInTheDocument()
     await expect(canvas.getByText(/aren’t in these figures/)).toBeInTheDocument()
   },
@@ -377,7 +377,7 @@ export const SortsPropertiesByQualifiedScans: Story = {
     await userEvent.click(canvas.getByRole('button', { name: /sort: name/i }))
     await userEvent.click(
       await within(document.body).findByRole('menuitemradio', {
-        name: 'Qualified scans',
+        name: 'Scans',
       }),
     )
     await expect(order()).toEqual([
@@ -483,9 +483,7 @@ export const NotOfferedToThisReader: Story = {
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
     await expect(canvas.queryByLabelText('Portal results')).toBeNull()
-    await expect(
-      canvas.queryByRole('columnheader', { name: /qualified scans/i }),
-    ).toBeNull()
+    await expect(canvas.queryByRole('columnheader', { name: /scans/i })).toBeNull()
     // Each Property head is still a head, with its count and no figures.
     await expect(
       headOf(canvas, 'Avela Resort').getByText(/6 portals/),
@@ -516,6 +514,6 @@ export const Phone: Story = {
     // compiles no Tailwind. Which layout shows at which width is held in
     // `e2e/storybook-metrics/portal-all-properties.metrics.ts`.
     await expect(canvas.getByText('1,607 scans · 4.4 ★ from 450')).toBeVisible()
-    await expect(canvas.getByText('412 qualified scans · 4.4 ★ from 118')).toBeVisible()
+    await expect(canvas.getByText('412 scans · 4.4 ★ from 118')).toBeVisible()
   },
 }

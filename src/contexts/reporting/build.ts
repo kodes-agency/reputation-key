@@ -1,3 +1,4 @@
+import { getPortalLinkTaps } from './application/use-cases/get-portal-link-taps'
 // Reporting context — one composition root for governed metrics, Goal Programs,
 // and dashboard read models.
 
@@ -686,6 +687,7 @@ function buildDashboardModule(
     publicApi: {
       readPropertyGoogleNumbers,
       getDashboardData: getDashboard,
+      getPortalLinkTaps: getPortalLinkTaps({ portalMetrics, propertyAccess }),
       getPortalAnalytics: getPortal,
       getPortalResultsOverview: getResultsOverview,
       getStaffDashboardData: getStaffDashboard,
@@ -700,6 +702,7 @@ function buildDashboardModule(
       repos: { dashboardRepo, setupChecklistRepo, propertySetupRepo },
       useCases: {
         getDashboardData: getDashboard,
+        getPortalLinkTaps: getPortalLinkTaps({ portalMetrics, propertyAccess }),
         getPortalAnalytics: getPortal,
         getPortalResultsOverview: getResultsOverview,
         getStaffDashboardData: getStaffDashboard,

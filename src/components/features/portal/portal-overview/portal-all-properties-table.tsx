@@ -19,7 +19,7 @@ type Props = PortalArchiveMutations &
     results: PortalOverviewResultsState
     /** A new window is loading: the figures shown are still the previous window's. */
     busy?: boolean
-    /** Set while the table is ordered by qualified scans, to mark that column. */
+    /** Set while the table is ordered by scans, to mark that column. */
     scansOrder?: SortDirection
     /** The Properties the reader folded. */
     collapsed: readonly string[]

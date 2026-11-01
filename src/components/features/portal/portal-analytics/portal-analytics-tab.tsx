@@ -1,6 +1,7 @@
-// Portal Results tab — the range and the comparison are a viewing preference
+import type { PortalPublicationState } from '../shared/types'
+// Portal Results tab — the range is a viewing preference
 // that follows the reader from portal to portal; the figures come from one
-// server read per (range, comparison). Above them, the Monthly portal goal's
+// server read per range, always compared with the period before. Above them, the Monthly portal goal's
 // line when the route hands one in; the tab keeps its loading state while that
 // line is read, so the line never pushes the figures down once they are drawn.
 
@@ -30,6 +31,7 @@ type Props = Readonly<{
    * Guests can open the portal now. Left out, it is taken to be live; a portal
    * that is not has nothing to count, and its empty state says to publish.
    */
+  publicationState?: PortalPublicationState
   pageIsLive?: boolean
   /**
    * The live code's scans are counted. Left out, they are taken to be; a code
@@ -45,7 +47,6 @@ type Props = Readonly<{
 // Intentionally global, not per-portal: the selected range is a user-level
 // viewing preference that should follow the reader from portal to portal.
 const TIME_RANGE_KEY = PORTAL_RESULTS_RANGE_STORAGE_KEY
-const COMPARE_KEY = 'portal-analytics-compare'
 
 /** Stored preset, validated against the schema the server DTO uses and against
  * the ranges this tab offers. An unchecked cast let any stale, hand-edited or
@@ -58,16 +59,6 @@ function readStoredTimeRange(): TimeRangePreset {
     return storedResultsRange(localStorage.getItem(TIME_RANGE_KEY))
   } catch {
     return '30d'
-  }
-}
-
-/** Comparing is the default; only an explicit "off" is remembered as off. */
-function readStoredCompare(): boolean {
-  if (typeof window === 'undefined') return true
-  try {
-    return localStorage.getItem(COMPARE_KEY) !== 'off'
-  } catch {
-    return true
   }
 }
 
@@ -99,21 +90,20 @@ function ResultsBody({
   propertyId,
   getPortalAnalytics,
   pageIsLive = true,
+  publicationState,
   scansCounted = true,
   holding = false,
 }: Omit<Props, 'goalLine' | 'goalLinePending'> & Readonly<{ holding?: boolean }>) {
   const { can } = usePermissions()
   const [timeRange, setTimeRange] = useState<TimeRangePreset>(readStoredTimeRange)
-  const [compare, setCompare] = useState<boolean>(readStoredCompare)
 
   useEffect(() => remember(TIME_RANGE_KEY, timeRange), [timeRange])
-  useEffect(() => remember(COMPARE_KEY, compare ? 'on' : 'off'), [compare])
 
   const query = useQuery({
-    queryKey: portalKeys.analytics(propertyId, portalId, timeRange, compare),
+    queryKey: portalKeys.analytics(propertyId, portalId, timeRange, true),
     queryFn: () =>
-      getPortalAnalytics({ data: { propertyId, portalId, timeRange, compare } }),
-    // Changing the range or the comparison keeps the page on screen while the
+      getPortalAnalytics({ data: { propertyId, portalId, timeRange, compare: true } }),
+    // Changing the range keeps the page on screen while the
     // new figures load, instead of blanking it.
     placeholderData: keepPreviousData,
   })
@@ -156,13 +146,12 @@ function ResultsBody({
       data={data}
       timeRange={timeRange}
       onTimeRangeChange={setTimeRange}
-      compare={compare}
-      onCompareChange={setCompare}
       busy={stale}
       place={{
         propertyId,
         portalId,
         isLive: pageIsLive,
+        publicationState,
         scansCounted,
         // The link opens the manager Inbox, whose route refuses anyone without this.
         canOpenInbox: can('inbox.manage'),

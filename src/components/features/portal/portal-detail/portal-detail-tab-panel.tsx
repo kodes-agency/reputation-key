@@ -132,6 +132,7 @@ function AnalyticsPanel({
       getPortalAnalytics={getPortalAnalytics}
       // A portal guests cannot open has nothing to count: its Results says to publish.
       pageIsLive={portal.publicationState === 'published'}
+      publicationState={portal.publicationState}
       // The same answer as the Portals overview's dash with "Not counted: older code".
       scansCounted={
         !hasUncountedScans({

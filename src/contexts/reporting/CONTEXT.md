@@ -421,9 +421,8 @@ The caller isolates a failed side read from the primary Guest voice page.
   never a live evaluation), for its page only. RepKey's period averages stay for the Ratings
   page and the rating drop signal.
 - **Portal lifetime aggregate**: anonymous all-time values with rebuild and seal evidence.
-- **Portal results measures**: the five figures on a Portal's Results view, each named for
-  what it counts. Qualified scans (not raw page opens; counted from August 2026), private
-  ratings, the average private rating, guests who opened Google (Google review link opens
+- **Portal results measures**: the five shared measures: Scans (server-verified, not raw page opens; counted from August 2026),
+  Ratings, Average rating, Went to Google (Google review link opens
   only; a secondary link is not one), and private notes. The reading floors live in
   `domain/portal-results-thresholds.ts`.
 - **Results window**: a bounded range is that many whole Property-local calendar days ending with
@@ -431,11 +430,24 @@ The caller isolates a failed side read from the primary Guest voice page.
   days before that, cut at the same time of day so both are equally long (today is still in
   progress). "Last 30 days" on 30 Sep is 1-30 Sep against 2-31 Aug. A Portal's Results tab
   and the Portals overview read the same window, so a Portal's row and its own tab agree.
-- **Results series**: a Portal's window cut into weekly buckets anchored to its own first day
+- **Results series**: a Portal’s window cut into days for up to seven local days, otherwise weeks anchored to its own first day
   (`domain/portal-results-series.ts`). A bucket carries qualified scans, the prior window's scans
   in the same position, and an average computed as sum over count of that bucket's own ratings,
   held back below the average floor. Versions that went live inside the window (Portal's
   `listPublicationActivationsBetween`) are placed on their local day. All Time has no series.
+- **Portal check-in**: Results answers four questions in shared check-in cards: use, happiness,
+  Google opens and secondary link taps. One scan-only chart, comparison in words, detail collapsed.
+  Page updates sit below the chart. Short ranges never collapse into a single weekly bar.
+- **Link taps**: governed, corrected `portal.review_link_click` readings for `secondary_link`
+  with a recorded `portal_link_id`, grouped by link. Current primary-language labels and order
+  come from Portal’s `listResultsLinks`; removed links count separately. Counting began
+  `PORTAL_LINK_TAPS_COUNTED_SINCE` (1 November 2026). All Time has no lower bound. The editor
+  reads the same counts over 30 Property-local days through an independently authorised side read.
+- **Scan patterns**: Guest’s public read groups unretracted qualified scans by artifact channel,
+  Property-local hour and Monday-zero weekday in one statement. Reporting returns only channels
+  and a busiest-times summary, never hourly counts. From 30 scans: the best two-hour interval,
+  a non-overlapping runner-up at 80% of it, and a weekday at 1.2 times the mean day.
+  All Time has no scan patterns.
 - **Guests by language**: private ratings (not scans) counted by the language of the page the
   guest saw, read from Guest (`getPortalRatingLanguages`). A rating with no recorded language is
   counted on its own line, never guessed.

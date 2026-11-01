@@ -28,7 +28,7 @@ const NOT_COUNTED: MeasureFigure = {
   reason: SCANS_NOT_COUNTED_REASON,
 }
 
-/** The row's figures with its scans as a dash; its card has no summary to print ("0 qualified scans"). */
+/** The row's figures with its scans as a dash; its card has no summary to print ("0 scans"). */
 function withScansNotCounted(measures: RowMeasures): RowMeasures {
   return { ...measures, scans: NOT_COUNTED, summary: null }
 }

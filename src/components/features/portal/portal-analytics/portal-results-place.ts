@@ -1,3 +1,4 @@
+import type { PortalPublicationState } from '../shared/types'
 /**
  * Where a portal's Results tab is: what its empty states and its Private notes
  * figure link to. Absent where the figures are drawn without a portal around
@@ -8,6 +9,7 @@ export type PortalResultsPlace = Readonly<{
   portalId: string
   /** Guests can open it now. A portal that is not live has no results to wait for. */
   isLive: boolean
+  publicationState?: PortalPublicationState
   /**
    * The live code's scans are counted. False for a code that predates scan
    * counting: its scans are a dash with the reason, as in the Portals overview.

@@ -3,10 +3,8 @@
 // that sits above the strip of a live portal that has gone quiet.
 import { BarChart3 } from 'lucide-react'
 import { Link } from '@tanstack/react-router'
-import { Alert, AlertDescription } from '#/components/ui/alert'
-import { Button, buttonVariants } from '#/components/ui/button'
+import { Button } from '#/components/ui/button'
 import { EmptyState } from '#/components/ui/empty-state'
-import { InlineLink } from '#/components/ui/inline-link'
 import type { EmptyResults } from './portal-results-empty'
 import type { PortalResultsPlace } from './portal-results-place'
 
@@ -63,34 +61,5 @@ export function EmptyResultsPanel({
       description={empty.description}
       action={action}
     />
-  )
-}
-
-/** One sentence above the strip: the zeros are the news, so the strip stays. */
-export function QuietWindowNote({
-  line,
-  place,
-}: Readonly<{ line: string; place?: PortalResultsPlace }>) {
-  return (
-    <Alert variant="info">
-      <AlertDescription>
-        {line}
-        {place ? (
-          <>
-            {' '}
-            <InlineLink
-              to="/properties/$propertyId/portals/$portalId"
-              params={{ propertyId: place.propertyId, portalId: place.portalId }}
-              search={{ tab: 'share' }}
-              underline="always"
-              // A tap target on a phone; the sentence's own line on a desktop.
-              className={buttonVariants({ variant: 'link', size: 'inline', touch: true })}
-            >
-              See the code
-            </InlineLink>
-          </>
-        ) : null}
-      </AlertDescription>
-    </Alert>
   )
 }

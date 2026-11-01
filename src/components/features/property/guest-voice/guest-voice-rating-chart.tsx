@@ -1,4 +1,5 @@
-import { useId, useState, type PointerEvent } from 'react'
+import { useId } from 'react'
+import { useBarSelection } from '#/components/hooks/use-bar-selection'
 import type { GuestVoiceRatingMonth } from '#/contexts/ai/application/public-api'
 import { TONE_INK, type Tone } from '#/components/ui/tone'
 import { formatLocalDate } from '#/lib/format'
@@ -28,8 +29,7 @@ export function GuestVoiceRatingChart({
     (month, index) => index !== 0 || !month.partialStart || month.reviewCount > 0,
   )
   const id = useId()
-  const [active, setActive] = useState<number | null>(null)
-  const selected = Math.min(active ?? months.length - 1, months.length - 1)
+  const { active, selected, interactionProps } = useBarSelection(months.length)
   return (
     <figure aria-labelledby={id} className="flex flex-col gap-2 py-2">
       <figcaption id={id} className="text-sm text-muted-foreground">
@@ -43,7 +43,7 @@ export function GuestVoiceRatingChart({
           tone={tone}
           active={active}
           selected={selected}
-          onSelect={setActive}
+          interactionProps={interactionProps}
           valueId={`${id}-value`}
         />
       </div>
@@ -77,22 +77,13 @@ function RatingChartBody({
   tone,
   active,
   selected,
-  onSelect,
+  interactionProps,
   valueId,
 }: RatingChartBodyProps &
   Readonly<{
-    onSelect: (index: number | null) => void
+    interactionProps: ReturnType<typeof useBarSelection>['interactionProps']
     valueId: string
   }>) {
-  const selectPointer = (event: PointerEvent<HTMLDivElement>) => {
-    const box = event.currentTarget.getBoundingClientRect()
-    onSelect(
-      Math.min(
-        months.length - 1,
-        Math.max(0, Math.floor(((event.clientX - box.left) / box.width) * months.length)),
-      ),
-    )
-  }
   return (
     <div
       role="group"
@@ -101,22 +92,7 @@ function RatingChartBody({
       aria-describedby={valueId}
       className="min-w-0 flex-1 rounded focus-ring"
       style={{ touchAction: 'pan-y' }}
-      onKeyDown={(event) => {
-        const next = {
-          ArrowLeft: Math.max(0, selected - 1),
-          ArrowRight: Math.min(months.length - 1, selected + 1),
-          Home: 0,
-          End: months.length - 1,
-        }[event.key]
-        if (next !== undefined) {
-          event.preventDefault()
-          onSelect(Math.max(0, next))
-        }
-      }}
-      onPointerDown={selectPointer}
-      onPointerMove={selectPointer}
-      onPointerLeave={() => onSelect(null)}
-      onBlur={() => onSelect(null)}
+      {...interactionProps}
     >
       <RatingChartBars
         months={months}

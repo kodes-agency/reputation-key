@@ -1,34 +1,40 @@
 import { describe, expect, it } from 'vitest'
 import type { PortalAnalyticsData } from '#/contexts/reporting/application/public-api'
-import {
-  DASH,
-  SCANS_NOT_COUNTED_REASON,
-  measureCells,
-  resultsCells,
-} from './portal-results-cells'
+import { measureCells } from './portal-results-cells'
 import {
   RESULTS_HEALTHY,
   resultsCount,
   resultsEvidence,
 } from './portal-results-stories-data'
 
+const cellsFor = (data: PortalAnalyticsData, options: Readonly<{ compare: boolean }>) =>
+  measureCells(
+    {
+      kpis: data.kpis,
+      thresholds: data.thresholds,
+      timezone: data.period.timezone,
+      localDays: data.localDays,
+    },
+    { ...options, shareAndChange: true },
+  )
+
 const cell = (
   data: PortalAnalyticsData,
   key: string,
   options: Readonly<{ compare: boolean }> = { compare: true },
-) => resultsCells(data, options).find((candidate) => candidate.key === key)
+) => cellsFor(data, options).find((candidate) => candidate.key === key)
 
-describe('resultsCells on a healthy window', () => {
+describe('cellsFor on a healthy window', () => {
   it('names each measure for what it counts, in board order', () => {
-    const labels = resultsCells(RESULTS_HEALTHY, { compare: true }).map(
+    const labels = cellsFor(RESULTS_HEALTHY, { compare: true }).map(
       (candidate) => candidate.label,
     )
 
     expect(labels).toEqual([
-      'Qualified scans',
-      'Private ratings',
-      'Average private rating',
-      'Guests who opened Google',
+      'Scans',
+      'Ratings',
+      'Average rating',
+      'Went to Google',
       'Private notes',
     ])
   })
@@ -67,7 +73,7 @@ describe('resultsCells on a healthy window', () => {
   })
 })
 
-describe('resultsCells: signs and the comparison toggle', () => {
+describe('cellsFor: signs and the comparison toggle', () => {
   it('writes a fall with a true minus sign, and no change in words', () => {
     const fell = {
       ...RESULTS_HEALTHY,
@@ -118,7 +124,7 @@ describe('resultsCells: signs and the comparison toggle', () => {
   })
 })
 
-describe('resultsCells: honest about what it cannot say', () => {
+describe('cellsFor: honest about what it cannot say', () => {
   it('never prints a share over 100%: more ratings than scans falls back to the change', () => {
     const more = {
       ...RESULTS_HEALTHY,
@@ -251,12 +257,6 @@ describe('measureCells: the overview strip, which has no single-Portal payload',
   const find = (cells: ReturnType<typeof measureCells>, key: string) =>
     cells.find((candidate) => candidate.key === key)
 
-  it('reads the same as the Results tab when given the same figures and asked for the same lines', () => {
-    expect(measureCells(input, { compare: true, shareAndChange: true })).toEqual(
-      resultsCells(RESULTS_HEALTHY, { compare: true }),
-    )
-  })
-
   it('keeps only the share by default: a strip that always compares has no switch to show', () => {
     const cells = measureCells(input, { compare: true })
 
@@ -290,41 +290,5 @@ describe('measureCells: the overview strip, which has no single-Portal payload',
     expect(find(cells, 'ratings')?.detail).toBe('+15 vs the 30 days before')
     // Each share is held to its own 100%: Google opens still fit within the scans.
     expect(find(cells, 'googleOpens')?.detail).toBe('64% of scans')
-  })
-})
-
-describe('resultsCells for a code that predates scan counting', () => {
-  const older = resultsCells(
-    { ...RESULTS_HEALTHY, kpis: { ...RESULTS_HEALTHY.kpis, scans: resultsCount(0, 0) } },
-    { compare: true, scansCounted: false },
-  )
-
-  it('prints the scans as a dash with its reason, never the zero the read answers with', () => {
-    expect(older.find((candidate) => candidate.key === 'scans')).toMatchObject({
-      value: DASH,
-      unit: null,
-      detail: 'Not counted: older code',
-    })
-    expect(SCANS_NOT_COUNTED_REASON).toBe('Not counted: older code')
-  })
-
-  it('leaves the figures of the other four measures as the read has them', () => {
-    const figures = (cells: ReturnType<typeof resultsCells>) =>
-      cells
-        .filter((candidate) => candidate.key !== 'scans')
-        .map((candidate) => [candidate.key, candidate.value])
-
-    expect(figures(older)).toEqual(
-      figures(resultsCells(RESULTS_HEALTHY, { compare: true })),
-    )
-  })
-
-  it('counts scans as before when nothing says otherwise', () => {
-    expect(cell(RESULTS_HEALTHY, 'scans')).toMatchObject({ value: '412' })
-    expect(
-      resultsCells(RESULTS_HEALTHY, { compare: true, scansCounted: true }).find(
-        (candidate) => candidate.key === 'scans',
-      ),
-    ).toMatchObject({ value: '412' })
   })
 })

@@ -80,10 +80,10 @@ export type ResultsMeasuresInput = Readonly<{
 
 /** What each cell counts, in words a manager would use; the strip prints them in this order. */
 export const RESULTS_LABELS = {
-  scans: 'Qualified scans',
-  ratings: 'Private ratings',
-  average: 'Average private rating',
-  googleOpens: 'Guests who opened Google',
+  scans: 'Scans',
+  ratings: 'Ratings',
+  average: 'Average rating',
+  googleOpens: 'Went to Google',
   notes: 'Private notes',
 } as const satisfies Record<ResultsCellKey, string>
 
@@ -98,7 +98,7 @@ function signed(delta: number): string {
 }
 
 /** "the 30 days before", from the window's own local days. */
-function priorName(data: ResultsMeasuresInput): string {
+export function priorName(data: Pick<ResultsMeasuresInput, 'localDays'>): string {
   const days = data.localDays
   if (days === null) return 'the period before'
   const length = dayCount(days.start, days.end)
@@ -217,7 +217,7 @@ function averageCell(data: ResultsMeasuresInput, options: Options): ResultsCell 
       evidence.availabilityReason === BELOW_MINIMUM_SAMPLE
         ? `${ratingsWord(sampleCount)}, needs ${data.thresholds.averageMinSample} to show an average`
         : evidence.state === 'insufficient_data' && sampleCount === 0
-          ? 'No private ratings yet'
+          ? 'No ratings yet'
           : notReadyLine('ratings', evidence, data.timezone)
     return { ...base, value: DASH, unit: null, detail }
   }
@@ -276,28 +276,4 @@ export function measureCells(
       zone,
     ),
   ]
-}
-
-/** Scans nobody counted are a dash with its reason, never the zero the read answers with. */
-function withScansNotCounted(cell: ResultsCell): ResultsCell {
-  return cell.key === 'scans'
-    ? { ...cell, value: DASH, unit: null, detail: SCANS_NOT_COUNTED_REASON }
-    : cell
-}
-
-export function resultsCells(
-  data: PortalAnalyticsData,
-  options: Options & Readonly<{ scansCounted?: boolean }>,
-): readonly ResultsCell[] {
-  const { scansCounted = true, ...rest } = options
-  const cells = measureCells(
-    {
-      kpis: data.kpis,
-      thresholds: data.thresholds,
-      timezone: data.period.timezone,
-      localDays: data.localDays,
-    },
-    { ...rest, shareAndChange: true },
-  )
-  return scansCounted ? cells : cells.map(withScansNotCounted)
 }

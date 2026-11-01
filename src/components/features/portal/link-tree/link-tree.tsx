@@ -1,3 +1,4 @@
+import type { getPortalLinkTapsFn } from '#/contexts/reporting/server/portal-analytics'
 // The Linktree section's body: the title guests read above the tiles, the tiles
 // themselves (up to four, each opening into its editor), and adding one. Every
 // change is saved as it is made (typed text through the portal's autosave,
@@ -38,8 +39,11 @@ import {
   type LinkMoveDirection,
 } from './linktree-rules'
 import type { LinktreeMutations } from './use-linktree-mutations'
+import { usePortalLinkTaps } from './use-portal-link-taps'
 
 type Props = Readonly<{
+  getLinkTaps?: typeof getPortalLinkTapsFn
+  pageIsLive?: boolean
   propertyId: string
   view: PortalLinktreeView
   mutations: LinktreeMutations
@@ -54,8 +58,24 @@ type Props = Readonly<{
   approval?: LinkApprovalControls
 }>
 
+function LinkTapsCaption({
+  taps,
+}: Readonly<{ taps: Readonly<Record<string, number>> | undefined }>) {
+  if (taps === undefined) return null
+  return <p className="text-xs text-muted-foreground">Taps in the last 30 days.</p>
+}
+
+function tapsOf(
+  taps: Readonly<Record<string, number>> | undefined,
+  linkId: string,
+): number | undefined {
+  return taps && (taps[linkId] ?? 0)
+}
+
 export function LinkTree({
   propertyId,
+  getLinkTaps,
+  pageIsLive = false,
   view,
   mutations,
   memberNames,
@@ -64,6 +84,12 @@ export function LinkTree({
   uploadPhoto,
   approval,
 }: Props) {
+  const taps = usePortalLinkTaps({
+    getLinkTaps,
+    pageIsLive,
+    propertyId,
+    portalId: view.portalId,
+  })
   const autosave = usePortalDraftAutosave()
   const locales = offeredLocales(view.locales)
   const [openId, setOpenId] = useState<string | null>(null)
@@ -171,6 +197,7 @@ export function LinkTree({
             <LinktreeTile
               key={link.id}
               link={link}
+              taps={tapsOf(taps, link.id)}
               primaryLocale={view.primaryLocale}
               locales={view.locales}
               isOpen={openId === link.id}
@@ -212,6 +239,7 @@ export function LinkTree({
           ))}
         </ul>
       )}
+      <LinkTapsCaption taps={taps} />
       {isAdding ? (
         <LinkAddForm
           portalId={view.portalId}

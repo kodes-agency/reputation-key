@@ -41,7 +41,7 @@ function MeasureHeader({
 
 type Props = Readonly<{
   results: PortalOverviewResultsState
-  /** Set while the table is ordered by qualified scans, to mark that column. */
+  /** Set while the table is ordered by scans, to mark that column. */
   scansOrder?: SortDirection
 }>
 

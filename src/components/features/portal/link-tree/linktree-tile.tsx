@@ -36,6 +36,7 @@ type Props = Readonly<{
   /** Resolves when the link is deleted; a rejection stays in the confirmation. */
   onDelete: () => Promise<unknown>
   /** The open tile's editor. */
+  taps?: number
   children: ReactNode
 }>
 
@@ -52,6 +53,7 @@ export function LinktreeTile({
   onMove,
   onDelete,
   children,
+  taps,
 }: Props) {
   const [isConfirming, setIsConfirming] = useState(false)
   const { label, line } = linkLabelFor(link, primaryLocale)
@@ -83,11 +85,21 @@ export function LinktreeTile({
           {line === null ? null : (
             <span className="block truncate text-xs text-muted-foreground">{line}</span>
           )}
+          {taps === undefined ? null : (
+            <span className="block text-xs text-muted-foreground tabular-nums sm:hidden">
+              {tapCountText(taps)}
+            </span>
+          )}
           <TileMarkers
             phoneChip={describeMissingLanguages(chips)}
             hiddenNote={describeHiddenFromGuests(link.destination)}
           />
         </button>
+        {taps === undefined ? null : (
+          <span className="hidden shrink-0 text-xs text-muted-foreground tabular-nums sm:block">
+            {tapCountText(taps)}
+          </span>
+        )}
         {locales.length > 1 ? <LanguageChips chips={chips} /> : null}
         {canEdit ? (
           <LinktreeActionsMenu
@@ -208,4 +220,10 @@ function LinktreeActionsMenu({ name, isOpen, canDelete, onToggle, onDelete }: Me
       ) : null}
     </RowActionsMenu>
   )
+}
+
+function tapCountText(taps: number) {
+  return taps === 0
+    ? 'No taps yet'
+    : `${taps.toLocaleString('en-GB')} ${taps === 1 ? 'tap' : 'taps'}`
 }

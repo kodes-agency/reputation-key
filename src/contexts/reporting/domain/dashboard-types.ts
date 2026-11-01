@@ -1,3 +1,5 @@
+import type { PortalLinkTaps } from './portal-link-taps'
+import type { PortalScanPatterns } from './portal-scan-patterns'
 // Dashboard context — domain response shapes
 // Read-only aggregation surface. No domain rules, no events, no writes.
 
@@ -250,6 +252,7 @@ export type PortalRatingLanguages = Readonly<{
 
 /** The sample floors the server applied, so a client never keeps a copy. */
 export type PortalResultsThresholds = Readonly<{
+  busiestMinScans: number
   /** Private ratings a period needs before its average is shown. */
   averageMinSample: number
   /** Private ratings each period needs before two averages are compared. */
@@ -282,6 +285,8 @@ export type PortalAnalyticsData = Readonly<{
   series: PortalResultsSeries | null
   /** Versions that went live inside the window; empty for All Time. */
   versionMarkers: readonly PortalVersionMarker[]
+  linkTaps: PortalLinkTaps | null
+  scanPatterns: PortalScanPatterns | null
   ratingLanguages: PortalRatingLanguages
   thresholds: PortalResultsThresholds
   responseIntegrity: PortalResponseIntegritySummary

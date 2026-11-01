@@ -42,6 +42,7 @@ function createFakePortalMetrics(overrides?: {
   const calls: string[] = []
   return {
     calls,
+    getPortalLinkTapCounts: async () => [],
     async getPortalKpiSums() {
       calls.push('getPortalKpiSums')
       return (
@@ -110,6 +111,7 @@ function createFakeResponseIntegrity() {
       underReview: 1,
       total: 10,
     })),
+    getPortalScanPatterns: vi.fn(async () => []),
     getPortalRatingLanguages: vi.fn(async () => ({
       total: 8,
       languages: [
@@ -128,7 +130,10 @@ function createFakePortalVersions(
     activatedAt: Date
   }>[] = [],
 ) {
-  return { listPublicationActivationsBetween: vi.fn(async () => activations) }
+  return {
+    listResultsLinks: vi.fn(async () => ({ enabled: true, rows: [] })),
+    listPublicationActivationsBetween: vi.fn(async () => activations),
+  }
 }
 
 function createUnusedPortalLifetime() {
@@ -214,7 +219,7 @@ describe('getPortalAnalytics (use case)', () => {
 
     // Rating data from metrics port
     expect(result.ratingDistribution).toHaveLength(2)
-    expect(result.series?.weeks.length).toBeGreaterThan(0)
+    expect(result.series?.buckets.length).toBeGreaterThan(0)
     expect(metrics.calls).toContain('getPortalKpiSums')
     expect(result.responseIntegrity).toEqual({
       accepted: 8,
@@ -617,7 +622,7 @@ async function run30Days(portalMetrics: PortalAnalyticsRepository) {
   })
 }
 
-/** Four ratings spread over two weeks, as the window sums below add up to. */
+/** Four ratings spread over two buckets, as the window sums below add up to. */
 const FOUR_RATINGS_IN_TWO_WEEKS: readonly SeriesReadingRow[] = [
   { bucket: 0, metricKey: 'portal.rating', total: 13, count: 3 },
   { bucket: 3, metricKey: 'portal.rating', total: 5, count: 1 },
@@ -647,7 +652,7 @@ describe('getPortalAnalytics: the average is held back below the floor', () => {
     expect(result.kpis.ratings.value).toBe(4)
     // A distribution or daily averages would reveal the withheld average.
     expect(result.ratingDistribution).toEqual([])
-    expect(result.series?.weeks.every((week) => week.average === null)).toBe(true)
+    expect(result.series?.buckets.every((week) => week.average === null)).toBe(true)
   })
 
   it('still counts the ratings of each week when the window is below the floor', async () => {
@@ -661,9 +666,9 @@ describe('getPortalAnalytics: the average is held back below the floor', () => {
     )
 
     // The strip says 4 private ratings, so the weekly column must say where.
-    expect(result.series?.weeks.map((week) => week.ratings)).toEqual([3, 0, 0, 1, 0])
+    expect(result.series?.buckets.map((week) => week.ratings)).toEqual([3, 0, 0, 1, 0])
     expect(
-      result.series?.weeks.map((week) => [week.average, week.averageWithheld]),
+      result.series?.buckets.map((week) => [week.average, week.averageWithheld]),
     ).toEqual([
       [null, 'below_floor'],
       [null, 'below_floor'],
@@ -693,9 +698,9 @@ describe('getPortalAnalytics: the average is held back below the floor', () => {
       ),
     )
 
-    expect(result.series?.weeks.every((week) => week.ratings === null)).toBe(true)
+    expect(result.series?.buckets.every((week) => week.ratings === null)).toBe(true)
     expect(
-      result.series?.weeks.every((week) => week.averageWithheld === 'not_ready'),
+      result.series?.buckets.every((week) => week.averageWithheld === 'not_ready'),
     ).toBe(true)
   })
 
@@ -714,7 +719,7 @@ describe('getPortalAnalytics: the average is held back below the floor', () => {
       availabilityReason: null,
     })
     expect(result.ratingDistribution).toHaveLength(2)
-    expect(result.series?.weeks.some((week) => week.average !== null)).toBe(true)
+    expect(result.series?.buckets.some((week) => week.average !== null)).toBe(true)
   })
 
   it('withholds only the side of the period that is too small', async () => {
@@ -1126,7 +1131,7 @@ function resultsTabDeps(
 }
 
 function runResultsTab(
-  deps: ReturnType<typeof resultsTabDeps>,
+  deps: Omit<GetPortalAnalyticsDeps, 'propertyAccess'>,
   input?: Partial<Parameters<ReturnType<typeof getPortalAnalytics>>[0]>,
 ) {
   return getPortalAnalytics(deps)({
@@ -1142,7 +1147,7 @@ function runResultsTab(
 }
 
 describe('getPortalAnalytics: the Results tab', () => {
-  it('cuts the window into weeks from its own first local day', async () => {
+  it('cuts the window into buckets from its own first local day', async () => {
     const metrics = createFakePortalMetrics()
     const getPortalWeeklyReadings = vi.fn(metrics.getPortalWeeklyReadings)
     const result = await runResultsTab(
@@ -1157,9 +1162,10 @@ describe('getPortalAnalytics: the Results tab', () => {
       SOFIA_START,
       SOFIA_END,
       '2026-09-01',
+      7,
     )
     expect(
-      result.series?.weeks.map((week) => [week.startLocalDate, week.endLocalDate]),
+      result.series?.buckets.map((week) => [week.startLocalDate, week.endLocalDate]),
     ).toEqual([
       ['2026-09-01', '2026-09-07'],
       ['2026-09-08', '2026-09-14'],
@@ -1167,8 +1173,12 @@ describe('getPortalAnalytics: the Results tab', () => {
       ['2026-09-22', '2026-09-28'],
       ['2026-09-29', '2026-09-30'],
     ])
-    expect(result.series?.weeks[0]).toMatchObject({ scans: 60, priorScans: 60 })
-    expect(result.series?.weeks[1]).toMatchObject({ scans: 40, ratings: 5, average: 4.4 })
+    expect(result.series?.buckets[0]).toMatchObject({ scans: 60, priorScans: 60 })
+    expect(result.series?.buckets[1]).toMatchObject({
+      scans: 40,
+      ratings: 5,
+      average: 4.4,
+    })
   })
 
   it('reads the prior window from its own first local day and hands both periods back', async () => {
@@ -1186,6 +1196,7 @@ describe('getPortalAnalytics: the Results tab', () => {
       SOFIA_PRIOR_START,
       SOFIA_PRIOR_END,
       '2026-08-02',
+      7,
     )
     expect(result.comparePeriod).toEqual({
       startAt: SOFIA_PRIOR_START,
@@ -1233,7 +1244,7 @@ describe('getPortalAnalytics: the Results tab', () => {
     })
     expect(result.kpis.scans.priorValue).toBeNull()
     expect(result.kpis.scans.trend).toBeNull()
-    expect(result.series?.weeks.every((week) => week.priorScans === null)).toBe(true)
+    expect(result.series?.buckets.every((week) => week.priorScans === null)).toBe(true)
   })
 
   it('compares by default', async () => {
@@ -1261,8 +1272,8 @@ describe('getPortalAnalytics: the Results tab', () => {
         version: 5,
         kind: 'publish',
         localDate: '2026-09-22',
-        week: 3,
-        dayInWeek: 0,
+        bucket: 3,
+        dayInBucket: 0,
       }),
     ])
   })
@@ -1292,7 +1303,11 @@ describe('getPortalAnalytics: the Results tab', () => {
   it('tells the client the sample floors so it keeps no copy of them', async () => {
     const result = await runResultsTab(resultsTabDeps())
 
-    expect(result.thresholds).toEqual({ averageMinSample: 5, comparisonMinSample: 10 })
+    expect(result.thresholds).toEqual({
+      averageMinSample: 5,
+      comparisonMinSample: 10,
+      busiestMinScans: 30,
+    })
   })
 
   it('holds every weekly average back while the ratings are not ready', async () => {
@@ -1310,8 +1325,8 @@ describe('getPortalAnalytics: the Results tab', () => {
 
     const result = await runResultsTab(resultsTabDeps({ metrics }))
 
-    expect(result.series?.weeks.every((week) => week.average === null)).toBe(true)
-    expect(result.series?.weeks[0]?.scans).toBe(60)
+    expect(result.series?.buckets.every((week) => week.average === null)).toBe(true)
+    expect(result.series?.buckets[0]?.scans).toBe(60)
   })
 
   it('draws no prior scans for a window that opens before the measure was counted', async () => {
@@ -1322,7 +1337,7 @@ describe('getPortalAnalytics: the Results tab', () => {
     })
 
     expect(result.kpis.scans.priorUnavailableReason).toBe('measure_not_yet_counted')
-    expect(result.series?.weeks.every((week) => week.priorScans === null)).toBe(true)
+    expect(result.series?.buckets.every((week) => week.priorScans === null)).toBe(true)
   })
 
   it('serves All Time without a series, a comparison or markers, still by language', async () => {
@@ -1402,4 +1417,76 @@ describe('getPortalAnalytics authorization', () => {
 
     expect(result.kpis.scans.value).toBe(100)
   })
+})
+
+it('reads link counts and current Portal labels for windows and All Time', async () => {
+  const deps = resultsTabDeps()
+  const listResultsLinks = vi.fn(async () => ({
+    enabled: true,
+    rows: [
+      { linkId: 'a', label: 'Menu', iconKey: null },
+      { linkId: 'b', label: 'Book', iconKey: null },
+    ],
+  }))
+  const getPortalLinkTapCounts = vi.fn(async () => [
+    { linkId: 'a', taps: 3 },
+    { linkId: 'gone', taps: 2 },
+  ])
+  const readDeps = {
+    ...deps,
+    portalMetrics: { ...deps.portalMetrics, getPortalLinkTapCounts },
+    portalVersions: { ...deps.portalVersions, listResultsLinks },
+  }
+  const result = await runResultsTab(readDeps)
+  expect(result.linkTaps).toEqual({
+    total: 5,
+    countedSince: '2026-11-01',
+    removedTaps: 2,
+    rows: [
+      { linkId: 'a', label: 'Menu', iconKey: null, taps: 3 },
+      { linkId: 'b', label: 'Book', iconKey: null, taps: 0 },
+    ],
+  })
+  expect(getPortalLinkTapCounts).toHaveBeenLastCalledWith({
+    organizationId: ORG,
+    propertyId: PROP,
+    portalId: PORT,
+    startAt: SOFIA_START,
+    endAt: SOFIA_END,
+  })
+  const lifetime = await runResultsTab(readDeps, { timeRange: 'all' })
+  expect(lifetime.linkTaps).toEqual(result.linkTaps)
+  expect(lifetime.scanPatterns).toBeNull()
+  expect(getPortalLinkTapCounts).toHaveBeenLastCalledWith({
+    organizationId: ORG,
+    propertyId: PROP,
+    portalId: PORT,
+    startAt: null,
+    endAt: SOFIA_END,
+  })
+})
+
+it('reduces Guest scan counts to a summary and never reads them for All Time', async () => {
+  const deps = resultsTabDeps()
+  const getPortalScanPatterns = vi.fn(async () => [
+    { channel: 'qr' as const, hour: 12, weekday: 5, scans: 30 },
+  ])
+  const readDeps = {
+    ...deps,
+    responseIntegrity: { ...deps.responseIntegrity, getPortalScanPatterns },
+  }
+  expect((await runResultsTab(readDeps)).scanPatterns).toEqual({
+    channels: { qr: 30, nfc: 0 },
+    busiest: { slots: [{ startHour: 11, endHour: 13 }], weekday: 5 },
+  })
+  expect(getPortalScanPatterns).toHaveBeenCalledWith({
+    organizationId: ORG,
+    propertyId: PROP,
+    portalId: PORT,
+    startAt: SOFIA_START,
+    endAt: SOFIA_END,
+    timezone: 'Europe/Sofia',
+  })
+  await runResultsTab(readDeps, { timeRange: 'all' })
+  expect(getPortalScanPatterns).toHaveBeenCalledTimes(1)
 })

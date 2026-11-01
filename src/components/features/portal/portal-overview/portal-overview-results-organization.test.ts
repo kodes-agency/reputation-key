@@ -59,7 +59,7 @@ describe('indexOverviewResults over the whole Organization', () => {
   it('labels the average a private rating, so it is never taken for Google’s review average', () => {
     const labels = index.total()?.cells.map((cell) => cell.label) ?? []
 
-    expect(labels).toContain('Average private rating')
+    expect(labels).toContain('Average rating')
     expect(labels.join(' ')).not.toMatch(/google review|review average/i)
   })
 
@@ -68,7 +68,7 @@ describe('indexOverviewResults over the whole Organization', () => {
 
     expect(total?.caption).toBeNull()
     expect(total?.footer).toBe(
-      'Last 30 days · each property’s local time · an average needs 5 private ratings',
+      'Last 30 days · each property’s local time · an average needs 5 ratings',
     )
   })
 
@@ -95,7 +95,7 @@ describe('indexOverviewResults over the whole Organization', () => {
     })
 
     expect(empty.total()?.footer).toBe(
-      'Each property’s local time · an average needs 5 private ratings',
+      'Each property’s local time · an average needs 5 ratings',
     )
   })
 

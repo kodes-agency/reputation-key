@@ -16,6 +16,7 @@ export function queryPortalAnalytics(
   repository: PortalAnalyticsRepository,
 ): PortalAnalyticsQueries {
   return {
+    getPortalLinkTapCounts: (input) => repository.getPortalLinkTapCounts(input),
     getPortalKpiSums: async (...args) => {
       assertValidPeriod(args[3], args[4])
       return repository.getPortalKpiSums(...args)

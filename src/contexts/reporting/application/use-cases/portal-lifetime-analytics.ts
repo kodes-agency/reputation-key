@@ -1,3 +1,4 @@
+import type { PortalLinkTaps } from '../../domain/portal-link-taps'
 import {
   PORTAL_RESULTS_THRESHOLDS,
   averageWithholdReason,
@@ -69,6 +70,7 @@ export function portalLifetimeAnalyticsData(
   responseIntegrity: PortalResponseIntegritySummary,
   ratingLanguages: PortalRatingLanguages,
   qualifiedScansSince: Date,
+  linkTaps: PortalLinkTaps | null = null,
 ): PortalAnalyticsData {
   if (aggregate === null) {
     const evidence = missingEvidence(input.endDate)
@@ -107,6 +109,8 @@ export function portalLifetimeAnalyticsData(
       series: null,
       versionMarkers: [],
       ratingLanguages,
+      linkTaps,
+      scanPatterns: null,
       thresholds: PORTAL_RESULTS_THRESHOLDS,
       responseIntegrity,
     }
@@ -225,6 +229,8 @@ export function portalLifetimeAnalyticsData(
     series: null,
     versionMarkers: [],
     ratingLanguages,
+    linkTaps,
+    scanPatterns: null,
     thresholds: PORTAL_RESULTS_THRESHOLDS,
     responseIntegrity,
   }

@@ -1,4 +1,5 @@
-// "Rating mix" (board 07): the five star counts of the period. The mix is held
+import { SectionTitle } from '#/components/ui/section-title'
+// "Stars given" (board 07): the five star counts of the period. The mix is held
 // back with the average (below the floor it would give the average away), and
 // the server says what the floor is.
 import { RatingDistributionChart } from '#/components/features/shared/rating-distribution-chart'
@@ -13,24 +14,22 @@ export function PortalResultsRatingMix({
   const shown = data.ratingDistribution.length > 0
   return (
     <div className="space-y-3">
-      <h3 id={headingId} className="text-base font-semibold">
-        Rating mix
-      </h3>
+      <SectionTitle id={headingId}>Stars given</SectionTitle>
       {shown ? (
         <>
           <RatingDistributionChart
             distribution={data.ratingDistribution}
             labelledBy={headingId}
-            label="Rating mix"
+            label="Stars given"
           />
           <p className="text-sm text-muted-foreground">
-            From {formatNumber(avgRating.sampleCount)} private ratings.
+            From {formatNumber(avgRating.sampleCount)} ratings.
           </p>
         </>
       ) : (
         <p className="text-sm text-muted-foreground">
           {avgRating.evidence.state === 'insufficient_data'
-            ? `The mix appears from ${data.thresholds.averageMinSample} private ratings, so it cannot give one rating away.`
+            ? `The mix appears from ${data.thresholds.averageMinSample} ratings, so it cannot give one rating away.`
             : 'The mix appears once the ratings are counted.'}
         </p>
       )}

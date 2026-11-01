@@ -19,7 +19,10 @@ import type {
   PortalThemeDraft,
   UpdatePortalVariables,
 } from '../shared/types'
-import type { getPortalAnalyticsFn } from '#/contexts/reporting/server/portal-analytics'
+import type {
+  getPortalAnalyticsFn,
+  getPortalLinkTapsFn,
+} from '#/contexts/reporting/server/portal-analytics'
 import type { PortalPreviewReader } from '../portal-preview/portal-preview-pane'
 import type {
   PortalLanguageCoverage,
@@ -103,6 +106,7 @@ export type PortalDetailResources = Readonly<{
   savePrintWordingMutation?: PortalPrintKitResources['saveWordingMutation']
   /** C2: whether a public link is live. The raw URL is never part of this. */
   tokenStatus: PortalTokenStatus
+  getPortalLinkTaps?: typeof getPortalLinkTapsFn
   getPortalAnalytics: typeof getPortalAnalyticsFn
   /**
    * The Monthly portal goal's line at the top of the Results tab; left out, it

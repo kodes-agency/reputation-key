@@ -48,7 +48,7 @@ export type RowMeasures = Readonly<{
   average: MeasureFigure
   googleOpens: MeasureFigure
   notes: MeasureFigure
-  /** One line for the stacked layout: "412 qualified scans · 4.4 ★ from 118". */
+  /** One line for the stacked layout: "412 scans · 4.4 ★ from 118". */
   summary: string | null
 }>
 
@@ -66,32 +66,26 @@ function figureOf(cell: ResultsCell | undefined): MeasureFigure {
   return { text: cell.value, unit: cell.unit, tone: 'figure', reason: null }
 }
 
-function scansWord(count: number | null, style: 'long' | 'short'): string {
+function scansWord(count: number | null): string {
   const plural = count !== 1
-  if (style === 'short') return plural ? 'scans' : 'scan'
-  return plural ? 'qualified scans' : 'qualified scan'
+  return plural ? 'scans' : 'scan'
 }
 
 function summaryOf(
   measures: PortalResultsMeasures,
   scans: MeasureFigure,
   average: MeasureFigure,
-  style: 'long' | 'short',
 ): string | null {
   if (scans.tone !== 'figure') return null
-  const head = `${scans.text} ${scansWord(measures.kpis.scans.value, style)}`
+  const head = `${scans.text} ${scansWord(measures.kpis.scans.value)}`
   if (average.tone !== 'figure') return head
   return `${head} · ${average.text} ★ from ${formatNumber(measures.kpis.avgRating.sampleCount)}`
 }
 
-/**
- * The five figures of one row. `short` writes the group head's summary ("698
- * scans · 4.5 ★ from 209"), `long` a Portal's ("412 qualified scans · 4.4 ★ from 118").
- */
+/** The five shared figures, with the same plain summary on Portal and group rows. */
 export function rowMeasures(
   measures: PortalResultsMeasures,
   frame: MeasureFrame,
-  style: 'long' | 'short' = 'long',
 ): RowMeasures {
   const input: ResultsMeasuresInput = { ...frame, kpis: measures.kpis, localDays: null }
   const cells = measureCells(input, { compare: false })
@@ -111,7 +105,7 @@ export function rowMeasures(
     average,
     googleOpens: figureOf(byKey('googleOpens')),
     notes: figureOf(byKey('notes')),
-    summary: summaryOf(measures, scans, average, style),
+    summary: summaryOf(measures, scans, average),
   }
 }
 
@@ -181,7 +175,7 @@ export function indexOverviewResults(
     (row) => ({
       row,
       figures: {
-        measures: rowMeasures(row, frameFor(row.propertyId), 'short'),
+        measures: rowMeasures(row, frameFor(row.propertyId)),
         memberCount: row.memberPortalIds.length,
       },
     }),
@@ -190,7 +184,7 @@ export function indexOverviewResults(
     overview.ungrouped,
     (row) => row.propertyId,
     (row): GroupFigures => ({
-      measures: rowMeasures(row, frameFor(row.propertyId), 'short'),
+      measures: rowMeasures(row, frameFor(row.propertyId)),
       memberCount: row.memberPortalIds.length,
     }),
   )
@@ -213,7 +207,7 @@ export function indexOverviewResults(
     (row) => ({
       row,
       figures: {
-        measures: rowMeasures(row, frameFor(row.propertyId), 'short'),
+        measures: rowMeasures(row, frameFor(row.propertyId)),
         memberCount: row.portalIds.length,
       } satisfies GroupFigures,
     }),

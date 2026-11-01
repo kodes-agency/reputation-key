@@ -24,6 +24,7 @@ type Counts = PortalAnalyticsData['kpis']
 function hasAnyFigure(data: PortalAnalyticsData): boolean {
   const { kpis } = data
   return (
+    (data.linkTaps?.total ?? 0) > 0 ||
     (kpis.scans.value ?? 0) > 0 ||
     (kpis.feedback.value ?? 0) > 0 ||
     (kpis.googleOpens.value ?? 0) > 0 ||
@@ -73,7 +74,7 @@ function windowName(days: PortalAnalyticsData['localDays']): {
     : { now: `in these ${length} days`, before: `the ${length} days before`, length }
 }
 
-function quietLine(data: PortalAnalyticsData): string | null {
+export function quietLine(data: PortalAnalyticsData): string | null {
   const name = windowName(data.localDays)
   if (name === null) return null
   const { scans, others } = priorOf(data.kpis)

@@ -11,6 +11,7 @@ const END = new Date('2026-09-01T00:00:00.000Z')
 
 function repository(): PortalAnalyticsRepository {
   return {
+    getPortalLinkTapCounts: vi.fn(async () => []),
     getPortalKpiSums: vi.fn(async () => []),
     getPortalRatingDistribution: vi.fn(async () => []),
     getPortalWeeklyReadings: vi.fn(async () => []),

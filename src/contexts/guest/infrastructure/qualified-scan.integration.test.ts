@@ -1,3 +1,4 @@
+import { createPortalScanPatternsReader } from './repositories/portal-scan-patterns.reader'
 import { randomUUID } from 'node:crypto'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { getDb } from '#/shared/db'
@@ -739,5 +740,51 @@ describe.sequential('Access Artifact backed Qualified Scan (integration)', () =>
         [`${correction.eventId}:${METRIC_VERSION_IDS.qualifiedScanGoal}`],
       ),
     ).toMatchObject({ rows: [{ count: 1 }] })
+  })
+})
+
+describe('Portal scan pattern read', () => {
+  it('groups unretracted scans by channel and local hour/day across the DST change', async () => {
+    const pool = getPool()
+    const nfc = randomUUID()
+    await pool.query(
+      `INSERT INTO portal_access_artifacts (id, organization_id, property_id, portal_id, portal_token_id, channel, status, published_at)
+      VALUES ($1, $2, $3, $4, $5, 'nfc', 'published', $6)`,
+      [nfc, ORG, PROPERTY, PORTAL, TOKEN, EVENT_TIME],
+    )
+    const startAt = new Date('2026-10-24T21:00:00Z')
+    const endAt = new Date('2026-10-25T22:00:00Z')
+    for (const [artifact, at, retracted] of [
+      [ARTIFACT, startAt, null],
+      [ARTIFACT, new Date('2026-10-25T00:30:00Z'), null],
+      [nfc, new Date('2026-10-25T01:30:00Z'), null],
+      [nfc, new Date('2026-10-25T01:45:00Z'), new Date('2026-10-26T00:00:00Z')],
+      [ARTIFACT, endAt, null],
+    ] as const) {
+      await pool.query(
+        `INSERT INTO guest_qualified_scans (id, organization_id, property_id, portal_id, access_artifact_id, source_event_id, occurred_at, retracted_at)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+        [randomUUID(), ORG, PROPERTY, PORTAL, artifact, randomUUID(), at, retracted],
+      )
+    }
+    const read = createPortalScanPatternsReader(getDb())
+    const input = {
+      organizationId: ORG,
+      propertyId: PROPERTY,
+      portalId: PORTAL,
+      startAt,
+      endAt,
+      timezone: 'Europe/Sofia',
+    }
+    expect(await read(input)).toEqual(
+      expect.arrayContaining([
+        { channel: 'qr', hour: 0, weekday: 6, scans: 1 },
+        { channel: 'qr', hour: 3, weekday: 6, scans: 1 },
+        { channel: 'nfc', hour: 3, weekday: 6, scans: 1 },
+      ]),
+    )
+    expect(await read(input)).toHaveLength(3)
+    expect(await read({ ...input, organizationId: OTHER_ORG })).toEqual([])
+    expect(await read({ ...input, portalId: portalId(randomUUID()) })).toEqual([])
   })
 })

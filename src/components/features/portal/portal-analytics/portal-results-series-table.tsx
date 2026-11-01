@@ -5,11 +5,11 @@ import type {
   PortalResultsSeries,
   PortalVersionMarker,
 } from '#/contexts/reporting/application/public-api'
-import { markerLabel } from './portal-results-chart-model'
+import { markerLabel } from './portal-results-trend-model'
 import { formatDayRange } from './portal-results-window'
 import { formatNumber } from '#/lib/format'
 
-function averageText(week: PortalResultsSeries['weeks'][number]): string {
+function averageText(week: PortalResultsSeries['buckets'][number]): string {
   if (week.average !== null) return week.average.toFixed(1)
   return week.averageWithheld === 'below_floor' && (week.ratings ?? 0) > 0
     ? 'Too few'
@@ -31,25 +31,17 @@ export function PortalResultsSeriesTable({
   priorLabel: string
 }>) {
   return (
-    <details className="group text-sm">
-      <summary className="flex min-h-11 cursor-pointer items-center gap-2 text-muted-foreground hover:text-foreground">
-        <span aria-hidden="true" className="transition-transform group-open:rotate-90">
-          ›
-        </span>
-        View chart values
-      </summary>
+    <div className="text-sm">
       <div className="overflow-x-auto pb-2">
         <table className="w-full min-w-md text-left text-xs">
-          <caption className="sr-only">
-            Qualified scans and average rating by week
-          </caption>
+          <caption className="sr-only">Scans, ratings and average by day or week</caption>
           <thead className="text-muted-foreground">
             <tr>
               <th scope="col" className="pr-4 pb-2 font-medium">
-                Week
+                {series.bucketDays === 1 ? 'Day' : 'Week'}
               </th>
               <th scope="col" className="pr-4 pb-2 text-right font-medium">
-                Qualified scans
+                Scans
               </th>
               {showPrior ? (
                 <th scope="col" className="pr-4 pb-2 text-right font-medium">
@@ -57,7 +49,7 @@ export function PortalResultsSeriesTable({
                 </th>
               ) : null}
               <th scope="col" className="pr-4 pb-2 text-right font-medium">
-                Private ratings
+                Ratings
               </th>
               <th scope="col" className="pb-2 text-right font-medium">
                 Average
@@ -65,7 +57,7 @@ export function PortalResultsSeriesTable({
             </tr>
           </thead>
           <tbody>
-            {series.weeks.map((week) => (
+            {series.buckets.map((week) => (
               <tr key={week.index} className="border-t">
                 <th scope="row" className="py-2 pr-4 font-normal">
                   {formatDayRange(week.startLocalDate, week.endLocalDate)}
@@ -85,10 +77,8 @@ export function PortalResultsSeriesTable({
           </tbody>
         </table>
         {versionMarkers.length === 0 ? null : (
-          <section aria-label="Version went live" className="pt-3">
-            <h4 className="pb-1 text-xs font-medium text-muted-foreground">
-              Version went live
-            </h4>
+          <section aria-label="Page updates" className="pt-3">
+            <p className="pb-1 text-xs font-medium text-muted-foreground">Page updates</p>
             <ul className="space-y-0.5 text-xs">
               {versionMarkers.map((marker) => (
                 <li key={`v${marker.version}-${marker.localDate}`}>
@@ -99,6 +89,6 @@ export function PortalResultsSeriesTable({
           </section>
         )}
       </div>
-    </details>
+    </div>
   )
 }

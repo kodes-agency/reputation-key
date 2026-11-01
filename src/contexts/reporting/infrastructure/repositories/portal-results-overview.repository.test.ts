@@ -568,6 +568,7 @@ describe('Portal results overview repository (integration)', () => {
       portalMetrics: single(),
       portalLifetime: { get: async () => null },
       responseIntegrity: {
+        getPortalScanPatterns: async () => [],
         getPortalResponseIntegritySummary: async () => ({
           accepted: 0,
           filteredAutomatically: 0,
@@ -580,7 +581,10 @@ describe('Portal results overview repository (integration)', () => {
           unrecorded: 0,
         }),
       },
-      portalVersions: { listPublicationActivationsBetween: async () => [] },
+      portalVersions: {
+        listResultsLinks: async () => ({ enabled: true, rows: [] }),
+        listPublicationActivationsBetween: async () => [],
+      },
     })
     const zones = new Map([
       [PROP_A, 'UTC'],

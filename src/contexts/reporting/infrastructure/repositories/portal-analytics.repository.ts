@@ -41,10 +41,7 @@ import type {
   PortalAnalyticsRepository,
   PortalRatingBucket,
 } from '../../application/ports/portal-analytics.repository'
-import {
-  SERIES_BUCKET_DAYS,
-  type SeriesReadingRow,
-} from '../../domain/portal-results-series'
+import { type SeriesReadingRow } from '../../domain/portal-results-series'
 import type { OrganizationId, PropertyId, PortalId } from '#/shared/domain/ids'
 
 function metricPortalWhere(
@@ -88,6 +85,39 @@ export const createPortalAnalyticsRepository = (
   db: Database,
   clock: () => Date,
 ): PortalAnalyticsRepository => ({
+  async getPortalLinkTapCounts(input) {
+    const correctionTips = currentCorrectionTips(db)
+    const value = effectiveValue(correctionTips)
+    const rows = await withStatementTimeout(db, (tx) =>
+      tx
+        .select({ linkId: metricReadings.portalLinkId, taps: sql<number>`SUM(${value})` })
+        .from(metricReadings)
+        .leftJoin(correctionTips, eq(correctionTips.readingId, metricReadings.id))
+        .where(
+          and(
+            governedPortalWhere(
+              and(
+                eq(metricReadings.organizationId, input.organizationId),
+                eq(metricReadings.propertyId, input.propertyId),
+                eq(metricReadings.portalId, input.portalId),
+                input.startAt === null
+                  ? undefined
+                  : gte(metricReadings.eventAt, input.startAt),
+                lt(metricReadings.eventAt, input.endAt),
+              ),
+            ),
+            eq(metricReadings.metricKey, PORTAL_DESTINATION_CLICK_KEY),
+            eq(metricReadings.portalDestinationKind, 'secondary_link'),
+            isNotNull(metricReadings.portalLinkId),
+          ),
+        )
+        .groupBy(metricReadings.portalLinkId),
+    )
+    return rows.flatMap((row) =>
+      row.linkId === null ? [] : [{ linkId: row.linkId, taps: Number(row.taps ?? 0) }],
+    )
+  },
+
   async getPortalKpiSums(
     organizationId: OrganizationId,
     propertyId: PropertyId,
@@ -173,6 +203,7 @@ export const createPortalAnalyticsRepository = (
     startDate: Date,
     endDate: Date,
     startLocalDate: string,
+    bucketDays: 1 | 7 = 7,
   ): Promise<readonly SeriesReadingRow[]> {
     return trace('metric.portalAnalytics.getPortalWeeklyReadings', async () => {
       const correctionTips = currentCorrectionTips(db)
@@ -182,7 +213,7 @@ export const createPortalAnalyticsRepository = (
       // governed-provenance CHECK), never on the UTC ingestion day. Date minus
       // date is whole days; integer division floors, and nothing here precedes
       // the window's first local day.
-      const bucket = sql<number>`((${metricReadings.propertyLocalDate}::date - ${startLocalDate}::date) / ${sql.raw(String(SERIES_BUCKET_DAYS))})`
+      const bucket = sql<number>`((${metricReadings.propertyLocalDate}::date - ${startLocalDate}::date) / ${sql.raw(String(bucketDays))})`
       const rows = await withStatementTimeout(db, (tx) =>
         tx
           .select({

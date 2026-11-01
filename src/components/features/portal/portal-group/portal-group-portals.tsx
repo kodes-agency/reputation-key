@@ -43,7 +43,7 @@ function basisLine(state: PortalOverviewResultsState, groupId: string): string |
   if (state.status !== 'ready') return null
   const strip = state.index.groupStrip(groupId)
   if (!strip) return null
-  return `Group results count each portal from the day it joined. Averages need ${strip.averageMinSample} private ratings.`
+  return `Group results count each portal from the day it joined. Averages need ${strip.averageMinSample} ratings.`
 }
 
 export function PortalGroupPortals({

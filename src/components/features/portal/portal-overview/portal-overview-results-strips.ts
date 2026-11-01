@@ -21,7 +21,7 @@ export type OverviewStrip = Readonly<{
    * Organization: each Property reads its own days, so there is no one range.
    */
   caption: string | null
-  /** "Last 30 days, Sofia time · an average needs 5 private ratings". */
+  /** "Last 30 days, Sofia time · an average needs 5 ratings". */
   footer: string
   /** The private ratings an average needs before it is shown. */
   averageMinSample: number
@@ -46,7 +46,7 @@ export function stripOf(
       { compare: property.comparePeriod !== null },
     ),
     caption: windowCaption(localDays, timezone),
-    footer: `${currentPeriodLabel(localDays)}, ${zoneTimeLabel(timezone)} · an average needs ${thresholds.averageMinSample} private ratings`,
+    footer: `${currentPeriodLabel(localDays)}, ${zoneTimeLabel(timezone)} · an average needs ${thresholds.averageMinSample} ratings`,
     averageMinSample: thresholds.averageMinSample,
   }
 }
@@ -64,7 +64,7 @@ export function totalStripOf(
   const days = properties[0]?.localDays ?? null
   const zones = new Set(properties.map((row) => row.timezone))
   const [onlyZone] = zones
-  const floor = `an average needs ${thresholds.averageMinSample} private ratings`
+  const floor = `an average needs ${thresholds.averageMinSample} ratings`
   return {
     cells: measureCells(
       {

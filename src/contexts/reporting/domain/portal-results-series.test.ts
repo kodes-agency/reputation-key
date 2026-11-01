@@ -71,10 +71,10 @@ describe('localDayRange', () => {
 
 describe('buildPortalResultsSeries', () => {
   it('anchors weekly buckets to the window start, the last one partial', () => {
-    const { weeks } = build([], null)
+    const { buckets } = build([], null)
 
     expect(
-      weeks.map((week) => [week.startLocalDate, week.endLocalDate, week.days]),
+      buckets.map((week) => [week.startLocalDate, week.endLocalDate, week.days]),
     ).toEqual([
       ['2026-09-01', '2026-09-07', 7],
       ['2026-09-08', '2026-09-14', 7],
@@ -85,74 +85,77 @@ describe('buildPortalResultsSeries', () => {
   })
 
   it('carries qualified scans per bucket and leaves an empty bucket at a true zero', () => {
-    const { weeks } = build([scans(0, 88), scans(1, 92)], null)
+    const { buckets } = build([scans(0, 88), scans(1, 92)], null)
 
-    expect(weeks.map((week) => week.scans)).toEqual([88, 92, 0, 0, 0])
+    expect(buckets.map((week) => week.scans)).toEqual([88, 92, 0, 0, 0])
   })
 
   it('computes each average as sum over count, never a mean of daily means', () => {
     // Nine ratings worth 39 stars: 4.3. A mean of two daily means would differ.
-    const { weeks } = build([ratings(1, 39, 9)], null)
+    const { buckets } = build([ratings(1, 39, 9)], null)
 
-    expect(weeks[1]).toMatchObject({ ratings: 9, average: 4.3 })
+    expect(buckets[1]).toMatchObject({ ratings: 9, average: 4.3 })
   })
 
   it('holds an average back below the floor and still says how many ratings there are', () => {
-    const { weeks } = build([ratings(4, 17, 4)], null)
+    const { buckets } = build([ratings(4, 17, 4)], null)
 
-    expect(weeks[4]).toMatchObject({ ratings: 4, average: null })
+    expect(buckets[4]).toMatchObject({ ratings: 4, average: null })
   })
 
   it('shows an average at exactly the floor', () => {
-    const { weeks } = build([ratings(0, 25, 5)], null)
+    const { buckets } = build([ratings(0, 25, 5)], null)
 
-    expect(weeks[0]?.average).toBe(5)
+    expect(buckets[0]?.average).toBe(5)
   })
 
   it('puts the prior window on the same bucket index', () => {
-    const { weeks } = build([scans(0, 10)], [scans(0, 7), scans(3, 4)])
+    const { buckets } = build([scans(0, 10)], [scans(0, 7), scans(3, 4)])
 
-    expect(weeks.map((week) => week.priorScans)).toEqual([7, 0, 0, 4, 0])
+    expect(buckets.map((week) => week.priorScans)).toEqual([7, 0, 0, 4, 0])
   })
 
   it('shows no prior figure when the comparison is off', () => {
-    const { weeks } = build([scans(0, 10)], null)
+    const { buckets } = build([scans(0, 10)], null)
 
-    expect(weeks.every((week) => week.priorScans === null)).toBe(true)
+    expect(buckets.every((week) => week.priorScans === null)).toBe(true)
   })
 
   it('never turns scans that are not ready into zeros', () => {
-    const { weeks } = build([scans(0, 10)], [scans(0, 7)], {
+    const { buckets } = build([scans(0, 10)], [scans(0, 7)], {
       ...READY,
       scans: false,
     })
 
-    expect(weeks.every((week) => week.scans === null)).toBe(true)
+    expect(buckets.every((week) => week.scans === null)).toBe(true)
   })
 
   it('leaves prior scans out when the prior window predates the measure', () => {
-    const { weeks } = build([scans(0, 10)], [scans(0, 7)], {
+    const { buckets } = build([scans(0, 10)], [scans(0, 7)], {
       ...READY,
       priorScans: false,
     })
 
-    expect(weeks.map((week) => week.scans)).toEqual([10, 0, 0, 0, 0])
-    expect(weeks.every((week) => week.priorScans === null)).toBe(true)
+    expect(buckets.map((week) => week.scans)).toEqual([10, 0, 0, 0, 0])
+    expect(buckets.every((week) => week.priorScans === null)).toBe(true)
   })
 
   it('withholds every average while ratings are not ready, but keeps the scans', () => {
-    const { weeks } = build([ratings(0, 50, 10), scans(0, 3)], null, {
+    const { buckets } = build([ratings(0, 50, 10), scans(0, 3)], null, {
       ...READY,
       ratings: false,
     })
 
-    expect(weeks[0]).toMatchObject({ scans: 3, average: null })
+    expect(buckets[0]).toMatchObject({ scans: 3, average: null })
   })
 
   it('says why an average is absent: below the floor, or ratings not ready', () => {
-    const below = build([ratings(4, 17, 4)], null).weeks
-    const shown = build([ratings(0, 25, 5)], null).weeks
-    const unready = build([ratings(0, 200, 40)], null, { ...READY, ratings: false }).weeks
+    const below = build([ratings(4, 17, 4)], null).buckets
+    const shown = build([ratings(0, 25, 5)], null).buckets
+    const unready = build([ratings(0, 200, 40)], null, {
+      ...READY,
+      ratings: false,
+    }).buckets
 
     expect(below[4]?.averageWithheld).toBe('below_floor')
     expect(shown[0]?.averageWithheld).toBeNull()
@@ -160,20 +163,20 @@ describe('buildPortalResultsSeries', () => {
   })
 
   it('does not count ratings while ratings are not ready, as it does not count scans', () => {
-    const { weeks } = build([ratings(0, 200, 40)], null, { ...READY, ratings: false })
+    const { buckets } = build([ratings(0, 200, 40)], null, { ...READY, ratings: false })
 
-    expect(weeks.every((week) => week.ratings === null)).toBe(true)
+    expect(buckets.every((week) => week.ratings === null)).toBe(true)
   })
 
   it('ignores a reading that lands outside the window rather than invent a bucket', () => {
-    const { weeks } = build([scans(9, 500), scans(-1, 500)], null)
+    const { buckets } = build([scans(9, 500), scans(-1, 500)], null)
 
-    expect(weeks.map((week) => week.scans)).toEqual([0, 0, 0, 0, 0])
+    expect(buckets.map((week) => week.scans)).toEqual([0, 0, 0, 0, 0])
   })
 
-  it('gives a 7-day window exactly one bucket', () => {
+  it('gives a 7-day window one bucket per day', () => {
     const weekStart = new Date('2026-09-23T21:00:00.000Z')
-    const { weeks } = buildPortalResultsSeries({
+    const { buckets } = buildPortalResultsSeries({
       timezone: SOFIA,
       current: { startDate: weekStart, endDate: END, rows: [scans(0, 5)] },
       prior: null,
@@ -181,8 +184,8 @@ describe('buildPortalResultsSeries', () => {
       averageMinSample: FLOOR,
     })
 
-    expect(weeks).toHaveLength(1)
-    expect(weeks[0]).toMatchObject({ startLocalDate: '2026-09-24', days: 7, scans: 5 })
+    expect(buckets).toHaveLength(7)
+    expect(buckets[0]).toMatchObject({ startLocalDate: '2026-09-24', days: 1, scans: 5 })
   })
 })
 
@@ -200,8 +203,8 @@ describe('placeVersionMarker', () => {
       version: 5,
       kind: 'publish',
       localDate: '2026-09-22',
-      week: 3,
-      dayInWeek: 0,
+      bucket: 3,
+      dayInBucket: 0,
     })
   })
 
@@ -214,7 +217,7 @@ describe('placeVersionMarker', () => {
       SOFIA,
     )
 
-    expect(marker).toMatchObject({ localDate: '2026-09-15', week: 2, dayInWeek: 0 })
+    expect(marker).toMatchObject({ localDate: '2026-09-15', bucket: 2, dayInBucket: 0 })
   })
 
   it('drops a publication outside the window', () => {
@@ -228,3 +231,11 @@ describe('placeVersionMarker', () => {
     expect(before).toBeNull()
   })
 })
+
+it.each([1, 7, 8, 30, 90])(
+  'chooses a daily or weekly bucket for %i local days',
+  async (days) => {
+    const { portalSeriesBucketDays } = await import('./portal-results-series')
+    expect(portalSeriesBucketDays(days)).toBe(days <= 7 ? 1 : 7)
+  },
+)
