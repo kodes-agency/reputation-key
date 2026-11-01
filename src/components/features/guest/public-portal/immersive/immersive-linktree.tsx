@@ -1,11 +1,7 @@
 import { Clock } from 'lucide-react'
-import { createElement, useId, type MouseEvent, type ReactNode } from 'react'
+import { createElement, useId, type ReactNode } from 'react'
 import { LinktreeArrow, linktreeIconFor } from './linktree-icons'
-import {
-  followLinktreeLink,
-  isPlainPrimaryClick,
-  type LinktreeSelect,
-} from './linktree-follow'
+import type { LinktreeTapCounter } from './linktree-follow'
 import { LINKTREE_CSS, LINKTREE_STYLE_HREF } from './linktree-styles'
 
 /** One tile as the page receives it: wording in the page's language, never a destination. */
@@ -46,12 +42,8 @@ export type ImmersiveLinktreeProps = LinktreeContent &
   Readonly<{
     /** Where a tile goes: the click route on a public page. */
     hrefFor: (linkId: string) => string
-    /**
-     * Present only after a rating (see `bindLinkSelector`). It records a qualified
-     * link action and resolves the destination. Absent, a tile is a plain link to
-     * `hrefFor`, which is how every tap before a rating works.
-     */
-    selectLink?: LinktreeSelect
+    /** Counts a tap in the background, before or after a rating. */
+    countTap?: LinktreeTapCounter
   }>
 
 /** The admin's preview takes the content alone: it has no address to give a tile. */
@@ -64,31 +56,23 @@ const ICON_STROKE = 1.7
 const ARROW_SIZE = 15
 const PHOTO_ARROW_SIZE = 13
 
-function goTo(url: string) {
-  window.location.assign(url)
-}
-
 /**
  * The Linktree of the Immersive Hub (board G01, G09, G10): the guest page's
  * link tiles, in a two-column grid under the rating card. It is visible from
  * arrival and in every state after it, and it never competes with the rating
  * card: the card stays first and dominant (ADR 0044, amendment 2026-10-01).
  *
- * Pure: it holds no session and calls no server function. The tile's click
- * behaviour is decided by the `selectLink` the container hands in, or its
- * absence.
+ * The anchor navigates natively; the optional counter never takes over a tap.
  */
 export function ImmersiveLinktree({
   hrefFor,
-  selectLink,
+  countTap,
   ...content
 }: ImmersiveLinktreeProps) {
   return (
     <LinktreeSection
       {...content}
-      tile={(link) => (
-        <LinktreeTile link={link} hrefFor={hrefFor} selectLink={selectLink} />
-      )}
+      tile={(link) => <LinktreeTile link={link} hrefFor={hrefFor} countTap={countTap} />}
     />
   )
 }
@@ -140,23 +124,14 @@ function LinktreeSection({
 function LinktreeTile({
   link,
   hrefFor,
-  selectLink,
+  countTap,
 }: Readonly<{
   link: ImmersiveLinktreeLink
   hrefFor: (linkId: string) => string
-  selectLink?: LinktreeSelect
+  countTap?: LinktreeTapCounter
 }>) {
   const href = hrefFor(link.id)
-  const onClick = (event: MouseEvent<HTMLAnchorElement>) => {
-    if (!selectLink || !isPlainPrimaryClick(event)) return
-    event.preventDefault()
-    void followLinktreeLink({
-      linkId: link.id,
-      href,
-      select: selectLink,
-      navigate: goTo,
-    })
-  }
+  const onClick = countTap ? () => countTap(link.id) : undefined
   return link.imageUrl ? (
     <a href={href} onClick={onClick} rel="noreferrer" className="ih-tile ih-tile--photo">
       <PhotoTileBody link={link} imageUrl={link.imageUrl} />

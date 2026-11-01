@@ -5,6 +5,7 @@ import { eventConsumerReceipts } from '#/shared/db/schema/outbox.schema'
 import { insertOutboxRow } from '#/shared/outbox/commit'
 import { trace } from '#/shared/observability/trace'
 import { metricReadingId, unbrand } from '#/shared/domain/ids'
+import { secondaryPortalLinkId } from '../domain/portal-link-attribution'
 import type { ReadingResult } from '../domain/metric-reading'
 import { metricCorrected, type MetricCorrected } from '../domain/metric-events'
 import type {
@@ -120,6 +121,7 @@ async function resolveSupersededReading(
   const prior = await tx
     .select({
       id: metricReadings.id,
+      portalLinkId: metricReadings.portalLinkId,
       organizationId: metricReadings.organizationId,
       propertyId: metricReadings.propertyId,
       metricKey: metricReadings.metricKey,
@@ -170,6 +172,10 @@ async function resolveSupersededReading(
     )
   }
 
+  if (priorRow?.portalLinkId && priorRow.portalLinkId !== command.reading.portalLinkId) {
+    throw new Error('Replacement metric Portal link does not match its source reading')
+  }
+
   return {
     kind: 'resolved',
     correctedReadingId,
@@ -205,6 +211,7 @@ async function existingReadingId(
   const existing = await tx
     .select({
       id: metricReadings.id,
+      portalLinkId: metricReadings.portalLinkId,
       attributedStaffParticipantId: metricReadings.attributedStaffParticipantId,
       attributedStaffParticipationId: metricReadings.attributedStaffParticipationId,
       attributionResponsibilityId: metricReadings.attributionResponsibilityId,
@@ -229,6 +236,12 @@ async function existingReadingId(
     )
   ) {
     throw new Error('Duplicate metric reading Staff attribution does not match')
+  }
+  if (
+    existing[0]?.portalLinkId &&
+    existing[0].portalLinkId !== command.reading.portalLinkId
+  ) {
+    throw new Error('Duplicate metric reading Portal link does not match')
   }
   return existing[0]?.id ?? null
 }
@@ -286,6 +299,10 @@ async function insertReadingOrDescribeDuplicate(
       dataQuality: command.reading.dataQuality,
       retentionClass: command.reading.retentionClass,
       portalDestinationKind: command.portalLifetimeFact?.destinationKind ?? null,
+      portalLinkId: secondaryPortalLinkId(
+        command.portalLifetimeFact?.destinationKind,
+        command.reading.portalLinkId,
+      ),
       ...staffAttributionColumns(command.reading.staffAttribution),
     })
     .onConflictDoNothing()

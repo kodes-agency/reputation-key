@@ -1,157 +1,64 @@
-// How a Linktree tile is followed. Before a rating the tile is a plain link to
-// the navigation-only click route: the server action that records a qualified
-// link action refuses a guest who has not rated (it answers 404), so it is never
-// called. After a rating the action runs first and the guest is sent to the
-// destination it resolves, falling back to the click route if it fails.
-
-import { describe, expect, it, vi } from 'vitest'
-import {
-  bindLinkSelector,
-  followLinktreeLink,
-  isPlainPrimaryClick,
-} from './linktree-follow'
+import { afterEach, describe, expect, it, vi } from 'vitest'
+import { bindLinkTapCounter } from './linktree-follow'
 
 const TOKEN = 'tok_123'
 const NONCE = '00000000-0000-4000-8000-000000000015'
 
-describe('bindLinkSelector', () => {
-  it('gives no selector before a rating, so the action cannot be called', () => {
-    const action = vi.fn()
-    expect(
-      bindLinkSelector({
-        afterRating: false,
-        token: TOKEN,
-        csrfNonce: NONCE,
-        selectSecondaryLink: action,
-      }),
-    ).toBeUndefined()
-    expect(action).not.toHaveBeenCalled()
-  })
+afterEach(() => vi.unstubAllGlobals())
 
-  it('gives no selector for a manager preview, which has no token or session nonce', () => {
-    const action = vi.fn()
-    for (const input of [
-      { token: undefined, csrfNonce: NONCE },
-      { token: TOKEN, csrfNonce: undefined },
-      { token: TOKEN, csrfNonce: '' },
-    ]) {
-      expect(
-        bindLinkSelector({ afterRating: true, selectSecondaryLink: action, ...input }),
-      ).toBeUndefined()
-    }
-  })
-
-  it('gives no selector when the page has no action to bind', () => {
-    expect(
-      bindLinkSelector({ afterRating: true, token: TOKEN, csrfNonce: NONCE }),
-    ).toBeUndefined()
-  })
-
-  it('binds the token, the session nonce and the link to the action after a rating', async () => {
-    const action = vi.fn().mockResolvedValue({ url: 'https://example.com/spa' })
-    const select = bindLinkSelector({
-      afterRating: true,
+describe('bindLinkTapCounter', () => {
+  it('counts a tap with an unload-safe fetch without waiting for its response', async () => {
+    const fetch = vi.fn().mockResolvedValue(new Response())
+    vi.stubGlobal('fetch', fetch)
+    const action = vi.fn(async (input) => {
+      await input.fetch('/_serverFn/tap', {
+        method: 'POST',
+        body: 'tap',
+        credentials: 'same-origin',
+      })
+      return new Promise<{ url: string }>(() => {})
+    })
+    const countTap = bindLinkTapCounter({
       token: TOKEN,
       csrfNonce: NONCE,
       selectSecondaryLink: action,
     })
-    expect(select).toBeTypeOf('function')
-    await expect(select?.('link-1')).resolves.toEqual({ url: 'https://example.com/spa' })
+    expect(countTap?.('link-1')).toBeUndefined()
     expect(action).toHaveBeenCalledExactlyOnceWith({
       data: { token: TOKEN, csrfNonce: NONCE, linkId: 'link-1' },
+      fetch: expect.any(Function),
+    })
+    expect(fetch).toHaveBeenCalledExactlyOnceWith('/_serverFn/tap', {
+      method: 'POST',
+      body: 'tap',
+      credentials: 'same-origin',
+      keepalive: true,
     })
   })
-})
 
-describe('followLinktreeLink', () => {
-  const HREF = '/api/public/p/tok_123/click/link-1'
-
-  it('goes to the destination the qualified action resolved', async () => {
-    const navigate = vi.fn()
-    const select = vi.fn().mockResolvedValue({ url: 'https://example.com/spa' })
-    await followLinktreeLink({ linkId: 'link-1', href: HREF, select, navigate })
-    expect(select).toHaveBeenCalledExactlyOnceWith('link-1')
-    expect(navigate).toHaveBeenCalledExactlyOnceWith('https://example.com/spa')
-  })
-
-  it('falls back to the click route when the action fails, so the guest still arrives', async () => {
-    const navigate = vi.fn()
-    const select = vi.fn().mockRejectedValue(new Error('network'))
-    await followLinktreeLink({ linkId: 'link-1', href: HREF, select, navigate })
-    expect(navigate).toHaveBeenCalledExactlyOnceWith(HREF)
-  })
-
-  it.each(['tel:+15551234567', 'mailto:front@hotel.com'])(
-    'records the tap, then opens %s in this tab for the phone or mail app',
-    async (url) => {
-      const navigate = vi.fn()
-      const select = vi.fn().mockResolvedValue({ url })
-      await followLinktreeLink({ linkId: 'link-1', href: HREF, select, navigate })
-      expect(select).toHaveBeenCalledExactlyOnceWith('link-1')
-      expect(navigate).toHaveBeenCalledExactlyOnceWith(url)
-    },
-  )
-
-  it.each([
-    'javascript:alert(1)',
-    'data:text/html,<script>alert(1)</script>',
-    'http://example.com/insecure',
-    '//example.com/protocol-relative',
-    '/relative/path',
-    'not a url',
-    '',
-    'tel:+1 555 123 4567',
-    'tel:+15551234567;ext=2',
-    'mailto:front@hotel.com?bcc=spy@evil.com',
-    'mailto:front@hotel.com,spy@evil.com',
-    'sms:+15551234567',
-  ])(
-    'goes to the click route, not to %j, when the action resolves anything else',
-    async (url) => {
-      const navigate = vi.fn()
-      const select = vi.fn().mockResolvedValue({ url })
-      await followLinktreeLink({ linkId: 'link-1', href: HREF, select, navigate })
-      expect(navigate).toHaveBeenCalledExactlyOnceWith(HREF)
-    },
-  )
-
-  it('does not navigate twice when the destination is resolved', async () => {
-    const navigate = vi.fn()
-    await followLinktreeLink({
-      linkId: 'link-1',
-      href: HREF,
-      select: async () => ({ url: 'https://example.com/spa' }),
-      navigate,
+  it('drops a rejected action while the guest follows the anchor', async () => {
+    const action = vi.fn().mockRejectedValue(new Error('network'))
+    const countTap = bindLinkTapCounter({
+      token: TOKEN,
+      csrfNonce: NONCE,
+      selectSecondaryLink: action,
     })
-    expect(navigate).toHaveBeenCalledTimes(1)
-  })
-})
-
-describe('isPlainPrimaryClick', () => {
-  const click = (overrides: Partial<Parameters<typeof isPlainPrimaryClick>[0]> = {}) =>
-    isPlainPrimaryClick({
-      button: 0,
-      metaKey: false,
-      ctrlKey: false,
-      shiftKey: false,
-      altKey: false,
-      defaultPrevented: false,
-      ...overrides,
-    })
-
-  it('accepts a plain left click', () => {
-    expect(click()).toBe(true)
+    expect(() => countTap?.('link-1')).not.toThrow()
+    await new Promise((resolve) => setTimeout(resolve, 0))
+    expect(action).toHaveBeenCalledOnce()
   })
 
   it.each([
-    { button: 1 },
-    { button: 2 },
-    { metaKey: true },
-    { ctrlKey: true },
-    { shiftKey: true },
-    { altKey: true },
-    { defaultPrevented: true },
-  ])('leaves %o to the browser, which opens the click route itself', (overrides) => {
-    expect(click(overrides)).toBe(false)
+    { token: undefined, csrfNonce: NONCE },
+    { token: TOKEN, csrfNonce: undefined },
+    { token: TOKEN, csrfNonce: '' },
+  ])('gives an inert preview no handler: %o', (input) => {
+    const action = vi.fn()
+    expect(bindLinkTapCounter({ ...input, selectSecondaryLink: action })).toBeUndefined()
+    expect(action).not.toHaveBeenCalled()
+  })
+
+  it('gives no handler when there is no action', () => {
+    expect(bindLinkTapCounter({ token: TOKEN, csrfNonce: NONCE })).toBeUndefined()
   })
 })

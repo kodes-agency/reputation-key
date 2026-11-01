@@ -15,6 +15,12 @@ export type GuestResponseAction<TInput, TResult> = ((input: {
     error?: unknown
   }>
 
+/** Only secondary taps need an unload-safe call-site fetch. */
+export type SelectSecondaryLinkAction = (input: {
+  data: { token: string; csrfNonce: string; linkId: string }
+  fetch?: (input: RequestInfo | URL, init?: RequestInit) => Promise<Response>
+}) => Promise<{ url: string }>
+
 type GuestRatingPayload = Readonly<{
   token: string
   csrfNonce: string

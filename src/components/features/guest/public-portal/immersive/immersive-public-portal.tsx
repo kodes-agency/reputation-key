@@ -3,7 +3,7 @@ import type { GuestResponseView } from '#/contexts/guest/application/use-cases/g
 import type { GuestLocale } from '#/shared/domain/guest-locale'
 import type { PortalVisitRecorder } from '../../portal-visit-recording'
 import { guestCopyText } from '../guest-copy-format'
-import type { GuestResponseAction } from '../guest-response-form-types'
+import type { SelectSecondaryLinkAction } from '../guest-response-form-types'
 import type { GuestPortalCopyV2 } from '../language-packs/guest-copy-v2'
 import { trackedLinkHref } from '../portal-link-href'
 import { GuestHeader } from './guest-header'
@@ -13,7 +13,7 @@ import type { GuestResponseActions } from './guest-response-actions'
 import { ImmersiveFooter } from './immersive-footer'
 import { immersiveFooterCopy } from './immersive-footer-copy'
 import { ImmersiveLinktree } from './immersive-linktree'
-import { bindLinkSelector } from './linktree-follow'
+import { bindLinkTapCounter } from './linktree-follow'
 import { ImmersiveResponseView } from './immersive-response-view'
 import { ImmersiveShell } from './immersive-shell'
 import { useGuestClock } from './use-guest-clock'
@@ -39,10 +39,7 @@ export type ImmersivePublicPortalProps = Readonly<{
   servedAt: string
   actions: GuestResponseActions &
     Readonly<{
-      selectSecondaryLink: GuestResponseAction<
-        { token: string; csrfNonce: string; linkId: string },
-        { url: string }
-      >
+      selectSecondaryLink: SelectSecondaryLinkAction
     }>
   onPortalVisit: PortalVisitRecorder
 }>
@@ -60,9 +57,8 @@ const AVAILABILITY = {
  * pure pieces slices 12 to 17 built; this wires them to the session, to the
  * server actions and to visit recording, and chooses nothing about how they look.
  *
- * Only a guest who has rated holds a qualifying session, so a tile is a plain
- * link to the click route until then and records a qualified action after
- * (`bindLinkSelector`).
+ * Every tile navigates through the click route and counts a tap in the
+ * background, independently of the response state.
  */
 export function ImmersivePublicPortal(props: ImmersivePublicPortalProps) {
   const { token, pack, immersive, selectedLocale } = props
@@ -77,10 +73,6 @@ export function ImmersivePublicPortal(props: ImmersivePublicPortalProps) {
   })
   const { csrfNonce, yourResponse, ...response } = session
   const now = useGuestClock(props.servedAt, session.response)
-  const hasRated =
-    session.response !== null &&
-    session.response.status !== 'deleted' &&
-    session.response.rating !== null
 
   return (
     <ImmersiveShell
@@ -128,8 +120,7 @@ export function ImmersivePublicPortal(props: ImmersivePublicPortalProps) {
         defaultTitle={pack.copy.linktreeDefaultTitle}
         links={immersive.links}
         hrefFor={(linkId) => trackedLinkHref(token, linkId)}
-        selectLink={bindLinkSelector({
-          afterRating: hasRated,
+        countTap={bindLinkTapCounter({
           token,
           csrfNonce,
           selectSecondaryLink: props.actions.selectSecondaryLink,

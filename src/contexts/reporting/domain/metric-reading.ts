@@ -28,6 +28,7 @@ export interface MetricReading {
   readonly propertyId: PropertyId
   readonly portalGroupId: PortalGroupId | null
   readonly portalId: PortalId | null
+  readonly portalLinkId: string | null
   readonly value: number
   readonly numerator: number | null
   readonly denominator: number | null
@@ -85,6 +86,7 @@ export function createReading(params: {
   propertyId: PropertyId
   portalGroupId?: PortalGroupId | null
   portalId?: PortalId | null
+  portalLinkId?: string | null
   value: number
   numerator?: number | null
   denominator?: number | null
@@ -108,6 +110,7 @@ export function createReading(params: {
     propertyId: params.propertyId,
     portalGroupId: params.portalGroupId ?? null,
     portalId: params.portalId ?? null,
+    portalLinkId: params.portalLinkId ?? null,
     value: params.value,
     numerator: params.numerator ?? null,
     denominator: params.denominator ?? null,

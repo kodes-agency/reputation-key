@@ -118,6 +118,36 @@ describe('recordMetric', () => {
     ])
   })
 
+  it.each([
+    [
+      'secondary_link',
+      '10000000-0000-4000-8000-000000000006',
+      '10000000-0000-4000-8000-000000000006',
+    ],
+    ['google_review', 'google-review:portal-1', null],
+    ['secondary_link', 'legacy-link', null],
+  ] as const)(
+    'records %s / %s with safe link attribution',
+    async (destinationKind, portalLinkId, expected) => {
+      const version: GovernedMetricVersion = {
+        definition: { ...governed.definition, key: 'portal.review_link_click' },
+        version: { ...governed.version, allowedScopes: ['portal'] },
+      }
+      const fakes = createDeps(version)
+      const result = await recordMetric(fakes.deps)(
+        input({
+          portalId: portalId('10000000-0000-4000-8000-000000000001'),
+          scope: 'portal',
+          destinationKind,
+          portalLinkId,
+        }),
+      )
+      expect(result.status).toBe('recorded')
+      expect(fakes.readings[0]?.portalLinkId).toBe(expected)
+      expect(fakes.outbox.byTag('metric.recorded')).toHaveLength(1)
+    },
+  )
+
   it('passes the anonymous lifetime contribution only for an eligible Portal fact', async () => {
     const rating: GovernedMetricVersion = {
       definition: {

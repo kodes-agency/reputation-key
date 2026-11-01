@@ -587,8 +587,8 @@ export const selectGoogleReviewFn = createServerFn({ method: 'POST' })
   )
 
 /**
- * Qualified secondary-link action. The GET redirect remains a navigation-only
- * fallback; only this origin/CSRF/session-bound mutation may create analytics.
+ * Qualified secondary-link action. The GET redirect handles every navigation;
+ * only this origin/CSRF/session-bound mutation may create analytics.
  */
 export const selectSecondaryLinkFn = createServerFn({ method: 'POST' })
   .validator(guestPublicResponseValidator(guestSecondaryLinkMutationDto))
@@ -602,18 +602,13 @@ export const selectSecondaryLinkFn = createServerFn({ method: 'POST' })
           capability: 'portal.public_read',
           assertions: {
             analytics: true,
-            response: true,
+            response: false,
             freeText: false,
             contact: false,
             media: false,
           },
           requiredConsents: [],
         })
-        const response = await bound.useCases.responseLifecycle.getState(
-          bound.scope,
-          bound.session.sessionId,
-        )
-        if (!isQualifiedGuestResponse(response)) return denyWithoutEnumeration()
         const qualified = await rateLimit(
           'secondary',
           bound.session.sessionId,

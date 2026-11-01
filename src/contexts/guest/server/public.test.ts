@@ -1,17 +1,17 @@
 // Guest context — public server function gates.
 //
-// public.ts imports the composition root, so this file pins its source text.
-// The refusal-to-status mapping the Guest server functions answer with is
-// tested against production in `guest-scans.test.ts`, which imports the
-// handler module; it used to be tested here against a copy.
+// Source checks pin the public policy declarations; runtime tests below exercise
+// the production handlers and resolver with request-boundary dependencies supplied.
 
-import { describe, it, expect } from 'vitest'
+import { beforeEach, describe, it, expect, vi } from 'vitest'
 import { readFileSync } from 'node:fs'
+import { resolveLinkAndTrack } from '../application/use-cases/resolve-link-and-track'
+
+import { selectGoogleReviewFn, selectSecondaryLinkFn } from './public'
 
 // ── Server-fn gates (source-pinned) ───────────────────────────────
 //
-// public.ts imports the composition root, so it cannot be imported here; these
-// pin the capability invariants no runtime import of the module can reach.
+// Source assertions supplement the production-handler admission tests below.
 
 describe('guest response server-fn gates', () => {
   const source = readFileSync(new URL('./public.ts', import.meta.url), 'utf8')
@@ -200,14 +200,13 @@ describe('guest response server-fn gates', () => {
     expect(fn).toContain('return { url: googleReview.uri }')
   })
 
-  it('records secondary destinations only through a rated explicit mutation', () => {
+  it('records secondary destinations through a session-bound mutation without requiring a rating', () => {
     const fn = slice('selectSecondaryLinkFn')
-    const receipt = fn.indexOf('responseLifecycle.getState')
-    const ratingGate = fn.indexOf('if (!isQualifiedGuestResponse(response))')
-    const selection = fn.indexOf('resolveLinkAndTrack')
-    expect(receipt).toBeGreaterThan(-1)
-    expect(ratingGate).toBeGreaterThan(receipt)
-    expect(selection).toBeGreaterThan(ratingGate)
+    expect(fn).not.toContain('responseLifecycle.getState')
+    expect(fn).not.toContain('isQualifiedGuestResponse')
+    expect(fn).toContain('response: false')
+    expect(fn).toContain('analytics: true')
+    expect(fn).toContain('resolveLinkAndTrack')
     expect(fn).toContain("action: 'public:portal.secondary_link.select'")
     expect(fn).toContain('sessionExpiresAt: bound.session.expiresAt')
   })
@@ -273,14 +272,12 @@ describe('guest response server-fn gates', () => {
     expect(fn).toContain("'new_response'")
     expect(fn).not.toContain('responseLifecycle.withdraw')
     expect(fn).not.toContain('responseLifecycle.correct')
-    // Only start over widened: the Google and secondary-link gates still need a rating.
+    // Google still requires a rating; secondary links count from arrival.
     expect(fn).not.toContain('isQualifiedGuestResponse')
     expect(slice('selectGoogleReviewFn')).toContain(
       'if (!isQualifiedGuestResponse(response))',
     )
-    expect(slice('selectSecondaryLinkFn')).toContain(
-      'if (!isQualifiedGuestResponse(response))',
-    )
+    expect(slice('selectSecondaryLinkFn')).not.toContain('isQualifiedGuestResponse')
   })
 
   it('keeps action-specific network limits on distinct Redis keys', () => {
@@ -332,5 +329,238 @@ describe('guest response server-fn gates', () => {
     }
     expect(slice('submitPrivateFeedbackFn')).toContain("'feedback',")
     expect(slice('withdrawPrivateFeedbackFn')).toContain("'feedback_withdraw',")
+  })
+})
+
+const LINK_ID = '10000000-0000-4000-8000-000000000006'
+const ORGANIZATION_ID = '10000000-0000-4000-8000-000000000001'
+const PROPERTY_ID = '10000000-0000-4000-8000-000000000002'
+const PORTAL_ID = '10000000-0000-4000-8000-000000000003'
+const CSRF_NONCE = '10000000-0000-4000-8000-000000000004'
+const SESSION_ID = '10000000-0000-4000-8000-000000000005'
+const NOW = new Date('2026-10-22T09:00:00.000Z')
+const RESET_AT = new Date('2026-10-22T09:10:00.000Z')
+const ORIGIN = 'https://guest.example.test'
+const PSEUDONYM = 'pseudonym-1'
+
+const mocks = vi.hoisted(() => ({
+  getPublicPortal: vi.fn(),
+  verifySession: vi.fn(),
+  verifyCsrf: vi.fn(),
+  renewUntil: vi.fn(),
+  hashNetworkPseudonym: vi.fn(),
+  consumeGuestNetworkPressure: vi.fn(),
+  reportObservationLoss: vi.fn(),
+  reportNetworkBudgetExhausted: vi.fn(),
+  rateLimiterCheck: vi.fn(),
+  decidePublicExecution: vi.fn(),
+  setResponseHeader: vi.fn(),
+  submit: vi.fn(),
+  correct: vi.fn(),
+  getState: vi.fn(),
+  trackReviewLinkClick: vi.fn(),
+  logError: vi.fn(),
+  headers: vi.fn(),
+  trackSecondary: vi.fn(),
+}))
+
+// Outside a Start build `createServerFn` discards what the handler returns, so the
+// seam runs the declared validator and then the handler, and hands back its answer.
+vi.mock('@tanstack/react-start', () => ({
+  createServerFn: () => {
+    let validate = (input: unknown): unknown => input
+    const builder = {
+      validator(next: typeof validate) {
+        validate = next
+        return builder
+      },
+      handler:
+        (fn: (ctx: { data: unknown }) => Promise<unknown>) =>
+        async (opts: { data: unknown }) =>
+          fn({ data: validate(opts.data) }),
+    }
+    return builder
+  },
+}))
+vi.mock('@tanstack/react-start/server', () => ({
+  setResponseHeader: mocks.setResponseHeader,
+}))
+vi.mock('#/shared/auth/headers', () => ({
+  headersFromContext: mocks.headers,
+}))
+vi.mock('#/shared/auth/execution-policy', () => ({
+  decidePublicExecution: mocks.decidePublicExecution,
+}))
+vi.mock('#/shared/observability/logger', async (importOriginal) => {
+  const logger = {
+    child: () => logger,
+    debug: vi.fn(),
+    info: vi.fn(),
+    warn: vi.fn(),
+    error: mocks.logError,
+  }
+  return {
+    ...(await importOriginal<typeof import('#/shared/observability/logger')>()),
+    getLogger: () => logger,
+  }
+})
+vi.mock('#/composition', () => ({
+  getContainer: () => ({
+    clock: () => NOW,
+    rateLimiter: { check: mocks.rateLimiterCheck },
+    guestPublicApi: {
+      requests: {
+        getPublicPortal: mocks.getPublicPortal,
+        guestSessions: {
+          verify: mocks.verifySession,
+          verifyCsrf: mocks.verifyCsrf,
+          renewUntil: mocks.renewUntil,
+        },
+        guestPublicRuntime: {
+          expectedOrigin: ORIGIN,
+          hashNetworkPseudonym: mocks.hashNetworkPseudonym,
+        },
+        consumeGuestNetworkPressure: mocks.consumeGuestNetworkPressure,
+        reportObservationLoss: mocks.reportObservationLoss,
+        reportNetworkBudgetExhausted: mocks.reportNetworkBudgetExhausted,
+        trackReviewLinkClick: mocks.trackReviewLinkClick,
+        resolveLinkAndTrack: resolveLinkAndTrack({
+          publicPortalLookup: { findByToken: mocks.getPublicPortal },
+          trackClick: mocks.trackSecondary,
+          reportObservationLoss: mocks.reportObservationLoss,
+        }),
+        responseLifecycle: {
+          submit: mocks.submit,
+          correct: mocks.correct,
+          getState: mocks.getState,
+        },
+      },
+    },
+  }),
+}))
+
+const PORTAL = {
+  organizationId: ORGANIZATION_ID,
+  propertyId: PROPERTY_ID,
+  portal: { id: PORTAL_ID },
+  links: [{ id: LINK_ID, url: 'https://example.test/menu' }],
+  responseConfiguration: {
+    publicationState: 'published',
+    publicationSnapshotId: 'snapshot-1',
+    publicationVersion: 3,
+    publicationDigest: 'digest-1',
+    configurationDigest: 'configuration-1',
+    guestLocale: 'en',
+    languagePackVersion: 'guest-ui-en-v1',
+    privateFeedbackThreshold: 3,
+  },
+  reviewGateway: { googleReview: { status: 'available', uri: 'https://g.page/r/venue' } },
+}
+
+const SESSION = { sessionId: SESSION_ID, expiresAt: new Date('2026-10-23T09:00:00.000Z') }
+const WITHIN = {
+  allowed: true,
+  remaining: 10,
+  resetAt: RESET_AT,
+  backendStatus: 'available',
+}
+const EXHAUSTED = { ...WITHIN, allowed: false, remaining: 0 }
+const SCOPE = {
+  organizationId: ORGANIZATION_ID,
+  propertyId: PROPERTY_ID,
+  portalId: PORTAL_ID,
+}
+
+beforeEach(() => {
+  vi.resetAllMocks()
+  mocks.headers.mockResolvedValue(
+    new Headers({ origin: ORIGIN, cookie: 'rk_guest=signed' }),
+  )
+  mocks.getPublicPortal.mockResolvedValue(PORTAL)
+  mocks.verifySession.mockReturnValue(SESSION)
+  mocks.verifyCsrf.mockImplementation((_session, nonce) => nonce === CSRF_NONCE)
+  mocks.decidePublicExecution.mockResolvedValue({ allowed: true })
+  mocks.hashNetworkPseudonym.mockReturnValue(PSEUDONYM)
+  mocks.rateLimiterCheck.mockResolvedValue(WITHIN)
+  mocks.consumeGuestNetworkPressure.mockResolvedValue(WITHIN)
+  mocks.getState.mockResolvedValue(null)
+})
+
+const tap = (csrfNonce = CSRF_NONCE) =>
+  selectSecondaryLinkFn({
+    data: { token: 'pt_live', csrfNonce, linkId: LINK_ID },
+  })
+
+describe('secondary tap admission', () => {
+  it('records a tap from a session that has not rated', async () => {
+    await expect(tap()).resolves.toEqual({ url: 'https://example.test/menu' })
+    expect(mocks.trackSecondary).toHaveBeenCalledExactlyOnceWith({
+      ...SCOPE,
+      linkId: LINK_ID,
+      sessionId: SESSION_ID,
+      sessionExpiresAt: SESSION.expiresAt,
+      destinationKind: 'secondary_link',
+    })
+    expect(mocks.getState).not.toHaveBeenCalled()
+    expect(mocks.decidePublicExecution).toHaveBeenCalledWith(
+      expect.objectContaining({
+        consentAssertions: {
+          analytics: true,
+          response: false,
+          freeText: false,
+          contact: false,
+          media: false,
+        },
+      }),
+    )
+  })
+
+  it.each(['origin', 'csrf', 'session'] as const)(
+    'refuses a wrong %s without enumeration',
+    async (wrong) => {
+      if (wrong === 'origin')
+        mocks.headers.mockResolvedValue(new Headers({ origin: 'https://other.test' }))
+      if (wrong === 'session') mocks.verifySession.mockReturnValue(null)
+      await expect(tap(wrong === 'csrf' ? LINK_ID : CSRF_NONCE)).rejects.toMatchObject({
+        status: 404,
+        code: 'unavailable',
+      })
+      expect(mocks.trackSecondary).not.toHaveBeenCalled()
+      expect(mocks.rateLimiterCheck).not.toHaveBeenCalled()
+    },
+  )
+
+  it.each(['session', 'network', 'durable'] as const)(
+    'returns the URL without recording when the %s budget is exhausted',
+    async (layer) => {
+      mocks.rateLimiterCheck.mockImplementation(async (key: string) =>
+        key.includes(':network:')
+          ? layer === 'network'
+            ? EXHAUSTED
+            : WITHIN
+          : layer === 'session'
+            ? EXHAUSTED
+            : WITHIN,
+      )
+      if (layer === 'durable')
+        mocks.consumeGuestNetworkPressure.mockResolvedValue(EXHAUSTED)
+      await expect(tap()).resolves.toEqual({ url: 'https://example.test/menu' })
+      expect(mocks.trackSecondary).not.toHaveBeenCalled()
+    },
+  )
+
+  it('keeps scope equality when the link resolves after the session is bound', async () => {
+    mocks.getPublicPortal
+      .mockResolvedValueOnce(PORTAL)
+      .mockResolvedValueOnce({ ...PORTAL, propertyId: LINK_ID })
+    await expect(tap()).resolves.toEqual({ url: 'https://example.test/menu' })
+    expect(mocks.trackSecondary).not.toHaveBeenCalled()
+  })
+
+  it('still refuses the Google action for an unrated session', async () => {
+    await expect(
+      selectGoogleReviewFn({ data: { token: 'pt_live', csrfNonce: CSRF_NONCE } }),
+    ).rejects.toMatchObject({ status: 404, code: 'unavailable' })
+    expect(mocks.trackReviewLinkClick).not.toHaveBeenCalled()
   })
 })

@@ -1,6 +1,9 @@
 import { describe, expect, it } from 'vitest'
-import { getTableConfig } from 'drizzle-orm/pg-core'
-import { portalMetricLifetimeAggregates } from '#/shared/db/schema/metric.schema'
+import { PgDialect, getTableConfig } from 'drizzle-orm/pg-core'
+import {
+  metricReadings,
+  portalMetricLifetimeAggregates,
+} from '#/shared/db/schema/metric.schema'
 
 describe('portalMetricLifetimeAggregates privacy contract', () => {
   it('retains only anonymous counts, checkpoints, and operational rebuild clocks', () => {
@@ -49,5 +52,22 @@ describe('portalMetricLifetimeAggregates privacy contract', () => {
         'portal_metric_lifetime_sealed_rating_check',
       ]),
     )
+  })
+})
+
+describe('metric reading link attribution', () => {
+  it('allows a content-free link id only on a secondary destination click', () => {
+    const config = getTableConfig(metricReadings)
+    expect(
+      config.columns.find((column) => column.name === 'portal_link_id')?.getSQLType(),
+    ).toBe('uuid')
+    const check = config.checks.find(
+      (constraint) => constraint.name === 'metric_readings_portal_link_check',
+    )
+    expect(check).toBeDefined()
+    const sql = new PgDialect().sqlToQuery(check!.value).sql
+    expect(sql).toContain('"portal_link_id" IS NULL OR')
+    expect(sql).toContain("'portal.review_link_click'")
+    expect(sql).toContain("'secondary_link'")
   })
 })

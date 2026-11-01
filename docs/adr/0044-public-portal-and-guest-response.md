@@ -200,3 +200,35 @@ allowlisted HTTPS provider URLs") gains one exception, and only this one:
   page goes to the `tel:` or `mailto:` address in its own tab, which hands it to the guest's phone or
   mail app. Before a rating the tile stays a plain link to the navigation-only click route, which
   redirects to the stored address without recording anything, as for a website.
+
+## Amendment 2026-11-01 — every Linktree tap is counted
+
+Owner decision 2026-11-01: every tap on a Linktree tile is counted, before or after
+any rating. This replaces the bullet of the 2026-10-01 Linktree amendment that makes
+a tap before any rating navigation only, and the "Followed in the same tab" bullet
+of the 2026-10-26 phone and email links amendment.
+
+- **A Qualified Link Action from arrival.** A Qualified Link Action no longer needs
+  a rated session. It is still only the origin-, CSRF- and signed-session-bound POST,
+  accepted once per session per link through the existing destination-action receipt,
+  with the same session and network limits (including the PostgreSQL pressure twin).
+- **Navigation never waits for counting.** In every state the tile is a plain anchor
+  to the GET click route, followed natively at once in the same tab; modified clicks
+  keep the browser's new-tab behaviour and count too. Its click handler sends the
+  POST in the background with an unload-safe fetch. A rejected observation is dropped
+  by the page; the server reports observation loss itself. The GET still records
+  nothing, and counting can never slow or block a link. The POST keeps its `{ url }`
+  answer for a page opened before this deploy.
+- **Google is unaffected.** The anti-gating rule is untouched: the Google Review
+  Action still appears only after a rating, identical for ratings 1–5, and nothing
+  in the Linktree steers it. Its rated-session admission and Google-open figures
+  are unchanged; secondary taps stay separate from Google opens.
+- **The same measure, with its link.** The metric's definition is still "published
+  destination clicks", so no new definition version is required under ADR 0041.
+  A secondary reading now names its link in `portal_link_id` when the source id is
+  a UUID; Google opens and non-UUID legacy ids carry null. Existing readings stay
+  null, and history by link starts with this deploy. The lifetime aggregate is
+  unchanged.
+- **The same privacy notice.** The Privacy Notice already lists the destination
+  selection and its receipt. No new personal data is stored, so the notice does not
+  change.
