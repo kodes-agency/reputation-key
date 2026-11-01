@@ -6,9 +6,7 @@
 //   - qualified scans and private notes: the change against the period before;
 //   - private ratings and Google opens: the share of qualified scans, unless
 //     scans are not known or fewer than the step counted (a share over 100% is
-//     a bug to a reader), when it falls back to the change. Where the reader
-//     can switch the comparison (the Results tab), the share and the change are
-//     both said, so the switch visibly does something to these two cells;
+//     a bug to a reader), when it falls back to the change;
 //   - the average: the sample it rests on, and its comparison in stars.
 // A figure that is not ready is a dash with the reason, never a zero. Every
 // floor comes from the server (`thresholds`); this file keeps none.
@@ -43,15 +41,7 @@ export type ResultsCell = Readonly<{
   detail: string | null
 }>
 
-type Options = Readonly<{
-  compare: boolean
-  /**
-   * Say the change beside the share ("16% of scans · +9 vs the 30 days
-   * before") instead of only the share. The Results tab's, whose switch turns
-   * the comparison on and off; a strip that always compares keeps the share.
-   */
-  shareAndChange?: boolean
-}>
+type Options = Readonly<{ compare: boolean }>
 type Count = PortalCountKPIValue
 type LocalDays = NonNullable<PortalAnalyticsData['localDays']>
 
@@ -80,10 +70,10 @@ export type ResultsMeasuresInput = Readonly<{
 
 /** What each cell counts, in words a manager would use; the strip prints them in this order. */
 export const RESULTS_LABELS = {
-  scans: 'Qualified scans',
-  ratings: 'Private ratings',
-  average: 'Average private rating',
-  googleOpens: 'Guests who opened Google',
+  scans: 'Scans',
+  ratings: 'Ratings',
+  average: 'Average rating',
+  googleOpens: 'Went to Google',
   notes: 'Private notes',
 } as const satisfies Record<ResultsCellKey, string>
 
@@ -98,7 +88,7 @@ function signed(delta: number): string {
 }
 
 /** "the 30 days before", from the window's own local days. */
-function priorName(data: ResultsMeasuresInput): string {
+export function priorName(data: Pick<ResultsMeasuresInput, 'localDays'>): string {
   const days = data.localDays
   if (days === null) return 'the period before'
   const length = dayCount(days.start, days.end)
@@ -157,18 +147,13 @@ function shareOfScans(
 }
 
 /** The one line under ratings or Google opens: the share, the change, or both when asked. */
-function shareAndChangeLine(
+function shareOrChangeLine(
   key: 'ratings' | 'googleOpens',
   kpi: Count,
   data: ResultsMeasuresInput,
   options: Options,
 ): string | null {
-  const share = shareOfScans(key, data)
-  const change = changeLine(kpi, data, options)
-  if (options.shareAndChange === true && share !== null && change !== null) {
-    return `${share} · ${change}`
-  }
-  return share ?? change
+  return shareOfScans(key, data) ?? changeLine(kpi, data, options)
 }
 
 function countCell(
@@ -217,7 +202,7 @@ function averageCell(data: ResultsMeasuresInput, options: Options): ResultsCell 
       evidence.availabilityReason === BELOW_MINIMUM_SAMPLE
         ? `${ratingsWord(sampleCount)}, needs ${data.thresholds.averageMinSample} to show an average`
         : evidence.state === 'insufficient_data' && sampleCount === 0
-          ? 'No private ratings yet'
+          ? 'No ratings yet'
           : notReadyLine('ratings', evidence, data.timezone)
     return { ...base, value: DASH, unit: null, detail }
   }
@@ -255,7 +240,7 @@ export function measureCells(
       RESULTS_LABELS.ratings,
       'ratings',
       kpis.ratings,
-      shareAndChangeLine('ratings', kpis.ratings, data, options),
+      shareOrChangeLine('ratings', kpis.ratings, data, options),
       zone,
     ),
     averageCell(data, options),
@@ -264,7 +249,7 @@ export function measureCells(
       RESULTS_LABELS.googleOpens,
       'google_opens',
       kpis.googleOpens,
-      shareAndChangeLine('googleOpens', kpis.googleOpens, data, options),
+      shareOrChangeLine('googleOpens', kpis.googleOpens, data, options),
       zone,
     ),
     countCell(
@@ -276,28 +261,4 @@ export function measureCells(
       zone,
     ),
   ]
-}
-
-/** Scans nobody counted are a dash with its reason, never the zero the read answers with. */
-function withScansNotCounted(cell: ResultsCell): ResultsCell {
-  return cell.key === 'scans'
-    ? { ...cell, value: DASH, unit: null, detail: SCANS_NOT_COUNTED_REASON }
-    : cell
-}
-
-export function resultsCells(
-  data: PortalAnalyticsData,
-  options: Options & Readonly<{ scansCounted?: boolean }>,
-): readonly ResultsCell[] {
-  const { scansCounted = true, ...rest } = options
-  const cells = measureCells(
-    {
-      kpis: data.kpis,
-      thresholds: data.thresholds,
-      timezone: data.period.timezone,
-      localDays: data.localDays,
-    },
-    { ...rest, shareAndChange: true },
-  )
-  return scansCounted ? cells : cells.map(withScansNotCounted)
 }

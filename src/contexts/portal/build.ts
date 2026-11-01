@@ -1,3 +1,4 @@
+import { createPortalResultsLinksReader } from './infrastructure/repositories/portal-results-links.reader'
 // Portal context — build function.
 // Wires portal repos, storage, and all portal use cases.
 // Per ADR-0001: the composition root calls this and passes publicApis from upstream contexts.
@@ -738,6 +739,7 @@ export const buildPortalContext = (deps: PortalContextDeps) => {
       idGen: deps.idGen,
       clock: deps.clock,
     }),
+    listResultsLinks: createPortalResultsLinksReader(deps.db),
     listPublicationActivationsBetween: portalPublicationRepo.listActivationsBetween,
     ...createGoalReadinessFacts({
       portalRepo,

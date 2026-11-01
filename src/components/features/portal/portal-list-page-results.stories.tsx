@@ -74,7 +74,7 @@ export const StripShowsTheFiveMeasures: Story = {
   args: withResults,
   play: async ({ canvasElement }) => {
     const strip = within(within(canvasElement).getByLabelText('Portal results'))
-    await expect(strip.getByText('Qualified scans')).toBeInTheDocument()
+    await expect(strip.getByText('Scans')).toBeInTheDocument()
     await expect(strip.getByText('1,607')).toBeInTheDocument()
     await expect(strip.getByText('+117 vs the 30 days before')).toBeInTheDocument()
     await expect(strip.getByText('450')).toBeInTheDocument()
@@ -125,7 +125,7 @@ export const DraftHasNoResultsYet: Story = {
     const bar = rowOf(within(canvasElement), 'Pool bar')
     await expect(bar.getByText('No results until it’s published')).toBeInTheDocument()
     // The stacked card carries no summary line for it either.
-    await expect(bar.queryByText(/qualified scans/)).toBeNull()
+    await expect(bar.queryByText(/scans/)).toBeNull()
   },
 }
 
@@ -142,7 +142,7 @@ export const SortsByQualifiedScans: Story = {
     await userEvent.click(canvas.getByRole('button', { name: /sort: name/i }))
     await userEvent.click(
       await within(document.body).findByRole('menuitemradio', {
-        name: 'Qualified scans',
+        name: 'Scans',
       }),
     )
     await expect(order()).toEqual(['Reception', 'Guest rooms'])
@@ -196,7 +196,7 @@ export const NamesTheWindowAndTheFloor: Story = {
     ).toBeInTheDocument()
     await expect(
       canvas.getByText(
-        /Last 30 days, (Europe\/)?Sofia time · an average needs 5 private ratings/,
+        /Last 30 days, (Europe\/)?Sofia time · an average needs 5 ratings/,
       ),
     ).toBeInTheDocument()
   },
@@ -209,16 +209,12 @@ export const QualifiedScansIsExplained: Story = {
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
     const table = within(canvas.getByRole('table', { name: /portals at avela resort/i }))
-    await userEvent.click(
-      table.getByRole('button', { name: 'What qualified scans means' }),
-    )
+    await userEvent.click(table.getByRole('button', { name: 'What scans means' }))
     await expect(
       await screen.findByText(/counted once per guest in 24 hours/),
     ).toBeVisible()
     await userEvent.keyboard('{Escape}')
-    await userEvent.click(
-      canvas.getByRole('button', { name: 'What a qualified scan is' }),
-    )
+    await userEvent.click(canvas.getByRole('button', { name: 'What counts as a scan?' }))
     await expect(
       await screen.findByText(/bots and refreshes are not counted/i),
     ).toBeVisible()
@@ -227,17 +223,17 @@ export const QualifiedScansIsExplained: Story = {
 
 // Spa & thermal pools has a code from before scans were counted. Its scans are a
 // dash with the reason, never the zero the read answers with; its card prints no
-// "0 qualified scans"; and the strip says its total leaves that Portal out.
+// "0 scans"; and the strip says its total leaves that Portal out.
 export const ScansNobodyCountedAreADashNotAZero: Story = {
   args: withResults,
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
     const spa = rowOf(canvas, 'Spa & thermal pools')
     const dash = spa.getByRole('button', {
-      name: 'Qualified scans: Not counted: older code',
+      name: 'Scans: Not counted: older code',
     })
     await expect(dash).toHaveTextContent('—')
-    await expect(spa.queryByText(/qualified scans/)).toBeNull()
+    await expect(spa.queryByText(/scans/)).toBeNull()
     await userEvent.click(dash)
     await expect(await screen.findByText('Not counted: older code.')).toBeVisible()
     // The rest of its row is counted: only scans are missing.
@@ -315,12 +311,10 @@ export const NotOfferedToThisReader: Story = {
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
     await expect(canvas.queryByLabelText('Portal results')).toBeNull()
-    await expect(
-      canvas.queryByRole('columnheader', { name: /qualified scans/i }),
-    ).toBeNull()
+    await expect(canvas.queryByRole('columnheader', { name: /scans/i })).toBeNull()
     await userEvent.click(canvas.getByRole('button', { name: /sort: name/i }))
     await expect(
-      within(document.body).queryByRole('menuitemradio', { name: 'Qualified scans' }),
+      within(document.body).queryByRole('menuitemradio', { name: 'Scans' }),
     ).toBeNull()
   },
 }
@@ -340,7 +334,7 @@ export const Phone: Story = {
   ],
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
-    await expect(canvas.getByText('412 qualified scans · 4.4 ★ from 118')).toBeVisible()
+    await expect(canvas.getByText('412 scans · 4.4 ★ from 118')).toBeVisible()
     await expect(canvas.getByText('698 scans · 4.5 ★ from 209')).toBeVisible()
   },
 }

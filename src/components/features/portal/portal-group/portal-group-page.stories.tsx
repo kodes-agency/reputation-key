@@ -117,7 +117,7 @@ export const ListsOnlyThePortalsInTheGroup: Story = {
     await expect(table.queryByText('Not in a group')).toBeNull()
     await expect(
       canvas.getByText(
-        'Group results count each portal from the day it joined. Averages need 5 private ratings.',
+        'Group results count each portal from the day it joined. Averages need 5 ratings.',
       ),
     ).toBeInTheDocument()
     await expect(

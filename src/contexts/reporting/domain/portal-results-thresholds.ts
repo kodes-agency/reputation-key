@@ -1,3 +1,4 @@
+import { BUSIEST_TIMES_MIN_SCANS } from './portal-scan-patterns'
 // Reporting domain — the sample floors behind Portal results.
 //
 // Two different questions, two different floors:
@@ -46,6 +47,7 @@ export function averageWithholdReason(ratingCount: number): string | null {
  * hands them over, so the client keeps no copy to drift from.
  */
 export const PORTAL_RESULTS_THRESHOLDS = Object.freeze({
+  busiestMinScans: BUSIEST_TIMES_MIN_SCANS,
   averageMinSample: PORTAL_AVERAGE_MIN_SAMPLE,
   comparisonMinSample: MIN_RATING_COMPARISON_SAMPLE,
 })

@@ -26,9 +26,7 @@ for (const width of TABLE_WIDTHS) {
     await openStory(page, STORY)
 
     const table = page.getByRole('table', { name: /portals at avela resort/i })
-    await expect(
-      table.getByRole('columnheader', { name: /qualified scans/i }),
-    ).toBeVisible()
+    await expect(table.getByRole('columnheader', { name: /^scans/i })).toBeVisible()
     const fit = await table.evaluate((element) => {
       const box = element.parentElement
       if (box === null) throw new Error('the table has no container')
@@ -98,10 +96,8 @@ for (const width of CARD_WIDTHS) {
     await openStory(page, STORY)
 
     const table = page.getByRole('table', { name: /portals at avela resort/i })
-    await expect(
-      table.getByRole('columnheader', { name: /qualified scans/i }),
-    ).toHaveCount(0)
-    await expect(table.getByText(/\d+ qualified scans · /).first()).toBeVisible()
+    await expect(table.getByRole('columnheader', { name: /^scans/i })).toHaveCount(0)
+    await expect(table.getByText(/\d+ scans · /).first()).toBeVisible()
     const documentScrolls = await page.evaluate(
       () => document.documentElement.scrollWidth > document.documentElement.clientWidth,
     )

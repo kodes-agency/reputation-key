@@ -26,3 +26,5 @@ export type {
   GuestReviewLinkClicked,
   GuestEvent,
 } from '../domain/events'
+
+export type { PortalScanPatternsReader } from './ports/portal-scan-patterns.reader'

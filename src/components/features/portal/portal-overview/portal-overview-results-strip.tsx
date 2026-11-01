@@ -178,8 +178,8 @@ export function PortalOverviewResultsFooter({ controls, propertyId, groupId }: P
       )}
     >
       {propertyId === null ? `${strip.footer} · ${COLLAPSE_NOTE}` : strip.footer} ·{' '}
-      <GlossaryTerm term="qualified-scans" ariaLabel="What a qualified scan is">
-        What is a qualified scan?
+      <GlossaryTerm term="qualified-scans" ariaLabel="What counts as a scan?">
+        What counts as a scan?
       </GlossaryTerm>
     </p>
   )

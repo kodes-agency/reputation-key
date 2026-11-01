@@ -208,7 +208,7 @@ export function avelaResults(): PortalResultsOverview {
   )
   return {
     qualifiedScansSince: new Date('2026-08-01T00:00:00.000Z'),
-    thresholds: { averageMinSample: 5, comparisonMinSample: 10 },
+    thresholds: { averageMinSample: 5, comparisonMinSample: 10, busiestMinScans: 30 },
     properties: [property],
     portals: [
       portalResultsRow('p-terrace', 'group-pool', measuresOf(POOL_TERRACE)),

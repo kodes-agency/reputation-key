@@ -204,8 +204,10 @@ const emptyAnalytics: PortalAnalyticsData = {
   ],
   series: null,
   versionMarkers: [],
+  linkTaps: null,
+  scanPatterns: null,
   ratingLanguages: { total: 0, languages: [], unrecorded: 0 },
-  thresholds: { averageMinSample: 5, comparisonMinSample: 10 },
+  thresholds: { averageMinSample: 5, comparisonMinSample: 10, busiestMinScans: 30 },
   responseIntegrity: {
     accepted: 0,
     filteredAutomatically: 0,

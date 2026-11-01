@@ -3,7 +3,6 @@ import { DASHBOARD_RANGE_LABELS } from '#/shared/dashboard-range'
 import {
   PORTAL_OVERVIEW_RANGES,
   PORTAL_RESULTS_RANGES,
-  compareLabel,
   currentPeriodLabel,
   dayCount,
   formatDayRange,
@@ -59,16 +58,6 @@ describe('the window texts', () => {
     expect(windowCaption(days, 'America/New_York')).toBe('1–30 Sep, New York time')
   })
 
-  it('says what the comparison is against', () => {
-    expect(compareLabel(days)).toBe('Compare with the 30 days before')
-  })
-
-  it('says the same in the singular for a one-day window', () => {
-    expect(compareLabel({ ...days, start: '2026-09-30', end: '2026-09-30' })).toBe(
-      'Compare with the day before',
-    )
-  })
-
   it('names the periods in the legend and the table from the days the figures cover', () => {
     expect(currentPeriodLabel(days)).toBe('Last 30 days')
     expect(priorPeriodLabel(days)).toBe('The 30 days before')
@@ -85,7 +74,7 @@ describe('the window texts', () => {
 
   it('puts both periods and the comparison floor in the footer', () => {
     expect(windowFooter(days, 'Europe/Sofia', 10)).toBe(
-      '1–30 Sep against 2–31 Aug, Sofia time · Averages compare only when both periods have at least 10 private ratings.',
+      '1–30 Sep against 2–31 Aug, Sofia time · Averages compare only when both periods have at least 10 ratings.',
     )
   })
 

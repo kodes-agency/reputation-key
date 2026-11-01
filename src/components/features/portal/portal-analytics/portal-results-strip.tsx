@@ -9,7 +9,11 @@ import { Metric, MetricStrip, MetricValue } from '#/components/ui/metric-strip'
 import { RESULTS_LABELS, type ResultsCell } from './portal-results-cells'
 
 function labelOf(cell: ResultsCell): ReactNode {
-  return cell.key === 'scans' ? <GlossaryTerm term="qualified-scans" /> : cell.label
+  return cell.key === 'scans' ? (
+    <GlossaryTerm term="qualified-scans">{cell.label}</GlossaryTerm>
+  ) : (
+    cell.label
+  )
 }
 
 function Figure({ cell }: Readonly<{ cell: ResultsCell }>) {

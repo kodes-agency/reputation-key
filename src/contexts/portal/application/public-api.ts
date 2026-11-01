@@ -409,6 +409,19 @@ export type PortalPublicApi = Readonly<{
    * publication or a rollback, by version number. For markers on the Results
    * chart; identifiers and instants only, no content.
    */
+  /** Current Linktree labels and order; caller has already authorised the Property. */
+  listResultsLinks: (
+    orgId: OrganizationId,
+    propertyId: PropertyId,
+    portalId: PortalId,
+  ) => Promise<
+    Readonly<{
+      enabled: boolean
+      rows: ReadonlyArray<
+        Readonly<{ linkId: string; label: string; iconKey: string | null }>
+      >
+    }>
+  >
   listPublicationActivationsBetween: (
     orgId: OrganizationId,
     propertyId: PropertyId,

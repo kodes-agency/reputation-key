@@ -42,6 +42,15 @@ export type MetricPortalMetricEvidenceSet = Readonly<
 >
 
 export type PortalAnalyticsRepository = Readonly<{
+  getPortalLinkTapCounts(
+    input: Readonly<{
+      organizationId: OrganizationId
+      propertyId: PropertyId
+      portalId: PortalId
+      startAt: Date | null
+      endAt: Date
+    }>,
+  ): Promise<ReadonlyArray<Readonly<{ linkId: string; taps: number }>>>
   getPortalKpiSums(
     organizationId: OrganizationId,
     propertyId: PropertyId,
@@ -69,6 +78,7 @@ export type PortalAnalyticsRepository = Readonly<{
     startDate: Date,
     endDate: Date,
     startLocalDate: string,
+    bucketDays?: 1 | 7,
   ): Promise<readonly SeriesReadingRow[]>
   getPortalMetricEvidence(
     organizationId: OrganizationId,

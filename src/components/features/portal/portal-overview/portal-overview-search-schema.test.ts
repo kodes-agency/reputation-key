@@ -54,7 +54,7 @@ describe('portalOverviewSearchSchema', () => {
     expect(portalOverviewSearchSchema.parse({ new: 'maybe' })).toEqual({})
   })
 
-  it('reads the sort by qualified scans, most first unless told otherwise', () => {
+  it('reads the sort by scans, most first unless told otherwise', () => {
     expect(portalOverviewSearchSchema.parse({ sort: 'scans' })).toEqual({ sort: 'scans' })
     expect(defaultSortDirection('scans')).toBe('desc')
     expect(portalOverviewSearchPatch({}, { sort: 'scans' })).toEqual({ sort: 'scans' })

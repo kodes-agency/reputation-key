@@ -1,5 +1,5 @@
 // The five measure cells of a row in the Portals overview (boards 01 and 10):
-// qualified scans, private ratings, the average, Google opens and private notes,
+// scans, private ratings, the average, Google opens and private notes,
 // right-aligned so the figures line up down the table. Each is one figure, and
 // where there is none it says why: "Too few" for an average the sample is too
 // small to show, a dash for anything still processing or that cannot be counted.
@@ -20,11 +20,11 @@ import type { MeasureFigure, MeasureSlot, RowMeasures } from './portal-overview-
 
 /** The columns, in board order; the header row and the cells share this list. */
 export const MEASURE_COLUMNS = [
-  { key: 'scans', label: 'Qualified scans' },
-  { key: 'ratings', label: 'Private ratings' },
+  { key: 'scans', label: 'Scans' },
+  { key: 'ratings', label: 'Ratings' },
   { key: 'average', label: 'Average' },
-  { key: 'googleOpens', label: 'Opened Google' },
-  { key: 'notes', label: 'Private notes' },
+  { key: 'googleOpens', label: 'To Google' },
+  { key: 'notes', label: 'Notes' },
 ] as const satisfies ReadonlyArray<{ key: keyof RowMeasures; label: string }>
 
 const MEASURE_COLUMN_COUNT = MEASURE_COLUMNS.length

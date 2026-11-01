@@ -1,3 +1,4 @@
+import { portalResultsFns } from '../-portal-results-fns'
 // The workspace's editor: one tab's content beneath the layout's header and tab
 // strip. The tab and the Page tab's section come from the layout route's search
 // (`?tab=`, `?section=`), which also maps the pre-workspace names; the layout
@@ -76,6 +77,7 @@ function PortalWorkspaceEditor() {
       downloadPrintFinalMutation={actions.downloadPrintFinal}
       savePrintWordingMutation={actions.savePrintWording}
       getPortalAnalytics={getPortalAnalyticsFn}
+      getPortalLinkTaps={portalResultsFns.getLinkTaps}
       goalLine={goal.line}
       goalLinePending={goal.pending}
       getPortalPreview={getPortalPreview}

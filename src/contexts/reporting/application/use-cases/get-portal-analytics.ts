@@ -1,3 +1,6 @@
+import { portalLinkTaps } from '../../domain/portal-link-taps'
+import { portalScanPatterns } from '../../domain/portal-scan-patterns'
+import type { PortalScanPatternsReader } from '#/contexts/guest/application/public-api'
 // Dashboard context — getPortalAnalytics use case
 // Authorizes the reader for the Property, then orchestrates portal-scoped
 // queries into a single PortalAnalyticsData response.
@@ -28,6 +31,8 @@ import { PORTAL_RESULTS_THRESHOLDS } from '../../domain/portal-results-threshold
 import { localDateOf } from '../../domain/local-days'
 import {
   buildPortalResultsSeries,
+  portalSeriesBucketDays,
+  windowLocalDays,
   localDayRange,
   placeVersionMarker,
   type PortalVersionMarker,
@@ -58,13 +63,17 @@ export type GetPortalAnalyticsDeps = Readonly<{
   portalLifetime: Pick<PortalLifetimeAggregatePort, 'get'>
   /** Guest-owned reads over its responses, through its public API. */
   responseIntegrity: Readonly<{
+    getPortalScanPatterns: PortalScanPatternsReader
     getPortalResponseIntegritySummary(
       input: PortalScopedPeriod,
     ): Promise<PortalResponseIntegritySummary>
     getPortalRatingLanguages(input: PortalScopedPeriod): Promise<PortalRatingLanguages>
   }>
   /** Portal-owned: the versions that went live in a window. */
-  portalVersions: Pick<PortalPublicApi, 'listPublicationActivationsBetween'>
+  portalVersions: Pick<
+    PortalPublicApi,
+    'listPublicationActivationsBetween' | 'listResultsLinks'
+  >
   propertyAccess: DashboardPropertyAccess
 }>
 export type GetPortalAnalytics = ReturnType<typeof getPortalAnalytics>
@@ -90,6 +99,16 @@ export const getPortalAnalytics =
     })
     const scope = { organizationId, propertyId, portalId }
 
+    const [links, tapCounts] = await Promise.all([
+      deps.portalVersions.listResultsLinks(organizationId, propertyId, portalId),
+      deps.portalMetrics.getPortalLinkTapCounts({
+        ...scope,
+        startAt: timeRange === 'all' ? null : startDate,
+        endAt: endDate,
+      }),
+    ])
+    const linkTaps = portalLinkTaps(links, tapCounts)
+
     if (timeRange === 'all') {
       const [lifetime, responseIntegrity, ratingLanguages] = await Promise.all([
         deps.portalLifetime.get({ organizationId, propertyId, portalId }),
@@ -110,6 +129,7 @@ export const getPortalAnalytics =
         responseIntegrity,
         ratingLanguages,
         qualifiedScansSince(),
+        linkTaps,
       )
     }
 
@@ -128,6 +148,7 @@ export const getPortalAnalytics =
         start,
         end,
         localDateOf(start, propertyTimezone),
+        portalSeriesBucketDays(windowLocalDays(startDate, endDate, propertyTimezone)),
       )
     const kpiSums = (start: Date, end: Date) =>
       deps.portalMetrics.getPortalKpiSums(
@@ -149,6 +170,7 @@ export const getPortalAnalytics =
     // Fetch governed current/prior values and evidence in parallel. The owner
     // API proves whether a zero is complete before Dashboard can render it.
     const [
+      scanCounts,
       currentSums,
       priorSums,
       ratingDistribution,
@@ -160,6 +182,12 @@ export const getPortalAnalytics =
       currentEvidence,
       priorEvidence,
     ] = await Promise.all([
+      deps.responseIntegrity.getPortalScanPatterns({
+        ...scope,
+        startAt: startDate,
+        endAt: endDate,
+        timezone: propertyTimezone,
+      }),
       kpiSums(startDate, endDate),
       priorPeriod
         ? kpiSums(priorPeriod.priorStartDate, priorPeriod.priorEndDate)
@@ -266,6 +294,8 @@ export const getPortalAnalytics =
       series,
       versionMarkers,
       ratingLanguages,
+      linkTaps,
+      scanPatterns: portalScanPatterns(scanCounts),
       thresholds: PORTAL_RESULTS_THRESHOLDS,
       responseIntegrity,
     }

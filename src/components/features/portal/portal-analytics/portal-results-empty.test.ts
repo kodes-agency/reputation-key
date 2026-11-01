@@ -33,6 +33,8 @@ const ZERO_INTEGRITY = {
 function quiet(prior: Partial<Record<'scans' | 'notes', number>> = {}) {
   return {
     ...RESULTS_HEALTHY,
+    linkTaps: null,
+    scanPatterns: null,
     kpis: {
       ...NOTHING,
       scans: resultsCount(0, prior.scans ?? 0),

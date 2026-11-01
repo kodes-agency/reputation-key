@@ -3,6 +3,7 @@
 // admin board 02): four tiles, two languages, the approval in place, the cap
 // fact. The section's writes are stub actions, so each story can assert what a
 // manager's gesture asks the server to save.
+import type { getPortalLinkTapsFn } from '#/contexts/reporting/server/portal-analytics'
 import type { Meta, StoryObj } from '@storybook/react'
 import { useState } from 'react'
 import { expect, fn, mocked, userEvent, waitFor, within } from 'storybook/test'
@@ -104,12 +105,16 @@ const MEMBER_NAMES = new Map([['u-2', 'Elena Petrova']])
 type StoryProps = Readonly<{
   view: PortalLinktreeView
   mutations: LinktreeMutations
+  getLinkTaps?: typeof getPortalLinkTapsFn
+  pageIsLive?: boolean
   canEdit: boolean
   canDelete?: boolean
   approval?: LinkApprovalControls
 }>
 
 function Harness({
+  getLinkTaps,
+  pageIsLive = getLinkTaps !== undefined,
   view: current,
   mutations,
   canEdit,
@@ -126,6 +131,8 @@ function Harness({
         canEdit={canEdit}
         canDelete={canDelete}
         approval={approval}
+        getLinkTaps={getLinkTaps}
+        pageIsLive={pageIsLive}
       />
     </div>
   )
@@ -868,5 +875,53 @@ export const ReadOnly: Story = {
     await expect(canvas.queryByRole('button', { name: /^(Move|Reorder) / })).toBeNull()
     await expect(canvas.queryByRole('button', { name: /More actions/ })).toBeNull()
     await expect(canvas.getByLabelText('Title on the page')).toBeDisabled()
+  },
+}
+
+export const LastThirtyDaysTaps: Story = {
+  args: {
+    getLinkTaps: fn(async () => ({
+      windowDays: 30,
+      taps: { discover: 96, spa: 1 },
+    })) as unknown as typeof getPortalLinkTapsFn,
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    await expect(await canvas.findByText('Taps in the last 30 days.')).toBeVisible()
+    await expect(canvas.getAllByText('96 taps')[0]).toBeInTheDocument()
+    await expect(canvas.getAllByText('1 tap')[0]).toBeInTheDocument()
+    await expect(canvas.getAllByText('No taps yet')[0]).toBeInTheDocument()
+  },
+}
+
+export const LastThirtyDaysTapsDark: Story = {
+  ...LastThirtyDaysTaps,
+  parameters: { theme: 'dark' },
+}
+export const LastThirtyDaysTapsPhone: Story = {
+  ...LastThirtyDaysTaps,
+  parameters: { viewport: { defaultViewport: 'mobileNarrow' } },
+}
+export const DeniedTapRead: Story = {
+  args: {
+    getLinkTaps: fn(async () => {
+      throw new Error('Denied')
+    }) as unknown as typeof getPortalLinkTapsFn,
+  },
+  play: async ({ canvasElement, args }) => {
+    await waitFor(() => expect(args.getLinkTaps).toHaveBeenCalled())
+    await expect(
+      within(canvasElement).queryByText('Taps in the last 30 days.'),
+    ).toBeNull()
+    await expect(within(canvasElement).getByText('4 of 4 tiles in use')).toBeVisible()
+  },
+}
+export const DraftHasNoTapFigures: Story = {
+  args: { ...LastThirtyDaysTaps.args, pageIsLive: false },
+  play: async ({ canvasElement }) => {
+    await expect(
+      within(canvasElement).queryByText('Taps in the last 30 days.'),
+    ).toBeNull()
+    await expect(within(canvasElement).queryByText('96 taps')).toBeNull()
   },
 }

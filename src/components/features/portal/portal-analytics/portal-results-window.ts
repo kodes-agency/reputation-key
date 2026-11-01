@@ -83,6 +83,13 @@ function monthName(month: number): string {
   return MONTHS[month - 1] ?? ''
 }
 
+const WEEKDAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'] as const
+
+/** "Mon": the same fixed spelling on every reader's device. */
+export function weekdayName(localDate: string): string {
+  return WEEKDAYS[new Date(utcDay(parseDay(localDate))).getUTCDay()] ?? ''
+}
+
 /** "1–30 Sep", "28 Aug – 3 Sep", or with years when the range crosses one. */
 export function formatDayRange(startLocalDate: string, endLocalDate: string): string {
   const start = parseDay(startLocalDate)
@@ -128,14 +135,6 @@ export function windowCaption(days: LocalDays, timezone: string): string {
   return `${formatDayRange(days.start, days.end)}, ${zoneTimeLabel(timezone)}`
 }
 
-/** What the toggle compares against: "Compare with the 30 days before". */
-export function compareLabel(days: LocalDays): string {
-  const length = dayCount(days.start, days.end)
-  return length === 1
-    ? 'Compare with the day before'
-    : `Compare with the ${length} days before`
-}
-
 /** The current period as the legend names it: "Last 30 days", from the days the figures cover. */
 export function currentPeriodLabel(days: LocalDays): string {
   return `Last ${dayCount(days.start, days.end)} days`
@@ -161,5 +160,5 @@ export function windowFooter(
     return `${current}, ${zone}`
   }
   const prior = formatDayRange(days.compareStart, days.compareEnd)
-  return `${current} against ${prior}, ${zone} · Averages compare only when both periods have at least ${comparisonMinSample} private ratings.`
+  return `${current} against ${prior}, ${zone} · Averages compare only when both periods have at least ${comparisonMinSample} ratings.`
 }

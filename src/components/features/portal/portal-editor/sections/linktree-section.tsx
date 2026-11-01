@@ -49,6 +49,8 @@ export function LinktreeSection({ resources, canEdit }: PortalEditorSectionProps
       <LinkTree
         propertyId={propertyId}
         view={linktree}
+        getLinkTaps={resources.getPortalLinkTaps}
+        pageIsLive={portal.publicationState === 'published'}
         mutations={mutations}
         memberNames={memberNames}
         canEdit={canEdit}

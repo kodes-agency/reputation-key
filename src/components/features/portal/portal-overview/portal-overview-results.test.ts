@@ -16,7 +16,7 @@ import {
 } from './portal-overview-results'
 
 const FRAME = {
-  thresholds: { averageMinSample: 5, comparisonMinSample: 10 },
+  thresholds: { averageMinSample: 5, comparisonMinSample: 10, busiestMinScans: 30 },
   timezone: 'Europe/Sofia',
 }
 const READY = { scans: 412, ratings: 118, average: 4.4, googleOpens: 64, notes: 9 }
@@ -74,7 +74,7 @@ describe('rowMeasures', () => {
 
   it('writes the phone summary as scans, then the average and the ratings behind it', () => {
     expect(rowMeasures(measuresOf(READY), FRAME).summary).toBe(
-      '412 qualified scans · 4.4 ★ from 118',
+      '412 scans · 4.4 ★ from 118',
     )
   })
 
@@ -84,20 +84,20 @@ describe('rowMeasures', () => {
       FRAME,
     )
 
-    expect(measures.summary).toBe('412 qualified scans')
+    expect(measures.summary).toBe('412 scans')
   })
 
-  it('says "1 qualified scan" for one', () => {
+  it('says "1 scan" for one', () => {
     const measures = rowMeasures(
       measuresOf({ ...READY, scans: 1, ratings: 0, average: null }),
       FRAME,
     )
 
-    expect(measures.summary).toBe('1 qualified scan')
+    expect(measures.summary).toBe('1 scan')
   })
 
   it('writes the group head summary shorter, as board 11 does', () => {
-    expect(rowMeasures(measuresOf(READY), FRAME, 'short').summary).toBe(
+    expect(rowMeasures(measuresOf(READY), FRAME).summary).toBe(
       '412 scans · 4.4 ★ from 118',
     )
   })
@@ -178,7 +178,7 @@ describe('indexOverviewResults', () => {
 
   it('names the window and the floor in the footer', () => {
     expect(index.strip('prop-1')?.footer).toBe(
-      'Last 30 days, Sofia time · an average needs 5 private ratings',
+      'Last 30 days, Sofia time · an average needs 5 ratings',
     )
     expect(index.strip('prop-1')?.caption).toBe('1–30 Sep, Sofia time')
   })
@@ -201,9 +201,7 @@ describe('indexOverviewResults', () => {
       '17% of scans',
     )
     expect(strip?.caption).toBe('1–30 Sep, Sofia time')
-    expect(strip?.footer).toBe(
-      'Last 30 days, Sofia time · an average needs 5 private ratings',
-    )
+    expect(strip?.footer).toBe('Last 30 days, Sofia time · an average needs 5 ratings')
   })
 
   it('has no strip for a group the read did not name', () => {

@@ -669,3 +669,102 @@ describe('Portal results measures (integration)', () => {
     })
   })
 })
+
+it('reads attributed link taps with corrections, half-open bounds and tenant isolation', async () => {
+  const first = randomUUID()
+  const removed = randomUUID()
+  const seed = async (linkId: string, eventAt: Date) => {
+    const result = await pool.query<{ id: string }>(
+      `INSERT INTO metric_readings (
+        organization_id, property_id, portal_id, metric_key, value,
+        definition_version_id, source_event_id, source_policy, exact_value,
+        sample_count, attribution_quality, recorded_at, event_at,
+        property_local_date, data_quality, retention_class, portal_destination_kind, portal_link_id
+      ) VALUES ($1, $2, $3, 'portal.review_link_click', 1, $4, $5,
+        'review_solicitation_analytics_only', 1, 1, 'exact', $6, $6,
+        ($6::timestamptz AT TIME ZONE 'UTC')::date::text, 'exact', 'standard', 'secondary_link', $7)
+      RETURNING id`,
+      [
+        ORG,
+        PROP,
+        PORTAL,
+        METRIC_VERSION_IDS.portalDestinationClickAnalytics,
+        randomUUID(),
+        eventAt,
+        linkId,
+      ],
+    )
+    return result.rows[0]!.id
+  }
+  await seed(first, WINDOW_START)
+  await seed(first, new Date('2026-09-10T10:00:00Z'))
+  const retracted = await seed(first, new Date('2026-09-11T10:00:00Z'))
+  await seed(removed, new Date('2026-09-12T10:00:00Z'))
+  await seed(first, WINDOW_END)
+  await pool.query(
+    `INSERT INTO metric_corrections (reading_id, source_event_id, kind, reason, actor_type, actor_id, event_at)
+    VALUES ($1, $2, 'retract', 'test retraction', 'system', 'link-taps-test', $3)`,
+    [retracted, randomUUID(), COMPUTED_AT],
+  )
+  const repo = createPortalAnalyticsRepository(db, () => COMPUTED_AT)
+  const input = {
+    organizationId: ORG,
+    propertyId: PROP,
+    portalId: PORTAL,
+    startAt: WINDOW_START,
+    endAt: WINDOW_END,
+  }
+  expect(await repo.getPortalLinkTapCounts(input)).toEqual(
+    expect.arrayContaining([
+      { linkId: first, taps: 2 },
+      { linkId: removed, taps: 1 },
+    ]),
+  )
+  expect(
+    await repo.getPortalLinkTapCounts({ ...input, organizationId: OTHER_ORG }),
+  ).toEqual([])
+  expect(
+    await repo.getPortalLinkTapCounts({
+      ...input,
+      startAt: null,
+      endAt: new Date(WINDOW_END.getTime() + 1),
+    }),
+  ).toEqual(expect.arrayContaining([{ linkId: first, taps: 3 }]))
+})
+
+it('uses the chosen local-day divisor for the series without counting raw or retracted scans', async () => {
+  const repo = createPortalAnalyticsRepository(db, () => COMPUTED_AT)
+  const daily = await repo.getPortalWeeklyReadings(
+    ORG,
+    PROP,
+    PORTAL,
+    WINDOW_START,
+    WINDOW_END,
+    '2026-09-01',
+    1,
+  )
+  expect(
+    daily
+      .filter((row) => row.metricKey === 'portal.qualified_scan')
+      .map((row) => [row.bucket, row.total]),
+  ).toEqual([
+    [4, 1],
+    [5, 1],
+    // The retracted scan's day: its row sums to nothing.
+    [6, 0],
+  ])
+  const weekly = await repo.getPortalWeeklyReadings(
+    ORG,
+    PROP,
+    PORTAL,
+    WINDOW_START,
+    WINDOW_END,
+    '2026-09-01',
+    7,
+  )
+  expect(
+    weekly
+      .filter((row) => row.metricKey === 'portal.qualified_scan')
+      .map((row) => [row.bucket, row.total]),
+  ).toEqual([[0, 2]])
+})

@@ -1,3 +1,4 @@
+import { createPortalScanPatternsReader } from './infrastructure/repositories/portal-scan-patterns.reader'
 import type { Database } from '#/shared/db'
 import type {
   PortalContactRequestManagerAuthorityPublicApi,
@@ -169,6 +170,7 @@ export const buildGuestContext = (deps: GuestContextDeps) => {
     findPortalIdForFeedback,
   }
   const integrityPublicApi = {
+    getPortalScanPatterns: createPortalScanPatternsReader(deps.db),
     getPortalResponseIntegritySummary:
       getPortalResponseIntegritySummary(guestResponseRepo),
     getPortalRatingLanguages: getPortalRatingLanguages(guestResponseRepo),

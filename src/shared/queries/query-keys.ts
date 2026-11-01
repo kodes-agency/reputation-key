@@ -287,6 +287,8 @@ export const portalKeys = {
   detail: (portalId: string) => [...portalKeys.all, 'detail', portalId] as const,
   links: (portalId: string) => [...portalKeys.detail(portalId), 'links'] as const,
   /** The editor's Linktree section: switch, titles, and each link with its texts. */
+  linkTaps: (propertyId: string, portalId: string) =>
+    [...portalKeys.detail(portalId), 'link-taps', propertyId] as const,
   linktree: (portalId: string) => [...portalKeys.detail(portalId), 'linktree'] as const,
   responsibleManagers: (portalId: string) =>
     [...portalKeys.detail(portalId), 'responsible-managers'] as const,

@@ -32,7 +32,7 @@ describe('portalMeasureSlot', () => {
     })
     // The rest of the row is still counted: only scans are missing.
     expect(slot.measures.ratings.tone).toBe('figure')
-    // A card has no "0 qualified scans" to print.
+    // A card has no "0 scans" to print.
     expect(slot.measures.summary).toBeNull()
   })
 

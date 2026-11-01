@@ -782,7 +782,11 @@ describe('getPortalResultsOverview', () => {
 
     const overview = await ask(repo, roster([[P1, null]]))
 
-    expect(overview.thresholds).toEqual({ averageMinSample: 5, comparisonMinSample: 10 })
+    expect(overview.thresholds).toEqual({
+      averageMinSample: 5,
+      comparisonMinSample: 10,
+      busiestMinScans: 30,
+    })
   })
 
   it('returns an empty overview for no Portals, with a ready zero total', async () => {

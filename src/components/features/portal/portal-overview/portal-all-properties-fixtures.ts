@@ -1,5 +1,5 @@
 // The All properties page's rows and results for tests and stories: Avela
-// Hospitality's three properties as board 10 prints them (3,420 qualified scans
+// Hospitality's three properties as board 10 prints them (3,420 scans
 // in all). Avela Resort and The Harbor Hotel are read in different zones' worth
 // of days; Forma Kitchen is the property the board shows collapsed.
 import type { PortalOverviewRow } from '#/contexts/portal/application/public-api'
@@ -171,7 +171,7 @@ export function allPropertiesResults(
   const harborGrouped = { 'h-terrace': 'group-harbor', 'h-rooms': 'group-harbor' }
   return {
     qualifiedScansSince: new Date('2026-08-01T00:00:00.000Z'),
-    thresholds: { averageMinSample: 5, comparisonMinSample: 10 },
+    thresholds: { averageMinSample: 5, comparisonMinSample: 10, busiestMinScans: 30 },
     properties: [
       propertyResultsRow(Object.keys(AVELA_FIGURES), measuresOf(AVELA_TOTAL), {
         propertyId: AVELA,

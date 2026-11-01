@@ -36,7 +36,7 @@ import { offersAttentionFilter } from './portal-attention'
 const SORT_LABEL: Readonly<Record<PortalOverviewSort, string>> = {
   name: 'Name',
   attention: 'Needs attention',
-  scans: 'Qualified scans',
+  scans: 'Scans',
 }
 
 const DIRECTION_LABEL: Readonly<

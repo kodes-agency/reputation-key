@@ -66,3 +66,49 @@ export const getPortalAnalyticsFn = createServerFn({ method: 'GET' })
       'dashboard.getPortalAnalytics',
     ),
   )
+export const getPortalLinkTapsFn = createServerFn({ method: 'GET' })
+  .validator(getPortalAnalyticsDto.pick({ propertyId: true, portalId: true }))
+  .handler(
+    tracedHandler(
+      async ({ data }) => {
+        try {
+          const headers = await headersFromContext()
+          const ctx = await resolveTenantContext(headers)
+          await requireExecutionAllowed({
+            actor: ctx,
+            action: 'dashboard.read',
+            propertyId: data.propertyId,
+          })
+          const { dashboardPublicApi, clock, propertyPublicApi } = getContainer()
+          const pid = propertyId(data.propertyId)
+          const { startDate, endDate } = await resolvePropertyPeriod(
+            { propertyFacts: propertyPublicApi, clock },
+            {
+              organizationId: ctx.organizationId,
+              propertyId: pid,
+              timeRange: '30d',
+              wholeLocalDays: true,
+            },
+          )
+
+          // The use case authorizes this reader for the Property (D6-001).
+          return await dashboardPublicApi.getPortalLinkTaps(
+            {
+              organizationId: ctx.organizationId,
+              propertyId: pid,
+              portalId: portalId(data.portalId),
+              startDate,
+              endDate,
+            },
+            ctx,
+          )
+        } catch (e) {
+          if (isDashboardError(e))
+            throwContextError('DashboardError', e, dashboardErrorStatus(e.code))
+          throw catchUntagged(e)
+        }
+      },
+      'GET',
+      'dashboard.getPortalLinkTaps',
+    ),
+  )

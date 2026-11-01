@@ -38,7 +38,7 @@ const meta = {
   component: PortalAnalyticsTab,
   // The tab asks who may open the Inbox, which needs the signed-in route's context.
   decorators: [AuthedRouterDecorator],
-  parameters: { layout: 'padded' },
+  parameters: { layout: 'padded', theme: 'light' },
   args: {
     portalId: '11111111-1111-4111-8111-111111111111',
     propertyId: PROPERTY_ID,
@@ -54,8 +54,7 @@ export const Loading: Story = {
   args: { getPortalAnalytics: asRead(() => new Promise(() => undefined)) },
   play: async ({ canvas }) => {
     await expect(canvas.getByRole('status')).toHaveTextContent('Loading results…')
-    await expect(canvas.getByLabelText('Portal results')).toBeVisible()
-    await expect(canvas.getByText('Qualified scans')).toBeVisible()
+    await expect(canvas.getByText('Are guests using it?')).toBeVisible()
     await expect(canvas.queryByText(/couldn.t be loaded/i)).toBeNull()
   },
 }
@@ -80,7 +79,7 @@ export const FailedThenRecovers: Story = {
     await expect(canvas.queryByText(/Reporting is down/)).toBeNull()
     await userEvent.click(canvas.getByRole('button', { name: 'Try again' }))
     await waitFor(() =>
-      expect(canvas.getByLabelText('Portal results')).toBeInTheDocument(),
+      expect(canvas.getByText('Are guests using it?')).toBeInTheDocument(),
     )
     await expect(args.getPortalAnalytics).toHaveBeenCalledTimes(2)
   },
@@ -122,7 +121,7 @@ export const RetryReadsWithTheButtonBusy: Story = {
     await expect(args.getPortalAnalytics).toHaveBeenCalledTimes(2)
     ;(args.getPortalAnalytics as unknown as { settle: () => void }).settle()
     await waitFor(() =>
-      expect(canvas.getByLabelText('Portal results')).toBeInTheDocument(),
+      expect(canvas.getByText('Are guests using it?')).toBeInTheDocument(),
     )
   },
 }
@@ -178,7 +177,7 @@ export const WithPortalGoalLine: Story = {
       'November · Reception’s 13 private ratings count toward the monthly portal goal.',
     )
     await expect(line).toBeVisible()
-    await expect(above(line, canvas.getByLabelText('Portal results'))).toBe(true)
+    await expect(above(line, canvas.getByText('Are guests using it?'))).toBe(true)
     await expect(canvas.getByRole('link', { name: 'Open goal' })).toHaveAttribute(
       'href',
       `/properties/${PROPERTY_ID}/goals/portals`,
@@ -235,3 +234,11 @@ export const HoldsWhileTheLineIsRead: Story = {
     await expect(canvas.getByRole('status')).toHaveTextContent('Loading results…')
   },
 }
+
+export const CheckIn: Story = {
+  play: async ({ canvas }) => {
+    await expect(await canvas.findByText('Are guests using it?')).toBeVisible()
+    await expect(canvas.getByText('Mostly. 4.4★ from 118 ratings')).toBeVisible()
+  },
+}
+export const CheckInDark: Story = { ...CheckIn, parameters: { theme: 'dark' } }

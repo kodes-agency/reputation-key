@@ -22,8 +22,8 @@ const DASHED_ALLOWED: Readonly<Record<string, string>> = {
     'a chart bar marking partial calendar coverage, never an empty-state panel',
   'src/components/ui/empty-state.tsx': 'the primitive itself',
   'src/components/ui/chart.tsx': 'a dashed line style in a chart legend',
-  'src/components/features/portal/portal-analytics/portal-results-series-chart.tsx':
-    'a chart gridline',
+  'src/components/features/portal/portal-analytics/portal-results-trend.tsx':
+    'a chart bar marking a partial week, never an empty-state panel',
   'src/components/inbox/note-message.tsx': 'the dashed edge that marks a private note',
   'src/components/inbox/composer-mode-row.tsx': 'the private-note dock cue',
   'src/components/inbox/reply-composer.tsx': 'the private-note dock cue',

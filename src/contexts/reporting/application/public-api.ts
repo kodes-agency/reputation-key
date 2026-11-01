@@ -107,7 +107,7 @@ export type {
 export type { GoogleNumbersView } from '../domain/google-numbers'
 export type {
   PortalResultsSeries,
-  PortalSeriesWeek,
+  PortalSeriesBucket,
   PortalVersionMarker,
 } from '../domain/portal-results-series'
 export type {
@@ -163,3 +163,8 @@ export type {
   ReadPropertyGoogleNumbersInput,
   ReadPropertyGoogleNumbers,
 } from './use-cases/read-property-google-numbers'
+
+export type { PortalLinkTaps } from '../domain/portal-link-taps'
+export type { PortalScanPatterns } from '../domain/portal-scan-patterns'
+
+export { PORTAL_LINK_TAPS_COUNTED_SINCE } from '../domain/portal-link-taps'

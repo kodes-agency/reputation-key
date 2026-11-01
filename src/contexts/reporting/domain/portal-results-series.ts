@@ -1,6 +1,6 @@
-// Reporting domain — the weekly series behind a Portal's Results tab.
+// Reporting domain — daily and weekly buckets behind a Portal’s Results tab.
 //
-// A window is cut into weekly buckets anchored to its own start (not to a
+// Up to seven local days use daily buckets. Longer windows use weeks anchored to its own start (not to a
 // calendar week), so "1-30 Sep" reads 1-7, 8-14, 15-21, 22-28 and a last,
 // shorter 29-30. The prior window is cut the same way from its start, so bucket
 // i of one sits against bucket i of the other.
@@ -16,26 +16,29 @@
 
 import { addLocalDays, daysBetween, localDateOf } from './local-days'
 
-export const SERIES_BUCKET_DAYS = 7
+/** Short windows keep each local day visible. */
+export function portalSeriesBucketDays(localDays: number): 1 | 7 {
+  return localDays <= 7 ? 1 : 7
+}
 
 const QUALIFIED_SCAN_KEY = 'portal.qualified_scan'
 const RATING_KEY = 'portal.rating'
 
 /** One bucket's governed sum for one measure, as the store reports it. */
 export type SeriesReadingRow = Readonly<{
-  /** Zero-based week of the window the reading's local date falls in. */
+  /** Zero-based bucket of the window the reading's local date falls in. */
   bucket: number
   metricKey: string
   total: number
   count: number
 }>
 
-export type PortalSeriesWeek = Readonly<{
+export type PortalSeriesBucket = Readonly<{
   index: number
   /** Property-local dates, `YYYY-MM-DD`; the end is inclusive. */
   startLocalDate: string
   endLocalDate: string
-  /** Days the bucket covers: 7, or fewer for the last one. */
+  /** Days covered: one, seven, or a shorter last week. */
   days: number
   /** Qualified scans. Null while the scan evidence is not ready. */
   scans: number | null
@@ -54,7 +57,8 @@ export type PortalSeriesWeek = Readonly<{
 }>
 
 export type PortalResultsSeries = Readonly<{
-  weeks: readonly PortalSeriesWeek[]
+  bucketDays: 1 | 7
+  buckets: readonly PortalSeriesBucket[]
 }>
 
 /** A published version becoming live, placed on the local day it happened. */
@@ -64,9 +68,9 @@ export type PortalVersionMarker = Readonly<{
   activatedAt: Date
   localDate: string
   /** The bucket the day falls in. */
-  week: number
+  bucket: number
   /** Zero-based day within that bucket. */
-  dayInWeek: number
+  dayInBucket: number
 }>
 
 export type SeriesWindow = Readonly<{
@@ -135,11 +139,12 @@ export function buildPortalResultsSeries(
   const { timezone, current, prior, ready, averageMinSample } = input
   const startLocalDate = localDateOf(current.startDate, timezone)
   const totalDays = windowLocalDays(current.startDate, current.endDate, timezone)
-  const bucketCount = Math.ceil(totalDays / SERIES_BUCKET_DAYS)
+  const bucketDays = portalSeriesBucketDays(totalDays)
+  const bucketCount = Math.ceil(totalDays / bucketDays)
 
-  const weeks = Array.from({ length: bucketCount }, (_, index): PortalSeriesWeek => {
-    const offset = index * SERIES_BUCKET_DAYS
-    const days = Math.min(SERIES_BUCKET_DAYS, totalDays - offset)
+  const buckets = Array.from({ length: bucketCount }, (_, index): PortalSeriesBucket => {
+    const offset = index * bucketDays
+    const days = Math.min(bucketDays, totalDays - offset)
     const scans = sumOf(current.rows, index, QUALIFIED_SCAN_KEY)
     const rating = sumOf(current.rows, index, RATING_KEY)
     const ratingCount = rating?.count ?? 0
@@ -164,7 +169,7 @@ export function buildPortalResultsSeries(
         average !== null ? null : ready.ratings ? 'below_floor' : 'not_ready',
     }
   })
-  return { weeks }
+  return { bucketDays, buckets }
 }
 
 export type PortalVersionActivation = Readonly<{
@@ -183,12 +188,13 @@ export function placeVersionMarker(
   if (activation.activatedAt < startDate || activation.activatedAt >= endDate) return null
   const localDate = localDateOf(activation.activatedAt, timezone)
   const offset = daysBetween(localDateOf(startDate, timezone), localDate)
+  const bucketDays = portalSeriesBucketDays(windowLocalDays(startDate, endDate, timezone))
   return {
     version: activation.version,
     kind: activation.kind,
     activatedAt: activation.activatedAt,
     localDate,
-    week: Math.floor(offset / SERIES_BUCKET_DAYS),
-    dayInWeek: offset % SERIES_BUCKET_DAYS,
+    bucket: Math.floor(offset / bucketDays),
+    dayInBucket: offset % bucketDays,
   }
 }
