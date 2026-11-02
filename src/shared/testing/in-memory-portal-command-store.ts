@@ -1,3 +1,4 @@
+import type { PortalMembershipWriter } from './portal-membership-writer'
 // Test-only Portal command store. Production always uses the atomic PostgreSQL
 // implementation; this fake keeps application tests at the command-store seam.
 
@@ -31,7 +32,7 @@ export function createInMemoryPortalCommandStore(deps: {
   portalTokenRepo?: PortalTokenRepository
   /** Where sealed addresses live; absent means the store keeps none. */
   portalAddressRepo?: InMemoryPortalAddressRepo
-  portalGroupRepo?: PortalGroupRepository
+  portalGroupRepo?: PortalGroupRepository & Partial<PortalMembershipWriter>
   portalLinkRepo?: PortalLinkRepository
   /** Where the wording copied into a new Portal lands; the fake has no override table. */
   onCopiedOverrides?: (
@@ -153,7 +154,7 @@ export function createInMemoryPortalCommandStore(deps: {
     if (!membership || !groupRepo) return
     const { portalGroupId, revision, event } = membership
     await groupRepo.update(command.organizationId, portalGroupId, { updatedAt: revision })
-    await groupRepo.addPortal(
+    await groupRepo.writeMembership?.(
       command.organizationId,
       portalGroupId,
       command.portal.id,
@@ -309,7 +310,7 @@ export function createInMemoryPortalCommandStore(deps: {
             )
           }
         }
-        await repo.addPortal(
+        await repo.writeMembership?.(
           command.organizationId,
           group.id,
           membership.portalId,
@@ -366,7 +367,7 @@ export function createInMemoryPortalCommandStore(deps: {
       await outbox.record(command.event)
     },
     addPortalToGroup: async (command) => {
-      await groupRepo().addPortal(
+      await groupRepo().writeMembership?.(
         command.organizationId,
         command.portalGroupId,
         command.portalId,
@@ -436,7 +437,7 @@ export function createInMemoryPortalCommandStore(deps: {
       } else if (current) {
         throw portalError('portal_already_grouped', 'portal is already in a group')
       }
-      await repo.addPortal(
+      await repo.writeMembership?.(
         command.organizationId,
         command.to.portalGroupId,
         command.portalId,

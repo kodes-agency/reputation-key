@@ -192,9 +192,10 @@ async function subjectViewOf(
     subject: named,
     page,
     otherMeasureHeld:
-      page.card.state === 'goal' &&
-      page.card.goal.change !== null &&
-      otherMeasureHeld(programs, bundle, subject, { now, timezone }),
+      narrowed.staffTarget === true ||
+      (page.card.state === 'goal' &&
+        page.card.goal.change !== null &&
+        otherMeasureHeld(programs, bundle, subject, { now, timezone })),
   }
 }
 

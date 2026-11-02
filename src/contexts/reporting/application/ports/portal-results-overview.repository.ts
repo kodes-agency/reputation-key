@@ -47,6 +47,7 @@ export type PortalResultsPortalEvidence = Readonly<{
 
 export type PortalResultsWindowReading = Readonly<{
   computedAt: Date
+  personalPortalIds?: readonly PortalId[]
   /** Only cells with at least one counted reading; a missing cell is a verified zero. */
   cells: readonly PortalResultsCell[]
   /**

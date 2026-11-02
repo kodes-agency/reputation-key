@@ -1,3 +1,4 @@
+import type { PortalMembershipWriter } from './portal-membership-writer'
 // Test-only setup for the createPortal use case: in-memory repositories wired
 // to the in-memory command store, with the Property, its groups, its default
 // languages and its managers fixed so each test states only what it changes.
@@ -51,14 +52,17 @@ export type CreatePortalSetupOptions = Readonly<{
 function createGroupRepo() {
   const groups = new Map<string, PortalGroup>()
   const memberships = new Map<string, PortalGroupId>()
-  const repo: PortalGroupRepository & Readonly<{ seed: (group: PortalGroup) => void }> = {
+  const repo: PortalGroupRepository &
+    PortalMembershipWriter &
+    Readonly<{ seed: (group: PortalGroup) => void }> = {
     seed: (group) => void groups.set(String(group.id), group),
     findById: async (_org, id) => groups.get(String(id)) ?? null,
     update: async (_org, id, patch) => {
       const current = groups.get(String(id))
       if (current) groups.set(String(id), { ...current, ...patch })
     },
-    addPortal: async (_org, groupId, pid) => void memberships.set(String(pid), groupId),
+    writeMembership: async (_org, groupId, pid) =>
+      void memberships.set(String(pid), groupId),
     findPortalMembership: async (_org, pid) => memberships.get(String(pid)) ?? null,
     listByProperty: async () => [],
     listPortalGroupsWithPortals: async () => [],

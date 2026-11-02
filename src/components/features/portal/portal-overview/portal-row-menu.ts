@@ -43,9 +43,11 @@ export function portalRowButtons(
 }
 
 export function portalRowMenu(
-  row: Pick<PortalOverviewRow, 'publicationState' | 'pendingChangeCount'>,
+  row: Pick<PortalOverviewRow, 'publicationState' | 'pendingChangeCount'> &
+    Partial<Pick<PortalOverviewRow, 'kind'>>,
   access: PortalRowAccess,
 ): readonly PortalRowMenuItem[] {
+  if (row.kind === 'personal') return []
   const { publicationState: state } = row
   // A disabled page comes back through Review & publish, like a first publish.
   const waiting = state === 'draft' || state === 'disabled' || row.pendingChangeCount > 0

@@ -38,3 +38,14 @@ describe('accepted beta capability fate authority', () => {
     expect(CAPABILITY_FATE['ai.detect_trends'].fate).toBe('controlled_beta')
   })
 })
+
+describe('staff account activation', () => {
+  it('is controlled by the cohort while targets keep their separate switch', () => {
+    expect(CAPABILITY_FATE['staff.accounts'].fate).toBe('controlled_beta')
+    expect(CAPABILITY_FATE['staff.accounts'].authority).toContain(
+      'STAFF_SCAN_TARGETS_ENABLED',
+    )
+    expect(listCapabilitiesByFate('controlled_beta')).toHaveLength(14)
+    expect(listCapabilitiesByFate('beta_disabled')).toHaveLength(5)
+  })
+})

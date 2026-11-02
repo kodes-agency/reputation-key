@@ -351,7 +351,31 @@ function buildGoalModule(input: ReportingContextBuildInput, metricApi: MetricPub
     input.portalGroupApi,
   )
   const readGoalPrograms = (policy: GoalExecutionPolicy) =>
-    withGoalProgramVisibility(buildGoalPrograms(policy), goalProgramVisibility)
+    withGoalProgramVisibility(
+      buildGoalPrograms(policy),
+      goalProgramVisibility,
+      async (bundle, actor, propertyId) => {
+        if (input.staffScanTargetsEnabled) return false
+        const problems = await Promise.all(
+          bundle.assignments
+            .filter(
+              (assignment) =>
+                assignment.programVersionId === bundle.version.id &&
+                (assignment.effectiveTo === null ||
+                  assignment.effectiveTo > input.clock()),
+            )
+            .map(({ subject }) =>
+              goalProgramSubjects.staffTargetProblem!(
+                actor.organizationId,
+                propertyId,
+                subject,
+                'qualified_scans',
+              ),
+            ),
+        )
+        return problems.some((problem) => problem === 'staff_scan_targets_disabled')
+      },
+    )
   const registerOutboxConsumers = (
     consumerRegistry: ConsumerRegistry,
     policy: GoalExecutionPolicy,
@@ -485,6 +509,7 @@ function buildGoalModule(input: ReportingContextBuildInput, metricApi: MetricPub
           policy,
           reads: readGoalPrograms(policy),
           recommendation: goalRecommendationDeps(policy),
+          staffScanTargetsEnabled: input.staffScanTargetsEnabled ?? false,
           subjectNames: goalProgramSubjects,
           now: input.clock,
         },

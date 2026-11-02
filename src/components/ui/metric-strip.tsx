@@ -34,6 +34,7 @@ const metricStripVariants = cva('m-0 grid grid-cols-2', {
       embedded: 'gap-px overflow-hidden bg-border @3xl:flex',
       ruled: 'rounded-lg border @3xl:flex @3xl:rounded-none @3xl:border-x-0',
       tiles: 'gap-3',
+      personal: 'flex',
     },
   },
   defaultVariants: { variant: 'boxed' },
@@ -51,6 +52,7 @@ const metricCellVariants = cva('flex min-w-0 flex-col', {
       ruled:
         'gap-0.5 px-3 py-2.5 odd:last:col-span-2 nth-[n+3]:border-t even:border-l @3xl:flex-1 @3xl:px-4 @3xl:py-3 @3xl:nth-[n+3]:border-t-0 @3xl:border-l @3xl:first:border-l-0 @3xl:first:pl-0',
       tiles: 'gap-1 rounded-lg border p-4',
+      personal: 'flex-1 flex-col-reverse gap-1',
     },
   },
   defaultVariants: { variant: 'boxed' },
@@ -124,6 +126,7 @@ const SKELETON_CLASS = {
   embedded: 'h-11 w-24',
   ruled: 'h-12 w-24',
   tiles: 'h-12 w-24',
+  personal: 'h-12 w-24',
 } as const satisfies Record<Variant, string>
 
 export function Metric({ label, state = 'ready', className, children }: MetricProps) {
@@ -159,6 +162,7 @@ const FIGURE_CLASS = {
   embedded: 'text-lg leading-7 font-semibold',
   ruled: 'text-xl leading-6 font-bold tracking-[-0.3px] @3xl:text-2xl @3xl:leading-8',
   tiles: 'text-2xl leading-8 font-semibold',
+  personal: 'text-4xl leading-tight font-semibold',
 } as const satisfies Record<Variant, string>
 
 /** A tile's figure, for a tile that is not a `Metric` cell (a link tile): 24/32 semibold. */

@@ -1,3 +1,4 @@
+import { useStaffAccounts } from '#/components/features/staff/accounts/staff-accounts-context'
 // A group's "Actions" menu: on a group head in the overview and on the group's
 // page. Rename and archive open controlled dialogs, because a dialog mounted
 // inside a menu item closes with the menu.
@@ -30,6 +31,7 @@ export function PortalGroupMenu({
   renameMutation,
   archiveGroupMutation,
 }: Props) {
+  const staff = useStaffAccounts()
   const { can } = usePermissions()
   const { has } = useCapabilities()
   const [dialog, setDialog] = useState<'rename' | 'archive' | null>(null)
@@ -42,12 +44,17 @@ export function PortalGroupMenu({
     },
     where,
   )
-  if (menu.length === 0) return null
+  if (menu.length === 0 && !staff?.canInvite) return null
   const archive = menu.filter((entry) => entry.id === 'archive')
   const others = menu.filter((entry) => entry.id !== 'archive')
   return (
     <>
       <RowActionsMenu name={`group ${group.name}`}>
+        {staff?.canInvite ? (
+          <RowActionsItem opensDialog onSelect={() => staff.openAdd(group.id)}>
+            Add people
+          </RowActionsItem>
+        ) : null}
         {others.map((entry) => {
           if (entry.id === 'open') {
             return (

@@ -1,3 +1,4 @@
+import { visiblePortals } from './visible-portals'
 // The All properties page as data: every Portal the reader may see, under the
 // Property it belongs to, which Properties come first, and which page is open.
 // Pure, so search, order and paging across Properties are tested without a
@@ -93,7 +94,7 @@ const itemsOf = (sections: readonly PortalOverviewSection[]): PortalOverviewItem
   sections.flatMap((section) => [...section.items])
 
 export function buildAllPropertiesOverview(
-  rows: readonly PortalOverviewRow[],
+  inputRows: readonly PortalOverviewRow[],
   properties: readonly PortalPropertyInfo[],
   search: AllPropertiesSearch,
   members: readonly PortalManagerName[],
@@ -102,7 +103,9 @@ export function buildAllPropertiesOverview(
   figures?: OrganizationSortFigures,
   /** The Properties the reader folded: their heads page with the rest, their Portals do not. */
   folded: readonly string[] = [],
+  foldedGroups: Readonly<Record<string, boolean>> = {},
 ): AllPropertiesPage {
+  const rows = visiblePortals(inputRows)
   const sort = search.sort ?? DEFAULT_PORTAL_OVERVIEW_SORT
   const dir = search.dir ?? defaultSortDirection(sort)
   const matchesText = searchMatcher(search.q ?? '')
@@ -121,11 +124,19 @@ export function buildAllPropertiesOverview(
         dir,
         ...(nameMatches ? {} : { q: search.q }),
         show: search.show,
-        groupBy: propertyRows.some((row) => row.group) ? 'group' : 'none',
+        groupBy: propertyRows.some((row) => row.group || row.kind === 'personal')
+          ? 'group'
+          : 'none',
       },
       members,
       propertyRows.length,
       figures,
+      [],
+      Object.fromEntries(
+        Object.entries(foldedGroups)
+          .filter(([key]) => key.startsWith(`${propertyId}/`))
+          .map(([key, value]) => [key.slice(propertyId.length + 1), value]),
+      ),
     )
     if (inner.matched === 0) return []
     return [
@@ -144,7 +155,21 @@ export function buildAllPropertiesOverview(
   })
 
   const ordered = [...built].sort(compareProperties(sort, dir, figures))
-  const isFolded = (propertyId: string): boolean => folded.includes(propertyId)
+  const opensStaff = new Set(
+    built
+      .filter(
+        (property) =>
+          Boolean(search.q?.trim()) &&
+          property.sections.some((section) =>
+            section.items.some(
+              (item) => item.row.kind === 'personal' && matchesText(item.row.name),
+            ),
+          ),
+      )
+      .map((property) => property.propertyId),
+  )
+  const isFolded = (propertyId: string): boolean =>
+    folded.includes(propertyId) && !opensStaff.has(propertyId)
   const everyItem = ordered.flatMap((property) =>
     isFolded(property.propertyId) ? [] : itemsOf(property.sections),
   )
@@ -173,9 +198,14 @@ export function buildAllPropertiesOverview(
       )
       return headPage === page ? [{ ...property, sections: [] }] : []
     }
+    let sectionBefore = listedBefore[index] ?? 0
     const sections = property.sections.flatMap((section): PortalOverviewSection[] => {
+      const headPage = clamp(Math.floor(sectionBefore / pageSize) + 1, 1, lastPage)
+      sectionBefore += section.items.length
       const items = section.items.filter((item) => onPage.has(item))
-      return items.length === 0 ? [] : [{ ...section, items }]
+      return items.length === 0 && (section.items.length > 0 || headPage !== page)
+        ? []
+        : [{ ...section, items }]
     })
     return sections.length === 0 ? [] : [{ ...property, sections }]
   })

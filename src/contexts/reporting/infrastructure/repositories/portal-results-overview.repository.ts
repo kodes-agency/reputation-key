@@ -1,9 +1,10 @@
 // Metric context — the Portals overview's batched results read.
 //
-// Answers for every requested Portal in four statements, however many there
+// Answers for every requested Portal in five statements, however many there
 // are: the governed sums (per Portal, per group the reading sat under, per
 // measure), the groups every reading sat under (counted or not), the
-// unattributed Google-open clicks, and the evidence for every family. It counts exactly what a single Portal's Results view counts, through
+// unattributed Google-open clicks, the evidence for every family and the personal
+// Portal ids. It counts exactly what a single Portal's Results view counts, through
 // the same definitions (portal-analytics-shared.ts) and the same evidence
 // statement (portal-analytics-evidence.sql.ts), so a row here can never disagree
 // with that Portal's own Results.
@@ -14,7 +15,7 @@
 // that way.
 
 import type { Database, Tx } from '#/shared/db'
-import { metricReadings } from '#/shared/db/schema'
+import { metricReadings, portals as portalRows } from '#/shared/db/schema'
 import { and, count, eq, gte, inArray, isNull, lt, sql, type SQL } from 'drizzle-orm'
 import { trace } from '#/shared/observability/trace'
 import {
@@ -174,6 +175,17 @@ export const createPortalResultsOverviewRepository = (
           ...new Set(portals.map((portal) => portal.propertyId.toLowerCase())),
         ] as PropertyId[],
       }
+      const personal = await db
+        .select({ id: portalRows.id })
+        .from(portalRows)
+        .where(
+          and(
+            eq(portalRows.organizationId, organizationId),
+            inArray(portalRows.id, roster.portalIds),
+            inArray(portalRows.propertyId, roster.propertyIds),
+            eq(portalRows.kind, 'personal'),
+          ),
+        )
       const scope = windowedScope(organizationId, roster, window)
       const { cells, readingGroups, unattributed, evidenceRows } =
         await withStatementTimeout(db, async (tx) => ({
@@ -210,6 +222,9 @@ export const createPortalResultsOverviewRepository = (
       )
       return {
         computedAt,
+        personalPortalIds: personal.map(
+          (row) => spelled.get(row.id) ?? toPortalId(row.id),
+        ),
         cells: cells.map((cell) => ({
           ...cell,
           portalId: spelled.get(cell.portalId) ?? cell.portalId,

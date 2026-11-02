@@ -1,3 +1,4 @@
+import { staffPortalCounts } from './portal-goal-staff-counts'
 // The Monthly portal goal page's words (copy deck P-4…P-9, P-13…P-15): what each
 // Portal brought in and the quiet ones, each month's facts (the average goal's strip
 // and the bars both say them), and how the goal counts. The
@@ -101,7 +102,7 @@ export function fromPortalsWords(
         ]
   })
   if (rows === null) return { rows: null, total: null, truncated: null, quiet }
-  const listed = rows.portals.map(({ portalId, name, count }) => ({
+  const listed = staffPortalCounts(rows.portals).map(({ portalId, name, count }) => ({
     key: portalId,
     name,
     count: formatNumber(count),

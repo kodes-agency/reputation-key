@@ -673,8 +673,27 @@ tenths a week `paceTenthsPerWeek` beside its whole weekly legacy mirror `pacePer
 
 ## Staff self reads — 2026-11-01 (ADR 0076)
 
-The dormant Property-wide staff dashboard is removed. `staff-self-results.ts` reads only the session's own personal Portal, under `staff.self` and `staff.accounts` (off). DTOs allow scans, delayed rating count and average, scan-only targets, or an enabled colleague list. No Google fact, private note or manager field is returned. Colleagues are one accepted active roster and one batch scan read, including zeroes, in name order. The default-off Property setting gates that read.
+The dormant Property-wide staff dashboard is removed. `staff-self-results.ts` reads only the session's own personal Portal, under `staff.self` and `staff.accounts` (controlled beta). DTOs allow scans, delayed rating count and average, scan-only targets, or an enabled colleague list. No Google fact, private note or manager field is returned. Colleagues are one accepted active roster and one batch scan read, including zeroes, in name order. The default-off Property setting gates that read.
 
 Today, week and month use the Property calendar (US Sunday, otherwise Monday). Scans are current. Ratings end at the start of today and use only readings and corrections recorded before that cutoff, so late projection or correction cannot move the same day's figure. Today has no rating fields and averages below five ratings are absent. Staff query keys are separate and name participation, period and rating cutoff.
 
 `staff_self` is a permitted consumer of qualified scans, numeric private ratings, rating count and rating average. Their worker-data metadata marks the new person-linked audience; retention stays with their 24-month Guest facts and metric formulae, version ids and source rules are unchanged. No click, note or Google metric gains this consumer. It is a read audience, not a gamification consumer. Only qualified scans may drive a target on a personal Portal or a Group holding one; `STAFF_SCAN_TARGETS_ENABLED` is default off and gates new targets and staff goal reads.
+
+## Manager staff scan targets
+
+Personal Portal and Group subjects holding people admit only qualified scans,
+with every member collecting private ratings. Tagged refusals are explained by
+the server boundary. The same checks apply to creation, subject changes, target
+changes and resuming a goal; commit checks share Portal's Property fence.
+
+The Add picker offers staff subjects only while STAFF_SCAN_TARGETS_ENABLED is
+on. A person gets an empty number field and no recommendation; Groups may use a
+scan recommendation. Change sheets retain the same restriction. Off projects
+existing staff targets as Paused in manager reads without changing stored goals;
+the separate staff read exposes no progress. Employment-decision eligibility and
+all staff metric allowlists remain unchanged.
+
+Recommendations still include personal Portals in the Property number. Monthly
+goal contribution lists combine them into "Staff portals: N", retaining their
+sum. The Portals overview's manager-only high-rating hint is presentation over
+the displayed Property window; it produces no event, notice, order or count.

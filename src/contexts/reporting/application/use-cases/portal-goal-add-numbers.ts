@@ -219,19 +219,25 @@ export function narrowedFor(
         defaultMeasure: 'qualified_scans' as const,
       }
     : basis.recommendation
-  if (subject.kind === 'portal_group') {
-    return narrowedRecommendation(
-      recommendation,
-      groupScope(basis, subject.portalGroupId),
-    )
-  }
-  const portal = recommendation.portals.find(
-    ({ portalId }) => portalId === subject.portalId,
-  )
-  return narrowedRecommendation(
-    recommendation,
-    portal ? portalScope(basis, portal) : UNLISTED,
-  )
+  const scope =
+    subject.kind === 'portal_group'
+      ? groupScope(basis, subject.portalGroupId)
+      : (() => {
+          const portal = recommendation.portals.find(
+            ({ portalId }) => portalId === subject.portalId,
+          )
+          return portal ? portalScope(basis, portal) : UNLISTED
+        })()
+  const narrowed = narrowedRecommendation(recommendation, scope)
+  return narrowed.portals.some((portal) => portal.kind === 'personal')
+    ? {
+        ...narrowed,
+        staffTarget: true,
+        personalTarget: subject.kind === 'portal',
+        ratingsAvailable: false,
+        defaultMeasure: 'qualified_scans',
+      }
+    : narrowed
 }
 
 /** The live Portals, in name order: published, with a live run now. */
@@ -257,5 +263,7 @@ export function recommendedNumberFor(
   const portal = livePortalsOf(basis.recommendation).find(
     ({ portalId }) => portalId === subject.portalId,
   )
-  return portal ? (portalNumbers(basis, portal).choices?.aBitMore ?? null) : null
+  return portal && portal.kind !== 'personal'
+    ? (portalNumbers(basis, portal).choices?.aBitMore ?? null)
+    : null
 }

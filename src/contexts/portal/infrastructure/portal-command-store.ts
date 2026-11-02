@@ -1,3 +1,4 @@
+import { assertStaffScanSwitch } from './staff-scan-switch-guard'
 // Atomic Portal command store (ARC-01).
 //
 // Portal state, responsibility/token side effects, and every required durable
@@ -433,6 +434,7 @@ export const createAtomicPortalCommandStore = (db: Database): PortalCommandStore
       trace('portal.commandStore.updatePortal', async () => {
         assertUpdateCommand(command)
         await addressing(async (tx) => {
+          await assertStaffScanSwitch(tx, command)
           if (command.publication?.kind === 'publish') {
             await lockPortalPublicationProperty(
               tx,

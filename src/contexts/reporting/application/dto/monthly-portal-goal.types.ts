@@ -163,6 +163,7 @@ export type PortalGoalRunningMonth = Readonly<{
 
 /** One published Portal's count this month, under "From your portals". */
 export type PortalGoalPortalCount = Readonly<{
+  kind?: 'personal'
   portalId: string
   name: string
   count: number

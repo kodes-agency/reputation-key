@@ -240,6 +240,7 @@ describe('addStaffMember', () => {
         displayName: null,
       })
       expect(Object.keys(result).sort()).toEqual([
+        'access',
         'code',
         'operationId',
         'participationId',
@@ -331,3 +332,68 @@ describe('addStaffMember', () => {
     ).toMatchObject({ status: 'done' })
   })
 })
+
+it('conceals another Organization from a PropertyManager on add', async () => {
+  const state = setup()
+  const reportAddressRefusal = vi.fn()
+  const store = {
+    ...state.deps.store,
+    addressFacts: async () => ({
+      userId: 'elsewhere',
+      organizationIds: ['elsewhere'],
+      alreadyStaffHere: false,
+      alreadyInvited: false,
+      staffParticipantId: null,
+    }),
+  }
+  const deps = {
+    ...state.deps,
+    reportAddressRefusal,
+    store: {
+      ...store,
+      withAddressLock: async <T>(
+        _org: string,
+        _email: string,
+        run: (value: StaffAccountStore) => Promise<T>,
+      ) => run(store),
+    },
+  }
+  await expect(
+    addStaffMember(deps)(input, buildTestAuthContext({ role: 'PropertyManager' })),
+  ).rejects.toMatchObject({ code: 'cannot_add', message: "This email can't be added." })
+  expect(reportAddressRefusal).toHaveBeenCalledOnce()
+  expect(state.people.size).toBe(0)
+})
+
+it.each(['AccountAdmin', 'PropertyManager'] as const)(
+  'limits address detail for %s when the access step refuses the address',
+  async (role) => {
+    const state = setup()
+    const reportAddressRefusal = vi.fn()
+    const store: StaffAccountStore = {
+      ...state.deps.store,
+      grantAccess: async () => {
+        throw Object.assign(new Error('This address belongs to another Organization'), {
+          code: 'other_organization',
+        })
+      },
+    }
+    const deps = {
+      ...state.deps,
+      reportAddressRefusal,
+      store: {
+        ...store,
+        withAddressLock: async <T>(
+          _org: string,
+          _email: string,
+          run: (value: StaffAccountStore) => Promise<T>,
+        ) => run(store),
+      },
+    }
+    const result = await addStaffMember(deps)(input, buildTestAuthContext({ role }))
+    expect(result.code).toBe(
+      role === 'AccountAdmin' ? 'other_organization' : 'cannot_add',
+    )
+    expect(reportAddressRefusal).toHaveBeenCalledTimes(role === 'AccountAdmin' ? 0 : 1)
+  },
+)

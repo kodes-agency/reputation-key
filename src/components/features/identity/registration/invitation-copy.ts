@@ -91,6 +91,7 @@ export function invitationPropertyLines(
   role: InvitationRole,
   propertyNames: ReadonlyArray<string>,
 ): ReadonlyArray<string> {
+  if (role === 'Member') return []
   if (role === 'AccountAdmin') return ['Every Property in the Organization']
   if (propertyNames.length === 0) return ['None assigned yet']
   if (propertyNames.length <= MAX_NAMED_PROPERTIES + 1) return propertyNames

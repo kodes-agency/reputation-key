@@ -17,6 +17,7 @@ export type StaffSelfPerson = Readonly<{
   participations: readonly StaffSelfParticipation[]
 }>
 export type StaffSelfReader = Readonly<{
+  hasPersonalPortal(organizationId: string, userId: string): Promise<boolean>
   find(organizationId: string, userId: string): Promise<StaffSelfPerson | null>
   acknowledge(organizationId: string, userId: string, version: string): Promise<void>
   colleagues(

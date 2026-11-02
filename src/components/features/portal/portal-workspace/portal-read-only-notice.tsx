@@ -5,8 +5,8 @@
 //
 // - role: the person's role can read portals but not change them;
 // - capability: portal changes are switched off for the organization;
-// - archived: the portal is retained exactly as it was; Restore brings it back
-//   as disabled.
+// - archived: a place Portal is retained as it was; Restore brings it back disabled;
+// - staff_removed: a personal Portal stays archived after Staff Remove.
 
 import type { ReactNode } from 'react'
 import { Archive, Eye, Lock } from 'lucide-react'
@@ -15,7 +15,10 @@ import { cn } from '#/lib/utils'
 import type { PortalReadOnlyReason } from '../portal-detail/portal-edit-access'
 
 const NOTICE: Readonly<
-  Record<PortalReadOnlyReason, Readonly<{ icon: typeof Lock; text: string }>>
+  Record<
+    PortalReadOnlyReason | 'staff_removed',
+    Readonly<{ icon: typeof Lock; text: string }>
+  >
 > = {
   role: {
     icon: Eye,
@@ -24,6 +27,10 @@ const NOTICE: Readonly<
   capability: {
     icon: Lock,
     text: 'You can look at this portal, but changing portals isn’t available for your organization right now.',
+  },
+  staff_removed: {
+    icon: Archive,
+    text: 'This person’s portal has been removed. Their past results stay in your totals.',
   },
   archived: {
     icon: Archive,
@@ -35,7 +42,7 @@ export function PortalReadOnlyNotice({
   reason,
   action,
 }: Readonly<{
-  reason: PortalReadOnlyReason
+  reason: PortalReadOnlyReason | 'staff_removed'
   /** The way out, beside the line (Restore for an archived portal). */
   action?: ReactNode
 }>) {

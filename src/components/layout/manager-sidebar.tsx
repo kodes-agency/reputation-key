@@ -1,5 +1,6 @@
+import { useCapabilities } from '#/shared/hooks/useCapabilities'
 import { useNavigate } from '@tanstack/react-router'
-import { Settings } from 'lucide-react'
+import { QrCode, Settings } from 'lucide-react'
 import {
   Sidebar,
   SidebarContent,
@@ -24,6 +25,7 @@ import type { getLastVisitCountFn } from '#/contexts/inbox/server/inbox'
 type Props = Readonly<{
   properties: ReadonlyArray<{ id: string; name: string; slug: string }>
   organizationName?: string | undefined
+  hasPersonalPortal?: boolean | undefined
   getLastVisitCount: typeof getLastVisitCountFn
 }>
 
@@ -54,8 +56,10 @@ function sectionForPathname(pathname: string): string {
 export function ManagerSidebar({
   properties,
   organizationName,
+  hasPersonalPortal = false,
   getLastVisitCount,
 }: Props) {
+  const capabilities = useCapabilities()
   const propertyId = usePropertyId()
   const pathname = useRenderedPathname()
   const activeSection = sectionForPathname(pathname)
@@ -129,6 +133,20 @@ export function ManagerSidebar({
 
         <SidebarFooter>
           <SidebarMenu>
+            {hasPersonalPortal && capabilities.has('staff.accounts') && (
+              <SidebarMenuItem>
+                <SidebarMenuButton
+                  asChild
+                  isActive={pathname === '/my-code'}
+                  tooltip="My code"
+                >
+                  <NavLink to="/my-code" current={pathname === '/my-code'}>
+                    <QrCode />
+                    <span>My code</span>
+                  </NavLink>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+            )}
             <SidebarMenuItem>
               <SidebarMenuButton
                 asChild

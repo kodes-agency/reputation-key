@@ -45,11 +45,14 @@ export type StaffManagementStore = Readonly<{
       displayName: string
       portalId: string | null
       email: string | null
+      group?: Readonly<{ id: string; name: string }> | null
+      endsSignIn?: boolean
       access: 'active' | 'invited' | 'invite_expired' | 'failed'
       step: string | null
       code: string | null
     }>[]
   >
+  getColleagues?: (organizationId: string, propertyId: string) => Promise<boolean>
   setColleagues(
     organizationId: string,
     propertyId: string,

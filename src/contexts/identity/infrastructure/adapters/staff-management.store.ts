@@ -121,19 +121,27 @@ export const createStaffManagementStore = (
     const result =
       await db.execute(sql`WITH roster AS (SELECT p.id AS "participationId", person.display_name AS "displayName", p.personal_portal_id AS "portalId", COALESCE(u.email, i.email, o.email) AS email,
       CASE WHEN p.status = 'archived' THEN 'failed' WHEN o.status IN ('running', 'failed') THEN 'failed' WHEN l.id IS NOT NULL AND m.id IS NOT NULL THEN 'active' WHEN i."expiresAt" <= ${clock()} THEN 'invite_expired' ELSE 'invited' END AS access,
-      CASE WHEN p.status = 'archived' THEN 'removal' WHEN o.status IN ('running', 'failed') THEN o.step ELSE NULL END AS step, CASE WHEN p.status = 'archived' THEN 'removal_incomplete' WHEN o.status IN ('running', 'failed') THEN o.failure_code ELSE NULL END AS code, o.id AS "operationId"
+      CASE WHEN p.status = 'archived' THEN 'removal' WHEN o.status IN ('running', 'failed') THEN o.step ELSE NULL END AS step, CASE WHEN p.status = 'archived' THEN 'removal_incomplete' WHEN o.status IN ('running', 'failed') THEN o.failure_code ELSE NULL END AS code, o.id AS "operationId",
+      (m.role = 'member' AND NOT EXISTS (SELECT 1 FROM staff_user_links other_link JOIN staff_participations other ON other.organization_id = other_link.organization_id AND other.staff_participant_id = other_link.staff_participant_id WHERE other_link.user_id = l.user_id AND other_link.effective_from <= ${clock()} AND other_link.effective_to IS NULL AND other.status = 'active' AND other.ended_at IS NULL AND other.id <> p.id)) IS TRUE AS "endsSignIn", CASE WHEN g.id IS NULL THEN NULL ELSE json_build_object('id', g.id, 'name', g.name) END AS "group"
       FROM staff_participations p JOIN staff_participants person ON person.organization_id = p.organization_id AND person.id = p.staff_participant_id
       LEFT JOIN portals portal ON portal.organization_id = p.organization_id AND portal.property_id = p.property_id AND portal.id = p.personal_portal_id
       LEFT JOIN staff_user_links l ON l.organization_id = p.organization_id AND l.staff_participant_id = p.staff_participant_id AND l.effective_to IS NULL
       LEFT JOIN member m ON m."organizationId" = l.organization_id AND m."userId" = l.user_id LEFT JOIN "user" u ON u.id = l.user_id
       LEFT JOIN LATERAL (SELECT * FROM invitation i WHERE i."organizationId" = p.organization_id AND i."staffParticipationId" = p.id::text ORDER BY i."createdAt" DESC LIMIT 1) i ON true
       LEFT JOIN staff_onboardings o ON o.organization_id = p.organization_id AND o.staff_participation_id = p.id
+      LEFT JOIN portal_groups g ON g.organization_id = o.organization_id AND g.property_id = o.property_id AND g.id = o.portal_group_id AND g.deleted_at IS NULL
       WHERE p.organization_id = ${org} AND p.property_id = ${property}::uuid AND (p.personal_portal_id IS NOT NULL OR o.id IS NOT NULL) AND (p.status = 'active' OR (p.archive_reason = 'staff_removed' AND portal.publication_state <> 'archived')))
       SELECT * FROM roster UNION ALL
-      SELECT o.staff_participation_id AS "participationId", o.display_name AS "displayName", o.portal_id AS "portalId", o.email, 'failed' AS access, o.step, o.failure_code AS code, o.id AS "operationId"
-      FROM staff_onboardings o WHERE o.organization_id = ${org} AND o.property_id = ${property}::uuid AND o.status IN ('running', 'failed') AND NOT EXISTS (SELECT 1 FROM roster r WHERE r."participationId" = o.staff_participation_id)
+      SELECT o.staff_participation_id AS "participationId", o.display_name AS "displayName", CASE WHEN EXISTS (SELECT 1 FROM portals p WHERE p.organization_id = o.organization_id AND p.id = o.portal_id) THEN o.portal_id ELSE NULL END AS "portalId", o.email, 'failed' AS access, o.step, o.failure_code AS code, o.id AS "operationId", false AS "endsSignIn", CASE WHEN g.id IS NULL THEN NULL ELSE json_build_object('id', g.id, 'name', g.name) END AS "group"
+      FROM staff_onboardings o LEFT JOIN portal_groups g ON g.organization_id = o.organization_id AND g.property_id = o.property_id AND g.id = o.portal_group_id AND g.deleted_at IS NULL WHERE o.organization_id = ${org} AND o.property_id = ${property}::uuid AND o.status IN ('running', 'failed') AND NOT EXISTS (SELECT 1 FROM roster r WHERE r."participationId" = o.staff_participation_id)
       ORDER BY "displayName", "participationId"`)
     return result.rows as unknown as Awaited<ReturnType<StaffManagementStore['list']>>
+  },
+  getColleagues: async (org, property) => {
+    const result = await db.execute(
+      sql`SELECT colleague_list_enabled AS enabled FROM staff_property_settings WHERE organization_id = ${org} AND property_id = ${property}::uuid`,
+    )
+    return result.rows[0]?.enabled === true
   },
   setColleagues: async (org, property, enabled, actor) => {
     await db.execute(

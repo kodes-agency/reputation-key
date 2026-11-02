@@ -31,6 +31,7 @@ import type {
 const LIVE_INTERVAL_LOOKBACK_MS = 60 * 24 * 60 * 60 * 1000
 
 type GoalReadinessFact = Readonly<{
+  kind?: 'personal'
   portalId: PortalId
   name: string
   skipPrivateRating: boolean
@@ -104,6 +105,7 @@ export const createGoalReadinessFacts = (deps: GoalReadinessFactsDeps) => ({
         const own = activations.filter((row) => row.portalId === portal.id)
         const code = tokenByPortal.get(portal.id)
         return {
+          ...(portal.kind === 'personal' ? { kind: 'personal' as const } : {}),
           portalId: portal.id,
           name: portal.name,
           skipPrivateRating: portal.skipPrivateRating,

@@ -15,6 +15,10 @@ import type { GoalProgramError } from '#/contexts/reporting/application/public-a
 const GOAL_REFUSAL = 'GoalProgramError'
 
 const SENTENCES: Readonly<Record<GoalProgramError['code'], string>> = {
+  staff_scan_only: 'A target for staff can only count scans.',
+  staff_scan_targets_disabled: 'Scan targets for staff are paused.',
+  staff_private_ratings_skipped:
+    'Every portal in a staff scan target must collect private ratings. Turn off Skip private rating first.',
   forbidden: 'You don’t have permission to do that.',
   not_found: 'This goal can’t be found.',
   invalid_name: 'Enter a goal name.',

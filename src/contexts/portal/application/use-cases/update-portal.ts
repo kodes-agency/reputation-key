@@ -53,7 +53,7 @@ export type UpdatePortalDeps = Readonly<{
       organizationId: string,
       propertyId: string,
       portalId: string,
-    ): Promise<'portal' | 'last_collector' | null>
+    ): Promise<'portal' | 'last_collector' | 'staff_scan_target' | null>
   }>
   personalArchive?: boolean
   /** The already-authorized member departure must also retire staff Portals outside manager grants. */
@@ -409,9 +409,11 @@ async function assertSkipSwitchAllowed(
   if (!block) return
   throw portalError(
     'running_rating_goal',
-    block === 'portal'
-      ? 'This portal has a running goal on private ratings. End the goal first.'
-      : 'This is the last portal collecting ratings for a running goal. End the goal first.',
+    block === 'staff_scan_target'
+      ? 'This portal has a running scan target for staff. End the target first.'
+      : block === 'portal'
+        ? 'This portal has a running goal on private ratings. End the goal first.'
+        : 'This is the last portal collecting ratings for a running goal. End the goal first.',
   )
 }
 

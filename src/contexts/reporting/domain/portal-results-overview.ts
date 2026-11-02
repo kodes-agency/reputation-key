@@ -104,6 +104,10 @@ export type PortalResultsOverview = Readonly<{
   groups: readonly PortalResultsGroupRow[]
   /** One per Property that has a Portal; `memberPortalIds` is empty when none apply. */
   ungrouped: readonly PortalResultsUngroupedRow[]
+  /** Personal Portals with no Group, pooled by group-at-reading. */
+  otherStaff?: readonly PortalResultsUngroupedRow[]
+  /** The flat Staff section, pooled across all personal Portals. */
+  staff?: readonly PortalResultsUngroupedRow[]
   total: PortalResultsTotalRow
 }>
 

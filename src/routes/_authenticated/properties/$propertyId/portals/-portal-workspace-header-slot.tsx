@@ -101,6 +101,11 @@ export function PortalWorkspaceHeaderSlot({
       propertyId={propertyId}
       portalId={portalId}
       portalName={portal.name}
+      publicName={
+        has('staff.accounts') && portal.kind === 'personal'
+          ? (portal.publicName ?? undefined)
+          : undefined
+      }
       propertyName={propData.property.name}
       statusLine={status.line}
       statusProblem={status.problem}

@@ -47,7 +47,6 @@ function setup(notFound = false, accessible: ReadonlyArray<PropertyId> | null = 
     insert: async () => {},
     update: async () => {},
     softDelete: async () => {},
-    addPortal: async () => {},
     removePortal: async () => false,
     findPortalMembership: async () => null,
     getGroupPortalIds: async () => [],

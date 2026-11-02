@@ -15,12 +15,25 @@ export type CreatePersonalPortalDeps = CreatePortalDeps &
       'loadWorkingCopy' | 'findActiveForPortal'
     >
     addressRecoverable: boolean
+    checkGroupTarget: (
+      scope: Readonly<{
+        organizationId: string
+        propertyId: string
+        portalGroupId: string
+        at: Date
+        skipsPrivateRating: boolean
+      }>,
+    ) => Promise<void>
   }>
 
 export const checkPersonalPortalSource =
   (deps: CreatePersonalPortalDeps) =>
   async (
-    input: Readonly<{ propertyId: string; sourcePortalId?: string }>,
+    input: Readonly<{
+      propertyId: string
+      sourcePortalId?: string
+      portalGroupId?: string
+    }>,
     ctx: AuthContext,
   ) => {
     const pid = await assertNewPortalPropertyAccess(
@@ -29,8 +42,17 @@ export const checkPersonalPortalSource =
       input.propertyId,
       'This account cannot add staff at this Property',
     )
-    if ('portalGroupId' in input && typeof input.portalGroupId === 'string')
-      await loadTargetGroup(deps, ctx, pid, input.portalGroupId)
+    if (input.portalGroupId) await loadTargetGroup(deps, ctx, pid, input.portalGroupId)
+    const checkGroupTarget = async (skipsPrivateRating: boolean) => {
+      if (!input.portalGroupId) return
+      await deps.checkGroupTarget({
+        organizationId: ctx.organizationId,
+        propertyId: pid,
+        portalGroupId: input.portalGroupId,
+        at: deps.clock(),
+        skipsPrivateRating,
+      })
+    }
     if (!deps.addressRecoverable) {
       throw portalError(
         'address_keyring_missing',
@@ -38,6 +60,7 @@ export const checkPersonalPortalSource =
       )
     }
     if (!input.sourcePortalId) {
+      await checkGroupTarget(false)
       const { profile } = await deps.experienceRepo.getPropertyExperience(
         ctx.organizationId,
         pid,
@@ -64,6 +87,7 @@ export const checkPersonalPortalSource =
     if (source.publicationState === 'archived') {
       throw portalError('source_archived', 'Choose a Portal that is not archived')
     }
+    await checkGroupTarget(source.skipPrivateRating)
     const [working, snapshot] = await Promise.all([
       deps.publicationRepo.loadWorkingCopy(ctx.organizationId, source.id),
       deps.publicationRepo.findActiveForPortal(ctx.organizationId, source.id),

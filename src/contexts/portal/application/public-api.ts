@@ -343,6 +343,7 @@ export type PortalPublicApi = Readonly<{
   ) => Promise<Readonly<{
     id: PortalId
     kind?: 'place' | 'personal'
+    skipPrivateRating?: boolean
     name: string
     publicationState: 'draft' | 'published' | 'disabled' | 'archived'
   }> | null>

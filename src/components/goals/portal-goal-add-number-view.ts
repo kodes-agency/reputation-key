@@ -43,7 +43,8 @@ export function numberModel(
   offer: PortalGoalAddOffer,
   text: string,
 ) {
-  const { measure, month } = options
+  const { month } = options
+  const measure = offer.measure ?? options.measure
   const { value, number } = numberOf(measure, text)
   const choices = offer.choices === null ? null : choicesOf({ choices: offer.choices })
   const submission: PortalGoalAddSubmission | null =

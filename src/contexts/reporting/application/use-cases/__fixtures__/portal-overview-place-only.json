@@ -1,0 +1,608 @@
+{
+  "groups": [
+    {
+      "contributingPortalIds": ["b0000000-0000-4000-8000-000000000001"],
+      "engagementFunnel": {
+        "googleOpens": 0,
+        "qualifiedScans": 7,
+        "ratings": 0
+      },
+      "groupId": "c0000000-0000-4000-8000-000000000001",
+      "kpis": {
+        "avgRating": {
+          "comparison": null,
+          "comparisonWithheld": "sample_too_small",
+          "evidence": {
+            "availabilityReason": null,
+            "completeness": 1,
+            "computedAt": "2026-10-01T00:05:00.000Z",
+            "correctionHead": null,
+            "definitionVersionId": "11111111-1111-4111-8111-111111111202",
+            "latestActivity": null,
+            "sampleCount": 0,
+            "state": "insufficient_data",
+            "verifiedThrough": "2026-10-01T00:05:00.000Z"
+          },
+          "priorSampleCount": 0,
+          "priorValue": null,
+          "sampleCount": 0,
+          "value": null
+        },
+        "feedback": {
+          "evidence": {
+            "availabilityReason": null,
+            "completeness": 1,
+            "computedAt": "2026-10-01T00:05:00.000Z",
+            "correctionHead": null,
+            "definitionVersionId": "11111111-1111-4111-8111-111111111203",
+            "latestActivity": null,
+            "sampleCount": 0,
+            "state": "ready",
+            "verifiedThrough": "2026-10-01T00:05:00.000Z"
+          },
+          "priorValue": 0,
+          "trend": null,
+          "value": 0
+        },
+        "googleOpens": {
+          "evidence": {
+            "availabilityReason": null,
+            "completeness": 1,
+            "computedAt": "2026-10-01T00:05:00.000Z",
+            "correctionHead": null,
+            "definitionVersionId": "11111111-1111-4111-8111-111111111204",
+            "latestActivity": null,
+            "sampleCount": 0,
+            "state": "ready",
+            "verifiedThrough": "2026-10-01T00:05:00.000Z"
+          },
+          "priorValue": 0,
+          "trend": null,
+          "value": 0
+        },
+        "ratings": {
+          "evidence": {
+            "availabilityReason": null,
+            "completeness": 1,
+            "computedAt": "2026-10-01T00:05:00.000Z",
+            "correctionHead": null,
+            "definitionVersionId": "11111111-1111-4111-8111-111111111202",
+            "latestActivity": null,
+            "sampleCount": 0,
+            "state": "ready",
+            "verifiedThrough": "2026-10-01T00:05:00.000Z"
+          },
+          "priorValue": 0,
+          "trend": null,
+          "value": 0
+        },
+        "scans": {
+          "evidence": {
+            "availabilityReason": null,
+            "completeness": 1,
+            "computedAt": "2026-10-01T00:05:00.000Z",
+            "correctionHead": null,
+            "definitionVersionId": "11111111-1111-4111-8111-111111111301",
+            "latestActivity": null,
+            "sampleCount": 7,
+            "state": "ready",
+            "verifiedThrough": "2026-10-01T00:05:00.000Z"
+          },
+          "priorValue": 0,
+          "trend": null,
+          "value": 7
+        }
+      },
+      "memberPortalIds": ["b0000000-0000-4000-8000-000000000001"],
+      "propertyId": "a0000000-0000-4000-8000-000000000001"
+    }
+  ],
+  "portals": [
+    {
+      "engagementFunnel": {
+        "googleOpens": 0,
+        "qualifiedScans": 7,
+        "ratings": 3
+      },
+      "groupId": "c0000000-0000-4000-8000-000000000001",
+      "kpis": {
+        "avgRating": {
+          "comparison": null,
+          "comparisonWithheld": "sample_too_small",
+          "evidence": {
+            "availabilityReason": "below_minimum_sample",
+            "completeness": 1,
+            "computedAt": "2026-10-01T00:05:00.000Z",
+            "correctionHead": null,
+            "definitionVersionId": "11111111-1111-4111-8111-111111111202",
+            "latestActivity": null,
+            "sampleCount": 3,
+            "state": "insufficient_data",
+            "verifiedThrough": "2026-10-01T00:05:00.000Z"
+          },
+          "priorSampleCount": 0,
+          "priorValue": null,
+          "sampleCount": 3,
+          "value": null
+        },
+        "feedback": {
+          "evidence": {
+            "availabilityReason": null,
+            "completeness": 1,
+            "computedAt": "2026-10-01T00:05:00.000Z",
+            "correctionHead": null,
+            "definitionVersionId": "11111111-1111-4111-8111-111111111203",
+            "latestActivity": null,
+            "sampleCount": 2,
+            "state": "ready",
+            "verifiedThrough": "2026-10-01T00:05:00.000Z"
+          },
+          "priorValue": 0,
+          "trend": null,
+          "value": 2
+        },
+        "googleOpens": {
+          "evidence": {
+            "availabilityReason": null,
+            "completeness": 1,
+            "computedAt": "2026-10-01T00:05:00.000Z",
+            "correctionHead": null,
+            "definitionVersionId": "11111111-1111-4111-8111-111111111204",
+            "latestActivity": null,
+            "sampleCount": 0,
+            "state": "ready",
+            "verifiedThrough": "2026-10-01T00:05:00.000Z"
+          },
+          "priorValue": 0,
+          "trend": null,
+          "value": 0
+        },
+        "ratings": {
+          "evidence": {
+            "availabilityReason": null,
+            "completeness": 1,
+            "computedAt": "2026-10-01T00:05:00.000Z",
+            "correctionHead": null,
+            "definitionVersionId": "11111111-1111-4111-8111-111111111202",
+            "latestActivity": null,
+            "sampleCount": 3,
+            "state": "ready",
+            "verifiedThrough": "2026-10-01T00:05:00.000Z"
+          },
+          "priorValue": 0,
+          "trend": null,
+          "value": 3
+        },
+        "scans": {
+          "evidence": {
+            "availabilityReason": null,
+            "completeness": 1,
+            "computedAt": "2026-10-01T00:05:00.000Z",
+            "correctionHead": null,
+            "definitionVersionId": "11111111-1111-4111-8111-111111111301",
+            "latestActivity": null,
+            "sampleCount": 7,
+            "state": "ready",
+            "verifiedThrough": "2026-10-01T00:05:00.000Z"
+          },
+          "priorValue": 2,
+          "trend": 250,
+          "value": 7
+        }
+      },
+      "portalId": "b0000000-0000-4000-8000-000000000001",
+      "propertyId": "a0000000-0000-4000-8000-000000000001"
+    },
+    {
+      "engagementFunnel": {
+        "googleOpens": 3,
+        "qualifiedScans": 4,
+        "ratings": 3
+      },
+      "groupId": null,
+      "kpis": {
+        "avgRating": {
+          "comparison": null,
+          "comparisonWithheld": "sample_too_small",
+          "evidence": {
+            "availabilityReason": "below_minimum_sample",
+            "completeness": 1,
+            "computedAt": "2026-10-01T00:05:00.000Z",
+            "correctionHead": null,
+            "definitionVersionId": "11111111-1111-4111-8111-111111111202",
+            "latestActivity": null,
+            "sampleCount": 3,
+            "state": "insufficient_data",
+            "verifiedThrough": "2026-10-01T00:05:00.000Z"
+          },
+          "priorSampleCount": 0,
+          "priorValue": null,
+          "sampleCount": 3,
+          "value": null
+        },
+        "feedback": {
+          "evidence": {
+            "availabilityReason": null,
+            "completeness": 1,
+            "computedAt": "2026-10-01T00:05:00.000Z",
+            "correctionHead": null,
+            "definitionVersionId": "11111111-1111-4111-8111-111111111203",
+            "latestActivity": null,
+            "sampleCount": 0,
+            "state": "ready",
+            "verifiedThrough": "2026-10-01T00:05:00.000Z"
+          },
+          "priorValue": 0,
+          "trend": null,
+          "value": 0
+        },
+        "googleOpens": {
+          "evidence": {
+            "availabilityReason": null,
+            "completeness": 1,
+            "computedAt": "2026-10-01T00:05:00.000Z",
+            "correctionHead": null,
+            "definitionVersionId": "11111111-1111-4111-8111-111111111204",
+            "latestActivity": null,
+            "sampleCount": 3,
+            "state": "ready",
+            "verifiedThrough": "2026-10-01T00:05:00.000Z"
+          },
+          "priorValue": 0,
+          "trend": null,
+          "value": 3
+        },
+        "ratings": {
+          "evidence": {
+            "availabilityReason": null,
+            "completeness": 1,
+            "computedAt": "2026-10-01T00:05:00.000Z",
+            "correctionHead": null,
+            "definitionVersionId": "11111111-1111-4111-8111-111111111202",
+            "latestActivity": null,
+            "sampleCount": 3,
+            "state": "ready",
+            "verifiedThrough": "2026-10-01T00:05:00.000Z"
+          },
+          "priorValue": 0,
+          "trend": null,
+          "value": 3
+        },
+        "scans": {
+          "evidence": {
+            "availabilityReason": null,
+            "completeness": 1,
+            "computedAt": "2026-10-01T00:05:00.000Z",
+            "correctionHead": null,
+            "definitionVersionId": "11111111-1111-4111-8111-111111111301",
+            "latestActivity": null,
+            "sampleCount": 4,
+            "state": "ready",
+            "verifiedThrough": "2026-10-01T00:05:00.000Z"
+          },
+          "priorValue": 0,
+          "trend": null,
+          "value": 4
+        }
+      },
+      "portalId": "b0000000-0000-4000-8000-000000000002",
+      "propertyId": "a0000000-0000-4000-8000-000000000001"
+    }
+  ],
+  "properties": [
+    {
+      "comparePeriod": {
+        "endAt": "2026-08-31T12:00:00.000Z",
+        "startAt": "2026-08-02T00:00:00.000Z"
+      },
+      "engagementFunnel": {
+        "googleOpens": 3,
+        "qualifiedScans": 11,
+        "ratings": 6
+      },
+      "kpis": {
+        "avgRating": {
+          "comparison": null,
+          "comparisonWithheld": "sample_too_small",
+          "evidence": {
+            "availabilityReason": null,
+            "completeness": 1,
+            "computedAt": "2026-10-01T00:05:00.000Z",
+            "correctionHead": null,
+            "definitionVersionId": "11111111-1111-4111-8111-111111111202",
+            "latestActivity": null,
+            "sampleCount": 6,
+            "state": "ready",
+            "verifiedThrough": "2026-10-01T00:05:00.000Z"
+          },
+          "priorSampleCount": 0,
+          "priorValue": null,
+          "sampleCount": 6,
+          "value": 4.5
+        },
+        "feedback": {
+          "evidence": {
+            "availabilityReason": null,
+            "completeness": 1,
+            "computedAt": "2026-10-01T00:05:00.000Z",
+            "correctionHead": null,
+            "definitionVersionId": "11111111-1111-4111-8111-111111111203",
+            "latestActivity": null,
+            "sampleCount": 2,
+            "state": "ready",
+            "verifiedThrough": "2026-10-01T00:05:00.000Z"
+          },
+          "priorValue": 0,
+          "trend": null,
+          "value": 2
+        },
+        "googleOpens": {
+          "evidence": {
+            "availabilityReason": null,
+            "completeness": 1,
+            "computedAt": "2026-10-01T00:05:00.000Z",
+            "correctionHead": null,
+            "definitionVersionId": "11111111-1111-4111-8111-111111111204",
+            "latestActivity": null,
+            "sampleCount": 3,
+            "state": "ready",
+            "verifiedThrough": "2026-10-01T00:05:00.000Z"
+          },
+          "priorValue": 0,
+          "trend": null,
+          "value": 3
+        },
+        "ratings": {
+          "evidence": {
+            "availabilityReason": null,
+            "completeness": 1,
+            "computedAt": "2026-10-01T00:05:00.000Z",
+            "correctionHead": null,
+            "definitionVersionId": "11111111-1111-4111-8111-111111111202",
+            "latestActivity": null,
+            "sampleCount": 6,
+            "state": "ready",
+            "verifiedThrough": "2026-10-01T00:05:00.000Z"
+          },
+          "priorValue": 0,
+          "trend": null,
+          "value": 6
+        },
+        "scans": {
+          "evidence": {
+            "availabilityReason": null,
+            "completeness": 1,
+            "computedAt": "2026-10-01T00:05:00.000Z",
+            "correctionHead": null,
+            "definitionVersionId": "11111111-1111-4111-8111-111111111301",
+            "latestActivity": null,
+            "sampleCount": 11,
+            "state": "ready",
+            "verifiedThrough": "2026-10-01T00:05:00.000Z"
+          },
+          "priorValue": 2,
+          "trend": 450,
+          "value": 11
+        }
+      },
+      "localDays": {
+        "compareEnd": "2026-08-31",
+        "compareStart": "2026-08-02",
+        "end": "2026-09-30",
+        "start": "2026-09-01"
+      },
+      "period": {
+        "endAt": "2026-09-30T12:00:00.000Z",
+        "startAt": "2026-09-01T00:00:00.000Z"
+      },
+      "portalIds": [
+        "b0000000-0000-4000-8000-000000000001",
+        "b0000000-0000-4000-8000-000000000002"
+      ],
+      "propertyId": "a0000000-0000-4000-8000-000000000001",
+      "timezone": "UTC"
+    }
+  ],
+  "qualifiedScansSince": "2026-08-01T00:00:00.000Z",
+  "thresholds": {
+    "averageMinSample": 5,
+    "busiestMinScans": 30,
+    "comparisonMinSample": 10
+  },
+  "total": {
+    "engagementFunnel": {
+      "googleOpens": 3,
+      "qualifiedScans": 11,
+      "ratings": 6
+    },
+    "kpis": {
+      "avgRating": {
+        "comparison": null,
+        "comparisonWithheld": "sample_too_small",
+        "evidence": {
+          "availabilityReason": null,
+          "completeness": 1,
+          "computedAt": "2026-10-01T00:05:00.000Z",
+          "correctionHead": null,
+          "definitionVersionId": "11111111-1111-4111-8111-111111111202",
+          "latestActivity": null,
+          "sampleCount": 6,
+          "state": "ready",
+          "verifiedThrough": "2026-10-01T00:05:00.000Z"
+        },
+        "priorSampleCount": 0,
+        "priorValue": null,
+        "sampleCount": 6,
+        "value": 4.5
+      },
+      "feedback": {
+        "evidence": {
+          "availabilityReason": null,
+          "completeness": 1,
+          "computedAt": "2026-10-01T00:05:00.000Z",
+          "correctionHead": null,
+          "definitionVersionId": "11111111-1111-4111-8111-111111111203",
+          "latestActivity": null,
+          "sampleCount": 2,
+          "state": "ready",
+          "verifiedThrough": "2026-10-01T00:05:00.000Z"
+        },
+        "priorValue": 0,
+        "trend": null,
+        "value": 2
+      },
+      "googleOpens": {
+        "evidence": {
+          "availabilityReason": null,
+          "completeness": 1,
+          "computedAt": "2026-10-01T00:05:00.000Z",
+          "correctionHead": null,
+          "definitionVersionId": "11111111-1111-4111-8111-111111111204",
+          "latestActivity": null,
+          "sampleCount": 3,
+          "state": "ready",
+          "verifiedThrough": "2026-10-01T00:05:00.000Z"
+        },
+        "priorValue": 0,
+        "trend": null,
+        "value": 3
+      },
+      "ratings": {
+        "evidence": {
+          "availabilityReason": null,
+          "completeness": 1,
+          "computedAt": "2026-10-01T00:05:00.000Z",
+          "correctionHead": null,
+          "definitionVersionId": "11111111-1111-4111-8111-111111111202",
+          "latestActivity": null,
+          "sampleCount": 6,
+          "state": "ready",
+          "verifiedThrough": "2026-10-01T00:05:00.000Z"
+        },
+        "priorValue": 0,
+        "trend": null,
+        "value": 6
+      },
+      "scans": {
+        "evidence": {
+          "availabilityReason": null,
+          "completeness": 1,
+          "computedAt": "2026-10-01T00:05:00.000Z",
+          "correctionHead": null,
+          "definitionVersionId": "11111111-1111-4111-8111-111111111301",
+          "latestActivity": null,
+          "sampleCount": 11,
+          "state": "ready",
+          "verifiedThrough": "2026-10-01T00:05:00.000Z"
+        },
+        "priorValue": 2,
+        "trend": 450,
+        "value": 11
+      }
+    },
+    "portalIds": [
+      "b0000000-0000-4000-8000-000000000001",
+      "b0000000-0000-4000-8000-000000000002"
+    ]
+  },
+  "ungrouped": [
+    {
+      "contributingPortalIds": [
+        "b0000000-0000-4000-8000-000000000001",
+        "b0000000-0000-4000-8000-000000000002"
+      ],
+      "engagementFunnel": {
+        "googleOpens": 3,
+        "qualifiedScans": 4,
+        "ratings": 6
+      },
+      "kpis": {
+        "avgRating": {
+          "comparison": null,
+          "comparisonWithheld": "sample_too_small",
+          "evidence": {
+            "availabilityReason": null,
+            "completeness": 1,
+            "computedAt": "2026-10-01T00:05:00.000Z",
+            "correctionHead": null,
+            "definitionVersionId": "11111111-1111-4111-8111-111111111202",
+            "latestActivity": null,
+            "sampleCount": 6,
+            "state": "ready",
+            "verifiedThrough": "2026-10-01T00:05:00.000Z"
+          },
+          "priorSampleCount": 0,
+          "priorValue": null,
+          "sampleCount": 6,
+          "value": 4.5
+        },
+        "feedback": {
+          "evidence": {
+            "availabilityReason": null,
+            "completeness": 1,
+            "computedAt": "2026-10-01T00:05:00.000Z",
+            "correctionHead": null,
+            "definitionVersionId": "11111111-1111-4111-8111-111111111203",
+            "latestActivity": null,
+            "sampleCount": 2,
+            "state": "ready",
+            "verifiedThrough": "2026-10-01T00:05:00.000Z"
+          },
+          "priorValue": 0,
+          "trend": null,
+          "value": 2
+        },
+        "googleOpens": {
+          "evidence": {
+            "availabilityReason": null,
+            "completeness": 1,
+            "computedAt": "2026-10-01T00:05:00.000Z",
+            "correctionHead": null,
+            "definitionVersionId": "11111111-1111-4111-8111-111111111204",
+            "latestActivity": null,
+            "sampleCount": 3,
+            "state": "ready",
+            "verifiedThrough": "2026-10-01T00:05:00.000Z"
+          },
+          "priorValue": 0,
+          "trend": null,
+          "value": 3
+        },
+        "ratings": {
+          "evidence": {
+            "availabilityReason": null,
+            "completeness": 1,
+            "computedAt": "2026-10-01T00:05:00.000Z",
+            "correctionHead": null,
+            "definitionVersionId": "11111111-1111-4111-8111-111111111202",
+            "latestActivity": null,
+            "sampleCount": 6,
+            "state": "ready",
+            "verifiedThrough": "2026-10-01T00:05:00.000Z"
+          },
+          "priorValue": 0,
+          "trend": null,
+          "value": 6
+        },
+        "scans": {
+          "evidence": {
+            "availabilityReason": null,
+            "completeness": 1,
+            "computedAt": "2026-10-01T00:05:00.000Z",
+            "correctionHead": null,
+            "definitionVersionId": "11111111-1111-4111-8111-111111111301",
+            "latestActivity": null,
+            "sampleCount": 4,
+            "state": "ready",
+            "verifiedThrough": "2026-10-01T00:05:00.000Z"
+          },
+          "priorValue": 2,
+          "trend": 100,
+          "value": 4
+        }
+      },
+      "memberPortalIds": ["b0000000-0000-4000-8000-000000000002"],
+      "propertyId": "a0000000-0000-4000-8000-000000000001"
+    }
+  ]
+}

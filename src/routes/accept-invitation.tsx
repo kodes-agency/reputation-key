@@ -82,7 +82,11 @@ function InvitationLinkRoute({
   const { data: session } = authClient.useSession()
   const acceptInvitationFn = useActionMutation(acceptInvitation, {
     successMessage: 'Invitation accepted',
-    onSuccess: () => clearTenantCacheAfterTenantChange(queryClient),
+    onSuccess: async () => {
+      clearTenantCacheAfterTenantChange(queryClient)
+      if (link.state === 'pending' && link.details.role === 'Member')
+        await navigate({ to: '/my' })
+    },
   })
   // Once the session is gone the link goes back to /join, whose `beforeLoad`
   // now sees a signed-out visitor and sends them to sign up or sign in. This
@@ -119,10 +123,15 @@ function InvitationLinkRoute({
 
 function PendingInvitationsRoute() {
   const { data: invitations } = useSuspenseQuery(pendingInvitationsQuery)
+  const navigate = useNavigate()
   const queryClient = useQueryClient()
   const acceptInvitationFn = useActionMutation(acceptInvitation, {
     successMessage: 'Invitation accepted',
-    onSuccess: () => clearTenantCacheAfterTenantChange(queryClient),
+    onSuccess: async (_output, input) => {
+      clearTenantCacheAfterTenantChange(queryClient)
+      if (invitations.find((row) => row.id === input.data.invitationId)?.role === 'Staff')
+        await navigate({ to: '/my' })
+    },
   })
 
   return (

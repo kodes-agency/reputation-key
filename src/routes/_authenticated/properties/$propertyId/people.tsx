@@ -110,7 +110,7 @@ function PeopleRoute() {
       propertyName={propData.property.name}
       participations={participations}
       responsibilities={responsibilities}
-      portals={portals}
+      portals={portals.filter((portal) => portal.kind !== 'personal')}
       portalsDenied={portalsDenied}
       canManageStaff={canDo('staff.manage')}
       createParticipationMutation={createParticipationMutation}

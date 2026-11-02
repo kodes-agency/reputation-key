@@ -36,6 +36,7 @@ import type { WorkspaceStatusProblem } from './portal-workspace-status'
 export type PortalWorkspaceHeaderProps = Readonly<{
   propertyId: string
   portalId: string
+  publicName?: string
   portalName: string
   propertyName: string
   /** `workspaceStatus().line`: "Live · version 5 · up to date". */
@@ -131,6 +132,9 @@ export function PortalWorkspaceHeader(props: PortalWorkspaceHeaderProps) {
             ) : null}
           </p>
         </div>
+        {props.publicName ? (
+          <p className="text-xs text-muted-foreground">Guests see: {props.publicName}</p>
+        ) : null}
         <p className="hidden truncate text-xs text-muted-foreground sm:block">
           {propertyName}
         </p>

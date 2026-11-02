@@ -9,7 +9,7 @@ amended_on: 2026-11-02
 
 **Status:** Accepted for publication and invited-beta use
 **Effective date:** 2026-11-02
-**Version:** 2.3
+**Version:** 2.4
 **Accountable owner:** Bozhidar Denev
 
 ## 1. Parties and beta purpose
@@ -40,14 +40,14 @@ release readiness, the core product includes:
 - Review and Inbox workflows, including assignment, escalation, manager notes,
   private-feedback handling, and response evidence;
 - Property and fleet dashboards;
-- Staff participation/attribution foundations without Member login;
+- Staff participation and attribution;
 - in-app required and workflow notifications;
 - Recent Activity; and
 - internal operational metrics and analytics needed to operate those journeys.
 
 Core analytics are part of the Service. There is no product option to decline
 the affected operational metrics while continuing to use the workflow. The
-accepted [Privacy Notice version 3.2](/privacy), effective 2026-11-02, forms part
+accepted [Privacy Notice version 3.3](/privacy), effective 2026-11-02, forms part
 of this agreement and states the applicable roles, legal bases, and rights
 process.
 
@@ -60,6 +60,7 @@ and each feature's release evidence permit it:
 - external email delivery;
 - Portal management and the public Portal/Guest review gateway;
 - Guest private rating and optional private feedback;
+- staff accounts with a login, personal Portals and their own numbers;
 - Contact Request, only after its separate privacy/handling gate closes;
 - Property, Portal Group, and individual Portal Goal Programs;
 - the Property Google rating goal;
@@ -79,7 +80,6 @@ The closed beta does not provide:
 - public registration or self-service creation of a second Organization;
 - ordinary self-service destructive Property erasure;
 - Team product behavior (Portal Groups are the accepted grouping model);
-- Member login;
 - Guest media submission;
 - Portal image upload until its separate readiness package closes;
 - competitive Badge/Leaderboard behavior;
@@ -190,6 +190,14 @@ or people, and it is not shown to staff. The Service does not use it as a staff
 quota, ranking, incentive, or employment input. It does not change the Guest
 journey described in section 3.
 
+Staff may see their own scans, rating count and average, a scan target, and,
+if the business turns it on, a plain list of colleagues' scan counts. Targets
+count scans only. They use no Google data or rating measure. A manager may set
+a target on a staff member's Portal or a Group holding it; a Portal that skips
+the private rating cannot have a staff scan target.
+
+Managers may see a marker when a person's average is high and their scans are low compared with colleagues. It prompts a conversation; nothing happens automatically, and staff do not see it.
+
 Staff attribution, metrics, and goals are non-competitive manager
 decision-support evidence. Badge and Leaderboard behavior is unreachable. The
 Service provides no ordinal ranking, bottom list, composite staff score, or
@@ -213,6 +221,15 @@ Participants must:
 7. cooperate with bounded beta investigations and recovery steps without
    attempting to bypass policy, provider, or tenant boundaries.
 
+The Organization must also:
+
+- have staff offer the code to every guest, not only those who seem happy;
+- never ask staff to collect a set number of Google reviews, or reviews that
+  name them;
+- never pay or reward staff on ratings, review numbers or scan targets;
+- ensure staff do not review their own workplace; and
+- tell staff what their numbers show and who sees them.
+
 ## 8. Operator responsibilities and beta limitations
 
 For each release, the Operator maintains an evidence-backed release procedure
@@ -235,7 +252,7 @@ agreement does not create them.
 
 ## 9. Data handling, retention, and providers
 
-The accepted [Privacy Notice version 3.2](/privacy), effective 2026-11-02, and
+The accepted [Privacy Notice version 3.3](/privacy), effective 2026-11-02, and
 its retention and provider schedules form part of this agreement. They cover
 Participant, Google source, Portal and Guest, manager-authored, AI-derived,
 monitoring, export, backup, and independently retained evidence classes.
@@ -286,8 +303,8 @@ capability schedule are available.
 
 This agreement is accepted together with:
 
-- Privacy Notice version 3.2, effective 2026-11-02, at `/privacy`;
-- Google Business Profile Access Disclosure version 2.3, effective 2026-11-02,
+- Privacy Notice version 3.3, effective 2026-11-02, at `/privacy`;
+- Google Business Profile Access Disclosure version 2.4, effective 2026-11-02,
   at `/privacy/google-access-disclosure`;
 - the activated-capability schedule in `docs/BETA.md` section 4; and
 - the retention, provider, transfer, rights, deployment, and change rules in
@@ -300,7 +317,7 @@ invited Participant accepts the Participant obligations by joining.
 
 ## 13. Changes
 
-This agreement takes effect on 2026-11-02 and is version 2.3. It replaces version 2.2, effective 2026-11-01, which replaced
+This agreement takes effect on 2026-11-02 and is version 2.4. It replaces version 2.3, effective 2026-11-02, which replaced version 2.2, effective 2026-11-01, which replaced
 version 2.1, which took effect on 2026-10-14 and had replaced version 2.0, which
 took effect on 2026-09-08.
 
@@ -342,3 +359,11 @@ release without a waiting period, on the accountable owner’s decision of
 correction and withdrawal remain available.
 
 Version 2.3 also updates sections 2.1, 9 and 12 to name Privacy Notice 3.2 and, in section 12, Google Business Profile Access Disclosure 2.3, both effective 2026-11-02.
+
+Version 2.4 (2026-11-02) includes staff accounts, their own numbers, optional
+colleague scan counts and scan-only targets, and adds the business's duties
+for offering codes and using staff numbers. Competitive Badge/Leaderboard
+behavior and Google-review solicitation gamification or review-derived staff
+scoring remain excluded. It takes effect on release without a waiting period,
+on the accountable owner's decision of 2026-11-01 for the two beta Organizations
+the owner controls.

@@ -24,14 +24,20 @@ export function PortalWorkspaceNoticeSlot({ propertyId, portalId }: Props) {
   if (!portal || readOnlyReason === null) return null
   // `archived` is the reason only for someone who may change portals, so the
   // way out is theirs to take.
-  return readOnlyReason === 'archived' && canRestore ? (
+  return readOnlyReason === 'archived' && canRestore && portal.kind !== 'personal' ? (
     <ArchivedNotice
       propertyId={propertyId}
       portalId={portalId}
       portalName={portal.name}
     />
   ) : (
-    <PortalReadOnlyNotice reason={readOnlyReason} />
+    <PortalReadOnlyNotice
+      reason={
+        portal.kind === 'personal' && portal.publicationState === 'archived'
+          ? 'staff_removed'
+          : readOnlyReason
+      }
+    />
   )
 }
 

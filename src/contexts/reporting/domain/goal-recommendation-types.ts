@@ -50,6 +50,7 @@ export type PortalGoalRecommendationState =
   | 'unreadable'
 
 export type PortalFacts = Readonly<{
+  kind?: 'personal'
   portalId: string
   name: string
   publicationState: 'published' | 'disabled'
@@ -75,6 +76,8 @@ export type PortalFacts = Readonly<{
 }>
 
 export type PortalGoalRecommendation = Readonly<{
+  staffTarget?: boolean
+  personalTarget?: boolean
   asOf: string
   timezone: string
   window: Readonly<{ firstDay: string; lastDay: string }>
@@ -108,6 +111,7 @@ export type PortalGoalRecommendation = Readonly<{
 
 /** A Portal as Portal states it (`listGoalReadinessFacts`). */
 export type RecommendationPortal = Readonly<{
+  kind?: 'personal'
   portalId: string
   name: string
   publicationState: 'draft' | 'published' | 'disabled'

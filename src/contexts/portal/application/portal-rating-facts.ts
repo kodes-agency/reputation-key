@@ -14,6 +14,7 @@ export type PortalRatingSubject =
   | Readonly<{ kind: 'portal_group'; portalGroupId: string }>
 
 export type PortalRatingFact = Readonly<{
+  kind?: 'personal'
   portalId: string
   portalGroupId: string | null
   publicationState: Exclude<Portal['publicationState'], 'archived'>
@@ -58,6 +59,7 @@ export const createPortalRatingFacts = (deps: Deps) => ({
         ? []
         : [
             {
+              ...(portal.kind === 'personal' ? { kind: 'personal' as const } : {}),
               portalId: portal.id,
               portalGroupId:
                 subject.kind === 'portal_group' ? subject.portalGroupId : null,

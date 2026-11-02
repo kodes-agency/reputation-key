@@ -17,6 +17,7 @@ export type StaffRowCode =
   | 'already_staff_here'
   | 'already_invited'
   | 'other_organization'
+  | 'cannot_add'
 export type StaffAccountErrorCode =
   | StaffRowCode
   | 'forbidden'
@@ -47,6 +48,7 @@ export type StaffOnboarding = Readonly<{
   failureCode: string | null
 }>
 export type StaffOnboardingResult = Readonly<{
+  access?: 'active' | 'invited'
   operationId: string
   participationId: string
   portalId: string

@@ -8,6 +8,7 @@ describe('personal Group membership target guard', () => {
     async (conflict) => {
       const execute = vi
         .fn()
+        .mockResolvedValue({ rows: [] })
         .mockResolvedValueOnce({ rows: [] })
         .mockResolvedValueOnce({ rows: conflict ? [{ id: 'assignment' }] : [] })
       const result = assertPersonalGroupTarget({ execute } as unknown as Tx, {
@@ -22,7 +23,7 @@ describe('personal Group membership target guard', () => {
           code: 'personal_portal_goal_locked',
         })
       else await expect(result).resolves.toBeUndefined()
-      expect(execute).toHaveBeenCalledTimes(2)
+      expect(execute).toHaveBeenCalledTimes(conflict ? 2 : 3)
     },
   )
 })

@@ -9,7 +9,7 @@ amended_on: 2026-11-02
 
 **Status:** Accepted for publication
 **Effective date:** 2026-11-02
-**Version:** 2.3
+**Version:** 2.4
 **Accountable owner:** Bozhidar Denev
 
 ## What access Reputation Key requests
@@ -135,6 +135,8 @@ Reputation Key has no activation path for:
 - retaining provider-controlled content merely to avoid Google's usage or
   refresh controls.
 
+A manager can set a target for Portal scans on a staff member's Portal, which that staff member sees; it counts scans only and uses no Google data, and managers can see how many guests selected the Google action on each staff member's Portal.
+
 Portal Goals use the Portal's own qualified scans and private rating metrics.
 They do not use Google review completion, Google review rating, or Google review
 volume.
@@ -219,7 +221,7 @@ AI purpose, or publication behavior changes.
 
 ## Changes
 
-This disclosure takes effect on 2026-11-02 and is version 2.3. It replaces version 2.2, effective 2026-11-01, which replaced
+This disclosure takes effect on 2026-11-02 and is version 2.4. It replaces version 2.3, effective 2026-11-02, which replaced version 2.2, effective 2026-11-01, which replaced
 version 2.1, which took effect on 2026-10-14 and had replaced version 2.0, which
 took effect on 2026-09-08.
 
@@ -249,3 +251,9 @@ rating and note and shows the Google action straight away. It takes effect on
 release without a waiting period, on the accountable owner’s decision of
 2026-11-01 for the two beta Organizations the owner controls. Existing response
 correction and withdrawal remain available.
+
+Version 2.4 (2026-11-02) states that staff can see scan-only targets and
+managers can see Google-action selections on each staff member's Portal. The
+ban under “Uses the product does not allow” is unchanged. It takes effect on
+release without a waiting period, on the accountable owner's decision of
+2026-11-01 for the two beta Organizations the owner controls.

@@ -21,10 +21,11 @@ export const createStaffGoalsReader =
   async (scope: StaffResultsScope) => {
     const now = clock()
     const programs =
-      await db.execute(sql`SELECT p.id, p.name, v.id AS version_id, v.property_timezone AS timezone, COALESCE(month.target_value, v.target_value)::float8 AS target,
+      await db.execute(sql`SELECT p.id, CASE WHEN a.portal_id IS NOT NULL THEN 'Your goal' ELSE g.name END AS name, v.id AS version_id, v.property_timezone AS timezone, COALESCE(month.target_value, v.target_value)::float8 AS target,
     a.subject_kind, a.portal_id, a.portal_group_id
     FROM goal_programs p JOIN goal_program_versions v ON v.program_id = p.id AND v.organization_id = p.organization_id
     JOIN goal_subject_assignments a ON a.program_version_id = v.id AND a.organization_id = v.organization_id
+    LEFT JOIN portal_groups g ON g.organization_id = a.organization_id AND g.property_id = p.property_id AND g.id = a.portal_group_id
     LEFT JOIN goal_monthly_results month ON month.assignment_id = a.id AND month.organization_id = p.organization_id AND month.period_start <= ${now} AND month.period_end > ${now}
     WHERE p.organization_id = ${scope.organizationId} AND p.property_id = ${scope.propertyId}::uuid AND p.status = 'active' AND v.metric_key = 'qualified_scans' AND v.metric_definition_version_id = ${METRIC_VERSION_IDS.qualifiedScanGoal}::uuid
       AND v.effective_from <= ${now} AND (v.effective_to IS NULL OR v.effective_to > ${now}) AND a.effective_from <= ${now} AND (a.effective_to IS NULL OR a.effective_to > ${now})

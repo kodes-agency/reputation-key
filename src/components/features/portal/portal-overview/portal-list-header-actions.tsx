@@ -1,3 +1,7 @@
+import { PageHeader } from '#/components/layout/page-header'
+import { NAV_LABEL } from '#/components/layout/nav-labels'
+import { trailCrumbs } from '#/components/layout/page-identity'
+import { usePermissions } from '#/shared/hooks/usePermissions'
 // The Portals page's header actions. From `sm` they are buttons in the header; on
 // a phone, where they stood as two full rows above the first portal, the two
 // secondary ones (Property look, New group) are one "more actions" menu beside the
@@ -15,15 +19,17 @@ type Props = Readonly<{
   /** May make a group: a portal create with portal writes on. */
   onNewGroup: (() => void) | undefined
   /** New portal's button, or nothing; the page decides whether the phone bar repeats it. */
+  addStaffButton?: ReactNode
   newPortalButton: ReactNode
   /** The phone bar carries New portal, so the header's button waits for `sm`. */
   newPortalFromSm: boolean
 }>
 
-export function PortalListHeaderActions({
+function PortalListHeaderActions({
   propertyId,
   showPropertyLook,
   onNewGroup,
+  addStaffButton,
   newPortalButton,
   newPortalFromSm,
 }: Props) {
@@ -70,11 +76,50 @@ export function PortalListHeaderActions({
           </span>
         </>
       ) : null}
+      {addStaffButton}
       {newPortalFromSm ? (
         <span className="hidden sm:contents">{newPortalButton}</span>
       ) : (
         newPortalButton
       )}
     </>
+  )
+}
+
+export function PortalListHeader({
+  propertyName,
+  count,
+  canCreate,
+  onNewGroup,
+  ...actions
+}: Omit<Props, 'onNewGroup' | 'showPropertyLook'> &
+  Readonly<{
+    propertyName: string
+    count: number
+    canCreate: boolean
+    onNewGroup: () => void
+  }>) {
+  const { can } = usePermissions()
+  return (
+    <PageHeader
+      title="Portals"
+      meta={
+        count === 0
+          ? undefined
+          : [`${count === 1 ? '1 portal' : `${count} portals`} at ${propertyName}`]
+      }
+      breadcrumbs={trailCrumbs(
+        'property',
+        { propertyId: actions.propertyId, propertyName },
+        NAV_LABEL.portals,
+      )}
+      actions={
+        <PortalListHeaderActions
+          {...actions}
+          showPropertyLook={can('portal.read')}
+          onNewGroup={canCreate ? onNewGroup : undefined}
+        />
+      }
+    />
   )
 }

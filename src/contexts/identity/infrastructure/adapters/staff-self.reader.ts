@@ -9,6 +9,16 @@ export const createStaffSelfReader = (
   db: Database,
   clock: () => Date,
 ): StaffSelfReader => ({
+  hasPersonalPortal: async (organizationId, userId) => {
+    const result = await db.execute(sql`SELECT EXISTS (
+      SELECT 1 FROM staff_user_links l
+      JOIN staff_participants person ON person.organization_id = l.organization_id AND person.id = l.staff_participant_id AND person.status = 'active'
+      JOIN staff_participations s ON s.organization_id = l.organization_id AND s.staff_participant_id = person.id AND s.status = 'active' AND s.ended_at IS NULL
+      JOIN portals p ON p.organization_id = s.organization_id AND p.property_id = s.property_id AND p.id = s.personal_portal_id AND p.kind = 'personal' AND p.deleted_at IS NULL
+      WHERE l.organization_id = ${organizationId} AND l.user_id = ${userId} AND l.effective_from <= ${clock()} AND l.effective_to IS NULL
+    ) AS present`)
+    return result.rows[0]?.present === true
+  },
   find: async (organizationId, userId) => {
     const links =
       await db.execute(sql`SELECT l.id, l.staff_participant_id AS "participantId", CASE WHEN l.notice_acknowledged_at IS NOT NULL THEN l.notice_version ELSE NULL END AS "noticeVersion"

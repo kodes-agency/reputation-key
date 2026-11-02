@@ -112,7 +112,11 @@ export function PortalGoalAddChoose({
           </RadioCard>
         ))}
       </RadioGroup>
-      <p className="text-sm text-muted-foreground">{PORTAL_SPOT_NOT_PERSON_LINE}</p>
+      <>
+        {model.showSpotLine ? (
+          <p className="text-sm text-muted-foreground">{PORTAL_SPOT_NOT_PERSON_LINE}</p>
+        ) : null}
+      </>
     </div>
   )
 }

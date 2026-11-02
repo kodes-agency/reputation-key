@@ -19,6 +19,8 @@ export type PortalThemeDraft = Readonly<{
 }>
 
 export type PortalData = Readonly<{
+  kind?: 'place' | 'personal'
+  publicName?: string | null
   id: string
   name: string
   slug: string

@@ -16,6 +16,7 @@ import { PortalNewForm } from './portal-new-form'
 import type { PortalNewData } from './portal-new-types'
 
 type Props = Readonly<{
+  allowed?: boolean
   open: boolean
   onOpenChange: (open: boolean) => void
   /** Null until the Property's options have loaded. */
@@ -24,7 +25,14 @@ type Props = Readonly<{
   loadError?: unknown
 }>
 
-export function PortalNewDialog({ open, onOpenChange, data, loadError }: Props) {
+export function PortalNewDialog({
+  allowed = true,
+  open,
+  onOpenChange,
+  data,
+  loadError,
+}: Props) {
+  if (!allowed) return null
   return (
     <Dialog open={open} busy={data?.mutation.isPending} onOpenChange={onOpenChange}>
       <DialogContent size="lg">

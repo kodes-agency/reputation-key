@@ -1,5 +1,6 @@
 // The portal's name: what the team reads in lists, menus and the workspace
-// header. It is part of the portal's draft, so it saves as it is typed
+// header. A person's name is read-only here and Rename lives with Staff. A place
+// Portal's name is part of its draft, so it saves as it is typed
 // (use-portal-form-autosave.ts). What guests read is each language's welcome
 // line, below it, and the property's own name in large type; a property that
 // has no public name yet shows this name there instead.
@@ -52,9 +53,11 @@ export function PortalWelcomeForm({
             maxLength={100}
             readOnly={readOnly}
             description={
-              propertyHasName
-                ? 'Your team sees it in lists and menus.'
-                : 'Your team sees it in lists and menus. Until the property has a public name, guests read it in large type too.'
+              portal.kind === 'personal'
+                ? undefined
+                : propertyHasName
+                  ? 'Your team sees it in lists and menus.'
+                  : 'Your team sees it in lists and menus. Until the property has a public name, guests read it in large type too.'
             }
           />
         )}

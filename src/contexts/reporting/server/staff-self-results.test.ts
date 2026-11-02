@@ -1,3 +1,4 @@
+import { setResponseHeader } from '@tanstack/react-start/server'
 import { resetEnv } from '#/shared/config/env'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { buildTestAuthContext } from '#/shared/testing/fixtures'
@@ -19,6 +20,7 @@ const mocks = vi.hoisted(() => ({
   scans: vi.fn(),
   targetsEnabled: true,
 }))
+vi.mock('@tanstack/react-start/server', () => ({ setResponseHeader: vi.fn() }))
 vi.mock('#/shared/auth/staff-resolver', () => ({ resolveStaff: mocks.resolve }))
 vi.mock('#/shared/auth/headers', () => ({
   headersFromContext: async () => new Headers(),
@@ -159,4 +161,16 @@ describe('staff results DTO allowlists', () => {
     ).rejects.toMatchObject({ code: 'colleague_list_disabled' })
     expect(mocks.scans).not.toHaveBeenCalled()
   })
+})
+
+it('marks every personal results read private and non-cacheable', async () => {
+  await withStartContext(() =>
+    getMyResults({ data: { participationId, period: 'month' } }),
+  )
+  await withStartContext(() => getMyGoals({ data: { participationId } }))
+  await withStartContext(() =>
+    getMyColleagues({ data: { participationId, period: 'week' } }),
+  )
+  expect(setResponseHeader).toHaveBeenCalledTimes(3)
+  expect(setResponseHeader).toHaveBeenCalledWith('Cache-Control', 'private, no-store')
 })

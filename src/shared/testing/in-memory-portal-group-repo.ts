@@ -17,7 +17,9 @@ export type InMemoryMembership = Readonly<{
   createdBy: string
 }>
 
+import type { PortalMembershipWriter } from './portal-membership-writer'
 export type InMemoryPortalGroupRepo = PortalGroupRepository &
+  PortalMembershipWriter &
   Readonly<{
     seed: (groups: ReadonlyArray<PortalGroup>) => void
     seedMembership: (portalId: PortalId, groupId: PortalGroupId, at?: Date) => void
@@ -100,7 +102,7 @@ export const createInMemoryPortalGroupRepo = (): InMemoryPortalGroupRepo => {
         replace(m, { ...m, effectiveTo: at, endReason: 'group_archived' })
       }
     },
-    addPortal: async (orgId, groupId, pid, at, createdBy) => {
+    writeMembership: async (orgId, groupId, pid, at, createdBy) => {
       memberships = [
         ...memberships,
         {

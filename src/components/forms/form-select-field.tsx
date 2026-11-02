@@ -21,6 +21,7 @@ export type FormSelectOption<Value extends string> = Readonly<{
 type Props<Value extends string> = Readonly<{
   id: string
   label: string
+  optional?: boolean
   value: Value
   onValueChange: (value: Value) => void
   options: ReadonlyArray<FormSelectOption<Value>>
@@ -55,6 +56,7 @@ function SelectOptions<Value extends string>({
 export function FormSelectField<Value extends string>({
   id,
   label,
+  optional,
   value,
   onValueChange,
   options,
@@ -70,6 +72,7 @@ export function FormSelectField<Value extends string>({
     <FormFieldFrame
       id={id}
       label={label}
+      optional={optional}
       description={description}
       invalid={invalid}
       errors={invalid ? errors : undefined}

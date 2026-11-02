@@ -1,8 +1,12 @@
+import { useStaffAccounts } from '#/components/features/staff/accounts/staff-accounts-context'
 // One Portal in the overview. One DOM for every width: below a 56 rem container
 // a row is a card (name and menu, then Edit and Share); from 56 rem it is a
 // table row. The same rule as the Properties list, so a Portal's name renders
 // once, which Storybook (no CSS container queries to lean on) and the e2e
 // journeys both rely on.
+import { OwnerDisc } from '#/components/ui/owner-disc'
+import { personInitials } from '#/components/inbox/person-initials'
+import { StaffPortalMeta } from '#/components/features/staff/accounts/staff-portal-meta'
 import type { ReactNode } from 'react'
 import { DataTableRow } from '#/components/ui/data-table'
 import { TableCell, TableHead } from '#/components/ui/table'
@@ -27,6 +31,7 @@ type Props = PortalArchiveMutations &
   Readonly<{
     item: PortalOverviewItem
     /** This Portal's figures: drawn beside its name in a table, as one line in a card. */
+    staffHint?: boolean
     figures: MeasureSlot
     propertyId: string
     /** A flat list has no group heads, so the row says which group it is in. */
@@ -37,6 +42,7 @@ type Props = PortalArchiveMutations &
 
 export function PortalOverviewTableRow({
   item,
+  staffHint,
   figures,
   propertyId,
   showGroup,
@@ -45,8 +51,14 @@ export function PortalOverviewTableRow({
   restoreMutation,
   disableMutation,
 }: Props) {
+  const staff = useStaffAccounts()
   const classes = useOverviewClasses()
   const { row } = item
+  const member = staff?.members.find(
+    (member) =>
+      member.portalId === row.portalId || member.participationId === row.portalId,
+  )
+  const unmade = member?.access === 'failed' && !member.portalId
   const archived = row.publicationState === 'archived'
   const draft = row.publicationState === 'draft'
   // A draft has no results: its card says so by saying nothing, as its table row does.
@@ -56,12 +68,27 @@ export function PortalOverviewTableRow({
       <TableHead scope="row" className={classes.nameCell}>
         <div className="flex min-w-0 flex-col gap-1">
           <div className="flex min-w-0 flex-wrap items-baseline gap-x-3 gap-y-0.5">
-            <PortalNameLink
-              row={{ propertyId, portalId: row.portalId, name: row.name }}
-            />
-            <PortalAttentionLine item={item} propertyId={propertyId} />
+            {row.kind === 'personal' ? (
+              <OwnerDisc initials={personInitials(row.name)} isAssigned tone="neutral" />
+            ) : null}
+            {unmade ? (
+              <span className="font-medium">{row.name}</span>
+            ) : (
+              <PortalNameLink
+                row={{ propertyId, portalId: row.portalId, name: row.name }}
+              />
+            )}
+            {unmade ? null : <PortalAttentionLine item={item} propertyId={propertyId} />}
           </div>
-          <PortalMetaLine item={item} showGroup={showGroup} />
+          {row.kind === 'personal' ? (
+            <StaffPortalMeta
+              portalId={row.portalId}
+              hint={staffHint}
+              skipsRating={row.skipPrivateRating === true}
+            />
+          ) : (
+            <PortalMetaLine item={item} showGroup={showGroup} />
+          )}
           {summary ? <p className={cn('text-sm', classes.cardOnly)}>{summary}</p> : null}
         </div>
       </TableHead>
@@ -70,7 +97,7 @@ export function PortalOverviewTableRow({
         {archived ? null : <PortalManagersCell managers={item.managers} />}
       </TableCell>
       <TableCell className={classes.buttonsCell}>
-        <PortalRowButtons item={item} propertyId={propertyId} />
+        {unmade ? null : <PortalRowButtons item={item} propertyId={propertyId} />}
       </TableCell>
       <TableCell className={classes.menuCell}>
         <PortalRowMenu

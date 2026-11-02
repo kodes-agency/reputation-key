@@ -30,7 +30,7 @@ export function WelcomeSection({ resources, canEdit }: PortalEditorSectionProps)
       <PortalWelcomeForm
         portal={portal}
         mutation={resources.autosaveUpdateMutation}
-        readOnly={!canEdit}
+        readOnly={!canEdit || portal.kind === 'personal'}
         propertyHasName={Boolean(portalExperience?.profile?.displayName.trim())}
       />
       {portalExperience && portalExperienceActions ? (

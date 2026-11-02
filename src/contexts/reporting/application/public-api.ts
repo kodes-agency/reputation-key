@@ -57,7 +57,7 @@ export type PortalRatingGoalReadApi = Readonly<{
     organizationId: string,
     propertyId: string,
     portalId: string,
-  ): Promise<'portal' | 'last_collector' | null>
+  ): Promise<'portal' | 'last_collector' | 'staff_scan_target' | null>
 }>
 export type { GoalProgram, GoalSubjectAssignment } from './ports/goal-program.repository'
 export type {

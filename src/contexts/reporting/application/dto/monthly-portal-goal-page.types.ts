@@ -64,6 +64,7 @@ export type PortalGoalPageTiles = Readonly<{
 
 /** One published Portal's count this month, on the page (name order, P-1). */
 export type PortalGoalPagePortal = Readonly<{
+  kind?: 'personal'
   portalId: string
   name: string
   count: number

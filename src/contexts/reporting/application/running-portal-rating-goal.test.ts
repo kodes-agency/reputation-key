@@ -105,3 +105,38 @@ describe('running rating goal guard', () => {
     ).toBe('portal')
   })
 })
+
+it.each(['portal', 'portal_group'] as const)(
+  'protects a staff scan target on a %s while any group portal would skip',
+  async (kind) => {
+    const scans = propertyGoal('scans', 'qualified_scans', { status: 'active' })
+    const goal = {
+      ...scans,
+      assignments: scans.assignments.map((assignment) => ({
+        ...assignment,
+        subject:
+          kind === 'portal'
+            ? { kind: 'portal' as const, portalId: 'portal' }
+            : { kind: 'portal_group' as const, portalGroupId: 'group' },
+      })),
+    }
+    const read = async () => [
+      { ...member('portal', false), kind: 'personal' as const },
+      member('sibling', false),
+    ]
+    expect(await findPortalRatingGoalBlock([goal], 'portal', now, read)).toBe(
+      'staff_scan_target',
+    )
+    expect(await findPortalRatingGoalBlock([goal], 'sibling', now, read)).toBe(
+      'staff_scan_target',
+    )
+    expect(
+      await findPortalRatingGoalBlock(
+        [{ ...goal, program: { ...goal.program, status: 'ended' } }],
+        'portal',
+        now,
+        read,
+      ),
+    ).toBeNull()
+  },
+)

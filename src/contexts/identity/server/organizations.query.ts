@@ -20,7 +20,7 @@ export const getActiveOrganization = createServerFn({ method: 'GET' }).handler(
         const headers = await headersFromContext()
         const ctx = await resolveTenantContext(headers)
         await requireExecutionAllowed({ actor: ctx, action: 'dashboard.read' })
-        const { identityPort } = getContainer()
+        const { identityPort, identityPublicApi } = getContainer()
 
         const org = await identityPort.getActiveOrg(headers)
 
@@ -42,6 +42,10 @@ export const getActiveOrganization = createServerFn({ method: 'GET' }).handler(
             logo: org.logo,
             createdAt: org.createdAt,
             contactEmail: org.contactEmail,
+            hasPersonalPortal: await identityPublicApi.staffSelf.hasPersonalPortal(
+              ctx.organizationId,
+              ctx.userId,
+            ),
           },
           role: ctx.role,
           authz: serializeClientAuthz(ctx),
@@ -57,6 +61,14 @@ export const getActiveOrganization = createServerFn({ method: 'GET' }).handler(
         ) {
           return {
             availability: 'disabled' as const,
+            organization: null,
+            role: 'Member' as const,
+            authz: EMPTY_CLIENT_AUTHZ,
+          }
+        }
+        if (e instanceof Error && 'code' in e && e.code === 'beta_role_inactive') {
+          return {
+            availability: 'staff' as const,
             organization: null,
             role: 'Member' as const,
             authz: EMPTY_CLIENT_AUTHZ,

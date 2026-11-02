@@ -5,7 +5,7 @@
 import { and, asc, desc, eq, gt, inArray, isNull, lte, not, or, sql } from 'drizzle-orm'
 import type { Database } from '#/shared/db'
 import { baseWhere } from '#/shared/db/base-where'
-import { portalGroups, portals } from '#/shared/db/schema/portal.schema'
+import { portalGroups } from '#/shared/db/schema/portal.schema'
 import { portalGroupMemberships } from '#/shared/db/schema/people-access.schema'
 import type { PortalGroupRepository } from '../../application/ports/portal-group.repository'
 import { portalGroupFromRow, portalGroupToRow } from '../mappers/portal-group.mapper'
@@ -159,71 +159,6 @@ export const createPortalGroupRepository = (db: Database): PortalGroupRepository
           .update(portalGroups)
           .set({ deletedAt: at, updatedAt: at })
           .where(and(...baseWhere(portalGroups, orgId), eq(portalGroups.id, unbrand(id))))
-      })
-    })
-  },
-
-  addPortal: async (orgId, groupId, pid, at, createdBy) => {
-    return trace('portalGroup.addPortal', async () => {
-      await db.transaction(async (tx) => {
-        const [ownership] = await tx
-          .select({
-            groupPropertyId: portalGroups.propertyId,
-            portalPropertyId: portals.propertyId,
-          })
-          .from(portalGroups)
-          .innerJoin(
-            portals,
-            and(
-              eq(portals.organizationId, portalGroups.organizationId),
-              eq(portals.id, unbrand(pid)),
-              isNull(portals.deletedAt),
-            ),
-          )
-          .where(
-            and(...baseWhere(portalGroups, orgId), eq(portalGroups.id, unbrand(groupId))),
-          )
-          .limit(1)
-        if (!ownership || ownership.groupPropertyId !== ownership.portalPropertyId) {
-          throw portalError(
-            'forbidden',
-            'portal group membership requires an active same-property parent chain',
-          )
-        }
-
-        await tx.execute(sql`
-          SELECT id FROM portal_group_memberships
-          WHERE organization_id = ${unbrand(orgId)}
-            AND portal_id = ${unbrand(pid)}
-            AND effective_to IS NULL
-          FOR UPDATE
-        `)
-        const [existing] = await tx
-          .select({
-            id: portalGroupMemberships.id,
-            portalGroupId: portalGroupMemberships.portalGroupId,
-          })
-          .from(portalGroupMemberships)
-          .where(
-            and(
-              eq(portalGroupMemberships.organizationId, unbrand(orgId)),
-              eq(portalGroupMemberships.portalId, unbrand(pid)),
-              isNull(portalGroupMemberships.effectiveTo),
-            ),
-          )
-          .limit(1)
-        if (existing?.portalGroupId === unbrand(groupId)) return
-        if (existing) {
-          throw portalError('portal_already_grouped', 'portal is already in a group')
-        }
-        await tx.insert(portalGroupMemberships).values({
-          organizationId: unbrand(orgId),
-          propertyId: ownership.groupPropertyId,
-          portalId: unbrand(pid),
-          portalGroupId: unbrand(groupId),
-          effectiveFrom: at,
-          createdBy,
-        })
       })
     })
   },
