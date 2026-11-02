@@ -93,7 +93,8 @@ export function StaffAddForm(props: StaffAddFormProps) {
       ))}
       {omitted > 0 ? (
         <p role="status" className="text-sm">
-          {omitted} people were left out. You can add up to 20 at a time.
+          {omitted} {omitted === 1 ? 'person was' : 'people were'} left out. You can add
+          up to 20 at a time.
         </p>
       ) : null}
       <StaffAddMore

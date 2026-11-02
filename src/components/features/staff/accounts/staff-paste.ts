@@ -6,6 +6,10 @@ export function parseStaffPaste(text: string): readonly Readonly<{
   return text
     .split(/\r?\n/u)
     .filter((line) => line.trim())
+    .filter(
+      (line, index) =>
+        index !== 0 || line.includes('@') || !/\b(?:name|email)\b/iu.test(line),
+    )
     .map((line) => {
       const email = line.match(/[^\s,;<>"\t]+@[^\s,;<>"\t]+/u)?.[0] ?? ''
       const displayName = line

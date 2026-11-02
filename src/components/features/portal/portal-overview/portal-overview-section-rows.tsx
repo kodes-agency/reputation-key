@@ -59,8 +59,10 @@ export function PortalOverviewSectionRows({
   const head = groupSlot(results, (index) =>
     section.group
       ? index.group(section.group.id)
-      : section.portalIds
-        ? (index.section?.(section.portalIds) ?? null)
+      : section.kind === 'staff'
+        ? ((section.key === 'staff'
+            ? index.staff?.(propertyId)
+            : index.otherStaff?.(propertyId)) ?? null)
         : index.ungrouped(propertyId),
   )
   return (

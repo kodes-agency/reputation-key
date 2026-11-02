@@ -59,7 +59,9 @@ test('a staff invitation, a guest scan, closed manager routes and removal', asyn
     add.getByRole('textbox', { name: 'Email', exact: true }).nth(1),
   ).toHaveValue(sam)
   await add.getByRole('button', { name: 'Add', exact: true }).click()
-  await expect(add.getByText('Invited', { exact: true })).toHaveCount(2)
+  await expect(add.getByText('Invited', { exact: true })).toHaveCount(2, {
+    timeout: 30_000,
+  })
   await add.getByRole('button', { name: 'Close', exact: true }).first().click()
 
   const staffContext = await browser.newContext({

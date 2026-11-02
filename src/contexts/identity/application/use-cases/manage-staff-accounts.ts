@@ -1,7 +1,11 @@
 import type { AuthContext } from '#/shared/domain/auth-context'
 import { canForContext } from '#/shared/domain/permissions'
 import type { StaffAccountDeps } from './add-staff-member'
-import { requireStaffProperty, staffRowProblem } from './add-staff-member'
+import {
+  requireStaffProperty,
+  staffRowProblem,
+  staffRowCodeForActor,
+} from './add-staff-member'
 import type { StaffManagementStore } from '../ports/staff-management-store.port'
 import type { StaffPortalPlan } from '../ports/staff-portal-provisioner.port'
 import { staffAccountError } from '../../domain/staff-account'
@@ -60,7 +64,8 @@ export const checkStaffBatch =
             ? 'duplicate_in_batch'
             : staffRowProblem(row, facts ?? undefined, ctx.organizationId))
         return {
-          code: code ?? ('ok' as const),
+          code:
+            staffRowCodeForActor(code, ctx, deps.reportAddressRefusal) ?? ('ok' as const),
           needsInvitation:
             !facts?.userId || !facts.organizationIds.includes(ctx.organizationId),
         }

@@ -1,5 +1,5 @@
 import { X } from 'lucide-react'
-import { FormFieldFrame, errorIdOf } from '#/components/forms/form-field-frame'
+import { FormFieldFrame } from '#/components/forms/form-field-frame'
 import { Input } from '#/components/ui/input'
 import { Button } from '#/components/ui/button'
 import { IconButton } from '#/components/ui/icon-button'
@@ -26,7 +26,7 @@ export function StaffAddRow({
 }>) {
   const locked = busy || row.state !== 'editing'
   const status = {
-    editing: null,
+    editing: row.problem,
     sending: 'Adding…',
     added: 'Added',
     invited: 'Invited',
@@ -39,8 +39,11 @@ export function StaffAddRow({
         <div
           className="grid min-w-0 flex-1 gap-3 sm:grid-cols-2"
           onPaste={(event) => {
-            const text = event.clipboardData.getData('text')
-            if (!locked && /[\n\t,]/u.test(text)) {
+            const text = event.clipboardData.getData('text').trim()
+            if (
+              !locked &&
+              (/[\n\t,]/u.test(text) || text !== event.clipboardData.getData('text'))
+            ) {
               event.preventDefault()
               onPaste(text)
             }
@@ -55,11 +58,6 @@ export function StaffAddRow({
                 label={field === 'email' ? 'Email' : 'Name'}
                 labelClassName={index > 0 ? 'sm:sr-only' : undefined}
                 invalid={Boolean(row.problem)}
-                errors={
-                  row.state === 'editing' && row.problem
-                    ? [{ message: row.problem }]
-                    : undefined
-                }
               >
                 <Input
                   id={id}
@@ -68,7 +66,7 @@ export function StaffAddRow({
                   maxLength={field === 'email' ? 320 : 100}
                   disabled={locked}
                   aria-invalid={Boolean(row.problem)}
-                  aria-describedby={rowProblemId(row, id)}
+                  aria-describedby={row.problem ? `${row.operationId}-status` : undefined}
                   onChange={(event) => onChange(field, event.target.value)}
                 />
               </FormFieldFrame>
@@ -103,9 +101,4 @@ export function StaffAddRow({
       ) : null}
     </fieldset>
   )
-}
-
-function rowProblemId(row: StaffDraftRow, fieldId: string): string | undefined {
-  if (!row.problem) return undefined
-  return row.state === 'editing' ? errorIdOf(fieldId) : `${row.operationId}-status`
 }

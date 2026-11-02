@@ -196,6 +196,8 @@ count scans only. They use no Google data or rating measure. A manager may set
 a target on a staff member's Portal or a Group holding it; a Portal that skips
 the private rating cannot have a staff scan target.
 
+Managers may see a marker when a person's average is high and their scans are low compared with colleagues. It prompts a conversation; nothing happens automatically, and staff do not see it.
+
 Staff attribution, metrics, and goals are non-competitive manager
 decision-support evidence. Badge and Leaderboard behavior is unreachable. The
 Service provides no ordinal ranking, bottom list, composite staff score, or

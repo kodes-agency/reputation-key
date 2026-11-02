@@ -11,6 +11,7 @@ import { STAFF_NOTICE_VERSION } from '../domain/staff-account'
 import { requireOwnParticipation, resolveStaffSelfContext } from './staff-self-context'
 
 export const getMyStaffHomeHandler = createServerOnlyFn(async () => {
+  setResponseHeader('Cache-Control', 'private, no-store')
   const { ctx, person } = await resolveStaffSelfContext(await headersFromContext())
   await requireExecutionAllowed({
     actor: ctx,

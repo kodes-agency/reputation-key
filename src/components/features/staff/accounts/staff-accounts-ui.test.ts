@@ -3,6 +3,7 @@ import {
   useStaffFunctions,
 } from './staff-account-functions'
 import { createElement } from 'react'
+import { setupHookRoot } from '#/shared/testing/hook-root'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { it, expect, vi } from 'vitest'
@@ -59,23 +60,30 @@ const render = (child: ReturnType<typeof createElement>) =>
     ),
   )
 
-it('capability off draws no staff entry, personal roster, settings, or dialog and makes no staff call', () => {
-  state.enabled = false
-  const html = render(
-    createElement(StaffAccountsProvider, {
-      propertyId: 'p',
-      children: createElement(
-        'div',
-        null,
-        createElement(StaffAddAction),
-        createElement(StaffAccountsList),
+const hookRoot = setupHookRoot()
+it.each([false, true])(
+  'capability enabled=%s controls actual client roster requests',
+  async (enabled) => {
+    state.enabled = enabled
+    state.list.mockReset().mockResolvedValue({ members: [], colleagueListEnabled: false })
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+    await hookRoot.render(
+      createElement(
+        QueryClientProvider,
+        { client },
+        createElement(BoundFunctions, {
+          children: createElement(StaffAccountsProvider, {
+            propertyId: 'p',
+            children: null,
+          }),
+        }),
       ),
-    }),
-  )
-  expect(html).not.toContain('Add staff')
-  expect(html).not.toContain('scans')
-  expect(state.list).not.toHaveBeenCalled()
-})
+    )
+    expect(state.list).toHaveBeenCalledTimes(enabled ? 1 : 0)
+    client.clear()
+    state.enabled = false
+  },
+)
 it('an enabled context offers Add staff and renders the access state and colleague setting', () => {
   const html = render(
     createElement(
@@ -176,4 +184,45 @@ it('sets the capability on explicitly and enables Add staff without starting a l
   )
   expect(html).toContain('Add staff')
   state.enabled = false
+})
+
+it('shows the empty staff state and Add staff when the first roster is empty', () => {
+  const html = render(
+    createElement(
+      StaffAccountsContext,
+      {
+        value: {
+          propertyId: 'p',
+          ready: true,
+          members: [],
+          colleagueListEnabled: false,
+          canInvite: true,
+          canRemove: true,
+          canSettings: true,
+          openAdd: vi.fn(),
+          refresh: async () => undefined,
+        },
+      },
+      createElement(StaffAccountsList),
+    ),
+  )
+  expect(html).toContain('No staff yet')
+  expect(html).toContain('Add staff')
+})
+it('prints a row problem once and connects both fields to it', () => {
+  const problem = 'This person is already staff here.'
+  const html = render(
+    createElement(StaffAddRow, {
+      row: { ...newStaffRow('id'), problem },
+      index: 0,
+      removable: false,
+      busy: false,
+      onChange: vi.fn(),
+      onPaste: vi.fn(),
+      onRemove: vi.fn(),
+      onRetry: vi.fn(),
+    }),
+  )
+  expect(html.split(problem)).toHaveLength(2)
+  expect(html.match(/aria-describedby="id-status"/gu)).toHaveLength(2)
 })

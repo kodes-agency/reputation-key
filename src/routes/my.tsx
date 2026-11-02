@@ -3,9 +3,9 @@ import { validateStaffHomeSearch } from '#/shared/staff-home-search'
 
 export const Route = createFileRoute('/my')({
   validateSearch: validateStaffHomeSearch,
-  beforeLoad: async ({ location }) => {
+  beforeLoad: async ({ location, context }) => {
     const { staffHomeEntry } = await import('./-staff-home-entry')
-    return staffHomeEntry(location.href)
+    return staffHomeEntry(location.href, context?.queryClient)
   },
   head: () => ({
     meta: [{ title: 'My code | Reputation Key' }],

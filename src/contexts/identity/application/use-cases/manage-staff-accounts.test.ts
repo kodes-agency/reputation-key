@@ -461,3 +461,55 @@ describe('staff manager reads and settings', () => {
     )
   })
 })
+
+it('returns the Group target lock as a batch problem before any person is created', async () => {
+  const { deps } = setup()
+  const result = await checkStaffBatch({
+    ...deps,
+    portals: {
+      ...deps.portals,
+      check: async () => {
+        throw Object.assign(new Error('End the goal first.'), {
+          code: 'personal_portal_goal_locked',
+        })
+      },
+    },
+  })(
+    {
+      propertyId: 'property',
+      portalGroupId: 'group',
+      rows: [{ email: 'polly@example.com', displayName: 'Polly' }],
+    },
+    ctx,
+  )
+  expect(result.code).toBe('personal_portal_goal_locked')
+})
+it.each(['PropertyManager', 'AccountAdmin'] as const)(
+  'limits address detail for %s on batch checks',
+  async (role) => {
+    const { deps } = setup()
+    const reportAddressRefusal = vi.fn()
+    const store = {
+      ...deps.store,
+      addressFacts: async () => ({
+        userId: 'elsewhere',
+        organizationIds: ['elsewhere'],
+        alreadyStaffHere: false,
+        alreadyInvited: false,
+        staffParticipantId: null,
+      }),
+    }
+    const actor = buildTestAuthContext({ role })
+    const result = await checkStaffBatch({ ...deps, store, reportAddressRefusal })(
+      {
+        propertyId: 'property',
+        rows: [{ email: 'polly@example.com', displayName: 'Polly' }],
+      },
+      actor,
+    )
+    expect(result.rows).toEqual([
+      { code: role === 'AccountAdmin' ? 'other_organization' : 'cannot_add' },
+    ])
+    expect(reportAddressRefusal).toHaveBeenCalledTimes(role === 'AccountAdmin' ? 0 : 1)
+  },
+)

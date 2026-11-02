@@ -309,3 +309,5 @@ feature checks `p` against the person's participations. New arrivals default to
 Code and this month. Only `/my` links the standalone web app manifest. Staff
 invitation acceptance and registration go to `/my`; sign-in detects the staff
 role before choosing its destination. Manager server functions remain closed.
+
+The `/my` manifest has scope `/`, so login and Privacy Notice stay in the installed window. Icons are absent because the repository has no product mark yet.

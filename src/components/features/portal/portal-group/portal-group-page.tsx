@@ -1,3 +1,4 @@
+import { visiblePortals } from '../portal-overview/visible-portals'
 import { withStaffSetupRows } from '#/components/features/staff/accounts/staff-overview-rows'
 import { useStaffAccounts } from '#/components/features/staff/accounts/staff-accounts-context'
 import { StaffAccountsProvider } from '#/components/features/staff/accounts/staff-accounts-provider'
@@ -71,7 +72,9 @@ export type PortalGroupPageProps = PortalArchiveMutations &
 function PortalGroupPageBody(props: PortalGroupPageProps) {
   const { propertyId, propertyName, group, rows, members = [], results } = props
   const accounts = useStaffAccounts()
-  const staffRows = withStaffSetupRows(rows, accounts?.members ?? [], propertyId)
+  const staffRows = visiblePortals(
+    withStaffSetupRows(rows, accounts?.members, propertyId),
+  )
   const { can } = usePermissions()
   const { has } = useCapabilities()
   const [dialog, setDialog] = useState<'rename' | 'add' | null>(null)
@@ -84,7 +87,7 @@ function PortalGroupPageBody(props: PortalGroupPageProps) {
   })
   const visibleRows = has('staff.accounts')
     ? staffRows
-    : rows.filter((row) => row.kind !== 'personal')
+    : visiblePortals(rows).filter((row) => row.kind !== 'personal')
   const inGroup = visibleRows.filter((row) => row.group?.id === group.id)
   const meta = [
     'Group',

@@ -23,7 +23,7 @@ describe('a page has one h1, drawn by a few components', () => {
   const H1 = /<h1\b|<CardTitle\b[^>]*\bas="h1"/u
   /** The only components that draw a page's h1, each for the surface it heads. */
   const ALLOWED: Readonly<Record<string, string>> = {
-    'src/components/features/staff-home/staff-home.tsx':
+    'src/components/features/staff-home/staff-home-view.tsx':
       'the separate staff surface, also embedded as My code',
     'src/components/features/staff-home/staff-notice.tsx':
       'the full-screen first-arrival step replaces the staff surface',

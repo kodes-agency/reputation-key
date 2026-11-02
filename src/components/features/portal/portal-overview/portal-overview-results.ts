@@ -1,4 +1,3 @@
-import { staffSectionMeasures } from './portal-staff-measures'
 // The Portals overview's results as the page prints them: a figure per measure
 // for every Portal, group and Property row, and the strip above the table. Pure:
 // the read (`getPortalResultsOverview`) says what was counted and how sure it is,
@@ -129,7 +128,8 @@ export type OrganizationSortFigures = OverviewSortFigures &
   Readonly<{ property: (propertyId: string) => number | null }>
 
 export type OverviewResultsIndex = Readonly<{
-  section?: (portalIds: readonly string[]) => GroupFigures | null
+  otherStaff?: (propertyId: string) => GroupFigures | null
+  staff?: (propertyId: string) => GroupFigures | null
   staffFigures?: (portalId: string) => Readonly<{
     portalId: string
     scans: number | null
@@ -222,10 +222,23 @@ export function indexOverviewResults(
     }),
   )
   return {
-    section: (ids) => {
-      const rows = ids.flatMap((id) => (portals.get(id) ? [portals.get(id)!.row] : []))
-      const measures = rows.length === ids.length ? staffSectionMeasures(rows) : null
-      return measures ? { measures, memberCount: ids.length } : null
+    staff: (propertyId) => {
+      const row = overview.staff?.find((row) => row.propertyId === propertyId)
+      return row
+        ? {
+            measures: rowMeasures(row, frameFor(propertyId)),
+            memberCount: row.memberPortalIds.length,
+          }
+        : null
+    },
+    otherStaff: (propertyId) => {
+      const row = overview.otherStaff?.find((row) => row.propertyId === propertyId)
+      return row
+        ? {
+            measures: rowMeasures(row, frameFor(propertyId)),
+            memberCount: row.memberPortalIds.length,
+          }
+        : null
     },
     staffFigures: (portalId) => ({
       portalId,
@@ -252,16 +265,15 @@ export function indexOverviewResults(
 type HeadCounts = Readonly<{ memberCount: number; matchedCount: number }>
 
 /**
- * The count in a group head: the Portals in the group today as the read counted
- * them, else as the list did. The read and the list are fetched a moment apart,
- * so the count never falls below what the list says is shown.
+ * Counts come from the visible list. Results can include historical readings
+ * from people who have since left, and never change the list's membership.
  */
 export function groupHeadCount(
   head: HeadCounts,
-  readCount: number | null,
+  _readCount: number | null,
 ): Readonly<{ members: number; matched: number }> {
   return {
-    members: Math.max(readCount ?? head.memberCount, head.matchedCount),
+    members: Math.max(head.memberCount, head.matchedCount),
     matched: head.matchedCount,
   }
 }

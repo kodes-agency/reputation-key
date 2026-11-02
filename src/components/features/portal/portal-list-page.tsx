@@ -1,5 +1,8 @@
+import { usePortalSectionFolds } from './portal-overview/use-portal-section-folds'
+import { visiblePortals } from './portal-overview/visible-portals'
 import { withStaffSetupRows } from '#/components/features/staff/accounts/staff-overview-rows'
 import { useStaffAccounts } from '#/components/features/staff/accounts/staff-accounts-context'
+import type { PortalOverviewSection } from './portal-overview/portal-overview-view'
 import { portalListModel } from './portal-overview/portal-list-model'
 import { StaffAccountsProvider } from '#/components/features/staff/accounts/staff-accounts-provider'
 import { StaffAddAction } from '#/components/features/staff/accounts/staff-accounts-list'
@@ -78,6 +81,8 @@ export type PortalListPageProps = PortalArchiveMutations &
   Pick<PortalGroupMutations, 'createMutation' | 'renameMutation' | 'archiveGroupMutation'>
 
 type PortalListBodyProps = Readonly<{
+  folded: Readonly<Record<string, boolean>>
+  onToggleSection: (section: PortalOverviewSection) => void
   isEmpty: boolean
   /** The Property has a group, so the list is headed by groups and offers Group by. */
   hasGroups: boolean
@@ -100,6 +105,8 @@ type PortalListBodyProps = Readonly<{
 
 // fallow-ignore-next-line complexity
 function PortalListBody({
+  folded,
+  onToggleSection,
   isEmpty,
   hasGroups,
   newPortalButton,
@@ -148,6 +155,8 @@ function PortalListBody({
         ) : (
           <>
             <PortalOverviewTable
+              folded={folded}
+              onToggleSection={onToggleSection}
               sections={overview.sections}
               propertyId={propertyId}
               propertyName={propertyName}
@@ -174,7 +183,7 @@ function PortalListBody({
             {/* "Showing 1–5 of 5" says nothing a short list does not already show. */}
             {overview.lastPage > 1 || overview.total >= PORTAL_OVERVIEW_LONG_LIST ? (
               <PortalOverviewPager
-                overview={overview}
+                overview={{ ...overview, matched: overview.listed }}
                 onPage={(page) => onChange({ page })}
               />
             ) : null}
@@ -223,10 +232,14 @@ function PortalListPageBody({
   newPortal,
 }: PortalListPageProps) {
   const accounts = useStaffAccounts()
-  const rows = withStaffSetupRows(inputRows, accounts?.members ?? [], propertyId)
+  const rows = visiblePortals(
+    withStaffSetupRows(inputRows, accounts?.members, propertyId),
+  )
   const access = usePortalAccess()
   const [creatingGroup, setCreatingGroup] = useState(false)
+  const { folded, toggleSection } = usePortalSectionFolds()
   const { resultsState, hasGroups, listSearch, overview } = portalListModel({
+    folded,
     rows,
     results,
     search,
@@ -262,6 +275,8 @@ function PortalListPageBody({
       />
       <PortalChangesOffNote />
       <PortalListBody
+        folded={folded}
+        onToggleSection={toggleSection}
         isEmpty={isEmpty}
         hasGroups={hasGroups}
         newPortalButton={newPortalButton}

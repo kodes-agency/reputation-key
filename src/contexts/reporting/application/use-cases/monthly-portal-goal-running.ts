@@ -178,11 +178,10 @@ function rowsOf(
   const counts = recommendation.truncated ? null : monthCountsOf(recommendation, month)
   if (counts === null || counts.portals.length === 0) return null
   const { portals, elsewhere, total } = counts
-  if (
-    !portals.some((portal) => portal.kind === 'personal') &&
-    portals.length >= MANY_PORTALS
-  )
-    return { kind: 'many', count: portals.length }
+  const lines =
+    portals.filter((portal) => portal.kind !== 'personal').length +
+    Number(portals.some((portal) => portal.kind === 'personal'))
+  if (lines >= MANY_PORTALS) return { kind: 'many', count: portals.length }
   const [only] = portals
   if (
     only &&

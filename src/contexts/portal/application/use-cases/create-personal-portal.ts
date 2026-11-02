@@ -15,12 +15,24 @@ export type CreatePersonalPortalDeps = CreatePortalDeps &
       'loadWorkingCopy' | 'findActiveForPortal'
     >
     addressRecoverable: boolean
+    checkGroupTarget: (
+      scope: Readonly<{
+        organizationId: string
+        propertyId: string
+        portalGroupId: string
+        at: Date
+      }>,
+    ) => Promise<void>
   }>
 
 export const checkPersonalPortalSource =
   (deps: CreatePersonalPortalDeps) =>
   async (
-    input: Readonly<{ propertyId: string; sourcePortalId?: string }>,
+    input: Readonly<{
+      propertyId: string
+      sourcePortalId?: string
+      portalGroupId?: string
+    }>,
     ctx: AuthContext,
   ) => {
     const pid = await assertNewPortalPropertyAccess(
@@ -29,8 +41,15 @@ export const checkPersonalPortalSource =
       input.propertyId,
       'This account cannot add staff at this Property',
     )
-    if ('portalGroupId' in input && typeof input.portalGroupId === 'string')
+    if (input.portalGroupId) {
       await loadTargetGroup(deps, ctx, pid, input.portalGroupId)
+      await deps.checkGroupTarget({
+        organizationId: ctx.organizationId,
+        propertyId: pid,
+        portalGroupId: input.portalGroupId,
+        at: deps.clock(),
+      })
+    }
     if (!deps.addressRecoverable) {
       throw portalError(
         'address_keyring_missing',

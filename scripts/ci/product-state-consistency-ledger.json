@@ -273,6 +273,16 @@
       "id": "src/routes/_authenticated/properties/$propertyId/portals/-portal-detail-actions.ts:queryKey#2",
       "owner": "Portal optimistic-update rollback",
       "policy": "The error block recreates the same portalKeys.detail(portalId) alias, restores its snapshot, and refetches only that exact detail."
+    },
+    {
+      "id": "src/routes/-staff-home-entry.ts:queryKey#1",
+      "owner": "Staff entry guard (ADR 0072)",
+      "policy": "Fetches only shellContextKeys.session(), the canonical shell memory factory in shell-context-cache.ts, which the query-keys.ts inventory cannot resolve. Browser checks last thirty seconds; staff home data uses the signed-in user id. The staff route behavior test checks reuse and account isolation."
+    },
+    {
+      "id": "src/routes/-staff-home-entry.ts:queryKey#2",
+      "owner": "Staff entry guard (ADR 0072)",
+      "policy": "Removes only shellContextKeys.session() when its answer is signed out, so that absence never masks a later sign-in. This is the shell-context-cache.ts factory, outside the query-keys.ts factory inventory."
     }
   ],
   "broadInvalidationExceptions": [
@@ -887,6 +897,12 @@
       "classification": "local_runtime",
       "owner": "Manager Add staff dialog",
       "policy": "The initial Group is the Add people entry choice. The dialog is remounted on each opening; subsequent choices belong to its local draft."
+    },
+    {
+      "id": "src/components/features/portal/portal-group/portal-group-portals.tsx:useState(removal)",
+      "classification": "local_runtime",
+      "owner": "Portal Group removal dialog",
+      "policy": "The chosen Portal and dialog visibility change together when the reader selects Remove. Closing keeps the chosen name for the closing dialog; the page remount resets both. This is a local choice, never a copy of server state."
     }
   ],
   "classificationDefinitions": {

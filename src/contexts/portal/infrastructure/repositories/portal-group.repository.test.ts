@@ -4,7 +4,7 @@ import { getEnv } from '#/shared/config/env'
 import { deleteTestOrganizations } from '#/shared/testing/integration-helpers'
 import { getDb } from '#/shared/db'
 import { organizationId, portalGroupId, portalId, propertyId } from '#/shared/domain/ids'
-import { createPortalGroupRepository } from './portal-group.repository'
+import { createPortalGroupTestRepository } from './portal-group-test.repository'
 
 const ORG = organizationId('org-portal-group-temporal')
 // A second, fully populated tenant. Portal grouping is scoped only by the
@@ -95,10 +95,10 @@ beforeEach(async () => {
 
 describe('portal group repository effective memberships', () => {
   it('preserves event-time attribution when a portal moves groups', async () => {
-    const repo = createPortalGroupRepository(getDb())
-    await repo.addPortal(ORG, GROUP_A, PORTAL, START, 'owner')
+    const repo = createPortalGroupTestRepository(getDb())
+    await repo.seedMembership(ORG, GROUP_A, PORTAL, START, 'owner')
     await repo.removePortal(ORG, GROUP_A, PORTAL, MOVE, 'moved_to_new_group')
-    await repo.addPortal(ORG, GROUP_B, PORTAL, MOVE, 'owner')
+    await repo.seedMembership(ORG, GROUP_B, PORTAL, MOVE, 'owner')
 
     await expect(
       repo.findGroupForPortal(ORG, PORTAL, new Date(START.getTime() + 1)),
@@ -111,16 +111,16 @@ describe('portal group repository effective memberships', () => {
   })
 
   it('rejects a portal and group from different properties at the repository boundary', async () => {
-    const repo = createPortalGroupRepository(getDb())
+    const repo = createPortalGroupTestRepository(getDb())
     await expect(
-      repo.addPortal(ORG, GROUP_OTHER_PROPERTY, PORTAL, START, 'owner'),
+      repo.seedMembership(ORG, GROUP_OTHER_PROPERTY, PORTAL, START, 'owner'),
     ).rejects.toMatchObject({ _tag: 'PortalError', code: 'forbidden' })
     await expect(repo.findPortalMembership(ORG, PORTAL)).resolves.toBeNull()
   })
 
   it('closes current memberships when the group is archived but keeps history resolvable', async () => {
-    const repo = createPortalGroupRepository(getDb())
-    await repo.addPortal(ORG, GROUP_A, PORTAL, START, 'owner')
+    const repo = createPortalGroupTestRepository(getDb())
+    await repo.seedMembership(ORG, GROUP_A, PORTAL, START, 'owner')
 
     await repo.softDelete(ORG, GROUP_A, ARCHIVE)
 
@@ -142,8 +142,8 @@ describe('portal group repository — tenant isolation', () => {
   // After this the other tenant owns: a group, a portal, and an OPEN
   // membership joining them. Nothing below can pass vacuously.
   async function seedOtherTenantGrouping() {
-    const repo = createPortalGroupRepository(getDb())
-    await repo.addPortal(ORG_OTHER, GROUP_OTHER_TENANT, PORTAL_OTHER, START, 'owner')
+    const repo = createPortalGroupTestRepository(getDb())
+    await repo.seedMembership(ORG_OTHER, GROUP_OTHER_TENANT, PORTAL_OTHER, START, 'owner')
     // Scoped to THIS file's two orgs. The integration project shares one
     // database with the e2e seed and every other integration file, so an
     // unscoped `SELECT ... WHERE effective_to IS NULL` asserts on the whole
@@ -210,7 +210,7 @@ describe('portal group repository — tenant isolation', () => {
   })
 
   it('insert refuses a group whose tenant differs from the caller tenant', async () => {
-    const repo = createPortalGroupRepository(getDb())
+    const repo = createPortalGroupTestRepository(getDb())
     const now = new Date()
     await expect(
       repo.insert(ORG, {
@@ -265,11 +265,11 @@ describe('portal group repository — tenant isolation', () => {
     // ORG's portal into the other tenant's group: no same-property parent
     // chain is visible to ORG, so the repository refuses.
     await expect(
-      repo.addPortal(ORG, GROUP_OTHER_TENANT, PORTAL, MOVE, 'owner'),
+      repo.seedMembership(ORG, GROUP_OTHER_TENANT, PORTAL, MOVE, 'owner'),
     ).rejects.toMatchObject({ _tag: 'PortalError', code: 'forbidden' })
     // ...and the other tenant's own portal is equally out of reach.
     await expect(
-      repo.addPortal(ORG, GROUP_A, PORTAL_OTHER, MOVE, 'owner'),
+      repo.seedMembership(ORG, GROUP_A, PORTAL_OTHER, MOVE, 'owner'),
     ).rejects.toMatchObject({ _tag: 'PortalError', code: 'forbidden' })
 
     await expect(
@@ -297,10 +297,10 @@ describe('portal group repository batched list', () => {
   }
 
   it('lists the groups of a Property with their current Portals, by name', async () => {
-    const repo = createPortalGroupRepository(getDb())
+    const repo = createPortalGroupTestRepository(getDb())
     await seedSecondPortal()
-    await repo.addPortal(ORG, GROUP_B, PORTAL_TWO, START, 'owner')
-    await repo.addPortal(ORG, GROUP_B, PORTAL, START, 'owner')
+    await repo.seedMembership(ORG, GROUP_B, PORTAL_TWO, START, 'owner')
+    await repo.seedMembership(ORG, GROUP_B, PORTAL, START, 'owner')
 
     const groups = await repo.listPortalGroupsWithPortals(ORG, propertyId(PROPERTY_A))
 
@@ -313,10 +313,10 @@ describe('portal group repository batched list', () => {
   })
 
   it('leaves out a Portal whose membership has ended and a group that was archived', async () => {
-    const repo = createPortalGroupRepository(getDb())
-    await repo.addPortal(ORG, GROUP_A, PORTAL, START, 'owner')
+    const repo = createPortalGroupTestRepository(getDb())
+    await repo.seedMembership(ORG, GROUP_A, PORTAL, START, 'owner')
     await repo.removePortal(ORG, GROUP_A, PORTAL, MOVE, 'moved_to_group')
-    await repo.addPortal(ORG, GROUP_B, PORTAL, MOVE, 'owner')
+    await repo.seedMembership(ORG, GROUP_B, PORTAL, MOVE, 'owner')
     await repo.softDelete(ORG, GROUP_A, ARCHIVE)
 
     const groups = await repo.listPortalGroupsWithPortals(ORG, propertyId(PROPERTY_A))
@@ -327,7 +327,7 @@ describe('portal group repository batched list', () => {
   })
 
   it('does not list another Property group or another tenant group', async () => {
-    const repo = createPortalGroupRepository(getDb())
+    const repo = createPortalGroupTestRepository(getDb())
 
     const propertyB = await repo.listPortalGroupsWithPortals(ORG, propertyId(PROPERTY_B))
     const crossTenant = await repo.listPortalGroupsWithPortals(ORG, PROPERTY_OTHER)
@@ -337,7 +337,7 @@ describe('portal group repository batched list', () => {
   })
 
   it('maps who created a group, and null for a group made before it was recorded', async () => {
-    const repo = createPortalGroupRepository(getDb())
+    const repo = createPortalGroupTestRepository(getDb())
     await pool.query(`UPDATE portal_groups SET created_by = 'creator-1' WHERE id = $1`, [
       GROUP_B,
     ])

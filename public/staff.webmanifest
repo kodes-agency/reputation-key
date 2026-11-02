@@ -2,7 +2,7 @@
   "name": "Reputation Key",
   "short_name": "Reputation Key",
   "start_url": "/my",
-  "scope": "/my",
+  "scope": "/",
   "display": "standalone",
   "background_color": "#1A1A24",
   "theme_color": "#1A1A24"

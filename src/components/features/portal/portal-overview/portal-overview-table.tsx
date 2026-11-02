@@ -20,6 +20,8 @@ import type { PortalOverviewItem, PortalOverviewSection } from './portal-overvie
 
 type Props = PortalArchiveMutations &
   Readonly<{
+    folded?: Readonly<Record<string, boolean>>
+    onToggleSection?: (section: PortalOverviewSection) => void
     sections: readonly PortalOverviewSection[]
     propertyId: string
     propertyName: string
@@ -40,6 +42,8 @@ type Props = PortalArchiveMutations &
 
 export function PortalOverviewTable({
   sections,
+  folded: controlledFolded,
+  onToggleSection,
   propertyId,
   propertyName,
   archiveMutation,
@@ -53,12 +57,15 @@ export function PortalOverviewTable({
   showGroup,
   density = 'regular',
 }: Props) {
-  const [folded, setFolded] = useState<Readonly<Record<string, boolean>>>({})
+  const [localFolded, setFolded] = useState<Readonly<Record<string, boolean>>>({})
+  const folded = controlledFolded ?? localFolded
   const toggle = (section: PortalOverviewSection) =>
-    setFolded((current) => ({
-      ...current,
-      [section.key]: sectionExpanded(section, current[section.key]),
-    }))
+    onToggleSection
+      ? onToggleSection(section)
+      : setFolded((current) => ({
+          ...current,
+          [section.key]: sectionExpanded(section, current[section.key]),
+        }))
 
   return (
     <StaffAccountsProvider propertyId={propertyId}>

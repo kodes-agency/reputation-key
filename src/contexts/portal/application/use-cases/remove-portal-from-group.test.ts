@@ -32,6 +32,13 @@ const staffApiMock = (accessible: ReadonlyArray<PropertyId> | null): StaffPublic
 })
 
 const createInMemoryPortalGroupRepo = (): PortalGroupRepository & {
+  writeMembership: (
+    orgId: Parameters<PortalGroupRepository['findById']>[0],
+    groupId: Parameters<PortalGroupRepository['findById']>[1],
+    portalId: Parameters<PortalGroupRepository['findPortalMembership']>[1],
+    at: Date,
+    createdBy: string,
+  ) => Promise<void>
   all(): PortalGroup[]
   seed(groups: PortalGroup[]): void
 } => {
@@ -77,7 +84,7 @@ const createInMemoryPortalGroupRepo = (): PortalGroupRepository & {
         store.set(String(id), { ...g, deletedAt: new Date() })
       }
     },
-    addPortal: async (_orgId, groupId, pid) => {
+    writeMembership: async (_orgId, groupId, pid) => {
       memberships.set(String(pid), groupId)
     },
     removePortal: async (_orgId, _groupId, pid) => {
@@ -134,7 +141,7 @@ describe('removePortalFromGroup', () => {
     const { useCase, portalGroupRepo, outbox } = setup([PROPERTY_ID])
     const ctx = buildTestAuthContext({ role: 'PropertyManager' })
     portalGroupRepo.seed([seedGroup(ctx.organizationId)])
-    await portalGroupRepo.addPortal(
+    await portalGroupRepo.writeMembership(
       ctx.organizationId,
       GROUP_ID,
       PORTAL_ID,
@@ -160,7 +167,7 @@ describe('removePortalFromGroup', () => {
     const { useCase, portalGroupRepo } = setup([])
     const ctx = buildTestAuthContext({ role: 'PropertyManager' })
     portalGroupRepo.seed([seedGroup(ctx.organizationId)])
-    await portalGroupRepo.addPortal(
+    await portalGroupRepo.writeMembership(
       ctx.organizationId,
       GROUP_ID,
       PORTAL_ID,
@@ -177,7 +184,7 @@ describe('removePortalFromGroup', () => {
     const { useCase, portalGroupRepo } = setup([])
     const ctx = buildTestAuthContext({ role: 'Member' })
     portalGroupRepo.seed([seedGroup(ctx.organizationId)])
-    await portalGroupRepo.addPortal(
+    await portalGroupRepo.writeMembership(
       ctx.organizationId,
       GROUP_ID,
       PORTAL_ID,

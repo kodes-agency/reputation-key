@@ -36,3 +36,22 @@ export async function assertPersonalGroupTarget(
       'This portal has a running scan target for staff. End the target first.',
     )
 }
+
+/** Checks a proposed personal Portal before creating its person or invitation. */
+export async function assertPersonalGroupTargetAvailable(
+  db: Pick<Tx, 'execute'>,
+  scope: Readonly<{
+    organizationId: string
+    propertyId: string
+    portalGroupId: string
+    at: Date
+  }>,
+): Promise<void> {
+  const result = await db.execute(sql`SELECT a.id FROM goal_subject_assignments a
+    JOIN goal_programs g ON g.organization_id = a.organization_id AND g.property_id = a.property_id AND g.id = a.program_id
+    WHERE a.organization_id = ${scope.organizationId} AND a.property_id = ${scope.propertyId}::uuid AND a.portal_group_id = ${scope.portalGroupId}::uuid
+      AND a.metric_key <> 'qualified_scans' AND g.status <> 'ended'
+      AND (a.effective_to IS NULL OR a.effective_to > ${scope.at}) LIMIT 1`)
+  if (result.rows.length)
+    throw portalError('personal_portal_goal_locked', 'End the goal first.')
+}

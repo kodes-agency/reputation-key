@@ -1,14 +1,18 @@
+import { visiblePortals } from './visible-portals'
 import type { PortalListPageProps } from '../portal-list-page'
 import type { PortalOverviewResultsState } from './portal-overview-results'
 import { sortFiguresWithoutUncounted } from './portal-overview-uncounted'
 import { buildPortalOverview, PORTAL_OVERVIEW_PAGE_SIZE } from './portal-overview-view'
 export function portalListModel({
-  rows,
+  rows: inputRows,
   results,
   search,
   groups,
   members = [],
-}: Pick<PortalListPageProps, 'rows' | 'results' | 'search' | 'groups' | 'members'>) {
+  folded = {},
+}: Pick<PortalListPageProps, 'rows' | 'results' | 'search' | 'groups' | 'members'> &
+  Readonly<{ folded?: Readonly<Record<string, boolean>> }>) {
+  const rows = visiblePortals(inputRows)
   const resultsState: PortalOverviewResultsState = results?.state ?? { status: 'off' }
   // Without results there is nothing to sort by scans, whatever a bookmark says.
   const searchWithScans =
@@ -32,6 +36,7 @@ export function portalListModel({
       rows,
     ),
     groups,
+    folded,
   )
   return { resultsState, hasGroups, listSearch, overview }
 }

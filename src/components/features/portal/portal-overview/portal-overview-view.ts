@@ -1,3 +1,4 @@
+import { visiblePortals } from './visible-portals'
 // fallow-ignore-file code-duplication
 // r4 s38: parallel dialog forms, server-function shells and ledger rows share intentional boilerplate.
 // The Portals overview as data: which Portals are listed, in which groups, in
@@ -13,7 +14,7 @@ import {
   type GuestLocale,
 } from '#/shared/domain/guest-locale'
 import { needsAttention, portalAttention, type PortalAttention } from './portal-attention'
-import { overviewBuckets } from './portal-staff-sections'
+import { sectionExpanded, overviewBuckets } from './portal-staff-sections'
 import { compareItems, orderGroups } from './portal-overview-order'
 import type { OverviewSortFigures } from './portal-overview-results'
 import {
@@ -68,7 +69,6 @@ export type PortalOverviewSection = Readonly<{
   /** `group`, `ungrouped` and `staff` carry a head; `flat` has none. */
   kind: 'group' | 'ungrouped' | 'flat' | 'staff'
   staff?: Readonly<{ count: number; places: number; names: readonly string[] }>
-  portalIds?: readonly string[]
   searchExpanded?: boolean
   key: string
   group: PortalOverviewRow['group']
@@ -86,6 +86,7 @@ export type PortalOverviewPage = Readonly<{
   total: number
   /** The Portals the search and filter keep, on every page. */
   matched: number
+  listed: number
   /** Every Portal that needs attention, before the search: what the filter would keep. */
   needingAttention: number
   page: number
@@ -235,14 +236,13 @@ export function buildPortalOverview(
   figures?: OverviewSortFigures,
   /** Every group of the Property, so one with no Portal can still be listed. */
   knownGroups: readonly NonNullable<PortalOverviewRow['group']>[] = [],
+  folded: Readonly<Record<string, boolean>> = {},
 ): PortalOverviewPage {
   const sort = search.sort ?? DEFAULT_PORTAL_OVERVIEW_SORT
   const dir = search.dir ?? defaultSortDirection(sort)
   const grouping = (search.groupBy ?? DEFAULT_PORTAL_OVERVIEW_GROUP_BY) === 'group'
 
-  const all = rows
-    .filter((row) => row.kind !== 'personal' || row.publicationState !== 'archived')
-    .map((row) => toItem(row, members))
+  const all = visiblePortals(rows).map((row) => toItem(row, members))
   const matchesText = searchMatcher(search.q ?? '')
   const matched = all
     .filter((item) => matchesSearch(item, search, matchesText))
@@ -260,19 +260,30 @@ export function buildPortalOverview(
     figures,
   )
 
-  const ordered = buckets.flatMap((bucket) => bucket.items)
+  const expanded = (bucket: (typeof buckets)[number]) =>
+    sectionExpanded(
+      {
+        ...bucket,
+        kind: bucket.kind === 'staff' ? 'staff' : grouping ? bucket.kind : 'flat',
+      },
+      folded[bucket.key],
+    )
+  const ordered = buckets.flatMap((bucket) => (expanded(bucket) ? bucket.items : []))
   const lastPage = Math.max(1, Math.ceil(ordered.length / pageSize))
   const page = clamp(search.page ?? 1, 1, lastPage)
   const start = (page - 1) * pageSize
   const onPage = new Set(ordered.slice(start, start + pageSize))
 
+  let listedBefore = 0
   const sections = buckets.flatMap((bucket): PortalOverviewSection[] => {
-    const items = bucket.items.filter((item) => onPage.has(item))
-    if (items.length === 0) return []
+    const isExpanded = expanded(bucket)
+    const headPage = clamp(Math.floor(listedBefore / pageSize) + 1, 1, lastPage)
+    const items = isExpanded ? bucket.items.filter((item) => onPage.has(item)) : []
+    listedBefore += isExpanded ? bucket.items.length : 0
+    if (isExpanded ? items.length === 0 : headPage !== page) return []
     return [
       {
         kind: bucket.kind === 'staff' ? 'staff' : grouping ? bucket.kind : 'flat',
-        portalIds: bucket.portalIds,
         staff: bucket.staff,
         searchExpanded: bucket.searchExpanded,
         key: bucket.key,
@@ -294,6 +305,7 @@ export function buildPortalOverview(
     sections: withBeforeUngrouped(sections, emptyGroups),
     total: all.length,
     matched: matched.length,
+    listed: ordered.length,
     needingAttention: all.filter((item) => needsAttention(item.attention)).length,
     page,
     lastPage,

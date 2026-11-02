@@ -1,3 +1,4 @@
+import { setResponseHeader } from '@tanstack/react-start/server'
 import { createServerFn, createServerOnlyFn } from '@tanstack/react-start'
 import { z } from 'zod/v4'
 import { getContainer } from '#/composition'
@@ -17,6 +18,7 @@ export const getMyResultsHandler = createServerOnlyFn(
   }: {
     data: { participationId: string; period: 'today' | 'week' | 'month' }
   }) => {
+    setResponseHeader('Cache-Control', 'private, no-store')
     const { ctx, person } = await resolveStaffSelfContext(await headersFromContext())
     const own = requireOwnParticipation(person, data.participationId)
     await requireExecutionAllowed({
@@ -50,6 +52,7 @@ export const getMyResults = createServerFn({ method: 'GET' })
 
 export const getMyGoalsHandler = createServerOnlyFn(
   async ({ data }: { data: { participationId: string } }) => {
+    setResponseHeader('Cache-Control', 'private, no-store')
     const { ctx, person } = await resolveStaffSelfContext(await headersFromContext())
     const own = requireOwnParticipation(person, data.participationId)
     await requireExecutionAllowed({
@@ -84,6 +87,7 @@ export const getMyColleaguesHandler = createServerOnlyFn(
   }: {
     data: { participationId: string; period: 'today' | 'week' | 'month' }
   }) => {
+    setResponseHeader('Cache-Control', 'private, no-store')
     const { ctx, person } = await resolveStaffSelfContext(await headersFromContext())
     const own = requireOwnParticipation(person, data.participationId)
     await requireExecutionAllowed({

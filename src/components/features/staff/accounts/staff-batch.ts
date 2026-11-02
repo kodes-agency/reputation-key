@@ -32,7 +32,12 @@ export function pasteStaffRows(
   const next = [...rows]
   parsed.slice(0, available).forEach((person, offset) => {
     const index = at + offset
-    next[index] = { ...(next[index] ?? newStaffRow(id())), ...person, problem: null }
+    next[index] = {
+      ...(next[index] ?? newStaffRow(id())),
+      ...(person.email ? { email: person.email } : {}),
+      ...(person.displayName ? { displayName: person.displayName } : {}),
+      problem: null,
+    }
   })
   return { rows: next, omitted: Math.max(0, parsed.length - available) }
 }
@@ -41,7 +46,10 @@ const PROBLEMS: Readonly<Record<string, string>> = {
   invalid_email: 'Enter a valid email address.',
   name_required: 'Enter a name of up to 100 characters.',
   duplicate_in_batch: 'This email appears more than once.',
-  already_staff_here: 'This person is already here. Use Resend invitation.',
+  already_staff_here: 'This person is already staff here.',
+  already_invited:
+    "This address already has an open invitation. Add them here once they've accepted.",
+  cannot_add: "This email can't be added.",
   other_organization: 'This email belongs to another organisation.',
   source_archived: 'This portal is archived. Pick another portal.',
   brand_profile_missing:

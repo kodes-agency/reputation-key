@@ -17,6 +17,7 @@ export type StaffRowCode =
   | 'already_staff_here'
   | 'already_invited'
   | 'other_organization'
+  | 'cannot_add'
 export type StaffAccountErrorCode =
   | StaffRowCode
   | 'forbidden'

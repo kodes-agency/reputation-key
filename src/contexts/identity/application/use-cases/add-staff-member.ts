@@ -29,6 +29,7 @@ export type StaffAccountDeps = Readonly<{
   portals: StaffPortalProvisioner
   idGen: () => string
   spendAddressCheckBudget: (ctx: AuthContext, units: number) => Promise<void>
+  reportAddressRefusal?: (reason: 'other_organization') => void
   reportDeliveryFailure: (row: StaffOnboarding) => void
   invitationBudget: (ctx: AuthContext) => Promise<number>
   spendInvitationBudget: (ctx: AuthContext) => Promise<void>
@@ -66,6 +67,16 @@ export function staffRowProblem(
   return facts?.alreadyStaffHere ? 'already_staff_here' : null
 }
 
+export function staffRowCodeForActor(
+  code: StaffRowCode | null,
+  ctx: AuthContext,
+  report?: StaffAccountDeps['reportAddressRefusal'],
+): StaffRowCode | null {
+  if (code !== 'other_organization' || ctx.role === 'AccountAdmin') return code
+  report?.(code)
+  return 'cannot_add'
+}
+
 const failureCodeOf = (error: unknown) =>
   typeof error === 'object' &&
   error !== null &&
@@ -76,6 +87,7 @@ const failureCodeOf = (error: unknown) =>
     : 'step_failed'
 
 const rowMessages: Partial<Record<StaffRowCode, string>> = {
+  cannot_add: "This email can't be added.",
   already_invited:
     "This address already has an open invitation. Add them here once they've accepted.",
   other_organization: 'This address belongs to another Organization',
@@ -194,7 +206,11 @@ export const addStaffMember =
       const previous = await store.findOperation(ctx.organizationId, input.operationId)
       if (previous) return resumeStaffOperation(deps, store, previous, input, ctx, email)
       const facts = await store.addressFacts(ctx.organizationId, input.propertyId, email)
-      const code = staffRowProblem(input, facts, ctx.organizationId)
+      const code = staffRowCodeForActor(
+        staffRowProblem(input, facts, ctx.organizationId),
+        ctx,
+        deps.reportAddressRefusal,
+      )
       if (code)
         throw staffAccountError(
           code,

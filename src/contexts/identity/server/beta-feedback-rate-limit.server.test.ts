@@ -75,3 +75,20 @@ describe('beta feedback rate limit', () => {
     expect(actorRateLimit).not.toBe(actorTelemetry)
   })
 })
+
+it('gives staff their own Organization budget, never spending the manager counter', async () => {
+  const rateLimiter = limiterWith([true, true, true, true])
+  await enforceBetaFeedbackRateLimit({ ...INPUT, rateLimiter }, 'staff')
+  await enforceBetaFeedbackRateLimit({ ...INPUT, rateLimiter })
+  expect(rateLimiter.check.mock.calls[0]).toEqual([
+    expect.stringMatching(/^identity:staff-beta-feedback:actor:/u),
+    { maxRequests: 2, windowSeconds: 3600 },
+  ])
+  expect(rateLimiter.check.mock.calls[1]).toEqual([
+    expect.stringMatching(/^identity:staff-beta-feedback:organization:/u),
+    { maxRequests: 10, windowSeconds: 86400 },
+  ])
+  expect(rateLimiter.check.mock.calls[3]?.[0]).not.toBe(
+    rateLimiter.check.mock.calls[1]?.[0],
+  )
+})

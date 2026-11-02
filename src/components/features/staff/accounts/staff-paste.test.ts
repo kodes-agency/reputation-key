@@ -14,8 +14,8 @@ describe('staff paste', () => {
     ])
   })
   it('keeps missing emails and names editable instead of discarding them', () => {
-    expect(parseStaffPaste('Name only\na@example.com')).toEqual([
-      { displayName: 'Name only', email: '' },
+    expect(parseStaffPaste('Polly Jones\na@example.com')).toEqual([
+      { displayName: 'Polly Jones', email: '' },
       { displayName: '', email: 'a@example.com' },
     ])
   })
@@ -33,5 +33,19 @@ describe('staff paste', () => {
     expect(pasted.rows[0]).toEqual(rows[0])
     expect(pasted.rows[1]?.operationId).toBe('kept')
     expect(pasted.rows[19]?.email).toBe('p18@example.com')
+  })
+})
+
+it('skips a heading and preserves a sibling field when pasting one cell', () => {
+  expect(parseStaffPaste('Name,Email\nPolly,polly@example.com\n')).toEqual([
+    { displayName: 'Polly', email: 'polly@example.com' },
+  ])
+  const row = { ...newStaffRow('kept'), displayName: 'Polly', email: 'old@example.com' }
+  expect(
+    pasteStaffRows([row], 0, 'new@example.com\n', () => 'new').rows[0],
+  ).toMatchObject({ displayName: 'Polly', email: 'new@example.com' })
+  expect(pasteStaffRows([row], 0, 'Ana\n', () => 'new').rows[0]).toMatchObject({
+    displayName: 'Ana',
+    email: 'old@example.com',
   })
 })

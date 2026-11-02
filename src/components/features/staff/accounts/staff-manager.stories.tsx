@@ -1,3 +1,4 @@
+import { usePortalSectionFolds } from '#/components/features/portal/portal-overview/use-portal-section-folds'
 import type { Meta, StoryObj } from '@storybook/react'
 import { expect, fn, screen, userEvent, within } from 'storybook/test'
 import { StaffAccountsContext, type StaffAccounts } from './staff-accounts-context'
@@ -39,6 +40,7 @@ function Scene({
   scene,
   width = 1440,
 }: Readonly<{ scene: 'group' | 'other' | 'staff' | 'remove'; width?: number }>) {
+  const { folded, toggleSection } = usePortalSectionFolds()
   const rows = members.map((member) =>
     overviewRow(member.portalId, {
       kind: 'personal',
@@ -51,6 +53,9 @@ function Scene({
     {},
     [],
     99,
+    undefined,
+    [],
+    folded,
   )
   return (
     <StaffAccountsContext value={accounts}>
@@ -69,6 +74,8 @@ function Scene({
           </>
         ) : (
           <PortalOverviewTable
+            folded={folded}
+            onToggleSection={toggleSection}
             sections={overview.sections}
             propertyId="prop-1"
             propertyName="Harbor Hotel"

@@ -4,7 +4,7 @@ import type { StaffMember } from './staff-account-view'
 /** An interrupted setup stays repairable even before it has created a Portal. */
 export function withStaffSetupRows(
   rows: readonly PortalOverviewRow[],
-  members: readonly StaffMember[],
+  members: readonly StaffMember[] = [],
   scope: string,
 ): readonly PortalOverviewRow[] {
   const known = new Set(rows.map((row) => String(row.portalId)))

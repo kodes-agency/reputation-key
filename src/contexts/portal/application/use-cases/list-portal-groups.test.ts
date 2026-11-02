@@ -55,7 +55,6 @@ function setup(
       insert: async () => {},
       update: async () => {},
       softDelete: async () => {},
-      addPortal: async () => {},
       removePortal: async () => false,
       findPortalMembership: async () => null,
       getGroupPortalIds: async () => [],

@@ -1,3 +1,4 @@
+import { portalGroupId } from '#/shared/domain/ids'
 import { describe, expect, it } from 'vitest'
 import { setupCreatePortal, PROPERTY } from '#/shared/testing/portal-create-setup'
 import { buildTestAuthContext, buildTestPortal } from '#/shared/testing/fixtures'
@@ -34,6 +35,7 @@ function setup() {
   const deps = {
     ...state.optionsDeps,
     addressRecoverable: true,
+    checkGroupTarget: async () => {},
     publicationRepo: {
       loadWorkingCopy: async () => source,
       findActiveForPortal: async () => snapshot,
@@ -144,4 +146,32 @@ describe('createPersonalPortal', () => {
       })({ propertyId: PROPERTY, sourcePortalId: portal.id }, ctx),
     ).rejects.toMatchObject({ code: 'source_has_unpublished_changes' })
   })
+})
+
+it('checks a running Group rating target before creating a personal Portal', async () => {
+  const { deps, state } = setup()
+  const group = portalGroupId('12345678-abcd-4000-8000-000000000002')
+  state.portalGroupRepo.seed({
+    id: group,
+    organizationId: ctx.organizationId,
+    propertyId: PROPERTY,
+    name: 'Desk',
+    sortKey: 'a',
+    createdBy: null,
+    createdAt: new Date(),
+    updatedAt: new Date(),
+    deletedAt: null,
+  })
+  const checkGroupTarget = async () => {
+    throw Object.assign(new Error('End the goal first.'), {
+      code: 'personal_portal_goal_locked',
+    })
+  }
+  await expect(
+    checkPersonalPortalSource({ ...deps, checkGroupTarget })(
+      { propertyId: PROPERTY, portalGroupId: group },
+      ctx,
+    ),
+  ).rejects.toMatchObject({ code: 'personal_portal_goal_locked' })
+  expect(state.portalRepo.all()).toEqual([])
 })

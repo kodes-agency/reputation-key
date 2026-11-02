@@ -78,7 +78,7 @@ const IN_COMPONENT_MODES: Readonly<Record<string, string>> = {
 describe('page-level view switchers', () => {
   it('keeps the approved staff phone surface on the canonical bottom tabs', () => {
     const staff = FILES.find(
-      (file) => file.path === 'src/components/features/staff-home/staff-home.tsx',
+      (file) => file.path === 'src/components/features/staff-home/staff-home-view.tsx',
     )
     expect(staff?.text).toContain('variant="bottom"')
   })
@@ -91,7 +91,7 @@ describe('page-level view switchers', () => {
           (tag) =>
             !/variant="line"/u.test(tag) &&
             !(
-              file.path === 'src/components/features/staff-home/staff-home.tsx' &&
+              file.path === 'src/components/features/staff-home/staff-home-view.tsx' &&
               /variant="bottom"/u.test(tag)
             ),
         ),

@@ -59,11 +59,11 @@ recorded opt-in. An administrator can turn AI features off at any time.
 - content-free operational history for significant product, support, privacy,
   policy, and release actions.
 
-A Participant may attach one screenshot or other image to a Bug report or a
-Suggestion. Nothing is captured unless the Participant pastes, drops, or
+A Participant or Staff member may attach one screenshot or other image to a Bug report or a
+Suggestion. Nothing is captured unless that person pastes, drops, or
 chooses an image; the form shows it before sending and it can be removed. A
 screenshot shows whatever was on the screen, which can include Guest names,
-review text, and other personal data. For an eligible Bug report, a Participant
+review text, and other personal data. For an eligible Bug report, a Participant or Staff member
 may also separately choose to create a preview containing only quantized,
 text-free layout blocks. That preview excludes page text, field values, URLs,
 pixels, images, account details, and ordinary screen replay, and can be
@@ -79,6 +79,10 @@ Managers with access see all of this information. A staff member sees their own
 scans, rating count, average and targets, and never private notes or Google
 selections. Rating counts and averages update once a day. If the business turns
 it on, colleagues at the Property see each other's scan counts.
+
+Managers may see a marker when a person's average is high and their scans are low compared with colleagues. It prompts a conversation; nothing happens automatically, and staff do not see it.
+
+A Group target shows staff a live total that includes colleagues. It is shown only when the colleague list is on or the Group has at least three people.
 
 The business is the controller of staff performance data and must tell its
 staff what is kept and who sees it. These numbers follow the retention of the
@@ -162,7 +166,7 @@ The Service uses the following providers:
 | Anthropic | AI inference                                   | Not used before the date section 9 sets. Then used through an account held by Mission Morph LLC, which has Anthropic's data-processing agreement. No processing-location promise; no prompt caching requested; inputs and outputs deleted by the provider within 30 days, except content it flags for policy violations (up to 2 years) and its safety scores (up to 7 years); not used for training under the provider's commercial terms; no zero-data-retention promise |
 | Google    | Business Profile APIs and OAuth                | Independent controller of Business Profile data                                                                                                                                                                                                                                                                                                                                                                                                                            |
 | Resend    | Transactional email                            | United States                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
-| Sentry    | Error monitoring and beta feedback reports     | United States; required: the deployed Service does not start unless it is configured; receives error, timing, and health reports from its servers, error reports from Participant and Guest browsers, and beta feedback reports with any screenshot a Participant attaches, as explained below this table                                                                                                                                                                  |
+| Sentry    | Error monitoring and beta feedback reports     | United States; required: the deployed Service does not start unless it is configured; receives error, timing, and health reports from its servers, error reports from Participant, Staff and Guest browsers, and beta feedback reports with any screenshot a Participant or Staff member attaches, as explained below this table                                                                                                                                           |
 
 OpenAI receives minimized and redacted review text for the AI features an
 Organization administrator has enabled. Once the date in section 9 has passed,
@@ -174,7 +178,7 @@ Error monitoring is part of the deployed Service. Its web and worker processes
 do not start unless error monitoring is configured, and they accept only the
 provider's United States ingestion service. The Service's servers send the
 provider error reports, operational alerts, timing reports for a share of the
-work they handle, and health reports. The browser of a Participant or Guest
+work they handle, and health reports. The browser of a Participant, Staff member or Guest
 sends the provider, directly, an error report when a page fails. It sends the
 provider no record of a page being opened. If a browser did not send a report
 or could not deliver it, for example because it repeated an earlier one, it may
@@ -196,21 +200,21 @@ its reports itself, the provider's servers also see the network address of that
 connection and what a browser tells any website it contacts, such as its
 user-agent text. The Service does not add a network address to a report.
 
-A beta feedback report holds the text the Participant wrote, of at most 6,000
+A beta feedback report holds the text the reporter (a Participant or Staff member) wrote, of at most 6,000
 characters. The Service automatically removes email addresses and some forms of
 password, token, and key from that text. It cannot recognise other personal
 data, such as a name, so the rest is sent as written. With the text the
-provider receives the report type and impact the Participant chose, the area of
+provider receives the report type and impact the reporter chose, the area of
 the application the report was sent from as a category and not an address, a
-broad screen-size category, the Participant's role, a random report reference,
+broad screen-size category, the reporter's role, a random report reference,
 the time, the software version, and two pseudonyms: codes derived with a secret
-key from the internal identifiers of the Participant and of the Organization,
-the same on every report from that Participant or Organization. If the
-Participant chose to attach them, the report also names the error report it
+key from the internal identifiers of the reporter and of the Organization,
+the same on every report from that reporter or Organization. If the
+reporter chose to attach them, the report also names the error report it
 refers to and gives the size and block counts of the masked Bug layout. The
-report also names the Participant by the name and email address of their
+report also names the reporter by the name and email address of their
 account, so that it can be followed up; the Service does not send the layout
-itself. If the Participant attached a screenshot, the
+itself. If the reporter attached a screenshot, the
 report carries it as an image file. The browser reduces it in size and encodes
 it again before sending, to at most 640 KB, which leaves out the metadata the
 original file held. The Service's own database keeps a record of each report
@@ -258,10 +262,13 @@ for complaints, and it does not count per person.
   own scans, rating count, average and targets; they never see private notes or
   Google selections. When the business turns it on, colleagues at the Property
   see each other's scan counts. Guests never see a staff name.
+- Managers may see a marker when a person's average is high and their scans are low compared with colleagues. It prompts a conversation; nothing happens automatically, and staff do not see it.
+- A Group target shows staff a live total that includes colleagues. It is shown only when the colleague list is on or the Group has at least three people.
 - The guest line “Only {name} sees your rating” names the business that receives
   it. A staff member at that business can see the count and average for their
-  own code, updated once a day; they cannot see an individual guest's rating.
-- Portal workflow notifications are limited to the current responsible
+  own code, updated once a day. Staff cannot see who gave a rating, but may notice
+  their totals change from one day to the next.
+- Portal private feedback and Portal workflow notifications are limited to the current responsible
   managers assigned to that Portal. A creator is assigned
   initially when eligible; creation is not permanent exclusive ownership.
 - Account administrators are a recovery recipient only when a Portal has no
@@ -331,6 +338,8 @@ Cross-Property AI summaries, automatic AI reply publication, and provider
 training on submitted Google content have no activation path.
 
 ## 6. Current retention posture
+
+The 24-month retention for Reporting's readings of Guest facts is not enforced by code yet.
 
 The following accepted horizons are implemented or represented in the
 repository:
@@ -546,6 +555,9 @@ correction and withdrawal remain available.
 
 Version 3.3 (2026-11-02) explains staff accounts, what staff and managers see,
 the optional colleague scan list, and the business's duty to tell its staff.
+The notice also explains the manager-only high-rating marker, shared Group progress,
+Staff error reports and beta feedback, and that staff may notice daily totals change.
+Portal private feedback stays limited to responsible managers.
 Staff performance numbers follow the facts' 24-month retention, which is not
 enforced by code for Reporting's readings yet. It takes effect on release
 without a waiting period, on the accountable owner's decision of 2026-11-01

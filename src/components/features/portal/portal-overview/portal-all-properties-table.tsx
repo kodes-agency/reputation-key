@@ -6,7 +6,6 @@
 import { StaffAccountsProvider } from '#/components/features/staff/accounts/staff-accounts-provider'
 import type { PortalOverviewSection } from './portal-overview-view'
 import { sectionExpanded } from './portal-staff-sections'
-import { useState } from 'react'
 import { DataTable, DataTableBody } from '#/components/ui/data-table'
 import type { PortalArchiveMutations } from './portal-archive-dialog'
 import type { PortalPropertySection } from './portal-all-properties-view'
@@ -18,6 +17,8 @@ import { PortalOverviewTableHead } from './portal-overview-table-head'
 
 type Props = PortalArchiveMutations &
   Readonly<{
+    foldedGroups: Readonly<Record<string, boolean>>
+    onToggleGroup: (key: string, section: PortalOverviewSection) => void
     properties: readonly PortalPropertySection[]
     results: PortalOverviewResultsState
     /** A new window is loading: the figures shown are still the previous window's. */
@@ -31,6 +32,8 @@ type Props = PortalArchiveMutations &
 
 export function PortalAllPropertiesTable({
   properties,
+  foldedGroups,
+  onToggleGroup,
   results,
   busy = false,
   scansOrder,
@@ -40,13 +43,6 @@ export function PortalAllPropertiesTable({
   restoreMutation,
   disableMutation,
 }: Props) {
-  const [foldedGroups, setFoldedGroups] = useState<Readonly<Record<string, boolean>>>({})
-  const toggleGroup = (key: string, section: PortalOverviewSection) =>
-    setFoldedGroups((current) => ({
-      ...current,
-      [key]: sectionExpanded(section, current[key]),
-    }))
-
   return (
     <DataTable label="Portals at all properties" layout="cards" busy={busy}>
       <PortalOverviewTableHead results={results} scansOrder={scansOrder} />
@@ -78,7 +74,7 @@ export function PortalAllPropertiesTable({
                         propertyId={property.propertyId}
                         results={results}
                         expanded={sectionExpanded(section, foldedGroups[groupKey])}
-                        onToggle={() => toggleGroup(groupKey, section)}
+                        onToggle={() => onToggleGroup(groupKey, section)}
                         nested
                         archiveMutation={archiveMutation}
                         restoreMutation={restoreMutation}

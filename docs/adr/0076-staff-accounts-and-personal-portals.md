@@ -120,7 +120,8 @@ that code is doing. This amends [ADR 0033](0033-authorization-policy.md),
 ## Consequences
 
 - `staff.accounts` is `beta_disabled` until the last pull request of the plan, which
-  makes it `controlled_beta` with the published documents and the What's new entry.
+  makes it `controlled_beta` with the published documents. The owner tries it first;
+  this pull request does not add a What's new entry.
 - Person-level reads of Guest facts are worker data; `docs/security/data-inventory.md`
   says so, under the same 24 months as the facts they read.
 - Visits from a browser signed in to the Portal's own Organization are not counted,

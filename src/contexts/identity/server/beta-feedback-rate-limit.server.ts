@@ -33,24 +33,29 @@ function throwRateLimited(): never {
  * Apply the narrower actor budget before the organization budget so repeated
  * denied retries cannot exhaust the shared allowance for other managers.
  */
-export async function enforceBetaFeedbackRateLimit(input: Input): Promise<void> {
+export async function enforceBetaFeedbackRateLimit(
+  input: Input,
+  audience: 'manager' | 'staff' = 'manager',
+): Promise<void> {
+  const prefix =
+    audience === 'staff' ? 'identity:staff-beta-feedback' : 'identity:beta-feedback'
   const actor = await input.rateLimiter.check(
-    `identity:beta-feedback:actor:${betaFeedbackPseudonym(
+    `${prefix}:actor:${betaFeedbackPseudonym(
       input.keyHmacSecret,
       'rate-limit-actor',
       input.actorId,
     )}`,
-    ACTOR_LIMIT,
+    audience === 'staff' ? { maxRequests: 2, windowSeconds: 3600 } : ACTOR_LIMIT,
   )
   if (!actor.allowed) throwRateLimited()
 
   const organization = await input.rateLimiter.check(
-    `identity:beta-feedback:organization:${betaFeedbackPseudonym(
+    `${prefix}:organization:${betaFeedbackPseudonym(
       input.keyHmacSecret,
       'rate-limit-organization',
       input.organizationId,
     )}`,
-    ORGANIZATION_LIMIT,
+    audience === 'staff' ? { maxRequests: 10, windowSeconds: 86400 } : ORGANIZATION_LIMIT,
   )
   if (!organization.allowed) throwRateLimited()
 }

@@ -1,3 +1,5 @@
+import { Users } from 'lucide-react'
+import { EmptyState } from '#/components/ui/empty-state'
 import { useStaffFunctions } from './staff-account-functions'
 import { Button } from '#/components/ui/button'
 import { Link } from '@tanstack/react-router'
@@ -90,6 +92,8 @@ export function StaffAccountsList() {
               ))}
           </DataTableBody>
         </DataTable>
+      ) : accounts.ready ? (
+        <EmptyState icon={Users} title="No staff yet" action={<StaffAddAction />} />
       ) : null}
       {accounts.canSettings ? (
         <SettingSwitchRow

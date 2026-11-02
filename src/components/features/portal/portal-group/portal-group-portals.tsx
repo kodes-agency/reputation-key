@@ -1,3 +1,4 @@
+import { usePortalSectionFolds } from '../portal-overview/use-portal-section-folds'
 import { staffGrouping } from '../portal-overview/portal-staff-sections'
 // "Portals in this group" on a group's page (board 13): the same rows as the
 // overview, ordered by qualified scans where results are shown. A Group with
@@ -17,6 +18,7 @@ import { sortFiguresWithoutUncounted } from '../portal-overview/portal-overview-
 import {
   buildPortalOverview,
   type PortalManagerName,
+  type PortalOverviewItem,
 } from '../portal-overview/portal-overview-view'
 import type { PortalGroupMutations, PortalGroupRef } from './portal-group-mutations'
 import {
@@ -63,8 +65,11 @@ export function PortalGroupPortals({
 }: Props) {
   // The menu item only chooses; the dialog lives out here because a dialog
   // inside a menu unmounts with it.
-  const [removing, setRemoving] = useState<PortalChosenForRemoval | null>(null)
-  const [removeOpen, setRemoveOpen] = useState(false)
+  const [removal, setRemoval] = useState<{
+    portal: PortalChosenForRemoval | null
+    open: boolean
+  }>({ portal: null, open: false })
+  const { folded, toggleSection } = usePortalSectionFolds()
   const resultsState: PortalOverviewResultsState = results?.state ?? { status: 'off' }
   const byScans = resultsState.status === 'ready'
   const overview = buildPortalOverview(
@@ -78,8 +83,23 @@ export function PortalGroupPortals({
     byScans
       ? sortFiguresWithoutUncounted(resultsState.index.sortFigures, rows)
       : undefined,
+    [],
+    folded,
   )
   const basis = basisLine(resultsState, group.id)
+  const removeMenuItem = (item: PortalOverviewItem) => (
+    <DropdownMenuItem
+      disabled={removePortalMutation.isPending}
+      onSelect={() => {
+        setRemoval({
+          portal: { portalId: item.row.portalId, name: item.row.name },
+          open: true,
+        })
+      }}
+    >
+      Remove from group
+    </DropdownMenuItem>
+  )
   return (
     <section aria-labelledby="group-portals-heading" className="flex flex-col gap-3">
       <h2 id="group-portals-heading" className="text-base font-semibold">
@@ -89,6 +109,8 @@ export function PortalGroupPortals({
         <EmptyState size="compact" icon={Globe} title="No portals in this group yet" />
       ) : (
         <PortalOverviewTable
+          folded={folded}
+          onToggleSection={toggleSection}
           sections={overview.sections}
           propertyId={propertyId}
           propertyName={propertyName}
@@ -100,21 +122,7 @@ export function PortalGroupPortals({
           scansOrder={byScans ? 'desc' : undefined}
           showGroup={false}
           density="compact"
-          rowMenuExtra={
-            canEdit
-              ? (item) => (
-                  <DropdownMenuItem
-                    disabled={removePortalMutation.isPending}
-                    onSelect={() => {
-                      setRemoving({ portalId: item.row.portalId, name: item.row.name })
-                      setRemoveOpen(true)
-                    }}
-                  >
-                    Remove from group
-                  </DropdownMenuItem>
-                )
-              : undefined
-          }
+          rowMenuExtra={canEdit ? removeMenuItem : undefined}
         />
       )}
       <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
@@ -130,10 +138,10 @@ export function PortalGroupPortals({
       </div>
       {basis ? <p className="text-xs text-muted-foreground">{basis}</p> : null}
       <PortalGroupRemovePortalDialog
-        portal={removing}
+        portal={removal.portal}
         groupName={group.name}
-        open={removeOpen}
-        onOpenChange={setRemoveOpen}
+        open={removal.open}
+        onOpenChange={(open) => setRemoval((current) => ({ ...current, open }))}
         onConfirm={(portalId) =>
           removePortalMutation({ data: { portalGroupId: group.id, portalId } })
         }

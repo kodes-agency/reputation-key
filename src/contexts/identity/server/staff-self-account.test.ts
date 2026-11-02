@@ -1,3 +1,4 @@
+import { APIError } from 'better-auth/api'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { buildTestAuthContext } from '#/shared/testing/fixtures'
 import * as account from './staff-self-account'
@@ -7,9 +8,12 @@ const mocks = vi.hoisted(() => ({
   policy: vi.fn(),
   password: vi.fn(),
   budget: vi.fn(),
+  remaining: vi.fn(),
+  failed: vi.fn(),
   submit: vi.fn(),
   list: vi.fn(),
 }))
+vi.mock('@tanstack/react-start/server', () => ({ setResponseHeader: vi.fn() }))
 vi.mock('./staff-self-context', () => ({ resolveStaffSelfContext: mocks.resolve }))
 vi.mock('#/shared/auth/headers', () => ({
   headersFromContext: async () => new Headers(),
@@ -28,8 +32,8 @@ vi.mock('./beta-feedback-rate-limit.server', () => ({
 }))
 vi.mock('#/composition', () => ({
   getContainer: () => ({
-    logger: { error: vi.fn() },
-    rateLimiter: {},
+    logger: { error: vi.fn(), warn: vi.fn() },
+    rateLimiter: { remaining: mocks.remaining, check: mocks.failed },
     identityRequestSecurity: { betaFeedbackHmacSecret: 'secret' },
     identityBetaFeedback: { submit: mocks.submit, listMine: mocks.list },
   }),
@@ -38,6 +42,7 @@ vi.mock('#/composition', () => ({
 const actor = buildTestAuthContext({ role: 'Member' })
 beforeEach(() => {
   vi.resetAllMocks()
+  mocks.remaining.mockResolvedValue(10)
   mocks.resolve.mockResolvedValue({ ctx: actor })
   mocks.submit.mockResolvedValue({ reference: 'report' })
   mocks.list.mockResolvedValue([])
@@ -65,7 +70,7 @@ describe('staff account actions', () => {
       },
     })
   })
-  it('spends the same report budget and submits as the session person', async () => {
+  it('spends the separate staff report budget and submits as the session person', async () => {
     const data = {
       kind: 'bug',
       impact: 'minor',
@@ -79,6 +84,7 @@ describe('staff account actions', () => {
         actorId: actor.userId,
         organizationId: actor.organizationId,
       }),
+      'staff',
     )
     expect(mocks.submit).toHaveBeenCalledWith({ actor, data })
     expect(await account.listMyStaffFeedbackHandler()).toEqual([])
@@ -96,5 +102,37 @@ describe('staff account actions', () => {
     expect(mocks.password).not.toHaveBeenCalled()
     expect(mocks.list).not.toHaveBeenCalled()
     expect(mocks.submit).not.toHaveBeenCalled()
+  })
+})
+
+it('spends only failed password attempts and refuses after ten in an hour', async () => {
+  let remaining = 10
+  mocks.remaining.mockImplementation(async () => remaining)
+  mocks.failed.mockImplementation(async () => {
+    remaining -= 1
+    return { allowed: true }
+  })
+  const data = { currentPassword: 'Current123!', newPassword: 'NextPassword123!' }
+  await account.changeMyStaffPasswordHandler({ data })
+  expect(mocks.failed).not.toHaveBeenCalled()
+  mocks.password.mockRejectedValue(
+    new APIError('BAD_REQUEST', {
+      code: 'INVALID_PASSWORD',
+      message: 'Invalid password',
+    }),
+  )
+  for (let n = 0; n < 10; n += 1)
+    await expect(account.changeMyStaffPasswordHandler({ data })).rejects.toMatchObject({
+      code: 'password_change_failed',
+    })
+  expect(mocks.failed).toHaveBeenCalledTimes(10)
+  await expect(account.changeMyStaffPasswordHandler({ data })).rejects.toMatchObject({
+    code: 'rate_limited',
+    status: 429,
+  })
+  expect(mocks.password).toHaveBeenCalledTimes(11)
+  expect(mocks.failed).toHaveBeenCalledWith(`staff:password:failed:${actor.userId}`, {
+    maxRequests: 10,
+    windowSeconds: 3600,
   })
 })

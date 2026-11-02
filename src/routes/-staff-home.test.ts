@@ -1,3 +1,6 @@
+import { QueryClient } from '@tanstack/react-query'
+import { shellContextKeys } from '#/shared/queries/shell-context-cache'
+import { staffSelfKeys } from '#/shared/queries/query-keys'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 const mocks = vi.hoisted(() => ({
   home: vi.fn(),
@@ -99,4 +102,28 @@ describe('staff routes', () => {
     expect(MyCodeLazy.options.component).toBeTypeOf('function')
     expect(staffHomeFns.getMyStaffHome).toBe(mocks.home)
   })
+})
+
+it('remembers browser entry checks for thirty seconds under the signed-in person', async () => {
+  vi.stubGlobal('window', {})
+  try {
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+    await staffHomeEntry('/my', client)
+    await staffHomeEntry('/my?tab=results&period=week&p=own', client)
+    expect(mocks.session).toHaveBeenCalledOnce()
+    expect(mocks.home).toHaveBeenCalledOnce()
+    client.setQueryData(shellContextKeys.session(), { user: { id: 'another-person' } })
+    await staffHomeEntry('/my', client)
+    expect(mocks.home).toHaveBeenCalledTimes(2)
+    client.invalidateQueries({ queryKey: staffSelfKeys.home('another-person') })
+    mocks.home.mockRejectedValue(
+      new ServerFunctionError('AuthError', 'Removed', 'forbidden', 403),
+    )
+    await expect(staffHomeEntry('/my', client)).rejects.toMatchObject({
+      options: { to: '/unavailable' },
+    })
+    client.clear()
+  } finally {
+    vi.unstubAllGlobals()
+  }
 })

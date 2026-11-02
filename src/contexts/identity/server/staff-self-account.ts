@@ -1,4 +1,5 @@
 import { createServerFn, createServerOnlyFn } from '@tanstack/react-start'
+import { setResponseHeader } from '@tanstack/react-start/server'
 import { getContainer } from '#/composition'
 import { getAuth } from '#/shared/auth/auth'
 import { headersFromContext } from '#/shared/auth/headers'
@@ -13,6 +14,11 @@ import { changePasswordCommandSchema } from '../application/dto/change-password.
 import { isBetaFeedbackError } from '../domain/errors'
 import { resolveStaffSelfContext } from './staff-self-context'
 import { enforceBetaFeedbackRateLimit } from './beta-feedback-rate-limit.server'
+import {
+  assertStaffPasswordBudget,
+  staffPasswordFailureKey,
+  STAFF_PASSWORD_FAILURE_LIMIT,
+} from './staff-password-rate-limit.server'
 import { handleAuthError } from './auth-settings.helpers'
 
 async function ownAccount() {
@@ -30,12 +36,18 @@ export const changeMyStaffPasswordHandler = createServerOnlyFn(
   async ({ data }: { data: { currentPassword: string; newPassword: string } }) => {
     const { headers, ctx } = await ownAccount()
     await requireExecutionAllowed({ actor: ctx, action: 'identity.password.change' })
+    const { rateLimiter } = getContainer()
+    await assertStaffPasswordBudget(rateLimiter, ctx.userId)
     try {
       await getAuth().api.changePassword({
         headers,
         body: { ...data, revokeOtherSessions: true },
       })
     } catch (error) {
+      await rateLimiter.check(
+        staffPasswordFailureKey(ctx.userId),
+        STAFF_PASSWORD_FAILURE_LIMIT,
+      )
       handleAuthError(
         getContainer().logger,
         error,
@@ -59,12 +71,15 @@ export const submitMyStaffFeedbackHandler = createServerOnlyFn(
     try {
       const { rateLimiter, identityRequestSecurity, identityBetaFeedback } =
         getContainer()
-      await enforceBetaFeedbackRateLimit({
-        rateLimiter,
-        actorId: actor.userId,
-        organizationId: actor.organizationId,
-        keyHmacSecret: identityRequestSecurity.betaFeedbackHmacSecret,
-      })
+      await enforceBetaFeedbackRateLimit(
+        {
+          rateLimiter,
+          actorId: actor.userId,
+          organizationId: actor.organizationId,
+          keyHmacSecret: identityRequestSecurity.betaFeedbackHmacSecret,
+        },
+        'staff',
+      )
       return await identityBetaFeedback.submit({ actor, data })
     } catch (error) {
       if (isBetaFeedbackError(error)) throwContextError('FeedbackError', error, 503)
@@ -80,6 +95,7 @@ export const submitMyStaffFeedback = createServerFn({ method: 'POST' })
   )
 
 export const listMyStaffFeedbackHandler = createServerOnlyFn(async () => {
+  setResponseHeader('Cache-Control', 'private, no-store')
   const { ctx: actor } = await ownAccount()
   try {
     return await getContainer().identityBetaFeedback.listMine({ actor })

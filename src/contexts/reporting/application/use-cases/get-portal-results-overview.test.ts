@@ -1,3 +1,4 @@
+import placeOnlyBaseline from './__fixtures__/portal-overview-place-only.json'
 import { describe, expect, it, vi } from 'vitest'
 import {
   organizationId,
@@ -965,4 +966,64 @@ describe('getPortalResultsOverview authorization', () => {
 
     await expect(read).resolves.toMatchObject({ total: { portalIds: [P1] } })
   })
+})
+
+it('pools Other staff ratings separately and preserves group-at-reading attribution', async () => {
+  const repo = fakeRepository({
+    current: {
+      cells: [
+        ratings(P1, null, 12, 3),
+        ratings(P2, null, 15, 3),
+        scans(P1, null, 4),
+        scans(P2, G1, 7),
+        ratings(P3, null, 15, 3),
+      ],
+    },
+  })
+  const overview = await ask(
+    repo,
+    roster([
+      [P1, null],
+      [P2, null],
+      [P3, null],
+    ]).map((row) => ({
+      ...row,
+      kind: row.portalId === P3 ? ('place' as const) : ('personal' as const),
+    })),
+  )
+  expect(overview.portals[0]?.kpis.avgRating.value).toBeNull()
+  expect(overview.portals[1]?.kpis.avgRating.value).toBeNull()
+  expect(overview.otherStaff?.[0]?.kpis.avgRating.value).toBe(4.5)
+  expect(overview.otherStaff?.[0]?.kpis.scans.value).toBe(4)
+  expect(overview.groups[0]?.kpis.scans.value).toBe(7)
+  expect(overview.ungrouped[0]?.kpis.ratings.value).toBe(3)
+  expect(overview.ungrouped[0]?.memberPortalIds).toEqual([P3])
+  expect(overview.staff?.[0]?.kpis.scans.value).toBe(11)
+})
+it('preserves the complete place-only response from the pre-staff overview', async () => {
+  const repo = fakeRepository({
+    current: {
+      cells: [
+        ratings(P1, null, 12, 3),
+        ratings(P2, null, 15, 3),
+        scans(P1, G1, 7),
+        scans(P2, null, 4),
+        notes(P1, null, 2),
+        opens(P2, null, 3),
+      ],
+    },
+    prior: { cells: [scans(P1, null, 2)] },
+  })
+  const overview = await ask(
+    repo,
+    roster([
+      [P1, G1],
+      [P2, null],
+    ]),
+    { compare: true },
+  )
+  expect(overview).not.toHaveProperty('staff')
+  expect(overview).not.toHaveProperty('otherStaff')
+  expect(overview.ungrouped[0]?.kpis.avgRating.value).toBe(4.5)
+  expect(JSON.parse(JSON.stringify(overview))).toEqual(placeOnlyBaseline)
 })

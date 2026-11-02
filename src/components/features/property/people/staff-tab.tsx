@@ -121,7 +121,9 @@ export function StaffTab({
   const profiles = useMemo(
     () =>
       participations.filter(
-        (participation) => !personalParticipationIds.includes(participation.id),
+        (participation) =>
+          !participation.personalPortalId &&
+          !personalParticipationIds.includes(participation.id),
       ),
     [participations, personalParticipationIds],
   )

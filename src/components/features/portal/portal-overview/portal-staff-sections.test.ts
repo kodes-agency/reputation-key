@@ -3,8 +3,6 @@ import { buildPortalOverview } from './portal-overview-view'
 import { buildAllPropertiesOverview } from './portal-all-properties-view'
 import { overviewRow, overviewGroup, NO_CODE } from './portal-overview-fixtures'
 import { sectionExpanded, staffSectionCount } from './portal-staff-sections'
-import { staffSectionMeasures } from './portal-staff-measures'
-import { measuresOf } from './portal-overview-results-fixtures'
 const group = overviewGroup('g', 'Reception')
 const rows = [
   overviewRow('z', { kind: 'personal', name: 'Zoe', group, token: NO_CODE }),
@@ -24,14 +22,20 @@ describe('people sections never rank people', () => {
       for (const show of [undefined, 'attention'] as const) {
         it(`${sort} ${dir} ${show ?? 'all'} keeps places first then people A to Z on every page`, () => {
           const search = { sort, dir, show }
-          const built = buildPortalOverview(rows, search, [], 99, figures)
+          const built = buildPortalOverview(rows, search, [], 99, figures, [], {
+            [group.id]: false,
+            'other-staff': false,
+          })
           expect(
             built.sections
               .find((s) => s.group?.id === group.id)
               ?.items.map((i) => i.row.name),
           ).toEqual(['Place', 'Ana', 'Zoe'])
           expect(built.sections.at(-1)?.key).toBe('other-staff')
-          const all = buildAllPropertiesOverview(rows, [], search, [], 99, figures)
+          const all = buildAllPropertiesOverview(rows, [], search, [], 99, figures, [], {
+            [`prop-1/${group.id}`]: false,
+            'prop-1/other-staff': false,
+          })
           expect(
             all.properties[0]?.sections.flatMap((s) =>
               s.items.filter((i) => i.row.group).map((i) => i.row.name),
@@ -43,6 +47,8 @@ describe('people sections never rank people', () => {
             [],
             99,
             figures,
+            [],
+            { staff: false },
           )
           expect(flat.sections.at(-1)?.items.map((i) => i.row.name)).toEqual([
             'Ana',
@@ -67,19 +73,6 @@ describe('people sections never rank people', () => {
   })
   it('does not mix the Other staff subtotal with place portals', () => {
     const section = buildPortalOverview(rows, {}, [], 99).sections.at(-1)!
-    expect(section.portalIds).toEqual(['o'])
     expect(section.staff?.names).toEqual(['Other person'])
-  })
-  it('adds only known figures, and never fabricates an unknown average', () => {
-    const row = measuresOf({
-      scans: 10,
-      ratings: 5,
-      average: 4.6,
-      googleOpens: 2,
-      notes: 1,
-    })
-    expect(staffSectionMeasures([row, row])?.scans.text).toBe('20')
-    expect(staffSectionMeasures([row, row])?.average.text).toBe('4.6')
-    expect(staffSectionMeasures([])).toBeNull()
   })
 })

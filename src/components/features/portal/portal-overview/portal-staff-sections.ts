@@ -6,7 +6,6 @@ export type OverviewBucket = Readonly<{
   memberCount: number
   items: readonly PortalOverviewItem[]
   staff?: Readonly<{ count: number; places: number; names: readonly string[] }>
-  portalIds?: readonly string[]
   searchExpanded?: boolean
 }>
 
@@ -40,7 +39,6 @@ export function overviewBuckets(
       group,
       memberCount: members.length,
       items,
-      portalIds: members.map((item) => item.row.portalId),
       ...(people.length
         ? {
             staff: {
