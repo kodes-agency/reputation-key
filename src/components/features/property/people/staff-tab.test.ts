@@ -17,7 +17,7 @@ vi.mock('#/components/features/staff/portal-responsibilities-modal', () => ({
 it('hides a personal participation before the account roster has arrived', () => {
   const props = {
     ...seededArgs,
-    participations: [{ ...seededArgs.participations[0], personalPortalId: 'personal' }],
+    participations: [{ ...seededArgs.participations[0]!, personalPortalId: 'personal' }],
     portalOptions: [],
     accountsEnabled: true,
     personalParticipationIds: [],
