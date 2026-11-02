@@ -1,3 +1,4 @@
+import { visiblePortals } from './visible-portals'
 // fallow-ignore-file code-duplication
 // r4 s38: parallel dialog forms, server-function shells and ledger rows share intentional boilerplate.
 // The Portals overview as data: which Portals are listed, in which groups, in
@@ -13,6 +14,7 @@ import {
   type GuestLocale,
 } from '#/shared/domain/guest-locale'
 import { needsAttention, portalAttention, type PortalAttention } from './portal-attention'
+import { sectionExpanded, overviewBuckets } from './portal-staff-sections'
 import { compareItems, orderGroups } from './portal-overview-order'
 import type { OverviewSortFigures } from './portal-overview-results'
 import {
@@ -64,8 +66,10 @@ export type PortalOverviewItem = Readonly<{
 }>
 
 export type PortalOverviewSection = Readonly<{
-  /** `group` and `ungrouped` carry a head row; `flat` is the list with no grouping. */
-  kind: 'group' | 'ungrouped' | 'flat'
+  /** `group`, `ungrouped` and `staff` carry a head; `flat` has none. */
+  kind: 'group' | 'ungrouped' | 'flat' | 'staff'
+  staff?: Readonly<{ count: number; places: number; names: readonly string[] }>
+  searchExpanded?: boolean
   key: string
   group: PortalOverviewRow['group']
   /** Every Portal in the group, whatever the search left. */
@@ -82,6 +86,7 @@ export type PortalOverviewPage = Readonly<{
   total: number
   /** The Portals the search and filter keep, on every page. */
   matched: number
+  listed: number
   /** Every Portal that needs attention, before the search: what the filter would keep. */
   needingAttention: number
   page: number
@@ -181,55 +186,6 @@ function matchesSearch(
   return search.show !== 'attention' || needsAttention(item.attention)
 }
 
-type Bucket = Readonly<{
-  kind: 'group' | 'ungrouped'
-  key: string
-  group: PortalOverviewRow['group']
-  memberCount: number
-  items: readonly PortalOverviewItem[]
-}>
-
-function bucketByGroup(
-  items: readonly PortalOverviewItem[],
-  memberCounts: ReadonlyMap<string, number>,
-  ungroupedCount: number,
-): readonly Bucket[] {
-  const byGroup = new Map<string, PortalOverviewItem[]>()
-  const ungrouped: PortalOverviewItem[] = []
-  for (const item of items) {
-    const group = item.row.group
-    if (!group) ungrouped.push(item)
-    else byGroup.set(group.id, [...(byGroup.get(group.id) ?? []), item])
-  }
-  const groups = [...byGroup.values()].flatMap((groupItems): Bucket[] => {
-    const group = groupItems[0]?.row.group
-    if (!group) return []
-    return [
-      {
-        kind: 'group',
-        key: group.id,
-        group,
-        memberCount: memberCounts.get(group.id) ?? groupItems.length,
-        items: groupItems,
-      },
-    ]
-  })
-  return [
-    ...groups,
-    ...(ungrouped.length > 0
-      ? [
-          {
-            kind: 'ungrouped' as const,
-            key: 'ungrouped',
-            group: null,
-            memberCount: ungroupedCount,
-            items: ungrouped,
-          },
-        ]
-      : []),
-  ]
-}
-
 const clamp = (value: number, low: number, high: number): number =>
   Math.min(Math.max(value, low), high)
 
@@ -280,12 +236,13 @@ export function buildPortalOverview(
   figures?: OverviewSortFigures,
   /** Every group of the Property, so one with no Portal can still be listed. */
   knownGroups: readonly NonNullable<PortalOverviewRow['group']>[] = [],
+  folded: Readonly<Record<string, boolean>> = {},
 ): PortalOverviewPage {
   const sort = search.sort ?? DEFAULT_PORTAL_OVERVIEW_SORT
   const dir = search.dir ?? defaultSortDirection(sort)
   const grouping = (search.groupBy ?? DEFAULT_PORTAL_OVERVIEW_GROUP_BY) === 'group'
 
-  const all = rows.map((row) => toItem(row, members))
+  const all = visiblePortals(rows).map((row) => toItem(row, members))
   const matchesText = searchMatcher(search.q ?? '')
   const matched = all
     .filter((item) => matchesSearch(item, search, matchesText))
@@ -296,39 +253,39 @@ export function buildPortalOverview(
     const id = item.row.group?.id
     if (id) memberCounts.set(id, (memberCounts.get(id) ?? 0) + 1)
   }
-  const ungroupedCount = all.filter((item) => !item.row.group).length
+  const buckets = orderGroups(
+    overviewBuckets(all, matched, grouping, Boolean(search.q?.trim())),
+    sort,
+    dir,
+    figures,
+  )
 
-  const buckets: readonly Bucket[] = grouping
-    ? orderGroups(
-        bucketByGroup(matched, memberCounts, ungroupedCount),
-        sort,
-        dir,
-        figures,
-      )
-    : matched.length === 0
-      ? []
-      : [
-          {
-            kind: 'group',
-            key: 'flat',
-            group: null,
-            memberCount: all.length,
-            items: matched,
-          },
-        ]
-
-  const ordered = buckets.flatMap((bucket) => bucket.items)
+  const expanded = (bucket: (typeof buckets)[number]) =>
+    sectionExpanded(
+      {
+        ...bucket,
+        kind: bucket.kind === 'staff' ? 'staff' : grouping ? bucket.kind : 'flat',
+      },
+      folded[bucket.key],
+    )
+  const ordered = buckets.flatMap((bucket) => (expanded(bucket) ? bucket.items : []))
   const lastPage = Math.max(1, Math.ceil(ordered.length / pageSize))
   const page = clamp(search.page ?? 1, 1, lastPage)
   const start = (page - 1) * pageSize
   const onPage = new Set(ordered.slice(start, start + pageSize))
 
+  let listedBefore = 0
   const sections = buckets.flatMap((bucket): PortalOverviewSection[] => {
-    const items = bucket.items.filter((item) => onPage.has(item))
-    if (items.length === 0) return []
+    const isExpanded = expanded(bucket)
+    const headPage = clamp(Math.floor(listedBefore / pageSize) + 1, 1, lastPage)
+    const items = isExpanded ? bucket.items.filter((item) => onPage.has(item)) : []
+    listedBefore += isExpanded ? bucket.items.length : 0
+    if (isExpanded ? items.length === 0 : headPage !== page) return []
     return [
       {
-        kind: grouping ? bucket.kind : 'flat',
+        kind: bucket.kind === 'staff' ? 'staff' : grouping ? bucket.kind : 'flat',
+        staff: bucket.staff,
+        searchExpanded: bucket.searchExpanded,
         key: bucket.key,
         group: bucket.group,
         memberCount: bucket.memberCount,
@@ -348,6 +305,7 @@ export function buildPortalOverview(
     sections: withBeforeUngrouped(sections, emptyGroups),
     total: all.length,
     matched: matched.length,
+    listed: ordered.length,
     needingAttention: all.filter((item) => needsAttention(item.attention)).length,
     page,
     lastPage,

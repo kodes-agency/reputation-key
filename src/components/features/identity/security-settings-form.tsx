@@ -19,9 +19,10 @@ import type { Action } from '#/components/hooks/use-action'
 
 type Props = Readonly<{
   changePassword: Action<{ data: { currentPassword: string; newPassword: string } }>
+  staff?: boolean
 }>
 
-export function SecuritySettingsForm({ changePassword }: Props) {
+export function SecuritySettingsForm({ changePassword, staff = false }: Props) {
   const form = useForm({
     defaultValues: {
       currentPassword: '',
@@ -46,9 +47,11 @@ export function SecuritySettingsForm({ changePassword }: Props) {
         <Card>
           <CardHeader>
             <CardTitle as="h2">Change password</CardTitle>
-            <CardDescription>
-              Update your password to keep your account secure.
-            </CardDescription>
+            {!staff && (
+              <CardDescription>
+                Update your password to keep your account secure.
+              </CardDescription>
+            )}
           </CardHeader>
           <CardContent className="space-y-6">
             <FieldGroup>

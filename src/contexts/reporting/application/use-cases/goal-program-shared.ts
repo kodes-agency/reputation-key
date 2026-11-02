@@ -1,3 +1,7 @@
+import {
+  STAFF_TARGET_MESSAGES,
+  type StaffTargetProblem,
+} from '../../domain/staff-target-eligibility'
 // Goal Program use cases — the pieces every command module shares.
 //
 // A leaf among the Goal Program modules: it imports none of goal-programs.ts,
@@ -73,6 +77,12 @@ export type GoalProgramSubjectReader = Readonly<{
     subjects: readonly GoalSubject[],
     asOf: Date,
   ): Promise<boolean>
+  staffTargetProblem?: (
+    organizationId: string,
+    propertyId: string,
+    subject: GoalSubject,
+    metric: GoalMetric,
+  ) => Promise<StaffTargetProblem | null>
   staffTargetAllowed?: (
     organizationId: string,
     propertyId: string,
@@ -114,6 +124,7 @@ export class GoalProgramError extends Error {
       | 'invalid_name'
       | 'invalid_target'
       | 'invalid_subject'
+      | StaffTargetProblem
       | 'private_ratings_skipped'
       | 'duplicate_subject'
       | 'assignment_limit_exceeded'
@@ -136,7 +147,9 @@ export class GoalProgramError extends Error {
     super(
       code === 'private_ratings_skipped'
         ? 'This subject skips private ratings. Choose scans instead.'
-        : code,
+        : code in STAFF_TARGET_MESSAGES
+          ? STAFF_TARGET_MESSAGES[code as StaffTargetProblem]
+          : code,
     )
     this.name = 'GoalProgramError'
   }
@@ -379,19 +392,6 @@ export async function resolveGoalDefinition(
     subjects: readonly GoalSubject[]
   }>,
 ) {
-  if (deps.subjects.staffTargetAllowed) {
-    const allowed = await Promise.all(
-      input.subjects.map((subject) =>
-        deps.subjects.staffTargetAllowed!(
-          organizationId,
-          input.propertyId,
-          subject,
-          input.metric,
-        ),
-      ),
-    )
-    if (allowed.some((value) => !value)) throw new GoalProgramError('invalid_subject')
-  }
   const target = validateGoalTarget(input.metric, input.targetValue)
   if (!target.ok) throw new GoalProgramError('invalid_target')
   const [timezone, governed] = await Promise.all([
@@ -444,6 +444,33 @@ export async function assertRatingSubjectsAllowed(
     subjects: readonly GoalSubject[]
   }>,
 ): Promise<void> {
+  if (deps.subjects.staffTargetProblem) {
+    const problems = await Promise.all(
+      input.subjects.map((subject) =>
+        deps.subjects.staffTargetProblem!(
+          organizationId,
+          input.propertyId,
+          subject,
+          input.metric,
+        ),
+      ),
+    )
+    const problem = problems.find((problem) => problem !== null)
+    if (problem) throw new GoalProgramError(problem)
+  }
+  if (deps.subjects.staffTargetAllowed) {
+    const allowed = await Promise.all(
+      input.subjects.map((subject) =>
+        deps.subjects.staffTargetAllowed!(
+          organizationId,
+          input.propertyId,
+          subject,
+          input.metric,
+        ),
+      ),
+    )
+    if (allowed.some((value) => !value)) throw new GoalProgramError('invalid_subject')
+  }
   if (input.metric === 'qualified_scans') return
   const skipped = await deps.subjects.ratingSubjectsSkipPrivateRating?.(
     organizationId,

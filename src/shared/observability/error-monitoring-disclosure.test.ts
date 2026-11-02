@@ -535,7 +535,7 @@ describe('published error monitoring matches what a deployed cell does', () => {
     ])
 
     const { controls } = providerRow(notice)
-    expect(controls).toContain('error reports from Participant and Guest browsers')
+    expect(controls).toContain('error reports from Participant, Staff and Guest browsers')
     expect(controls).not.toContain('page-load')
     expect(prose()).toContain(
       'sends the provider, directly, an error report when a page fails',
@@ -632,10 +632,10 @@ describe('published error monitoring matches what a deployed cell does', () => {
     ])
 
     expect(providerRow(notice).controls).toContain(
-      'and beta feedback reports with any screenshot a Participant attaches',
+      'and beta feedback reports with any screenshot a Participant or Staff member attaches',
     )
     expect(prose()).toContain(
-      'If the Participant attached a screenshot, the report carries it as an image file',
+      'If the reporter attached a screenshot, the report carries it as an image file',
     )
     expect(prose()).toContain(
       `to at most ${BETA_FEEDBACK_SCREENSHOT_MAX_BYTES / 1024} KB`,
@@ -648,7 +648,7 @@ describe('published error monitoring matches what a deployed cell does', () => {
 
   it('says a feedback report names its reporter by their account, as the capture adds after the scrubber', () => {
     expect(prose()).toContain(
-      'The report also names the Participant by the name and email address of their account',
+      'The report also names the reporter by the name and email address of their account',
     )
     expect(noticeChanges(notice)).toContain(
       "Version 2.5 adds the Participant's name and email address to a beta feedback report",

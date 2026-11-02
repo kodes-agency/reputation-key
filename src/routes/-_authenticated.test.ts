@@ -311,3 +311,42 @@ describe('authenticated route', () => {
     })
   })
 })
+
+describe('staff-only manager-route redirects', () => {
+  it.each(['/dashboard', '/inbox', '/properties/11111111-1111-4111-8111-111111111111'])(
+    'returns %s to my when the organization reports staff',
+    async (pathname) => {
+      getSession.mockResolvedValue(SESSION)
+      getCapabilitySet.mockResolvedValue(EMPTY_CAPABILITY_SET)
+      getActiveOrganization.mockResolvedValue({
+        availability: 'staff',
+        organization: null,
+        role: 'Member',
+        authz: {},
+      })
+      const beforeLoad = Route.options.beforeLoad
+      if (!beforeLoad) throw new Error('Missing shell guard')
+      await expect(
+        beforeLoad({
+          context: shellContext(),
+          location: { href: pathname, pathname },
+        } as never),
+      ).rejects.toMatchObject({ options: { to: '/my' } })
+    },
+  )
+  it('handles a serialized beta_role_inactive refusal without opening the manager gate', async () => {
+    getSession.mockResolvedValue(SESSION)
+    getCapabilitySet.mockResolvedValue(EMPTY_CAPABILITY_SET)
+    getActiveOrganization.mockRejectedValue(
+      Object.assign(new Error('Staff only'), { code: 'beta_role_inactive', status: 403 }),
+    )
+    const beforeLoad = Route.options.beforeLoad
+    if (!beforeLoad) throw new Error('Missing shell guard')
+    await expect(
+      beforeLoad({
+        context: shellContext(),
+        location: { href: '/inbox', pathname: '/inbox' },
+      } as never),
+    ).rejects.toMatchObject({ options: { to: '/my' } })
+  })
+})

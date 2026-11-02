@@ -1,3 +1,4 @@
+import { staffTargetProblem } from '../../domain/staff-target-eligibility'
 import { ratingSubjectSkipsPrivateRating } from '../../application/goal-rating-eligibility'
 import type { PropertyFactsPublicApi } from '#/contexts/property/application/public-api'
 import type {
@@ -39,6 +40,26 @@ export const createGoalProgramSubjectReader = (
       : null
   }
 
+  const staffProblem: NonNullable<
+    GoalProgramSubjectReader['staffTargetProblem']
+  > = async (organizationId, propertyId, subject, metric) => {
+    if (subject.kind === 'property') return null
+    const ids =
+      subject.kind === 'portal'
+        ? [subject.portalId]
+        : await portalGroupApi.getGroupPortalIds(
+            toOrganizationId(organizationId),
+            toPortalGroupId(subject.portalGroupId),
+          )
+    const portals = await Promise.all(
+      ids.map((id) => currentPortal(organizationId, propertyId, id)),
+    )
+    return staffTargetProblem(
+      portals.flatMap((portal) => (portal ? [portal] : [])),
+      metric,
+      staffScanTargetsEnabled,
+    )
+  }
   return {
     ratingSubjectsSkipPrivateRating: async (organizationId, propertyId, subjects) => {
       const results = await Promise.all(
@@ -54,24 +75,8 @@ export const createGoalProgramSubjectReader = (
       )
       return results.some(Boolean)
     },
-    staffTargetAllowed: async (organizationId, propertyId, subject, metric) => {
-      if (subject.kind === 'property') return true
-      const portals =
-        subject.kind === 'portal'
-          ? [await currentPortal(organizationId, propertyId, subject.portalId)]
-          : await Promise.all(
-              (
-                await portalGroupApi.getGroupPortalIds(
-                  toOrganizationId(organizationId),
-                  toPortalGroupId(subject.portalGroupId),
-                )
-              ).map((id) => currentPortal(organizationId, propertyId, id)),
-            )
-      return (
-        !portals.some((portal) => portal?.kind === 'personal') ||
-        (staffScanTargetsEnabled && metric === 'qualified_scans')
-      )
-    },
+    staffTargetProblem: staffProblem,
+    staffTargetAllowed: async (...args) => (await staffProblem(...args)) === null,
     getTimezone: (organizationId, propertyId) =>
       propertyApi.getPropertyTimezone(
         toOrganizationId(organizationId),

@@ -53,6 +53,11 @@ function portalGoalOfferFor(
   measure: PortalGoalMeasure,
   wholeMonth = false,
 ): PortalGoalOffer | null {
+  if (
+    recommendation.personalTarget ||
+    (recommendation.staffTarget && measure !== 'qualified_scans')
+  )
+    return null
   if (measure === 'portal_rating_count' && recommendation.ratingsAvailable === false)
     return null
   const { months, basis } = recommendation

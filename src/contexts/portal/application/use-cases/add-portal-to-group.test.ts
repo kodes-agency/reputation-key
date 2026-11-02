@@ -34,6 +34,13 @@ const staffApiMock = (accessible: ReadonlyArray<PropertyId> | null): StaffPublic
 })
 
 const createInMemoryPortalGroupRepo = (): PortalGroupRepository & {
+  writeMembership: (
+    orgId: Parameters<PortalGroupRepository['findById']>[0],
+    groupId: Parameters<PortalGroupRepository['findById']>[1],
+    portalId: Parameters<PortalGroupRepository['findPortalMembership']>[1],
+    at: Date,
+    createdBy: string,
+  ) => Promise<void>
   all(): PortalGroup[]
   seed(groups: PortalGroup[]): void
 } => {
@@ -79,7 +86,7 @@ const createInMemoryPortalGroupRepo = (): PortalGroupRepository & {
         store.set(String(id), { ...g, deletedAt: new Date() })
       }
     },
-    addPortal: async (_orgId, groupId, pid) => {
+    writeMembership: async (_orgId, groupId, pid) => {
       memberships.set(String(pid), groupId)
     },
     removePortal: async (_orgId, _groupId, pid) => {
@@ -220,7 +227,7 @@ describe('addPortalToGroup', () => {
     portalGroupRepo.seed([seedGroup(ctx.organizationId)])
 
     // Portal is already a member of the group.
-    await portalGroupRepo.addPortal(
+    await portalGroupRepo.writeMembership(
       ctx.organizationId,
       GROUP_ID,
       PORTAL_ID,

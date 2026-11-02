@@ -1,3 +1,6 @@
+import { visiblePortals } from './portal-overview/visible-portals'
+import { useStaffOverviewRows } from '#/components/features/staff/accounts/staff-accounts-query'
+import { useCapabilities } from '#/shared/hooks/useCapabilities'
 // Portals across the whole Organization (docs/design/portal-experience/round-4-admin,
 // board 10): the Organization's results strip, then every Portal under the
 // Property it belongs to, each Property headed by its own subtotal. The page of
@@ -17,6 +20,8 @@ import {
 import type { PortalArchiveMutations } from './portal-overview/portal-archive-dialog'
 import { uncountedScanPortals } from './portal-overview/portal-attention'
 import { PortalChangesOffNote } from './portal-overview/portal-changes-off-note'
+import { usePortalSectionFolds } from './portal-overview/use-portal-section-folds'
+import type { PortalOverviewSection } from './portal-overview/portal-overview-view'
 import { PortalAllPropertiesTable } from './portal-overview/portal-all-properties-table'
 import {
   buildAllPropertiesOverview,
@@ -83,6 +88,8 @@ function scansOrderOf(search: AllPropertiesSearch) {
 
 type ListProps = PortalArchiveMutations &
   Readonly<{
+    foldedGroups: Readonly<Record<string, boolean>>
+    onToggleGroup: (key: string, section: PortalOverviewSection) => void
     overview: ReturnType<typeof buildAllPropertiesOverview>
     results: PortalOverviewResultsControls | undefined
     resultsState: PortalOverviewResultsState
@@ -93,6 +100,8 @@ type ListProps = PortalArchiveMutations &
   }>
 
 function PortalAllPropertiesList({
+  foldedGroups,
+  onToggleGroup,
   overview,
   results,
   resultsState,
@@ -107,6 +116,8 @@ function PortalAllPropertiesList({
   return (
     <>
       <PortalAllPropertiesTable
+        foldedGroups={foldedGroups}
+        onToggleGroup={onToggleGroup}
         properties={overview.properties}
         results={resultsState}
         busy={results?.busy}
@@ -129,8 +140,8 @@ function PortalAllPropertiesList({
   )
 }
 
-export function PortalAllPropertiesPage({
-  rows,
+function PortalAllPropertiesPageBody({
+  rows: inputRows,
   properties,
   newPortalProperties,
   members = [],
@@ -143,7 +154,9 @@ export function PortalAllPropertiesPage({
   restoreMutation,
   disableMutation,
 }: PortalAllPropertiesPageProps) {
+  const rows = visiblePortals(useStaffOverviewRows(inputRows, properties))
   const { collapsed, toggle } = useCollapsedProperties()
+  const { folded: foldedGroups, toggleGroup } = usePortalSectionFolds()
   const resultsState: PortalOverviewResultsState = results?.state ?? { status: 'off' }
   const listSearch = searchWithoutScansSort(search, resultsState)
   const overview = buildAllPropertiesOverview(
@@ -157,6 +170,7 @@ export function PortalAllPropertiesPage({
       rows,
     ),
     collapsed,
+    foldedGroups,
   )
   const update = (patch: Partial<AllPropertiesSearch>) =>
     onSearchChange(portalOverviewSearchPatch(search, patch))
@@ -208,6 +222,8 @@ export function PortalAllPropertiesPage({
               />
             ) : (
               <PortalAllPropertiesList
+                foldedGroups={foldedGroups}
+                onToggleGroup={toggleGroup}
                 overview={overview}
                 results={results}
                 resultsState={resultsState}
@@ -224,5 +240,19 @@ export function PortalAllPropertiesPage({
         </>
       )}
     </PageShell>
+  )
+}
+
+export function PortalAllPropertiesPage(props: PortalAllPropertiesPageProps) {
+  const { has } = useCapabilities()
+  return (
+    <PortalAllPropertiesPageBody
+      {...props}
+      rows={
+        has('staff.accounts')
+          ? props.rows
+          : props.rows.filter((row) => row.kind !== 'personal')
+      }
+    />
   )
 }

@@ -1,3 +1,4 @@
+import { useCapabilities } from '#/shared/hooks/useCapabilities'
 // "Add a portal goal" (PLAN PG-20; copy deck M-2…M-14): a dialog on a desktop
 // and a full-screen sheet on a phone, in the shared sheet frame as the set sheet
 // is (it draws its own title, which changes with the step). It asks what to add
@@ -38,6 +39,7 @@ import {
 } from './portal-goal-add-body'
 import { eachDraftOf, eachToast } from './portal-goal-add-each-view'
 import {
+  staffGoalOptions,
   addedSubjectKeys,
   addedToast,
   type PortalGoalAddStep,
@@ -155,7 +157,9 @@ function useAddCommands(
 }
 
 export function PortalGoalAddSheet(props: PortalGoalAddSheetProps) {
-  const { options, propertyId } = props
+  const { all } = useCapabilities()
+  const options = staffGoalOptions(props.options, all.includes('staff.accounts'))
+  const { propertyId } = props
   const [place, setPlace] = useState(() => placeOf(props.opening))
   const [each, setEach] = useState(() => eachDraftOf(options))
   const [box, setBox] = useState('')

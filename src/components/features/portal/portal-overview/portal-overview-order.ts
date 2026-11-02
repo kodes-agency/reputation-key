@@ -15,12 +15,13 @@ import type { SortDirection } from '#/components/ui/list-sort'
 import type { PortalOverviewSort } from './portal-overview-search-schema'
 
 export type Orderable = Readonly<{
-  row: Pick<PortalOverviewRow, 'portalId' | 'name' | 'slug' | 'publicationState'>
+  row: Pick<PortalOverviewRow, 'portalId' | 'name' | 'slug' | 'publicationState'> &
+    Partial<Pick<PortalOverviewRow, 'kind'>>
   attention: PortalAttention
 }>
 
 export type OrderableBucket<T extends Orderable> = Readonly<{
-  kind: 'group' | 'ungrouped'
+  kind: 'group' | 'ungrouped' | 'staff'
   group: Readonly<{ id: string; name: string }> | null
   items: readonly T[]
 }>
@@ -45,6 +46,13 @@ export function compareItems<T extends Orderable>(
   figures: OverviewSortFigures | undefined,
 ): (a: T, b: T) => number {
   return (a, b) => {
+    const aPerson = a.row.kind === 'personal'
+    const bPerson = b.row.kind === 'personal'
+    if (aPerson !== bPerson) return aPerson ? 1 : -1
+    if (aPerson)
+      return (
+        compareText(a.row.name, b.row.name) || compareText(a.row.portalId, b.row.portalId)
+      )
     // Archived Portals are finished, so they follow the others in either order.
     if (isArchived(a) !== isArchived(b)) return isArchived(a) ? 1 : -1
     const byName = applyDirection(compareText(a.row.name, b.row.name), dir)
@@ -89,7 +97,11 @@ export function orderGroups<T extends Orderable, B extends OrderableBucket<T>>(
       }
       return applyDirection(pressing(a) - pressing(b), dir) || byName
     })
-  return [...groups, ...buckets.filter((bucket) => bucket.kind === 'ungrouped')]
+  return [
+    ...groups,
+    ...buckets.filter((bucket) => bucket.kind === 'ungrouped'),
+    ...buckets.filter((bucket) => bucket.kind === 'staff'),
+  ]
 }
 
 export type OrderableProperty = Readonly<{

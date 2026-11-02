@@ -1,4 +1,4 @@
-// Join page — creates a beta manager account from one exact invitation.
+// Join page — creates a beta account from one exact invitation.
 // `beforeLoad` reads the invitation first: an address that already has an
 // account goes to sign in, a signed-in visitor to the confirm step, and a link
 // that is expired, cancelled, used or unknown says so instead of offering a
@@ -66,7 +66,12 @@ function JoinPage() {
       // re-reads the session on navigation, so no whole-router invalidation.
       navigateToWorkspace: () =>
         clearTenantCacheBeforeNavigation(queryClient, () =>
-          navigate({ to: '/properties' }),
+          navigate({
+            to:
+              link?.state === 'pending' && link.details.role === 'Member'
+                ? '/my'
+                : '/properties',
+          }),
         ),
     }),
   )
@@ -80,7 +85,7 @@ function JoinPage() {
     return (
       <AuthCard
         title="Invitation required"
-        description="Beta accounts are created from a manager invitation."
+        description="Beta accounts are created from an invitation."
       >
         <div className="text-center">
           <InlineLink to="/login" className="text-sm">
@@ -95,7 +100,11 @@ function JoinPage() {
 
   if (mutation.isSuccess && mutation.data?.signedIn === true) {
     return (
-      <JoinEntryCard status={enter.error ? 'failed' : 'entering'} onRetry={retryEnter} />
+      <JoinEntryCard
+        staff={link.state === 'pending' && link.details.role === 'Member'}
+        status={enter.error ? 'failed' : 'entering'}
+        onRetry={retryEnter}
+      />
     )
   }
 

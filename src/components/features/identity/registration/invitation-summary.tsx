@@ -21,14 +21,18 @@ export function InvitationSummary({ invitation }: Props) {
       {inviterName ? (
         <DescriptionItem term="Invited by">{inviterName}</DescriptionItem>
       ) : null}
-      <DescriptionItem term="Role">{roleLabel(role, 'full')}</DescriptionItem>
-      <DescriptionItem term="Properties">
-        <ul className="space-y-0.5">
-          {invitationPropertyLines(role, propertyNames).map((line) => (
-            <li key={line}>{line}</li>
-          ))}
-        </ul>
+      <DescriptionItem term="Role">
+        {role === 'Member' ? 'Staff' : roleLabel(role, 'full')}
       </DescriptionItem>
+      {role !== 'Member' && (
+        <DescriptionItem term="Properties">
+          <ul className="space-y-0.5">
+            {invitationPropertyLines(role, propertyNames).map((line) => (
+              <li key={line}>{line}</li>
+            ))}
+          </ul>
+        </DescriptionItem>
+      )}
       <DescriptionItem term="Expires">
         <time dateTime={expiresAt.toISOString()}>
           {formatInvitationExpiry(expiresAt)}

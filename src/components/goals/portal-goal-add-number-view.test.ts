@@ -6,7 +6,7 @@ import {
   ADD_THIS_MONTH,
 } from './portal-goal-add.stories.fixtures'
 import { averageModel, committedText, numberModel } from './portal-goal-add-number-view'
-import { addedToast } from './portal-goal-add-view'
+import { addedToast, staffGoalOptions } from './portal-goal-add-view'
 
 describe("Add a portal goal's number steps, worded", () => {
   it('the number step: Reception · private ratings in December, its own usual, and Set 22 for December', () => {
@@ -103,4 +103,34 @@ describe("Add a portal goal's number steps, worded", () => {
     expect(committedText('four', true)).toBe('four')
     expect(committedText('2.5', false)).toBe('2.5')
   })
+})
+
+it('a personal offer only submits scans and the typed number, without suggestions', () => {
+  const offer = {
+    ...ADD_SEAVIEW.onePortal[0]!,
+    staffTarget: true,
+    measure: 'qualified_scans' as const,
+    choices: null,
+    name: 'Ana',
+  }
+  const model = numberModel(ADD_SEAVIEW, offer, '40')
+  expect(model.choices).toBeNull()
+  expect(model.unit).toContain('Ana · scans')
+  expect(model.submission).toMatchObject({
+    metric: 'qualified_scans',
+    targetValue: 40,
+    targetSource: 'own',
+  })
+})
+
+it('hides staff picker choices with the account capability off', () => {
+  const staff = {
+    ...ADD_SEAVIEW.onePortal[0]!,
+    name: 'Ana',
+    staffTarget: true,
+    measure: 'qualified_scans' as const,
+  }
+  const options = { ...ADD_SEAVIEW, onePortal: [staff] }
+  expect(staffGoalOptions(options, false).onePortal).toEqual([])
+  expect(staffGoalOptions(options, true).onePortal[0]?.name).toBe('Ana')
 })

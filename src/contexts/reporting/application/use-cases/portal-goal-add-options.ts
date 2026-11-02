@@ -19,6 +19,7 @@
 // numbers.ts`) in the month and measure the Property's recommendation offers,
 // and "Has a goal" when one already counts that measure for it from that
 // month: a subject takes one goal per measure at a time. It writes nothing.
+import { staffTargetProblem } from '../../domain/staff-target-eligibility'
 import { ratingSubjectSkipsPrivateRating } from '../goal-rating-eligibility'
 import { minimumSampleForGoalMetric } from '../../domain/goal-program'
 import type { PortalFacts } from '../../domain/goal-recommendation-types'
@@ -56,6 +57,7 @@ export type PortalGoalAddOptionsDeps = Readonly<{
   recommendation: PortalGoalRecommendationReads
   /** The Portal Groups' names. */
   subjectNames: Pick<GoalSubjectNameReader, 'getSubjectName'>
+  staffScanTargetsEnabled?: boolean
   now: () => Date
 }>
 
@@ -90,7 +92,14 @@ function portalOffer(
   return {
     subject,
     name: portal.name,
-    ...portalNumbers(basis, portal),
+    ...(portal.kind === 'personal'
+      ? {
+          staffTarget: true,
+          measure: 'qualified_scans' as const,
+          choices: null,
+          soFar: portal.monthToDate.qualified_scans,
+        }
+      : portalNumbers(basis, portal)),
     readyOn: portal.joinsOn,
     heldBy: holds(subject),
   }
@@ -122,11 +131,15 @@ function groupOffer(
 ): PortalGoalAddOffer {
   const subject = { kind: 'portal_group', portalGroupId: group.id } as const
   const members = groupMembers(basis, group.id)
+  const staff = basis.facts.listed.portals.some(
+    (portal) => portal.portalGroupId === group.id && portal.kind === 'personal',
+  )
   const joins = members.flatMap(({ joinsOn }) => (joinsOn === null ? [] : [joinsOn]))
   return {
     subject,
     name: group.name,
-    ...groupNumbers(basis, group.id),
+    ...groupNumbers(staff ? { ...basis, measure: 'qualified_scans' } : basis, group.id),
+    ...(staff ? { staffTarget: true, measure: 'qualified_scans' as const } : {}),
     // Live, with none of its Portals in the number yet: the day the first joins.
     readyOn: members.some(({ inBasis }) => inBasis)
       ? null
@@ -165,44 +178,78 @@ function portalGoalAddOptionsOf(
     propertyId: string
     programs: readonly GoalProgramBundle[]
     groups: readonly Readonly<{ id: string; name: string }>[]
+    staffScanTargetsEnabled: boolean
   }>,
 ): PortalGoalAddOptions {
   const { propertyId, programs, groups } = read
+  const scanHolds = holdsOf(
+    programs,
+    'qualified_scans',
+    goalStartOptions(basis.facts.now, basis.facts.timezone)[
+      basis.current ? 'current' : 'next'
+    ].period.start,
+  )
   const { recommendation, facts, month, measure } = basis
   const { current, next } = goalStartOptions(facts.now, facts.timezone)
   const from = (month === current.monthKey ? current : next).period.start
   const holds = holdsOf(programs, measure, from)
   const live = livePortalsOf(recommendation)
   const portals =
-    live.length < MIN_LIVE_PORTALS
+    live.length < MIN_LIVE_PORTALS && !live.some((portal) => portal.kind === 'personal')
       ? []
       : live
           .filter(
             (portal) =>
-              measure === 'qualified_scans' ||
-              !ratingSubjectSkipsPrivateRating(facts.listed.portals, {
-                kind: 'portal',
-                portalId: portal.portalId,
-              }),
+              staffTargetProblem(
+                facts.listed.portals.filter((fact) => fact.portalId === portal.portalId),
+                portal.kind === 'personal' ? 'qualified_scans' : measure,
+                read.staffScanTargetsEnabled,
+              ) === null &&
+              (portal.kind === 'personal' ||
+                measure === 'qualified_scans' ||
+                !ratingSubjectSkipsPrivateRating(facts.listed.portals, {
+                  kind: 'portal',
+                  portalId: portal.portalId,
+                })),
           )
-          .map((portal) => portalOffer(basis, portal, holds))
+          .map((portal) =>
+            portalOffer(basis, portal, portal.kind === 'personal' ? scanHolds : holds),
+          )
   const ratings = recommendation.windowTotals.portal_rating_count
   return {
     month,
     current: basis.current,
     measure,
     onePortal: portals,
-    eachPortal: portals.map(eachRow),
+    eachPortal: portals.filter((offer) => !offer.staffTarget).map(eachRow),
     groups: groups
       .filter(
         (group) =>
-          measure === 'qualified_scans' ||
-          !ratingSubjectSkipsPrivateRating(facts.listed.portals, {
-            kind: 'portal_group',
-            portalGroupId: group.id,
-          }),
+          staffTargetProblem(
+            facts.listed.portals.filter((portal) => portal.portalGroupId === group.id),
+            'qualified_scans',
+            read.staffScanTargetsEnabled,
+          ) === null &&
+          (facts.listed.portals.some(
+            (portal) => portal.portalGroupId === group.id && portal.kind === 'personal',
+          ) ||
+            measure === 'qualified_scans' ||
+            !ratingSubjectSkipsPrivateRating(facts.listed.portals, {
+              kind: 'portal_group',
+              portalGroupId: group.id,
+            })),
       )
-      .map((group) => groupOffer(basis, group, holds)),
+      .map((group) =>
+        groupOffer(
+          basis,
+          group,
+          facts.listed.portals.some(
+            (portal) => portal.portalGroupId === group.id && portal.kind === 'personal',
+          )
+            ? scanHolds
+            : holds,
+        ),
+      ),
     average: {
       available: ratings >= minimumSampleForGoalMetric('portal_rating_average'),
       last4Weeks: ratings,
@@ -242,5 +289,10 @@ export async function readPortalGoalAddOptions(
     organizationId,
     propertyId,
   })
-  return portalGoalAddOptionsOf(basis, { propertyId, programs, groups })
+  return portalGoalAddOptionsOf(basis, {
+    propertyId,
+    programs,
+    groups,
+    staffScanTargetsEnabled: deps.staffScanTargetsEnabled ?? false,
+  })
 }

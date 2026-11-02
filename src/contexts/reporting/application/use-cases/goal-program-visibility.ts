@@ -83,15 +83,30 @@ type GoalProgramReads = Pick<GoalProgramService, 'get' | 'list'>
 export function withGoalProgramVisibility(
   reads: GoalProgramReads,
   visibility: GoalProgramVisibilityPort,
+  staffTargetPaused?: (
+    bundle: GoalProgramBundle,
+    actor: GoalActor,
+    propertyId: string,
+  ) => Promise<boolean>,
 ): GoalProgramReads {
   const visibleTo = async (
     programs: readonly GoalProgramBundle[],
     actor: GoalActor,
     propertyId: string,
   ): Promise<readonly GoalProgramBundle[]> => {
-    if (canForContext(actor, 'goal.create')) return programs
+    const shown = staffTargetPaused
+      ? await Promise.all(
+          programs.map(async (bundle) =>
+            bundle.program.status !== 'ended' &&
+            (await staffTargetPaused(bundle, actor, propertyId))
+              ? { ...bundle, program: { ...bundle.program, status: 'paused' as const } }
+              : bundle,
+          ),
+        )
+      : programs
+    if (canForContext(actor, 'goal.create')) return shown
     const { portalIds, groupIds } = await visibility({ actor, propertyId })
-    return scopeGoalProgramsForMember(programs, portalIds, groupIds)
+    return scopeGoalProgramsForMember(shown, portalIds, groupIds)
   }
 
   return {

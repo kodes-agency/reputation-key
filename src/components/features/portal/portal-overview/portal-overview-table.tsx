@@ -2,6 +2,8 @@
 // container each row is a card and the header row is not shown; from 56 rem it
 // is a table (see `portal-overview-table-row.tsx`). Groups fold away; the fold is the
 // reader's own, kept here rather than in the URL.
+import { StaffAccountsProvider } from '#/components/features/staff/accounts/staff-accounts-provider'
+import { sectionExpanded } from './portal-staff-sections'
 import { useState, type ReactNode } from 'react'
 import { DataTable, DataTableBody } from '#/components/ui/data-table'
 import type { PortalArchiveMutations } from './portal-archive-dialog'
@@ -18,6 +20,8 @@ import type { PortalOverviewItem, PortalOverviewSection } from './portal-overvie
 
 type Props = PortalArchiveMutations &
   Readonly<{
+    folded?: Readonly<Record<string, boolean>>
+    onToggleSection?: (section: PortalOverviewSection) => void
     sections: readonly PortalOverviewSection[]
     propertyId: string
     propertyName: string
@@ -38,6 +42,8 @@ type Props = PortalArchiveMutations &
 
 export function PortalOverviewTable({
   sections,
+  folded: controlledFolded,
+  onToggleSection,
   propertyId,
   propertyName,
   archiveMutation,
@@ -51,39 +57,45 @@ export function PortalOverviewTable({
   showGroup,
   density = 'regular',
 }: Props) {
-  const [folded, setFolded] = useState<readonly string[]>([])
-  const toggle = (key: string) =>
-    setFolded((current) =>
-      current.includes(key) ? current.filter((k) => k !== key) : [...current, key],
-    )
+  const [localFolded, setFolded] = useState<Readonly<Record<string, boolean>>>({})
+  const folded = controlledFolded ?? localFolded
+  const toggle = (section: PortalOverviewSection) =>
+    onToggleSection
+      ? onToggleSection(section)
+      : setFolded((current) => ({
+          ...current,
+          [section.key]: sectionExpanded(section, current[section.key]),
+        }))
 
   return (
-    <OverviewDensityProvider value={density}>
-      <DataTable
-        label={`Portals at ${propertyName}`}
-        from={OVERVIEW_FROM[density]}
-        layout="cards"
-        busy={busy}
-      >
-        <PortalOverviewTableHead results={results} scansOrder={scansOrder} />
-        {sections.map((section) => (
-          <DataTableBody key={section.key}>
-            <PortalOverviewSectionRows
-              section={section}
-              propertyId={propertyId}
-              results={results}
-              expanded={section.kind === 'flat' || !folded.includes(section.key)}
-              onToggle={() => toggle(section.key)}
-              groupActions={groupActions}
-              rowMenuExtra={rowMenuExtra}
-              showGroup={showGroup}
-              archiveMutation={archiveMutation}
-              restoreMutation={restoreMutation}
-              disableMutation={disableMutation}
-            />
-          </DataTableBody>
-        ))}
-      </DataTable>
-    </OverviewDensityProvider>
+    <StaffAccountsProvider propertyId={propertyId}>
+      <OverviewDensityProvider value={density}>
+        <DataTable
+          label={`Portals at ${propertyName}`}
+          from={OVERVIEW_FROM[density]}
+          layout="cards"
+          busy={busy}
+        >
+          <PortalOverviewTableHead results={results} scansOrder={scansOrder} />
+          {sections.map((section) => (
+            <DataTableBody key={section.key}>
+              <PortalOverviewSectionRows
+                section={section}
+                propertyId={propertyId}
+                results={results}
+                expanded={sectionExpanded(section, folded[section.key])}
+                onToggle={() => toggle(section)}
+                groupActions={groupActions}
+                rowMenuExtra={rowMenuExtra}
+                showGroup={showGroup}
+                archiveMutation={archiveMutation}
+                restoreMutation={restoreMutation}
+                disableMutation={disableMutation}
+              />
+            </DataTableBody>
+          ))}
+        </DataTable>
+      </OverviewDensityProvider>
+    </StaffAccountsProvider>
   )
 }

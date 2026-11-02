@@ -4,6 +4,9 @@
 // group: it has no page and no menu.
 import type { ReactNode } from 'react'
 import { Link } from '@tanstack/react-router'
+import { OwnerDisc } from '#/components/ui/owner-disc'
+import { personInitials } from '#/components/inbox/person-initials'
+import { staffSectionCount, overviewSectionName } from './portal-staff-sections'
 import { Folder } from 'lucide-react'
 import { TableCell, TableHead, TableRow } from '#/components/ui/table'
 import { cn } from '#/lib/utils'
@@ -29,8 +32,6 @@ type Props = Readonly<{
   nested?: boolean
 }>
 
-const NOT_IN_A_GROUP = 'Not in a group'
-
 export function PortalOverviewGroupHead({
   propertyId,
   actions,
@@ -42,7 +43,7 @@ export function PortalOverviewGroupHead({
   nested = false,
 }: Props) {
   const classes = useOverviewClasses()
-  const name = section.group?.name ?? NOT_IN_A_GROUP
+  const name = overviewSectionName(section)
   const { members, matched } = groupHeadCount(section, readCount)
   const summary = figures.kind === 'figures' ? figures.measures.summary : null
   return (
@@ -82,8 +83,12 @@ export function PortalOverviewGroupHead({
         )}
         <span className="text-sm text-muted-foreground">
           {' '}
-          · {describeGroupCount(members, matched)}
+          ·{' '}
+          {section.staff
+            ? staffSectionCount(section.staff)
+            : describeGroupCount(members, matched)}
         </span>
+        <StaffDiscs staff={section.staff} />
         {summary ? <span className={classes.groupSummary}>{summary}</span> : null}
       </TableHead>
       <PortalMeasureCells slot={figures} strong />
@@ -96,5 +101,27 @@ export function PortalOverviewGroupHead({
       {/* One place for the menu at every width: a corner of the card, a column of the table. */}
       <TableCell className={classes.groupActions}>{actions}</TableCell>
     </TableRow>
+  )
+}
+
+function StaffDiscs({ staff }: Readonly<{ staff: PortalOverviewSection['staff'] }>) {
+  if (!staff) return null
+  return (
+    <span
+      className="ml-2 inline-flex items-center gap-1"
+      aria-label={staff.names.join(', ')}
+    >
+      {staff.names.slice(0, 3).map((name, index) => (
+        <OwnerDisc
+          key={`${index}-${name}`}
+          initials={personInitials(name)}
+          isAssigned
+          tone="neutral"
+        />
+      ))}
+      {staff.count > 3 ? (
+        <span className="text-xs text-muted-foreground">+{staff.count - 3}</span>
+      ) : null}
+    </span>
   )
 }

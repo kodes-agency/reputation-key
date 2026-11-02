@@ -669,3 +669,21 @@ describe('Portal results overview repository (integration)', () => {
     expect(batched.evidence).toHaveLength(ROSTER.length + many.length)
   })
 })
+
+it('classifies personal Portals in the tenant-scoped batched read', async () => {
+  await pool.query(
+    "UPDATE portals SET kind = 'personal', public_name = 'Harbor' WHERE id = $1 AND organization_id = $2",
+    [ROSTER[0]!.portalId, ORG],
+  )
+  try {
+    const row = await createPortalResultsOverviewRepository(
+      db,
+      () => COMPUTED_AT,
+    ).readWindow({ organizationId: ORG, portals: ROSTER, window: WINDOW })
+    expect(row.personalPortalIds).toEqual([ROSTER[0]!.portalId])
+  } finally {
+    await pool.query("UPDATE portals SET kind = 'place' WHERE id = $1", [
+      ROSTER[0]!.portalId,
+    ])
+  }
+})

@@ -1,10 +1,10 @@
 import { InlineLink } from '#/components/ui/inline-link'
 import { AuthCard } from '#/components/layout/auth-layout'
 
-type Props = Readonly<{ organizationName?: string }>
+type Props = Readonly<{ organizationName?: string; staff?: boolean }>
 
 /** Shown once an invitation is accepted, from the link or from the list. */
-export function AcceptedView({ organizationName }: Props) {
+export function AcceptedView({ organizationName, staff = false }: Props) {
   return (
     <AuthCard
       title="Welcome to the team!"
@@ -15,8 +15,8 @@ export function AcceptedView({ organizationName }: Props) {
       }
     >
       <div className="text-center">
-        <InlineLink to="/properties" className="text-sm">
-          Go to your workspace
+        <InlineLink to={staff ? '/my' : '/properties'} className="text-sm">
+          {staff ? 'Go to your code' : 'Go to your workspace'}
         </InlineLink>
       </div>
     </AuthCard>

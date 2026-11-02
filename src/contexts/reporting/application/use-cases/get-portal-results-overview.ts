@@ -75,6 +75,7 @@ export type PortalResultsRosterEntry = Readonly<{
   propertyId: PropertyId
   /** The group the Portal is in today. */
   groupId: PortalGroupId | null
+  kind?: 'place' | 'personal'
 }>
 
 /** A window preset the overview can read; All Time is a lifetime figure, not a window. */
@@ -267,7 +268,17 @@ async function readProperties(
     return indexWindow(period, reading, plan.entries)
   }
   return plans.map((plan) => ({
-    plan,
+    plan: {
+      ...plan,
+      entries: plan.entries.map((entry) => ({
+        ...entry,
+        kind: readings
+          .get(windowKey(plan.range))
+          ?.personalPortalIds?.includes(entry.portalId)
+          ? ('personal' as const)
+          : entry.kind,
+      })),
+    },
     current: indexFor(plan, plan.range),
     prior: plan.compare ? indexFor(plan, plan.compare) : null,
   }))
@@ -378,6 +389,8 @@ type PropertyRows = Readonly<{
   portals: PortalResultsPortalRow[]
   groups: PortalResultsGroupRow[]
   ungrouped: PortalResultsUngroupedRow
+  otherStaff?: PortalResultsUngroupedRow
+  staff?: PortalResultsUngroupedRow
 }>
 
 function rowsForProperty(
@@ -388,7 +401,12 @@ function rowsForProperty(
   const own: Readings = { current: [current], prior: prior && [prior] }
   const windows = prior ? [current, prior] : [current]
   const portalIds = entries.map((entry) => entry.portalId)
-  const noGroup = membership(entries, windows, null)
+  const places = entries.filter((entry) => entry.kind !== 'personal')
+  const people = entries.filter((entry) => entry.kind === 'personal')
+  const placeIds = new Set(places.map((entry) => entry.portalId))
+  const peopleIds = new Set(people.map((entry) => entry.portalId))
+  const noGroup = membership(places, windows, null)
+  const staff = membership(people, windows, null)
   return {
     property: {
       propertyId,
@@ -414,10 +432,37 @@ function rowsForProperty(
         ...read(own, members.contributingPortalIds, (cell) => cell.groupId === groupId),
       }
     }),
+    ...(people.length
+      ? {
+          staff: {
+            propertyId,
+            memberPortalIds: people.map((entry) => entry.portalId),
+            contributingPortalIds: people.map((entry) => entry.portalId),
+            ...read(
+              own,
+              people.map((entry) => entry.portalId),
+              (cell) => peopleIds.has(cell.portalId),
+            ),
+          },
+          otherStaff: {
+            propertyId,
+            ...staff,
+            ...read(
+              own,
+              staff.contributingPortalIds,
+              (cell) => cell.groupId === null && peopleIds.has(cell.portalId),
+            ),
+          },
+        }
+      : {}),
     ungrouped: {
       propertyId,
       ...noGroup,
-      ...read(own, noGroup.contributingPortalIds, (cell) => cell.groupId === null),
+      ...read(
+        own,
+        noGroup.contributingPortalIds,
+        (cell) => cell.groupId === null && placeIds.has(cell.portalId),
+      ),
     },
   }
 }
@@ -497,6 +542,12 @@ export const getPortalResultsOverview =
       }),
       groups: rows.flatMap((row) => row.groups),
       ungrouped: rows.map((row) => row.ungrouped),
+      ...(rows.some((row) => row.otherStaff)
+        ? {
+            otherStaff: rows.flatMap((row) => (row.otherStaff ? [row.otherStaff] : [])),
+            staff: rows.flatMap((row) => (row.staff ? [row.staff] : [])),
+          }
+        : {}),
       total,
     }
   }

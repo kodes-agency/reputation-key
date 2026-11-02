@@ -1258,3 +1258,22 @@ describe('readMonthlyPortalGoalCard', () => {
     await expect(read(deps)).rejects.toMatchObject({ code: 'not_found' })
   })
 })
+
+it('uses the compact many row for forty room Portals plus one staff line', async () => {
+  const names = Array.from({ length: 40 }, (_, n) => `Room ${n}`)
+  const world = fakeWorld({
+    now: NOV_22,
+    portals: [
+      ...names.map((name) => portal(name, '2026-10-09')),
+      portal('Polly', '2026-10-09', { kind: 'personal' }),
+    ],
+    counts: {
+      days: [...names, 'Polly'].flatMap((name) =>
+        readings(`portal-${name.toLowerCase()}`, 'portal_rating_count', ['2026-11-04']),
+      ),
+    },
+    programs: [runningGoal()],
+    figure: governed(41),
+  })
+  expect(goalOf(await read(world.deps)).rows).toEqual({ kind: 'many', count: 41 })
+})

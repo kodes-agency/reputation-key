@@ -1,3 +1,5 @@
+import { StaffAccountFunctionsContext } from '#/components/features/staff/accounts/staff-account-functions'
+import { STAFF_ACCOUNT_FUNCTIONS } from './_authenticated/-staff-account-functions'
 // Authenticated layout route — protects all nested routes and renders the app shell.
 // Per better-auth TanStack Start docs: use createServerFn (getSession)
 // in beforeLoad — not authClient.getSession(), which can't forward cookies during SSR.
@@ -94,6 +96,7 @@ export type AuthRouteContext = Readonly<{
     name: string
     slug: string
     contactEmail: string | null
+    hasPersonalPortal?: boolean
   } | null
 }>
 
@@ -115,6 +118,7 @@ function organizationLoadFailure(error: unknown, href: string): unknown {
     error instanceof Error && 'code' in error
       ? (error as { code?: unknown }).code
       : undefined
+  if (code === 'beta_role_inactive') return redirect({ to: '/my' })
   if (code === 'no_active_org') {
     return redirect({ to: '/unavailable', search: { reason: 'workspace_access' } })
   }
@@ -180,6 +184,7 @@ export const Route = createFileRoute('/_authenticated')({
     try {
       if (!organizationResult.ok) throw organizationResult.error
       const org = organizationResult.value
+      if (org.availability === 'staff') throw redirect({ to: '/my' })
       if (org.availability === 'disabled') {
         throw redirect({ to: '/unavailable', search: { feature: 'Workspace' } })
       }
@@ -194,6 +199,7 @@ export const Route = createFileRoute('/_authenticated')({
             name: org.organization.name,
             slug: org.organization.slug,
             contactEmail: org.organization.contactEmail,
+            hasPersonalPortal: org.organization.hasPersonalPortal,
           },
         }
       } else {
@@ -261,11 +267,13 @@ function ShellSidebar({
   isManager,
   properties,
   organizationName,
+  hasPersonalPortal,
 }: Readonly<{
   isSettings: boolean
   isManager: boolean
   properties: ComponentProps<typeof ManagerSidebar>['properties']
   organizationName: string | undefined
+  hasPersonalPortal?: boolean
 }>) {
   if (isSettings) return <SettingsSidebar />
   if (!isManager) return null
@@ -273,6 +281,7 @@ function ShellSidebar({
     <ManagerSidebar
       properties={properties}
       organizationName={organizationName}
+      hasPersonalPortal={hasPersonalPortal}
       getLastVisitCount={getLastVisitCountFn}
     />
   )
@@ -329,6 +338,7 @@ function AuthenticatedShell({ children }: Readonly<{ children: ReactNode }>) {
           isManager={isManager}
           properties={properties}
           organizationName={ctx.activeOrganization?.name}
+          hasPersonalPortal={ctx.activeOrganization?.hasPersonalPortal}
         />
         {/*
           BQC-6.8: the layout wrapper is a plain div, NOT SidebarInset — the
@@ -386,9 +396,11 @@ function AuthenticatedLayout() {
   // Back at a tab left open across a deploy, a manager gets the current code at once.
   useEffect(() => watchPerson(staleTab, window), [])
   return (
-    <AuthenticatedShell>
-      <Outlet />
-    </AuthenticatedShell>
+    <StaffAccountFunctionsContext value={STAFF_ACCOUNT_FUNCTIONS}>
+      <AuthenticatedShell>
+        <Outlet />
+      </AuthenticatedShell>
+    </StaffAccountFunctionsContext>
   )
 }
 

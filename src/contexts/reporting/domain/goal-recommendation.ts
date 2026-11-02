@@ -212,6 +212,7 @@ function portalBasisOf(
     established,
     liveDays: days,
     facts: {
+      ...(portal.kind === 'personal' ? { kind: 'personal' as const } : {}),
       portalId: portal.portalId,
       name: portal.name,
       publicationState: portal.publicationState,

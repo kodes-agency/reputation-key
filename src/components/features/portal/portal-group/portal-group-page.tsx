@@ -1,3 +1,7 @@
+import { visiblePortals } from '../portal-overview/visible-portals'
+import { withStaffSetupRows } from '#/components/features/staff/accounts/staff-overview-rows'
+import { useStaffAccounts } from '#/components/features/staff/accounts/staff-accounts-context'
+import { StaffAccountsProvider } from '#/components/features/staff/accounts/staff-accounts-provider'
 // A group's page (board 13): its results over the window the reader chose, the
 // portals in it, the goal it shares and what has happened to it. Presentational:
 // the route owns the reads and the URL. The results, the goal and the history are
@@ -65,8 +69,12 @@ export type PortalGroupPageProps = PortalArchiveMutations &
     onRetryHistory: () => void
   }>
 
-export function PortalGroupPage(props: PortalGroupPageProps) {
+function PortalGroupPageBody(props: PortalGroupPageProps) {
   const { propertyId, propertyName, group, rows, members = [], results } = props
+  const accounts = useStaffAccounts()
+  const staffRows = visiblePortals(
+    withStaffSetupRows(rows, accounts?.members, propertyId),
+  )
   const { can } = usePermissions()
   const { has } = useCapabilities()
   const [dialog, setDialog] = useState<'rename' | 'add' | null>(null)
@@ -77,7 +85,10 @@ export function PortalGroupPage(props: PortalGroupPageProps) {
     portalWriteEnabled: has('portal.write'),
     canSetGoal,
   })
-  const inGroup = rows.filter((row) => row.group?.id === group.id)
+  const visibleRows = has('staff.accounts')
+    ? staffRows
+    : visiblePortals(rows).filter((row) => row.kind !== 'personal')
+  const inGroup = visibleRows.filter((row) => row.group?.id === group.id)
   const meta = [
     'Group',
     `${inGroup.length === 1 ? '1 portal' : `${inGroup.length} portals`} at ${propertyName}`,
@@ -168,5 +179,13 @@ export function PortalGroupPage(props: PortalGroupPageProps) {
         movePortalMutation={props.movePortalMutation}
       />
     </PageShell>
+  )
+}
+
+export function PortalGroupPage(props: PortalGroupPageProps) {
+  return (
+    <StaffAccountsProvider propertyId={props.propertyId}>
+      <PortalGroupPageBody {...props} />
+    </StaffAccountsProvider>
   )
 }

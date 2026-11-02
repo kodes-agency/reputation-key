@@ -1,4 +1,5 @@
 import { buildPortalAddressOperations } from './build-address-operations'
+import { assertPersonalGroupTargetAvailable } from './infrastructure/personal-portal-group-guard'
 import { renamePersonalPortalLabels } from './application/use-cases/rename-personal-portal-labels'
 import { writePersonalPortalLabels } from './infrastructure/adapters/personal-portal-labels.writer'
 import {
@@ -300,21 +301,21 @@ export const buildPortalContext = (deps: PortalContextDeps) => {
   })
   const revealAddress = addressOperations.revealPortalAddress
   const personalCreationDeps = {
-    ...{
-      portalRepo,
-      portalGroupRepo,
-      portalLinkRepo,
-      destinationRepo: portalApprovedDestinationRepo,
-      experienceRepo: portalExperienceRepo,
-      portalLookRepo,
-      commandStore: portalCommandStore,
-      propertyApi: deps.propertyApi,
-      staffPublicApi: deps.staffPublicApi,
-      identityPublicApi: deps.identityManagerFacts,
-      idGen: portalIdGen,
-      entityIdGen: deps.idGen,
-      clock: deps.clock,
-    },
+    portalRepo,
+    portalGroupRepo,
+    portalLinkRepo,
+    destinationRepo: portalApprovedDestinationRepo,
+    experienceRepo: portalExperienceRepo,
+    portalLookRepo,
+    commandStore: portalCommandStore,
+    propertyApi: deps.propertyApi,
+    staffPublicApi: deps.staffPublicApi,
+    identityPublicApi: deps.identityManagerFacts,
+    idGen: portalIdGen,
+    entityIdGen: deps.idGen,
+    clock: deps.clock,
+    checkGroupTarget: (scope: Parameters<typeof assertPersonalGroupTargetAvailable>[1]) =>
+      assertPersonalGroupTargetAvailable(deps.db, scope),
     publicationRepo: portalPublicationRepo,
     addressRecoverable: portalAddressCipher !== null,
   }
@@ -402,10 +403,7 @@ export const buildPortalContext = (deps: PortalContextDeps) => {
     checkPersonalPortalSource: checkPersonalPortalSource(personalCreationDeps),
     archivePersonalPortal: archivePersonalPortal(publishChangesDeps),
     archivePersonalPortalForMemberDeparture: archivePersonalPortal(
-      {
-        ...publishChangesDeps,
-        ratingGoalGuard: deps.ratingGoalGuard,
-      },
+      publishChangesDeps,
       true,
     ),
     getPortalCreationOptions: getPortalCreationOptions({
@@ -683,6 +681,7 @@ export const buildPortalContext = (deps: PortalContextDeps) => {
           ? {
               id: p.id,
               kind: p.kind,
+              skipPrivateRating: p.skipPrivateRating,
               name: p.name,
               publicationState: p.publicationState,
             }

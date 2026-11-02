@@ -41,6 +41,8 @@ const tabsListVariants = cva(
         default:
           'w-fit justify-center rounded-lg bg-muted p-[3px] group-data-[orientation=horizontal]/tabs:h-9',
         line: LINE_TABS_LIST_CLASS,
+        bottom:
+          'sticky bottom-0 z-10 grid w-full grid-cols-2 border-t bg-background pb-[env(safe-area-inset-bottom)]',
       },
     },
     defaultVariants: {
@@ -79,7 +81,14 @@ function TabsTrigger({
   return (
     <TabsPrimitive.Trigger
       data-slot="tabs-trigger"
-      className={cn(variant === 'line' ? LINE_TAB_CLASS : PILL_TAB_CLASS, className)}
+      className={cn(
+        variant === 'bottom'
+          ? 'inline-flex min-h-11 items-center justify-center border-t-2 border-transparent px-4 py-3 text-sm text-muted-foreground focus-visible:outline-2 focus-visible:outline-ring data-[state=active]:border-primary data-[state=active]:text-foreground'
+          : variant === 'line'
+            ? LINE_TAB_CLASS
+            : PILL_TAB_CLASS,
+        className,
+      )}
       {...props}
     />
   )
@@ -87,12 +96,19 @@ function TabsTrigger({
 
 function TabsContent({
   className,
+  placement = 'default',
   ...props
-}: React.ComponentProps<typeof TabsPrimitive.Content>) {
+}: React.ComponentProps<typeof TabsPrimitive.Content> & {
+  placement?: 'default' | 'center'
+}) {
   return (
     <TabsPrimitive.Content
       data-slot="tabs-content"
-      className={cn('flex-1 outline-none', className)}
+      className={cn(
+        'flex-1 outline-none',
+        placement === 'center' && 'flex items-center justify-center',
+        className,
+      )}
       {...props}
     />
   )

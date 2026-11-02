@@ -29,6 +29,7 @@ export type StaffAccountDeps = Readonly<{
   portals: StaffPortalProvisioner
   idGen: () => string
   spendAddressCheckBudget: (ctx: AuthContext, units: number) => Promise<void>
+  reportAddressRefusal?: (reason: 'other_organization') => void
   reportDeliveryFailure: (row: StaffOnboarding) => void
   invitationBudget: (ctx: AuthContext) => Promise<number>
   spendInvitationBudget: (ctx: AuthContext) => Promise<void>
@@ -66,6 +67,16 @@ export function staffRowProblem(
   return facts?.alreadyStaffHere ? 'already_staff_here' : null
 }
 
+export function staffRowCodeForActor(
+  code: StaffRowCode | null,
+  ctx: AuthContext,
+  report?: StaffAccountDeps['reportAddressRefusal'],
+): StaffRowCode | null {
+  if (code !== 'other_organization' || ctx.role === 'AccountAdmin') return code
+  report?.(code)
+  return 'cannot_add'
+}
+
 const failureCodeOf = (error: unknown) =>
   typeof error === 'object' &&
   error !== null &&
@@ -76,6 +87,7 @@ const failureCodeOf = (error: unknown) =>
     : 'step_failed'
 
 const rowMessages: Partial<Record<StaffRowCode, string>> = {
+  cannot_add: "This email can't be added.",
   already_invited:
     "This address already has an open invitation. Add them here once they've accepted.",
   other_organization: 'This address belongs to another Organization',
@@ -139,7 +151,10 @@ async function runSteps(
           await deps
             .deliverAccess(row, access)
             .catch(() => deps.reportDeliveryFailure(row))
-          return staffOnboardingResult(completed)
+          return {
+            ...staffOnboardingResult(completed),
+            access: access.invited ? ('invited' as const) : ('active' as const),
+          }
         }
       }
     }
@@ -151,6 +166,36 @@ async function runSteps(
   throw new Error('Staff onboarding has no access step')
 }
 
+async function resumeStaffOperation(
+  deps: StaffAccountDeps,
+  store: StaffAccountStore,
+  previous: StaffOnboarding,
+  input: AddStaffInput,
+  ctx: AuthContext,
+  email: string,
+) {
+  if (
+    previous.propertyId !== input.propertyId ||
+    (previous.email !== null && previous.email !== email)
+  )
+    throw staffAccountError(
+      'operation_conflict',
+      'Use a new operation for a different person',
+    )
+  if (previous.status === 'done') {
+    const facts = await store.addressFacts(ctx.organizationId, input.propertyId, email)
+    return {
+      ...staffOnboardingResult(previous),
+      access:
+        facts.userId && facts.organizationIds.includes(ctx.organizationId)
+          ? ('active' as const)
+          : ('invited' as const),
+    }
+  }
+  if (previous.status === 'cancelled') return staffOnboardingResult(previous)
+  return runSteps(deps, store, previous, ctx)
+}
+
 export const addStaffMember =
   (deps: StaffAccountDeps) => async (input: AddStaffInput, ctx: AuthContext) => {
     await requireStaffProperty(deps.store, ctx, input.propertyId, 'staff.invite')
@@ -159,21 +204,13 @@ export const addStaffMember =
     await deps.spendAddressCheckBudget(ctx, 1)
     return deps.store.withAddressLock(ctx.organizationId, email, async (store) => {
       const previous = await store.findOperation(ctx.organizationId, input.operationId)
-      if (previous) {
-        if (
-          previous.propertyId !== input.propertyId ||
-          (previous.email !== null && previous.email !== email)
-        )
-          throw staffAccountError(
-            'operation_conflict',
-            'Use a new operation for a different person',
-          )
-        if (previous.status === 'done' || previous.status === 'cancelled')
-          return staffOnboardingResult(previous)
-        return runSteps(deps, store, previous, ctx)
-      }
+      if (previous) return resumeStaffOperation(deps, store, previous, input, ctx, email)
       const facts = await store.addressFacts(ctx.organizationId, input.propertyId, email)
-      const code = staffRowProblem(input, facts, ctx.organizationId)
+      const code = staffRowCodeForActor(
+        staffRowProblem(input, facts, ctx.organizationId),
+        ctx,
+        deps.reportAddressRefusal,
+      )
       if (code)
         throw staffAccountError(
           code,

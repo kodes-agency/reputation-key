@@ -12,6 +12,7 @@ export type StaffParticipationView = Readonly<{
   propertyId: string
   staffParticipantId: string
   linkedUserId: string | null
+  personalPortalId?: string | null
   displayName: string
   status: string
   startedAt: string | Date

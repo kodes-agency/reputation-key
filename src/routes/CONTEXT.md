@@ -294,3 +294,20 @@ Colocated route tests cover auth redirects, search normalization, server-functio
 bundle laziness, unavailable states, public failures, webhook authentication, and
 HTTP contracts. Browser behavior that depends on SSR/hydration is verified against
 the running app rather than inferred from loader code.
+
+## Staff home (ADR 0076)
+
+`/my` lives outside the manager shell and owns its main landmark. The root excludes it from the public header/footer through `shared/public-chrome.ts`. Its lazy entry asks `getMyStaffHome`;
+a missing session returns through login, and missing staff access goes to
+`/unavailable`. The manager gate still refuses Members and redirects its
+`beta_role_inactive` result to `/my`. `/my-code` shows the same lazy feature
+inside the manager shell. The existing Organization read adds only a personal
+Portal boolean, remembered for 30 seconds under ADR 0072.
+
+The import-free `shared/staff-home-search.ts` parses `p`, `tab` and `period`; the
+feature checks `p` against the person's participations. New arrivals default to
+Code and this month. Only `/my` links the standalone web app manifest. Staff
+invitation acceptance and registration go to `/my`; sign-in detects the staff
+role before choosing its destination. Manager server functions remain closed.
+
+The `/my` manifest has scope `/`, so login and Privacy Notice stay in the installed window. Icons are absent because the repository has no product mark yet.

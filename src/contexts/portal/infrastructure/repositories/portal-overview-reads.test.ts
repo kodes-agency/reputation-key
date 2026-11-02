@@ -23,7 +23,7 @@ import { portalGroups } from '#/shared/db/schema/portal-group.schema'
 import { buildTestAuthContext } from '#/shared/testing/fixtures'
 import { listPortalOverview } from '../../application/use-cases/list-portal-overview'
 import { createPortalRepository } from './portal.repository'
-import { createPortalGroupRepository } from './portal-group.repository'
+import { createPortalGroupTestRepository } from './portal-group-test.repository'
 import { createPortalHealthRepository } from './portal-health.repository'
 import { createPortalPublicationRepository } from './portal-publication.repository'
 import { createPortalResponsibleManagerRepository } from './portal-responsible-manager.repository'
@@ -114,7 +114,7 @@ beforeEach(async () => {
 })
 
 async function seedGroups() {
-  const repo = createPortalGroupRepository(getDb())
+  const repo = createPortalGroupTestRepository(getDb())
   const group = (id: typeof GROUP, org: typeof ORG, property: typeof PROPERTY) => ({
     id,
     organizationId: org,
@@ -129,10 +129,10 @@ async function seedGroups() {
   await repo.insert(ORG, group(GROUP, ORG, PROPERTY))
   await repo.insert(ORG, group(GROUP_FORMER, ORG, PROPERTY))
   await repo.insert(ORG_OTHER, group(GROUP_OTHER, ORG_OTHER, PROPERTY_OTHER))
-  await repo.addPortal(ORG, GROUP, FULL, START, 'owner')
-  await repo.addPortal(ORG, GROUP_FORMER, FORMER, START, 'owner')
+  await repo.seedMembership(ORG, GROUP, FULL, START, 'owner')
+  await repo.seedMembership(ORG, GROUP_FORMER, FORMER, START, 'owner')
   await repo.removePortal(ORG, GROUP_FORMER, FORMER, LATER, 'moved')
-  await repo.addPortal(ORG_OTHER, GROUP_OTHER, OTHER_TENANT_PORTAL, START, 'owner')
+  await repo.seedMembership(ORG_OTHER, GROUP_OTHER, OTHER_TENANT_PORTAL, START, 'owner')
   return repo
 }
 

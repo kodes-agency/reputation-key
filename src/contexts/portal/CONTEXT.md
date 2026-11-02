@@ -1223,3 +1223,19 @@ it imports no Reporting implementation.
 Portal kind is `place` or `personal`, set only at creation. A personal Portal keeps the person's name in `name` for managers and a fixed guest name in `public_name`; publication sources, guest data and print metadata use `public_name ?? name`. Its slug is always derived from its reserved id. The copy path supplies wording, links and look; a source with unpublished changes or an archived source is refused, and preflight names links the copy omits. Without a source it starts from the Property wording and public name. Address recovery must be configured. Code issuance precedes first publication, using the manager's own context.
 
 Only Staff Remove archives a personal Portal, under `staff.remove`. The ordinary update refuses its rename, slug change, Archive and Restore; Disable remains available. The own-code read checks the session's personal assignment, uses the same sealed-address reader and ledger, and returns QR wording only. It records one `show` per user and token version and spends no Organization address budget. `Portal` and `PortalOverviewRow` carry kind; this foundation changes no list presentation.
+
+## Manager staff presentation and scan-target fences
+
+Personal Portals use their manager name in the workspace and a read-only Name
+field; the quiet guest-name fact uses publicName. Rename, invitation management
+and Remove are Identity commands. Personal rows never offer ordinary Archive,
+Restore or Delete; completed removals leave list presentation while their facts
+remain in totals.
+
+Group membership and Goal definition commits share the staff-target Property
+fence. A person cannot join a Group with a running rating goal ("End the goal
+first"). A staff scan target requires every Portal in its subject to collect
+private ratings. Membership changes and Skip private rating writes recheck this
+under that fence, including a place Portal joining a Group that contains people.
+The injected running-goal port also explains staff scan-target refusals before
+commit; Portal never imports a Reporting implementation.

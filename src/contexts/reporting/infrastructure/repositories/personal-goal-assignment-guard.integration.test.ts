@@ -77,7 +77,7 @@ describe.sequential('personal Goal SQL guards (PostgreSQL)', () => {
       } as GoalSubjectAssignment
       const run = () =>
         db.transaction((tx) => assertPersonalGoalAssignments(tx, version, [assignment]))
-      await expect(run()).rejects.toMatchObject({ code: 'invalid_subject' })
+      await expect(run()).rejects.toMatchObject({ code: 'staff_scan_only' })
       await lease.pool.query("UPDATE portals SET kind = 'place' WHERE id = $1", [
         row.portalId,
       ])
@@ -169,7 +169,36 @@ describe.sequential('personal Goal SQL guards (PostgreSQL)', () => {
       countryCode: 'BG',
     })
     expect(result).toEqual(
-      visible ? [{ id: programId, name: 'Scan target', target: 25, scans: 9 }] : [],
+      visible ? [{ id: programId, name: 'Desk', target: 25, scans: 9 }] : [],
     )
   })
+})
+
+it('rechecks skipped ratings in a mixed Group at the Goal commit fence (PostgreSQL)', async () => {
+  const row = await setup()
+  const placeId = randomUUID()
+  await lease.pool.query(
+    "INSERT INTO portals (id, organization_id, property_id, entity_id, name, slug, skip_private_rating) VALUES ($1::uuid,$2,$3::uuid,$3::text,'Room',$1::text,true)",
+    [placeId, row.organizationId, row.propertyId],
+  )
+  await lease.pool.query(
+    "INSERT INTO portal_group_memberships (organization_id, property_id, portal_id, portal_group_id, effective_from, created_by) VALUES ($1,$2,$3,$4,$5,'test')",
+    [row.organizationId, row.propertyId, placeId, row.groupId, NOW],
+  )
+  const version = {
+    organizationId: row.organizationId,
+    propertyId: row.propertyId,
+    metric: 'qualified_scans',
+    effectiveFrom: NOW,
+  } as GoalProgramVersion
+  const assignment = {
+    subject: { kind: 'portal_group', portalGroupId: row.groupId },
+  } as GoalSubjectAssignment
+  const run = () =>
+    db.transaction((tx) => assertPersonalGoalAssignments(tx, version, [assignment]))
+  await expect(run()).rejects.toMatchObject({ code: 'staff_private_ratings_skipped' })
+  await lease.pool.query('UPDATE portals SET skip_private_rating = false WHERE id = $1', [
+    placeId,
+  ])
+  await expect(run()).resolves.toBeUndefined()
 })

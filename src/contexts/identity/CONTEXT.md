@@ -183,7 +183,7 @@ Property access grants.
 
 ## Staff account foundation — 2026-11-01 (ADR 0076)
 
-`staff-accounts.ts` exposes Property-scoped batch checking, Add, Remove, Rename, Resend, list and colleague settings through execution policy under `staff.accounts` (off). The session-only self door requires current membership, an active link and active personal participation. It never accepts a person id. Members keep only their own password/profile actions and `staff.self`; no manager function admits them.
+`staff-accounts.ts` exposes Property-scoped batch checking, Add, Remove, Rename, Resend, list and colleague settings through execution policy under `staff.accounts` (controlled beta). The session-only self door requires current membership, an active link and active personal participation. It never accepts a person id. Members keep only their own password/profile actions and `staff.self`; no manager function admits them.
 
 Add reserves one operation and stable identifiers under the invitation email lock before creating anything. Each step commits independently and a failed step resumes; completion or cancellation clears email and name in the checkpoint statement. Staff invitation acceptance creates membership and login link in the same transaction on signed-in, registration and recovery paths, with no Property grant. Existing Organization members link directly. Remove first cancels acceptance and ends participation access, then converges on Portal archival and, at the last Property, link closure and Member-only login removal. A manager login survives. Personal responsibilities cannot be replaced through the older participation commands.
 

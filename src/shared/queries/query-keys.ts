@@ -258,6 +258,7 @@ export const goalKeys = {
 
 // ── Staff participation and portal responsibility ────────────────────────
 export const staffKeys = {
+  accounts: (propertyId: string) => [...staffKeys.all, 'accounts', propertyId] as const,
   all: ['staff'] as const,
   participations: (propertyId: string) =>
     [...staffKeys.all, 'participations', propertyId] as const,
@@ -490,6 +491,8 @@ export const staffSelfKeys = {
   home: (userId: string) => [...staffSelfKeys.all, 'home', userId] as const,
   code: (participationId: string) =>
     [...staffSelfKeys.all, participationId, 'code'] as const,
+  resultsCurrent: (participationId: string, period: 'today' | 'week' | 'month') =>
+    [...staffSelfKeys.all, participationId, 'current-results', period] as const,
   results: (
     participationId: string,
     period: 'today' | 'week' | 'month',

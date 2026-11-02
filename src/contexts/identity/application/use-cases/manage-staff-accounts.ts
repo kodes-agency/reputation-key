@@ -1,7 +1,11 @@
 import type { AuthContext } from '#/shared/domain/auth-context'
 import { canForContext } from '#/shared/domain/permissions'
 import type { StaffAccountDeps } from './add-staff-member'
-import { requireStaffProperty, staffRowProblem } from './add-staff-member'
+import {
+  requireStaffProperty,
+  staffRowProblem,
+  staffRowCodeForActor,
+} from './add-staff-member'
 import type { StaffManagementStore } from '../ports/staff-management-store.port'
 import type { StaffPortalPlan } from '../ports/staff-portal-provisioner.port'
 import { staffAccountError } from '../../domain/staff-account'
@@ -50,32 +54,49 @@ export const checkStaffBatch =
         const email = emails[index]!
         const basic = staffRowProblem(row)
         const duplicate = emails.filter((value) => value === email).length > 1
+        const facts =
+          basic || duplicate
+            ? null
+            : await deps.store.addressFacts(ctx.organizationId, input.propertyId, email)
         const code =
           basic ??
           (duplicate
             ? 'duplicate_in_batch'
-            : staffRowProblem(
-                row,
-                await deps.store.addressFacts(
-                  ctx.organizationId,
-                  input.propertyId,
-                  email,
-                ),
-                ctx.organizationId,
-              ))
-        return code ? { code } : { code: 'ok' as const }
+            : staffRowProblem(row, facts ?? undefined, ctx.organizationId))
+        return {
+          code:
+            staffRowCodeForActor(code, ctx, deps.reportAddressRefusal) ?? ('ok' as const),
+          needsInvitation:
+            !facts?.userId || !facts.organizationIds.includes(ctx.organizationId),
+        }
       }),
     )
     const remainingInvitations = await deps.invitationBudget(ctx)
     try {
       const plan = await deps.portals.check(input, ctx)
-      return { rows, code: null, omittedLinks: plan.omittedLinks, remainingInvitations }
+      return {
+        rows: rows.map(({ code }) => ({ code })),
+        invitationsRequired: rows.filter(
+          (row) => row.code === 'ok' && row.needsInvitation,
+        ).length,
+        code: null,
+        omittedLinks: plan.omittedLinks,
+        remainingInvitations,
+      }
     } catch (error) {
       const code =
         typeof error === 'object' && error !== null && 'code' in error
           ? String(error.code)
           : 'preflight_failed'
-      return { rows, code, omittedLinks: [], remainingInvitations }
+      return {
+        rows: rows.map(({ code }) => ({ code })),
+        invitationsRequired: rows.filter(
+          (row) => row.code === 'ok' && row.needsInvitation,
+        ).length,
+        code,
+        omittedLinks: [],
+        remainingInvitations,
+      }
     }
   }
 
@@ -188,6 +209,9 @@ export const listStaffMembers =
     await deps.authorizeProperty(ctx, input.propertyId, 'staff.read')
     const rows = await deps.management.list(ctx.organizationId, input.propertyId)
     return {
+      colleagueListEnabled:
+        (await deps.management.getColleagues?.(ctx.organizationId, input.propertyId)) ??
+        false,
       members: rows.map(({ email, ...row }) => ({
         ...row,
         ...(canForContext(ctx, 'staff.invite') ? { email } : {}),
