@@ -4,6 +4,7 @@ import { Input } from '#/components/ui/input'
 import { Button } from '#/components/ui/button'
 import { IconButton } from '#/components/ui/icon-button'
 import type { StaffDraftRow } from './staff-batch'
+import { isStaffBatchPaste } from './staff-paste'
 
 export function StaffAddRow({
   row,
@@ -39,13 +40,10 @@ export function StaffAddRow({
         <div
           className="grid min-w-0 flex-1 gap-3 sm:grid-cols-2"
           onPaste={(event) => {
-            const text = event.clipboardData.getData('text').trim()
-            if (
-              !locked &&
-              (/[\n\t,]/u.test(text) || text !== event.clipboardData.getData('text'))
-            ) {
+            const text = event.clipboardData.getData('text')
+            if (!locked && isStaffBatchPaste(text)) {
               event.preventDefault()
-              onPaste(text)
+              onPaste(text.trim())
             }
           }}
         >

@@ -1,3 +1,6 @@
+/** One value stays an ordinary paste. Only cells or lines fill the row. */
+export const isStaffBatchPaste = (text: string) => /[\n\t,]/u.test(text.trim())
+
 /** A pasted line may put the email in any column. Keep unrecognised lines editable. */
 export function parseStaffPaste(text: string): readonly Readonly<{
   displayName: string

@@ -67,14 +67,22 @@ export function staffRowProblem(
   return facts?.alreadyStaffHere ? 'already_staff_here' : null
 }
 
+/** Only an AccountAdmin learns an address belongs to another Organization. */
+function refusedAddressCode(
+  ctx: AuthContext,
+  report?: StaffAccountDeps['reportAddressRefusal'],
+): 'other_organization' | 'cannot_add' {
+  if (ctx.role === 'AccountAdmin') return 'other_organization'
+  report?.('other_organization')
+  return 'cannot_add'
+}
+
 export function staffRowCodeForActor(
   code: StaffRowCode | null,
   ctx: AuthContext,
   report?: StaffAccountDeps['reportAddressRefusal'],
 ): StaffRowCode | null {
-  if (code !== 'other_organization' || ctx.role === 'AccountAdmin') return code
-  report?.(code)
-  return 'cannot_add'
+  return code === 'other_organization' ? refusedAddressCode(ctx, report) : code
 }
 
 const failureCodeOf = (error: unknown) =>
@@ -86,11 +94,23 @@ const failureCodeOf = (error: unknown) =>
     ? error.code
     : 'step_failed'
 
-const rowMessages: Partial<Record<StaffRowCode, string>> = {
+const REFUSED_ADDRESS = {
   cannot_add: "This email can't be added.",
+  other_organization: 'This address belongs to another Organization',
+} as const
+
+const rowMessages: Partial<Record<StaffRowCode, string>> = {
+  ...REFUSED_ADDRESS,
   already_invited:
     "This address already has an open invitation. Add them here once they've accepted.",
-  other_organization: 'This address belongs to another Organization',
+}
+
+export function staffAddressRefusal(
+  ctx: AuthContext,
+  report?: StaffAccountDeps['reportAddressRefusal'],
+) {
+  const code = refusedAddressCode(ctx, report)
+  return staffAccountError(code, REFUSED_ADDRESS[code])
 }
 
 async function runSteps(
@@ -159,8 +179,16 @@ async function runSteps(
       }
     }
   } catch (error) {
+    const code = failureCodeOf(error)
     return staffOnboardingResult(
-      await store.checkpoint(row.id, row.step, 'failed', failureCodeOf(error)),
+      await store.checkpoint(
+        row.id,
+        row.step,
+        'failed',
+        code === 'other_organization'
+          ? refusedAddressCode(ctx, deps.reportAddressRefusal)
+          : code,
+      ),
     )
   }
   throw new Error('Staff onboarding has no access step')

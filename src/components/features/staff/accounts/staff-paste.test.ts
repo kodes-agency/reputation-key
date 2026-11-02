@@ -1,7 +1,19 @@
 import { describe, it, expect } from 'vitest'
-import { parseStaffPaste } from './staff-paste'
+import { isStaffBatchPaste, parseStaffPaste } from './staff-paste'
 import { pasteStaffRows, newStaffRow } from './staff-batch'
 describe('staff paste', () => {
+  it.each([' Maria', 'Maria', 'maria@example.com\n', '  Maria Jones  '])(
+    'leaves one value to the field it is pasted into: %j',
+    (text) => {
+      expect(isStaffBatchPaste(text)).toBe(false)
+    },
+  )
+  it.each(['Maria\tmaria@example.com', 'Maria, maria@example.com', 'Maria\nAna'])(
+    'fills the row from cells or lines: %j',
+    (text) => {
+      expect(isStaffBatchPaste(text)).toBe(true)
+    },
+  )
   it('finds emails in either column, preserving all remaining name words', () => {
     expect(
       parseStaffPaste(

@@ -513,3 +513,38 @@ it.each(['PropertyManager', 'AccountAdmin'] as const)(
     expect(reportAddressRefusal).toHaveBeenCalledTimes(role === 'AccountAdmin' ? 0 : 1)
   },
 )
+
+it.each(['AccountAdmin', 'PropertyManager'] as const)(
+  'limits address detail for %s on Resend',
+  async (role) => {
+    const { deps } = setup()
+    const reportAddressRefusal = vi.fn()
+    const store: StaffAccountStore = {
+      ...deps.store,
+      addressFacts: async () => ({
+        userId: 'elsewhere',
+        organizationIds: ['elsewhere'],
+        alreadyStaffHere: false,
+        alreadyInvited: false,
+        staffParticipantId: null,
+      }),
+    }
+    await expect(
+      resendStaffInvitation({
+        ...deps,
+        reportAddressRefusal,
+        store: {
+          ...store,
+          withAddressLock: async <T>(
+            _org: string,
+            _email: string,
+            run: (value: StaffAccountStore) => Promise<T>,
+          ) => run(store),
+        },
+      })({ participationId: 'participation' }, buildTestAuthContext({ role })),
+    ).rejects.toMatchObject({
+      code: role === 'AccountAdmin' ? 'other_organization' : 'cannot_add',
+    })
+    expect(reportAddressRefusal).toHaveBeenCalledTimes(role === 'AccountAdmin' ? 0 : 1)
+  },
+)

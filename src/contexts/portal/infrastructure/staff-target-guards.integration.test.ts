@@ -77,7 +77,25 @@ it('preflights a prospective person against a running rating Group target', asyn
       ...row,
       portalGroupId: row.groupId,
       at: NOW,
+      skipsPrivateRating: false,
     }),
+  ).rejects.toMatchObject({ code: 'personal_portal_goal_locked' })
+})
+
+it('preflights a skipped rating against a running scan target, on the copy or in the Group', async () => {
+  const row = await seed()
+  const scope = { ...row, portalGroupId: row.groupId, at: NOW }
+  await expect(
+    assertPersonalGroupTargetAvailable(db, { ...scope, skipsPrivateRating: false }),
+  ).resolves.toBeUndefined()
+  await expect(
+    assertPersonalGroupTargetAvailable(db, { ...scope, skipsPrivateRating: true }),
+  ).rejects.toMatchObject({ code: 'personal_portal_goal_locked' })
+  await lease.pool.query('UPDATE portals SET skip_private_rating = true WHERE id = $1', [
+    row.portalId,
+  ])
+  await expect(
+    assertPersonalGroupTargetAvailable(db, { ...scope, skipsPrivateRating: false }),
   ).rejects.toMatchObject({ code: 'personal_portal_goal_locked' })
 })
 

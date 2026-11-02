@@ -3,6 +3,7 @@ import { canForContext } from '#/shared/domain/permissions'
 import type { StaffAccountDeps } from './add-staff-member'
 import {
   requireStaffProperty,
+  staffAddressRefusal,
   staffRowProblem,
   staffRowCodeForActor,
 } from './add-staff-member'
@@ -250,10 +251,7 @@ export const resendStaffInvitation =
         found.email!,
       )
       if (facts.organizationIds.some((id) => id !== ctx.organizationId))
-        throw staffAccountError(
-          'other_organization',
-          'This address belongs to another Organization',
-        )
+        throw staffAddressRefusal(ctx, deps.reportAddressRefusal)
       const row = await deps.management.renewInvitation(
         ctx.organizationId,
         input.participationId,

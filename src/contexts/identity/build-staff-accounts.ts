@@ -72,7 +72,7 @@ export function buildStaffAccounts(
       spendAddressCheckBudget: unavailable,
     }),
     reportAddressRefusal: (reason) =>
-      deps.logger.warn({ reason }, 'Staff address refused'),
+      deps.logger.warn({ security: true, reason }, 'Staff address refused'),
     reportDeliveryFailure: (row) =>
       deps.logger.warn(
         {

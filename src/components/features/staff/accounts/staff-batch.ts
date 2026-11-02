@@ -59,7 +59,8 @@ const PROBLEMS: Readonly<Record<string, string>> = {
   address_keyring_missing:
     'Codes cannot be recovered yet. Ask your account admin to set up code recovery.',
   rate_limited: 'Please wait before sending more invitations.',
-  personal_portal_goal_locked: 'End the goal first.',
+  personal_portal_goal_locked:
+    "This group has a running goal these people can't join. End the goal first.",
 }
 export function staffProblem(
   code: string | null,
