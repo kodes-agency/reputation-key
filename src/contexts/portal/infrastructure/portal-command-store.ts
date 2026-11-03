@@ -42,6 +42,7 @@ import {
   snapshotToRow,
 } from './portal-publication-commands'
 import { createPortalCreateCommand } from './portal-create-command'
+import { createPersonalPortalContentCommand } from './portal-personal-content-command'
 import {
   PORTAL_SLUG_UNIQUE,
   refusingWhenTaken,
@@ -430,6 +431,7 @@ export const createAtomicPortalCommandStore = (db: Database): PortalCommandStore
     ...createPortalTokenCommands(db),
     ...createPortalPublicationCommands(db),
     ...createPortalCreateCommand(db),
+    ...createPersonalPortalContentCommand(db),
     updatePortal: async (command) =>
       trace('portal.commandStore.updatePortal', async () => {
         assertUpdateCommand(command)

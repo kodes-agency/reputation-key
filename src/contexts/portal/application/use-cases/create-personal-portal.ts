@@ -23,7 +23,7 @@ import { loadCopySource, loadTargetGroup } from '../create-portal-resolvers'
 import { linksToCopy } from '../portal-content-copy'
 import { assertNewPortalPropertyAccess } from '../load-accessible-portal'
 import type { AuthContext } from '#/shared/domain/auth-context'
-import { portalId, propertyId } from '#/shared/domain/ids'
+import { portalId, propertyId, type PropertyId } from '#/shared/domain/ids'
 import { portalError } from '../../domain/errors'
 import { workingCopyMatchesSnapshot } from '../portal-working-copy-match'
 import type { PortalPublicationRepository } from '../ports/portal-publication.repository'
@@ -97,39 +97,57 @@ export const checkPersonalPortalSource =
       await assertPersonalPropertySource(deps, ctx, pid, input.displayNames)
       return null
     }
-    const source = await deps.portalRepo.findById(
-      ctx.organizationId,
-      portalId(input.sourcePortalId),
+    const source = await readPersonalCopySource(
+      deps,
+      ctx,
+      pid,
+      input.sourcePortalId,
+      input.displayNames,
     )
-    if (!source || source.propertyId !== input.propertyId || source.deletedAt) {
-      throw portalError('portal_not_found', 'Choose a Portal at this Property')
-    }
-    if (source.publicationState === 'archived') {
-      throw portalError('source_archived', 'Choose a Portal that is not archived')
-    }
     await checkGroupTarget(source.skipPrivateRating)
-    const [working, snapshot] = await Promise.all([
-      deps.publicationRepo.loadWorkingCopy(ctx.organizationId, source.id),
-      deps.publicationRepo.findActiveForPortal(ctx.organizationId, source.id),
-    ])
-    if (working) assertPersonalPublicationReady(working, input.displayNames)
-    if (!working || !snapshot || !workingCopyMatchesSnapshot(working, snapshot)) {
-      throw portalError(
-        'source_has_unpublished_changes',
-        'Publish the source Portal changes before adding staff',
-      )
-    }
-    const copy = await loadCopySource(deps, ctx, pid, source.id)
-    const copied = new Set(linksToCopy(copy).map((link) => link.id))
-    return {
-      ...source,
-      copy,
-      sourceFence: { portalId: source.id, updatedAt: source.updatedAt, snapshot },
-      omittedLinks: copy.links
-        .filter((link) => !copied.has(link.id))
-        .map((link) => ({ id: String(link.id), label: link.label })),
-    }
+    return source
   }
+
+/** The live, reviewed Portal a person's guest page may take its content from. */
+export async function readPersonalCopySource(
+  deps: CreatePersonalPortalDeps,
+  ctx: AuthContext,
+  pid: PropertyId,
+  sourcePortalId: string,
+  displayNames?: readonly string[],
+) {
+  const source = await deps.portalRepo.findById(
+    ctx.organizationId,
+    portalId(sourcePortalId),
+  )
+  if (!source || source.propertyId !== pid || source.deletedAt) {
+    throw portalError('portal_not_found', 'Choose a Portal at this Property')
+  }
+  if (source.publicationState === 'archived') {
+    throw portalError('source_archived', 'Choose a Portal that is not archived')
+  }
+  const [working, snapshot] = await Promise.all([
+    deps.publicationRepo.loadWorkingCopy(ctx.organizationId, source.id),
+    deps.publicationRepo.findActiveForPortal(ctx.organizationId, source.id),
+  ])
+  if (working) assertPersonalPublicationReady(working, displayNames)
+  if (!working || !snapshot || !workingCopyMatchesSnapshot(working, snapshot)) {
+    throw portalError(
+      'source_has_unpublished_changes',
+      'Publish the changes on the Portal being copied first',
+    )
+  }
+  const copy = await loadCopySource(deps, ctx, pid, source.id)
+  const copied = new Set(linksToCopy(copy).map((link) => link.id))
+  return {
+    ...source,
+    copy,
+    sourceFence: { portalId: source.id, updatedAt: source.updatedAt, snapshot },
+    omittedLinks: copy.links
+      .filter((link) => !copied.has(link.id))
+      .map((link) => ({ id: String(link.id), label: link.label })),
+  }
+}
 
 /** Uses the ordinary copy command with a caller-reserved Portal id. */
 export const createPersonalPortal =
@@ -215,7 +233,7 @@ async function copiedManagerIds(
   return ids.length ? ids : undefined
 }
 
-async function copiedPrintWording(
+export async function copiedPrintWording(
   deps: CreatePersonalPortalDeps,
   ctx: AuthContext,
   sourceId: string,

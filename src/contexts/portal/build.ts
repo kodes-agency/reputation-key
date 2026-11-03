@@ -409,7 +409,7 @@ export const buildPortalContext = (deps: PortalContextDeps) => {
       factStore: portalWorkflowFactStore,
       clock: deps.clock,
     }),
-    ...buildPersonalPortalUseCases(personalCreationDeps),
+    ...buildPersonalPortalUseCases(personalCreationDeps, publishChangesDeps),
     archivePersonalPortal: archivePersonalPortal(publishChangesDeps),
     archivePersonalPortalForMemberDeparture: archivePersonalPortal(
       publishChangesDeps,

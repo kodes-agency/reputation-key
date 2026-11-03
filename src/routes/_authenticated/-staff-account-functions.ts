@@ -1,3 +1,4 @@
+import { updatePersonalGuestPage } from '#/contexts/portal/server/portal-publish-changes'
 import { listMembers } from '#/contexts/identity/server/organizations.query'
 import { getPortalResultsOverviewFn } from '#/contexts/reporting/server/portal-results-overview'
 import {
@@ -47,4 +48,5 @@ export const STAFF_ACCOUNT_FUNCTIONS: StaffAccountFunctions = {
   listMembers,
   listPortals,
   listPortalGroups,
+  updatePersonalGuestPage,
 }

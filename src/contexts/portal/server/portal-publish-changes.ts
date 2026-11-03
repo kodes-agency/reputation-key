@@ -4,6 +4,7 @@
 // `updatePortal`; these are for a Portal that already is.
 
 import { createServerFn } from '@tanstack/react-start'
+import { z } from 'zod/v4'
 import { headersFromContext } from '#/shared/auth/headers'
 import { resolveTenantContext } from '#/shared/auth/middleware'
 import { catchUntagged, throwContextError } from '#/shared/auth/server-errors'
@@ -93,5 +94,21 @@ export const publishPortalsChanges = createServerFn({ method: 'POST' })
       },
       'POST',
       'portal.publishPortalsChanges',
+    ),
+  )
+
+/** A person's guest page takes over a Portal's wording, links and look, and goes live. */
+export const updatePersonalGuestPage = createServerFn({ method: 'POST' })
+  .validator(z.object({ portalId: z.uuid(), sourcePortalId: z.uuid() }).strict())
+  .handler(
+    tracedHandler(
+      async ({ data }) => {
+        const ctx = await resolveTenantContext(await headersFromContext())
+        return writeWithScope(ctx, [data.portalId], () =>
+          getContainer().portalPublicApi.management.updatePersonalGuestPage(data, ctx),
+        )
+      },
+      'POST',
+      'portal.updatePersonalGuestPage',
     ),
   )

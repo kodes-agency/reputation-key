@@ -468,8 +468,33 @@ export type RevokePortalTokensCommand = PortalTokenCommandBase &
     event: PortalTokenRevoked
   }>
 
+/**
+ * A person's guest page takes over another Portal's wording, links and look, in one
+ * commit, under the same fence as a copy at creation. The page's code, results, Group,
+ * responsible managers and rating settings stay its own.
+ */
+export type ReplacePersonalPortalContentCommand = Readonly<{
+  organizationId: OrganizationId
+  propertyId: PropertyId
+  portalId: PortalId
+  actorUserId: UserId
+  expectedUpdatedAt: Date
+  revision: Date
+  publicName: string
+  primaryGuestLocale: GuestLocale
+  additionalGuestLocales: ReadonlyArray<GuestLocale>
+  linktreeEnabled: boolean
+  content: CreatePortalCopiedContent
+  printWording: import('#/shared/domain/portal-print-final-wording').PrintFinalSavedWording
+  sourceFence: NonNullable<CreatePortalCommand['personalSourceFence']>
+  event: PortalUpdated
+}>
+
 export type PortalCommandStore = Readonly<{
   createPortal(command: CreatePortalCommand): Promise<void>
+  replacePersonalPortalContent(
+    command: ReplacePersonalPortalContentCommand,
+  ): Promise<void>
   updatePortal(command: UpdatePortalCommand): Promise<void>
   deletePortal(command: DeletePortalCommand): Promise<Readonly<{ revoked: number }>>
   republishPortal(command: RepublishPortalCommand): Promise<void>
