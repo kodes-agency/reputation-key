@@ -112,6 +112,7 @@ const expiryPhrase = (days: number): string =>
 /** Organization invitation. */
 export const renderInvitationEmail = (content: InvitationEmailContent): RenderedEmail => {
   const { invitedByUsername, organizationName, inviteLink } = content
+  const codeUrl = new URL('/my', inviteLink).href
   const roleLabel = ROLE_LABEL[content.role]
   const scope = roleScope(content)
   const expiry = expiryPhrase(content.expiresInDays)
@@ -134,6 +135,14 @@ export const renderInvitationEmail = (content: InvitationEmailContent): Rendered
         </EmailParagraph>
         <EmailButton href={inviteLink}>Accept invitation</EmailButton>
         <EmailFallbackUrl href={inviteLink} />
+        {content.role === 'Member' && (
+          <>
+            <EmailParagraph>
+              After you join, this link always opens your code:
+            </EmailParagraph>
+            <EmailFallbackUrl href={codeUrl} />
+          </>
+        )}
         <EmailMutedParagraph>
           {expiry} If you don&apos;t have an account yet, you&apos;ll be guided to create
           one after opening the link. If you weren&apos;t expecting this invitation, you
@@ -146,6 +155,9 @@ export const renderInvitationEmail = (content: InvitationEmailContent): Rendered
       `${invitedByUsername} invited you to join ${organizationName} on Reputation Key.`,
       `You\u2019ll join as ${roleLabel}${scope}.`,
       `Accept invitation: ${inviteLink}`,
+      ...(content.role === 'Member'
+        ? [`After you join, this link always opens your code: ${codeUrl}`]
+        : []),
       `${expiry} If you don\u2019t have an account yet, you\u2019ll be guided to create one after opening the link. If you weren\u2019t expecting this invitation, you can safely ignore this email.`,
       EMAIL_SIGNATURE,
     ),
@@ -166,12 +178,14 @@ export const renderStaffCodeReadyEmail = (
     >
       <EmailHeadline>Your code is ready</EmailHeadline>
       <EmailParagraph>Your code is ready at {propertyName}.</EmailParagraph>
-      <EmailButton href={url}>Sign in</EmailButton>
+      <EmailButton href={new URL('/my', url).href}>Open your code</EmailButton>
+      <EmailParagraph>This link always opens your code:</EmailParagraph>
+      <EmailFallbackUrl href={new URL('/my', url).href} />
     </EmailLayout>,
   ),
   text: composeText(
     `Your code is ready at ${propertyName}.`,
-    `Sign in: ${url}`,
+    `This link always opens your code: ${new URL('/my', url).href}`,
     EMAIL_SIGNATURE,
   ),
 })

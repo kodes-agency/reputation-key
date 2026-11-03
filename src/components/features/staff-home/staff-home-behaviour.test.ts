@@ -12,6 +12,9 @@ const drawn = vi.hoisted(() => ({
   invalidate: vi.fn(),
   error: vi.fn(),
 }))
+vi.mock('./staff-surface', () => ({
+  StaffSurface: ({ children }: { children: unknown }) => children,
+}))
 vi.mock('./staff-home-view', () => ({
   StaffHomeView: (props: unknown) => {
     drawn.view(props)

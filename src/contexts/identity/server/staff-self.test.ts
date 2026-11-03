@@ -17,6 +17,7 @@ const mocks = vi.hoisted(() => ({
   policy: vi.fn(),
   budget: vi.fn(),
   code: vi.fn(),
+  look: vi.fn(),
 }))
 vi.mock('@tanstack/react-start/server', () => ({ setResponseHeader: vi.fn() }))
 vi.mock('#/shared/auth/staff-resolver', () => ({ resolveStaff: mocks.resolve }))
@@ -35,7 +36,12 @@ vi.mock('#/composition', () => ({
       staffSelf: { find: mocks.find, acknowledge: mocks.acknowledge },
     },
     rateLimiter: { check: mocks.budget },
-    portalPublicApi: { management: { getOwnPersonalCode: mocks.code } },
+    portalPublicApi: {
+      management: {
+        getOwnPersonalCode: mocks.code,
+        getOwnPersonalLook: mocks.look,
+      },
+    },
   }),
 }))
 const participationId = '11111111-1111-4111-8111-111111111111'
@@ -63,10 +69,12 @@ beforeEach(() => {
   mocks.resolve.mockResolvedValue(buildTestAuthContext({ role: 'Member' }))
   mocks.find.mockResolvedValue(person)
   mocks.budget.mockResolvedValue({ allowed: true })
+  mocks.look.mockResolvedValue({ displayName: 'Harbor' })
   mocks.code.mockResolvedValue({
     state: 'live',
     qr: 'HTTPS://PRINT.EXAMPLE/p/QR',
     wordingKey: 'en',
+    headline: 'How did we do?',
     direct: 'SECRET',
     nfc: 'SECRET',
   })
@@ -80,9 +88,22 @@ describe('staff self server boundary', () => {
         {
           participationId,
           propertyName: 'Harbor',
+          look: { displayName: 'Harbor' },
           portalState: 'live',
           noticeAcknowledged: true,
           colleagueListEnabled: false,
+        },
+      ],
+    })
+  })
+  it('keeps the home open with the default look when a Portal look cannot be read', async () => {
+    mocks.look.mockRejectedValue(new Error('A snapshot that does not parse'))
+    await expect(withStartContext(() => getMyStaffHome())).resolves.toMatchObject({
+      participations: [
+        {
+          participationId,
+          propertyName: 'Harbor',
+          look: { logo: null, hero: null, accentColour: '', fieldColour: '' },
         },
       ],
     })
@@ -116,6 +137,7 @@ describe('staff self server boundary', () => {
       state: 'live',
       qr: 'HTTPS://PRINT.EXAMPLE/p/QR',
       wordingKey: 'en',
+      headline: 'How did we do?',
     })
     expect(mocks.budget).toHaveBeenCalledTimes(1)
     expect(mocks.budget).toHaveBeenCalledWith(expect.stringMatching(/^staff:own-code:/), {

@@ -16,16 +16,18 @@ type Props = Readonly<{
   onReportsSeen?: () => void
   /** Which panel opens first; a report-outcome notification asks for reports. */
   initialPanel?: Panel
+  staff?: boolean
 }>
 
-function PrivacyNotice() {
+function PrivacyNotice({ staff }: Readonly<{ staff: boolean }>) {
   return (
     <div className="flex gap-3 rounded-lg border bg-muted/35 p-3 text-sm">
       <ShieldCheck className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
       <div className="space-y-1 text-muted-foreground">
         <p>
-          Only the text you enter, a screenshot if you add one, controlled diagnostic
-          categories, and an opaque receipt are sent.
+          {staff
+            ? 'We send what you write, any screenshot you add, a few details about the problem, and a report reference that contains no personal details.'
+            : 'Only the text you enter, a screenshot if you add one, controlled diagnostic categories, and an opaque receipt are sent.'}
         </p>
         <p>
           Please don&apos;t type guest names, review text, contact details, passwords, or
@@ -46,6 +48,7 @@ function BetaFeedbackDialogBody({
   listFeedback,
   onReportsSeen,
   initialPanel = 'report',
+  staff = false,
 }: Props) {
   const [reference, setReference] = useState<string | null>(null)
   const [panel, setPanel] = useState<Panel>(initialPanel)
@@ -68,7 +71,7 @@ function BetaFeedbackDialogBody({
     />
   ) : (
     <>
-      <PrivacyNotice />
+      <PrivacyNotice staff={staff} />
       <BetaFeedbackForm submitFeedback={submitFeedback} onSubmitted={onSubmitted} />
     </>
   )

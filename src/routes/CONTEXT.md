@@ -310,4 +310,4 @@ Code and this month. Only `/my` links the standalone web app manifest. Staff
 invitation acceptance and registration go to `/my`; sign-in detects the staff
 role before choosing its destination. Manager server functions remain closed.
 
-The `/my` manifest has scope `/`, so login and Privacy Notice stay in the installed window. Icons are absent because the repository has no product mark yet.
+The `/my` manifest has scope `/`, so login and Privacy notice stay in the installed window. Its name and home-screen title are “My code”; manifest and Apple icon links use `/icons/`. `/my` alone asks for `viewport-fit=cover`, so the surface paints under the notch and the home indicator, with its own padding, the bottom tabs and the full-screen steps keeping clear of them; the status bar stays the default style, because `black-translucent` would put a white clock on a light phone's My results.

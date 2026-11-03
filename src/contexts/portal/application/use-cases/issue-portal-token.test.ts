@@ -435,6 +435,16 @@ describe('staff code checkpoint retry', () => {
     }
     await expect(
       buildPortalAddressOperations({
+        publicationRepo: { findActiveForPortal: async () => null },
+        experienceRepo: {
+          getPropertyExperience: async () => ({ profile: null, content: [] }),
+        },
+        mediaRepo: { findById: async () => null },
+        mediaUrls: async () => ({}),
+        wordingRepo: { find: async () => null },
+        lastPrintRepo: { find: async () => null },
+        finalKitEnabled: false,
+
         ...deps,
         propertyLifecycleApi: { isPropertyActive: async () => true },
       }).ensurePersonalPortalToken({ portalId: portal.id }, buildTestAuthContext()),

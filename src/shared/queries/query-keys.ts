@@ -493,15 +493,19 @@ export const staffSelfKeys = {
   home: (userId: string) => [...staffSelfKeys.all, 'home', userId] as const,
   code: (participationId: string) =>
     [...staffSelfKeys.all, participationId, 'code'] as const,
-  resultsCurrent: (participationId: string, period: 'today' | 'week' | 'month') =>
-    [...staffSelfKeys.all, participationId, 'current-results', period] as const,
+  resultsCurrent: (
+    participationId: string,
+    period: 'today' | 'week' | 'month' | 'last_month',
+  ) => [...staffSelfKeys.all, participationId, 'current-results', period] as const,
   results: (
     participationId: string,
-    period: 'today' | 'week' | 'month',
+    period: 'today' | 'week' | 'month' | 'last_month',
     ratingsCutoff: string,
   ) => [...staffSelfKeys.all, participationId, 'results', period, ratingsCutoff] as const,
   goals: (participationId: string) =>
     [...staffSelfKeys.all, participationId, 'goals'] as const,
-  colleagues: (participationId: string, period: 'today' | 'week' | 'month') =>
-    [...staffSelfKeys.all, participationId, 'colleagues', period] as const,
+  colleagues: (
+    participationId: string,
+    period: 'today' | 'week' | 'month' | 'last_month',
+  ) => [...staffSelfKeys.all, participationId, 'colleagues', period] as const,
 }

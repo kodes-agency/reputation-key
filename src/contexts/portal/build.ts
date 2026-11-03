@@ -59,8 +59,7 @@ import { createPortalAiReplyBrandProfileAuthority } from './infrastructure/ai-re
 import type { StoragePort } from './application/ports/storage.port'
 import type { ImageProcessorPort } from './application/ports/image-processor.port'
 import { ingestPortalImage } from './application/use-cases/ingest-portal-image'
-import { resolvePortalMediaUrls } from './application/resolve-portal-media-urls'
-import { servePortalMedia } from './application/use-cases/serve-portal-media'
+import { buildPortalPublicMedia } from './build-public-media'
 import { sweepPortalMedia } from './application/use-cases/sweep-portal-media'
 import { takeDownPortalMedia } from './application/use-cases/take-down-portal-media'
 import { createPortalTokenCodec } from './infrastructure/adapters/portal-token-codec'
@@ -268,7 +267,6 @@ export const buildPortalContext = (deps: PortalContextDeps) => {
   const imageProcessor = deps.imageProcessor ?? createSharpImageProcessor()
   const portalIdGen = () => portalId(deps.idGen())
   const portalGroupIdGen = () => portalGroupId(deps.idGen())
-  const linkIdGen = () => deps.idGen()
   const publishChangesDeps = {
     ratingGoalGuard: deps.ratingGoalGuard,
     portalRepo,
@@ -281,7 +279,19 @@ export const buildPortalContext = (deps: PortalContextDeps) => {
     idGen: deps.idGen,
     clock: deps.clock,
   }
+  const { serveMedia, mediaUrls } = buildPortalPublicMedia(
+    portalMediaAssetRepo,
+    storage,
+    { logger: deps.logger, clock: deps.clock, decidePublic: decidePublicExecution },
+  )
   const addressOperations = buildPortalAddressOperations({
+    publicationRepo: portalPublicationRepo,
+    experienceRepo: portalExperienceRepo,
+    mediaRepo: portalMediaAssetRepo,
+    mediaUrls,
+    wordingRepo: createPortalPrintWordingRepository(deps.db),
+    lastPrintRepo: createPortalLastPrintRepository(deps.db),
+    finalKitEnabled: deps.printKitFinalEnabled ?? false,
     propertyLifecycleApi: deps.propertyApi,
     portalTokenRepo,
     commandStore: portalCommandStore,
@@ -482,7 +492,7 @@ export const buildPortalContext = (deps: PortalContextDeps) => {
       commandStore: portalCommandStore,
       destinationRepo: portalApprovedDestinationRepo,
       destinationNetworkValidator: portalDestinationNetworkValidator,
-      idGen: linkIdGen,
+      idGen: () => deps.idGen(),
       clock: deps.clock,
     }),
     updateLink: updateLink({
@@ -647,18 +657,6 @@ export const buildPortalContext = (deps: PortalContextDeps) => {
       clock: deps.clock,
     }),
   } as const
-
-  // The guest-facing image read. It is not part of `management`: it has no
-  // session, and is served by the public media route only.
-  const serveMedia = servePortalMedia({
-    mediaRepo: portalMediaAssetRepo,
-    objectStore: storage,
-    sha256Hex: (bytes) => createHash('sha256').update(bytes).digest('hex'),
-    logger: deps.logger,
-    decidePublic: decidePublicExecution,
-    clock: deps.clock,
-  })
-  const mediaUrls = resolvePortalMediaUrls({ mediaRepo: portalMediaAssetRepo })
 
   // ── Public API — consumed by guest context and other cross-context callers ──
 

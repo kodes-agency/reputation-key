@@ -9,12 +9,17 @@ import {
   type RevealPortalAddressDeps,
 } from './application/use-cases/reveal-portal-address'
 import { rotatePortalToken } from './application/use-cases/rotate-portal-token'
-import { getOwnPersonalCode } from './application/use-cases/get-own-personal-code'
+import type { PersonalPortalPresentationDeps } from './application/personal-portal-presentation'
+import {
+  getOwnPersonalCode,
+  getOwnPersonalLook,
+} from './application/use-cases/get-own-personal-code'
 
 /** Manager and own-code commands share the same sealing and print-code bindings. */
 export function buildPortalAddressOperations(
   deps: IssuePortalTokenDeps &
     RevealPortalAddressDeps &
+    PersonalPortalPresentationDeps &
     Readonly<{ propertyLifecycleApi: PropertyLifecyclePublicApi }>,
 ) {
   return {
@@ -26,5 +31,6 @@ export function buildPortalAddressOperations(
     }),
     revealPortalAddress: revealPortalAddress(deps),
     getOwnPersonalCode: getOwnPersonalCode(deps),
+    getOwnPersonalLook: getOwnPersonalLook(deps),
   }
 }

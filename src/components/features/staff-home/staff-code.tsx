@@ -1,107 +1,131 @@
-import { useEffect } from 'react'
-import { useQuery } from '@tanstack/react-query'
-import { PRINT_FINAL_COPY } from '#/shared/domain/portal-print-final-copy'
-import { QR_INK, QR_PAPER } from '#/components/features/portal/portal-share/portal-qr'
 import { usePortalQrPreview } from '#/components/features/portal/portal-share/use-portal-qr-preview'
 import { Skeleton } from '#/components/ui/skeleton'
 import { RetryButton } from '#/components/ui/region-error'
 import { actionErrorMessage } from '#/components/hooks/use-action-mutation'
-import { staffSelfKeys } from '#/shared/queries/query-keys'
+import { useStaffCode } from './use-staff-code'
 import { useScreenWakeLock } from './use-screen-wake-lock'
-import type { StaffHomeFns } from './types'
+import { StaffPass } from './staff-pass'
+import type { StaffHomeFns, StaffParticipation } from './types'
+
+type Look = StaffParticipation['look']
+type LiveCode = Extract<Awaited<ReturnType<StaffHomeFns['getMyCode']>>, { state: 'live' }>
+
+const PAUSED = 'Your code is paused. Ask your manager.'
+
+function PassNote({
+  look,
+  name,
+  children,
+}: Readonly<{ look: Look; name: string; children: React.ReactNode }>) {
+  return (
+    <div className="staff-code">
+      <StaffPass look={look} name={name}>
+        <div className="staff-pass__note">{children}</div>
+      </StaffPass>
+    </div>
+  )
+}
+
+/** The card at its final size, so nothing jumps when the code arrives. */
+function PassLoading({ look, name }: Readonly<{ look: Look; name: string }>) {
+  return (
+    <div className="staff-code">
+      <StaffPass look={look} name={name} cue={'\u00a0'}>
+        <div className="staff-pass__words">
+          <Skeleton className="staff-pass__bone" />
+          <Skeleton className="staff-pass__bone" data-short />
+        </div>
+        <div className="staff-pass__slot">
+          <Skeleton className="staff-pass__code" />
+        </div>
+      </StaffPass>
+    </div>
+  )
+}
 
 export function StaffCodeTile({
-  qr,
-  wordingKey,
-  propertyName,
-}: Readonly<{
-  qr: string
-  wordingKey: keyof typeof PRINT_FINAL_COPY
-  propertyName: string
-}>) {
-  const { qrDataUrl, generationError } = usePortalQrPreview(qr)
+  code,
+  look,
+  name,
+}: Readonly<{ code: LiveCode & { preview?: string }; look: Look; name: string }>) {
+  const { qrDataUrl, generationError } = usePortalQrPreview(code.preview ? null : code.qr)
   if (generationError)
     return (
-      <div className="space-y-3">
-        <p>The code couldn’t be drawn.</p>
+      <PassNote look={look} name={name}>
+        <p className="mb-3">The code couldn’t be drawn.</p>
         <RetryButton onRetry={() => window.location.reload()} />
-      </div>
+      </PassNote>
     )
+  const picture = code.preview ?? qrDataUrl
   return (
-    <div
-      className="w-full rounded-xl p-4 text-center"
-      style={{ backgroundColor: QR_PAPER, color: QR_INK }}
-    >
-      <p className="text-xl font-semibold" lang={wordingKey}>
-        {PRINT_FINAL_COPY[wordingKey].how_was_stay.headline}
-      </p>
-      {qrDataUrl ? (
-        <img
-          src={qrDataUrl}
-          alt="Code for guests to scan"
-          className="aspect-square w-full"
-        />
-      ) : (
-        <Skeleton className="aspect-square w-full" />
-      )}
-      <p className="break-words text-sm">{propertyName}</p>
+    <div className="staff-code">
+      <StaffPass look={look} name={name} cue={code.cue} lang={code.wordingKey}>
+        <div className="staff-pass__words" lang={code.wordingKey}>
+          <p className="staff-pass__headline">{code.headline}</p>
+          {code.subline ? <p className="staff-pass__sub">{code.subline}</p> : null}
+        </div>
+        <div className="staff-pass__slot">
+          {picture ? (
+            <img
+              className="staff-pass__code"
+              src={picture}
+              alt="Code for guests to scan"
+            />
+          ) : (
+            <Skeleton className="staff-pass__code" />
+          )}
+        </div>
+      </StaffPass>
     </div>
   )
 }
 
 export function StaffCode({
   participationId,
-  propertyName,
+  look,
+  name,
   read,
+  paused = false,
 }: Readonly<{
   participationId: string
-  propertyName: string
+  look: Look
+  name: string
   read: StaffHomeFns['getMyCode']
+  paused?: boolean
 }>) {
   useScreenWakeLock()
-  const code = useQuery({
-    queryKey: staffSelfKeys.code(participationId),
-    queryFn: () => read({ data: { participationId } }),
-    staleTime: 0,
-    gcTime: 0,
-    retry: false,
-    refetchOnWindowFocus: 'always',
-  })
-  const { refetch } = code
-  useEffect(() => {
-    const refresh = () => {
-      void refetch({ cancelRefetch: false })
-    }
-    window.addEventListener('focus', refresh)
-    return () => window.removeEventListener('focus', refresh)
-  }, [refetch])
-  // A refresh never leaves an old, possibly replaced symbol on screen.
-  if (code.isFetching || code.isPending)
-    return <Skeleton className="aspect-square w-full" />
-  if (code.isError)
+  const code = useStaffCode(read, participationId, paused)
+  if (paused)
     return (
-      <div className="space-y-3">
-        <p>{actionErrorMessage(code.error)}</p>
-        <RetryButton onRetry={() => void code.refetch()} />
-      </div>
+      <PassNote look={look} name={name}>
+        {PAUSED}
+      </PassNote>
     )
-  return <StaffCodeView code={code.data} propertyName={propertyName} />
+  if (code.isPending) return <PassLoading look={look} name={name} />
+  if (code.isError && !code.data)
+    return (
+      <PassNote look={look} name={name}>
+        <p className="mb-3">{actionErrorMessage(code.error)}</p>
+        <RetryButton onRetry={() => void code.refetch()} />
+      </PassNote>
+    )
+  return code.data ? <StaffCodeView code={code.data} look={look} name={name} /> : null
 }
 
 export function StaffCodeView({
   code,
-  propertyName,
+  look,
+  name,
 }: Readonly<{
-  code: Awaited<ReturnType<StaffHomeFns['getMyCode']>>
-  propertyName: string
+  code: Awaited<ReturnType<StaffHomeFns['getMyCode']>> & { preview?: string }
+  look: Look
+  name: string
 }>) {
   if (code.state === 'paused')
-    return <p className="text-sm">Your code is paused. Ask your manager.</p>
-  return (
-    <StaffCodeTile
-      qr={code.qr}
-      wordingKey={code.wordingKey}
-      propertyName={propertyName}
-    />
-  )
+    return (
+      <PassNote look={look} name={name}>
+        {PAUSED}
+      </PassNote>
+    )
+  return <StaffCodeTile code={code} look={look} name={name} />
 }

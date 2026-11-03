@@ -24,7 +24,6 @@ import {
 import { authClient } from '#/shared/auth/auth-client'
 import { clearTenantCacheAfterSessionEnd } from '#/shared/queries/tenant-cache-transition'
 import { invalidateShellContext } from '#/shared/queries/shell-context-cache'
-import { useThemeMode } from '#/components/hooks/use-theme-mode'
 import type { StaffHomeFns } from './types'
 
 const FeedbackBody = lazy(
@@ -35,7 +34,6 @@ export function StaffAccountMenu({ fns }: Readonly<{ fns: StaffHomeFns }>) {
   const [panel, setPanel] = useState<'password' | 'report' | null>(null)
   const client = useQueryClient()
   const navigate = useNavigate()
-  useThemeMode()
   const password = useActionMutation(fns.changePassword, {
     successMessage: 'Password updated',
     onSuccess: () => {
@@ -100,6 +98,7 @@ export function StaffAccountMenu({ fns }: Readonly<{ fns: StaffHomeFns }>) {
                 listFeedback={fns.listFeedback}
                 onReportsSeen={() => undefined}
                 initialPanel="report"
+                staff
               />
             </Suspense>
           )}
