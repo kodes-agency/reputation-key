@@ -1,4 +1,4 @@
-import type { StaffPeriod } from '../../domain/staff-results-window'
+import type { StaffPeriod, StaffResultsSeries } from '../../domain/staff-results-window'
 export type StaffResultsScope = Readonly<{
   organizationId: string
   propertyId: string
@@ -15,6 +15,7 @@ export type StaffResultsReader = Readonly<{
   ): Promise<
     Readonly<{
       scans: number
+      series: StaffResultsSeries | null
       ratingCount?: number
       averageRating?: number
       ratingsCutoff?: string
@@ -24,6 +25,8 @@ export type StaffResultsReader = Readonly<{
     scope: StaffResultsScope,
     portalIds: readonly string[],
     period: StaffPeriod,
+    /** The instant the period is measured at; `results` passes its own so its columns add up. */
+    now?: Date,
   ): Promise<ReadonlyMap<string, number>>
   goals(
     scope: StaffResultsScope,

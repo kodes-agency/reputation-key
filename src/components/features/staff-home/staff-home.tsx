@@ -1,3 +1,5 @@
+import { StaffSurface } from './staff-surface'
+import { StaffInstallContent, useStaffInstall } from './staff-install'
 import { StaffHomeView } from './staff-home-view'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { RegionError } from '#/components/ui/region-error'
@@ -33,6 +35,7 @@ export function StaffHome({
   fns: StaffHomeFns
   embedded?: boolean
 }>) {
+  const install = useStaffInstall(!embedded)
   const client = useQueryClient()
   useStaffRefusal()
   const liveHome = useQuery({
@@ -48,24 +51,46 @@ export function StaffHome({
   const participation = ownStaffParticipation(liveHome.data, search.p)
   if (liveHome.isError && !liveHome.data)
     return (
-      <RegionError
-        message={actionErrorMessage(liveHome.error)}
-        onRetry={() => void liveHome.refetch()}
-        retrying={liveHome.isFetching}
-      />
+      <StaffSurface embedded={embedded}>
+        <RegionError
+          message={actionErrorMessage(liveHome.error)}
+          onRetry={() => void liveHome.refetch()}
+          retrying={liveHome.isFetching}
+        />
+      </StaffSurface>
     )
-  if (!participation) return null
+  if (!participation)
+    return (
+      <StaffSurface embedded={embedded}>
+        <p className="staff-message">Your code is paused. Ask your manager.</p>
+      </StaffSurface>
+    )
   if (!participation.noticeAcknowledged)
     return (
-      <StaffNotice
-        pending={acknowledge.isPending}
-        error={acknowledge.error}
-        onAccept={() =>
-          void acknowledge({ data: { version: STAFF_NOTICE_VERSION } }).catch(
-            () => undefined,
-          )
-        }
-      />
+      <StaffSurface participation={participation} embedded={embedded}>
+        <StaffNotice
+          pending={acknowledge.isPending}
+          error={acknowledge.error}
+          onAccept={() =>
+            void acknowledge({ data: { version: STAFF_NOTICE_VERSION } }).catch(
+              () => undefined,
+            )
+          }
+        />
+      </StaffSurface>
+    )
+  if (install.kind)
+    return (
+      <StaffSurface participation={participation} embedded={embedded}>
+        <StaffInstallContent
+          kind={install.kind}
+          pending={install.pending}
+          error={install.error}
+          onShown={install.remember}
+          onInstall={() => void install.install()}
+          onSkip={install.finish}
+        />
+      </StaffSurface>
     )
   return (
     <StaffHomeView

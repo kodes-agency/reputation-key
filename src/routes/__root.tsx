@@ -50,7 +50,10 @@ export const Route = createRootRouteWithContext<{
           ]
         : []),
     ],
-    links: [{ rel: 'stylesheet', href: appCss }],
+    links: [
+      { rel: 'stylesheet', href: appCss },
+      { rel: 'icon', href: '/favicon.svg' },
+    ],
   }),
   shellComponent: RootDocument,
 })

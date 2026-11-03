@@ -25,6 +25,8 @@ describe('a page has one h1, drawn by a few components', () => {
   const ALLOWED: Readonly<Record<string, string>> = {
     'src/components/features/staff-home/staff-home-view.tsx':
       'the separate staff surface, also embedded as My code',
+    'src/components/features/staff-home/staff-install.tsx':
+      'the one-time home-screen step replaces the staff surface',
     'src/components/features/staff-home/staff-notice.tsx':
       'the full-screen first-arrival step replaces the staff surface',
     'src/components/layout/page-header.tsx': 'the page header of every page with one',

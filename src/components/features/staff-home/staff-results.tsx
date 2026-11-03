@@ -1,5 +1,12 @@
+import type { ReactNode } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { SegmentedControl } from '#/components/ui/segmented-control'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '#/components/ui/select'
 import { Skeleton } from '#/components/ui/skeleton'
 import { RegionError } from '#/components/ui/region-error'
 import { actionErrorMessage } from '#/components/hooks/use-action-mutation'
@@ -12,6 +19,7 @@ const PERIODS = [
   { value: 'today', label: 'Today' },
   { value: 'week', label: 'This week' },
   { value: 'month', label: 'This month' },
+  { value: 'last_month', label: 'Last month' },
 ]
 
 export function StaffResults({
@@ -19,11 +27,14 @@ export function StaffResults({
   period,
   onPeriod,
   fns,
+  children,
 }: Readonly<{
   participation: StaffParticipation
   period: StaffPeriod
   onPeriod: (period: StaffPeriod) => void
   fns: StaffHomeFns
+  /** Beside the period: the Property switch of someone at two. */
+  children?: ReactNode
 }>) {
   const { participationId, colleagueListEnabled } = participation
   const results = useStaffResults(fns.getMyResults, participationId, period)
@@ -43,16 +54,33 @@ export function StaffResults({
     refetchInterval: 30_000,
   })
   return (
-    <div className="space-y-6">
-      <SegmentedControl
-        aria-label="Period"
-        value={period}
-        options={PERIODS}
-        touch
-        onValueChange={(value) => {
-          if (value === 'today' || value === 'week' || value === 'month') onPeriod(value)
-        }}
-      />
+    <>
+      <div className="staff-results__controls">
+        <Select
+          value={period}
+          onValueChange={(value) => {
+            if (
+              value === 'today' ||
+              value === 'week' ||
+              value === 'month' ||
+              value === 'last_month'
+            )
+              onPeriod(value)
+          }}
+        >
+          <SelectTrigger aria-label="Period">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {PERIODS.map((option) => (
+              <SelectItem key={option.value} value={option.value}>
+                {option.label}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        {children}
+      </div>
       {results.isError ? (
         <RegionError
           message={actionErrorMessage(results.error)}
@@ -83,10 +111,13 @@ export function StaffResults({
             retrying={colleagues.isFetching}
           />
         ) : colleagues.data ? (
-          <StaffColleagues colleagues={colleagues.data.colleagues} />
+          <StaffColleagues
+            propertyName={participation.propertyName}
+            colleagues={colleagues.data.colleagues}
+          />
         ) : (
           <Skeleton className="h-24 w-full" />
         ))}
-    </div>
+    </>
   )
 }

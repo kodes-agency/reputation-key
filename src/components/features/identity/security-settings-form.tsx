@@ -45,14 +45,16 @@ export function SecuritySettingsForm({ changePassword, staff = false }: Props) {
     <div className="space-y-6">
       <form method="post" onSubmit={submitHandler(form)} className="space-y-6">
         <Card>
-          <CardHeader>
-            <CardTitle as="h2">Change password</CardTitle>
-            {!staff && (
-              <CardDescription>
-                Update your password to keep your account secure.
-              </CardDescription>
-            )}
-          </CardHeader>
+          {!staff && (
+            <CardHeader>
+              <CardTitle as="h2">Change password</CardTitle>
+              {!staff && (
+                <CardDescription>
+                  Update your password to keep your account secure.
+                </CardDescription>
+              )}
+            </CardHeader>
+          )}
           <CardContent className="space-y-6">
             <FieldGroup>
               <form.Field name="currentPassword">

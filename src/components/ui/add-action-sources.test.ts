@@ -16,6 +16,8 @@ const PLUS_IMPORT =
 
 const ALLOWED: Readonly<Record<string, string>> = {
   'src/components/ui/add-action.tsx': 'the primitive itself',
+  'src/components/features/staff-home/staff-install.tsx':
+    'pictures the iPhone’s own Add to Home Screen icon in a step, not a button',
   'src/components/features/integration/connect-google-button/connect-google-button.tsx':
     'the Google button draws the glyph for adding an account, as its own primitive',
   'src/components/features/portal/portal-new/portal-new-languages-field.tsx':

@@ -195,6 +195,13 @@ A restrained palette built on tinted violet-graphite neutrals with one deliberat
 
 ### Guest surface exception
 
+The staff phone's Code tab is the one other place the guest pair appears: a pass in
+the paper, type and scan band of the printed cards, on the hotel's dark colour, with
+the photo or the hotel's colour for its header. Guests look at it. My results, the
+notice and the home-screen step are product UI in the product's fonts, in the
+check-in pattern, following the phone's light or dark setting, with the hotel's
+accent on bars, the active tab and the main button.
+
 The public guest page (`/p/$token`, the Immersive Hub) is not product UI. It is a hospitality surface a guest sees for a few seconds on a phone, so it has its own pair and is exempt from the Three-Family Cap and the Fixed Scale Rule:
 
 - **Display:** Cormorant Garamond (600, and 500 italic), `--font-guest-display`.

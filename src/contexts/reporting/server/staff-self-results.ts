@@ -9,14 +9,17 @@ import { tracedHandler } from '#/shared/observability/traced-server-fn'
 import { requireOwnParticipation, resolveStaffSelfContext } from './staff-self-context'
 
 const periodInput = z
-  .object({ participationId: z.uuid(), period: z.enum(['today', 'week', 'month']) })
+  .object({
+    participationId: z.uuid(),
+    period: z.enum(['today', 'week', 'month', 'last_month']),
+  })
   .strict()
 
 export const getMyResultsHandler = createServerOnlyFn(
   async ({
     data,
   }: {
-    data: { participationId: string; period: 'today' | 'week' | 'month' }
+    data: { participationId: string; period: 'today' | 'week' | 'month' | 'last_month' }
   }) => {
     setResponseHeader('Cache-Control', 'private, no-store')
     const { ctx, person } = await resolveStaffSelfContext(await headersFromContext())
@@ -33,6 +36,7 @@ export const getMyResultsHandler = createServerOnlyFn(
     )
     return {
       scans: result.scans,
+      series: result.series,
       ...(data.period === 'today'
         ? {}
         : {
@@ -85,7 +89,7 @@ export const getMyColleaguesHandler = createServerOnlyFn(
   async ({
     data,
   }: {
-    data: { participationId: string; period: 'today' | 'week' | 'month' }
+    data: { participationId: string; period: 'today' | 'week' | 'month' | 'last_month' }
   }) => {
     setResponseHeader('Cache-Control', 'private, no-store')
     const { ctx, person } = await resolveStaffSelfContext(await headersFromContext())

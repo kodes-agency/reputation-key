@@ -98,6 +98,19 @@ describe('staff routes', () => {
       links: expect.arrayContaining([{ rel: 'manifest', href: '/staff.webmanifest' }]),
     })
     expect(MyCodeRoute.options.head).toBeUndefined()
+    expect(MyRoute.options.head?.({} as never)).toMatchObject({
+      links: expect.arrayContaining([
+        { rel: 'apple-touch-icon', href: '/icons/apple-touch-icon.png' },
+      ]),
+    })
+    expect(MyRoute.options.head?.({} as never)).toMatchObject({
+      meta: expect.arrayContaining([
+        {
+          name: 'viewport',
+          content: 'width=device-width, initial-scale=1, viewport-fit=cover',
+        },
+      ]),
+    })
     expect(MyLazy.options.component).toBeTypeOf('function')
     expect(MyCodeLazy.options.component).toBeTypeOf('function')
     expect(staffHomeFns.getMyStaffHome).toBe(mocks.home)

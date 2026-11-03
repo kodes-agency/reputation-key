@@ -4,6 +4,7 @@ import { describe, expect, it } from 'vitest'
 import { EMAIL_PALETTE, EMAIL_SIGNATURE } from './layout'
 import { composeText, textFacts } from './plain-text'
 import {
+  renderStaffCodeReadyEmail,
   renderInvitationEmail,
   renderPasswordResetEmail,
   renderVerificationEmail,
@@ -214,4 +215,30 @@ describe('composeText', () => {
       'Riverside Hotel · 2/5 review',
     )
   })
+})
+
+it('keeps the permanent code link in both staff emails and out of manager invitations', () => {
+  const content = {
+    invitedByUsername: 'Ada',
+    organizationName: 'Harbor',
+    inviteLink: 'https://app.test/accept-invitation?id=one',
+    role: 'Member' as const,
+    propertyNames: ['Harbor'],
+    expiresInDays: 7,
+  }
+  const staff = renderInvitationEmail(content)
+  const ready = renderStaffCodeReadyEmail(
+    'Harbor',
+    'https://app.test/login?redirect=%2Fmy',
+  )
+  for (const email of [staff, ready]) {
+    expect(email.text).toMatch(
+      /This link always opens your code:|this link always opens your code:/u,
+    )
+    expect(email.text).toContain('https://app.test/my')
+    expect(email.html).toContain('href="https://app.test/my"')
+  }
+  expect(
+    renderInvitationEmail({ ...content, role: 'PropertyManager' }).text,
+  ).not.toContain('https://app.test/my')
 })

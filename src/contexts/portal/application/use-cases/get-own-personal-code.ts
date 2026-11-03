@@ -1,3 +1,8 @@
+import {
+  personalPortalLook,
+  personalPortalWords,
+  type PersonalPortalPresentationDeps,
+} from '../personal-portal-presentation'
 import type { PropertyLifecyclePublicApi } from '#/contexts/property/application/public-api'
 import type { AuthContext } from '#/shared/domain/auth-context'
 import { canForContext } from '#/shared/domain/permissions'
@@ -11,6 +16,7 @@ import {
 export const getOwnPersonalCode =
   (
     deps: RevealPortalAddressDeps &
+      PersonalPortalPresentationDeps &
       Readonly<{ propertyLifecycleApi: PropertyLifecyclePublicApi }>,
   ) =>
   async (input: Readonly<{ portalId: string }>, ctx: AuthContext) => {
@@ -56,5 +62,29 @@ export const getOwnPersonalCode =
       state: 'live' as const,
       qr: address.publicUrls.qr,
       wordingKey: portal.primaryGuestLocale,
+      ...(await personalPortalWords(deps, portal, portal.primaryGuestLocale)),
     }
+  }
+
+export const getOwnPersonalLook =
+  (deps: RevealPortalAddressDeps & PersonalPortalPresentationDeps) =>
+  async (input: Readonly<{ portalId: string; paused?: boolean }>, ctx: AuthContext) => {
+    if (!canForContext(ctx, 'staff.self'))
+      throw portalError('forbidden', 'This account has no staff code access')
+    const portal = await deps.portalRepo.findById(
+      ctx.organizationId,
+      portalId(input.portalId),
+    )
+    if (!portal || portal.kind !== 'personal')
+      throw portalError('forbidden', 'Choose your own personal Portal')
+    const owned = await deps.staffPublicApi.getAssignedPortals(
+      { userId: ctx.userId, propertyId: portal.propertyId },
+      ctx,
+    )
+    if (!owned.includes(portal.id))
+      throw portalError('forbidden', 'Choose your own personal Portal')
+    return personalPortalLook(
+      deps,
+      input.paused ? { ...portal, publicationState: 'disabled' } : portal,
+    )
   }

@@ -1,3 +1,5 @@
+import { ChartColumn, QrCode } from 'lucide-react'
+import { StaffSurface } from './staff-surface'
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '#/components/ui/tabs'
 import {
   Select,
@@ -15,6 +17,7 @@ import type {
   StaffHomeSearch,
   StaffParticipation,
 } from './types'
+
 export function StaffHomeView({
   home,
   participation,
@@ -30,69 +33,79 @@ export function StaffHomeView({
   fns: StaffHomeFns
   embedded: boolean
 }>) {
+  const properties =
+    home.participations.length > 1 ? (
+      <Select
+        value={participation.participationId}
+        onValueChange={(p) => onSearch({ ...search, p })}
+      >
+        <SelectTrigger aria-label="Property">
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent>
+          {home.participations.map((row) => (
+            <SelectItem key={row.participationId} value={row.participationId}>
+              {row.propertyName}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+    ) : null
   return (
-    <div
-      className={
-        embedded
-          ? 'mx-auto flex min-h-[70svh] w-full max-w-md flex-col'
-          : 'mx-auto flex min-h-svh w-full max-w-md flex-col'
-      }
-    >
-      <header className="flex min-w-0 items-center justify-between gap-3 border-b px-4 py-2">
-        {home.participations.length > 1 ? (
-          <Select
-            value={participation.participationId}
-            onValueChange={(p) => onSearch({ ...search, p, tab: 'code' })}
-          >
-            <SelectTrigger variant="property" aria-label="Property">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {home.participations.map((row) => (
-                <SelectItem key={row.participationId} value={row.participationId}>
-                  {row.propertyName}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        ) : (
-          <p className="min-w-0 break-words font-semibold">
-            {participation.propertyName}
-          </p>
-        )}
-        <StaffAccountMenu fns={fns} />
-      </header>
-      <h1 className="sr-only">My code</h1>
+    <StaffSurface participation={participation} tab={search.tab} embedded={embedded}>
       <Tabs
         value={search.tab}
         onValueChange={(tab) => {
           if (tab === 'code' || tab === 'results') onSearch({ ...search, tab })
         }}
-        className="flex-1"
+        className="staff-home__tabs"
       >
-        <div className="flex flex-1 flex-col justify-center p-4">
-          <TabsContent value="code" placement="center">
-            <StaffCode
-              key={participation.participationId}
-              participationId={participation.participationId}
-              propertyName={participation.propertyName}
-              read={fns.getMyCode}
-            />
+        <div className="staff-home__panels">
+          <TabsContent value="code">
+            <h1 className="sr-only">My code</h1>
+            <div
+              className="staff-code__frame"
+              data-switch={properties ? true : undefined}
+            >
+              {properties}
+              <StaffCode
+                key={participation.participationId}
+                participationId={participation.participationId}
+                look={participation.look}
+                name={participation.propertyName}
+                read={fns.getMyCode}
+                paused={participation.portalState === 'paused'}
+              />
+            </div>
           </TabsContent>
-          <TabsContent value="results">
-            <StaffResults
-              participation={participation}
-              period={search.period}
-              onPeriod={(period) => onSearch({ ...search, period })}
-              fns={fns}
-            />
+          <TabsContent value="results" data-results>
+            <div className="staff-results">
+              <header className="staff-results__head">
+                <h1 className="staff-results__title">My results</h1>
+                <StaffAccountMenu fns={fns} />
+              </header>
+              <StaffResults
+                participation={participation}
+                period={search.period}
+                onPeriod={(period) => onSearch({ ...search, period })}
+                fns={fns}
+              >
+                {properties}
+              </StaffResults>
+            </div>
           </TabsContent>
         </div>
         <TabsList variant="bottom" aria-label="Your code and results">
-          <TabsTrigger value="code">Code</TabsTrigger>
-          <TabsTrigger value="results">My results</TabsTrigger>
+          <TabsTrigger value="code">
+            <QrCode aria-hidden="true" />
+            Code
+          </TabsTrigger>
+          <TabsTrigger value="results">
+            <ChartColumn aria-hidden="true" />
+            My results
+          </TabsTrigger>
         </TabsList>
       </Tabs>
-    </div>
+    </StaffSurface>
   )
 }

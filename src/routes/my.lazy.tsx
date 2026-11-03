@@ -10,15 +10,13 @@ function StaffHomePage() {
   const search = staffHomeSearch(Route.useSearch())
   const navigate = Route.useNavigate()
   return (
-    <main>
-      <StaffHome
-        userId={staffUserId}
-        home={staffHome}
-        search={search}
-        fns={staffHomeFns}
-        embedded={false}
-        onSearch={(next) => void navigate({ search: next, replace: true })}
-      />
-    </main>
+    <StaffHome
+      userId={staffUserId}
+      home={staffHome}
+      search={search}
+      fns={staffHomeFns}
+      embedded={false}
+      onSearch={(next) => void navigate({ search: next, replace: true })}
+    />
   )
 }

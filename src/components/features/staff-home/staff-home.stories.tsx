@@ -1,51 +1,15 @@
-import { useState, useRef } from 'react'
 import type { Meta, StoryObj } from '@storybook/react'
 import { expect, within, userEvent } from 'storybook/test'
-import { StaffHome } from './index'
+import { StaffStoryScreen } from './staff-story-screen'
 import {
   STAFF_HOME_FIXTURE,
   STAFF_HOME_FNS,
   STAFF_RESULTS_FIXTURE,
 } from './staff-home-fixtures'
-import type { StaffHomeData, StaffHomeFns, StaffHomeSearch } from './types'
 
-type StoryProps = Readonly<{
-  width: number
-  tab: 'code' | 'results'
-  period: StaffHomeSearch['period']
-  home: StaffHomeData
-  fns: StaffHomeFns
-}>
-function Screen({ width, tab, period, home, fns }: StoryProps) {
-  const [search, setSearch] = useState<StaffHomeSearch>({ tab, period })
-  const acknowledged = useRef(false)
-  return (
-    <div style={{ width, maxWidth: '100%' }}>
-      <StaffHome
-        userId="polly"
-        home={home}
-        search={search}
-        onSearch={setSearch}
-        fns={{
-          ...fns,
-          getMyStaffHome: async () => ({
-            participations: home.participations.map((row) => ({
-              ...row,
-              noticeAcknowledged: acknowledged.current || row.noticeAcknowledged,
-            })),
-          }),
-          acknowledgeStaffNotice: async () => {
-            acknowledged.current = true
-            return { acknowledged: true }
-          },
-        }}
-      />
-    </div>
-  )
-}
 const meta = {
   title: 'Staff/Home',
-  component: Screen,
+  component: StaffStoryScreen,
   parameters: { layout: 'fullscreen', viewport: { defaultViewport: 'mobileStaff' } },
   args: {
     width: 375,
@@ -54,7 +18,7 @@ const meta = {
     home: STAFF_HOME_FIXTURE,
     fns: STAFF_HOME_FNS,
   },
-} satisfies Meta<typeof Screen>
+} satisfies Meta<typeof StaffStoryScreen>
 export default meta
 type Story = StoryObj<typeof meta>
 export const Code: Story = {
@@ -64,6 +28,8 @@ export const Code: Story = {
       await canvas.findByRole('img', { name: 'Code for guests to scan' }),
     ).toBeVisible()
     await expect(canvas.queryByText('scans')).not.toBeInTheDocument()
+    await expect(document.head.querySelector('meta[name="theme-color"]')).not.toBeNull()
+    await expect(canvasElement.querySelector('main.staff-phone')).not.toBeNull()
   },
 }
 export const Code320: Story = {
@@ -77,6 +43,14 @@ export const Code768: Story = {
 export const Code1440: Story = {
   args: { width: 1440 },
   parameters: { viewport: { defaultViewport: 'desktopManager' } },
+}
+export const InTheManagerShell: Story = {
+  args: { width: 960, embedded: true },
+  play: async ({ canvasElement }) => {
+    await within(canvasElement).findByRole('img', { name: 'Code for guests to scan' })
+    await expect(document.head.querySelector('meta[name="theme-color"]')).toBeNull()
+    await expect(canvasElement.querySelector('main.staff-phone')).toBeNull()
+  },
 }
 export const Paused: Story = {
   args: { fns: { ...STAFF_HOME_FNS, getMyCode: async () => ({ state: 'paused' }) } },
@@ -101,9 +75,9 @@ export const WeekBelowFive: Story = {
   args: { tab: 'results', period: 'week' },
   play: async ({ canvasElement }) => {
     await expect(
-      await within(canvasElement).findByText('average, from 5 ratings'),
+      await within(canvasElement).findByText(/Average shows after 5 ratings/u),
     ).toBeVisible()
-    await expect(within(canvasElement).getByText('–')).toBeVisible()
+    await expect(within(canvasElement).getByText('3 ratings so far')).toBeVisible()
   },
 }
 export const Month: Story = { args: { tab: 'results' } }
@@ -178,6 +152,12 @@ export const TwoProperties: Story = {
           ...STAFF_HOME_FIXTURE.participations[0]!,
           participationId: '22222222-2222-4222-8222-222222222222',
           propertyName: 'Harbor Spa',
+          look: {
+            ...STAFF_HOME_FIXTURE.participations[0]!.look,
+            wordmark: 'Spa',
+            accentColour: '#CDB4F0',
+            fieldColour: '',
+          },
         },
       ],
     },
@@ -186,6 +166,17 @@ export const TwoProperties: Story = {
     await expect(
       within(canvasElement).getByRole('combobox', { name: 'Property' }),
     ).toBeVisible()
+    await userEvent.click(
+      within(canvasElement).getByRole('combobox', { name: 'Property' }),
+    )
+    await userEvent.click(
+      within(canvasElement.ownerDocument.body).getByRole('option', {
+        name: 'Harbor Spa',
+      }),
+    )
+    await expect(canvasElement.querySelector('.staff-phone')).toHaveStyle({
+      '--staff-accent-dark': '#CDB4F0',
+    })
   },
 }
 export const TwoProperties320: Story = {
@@ -222,11 +213,44 @@ export const PeriodChanges: Story = {
   args: { tab: 'results' },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
-    await expect(await canvas.findByText('4.6')).toBeVisible()
-    await userEvent.click(canvas.getByRole('radio', { name: 'Today' }))
+    const page = within(canvasElement.ownerDocument.body)
+    const choose = async (name: string) => {
+      await userEvent.click(canvas.getByRole('combobox', { name: 'Period' }))
+      await userEvent.click(await page.findByRole('option', { name }))
+    }
+    await expect(await canvas.findByText('4.6★ from 12 ratings')).toBeVisible()
+    await choose('Today')
     await expect(await canvas.findByText('Ratings update each morning.')).toBeVisible()
-    await userEvent.click(canvas.getByRole('radio', { name: 'This week' }))
-    await expect(await canvas.findByText('average, from 5 ratings')).toBeVisible()
-    await expect(canvas.queryByText('4.6')).not.toBeInTheDocument()
+    await choose('This week')
+    await expect(await canvas.findByText(/Average shows after 5 ratings/u)).toBeVisible()
+    await expect(canvas.queryByText('4.6★ from 12 ratings')).not.toBeInTheDocument()
+  },
+}
+
+export const PasswordDialog: Story = {
+  args: { tab: 'results' },
+  play: async ({ canvasElement }) => {
+    const page = within(canvasElement.ownerDocument.body)
+    await userEvent.click(page.getByRole('button', { name: 'Account menu' }))
+    await userEvent.click(page.getByRole('menuitem', { name: 'Change password' }))
+    const dialog = await page.findByRole('dialog', { name: 'Change password' })
+    await expect(
+      within(dialog).getAllByRole('heading', { name: 'Change password' }),
+    ).toHaveLength(1)
+    await expect(within(dialog).getByLabelText('Current password')).toBeVisible()
+  },
+}
+export const ReportDialog: Story = {
+  args: { tab: 'results' },
+  play: async ({ canvasElement }) => {
+    const page = within(canvasElement.ownerDocument.body)
+    await userEvent.click(page.getByRole('button', { name: 'Account menu' }))
+    await userEvent.click(page.getByRole('menuitem', { name: 'Report a problem' }))
+    const dialog = await page.findByRole('dialog', { name: 'Report a problem' })
+    // The form is a lazy chunk, which a cold test server may take a while to compile.
+    await expect(
+      await within(dialog).findByText(/We send what you write/u, {}, { timeout: 15_000 }),
+    ).toBeVisible()
+    await expect(within(dialog).queryByText(/opaque receipt/u)).not.toBeInTheDocument()
   },
 }

@@ -102,6 +102,10 @@ test('a staff invitation, a guest scan, closed manager routes and removal', asyn
       staffPage.getByRole('img', { name: 'Code for guests to scan' }),
     ).toHaveCount(0)
     await staffPage.getByRole('button', { name: 'Got it' }).click()
+    const skip = staffPage.getByRole('button', { name: /^(?:Done|Not now)$/u })
+    const symbol = staffPage.getByRole('img', { name: 'Code for guests to scan' })
+    await expect(skip.or(symbol)).toBeVisible()
+    if (await skip.isVisible()) await skip.click()
     await expect(
       staffPage.getByRole('img', { name: 'Code for guests to scan' }),
     ).toHaveAttribute('src', /^data:image\/png;base64,/u)
@@ -131,7 +135,8 @@ test('a staff invitation, a guest scan, closed manager routes and removal', asyn
     await guest.goto(code.qr)
     await expect(guest.getByRole('radio').first()).toBeVisible()
     await staffPage.getByRole('tab', { name: 'My results', exact: true }).click()
-    await staffPage.getByRole('radio', { name: 'Today', exact: true }).click()
+    await staffPage.getByRole('combobox', { name: 'Period' }).click()
+    await staffPage.getByRole('option', { name: 'Today', exact: true }).click()
     await waitFor(
       async () =>
         (
@@ -144,10 +149,9 @@ test('a staff invitation, a guest scan, closed manager routes and removal', asyn
         before.scans + 1,
       { description: 'guest scan reaches own staff results' },
     )
-    await expect(staffPage.getByLabel('Your scans')).toContainText(
-      String(before.scans + 1),
-      { timeout: 45_000 },
-    )
+    await expect(
+      staffPage.getByRole('region', { name: 'Are guests scanning your code?' }),
+    ).toContainText(`${before.scans + 1} guest`, { timeout: 45_000 })
     for (const path of ['/dashboard', '/inbox', `/properties/${seed.propertyId}`]) {
       await staffPage.goto(path)
       await expect(staffPage).toHaveURL(/\/my(?:\?|$)/u)

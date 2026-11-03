@@ -1,50 +1,53 @@
+import { Ban, Eye, Star, UsersRound } from 'lucide-react'
 import { Button } from '#/components/ui/button'
 import { InlineLink } from '#/components/ui/inline-link'
-import { Dialog, DialogContent, DialogTitle } from '#/components/ui/dialog'
 import { FormErrorBanner } from '#/components/forms/form-error-banner'
 
 type Props = Readonly<{ pending: boolean; error: unknown; onAccept: () => void }>
 
+const LINES = [
+  {
+    icon: <UsersRound />,
+    text: 'Offer your code to every guest, not only those who seem happy.',
+  },
+  {
+    icon: <Ban />,
+    text: 'Never ask for a good rating, or for a guest to mention you.',
+  },
+  {
+    icon: <Star />,
+    text: "You aren't rewarded for high ratings. A high rating from very few guests, or no scans for a while, may prompt a chat.",
+  },
+  {
+    icon: <Eye />,
+    text: 'Your managers see your ratings and scans, the private notes guests leave through your code, and how many guests opened Google. If your manager turns on the staff list, colleagues here can see your scan count.',
+  },
+]
+
 export function StaffNotice(props: Props) {
-  return (
-    <Dialog open>
-      <DialogContent
-        presentation="screen"
-        showCloseButton={false}
-        aria-describedby={undefined}
-        onEscapeKeyDown={(event) => event.preventDefault()}
-        onPointerDownOutside={(event) => event.preventDefault()}
-      >
-        <StaffNoticeContent {...props} />
-      </DialogContent>
-    </Dialog>
-  )
+  return <StaffNoticeContent {...props} />
 }
 
 export function StaffNoticeContent({ pending, error, onAccept }: Props) {
   return (
-    <section className="my-auto py-8">
-      <div className="mx-auto flex min-h-full max-w-md flex-col justify-center gap-6">
-        <DialogTitle asChild>
-          <h1 className="text-xl font-semibold">Before you start</h1>
-        </DialogTitle>
-        <p>
-          Offer your code to every guest, not only those who seem happy. Never ask for a
-          good rating, or for a guest to mention you.
-        </p>
-        <p>
-          You aren't rewarded for high ratings. Your manager looks at ratings and scans
-          together, so a high rating from very few guests may prompt a chat.
-        </p>
-        <p>
-          Your manager can also see your notes and Google visits. Staff here may see your
-          scan count.
-        </p>
+    <section className="staff-step">
+      <h1 className="staff-step__title">Before you start</h1>
+      <ul className="staff-step__list">
+        {LINES.map((line) => (
+          <li key={line.text}>
+            <span className="staff-step__glyph" aria-hidden="true">
+              {line.icon}
+            </span>
+            <span>{line.text}</span>
+          </li>
+        ))}
+      </ul>
+      <div className="staff-step__foot">
         <FormErrorBanner error={error} />
         <Button pending={pending} pendingLabel="Saving…" onClick={onAccept}>
           Got it
         </Button>
-        <InlineLink to="/privacy">Privacy Notice</InlineLink>
+        <InlineLink to="/privacy">Privacy notice</InlineLink>
       </div>
     </section>
   )

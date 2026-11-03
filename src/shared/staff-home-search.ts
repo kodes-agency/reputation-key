@@ -1,7 +1,7 @@
 export type StaffHomeSearch = Readonly<{
   p?: string
   tab: 'code' | 'results'
-  period: 'today' | 'week' | 'month'
+  period: 'today' | 'week' | 'month' | 'last_month'
 }>
 
 export function staffHomeSearch(search: Record<string, unknown>): StaffHomeSearch {
@@ -9,7 +9,11 @@ export function staffHomeSearch(search: Record<string, unknown>): StaffHomeSearc
     p: typeof search.p === 'string' ? search.p : undefined,
     tab: search.tab === 'results' ? 'results' : 'code',
     period:
-      search.period === 'today' || search.period === 'week' ? search.period : 'month',
+      search.period === 'today' ||
+      search.period === 'week' ||
+      search.period === 'last_month'
+        ? search.period
+        : 'month',
   }
 }
 

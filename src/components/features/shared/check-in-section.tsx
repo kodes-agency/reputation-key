@@ -74,7 +74,7 @@ export function CheckInSection({
         {aside}
         {footer}
       </div>
-      <div className="min-w-0 px-4 py-2">{children}</div>
+      {children ? <div className="min-w-0 px-4 py-2">{children}</div> : null}
     </section>
   )
 }

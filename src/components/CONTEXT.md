@@ -780,13 +780,29 @@ uses ExplainTrigger with its touch target variant. Staff settings use SettingSwi
 `features/staff-home/` is the canonical personal Code and My results family,
 shared by `/my` and the manager's My code. It receives its server functions
 from the lazy route bundle. `StaffHome` owns the small Property/account bar,
-the full-screen modal notice (`DialogContent presentation="screen"`, no dismissal before acknowledgement) and URL-backed bottom `Tabs` (`bottom` variant, 44px targets).
-`StaffCode` draws only through `portal-qr.ts`, refreshes on focus and hides an
-old symbol during refresh or refusal. `useScreenWakeLock` is best-effort and
+the first-arrival notice (no dismissal before acknowledgement) and URL-backed bottom `Tabs` (44px targets).
+`StaffCode` draws only through `portal-qr.ts` and retains the code and its image in
+memory while it checks on return or focus. Failed checks retain it; Paused and
+access refusal clear it. A fresh app open still requires a signal. `useScreenWakeLock` is best-effort and
 releases pending locks when leaving Code.
 
-Results use `SegmentedControl`, the `MetricStrip` `personal` variant for scans,
-`GoalMeter` without pace and a plain colleague list in server order. Ratings
+The Code tab is the Pass (`StaffPass`): one paper card on the hotel's dark colour,
+in the printed cards' bar colours and scan band, and the only place on this phone
+with the guest type pair (DESIGN.md). Its header is the published photo, else the
+hotel's colour, and it names the hotel with the logo, else the name. Sideways it
+is a two-part ticket, sized by container query against the phone's own height.
+`staff-look.ts` works the colours out with the guest page's and print's own helpers,
+from the Look the person's Portal has published; there is no setting of its own.
+Nothing here wears the guest page's glass. The look only dresses the page: a look
+that can't be read falls back to the default rather than closing the home. The
+one-time install step remembers this device, comes after the notice, never appears
+inside the manager shell, and is not offered later than a few seconds after opening,
+so it can't take the screen from a guest who is scanning.
+
+Results follow the phone's light or dark setting, in the canonical `CheckInSection`,
+`GoalColumns` and `GoalMeter`, re-tinted by overriding `--primary`, `--chart-1` and
+`--ring`; `staff-results-words.ts` says the plain answer. A `Select` picks the period.
+The colleague list stays in server order. Ratings
 are cached under the server's returned `ratingsCutoff`; the browser never
 works out a Property's day. Staff account actions reuse the password form
 (`staff` omits its coaching) and the existing beta feedback dialog body through

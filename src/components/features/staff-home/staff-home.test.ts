@@ -8,6 +8,10 @@ import { StaffNoticeContent } from './staff-notice'
 import { ownStaffParticipation } from './staff-home'
 import type { StaffResults as StaffResultsData } from './types'
 import { StaffHome } from './index'
+import { StaffSurface } from './staff-surface'
+import { StaffPass } from './staff-pass'
+import { STAFF_SURFACE_CSS } from './staff-surface-styles'
+import { StaffStoryScreen } from './staff-story-screen'
 import { StaffCode, StaffCodeTile, StaffCodeView } from './staff-code'
 import { StaffAccountMenu } from './staff-account-menu'
 import { StaffResults } from './staff-results'
@@ -25,6 +29,7 @@ vi.mock('#/components/ui/inline-link', () => ({
     createElement('a', { href: to }, children as never),
 }))
 
+const LOOK = STAFF_HOME_FIXTURE.participations[0]!.look
 const render = (
   period: 'today' | 'week' | 'month',
   results: StaffResultsData = STAFF_RESULTS_FIXTURE,
@@ -33,12 +38,21 @@ describe('staff home views', () => {
   it('shows a live code tile in its guest language without a guest link or address', () => {
     const html = renderToStaticMarkup(
       createElement(StaffCodeTile, {
-        qr: 'https://example.com/p/secret',
-        wordingKey: 'bg',
-        propertyName: 'Harbor Hotel',
+        code: {
+          state: 'live',
+          qr: 'https://example.com/p/secret',
+          wordingKey: 'bg',
+          headline: 'Как мина престоят ви?',
+          subline: 'Сподели',
+          cue: 'Сканирайте с камерата',
+        },
+        look: LOOK,
+        name: 'Harbor Hotel',
       }),
     )
     expect(html).toContain('Как мина престоят ви?')
+    expect(html).toContain('Сподели')
+    expect(html).toContain('Сканирайте с камерата')
     expect(html).toContain('Harbor Hotel')
     expect(html).not.toContain('secret')
     expect(html).not.toContain('<a ')
@@ -46,7 +60,11 @@ describe('staff home views', () => {
   })
   it('replaces a paused code with its one plain sentence', () => {
     const html = renderToStaticMarkup(
-      createElement(StaffCodeView, { code: { state: 'paused' }, propertyName: 'Harbor' }),
+      createElement(StaffCodeView, {
+        code: { state: 'paused' },
+        look: LOOK,
+        name: 'Harbor',
+      }),
     )
     expect(html).toContain('Your code is paused. Ask your manager.')
     expect(html).not.toContain('<img')
@@ -63,13 +81,26 @@ describe('staff home views', () => {
       ratingCount: 3,
       averageRating: undefined,
     })
-    expect(html).toContain('>–<')
-    expect(html).toContain('average, from 5 ratings')
+    expect(html).toContain('3 ratings so far')
+    expect(html).toContain('Average shows after 5 ratings')
     expect(html).toContain('Up to last night')
   })
   it('shows the month numbers, including real zeroes', () => {
-    expect(render('month')).toContain('4.6')
-    expect(render('month', { ...STAFF_RESULTS_FIXTURE, scans: 0 })).toContain('>0<')
+    expect(render('month')).toContain('Yes, 47 guests this month')
+    expect(render('month')).toContain('4.6★ from 12 ratings')
+    expect(render('month', { ...STAFF_RESULTS_FIXTURE, scans: 0 })).toContain(
+      'Not yet this month',
+    )
+  })
+  it('shows the completed previous month without the midnight note', () => {
+    const html = renderToStaticMarkup(
+      createElement(StaffResultsView, {
+        period: 'last_month',
+        results: STAFF_RESULTS_FIXTURE,
+      }),
+    )
+    expect(html).toContain('4.6')
+    expect(html).not.toContain('Up to last night')
   })
   it('omits an empty goal section and keeps scan meters neutral', () => {
     expect(renderToStaticMarkup(createElement(StaffGoals, { goals: [] }))).toBe('')
@@ -78,7 +109,8 @@ describe('staff home views', () => {
         goals: [{ id: 'g', name: '', scans: 47, target: 60 }],
       }),
     )
-    expect(html).toContain('Your goal')
+    expect(html).toContain('13 scans to go this month')
+    expect(html).toContain('Your goal this month')
     expect(html).toContain('47 of 60 scans')
     expect(html).toContain('role="progressbar"')
     expect(html).not.toMatch(/\bpace\b|\bahead\b|\bbehind\b|well done/iu)
@@ -112,7 +144,9 @@ describe('staff home views', () => {
     expect(html).toContain(
       'Offer your code to every guest, not only those who seem happy.',
     )
-    expect(html).toContain('Staff here may see your scan count.')
+    expect(html).toContain(
+      'If your manager turns on the staff list, colleagues here can see your scan count.',
+    )
     expect(html).toContain('Got it')
   })
   it('uses only an owned participation and defaults to Code and this month', () => {
@@ -174,9 +208,13 @@ describe('staff home views', () => {
     }
   })
   it('exports the mounted feature parts', () => {
+    expect(STAFF_SURFACE_CSS).toContain('100dvh')
     expect(
       [
         StaffHome,
+        StaffSurface,
+        StaffPass,
+        StaffStoryScreen,
         StaffCode,
         StaffCodeTile,
         StaffCodeView,

@@ -6,9 +6,38 @@ import { getContainer } from '#/composition'
 import { headersFromContext } from '#/shared/auth/headers'
 import { requireExecutionAllowed } from '#/shared/auth/execution-policy'
 import { throwContextError } from '#/shared/auth/server-errors'
+import { captureObservabilityException } from '#/shared/observability/telemetry'
 import { tracedHandler } from '#/shared/observability/traced-server-fn'
+import type { AuthContext } from '#/shared/domain/auth-context'
 import { STAFF_NOTICE_VERSION } from '../domain/staff-account'
 import { requireOwnParticipation, resolveStaffSelfContext } from './staff-self-context'
+
+const NO_LOOK = {
+  displayName: '',
+  wordmark: null,
+  logo: null,
+  hero: null,
+  accentColour: '',
+  fieldColour: '',
+}
+
+/** The look only dresses the home, so failing to read it must not take the home away. */
+async function ownLookOrNone(
+  row: Readonly<{ portalId: string; propertyActive: boolean }>,
+  ctx: AuthContext,
+) {
+  try {
+    return await getContainer().portalPublicApi.management.getOwnPersonalLook(
+      { portalId: row.portalId, paused: !row.propertyActive },
+      ctx,
+    )
+  } catch (error) {
+    // `forbidden` is a Portal not yet this person's, mid-setup. Anything else is a fault.
+    if ((error as { code?: unknown } | null)?.code !== 'forbidden')
+      captureObservabilityException(error, { source: 'nitro' })
+    return NO_LOOK
+  }
+}
 
 export const getMyStaffHomeHandler = createServerOnlyFn(async () => {
   setResponseHeader('Cache-Control', 'private, no-store')
@@ -19,13 +48,19 @@ export const getMyStaffHomeHandler = createServerOnlyFn(async () => {
     capability: 'staff.accounts',
   })
   return {
-    participations: person.participations.map((row) => ({
-      participationId: row.participationId,
-      propertyName: row.propertyName,
-      portalState: row.portalState,
-      noticeAcknowledged: person.noticeVersion === STAFF_NOTICE_VERSION,
-      colleagueListEnabled: row.colleagueListEnabled,
-    })),
+    participations: await Promise.all(
+      person.participations.map(async (row) => {
+        const look = await ownLookOrNone(row, ctx)
+        return {
+          participationId: row.participationId,
+          look,
+          propertyName: look.displayName || row.propertyName,
+          portalState: row.portalState,
+          noticeAcknowledged: person.noticeVersion === STAFF_NOTICE_VERSION,
+          colleagueListEnabled: row.colleagueListEnabled,
+        }
+      }),
+    ),
   }
 })
 
@@ -67,7 +102,14 @@ export const getMyCodeHandler = createServerOnlyFn(
       )
       return code.state === 'paused'
         ? { state: 'paused' as const }
-        : { state: 'live' as const, qr: code.qr, wordingKey: code.wordingKey }
+        : {
+            state: 'live' as const,
+            qr: code.qr,
+            wordingKey: code.wordingKey,
+            headline: code.headline,
+            subline: code.subline,
+            cue: code.cue,
+          }
     } catch (error) {
       rethrowStaffAccount(error)
     }

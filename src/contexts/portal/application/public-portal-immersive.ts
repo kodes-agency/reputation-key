@@ -47,6 +47,24 @@ function mediaOf(
     : null
 }
 
+export function presentImmersiveBrand(
+  brand: ImmersivePortalPublicationConfiguration['brandProfile'],
+  urls: ServableMediaUrls,
+): PublicImmersiveExperience['brand'] {
+  const hero = mediaOf(brand.hero, urls)
+  return {
+    displayName: brand.displayName,
+    wordmark: brand.wordmark,
+    accentColour: brand.accentColour,
+    fieldColour: brand.fieldColour,
+    logo: mediaOf(brand.logo, urls),
+    hero:
+      hero && brand.hero
+        ? { ...hero, focalX: brand.hero.focalX, focalY: brand.hero.focalY }
+        : null,
+  }
+}
+
 type LocalizedLink = Readonly<{
   link: ImmersiveLink
   text: NonNullable<ImmersiveLink['texts'][PortalGuestLocale]>
@@ -88,23 +106,12 @@ export function presentImmersivePortal(
   const links = localizedLinks(approvedLinks, locale)
   if (!content || !links) return null
   const brand = configuration.brandProfile
-  const logo = mediaOf(brand.logo, mediaUrls)
-  const heroMedia = mediaOf(brand.hero, mediaUrls)
-  const hero =
-    brand.hero && heroMedia
-      ? { ...heroMedia, focalX: brand.hero.focalX, focalY: brand.hero.focalY }
-      : null
+  const presentedBrand = presentImmersiveBrand(brand, mediaUrls)
+  const { hero, logo } = presentedBrand
   return {
     immersive: {
       timeZone: configuration.timeZone,
-      brand: {
-        displayName: brand.displayName,
-        wordmark: brand.wordmark,
-        logo,
-        hero,
-        accentColour: brand.accentColour,
-        fieldColour: brand.fieldColour,
-      },
+      brand: presentedBrand,
       content: {
         title: content.title,
         shortDescription: content.shortDescription,

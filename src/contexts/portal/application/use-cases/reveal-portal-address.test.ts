@@ -132,6 +132,16 @@ function harness(
       }),
     ownCode: (assigned = true) =>
       getOwnPersonalCode({
+        publicationRepo: { findActiveForPortal: async () => null },
+        experienceRepo: {
+          getPropertyExperience: async () => ({ profile: null, content: [] }),
+        },
+        mediaRepo: { findById: async () => null },
+        mediaUrls: async () => ({}),
+        wordingRepo: { find: async () => null },
+        lastPrintRepo: { find: async () => null },
+        finalKitEnabled: false,
+
         portalRepo,
         staffPublicApi: {
           getAccessiblePropertyIds: async () => [],
@@ -522,7 +532,14 @@ describe('getOwnPersonalCode', () => {
     await h.issue({ portalId: h.portal.id }, h.ctx)
     const member = buildTestAuthContext({ role: 'Member' })
     const first = await h.ownCode()({ portalId: h.portal.id }, member)
-    expect(Object.keys(first).sort()).toEqual(['qr', 'state', 'wordingKey'])
+    expect(Object.keys(first).sort()).toEqual([
+      'cue',
+      'headline',
+      'qr',
+      'state',
+      'subline',
+      'wordingKey',
+    ])
     await h.ownCode()({ portalId: h.portal.id }, member)
     expect(h.addressRepo.downloads()).toHaveLength(1)
     h.useRaw(ROTATED_RAW)

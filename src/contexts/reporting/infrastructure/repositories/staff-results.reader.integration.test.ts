@@ -80,6 +80,56 @@ async function reading(
 }
 
 describe.sequential('staff private results and accepted roster (PostgreSQL)', () => {
+  it('counts the full previous local month across a UTC month boundary for own and colleague scans', async () => {
+    const row = await seed()
+    const monthReader = createStaffResultsReader(
+      db,
+      () => new Date('2026-11-04T12:00:00Z'),
+      async () => {
+        throw new Error('No goal read expected')
+      },
+    )
+    for (const at of [
+      '2026-09-30T20:59:59Z',
+      '2026-09-30T21:00:00Z',
+      '2026-10-31T21:59:59Z',
+      '2026-10-31T22:00:00Z',
+    ]) {
+      await reading(row, 'scan', at)
+      await reading(row, 'rating', at, 4, new Date(at))
+    }
+    await reading(
+      row,
+      'rating',
+      '2026-10-31T21:59:00Z',
+      4,
+      new Date('2026-11-02T12:00:00Z'),
+    )
+    await reading(
+      row,
+      'rating',
+      '2026-10-31T21:58:00Z',
+      1,
+      new Date('2026-11-04T10:00:00Z'),
+    )
+    const lastMonth = await monthReader.results(scope(row), 'last_month')
+    expect(lastMonth).toMatchObject({
+      scans: 2,
+      ratingCount: 3,
+      ratingsCutoff: '2026-11-03T22:00:00.000Z',
+    })
+    expect(lastMonth.series?.unit).toBe('week')
+    expect(lastMonth.series?.columns.reduce((sum, column) => sum + column.scans, 0)).toBe(
+      2,
+    )
+    expect(lastMonth.series?.columns.every((column) => !column.open)).toBe(true)
+    expect(
+      (await monthReader.scans(scope(row), [row.portalId], 'last_month')).get(
+        row.portalId,
+      ),
+    ).toBe(2)
+  })
+
   it('finds own personal participations and pauses a closing or deleted Property', async () => {
     const row = await seed()
     await seedStaffAccountUser(lease.pool, row)
@@ -123,12 +173,15 @@ describe.sequential('staff private results and accepted roster (PostgreSQL)', ()
     await reading(row, 'rating', '2026-11-03T21:59:00Z', 5)
     await reading(row, 'rating', '2026-11-03T22:01:00Z', 1)
     await reading(row, 'scan', '2026-11-04T09:00:00Z')
-    expect(await reader().results(scope(row), 'week')).toEqual({
+    expect(await reader().results(scope(row), 'week')).toMatchObject({
       scans: 1,
       ratingCount: 1,
       ratingsCutoff: '2026-11-03T22:00:00.000Z',
     })
-    expect(await reader().results(scope(row), 'today')).toEqual({ scans: 1 })
+    expect(await reader().results(scope(row), 'today')).toEqual({
+      scans: 1,
+      series: null,
+    })
   })
   it('shows an average from five ratings and excludes another personal Portal', async () => {
     const row = await seed()
@@ -136,7 +189,7 @@ describe.sequential('staff private results and accepted roster (PostgreSQL)', ()
     for (const value of [5, 4, 3, 4, 4])
       await reading(row, 'rating', '2026-11-03T10:00:00Z', value)
     await reading(other, 'rating', '2026-11-03T10:00:00Z', 1)
-    expect(await reader().results(scope(row), 'month')).toEqual({
+    expect(await reader().results(scope(row), 'month')).toMatchObject({
       scans: 0,
       ratingCount: 5,
       averageRating: 4,

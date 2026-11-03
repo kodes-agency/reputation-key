@@ -903,6 +903,12 @@
       "classification": "local_runtime",
       "owner": "Staff manager round 2",
       "policy": "Property wording draft initialized once per dialog; English alone has a default. Only Add saves it before creating people."
+    },
+    {
+      "id": "src/components/features/staff-home/staff-story-screen.tsx:useState(search)",
+      "classification": "local_runtime",
+      "owner": "Staff home Storybook fixture",
+      "policy": "Seeds the interactive story from its tab and period arguments. This fixture has no durable state; remounting a story resets the selection."
     }
   ],
   "classificationDefinitions": {
