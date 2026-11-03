@@ -1,158 +1,76 @@
-import { StaffAccountsContext } from '#/components/features/staff/accounts/staff-accounts-context'
 import type { Meta, StoryObj } from '@storybook/react'
 import { expect, userEvent, within } from 'storybook/test'
 import { PeoplePage } from './people-page'
-import { seededArgs } from './people-page-stories-data'
-
-const meta: Meta<typeof PeoplePage> = {
-  title: 'Property/StaffPage',
-  component: PeoplePage,
-  tags: ['autodocs'],
-  parameters: { layout: 'fullscreen' },
+import {
+  StaffManagerStory,
+  STAFF_STORY_MEMBERS,
+  STAFF_VIEWPORTS,
+} from '../../../../../.storybook/staff-manager-fixtures'
+function Scene({
+  count = 6,
+  notJoined = false,
+}: Readonly<{ count?: number; notJoined?: boolean }>) {
+  const members = STAFF_STORY_MEMBERS.slice(0, count).filter(
+    (person) => !notJoined || person.access !== 'active',
+  )
+  return (
+    <StaffManagerStory members={members}>
+      <PeoplePage propertyId="prop-1" propertyName="Harbor Hotel" />
+    </StaffManagerStory>
+  )
 }
+const meta = {
+  title: 'Property/Staff page',
+  component: Scene,
+  parameters: { layout: 'fullscreen', viewport: { viewports: STAFF_VIEWPORTS } },
+  args: { count: 6 },
+} satisfies Meta<typeof Scene>
 export default meta
-type Story = StoryObj<typeof PeoplePage>
-
+type Story = StoryObj<typeof meta>
 export const Populated: Story = {
-  args: { ...seededArgs },
   play: async ({ canvasElement }) => {
-    const canvas = within(canvasElement)
-    await expect(canvas.getByText('Alice Adams')).toBeInTheDocument()
-    // One list: no Directory of every member (Settings › Members owns that), so no
-    // views to switch between.
-    expect(canvas.getByRole('heading', { name: 'Staff', level: 1 })).toBeInTheDocument()
-    expect(canvas.queryByRole('navigation', { name: 'People views' })).toBeNull()
-    expect(canvas.queryByText('Directory')).toBeNull()
-    // A management list is a dashboard-tier page, like Portals and Properties.
-    expect(canvasElement.querySelector('.max-w-\\[1200px\\]')).not.toBeNull()
-    await userEvent.click(canvas.getByRole('button', { name: /add staff/i }))
-    const dialog = await within(document.body).findByRole('dialog')
-    await expect(
-      within(dialog).getByRole('heading', { name: /add staff participation/i }),
-    ).toBeInTheDocument()
+    const ui = within(canvasElement)
+    await expect(ui.getByRole('heading', { name: 'Staff', level: 1 })).toBeVisible()
+    await expect(ui.getByText("6 people, 2 haven't joined yet")).toBeVisible()
+    await userEvent.click(ui.getByRole('radio', { name: 'Not joined (2)' }))
+    await expect(ui.queryByText('Ana Jones')).toBeNull()
+    await expect(ui.getByText('Zoe Park')).toBeVisible()
   },
 }
-
+export const FifteenPeople: Story = { args: { count: 15 } }
+export const NotJoined: Story = { args: { notJoined: true } }
 export const Empty: Story = {
-  args: {
-    ...seededArgs,
-    participations: [],
-    responsibilities: [],
-    portals: [],
+  args: { count: 0 },
+  play: async ({ canvasElement }) => {
+    await expect(within(canvasElement).getByText('No staff yet')).toBeVisible()
   },
 }
-
-/**
- * A refused archive is shown by the list's banner from the Action's own error,
- * so the row only settles the promise: an unsettled one surfaced as an
- * unhandled rejection, which the browser logs and the test runner fails on.
- */
-const archiveRefusals: Error[] = []
-
-export const ArchiveRefused: Story = {
-  args: {
-    ...seededArgs,
-    // A plain function, not `fn()`: the spy attaches its own handler to every
-    // promise it returns, which would mark the rejection handled.
-    archiveParticipationMutation: Object.assign(
-      async () => {
-        const refusal = new Error('This participation changed. Reload and try again.')
-        archiveRefusals.push(refusal)
-        throw refusal
-      },
-      { isPending: false, error: null, isSuccess: false, data: null },
-    ),
-  },
-  play: async ({ canvasElement }) => {
-    archiveRefusals.length = 0
-    const unhandled: unknown[] = []
-    const record = (event: PromiseRejectionEvent) => {
-      event.preventDefault()
-      unhandled.push(event.reason)
-    }
-    window.addEventListener('unhandledrejection', record)
-    try {
-      await userEvent.click(
-        within(canvasElement).getByRole('button', {
-          name: 'Archive staff participation for Alice Adams',
-        }),
-      )
-      await userEvent.click(
-        await within(document.body).findByRole('button', {
-          name: 'Archive participation',
-        }),
-      )
-      expect(archiveRefusals).toHaveLength(1)
-      // `unhandledrejection` is dispatched from a task queued after the
-      // microtask checkpoint, so wait out two task turns before reading it.
-      await new Promise((resolve) => setTimeout(resolve, 0))
-      await new Promise((resolve) => setTimeout(resolve, 0))
-      expect(unhandled).toEqual([])
-    } finally {
-      window.removeEventListener('unhandledrejection', record)
-    }
-  },
+export const Narrow320: Story = {
+  globals: { viewport: { value: 'narrow', isRotated: false } },
+}
+export const Phone375: Story = {
+  globals: { viewport: { value: 'phone', isRotated: false } },
+}
+export const Tablet768: Story = {
+  globals: { viewport: { value: 'tablet', isRotated: false } },
+}
+export const Desktop1440: Story = {
+  globals: { viewport: { value: 'desktop', isRotated: false } },
 }
 
-export const PortalsDenied: Story = {
-  args: { ...seededArgs, portals: [], portalsDenied: true },
-  play: async ({ canvasElement }) => {
-    const canvas = within(canvasElement)
-    await expect(canvas.getByText('Alice Adams')).toBeInTheDocument()
-    await expect(
-      canvas.getByText('Portal responsibilities are unavailable'),
-    ).toBeInTheDocument()
-    await expect(
-      canvas.queryByRole('button', { name: /edit portal responsibilities/i }),
-    ).not.toBeInTheDocument()
-    await expect(canvas.getByRole('button', { name: /add staff/i })).toBeInTheDocument()
-  },
-}
-
-export const WithPersonalPortals: Story = {
-  args: { ...seededArgs },
-  decorators: [
-    (Story) => (
-      <StaffAccountsContext
-        value={{
-          propertyId: 'prop-1',
-          members: [
-            {
-              participationId: 'sp-1',
-              displayName: 'Alice Adams',
-              operationId: null,
-              portalId: 'p-1',
-              access: 'active',
-              step: null,
-              code: null,
-              endsSignIn: true,
-            },
-          ],
-          colleagueListEnabled: false,
-          canInvite: true,
-          canRemove: true,
-          canSettings: true,
-          openAdd: () => undefined,
-          refresh: async () => undefined,
-        }}
-      >
-        <Story />
-      </StaffAccountsContext>
-    ),
-  ],
-  play: async ({ canvasElement }) => {
-    const canvas = within(canvasElement)
-    await expect(
-      canvas.getByRole('table', { name: 'Staff with personal portals' }),
-    ).toBeVisible()
-    await expect(canvas.getByRole('button', { name: 'Add staff' })).toBeVisible()
-    expect(
-      canvas.queryByRole('button', {
-        name: 'Edit portal responsibilities for Alice Adams',
-      }),
-    ).toBeNull()
-    await expect(
-      canvas.getByRole('button', { name: 'Edit portal responsibilities for Bob Baker' }),
-    ).toBeVisible()
-  },
+export const LongNames320: Story = {
+  render: () => (
+    <StaffManagerStory
+      members={[
+        {
+          ...STAFF_STORY_MEMBERS[0]!,
+          displayName: 'Alexandria ' + 'Montgomery '.repeat(8),
+          email: 'alexandria.long.address.for.the.property@example.com',
+        },
+      ]}
+    >
+      <PeoplePage propertyId="prop-1" propertyName="Harbor Hotel" />
+    </StaffManagerStory>
+  ),
+  globals: { viewport: { value: 'narrow', isRotated: false } },
 }

@@ -311,3 +311,38 @@ describe('the printed note', () => {
     },
   )
 })
+
+it('clips a long personal identification line to the margin box, beyond every cut', async () => {
+  const face: PrintFinalFace = {
+    piece: 'counter',
+    orientation: 'upright',
+    look: 'paper',
+    region: 'us',
+  }
+  const original = inputFor(face, { quantity: 1, fillSpares: false })
+  const pdf = text(
+    await renderer.render({ ...original, personalName: 'Polly ' + 'Jones '.repeat(16) }),
+  )
+  const sheet = printFinalPaperSheet({
+    piece: 'counter',
+    orientation: 'upright',
+    paper: 'letter',
+  })
+  const notes = printFinalSheetNotes(sheet, 0, sheet.cells.slice(0, 1))
+  expect(notes.length).toBeGreaterThan(0)
+  // Every new name is drawn after the pieces, inside one of these existing free-paper boxes.
+  expect(pdf).toMatch(/re\nW n/)
+  expect(facesIn(pdf, face)).toBe(1)
+  const personalClips = [...pdf.matchAll(/([\d.]+) ([\d.]+) ([\d.]+) ([\d.]+) re\nW n/g)]
+  expect(
+    personalClips.some((clip) =>
+      notes.some(
+        (note) =>
+          Math.abs(Number(clip[1]) - note.leftPt) < 0.01 &&
+          Math.abs(Number(clip[2]) - note.topPt) < 0.01 &&
+          Math.abs(Number(clip[3]) - note.widthPt) < 0.01 &&
+          Math.abs(Number(clip[4]) - note.heightPt) < 0.01,
+      ),
+    ),
+  ).toBe(true)
+})

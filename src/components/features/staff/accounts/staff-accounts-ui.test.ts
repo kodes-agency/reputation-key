@@ -13,7 +13,7 @@ import { StaffAccountsList, StaffAddAction } from './staff-accounts-list'
 import { StaffAddDialog } from './staff-add-dialog'
 import { StaffAddForm } from './staff-add-form'
 import { StaffAddRow } from './staff-add-row'
-import { StaffMemberMenu, StaffRemoveDialog, StaffRetry } from './staff-member-actions'
+import { StaffRemoveDialog, StaffRetry } from './staff-member-actions'
 import { StaffPortalMeta } from './staff-portal-meta'
 import { newStaffRow } from './staff-batch'
 import { Dialog } from '#/components/ui/dialog'
@@ -132,7 +132,7 @@ it('starts the Add form on one editable person with the source before the option
     ),
   )
   expect(html.match(/<fieldset/g)).toHaveLength(1)
-  expect(html.indexOf('Portal to copy')).toBeLessThan(html.indexOf('Group'))
+  expect(html.indexOf('Guests see the same page as')).toBeLessThan(html.indexOf('Group'))
   expect(html).toContain('Add another')
   expect(html).not.toContain('Remove person 1')
 })
@@ -159,7 +159,7 @@ it('a failed draft keeps its operation id, failure and retry control', () => {
 // These dialog/row components are exercised interactively in staff-manager.stories.tsx.
 it('exports the shared manager dialogs and retry controls', () => {
   expect(
-    [StaffAddDialog, StaffMemberMenu, StaffRemoveDialog, StaffRetry].every(
+    [StaffAddDialog, StaffRemoveDialog, StaffRetry].every(
       (component) => typeof component === 'function',
     ),
   ).toBe(true)

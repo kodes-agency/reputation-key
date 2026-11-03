@@ -1,6 +1,6 @@
 import type { Meta, StoryObj } from '@storybook/react'
 import { expect, fn, screen, userEvent, within } from 'storybook/test'
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '#/components/ui/dialog'
+import { Dialog, DialogContent } from '#/components/ui/dialog'
 import { StaffAddForm, type StaffAddFormProps } from './staff-add-form'
 import { newStaffRow } from './staff-batch'
 const check: NonNullable<StaffAddFormProps['check']> = async ({ data }) => ({
@@ -23,9 +23,6 @@ function Scene(props: StaffAddFormProps) {
   return (
     <Dialog open>
       <DialogContent size="lg" aria-describedby={undefined}>
-        <DialogHeader>
-          <DialogTitle>Add staff</DialogTitle>
-        </DialogHeader>
         <StaffAddForm {...props} />
       </DialogContent>
     </Dialog>
@@ -62,7 +59,9 @@ export const OneRow: Story = {
     expect(ui.queryByRole('button', { name: 'Remove person 1' })).toBeNull()
     await userEvent.type(ui.getByLabelText('Name'), 'Ana')
     await userEvent.type(ui.getByLabelText('Email'), 'ana@example.com')
-    await userEvent.click(ui.getByRole('button', { name: 'Add' }))
+    await userEvent.click(
+      ui.getByRole('button', { name: /^Add \d+ (?:person|people)$/u }),
+    )
     await expect(await ui.findByText('Invited')).toBeVisible()
   },
 }
@@ -77,7 +76,9 @@ export const Several: Story = {
   play: async () => {
     const ui = within(await screen.findByRole('dialog'))
     expect(ui.getAllByLabelText('Name')).toHaveLength(3)
-    await userEvent.click(ui.getByRole('button', { name: 'Add' }))
+    await userEvent.click(
+      ui.getByRole('button', { name: /^Add \d+ (?:person|people)$/u }),
+    )
     await expect(await ui.findAllByText('Invited')).toHaveLength(3)
   },
 }
@@ -113,8 +114,10 @@ export const Budget: Story = {
   },
   play: async () => {
     const ui = within(await screen.findByRole('dialog'))
-    await userEvent.click(ui.getByRole('button', { name: 'Add' }))
-    await expect(await ui.findByText(/Only 0 invitations remain/)).toBeVisible()
+    await userEvent.click(
+      ui.getByRole('button', { name: /^Add \d+ (?:person|people)$/u }),
+    )
+    await expect(await ui.findByText(/You can send 20 invitations an hour/)).toBeVisible()
     expect(ui.getByLabelText('Name')).toBeEnabled()
   },
 }
@@ -133,4 +136,94 @@ export const Tablet768: Story = {
 export const Desktop1440: Story = {
   ...Several,
   globals: { viewport: { value: 'desktop', isRotated: false } },
+}
+
+export const SeveralPortals: Story = {
+  args: {
+    portals: [
+      { id: 'a', name: 'Reception' },
+      { id: 'b', name: 'Restaurant' },
+    ],
+  },
+  play: async () => {
+    const ui = within(await screen.findByRole('dialog'))
+    await expect(
+      ui.getByRole('button', { name: /^Add \d+ (?:person|people)$/u }),
+    ).toBeDisabled()
+    await expect(ui.getByText('Choose a portal…')).toBeVisible()
+  },
+}
+export const NoWordingAdmin: Story = {
+  args: {
+    portals: [],
+    wording: {
+      required: true,
+      canWrite: true,
+      locale: 'en',
+      title: 'Harbor Hotel',
+      shortDescription: "We'd love to hear about your visit.",
+    },
+    saveWording: async () => ({}) as never,
+  },
+  play: async () => {
+    const ui = within(await screen.findByRole('dialog'))
+    await expect(
+      ui.getByText('First, what guests will read at this property'),
+    ).toBeVisible()
+    await expect(ui.getByRole('textbox', { name: 'Title' })).toHaveValue('Harbor Hotel')
+  },
+}
+export const NoWordingPropertyManager: Story = {
+  args: {
+    portals: [],
+    wording: {
+      required: true,
+      canWrite: false,
+      locale: 'en',
+      title: 'Harbor Hotel',
+      shortDescription: '',
+    },
+  },
+  play: async () => {
+    const ui = within(await screen.findByRole('dialog'))
+    await expect(
+      ui.getByRole('button', { name: /^Add \d+ (?:person|people)$/u }),
+    ).toBeDisabled()
+    await expect(ui.getByText(/An account admin has to write/)).toBeVisible()
+  },
+}
+export const Paste: Story = {
+  play: async () => {
+    const ui = within(await screen.findByRole('dialog'))
+    await expect(ui.getByText('or paste a list from a spreadsheet')).toBeVisible()
+    await userEvent.click(ui.getByRole('textbox', { name: 'Name' }))
+    await userEvent.paste('Ana\tana@example.com\nBob\tbob@example.com')
+    await expect(ui.getAllByRole('textbox', { name: 'Email' })).toHaveLength(2)
+  },
+}
+export const ResultWithFailure: Story = {
+  args: {
+    initialRows: [
+      { ...newStaffRow('a'), displayName: 'Ana', email: 'ana@example.com' },
+      { ...newStaffRow('b'), displayName: 'Bob', email: 'bob@example.com' },
+    ],
+    add: fn<NonNullable<StaffAddFormProps['add']>>(async ({ data }) => ({
+      operationId: data.operationId,
+      participationId: data.operationId,
+      portalId: data.operationId,
+      status: data.operationId === 'a' ? 'done' : 'failed',
+      step: 'publication',
+      code: data.operationId === 'a' ? null : 'publication_snapshot_unavailable',
+      access: 'invited',
+    })),
+  },
+  play: async () => {
+    const ui = within(await screen.findByRole('dialog'))
+    await userEvent.click(
+      ui.getByRole('button', { name: /^Add \d+ (?:person|people)$/u }),
+    )
+    await expect(await ui.findByRole('heading', { name: '1 of 2 added' })).toBeVisible()
+    await expect(ui.getByRole('button', { name: 'Try again' })).toBeVisible()
+    expect(ui.queryByRole('textbox')).toBeNull()
+  },
 }

@@ -10,6 +10,11 @@ export type StaffAddressFacts = Readonly<{
   alreadyInvited: boolean
 }>
 export type StaffAccountStore = Readonly<{
+  withAddressLocks<T>(
+    organizationId: string,
+    emails: readonly string[],
+    run: (store: StaffAccountStore) => Promise<T>,
+  ): Promise<T>
   withAddressLock<T>(
     organizationId: string,
     email: string,
@@ -40,6 +45,11 @@ export type StaffAccountStore = Readonly<{
     row: StaffOnboarding,
     spendInvitationBudget: () => Promise<void>,
   ): Promise<Readonly<{ invited: boolean; userId: string | null }>>
+  markDeliveryProblem(
+    organizationId: string,
+    participationId: string,
+    failed: boolean,
+  ): Promise<void>
   currentActor(ctx: AuthContext): Promise<AuthContext | null>
   propertyIds(ctx: AuthContext): Promise<readonly string[] | null>
 }>

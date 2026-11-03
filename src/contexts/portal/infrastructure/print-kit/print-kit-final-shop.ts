@@ -1,3 +1,4 @@
+import { drawLine, type PrintKitFonts } from './print-kit-pdf-text'
 // The final print-shop file in the PDF (final design spec §10.3, the board
 // print-shop): one piece per page, from the geometry the Share tab's preview
 // reads (`portal-print-final-shop.ts`). The page is the bleed box, or the trim
@@ -21,6 +22,8 @@ import {
 } from './print-kit-final-sheets'
 
 export type FinalShopInput = Readonly<{
+  personalName?: string
+  fonts?: PrintKitFonts
   page: PrintFinalShopPage
   /** The face on every front page, laid out once. */
   face: FinalPreparedFace
@@ -61,5 +64,34 @@ function drawShopPage(
 export function drawFinalShopPages(doc: PDFKit.PDFDocument, input: FinalShopInput): void {
   const { page, face, back } = input
   drawShopPage(doc, page, face)
-  if (back !== undefined) drawShopPage(doc, page, back)
+  if (input.personalName && input.fonts && page.cropMarks)
+    drawMarginName(doc, input.fonts, page, input.personalName)
+  if (back !== undefined) {
+    drawShopPage(doc, page, back)
+    if (input.personalName && input.fonts && page.cropMarks)
+      drawMarginName(doc, input.fonts, page, input.personalName)
+  }
+}
+
+function drawMarginName(
+  doc: PDFKit.PDFDocument,
+  fonts: PrintKitFonts,
+  page: PrintFinalShopPage,
+  name: string,
+) {
+  doc.save().rect(page.trim.leftPt, 0, page.trim.widthPt, page.bleed.topPt).clip()
+  drawLine(
+    doc,
+    fonts,
+    `For ${name}`,
+    {
+      face: 'body',
+      size: 6,
+      spacing: 0,
+      colour: PRINT_FINAL_SHOP_MARK_COLOUR,
+      opacity: 1,
+    },
+    { x: page.trim.leftPt, middleY: page.bleed.topPt / 2 },
+  )
+  doc.restore()
 }

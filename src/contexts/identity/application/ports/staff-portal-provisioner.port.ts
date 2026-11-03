@@ -1,6 +1,7 @@
 import type { AuthContext } from '#/shared/domain/auth-context'
 
 export type StaffPortalPlan = Readonly<{
+  displayNames?: readonly string[]
   propertyId: string
   sourcePortalId?: string
   portalGroupId?: string

@@ -30,7 +30,10 @@ it('does not duplicate an existing personal Portal or add an ordinary active mem
 })
 it('uses the Property roster key shared by lists and row providers', () => {
   expect(
-    staffAccountsQuery('p', async () => ({ members: [], colleagueListEnabled: false }))
-      .queryKey,
+    staffAccountsQuery('p', async () => ({
+      members: [],
+      colleagueListEnabled: false,
+      staffScanTargetsEnabled: false,
+    })).queryKey,
   ).toEqual(['staff', 'accounts', 'p'])
 })

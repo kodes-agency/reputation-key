@@ -45,7 +45,7 @@ test('a staff invitation, a guest scan, closed manager routes and removal', asyn
   const add = page.getByRole('dialog', { name: 'Add staff', exact: true })
   await add.getByRole('textbox', { name: 'Name', exact: true }).fill(name)
   await add.getByRole('textbox', { name: 'Email', exact: true }).fill(polly)
-  await add.getByRole('button', { name: 'Add another' }).click()
+  await add.getByRole('button', { name: '+ Add another' }).click()
   // Exercise the actual paste handler, without the operating system clipboard.
   await add
     .getByRole('textbox', { name: 'Name', exact: true })
@@ -58,11 +58,12 @@ test('a staff invitation, a guest scan, closed manager routes and removal', asyn
   await expect(
     add.getByRole('textbox', { name: 'Email', exact: true }).nth(1),
   ).toHaveValue(sam)
-  await add.getByRole('button', { name: 'Add', exact: true }).click()
-  await expect(add.getByText('Invited', { exact: true })).toHaveCount(2, {
+  await add.getByRole('button', { name: /^Add \d+ (?:person|people)$/u }).click()
+  const result = page.getByRole('dialog', { name: '2 of 2 added', exact: true })
+  await expect(result.getByText('Invited', { exact: true })).toHaveCount(2, {
     timeout: 30_000,
   })
-  await add.getByRole('button', { name: 'Close', exact: true }).first().click()
+  await result.getByRole('button', { name: 'Done', exact: true }).first().click()
 
   const staffContext = await browser.newContext({
     storageState: { cookies: [], origins: [] },
@@ -156,8 +157,9 @@ test('a staff invitation, a guest scan, closed manager routes and removal', asyn
 
     await page.goto(`/properties/${propertyId}/people`)
     await waitForHydration(page)
-    await page.getByRole('button', { name: `More actions for ${name}` }).click()
-    await page.getByRole('menuitem', { name: /^Remove/u }).click()
+    await page.getByRole('button', { name, exact: true }).click()
+    const person = page.getByRole('dialog', { name, exact: true })
+    await person.getByRole('button', { name: 'Remove', exact: true }).click()
     const confirm = page.getByRole('alertdialog')
     await confirm.getByRole('button', { name: 'Remove', exact: true }).click()
     await expect(confirm).toHaveCount(0)

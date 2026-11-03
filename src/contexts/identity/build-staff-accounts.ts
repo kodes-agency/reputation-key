@@ -1,3 +1,6 @@
+import { INVITATION_BUDGET_MESSAGE } from '#/shared/domain/invitation-budget-limits'
+import { staffFailureDiagnostic } from './application/staff-failure-diagnostic'
+import { changeStaffInvitationEmail } from './application/use-cases/change-staff-email'
 import {
   spendInvitationSendBudget,
   readInvitationSendBudget,
@@ -7,6 +10,7 @@ import type { Database } from '#/shared/db'
 import type { AuthContext } from '#/shared/domain/auth-context'
 import type { ManageStaffDeps } from './application/use-cases/manage-staff-accounts'
 import {
+  checkStaffSource,
   checkStaffBatch,
   removeStaffMember,
   removeStaffForMemberDeparture,
@@ -26,6 +30,7 @@ import { createStaffAddressCheckBudget } from './infrastructure/staff-address-ch
 
 export type StaffAccountBindings = Pick<
   ManageStaffDeps,
+  | 'staffScanTargetsEnabled'
   | 'authorizeProperty'
   | 'portals'
   | 'spendInvitationBudget'
@@ -73,6 +78,12 @@ export function buildStaffAccounts(
     }),
     reportAddressRefusal: (reason) =>
       deps.logger.warn({ security: true, reason }, 'Staff address refused'),
+    reportStepFailure: (row, error) => {
+      deps.logger.warn(
+        { correlationId: row.id, reason: staffFailureDiagnostic(row, error) },
+        'Staff setup step failed',
+      )
+    },
     reportDeliveryFailure: (row) =>
       deps.logger.warn(
         {
@@ -106,6 +117,7 @@ export function buildStaffAccounts(
   }
   return Object.freeze({
     removeForMemberDeparture: removeStaffForMemberDeparture(input),
+    checkStaffSource: checkStaffSource(input),
     checkStaffBatch: checkStaffBatch(input),
     addStaffMember: addStaffMember(input),
     removeStaffMember: removeStaffMember(input),
@@ -113,6 +125,7 @@ export function buildStaffAccounts(
     listStaffMembers: listStaffMembers(input),
     setColleagueListEnabled: setColleagueListEnabled(input),
     resendStaffInvitation: resendStaffInvitation(input),
+    changeStaffInvitationEmail: changeStaffInvitationEmail(input),
     propertyForParticipation: async (participationId: string, ctx: AuthContext) =>
       (await management.target(ctx.organizationId, participationId))?.propertyId ?? null,
   })
@@ -132,10 +145,7 @@ export function createStaffInvitationBudget(
     checkAddresses: createStaffAddressCheckBudget(rateLimiter, keyHmacSecret),
     spend: async (ctx: AuthContext) => {
       if (!(await spendInvitationSendBudget(input(ctx))))
-        throw staffAccountError(
-          'rate_limited',
-          'Please wait before sending more invitations',
-        )
+        throw staffAccountError('rate_limited', INVITATION_BUDGET_MESSAGE)
     },
     remaining: (ctx: AuthContext) => readInvitationSendBudget(input(ctx)),
   }

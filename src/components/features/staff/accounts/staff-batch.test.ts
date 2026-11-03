@@ -87,7 +87,7 @@ it('blocks a batch before sending when invitations are short, but permits existi
     invitationsRequired: 1,
   }
   expect(staffBatchProblem(check)).toBe(
-    'Only 0 invitations remain. This batch needs 1. Remove some people before adding.',
+    'You can send 20 invitations an hour and 100 a day. Try again in about an hour.',
   )
   expect(staffBatchProblem({ ...check, invitationsRequired: 0 })).toBeNull()
 })

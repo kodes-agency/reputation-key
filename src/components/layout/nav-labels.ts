@@ -14,7 +14,7 @@ export const NAV_LABEL = {
   google: 'Google',
   guests: 'Guest voice',
   reviews: 'Reviews',
-  /** A Property's Staff (profiles without a login); the address stays /people. */
+  /** A Property's staff accounts and personal codes; the address stays /people. */
   staff: 'Staff',
   portals: 'Portals',
   goals: 'Goals',

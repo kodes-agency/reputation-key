@@ -574,15 +574,14 @@ export const ReaderReadOnly: Story = {
     await expect(
       canvas.getByRole('link', { name: 'View Pool & Terrace' }),
     ).toBeInTheDocument()
-    // A member can change no group: no way to make one, and a head's menu only opens it.
+    // A member can change no group: no way to make one, and a head's one action opens it.
     await expect(canvas.queryByRole('button', { name: /new group/i })).toBeNull()
-    await userEvent.click(
-      canvas.getAllByRole('button', { name: /actions for group pool side/i })[0]!,
-    )
-    const menu = within(await screen.findByRole('menu'))
-    await expect(menu.getByRole('menuitem', { name: 'Open group' })).toBeInTheDocument()
-    await expect(menu.queryByRole('menuitem', { name: /rename/i })).toBeNull()
-    await expect(menu.queryByRole('menuitem', { name: /archive/i })).toBeNull()
+    await expect(
+      canvas.getAllByRole('link', { name: 'Open group: Pool side' })[0],
+    ).toBeInTheDocument()
+    await expect(canvas.queryByRole('button', { name: /actions for group/i })).toBeNull()
+    await expect(canvas.queryByRole('button', { name: /rename/i })).toBeNull()
+    await expect(canvas.queryByRole('button', { name: /archive/i })).toBeNull()
   },
 }
 

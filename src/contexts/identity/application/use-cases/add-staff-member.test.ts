@@ -35,6 +35,8 @@ function setup(fail?: StaffOnboardingStep, existingMember = false) {
     }
   }
   const store: StaffAccountStore = {
+    withAddressLocks: async (_org, _emails, run) => run(store),
+    markDeliveryProblem: vi.fn(async () => {}),
     withAddressLock: async (_org, _email, run) => {
       const previous = queue
       let release = () => {}
@@ -140,6 +142,7 @@ describe('addStaffMember', () => {
       ...h.deps,
       store: {
         ...store,
+        markDeliveryProblem: vi.fn(async () => {}),
         withAddressLock: async <T>(
           _org: string,
           _email: string,
@@ -195,6 +198,7 @@ describe('addStaffMember', () => {
     const create = vi.fn(h.deps.portals.create)
     const store: StaffAccountStore = {
       ...h.deps.store,
+      markDeliveryProblem: vi.fn(async () => {}),
       withAddressLock: async (_org, _email, run) => run(store),
       addressFacts: async () => ({
         ...facts,
@@ -287,6 +291,7 @@ describe('addStaffMember', () => {
       ...state.deps,
       store: {
         ...store,
+        markDeliveryProblem: vi.fn(async () => {}),
         withAddressLock: async <T>(
           _org: string,
           _email: string,
@@ -351,6 +356,7 @@ it('conceals another Organization from a PropertyManager on add', async () => {
     reportAddressRefusal,
     store: {
       ...store,
+      markDeliveryProblem: vi.fn(async () => {}),
       withAddressLock: async <T>(
         _org: string,
         _email: string,
@@ -383,6 +389,7 @@ it.each(['AccountAdmin', 'PropertyManager'] as const)(
       reportAddressRefusal,
       store: {
         ...store,
+        markDeliveryProblem: vi.fn(async () => {}),
         withAddressLock: async <T>(
           _org: string,
           _email: string,
@@ -397,3 +404,23 @@ it.each(['AccountAdmin', 'PropertyManager'] as const)(
     expect(reportAddressRefusal).toHaveBeenCalledTimes(role === 'AccountAdmin' ? 0 : 1)
   },
 )
+
+it('retains the completed setup and exposes a failed invitation delivery', async () => {
+  const h = setup()
+  const result = await addStaffMember({
+    ...h.deps,
+    deliverAccess: async () => {
+      throw new Error('Mail unavailable')
+    },
+  })(input, ctx)
+  expect(result).toMatchObject({
+    status: 'done',
+    access: 'invited',
+    code: 'invitation_delivery_failed',
+  })
+  expect(h.deps.store.markDeliveryProblem).toHaveBeenCalledWith(
+    ctx.organizationId,
+    result.participationId,
+    true,
+  )
+})

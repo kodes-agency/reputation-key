@@ -139,3 +139,50 @@ that code is doing. This amends [ADR 0033](0033-authorization-policy.md),
 - A ranked leaderboard. Refused for the reasons in 19.
 - Copying a Portal's published snapshot back into a working copy. Refusing a source
   with unpublished edits gives the same guarantee with far less code.
+
+## Amendment 2026-11-03 — manager round 2
+
+- **R1:** Before reserving a person, resolve the guest page the new Portal would
+  publish. Missing guest wording, language packs and a bad time zone refuse Add.
+  With no published source, an Account Admin saves the Property's title and
+  description inside Add; a Property Manager waits for that wording.
+- **R5:** A personal copy inherits only the source's still-eligible responsible
+  managers. With no source or eligible assignment, the eligible creator is the
+  fallback. Ordinary copies retain their current behavior.
+- **R7:** Rule 3's filename restriction is narrowed: manager downloads of personal
+  Portals start with the person's sanitized name, and available paper margins
+  outside cut lines say who the print is for. Nothing inside a cut line, guest
+  page, slug or public PDF title gains that name.
+- **R8:** A personal copy takes the source's saved opening print wording (saved,
+  else last print, else the default) in the Portal transaction. Words containing
+  the new person's name are skipped without refusing Add. Share and the phone
+  use the same wording row; already printed cards do not change.
+- **R10:** One published place Portal is selected, or exactly one in the Group
+  where Add started. Several require an explicit choice. None uses the Property
+  wording. The first Name field receives focus and paste is visible.
+- **R11:** Profiles without login are removed from the product. Add staff is the
+  only entry to the single Staff list. Retained attribution tables and history
+  remain. Capability-off pages are unavailable rather than reviving profiles.
+- **R17:** One responsive person sheet opens from Staff or Portals and gathers
+  results, Group, scan target, responsible managers, code and guest-page links,
+  Rename, invitation repairs and individual Remove, under their existing permissions.
+- **R18:** Batch Resend and Move repeat the single-person commands in sequence,
+  continue after a refusal and report individual failures. Removal stays individual;
+  batch guest-page replacement is a later change.
+- **R21:** The Code tab is a pass: one card in the paper, type and scan band of the
+  printed cards, on the hotel's dark colour. Its header is the published photo, or
+  else the hotel's colour; it names the hotel with its logo, or else its name.
+  Sideways it is a two-part ticket. My results, the notice and the home-screen step
+  are product UI in the check-in pattern, following the phone's light or dark
+  setting. It all follows the Look the person's Portal has published, with no setting
+  of its own. The owner rejected a first build that wore the guest page's glass.
+- **R20:** A manager with staff.invite at the Property may correct only a pending
+  or expired invitation. Both addresses use stable-order locks and the transaction
+  rechecks acceptance and login links. The old invitation is cancelled, the new
+  address receives a fresh invitation under the same budgets and audit event,
+  and the participation, Portal and code remain. No login email can be edited.
+
+R6 adds a manager-only No scans lately marker after 14 Property-local days for a
+person who joined at least 14 days ago and has no recent qualified scan. It has
+no automatic consequence. Privacy Notice 3.4 and Participation Agreement 2.5,
+effective 2026-11-03, disclose this; Access Disclosure 2.4 is unchanged.

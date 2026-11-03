@@ -52,6 +52,7 @@ const { getPool } = setupIntegrationDb({
   orgA: ORG_A,
   orgB: ORG_B,
   tables: [
+    'portal_print_wordings',
     'portal_look_overrides',
     'portal_link_texts',
     'portal_localized_overrides',
@@ -732,4 +733,36 @@ describe.sequential('create Portal command: copied content (real PostgreSQL)', (
       }),
     ).rejects.toMatchObject({ code: 'forbidden' })
   })
+})
+
+it('commits a personal copy’s saved print wording with its Portal', async () => {
+  const portal = portalOf({
+    id: TARGET,
+    name: 'Polly Jones',
+    kind: 'personal',
+    publicName: 'Harbor',
+    slug: 'personal-code',
+  })
+  await store().createPortal({
+    organizationId: ORG_A,
+    portal,
+    initialResponsibleManagerIds: [CREATOR],
+    personalPrintWording: {
+      callToAction: 'how_did_we_do',
+      customWords: { en: { headline: 'Tell us about your visit', subline: '' } },
+    },
+    ...factsFor(portal, true),
+  })
+  const rows = await getPool().query(
+    'SELECT call_to_action, call_to_action_custom FROM portal_print_wordings WHERE organization_id = $1 AND portal_id = $2',
+    [ORG_A, TARGET],
+  )
+  expect(rows.rows).toEqual([
+    {
+      call_to_action: 'how_did_we_do',
+      call_to_action_custom: {
+        en: { headline: 'Tell us about your visit', subline: '' },
+      },
+    },
+  ])
 })

@@ -1,3 +1,24 @@
+import {
+  assertPersonalPropertySource,
+  assertPersonalPublicationReady,
+} from '../personal-portal-property-source'
+import { listEligiblePortalManagers } from '../portal-manager-eligibility'
+import {
+  assertPropertyAllowsPublication,
+  loadVerifiedGoogleReviewDestination,
+} from '../portal-publication-readiness'
+import type {
+  PropertyGoogleReviewDestinationPublicApi,
+  PropertyLifecyclePublicApi,
+} from '#/contexts/property/application/public-api'
+import type { PortalResponsibleManagerRepository } from '../ports/portal-responsible-manager.repository'
+import type { PortalPrintWordingRepository } from '../ports/portal-print-wording.repository'
+import type { PortalLastPrintRepository } from '../ports/portal-last-print.repository'
+import {
+  printFinalOpeningWording,
+  PRINT_FINAL_DEFAULT_WORDING,
+} from '#/shared/domain/portal-print-final-wording'
+import { assertPersonalPortalPublicText } from '../../domain/personal-portal-public-text'
 import { loadCopySource, loadTargetGroup } from '../create-portal-resolvers'
 import { linksToCopy } from '../portal-content-copy'
 import { assertNewPortalPropertyAccess } from '../load-accessible-portal'
@@ -14,6 +35,11 @@ export type CreatePersonalPortalDeps = CreatePortalDeps &
       PortalPublicationRepository,
       'loadWorkingCopy' | 'findActiveForPortal'
     >
+    managerRepo: Pick<PortalResponsibleManagerRepository, 'listActive'>
+    printWordingRepo: Pick<PortalPrintWordingRepository, 'find'>
+    lastPrintRepo: Pick<PortalLastPrintRepository, 'find'>
+    propertyLifecycleApi: PropertyLifecyclePublicApi
+    propertyGoogleReviewDestinationApi: PropertyGoogleReviewDestinationPublicApi
     addressRecoverable: boolean
     checkGroupTarget: (
       scope: Readonly<{
@@ -30,6 +56,7 @@ export const checkPersonalPortalSource =
   (deps: CreatePersonalPortalDeps) =>
   async (
     input: Readonly<{
+      displayNames?: readonly string[]
       propertyId: string
       sourcePortalId?: string
       portalGroupId?: string
@@ -59,22 +86,15 @@ export const checkPersonalPortalSource =
         'Configure Portal address recovery before adding staff',
       )
     }
+    // Publishing runs these two first. A check that passes must mean publish won't
+    // refuse, or the person ends up with a draft Portal and an unfinished setup.
+    await assertPropertyAllowsPublication(deps, ctx.organizationId, { propertyId: pid })
+    await loadVerifiedGoogleReviewDestination(deps, ctx.organizationId, {
+      propertyId: pid,
+    })
     if (!input.sourcePortalId) {
       await checkGroupTarget(false)
-      const { profile } = await deps.experienceRepo.getPropertyExperience(
-        ctx.organizationId,
-        pid,
-      )
-      if (!profile?.displayName)
-        throw portalError(
-          'brand_profile_missing',
-          'Set the Property public display name before adding staff',
-        )
-      if (profile.displayName.length > 100)
-        throw portalError(
-          'invalid_name',
-          'Shorten the Property public display name to 100 characters before adding staff',
-        )
+      await assertPersonalPropertySource(deps, ctx, pid, input.displayNames)
       return null
     }
     const source = await deps.portalRepo.findById(
@@ -92,6 +112,7 @@ export const checkPersonalPortalSource =
       deps.publicationRepo.loadWorkingCopy(ctx.organizationId, source.id),
       deps.publicationRepo.findActiveForPortal(ctx.organizationId, source.id),
     ])
+    if (working) assertPersonalPublicationReady(working, input.displayNames)
     if (!working || !snapshot || !workingCopyMatchesSnapshot(working, snapshot)) {
       throw portalError(
         'source_has_unpublished_changes',
@@ -150,17 +171,25 @@ export const createPersonalPortal =
         'brand_profile_missing',
         'Set the Property public display name before adding staff',
       )
+    const managerIds = source
+      ? await copiedManagerIds(deps, ctx, input.propertyId, source.id)
+      : undefined
+    const printWording = source
+      ? await copiedPrintWording(deps, ctx, source.id, input.displayName)
+      : null
     return createPortal({
       ...deps,
       idGen: () => portalId(input.portalId),
       personalPortal: {
         publicName,
+        ...(printWording ? { printWording } : {}),
         ...(source ? { copySource: source.copy, sourceFence: source.sourceFence } : {}),
       },
     })(
       {
         propertyId: input.propertyId,
         name: input.displayName,
+        ...(managerIds ? { responsibleManagerUserIds: managerIds } : {}),
         ...(input.sourcePortalId
           ? { startFrom: { kind: 'portal', portalId: input.sourcePortalId } }
           : {}),
@@ -169,3 +198,43 @@ export const createPersonalPortal =
       ctx,
     )
   }
+
+async function copiedManagerIds(
+  deps: CreatePersonalPortalDeps,
+  ctx: AuthContext,
+  pid: string,
+  sourceId: string,
+) {
+  const [assigned, eligible] = await Promise.all([
+    deps.managerRepo.listActive(ctx.organizationId, sourceId),
+    listEligiblePortalManagers(deps, ctx.organizationId, propertyId(pid)),
+  ])
+  const ids = assigned
+    .filter((row) => eligible.some((manager) => manager.userId === row.userId))
+    .map((row) => row.userId)
+  return ids.length ? ids : undefined
+}
+
+async function copiedPrintWording(
+  deps: CreatePersonalPortalDeps,
+  ctx: AuthContext,
+  sourceId: string,
+  name: string,
+) {
+  const [saved, last] = await Promise.all([
+    deps.printWordingRepo.find(ctx.organizationId, portalId(sourceId)),
+    deps.lastPrintRepo.find(ctx.organizationId, portalId(sourceId)),
+  ])
+  const wording = printFinalOpeningWording(saved, last?.settings ?? null)
+  if (
+    wording.callToAction === PRINT_FINAL_DEFAULT_WORDING.callToAction &&
+    !wording.customWords
+  )
+    return null
+  try {
+    assertPersonalPortalPublicText({ kind: 'personal', name }, wording.customWords)
+    return wording
+  } catch {
+    return null
+  }
+}

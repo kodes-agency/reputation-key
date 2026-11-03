@@ -58,7 +58,7 @@ import type {
 } from '../ports/portal-results-overview.repository'
 import { PORTAL_RESULTS_THRESHOLDS } from '../../domain/portal-results-thresholds'
 import { localDayRange } from '../../domain/portal-results-series'
-import { localDaysWindow, priorPeriodDates } from '../utils'
+import { portalResultsWindow, portalResultsPrior } from '../portal-results-window'
 import { combineEvidence, sumCells } from './portal-results-aggregate'
 import {
   portalPeriodKpis,
@@ -79,7 +79,8 @@ export type PortalResultsRosterEntry = Readonly<{
 }>
 
 /** A window preset the overview can read; All Time is a lifetime figure, not a window. */
-export type PortalResultsTimeRange = Exclude<TimeRangePreset, 'all'>
+export type PortalResultsTimeRange =
+  Exclude<TimeRangePreset, 'all'> | 'today' | 'week' | 'month' | 'last-month'
 
 export type PortalResultsPropertyZone = Readonly<{
   propertyId: PropertyId
@@ -171,9 +172,9 @@ function planProperties(input: GetPortalResultsOverviewInput, now: Date): Proper
   }
   return [...byProperty].map(([propertyId, entries]) => {
     const timezone = zones.get(propertyId) ?? 'UTC'
-    const { startDate, endDate } = localDaysWindow(input.timeRange, now, timezone)
+    const { startDate, endDate } = portalResultsWindow(input.timeRange, now, timezone)
     const prior = input.compare
-      ? priorPeriodDates(input.timeRange, startDate, endDate, timezone)
+      ? portalResultsPrior(input.timeRange, startDate, endDate, timezone)
       : null
     return {
       propertyId,
@@ -191,6 +192,7 @@ type WindowIndex = Readonly<{
   computedAt: Date
   cells: readonly PortalResultsCell[]
   readingGroups: readonly PortalResultsReadingGroup[]
+  lastScans?: ReadonlyMap<PortalId, Date>
   evidence: ReadonlyMap<PortalId, MetricPortalMetricEvidenceSet>
 }>
 
@@ -208,6 +210,9 @@ function indexWindow(
   }
   return {
     period,
+    lastScans: new Map(
+      (reading.lastScans ?? []).map((row) => [row.portalId, row.lastScanAt]),
+    ),
     computedAt: reading.computedAt,
     // A reading for a Portal that is not this Property's is not this row's to count.
     cells: reading.cells.filter((cell) => own.has(cell.portalId)),
@@ -419,6 +424,9 @@ function rowsForProperty(
     },
     portals: entries.map((entry) => ({
       portalId: entry.portalId,
+      ...(entry.kind === 'personal'
+        ? { lastScanAt: current.lastScans?.get(entry.portalId) ?? null }
+        : {}),
       propertyId,
       groupId: entry.groupId,
       ...read(own, [entry.portalId], (cell) => cell.portalId === entry.portalId),
@@ -480,9 +488,9 @@ function totalReadings(
 ): Readings {
   if (properties.length === 0) {
     // No Property says which time zone; UTC stands in for an empty total.
-    const { startDate, endDate } = localDaysWindow(input.timeRange, now, 'UTC')
+    const { startDate, endDate } = portalResultsWindow(input.timeRange, now, 'UTC')
     const prior = input.compare
-      ? priorPeriodDates(input.timeRange, startDate, endDate, 'UTC')
+      ? portalResultsPrior(input.timeRange, startDate, endDate, 'UTC')
       : null
     return {
       current: [emptyWindow({ startAt: startDate, endAt: endDate }, now)],

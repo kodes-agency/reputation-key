@@ -180,6 +180,11 @@ export function PortalPrintFinalSection({
           />
           <PrintFinalHowManyStep final={final} print={print} view={view} />
           <PrintFinalWordsStep final={final} print={print} view={view} />
+          {view.personal ? (
+            <p className="text-sm text-muted-foreground">
+              The phone shows this opening line too. Cards already printed stay the same.
+            </p>
+          ) : null}
           <div className="flex flex-col gap-3 border-t pt-4">
             <DownloadRow final={final} unavailableReason={unavailableReason} />
             {phone && unavailableReason !== null && (

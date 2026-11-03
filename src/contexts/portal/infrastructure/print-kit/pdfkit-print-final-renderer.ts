@@ -220,6 +220,7 @@ async function drawSheets(
   )
   drawFinalSheets(doc, fonts, {
     sheet,
+    ...(input.personalName ? { personalName: input.personalName } : {}),
     face: prepared,
     ...(back === null ? {} : { back }),
     tilePt: tile.tilePt,
@@ -239,8 +240,17 @@ async function drawShop(
   shop: PrintFinalShopInput,
 ): Promise<void> {
   const page = printFinalShopPage({ face: input.face, cropMarks: shop.cropMarks })
-  const { prepared, back } = await prepareFace(doc, input, printFinalShopFaceBleed(page))
-  drawFinalShopPages(doc, { page, face: prepared, ...(back === null ? {} : { back }) })
+  const { prepared, back, fonts } = await prepareFace(
+    doc,
+    input,
+    printFinalShopFaceBleed(page),
+  )
+  drawFinalShopPages(doc, {
+    page,
+    ...(input.personalName ? { personalName: input.personalName, fonts } : {}),
+    face: prepared,
+    ...(back === null ? {} : { back }),
+  })
 }
 
 /** The pages the request asks for: office sheets, a print shop's file, or the lone piece. */

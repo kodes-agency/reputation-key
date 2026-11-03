@@ -1,14 +1,10 @@
 import { createHmac } from 'node:crypto'
 import type { RateLimiter } from '#/shared/rate-limit/middleware'
 
-const ACTOR_LIMIT = Object.freeze({
-  maxRequests: 20,
-  windowSeconds: 60 * 60,
-})
-const ORGANIZATION_LIMIT = Object.freeze({
-  maxRequests: 100,
-  windowSeconds: 24 * 60 * 60,
-})
+import {
+  INVITATION_ACTOR_LIMIT as ACTOR_LIMIT,
+  INVITATION_ORGANIZATION_LIMIT as ORGANIZATION_LIMIT,
+} from '../domain/invitation-budget-limits'
 
 type Input = Readonly<{
   rateLimiter: RateLimiter

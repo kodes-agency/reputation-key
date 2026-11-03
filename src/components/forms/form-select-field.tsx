@@ -21,6 +21,7 @@ export type FormSelectOption<Value extends string> = Readonly<{
 type Props<Value extends string> = Readonly<{
   id: string
   label: string
+  placeholder?: string
   optional?: boolean
   value: Value
   onValueChange: (value: Value) => void
@@ -57,6 +58,7 @@ export function FormSelectField<Value extends string>({
   id,
   label,
   optional,
+  placeholder,
   value,
   onValueChange,
   options,
@@ -90,7 +92,7 @@ export function FormSelectField<Value extends string>({
           className={cn('w-full min-w-0', triggerClassName)}
           onBlur={onBlur}
         >
-          <SelectValue />
+          <SelectValue placeholder={placeholder} />
         </SelectTrigger>
         <SelectOptions options={options} />
       </Select>

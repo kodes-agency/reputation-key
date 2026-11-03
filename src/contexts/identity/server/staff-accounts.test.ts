@@ -28,6 +28,8 @@ vi.mock('#/composition', () => ({
   getContainer: () => ({
     identityPublicApi: {
       staffAccounts: {
+        checkStaffSource: mocks.invoke,
+        changeStaffInvitationEmail: mocks.invoke,
         checkStaffBatch: mocks.invoke,
         addStaffMember: mocks.invoke,
         resendStaffInvitation: mocks.invoke,
@@ -52,6 +54,8 @@ beforeEach(() => {
 
 describe('staff management server policy boundary', () => {
   it.each([
+    ['checkStaffSource', 'staff.invite'],
+    ['changeStaffInvitationEmail', 'staff.invite'],
     ['checkStaffBatch', 'staff.invite'],
     ['addStaffMember', 'staff.invite'],
     ['resendStaffInvitation', 'staff.invite'],

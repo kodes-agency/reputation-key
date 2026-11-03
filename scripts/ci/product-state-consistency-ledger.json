@@ -117,7 +117,7 @@
     },
     {
       "id": "staffKeys",
-      "members": ["all", "participations", "accounts"],
+      "members": ["all", "participations", "accounts", "source"],
       "owner": "Staff participation query lifecycle",
       "policy": "The participation projection is property-scoped, allowing focused refresh while the family root remains available for full Staff teardown. The portals the Staff page lists are a Portal read: portalKeys.listOrDenied, under the Property's portal list, so a Portal write refreshes them."
     },
@@ -575,18 +575,6 @@
       "policy": "The lazy initializer constructs one page-lifetime serial runner that orders each preference row's saves; it holds only in-flight save promises, never a server-owned record, and the preferences query stays the authority."
     },
     {
-      "id": "src/components/features/staff/portal-responsibilities-modal.tsx:useState(primaryPortalId)",
-      "classification": "server_draft",
-      "owner": "Staff portal-responsibility editor",
-      "policy": "Seed from current responsibility and preserve edits for this modal instance; closing the modal unmounts the draft."
-    },
-    {
-      "id": "src/components/features/staff/portal-responsibilities-modal.tsx:useState(supportingPortalIds)",
-      "classification": "server_draft",
-      "owner": "Staff portal-responsibility editor",
-      "policy": "Seed from current supporting responsibilities and preserve edits for this modal instance; closing the modal unmounts the draft."
-    },
-    {
       "id": "src/components/inbox/inbox-case-toolbar.tsx:useState(now)",
       "classification": "local_runtime",
       "owner": "Inbox case toolbar reply-due countdown",
@@ -890,7 +878,7 @@
       "id": "src/components/features/staff/accounts/use-staff-batch.ts:useState(source)",
       "classification": "local_runtime",
       "owner": "Manager Add staff dialog",
-      "policy": "The initial source is the first published place Portal, or the Property's wording when there is none. The dialog is remounted on each opening; subsequent choices belong to it."
+      "policy": "One published place Portal, or exactly one in the originating Group, is selected; several start empty. The dialog owns later choices and resets on unmount."
     },
     {
       "id": "src/components/features/staff/accounts/use-staff-batch.ts:useState(group)",
@@ -903,6 +891,18 @@
       "classification": "local_runtime",
       "owner": "Portal Group removal dialog",
       "policy": "The chosen Portal and dialog visibility change together when the reader selects Remove. Closing keeps the chosen name for the closing dialog; the page remount resets both. This is a local choice, never a copy of server state."
+    },
+    {
+      "id": "src/components/features/staff/accounts/use-staff-batch.ts:useState(title)",
+      "classification": "local_runtime",
+      "owner": "Staff manager round 2",
+      "policy": "Property wording draft initialized once per dialog; a refetch cannot overwrite it. Only Add saves it through portal.admin before creating people."
+    },
+    {
+      "id": "src/components/features/staff/accounts/use-staff-batch.ts:useState(shortDescription)",
+      "classification": "local_runtime",
+      "owner": "Staff manager round 2",
+      "policy": "Property wording draft initialized once per dialog; English alone has a default. Only Add saves it before creating people."
     }
   ],
   "classificationDefinitions": {

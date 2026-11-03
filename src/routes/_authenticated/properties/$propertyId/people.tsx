@@ -1,55 +1,13 @@
-// Staff route (the URL stays /people) — thin wrapper around PeoplePage component
+// The Staff page loads only accounts. Attribution tables remain for reporting.
 import { createFileRoute } from '@tanstack/react-router'
-import { roleUnavailable } from '#/shared/auth/route-notice'
-import { queryOptions, useSuspenseQuery } from '@tanstack/react-query'
+import { useSuspenseQuery } from '@tanstack/react-query'
 import type { AuthRouteContext } from '#/routes/_authenticated'
 import { can } from '#/shared/domain/permissions'
-import { usePermissions } from '#/shared/hooks/usePermissions'
-import { useActionMutation } from '#/components/hooks/use-action-mutation'
-import {
-  archiveStaffParticipation,
-  createStaffParticipation,
-  listStaffParticipations,
-  updatePortalResponsibilities,
-} from '#/contexts/identity/server/staff-participations'
-import { listPortals } from '#/contexts/portal/server/portals'
-import { isDarkCapabilityDenial } from '#/shared/auth/capability-denial'
+import { roleUnavailable } from '#/shared/auth/route-notice'
 import { PeoplePage } from '#/components/features/property/people/people-page'
 import { peopleSearchSchema } from '#/components/features/property/people/people-search-schema'
 import { gateControlledRoute } from '#/shared/shell-context/remembered-route-gate'
-import { staffKeys, portalKeys, propertyKeys } from '#/shared/queries/query-keys'
 import { propertyQuery } from '#/routes/-queries/route-queries'
-
-const participationsQuery = (propertyId: string) =>
-  queryOptions({
-    queryKey: staffKeys.participations(propertyId),
-    queryFn: () => listStaffParticipations({ data: { propertyId, activeOnly: false } }),
-    staleTime: 30_000,
-  })
-
-const portalsQuery = (propertyId: string) =>
-  queryOptions({
-    // Not `portalKeys.list`: the Portal pages fill that key with `{ portals }`,
-    // and this read adds `portalsDenied`. One key must hold one shape.
-    queryKey: portalKeys.listOrDenied(propertyId),
-    // F-PEOPLE (BQC-6.7): portal.read is dark in the beta posture, and this
-    // query's denial must not sink the ENABLED Staff surface
-    // (Promise.all on the raw query rejected the whole loader → route 500).
-    // Degrade to "no portals, portal affordances hidden" on a deliberate
-    // dark-capability denial; REAL errors still throw and fail the loader.
-    queryFn: async () => {
-      try {
-        const { portals } = await listPortals({ data: { propertyId } })
-        return { portals, portalsDenied: false }
-      } catch (e) {
-        if (isDarkCapabilityDenial(e)) {
-          return { portals: [], portalsDenied: true }
-        }
-        throw e
-      }
-    },
-    staleTime: 30_000,
-  })
 
 export const Route = createFileRoute('/_authenticated/properties/$propertyId/people')({
   staticData: {
@@ -59,7 +17,7 @@ export const Route = createFileRoute('/_authenticated/properties/$propertyId/peo
     await gateControlledRoute({
       context,
       data: {
-        capability: 'staff.use',
+        capability: 'staff.accounts',
         featureLabel: 'Staff',
         propertyId: params.propertyId,
       },
@@ -68,54 +26,10 @@ export const Route = createFileRoute('/_authenticated/properties/$propertyId/peo
     if (!can(role, 'staff.read')) throw roleUnavailable('Staff', 'properties')
   },
   validateSearch: (search) => peopleSearchSchema.parse(search),
-  staleTime: 30_000,
-  loader: async ({ params: { propertyId }, context }) => {
-    await Promise.all([
-      context.queryClient.ensureQueryData(participationsQuery(propertyId)),
-      context.queryClient.ensureQueryData(portalsQuery(propertyId)),
-    ])
-  },
   component: PeopleRoute,
 })
-
 function PeopleRoute() {
   const { propertyId } = Route.useParams()
-  const { can: canDo } = usePermissions()
-  const { data: propData } = useSuspenseQuery(propertyQuery(propertyId))
-  const { data: participationData } = useSuspenseQuery(participationsQuery(propertyId))
-  const { data: portalsData } = useSuspenseQuery(portalsQuery(propertyId))
-  const { participations, responsibilities } = participationData
-  const { portals, portalsDenied } = portalsData
-
-  const invalidateKeys = [
-    staffKeys.participations(propertyId),
-    propertyKeys.detail(propertyId),
-  ]
-
-  const createParticipationMutation = useActionMutation(createStaffParticipation, {
-    invalidateKeys,
-  })
-  const archiveParticipationMutation = useActionMutation(archiveStaffParticipation, {
-    successMessage: 'Staff participation archived',
-    // Confirmed in a dialog that stays open and says a refusal itself.
-    invalidateKeys,
-  })
-  const updateResponsibilitiesMutation = useActionMutation(updatePortalResponsibilities, {
-    invalidateKeys,
-  })
-
-  return (
-    <PeoplePage
-      propertyId={propertyId}
-      propertyName={propData.property.name}
-      participations={participations}
-      responsibilities={responsibilities}
-      portals={portals.filter((portal) => portal.kind !== 'personal')}
-      portalsDenied={portalsDenied}
-      canManageStaff={canDo('staff.manage')}
-      createParticipationMutation={createParticipationMutation}
-      archiveParticipationMutation={archiveParticipationMutation}
-      updateResponsibilitiesMutation={updateResponsibilitiesMutation}
-    />
-  )
+  const { data } = useSuspenseQuery(propertyQuery(propertyId))
+  return <PeoplePage propertyId={propertyId} propertyName={data.property.name} />
 }

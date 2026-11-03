@@ -41,6 +41,7 @@ export type PrintFinalShopInput = Readonly<{
 
 export type PrintFinalRenderInput = Readonly<{
   /** The document's title, shown by a PDF viewer. */
+  personalName?: string
   title: string
   /** Which piece, which way up, which look and which measure set. */
   face: PrintFinalFace

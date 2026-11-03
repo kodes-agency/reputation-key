@@ -48,6 +48,7 @@ import {
 } from './print-kit-pdf-text'
 
 export type FinalSheetsInput = Readonly<{
+  personalName?: string
   sheet: PrintFinalSheet
   /** The face every cell holds, laid out once. */
   face: FinalPreparedFace
@@ -227,7 +228,11 @@ export function drawFinalSheets(
     }
     drawFinalMarks(doc, colour, printFinalSheetMarks(sheet, cells))
     for (const note of printFinalSheetNotes(sheet, tilePt, cells)) {
-      drawNote(doc, fonts, note)
+      if (input.personalName) {
+        doc.save().rect(note.leftPt, note.topPt, note.widthPt, note.heightPt).clip()
+        drawNote(doc, fonts, { ...note, text: `For ${input.personalName}. ${note.text}` })
+        doc.restore()
+      } else drawNote(doc, fonts, note)
     }
     if (input.back !== undefined) drawBackSheet(doc, input.back, sheet, cells)
   }

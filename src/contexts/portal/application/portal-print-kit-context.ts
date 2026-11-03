@@ -171,6 +171,7 @@ export type PortalPrintKitLastPrint = Readonly<{
 
 /** What the browser is given: the same facts, with each image as a same-origin path. */
 export type PortalPrintKitView = Readonly<{
+  personal?: boolean
   portalId: string
   kit: PortalPrintKitGeneration
   /** The final kit's memory of the last print; null for today's kit and for a Portal never printed. */

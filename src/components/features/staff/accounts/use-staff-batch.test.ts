@@ -1,7 +1,7 @@
 import { act, createElement } from 'react'
 import { it, expect, vi } from 'vitest'
 import { setupHookRoot } from '#/shared/testing/hook-root'
-import { useStaffBatch } from './use-staff-batch'
+import { initialStaffSource, useStaffBatch } from './use-staff-batch'
 import { newStaffRow } from './staff-batch'
 import type { StaffAddFormProps } from './staff-add-form'
 vi.mock('#/components/ui/dialog-dismissal', () => ({ useDialogBusy: () => undefined }))
@@ -79,4 +79,21 @@ it('ignores double submit while the check is pending', async () => {
     await sending
   })
   expect(add).toHaveBeenCalledTimes(2)
+})
+
+it('selects only an unambiguous published Portal, including a Group entry', () => {
+  const portals = [
+    { id: 'a', name: 'A', groupId: 'desk' },
+    { id: 'b', name: 'B', groupId: 'bar' },
+  ]
+  expect(initialStaffSource([])).toBe('property')
+  expect(initialStaffSource(portals.slice(0, 1))).toBe('a')
+  expect(initialStaffSource(portals)).toBe('')
+  expect(initialStaffSource(portals, 'desk')).toBe('a')
+  expect(
+    initialStaffSource(
+      portals.map((portal) => ({ ...portal, groupId: 'desk' })),
+      'desk',
+    ),
+  ).toBe('')
 })

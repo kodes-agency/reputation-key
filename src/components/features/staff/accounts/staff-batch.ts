@@ -1,3 +1,4 @@
+import { INVITATION_BUDGET_MESSAGE } from '#/shared/domain/invitation-budget-limits'
 import type {
   checkStaffBatch,
   addStaffMember,
@@ -58,7 +59,42 @@ const PROBLEMS: Readonly<Record<string, string>> = {
     "This property's public name is over 100 characters. Shorten it, or pick a portal to copy.",
   address_keyring_missing:
     'Codes cannot be recovered yet. Ask your account admin to set up code recovery.',
-  rate_limited: 'Please wait before sending more invitations.',
+  rate_limited: INVITATION_BUDGET_MESSAGE,
+  guest_wording_missing:
+    'Write this property’s guest title and description before adding staff.',
+  language_pack_missing:
+    'This guest language is unavailable. Ask an account admin to choose another language.',
+  time_zone_invalid: 'Set a valid time zone in Property settings before adding staff.',
+  publication_snapshot_unavailable:
+    'The guest page could not go live. Check its wording and languages, then try again.',
+  primary_text_missing:
+    'The guest page needs a title and description in its primary language.',
+  responsible_manager_ineligible:
+    'Choose a responsible manager who can work at this property.',
+  google_review_destination_unavailable:
+    'Connect and refresh this property’s Google destination before adding staff.',
+  token_unavailable: 'The code is not ready. Try again to finish creating it.',
+  address_unavailable:
+    'The code could not be read. Ask an account admin to check code recovery.',
+  print_code_collision: 'This code could not be created. Try again.',
+  property_not_found: 'This property is unavailable.',
+  portal_not_found: 'The portal is unavailable. Choose another portal.',
+  group_not_found: 'This group is unavailable. Choose another group.',
+  portal_inactive:
+    'This property or portal is unavailable. Check its settings before trying again.',
+  forbidden:
+    'Your access has changed. Ask an account admin to finish adding this person.',
+  operation_conflict: 'This setup has changed. Refresh Staff before trying again.',
+  revision_conflict: 'The portal changed during setup. Try again.',
+  slug_taken: 'The code address was taken during setup. Try again.',
+  personal_portal_name_private:
+    'Remove this person’s name from the guest wording before trying again.',
+  locale_not_offered: 'Choose a guest language that is available.',
+  participation_not_found: 'This staff participation has ended. Refresh Staff.',
+  removal_incomplete: 'Removal did not finish. Try again to stop this code.',
+  invitation_delivery_failed: "The invitation email couldn't be sent.",
+  feature_unavailable: 'Staff accounts are unavailable.',
+
   personal_portal_goal_locked:
     "This group has a running goal these people can't join. End the goal first.",
 }
@@ -100,7 +136,7 @@ export async function sendStaffRows(
             : 'failed',
         problem:
           result.status === 'done'
-            ? null
+            ? staffProblem(result.code)
             : (staffProblem(result.code) ?? "Setup didn't finish. Try again."),
       })
     } catch (error) {
@@ -113,6 +149,6 @@ export function staffBatchProblem(check: Check, sourceName?: string): string | n
   const source = staffProblem(check.code, sourceName)
   if (source) return source
   return check.remainingInvitations < check.invitationsRequired
-    ? `Only ${check.remainingInvitations} invitations remain. This batch needs ${check.invitationsRequired}. Remove some people before adding.`
+    ? INVITATION_BUDGET_MESSAGE
     : null
 }

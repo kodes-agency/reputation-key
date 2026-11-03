@@ -30,6 +30,7 @@ export type NewPortalPlan = Readonly<{
   group: PortalGroup | null
   source: PortalCopySource | null
   personalPortal?: Readonly<{
+    printWording?: import('#/shared/domain/portal-print-final-wording').PrintFinalSavedWording
     publicName: string
     sourceFence?: CreatePortalCommand['personalSourceFence']
   }>
@@ -89,6 +90,9 @@ export function buildCreatePortalCommand(
     organizationId: ctx.organizationId,
     portal,
     initialResponsibleManagerIds: managerIds,
+    ...(plan.personalPortal?.printWording
+      ? { personalPrintWording: plan.personalPortal.printWording }
+      : {}),
     event: portalCreated({ ...factBase, publicationState: portal.publicationState }),
     ...(hasManager
       ? {}

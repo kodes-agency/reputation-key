@@ -280,7 +280,22 @@ const FILE_PIECES: Readonly<Record<PrintFinalPiece, string>> = {
 export function printFinalFileName(
   portalName: string,
   print: PrintFinalDescribed,
+  personalName?: string,
 ): string {
+  if (personalName !== undefined) {
+    const name =
+      personalName
+        .normalize('NFKC')
+        .replace(/[<>:"/\\|?*]/g, '')
+        .split('')
+        .filter((character) => character.charCodeAt(0) >= 32)
+        .join('')
+        .replace(/\s+/g, ' ')
+        .replace(/[. ]+$/g, '')
+        .trim()
+        .slice(0, 100) || 'Staff'
+    return `${name} - ${PRINT_FINAL_PIECE_FACTS[print.piece].title}.pdf`
+  }
   return (
     [
       fileNameSlug(portalName) || 'portal',

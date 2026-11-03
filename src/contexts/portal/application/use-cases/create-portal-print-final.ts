@@ -210,6 +210,7 @@ export const createPortalPrintFinal =
     const pdf = await renderOrRefuse(
       deps.renderer,
       {
+        ...(portal.kind === 'personal' ? { personalName: portal.name } : {}),
         title: printFinalDocumentTitle(context.portalName, choice.piece),
         face: {
           piece: choice.piece,
@@ -261,7 +262,11 @@ export const createPortalPrintFinal =
       wording: printFinalWordingToSave(words, input.languages),
     })
     return {
-      fileName: printFinalFileName(context.portalName, print),
+      fileName: printFinalFileName(
+        context.portalName,
+        print,
+        portal.kind === 'personal' ? portal.name : undefined,
+      ),
       contentType: 'application/pdf',
       pdf,
     }

@@ -4,6 +4,7 @@ export type StaffRemovalTarget = Readonly<{
   propertyId: string
   participantId: string
   portalId: string | null
+  hasLink?: boolean
   userId: string | null
   memberId: string | null
   memberRole: string | null
@@ -42,6 +43,7 @@ export type StaffManagementStore = Readonly<{
     readonly Readonly<{
       participationId: string
       operationId: string | null
+      joinedAt?: Date | null
       displayName: string
       portalId: string | null
       email: string | null
@@ -59,6 +61,17 @@ export type StaffManagementStore = Readonly<{
     enabled: boolean,
     actorId: string,
   ): Promise<void>
+  replaceInvitation(
+    input: Readonly<{
+      organizationId: string
+      participationId: string
+      oldEmail: string
+      email: string
+      invitationId: string
+      actorId: string
+    }>,
+    spendBudget: () => Promise<void>,
+  ): Promise<StaffOnboarding>
   renewInvitation(
     organizationId: string,
     participationId: string,

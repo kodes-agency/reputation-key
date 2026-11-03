@@ -2,10 +2,7 @@ import { buildPortalAddressOperations } from './build-address-operations'
 import { assertPersonalGroupTargetAvailable } from './infrastructure/personal-portal-group-guard'
 import { renamePersonalPortalLabels } from './application/use-cases/rename-personal-portal-labels'
 import { writePersonalPortalLabels } from './infrastructure/adapters/personal-portal-labels.writer'
-import {
-  createPersonalPortal,
-  checkPersonalPortalSource,
-} from './application/use-cases/create-personal-portal'
+import { buildPersonalPortalUseCases } from './build-personal-portals'
 import { archivePersonalPortal } from './application/use-cases/archive-personal-portal'
 import { createPortalResultsLinksReader } from './infrastructure/repositories/portal-results-links.reader'
 // Portal context — build function.
@@ -71,7 +68,6 @@ import { createPortalAddressCipher } from './infrastructure/adapters/portal-addr
 import { createPortalAddressRepository } from './infrastructure/repositories/portal-address.repository'
 import { createPortalLastPrintRepository } from './infrastructure/repositories/portal-last-print.repository'
 import { createPortalPrintWordingRepository } from './infrastructure/repositories/portal-print-wording.repository'
-import { createPortal } from './application/use-cases/create-portal'
 import { getPortalCreationOptions } from './application/use-cases/get-portal-creation-options'
 import {
   updatePortal,
@@ -301,6 +297,8 @@ export const buildPortalContext = (deps: PortalContextDeps) => {
   })
   const revealAddress = addressOperations.revealPortalAddress
   const personalCreationDeps = {
+    propertyLifecycleApi: deps.propertyApi,
+    propertyGoogleReviewDestinationApi: deps.propertyApi,
     portalRepo,
     portalGroupRepo,
     portalLinkRepo,
@@ -318,6 +316,9 @@ export const buildPortalContext = (deps: PortalContextDeps) => {
       assertPersonalGroupTargetAvailable(deps.db, scope),
     publicationRepo: portalPublicationRepo,
     addressRecoverable: portalAddressCipher !== null,
+    managerRepo: portalResponsibleManagerRepo,
+    printWordingRepo: createPortalPrintWordingRepository(deps.db),
+    lastPrintRepo: createPortalLastPrintRepository(deps.db),
   }
   const useCases = {
     renamePersonalPortalLabels: renamePersonalPortalLabels({
@@ -398,9 +399,7 @@ export const buildPortalContext = (deps: PortalContextDeps) => {
       factStore: portalWorkflowFactStore,
       clock: deps.clock,
     }),
-    createPortal: createPortal(personalCreationDeps),
-    createPersonalPortal: createPersonalPortal(personalCreationDeps),
-    checkPersonalPortalSource: checkPersonalPortalSource(personalCreationDeps),
+    ...buildPersonalPortalUseCases(personalCreationDeps),
     archivePersonalPortal: archivePersonalPortal(publishChangesDeps),
     archivePersonalPortalForMemberDeparture: archivePersonalPortal(
       publishChangesDeps,

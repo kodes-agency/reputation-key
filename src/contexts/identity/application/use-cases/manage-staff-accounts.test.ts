@@ -1,3 +1,5 @@
+import { checkStaffBatch, checkStaffSource } from './check-staff-batch'
+import { changeStaffInvitationEmail } from './change-staff-email'
 import { describe, expect, it, vi } from 'vitest'
 import { buildTestAuthContext } from '#/shared/testing/fixtures'
 import {
@@ -6,7 +8,6 @@ import {
   renameStaffMember,
   listStaffMembers,
   setColleagueListEnabled,
-  checkStaffBatch,
   resendStaffInvitation,
   type ManageStaffDeps,
 } from './manage-staff-accounts'
@@ -31,6 +32,7 @@ function setup(
     propertyId: 'property',
     portalId: 'portal',
     userId: 'user',
+    hasLink: true,
     memberId: 'member',
     memberRole: options.role ?? 'member',
     otherParticipations: options.other ?? false,
@@ -46,6 +48,8 @@ function setup(
     }
   }
   const store: StaffAccountStore = {
+    withAddressLocks: async (_org, _emails, run) => run(store),
+    markDeliveryProblem: vi.fn(async () => {}),
     withAddressLock: async (_org, _email, run) => run(store),
     currentActor: async (ctx) => ctx,
     propertyIds: async () => null,
@@ -114,6 +118,7 @@ function setup(
         },
       ],
       setColleagues: vi.fn(async () => undefined),
+      replaceInvitation: vi.fn(),
       renewInvitation: async () => {
         throw new Error('Not a resend')
       },
@@ -231,6 +236,7 @@ describe('staff removal convergence', () => {
       ...h.deps,
       store: {
         ...h.deps.store,
+        markDeliveryProblem: vi.fn(async () => {}),
         withAddressLock: async <T>(
           _org: string,
           _email: string,
@@ -535,6 +541,7 @@ it.each(['AccountAdmin', 'PropertyManager'] as const)(
         reportAddressRefusal,
         store: {
           ...store,
+          markDeliveryProblem: vi.fn(async () => {}),
           withAddressLock: async <T>(
             _org: string,
             _email: string,
@@ -548,3 +555,156 @@ it.each(['AccountAdmin', 'PropertyManager'] as const)(
     expect(reportAddressRefusal).toHaveBeenCalledTimes(role === 'AccountAdmin' ? 0 : 1)
   },
 )
+
+describe('correcting a staff invitation email', () => {
+  async function pendingSetup() {
+    const h = setup()
+    const current = (await h.deps.management.target(ctx.organizationId, 'participation'))!
+    const replaceInvitation = vi.fn(
+      async () =>
+        ({ email: 'fixed@example.com', staffParticipationId: 'participation' }) as never,
+    )
+    return {
+      ...h,
+      deps: {
+        ...h.deps,
+        management: {
+          ...h.deps.management,
+          target: async () => ({ ...current, userId: null, hasLink: false }),
+          replaceInvitation,
+        },
+      },
+      replaceInvitation,
+    }
+  }
+  it('keeps the person and code and locks both addresses in stable order', async () => {
+    const h = await pendingSetup()
+    const locked: string[] = []
+    const store: StaffAccountStore = {
+      ...h.deps.store,
+      withAddressLocks: async <T>(
+        _org: string,
+        emails: readonly string[],
+        run: (store: StaffAccountStore) => Promise<T>,
+      ) => {
+        locked.push(...emails)
+        return run(store)
+      },
+    }
+    const deliverAccess = vi.fn(async () => undefined)
+    await changeStaffInvitationEmail({ ...h.deps, store, deliverAccess })(
+      { participationId: 'participation', email: ' Fixed@example.com ' },
+      ctx,
+    )
+    expect(locked).toEqual(['fixed@example.com', 'polly@example.com'])
+    expect(h.replaceInvitation).toHaveBeenCalledWith(
+      expect.objectContaining({
+        participationId: 'participation',
+        email: 'fixed@example.com',
+        oldEmail: 'polly@example.com',
+      }),
+      expect.any(Function),
+    )
+    expect(deliverAccess).toHaveBeenCalledWith(
+      expect.objectContaining({ email: 'fixed@example.com' }),
+      { invited: true, userId: null },
+    )
+  })
+  it('refuses linked people before taking an address lock', async () => {
+    const h = setup()
+    await expect(
+      changeStaffInvitationEmail(h.deps)(
+        { participationId: 'participation', email: 'fixed@example.com' },
+        ctx,
+      ),
+    ).rejects.toMatchObject({ code: 'operation_conflict' })
+  })
+  it('hides another Organization from a Property Manager', async () => {
+    const h = await pendingSetup()
+    const store: StaffAccountStore = {
+      ...h.deps.store,
+      withAddressLocks: async (_org, _emails, run) => run(store),
+      withAddressLock: async (_org, _email, run) => run(store),
+      addressFacts: async () => ({
+        userId: 'elsewhere',
+        organizationIds: ['other'],
+        alreadyStaffHere: false,
+        alreadyInvited: false,
+        staffParticipantId: null,
+      }),
+    }
+    const deps = { ...h.deps, store }
+    await expect(
+      changeStaffInvitationEmail(deps)(
+        { participationId: 'participation', email: 'fixed@example.com' },
+        { ...ctx, role: 'PropertyManager' },
+      ),
+    ).rejects.toMatchObject({ code: 'cannot_add', message: "This email can't be added." })
+    expect(h.replaceInvitation).not.toHaveBeenCalled()
+  })
+  it('rechecks manager authority after waiting for both address locks', async () => {
+    const h = await pendingSetup()
+    const store: StaffAccountStore = {
+      ...h.deps.store,
+      withAddressLocks: async (_org, _emails, run) => run(store),
+      currentActor: async () => null,
+    }
+    await expect(
+      changeStaffInvitationEmail({ ...h.deps, store })(
+        { participationId: 'participation', email: 'fixed@example.com' },
+        ctx,
+      ),
+    ).rejects.toMatchObject({ code: 'forbidden' })
+    expect(h.replaceInvitation).not.toHaveBeenCalled()
+  })
+  it('does not send an invitation that an existing Organization member cannot accept', async () => {
+    const h = await pendingSetup()
+    const store: StaffAccountStore = {
+      ...h.deps.store,
+      withAddressLocks: async (_org, _emails, run) => run(store),
+      addressFacts: async () => ({
+        userId: 'existing',
+        organizationIds: [ctx.organizationId],
+        alreadyStaffHere: false,
+        alreadyInvited: false,
+        staffParticipantId: null,
+      }),
+    }
+    await expect(
+      changeStaffInvitationEmail({ ...h.deps, store })(
+        { participationId: 'participation', email: 'fixed@example.com' },
+        ctx,
+      ),
+    ).rejects.toMatchObject({
+      code: 'cannot_add',
+      message: 'This email already has an account here. Use another email address.',
+    })
+    expect(h.replaceInvitation).not.toHaveBeenCalled()
+  })
+  it('records a failed send for Resend without reverting the email', async () => {
+    const h = await pendingSetup()
+    await expect(
+      changeStaffInvitationEmail({
+        ...h.deps,
+        deliverAccess: async () => {
+          throw new Error('Mail failed')
+        },
+      })({ participationId: 'participation', email: 'fixed@example.com' }, ctx),
+    ).rejects.toMatchObject({ message: expect.stringContaining('Use Resend') })
+    expect(h.deps.store.markDeliveryProblem).toHaveBeenCalledWith(
+      ctx.organizationId,
+      'participation',
+      true,
+    )
+  })
+})
+
+it('previews omitted links with the same source gate, before entering a person', async () => {
+  const h = setup()
+  expect(
+    await checkStaffSource(h.deps)(
+      { propertyId: 'property', sourcePortalId: 'source' },
+      ctx,
+    ),
+  ).toEqual({ omittedLinks: [{ id: 'omitted', label: 'Old link' }] })
+})

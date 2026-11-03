@@ -1,3 +1,4 @@
+import { readPortalLastScans } from './portal-last-scans'
 // The Portals overview's batched results read (real PG).
 //
 // The read answers for many Portals in a fixed number of statements, so the
@@ -686,4 +687,20 @@ it('classifies personal Portals in the tenant-scoped batched read', async () => 
       ROSTER[0]!.portalId,
     ])
   }
+})
+
+it('reads the last counted qualified scan across period boundaries (PostgreSQL)', async () => {
+  const history = await db.transaction((tx) =>
+    readPortalLastScans(db, tx, ORG, ROSTER, COMPUTED_AT),
+  )
+  expect(history.some((row) => row.portalId === BUSY)).toBe(true)
+  const period = await overview().readWindow({
+    organizationId: ORG,
+    portals: ROSTER,
+    window: { startAt: COMPUTED_AT, endAt: new Date(COMPUTED_AT.getTime() + 1000) },
+  })
+  expect(period.cells).toEqual([])
+  expect(period.lastScans?.some((row) => row.portalId === BUSY)).toBe(true)
+  expect(period.lastScans?.some((row) => row.portalId === FOREIGN)).toBe(false)
+  expect(period.lastScans?.some((row) => row.portalId === EMPTY)).toBe(false)
 })
