@@ -1,17 +1,15 @@
-import { StaffRenameDialog } from './staff-rename-dialog'
+import { ServerFunctionError } from '#/shared/auth/server-function-error'
+import { useEffect } from 'react'
 import { useStaffFunctions } from './staff-account-functions'
-import { useState } from 'react'
-import { Link } from '@tanstack/react-router'
 import {
   useActionMutation,
   actionErrorMessage,
 } from '#/components/hooks/use-action-mutation'
+import { staffProblem } from './staff-batch'
 import { Button } from '#/components/ui/button'
 import { ConfirmationDialog } from '#/components/ui/confirmation-dialog'
-import { RowActionsItem, RowActionsMenu } from '#/components/ui/row-actions-menu'
 import { useStaffAccounts } from './staff-accounts-context'
 import {
-  staffMemberMenu,
   staffRepairAction,
   staffRemovalWords,
   type StaffMember,
@@ -40,76 +38,10 @@ export function StaffRemoveDialog({
   )
 }
 
-export function StaffMemberMenu({ member }: Readonly<{ member: StaffMember }>) {
-  const accounts = useStaffAccounts()
-  const [dialog, setDialog] = useState<'rename' | 'remove' | null>(null)
-  const { removeStaffMember, resendStaffInvitation } = useStaffFunctions()
-  const remove = useActionMutation(removeStaffMember, {
-    onSuccess: () => accounts?.refresh().then(() => undefined),
-  })
-  const resend = useActionMutation(resendStaffInvitation, {
-    successMessage: 'Invitation sent',
-    errorMessage: actionErrorMessage,
-    onSuccess: () => accounts?.refresh().then(() => undefined),
-  })
-  if (!accounts) return null
-  const menu = staffMemberMenu(member, {
-    invite: accounts.canInvite,
-    remove: accounts.canRemove,
-  })
-  return (
-    <>
-      <RowActionsMenu name={member.displayName}>
-        {menu.includes('code') && member.portalId ? (
-          <RowActionsItem asChild>
-            <Link
-              to="/properties/$propertyId/portals/$portalId"
-              params={{ propertyId: accounts.propertyId, portalId: member.portalId }}
-              search={{ tab: 'share' }}
-            >
-              Show code
-            </Link>
-          </RowActionsItem>
-        ) : null}
-        {menu.includes('rename') ? (
-          <RowActionsItem opensDialog onSelect={() => setDialog('rename')}>
-            Rename
-          </RowActionsItem>
-        ) : null}
-        {menu.includes('resend') ? (
-          <RowActionsItem
-            pending={resend.isPending}
-            onSelect={() => {
-              void resend({ data: { participationId: member.participationId } }).catch(
-                () => undefined,
-              )
-            }}
-          >
-            Resend invitation
-          </RowActionsItem>
-        ) : null}
-        {menu.includes('remove') ? (
-          <RowActionsItem destructive opensDialog onSelect={() => setDialog('remove')}>
-            {member.access === 'invited' || member.access === 'invite_expired'
-              ? 'Cancel invitation'
-              : 'Remove'}
-          </RowActionsItem>
-        ) : null}
-      </RowActionsMenu>
-      <StaffRemoveDialog
-        member={member}
-        open={dialog === 'remove'}
-        onOpenChange={(open) => setDialog(open ? 'remove' : null)}
-        onConfirm={() => remove({ data: { participationId: member.participationId } })}
-      />
-      {dialog === 'rename' ? (
-        <StaffRenameDialog member={member} onClose={() => setDialog(null)} />
-      ) : null}
-    </>
-  )
-}
-
-export function StaffRetry({ member }: Readonly<{ member: StaffMember }>) {
+export function StaffRetry({
+  member,
+  onBusyChange,
+}: Readonly<{ member: StaffMember; onBusyChange?: (busy: boolean) => void }>) {
   const accounts = useStaffAccounts()
   const { addStaffMember, removeStaffMember } = useStaffFunctions()
   const retry = useActionMutation(
@@ -126,14 +58,25 @@ export function StaffRetry({ member }: Readonly<{ member: StaffMember }>) {
           displayName: member.displayName,
         },
       })
-      if (result.status !== 'done') throw new Error('Staff setup remains incomplete')
+      if (result.status !== 'done')
+        throw new ServerFunctionError(
+          'StaffAccountError',
+          staffProblem(result.code) ?? 'Staff setup remains incomplete.',
+          result.code ?? 'step_failed',
+          409,
+        )
       return result
     },
     {
       errorMessage: actionErrorMessage,
       onSuccess: () => accounts?.refresh().then(() => undefined),
+      onError: () => accounts?.refresh().then(() => undefined),
     },
   )
+  useEffect(() => {
+    onBusyChange?.(retry.isPending)
+    return () => onBusyChange?.(false)
+  }, [retry.isPending, onBusyChange])
   if (
     !accounts ||
     member.access !== 'failed' ||
@@ -151,6 +94,37 @@ export function StaffRetry({ member }: Readonly<{ member: StaffMember }>) {
       }}
     >
       Try again
+    </Button>
+  )
+}
+
+export function StaffInvitationRepair({ member }: Readonly<{ member: StaffMember }>) {
+  const accounts = useStaffAccounts()
+  const functions = useStaffFunctions()
+  const resend = useActionMutation(functions.resendStaffInvitation, {
+    successMessage: 'Invitation sent',
+    errorMessage: actionErrorMessage,
+    onSuccess: () => accounts?.refresh().then(() => undefined),
+    onError: () => accounts?.refresh().then(() => undefined),
+  })
+  if (
+    !accounts?.canInvite ||
+    (member.access !== 'invite_expired' && member.code !== 'invitation_delivery_failed')
+  )
+    return null
+  return (
+    <Button
+      variant="outline"
+      size="sm"
+      pending={resend.isPending}
+      pendingLabel="Sending…"
+      onClick={() =>
+        void resend({ data: { participationId: member.participationId } }).catch(
+          () => undefined,
+        )
+      }
+    >
+      Resend invitation
     </Button>
   )
 }

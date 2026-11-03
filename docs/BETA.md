@@ -7,7 +7,7 @@ Authority for the closed beta. If this page and a document disagree, this page w
 - Organizations and Properties are operator-provisioned; no count is fixed. Self-service is off — `identity.register` and `organization.create` are `beta_disabled`, so growth is an operator action, not a signup. Operators create each later Organization from the operator console (`/operator`, ADR 0065), which invites its first AccountAdmin.
 - A user holds exactly one active Better Auth Organization membership, and an invitation never creates a second one. An invitation, or the renewal of one, is refused with the Identity error `organization_conflict` (HTTP 409) when its address already belongs to another Organization or holds an unexpired pending invitation from one, and accepting an invitation is refused with the same code when the account has meanwhile joined another Organization, checked under a per-user lock in the acceptance transaction (`assertAddressHasNoMembership`, `lapsedCompetitorIds` and `assertRenewalHasNoCompetitor` in `invitation-store-rules.ts`, `checkSingleOrganizationMembership` in `identity-command-store.ts`; `invitation-store-rules.test.ts`, `identity-command-store.test.ts`). `organization_membership_conflict` is a different refusal, an auth error also answered 409, and no invitation path raises it: the tenant resolver raises it for a session whose active Organization is not the account's one membership (the account has none, another, or more than one), `setActiveOrganization` raises it for a switch to such an Organization, and the account then waits for support (`src/shared/auth/tenant-resolver.ts`, `tenant-resolver.test.ts`).
 - One deployment serves everywhere: Railway `us-west2`, object bucket `sjc`, every supported country routed to it. There is no per-region deployment and no customer-visible region choice. Physical placement, country, and logical routing are distinct facts and are not encoded in one mutable Property field. Country and timezone remain editable business facts and do not move existing data.
-- No contractual uptime SLA, service credits, or 24/7 support. Support hours, service levels, warranties, disclaimers, and liability terms are not agreed; the accepted Closed Beta Participation Agreement version 2.4 creates none of them (`docs/legal/internal-beta-agreement.md:226-229`).
+- No contractual uptime SLA, service credits, or 24/7 support. Support hours, service levels, warranties, disclaimers, and liability terms are not agreed; the accepted Closed Beta Participation Agreement version 2.5 creates none of them (`docs/legal/internal-beta-agreement.md:226-229`).
 - No MFA, and the product no longer says otherwise. The security settings page used to ship a "Two-factor authentication … Coming soon" card that did nothing while no TOTP existed anywhere in `src/`; WP1.7 deleted the card rather than implementing the feature.
 
 ## 2. External obligations
@@ -231,3 +231,15 @@ aggregates only: generation groups, adoption, refusals, rewrite rate, button/eve
 counts, confirmed publication, distance and latency percentiles. Adoption rate is
 adopted / ready generations. Sent-unchanged share uses submitted drafts with an
 available distance; unavailable submissions are counted separately.
+
+### 2026-11-03 — staff account manager round 2
+
+Add checks guest wording before creating anyone and lets Account Admins save it
+in the dialog. Personal copies inherit eligible responsible managers and safe
+print wording. Staff is one list, with invitation repairs, a shared person sheet,
+scan counts, manager-only No scans lately and sequential batch Resend/group moves.
+A pending or expired invitation can change address without changing the code.
+Personal print filenames and available margins identify the person, outside the
+cut piece only. Privacy Notice version 3.4, effective 2026-11-03, and Participation Agreement
+version 2.5 take effect 2026-11-03; Access Disclosure 2.4 and staff.accounts capability posture are unchanged.
+No production/demo cleanup or What's new entry is performed in this PR.

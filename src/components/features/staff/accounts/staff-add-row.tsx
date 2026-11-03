@@ -36,7 +36,7 @@ export function StaffAddRow({
   return (
     <fieldset className="flex min-w-0 flex-col gap-2">
       <legend className="sr-only">Person {index + 1}</legend>
-      <div className="flex items-start gap-2">
+      <div className="flex items-end gap-2">
         <div
           className="grid min-w-0 flex-1 gap-3 sm:grid-cols-2"
           onPaste={(event) => {
@@ -54,10 +54,11 @@ export function StaffAddRow({
                 key={field}
                 id={id}
                 label={field === 'email' ? 'Email' : 'Name'}
-                labelClassName={index > 0 ? 'sm:sr-only' : undefined}
+                labelClassName={undefined}
                 invalid={Boolean(row.problem)}
               >
                 <Input
+                  autoFocus={index === 0 && field === 'displayName'}
                   id={id}
                   type={field === 'email' ? 'email' : 'text'}
                   value={row[field]}

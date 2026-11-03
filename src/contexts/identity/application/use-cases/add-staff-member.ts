@@ -1,3 +1,4 @@
+import { INVITATION_BUDGET_MESSAGE } from '#/shared/domain/invitation-budget-limits'
 import { z } from 'zod/v4'
 import type { AuthContext } from '#/shared/domain/auth-context'
 import { canForContext } from '#/shared/domain/permissions'
@@ -20,6 +21,7 @@ import type {
 export type AddStaffInput = StaffPortalPlan &
   Readonly<{ operationId: string; email: string; displayName: string }>
 export type StaffAccountDeps = Readonly<{
+  staffScanTargetsEnabled?: boolean
   authorizeProperty: (
     ctx: AuthContext,
     propertyId: string,
@@ -30,6 +32,7 @@ export type StaffAccountDeps = Readonly<{
   idGen: () => string
   spendAddressCheckBudget: (ctx: AuthContext, units: number) => Promise<void>
   reportAddressRefusal?: (reason: 'other_organization') => void
+  reportStepFailure?: (row: StaffOnboarding, error: unknown) => void
   reportDeliveryFailure: (row: StaffOnboarding) => void
   invitationBudget: (ctx: AuthContext) => Promise<number>
   spendInvitationBudget: (ctx: AuthContext) => Promise<void>
@@ -168,17 +171,27 @@ async function runSteps(
           )
           const completed = await store.checkpoint(row.id, 'access', 'done', null)
           // Delivery follows the commit. Resend is the repair for a failed send.
-          await deps
-            .deliverAccess(row, access)
-            .catch(() => deps.reportDeliveryFailure(row))
+          let deliveryCode: string | null = null
+          await deps.deliverAccess(row, access).catch(async () => {
+            deps.reportDeliveryFailure(row)
+            if (!access.invited) return
+            deliveryCode = 'invitation_delivery_failed'
+            await store.markDeliveryProblem(
+              row.organizationId,
+              row.staffParticipationId,
+              true,
+            )
+          })
           return {
             ...staffOnboardingResult(completed),
+            code: deliveryCode,
             access: access.invited ? ('invited' as const) : ('active' as const),
           }
         }
       }
     }
   } catch (error) {
+    deps.reportStepFailure?.(row, error)
     const code = failureCodeOf(error)
     return staffOnboardingResult(
       await store.checkpoint(
@@ -249,11 +262,11 @@ export const addStaffMember =
         (!facts.userId || !facts.organizationIds.includes(ctx.organizationId)) &&
         (await deps.invitationBudget(ctx)) === 0
       )
-        throw staffAccountError(
-          'rate_limited',
-          'Please wait before sending more staff invitations',
-        )
-      await deps.portals.check(input, ctx)
+        throw staffAccountError('rate_limited', INVITATION_BUDGET_MESSAGE)
+      await deps.portals.check(
+        { ...input, displayNames: [facts.staffDisplayName ?? input.displayName] },
+        ctx,
+      )
       const row = await store.reserve({
         id: input.operationId,
         organizationId: ctx.organizationId,

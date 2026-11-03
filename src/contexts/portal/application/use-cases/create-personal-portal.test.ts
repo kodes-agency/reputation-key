@@ -1,3 +1,5 @@
+import { buildPersonalPortalUseCases } from '../../build-personal-portals'
+import { assertPersonalPropertySource } from '../personal-portal-property-source'
 import { portalGroupId } from '#/shared/domain/ids'
 import { describe, expect, it, vi } from 'vitest'
 import { setupCreatePortal, PROPERTY } from '#/shared/testing/portal-create-setup'
@@ -34,6 +36,23 @@ function setup() {
   })
   const deps = {
     ...state.optionsDeps,
+    propertyApi: {
+      ...state.optionsDeps.propertyApi,
+      getPropertyTimezones: async () => [{ id: PROPERTY, timezone: 'Europe/Sofia' }],
+    },
+    propertyLifecycleApi: { isPropertyActive: async () => true },
+    propertyGoogleReviewDestinationApi: {
+      getGoogleReviewDestination: async () => ({
+        state: 'verified' as const,
+        uri: 'https://search.google.com/local/writereview?placeid=harbor',
+        retrievedAt: new Date(),
+        sourceEpoch: 1,
+        profileVersion: 1,
+      }),
+    },
+    managerRepo: { listActive: async () => [] },
+    printWordingRepo: { find: async () => null },
+    lastPrintRepo: { find: async () => null },
     addressRecoverable: true,
     checkGroupTarget: async () => {},
     publicationRepo: {
@@ -52,7 +71,21 @@ function setup() {
           ).profile!,
           displayName: 'Harbor',
         },
-        content: [],
+        content: [
+          {
+            id: 'wording',
+            organizationId: ctx.organizationId,
+            propertyId: PROPERTY,
+            locale: 'en' as const,
+            title: 'Welcome',
+            shortDescription: 'Tell us about your visit.',
+            heroAltText: null,
+            version: 1,
+            updatedBy: ctx.userId,
+            createdAt: new Date(),
+            updatedAt: new Date(),
+          },
+        ],
       }),
     },
   }
@@ -141,6 +174,58 @@ describe('createPersonalPortal', () => {
     ).rejects.toMatchObject({ code: 'address_keyring_missing' })
     expect(state.portalRepo.all()).toHaveLength(0)
   })
+  // Publishing runs these two gates first. A check that passes here and a publish
+  // that refuses would leave a person with a draft Portal and "Setup didn't finish".
+  it('refuses a Property without a verified Google destination before creating a Portal', async () => {
+    const { deps, state } = setup()
+    const unverified = {
+      ...deps,
+      propertyGoogleReviewDestinationApi: {
+        getGoogleReviewDestination: async () => null,
+      },
+    }
+    await expect(
+      checkPersonalPortalSource(unverified)({ propertyId: PROPERTY }, ctx),
+    ).rejects.toMatchObject({ code: 'google_review_destination_unavailable' })
+    await expect(
+      createPersonalPortal(unverified)(
+        { portalId: reserved, propertyId: PROPERTY, displayName: 'Polly Smith' },
+        ctx,
+      ),
+    ).rejects.toMatchObject({ code: 'google_review_destination_unavailable' })
+    expect(state.portalRepo.all()).toHaveLength(0)
+  })
+  it('refuses an unavailable Property before creating a Portal', async () => {
+    const { deps, state } = setup()
+    const unavailable = {
+      ...deps,
+      propertyLifecycleApi: { isPropertyActive: async () => false },
+    }
+    await expect(
+      checkPersonalPortalSource(unavailable)({ propertyId: PROPERTY }, ctx),
+    ).rejects.toMatchObject({ code: 'portal_inactive' })
+    await expect(
+      createPersonalPortal(unavailable)(
+        { portalId: reserved, propertyId: PROPERTY, displayName: 'Polly Smith' },
+        ctx,
+      ),
+    ).rejects.toMatchObject({ code: 'portal_inactive' })
+    expect(state.portalRepo.all()).toHaveLength(0)
+  })
+  it('asks the same two gates of a copy from another Portal', async () => {
+    const { deps, state, source } = setup()
+    state.portalRepo.seed([
+      { ...buildTestPortal(), id: source.portal.id, propertyId: PROPERTY },
+    ] as never)
+    await expect(
+      checkPersonalPortalSource({
+        ...deps,
+        propertyGoogleReviewDestinationApi: {
+          getGoogleReviewDestination: async () => null,
+        },
+      })({ propertyId: PROPERTY, sourcePortalId: source.portal.id }, ctx),
+    ).rejects.toMatchObject({ code: 'google_review_destination_unavailable' })
+  })
   it('refuses an archived copy source', async () => {
     const { deps, state } = setup()
     const source = buildTestPortal({ publicationState: 'archived' })
@@ -202,4 +287,149 @@ it('checks a Group target with the skip setting the copy would inherit', async (
   expect(checkGroupTarget).toHaveBeenCalledWith(
     expect.objectContaining({ skipsPrivateRating: true }),
   )
+})
+
+it('refuses missing guest wording before creating a Portal', async () => {
+  const { deps, state } = setup()
+  const empty = {
+    ...deps,
+    experienceRepo: {
+      ...deps.experienceRepo,
+      getPropertyExperience: async () => ({
+        ...(await deps.experienceRepo.getPropertyExperience()),
+        content: [],
+      }),
+    },
+  }
+  await expect(
+    createPersonalPortal(empty)(
+      { portalId: reserved, propertyId: PROPERTY, displayName: 'Polly' },
+      ctx,
+    ),
+  ).rejects.toMatchObject({ code: 'guest_wording_missing' })
+  expect(state.portalRepo.all()).toEqual([])
+})
+it('uses the publication time zone blocker before a write', async () => {
+  const { deps } = setup()
+  await expect(
+    assertPersonalPropertySource(
+      {
+        ...deps,
+        propertyApi: {
+          ...deps.propertyApi,
+          getPropertyTimezones: async () => [{ id: PROPERTY, timezone: 'Invalid/Zone' }],
+        },
+      },
+      ctx,
+      PROPERTY,
+    ),
+  ).rejects.toMatchObject({ code: 'time_zone_invalid' })
+})
+
+it('inherits eligible responsible managers from the copied Portal', async () => {
+  const { deps, state, source } = setup()
+  const portal = buildTestPortal({
+    id: source.portal.id,
+    propertyId: PROPERTY,
+    publicationState: 'published',
+  })
+  state.portalRepo.seed([portal])
+  const userId = 'source-manager'
+  const assigned = ['source-manager', 'departed-manager'].map((id) => ({
+    id,
+    organizationId: ctx.organizationId,
+    propertyId: PROPERTY,
+    portalId: portal.id,
+    userId: id,
+    effectiveFrom: new Date(),
+    effectiveTo: null,
+    createdBy: ctx.userId,
+    endReason: null,
+  }))
+  const command = vi.fn(deps.commandStore.createPortal)
+  await createPersonalPortal({
+    ...deps,
+    commandStore: { ...deps.commandStore, createPortal: command },
+    managerRepo: { listActive: async () => assigned },
+    identityPublicApi: {
+      listActiveManagers: async () => [
+        { userId, role: 'AccountAdmin', propertyAccessScope: 'organization' },
+      ],
+    },
+  })(
+    {
+      portalId: reserved,
+      propertyId: PROPERTY,
+      displayName: 'Polly Smith',
+      sourcePortalId: portal.id,
+    },
+    ctx,
+  )
+  expect(command.mock.calls[0]?.[0].initialResponsibleManagerIds).toEqual([userId])
+})
+it('falls back to the eligible creator when the source has no eligible managers', async () => {
+  const { deps, state, source } = setup()
+  const portal = buildTestPortal({
+    id: source.portal.id,
+    propertyId: PROPERTY,
+    publicationState: 'published',
+  })
+  state.portalRepo.seed([portal])
+  const command = vi.fn(deps.commandStore.createPortal)
+  await createPersonalPortal({
+    ...deps,
+    commandStore: { ...deps.commandStore, createPortal: command },
+  })(
+    {
+      portalId: reserved,
+      propertyId: PROPERTY,
+      displayName: 'Polly Smith',
+      sourcePortalId: portal.id,
+    },
+    ctx,
+  )
+  expect(command.mock.calls[0]?.[0].initialResponsibleManagerIds).toEqual([ctx.userId])
+})
+it.each([
+  ['Welcome back', true],
+  ['Ask Polly about your visit', false],
+])('copies safe saved print wording (%s)', async (headline, copied) => {
+  const { deps, state, source } = setup()
+  const portal = buildTestPortal({
+    id: source.portal.id,
+    propertyId: PROPERTY,
+    publicationState: 'published',
+  })
+  state.portalRepo.seed([portal])
+  const wording = {
+    callToAction: 'how_did_we_do' as const,
+    customWords: { en: { headline, subline: '' } },
+  }
+  const command = vi.fn(deps.commandStore.createPortal)
+  await createPersonalPortal({
+    ...deps,
+    commandStore: { ...deps.commandStore, createPortal: command },
+    printWordingRepo: { find: async () => wording },
+  })(
+    {
+      portalId: reserved,
+      propertyId: PROPERTY,
+      displayName: 'Polly Smith',
+      sourcePortalId: portal.id,
+    },
+    ctx,
+  )
+  expect(command.mock.calls[0]?.[0].personalPrintWording).toEqual(
+    copied ? wording : undefined,
+  )
+})
+
+it('wires the same preflight through the Portal management builder', async () => {
+  const { deps } = setup()
+  await expect(
+    buildPersonalPortalUseCases({
+      ...deps,
+      addressRecoverable: false,
+    }).checkPersonalPortalSource({ propertyId: PROPERTY }, ctx),
+  ).rejects.toMatchObject({ code: 'address_keyring_missing' })
 })

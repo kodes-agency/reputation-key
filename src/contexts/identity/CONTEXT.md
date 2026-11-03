@@ -12,8 +12,7 @@ adapter; no other context reads its tables directly.
 
 - **Member** — a Better Auth login belonging to one Organization. Built-in roles
   map as `owner → AccountAdmin`, `admin → PropertyManager`, and `member → Member`.
-- **Staff Participant** — a manager-maintained person or business profile. It may
-  exist without a login and is not the `Member` role.
+- **Staff Participant** — a manager-maintained person or business profile. The product creates it with a login invitation; retained historical rows may lack a login. It is not the `Member` role.
 - **Staff Participation** — an effective-dated Participant-to-Property relation.
 - **Portal Responsibility** — effective-dated performance attribution from a
   Staff Participation to a Portal; `primary` is the single metric-credit relation.
@@ -188,3 +187,22 @@ Property access grants.
 Add reserves one operation and stable identifiers under the invitation email lock before creating anything. Each step commits independently and a failed step resumes; completion or cancellation clears email and name in the checkpoint statement. Staff invitation acceptance creates membership and login link in the same transaction on signed-in, registration and recovery paths, with no Property grant. Existing Organization members link directly. Remove first cancels acceptance and ends participation access, then converges on Portal archival and, at the last Property, link closure and Member-only login removal. A manager login survives. Personal responsibilities cannot be replaced through the older participation commands.
 
 `staff_onboardings` and `staff_property_settings` belong to Identity's retained `staff` export and purge contribution. The former holds contact data only while unfinished. The latter defaults the colleague list off. The notice version and acknowledgement time live on the effective-dated login link.
+
+### Manager round 2 (2026-11-03)
+
+Staff is one account roster; standalone profile server functions and forms are
+removed. Retained participation commands still serve attribution and removal.
+The roster exposes joinedAt, current Group and a delivery failure code while
+email remains gated by staff.invite. Completed onboarding can retain
+invitation_delivery_failed without retaining its contact fields; Resend clears
+that marker only after delivery succeeds, and the roster stops reporting it once
+the person has joined anyway. Joined means this Property: the later of the login's
+link and this participation's start, so someone already working at another Property
+doesn't read as long-joined on their first day here.
+
+changeStaffInvitationEmail authorizes staff.invite at the participation's Property,
+locks old and new normalized addresses in stable order, applies the same address
+facts/refusal and budget, and replaces the pending invitation transactionally.
+The participation fence serializes acceptance/removal; an accepted invitation or
+active link refuses correction. A fresh identity.member.invited fact audits the
+new invitation. Existing participation, Portal and public code are never replaced.

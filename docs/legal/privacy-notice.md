@@ -3,14 +3,14 @@ status: accepted
 accepted_by: Bozhidar Denev
 accepted_on: 2026-09-08
 corrected_on: 2026-10-13
-amended_on: 2026-11-02
+amended_on: 2026-11-03
 ---
 
 # Privacy Notice — Reputation Key Closed Beta
 
 **Status:** Accepted for publication
-**Effective date:** 2026-11-02
-**Version:** 3.3
+**Effective date:** 2026-11-03
+**Version:** 3.4
 **Accountable owner:** Bozhidar Denev
 
 ## 1. About this notice
@@ -81,6 +81,8 @@ selections. Rating counts and averages update once a day. If the business turns
 it on, colleagues at the Property see each other's scan counts.
 
 Managers may see a marker when a person's average is high and their scans are low compared with colleagues. It prompts a conversation; nothing happens automatically, and staff do not see it.
+
+Managers may also see a marker when someone who has joined has had no scans for 14 days. It prompts a conversation; nothing happens automatically, and staff do not see it.
 
 A Group target shows staff a live total that includes colleagues. It is shown only when the colleague list is on or the Group has at least three people.
 
@@ -263,6 +265,7 @@ for complaints, and it does not count per person.
   Google selections. When the business turns it on, colleagues at the Property
   see each other's scan counts. Guests never see a staff name.
 - Managers may see a marker when a person's average is high and their scans are low compared with colleagues. It prompts a conversation; nothing happens automatically, and staff do not see it.
+- Managers may also see a marker when someone who has joined has had no scans for 14 days. It prompts a conversation; nothing happens automatically, and staff do not see it.
 - A Group target shows staff a live total that includes colleagues. It is shown only when the colleague list is on or the Group has at least three people.
 - The guest line “Only {name} sees your rating” names the business that receives
   it. A staff member at that business can see the count and average for their
@@ -448,7 +451,7 @@ West); no EU deployment exists.
 
 ## 9. Changes and contact
 
-This notice takes effect on 2026-11-02 and is version 3.3. It replaces version 3.2, effective 2026-11-02, which replaced version 3.1, effective 2026-11-01, which replaced version
+This notice takes effect on 2026-11-03 and is version 3.4. It replaces version 3.3, effective 2026-11-02, which replaced version 3.2, effective 2026-11-02, which replaced version 3.1, effective 2026-11-01, which replaced version
 3.0, which took effect on 2026-10-30 and had replaced version
 2.5, which took effect on 2026-10-16 and had replaced version 2.4, which took
 effect on 2026-10-16 and had replaced version 2.3, which took
@@ -562,3 +565,5 @@ Staff performance numbers follow the facts' 24-month retention, which is not
 enforced by code for Reporting's readings yet. It takes effect on release
 without a waiting period, on the accountable owner's decision of 2026-11-01
 for the two beta Organizations the owner controls.
+
+Version 3.4 (2026-11-03) adds the manager-only marker for staff who have joined and have had no scans for 14 days. It has no automatic consequence.

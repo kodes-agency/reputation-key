@@ -102,6 +102,7 @@ export type CreatePortalCommand = Readonly<{
   initialResponsibleManagerIds: ReadonlyArray<UserId>
   event: PortalCreated
   groupMembership?: CreatePortalGroupMembership
+  personalPrintWording?: import('#/shared/domain/portal-print-final-wording').PrintFinalSavedWording
   personalSourceFence?: Readonly<{
     portalId: PortalId
     updatedAt: Date

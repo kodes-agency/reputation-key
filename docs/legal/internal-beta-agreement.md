@@ -2,14 +2,14 @@
 status: accepted
 accepted_by: Bozhidar Denev
 accepted_on: 2026-09-08
-amended_on: 2026-11-02
+amended_on: 2026-11-03
 ---
 
 # Closed Beta Participation Agreement — Reputation Key
 
 **Status:** Accepted for publication and invited-beta use
-**Effective date:** 2026-11-02
-**Version:** 2.4
+**Effective date:** 2026-11-03
+**Version:** 2.5
 **Accountable owner:** Bozhidar Denev
 
 ## 1. Parties and beta purpose
@@ -47,7 +47,7 @@ release readiness, the core product includes:
 
 Core analytics are part of the Service. There is no product option to decline
 the affected operational metrics while continuing to use the workflow. The
-accepted [Privacy Notice version 3.3](/privacy), effective 2026-11-02, forms part
+accepted [Privacy Notice version 3.4](/privacy), effective 2026-11-03, forms part
 of this agreement and states the applicable roles, legal bases, and rights
 process.
 
@@ -198,6 +198,8 @@ the private rating cannot have a staff scan target.
 
 Managers may see a marker when a person's average is high and their scans are low compared with colleagues. It prompts a conversation; nothing happens automatically, and staff do not see it.
 
+Managers may also see a marker when someone who has joined has had no scans for 14 days. It prompts a conversation; nothing happens automatically, and staff do not see it.
+
 Staff attribution, metrics, and goals are non-competitive manager
 decision-support evidence. Badge and Leaderboard behavior is unreachable. The
 Service provides no ordinal ranking, bottom list, composite staff score, or
@@ -252,7 +254,7 @@ agreement does not create them.
 
 ## 9. Data handling, retention, and providers
 
-The accepted [Privacy Notice version 3.3](/privacy), effective 2026-11-02, and
+The accepted [Privacy Notice version 3.4](/privacy), effective 2026-11-03, and
 its retention and provider schedules form part of this agreement. They cover
 Participant, Google source, Portal and Guest, manager-authored, AI-derived,
 monitoring, export, backup, and independently retained evidence classes.
@@ -303,7 +305,7 @@ capability schedule are available.
 
 This agreement is accepted together with:
 
-- Privacy Notice version 3.3, effective 2026-11-02, at `/privacy`;
+- Privacy Notice version 3.4, effective 2026-11-03, at `/privacy`;
 - Google Business Profile Access Disclosure version 2.4, effective 2026-11-02,
   at `/privacy/google-access-disclosure`;
 - the activated-capability schedule in `docs/BETA.md` section 4; and
@@ -317,7 +319,7 @@ invited Participant accepts the Participant obligations by joining.
 
 ## 13. Changes
 
-This agreement takes effect on 2026-11-02 and is version 2.4. It replaces version 2.3, effective 2026-11-02, which replaced version 2.2, effective 2026-11-01, which replaced
+This agreement takes effect on 2026-11-03 and is version 2.5. It replaces version 2.4, effective 2026-11-02, which replaced version 2.3, effective 2026-11-02, which replaced version 2.2, effective 2026-11-01, which replaced
 version 2.1, which took effect on 2026-10-14 and had replaced version 2.0, which
 took effect on 2026-09-08.
 
@@ -367,3 +369,5 @@ behavior and Google-review solicitation gamification or review-derived staff
 scoring remain excluded. It takes effect on release without a waiting period,
 on the accountable owner's decision of 2026-11-01 for the two beta Organizations
 the owner controls.
+
+Version 2.5 (2026-11-03) discloses the manager-only no-scans marker, for a conversation with no automatic consequence.

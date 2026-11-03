@@ -36,6 +36,7 @@ const isSlugTaken = (error: unknown): boolean =>
 
 export type CreatePortalDeps = Readonly<{
   personalPortal?: Readonly<{
+    printWording?: import('#/shared/domain/portal-print-final-wording').PrintFinalSavedWording
     publicName: string
     copySource?: PortalCopySource
     sourceFence?: CreatePortalCommand['personalSourceFence']

@@ -33,6 +33,7 @@ export type PortalResultsMeasures = Readonly<{
 
 export type PortalResultsPortalRow = PortalResultsMeasures &
   Readonly<{
+    lastScanAt?: Date | null
     portalId: PortalId
     propertyId: PropertyId
     /** The group the Portal is in today; its history may sit under others. */

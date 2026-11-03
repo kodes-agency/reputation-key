@@ -174,3 +174,10 @@ describe('createPdfKitPrintFinalRenderer', () => {
     expect(text(wide)).toContain('/MediaBox')
   })
 })
+
+it('keeps every byte of a single piece unchanged by a manager-only person label', async () => {
+  const input = inputFor(paper('counter', 'wide'))
+  const place = await renderer.render(input)
+  const personal = await renderer.render({ ...input, personalName: 'Polly Jones' })
+  expect(personal).toEqual(place)
+})

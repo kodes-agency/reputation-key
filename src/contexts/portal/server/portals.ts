@@ -94,6 +94,9 @@ export const portalErrorStatus = (code: PortalErrorCode): number =>
     .with(
       'invalid_publication_transition',
       'publication_snapshot_unavailable',
+      'guest_wording_missing',
+      'language_pack_missing',
+      'time_zone_invalid',
       'google_review_destination_unavailable',
       () => 409,
     )

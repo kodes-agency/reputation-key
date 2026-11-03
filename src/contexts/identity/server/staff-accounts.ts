@@ -43,6 +43,31 @@ export const checkStaffBatch = createServerFn({ method: 'POST' })
     ),
   )
 
+export const checkStaffSource = createServerFn({ method: 'POST' })
+  .validator(z.object(plan).strict())
+  .handler(
+    tracedHandler(
+      async ({ data }) => {
+        const ctx = await resolveTenantContext(await headersFromContext())
+        const api = getContainer().identityPublicApi.staffAccounts
+        const propertyId = data.propertyId
+        await requireExecutionAllowed({
+          actor: ctx,
+          action: 'staff.invite',
+          capability: 'staff.accounts',
+          propertyId,
+        })
+        try {
+          return await api.checkStaffSource(data, ctx)
+        } catch (error) {
+          rethrowStaffAccount(error)
+        }
+      },
+      'POST',
+      'identity.checkStaffSource',
+    ),
+  )
+
 export const addStaffMember = createServerFn({ method: 'POST' })
   .validator(z.object({ ...plan, ...row.shape, operationId: z.uuid() }).strict())
   .handler(
@@ -96,6 +121,37 @@ export const resendStaffInvitation = createServerFn({ method: 'POST' })
       },
       'POST',
       'identity.resendStaffInvitation',
+    ),
+  )
+
+export const changeStaffInvitationEmail = createServerFn({ method: 'POST' })
+  .validator(participation.extend({ email: z.email().max(320) }).strict())
+  .handler(
+    tracedHandler(
+      async ({ data }) => {
+        const ctx = await resolveTenantContext(await headersFromContext())
+        const api = getContainer().identityPublicApi.staffAccounts
+        const propertyId = await api.propertyForParticipation(data.participationId, ctx)
+        if (!propertyId)
+          throwContextError(
+            'StaffAccountError',
+            { code: 'participation_not_found', message: 'Staff member not found' },
+            404,
+          )
+        await requireExecutionAllowed({
+          actor: ctx,
+          action: 'staff.invite',
+          capability: 'staff.accounts',
+          propertyId,
+        })
+        try {
+          return await api.changeStaffInvitationEmail(data, ctx)
+        } catch (error) {
+          rethrowStaffAccount(error)
+        }
+      },
+      'POST',
+      'identity.changeStaffInvitationEmail',
     ),
   )
 

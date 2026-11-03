@@ -1,3 +1,5 @@
+import { changeStaffInvitationEmail } from '../application/use-cases/change-staff-email'
+import { replaceStaffInvitation } from './staff-invitation-correction'
 import {
   removeStaffMember,
   removeStaffForMemberDeparture,
@@ -663,6 +665,63 @@ describe.sequential('staff onboarding checkpoints and constraints (PostgreSQL)',
     ).toEqual([])
   })
 
+  describe('the roster for someone with a login', () => {
+    const DAY = 86_400_000
+    async function linkedPerson() {
+      const h = await setup()
+      await seedStaffAccountUser(lease.pool, h.row)
+      await lease.pool.query('DELETE FROM invitation WHERE id = $1', [h.row.invitationId])
+      await lease.pool.query(
+        'INSERT INTO member (id, "organizationId", "userId", role, "createdAt") VALUES ($1, $2, $3, $4, $5)',
+        [randomUUID(), h.row.organizationId, h.row.userId, 'member', NOW],
+      )
+      const result = await addStaffMember(h.deps)(
+        { ...h.input, email: h.row.email },
+        h.ctx,
+      )
+      const management = createStaffManagementStore(db, () => NOW)
+      const row = async () =>
+        (await management.list(h.row.organizationId, h.row.propertyId)).find(
+          (member) => member.participationId === result.participationId,
+        )!
+      return { h, result, row }
+    }
+    it('dates joining from this Property, not an older login at another', async () => {
+      const { h, result, row } = await linkedPerson()
+      const linkedLongAgo = new Date(NOW.getTime() - 20 * DAY)
+      await lease.pool.query(
+        'UPDATE staff_user_links SET effective_from = $1 WHERE organization_id = $2 AND user_id = $3',
+        [linkedLongAgo, h.row.organizationId, h.row.userId],
+      )
+      await lease.pool.query(
+        'UPDATE staff_participations SET started_at = $1 WHERE id = $2',
+        [NOW, result.participationId],
+      )
+      expect(new Date((await row()).joinedAt!).getTime()).toBe(NOW.getTime())
+      await lease.pool.query(
+        'UPDATE staff_participations SET started_at = $1 WHERE id = $2',
+        [new Date(NOW.getTime() - 40 * DAY), result.participationId],
+      )
+      expect(new Date((await row()).joinedAt!).getTime()).toBe(linkedLongAgo.getTime())
+    })
+    it('has no joined date for someone who has not joined', async () => {
+      const h = await setup()
+      const added = await addStaffMember(h.deps)(h.input, h.ctx)
+      const roster = await createStaffManagementStore(db, () => NOW).list(
+        h.row.organizationId,
+        h.row.propertyId,
+      )
+      expect(
+        roster.find((member) => member.participationId === added.participationId),
+      ).toMatchObject({ access: 'invited', joinedAt: null })
+    })
+    it('drops a failed-send marker once the person has joined anyway', async () => {
+      const { h, result, row } = await linkedPerson()
+      await h.base.markDeliveryProblem(h.row.organizationId, result.participationId, true)
+      expect(await row()).toMatchObject({ access: 'active', code: null })
+    })
+  })
+
   it('keeps an unfinished removal visible for retry and resolves a login before its link step', async () => {
     const h = await setup('publication')
     await seedStaffAccountUser(lease.pool, h.row)
@@ -805,4 +864,184 @@ describe.sequential('staff onboarding checkpoints and constraints (PostgreSQL)',
       displayName: null,
     })
   })
+})
+
+describe.sequential('invitation correction and delivery problems (PostgreSQL)', () => {
+  it('replaces an invitation in one transaction and preserves the Portal and participation', async () => {
+    const h = await setup()
+    const added = await addStaffMember(h.deps)(h.input, h.ctx)
+    const management = createStaffManagementStore(db, () => NOW)
+    const email = `corrected-${randomUUID()}@example.com`
+    const corrected = await replaceStaffInvitation(db, () => NOW)(
+      {
+        organizationId: h.row.organizationId,
+        participationId: added.participationId,
+        oldEmail: h.input.email,
+        email,
+        invitationId: randomUUID(),
+        actorId: h.row.inviterId,
+      },
+      async () => undefined,
+    )
+    expect(corrected.portalId).toBe(added.portalId)
+    const invitations = await lease.pool.query(
+      'SELECT email,status FROM invitation WHERE "staffParticipationId" = $1',
+      [added.participationId],
+    )
+    expect(invitations.rows).toEqual(
+      expect.arrayContaining([
+        { email: h.input.email, status: 'canceled' },
+        { email, status: 'pending' },
+      ]),
+    )
+    await h.base.markDeliveryProblem(h.row.organizationId, added.participationId, true)
+    expect(
+      (await management.list(h.row.organizationId, h.row.propertyId))[0],
+    ).toMatchObject({ email, access: 'invited', code: 'invitation_delivery_failed' })
+    await h.base.markDeliveryProblem(h.row.organizationId, added.participationId, false)
+    expect(
+      (await management.list(h.row.organizationId, h.row.propertyId))[0]?.code,
+    ).toBeNull()
+  })
+  it('a budget refusal leaves the original invitation alive', async () => {
+    const h = await setup()
+    const added = await addStaffMember(h.deps)(h.input, h.ctx)
+    await expect(
+      replaceStaffInvitation(db, () => NOW)(
+        {
+          organizationId: h.row.organizationId,
+          participationId: added.participationId,
+          oldEmail: h.input.email,
+          email: 'corrected@example.com',
+          invitationId: randomUUID(),
+          actorId: h.row.inviterId,
+        },
+        async () => {
+          throw new Error('Budget exhausted')
+        },
+      ),
+    ).rejects.toThrow('Budget exhausted')
+    const rows = await lease.pool.query(
+      'SELECT email,status FROM invitation WHERE "staffParticipationId" = $1',
+      [added.participationId],
+    )
+    expect(rows.rows).toEqual([{ email: h.input.email, status: 'pending' }])
+  })
+  it('refuses a linked or accepted person inside the transaction', async () => {
+    const h = await setup()
+    const added = await addStaffMember(h.deps)(h.input, h.ctx)
+    await lease.pool.query(
+      `UPDATE invitation SET status = 'accepted' WHERE "staffParticipationId" = $1`,
+      [added.participationId],
+    )
+    await expect(
+      replaceStaffInvitation(db, () => NOW)(
+        {
+          organizationId: h.row.organizationId,
+          participationId: added.participationId,
+          oldEmail: h.input.email,
+          email: 'corrected@example.com',
+          invitationId: randomUUID(),
+          actorId: h.row.inviterId,
+        },
+        async () => undefined,
+      ),
+    ).rejects.toMatchObject({ code: 'operation_conflict' })
+  })
+  it('serializes a correction with a concurrent Add of the same address', async () => {
+    const h = await setup()
+    const added = await addStaffMember(h.deps)(h.input, h.ctx)
+    const email = `concurrent-${randomUUID()}@example.com`
+    const management = createStaffManagementStore(db, () => NOW)
+    const deps = { ...h.deps, management, removeLogin: async () => undefined }
+    const outcomes = await Promise.allSettled([
+      changeStaffInvitationEmail(deps)(
+        { participationId: added.participationId, email },
+        h.ctx,
+      ),
+      addStaffMember(h.deps)({ ...h.input, operationId: randomUUID(), email }, h.ctx),
+    ])
+    expect(outcomes.filter((outcome) => outcome.status === 'fulfilled')).toHaveLength(1)
+    const refused = outcomes.find((outcome) => outcome.status === 'rejected')
+    expect(refused).toMatchObject({
+      status: 'rejected',
+      reason: {
+        code: expect.stringMatching(
+          /already_invited|already_staff_here|operation_conflict/,
+        ),
+      },
+    })
+    const rows = await lease.pool.query(
+      `SELECT id FROM invitation WHERE "organizationId" = $1 AND email = $2 AND status = 'pending'`,
+      [h.row.organizationId, email],
+    )
+    expect(rows.rows).toHaveLength(1)
+  })
+})
+
+it('two concurrent email corrections share the bounded pool without nested address slots', async () => {
+  const h = await setup()
+  const one = await addStaffMember(h.deps)(h.input, h.ctx)
+  const two = await addStaffMember(h.deps)(
+    {
+      ...h.input,
+      operationId: randomUUID(),
+      email: `second-${randomUUID()}@example.com`,
+    },
+    h.ctx,
+  )
+  const deps = {
+    ...h.deps,
+    management: createStaffManagementStore(db, () => NOW),
+    removeLogin: async () => undefined,
+  }
+  const results = await Promise.all([
+    changeStaffInvitationEmail(deps)(
+      {
+        participationId: one.participationId,
+        email: `fixed-one-${randomUUID()}@example.com`,
+      },
+      h.ctx,
+    ),
+    changeStaffInvitationEmail(deps)(
+      {
+        participationId: two.participationId,
+        email: `fixed-two-${randomUUID()}@example.com`,
+      },
+      h.ctx,
+    ),
+  ])
+  expect(results).toEqual([{ changed: true }, { changed: true }])
+})
+
+it('reads the current Group rather than the original Add choice', async () => {
+  const h = await setup()
+  const added = await addStaffMember(h.deps)(h.input, h.ctx)
+  const groupId = randomUUID()
+  await lease.pool.query(
+    'INSERT INTO portal_groups (id,organization_id,property_id,name,sort_key) VALUES ($1,$2,$3,$4,$5)',
+    [groupId, h.row.organizationId, h.row.propertyId, 'Reception', 'a'],
+  )
+  await lease.pool.query(
+    'INSERT INTO portal_group_memberships (organization_id,property_id,portal_id,portal_group_id,created_by,effective_from) VALUES ($1,$2,$3,$4,$5,$6)',
+    [
+      h.row.organizationId,
+      h.row.propertyId,
+      added.portalId,
+      groupId,
+      h.row.inviterId,
+      NOW,
+    ],
+  )
+  const management = createStaffManagementStore(db, () => NOW)
+  expect(
+    (await management.list(h.row.organizationId, h.row.propertyId))[0]?.group,
+  ).toEqual({ id: groupId, name: 'Reception' })
+  await lease.pool.query(
+    'DELETE FROM portal_group_memberships WHERE organization_id = $1',
+    [h.row.organizationId],
+  )
+  await lease.pool.query('DELETE FROM portal_groups WHERE organization_id = $1', [
+    h.row.organizationId,
+  ])
 })

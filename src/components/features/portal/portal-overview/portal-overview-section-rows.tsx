@@ -1,10 +1,9 @@
-import { overviewSectionName } from './portal-staff-sections'
 import { highRatingFromFewGuests } from '#/components/features/staff/accounts/staff-rating-hint'
 // One group's part of a Portals table: its head row (unless the list is flat) and
 // the Portals the group holds, unless the reader folded it. Shared by the page of
 // one Property and the page of the whole Organization, so a group reads the same
 // in both.
-import { RowActionsItem, RowActionsMenu } from '#/components/ui/row-actions-menu'
+import { Button } from '#/components/ui/button'
 import { useStaffAccounts } from '#/components/features/staff/accounts/staff-accounts-context'
 import type { ReactNode } from 'react'
 import { groupSlot, type PortalOverviewResultsState } from './portal-overview-results'
@@ -107,10 +106,12 @@ function SectionActions({
   if (section.group && groupActions) return groupActions(section.group)
   if (!accounts?.canInvite || (!section.group && section.kind !== 'staff')) return null
   return (
-    <RowActionsMenu name={overviewSectionName(section)}>
-      <RowActionsItem opensDialog onSelect={() => accounts.openAdd(section.group?.id)}>
-        Add people
-      </RowActionsItem>
-    </RowActionsMenu>
+    <Button
+      variant="outline"
+      aria-label={section.group ? `Add staff to ${section.group.name}` : undefined}
+      onClick={() => accounts.openAdd(section.group?.id)}
+    >
+      Add staff
+    </Button>
   )
 }

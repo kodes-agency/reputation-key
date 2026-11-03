@@ -17,6 +17,8 @@ export function useStaffBatch({
   check,
   add,
   initialRows,
+  wording,
+  saveWording,
 }: StaffAddFormProps) {
   const functions = useStaffFunctions()
   const checkBatch = check ?? functions.checkStaffBatch
@@ -24,8 +26,14 @@ export function useStaffBatch({
   const [rows, setRows] = useState<readonly StaffDraftRow[]>(
     () => initialRows ?? [newStaffRow(crypto.randomUUID())],
   )
-  const [source, setSource] = useState(portals[0]?.id ?? 'property')
+  const [source, setSource] = useState(initialStaffSource(portals, initialGroupId))
   const [group, setGroup] = useState(initialGroupId ?? 'none')
+  const [title, setTitle] = useState(wording?.title ?? '')
+  const [shortDescription, setShortDescription] = useState(
+    wording?.shortDescription ?? '',
+  )
+  const needsWording = source === 'property' && wording?.required
+  const canSubmit = staffCanSubmit(source, wording, title, shortDescription)
   const [busy, setBusy] = useState(false)
   const [started, setStarted] = useState(false)
   const [error, setError] = useState<unknown>(null)
@@ -33,11 +41,7 @@ export function useStaffBatch({
   const [links, setLinks] = useState<readonly string[]>([])
   const running = useRef(false)
   useDialogBusy(busy)
-  const plan = {
-    propertyId,
-    ...(source === 'property' ? {} : { sourcePortalId: source }),
-    ...(group === 'none' ? {} : { portalGroupId: group }),
-  }
+  const plan = staffBatchPlan(propertyId, source, group)
   const replace = (next: StaffDraftRow) =>
     setRows((current) =>
       current.map((row) => (row.operationId === next.operationId ? next : row)),
@@ -63,11 +67,17 @@ export function useStaffBatch({
     }
   }
   const submit = async () => {
-    if (running.current) return
+    if (running.current || !canSubmit) return
     running.current = true
     setBusy(true)
     setError(null)
     try {
+      await saveGuestWording(
+        { propertyId, wording, saveWording },
+        needsWording === true,
+        title,
+        shortDescription,
+      )
       const result = await checkBatch({
         data: {
           ...plan,
@@ -101,6 +111,11 @@ export function useStaffBatch({
     setOmitted(pasted.omitted)
   }
   return {
+    title,
+    setTitle,
+    shortDescription,
+    setShortDescription,
+    canSubmit,
     rows,
     source,
     setSource,
@@ -116,5 +131,51 @@ export function useStaffBatch({
     submit,
     paste,
     setRows,
+  }
+}
+
+export function initialStaffSource(
+  portals: StaffAddFormProps['portals'],
+  groupId?: string,
+): string {
+  if (!portals.length) return 'property'
+  const inGroup = groupId ? portals.filter((portal) => portal.groupId === groupId) : []
+  if (inGroup.length === 1) return inGroup[0]!.id
+  return portals.length === 1 ? portals[0]!.id : ''
+}
+
+function staffCanSubmit(
+  source: string,
+  wording: StaffAddFormProps['wording'],
+  title: string,
+  description: string,
+): boolean {
+  if (!source) return false
+  if (source !== 'property' || !wording?.required) return true
+  return Boolean(wording.canWrite && title.trim() && description.trim())
+}
+async function saveGuestWording(
+  props: Pick<StaffAddFormProps, 'propertyId' | 'wording' | 'saveWording'>,
+  needed: boolean,
+  title: string,
+  shortDescription: string,
+) {
+  if (!needed || !props.wording) return
+  if (!props.saveWording) throw new Error('Guest wording could not be saved.')
+  await props.saveWording({
+    data: {
+      propertyId: props.propertyId,
+      locale: props.wording.locale,
+      title: title.trim(),
+      shortDescription: shortDescription.trim(),
+    },
+  })
+}
+
+function staffBatchPlan(propertyId: string, source: string, group: string) {
+  return {
+    propertyId,
+    ...(source === 'property' ? {} : { sourcePortalId: source }),
+    ...(group === 'none' ? {} : { portalGroupId: group }),
   }
 }

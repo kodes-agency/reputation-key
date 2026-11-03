@@ -1,3 +1,4 @@
+import { readPortalLastScans } from './portal-last-scans'
 // Metric context — the Portals overview's batched results read.
 //
 // Answers for every requested Portal in five statements, however many there
@@ -187,8 +188,15 @@ export const createPortalResultsOverviewRepository = (
           ),
         )
       const scope = windowedScope(organizationId, roster, window)
-      const { cells, readingGroups, unattributed, evidenceRows } =
+      const { cells, readingGroups, unattributed, evidenceRows, lastScans } =
         await withStatementTimeout(db, async (tx) => ({
+          lastScans: await readPortalLastScans(
+            db,
+            tx,
+            organizationId,
+            portals,
+            computedAt,
+          ),
           cells: await readCells(db, tx, scope),
           readingGroups: await readReadingGroups(tx, scope),
           unattributed: await readUnattributedClicks(db, tx, scope),
@@ -222,6 +230,16 @@ export const createPortalResultsOverviewRepository = (
       )
       return {
         computedAt,
+        lastScans: lastScans.flatMap((row) =>
+          row.portalId
+            ? [
+                {
+                  portalId: spelled.get(row.portalId) ?? toPortalId(row.portalId),
+                  lastScanAt: new Date(row.lastScanAt),
+                },
+              ]
+            : [],
+        ),
         personalPortalIds: personal.map(
           (row) => spelled.get(row.id) ?? toPortalId(row.id),
         ),

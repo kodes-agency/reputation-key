@@ -108,6 +108,7 @@ export async function cleanStaffAccountFixture(pool: Pool, row: StaffAccountFixt
     'staff_property_settings',
     'portal_responsibilities',
     'portal_group_memberships',
+    'portal_groups',
     'staff_participations',
     'staff_user_links',
     'staff_participants',

@@ -1239,3 +1239,19 @@ private ratings. Membership changes and Skip private rating writes recheck this
 under that fence, including a place Portal joining a Group that contains people.
 The injected running-goal port also explains staff scan-target refusals before
 commit; Portal never imports a Reporting implementation.
+
+### Personal copies and print identification (2026-11-03)
+
+The no-source personal-Portal preflight resolves the proposed Property wording
+with resolvePortalPublication before Identity reserves a person. Missing title or
+description is guest_wording_missing; missing language packs and invalid time
+zones retain their own actionable codes. Name privacy is checked for the batch too.
+Personal copies inherit eligible source managers, with the eligible creator as
+fallback. Their safe opening print wording (saved, else last print) is written in
+portal_print_wordings in the create transaction; a name-guard refusal skips only
+that wording. Other copy behavior is unchanged.
+
+Personal final-print downloads use a sanitized person-first filename and identify
+the person only in available sheet/crop-mark margins. The guest face and public PDF
+title keep the public name. A single piece without a margin identifies the person
+only in its filename. Share says the saved opening line is also the phone's line.

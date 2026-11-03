@@ -27,6 +27,7 @@ export type OwnerDiscTone = keyof typeof DISC_TONE
 type Props = Readonly<{
   /** The person's initials, or `null` when their name has none to draw. */
   initials: string | null
+  size?: 'default' | 'person'
   tone: OwnerDiscTone
   /**
    * Whether someone holds it at all. Read only when `initials` is `null`: the
@@ -50,6 +51,7 @@ type Props = Readonly<{
 export function OwnerDisc({
   initials,
   tone,
+  size = 'default',
   isAssigned = false,
   className,
 }: Props): ReactNode {
@@ -64,7 +66,8 @@ export function OwnerDisc({
       aria-hidden="true"
       data-slot="owner-disc"
       className={cn(
-        'flex size-5 shrink-0 items-center justify-center rounded-full text-[10px] leading-none font-medium',
+        'flex shrink-0 items-center justify-center rounded-full leading-none font-medium',
+        size === 'person' ? 'size-8 text-xs' : 'size-5 text-[10px]',
         DISC_TONE[tone],
         className,
       )}

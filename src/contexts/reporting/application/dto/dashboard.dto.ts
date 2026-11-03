@@ -30,7 +30,21 @@ export const getPortalAnalyticsDto = z.object({
 // aggregate, not from readings, and the two would disagree.
 export const getPortalResultsOverviewDto = z.object({
   propertyId: z.uuid().optional(),
-  timeRange: timeRangePreset.exclude(['all']).default('30d'),
+  timeRange: z
+    .enum([
+      '7d',
+      '30d',
+      '60d',
+      '90d',
+      '180d',
+      'all',
+      'today',
+      'week',
+      'month',
+      'last-month',
+    ])
+    .exclude(['all'])
+    .default('30d'),
   /** Also read the equal-length window before. */
   compare: z.boolean().default(true),
 })

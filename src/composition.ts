@@ -221,6 +221,7 @@ function buildContainer(
   )
   const identity = buildIdentityContext({
     staffAccounts: {
+      staffScanTargetsEnabled: env.STAFF_SCAN_TARGETS_ENABLED,
       authorizeProperty: (ctx, propertyId, action) =>
         requireExecutionAllowed({
           actor: ctx,

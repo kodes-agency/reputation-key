@@ -1,3 +1,4 @@
+import { assertPersonalPublicationReady } from './personal-portal-property-source'
 import { describe, expect, it, vi } from 'vitest'
 import { publicationSource } from '../domain/__fixtures__/publication-source'
 import { resolvePortalPublication } from '../domain/portal-publication-source'
@@ -57,4 +58,10 @@ describe('a language whose generation 2 pack is not registered', () => {
       'The guest wording for German isn’t ready yet, so that language can’t be published',
     )
   })
+})
+
+it('refuses a missing language pack before staff creation, with its own plain reason', () => {
+  expect(() => assertPersonalPublicationReady(withoutPack())).toThrow(
+    'This guest language is unavailable.',
+  )
 })

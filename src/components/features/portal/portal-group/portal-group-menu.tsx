@@ -1,3 +1,4 @@
+import { Button } from '#/components/ui/button'
 import { useStaffAccounts } from '#/components/features/staff/accounts/staff-accounts-context'
 // A group's "Actions" menu: on a group head in the overview and on the group's
 // page. Rename and archive open controlled dialogs, because a dialog mounted
@@ -49,60 +50,80 @@ export function PortalGroupMenu({
   const others = menu.filter((entry) => entry.id !== 'archive')
   return (
     <>
-      <RowActionsMenu name={`group ${group.name}`}>
-        {staff?.canInvite ? (
-          <RowActionsItem opensDialog onSelect={() => staff.openAdd(group.id)}>
-            Add people
-          </RowActionsItem>
-        ) : null}
-        {others.map((entry) => {
-          if (entry.id === 'open') {
+      {menu.length + (staff?.canInvite ? 1 : 0) === 1 ? (
+        staff?.canInvite ? (
+          <Button
+            variant="outline"
+            aria-label={`Add staff to ${group.name}`}
+            onClick={() => staff.openAdd(group.id)}
+          >
+            Add staff
+          </Button>
+        ) : (
+          <SingleGroupAction
+            entry={menu[0]!}
+            propertyId={propertyId}
+            groupId={group.id}
+            groupName={group.name}
+            onSelect={(id) => setDialog(id === 'archive' ? 'archive' : 'rename')}
+          />
+        )
+      ) : (
+        <RowActionsMenu name={`group ${group.name}`}>
+          {staff?.canInvite ? (
+            <RowActionsItem opensDialog onSelect={() => staff.openAdd(group.id)}>
+              Add staff
+            </RowActionsItem>
+          ) : null}
+          {others.map((entry) => {
+            if (entry.id === 'open') {
+              return (
+                <RowActionsItem key={entry.id} asChild>
+                  <Link
+                    to="/properties/$propertyId/portals/groups/$groupId"
+                    params={{ propertyId, groupId: group.id }}
+                  >
+                    {entry.label}
+                  </Link>
+                </RowActionsItem>
+              )
+            }
+            if (entry.id === 'goal') {
+              return (
+                <RowActionsItem key={entry.id} asChild>
+                  <Link
+                    to="/properties/$propertyId/goals/portals"
+                    params={{ propertyId }}
+                    search={{ add: 'group', subject: `portal_group:${group.id}` }}
+                  >
+                    {entry.label}
+                  </Link>
+                </RowActionsItem>
+              )
+            }
             return (
-              <RowActionsItem key={entry.id} asChild>
-                <Link
-                  to="/properties/$propertyId/portals/groups/$groupId"
-                  params={{ propertyId, groupId: group.id }}
-                >
-                  {entry.label}
-                </Link>
+              <RowActionsItem
+                key={entry.id}
+                opensDialog
+                onSelect={() => setDialog('rename')}
+              >
+                {entry.label}
               </RowActionsItem>
             )
-          }
-          if (entry.id === 'goal') {
-            return (
-              <RowActionsItem key={entry.id} asChild>
-                <Link
-                  to="/properties/$propertyId/goals/portals"
-                  params={{ propertyId }}
-                  search={{ add: 'group', subject: `portal_group:${group.id}` }}
-                >
-                  {entry.label}
-                </Link>
-              </RowActionsItem>
-            )
-          }
-          return (
+          })}
+          {others.length > 0 && archive.length > 0 ? <RowActionsSeparator /> : null}
+          {archive.map((entry) => (
             <RowActionsItem
               key={entry.id}
+              destructive={entry.destructive}
               opensDialog
-              onSelect={() => setDialog('rename')}
+              onSelect={() => setDialog('archive')}
             >
               {entry.label}
             </RowActionsItem>
-          )
-        })}
-        {others.length > 0 && archive.length > 0 ? <RowActionsSeparator /> : null}
-        {archive.map((entry) => (
-          <RowActionsItem
-            key={entry.id}
-            destructive={entry.destructive}
-            opensDialog
-            onSelect={() => setDialog('archive')}
-          >
-            {entry.label}
-          </RowActionsItem>
-        ))}
-      </RowActionsMenu>
+          ))}
+        </RowActionsMenu>
+      )}
       <PortalGroupRenameDialog
         open={dialog === 'rename'}
         onOpenChange={(open) => setDialog(open ? 'rename' : null)}
@@ -116,5 +137,56 @@ export function PortalGroupMenu({
         archiveGroupMutation={archiveGroupMutation}
       />
     </>
+  )
+}
+
+function SingleGroupAction({
+  entry,
+  propertyId,
+  groupId,
+  groupName,
+  onSelect,
+}: Readonly<{
+  entry: ReturnType<typeof groupMenu>[number]
+  propertyId: string
+  groupId: string
+  groupName: string
+  onSelect: (id: string) => void
+}>) {
+  // The overview repeats this on every group, so the name says which one.
+  const label = `${entry.label}: ${groupName}`
+  if (entry.id === 'open')
+    return (
+      <Button variant="outline" asChild>
+        <Link
+          to="/properties/$propertyId/portals/groups/$groupId"
+          params={{ propertyId, groupId }}
+          aria-label={label}
+        >
+          {entry.label}
+        </Link>
+      </Button>
+    )
+  if (entry.id === 'goal')
+    return (
+      <Button variant="outline" asChild>
+        <Link
+          to="/properties/$propertyId/goals/portals"
+          params={{ propertyId }}
+          search={{ add: 'group', subject: `portal_group:${groupId}` }}
+          aria-label={label}
+        >
+          {entry.label}
+        </Link>
+      </Button>
+    )
+  return (
+    <Button
+      variant={entry.destructive ? 'destructive' : 'outline'}
+      aria-label={label}
+      onClick={() => onSelect(entry.id)}
+    >
+      {entry.label}
+    </Button>
   )
 }

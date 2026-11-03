@@ -29,31 +29,36 @@ export function createStaffAccountStore(
   pool: Readonly<{ connect: () => Promise<PoolClient> }>,
 ): StaffAccountStore {
   const store: StaffAccountStore = {
-    withAddressLock: async (organizationId, email, run) => {
+    withAddressLock: (organizationId, email, run) =>
+      store.withAddressLocks(organizationId, [email], run),
+    withAddressLocks: async (organizationId, emails, run) => {
       const releaseAddressSlot = await takeStaffAddressSlot(organizationId)
       const client = await pool.connect().catch((error: unknown) => {
         releaseAddressSlot()
         throw error
       })
-      const key = `beta-invitation-email:${email}`
+      const keys = [...new Set(emails)]
+        .sort()
+        .map((email) => `beta-invitation-email:${email}`)
+      const held: string[] = []
       try {
-        await client.query('SELECT pg_advisory_lock(hashtextextended($1, 0))', [key])
+        for (const key of keys) {
+          await client.query('SELECT pg_advisory_lock(hashtextextended($1, 0))', [key])
+          held.push(key)
+        }
         return await run(createStaffAccountStore(drizzle(client), clock, pool))
       } finally {
         try {
-          await client
-            .query('SELECT pg_advisory_unlock(hashtextextended($1, 0))', [key])
-            .then(
-              () => client.release(),
-              (error: unknown) => {
-                client.release(true)
-                throw error
-              },
-            )
+          await releaseAddressLocks(client, held)
         } finally {
           releaseAddressSlot()
         }
       }
+    },
+    markDeliveryProblem: async (org, participation, failed) => {
+      await db.execute(
+        sql`UPDATE staff_onboardings SET failure_code = ${failed ? 'invitation_delivery_failed' : null}, updated_at = ${clock()} WHERE organization_id = ${org} AND staff_participation_id = ${participation}::uuid AND status = 'done'`,
+      )
     },
     currentActor: async (ctx) => {
       const roles = await db.execute(
@@ -255,4 +260,15 @@ async function currentPersonName(
       'Shorten the staff name to 100 characters before adding another Property',
     )
   return name
+}
+
+async function releaseAddressLocks(client: PoolClient, held: readonly string[]) {
+  try {
+    for (const key of [...held].reverse())
+      await client.query('SELECT pg_advisory_unlock(hashtextextended($1, 0))', [key])
+    client.release()
+  } catch (error) {
+    client.release(true)
+    throw error
+  }
 }

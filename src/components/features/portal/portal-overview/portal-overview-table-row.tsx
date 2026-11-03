@@ -1,3 +1,4 @@
+import { Button } from '#/components/ui/button'
 import { useStaffAccounts } from '#/components/features/staff/accounts/staff-accounts-context'
 // One Portal in the overview. One DOM for every width: below a 56 rem container
 // a row is a card (name and menu, then Edit and Share); from 56 rem it is a
@@ -69,10 +70,22 @@ export function PortalOverviewTableRow({
         <div className="flex min-w-0 flex-col gap-1">
           <div className="flex min-w-0 flex-wrap items-baseline gap-x-3 gap-y-0.5">
             {row.kind === 'personal' ? (
-              <OwnerDisc initials={personInitials(row.name)} isAssigned tone="neutral" />
+              <OwnerDisc
+                size="person"
+                initials={personInitials(row.name)}
+                isAssigned
+                tone="neutral"
+              />
             ) : null}
-            {unmade ? (
-              <span className="font-medium">{row.name}</span>
+            {member ? (
+              <Button
+                variant="row-name"
+                size="inline"
+                touch
+                onClick={() => staff?.openPerson?.(member.participationId)}
+              >
+                {row.name}
+              </Button>
             ) : (
               <PortalNameLink
                 row={{ propertyId, portalId: row.portalId, name: row.name }}
@@ -97,17 +110,21 @@ export function PortalOverviewTableRow({
         {archived ? null : <PortalManagersCell managers={item.managers} />}
       </TableCell>
       <TableCell className={classes.buttonsCell}>
-        {unmade ? null : <PortalRowButtons item={item} propertyId={propertyId} />}
+        {unmade || row.kind === 'personal' ? null : (
+          <PortalRowButtons item={item} propertyId={propertyId} />
+        )}
       </TableCell>
       <TableCell className={classes.menuCell}>
-        <PortalRowMenu
-          item={item}
-          propertyId={propertyId}
-          archiveMutation={archiveMutation}
-          restoreMutation={restoreMutation}
-          disableMutation={disableMutation}
-          extra={menuExtra}
-        />
+        {row.kind === 'personal' ? null : (
+          <PortalRowMenu
+            item={item}
+            propertyId={propertyId}
+            archiveMutation={archiveMutation}
+            restoreMutation={restoreMutation}
+            disableMutation={disableMutation}
+            extra={menuExtra}
+          />
+        )}
       </TableCell>
     </DataTableRow>
   )

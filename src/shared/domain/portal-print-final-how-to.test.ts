@@ -277,3 +277,10 @@ describe('printFinalFileName', () => {
     expect(printFinalDocumentTitle('Reception', 'small')).toBe('Reception small cards')
   })
 })
+
+it('names a personal download without changing the place filename', () => {
+  expect(printFinalFileName('Harbor', tents, 'Polly Jones')).toBe(
+    'Polly Jones - Table tents.pdf',
+  )
+  expect(printFinalFileName('Harbor', tents, 'Polly/../Jones')).not.toMatch(/[/\\]/)
+})

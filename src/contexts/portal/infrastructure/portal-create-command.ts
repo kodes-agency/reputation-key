@@ -1,3 +1,4 @@
+import { portalPrintWordings } from '#/shared/db/schema/portal-print-wording.schema'
 // Portal command store — the create-Portal command.
 // Split out of portal-command-store.ts (it grew group, copy and manager parts);
 // composed back behind the same PortalCommandStore port by
@@ -230,6 +231,16 @@ async function commitCreate(db: Database, command: CreatePortalCommand): Promise
     await insertInitialHealth(tx, command)
     if (command.copiedContent) {
       await insertCopiedContent(tx, command, command.copiedContent)
+    }
+    if (command.personalPrintWording) {
+      await tx.insert(portalPrintWordings).values({
+        organizationId: command.organizationId,
+        propertyId: command.portal.propertyId,
+        portalId: command.portal.id,
+        callToAction: command.personalPrintWording.callToAction,
+        callToActionCustom: command.personalPrintWording.customWords,
+        updatedAt: command.portal.createdAt,
+      })
     }
     await joinGroup(tx, command)
     await insertOutboxRow(tx, command.event, { recordedAt: command.portal.createdAt })

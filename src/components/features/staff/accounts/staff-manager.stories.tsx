@@ -1,7 +1,11 @@
+import {
+  StaffManagerStory,
+  staffStoryResults,
+} from '../../../../../.storybook/staff-manager-fixtures'
+import { indexOverviewResults } from '#/components/features/portal/portal-overview/portal-overview-results'
 import { usePortalSectionFolds } from '#/components/features/portal/portal-overview/use-portal-section-folds'
 import type { Meta, StoryObj } from '@storybook/react'
 import { expect, fn, screen, userEvent, within } from 'storybook/test'
-import { StaffAccountsContext, type StaffAccounts } from './staff-accounts-context'
 import { StaffAccountsList, StaffAddAction } from './staff-accounts-list'
 import { StaffRemoveDialog } from './staff-member-actions'
 import { PortalOverviewTable } from '#/components/features/portal/portal-overview/portal-overview-table'
@@ -15,6 +19,7 @@ import type { PortalArchiveMutations } from '#/components/features/portal/portal
 const members = ['Ana Jones', 'Bob Smith', 'Li May', 'Zoe Park'].map(
   (displayName, i) => ({
     displayName,
+    email: `${displayName.toLowerCase().replace(' ', '.')}@harbor.example`,
     participationId: `person-${i}`,
     portalId: `portal-${i}`,
     operationId: null,
@@ -24,16 +29,6 @@ const members = ['Ana Jones', 'Bob Smith', 'Li May', 'Zoe Park'].map(
     endsSignIn: i === 0,
   }),
 )
-const accounts: StaffAccounts = {
-  propertyId: 'prop-1',
-  members,
-  colleagueListEnabled: false,
-  canInvite: true,
-  canRemove: true,
-  canSettings: true,
-  openAdd: fn(),
-  refresh: async () => undefined,
-}
 const group = overviewGroup('reception', 'Reception')
 const mutation: PortalArchiveMutations['archiveMutation'] = action()
 function Scene({
@@ -58,7 +53,7 @@ function Scene({
     folded,
   )
   return (
-    <StaffAccountsContext value={accounts}>
+    <StaffManagerStory members={members}>
       <div style={{ width, maxWidth: '100%' }}>
         {scene === 'remove' ? (
           <StaffRemoveDialog
@@ -79,13 +74,16 @@ function Scene({
             sections={overview.sections}
             propertyId="prop-1"
             propertyName="Harbor Hotel"
-            results={{ status: 'off' }}
+            results={{
+              status: 'ready',
+              index: indexOverviewResults(staffStoryResults()),
+            }}
             archiveMutation={mutation}
             restoreMutation={action()}
           />
         )}
       </div>
-    </StaffAccountsContext>
+    </StaffManagerStory>
   )
 }
 const meta = {
@@ -99,7 +97,7 @@ type Story = StoryObj<typeof meta>
 export const GroupFolded: Story = {
   play: async ({ canvasElement }) => {
     const ui = within(canvasElement)
-    expect(ui.queryByRole('link', { name: 'Ana Jones' })).toBeNull()
+    expect(ui.queryByRole('button', { name: 'Ana Jones' })).toBeNull()
     expect(ui.getByText(/1 portal · 4 people/)).toBeVisible()
   },
 }
@@ -107,7 +105,7 @@ export const GroupOpen: Story = {
   play: async ({ canvasElement }) => {
     const ui = within(canvasElement)
     await userEvent.click(ui.getByRole('button', { name: /Portals in Reception/i }))
-    await expect(ui.getByRole('link', { name: 'Ana Jones' })).toBeVisible()
+    await expect(ui.getByRole('button', { name: 'Ana Jones' })).toBeVisible()
     expect(ui.getByText('Invited, not signed in yet')).toBeVisible()
   },
 }
@@ -139,3 +137,13 @@ export const Narrow320: Story = { ...GroupOpen, args: { width: 320 } }
 export const Phone375: Story = { ...GroupOpen, args: { width: 375 } }
 export const Tablet768: Story = { ...GroupOpen, args: { width: 768 } }
 export const Desktop1440: Story = { ...GroupOpen, args: { width: 1440 } }
+
+export const PersonSheetFromPortal: Story = {
+  args: { scene: 'group' },
+  play: async ({ canvasElement }) => {
+    const ui = within(canvasElement)
+    await userEvent.click(ui.getByRole('button', { name: /Portals in Reception/i }))
+    await userEvent.click(ui.getByRole('button', { name: 'Ana Jones' }))
+    await expect(await screen.findByRole('dialog', { name: 'Ana Jones' })).toBeVisible()
+  },
+}

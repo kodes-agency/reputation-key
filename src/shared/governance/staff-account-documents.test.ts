@@ -3,15 +3,28 @@ import { describe, expect, it } from 'vitest'
 
 describe('staff account release documents', () => {
   it.each([
-    ['privacy-notice', '3.3'],
-    ['internal-beta-agreement', '2.4'],
+    ['privacy-notice', '3.4'],
+    ['internal-beta-agreement', '2.5'],
     ['google-access-disclosure', '2.4'],
   ])('publishes %s version %s on the approved release date', (file, version) => {
     const text = readFileSync(`docs/legal/${file}.md`, 'utf8')
     expect(text).toContain(`**Version:** ${version}`)
-    expect(text).toContain('**Effective date:** 2026-11-02')
+    expect(text).toContain(
+      `**Effective date:** ${file === 'google-access-disclosure' ? '2026-11-02' : '2026-11-03'}`,
+    )
     expect(text).toContain('without a waiting period')
   })
+  it.each(['privacy-notice', 'internal-beta-agreement'])(
+    '%s discloses the no-scans marker in its body and dates the amendment',
+    (file) => {
+      const text = readFileSync(`docs/legal/${file}.md`, 'utf8')
+      const [body] = text.replace(/\s+/gu, ' ').split(/## \d+\. Changes/u)
+      expect(body).toContain(
+        'Managers may also see a marker when someone who has joined has had no scans for 14 days. It prompts a conversation; nothing happens automatically, and staff do not see it.',
+      )
+      expect(text).toContain('amended_on: 2026-11-03')
+    },
+  )
   it('preserves the Google ban and states the staff scan target and manager Google selection plainly', () => {
     const text = readFileSync('docs/legal/google-access-disclosure.md', 'utf8')
     expect(text).toContain(

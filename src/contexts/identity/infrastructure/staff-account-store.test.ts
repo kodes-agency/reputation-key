@@ -65,3 +65,19 @@ describe('staff invitation budget binding', () => {
     await expect(budget.spend(ctx)).rejects.toMatchObject({ code: 'rate_limited' })
   })
 })
+
+it('holds two ordered address locks on one connection and releases in reverse order', async () => {
+  const h = setup()
+  await h.store.withAddressLocks(
+    'org',
+    ['zoe@example.com', 'ana@example.com', 'ana@example.com'],
+    async () => undefined,
+  )
+  expect(h.query.mock.calls.map((call) => call[1])).toEqual([
+    ['beta-invitation-email:ana@example.com'],
+    ['beta-invitation-email:zoe@example.com'],
+    ['beta-invitation-email:zoe@example.com'],
+    ['beta-invitation-email:ana@example.com'],
+  ])
+  expect(h.release).toHaveBeenCalledOnce()
+})

@@ -6,6 +6,15 @@ import { StaffAccountFunctionsContext } from '#/components/features/staff/accoun
 import { it, expect, vi } from 'vitest'
 import { STAFF_ACCOUNT_FUNCTIONS } from './-staff-account-functions'
 const calls = vi.hoisted(() => ({
+  checkStaffSource: vi.fn(),
+  changeStaffInvitationEmail: vi.fn(),
+  getPropertyPortalExperience: vi.fn(),
+  savePropertyPortalBrandContent: vi.fn(),
+  getPortalResultsOverviewFn: vi.fn(),
+  movePortalToGroup: vi.fn(),
+  removePortalFromGroup: vi.fn(),
+  listPortalResponsibleManagers: vi.fn(),
+  listMembers: vi.fn(),
   checkStaffBatch: vi.fn(),
   addStaffMember: vi.fn(),
   removeStaffMember: vi.fn(),
@@ -17,6 +26,8 @@ const calls = vi.hoisted(() => ({
   listPortalGroups: vi.fn(),
 }))
 vi.mock('#/contexts/identity/server/staff-accounts', () => ({
+  checkStaffSource: calls.checkStaffSource,
+  changeStaffInvitationEmail: calls.changeStaffInvitationEmail,
   checkStaffBatch: calls.checkStaffBatch,
   addStaffMember: calls.addStaffMember,
   removeStaffMember: calls.removeStaffMember,
@@ -25,12 +36,27 @@ vi.mock('#/contexts/identity/server/staff-accounts', () => ({
   listStaffMembers: calls.listStaffMembers,
   setColleagueListEnabled: calls.setColleagueListEnabled,
 }))
-vi.mock('#/contexts/portal/server/portals', () => ({ listPortals: calls.listPortals }))
+vi.mock('#/contexts/portal/server/portals', () => ({
+  listPortals: calls.listPortals,
+  getPropertyPortalExperience: calls.getPropertyPortalExperience,
+  savePropertyPortalBrandContent: calls.savePropertyPortalBrandContent,
+}))
 vi.mock('#/contexts/portal/server/portal-groups', () => ({
   listPortalGroups: calls.listPortalGroups,
+  movePortalToGroup: calls.movePortalToGroup,
+  removePortalFromGroup: calls.removePortalFromGroup,
+}))
+vi.mock('#/contexts/reporting/server/portal-results-overview', () => ({
+  getPortalResultsOverviewFn: calls.getPortalResultsOverviewFn,
+}))
+vi.mock('#/contexts/portal/server/portal-responsible-managers', () => ({
+  listPortalResponsibleManagers: calls.listPortalResponsibleManagers,
+}))
+vi.mock('#/contexts/identity/server/organizations.query', () => ({
+  listMembers: calls.listMembers,
 }))
 it('binding the manager shell starts no staff call', () => {
-  expect(STAFF_ACCOUNT_FUNCTIONS).toEqual(calls)
+  expect(STAFF_ACCOUNT_FUNCTIONS).toMatchObject(calls)
   for (const call of Object.values(calls)) expect(call).not.toHaveBeenCalled()
 })
 

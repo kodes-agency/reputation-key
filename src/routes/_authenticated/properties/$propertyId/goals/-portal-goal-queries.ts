@@ -260,3 +260,8 @@ export const portalGoalSinglePageQuery = (propertyId: string, programId: string)
       (await server()).getPortalGoalSinglePage({ data: { propertyId, programId } }),
     staleTime: PORTAL_GOAL_STALE_MS,
   })
+
+/** Staff's person sheet shares the Portal Results line without another server-module importer. */
+export async function readPortalGoalLine(propertyId: string, portalId: string) {
+  return (await server()).getMonthlyPortalGoalLine({ data: { propertyId, portalId } })
+}

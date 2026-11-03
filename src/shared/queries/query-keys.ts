@@ -258,6 +258,8 @@ export const goalKeys = {
 
 // ── Staff participation and portal responsibility ────────────────────────
 export const staffKeys = {
+  source: (propertyId: string, source: string, group: string) =>
+    [...staffKeys.all, 'source', propertyId, source, group] as const,
   accounts: (propertyId: string) => [...staffKeys.all, 'accounts', propertyId] as const,
   all: ['staff'] as const,
   participations: (propertyId: string) =>

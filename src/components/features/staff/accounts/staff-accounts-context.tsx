@@ -1,6 +1,8 @@
 import { createContext, useContext } from 'react'
 import type { StaffMember } from './staff-account-view'
 export type StaffAccounts = Readonly<{
+  staffScanTargetsEnabled?: boolean
+  openPerson?: (participationId: string) => void
   ready?: boolean
   propertyId: string
   members: readonly StaffMember[]

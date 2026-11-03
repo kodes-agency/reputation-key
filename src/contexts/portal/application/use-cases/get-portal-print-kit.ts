@@ -66,7 +66,10 @@ export const getPortalPrintKit =
       last === null
         ? null
         : await presentLastPrint(deps, ctx.organizationId, context, last)
-    return presentPortalPrintKit(portal.id, context, 'final', lastPrint, savedWording)
+    return {
+      ...presentPortalPrintKit(portal.id, context, 'final', lastPrint, savedWording),
+      ...(portal.kind === 'personal' ? { personal: true } : {}),
+    }
   }
 
 export type GetPortalPrintKit = ReturnType<typeof getPortalPrintKit>

@@ -19,7 +19,7 @@ export async function findVerifiedGoogleReviewDestination(
     propertyGoogleReviewDestinationApi: PropertyGoogleReviewDestinationPublicApi
   }>,
   orgId: OrganizationId,
-  existing: Portal,
+  existing: Pick<Portal, 'propertyId'>,
 ): Promise<VerifiedPublicationDestination | null> {
   const destination =
     await deps.propertyGoogleReviewDestinationApi.getGoogleReviewDestination(
@@ -62,7 +62,7 @@ export async function loadVerifiedGoogleReviewDestination(
     propertyGoogleReviewDestinationApi: PropertyGoogleReviewDestinationPublicApi
   }>,
   orgId: OrganizationId,
-  existing: Portal,
+  existing: Pick<Portal, 'propertyId'>,
 ): Promise<VerifiedPublicationDestination> {
   return requireVerifiedGoogleReviewDestination(
     await findVerifiedGoogleReviewDestination(deps, orgId, existing),
@@ -73,7 +73,7 @@ export async function loadVerifiedGoogleReviewDestination(
 export async function propertyAllowsPublication(
   deps: Readonly<{ propertyLifecycleApi: PropertyLifecyclePublicApi }>,
   orgId: OrganizationId,
-  existing: Portal,
+  existing: Pick<Portal, 'propertyId'>,
 ): Promise<boolean> {
   try {
     return await deps.propertyLifecycleApi.isPropertyActive(orgId, existing.propertyId)
@@ -87,7 +87,7 @@ export async function propertyAllowsPublication(
 export async function assertPropertyAllowsPublication(
   deps: Readonly<{ propertyLifecycleApi: PropertyLifecyclePublicApi }>,
   orgId: OrganizationId,
-  existing: Portal,
+  existing: Pick<Portal, 'propertyId'>,
 ): Promise<void> {
   if (!(await propertyAllowsPublication(deps, orgId, existing))) {
     throw portalError(

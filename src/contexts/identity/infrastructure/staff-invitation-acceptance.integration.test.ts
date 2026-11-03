@@ -1,3 +1,4 @@
+import { replaceStaffInvitation } from './staff-invitation-correction'
 import { randomUUID } from 'node:crypto'
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest'
 import { drizzle } from 'drizzle-orm/node-postgres'
@@ -216,4 +217,42 @@ describe.sequential('staff invitation acceptance (PostgreSQL)', () => {
       ).rows,
     ).toEqual([])
   })
+})
+
+it('serializes acceptance with an email correction in invitation-first lock order', async () => {
+  const row = await seed()
+  await seedStaffAccountUser(lease.pool, row)
+  const identity = createInMemoryIdentityPort()
+  identity.setSessionUser({ id: row.userId, email: row.email })
+  const outcomes = await Promise.allSettled([
+    acceptInvitation({
+      ...admission(),
+      identity,
+      commandStore: commands(),
+      clock: () => NOW,
+      logger: { error: vi.fn() },
+    })({
+      invitationId: row.invitationId,
+      userId: userId(row.userId),
+      headers: new Headers(),
+    }),
+    replaceStaffInvitation(db, () => NOW)(
+      {
+        organizationId: row.organizationId,
+        participationId: row.participationId,
+        oldEmail: row.email,
+        email: `corrected-${randomUUID()}@example.com`,
+        invitationId: randomUUID(),
+        actorId: row.inviterId,
+      },
+      async () => undefined,
+    ),
+  ])
+  expect(outcomes.filter((outcome) => outcome.status === 'fulfilled')).toHaveLength(1)
+  const refusal = outcomes.find((outcome) => outcome.status === 'rejected')
+  expect(refusal).toMatchObject({
+    status: 'rejected',
+    reason: { code: expect.any(String) },
+  })
+  if (refusal?.status === 'rejected') expect(refusal.reason.code).not.toBe('40P01')
 })
