@@ -58,6 +58,9 @@ test('a staff invitation, a guest scan, closed manager routes and removal', asyn
   await expect(
     add.getByRole('textbox', { name: 'Email', exact: true }).nth(1),
   ).toHaveValue(sam)
+  // This Property has two published Portals, so nothing is preselected.
+  await add.getByRole('combobox', { name: 'Guests see the same page as' }).click()
+  await page.getByRole('option').first().click()
   await add.getByRole('button', { name: /^Add \d+ (?:person|people)$/u }).click()
   const result = page.getByRole('dialog', { name: '2 of 2 added', exact: true })
   await expect(result.getByText('Invited', { exact: true })).toHaveCount(2, {
