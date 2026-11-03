@@ -132,6 +132,20 @@ ignore:
   - vulnerability: CVE-2026-11824 # libsqlite3-0 3.46.1-7+deb13u1, wont-fix (new in the trixie scan)
   - vulnerability: CVE-2026-86145 # libpcre2-8-0 10.46-1~deb13u1, wont-fix on trixie
 
+  # ── libsqlite3-0 3.46.1-7+deb13u2: no trixie fix (3 CVEs) ─────────────
+  # owner: platform — reason: first reported by the grype DB of 2026-11-03 on
+  # PR #1069's scan: `libsqlite3-0 3.46.1-7+deb13u2 deb CVE-2026-119373 /
+  # -119374 / -119379 High`, heap overflows reached through a crafted FTS5
+  # index or session changeset. The Debian tracker (read 2026-11-03) lists
+  # trixie vulnerable and `<no-dsa> (Minor issue)`; the fix is only in sid
+  # (3.54.1-1), so there is nothing to pin. As in the section above, node has no
+  # call into the system SQLite, and the application's database is PostgreSQL.
+  # Drop these at the first trixie sqlite3 update that fixes them.
+  # expiresAt: 2026-12-03
+  - vulnerability: CVE-2026-119373 # FTS5 fts5MergeRowidLists
+  - vulnerability: CVE-2026-119374 # FTS5 fts5DoSecureDelete
+  - vulnerability: CVE-2026-119379 # session extension sessionUpdateFind
+
   # ── Go stdlib inside esbuild CLI binaries (prod node_modules) ─────────
   # owner: platform — reason: the esbuild@0.18.20 (go1.20.7) and
   # esbuild@0.25.12 (go1.23.12) binaries sit in prod node_modules only
