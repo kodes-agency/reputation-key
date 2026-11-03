@@ -125,6 +125,30 @@ export const StaffPage: Story = {
     ).not.toBeChecked()
   },
 }
+export const UpdateGuestPages: Story = {
+  args: { scene: 'staff' },
+  play: async ({ canvasElement }) => {
+    const ui = within(canvasElement)
+    const page = within(canvasElement.ownerDocument.body)
+    await userEvent.click(await ui.findByRole('checkbox', { name: 'Select Ana Jones' }))
+    const update = await ui.findByRole('button', { name: 'Update' })
+    await expect(update).toBeDisabled()
+    await userEvent.click(
+      ui.getByRole('combobox', { name: 'Guests see the same page as' }),
+    )
+    await userEvent.click(await page.findByRole('option', { name: 'Reception' }))
+    await userEvent.click(update)
+    const confirm = await page.findByRole('alertdialog')
+    await expect(confirm).toHaveTextContent('Update guest page?')
+    await expect(confirm).toHaveTextContent(
+      "Reception's wording, links and look replace theirs and go live now.",
+    )
+    await expect(confirm).toHaveTextContent('is overwritten')
+    await userEvent.click(within(confirm).getByRole('button', { name: 'Update' }))
+    await expect(await ui.findByText('1 guest page updated.')).toBeVisible()
+  },
+}
+
 export const Remove: Story = {
   args: { scene: 'remove' },
   play: async () => {

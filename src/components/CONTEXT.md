@@ -768,6 +768,9 @@ while the capability is off. Add uses the standard Dialog, field frames and
 footer, keeps one operation id per draft row, checks the batch before sending,
 and sends sequentially with independent retry states. Remove uses the destructive
 ConfirmationDialog and says sign-in ends only when the roster confirms it.
+Ticking people opens the bulk bar: Resend, Move to group, and Guests see the same page
+as, a destructive confirmation because it overwrites what was customised on those pages.
+Each runs one person at a time and says who didn't change. Remove stays one at a time.
 
 The Portals overview's shared builder separates place Portals and people. A
 Group with people starts folded; Other staff and the flat Staff section come

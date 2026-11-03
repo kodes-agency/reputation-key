@@ -19,7 +19,7 @@ Owner decisions of 2026-11-03. The binding detail is the round-2 brief and
 | R20                 | A pending or expired invitation can change address; acceptance/linking ends that option; code stays the same                 | PR 1               |
 | Manager fixes       | Send failures are visible; limits name the actual invitation budgets; one-item group actions are direct buttons              | PR 1               |
 | R2–R4, R9, R16, R21 | Home-screen step, icons, Last month, retained code during refresh, the Pass, check-in results, phone fixes                   | PR 2               |
-| R19                 | Batch replacement of guest pages                                                                                             | Later PR 3         |
+| R19                 | Tick people, choose a Portal, confirm: its wording, links and look replace theirs and go live; codes and results stay        | PR 3               |
 | R13–R14             | Removal remains final; review-name mentions wait                                                                             | No additional work |
 
 The capability and manager/staff resolver boundary are unchanged. Nobody is

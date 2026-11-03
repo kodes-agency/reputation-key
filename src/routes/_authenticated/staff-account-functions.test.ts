@@ -12,6 +12,7 @@ const calls = vi.hoisted(() => ({
   savePropertyPortalBrandContent: vi.fn(),
   getPortalResultsOverviewFn: vi.fn(),
   movePortalToGroup: vi.fn(),
+  updatePersonalGuestPage: vi.fn(),
   removePortalFromGroup: vi.fn(),
   listPortalResponsibleManagers: vi.fn(),
   listMembers: vi.fn(),
@@ -45,6 +46,9 @@ vi.mock('#/contexts/portal/server/portal-groups', () => ({
   listPortalGroups: calls.listPortalGroups,
   movePortalToGroup: calls.movePortalToGroup,
   removePortalFromGroup: calls.removePortalFromGroup,
+}))
+vi.mock('#/contexts/portal/server/portal-publish-changes', () => ({
+  updatePersonalGuestPage: calls.updatePersonalGuestPage,
 }))
 vi.mock('#/contexts/reporting/server/portal-results-overview', () => ({
   getPortalResultsOverviewFn: calls.getPortalResultsOverviewFn,

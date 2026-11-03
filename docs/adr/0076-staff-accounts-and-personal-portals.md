@@ -176,6 +176,16 @@ that code is doing. This amends [ADR 0033](0033-authorization-policy.md),
   are product UI in the check-in pattern, following the phone's light or dark
   setting. It all follows the Look the person's Portal has published, with no setting
   of its own. The owner rejected a first build that wore the guest page's glass.
+- **R19:** A manager who may change Portals can tick people on the Staff page and choose
+  a published Portal: its wording, links, look and opening print wording replace theirs
+  and go live, overwriting anything customised on those pages, which the confirmation
+  says. The page keeps its code, results, Group, responsible managers and rating
+  settings. The replace is one commit, fenced like a copy at creation, recorded in the
+  page's History, and every gate publishing asks is asked first. Going live is then the
+  ordinary publication; a paused page keeps the new content for later. If publishing
+  still refuses, the new content waits as the page's draft and the manager is told that
+  guests are on the old page. A link that keeps its destination keeps its id, so a guest
+  with the page open can still tap it and its tap history stays.
 - **R20:** A manager with staff.invite at the Property may correct only a pending
   or expired invitation. Both addresses use stable-order locks and the transaction
   rechecks acceptance and login links. The old invitation is cancelled, the new

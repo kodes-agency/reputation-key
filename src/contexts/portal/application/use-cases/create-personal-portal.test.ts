@@ -2,95 +2,10 @@ import { buildPersonalPortalUseCases } from '../../build-personal-portals'
 import { assertPersonalPropertySource } from '../personal-portal-property-source'
 import { portalGroupId } from '#/shared/domain/ids'
 import { describe, expect, it, vi } from 'vitest'
-import { setupCreatePortal, PROPERTY } from '#/shared/testing/portal-create-setup'
+import { PROPERTY } from '#/shared/testing/portal-create-setup'
 import { buildTestAuthContext, buildTestPortal } from '#/shared/testing/fixtures'
-import {
-  createPersonalPortal,
-  checkPersonalPortalSource,
-  type CreatePersonalPortalDeps,
-} from './create-personal-portal'
-import { publicationSource } from '../../domain/__fixtures__/publication-source'
-import { buildPortalPublicationSnapshot } from '../portal-publication-snapshot'
-
-const ctx = buildTestAuthContext()
-const reserved = '12345678-abcd-4000-8000-000000000001'
-function setup() {
-  const state = setupCreatePortal({ propertyLookVersion: 1 })
-  const source = publicationSource()
-  const snapshot = buildPortalPublicationSnapshot({
-    id: 'snapshot',
-    portalId: source.portal.id,
-    organizationId: source.organizationId,
-    propertyId: source.propertyId,
-    version: 1,
-    source,
-    destination: {
-      state: 'verified',
-      uri: 'https://search.google.com/local/writereview?placeid=harbor',
-      retrievedAt: new Date(),
-      sourceEpoch: 1,
-      profileVersion: 1,
-    },
-    createdBy: 'manager',
-    createdAt: new Date(),
-  })
-  const deps = {
-    ...state.optionsDeps,
-    propertyApi: {
-      ...state.optionsDeps.propertyApi,
-      getPropertyTimezones: async () => [{ id: PROPERTY, timezone: 'Europe/Sofia' }],
-    },
-    propertyLifecycleApi: { isPropertyActive: async () => true },
-    propertyGoogleReviewDestinationApi: {
-      getGoogleReviewDestination: async () => ({
-        state: 'verified' as const,
-        uri: 'https://search.google.com/local/writereview?placeid=harbor',
-        retrievedAt: new Date(),
-        sourceEpoch: 1,
-        profileVersion: 1,
-      }),
-    },
-    managerRepo: { listActive: async () => [] },
-    printWordingRepo: { find: async () => null },
-    lastPrintRepo: { find: async () => null },
-    addressRecoverable: true,
-    checkGroupTarget: async () => {},
-    publicationRepo: {
-      loadWorkingCopy: async () => source,
-      findActiveForPortal: async () => snapshot,
-    },
-    experienceRepo: {
-      ...state.optionsDeps.experienceRepo,
-      getPropertyExperience: async () => ({
-        profile: {
-          ...(
-            await (
-              state.optionsDeps.experienceRepo
-                .getPropertyExperience as CreatePersonalPortalDeps['experienceRepo']['getPropertyExperience']
-            )(ctx.organizationId, PROPERTY)
-          ).profile!,
-          displayName: 'Harbor',
-        },
-        content: [
-          {
-            id: 'wording',
-            organizationId: ctx.organizationId,
-            propertyId: PROPERTY,
-            locale: 'en' as const,
-            title: 'Welcome',
-            shortDescription: 'Tell us about your visit.',
-            heroAltText: null,
-            version: 1,
-            updatedBy: ctx.userId,
-            createdAt: new Date(),
-            updatedAt: new Date(),
-          },
-        ],
-      }),
-    },
-  }
-  return { state, deps, source }
-}
+import { createPersonalPortal, checkPersonalPortalSource } from './create-personal-portal'
+import { ctx, reserved, setup } from '#/shared/testing/personal-portal-setup'
 
 const goalLocked = () =>
   vi.fn(async () => {
@@ -427,9 +342,9 @@ it.each([
 it('wires the same preflight through the Portal management builder', async () => {
   const { deps } = setup()
   await expect(
-    buildPersonalPortalUseCases({
-      ...deps,
-      addressRecoverable: false,
-    }).checkPersonalPortalSource({ propertyId: PROPERTY }, ctx),
+    buildPersonalPortalUseCases(
+      { ...deps, addressRecoverable: false },
+      {} as never,
+    ).checkPersonalPortalSource({ propertyId: PROPERTY }, ctx),
   ).rejects.toMatchObject({ code: 'address_keyring_missing' })
 })

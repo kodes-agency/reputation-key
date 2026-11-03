@@ -13,6 +13,7 @@ import type {
   savePropertyPortalBrandContent,
 } from '#/contexts/portal/server/portals'
 import type { listPortals } from '#/contexts/portal/server/portals'
+import type { updatePersonalGuestPage } from '#/contexts/portal/server/portal-publish-changes'
 import type { listPortalGroups } from '#/contexts/portal/server/portal-groups'
 type Call<T> = T extends (...args: infer A) => infer R ? (...args: A) => R : never
 export type StaffAccountFunctions = {
@@ -28,6 +29,7 @@ export type StaffAccountFunctions = {
   listMembers: Call<typeof listMembers>
   listPortals: Call<typeof listPortals>
   listPortalGroups: Call<typeof listPortalGroups>
+  updatePersonalGuestPage: Call<typeof updatePersonalGuestPage>
 }>
 const unavailable = async (): Promise<never> => {
   throw new Error('Staff account controls are unavailable.')
@@ -51,6 +53,7 @@ const DEFAULT: StaffAccountFunctions = {
   getMonthlyPortalGoalLine: unavailable,
   listMembers: unavailable,
   listPortals: unavailable,
+  updatePersonalGuestPage: unavailable,
   listPortalGroups: unavailable,
 }
 export const StaffAccountFunctionsContext = createContext<StaffAccountFunctions>(DEFAULT)

@@ -29,7 +29,12 @@ const GROUP = [
 ]
 const TOKEN = ['issuePortalToken', 'rotatePortalToken', 'revokePortalTokens']
 const PUBLICATION = ['republishPortal']
-const CORE = ['createPortal', 'updatePortal', 'deletePortal']
+const CORE = [
+  'createPortal',
+  'updatePortal',
+  'deletePortal',
+  'replacePersonalPortalContent',
+]
 
 describe('Portal command store composition', () => {
   it('each family module owns exactly its commands', () => {

@@ -95,15 +95,19 @@ export function StaffManagerStory({
       })),
     }),
     listPortals: async () => ({
-      portals: members.map((member) =>
-        buildTestPortal({
-          id: member.portalId!,
-          name: member.displayName,
-          kind: 'personal',
-          publicationState: 'published',
-        }),
-      ),
+      portals: [
+        buildTestPortal({ name: 'Reception', publicationState: 'published' }),
+        ...members.map((member) =>
+          buildTestPortal({
+            id: member.portalId!,
+            name: member.displayName,
+            kind: 'personal',
+            publicationState: 'published',
+          }),
+        ),
+      ],
     }),
+    updatePersonalGuestPage: async () => ({ outcome: 'live' as const }),
     listPortalResponsibleManagers: async () => ({
       assignments: [
         {

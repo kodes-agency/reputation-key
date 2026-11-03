@@ -164,6 +164,18 @@ test('a staff invitation, a guest scan, closed manager routes and removal', asyn
 
     await page.goto(`/properties/${propertyId}/people`)
     await waitForHydration(page)
+    // The person's guest page takes over the other Portal's content and stays live,
+    // at the same code.
+    await page.getByRole('checkbox', { name: `Select ${name}` }).click()
+    await page.getByRole('combobox', { name: 'Guests see the same page as' }).click()
+    await page.getByRole('option').nth(1).click()
+    await page.getByRole('button', { name: 'Update', exact: true }).click()
+    await page.getByRole('alertdialog').getByRole('button', { name: 'Update' }).click()
+    await expect(page.getByText('1 guest page updated.')).toBeVisible({ timeout: 30_000 })
+    await guest.goto(code.qr)
+    await expect(guest.getByRole('radio').first()).toBeVisible()
+    await page.getByRole('checkbox', { name: `Select ${name}` }).click()
+
     await page.getByRole('button', { name, exact: true }).click()
     const person = page.getByRole('dialog', { name, exact: true })
     await person.getByRole('button', { name: 'Remove', exact: true }).click()

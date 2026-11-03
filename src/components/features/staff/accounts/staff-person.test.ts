@@ -13,7 +13,7 @@ import { StaffPersonPortals } from './staff-person-portals'
 import { StaffPersonEdit } from './staff-person-edit'
 import { StaffGuestWording } from './staff-guest-wording'
 import { StaffSourcePreview } from './staff-source-preview'
-import { runStaffBatch } from './staff-bulk-actions'
+import { guestPageSummary, runStaffBatch } from './staff-bulk-actions'
 import { StaffAccountsContext } from './staff-accounts-context'
 import {
   StaffManagerStory,
@@ -207,4 +207,50 @@ it('keeps access repairs out of a signed-in person’s sheet', () => {
   )
   expect(html).not.toContain('Change email')
   expect(html).not.toContain('Resend invitation')
+})
+
+it.each([
+  [
+    'everyone live',
+    { live: 3, paused: 0, notLive: [], failures: [], skipped: 0 },
+    ['3 guest pages updated.'],
+  ],
+  [
+    'one live',
+    { live: 1, paused: 0, notLive: [], failures: [], skipped: 0 },
+    ['1 guest page updated.'],
+  ],
+  [
+    'some failed, and it still counts the ones that went live',
+    { live: 3, paused: 0, notLive: [], failures: ['Ana: refused'], skipped: 0 },
+    ['Ana: refused', '3 guest pages updated.'],
+  ],
+  [
+    'nobody got through',
+    { live: 0, paused: 0, notLive: [], failures: ['Ana: refused'], skipped: 0 },
+    ['Ana: refused'],
+  ],
+  [
+    'paused, which is not live',
+    { live: 1, paused: 2, notLive: [], failures: [], skipped: 0 },
+    ['1 guest page updated.', '2 paused; their new page shows when they’re back.'],
+  ],
+  [
+    'saved but refused publishing',
+    {
+      live: 0,
+      paused: 0,
+      notLive: ['Ana: saved, but not live yet.'],
+      failures: [],
+      skipped: 0,
+    },
+    ['Ana: saved, but not live yet.'],
+  ],
+  [
+    'unfinished setup',
+    { live: 1, paused: 0, notLive: [], failures: [], skipped: 2 },
+    ['1 guest page updated.', '2 have unfinished setup; their guest pages were skipped.'],
+  ],
+])('says what really happened to the guest pages: %s', (_name, input, expected) => {
+  expect(guestPageSummary(input)).toEqual(expected)
 })
