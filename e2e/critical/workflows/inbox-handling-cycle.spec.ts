@@ -20,6 +20,7 @@
 // server contract the manager history panel renders — so this journey stays
 // valid whether the panel is present or still landing.
 
+import type { Route } from '@playwright/test'
 import { test, expect } from '../../helpers/error-detection'
 import { signIn } from '../../helpers/auth'
 import { requireE2eSeedState } from '../../helpers/seed-state'
@@ -438,6 +439,13 @@ test.describe('Critical workflow: Inbox handling cycle journeys', () => {
     await expect(stale.getByRole('button', { name: 'Mark as handled' })).toBeVisible({
       timeout: 15_000,
     })
+    // Keep this tab stale. It refetches on focus and on a timer, and on a slow run a
+    // refresh landing mid-dialog makes it current, clearing the choice and leaving
+    // nothing to refuse. Its reads go unanswered until it reloads below.
+    const holdReads = async (route: Route) => {
+      if (route.request().method() !== 'GET') await route.continue()
+    }
+    await stale.route('**/_serverFn/**', holdReads)
 
     await page.getByRole('button', { name: 'Mark as handled' }).click()
     const dialog = page.getByRole('dialog')
@@ -471,6 +479,7 @@ test.describe('Critical workflow: Inbox handling cycle journeys', () => {
     })
 
     // Reloading the stale tab shows the CURRENT state, not its own attempt.
+    await stale.unroute('**/_serverFn/**', holdReads)
     await stale.reload()
     await stale.goto(`/inbox?queue=handled&itemId=${item.inboxItemId}`)
     await expect(stale.getByText('Follow-up completed').first()).toBeVisible({
