@@ -89,7 +89,13 @@ describe('organization lifecycle contributor set', () => {
     // and counsel-approved retention. Readiness reporting seventeen missing
     // contexts is the honest state, not a gap — composing the set by default
     // would arm the purge coordinator.
-    const source = await readFile(new URL('../composition.ts', import.meta.url), 'utf8')
+    const source = (
+      await Promise.all(
+        ['../composition.ts', './identity-wiring.ts'].map((file) =>
+          readFile(new URL(file, import.meta.url), 'utf8'),
+        ),
+      )
+    ).join('\n')
     expect(source).not.toContain('buildOrganizationLifecycleContributors')
     expect(source).not.toContain('lifecycleContributors:')
   })

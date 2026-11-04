@@ -3,6 +3,7 @@ import type {
   GoogleReviewApiErrorCode,
 } from '#/contexts/review/application/public-api'
 import type { GoogleReviewApiFailure } from '#/contexts/review/application/ports/google-review-api.port'
+import { googleProviderErrorStatus } from '#/shared/domain/google-provider-failure'
 import { googleRetryFloorMs } from '#/shared/google-provider-control/provider-call'
 import type { GoogleReviewCursorFailureCode } from '../google-review-cursor-store'
 
@@ -130,6 +131,7 @@ function executorFailure(
     contentFreeCode(errorField(error, 'executionCode'))
   const dispatch = errorField(error, 'dispatch')
   const status = errorField(error, 'providerStatus')
+  const machineStatus = errorField(error, 'providerErrorStatus')
   return {
     label: executionCode ?? contentFreeCode(errorField(error, 'kind')) ?? 'unclassified',
     failure: {
@@ -137,6 +139,9 @@ function executorFailure(
       dispatch: dispatch === 'not_sent' || dispatch === 'answered' ? dispatch : 'unknown',
       providerStatus:
         typeof status === 'number' && Number.isSafeInteger(status) ? status : null,
+      ...(machineStatus === undefined
+        ? {}
+        : { providerErrorStatus: googleProviderErrorStatus(machineStatus) }),
     },
   }
 }

@@ -1,6 +1,7 @@
-// The Organization's Google connection row. Disconnecting revokes access and
-// removes what the account imported, for every Property that uses it, so the
-// button asks first (the Property-level disconnect already did).
+// The Organization's Google connection row. Disconnecting stops syncing and
+// replying and revokes access, for every Property that uses the account, so the
+// button asks first (the Property-level disconnect already did). What the
+// account imported stays until Google's 30-day limit.
 import type { Meta, StoryObj } from '@storybook/react'
 import { expect, fn, userEvent, waitFor } from 'storybook/test'
 import type { GoogleConnectionDto } from '#/contexts/integration/application/public-api'

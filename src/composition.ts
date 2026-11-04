@@ -1,5 +1,3 @@
-import { requireExecutionAllowed } from '#/shared/auth/execution-policy'
-import { createStaffInvitationBudget } from '#/contexts/identity/build-staff-accounts'
 // Composition root — the only place a full container is built. It SELECTS
 // implementations and configuration rather than being one.
 //
@@ -9,88 +7,46 @@ import { createStaffInvitationBudget } from '#/contexts/identity/build-staff-acc
 // guarded by its option and absent from every application container. The root
 // imports no individual use case, event handler or business rule; job/consumer
 // registration stays owned by BQC-3 (bootstrap.ts + worker/). Cohesive
-// sub-graphs live in src/composition/.
+// sub-graphs live in src/composition/: one <context>-wiring.ts per context
+// build, while this file fixes the order they run in. A callback into a context
+// built later is passed as a getter and called only after construction ends.
 //
 // Per architecture: "No DI framework, no auto-wiring, no decorators.
 // Dependencies are passed as function arguments. The wiring is in composition.ts, visible."
 
-import { getDb } from '#/shared/db'
-import { getPool } from '#/shared/db/pool'
-import { getLogger } from '#/shared/observability/logger'
-import { getRedis } from '#/shared/cache/redis'
-import { createScheduledScopeAuthorizer } from '#/shared/jobs/delayed-execution-gate'
+import { randomUUID } from 'node:crypto'
 import { closeJobQueueConnections } from '#/shared/jobs/queue'
-import { createAlertDispatcher } from '#/shared/observability/alert-dispatcher'
 import { createOutboxRepository } from '#/shared/outbox/infrastructure/outbox-repository'
 import { createConsumerRegistry } from '#/shared/outbox'
 import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
-import { createBetterAuthIdentityAdapter } from '#/contexts/identity/infrastructure/adapters/auth-identity.adapter'
-import { createTanstackRequestContext } from '#/shared/auth/tanstack-request-context'
-import { createBetterAuthSessionPort } from '#/shared/auth/better-auth-session'
 import {
   bindProcessPolicies,
   registerProcessPolicyColdBoot,
 } from '#/shared/auth/process-policy-binding'
-import { buildIdentityContext } from '#/contexts/identity/build'
-import { buildPlatformConsole } from '#/contexts/identity/build-platform'
-import { INVITATION_EXPIRY_SECONDS } from '#/shared/auth/auth'
-import { sendInvitationEmail, sendStaffCodeReadyEmail } from '#/shared/auth/emails'
-import { getEnv, getReleaseSha } from '#/shared/config/env'
-import {
-  assertDirectCredentialEgressAllowed,
-  assertReviewProviderSubjectKeysConfigured,
-} from '#/shared/config/provider-config-guards'
-import { feedbackId, organizationId, propertyId, userId } from '#/shared/domain/ids'
-import { buildPropertyContext } from '#/contexts/property/build'
-import { createInboxCommandAuthority } from '#/contexts/inbox/infrastructure/adapters/inbox-command-authority.adapter'
-import { createPropertyRepository } from '#/contexts/property/infrastructure/repositories/property.repository'
-import { buildIntegrationContext } from '#/contexts/integration/build'
-import { googleOAuthCallbackUrl } from '#/contexts/integration/application/google-authorize-request'
-import { randomBytes, randomUUID } from 'node:crypto'
-import { readFileSync } from 'node:fs'
-import { validateGoogleRuntimeIsolationReadiness } from '#/shared/auth/google-runtime-isolation'
-import {
-  createInMemoryOAuthCallbackQuotaCounter,
-  createOAuthCallbackAbuseGate,
-  type OAuthCallbackQuotaCounter,
-} from '#/contexts/integration/application/oauth-callback-abuse-gate'
-import { createRedisOAuthCallbackQuotaCounter } from '#/contexts/integration/infrastructure/oauth-callback-quota-counter'
-import { buildPortalContext } from '#/contexts/portal/build'
-import { buildGuestContext } from '#/contexts/guest/build'
-import { buildReviewContext } from '#/contexts/review/build'
 import { createSourceContentPurge } from '#/contexts/review/infrastructure/source-content-purge'
-import { configureReviewProviderSubjectWriterKeys } from '#/contexts/review/application/provider-subject-keyring'
-import { buildInboxContext } from '#/contexts/inbox/build'
-import { buildAiContext } from '#/contexts/ai/build'
-import {
-  createAnalyzeReviewNowEnqueue,
-  createPropertyTrendEnqueue,
-} from '#/contexts/ai/infrastructure/jobs/ai-job-enqueue'
-import {
-  applyProviderEndpointOverrides,
-  createAiRuntimeProviders,
-  GOOGLE_PROVIDER_ENDPOINTS,
-} from './composition/provider-runtime'
-import { buildInfrastructure } from './composition/infrastructure'
-import { inboxReadyV3Of } from './composition/inbox-ai-insights'
 import { notificationEmailWebConfigProblems } from '#/contexts/feed/application/notification-email-web-config'
-import { isCapabilityJobEnabled, isOrgInAllowlist } from '#/shared/auth/beta-capabilities'
+import { isCapabilityJobEnabled } from '#/shared/auth/beta-capabilities'
+import { createCompositionRuntime } from './composition/runtime'
+import { buildIdentityPorts, wireIdentity } from './composition/identity-wiring'
+import { wireProperty } from './composition/property-wiring'
+import { wirePortal } from './composition/portal-wiring'
+import { wireGuest } from './composition/guest-wiring'
+import { wireIntegration } from './composition/integration-wiring'
+import { buildAiRuntime, wireAi } from './composition/ai-wiring'
+import { wireReview } from './composition/review-wiring'
+import { wireInbox } from './composition/inbox-wiring'
+import { buildContainerCapabilities } from './composition/container-capabilities'
 import {
   buildReadAndNotifyContexts,
   notificationEmailAddressKeys,
 } from './composition/read-and-notify-contexts'
-import type { CreateContainerOptions } from './composition/container-options'
 import { buildOperationalReadout } from './composition/operational-readout'
-import { reportAlertToObservability } from './composition/alert-reporter'
-import { composeOrganizationLifecycle } from '#/composition/organization-export-contributors'
 import { buildGoogleProviderAuthority } from './composition/google-provider-authority'
-
-const PROPERTY_ID_SHAPE =
-  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/iu
 import {
   createDeferredMemberAuthorityLifecycle,
   createMemberAuthorityLifecycle,
 } from './composition/member-authority-lifecycle'
+import type { CreateContainerOptions } from './composition/container-options'
 
 export {
   applyProviderEndpointOverrides,
@@ -98,101 +54,13 @@ export {
   type ProviderOverrides,
 } from './composition/provider-runtime'
 
-// fallow-ignore-next-line complexity
 function buildContainer(
   options: CreateContainerOptions | undefined,
   mode: 'required' | 'refusing',
 ) {
-  const { enableJobs = false } = options ?? {}
-  const db = options?.db ?? getDb()
-  const pool = options?.pool ?? getPool()
-  const logger = getLogger()
-  const redis = options && 'redis' in options ? options.redis : getRedis()
-  const clock = options?.clock ?? (() => new Date())
-  const env = options?.env ?? getEnv()
-  if (
-    env.REVIEW_PROVIDER_SUBJECT_HMAC_MIGRATOR_KEYS !== undefined ||
-    (!enableJobs && env.REVIEW_PROVIDER_SUBJECT_HMAC_KEYS !== undefined)
-  ) {
-    throw new Error('config_invalid')
-  }
-  // Fail CLOSED at boot, not once per job: a production worker without the
-  // subject keyring fails 100% of review syncs at acquireDeriver() with an
-  // opaque `config_invalid`, surfacing only after three retries in
-  // quarantine. This names the variable and refuses to build the container.
-  // No-op outside production and for non-job processes.
-  assertReviewProviderSubjectKeysConfigured(env, enableJobs)
-  const reviewProviderSubjectKeyring = configureReviewProviderSubjectWriterKeys({
-    writerEnabled: enableJobs,
-    production: env.NODE_ENV === 'production',
-    raw: env.REVIEW_PROVIDER_SUBJECT_HMAC_KEYS,
-  })
-
-  // BQC-7.3 (release.sha): deploy identity at boot — one line per container
-  // build (singleton in prod; simulations/tests build per scenario).
-  logger.info({ releaseSha: getReleaseSha(env) }, 'composition root boot')
-
-  // BQC-4.3: Google's approved endpoints, resolved ONCE at boot. BQC-6.5:
-  // explicit operator env overrides (sandbox seam) applied once here; all
-  // absent = byte-identical passthrough.
-  const providerEndpoints = applyProviderEndpointOverrides(GOOGLE_PROVIDER_ENDPOINTS, env)
-  const runtimeIsolationConfigured =
-    env.GOOGLE_RUNTIME_ISOLATION_PROFILE_JSON !== undefined ||
-    env.GOOGLE_CONTROL_PLANE_POLICY_GENERATION !== undefined
-  if (env.NODE_ENV === 'production' && runtimeIsolationConfigured) {
-    if (
-      !env.GOOGLE_RUNTIME_ISOLATION_PROFILE_JSON ||
-      !env.GOOGLE_CONTROL_PLANE_POLICY_GENERATION
-    ) {
-      throw new Error(
-        'Configured Google runtime isolation requires a profile and live attestation',
-      )
-    }
-    const expectedGoogleOrigins = [
-      ...new Set(
-        Object.values(providerEndpoints).map((endpoint) => new URL(endpoint).origin),
-      ),
-    ]
-    validateGoogleRuntimeIsolationReadiness({
-      profileRaw: env.GOOGLE_RUNTIME_ISOLATION_PROFILE_JSON,
-      attestationRaw: readFileSync('/run/repkey/google-egress-attestation.json', 'utf8'),
-      expectedControlPlanePolicyGeneration: env.GOOGLE_CONTROL_PLANE_POLICY_GENERATION,
-      expectedGoogleOrigins,
-      expectedTargetEnvironment:
-        env.GOOGLE_PROVIDER_ENDPOINT_PROFILE === 'local-sandbox'
-          ? 'local_sandbox'
-          : 'production',
-      now: clock(),
-    })
-  }
-
-  // Infrastructure
-  const infra = buildInfrastructure({
-    redis,
-    enableJobs,
-    queue: options?.queue,
-    backgroundQueue: options?.backgroundQueue,
-    domainEventsQueue: options?.opsDomainEventsQueue,
-  })
-
-  // Identity port (adapter).
-  // ARC-03-T13: the framework/provider seam is selected HERE and injected
-  // everywhere else. No context and no other root line calls getRequest() or
-  // the better-auth process singleton.
-  const observeAbsentRequest = (err: unknown): void => {
-    logger.debug({ err }, 'no server request context available, using empty headers')
-  }
-  const requestContext =
-    options?.requestContext ?? createTanstackRequestContext({ observeAbsentRequest })
-  const authSession =
-    options?.authSession ?? createBetterAuthSessionPort({ requestContext })
-  const identityPort =
-    options?.identityPort ??
-    createBetterAuthIdentityAdapter(db, {
-      clock,
-      idGen: randomUUID,
-      requestContext,
-    })
+  const runtime = createCompositionRuntime(options)
+  const { db, clock, logger, env, redis, providerEndpoints, infra, enableJobs } = runtime
+  const identityPorts = buildIdentityPorts(runtime)
   // ARC-03-T9: the Identity/Property/Portal/Inbox member-authority seam.
   // Identity is upstream of the three contexts holding the authorities it
   // releases, so the Identity-owned port is handed over now and its
@@ -211,133 +79,18 @@ function buildContainer(
   // dispatcher read the same one.
   const consumerRegistry = createConsumerRegistry()
   registerAllEventSchemas()
+  const input = { ...runtime, outboxRepo }
 
   // ── Context builds (dependency order) ──────────────────────────────
 
-  const staffInvitationBudget = createStaffInvitationBudget(
-    infra.rateLimiter,
-    env.BETTER_AUTH_SECRET,
+  const identity = wireIdentity(
+    input,
+    identityPorts,
+    memberAuthorityLifecycle,
+    () => property,
+    () => portal,
+    () => integration,
   )
-  const identity = buildIdentityContext({
-    staffAccounts: {
-      staffScanTargetsEnabled: env.STAFF_SCAN_TARGETS_ENABLED,
-      authorizeProperty: (ctx, propertyId, action) =>
-        requireExecutionAllowed({
-          actor: ctx,
-          propertyId,
-          action,
-          capability: 'staff.accounts',
-        }),
-      portals: {
-        archiveForMemberDeparture: async (portalIdValue, ctx) => {
-          await portal.publicApi.management.archivePersonalPortalForMemberDeparture(
-            { portalId: portalIdValue },
-            ctx,
-          )
-        },
-        rename: (input, ctx, transaction) =>
-          portal.publicApi.management.renamePersonalPortalLabels(input, ctx, transaction),
-        check: async (input, ctx) => ({
-          omittedLinks:
-            (await portal.publicApi.management.checkPersonalPortalSource(input, ctx))
-              ?.omittedLinks ?? [],
-        }),
-        create: async (input, ctx) => {
-          await portal.publicApi.management.createPersonalPortal(input, ctx)
-        },
-        issueCode: (portalIdValue, ctx) =>
-          portal.publicApi.management.ensurePersonalPortalToken(
-            { portalId: portalIdValue },
-            ctx,
-          ),
-        publish: async (portalIdValue, ctx) => {
-          await portal.publicApi.management.updatePortal(
-            { portalId: portalIdValue, publicationState: 'published' },
-            ctx,
-          )
-        },
-        archive: async (portalIdValue, ctx) => {
-          await portal.publicApi.management.archivePersonalPortal(
-            { portalId: portalIdValue },
-            ctx,
-          )
-        },
-      },
-      spendInvitationBudget: staffInvitationBudget.spend,
-      spendAddressCheckBudget: staffInvitationBudget.checkAddresses,
-      invitationBudget: staffInvitationBudget.remaining,
-      deliverAccess: async (row, access) => {
-        if (!row.email) return
-        const names = await property.publicApi.getPropertyNames(
-          organizationId(row.organizationId),
-          [propertyId(row.propertyId)],
-        )
-        const propertyName = names[0]?.name ?? 'your Property'
-        if (access.invited)
-          await (options?.email ?? sendInvitationEmail)({
-            email: row.email,
-            invitedByUsername: 'Your manager',
-            organizationName: propertyName,
-            inviteLink: new URL(
-              `/accept-invitation?id=${row.invitationId}`,
-              env.BETTER_AUTH_URL,
-            ).href,
-            role: 'Member',
-            propertyNames: [],
-            expiresInDays: 7,
-          })
-        else
-          await sendStaffCodeReadyEmail(
-            row.email,
-            propertyName,
-            new URL('/login', env.BETTER_AUTH_URL).href,
-          )
-      },
-    },
-    db,
-    identityPort,
-    clock,
-    idGen: randomUUID,
-    authSession,
-    // Late-bound: the shared object store is built with Portal, below.
-    deleteAssetObject: (key) => portal.uploads.storage.deleteObject(key),
-    sendEmail: options?.email ?? sendInvitationEmail,
-    baseUrl: env.BETTER_AUTH_URL,
-    invitationExpiresInMs: INVITATION_EXPIRY_SECONDS * 1000,
-    // Late-bound like the policy check below. Invitations store Property ids
-    // as free text; only a UUID can name a Property row.
-    propertyNames: (orgId, ids) =>
-      property.publicApi.getPropertyNames(
-        organizationId(orgId),
-        ids.filter((id) => PROPERTY_ID_SHAPE.test(id)).map(propertyId),
-      ),
-    logger,
-    betaFeedbackHmacSecret: env.BETTER_AUTH_SECRET,
-    policy: {
-      env,
-      propertyBelongsToOrganization: (orgId, pid) =>
-        property.publicApi.propertyExists(organizationId(orgId), propertyId(pid)),
-    },
-    cancelGoogleImportsForUser: (orgId, userIdValue) => {
-      const cancel = integration.lifecycle.cancelImportsForUser
-      if (!cancel) throw new Error('Google import lifecycle unavailable')
-      return cancel(orgId, userIdValue).then(() => undefined)
-    },
-    prepareGoogleConnectorDeparture: async (orgId, userIdValue, cause) => {
-      await integration.lifecycle.prepareConnectorDeparture({
-        organizationId: organizationId(orgId),
-        connectorUserId: userId(userIdValue),
-        cause,
-      })
-    },
-    releaseMemberAuthorities: memberAuthorityLifecycle.port.releaseMemberAuthorities,
-    reconcileResponsibleManagerEligibility:
-      memberAuthorityLifecycle.port.reconcileResponsibleManagerEligibility,
-    organizationLifecycle: composeOrganizationLifecycle(
-      db,
-      options?.organizationLifecycle,
-    ),
-  })
 
   // ARC-03-T10: operators refuse Google; application processes require its substrate.
   const googleProviderAuthority = buildGoogleProviderAuthority({
@@ -353,332 +106,28 @@ function buildContainer(
     },
     ...(options ? { options } : {}),
   })
-  const {
-    providerEphemeralStore,
-    providerEphemeralRedis,
-    providerEphemeralReadiness,
-    oauthStateHandles,
-    googleImportReplayKeys,
-    googleOpaqueReferenceKeys,
-    googleRefreshCoordination,
-    providerAuthorizationLeases,
-    googleImportReferences,
-    googlePerformancePrincipalKeys,
-    authorizeGoogleImportContent,
-    authorizeGooglePerformanceContent,
-    authorizeGoogleReviewSyncContent,
-    authorizeGoogleReplyPublicationContent,
-    authorizeGoogleOAuthProviderCall,
-    googleDisconnectRevokeStore,
-    googleAuthorizedProviderExecutor,
-  } = googleProviderAuthority
-
   // BQC-1.7: the bounded lifecycle purge implementation is review-owned
   // infrastructure — the composition root is the only layer allowed to
   // import it (CONTEXT.md cross-context rule). LIF-01 severs it from normal
   // Property lifecycle; Integration still uses it for governed disconnect.
   const sourceContentPurge = createSourceContentPurge({ db, clock })
 
-  const property = buildPropertyContext({
-    db,
-    repo: createPropertyRepository(db),
-    outboxRepo,
-    clock,
-    idGen: randomUUID,
-    staffPublicApi: identity.publicApi.people,
-    identityManagerFacts: identity.publicApi.managerFacts,
-    logger: getLogger(),
-  })
-
-  const portal = buildPortalContext({
-    ratingGoalGuard: {
-      findRunningRatingGoalBlock: (...args) =>
-        reporting.publicApi.findPortalRatingGoalBlock(...args),
-    },
-    db,
-    outboxRepo,
-    clock,
-    propertyApi: property.publicApi,
-    staffPublicApi: identity.publicApi.people,
-    identityManagerFacts: identity.publicApi.managerFacts,
-    baseUrl: env.BETTER_AUTH_URL ?? 'http://localhost:3000',
-    printCodes: {
-      printOrigin: env.PORTAL_PRINT_ORIGIN,
-      enabled: env.PORTAL_PRINT_CODES_ENABLED,
-    },
-    idGen: () => crypto.randomUUID(),
-    secureRandomBytes: randomBytes,
-    tokenHashSecret: env.PORTAL_TOKEN_HASH_SECRET,
-    addressEncryptionKeys: env.PORTAL_ADDRESS_ENCRYPTION_KEYS,
-    logger,
-    storage: options?.providers?.storage,
-    storageConfig: {
-      accessKey: env.AWS_S3_ACCESS_KEY ?? '',
-      secretKey: env.AWS_S3_SECRET_ACCESS_KEY ?? '',
-      bucketName: env.AWS_S3_BUCKET_NAME ?? '',
-      region: env.AWS_S3_REGION ?? '',
-      internalEndpoint: env.S3_INTERNAL_ENDPOINT,
-      presignEndpoint: env.S3_PRESIGN_ENDPOINT,
-      forcePathStyle: env.S3_FORCE_PATH_STYLE,
-    },
-    printKitFinalEnabled: env.PRINT_KIT_FINAL_ENABLED,
-    portalOwnLookEnabled: env.PORTAL_OWN_LOOK_ENABLED,
-  })
-
-  const guest = buildGuestContext({
-    db,
-    clock,
-    idGen: randomUUID,
-    monotonicNow: performance.now.bind(performance),
-    portalApi: portal.publicApi.portal,
-    identityManagerFacts: identity.publicApi.managerFacts,
-    identityAccountAdminAuthority: identity.publicApi.accountAdminAuthority,
-    staffApi: identity.publicApi.people,
-    logger,
-    sessionSecret: env.GUEST_SESSION_SALT,
-    publicOrigin: new URL(env.BETTER_AUTH_URL).origin,
-    secureCookies: env.NODE_ENV === 'production',
-    resolvePrimaryStaffAttribution:
-      identity.publicApi.people.resolvePrimaryStaffAttribution,
-    observationLossRedis: redis,
-  })
-
-  const oauthCallbackQuotaCounter: OAuthCallbackQuotaCounter = redis
-    ? createRedisOAuthCallbackQuotaCounter(redis)
-    : env.NODE_ENV === 'production'
-      ? Object.freeze({ consume: async () => false })
-      : createInMemoryOAuthCallbackQuotaCounter()
-  const oauthCallbackAbuseGate = createOAuthCallbackAbuseGate({
-    counter: oauthCallbackQuotaCounter,
-    hmacSecret: env.OAUTH_STATE_SECRET,
-    projectIdentity: env.GOOGLE_CLIENT_ID,
-  })
-
-  const integration = buildIntegrationContext({
-    db,
-    outboxRepo,
-    clock,
-    idGen: randomUUID,
-    invalidationOwnerGen: () => randomBytes(32).toString('base64url'),
-    jobQueue: infra.jobQueue,
-    propertyApi: property.publicApi,
-    propertyBindingApi: property.googleBinding,
-    enqueueReviewSync: (data, options) =>
-      review.publicApi.syncAdmission.addSyncJob(data, options),
-    enqueueTargetedReviewFetch: (data, options) =>
-      review.publicApi.syncAdmission.addTargetedFetchJob(data, options),
-    defaultPublicDisplayName: portal.publicApi.portal.ensureDefaultPublicDisplayName,
-    logger: getLogger(),
-    providerEndpoints,
-    config: {
-      nodeEnv: env.NODE_ENV,
-      googleClientId: env.GOOGLE_CLIENT_ID,
-      googleClientSecret: env.GOOGLE_CLIENT_SECRET,
-      encryptionKey: env.ENCRYPTION_KEY,
-      googleCallbackUrl: googleOAuthCallbackUrl(env.BETTER_AUTH_URL),
-      pubsubTopic: env.GBP_PUBSUB_TOPIC,
-      pubsubNotificationTypes: env.GBP_PUBSUB_NOTIFICATION_TYPES,
-    },
+  const property = wireProperty(input, identity)
+  const portal = wirePortal(input, identity, property, () => reporting)
+  const guest = wireGuest(input, identity, portal)
+  const integration = wireIntegration(
+    input,
+    identity,
+    property,
+    portal,
+    googleProviderAuthority,
     sourceContentPurge,
-    googleOAuth: options?.providers?.googleOAuth,
-    gbpApi: options?.providers?.gbpApi,
-    googleAuthorizedProviderExecutor,
-    googleDisconnectRevokeStore,
-    ...(googleAuthorizedProviderExecutor ? { authorizeGoogleOAuthProviderCall } : {}),
-    googleImportReplayKeys,
-    authorizeGoogleImportContent,
-    authorizeGooglePerformanceContent,
-    authorizeGoogleReviewSyncContent,
-    authorizeGoogleReplyPublicationContent,
-    googlePerformancePrincipalKeys,
-    providerAuthorizationLeases,
-    googleImportReferences,
-    providerEphemeralStore,
-    googleOpaqueReferenceKeys,
-    googleReviewCursorStore: options?.providers?.googleReviewCursorStore,
-    oauthStateHandles,
-    oauthCallbackAbuseGate,
-    refreshPolicyStoreRequired: identity.policy.refreshRequired,
-    googleRefreshCoordination,
-    assertDirectCredentialEgressAllowed: (operation) =>
-      assertDirectCredentialEgressAllowed(env, operation),
-  })
-
-  const aiRuntime = createAiRuntimeProviders({
-    env,
-    // ARC-03-T14: injectable so a process fixture boots deterministically; the
-    // composition boundary is the ONE place allowed to fall back to ambient state.
-    runtimeEnvironment: options?.runtimeEnvironment ?? process.env,
-    enableJobs,
-    pool,
-    clock,
-    inferenceOverride: options?.providers?.aiInference,
-    subjectHmacOverride: options?.providers?.aiSubjectHmac,
-  })
-  const review = buildReviewContext({
-    db,
-    outboxRepo,
-    clock,
-    idGen: randomUUID,
-    snapshotRunIdGen: randomUUID,
-    staffPublicApi: identity.publicApi.people,
-    publicationActorAuthority: async (tx, authorityInput) =>
-      (await identity.authority.decidePublicationActorAuthority(tx, authorityInput))
-        .allowed,
-    googleReviewApi: integration.reviewSync.googleReviewApi,
-    targetedReviewReferences: integration.reviewSync.googleReviewPushTargetResolver,
-    jobQueue: infra.jobQueue,
-    workerRuntime: {
-      pool,
-      registry: infra.jobRegistry,
-      backgroundQueue: infra.backgroundQueue,
-    },
-    logger: getLogger(),
-    propertyApi: property.publicApi,
-    providerSubjectKeyring: reviewProviderSubjectKeyring,
-    aiReplyProvenancePublicKeys: aiRuntime.provenancePublicKeys,
-    replyBrandProfiles: portal.publicApi.portal,
-  })
-  const ai = buildAiContext({
-    db,
-    outboxRepo,
-    redis,
-    logger: getLogger(),
-    idGen: randomUUID,
-    nowEpochMillis: () => clock().getTime(),
-    reviewSources: review.publicApi.aiReviewSource,
-    propertyAccess: (orgId, uid, orgWide) =>
-      identity.publicApi.people.getAccessiblePropertyIds(orgId, uid, orgWide),
-    propertyReplyLanguages: {
-      readDefaultReplyLanguage: ({ organizationId: orgId, propertyId: pid }) =>
-        property.publicApi.getPropertyReplyLanguage(orgId, pid),
-    },
-    replyBrandProfiles: portal.publicApi.portal,
-    replyVoices: review.publicApi.aiReplyVoice,
-    inference: aiRuntime.inference,
-    subjectHmac: aiRuntime.subjectHmac,
-    enqueuePropertyTrend: infra.jobQueue
-      ? createPropertyTrendEnqueue(infra.jobQueue)
-      : undefined,
-    enqueueReviewAnalysisNow: infra.jobQueue
-      ? createAnalyzeReviewNowEnqueue(infra.jobQueue)
-      : undefined,
-    // The review event consumer is ungated at the dispatcher, so that a review
-    // arriving during a stop is queued instead of lost. It asks the backlog
-    // drain's own policy question before analysing a review on delivery.
-    authorizeReviewAnalysisScope: createScheduledScopeAuthorizer(
-      'system:ai.review_analysis_backlog_drain',
-    ),
-  })
-
-  const inbox = buildInboxContext({
-    db,
-    clock,
-    idGen: randomUUID,
-    staffPublicApi: identity.publicApi.people,
-    rateLimiter: infra.rateLimiter,
-    authorizeCommand: createInboxCommandAuthority({
-      decideManagerPropertyAuthorities:
-        identity.authority.decideManagerPropertyAuthorities,
-    }),
-    // BQC-1.4: review.publicApi IS the governed read interface — it satisfies
-    // the inbox ReviewLookupPort and metric ReviewRatingLookupPort directly.
-    // No per-context eligibility adapters remain (single rule, one owner).
-    reviewLookup: review.publicApi,
-    aiInsights: {
-      readCurrentReviewAnalysis: async (request) => {
-        const current = await review.publicApi.aiReviewSource.readCurrentSource({
-          organizationId: request.organizationId,
-          reviewId: request.reviewId,
-        })
-        if (
-          current.status === 'not_found' ||
-          current.source.propertyId !== request.propertyId
-        ) {
-          return { status: 'none' } as const
-        }
-        const analysis = await ai.publicApi.readReviewAnalysis({
-          ...request,
-          sourceEpoch: current.source.sourceEpoch,
-          sourceRevision: current.source.sourceRevision,
-          analysisSequence: current.source.analysisSequence,
-        })
-        if (analysis.status === 'ready_v3') return inboxReadyV3Of(analysis)
-        if (analysis.status !== 'ready') return analysis
-        return {
-          status: 'ready',
-          sentiment: analysis.sentiment,
-          aspects: analysis.aspects,
-          primaryCategory: analysis.primaryCategory,
-          attention: analysis.attention,
-          ...(analysis.issueLabel === null ? {} : { issueLabel: analysis.issueLabel }),
-          generatedAtEpochMillis: analysis.generatedAtEpochMillis,
-        }
-      },
-      findCurrentReviewIdsByAttention: ai.publicApi.findCurrentReviewIdsByAttention,
-      findCurrentReviewIdsByAspect: ai.publicApi.findCurrentReviewIdsByAspect,
-      findCurrentReviewIdsByIssue: ai.publicApi.findCurrentReviewIdsByIssue,
-    },
-    // Foreign read sources the inbox build adapts into its lookup ports.
-    sources: {
-      // Feedback spans two storage generations: the guest_responses aggregate
-      // that the live guest form writes, and the legacy feedback/ratings pair.
-      // `guest.feedback.submitted` carries the aggregate row id, so the
-      // aggregate read is what makes a new feedback inbox item render at all —
-      // the legacy lookup cannot resolve that id.
-      // ARC-03-T11: read through Guest's named snippet port. The root's only
-      // remaining job is the FeedbackId branding both generations share.
-      feedback: {
-        findResponseSnippetsByIds: async (ids, orgId) =>
-          (await guest.snippets.findResponseSnippetsByIds(ids, orgId)).map((row) => ({
-            ...row,
-            id: feedbackId(row.id),
-          })),
-        findEligibleResponseIds: async (orgId, filter) =>
-          (await guest.snippets.findEligibleResponseIds(orgId, filter)).map(feedbackId),
-        findLegacyFeedbackSnippetsByIds: guest.snippets.findLegacyFeedbackSnippetsByIds,
-        findEligibleLegacyFeedbackIds: guest.snippets.findEligibleLegacyFeedbackIds,
-      },
-      property: property.publicApi,
-      // Named reads, not a spread of the repository.
-      //
-      // `review.lookups.reply` is typed `ReplyRepository`, and the repository
-      // is built as an object literal, so every method is own-enumerable and
-      // `{ ...review.lookups.reply }` handed Inbox `upsert`, the draft writes
-      // and `deleteByReviewIdAndSource` as well. The declared
-      // `ReplyLookupSource` narrows the TYPE, so typed Inbox code cannot call
-      // them — but the object still carried them at runtime, reachable through
-      // any cast, a structural widening of the port, or anything that iterates
-      // or serialises the source. A spread does not trigger excess-property
-      // checking, and the cross-context eslint rule inspects import paths, not
-      // injected objects, so neither noticed. Review's own build comment says
-      // "the repositories themselves stay context-private"; this is what makes
-      // that true at runtime, not only in the types.
-      reply: {
-        findByReviewId: review.lookups.reply.findByReviewId,
-        findMilestonesByReviewIds: review.lookups.reply.findMilestonesByReviewIds,
-        findCurrentGoogleReplyHeadsByReviewIds:
-          review.lookups.reply.findCurrentGoogleReplyHeadsByReviewIds,
-        findStatesByReviewIds: review.lookups.reply.findStatesByReviewIds,
-        findReviewIdsByReplyStage: review.lookups.reply.findReviewIdsByReplyStage,
-        getCurrentGoogleReplyByReviewId: review.publicApi.getCurrentGoogleReplyByReviewId,
-      },
-      // Named for the same reason as `reply` above: `review.lookups.review` is
-      // the whole `ReviewRepository`, and `ReviewSourceLookupSource` narrows
-      // the type without narrowing the object.
-      review: {
-        findById: review.lookups.review.findById,
-        findByIds: review.lookups.review.findByIds,
-        findByOrganizationId: review.lookups.review.findByOrganizationId,
-        findByPropertyId: review.lookups.review.findByPropertyId,
-      },
-      replyObservationAuthority: review.publicApi.replyObservationAuthority,
-      responseTargetAuthority: review.publicApi.responseTargetAuthority,
-      sourceTransitionAuthority: review.publicApi.sourceTransitionAuthority,
-      googleReviewCheck: review.publicApi.checkReviewOnGoogle,
-    },
-    logger: getLogger(),
-  })
+    () => review,
+  )
+  const aiRuntime = buildAiRuntime(runtime)
+  const review = wireReview(input, identity, property, portal, integration, aiRuntime)
+  const ai = wireAi(input, identity, property, portal, review, aiRuntime)
+  const inbox = wireInbox(input, identity, property, guest, review, ai)
   // ARC-03-T9: the member-authority seam's ONE implementation, bound now that
   // Property, Portal and Inbox exist. It consumes named context capabilities,
   // never repositories, and Identity received its port long before this line.
@@ -698,7 +147,7 @@ function buildContainer(
 
   // ARC-03-T10: downstream Reporting and Feed are composed as one named
   // group after their upstream dependencies.
-  const { reporting, goalCorrectionPolicy, feed } = buildReadAndNotifyContexts({
+  const readAndNotify = buildReadAndNotifyContexts({
     staffScanTargetsEnabled: env.STAFF_SCAN_TARGETS_ENABLED,
     db,
     clock,
@@ -716,7 +165,8 @@ function buildContainer(
     reviewServingStats: review.lookups.servingStats,
     ...notificationEmailAddressKeys(env),
   })
-  const { activity, notification } = feed
+  const { reporting, feed } = readAndNotify
+  const { notification } = feed
   // The web service's own email seams (the Resend event webhook, one-click
   // unsubscribe) only answer 503 when unconfigured; say so once at boot.
   if (!enableJobs) {
@@ -731,234 +181,43 @@ function buildContainer(
   }
 
   // ARC-03-T10/T15: the process's operational readout and release seam.
-  const { opsQueues, jobDispatchWorkerRuntime, operationsSnapshot, containerShutdown } =
-    buildOperationalReadout({
-      db,
-      outboxRepo,
-      env,
-      clock,
-      logger,
-      redis,
-      enableJobs,
-      infra,
-      identity: {
-        policyStoreVersion: identity.policy.currentVersion,
-      },
-      notification: {
-        readMissingNotificationCount: notification.publicApi.readMissingNotificationCount,
-        readNotificationDeliveryLag: notification.publicApi.readNotificationDeliveryLag,
-      },
-      guestObservationLoss: guest.observationLoss,
-      ...(options ? { overrides: options } : {}),
-    })
-
-  return {
+  const operationalReadout = buildOperationalReadout({
     db,
-    pool,
-    logger,
-    idGen: randomUUID,
-    redis,
     outboxRepo,
+    env,
     clock,
-    opsQueues,
-    operationsSnapshot,
-    guestContactRequestRetentionSweep: guest.contactRequestReadiness.retentionSweep,
-    reviewObservationRetentionSweep:
-      review.maintenance.observationRetention.sweepExpiredSupersededCopies,
-    aiPublicApi: ai.publicApi,
-    aiWorkerRuntime: ai.worker,
-    // BQC-7.4: one composition-owned dispatcher shares the structured log,
-    // Sentry reporter, and optional ALERT_WEBHOOK_URL across evaluation points.
-    alertDispatcher: createAlertDispatcher({
-      logger,
-      clock,
-      webhookUrl: env.ALERT_WEBHOOK_URL,
-      report: reportAlertToObservability,
-    }),
-    // ARC-03-T6: the container's owned release seam, for background work a
-    // build() starts for the life of the process, so the web graceful-shutdown
-    // plugin, the worker drain and closeContainer() stop it through one
-    // capability. Nothing is registered on it today, and it does not release
-    // queue or Redis connections (container-lifecycle.ts, STATE).
-    shutdown: containerShutdown,
-    // ARC-03-T8: the policy trio this container owns. Constructing it installs
-    // nothing process-wide — an entry point calls bindProcessPolicies(container)
-    // exactly once, so a second container can never silently take over.
-    capabilityPolicyStore: identity.policy.capabilityPolicyStore,
-    executionPolicy: identity.policy.executionPolicy,
-    delayedExecutionPolicy: identity.policy.delayedExecutionPolicy,
-    rateLimiter: infra.rateLimiter,
-    jobQueue: infra.jobQueue,
-    backgroundQueue: infra.backgroundQueue,
-    jobRegistry: infra.jobRegistry,
-    jobDispatchWorkerRuntime,
-    /** Shared issued-object capability used by Identity profile assets and
-     * Portal media. The name exposes the port's purpose, not its adapter. */
-    assetStorage: portal.uploads.storage,
-    /** What still points at an uploaded avatar or logo; the public image route asks it. */
-    identityAssetReferences: identity.assetReferences,
-    portalWorkerRuntime: Object.freeze({
-      revalidateApprovedDestinations: portal.worker.revalidateApprovedDestinations,
-      sweepPortalMedia: portal.worker.sweepPortalMedia,
-    }),
-    /** Operator-only Portal maintenance (the bulk republish to the current design). */
-    portalMaintenanceRuntime: portal.maintenance,
-    /** Operator-only Review repair and lifecycle authority. */
-    reviewMaintenanceRuntime: review.maintenance,
-    ...(options?.exposeSimulationRuntime
-      ? {
-          /** Narrow scenario/invariant capabilities, absent from normal app
-           * containers even though they share the same deterministic builder. */
-          simulationRuntime: Object.freeze({
-            review: Object.freeze({
-              upsert: (
-                ...args: Parameters<typeof review.internal.repos.reviewRepo.upsert>
-              ) => review.internal.repos.reviewRepo.upsert(...args),
-              findByOrganizationId: (
-                ...args: Parameters<
-                  typeof review.internal.repos.reviewRepo.findByOrganizationId
-                >
-              ) => review.internal.repos.reviewRepo.findByOrganizationId(...args),
-            }),
-            reply: Object.freeze({
-              findByReviewId: (
-                ...args: Parameters<typeof review.internal.repos.replyRepo.findByReviewId>
-              ) => review.internal.repos.replyRepo.findByReviewId(...args),
-              findCurrentGoogleReplyHeadsByReviewIds: (
-                ...args: Parameters<
-                  typeof review.internal.repos.replyRepo.findCurrentGoogleReplyHeadsByReviewIds
-                >
-              ) =>
-                review.internal.repos.replyRepo.findCurrentGoogleReplyHeadsByReviewIds(
-                  ...args,
-                ),
-            }),
-            inbox: Object.freeze({
-              findBySource: (
-                ...args: Parameters<typeof inbox.internal.repos.inboxRepo.findBySource>
-              ) => inbox.internal.repos.inboxRepo.findBySource(...args),
-            }),
-          }),
-        }
-      : {}),
-    providerEphemeralReadiness,
-    identityPublicApi: identity.publicApi,
-    identityWorkerRuntime: identity.worker,
-    integrationPublicApi: integration.publicApi,
-    integrationWorkerRuntime: integration.worker,
-    integrationMaintenanceRuntime: integration.maintenance,
-    integrationLifecycleRuntime: integration.lifecycle,
-    integrationWebhookRuntime: integration.webhook,
-    propertyPublicApi: property.publicApi,
-    reviewPublicApi: review.publicApi,
-    identityLifecycleRuntime: identity.lifecycle,
-    guestPublicApi: guest.publicApi,
-    inboxPublicApi: inbox.publicApi,
-    /** Cross-context Inbox workflow authority; no request or repair surface. */
-    inboxLifecycleRuntime: inbox.lifecycle,
-    /** Bounded, operator-only Inbox projection repair authority. */
-    inboxMaintenanceRuntime: inbox.maintenance,
-    inboxRuntime: inbox.runtime,
-    metricPublicApi: reporting.publicApi,
-    metricMaintenanceRuntime: reporting.maintenance,
-    dashboardPublicApi: reporting.publicApi,
-    goalPublicApi: reporting.publicApi,
-    goalWorkerRuntime: reporting.worker,
-    feedPublicApi: feed.publicApi,
-    activityWorkerRuntime: Object.freeze({
-      projectRecentActivity: activity.worker.projectRecentActivity,
-    }),
-    identityPort,
-    // Request-scoped Identity handlers consume only their parsed, semantic
-    // key material. They never re-read process configuration after boot.
-    identityRequestSecurity: Object.freeze({
-      invitationRateLimitHmacSecret: env.BETTER_AUTH_SECRET,
-      betaFeedbackHmacSecret: env.BETTER_AUTH_SECRET,
-    }),
-    identityBetaFeedback: identity.betaFeedback,
-    identityProductUpdates: identity.productUpdates,
-    // ADR 0065: the platform operator console. Off identityPublicApi — no
-    // context receives it; only its server functions, after
-    // requirePlatformOperator.
-    identityPlatform: buildPlatformConsole({
-      db,
-      clock,
-      idGen: randomUUID,
-      logger,
-      sendEmail: options?.email ?? sendInvitationEmail,
-      baseUrl: env.BETTER_AUTH_URL,
-      invitationExpiresInMs: INVITATION_EXPIRY_SECONDS * 1000,
-      isControlledBetaEnabled: (id) => isOrgInAllowlist(env, id),
-    }),
-    // BQC-2.7: least-privilege policy administration operations.
-    policyAdmin: identity.policy.admin,
-    portalPublicApi: portal.publicApi,
-    notificationWorkerRuntime: Object.freeze({
-      notificationRepo: notification.delivery.repos.notificationRepo,
-      emailRepo: notification.delivery.repos.emailRepo,
-      preferenceRepo: notification.delivery.repos.preferenceRepo,
-      // Rechecked immediately before every Property-scoped email is sent.
-      recipientStanding: notification.delivery.recipientStanding,
-      // Whether the work a notice asks for still waits: asked before it is
-      // written and again before its email is sent.
-      workState: notification.delivery.workState,
-      // A review's eligible rating, to route its notice as a Low ratings one.
-      ratingForRouting: notification.delivery.ratingForRouting,
-    }),
-    handleResendEvent: notification.delivery.handleResendEvent,
-    notificationAudienceAuthorizer: notification.delivery.authorizeAudience,
-    notificationDeliverySettlement: notification.delivery.deliverySettlement,
-    // The repair sweep for notification deliveries that never settled
-    // (registered by bootstrap on the worker path). Undefined when no job
-    // queue exists.
-    reconcileMissingNotificationsHandler:
-      notification.delivery.reconcileMissingNotificationsHandler,
-    // BQC-2.2: version-gated strong read of persisted policy state.
-    // Workers await this before starting; side-effect paths use it for
-    // fresh reads (BQC-2.5). Owned by the identity build (readiness).
-    refreshPolicyStore: identity.policy.refresh,
-    // `providerSubjectKeys` is always a service — the real keyring-backed one
-    // when the writer material is configured, otherwise the secret-free deny
-    // adapter whose acquireDeriver() throws `config_invalid`. So this IS the
-    // boot-time inventory-parity check: it verifies the decoded worker key set
-    // against the database's masked inventory before any job runs. The
-    // env-level precondition is enforced earlier, at container construction
-    // (assertReviewProviderSubjectKeysConfigured).
-    refreshReviewProviderSubjectKeys: review.worker.refreshProviderSubjectKeys,
-    registerReviewWorkerJobs: ({
-      reviewDiscoveryIntervalMs,
-      reviewDiscoverySkipRecentlyReconciled,
-      reviewHeadChecks,
-      reviewReconcileWithinMs,
-    }: {
-      reviewDiscoveryIntervalMs: number
-      reviewDiscoverySkipRecentlyReconciled: boolean
-      reviewHeadChecks: 'off' | 'dark' | 'persist'
-      reviewReconcileWithinMs: number
-    }) =>
-      review.worker.registerWorkerJobs({
-        discoveryIntervalMs: reviewDiscoveryIntervalMs,
-        discoverySkipRecentlyReconciled: reviewDiscoverySkipRecentlyReconciled,
-        headChecks: reviewHeadChecks,
-        reconcileWithinMs: reviewReconcileWithinMs,
-      }),
-    /** ARC-03-T7: the durable consumer registry this container owns. */
-    consumerRegistry,
-    // Worker-only durable consumer registration contributed by owning contexts.
-    // Every context registers into THIS container's registry.
-    registerOutboxConsumers: () => {
-      integration.worker.registerOutboxConsumers(consumerRegistry)
-      review.worker.registerOutboxConsumers(consumerRegistry)
-      portal.worker.registerOutboxConsumers(consumerRegistry)
-      property.worker.registerOutboxConsumers(consumerRegistry)
-      inbox.worker.registerOutboxConsumers(consumerRegistry)
-      reporting.worker.registerOutboxConsumers(consumerRegistry, goalCorrectionPolicy)
-      ai.worker.registerOutboxConsumers(consumerRegistry)
-      activity.worker.registerOutboxConsumers(consumerRegistry)
-      notification.worker.registerOutboxConsumers(consumerRegistry)
+    logger,
+    redis,
+    enableJobs,
+    infra,
+    identity: {
+      policyStoreVersion: identity.policy.currentVersion,
     },
-    providerEphemeralRedis,
-  } as const
+    notification: {
+      readMissingNotificationCount: notification.publicApi.readMissingNotificationCount,
+      readNotificationDeliveryLag: notification.publicApi.readNotificationDeliveryLag,
+    },
+    guestObservationLoss: guest.observationLoss,
+    ...(options ? { overrides: options } : {}),
+  })
+
+  return buildContainerCapabilities({
+    runtime,
+    identityPorts,
+    identity,
+    property,
+    portal,
+    guest,
+    integration,
+    review,
+    ai,
+    inbox,
+    readAndNotify,
+    googleProviderAuthority,
+    operationalReadout,
+    outboxRepo,
+    consumerRegistry,
+  })
 }
 
 export function createContainer(options?: CreateContainerOptions) {
