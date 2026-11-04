@@ -57,6 +57,8 @@ describe('review provider snapshot repository (real PostgreSQL)', () => {
   const repository = createReviewProviderSnapshotRepository(db, () => RUN_ID)
 
   const clear = async () => {
+    await db.execute(sql`DELETE FROM review_sync_runs WHERE property_id = ${PROPERTY_ID}`)
+
     await db.execute(sql`
       DROP TRIGGER IF EXISTS review_provider_delete_lock_order_gate ON reviews;
       DROP FUNCTION IF EXISTS review_provider_delete_lock_order_gate();
@@ -736,6 +738,9 @@ describe('review provider snapshot repository (real PostgreSQL)', () => {
       () => IMPORT_RUN_ID,
     )
     const resetScope = async () => {
+      await db.execute(
+        sql`DELETE FROM review_sync_runs WHERE property_id = ${PROPERTY_ID}`,
+      )
       await db
         .delete(reviewProviderSnapshotRuns)
         .where(eq(reviewProviderSnapshotRuns.propertyId, PROPERTY_ID))
@@ -980,6 +985,63 @@ describe('review provider snapshot repository (real PostgreSQL)', () => {
           .from(reviewProviderSnapshotRuns)
           .where(eq(reviewProviderSnapshotRuns.id, run.id))
         expect(stored).toEqual({ state: 'failed', failureCode: code })
+        await resetScope()
+      },
+    )
+
+    it.each(['provider_rejected', 'provider_failure', 'authorization_changed'] as const)(
+      'stores only closed diagnostics once for a failed %s run',
+      async (code) => {
+        await resetScope()
+        const run = await importRepository.startOrResume({
+          ...scope,
+          observationOrigin: 'ongoing',
+        })
+        const providerFailure = {
+          providerStatus: 404,
+          providerErrorStatus: 'NOT_FOUND' as const,
+          dispatch: 'answered' as const,
+          message: 'private customer content',
+          body: { error: { message: 'private resource' } },
+        }
+
+        await importRepository.failRun({
+          runId: run.id,
+          organizationId: scope.organizationId,
+          code,
+          providerFailure,
+        })
+        await importRepository.failRun({
+          runId: run.id,
+          organizationId: scope.organizationId,
+          code,
+          providerFailure: {
+            providerStatus: 403,
+            providerErrorStatus: 'PERMISSION_DENIED',
+            dispatch: 'answered',
+          },
+        })
+
+        const history = await db.execute(sql`
+          SELECT id, error_class, result::jsonb AS result,
+                 completed_at IS NOT NULL AS completed
+          FROM review_sync_runs WHERE id = ${run.id}
+        `)
+        expect(history.rows).toEqual([
+          {
+            id: run.id,
+            error_class: code,
+            result: {
+              providerStatus: 404,
+              providerErrorStatus: 'NOT_FOUND',
+              dispatch: 'answered',
+            },
+            completed: true,
+          },
+        ])
+        const failed = await importRepository.readRun({ ...scope, runId: run.id })
+        expect(failed).toMatchObject({ state: 'failed', failureCode: code })
+        expect(JSON.stringify(history.rows)).not.toContain('private')
         await resetScope()
       },
     )

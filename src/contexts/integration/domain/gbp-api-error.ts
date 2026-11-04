@@ -10,6 +10,8 @@
 // received, or may have received the request, because only the first two can
 // decide whether sending it again could post twice (CONTRACT-REPLY D2).
 
+import type { GoogleProviderErrorStatus } from '#/shared/domain/google-provider-failure'
+
 export type GbpApiErrorKind =
   'auth_failed' | 'rate_limited' | 'permission_denied' | 'upstream_error' | 'parse_error'
 
@@ -39,6 +41,7 @@ export type GbpApiError = Readonly<{
   executionCode?: string
   /** The provider's HTTP status, when Google answered. */
   providerStatus?: number
+  providerErrorStatus?: GoogleProviderErrorStatus | null
   message: string
 }>
 
@@ -63,6 +66,7 @@ export const createGbpApiError = (
         dispatch?: GbpApiDispatch
         executionCode?: string
         providerStatus?: number
+        providerErrorStatus?: GoogleProviderErrorStatus | null
       }> = '',
 ): Error & GbpApiError => {
   const message = `GBP API ${operation} failed (${kind})`
@@ -95,6 +99,13 @@ export const createGbpApiError = (
   }
   if (typeof details !== 'string' && details.providerStatus !== undefined) {
     Object.defineProperty(err, 'providerStatus', defineEnumerable(details.providerStatus))
+  }
+  if (typeof details !== 'string' && details.providerErrorStatus !== undefined) {
+    Object.defineProperty(
+      err,
+      'providerErrorStatus',
+      defineEnumerable(details.providerErrorStatus),
+    )
   }
   if ('captureStackTrace' in Error && typeof Error.captureStackTrace === 'function') {
     Error.captureStackTrace(err, createGbpApiError)
