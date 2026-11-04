@@ -1280,6 +1280,26 @@ describe('editPublishedReply', () => {
       publishedAt: NOW,
     })
 
+  it.each([
+    ['Visit https://example.com for details.', 'url'],
+    ['Book now for a free night.', 'offer_or_solicitation'],
+    ['We will sue you.', 'threat'],
+  ])('refuses unsafe edited text before republishing: %s', async (text, findingCode) => {
+    const deps = makeDeps({ replyRepo: replyRepoWith(published()) })
+
+    await expect(
+      editPublishedReply(deps)({ reviewId: REVIEW_ID, text }, MANAGER_CTX),
+    ).rejects.toMatchObject({
+      _tag: 'ReviewError',
+      code: 'invalid_reply',
+      message: 'Reply failed required safety checks',
+      context: { findingCodes: expect.arrayContaining([findingCode]) },
+    })
+    expect(deps.replyRepo.conditionalUpdate).not.toHaveBeenCalled()
+    expect(deps.outbox.facts).toHaveLength(0)
+    expect(deps.queue.addPublishJob).not.toHaveBeenCalled()
+  })
+
   it('edits text, re-enters the publication machine, records review.reply.updated, and enqueues the republish', async () => {
     const reply = published()
     const review = makeReview()

@@ -714,6 +714,9 @@ export const editPublishedReply =
       return reply
     }
     await assertPropertyAcceptsPublication(deps, review)
+    // The edit, not the stored text, is what reaches Google: it passes the same
+    // safety check as an approval.
+    await assertReplyTextSafe(deps, { ...reply, text }, review)
 
     return authorizeAndEnqueuePublication(
       deps,
