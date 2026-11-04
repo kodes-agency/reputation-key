@@ -84,7 +84,6 @@ import { buildOperationalReadout } from './composition/operational-readout'
 import { reportAlertToObservability } from './composition/alert-reporter'
 import { composeOrganizationLifecycle } from '#/composition/organization-export-contributors'
 import { buildGoogleProviderAuthority } from './composition/google-provider-authority'
-import { buildIdentityPolicyDeps } from './composition/identity-policy'
 
 const PROPERTY_ID_SHAPE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/iu
@@ -314,11 +313,11 @@ function buildContainer(
       ),
     logger,
     betaFeedbackHmacSecret: env.BETTER_AUTH_SECRET,
-    policy: buildIdentityPolicyDeps({
+    policy: {
       env,
       propertyBelongsToOrganization: (orgId, pid) =>
         property.publicApi.propertyExists(organizationId(orgId), propertyId(pid)),
-    }),
+    },
     cancelGoogleImportsForUser: (orgId, userIdValue) => {
       const cancel = integration.lifecycle.cancelImportsForUser
       if (!cancel) throw new Error('Google import lifecycle unavailable')
@@ -788,7 +787,6 @@ function buildContainer(
     capabilityPolicyStore: identity.policy.capabilityPolicyStore,
     executionPolicy: identity.policy.executionPolicy,
     delayedExecutionPolicy: identity.policy.delayedExecutionPolicy,
-    cache: infra.cache,
     rateLimiter: infra.rateLimiter,
     jobQueue: infra.jobQueue,
     backgroundQueue: infra.backgroundQueue,

@@ -30,14 +30,12 @@ vi.mock('#/shared/observability/trace', () => ({
   trace: (_name: string, fn: () => Promise<unknown>) => fn(),
 }))
 vi.mock('#/shared/observability/logger', () => ({ getLogger: () => mocks.logger }))
-vi.mock('#/shared/config/request-runtime-config', () => ({
-  requestRuntimeConfig: () => ({
-    notificationUnsubscribeHmacKeys: KEYS,
-    resendWebhookSecret: SECRET,
-  }),
-}))
 vi.mock('#/shared/config/env', () => ({
-  getEnv: () => ({ BETTER_AUTH_URL: 'https://app.test' }),
+  getEnv: () => ({
+    NOTIFICATION_UNSUBSCRIBE_HMAC_KEYS: KEYS,
+    RESEND_WEBHOOK_SECRET: SECRET,
+    BETTER_AUTH_URL: 'https://app.test',
+  }),
 }))
 vi.mock('#/shared/auth/middleware', () => ({
   resolveTenantContext: mocks.resolveTenantContext,

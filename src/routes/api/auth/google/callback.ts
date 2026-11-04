@@ -2,8 +2,7 @@
 // handle; tenant, user, session, PKCE verifier, and OIDC nonce stay server-side.
 
 import { createFileRoute } from '@tanstack/react-router'
-import type { Env } from '#/shared/config/env'
-import { requestRuntimeConfig } from '#/shared/config/request-runtime-config'
+import { getEnv, type Env } from '#/shared/config/env'
 import { getContainer } from '#/composition'
 import { getSessionFromHeaders, resolveTenantContext } from '#/shared/auth/middleware'
 import { getLogger } from '#/shared/observability/logger'
@@ -69,7 +68,7 @@ export async function handleGoogleOAuthCallback(request: Request): Promise<Respo
     const code = url.searchParams.get('code')
     const state = url.searchParams.get('state')
     const error = url.searchParams.get('error')
-    const env = requestRuntimeConfig().env
+    const env = getEnv()
 
     // Every callback first consumes the tenant-blind abuse budget. State and
     // provider outcome handling happen only after that boundary.

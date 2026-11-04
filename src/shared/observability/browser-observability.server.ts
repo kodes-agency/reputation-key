@@ -1,6 +1,5 @@
 import { createServerFn } from '@tanstack/react-start'
-import { getReleaseSha } from '#/shared/config/env'
-import { requestRuntimeConfig } from '#/shared/config/request-runtime-config'
+import { getEnv, getReleaseSha } from '#/shared/config/env'
 
 export type BrowserObservabilityConfig = Readonly<{
   dsn: string
@@ -48,7 +47,7 @@ export function resolveBrowserRuntimeConfig(
 
 export const getBrowserObservabilityConfigFn = createServerFn({ method: 'GET' }).handler(
   (): BrowserRuntimeConfig => {
-    const { env } = requestRuntimeConfig()
+    const env = getEnv()
     return resolveBrowserRuntimeConfig(env, getReleaseSha(env))
   },
 )

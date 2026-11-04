@@ -16,8 +16,9 @@ vi.mock('@tanstack/react-start/server', () => ({
   getRequest: () =>
     new Request('https://manager.example/_server/x', { headers: hoisted.headers }),
 }))
-vi.mock('#/shared/config/request-runtime-config', () => ({
-  requestRuntimeConfig: () => ({ env: { RELEASE_SHA: hoisted.release } }),
+vi.mock('#/shared/config/env', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('#/shared/config/env')>()),
+  getEnv: () => ({ RELEASE_SHA: hoisted.release }),
 }))
 
 const OLD = 'a'.repeat(40)

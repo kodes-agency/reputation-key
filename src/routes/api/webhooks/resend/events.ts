@@ -21,7 +21,7 @@ import { createFileRoute } from '@tanstack/react-router'
 import { z, ZodError } from 'zod/v4'
 import { getContainer } from '#/composition'
 import { svixHeaders, verifySvixSignature } from '#/shared/auth/svix-signature.verifier'
-import { requestRuntimeConfig } from '#/shared/config/request-runtime-config'
+import { getEnv } from '#/shared/config/env'
 import { getLogger } from '#/shared/observability/logger'
 import { captureObservabilityException } from '#/shared/observability/telemetry'
 import { trace } from '#/shared/observability/trace'
@@ -130,7 +130,7 @@ function eventInput(
 export async function handleResendWebhookPost(request: Request): Promise<Response> {
   return trace('webhook.resendEvents', async () => {
     const logger = getLogger()
-    const signingSecret = requestRuntimeConfig().resendWebhookSecret
+    const signingSecret = getEnv().RESEND_WEBHOOK_SECRET
 
     if (!signingSecret) {
       logger.warn(

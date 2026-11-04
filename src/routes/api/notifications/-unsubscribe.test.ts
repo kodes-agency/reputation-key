@@ -19,8 +19,8 @@ vi.mock('#/shared/observability/trace', () => ({
   trace: (_name: string, callback: () => Promise<unknown>) => callback(),
 }))
 vi.mock('#/shared/observability/logger', () => ({ getLogger: () => mocks.logger }))
-vi.mock('#/shared/config/request-runtime-config', () => ({
-  requestRuntimeConfig: () => ({ notificationUnsubscribeHmacKeys: mocks.keys.value }),
+vi.mock('#/shared/config/env', () => ({
+  getEnv: () => ({ NOTIFICATION_UNSUBSCRIBE_HMAC_KEYS: mocks.keys.value }),
 }))
 vi.mock('#/composition', () => ({
   getContainer: () => ({ feedPublicApi: { oneClickUnsubscribe: mocks.apply } }),
