@@ -31,7 +31,7 @@ export const CATEGORY_COPY: Readonly<
     description:
       "Reviews and private feedback at or below the rating you choose. A Google review's stars show when you open it.",
   },
-  // D4 (docs/design/notifications): off in the app by default.
+  // D4: off in the app by default.
   arrivals: {
     label: 'New reviews and feedback',
     description:

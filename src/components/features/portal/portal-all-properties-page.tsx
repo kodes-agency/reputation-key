@@ -1,11 +1,10 @@
 import { visiblePortals } from './portal-overview/visible-portals'
 import { useStaffOverviewRows } from '#/components/features/staff/accounts/staff-accounts-query'
 import { useCapabilities } from '#/shared/hooks/useCapabilities'
-// Portals across the whole Organization (docs/design/portal-experience/round-4-admin,
-// board 10): the Organization's results strip, then every Portal under the
-// Property it belongs to, each Property headed by its own subtotal. The page of
-// one Property stays the place to work with groups; here a Property's groups show
-// only when it has them.
+// Portals across the whole Organization: the Organization's results strip, then
+// every Portal under the Property it belongs to, each Property headed by its own
+// subtotal. The page of one Property stays the place to work with groups; here a
+// Property's groups show only when it has them.
 //
 // Presentational, like `PortalListPage`: the route owns the reads and the URL.
 // The results arrive as a separate read and are optional: a role that may not

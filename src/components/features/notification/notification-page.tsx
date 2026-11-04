@@ -1,9 +1,9 @@
 // The full notification surface at /notifications.
 //
 // The bell popover is a quick view; this is the history, read the way the bell
-// is (docs/design/notifications, D1): Needs you, most pressing first; Updates
-// and All by day, on the reader's clock. One 768 px column, rows naming their
-// Property, same-kind arrivals stacked, and the bulk actions that are too
+// is (D1): Needs you, most pressing first; Updates and All by day, on the
+// reader's clock. One 768 px column, rows naming their Property,
+// same-kind arrivals stacked, and the bulk actions that are too
 // destructive to sit in a popover header alone. A reader with several
 // Properties can filter to one; the bulk actions then reach only its rows.
 //

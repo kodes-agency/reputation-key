@@ -1,6 +1,6 @@
-// Timezone and date format, on Profile (D6, docs/design/notifications). They
-// are the person's clock rather than a notification setting: quiet hours, the
-// daily digest and every time the app writes in a notification go by it. The
+// Timezone and date format, on Profile (D6). They are the person's clock
+// rather than a notification setting: quiet hours, the daily digest
+// and every time the app writes in a notification go by it. The
 // notification settings page used to hold them between the Property picker
 // and quiet hours, where they read as one Property's.
 //

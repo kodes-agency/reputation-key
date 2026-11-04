@@ -1,10 +1,10 @@
 // Feed filtering + grouping. Pure functions over rows the server already sent.
 //
-// The feed is read the way the owner chose (docs/design/notifications, D1):
-// what still waits on the reader first — "Needs you" — then everything else,
-// "Updates". The bell shows both, one above the other; the page offers them as
-// tabs beside All. Earlier tabs (Unread, Urgent, one per category) wrapped onto
-// a second line, exposed the internal category list, and were mostly empty.
+// The feed is read the way the owner chose (D1): what still waits on the reader
+// first — "Needs you" — then everything else, "Updates". The bell shows both,
+// one above the other; the page offers them as tabs beside All. Earlier tabs
+// (Unread, Urgent, one per category) wrapped onto a second line, exposed the
+// internal category list, and were mostly empty.
 // The server still answers every `NotificationListFilter`, so "Mark all read"
 // and an old bookmarked filter keep their meaning; an unknown or retired
 // filter in the URL opens Needs you.

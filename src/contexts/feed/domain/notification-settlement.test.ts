@@ -151,7 +151,7 @@ describe('which notices a settling fact retires', () => {
   })
 })
 
-// D3 (docs/design/notifications): an assignment is work handed to its reader.
+// D3: an assignment is work handed to its reader.
 describe('an assignment waits on its reader', () => {
   it('counts "Assigned to you" and a grouped assignment as work', () => {
     expect(ACTIONABLE_NOTIFICATION_TYPES.has('inbox.assigned')).toBe(true)

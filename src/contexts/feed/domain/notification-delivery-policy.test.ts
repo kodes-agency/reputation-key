@@ -320,8 +320,8 @@ describe('notification delivery policy', () => {
     expect(classifyNotification('inbox.reopened')).toBe('urgent_operational')
   })
 
-  // D4 (docs/design/notifications): only a Portal rating decides, and only for
-  // private feedback. A provider review's rating never enters Feed (r.8).
+  // D4: only a Portal rating decides, and only for private feedback. A provider
+  // review's rating never enters Feed (r.8).
   it('files a rated notice its reader found low as Low ratings, other rated feedback as an arrival, and unrated feedback as a guest concern', () => {
     // Whether a rating is low is the reader's threshold, decided when the
     // notice is written and carried as `lowRating` — never the stars.

@@ -8,9 +8,8 @@ import { StaffAccountsProvider } from '#/components/features/staff/accounts/staf
 import { StaffAddAction } from '#/components/features/staff/accounts/staff-accounts-list'
 import { useCapabilities } from '#/shared/hooks/useCapabilities'
 // Portals — every portal of a property, grouped, with the few that need
-// something marked (docs/design/portal-experience/round-4-admin, boards 01 and
-// 11). Status is deliberately not a panel: a live portal that needs nothing
-// shows only its name, its code and its languages.
+// something marked. Status is deliberately not a panel: a live portal that needs
+// nothing shows only its name, its code and its languages.
 //
 // Presentational: the route owns the reads and the URL; this page receives the
 // search and reports changes through `onSearchChange`. The results (the strip

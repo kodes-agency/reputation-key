@@ -1,6 +1,6 @@
-// A visible cue when something urgent arrives while the bell is closed (D9,
-// docs/design/notifications). The badge moving by one was the only sign, up to
-// a poll late; the announcement reached screen readers only.
+// A visible cue when something urgent arrives while the bell is closed (D9).
+// The badge moving by one was the only sign, up to a poll late; the
+// announcement reached screen readers only.
 //
 // Only what is on a clock — urgent, or past its Response Target — and still
 // waiting earns a toast, and only when it was created after everything the

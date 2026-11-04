@@ -422,8 +422,8 @@ export const createNotificationPreferenceRepository = (db: Database) => {
           .returning()
         // The Property the answer was given at follows it now, so its own row
         // goes. Every other Property's own row stays: an exception is kept
-        // until the person resets it (D7, docs/design/notifications). This
-        // used to delete them all, mutes made from the bell included.
+        // until the person resets it (D7). This used to delete them all, mutes
+        // made from the bell included.
         await tx
           .delete(notificationPreferences)
           .where(

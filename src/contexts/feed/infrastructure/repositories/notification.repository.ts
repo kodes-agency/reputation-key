@@ -142,8 +142,7 @@ export const awaitingSettlement: SQL = and(
 
 // Work still waiting on its reader: an actionable notice (the types a settling
 // fact can retire) that is unread and unsettled. The bell leads with these and
-// counts only these (docs/design/notifications, D2); everything else is an
-// update.
+// counts only these (D2); everything else is an update.
 const needsYou: SQL = and(
   stillWaiting,
   inArray(notifications.type, [...ACTIONABLE_NOTIFICATION_TYPES]),

@@ -1,6 +1,6 @@
-// The Property look (docs/design/portal-experience/round-4-admin, board 9): the
-// photo, colours, name and logo, and default languages every portal of a
-// Property starts with, beside a preview of the page with and without a photo.
+// The Property look: the photo, colours, name and logo, and default languages
+// every portal of a Property starts with, beside a preview of the page with and
+// without a photo.
 //
 // Presentational: the route owns the reads and the two writes. Edits autosave to
 // the draft through the portal editor's coordinator, with its leave guard

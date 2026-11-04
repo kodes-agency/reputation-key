@@ -37,10 +37,10 @@ const CATEGORY_BY_TYPE: Readonly<Record<NotificationType, NotificationCategory>>
   'account.organization_property_access_changed': 'mandatory',
   'account.invitation_accepted': 'mandatory',
   'account.organization_purge_pending': 'mandatory',
-  // A new review is an arrival (D4, docs/design/notifications): off in the app
-  // by default, like every arrival — unless its rating is at or below its
-  // reader's Low ratings threshold, decided when the notice is written
-  // (`classifyNotification`, ADR 0046 amended 2026-09-30).
+  // A new review is an arrival (D4): off in the app by default, like every
+  // arrival — unless its rating is at or below its reader's Low ratings
+  // threshold, decided when the notice is written (`classifyNotification`,
+  // ADR 0046 amended 2026-09-30).
   'review.created': 'arrivals',
   // A guest revision that SUPERSEDES AN OPEN CYCLE — work nobody has handled
   // yet. It was `urgent_operational`, so a guest fixing a comma sent an

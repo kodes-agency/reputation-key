@@ -1,5 +1,4 @@
-// The /notifications page's Property filter (real PostgreSQL,
-// docs/design/notifications, direction B).
+// The /notifications page's Property filter (real PostgreSQL).
 //
 // A manager of many properties reads one Property's notices at a time. The
 // filter is one more condition beside current Property access, so it can only
