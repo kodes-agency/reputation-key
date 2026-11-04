@@ -1148,6 +1148,10 @@ control just inside the limit).
 
 A reply observation's `content_expires_at` was written only when the row was inserted, and a read that finds the same reply records no row. So a reply Google kept showing stopped being served 30 days after it was first stored, while its review's clock moved on every fetch. A restating read now moves the head row's `content_expires_at` to that read's expiry and its `updated_at` to the read's time, forward only and only while the row holds a reply (`renewHeadContentClock`). It writes no row, revision or fact, and leaves `observed_at` and `provider_updated_at` alone. The clock counts from the last fetch that returned the reply, as ADR 0031 requires for a review's content.
 
+## Note 2026-11-04 (b) — the reconciliation-age alert counts a Property with a recorded failure
+
+`sync.reconciliation-age` left out any Property with an `error_class`, because `sync.failed-nonzero` already names a coded failure. That alert raises only when a retry date passes before the next look re-dates the row, so a Property that failed every full read for days raised no standing signal at all. The read now judges every syncable Property alike. A Property whose connection needs reauthorization (`reauth_required`, which is also how `provider_revoked` is recorded) is not syncable, so it is still left to the reconnect notice.
+
 ## Merged from ADR 0003
 
 Introduce a new `review` bounded context for external platform reviews,

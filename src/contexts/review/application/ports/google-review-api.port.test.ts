@@ -51,7 +51,7 @@ describe('GoogleReviewApiPort contract', () => {
   })
 
   it('is supplied to Review by name from the composition root', () => {
-    const composition = readFileSync(resolve('src/composition.ts'), 'utf8')
+    const composition = readFileSync(resolve('src/composition/review-wiring.ts'), 'utf8')
 
     expect(composition).toContain(
       'googleReviewApi: integration.reviewSync.googleReviewApi',
