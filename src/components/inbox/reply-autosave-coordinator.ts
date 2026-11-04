@@ -70,6 +70,10 @@ export function createReplyAutosaveCoordinator(
    * matches nothing, so after any failure the next `schedule` or `flush` writes
    * the box for real, and only a successful save re-establishes it — one that
    * no `invalidate()` overtook while it was in flight.
+   *
+   * It is `null` while a save is in flight, too: that write may replace what the
+   * server holds, so text equal to the previous copy (an Undo back to it) is
+   * written after it rather than read as already saved.
    */
   let lastSaved: ReplyDraftSnapshot | null = input.initial
   let pending: ReplyDraftSnapshot | null = null
@@ -128,6 +132,8 @@ export function createReplyAutosaveCoordinator(
           activeGeneration = startedIn
           emit('saving')
           try {
+            // Unknown until this write lands (see `lastSaved`).
+            lastSaved = null
             await save(snapshot)
             if (startedIn === generation) lastSaved = snapshot
             failed = null
