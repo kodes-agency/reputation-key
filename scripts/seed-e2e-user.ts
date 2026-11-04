@@ -7,6 +7,9 @@
 // Usage:
 //   DATABASE_URL=... BETTER_AUTH_SECRET=... PORTAL_TOKEN_HASH_SECRET=... \
 //     pnpm exec tsx scripts/seed-e2e-user.ts
+//
+// It refuses before any write unless the database and the Redis it names are
+// on this machine (scripts/local/local-only-database.ts).
 
 import {
   DIRECT_PORTAL_FIXTURE,
@@ -60,7 +63,6 @@ import {
   hasActiveGrant,
 } from '../src/contexts/identity/infrastructure/repositories/property-access-grant.repository'
 import { createPortalTokenCodec } from '../src/contexts/portal/infrastructure/adapters/portal-token-codec'
-import { assertLocalToolExecutionIdentity } from '../src/shared/config/local-tool-execution'
 import {
   LOCAL_E2E_OPERATOR_USER_ID,
   LOCAL_E2E_ORGANIZATION_ID,
@@ -74,11 +76,12 @@ import { CURRENT_MERCHANT_AI_CAPABILITIES } from '../src/shared/domain/merchant-
 import { execFileSync } from 'node:child_process'
 import { createHash, randomUUID } from 'node:crypto'
 import { Redis } from 'ioredis'
+import { assertLocalE2eSeedTarget } from './local/e2e-seed-target'
 import { localEnvOverlayPaths, localEnvSetting } from './local/provider-modes'
 import { ensureCredentialUser } from './local/seed-credential-user'
 import { ensureGoogleNumbers, ensureReviews } from './local/seed-google-reviews'
 
-assertLocalToolExecutionIdentity(process.env)
+assertLocalE2eSeedTarget(process.env)
 
 const managerEmail = process.env.E2E_TEST_EMAIL ?? 'test@example.com'
 const managerPassword = process.env.E2E_TEST_PASSWORD ?? 'password123'
