@@ -390,14 +390,17 @@ describe('reconciliation age read (real reads)', () => {
     expect((await read()).reconciliation.overdueCount).toBe(baseline.overdueCount)
   })
 
-  it('leaves a Property parked with a coded failure to that failure alert', async () => {
-    const baseline = (await read()).reconciliation
-    const parked = await seedProperty({ suffix: '17' })
-    await seedFact(parked, 0, 20 * HOUR)
-    await seedSyncState(parked, 'review_cap_exceeded')
+  it.each(['provider_failure', 'provider_rejected', 'review_cap_exceeded'])(
+    'counts an overdue Property with a recorded %s failure',
+    async (errorClass) => {
+      const baseline = (await read()).reconciliation
+      const parked = await seedProperty({ suffix: '17' })
+      await seedFact(parked, 0, 20 * HOUR)
+      await seedSyncState(parked, errorClass)
 
-    expect((await read()).reconciliation.overdueCount).toBe(baseline.overdueCount)
-  })
+      expect((await read()).reconciliation.overdueCount).toBe(baseline.overdueCount + 1)
+    },
+  )
 
   it('judges a Property whose sync state row has no failure like one with no row', async () => {
     const baseline = (await read()).reconciliation
@@ -420,6 +423,24 @@ describe('reconciliation age read (real reads)', () => {
 
     expect((await read()).reconciliation.overdueCount).toBe(baseline.overdueCount)
   })
+
+  it.each([null, 'provider_revoked'])(
+    'does not double-alert a reauth_required connection (%s)',
+    async (reason) => {
+      const baseline = (await read()).reconciliation
+      const property = await seedProperty({
+        suffix: '1b',
+        connectionId: INACTIVE_CONNECTION,
+      })
+      await db.execute(
+        sql`UPDATE google_connections SET status_reason = ${reason} WHERE id = ${INACTIVE_CONNECTION}`,
+      )
+      await seedFact(property, 0, 20 * HOUR)
+      await seedSyncState(property, 'provider_rejected')
+
+      expect((await read()).reconciliation.overdueCount).toBe(baseline.overdueCount)
+    },
+  )
 
   it('still reports reconciliation age while push is not configured', async () => {
     const baseline = (await read(false)).reconciliation

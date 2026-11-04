@@ -60,7 +60,7 @@ import {
   JOB_NAME as AI_ENROLLMENT_SWEEP_JOB_NAME,
 } from '#/shared/jobs/ai-review-analysis-enrollment-sweep.job'
 import type { Env } from '#/shared/config/env'
-import { writeWorkerHeartbeat } from '#/shared/health/worker-heartbeat'
+import { recordWorkerHeartbeat } from '#/shared/observability/worker-heartbeat'
 import { createScheduledScopeAuthorizer } from '#/shared/jobs/delayed-execution-gate'
 import {
   createGeneratePropertyTrendJobHandler,
@@ -204,7 +204,7 @@ export async function bootstrap(
     clock: container.clock,
     // BQR-6.2: stamp worker liveness for /api/health/metrics
     recordHeartbeat: () =>
-      writeWorkerHeartbeat(container.redis ?? undefined, container.clock),
+      recordWorkerHeartbeat(container.redis ?? undefined, container.clock, logger),
     // BQC-7.4: alert evaluation inputs + dispatch (supersedes the 3.7
     // warn-only threshold sample).
     readOperationsSnapshot: () => container.operationsSnapshot.read(),

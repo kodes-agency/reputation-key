@@ -38,7 +38,13 @@ describe('Identity runtime dependency injection', () => {
   })
 
   it('supplies Identity adapter, request, and worker dependencies at composition roots', () => {
-    const composition = readFileSync(join(ROOT, 'src/composition.ts'), 'utf8')
+    const composition = [
+      'src/composition.ts',
+      'src/composition/identity-wiring.ts',
+      'src/composition/container-capabilities.ts',
+    ]
+      .map((file) => readFileSync(join(ROOT, file), 'utf8'))
+      .join('\n')
     const bootstrap = readFileSync(join(ROOT, 'src/bootstrap.ts'), 'utf8')
 
     // The adapter takes no logger: it only bridged the post-acceptance hook,
@@ -49,7 +55,7 @@ describe('Identity runtime dependency injection', () => {
     // ARC-03-T13: the session is injected as an Identity-owned port. The root
     // selects the better-auth implementation; it no longer performs one.
     expect(composition).toContain('createBetterAuthSessionPort({ requestContext })')
-    expect(composition).toContain('authSession,')
+    expect(composition).toMatch(/idGen: randomUUID,\s*authSession,/u)
     expect(composition).not.toContain('getAuth(')
     expect(composition).toContain('identityRequestSecurity: Object.freeze({')
     expect(bootstrap).toMatch(

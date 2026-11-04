@@ -20,17 +20,14 @@
 // Review. Only Properties the discovery sweep still polls are judged
 // (propertyIsSyncable), so a retired Property cannot hold an alert on for good.
 
-import { and, desc, eq, gt, isNull, notInArray, sql } from 'drizzle-orm'
+import { and, desc, eq, gt, notInArray, sql } from 'drizzle-orm'
 import type { Database } from '#/shared/db'
 import { googleConnections } from '#/shared/db/schema/google-connection.schema'
 import { idempotencyReceipts } from '#/shared/db/schema/outbox.schema'
 import { properties } from '#/shared/db/schema/property.schema'
 import { reviews } from '#/shared/db/schema/review.schema'
 import { reviewGoogleReputationSnapshotFacts } from '#/shared/db/schema/review-reputation.schema'
-import {
-  reviewFirstSightings,
-  reviewSyncState,
-} from '#/shared/db/schema/review-sync.schema'
+import { reviewFirstSightings } from '#/shared/db/schema/review-sync.schema'
 import { propertyIsSyncable, propertySyncableSince } from '#/shared/db/syncable-property'
 import {
   PUSH_ALERT_WINDOW_MS,
@@ -226,8 +223,9 @@ async function readPushHealth(db: Database): Promise<SyncPushHealth['push']> {
  * head fact, Google's numbers from one read of its newest page, is no
  * reconciliation), or the day it qualified when
  * it has none, whichever is later (a restored Property is late from the day it
- * was restored, not from the fact it kept). A Property parked with a coded
- * failure is left to that failure's own alert.
+ * was restored, not from the fact it kept). Failed Properties still count;
+ * propertyIsSyncable excludes connections awaiting reauthorization, including
+ * provider revocation, which has its own signal.
  */
 async function readReconciliationAge(
   db: Database,
@@ -251,14 +249,7 @@ async function readReconciliationAge(
     })
     .from(properties)
     .innerJoin(googleConnections, eq(googleConnections.id, properties.googleConnectionId))
-    .leftJoin(
-      reviewSyncState,
-      and(
-        sql`${reviewSyncState.propertyId} = ${properties.id}::varchar`,
-        eq(reviewSyncState.source, 'google'),
-      ),
-    )
-    .where(and(propertyIsSyncable, isNull(reviewSyncState.errorClass)))
+    .where(propertyIsSyncable)
   return {
     overdueCount: row?.overdue ?? 0,
     oldestAgeMs: row?.oldestAgeMs == null ? null : Math.round(Number(row.oldestAgeMs)),
