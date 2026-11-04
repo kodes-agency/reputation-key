@@ -144,7 +144,10 @@ describe('BQR-2.2: outbox consumer registration', () => {
   })
 
   it('composition exposes registerOutboxConsumers wired to registerInboxConsumers', () => {
-    const compositionSrc = readFileSync(join(ROOT, 'src/composition.ts'), 'utf-8')
+    const compositionSrc = readFileSync(
+      join(ROOT, 'src/composition/container-capabilities.ts'),
+      'utf-8',
+    )
     expect(compositionSrc).toContain('registerOutboxConsumers')
     // BQC-5.2: the inbox build module owns the registrar — the root surfaces
     // it without importing the consumer registration itself.
@@ -185,7 +188,10 @@ describe('BQR-2.2: outbox consumer registration', () => {
   })
 
   it('worker composition wires the Review publication-intent recovery consumer', () => {
-    const compositionSrc = readFileSync(join(ROOT, 'src/composition.ts'), 'utf-8')
+    const compositionSrc = readFileSync(
+      join(ROOT, 'src/composition/container-capabilities.ts'),
+      'utf-8',
+    )
     const reviewBuildSrc = readFileSync(
       join(ROOT, 'src/contexts/review/build.ts'),
       'utf-8',

@@ -2,10 +2,11 @@
 //
 // The root reads this capability by shape: `notification.delivery.repos.*` for
 // the three worker repositories and `notification.delivery.<handler>` for the
-// four handlers (src/composition.ts:855-866). Both halves of that shape are
-// assembled here, so both are asserted here — a handler that stopped being
-// lifted to the top level, or a `repos` that stopped being nested, would reach
-// the root as `undefined` and only surface as a null dereference inside a job.
+// four handlers (src/composition/container-capabilities.ts). Both halves of
+// that shape are assembled here, so both are asserted here — a handler that
+// stopped being lifted to the top level, or a `repos` that stopped being
+// nested, would reach the root as `undefined` and only surface as a null
+// dereference inside a job.
 //
 // The undefined-handler case matters most: without a job queue the sweep
 // handler is deliberately absent, and the root forwards that absence. If the
