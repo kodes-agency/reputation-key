@@ -398,7 +398,7 @@ const resetNotificationPropertyCategoryDto = z.object({
 /**
  * @public One Property's own settings for a category removed, so it follows
  * the person's default again. The explicit reset an exception waits for:
- * changing a default never removes one (D7, docs/design/notifications).
+ * changing a default never removes one (D7).
  */
 export const resetNotificationPropertyCategoryFn = createServerFn({ method: 'POST' })
   .validator(resetNotificationPropertyCategoryDto)

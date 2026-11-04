@@ -412,8 +412,8 @@ Filename, feature-barrel, dependency, and 300-counted-line limits are enforced b
 
 Before adding UI, find the family here. Each one has a single implementation:
 the UI consistency scan of 2 October 2026
-(`docs/design/ui-system/ui-consistency-scan-2026-10-02.md`) found about a hundred
-places where a second had grown beside the first, and every stage of
+(kept at git tag `docs-archive-2026-11-04`) found about a hundred places where
+a second had grown beside the first, and every stage of
 `docs/plan/ui-consistency-implementation.md` folded one family back into one
 primitive. Use the canonical component. When it lacks something you need, extend
 it with a prop or a variant (the owner approves new primitives and variants)

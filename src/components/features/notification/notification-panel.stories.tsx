@@ -11,10 +11,10 @@
 // references and wraps each one internally, so stories feed a mock bundle — no
 // RPC, no live server, and the only casts live in the fixture factory.
 //
-// The bell reads the feed the way the owner chose (docs/design/notifications,
-// D1–D2): its badge and first list are what needs the reader, and below them
-// the popover reads Updates itself, only while it is open. Both go through the
-// one `getFeedHead`, by filter, so the stories run against a server that
+// The bell reads the feed the way the owner chose (D1–D2): its badge and first
+// list are what needs the reader, and below them the popover reads Updates
+// itself, only while it is open. Both go through the one `getFeedHead`,
+// by filter, so the stories run against a server that
 // answers each filter as the endpoint does (`makeStatefulNotificationFns`),
 // with any command a story holds open replaced.
 import type { Meta, StoryObj } from '@storybook/react'

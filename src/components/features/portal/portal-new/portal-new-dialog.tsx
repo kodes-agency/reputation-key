@@ -1,4 +1,4 @@
-// New portal — the dialog (docs/design/portal-experience/round-4-admin, board 3).
+// New portal — the dialog.
 // Asks for a name, what to start from, a group and languages, and creates a
 // draft. There is no "kind of place": the product serves hotels, restaurants,
 // barbers and salons alike. Presentational: the Portals page owns the open

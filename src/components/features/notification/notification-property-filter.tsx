@@ -1,6 +1,6 @@
-// The /notifications page's Property filter (docs/design/notifications,
-// direction B): a manager of many properties reads one Property's notices at a
-// time. The Inbox's searchable select (#582), with "All properties" first.
+// The /notifications page's Property filter: a manager of many properties reads
+// one Property's notices at a time. The Inbox's searchable select (#582), with
+// "All properties" first.
 //
 // Offered only to a reader with more than one Property; the rows name their
 // Property either way.

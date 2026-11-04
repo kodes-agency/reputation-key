@@ -4,8 +4,7 @@
 // the ×3 in a row's facts). This folds separate items of the same kind, which
 // the server keeps apart on purpose — each has its own link and its own
 // settlement. A stack opens the Property's Inbox queue for that kind, where
-// the items are worked (D5, docs/design/notifications), rather than one of
-// them.
+// the items are worked (D5), rather than one of them.
 //
 // Only kinds that are "more of the same" stack. A stack is never allowed to
 // hide one notice among others that ask less: the key carries the category,

@@ -1,5 +1,5 @@
 // Bell popover content: what needs the reader, then what happened, and the
-// way to the full page (docs/design/notifications, D1).
+// way to the full page (D1).
 //
 // "Needs you" is the panel's polling head — the same snapshot the badge counts
 // (D2) — most pressing first. "Updates" is read here, only while the bell is

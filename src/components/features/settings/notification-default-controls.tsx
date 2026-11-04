@@ -1,6 +1,5 @@
 // The person's default for one category, as the per-property settings page
-// offers it (D7, docs/design/notifications). Split out of the category row it
-// sits in.
+// offers it (D7). Split out of the category row it sits in.
 
 import { ConfirmationDialog } from '#/components/ui/confirmation-dialog'
 import { InheritedSetting } from '#/components/forms/inherited-setting'
@@ -22,9 +21,9 @@ export const named = (categoryLabel: string, control: string) =>
  * notices at 03:00 whatever the person had chosen everywhere else.
  *
  * Making the answer at this property the default never touches another
- * property's own setting (D7, docs/design/notifications): those are named
- * beneath it, and resetting them is a choice of its own, confirmed. It used to
- * replace them all without a word, mutes made from the bell included.
+ * property's own setting (D7): those are named beneath it, and resetting them
+ * is a choice of its own, confirmed. It used to replace them all without a
+ * word, mutes made from the bell included.
  */
 export function DefaultControls({
   category,
