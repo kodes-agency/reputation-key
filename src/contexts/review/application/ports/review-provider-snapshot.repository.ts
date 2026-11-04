@@ -1,4 +1,5 @@
 import type { OrganizationId, PropertyId, ReviewId } from '#/shared/domain/ids'
+import type { GoogleProviderFailure } from '#/shared/domain/google-provider-failure'
 import type { GoogleReview } from '../../domain/types'
 import type { ReviewProviderSubjectCandidates } from './review-provider-observation-writer.port'
 import type { ReviewProviderObservationOrigin } from './response-target-authority.port'
@@ -332,6 +333,7 @@ export type ReviewProviderSnapshotRepository = Readonly<{
       runId: string
       organizationId: OrganizationId
       code: ReviewProviderSnapshotFailureCode
+      providerFailure?: GoogleProviderFailure
     }>,
   ): Promise<ReviewProviderSnapshotRun>
 

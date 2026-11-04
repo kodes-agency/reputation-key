@@ -37,7 +37,7 @@ describe('provider connector diagnostics', () => {
     write.mockRestore()
   })
 
-  it('bounds attestation errors without serializing provider content', () => {
+  it('omits attestation error content', () => {
     const write = vi.spyOn(process.stderr, 'write').mockImplementation(() => true)
     const message = 'x'.repeat(240)
 
@@ -49,8 +49,7 @@ describe('provider connector diagnostics', () => {
       stage: 'attestation_threw',
       route: 'review-analysis',
       operationId: '10000000-0000-4000-8000-000000000001',
-      errorName: 'TypeError',
-      errorMessage: 'x'.repeat(200),
+      error: { name: 'TypeError' },
     })
     write.mockRestore()
   })
@@ -67,8 +66,7 @@ describe('provider connector diagnostics', () => {
       operationId: '10000000-0000-4000-8000-000000000001',
       pinnedNull: true,
       boundaryNull: false,
-      errorName: 'unknown',
-      errorMessage: 'refused',
+      error: { name: 'UnknownError' },
     })
     write.mockRestore()
   })

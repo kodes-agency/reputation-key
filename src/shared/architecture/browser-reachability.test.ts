@@ -405,6 +405,15 @@ describe('browser reachability (BQC-5.3)', () => {
   // R1A-04: the deny list is the build's, not a copy that can drift from it.
   it('denies what the build denies', () => {
     expect(BUILD_IMPORT_PROTECTION.files.length).toBeGreaterThan(0)
+    expect(denyReason('composition/identity-wiring.ts')).toBe(
+      "matches importProtection deny pattern '**/composition/**'",
+    )
+    expect(denyReason('composition.ts')).toBe(
+      "matches importProtection deny pattern '**/composition.ts'",
+    )
+    expect(denyReason('contexts/identity/build.ts')).toBe(
+      "matches importProtection deny pattern '**/build.ts'",
+    )
     expect(denyReason('shared/email/templates/welcome.tsx')).toBe(
       "matches importProtection deny pattern '**/shared/email/**'",
     )

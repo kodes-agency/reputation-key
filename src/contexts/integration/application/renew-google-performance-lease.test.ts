@@ -146,7 +146,7 @@ describe('renew Google Performance authorization lease: operator record', () => 
     },
   )
 
-  it('records a renewal that threw with the error name and message only', async () => {
+  it('records a renewal that threw with error facts and no message', async () => {
     const test = renewWith(
       vi.fn(async () => {
         throw new TypeError('lease store connection closed')
@@ -159,7 +159,7 @@ describe('renew Google Performance authorization lease: operator record', () => 
       {
         surface: 'google-performance',
         stage: 'renew_lease',
-        err: { name: 'TypeError', message: 'lease store connection closed' },
+        err: { name: 'TypeError' },
       },
       'Google performance lease renewal failed',
     )
