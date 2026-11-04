@@ -141,6 +141,12 @@ function match(url: string, expected: AnyRoute) {
   return params
 }
 
+function tokenOf(params: Record<string, string>): string {
+  const token = params.token
+  if (token === undefined) throw new Error('the matched route read no token')
+  return token
+}
+
 type Handler = (input: {
   request: Request
   params: Record<string, string>
@@ -200,7 +206,7 @@ describe('issued URL contracts', () => {
   ])('reads the issued /p/%s credential without changing its lookup', (token, digest) => {
     const params = match(`${APP}/p/${token}`, portal)
     expect(params).toEqual({ token })
-    expect(codec.digest(params.token)).toEqual(digest)
+    expect(codec.digest(tokenOf(params))).toEqual(digest)
   })
 
   it.each([
@@ -218,14 +224,14 @@ describe('issued URL contracts', () => {
     ],
   ])('reads a scanner or typed short-code variant: %s', (token, printCodeHash) => {
     const params = match(`${APP}/p/${token}`, portal)
-    expect(codec.digest(params.token)).toEqual({ kind: 'short', printCodeHash })
+    expect(codec.digest(tokenOf(params))).toEqual({ kind: 'short', printCodeHash })
   })
 
   it.each([`${QR}X`, QR.slice(1), `U${QR.slice(1)}`, 'pt_bad_secret'])(
     'does not turn a malformed credential into an issued address: %s',
     (token) => {
       const params = match(`${APP}/p/${token}`, portal)
-      expect(codec.digest(params.token)).toBeNull()
+      expect(codec.digest(tokenOf(params))).toBeNull()
     },
   )
 
