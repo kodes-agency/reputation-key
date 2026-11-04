@@ -20,11 +20,11 @@
 // text, so they are gated by the review's eligibility alone. The Inbox shows
 // the reply text and reads it through `createEligibleGoogleReplyReads`
 // (application/eligible-reads.ts), which also drops an observation whose own
-// content clock has lapsed. That clock is set once when the observation is
-// recorded: a later fetch that finds the same reply restates the head without
-// moving it, while the review's clock moves on every fetch. So a servable
-// review whose reply has not changed for the cache window counts as replied
-// here although the Inbox no longer shows its Google reply text.
+// content clock has lapsed. That clock moves with the review's: a fetch that
+// finds the same reply moves the head row's clock, as it moves the review's.
+// The two part when Google shows a reply without its text, which records
+// nothing, so a servable review can count as replied here while the Inbox has
+// no Google reply text to show.
 //
 // F055 NOTE: reviews table has no deletedAt column — soft-delete filtering is
 // not needed here. If a soft-delete column is added, filter it in the

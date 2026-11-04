@@ -1144,6 +1144,10 @@ Enforced by `push-health.test.ts` (the rule and its boundary) and
 `sync-push-health.integration.test.ts` (the date read from the Review, and the
 control just inside the limit).
 
+## Note 2026-11-04 — a read that restates a Google reply moves its content clock
+
+A reply observation's `content_expires_at` was written only when the row was inserted, and a read that finds the same reply records no row. So a reply Google kept showing stopped being served 30 days after it was first stored, while its review's clock moved on every fetch. A restating read now moves the head row's `content_expires_at` to that read's expiry and its `updated_at` to the read's time, forward only and only while the row holds a reply (`renewHeadContentClock`). It writes no row, revision or fact, and leaves `observed_at` and `provider_updated_at` alone. The clock counts from the last fetch that returned the reply, as ADR 0031 requires for a review's content.
+
 ## Merged from ADR 0003
 
 Introduce a new `review` bounded context for external platform reviews,

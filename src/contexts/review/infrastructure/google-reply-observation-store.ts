@@ -39,6 +39,7 @@ import {
 } from '../domain/events'
 import { lockReplyTruthScope } from './reply-truth-serialization'
 import { assertObservationFence } from './google-reply-observation-fence'
+import { renewHeadContentClock } from './google-reply-observation-clock'
 import { resolveSupersededReplyRead } from './google-reply-superseded-read'
 import { readPublicationCandidate } from './google-reply-publication-candidate'
 
@@ -113,28 +114,6 @@ async function findReplayedObservation(
     )
   }
   return replayed
-}
-
-/** The observation the current head points at, in full. */
-async function selectHeadObservation(
-  tx: Tx,
-  input: RecordGoogleReplyObservation,
-): Promise<ObservationRow | undefined> {
-  const rows = await tx
-    .select({ observation: googleReplyObservations })
-    .from(googleReplyObservationHeads)
-    .innerJoin(
-      googleReplyObservations,
-      eq(googleReplyObservations.id, googleReplyObservationHeads.observationId),
-    )
-    .where(
-      and(
-        eq(googleReplyObservationHeads.organizationId, input.organizationId),
-        eq(googleReplyObservationHeads.reviewId, input.reviewId),
-      ),
-    )
-    .limit(1)
-  return rows[0]?.observation
 }
 
 function selectCurrentHead(tx: Tx, input: RecordGoogleReplyObservation) {
@@ -571,6 +550,8 @@ function isRestatingResolution(decision: ObservationDecision): boolean {
  * revoked a close permit whose fact had not been consumed yet, and nothing
  * re-issued it. A single snapshot run re-reads every review in its
  * confirmation scan, which stranded Review Inbox items on published replies.
+ * The read is still a fetch of the reply the head holds, so the head's content
+ * clock moves with it (`renewHeadContentClock`) and nothing else does.
  *
  * A targeted reconciliation read remains distinct, attempt-scoped evidence,
  * so it is retained even when it restates the head. It can confirm or
@@ -831,8 +812,10 @@ export const createGoogleReplyObservationStore = (
           // The Reply's own earlier publication, still shown while its edit
           // is in flight. Whichever reader made it, the read restates the
           // head and decides nothing about the attempt: no row, no fact, and
-          // the head stays as it was.
+          // the head stays as it was. It is still a fetch of that reply, so
+          // its content clock moves.
           if (decision.resolution === 'earlier_publication_live') {
+            await renewHeadContentClock(tx, input)
             return {
               observationRevision: head?.observationRevision ?? 0,
               change: decision.change,
@@ -849,7 +832,7 @@ export const createGoogleReplyObservationStore = (
           )
 
           if (restatesCurrentHead({ input, decision, head, supersedes, evidence })) {
-            const current = await selectHeadObservation(tx, input)
+            const current = await renewHeadContentClock(tx, input)
             if (current) {
               return resultFromRow(current, true)
             }

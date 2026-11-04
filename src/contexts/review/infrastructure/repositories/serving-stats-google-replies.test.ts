@@ -120,7 +120,7 @@ type GoogleReplySeed = Readonly<{
   state: 'live' | 'absent'
   providerUpdatedAt?: Date | null
   observedAt?: Date
-  /** The observation's own content clock, set once when it was recorded. */
+  /** The observation's own content clock, apart from the review's. */
   contentExpiresAt?: Date
 }>
 
@@ -291,11 +291,11 @@ describe('getReplyPerformance counts a review as replied when Google shows a rep
   })
 
   it('still counts a Google reply whose observation content clock has lapsed', async () => {
-    // The observation's clock is set when it is recorded, and a later fetch
-    // that finds the same reply restates the head without moving it. The
-    // review's clock moves on every fetch, so a review still servable here
-    // was fetched within the cache window and its head says what Google
-    // showed then. Only state and Google's time are read, never reply text.
+    // A reply Google showed without its text records nothing, so its head's
+    // clock can lapse while the review's moves on with every fetch. A review
+    // still servable here was fetched within the cache window and its head
+    // says what Google showed then. Only state and Google's time are read,
+    // never reply text.
     const reviewedAt = new Date('2026-10-05T00:00:00.000Z')
     await insertReview(REVIEW.a, { reviewedAt })
     await insertGoogleReply(REVIEW.a, {
