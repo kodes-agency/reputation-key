@@ -1,3 +1,4 @@
+import { summarizeError } from '#/shared/observability/error-summary'
 import type { AiExecutionGrantV1 } from '#/shared/ai-internal-transport-contract'
 import type { PreparedInvocationBase } from './provider-contracts'
 
@@ -32,11 +33,7 @@ export function logProviderAttestationThrow(
       stage: 'attestation_threw',
       route: invocation.descriptor.route,
       operationId: invocation.descriptor.operationId,
-      errorName: error instanceof Error ? error.name : 'unknown',
-      errorMessage:
-        error instanceof Error
-          ? error.message.slice(0, 200)
-          : String(error).slice(0, 200),
+      error: summarizeError(error),
     })}\n`,
   )
 }
@@ -55,11 +52,7 @@ export function logProviderPreDispatchThrow(
       operationId: invocation.descriptor.operationId,
       pinnedNull,
       boundaryNull,
-      errorName: error instanceof Error ? error.name : 'unknown',
-      errorMessage:
-        error instanceof Error
-          ? error.message.slice(0, 300)
-          : String(error).slice(0, 300),
+      error: summarizeError(error),
     })}\n`,
   )
 }

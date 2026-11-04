@@ -2,6 +2,7 @@
 // Per conventions: server functions catch tagged errors and throw Error objects
 // with .name, .message, .code, and .status properties for TanStack Start's seroval serialization.
 
+import { summarizeError } from '#/shared/observability/error-summary'
 import { getLogger } from '#/shared/observability/logger'
 import { getRequestContext } from '#/shared/observability/request-context'
 import { APIError } from 'better-auth'
@@ -124,11 +125,12 @@ export function catchUntagged(e: unknown): never {
     throw new ServerFunctionError('APIError', message, code, httpStatus, { cause: e })
   }
 
+  // The summary, never the message or stack: a database error's message holds
+  // the values the query was bound to.
   logger.error(
     {
       requestId: ctx?.requestId,
-      error: e instanceof Error ? e.message : String(e),
-      stack: e instanceof Error ? e.stack : undefined,
+      error: summarizeError(e),
       errorType: 'UntaggedError',
     },
     `← THROW InternalError → 500`,
