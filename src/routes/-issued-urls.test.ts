@@ -81,17 +81,20 @@ vi.mock('#/shared/observability/logger', () => ({
 vi.mock('#/shared/observability/telemetry', () => ({
   captureObservabilityException: vi.fn(),
 }))
-vi.mock('#/shared/config/request-runtime-config', () => ({
-  requestRuntimeConfig: () => ({
-    env: {
+vi.mock('#/shared/config/env', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('#/shared/config/env')>()
+  return {
+    ...actual,
+    getEnv: () => ({
+      ...actual.getEnv(),
       BETTER_AUTH_URL: 'https://app.example.test',
       GBP_PUBSUB_AUDIENCE: 'https://app.example.test/api/webhooks/gbp/notifications',
       GBP_PUBSUB_TOPIC: 'projects/example/topics/reviews',
       GBP_PUBSUB_PUSH_SERVICE_ACCOUNT: 'push@example.iam.gserviceaccount.com',
-    },
-    resendWebhookSecret: `whsec_${Buffer.from('issued-url-test-key').toString('base64')}`,
-  }),
-}))
+      RESEND_WEBHOOK_SECRET: `whsec_${Buffer.from('issued-url-test-key').toString('base64')}`,
+    }),
+  }
+})
 vi.mock('#/shared/auth/middleware', () => ({
   getSessionFromHeaders: async () => ({ session: { id: 'session-1' } }),
   resolveTenantContext: async () => ({ organizationId: 'org-1', userId: 'user-1' }),
