@@ -220,16 +220,32 @@ describe('closeJobQueueConnections', () => {
     expect(second.quit).toHaveBeenCalledOnce()
   })
 
-  it('force-disconnects a connection whose quit() rejects', async () => {
+  it('reports a failed quit after force-disconnecting the connection', async () => {
     process.env.REDIS_URL = 'redis://unit-test:6379'
     resetEnv()
     createJobQueue('default')
     const [connection] = fakeConnections()
     connection.quit.mockRejectedValueOnce(new Error('stuck pipeline'))
 
-    await expect(closeJobQueueConnections()).resolves.toBeUndefined()
+    await expect(closeJobQueueConnections()).rejects.toBeInstanceOf(AggregateError)
 
     expect(connection.disconnect).toHaveBeenCalledOnce()
+  })
+
+  it('does not report a connection that ended while its quit was in flight', async () => {
+    process.env.REDIS_URL = 'redis://unit-test:6379'
+    resetEnv()
+    createJobQueue('default')
+    const connection = fakeConnections().at(0)
+    if (!connection) throw new Error('the queue opened no connection')
+    connection.quit.mockImplementationOnce(async () => {
+      connection.status = 'end'
+      throw new Error('Connection is closed.')
+    })
+
+    await expect(closeJobQueueConnections()).resolves.toBeUndefined()
+
+    expect(connection.disconnect).not.toHaveBeenCalled()
   })
 
   it('skips connections that are already ended', async () => {

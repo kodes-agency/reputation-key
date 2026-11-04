@@ -10,6 +10,7 @@ import {
 // makes both easier to understand."
 
 import type { Container } from './composition'
+import { assertContainerCanBuild } from './composition/container-lifecycle'
 import { createHealthCheckHandler, JOB_NAME } from '#/shared/jobs/health-check.job'
 import {
   createPublishedEventRedeliveryHandler,
@@ -167,6 +168,7 @@ export async function bootstrap(
     allowUnavailableGoogleImportV2Processor?: boolean
   }>,
 ): Promise<void> {
+  assertContainerCanBuild()
   const logger = container.logger
   const runtime = options.runtime
 

@@ -2,11 +2,11 @@
 //
 // Pins the per-endpoint contract against the dev server:
 //   /api/health/live     200, dependency-free (fast — no probe budgets)
-//   /api/health/ready    200 in the healthy rig, all four probe fields true
-//                        (db, redis, migrations, policy); worker heartbeat
-//                        deliberately NOT an input
+//   /api/health/ready    200 in the healthy rig, all six probe fields true
+//                        (container, keys, db, redis, migrations, policy);
+//                        worker heartbeat deliberately NOT an input
 //   /api/health          same upgraded readiness semantics (legacy route)
-//   /api/health/started  200 once booted (container + migrations + policy) —
+//   /api/health/started  200 once booted (container + keys + migrations + policy) —
 //                        local/staging startup diagnostic; Railway activation
 //                        uses /api/health/ready under ADR 0057
 //   /api/health/metrics  PRIVATE: 404 without a token, 404 with a wrong token
@@ -38,7 +38,7 @@ test.describe('Critical: health semantics (BQC-7.2)', () => {
     expect(typeof body.timestamp).toBe('string')
   })
 
-  test('readiness is 200 with all four probes true in the healthy rig', async ({
+  test('readiness is 200 with all six probes true in the healthy rig', async ({
     request,
   }) => {
     const res = await request.get('/api/health/ready')
@@ -46,6 +46,8 @@ test.describe('Critical: health semantics (BQC-7.2)', () => {
     const body = await res.json()
     expect(body).toMatchObject({
       status: 'ok',
+      container: true,
+      keys: true,
       db: true,
       redis: true,
       migrations: true,
@@ -61,6 +63,8 @@ test.describe('Critical: health semantics (BQC-7.2)', () => {
     const body = await res.json()
     expect(body).toMatchObject({
       status: 'ok',
+      container: true,
+      keys: true,
       db: true,
       redis: true,
       migrations: true,
@@ -68,7 +72,7 @@ test.describe('Critical: health semantics (BQC-7.2)', () => {
     })
   })
 
-  test('startup is 200 once booted (container + migrations + policy)', async ({
+  test('startup is 200 once booted (container + keys + migrations + policy)', async ({
     request,
   }) => {
     const res = await request.get('/api/health/started')
@@ -77,6 +81,7 @@ test.describe('Critical: health semantics (BQC-7.2)', () => {
     expect(body).toMatchObject({
       status: 'ok',
       container: true,
+      keys: true,
       migrations: true,
       policy: true,
     })

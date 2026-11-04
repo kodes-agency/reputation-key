@@ -1,12 +1,12 @@
-// BQC-7.1 — web graceful-shutdown orchestrator tests.
+// Web resource-close tests.
 //
 // Pins the contract the nitro runtime plugin relies on:
 //   1. closers run in order and each close is logged;
 //   2. a rejecting close is recorded as an 'error' failure and does not stop
 //      the remaining closers (never throws — shutdown must not crash);
-//   3. a close that hangs past the budget is recorded as a 'timeout' failure
-//      and the orchestrator moves on (the platform SIGKILL is the outer
-//      bound for the abandoned resource).
+//   3. the budget covers the whole sequence: once it expires the rest are
+//      skipped and reported as timeouts (the platform SIGKILL is the outer
+//      bound for the abandoned resources).
 
 import { describe, it, expect, vi } from 'vitest'
 import { closeWebResources, type ShutdownLogger } from './graceful-shutdown'
@@ -59,7 +59,7 @@ describe('closeWebResources', () => {
     )
   })
 
-  it('records a hung close as a timeout failure and moves on', async () => {
+  it('bounds the whole shutdown and leaves dependencies open after a hung close', async () => {
     const logger = makeLogger()
     const second = vi.fn(() => Promise.resolve())
     const started = performance.now()
@@ -71,12 +71,11 @@ describe('closeWebResources', () => {
       { budgetMs: 50, logger },
     )
 
-    expect(failures).toEqual([{ name: 'redis', reason: 'timeout' }])
-    expect(second).toHaveBeenCalledOnce()
+    expect(failures).toEqual([
+      { name: 'redis', reason: 'timeout' },
+      { name: 'pool', reason: 'timeout' },
+    ])
+    expect(second).not.toHaveBeenCalled()
     expect(performance.now() - started).toBeLessThan(5_000)
-    expect(logger.error).toHaveBeenCalledWith(
-      { resource: 'redis', budgetMs: 50 },
-      'Resource close timed out during shutdown — abandoning (platform SIGKILL bounds the rest)',
-    )
   })
 })

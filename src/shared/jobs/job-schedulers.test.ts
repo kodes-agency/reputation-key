@@ -298,6 +298,24 @@ describe('job scheduler watchdog', () => {
     return { stop, warn, onRestored }
   }
 
+  it('waits for an active tick after stopping future ticks', async () => {
+    vi.useFakeTimers()
+    const { stop, onRestored } = watch(queueDouble([]))
+    const gate = Promise.withResolvers<void>()
+    onRestored.mockImplementationOnce(() => gate.promise)
+    await vi.advanceTimersByTimeAsync(JOB_SCHEDULER_WATCHDOG_INTERVAL_MS)
+    let settled = false
+    const stopping = Promise.resolve(stop()).then(() => {
+      settled = true
+    })
+    await Promise.resolve()
+    expect(settled).toBe(false)
+    gate.resolve()
+    await stopping
+    await vi.advanceTimersByTimeAsync(3 * JOB_SCHEDULER_WATCHDOG_INTERVAL_MS)
+    expect(onRestored).toHaveBeenCalledOnce()
+  })
+
   it('restores lost schedulers on its interval and reports the restore', async () => {
     vi.useFakeTimers()
     const queue = queueDouble([])

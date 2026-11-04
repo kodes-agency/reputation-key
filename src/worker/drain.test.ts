@@ -1,14 +1,14 @@
-// BQC-7.1 — worker drain budget tests.
+// Worker drain budget tests.
 //
-// Pins the graceful-shutdown contract extracted from src/worker/index.ts:
-//   1. happy path — every worker is asked to close at once, then the queues
-//      close in order, with the same log messages the pre-extraction inline
-//      loop emitted; no timeout;
-//   2. a rejecting close is logged and does not stop the sequence;
+// Pins the graceful-shutdown contract of src/worker/drain.ts:
+//   1. happy path — every worker is asked to close at once, then the container
+//      releases, then the shared resources close in order; no timeout;
+//   2. a rejecting close is logged, reported in `failed`, and does not stop the
+//      sequence;
 //   3. a hung close (a job that never finishes makes BullMQ's Worker.close()
-//      hang) fires the budget — the drain reports the still-open labels so
-//      the caller can exit non-zero instead of stalling the deploy window
-//      until the platform's SIGKILL.
+//      hang) fires the budget — the drain reports the still-open labels so the
+//      caller can exit non-zero instead of stalling the deploy window until the
+//      platform's SIGKILL.
 
 import { describe, it, expect, vi } from 'vitest'
 import { drainWorkerResources, namedCloseable, type DrainLogger } from './drain'
@@ -28,7 +28,7 @@ const closeable = (label: string, close?: () => Promise<void>) => ({
 const never = () => new Promise<void>(() => {})
 
 describe('drainWorkerResources', () => {
-  it('closes workers then queues in order and logs each step (happy path)', async () => {
+  it('closes workers then resources in order and logs each step (happy path)', async () => {
     const order: string[] = []
     const logger = makeLogger()
     const result = await drainWorkerResources({
@@ -38,14 +38,14 @@ describe('drainWorkerResources', () => {
           Promise.resolve(order.push('worker:background')).then(),
         ),
       ],
-      queues: [
+      resources: [
         closeable('default', () => Promise.resolve(order.push('queue:default')).then()),
       ],
       budgetMs: 5_000,
       logger,
     })
 
-    expect(result).toEqual({ timedOut: false, stuck: [] })
+    expect(result).toMatchObject({ timedOut: false, stuck: [] })
     expect(order).toEqual(['worker:default', 'worker:background', 'queue:default'])
     expect(logger.info).toHaveBeenCalledWith(
       { queue: 'default' },
@@ -57,7 +57,7 @@ describe('drainWorkerResources', () => {
     )
     expect(logger.info).toHaveBeenCalledWith(
       { queue: 'default' },
-      'Queue closed successfully',
+      'Resource closed successfully',
     )
   })
 
@@ -77,7 +77,7 @@ describe('drainWorkerResources', () => {
         closeable('background', async () => void asked.push('background')),
         closeable('domain-events', async () => void asked.push('domain-events')),
       ],
-      queues: [],
+      resources: [],
       budgetMs: 5_000,
       logger,
     })
@@ -86,7 +86,7 @@ describe('drainWorkerResources', () => {
     const askedWhileDefaultDrains = [...asked]
     longJob.resolve()
 
-    await expect(drain).resolves.toEqual({ timedOut: false, stuck: [] })
+    await expect(drain).resolves.toEqual({ timedOut: false, stuck: [], failed: [] })
     expect(askedWhileDefaultDrains).toEqual(['default', 'background', 'domain-events'])
   })
 
@@ -98,12 +98,16 @@ describe('drainWorkerResources', () => {
         closeable('background'),
         closeable('domain-events'),
       ],
-      queues: [closeable('quarantine')],
+      resources: [closeable('quarantine')],
       budgetMs: 50,
       logger,
     })
 
-    expect(result).toEqual({ timedOut: true, stuck: ['default', 'quarantine'] })
+    expect(result).toEqual({
+      timedOut: true,
+      stuck: ['default', 'quarantine'],
+      failed: [],
+    })
     expect(logger.info).toHaveBeenCalledWith(
       { queue: 'background' },
       'Worker drained successfully',
@@ -119,19 +123,20 @@ describe('drainWorkerResources', () => {
     const failure = new Error('redis connection lost')
     const result = await drainWorkerResources({
       workers: [closeable('default', () => Promise.reject(failure))],
-      queues: [closeable('quarantine')],
+      resources: [closeable('quarantine')],
       budgetMs: 5_000,
       logger,
     })
 
-    expect(result).toEqual({ timedOut: false, stuck: [] })
+    expect(result).toMatchObject({ timedOut: false, stuck: [] })
+    expect(result.failed).toEqual(['default'])
     expect(logger.error).toHaveBeenCalledWith(
       { err: failure, queue: 'default' },
       'Error draining worker',
     )
     expect(logger.info).toHaveBeenCalledWith(
       { queue: 'quarantine' },
-      'Queue closed successfully',
+      'Resource closed successfully',
     )
   })
 
@@ -141,7 +146,7 @@ describe('drainWorkerResources', () => {
     const started = performance.now()
     const result = await drainWorkerResources({
       workers: [closeable('default'), closeable('hung', never)],
-      queues: [{ label: 'default', close: laterQueue }],
+      resources: [{ label: 'default', close: laterQueue }],
       budgetMs: 50,
       logger,
     })
@@ -162,24 +167,24 @@ describe('drainWorkerResources', () => {
     const slowButFinite = () => new Promise<void>((resolve) => setTimeout(resolve, 30))
     const result = await drainWorkerResources({
       workers: [closeable('default', slowButFinite)],
-      queues: [],
+      resources: [],
       budgetMs: 5_000,
       logger,
     })
 
-    expect(result).toEqual({ timedOut: false, stuck: [] })
+    expect(result).toMatchObject({ timedOut: false, stuck: [] })
   })
 
   it('skips undefined lanes silently (unstarted workers/queues never log)', async () => {
     const logger = makeLogger()
     const result = await drainWorkerResources({
       workers: [undefined, closeable('default')],
-      queues: [undefined, closeable('quarantine')],
+      resources: [undefined, closeable('quarantine')],
       budgetMs: 5_000,
       logger,
     })
 
-    expect(result).toEqual({ timedOut: false, stuck: [] })
+    expect(result).toMatchObject({ timedOut: false, stuck: [] })
     // Only the real lanes logged — undefined entries produce no output.
     expect(logger.info).toHaveBeenCalledTimes(2)
     expect(logger.info).toHaveBeenCalledWith(
@@ -188,25 +193,25 @@ describe('drainWorkerResources', () => {
     )
     expect(logger.info).toHaveBeenCalledWith(
       { queue: 'quarantine' },
-      'Queue closed successfully',
+      'Resource closed successfully',
     )
   })
 })
 
-// ARC-03-T6 — the worker built the container, so the worker releases it.
+// The worker built the container, so the worker releases it.
 describe('drainWorkerResources container release', () => {
-  it('releases the container after the workers and before the queues', async () => {
+  it('releases the container after the workers and before the resources', async () => {
     const order: string[] = []
     const logger = makeLogger()
     const result = await drainWorkerResources({
       workers: [closeable('default', async () => void order.push('worker'))],
       shutdown: { run: async () => void order.push('container') },
-      queues: [closeable('default', async () => void order.push('queue'))],
+      resources: [closeable('default', async () => void order.push('queue'))],
       budgetMs: 5_000,
       logger,
     })
 
-    expect(result).toEqual({ timedOut: false, stuck: [] })
+    expect(result).toMatchObject({ timedOut: false, stuck: [] })
     expect(order).toEqual(['worker', 'container', 'queue'])
     expect(logger.info).toHaveBeenCalledWith(
       { queue: 'container' },
@@ -214,25 +219,26 @@ describe('drainWorkerResources container release', () => {
     )
   })
 
-  it('logs a failing release and still closes the queues', async () => {
+  it('logs a failing release and still closes the resources', async () => {
     const logger = makeLogger()
     const failure = new Error('poller refused to stop')
     const result = await drainWorkerResources({
       workers: [],
       shutdown: { run: () => Promise.reject(failure) },
-      queues: [closeable('quarantine')],
+      resources: [closeable('quarantine')],
       budgetMs: 5_000,
       logger,
     })
 
-    expect(result).toEqual({ timedOut: false, stuck: [] })
+    expect(result).toMatchObject({ timedOut: false, stuck: [] })
+    expect(result.failed).toEqual(['container'])
     expect(logger.error).toHaveBeenCalledWith(
       { err: failure, queue: 'container' },
       'Error releasing container resources',
     )
     expect(logger.info).toHaveBeenCalledWith(
       { queue: 'quarantine' },
-      'Queue closed successfully',
+      'Resource closed successfully',
     )
   })
 
@@ -241,7 +247,7 @@ describe('drainWorkerResources container release', () => {
     const result = await drainWorkerResources({
       workers: [],
       shutdown: { run: never },
-      queues: [closeable('default')],
+      resources: [closeable('default')],
       budgetMs: 50,
       logger,
     })

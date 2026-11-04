@@ -1,16 +1,17 @@
-// Worker drain (BQC-7.1) — budgeted graceful shutdown for the BullMQ process.
+// Worker drain — budgeted graceful shutdown for the BullMQ process.
 //
-// Extracted from src/worker/index.ts so the budget path is unit-testable.
-// Every worker is asked to close at once: BullMQ's Worker.close() is what
-// stops a worker fetching, and it then waits for its in-flight jobs. Closing
-// them one after another left the later workers taking new jobs for as long
-// as the first one drained, and every job they had started was cut off when
-// the budget ended the process. The queues then close in order, each step
-// logged with the same messages as before. The whole drain has a hard time
-// budget: a hung job makes Worker.close() hang forever, which previously let
-// a deploy stall until the platform's SIGKILL. When the budget fires, the
-// caller exits non-zero so the platform records an unclean stop (Railway
-// drainingSeconds is the outer bound; DRAIN_BUDGET_MS must stay below it).
+// Every worker is asked to close at once: BullMQ's Worker.close() is what stops
+// a worker fetching, and it then waits for its in-flight jobs. Closing them one
+// after another would leave the later workers taking new jobs while the first
+// drains, and every job they had started would be cut off when the budget ends
+// the process. The container's own resources release next, then the shared
+// resources the caller names, in order. The whole drain has one hard time
+// budget: a hung job makes Worker.close() hang, which would let a deploy stall
+// until the platform's SIGKILL. When the budget fires, the caller exits nonzero
+// so the platform records an unclean stop (Railway's drainingSeconds is the
+// outer bound; DRAIN_BUDGET_MS must stay below it).
+
+import { disposeResources, type DisposalResult } from '#/shared/lifecycle/disposer'
 
 export interface NamedCloseable {
   readonly label: string
@@ -36,105 +37,60 @@ export interface DrainLogger {
   error: (obj: Record<string, unknown>, msg: string) => void
 }
 
-/**
- * The container's own release seam (ARC-03-T6). The worker owns the container
- * it built, so the drain — not the process exit — is what stops the
- * container's background work.
- */
+/** The container's own release seam: the worker built the container, so the drain releases it. */
 export interface ContainerRelease {
   readonly run: () => Promise<void>
 }
 
-/** Budget/reporting label for the container release step. */
-const CONTAINER_LABEL = 'container'
-
-export interface DrainResult {
-  /** True when the budget fired before every resource finished closing. */
-  readonly timedOut: boolean
-  /** Labels not yet closed when the budget fired (in-flight first). */
-  readonly stuck: ReadonlyArray<string>
-}
+/** `failed` names the closes that rejected; `stuck` the labels unfinished when the budget fired. */
+export type DrainResult = DisposalResult
 
 /**
- * Close the workers together, then the queues in the given order. Undefined
- * entries (lanes that were never started) are skipped silently, mirroring the
- * pre-BQC-7.1 `if (w)` guards. A rejecting close is logged and does not stop
- * the sequence (mirrors the pre-BQC-7.1 inline loop). The whole sequence races
- * `budgetMs`; on expiry the still-open labels are reported. The loop itself
- * is not cancellable — a hung close keeps its promise pending in the
- * background until the process exits.
- *
- * ARC-03-T6: `shutdown` (the container's release seam) runs between the two
- * phases — after the workers stop taking jobs, before the queue connections
- * go away — so that background work a container started is not left reading
- * the database against a closing process. No build registers any today (the
- * identity policy poller this order was written for is gone), so the seam
- * releases nothing; the queues are closed by the second phase, not by it. It
- * shares the same budget as everything else.
+ * Close the workers together, release the container, then close `resources` in
+ * the order given. Undefined entries (lanes that were never started) are
+ * skipped silently. A rejecting close is logged and does not stop the sequence;
+ * it is reported in `failed` so the caller can exit nonzero. The whole sequence
+ * races `budgetMs`; on expiry the labels not yet closed are reported in
+ * `stuck`. The loop itself is not cancellable — a hung close keeps its promise
+ * pending in the background until the process exits.
  */
-export async function drainWorkerResources(options: {
+export function drainWorkerResources(options: {
   readonly workers: ReadonlyArray<NamedCloseable | undefined>
-  readonly queues: ReadonlyArray<NamedCloseable | undefined>
+  readonly resources: ReadonlyArray<NamedCloseable | undefined>
   readonly shutdown?: ContainerRelease
   readonly budgetMs: number
   readonly logger: DrainLogger
 }): Promise<DrainResult> {
-  const { budgetMs, logger, shutdown } = options
-  const workers = options.workers.filter((w): w is NamedCloseable => w !== undefined)
-  const queues = options.queues.filter((q): q is NamedCloseable => q !== undefined)
-  const remaining = [
-    ...workers.map((r) => r.label),
-    ...(shutdown ? [CONTAINER_LABEL] : []),
-    ...queues.map((r) => r.label),
-  ]
-
-  const drainWorker = async (w: NamedCloseable): Promise<void> => {
-    try {
-      await w.close()
-      logger.info({ queue: w.label }, 'Worker drained successfully')
-    } catch (err) {
-      logger.error({ err, queue: w.label }, 'Error draining worker')
-    } finally {
-      remaining.splice(remaining.indexOf(w.label), 1)
-    }
-  }
-
-  const loop = (async () => {
-    await Promise.all(workers.map(drainWorker))
-    if (shutdown) {
+  const { logger, shutdown } = options
+  const hook = (item: NamedCloseable, closed: string, failed: string) => ({
+    label: item.label,
+    release: async () => {
       try {
-        await shutdown.run()
-        logger.info({ queue: CONTAINER_LABEL }, 'Container resources released')
+        await item.close()
+        logger.info({ queue: item.label }, closed)
       } catch (err) {
-        logger.error(
-          { err, queue: CONTAINER_LABEL },
-          'Error releasing container resources',
-        )
-      } finally {
-        remaining.splice(remaining.indexOf(CONTAINER_LABEL), 1)
+        logger.error({ err, queue: item.label }, failed)
+        throw err
       }
-    }
-    for (const q of queues) {
-      try {
-        await q.close()
-        logger.info({ queue: q.label }, 'Queue closed successfully')
-      } catch (err) {
-        logger.error({ err, queue: q.label }, 'Error closing queue')
-      } finally {
-        remaining.splice(remaining.indexOf(q.label), 1)
-      }
-    }
-  })()
-
-  let timer: ReturnType<typeof setTimeout> | undefined
-  const budget = new Promise<'timeout'>((resolve) => {
-    timer = setTimeout(() => resolve('timeout'), budgetMs)
+    },
   })
-  const outcome = await Promise.race([loop.then(() => 'done' as const), budget])
-  clearTimeout(timer)
-
-  if (outcome === 'timeout') {
-    return { timedOut: true, stuck: [...remaining] }
-  }
-  return { timedOut: false, stuck: [] }
+  const present = (items: ReadonlyArray<NamedCloseable | undefined>) =>
+    items.filter((item): item is NamedCloseable => item !== undefined)
+  const container: NamedCloseable[] = shutdown
+    ? [{ label: 'container', close: () => shutdown.run() }]
+    : []
+  return disposeResources(
+    [
+      present(options.workers).map((worker) =>
+        hook(worker, 'Worker drained successfully', 'Error draining worker'),
+      ),
+      ...container.map((item) => [
+        hook(item, 'Container resources released', 'Error releasing container resources'),
+      ]),
+      ...present(options.resources).map((resource) => [
+        hook(resource, 'Resource closed successfully', 'Error closing resource'),
+      ]),
+    ],
+    { budgetMs: options.budgetMs },
+  )
 }
