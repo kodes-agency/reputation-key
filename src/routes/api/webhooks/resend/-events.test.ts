@@ -85,6 +85,27 @@ describe('resend webhook route', () => {
     })
   })
 
+  it.each([
+    ['svix-id', null],
+    ['svix-timestamp', 'not-a-number'],
+    ['svix-timestamp', '1'],
+    ['svix-timestamp', 'Infinity'],
+    ['svix-signature', null],
+    ['svix-signature', 'v1,not-base64'],
+  ])('refuses invalid %s before reading the body', async (name, value) => {
+    const request = mkRequest()
+    if (value === null) request.headers.delete(name)
+    else request.headers.set(name, value)
+    const read = vi.spyOn(request, 'text')
+
+    const response = await handleResendWebhookPost(request)
+
+    expect(response.status).toBe(401)
+    expect(read).not.toHaveBeenCalled()
+    expect(request.bodyUsed).toBe(false)
+    expect(mocks.handleResendEvent).not.toHaveBeenCalled()
+  })
+
   it('accepts a correctly signed event and forwards it to the handler', async () => {
     const response = await handleResendWebhookPost(mkRequest())
 

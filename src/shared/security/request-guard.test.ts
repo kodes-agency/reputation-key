@@ -14,6 +14,7 @@ import {
   bodyLimitFor,
   bodyLimitRejection,
   createRequestGuardPlugin,
+  type RequestGuardOptions,
   MAX_INBOUND_REQUEST_ID_LENGTH,
 } from './request-guard'
 
@@ -186,6 +187,154 @@ describe('createRequestGuardPlugin', () => {
     const event = postWithLength('100')
     h3.config.onRequest!(event)
     expect(previous).toHaveBeenCalledWith(event)
+  })
+
+  describe('a body with no declared length', () => {
+    // A chunked request carries no content-length, so the guard has to count.
+    const chunkedPost = (chunks: readonly string[], path = '/api/x') => {
+      const encoder = new TextEncoder()
+      const pending = [...chunks]
+      return new Request(`http://localhost${path}`, {
+        method: 'POST',
+        body: new ReadableStream<Uint8Array>({
+          pull(controller) {
+            const chunk = pending.shift()
+            if (chunk === undefined) controller.close()
+            else controller.enqueue(encoder.encode(chunk))
+          },
+        }),
+        duplex: 'half',
+      } as RequestInit)
+    }
+    const guardedBy = (options: RequestGuardOptions) => {
+      const { app, h3 } = fakeNitroApp()
+      const previous = vi.fn()
+      h3.config.onRequest = previous
+      createRequestGuardPlugin(options)(app as never)
+      return { onRequest: h3.config.onRequest!, previous }
+    }
+
+    it('refuses a body that runs past the limit, counted in bytes, before its handler', async () => {
+      const { onRequest, previous } = guardedBy({ bodyLimitBytes: 5 })
+
+      // 'abc' and '€' are 3 and 3 bytes: 6 bytes in 4 characters.
+      const refusal = await Promise.resolve(
+        onRequest({ req: chunkedPost(['abc', '€']) }),
+      ).then(
+        () => undefined,
+        (thrown: unknown) => thrown,
+      )
+
+      expect(refusal).toBeInstanceOf(Response)
+      expect((refusal as Response).status).toBe(413)
+      await expect((refusal as Response).json()).resolves.toEqual({
+        error: 'payload_too_large',
+      })
+      expect(previous).not.toHaveBeenCalled()
+    })
+
+    it('hands a body at the limit to its handler with every byte and the same request', async () => {
+      const { onRequest, previous } = guardedBy({ bodyLimitBytes: 6 })
+      const request = chunkedPost(['abc', '€'])
+      const event = { req: request }
+
+      await onRequest(event)
+
+      expect(previous).toHaveBeenCalledWith(event)
+      expect(event.req).toBe(request)
+      await expect(request.text()).resolves.toBe('abc€')
+    })
+
+    it('counts against the limit of the path, the default or its own', async () => {
+      const { onRequest } = guardedBy({
+        bodyLimitBytes: 3,
+        pathBodyLimits: [{ path: '/api/portal-media', limitBytes: 6 }],
+      })
+
+      const atItsOwnLimit = chunkedPost(['abc', '€'], '/api/portal-media')
+      await onRequest({ req: atItsOwnLimit })
+      await expect(atItsOwnLimit.text()).resolves.toBe('abc€')
+      await expect(
+        onRequest({ req: chunkedPost(['abc', '€', '!'], '/api/portal-media') }),
+      ).rejects.toMatchObject({ status: 413 })
+      await expect(onRequest({ req: chunkedPost(['abc', '€']) })).rejects.toMatchObject({
+        status: 413,
+      })
+    })
+
+    it('cancels both branches and refuses without waiting for the source to cancel', async () => {
+      const { onRequest } = guardedBy({ bodyLimitBytes: 5 })
+      const cancel = vi.fn(() => new Promise<void>(() => {}))
+      const request = new Request('http://localhost/api/x', {
+        method: 'POST',
+        body: new ReadableStream<Uint8Array>({
+          pull(controller) {
+            controller.enqueue(new Uint8Array(6))
+          },
+          cancel,
+        }),
+        duplex: 'half',
+      } as RequestInit)
+
+      await expect(onRequest({ req: request })).rejects.toMatchObject({ status: 413 })
+      expect(cancel).toHaveBeenCalledOnce()
+    })
+
+    it('passes on a body whose stream fails: a client that left is not an oversized body', async () => {
+      const { onRequest, previous } = guardedBy({ bodyLimitBytes: 5 })
+      const request = new Request('http://localhost/api/x', {
+        method: 'POST',
+        body: new ReadableStream<Uint8Array>({
+          pull() {
+            throw new Error('the client went away')
+          },
+        }),
+        duplex: 'half',
+      } as RequestInit)
+      const event = { req: request }
+
+      await onRequest(event)
+
+      expect(previous).toHaveBeenCalledWith(event)
+    })
+  })
+
+  describe('a body that declares its length, or none at all', () => {
+    const untouched = (request: Request) => {
+      const { app, h3 } = fakeNitroApp()
+      const previous = vi.fn()
+      h3.config.onRequest = previous
+      createRequestGuardPlugin({ bodyLimitBytes: 100 })(app as never)
+      const clone = vi.spyOn(request, 'clone')
+      const event = { req: request }
+      const answer = h3.config.onRequest!(event)
+      return { answer, previous, clone, event }
+    }
+
+    it('is left unread for its handler, which decides what to read and when', () => {
+      const request = new Request('http://localhost/api/x', {
+        method: 'POST',
+        headers: { 'content-length': '4' },
+        body: 'abcd',
+      })
+
+      const { answer, previous, clone, event } = untouched(request)
+
+      expect(answer).toBeUndefined()
+      expect(previous).toHaveBeenCalledWith(event)
+      expect(clone).not.toHaveBeenCalled()
+      expect(request.bodyUsed).toBe(false)
+    })
+
+    it('is not touched when the request has no body at all', () => {
+      const { answer, previous, clone, event } = untouched(
+        new Request('http://localhost/api/x'),
+      )
+
+      expect(answer).toBeUndefined()
+      expect(previous).toHaveBeenCalledWith(event)
+      expect(clone).not.toHaveBeenCalled()
+    })
   })
 
   it('response hook echoes a sane inbound x-request-id', () => {

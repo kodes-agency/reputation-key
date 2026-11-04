@@ -471,10 +471,11 @@ const baseEnvSchema = z.object({
   TRUSTED_PROXY_COUNT: z.coerce.number().int().min(0).default(1),
   TRUSTED_PROXY_MAX_HOPS: z.coerce.number().int().min(1).max(32).default(8),
   // BQC-7.6: maximum accepted request body size in bytes (declared
-  // content-length), enforced by the request-guard nitro plugin before
-  // routing. Default 1 MiB — the largest legitimate payloads. The one larger
-  // body, a portal image upload, has a limit of its own scoped to its path
-  // (request-guard.ts pathBodyLimits).
+  // content-length, or counted as it arrives when no length is declared),
+  // enforced by the request-guard nitro plugin before routing. Default 1 MiB —
+  // the largest legitimate payloads. The one larger body, a portal image
+  // upload, has a limit of its own scoped to its path (request-guard.ts
+  // pathBodyLimits).
   REQUEST_BODY_LIMIT_BYTES: z.coerce.number().int().min(1).default(1_048_576),
   // BQC-7.1: worker graceful-shutdown drain budget (ms). BullMQ worker.close()
   // resolves only when in-flight jobs finish — a hung job would otherwise hang

@@ -13,8 +13,11 @@
 //      h3 error handler (prepareResponse returns non-ok Response instances
 //      as-is — no stack/error page) and still flows through the response hook
 //      chain, so the 413 carries the B0.7 headers and a request id too.
-//      Chunked bodies without a declared length cannot be pre-empted here;
-//      the platform gateway is the documented backstop (runbook).
+//      A declared length is exact (the HTTP parser frames the body by it), so
+//      such a body is never read here: its handler decides what to read, and
+//      when. A body with NO declared length (chunked) is counted as it arrives
+//      on a clone and refused at the same limit; the request itself keeps every
+//      byte and its runtime metadata for the handler.
 //
 //   2. x-request-id — honored when the inbound id is sane (bounded length,
 //      header-safe charset), generated otherwise; set on EVERY response via
@@ -51,6 +54,14 @@ export function resolveRequestId(
   return idGen()
 }
 
+/** The content-free 413 every body-limit refusal answers with. */
+function payloadTooLarge(): Response {
+  return new Response(JSON.stringify({ error: 'payload_too_large' }), {
+    status: 413,
+    headers: { 'content-type': 'application/json' },
+  })
+}
+
 /**
  * Return a content-free 413 Response when the declared content-length exceeds
  * the limit, undefined otherwise (absent/unparseable length = allowed — the
@@ -63,10 +74,7 @@ export function bodyLimitRejection(
   if (contentLength == null) return undefined
   const declared = Number(contentLength)
   if (!Number.isFinite(declared) || declared <= limitBytes) return undefined
-  return new Response(JSON.stringify({ error: 'payload_too_large' }), {
-    status: 413,
-    headers: { 'content-type': 'application/json' },
-  })
+  return payloadTooLarge()
 }
 
 export type PathBodyLimit = Readonly<{
@@ -88,6 +96,38 @@ export function bodyLimitFor(
   return own ? Math.max(own.limitBytes, defaultLimitBytes) : defaultLimitBytes
 }
 
+/**
+ * Whether a body runs past the limit, counting its bytes as they arrive. The
+ * count runs on a clone, so the request keeps every byte (and its server
+ * runtime extensions) for its handler. A stream that fails, such as a client
+ * that disconnected, is not an oversized body: the handler meets the same
+ * failure when it reads.
+ */
+async function bodyExceedsLimit(request: Request, limitBytes: number): Promise<boolean> {
+  let reader: ReadableStreamDefaultReader<Uint8Array> | undefined
+  try {
+    reader = request.clone().body?.getReader()
+    if (!reader) return false
+    let bytes = 0
+    while (true) {
+      const chunk = await reader.read()
+      if (chunk.done) return false
+      bytes += chunk.value.byteLength
+      if (bytes > limitBytes) {
+        // Cancelling one branch of a clone settles only once both have stopped,
+        // so neither is awaited: the refusal must not wait on an untrusted source.
+        void reader.cancel().catch(() => {})
+        void request.body?.cancel().catch(() => {})
+        return true
+      }
+    }
+  } catch {
+    return false
+  } finally {
+    reader?.releaseLock()
+  }
+}
+
 /** The pathname of a request, or '' when its URL cannot be read. */
 function pathnameOf(request: Request): string {
   try {
@@ -98,7 +138,7 @@ function pathnameOf(request: Request): string {
 }
 
 export type RequestGuardOptions = Readonly<{
-  /** Maximum accepted request body size in bytes (declared content-length). */
+  /** Maximum accepted request body size in bytes (declared, or counted when undeclared). */
   bodyLimitBytes: number
   /** Larger limits for named endpoints; every other path keeps `bodyLimitBytes`. */
   pathBodyLimits?: readonly PathBodyLimit[]
@@ -126,21 +166,23 @@ export function createRequestGuardPlugin(opts: RequestGuardOptions): NitroAppPlu
           opts.bodyLimitBytes,
           opts.pathBodyLimits,
         )
-        const rejection = bodyLimitRejection(
-          event.req.headers.get('content-length'),
-          limitBytes,
-        )
-        if (rejection) {
+        const contentLength = event.req.headers.get('content-length')
+        const refuse = (rejection: Response): never => {
           getLogger().warn(
-            {
-              contentLength: event.req.headers.get('content-length'),
-              limitBytes,
-            },
+            { contentLength, limitBytes },
             '[request-guard] body limit exceeded — 413',
           )
           throw rejection
         }
-        return previous?.(event)
+        const declaredRejection = bodyLimitRejection(contentLength, limitBytes)
+        if (declaredRejection) refuse(declaredRejection)
+        // A body with a declared length is left unread: its handler reads it
+        // after its own checks. Only an undeclared length needs counting.
+        if (contentLength !== null || !event.req.body) return previous?.(event)
+        return bodyExceedsLimit(event.req, limitBytes).then((exceeded) => {
+          if (exceeded) refuse(payloadTooLarge())
+          return previous?.(event)
+        })
       }
     }
 
