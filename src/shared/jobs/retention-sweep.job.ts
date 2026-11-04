@@ -16,8 +16,6 @@ import {
 } from '#/shared/db/retention/execute-retention-rule'
 import { closeRetentionRun, openRetentionRun } from '#/shared/db/retention/evidence'
 import { retentionRuleCutoff } from '#/shared/db/retention/retention-cutoff'
-import { assertRetentionRegistryApplyAllowed } from '#/shared/db/retention/retention-registry'
-import type { RetentionRegistryRule } from '#/shared/db/retention/retention-registry-model'
 import { getLogger } from '#/shared/observability/logger'
 import { trace } from '#/shared/observability/trace'
 
@@ -344,16 +342,6 @@ type RetentionSweepDeps = Readonly<{
   db: Database
   clock: () => Date
   rules?: ReadonlyArray<RetentionRule>
-  /**
-   * LIF-01-T16 — counsel-registry rules a caller wants executed destructively.
-   *
-   * Handing registry rules to the scheduled sweep is exactly how "report-only"
-   * quietly becomes "apply", so the refusal lives at this boundary rather than
-   * in a caller that is trusted to check approval first. Every rule is checked
-   * BEFORE any evidence row is opened and before any rule runs, so a refused
-   * sweep leaves no partial evidence behind.
-   */
-  registryApplyRules?: ReadonlyArray<RetentionRegistryRule>
   batchSize?: number
   guestContactRequestRetentionSweep?: (input: { batchSize: number }) => Promise<
     Readonly<{
@@ -572,11 +560,6 @@ export const createRetentionSweepHandler = (deps: RetentionSweepDeps) => {
     return trace('job.retentionSweep', async () => {
       const logger = getLogger()
       const failures: RetentionSweepFailure[] = []
-
-      // Refuse first, before any evidence row exists.
-      for (const registryRule of deps.registryApplyRules ?? []) {
-        assertRetentionRegistryApplyAllowed(registryRule)
-      }
 
       const guestSweep = deps.guestContactRequestRetentionSweep
       if (guestSweep) {

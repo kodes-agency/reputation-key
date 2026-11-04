@@ -33,7 +33,6 @@ import {
 } from './retention-sweep.job'
 import { getTableConfig } from 'drizzle-orm/pg-core'
 import type { RetentionRule } from '#/shared/db/retention/execute-retention-rule'
-import { RETENTION_REGISTRY } from '#/shared/db/retention/retention-registry'
 import { eventConsumerReceipts } from '#/shared/db/schema/outbox.schema'
 
 const NOW = new Date('2026-07-17T12:00:00Z')
@@ -716,24 +715,7 @@ describe('retention rule registry (BQC-3.7)', () => {
     expect(RETENTION_RULES.some((r) => r.table === 'retention_runs')).toBe(false)
   })
 
-  it('refuses a pending-counsel registry rule before opening any evidence row (LIF-01-T16)', async () => {
-    vi.clearAllMocks()
-    const handler = createRetentionSweepHandler({
-      db: {} as never,
-      clock: () => NOW,
-      rules: [RULE_A],
-      registryApplyRules: RETENTION_REGISTRY,
-    })
-
-    await expect(handler({} as never)).rejects.toThrow(/pending_counsel/)
-    // The refusal happens first: no evidence row exists and nothing executed,
-    // so a refused sweep cannot leave a half-finished run behind.
-    expect(openRetentionRun).not.toHaveBeenCalled()
-    expect(closeRetentionRun).not.toHaveBeenCalled()
-    expect(executeRetentionRule).not.toHaveBeenCalled()
-  })
-
-  it('runs the separately authorized sweep rules when no registry rule is handed in', async () => {
+  it('runs scheduled rules without per-run approval', async () => {
     vi.clearAllMocks()
     vi.mocked(executeRetentionRule).mockResolvedValue({
       batches: 1,
