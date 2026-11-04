@@ -811,37 +811,33 @@ jobs:
           if-no-files-found: error
           retention-days: 90
 
-  # BQC-7.7: secret scanning incl. full git history (gitleaks). Separate job:
-  # runs in parallel with check (no pnpm install needed) and its failure is a
-  # distinct required check. gitleaks-action is deliberately NOT used (org
-  # license requirement) — the official image is pinned by digest instead.
+  # BQC-7.7: secret scanning (gitleaks, default rules plus the allowlists in
+  # .gitleaks.toml). Separate job: runs in parallel with check (no pnpm install
+  # needed) and its failure is a distinct required check. It scans only the
+  # commits the event adds (scripts/ci/secret-scan-range.sh): a finding in old
+  # history cannot be rewritten away, so scanning all of it here would keep
+  # main red. secret-history.yml scans all refs weekly without gating.
+  # gitleaks-action is deliberately NOT used (org license requirement) — the
+  # official image is pinned by digest instead.
   secrets:
     runs-on: ubuntu-latest
     timeout-minutes: 10 # longest green run ~1 min
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          # Full history — gitleaks scans every commit, not just the PR diff.
           fetch-depth: 0
 
       - name: Gitleaks
-        # BQC-7.7: PRs scan the PR range (sub-second-to-minutes); pushes to
-        # main scan ALL refs — the full-history net (measured 8m25s for 1960
-        # commits / 7.7 GB locally, acceptable on the merge path; ~2 min per
-        # PR is not achievable with this history size, hence the split — see
-        # docs/operations/security-ci-policy.md).
-        # --config: committed .gitleaks.toml (performance allowlist for the
-        # committed binary caches — see its header; NOT finding suppression).
+        env:
+          PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          PUSH_BEFORE: ${{ github.event.before }}
         run: |
-          if [ "${{ github.event_name }}" = "pull_request" ]; then
-            OPTS="origin/${{ github.base_ref }}..HEAD"
-          else
-            OPTS="--all"
-          fi
+          OPTS="$(bash scripts/ci/secret-scan-range.sh)"
           echo "gitleaks log-opts: $OPTS"
-          docker run --rm -v "$PWD:/repo" \
+          docker run --rm -v "$PWD:/repo:ro" \
             zricethezav/gitleaks:v8.30.1@sha256:c00b6bd0aeb3071cbcb79009cb16a60dd9e0a7c60e2be9ab65d25e6bc8abbb7f \
-            git /repo --config /repo/.gitleaks.toml --redact --log-opts="$OPTS"
+            git /repo --config /repo/.gitleaks.toml --redact -v --log-opts="$OPTS"
 
   storybook-test:
     runs-on: ubuntu-latest
