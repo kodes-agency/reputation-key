@@ -52,8 +52,12 @@ is not the identity or history authority.
   These reads take the head's state and Google's time, never reply text, so
   only the review's eligibility gates them. The Inbox reads the reply text
   through `createEligibleGoogleReplyReads`, which also drops an observation
-  whose own content clock lapsed; the two can disagree once a reply has not
-  changed for the cache window.
+  whose own content clock lapsed. That clock counts from the last fetch that
+  returned the reply, as the review's does: a read that restates the head
+  moves the head row's `content_expires_at` and `updated_at`, forward only
+  and only while it holds a reply, and writes no row (`renewHeadContentClock`,
+  ADR 0055, note 2026-11-04). The two clocks part when Google shows a reply
+  without its text, since that read records nothing.
 - The exact-current reply-observation permit also carries `provider_updated_at`
   (as `providerReplyUpdatedAt`, null when Google gave none) so Inbox can stop a
   Response Target at Google's reply time. Unlike Reporting above, a missing time

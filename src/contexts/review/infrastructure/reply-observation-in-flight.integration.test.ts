@@ -46,6 +46,7 @@ const REFLOWED: EditedReply = {
   edited: 'Thank you, Anna!\n\nWe hope to see you again.',
 }
 const MINUTE_MS = 60_000
+const DAY_MS = 24 * 60 * MINUTE_MS
 /** Review CONTEXT, Invariant 9: the propagation grace is fifteen minutes. */
 const PAST_THE_GRACE_MINUTES = 16
 /** Past the last rung of the 72-hour read ladder of an uncertain attempt. */
@@ -114,6 +115,21 @@ async function googleReplyOnRecord() {
     [WORKFLOW_REVIEW],
   )
   return head.rows[0]
+}
+
+/** The content clock and last fetch of the observation the head points at. */
+async function headClock() {
+  const head = await pool.query<{ content_expires_at: Date; updated_at: Date }>(
+    `SELECT observation.content_expires_at, observation.updated_at
+       FROM google_reply_observation_heads AS head
+       JOIN google_reply_observations AS observation
+         ON observation.id = head.observation_id
+      WHERE head.review_id = $1`,
+    [WORKFLOW_REVIEW],
+  )
+  const row = head.rows[0]
+  if (!row) throw new Error('The review has no Google reply head')
+  return row
 }
 
 /** The first review sync, before any reply: Google showed none (the harness
@@ -285,6 +301,26 @@ describe.sequential('a read of Google while an edit is in flight (PostgreSQL)', 
       await harness.runSweep()
 
       await expectEditPublished()
+    })
+
+    // The earlier reply is still what Google shows, so each read that finds it
+    // there is a fetch of it, and its 30-day content clock follows. An edit
+    // Google never confirms can stay in flight for longer than the clock runs.
+    it('keeps the earlier reply’s content clock alive while the edit waits', async () => {
+      await editPublishedReply()
+      harness.holdGoogleReads()
+      await harness.runPublishJob(EDIT_JOB, 'accepted')
+      const before = await headClock()
+
+      harness.advance(6 * DAY_MS)
+      await harness.observeGoogle()
+
+      await expectEditStillInFlight('pending_observation')
+      const after = await headClock()
+      expect(after.content_expires_at.getTime()).toBeGreaterThan(
+        before.content_expires_at.getTime(),
+      )
+      expect(after.updated_at).toEqual(harness.clock())
     })
 
     // Collapsed, the earlier reply equals this edit, as a reformatted echo of
