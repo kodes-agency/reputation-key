@@ -209,7 +209,8 @@ describe('createGooglePerformanceAuthorizer', () => {
     const failure = warnings.find((w) => w.stage === 'resolve_actor')
     expect(failure).toBeDefined()
     expect(failure?.surface).toBe('google-performance')
-    expect(failure?.err).toMatchObject({ message: 'actor lookup exploded' })
+    expect(failure?.err).toEqual({ name: 'Error' })
+    expect(JSON.stringify(failure)).not.toContain('actor lookup exploded')
   })
 
   it('returns a full current snapshot and token for an authorized active binding', async () => {
