@@ -83,7 +83,7 @@ function executorReturning(
 function providerResponse(
   status: number,
   retryAfter: string | null,
-): GoogleProviderExecutionResult {
+): Extract<GoogleProviderExecutionResult, { ok: true }> {
   return {
     ok: true,
     status,
@@ -246,6 +246,45 @@ describe('executeGoogleProviderRaw admission classification', () => {
 // The reply publication workflow decides whether a failed write is safe to
 // repeat from this evidence alone (CONTRACT-REPLY D2), so each path pins what
 // the executor actually proved about the request reaching Google.
+describe('provider machine status', () => {
+  it.each(['PERMISSION_DENIED', 'NOT_FOUND'])(
+    'keeps only the allowlisted %s status',
+    async (status) => {
+      const body = new TextEncoder().encode(
+        JSON.stringify({
+          error: {
+            status,
+            message: 'private customer content',
+            details: [{ resourceName: 'private resource' }],
+          },
+        }),
+      )
+      const response = { ...providerResponse(404, null), body }
+      const error = await providerError(response)
+
+      expect(error).toMatchObject({ providerStatus: 404, providerErrorStatus: status })
+      expect(JSON.stringify(error)).not.toContain('private')
+      expect(body.every((byte) => byte === 0)).toBe(true)
+    },
+  )
+
+  it.each([
+    '{"error":{"status":"CUSTOMER_PRIVATE_VALUE","message":"private content"}}',
+    '{"error":{"status":{"name":"private content"}}}',
+    '{"error":{"status":["NOT_FOUND"]}}',
+    'private non-JSON response',
+    'null',
+  ])('discards unexpected provider error bodies: %s', async (raw) => {
+    const body = new TextEncoder().encode(raw)
+    const error = await providerError({ ...providerResponse(400, null), body })
+
+    expect(error).toMatchObject({ providerStatus: 400, providerErrorStatus: null })
+    expect(JSON.stringify(error)).not.toContain('private')
+    expect(JSON.stringify(error)).not.toContain('CUSTOMER_PRIVATE_VALUE')
+    expect(body.every((byte) => byte === 0)).toBe(true)
+  })
+})
+
 describe('executeGoogleProviderRaw dispatch evidence', () => {
   it('keeps the domain dispatch union identical to the gateway union', () => {
     // The domain may not import shared/google-provider-control, so it declares
