@@ -167,6 +167,35 @@ describe('compareHead: what a head page would persist', () => {
       expect(result.replyChangedCount).toBe(0)
     })
 
+    it.each([
+      ['2026-10-20T12:00:00.000Z', '2026-10-20T12:00:00.789Z'],
+      ['2026-10-20T12:00:00.999Z', '2026-10-20T12:00:00.001Z'],
+    ])('ignores reply fractions on both sides (%s, %s)', (storedTime, listTime) => {
+      const result = compare({
+        reviews: [google({ replyText: 'Thanks', replyUpdatedAt: new Date(listTime) })],
+        copies: [
+          stored({ reply: { state: 'live', providerUpdatedAt: new Date(storedTime) } }),
+        ],
+      })
+
+      expect(result).toMatchObject({ replyChangedCount: 0, wouldPersist: 0 })
+    })
+
+    it.each([1000, 2000])('signals a real reply change %s ms apart', (difference) => {
+      const storedTime = new Date('2026-10-20T12:00:00.789Z')
+      const result = compare({
+        reviews: [
+          google({
+            replyText: 'Thanks',
+            replyUpdatedAt: new Date(storedTime.getTime() + difference),
+          }),
+        ],
+        copies: [stored({ reply: { state: 'live', providerUpdatedAt: storedTime } })],
+      })
+
+      expect(result).toMatchObject({ replyChangedCount: 1, wouldPersist: 1 })
+    })
+
     it('does not count no reply on both sides', () => {
       const result = compare({
         reviews: [google()],

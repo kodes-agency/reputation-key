@@ -169,6 +169,8 @@ Every alert is defined in `src/shared/observability/alert-definitions.ts` (owner
 | `notification.email-retry-exhausted`           | P2  | any email whose transient retry budget ran out in the trailing 24h (the delivery path gave up)                                    | §15     |
 | `notification.email-provider-feedback-missing` | P2  | more than two accepted emails (7-day lookback) with no provider outcome 6h after acceptance — silent webhook or capture transport | §15     |
 
+**Dead worker:** the worker evaluates every alert above, so a dead worker is detected outside it, by Sentry cron monitor `worker-heartbeat` (each health check checks in; two missed check-ins open an issue).
+
 **Off for the closed beta: `beta-feedback.triage-backlog` (P2, §16).** It paged when
 the oldest delivered unresolved local feedback receipt was older than 72h, or
 when its aggregate observation was unavailable; Sentry titled its issue
