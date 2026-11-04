@@ -82,4 +82,15 @@ export const PRODUCT_UPDATES: readonly ProductUpdate[] = [
     icon: 'MessagesSquare',
     showMe: { to: '/inbox' },
   },
+  {
+    id: '2026-11-04-staff-accounts',
+    publishedOn: '2026-11-04',
+    kind: 'highlight',
+    audience: 'everyone',
+    requires: { capability: 'staff.accounts' },
+    title: 'Give each staff member their own QR code',
+    body: 'Add someone under Staff and they get a sign-in and their own code to show guests. They see their own scans and ratings, and so do you.',
+    icon: 'QrCode',
+    showMe: { to: '/properties/$propertyId/people', needsProperty: true },
+  },
 ]

@@ -13,6 +13,7 @@ export const PRODUCT_UPDATE_ROUTES = [
   '/properties/$propertyId/guests',
   '/properties/$propertyId/settings/replies',
   '/properties/$propertyId/portals',
+  '/properties/$propertyId/people',
   '/inbox',
 ] as const
 
