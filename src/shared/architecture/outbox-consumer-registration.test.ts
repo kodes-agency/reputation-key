@@ -414,6 +414,27 @@ describe('ARC-03-T7: container-scoped consumer registry', () => {
     }).toEqual({ catalogued_but_unregistered: [], registered_but_uncatalogued: [] })
   })
 
+  it('leaves link-check facts unprojected while keeping Guest metric consumers', async () => {
+    const container = build()
+    try {
+      container.registerOutboxConsumers()
+      for (const eventType of [
+        'portal.content_review.completed',
+        'portal.configuration_completeness.recorded',
+        'portal.approved_destination_ratio.recorded',
+      ]) {
+        expect(container.consumerRegistry.listFor(eventType), eventType).toEqual([])
+      }
+      expect(container.consumerRegistry.listFor('guest.rating.submitted')).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({ consumerName: 'metric.guest-analytics' }),
+        ]),
+      )
+    } finally {
+      await container.shutdown.run()
+    }
+  })
+
   it('registers deterministic consumer keys across worker rebuilds', async () => {
     const snapshots: string[][] = []
     for (let buildNumber = 0; buildNumber < 2; buildNumber += 1) {

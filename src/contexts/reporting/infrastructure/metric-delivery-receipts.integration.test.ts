@@ -1,12 +1,5 @@
-// A delivered fact that yields no reading still settles its delivery, against
-// PostgreSQL.
-//
-// The dispatcher records no receipt for a handler that ran; a fact missing a
-// catalogued consumer's receipt is redelivered three times and then counted as
-// an exhausted delivery. A fact the registry cannot turn into a reading (a
-// ratio under its minimum sample, a reading refused for its own content) used
-// to return before the command store, so it never got the receipt and every
-// content review of a small Portal left one stranded delivery behind.
+// A delivered fact that yields no reading still settles its delivery in the
+// same PostgreSQL command. Replay must not duplicate the receipt or reading.
 
 import { randomUUID } from 'node:crypto'
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
@@ -15,7 +8,6 @@ import { getDb } from '#/shared/db'
 import { deleteTestOrganizations } from '#/shared/testing/integration-helpers'
 import { clearEventSchemas } from '#/shared/events/schema-registry'
 import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
-import { createConsumerRegistry } from '#/shared/outbox/consumer-registry'
 import {
   metricReadingId,
   organizationId,
@@ -24,40 +16,51 @@ import {
   scanEventId,
 } from '#/shared/domain/ids'
 import { recordMetric, recordMetrics } from '../application/use-cases/record-metric'
+import type { GovernedMetricVersion } from '../domain/metric-registry'
 import { createAtomicMetricCommandStore } from './metric-command-store'
-import { registerPortalWorkflowMetricConsumers } from './outbox-consumers'
 import { onScanRecordedDurably } from './record-portal-metric'
 import { createMetricRegistryRepository } from './repositories/metric-registry.repository'
-import { createMetricRepository } from './repositories/metric.repository'
 import { createPropertyLocalDateResolver } from './repositories/property-local-date'
 
 const db = getDb()
 const ORG = organizationId('org-metric-delivery-receipts')
 const PROPERTY = propertyId('74000000-0000-4000-8000-000000000001')
 const PORTAL = portalId('74000000-0000-4000-8000-000000000002')
-const SMALL_PORTAL_EVENT = '74000000-0000-4000-8000-000000000011'
-const FULL_PORTAL_EVENT = '74000000-0000-4000-8000-000000000012'
+const SMALL_SAMPLE_EVENT = '74000000-0000-4000-8000-000000000011'
+const FULL_SAMPLE_EVENT = '74000000-0000-4000-8000-000000000012'
 const UNATTRIBUTED_EVENT = '74000000-0000-4000-8000-000000000013'
 const EARLY_SCAN_EVENT = '74000000-0000-4000-8000-000000000014'
 const NOW = new Date('2026-10-02T12:00:00.000Z')
-const WORKFLOW_CONSUMER = 'metric.portal-workflow'
 const GUEST_CONSUMER = 'metric.guest-analytics'
+const RATIO_CONSUMER = 'metric.portal-workflow'
 
-type RatioFact = Readonly<{ eventId: string; configuredDestinations: number }>
-
-function workflowDeps(attributed: boolean) {
-  return {
-    recordMetric: recordMetric({
-      commandStore: createAtomicMetricCommandStore(db, randomUUID),
-      registry: createMetricRegistryRepository(),
-      clock: () => NOW,
-      idGen: () => metricReadingId(randomUUID()),
-      resolvePropertyLocalDate: createPropertyLocalDateResolver(db),
-    }),
-    resolveAttribution: async () =>
-      attributed ? { propertyId: PROPERTY, portalGroupId: null } : null,
-    hasReading: createMetricRepository(db).hasReading,
-  }
+// Exercise the shared ratio/receipt decision without re-admitting retired
+// versions to the production catalogue.
+const RATIO: GovernedMetricVersion = {
+  definition: {
+    id: '11111111-1111-4111-8111-111111110103',
+    key: 'portal.approved_destination_ratio',
+    valueKind: 'ratio',
+    workerDataFlag: false,
+    privacyClass: 'operational',
+    retentionClass: 'standard',
+    lifecycleStatus: 'approved',
+  },
+  version: {
+    id: '11111111-1111-4111-8111-111111111103',
+    definitionId: '11111111-1111-4111-8111-111111110103',
+    version: 1,
+    effectiveFrom: new Date('2026-08-08T00:00:00.000Z'),
+    effectiveTo: null,
+    unit: 'ratio',
+    precision: 4,
+    allowedScopes: ['property'],
+    minimumSample: 5,
+    insufficientDataBehavior: 'unavailable',
+    sourcePolicyAllowlist: ['first_party_workflow'],
+    permittedConsumers: ['dashboard'],
+    employmentDecisionEligible: false,
+  },
 }
 
 async function insertOutbox(
@@ -77,62 +80,46 @@ async function insertOutbox(
   `)
 }
 
-function workflowPayload(extra: Readonly<Record<string, unknown>>) {
-  return {
-    reviewId: 'review-cycle-1',
-    revision: 1,
+function recordRatio(eventId: string, sampleCount: number, attributed = true) {
+  return recordMetric({
+    commandStore: createAtomicMetricCommandStore(db, randomUUID),
+    registry: { findVersionById: async () => RATIO },
+    clock: () => NOW,
+    idGen: () => metricReadingId(randomUUID()),
+    resolvePropertyLocalDate: createPropertyLocalDateResolver(db),
+  })({
     organizationId: ORG,
     propertyId: PROPERTY,
     portalId: PORTAL,
     portalGroupId: null,
-    supersedesSourceEventId: null,
-    occurredAt: NOW.toISOString(),
-    ...extra,
-  }
-}
-
-/** The ratio fact as the dispatcher hands it to the Portal workflow consumer. */
-async function deliverRatio(fact: RatioFact, attributed = true): Promise<unknown> {
-  const payload = workflowPayload({
-    approvedDestinations: 1,
-    configuredDestinations: fact.configuredDestinations,
+    definitionVersionId: RATIO.version.id,
+    sourceEventId: eventId,
+    sourcePolicy: 'first_party_workflow',
+    scope: 'property',
+    occurredAt: NOW,
+    attributionQuality: attributed ? 'exact' : 'unresolved',
+    value: Number((1 / sampleCount).toFixed(4)),
+    numerator: 1,
+    denominator: sampleCount,
+    sampleCount,
+    sourceReceipt: { eventId, consumerName: RATIO_CONSUMER },
   })
-  await insertOutbox(
-    fact.eventId,
-    'portal.approved_destination_ratio.recorded',
-    'portal',
-    payload,
-  )
-  return handleWorkflow(
-    'portal.approved_destination_ratio.recorded',
-    fact.eventId,
-    payload,
-    attributed,
-  )
 }
 
-async function handleWorkflow(
-  eventType: string,
-  eventId: string,
-  payload: Readonly<Record<string, unknown>>,
-  attributed: boolean,
-): Promise<unknown> {
-  const registry = createConsumerRegistry()
-  registerPortalWorkflowMetricConsumers(registry, workflowDeps(attributed))
-  const [consumer] = registry.listFor(eventType)
-  if (!consumer) throw new Error(`${eventType} consumer was not registered`)
-  return consumer.handler({
-    eventId,
-    eventType,
-    eventVersion: 1,
-    payload,
+async function deliverRatio(eventId: string, sampleCount: number, attributed = true) {
+  await insertOutbox(eventId, 'portal.approved_destination_ratio.recorded', 'portal', {
     organizationId: ORG,
     propertyId: PROPERTY,
-    sourceContext: 'portal',
-    sourceAggregateId: 'review-cycle-1',
+    portalId: PORTAL,
     occurredAt: NOW.toISOString(),
-    recordedAt: NOW.toISOString(),
+    reviewId: 'review-cycle-1',
+    revision: 1,
+    portalGroupId: null,
+    supersedesSourceEventId: null,
+    approvedDestinations: 1,
+    configuredDestinations: sampleCount,
   })
+  return recordRatio(eventId, sampleCount, attributed)
 }
 
 async function receiptsOf(
@@ -201,62 +188,51 @@ afterAll(async () => {
 })
 
 describe.sequential('Metric delivery receipts (integration)', () => {
-  it('settles the destination ratio of a Portal with too few links, with no reading', async () => {
-    await expect(
-      deliverRatio({ eventId: SMALL_PORTAL_EVENT, configuredDestinations: 2 }),
-    ).resolves.toEqual({ status: 'applied' })
+  it('settles a ratio below the sample floor, with no reading', async () => {
+    await expect(deliverRatio(SMALL_SAMPLE_EVENT, 2)).resolves.toMatchObject({
+      status: 'insufficient_data',
+      minimumSample: 5,
+      actualSample: 2,
+    })
 
-    await expect(receiptsOf(SMALL_PORTAL_EVENT)).resolves.toEqual([
-      { consumer_name: WORKFLOW_CONSUMER, status: 'obsolete' },
+    await expect(receiptsOf(SMALL_SAMPLE_EVENT)).resolves.toEqual([
+      { consumer_name: RATIO_CONSUMER, status: 'obsolete' },
     ])
-    await expect(readingCount(SMALL_PORTAL_EVENT)).resolves.toBe(0)
+    await expect(readingCount(SMALL_SAMPLE_EVENT)).resolves.toBe(0)
   })
 
   it('settles it once when the same fact is delivered again', async () => {
-    const fact = { eventId: SMALL_PORTAL_EVENT, configuredDestinations: 2 }
-    await deliverRatio(fact)
+    await deliverRatio(SMALL_SAMPLE_EVENT, 2)
 
-    await expect(
-      handleWorkflow(
-        'portal.approved_destination_ratio.recorded',
-        fact.eventId,
-        workflowPayload({ approvedDestinations: 1, configuredDestinations: 2 }),
-        true,
-      ),
-    ).resolves.toEqual({ status: 'applied' })
+    await expect(recordRatio(SMALL_SAMPLE_EVENT, 2)).resolves.toMatchObject({
+      status: 'insufficient_data',
+    })
 
-    await expect(receiptsOf(SMALL_PORTAL_EVENT)).resolves.toEqual([
-      { consumer_name: WORKFLOW_CONSUMER, status: 'obsolete' },
+    await expect(receiptsOf(SMALL_SAMPLE_EVENT)).resolves.toEqual([
+      { consumer_name: RATIO_CONSUMER, status: 'obsolete' },
     ])
+    await expect(readingCount(SMALL_SAMPLE_EVENT)).resolves.toBe(0)
   })
 
-  it('still records the ratio of a Portal with enough links, with an applied receipt', async () => {
-    await deliverRatio({ eventId: FULL_PORTAL_EVENT, configuredDestinations: 5 })
+  it('records a ratio at the sample floor, with an applied receipt', async () => {
+    await expect(deliverRatio(FULL_SAMPLE_EVENT, 5)).resolves.toMatchObject({
+      status: 'recorded',
+    })
 
-    await expect(receiptsOf(FULL_PORTAL_EVENT)).resolves.toEqual([
-      { consumer_name: WORKFLOW_CONSUMER, status: 'applied' },
+    await expect(receiptsOf(FULL_SAMPLE_EVENT)).resolves.toEqual([
+      { consumer_name: RATIO_CONSUMER, status: 'applied' },
     ])
-    await expect(readingCount(FULL_PORTAL_EVENT)).resolves.toBe(1)
+    await expect(readingCount(FULL_SAMPLE_EVENT)).resolves.toBe(1)
   })
 
   it('settles a fact whose attribution cannot be resolved, with no reading', async () => {
-    const payload = workflowPayload({})
-    await insertOutbox(
-      UNATTRIBUTED_EVENT,
-      'portal.content_review.completed',
-      'portal',
-      payload,
-    )
-
-    await handleWorkflow(
-      'portal.content_review.completed',
-      UNATTRIBUTED_EVENT,
-      payload,
-      false,
-    )
+    await expect(deliverRatio(UNATTRIBUTED_EVENT, 5, false)).resolves.toMatchObject({
+      status: 'rejected',
+      reason: 'unresolved_attribution',
+    })
 
     await expect(receiptsOf(UNATTRIBUTED_EVENT)).resolves.toEqual([
-      { consumer_name: WORKFLOW_CONSUMER, status: 'obsolete' },
+      { consumer_name: RATIO_CONSUMER, status: 'obsolete' },
     ])
     await expect(readingCount(UNATTRIBUTED_EVENT)).resolves.toBe(0)
   })
