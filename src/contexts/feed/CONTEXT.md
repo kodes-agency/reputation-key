@@ -657,3 +657,13 @@ contracts. PostgreSQL-backed repository, recovery, delivery, export, and
 lifecycle tests stay beside their infrastructure subjects. The build test pins
 that one Feed build exposes both former APIs without widening either lifecycle
 surface.
+
+Notification route examples live in
+`infrastructure/beta-notification-route-contract.test.ts` and
+`infrastructure/notification-acceptance.test.ts`. Their shared producer fixtures
+and dispatcher harness in `src/shared/testing/` also drive
+`notification-acceptance.integration.test.ts`, which reads the persisted outbox
+envelope and checks delivery receipts,
+redelivery, and same-user isolation across Organizations in PostgreSQL. Unit
+controls catch an omitted consumer and incorrect application read/mutation scope;
+database isolation still requires the integration project.
