@@ -12,7 +12,7 @@ import {
   UNKNOWN_SERVER_FUNCTION_BODY,
 } from './release-skew'
 // Static on purpose: vi.mock and vi.hoisted are hoisted above it, so the module
-// loads with the mocks in place, and the changed-code gate reads the import.
+// loads with the mocks in place.
 import {
   releaseSkewClientMiddleware,
   releaseSkewServerMiddleware,

@@ -16,7 +16,9 @@
 //      no false expiry fact or retention evidence is written;
 //   2. dry-run (no --apply) — reports eligibility and purges nothing;
 //   3. RESTORE_MODE not isolated in the command env — the action REFUSES
-//      before any work (exit 1, nothing purged).
+//      before any work (exit 1, nothing purged);
+//   4. a Redis, queue or bucket setting in the command env — the action
+//      REFUSES before any work, and a dry run says erasure replay is not wired.
 //
 // The policy boot below is the exact wiring scripts/ops/operator-command.ts
 // runs — replicated rather than imported because the shim lives outside
@@ -50,6 +52,7 @@ import {
 } from '#/shared/ops/operator-command'
 import {
   RESTORE_VERIFY_PURGE_SUBJECT,
+  RESTORE_VERIFY_REPLAY_NOTICE,
   RESTORE_VERIFY_SPEC,
   runRestoreVerifyAction,
   type RestoreVerifyDeps,
@@ -317,6 +320,7 @@ describe('ops:restore-verify (BQC-7.8, integration)', () => {
     )
     expect((dryRun.rows[0] as { c: number }).c).toBe(1)
     expect(io.outLines.join('\n')).toMatch(/expired-content row\(s\) eligible/)
+    expect(io.outLines.join('\n')).toContain(RESTORE_VERIFY_REPLAY_NOTICE)
   })
 
   it('refuses before any work when RESTORE_MODE is not isolated', async () => {
@@ -341,5 +345,45 @@ describe('ops:restore-verify (BQC-7.8, integration)', () => {
       sql`SELECT count(*)::int AS c FROM reviews WHERE id = ${REVIEW_DRYRUN}`,
     )
     expect((dryRun.rows[0] as { c: number }).c).toBe(1)
+  })
+
+  // Planted faults: the command is started from an environment that names a
+  // live Redis, queue or bucket. It refuses through the real harness before it
+  // reads or writes the database, so the expired reviews seeded above survive.
+  it.each([
+    ['production Redis', { REDIS_URL: 'redis://redis.railway.internal:6379' }],
+    [
+      'production queue namespace',
+      { QUEUE_REDIS_URL: 'redis://queue.railway.internal:6379' },
+    ],
+    [
+      'production bucket endpoint',
+      { S3_INTERNAL_ENDPOINT: 'https://objects.example.com' },
+    ],
+  ])('refuses a %s before any work', async (_label, planted) => {
+    const before = await reviewCount()
+    const io = memoryIO()
+    const result = await runOperatorCommand(
+      RESTORE_VERIFY_SPEC,
+      (ctx, _args, actionIo) =>
+        runRestoreVerifyAction(ctx, realDeps({ ...ISOLATED_ENV, ...planted }), actionIo),
+      runtime,
+      [
+        '--operator',
+        OPERATOR,
+        '--reason',
+        'restore drill',
+        '--apply',
+        '--yes',
+        'ops:restore-verify',
+      ],
+      io,
+    )
+
+    expect(result.exitCode).toBe(1)
+    expect(io.errLines.join('\n')).toMatch(/restore commands verify the database alone/)
+    // The harness announces its policy decision; the command printed nothing.
+    expect(io.outLines.filter((line) => !line.includes('decision='))).toEqual([])
+    expect(await reviewCount()).toBe(before)
   })
 })

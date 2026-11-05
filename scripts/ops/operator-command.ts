@@ -24,6 +24,7 @@
 import { getDb } from '../../src/shared/db'
 import { closePool } from '../../src/shared/db/pool'
 import { getEnv } from '../../src/shared/config/env'
+import { assertRestoreCommandEnvironment } from '../../src/shared/config/restore-mode'
 import { getLogger } from '../../src/shared/observability/logger'
 import { buildCapabilityPolicyHandle } from '../../src/contexts/identity/infrastructure/policy-store-init'
 import {
@@ -108,6 +109,10 @@ export async function runOperatorCommand(
   argv: ReadonlyArray<string> = process.argv.slice(2),
   io?: OperatorIO,
 ): Promise<OperatorCommandResult> {
+  // Before anything opens: the runtime below connects the database and builds
+  // queue handles, and a BullMQ queue writes its metadata to the Redis it is
+  // pointed at as soon as it connects.
+  if (spec.isolatedRestore) assertRestoreCommandEnvironment(getEnv())
   const boot = await bootOperatorRuntime()
   try {
     if (argv.includes('--help')) {

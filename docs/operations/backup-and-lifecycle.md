@@ -82,25 +82,21 @@ not run in.
   name: read it from the service's `PGHOST`. A restored copy holds the archive
   bucket's credential, so a copy made to rehearse a restore is deleted when the
   rehearsal is over.
-- **What the restore procedure below cannot do for it.** The rehearsal did not
-  use the app's own verifier, `restore-verify`, which still binds to `cell-us`.
-  The procedure and the check it rests on (`isIsolatedRestoreTarget`,
-  `src/shared/config/restore-mode.ts`) are bound to `cell-us`: a restore
-  target inside Railway is admitted only when the injected environment name
-  is `cell-us`. So an in-platform verifier is refused in `closed-beta-v2`: the
-  web process of step 8 does not boot there with `RESTORE_MODE=isolated`, and
-  neither restore command runs there against the sibling's private hostname
-  (step 3). The tunnel path of step 3 is bound to the sibling's name and to no
-  environment, so this check does not stop `ops:restore-preflight` or
-  `ops:restore-verify` run from a reviewed checkout against a `closed-beta-v2`
-  sibling; the procedure still stops at step 8, short of the "full restore to
-  operational state" that verifies the RTO (`docs/BETA.md` §7). As written it
-  cannot be completed for the beta database. Whether restore drills bind to
-  `closed-beta-v2` is the owner's decision: it changes that check, which is
-  behaviour, and it is not made here. `cell-us` also stands for the deployment
-  in §7 of this page and in `runbooks.md`; that naming is part of the same
-  decision. `src/shared/db/beta-database-documents.test.ts` fails if the check
-  starts admitting `closed-beta-v2` while this bullet still says it does not.
+- **What the restore commands admit.** The rehearsal did not use the app's own
+  verifier, `restore-verify`. The restore target check (`isIsolatedRestoreTarget`,
+  `src/shared/config/restore-mode.ts`) admits `closed-beta-v2` and refuses
+  `cell-us`: a restore target inside Railway is admitted only when the injected
+  environment name is `closed-beta-v2`, the operator names a sibling in Railway's
+  PITR shape (`<source>-restored-YYYYMMDD-HHMM`) and the URL is that service's
+  exact private hostname. A sibling whose private host differs from its service
+  name is refused on that path; the tunnel of step 3 is bound to the sibling's
+  name and to no environment. Both restore commands also refuse to start unless
+  `RESTORE_MODE=isolated` is set and the process carries no Redis, queue or
+  bucket setting (step 4), and they run with no Redis or queue connection. The
+  signed Review approval of step 7 and the durable recovery checkpoints are
+  unchanged. `restore-verify` does not run erasure replay (§8) and says so on
+  every run. A full restore to operational state remains unmeasured
+  (`docs/BETA.md` §7).
 - **Where to check it.** In Railway under `reputation-key` → `closed-beta-v2` →
   `Postgres` → **Backups**.
 - **Held to the contract.** `docs/BETA.md` §6 and §7 carry the same finding, and
@@ -154,12 +150,18 @@ cutover mechanism. This procedure uses the PITR sibling described by
 "$RESTORE_DATABASE_SERVICE_NAME" --tunnel-only`; use the loopback URL it
    prints as `DATABASE_URL`. An in-platform invocation is accepted only when
    the URL is the exact `<service>.railway.internal` hostname and Railway's
-   injected project/environment identity names the authoritative `cell-us`
+   injected project/environment identity names the authoritative `closed-beta-v2`
    environment. Public TCP proxies and the live `Postgres.railway.internal`
    service fail closed.
 4. Export `RESTORE_MODE=isolated`, `RESTORE_POINT_AT`,
    `RESTORE_DATABASE_SERVICE_NAME`, `RELEASE_SHA`, and `RELEASE_MANIFEST_SHA256`
-   in the verifier process only. Never make restore variables shared variables. Run
+   in the verifier process only. Never make restore variables shared variables.
+   Carry no Redis, queue or bucket setting into that process (`REDIS_URL`,
+   `QUEUE_REDIS_URL`, `PROVIDER_EPHEMERAL_REDIS_URL`, `AWS_S3_ACCESS_KEY`,
+   `AWS_S3_SECRET_ACCESS_KEY`, `AWS_S3_BUCKET_NAME`, `S3_INTERNAL_ENDPOINT`,
+   `S3_PRESIGN_ENDPOINT`): a command started from the live environment, as
+   `railway run` does, has them, and both restore commands refuse to start with
+   any of them, a loopback value included. Run
    `pnpm ops restore-preflight --operator <id>`; it proves target admission and
    migration-journal readability before any mutation.
 5. Apply the current release's deploy migration trio to the sibling
@@ -505,9 +507,8 @@ treat the static-rule total as the whole sweep.
   (`.github/workflows/ci.yml`).
 - **Release evidence**: evidence packs live under `docs/release-evidence/` and are
   git-retained (permanent, reviewable history). The only committed pack is
-  `docs/release-evidence/cnv-01/`; there is no `beta/` folder. `pnpm perf:evidence`
-  creates `docs/release-evidence/beta/<release-id>/` when a scale and recovery pack
-  is made, and that pack is committed like the others.
+  `docs/release-evidence/cnv-01/`; there is no `beta/` folder, and nothing
+  generates scale and recovery packs any more.
 - **Operational Redis keys**: alert firing-state 24h TTL (re-notify window),
   one global content-free Guest observation-loss hash whose stale five-minute
   bucket fields are pruned on every access and whose key has a refreshed
@@ -599,16 +600,20 @@ the product said was destroyed.
 2. Run the recovery fence (`src/shared/db/recovery/postgres-recovery-fence.ts`).
 3. Run the resurrection fence with the SAME `restorePointAt`. Record the
    returned `BackupErasureReplayCounts` alongside the `RecoveryFenceCounts` —
-   `mergeRecoveryFenceCounts` produces the combined document.
+   `mergeRecoveryFenceCounts` produces the combined document. No command runs
+   the fence today (see below).
 4. If `verified` is false, DO NOT open the cell. Register the missing replayer,
    or obtain a counsel-authorised hold release, and re-run. The fence is
    convergent, so re-running is safe.
 
-**Wiring not yet composed.** `postgres-recovery-fence.ts` does not yet call the
-resurrection fence, and only the Guest organization-scoped replayer exists
-(`createGuestBackupErasureReplayer`). Until every erasing context registers a
-replayer, a restore whose point precedes a purge of another context will
-correctly report `verified: false`.
+**Wiring not yet composed.** Nothing calls the resurrection fence:
+`postgres-recovery-fence.ts` does not, and neither does `ops:restore-verify`,
+which prints `NOT WIRED: erasure replay` on every run instead of reporting a
+replay. Only the Guest organization-scoped replayer exists
+(`createGuestBackupErasureReplayer`), and it has no caller either. Until the
+command runs the fence and every erasing context registers a replayer, a
+restore does not re-apply the erasures made after its point, and nothing checks
+for them; re-apply those by hand before opening the cell.
 
 ---
 

@@ -23,7 +23,7 @@
 
 /** Exact known placeholder/test values (test env builder, CI, .env.example). */
 const KNOWN_PLACEHOLDERS: ReadonlySet<string> = new Set([
-  // CI workflow env blocks (.github/workflows/ci.yml, simulation.yml)
+  // CI workflow env blocks (.github/workflows/ci.yml)
   'test-secret-at-least-32-characters-long-for-ci',
   'aabbccddaabbccddaabbccddaabbccddaabbccddaabbccddaabbccddaabbccdd',
   'aabbccddaabbccddaabbccddaabbccdd',

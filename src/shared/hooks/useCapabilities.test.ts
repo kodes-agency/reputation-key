@@ -21,10 +21,8 @@ vi.mock('@tanstack/react-router', () => ({
   useRouteContext: () => routeContext.value,
 }))
 
-// Static, not `await import(...)`: `vi.mock` is hoisted above imports by the
-// transform, so the mock is in place either way — but the changed-code gate
-// only counts a STATIC runtime import as contract evidence, and a dynamic one
-// leaves this module reading as untested.
+// `vi.mock` is hoisted above imports by the transform, so the mock is in place
+// for this static import.
 import { useCapabilities } from './useCapabilities'
 
 const cap = (name: string) => name as Capability

@@ -78,7 +78,7 @@ describe('noUncheckedIndexedAccess ratchet', () => {
     const input = loadRepositoryProgram(ROOT)
 
     expect(input.rootNames).toContain(resolve(ROOT, 'src/start.ts'))
-    expect(input.rootNames).toContain(resolve(ROOT, 'scripts/seed.ts'))
+    expect(input.rootNames).toContain(resolve(ROOT, 'scripts/seed-e2e-user.ts'))
     expect(input.options.strict).toBe(true)
     // The gate adds the flag itself. Once tsconfig.json sets it, delete the gate.
     expect(input.options.noUncheckedIndexedAccess).toBeUndefined()

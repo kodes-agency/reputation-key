@@ -77,6 +77,12 @@ export type OperatorCommandSpec = Readonly<{
   batchSize?: Readonly<{ default: number; max: number }>
   /** Extra boolean flags the command accepts (e.g. 'all-ambiguous'). */
   extraFlags?: ReadonlyArray<string>
+  /**
+   * Runs only inside an isolated restore. The binding in scripts/ops refuses,
+   * before it opens the database or a queue, unless RESTORE_MODE=isolated names
+   * an admitted target and no Redis, queue or bucket setting is carried.
+   */
+  isolatedRestore?: boolean
   /** One-line usage printed on argument errors. */
   usage: string
 }>

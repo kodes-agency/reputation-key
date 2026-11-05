@@ -14,7 +14,7 @@ if (!databaseUrl) throw new Error('DATABASE_URL is required for Drizzle tooling'
 // `pnpm auth:migrate` (Better Auth CLI). tablesFilter is derived FROM the
 // barrel (never a second hand-maintained list): db:push introspects only
 // these tables — without it, push pulls the auth tables, hits interactive
-// rename/conflict prompts, and dies in non-TTY shells (simulation.yml).
+// rename/conflict prompts, and dies in non-TTY shells.
 const managedTables: string[] = []
 for (const value of Object.values(migratable)) {
   if (isTable(value)) managedTables.push(getTableName(value))

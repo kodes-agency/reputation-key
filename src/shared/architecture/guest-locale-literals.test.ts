@@ -50,10 +50,6 @@ const ALLOWLIST: ReadonlyArray<
       p === 'src/shared/reply-drafting-v2-request.ts',
     why: 'three-language AI body policy and fixed apology/example books (en/es/bg); not the guest locale set',
   },
-  {
-    match: (p) => p === 'src/shared/testing/scenarios/executors.ts',
-    why: "not a guest locale: 'bg' names the background traffic stream",
-  },
 ]
 
 const FORBIDDEN: ReadonlyArray<Readonly<{ label: string; pattern: RegExp }>> = [

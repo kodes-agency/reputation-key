@@ -41,7 +41,7 @@ and do not read them as a review verdict.
 | Static security analysis — eslint        | `check` job, step "Lint"                                           | `eslint-plugin-security` recommended as **errors** in `eslint.config.js`     | any recommended-rule finding on production code                                                                   | Step log                                         |
 | Static security analysis — CodeQL        | `codeql.yml` workflow (push/PR to main + weekly)                   | `github/codeql-action` init+analyze, `security-extended` queries             | analysis **failure** fails; findings become code-scanning alerts                                                  | SARIF → Security tab (code scanning)             |
 | License policy                           | `check` job, step "License policy"                                 | `pnpm check:licenses` → `scripts/check-licenses.mjs`                         | any prod/dev dependency license not allow-listed or excepted                                                      | Step log (full inventory per tree)               |
-| Lockfile integrity                       | every job that installs                                            | `pnpm install --frozen-lockfile` (ci.yml, simulation.yml, Dockerfiles)       | install fails on lockfile/manifest drift                                                                          | —                                                |
+| Lockfile integrity                       | every job that installs                                            | `pnpm install --frozen-lockfile` (ci.yml, Dockerfiles)                       | install fails on lockfile/manifest drift                                                                          | —                                                |
 | Pinned actions/images                    | `check` job, step "Action/image pin policy"                        | `pnpm check:action-pins` → `scripts/check-action-pins.mjs`                   | any `uses:` not full-SHA + `# v…` comment; any `image:` not digest-pinned                                         | Step log                                         |
 | Build-secret delivery                    | `check` job, step "Container image inventory and coverage policy"  | `pnpm check:container-images` → `scripts/ci/check-container-image-policy.ts` | any secret-shaped **name** declared as `ARG` or passed as `--build-arg`; any `--secret id=…` no Dockerfile mounts | Step log                                         |
 | SBOM — source                            | `check` job, steps "Generate SBOM" + "Upload SBOM"                 | `anchore/sbom-action` (SPDX-JSON, source scope) — BQC-7.1                    | generation failure                                                                                                | `sbom-spdx` artifact, 30d                        |
@@ -56,21 +56,21 @@ and do not read them as a review verdict.
 an artifact that actually runs or supports acceptance. The promoted web and
 worker descriptors build the same application content (`.output` plus
 `dist-worker`), while provider Redis carries its hardened upstream runtime. The
-CI-only sandbox and performance runner contain only their prebuilt support
-bundles and required runtime dependencies. Scanning all five images with Grype
-therefore covers the shipped OS packages, bundles, and production
-`node_modules`. The source-tree SBOM plus the five image SBOMs cover both sides
-of the build without treating non-promoted tools as production.
+CI-only sandbox contains only its prebuilt support bundle and required runtime
+dependencies. Scanning all four images with Grype therefore covers the shipped
+OS packages, bundles, and production `node_modules`. The source-tree SBOM plus
+the four image SBOMs cover both sides of the build without treating non-promoted
+tools as production.
 
-The matrix uses two measured groups (two and three images) rather than one
-runner per image. Web and worker remain in separate groups. Every descriptor is
+The matrix uses two measured groups (two images each) rather than one runner
+per image. Web and worker remain in separate groups. Every descriptor is
 still built, smoked, inventoried, and scanned independently, and Buildx reads
 and writes a per-image GHA cache scope (`ci-image-<name>`) so layers can never
 cross image contracts. The three promoted descriptors first receive unique
 `ci-run-<run>-<attempt>` staging tags after their local Grype checks. Only the
 `docker` aggregate, after both groups succeed and all three digests validate,
-creates immutable source-SHA tags and the digest map; sandbox and performance
-stay CI-only.
+creates immutable source-SHA tags and the digest map; the sandbox stays
+CI-only.
 
 ## Severity and exception policy
 
@@ -211,8 +211,8 @@ drizzle-kit` — build tooling, reported). Full tree: 11 high, 0 critical —
 
 ### Lockfile integrity
 
-`pnpm install --frozen-lockfile` IS the lockfile-integrity gate: CI,
-simulation, and every Node-based Dockerfile (full and production-only stages)
+`pnpm install --frozen-lockfile` IS the lockfile-integrity gate: CI
+and every Node-based Dockerfile (full and production-only stages)
 install frozen, so a hand-edited lockfile or an out-of-sync manifest fails
 the build. `package.json#packageManager` (pnpm@10.6.5) + corepack pin the
 installer itself.
@@ -385,8 +385,7 @@ job, not the dependency-audit step; `Analyze (javascript-typescript)` is CodeQL.
 
 - no pull-request or review requirement, and no conversation resolution;
 - not required checks: `security` and `control-vs-ceremony` (`review.yml`; see
-  "The AI review workflow is not a gate" above), `storybook-test`, and
-  `simulate` (`simulation.yml`);
+  "The AI review workflow is not a gate" above), and `storybook-test`;
 - no ruleset, so no "code scanning results" rule: CodeQL blocks a PR only when
   analysis fails, not on a new alert;
 - neither environment has protection rules or a branch policy, and both allow

@@ -25,12 +25,11 @@ const PREFERENCES_URL = 'https://app.reputationkey.app/settings/notifications'
 // tuned apart (780px frame for digests, the tallest document we render, against
 // 680px for the short account emails).
 //
-// Sharing it would move Storybook-only JSX into src/shared/email, where the
-// changed-code gate treats every module as product code and demands a test
-// that imports it — and a rendering shell can only be asserted through JSX,
-// which the unit project (node, *.test.ts only) cannot run. A hole in a shared
-// gate is a worse trade than duplicated preview chrome: this markup cannot
-// change a delivered email, only how two story pages look.
+// Sharing it would move Storybook-only JSX into src/shared/email, which holds
+// product code, and a rendering shell can only be asserted through JSX, which
+// the unit project (node, *.test.ts only) cannot run. Duplicated preview chrome
+// is the better trade: this markup cannot change a delivered email, only how two
+// story pages look.
 //
 // Revisit if a third surface needs the same preview, or if the shell grows
 // behaviour rather than markup — then it earns a Storybook-only home.

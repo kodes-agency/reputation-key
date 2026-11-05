@@ -118,6 +118,73 @@ describe('operator container controls', () => {
     expect(container.backgroundQueue).toBeDefined()
   })
 
+  describe('isolated restore', () => {
+    function restoreEnv(planted: Record<string, string> = {}) {
+      const base = productionOptions().env
+      return {
+        ...base,
+        REDIS_URL: undefined,
+        QUEUE_REDIS_URL: undefined,
+        RESTORE_MODE: 'isolated',
+        DATABASE_URL:
+          'postgresql://u:p@postgres-restored-20260825-1015.railway.internal/restored',
+        RESTORE_DATABASE_SERVICE_NAME: 'Postgres-restored-20260825-1015',
+        RAILWAY_PROJECT_ID: 'project-id',
+        RAILWAY_ENVIRONMENT_ID: 'environment-id',
+        RAILWAY_ENVIRONMENT_NAME: 'closed-beta-v2',
+        ...planted,
+      } as ReturnType<typeof productionOptions>['env']
+    }
+
+    // The caller hands over a Redis and queue handles, as every other operator
+    // command receives them. None of it reaches the restore graph; its one
+    // queue is a stand-in with no connection that refuses every use.
+    it('builds without Redis or a queue connection, whatever the caller passes', async () => {
+      container = createOperatorContainer({ ...productionOptions(), env: restoreEnv() })
+
+      expect(container.redis).toBeUndefined()
+      expect(container.jobRegistry.getAll()).toHaveLength(0)
+      expect(container.backgroundQueue).toBeUndefined()
+      expect(Object.values(container.opsQueues).filter(Boolean)).toEqual([])
+      expect(() => container?.jobQueue?.add('restored-job', {})).toThrow(
+        /queue access is refused/,
+      )
+      expect(() => container?.jobQueue?.getJob('restored-job')).toThrow(
+        /queue access is refused/,
+      )
+      await expect(container.jobQueue?.close()).resolves.toBeUndefined()
+    })
+
+    // Planted faults: a live queue Redis, cache Redis or bucket in the
+    // environment stops the graph before a queue handle or adapter exists.
+    it.each([
+      [
+        'production queue namespace',
+        { QUEUE_REDIS_URL: 'redis://queue-redis.railway.internal' },
+      ],
+      ['production Redis', { REDIS_URL: 'redis://redis.railway.internal' }],
+      [
+        'production bucket endpoint',
+        { S3_INTERNAL_ENDPOINT: 'https://objects.example.com' },
+      ],
+    ])('refuses to build against a %s', (_label, planted) => {
+      expect(() =>
+        createOperatorContainer({ ...productionOptions(), env: restoreEnv(planted) }),
+      ).toThrow(/restore commands verify the database alone/)
+    })
+
+    it('refuses to build against a database that is not an admitted target', () => {
+      expect(() =>
+        createOperatorContainer({
+          ...productionOptions(),
+          env: restoreEnv({
+            DATABASE_URL: 'postgresql://u:p@postgres.railway.internal/live',
+          }),
+        }),
+      ).toThrow(/not an attested/)
+    })
+  })
+
   it('refuses all provider-dependent operator call boundaries', async () => {
     container = createOperatorContainer(options())
     const orgId = organizationId('00000000-0000-4000-8000-000000000001')
