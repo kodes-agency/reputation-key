@@ -29,6 +29,7 @@
 //     `createServerOnlyFn` handler, a helper the handler is built from);
 //   - a name imported from another module of the server adapter layer
 //     (`src/contexts/<context>/server/`), where the walk continues.
+//   - the shared tenant command shell, where membership and policy are checked.
 // It stops at every other import. The composition root, a use case and a
 // repository are not followed, so a policy call somewhere below the adapter
 // does not count for the handler above it.
@@ -54,6 +55,7 @@ const SERVER_FUNCTION_FACTORY = 'createServerFn'
 const SOURCE_ALIAS = '#/'
 const SOURCE_ROOT = 'src'
 const SERVER_LAYER = /^src\/contexts\/[^/]+\/server\//u
+const COMMAND_SHELL = 'src/shared/commands/command.server.ts'
 const SOURCE_FILE = /\.tsx?$/u
 const NOT_PRODUCTION = /\.(?:test|stories)\.tsx?$|\.d\.ts$/u
 const RESOLVED_SUFFIXES = ['.ts', '.tsx', '/index.ts'] as const
@@ -356,14 +358,16 @@ function loadModule(walk: Walk, file: string): ModuleShape | null {
   return walk.modules.get(file) ?? null
 }
 
-/** The module of the server adapter layer an imported name comes from, if any. */
+/** Adapter modules and the shared tenant command shell are policy boundaries. */
 function importedFrom(
   walk: Walk,
   module: ModuleShape,
   imported: ImportedName,
 ): ModuleShape | null {
   const target = resolveSpecifier(module.file, imported.specifier, walk.read)
-  if (target === null || !SERVER_LAYER.test(target)) return null
+  if (target === null || (!SERVER_LAYER.test(target) && target !== COMMAND_SHELL)) {
+    return null
+  }
   return loadModule(walk, target)
 }
 

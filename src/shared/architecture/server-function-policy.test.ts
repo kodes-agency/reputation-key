@@ -96,6 +96,30 @@ const unreadLinesOf = (source: string): readonly number[] =>
     .map((use) => use.line)
 
 describe('what a server function handler reaches', () => {
+  it.each([true, false])(
+    'follows the shared command shell and detects its missing policy: present=%s',
+    (hasPolicy) => {
+      const helper = 'src/shared/commands/command.server.ts'
+      const reach = reachOf(
+        {
+          [ADAPTER]: `import { command } from '#/shared/commands/command.server'
+          export const readThing = createServerFn({ method: 'GET' })
+            .handler(command(options, async ({ data }) => load(data)))`,
+          [helper]: `${POLICY_IMPORT}
+          export function command(options, run) {
+            return async ({ data }) => {
+              const actor = await resolveTenantContext(await headersFromContext())
+              ${hasPolicy ? 'await requireExecutionAllowed({ actor, action: options.action })' : ''}
+              return run({ data, actor })
+            }
+          }`,
+        },
+        'readThing',
+      )
+      expect(asksPolicy(reach)).toBe(hasPolicy)
+    },
+  )
+
   it('finds the policy call written in the handler', () => {
     const reach = reachOf(
       {
