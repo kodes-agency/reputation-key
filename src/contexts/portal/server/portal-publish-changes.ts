@@ -5,10 +5,8 @@
 
 import { createServerFn } from '@tanstack/react-start'
 import { z } from 'zod/v4'
-import { headersFromContext } from '#/shared/auth/headers'
 import { resolveTenantContext } from '#/shared/auth/middleware'
-import { catchUntagged, throwContextError } from '#/shared/auth/server-errors'
-import { tracedHandler } from '#/shared/observability/traced-server-fn'
+import { commandHandler } from '#/shared/commands/command.server'
 import { getContainer } from '#/composition'
 import { portalId } from '#/shared/domain/ids'
 import type { AuthContext } from '#/shared/domain/auth-context'
@@ -17,12 +15,12 @@ import {
   publishPortalsChangesInputSchema,
 } from '../application/dto/publish-portal-changes.dto'
 import { isPortalError, portalError } from '../domain/errors'
-import { portalErrorStatus } from './portals'
+import { portalCommandErrors } from './portal-command-errors'
 import { requirePortalResourceScope } from './property-scope'
 
 /**
  * Every Portal the request names must be one this actor may change, checked
- * before anything is written; then the work itself, with errors translated.
+ * before anything is written.
  * One Portal outside the actor's scope (`forbidden`) refuses the whole request.
  * With `missingIsPerPortal`, a Portal that no longer exists (deleted or
  * archived since a screen listed it) is not refused here: the use case reports
@@ -34,46 +32,42 @@ async function writeWithScope<T>(
   write: () => Promise<T>,
   options: Readonly<{ missingIsPerPortal?: boolean }> = {},
 ): Promise<T> {
-  try {
-    for (const id of ids) {
-      try {
-        await requirePortalResourceScope({
-          actor: ctx,
-          action: 'portal.update',
-          capability: 'portal.write',
-          notFound: portalError('portal_not_found', 'portal not found'),
-          lookup: () =>
-            getContainer().portalPublicApi.management.resolvePortalManagementScope(
-              portalId(id),
-            ),
-        })
-      } catch (error) {
-        const isMissing = isPortalError(error) && error.code === 'portal_not_found'
-        if (!(options.missingIsPerPortal && isMissing)) throw error
-      }
+  for (const id of ids) {
+    try {
+      await requirePortalResourceScope({
+        actor: ctx,
+        action: 'portal.update',
+        capability: 'portal.write',
+        notFound: portalError('portal_not_found', 'portal not found'),
+        lookup: () =>
+          getContainer().portalPublicApi.management.resolvePortalManagementScope(
+            portalId(id),
+          ),
+      })
+    } catch (error) {
+      const isMissing = isPortalError(error) && error.code === 'portal_not_found'
+      if (!(options.missingIsPerPortal && isMissing)) throw error
     }
-    return await write()
-  } catch (error) {
-    if (isPortalError(error)) {
-      throwContextError('PortalError', error, portalErrorStatus(error.code))
-    }
-    throw catchUntagged(error)
   }
+  return await write()
 }
 
 /** Replace the live version of one Portal with its current draft, or do nothing if nothing is pending. */
 export const publishPortalChanges = createServerFn({ method: 'POST' })
   .validator(publishPortalChangesInputSchema)
   .handler(
-    tracedHandler(
-      async ({ data }) => {
-        const ctx = await resolveTenantContext(await headersFromContext())
+    commandHandler(
+      {
+        method: 'POST',
+        name: 'portal.publishPortalChanges',
+        errors: portalCommandErrors,
+      },
+      async ({ data, headers }) => {
+        const ctx = await resolveTenantContext(headers)
         return writeWithScope(ctx, [data.portalId], () =>
           getContainer().portalPublicApi.management.publishPortalChanges(data, ctx),
         )
       },
-      'POST',
-      'portal.publishPortalChanges',
     ),
   )
 
@@ -81,9 +75,14 @@ export const publishPortalChanges = createServerFn({ method: 'POST' })
 export const publishPortalsChanges = createServerFn({ method: 'POST' })
   .validator(publishPortalsChangesInputSchema)
   .handler(
-    tracedHandler(
-      async ({ data }) => {
-        const ctx = await resolveTenantContext(await headersFromContext())
+    commandHandler(
+      {
+        method: 'POST',
+        name: 'portal.publishPortalsChanges',
+        errors: portalCommandErrors,
+      },
+      async ({ data, headers }) => {
+        const ctx = await resolveTenantContext(headers)
         return writeWithScope(
           ctx,
           [...new Set(data.portalIds)],
@@ -92,8 +91,6 @@ export const publishPortalsChanges = createServerFn({ method: 'POST' })
           { missingIsPerPortal: true },
         )
       },
-      'POST',
-      'portal.publishPortalsChanges',
     ),
   )
 
@@ -101,14 +98,17 @@ export const publishPortalsChanges = createServerFn({ method: 'POST' })
 export const updatePersonalGuestPage = createServerFn({ method: 'POST' })
   .validator(z.object({ portalId: z.uuid(), sourcePortalId: z.uuid() }).strict())
   .handler(
-    tracedHandler(
-      async ({ data }) => {
-        const ctx = await resolveTenantContext(await headersFromContext())
+    commandHandler(
+      {
+        method: 'POST',
+        name: 'portal.updatePersonalGuestPage',
+        errors: portalCommandErrors,
+      },
+      async ({ data, headers }) => {
+        const ctx = await resolveTenantContext(headers)
         return writeWithScope(ctx, [data.portalId], () =>
           getContainer().portalPublicApi.management.updatePersonalGuestPage(data, ctx),
         )
       },
-      'POST',
-      'portal.updatePersonalGuestPage',
     ),
   )
