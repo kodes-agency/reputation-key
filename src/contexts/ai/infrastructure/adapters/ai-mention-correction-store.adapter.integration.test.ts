@@ -6,13 +6,13 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { and, eq } from 'drizzle-orm'
 import { getDb, type Database } from '#/shared/db'
 import {
+  aiPropertyIssueGroups,
   aiReviewAnalysisMentionCorrections,
   aiReviewAnalysisMentions,
 } from '#/shared/db/schema'
 import { organizationId, propertyId, reviewId, userId } from '#/shared/domain/ids'
 import type { MentionCorrectionAnalysisKey } from '../../application/ports/ai-mention-correction-store.port'
 import { createAiGuestVoiceFactsAdapter } from './ai-guest-voice-facts.adapter'
-import { createAiIssueGroupStoreAdapter } from './ai-issue-group-store.adapter'
 import { createAiMentionCorrectionStoreAdapter } from './ai-mention-correction-store.adapter'
 import { findCurrentReviewIdsByIssue } from './ai-current-issue-review-ids'
 import {
@@ -87,7 +87,6 @@ describe.sequential('manager corrections through the real stores (PostgreSQL)', 
   const seed = createV3Seed(db, IDS)
   const corrections = createAiMentionCorrectionStoreAdapter(db)
   const facts = createAiGuestVoiceFactsAdapter(db)
-  const issues = createAiIssueGroupStoreAdapter(db)
 
   const apply = (
     index: number,
@@ -491,8 +490,17 @@ describe.sequential('manager corrections through the real stores (PostgreSQL)', 
         (candidate) => candidate.canonicalThing === 'shower',
       )
       const airConditioning = await airConditioningIssue()
-      const scope = { organizationId: IDS.organizationId, propertyId: IDS.propertyId }
-      await issues.merge(scope, shower?.id ?? '', airConditioning, new Date())
+      if (!shower) throw new Error('the seed has no shower issue')
+      await db
+        .update(aiPropertyIssueGroups)
+        .set({ mergedIntoIssueId: airConditioning })
+        .where(
+          and(
+            eq(aiPropertyIssueGroups.organizationId, IDS.organizationId),
+            eq(aiPropertyIssueGroups.propertyId, IDS.propertyId),
+            eq(aiPropertyIssueGroups.id, shower.id),
+          ),
+        )
 
       const merged = await find(airConditioning)
       expect([...merged].sort()).toEqual(
