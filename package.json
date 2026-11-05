@@ -34,8 +34,6 @@
     "e2e:stack:logs": "mkdir -p test-results/local-stack && docker compose -f compose.local.yml --env-file e2e/stack.env logs --no-color --timestamps > test-results/local-stack/compose.log",
     "e2e:stack:down": "docker compose -f compose.local.yml --env-file e2e/stack.env down -v --remove-orphans",
     "seed:e2e-user": "tsx scripts/seed-e2e-user.ts",
-    "seed": "tsx scripts/seed.ts",
-    "simulate": "tsx scripts/simulate.ts",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "tsx scripts/migrate-drizzle.ts",
     "db:migrate-deploy": "tsx scripts/migrate-deploy.ts",

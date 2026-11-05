@@ -40,7 +40,7 @@ const LOOPBACK_HOSTS: ReadonlySet<string> = new Set([
   '::1',
   '[::1]',
 ])
-/** The same word rule `pnpm simulate` holds its scratch database to, plus local and dev. */
+/** A local-only database name must carry one of these words. */
 const LOCAL_DATABASE_NAME = /(?:^|[_-])(?:local|dev|test|scratch|sim)(?:$|[_-])/iu
 
 function refuse(reason: string): never {

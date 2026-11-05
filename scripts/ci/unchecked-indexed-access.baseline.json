@@ -130,15 +130,12 @@
   "src/shared/testing/external-collectors.test.ts": 1,
   "src/shared/testing/external-collectors.ts": 1,
   "src/shared/testing/infrastructure/repositories/scale-dataset.test.ts": 1,
-  "src/shared/testing/invariants/checkers/inbox-status-legal.test.ts": 5,
-  "src/shared/testing/invariants/index.test.ts": 20,
   "src/shared/testing/ops-snapshot-capture.test.ts": 3,
   "src/shared/testing/perf.ts": 6,
   "src/shared/testing/pinned-runtime.test.ts": 1,
   "src/shared/testing/scale-dataset.test.ts": 13,
   "src/shared/testing/scale-dataset.ts": 2,
   "src/shared/testing/scale-evidence.ts": 3,
-  "src/shared/testing/scenario/builder.server.ts": 3,
   "src/shared/testing/staging-cell.test.ts": 2,
   "src/start.ts": 1
 }

@@ -232,7 +232,6 @@ decisions now live in that ADR, so an old citation can be followed:
 | 0015 | Import Protection — Server-Only Code Leak                    | Dev Tooling, Client/Server Boundary          | 0012                          |
 | 0016 | Active Property URL Query Param                              | Navigation, Property Context                 | —                             |
 | 0017 | Injectable Clock                                             | Testability, Time-Dependent Logic            | —                             |
-| 0019 | Simulation Harness & Deterministic Backends                  | Testability, Simulation                      | 0018                          |
 | 0030 | Identifier-Only Domain Events and Outbox Payloads            | Domain Events, Outbox                        | —                             |
 | 0033 | Authorization Policy                                         | Authorization, Execution Policy              | 0009                          |
 | 0046 | Notification Policy                                          | Feed, Notifications                          | 0011, 0022                    |
@@ -247,30 +246,27 @@ decisions now live in that ADR, so an old citation can be followed:
 
 ## Key Files
 
-| Area                        | Path                                                                                 |
-| --------------------------- | ------------------------------------------------------------------------------------ |
-| Permission definitions      | `src/shared/auth/permissions.ts`                                                     |
-| Permission type + `can()`   | `src/shared/domain/permissions.ts`                                                   |
-| Role types + `hasRole()`    | `src/shared/domain/roles.ts`                                                         |
-| Client permission hook      | `src/shared/hooks/usePermissions.ts`                                                 |
-| Auth context type           | `src/shared/domain/auth-context.ts`                                                  |
-| Auth middleware             | `src/shared/auth/middleware.ts`                                                      |
-| Better-auth config          | `src/shared/auth/auth.ts`                                                            |
-| Better-auth client          | `src/shared/auth/auth-client.ts`                                                     |
-| Authenticated route         | `src/routes/_authenticated.tsx`                                                      |
-| Composition root            | `src/composition.ts`                                                                 |
-| Bootstrap                   | `src/bootstrap.ts`                                                                   |
-| Client query cache (Query)  | `src/router.tsx` (`QueryClient` + `setupRouterSsrQueryIntegration`)                  |
-| Query-key factories         | `src/shared/queries/query-keys.ts`                                                   |
-| Request tracing             | `src/shared/observability/traced-server-fn.ts`                                       |
-| Tenant cache                | `src/shared/auth/middleware.ts`                                                      |
-| Import protection deny list | `vite.config.ts` (`importProtection.client.files`)                                   |
-| Clock type                  | `src/shared/domain/clock.ts`                                                         |
-| Simulation container        | `src/shared/testing/simulation-container.server.ts`                                  |
-| In-memory queue             | `src/shared/testing/in-memory-queue.ts`                                              |
-| Invariant harness           | `src/shared/testing/invariants/`                                                     |
-| Scenario builder            | `src/shared/testing/scenario/builder.server.ts`                                      |
-| Seed/simulate scripts       | `scripts/seed.ts` (`pnpm seed`), `scripts/simulate.ts` (disposable local PostgreSQL) |
+| Area                        | Path                                                                |
+| --------------------------- | ------------------------------------------------------------------- |
+| Permission definitions      | `src/shared/auth/permissions.ts`                                    |
+| Permission type + `can()`   | `src/shared/domain/permissions.ts`                                  |
+| Role types + `hasRole()`    | `src/shared/domain/roles.ts`                                        |
+| Client permission hook      | `src/shared/hooks/usePermissions.ts`                                |
+| Auth context type           | `src/shared/domain/auth-context.ts`                                 |
+| Auth middleware             | `src/shared/auth/middleware.ts`                                     |
+| Better-auth config          | `src/shared/auth/auth.ts`                                           |
+| Better-auth client          | `src/shared/auth/auth-client.ts`                                    |
+| Authenticated route         | `src/routes/_authenticated.tsx`                                     |
+| Composition root            | `src/composition.ts`                                                |
+| Bootstrap                   | `src/bootstrap.ts`                                                  |
+| Client query cache (Query)  | `src/router.tsx` (`QueryClient` + `setupRouterSsrQueryIntegration`) |
+| Query-key factories         | `src/shared/queries/query-keys.ts`                                  |
+| Request tracing             | `src/shared/observability/traced-server-fn.ts`                      |
+| Tenant cache                | `src/shared/auth/middleware.ts`                                     |
+| Import protection deny list | `vite.config.ts` (`importProtection.client.files`)                  |
+| Clock type                  | `src/shared/domain/clock.ts`                                        |
+| Simulation container        | `src/shared/testing/simulation-container.server.ts`                 |
+| In-memory queue             | `src/shared/testing/in-memory-queue.ts`                             |
 
 ### Personal Portals (ADR 0076)
 
