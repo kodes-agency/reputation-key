@@ -187,13 +187,6 @@ export const TENANT_PREDICATE_EXEMPTIONS: readonly TenantPredicateExemption[] = 
     category: 'PUBLIC-TOKEN',
   },
   {
-    file: 'src/contexts/integration/infrastructure/repositories/credential-lifecycle.repository.ts',
-    symbol: 'expireDeadlines',
-    reason:
-      'The bounded credential lifecycle sweep intentionally expires elapsed revoke permits across tenants under the global cleanup authority.',
-    category: 'LEGITIMATE-GLOBAL',
-  },
-  {
     file: 'src/contexts/integration/infrastructure/repositories/google-connection.repository.ts',
     symbol: 'listOrganizationIdsWithActiveConnections',
     reason:
@@ -549,62 +542,6 @@ export const TENANT_PREDICATE_EXEMPTIONS: readonly TenantPredicateExemption[] = 
     reason:
       'The bounded claim reaper intentionally lists processing items whose claim lease has lapsed across tenants and returns each with its Organization and claim fence.',
     category: 'LEGITIMATE-GLOBAL',
-  },
-  {
-    file: 'src/contexts/integration/infrastructure/repositories/credential-lifecycle.repository.ts',
-    symbol: 'registerSource',
-    reason:
-      'The source work permit is locked by its id, and a permit of another Organization or connection is refused with scope_mismatch before anything is registered.',
-    category: 'TENANT-CHECKED',
-  },
-  {
-    file: 'src/contexts/integration/infrastructure/repositories/credential-lifecycle.repository.ts',
-    symbol: 'markProviderStarted',
-    reason:
-      'The source operation is locked by its id and refused with scope_mismatch unless it belongs to the calling Organization.',
-    category: 'TENANT-CHECKED',
-  },
-  {
-    file: 'src/contexts/integration/infrastructure/repositories/credential-lifecycle.repository.ts',
-    symbol: 'completeWithoutCleanup',
-    reason:
-      'The source operation is locked by its id and refused with scope_mismatch unless it belongs to the calling Organization.',
-    category: 'TENANT-CHECKED',
-  },
-  {
-    file: 'src/contexts/integration/infrastructure/repositories/credential-lifecycle.repository.ts',
-    symbol: 'activateCleanup',
-    reason:
-      'The source operation is locked by its id and refused with scope_mismatch unless it belongs to the calling Organization.',
-    category: 'TENANT-CHECKED',
-  },
-  {
-    file: 'src/contexts/integration/infrastructure/repositories/credential-lifecycle.repository.ts',
-    symbol: 'finishCleanupWithoutDispatch',
-    reason:
-      'The revoke permit is locked by its id, and its source operation is refused with scope_mismatch unless it belongs to the calling Organization.',
-    category: 'TENANT-CHECKED',
-  },
-  {
-    file: 'src/contexts/integration/infrastructure/repositories/credential-lifecycle.repository.ts',
-    symbol: 'acquireCleanupDispatch',
-    reason:
-      'The revoke permit is locked by its id, and its source operation is refused with scope_mismatch unless it belongs to the calling Organization.',
-    category: 'TENANT-CHECKED',
-  },
-  {
-    file: 'src/contexts/integration/infrastructure/repositories/credential-lifecycle.repository.ts',
-    symbol: 'finishCleanup',
-    reason:
-      'The revoke permit is locked by its id, and its source operation is refused with scope_mismatch unless it belongs to the calling Organization.',
-    category: 'TENANT-CHECKED',
-  },
-  {
-    file: 'src/contexts/integration/infrastructure/repositories/credential-lifecycle.repository.ts',
-    symbol: 'markProviderOutcomeAmbiguous',
-    reason:
-      'The source operation is locked by its id and refused with scope_mismatch unless it belongs to the calling Organization.',
-    category: 'TENANT-CHECKED',
   },
   {
     file: 'src/contexts/integration/infrastructure/repositories/google-disconnect-revoke.repository.ts',
