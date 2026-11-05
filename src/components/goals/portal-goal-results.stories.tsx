@@ -7,16 +7,14 @@
 // goals that have ended, newest end first: Reception's ended last year (the day prints
 // its year) and a Spa goal ended before the day was kept, each opening its goal. At
 // 320, 390, 820 and 1440 px and on the light theme. Arriving at `#ended` from the
-// Portal goals section's link hands the list's title the focus. The Storybook Vitest
-// project compiles no Tailwind, so there the plays assert words, roles, the heading
-// outline, links and the focus; where Tailwind is compiled they also measure that
-// every result is inside its row and nothing scrolls sideways. The list's own states
-// are `portal-goal-results-list.stories.tsx`'.
+// Portal goals section's link hands the list's title the focus. The plays assert
+// words, roles, the heading outline, links and the focus, and measure that every
+// result is inside its row and nothing scrolls sideways. The list's own states are
+// `portal-goal-results-list.stories.tsx`.
 import type { Meta, StoryObj } from '@storybook/react-vite'
 import { useNavigate, useRouterState } from '@tanstack/react-router'
 import { expect, userEvent, waitFor, within } from 'storybook/test'
 import { Button } from '#/components/ui/button'
-import { tailwindIsCompiled } from '../../../.storybook/tailwind-compiled'
 import { PortalGoalResults } from './portal-goal-results'
 import {
   MONTHLY_GOAL,
@@ -152,10 +150,9 @@ export const Ended: Story = {
 }
 
 /**
- * Every row reads whole at this width. Compiled, it is measured: the page does not
- * scroll sideways, and each row's figure and verdict stay inside the row. Without
- * Tailwind there is no layout to measure, so the rows are checked to be what the
- * layout is made of: one button each, closed until asked.
+ * Every row reads whole at this width: the page does not scroll sideways, and each
+ * row's figure and verdict stay inside the row. Each row is one button, closed
+ * until asked.
  */
 async function expectEveryResultInView(canvasElement: HTMLElement) {
   const rows = within(canvasElement)
@@ -163,7 +160,6 @@ async function expectEveryResultInView(canvasElement: HTMLElement) {
     .filter((button) => button.closest('[data-slot="portal-goal-results-goal"]') !== null)
   await expect(rows).toHaveLength(5)
   for (const row of rows) await expect(row).toHaveAttribute('aria-expanded', 'false')
-  if (!tailwindIsCompiled()) return
   const page = canvasElement.ownerDocument.documentElement
   await expect(page.scrollWidth).toBeLessThanOrEqual(page.clientWidth)
   for (const row of rows) {

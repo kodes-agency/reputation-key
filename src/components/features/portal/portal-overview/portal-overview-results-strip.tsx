@@ -148,7 +148,7 @@ export function PortalOverviewResultsStrip({
         />
       ) : null}
       {strip ? (
-        <div className={cn('transition-opacity', busy && 'opacity-60')} aria-busy={busy}>
+        <div className={cn('transition-opacity', busy && 'opacity-75')} aria-busy={busy}>
           <PortalResultsStrip
             cells={strip.cells}
             notesDetail={
@@ -174,7 +174,7 @@ export function PortalOverviewResultsFooter({ controls, propertyId, groupId }: P
       aria-busy={busy}
       className={cn(
         'text-xs text-muted-foreground transition-opacity',
-        busy && 'opacity-60',
+        busy && 'opacity-75',
       )}
     >
       {propertyId === null ? `${strip.footer} · ${COLLAPSE_NOTE}` : strip.footer} ·{' '}

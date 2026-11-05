@@ -167,6 +167,9 @@ export const SheetOpen: Story = {
     initialTarget: { kind: 'issue', issueId: fixtureId('a', 1), sense: 'complaint' },
   },
   play: async () => {
+    // The sheet is a lazy chunk and its first load can take longer than the one second
+    // `findBy` waits: wait for the chunk itself.
+    await import('./guest-voice-issue-drawer')
     const body = within(document.body)
     const sheet = within(await body.findByRole('dialog'))
     expect(sheet.getByText('These guests')).toBeVisible()

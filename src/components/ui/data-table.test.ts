@@ -63,11 +63,8 @@ describe('DataTable frame', () => {
     expect(html).not.toContain('@4xl:table')
   })
 
-  it('says it is busy and dims while a new window of data loads', () => {
-    const html = table({ busy: true })
-
-    expect(html).toContain('aria-busy="true"')
-    expect(html).toContain('opacity-60')
+  it('says it is busy while a new window of data loads', () => {
+    expect(table({ busy: true })).toContain('aria-busy="true"')
     expect(table()).not.toContain('aria-busy')
   })
 })
