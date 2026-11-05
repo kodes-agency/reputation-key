@@ -57,8 +57,13 @@ export function usePortalPrintKit(props: PortalShareProps, view: View) {
     onDownloaded: printKit.refresh,
     onWordingSaved: printKit.refresh,
   })
+  // The Print cards lead the column and grow by most of a screen when their
+  // first read answers, so what follows them waits for it rather than being
+  // pushed away. A failed read stops the wait: the code does not depend on it.
+  const settling = show && printKit.isPending && !printKit.isError
   return {
     show,
+    settling,
     notLive,
     printKit,
     final,
