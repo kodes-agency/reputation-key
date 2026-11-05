@@ -23,6 +23,7 @@ import type { Role } from '#/shared/domain/roles'
 import { isInboxError } from '../../domain/errors'
 import type { ReplyLookupPort } from '../ports/reply-lookup.port'
 import type { InboxViewRepository } from '../ports/inbox-view.repository'
+import type { Cursor } from '../ports/inbox.repository'
 
 const FIXED_TIME = new Date('2026-04-15T12:00:00Z')
 const ORG_ID = organizationId('org-1')
@@ -389,15 +390,31 @@ describe('getInboxItems', () => {
     ])
   })
 
-  it('filters by status', async () => {
+  it.each([
+    [{}, ['1', '2', '3', '4', '5']],
+    [{ status: 'open' as const }, ['1', '2', '3', '4']],
+    [{ isEscalated: true }, ['4', '5']],
+    [{ status: 'open' as const, isEscalated: true }, ['4']],
+  ])('keeps status and escalation independent for %j', async (filters, expectedIds) => {
     const { useCase, repo } = setup()
-    repo.items.push(seedItem({ id: 'ii-1', status: 'open' }))
-    repo.items.push(seedItem({ id: 'ii-2', status: 'closed' }))
+    repo.items.push(
+      seedItem({ id: '1' }),
+      seedItem({ id: '2' }),
+      seedItem({ id: '3', sourceType: 'feedback', sourceId: feedbackId('fb-3') }),
+      seedItem({ id: '4', isEscalated: true }),
+      seedItem({
+        id: '5',
+        sourceType: 'feedback',
+        sourceId: feedbackId('fb-5'),
+        status: 'closed',
+        isEscalated: true,
+      }),
+    )
 
-    const result = await useCase({ filters: { status: 'open' } }, adminCtx)
+    const result = await useCase({ filters }, adminCtx)
 
-    expect(result.items).toHaveLength(1)
-    expect(result.items[0].status).toBe('open')
+    expect(result.items.map((item) => item.id).sort()).toEqual(expectedIds)
+    expect(result.totalCount).toBe(expectedIds.length)
   })
 
   it('filters by sourceType', async () => {
@@ -569,65 +586,33 @@ describe('getInboxItems', () => {
     expect(result.items[0].id).toBe(inboxItemId('ii-1'))
   })
 
-  it('respects limit for pagination', async () => {
-    const { useCase, repo } = setup()
-    repo.items.push(seedItem({ id: 'ii-1', sourceDate: new Date('2026-04-12') }))
-    repo.items.push(seedItem({ id: 'ii-2', sourceDate: new Date('2026-04-11') }))
-    repo.items.push(seedItem({ id: 'ii-3', sourceDate: new Date('2026-04-10') }))
-
-    const result = await useCase({ filters: {}, limit: 2 }, adminCtx)
-
-    expect(result.items).toHaveLength(2)
-    expect(result.totalCount).toBe(3)
-    expect(result.nextCursor).toBeDefined()
-  })
-
-  it('sorts oldest first and keeps the filtered total across pages', async () => {
+  it.each([
+    [undefined, 1, ['ii-1', 'ii-3', 'ii-2']],
+    [undefined, 2, ['ii-1', 'ii-3', 'ii-2']],
+    ['newest' as const, 2, ['ii-1', 'ii-3', 'ii-2']],
+    ['oldest' as const, 2, ['ii-2', 'ii-3', 'ii-1']],
+  ])('paginates in %s order with page size %i', async (sort, limit, expectedIds) => {
     const { useCase, repo } = setup()
     repo.items.push(seedItem({ id: 'ii-1', sourceDate: new Date('2026-04-12') }))
     repo.items.push(seedItem({ id: 'ii-2', sourceDate: new Date('2026-04-10') }))
     repo.items.push(seedItem({ id: 'ii-3', sourceDate: new Date('2026-04-11') }))
 
-    const page1 = await useCase({ filters: { sort: 'oldest' }, limit: 2 }, adminCtx)
-    const page2 = await useCase(
-      {
-        filters: { sort: 'oldest' },
-        cursor: page1.nextCursor!,
-        limit: 2,
-      },
-      adminCtx,
-    )
+    let cursor: Cursor | undefined
+    for (let offset = 0; offset < expectedIds.length; offset += limit) {
+      const page = await useCase({ filters: { sort }, cursor, limit }, adminCtx)
 
-    expect(page1.items.map((item) => item.id)).toEqual([
-      inboxItemId('ii-2'),
-      inboxItemId('ii-3'),
-    ])
-    expect(page2.items.map((item) => item.id)).toEqual([inboxItemId('ii-1')])
-    expect(page1.totalCount).toBe(3)
-    expect(page2.totalCount).toBe(3)
-  })
-
-  it('uses cursor for pagination', async () => {
-    const { useCase, repo } = setup()
-    const item1 = seedItem({ id: 'ii-1', sourceDate: new Date('2026-04-12') })
-    const item2 = seedItem({ id: 'ii-2', sourceDate: new Date('2026-04-11') })
-    const item3 = seedItem({ id: 'ii-3', sourceDate: new Date('2026-04-10') })
-    repo.items.push(item1, item2, item3)
-
-    // First page
-    const page1 = await useCase({ filters: {}, limit: 1 }, adminCtx)
-
-    expect(page1.items).toHaveLength(1)
-    expect(page1.nextCursor).toBeDefined()
-
-    // Second page using cursor
-    const page2 = await useCase(
-      { filters: {}, cursor: page1.nextCursor!, limit: 1 },
-      adminCtx,
-    )
-
-    expect(page2.items).toHaveLength(1)
-    expect(page2.items[0].id).not.toBe(page1.items[0].id)
+      expect(page.items.map((item) => item.id)).toEqual(
+        expectedIds.slice(offset, offset + limit),
+      )
+      expect(page.totalCount).toBe(3)
+      const last = repo.items.find((item) => item.id === expectedIds[offset + limit - 1])
+      expect(page.nextCursor).toEqual(
+        offset + limit < expectedIds.length
+          ? { id: last!.id, sourceDate: last!.sourceDate }
+          : null,
+      )
+      cursor = page.nextCursor ?? undefined
+    }
   })
 
   // ── Property scoping tests (F-14 fix) ──────────────────────────────
