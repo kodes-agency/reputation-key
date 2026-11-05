@@ -134,8 +134,8 @@ describe('the replacement pipeline beside the original', () => {
   it('shards the unit and integration tests over every file once', () => {
     expect(job('unit')).toMatch(/shard: \[1, 2, 3, 4\]/u)
     expect(job('unit')).toContain('--shard=${{ matrix.shard }}/4')
-    expect(job('integration')).toMatch(/shard: \[1, 2\]/u)
-    expect(job('integration')).toContain('--shard=${{ matrix.shard }}/2')
+    expect(job('integration')).toMatch(/shard: \[1, 2, 3\]/u)
+    expect(job('integration')).toContain('--shard=${{ matrix.shard }}/3')
     expect(job('browser')).toMatch(/shard: \[1, 2, 3, 4, 5, 6\]/u)
     expect(job('browser')).toContain('--shard=${{ matrix.shard }}/6')
   })

@@ -1209,15 +1209,16 @@ jobs:
   # The integration files run one at a time against one scratch database
   # (vitest.config.ts), 7 minutes of tests in a single job before. Each shard
   # has its own services and database, so the one-at-a-time rule holds inside
-  # it; the migration checks run once, in the first.
+  # it; the migration checks run once, in the first. Two shards left the second
+  # 2.3 minutes behind the first and the slowest job of the pipeline.
   integration:
-    name: integration (${{ matrix.shard }}/2)
+    name: integration (${{ matrix.shard }}/3)
     runs-on: ubuntu-latest
-    timeout-minutes: 25 # longest green run ~6 min
+    timeout-minutes: 25 # longest green run ~5 min
     strategy:
       fail-fast: false
       matrix:
-        shard: [1, 2]
+        shard: [1, 2, 3]
 
     services:
       postgres:
@@ -1329,7 +1330,7 @@ jobs:
           GOOGLE_CLIENT_SECRET: ci-placeholder-client-secret
           ENCRYPTION_KEY: aabbccddaabbccddaabbccddaabbccddaabbccddaabbccddaabbccddaabbccdd
           OAUTH_STATE_SECRET: aabbccddaabbccddaabbccddaabbccdd
-        run: pnpm test:integration --shard=${{ matrix.shard }}/2
+        run: pnpm test:integration --shard=${{ matrix.shard }}/3
 
   # Build output and every consumer/boundary stay in one chain. It keeps its own
   # build because the client source maps exist only in a build that does not
@@ -1849,7 +1850,7 @@ jobs:
     name: browser (${{ matrix.shard }}/6)
     needs: [image-build]
     runs-on: ubuntu-latest
-    timeout-minutes: 25 # longest green run ~7 min
+    timeout-minutes: 25 # longest green run ~5 min
     strategy:
       fail-fast: false
       matrix:
