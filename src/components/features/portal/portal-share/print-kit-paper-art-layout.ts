@@ -1,6 +1,5 @@
 // What the Paper preview's sheets say: the caption of a Whole sheet preview,
-// and the unit its lengths are drawn in. The fit a face's words are set at is
-// chosen in `print-kit-preview-fit.ts`.
+// and the unit its lengths are drawn in.
 
 import type { PrintKitPaper, PrintKitPiece } from '#/shared/domain/portal-print-kit'
 
