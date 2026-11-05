@@ -181,7 +181,7 @@ Redis-backed integration suites take their client from `testing/redis-test-lease
 On a machine with no Redis the lease reports unavailable and those tests return
 without asserting, so a green local run does not prove they ran. With
 `REQUIRE_TEST_REDIS=1` an unanswered probe throws and the suite fails; CI's
-`test-integration` job sets it, and `testing/redis-test-lease.test.ts` pins that the
+`integration` job sets it, and `testing/redis-test-lease.test.ts` pins that the
 job running the integration project has a Redis service and requires it.
 
 ## Verification

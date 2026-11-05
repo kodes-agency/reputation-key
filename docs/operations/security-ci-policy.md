@@ -34,23 +34,23 @@ and do not read them as a review verdict.
 
 ## Gate inventory
 
-| Gate                                     | Where (step / job)                                                 | Script / action                                                              | Threshold (fails on)                                                                                              | Artifact / output                                |
-| ---------------------------------------- | ------------------------------------------------------------------ | ---------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------- | ------------------------------------------------ |
-| Dependency vulnerability audit           | `check` job, step "Dependency vulnerability audit"                 | `pnpm check:dependency-audit` → `scripts/check-dependency-audit.mjs`         | prod tree: **high+critical**; full tree: **critical** (dev highs are printed, not failed); an unreadable audit    | Step log (advisory ids, paths, patched versions) |
-| Secret scanning (new commits)            | `secrets` job, step "Gitleaks"                                     | `docker run zricethezav/gitleaks@<digest> git /repo` (fetch-depth: 0)        | **any** finding in the commits the event adds — PRs scan `base..head`, pushes to main `before..sha`               | Step log (redacted findings)                     |
-| Static security analysis — eslint        | `check` job, step "Lint"                                           | `eslint-plugin-security` recommended as **errors** in `eslint.config.js`     | any recommended-rule finding on production code                                                                   | Step log                                         |
-| Static security analysis — CodeQL        | `codeql.yml` workflow (push/PR to main + weekly)                   | `github/codeql-action` init+analyze, `security-extended` queries             | analysis **failure** fails; findings become code-scanning alerts                                                  | SARIF → Security tab (code scanning)             |
-| License policy                           | `check` job, step "License policy"                                 | `pnpm check:licenses` → `scripts/check-licenses.mjs`                         | any prod/dev dependency license not allow-listed or excepted                                                      | Step log (full inventory per tree)               |
-| Lockfile integrity                       | every job that installs                                            | `pnpm install --frozen-lockfile` (ci.yml, Dockerfiles)                       | install fails on lockfile/manifest drift                                                                          | —                                                |
-| Pinned actions/images                    | `check` job, step "Action/image pin policy"                        | `pnpm check:action-pins` → `scripts/check-action-pins.mjs`                   | any `uses:` not full-SHA + `# v…` comment; any `image:` not digest-pinned                                         | Step log                                         |
-| Build-secret delivery                    | `check` job, step "Container image inventory and coverage policy"  | `pnpm check:container-images` → `scripts/ci/check-container-image-policy.ts` | any secret-shaped **name** declared as `ARG` or passed as `--build-arg`; any `--secret id=…` no Dockerfile mounts | Step log                                         |
-| SBOM — source                            | `check` job, steps "Generate SBOM" + "Upload SBOM"                 | `anchore/sbom-action` (SPDX-JSON, source scope) — BQC-7.1                    | generation failure                                                                                                | `sbom-spdx` artifact, 30d                        |
-| SBOM — images                            | two-row `docker-images` matrix + `docker` aggregate                | pinned Syft CLI (`image:`, SPDX-JSON; one inventory/image)                   | generation failure                                                                                                | merged `sbom-images-spdx` artifact, 30d          |
-| Container/image + artifact-content scan  | `docker-images` matrix, step "Vulnerability scan grouped images"   | pinned Grype CLI (`sbom:`, `.grype.yaml`, hard fail)                         | **high+critical** (`--fail-on high`)                                                                              | per-group SARIF files; step log table            |
-| Scan exception expiry                    | `check` job, step "Container image inventory and coverage policy"  | `pnpm check:container-images` → `scripts/ci/grype-exception-expiry.ts`       | any `.grype.yaml` rule past its `expiresAt` date or with no readable date, and any line the reader cannot place   | Step log                                         |
-| Production dependency/prune verification | `docker-images` matrix, step "Smoke images"                        | per-image inline shell inside each bounded group                             | any runtime-contract failure or sentinel devDependency in `/app/node_modules`                                     | Step log                                         |
-| Migration artifact consistency           | `check` job, steps "Predeploy migration parity" + "Schema drift …" | `pnpm db:migrate-deploy` (BQC-7.1) + `pnpm check:schema-drift`               | parity divergence / model↔catalog drift / journal entry out of order                                              | Step log                                         |
-| Migration journal append-only            | `check` job, step "Lint"                                           | `pnpm check:migration-journal` → `scripts/check-migration-journal.ts`        | a journal entry already on `main` moved, changed or gone; an entry out of order                                   | Step log                                         |
+| Gate                                     | Where (step / job)                                                       | Script / action                                                              | Threshold (fails on)                                                                                              | Artifact / output                                |
+| ---------------------------------------- | ------------------------------------------------------------------------ | ---------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------- | ------------------------------------------------ |
+| Dependency vulnerability audit           | `typecheck` job, step "Dependency vulnerability audit"                   | `pnpm check:dependency-audit` → `scripts/check-dependency-audit.mjs`         | prod tree: **high+critical**; full tree: **critical** (dev highs are printed, not failed); an unreadable audit    | Step log (advisory ids, paths, patched versions) |
+| Secret scanning (new commits)            | `secrets` job, step "Gitleaks"                                           | `docker run zricethezav/gitleaks@<digest> git /repo` (fetch-depth: 0)        | **any** finding in the commits the event adds — PRs scan `base..head`, pushes to main `before..sha`               | Step log (redacted findings)                     |
+| Static security analysis — eslint        | `lint` job, step "Lint"                                                  | `eslint-plugin-security` recommended as **errors** in `eslint.config.js`     | any recommended-rule finding on production code                                                                   | Step log                                         |
+| Static security analysis — CodeQL        | `codeql.yml` workflow (push/PR to main + weekly)                         | `github/codeql-action` init+analyze, `security-extended` queries             | analysis **failure** fails; findings become code-scanning alerts                                                  | SARIF → Security tab (code scanning)             |
+| License policy                           | `typecheck` job, step "License policy"                                   | `pnpm check:licenses` → `scripts/check-licenses.mjs`                         | any prod/dev dependency license not allow-listed or excepted                                                      | Step log (full inventory per tree)               |
+| Lockfile integrity                       | every job that installs                                                  | `pnpm install --frozen-lockfile` (ci.yml, Dockerfiles)                       | install fails on lockfile/manifest drift                                                                          | —                                                |
+| Pinned actions/images                    | `typecheck` job, step "Action/image pin policy"                          | `pnpm check:action-pins` → `scripts/check-action-pins.mjs`                   | any `uses:` not full-SHA + `# v…` comment; any `image:` not digest-pinned                                         | Step log                                         |
+| Build-secret delivery                    | `typecheck` job, step "Container image inventory and coverage policy"    | `pnpm check:container-images` → `scripts/ci/check-container-image-policy.ts` | any secret-shaped **name** declared as `ARG` or passed as `--build-arg`; any `--secret id=…` no Dockerfile mounts | Step log                                         |
+| SBOM — source                            | `probes` job, steps "Generate SBOM" + "Upload SBOM"                      | `anchore/sbom-action` (SPDX-JSON, source scope) — BQC-7.1                    | generation failure                                                                                                | `source-sbom-spdx` artifact, 30d                 |
+| SBOM — images                            | `image-scan` job                                                         | pinned Syft CLI (`image:`, SPDX-JSON; one inventory/image)                   | generation failure                                                                                                | `image-sboms-spdx` artifact, 30d                 |
+| Container/image + artifact-content scan  | `image-scan` job, step "Vulnerability scan images (grype)"               | pinned Grype CLI (`sbom:`, `.grype.yaml`, hard fail)                         | **high+critical** (`--fail-on high`)                                                                              | per-image SARIF files; step log table            |
+| Scan exception expiry                    | `typecheck` job, step "Container image inventory and coverage policy"    | `pnpm check:container-images` → `scripts/ci/grype-exception-expiry.ts`       | any `.grype.yaml` rule past its `expiresAt` date or with no readable date, and any line the reader cannot place   | Step log                                         |
+| Production dependency/prune verification | `image-scan` job, step "Smoke images"                                    | per-image inline shell over the classified image list                        | any runtime-contract failure or sentinel devDependency in `/app/node_modules`                                     | Step log                                         |
+| Migration artifact consistency           | `integration` job, steps "Predeploy migration parity" + "Schema drift …" | `pnpm db:migrate-deploy` (BQC-7.1) + `pnpm check:schema-drift`               | parity divergence / model↔catalog drift / journal entry out of order                                              | Step log                                         |
+| Migration journal append-only            | `lint` job, step "Lint"                                                  | `pnpm check:migration-journal` → `scripts/check-migration-journal.ts`        | a journal entry already on `main` moved, changed or gone; an entry out of order                                   | Step log                                         |
 
 **Artifact-content scanning — interpretation:** each classified descriptor is
 an artifact that actually runs or supports acceptance. The promoted web and
@@ -62,15 +62,14 @@ OS packages, bundles, and production `node_modules`. The source-tree SBOM plus
 the four image SBOMs cover both sides of the build without treating non-promoted
 tools as production.
 
-The matrix uses two measured groups (two images each) rather than one runner
-per image. Web and worker remain in separate groups. Every descriptor is
-still built, smoked, inventoried, and scanned independently, and Buildx reads
-and writes a per-image GHA cache scope (`ci-image-<name>`) so layers can never
-cross image contracts. The three promoted descriptors first receive unique
-`ci-run-<run>-<attempt>` staging tags after their local Grype checks. Only the
-`docker` aggregate, after both groups succeed and all three digests validate,
-creates immutable source-SHA tags and the digest map; the sandbox stays
-CI-only.
+The `image-build` matrix has a web row and a support row. Web and worker
+share one build tagged twice; provider Redis and the CI-only sandbox build in
+the support row. The scan and browser jobs load the resulting archives so they
+exercise the same bytes. `image-scan` smokes, inventories and scans every
+classified descriptor, then stages the three production images under unique
+`ci-run-<run>-<attempt>` tags. Only the `image` aggregate, after both image jobs
+succeed and all three digests validate, creates immutable source-SHA tags on
+main pushes and writes the digest map. The sandbox stays CI-only.
 
 ## Severity and exception policy
 
@@ -149,7 +148,7 @@ Rules, enforced by the gates themselves:
    and any line inside the list that is neither a `- ` item nor indented under
    one are violations, not "no rule here". An exception is valid through its
    `expiresAt` day in UTC. The check runs with no commit, so a date that
-   passes turns the `check` job red on `main` and on every open pull request
+   passes turns the `typecheck` job red on `main` and on every open pull request
    until the exception is removed or renewed.
 2. **Stale audit exceptions FAIL** (an exception matching no firing advisory
    must be deleted with the fix). Stale license exceptions WARN only, because
@@ -353,7 +352,7 @@ silently lost.
 
 ### GitHub merge and production-environment controls
 
-**Read back 2026-09-27 22:12 UTC against the live API (GET only):**
+**Historical platform readback, 2026-09-27 22:12 UTC (GET only; job names reflect that date):**
 
 ```
 GET /repos/kodes-agency/reputation-key/branches/main/protection
@@ -376,19 +375,16 @@ on since 2026-09-06, when a direct push was shown to fail with
 `GH006 … required status checks are expected`
 ([`docs/archive/LEAN_TRANSFORMATION_PLAN.md`](https://github.com/kodes-agency/reputation-key/blob/docs-archive-2026-11-05/docs/archive/LEAN_TRANSFORMATION_PLAN.md), "Review is reinstated"). History
 must stay linear, and `main` cannot be
-force-pushed or deleted. `check`, `docker` and `e2e` are `always()` aggregates
-over `static`/`test-unit`/`test-integration`/`artifacts`, `docker-images` and
-`e2e-shard`, so those jobs gate through them. `audit` is the Fallow workflow's
-job, not the dependency-audit step; `Analyze (javascript-typescript)` is CodeQL.
+force-pushed or deleted. `ci` and `image` are `always()` aggregates that fail
+on any failed, cancelled or skipped dependency. `ci` gathers `lint`, `typecheck`,
+`unit`, `integration`, `probes` and `browser`; `image` gathers `image-build` and
+`image-scan`. The remaining required contexts are `ci`, `image`, `secrets`,
+`audit` and `Analyze (javascript-typescript)`, with strict mode kept on. `audit`
+is the Fallow workflow job, and `Analyze (javascript-typescript)` is CodeQL.
+`storybook-test` still renders component stories and runs play functions and axe.
 
-**The replacement pipeline.** `ci.yml` holds a second set of jobs that runs the
-same gates in less time: `lint`, `typecheck`, `unit`, `integration`, `probes`
-and `browser` under the `ci` aggregate, and `image build` and `image scan` under
-the `image` aggregate. Both aggregates are `always()` like the three above. The
-required checks include `ci` and `image` alongside `check`, `docker`, `e2e`,
-`secrets`, `audit` and `Analyze (javascript-typescript)`, with strict mode kept
-on. The publishing handoff changes no required check or job name. Dispatch on
-a branch (`gh workflow run ci.yml --ref <branch>`) and, once it finishes, run
+**Image publication and verification.** Dispatch on a branch
+(`gh workflow run ci.yml --ref <branch>`) and, once it finishes, run
 `pnpm ops deploy-ci-images --verify-only --run <run id>`. It applies a deploy's
 acceptance rules to the dispatched run's digest map, fails on a missing or
 failed job, reads GitHub only and deploys nothing. A deploy still reads only a
@@ -396,10 +392,9 @@ main push run's map: `image-scan` stages scanned production digests, and `image`
 is the sole map writer. On main pushes, `image` preflights the complete set and
 existing commit tags, promotes by digest, and reads back every final tag before
 writing the map. Dispatch writes a distinct verification map and never tags a
-commit; pull requests never publish. The original image jobs keep their builds,
-smoke tests, SBOMs and scans but publish no images or digest maps. Production
-maps name `image` as their producer for rerun checks; historical maps without
-that discriminator still validate against the original image jobs for rollback.
+commit; pull requests never publish. Production maps name `image` as their
+producer for rerun checks; historical maps without that discriminator still
+validate against the original image jobs for rollback.
 Firefox, WebKit and the iOS viewport run weekly
 in `browser-matrix.yml` instead of on every pull request.
 
@@ -480,7 +475,7 @@ code scanning.
 
 gitleaks runs via the official image pinned by digest (`gitleaks-action` is
 deliberately not used — it requires an organization license key), in a
-separate `secrets` job (not a step in `check`) so the signal stays distinct
+separate `secrets` job (not a step in `ci`) so the signal stays distinct
 in branch protection and runs in parallel without a pnpm install. Checkout
 uses `fetch-depth: 0`. `.gitleaks.toml` extends gitleaks' default rules, and
 `scripts/ci/secret-scan-range.sh` picks the commits to scan by event:
@@ -511,7 +506,7 @@ about a finding gives counts only.
 
 ### Migration artifact consistency
 
-Two named gates in the `check` job back to back: "Predeploy migration
+Two named gates in the `integration` job back to back: "Predeploy migration
 parity" (BQC-7.1 — deploy runner converges instantly against the manually
 migrated DB) and "Schema drift (model ↔ migrated catalog)"
 (`pnpm check:schema-drift` — the semantic comparator against the same

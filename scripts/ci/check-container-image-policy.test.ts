@@ -2,11 +2,11 @@ import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import { validateCiImagePipeline } from './check-image-pipeline-policy'
+import { workflowJob, workflowSteps } from './ci-workflow-text'
 import {
   dockerfileSecretMountIds,
   loadContainerImagePolicy,
   validateBuildSecretMounts,
-  validateCiContainerCoverage,
   validateContainerImagePolicy,
   validateDockerfileBuildArguments,
   validateDockerfileContextAllowlist,
@@ -30,119 +30,6 @@ describe('container image policy', () => {
     ).toContain('tools/Dockerfile is not classified')
   })
 
-  it('rejects the matrix when its shared scan stage is removed', () => {
-    const policy = loadContainerImagePolicy(ROOT)
-    const workflow = readFileSync(resolve(ROOT, '.github/workflows/ci.yml'), 'utf8')
-    const withoutMatrixScan = workflow.replace(
-      /\n\s+- name: Vulnerability scan grouped images \(grype\)[\s\S]*?(?=\n\s+- name:|\n\s{2}#)/u,
-      '',
-    )
-
-    expect(validateCiContainerCoverage(policy, withoutMatrixScan)).toContain(
-      'CI vulnerability scans is missing repkey-provider-sandbox:ci',
-    )
-  })
-
-  it('rejects a classified image missing from a bounded evidence group', () => {
-    const policy = loadContainerImagePolicy(ROOT)
-    const workflow = readFileSync(resolve(ROOT, '.github/workflows/ci.yml'), 'utf8')
-    const withoutSandboxRow = workflow.replace(
-      ',{"name":"provider-sandbox","dockerfile":"Dockerfile.sandbox","tag":"repkey-provider-sandbox:ci","publish":false}',
-      '',
-    )
-    const violations = validateCiContainerCoverage(policy, withoutSandboxRow)
-
-    expect(violations).toContain(
-      'CI image builds is missing Dockerfile.sandbox=>repkey-provider-sandbox:ci',
-    )
-    expect(violations).toContain('CI image SBOMs is missing repkey-provider-sandbox:ci')
-    expect(violations).toContain(
-      'CI vulnerability scans is missing repkey-provider-sandbox:ci',
-    )
-  })
-
-  it('rejects a group with more than four image contracts', () => {
-    const policy = loadContainerImagePolicy(ROOT)
-    const workflow = readFileSync(resolve(ROOT, '.github/workflows/ci.yml'), 'utf8')
-    const overflowed = workflow.replace(
-      '{"name":"provider-sandbox","dockerfile":"Dockerfile.sandbox","tag":"repkey-provider-sandbox:ci","publish":false}]',
-      '{"name":"provider-sandbox","dockerfile":"Dockerfile.sandbox","tag":"repkey-provider-sandbox:ci","publish":false},{"name":"overflow-1","dockerfile":"Dockerfile","tag":"overflow-1:ci","publish":false},{"name":"overflow-2","dockerfile":"Dockerfile","tag":"overflow-2:ci","publish":false},{"name":"overflow-3","dockerfile":"Dockerfile","tag":"overflow-3:ci","publish":false}]',
-    )
-
-    expect(validateCiContainerCoverage(policy, overflowed)).toContain(
-      'CI image group worker-tools must contain 1-4 images, found 5',
-    )
-  })
-
-  it('pins the three production runtimes versus one CI-only descriptor', () => {
-    const policy = loadContainerImagePolicy(ROOT)
-    const workflow = readFileSync(resolve(ROOT, '.github/workflows/ci.yml'), 'utf8')
-    const webMadeCiOnly = workflow.replace(
-      '{"name":"web","dockerfile":"Dockerfile","tag":"repkey-web:ci","publish":true}',
-      '{"name":"web","dockerfile":"Dockerfile","tag":"repkey-web:ci","publish":false}',
-    )
-
-    expect(validateCiContainerCoverage(policy, webMadeCiOnly)).toContain(
-      'CI image publish bindings is missing web=>true',
-    )
-  })
-
-  it('requires the original cross-group verification barrier', () => {
-    const policy = loadContainerImagePolicy(ROOT)
-    const workflow = readFileSync(resolve(ROOT, '.github/workflows/ci.yml'), 'utf8')
-    const withoutBarrier = workflow.replace(
-      "        if: needs.docker-images.result != 'success'\n",
-      '',
-    )
-
-    expect(validateCiContainerCoverage(policy, withoutBarrier)).toContain(
-      'CI must require every original image group to succeed',
-    )
-  })
-
-  it.each(['docker push obsolete', 'cat old-map > ci-image-digest-map.json'])(
-    'rejects an original job regaining publication through %s',
-    (command) => {
-      const policy = loadContainerImagePolicy(ROOT)
-      const workflow = readFileSync(
-        resolve(ROOT, '.github/workflows/ci.yml'),
-        'utf8',
-      ).replace(
-        '      - name: Require every image matrix entry to succeed',
-        `      - name: Publish\n        run: ${command}\n      - name: Require every image matrix entry to succeed`,
-      )
-      expect(validateCiContainerCoverage(policy, workflow)).toContain(
-        'Original image jobs must verify without publishing images or digest maps',
-      )
-    },
-  )
-
-  it('requires an isolated read/write Buildx cache for every grouped image', () => {
-    const policy = loadContainerImagePolicy(ROOT)
-    const workflow = readFileSync(resolve(ROOT, '.github/workflows/ci.yml'), 'utf8')
-    const withoutCacheExport = workflow.replace(
-      '              --cache-to "type=gha,mode=max,scope=ci-image-${name}" \\\n',
-      '',
-    )
-
-    expect(validateCiContainerCoverage(policy, withoutCacheExport)).toContain(
-      'CI image builds is missing Dockerfile=>repkey-web:ci',
-    )
-  })
-
-  it('merges every CI-built SBOM into the governed image artifact', () => {
-    const workflow = readFileSync(resolve(ROOT, '.github/workflows/ci.yml'), 'utf8')
-    const aggregate = workflow.slice(workflow.indexOf('\n  docker:'))
-
-    expect(workflow).toContain('name: sbom-image-group-${{ matrix.group }}-spdx')
-    expect(aggregate).toContain('pattern: sbom-image-group-*-spdx')
-    expect(aggregate).toContain('merge-multiple: true')
-    expect(aggregate).toContain('name: sbom-images-spdx')
-    expect(aggregate).toContain(
-      `run: test "$(find image-sboms -maxdepth 1 -type f -name 'sbom-*.spdx.json' | wc -l)" -eq 4`,
-    )
-  })
-
   it('mounts the source-map upload token as a build secret, never as a build argument', () => {
     const dockerfile = readFileSync(resolve(ROOT, 'Dockerfile'), 'utf8')
     const workflow = readFileSync(resolve(ROOT, '.github/workflows/ci.yml'), 'utf8')
@@ -162,19 +49,6 @@ describe('container image policy', () => {
     ).toEqual([
       'Dockerfile declares secret-shaped build argument SENTRY_AUTH_TOKEN; mount it with --mount=type=secret instead',
     ])
-  })
-
-  it('rejects a secret-shaped build argument passed by CI', () => {
-    const policy = loadContainerImagePolicy(ROOT)
-    const workflow = readFileSync(resolve(ROOT, '.github/workflows/ci.yml'), 'utf8')
-    const withTokenArgument = workflow.replace(
-      '                --build-arg "SENTRY_ORG=$SENTRY_ORG"',
-      '                --build-arg "SENTRY_AUTH_TOKEN=$SENTRY_AUTH_TOKEN"\n                --build-arg "SENTRY_ORG=$SENTRY_ORG"',
-    )
-
-    expect(validateCiContainerCoverage(policy, withTokenArgument)).toContain(
-      'CI passes secret-shaped build argument SENTRY_AUTH_TOKEN; deliver it with --secret id=… instead',
-    )
   })
 
   it('rejects a build secret that no classified Dockerfile mounts', () => {
@@ -202,15 +76,9 @@ describe('container image policy', () => {
   })
 })
 
-describe('replacement image pipeline policy', () => {
+describe('image pipeline policy', () => {
   const policy = loadContainerImagePolicy(ROOT)
   const workflow = readFileSync(resolve(ROOT, '.github/workflows/ci.yml'), 'utf8')
-  // The image groups above the pipeline share some of its lines, and a string
-  // replace edits the first match: edit only the jobs from `image-build` on.
-  const editPipeline = (edit: (jobs: string) => string): string => {
-    const start = workflow.indexOf('\n  image-build:\n')
-    return workflow.slice(0, start) + edit(workflow.slice(start))
-  }
 
   it('builds, smokes, inventories, scans and stages every classified image', () => {
     expect(validateCiImagePipeline(policy, workflow)).toEqual([])
@@ -269,6 +137,34 @@ describe('replacement image pipeline policy', () => {
     )
   })
 
+  it('uploads an SBOM for every classified image in one artifact', () => {
+    expect(policy.images).toHaveLength(4)
+    expect(workflow).toContain('name: image-sboms-spdx')
+    expect(workflow).toContain('path: image-sboms/sbom-*.spdx.json')
+    expect(workflow).toContain(
+      `run: test "$(find image-sboms -maxdepth 1 -type f -name 'sbom-*.spdx.json' | wc -l)" -eq "$(jq 'length' <<<"$IMAGES_JSON")"`,
+    )
+  })
+
+  it.each(policy.images.map(({ ciImage }) => ciImage))(
+    'rejects a missing smoke contract for %s',
+    (image) => {
+      const withoutSmoke = workflow
+        .split('\n')
+        .filter(
+          (line) =>
+            !(
+              line.includes(image) &&
+              /docker run|docker image inspect|smoke-provider-redis-image\.sh/u.test(line)
+            ),
+        )
+        .join('\n')
+      expect(validateCiImagePipeline(policy, withoutSmoke)).toContain(
+        `CI smoke contracts are missing ${image}`,
+      )
+    },
+  )
+
   it('keys the Grype database cache on the database build, not the day', () => {
     const keyedOnDate = workflow.replace(
       'key: grype-db-v0.116.1-${{ steps.grype-db.outputs.built }}',
@@ -292,8 +188,15 @@ describe('replacement image pipeline policy', () => {
   })
 
   it('rejects a digest map written without reading the registry back', () => {
-    const withoutReadBack = editPipeline((jobs) =>
-      jobs.replace('            test "$staged_digest" = "$expected_digest"\n', ''),
+    const write = workflowSteps(workflowJob(workflow, 'image')).find(
+      ({ name }) => name === 'Write image digest map',
+    )!
+    const withoutReadBack = workflow.replace(
+      write.content,
+      write.content.replace(
+        '            test "$staged_digest" = "$expected_digest"\n',
+        '',
+      ),
     )
 
     expect(validateCiImagePipeline(policy, withoutReadBack)).toContain(
@@ -313,11 +216,9 @@ describe('replacement image pipeline policy', () => {
   })
 
   it('rejects a secret-shaped build argument in the single build', () => {
-    const withTokenArgument = editPipeline((jobs) =>
-      jobs.replace(
-        '                --build-arg "SENTRY_ORG=$SENTRY_ORG"',
-        '                --build-arg "SENTRY_AUTH_TOKEN=$SENTRY_AUTH_TOKEN"\n                --build-arg "SENTRY_ORG=$SENTRY_ORG"',
-      ),
+    const withTokenArgument = workflow.replace(
+      '                --build-arg "SENTRY_ORG=$SENTRY_ORG"',
+      '                --build-arg "SENTRY_AUTH_TOKEN=$SENTRY_AUTH_TOKEN"\n                --build-arg "SENTRY_ORG=$SENTRY_ORG"',
     )
 
     expect(validateCiImagePipeline(policy, withTokenArgument)).toContain(

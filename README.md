@@ -229,9 +229,8 @@ An e2e failure that passed on the re-run gets a row in
 The `image-scan` job stages the scanned images on main pushes and dispatched
 runs. The `image` job alone writes their digest map and, on main pushes only,
 promotes the complete set to immutable commit tags after preflight and registry
-readback. Pull requests never publish. The original `docker-images` and `docker`
-jobs keep building, smoking, inventorying and scanning during the handoff.
-Historical maps still use their original jobs for rerun validation and rollback.
+readback. Pull requests never publish. Historical maps still use their original
+jobs for rerun validation and rollback.
 
 Prove the pipeline (`ci`, `image`) from a branch: `gh workflow run ci.yml --ref <branch>`, then
 `pnpm ops deploy-ci-images --verify-only --run <run id>` once the run is green.
