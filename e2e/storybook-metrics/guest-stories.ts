@@ -137,14 +137,6 @@ export const EXCLUDED_GUEST_STORIES: Readonly<Record<string, string>> = {}
 
 /** Whole titles left out, each with the reason. */
 export const EXCLUDED_GUEST_TITLES: Readonly<Record<string, string>> = {
-  'Features/Guest/GuestPageView':
-    'The legacy renderer (publication schema v1 and v2). It is not the Immersive Hub and goes when the last v1/v2 snapshot is republished.',
-  'Features/Guest/GuestResponseForm':
-    'The legacy renderer (publication schema v1 and v2), as above.',
-  'Features/Guest/PublicPortalContent':
-    'The legacy renderer (publication schema v1 and v2), as above.',
-  'Guest/GuestAnalyticsNotice':
-    'The legacy renderer’s fixed bottom bar. The Immersive Hub shows the notice inline in its footer (ImmersiveFooter).',
   'Guest/GuestFonts':
     'A type specimen of the self-hosted guest fonts, not a page; its contrast and glyph coverage are what it shows.',
 }

@@ -165,7 +165,7 @@ export function PortalVersionDialog({
             </div>
             <DialogFooter>
               <DialogCancel>Close</DialogCancel>
-              {canMakeLive && detail !== null && !detail.isLive ? (
+              {canMakeLive && detail !== null && detail.restorable && !detail.isLive ? (
                 <Button type="button" onClick={onMakeLive}>
                   Make live again…
                 </Button>

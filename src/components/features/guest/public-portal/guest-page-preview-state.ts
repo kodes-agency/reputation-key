@@ -1,7 +1,4 @@
-import type { ReactNode } from 'react'
 import type { GuestResponseView } from '#/contexts/guest/application/use-cases/guest-response-lifecycle'
-import type { GuestPortalCopy } from './guest-language-pack'
-import type { GuestResponseFormViewProps } from './guest-response-form-view'
 
 /**
  * A controlled state for the guest page, for manager previews and Storybook.
@@ -13,12 +10,6 @@ export type GuestPagePreviewState =
   | Readonly<{ kind: 'direct' }>
   /** Rated, with the Google card. The note card follows the threshold unless pinned. */
   | Readonly<{ kind: 'rated'; rating: number; noteEligible?: boolean }>
-  /**
-   * A low rating with the private note still to write. The legacy page keeps
-   * the note field as the form's own state, so it renders the same markup as an
-   * eligible `rated` state: an empty note. The Immersive Hub opens the note and
-   * shows `draft` in it (board G06).
-   */
   | Readonly<{ kind: 'note-writing'; rating?: number; draft?: string }>
   /** A low rating whose private note has been sent. */
   | Readonly<{ kind: 'done'; rating?: number }>
@@ -65,24 +56,11 @@ function previewResponse({
   }
 }
 
-const noop = () => undefined
-
-export type PreviewFormOptions = Readonly<{
-  copy: GuestPortalCopy
-  privateFeedbackThreshold?: number
-  secondaryLinks?: ReactNode
-}>
-
 type PreviewResponseState = Readonly<{
   response: GuestResponseView | null
   googleReviewAvailable: boolean
 }>
 
-/**
- * The response a preview state stands for, and whether Google can be offered.
- * Shared by the legacy form view and the Immersive Hub's response view, so a
- * state means the same thing on both.
- */
 export function previewResponseState(
   state: GuestPagePreviewState,
   threshold: number,
@@ -115,43 +93,5 @@ export function previewResponseState(
         googleReviewAvailable: false,
       }
     }
-  }
-}
-
-type PreviewSnapshot = PreviewResponseState & Readonly<{ message: string }>
-
-function previewSnapshot(
-  state: GuestPagePreviewState,
-  copy: GuestPortalCopy,
-  threshold: number,
-): PreviewSnapshot {
-  return {
-    ...previewResponseState(state, threshold),
-    message: state.kind === 'done' ? copy.feedbackSent : '',
-  }
-}
-
-/** The form view's props for a preview state. Every handler is inert. */
-export function previewFormViewProps(
-  state: GuestPagePreviewState,
-  { copy, privateFeedbackThreshold, secondaryLinks }: PreviewFormOptions,
-): GuestResponseFormViewProps {
-  const threshold = privateFeedbackThreshold ?? PREVIEW_PRIVATE_FEEDBACK_THRESHOLD
-  return {
-    availability: 'available',
-    copy,
-    ...previewSnapshot(state, copy, threshold),
-    correcting: false,
-    pending: false,
-    submitRatingMutation: {},
-    submitFeedbackMutation: {},
-    secondaryLinks,
-    onSubmitRating: async () => undefined,
-    onSubmitFeedback: async () => false,
-    onGoogleReview: noop,
-    onStartCorrection: noop,
-    onStartNewResponse: noop,
-    onWithdrawFeedback: noop,
-    onWithdraw: noop,
   }
 }
