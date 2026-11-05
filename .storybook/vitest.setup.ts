@@ -29,6 +29,14 @@ const noAnimation = document.createElement('style')
 noAnimation.textContent = '*, *::before, *::after { animation: none !important; }'
 document.head.append(noAnimation)
 
+// Radix locks the body (`overflow: hidden`) while a modal is open. axe takes a label
+// inside the fixed dialog for clipped when the body is only as tall as the story's
+// own root, and reports the field it names as unlabelled (label-title-only). In the
+// app the body holds the whole page; the runner gives it the same room.
+const lockedBody = document.createElement('style')
+lockedBody.textContent = 'body[data-scroll-locked] { min-height: 100vh; }'
+document.head.append(lockedBody)
+
 type ConsoleErrorAllowlistEntry = Readonly<{
   id: string
   pattern: RegExp | string
