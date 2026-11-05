@@ -362,26 +362,6 @@ export const createReplyRepository = (
     })
   },
 
-  findGoogleSyncByReviewId: async (
-    reviewId: ReviewId,
-    organizationId: OrganizationId,
-  ) => {
-    return trace('reply.findGoogleSyncByReviewId', async () => {
-      const rows = await db
-        .select()
-        .from(replies)
-        .where(
-          and(
-            eq(replies.reviewId, reviewId),
-            eq(replies.organizationId, organizationId),
-            eq(replies.source, 'google_sync'),
-          ),
-        )
-        .limit(1)
-      return rows[0] ? replyFromRow(rows[0]) : null
-    })
-  },
-
   // D3 keeps a deferred uncertain send approved/sending with a one-minute
   // reconcile_due_at, so `sending` must stay in this list for the sweep to
   // read it again.

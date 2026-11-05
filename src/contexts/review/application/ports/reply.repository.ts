@@ -156,10 +156,6 @@ export type ReplyRepository = Readonly<{
     organizationId: OrganizationId,
     propertyIds?: ReadonlyArray<PropertyId>,
   ): Promise<ReadonlyArray<ReplyStageRow>>
-  findGoogleSyncByReviewId(
-    reviewId: ReviewId,
-    organizationId: OrganizationId,
-  ): Promise<Reply | null>
   /**
    * Keyset-bounded batch of every non-terminal publication state whose
    * recovery deadline is due, ordered (reconcileDueAt ASC, id ASC). `cursor`

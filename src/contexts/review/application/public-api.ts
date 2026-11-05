@@ -141,11 +141,3 @@ export type {
   AiTrendPopulationRequest,
   AiTrendPopulationResult,
 } from './ports/ai-review-source.port'
-
-// ── Staff type aliases for cross-context consumers ──────────────────────
-export type StaffRecentReview = {
-  id: string
-  rating: number
-  snippet: string
-  date: string
-}

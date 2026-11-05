@@ -1,123 +1,7 @@
-// BETA-1 B1.10: Reply publication saga state machine.
-//
-// Models the external Google reply publication as a durable workflow:
-//
-//   draft → publish_requested → publishing → published
-//                                         ↘ rejected_terminal
-//                                         ↘ outcome_unknown → reconciling → published | retryable | manual_review
-//
-// Key invariants:
-// - Only ONE active publication workflow per review at any time
-// - The saga separates local draft state from provider-published state
-// - Crash at any boundary yields at most ONE Google-visible reply
-// - "outcome_unknown" is the dangerous state: API call may or may not have
-//   succeeded. Reconciliation (re-checking Google) is required before retry.
-// - "manual_review" is terminal — requires operator intervention
-//
-// This type models the publication workflow overlay. The reply's own status
-// (draft/approved/published) tracks the local lifecycle. This type tracks
-// the external interaction.
+// Reply publication workflow: the persisted publication state on replies, its
+// transitions, reconcile timing, and provider-failure classification.
 
 import { reviewError } from './errors'
-
-export type ReplyPublicationState =
-  | 'idle' // no publication workflow active
-  | 'publish_requested' // manager approved, outbox intent recorded
-  | 'publishing' // Google API call in flight
-  | 'published' // terminal — Google confirmed success
-  | 'rejected_terminal' // terminal — Google returned a permanent error (e.g., 403)
-  | 'outcome_unknown' // crash/timeout — API result unclear
-  | 'reconciling' // checking Google to determine actual outcome
-  | 'retryable' // transient failure (e.g., 429, 5xx) — safe to retry
-  | 'manual_review' // terminal — operator must intervene
-
-/** Terminal states — no further automatic transitions. */
-const TERMINAL_PUBLICATION_STATES: ReadonlySet<ReplyPublicationState> = new Set([
-  'published',
-  'rejected_terminal',
-  'manual_review',
-])
-
-/** Active states — one publication workflow is in progress. */
-const ACTIVE_PUBLICATION_STATES: ReadonlySet<ReplyPublicationState> = new Set([
-  'publish_requested',
-  'publishing',
-  'outcome_unknown',
-  'reconciling',
-  'retryable',
-])
-
-/** Valid transitions. Not exported: a test that read this table to decide what
- * to expect could not fail when an edge was added to it. The tests hold it to
- * tables written by hand (reply-publication-workflow.property.test.ts). */
-const VALID_PUBLICATION_TRANSITIONS: Readonly<
-  Record<ReplyPublicationState, readonly ReplyPublicationState[]>
-> = {
-  idle: ['publish_requested'],
-  publish_requested: ['publishing', 'rejected_terminal'],
-  publishing: ['published', 'rejected_terminal', 'outcome_unknown'],
-  outcome_unknown: ['reconciling'],
-  reconciling: ['published', 'retryable', 'manual_review'],
-  retryable: ['publishing', 'manual_review'],
-  published: [], // terminal
-  rejected_terminal: [], // terminal
-  manual_review: [], // terminal
-}
-
-/**
- * Check if a transition is valid.
- */
-export function isValidPublicationTransition(
-  from: ReplyPublicationState,
-  to: ReplyPublicationState,
-): boolean {
-  return VALID_PUBLICATION_TRANSITIONS[from]?.includes(to) ?? false
-}
-
-/**
- * Assert that a transition is valid.
- * Throws a tagged ReviewError (BQR-1.2) — never an untagged { code } object.
- */
-export function assertValidPublicationTransition(
-  from: ReplyPublicationState,
-  to: ReplyPublicationState,
-): void {
-  if (!isValidPublicationTransition(from, to)) {
-    throw reviewError(
-      'invalid_transition',
-      `Invalid reply publication transition from "${from}" to "${to}"`,
-      { from, to },
-    )
-  }
-}
-
-/**
- * Check if the publication workflow is active (in progress).
- */
-export function isPublicationActive(state: ReplyPublicationState): boolean {
-  return ACTIVE_PUBLICATION_STATES.has(state)
-}
-
-/**
- * Check if the publication workflow is terminal.
- */
-export function isPublicationTerminal(state: ReplyPublicationState): boolean {
-  return TERMINAL_PUBLICATION_STATES.has(state)
-}
-
-/**
- * Check if the publication succeeded (Google confirmed).
- */
-export function isPublished(state: ReplyPublicationState): boolean {
-  return state === 'published'
-}
-
-/**
- * Check if operator intervention is required.
- */
-export function requiresManualReview(state: ReplyPublicationState): boolean {
-  return state === 'manual_review' || state === 'outcome_unknown'
-}
 
 /**
  * Get the idempotency key for a reply publication.
@@ -173,34 +57,8 @@ export function nextPublicationCycle(current: number): number {
 
 export type PublicationFailureClass = 'terminal_rejection' | 'retryable' | 'ambiguous'
 
-// ── BQC-3.8: persisted publication state machine ─────────────────────
-//
-// Migration 0015 persists the external-interaction overlay on replies
-// (replies.publication_state). The persisted states map onto the saga
-// states above:
-//
-//   persisted    saga                            meaning
-//   requested    publish_requested               intent recorded (reserved —
-//                                                approval writes 'authorized'
-//                                                directly in the same tx)
-//   authorized   publish_requested               manager authorized; a
-//                                                publish job may claim the row
-//   sending      publishing                      a worker claimed the row; the
-//                                                Google call is in flight
-//   pending_observation provider_outcome_pending Google accepted the write,
-//                                                but no provider read has yet
-//                                                proved the current live text
-//   published    published                       provider confirmed (terminal)
-//   terminal     rejected_terminal /             provider rejected permanently
-//                manual_review                   (terminal)
-//   ambiguous    outcome_unknown                 the request may have landed;
-//                                                reconcile before any new publish
-//   cancelled    (none — BQC-3.8 addition)       cancelled by policy/disconnect
-//                                                (terminal)
-//
-// The reply status (draft/approved/published/publish_failed) still tracks the
-// local lifecycle; publication_state tracks the external interaction. Rows
-// with no active workflow carry NULL (drafts, pre-0015 legacy rows).
+// The reply status tracks the local lifecycle; publication_state tracks the
+// provider interaction. NULL means no publication workflow is active.
 
 export type PersistedPublicationState =
   | 'requested'
@@ -226,8 +84,7 @@ export type PublicationStateEvent =
   | 'requeue' // classified retryable — back to 'authorized' for the next attempt
   | 'cancel' // policy/disconnect cancellation
 
-// Not exported, for the same reason as the saga table above: its tests state
-// the expected moves by hand, one rule per event.
+// Tests state the expected moves independently, one rule per event.
 const PERSISTED_PUBLICATION_TRANSITIONS: Readonly<
   Record<
     PersistedPublicationState,

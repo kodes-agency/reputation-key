@@ -208,9 +208,3 @@ export function retryPendingReply(
   const latest = Array.from(pending.values()).at(-1)
   if (latest) void request(...latest.args)
 }
-export function chooseReplyTone(
-  tone: ReplyTone,
-  setTone: (tone: ReplyTone) => void,
-): void {
-  setTone(tone)
-}

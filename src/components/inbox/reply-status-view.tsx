@@ -11,7 +11,7 @@ import { useEffect, useRef } from 'react'
 import type { InboxItemDetailResult } from '#/contexts/inbox/application/public-api'
 import { putCaretIn } from './composer-caret'
 import { ReplyCompose, type ReplyComposeProps } from './reply-editor-compose'
-import { ReplyPublishedEditor } from './reply-published-edit'
+import { ReviewReplyPublishedEditor } from './reply-editor-views'
 import type { ReplySuggestionGenerate } from './reply-suggestion-contract'
 import type { ReviewLanguageReadiness } from './reply-language-options'
 
@@ -216,13 +216,20 @@ export function ReplyStatusView({
     // `published` and `REPLY_TRANSITIONS.publish_failed` has no `draft`, so no
     // server path exists today that changes the text of a publish-failed
     // reply. Try again is its whole action list.
+    //
+    // Whether the editor is open is the pane's `editTarget`, not a local flag:
+    // the cache patch that follows a republish re-resolves the reply to
+    // `approved` and unmounts this subtree mid-`setState`.
     case 'published':
       return editTarget === 'published' ? (
-        <ReplyPublishedEditor
+        <ReviewReplyPublishedEditor
           reply={view.reply}
           isSaving={isSaving}
-          onSaveEdit={onSaveEdit}
-          onClose={onEditDone}
+          onSave={async (text) => {
+            await onSaveEdit(text)
+            onEditDone()
+          }}
+          onCancel={onEditDone}
         />
       ) : null
     // `rejected` has NO arm, and needs none. Reopening one is a real
