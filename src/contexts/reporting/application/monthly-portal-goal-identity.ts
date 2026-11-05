@@ -3,8 +3,8 @@
 //
 // The Monthly portal goal is not a kind of Program: it is the Property's count
 // goal, the one whose subject is the Property alone and whose measure is private
-// ratings or scans. One per Property is a screen rule, so it is chosen here and
-// nowhere else, by Program, from the Programs the Property has:
+// ratings or scans. Writes serialize that identity per Property; reads choose
+// deterministically from the Programs the Property has:
 //
 // - the earliest-created one that has not ended (scheduled, active or paused);
 // - else the most recently ended one that still counts a month: its window is
@@ -35,7 +35,7 @@ export const isPortalGoalMeasure = (metric: GoalMetric): metric is PortalGoalMea
   COUNT_MEASURES.has(metric)
 
 /** The current version's subjects, as the goal names them now. */
-const currentAssignments = (bundle: GoalProgramBundle) =>
+const currentAssignments = (bundle: Pick<GoalProgramBundle, 'version' | 'assignments'>) =>
   bundle.assignments.filter(
     (assignment) => assignment.programVersionId === bundle.version.id,
   )
@@ -53,14 +53,11 @@ export const isPortalCountGoal = (bundle: GoalProgramBundle): bundle is PortalCo
 
 /** A count goal whose subject, today, is the Property alone. */
 export function isPropertyCountGoal(
-  bundle: GoalProgramBundle,
+  bundle: Pick<GoalProgramBundle, 'version' | 'assignments'>,
 ): bundle is PropertyCountGoal {
   if (!isPortalGoalMeasure(bundle.version.metric)) return false
   const subjects = currentAssignments(bundle)
-  return (
-    subjects.length > 0 &&
-    subjects.every((assignment) => assignment.subject.kind === 'property')
-  )
+  return subjects.length === 1 && subjects[0]?.subject.kind === 'property'
 }
 
 /**

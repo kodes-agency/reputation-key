@@ -1,6 +1,9 @@
 import { assertPersonalGoalAssignments } from './personal-goal-assignment-guard'
+import { assertPropertyCountGoalAvailable } from './property-count-goal-guard'
 import { and, asc, desc, eq, gt, inArray, isNull, ne, or, sql } from 'drizzle-orm'
 import type { Database } from '#/shared/db'
+import { lockStaffTargetProperty } from '#/shared/db/staff-target-lock'
+import { GoalProgramError } from '../../application/use-cases/goal-program-shared'
 import { auditLogs } from '#/shared/db/schema/audit'
 import {
   goalMonthlyResults,
@@ -171,6 +174,7 @@ async function reviseInTx(
   input: Parameters<GoalProgramRepository['revise']>[0],
 ): Promise<boolean> {
   await assertPersonalGoalAssignments(tx, input.version, input.assignments)
+  await assertPropertyCountGoalAvailable(tx, input.version, input.assignments)
   const [program] = await tx
     .update(goalPrograms)
     .set({
@@ -356,6 +360,9 @@ export const createGoalProgramRepository = (db: Database): GoalProgramRepository
       const write = () =>
         db.transaction(async (tx) => {
           await assertPersonalGoalAssignments(tx, bundle.version, bundle.assignments)
+          if (bundle.program.status !== 'ended') {
+            await assertPropertyCountGoalAvailable(tx, bundle.version, bundle.assignments)
+          }
           await tx.insert(goalPrograms).values(programValues(bundle.program))
           await tx.insert(goalProgramVersions).values(versionValues(bundle.version))
           if (bundle.assignments.length > 0) {
@@ -389,7 +396,11 @@ export const createGoalProgramRepository = (db: Database): GoalProgramRepository
         // A new Program has one version, so the only no-overlap constraint it
         // can meet is the subject's: another goal took the subject and metric
         // after the caller checked. The transaction wrote nothing.
-        if (hasPostgresErrorCode(error, '23P01')) return 'subject_has_goal'
+        if (
+          hasPostgresErrorCode(error, '23P01') ||
+          (error instanceof GoalProgramError && error.code === 'subject_has_goal')
+        )
+          return 'subject_has_goal'
         throw error
       }
       return 'created'
@@ -451,6 +462,7 @@ export const createGoalProgramRepository = (db: Database): GoalProgramRepository
 
     async changeStatus(input) {
       return changeStatusOrConflict(async (tx) => {
+        await lockStaffTargetProperty(tx, input.organizationId, input.propertyId)
         const [row] = await tx
           .update(goalPrograms)
           .set({

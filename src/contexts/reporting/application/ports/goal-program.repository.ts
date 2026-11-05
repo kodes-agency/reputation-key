@@ -241,7 +241,10 @@ export type GoalProgramRepository = Readonly<{
   /**
    * `subject_has_goal` when a subject already holds the metric inside the new
    * Program's window: the database's no-overlap constraint, for a conflict that
-   * appeared after the caller's own check. Nothing is written then.
+   * appeared after the caller's own check. The Property definition lock also
+   * enforces one non-ended Property count goal across the two count measures.
+   * Averages and several-subject Programs do not reserve that identity.
+   * Nothing is written on refusal.
    */
   create(
     input: Readonly<{
@@ -293,6 +296,8 @@ export type GoalProgramRepository = Readonly<{
   ): Promise<GoalProgram | null>
   /**
    * Write `version` as the Program's new head.
+   * Throws `subject_has_goal` if another non-ended Program holds the Property
+   * count identity when checked under the Property definition lock.
    *
    * `supersedeRowlessHead` says what becomes of the expected version. False:
    * it is in force, and it and its assignments close where the new version
