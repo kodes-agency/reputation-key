@@ -35,8 +35,9 @@ Every tap is a Qualified Link Action, before or after a rating (amendment 2026-1
 the origin-, CSRF- and session-bound POST counts it once per session per link, within
 the existing network limits. Every tile navigates natively through the navigation-only
 GET click route while an unload-safe request counts in the background, so counting
-cannot delay or block the guest. Schema v1/v2 snapshots keep the legacy renderer,
-where the destinations follow the rating; their taps use the same counting rule.
+cannot delay or block the guest. Only schema v3 publications are served. Earlier
+snapshots remain immutable evidence and are readable in Portal history; they
+cannot be made live again.
 
 "Start over" on a shared device issues a fresh signed session. The server allows it to a
 session whose response holds a durable rating and to one whose response the guest withdrew

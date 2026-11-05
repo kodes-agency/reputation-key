@@ -1,4 +1,4 @@
-// The immersive response view must stay a pure view, like `GuestPageView`:
+// The immersive response view must stay a pure view:
 // nothing it renders may bind a server function or an action. The container
 // (slice 19) binds them and hands the finished state in.
 

@@ -16,9 +16,7 @@ import {
 } from '#/contexts/guest/server/public'
 import { getPublicPortal, recordScanFn } from '#/contexts/guest/server/guest-scans'
 import {
-  GuestAnalyticsNotice,
   ImmersivePublicPortal,
-  PublicPortalContent,
   type GuestPortalCopyV2,
 } from '#/components/features/guest'
 import { guestPageHead } from '#/components/features/guest/guest-page-head'
@@ -229,70 +227,32 @@ function PublicPortalView({
     return result.retryable ? ('retryable' as const) : ('settled' as const)
   }, [recordScan, token, csrfNonce, accessArtifact])
 
-  if (data.immersive) {
-    // Schema version 3: the Immersive Hub. It records the visit from its own
-    // footer, where the notice sits inline, so it mounts no overlay.
-    if (!data.pack) return <PortalUnavailableInBrowserLanguage />
-    return (
-      <ImmersivePublicPortal
-        token={token}
-        accessArtifactId={accessArtifact}
-        pack={data.pack}
-        immersive={data.immersive}
-        selectedLocale={data.localization.selectedLocale}
-        availableLocales={data.localization.availableLocales}
-        googleReview={data.reviewGateway.googleReview}
-        skipPrivateRating={data.reviewGateway.skipPrivateRating}
-        csrfNonce={csrfNonce}
-        initialResponse={data.response}
-        availability={formAvailability[data.responseForm.availability]}
-        servedAt={data.servedAt}
-        actions={{
-          submitResponse,
-          correctResponse,
-          startNewResponse,
-          submitPrivateFeedback,
-          selectGoogleReview,
-          withdrawResponse,
-          withdrawPrivateFeedback,
-          selectSecondaryLink,
-        }}
-        onPortalVisit={recordPortalVisit}
-      />
-    )
-  }
-
+  if (!data.immersive || !data.pack) return <PortalUnavailableInBrowserLanguage />
   return (
-    <>
-      <GuestAnalyticsNotice
-        scopeKey={token}
-        sessionKey={csrfNonce}
-        locale={data.localization.selectedLocale}
-        languagePackVersion={data.localization.languagePackVersion}
-        onPortalVisit={recordPortalVisit}
-      />
-      <PublicPortalContent
-        token={token}
-        accessArtifactId={accessArtifact}
-        portal={data.portal}
-        categories={data.categories}
-        links={data.links}
-        reviewGateway={data.reviewGateway}
-        localization={data.localization}
-        selectSecondaryLink={selectSecondaryLink}
-        responseForm={{
-          csrfNonce,
-          initialResponse: data.response,
-          availability: formAvailability[data.responseForm.availability],
-          submitResponse,
-          correctResponse,
-          startNewResponse,
-          submitPrivateFeedback,
-          selectGoogleReview,
-          withdrawResponse,
-          withdrawPrivateFeedback,
-        }}
-      />
-    </>
+    <ImmersivePublicPortal
+      token={token}
+      accessArtifactId={accessArtifact}
+      pack={data.pack}
+      immersive={data.immersive}
+      selectedLocale={data.localization.selectedLocale}
+      availableLocales={data.localization.availableLocales}
+      googleReview={data.reviewGateway.googleReview}
+      skipPrivateRating={data.reviewGateway.skipPrivateRating}
+      csrfNonce={csrfNonce}
+      initialResponse={data.response}
+      availability={formAvailability[data.responseForm.availability]}
+      servedAt={data.servedAt}
+      actions={{
+        submitResponse,
+        correctResponse,
+        startNewResponse,
+        submitPrivateFeedback,
+        selectGoogleReview,
+        withdrawResponse,
+        withdrawPrivateFeedback,
+        selectSecondaryLink,
+      }}
+      onPortalVisit={recordPortalVisit}
+    />
   )
 }

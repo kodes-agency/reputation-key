@@ -26,6 +26,7 @@ import {
   publicationContentView,
   type PublicationContentChange,
 } from '../../domain/portal-publication-content'
+import { IMMERSIVE_HUB_SCHEMA_VERSION } from '../../domain/portal-publication-snapshot'
 
 /** More versions than a Portal is ever published; older ones are named, not listed. */
 const MAX_LISTED_VERSIONS = 200
@@ -36,6 +37,7 @@ export type PortalVersionItem = Readonly<{
   publishedBy: PortalVersionActor | null
   /** The version guests see right now. */
   isLive: boolean
+  restorable: boolean
   /** Nothing came before it. */
   isFirst: boolean
   languages: readonly GuestLocale[]
@@ -118,6 +120,7 @@ export const getPortalVersions =
           publishedAt: row.publishedAt.toISOString(),
           publishedBy: versionActor(row.publishedBy, names),
           isLive: row.version === liveVersion,
+          restorable: row.configuration.schemaVersion === IMMERSIVE_HUB_SCHEMA_VERSION,
           isFirst: before === undefined,
           languages: publicationContentView(row.configuration).locales,
           changes: diffPublicationContent(

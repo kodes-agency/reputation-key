@@ -21,9 +21,7 @@ export const PREVIEW_CLOCK = {
 
 /**
  * The response view's props for a controlled state, for manager previews and
- * stories. The same states mean the same thing as on the legacy page
- * (`previewResponseState`). Every handler is inert: no session exists and no
- * request is made.
+ * stories. Every handler is inert: no session exists and no request is made.
  */
 export function immersiveResponseProps(
   state: GuestPagePreviewState,

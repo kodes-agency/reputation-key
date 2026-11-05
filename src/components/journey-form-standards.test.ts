@@ -57,8 +57,6 @@ describe('Guest, Inbox, and notification journey-form standards', () => {
       .sort()
 
     expect(formFiles).toEqual([
-      'src/components/features/guest/public-portal/guest-private-feedback-form.tsx',
-      'src/components/features/guest/public-portal/guest-rating-form.tsx',
       'src/components/features/guest/public-portal/immersive/immersive-note-form.tsx',
       'src/components/features/guest/public-portal/immersive/immersive-rating-form.tsx',
       'src/components/features/settings/notification-formatting-form.tsx',

@@ -57,10 +57,6 @@ describe('an explicit-save group saves from FormActions', () => {
 
   /** Forms that are not a settings group: a page of their own, or one step of a task. */
   const SAVE_ALLOWED: Readonly<Record<string, string>> = {
-    'src/components/features/guest/public-portal/guest-private-feedback-form.tsx':
-      'the guest renderer, out of scope',
-    'src/components/features/guest/public-portal/guest-rating-form.tsx':
-      'the guest renderer, out of scope',
     'src/components/features/identity/login/login-form.tsx':
       'a sign-in page, one full-width submit',
     'src/components/features/identity/registration/register-form.tsx':
