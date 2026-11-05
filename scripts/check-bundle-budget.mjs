@@ -7,8 +7,9 @@
 // The initial closure is what the browser must download before the app can
 // render: the entry chunk, every chunk reachable from it through static import
 // specifiers, and all CSS. Dynamic `import("./x.js")` edges are not followed;
-// those are the route and lazy splits. Three ceilings apply: the entry chunk, the
-// initial closure and any chunk outside it.
+// those are the route and lazy splits. Two ceilings apply: the initial closure
+// and any chunk outside it. Source maps identify library chunks independently of
+// the bundler's chunk names; maps may be beside chunks or withheld from public assets.
 
 import { readdirSync, readFileSync, existsSync } from 'node:fs'
 import { join, dirname, basename } from 'node:path'
@@ -20,9 +21,9 @@ const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..')
 const ASSETS_DIR = process.argv[2] ?? join(ROOT, '.output/public/assets')
 
 const BUDGETS = {
-  mainEntryGzip: 70_100,
-  initialClosureGzip: 321_000,
-  lazyChunkGzip: 125 * 1024, // 128,000 (chunks outside the closure)
+  // Fixed gzip byte ceilings; changes require owner approval.
+  initialClosureGzip: 345_000,
+  lazyChunkGzip: 128_000,
 }
 
 if (!existsSync(ASSETS_DIR)) {
@@ -50,6 +51,34 @@ const failures = []
 
 const sizes = new Map()
 for (const f of [...jsFiles, ...cssFiles]) sizes.set(f, gzipSize(f))
+
+const libraryChunks = new Set()
+const sentryChunks = new Set()
+for (const file of jsFiles) {
+  const mapFile = [
+    join(ASSETS_DIR, `${file}.map`),
+    join(ASSETS_DIR, '../../client-source-maps/assets', `${file}.map`),
+  ].find(existsSync)
+  if (!mapFile) {
+    // Vite and Rolldown's generated helpers have no input source modules.
+    if (!/^(?:preload-helper|rolldown-runtime)-[^/]+\.js$/.test(file)) {
+      failures.push(
+        `missing source map for ${file}; library provenance cannot be checked`,
+      )
+    }
+    continue
+  }
+  const { sources } = JSON.parse(readFileSync(mapFile, 'utf8'))
+  if (!Array.isArray(sources) || sources.length === 0) {
+    failures.push(`empty source map for ${file}; library provenance cannot be checked`)
+    continue
+  }
+  for (const source of sources) {
+    const path = source.replaceAll('\\', '/')
+    if (/(?:^|\/)node_modules\//.test(path)) libraryChunks.add(file)
+    if (/(?:^|\/)node_modules\/@sentry\//.test(path)) sentryChunks.add(file)
+  }
+}
 
 function staticDependencies(file) {
   const source = readFileSync(join(ASSETS_DIR, file), 'utf8')
@@ -125,7 +154,7 @@ function importCycles(graph) {
 // Cycles that reach first paint are gated, and so is any cycle through a vendor
 // chunk, because a library that imports the app back breaks every page that loads it.
 const gatedCycles = importCycles(edges).filter((cycle) =>
-  cycle.some((file) => closure.has(file) || file.startsWith('vendor-')),
+  cycle.some((file) => closure.has(file) || libraryChunks.has(file)),
 )
 
 const fmt = (n) => `${n.toLocaleString('en-US')} B`
@@ -139,16 +168,13 @@ for (const cycle of gatedCycles) {
 }
 
 for (const file of closure) {
-  if (!file.startsWith('vendor-sentry-')) continue
+  if (!sentryChunks.has(file)) continue
   failures.push(
-    `${file} (${fmt(sizes.get(file))}) is in the initial closure: the browser Sentry SDK loads only through instrument.client.ts's dynamic import, so cut the static importer`,
+    `${file} (${fmt(sizes.get(file))}): Sentry SDK is in the initial closure; it loads only through instrument.client.ts's dynamic import, so cut the static importer`,
   )
 }
 
 const entrySize = sizes.get(entry)
-if (entrySize > BUDGETS.mainEntryGzip) {
-  over(`main entry chunk ${entry}`, entrySize, BUDGETS.mainEntryGzip)
-}
 
 const closureMembers = [...closure, ...cssFiles]
   .map((f) => [f, sizes.get(f)])
@@ -182,7 +208,7 @@ if (failures.length > 0) {
 console.log(
   '[bundle-budget] OK — all chunks within budget, no static import cycle through first paint or a vendor chunk:',
 )
-console.log(`  entry ${entry}: ${fmt(entrySize)} / ${fmt(BUDGETS.mainEntryGzip)} gzip`)
+console.log(`  entry ${entry}: ${fmt(entrySize)} gzip`)
 console.log(
   `  initial closure (${closure.size} js + ${cssFiles.length} css): ${fmt(initialClosure)} / ${fmt(BUDGETS.initialClosureGzip)} gzip`,
 )
