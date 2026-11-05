@@ -1,3 +1,4 @@
+import { summarizeError } from '#/shared/observability/error-summary'
 import type { VersionedHmacKeyring } from '../security/versioned-hmac-keyring'
 import {
   compileGoogleProviderRequest,
@@ -208,9 +209,7 @@ async function completeAdmission(
       routeKey: input.routeKey,
       outcome: input.outcome,
       ...input.evidence,
-      ...(attempt.error instanceof Error
-        ? { err: { name: attempt.error.name, message: attempt.error.message } }
-        : {}),
+      ...(attempt.error instanceof Error ? { err: summarizeError(attempt.error) } : {}),
     },
     'Google admission completion failed',
   )
@@ -289,9 +288,7 @@ export function createGoogleEgressGateway(
             code: 'coordination_unavailable',
             routeKey: compiled.admission.routeKey,
             ...timing(),
-            ...(error instanceof Error
-              ? { err: { name: error.name, message: error.message } }
-              : {}),
+            ...(error instanceof Error ? { err: summarizeError(error) } : {}),
           },
           'Google admission call failed',
         )

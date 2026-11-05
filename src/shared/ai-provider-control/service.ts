@@ -1,3 +1,4 @@
+import { summarizeError } from '#/shared/observability/error-summary'
 import {
   reportReplyProgress,
   type ReplyDraftingProgressSink,
@@ -441,8 +442,7 @@ export function createAiEgressGatewayService(
               operationId: prepared.invocation.descriptor.operationId,
               permitId: prepared.invocation.descriptor.permitId,
               attempt: prepared.invocation.descriptor.attemptNumber,
-              reason: error instanceof Error ? error.name : 'unknown',
-              message: error instanceof Error ? error.message.slice(0, 160) : '',
+              error: summarizeError(error),
             })}\n`,
           )
           prepared.invocation.canonicalProviderBytes.fill(0)
@@ -666,8 +666,7 @@ export function createAiEgressGatewayService(
             route,
             successSettled,
             authorizationInvoked,
-            reason: error instanceof Error ? error.name : 'unknown',
-            message: error instanceof Error ? error.message.slice(0, 160) : '',
+            error: summarizeError(error),
           })}\n`,
         )
         return errorResponse(

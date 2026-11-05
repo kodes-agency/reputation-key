@@ -193,7 +193,7 @@ TanStack Start builds **two bundles** — client and server. Server-only code th
 
 ### What is server-only (must never run in the browser)
 
-Node builtins (`crypto`, `async_hooks`, `fs`, `stream`, …), the packages `pg` / `ioredis` / `bullmq` / `drizzle-orm`, and these app modules: `src/composition.ts`, `src/contexts/*/build.ts`, `src/contexts/*/infrastructure/**` (repositories), `src/shared/db/**`, `src/shared/cache/**`, `src/shared/jobs/**`, `src/shared/observability/**`, `src/shared/auth/auth.ts`, `src/routes/api/**`.
+Node builtins (`crypto`, `async_hooks`, `fs`, `stream`, …), the packages `pg` / `ioredis` / `bullmq` / `drizzle-orm`, and these app modules: `src/composition.ts`, `src/composition/**`, `src/contexts/*/build.ts`, `src/contexts/*/infrastructure/**` (repositories), `src/shared/db/**`, `src/shared/cache/**`, `src/shared/jobs/**`, `src/shared/observability/**`, `src/shared/auth/auth.ts`, `src/routes/api/**`.
 
 ### Rules
 

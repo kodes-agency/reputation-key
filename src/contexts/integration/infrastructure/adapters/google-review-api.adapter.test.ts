@@ -1555,6 +1555,35 @@ describe('GoogleReviewApiAdapter reply failure evidence (D2)', () => {
     },
   )
 
+  it('carries only the allowlisted machine status through the review API error', async () => {
+    const execute = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 404,
+      headers: { contentType: 'application/json', cacheControl: null, retryAfter: null },
+      body: new TextEncoder().encode(
+        JSON.stringify({
+          error: {
+            status: 'NOT_FOUND',
+            message: 'private content',
+            details: [{ name: 'private resource' }],
+          },
+        }),
+      ),
+    })
+
+    const error = await rejection(replyAdapter(execute).replyToReview(replyInput()))
+
+    expect(error).toMatchObject({
+      code: 'provider_rejected',
+      failure: {
+        providerStatus: 404,
+        providerErrorStatus: 'NOT_FOUND',
+        dispatch: 'answered',
+      },
+    })
+    expect(JSON.stringify(error)).not.toContain('private')
+  })
+
   it('keeps the rate-limit hint alongside the answered 429', async () => {
     const execute = vi.fn().mockResolvedValue({
       ok: true,

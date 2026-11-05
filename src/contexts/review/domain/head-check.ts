@@ -90,8 +90,13 @@ export type HeadComparison = Readonly<{
   hasMore: boolean
 }>
 
-const sameInstant = (a: Date | null, b: Date | null): boolean =>
-  (a === null && b === null) || (a !== null && b !== null && a.getTime() === b.getTime())
+// A stored reply time can hold whole seconds where the newest-page list returns
+// fractions of a second, so the two are compared to the second.
+const sameSecond = (a: Date | null, b: Date | null): boolean =>
+  (a === null && b === null) ||
+  (a !== null &&
+    b !== null &&
+    Math.floor(a.getTime() / 1000) === Math.floor(b.getTime() / 1000))
 
 /** Google's updateTime is newer than the stored one (or there is none stored). */
 const updatedSince = (google: HeadGoogleReview, copy: HeadStoredCopy): boolean => {
@@ -123,7 +128,7 @@ const isReplyChanged = (google: HeadGoogleReview, copy: HeadStoredCopy): boolean
   const storedHasReply = copy.reply?.state === 'live'
   if (googleHasReply !== storedHasReply) return true
   if (!googleHasReply) return false
-  return !sameInstant(google.replyUpdatedAt, copy.reply?.providerUpdatedAt ?? null)
+  return !sameSecond(google.replyUpdatedAt, copy.reply?.providerUpdatedAt ?? null)
 }
 
 const needsLeaseRefresh = (copy: HeadStoredCopy, now: Date): boolean =>

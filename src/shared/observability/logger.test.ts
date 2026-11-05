@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest'
 import {
+  FAILED_WRITE_CONSTRAINT,
+  failedFeedbackWrite,
+} from '#/shared/db/testing/database-failure-fixtures'
+import {
   isPrettyTransportAvailable,
   normalizeTelemetryPath,
   sanitizeTelemetryValue,
@@ -78,6 +82,49 @@ describe('Google credential telemetry safety', () => {
     expect(sanitizeTelemetryValue(error)).toEqual({
       name: 'Error',
       code: 'oauth_failed',
+    })
+  })
+
+  it('reduces a database failure to its class and database facts wherever it is logged', () => {
+    const marker = 'private customer text'
+
+    expect(
+      sanitizeTelemetryValue({
+        outcomeCode: 'write_failed',
+        err: failedFeedbackWrite(marker),
+      }),
+    ).toEqual({
+      outcomeCode: 'write_failed',
+      err: {
+        name: 'DrizzleQueryError',
+        cause_code: '23505',
+        db_code: '23505',
+        db_constraint: FAILED_WRITE_CONSTRAINT,
+        db_table: 'feedback',
+      },
+    })
+  })
+
+  it('redacts a flattened error stack and the values a query was bound to', () => {
+    const marker = 'private customer text'
+    const result = sanitizeTelemetryValue({
+      outcomeCode: 'write_failed',
+      nested: { stack: `Error: ${marker}\n    at insert (db.ts:1:1)`, params: [marker] },
+    })
+
+    expect(JSON.stringify(result)).not.toContain(marker)
+    expect(result).toMatchObject({ outcomeCode: 'write_failed' })
+  })
+
+  it('keeps the fields that read as plain language: an alert detail and a cause code', () => {
+    expect(
+      sanitizeTelemetryValue({
+        detail: 'oldest unpublished outbox event is 61000ms old',
+        context: { cause: 'provider_truth' },
+      }),
+    ).toEqual({
+      detail: 'oldest unpublished outbox event is 61000ms old',
+      context: { cause: 'provider_truth' },
     })
   })
 
