@@ -32,10 +32,36 @@ describe('stopWords', () => {
     )
   })
 
-  it('before December is opened, Stop keeps November and frees the month a change could start', () => {
-    // A Stop now closes the goal before December opens: December never counts,
-    // and the first month it leaves whole is January.
-    expect(stopWords(goalOf(CARD_WHILE_DECEMBER_OPENS)).description).toBe(
+  it.each(['monthly', 'single'] as const)(
+    'before December is opened, the %s confirmation keeps December through Dec 31',
+    (kind) => {
+      // December is already the live month; Stop opens it before ending the goal.
+      expect(stopWords(goalOf(CARD_WHILE_DECEMBER_OPENS), kind).description).toBe(
+        'December keeps counting to Dec 31 and keeps its result. You can set a new goal from January.',
+      )
+    },
+  )
+
+  it('an average keeps its live month before maintenance opens it', () => {
+    const goal = goalOf(CARD_WHILE_DECEMBER_OPENS)
+    const average = {
+      programId: 'average-goal',
+      status: 'active',
+      startsOn: null,
+      change: goal.change,
+      month: { key: '2026-12' },
+    } as const
+
+    expect(stopWords(average, 'single').description).toBe(
+      'December keeps counting to Dec 31 and keeps its result. You can set a new goal from January.',
+    )
+  })
+
+  it('a paused goal keeps its last counting month', () => {
+    const goal = goalOf(CARD_WHILE_DECEMBER_OPENS)
+    const paused = { ...goal, status: 'paused', month: null } as const
+
+    expect(stopWords(paused).description).toBe(
       'November keeps counting to Nov 30 and keeps its result. You can set a new goal from January.',
     )
   })

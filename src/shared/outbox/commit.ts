@@ -5,6 +5,7 @@
 // insert commit atomically. The row is the fact; the worker relay delivers it.
 
 import type { Database } from '#/shared/db'
+import { lockMetricSource } from '#/shared/db/metric-source-lock'
 import { outboxEvents } from '#/shared/db/schema/outbox.schema'
 import type { DomainEvent } from '#/shared/events/events'
 import { getRequestContext } from '#/shared/observability/request-context'
@@ -13,12 +14,19 @@ import { toOutboxEvent, withEnvelopeIdentifiers } from './event-adapter'
 /** Drizzle transaction handle — the `tx` inside db.transaction(...). */
 export type Tx = Parameters<Parameters<Database['transaction']>[0]>[0]
 
+async function lockGuestMetricSource(tx: Tx, event: DomainEvent): Promise<void> {
+  if (event._tag.startsWith('guest.') && 'propertyId' in event && event.propertyId) {
+    await lockMetricSource(tx, event.organizationId, event.propertyId, 'writer')
+  }
+}
+
 /** Insert the durable outbox row for a domain event inside the command transaction. */
 export async function insertOutboxRow(
   tx: Tx,
   event: DomainEvent,
   options: Readonly<{ recordedAt?: Date }> = {},
 ): Promise<void> {
+  await lockGuestMetricSource(tx, event)
   const contextualEvent = withEnvelopeIdentifiers(event, getRequestContext())
   await tx.insert(outboxEvents).values({
     ...toOutboxEvent(contextualEvent),
@@ -36,6 +44,7 @@ export async function insertOutboxRowIfNew(
   event: DomainEvent,
   options: Readonly<{ recordedAt?: Date }> = {},
 ): Promise<boolean> {
+  await lockGuestMetricSource(tx, event)
   const contextualEvent = withEnvelopeIdentifiers(event, getRequestContext())
   const rows = await tx
     .insert(outboxEvents)
