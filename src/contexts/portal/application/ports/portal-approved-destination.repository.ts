@@ -9,6 +9,12 @@ import type {
   ValidatedPortalDestination,
 } from '../../domain/approved-destination'
 
+export type DuePortalApprovedDestination = PortalApprovedDestination &
+  Readonly<{
+    nextAttemptAt: Date | null
+    validationFailures: number
+  }>
+
 export type PortalApprovedDestinationRepository = Readonly<{
   request: (
     input: Readonly<{
@@ -46,15 +52,21 @@ export type PortalApprovedDestinationRepository = Readonly<{
   listDueForNetworkRevalidation: (
     before: Date,
     limit: number,
-  ) => Promise<readonly PortalApprovedDestination[]>
+    selection?: Readonly<{
+      at: Date
+      excludeIds?: readonly PortalApprovedDestinationId[]
+    }>,
+  ) => Promise<readonly DuePortalApprovedDestination[]>
   recordNetworkValidation: (
     input: Readonly<{
       organizationId: OrganizationId
       propertyId: PropertyId
       id: PortalApprovedDestinationId
       expectedLastValidatedAt: Date
+      expectedNextAttemptAt?: Date | null
       result:
         | Readonly<{ outcome: 'safe'; validatedAt: Date }>
+        | Readonly<{ outcome: 'unavailable'; nextAttemptAt: Date }>
         | Readonly<{
             outcome: 'unsafe'
             reason:
