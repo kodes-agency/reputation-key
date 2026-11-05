@@ -1,13 +1,8 @@
 import { createServerFn } from '@tanstack/react-start'
 import { z } from 'zod/v4'
+import { command } from '#/shared/commands/command.server'
 import { getContainer } from '#/composition'
-import { headersFromContext } from '#/shared/auth/headers'
-import { resolveTenantContext } from '#/shared/auth/middleware'
-import { catchUntagged, throwContextError } from '#/shared/auth/server-errors'
-import { tracedHandler } from '#/shared/observability/traced-server-fn'
-import { requireExecutionAllowed } from '#/shared/auth/execution-policy'
-import { isPropertyError } from '../domain/errors'
-import { propertyErrorStatus } from './property-shared'
+import { propertyCommandErrors } from './property-shared'
 
 const listInput = z.object({ propertyId: z.uuid() })
 const updateInput = z.object({
@@ -16,59 +11,40 @@ const updateInput = z.object({
   expectedRevision: z.number().int().positive(),
 })
 
-function rethrow(error: unknown): never {
-  if (isPropertyError(error)) {
-    throwContextError('PropertyError', error, propertyErrorStatus(error.code))
-  }
-  throw catchUntagged(error)
-}
-
 export const listPropertyResponsibleManagers = createServerFn({ method: 'GET' })
   .validator(listInput)
   .handler(
-    tracedHandler(
-      async ({ data }) => {
-        const ctx = await resolveTenantContext(await headersFromContext())
-        try {
-          await requireExecutionAllowed({
-            actor: ctx,
-            action: 'property.read',
-            propertyId: data.propertyId,
-          })
-          return await getContainer().propertyPublicApi.management.listPropertyResponsibleManagers(
-            data,
-            ctx,
-          )
-        } catch (error) {
-          rethrow(error)
-        }
+    command(
+      {
+        method: 'GET',
+        name: 'property.listPropertyResponsibleManagers',
+        action: 'property.read',
+        propertyId: (data) => data.propertyId,
+        errors: propertyCommandErrors,
       },
-      'GET',
-      'property.listPropertyResponsibleManagers',
+      async ({ data, actor }) =>
+        getContainer().propertyPublicApi.management.listPropertyResponsibleManagers(
+          data,
+          actor,
+        ),
     ),
   )
 
 export const updatePropertyResponsibleManagers = createServerFn({ method: 'POST' })
   .validator(updateInput)
   .handler(
-    tracedHandler(
-      async ({ data }) => {
-        const ctx = await resolveTenantContext(await headersFromContext())
-        try {
-          await requireExecutionAllowed({
-            actor: ctx,
-            action: 'property.update',
-            propertyId: data.propertyId,
-          })
-          return await getContainer().propertyPublicApi.management.updatePropertyResponsibleManagers(
-            data,
-            ctx,
-          )
-        } catch (error) {
-          rethrow(error)
-        }
+    command(
+      {
+        method: 'POST',
+        name: 'property.updatePropertyResponsibleManagers',
+        action: 'property.update',
+        propertyId: (data) => data.propertyId,
+        errors: propertyCommandErrors,
       },
-      'POST',
-      'property.updatePropertyResponsibleManagers',
+      async ({ data, actor }) =>
+        getContainer().propertyPublicApi.management.updatePropertyResponsibleManagers(
+          data,
+          actor,
+        ),
     ),
   )

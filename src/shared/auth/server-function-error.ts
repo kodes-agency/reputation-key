@@ -13,6 +13,7 @@ export class ServerFunctionError extends Error {
   readonly _tag: string
   readonly code: string
   readonly status: number
+  readonly requestId?: string
 
   /**
    * `options.cause` keeps the failure this error was built from, for error
@@ -23,13 +24,14 @@ export class ServerFunctionError extends Error {
     message: string,
     code: string,
     status: number,
-    options?: ErrorOptions,
+    options?: ErrorOptions & { requestId?: string },
   ) {
     super(message, options)
     this.name = errorName
     this._tag = errorName
     this.code = code
     this.status = status
+    this.requestId = options?.requestId
   }
 }
 
@@ -67,7 +69,10 @@ export const serverFunctionErrorAdapter = createSerializationAdapter({
     message: error.message,
     code: error.code,
     status: error.status,
+    ...(error.requestId ? { requestId: error.requestId } : {}),
   }),
   fromSerializable: (wire) =>
-    new ServerFunctionError(wire.name, wire.message, wire.code, wire.status),
+    new ServerFunctionError(wire.name, wire.message, wire.code, wire.status, {
+      requestId: wire.requestId,
+    }),
 })
