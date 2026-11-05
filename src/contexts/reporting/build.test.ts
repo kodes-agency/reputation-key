@@ -55,9 +55,8 @@ describe('buildReportingContext', () => {
   })
 
   it('publishes governed metric reads only, never the raw aggregate query', () => {
-    // The aggregate query takes any consumer and any metric key and asks no
-    // authority; Goals read through queryGoalMetric, which admits one approved
-    // version. Nothing in production called the raw one.
+    // Goals read through queryGoalMetric, which admits one approved version
+    // and checks authority.
     expect(Object.keys(build().publicApi)).not.toContain('queryAggregate')
   })
 
@@ -90,6 +89,14 @@ describe('buildReportingContext', () => {
       eventType: 'property.archived',
       consumerName: 'goal.on-property-archived',
     })
+    expect(
+      registry.list().filter(({ eventType }) => eventType.startsWith('metric.')),
+    ).toEqual([
+      {
+        eventType: 'metric.corrected',
+        consumerName: 'goal.metric-correction-reconciliation',
+      },
+    ])
   })
 
   it("composes the portal goal recommendation over Portal's readiness facts and one readings statement", async () => {

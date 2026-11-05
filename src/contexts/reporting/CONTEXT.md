@@ -627,7 +627,10 @@ aggregate and read purpose even though they share a bounded context.
 
 Metric and Goal event modules are named `metric-events.ts` and `goal-events.ts`. Their event
 tags remain stable for outbox replay compatibility. Reporting consumes Guest, Portal, Review,
-and metric-correction facts through the shared durable consumer registry. Each
+and metric-correction facts through the shared durable consumer registry. New readings
+commit with their source receipt and lifetime contribution, without emitting
+`metric.recorded`; both stored versions of that event remain decodable. Replacements
+and retractions still emit `metric.corrected` atomically. Each
 consumer holds a receipt for a fact it has finished. A fact that yields no reading is
 finished too: when the registry refuses it by design (a destination ratio under its minimum
 sample, a fact that cannot be attributed, one from before its measure took effect) the store
@@ -641,12 +644,8 @@ transactions, which is the second form the consumer contract allows
 each closed result is revised by its own compare-and-set, so a delivery repeated
 after a crash finds every result unchanged and only adds the receipt. A pending
 result throws before the receipt, and the fact is delivered again
-(`metric-correction-outbox-consumers.integration.test.ts`). The same fact has a
-second consumer, `metric.correction-reconciliation`
-(`correction-outbox-consumers.ts`). Despite its name it reconciles nothing: it
-checks the fact's attribution and writes its receipt, so its receipt says that
-Metric saw the fact, and only the Goal consumer's says the correction was
-reconciled. `goal.google-rating-evaluation` takes the same second form on
+(`metric-correction-outbox-consumers.integration.test.ts`).
+`goal.google-rating-evaluation` takes the same second form on
 `review.google_reputation_snapshot.verified` (a completed snapshot's, or a head
 check's when `REVIEW_HEAD_CHECKS=persist`: Google's count and average from one read
 of its newest page, ADR 0055 note 2026-10-21 (d)): the fact only says when to look, the

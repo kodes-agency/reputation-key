@@ -56,7 +56,7 @@ function workflowDeps(attributed: boolean) {
     }),
     resolveAttribution: async () =>
       attributed ? { propertyId: PROPERTY, portalGroupId: null } : null,
-    hasReading: createMetricRepository(db, () => NOW).hasReading,
+    hasReading: createMetricRepository(db).hasReading,
   }
 }
 
