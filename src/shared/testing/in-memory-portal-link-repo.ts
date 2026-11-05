@@ -1,7 +1,7 @@
 // In-memory PortalLinkRepository fake — for use in use case tests.
 // Implements the same port interface so use cases can't tell the difference.
 
-import type { PortalLinkRepository } from '#/contexts/portal/application/ports/portal-link.repository'
+import type { MutablePortalLinkRepository as PortalLinkRepository } from '#/shared/testing/mutable-portal-repositories'
 import type { PortalLinkCategory, PortalLink } from '#/contexts/portal/domain/types'
 import { portalError } from '#/contexts/portal/domain/errors'
 import {
