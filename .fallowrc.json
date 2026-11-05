@@ -26,6 +26,7 @@
     "drizzle.config.ts"
   ],
   "dynamicallyLoaded": [
+    "eslint-rules/query-state.mjs",
     "server/plugins/*.ts",
     "scripts/ops/ai-approve-enrollment.ts",
     "scripts/ops/ai-drafts-report.ts",
