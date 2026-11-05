@@ -909,9 +909,9 @@ Google no longer shows may be kept.
   more than 30 days ago. Their one use, the 2026-10-23 restatements, is done
   (the exclusion ledger above). From that rule on, a restatement creates no
   revision.
-- **Registry.** `google.superseded_observation_copies` (data class
-  `google_source_content`, horizon `row_deadline` on `content_expires_at`,
-  operation `redact`) is in `retention-registry.ts`. The data-fate row of
+- **Retention.** `review_source_observations.superseded_expired` in
+  `retention-sweep.job.ts` calls the Review-owned sweep to redact superseded
+  copies on their `content_expires_at` deadline. The data-fate row of
   `reviewSourceObservations` states its exit criteria. Retention policy version
   10 stamps the new evidence.
 
@@ -922,8 +922,8 @@ restated list unchanged, scan writes nothing, a second prune finds nothing,
 keyset batches, and an erased Review. On the redaction side: only superseded
 copies past their clock, digests kept, the newest row untouched even when its
 clock has passed, and the sweep cap. Also enforced by `retention-sweep.job.test.ts`
-(evidence and failure isolation), `review-observations-command.test.ts`, the
-tenant-predicate canary and the retention registry tests.
+(evidence and failure isolation), `review-observations-command.test.ts` and the
+tenant-predicate canary.
 
 ## Note 2026-10-25 — a step that finds its run already failed ends quietly
 

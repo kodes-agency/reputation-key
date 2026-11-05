@@ -20,7 +20,12 @@
 import { createFileRoute } from '@tanstack/react-router'
 import { z, ZodError } from 'zod/v4'
 import { getContainer } from '#/composition'
-import { svixHeaders, verifySvixSignature } from '#/shared/auth/svix-signature.verifier'
+import {
+  svixHeaders,
+  validateSvixHeaders,
+  verifySvixSignature,
+  type SvixVerificationFailure,
+} from '#/shared/auth/svix-signature.verifier'
 import { requestRuntimeConfig } from '#/shared/config/request-runtime-config'
 import { getLogger } from '#/shared/observability/logger'
 import { captureObservabilityException } from '#/shared/observability/telemetry'
@@ -120,12 +125,24 @@ function eventInput(
   }
 }
 
+function invalidSignature(
+  logger: ReturnType<typeof getLogger>,
+  reason: SvixVerificationFailure,
+): Response {
+  logger.warn({ reason }, 'Resend webhook signature verification failed')
+  return Response.json(
+    { error: 'Unauthorized', message: 'Invalid Resend webhook signature' },
+    { status: 401 },
+  )
+}
+
 /**
  * POST handler for Resend webhooks. Extracted from the Route definition so it
  * is directly testable without the TanStack route tree.
  *
- * Flow: gate on configured secret → verify Svix signature over the RAW body →
- * parse → delegate to `handleResendEvent`.
+ * Flow: gate on configured secret → check the Svix headers → read the body →
+ * verify Svix signature over the RAW body → parse → delegate to
+ * `handleResendEvent`.
  */
 export async function handleResendWebhookPost(request: Request): Promise<Response> {
   return trace('webhook.resendEvents', async () => {
@@ -143,24 +160,17 @@ export async function handleResendWebhookPost(request: Request): Promise<Respons
     }
 
     try {
+      // The headers first: a request that cannot be signed is refused before
+      // its body is read.
+      const headers = svixHeaders(request)
+      const headersCheck = validateSvixHeaders(headers)
+      if (!headersCheck.ok) return invalidSignature(logger, headersCheck.reason)
+
       // The RAW body, read once. Re-serialising parsed JSON changes bytes and
       // invalidates the signature.
       const rawBody = await request.text()
-      const verification = verifySvixSignature({
-        rawBody,
-        headers: svixHeaders(request),
-        signingSecret,
-      })
-      if (!verification.ok) {
-        logger.warn(
-          { reason: verification.reason },
-          'Resend webhook signature verification failed',
-        )
-        return Response.json(
-          { error: 'Unauthorized', message: 'Invalid Resend webhook signature' },
-          { status: 401 },
-        )
-      }
+      const verification = verifySvixSignature({ rawBody, headers, signingSecret })
+      if (!verification.ok) return invalidSignature(logger, verification.reason)
 
       const input = eventInput(rawBody, verification.id)
       if ('ignoredType' in input) {

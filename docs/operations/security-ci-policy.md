@@ -37,7 +37,7 @@ and do not read them as a review verdict.
 | Gate                                     | Where (step / job)                                                 | Script / action                                                              | Threshold (fails on)                                                                                              | Artifact / output                                |
 | ---------------------------------------- | ------------------------------------------------------------------ | ---------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------- | ------------------------------------------------ |
 | Dependency vulnerability audit           | `check` job, step "Dependency vulnerability audit"                 | `pnpm check:dependency-audit` → `scripts/check-dependency-audit.mjs`         | prod tree: **high+critical**; full tree: **critical** (dev highs are printed, not failed); an unreadable audit    | Step log (advisory ids, paths, patched versions) |
-| Secret scanning (history + diffs)        | `secrets` job, step "Gitleaks"                                     | `docker run zricethezav/gitleaks@<digest> git /repo` (fetch-depth: 0)        | **any** finding — PRs scan the PR range (`base..HEAD`); pushes/dispatch scan all refs (full history)              | Step log (redacted findings)                     |
+| Secret scanning (new commits)            | `secrets` job, step "Gitleaks"                                     | `docker run zricethezav/gitleaks@<digest> git /repo` (fetch-depth: 0)        | **any** finding in the commits the event adds — PRs scan `base..head`, pushes to main `before..sha`               | Step log (redacted findings)                     |
 | Static security analysis — eslint        | `check` job, step "Lint"                                           | `eslint-plugin-security` recommended as **errors** in `eslint.config.js`     | any recommended-rule finding on production code                                                                   | Step log                                         |
 | Static security analysis — CodeQL        | `codeql.yml` workflow (push/PR to main + weekly)                   | `github/codeql-action` init+analyze, `security-extended` queries             | analysis **failure** fails; findings become code-scanning alerts                                                  | SARIF → Security tab (code scanning)             |
 | License policy                           | `check` job, step "License policy"                                 | `pnpm check:licenses` → `scripts/check-licenses.mjs`                         | any prod/dev dependency license not allow-listed or excepted                                                      | Step log (full inventory per tree)               |
@@ -222,7 +222,7 @@ installer itself.
 Convention since BQC-7.1, now **enforced** by `check:action-pins`: every
 `uses:` is `owner/repo@<40-hex-SHA> # vX.Y.Z`; every workflow `image:`
 (service containers: postgres, redis) is digest-pinned with a tag comment;
-the gitleaks invocation pins `zricethezav/gitleaks:vX@sha256:…`. The Docker
+both gitleaks invocations (`secrets`, `secret-history.yml`) pin `zricethezav/gitleaks:vX@sha256:…`. The Docker
 base images (`node:22.23.4-trixie-slim@sha256:…`) are digest-pinned in the Dockerfiles.
 `uses:` under a step's `with:` (e.g. the locally-built `repkey-web:ci` handed
 to the SBOM/scan actions) is not a registry reference and is out of scope —
@@ -461,23 +461,32 @@ gitleaks runs via the official image pinned by digest (`gitleaks-action` is
 deliberately not used — it requires an organization license key), in a
 separate `secrets` job (not a step in `check`) so the signal stays distinct
 in branch protection and runs in parallel without a pnpm install. Checkout
-uses `fetch-depth: 0`. Scan scope by event:
+uses `fetch-depth: 0`. `.gitleaks.toml` extends gitleaks' default rules, and
+`scripts/ci/secret-scan-range.sh` picks the commits to scan by event:
 
-- **Pull requests:** the PR range (`origin/<base>..HEAD`) — every commit the
-  PR introduces. Measured sub-second-to-minutes; full-history-per-PR was not
-  viable (see below).
-- **Pushes to main / dispatch:** all refs (`--log-opts=--all`) — the
-  full-history net on the merge path. Measured 2026-07-31: **1960 commits /
-  7.7 GB in 8m25s, zero findings** (the whole repo history is clean — no
-  triage was needed).
+- **Pull requests:** `<base sha>..<head sha>` — every commit the PR adds.
+- **Pushes to main:** `<before>..<sha>` — every commit in the push. A missing,
+  all-zero or unknown `before`, and a manual run, scan only the pushed commit.
+- **Weekly** (`secret-history.yml`, also dispatchable): all fetched refs, with
+  a 30-minute timeout. It is not a required check: a finding turns that run
+  red, and neither merges nor deploys wait for it.
 
-The committed `.gitleaks.toml` allowlist is a **performance** measure, not
-finding suppression: it skips only two machine-generated committed artifacts
-(`.fallow/cache.bin` binary blobs, `graphify-out/graph.json`) that dominated
-scan time; each entry carries owner/reason/expiry. Triage rule: a real secret
-in history stops the line (rotate + purge — never silence); only verified
-placeholder/test fixtures may be allow-listed, per-entry with
-owner/reason/expiry comments.
+The required job judges only new commits: a finding already in history cannot
+be rewritten away, and judging it on every run would keep `main` red. History
+is covered by the weekly run. A finding in a scanned range fails the job; the
+log lists rule, file, line and commit, with the secret redacted.
+
+The allowlists clear known placeholders. Two generated artifacts
+(`.fallow/cache.bin`, `graphify-out/graph.json`) are skipped by path to keep
+scans short. Every other entry needs **both** a path and a value: content
+digests in migrations (matched by key name and 64-hex shape, so a new repin
+needs no entry), the exact test tokens and fixtures, detector fixtures, CI
+dummies, environment variable names, documentation examples and one throwaway
+design-tool session ID. No directory is excluded wholesale, so a fixture can
+move between files while a new value in the same file is still reported. For a
+new fixture, put `gitleaks:allow` in a comment on its line rather than adding
+an entry. A real credential is rotated and removed, never allowed. Public text
+about a finding gives counts only.
 
 ### Migration artifact consistency
 

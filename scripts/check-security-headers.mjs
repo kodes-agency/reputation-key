@@ -17,7 +17,9 @@
 //   3. an inbound x-request-id is echoed; absent one, the server emits a
 //      fresh id (request guard, BQC-7.6).
 //   4. a POST whose content-length exceeds REQUEST_BODY_LIMIT_BYTES is
-//      rejected 413 before routing (request guard, BQC-7.6).
+//      rejected 413 before routing (request guard, BQC-7.6), and so is a
+//      chunked body with no declared length that runs past it; one inside the
+//      limit is not refused.
 //   5. the print host (ADR 0069, PORTAL_PRINT_ORIGIN) redirects GET/HEAD /p/*
 //      to the app origin and answers everything else 404, by the wire Host and
 //      by a trusted X-Forwarded-Host, and leaves every other host alone. The
@@ -174,6 +176,58 @@ function requestWithHost(port, { method = 'GET', path, host, headers = {} }) {
     req.on('error', reject)
     req.end()
   })
+}
+
+/**
+ * One POST whose body goes out in separate chunks with no content-length, so the
+ * server cannot learn its size from a header.
+ */
+function postChunked(port, path, chunks) {
+  return new Promise((resolve, reject) => {
+    const req = httpRequest(
+      {
+        host: '127.0.0.1',
+        port,
+        method: 'POST',
+        path,
+        headers: { 'content-type': 'application/json' },
+      },
+      (res) => {
+        res.resume()
+        res.on('end', () =>
+          resolve({ status: res.statusCode, requestId: res.headers['x-request-id'] }),
+        )
+      },
+    )
+    req.on('error', reject)
+    for (const chunk of chunks) req.write(chunk)
+    req.end()
+  })
+}
+
+/** A chunked body just over, exactly at, and well inside the limit, against the booted artifact. */
+async function probeChunkedBodyLimit(port, failures) {
+  const half = BODY_LIMIT_BYTES / 2
+  const over = await postChunked(port, '/api/health/live', [
+    'x'.repeat(half),
+    'x'.repeat(half + 1),
+  ])
+  if (over.status !== 413) {
+    failures.push(
+      `body limit: chunked POST of ${BODY_LIMIT_BYTES + 1} bytes returned ${over.status}, expected 413`,
+    )
+  } else if (!over.requestId) {
+    failures.push('chunked 413 response is missing x-request-id')
+  }
+  for (const [label, chunks] of [
+    ['at the limit', ['x'.repeat(half), 'x'.repeat(half)]],
+    ['well inside the limit', ['x']],
+  ]) {
+    const inside = await postChunked(port, '/api/health/live', chunks)
+    if (inside.status === 413) {
+      failures.push(`body limit: chunked POST ${label} was refused with 413`)
+    }
+  }
 }
 
 /** The print host (ADR 0069), against the booted artifact. Pushes one line per violation. */
@@ -364,6 +418,9 @@ async function main() {
         }
       }
 
+      // 4b. The same limit for a body that declares no length.
+      await probeChunkedBodyLimit(port, failures)
+
       // 5. The print host, by Host and by a trusted X-Forwarded-Host. The probes
       // above ran with PORTAL_PRINT_ORIGIN set, on another host: that they all
       // passed is the proof that every other host is left alone.
@@ -385,7 +442,7 @@ async function main() {
   }
   console.log(
     `[security-headers] OK — booted artifact serves the full B0.7 set on 200 and 404 responses, ` +
-      `echoes/generates x-request-id, rejects oversized bodies (413), and answers the print host ` +
+      `echoes/generates x-request-id, rejects oversized bodies (413, declared or chunked), and answers the print host ` +
       `(redirect for /p/*, 404 for the rest).`,
   )
 }

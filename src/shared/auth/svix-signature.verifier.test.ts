@@ -3,7 +3,9 @@ import {
   signSvixPayload,
   SVIX_TOLERANCE_SECONDS,
   svixHeaders,
+  validateSvixHeaders,
   verifySvixSignature,
+  type SvixHeaders,
 } from './svix-signature.verifier'
 
 const SECRET = `whsec_${Buffer.from('resend-webhook-signing-key').toString('base64')}`
@@ -149,5 +151,75 @@ describe('svix signature verification', () => {
       timestamp: TIMESTAMP,
       signature: 'v1,abc',
     })
+  })
+})
+
+describe('svix header validation, before any body is read', () => {
+  const NOW_SECONDS = Math.floor(NOW.getTime() / 1000)
+  const headers = (overrides: Partial<SvixHeaders> = {}): SvixHeaders => ({
+    ...signed().headers,
+    ...overrides,
+  })
+
+  it('accepts what a signed payload carries and hands the checked headers back', () => {
+    const input = headers()
+
+    expect(validateSvixHeaders(input, NOW)).toEqual({ ok: true, ...input })
+  })
+
+  it.each(['id', 'timestamp', 'signature'] as const)(
+    'refuses a request without its %s header',
+    (name) => {
+      expect(validateSvixHeaders(headers({ [name]: null }), NOW)).toEqual({
+        ok: false,
+        reason: 'missing_headers',
+      })
+    },
+  )
+
+  it.each([
+    'not-a-number',
+    '1.5',
+    '1e9',
+    '-5',
+    ' 12',
+    'Infinity',
+    '99999999999999999999',
+  ])('refuses the timestamp %j as malformed', (timestamp) => {
+    expect(validateSvixHeaders(headers({ timestamp }), NOW)).toEqual({
+      ok: false,
+      reason: 'malformed_timestamp',
+    })
+  })
+
+  it.each([
+    ['stale', NOW_SECONDS - SVIX_TOLERANCE_SECONDS - 1],
+    ['from the future', NOW_SECONDS + SVIX_TOLERANCE_SECONDS + 1],
+  ])('refuses a timestamp that is %s', (_label, seconds) => {
+    expect(validateSvixHeaders(headers({ timestamp: String(seconds) }), NOW)).toEqual({
+      ok: false,
+      reason: 'timestamp_outside_window',
+    })
+  })
+
+  const DIGEST = Buffer.alloc(32, 7).toString('base64')
+
+  it.each([
+    ['not base64', 'v1,not-base64'],
+    ['a digest of the wrong length', `v1,${Buffer.alloc(16, 7).toString('base64')}`],
+    ['a digest without its padding', `v1,${DIGEST.slice(0, -1)}`],
+    ['an unknown version', `v2,${DIGEST}`],
+    ['no version', DIGEST],
+  ])('refuses a signature that is %s', (_label, signature) => {
+    expect(validateSvixHeaders(headers({ signature }), NOW)).toEqual({
+      ok: false,
+      reason: 'signature_mismatch',
+    })
+  })
+
+  it('accepts a rotating set when one of its signatures has the right shape', () => {
+    const signature = `v1,garbage v1,${DIGEST}`
+
+    expect(validateSvixHeaders(headers({ signature }), NOW)).toMatchObject({ ok: true })
   })
 })
