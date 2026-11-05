@@ -7,38 +7,9 @@ import type { Database } from '#/shared/db'
 import { baseWhere } from '#/shared/db/base-where'
 import { properties } from '#/shared/db/schema/property.schema'
 import type { PropertyRepository } from '../../application/ports/property.repository'
-import { propertyFromRow, propertyToRow } from '../mappers/property.mapper'
-import { propertyError } from '../../domain/errors'
+import { propertyFromRow } from '../mappers/property.mapper'
 import { trace } from '#/shared/observability/trace'
 import { propertyId, type GoogleConnectionId } from '#/shared/domain/ids'
-
-/** Mutable set-values type for Drizzle .set() — strips readonly from Property fields.
- *  Single source (BQC-5.9 E22) — the command store imports it so the update
- *  column set cannot drift between the repository and the atomic store. */
-export type PropertySetValues = {
-  name?: string
-  slug?: string
-  timezone?: string
-  defaultReplyLanguage?: string | null
-  address?: string | null
-  gbpLocationId?: string | null
-  gbpAccountId?: string | null
-  googleConnectionId?: string | null
-  profileVersion?: number
-  googleBindingState?:
-    'unbound' | 'account_confirmation_required' | 'active' | 'disconnected'
-  profileSource?: 'legacy' | 'tenant_confirmed'
-  profileConfirmedAt?: Date | null
-  profileConfirmedBy?: string | null
-  updatedAt?: Date
-  deletedAt?: Date | null
-  // Property locale facts
-  countryCode?: string | null
-  countrySource?: string | null
-  timezoneSource?: string | null
-  timezoneResolvedAt?: Date | null
-  sourceEpoch?: number
-}
 
 export const createPropertyRepository = (db: Database): PropertyRepository => {
   return {
@@ -90,53 +61,6 @@ export const createPropertyRepository = (db: Database): PropertyRepository => {
       })
     },
 
-    insert: async (orgId, property) => {
-      return trace('property.insert', async () => {
-        // Tenant guard — the use case constructs the property with ctx.organizationId,
-        // but the repo is the last line of defense against cross-tenant writes.
-        if (property.organizationId !== orgId) {
-          throw propertyError('forbidden', 'Tenant mismatch on property insert')
-        }
-        await db.insert(properties).values(propertyToRow(property))
-      })
-    },
-
-    update: async (orgId, id, patch) => {
-      return trace('property.update', async () => {
-        const setValues: PropertySetValues = {}
-        if (patch.updatedAt !== undefined) setValues.updatedAt = patch.updatedAt
-        if (patch.name !== undefined) setValues.name = patch.name
-        if (patch.slug !== undefined) setValues.slug = patch.slug
-        if (patch.timezone !== undefined) setValues.timezone = patch.timezone
-        if (patch.defaultReplyLanguage !== undefined)
-          setValues.defaultReplyLanguage = patch.defaultReplyLanguage
-        if (patch.gbpLocationId !== undefined)
-          setValues.gbpLocationId = patch.gbpLocationId
-        // Property locale facts
-        if (patch.countryCode !== undefined) setValues.countryCode = patch.countryCode
-        if (patch.countrySource !== undefined)
-          setValues.countrySource = patch.countrySource
-        if (patch.timezoneSource !== undefined)
-          setValues.timezoneSource = patch.timezoneSource
-        if (patch.timezoneResolvedAt !== undefined)
-          setValues.timezoneResolvedAt = patch.timezoneResolvedAt
-        if (patch.sourceEpoch !== undefined) setValues.sourceEpoch = patch.sourceEpoch
-
-        await db
-          .update(properties)
-          .set(setValues)
-          .where(and(...baseWhere(properties, orgId), eq(properties.id, id)))
-      })
-    },
-
-    hardDelete: async (orgId, id) => {
-      return trace('property.hardDelete', async () => {
-        await db
-          .delete(properties)
-          .where(and(...baseWhere(properties, orgId), eq(properties.id, id)))
-      })
-    },
-
     /**
      * Cross-tenant only for the JWT-verified GBP webhook handler. All of them,
      * in a fixed order: the location is unique per Organization, not globally,
@@ -170,25 +94,6 @@ export const createPropertyRepository = (db: Database): PropertyRepository => {
             ),
           )
         return rows.map((r) => propertyId(r.id))
-      })
-    },
-
-    insertAndReturn: async (orgId, property) => {
-      return trace('property.insertAndReturn', async () => {
-        if (property.organizationId !== orgId) {
-          throw propertyError('forbidden', 'Tenant mismatch on property insert')
-        }
-        const [inserted] = await db
-          .insert(properties)
-          .values(propertyToRow(property))
-          .returning()
-        if (!inserted) {
-          throw propertyError(
-            'property_not_found',
-            'Failed to retrieve inserted property',
-          )
-        }
-        return propertyFromRow(inserted)
       })
     },
   }
