@@ -51,6 +51,12 @@ store commits state, `sourceEpoch`, revision, responsibility, destination state,
 and identifier-only facts atomically. `isPropertyActive` is the request-time gate
 used before provider and public Portal effects.
 
+The server functions retain their paths and validators and use
+`shared/commands/command.server.ts` for the common request shell. Property owns
+the action, target Property, error/status mapping in `server/property-shared.ts`
+and browser DTO. Unexpected failures carry an opaque message and a request ID;
+their cause remains on the server.
+
 Organization closing suspends active Properties without deleting them. Purge runs
 only after every owning context has supplied readiness receipts; restrictive
 foreign keys deliberately stop cross-owner deletion.
