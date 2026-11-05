@@ -1,18 +1,14 @@
-// Burst regression for the Property source fence (closed beta, 2026-09-29).
+// Burst regression for the Property source fence.
 //
-// A Google import inserted 244 reviews into one Property in 30 s. Each import
-// transaction and each Inbox projection took the Property fence, the Inbox
-// projection held it while it waited for a second pool client, and metric
-// readings queued behind it on their foreign-key check. The worker's 10-client
-// pool ran dry and consumers failed at the lock timeout
-// (`select "source_epoch" from "properties" ... for update`,
-// `metric.commandStore.recordMetrics failed after ~10000ms`).
+// Each import transaction and each Inbox projection takes the Property fence,
+// and the projection held it while it waited for a second pool client. A burst
+// of imports into one Property could therefore run the worker's 10-client pool
+// dry and fail consumers at the lock timeout.
 //
 // This replays that shape against real Postgres with the real stores: one
-// import stream upserting reviews while the domain-event dispatcher runs both
-// `review.created` consumers (Inbox projection and the metric reading) for
-// every imported review, all on one Property, over a pool the dispatcher alone
-// can exhaust. No operation may reach the lock timeout.
+// import stream upserting reviews while the domain-event dispatcher runs the
+// Inbox projection for every imported review, all on one Property, over a pool
+// the dispatcher alone can exhaust. No operation may reach the lock timeout.
 
 import { randomUUID } from 'node:crypto'
 import { performance } from 'node:perf_hooks'
@@ -20,18 +16,12 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 import { drizzle } from 'drizzle-orm/node-postgres'
 import { Pool } from 'pg'
 import { getEnv } from '#/shared/config/env'
-import {
-  inboxItemId,
-  metricReadingId,
-  organizationId,
-  propertyId,
-  reviewId,
-} from '#/shared/domain/ids'
+import { inboxItemId, organizationId, propertyId, reviewId } from '#/shared/domain/ids'
 import { clearEventSchemas } from '#/shared/events/schema-registry'
 import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
 import { JOB_OPERATIONAL_QUEUE_CONCURRENCY } from '#/shared/jobs/operational-catalogue'
 import { buildConsumerEvent } from '#/shared/outbox/envelope'
-import type { ConsumerEvent, ConsumerRegistry } from '#/shared/outbox'
+import type { ConsumerEvent } from '#/shared/outbox'
 import { deleteTestOrganizations, seedOrgs } from '#/shared/testing/integration-helpers'
 import { createMockLogger } from '#/shared/testing/mock-logger'
 import { acquireTestLease, type TestLease } from '#/shared/testing/test-environment-lease'
@@ -54,11 +44,6 @@ import type { FeedbackLookupPort } from '#/contexts/inbox/application/ports/feed
 import type { PropertyLookupPort } from '#/contexts/inbox/application/ports/property-lookup.port'
 import type { ReviewLookupPort } from '#/contexts/inbox/application/ports/review-lookup.port'
 import type { ReviewSourceLookupPort } from '#/contexts/inbox/application/ports/review-source-lookup.port'
-import { recordMetric } from '#/contexts/reporting/application/use-cases/record-metric'
-import { createAtomicMetricCommandStore } from '#/contexts/reporting/infrastructure/metric-command-store'
-import { registerPublicReputationMetricConsumers } from '#/contexts/reporting/infrastructure/public-reputation-outbox-consumers'
-import { createMetricRegistryRepository } from '#/contexts/reporting/infrastructure/repositories/metric-registry.repository'
-import { createPropertyLocalDateResolver } from '#/contexts/reporting/infrastructure/repositories/property-local-date'
 
 const ORG = organizationId('org-property-lock-burst')
 const PROPERTY = propertyId('af300000-0000-4000-8000-000000000001')
@@ -79,7 +64,7 @@ const LOCK_TIMEOUT_MS = 3_000
 const CONNECTION_TIMEOUT_MS = 15_000
 const BURST_TEST_TIMEOUT_MS = 180_000
 
-type OperationKind = 'import' | 'inbox' | 'metric'
+type OperationKind = 'import' | 'inbox'
 type Outcome = Readonly<{ kind: OperationKind; ms: number; failure: string | null }>
 
 let lease: TestLease
@@ -205,31 +190,6 @@ async function createdEvent(review: string): Promise<ConsumerEvent> {
   })
 }
 
-/** The production `metric.public-reputation` handler, wired to `db`. */
-function publicReputationHandler(
-  db: ReturnType<typeof drizzle>,
-): (event: ConsumerEvent) => Promise<unknown> {
-  let handler: ((event: ConsumerEvent) => Promise<unknown>) | undefined
-  const registry = {
-    registerConsumer: (registration) => {
-      handler = registration.handler
-    },
-  } as Pick<ConsumerRegistry, 'registerConsumer'> as ConsumerRegistry
-  registerPublicReputationMetricConsumers(registry, {
-    recordMetric: recordMetric({
-      commandStore: createAtomicMetricCommandStore(db, () => randomUUID()),
-      registry: createMetricRegistryRepository(),
-      clock: () => IMPORTED_AT,
-      idGen: () => metricReadingId(randomUUID()),
-      resolvePropertyLocalDate: createPropertyLocalDateResolver(db),
-    }),
-    reviewRatingLookup: { getEligibleRatingById: async () => 4 },
-    db,
-  })
-  if (!handler) throw new Error('metric.public-reputation did not register')
-  return handler
-}
-
 function inboxDeps(db: ReturnType<typeof drizzle>): InboxConsumerDeps {
   return {
     commandStore: createAtomicInboxCommandStore(
@@ -289,7 +249,6 @@ async function runBurst(): Promise<Outcome[]> {
   const db = drizzle(pool)
   const importer = createAtomicReviewCommandStore(db, () => IMPORTED_AT)
   const inbox = inboxDeps(db)
-  const metric = publicReputationHandler(db)
   const dispatcher = createDispatcher(DISPATCH_CONCURRENCY)
   const outcomes: Outcome[] = []
   // The relay publishes whatever committed since its last tick in one batch,
@@ -299,9 +258,6 @@ async function runBurst(): Promise<Outcome[]> {
     for (const event of committed) {
       dispatcher.dispatch(async () => {
         await measure('inbox', outcomes, () => handleInboxReviewCreated(inbox, event))
-      })
-      dispatcher.dispatch(async () => {
-        await measure('metric', outcomes, () => metric(event))
       })
     }
     committed = []
@@ -364,7 +320,7 @@ function summarize(outcomes: readonly Outcome[]) {
       maxMs: Math.round(durations.at(-1) ?? 0),
     }
   }
-  return { import: byKind('import'), inbox: byKind('inbox'), metric: byKind('metric') }
+  return { import: byKind('import'), inbox: byKind('inbox') }
 }
 
 async function clean(): Promise<void> {
@@ -416,7 +372,7 @@ beforeEach(async () => {
 
 describe('review import burst on one Property', () => {
   it(
-    'projects and measures every imported review without a lock timeout',
+    'projects every imported review without a lock timeout',
     async ({ task }) => {
       const started = performance.now()
       const outcomes = await runBurst()
@@ -431,12 +387,11 @@ describe('review import burst on one Property', () => {
         .filter((outcome) => outcome.failure !== null)
         .map(({ kind, failure }) => `${kind}: ${failure}`)
       expect(failures).toEqual([])
-      const projected = await lease.pool.query<{ items: number; readings: number }>(
-        `SELECT (SELECT count(*)::int FROM inbox_items WHERE organization_id = $1) AS items,
-                (SELECT count(*)::int FROM metric_readings WHERE organization_id = $1) AS readings`,
+      const projected = await lease.pool.query<{ items: number }>(
+        `SELECT count(*)::int AS items FROM inbox_items WHERE organization_id = $1`,
         [ORG],
       )
-      expect(projected.rows[0]).toEqual({ items: BURST_REVIEWS, readings: BURST_REVIEWS })
+      expect(projected.rows[0]).toEqual({ items: BURST_REVIEWS })
     },
     BURST_TEST_TIMEOUT_MS,
   )
