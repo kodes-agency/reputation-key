@@ -1,26 +1,147 @@
-# BQC-7.7 — gitleaks configuration (secret scanning gate, ci.yml `secrets` job).
-#
-# The gate scans FULL git history on every PR/push. The path allowlist below
-# exists for RUNTIME, not for silencing findings: the listed files are large
-# committed binary/generated artifacts (a dead-code-tool cache and a graph
-# dump) that made the full-history scan take >15 minutes; every one is
-# machine-generated, contains no credentials, and is scanned again if its
-# content ever changes class. Each entry carries owner/reason/expiry —
-# review at the quarterly security-gate review (docs/operations/security-ci-policy.md).
-# A real secret hit anywhere else FAILS the gate; do not add allowlist entries
-# to silence real findings.
+# Secret scanning for the `secrets` CI check and the weekly history scan; see
+# docs/operations/security-ci-policy.md. Detection uses gitleaks' default rules.
+# The allowlists below clear known placeholders and nothing else: each one needs
+# a path AND a value, so a fixture can move between files but a new value in the
+# same file is still reported. For a new test fixture, put `gitleaks:allow` in a
+# comment on its line instead of adding an entry here.
 
-title = "rep-key gitleaks config (BQC-7.7)"
+title = "Reputation Key secret scanning"
 
-[allowlist]
-description = "BQC-7.7 performance allowlist — generated/binary artifacts only"
+[extend]
+useDefault = true
+
+# Committed artifacts of generated tooling output (a binary cache and a graph
+# dump) that dominate scan time and hold no credentials.
+[[allowlists]]
+description = "Generated binary and dependency-graph artifacts"
 paths = [
-  # owner: platform — reason: fallow dead-code analysis cache (binary gob
-  # encoding, machine-generated, no credentials); committed repeatedly at
-  # 1–4 MB, dominates full-history scan time — expiresAt: 2026-10-31
   '''^\.fallow/cache\.bin$''',
-  # owner: platform — reason: generated dependency-graph dump (graphify
-  # tooling output, JSON, no credentials); ~0.75 MB per commit —
-  # expiresAt: 2026-10-31
   '''^graphify-out/graph\.json$''',
+]
+
+# A content digest is a SHA-256 under a fixed key name inside an AI contract
+# migration, so a new one needs no entry here.
+[[allowlists]]
+description = "Content digests in database migrations"
+condition = "AND"
+regexTarget = "match"
+paths = [
+  '''^drizzle/[0-9]{4}_[^/]+\.sql$''',
+  '''^src/shared/db/db-constructs\.sql$''',
+]
+regexes = [
+  '''^static_token_bearing_digest"?(?::\s*|\s*=\s*)["']?[0-9a-f]{64}["']?$''',
+]
+
+[[allowlists]]
+description = "Test tokens and fixtures"
+condition = "AND"
+regexTarget = "secret"
+paths = [
+  '''^(src|scripts|services)/.*\.(test\.tsx?|stories\.tsx?)$''',
+  '''^src/contexts/feed/infrastructure/jobs/test-fixtures\.ts$''',
+]
+regexes = [
+  '''^0123456789abcdef0123456789abcdef$''',
+  '''^0b6d1c1e-52c4-4b34-9d63-6e3b4a1f9a10$''',
+  '''^3f6f0a2e-0b4f-4c1e-9a71-1d2c3b4a5e71$''',
+  '''^41e0b7d5c2a9$''',
+  '''^75ac1ad819c920c34cf625254dd75d9de73720644bf3808e1ac7ee183645cfa3$''',
+  '''^7K3QZ0VD9MWX4HT2BN6R$''',
+  '''^7f3c9a2e4b81$''',
+  '''^ChVyZWRpcmVjdF91cmlfbWlzbWF0Y2gSsAEKWW91IGNhbid0IHNpZ24gaW4gdG8gdGhpcyBhcHAgYmVjYXVzZSBpdCBkb2Vzbid0IGNvbXBseSB3aXRoIEdvb2dsZSdzIE9BdXRoIDIuMCBwb2xpY3ku$''',
+  '''^GOCSPX-9f4c2e7a1b8d4e6f0a3c5b7d$''',
+  '''^MIGHAgEAMBMGByqGSM49AgEGCCqGSM49AwEHBG0wawIBAQQgdJ\+5iAcRMRndF/sSYhw17vACCGNzQcIpdzwGUrtLBNShRANCAAQzRY9jxjBk88SNueblXp7DzyV0n6vWeCE8DJpMmVapUSJYr8rsbYkAF0DXTJo4ftzTtjIsUOiDJ2/y2kNrvjNs$''',
+  '''^Zk3vQ9d1LmX0aB7cR2tY5uWe$''',
+  '''^a2b9f990dcff2405f6b5a14b6ab414aff9e0f9d17f3b35f1c1ba558583c9e1e0$''',
+  '''^ab496f49215a28de0ad1c0b924d63b3a027945e1d0fa6282db999a063bd44894$''',
+  '''^ai-enrollment-test-v1$''',
+  '''^ai-foundation-enable-v1$''',
+  '''^ai-operation-enable-v1$''',
+  '''^ai-reanalyze-admission-broken-pilot-v6$''',
+  '''^ai-reanalyze-admission-enable-v1$''',
+  '''^ai-reanalyze-admission-enable-v5$''',
+  '''^ai-reanalyze-admission-revoke-v4$''',
+  '''^ai-reanalyze-broken-pilot-v3$''',
+  '''^notification-suppression-keys-dedicated-0001$''',
+  '''^pt_Q7mXc2LpV9sKt4Rw_Hc8vN3pL0qZr5TfY2bWm7XdJ9aKs4EuG1oPi6CnV8hRy3t$''',
+  '''^re_9f4c2e7a1b8d4e6f0a3c5b7d9e2f4a6c$''',
+  '''^re_A1b2C3d4E5f6G7h8I9j0$''',
+  '''^re_live_0123456789abcdef$''',
+  '''^sk_live_51Hq2pXk9mZtAbCdEfGh01$''',
+  '''^test-secret-at-least-32-characters-long-for-ci$''',
+  '''^whsec_MfKQ9r8GKYqrTwjUPD8ILPZIo2LaLaSw$''',
+]
+
+[[allowlists]]
+description = "Detector test fixtures"
+condition = "AND"
+regexTarget = "secret"
+paths = [
+  '''^src/shared/ai-structured-marker-detectors(-v1\.vectors\.json|\.test\.ts)$''',
+]
+regexes = [
+  '''^sk_test_1234567890abcdefghijklmnop$''',
+]
+
+[[allowlists]]
+description = "CI dummy credentials"
+condition = "AND"
+regexTarget = "secret"
+paths = [
+  '''^\.github/workflows/(ci|simulation)\.yml$''',
+]
+regexes = [
+  '''^test-secret-at-least-32-characters-long-for-ci$''',
+]
+
+[[allowlists]]
+description = "Environment variable names listed in source"
+condition = "AND"
+regexTarget = "secret"
+paths = [
+  '''^(src/shared/config/production-secrets\.ts|\.railway/railway\.ts|services/ai-egress-gateway/runtime-secrets\.ts|services/ai-execution-admission/environment\.ts)$''',
+]
+regexes = [
+  '''^AI_ADMISSION_ED25519_KID$''',
+  '''^AI_ADMISSION_ED25519_PRIVATE_KEY_B64$''',
+  '''^AI_INTERNAL_MTLS_CA_B64$''',
+]
+
+[[allowlists]]
+description = "Seed badge key"
+condition = "AND"
+regexTarget = "secret"
+paths = [
+  '''^src/contexts/badge/domain/seed-badges\.ts$''',
+]
+regexes = [
+  '''^avg_rating_45_this_month$''',
+]
+
+[[allowlists]]
+description = "Documentation examples"
+condition = "AND"
+regexTarget = "secret"
+paths = [
+  '''^docs/(product-readiness-program-2026-07/(beta-readiness-audit-2026-07-14|post-beta-4-recognition-activity-and-notifications-plan)|superpowers/plans/2026-05-05-gbp-import)\.md$''',
+]
+regexes = [
+  '''^ENCRYPTION_KEY=$''',
+  '''^audience/visibility$''',
+  '''^bounce/complaint$''',
+  '''^delivery/bounce/complaint$''',
+]
+
+# One throwaway session ID, repeated in a design-tool log that is gitignored
+# today and survives only in history.
+[[allowlists]]
+description = "Local design-tool session ID"
+condition = "AND"
+regexTarget = "secret"
+paths = [
+  '''^\.impeccable/live/sessions/[0-9a-f]+\.jsonl$''',
+]
+regexes = [
+  '''^0f0af46b-4ed3-4d4b-b00e-7658f5de370e$''',
 ]
