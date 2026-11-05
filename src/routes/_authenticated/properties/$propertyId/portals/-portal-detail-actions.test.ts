@@ -3,8 +3,6 @@
 // The coverage key descends from the Portal's experience key, so one experience
 // invalidation refreshes it; these tests pin that for each such write.
 
-import { readFileSync } from 'node:fs'
-import { fileURLToPath } from 'node:url'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { ActionMutationOptions } from '#/components/hooks/use-action-mutation'
 import { portalKeys } from '#/shared/queries/query-keys'
@@ -21,7 +19,7 @@ vi.mock('#/components/hooks/use-action-mutation', async (importOriginal) => ({
   ...(await importOriginal<typeof import('#/components/hooks/use-action-mutation')>()),
   useActionMutation: (fn: unknown, options?: ActionMutationOptions<unknown, unknown>) => {
     captured.set(fn, options)
-    return {}
+    return fn
   },
 }))
 vi.mock('@tanstack/react-query', () => ({
@@ -55,6 +53,26 @@ vi.mock('#/contexts/portal/server/portals', () => ({
 vi.mock('#/contexts/portal/server/portal-responsible-managers', () => ({
   updatePortalResponsibleManagers: 'updatePortalResponsibleManagers',
 }))
+
+vi.mock('#/contexts/portal/server/portal-look', () => ({
+  savePortalLookColours: vi.fn(),
+  savePortalLookIdentity: vi.fn(),
+  savePortalLookPhoto: vi.fn(),
+}))
+vi.mock('#/contexts/portal/server/portal-print-final', () => ({
+  downloadPortalPrintFinal: vi.fn(),
+  savePortalPrintWording: vi.fn(),
+}))
+
+import {
+  savePortalLookColours,
+  savePortalLookIdentity,
+  savePortalLookPhoto,
+} from '#/contexts/portal/server/portal-look'
+import {
+  downloadPortalPrintFinal,
+  savePortalPrintWording,
+} from '#/contexts/portal/server/portal-print-final'
 
 import { usePortalDetailActions } from './-portal-detail-actions'
 
@@ -195,21 +213,39 @@ describe('portal detail actions and the language coverage read', () => {
       }
     })
 
-    // The first paint has no room for three more server-function stubs, and only
-    // an Account Admin on a property with a second portal ever writes a look.
-    it('imports the server functions only when a write is made', () => {
-      const source = readFileSync(
-        fileURLToPath(new URL('./-portal-detail-actions.ts', import.meta.url)),
-        'utf8',
-      )
-      const importsOfTheModule = source
-        .split('\n')
-        .filter((line) => line.includes('server/portal-look'))
+    it.each([
+      ['saveColours', savePortalLookColours],
+      ['saveIdentity', savePortalLookIdentity],
+      ['savePhoto', savePortalLookPhoto],
+    ] as const)(
+      'sends %s to its command and propagates a refusal',
+      async (name, command) => {
+        const refusal = new Error('Save refused')
+        vi.mocked(command).mockRejectedValueOnce(refusal)
+        const input = { data: { propertyId: PROPERTY_ID, portalId: PORTAL_ID } }
+        const action = actions.look[name] as unknown as (
+          input: unknown,
+        ) => Promise<unknown>
 
-      expect(importsOfTheModule.length).toBeGreaterThan(0)
-      for (const line of importsOfTheModule) {
-        expect(line).toMatch(/await import\(|typeof import\(/u)
-      }
-    })
+        await expect(action(input)).rejects.toBe(refusal)
+        expect(command).toHaveBeenLastCalledWith(input)
+      },
+    )
   })
+
+  it.each([
+    ['downloadPrintFinal', downloadPortalPrintFinal],
+    ['savePrintWording', savePortalPrintWording],
+  ] as const)(
+    'sends %s to its command and propagates a refusal',
+    async (name, command) => {
+      const refusal = new Error('Print refused')
+      vi.mocked(command).mockRejectedValueOnce(refusal)
+      const input = { data: { propertyId: PROPERTY_ID, portalId: PORTAL_ID } }
+      const action = actions[name] as unknown as (input: unknown) => Promise<unknown>
+
+      await expect(action(input)).rejects.toBe(refusal)
+      expect(command).toHaveBeenLastCalledWith(input)
+    },
+  )
 })
