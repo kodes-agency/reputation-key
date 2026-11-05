@@ -14,7 +14,7 @@ metric authority.
 - Maintain anonymous Portal lifetime aggregates and Current on Google snapshots. A Current on Google snapshot is ordered, and `verifiedAt` dated, by when Google's numbers were READ (the event's `numbersObservedAt`, falling back to `evaluatedAt`), so a long snapshot that completes after a fresher head fact does not replace the newer numbers.
 - Resolve governed metric availability, provenance, completeness, and correction impact.
 - Create, revise, assign, schedule, evaluate, and close monthly Goal Programs.
-- Produce property, fleet, staff, Portal analytics, Portals overview results, attention, setup-checklist, and
+- Produce property, fleet, staff, Portal analytics, Portals overview results, attention, and
   per-Property setup reads.
 - Register metric projection consumers, Goal correction consumers, Goal maintenance, and the
   daily evaluation of every Property Google rating goal.
@@ -625,9 +625,13 @@ interface.
 ## Persistence
 
 Reporting owns the metric, Goal Program, Property Google rating goal, dashboard
-setup-checklist, Portal lifetime, and Current on Google tables declared in the shared schema
+setup-checklist milestones, Portal lifetime, and Current on Google tables declared in the shared schema
 package. Repositories remain split by
 aggregate and read purpose even though they share a bounded context.
+
+Organization setup milestones have no product reader or writer. Their schema,
+export and lifecycle contributors, and purge-table declaration remain for existing data.
+Per-Property setup reads remain active.
 
 ## Durable facts
 
