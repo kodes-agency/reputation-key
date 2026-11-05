@@ -80,7 +80,6 @@ describe.sequential(
         subjects: {
           getTimezone: async () => clock.timezone,
           subjectBelongsToProperty: async () => true,
-          listCurrentPortalIds: async () => [],
         },
         metrics,
         id: randomUUID,

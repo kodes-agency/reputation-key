@@ -142,10 +142,6 @@
       ]
     },
     {
-      "file": "src/contexts/reporting/server/dashboard.ts",
-      "exports": ["getDashboardDataFn"]
-    },
-    {
       "file": "src/contexts/reporting/application/public-api.ts",
       "exports": [
         "findMetricVersionById",
@@ -278,10 +274,6 @@
         "bqcEntrySchema",
         "bqcStatusManifestSchema"
       ]
-    },
-    {
-      "file": "src/contexts/reporting/server/goal-programs.ts",
-      "exports": ["changeGoalProgramAssignments"]
     }
   ],
   "usedClassMembers": [

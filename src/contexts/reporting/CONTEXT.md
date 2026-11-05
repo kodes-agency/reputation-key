@@ -508,7 +508,7 @@ The caller isolates a failed side read from the primary Guest voice page.
    after it started, it holds its subject until the month still open ends. While a goal is
    scheduled its status reason says what its plan waits for (its metric source, or only its
    first month), and a revision before the start states it again for the measure it now has.
-3. Goal assignment changes preserve at least one subject and never rewrite history.
+3. Goal revisions preserve at least one subject and never rewrite history.
 4. Corrections append; they never mutate the original reading or closed Goal result.
 5. Dashboard values preserve unavailable/updating/insufficient states instead of showing zero.
    A Portal's average private rating is held back below five ratings (with the true n and
@@ -582,10 +582,8 @@ whom it counts, this month as the Goals list reads it, and Stop. The Monthly por
 change commands take a goal for one Portal or one group too, its subject kept and its number
 recorded as recommended against its own numbers, and the average, its level in tenths and
 always `own`, never turned into a count or back; Stop takes every goal that names a subject.
-The goal page's old dialogs (rename, subjects, revise, a month's target, pause, resume and
-end) are gone, with the rename, the one-goal progress and the month-target server functions
-(`changeGoalMonthTarget`, its module, DTO and test) and the forms' own schemas; the engine
-keeps those commands, `changeMonthTarget` among them.
+Goal revisions are used by the Monthly portal goal change commands; no command changes a
+goal's subjects on its own. The engine retains rename and month-target commands.
 
 The Property-scoped dashboard reads authorize their own reader. `getDashboardData`,
 `getPropertyOverview`, `getAttentionSignals`, `getPortalAnalytics` and
@@ -603,11 +601,10 @@ reader without `reply.manage` (`domain/reply-workflow-redaction.ts`); that cover
 permissions and the Property (capability, suspension, kill switch, and the policy's own grant
 check); the use case's decision is the one a caller that is not a server function cannot skip.
 
-`getDashboardDataFn` is the one server function no route calls: the Property dashboard
-moved to `getPropertyOverviewFn`. It stays because the dashboard-governance and
-review-expiry e2e specs call it by export name to prove the governed read: grant
-filtering and expired-Review exclusion, as a PropertyManager with one grant. Reply
-redaction has no session that can ask for it in the beta (both interactive roles may
+The Property page and the dashboard-governance and review-expiry e2e specs use
+`getPropertyOverviewFn`. Its `dashboard` field carries the governed dashboard read;
+grant filtering and expired-Review exclusion are checked through this boundary.
+Reply redaction has no session that can ask for it in the beta (both interactive roles may
 manage replies), so that e2e case is parked and `get-dashboard-data.test.ts` holds the rule.
 
 The unified `buildReportingContext` returns one public interface, one combined outbox

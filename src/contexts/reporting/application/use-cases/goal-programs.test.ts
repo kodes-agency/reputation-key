@@ -9,7 +9,6 @@ import type {
 import {
   createGoalProgramService,
   GoalProgramError,
-  MAX_GOAL_ASSIGNMENT_SELECTIONS,
   type GoalActor,
   type GoalExecutionPolicy,
   type GoalMetricReadPort,
@@ -337,9 +336,6 @@ function setup(initialNow = new Date('2026-03-01T00:00:00.000Z')) {
     getTimezone: vi.fn(async () => 'UTC'),
     subjectBelongsToProperty: vi.fn<GoalProgramSubjectReader['subjectBelongsToProperty']>(
       async () => true,
-    ),
-    listCurrentPortalIds: vi.fn<GoalProgramSubjectReader['listCurrentPortalIds']>(
-      async () => ['portal-2', 'portal-3'],
     ),
   }
   const service = createGoalProgramService({
@@ -888,343 +884,6 @@ describe('canonical Goal Program service', () => {
     })
   })
 
-  it('bulk-adds and removes explicit subjects in one fenced next-month revision', async () => {
-    const { service, repository, setNow } = setup()
-    const created = await service.create(
-      {
-        propertyId: 'property-1',
-        name: 'Monthly ratings',
-        metric: 'portal_rating_count',
-        targetValue: 25,
-        subjects: [
-          { kind: 'property', propertyId: 'property-1' },
-          { kind: 'portal', portalId: 'portal-1' },
-        ],
-      },
-      actor,
-    )
-    setNow(new Date('2026-03-15T12:00:00.000Z'))
-
-    const changed = await service.changeAssignments(
-      {
-        propertyId: 'property-1',
-        programId: created.program.id,
-        expectedVersion: 1,
-        add: [{ kind: 'portal_group', portalGroupId: 'group-1' }],
-        remove: [{ kind: 'portal', portalId: 'portal-1' }],
-        selectAllCurrentPortals: false,
-        reason: 'Apply the new operating scope',
-      },
-      actor,
-    )
-
-    expect(changed).toMatchObject({
-      previousVersion: 1,
-      currentVersion: 2,
-      effectiveFrom: new Date('2026-04-01T00:00:00.000Z'),
-      outcomes: [
-        {
-          operation: 'add',
-          subject: { kind: 'portal_group', portalGroupId: 'group-1' },
-          outcome: 'added',
-        },
-        {
-          operation: 'remove',
-          subject: { kind: 'portal', portalId: 'portal-1' },
-          outcome: 'removed',
-        },
-      ],
-    })
-    const revision = vi.mocked(repository.revise).mock.calls.at(-1)?.[0]
-    expect(revision?.expectedVersion.version).toBe(1)
-    expect(revision?.version).toMatchObject({
-      version: 2,
-      metric: 'portal_rating_count',
-      targetValue: 25,
-      effectiveFrom: new Date('2026-04-01T00:00:00.000Z'),
-    })
-    expect(revision?.assignments.map(({ subject }) => subject)).toEqual([
-      { kind: 'property', propertyId: 'property-1' },
-      { kind: 'portal_group', portalGroupId: 'group-1' },
-    ])
-  })
-
-  it('expands all current Portals once at request time without future inheritance', async () => {
-    const { service, subjects, repository, setNow } = setup()
-    const created = await service.create(
-      {
-        propertyId: 'property-1',
-        name: 'Portal scans',
-        metric: 'qualified_scans',
-        targetValue: 100,
-        subjects: [{ kind: 'portal', portalId: 'portal-1' }],
-      },
-      actor,
-    )
-    setNow(new Date('2026-03-15T12:00:00.000Z'))
-
-    const changed = await service.changeAssignments(
-      {
-        propertyId: 'property-1',
-        programId: created.program.id,
-        expectedVersion: 1,
-        add: [],
-        remove: [],
-        selectAllCurrentPortals: true,
-        reason: 'Cover every portal operating today',
-      },
-      actor,
-    )
-
-    expect(subjects.listCurrentPortalIds).toHaveBeenCalledWith(
-      actor.organizationId,
-      'property-1',
-      MAX_GOAL_ASSIGNMENT_SELECTIONS + 1,
-    )
-    expect(changed.selectedAt).toEqual(new Date('2026-03-15T12:00:00.000Z'))
-    expect(changed.selectedCurrentPortalCount).toBe(2)
-    expect(changed.outcomes).toEqual([
-      {
-        operation: 'add',
-        source: 'all_current_portals',
-        subject: { kind: 'portal', portalId: 'portal-2' },
-        outcome: 'added',
-      },
-      {
-        operation: 'add',
-        source: 'all_current_portals',
-        subject: { kind: 'portal', portalId: 'portal-3' },
-        outcome: 'added',
-      },
-    ])
-    expect(
-      vi
-        .mocked(repository.revise)
-        .mock.calls.at(-1)?.[0]
-        .assignments.map(({ subject }) => subject),
-    ).toEqual([
-      { kind: 'portal', portalId: 'portal-1' },
-      { kind: 'portal', portalId: 'portal-2' },
-      { kind: 'portal', portalId: 'portal-3' },
-    ])
-
-    vi.mocked(subjects.listCurrentPortalIds).mockResolvedValueOnce([
-      'portal-2',
-      'portal-3',
-      'portal-created-later',
-    ])
-    expect(vi.mocked(repository.revise)).toHaveBeenCalledOnce()
-  })
-
-  it('reports duplicate, conflicting, invalid, overlapping, and no-op selections', async () => {
-    const { service, subjects, repository, setNow } = setup()
-    const created = await service.create(
-      {
-        propertyId: 'property-1',
-        name: 'Portal scans',
-        metric: 'qualified_scans',
-        targetValue: 100,
-        subjects: [
-          { kind: 'property', propertyId: 'property-1' },
-          { kind: 'portal', portalId: 'portal-1' },
-        ],
-      },
-      actor,
-    )
-    setNow(new Date('2026-03-15T12:00:00.000Z'))
-    vi.mocked(subjects.subjectBelongsToProperty).mockImplementation(
-      async (_org, _property, subject) =>
-        subject.kind !== 'portal' || subject.portalId !== 'foreign-portal',
-    )
-    vi.mocked(repository.findAssignmentConflicts).mockResolvedValueOnce([
-      {
-        subject: { kind: 'portal', portalId: 'busy-portal' },
-        programId: 'program-busy',
-        effectiveTo: null,
-      },
-    ])
-
-    const changed = await service.changeAssignments(
-      {
-        propertyId: 'property-1',
-        programId: created.program.id,
-        expectedVersion: 1,
-        add: [
-          { kind: 'portal', portalId: 'portal-1' },
-          { kind: 'portal', portalId: 'portal-2' },
-          { kind: 'portal', portalId: 'portal-2' },
-          { kind: 'portal', portalId: 'foreign-portal' },
-          { kind: 'portal', portalId: 'busy-portal' },
-          { kind: 'portal_group', portalGroupId: 'both-ways' },
-        ],
-        remove: [
-          { kind: 'portal', portalId: 'not-assigned' },
-          { kind: 'portal_group', portalGroupId: 'both-ways' },
-        ],
-        selectAllCurrentPortals: false,
-        reason: 'Apply valid selections only',
-      },
-      actor,
-    )
-
-    expect(changed.outcomes.map(({ outcome }) => outcome)).toEqual([
-      'already_assigned',
-      'added',
-      'duplicate',
-      'invalid_subject',
-      'overlap',
-      'conflicting_operations',
-      'not_assigned',
-      'conflicting_operations',
-    ])
-    expect(
-      vi
-        .mocked(repository.revise)
-        .mock.calls.at(-1)?.[0]
-        .assignments.map(({ subject }) => subject),
-    ).toEqual([
-      { kind: 'property', propertyId: 'property-1' },
-      { kind: 'portal', portalId: 'portal-1' },
-      { kind: 'portal', portalId: 'portal-2' },
-    ])
-  })
-
-  it('fences stale and oversized assignment changes before persistence', async () => {
-    const { service, repository, subjects, setNow } = setup()
-    const created = await service.create(
-      {
-        propertyId: 'property-1',
-        name: 'Portal scans',
-        metric: 'qualified_scans',
-        targetValue: 100,
-        subjects: [{ kind: 'portal', portalId: 'portal-1' }],
-      },
-      actor,
-    )
-    setNow(new Date('2026-03-15T12:00:00.000Z'))
-
-    await expect(
-      service.changeAssignments(
-        {
-          propertyId: 'property-1',
-          programId: created.program.id,
-          expectedVersion: 2,
-          add: [{ kind: 'portal', portalId: 'portal-2' }],
-          remove: [],
-          selectAllCurrentPortals: false,
-          reason: 'Stale browser state',
-        },
-        actor,
-      ),
-    ).rejects.toMatchObject({ code: 'revision_conflict' })
-
-    vi.mocked(subjects.listCurrentPortalIds).mockResolvedValueOnce(
-      Array.from(
-        { length: MAX_GOAL_ASSIGNMENT_SELECTIONS + 1 },
-        (_, index) => `portal-${index + 10}`,
-      ),
-    )
-    await expect(
-      service.changeAssignments(
-        {
-          propertyId: 'property-1',
-          programId: created.program.id,
-          expectedVersion: 1,
-          add: [],
-          remove: [],
-          selectAllCurrentPortals: true,
-          reason: 'Too many current portals',
-        },
-        actor,
-      ),
-    ).rejects.toMatchObject({ code: 'assignment_limit_exceeded' })
-    expect(repository.revise).not.toHaveBeenCalled()
-  })
-
-  it('authorizes assignment changes before validation or repository reads', async () => {
-    const { service, policy, repository } = setup()
-    const created = await service.create(
-      {
-        propertyId: 'property-1',
-        name: 'Portal scans',
-        metric: 'qualified_scans',
-        targetValue: 100,
-        subjects: [{ kind: 'portal', portalId: 'portal-1' }],
-      },
-      actor,
-    )
-    vi.mocked(repository.get).mockClear()
-    vi.mocked(policy.authorize).mockRejectedValueOnce(new GoalProgramError('forbidden'))
-
-    await expect(
-      service.changeAssignments(
-        {
-          propertyId: 'property-1',
-          programId: created.program.id,
-          expectedVersion: 1,
-          add: Array.from({ length: MAX_GOAL_ASSIGNMENT_SELECTIONS + 1 }, (_, index) => ({
-            kind: 'portal' as const,
-            portalId: `portal-${index}`,
-          })),
-          remove: [],
-          selectAllCurrentPortals: false,
-          reason: '',
-        },
-        actor,
-      ),
-    ).rejects.toMatchObject({ code: 'forbidden' })
-    expect(repository.get).not.toHaveBeenCalled()
-  })
-
-  it('bounds the resulting assignment set', async () => {
-    const { service, repository, setNow } = setup()
-    const currentSubjects = Array.from(
-      { length: MAX_GOAL_ASSIGNMENT_SELECTIONS },
-      (_, index) => ({ kind: 'portal' as const, portalId: `portal-${index}` }),
-    )
-    const created = await service.create(
-      {
-        propertyId: 'property-1',
-        name: 'Portal scans',
-        metric: 'qualified_scans',
-        targetValue: 100,
-        subjects: currentSubjects,
-      },
-      actor,
-    )
-    setNow(new Date('2026-03-15T12:00:00.000Z'))
-
-    await expect(
-      service.changeAssignments(
-        {
-          propertyId: 'property-1',
-          programId: created.program.id,
-          expectedVersion: 1,
-          add: [{ kind: 'portal', portalId: 'portal-over-limit' }],
-          remove: [],
-          selectAllCurrentPortals: false,
-          reason: 'One subject too many',
-        },
-        actor,
-      ),
-    ).rejects.toMatchObject({ code: 'assignment_limit_exceeded' })
-    await expect(
-      service.changeAssignments(
-        {
-          propertyId: 'property-1',
-          programId: created.program.id,
-          expectedVersion: 1,
-          add: [],
-          remove: [],
-          selectAllCurrentPortals: false,
-          reason: 'No selections',
-        },
-        actor,
-      ),
-    ).rejects.toMatchObject({ code: 'invalid_subject' })
-    expect(repository.revise).not.toHaveBeenCalled()
-  })
-
   describe('changing a goal', () => {
     const MARCH = new Date('2026-03-01T00:00:00.000Z')
     const APRIL = new Date('2026-04-01T00:00:00.000Z')
@@ -1277,25 +936,8 @@ describe('canonical Goal Program service', () => {
           },
           actor,
         )
-      const addPortal = (
-        id: number,
-        expectedVersion: number,
-        reason?: string,
-      ): ReturnType<typeof context.service.changeAssignments> =>
-        context.service.changeAssignments(
-          {
-            propertyId: 'property-1',
-            programId: created.program.id,
-            expectedVersion,
-            add: [portal(id)],
-            remove: [],
-            selectAllCurrentPortals: false,
-            reason,
-          },
-          actor,
-        )
       const revisions = () => vi.mocked(context.repository.revise).mock.calls
-      return { ...context, created, revise, addPortal, revisions }
+      return { ...context, created, revise, revisions }
     }
 
     it('revising a goal that has not started replaces the pending version and keeps its start month', async () => {
@@ -1334,19 +976,16 @@ describe('canonical Goal Program service', () => {
     })
 
     it('a second pending change supersedes the first', async () => {
-      const { created, revise, addPortal, revisions, setNow } = await scansGoal()
+      const { created, revise, revisions, setNow } = await scansGoal()
       setNow(MID_MARCH)
 
-      await expect(addPortal(2, 1)).resolves.toMatchObject({
-        currentVersion: 2,
-        effectiveFrom: APRIL,
+      await expect(revise({ targetValue: 130 })).resolves.toMatchObject({
+        version: { version: 2, effectiveFrom: APRIL },
       })
-      await expect(addPortal(3, 2)).resolves.toMatchObject({
-        previousVersion: 2,
-        currentVersion: 3,
-        effectiveFrom: APRIL,
+      await expect(revise({ targetValue: 140 })).resolves.toMatchObject({
+        version: { version: 3, effectiveFrom: APRIL },
       })
-      const revised = await revise({ subjects: [portal(1), portal(2), portal(3)] })
+      const revised = await revise({ targetValue: 150 })
 
       // The version in force is closed where the change starts. Each change
       // after it replaces a plan that has no month yet.
@@ -1360,11 +999,8 @@ describe('canonical Goal Program service', () => {
         [2, true],
         [3, true],
       ])
-      // The second change builds on the first pending plan, not on March's.
-      expect(revisions()[1]?.[0].assignments.map(({ subject }) => subject)).toEqual([
-        portal(1),
-        portal(2),
-        portal(3),
+      expect(revisions().map(([input]) => input.version.targetValue)).toEqual([
+        130, 140, 150,
       ])
       expect(
         revised.versions.map((known) => [
@@ -1535,30 +1171,6 @@ describe('canonical Goal Program service', () => {
       expect(revised.version).toMatchObject({ version: 2, effectiveFrom: MAY })
     })
 
-    it('changing subjects right after a month begins opens that month first', async () => {
-      const { created, repository, addPortal, setNow } = await scansGoal()
-      setNow(new Date('2026-04-01T00:10:00.000Z'))
-
-      await expect(addPortal(2, 1)).resolves.toMatchObject({
-        currentVersion: 2,
-        effectiveFrom: MAY,
-      })
-
-      expect(repository.appendResults).toHaveBeenCalledWith(
-        expect.objectContaining({
-          results: [
-            expect.objectContaining({
-              programVersionId: created.version.id,
-              periodStart: APRIL,
-            }),
-          ],
-        }),
-      )
-      expect(repository.revise).toHaveBeenCalledWith(
-        expect.objectContaining({ supersedeRowlessHead: false }),
-      )
-    })
-
     it('a pending change whose month has begun is opened, not replaced', async () => {
       const { repository, revise, setNow } = await scansGoal()
       setNow(MID_MARCH)
@@ -1623,38 +1235,20 @@ describe('canonical Goal Program service', () => {
       })
     })
 
-    it('a change of subjects before the start keeps the version time zone and its month', async () => {
-      const { created, subjects, addPortal, revisions } = await scansGoal(MID_MARCH)
-      vi.mocked(subjects.getTimezone).mockResolvedValue('Europe/Sofia')
-
-      await expect(addPortal(2, 1)).resolves.toMatchObject({
-        currentVersion: 2,
-        effectiveFrom: APRIL,
-      })
-
-      expect(revisions()[0]?.[0]).toMatchObject({
-        supersedeRowlessHead: true,
-        expectedVersion: { id: created.version.id },
-        version: { propertyTimezone: 'UTC', effectiveFrom: APRIL },
-      })
-    })
-
     it('revise without a note stores the default reason', async () => {
-      const { revise, addPortal, revisions, setNow } = await scansGoal()
+      const { revise, revisions, setNow } = await scansGoal()
       setNow(MID_MARCH)
 
       await revise()
-      await addPortal(2, 2)
       await revise({ reason: '  Agreed with the owner  ', targetValue: 140 })
-      await addPortal(3, 4, '   ')
-      await addPortal(4, 5, ' Seasonal portal ')
+      await revise({ reason: '   ' })
+      await revise({ reason: ' Seasonal target ' })
 
       expect(revisions().map(([input]) => input.version.changeReason)).toEqual([
         'revised',
-        'subjects_changed',
         'Agreed with the owner',
-        'subjects_changed',
-        'Seasonal portal',
+        'revised',
+        'Seasonal target',
       ])
     })
 
@@ -1668,29 +1262,6 @@ describe('canonical Goal Program service', () => {
       expect(revisions().map(([input]) => input.version.targetSource)).toEqual([
         'own',
         undefined,
-      ])
-    })
-
-    it('a subject change keeps the number and where it came from', async () => {
-      const { revise, addPortal, revisions, setNow } = await scansGoal()
-      setNow(MID_MARCH)
-
-      await revise({ targetSource: 'own' })
-      await addPortal(2, 2)
-      await revise({ targetValue: 140 })
-      await addPortal(3, 4)
-
-      expect(
-        revisions().map(([{ version }]) => [
-          version.changeReason,
-          version.targetValue,
-          version.targetSource,
-        ]),
-      ).toEqual([
-        ['revised', 120, 'own'],
-        ['subjects_changed', 120, 'own'],
-        ['revised', 140, undefined],
-        ['subjects_changed', 140, undefined],
       ])
     })
 
@@ -1755,9 +1326,9 @@ describe('canonical Goal Program service', () => {
     })
 
     it('revise refuses a form opened on a version that has since changed', async () => {
-      const { repository, revise, addPortal, setNow } = await scansGoal()
+      const { repository, revise, setNow } = await scansGoal()
       setNow(MID_MARCH)
-      await addPortal(2, 1)
+      await revise({ targetValue: 130 })
 
       await expect(revise({ expectedVersion: 1 })).rejects.toMatchObject({
         code: 'revision_conflict',
@@ -1887,90 +1458,6 @@ describe('canonical Goal Program service', () => {
         code: 'revision_conflict',
       })
     })
-  })
-
-  it('surfaces repository CAS loss as a revision conflict', async () => {
-    const { service, repository, setNow } = setup()
-    const created = await service.create(
-      {
-        propertyId: 'property-1',
-        name: 'Portal scans',
-        metric: 'qualified_scans',
-        targetValue: 100,
-        subjects: [{ kind: 'portal', portalId: 'portal-1' }],
-      },
-      actor,
-    )
-    setNow(new Date('2026-03-15T12:00:00.000Z'))
-    vi.mocked(repository.revise).mockResolvedValueOnce(false)
-
-    await expect(
-      service.changeAssignments(
-        {
-          propertyId: 'property-1',
-          programId: created.program.id,
-          expectedVersion: 1,
-          add: [{ kind: 'portal', portalId: 'portal-2' }],
-          remove: [],
-          selectAllCurrentPortals: false,
-          reason: 'Add a portal',
-        },
-        actor,
-      ),
-    ).rejects.toMatchObject({ code: 'revision_conflict' })
-  })
-
-  it('does not mint a version for no-ops or leave a Program without a subject', async () => {
-    const { service, repository, setNow } = setup()
-    const created = await service.create(
-      {
-        propertyId: 'property-1',
-        name: 'Portal scans',
-        metric: 'qualified_scans',
-        targetValue: 100,
-        subjects: [{ kind: 'portal', portalId: 'portal-1' }],
-      },
-      actor,
-    )
-    setNow(new Date('2026-03-15T12:00:00.000Z'))
-
-    await expect(
-      service.changeAssignments(
-        {
-          propertyId: 'property-1',
-          programId: created.program.id,
-          expectedVersion: 1,
-          add: [{ kind: 'portal', portalId: 'portal-1' }],
-          remove: [{ kind: 'portal', portalId: 'not-assigned' }],
-          selectAllCurrentPortals: false,
-          reason: 'No effective change',
-        },
-        actor,
-      ),
-    ).resolves.toMatchObject({
-      currentVersion: 1,
-      effectiveFrom: null,
-      outcomes: [{ outcome: 'already_assigned' }, { outcome: 'not_assigned' }],
-    })
-    await expect(
-      service.changeAssignments(
-        {
-          propertyId: 'property-1',
-          programId: created.program.id,
-          expectedVersion: 1,
-          add: [],
-          remove: [{ kind: 'portal', portalId: 'portal-1' }],
-          selectAllCurrentPortals: false,
-          reason: 'Cannot remove the final subject',
-        },
-        actor,
-      ),
-    ).resolves.toMatchObject({
-      currentVersion: 1,
-      effectiveFrom: null,
-      outcomes: [{ outcome: 'last_assignment_required' }],
-    })
-    expect(repository.revise).not.toHaveBeenCalled()
   })
 
   it('materializes a revised version only when its effective month starts', async () => {
@@ -2179,7 +1666,7 @@ describe('canonical Goal Program service', () => {
     })
   })
 
-  it('retains terminal Program history and denies later assignment changes', async () => {
+  it('retains terminal several-subject Program history after Stop', async () => {
     const { service } = setup()
     const created = await service.create(
       {
@@ -2187,7 +1674,10 @@ describe('canonical Goal Program service', () => {
         name: 'March ratings',
         metric: 'portal_rating_count',
         targetValue: 20,
-        subjects: [{ kind: 'portal', portalId: 'portal-1' }],
+        subjects: [
+          { kind: 'portal', portalId: 'portal-1' },
+          { kind: 'portal', portalId: 'portal-2' },
+        ],
       },
       actor,
     )
@@ -2206,22 +1696,9 @@ describe('canonical Goal Program service', () => {
       service.get({ propertyId: 'property-1', programId: created.program.id }, actor),
     ).resolves.toMatchObject({
       program: { status: 'ended' },
-      results: [{ id: created.results[0]?.id }],
+      assignments: created.assignments,
+      results: created.results.map(({ id }) => ({ id })),
     })
-    await expect(
-      service.changeAssignments(
-        {
-          propertyId: 'property-1',
-          programId: created.program.id,
-          expectedVersion: 1,
-          add: [{ kind: 'portal', portalId: 'portal-2' }],
-          remove: [],
-          selectAllCurrentPortals: false,
-          reason: 'Should not change archived history',
-        },
-        actor,
-      ),
-    ).rejects.toMatchObject({ code: 'invalid_transition' })
   })
 
   it('activates due programs and materializes only the month that has started', async () => {

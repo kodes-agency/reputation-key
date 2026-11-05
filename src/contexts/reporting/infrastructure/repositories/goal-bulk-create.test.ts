@@ -76,7 +76,6 @@ describe.sequential('Goals for several subjects (integration)', () => {
       subjects: {
         getTimezone: async () => 'UTC',
         subjectBelongsToProperty: async () => true,
-        listCurrentPortalIds: async () => [],
       },
       subjectNames: {
         getSubjectName: async (_organizationId, _propertyId, subject) =>

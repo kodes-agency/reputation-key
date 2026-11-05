@@ -223,9 +223,6 @@ function setup(initialNow = MARCH_15) {
     subjectBelongsToProperty: vi.fn<GoalProgramSubjectReader['subjectBelongsToProperty']>(
       async () => true,
     ),
-    listCurrentPortalIds: vi.fn<GoalProgramSubjectReader['listCurrentPortalIds']>(
-      async () => [],
-    ),
   }
   const policy = { authorize: vi.fn(async () => undefined) }
   const service = createGoalProgramService({

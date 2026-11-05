@@ -6,13 +6,11 @@ import { tracedHandler } from '#/shared/observability/traced-server-fn'
 // top-level zod calls (scripts/check-bundle-budget.mjs, 2026-10-13). Tests and
 // forms import the schemas from the DTO.
 import {
-  changeGoalProgramAssignmentsSchema,
   changeGoalProgramStatusSchema,
   createGoalProgramSchema,
   getGoalProgressSchema,
   goalProgramIdentitySchema,
   listGoalProgramsSchema,
-  reviseGoalProgramSchema,
 } from '../application/dto/goal-program.dto'
 import { withGoalPrograms } from './goal-program-request.server'
 
@@ -26,35 +24,6 @@ export const createGoalProgram = createServerFn({ method: 'POST' })
         ),
       'POST',
       'goal.createGoalProgram',
-    ),
-  )
-
-export const reviseGoalProgram = createServerFn({ method: 'POST' })
-  .validator(reviseGoalProgramSchema)
-  .handler(
-    tracedHandler(
-      async ({ data }) =>
-        withGoalPrograms((programs, policy, actor) =>
-          programs.revise(policy, data, actor),
-        ),
-      'POST',
-      'goal.reviseGoalProgram',
-    ),
-  )
-
-// No screen changes a goal's subjects since the goal page's old dialogs went
-// (PLAN PG-21): the engine keeps assignment changes (ADR 0068), so this stays,
-// listed in `.fallowrc.json`'s ignoreExports.
-export const changeGoalProgramAssignments = createServerFn({ method: 'POST' })
-  .validator(changeGoalProgramAssignmentsSchema)
-  .handler(
-    tracedHandler(
-      async ({ data }) =>
-        withGoalPrograms((programs, policy, actor) =>
-          programs.changeAssignments(policy, data, actor),
-        ),
-      'POST',
-      'goal.changeGoalProgramAssignments',
     ),
   )
 
