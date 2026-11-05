@@ -288,7 +288,7 @@ describe.sequential('Rating correction readings (integration)', () => {
   it('counts the corrected rating once, for the count and for the average', async () => {
     await submitRating(ORIGINAL_EVENT, ORIGINAL_STARS, ORIGINAL_AT, null)
     await submitRating(CORRECTION_EVENT, CORRECTED_STARS, CORRECTION_AT, ORIGINAL_EVENT)
-    const repository = createMetricRepository(db, () => CORRECTION_AT)
+    const repository = createMetricRepository(db)
 
     await expect(repository.queryGoalAggregate(COUNT_QUERY)).resolves.toMatchObject({
       readingCount: 1,
@@ -358,7 +358,7 @@ describe.sequential('Rating correction readings (integration)', () => {
     await submitRating(ORIGINAL_EVENT, ORIGINAL_STARS, ORIGINAL_AT, null)
     await submitRating(CORRECTION_EVENT, CORRECTED_STARS, CORRECTION_AT, ORIGINAL_EVENT)
     await retractRating()
-    const repository = createMetricRepository(db, () => RETRACTION_AT)
+    const repository = createMetricRepository(db)
 
     await expect(repository.queryGoalAggregate(COUNT_QUERY)).resolves.toMatchObject({
       readingCount: 0,
@@ -425,7 +425,7 @@ describe.sequential('Results and Goal rating counts (integration)', () => {
 
   /** The Goal's rating count measure and rating average measure, read as its page does. */
   async function goalTally(): Promise<RatingTally & Readonly<{ averageCount: number }>> {
-    const goals = createMetricRepository(db, () => READ_AT)
+    const goals = createMetricRepository(db)
     const [count, average] = await Promise.all([
       goals.queryGoalAggregate(COUNT_QUERY),
       goals.queryGoalAggregate(AVERAGE_QUERY),

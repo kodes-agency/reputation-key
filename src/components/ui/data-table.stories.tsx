@@ -7,7 +7,7 @@
 // stories draw the same table in a 22rem and a 56rem column for that.
 import { useState, type ReactNode } from 'react'
 import type { Meta, StoryObj } from '@storybook/react'
-import { expect, userEvent, within } from 'storybook/test'
+import { expect, userEvent, waitFor, within } from 'storybook/test'
 import {
   DataTable,
   DataTableBody,
@@ -130,6 +130,12 @@ export const Wide: Story = {
       <People />
     </Column>
   ),
+  play: ({ canvasElement }) => {
+    // It fits, so its scroller takes no tab stop.
+    expect(
+      canvasElement.querySelector('[data-slot="table-container"]'),
+    ).not.toHaveAttribute('tabindex')
+  },
 }
 
 /** A list whose rows are cards of their own below the width, framed only as a table. */
@@ -156,15 +162,21 @@ export const Scroll: Story = {
       <People layout="scroll" />
     </Column>
   ),
-  play: ({ canvasElement }) => {
+  play: async ({ canvasElement }) => {
     // It is always a table: the header is there at every width.
     expect(
       within(canvasElement).getByRole('columnheader', { name: 'Email' }),
     ).toBeInTheDocument()
+    // It scrolls, so the keyboard can reach the scroller.
+    await waitFor(() =>
+      expect(
+        canvasElement.querySelector('[data-slot="table-container"]'),
+      ).toHaveAttribute('tabindex', '0'),
+    )
   },
 }
 
-/** A refetch dims the table and says it is busy; the figures shown are the previous window's. */
+/** A refetch says the table is busy; the figures shown are the previous window's. */
 export const Busy: Story = {
   render: () => (
     <Column width="56rem">
@@ -172,9 +184,7 @@ export const Busy: Story = {
     </Column>
   ),
   play: ({ canvasElement }) => {
-    const frame = canvasElement.querySelector('[aria-busy="true"]')
-    expect(frame).not.toBeNull()
-    expect(frame?.className).toContain('opacity-60')
+    expect(canvasElement.querySelector('[aria-busy="true"]')).not.toBeNull()
   },
 }
 

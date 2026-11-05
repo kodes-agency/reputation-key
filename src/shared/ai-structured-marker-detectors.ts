@@ -119,6 +119,34 @@ const OVERBOUND_COORDINATE_RE =
   /[+-]?(?:\d{1,3})\.\d{9,}\s*,\s*[+-]?(?:\d{1,3})\.\d{4,}|[+-]?(?:\d{1,3})\.\d{4,}\s*,\s*[+-]?(?:\d{1,3})\.\d{9,}/gu
 /* eslint-enable security/detect-unsafe-regex */
 
+const OWN_PATTERNS = (
+  [
+    ['bare_domain', BARE_DOMAIN_RE],
+    ['card', CARD_RE],
+    ['email', EMAIL_RE],
+    ['entropy_token', ENTROPY_TOKEN_RE],
+    ['hex_secret', HEX_SECRET_RE],
+    ['iban', IBAN_RE],
+    ['iban_group_retry', IBAN_GROUP_SEPARATOR_RE],
+    ['known_secret', KNOWN_SECRET_RE],
+    ['labelled_id', LABELLED_ID_RE],
+    ['overbound_card', OVERBOUND_CARD_RE],
+    ['overbound_coordinate', OVERBOUND_COORDINATE_RE],
+    ['overbound_iban', OVERBOUND_IBAN_RE],
+    ['overbound_labelled_id', OVERBOUND_LABELLED_ID_RE],
+    ['overbound_phone', OVERBOUND_PHONE_RE],
+    ['phone', PHONE_RE],
+    ['postal_label', POSTAL_LABEL_RE],
+    ['reconstructed_email', RECONSTRUCTED_EMAIL_RE],
+    ['reconstructed_url', RECONSTRUCTED_URL_RE],
+    ['social', SOCIAL_RE],
+    ['spaced_dot', SPACED_DOT_RE],
+    ['url', URL_RE],
+  ] as const
+).map(([id, expression]) =>
+  Object.freeze({ id, source: expression.source, flags: expression.flags }),
+)
+
 const PLACEHOLDER_PRIORITY: Readonly<Record<AiDetectedPlaceholder, number>> = {
   '[SECRET]': 0,
   '[FINANCIAL]': 1,
@@ -128,6 +156,7 @@ const PLACEHOLDER_PRIORITY: Readonly<Record<AiDetectedPlaceholder, number>> = {
 }
 const DETECTOR_MANIFEST = Object.freeze({
   version: AI_STRUCTURED_MARKER_DETECTORS_VERSION,
+  algorithm: 'bounded-candidate-scan-union-v2',
   inputNormalization: 'NFKC-stable-scalar-text',
   maxCandidates: MAX_AI_STRUCTURED_MARKER_CANDIDATES_V1,
   maxInputScalars: MAX_AI_STRUCTURED_MARKER_INPUT_SCALARS_V1,
@@ -143,87 +172,7 @@ const DETECTOR_MANIFEST = Object.freeze({
     ...COORDINATE_MARKER_PROFILE.patterns,
     ...NETWORK_MARKER_PROFILE.patterns,
     ...BROKEN_TOKEN_PROFILE.patterns,
-    Object.freeze({
-      id: 'bare_domain',
-      source: BARE_DOMAIN_RE.source,
-      flags: BARE_DOMAIN_RE.flags,
-    }),
-    Object.freeze({ id: 'card', source: CARD_RE.source, flags: CARD_RE.flags }),
-    Object.freeze({ id: 'email', source: EMAIL_RE.source, flags: EMAIL_RE.flags }),
-    Object.freeze({
-      id: 'entropy_token',
-      source: ENTROPY_TOKEN_RE.source,
-      flags: ENTROPY_TOKEN_RE.flags,
-    }),
-    Object.freeze({
-      id: 'hex_secret',
-      source: HEX_SECRET_RE.source,
-      flags: HEX_SECRET_RE.flags,
-    }),
-    Object.freeze({ id: 'iban', source: IBAN_RE.source, flags: IBAN_RE.flags }),
-    Object.freeze({
-      id: 'iban_group_retry',
-      source: IBAN_GROUP_SEPARATOR_RE.source,
-      flags: IBAN_GROUP_SEPARATOR_RE.flags,
-    }),
-    Object.freeze({
-      id: 'known_secret',
-      source: KNOWN_SECRET_RE.source,
-      flags: KNOWN_SECRET_RE.flags,
-    }),
-    Object.freeze({
-      id: 'labelled_id',
-      source: LABELLED_ID_RE.source,
-      flags: LABELLED_ID_RE.flags,
-    }),
-    Object.freeze({
-      id: 'overbound_card',
-      source: OVERBOUND_CARD_RE.source,
-      flags: OVERBOUND_CARD_RE.flags,
-    }),
-    Object.freeze({
-      id: 'overbound_coordinate',
-      source: OVERBOUND_COORDINATE_RE.source,
-      flags: OVERBOUND_COORDINATE_RE.flags,
-    }),
-    Object.freeze({
-      id: 'overbound_iban',
-      source: OVERBOUND_IBAN_RE.source,
-      flags: OVERBOUND_IBAN_RE.flags,
-    }),
-    Object.freeze({
-      id: 'overbound_labelled_id',
-      source: OVERBOUND_LABELLED_ID_RE.source,
-      flags: OVERBOUND_LABELLED_ID_RE.flags,
-    }),
-    Object.freeze({
-      id: 'overbound_phone',
-      source: OVERBOUND_PHONE_RE.source,
-      flags: OVERBOUND_PHONE_RE.flags,
-    }),
-    Object.freeze({ id: 'phone', source: PHONE_RE.source, flags: PHONE_RE.flags }),
-    Object.freeze({
-      id: 'postal_label',
-      source: POSTAL_LABEL_RE.source,
-      flags: POSTAL_LABEL_RE.flags,
-    }),
-    Object.freeze({
-      id: 'reconstructed_email',
-      source: RECONSTRUCTED_EMAIL_RE.source,
-      flags: RECONSTRUCTED_EMAIL_RE.flags,
-    }),
-    Object.freeze({
-      id: 'reconstructed_url',
-      source: RECONSTRUCTED_URL_RE.source,
-      flags: RECONSTRUCTED_URL_RE.flags,
-    }),
-    Object.freeze({ id: 'social', source: SOCIAL_RE.source, flags: SOCIAL_RE.flags }),
-    Object.freeze({
-      id: 'spaced_dot',
-      source: SPACED_DOT_RE.source,
-      flags: SPACED_DOT_RE.flags,
-    }),
-    Object.freeze({ id: 'url', source: URL_RE.source, flags: URL_RE.flags }),
+    ...OWN_PATTERNS,
   ]),
   candidateCaps: Object.freeze({
     email: 254,
@@ -236,8 +185,7 @@ const DETECTOR_MANIFEST = Object.freeze({
     address: 256,
     secret: 256,
   }),
-  addressWordLists: ADDRESS_MARKER_PROFILE.wordLists,
-  addressLimits: ADDRESS_MARKER_PROFILE.limits,
+  addressProfile: ADDRESS_MARKER_PROFILE,
   coordinateLimits: COORDINATE_MARKER_PROFILE.limits,
   splitDomainTopLevels: NETWORK_MARKER_PROFILE.splitDomainTopLevels,
   minSplitNameScalars: NETWORK_MARKER_PROFILE.minSplitNameScalars,
@@ -248,7 +196,7 @@ const DETECTOR_MANIFEST = Object.freeze({
   }),
   validators: Object.freeze([
     'email-rfc-bounded-v1',
-    'whatwg-http-domain-v1',
+    'whatwg-http-host-v2',
     'bare-domain-alphabetic-final-label-v2',
     'split-domain-blank-before-dot-v2',
     'broken-token-single-blank-v1',
@@ -259,7 +207,7 @@ const DETECTOR_MANIFEST = Object.freeze({
     'luhn-v1',
     'iban-mod97-v1',
     'labelled-identifier-v1',
-    'postal-address-street-shape-v5',
+    'postal-address-street-shape-v6',
     'secret-entropy-v1',
   ]),
 })
@@ -399,7 +347,16 @@ function forEachMatch(
 
 function trimUrlEnd(value: string): string {
   let end = value.length
-  while (end > 0 && /[.,!?;:)}\]]/u.test(value[end - 1]!)) end -= 1
+  let extraClosingBrackets =
+    (value.match(/\]/gu)?.length ?? 0) - (value.match(/\[/gu)?.length ?? 0)
+  while (end > 0 && /[.,!?;:)}\]]/u.test(value[end - 1]!)) {
+    if (value[end - 1] === ']') {
+      // The balanced closing bracket belongs to an IPv6 host or URL path.
+      if (extraClosingBrackets <= 0) break
+      extraClosingBrackets -= 1
+    }
+    end -= 1
+  }
   return value.slice(0, end)
 }
 
@@ -463,14 +420,13 @@ function scanEmails(text: string, state: ScanState): void {
   }
 }
 
-function validHttpUrl(value: string): boolean {
+function validHttpUrl(value: string, requireDomain = false): boolean {
   try {
     const parsed = new URL(/^www\./iu.test(value) ? `https://${value}` : value)
     return (
       (parsed.protocol === 'http:' || parsed.protocol === 'https:') &&
-      parsed.username === '' &&
-      parsed.password === '' &&
-      validDomain(parsed.hostname)
+      parsed.hostname.length > 0 &&
+      (!requireDomain || validDomain(parsed.hostname))
     )
   } catch {
     return false
@@ -502,7 +458,7 @@ function scanUrlsAndDomains(text: string, state: ScanState): void {
     }
     forEachMatch(SPACED_DOT_RE, match[0], (separator) => {
       const prefix = match[0].slice(0, separator.index).replace(/[ \t]/gu, '')
-      if (validHttpUrl(prefix)) state.blocked = 'ambiguous_candidate'
+      if (validHttpUrl(prefix, true)) state.blocked = 'ambiguous_candidate'
     })
     if (state.blocked !== null) return
     const compact = trimUrlEnd(match[0]).replace(/[ \t]/gu, '')

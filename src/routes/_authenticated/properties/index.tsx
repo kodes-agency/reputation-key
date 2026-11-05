@@ -28,7 +28,7 @@ import {
   propertySetupSummariesQuery,
 } from '#/routes/-queries/route-queries'
 import { dashboardKeys, propertyKeys } from '#/shared/queries/query-keys'
-import { LIFETIME, fleetQuery } from './-properties-prefetch'
+import { fleetQuery } from './-properties-prefetch'
 
 /**
  * How long the list waits for its figures and its setup progress once the
@@ -79,7 +79,7 @@ function PropertyListRoute() {
   const search = Route.useSearch()
   const navigate = Route.useNavigate()
   const { data: propsData } = useSuspenseQuery(propertiesQuery)
-  const fleet = useInfiniteQuery(fleetQuery(LIFETIME))
+  const fleet = useInfiniteQuery(fleetQuery())
   const setupSummaries = useQuery(propertySetupSummariesQuery)
 
   // The fleet read pages by 50. Sorting by attention or rating is only honest

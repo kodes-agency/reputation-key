@@ -1,5 +1,5 @@
 // Integration context — build function.
-// Wires integration repos, adapters, use cases, and the GbpQueuePort.
+// Wires integration repos, adapters, use cases, and the import queue.
 // Per ADR-0001: the composition root calls this and passes useCases to the container.
 //
 // Cross-context contributions exposed to the composition root (BQC-5.2):
@@ -59,7 +59,6 @@ import {
 } from './infrastructure/outbox-consumers'
 import { registerGoogleReviewPushDispatchConsumer } from './infrastructure/google-review-push-outbox-consumers'
 import type { ConsumerRegistry, OutboxRepository } from '#/shared/outbox'
-import { createCredentialLifecycleRepository } from './infrastructure/repositories/credential-lifecycle.repository'
 import { createGoogleOAuthExchangeRecoveryRepository } from './infrastructure/repositories/google-oauth-exchange-recovery.repository'
 import { createGoogleDisconnectRevokeRepository } from './infrastructure/repositories/google-disconnect-revoke.repository'
 import type { GoogleDisconnectRevokeStore } from './application/google-disconnect-revoke'
@@ -344,9 +343,6 @@ export type IntegrationContextApi = Readonly<{
       connectionRepo: ReturnType<typeof createGoogleConnectionRepository>
       encryptionPort: ReturnType<typeof createTokenEncryptionAdapter>
       oauthPort: ReturnType<typeof createGoogleOAuthAdapter>
-      /** BQC-6.1: exposed (like oauthPort) so build-level tests can prove
-       * provider overrides are honored. */
-      credentialLifecycle: ReturnType<typeof createCredentialLifecycleRepository>
       googleOAuthExchangeRecovery: ReturnType<
         typeof createGoogleOAuthExchangeRecoveryRepository
       >
@@ -418,8 +414,6 @@ export type IntegrationContextApi = Readonly<{
 export const buildIntegrationContext = (deps: IntegrationContextDeps) => {
   // ── Repositories ─────────────────────────────────────────────────
   const connectionRepo = createGoogleConnectionRepository(deps.db, deps.clock)
-  // BQC-3.5: every integration state mutation + fact commits atomically here.
-  const credentialLifecycle = createCredentialLifecycleRepository(deps.db)
   const googleOAuthExchangeRecovery = createGoogleOAuthExchangeRecoveryRepository(deps.db)
   const googleDisconnectRevokeStore =
     deps.googleDisconnectRevokeStore ?? createGoogleDisconnectRevokeRepository(deps.db)
@@ -1313,7 +1307,6 @@ export const buildIntegrationContext = (deps: IntegrationContextDeps) => {
     internal: {
       repos: {
         connectionRepo,
-        credentialLifecycle,
         googleOAuthExchangeRecovery,
         encryptionPort,
         oauthPort,

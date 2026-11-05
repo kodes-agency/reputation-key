@@ -212,8 +212,7 @@ export function ReviewReplyPublishedEditor({
             // goes, with the dialog drawn inside it.
             onOpenChange={holdReply}
             // A refused update stays in the dialog (the edit mutation passes no
-            // toast) and the editor stays open on the text
-            // (`reply-published-edit.tsx` closes only after a save resolves).
+            // toast) and the caller closes the editor only after a save resolves.
             onConfirm={() => onSave(text)}
           />
         </div>

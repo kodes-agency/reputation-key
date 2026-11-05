@@ -1,6 +1,6 @@
 {
   "version": 2,
-  "scope": ["src/components", "src/routes", "src/hooks", "src/shared/hooks"],
+  "scope": ["src/components", "src/routes", "src/shared/hooks"],
   "queryKeyFactories": [
     {
       "id": "inboxKeys",
@@ -50,14 +50,13 @@
         "invitations",
         "userInvitations",
         "organizationInvitations",
-        "outstandingResponsibilities",
         "merchantAiAuthorization",
         "merchantAiOverview",
         "merchantAiNotice",
         "myBetaFeedback"
       ],
       "owner": "Identity query lifecycle",
-      "policy": "Active-organization reads live under the identity root. Login, sign-out, and successful invitation acceptance clear the complete QueryClient at the confirmed session/tenant transition, so no unscoped identity or sibling context cache crosses tenants. The AccountAdmin's read of every member's active Property grants is nested below the member list, so every role, removal or access mutation that already invalidates the member list refreshes it without a second key. Personal and organization invitation response shapes are disjoint siblings below the invitation prefix. The departing member's outstanding-responsibility worklist is a separate leaf under the same root: it describes the caller's current standing rather than the directory, is read at staleTime 0, and is invalidated by leave mutations alone. The per-property merchant AI consent snapshot is another leaf, keyed by the globally unique propertyId: the import flow's AI-analysis step reads it, a successful enable replaces it locally from the command result, and the AI settings route reads the same snapshot through its loader rather than through this key. The read-only Organization AI overview is a separate sibling leaf, not a parent of the per-property snapshots: it spans every Property the viewer may manage AI for, so any Merchant AI command or decision deferral must invalidate it explicitly alongside the affected property snapshot. The served Merchant AI notice is a third sibling leaf, independent of any Property: the import wizard's setup step reads it to render the consent ceremony, it changes only with a deploy, and a notice mismatch on a consent command is surfaced to the merchant rather than repaired from cache. The reporter's own beta-feedback history is a further leaf under the same root: it is scoped server-side by the caller's actor pseudonym rather than by any key argument, is read only while the dialog's reports panel is open, and is invalidated by a successful submission from that same dialog."
+      "policy": "Active-organization reads live under the identity root. Login, sign-out, and successful invitation acceptance clear the complete QueryClient at the confirmed session/tenant transition, so no unscoped identity or sibling context cache crosses tenants. The AccountAdmin's read of every member's active Property grants is nested below the member list, so every role, removal or access mutation that already invalidates the member list refreshes it without a second key. Personal and organization invitation response shapes are disjoint siblings below the invitation prefix. The per-property merchant AI consent snapshot is another leaf, keyed by the globally unique propertyId: the import flow's AI-analysis step reads it, a successful enable replaces it locally from the command result, and the AI settings route reads the same snapshot through its loader rather than through this key. The read-only Organization AI overview is a separate sibling leaf, not a parent of the per-property snapshots: it spans every Property the viewer may manage AI for, so any Merchant AI command or decision deferral must invalidate it explicitly alongside the affected property snapshot. The served Merchant AI notice is a third sibling leaf, independent of any Property: the import wizard's setup step reads it to render the consent ceremony, it changes only with a deploy, and a notice mismatch on a consent command is surfaced to the merchant rather than repaired from cache. The reporter's own beta-feedback history is a further leaf under the same root: it is scoped server-side by the caller's actor pseudonym rather than by any key argument, is read only while the dialog's reports panel is open, and is invalidated by a successful submission from that same dialog."
     },
     {
       "id": "propertyKeys",
@@ -423,12 +422,6 @@
       "classification": "local_runtime",
       "owner": "Notification accessibility announcer",
       "policy": "The imported EMPTY object is only the initial client live-region value; mutation announcements own subsequent values."
-    },
-    {
-      "id": "src/components/features/people/leave-organization-dialog.tsx:useState(assignments)",
-      "classification": "local_runtime",
-      "owner": "Identity membership lifecycle",
-      "policy": "The transfer choices the departing member is composing, keyed by responsibility. Seeded empty rather than from `outstanding`, which stays the server-owned prop the unassigned list is derived from, so a refreshed worklist can never be overwritten by a stale local copy. Submitted once and then discarded with the dialog."
     },
     {
       "id": "src/components/features/portal/portal-analytics/portal-analytics-tab.tsx:useState(timeRange)",
@@ -919,7 +912,7 @@
     "local_runtime": "Local runtime/controller state caught by the conservative syntax heuristic; it is not treated as a server-state authority."
   },
   "limitations": [
-    "This executable inventory covers production TypeScript and TSX files under src/components, src/routes, src/hooks, and src/shared/hooks; it excludes tests, stories, context internals, workers, and external packages.",
+    "This executable inventory covers production TypeScript and TSX files under src/components, src/routes, and src/shared/hooks; it excludes tests, stories, context internals, workers, and external packages.",
     "The state-mirror inventory is a conservative syntax heuristic over non-literal useState initializers. It requires unique, current, owned classifications and rejects an effect that overwrites a declared server draft, but feature-owned tests must still prove each remount, conflict, synchronization, or mutation-adoption policy.",
     "The query-key check rejects direct array literals, requires every factory member to descend acyclically from its own unique family root, inventories every member against an owned lifecycle policy, requires every explicit or shorthand queryKey site to resolve to a registered factory member or a narrow documented generic delegate, and requires every useActionMutation invalidation array to resolve to owned factory keys. It still does not prove that every server read uses TanStack Query or that every mutation invalidates all semantically related sibling projections; those fan-outs need feature-owned behavioral tests such as the Portal Group to Goal cache matrix.",
     "The invalidation check detects zero-argument .invalidate() calls in scope. The login auth-bootstrap row and the route error boundaries' Try again are the only approved whole-router exceptions."

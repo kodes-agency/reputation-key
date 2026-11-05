@@ -124,28 +124,12 @@ export const SERVER_FUNCTION_POLICY_EXEMPTIONS: readonly ServerFunctionPolicyExe
     guestResponse('selectSecondaryLinkFn', 'the link selection'),
     guestResponse('withdrawGuestResponseFn', 'the response withdrawal'),
     {
-      file: 'src/contexts/identity/server/auth-settings.org.ts',
-      name: 'createOrganizationFn',
-      category: 'SESSION',
-      guard: 'assertGlobalCapability',
-      reason:
-        'The caller is creating the Organization, so none exists to decide for. organization.create is asserted globally and is beta_disabled.',
-    },
-    {
       file: 'src/contexts/identity/server/invitation-preview.ts',
       name: 'getInvitationPreview',
       category: 'PUBLIC',
       guard: null,
       reason:
         'Opened from the emailed link before any sign-in; the invitation id is the bearer secret. A per-address rate limit (rateLimiter.check) is the only gate, and every unusable id answers alike.',
-    },
-    {
-      file: 'src/contexts/identity/server/organization-leave-fns.ts',
-      name: 'getSelfServiceLeaveAvailabilityFn',
-      category: 'AVAILABILITY-READ',
-      guard: 'resolveTenantContext',
-      reason:
-        'Says whether this deployment composes self-service leave. The members page awaits it, so a refusal would take the directory down; the worklist read and the leave command keep their own policy calls.',
     },
     {
       file: 'src/contexts/identity/server/organizations.invitations.ts',

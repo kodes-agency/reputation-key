@@ -149,6 +149,7 @@ function Harness({
               profile: null,
               groups: [],
               recommendedTemplateId: null,
+              recommendedReason: null,
             })}
             onLoadTemplate={async () => ({
               text: 'A template reply.',

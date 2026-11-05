@@ -227,16 +227,11 @@ describe('notification constructors', () => {
     }
   })
 
-  it('rejects unknown notification and resource types before rendering', () => {
+  it('rejects unknown notification types before rendering', () => {
     const unknownType = createNotification(
       { ...base, type: 'review.deleted' as typeof base.type },
       () => NOW,
     )
-    const unknownResource = createNotification(
-      { ...base, resourceType: 'review' as typeof base.resourceType },
-      () => NOW,
-    )
-
     expect(unknownType.isErr()).toBe(true)
     if (unknownType.isErr()) {
       expect(unknownType.error).toMatchObject({
@@ -244,14 +239,25 @@ describe('notification constructors', () => {
         context: { type: 'review.deleted' },
       })
     }
-    expect(unknownResource.isErr()).toBe(true)
-    if (unknownResource.isErr()) {
-      expect(unknownResource.error).toMatchObject({
-        code: 'invalid_resource_type',
-        context: { resourceType: 'review' },
-      })
-    }
   })
+
+  it.each(['review', 'badge'])(
+    'rejects the unsupported %s resource before rendering',
+    (resourceType) => {
+      const result = createNotification(
+        { ...base, resourceType: resourceType as typeof base.resourceType },
+        () => NOW,
+      )
+
+      expect(result.isErr()).toBe(true)
+      if (result.isErr()) {
+        expect(result.error).toMatchObject({
+          code: 'invalid_resource_type',
+          context: { resourceType },
+        })
+      }
+    },
+  )
 
   it('rejects an empty event identity used by delivery idempotency', () => {
     const result = createNotification({ ...base, eventId: '\t' }, () => NOW)

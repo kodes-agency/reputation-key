@@ -125,7 +125,7 @@ async function world() {
       portalRepo: createPortalRepository(db),
       staffPublicApi,
       experienceRepo: createPortalExperienceRepository(db),
-      portalLinkRepo: createPortalLinkRepository(db, () => READ_AT),
+      portalLinkRepo: createPortalLinkRepository(db),
       // The seed's destinations carry a test validation version the repository refuses.
       destinationRepo: {
         list: async () =>

@@ -311,22 +311,6 @@ export type AttentionSignals = Readonly<{
 }>
 
 // ─── Fleet Overview ───
-export type FleetMetricFreshness = 'fresh' | 'stale' | 'insufficient_data'
-
-/** Provenance exposed with every governed fleet KPI. */
-export type FleetMetricEvidence = Readonly<{
-  definitionVersionId: string
-  periodStart: Date
-  periodEnd: Date
-  timezone: string
-  sourcePolicies: readonly string[]
-  watermark: Date | null
-  freshness: FleetMetricFreshness
-  /** Eligible exact readings divided by all governed readings for the period. */
-  completeness: number
-  correctionCount: number
-}>
-
 /**
  * The Properties list's "Google goal" cell, from the stored goal (cheap; the
  * live evaluation stays on the goal's own pages): an active goal's target,
@@ -349,23 +333,12 @@ export type FleetEntry = Readonly<{
   name: string
   slug: string
   timezone: string
-  avgRating: number | null
-  /** Absolute star delta vs prior period. Null when either sample is insufficient. */
-  avgRatingComparison: number | null
-  reviewCount: number
-  feedbackCount: number
-  scanCount: number
-  reviewEvidence: FleetMetricEvidence
-  /** Null means Portal policy excluded the optional overlay for this property. */
-  scanEvidence: FleetMetricEvidence | null
-  feedbackEvidence: FleetMetricEvidence | null
-  attentionSignals: AttentionSignals
+  attentionSignals: Omit<AttentionSignals, 'ratingDrop'>
   /** Distinct attention work, never the sum of overlapping signal counts. */
   totalAttention: number
   /**
    * Google's own rating and count, the list's headline (decision 16); null when
-   * Google never sent numbers for the current binding. `avgRating` and
-   * `reviewCount` stay RepKey's governed readings for the period.
+   * Google never sent numbers for the current binding.
    */
   google: GoogleNumbersView | null
   /** Null when the reader's goal read (`goal.use`) is off. */
@@ -375,11 +348,7 @@ export type FleetEntry = Readonly<{
 /** Org-total summary shown in the fleet overview strip. */
 export type FleetTotals = Readonly<{
   propertyCount: number
-  /** Eligible reviews contributing to the rating-weighted fleet average. */
-  ratingSampleCount: number
   totalAttention: number
-  /** Review-count-weighted mean across eligible property ratings. */
-  overallAvgRating: number
 }>
 
 export type FleetOverviewData = Readonly<{

@@ -24,7 +24,6 @@ import {
   PUBLISHED_EVENT_REDELIVERY_HORIZON_MS,
 } from '#/shared/outbox/published-event-redelivery.job'
 import type { ReconcileMetricCorrection } from '../application/use-cases/reconcile-metric-correction'
-import { registerMetricCorrectionConsumer } from './correction-outbox-consumers'
 import {
   GOAL_METRIC_CORRECTION_CONSUMER,
   registerGoalMetricCorrectionConsumer,
@@ -92,7 +91,6 @@ async function deliver(
   reconcile: ReconcileMetricCorrection,
 ): Promise<ReadonlyArray<PromiseSettledResult<unknown>>> {
   const registry = createConsumerRegistry()
-  registerMetricCorrectionConsumer(registry, db)
   registerGoalMetricCorrectionConsumer(registry, { reconcile, db })
   return Promise.allSettled(
     registry.listFor(EVENT_TYPE).map((consumer) => consumer.handler(eventOf(eventId))),
@@ -166,7 +164,7 @@ describe.sequential('Goal metric-correction receipt (real PostgreSQL)', () => {
   it('holds a receipt from every catalogued consumer after one delivery, so the sweep leaves the fact alone', async () => {
     const outcomes = await deliver(DELIVERED, reconciled)
 
-    expect(outcomes.map((outcome) => outcome.status)).toEqual(['fulfilled', 'fulfilled'])
+    expect(outcomes.map((outcome) => outcome.status)).toEqual(['fulfilled'])
     expect(await receiptsOf(DELIVERED)).toEqual(
       EXPECTED_CONSUMERS.map(({ consumerName }) => ({
         consumerName,
@@ -193,7 +191,7 @@ describe.sequential('Goal metric-correction receipt (real PostgreSQL)', () => {
     await deliver(REDELIVERED, reconciled)
     const again = await deliver(REDELIVERED, reconciled)
 
-    expect(again.map((outcome) => outcome.status)).toEqual(['fulfilled', 'fulfilled'])
+    expect(again.map((outcome) => outcome.status)).toEqual(['fulfilled'])
     expect(
       (await receiptsOf(REDELIVERED)).filter(
         ({ consumerName }) => consumerName === GOAL_METRIC_CORRECTION_CONSUMER,

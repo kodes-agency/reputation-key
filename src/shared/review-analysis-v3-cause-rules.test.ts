@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+import { normalizeReviewAnalysisV3 } from './review-analysis-v3-normalizer'
 import {
   collectReviewNameTokens,
   collectVocabularyHintWords,
@@ -196,6 +197,49 @@ describe('review cause name refusal', () => {
 })
 
 describe('review cause quotation refusal', () => {
+  it.each([
+    { thing: 'staff-were-extremely-rude', issue: null },
+    { thing: null, issue: 'staff-were-extremely-rude' },
+    { thing: 'staff-were extremely rude', issue: null },
+  ])('checks four joined words when the other cause field is absent: %o', (cause) => {
+    expect(
+      reviewCauseReproducesQuotation({
+        ...cause,
+        reviewText: 'The staff were extremely rude.',
+      }),
+    ).toBe(true)
+    expect(
+      managerCauseRefusal({
+        ...cause,
+        typed: [cause.thing, cause.issue],
+        reviewText: 'The staff were extremely rude.',
+        allowedWords: new Set(['staff', 'were', 'extremely', 'rude']),
+      }),
+    ).toBe('quotation')
+    const stored = normalizeReviewAnalysisV3(
+      {
+        sentiment: 'negative',
+        mentions: [
+          {
+            ...cause,
+            topic: 'staff_service',
+            polarity: 'negative',
+            strength: 'clear',
+            sentences: [1],
+            names_person: null,
+          },
+        ],
+        urgent: null,
+      },
+      { sentences: ['The staff were extremely rude.'] },
+    )
+    expect(stored).toMatchObject({
+      status: 'normalized',
+      answer: { mentions: [{ thing: null, issue: null, topic: 'staff_service' }] },
+      droppedMentionCount: 0,
+    })
+  })
+
   it('allows three copied words across thing and issue', () => {
     expect(
       reviewCauseReproducesQuotation({

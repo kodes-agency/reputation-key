@@ -1,6 +1,6 @@
 // Invoking a server fn outside the server runtime skips `.validator()` and
 // hides the handler's return value, so these tests pass complete input and
-// assert calls and refusals. They pin what the three Property dashboard
+// assert calls and refusals. They pin what the Property dashboard
 // handlers hand the use case: the Property's own time zone and the reader the
 // use case authorizes. The Property decision itself is the use case's
 // (application/dashboard-property-access), not the handler's.
@@ -8,7 +8,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
-  getDashboardData: vi.fn(),
   getPropertyOverview: vi.fn(),
   getPortalAnalytics: vi.fn(),
   getPropertyTimezone: vi.fn(),
@@ -24,7 +23,6 @@ const NOW = new Date('2026-09-30T12:00:00.000Z')
 vi.mock('#/composition', () => ({
   getContainer: () => ({
     dashboardPublicApi: {
-      getDashboardData: mocks.getDashboardData,
       getPropertyOverview: mocks.getPropertyOverview,
       getPortalAnalytics: mocks.getPortalAnalytics,
     },
@@ -48,7 +46,7 @@ vi.mock('#/shared/observability/traced-server-fn', () => ({
 import { ServerFunctionError } from '#/shared/auth/server-function-error'
 import { withStartContext } from '#/shared/testing/tanstack-start-als'
 import { dashboardError } from '../domain/dashboard-errors'
-import { getDashboardDataFn, getPropertyOverviewFn } from './dashboard'
+import { getPropertyOverviewFn } from './dashboard'
 import { getPortalAnalyticsFn } from './portal-analytics'
 
 const ctx = { organizationId: ORG_ID, userId: 'manager-1', role: 'PropertyManager' }
@@ -62,12 +60,6 @@ const DASHBOARD_READ_ON_PROPERTY = {
 } as const
 
 const reads = [
-  {
-    name: 'getDashboardDataFn',
-    useCase: mocks.getDashboardData,
-    call: () => withStartContext(() => getDashboardDataFn({ data: propertyRead })),
-    asks: [DASHBOARD_READ_ON_PROPERTY],
-  },
   {
     // The overview carries the attention band, which a dashboard.read holder
     // without dashboard.fleet_read (a Member) may not read.

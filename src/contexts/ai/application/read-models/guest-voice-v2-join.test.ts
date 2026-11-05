@@ -124,6 +124,53 @@ describe('joinPeriod', () => {
     expect(joined.analysed).toHaveLength(1)
   })
 
+  it('does not wait on a terminal exclusion with no analysis row', () => {
+    const joined = joinWindows({
+      window: PERIOD,
+      before: null,
+      population: [counted('unsupported', '2026-10-05')],
+      facts: {
+        reviews: [],
+        unavailable: [
+          {
+            reviewId: 'unsupported',
+            analysisSequence: 1,
+            sourceRevision: null,
+            localDate: null,
+          },
+        ],
+        coverage: {
+          settledAnalysisCount: 1,
+          expectedAnalysisCount: 1,
+          awaitingAnalysisCount: 0,
+        },
+      },
+    })
+    expect(joined.now.awaitingAnalysis).toBe(0)
+    expect(joined.now.analysed).toEqual([])
+    expect(joined.provisional).toBe(false)
+  })
+
+  it('does not let an old terminal exclusion settle a newer sequence or another review', () => {
+    const joined = joinPeriod(
+      PERIOD,
+      [
+        counted('unsupported', '2026-10-05', { sequence: 2 }),
+        counted('waiting', '2026-10-06'),
+      ],
+      [],
+      [
+        {
+          reviewId: 'unsupported',
+          analysisSequence: 1,
+          sourceRevision: null,
+          localDate: null,
+        },
+      ],
+    )
+    expect(joined.awaitingAnalysis).toBe(2)
+  })
+
   it('does not wait on a review with only stars', () => {
     const joined = joinPeriod(
       PERIOD,

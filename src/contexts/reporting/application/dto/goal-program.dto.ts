@@ -19,8 +19,7 @@ const goalProgramSubjectSchema = z.discriminatedUnion('kind', [
 ])
 
 /**
- * The note on a command: optional. Without one a version records a default
- * (`revised`, `subjects_changed`) and a status change records nothing.
+ * The note on a status change: optional. Without one no reason is recorded.
  */
 const goalProgramReasonSchema = z.string().trim().max(500).optional()
 
@@ -40,58 +39,6 @@ export const createGoalProgramSchema = z.object({
   // month could be chosen.
   startMonth: goalStartMonthSchema.optional(),
 })
-
-export const reviseGoalProgramSchema = z.object({
-  propertyId: uuid,
-  programId: uuid,
-  metric: goalProgramMetricSchema,
-  targetValue: z.number().finite('Enter a valid monthly target'),
-  subjects: goalProgramSubjectSelectionSchema,
-  reason: goalProgramReasonSchema,
-  // The version the form was opened on. A form that sends it is refused once
-  // the goal has changed under it.
-  expectedVersion: z.number().int().positive().optional(),
-})
-
-export const changeGoalProgramAssignmentsSchema = z
-  .object({
-    propertyId: uuid,
-    programId: uuid,
-    expectedVersion: z.number().int().positive(),
-    add: z
-      .array(goalProgramSubjectSchema)
-      .max(MAX_GOAL_ASSIGNMENT_SELECTIONS)
-      .default([]),
-    remove: z
-      .array(goalProgramSubjectSchema)
-      .max(MAX_GOAL_ASSIGNMENT_SELECTIONS)
-      .default([]),
-    selectAllCurrentPortals: z.boolean().default(false),
-    reason: goalProgramReasonSchema,
-  })
-  .superRefine((input, context) => {
-    if (input.add.length + input.remove.length > MAX_GOAL_ASSIGNMENT_SELECTIONS) {
-      context.addIssue({
-        code: 'too_big',
-        origin: 'array',
-        maximum: MAX_GOAL_ASSIGNMENT_SELECTIONS,
-        inclusive: true,
-        path: ['add'],
-        message: `At most ${MAX_GOAL_ASSIGNMENT_SELECTIONS} explicit selections are allowed`,
-      })
-    }
-    if (
-      input.add.length === 0 &&
-      input.remove.length === 0 &&
-      !input.selectAllCurrentPortals
-    ) {
-      context.addIssue({
-        code: 'custom',
-        path: ['add'],
-        message: 'Select at least one assignment change',
-      })
-    }
-  })
 
 export const changeGoalProgramStatusSchema = z.object({
   propertyId: uuid,
@@ -114,7 +61,3 @@ export const getGoalProgressSchema = z.object({
 })
 
 export type CreateGoalProgramInput = z.infer<typeof createGoalProgramSchema>
-export type ReviseGoalProgramInput = z.infer<typeof reviseGoalProgramSchema>
-export type ChangeGoalProgramAssignmentsInput = z.infer<
-  typeof changeGoalProgramAssignmentsSchema
->

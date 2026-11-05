@@ -108,19 +108,17 @@ export const listMembers = createServerFn({ method: 'GET' }).handler(
         const ctx = await resolveTenantContext(headers)
         await requireExecutionAllowed({ actor: ctx, action: 'member.list' })
         const { identityPort } = getContainer()
-        const members = await identityPort.listMembers(ctx)
-        const mapped = members
-          .filter((m) => m.rawRole !== 'member')
-          .map((m) => ({
-            id: m.id,
-            userId: m.userId,
-            role: m.role,
-            rawRole: m.rawRole,
-            email: m.email,
-            name: m.name,
-            image: m.image,
-            createdAt: m.createdAt,
-          }))
+        const members = await identityPort.listMembers(ctx, { excludeStaff: true })
+        const mapped = members.map((m) => ({
+          id: m.id,
+          userId: m.userId,
+          role: m.role,
+          rawRole: m.rawRole,
+          email: m.email,
+          name: m.name,
+          image: m.image,
+          createdAt: m.createdAt,
+        }))
 
         return { members: mapped, requestingRole: ctx.role }
       } catch (e) {

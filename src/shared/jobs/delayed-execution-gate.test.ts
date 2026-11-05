@@ -150,15 +150,10 @@ describe('gateJob — request building (stubbed policy)', () => {
   it('leaves organizationId empty for org-scoped rows without a payload org (missing_scope)', async () => {
     installStub()
     decideMock.mockResolvedValue(
-      decision({ reason: 'missing_scope', action: 'system:activity.record' }),
+      decision({ reason: 'missing_scope', action: 'system:notification.insert' }),
     )
 
-    const outcome = await gateJob(
-      'project-recent-activity',
-      {},
-      'worker:default',
-      'worker',
-    )
+    const outcome = await gateJob('insert-notification', {}, 'worker:default', 'worker')
 
     expect(lastRequest().organizationId).toBe('')
     expect(outcome.kind).toBe('deny_terminal')

@@ -609,7 +609,7 @@ describe.sequential('Access Artifact backed Qualified Scan (integration)', () =>
 
   it('projects one replay-safe Metric contribution and removes it by correction', async () => {
     const { registry } = buildReportingFixture()
-    const readings = createMetricRepository(getDb(), () => EVENT_TIME)
+    const readings = createMetricRepository(getDb())
     const fact = guestQualifiedScanRecorded({
       qualifiedScanId: qualifiedScanId('73000000-0000-4000-8000-000000000023'),
       organizationId: ORG,
@@ -662,16 +662,16 @@ describe.sequential('Access Artifact backed Qualified Scan (integration)', () =>
     const aggregateQuery = {
       organizationId: ORG,
       propertyId: PROPERTY,
-      portalId: PORTAL,
-      groupId: null,
-      metricKey: 'portal.qualified_scan' as const,
-      consumer: 'goal' as const,
+      definitionVersionId: METRIC_VERSION_IDS.qualifiedScanGoal,
+      expectedMetricKey: 'portal.qualified_scan' as const,
+      allowedSourcePolicies: ['first_party_guest_gateway_metric'],
+      subject: { kind: 'portal' as const, portalId: PORTAL },
       periodStart: new Date('2026-08-01T00:00:00.000Z'),
       periodEnd: new Date('2026-09-01T00:00:00.000Z'),
     }
-    await expect(readings.queryAggregate(aggregateQuery)).resolves.toMatchObject({
+    await expect(readings.queryGoalAggregate(aggregateQuery)).resolves.toMatchObject({
       sum: 1,
-      count: 1,
+      readingCount: 1,
       sampleCount: 1,
     })
 
@@ -726,9 +726,9 @@ describe.sequential('Access Artifact backed Qualified Scan (integration)', () =>
     await retractedHandler(retractedEnvelope)
     await retractedHandler(retractedEnvelope)
 
-    await expect(readings.queryAggregate(aggregateQuery)).resolves.toMatchObject({
+    await expect(readings.queryGoalAggregate(aggregateQuery)).resolves.toMatchObject({
       sum: 0,
-      count: 0,
+      readingCount: 0,
       sampleCount: 0,
     })
     expect(

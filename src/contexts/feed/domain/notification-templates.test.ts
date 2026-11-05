@@ -19,7 +19,11 @@ import {
   renderNotification,
   waitingAge,
 } from './notification-templates'
-import { NOTIFICATION_TYPES, type NotificationType } from './notification-types'
+import {
+  NOTIFICATION_RESOURCE_TYPES,
+  NOTIFICATION_TYPES,
+  type NotificationType,
+} from './notification-types'
 
 const UUID = '61ed98fc-9cf8-44e9-b49d-cd25e744fd6c'
 
@@ -961,7 +965,7 @@ describe('notificationLink', () => {
     })
   })
 
-  it.each(['goal', 'badge', 'portal', 'property'] as const)(
+  it.each(['goal', 'portal', 'property'] as const)(
     'never builds a %s link into a Property it does not have',
     (resourceType) => {
       expect(notificationLink(resourceType, 'r', null).path).toBe('/properties')
@@ -1234,16 +1238,7 @@ describe('notificationLink', () => {
   })
 
   it('covers every resource type', () => {
-    const types: ReadonlyArray<Parameters<typeof notificationLink>[0]> = [
-      'inbox_item',
-      'reply',
-      'goal',
-      'badge',
-      'portal',
-      'portal_destination',
-      'property',
-    ]
-    for (const t of types) {
+    for (const t of NOTIFICATION_RESOURCE_TYPES) {
       expect(notificationLink(t, 'r', 'p').path).toMatch(/^\//)
     }
   })

@@ -180,7 +180,6 @@ describe.sequential('Goal maintenance in a closing Organization (integration)', 
       subjects: {
         getTimezone: async () => 'UTC',
         subjectBelongsToProperty: async () => true,
-        listCurrentPortalIds: async () => [],
       },
       metrics: {
         queryGoalMetric: async (query) => ({

@@ -1,8 +1,6 @@
 import { readFileSync, readdirSync, statSync } from 'node:fs'
 import { join, relative, resolve } from 'node:path'
 import { describe, expect, it } from 'vitest'
-import { ENTRY_POINT_CATALOGUE } from '#/shared/governance/entry-point-catalogue'
-import { JOB_FAMILY_ROWS } from '#/shared/governance/event-job-catalogue'
 
 const ROOT = resolve(process.cwd())
 const ACTIVITY_ROOT = resolve(ROOT, 'src/contexts/feed')
@@ -24,8 +22,6 @@ const filesContaining = (needle: string): string[] =>
     .filter((path) => readFileSync(path, 'utf8').includes(needle))
     .map((path) => relative(ROOT, path))
     .sort()
-
-const JOB_MODULE = 'src/contexts/feed/infrastructure/jobs/project-recent-activity.job.ts'
 
 describe('canonical Recent Activity identifiers', () => {
   it('uses canonical schema, repository, command, and Organization-feed names', () => {
@@ -51,10 +47,7 @@ describe('canonical Recent Activity identifiers', () => {
 
   it('never enqueues the legacy job name from an active Activity producer', () => {
     const producers = filesBelow(resolve(ACTIVITY_ROOT, 'infrastructure')).filter(
-      (path) =>
-        path.endsWith('.ts') &&
-        !path.endsWith('.test.ts') &&
-        !path.endsWith('project-recent-activity.job.ts'),
+      (path) => path.endsWith('.ts') && !path.endsWith('.test.ts'),
     )
     for (const path of producers) {
       expect(readFileSync(path, 'utf8'), relative(ROOT, path)).not.toContain(
@@ -63,51 +56,10 @@ describe('canonical Recent Activity identifiers', () => {
     }
   })
 
-  it('keeps old physical/job names only in the explicit rolling compatibility authorities', () => {
-    expect(
-      filesContaining("'insert-activity-log'").filter(
-        (file) => !file.startsWith('src/shared/governance/'),
-      ),
-    ).toEqual([JOB_MODULE])
-    expect(ENTRY_POINT_CATALOGUE).toContainEqual({
-      kind: 'job',
-      name: 'insert-activity-log',
-      action: 'system:activity.record',
-      capability: 'none',
-      resourceScope: 'organization',
-      externalEffect: false,
-    })
-    expect(
-      JOB_FAMILY_ROWS.find((row) => row.jobName === 'insert-activity-log'),
-    ).toMatchObject({
-      jobName: 'insert-activity-log',
-      processor: JOB_MODULE,
-    })
-    // `activity_log` was a rollback-compatibility view with no pgTable, so the
-    // regenerated baseline does not create it and the register no longer names
-    // it. Nothing in the tree may reintroduce the physical name.
+  // `activity_log` was a rollback-compatibility view with no pgTable, so the
+  // regenerated baseline does not create it and the register no longer names
+  // it. Nothing in the tree may reintroduce the physical name.
+  it('does not reintroduce the retired physical table name', () => {
     expect(filesContaining("name: 'activity_log'")).toEqual([])
-  })
-
-  // Both job names are drain-only. Their producers went with the in-process
-  // event bus, and Recent Activity is projected by the durable
-  // activity.recent-activity consumer; bootstrap keeps both handlers only
-  // until no job of either name is still queued. A producer that enqueued
-  // either would have to name it, by literal or by constant.
-  it('names the drain-only job names only where they are declared and drained', () => {
-    expect(
-      filesContaining("'project-recent-activity'").filter(
-        (file) => !file.startsWith('src/shared/governance/'),
-      ),
-    ).toEqual([JOB_MODULE])
-    for (const constant of [
-      'PROJECT_RECENT_ACTIVITY_JOB_NAME',
-      'LEGACY_INSERT_ACTIVITY_LOG_JOB_NAME',
-    ]) {
-      expect(filesContaining(constant), constant).toEqual([
-        'src/bootstrap.ts',
-        JOB_MODULE,
-      ])
-    }
   })
 })

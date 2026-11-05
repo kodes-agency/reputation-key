@@ -166,7 +166,6 @@ export const NOTIFICATION_RESOURCE_TYPES = [
   'inbox_item',
   'reply',
   'goal',
-  'badge',
   'portal',
   /** A site allowed for links, by its id; its notice opens a Portal's Linktree. */
   'portal_destination',

@@ -4,7 +4,6 @@ import { metricCorrections, metricReadings } from '#/shared/db/schema/metric.sch
 import type { MetricRepository } from '../../application/ports/metric.repository'
 import { unbrand } from '#/shared/domain/ids'
 import { trace } from '#/shared/observability/trace'
-import { findMetricDefinition } from '../../domain/metric-registry'
 
 /** Aggregate columns come back as driver-typed values; an absent row reads as zero. */
 function numberOrZero(value: unknown): number {
@@ -20,117 +19,7 @@ function dateOrNull(value: unknown): Date | null {
   return parsed
 }
 
-export const createMetricRepository = (
-  db: Database,
-  clock: () => Date,
-): MetricRepository => ({
-  queryAggregate: async (query) =>
-    trace('metric.queryAggregate', async () => {
-      const registryEntry = findMetricDefinition(query.metricKey)
-      const permittedVersions =
-        registryEntry?.versions.filter((version) =>
-          version.permittedConsumers.includes(query.consumer),
-        ) ?? []
-      if (permittedVersions.length === 0) {
-        return {
-          sum: 0,
-          count: 0,
-          max: 0,
-          available: false,
-          sampleCount: 0,
-          minimumSample: 1,
-        }
-      }
-      const permittedVersionIds = permittedVersions.map(({ id }) => id)
-      const minimumSample = Math.max(
-        ...permittedVersions.map((version) => version.minimumSample),
-      )
-
-      const correctionTips = db
-        .select({
-          readingId: metricCorrections.readingId,
-          kind: metricCorrections.kind,
-          exactDelta: metricCorrections.exactDelta,
-          replacementValue: metricCorrections.replacementValue,
-          recordedAt: metricCorrections.recordedAt,
-        })
-        .from(metricCorrections)
-        .where(
-          sql`NOT EXISTS (
-          SELECT 1
-          FROM metric_corrections AS successor
-          WHERE successor.supersedes_correction_id = ${metricCorrections.id}
-        )`,
-        )
-        .as('metric_correction_tips')
-
-      const conditions = [
-        eq(metricReadings.organizationId, unbrand(query.organizationId)),
-        eq(metricReadings.propertyId, unbrand(query.propertyId)),
-        eq(metricReadings.metricKey, query.metricKey),
-        isNotNull(metricReadings.definitionVersionId),
-        isNotNull(metricReadings.exactValue),
-        inArray(metricReadings.definitionVersionId, permittedVersionIds),
-      ]
-      if (query.portalId) {
-        conditions.push(eq(metricReadings.portalId, unbrand(query.portalId)))
-      }
-      if (query.groupId) {
-        conditions.push(eq(metricReadings.groupId, unbrand(query.groupId)))
-      }
-      if (query.periodStart) {
-        conditions.push(gte(metricReadings.eventAt, query.periodStart))
-      }
-      if (query.periodEnd) {
-        conditions.push(lt(metricReadings.eventAt, query.periodEnd))
-      }
-      if (query.rollingWindowDays) {
-        conditions.push(
-          gte(
-            metricReadings.eventAt,
-            new Date(clock().getTime() - query.rollingWindowDays * 86_400_000),
-          ),
-        )
-      }
-
-      const effectiveValue = sql<number>`CASE
-        WHEN ${correctionTips.kind} = 'retract' THEN NULL
-        WHEN ${correctionTips.kind} = 'replace' THEN ${correctionTips.replacementValue}
-        WHEN ${correctionTips.kind} = 'adjust' THEN ${metricReadings.exactValue} + ${correctionTips.exactDelta}
-        ELSE ${metricReadings.exactValue}
-      END`
-      const effectiveSampleCount = sql<number>`CASE
-        WHEN ${correctionTips.kind} = 'retract' THEN 0
-        ELSE ${metricReadings.sampleCount}
-      END`
-
-      const rows = await db
-        .select({
-          sum: sql<number>`COALESCE(SUM(${effectiveValue}), 0)`,
-          count: sql<number>`CAST(COUNT(${effectiveValue}) AS INTEGER)`,
-          max: sql<number>`COALESCE(MAX(${effectiveValue}), 0)`,
-          sampleCount: sql<number>`COALESCE(SUM(${effectiveSampleCount}), 0)`,
-        })
-        .from(metricReadings)
-        .leftJoin(correctionTips, eq(correctionTips.readingId, metricReadings.id))
-        .where(and(...conditions))
-
-      const sum = numberOrZero(rows[0]?.sum)
-      const count = numberOrZero(rows[0]?.count)
-      const max = numberOrZero(rows[0]?.max)
-      const sampleCount = numberOrZero(rows[0]?.sampleCount)
-      const available = sampleCount >= minimumSample
-
-      return {
-        sum: available ? sum : 0,
-        count: available ? count : 0,
-        max: available ? max : 0,
-        available,
-        sampleCount,
-        minimumSample,
-      }
-    }),
-
+export const createMetricRepository = (db: Database): MetricRepository => ({
   queryGoalAggregate: async (query) =>
     trace('metric.queryGoalAggregate', async () => {
       const correctionTips = db

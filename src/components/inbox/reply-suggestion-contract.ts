@@ -3,7 +3,7 @@ import type {
   GenerateReplySuggestionInput,
   GenerateReplySuggestionResult,
 } from '#/contexts/ai/application/public-api'
-import type { ReplyTemplateListResult } from '#/contexts/review/application/use-cases/reply-template-operations'
+import type { ReplyTemplateListResult } from '#/contexts/review/application/use-cases/layered-reply-template-operations'
 import {
   equivalentReplyLanguageTags,
   languageDisplayName,
@@ -207,10 +207,4 @@ export function retryPendingReply(
 ): void {
   const latest = Array.from(pending.values()).at(-1)
   if (latest) void request(...latest.args)
-}
-export function chooseReplyTone(
-  tone: ReplyTone,
-  setTone: (tone: ReplyTone) => void,
-): void {
-  setTone(tone)
 }

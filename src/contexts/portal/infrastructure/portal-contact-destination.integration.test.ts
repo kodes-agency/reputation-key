@@ -282,7 +282,7 @@ describe('contact destinations (real PostgreSQL)', () => {
     const db = getDb()
     const link = await createLink({
       portalRepo: createPortalRepository(db),
-      portalLinkRepo: createPortalLinkRepository(db, () => STORED_AT),
+      portalLinkRepo: createPortalLinkRepository(db),
       staffPublicApi: staffApi,
       commandStore: createAtomicPortalCommandStore(db),
       destinationRepo: createPortalApprovedDestinationRepository(db),

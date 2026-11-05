@@ -522,12 +522,8 @@ const inboxResponseTargetPolicyChangedSchema = z
 
 // ── Metric event schemas ────────────────────────────────────────────
 
-// BQC-3.5: corrected IN PLACE at version 1 — no version bump. Justification:
-// The former Metric build never forwarded outboxRepo to recordMetric, so zero
-// historical outbox rows exist for metric.recorded; and had it been wired, every insert
-// would have thrown invalid_payload — the registered schema required
-// `recordedAt` while the domain event (and its consumers) carry
-// `occurredAt`. Now recorded atomically via the metric command store.
+// Keep both metric.recorded versions decodable while stored outbox rows age out.
+// New readings emit only correction facts when they replace an earlier reading.
 const metricRecordedSchema = z.object({
   readingId: z.string(),
   organizationId: z.string(),

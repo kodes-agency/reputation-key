@@ -921,19 +921,16 @@ describe('analyze review event', () => {
       expect(harness.mocks.advanceWithoutAnalysis).not.toHaveBeenCalled()
     })
 
-    it('terminal-settles only once the operation horizon has elapsed', async () => {
+    it('keeps a drifted runtime runnable after the operation horizon', async () => {
       const harness = createHarness()
 
       await expect(harness.analyze(elapsedInput)).resolves.toEqual({
-        status: 'terminal',
+        status: 'retry',
+        retryAtEpochMillis: NOW + 30_000,
+        code: 'language_runtime_unavailable',
       })
-      expect(harness.mocks.settleOutcome).toHaveBeenCalledWith(
-        expect.objectContaining({
-          state: 'terminal_no_result',
-          dispositionCode: 'policy_disabled',
-        }),
-      )
-      expect(harness.mocks.advanceWithoutAnalysis).toHaveBeenCalledOnce()
+      expect(harness.mocks.settleOutcome).not.toHaveBeenCalled()
+      expect(harness.mocks.advanceWithoutAnalysis).not.toHaveBeenCalled()
     })
   })
 
@@ -965,14 +962,25 @@ describe('analyze review event', () => {
       )
     })
 
-    it('terminal-settles a missing profile once the operation horizon has elapsed', async () => {
-      const harness = createHarness({ profileStatus: 'not_found' })
-
-      await expect(harness.analyze(elapsedInput)).resolves.toEqual({
-        status: 'terminal',
-      })
-      expect(harness.mocks.advanceWithoutAnalysis).toHaveBeenCalledOnce()
-    })
+    it.each(['not_found', 'policy_unavailable'] as const)(
+      'analyses after a %s profile is restored past the horizon',
+      async (profileStatus) => {
+        const harness = createHarness({ profileStatus })
+        const available = createHarness()
+        await expect(harness.analyze(elapsedInput)).resolves.toMatchObject({
+          status: 'retry',
+          code: `property_profile_${profileStatus}`,
+        })
+        expect(harness.mocks.advanceWithoutAnalysis).not.toHaveBeenCalled()
+        harness.mocks.readProcessingProfile.mockResolvedValueOnce(
+          await available.mocks.readProcessingProfile(),
+        )
+        await expect(harness.analyze(elapsedInput)).resolves.toEqual({
+          status: 'completed',
+        })
+        expect(harness.mocks.analyzeReview).toHaveBeenCalledOnce()
+      },
+    )
 
     it('still terminal-settles a source lifecycle transition with no profile', async () => {
       const harness = createHarness({ profileStatus: 'not_found' })

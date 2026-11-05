@@ -32,6 +32,12 @@ vi.mock('#/shared/ai-runtime-capability-contract', async (importOriginal) => {
 // checks (`normalizeReplyDraftingV2Body`), because the provider's semicolons were
 // refused as private data; its prompt, schema and request shape are unchanged.
 //
+// 2026-11-05: every profile that attests the redaction rules (review analysis v2 and v3,
+// reply v1 and v2) moved its profile and attestation digests, and the reply request
+// moved its request binding, because the structured marker detector profile now records
+// the whole address policy and its Bulgarian name particles, and reads a link with
+// credentials or an IP host as one URL. The bytes each pinned request sends are unchanged.
+//
 // 2026-11-01, later: `reply-suggestion-v2` moved its prompt, attestation, profile and static
 // token digests. The owner rejected drafts that state what the guest reports as fact and
 // lecture about how it should have been, so the prompt and the examples now apologize for how
@@ -77,12 +83,12 @@ import { preparableV3Request } from './review-evidence.test-fixtures'
 const PINNED_PROFILES = [
   {
     profileVersion: 'review-analysis-v2',
-    profileDigest: '4bd359d6311640ef1928db3221f1a9099e589af26c0c7a5aa80d6183eeb86b5e',
+    profileDigest: '265eb3f5d2f46a125929bbe330da1bf2af48d39e027134e37833516e8a14c1f4',
     outputSchemaDigest:
       '02ad42ae83c2f271c8456e7e64169a5df965234b039bbc0174e0a54f9e6997ff',
     promptDigest: 'bccf973cb60cdda3cc69ed747f841fe2a51b8f33b0c454f606a701ae6bbcb129',
     artifactAttestationsDigest:
-      'e0a68671ec711e35c45768fbf598aad343b32c8648f8af57e76abb8318113073',
+      '924105f5fd34aacd165d9673b6a8869ffa11088adece38fe30b55900c72333a7',
     sdkRequestShapeDigest:
       '0bf52569683db47a551f212b33a8e19dfdd768f0a70047740b5f57a72c11ce37',
     staticTokenBearingBytes: 2193,
@@ -91,12 +97,12 @@ const PINNED_PROFILES = [
   },
   {
     profileVersion: 'reply-suggestion-v1',
-    profileDigest: '1f229a4518348ca31382608e52c601c33ce65f38d77278236bc5204e024e7c18',
+    profileDigest: '24006247626e9472176bddeff8600dec87363c7ab73ddf3d74fdd1300046ede2',
     outputSchemaDigest:
       'e8c29f4e2fd80391fbb483390e671dd0c4c5b639b1d1ec85e9d018ab90c33d35',
     promptDigest: '8e6c3e5f88d43c83098763e29cb0d159a0d23fd520fa9e7105e7e6adbc527b0d',
     artifactAttestationsDigest:
-      'd93bd2274c7dfc80bfe77c6f1b88177db23348cc334a82005f7e9530821cc00c',
+      'c41bd21974589faea4a4c9a349b19bd8058eb6c141623659df6186ce13468899',
     sdkRequestShapeDigest:
       '0bf52569683db47a551f212b33a8e19dfdd768f0a70047740b5f57a72c11ce37',
     // ADR 0073: the reply prompt asks for the body only and no longer carries the
@@ -136,12 +142,12 @@ const PINNED_PROFILES = [
   // B2: dark v2 alone now attests streaming and deployment v3. Historical pins stay unchanged.
   {
     profileVersion: 'reply-suggestion-v2',
-    profileDigest: '47cc99c7edfdb3b767ed071fd2a14d1a82a01dc1467cce640f7eb1b4de3926d8',
+    profileDigest: '96cc3926f0e9d0110b15e05be0233ff50270699ccee833caac0b4480c9b27642',
     outputSchemaDigest:
       '2f7afcc12b767302d60d6b1f931fd7996d010dd7c24ba32246fff415c1d4dcd7',
     promptDigest: '9c7c78dfc1e63b32e5916ecaceb33fca5eb0dd28a485066535df3772eb1dc805',
     artifactAttestationsDigest:
-      'a2654e1b0d457dc04b82151e73e9579c0d398d7b65809870fc0fd1a0a3f3a895',
+      '6ea0f5e0fa58086f16cbf8e69e85cc64cd2a9494c638fa2eb843e7200ffffa0a',
     sdkRequestShapeDigest:
       'f67f33645f1a50218dc369daa627337738b540db44840f9faf11bc403034f9f0',
     staticTokenBearingBytes: 14764,
@@ -150,12 +156,12 @@ const PINNED_PROFILES = [
   },
   {
     profileVersion: 'review-analysis-v3',
-    profileDigest: 'e2abbbfab2b18ee88c75b9c63e9375258577486fcb6710b5f3f612972d53dd66',
+    profileDigest: 'd25c3e071e309060f7d7fafa7b65d95c54d1e0cf98841b8dc9449f5e3414b943',
     outputSchemaDigest:
       '8c72e79976c6b784c679f671b798c41b71e78795542c7d80571e48cebde40154',
     promptDigest: 'c912005966c45c7533a7fc9ba37f5b0fc70e7399a0555da360ce9fadab0cd1f3',
     artifactAttestationsDigest:
-      '4f9db684f8a0b0dc0d844d62a8ef279e2e26b362b714cd3c5e5b970c6077f018',
+      '4b381099fb1bfc3b3b743b8f8f664b3fd42aed6b2aa404e1f1625c64499e9a22',
     sdkRequestShapeDigest:
       '0bf52569683db47a551f212b33a8e19dfdd768f0a70047740b5f57a72c11ce37',
     staticTokenBearingBytes: 15920,
@@ -211,7 +217,7 @@ const PINNED_ROUTES = {
       costMicros: 719,
     },
     requestBindingKeyId: 'request-v1',
-    requestBindingHmac: 'l5GpgfpEwQTyNctaVruYpWMY6LUrLBcwHDksNk949Fk',
+    requestBindingHmac: 'mRwgC50lEIPpAVEkgrb74pvR9tWF_tH6dnUfj_x1FIE',
     canonicalProviderBytesSha256:
       'b4cb8a3a87ff7777837bcb997c816e1d3849f32f3c867af03b042f0d290f2d23',
     canonicalProviderByteLength: 2441,
