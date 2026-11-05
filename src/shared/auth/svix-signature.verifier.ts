@@ -53,6 +53,41 @@ export function svixHeaders(request: Request): SvixHeaders {
   }
 }
 
+/** The headers, once they have passed `validateSvixHeaders`. */
+type ValidSvixHeaders =
+  | Readonly<{ ok: true; id: string; timestamp: string; signature: string }>
+  | Readonly<{ ok: false; reason: SvixVerificationFailure }>
+
+// A SHA-256 digest is 32 bytes: 43 base64 characters and one padding sign.
+const SVIX_V1_SIGNATURE = /^v1,[A-Za-z0-9+/]{43}=$/
+
+/**
+ * Check the three headers on their own, so a request that cannot be signed is
+ * refused before its body is read: all present, a whole-seconds timestamp inside
+ * the replay window, and at least one signature of the shape Svix sends. This
+ * says nothing about whether the signature is right; that needs the body.
+ */
+export function validateSvixHeaders(
+  headers: SvixHeaders,
+  now: Date = new Date(),
+): ValidSvixHeaders {
+  const { id, timestamp, signature } = headers
+  if (!id || !timestamp || !signature) return { ok: false, reason: 'missing_headers' }
+
+  const issuedAtSeconds = Number(timestamp)
+  if (!/^\d+$/.test(timestamp) || !Number.isSafeInteger(issuedAtSeconds)) {
+    return { ok: false, reason: 'malformed_timestamp' }
+  }
+  const nowSeconds = Math.floor(now.getTime() / 1000)
+  if (Math.abs(nowSeconds - issuedAtSeconds) > SVIX_TOLERANCE_SECONDS) {
+    return { ok: false, reason: 'timestamp_outside_window' }
+  }
+  if (!signature.split(' ').some((token) => SVIX_V1_SIGNATURE.test(token))) {
+    return { ok: false, reason: 'signature_mismatch' }
+  }
+  return { ok: true, id, timestamp, signature }
+}
+
 function secretKey(signingSecret: string): Buffer | null {
   const encoded = signingSecret.startsWith('whsec_')
     ? signingSecret.slice('whsec_'.length)
@@ -74,17 +109,9 @@ export function verifySvixSignature(
     now?: Date
   }>,
 ): SvixVerificationResult {
-  const { id, timestamp, signature } = input.headers
-  if (!id || !timestamp || !signature) return { ok: false, reason: 'missing_headers' }
-
-  const issuedAtSeconds = Number(timestamp)
-  if (!Number.isFinite(issuedAtSeconds) || !Number.isInteger(issuedAtSeconds)) {
-    return { ok: false, reason: 'malformed_timestamp' }
-  }
-  const nowSeconds = Math.floor((input.now ?? new Date()).getTime() / 1000)
-  if (Math.abs(nowSeconds - issuedAtSeconds) > SVIX_TOLERANCE_SECONDS) {
-    return { ok: false, reason: 'timestamp_outside_window' }
-  }
+  const checked = validateSvixHeaders(input.headers, input.now)
+  if (!checked.ok) return checked
+  const { id, timestamp, signature } = checked
 
   const key = secretKey(input.signingSecret)
   if (!key) return { ok: false, reason: 'malformed_secret' }

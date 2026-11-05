@@ -35,6 +35,7 @@ describe('Contact Request beta containment', () => {
       join(ROOT, 'src/contexts/guest/application/public-api.ts'),
       join(ROOT, 'src/contexts/guest/build.ts'),
       join(ROOT, 'src/composition.ts'),
+      ...sourceFiles(join(ROOT, 'src/composition')),
       join(ROOT, 'src/bootstrap.ts'),
     ]
 

@@ -1,5 +1,7 @@
 // The guard of a development script that deletes rows from whatever
-// DATABASE_URL names (scripts/cleanup-all.ts, scripts/cleanup-kodes.ts).
+// DATABASE_URL names (scripts/cleanup-all.ts, scripts/cleanup-kodes.ts), and of
+// the acceptance seeder, which writes its fixtures there and clears rate-limit
+// keys in whatever REDIS_URL names.
 //
 // An operator's shell holds a deployed DATABASE_URL for `pnpm ops`, and those
 // scripts used to dial it without asking. No single reading settles whether a
@@ -16,9 +18,13 @@
 //      deployed database ends there too), and Railway's database is named
 //      `railway`.
 //
+// A Redis has no name to read, so assertLocalOnlyRedis holds it to the host
+// alone; the seeder only gets that far where its database passed all three.
+//
 // A refusal names the host or the database, never the address: it holds the
 // password.
 
+import { Redis } from 'ioredis'
 import { Client } from 'pg'
 
 export type LocalDatabaseTarget = Readonly<{ host: string; database: string }>
@@ -27,6 +33,7 @@ type Environment = Readonly<Record<string, string | undefined>>
 
 const DEPLOYED_VARIABLE_PREFIX = 'RAILWAY_'
 const POSTGRES_PROTOCOLS: ReadonlySet<string> = new Set(['postgres:', 'postgresql:'])
+const REDIS_PROTOCOLS: ReadonlySet<string> = new Set(['redis:', 'rediss:'])
 const LOOPBACK_HOSTS: ReadonlySet<string> = new Set([
   'localhost',
   '127.0.0.1',
@@ -96,4 +103,34 @@ export function assertLocalOnlyDatabase(env: Environment): LocalDatabaseTarget {
     )
   }
   return target
+}
+
+/**
+ * Where the driver will connect for a Redis address, or undefined when the
+ * address is not one. Constructing a client with `lazyConnect` opens nothing.
+ */
+function redisHost(address: string): string | undefined {
+  try {
+    if (!REDIS_PROTOCOLS.has(new URL(address).protocol)) return undefined
+    const client = new Redis(address, { lazyConnect: true })
+    const host = client.options.host
+    client.disconnect()
+    return host
+  } catch {
+    return undefined
+  }
+}
+
+/**
+ * Refuses a Redis that is not on this machine. Without a REDIS_URL there is no
+ * Redis to check.
+ */
+export function assertLocalOnlyRedis(env: Environment): void {
+  const address = env.REDIS_URL
+  if (address === undefined || address.trim() === '') return
+  const host = redisHost(address)
+  if (host === undefined) refuse('REDIS_URL is not a Redis address')
+  if (!isThisMachine(host)) {
+    refuse(`REDIS_URL points at host "${host}", not at this machine`)
+  }
 }

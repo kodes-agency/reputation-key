@@ -4,31 +4,28 @@ import pino from 'pino'
 import { getEnv } from '#/shared/config/env'
 import { getSpanAttrs } from '#/shared/observability/request-context'
 import { isSensitiveObservabilityField } from '#/shared/observability/sensitive-field-policy'
+import { summarizeError } from './error-summary'
 
 const REDACTED = '[Redacted]'
 
-function safeError(error: Error): Readonly<Record<string, unknown>> {
-  const code =
-    'code' in error && (typeof error.code === 'string' || typeof error.code === 'number')
-      ? error.code
-      : undefined
-  return {
-    name: error.name,
-    ...(code === undefined ? {} : { code }),
-  }
-}
+/**
+ * What a flattened error leaves behind: its stack opens with the message, and
+ * a Drizzle query error carries the values it was bound to as `params`.
+ */
+const ERROR_CONTENT_FIELDS: ReadonlySet<string> = new Set(['stack', 'params'])
 
 /**
  * Copies telemetry data while removing credential, OAuth, provider-resource,
  * request-body, URL/query, referrer, and session material at any nesting
  * depth. It intentionally matches field names rather than value substrings so
- * harmless code-only fields remain observable.
+ * harmless code-only fields remain observable. An error becomes its allowlisted
+ * summary (error-summary.ts), never its message or stack.
  */
 export function sanitizeTelemetryValue(
   value: unknown,
   seen = new WeakMap<object, unknown>(),
 ): unknown {
-  if (value instanceof Error) return safeError(value)
+  if (value instanceof Error) return summarizeError(value)
   if (Array.isArray(value)) {
     const existing = seen.get(value)
     if (existing) return existing
@@ -43,9 +40,10 @@ export function sanitizeTelemetryValue(
     const copy: Record<string, unknown> = {}
     seen.set(value, copy)
     for (const [key, entry] of Object.entries(value)) {
-      copy[key] = isSensitiveObservabilityField(key)
-        ? REDACTED
-        : sanitizeTelemetryValue(entry, seen)
+      copy[key] =
+        isSensitiveObservabilityField(key) || ERROR_CONTENT_FIELDS.has(key)
+          ? REDACTED
+          : sanitizeTelemetryValue(entry, seen)
     }
     return copy
   }

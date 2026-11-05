@@ -51,8 +51,9 @@ Auth's base URL, its trusted origins and the guest `Origin` check stay fixed to
 (`server/plugins/request-guard.ts` → `src/shared/security/request-guard.ts`)
 rejects requests whose declared `content-length` exceeds
 `REQUEST_BODY_LIMIT_BYTES` (default 1 MiB) with a content-free 413 before
-routing (chunked bodies without a declared length cannot be pre-empted — the
-platform gateway is the backstop). Every response carries `x-request-id`:
+routing; a body with a declared length is left unread for its handler. A body
+with no declared length (chunked) is counted as it arrives and refused at the
+same limit. Every response carries `x-request-id`:
 a sane inbound id (≤128 chars, token charset) is echoed, otherwise one is
 generated. `requestId` is an approved correlation field (BQC-7.3 schema).
 **Time limits:** there is deliberately no server-boundary timeout mechanism —
@@ -66,7 +67,10 @@ is configured, its atomic custom storage shares the allowance across web
 replicas and stores only an HMAC-derived client/path bucket with the active
 window TTL. Redis command failure fails the auth request closed. The adapter is
 rate-limit-only: Better Auth sessions and verification records remain in
-Postgres, not Redis. The shared Redis limiter
+Postgres, not Redis. Every command on the shared cache client has a two-second
+deadline and one retry (the offline queue stays on, so the first command waits
+for the connection); a timeout does not prove a write did not happen, so no
+caller repeats one blindly. The shared Redis limiter
 (`src/shared/rate-limit/middleware.ts`) guards registration, sign-in, guest
 submissions, the auth catch-all, and app-owned invitation create/resend. The
 two invitation actions share one HMAC-derived budget of 20 sends per actor per
@@ -153,7 +157,7 @@ Every alert is defined in `src/shared/observability/alert-definitions.ts` (owner
 | `sync.failed-nonzero`                          | P2  | any coded sync failure whose retry is due                                                                                         | §13     |
 | `sync.push-missed`                             | P2  | topic set; any review polling found in 24h, dated within a day of that, with no Google push accepted within 60min                 | §4      |
 | `sync.push-silent`                             | P2  | topic set; polling found new reviews in 24h and Pub/Sub accepted no push at all in that time                                      | §4      |
-| `sync.reconciliation-age`                      | P2  | a syncable Property's newest completed reconciliation is over 8h old (parked coded failures excluded; independent of push)        | §13     |
+| `sync.reconciliation-age`                      | P2  | a syncable Property's newest completed reconciliation is over 8h old (counts failed Properties; independent of push)              | §13     |
 | `ai.review-analysis-stalled`                   | P2  | incomplete enabled coverage with no new settlement for > 15min; monitor failure also fires                                        | §22     |
 | `ai.review-analysis-empty-enrollment`          | P2  | any queued/running zero-snapshot enrollment while eligible reviews exist                                                          | §22     |
 | `retention.failure`                            | P1  | latest retention run failed for any subject; monitor failure (the `retention_runs` read) also fires                               | §8      |

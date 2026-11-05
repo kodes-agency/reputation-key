@@ -362,6 +362,7 @@ const config = defineConfig(({ mode }) => {
                     '**/*.server.*',
                     '**/routes/api/**',
                     '**/composition.ts',
+                    '**/composition/**',
                     '**/infrastructure/**',
                     '**/build.ts',
                     '**/shared/db/**',

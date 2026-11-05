@@ -1,6 +1,7 @@
 // Review context — bounded, provider-token-free Google Reviews facade.
 // Integration owns provider pagination tokens and exposes only opaque cursor references.
 
+import type { GoogleProviderErrorStatus } from '#/shared/domain/google-provider-failure'
 import type { GoogleConnectionId, OrganizationId, PropertyId } from '#/shared/domain/ids'
 import type { GoogleProviderDispatch } from '#/shared/google-provider-control/egress-gateway'
 import type { GoogleReview } from '../../domain/types'
@@ -111,6 +112,7 @@ export type GoogleReviewApiFailure = Readonly<{
   executionCode: string | null
   dispatch: GoogleProviderDispatch
   providerStatus: number | null
+  providerErrorStatus?: GoogleProviderErrorStatus | null
 }>
 
 export type GoogleReviewApiError = Error &
