@@ -1,6 +1,6 @@
-// Stop preserves the running month and result; an unstarted goal frees its month
-// immediately. Use the read's next available month, including the hour before a new
-// month opens. Format those months as calendar days.
+// A running goal keeps counting its month to the last day and keeps its result,
+// even before maintenance opens the stored month. A goal that has not started
+// frees its month at once. The confirmation uses the page read's calendar facts.
 
 import type {
   PortalGoalLastMonth,
@@ -16,13 +16,14 @@ import { dayWords, monthName } from './portal-goal-words'
 
 /**
  * What a Stop is worded from: the Monthly portal goal on its card, or another
- * portal goal on its page (the average names no month it still counts).
+ * portal goal on its page, including the average's live month.
  */
 export type PortalGoalStopFacts = Pick<
   PortalGoalOfCard,
   'programId' | 'status' | 'startsOn' | 'change'
 > &
   Readonly<{
+    month?: Readonly<{ key: string }> | null
     countingMonth?: Readonly<{ key: string }> | null
     lastMonth?: Pick<PortalGoalLastMonth, 'key' | 'outcome'> | null
   }>
@@ -51,11 +52,11 @@ function monthAfter(month: string): string {
 }
 
 /**
- * The month a Stop keeps, to its last day and with its result: the month open
- * now; a paused goal's last; or, in the hour before this month's is opened,
- * the month before, still being read (this one then never counts).
+ * An active goal keeps its live month even before it has a stored month to
+ * change. A paused goal keeps its latest month still being read.
  */
 function keptMonthOf(goal: PortalGoalStopFacts): string | undefined {
+  if (goal.status === 'active' && goal.month) return goal.month.key
   if (goal.change?.now) return goal.change.now.monthKey
   if (goal.countingMonth) return goal.countingMonth.key
   return goal.lastMonth?.outcome === 'updating' ? goal.lastMonth.key : undefined

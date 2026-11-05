@@ -174,6 +174,7 @@ const AVERAGE_BASE: AverageView = {
     target: 4.5,
     startsOn: null,
     endedOn: null,
+    countingMonth: { key: '2026-11' },
     month: {
       key: '2026-11',
       target: 4.5,
@@ -211,6 +212,7 @@ export const AVERAGE_SCHEDULED: AverageView = {
     ...AVERAGE_BASE.goal,
     status: 'scheduled',
     startsOn: '2026-12-01',
+    countingMonth: null,
     month: null,
     change: { now: null, nextMonthKey: '2026-12', opensOn: 'next' },
   },
@@ -253,6 +255,7 @@ export const SEVERAL_RUNNING: SeveralView = {
     target: 40,
     startsOn: null,
     endedOn: null,
+    countingMonth: { key: '2026-11' },
     live: {
       programId: 'program-several',
       metric: 'portal_rating_count',
