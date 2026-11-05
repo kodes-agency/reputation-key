@@ -899,7 +899,7 @@ describe('review analysis v3 normalization governance', () => {
   it('pins the full manifest and computed digest', () => {
     expect(REVIEW_ANALYSIS_NORMALIZATION_VERSION).toBe('review-analysis-normalization-v1')
     expect(REVIEW_ANALYSIS_NORMALIZATION_DIGEST).toBe(
-      'b786e88567c1121c9e4ddc38c8db1b0a0f58de3d5905453bb26f3e21435767a9',
+      'd3f2d832717d9639c41eeefc65255f87c51e6e92d61cfeafff329af736e955fb',
     )
     expect(REVIEW_ANALYSIS_NORMALIZATION_DIGEST).toBe(
       createHash('sha256')
@@ -915,6 +915,7 @@ describe('review analysis v3 normalization governance', () => {
       causePhraseMaximumLength: 80,
       invalidCausePolicy: 'empty-cause-keep-mention',
       quotationRunLength: 4,
+      quotationScope: 'all-present-fields-space-or-hyphen-words-v2',
       personMarker: '[PERSON]',
       commonWordCatalogueVersion: 'review-cause-common-words-v1',
     })

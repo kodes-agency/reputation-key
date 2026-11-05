@@ -108,6 +108,7 @@ export const REVIEW_ANALYSIS_NORMALIZATION_MANIFEST = Object.freeze({
   // What an invalid cause does to its mention: the cause is emptied and the mention stays.
   invalidCausePolicy: 'empty-cause-keep-mention',
   quotationRunLength: 4,
+  quotationScope: 'all-present-fields-space-or-hyphen-words-v2',
   enumVocabularies: Object.freeze({
     topics: REVIEW_TOPICS_V3,
     sentiments: REVIEW_SENTIMENTS_V3,

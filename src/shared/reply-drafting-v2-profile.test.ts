@@ -27,10 +27,10 @@ import ENGLISH from './reply-drafting-v2-examples.json'
 import BULGARIAN from './reply-drafting-v2-examples-bg.json'
 
 const PINS = {
-  profile: '47cc99c7edfdb3b767ed071fd2a14d1a82a01dc1467cce640f7eb1b4de3926d8',
+  profile: '96cc3926f0e9d0110b15e05be0233ff50270699ccee833caac0b4480c9b27642',
   prompt: '9c7c78dfc1e63b32e5916ecaceb33fca5eb0dd28a485066535df3772eb1dc805',
   schema: '2f7afcc12b767302d60d6b1f931fd7996d010dd7c24ba32246fff415c1d4dcd7',
-  personalized: '41c1bdf74408dd526d2b29983e3e0c371d818a548575b46e3df2c78024884658',
+  personalized: 'f7a7277c2a255a59284d8b17131e39a6c1a4f82c1f8490d0db1c51d6f5c7ccfe',
   lint: '6f4c77231fda1f6642949cee9d2107c5bed4b7d81d64eea27266d6f44c0ade5b',
   examples: '6fe9ecfd870155b005157494eff115c8f625eca28f5fad371fa015b2f103bf96',
 }
