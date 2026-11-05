@@ -705,13 +705,6 @@ export const TENANT_PREDICATE_EXEMPTIONS: readonly TenantPredicateExemption[] = 
     category: 'LEGITIMATE-GLOBAL',
   },
   {
-    file: 'src/contexts/review/infrastructure/repositories/reply-template.repository.ts',
-    symbol: 'findPropertyOrganization',
-    reason:
-      'Returns only the Organization that owns a Property id; the reply library refuses the Property as not found unless that Organization is the caller.',
-    category: 'OWNER-LOOKUP',
-  },
-  {
     file: 'src/contexts/review/infrastructure/repositories/review-discovery.repository.ts',
     symbol: 'findDuePropertiesBatch',
     reason:

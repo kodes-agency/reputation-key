@@ -3,7 +3,7 @@ import type {
   GenerateReplySuggestionInput,
   GenerateReplySuggestionResult,
 } from '#/contexts/ai/application/public-api'
-import type { ReplyTemplateListResult } from '#/contexts/review/application/use-cases/reply-template-operations'
+import type { ReplyTemplateListResult } from '#/contexts/review/application/use-cases/layered-reply-template-operations'
 import {
   equivalentReplyLanguageTags,
   languageDisplayName,

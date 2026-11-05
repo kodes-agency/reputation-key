@@ -30,7 +30,7 @@ import {
 } from './reply-editor.stories.play'
 import type { ReplyLanguageTarget } from './reply-language-options'
 import { withRole } from '../../../.storybook/AuthedRouterDecorator'
-import type { ReplyTemplateListResult } from '#/contexts/review/application/use-cases/reply-template-operations'
+import type { ReplyTemplateListResult } from '#/contexts/review/application/use-cases/layered-reply-template-operations'
 
 const onSaveDraft = fn(async (_text: string) => undefined)
 const onSubmit = fn(async () => undefined)
@@ -94,6 +94,7 @@ const noLibraryTemplates = (): ReplyTemplateListResult => ({
   profile: null,
   groups: [],
   recommendedTemplateId: null,
+  recommendedReason: null,
 })
 const onListNoTextTemplate = fn(async () => noLibraryTemplates())
 const onListShortTemplate = fn(async () => noLibraryTemplates())
@@ -108,20 +109,15 @@ const LIBRARY_TEMPLATE_ID = '73000000-0000-4000-8000-000000000001'
 const LIBRARY_REPLY =
   'Dear {guest_name},\n\nThank you for sharing your experience.\n\nWarm regards,\nHotel Team'
 const onListLibraryTemplates = fn(async (): Promise<ReplyTemplateListResult> => ({
-  profile: {
-    greeting: 'Dear {guest_name},',
-    signOffPositive: 'Warm regards,\nHotel Team',
-    signOffNegative: 'Sincerely,\nGuest Relations',
-    emojiAllowed: false,
-    escalationContact: 'care@example.test',
-    version: 2,
-  },
+  profile: null,
   groups: [
     {
       languageGroup: 'en-Latn',
       templates: [
         {
           id: LIBRARY_TEMPLATE_ID,
+          ref: LIBRARY_TEMPLATE_ID,
+          layer: 'property',
           title: 'Guest appreciation',
           aspect: null,
           openLabel: null,
@@ -132,6 +128,7 @@ const onListLibraryTemplates = fn(async (): Promise<ReplyTemplateListResult> => 
     },
   ],
   recommendedTemplateId: LIBRARY_TEMPLATE_ID,
+  recommendedReason: null,
 }))
 const onLoadLibraryTemplate = fn(async (templateId: string) => ({
   text: LIBRARY_REPLY,
@@ -1446,6 +1443,8 @@ const bulgarianLibrary = (): ReplyTemplateListResult => ({
       templates: [
         {
           id: BULGARIAN_LIBRARY_ID,
+          ref: BULGARIAN_LIBRARY_ID,
+          layer: 'property',
           title: BULGARIAN_LIBRARY_TITLE,
           aspect: null,
           openLabel: null,
@@ -1456,6 +1455,7 @@ const bulgarianLibrary = (): ReplyTemplateListResult => ({
     },
   ],
   recommendedTemplateId: BULGARIAN_LIBRARY_ID,
+  recommendedReason: null,
 })
 const onListFallsBackToProperty = fn(async () => bulgarianLibrary())
 const onLoadFallsBackToProperty = fn(async (templateId: string) => ({
@@ -1681,7 +1681,12 @@ export const TemplateSwitchBackWhileLoadingKeepsTheComposerLive: Story = {
     await expect(
       page().findByRole('menuitem', { name: BULGARIAN_LIBRARY_TITLE }),
     ).resolves.toBeVisible()
-    resolveEnglish({ profile: null, groups: [], recommendedTemplateId: null })
+    resolveEnglish({
+      profile: null,
+      groups: [],
+      recommendedTemplateId: null,
+      recommendedReason: null,
+    })
     await closeMenu()
 
     await waitFor(() => expect(canvas.getByRole('textbox')).toBeEnabled())

@@ -131,9 +131,9 @@ export const replyTemplateBodySchema = supportedSlotsTextSchema(
   .trim()
   .min(1, 'Template body is required')
   // The body is loaded as a reply comment, and `loadReplyTemplate` refuses one
-  // Google cannot take (reply-template-operations.ts). Checking the same rule
-  // on the stored, trimmed body here means a template that saves is one that
-  // can load; before, 2,049 Cyrillic letters saved and then never loaded.
+  // Google cannot take. Checking the same rule on the stored, trimmed body here
+  // means a template that saves is one that can load; before, 2,049 Cyrillic
+  // letters saved and then never loaded.
   .superRefine((body, ctx) => {
     const problem = replyCommentProblem(body)
     // `empty` is the `.min(1)` issue above, reported once.

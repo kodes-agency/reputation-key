@@ -19,11 +19,6 @@ export {
   unfilledReplySlots,
   unfilledReplySlotsMessage,
 } from '../domain/rules'
-export {
-  renderReplyTemplate,
-  type ReplyTemplateRenderProfile,
-  type ReplyTemplateRenderTemplate,
-} from './use-cases/reply-template-operations'
 
 // Event re-exports — cross-context consumers must import events from public-api, not domain/events
 export type {

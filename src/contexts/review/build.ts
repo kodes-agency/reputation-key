@@ -26,7 +26,6 @@ import type {
 } from './application/ports/review.repository'
 import type { ReviewObservationRepository } from './application/ports/review-observation.repository'
 import type { ReplyLookups, ReplyRepository } from './application/ports/reply.repository'
-import type { ReplyTemplateRepository } from './application/ports/reply-template.repository'
 import type { FindAmbiguousPublicationReconciliationCandidates } from './application/ports/publication-reconciliation-maintenance.port'
 import type { ListRestatedMaterialRevisions } from './application/ports/restated-revision-maintenance.port'
 import type { ObservationRetention } from './application/ports/observation-retention.port'
@@ -51,7 +50,6 @@ import type { PortalAiReplyBrandProfilePublicApi } from '#/contexts/portal/appli
 import { createReviewRepository } from './infrastructure/repositories/review.repository'
 import { createReviewObservationRepository } from './infrastructure/repositories/review-observation.repository'
 import { createReplyRepository } from './infrastructure/repositories/reply.repository'
-import { createReplyTemplateRepository } from './infrastructure/repositories/reply-template.repository'
 import { createReplyLibraryRepository } from './infrastructure/repositories/reply-library.repository'
 import {
   createAiReplyVoicePublicApi,
@@ -300,7 +298,6 @@ export type ReviewContextApi = Readonly<{
       reviewRepo: ReviewRepository
       observationRepo: ReviewObservationRepository
       replyRepo: ReplyRepository
-      replyTemplateRepo: ReplyTemplateRepository
       replyCommandStore: ReplyCommandStore
       queue: ReviewQueuePort
       targetedQueue: TargetedGoogleReviewQueuePort
@@ -366,7 +363,6 @@ export const buildReviewContext = (input: ReviewContextBuildInput): ReviewContex
   const reviewRepo = createReviewRepository(input.db, input.clock, input.logger)
   const observationRepo = createReviewObservationRepository(input.db)
   const replyRepo = createReplyRepository(input.db, input.clock)
-  const replyTemplateRepo = createReplyTemplateRepository(input.db, input.clock)
   const replyLibraryRepo = createReplyLibraryRepository(input.db, input.clock)
   const aiReplyVoice = createAiReplyVoicePublicApi({
     repository: replyLibraryRepo,
@@ -877,7 +873,6 @@ export const buildReviewContext = (input: ReviewContextBuildInput): ReviewContex
         reviewRepo,
         observationRepo,
         replyRepo,
-        replyTemplateRepo,
         replyCommandStore,
         queue,
         targetedQueue,

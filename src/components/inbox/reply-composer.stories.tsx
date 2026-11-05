@@ -99,7 +99,7 @@ import type {
   ReplyLanguageTarget,
   ReviewLanguageReadiness,
 } from './reply-language-options'
-import type { ReplyTemplateListResult } from '#/contexts/review/application/use-cases/reply-template-operations'
+import type { ReplyTemplateListResult } from '#/contexts/review/application/use-cases/layered-reply-template-operations'
 import type { FeedbackHandlingState } from '#/contexts/inbox/application/public-api'
 import type { addInboxNoteFn } from '#/contexts/inbox/server/inbox'
 
@@ -230,6 +230,7 @@ const emptyTemplateLibrary = (): ReplyTemplateListResult => ({
   profile: null,
   groups: [],
   recommendedTemplateId: null,
+  recommendedReason: null,
 })
 const onListTemplates = fn(async () => emptyTemplateLibrary())
 const onLoadTemplate = fn(async (templateId: string) => ({
@@ -297,11 +298,20 @@ const onListByTarget = fn(
         {
           languageGroup: inReviewLanguage ? 'tr-Latn' : 'bg-Cyrl',
           templates: [
-            { ...template, aspect: null, openLabel: null, languageTag, version: 1 },
+            {
+              ...template,
+              ref: template.id,
+              layer: 'property',
+              aspect: null,
+              openLabel: null,
+              languageTag,
+              version: 1,
+            },
           ],
         },
       ],
       recommendedTemplateId: template.id,
+      recommendedReason: null,
     }
   },
 ).mockName('onListByTarget')
