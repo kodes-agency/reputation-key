@@ -64,7 +64,6 @@ export const portalErrorStatus = (code: PortalErrorCode): number =>
       'destination_not_approved',
       'link_limit_reached',
       'brand_profile_missing',
-      'feature_unavailable',
       'personal_portal_name_private',
       'personal_portal_goal_locked',
       () => 409,
@@ -94,6 +93,7 @@ export const portalErrorStatus = (code: PortalErrorCode): number =>
     .with(
       'invalid_publication_transition',
       'publication_snapshot_unavailable',
+      'not_restorable',
       'guest_wording_missing',
       'language_pack_missing',
       'time_zone_invalid',

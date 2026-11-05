@@ -6,9 +6,9 @@
 // asset, moves where it is anchored, or sets its descriptions. A description
 // belongs to its photo: an own photo is described only in the Portal's own
 // languages and never by the Property's description of another photo, and an
-// empty one marks the photo decorative. Only an Account Admin may, and only
-// while PORTAL_OWN_LOOK_ENABLED is on; the change waits for this Portal's own
-// publish. The photo must be an uploaded photo of the Portal's Property.
+// empty one marks the photo decorative. Only an Account Admin may; the change
+// waits for this Portal's own publish. The photo must be an uploaded photo of the
+// Portal's Property.
 
 import type { AuthContext } from '#/shared/domain/auth-context'
 import type { GuestLocale } from '#/shared/domain/guest-locale'

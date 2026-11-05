@@ -37,7 +37,6 @@ const KEYRING = `1:${'cd'.repeat(32)}`
 const ADDRESS: PortalAddressFormat = {
   appOrigin: 'https://app.example.test',
   printOrigin: 'https://ap.example.test',
-  printCodesEnabled: true,
 }
 const staffPublicApi = {
   getAccessiblePropertyIds: async () => null,

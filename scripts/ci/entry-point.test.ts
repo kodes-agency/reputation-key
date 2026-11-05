@@ -53,7 +53,6 @@ const GATES = [
   ['scripts/ci/check-runtime-environment-contract.ts', '[runtime-environment-contract]'],
   ['scripts/ci/check-container-image-policy.ts', '[container-images]'],
   ['scripts/ci/check-typescript-project-coverage.ts', '[typescript-project-coverage]'],
-  ['scripts/ci/check-product-state-consistency.ts', 'Product-state slice:'],
   ['scripts/ci/check-file-length.ts', '[file-length]'],
 ] as const
 

@@ -38,8 +38,6 @@ describe('a page has one h1, drawn by a few components', () => {
       'the Inbox: a compact surface, heard on a phone and drawn from md',
     'src/components/features/portal/portal-workspace/portal-workspace-header.tsx':
       'the Portal workspace: a compact full-bleed header',
-    'src/components/features/guest/public-portal/guest-page-view.tsx':
-      'the guest renderer, out of scope',
     'src/components/features/guest/portal-unavailable.tsx':
       'the guest renderer, out of scope',
     'src/components/features/guest/public-portal/immersive/guest-title-block.tsx':

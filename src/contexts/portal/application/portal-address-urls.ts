@@ -43,14 +43,7 @@ export type PortalAddressFormat = Readonly<{
   appOrigin: string
   /** `PORTAL_PRINT_ORIGIN` when set, else the app origin: where a print code is scanned. */
   printOrigin: string
-  /**
-   * `PORTAL_PRINT_CODES_ENABLED`. Off, every address a manager sees is the long
-   * one, whatever has been minted: print codes are still derived and stored.
-   */
-  printCodesEnabled: boolean
 }>
-
-const NO_PRINT_CODES: ChannelPrintCodes = { qr: null, nfc: null }
 
 export function buildPortalPublicUrls(input: PortalPublicUrlInput): PortalPublicUrls {
   const { appOrigin, rawToken } = input
@@ -74,10 +67,7 @@ export function buildPortalPublicUrls(input: PortalPublicUrlInput): PortalPublic
   }
 }
 
-/**
- * A code's three addresses under the environment's choice: the print codes show
- * only when `PORTAL_PRINT_CODES_ENABLED` is on.
- */
+/** Verified print codes are shown; absent or mismatched codes retain the issued long address. */
 export function portalPublicUrls(
   format: PortalAddressFormat,
   input: Readonly<{
@@ -91,6 +81,6 @@ export function portalPublicUrls(
     printOrigin: format.printOrigin,
     rawToken: input.rawToken,
     artifacts: input.artifacts,
-    printCodes: format.printCodesEnabled ? input.printCodes : NO_PRINT_CODES,
+    printCodes: input.printCodes,
   })
 }

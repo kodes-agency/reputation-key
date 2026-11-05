@@ -15,7 +15,7 @@ export function starsLabel(pack: GuestPortalCopyV2, rating: number): string {
   return formatGuestPlural(pack.plurals.ratingStars, rating, pack.locale)
 }
 
-/** The v3 accessible name of one choice: "1 star, Poor". The legacy renderer keeps its own. */
+/** The accessible name of one choice: "1 star, Poor". */
 export function ratingOptionName(pack: GuestPortalCopyV2, rating: number): string {
   return guestCopyText(pack, 'ratingOption', {
     stars: starsLabel(pack, rating),

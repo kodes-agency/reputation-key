@@ -1,5 +1,5 @@
 // The Immersive Hub look: what a snapshot's two brand colours become on the
-// page. It replaces `portal-theme-style.ts` for schema version 3.
+// page.
 //
 // The page is always dark and its text always light, so the look cannot be the
 // manager's alone to get wrong: the accent and the field arrive from a snapshot

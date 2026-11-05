@@ -57,7 +57,6 @@ function setup(
     /** What is live: the Immersive Hub fixture unless told otherwise; null for nothing live. */
     live?: PortalPublicationConfiguration | null
     accessible?: readonly PropertyId[] | null
-    finalKit?: boolean
     /** The photo the Property's look holds, uploaded at this instant; the hero fixture's own unless told otherwise. */
     heroUploadedAt?: Date
     /** What the Portal's last print was made with: nothing remembered unless told otherwise. */
@@ -134,7 +133,6 @@ function setup(
     mediaRepo,
     lastPrintRepo,
     wordingRepo,
-    finalKitEnabled: options.finalKit ?? false,
   })
   return { portal, read }
 }
@@ -182,7 +180,7 @@ describe('getPortalPrintKit', () => {
 
   describe('the last print', () => {
     const readFinal = async (options: Parameters<typeof setup>[0] = {}) => {
-      const { portal, read } = setup({ finalKit: true, ...options })
+      const { portal, read } = setup(options)
       return read({ portalId: portal.id }, buildTestAuthContext())
     }
 
@@ -232,13 +230,6 @@ describe('getPortalPrintKit', () => {
       expect(view.lastPrint?.photo).toEqual({ kind: 'same' })
     })
 
-    it('is not read while the server shows today’s kit', async () => {
-      const view = await readFinal({ finalKit: false, last: {} })
-
-      expect(view.kit).toBe('current')
-      expect(view.lastPrint).toBeNull()
-    })
-
     it('carries no address and no code', async () => {
       const view = await readFinal({ last: {} })
 
@@ -252,7 +243,7 @@ describe('getPortalPrintKit', () => {
       customWords: { en: { headline: 'Thanks for staying', subline: 'Tell us more' } },
     }
     const readFinal = async (options: Parameters<typeof setup>[0] = {}) => {
-      const { portal, read } = setup({ finalKit: true, ...options })
+      const { portal, read } = setup(options)
       return read({ portalId: portal.id }, buildTestAuthContext())
     }
 
@@ -268,12 +259,6 @@ describe('getPortalPrintKit', () => {
       const view = await readFinal({ saved: SAVED, last: {} })
       expect(view.savedWording).toEqual(SAVED)
       expect(view.lastPrint?.settings.callToAction).toBe('how_did_we_do')
-    })
-
-    it('is not read while the server shows today’s kit', async () => {
-      const view = await readFinal({ finalKit: false, saved: SAVED })
-      expect(view.kit).toBe('current')
-      expect(view.savedWording).toBeNull()
     })
   })
 

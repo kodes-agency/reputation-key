@@ -129,7 +129,6 @@ function PropertyLookRoute() {
       getPortalReview={getPortalReview}
       publishPortals={publishPortals}
       canPublish={canDo('portal.update') && has('portal.write')}
-      ownLookEnabled={experience.portalLookEnabled}
       saveDisplayName={saveDisplayName}
       saveLook={saveLook}
       saveLocales={saveLocales}

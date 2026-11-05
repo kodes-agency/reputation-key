@@ -95,10 +95,6 @@ describe('AI operation execution reaper', () => {
     )
     const recordFailure = vi.fn<AiOperationStorePort['recordFailure']>(async () => true)
     const markDelivered = vi.fn<AiOperationStorePort['markDelivered']>(async () => true)
-    const settleOutcome = vi.fn(async () => ({
-      terminalAnalysisSequence: 18,
-      aggregateRevision: 17,
-    }))
     const advanceWithoutAnalysis = vi.fn(async () => ({
       status: 'applied' as const,
       aggregateRevision: 18,
@@ -107,7 +103,6 @@ describe('AI operation execution reaper', () => {
     const recordAnalysisReceipt = vi.fn(async () => undefined)
     const dependencies = {
       store: { listExpiredExecutions, recordFailure, markDelivered },
-      reviewEvents: { settleOutcome },
       aggregates: { advanceWithoutAnalysis, applyReviewAnalysis },
       recordAnalysisReceipt,
       nowEpochMillis: () => NOW,
@@ -125,16 +120,6 @@ describe('AI operation execution reaper', () => {
       failureCode: 'operation_abandoned',
       retryAtEpochMillis: null,
       failedAtEpochMillis: NOW,
-    })
-    expect(settleOutcome).toHaveBeenCalledWith({
-      organizationId: ORGANIZATION_ID,
-      propertyId: PROPERTY_ID,
-      sourceEpoch: 2,
-      reviewAnalysisEpoch: 3,
-      analysisSequence: 18,
-      state: 'terminal_no_result',
-      operationId: OVERDUE_OPERATION_ID,
-      dispositionCode: 'operation_abandoned',
     })
     expect(advanceWithoutAnalysis).toHaveBeenCalledWith({
       organizationId: ORGANIZATION_ID,
@@ -167,13 +152,11 @@ describe('AI operation execution reaper', () => {
       async () => scanOf(replyDraft),
     )
     const recordFailure = vi.fn<AiOperationStorePort['recordFailure']>(async () => true)
-    const settleOutcome = vi.fn()
     const advanceWithoutAnalysis = vi.fn()
     const recordAnalysisReceipt = vi.fn(async () => undefined)
 
     const result = await createAiOperationExecutionReaper({
       store: { listExpiredExecutions, recordFailure, markDelivered: vi.fn() },
-      reviewEvents: { settleOutcome },
       aggregates: { advanceWithoutAnalysis, applyReviewAnalysis: vi.fn() },
       recordAnalysisReceipt,
       nowEpochMillis: () => NOW,
@@ -186,7 +169,6 @@ describe('AI operation execution reaper', () => {
         failureCode: 'operation_abandoned',
       }),
     )
-    expect(settleOutcome).not.toHaveBeenCalled()
     expect(advanceWithoutAnalysis).not.toHaveBeenCalled()
     expect(recordAnalysisReceipt).not.toHaveBeenCalled()
     expect(result).toMatchObject({ operationsFenced: 1, operationsSettled: 0 })
@@ -216,10 +198,6 @@ describe('AI operation execution reaper', () => {
     )
     const recordFailure = vi.fn<AiOperationStorePort['recordFailure']>(async () => true)
     const markDelivered = vi.fn<AiOperationStorePort['markDelivered']>(async () => true)
-    const settleOutcome = vi.fn(async () => ({
-      terminalAnalysisSequence: 18,
-      aggregateRevision: 17,
-    }))
     const applyReviewAnalysis = vi
       .fn()
       .mockResolvedValueOnce({
@@ -235,43 +213,10 @@ describe('AI operation execution reaper', () => {
 
     const outcome = await createAiOperationExecutionReaper({
       store: { listExpiredExecutions, recordFailure, markDelivered },
-      reviewEvents: { settleOutcome },
       aggregates: { applyReviewAnalysis, advanceWithoutAnalysis },
       recordAnalysisReceipt,
       nowEpochMillis: () => NOW,
     })()
-
-    expect(settleOutcome).toHaveBeenCalledTimes(3)
-    expect(settleOutcome).toHaveBeenNthCalledWith(1, {
-      organizationId: ORGANIZATION_ID,
-      propertyId: PROPERTY_ID,
-      sourceEpoch: 2,
-      reviewAnalysisEpoch: 3,
-      analysisSequence: 18,
-      state: 'ready',
-      operationId: OVERDUE_OPERATION_ID,
-      dispositionCode: null,
-    })
-    expect(settleOutcome).toHaveBeenNthCalledWith(2, {
-      organizationId: ORGANIZATION_ID,
-      propertyId: PROPERTY_ID,
-      sourceEpoch: 2,
-      reviewAnalysisEpoch: 3,
-      analysisSequence: 18,
-      state: 'ready',
-      operationId: STALE_OPERATION_ID,
-      dispositionCode: null,
-    })
-    expect(settleOutcome).toHaveBeenNthCalledWith(3, {
-      organizationId: ORGANIZATION_ID,
-      propertyId: PROPERTY_ID,
-      sourceEpoch: 2,
-      reviewAnalysisEpoch: 3,
-      analysisSequence: 18,
-      state: 'terminal_no_result',
-      operationId: STALE_OPERATION_ID,
-      dispositionCode: 'operation_ambiguous',
-    })
     expect(applyReviewAnalysis).toHaveBeenCalledTimes(2)
     expect(applyReviewAnalysis).toHaveBeenCalledWith({
       organizationId: ORGANIZATION_ID,
@@ -332,10 +277,6 @@ describe('AI operation execution reaper', () => {
     )
     const recordFailure = vi.fn<AiOperationStorePort['recordFailure']>(async () => true)
     const markDelivered = vi.fn<AiOperationStorePort['markDelivered']>(async () => true)
-    const settleOutcome = vi.fn(async () => ({
-      terminalAnalysisSequence: 18,
-      aggregateRevision: 17,
-    }))
     const applyReviewAnalysis = vi.fn()
     const advanceWithoutAnalysis = vi.fn(async () => ({
       status: 'applied' as const,
@@ -345,7 +286,6 @@ describe('AI operation execution reaper', () => {
 
     const outcome = await createAiOperationExecutionReaper({
       store: { listExpiredExecutions, recordFailure, markDelivered },
-      reviewEvents: { settleOutcome },
       aggregates: { applyReviewAnalysis, advanceWithoutAnalysis },
       recordAnalysisReceipt,
       nowEpochMillis: () => NOW,
@@ -361,13 +301,6 @@ describe('AI operation execution reaper', () => {
       retryAtEpochMillis: null,
       failedAtEpochMillis: NOW,
     })
-    expect(settleOutcome).toHaveBeenCalledWith(
-      expect.objectContaining({
-        state: 'terminal_no_result',
-        operationId: OVERDUE_OPERATION_ID,
-        dispositionCode: 'operation_ambiguous',
-      }),
-    )
     expect(advanceWithoutAnalysis).toHaveBeenCalledOnce()
     expect(applyReviewAnalysis).not.toHaveBeenCalled()
     expect(markDelivered).not.toHaveBeenCalled()
@@ -403,10 +336,6 @@ describe('AI operation execution reaper', () => {
         async () => scanOf(failed),
       )
       const recordFailure = vi.fn<AiOperationStorePort['recordFailure']>(async () => true)
-      const settleOutcome = vi.fn(async () => ({
-        terminalAnalysisSequence: 18,
-        aggregateRevision: 17,
-      }))
       const advanceWithoutAnalysis = vi.fn(async () => ({
         status: 'applied' as const,
         aggregateRevision: 18,
@@ -420,7 +349,6 @@ describe('AI operation execution reaper', () => {
             recordFailure,
             markDelivered: vi.fn(async () => true),
           },
-          reviewEvents: { settleOutcome },
           aggregates: {
             applyReviewAnalysis: vi.fn(),
             advanceWithoutAnalysis,
@@ -433,12 +361,6 @@ describe('AI operation execution reaper', () => {
         operationsSettled: 1,
       })
       expect(recordFailure).not.toHaveBeenCalled()
-      expect(settleOutcome).toHaveBeenCalledWith(
-        expect.objectContaining({
-          state: 'terminal_no_result',
-          dispositionCode: 'operation_ambiguous',
-        }),
-      )
       expect(advanceWithoutAnalysis).toHaveBeenCalledWith(
         expect.objectContaining({ dispositionCode: 'operation_ambiguous' }),
       )
@@ -461,10 +383,6 @@ describe('AI operation execution reaper', () => {
     )
     const recordFailure = vi.fn<AiOperationStorePort['recordFailure']>(async () => true)
     const markDelivered = vi.fn<AiOperationStorePort['markDelivered']>(async () => true)
-    const settleOutcome = vi.fn(async () => {
-      order.push('outcome')
-      return null
-    })
     const advanceWithoutAnalysis = vi.fn(async () => {
       order.push('aggregate')
       return { status: 'applied' as const, aggregateRevision: 18 }
@@ -478,13 +396,12 @@ describe('AI operation execution reaper', () => {
 
     const outcome = await createAiOperationExecutionReaper({
       store: { listExpiredExecutions, recordFailure, markDelivered },
-      reviewEvents: { settleOutcome },
       aggregates: { applyReviewAnalysis, advanceWithoutAnalysis },
       recordAnalysisReceipt,
       nowEpochMillis: () => NOW,
     })()
 
-    expect(order).toEqual(['outcome', 'aggregate', 'receipt:applied'])
+    expect(order).toEqual(['aggregate', 'receipt:applied'])
     expect(advanceWithoutAnalysis).toHaveBeenCalledWith(
       expect.objectContaining({
         analysisSequence: 18,
@@ -522,7 +439,6 @@ describe('AI operation execution reaper', () => {
       async () => scanOf(poisoned, healthy),
     )
     const recordFailure = vi.fn<AiOperationStorePort['recordFailure']>(async () => true)
-    const settleOutcome = vi.fn(async () => null)
     const advanceWithoutAnalysis = vi.fn(async () => ({
       status: 'applied' as const,
       aggregateRevision: 18,
@@ -535,7 +451,6 @@ describe('AI operation execution reaper', () => {
 
     const outcome = await createAiOperationExecutionReaper({
       store: { listExpiredExecutions, recordFailure, markDelivered: vi.fn() },
-      reviewEvents: { settleOutcome },
       aggregates: { advanceWithoutAnalysis, applyReviewAnalysis: vi.fn() },
       recordAnalysisReceipt,
       logger: { warn },
@@ -563,6 +478,47 @@ describe('AI operation execution reaper', () => {
       },
       'AI operation recovery candidate failed',
     )
+  })
+
+  it('retries aggregate settlement before writing a receipt after a failed pass', async () => {
+    const candidate = {
+      ...pendingCandidate(
+        OVERDUE_OPERATION_ID,
+        NOW - AI_EXECUTION_ABANDONED_AFTER_MILLIS,
+      ),
+      state: 'failed' as const,
+      failureCode: 'operation_ambiguous' as const,
+    }
+    const advanceWithoutAnalysis = vi
+      .fn()
+      .mockRejectedValueOnce(new Error('aggregate unavailable'))
+      .mockResolvedValueOnce({ status: 'replayed', aggregateRevision: 18 })
+    const recordAnalysisReceipt = vi.fn(async () => undefined)
+    const recordFailure = vi.fn<AiOperationStorePort['recordFailure']>(async () => true)
+    const reap = createAiOperationExecutionReaper({
+      store: {
+        listExpiredExecutions: vi.fn(async () => scanOf(candidate)),
+        recordFailure,
+        markDelivered: vi.fn(),
+      },
+      aggregates: { advanceWithoutAnalysis, applyReviewAnalysis: vi.fn() },
+      recordAnalysisReceipt,
+      nowEpochMillis: () => NOW,
+    })
+
+    await expect(reap()).resolves.toMatchObject({
+      candidatesFailed: 1,
+      operationsSettled: 0,
+    })
+    expect(recordAnalysisReceipt).not.toHaveBeenCalled()
+
+    await expect(reap()).resolves.toMatchObject({
+      candidatesFailed: 0,
+      operationsSettled: 1,
+    })
+    expect(advanceWithoutAnalysis).toHaveBeenCalledTimes(2)
+    expect(recordFailure).not.toHaveBeenCalled()
+    expect(recordAnalysisReceipt).toHaveBeenCalledExactlyOnceWith(EVENT_ID, 'applied')
   })
 
   it('counts and reports a row the listing could not read, and recovers the tenants behind it', async () => {
@@ -597,7 +553,6 @@ describe('AI operation execution reaper', () => {
 
     const outcome = await createAiOperationExecutionReaper({
       store: { listExpiredExecutions, recordFailure, markDelivered: vi.fn() },
-      reviewEvents: { settleOutcome: vi.fn(async () => null) },
       aggregates: { advanceWithoutAnalysis, applyReviewAnalysis: vi.fn() },
       recordAnalysisReceipt,
       logger: { warn },

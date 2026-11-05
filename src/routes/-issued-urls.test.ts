@@ -68,9 +68,7 @@ vi.mock('#/contexts/guest/server/public', () => ({
   withdrawGuestResponseFn: vi.fn(),
 }))
 vi.mock('#/components/features/guest', () => ({
-  GuestAnalyticsNotice: () => null,
   ImmersivePublicPortal: () => null,
-  PublicPortalContent: () => null,
 }))
 vi.mock('#/shared/observability/trace', () => ({
   trace: (_name: string, fn: () => Promise<unknown>) => fn(),

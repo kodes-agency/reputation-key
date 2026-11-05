@@ -12,7 +12,6 @@ import { PortalPrintKitNotLive } from './portal-print-kit-not-live'
 import {
   PortalSharePrintFinalSection,
   PortalSharePrintKitAside,
-  PortalSharePrintKitSection,
 } from './portal-share-print-kit'
 import { PortalLinkReveal } from './portal-link-reveal'
 import {
@@ -98,7 +97,10 @@ export function PortalShare(props: PortalShareProps) {
 
         <PortalSharePrintFinalSection kit={kit} countryCode={props.countryCode ?? null} />
 
-        <section className="flex flex-col gap-4" aria-labelledby="code-heading">
+        <section
+          className={cn('flex flex-col gap-4', kit.settling && 'hidden')}
+          aria-labelledby="code-heading"
+        >
           <h2 id="code-heading" className="text-lg font-semibold">
             Code
           </h2>
@@ -134,11 +136,11 @@ export function PortalShare(props: PortalShareProps) {
           )}
         </section>
 
-        <PortalScanGoalReadinessNotice show={showScanGoalReadiness(props, publicUrl)} />
+        <PortalScanGoalReadinessNotice
+          show={!kit.settling && showScanGoalReadiness(props, publicUrl)}
+        />
 
         <PortalPrintKitNotLive notice={kit.notLive} />
-
-        <PortalSharePrintKitSection kit={kit} />
 
         <p className="sr-only" role="status" aria-live="polite">
           {liveStatusMessage(isPending, copied || nfcCopied)}

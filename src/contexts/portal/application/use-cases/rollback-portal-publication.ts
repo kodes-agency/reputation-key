@@ -9,6 +9,7 @@ import { loadPortalOrThrow } from '../load-accessible-portal'
 import { portalError } from '../../domain/errors'
 import { portalPublicationRolledBack, portalUpdated } from '../../domain/events'
 import { nextPortalCommandAt } from '../portal-command-version'
+import { IMMERSIVE_HUB_SCHEMA_VERSION } from '../../domain/portal-publication-snapshot'
 
 export type RollbackPortalPublicationDeps = Readonly<{
   portalRepo: PortalRepository
@@ -61,13 +62,15 @@ export const rollbackPortalPublication =
       deps.publicationRepo.findActiveForPortal(ctx.organizationId, pid),
       deps.publicationRepo.getCursor(ctx.organizationId, pid),
     ])
-    // Any version but the live one: making an earlier version live again must
-    // not strand the later ones, which a manager may want back (slice 36).
     if (!target || !active || target.version === active.version) {
       throw portalError(
         'publication_snapshot_unavailable',
         'The requested publication version is unavailable for this Portal',
       )
+    }
+
+    if (target.configuration.schemaVersion !== IMMERSIVE_HUB_SCHEMA_VERSION) {
+      throw portalError('not_restorable', 'This earlier page design is view-only')
     }
 
     assertPersonalPortalPublicText(portal, target.configuration)

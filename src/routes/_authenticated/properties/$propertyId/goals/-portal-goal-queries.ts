@@ -2,9 +2,8 @@
 // page), defined once for every page that draws them
 // (route-query-definitions.test.ts), its commands (set, change now, change
 // from next month, stop, the check-in's Keep), and the one function every
-// Portal-goal command marks
-// them stale through (the product-state ledger's goalKeys policy); its first
-// caller is the card's Use.
+// Portal-goal command marks them stale through; its first caller is the
+// card's Use.
 //
 // None of it may reach first paint (scripts/check-bundle-budget.mjs):
 //

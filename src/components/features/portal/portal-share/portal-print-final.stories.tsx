@@ -1,7 +1,7 @@
 // fallow-ignore-file code-duplication
 // The Share tab's final Print cards section (final design spec §11), as the
 // boards share-desktop-light, share-desktop-dark and share-phone draw it: shown
-// because the read says the server has PRINT_KIT_FINAL_ENABLED on. What is
+// because the read says the server has the print kit on. What is
 // printed and which way up, the look, who prints, how many and the words; the
 // download with its summary and How to print; the preview beside it, or on a
 // phone the pinned bar and its Preview sheet. The server makes the PDF; a story
@@ -17,10 +17,7 @@ import type {
 } from '#/contexts/portal/application/public-api'
 import { AuthedRouterDecorator } from '../../../../../.storybook/AuthedRouterDecorator'
 import { PortalShare } from './portal-share'
-import type {
-  DownloadPrintFinalInput,
-  DownloadPrintKitInput,
-} from './portal-print-kit-types'
+import type { DownloadPrintFinalInput } from './portal-print-kit-types'
 import type { IssuedPortalLink, PortalShareMutations } from './portal-share-types'
 import { DARK_LOGO, PHOTO } from './print-final-story-fixtures'
 
@@ -96,9 +93,6 @@ const mutations: PortalShareMutations = {
 
 const printKit = (read: PortalPrintKitView = view()) => ({
   read: async () => read,
-  downloadMutation: action<DownloadPrintKitInput, PortalPrintKitDownload>(
-    async () => TINY_PDF,
-  ),
   downloadFinalMutation: action<DownloadPrintFinalInput, PortalPrintKitDownload>(
     async () => TINY_PDF,
   ),
@@ -459,18 +453,6 @@ export const PrintShopNoteCopyBlocked: Story = {
         ).toBeVisible()
       },
     )
-  },
-}
-
-/** Where the server has the final kit off, the tab shows today's Print kit, untouched. */
-export const TodaysKitWhenTheServerHasItOff: Story = {
-  args: { ...baseArgs, printKit: printKit({ ...view(), kit: 'current' }) },
-  play: async ({ canvasElement }) => {
-    const canvas = within(canvasElement)
-    await expect(
-      await canvas.findByRole('heading', { name: 'Print kit' }),
-    ).toBeInTheDocument()
-    await expect(canvas.queryByRole('heading', { name: 'Print cards' })).toBeNull()
   },
 }
 

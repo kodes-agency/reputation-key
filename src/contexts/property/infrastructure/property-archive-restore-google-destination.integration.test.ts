@@ -29,9 +29,11 @@ import { buildConsumerEvent } from '#/shared/outbox/envelope'
 import { createOutboxRepository } from '#/shared/outbox/infrastructure/outbox-repository'
 import { buildTestAuthContext, buildTestPortal } from '#/shared/testing/fixtures'
 import { deleteTestOrganizations } from '#/shared/testing/integration-helpers'
-import { buildLegacyPortalPublicationSnapshot } from '#/contexts/portal/application/__fixtures__/legacy-snapshot-builder'
+import { buildPortalPublicationSnapshot } from '#/contexts/portal/application/portal-publication-snapshot'
 import { loadVerifiedGoogleReviewDestination } from '#/contexts/portal/application/portal-publication-readiness'
 import { resolvePublicPortalToken } from '#/contexts/portal/application/use-cases/resolve-public-portal-token'
+import { publicationSource } from '#/contexts/portal/domain/__fixtures__/publication-source'
+import type { PortalHealthInterval } from '#/contexts/portal/domain/portal-health'
 import { handlePortalHealthDependencyChanged } from '#/contexts/portal/infrastructure/portal-health-outbox-consumers'
 import { createPortalHealthReconciliationStore } from '#/contexts/portal/infrastructure/portal-health-reconciliation-store'
 import { snapshotToRow } from '#/contexts/portal/infrastructure/portal-publication-commands'
@@ -180,28 +182,18 @@ async function publishPortal(): Promise<void> {
      VALUES ($1, $2, $3, $4, $5, $4)`,
     [ORG, LINKED, PORTAL, ADMIN, PUBLISHED_AT],
   )
-  const snapshot = buildLegacyPortalPublicationSnapshot({
+  const snapshot = buildPortalPublicationSnapshot({
     id: 'f8500000-0000-4000-8000-000000000001',
     portalId: PORTAL,
     organizationId: ORG,
     propertyId: LINKED,
     version: 1,
-    source: {
-      portal: {
-        id: PORTAL,
-        name: 'Front desk',
-        slug: 'front-desk',
-        description: null,
-        heroImageUrl: null,
-        theme: { primaryColor: '#123456' },
-        organizationName: 'Harbour Hotels',
-      },
-      categories: [],
-      links: [],
-      privateFeedbackThreshold: 3,
+    source: publicationSource({
       organizationId: ORG,
       propertyId: LINKED,
-    },
+      portal: { id: PORTAL, name: 'Front desk', slug: 'front-desk' },
+      links: [],
+    }),
     destination: {
       state: 'verified',
       uri: destination.uri,
@@ -255,13 +247,27 @@ const publicationReadiness = (id: PropertyId) =>
     buildTestPortal({ id: PORTAL, organizationId: ORG, propertyId: id }),
   )
 
+const HEALTHY_PORTAL: PortalHealthInterval = {
+  id: 'f8700000-0000-4000-8000-000000000001',
+  organizationId: ORG,
+  propertyId: LINKED,
+  portalId: PORTAL,
+  status: 'healthy',
+  reason: 'operational',
+  sourceVersion: 'seeded',
+  effectiveFrom: PUBLISHED_AT,
+  effectiveTo: null,
+  observedAt: PUBLISHED_AT,
+}
+
 /** What a guest who opens the live Portal's address is served. */
 const guestVisit = () =>
   resolvePublicPortalToken({
     tokenCodec: { digest: () => TOKEN_DIGEST },
     portalPublicationRepo: createPortalPublicationRepository(db),
-    // The seeded publication is schema version 1, which predates Portal Health.
-    portalHealthRepo: { getCurrent: async () => null },
+    // A published page needs a Portal Health that is not unavailable. What the
+    // health is after Archive and Restore is read through `portalHealthAfter`.
+    portalHealthRepo: { getCurrent: async () => HEALTHY_PORTAL },
     listApprovedSecondaryDestinationUris: async () => [],
     isPropertyActive: property.publicApi.isPropertyActive,
     getGoogleReviewDestination: property.publicApi.getGoogleReviewDestination,

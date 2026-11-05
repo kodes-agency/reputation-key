@@ -1,5 +1,4 @@
 // The final print kit over real PostgreSQL (final design spec §11, slice 7),
-// with PRINT_KIT_FINAL_ENABLED on: the languages, titles and look come from the
 // live version's row, the pictures from the media rows and the object store,
 // the address from the real audited reveal (a short print address minted on the
 // first download), and real office sheets are drawn from them.
@@ -56,14 +55,7 @@ const staffPublicApi: StaffPublicApi = {
   getAssignedPortals: async () => [],
 }
 
-type HarnessOptions = Readonly<{
-  /** PRINT_KIT_FINAL_ENABLED; on unless a test turns it off. */
-  enabled?: boolean
-  /** `PORTAL_PRINT_CODES_ENABLED`: on, the reveal mints and hands over the short address. */
-  printCodes?: boolean
-}>
-
-async function harness(options: HarnessOptions = {}) {
+async function harness() {
   await seedPortalWorkingCopy(getPool(), COMPLETE_SCENARIO)
   await seedLiveImmersiveSnapshot({
     organizationId: COMPLETE_SCENARIO.organizationId,
@@ -113,12 +105,11 @@ async function harness(options: HarnessOptions = {}) {
         address: {
           appOrigin: BASE_URL,
           printOrigin: PRINT_ORIGIN,
-          printCodesEnabled: options.printCodes ?? true,
         },
       }),
       renderer,
       propertyCountry: createPropertyCountryReader(db),
-      finalKitEnabled: options.enabled ?? true,
+
       lastPrintRepo: createPortalLastPrintRepository(db),
       wordingRepo: createPortalPrintWordingRepository(db),
       clock: () => new Date('2026-10-25T10:00:00Z'),
@@ -343,7 +334,12 @@ describe.sequential('Final print kit (real PostgreSQL)', () => {
   })
 
   it('refuses a tent on today’s long address in the Share tab’s words', async () => {
-    const { make, ctx } = await harness({ printCodes: false })
+    const { make, ctx } = await harness()
+    // A stored hash mismatch preserves the issued long address for this channel.
+    await getPool().query(
+      "UPDATE portal_tokens SET qr_print_code_hash = $1 WHERE portal_id = $2 AND status = 'active'",
+      ['f'.repeat(64), COMPLETE_SCENARIO.portalId],
+    )
 
     await expect(make(request({ languages: ['bg'] }), ctx)).rejects.toMatchObject({
       code: 'print_code_too_small',
@@ -372,7 +368,6 @@ describe.sequential('Final print kit (real PostgreSQL)', () => {
       mediaRepo: createPortalMediaAssetRepository(db),
       lastPrintRepo: createPortalLastPrintRepository(db),
       wordingRepo: createPortalPrintWordingRepository(db),
-      finalKitEnabled: true,
     })
 
     const { lastPrint } = await read({ portalId: COMPLETE_SCENARIO.portalId }, ctx)
@@ -406,14 +401,5 @@ describe.sequential('Final print kit (real PostgreSQL)', () => {
         ).catch(() => null)
       )?.lastPrint ?? null,
     ).toBeNull()
-  })
-
-  it('refuses every download while the server has the final kit off, and discloses nothing', async () => {
-    const { make, ctx } = await harness({ enabled: false })
-
-    await expect(make(request(), ctx)).rejects.toMatchObject({
-      code: 'print_format_not_offered',
-    })
-    expect(await downloads()).toBe(0)
   })
 })

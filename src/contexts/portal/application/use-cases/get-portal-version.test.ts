@@ -8,6 +8,7 @@ import type { StaffPublicApi } from '#/contexts/identity/application/public-api'
 import type { PortalPublicationRepository } from '../ports/portal-publication.repository'
 import type { PortalActorDirectory } from '../ports/portal-actor-directory.port'
 import { immersiveConfiguration } from '../../domain/__fixtures__/immersive-configuration'
+import { GOLDEN_SNAPSHOT_ROWS } from '../__fixtures__/publication-snapshots.golden'
 import type {
   ImmersiveLink,
   PortalPublicationConfiguration,
@@ -84,6 +85,27 @@ function setup(
 }
 
 describe('getPortalVersion', () => {
+  it.each(Object.values(GOLDEN_SNAPSHOT_ROWS))(
+    'keeps retired format $configuration.schemaVersion readable as view-only evidence',
+    async (row) => {
+      const configuration = row.configuration as unknown as PortalPublicationConfiguration
+      const old = snapshot(1, configuration)
+      const { useCase } = setup([old, snapshot(2, base)])
+      const result = await useCase({ portalId: portal.id, version: 1 }, ctx)
+      expect(result).toMatchObject({ version: 1, restorable: false, isLive: false })
+      expect(result.content.title).toBeTruthy()
+      expect(result.content.languages.length).toBeGreaterThan(0)
+      expect(old.configuration).toEqual(configuration)
+    },
+  )
+
+  it('allows a current-format version to be made live again', async () => {
+    const { useCase } = setup([snapshot(1, base), snapshot(2, base)])
+    expect(await useCase({ portalId: portal.id, version: 1 }, ctx)).toMatchObject({
+      restorable: true,
+    })
+  })
+
   it('names an operator-run version as Reputation Key, without the operator id', async () => {
     const v1 = snapshot(1, base, 'ops:denev')
     const { useCase } = setup([v1])
