@@ -17,7 +17,6 @@ import type { Database } from '../../src/shared/db'
 import { properties } from '../../src/shared/db/schema/property.schema'
 import { reviewGoogleReputationSnapshotFacts } from '../../src/shared/db/schema/review-reputation.schema'
 import { reviews } from '../../src/shared/db/schema/review.schema'
-import { metricReadings } from '../../src/shared/db/schema/metric.schema'
 import { organizationId, propertyId } from '../../src/shared/domain/ids'
 import { registerAllEventSchemas } from '../../src/shared/events/schema-registrations'
 import { insertOutboxRow } from '../../src/shared/outbox/commit'
@@ -42,17 +41,18 @@ export type SeededReviewProperties = Readonly<{
 }>
 
 /**
- * The landscape's 100 Google reviews and their metric readings: 40 for P1, 20
- * each for P2 and the locked organization's P3, and 20 spread over the bounded
- * Properties, with stars cycling 1 to 5.
+ * The landscape's 100 Google reviews: 40 for P1, 20 each for P2 and the locked
+ * organization's P3, and 20 spread over the bounded Properties, with stars
+ * cycling 1 to 5. A Google import no longer records a metric reading per
+ * review, so the seed writes none.
  */
 export async function ensureReviews(
   db: Database,
   input: SeededReviewProperties,
 ): Promise<void> {
   // Keep the seeded review windows stable as wall-clock time advances: the
-  // newest fixture is always 15 days old, so the 30-day fleet view contains
-  // 30 P1 reviews and 15 P2 reviews.
+  // newest fixture is always 15 days old, so a 30-day window contains 30 P1
+  // reviews and 15 P2 reviews.
   const reviewedAtAnchor = new Date()
   reviewedAtAnchor.setUTCHours(12, 0, 0, 0)
   reviewedAtAnchor.setUTCDate(reviewedAtAnchor.getUTCDate() - 15)
@@ -117,41 +117,6 @@ export async function ensureReviews(
           aiSourceDigest: provenance.digest,
           expiresAt: FAR_FUTURE,
           contentExpiresAt: FAR_FUTURE,
-        },
-      })
-    const metricReadingId = `51000000-0000-4000-8000-${ordinal
-      .toString(16)
-      .padStart(12, '0')}`
-    await db
-      .insert(metricReadings)
-      .values({
-        id: metricReadingId,
-        ...scope,
-        metricKey: 'property.review',
-        value: (index % 5) + 1,
-        definitionVersionId: '11111111-1111-4111-8111-111111111205',
-        sourceEventId: `e2e-review-created-${ordinal}`,
-        sourcePolicy: 'google_property_derivative',
-        exactValue: (index % 5) + 1,
-        sampleCount: 1,
-        attributionQuality: 'exact',
-        occurredAt: reviewedAt,
-        eventAt: reviewedAt,
-        propertyLocalDate: reviewedAt.toISOString().slice(0, 10),
-        dataQuality: 'exact',
-        retentionClass: 'standard',
-      })
-      .onConflictDoUpdate({
-        target: metricReadings.id,
-        set: {
-          organizationId: scope.organizationId,
-          propertyId: scope.propertyId,
-          value: (index % 5) + 1,
-          exactValue: (index % 5) + 1,
-          occurredAt: reviewedAt,
-          eventAt: reviewedAt,
-          propertyLocalDate: reviewedAt.toISOString().slice(0, 10),
-          dataQuality: 'exact',
         },
       })
   }

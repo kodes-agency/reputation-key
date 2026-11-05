@@ -662,12 +662,6 @@ const CONSUMER_ROWS: ReadonlyArray<EntryPointRow> = [
     'property',
   ),
   consumer(
-    'metric.public-reputation',
-    'system:metric.record_public_reputation',
-    'none',
-    'organization',
-  ),
-  consumer(
     'metric.current-google-reputation',
     'system:metric.record_public_reputation',
     'none',

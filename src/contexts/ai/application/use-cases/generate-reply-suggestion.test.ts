@@ -345,7 +345,6 @@ function createHarness(
       storeAnalysis: vi.fn(),
       settleEphemeralReply,
       findCurrentReviewIdsByAttention: vi.fn(),
-      storeTrendReport: vi.fn(),
       readAnalysisForDelivery: vi.fn(),
       readTrendReportForDelivery: vi.fn(),
     },

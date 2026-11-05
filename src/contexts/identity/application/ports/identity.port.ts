@@ -3,8 +3,6 @@
 // The implementation lives in infrastructure/. The use case depends only on the type."
 
 import type { Role } from '#/shared/domain/roles'
-import type { Permission } from '#/shared/domain/permissions'
-import type { DataScope } from '#/shared/domain/data-scope'
 import type { OrganizationId } from '#/shared/domain/ids'
 import type { AuthContext } from '#/shared/domain/auth-context'
 import type { RegistrationAuthIds } from '#/shared/domain/registration-auth-ids'
@@ -108,35 +106,6 @@ export type IdentityPort = Readonly<{
   getSessionUser: (
     headers: Headers,
   ) => Promise<Readonly<{ id: string; email: string; name?: string }> | null>
-
-  /**
-   * Create a custom role definition (organizationRole + organization_role_policy) in one
-   * atomic transaction. App-owned write path — the raw BA create-role endpoint is blocked.
-   * Throws `already_exists` on a duplicate (case-insensitive) role name in the org.
-   */
-  createCustomRole: (
-    ctx: AuthContext,
-    input: Readonly<{
-      role: string
-      permissions: ReadonlyArray<Permission>
-      dataScope: DataScope
-    }>,
-  ) => Promise<void>
-  /** Update a custom role's permissions + data scope (atomic). App-owned write path. */
-  updateCustomRole: (
-    ctx: AuthContext,
-    role: string,
-    input: Readonly<{
-      permissions: ReadonlyArray<Permission>
-      dataScope: DataScope
-    }>,
-  ) => Promise<void>
-  /**
-   * Delete a custom role definition (organizationRole + organization_role_policy, atomic).
-   * Members still holding the role become permissionless via the resolver's fail-closed
-   * path (missing role definition → no permissions). App-owned write path.
-   */
-  deleteCustomRole: (ctx: AuthContext, role: string) => Promise<void>
 }>
 
 /** Storage port for avatar uploads — local abstraction to avoid cross-context imports. */

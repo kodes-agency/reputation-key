@@ -108,7 +108,7 @@ async function settleWithoutProvider(
   })
   if (consumed.status === 'generation_changed') return { status: 'generation_changed' }
   const settled = await settleReviewAnalysisWithoutResult(
-    { reviewEvents, aggregates },
+    { aggregates },
     {
       organizationId: input.organizationId,
       propertyId: input.propertyId,
@@ -117,7 +117,6 @@ async function settleWithoutProvider(
       reviewAnalysisEpoch: 1,
       analysisSequence: input.analysisSequence,
       propertyProfileVersion: 1,
-      operationId: null,
       dispositionCode: 'operation_abandoned',
     },
   )
@@ -391,7 +390,7 @@ describe.sequential(
       // committed, but the consumer has not yet written its durable receipt.
       for (const sequence of sequences.slice(0, SIMULATED_CRASH_AFTER)) {
         await settleReviewAnalysisWithoutResult(
-          { reviewEvents, aggregates },
+          { aggregates },
           {
             organizationId: ORGANIZATION_ID,
             propertyId: PROPERTY_ID,
@@ -400,7 +399,6 @@ describe.sequential(
             reviewAnalysisEpoch: 1,
             analysisSequence: sequence,
             propertyProfileVersion: 1,
-            operationId: null,
             dispositionCode: 'operation_abandoned',
           },
         )

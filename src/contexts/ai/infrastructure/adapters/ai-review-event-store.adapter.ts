@@ -7,7 +7,6 @@ import type {
 
 type AggregateHeadRow = Readonly<{
   terminal_analysis_sequence: number | string | null
-  aggregate_revision: number | string | null
 }>
 type SettlementRow = Readonly<{ settled: boolean }>
 
@@ -25,11 +24,10 @@ export const createAiReviewEventStoreAdapter = (db: Database): AiReviewEventStor
     propertyId: string
     sourceEpoch: number
     reviewAnalysisEpoch: number
-  }): Promise<Readonly<{ terminal: number; revision: number }>> {
+  }): Promise<number> {
     const result = await db.execute(sql<AggregateHeadRow>`
       SELECT
-        max(terminal_analysis_sequence) AS terminal_analysis_sequence,
-        max(aggregate_revision) AS aggregate_revision
+        max(terminal_analysis_sequence) AS terminal_analysis_sequence
       FROM ai_property_aggregate_heads
       WHERE organization_id = ${input.organizationId}
         AND property_id = ${input.propertyId}::uuid
@@ -37,16 +35,13 @@ export const createAiReviewEventStoreAdapter = (db: Database): AiReviewEventStor
         AND review_analysis_epoch = ${input.reviewAnalysisEpoch}
     `)
     const row = result.rows[0] as AggregateHeadRow | undefined
-    return {
-      terminal: safeInteger(row?.terminal_analysis_sequence),
-      revision: safeInteger(row?.aggregate_revision),
-    }
+    return safeInteger(row?.terminal_analysis_sequence)
   }
 
   return Object.freeze({
     async consumeNext(input): Promise<AiReviewEventConsumeResult> {
       const head = await currentHead(input)
-      const terminal = Math.max(head.terminal, input.analysisStartSequence)
+      const terminal = Math.max(head, input.analysisStartSequence)
       const result = await db.execute<SettlementRow>(sql`
         SELECT EXISTS (
           SELECT 1
@@ -73,14 +68,6 @@ export const createAiReviewEventStoreAdapter = (db: Database): AiReviewEventStor
         status: 'accepted',
         consumedSequence: input.analysisSequence,
         terminalAnalysisSequence: terminal,
-      }
-    },
-
-    async settleOutcome(input) {
-      const head = await currentHead(input)
-      return {
-        terminalAnalysisSequence: Math.max(head.terminal, input.analysisSequence),
-        aggregateRevision: head.revision,
       }
     },
   })

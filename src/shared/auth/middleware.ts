@@ -10,10 +10,10 @@ import { throwAuthError } from './auth-errors'
 import { resolveTenant, resetTenantResolutionCache } from './tenant-resolver'
 
 // The tenant-resolution pipeline (session decode → per-request memo → tenant-cache
-// freshness decision table → member + role strategy) lives in the TenantResolver
-// module (./tenant-resolver). This file keeps the public surface the 46 server
-// files import; nothing here knows about cache keys, TTL, the permission_version
-// protocol, or the ENABLE_CUSTOM_ROLES branch.
+// freshness decision table → member + built-in role authority) lives in the
+// TenantResolver module (./tenant-resolver). This file keeps the public surface the
+// 46 server files import; nothing here knows about cache keys, TTL, or the
+// permission_version protocol.
 
 // ── Helpers ─────────────────────────────────────────────────────────
 
