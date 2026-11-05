@@ -1,14 +1,7 @@
-// Reporting — how a goal month came by the target it is judged against.
-//
-// A month opens on its version's target. While it runs, a manager can give it
-// a target of its own, and every such change is logged. A surface that shows a
-// month's target says so when the target is no longer the one the month started
-// with: who changed it last, when, what it started at, and how many times it
-// changed. A month changed and then changed back is judged against its first
-// target again, so it carries no marker.
-//
-// Type-only imports beside the effective-target rule: this module is safe to
-// reach from a route or a component.
+// Show who last changed a month's target, when and how often, only while it differs
+// from the opening target. Changing it back removes the marker, not the history.
+// Type-only dependencies keep this safe for browser callers.
+
 import { effectiveMonthTarget } from './goal-effective-month-target'
 import type {
   GoalMonthlyResult,

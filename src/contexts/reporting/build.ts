@@ -358,8 +358,6 @@ function buildGoalModule(input: ReportingContextBuildInput, metricApi: MetricPub
     createGoalProgramProgressReader(goalProgressDeps(policy))
   const readGoalListProgress = (policy: GoalExecutionPolicy) =>
     createGoalListProgressReader(goalProgressDeps(policy))
-  // The Monthly portal goal's recommended number: Portal's facts about the
-  // Property's Portals, and its goal-count readings in one statement.
   const goalRecommendationFacts: GoalRecommendationFactsPort = {
     listPortalReadiness: (organizationId, propertyId, asOf) =>
       input.portalApi.listGoalReadinessFacts(
@@ -379,12 +377,8 @@ function buildGoalModule(input: ReportingContextBuildInput, metricApi: MetricPub
     read: (policy, ...args) =>
       readPortalGoalRecommendation(goalRecommendationDeps(policy), ...args),
   })
-  // The Monthly portal goal: its card, a composed read of the Programs the
-  // actor may see, the recommendation and a running month's governed figure;
-  // its page, the same read with its months, changes and the other Portal
-  // goals; and its set command, a Program created after a pre-check of every
-  // Program of the Property. Each asks `goal.create` itself first. The card's
-  // ready arm reads the Overview prompt's "Not now" (PLAN PG-16).
+  // Each use case authorizes goal.create before reading; running figures use
+  // governed progress rather than recommendation counts.
   const portalGoalPrompts = createPortalGoalPromptDeferralStore(input.db)
   const monthlyPortalGoalReads = (policy: GoalExecutionPolicy) => ({
     policy,
@@ -394,9 +388,6 @@ function buildGoalModule(input: ReportingContextBuildInput, metricApi: MetricPub
     prompts: portalGoalPrompts,
     now: input.clock,
   })
-  // Its commands: the set, and the change and the stop (PLAN PG-14), each over
-  // every Program of the Property and the engine's own commands; and the
-  // month-start check-in's Keep (PLAN PG-15), the answered month alone.
   const monthlyPortalGoalCommands = (policy: GoalExecutionPolicy) => ({
     policy,
     repository: goalProgramRepo,
@@ -427,7 +418,6 @@ function buildGoalModule(input: ReportingContextBuildInput, metricApi: MetricPub
         stopMonthlyPortalGoal(monthlyPortalGoalCommands(policy), ...args),
       keep: (policy, ...args) =>
         keepMonthlyPortalGoal(monthlyPortalGoalCommands(policy), ...args),
-      // The Overview prompt's "Not now", and a Portal's Results line (PLAN PG-16).
       defer: (policy, ...args) =>
         deferMonthlyPortalGoalPrompt(
           {
@@ -441,8 +431,6 @@ function buildGoalModule(input: ReportingContextBuildInput, metricApi: MetricPub
       line: (policy, ...args) =>
         readMonthlyPortalGoalLine(monthlyPortalGoalReads(policy), ...args),
     })
-  // Add a portal goal (PLAN PG-20): what it offers, read like the card, and its
-  // two commands, the engine's own create and its save for several subjects.
   const portalGoalAddDeps = (policy: GoalExecutionPolicy): PortalGoalAddDeps => ({
     policy,
     programs: buildGoalPrograms(policy),
@@ -475,8 +463,6 @@ function buildGoalModule(input: ReportingContextBuildInput, metricApi: MetricPub
     one: (policy, ...args) => addPortalGoal(portalGoalAddDeps(policy), ...args),
     each: (policy, ...args) => addPortalGoals(portalGoalAddDeps(policy), ...args),
   })
-  // A goal for one Portal, one Portal Group or the average (PLAN PG-21): its own
-  // page on `$goalId`, read like the Monthly portal goal's from its own subject.
   const portalGoalSingle: PortalGoalSinglePageRequestApi['portalGoalSingle'] =
     Object.freeze({
       page: (policy, ...args) =>
@@ -548,19 +534,13 @@ function buildGoalModule(input: ReportingContextBuildInput, metricApi: MetricPub
       repos: { goalProgramRepo } satisfies Readonly<{
         goalProgramRepo: GoalProgramRepository
       }>,
-      // The recommendation on its own, with its own `goal.create` check. The
-      // request surface reads it only inside the Monthly portal goal's card.
+      // Direct reads retain their own goal.create authorization.
       useCases: { goalRecommendation },
     },
   } as const
 }
 
-/**
- * The Property Google rating goal: its own tables and request surface, the
- * Goal permissions and capability, one consumer that evaluates the goal when
- * Review verifies Google's numbers, one that ends it when its Property is
- * archived, and the daily evaluation of every active goal. Not a Goal Program.
- */
+/** Rating goals share Goal permissions/capability, but have separate persistence. */
 function buildRatingGoalModule(
   input: ReportingContextBuildInput,
   metricApi: MetricPublicApi,

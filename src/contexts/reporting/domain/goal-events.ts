@@ -1,5 +1,3 @@
-// Goal context — domain events
-
 import { newEventId } from '#/shared/domain/event-id'
 import { assert } from '#/shared/domain/assert'
 import type { GoalMetricEvaluation } from './goal-program'

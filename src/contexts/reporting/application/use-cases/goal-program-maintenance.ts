@@ -1,11 +1,6 @@
-// Goal Program use cases — maintenance: activating scheduled Programs, opening
-// the monthly results that have come due, and reconciling and closing them.
-//
-// These commands run from the hourly maintenance job and the correction
-// consumer, not from a request. The service composes them (goal-programs.ts)
-// and re-exports the maintenance error so its importers stay where they were.
-// The one piece a request uses is `loadCaughtUpProgram`: the change commands
-// open a Program's due months with it before they read its head.
+// Hourly maintenance and correction delivery activate, open and reconcile months.
+// Request changes use loadCaughtUpProgram to open due months before reading the head.
+
 import { unclassifiedFailureCause } from './failure-cause'
 import type { GovernedGoalMetricResult } from './query-goal-metric'
 import {
@@ -59,7 +54,7 @@ export type GoalProgramMaintenanceStats = Readonly<{
   /**
    * What the failed operations died of, by content-free cause: a Goal error
    * code, `sqlstate_<code>` for a database refusal, else the error's class.
-   * Never a message or an identifier (BQC-7.3).
+   * Never a message or an identifier.
    */
   failureCauses: Readonly<Record<string, number>>
 }>

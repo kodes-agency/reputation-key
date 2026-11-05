@@ -1,24 +1,7 @@
-// How far a count goal's month should have got by now.
-//
-// "Behind pace" is a nudge, not a result: it compares the live month to date
-// with a straight line from zero to the month's target and says nothing about
-// whether the month will be met. One rule, used wherever a goal is called
-// behind pace (a Goals row, the Overview chip, the Properties list), so none of
-// them can disagree about it.
-//
-// - A count measure expects the target times the share of the month that has
-//   passed. The share counts whole Property-local calendar days with today
-//   included, the way Portal Results windows do (`localDaysWindow`).
-// - It is behind pace when the count is below 90% of what the line expects.
-//   Exactly 90% is on pace.
-// - The first three days of a month are not judged: a few days of a count say
-//   little, and the month has only just begun.
-// - Nor is a month that expects fewer than 5 by today (target x days gone <
-//   5 x days in the month): a target of 10 in a 30-day month is judged from
-//   day 15, and a target of 4 never is.
-// - An average has no pace. It is a level to hold, not a total to build up.
-//
-// Pure, and built on integers so a count on the edge is decided exactly.
+// Live count pace is a nudge, not a monthly result. Count whole Property-local
+// days including today; below 90% of the expected count is behind, exactly 90%
+// is on pace. Skip the first three days and expected counts below five; averages
+// have no pace. Integer arithmetic keeps boundary decisions exact.
 
 import { dayKeyInTimezone } from '#/shared/domain/period-range'
 import type { GoalMetric } from './goal-program'

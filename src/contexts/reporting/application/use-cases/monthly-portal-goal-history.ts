@@ -1,25 +1,9 @@
-// Reporting — the Monthly portal goal's months and what changed, for its page
-// (ADR 0068, PLAN PG-13).
-//
-// A Property keeps one Monthly portal goal at a time, but a stopped goal is
-// followed by a new one, so the page reads the line of succession: the goal
-// itself, then every earlier Property count goal of the Property that has
-// ended, newest end first. With no goal now (a stopped goal whose last month
-// has closed) it is those ended goals alone, so a notice or a link about one
-// of them still lands on their months. Its months are theirs together, one per
-// month (the goal's own first), newest first: the running month with its
-// governed figure, a month still being read with its figure so far, and each
-// closed month with its result after any correction. The card's read already
-// has the governed figure of the months it shows; any other month still
-// counting or being read (a stopped goal's November while the next goal waits
-// for December) is read the same governed way, never left without a figure.
-// Its changes are dated facts: a number set from a month (where it came from,
-// and a note), one month's own number set, the goal stopped, and each published
-// Portal going live. The server decides every one; the page only words them.
-//
-// A goal with a page of its own on `$goalId` (PLAN PG-21) has the same months
-// and changes, of itself alone: a Portal's or a group's count goal in its
-// counts, and the average private rating in its averages (`averageMeasureOf`).
+// Keep the current Property count goal then ended predecessors, newest end first
+// (ADR 0068). Merge months newest first, preferring the current goal for overlaps.
+// Read every open/reconciling month through the governed read, including stopped
+// goals; closed months retain corrected results. Single-subject pages use only
+// their own history and measure. Changes and Portal go-lives are dated server facts.
+
 import type { PortalGoalRecommendation } from '../dto/goal-recommendation.types'
 import type {
   PortalGoalChange,

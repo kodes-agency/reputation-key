@@ -1,21 +1,8 @@
-// Property Google rating goal — the reads: setup, simple card, detail, history.
-//
-// The setup read also asks Review for each calendar year's totals: the best
-// year is evidence for the plans' quality ("Like your best year"). Since rounds
-// 3 and 4 it asks, in the same parallel read, for each calendar month's totals
-// with ten reviews and the reviews per local date: the best month and the
-// busiest 30 days the one-screen setup plans from (PLAN-R4 D18). Over generous
-// UTC bounds; the domain trims them to the Property's calendar.
-//
-// The card and the detail evaluate the active goal as they read it, through
-// the same evaluation the snapshot consumer runs, so a goal Google now shows
-// the target of is reached (and one whose Property was archived or whose
-// Google location changed is ended) the first time anyone looks, even before
-// Google's next numbers arrive.
-//
-// Since round 5 (D-2b, the owner's exception) the detail also reads the low
-// reviews since the set and this week's star split, live: the rows go to the
-// server function with Review's ids, which it turns into Inbox items.
+// Setup reads year/month totals and daily counts over generous UTC bounds;
+// the domain trims best-month and busiest-30-day evidence to the Property calendar.
+// Card and detail reads share snapshot-consumer evaluation, so reaching or ending
+// a goal does not wait for another Google update. Detail low reviews and weekly
+// stars are live; the server replaces Review ids with Inbox links (ADR 0067).
 
 import { actualRate, chosenRate } from '../../domain/rating-goal-arrival'
 import {

@@ -1,9 +1,5 @@
-// Monthly portal goal — what the recommendation reads and returns (types only).
-//
-// The rule is `goal-recommendation.ts`. The read's result is re-exported for
-// the UI by `application/dto/goal-recommendation.types.ts`, which a component
-// imports with `import type`: no value here, so nothing reaches a bundle.
-// Days are Property-local `YYYY-MM-DD`; instants are ISO strings on the way out.
+// Recommendation inputs and results are types only; browser callers use the
+// application DTO. Days are Property-local YYYY-MM-DD; outgoing instants are ISO strings.
 
 export type PortalGoalMeasure = 'portal_rating_count' | 'qualified_scans'
 

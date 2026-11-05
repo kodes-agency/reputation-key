@@ -1,11 +1,5 @@
-// Reporting domain — Property-local calendar days, as `YYYY-MM-DD`.
-//
-// An instant's day is read on the Property's calendar; from then on a day is a
-// plain calendar date, so adding days to one or counting the days between two
-// never meets a clock change. The one spelling of that arithmetic, for the
-// Results series and the Monthly portal goal alike.
-//
-// Pure: only `shared/domain` is imported.
+// Convert instants to Property-local dates before calendar arithmetic, so DST
+// does not change day counts. Shared by Results series and monthly goals.
 
 import { propertyWallClockAt } from '#/shared/domain/property-calendar'
 

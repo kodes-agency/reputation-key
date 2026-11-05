@@ -1,24 +1,8 @@
-// Reporting — what "Add a portal goal" offers (ADR 0068, PLAN PG-20; copy deck
-// M-1…M-14).
-//
-// A goal for one Portal, or for each, next to the Property's Monthly portal
-// goal (P-5: most properties don't need one); a goal for a Portal Group; or the
-// average private rating for the whole Property. One composed read, asked for
-// `goal.create` before anything is read, since whoever sees the sheet is
-// whoever may add the goal. It reads the clock once, then the Programs the
-// actor may see and the recommendation's facts together, and the names of the
-// Property's Portal Groups a few at a time.
-//
-// The server decides what is open (PLAN E12):
-// - one Portal and each Portal need 2 or more live Portals (with one, the
-//   Monthly portal goal is that Portal's goal already);
-// - a group, a group with a live Portal (a draft or a turned-off Portal brings
-//   it nothing to count);
-// - the average, 10 private ratings in the last 4 weeks (a month needs 10).
-// Each Portal or group gets the rule's numbers on its own (`portal-goal-add-
-// numbers.ts`) in the month and measure the Property's recommendation offers,
-// and "Has a goal" when one already counts that measure for it from that
-// month: a subject takes one goal per measure at a time. It writes nothing.
+// Authorize goal.create and share one clock for Programs and recommendation facts
+// (ADR 0068). Portal choices need two live Portals; groups need a live member;
+// averages need ten private ratings in four weeks. Read group names with bounded
+// concurrency. Existing goals hold their measure from the offered start month.
+
 import { staffTargetProblem } from '../../domain/staff-target-eligibility'
 import { ratingSubjectSkipsPrivateRating } from '../goal-rating-eligibility'
 import { minimumSampleForGoalMetric } from '../../domain/goal-program'

@@ -1,4 +1,3 @@
-// Dashboard context — getAttentionSignals use case.
 // Authorizes the reader for the Property's overview (the band is work state a
 // `dashboard.read` holder without `dashboard.fleet_read` may not read), then
 // aggregates the five attention-band reasons plus their distinct work total.

@@ -1,11 +1,7 @@
-// Monthly portal goal — the server functions' input schemas.
-//
-// A lazy module: only `server/monthly-portal-goals.ts` imports it, for
-// `.validator(...)`, and that module is reached only by its own dynamic import,
-// so nothing here reaches first paint (PLAN E10). Never imported by
-// `goal-program.dto.ts`, which first paint loads; the two rules it shares with
-// the Program commands (the month key and the note) are restated here for that
-// reason.
+// Keep these validators behind the dynamic monthly-portal-goals import.
+// Sharing them through goal-program.dto.ts would add them to first paint;
+// the month-key and note checks are repeated here to keep that boundary.
+
 import { z } from 'zod/v4'
 
 const monthKey = z.string().regex(/^\d{4}-(0[1-9]|1[0-2])$/)
@@ -13,8 +9,7 @@ const measure = z.enum(['portal_rating_count', 'qualified_scans'])
 /** A month's number: a whole number of private ratings or scans. */
 const number = z.number().int().min(1).max(1_000_000)
 /**
- * A changed goal's number: a count's, or the average's level in tenths (PLAN
- * PG-21). Which the goal takes is the engine's to say, by what it measures.
+ * A count or average level in tenths; the command checks it against the measure.
  */
 const changedNumber = z.number().min(1).max(1_000_000)
 const targetSource = z.enum(['recommended', 'own'])
@@ -36,7 +31,7 @@ export const setMonthlyPortalGoalSchema = z.object({
 })
 
 /**
- * "Add a portal goal" (PLAN PG-20): one Portal or Portal Group, counting
+ * "Add a portal goal": one Portal or Portal Group, counting
  * private ratings or scans, or the Property's average private rating. Whether
  * the subject suits the measure, and the number the measure, is the command's
  * to say; this is the transport shape.
@@ -118,7 +113,7 @@ export const monthlyPortalGoalLineSchema = z.object({
   portalId: z.uuid(),
 })
 
-/** The page of a goal for one Portal, one Portal Group, or the average (PLAN PG-21). */
+/** The page of a goal for one Portal, one Portal Group, or the average. */
 export const portalGoalSinglePageSchema = z.object({
   propertyId: z.uuid(),
   programId: z.uuid(),

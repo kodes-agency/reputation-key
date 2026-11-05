@@ -1,18 +1,8 @@
-// Property Google rating goal — when the Monday check-in shows (pure).
-//
-// Round 5 (PLAN-D D-3, owner answer Q4, E29): every Property-local week, from
-// Monday 00:00 to Sunday 24:00, a climb goal's card looks back on last week
-// and asks its managers to keep the pace, raise it or ease it. Never
-// automatic: nothing changes unless a manager chooses. It is a card on the
-// page only, never a notice (Q11 stands).
-//
-// It shows for an active climb goal that is getting started, on pace or below
-// pace (never while new reviews are too low, while Google's numbers wait, or
-// while Google lags on the goal itself: Raise or Ease does not answer those),
-// once last week began on or after the set. It is answered for every manager
-// by a Keep of last week (`recapAnsweredWeek`, its Monday) or by any change of
-// the pace this week. Last week is compared with a plan only when the pace in
-// force at its Monday is today's; after a change during it, its count alone.
+// The weekly check-in is a page card, never a notice or automatic change.
+// An active climb goal asks after a whole Property-local week, except when
+// reviews are too low or Google is waiting/lagging on the goal. Keep answers for
+// all managers, as does changing pace this week. Compare last week against a
+// plan only if its Monday pace is still current; otherwise show its count alone.
 
 import type { PropertyRatingGoal, RatingGoalStatus } from './rating-goal'
 import {

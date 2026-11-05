@@ -94,7 +94,7 @@ export type PortalGoalRecommendationReads = Pick<
 /**
  * What the recommendation is worked out from, as read at `now`: the Property's
  * time zone, Portal's facts about its Portals (each with its group now), and
- * the counts per Portal and per Portal Group. The add sheet (PLAN PG-20) works
+ * the counts per Portal and per Portal Group. The add sheet works
  * a number out for each of them from the same facts.
  */
 export type PortalGoalFacts = Readonly<{

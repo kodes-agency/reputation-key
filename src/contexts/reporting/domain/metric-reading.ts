@@ -1,11 +1,7 @@
-// POST-BETA-3 PB3.1: Metric reading idempotency and correction model.
-//
-// Per ADR 0041:
-// - Every reading carries a stable source_event_id for idempotency
-//   and a definition_version_id for provenance.
-// - Corrections are append-only; they never overwrite the original fact.
-// - The registry fails closed: an unknown source/version produces no
-//   reading. Invalid events are rejected explicitly.
+// Readings retain source-event idempotency and definition-version provenance
+// (ADR 0041). Corrections append without overwriting facts; unknown sources or
+// versions fail closed and invalid events are explicitly rejected.
+
 import type { AttributionQuality } from './attribution-quality'
 import type { SourcePolicyClass } from './metric-registry'
 import type {

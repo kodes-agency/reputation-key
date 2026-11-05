@@ -6,7 +6,7 @@
 // insert does nothing and is told `active_exists`. A manager's change or end
 // is a compare-and-set on the version; a change also forgets the known status,
 // so a status the new plan puts the goal in is stored without a notice, unless
-// it moves the pace alone (the fresh start keeps it, round 5 Q3). An
+// it moves the pace alone (the fresh start keeps it). An
 // evaluation never moves the version and writes only when it changes the row,
 // and only onto the plan version it was worked out on, never over a newer
 // evaluation, and only onto the tenth, known status and below-pace notice it

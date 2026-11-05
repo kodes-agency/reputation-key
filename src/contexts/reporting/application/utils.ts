@@ -1,4 +1,3 @@
-// Dashboard context — shared utilities for server and repository layers
 import type { TimeRangePreset } from './dto/dashboard.dto'
 import {
   propertyWallClockAt,
@@ -100,7 +99,7 @@ export function ratingComparison(
   return Math.round((currentAverage - priorAverage) * 10) / 10
 }
 
-// ── BQC-5.5: consolidated read-policy helpers (were inline copies ×5/×2) ──
+// Shared governed-read policy.
 
 /** Default bound for the recent-reviews list read — the dashboard's one
  *  bounded list. Named here so the use case and the repo share it. */

@@ -1,13 +1,6 @@
-// POST-BETA-3 PB3.0-PB3.1: Governed metric registry.
-//
-// Per ADR 0041: a centralized, code-reviewed registry is the ONLY route
-// from source facts to Goal Programs and governed reporting. Application
-// code references a version ID, not an ad-hoc formula.
-//
-// Rules:
-// - Material rule changes create a new version; they never mutate historical meaning.
-// - The registry FAILS CLOSED: unknown source/version produces no reading.
-// - employment_decision_eligible is permanently false in post-beta v1.
+// The registry is the authority for governed measurements (ADR 0041).
+// Callers reference immutable version ids; material rule changes need a new version.
+// Unknown sources/versions fail closed. Employment-decision eligibility stays false.
 
 import type { MetricKey } from '#/shared/domain/metric-keys'
 export type MetricValueKind = 'counter' | 'duration' | 'level' | 'ratio' | 'average'

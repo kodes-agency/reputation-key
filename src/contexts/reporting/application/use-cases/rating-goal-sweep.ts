@@ -46,7 +46,7 @@ export type RatingGoalSweepStats = Readonly<{
   /**
    * What they failed of: a rating goal error code, `sqlstate_<code>` for a
    * database refusal, else the error's class. Never a message or an
-   * identifier (BQC-7.3).
+   * identifier.
    */
   failureCauses: Readonly<Record<string, number>>
 }>

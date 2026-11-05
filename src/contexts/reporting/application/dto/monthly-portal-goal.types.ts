@@ -1,9 +1,5 @@
-// Monthly portal goal — what the Goals page card read returns (types only).
-//
-// No zod and no values: a component imports these with `import type`, so
-// nothing here reaches a bundle (PLAN E10). The server decides every state,
-// day and number; the card only words them (PLAN E12). Days are
-// Property-local `YYYY-MM-DD`, months `YYYY-MM`.
+// Browser-safe types for the goal card. The server decides states, days and numbers.
+// Days are Property-local YYYY-MM-DD; months are YYYY-MM.
 
 import type { PortalGoalMeasure, PortalGoalRatio } from './goal-recommendation.types'
 
@@ -110,7 +106,7 @@ export type PortalGoalMeasureOffers = Readonly<{
 }>
 
 /**
- * What the set sheet works from (PLAN PG-10): the month it opens on, the two
+ * What the set sheet works from: the month it opens on, the two
  * months a goal may start in with this month so far (for a number of the
  * manager's own, which the sheet starts empty), each measure's offers for both
  * months, and, in the first weeks, the day the recommended number is ready.
@@ -207,7 +203,7 @@ export type PortalGoalLastMonth = Readonly<{
 }>
 
 /**
- * What a change to the goal is made against (PLAN PG-14), from the plan the
+ * What a change to the goal is made against, from the plan the
  * month-target command follows: the running month while its number can still
  * change (to its last day), and the month a change from a coming month starts
  * with. The sheet sends these back with the change, so a sheet left open over
@@ -301,7 +297,7 @@ export type PortalGoalOfCard = Readonly<{
 }>
 
 /**
- * The month-start check-in (PLAN PG-15; copy deck K-1…K-11): on local days 1
+ * The month-start check-in: on local days 1
  * to 7 of a month that is not the goal's first, while the goal runs and until
  * a manager answers it, whether the month keeps its number. Nothing changes
  * unless a manager chooses. The read decides it all; the card words it.
@@ -337,10 +333,7 @@ export type PortalGoalCheckIn = Readonly<{
   )
 
 /**
- * The Overview's prompt for the number ready to use (PLAN PG-16; copy deck
- * O-1): "Your monthly portal goal for November is ready: 40 private ratings."
- * The month and the number are the offer's (its recommended number); the
- * measure is the offer's.
+ * The Overview prompt carries the offer's month, recommended number and measure.
  */
 export type PortalGoalPrompt = Readonly<{
   /** `YYYY-MM`: the month offered. */
@@ -432,7 +425,7 @@ export type ChangeMonthlyPortalGoalNowRequest = OfTheGoal &
 
 /**
  * "From Dec 1" and "Count scans instead": the goal from its next month; on the
- * average's own page (PLAN PG-21), its level from its next month.
+ * average's own page, its level from its next month.
  */
 export type ReviseMonthlyPortalGoalRequest = OfTheGoal &
   Readonly<{
@@ -473,8 +466,7 @@ export type MonthlyPortalGoalLineRequest = Readonly<{
 }>
 
 /**
- * The line at the top of a Portal's Results tab (PLAN PG-16; copy deck R-1,
- * R-2): this month, what the Portal brought in toward the Monthly portal goal,
+ * This month's Portal contribution toward the Monthly portal goal,
  * and the Portal's own goal when it has one. Null (no line) for a draft Portal,
  * and when neither goal is counting this month.
  */

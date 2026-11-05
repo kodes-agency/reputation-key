@@ -1,8 +1,4 @@
-// Dashboard context — Drizzle adapter implementing MetricStatsPort
-// SQL queries against metric_readings table.
-// This is the ONLY place dashboard infrastructure touches metric_readings.
-// BQC-5.5: scope predicates, the aggregate skeleton, and the statement
-// timeout come from the read facade — methods are scope→skeleton wiring.
+// Share scope predicates, aggregate SQL and statement timeout through the read facade.
 
 import type { Database } from '#/shared/db'
 import { trace } from '#/shared/observability/trace'

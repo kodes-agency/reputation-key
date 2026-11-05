@@ -1,4 +1,3 @@
-// Dashboard context — MetricStatsPort (facade port per ADR-0007)
 // Aggregation queries against metric_readings data.
 // Dashboard never imports metric_readings table directly — this port is the boundary.
 

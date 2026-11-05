@@ -36,7 +36,7 @@ export type GoalRecommendationCounts = Readonly<{
   /**
    * Each Portal Group's readings per measure and local day, by the group each
    * reading was recorded with: a Portal that moved counts in its old group
-   * before the move and in its new one after (PLAN PG-20, G19).
+   * before the move and in its new one after.
    */
   groupDays: readonly RecommendationGroupDayCount[]
   /** Each Portal Group's day with a reading the governed read would quarantine. */
