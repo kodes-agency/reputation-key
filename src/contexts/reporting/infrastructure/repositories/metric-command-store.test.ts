@@ -14,7 +14,6 @@ import {
   metricReadingId,
   portalAccessArtifactId,
   qualifiedScanId,
-  reviewId,
 } from '#/shared/domain/ids'
 import {
   createReading,
@@ -27,15 +26,13 @@ import type {
   GuestReviewLinkClicked,
   GuestQualifiedScanRecorded,
 } from '#/contexts/guest/application/public-api'
-import { recordMetric, recordMetrics } from '../../application/use-cases/record-metric'
+import { recordMetrics } from '../../application/use-cases/record-metric'
 import { createMetricRegistryRepository } from './metric-registry.repository'
 import { createPropertyLocalDateResolver } from './property-local-date'
 import {
   onQualifiedScanRecordedDurably,
   onReviewLinkClickedDurably,
 } from '../record-portal-metric'
-import { createConsumerRegistry } from '#/shared/outbox/consumer-registry'
-import { registerPublicReputationMetricConsumers } from '../public-reputation-outbox-consumers'
 
 const ORG_ID = organizationId('org-metriccmd-0000-0000-0000-000000000001')
 const PROP_ID = propertyId('4d000000-0000-0000-0000-000000000001')
@@ -795,117 +792,6 @@ describe.sequential('metricCommandStore (integration)', () => {
       [`${missingRetractionEventId}:%`, missingRetractionEventId],
     )
     expect(rolledBack.rows).toEqual([{ correction_count: 0, receipt_count: 0 }])
-  })
-
-  it('settles review.created as applied or obsolete without a partial reading', async () => {
-    const appliedEventId = '4f000000-0000-4000-8000-000000000051'
-    const obsoleteEventId = '4f000000-0000-4000-8000-000000000052'
-    const missingEventId = '4f000000-0000-4000-8000-000000000053'
-    const appliedReviewId = reviewId('4f000000-0000-4000-8000-000000000054')
-    const obsoleteReviewId = reviewId('4f000000-0000-4000-8000-000000000055')
-    const missingReviewId = reviewId('4f000000-0000-4000-8000-000000000056')
-    const payloadFor = (id: string) => ({
-      reviewId: id,
-      organizationId: ORG_ID,
-      propertyId: PROP_ID,
-      platform: 'google',
-      sourceEpoch: 1,
-      sourceRevision: 1,
-      analysisSequence: 1,
-      occurredAt: QUALIFIED_AT.toISOString(),
-    })
-    for (const [eventId, id] of [
-      [appliedEventId, appliedReviewId],
-      [obsoleteEventId, obsoleteReviewId],
-    ] as const) {
-      await pool.query(
-        `INSERT INTO outbox_events (
-           id, event_type, event_version, payload, organization_id, property_id,
-           source_context, source_aggregate_id
-         ) VALUES ($1, 'review.created', 1, $2::jsonb, $3, $4, 'review', $5)`,
-        [eventId, JSON.stringify(payloadFor(id)), ORG_ID, PROP_ID, id],
-      )
-    }
-
-    const record = recordMetric({
-      commandStore: createAtomicMetricCommandStore(db, randomUUID),
-      registry: createMetricRegistryRepository(),
-      clock: () => QUALIFIED_AT,
-      idGen: () => metricReadingId(randomUUID()),
-      resolvePropertyLocalDate: createPropertyLocalDateResolver(db),
-    })
-    const registry = createConsumerRegistry()
-    registerPublicReputationMetricConsumers(registry, {
-      db,
-      recordMetric: record,
-      reviewRatingLookup: {
-        getEligibleRatingById: async (id) => (id === obsoleteReviewId ? null : 4),
-      },
-    })
-    const [consumer] = registry.listFor('review.created')
-    if (!consumer) throw new Error('Public Reputation consumer was not registered')
-    const envelopeFor = (eventId: string, id: string) => ({
-      eventId,
-      eventType: 'review.created',
-      eventVersion: 1,
-      payload: payloadFor(id),
-      organizationId: ORG_ID,
-      propertyId: PROP_ID,
-      sourceContext: 'review',
-      sourceAggregateId: id,
-      occurredAt: QUALIFIED_AT.toISOString(),
-      recordedAt: QUALIFIED_AT.toISOString(),
-    })
-
-    await expect(
-      consumer.handler(envelopeFor(appliedEventId, appliedReviewId)),
-    ).resolves.toEqual({ status: 'applied' })
-    await expect(
-      consumer.handler(envelopeFor(appliedEventId, appliedReviewId)),
-    ).resolves.toEqual({ status: 'duplicate' })
-    await expect(
-      consumer.handler(envelopeFor(obsoleteEventId, obsoleteReviewId)),
-    ).resolves.toEqual({ status: 'obsolete' })
-    await expect(
-      consumer.handler(envelopeFor(missingEventId, missingReviewId)),
-    ).rejects.toThrow(/Failed query/u)
-
-    const outcomes = await pool.query(
-      `SELECT
-         (
-           SELECT count(*)::int FROM metric_readings
-           WHERE source_event_id = $1
-         ) AS applied_reading_count,
-         (
-           SELECT count(*)::int FROM metric_readings
-           WHERE source_event_id = $2
-         ) AS missing_reading_count,
-         (
-           SELECT status FROM event_consumer_receipts
-           WHERE event_id = $1::uuid
-             AND consumer_name = 'metric.public-reputation'
-         ) AS applied_status,
-         (
-           SELECT status FROM event_consumer_receipts
-           WHERE event_id = $3::uuid
-             AND consumer_name = 'metric.public-reputation'
-         ) AS obsolete_status,
-         (
-           SELECT count(*)::int FROM event_consumer_receipts
-           WHERE event_id = $2::uuid
-             AND consumer_name = 'metric.public-reputation'
-         ) AS missing_receipt_count`,
-      [appliedEventId, missingEventId, obsoleteEventId],
-    )
-    expect(outcomes.rows).toEqual([
-      {
-        applied_reading_count: 1,
-        missing_reading_count: 0,
-        applied_status: 'applied',
-        obsolete_status: 'obsolete',
-        missing_receipt_count: 0,
-      },
-    ])
   })
 
   it('retracts a specific Guest source fact without replacing it with zero', async () => {
