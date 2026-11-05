@@ -5,11 +5,7 @@ import {
   type GovernedMetricVersion,
 } from '../../domain/metric-registry'
 import type { GoalMetricSourceStatus } from '../ports/goal-metric-source-status.port'
-import type {
-  GoalMetricAggregate,
-  GoalMetricSubject,
-  MetricRepository,
-} from '../ports/metric.repository'
+import type { GoalMetricAggregate, GoalMetricSubject } from '../ports/metric.repository'
 import { queryGoalMetric } from './query-goal-metric'
 
 const ORG = organizationId('org-1')
@@ -92,14 +88,17 @@ function harness(input: {
   subjectValid?: boolean
 }) {
   const versionId = input.versionId ?? METRIC_VERSION_IDS.portalRatingCountGoal
-  const queryGoalAggregate = vi.fn(async () => input.aggregate ?? aggregate())
-  const metrics: MetricRepository = {
-    queryGoalAggregate,
-    hasReading: async () => false,
-  }
-  const inspect = vi.fn(async () => input.source ?? source())
+  const queryGoalAggregate = vi.fn(
+    async (_query: unknown) => input.aggregate ?? aggregate(),
+  )
+  const inspect = vi.fn(
+    async (_query: unknown, _eventTypes: readonly string[]) => input.source ?? source(),
+  )
   const useCase = queryGoalMetric({
-    metrics,
+    readSnapshot: async (query, eventTypes) => ({
+      aggregate: await queryGoalAggregate(query),
+      source: await inspect(query, eventTypes),
+    }),
     registry: {
       findVersionById: async (id) =>
         id === versionId
@@ -111,7 +110,6 @@ function harness(input: {
             )
           : null,
     },
-    sourceStatus: { inspect },
     validateSubject: async () => input.subjectValid ?? true,
     clock: () => input.now ?? AFTER_RECONCILIATION,
   })
@@ -128,6 +126,28 @@ const query = (definitionVersionId: string) => ({
 })
 
 describe('queryGoalMetric', () => {
+  it('evaluates the value supplied with the snapshot completeness proof', async () => {
+    const late = aggregate({ sum: 1, sampleCount: 1, readingCount: 1 })
+    const sourceHead = { value: 'snapshot-head', eventTypes: ['guest.rating.submitted'] }
+    const deps = {
+      registry: {
+        findVersionById: async () =>
+          governed(METRIC_VERSION_IDS.portalRatingCountGoal, 'portal.rating_count', 0, 0),
+      },
+      readSnapshot: async () => ({ aggregate: late, source: source(), sourceHead }),
+      validateSubject: async () => true,
+      clock: () => AFTER_RECONCILIATION,
+    }
+    await expect(
+      queryGoalMetric(deps)(query(METRIC_VERSION_IDS.portalRatingCountGoal)),
+    ).resolves.toMatchObject({
+      state: 'eligible',
+      exactValue: 1,
+      sampleCount: 1,
+      sourceHead,
+    })
+  })
+
   it('returns a verified zero count only after source completeness and reconciliation', async () => {
     const { useCase } = harness({})
     await expect(

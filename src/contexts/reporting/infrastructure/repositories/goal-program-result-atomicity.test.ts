@@ -10,6 +10,32 @@ import type {
   GoalProgramBundle,
 } from '../../application/ports/goal-program.repository'
 import { createGoalProgramRepository } from './goal-program.repository'
+import { readGoalMetricSourceHead } from './goal-metric-source-head'
+import type { GoalProgramRepository } from '../../application/ports/goal-program.repository'
+
+function createResultRepository() {
+  const repository = createGoalProgramRepository(getDb())
+  return {
+    ...repository,
+    async updateResult(
+      input: Omit<Parameters<GoalProgramRepository['updateResult']>[0], 'authorize'>,
+    ) {
+      const sourceHead = await readGoalMetricSourceHead(
+        getDb(),
+        {
+          ...input.result,
+          definitionVersionId: METRIC_VERSION_IDS.portalRatingCountGoal,
+        },
+        ['guest.rating.submitted', 'guest.rating.retracted'],
+      )
+      return repository.updateResult({
+        ...input,
+        sourceHead,
+        authorize: async () => undefined,
+      })
+    },
+  }
+}
 
 describe.sequential('Goal Program result CAS and outbox (integration)', () => {
   let lease: TestLease
@@ -133,7 +159,7 @@ describe.sequential('Goal Program result CAS and outbox (integration)', () => {
   }
 
   it('allows one concurrent close, records one authoritative fact, and ignores replay', async () => {
-    const repository = createGoalProgramRepository(getDb())
+    const repository = createResultRepository()
     const current = await seedReconcilingResult()
     const closedAt = new Date('2026-08-02T12:00:00.000Z')
     // Deliberately stale caller-owned aggregate fields prove the event is built
@@ -209,7 +235,7 @@ describe.sequential('Goal Program result CAS and outbox (integration)', () => {
   })
 
   it('projects the latest append-only correction without rewriting the closed result', async () => {
-    const repository = createGoalProgramRepository(getDb())
+    const repository = createResultRepository()
     const current = await seedReconcilingResult()
     const closedAt = new Date('2026-08-02T12:00:00.000Z')
     await expect(
@@ -360,7 +386,7 @@ describe.sequential('Goal Program result CAS and outbox (integration)', () => {
   })
 
   it('records the reconciled fact when a month starts reconciling, and none while it stays so', async () => {
-    const repository = createGoalProgramRepository(getDb())
+    const repository = createResultRepository()
     const open = await seedReconcilingResult('open')
     const startedAt = new Date('2026-08-01T01:00:00.000Z')
     const stillAt = new Date('2026-08-01T02:00:00.000Z')
@@ -425,7 +451,7 @@ describe.sequential('Goal Program result CAS and outbox (integration)', () => {
   })
 
   it('rolls back the result transition when its outbox insert cannot commit', async () => {
-    const repository = createGoalProgramRepository(getDb())
+    const repository = createResultRepository()
     const current = await seedReconcilingResult()
     const failureConstraint = 'goal_monthly_result_closed_test_failure'
     await lease.pool.query(

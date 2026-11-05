@@ -18,3 +18,7 @@ export type GoalMetricSourceStatusPort = Readonly<{
     eventTypes: readonly string[],
   ): Promise<GoalMetricSourceStatus>
 }>
+export type GoalMetricSourceHead = Readonly<{
+  value: string
+  eventTypes: readonly string[]
+}>

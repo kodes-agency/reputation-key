@@ -20,6 +20,7 @@ const running = (reading: NonNullable<PortalGoalAverageOfPage['month']>['reading
     target: 4.5,
     startsOn: null,
     endedOn: null,
+    countingMonth: { key: '2026-11' },
     month: { key: '2026-11', target: 4.5, daysAfterToday: 8, reading },
     change: null,
   }) satisfies PortalGoalAverageOfPage
@@ -145,6 +146,7 @@ describe('the page of a goal for one portal, one group or the average', () => {
       ...running({ kind: 'unavailable' }),
       status: 'scheduled',
       startsOn: '2026-12-01',
+      countingMonth: null,
       month: null,
     } as const
 

@@ -40,7 +40,7 @@ export const organizationLifecycleHoldsProgram: SQL = lifecycleHolds(
 
 /** True when the lifecycle holds the Organization. */
 export async function isOrganizationHeldByLifecycle(
-  db: Database,
+  db: Pick<Database, 'execute'>,
   organizationId: string,
 ): Promise<boolean> {
   const result = await db.execute(sql`SELECT ${lifecycleHolds(organizationId)} AS held`)

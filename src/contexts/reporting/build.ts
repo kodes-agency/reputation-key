@@ -31,7 +31,7 @@ import type { MetricPublicApi, PortalRatingGoalReadApi } from './application/pub
 import { createMetricRepository } from './infrastructure/repositories/metric.repository'
 import { createMetricRegistryRepository } from './infrastructure/repositories/metric-registry.repository'
 import { createPropertyLocalDateResolver } from './infrastructure/repositories/property-local-date'
-import { createGoalMetricSourceStatus } from './infrastructure/repositories/goal-metric-source-status'
+import { createGoalMetricSnapshotReader } from './infrastructure/repositories/goal-metric-snapshot'
 import { createAtomicMetricCommandStore } from './infrastructure/metric-command-store'
 import { recordMetric, recordMetrics } from './application/use-cases/record-metric'
 import { retractMetrics } from './application/use-cases/retract-metric'
@@ -206,9 +206,8 @@ function buildMetricModule(input: ReportingContextBuildInput) {
   )
   const commandStore = createAtomicMetricCommandStore(input.db, input.idGen)
   const readGoalMetric = queryGoalMetric({
-    metrics: metricRepo,
+    readSnapshot: createGoalMetricSnapshotReader(input.db, input.portalGroupApi),
     registry,
-    sourceStatus: createGoalMetricSourceStatus(input.db, input.portalGroupApi),
     validateSubject: async (orgId, propertyId, subject) => {
       switch (subject.kind) {
         case 'property':
@@ -324,7 +323,7 @@ function buildMetricModule(input: ReportingContextBuildInput) {
 }
 
 function buildGoalModule(input: ReportingContextBuildInput, metricApi: MetricPublicApi) {
-  const goalProgramRepo = createGoalProgramRepository(input.db)
+  const goalProgramRepo = createGoalProgramRepository(input.db, input.idGen)
   const monthlyResultNotificationFacts = createMonthlyResultNotificationFactsLookup(
     input.db,
   )

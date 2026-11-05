@@ -626,6 +626,30 @@ setup-checklist, Portal lifetime, and Current on Google tables declared in the s
 package. Repositories remain split by
 aggregate and read purpose even though they share a bounded context.
 
+Monthly goal totals and their source/receipt completeness proof are read in one
+read-only repeatable-read transaction (`goal-metric-snapshot.ts`). Stopping an
+active Program locks its row, opens due months per current assignment, and ends
+it in the same transaction; the last month still reconciles and closes.
+Single-goal page DTOs carry the latest month Stop retains, using that same due-month
+planner before hourly maintenance opens it. This calendar fact is independent of
+live progress reads and change availability, including for several subjects.
+
+Closure compares the snapshot's source head in the result update, covering source
+facts, consumer receipts, readings and corrections. Guest fact commits and metric
+commands share a Property fence; closure holds it exclusively through the result
+and outbox commit. A changed head leaves the month reconciling for a fresh read.
+Contended closure fences skip the month for retry so one held tenant cannot stall maintenance.
+Closure also holds the Organization lifecycle fence and rechecks execution policy
+inside its transaction, including before commit. A concurrent lifecycle transition
+defers closure for retry; a committed hold still lets existing months drain so
+purge readiness can clear. `goal-result-closure-barrier.test.ts` covers late source
+changes, concurrent suspension, and draining a month during Organization closure.
+`scripts/ops/find-stale-goal-results.sql` lists closed heads
+whose values or samples differ from current effective readings, including the
+latest revision. It is read-only and conservative, not a completeness proof.
+Changed outcomes require owner review and the existing result-revision command;
+the query authorizes no repair.
+
 ## Durable facts
 
 Metric and Goal event modules are named `metric-events.ts` and `goal-events.ts`. Their event
