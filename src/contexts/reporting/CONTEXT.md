@@ -17,6 +17,12 @@ metric authority.
   daily evaluation of every Property Google rating goal.
 - Contribute Reporting-owned records to organization export and lifecycle operations.
 
+The Properties list's fleet read pages Google snapshots at the current binding,
+stored rating goals, and current Inbox attention. It accepts a cursor without a
+historical period and reads no historical analytics for the list cells. Monthly
+goals behind pace still use the shared running-month readings. Setup summaries
+remain a separate read, and Property overview period metrics are unchanged.
+
 Guest voice's independent Google headline uses `readPropertyGoogleNumbers`
 (`getPropertyGoogleNumbersFn`), a narrow `dashboard.read` Property read that
 requires same-Organization current access before snapshot/binding reads. It

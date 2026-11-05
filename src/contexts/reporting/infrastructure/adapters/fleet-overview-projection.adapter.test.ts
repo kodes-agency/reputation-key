@@ -1,4 +1,6 @@
 import { describe, expect, it } from 'vitest'
+import { PgDialect } from 'drizzle-orm/pg-core'
+import type { SQL } from 'drizzle-orm'
 import type { Database } from '#/shared/db'
 import { organizationId, propertyId, userId } from '#/shared/domain/ids'
 import type { FleetOverviewProjectionRow } from '../../application/ports/fleet-overview-projection.port'
@@ -31,9 +33,6 @@ function mainRows(items: readonly FleetProperty[], total: number) {
       {
         property_id: null,
         property_count: '0',
-        rating_sample_count: '0',
-        overall_avg_rating: '0',
-        rating_drop_total: '0',
         has_more: false,
       },
     ]
@@ -44,34 +43,8 @@ function mainRows(items: readonly FleetProperty[], total: number) {
     cursor_lower_name: item.name.toLowerCase(),
     slug: item.slug,
     timezone: item.timezone,
-    period_start: new Date('2026-07-10T12:00:00Z'),
-    period_end: NOW,
-    review_count: '2',
-    prior_review_count: '1',
-    avg_rating: '4.5',
-    prior_avg_rating: '4',
-    scan_count: '3',
-    feedback_count: '1',
     property_count: String(total),
-    rating_sample_count: String(total * 2),
-    overall_avg_rating: '4.5',
-    rating_drop_total: '0',
     has_more: total > 50,
-    portal_enabled: true,
-    review_total_count: '2',
-    review_watermark: NOW,
-    review_correction_count: '0',
-    review_source_policies: ['google_property_derivative'],
-    scan_eligible_count: '1',
-    scan_total_count: '1',
-    scan_watermark: NOW,
-    scan_correction_count: '0',
-    scan_source_policies: ['first_party_workflow'],
-    feedback_total_count: '1',
-    feedback_eligible_count: '1',
-    feedback_watermark: NOW,
-    feedback_correction_count: '0',
-    feedback_source_policies: ['first_party_workflow'],
     items_to_triage: '0',
     escalated: '0',
     needs_attention: '0',
@@ -85,11 +58,14 @@ function fakeDatabase(
 ): {
   db: Database
   calls: () => number
+  statements: string[]
 } {
   let calls = 0
+  const statements: string[] = []
   // One read is three statements, however large the fleet: the timeout setting,
   // the page, and the running goal months in scope.
-  const execute = async () => {
+  const execute = async (query: SQL) => {
+    statements.push(new PgDialect().sqlToQuery(query).sql)
     calls += 1
     const phase = (calls - 1) % 3
     if (phase === 1) {
@@ -104,7 +80,7 @@ function fakeDatabase(
   const db = {
     transaction: async (run: (value: typeof tx) => Promise<unknown>) => run(tx),
   } as unknown as Database
-  return { db, calls: () => calls }
+  return { db, calls: () => calls, statements }
 }
 
 const inboxTargets = {
@@ -118,9 +94,7 @@ const inboxTargets = {
 const input = {
   organizationId: ORG,
   scope: { userId: USER, organizationWide: true },
-  portalReadEnabled: true,
   goalReadEnabled: true,
-  timeRange: '30d' as const,
 }
 const resolveAccessiblePropertyIds = async (
   _organizationId: unknown,
@@ -168,6 +142,21 @@ describe('fleet overview bulk projection', () => {
     ])
   })
 
+  it('reads the list without scanning historical metric readings or corrections', async () => {
+    const fake = fakeDatabase(() => 5_000)
+    const getFleet = getFleetOverview({
+      projection: createFleetOverviewProjectionAdapter(fake.db),
+      resolveAccessiblePropertyIds,
+      clock: () => NOW,
+      inboxTargets,
+    })
+
+    await getFleet({ ...input, goalReadEnabled: false })
+
+    expect(fake.calls()).toBe(2)
+    expect(fake.statements.join('\n')).not.toMatch(/\bmetric_(readings|corrections)\b/)
+  })
+
   it('returns an intentional empty fleet from an empty database scope', async () => {
     const fake = fakeDatabase(() => 0)
     const getFleet = getFleetOverview({
@@ -186,9 +175,7 @@ describe('fleet overview bulk projection', () => {
       entries: [],
       totals: {
         propertyCount: 0,
-        ratingSampleCount: 0,
         totalAttention: 0,
-        overallAvgRating: 0,
       },
       nextCursor: null,
     })
@@ -216,10 +203,8 @@ describe('Google’s own numbers and the stored rating goal on a fleet row', () 
     const result = await createFleetOverviewProjectionAdapter(fake.db).read({
       organizationId: ORG,
       accessiblePropertyIds: null,
-      portalReadEnabled: true,
       goalReadEnabled: true,
       cursor: null,
-      periodDays: null,
       now: NOW,
     })
     return result.rows[0]

@@ -16,7 +16,7 @@ vi.mock('#/routes/-queries/route-queries', () => ({
   },
 }))
 
-import { LIFETIME, fleetQuery, prefetchPropertyList } from './-properties-prefetch'
+import { fleetQuery, prefetchPropertyList } from './-properties-prefetch'
 
 const PAGE = { entries: [{ propertyId: 'prop-1' }], nextCursor: null }
 
@@ -31,19 +31,19 @@ describe('prefetchPropertyList', () => {
 
     await prefetchPropertyList(queryClient)
 
-    const fleet = queryClient.getQueryData(fleetQuery(LIFETIME).queryKey)
+    const fleet = queryClient.getQueryData(fleetQuery().queryKey)
     expect(fleet).toEqual({ pages: [PAGE], pageParams: [undefined] })
     expect(queryClient.getQueryData(['setup-summaries-test'])).toEqual([
       { propertyId: 'prop-1' },
     ])
   })
 
-  it('asks for the unbounded window, the one the page shows', async () => {
+  it('asks only for the list without a historical period', async () => {
     mocks.getFleetOverviewFn.mockResolvedValue(PAGE)
 
     await prefetchPropertyList(new QueryClient())
 
-    expect(mocks.getFleetOverviewFn).toHaveBeenCalledWith({ data: { timeRange: 'all' } })
+    expect(mocks.getFleetOverviewFn).toHaveBeenCalledWith({ data: {} })
   })
 
   it('starts both reads before either has answered', async () => {
