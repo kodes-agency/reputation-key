@@ -119,30 +119,6 @@ function scanJsonNumber(raw: string, start: number): number | null {
   return cursor
 }
 
-export function isApplicationJsonUtf8(value: string): boolean {
-  const normalized = value.toLowerCase()
-  const mediaType = 'application/json'
-  if (!normalized.startsWith(mediaType)) return false
-  let cursor = mediaType.length
-  while (normalized[cursor] === ' ' || normalized[cursor] === '\t') cursor += 1
-  if (cursor === normalized.length) return true
-  if (normalized[cursor] !== ';') return false
-  cursor += 1
-  while (normalized[cursor] === ' ' || normalized[cursor] === '\t') cursor += 1
-  const parameter = 'charset'
-  if (normalized.slice(cursor, cursor + parameter.length) !== parameter) return false
-  cursor += parameter.length
-  while (normalized[cursor] === ' ' || normalized[cursor] === '\t') cursor += 1
-  if (normalized[cursor] !== '=') return false
-  cursor += 1
-  while (normalized[cursor] === ' ' || normalized[cursor] === '\t') cursor += 1
-  const charset = 'utf-8'
-  if (normalized.slice(cursor, cursor + charset.length) !== charset) return false
-  cursor += charset.length
-  while (normalized[cursor] === ' ' || normalized[cursor] === '\t') cursor += 1
-  return cursor === normalized.length
-}
-
 function scanStrictJson(raw: string): void {
   let offset = 0
   let nodeCount = 0
@@ -404,77 +380,6 @@ export function parseAiProviderJsonBytes<T>(
 ): T {
   if (maxBytes > AI_TREND_ROUTE_MAX_BYTES) fail()
   return parseStrictInternalJsonBytes(bytes, maxBytes, schema, 'finite-numbers')
-}
-
-async function cancelBodyQuietly(body: ReadableStream<Uint8Array>): Promise<void> {
-  try {
-    await body.cancel()
-  } catch {
-    // Cleanup failure must never replace the closed transport denial.
-  }
-}
-
-async function cancelReaderQuietly(
-  reader: ReadableStreamDefaultReader<Uint8Array>,
-): Promise<void> {
-  try {
-    await reader.cancel()
-  } catch {
-    // Cleanup failure must never replace the closed transport denial.
-  }
-}
-
-export async function readAiInternalJsonRequest<T>(
-  request: Request,
-  maxBytes: number,
-  schema: z.ZodType<T>,
-): Promise<T> {
-  const contentType = request.headers.get('content-type')
-  const contentLength = request.headers.get('content-length')
-  const body = request.body
-  if (
-    contentType === null ||
-    !isApplicationJsonUtf8(contentType) ||
-    request.headers.has('content-encoding') ||
-    (contentLength !== null &&
-      (!/^(0|[1-9][0-9]*)$/.test(contentLength) || Number(contentLength) > maxBytes)) ||
-    body === null
-  ) {
-    if (body !== null) await cancelBodyQuietly(body)
-    fail()
-  }
-  const reader = body.getReader()
-  const chunks: Uint8Array[] = []
-  let totalBytes = 0
-  let combinedBytes: Uint8Array | null = null
-  let readerDone = false
-  try {
-    while (true) {
-      const next = await reader.read()
-      if (next.done) {
-        readerDone = true
-        break
-      }
-      chunks.push(next.value)
-      totalBytes += next.value.byteLength
-      if (totalBytes > maxBytes) fail()
-    }
-    if (contentLength !== null && Number(contentLength) !== totalBytes) fail()
-    combinedBytes = new Uint8Array(totalBytes)
-    let offset = 0
-    for (const chunk of chunks) {
-      combinedBytes.set(chunk, offset)
-      offset += chunk.byteLength
-    }
-    return parseAiInternalJsonBytes(combinedBytes, maxBytes, schema)
-  } catch (error) {
-    if (!readerDone) await cancelReaderQuietly(reader)
-    throw error
-  } finally {
-    combinedBytes?.fill(0)
-    for (const chunk of chunks) chunk.fill(0)
-    reader.releaseLock()
-  }
 }
 
 export const aiInternalCanonicalUuidSchema = z.string().regex(UUID)

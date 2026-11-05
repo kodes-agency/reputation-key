@@ -288,64 +288,6 @@ export type ReviewAnalysisReadV1 =
       }
     >
 
-export type AiPrivateBetaPolicy = Readonly<{
-  version: 'ai-private-beta-policy-v1'
-  region: 'global'
-  manualPublicationRequired: true
-  initialBundle: ReadonlyArray<string>
-  capabilities: ReadonlyArray<
-    Readonly<{
-      id: string
-      platformCapability: string
-      permission: string
-      actorKind: 'manager' | 'worker'
-      routeId: string
-      runtimeProfileVersion: string
-      requires: ReadonlyArray<string>
-    }>
-  >
-  roles: ReadonlyArray<
-    Readonly<{
-      id: string
-      permissions: ReadonlyArray<string>
-    }>
-  >
-  routes: ReadonlyArray<
-    Readonly<{
-      id: string
-      sourceClassId: string
-      outputClassId: string
-      retentionPolicyId: string
-    }>
-  >
-  sourceClasses: ReadonlyArray<
-    Readonly<{
-      id: string
-      containsRawReviewContent: boolean
-    }>
-  >
-  outputClasses: ReadonlyArray<
-    Readonly<{
-      id: string
-      durable: boolean
-    }>
-  >
-  retentionPolicies: ReadonlyArray<
-    Readonly<{
-      id: string
-      duration: 'response_lifetime' | '24_months'
-    }>
-  >
-  releaseGates: ReadonlyArray<
-    Readonly<{
-      id: string
-      stage: 'candidate' | 'activation'
-      owner: string
-      contentClass: 'content_free'
-    }>
-  >
-}>
-
 export type AiCapability = MerchantAiCapability
 export type AiOwnerScope = Readonly<{
   organizationId: OrganizationId

@@ -28,7 +28,6 @@ import {
 } from '../application/use-cases/analyze-review-event'
 import { createAiAuthorizationAdapter } from './adapters/ai-authorization.adapter'
 import { createAiPropertyAggregateStoreAdapter } from './adapters/ai-property-aggregate-store.adapter'
-import { createAiReviewEventStoreAdapter } from './adapters/ai-review-event-store.adapter'
 import { AI_REVIEW_ANALYSIS_CONSUMER, handleAiReviewEvent } from './outbox-consumers'
 
 const NOW = new Date('2026-09-11T10:00:00.000Z')
@@ -50,7 +49,6 @@ const EVENT_IDS = Object.freeze(
 
 const db = getDb()
 const receipts = createOutboxRepository(db)
-const reviewEvents = createAiReviewEventStoreAdapter(db)
 const aggregates = createAiPropertyAggregateStoreAdapter(db)
 
 function unreachable(name: string) {
@@ -65,7 +63,6 @@ const analyzeReviewEvent = createAnalyzeReviewEvent({
   authorization: createAiAuthorizationAdapter(db),
   reviewEvents: {
     consumeNext: unreachable('reviewEvents.consumeNext'),
-    settleOutcome: unreachable('reviewEvents.settleOutcome'),
   },
   aggregates: {
     applyReviewAnalysis: unreachable('aggregates.applyReviewAnalysis'),
@@ -322,7 +319,7 @@ describe.sequential('Review Analysis first-enable lineage (real PostgreSQL)', ()
       )
     await expect(
       settleReviewAnalysisWithoutResult(
-        { reviewEvents, aggregates },
+        { aggregates },
         {
           organizationId: ORGANIZATION_ID,
           propertyId: PROPERTY_ID,
@@ -331,7 +328,6 @@ describe.sequential('Review Analysis first-enable lineage (real PostgreSQL)', ()
           reviewAnalysisEpoch: 1,
           analysisSequence: backfillSequence,
           propertyProfileVersion: 1,
-          operationId: null,
           dispositionCode: 'language_not_supported',
         },
       ),

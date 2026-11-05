@@ -257,28 +257,6 @@ export type AiOutputStorePort = Readonly<{
     }>,
   ): Promise<readonly ReviewId[]>
 
-  storeTrendReport(
-    input: Readonly<{
-      scheduleId: string
-      operationId: AiOperationId
-      organizationId: OrganizationId
-      providerCompletion: AiProviderCompletion
-      propertyId: PropertyId
-      sourceEpoch: number
-      reviewAnalysisEpoch: number
-      propertyTrendsEpoch: number
-      propertyProfileVersion: number
-      dueLocalDate: string
-      terminalAnalysisSequence: number
-      aggregateRevision: number
-      reportProfileVersion: string
-      selectedSignalIds: readonly string[]
-      report: AiTrendReport
-      generatedAtEpochMillis: number
-      expiresAtEpochMillis: number
-    }>,
-  ): Promise<boolean>
-
   readAnalysisForDelivery<T>(
     input: Readonly<{
       organizationId: OrganizationId
