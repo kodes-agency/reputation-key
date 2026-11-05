@@ -6,59 +6,46 @@
 
 import { createServerFn } from '@tanstack/react-start'
 import { requireExecutionAllowed } from '#/shared/auth/execution-policy'
-import { headersFromContext } from '#/shared/auth/headers'
 import { resolveTenantContext } from '#/shared/auth/middleware'
-import { catchUntagged, throwContextError } from '#/shared/auth/server-errors'
 import type { AuthContext } from '#/shared/domain/auth-context'
-import { tracedHandler } from '#/shared/observability/traced-server-fn'
+import { commandHandler } from '#/shared/commands/command.server'
 import { getContainer } from '#/composition'
 import {
   portalLookColoursInputSchema,
   portalLookIdentityInputSchema,
   portalLookPhotoInputSchema,
 } from '../application/dto/portal-look.dto'
-import { isPortalError } from '../domain/errors'
-import { portalErrorStatus } from './portals'
+import { portalCommandErrors } from './portal-command-errors'
 
-/**
- * The Property's policy for a Portals write, then the use case as the resolved
- * actor, with a Portal error carried out tagged and with its status. The use case
- * is reached through a callback the handler writes, so the container is only ever
- * named inside a handler: the client build drops handler bodies, and a module-level
- * reference to the composition root would be refused there.
- */
 async function runPortalLookCommand<T>(
   propertyId: string,
+  headers: Headers,
   command: (ctx: AuthContext) => Promise<T>,
 ): Promise<T> {
-  const ctx = await resolveTenantContext(await headersFromContext())
+  const ctx = await resolveTenantContext(headers)
   await requireExecutionAllowed({
     actor: ctx,
     action: 'portal.update',
     capability: 'portal.write',
     propertyId,
   })
-  try {
-    return await command(ctx)
-  } catch (error) {
-    if (isPortalError(error)) {
-      throwContextError('PortalError', error, portalErrorStatus(error.code))
-    }
-    throw catchUntagged(error)
-  }
+  return await command(ctx)
 }
 
 /** Give one Portal its own accent and background, or put them back to the Property's. */
 export const savePortalLookColours = createServerFn({ method: 'POST' })
   .validator(portalLookColoursInputSchema)
   .handler(
-    tracedHandler(
-      async ({ data }) =>
-        runPortalLookCommand(data.propertyId, (ctx) =>
+    commandHandler(
+      {
+        method: 'POST',
+        name: 'portal.savePortalLookColours',
+        errors: portalCommandErrors,
+      },
+      async ({ data, headers }) =>
+        runPortalLookCommand(data.propertyId, headers, (ctx) =>
           getContainer().portalPublicApi.management.savePortalLookColours(data, ctx),
         ),
-      'POST',
-      'portal.savePortalLookColours',
     ),
   )
 
@@ -66,13 +53,16 @@ export const savePortalLookColours = createServerFn({ method: 'POST' })
 export const savePortalLookIdentity = createServerFn({ method: 'POST' })
   .validator(portalLookIdentityInputSchema)
   .handler(
-    tracedHandler(
-      async ({ data }) =>
-        runPortalLookCommand(data.propertyId, (ctx) =>
+    commandHandler(
+      {
+        method: 'POST',
+        name: 'portal.savePortalLookIdentity',
+        errors: portalCommandErrors,
+      },
+      async ({ data, headers }) =>
+        runPortalLookCommand(data.propertyId, headers, (ctx) =>
           getContainer().portalPublicApi.management.savePortalLookIdentity(data, ctx),
         ),
-      'POST',
-      'portal.savePortalLookIdentity',
     ),
   )
 
@@ -85,12 +75,11 @@ export const savePortalLookIdentity = createServerFn({ method: 'POST' })
 export const savePortalLookPhoto = createServerFn({ method: 'POST' })
   .validator(portalLookPhotoInputSchema)
   .handler(
-    tracedHandler(
-      async ({ data }) =>
-        runPortalLookCommand(data.propertyId, (ctx) =>
+    commandHandler(
+      { method: 'POST', name: 'portal.savePortalLookPhoto', errors: portalCommandErrors },
+      async ({ data, headers }) =>
+        runPortalLookCommand(data.propertyId, headers, (ctx) =>
           getContainer().portalPublicApi.management.savePortalLookPhoto(data, ctx),
         ),
-      'POST',
-      'portal.savePortalLookPhoto',
     ),
   )
