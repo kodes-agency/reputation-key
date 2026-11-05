@@ -13,7 +13,8 @@ import { cn } from '#/lib/utils'
  * spaces its children as `PageShell` does, so the wrapper moves nothing.
  *
  * Opacity is a compositor property: no layout, and `motion-reduce` makes the
- * change instant.
+ * change instant. It dims to 95% and no further: the badge inks are about 5:1
+ * at full strength, so at 90% they fall under 4.5:1.
  */
 export function RangeBusyRegion({
   busy,
@@ -24,7 +25,7 @@ export function RangeBusyRegion({
       aria-busy={busy}
       className={cn(
         'space-y-5 transition-opacity duration-150 motion-reduce:transition-none md:space-y-8',
-        busy && 'opacity-60',
+        busy && 'opacity-95',
       )}
     >
       {children}

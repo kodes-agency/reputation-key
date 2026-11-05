@@ -38,12 +38,9 @@ own source review, inbox, property, portal, identity, or goal state.
 ## Model
 
 Recent Activity is a privacy-filtered operational projection, not an event log
-or source-content archive. As of 2026-09-28 no manager screen reads it: the
-projection is kept because the Organization export and recovery read it (with
-90-day replay facts), and whether it gets a UI or is re-graded is an open
-product decision. Do not remove the projection or its consumer before that
-decision; the unused `getActivityTimeline` plumbing in the inbox bundle is
-cleanup for after the in-flight inbox work lands. An entry is written once per
+or source-content archive. The Organization export and recovery read it (with
+90-day replay facts). There is no manager read API; the Inbox item timeline and
+Portal history use their own stores. An entry is written once per
 event and names its actor from the member lookup: a lookup that fails fails the
 delivery, which is retried, so an outage never leaves an entry that names System
 for something a person did (an actor the lookup does not find still gets the

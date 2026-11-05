@@ -35,7 +35,6 @@ import { createGoalMetricSourceStatus } from './infrastructure/repositories/goal
 import { createAtomicMetricCommandStore } from './infrastructure/metric-command-store'
 import { recordMetric, recordMetrics } from './application/use-cases/record-metric'
 import { retractMetrics } from './application/use-cases/retract-metric'
-import { registerMetricCorrectionConsumer } from './infrastructure/correction-outbox-consumers'
 import { registerPortalWorkflowMetricConsumers } from './infrastructure/outbox-consumers'
 import { registerGuestMetricConsumers } from './infrastructure/guest-outbox-consumers'
 import { registerPublicReputationMetricConsumers } from './infrastructure/public-reputation-outbox-consumers'
@@ -195,7 +194,7 @@ export type ReportingContextBuildInput = Readonly<{
 }>
 
 function buildMetricModule(input: ReportingContextBuildInput) {
-  const metricRepo = createMetricRepository(input.db, input.clock)
+  const metricRepo = createMetricRepository(input.db)
   const registry = createMetricRegistryRepository()
   const portalAnalytics = queryPortalAnalytics(
     createPortalAnalyticsRepository(input.db, input.clock),
@@ -289,7 +288,6 @@ function buildMetricModule(input: ReportingContextBuildInput) {
       db: input.db,
     })
     registerCurrentGoogleReputationConsumer(consumerRegistry, currentGoogleReputation)
-    registerMetricCorrectionConsumer(consumerRegistry, input.db)
   }
 
   return {
@@ -539,9 +537,6 @@ function buildGoalModule(input: ReportingContextBuildInput, metricApi: MetricPub
     PortalGoalAddRequestApi &
     PortalGoalSinglePageRequestApi = Object.freeze({
     create: (policy, ...args) => buildGoalPrograms(policy).create(...args),
-    revise: (policy, ...args) => buildGoalPrograms(policy).revise(...args),
-    changeAssignments: (policy, ...args) =>
-      buildGoalPrograms(policy).changeAssignments(...args),
     changeStatus: (policy, ...args) => buildGoalPrograms(policy).changeStatus(...args),
     rename: (policy, ...args) => buildGoalPrograms(policy).rename(...args),
     changeMonthTarget: (policy, ...args) =>

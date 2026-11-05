@@ -7,6 +7,7 @@ import { getDb } from '#/shared/db'
 import { organizationId, portalId } from '#/shared/domain/ids'
 import { createPortalTokenRepository } from './portal-token.repository'
 import { issueToken, rotateToken } from '../../domain/portal-token'
+import { seedPortalToken } from '../testing/portal-read-fixtures'
 
 const ORG = organizationId('org-portal-token-test')
 const OTHER_ORG = organizationId('org-portal-token-other')
@@ -111,102 +112,13 @@ function makeOtherTenantToken() {
 }
 
 describe('portal token repository', () => {
-  it('resolves only a matching active digest', async () => {
-    const repo = createPortalTokenRepository(getDb())
+  it('enforces the portal tenant FK', async () => {
     const token = makeToken()
-    await repo.insert(token)
-
-    await expect(
-      repo.findResolvableByDigest(
-        {
-          tokenIdentifier: token.tokenIdentifier,
-          tokenHash: token.tokenHash,
-          tokenKeyVersion: token.tokenKeyVersion,
-        },
-        NOW,
-      ),
-    ).resolves.toMatchObject({ id: token.id, status: 'active' })
-    await expect(
-      repo.findResolvableByDigest(
-        {
-          tokenIdentifier: token.tokenIdentifier,
-          tokenHash: fixtureTokenHash('non-matching-digest'),
-          tokenKeyVersion: 1,
-        },
-        NOW,
-      ),
-    ).resolves.toBeNull()
-  })
-
-  it('persists rotation atomically and honors the old-token grace boundary', async () => {
-    const repo = createPortalTokenRepository(getDb())
-    const current = makeToken()
-    await repo.insert(current)
-    const rotation = rotateToken(
-      current,
-      {
-        id: 'de000000-0000-4000-8000-000000000022',
-        tokenIdentifier: 'lookup-key-two',
-        tokenHash: fixtureTokenHash('primary-v2'),
-        tokenKeyVersion: 1,
-        version: 2,
-      },
-      60_000,
-      NOW,
-    )
-    if (!('oldToken' in rotation)) throw new Error('rotation failed')
-    await repo.saveRotation(rotation)
-
-    const oldDigest = {
-      tokenIdentifier: current.tokenIdentifier,
-      tokenHash: current.tokenHash,
-      tokenKeyVersion: current.tokenKeyVersion,
-    }
-    await expect(repo.findResolvableByDigest(oldDigest, NOW)).resolves.toMatchObject({
-      status: 'rotating',
-    })
-    await expect(
-      repo.findResolvableByDigest(oldDigest, new Date(NOW.getTime() + 60_001)),
-    ).resolves.toBeNull()
-    await expect(
-      repo.findResolvableByDigest(
-        {
-          tokenIdentifier: rotation.newToken.tokenIdentifier,
-          tokenHash: rotation.newToken.tokenHash,
-          tokenKeyVersion: rotation.newToken.tokenKeyVersion,
-        },
-        new Date(NOW.getTime() + 60_001),
-      ),
-    ).resolves.toMatchObject({ status: 'active', version: 2 })
-  })
-
-  it('revokes all active/grace tokens and enforces the portal tenant FK', async () => {
-    const repo = createPortalTokenRepository(getDb())
-    const token = makeToken()
-    await repo.insert(token)
-    await expect(
-      repo.revokeForPortal({
-        organizationId: ORG,
-        portalId: PORTAL,
-        revokedBy: 'owner',
-        reason: 'printed code lost',
-        at: NOW,
-      }),
-    ).resolves.toBe(1)
-    await expect(
-      repo.findResolvableByDigest(
-        {
-          tokenIdentifier: token.tokenIdentifier,
-          tokenHash: token.tokenHash,
-          tokenKeyVersion: token.tokenKeyVersion,
-        },
-        NOW,
-      ),
-    ).resolves.toBeNull()
+    await seedPortalToken(getDb(), token)
 
     let insertionError: unknown
     try {
-      await repo.insert({
+      await seedPortalToken(getDb(), {
         ...token,
         id: 'de000000-0000-4000-8000-000000000023',
         organizationId: OTHER_ORG,
@@ -224,7 +136,7 @@ describe('portal token repository', () => {
 
   it('reports who made the live code, and nobody for a code that recorded no maker', async () => {
     const repo = createPortalTokenRepository(getDb())
-    await repo.insert(makeToken())
+    await seedPortalToken(getDb(), makeToken())
     await expect(
       repo.findResolvableSummaryForPortal(ORG, PORTAL, NOW),
     ).resolves.toMatchObject({ issuedBy: null })
@@ -252,7 +164,7 @@ describe('portal token repository', () => {
     ).resolves.toBeNull()
 
     const current = makeToken()
-    await repo.insert(current)
+    await seedPortalToken(getDb(), current)
     const active = await repo.findResolvableSummaryForPortal(ORG, PORTAL, NOW)
     expect(active).toEqual({
       version: 1,
@@ -276,20 +188,18 @@ describe('portal token repository', () => {
       NOW,
     )
     if (!('oldToken' in rotation)) throw new Error('rotation failed')
-    await repo.saveRotation(rotation)
+    await seedPortalToken(getDb(), rotation.oldToken)
+    await seedPortalToken(getDb(), rotation.newToken)
 
     // Inside the grace window both tokens resolve; the newest one governs.
     await expect(
       repo.findResolvableSummaryForPortal(ORG, PORTAL, NOW),
     ).resolves.toMatchObject({ version: 2 })
 
-    await repo.revokeForPortal({
-      organizationId: ORG,
-      portalId: PORTAL,
-      revokedBy: 'owner',
-      reason: 'leaked link',
-      at: NOW,
-    })
+    await pool.query(
+      "UPDATE portal_tokens SET status = 'revoked', grace_period_ends = NULL WHERE organization_id = $1 AND portal_id = $2",
+      [ORG, PORTAL],
+    )
     await expect(
       repo.findResolvableSummaryForPortal(ORG, PORTAL, NOW),
     ).resolves.toBeNull()
@@ -312,7 +222,7 @@ describe('portal token repository', () => {
     if (!('oldToken' in rotation)) throw new Error('rotation failed')
     // Persist only the outgoing token: an already-printed code still honoured
     // for the rest of its grace window.
-    await repo.insert(rotation.oldToken)
+    await seedPortalToken(getDb(), rotation.oldToken)
 
     await expect(repo.findResolvableSummaryForPortal(ORG, PORTAL, NOW)).resolves.toEqual({
       version: 1,
@@ -330,7 +240,7 @@ describe('portal token repository', () => {
   it('reports the outgoing code grace end while the newer code is current', async () => {
     const repo = createPortalTokenRepository(getDb())
     const current = makeToken()
-    await repo.insert(current)
+    await seedPortalToken(getDb(), current)
     const rotation = rotateToken(
       current,
       {
@@ -344,7 +254,8 @@ describe('portal token repository', () => {
       NOW,
     )
     if (!('oldToken' in rotation)) throw new Error('rotation failed')
-    await repo.saveRotation(rotation)
+    await seedPortalToken(getDb(), rotation.oldToken)
+    await seedPortalToken(getDb(), rotation.newToken)
 
     // The current token is v2 and has no grace of its own: the window that
     // matters to a reader is the one the printed (v1) code is still inside.
@@ -360,25 +271,14 @@ describe('portal token repository', () => {
     ).resolves.toMatchObject({ version: 2, gracePeriodEnds: null })
   })
 
-  it('reports legacy-address readiness and permits a retired channel marker to be replaced', async () => {
+  it('reports published access-artifact readiness and permits a retired channel marker to be replaced', async () => {
     const repo = createPortalTokenRepository(getDb())
     const token = makeToken()
-    await repo.insert(token)
+    await seedPortalToken(getDb(), token)
 
     await expect(
       repo.findResolvableSummaryForPortal(ORG, PORTAL, NOW),
     ).resolves.toMatchObject({ hasPublishedAccessArtifact: false })
-    await expect(repo.listAccessArtifactReadinessGaps(NOW, [ORG])).resolves.toEqual([
-      {
-        organizationId: ORG,
-        propertyId: PROPERTY,
-        portalId: PORTAL,
-        tokenVersion: 1,
-        tokenStatus: 'active',
-        issuedAt: NOW,
-        gracePeriodEnds: null,
-      },
-    ])
 
     await pool.query(
       `INSERT INTO portal_access_artifacts
@@ -390,7 +290,6 @@ describe('portal token repository', () => {
     await expect(
       repo.findResolvableSummaryForPortal(ORG, PORTAL, NOW),
     ).resolves.toMatchObject({ hasPublishedAccessArtifact: true })
-    await expect(repo.listAccessArtifactReadinessGaps(NOW, [ORG])).resolves.toEqual([])
 
     const replacedAt = new Date(NOW.getTime() + 1_000)
     await pool.query(
@@ -444,25 +343,13 @@ describe('portal token repository', () => {
   })
 })
 
-// ── Tenant isolation ─────────────────────────────────────────────────
-// NON-NEGOTIABLE. Before this block the file passed with all three of the
-// repository's `organizationId` conjuncts removed, because no token was ever
-// seeded for a second tenant. `portal_tokens.portal_id` is unique per portal
-// and the composite FK ties (organization_id, portal_id) together, so the
-// conjunct is redundant for a caller that passes a COHERENT pair — its whole
-// job is to refuse an INCOHERENT one, i.e. a portal id lifted from a public
-// URL combined with the attacker's own session organization. That is what
-// these tests exercise.
-//
-// Note: findResolvableByDigest deliberately has no tenant conjunct. It is the
-// public guest resolution path where the token itself is the capability, so
-// there is nothing here to assert about it.
+// Management reads must refuse a Portal id belonging to another Organization.
 describe('portal token repository — tenant isolation', () => {
   // Plants a REAL active token owned by OTHER_ORG on OTHER_ORG's own portal.
   async function seedOtherTenantToken() {
     const repo = createPortalTokenRepository(getDb())
     const other = makeOtherTenantToken()
-    await repo.insert(other)
+    await seedPortalToken(getDb(), other)
     const { rows } = await pool.query(
       `SELECT organization_id, portal_id, status FROM portal_tokens WHERE id = $1`,
       [other.id],
@@ -483,90 +370,5 @@ describe('portal token repository — tenant isolation', () => {
     await expect(
       repo.findLatestForPortal(OTHER_ORG, PORTAL_OTHER),
     ).resolves.toMatchObject({ id: other.id, tokenHash: other.tokenHash })
-  })
-
-  it('revokeForPortal cannot revoke another tenant live token', async () => {
-    const { repo, other } = await seedOtherTenantToken()
-
-    await expect(
-      repo.revokeForPortal({
-        organizationId: ORG,
-        portalId: PORTAL_OTHER,
-        revokedBy: 'attacker',
-        reason: 'cross tenant revocation attempt',
-        at: NOW,
-      }),
-    ).resolves.toBe(0)
-
-    const { rows } = await pool.query(
-      `SELECT status, revoked_at, revoked_by FROM portal_tokens WHERE id = $1`,
-      [other.id],
-    )
-    expect(rows).toEqual([{ status: 'active', revoked_at: null, revoked_by: null }])
-
-    // The owning tenant can revoke it, so the refusal above was tenant scoping.
-    await expect(
-      repo.revokeForPortal({
-        organizationId: OTHER_ORG,
-        portalId: PORTAL_OTHER,
-        revokedBy: 'owner',
-        reason: 'printed code lost',
-        at: NOW,
-      }),
-    ).resolves.toBe(1)
-  })
-
-  it('saveRotation cannot rotate another tenant token', async () => {
-    const { repo, other } = await seedOtherTenantToken()
-
-    // A rotation aimed at the other tenant's row, presented under ORG.
-    const hijack = rotateToken(
-      { ...other, organizationId: ORG, propertyId: PROPERTY },
-      {
-        id: 'de000000-0000-4000-8000-000000000032',
-        tokenIdentifier: 'lookup-key-hijack',
-        tokenHash: fixtureTokenHash('tenant-rotation-attempt'),
-        tokenKeyVersion: 1,
-        version: 2,
-      },
-      60_000,
-      NOW,
-    )
-    if (!('oldToken' in hijack)) throw new Error('fixture: rotation not constructed')
-
-    await expect(repo.saveRotation(hijack)).rejects.toMatchObject({
-      _tag: 'PortalError',
-      code: 'token_unavailable',
-    })
-    const untouched = await pool.query(
-      `SELECT status, version, grace_period_ends FROM portal_tokens WHERE id = $1`,
-      [other.id],
-    )
-    expect(untouched.rows).toEqual([
-      { status: 'active', version: 1, grace_period_ends: null },
-    ])
-    const smuggled = await pool.query(
-      `SELECT id FROM portal_tokens WHERE token_identifier = 'lookup-key-hijack'`,
-    )
-    expect(smuggled.rows).toEqual([])
-
-    // The owning tenant rotates the same row successfully.
-    const legit = rotateToken(
-      other,
-      {
-        id: 'de000000-0000-4000-8000-000000000033',
-        tokenIdentifier: 'lookup-key-tenant-b2',
-        tokenHash: fixtureTokenHash('other-tenant-v2'),
-        tokenKeyVersion: 1,
-        version: 2,
-      },
-      60_000,
-      NOW,
-    )
-    if (!('oldToken' in legit)) throw new Error('fixture: rotation not constructed')
-    await repo.saveRotation(legit)
-    await expect(
-      repo.findLatestForPortal(OTHER_ORG, PORTAL_OTHER),
-    ).resolves.toMatchObject({ version: 2, status: 'active' })
   })
 })

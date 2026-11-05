@@ -79,15 +79,13 @@ type RepositoryPorts = Readonly<{
 
 /**
  * Actionable fixtures enter through the same atomic item + initial Handling
- * Cycle path as production. Raw repository creation is reserved for explicit
- * orphan/repair tests below.
+ * Cycle path as production. Orphan/repair fixtures omit the initial anchor.
  */
 function createInboxRepository(database: Database, ports: RepositoryPorts) {
   const repository = createProductionInboxRepository(database, ports, repositoryRuntime)
   return {
     ...repository,
-    create: async (item: InboxItem, orgId: InboxItem['organizationId']) => {
-      if (item.organizationId !== orgId) return repository.create(item, orgId)
+    seedItem: async (item: InboxItem) => {
       if (item.sourceType === 'feedback') {
         return (
           await createAtomicInboxCommandStore(
@@ -292,25 +290,12 @@ afterAll(async () => {
   await pool.end()
 })
 
-// ── Tests ───────────────────────────────────────────────────────────
-
-describe('createInboxRepository', () => {
-  const repo = createInboxRepository(db, stubPorts)
-
-  it('returns an object satisfying InboxRepository', () => {
-    expect(repo).toBeDefined()
-    expect(typeof repo.findById).toBe('function')
-    expect(typeof repo.create).toBe('function')
-    expect(typeof repo.updateStatus).toBe('function')
-  })
-})
-
 describe('inbox repository — CRUD', () => {
   const repo = createInboxRepository(db, stubPorts)
 
   it('creates and finds an inbox item by id', async () => {
     const item = makeInboxItem()
-    await repo.create(item, ORG_A)
+    await repo.seedItem(item)
 
     const found = await repo.findById(item.id, ORG_A)
     expect(found).not.toBeNull()
@@ -331,8 +316,8 @@ describe('inbox repository — CRUD', () => {
   it('findByIds returns multiple items', async () => {
     const item1 = makeInboxItem({ sourceId: reviewId(crypto.randomUUID()) })
     const item2 = makeInboxItem({ sourceId: reviewId(crypto.randomUUID()) })
-    await repo.create(item1, ORG_A)
-    await repo.create(item2, ORG_A)
+    await repo.seedItem(item1)
+    await repo.seedItem(item2)
 
     const found = await repo.findByIds([item1.id, item2.id], ORG_A)
     expect(found).toHaveLength(2)
@@ -341,7 +326,7 @@ describe('inbox repository — CRUD', () => {
   it('findBySource finds item by source type + source id', async () => {
     const srcId = feedbackId(crypto.randomUUID())
     const item = makeInboxItem({ sourceType: 'feedback', sourceId: srcId })
-    await repo.create(item, ORG_A)
+    await repo.seedItem(item)
 
     const found = await repo.findBySource('feedback', srcId as string, ORG_A)
     expect(found).not.toBeNull()
@@ -353,7 +338,7 @@ describe('inbox repository — CRUD', () => {
       sourceType: 'review',
       sourceId: reviewId(crypto.randomUUID()),
     })
-    await repo.create(item, ORG_A)
+    await repo.seedItem(item)
     const found = await repo.findBySource('feedback', item.sourceId as string, ORG_A)
     expect(found).toBeNull()
   })
@@ -361,7 +346,6 @@ describe('inbox repository — CRUD', () => {
 
 describe('inbox repository — active Handling Cycle authority', () => {
   const repo = createInboxRepository(db, stubPorts)
-  const rawRepo = createProductionInboxRepository(db, stubPorts, repositoryRuntime)
 
   it.each([
     ['Review', 'review', reviewId(crypto.randomUUID())],
@@ -376,7 +360,11 @@ describe('inbox repository — active Handling Cycle authority', () => {
         snippet: null,
         reviewerName: null,
       })
-      await rawRepo.create(orphan, ORG_A)
+      await createAtomicInboxCommandStore(
+        db,
+        allowAllCommandAuthority,
+        () => TEST_NOW,
+      ).createItem(orphan, null)
 
       await expect(repo.findById(orphan.id, ORG_A)).resolves.toBeNull()
       await expect(repo.findByIds([orphan.id], ORG_A)).resolves.toEqual([])
@@ -403,7 +391,7 @@ describe('inbox repository — active Handling Cycle authority', () => {
     'uses the %s Handling Cycle head status when the compatibility row drifts',
     async (_label, sourceType, sourceId) => {
       const item = makeInboxItem({ sourceType, sourceId, status: 'open' })
-      await repo.create(item, ORG_A)
+      await repo.seedItem(item)
       await pool.query(
         `UPDATE inbox_items SET status = 'closed', closed_at = NOW()
        WHERE id = $1 AND organization_id = $2`,
@@ -434,13 +422,12 @@ describe('inbox repository — active Handling Cycle authority', () => {
 
 describe('inbox repository — active Review item ids', () => {
   const repo = createInboxRepository(db, stubPorts)
-  const rawRepo = createProductionInboxRepository(db, stubPorts, repositoryRuntime)
 
   it('maps each requested Review at the Property to its active item', async () => {
     const first = makeInboxItem({ sourceId: reviewId(crypto.randomUUID()) })
     const second = makeInboxItem({ sourceId: reviewId(crypto.randomUUID()) })
-    await repo.create(first, ORG_A)
-    await repo.create(second, ORG_A)
+    await repo.seedItem(first)
+    await repo.seedItem(second)
     const withoutItem = reviewId(crypto.randomUUID())
 
     const itemIds = await repo.findActiveReviewItemIds(ORG_A, PROP_A, [
@@ -472,9 +459,13 @@ describe('inbox repository — active Review item ids', () => {
       snippet: null,
       reviewerName: null,
     })
-    await repo.create(elsewhere, ORG_A)
-    await repo.create(feedback, ORG_A)
-    await rawRepo.create(orphan, ORG_A)
+    await repo.seedItem(elsewhere)
+    await repo.seedItem(feedback)
+    await createAtomicInboxCommandStore(
+      db,
+      allowAllCommandAuthority,
+      () => TEST_NOW,
+    ).createItem(orphan, null)
 
     const itemIds = await repo.findActiveReviewItemIds(ORG_A, PROP_A, [
       reviewId(elsewhere.sourceId),
@@ -494,99 +485,14 @@ describe('inbox repository — active Review item ids', () => {
   })
 })
 
-describe('inbox repository — status transitions', () => {
-  const repo = createInboxRepository(db, stubPorts)
-
-  it('updates status from new to addressed', async () => {
-    const item = makeInboxItem({
-      sourceType: 'feedback',
-      sourceId: feedbackId(crypto.randomUUID()),
-    })
-    await repo.create(item, ORG_A)
-
-    const now = new Date()
-    const updated = await repo.updateStatus(
-      item.id,
-      ORG_A,
-      'closed',
-      { closedAt: now },
-      now,
-    )
-    expect(updated.status).toBe('closed')
-    expect(updated.closedAt).toEqual(now)
-  })
-
-  it('updates status from new to escalated', async () => {
-    const item = makeInboxItem({
-      sourceType: 'feedback',
-      sourceId: feedbackId(crypto.randomUUID()),
-    })
-    await repo.create(item, ORG_A)
-
-    const now = new Date()
-    const updated = await repo.updateStatus(
-      item.id,
-      ORG_A,
-      'open',
-      { escalatedAt: now },
-      now,
-    )
-    expect(updated.status).toBe('open')
-  })
-
-  it('updates status from new to archived', async () => {
-    const item = makeInboxItem({
-      sourceType: 'feedback',
-      sourceId: feedbackId(crypto.randomUUID()),
-    })
-    await repo.create(item, ORG_A)
-
-    const now = new Date()
-    const updated = await repo.updateStatus(
-      item.id,
-      ORG_A,
-      'closed',
-      { closedAt: now },
-      now,
-    )
-    expect(updated.status).toBe('closed')
-  })
-
-  it('bulkUpdateStatus cannot override canonical cycle-head status', async () => {
-    const item1 = makeInboxItem({
-      sourceType: 'feedback',
-      sourceId: feedbackId(crypto.randomUUID()),
-    })
-    const item2 = makeInboxItem({
-      sourceType: 'feedback',
-      sourceId: feedbackId(crypto.randomUUID()),
-    })
-    await repo.create(item1, ORG_A)
-    await repo.create(item2, ORG_A)
-
-    const now = new Date()
-    const result = await repo.bulkUpdateStatus(
-      [item1.id, item2.id],
-      ORG_A,
-      'closed',
-      { closedAt: now },
-      now,
-    )
-    expect(result.updated).toBe(2)
-
-    const found1 = await repo.findById(item1.id, ORG_A)
-    expect(found1!.status).toBe('open')
-  })
-})
-
 describe('inbox repository — queue predicates', () => {
   const repo = createInboxRepository(db, stubPorts)
 
   it('uses one predicate path for list totals and standalone counts', async () => {
     const included = makeInboxItem({ assignedTo: USER_A })
     const excluded = makeInboxItem()
-    await repo.create(included, ORG_A)
-    await repo.create(excluded, ORG_A)
+    await repo.seedItem(included)
+    await repo.seedItem(excluded)
 
     const filters = {
       status: 'open' as const,
@@ -643,7 +549,7 @@ describe('inbox repository — closed folders by kind', () => {
       sourceId: feedbackId(crypto.randomUUID()),
     })
     for (const item of [closedReview, closedFeedback, openReview, openFeedback]) {
-      await repo.create(item, ORG_A)
+      await repo.seedItem(item)
     }
 
     const folders = [
@@ -672,7 +578,7 @@ describe('inbox repository — closed folders by kind', () => {
       sourceId: feedbackId(crypto.randomUUID()),
     })
     for (const item of [needsReply, awaiting, closed, feedback]) {
-      await repo.create(item, ORG_A)
+      await repo.seedItem(item)
     }
 
     const filters = queueToFilters('reply', { ...context, canManageReplies: false })
@@ -692,11 +598,11 @@ describe('inbox repository — per-property counts', () => {
   const repo = createInboxRepository(db, stubPorts)
 
   it('groups the standalone count by property, with the same predicates', async () => {
-    await repo.create(makeInboxItem({ propertyId: PROP_A }), ORG_A)
-    await repo.create(makeInboxItem({ propertyId: PROP_A }), ORG_A)
-    await repo.create(makeInboxItem({ propertyId: PROP_A_2 }), ORG_A)
-    await repo.create(makeInboxItem({ propertyId: PROP_A_2, status: 'closed' }), ORG_A)
-    await repo.create(makeInboxItem({ organizationId: ORG_B, propertyId: PROP_B }), ORG_B)
+    await repo.seedItem(makeInboxItem({ propertyId: PROP_A }))
+    await repo.seedItem(makeInboxItem({ propertyId: PROP_A }))
+    await repo.seedItem(makeInboxItem({ propertyId: PROP_A_2 }))
+    await repo.seedItem(makeInboxItem({ propertyId: PROP_A_2, status: 'closed' }))
+    await repo.seedItem(makeInboxItem({ organizationId: ORG_B, propertyId: PROP_B }))
 
     const filters = { status: 'open' as const, sourceType: 'review' as const }
     const [byProperty, total] = await Promise.all([
@@ -716,8 +622,8 @@ describe('inbox repository — per-property counts', () => {
   })
 
   it('reads nothing outside the property scope it is given', async () => {
-    await repo.create(makeInboxItem({ propertyId: PROP_A }), ORG_A)
-    await repo.create(makeInboxItem({ propertyId: PROP_A_2 }), ORG_A)
+    await repo.seedItem(makeInboxItem({ propertyId: PROP_A }))
+    await repo.seedItem(makeInboxItem({ propertyId: PROP_A_2 }))
 
     await expect(
       repo.countFilteredByProperty({ status: 'open', propertyIds: [PROP_A_2] }, ORG_A),
@@ -728,41 +634,18 @@ describe('inbox repository — per-property counts', () => {
   })
 })
 
-describe('inbox repository — assignment', () => {
-  const repo = createInboxRepository(db, stubPorts)
-
-  it('assigns an item to a user', async () => {
-    const item = makeInboxItem()
-    await repo.create(item, ORG_A)
-
-    const updated = await repo.updateAssignment(item.id, ORG_A, USER_A)
-    expect(updated.assignedTo).toBe(USER_A)
-  })
-
-  it('unassigns an item', async () => {
-    const item = makeInboxItem({ assignedTo: USER_A })
-    await repo.create(item, ORG_A)
-
-    const updated = await repo.updateAssignment(item.id, ORG_A, null)
-    expect(updated.assignedTo).toBeNull()
-  })
-})
-
 describe('inbox repository — count by status', () => {
   const repo = createInboxRepository(db, stubPorts)
 
   it('counts items by status', async () => {
-    await repo.create(
+    await repo.seedItem(
       makeInboxItem({ sourceId: reviewId(crypto.randomUUID()), status: 'open' }),
-      ORG_A,
     )
-    await repo.create(
+    await repo.seedItem(
       makeInboxItem({ sourceId: reviewId(crypto.randomUUID()), status: 'open' }),
-      ORG_A,
     )
-    await repo.create(
+    await repo.seedItem(
       makeInboxItem({ sourceId: reviewId(crypto.randomUUID()), status: 'closed' }),
-      ORG_A,
     )
 
     const newCount = await repo.countByStatus(ORG_A, 'open')
@@ -773,15 +656,14 @@ describe('inbox repository — count by status', () => {
   })
 
   it('narrows status, escalation, and last-visit counts by source family', async () => {
-    await repo.create(
+    await repo.seedItem(
       makeInboxItem({
         sourceType: 'review',
         sourceId: reviewId(crypto.randomUUID()),
         status: 'open',
       }),
-      ORG_A,
     )
-    await repo.create(
+    await repo.seedItem(
       makeInboxItem({
         sourceType: 'feedback',
         sourceId: feedbackId(crypto.randomUUID()),
@@ -789,7 +671,6 @@ describe('inbox repository — count by status', () => {
         isEscalated: true,
         escalatedAt: new Date(),
       }),
-      ORG_A,
     )
 
     await expect(
@@ -806,29 +687,26 @@ describe('inbox repository — count by status', () => {
   })
 
   it('applies a different property envelope to each source family', async () => {
-    await repo.create(
+    await repo.seedItem(
       makeInboxItem({
         propertyId: PROP_A_2,
         sourceType: 'review',
         sourceId: reviewId(crypto.randomUUID()),
       }),
-      ORG_A,
     )
-    await repo.create(
+    await repo.seedItem(
       makeInboxItem({
         propertyId: PROP_A,
         sourceType: 'feedback',
         sourceId: feedbackId(crypto.randomUUID()),
       }),
-      ORG_A,
     )
-    await repo.create(
+    await repo.seedItem(
       makeInboxItem({
         propertyId: PROP_A_2,
         sourceType: 'feedback',
         sourceId: feedbackId(crypto.randomUUID()),
       }),
-      ORG_A,
     )
     const sourceScopes = [
       { sourceType: 'review' as const },
@@ -858,12 +736,11 @@ describe('inbox repository — pagination', () => {
     // Create 5 items with different source dates
     for (let i = 0; i < 5; i++) {
       const date = new Date(2026, 0, i + 1) // Jan 1-5, 2026
-      await repo.create(
+      await repo.seedItem(
         makeInboxItem({
           sourceId: reviewId(crypto.randomUUID()),
           sourceDate: date,
         }),
-        ORG_A,
       )
     }
 
@@ -882,12 +759,11 @@ describe('inbox repository — pagination', () => {
 
   it('supports oldest-first keyset pagination', async () => {
     for (let i = 0; i < 3; i++) {
-      await repo.create(
+      await repo.seedItem(
         makeInboxItem({
           sourceId: reviewId(crypto.randomUUID()),
           sourceDate: new Date(Date.UTC(2026, 0, i + 1)),
         }),
-        ORG_A,
       )
     }
 
@@ -932,13 +808,12 @@ describe('inbox repository — pagination', () => {
   ])('uses id as the %s tie-breaker across pages', async (sort, expectedIds) => {
     const sharedDate = new Date('2026-01-15T10:00:00.000Z')
     for (const id of expectedIds) {
-      await repo.create(
+      await repo.seedItem(
         makeInboxItem({
           id: inboxItemId(id),
           sourceId: reviewId(crypto.randomUUID()),
           sourceDate: sharedDate,
         }),
-        ORG_A,
       )
     }
 
@@ -952,13 +827,12 @@ describe('inbox repository — pagination', () => {
   })
 
   it('filters by property', async () => {
-    await repo.create(makeInboxItem({ sourceId: reviewId(crypto.randomUUID()) }), ORG_A)
-    await repo.create(
+    await repo.seedItem(makeInboxItem({ sourceId: reviewId(crypto.randomUUID()) }))
+    await repo.seedItem(
       makeInboxItem({
         sourceId: reviewId(crypto.randomUUID()),
         propertyId: PROP_A_2,
       }),
-      ORG_A,
     )
 
     const result = await repo.findFilteredPaginated(
@@ -971,13 +845,11 @@ describe('inbox repository — pagination', () => {
   })
 
   it('filters by status', async () => {
-    await repo.create(
+    await repo.seedItem(
       makeInboxItem({ sourceId: reviewId(crypto.randomUUID()), status: 'open' }),
-      ORG_A,
     )
-    await repo.create(
+    await repo.seedItem(
       makeInboxItem({ sourceId: reviewId(crypto.randomUUID()), status: 'closed' }),
-      ORG_A,
     )
 
     const result = await repo.findFilteredPaginated(
@@ -999,7 +871,7 @@ describe('inbox repository — detail view', () => {
       sourceType: 'review',
       sourceId: reviewId(crypto.randomUUID()),
     })
-    await repo.create(item, ORG_A)
+    await repo.seedItem(item)
 
     const detail = await repo.findDetailById(item.id, ORG_A)
     expect(detail).not.toBeNull()
@@ -1015,7 +887,7 @@ describe('inbox repository — detail view', () => {
   it('findDetailById surfaces the guest original and Google translation together', async () => {
     const srcId = crypto.randomUUID()
     const item = makeInboxItem({ sourceType: 'review', sourceId: reviewId(srcId) })
-    await repo.create(item, ORG_A)
+    await repo.seedItem(item)
 
     const translatedRepo = createInboxRepository(db, {
       ...stubPorts,
@@ -1052,7 +924,7 @@ describe('inbox repository — detail view', () => {
       sourceType: 'review',
       sourceId: reviewId(crypto.randomUUID()),
     })
-    await repo.create(item, ORG_A)
+    await repo.seedItem(item)
 
     const englishRepo = createInboxRepository(db, {
       ...stubPorts,
@@ -1083,7 +955,7 @@ describe('inbox repository — detail view', () => {
       sourceType: 'review',
       sourceId: reviewId(crypto.randomUUID()),
     })
-    await repo.create(item, ORG_A)
+    await repo.seedItem(item)
 
     const expiredRepo = createInboxRepository(db, {
       ...stubPorts,
@@ -1144,7 +1016,7 @@ describe('inbox repository — detail view', () => {
       sourceType: 'review',
       sourceId: reviewId(crypto.randomUUID()),
     })
-    await repo.create(item, ORG_A)
+    await repo.seedItem(item)
     return item
   }
 
@@ -1232,7 +1104,7 @@ describe('inbox repository — detail view', () => {
       sourceType: 'feedback',
       sourceId: feedbackId(crypto.randomUUID()),
     })
-    await repo.create(item, ORG_A)
+    await repo.seedItem(item)
 
     const feedbackRepo = createInboxRepository(db, {
       ...stubPorts,
@@ -1260,7 +1132,7 @@ describe('inbox repository — live content lookup (BQC-1.2)', () => {
 
   it('list items read rating/snippet/reviewerName from the eligible lookup map', async () => {
     const srcId = crypto.randomUUID()
-    await repo.create(makeInboxItem({ sourceId: reviewId(srcId) }), ORG_A)
+    await repo.seedItem(makeInboxItem({ sourceId: reviewId(srcId) }))
 
     const liveRepo = createInboxRepository(db, {
       ...stubPorts,
@@ -1295,7 +1167,7 @@ describe('inbox repository — live content lookup (BQC-1.2)', () => {
 
   it('marks a live textless review as rating-only only when a rating exists', async () => {
     const sourceId = reviewId(crypto.randomUUID())
-    await repo.create(makeInboxItem({ sourceId }), ORG_A)
+    await repo.seedItem(makeInboxItem({ sourceId }))
     const ratingOnlyRepo = createInboxRepository(db, {
       ...stubPorts,
       reviewLookup: {
@@ -1325,9 +1197,8 @@ describe('inbox repository — live content lookup (BQC-1.2)', () => {
 
   it('batches and enriches feedback rows without inventing a reviewer', async () => {
     const sourceId = feedbackId(crypto.randomUUID())
-    await repo.create(
+    await repo.seedItem(
       makeInboxItem({ sourceType: 'feedback', sourceId, platform: 'direct' }),
-      ORG_A,
     )
     const getFeedbackSnippetsByIds = vi.fn(
       async () =>
@@ -1355,7 +1226,7 @@ describe('inbox repository — live content lookup (BQC-1.2)', () => {
     const highSourceId = reviewId(crypto.randomUUID())
     const otherSourceId = reviewId(crypto.randomUUID())
     for (const sourceId of [urgentSourceId, highSourceId, otherSourceId]) {
-      await repo.create(makeInboxItem({ sourceId }), ORG_A)
+      await repo.seedItem(makeInboxItem({ sourceId }))
     }
     const findCurrentReviewIdsByAttention = vi.fn(async (input: AttentionLookup) =>
       input.attention.includes('urgent') ? [urgentSourceId] : [highSourceId],
@@ -1388,8 +1259,8 @@ describe('inbox repository — live content lookup (BQC-1.2)', () => {
   it('skips the suggestion for a row a manager set a level on', async () => {
     const setSourceId = reviewId(crypto.randomUUID())
     const openSourceId = reviewId(crypto.randomUUID())
-    const set = await repo.create(makeInboxItem({ sourceId: setSourceId }), ORG_A)
-    await repo.create(makeInboxItem({ sourceId: openSourceId }), ORG_A)
+    const set = await repo.seedItem(makeInboxItem({ sourceId: setSourceId }))
+    await repo.seedItem(makeInboxItem({ sourceId: openSourceId }))
     await setManagerPriority(set.id, 'low')
     const findCurrentReviewIdsByAttention = vi.fn(async () => [setSourceId])
     const aiInsights: AiReviewInsightsPort = {
@@ -1417,7 +1288,7 @@ describe('inbox repository — live content lookup (BQC-1.2)', () => {
   })
 
   it('list items render nulls when the lookup has no eligible snippet', async () => {
-    await repo.create(makeInboxItem({ sourceId: reviewId(crypto.randomUUID()) }), ORG_A)
+    await repo.seedItem(makeInboxItem({ sourceId: reviewId(crypto.randomUUID()) }))
 
     const result = await repo.findFilteredPaginated({}, ORG_A, undefined, 50)
     expect(result.items).toHaveLength(1)
@@ -1430,8 +1301,8 @@ describe('inbox repository — live content lookup (BQC-1.2)', () => {
   it('rating/search filters resolve via reviewLookup.findEligibleReviewIds', async () => {
     const srcMatch = crypto.randomUUID()
     const srcOther = crypto.randomUUID()
-    await repo.create(makeInboxItem({ sourceId: reviewId(srcMatch) }), ORG_A)
-    await repo.create(makeInboxItem({ sourceId: reviewId(srcOther) }), ORG_A)
+    await repo.seedItem(makeInboxItem({ sourceId: reviewId(srcMatch) }))
+    await repo.seedItem(makeInboxItem({ sourceId: reviewId(srcOther) }))
 
     const filteredRepo = createInboxRepository(db, {
       ...stubPorts,
@@ -1453,13 +1324,11 @@ describe('inbox repository — live content lookup (BQC-1.2)', () => {
 
   it('rating/search filters correlate eligible ids with feedback source type', async () => {
     const sharedId = crypto.randomUUID()
-    await repo.create(
+    await repo.seedItem(
       makeInboxItem({ sourceType: 'review', sourceId: reviewId(sharedId) }),
-      ORG_A,
     )
-    await repo.create(
+    await repo.seedItem(
       makeInboxItem({ sourceType: 'feedback', sourceId: feedbackId(sharedId) }),
-      ORG_A,
     )
     const findEligibleFeedbackIds = vi.fn(async () => [feedbackId(sharedId)])
     const filteredRepo = createInboxRepository(db, {
@@ -1486,8 +1355,8 @@ describe('inbox repository — live content lookup (BQC-1.2)', () => {
   it('the Priority filter asks the tenant and property-scoped AI projection for the suggestion', async () => {
     const srcMatch = reviewId(crypto.randomUUID())
     const srcOther = reviewId(crypto.randomUUID())
-    await repo.create(makeInboxItem({ sourceId: srcMatch }), ORG_A)
-    await repo.create(makeInboxItem({ sourceId: srcOther }), ORG_A)
+    await repo.seedItem(makeInboxItem({ sourceId: srcMatch }))
+    await repo.seedItem(makeInboxItem({ sourceId: srcOther }))
     const findCurrentReviewIdsByAttention = vi.fn(async () => [srcMatch])
     const aiInsights: AiReviewInsightsPort = {
       readCurrentReviewAnalysis: vi.fn(async () => ({ status: 'disabled' as const })),
@@ -1513,19 +1382,17 @@ describe('inbox repository — live content lookup (BQC-1.2)', () => {
   })
 
   it('the Priority filter matches a level a manager set on private feedback', async () => {
-    const feedback = await repo.create(
+    const feedback = await repo.seedItem(
       makeInboxItem({
         sourceType: 'feedback',
         sourceId: feedbackId(crypto.randomUUID()),
       }),
-      ORG_A,
     )
-    await repo.create(
+    await repo.seedItem(
       makeInboxItem({
         sourceType: 'feedback',
         sourceId: feedbackId(crypto.randomUUID()),
       }),
-      ORG_A,
     )
     await setManagerPriority(feedback.id, 'urgent')
 
@@ -1541,12 +1408,11 @@ describe('inbox repository — live content lookup (BQC-1.2)', () => {
   })
 
   it('a feedback-only Priority filter asks the AI nothing: feedback is never analysed', async () => {
-    const feedback = await repo.create(
+    const feedback = await repo.seedItem(
       makeInboxItem({
         sourceType: 'feedback',
         sourceId: feedbackId(crypto.randomUUID()),
       }),
-      ORG_A,
     )
     await setManagerPriority(feedback.id, 'high')
     const findCurrentReviewIdsByAttention = vi.fn(async () => [])
@@ -1568,9 +1434,8 @@ describe('inbox repository — live content lookup (BQC-1.2)', () => {
   })
 
   it('a manager downgrade takes an AI Urgent review out of Urgent and into Low', async () => {
-    const downgraded = await repo.create(
+    const downgraded = await repo.seedItem(
       makeInboxItem({ sourceId: reviewId(crypto.randomUUID()) }),
-      ORG_A,
     )
     await setManagerPriority(downgraded.id, 'low')
     const aiInsights: AiReviewInsightsPort = {
@@ -1595,11 +1460,10 @@ describe('inbox repository — live content lookup (BQC-1.2)', () => {
   })
 
   it('set levels match with no AI port at all', async () => {
-    const set = await repo.create(
+    const set = await repo.seedItem(
       makeInboxItem({ sourceId: reviewId(crypto.randomUUID()) }),
-      ORG_A,
     )
-    await repo.create(makeInboxItem({ sourceId: reviewId(crypto.randomUUID()) }), ORG_A)
+    await repo.seedItem(makeInboxItem({ sourceId: reviewId(crypto.randomUUID()) }))
     await setManagerPriority(set.id, 'high')
 
     // `repo` has no `aiInsights`: AI off for this reader.
@@ -1616,7 +1480,7 @@ describe('inbox repository — live content lookup (BQC-1.2)', () => {
     const srcAttentionOnly = reviewId(crypto.randomUUID())
     const srcAspectOnly = reviewId(crypto.randomUUID())
     for (const sourceId of [srcBoth, srcAttentionOnly, srcAspectOnly]) {
-      await repo.create(makeInboxItem({ sourceId }), ORG_A)
+      await repo.seedItem(makeInboxItem({ sourceId }))
     }
     const findCurrentReviewIdsByAspect = vi.fn(async () => [srcBoth, srcAspectOnly])
     const aiInsights: AiReviewInsightsPort = {
@@ -1653,7 +1517,7 @@ describe('inbox repository — live content lookup (BQC-1.2)', () => {
     const named = reviewId(crypto.randomUUID())
     const other = reviewId(crypto.randomUUID())
     for (const sourceId of [named, other]) {
-      await repo.create(makeInboxItem({ sourceId }), ORG_A)
+      await repo.seedItem(makeInboxItem({ sourceId }))
     }
     const findCurrentReviewIdsByAspect = vi.fn(async () => [other])
     const findCurrentReviewIdsByIssue = vi.fn(async () => [named])
@@ -1685,7 +1549,7 @@ describe('inbox repository — live content lookup (BQC-1.2)', () => {
   })
 
   it('an issue nobody names means no review matches, never no filter', async () => {
-    await repo.create(makeInboxItem({ sourceId: reviewId(crypto.randomUUID()) }), ORG_A)
+    await repo.seedItem(makeInboxItem({ sourceId: reviewId(crypto.randomUUID()) }))
     const aiInsights: AiReviewInsightsPort = {
       readCurrentReviewAnalysis: vi.fn(async () => ({ status: 'disabled' as const })),
       findCurrentReviewIdsByAttention: vi.fn(async () => []),
@@ -1713,8 +1577,8 @@ describe('inbox repository — live content lookup (BQC-1.2)', () => {
     // that gets stripped before it reaches the query. The Priority filter is
     // held to the same rule for the suggestion: with no AI answer, only a
     // level a person set can match, and here nobody set one.
-    await repo.create(makeInboxItem({ sourceId: reviewId(crypto.randomUUID()) }), ORG_A)
-    await repo.create(makeInboxItem({ sourceId: reviewId(crypto.randomUUID()) }), ORG_A)
+    await repo.seedItem(makeInboxItem({ sourceId: reviewId(crypto.randomUUID()) }))
+    await repo.seedItem(makeInboxItem({ sourceId: reviewId(crypto.randomUUID()) }))
     const aiInsights: AiReviewInsightsPort = {
       readCurrentReviewAnalysis: vi.fn(async () => ({ status: 'disabled' as const })),
       findCurrentReviewIdsByAttention: vi.fn(async () => []),
@@ -1743,17 +1607,15 @@ describe('inbox repository — live content lookup (BQC-1.2)', () => {
   })
 
   it('aspect still narrows to reviews: a set level on feedback does not satisfy it', async () => {
-    const feedback = await repo.create(
+    const feedback = await repo.seedItem(
       makeInboxItem({
         sourceType: 'feedback',
         sourceId: feedbackId(crypto.randomUUID()),
       }),
-      ORG_A,
     )
     await setManagerPriority(feedback.id, 'urgent')
-    const review = await repo.create(
+    const review = await repo.seedItem(
       makeInboxItem({ sourceId: reviewId(crypto.randomUUID()) }),
-      ORG_A,
     )
     await setManagerPriority(review.id, 'urgent')
     const aiInsights: AiReviewInsightsPort = {
@@ -1779,13 +1641,12 @@ describe('inbox repository — live content lookup (BQC-1.2)', () => {
     // while its delivery read says `none` (a notice-mismatch review, §8): the
     // row and the filter follow the id lookup.
     const create = (sourceType: 'review' | 'feedback') =>
-      repo.create(
+      repo.seedItem(
         makeInboxItem(
           sourceType === 'review'
             ? { sourceId: reviewId(crypto.randomUUID()) }
             : { sourceType, sourceId: feedbackId(crypto.randomUUID()) },
         ),
-        ORG_A,
       )
     const aiUrgent = await create('review')
     const aiHighSetMedium = await create('review')
@@ -1842,7 +1703,7 @@ describe('inbox repository — live content lookup (BQC-1.2)', () => {
   })
 
   it('rating/search filters match nothing when no reviews are eligible', async () => {
-    await repo.create(makeInboxItem({ sourceId: reviewId(crypto.randomUUID()) }), ORG_A)
+    await repo.seedItem(makeInboxItem({ sourceId: reviewId(crypto.randomUUID()) }))
 
     // stubPorts.findEligibleReviewIds returns [] — provably empty result.
     const result = await repo.findFilteredPaginated(
@@ -1863,7 +1724,7 @@ describe('inbox repository — tenant isolation', () => {
 
   it('findById returns null for different org', async () => {
     const item = makeInboxItem()
-    await repo.create(item, ORG_A)
+    await repo.seedItem(item)
 
     // ORG_B should not see ORG_A's item
     const found = await repo.findById(item.id, ORG_B)
@@ -1875,7 +1736,7 @@ describe('inbox repository — tenant isolation', () => {
       sourceType: 'review',
       sourceId: reviewId(crypto.randomUUID()),
     })
-    await repo.create(item, ORG_A)
+    await repo.seedItem(item)
 
     const found = await repo.findBySource('review', item.sourceId as string, ORG_B)
     expect(found).toBeNull()
@@ -1883,7 +1744,7 @@ describe('inbox repository — tenant isolation', () => {
 
   it('findActiveReviewItemIds returns nothing for different org', async () => {
     const item = makeInboxItem({ sourceId: reviewId(crypto.randomUUID()) })
-    await repo.create(item, ORG_A)
+    await repo.seedItem(item)
 
     const itemIds = await repo.findActiveReviewItemIds(ORG_B, PROP_A, [
       reviewId(item.sourceId),
@@ -1892,27 +1753,16 @@ describe('inbox repository — tenant isolation', () => {
   })
 
   it('findFilteredPaginated returns empty for different org', async () => {
-    await repo.create(makeInboxItem({ sourceId: reviewId(crypto.randomUUID()) }), ORG_A)
+    await repo.seedItem(makeInboxItem({ sourceId: reviewId(crypto.randomUUID()) }))
 
     const result = await repo.findFilteredPaginated({}, ORG_B, undefined, 50)
     expect(result.items).toHaveLength(0)
     expect(result.totalCount).toBe(0)
   })
 
-  it('updateStatus does not affect different org items', async () => {
-    const item = makeInboxItem()
-    await repo.create(item, ORG_A)
-
-    // ORG_B tries to update ORG_A's item — should throw not_found
-    await expect(
-      repo.updateStatus(item.id, ORG_B, 'closed', { closedAt: new Date() }),
-    ).rejects.toMatchObject({ _tag: 'InboxError', code: 'not_found' })
-  })
-
   it('countByStatus returns 0 for different org', async () => {
-    await repo.create(
+    await repo.seedItem(
       makeInboxItem({ sourceId: reviewId(crypto.randomUUID()), status: 'open' }),
-      ORG_A,
     )
 
     const count = await repo.countByStatus(ORG_B, 'open')
@@ -1926,7 +1776,7 @@ describe('inbox repository — tenant isolation', () => {
       isEscalated: true,
       escalatedAt: new Date(),
     })
-    await repo.create(item, ORG_A)
+    await repo.seedItem(item)
 
     await expect(
       Promise.all([
@@ -1935,13 +1785,5 @@ describe('inbox repository — tenant isolation', () => {
         repo.countOpenSince(ORG_A, null, []),
       ]),
     ).resolves.toEqual([0, 0, 0])
-  })
-
-  it('create rejects tenant mismatch', async () => {
-    const item = makeInboxItem({ organizationId: ORG_A })
-    await expect(repo.create(item, ORG_B)).rejects.toMatchObject({
-      _tag: 'InboxError',
-      code: 'forbidden',
-    })
   })
 })

@@ -700,7 +700,8 @@ export const DismissIsKeyboardReachable: Story = {
       name: 'More actions for New review at Riverside Hotel',
     })
     expect(trigger).toHaveFocus()
-    expect(trigger).toBeVisible()
+    // It fades in while the row has focus.
+    await waitFor(() => expect(trigger).toBeVisible())
 
     await userEvent.keyboard('{Enter}')
     const menu = within(canvasElement.ownerDocument.body)

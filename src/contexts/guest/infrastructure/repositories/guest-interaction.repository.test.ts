@@ -2,13 +2,9 @@
 // Per architecture: integration tests against real Postgres.
 
 import { describe, it, expect, beforeAll } from 'vitest'
-import { createGuestInteractionRepository as createGuestInteractionRepositoryFactory } from './guest-interaction.repository'
+import { createGuestInteractionRepository } from './guest-interaction.repository'
 import { getDb } from '#/shared/db'
-import {
-  buildTestScanEvent,
-  buildTestRating,
-  buildTestFeedback,
-} from '#/shared/testing/fixtures'
+import { buildTestRating, buildTestFeedback } from '#/shared/testing/fixtures'
 import {
   organizationId,
   portalId,
@@ -19,15 +15,7 @@ import {
 import { setupIntegrationDb } from '#/shared/testing/integration-helpers'
 import { Pool } from 'pg'
 import { getEnv } from '#/shared/config/env'
-import { createMockLogger } from '#/shared/testing/mock-logger'
-
-const createGuestInteractionRepository = (
-  db: Parameters<typeof createGuestInteractionRepositoryFactory>[0],
-) =>
-  createGuestInteractionRepositoryFactory(db, {
-    logger: createMockLogger(),
-    monotonicNow: () => 0,
-  })
+import { ratings, feedback } from '#/shared/db/schema/guest.schema'
 
 const ORG_A = organizationId('org-guest-aaaaaa')
 const ORG_B = organizationId('org-guest-bbbbbbb')
@@ -69,123 +57,39 @@ beforeAll(async () => {
 })
 
 describe('guestInteractionRepository (integration)', () => {
-  describe('hasRated', () => {
-    it('returns true when a rating exists for the session+portal+org', async () => {
-      const db = getDb()
-      const repo = createGuestInteractionRepository(db)
-      const sessionId = crypto.randomUUID()
-
-      const rating = buildTestRating({
-        id: crypto.randomUUID() as never,
-        organizationId: ORG_A,
-        portalId: PORTAL_A,
-        propertyId: PROP_A,
-        sessionId,
-        value: 3,
-      })
-      await repo.insertRating(rating)
-
-      const result = await repo.hasRated(ORG_A, sessionId, PORTAL_A)
-      expect(result).toBe(true)
-    })
-
-    it('returns false when no rating exists', async () => {
-      const db = getDb()
-      const repo = createGuestInteractionRepository(db)
-      const result = await repo.hasRated(ORG_A, 'nonexistent-session', PORTAL_A)
-      expect(result).toBe(false)
-    })
-
-    it('returns false for a different org (tenant isolation)', async () => {
-      const db = getDb()
-      const repo = createGuestInteractionRepository(db)
-      const sessionId = crypto.randomUUID()
-
-      const rating = buildTestRating({
-        id: crypto.randomUUID() as never,
-        organizationId: ORG_A,
-        portalId: PORTAL_A,
-        propertyId: PROP_A,
-        sessionId,
-        value: 4,
-      })
-      await repo.insertRating(rating)
-
-      const result = await repo.hasRated(ORG_B, sessionId, PORTAL_A)
-      expect(result).toBe(false)
-    })
-  })
-  describe('findRatingById', () => {
-    it('returns the rating for the owning org and null for a different org (tenant isolation)', async () => {
-      const db = getDb()
-      const repo = createGuestInteractionRepository(db)
-      const rid = crypto.randomUUID()
-      await repo.insertRating(
-        buildTestRating({
-          id: rid as never,
-          organizationId: ORG_A,
-          portalId: PORTAL_A,
-          propertyId: PROP_A,
-          sessionId: crypto.randomUUID(),
-          value: 3,
-        }),
-      )
-
-      expect(await repo.findRatingById(ratingId(rid), ORG_A)).not.toBeNull()
-      // A dropped eq(...organizationId) filter would surface ORG_A's row here.
-      expect(await repo.findRatingById(ratingId(rid), ORG_B)).toBeNull()
-    })
-  })
-
-  describe('findFeedbackById', () => {
-    it('returns the feedback for the owning org and null for a different org (tenant isolation)', async () => {
-      const db = getDb()
-      const repo = createGuestInteractionRepository(db)
-      const fid = crypto.randomUUID()
-      await repo.insertFeedback(
-        buildTestFeedback({
-          id: fid as never,
-          organizationId: ORG_A,
-          portalId: PORTAL_A,
-          propertyId: PROP_A,
-          sessionId: crypto.randomUUID(),
-          comment: 'Tenant isolation check',
-          ratingId: null,
-        }),
-      )
-
-      expect(await repo.findFeedbackById(feedbackId(fid), ORG_A)).not.toBeNull()
-      expect(await repo.findFeedbackById(feedbackId(fid), ORG_B)).toBeNull()
-    })
-  })
-
   describe('legacy feedback list reads', () => {
     it('batches rating/comment and filters within the owning tenant', async () => {
       const db = getDb()
       const repo = createGuestInteractionRepository(db)
       const rid = ratingId(crypto.randomUUID())
       const fid = feedbackId(crypto.randomUUID())
-      await repo.insertRating(
-        buildTestRating({
-          id: rid,
-          organizationId: ORG_A,
-          portalId: PORTAL_A,
-          propertyId: PROP_A,
-          sessionId: crypto.randomUUID(),
-          value: 4,
-        }),
-      )
-      await repo.insertFeedback(
-        buildTestFeedback({
-          id: fid,
-          organizationId: ORG_A,
-          portalId: PORTAL_A,
-          propertyId: PROP_A,
-          sessionId: crypto.randomUUID(),
-          comment: 'Quiet rooms and generous breakfast',
-          ratingId: rid,
-        }),
-      )
+      await getDb()
+        .insert(ratings)
+        .values({
+          ...buildTestRating({
+            id: rid,
+            organizationId: ORG_A,
+            portalId: PORTAL_A,
+            propertyId: PROP_A,
+            sessionId: crypto.randomUUID(),
+            value: 4,
+          }),
+          ipHash: null,
+        })
+      await getDb()
+        .insert(feedback)
+        .values({
+          ...buildTestFeedback({
+            id: fid,
+            organizationId: ORG_A,
+            portalId: PORTAL_A,
+            propertyId: PROP_A,
+            sessionId: crypto.randomUUID(),
+            comment: 'Quiet rooms and generous breakfast',
+            ratingId: rid,
+          }),
+          ipHash: null,
+        })
 
       await expect(repo.findFeedbackSnippetsByIds([fid], ORG_A)).resolves.toEqual([
         {
@@ -207,33 +111,6 @@ describe('guestInteractionRepository (integration)', () => {
           textQuery: 'breakfast',
         }),
       ).resolves.toEqual([])
-    })
-  })
-
-  describe('getLatestScanBySession', () => {
-    it('returns the scan for the owning org and null for a different org (tenant isolation)', async () => {
-      const db = getDb()
-      const repo = createGuestInteractionRepository(db)
-      const sessionId = crypto.randomUUID()
-      await repo.recordScan(
-        buildTestScanEvent({
-          id: crypto.randomUUID() as never,
-          organizationId: ORG_A,
-          portalId: PORTAL_A,
-          propertyId: PROP_A,
-          sessionId,
-        }),
-      )
-
-      expect(await repo.getLatestScanBySession(ORG_A, sessionId)).not.toBeNull()
-      expect(await repo.getLatestScanBySession(ORG_B, sessionId)).toBeNull()
-    })
-  })
-
-  describe('legacy network-hash compatibility boundary', () => {
-    it('does not expose the retired per-rating IP-hash admission query', () => {
-      const repo = createGuestInteractionRepository(getDb())
-      expect(repo).not.toHaveProperty('hasRatedByIpWithin')
     })
   })
 })

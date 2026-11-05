@@ -227,6 +227,8 @@ describe('reply v2 streamed provider call through settlement', () => {
         h.prepared.acceptProviderResult(OUTPUT)!.buildResponse(receipt, h.grant),
       )
     } else {
+      // A stream that ends without its terminal event leaves usage unknown: the
+      // reservation is charged and the outcome is ambiguous, not a billed answer.
       expect(result).toMatchObject({
         status: 'error',
         code:
@@ -234,7 +236,9 @@ describe('reply v2 streamed provider call through settlement', () => {
             ? 'output_truncated'
             : mode === 'refused'
               ? 'provider_refused'
-              : 'output_invalid',
+              : mode === 'missing_terminal'
+                ? 'operation_ambiguous'
+                : 'output_invalid',
       })
       expect(JSON.stringify(result)).not.toContain(OUTPUT.replyText)
     }

@@ -4,7 +4,6 @@ import { describe, it, expect } from 'vitest'
 import {
   parseBetterAuthResponse,
   signUpResponseSchema,
-  listMembersResponseSchema,
   betterAuthInvitationSchema,
   betterAuthOrganizationSchema,
 } from './better-auth-schemas'
@@ -44,29 +43,6 @@ describe('parseBetterAuthResponse', () => {
         'registration_failed',
       )
     }
-  })
-
-  it('parses listMembers response with nested users', () => {
-    const raw = {
-      members: [
-        {
-          id: 'm-1',
-          userId: 'u-1',
-          role: 'owner',
-          createdAt: new Date('2026-01-01'),
-          user: { id: 'u-1', email: 'a@t.com', name: 'A', image: null },
-        },
-      ],
-      total: 1,
-    }
-    const result = parseBetterAuthResponse(
-      listMembersResponseSchema,
-      raw,
-      'org_setup_failed',
-      'bad',
-    )
-    expect(result.members).toHaveLength(1)
-    expect(result.members[0].user.email).toBe('a@t.com')
   })
 
   it('coerces ISO date strings to Date objects', () => {

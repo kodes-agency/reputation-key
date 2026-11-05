@@ -15,6 +15,7 @@ import {
   userId,
 } from '#/shared/domain/ids'
 import type { InboxItem } from '#/contexts/inbox/domain/types'
+import { createSequentialInboxCommandStore } from './sequential-inbox-command-store'
 import { createInMemoryInboxRepo } from './in-memory-inbox-repo'
 
 const ORG = organizationId('org-priority-fixture')
@@ -107,9 +108,11 @@ describe('in-memory Inbox repository: the Priority filter', () => {
 
   it('starts every created item with no level, as an insert does', async () => {
     const repo = createInMemoryInboxRepo()
-    const created = await repo.create(
+    const { item: created } = await createSequentialInboxCommandStore({
+      repo,
+    }).createItem(
       item('new', 'review', { attention: null, managerPriority: 'urgent' }),
-      ORG,
+      null,
     )
 
     expect(created).toMatchObject({

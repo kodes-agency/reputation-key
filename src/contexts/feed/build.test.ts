@@ -2,7 +2,6 @@ import { describe, expect, it } from 'vitest'
 import type { SQL } from 'drizzle-orm'
 import { PgDialect } from 'drizzle-orm/pg-core'
 import type { Database } from '#/shared/db'
-import type { StaffPublicApi } from '#/contexts/identity/application/public-api'
 import type { OutboxRepository } from '#/shared/outbox'
 import { recentActivityEntryId } from '#/shared/domain/ids'
 import { createMockLogger } from '#/shared/testing/mock-logger'
@@ -15,7 +14,6 @@ function buildWith(db: Database) {
   return buildFeedContext({
     activity: {
       db,
-      staffPublicApi: {} as StaffPublicApi,
       clock: () => new Date('2026-08-28T00:00:00.000Z'),
       logger,
       idGen: () => recentActivityEntryId('00000000-0000-4000-8000-000000000999'),
@@ -52,8 +50,8 @@ describe('buildFeedContext', () => {
     const context = buildWith({} as Database)
 
     expect(Object.keys(context).sort()).toEqual(['activity', 'notification', 'publicApi'])
-    expect(context.publicApi.getActivityTimeline).toBe(
-      context.activity.publicApi.getActivityTimeline,
+    expect(context.publicApi.listOperationalActionHistory).toBe(
+      context.activity.publicApi.listOperationalActionHistory,
     )
     expect(context.publicApi.getFeedHead).toBe(context.notification.publicApi.getFeedHead)
 
@@ -73,8 +71,6 @@ describe('buildFeedContext', () => {
     expect(activity.worker.registerOutboxConsumers).toBeTypeOf('function')
     expect(Object.keys(activity.internal).sort()).toEqual(['repos', 'useCases'])
     expect(activity.internal.useCases).toMatchObject({
-      getActivityTimeline: context.publicApi.getActivityTimeline,
-      listRecentActivity: context.publicApi.listRecentActivity,
       listOperationalActionHistory: context.publicApi.listOperationalActionHistory,
       exportOperationalActionHistory: context.publicApi.exportOperationalActionHistory,
     })

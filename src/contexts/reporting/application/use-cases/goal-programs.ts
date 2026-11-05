@@ -1,5 +1,5 @@
 // Goal Program use cases — read, revise and change the status of a Program,
-// composed with the create, rename, assignment-change, month-target and
+// composed with the create, rename, month-target and
 // maintenance commands.
 import type {
   GoalProgramBundle,
@@ -17,10 +17,6 @@ import {
 import { monthKeyOf } from '../../domain/goal-start'
 import { nextRevisionStart } from '../goal-revision-start'
 import { GOAL_VERSION_REASONS } from '../goal-version-reasons'
-import {
-  changeAssignments,
-  type GoalAssignmentChangeResult,
-} from './goal-program-assignment-changes'
 import { changeMonthTarget } from './goal-month-target'
 import { createGoal } from './goal-program-create'
 import { renameGoal } from './goal-program-details'
@@ -51,11 +47,9 @@ import {
 // The command families live in flat sibling modules and the shared pieces in a
 // leaf; this module composes them behind the one service and keeps re-exporting
 // every name its importers already use.
-export { MAX_GOAL_ASSIGNMENT_SELECTIONS } from '../../domain/goal-program'
 export { GoalProgramError, GoalProgramMaintenanceError }
 export type {
   GoalActor,
-  GoalAssignmentChangeResult,
   GoalExecutionPolicy,
   GoalMetricReadPort,
   GoalProgramDependencies,
@@ -291,11 +285,6 @@ export function createGoalProgramService(deps: GoalProgramDependencies) {
     rename: (input: Parameters<typeof renameGoal>[1], actor: GoalActor) =>
       renameGoal(deps, input, actor),
 
-    changeAssignments: (
-      input: Parameters<typeof changeAssignments>[1],
-      actor: GoalActor,
-    ) => changeAssignments(deps, input, actor),
-
     changeMonthTarget: (
       input: Parameters<typeof changeMonthTarget>[1],
       actor: GoalActor,
@@ -378,14 +367,6 @@ export type GoalProgramRequestApi = Readonly<{
     policy: GoalExecutionPolicy,
     ...args: Parameters<GoalProgramService['create']>
   ) => ReturnType<GoalProgramService['create']>
-  revise: (
-    policy: GoalExecutionPolicy,
-    ...args: Parameters<GoalProgramService['revise']>
-  ) => ReturnType<GoalProgramService['revise']>
-  changeAssignments: (
-    policy: GoalExecutionPolicy,
-    ...args: Parameters<GoalProgramService['changeAssignments']>
-  ) => ReturnType<GoalProgramService['changeAssignments']>
   changeStatus: (
     policy: GoalExecutionPolicy,
     ...args: Parameters<GoalProgramService['changeStatus']>

@@ -486,7 +486,6 @@ async function recordMetricEntry(
     )
   }
 
-  await insertOutboxRow(tx, command.event)
   if (correctionEvent) await insertOutboxRow(tx, correctionEvent)
   return { status: 'recorded', reading: command.reading }
 }
@@ -687,14 +686,6 @@ export const createAtomicMetricCommandStore = (
         return []
       }
       for (const reading of command.readings) {
-        if (
-          !primaryStaffAttributionEquals(
-            reading.reading.staffAttribution,
-            reading.event.staffAttribution,
-          )
-        ) {
-          throw new Error('Metric fact Staff attribution does not match its reading')
-        }
         if (
           command.sourceReceipt &&
           command.sourceReceipt.eventId !== reading.reading.sourceEventId

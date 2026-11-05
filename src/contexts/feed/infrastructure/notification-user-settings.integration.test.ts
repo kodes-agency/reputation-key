@@ -5,7 +5,6 @@ import { getEnv } from '#/shared/config/env'
 import type { Database } from '#/shared/db'
 import { notificationUserSettings, properties } from '#/shared/db/schema'
 import { organizationId, recentActivityEntryId, userId } from '#/shared/domain/ids'
-import type { StaffPublicApi } from '#/contexts/identity/application/public-api'
 import type { OutboxRepository } from '#/shared/outbox'
 import { createMockLogger } from '#/shared/testing/mock-logger'
 import { acquireTestLease, type TestLease } from '#/shared/testing/test-environment-lease'
@@ -22,7 +21,6 @@ const buildFeed = (db: Database) => {
   return buildFeedContext({
     activity: {
       db,
-      staffPublicApi: {} as StaffPublicApi,
       clock: () => NOW,
       logger,
       idGen: () => recentActivityEntryId('86000000-0000-4000-8000-000000000099'),

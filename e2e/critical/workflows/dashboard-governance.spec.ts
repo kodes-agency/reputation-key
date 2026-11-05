@@ -2,9 +2,7 @@
 // no cross-property data, no raw-expired data, and reply-derived fields
 // redacted for a reader who may not manage replies (with an admin control).
 //
-// Verified at the governed read boundary, getDashboardDataFn. The dashboard UI
-// reads getPropertyOverviewFn instead; getDashboardDataFn is kept for this spec
-// and review-expiry.spec.ts (src/contexts/reporting/CONTEXT.md).
+// Verified through getPropertyOverviewFn, the Property page read.
 //
 // The scoped login is a PropertyManager with one grant. From 2026-08-30 to
 // 2026-10-13 the whole scoped test was skipped because it signed in as a
@@ -38,10 +36,12 @@ const BASE_ORIGIN = process.env.E2E_BASE_URL ?? 'http://localhost:3000'
 const seed = requireE2eSeedState()
 const DASHBOARD_FILE = 'src/contexts/reporting/server/dashboard.ts'
 
-type DashboardResult = Readonly<{
-  kpis: { avgRating: { value: number }; reviews: { value: number } }
-  replyPerformance: { replyRate: number; avgReplyHours: number | null }
-  recentReviews: ReadonlyArray<{ id: string; replyStatus: string }>
+type PropertyOverviewResult = Readonly<{
+  dashboard: Readonly<{
+    kpis: { avgRating: { value: number }; reviews: { value: number } }
+    replyPerformance: { replyRate: number; avgReplyHours: number | null }
+    recentReviews: ReadonlyArray<{ id: string; replyStatus: string }>
+  }>
 }>
 
 test.describe('Critical workflow: dashboard governance (scoped login vs admin)', () => {
@@ -129,9 +129,9 @@ test.describe('Critical workflow: dashboard governance (scoped login vs admin)',
 
       // A's dashboard: governed aggregates. The expired 1★ is excluded (avg 5
       // over 1 review, not 3 over 2).
-      const dashboard = await callServerFnGet<DashboardResult>(page, {
+      const { dashboard } = await callServerFnGet<PropertyOverviewResult>(page, {
         file: DASHBOARD_FILE,
-        exportName: 'getDashboardDataFn',
+        exportName: 'getPropertyOverviewFn',
         data: { propertyId: propertyAId, timeRange: 'all' },
       })
       expect(dashboard.kpis.avgRating.value).toBe(5)
@@ -145,7 +145,7 @@ test.describe('Critical workflow: dashboard governance (scoped login vs admin)',
       // B's dashboard: refused by the policy (no grant), as a 403.
       const denial = await callServerFnGetExpectError(page, {
         file: DASHBOARD_FILE,
-        exportName: 'getDashboardDataFn',
+        exportName: 'getPropertyOverviewFn',
         data: { propertyId: propertyBId, timeRange: 'all' },
       })
       expect(denial.status).toBe(403)
@@ -176,11 +176,14 @@ test.describe('Critical workflow: dashboard governance (scoped login vs admin)',
       timeout: 15_000,
     })
 
-    const memberDashboard = await callServerFnGet<DashboardResult>(page, {
-      file: DASHBOARD_FILE,
-      exportName: 'getDashboardDataFn',
-      data: { propertyId: propertyAId, timeRange: 'all' },
-    })
+    const { dashboard: memberDashboard } = await callServerFnGet<PropertyOverviewResult>(
+      page,
+      {
+        file: DASHBOARD_FILE,
+        exportName: 'getPropertyOverviewFn',
+        data: { propertyId: propertyAId, timeRange: 'all' },
+      },
+    )
     // Reply-derived fields are redacted (no reply.manage): zeroed performance
     // and hidden per-review state.
     expect(memberDashboard.replyPerformance).toEqual({
@@ -197,11 +200,14 @@ test.describe('Critical workflow: dashboard governance (scoped login vs admin)',
   }) => {
     const { propertyAId, freshAId } = await seedLandscape()
     await signIn(page)
-    const adminDashboard = await callServerFnGet<DashboardResult>(page, {
-      file: DASHBOARD_FILE,
-      exportName: 'getDashboardDataFn',
-      data: { propertyId: propertyAId, timeRange: 'all' },
-    })
+    const { dashboard: adminDashboard } = await callServerFnGet<PropertyOverviewResult>(
+      page,
+      {
+        file: DASHBOARD_FILE,
+        exportName: 'getPropertyOverviewFn',
+        data: { propertyId: propertyAId, timeRange: 'all' },
+      },
+    )
     expect(adminDashboard.kpis.avgRating.value).toBe(5)
     expect(adminDashboard.replyPerformance.replyRate).toBeGreaterThan(0)
     expect(adminDashboard.recentReviews.find((r) => r.id === freshAId)?.replyStatus).toBe(

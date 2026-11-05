@@ -2,7 +2,7 @@
 // registers under its own consumer name.
 //
 // `identity.member.removed` commits with the membership delete on every path
-// that removes a member (removal, leaving, the offboarding repair). The
+// that removes a member (removal, the offboarding repair). The
 // removal's own release runs before that commit, so each owner releases again
 // afterwards: whatever the member was assigned in between.
 

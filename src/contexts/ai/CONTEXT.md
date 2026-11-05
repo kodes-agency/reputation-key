@@ -713,7 +713,13 @@ up while one of its replayed reviews still owes an analysis. The replay and the
 reopen pass lock the Property's source fence before their enrollment row and
 reviews, the order Review writers and authorization changes take (ADR 0060).
 `readReviewAnalysisProgress` reports queued, running, analysed and
-not-analysable counts. Reply Draft provider output remains session-ephemeral until an explicit,
+not-analysable counts, and `needs_attention` once the work is done but enrollment
+stalled or was superseded. A missing or unreadable processing profile, an
+unreadable language runtime and a preparation refusal are never settled against the
+review: it stays runnable until the cause clears. Guest voice reads a review settled
+without an analysis by the sequence Review issued for it, so an unsupported language
+no longer holds a figure provisional; a newer sequence still waits.
+Reply Draft provider output remains session-ephemeral until an explicit,
 atomically revalidated adoption creates Review-owned draft content.
 
 Property Trends compare the latest 30 complete Property-local days with the prior 30. Readiness requires at least 20 analyzed text Reviews, at least 90% coverage,

@@ -57,10 +57,7 @@ export const createReplyLookupAdapter = (deps: ReplyLookupSource): ReplyLookupPo
       }
       return observedReplyView(observed)
     }
-    // Legacy fallback for rows that predate governed reply observations.
-    const reply =
-      internal ?? replies.find((candidate) => candidate.source === 'google_sync')
-    return reply ? replyEntityView(reply) : null
+    return internal ? replyEntityView(internal) : null
   },
   getReplyMilestonesByReviewIds: async (ids, orgId) => {
     const rows = await deps.findMilestonesByReviewIds(ids, orgId)

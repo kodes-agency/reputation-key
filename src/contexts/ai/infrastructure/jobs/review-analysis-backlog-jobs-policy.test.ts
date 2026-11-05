@@ -248,6 +248,7 @@ type AiSwitches = {
   neverEnabled: ReadonlySet<PropertyId>
   /** The background lane has no room: an analysis claims its operation and waits. */
   laneBusy: boolean
+  profileUnavailable?: boolean
 }
 
 type StoredOperation = {
@@ -495,20 +496,23 @@ function analysisWithOpenGates(clock: Readonly<{ now: number }>, switches: AiSwi
     processingProfiles: {
       readForAi: async (
         scope: Readonly<{ organizationId: OrganizationId; propertyId: PropertyId }>,
-      ) => ({
-        status: 'available' as const,
-        profile: {
-          organizationId: scope.organizationId,
-          propertyId: scope.propertyId,
-          countryCode: 'US',
-          timezone: 'America/New_York',
-          processingRegion: 'global' as const,
-          routingPolicyVersion: 1,
-          sourceEpoch: 2,
-          profileVersion: 3,
-          lifecycleState: 'active' as const,
-        },
-      }),
+      ) =>
+        switches.profileUnavailable
+          ? { status: 'not_found' as const }
+          : {
+              status: 'available' as const,
+              profile: {
+                organizationId: scope.organizationId,
+                propertyId: scope.propertyId,
+                countryCode: 'US',
+                timezone: 'America/New_York',
+                processingRegion: 'global' as const,
+                routingPolicyVersion: 1,
+                sourceEpoch: 2,
+                profileVersion: 3,
+                lifecycleState: 'active' as const,
+              },
+            },
     },
     subjectHmac: { sign: () => ({ digest: SHA, keyVersion: 'ai-subject-hmac-v1' }) },
     nowEpochMillis: () => clock.now,
@@ -808,6 +812,27 @@ describe('Review Analysis backlog jobs under platform policy', () => {
     expect(rows.find((row) => row.organizationId === STOPPED_ORGANIZATION)).toMatchObject(
       { state: 'queued', attempts: 0, firstStartedAtEpochMillis: null },
     )
+  })
+
+  it('keeps a profile refusal queued past the horizon and drains it after restoration', async () => {
+    const rows = [queued(1, { org: STOPPED_ORGANIZATION, prop: STOPPED_PROPERTY })]
+    const run = worker({ BETA_ALLOWLIST_ORGS: '*' }, rows)
+    run.switches.profileUnavailable = true
+    await run.fire()
+    run.advance(24 * 60 * 60 * 1_000)
+    await run.fire()
+    expect(rows).toHaveLength(1)
+    expect(rows[0]).toMatchObject({ state: 'queued' })
+    expect(run.advanceWithoutAnalysis).not.toHaveBeenCalled()
+    expect(run.operations()).toHaveLength(0)
+    expect(run.analyzeReview).not.toHaveBeenCalled()
+
+    run.switches.profileUnavailable = false
+    run.advance(30_000)
+    await run.fire()
+    expect(run.analyzeReview).toHaveBeenCalledOnce()
+    expect(run.operations()).toHaveLength(1)
+    expect(run.operations()[0]).toMatchObject({ executionAttempt: 1 })
   })
 
   it('analyses a refused review once the stop is lifted and its hold has passed', async () => {

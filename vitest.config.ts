@@ -2,6 +2,7 @@ import { defineConfig, type TestProjectConfiguration } from 'vitest/config'
 import { resolve } from 'path'
 import { storybookTest } from '@storybook/addon-vitest/vitest-plugin'
 import { playwright } from '@vitest/browser-playwright'
+import tailwindcss from '@tailwindcss/vite'
 import { storybookStoryStarts } from './scripts/ci/storybook-story-starts'
 import { testEnvironment } from './src/shared/testing/test-environment'
 
@@ -39,8 +40,16 @@ const storybookProject: TestProjectConfiguration[] =
           // VITEST_STORYBOOK is set, and that same variable disables the
           // addon-a11y hard failure. Naming it explicitly lets the CLI filter
           // stay stable while a11y still enforces.
+          //
+          // Tailwind is compiled here as the app compiles it (vite.config.ts is not
+          // loaded by Vitest), so src/styles.css, imported by the preview, is the real
+          // stylesheet: classes, container queries and the theme tokens apply, and
+          // setup checks that before every story.
           extends: true,
-          plugins: [storybookTest({ configDir: resolve(__dirname, '.storybook') })],
+          plugins: [
+            tailwindcss(),
+            storybookTest({ configDir: resolve(__dirname, '.storybook') }),
+          ],
           test: {
             name: 'storybook',
             setupFiles: ['./.storybook/vitest.setup.ts'],

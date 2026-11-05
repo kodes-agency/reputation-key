@@ -86,6 +86,9 @@ test('a staff invitation, a guest scan, closed manager routes and removal', asyn
     if (!href) throw new Error('Staff invitation has no acceptance link')
     const staffPage = await staffContext.newPage()
     await staffPage.goto(href)
+    // The fields are fillable before React hydrates them; hydration then resets
+    // them to empty and the form refuses the save.
+    await waitForHydration(staffPage)
     await expect(staffPage.getByText('Staff', { exact: true })).toBeVisible()
     await expect(staffPage.getByText('None assigned yet')).toHaveCount(0)
     await staffPage.getByLabel('Full name', { exact: true }).fill(name)

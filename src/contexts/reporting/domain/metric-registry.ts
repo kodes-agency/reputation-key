@@ -34,19 +34,11 @@ export type InsufficientDataBehavior = 'unavailable' | 'quarantine'
 export interface MetricDefinition {
   readonly id: string
   readonly key: MetricKey
-  readonly name: string
-  readonly description: string
   readonly valueKind: MetricValueKind
   readonly workerDataFlag: boolean
   readonly privacyClass: string
   readonly retentionClass: string
   readonly lifecycleStatus: MetricLifecycleStatus
-  readonly approvalOwner: string
-}
-export interface SeededMetricDefinition extends MetricDefinition {
-  readonly entityLevel: 'property' | 'portal'
-  readonly valueType: MetricValueKind
-  readonly createdAt: string
 }
 
 export type GovernedMetricVersion = Readonly<{
@@ -60,75 +52,19 @@ export interface MetricDefinitionVersion {
   readonly version: number
   readonly effectiveFrom: Date
   readonly effectiveTo: Date | null
-  readonly numeratorDescription: string
-  readonly denominatorDescription: string | null
   readonly unit: string
   readonly precision: number
-  readonly aggregationRule: string
-  readonly lateArrivalRule: string
   readonly allowedScopes: readonly MetricScope[]
-  readonly attributionRule: string
   readonly minimumSample: number
   readonly insufficientDataBehavior: InsufficientDataBehavior
   readonly sourcePolicyAllowlist: readonly SourcePolicyClass[]
   readonly permittedConsumers: readonly PermittedConsumer[]
   readonly employmentDecisionEligible: false
-  readonly correctionBehavior: string
-  readonly fairnessReviewStatus: string
-}
-export interface SeededMetricDefinitionVersion extends MetricDefinitionVersion {
-  readonly createdAt: string
 }
 
 export interface SeededMetricRegistryEntry {
-  readonly definition: SeededMetricDefinition
-  readonly versions: readonly SeededMetricDefinitionVersion[]
-}
-
-export interface MetricRegistryEntry {
   readonly definition: MetricDefinition
   readonly versions: readonly MetricDefinitionVersion[]
-}
-
-/**
- * Get the active version of a metric definition as of a given time.
- * Returns null if no version is active.
- */
-export function getActiveVersion(
-  entry: MetricRegistryEntry,
-  asOf: Date,
-): MetricDefinitionVersion | null {
-  const active = entry.versions.filter((v) => {
-    if (v.effectiveFrom > asOf) return false
-    if (v.effectiveTo !== null && asOf >= v.effectiveTo) return false
-    return true
-  })
-  // Return the most recent active version
-  return active.sort((a, b) => b.version - a.version)[0] ?? null
-}
-
-/**
- * Architectural constraint: certain source classes are NEVER eligible
- * for Goals — even if they appear in a metric definition's permitted
- * consumers.
- *
- * Per ADRs 0041/0043: review-solicitation and Google-restricted sources
- * cannot enter staff gamification by any code path.
- */
-const GAMIFICATION_BLOCKED_SOURCES: ReadonlySet<SourcePolicyClass> = new Set([
-  'google_property_derivative',
-  'review_solicitation_analytics_only',
-  'first_party_guest_private',
-])
-
-const GAMIFICATION_CONSUMERS: ReadonlySet<PermittedConsumer> = new Set(['goal'])
-
-export function isGamificationViolation(version: MetricDefinitionVersion): boolean {
-  const hasGamificationConsumer = version.permittedConsumers.some((c) =>
-    GAMIFICATION_CONSUMERS.has(c),
-  )
-  if (!hasGamificationConsumer) return false
-  return version.sourcePolicyAllowlist.some((s) => GAMIFICATION_BLOCKED_SOURCES.has(s))
 }
 
 /** Stable IDs in the code-reviewed catalogue; producers never select by mutable key. */
@@ -163,8 +99,8 @@ export const METRIC_DEFINITION_IDS = {
 } as const
 
 function seededEntry(
-  definition: SeededMetricDefinition,
-  versions: readonly SeededMetricDefinitionVersion[],
+  definition: MetricDefinition,
+  versions: readonly MetricDefinitionVersion[],
 ): SeededMetricRegistryEntry {
   const frozenVersions = versions.map((version) =>
     Object.freeze({
@@ -187,18 +123,11 @@ export const METRIC_DEFINITIONS = Object.freeze([
     {
       id: '11111111-1111-4111-8111-111111110101',
       key: 'portal.content_review.completed',
-      name: 'Portal content reviews completed',
-      entityLevel: 'property',
-      valueType: 'counter',
-      description:
-        'Explicit manager confirmation that published Portal content was reviewed.',
       valueKind: 'counter',
       workerDataFlag: false,
       privacyClass: 'operational',
       retentionClass: 'standard',
       lifecycleStatus: 'approved',
-      approvalOwner: 'product-governance',
-      createdAt: '2026-09-05 23:07:05.116845+03',
     },
     [
       {
@@ -207,22 +136,14 @@ export const METRIC_DEFINITIONS = Object.freeze([
         version: 1,
         effectiveFrom: new Date('2026-08-08T03:00:00+0300'),
         effectiveTo: null,
-        numeratorDescription: 'Explicit manager content-reviewed action',
-        denominatorDescription: null,
         unit: 'review',
         precision: 0,
-        aggregationRule: 'sum',
-        lateArrivalRule: 'accept_with_source_event_time',
         allowedScopes: ['property', 'portal_group'],
-        attributionRule: 'property and effective Portal group at event time',
         minimumSample: 1,
         insufficientDataBehavior: 'unavailable',
         sourcePolicyAllowlist: ['first_party_workflow'],
         permittedConsumers: ['dashboard', 'goal', 'notification'],
         employmentDecisionEligible: false,
-        correctionBehavior: 'append_delta',
-        fairnessReviewStatus: 'approved_for_consumers',
-        createdAt: '2026-09-05 23:07:05.116845+03',
       },
       {
         id: '11111111-1111-4111-8111-111111112101',
@@ -230,22 +151,14 @@ export const METRIC_DEFINITIONS = Object.freeze([
         version: 2,
         effectiveFrom: new Date('2026-08-09T03:00:00+0300'),
         effectiveTo: null,
-        numeratorDescription: 'Explicit manager content-reviewed action',
-        denominatorDescription: null,
         unit: 'review',
         precision: 0,
-        aggregationRule: 'sum',
-        lateArrivalRule: 'accept_with_source_event_time',
         allowedScopes: ['property', 'portal_group'],
-        attributionRule: 'property and effective Portal group at event time',
         minimumSample: 1,
         insufficientDataBehavior: 'unavailable',
         sourcePolicyAllowlist: ['first_party_workflow'],
         permittedConsumers: ['dashboard', 'goal', 'recognition', 'notification'],
         employmentDecisionEligible: false,
-        correctionBehavior: 'append_delta',
-        fairnessReviewStatus: 'approved_for_consumers',
-        createdAt: '2026-09-05 23:07:05.116845+03',
       },
     ],
   ),
@@ -253,17 +166,11 @@ export const METRIC_DEFINITIONS = Object.freeze([
     {
       id: '11111111-1111-4111-8111-111111110102',
       key: 'portal.configuration_completeness',
-      name: 'Portal configuration completeness',
-      entityLevel: 'property',
-      valueType: 'level',
-      description: 'Published required configuration fields completed as a percentage.',
       valueKind: 'level',
       workerDataFlag: false,
       privacyClass: 'operational',
       retentionClass: 'standard',
       lifecycleStatus: 'approved',
-      approvalOwner: 'product-governance',
-      createdAt: '2026-09-05 23:07:05.116845+03',
     },
     [
       {
@@ -272,22 +179,14 @@ export const METRIC_DEFINITIONS = Object.freeze([
         version: 1,
         effectiveFrom: new Date('2026-08-08T03:00:00+0300'),
         effectiveTo: null,
-        numeratorDescription: 'Published required fields present',
-        denominatorDescription: 'Published required fields configured',
         unit: 'percent',
         precision: 2,
-        aggregationRule: 'latest',
-        lateArrivalRule: 'accept_with_source_event_time',
         allowedScopes: ['property', 'portal_group'],
-        attributionRule: 'property and effective Portal group at event time',
         minimumSample: 1,
         insufficientDataBehavior: 'unavailable',
         sourcePolicyAllowlist: ['first_party_workflow'],
         permittedConsumers: ['dashboard', 'goal', 'notification'],
         employmentDecisionEligible: false,
-        correctionBehavior: 'append_delta',
-        fairnessReviewStatus: 'approved_for_consumers',
-        createdAt: '2026-09-05 23:07:05.116845+03',
       },
       {
         id: '11111111-1111-4111-8111-111111112102',
@@ -295,22 +194,14 @@ export const METRIC_DEFINITIONS = Object.freeze([
         version: 2,
         effectiveFrom: new Date('2026-08-09T03:00:00+0300'),
         effectiveTo: null,
-        numeratorDescription: 'Published required fields present',
-        denominatorDescription: 'Published required fields configured',
         unit: 'percent',
         precision: 2,
-        aggregationRule: 'latest',
-        lateArrivalRule: 'accept_with_source_event_time',
         allowedScopes: ['property', 'portal_group'],
-        attributionRule: 'property and effective Portal group at event time',
         minimumSample: 1,
         insufficientDataBehavior: 'unavailable',
         sourcePolicyAllowlist: ['first_party_workflow'],
         permittedConsumers: ['dashboard', 'goal', 'recognition', 'notification'],
         employmentDecisionEligible: false,
-        correctionBehavior: 'append_delta',
-        fairnessReviewStatus: 'approved_for_consumers',
-        createdAt: '2026-09-05 23:07:05.116845+03',
       },
       {
         // The Immersive Hub's fields: Portal name, primary-language wording, a
@@ -321,22 +212,14 @@ export const METRIC_DEFINITIONS = Object.freeze([
         version: 3,
         effectiveFrom: new Date('2026-10-02T03:00:00+0300'),
         effectiveTo: null,
-        numeratorDescription: 'Immersive Hub configuration fields complete',
-        denominatorDescription: 'Immersive Hub configuration fields required',
         unit: 'percent',
         precision: 2,
-        aggregationRule: 'latest',
-        lateArrivalRule: 'accept_with_source_event_time',
         allowedScopes: ['property', 'portal_group'],
-        attributionRule: 'property and effective Portal group at event time',
         minimumSample: 1,
         insufficientDataBehavior: 'unavailable',
         sourcePolicyAllowlist: ['first_party_workflow'],
         permittedConsumers: ['dashboard', 'goal', 'notification'],
         employmentDecisionEligible: false,
-        correctionBehavior: 'append_delta',
-        fairnessReviewStatus: 'approved_for_consumers',
-        createdAt: '2026-10-02 18:00:00+03',
       },
     ],
   ),
@@ -344,17 +227,11 @@ export const METRIC_DEFINITIONS = Object.freeze([
     {
       id: '11111111-1111-4111-8111-111111110103',
       key: 'portal.approved_destination_ratio',
-      name: 'Approved Portal destination ratio',
-      entityLevel: 'property',
-      valueType: 'ratio',
-      description: 'Approved destinations divided by configured destinations.',
       valueKind: 'ratio',
       workerDataFlag: false,
       privacyClass: 'operational',
       retentionClass: 'standard',
       lifecycleStatus: 'approved',
-      approvalOwner: 'product-governance',
-      createdAt: '2026-09-05 23:07:05.116845+03',
     },
     [
       {
@@ -363,22 +240,14 @@ export const METRIC_DEFINITIONS = Object.freeze([
         version: 1,
         effectiveFrom: new Date('2026-08-08T03:00:00+0300'),
         effectiveTo: null,
-        numeratorDescription: 'Approved published destinations',
-        denominatorDescription: 'Configured published destinations',
         unit: 'ratio',
         precision: 4,
-        aggregationRule: 'latest',
-        lateArrivalRule: 'accept_with_source_event_time',
         allowedScopes: ['property', 'portal_group'],
-        attributionRule: 'property and effective Portal group at event time',
         minimumSample: 5,
         insufficientDataBehavior: 'unavailable',
         sourcePolicyAllowlist: ['first_party_workflow'],
         permittedConsumers: ['dashboard', 'goal', 'notification'],
         employmentDecisionEligible: false,
-        correctionBehavior: 'append_delta',
-        fairnessReviewStatus: 'approved_for_consumers',
-        createdAt: '2026-09-05 23:07:05.116845+03',
       },
       {
         id: '11111111-1111-4111-8111-111111112103',
@@ -386,22 +255,14 @@ export const METRIC_DEFINITIONS = Object.freeze([
         version: 2,
         effectiveFrom: new Date('2026-08-09T03:00:00+0300'),
         effectiveTo: null,
-        numeratorDescription: 'Approved published destinations',
-        denominatorDescription: 'Configured published destinations',
         unit: 'ratio',
         precision: 4,
-        aggregationRule: 'ratio',
-        lateArrivalRule: 'accept_with_source_event_time',
         allowedScopes: ['property', 'portal_group'],
-        attributionRule: 'property and effective Portal group at event time',
         minimumSample: 5,
         insufficientDataBehavior: 'unavailable',
         sourcePolicyAllowlist: ['first_party_workflow'],
         permittedConsumers: ['dashboard', 'goal', 'recognition', 'notification'],
         employmentDecisionEligible: false,
-        correctionBehavior: 'append_delta',
-        fairnessReviewStatus: 'approved_for_consumers',
-        createdAt: '2026-09-05 23:07:05.116845+03',
       },
     ],
   ),
@@ -409,17 +270,11 @@ export const METRIC_DEFINITIONS = Object.freeze([
     {
       id: '11111111-1111-4111-8111-111111110201',
       key: 'portal.scan',
-      name: 'Portal scans',
-      entityLevel: 'portal',
-      valueType: 'counter',
-      description: 'Portal scan operational analytics only.',
       valueKind: 'counter',
       workerDataFlag: false,
       privacyClass: 'solicitation_analytics',
       retentionClass: 'short',
       lifecycleStatus: 'approved',
-      approvalOwner: 'product-governance',
-      createdAt: '2026-09-05 23:07:05.116845+03',
     },
     [
       {
@@ -428,22 +283,14 @@ export const METRIC_DEFINITIONS = Object.freeze([
         version: 1,
         effectiveFrom: new Date('2026-08-08T03:00:00+0300'),
         effectiveTo: null,
-        numeratorDescription: 'Portal scans',
-        denominatorDescription: null,
         unit: 'scan',
         precision: 0,
-        aggregationRule: 'sum',
-        lateArrivalRule: 'accept_with_source_event_time',
         allowedScopes: ['property', 'portal', 'portal_group'],
-        attributionRule: 'portal and property at event time',
         minimumSample: 1,
         insufficientDataBehavior: 'unavailable',
         sourcePolicyAllowlist: ['review_solicitation_analytics_only'],
         permittedConsumers: ['portal_analytics'],
         employmentDecisionEligible: false,
-        correctionBehavior: 'append_delta',
-        fairnessReviewStatus: 'approved_for_consumers',
-        createdAt: '2026-09-05 23:07:05.116845+03',
       },
     ],
   ),
@@ -451,18 +298,11 @@ export const METRIC_DEFINITIONS = Object.freeze([
     {
       id: '11111111-1111-4111-8111-111111110202',
       key: 'portal.rating',
-      name: 'Private Portal ratings',
-      entityLevel: 'portal',
-      valueType: 'average',
-      description:
-        'Private guest numeric ratings for Portal analytics and own staff results.',
       valueKind: 'average',
       workerDataFlag: true,
       privacyClass: 'private_response_with_worker_link',
       retentionClass: 'short',
       lifecycleStatus: 'approved',
-      approvalOwner: 'privacy',
-      createdAt: '2026-09-05 23:07:05.116845+03',
     },
     [
       {
@@ -471,22 +311,14 @@ export const METRIC_DEFINITIONS = Object.freeze([
         version: 1,
         effectiveFrom: new Date('2026-08-08T03:00:00+0300'),
         effectiveTo: null,
-        numeratorDescription: 'Private rating total',
-        denominatorDescription: 'Private rating response count',
         unit: 'rating',
         precision: 2,
-        aggregationRule: 'average',
-        lateArrivalRule: 'accept_with_source_event_time',
         allowedScopes: ['property', 'portal_group', 'portal'],
-        attributionRule: 'portal and group at response time',
         minimumSample: 5,
         insufficientDataBehavior: 'unavailable',
         sourcePolicyAllowlist: ['first_party_guest_private'],
         permittedConsumers: ['portal_analytics', 'staff_self'],
         employmentDecisionEligible: false,
-        correctionBehavior: 'append_delta',
-        fairnessReviewStatus: 'approved_for_consumers',
-        createdAt: '2026-09-05 23:07:05.116845+03',
       },
     ],
   ),
@@ -494,18 +326,11 @@ export const METRIC_DEFINITIONS = Object.freeze([
     {
       id: '11111111-1111-4111-8111-111111110203',
       key: 'portal.feedback',
-      name: 'Private Portal feedback count',
-      entityLevel: 'portal',
-      valueType: 'counter',
-      description:
-        'Private guest response count for Portal analytics only; no response content.',
       valueKind: 'counter',
       workerDataFlag: false,
       privacyClass: 'private_response',
       retentionClass: 'short',
       lifecycleStatus: 'approved',
-      approvalOwner: 'privacy',
-      createdAt: '2026-09-05 23:07:05.116845+03',
     },
     [
       {
@@ -514,22 +339,14 @@ export const METRIC_DEFINITIONS = Object.freeze([
         version: 1,
         effectiveFrom: new Date('2026-08-08T03:00:00+0300'),
         effectiveTo: null,
-        numeratorDescription: 'Private responses received',
-        denominatorDescription: null,
         unit: 'response',
         precision: 0,
-        aggregationRule: 'sum',
-        lateArrivalRule: 'accept_with_source_event_time',
         allowedScopes: ['property', 'portal_group', 'portal'],
-        attributionRule: 'portal and group at response time',
         minimumSample: 5,
         insufficientDataBehavior: 'unavailable',
         sourcePolicyAllowlist: ['first_party_guest_private'],
         permittedConsumers: ['portal_analytics'],
         employmentDecisionEligible: false,
-        correctionBehavior: 'append_delta',
-        fairnessReviewStatus: 'approved_for_consumers',
-        createdAt: '2026-09-05 23:07:05.116845+03',
       },
     ],
   ),
@@ -537,17 +354,11 @@ export const METRIC_DEFINITIONS = Object.freeze([
     {
       id: '11111111-1111-4111-8111-111111110204',
       key: 'portal.review_link_click',
-      name: 'Portal destination clicks',
-      entityLevel: 'portal',
-      valueType: 'counter',
-      description: 'Portal destination click operational analytics only.',
       valueKind: 'counter',
       workerDataFlag: false,
       privacyClass: 'solicitation_analytics',
       retentionClass: 'short',
       lifecycleStatus: 'approved',
-      approvalOwner: 'product-governance',
-      createdAt: '2026-09-05 23:07:05.116845+03',
     },
     [
       {
@@ -556,22 +367,14 @@ export const METRIC_DEFINITIONS = Object.freeze([
         version: 1,
         effectiveFrom: new Date('2026-08-08T03:00:00+0300'),
         effectiveTo: null,
-        numeratorDescription: 'Published destination clicks',
-        denominatorDescription: null,
         unit: 'click',
         precision: 0,
-        aggregationRule: 'sum',
-        lateArrivalRule: 'accept_with_source_event_time',
         allowedScopes: ['property', 'portal_group', 'portal'],
-        attributionRule: 'portal and group at click time',
         minimumSample: 1,
         insufficientDataBehavior: 'unavailable',
         sourcePolicyAllowlist: ['review_solicitation_analytics_only'],
         permittedConsumers: ['portal_analytics'],
         employmentDecisionEligible: false,
-        correctionBehavior: 'append_delta',
-        fairnessReviewStatus: 'approved_for_consumers',
-        createdAt: '2026-09-05 23:07:05.116845+03',
       },
     ],
   ),
@@ -579,18 +382,11 @@ export const METRIC_DEFINITIONS = Object.freeze([
     {
       id: '11111111-1111-4111-8111-111111110205',
       key: 'property.review',
-      name: 'Imported property reviews',
-      entityLevel: 'property',
-      valueType: 'average',
-      description:
-        'Imported Google review aggregate for governed property Dashboard use only.',
       valueKind: 'average',
       workerDataFlag: false,
       privacyClass: 'google_restricted',
       retentionClass: 'provider-aligned',
       lifecycleStatus: 'approved',
-      approvalOwner: 'privacy',
-      createdAt: '2026-09-05 23:07:05.116845+03',
     },
     [
       {
@@ -599,22 +395,14 @@ export const METRIC_DEFINITIONS = Object.freeze([
         version: 1,
         effectiveFrom: new Date('2026-08-08T03:00:00+0300'),
         effectiveTo: null,
-        numeratorDescription: 'Imported review rating total',
-        denominatorDescription: 'Imported review count',
         unit: 'rating',
         precision: 2,
-        aggregationRule: 'average',
-        lateArrivalRule: 'accept_with_source_event_time',
         allowedScopes: ['property'],
-        attributionRule: 'source property identity',
         minimumSample: 1,
         insufficientDataBehavior: 'unavailable',
         sourcePolicyAllowlist: ['google_property_derivative'],
         permittedConsumers: ['dashboard'],
         employmentDecisionEligible: false,
-        correctionBehavior: 'append_delta',
-        fairnessReviewStatus: 'approved_for_consumers',
-        createdAt: '2026-09-05 23:07:05.116845+03',
       },
     ],
   ),
@@ -622,18 +410,11 @@ export const METRIC_DEFINITIONS = Object.freeze([
     {
       id: '11111111-1111-4111-8111-111111110301',
       key: 'portal.qualified_scan',
-      name: 'Qualified scans',
-      entityLevel: 'portal',
-      valueType: 'counter',
-      description:
-        'Server-verified QR or NFC Access Artifact arrivals, deduplicated per response session and Portal over 24 hours.',
       valueKind: 'counter',
       workerDataFlag: true,
       privacyClass: 'guest_gateway_numeric_with_worker_link',
       retentionClass: 'guest_gateway_24_month',
       lifecycleStatus: 'approved',
-      approvalOwner: 'product-governance',
-      createdAt: '2026-09-05 23:07:05.351486+03',
     },
     [
       {
@@ -642,16 +423,9 @@ export const METRIC_DEFINITIONS = Object.freeze([
         version: 1,
         effectiveFrom: new Date('2026-08-01T03:00:00+0300'),
         effectiveTo: null,
-        numeratorDescription:
-          'Eligible server-verified and session-deduplicated Access Artifact arrivals',
-        denominatorDescription: null,
         unit: 'scan',
         precision: 0,
-        aggregationRule: 'sum',
-        lateArrivalRule: 'append_by_source_event_time_reconcile_24h_after_month_end',
         allowedScopes: ['property', 'portal_group', 'portal'],
-        attributionRule:
-          'property, Portal, and effective Portal Group at source-event time',
         minimumSample: 0,
         insufficientDataBehavior: 'unavailable',
         sourcePolicyAllowlist: ['first_party_guest_gateway_metric'],
@@ -664,9 +438,6 @@ export const METRIC_DEFINITIONS = Object.freeze([
           'staff_self',
         ],
         employmentDecisionEligible: false,
-        correctionBehavior: 'append_delta',
-        fairnessReviewStatus: 'approved_manager_and_staff_self_context',
-        createdAt: '2026-09-05 23:07:05.351486+03',
       },
     ],
   ),
@@ -674,18 +445,11 @@ export const METRIC_DEFINITIONS = Object.freeze([
     {
       id: '11111111-1111-4111-8111-111111110302',
       key: 'portal.rating_count',
-      name: 'Portal rating count',
-      entityLevel: 'portal',
-      valueType: 'counter',
-      description:
-        'Count of eligible first-party private numeric Portal ratings from every arrival channel.',
       valueKind: 'counter',
       workerDataFlag: true,
       privacyClass: 'guest_gateway_numeric_with_worker_link',
       retentionClass: 'guest_gateway_24_month',
       lifecycleStatus: 'approved',
-      approvalOwner: 'product-governance',
-      createdAt: '2026-09-05 23:07:05.351486+03',
     },
     [
       {
@@ -694,15 +458,9 @@ export const METRIC_DEFINITIONS = Object.freeze([
         version: 1,
         effectiveFrom: new Date('2026-08-01T03:00:00+0300'),
         effectiveTo: null,
-        numeratorDescription: 'Eligible private numeric Portal ratings',
-        denominatorDescription: null,
         unit: 'rating',
         precision: 0,
-        aggregationRule: 'sum',
-        lateArrivalRule: 'append_by_source_event_time_reconcile_24h_after_month_end',
         allowedScopes: ['property', 'portal_group', 'portal'],
-        attributionRule:
-          'property, Portal, and effective Portal Group at source-event time',
         minimumSample: 0,
         insufficientDataBehavior: 'unavailable',
         sourcePolicyAllowlist: ['first_party_guest_gateway_metric'],
@@ -715,9 +473,6 @@ export const METRIC_DEFINITIONS = Object.freeze([
           'staff_self',
         ],
         employmentDecisionEligible: false,
-        correctionBehavior: 'append_delta',
-        fairnessReviewStatus: 'approved_manager_and_staff_self_context',
-        createdAt: '2026-09-05 23:07:05.351486+03',
       },
     ],
   ),
@@ -725,18 +480,11 @@ export const METRIC_DEFINITIONS = Object.freeze([
     {
       id: '11111111-1111-4111-8111-111111110303',
       key: 'portal.rating_average',
-      name: 'Portal rating average',
-      entityLevel: 'portal',
-      valueType: 'average',
-      description:
-        'Rating-weighted average of eligible first-party private numeric Portal ratings from every arrival channel.',
       valueKind: 'average',
       workerDataFlag: true,
       privacyClass: 'guest_gateway_numeric_with_worker_link',
       retentionClass: 'guest_gateway_24_month',
       lifecycleStatus: 'approved',
-      approvalOwner: 'product-governance',
-      createdAt: '2026-09-05 23:07:05.351486+03',
     },
     [
       {
@@ -745,15 +493,9 @@ export const METRIC_DEFINITIONS = Object.freeze([
         version: 1,
         effectiveFrom: new Date('2026-08-01T03:00:00+0300'),
         effectiveTo: null,
-        numeratorDescription: 'Sum of eligible private numeric Portal rating values',
-        denominatorDescription: 'Count of eligible private numeric Portal ratings',
         unit: 'star',
         precision: 1,
-        aggregationRule: 'weighted_average',
-        lateArrivalRule: 'append_by_source_event_time_reconcile_24h_after_month_end',
         allowedScopes: ['property', 'portal_group', 'portal'],
-        attributionRule:
-          'property, Portal, and effective Portal Group at source-event time',
         minimumSample: 10,
         insufficientDataBehavior: 'unavailable',
         sourcePolicyAllowlist: ['first_party_guest_gateway_metric'],
@@ -766,9 +508,6 @@ export const METRIC_DEFINITIONS = Object.freeze([
           'staff_self',
         ],
         employmentDecisionEligible: false,
-        correctionBehavior: 'append_delta',
-        fairnessReviewStatus: 'approved_manager_and_staff_self_context',
-        createdAt: '2026-09-05 23:07:05.351486+03',
       },
     ],
   ),
@@ -785,18 +524,6 @@ for (const entry of METRIC_DEFINITIONS) {
 }
 const METRIC_VERSIONS_BY_ID = Object.freeze(metricVersionsById)
 
-export function findMetricDefinition(
-  metricKey: MetricKey,
-): SeededMetricRegistryEntry | null {
-  return METRIC_DEFINITIONS.find(({ definition }) => definition.key === metricKey) ?? null
-}
-
 export function findMetricVersionById(versionId: string): GovernedMetricVersion | null {
   return METRIC_VERSIONS_BY_ID[versionId] ?? null
 }
-
-export const BETA_SAFE_METRIC_VERSION_IDS = [
-  METRIC_VERSION_IDS.qualifiedScanGoal,
-  METRIC_VERSION_IDS.portalRatingCountGoal,
-  METRIC_VERSION_IDS.portalRatingAverageGoal,
-] as const

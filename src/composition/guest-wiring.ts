@@ -13,7 +13,6 @@ export function wireGuest(
     db,
     clock,
     idGen: randomUUID,
-    monotonicNow: performance.now.bind(performance),
     portalApi: portal.publicApi.portal,
     identityManagerFacts: identity.publicApi.managerFacts,
     identityAccountAdminAuthority: identity.publicApi.accountAdminAuthority,

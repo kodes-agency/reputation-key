@@ -4,7 +4,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 const mocks = vi.hoisted(() => ({
   resolveTenantContext: vi.fn(),
   requireExecutionAllowed: vi.fn(),
-  destructiveDelete: vi.fn(),
+  getContainer: vi.fn(),
 }))
 
 vi.mock('#/shared/auth/headers', () => ({
@@ -17,14 +17,10 @@ vi.mock('#/shared/auth/execution-policy', () => ({
   requireExecutionAllowed: mocks.requireExecutionAllowed,
 }))
 vi.mock('#/composition', () => ({
-  getContainer: vi.fn(() => ({
-    propertyPublicApi: {
-      management: { softDeleteProperty: mocks.destructiveDelete },
-    },
-  })),
+  getContainer: mocks.getContainer,
 }))
 
-import { deleteProperty } from './property-read'
+import { deleteProperty } from './properties'
 
 const ACTOR = {
   userId: 'admin-1',
@@ -41,13 +37,14 @@ describe('LIF-01 Property deletion server boundary', () => {
     mocks.requireExecutionAllowed.mockResolvedValue(undefined)
   })
 
-  it('refuses a stale delete request without invoking the destructive use case', async () => {
+  it('refuses a stale delete request before accessing Property services', async () => {
     await expect(
       withStartContext(() => deleteProperty({ data: { propertyId: 'property-1' } })),
     ).rejects.toMatchObject({
       _tag: 'PropertyError',
       code: 'forbidden',
       status: 403,
+      message: 'Permanent property removal is not available in this beta.',
     })
 
     expect(mocks.requireExecutionAllowed).toHaveBeenCalledWith({
@@ -55,6 +52,6 @@ describe('LIF-01 Property deletion server boundary', () => {
       action: 'property.delete',
       propertyId: 'property-1',
     })
-    expect(mocks.destructiveDelete).not.toHaveBeenCalled()
+    expect(mocks.getContainer).not.toHaveBeenCalled()
   })
 })

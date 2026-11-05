@@ -63,7 +63,7 @@ function customRoleMember(scopes: Readonly<Partial<Record<Permission, DataScope>
 }
 
 function readFleet() {
-  return withStartContext(() => getFleetOverviewFn({ data: { timeRange: '30d' } }))
+  return withStartContext(() => getFleetOverviewFn({ data: {} }))
 }
 
 describe('getFleetOverviewFn', () => {
@@ -78,13 +78,11 @@ describe('getFleetOverviewFn', () => {
     mocks.resolveTenantContext.mockResolvedValue(accountAdmin)
     mocks.checkScopedCapability.mockImplementation(
       (_scope: unknown, capability: string) => ({
-        allowed: capability === 'portal.read',
+        allowed: capability !== 'goal.use',
       }),
     )
 
-    await withStartContext(() =>
-      getFleetOverviewFn({ data: { timeRange: '7d', cursor: 'cursor-1' } }),
-    )
+    await withStartContext(() => getFleetOverviewFn({ data: { cursor: 'cursor-1' } }))
 
     expect(mocks.requireExecutionAllowed).toHaveBeenCalledWith({
       actor: accountAdmin,
@@ -97,9 +95,7 @@ describe('getFleetOverviewFn', () => {
     expect(mocks.getFleetOverview).toHaveBeenCalledWith({
       organizationId: ORG_ID,
       scope: { userId: 'admin-1', organizationWide: true },
-      portalReadEnabled: true,
       goalReadEnabled: false,
-      timeRange: '7d',
       cursor: 'cursor-1',
     })
   })

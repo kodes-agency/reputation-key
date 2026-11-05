@@ -1,10 +1,4 @@
-// Identity context — auth identity adapter tests
-// Tests that createBetterAuthIdentityAdapter correctly wraps better-auth API calls
-// and maps data between better-auth's format and our domain records.
-// Mocks getAuth() and getRequest() to control the better-auth surface.
-// BQC-3.5: the invitation/member/org write paths moved to the atomic
-// identity command store; this adapter keeps reads and session/org
-// management.
+// Better Auth registration, invitation, session and custom-role adapter tests.
 
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import type { AuthContext } from '#/shared/domain/auth-context'
@@ -12,7 +6,6 @@ import { organizationId, userId } from '#/shared/domain/ids'
 
 // Mock getAuth with controllable API surface
 const mockSignUpEmail = vi.fn()
-const mockListMembers = vi.fn()
 const mockGetSession = vi.fn()
 const mockListUserInvitations = vi.fn()
 const mockSetActiveOrganization = vi.fn()
@@ -20,26 +13,17 @@ const FIXED_NOW = new Date('2026-08-28T12:00:00.000Z')
 const adapterDeps = {
   clock: vi.fn(() => FIXED_NOW),
   idGen: vi.fn(() => 'generated-role-id'),
-  // ARC-03-T13: the adapter takes the ambient request context as a port; it no
-  // longer dynamically imports the web framework.
-  requestContext: { currentRequestHeaders: async () => new Headers() },
 }
 
 vi.mock('#/shared/auth/auth', () => ({
   getAuth: () => ({
     api: {
       signUpEmail: mockSignUpEmail,
-      listMembers: mockListMembers,
       listUserInvitations: mockListUserInvitations,
       setActiveOrganization: mockSetActiveOrganization,
       getSession: mockGetSession,
     },
   }),
-}))
-
-// Mock getRequest to return null (no request context in tests)
-vi.mock('@tanstack/react-start/server', () => ({
-  getRequest: () => null,
 }))
 
 const db = {
@@ -118,154 +102,6 @@ describe('createBetterAuthIdentityAdapter', () => {
       await expect(adapter.signUp('Bob', 'bob@test.com', 'pass')).rejects.toThrow(
         'Sign-up response did not match expected schema',
       )
-    })
-  })
-
-  describe('listMembers', () => {
-    it('maps raw members to MemberRecord with domain roles', async () => {
-      // Arrange
-      const createdAt = new Date('2026-01-01')
-      mockListMembers.mockResolvedValue({
-        members: [
-          {
-            id: 'm-1',
-            userId: 'u-1',
-            role: 'owner',
-            createdAt,
-            user: { id: 'u-1', email: 'alice@test.com', name: 'Alice', image: null },
-          },
-          {
-            id: 'm-2',
-            userId: 'u-2',
-            role: 'member',
-            createdAt,
-            user: { id: 'u-2', email: 'bob@test.com', name: 'Bob', image: 'img.png' },
-          },
-        ],
-      })
-
-      // Act
-      const members = await adapter.listMembers(testCtx)
-
-      // Assert
-      expect(members).toHaveLength(2)
-      expect(members[0]).toEqual({
-        id: 'm-1',
-        userId: 'u-1',
-        email: 'alice@test.com',
-        name: 'Alice',
-        role: 'AccountAdmin',
-        rawRole: 'owner',
-        image: null,
-        createdAt,
-      })
-      expect(members[1].role).toBe('Member')
-      expect(members[1].image).toBe('img.png')
-    })
-    it('tolerates custom and multi roles without throwing (H2)', async () => {
-      // Arrange — a comma-multi owner role and a custom-only role. Both must map to
-      // role: null (no built-in Role) while preserving the raw string for display /
-      // owner detection. Previously toDomainRoleStrict threw 'unknown_role' here.
-      const createdAt = new Date('2026-01-01')
-      mockListMembers.mockResolvedValue({
-        members: [
-          {
-            id: 'm-multi',
-            userId: 'u-1',
-            role: 'owner,editor',
-            createdAt,
-            user: { id: 'u-1', email: 'multi@test.com', name: 'Multi', image: null },
-          },
-          {
-            id: 'm-custom',
-            userId: 'u-2',
-            role: 'editor',
-            createdAt,
-            user: { id: 'u-2', email: 'custom@test.com', name: 'Custom', image: null },
-          },
-        ],
-      })
-
-      // Act
-      const members = await adapter.listMembers(testCtx)
-
-      // Assert — no throw; both carry role: null + their raw role string.
-      expect(members).toHaveLength(2)
-      expect(members[0]).toEqual({
-        id: 'm-multi',
-        userId: 'u-1',
-        email: 'multi@test.com',
-        name: 'Multi',
-        role: null,
-        rawRole: 'owner,editor',
-        image: null,
-        createdAt,
-      })
-      expect(members[1]).toEqual({
-        id: 'm-custom',
-        userId: 'u-2',
-        email: 'custom@test.com',
-        name: 'Custom',
-        role: null,
-        rawRole: 'editor',
-        image: null,
-        createdAt,
-      })
-    })
-
-    it('returns empty array when no members', async () => {
-      // Arrange
-      mockListMembers.mockResolvedValue({ members: [] })
-
-      // Act
-      const members = await adapter.listMembers(testCtx)
-
-      // Assert
-      expect(members).toEqual([])
-    })
-  })
-
-  describe('getMember', () => {
-    it('returns member by ID', async () => {
-      // Arrange
-      const createdAt = new Date('2026-01-01')
-      mockListMembers.mockResolvedValue({
-        members: [
-          {
-            id: 'm-1',
-            userId: 'u-1',
-            role: 'owner',
-            createdAt,
-            user: { id: 'u-1', email: 'a@t.com', name: 'A', image: null },
-          },
-          {
-            id: 'm-2',
-            userId: 'u-2',
-            role: 'member',
-            createdAt,
-            user: { id: 'u-2', email: 'b@t.com', name: 'B', image: null },
-          },
-        ],
-      })
-
-      // Act
-      const member = await adapter.getMember(testCtx, 'm-2')
-
-      // Assert
-      expect(member).not.toBeNull()
-      expect(member!.id).toBe('m-2')
-      expect(member!.name).toBe('B')
-    })
-
-    it('returns null when member not found', async () => {
-      // Arrange
-      mockListMembers.mockResolvedValue({ members: [] })
-
-      // Act
-      const member = await adapter.getMember(testCtx, 'nonexistent')
-
-      // Assert
-      expect(member).toBeNull()
     })
   })
 

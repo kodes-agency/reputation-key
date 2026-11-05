@@ -31,11 +31,6 @@ import { updateCustomRole } from './application/use-cases/update-custom-role'
 import { deleteCustomRole } from './application/use-cases/delete-custom-role'
 import { updateMemberRole } from './application/use-cases/update-member-role'
 import { removeMember } from './application/use-cases/remove-member'
-import {
-  leaveOrganization,
-  type MemberOffboarding,
-} from './application/use-cases/leave-organization'
-import { identityError } from './domain/errors'
 import { createAtomicIdentityCommandStore } from './infrastructure/identity-command-store'
 import { buildInvitationUseCases, type InvitationUseCaseDeps } from './build-invitations'
 import { buildMerchantAiUpdates } from './build-merchant-ai-updates'
@@ -246,17 +241,6 @@ type IdentityContextDeps = Readonly<{
     userId: string,
     actorId: string,
   ) => Promise<void>
-  /**
-   * LIF-01-T21. Transfer-first leave needs the Portal, Property and Inbox
-   * facts that name what a departing member still holds, so it is composed
-   * rather than inferred. ABSENT IS FAIL-CLOSED: with no adapter the leave
-   * command refuses, because a leave that cannot see the worklist would
-   * silently strand every responsibility on it. AccountAdmin-initiated
-   * `removeMember` is unaffected — it releases rather than transfers.
-   * Whether it was supplied is published as
-   * `offboardingFacts.selfServiceLeaveAvailable`.
-   */
-  memberOffboarding?: MemberOffboarding
   organizationLifecycle?: IdentityOrganizationLifecycleComposition
 }>
 
@@ -607,26 +591,6 @@ export const buildIdentityContext = (deps: IdentityContextDeps) => {
         })
       ).allowed,
   )
-  /**
-   * LIF-01-T21 fail-closed default. Refusing to answer is the only safe
-   * answer: reporting an empty worklist would let a member walk out leaving
-   * Portals and Properties with no Responsible Manager.
-   */
-  const memberOffboarding: MemberOffboarding = deps.memberOffboarding ?? {
-    listOutstanding: async () => {
-      throw identityError(
-        'forbidden',
-        'Transfer-first leave is unavailable until responsibility facts are composed',
-      )
-    },
-    isEligibleRecipient: async () => false,
-    transfer: async () => {
-      throw identityError(
-        'forbidden',
-        'Transfer-first leave is unavailable until responsibility facts are composed',
-      )
-    },
-  }
   const invitationUseCases = buildInvitationUseCases({
     ...deps,
     commandStore,
@@ -833,15 +797,6 @@ export const buildIdentityContext = (deps: IdentityContextDeps) => {
       prepareGoogleConnectorDeparture: deps.prepareGoogleConnectorDeparture,
       releaseMemberAuthorities: deps.releaseMemberAuthorities,
     }),
-    leaveOrganization: leaveOrganization({
-      removeStaffForMemberDeparture: staffAccounts.removeForMemberDeparture,
-      identity: deps.identityPort,
-      commandStore,
-      offboarding: memberOffboarding,
-      clock: deps.clock,
-      cancelGoogleImportsForUser: deps.cancelGoogleImportsForUser,
-      prepareGoogleConnectorDeparture: deps.prepareGoogleConnectorDeparture,
-    }),
     ...organizationSettings,
     createCustomRole: createCustomRole({ identity: deps.identityPort }),
     updateCustomRole: updateCustomRole({ identity: deps.identityPort }),
@@ -865,7 +820,6 @@ export const buildIdentityContext = (deps: IdentityContextDeps) => {
     inviteMember: useCases.inviteMember,
     updateMemberRole: useCases.updateMemberRole,
     removeMember: useCases.removeMember,
-    leaveOrganization: useCases.leaveOrganization,
     listInvitations: useCases.listInvitations,
     resendInvitation: useCases.resendInvitation,
     acceptInvitation: useCases.acceptInvitation,
@@ -897,16 +851,9 @@ export const buildIdentityContext = (deps: IdentityContextDeps) => {
   const accountAdminAuthority = Object.freeze({
     isCurrentAccountAdmin: managerMembershipRepo.isCurrentAccountAdmin,
   })
-  const offboardingFacts = Object.freeze({
-    listOutstanding: memberOffboarding.listOutstanding,
-    // Derived from the wiring, never configured separately: it can only be
-    // true when a real adapter replaced the fail-closed default above.
-    selfServiceLeaveAvailable: deps.memberOffboarding !== undefined,
-  })
   const publicApi = Object.freeze({
     managerFacts,
     accountAdminAuthority,
-    offboardingFacts,
     people: people.publicApi,
     staffSelf: Object.freeze(createStaffSelfReader(deps.db, deps.clock)),
     staffAccounts,

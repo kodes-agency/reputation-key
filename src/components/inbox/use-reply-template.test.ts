@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import type { ReplyTemplateListResult } from '#/contexts/review/application/use-cases/reply-template-operations'
+import type { ReplyTemplateListResult } from '#/contexts/review/application/use-cases/layered-reply-template-operations'
 import {
   INITIAL_TEMPLATE_REQUESTS,
   isVerifiedLoadedReplyTemplate,
@@ -43,6 +43,8 @@ const library: ReplyTemplateListResult = {
       templates: [
         {
           id: APPRECIATION_ID,
+          ref: APPRECIATION_ID,
+          layer: 'property',
           title: 'Guest appreciation',
           aspect: null,
           openLabel: null,
@@ -51,6 +53,8 @@ const library: ReplyTemplateListResult = {
         },
         {
           id: APOLOGY_ID,
+          ref: APOLOGY_ID,
+          layer: 'property',
           title: 'Service apology',
           aspect: null,
           openLabel: null,
@@ -61,6 +65,7 @@ const library: ReplyTemplateListResult = {
     },
   ],
   recommendedTemplateId: APPRECIATION_ID,
+  recommendedReason: null,
 }
 
 describe('template title resolution (row 18)', () => {
@@ -79,7 +84,12 @@ describe('template title resolution (row 18)', () => {
   it('resolves to no title in a library with no templates for the language', () => {
     expect(
       templateTitleIn(
-        { profile: null, groups: [], recommendedTemplateId: null },
+        {
+          profile: null,
+          groups: [],
+          recommendedTemplateId: null,
+          recommendedReason: null,
+        },
         APPRECIATION_ID,
       ),
     ).toBeNull()

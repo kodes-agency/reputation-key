@@ -223,7 +223,7 @@ const takeColours = (accent: string, lookVersion: number) =>
 const review = () =>
   getPortalReview({
     portalRepo: createPortalRepository(getDb()),
-    portalLinkRepo: createPortalLinkRepository(getDb(), () => NOW),
+    portalLinkRepo: createPortalLinkRepository(getDb()),
     experienceRepo: createPortalExperienceRepository(getDb()),
     publicationRepo: publicationRepo(),
     historyRepo: createPortalHistoryRepository(getDb()),

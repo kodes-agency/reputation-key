@@ -12,7 +12,6 @@
 import { withStartContext } from '#/shared/testing/tanstack-start-als'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { Database } from '#/shared/db'
-import type { StaffPublicApi } from '#/contexts/identity/application/public-api'
 import type { OutboxRepository } from '#/shared/outbox'
 import { recentActivityEntryId } from '#/shared/domain/ids'
 import { createMockLogger } from '#/shared/testing/mock-logger'
@@ -65,7 +64,6 @@ function buildFeedPublicApi() {
   return buildFeedContext({
     activity: {
       db: noNotificationRows,
-      staffPublicApi: {} as StaffPublicApi,
       clock,
       logger,
       idGen: () => recentActivityEntryId('90000000-0000-4000-8000-000000000999'),

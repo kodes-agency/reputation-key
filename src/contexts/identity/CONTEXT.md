@@ -103,6 +103,11 @@ under `infrastructure/`. Beta-feedback requests reach the triage store only
 through the build's `betaFeedback` capability (`submit`, `listMine`); the
 operator triage workflow stays with `scripts/ops`.
 
+The Identity adapter reads members through Organization-scoped member/user SQL.
+Unpaged callers receive the full roster; the manager directory excludes staff-only
+logins in SQL before pagination. Member-by-id reads and the exact owner count use
+the caller's Organization, independently of the session's active Organization.
+
 `updateOrganization` is composed once, in `build-organization-settings.ts`, with the
 logo cleanup it needs (the object delete is late-bound: the object store is built
 with Portal, after Identity); its server function calls `requests.updateOrganization`
@@ -152,11 +157,9 @@ grants take that lock too, inside the acceptance transaction, and record the inv
 as `createdBy`. An invited Property that is deleted, belongs to another Organization
 or names no Property is not granted and never holds the acceptance back; it is logged
 by count, never silent. An AccountAdmin may change another AccountAdmin's role; nobody
-changes their own role, and nobody removes themselves: `removeMember` refuses the
-caller as its own target, because removal releases what the member held with no
-successor, and a member who goes of their own accord uses `leaveOrganization`, which
-requires every responsibility to be handed over first;
-the last-AccountAdmin guard holds under the Organization lock. Only an AccountAdmin
+changes their own role or removes themselves. Self-service leave is unavailable;
+another AccountAdmin removes the member and releases their responsibilities.
+The last-AccountAdmin guard holds under the Organization lock. Only an AccountAdmin
 invites, cancels or resends invitations, creates members, edits a PropertyManager's
 Property scope and edits Organization settings; a PropertyManager holds `member.list`
 (Inbox assignment and Responsible managers read it) and nothing else about members,

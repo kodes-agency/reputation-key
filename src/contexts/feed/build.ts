@@ -4,12 +4,9 @@
 
 import type { Database } from '#/shared/db'
 import { createConsumerRegistry, type ConsumerRegistry } from '#/shared/outbox'
-import type { StaffPublicApi } from '#/contexts/identity/application/public-api'
 import type { PortalPublicApi } from '#/contexts/portal/application/public-api'
 import type { LoggerPort } from '#/shared/domain/logger.port'
 import { createRecentActivityRepository } from './infrastructure/recent-activity-repository.drizzle'
-import { getActivityTimeline } from './queries/get-activity-timeline'
-import { listRecentActivity } from './queries/list-recent-activity'
 import { createDbInboxItemLookupAdapter } from './infrastructure/adapters/db-inbox-item-lookup.adapter'
 import { createActivityDbUserLookupAdapter } from './infrastructure/adapters/activity-db-user-lookup.adapter'
 import { createActivityDeliveryStore } from './infrastructure/activity-delivery-store'
@@ -159,7 +156,6 @@ import type { OutboxRepository } from '#/shared/outbox'
 type ActivityBuildInput = Readonly<{
   db: Database
   outboxRepo?: import('#/shared/outbox').OutboxRepository
-  staffPublicApi: StaffPublicApi
   clock: () => Date
   logger: LoggerPort
   idGen: () => RecentActivityEntryId
@@ -197,18 +193,7 @@ const buildActivityFeed = (
   const listHistory = listOperationalActionHistory(operationalHistoryAccess)
   const exportHistory = exportOperationalActionHistory(operationalHistoryAccess)
 
-  const timeline = getActivityTimeline({
-    repo,
-    staffPublicApi: input.staffPublicApi,
-  })
-  const orgActivity = listRecentActivity({
-    repo,
-    staffPublicApi: input.staffPublicApi,
-  })
-
   const publicApi = {
-    getActivityTimeline: timeline,
-    listRecentActivity: orgActivity,
     listOperationalActionHistory: listHistory,
     exportOperationalActionHistory: exportHistory,
   }
@@ -250,8 +235,6 @@ const buildActivityFeed = (
         operationalActionHistoryStore: operationalHistoryStore,
       },
       useCases: {
-        getActivityTimeline: timeline,
-        listRecentActivity: orgActivity,
         ...recoveryRuntime,
         redactRecentActivityActorLabels: redactRecentActivityActorLabels({
           store: privacyStore,
