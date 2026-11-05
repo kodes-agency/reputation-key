@@ -1,14 +1,7 @@
-// The Monthly portal goal's set sheet, worked out (copy deck S-1…S-11; PLAN
-// PG-10): from what the card read sent (`PortalGoalSheetFacts`) and what the
-// manager has done in the sheet (the draft), every word, number and state it
-// shows, and what Set sends. The read decides the months, the offers and the
-// usual (PLAN E12); the only sums here are the box's steps along the goal grid
-// and the note an own number gets, both from Reporting's application layer.
-// Nothing here throws on what was typed: letters, spaces, a 0 or a number too
-// big for a goal make the box invalid and Set unavailable, never an error. The
-// box (`numberOf`, `committedCount`), its steps and the three suggestions are
-// the add sheet's too (`portal-goal-add-number-view.ts` and
-// `portal-goal-add-each-view.ts`).
+// The read owns month offers and usual counts. Invalid typed input disables Set without
+// throwing. Number steps and own-number feedback use Reporting's rules, shared with the
+// add sheet.
+
 import type { PortalGoalMeasure } from '#/contexts/reporting/application/dto/goal-recommendation.types'
 import type {
   PortalGoalOffer,

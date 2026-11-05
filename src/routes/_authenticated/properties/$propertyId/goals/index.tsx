@@ -29,7 +29,6 @@ import { PortalGoalAddDoor } from './-portal-goal-add-host'
 import { focusPortalGoalCardTitle } from './-portal-goal-sheet-host'
 import { goalListSearchSchema } from './-goal-list-search'
 
-/** How many other Portal goals the Goals page lists before "See all on the goal page". */
 const EXTRAS_SHOWN = 5
 
 const goalsQuery = (propertyId: string) =>
@@ -38,9 +37,7 @@ const goalsQuery = (propertyId: string) =>
     queryFn: () => listGoalPrograms({ data: { propertyId } }),
     staleTime: 30_000,
   })
-// The month so far of the active goals, read apart from the list so a slow
-// figure never holds the rows back: until it is read, a row shows what it always
-// has.
+// Read progress separately so a slow figure does not block the goal list.
 const goalsLiveQuery = (propertyId: string) =>
   queryOptions({
     queryKey: goalKeys.listProgress(propertyId),
@@ -65,11 +62,8 @@ export const Route = createFileRoute('/_authenticated/properties/$propertyId/goa
   },
   beforeLoad: ({ context }) => {
     const { role } = context as AuthRouteContext
-    // BOTH gates, because the loader below calls a manager API that enforces
-    // both. `goal.read` alone admits Staff, whose read is then refused with
-    // "This account is not enabled for beta manager access" — after the route
-    // has already committed to rendering, so the refusal arrives as an uncaught
-    // error on a half-built page instead of a redirect.
+    // Match both manager API gates before rendering: goal.read alone admits Staff,
+    // whose loader would then fail after the page has committed.
     if (!can(role, 'goal.read') || !isBetaInteractiveRole(role)) {
       throw roleUnavailable('Goals', 'properties')
     }
@@ -79,9 +73,7 @@ export const Route = createFileRoute('/_authenticated/properties/$propertyId/goa
     await Promise.all([
       context.queryClient.ensureQueryData(goalsQuery(propertyId)),
       context.queryClient.ensureQueryData(subjectNamesQuery(propertyId)),
-      // The Google section and the Portal goals section, from one module fetched
-      // on demand: their reads and server functions stay out of first paint,
-      // and a failure stays in its own section.
+      // Keep goal reads out of first paint and failures within their own section.
       import('./-goals-page-prefetch').then((prefetch) =>
         prefetch.prefetchGoalsPage(
           context.queryClient,
@@ -102,8 +94,6 @@ function GoalsRoute() {
   const { data: propData } = useSuspenseQuery(propertyQuery(propertyId))
   const { data } = useSuspenseQuery(goalsQuery(propertyId))
   const { data: subjectNames } = useSuspenseQuery(subjectNamesQuery(propertyId))
-  // The month so far of the Portal goals not ended, which both of the Google
-  // section's views list the same.
   const live = useQuery({ ...goalsLiveQuery(propertyId), retry: false })
   const liveByProgram = new Map(live.data?.goals.map((goal) => [goal.programId, goal]))
   const goalId = result === undefined ? null : goalForResult(data.programs, result)
@@ -116,8 +106,7 @@ function GoalsRoute() {
       />
     )
   }
-  // `?view=` is the Google section's (P-7a): the Portal goals are the same on
-  // both views, and the ended ones are on the Portal goal results page (`#ended`).
+  // The URL view affects only Google goals; ended Portal goals have their own page.
   const goals = data.programs.filter(({ program }) => program.status !== 'ended')
   const subjectName = (subject: GoalSubject) =>
     goalAssignmentSubjectLabel(
@@ -168,12 +157,9 @@ function GoalsRoute() {
               failed: live.isError,
             }}
             subjectName={subjectName}
-            // Compact rows, then "See all on the goal page" (PLAN PG-21), on both
-            // views of the Google section: `?view=` is not the Portal goals'.
             limit={EXTRAS_SHOWN}
           />
         )}
-        // Each month's result and the ended goals, on their own page (R-3, R-4).
         results={
           canDo('goal.update') ? (
             <PortalGoalResultsLinks propertyId={propertyId} programs={data.programs} />
@@ -181,9 +167,6 @@ function GoalsRoute() {
         }
         footer={
           canDo('goal.create') ? (
-            // The way to a goal for one Portal, each, a group or the average
-            // (one click deeper, P-5), opened in place; drawn only when there is
-            // something to add.
             <PortalGoalAddDoor
               propertyId={propertyId}
               focusTitle={focusPortalGoalCardTitle}

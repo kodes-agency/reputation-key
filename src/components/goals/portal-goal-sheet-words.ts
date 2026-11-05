@@ -1,11 +1,6 @@
-// What the Monthly portal goal's sheet says about the number, apart from the
-// number itself (copy deck S-4…S-8, U-S2, U-S3; PLAN PG-10, PG-14): the three
-// suggestions (as rows: the figure and its words), the line under the number
-// (as the shared status line's parts, the recommendation's tag, a note on an own
-// number, and the way back), how the goal counts, and how far an own number is
-// from the month's usual. The read decides every number (PLAN E12); the only
-// sum here is that note, from Reporting's application layer. The set sheet, the
-// change sheet and the add sheet say these alike. Pure.
+// The read owns recommendation numbers. Share wording across set, change and add
+// sheets; derive own-number differences through Reporting's rule.
+
 import type { PortalGoalMeasure } from '#/contexts/reporting/application/dto/goal-recommendation.types'
 import type {
   PortalGoalOffer,

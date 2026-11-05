@@ -1,7 +1,6 @@
-// The Portal goal results page's months, in a manager's words (pure; 2026-11-01, ADR
-// 0068): each goal with its months newest first, "41 of 40" and whether it was met.
-// The matrix's own read stays what decides every figure (`buildGoalResultsMatrix`);
-// when a figure was final and who set the number are one tap away on its row.
+// The results matrix remains the authority for every figure. Keep finality and target
+// provenance available on each month's row.
+
 import type {
   GoalMetric,
   GoalResultsMatrix,

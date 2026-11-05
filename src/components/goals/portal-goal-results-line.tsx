@@ -1,8 +1,3 @@
-// The Monthly portal goal's line at the top of a Portal's Results tab (PLAN
-// PG-16; copy deck R-1, R-2): what the Portal brought in toward the Monthly
-// portal goal this month, or its own goal's month so far, with "Open goal" to
-// the goal it names. Nothing for no line (a draft Portal, or no goal counting
-// this month). The words are `resultsLineWords`'.
 import { Target } from 'lucide-react'
 import type { PortalGoalLineView } from '#/contexts/reporting/application/dto/monthly-portal-goal.types'
 import { InlineLink } from '#/components/ui/inline-link'

@@ -1,8 +1,5 @@
-// The Monthly portal goal's name and its approved sentences, each spelled here
-// once and nowhere else (`portal-goal-sources.test.ts` pins them). The three
-// lines are verbatim from the owner's decision P-8 (2026-10-17); change them
-// only with a new decision. None of the Google rating goal's lines is used for
-// a Portal goal: the two goals share no words (ADR 0068).
+// Approved Portal-goal wording is shared here. Changes require a new product decision;
+// Google-goal wording stays separate (ADR 0068).
 
 /** Copy deck G-3: what the goal is called on every screen. */
 export const PORTAL_GOAL_NAME = 'Monthly portal goal'

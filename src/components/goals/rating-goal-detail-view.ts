@@ -1,7 +1,5 @@
-// The detail page of the Property Google rating goal, worked out (pure;
-// 2026-11-01, ADR 0067): the sentences under the headline (when the goal arrives at
-// the card's own pace, and the other pace once the goal works at its actual one)
-// and how fresh Google's numbers are. Every time is a duration, never a date (R4-3).
+// Arrival estimates use the card's pace and remain durations rather than dates.
+
 import type { RatingGoalDetailView } from '#/contexts/reporting/application/dto/rating-goal.types'
 import { arrivalSentence } from './rating-goal-arrival-words'
 import { paceText } from './rating-goal-pace-words'

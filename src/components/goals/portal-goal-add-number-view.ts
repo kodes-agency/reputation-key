@@ -1,10 +1,6 @@
-// "Add a portal goal"'s number steps, worked out (PLAN PG-20; copy deck M-6,
-// M-10, M-14): a goal for one Portal or one group (its unit line "Reception ·
-// private ratings in December", its own three suggestions, and Set), and the
-// average (a box of tenths that starts empty, the number always the manager's
-// own), with what each Set sends. The read decides every number (PLAN E12); the
-// only sums here are the box's steps (the goal grid for a count, tenths for the
-// average). Nothing here throws on what was typed.
+// The read owns recommendations; an average starts empty and is always the manager's
+// choice. Invalid typed input stays a form state rather than throwing.
+
 import type {
   AddPortalGoalRequest,
   PortalGoalAddOffer,

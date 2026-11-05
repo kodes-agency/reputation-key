@@ -1,10 +1,7 @@
-// The Monthly portal goal's line at the top of a Portal's Results tab (PLAN
-// PG-16; copy deck R-1, R-2), worded (pure). With a goal for this Portal alone,
-// that goal's month so far against its number and what is left to go; else
-// what the Portal brought in toward the Monthly portal goal this month. Each
-// with "Open goal" to the goal it names. The read decides which goal counts,
-// the month and the numbers (PLAN E12); none (a draft Portal, no goal
-// counting this month, or nothing yet toward the monthly goal) is no line.
+// The read selects the applicable goal and owns its month and figures. Prefer the
+// Portal's own goal; otherwise show its contribution to the Property goal. Ineligible
+// or empty reads yield no line.
+
 import type { PortalGoalLineView } from '#/contexts/reporting/application/dto/monthly-portal-goal.types'
 import { formatNumber } from '#/lib/format'
 import { monthName, portalGoalCount, portalGoalUnit } from './portal-goal-words'

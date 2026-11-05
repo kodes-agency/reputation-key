@@ -1,9 +1,6 @@
-// What a change sheet's primary sends (PLAN PG-14, PG-21): "now" as a change
-// of the running month and the months after it, against what the sheet showed
-// of that month (its number, the version, the month the months after start
-// with); "from next month" as a revision from the month the sheet said, against
-// the version it opened on. The Monthly portal goal's sheet and the average's
-// send the same shape; the Property is the page's to add. Pure.
+// Submit against the month, target and version the sheet showed. Changes now cover the
+// running and following months; revisions start at the displayed next month.
+
 import type {
   ChangeMonthlyPortalGoalNowRequest,
   PortalGoalChangeFacts,

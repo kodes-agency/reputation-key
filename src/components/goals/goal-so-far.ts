@@ -1,10 +1,7 @@
-// What the month so far says, in words.
-//
-// A goal that starts this month counts from the first of the month, so the
-// form shows what has already counted before the target is saved, and the
-// goal's page shows it on the month still running. It is the live month to
-// date and never the month's result: a figure that cannot be read says so and
-// is never a zero, and an average too thin to show says why.
+// A goal starting this month counts from the first day, including activity before it
+// was saved. These are live figures, not results: unreadable is never zero, and a thin
+// average says why it is withheld.
+
 import type {
   GoalMetric,
   GoalProgressReading,

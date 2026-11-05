@@ -1,8 +1,6 @@
-// A number the manager types on the one-screen setup (their own pace or their
-// own average): it shows the value in use, keeps what is typed while the field
-// is being edited, and hands it over on Enter or when the field is left, so a
-// half-typed "2" never clamps before the "0" of "20" arrives. The caller clamps
-// it and says why when it moved (`RatingGoalClampNote`).
+// Commit on Enter or blur so a partial value is not clamped before typing finishes. The
+// caller clamps and explains any adjustment.
+
 import { useState, type KeyboardEvent, type ReactNode } from 'react'
 import { Input } from '#/components/ui/input'
 import { TONE_ICON, TONE_INK } from '#/components/ui/tone'

@@ -1,10 +1,6 @@
-// What the detail page lets a manager do with an active Google rating goal:
-// open the Portals that ask guests for reviews (portal.read, round 5, mock D3),
-// change its plan, which opens the setup on it (goal.update), or end it
-// (goal.cancel). A goal the read found reached or ended keeps only the way to
-// the Portals; the Goals page offers the next goal.
-// Ending is final, so it confirms in the destructive tone; the confirmation
-// stays open on a refusal and says it.
+// Ending is irreversible, so use destructive confirmation and keep it open on refusal.
+// Reached or ended goals retain only the Portals link.
+
 import { Link } from '@tanstack/react-router'
 import type {
   RatingGoalCardView,

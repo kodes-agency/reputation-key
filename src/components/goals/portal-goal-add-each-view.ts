@@ -1,10 +1,7 @@
-// "A goal for each portal", worked out (PLAN PG-20; copy deck M-11…M-13): one
-// row per live Portal, ticked with its recommended number unless it is new
-// ("New · ready Oct 29") or has a goal ("Has a goal", which no tick reaches);
-// − and + step a row's number along the goal grid; Set sends the ticked rows
-// with a number, each recorded as recommended only when it still is; a row the
-// save could not keep says "Not saved, try again" and the others go on. The
-// read decides every number and what is open (PLAN E12).
+// The read owns eligibility and recommended numbers. Only selected eligible rows are
+// sent, and a number counts as recommended only while unchanged. Preserve per-row
+// failures when a batch partially succeeds.
+
 import type { PortalGoalAddOptions } from '#/contexts/reporting/application/dto/monthly-portal-goal-add.types'
 import { formatNumber } from '#/lib/format'
 import { subjectRow } from './portal-goal-add-view'

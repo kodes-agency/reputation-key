@@ -1,7 +1,3 @@
-// Every month's result of the Portal goals (2026-11-01, ADR 0068; it replaces the
-// matrix's table a month): each goal with its months against their numbers, then one
-// row a month in a manager's words. When a figure was final and who set the number
-// are one tap away, on the row itself. The words are `portal-goal-results-list-view.ts`'.
 import { Check, ChevronRight } from 'lucide-react'
 import type { GoalResultsMatrix } from '#/contexts/reporting/application/public-api'
 import { RowButton } from '#/components/ui/button-layouts'

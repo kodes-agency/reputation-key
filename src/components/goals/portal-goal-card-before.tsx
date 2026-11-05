@@ -1,10 +1,6 @@
-// The Monthly portal goal card before its number is ready (P-4, copy deck
-// G-5…G-12, G-19): the gates, each stated as a fact with the one way on; the
-// first weeks, with each Portal's steps, the month so far and the day the
-// number is ready; nothing counted; and a recommendation that cannot be read.
-// No number is invented and nothing is in a warning colour. Once a Portal is
-// live, a link opens the set sheet with a number of the manager's own (G-12),
-// where the page draws the sheet.
+// Do not invent a missing recommendation or use warning colours for readiness. Once a
+// Portal is live, allow a manager's own number.
+
 import { Link } from '@tanstack/react-router'
 import type { PortalGoalCardView } from '#/contexts/reporting/application/dto/monthly-portal-goal.types'
 import { Button } from '#/components/ui/button'

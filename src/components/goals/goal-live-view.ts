@@ -1,15 +1,7 @@
-// What a Goals row says under an active goal about the month so far.
-//
-// It is the live month to date and never the month's result, so its words count
-// and do not judge: "64 of 120 so far", never "on track". The pace is the shared
-// pill (ADR 0068, amended 2026-10-19: one goal design system) and it is the
-// pace of the month so far, not a forecast of the result: a count with one
-// subject gets a neutral bar and, where `goalPace` judged it, "On pace" or
-// "Below pace"; a month it did not judge (the first days, too few expected by
-// today) gets no pill, and neither does an average, which has no pace. A goal
-// with several subjects gets how many are below pace, as words. A figure that
-// cannot be read says so and is never a zero, and an average too thin to show
-// asks for more ratings. Today counts as a day left. Pure.
+// Month-to-date counts are not final results or forecasts. Unreadable figures must not
+// become zero; averages below the sample floor ask for more ratings. Only eligible
+// single-subject counts receive a pace pill. Today counts as a day left.
+
 import type {
   GoalListProgress,
   GoalMetric,

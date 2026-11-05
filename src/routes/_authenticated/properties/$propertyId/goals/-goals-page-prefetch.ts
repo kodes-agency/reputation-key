@@ -1,10 +1,7 @@
-// The Goals page loader's one on-demand import (PLAN §0.2 "Loader imports"):
-// it primes the Google section and the Portal goals section together, so the
-// page waits for no goal read after another, and their reads and server
-// functions stay out of first paint. Each section says its own failure; a
-// failed read here holds neither back. The Portal goals' card, and what "Add a
-// portal goal" offers, are read only for someone who may set the goal, since
-// that is who they are for.
+// Import on demand to keep goal reads and server functions out of first paint. Prime
+// both sections concurrently and isolate failures. Read card and add offers only for
+// viewers allowed to set goals.
+
 import type { QueryClient } from '@tanstack/react-query'
 import { can } from '#/shared/domain/permissions'
 import type { Role } from '#/shared/domain/roles'

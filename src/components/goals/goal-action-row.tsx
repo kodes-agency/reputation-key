@@ -1,8 +1,3 @@
-// One thing a manager can do, as a whole row (2026-11-01, ADR 0067 and 0068: one
-// goal design system): an icon, what to do, why, and the chevron. A way to another
-// page is the goal's own router link wearing `GOAL_ACTION_LINK`; a way to a sheet
-// on this page is a button. Each goal words its own and says where it leads. The
-// row's hover and ring are the shared row link's.
 import type { ReactNode } from 'react'
 import { ChevronRight } from 'lucide-react'
 import { RowButton } from '#/components/ui/button-layouts'

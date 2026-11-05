@@ -1,12 +1,7 @@
-// The Google section of the Goals page, first on it and apart from the Portal
-// goals below (no shared numbers, ADR 0067). It shows one of: the simple card of
-// the active goal (with the Monday check-in above it while one is due); a goal reached, or ended by something other than a manager,
-// while it is news (from the read that found it, or from History when the
-// snapshot consumer got there first); or, with no goal, the door into the
-// wizard or the reason there is none. A read that is on its way keeps the
-// card's room; one that failed says so here and nowhere else. This is the
-// Active view: the Goals page draws it under the section's Active / History
-// tabs, inside the region `RatingGoalViews` names (P-7a).
+// Google and Portal goals share no numbers (ADR 0067). Recent outcomes may come from
+// History when the snapshot consumer finishes first. Read failures stay in this
+// section; its parent owns the named region.
+
 import type {
   RatingGoalCardView,
   RatingGoalHistoryEntry,

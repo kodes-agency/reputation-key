@@ -1,9 +1,5 @@
-// The Google rating goal's detail page, one click from its card (2026-11-01, ADR
-// 0067): where the goal stands on the setup's ruler, then three questions in the
-// bands Guest voice and Portal Results use: is the rating going up (a plain line to
-// the goal), are enough good reviews coming in (bars against the plan), and what can
-// you do this week. "What happened" is closed until asked. A goal this read found
-// ended says so first and looks forward no more.
+// An ended goal shows its state first and no longer forecasts progress.
+
 import { Link } from '@tanstack/react-router'
 import { Target } from 'lucide-react'
 import type { RatingGoalDetailView } from '#/contexts/reporting/application/dto/rating-goal.types'

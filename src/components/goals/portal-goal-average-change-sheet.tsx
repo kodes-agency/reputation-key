@@ -1,19 +1,7 @@
-// The sheet that changes the average private rating goal's level (PLAN PG-21;
-// copy deck S-15…S-21 in tenths, M-14, F-1, F-2, F-5): "November, now" or
-// "From Dec 1", the box of tenths, what an average needs, and "Add a note".
-// The primary sends "now" as a change of the running month and the months
-// after it, and "from next month" as a revision; a toast says what was saved.
-// It is the Monthly portal goal's sheet frame (the shared
-// `goal-sheet-frame.tsx`), with no suggestions: there is no recommended average.
-// Its form is `portal-goal-average-change-body.tsx`.
-//
-// It works from the goal as the sheet opened on it. A refusal is said in the
-// banner above the footer. When the sheet is behind the goal (someone changed
-// it, F-1; its month ended, F-2; or the month turned, F-4) the page reads the
-// goal again and opens the sheet afresh on the latest, still saying why. A goal
-// stopped a moment ago (F-5) leaves nothing to change: the sheet closes on the
-// latest and a toast says why (`portal-goal-change-command.ts`, the Monthly
-// portal goal's sheet's too). A chunk of its own, loaded on the way to it.
+// Work from the goal as the sheet opened on it. Stale revisions or month boundaries
+// refresh and reopen the sheet with the refusal preserved; a stopped goal closes it. An
+// average has no recommended value.
+
 import { useState } from 'react'
 import type {
   ChangeMonthlyPortalGoalNowRequest,

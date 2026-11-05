@@ -1,10 +1,6 @@
-// The Monthly portal goal card's words when the number is ready (copy deck
-// G-13…G-18, W-1…W-5): what is recommended and for which month, what it stands
-// on, the Portals that join later, the Use button and its toast, and "How we
-// worked this out". The set sheet says its month and its toast in the same
-// words. The read decides every number, month and day (PLAN E12); this only
-// says them. Days arrive as Property-local `YYYY-MM-DD`, months as `YYYY-MM`,
-// and are printed as those days.
+// The read owns every figure and date. Format Property-local days and months as
+// calendar values, without shifting them into the reader's zone.
+
 import type {
   PortalGoalNewPortal,
   PortalGoalOffer,

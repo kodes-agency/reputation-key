@@ -1,12 +1,7 @@
-// What the Monthly portal goal's Stop says (copy deck X-1…X-5, F-5; PLAN
-// PG-14). Stop only, never Pause: a running goal keeps counting its month to
-// the last day and keeps its result, and a new goal can be set from the month
-// a change would start with (the month after, but for the hour before a
-// month's own is opened); a goal that has not started has counted nothing, so
-// its month is free at once. The verb is "Stop" on the menu item and on the
-// button (X-5). The days are the read's months, printed as calendar days. A
-// goal for one Portal, a group or the average (PLAN PG-21) is stopped the same
-// way from its own page, which asks to stop "this portal goal".
+// Stop preserves the running month and result; an unstarted goal frees its month
+// immediately. Use the read's next available month, including the hour before a new
+// month opens. Format those months as calendar days.
+
 import type {
   PortalGoalLastMonth,
   PortalGoalOfCard,

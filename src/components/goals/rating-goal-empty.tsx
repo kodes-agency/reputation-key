@@ -1,8 +1,5 @@
-// The Google section of the Goals page when the Property has no rating goal: the
-// door into the setup, the "keep" door from a shown 4.7 (X1; at 4.9 or 5.0
-// there is no higher tenth at all, R2-9), or the plain reason a goal cannot be
-// set yet (ADR 0067; plan, Edge cases).
-// It leads with one sentence and one action, as every first-time screen must.
+// Offer Keep from a shown 4.7; at 4.9 or 5.0 there is no higher tenth to plan.
+
 import { Link } from '@tanstack/react-router'
 import { Target } from 'lucide-react'
 import type { RatingGoalSetupView } from '#/contexts/reporting/application/dto/rating-goal.types'

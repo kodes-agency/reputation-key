@@ -1,8 +1,5 @@
-// Where the Google rating goal stands, first on its page (2026-11-01, ADR 0067): the
-// card's headline ("18 new reviews to 4.1"), when the goal arrives at the card's own
-// pace, and the ruler of how far along it is. A goal to keep a number says so with
-// Google's number. A goal this read found reached says that, on the same ruler. The
-// page's one h1 stays the page header's; these are paragraphs.
+// The page header supplies the only h1; the goal's figures are paragraphs.
+
 import type { RatingGoalDetailView } from '#/contexts/reporting/application/dto/rating-goal.types'
 import { GoalWhere } from './goal-detail-layout'
 import { GoalRuler } from './goal-ruler'

@@ -1,9 +1,6 @@
-// "Month by month" on the Monthly portal goal's page (copy deck P-8, P-9): each
-// month of the goal, and of the goals it took over from, newest first, as a
-// chip that opens its facts: the figure and the result, the day the figure is
-// final, the month's own number and any correction. Met has a check in the
-// positive ink; not met is neutral, never red; a month still counting or being
-// read is dashed. The words are `stripChips`'.
+// Each month retains its own target and correction history. Not met stays neutral;
+// months still counting or being read are dashed.
+
 import { useId } from 'react'
 import { Check } from 'lucide-react'
 import { Button } from '#/components/ui/button'

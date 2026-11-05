@@ -1,15 +1,7 @@
-// The Goals page's Portal goals part: the section with the Monthly portal goal's
-// card, read from its own query (the loader primes it beside the Google
-// section), and the page's other Portal goals in its slots. It is the same on
-// both of the Google section's views (`?view=` is the Google section's, P-7a).
-// The card is read only for someone who may set the goal; a read that failed
-// says so in the section and holds nothing else back. The
-// card's Use sends the set command, and its other doors open the sheet
-// (`-portal-goal-sheet-host.tsx`), which sends the same command or, from a goal
-// that has not started, changes it; on a month's first seven days the card's
-// check-in sends the change now (Use) or Keep. A set, a change or a Keep (or a
-// refusal that means the card is behind) marks every Portal-goal read stale,
-// never the Google rating goal's.
+// The Google section's view does not affect this section. Read the card only for
+// viewers allowed to set goals. Commands and stale refusals invalidate Portal-goal
+// reads, not Google-goal reads.
+
 import type { ReactNode } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { hasFailed, isRetrying } from '#/components/hooks/is-retrying'

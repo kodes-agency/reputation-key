@@ -1,8 +1,6 @@
-// The Property's Google rating goal, in full: the monitoring view one click from
-// the simple card on the Goals page (ADR 0067). Behind `goal.use` with the other
-// goal routes (the Goals layout), for owners and managers (`goal.read`). Its
-// read is primed by the loader from a module fetched on demand, so neither the
-// read nor its server function joins first paint.
+// Keep queries and server functions behind an on-demand loader import so they stay out
+// of first paint. Access requires goal.use and goal.read.
+
 import { useEffect, useState } from 'react'
 import { createFileRoute, useNavigate } from '@tanstack/react-router'
 import { useQuery, useQueryClient, useSuspenseQuery } from '@tanstack/react-query'
