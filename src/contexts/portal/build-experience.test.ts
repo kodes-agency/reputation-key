@@ -19,7 +19,6 @@ describe('buildExperienceUseCases', () => {
       staffPublicApi: {} as StaffPublicApi,
       idGen: () => 'id',
       clock: () => new Date(0),
-      portalOwnLookEnabled: false,
     })
 
     expect(Object.keys(useCases).sort()).toEqual(

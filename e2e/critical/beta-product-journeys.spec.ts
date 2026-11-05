@@ -403,10 +403,20 @@ test.describe('Critical: beta-local-1 product journeys', () => {
     })
     expect(rotated.version).toBe(2)
     expect(rotated.rawToken).not.toBe(issued.rawToken)
+    // The QR carries a print code, which is its own marker, so its URL names no
+    // Access Artifact. The scan counts against the rotated code's QR artifact.
     const qualifiedUrl = new URL(rotated.publicUrls.qr)
-    const accessArtifactId = qualifiedUrl.searchParams.get('accessArtifact')
+    const [qrArtifact] = await dbQuery<{ id: string }>(
+      `SELECT a.id
+       FROM portal_access_artifacts a
+       JOIN portal_tokens t ON t.id = a.portal_token_id
+       WHERE a.portal_id = $1::uuid AND t.status = 'active'
+         AND a.channel = 'qr' AND a.status = 'published' AND a.retired_at IS NULL`,
+      [created.portal.id],
+    )
+    const accessArtifactId = qrArtifact?.id
     expect(accessArtifactId).toBeTruthy()
-    if (!accessArtifactId) throw new Error('Rotated Portal QR URL has no Access Artifact')
+    if (!accessArtifactId) throw new Error('Rotated Portal has no published QR artifact')
     qualifiedScanPortal = {
       id: created.portal.id,
       groupId: grouped.group.id,

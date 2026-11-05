@@ -232,8 +232,7 @@ A Portal's look is saved by `savePortalLookColours`, `savePortalLookIdentity` an
 `savePortalLookPhoto`. Each use case loads the Portal under `portal.update`, refuses an
 archived one (`portal_inactive`), requires `PORTAL_LOOK_EDIT_PERMISSION` (`portal.admin`,
 one constant, so letting a Property Manager edit it later is a local change), checks
-Property access and that the Portal belongs to the Property in the request, and refuses
-while `PORTAL_OWN_LOOK_ENABLED` is off (`feature_unavailable`, HTTP 409). Each server
+Property access and that the Portal belongs to the Property in the request. Each server
 function also asks for the `portal.write` capability. The writer takes the Property's
 publication lock, then the Portal row `FOR UPDATE` (publish's order), diffs the
 **effective** look before and after, and only when something guests see moved raises
@@ -281,8 +280,8 @@ override row is inserted in the same commit as the new Portal (also when a Prope
 Manager creates the Portal, and also when the source has no links), with the same
 Property asset references, descriptions kept only for the new Portal's languages and
 `look_version` one above the Property's. No fence is needed, because a new Portal has no
-snapshot. The copy does not depend on `PORTAL_OWN_LOOK_ENABLED`: the reader and publish
-keep serving rows that exist while it is off, so a copy shows what its source shows. A
+snapshot. The reader and publication apply every saved override, so a copy
+shows what its source shows. A
 source asset swept or taken down between the read and the commit makes the
 create a normal refusal. The dialog's one fact line reads "Look: same as {source}" or
 "Look: the property look". An archived Portal cannot be a starting point
@@ -469,50 +468,26 @@ ceremony on 2026-09-30; the technical safeguards above stay in the build (ADR
 
 ## Print kit
 
-A manager downloads a PDF of a table tent or counter card from the Share tab
-(`createPortalPrintKit`; the preview beside it is drawn from the same measures).
+The Share tab reads `getPortalPrintKit` and downloads through
+`createPortalPrintFinal`. The read always carries the current kit, last-print
+settings and saved wording, with no address. The browser preview stays instant;
+the PDF and preview use the same measures and planners, checked with real fonts.
 
-- **Two styles.** _Paper_ (the default, "Prints on any printer") is ink on the
-  customer's own paper: no photo, no bleed, printed at Actual size, with grey
-  cut and fold ticks and, on the Letter card sheet, a print check whose bar
-  measures the tile's width. _Immersive_ ("Dark, with your photo") is the guest
-  page's dark field with a photo band across a card (a panel on the small tent),
-  or a monogram when there is no photo, a 1/8 in or 3 mm bleed, crop marks, fold
-  marks and a slug line. Both styles use one code block: a cream tile, its size
-  the size's own (Sizes, below), with the accent's bar under it, and the cue "Scan
-  with your camera" in each language on the print. The bar's width is how a
-  manager checks the print was not scaled. The call to action is the largest type
-  on every card face.
-- **Paper follows the property's country.** Letter (4 x 6 in cards, two to a
-  sheet; Letter folded into two 8.5 x 5.5 in faces; Immersive 4 x 6 in pieces
-  with a 1/8 in bleed) for the countries in `PRINT_KIT_LETTER_COUNTRIES` (CLDR's
-  US-Letter territories) and whenever the country is unknown; A4 (A6 cards, four
-  to a sheet; A5 faces; Immersive A6 pieces with a 3 mm bleed) everywhere else.
-  The manager's choice wins and is kept for the session; the browser's locale is
-  not read, because it says where the manager sits and not where the piece will
-  stand. The Share tab starts on a Paper counter card (the share board's own
-  state) on `defaultPrintKitPaper(countryCode)` and always sends `style`, `paper`,
-  `size`, `output` and `showPropertyName`; the server defaults a missing style to
-  Paper, a missing paper to the same rule (reading `properties.country_code` only
-  then), a missing size to Large, a missing output to the style's own and the name
-  line to on.
-- **A print is the live version.** Its languages, titles and look come from what
-  guests can open now, never from a draft: a language added in the editor and not
-  published is refused (`locale_not_offered`), and a portal with nothing live has
-  no print kit (`publication_snapshot_unavailable`; the tab shows one notice, not
-  a retry). A Portal prints its own palette, photo and logo once they are published,
-  an unpublished override never prints, and a colour or logo change raises no print
-  warning (ADR 0070). The address on the code comes through the audited reveal of the
-  sealed code (ADR 0064), so a code that kept no address cannot be printed.
-  The address is never printed as words: the code and its cue carry the action.
-  Print codes (ADR 0069): the schema, the codec, the field policy, resolution
-  (the guest page, every guest mutation, the link fallback and the scan beacon
-  accept a print code) and minting exist. Every new or replaced code stores its
-  two print code hashes, and a reveal fills the hashes of an older code, whatever
-  `PORTAL_PRINT_CODES_ENABLED` says. That switch (optional, default off) decides
-  what a manager is shown: off, the print, the QR download and "Copy NFC address"
-  carry the long address, exactly as before; on, they carry the short address.
-  "Public address" and "Open page" are the long address with no marker either way.
+- Counter cards, tents and Small cards stay available upright or wide, in Paper
+  and Immersive. Office sheets, quantities and spare pieces, print-shop files,
+  crop marks and card backs keep their existing choices and refusals.
+- Print languages, wording and look come from the live publication. Draft-only
+  languages and Portals without a live version cannot print. The Property country
+  sets the default paper; an explicit paper choice wins.
+- `application/printing/print-download.server.ts` reads stored pictures within their recorded
+  size and verifies their hash before the audited address reveal. Missing or
+  changed bytes refuse the print without a disclosure. Taken-down media is omitted.
+  `application/printing/print-download.ts` holds browser-safe file and download contracts.
+- Verified QR and NFC print codes are always shown. Missing or mismatched hashes
+  fall back to the issued long address and its original channel marker. Direct
+  links retain the long address with no marker; every issued URL keeps resolving.
+  `PORTAL_PRINT_ORIGIN` names the print host, which must remain attached for as
+  long as printed material uses it. Codes and addresses never enter logs or facts.
 - **Print code.** The 20-character Crockford credential a printed QR or an NFC
   tag carries instead of the long address (ADR 0069): 100 bits, one per access
   artifact channel (qr, nfc), derived from the code's long address and that
@@ -531,296 +506,20 @@ A manager downloads a PDF of a table tent or counter card from the Share tab
   cannot sign in there either. Every other host is untouched, and so is every
   host where the variable is unset or names the app's own host. It must stay
   attached to the web service and keep its name for the life of the prints.
-- **One source of measures.** The PDF and the preview read the same files, so a
-  preview cannot show a sheet the file does not print: `portal-print-kit.ts`
-  (styles, papers, pieces, copy, faces, file name), `portal-print-kit-measures.ts`
-  (every size, in points: 1 in = 72 pt, 1 mm = 72 / 25.4 pt),
-  `portal-print-kit-sheets.ts` (`printKitPages`: the page, where each face sits,
-  ticks, the print check), `portal-print-kit-immersive.ts` (the photo window, the
-  fit order and the print shop's marks), `portal-print-kit-palette.ts` (one
-  palette per style, each token held to a named contrast) and
-  `portal-print-kit-pieces.ts` (what each piece is called and how to print it).
-  Every face keeps an optical 0.4 in (10 mm) margin at its top and bottom edge.
-  A tight Immersive face gives way in a fixed order: the window shrinks to 0.55
-  in, the gaps tighten, the two-language type steps down, and only then the
-  photo becomes the monogram. The brand ranks last in both styles: at each type
-  scale a logo gives up its size to its 10 mm floor (a wordmark to 15 pt) before
-  the type steps down, and before the window is dropped. With two languages a
-  logo at its floor still leaves a card's window under 0.55 in (the boards' logo
-  leaves 13.1 mm on 4 x 6 in and 9 mm on A6), so those cards print without one.
-  Words that still reach the code block take the long-copy steps, in both
-  styles (`portal-print-kit-long-copy.ts`): the place label shrinks to its 21 pt
-  floor (never under the lead headline), then the second language's block to
-  its floors (11.5 pt headline, 9 pt subline and title), and only then, the last
-  resort, the place label under its floor. The code block never gives way.
-  The Share tab's preview takes the same steps, and the same brand sizes, from
-  widths it estimates (`portal-print-kit-text-widths.ts`, measured from the
-  embedded fonts and never narrower than them), so it never sets the words
-  larger than the file and a long title cannot push its code block off the face.
-- **Sizes (round 3).** `PRINT_KIT_SIZES` is Large (4 x 6 in, A6), Table
-  (3.5 x 5 in, 90 x 130 mm) and Mini (2 x 3.5 in, 55 x 85 mm); the small tent
-  is the `table_tent` piece at size Table, and today's Letter-half tent is the
-  same piece at size Large. `PRINT_KIT_SELECTABLE_SIZES` lists Large only: Table,
-  the tent and Mini wait for the short print address and a phone test, so the
-  server refuses them (`print_format_not_offered`) and they are reachable from
-  tests only (`CreatePortalPrintKitDeps.selectableSizes`). The measures per
-  size are `portal-print-kit-sizes.ts` (trims, spacing, band, plate, what each
-  size drops), `portal-print-kit-size-type.ts` (type, logo optical sizes) and
-  `portal-print-kit-code-tile.ts`. Every card size is one pure plan, `planCard`,
-  which the PDF draws (`print-kit-card-print.ts`). The code tile is chosen by
-  one pure rule, `chooseCodeTile` (`cardTile` for a card): a module (tile over
-  the symbol and its quiet zone) of at least 0.85 mm. Large takes 1.75 in when
-  its module reaches that and otherwise today's 2 in tile, so it is never
-  refused (the beta's address is a version 9 symbol, 0.833 mm at 2 in); Table
-  (1.4 in, 36 mm in Europe) and Mini (1.25 in, 32 mm) are refused by the
-  renderer with `print_code_too_small`, cause `needs_short_code` for a long
-  address and `address_host_too_long` for a short one that is still too dense.
-  A download also names an output (`PRINT_KIT_OUTPUTS`): Immersive prints for a
-  print shop (one card per page with bleed, the default) or on an office sheet
-  whose cards bleed for a cutter (Large 2 to a landscape sheet, Table 4 to a
-  sheet, abutting, each bleeding only on the block's outer edges); Paper prints
-  Large as before, Table 4 and Mini 10 to a sheet. `printKitFormatProblem` says
-  what is not offered: a Paper print-shop file, a two-language Mini, an
-  Immersive Mini office sheet, an Immersive small-tent office sheet (not drawn)
-  and a Mini tent. The small tent is one pure plan too, `planTent`
-  (`portal-print-kit-tent.ts`): a 5 x 3.5 in (130 x 90 mm) landscape face whose
-  top edge is the fold, one language a face (the lead on the front, the second
-  on the back), no name line, on Immersive a 1.2 in photo panel down the left,
-  then the words and Table's code tile in a row centred down the face (0.9 in
-  fold and foot clearance); long copy steps the call to action down 2 pt twice
-  before the row grows. Paper prints two tents on a landscape sheet with cut and
-  dashed fold ticks (`portal-print-kit-tent-sheets.ts`), Immersive one tent to
-  a print shop's page, bleeding on every edge but the fold
-  (`print-kit-tent-print.ts`). The sheets are
-  `portal-print-kit-size-sheets.ts` and `portal-print-kit-office-sheets.ts`;
-  every mark and note stays 0.25 in from the sheet's edge. A band or panel
-  photo under 200 dpi is reported in the server log and the print is still made:
-  it is never refused. The Share tab says so too, in a warning above Download
-  ("Your photo is small for print and may look soft"), measured with the PDF's
-  own function (`photoPrintDpi`, `portal-print-kit-photo.ts`) from the photo's
-  stored width and height, which the view carries as `look.heroSize`
-  (`print-kit-photo-notice.ts`). Its "Change photo" link opens the Portal's own Look
-  section (`?section=look`), whether the photo is the Property's or the Portal's own
-  (ADR 0070). One more thing to settle before Table or Mini
-  is selectable: their tiles (and the small tent's, which is Table's) have no
-  pictogram to move, so the Italian and French scan cues do not fit one line:
-  102.6 and 112 pt in Table's 96.5 pt room, 91.2 and 99.5 pt (at 8 pt) in Mini's
-  85.7 pt. A test pins the languages that fit; the faces must refuse the rest,
-  use a two-line bar or set a smaller cue. The small tent has a second open
-  question: its photo panel is tall and narrow, so "1000 px wide" does not make
-  it sharp (a landscape photo is enlarged by its height: 1000 x 667 prints at
-  about 184 dpi), and the Photo upload's advice needs its own number before the
-  tent is selectable. The Share notice already measures its panel correctly.
-- **The Share chooser (round 3, slice 14).** Top to bottom, as the share board
-  draws it: Style, Size, Piece, Output, Paper size beside Languages, the name
-  under the logo, Call to action; the Download with its file name; "How to
-  print". What each choice offers is pure and shared (`portal-print-kit-offer.ts`,
-  `portal-print-kit-how-to.ts`), so the controls, the preview's captions and the
-  server read one answer, and `printKitFormatProblem` stays the only judge of what
-  the kit makes: the pieces a size comes in (a card and a tent at Large, today's
-  Letter-half tent, and at Table, the small tent; a card alone at Mini, so no Piece
-  control), the outputs a style and piece take (an Immersive Large or Table card
-  has "For a print shop · 1 card per page with bleed" and "For my printer · 4
-  cards per sheet" (2 at Large); every other print has one way to be made, so no
-  Output control), and the languages (a Mini card takes one). A change of style
-  starts on that style's own output (Immersive to a print shop), and
-  `settlePrintKitFormat` makes any choice one the kit makes, by identity when
-  nothing changes. The Share tab offers only `PRINT_KIT_SELECTABLE_SIZES`
-  (`PortalPrintKitResources.sizes` names others, for stories): with Large alone
-  there is no Size control, because a lone card is not a choice, and from two sizes
-  up it is three cards (outlines at one scale, where each goes, the note "The code
-  shrinks with the size") and Table is the default. The name switch ("Print the
-  property name under the logo", on by default, sent as `showPropertyName`) is
-  shown only for a property with a logo, since a wordmark is the name; its hint is
-  "Large and Table cards. The tent and Mini show the logo alone." (D12). "How to
-  print" names the bar each tile makes (1.75 in, 1.4 in, 1.25 in; 44, 36, 32 mm),
-  from the tile the preview draws; a Large card whose address is not in memory
-  (the preview draws a sample) says both 1.75 in and today's 2 in, because a code
-  that still has a long address prints on 2 in. The preview is the file: it draws
-  every size, piece and output from the same plans (`planCard`, `planTent`), pages
-  (`printKitSheetPages`) and tile rule (`printKitTile`) the PDF draws from, turns a
-  Mini a quarter in its business-card cell, lets an office sheet's cards bleed edge
-  by edge and sets its note and black crop marks, and
-  `print-kit-preview-parity.test.ts` holds its sizes to the PDF's for every card
-  size and the small tent. The preview's sample code has a short print address's
-  shape (a version 3 symbol), so no size is refused for a sample; for the live
-  address a size whose tile would print it too small is not drawn, the section says
-  what to do in the server's words ("Replace the code to print this size." when the
-  code has no print code, "This size cannot print from this server yet." when the
-  print host is the reason), and the download stays off. Stories show every style,
-  size and piece (`print-kit-size-art.stories.tsx`, `portal-print-kit-sizes.stories.tsx`).
-  Not built, still owed: round 2's title warning ("Change title") waits on its open
-  question 6 (which titles read like a call to action), and the Letter-half tent's
-  card still reads "Letter, folded in half".
-- **Type.** Cormorant Garamond for display, Ysabeau Office for text, no third
-  family; lining figures on place labels and headlines; no ligatures on a tracked
-  line (a TT in TRATTORIA must keep its tracking); Bulgarian runs use the
-  Bulgarian `locl` forms. Nothing a guest reads is below 9 pt. The PDF is 1.4,
-  because the washes use transparency, and an Immersive page declares a
-  `TrimBox` and `BleedBox`; a Paper page declares no `BleedBox`.
-- **File name.** `<portal>-<piece>-<languages>[-immersive][-<n>up]-<paper>.pdf`,
-  for example `pool-terrace-counter-card-en-es-letter.pdf`; an office sheet of
-  the round-3 sizes says how many pieces it holds (`-table-card-…-4up-letter`,
-  `-table-tent-…-2up-letter` for the small tent), so two downloads that differ
-  in language, style or paper never share a name. The small tent's Immersive
-  print-shop file, `…-table-tent-en-immersive-letter.pdf`, is named as the
-  Letter-half tent's is, because both are the `table_tent`: the two are never
-  offered together (the flip retires the Letter-half tent as it selects Table).
-- **Owner decisions of 2026-10-22.** D1: "Rate your visit" is the default call
-  to action; the second reads "How was your visit? About 30 seconds" in every
-  language, since the owner removed "Tell us privately" everywhere on
-  2026-10-23. D2: no host caption anywhere. D3: the
-  Immersive tent stays a two-panel card-size tent. D4: a two-language Immersive
-  tent prints without a photo or monogram, because no window reaches its floor.
-  D5: the cue's es, it, fr and de wording ships as a draft, as the rest of that
-  copy does (owner decision 5, 2026-09-30). D6: replaced by the Letter-first
-  rule above. D7: no shorter printed token (reversed 2026-10-23, ADR 0069). D8:
-  the Letter card sheet is cut down on its three ticks and then across 6 in from
-  the top edge, because the printer's border leaves no room for a tick beside the
-  cards.
-- **Owner decisions of 2026-10-23 (print kit round 3).** D7: a short print
-  address, ADR 0069. The print host is `https://ap.up.railway.app` (17
-  characters), a redirect-only second Railway domain on the web service, so the
-  QR string `HTTPS://AP.UP.RAILWAY.APP/p/<20-character print code>` is 48
-  characters, a version 3 symbol at error correction M (version 4 in lowercase).
-  The app origin stays `BETTER_AUTH_URL`, and the code also works if the owner
-  later makes the print host the app's main URL (the redirect then turns off). A
-  Railway-provided name is never released or renamed once printed; ADR 0069
-  records that as a known lock-in. D8: the Table
-  card is the default Table piece and the tent sits beside it. D9: Mini stays
-  portrait. D10: the two-language Table card stays as drawn, with every
-  reduction (band 0.95 in, 12 pt gaps). D11: Europe stays on 90 x 130 mm, no A7.
-  D12: the hint under the name switch reads "Large and Table cards. The tent and
-  Mini show the logo alone." Defaults taken for the plan's open questions: Large's
-  code tile is 1.75 in (1.5 in only if a real print passes it at 50 cm on every
-  phone); if the uppercase address fails a phone test on casing alone, the
-  builder switches to the lowercase form and Mini waits for a 1.4 in tile; the
-  current tent stays selectable until the small sizes are switched on; Mini and
-  the new tent sheet are Paper only.
-- **The final kit's code rule.** `choosePrintFinalTile` (`portal-print-final-code.ts`,
-  pure) gives the Counter card, the tent face and the Small card their tile and module,
-  or refuses them: `needs_short_code` on a long address (only the Counter card prints,
-  on a 2.1 in tile), `address_host_too_long` when the short address is too dense for the
-  tile (at version 4, the lowercase fallback, that is the Small card) and
-  `tile_does_not_fit` for the wide Small card on the step-up tile. The floor is the same
-  0.85 mm as today's `chooseCodeTile`. A code that has no print code is a long address,
-  so minting (above) is what lets the final kit print more than the Counter card.
-- **The final kit's words (call to action, 2026-10-25).** The final kit reads its own
-  copy table, `PRINT_FINAL_COPY` (`portal-print-final-copy.ts`); today's `PRINT_KIT_COPY`
-  stays with today's kit. The default says "How did we do?" over "About 30 seconds" in all
-  six languages, and no word anywhere in the final kit says "private" or "privately"
-  (fixed rule NP). The guest page dropped the adverb too on 2026-10-26: its button reads
-  "Send", its receipt "Rating sent", and the line under the stars "Only {name} sees your
-  rating. It isn’t posted anywhere."; it still says "private note" where it names that
-  feature. Share offers five wordings
-  (`PRINT_FINAL_CALLS_TO_ACTION`: `how_did_we_do`, `how_was_visit`, `how_was_stay`,
-  `rate_visit`, `got_30_seconds`; "How was your stay?" over "Share your experience", the
-  owner's wording of 2026-10-27, has its own sub-line in every language and fits every
-  layout in every language, so no language holds it back; rule F measures with a 2:1 badge,
-  and with a squarer logo the Italian, French and Bulgarian lines miss the upright tents in
-  Europe, where Share greys it and the file refuses it) and "Write your own…": a headline
-  and a sub-line per language of the print (`portal-print-final-custom.ts`), printed as
-  typed and never translated; the print keeps the wording id even with own words. The non-English strings are drafts that need a
-  native check; rule F (a golden test over the planner) holds back the copies that missed
-  it in the brainstorm (`printFinalCopyStatus` = `held`). No piece carries stars (fixed rule
-  NS). The kicker is left out when the headline repeats it once both are normalised
-  (`printFinalKickerRepeated`), and the message group re-centres. The headline prints on at
-  most 3 lines and the sub-line on 2 (`PRINT_FINAL_LINE_CAPS`, held by the planner as
-  `headline_over_cap` and `subline_over_cap`): the long-copy step tries smaller sizes
-  first, and words the chosen orientation cannot hold at the floor are refused with
-  `words_do_not_fit` (the other orientation missing is not a refusal), or `shorten_to_fit`
-  when the words are the manager's own. Share runs the same planner on its estimates (they
-  err wide, so it may hold back a print the file would make, never the reverse): the menu
-  greys a wording the chosen print would refuse, own words get a live fit status, and
-  Download turns into "Choose words that fit" or "Shorten to fit". Only a clear offer in own
-  words blocks (`portal-print-final-warnings.ts`, `remove_offer`); every other note warns.
-  The scan cue is one short cue per language (`PRINT_FINAL_SCAN_CUE`, `portal-print-final-cue.ts`) that fits one line on every
-  bar, measured with the font by the PDF and by the width tables in the preview, and is
-  centred in the bar by its ink; the wrap into the two-line bar stays as the fallback.
-- **The final kit's download.** `createPortalPrintFinal` makes the final kit's PDF
-  where `PRINT_KIT_FINAL_ENABLED` is on (it refuses every request otherwise), beside
-  today's `createPortalPrintKit`, which it leaves alone. It takes the piece, its
-  orientation, the look, the paper (the country's unless named), who prints, the
-  quantity, the spares and a count a sheet, the languages and the call to action, and
-  refuses what `printFinalChoiceProblem` refuses before it reveals the address; the
-  renderer's refusals (the code, two cues that do not fit the bar, or words the face
-  cannot hold at the smallest headline) come after, in the words the Share tab uses
-  (`PRINT_FINAL_REFUSAL_COPY`). From the manager's
-  printer the pieces go on office sheets; a print shop gets one piece per page.
-- **The final kit's back page.** A Counter card or a Small card may print a back
-  (`backPage`, off by default, More options): the logo (or the wordmark) and the
-  Property's name 2u below it, placed by their ink 44 : 56 in the front's live area,
-  no code (`layoutPrintFinalBack`, `portal-print-final-back.ts`). A tent has none: it
-  prints its front on both faces, and the offer refuses a back on one
-  (`no_back_for_tents`). A Paper back is bare paper; an Immersive back stands on the
-  front's ground and washes with no photo, the logo on its plate where the front put
-  it. A lone card's back is page 2; on office sheets each sheet is followed by its
-  reverse, the cells mirrored left to right so the backs lie behind the fronts when
-  the sheet is turned like the page of a book, the card that lies across its cell on
-  the Letter Paper Counter sheet turned the other way, and with no marks and no note
-  on it (`portal-print-final-back-sheets.ts`).
-- **The final kit's print-shop file.** Choosing a print shop (`printer: 'print_shop'`)
-  makes one piece per page instead of office sheets, for Counter cards and Small
-  cards only: tents stay office-only (`tents_office_only`; Share offers Counter
-  cards). The page is the bleed box (the trim plus 1/8 in, or 3 mm), or with
-  `cropMarks` on the trim plus 0.375 in (9 mm in Europe) with eight black marks
-  along the trim lines, starting 1/16 in beyond the bleed and 3/16 in long
-  (`printFinalShopPage`, `portal-print-final-shop.ts`, pure; the PDF in
-  `print-kit-final-shop.ts` and the Share preview draw the same page). Every page
-  declares a TrimBox and a BleedBox, Paper's too: an Immersive card's photo and
-  ground run into the bleed on every edge, a Paper card's bleed is white. A
-  card's back is page 2, with the same boxes and marks. The file is RGB; CMYK
-  with an output intent is a later slice. Crop marks are the print shop's option
-  only (the manager's own printer ignores them) and are named in the file name.
-  What Share says to the manager is `portal-print-final-shop-copy.ts`: the order
-  line ("Order 4 × 6 in postcards, 14–16 pt, matte, one side. Upload this PDF as
-  it is.", with no product names; the weights are the recommendations', still to
-  be checked against a catalogue) and the note the "Copy a note for the print
-  shop" button carries, the one place the trade's words (bleed, TrimBox) appear.
-- **The final kit's last print.** Every final download that makes its file writes the
-  Portal's one `portal_last_prints` row (migration 0071, `createPortalLastPrintRepository`;
-  the next print replaces it, and one that finishes late does not replace a later one):
-  the choices as the download took them (the paper the file was made for, spares, count a
-  sheet, crop marks and back page as asked, the quantity even for a print shop) and, for an
-  Immersive print, the live photo by image and framing. It holds choices and a day only:
-  never the address, a print code or a file. Writing it is best effort
-  (`rememberLastPrint`): a manager who has the file is never refused it because the memory
-  failed, and the failure is logged with its cause and a code
-  (`portal_last_print_not_remembered`; never a Portal id, a banned log key). The print
-  kit read (`getPortalPrintKit`) carries it for the final kit as `lastPrint`: when, the
-  choices to set again, and what became of the
-  photo since (`printFinalPhotoChange`, pure): `same`; `changed` on the day the image that
-  prints now was uploaded, when that was after the print, or with no day when the photo was
-  chosen from the Property's earlier uploads or only reframed; `removed`. A Paper print
-  carries no photo, so it never changes. Today's kit reads none of it. The row has a
-  composite tenant key into `portals` (removed with its Portal), no key into the image, and
-  its CHECKs are held to the domain's vocabularies by `portal-last-print.schema.test.ts`; a
-  row the vocabularies cannot read any more (a language the catalogue dropped) reads as no
-  print. It is in the purge plan, the export (`last_print`) and the data-fate authority.
-  Share shows it as a notice, "Last printed Oct 12 · 10 Paper table tents, wide, on Letter,
-  English + Español", with "Use the same settings" (`choiceOfLastPrint`) until the choices
-  on show already are the last print's, and opens on the last print's look until a look is
-  picked (§11.2: Paper the first time, after that the last choice).
-- **The final kit's saved wording.** A manager can keep the wording Share opens on
-  (2026-10-27: the choice used to live only in the browser, so words written there were
-  gone on the next visit). One `portal_print_wordings` row per Portal (migration 0076,
-  `createPortalPrintWordingRepository`; composite tenant key into `portals`, removed with
-  its Portal, a later write is never replaced by an earlier one): the wording id and the
-  own words per language, no address, file or person. `savePortalPrintWording` (server
-  function beside the final download, the same scope, right, address rate limit and words
-  rules; it needs `portal.update` and the final kit on) stores the words as
-  `printFinalWordingToSave` says: normalised, per language only where they differ from the
-  wording's copy, null when none does; it refuses an offer, and does not judge fit, which
-  depends on the print and is the download's. A download that makes its file saves the
-  wording it printed too (best effort, `rememberPrintWording`, logged as
-  `portal_print_wording_not_remembered`), so the saved wording is what printed last. The
-  print kit read carries it as `savedWording` (null for today's kit, when none was saved
-  or when the row cannot be read). Share opens on the saved wording, else the last print's,
-  else the default (`printFinalOpeningWording`), once when the read first arrives; a later
-  read, the one after a download included, never reaches the words on show. "Save wording"
-  shows only while the words on show differ from the saved ones (`printFinalWordingIsSaved`),
-  is off for an empty headline or an offer, and goes once saved. The row is in the purge
-  plan, the export (`print_wording`) and the data-fate authority.
+- `choosePrintFinalTile` enforces the existing module floor and refuses a dense
+  address with the same Share-tab wording. The renderer checks real-font fit;
+  unsupported wording and offers for a review retain their existing refusals.
+- Successful downloads remember settings and safe wording; neither memory stores
+  the code or address. The server makes the response uncacheable before a refusal,
+  checks tenant scope and permissions, and spends the address rate limit.
+- The PDF renderer loads lazily so processes that never print need not load fonts.
+  Fonts, image readers, QR helpers and shared layout helpers remain shared with
+  the preview. `portal-print-kit-how-to.ts` remains with its Immersive office and
+  print-shop instructions.
+
+There are no print-kit, print-code or own-look rollout switches. Own looks keep
+all current options and authorization rules. Surviving server functions keep their
+existing file paths and names.
 
 ## Runtime
 
@@ -971,7 +670,7 @@ marker, for "Public address" and "Open page"), all three with
 `Cache-Control: private, no-store` set before anything can fail. `qr` is the QR
 address in capitals (`HTTPS://AP.UP.RAILWAY.APP/p/<code>`, version 3) and `nfc` keeps
 a lowercase scheme and host so a tag gets the `https://` prefix byte (48 bytes, an
-NTAG213 holds 144); `PORTAL_PRINT_CODES_ENABLED` off keeps both on the long address.
+NTAG213 holds 144); verified print codes are always used, with the long address as the fallback.
 The Share tab takes `direct` from the server and never works it out from `qr`: a
 short address has no marker to strip, and a visit through it is a counted scan. A
 planned replacement leaves the old code's print codes live through its grace; a

@@ -21,7 +21,6 @@ const staffPublicApi = {
 const ADDRESS: PortalAddressFormat = {
   appOrigin: 'https://example.test',
   printOrigin: 'https://ap.example.test',
-  printCodesEnabled: false,
 }
 
 describe('rotatePortalToken', () => {
@@ -71,14 +70,12 @@ describe('rotatePortalToken', () => {
 
     const rotated = await useCase({ portalId: portal.id }, buildTestAuthContext())
 
-    const long = (artifactId: string) =>
-      `https://example.test/p/${rotated.rawToken}?accessArtifact=${artifactId}`
     expect(rotated).toEqual({
       rawToken: expect.stringMatching(/^pt_[A-Za-z0-9_-]{16}_[A-Za-z0-9_-]{43}$/u),
-      publicUrl: long('6a200000-0000-4000-8000-000000000002'),
+      publicUrl: expect.stringMatching(/^HTTPS:\/\/AP\.EXAMPLE\.TEST\/p\/[0-9A-Z]{20}$/u),
       publicUrls: {
-        qr: long('6a200000-0000-4000-8000-000000000002'),
-        nfc: long('6a200000-0000-4000-8000-000000000003'),
+        qr: expect.stringMatching(/^HTTPS:\/\/AP\.EXAMPLE\.TEST\/p\/[0-9A-Z]{20}$/u),
+        nfc: expect.stringMatching(/^https:\/\/ap\.example\.test\/p\/[0-9A-Z]{20}$/u),
         direct: `https://example.test/p/${rotated.rawToken}`,
       },
       tokenIdentifier: expect.any(String),
@@ -393,9 +390,9 @@ describe('rotatePortalToken — print codes (ADR 0069)', () => {
     })
   })
 
-  it('shows the short addresses when switched on, and the long one only as direct', async () => {
+  it('shows the short addresses by default, and the long one only as direct', async () => {
     const { run, tokenCodec } = setup({
-      address: { ...ADDRESS, printCodesEnabled: true },
+      address: ADDRESS,
     })
 
     const result = await run()
@@ -432,7 +429,7 @@ describe('rotatePortalToken — print codes (ADR 0069)', () => {
 
   it('keeps every print code, its hash and the address out of the events it records', async () => {
     const { run, outbox, rotated } = setup({
-      address: { ...ADDRESS, printCodesEnabled: true },
+      address: ADDRESS,
     })
 
     const result = await run()

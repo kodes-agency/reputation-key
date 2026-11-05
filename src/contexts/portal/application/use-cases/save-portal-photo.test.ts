@@ -51,7 +51,7 @@ const staffApi: StaffPublicApi = {
   getAssignedPortals: async () => [],
 }
 
-const setup = (enabled = true) => {
+const setup = () => {
   const portalRepo = createInMemoryPortalRepo()
   portalRepo.seed([PORTAL])
   const portalLookRepo = createInMemoryPortalLookRepo()
@@ -78,7 +78,6 @@ const setup = (enabled = true) => {
       mediaRepo,
       staffPublicApi: staffApi,
       clock: () => NOW,
-      portalOwnLookEnabled: enabled,
     },
   }
 }
@@ -217,14 +216,6 @@ describe('savePortalLookPhoto', () => {
     await savePortalLookPhoto(deps)({ ...target, photo: { mode } }, ADMIN)
 
     expect(portalLookRepo.saved()[0]?.change).toEqual({ group: 'photo', mode })
-  })
-
-  it('refuses a save while portals may not have their own look', async () => {
-    const { deps } = setup(false)
-
-    await expect(
-      savePortalLookPhoto(deps)({ ...target, photo: { mode: 'none' } }, ADMIN),
-    ).rejects.toSatisfy(failsWith('feature_unavailable'))
   })
 
   it('lets only an account admin change the photo', async () => {

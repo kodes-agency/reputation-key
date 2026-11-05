@@ -131,42 +131,34 @@ describe('describeOwnLooks', () => {
 describe('offersOwnLook', () => {
   const two = [portal('Reception'), portal('Spa')]
 
-  it('offers it once a second portal exists and the switch is on', () => {
-    expect(offersOwnLook(two, true)).toBe(true)
+  it('offers it once a second portal exists', () => {
+    expect(offersOwnLook(two)).toBe(true)
   })
 
   it('offers nothing to a property with one portal', () => {
-    expect(offersOwnLook([portal('Reception')], true)).toBe(false)
+    expect(offersOwnLook([portal('Reception')])).toBe(false)
     expect(
-      offersOwnLook([portal('Reception'), portal('Old', undefined, 'archived')], true),
+      offersOwnLook([portal('Reception'), portal('Old', undefined, 'archived')]),
     ).toBe(false)
-  })
-
-  it('offers nothing while the switch is off', () => {
-    expect(offersOwnLook(two, false)).toBe(false)
   })
 
   it('still tells the truth about a portal that already has its own part', () => {
     expect(
-      offersOwnLook(
-        [portal('Reception'), portal('Spa', sources({ photo: 'portal' }))],
-        false,
-      ),
+      offersOwnLook([portal('Reception'), portal('Spa', sources({ photo: 'portal' }))]),
     ).toBe(true)
-    expect(offersOwnLook([portal('Spa', sources({ photo: 'none' }))], false)).toBe(true)
+    expect(offersOwnLook([portal('Spa', sources({ photo: 'none' }))])).toBe(true)
   })
 })
 
 describe('offersLookEdit', () => {
-  const admin = { canEdit: true, ownLookEnabled: true, portalCount: 2 }
+  const admin = { canEdit: true, portalCount: 2 }
 
   it('links an account admin to the Look section of a portal once a second portal exists', () => {
     expect(offersLookEdit(admin, portal('Spa'))).toBe(true)
   })
 
-  it('does not link a viewer who cannot edit, nor while the switch is off', () => {
+  it('does not link a viewer who cannot edit', () => {
     expect(offersLookEdit({ ...admin, canEdit: false }, portal('Spa'))).toBe(false)
-    expect(offersLookEdit({ ...admin, ownLookEnabled: false }, portal('Spa'))).toBe(false)
   })
 
   it('links a portal that has its own part even when it is the only one left, so it can be undone', () => {

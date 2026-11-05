@@ -38,7 +38,6 @@ export type PortalExperienceSettings = Readonly<{
    */
   portalLook?: PortalLookSettings['portalLook']
   siblingPortalCount?: PortalLookSettings['siblingPortalCount']
-  portalLookEnabled?: PortalLookSettings['portalLookEnabled']
 }>
 
 type Destination = Readonly<{

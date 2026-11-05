@@ -1,5 +1,4 @@
 // Portal context — the final print kit's PDF (final design spec §11, slice 7):
-// behind PRINT_KIT_FINAL_ENABLED, it refuses what the kit does not make before
 // it discloses, discloses through the audited reveal, and hands the renderer
 // the piece, its orientation and its sheets.
 
@@ -13,7 +12,8 @@ import { createInMemoryPortalMediaAssetRepo } from '#/shared/testing/in-memory-p
 import { buildTestPortalMediaAsset } from '#/shared/testing/portal-media-fixtures'
 import { buildTestAuthContext, buildTestPortal } from '#/shared/testing/fixtures'
 import { createMockLogger } from '#/shared/testing/mock-logger'
-import { portalMediaAssetId } from '#/shared/domain/ids'
+import { portalMediaAssetId, propertyId, type PropertyId } from '#/shared/domain/ids'
+import { portalError } from '../../domain/errors'
 import { PRINT_FINAL_REFUSAL_COPY } from '#/shared/domain/portal-print-final-refusals'
 import type { PortalPublicationSnapshot } from '../../domain/portal-publication-snapshot'
 import { immersiveConfiguration } from '../../domain/__fixtures__/immersive-configuration'
@@ -39,7 +39,9 @@ const LOGO_BYTES = Buffer.from('logo image bytes')
 const PRINTED_AT = new Date('2026-10-25T09:30:00.000Z')
 
 type Options = Readonly<{
-  enabled?: boolean
+  accessible?: readonly PropertyId[]
+  live?: boolean
+  revealFailure?: ReturnType<typeof portalError>
   country?: string | null
   refuse?: PrintFinalRenderRefusal
   /** The languages the live version offers; English and Bulgarian by default. */
@@ -67,12 +69,15 @@ async function setup(options: Options = {}) {
   mediaRepo.seed([hero, logo])
   await objectStore.putObject(hero.objectKey, HERO_BYTES, 'image/webp')
   await objectStore.putObject(logo.objectKey, LOGO_BYTES, 'image/webp')
-  const reveal = vi.fn<RevealPortalAddress>(async () => ({
-    publicUrl: SHORT_ADDRESS,
-    publicUrls: { qr: SHORT_ADDRESS, nfc: SHORT_ADDRESS, direct: SHORT_ADDRESS },
-    version: 1,
-    issuedAt: new Date('2026-10-01T10:00:00Z'),
-  }))
+  const reveal = vi.fn<RevealPortalAddress>(async () => {
+    if (options.revealFailure) throw options.revealFailure
+    return {
+      publicUrl: SHORT_ADDRESS,
+      publicUrls: { qr: SHORT_ADDRESS, nfc: SHORT_ADDRESS, direct: SHORT_ADDRESS },
+      version: 1,
+      issuedAt: new Date('2026-10-01T10:00:00Z'),
+    }
+  })
   const lastPrintRepo = createInMemoryPortalLastPrintRepo()
   const wordingRepo = createInMemoryPortalPrintWordingRepo()
   const warnings: object[] = []
@@ -93,19 +98,21 @@ async function setup(options: Options = {}) {
   const make = createPortalPrintFinal({
     portalRepo,
     staffPublicApi: {
-      getAccessiblePropertyIds: async () => null,
+      getAccessiblePropertyIds: async () => options.accessible ?? null,
       getAssignedPortals: async () => [],
     },
     publicationRepo: {
       loadWorkingCopy: async () => publicationSource(),
       findActiveForPortal: async () =>
-        ({
-          id: 'snapshot-1',
-          version: 1,
-          configuration: immersiveConfiguration(
-            options.localeSet === undefined ? {} : { localeSet: options.localeSet },
-          ),
-        }) as PortalPublicationSnapshot,
+        options.live === false
+          ? null
+          : ({
+              id: 'snapshot-1',
+              version: 1,
+              configuration: immersiveConfiguration(
+                options.localeSet === undefined ? {} : { localeSet: options.localeSet },
+              ),
+            } as PortalPublicationSnapshot),
     },
     mediaRepo,
     objectStore,
@@ -113,7 +120,7 @@ async function setup(options: Options = {}) {
     revealAddress: reveal,
     renderer,
     propertyCountry: async () => options.country ?? 'US',
-    finalKitEnabled: options.enabled ?? true,
+
     lastPrintRepo,
     wordingRepo,
     clock: () => PRINTED_AT,
@@ -279,15 +286,6 @@ describe('createPortalPrintFinal', () => {
     const named = await setup({ country: 'BG' })
     await named.make(tents(named.portal.id, { paper: 'letter' }), buildTestAuthContext())
     expect(named.rendered[0]?.face.region).toBe('us')
-  })
-
-  it('refuses every download while the server has the final kit off, before revealing', async () => {
-    const { portal, make, reveal } = await setup({ enabled: false })
-
-    await expect(make(tents(portal.id), buildTestAuthContext())).rejects.toMatchObject({
-      code: 'print_format_not_offered',
-    })
-    expect(reveal).not.toHaveBeenCalled()
   })
 
   it.each([
@@ -473,10 +471,6 @@ describe('createPortalPrintFinal', () => {
     })
 
     it('keeps nothing of a print that was refused', async () => {
-      const refused = await setup({ enabled: false })
-      await expect(refused.make(tents(refused.portal.id), ctx)).rejects.toMatchObject({
-        code: 'print_format_not_offered',
-      })
       const drawn = await setup({
         refuse: new PrintFinalRenderRefusal({ code: 'needs_short_code', moduleMm: null }),
       })
@@ -484,7 +478,6 @@ describe('createPortalPrintFinal', () => {
         code: 'print_code_too_small',
       })
 
-      expect(refused.lastPrintRepo.recorded()).toEqual([])
       expect(drawn.lastPrintRepo.recorded()).toEqual([])
     })
 
@@ -513,6 +506,39 @@ describe('createPortalPrintFinal', () => {
       ),
     ).rejects.toMatchObject({ code: 'forbidden' })
     expect(reveal).not.toHaveBeenCalled()
+  })
+
+  it('refuses a Property outside the caller’s access before revealing', async () => {
+    const { portal, make, reveal } = await setup({
+      accessible: [propertyId('a0000000-0000-0000-0000-0000000000ff')],
+    })
+    await expect(make(tents(portal.id), buildTestAuthContext())).rejects.toMatchObject({
+      code: 'forbidden',
+    })
+    expect(reveal).not.toHaveBeenCalled()
+  })
+
+  it('refuses a Portal with no live publication before revealing', async () => {
+    const { portal, make, reveal } = await setup({ live: false })
+    await expect(make(tents(portal.id), buildTestAuthContext())).rejects.toMatchObject({
+      code: 'publication_snapshot_unavailable',
+    })
+    expect(reveal).not.toHaveBeenCalled()
+  })
+
+  it('makes and remembers nothing when the live address cannot be revealed', async () => {
+    const { portal, make, rendered, lastPrintRepo, wordingRepo } = await setup({
+      revealFailure: portalError(
+        'address_unavailable',
+        'This code cannot be downloaded again.',
+      ),
+    })
+    await expect(make(tents(portal.id), buildTestAuthContext())).rejects.toMatchObject({
+      code: 'address_unavailable',
+    })
+    expect(rendered).toEqual([])
+    expect(lastPrintRepo.recorded()).toEqual([])
+    expect(wordingRepo.saved()).toEqual([])
   })
 
   it('says why the code cannot print on the piece, in the Share tab’s words', async () => {

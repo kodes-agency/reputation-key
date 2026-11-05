@@ -219,7 +219,7 @@ export const RowsSayWhatThePublishCarries: Story = {
 export const OwnersAndFollowersInOneReview: Story = {
   args: {
     rows: AVELA_MIXED_PORTALS,
-    ownLookEnabled: true,
+
     getPortalReview: reviewingPortals({
       'p-spa': ownLookReview('p-spa'),
       'p-olive': nothingNewReview('p-olive'),

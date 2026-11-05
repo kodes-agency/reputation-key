@@ -156,32 +156,6 @@ describe('PORTAL_PRINT_ORIGIN', () => {
   })
 })
 
-describe('PORTAL_PRINT_CODES_ENABLED', () => {
-  const parse = (value?: string) =>
-    parseEnvironment({
-      ...testEnvironment({}),
-      ...(value === undefined ? {} : { PORTAL_PRINT_CODES_ENABLED: value }),
-    }).PORTAL_PRINT_CODES_ENABLED
-
-  it('is off where it is unset: no manager sees a short address', () => {
-    expect(parse()).toBe(false)
-  })
-
-  it.each([
-    ['true', true],
-    ['false', false],
-  ])('reads %s', (value, expected) => {
-    expect(parse(value)).toBe(expected)
-  })
-
-  it.each(['1', 'TRUE', 'yes', 'on', ''])(
-    'refuses %j at boot, so a mistyped switch cannot print an untested address',
-    (value) => {
-      expect(() => parse(value)).toThrow('PORTAL_PRINT_CODES_ENABLED')
-    },
-  )
-})
-
 describe('production auth transport policy', () => {
   it('refuses a plaintext auth origin that can be reached over a network', () => {
     // The reason the rule exists: a production auth origin decides
@@ -251,54 +225,6 @@ describe('REVIEW_DISCOVERY_SKIP_RECENTLY_RECONCILED', () => {
     'refuses the near-miss %j at boot instead of silently leaving the switch on',
     (value) => {
       expect(() => parse(value)).toThrow('REVIEW_DISCOVERY_SKIP_RECENTLY_RECONCILED')
-    },
-  )
-})
-
-describe('PRINT_KIT_FINAL_ENABLED', () => {
-  const parse = (value?: string) =>
-    parseEnvironment({
-      ...testEnvironment({}),
-      ...(value === undefined ? {} : { PRINT_KIT_FINAL_ENABLED: value }),
-    }).PRINT_KIT_FINAL_ENABLED
-
-  it("is off when unset, so the Share tab keeps today's kit", () => {
-    expect(parse()).toBe(false)
-  })
-
-  it('is on for true and off for false', () => {
-    expect(parse('true')).toBe(true)
-    expect(parse('false')).toBe(false)
-  })
-
-  it.each(['True', '1', 'yes', 'on', ' true', ''])(
-    'refuses the near-miss %j at boot instead of guessing which kit to show',
-    (value) => {
-      expect(() => parse(value)).toThrow('PRINT_KIT_FINAL_ENABLED')
-    },
-  )
-})
-
-describe('PORTAL_OWN_LOOK_ENABLED', () => {
-  const parse = (value?: string) =>
-    parseEnvironment({
-      ...testEnvironment({}),
-      ...(value === undefined ? {} : { PORTAL_OWN_LOOK_ENABLED: value }),
-    }).PORTAL_OWN_LOOK_ENABLED
-
-  it('is off when unset, so no portal can be given its own look', () => {
-    expect(parse()).toBe(false)
-  })
-
-  it('is on for true and off for false', () => {
-    expect(parse('true')).toBe(true)
-    expect(parse('false')).toBe(false)
-  })
-
-  it.each(['True', '1', 'yes', 'on', ' true', ''])(
-    'refuses the near-miss %j at boot instead of guessing whether portals may have their own look',
-    (value) => {
-      expect(() => parse(value)).toThrow('PORTAL_OWN_LOOK_ENABLED')
     },
   )
 })

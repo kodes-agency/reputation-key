@@ -30,7 +30,6 @@ export type PersonalPortalPresentationDeps = Readonly<{
   ) => Promise<ServableMediaUrls>
   wordingRepo: Pick<PortalPrintWordingRepository, 'find'>
   lastPrintRepo: Pick<PortalLastPrintRepository, 'find'>
-  finalKitEnabled: boolean
 }>
 
 export async function personalPortalLook(
@@ -90,12 +89,10 @@ export async function personalPortalWords(
   portal: Portal,
   locale: GuestLocale,
 ) {
-  const [saved, last] = deps.finalKitEnabled
-    ? await Promise.all([
-        deps.wordingRepo.find(portal.organizationId, portal.id),
-        deps.lastPrintRepo.find(portal.organizationId, portal.id),
-      ])
-    : [null, null]
+  const [saved, last] = await Promise.all([
+    deps.wordingRepo.find(portal.organizationId, portal.id),
+    deps.lastPrintRepo.find(portal.organizationId, portal.id),
+  ])
   const wording = printFinalOpeningWording(saved, last?.settings ?? null)
   const copy = PRINT_FINAL_COPY[locale][wording.callToAction]
   const own = wording.customWords?.[locale]
