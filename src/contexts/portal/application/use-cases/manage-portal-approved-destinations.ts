@@ -1,6 +1,10 @@
 import type { AuthContext } from '#/shared/domain/auth-context'
 import { canForContext } from '#/shared/domain/permissions'
-import { portalApprovedDestinationId, portalId } from '#/shared/domain/ids'
+import {
+  portalApprovedDestinationId,
+  portalId,
+  type PortalApprovedDestinationId,
+} from '#/shared/domain/ids'
 import type { StaffPublicApi } from '#/contexts/identity/application/public-api'
 import type { PortalRepository } from '../ports/portal.repository'
 import type { PortalApprovedDestinationRepository } from '../ports/portal-approved-destination.repository'
@@ -21,6 +25,9 @@ type Deps = Readonly<{
   idGen: () => string
   clock: () => Date
 }>
+
+// Bound outbound work while leaving the paging budget room for later scopes.
+const REVALIDATION_CONCURRENCY = 5
 
 async function assertDestinationNetworkSafe(
   validator: PortalDestinationNetworkValidator,
@@ -209,18 +216,22 @@ export const revalidatePortalApprovedDestinations =
   async (
     input: Readonly<{
       limit?: number
+      at?: Date
+      excludeIds?: readonly PortalApprovedDestinationId[]
       authorizeScope: (organizationId: string, propertyId: string) => Promise<boolean>
     }>,
   ) => {
     const limit = Math.min(500, Math.max(1, input.limit ?? 100))
-    const before = new Date(
-      deps.clock().getTime() - APPROVED_DESTINATION_REVALIDATION_DUE_AFTER_MS,
-    )
+    const at = input.at ?? deps.clock()
+    const before = new Date(at.getTime() - APPROVED_DESTINATION_REVALIDATION_DUE_AFTER_MS)
     const candidates = await deps.destinationRepo.listDueForNetworkRevalidation(
       before,
       limit,
+      { at, excludeIds: input.excludeIds },
     )
     const outcome = {
+      visitedIds: candidates.map((candidate) => candidate.id),
+      oldestUnvalidatedAgeMs: 0,
       scanned: candidates.length,
       validated: 0,
       quarantined: 0,
@@ -228,38 +239,66 @@ export const revalidatePortalApprovedDestinations =
       unauthorized: 0,
       stale: 0,
     }
-    for (const candidate of candidates) {
+    const revalidateCandidate = async (candidate: (typeof candidates)[number]) => {
       if (!(await input.authorizeScope(candidate.organizationId, candidate.propertyId))) {
         outcome.unauthorized += 1
-        continue
+        return
       }
       const validation = await deps.destinationNetworkValidator.validate(
         candidate.normalizedUri,
       )
       if (validation.outcome === 'unavailable') {
         outcome.unavailable += 1
-        continue
+        outcome.oldestUnvalidatedAgeMs = Math.max(
+          outcome.oldestUnvalidatedAgeMs,
+          deps.clock().getTime() - candidate.lastValidatedAt.getTime(),
+        )
       }
       const result = await deps.destinationRepo.recordNetworkValidation({
         organizationId: candidate.organizationId,
         propertyId: candidate.propertyId,
         id: candidate.id,
         expectedLastValidatedAt: candidate.lastValidatedAt,
+        expectedNextAttemptAt: candidate.nextAttemptAt,
         result:
-          validation.outcome === 'safe'
-            ? { outcome: 'safe', validatedAt: validation.validatedAt }
-            : {
-                outcome: 'unsafe',
-                reason: validation.reason,
-                observedAt: validation.observedAt,
-              },
+          validation.outcome === 'unavailable'
+            ? {
+                outcome: 'unavailable',
+                nextAttemptAt: new Date(
+                  deps.clock().getTime() +
+                    Math.min(
+                      15 * 60_000,
+                      60_000 * 2 ** Math.min(candidate.validationFailures, 4),
+                    ),
+                ),
+              }
+            : validation.outcome === 'safe'
+              ? { outcome: 'safe', validatedAt: validation.validatedAt }
+              : {
+                  outcome: 'unsafe',
+                  reason: validation.reason,
+                  observedAt: validation.observedAt,
+                },
       })
       if (!result) {
         outcome.stale += 1
+      } else if (validation.outcome === 'unavailable') {
+        return
       } else if (result.approvalState === 'quarantined') {
         outcome.quarantined += 1
       } else {
         outcome.validated += 1
+      }
+    }
+    for (let offset = 0; offset < candidates.length; offset += REVALIDATION_CONCURRENCY) {
+      const results = await Promise.allSettled(
+        candidates
+          .slice(offset, offset + REVALIDATION_CONCURRENCY)
+          .map(revalidateCandidate),
+      )
+      // Drain the active batch before failing so no work outlives the page.
+      for (const result of results) {
+        if (result.status === 'rejected') throw result.reason
       }
     }
     return outcome
