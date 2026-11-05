@@ -114,11 +114,10 @@ calendar-month **Healthy Guest Gateway** contract derived from governed Portal
 Health. Legacy badges must remain unreachable and must not affect access, Staff Participation,
 Goals, notifications, or workflow decisions.
 
-| Term                              | Definition                                                                                                                                                                                                                      |
-| --------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Legacy Badge data**             | Quarantined definitions, enablements, awards, and event envelopes retained only for inventory, export/restore compatibility, and reviewed contraction. No beta producer, evaluator, settings surface, or award workflow exists. |
-| **Historical Badge notification** | A neutral rendering of an already-persisted notification row. It does not read Badge data, subscribe to `badge.awarded`, or make the legacy model active.                                                                       |
-| **Healthy Guest Gateway**         | The only agreed post-core recognition direction: a separately authorized, non-competitive calendar-month result based solely on governed Portal publication and health evidence. It is not implemented for beta.                |
+| Term                      | Definition                                                                                                                                                                                                                      |
+| ------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Legacy Badge data**     | Quarantined definitions, enablements, awards, and event envelopes retained only for inventory, export/restore compatibility, and reviewed contraction. No beta producer, evaluator, settings surface, or award workflow exists. |
+| **Healthy Guest Gateway** | The only agreed post-core recognition direction: a separately authorized, non-competitive calendar-month result based solely on governed Portal publication and health evidence. It is not implemented for beta.                |
 
 ### Retained legacy leaderboards (not beta authority)
 
