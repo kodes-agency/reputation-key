@@ -28,9 +28,9 @@ export type ContainerImagePolicy = Readonly<{
   images: readonly ContainerImagePolicyRow[]
 }>
 
-// CI builds all five classified image descriptors. On main, it publishes the
+// CI builds all four classified image descriptors. On main, it publishes the
 // three production runtimes below under immutable source-revision tags;
-// sandbox and perf-runner remain CI-only.
+// the provider sandbox remains CI-only.
 const CI_PUBLISHED_IMAGE_IDS = ['google-provider-redis', 'web', 'worker'] as const
 
 const IGNORED_DIRECTORIES = new Set([
@@ -704,7 +704,7 @@ export function validateContainerImagePolicy(root: string): readonly string[] {
 
 /**
  * Every image scan reads `.grype.yaml` (`-c .grype.yaml`, required by
- * ciEvidenceViolations), so an exception there suppresses a finding in all five
+ * ciEvidenceViolations), so an exception there suppresses a finding in all four
  * images. It stops counting the day after its `expiresAt`.
  */
 function validateScanExceptionExpiry(root: string, today: string): readonly string[] {

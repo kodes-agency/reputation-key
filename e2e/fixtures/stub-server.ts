@@ -1,17 +1,7 @@
-// BQC-8.2: sandbox stub process for the local staging cell.
-//
-// Long-running child of `pnpm perf:cell up` — serves one e2e sandbox stub
-// (GBP or mail) on the cell's port until `perf:cell down` SIGTERMs it. All
-// logic lives in the e2e fixtures (reused unmodified); this is the process
-// wrapper that lets the stubs outlive the `up` command.
-//
-// Usage: pnpm tsx scripts/perf/cell-stub-server.ts --kind=gbp --port=4150
-//        pnpm tsx scripts/perf/cell-stub-server.ts --kind=mail --port=4151
-
 import { readFileSync } from 'node:fs'
-import { startAiProviderStub } from '../../e2e/fixtures/ai-provider-stub'
-import { startGbpStub } from '../../e2e/fixtures/gbp-stub'
-import { startMailStub } from '../../e2e/fixtures/mail-stub'
+import { startAiProviderStub } from './ai-provider-stub'
+import { startGbpStub } from './gbp-stub'
+import { startMailStub } from './mail-stub'
 
 function argValue(flag: string): string | undefined {
   const hit = process.argv.find((a) => a.startsWith(`${flag}=`))
@@ -26,7 +16,7 @@ async function main(): Promise<void> {
     !Number.isInteger(port) ||
     port <= 0
   ) {
-    console.error('Usage: cell-stub-server.ts --kind=<gbp|mail|ai> --port=<n>')
+    console.error('Usage: stub-server.ts --kind=<gbp|mail|ai> --port=<n>')
     process.exit(2)
   }
 
@@ -57,6 +47,6 @@ async function main(): Promise<void> {
 }
 
 main().catch((err) => {
-  console.error('cell stub server failed:', err)
+  console.error('stub server failed:', err)
   process.exit(1)
 })

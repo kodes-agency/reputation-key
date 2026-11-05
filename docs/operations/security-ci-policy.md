@@ -56,21 +56,21 @@ and do not read them as a review verdict.
 an artifact that actually runs or supports acceptance. The promoted web and
 worker descriptors build the same application content (`.output` plus
 `dist-worker`), while provider Redis carries its hardened upstream runtime. The
-CI-only sandbox and performance runner contain only their prebuilt support
-bundles and required runtime dependencies. Scanning all five images with Grype
-therefore covers the shipped OS packages, bundles, and production
-`node_modules`. The source-tree SBOM plus the five image SBOMs cover both sides
-of the build without treating non-promoted tools as production.
+CI-only sandbox contains only its prebuilt support bundle and required runtime
+dependencies. Scanning all four images with Grype therefore covers the shipped
+OS packages, bundles, and production `node_modules`. The source-tree SBOM plus
+the four image SBOMs cover both sides of the build without treating non-promoted
+tools as production.
 
-The matrix uses two measured groups (two and three images) rather than one
-runner per image. Web and worker remain in separate groups. Every descriptor is
+The matrix uses two measured groups (two images each) rather than one runner
+per image. Web and worker remain in separate groups. Every descriptor is
 still built, smoked, inventoried, and scanned independently, and Buildx reads
 and writes a per-image GHA cache scope (`ci-image-<name>`) so layers can never
 cross image contracts. The three promoted descriptors first receive unique
 `ci-run-<run>-<attempt>` staging tags after their local Grype checks. Only the
 `docker` aggregate, after both groups succeed and all three digests validate,
-creates immutable source-SHA tags and the digest map; sandbox and performance
-stay CI-only.
+creates immutable source-SHA tags and the digest map; the sandbox stays
+CI-only.
 
 ## Severity and exception policy
 

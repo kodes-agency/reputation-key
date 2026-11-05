@@ -12,6 +12,5 @@
   "src/shared/db/schema/ai.schema.ts": 1174,
   "src/shared/db/schema/inbox.schema.ts": 842,
   "src/shared/db/schema/review.schema.ts": 1409,
-  "src/shared/events/schema-registrations.ts": 1555,
-  "src/shared/testing/scenarios/executors.ts": 1335
+  "src/shared/events/schema-registrations.ts": 1555
 }
