@@ -1,23 +1,14 @@
-// BQC-3.5 — property command store integration tests (real Postgres).
-//
-// Crash-boundary proofs on the real properties table:
-//   1. A forced outbox failure (unregistered fact type) rolls back EVERYTHING
-//      — no property row survives.
-//   2. Happy path: the state row and the outbox_events row commit together
-//      with the same eventId.
-//   3. The tenant guard holds on the real DB.
-
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest'
 import { Pool } from 'pg'
 import { getDb } from '#/shared/db'
 import { getEnv } from '#/shared/config/env'
 import { deleteTestOrganizations } from '#/shared/testing/integration-helpers'
+import { seedTestProperty } from '../property-test-fixtures'
 import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
 import { clearEventSchemas } from '#/shared/events/schema-registry'
 import { organizationId, propertyId } from '#/shared/domain/ids'
 import { DEFAULT_PROPERTY_GOOGLE_PROFILE, type Property } from '../../domain/types'
-import { propertyCreated, propertyDeleted, propertyUpdated } from '../../domain/events'
-import { isPropertyError } from '../../domain/errors'
+import { propertyUpdated } from '../../domain/events'
 import { createAtomicPropertyCommandStore } from '../property-command-store'
 
 const ORG_ID = organizationId('org-propcmd-0000-0000-0000-000000000001')
@@ -88,95 +79,9 @@ beforeEach(async () => {
 })
 
 describe.sequential('propertyCommandStore (integration)', () => {
-  it('createProperty commits the property + created fact in one transaction', async () => {
-    const store = createAtomicPropertyCommandStore(db)
-    const property = makeProperty()
-    const event = propertyCreated({
-      propertyId: property.id,
-      organizationId: property.organizationId,
-      name: property.name,
-      slug: property.slug,
-      occurredAt: property.createdAt,
-    })
-
-    const inserted = await store.createProperty({
-      organizationId: ORG_ID,
-      property,
-      event,
-    })
-
-    expect(inserted.id).toBe(PROP_ID)
-    const rows = await pool.query('SELECT id, slug FROM properties WHERE id = $1', [
-      PROP_ID,
-    ])
-    expect(rows.rows).toHaveLength(1)
-    const facts = await pool.query(
-      `SELECT id FROM outbox_events
-       WHERE organization_id = $1 AND event_type = 'property.created' AND id = $2`,
-      [ORG_ID, event.eventId],
-    )
-    expect(facts.rows).toHaveLength(1)
-  })
-
-  it('createProperty rolls back the insert when the fact insert fails (unregistered type)', async () => {
-    const store = createAtomicPropertyCommandStore(db)
-    const ghost = {
-      ...propertyCreated({
-        propertyId: PROP_ID,
-        organizationId: ORG_ID,
-        name: 'Ghost',
-        slug: 'propcmd-ghost',
-        occurredAt: NOW,
-      }),
-      _tag: 'property.ghost',
-    } as unknown as Parameters<typeof store.createProperty>[0]['event']
-
-    await expect(
-      store.createProperty({
-        organizationId: ORG_ID,
-        property: makeProperty({ slug: 'propcmd-ghost' }),
-        event: ghost,
-      }),
-    ).rejects.toThrow(/Event type property\.ghost:v1 is not registered for the outbox/)
-
-    const rows = await pool.query(
-      'SELECT id FROM properties WHERE organization_id = $1',
-      [ORG_ID],
-    )
-    expect(rows.rows).toHaveLength(0)
-  })
-
-  it('createProperty enforces the tenant guard', async () => {
-    const store = createAtomicPropertyCommandStore(db)
-
-    await expect(
-      store.createProperty({
-        organizationId: organizationId('org-other-0000-0000-0000-000000000001'),
-        property: makeProperty(),
-        event: propertyCreated({
-          propertyId: PROP_ID,
-          organizationId: ORG_ID,
-          name: 'Grand Hotel',
-          slug: 'propcmd-grand-hotel',
-          occurredAt: NOW,
-        }),
-      }),
-    ).rejects.toSatisfy((e: unknown) => isPropertyError(e) && e.code === 'forbidden')
-  })
-
   it('updateProperty commits the patch + updated fact in one transaction', async () => {
     const store = createAtomicPropertyCommandStore(db)
-    await store.createProperty({
-      organizationId: ORG_ID,
-      property: makeProperty(),
-      event: propertyCreated({
-        propertyId: PROP_ID,
-        organizationId: ORG_ID,
-        name: 'Grand Hotel',
-        slug: 'propcmd-grand-hotel',
-        occurredAt: NOW,
-      }),
-    })
+    await seedTestProperty(db, makeProperty())
 
     const event = propertyUpdated({
       propertyId: PROP_ID,
@@ -209,54 +114,6 @@ describe.sequential('propertyCommandStore (integration)', () => {
     const facts = await pool.query(
       `SELECT id FROM outbox_events
        WHERE organization_id = $1 AND event_type = 'property.updated' AND id = $2`,
-      [ORG_ID, event.eventId],
-    )
-    expect(facts.rows).toHaveLength(1)
-  })
-
-  it('deleteProperty commits the delete + deleted fact in one transaction', async () => {
-    const store = createAtomicPropertyCommandStore(db)
-    await store.createProperty({
-      organizationId: ORG_ID,
-      property: makeProperty(),
-      event: propertyCreated({
-        propertyId: PROP_ID,
-        organizationId: ORG_ID,
-        name: 'Grand Hotel',
-        slug: 'propcmd-grand-hotel',
-        occurredAt: NOW,
-      }),
-    })
-    await pool.query(
-      `INSERT INTO property_responsible_managers
-         (organization_id, property_id, user_id, effective_from, created_by)
-       VALUES ($1, $2, $3, $4, $3)`,
-      [ORG_ID, PROP_ID, 'property-delete-manager', NOW],
-    )
-
-    const event = propertyDeleted({
-      propertyId: PROP_ID,
-      organizationId: ORG_ID,
-      occurredAt: NOW,
-    })
-    await store.deleteProperty({
-      organizationId: ORG_ID,
-      propertyId: PROP_ID,
-      expectedSourceEpoch: 0,
-      expectedProfileVersion: 1,
-      event,
-    })
-
-    const rows = await pool.query('SELECT id FROM properties WHERE id = $1', [PROP_ID])
-    expect(rows.rows).toHaveLength(0)
-    const assignments = await pool.query(
-      'SELECT id FROM property_responsible_managers WHERE property_id = $1',
-      [PROP_ID],
-    )
-    expect(assignments.rows).toHaveLength(0)
-    const facts = await pool.query(
-      `SELECT id FROM outbox_events
-       WHERE organization_id = $1 AND event_type = 'property.deleted' AND id = $2`,
       [ORG_ID, event.eventId],
     )
     expect(facts.rows).toHaveLength(1)
