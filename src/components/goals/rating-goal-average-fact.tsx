@@ -1,10 +1,6 @@
-// "New reviews planned at 4.5★" (R4-1, R4-3): the average a plan assumes, as a
-// fact with where it comes from, and "Change" behind a link for the manager
-// who wants their own. A typed average is applied on Enter or when the field
-// is left, clamped from its floor to 5.0 with its reason. Change plan’s
-// earlier average (D30) offers both Change and Back to automatic. At a shown
-// 4.7 or 4.8 only a typed average plans a climb (X1), so the field is open and
-// there is no automatic one to go back to.
+// At a shown 4.7 or 4.8, only a typed average can plan a climb, so keep the field open
+// with no automatic fallback. Commit on Enter or blur and explain clamping.
+
 import { useRef } from 'react'
 import { Star } from 'lucide-react'
 import { Button } from '#/components/ui/button'

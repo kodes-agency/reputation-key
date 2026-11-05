@@ -1,10 +1,6 @@
-// What each Portal brought in this month, under the running Monthly portal goal
-// (P-1, copy deck G-26 and G-27): plain counts in the read's name order, never
-// sorted by count, with no bars and no share of the goal, and "Other portals"
-// for what the rest brought in. One Portal that brought in all of it is a
-// sentence; so is the count of them from 5 Portals, with "See each" to every
-// Portal's count on the goal's page. The read draws these only when they add up
-// to the figure above them.
+// Keep counts in name order with no rankings, bars or goal shares. Show them only when
+// they reconcile to the governed total.
+
 import { useId } from 'react'
 import type { PortalGoalRows } from '#/contexts/reporting/application/dto/monthly-portal-goal.types'
 import { InlineLink } from '#/components/ui/inline-link'

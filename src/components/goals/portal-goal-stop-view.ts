@@ -1,6 +1,7 @@
 // A running goal keeps counting its month to the last day and keeps its result,
 // even before maintenance opens the stored month. A goal that has not started
 // frees its month at once. The confirmation uses the page read's calendar facts.
+
 import type {
   PortalGoalLastMonth,
   PortalGoalOfCard,

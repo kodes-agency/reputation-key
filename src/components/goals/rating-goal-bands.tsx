@@ -1,6 +1,3 @@
-// The questions on the Google rating goal's page (2026-11-01, ADR 0067): each is a
-// check-in band, the question and its answer beside what shows it, as on Guest voice
-// and Portal Results. The words are `rating-goal-bands-view.ts`'.
 import { Link } from '@tanstack/react-router'
 import {
   Clock,

@@ -1,8 +1,6 @@
-// The Property Overview's Google rating goal: its reads (the card; the setup and
-// History only while there is no active goal) and the wizard its prompt or its
-// "Set your next goal" opens. The loader primes them
-// (`prefetchRatingGoalOverview`); a read that fails leaves the Overview without
-// the goal, never in an error.
+// Read setup and History only without an active goal. A failed goal read leaves the
+// Overview usable.
+
 import { useEffect, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { RatingGoalOverview } from '#/components/goals/rating-goal-overview'

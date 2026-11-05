@@ -1,13 +1,7 @@
-// The Monthly portal goal card once the number is ready (P-3, P-4; copy deck
-// G-13…G-18): the recommended number for the month the read named, what it
-// stands on with "How we worked this out", the Portals that join later, the
-// ask-every-guest line when it counts private ratings, and Use. With scans
-// first (P-2) one sentence says it all. Use sets the goal in one tap, exactly
-// as offered: that month, that measure, that number; "Change" (with scans
-// first, "Set a private ratings number") opens the set sheet instead. The
-// commands come from the page that draws the card (components import no
-// routes); a set, or a refusal that means the card is behind, reads the
-// Portal goals again.
+// Use sends exactly the offered month, measure and number. Private-rating
+// recommendations retain the ask-every-guest explanation. A stale refusal refreshes
+// Portal goals.
+
 import { useRef } from 'react'
 import type {
   PortalGoalOffer,

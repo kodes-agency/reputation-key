@@ -1,12 +1,6 @@
-// The strip a goal's check-in is drawn in, above its card (ADR 0068, amended
-// 2026-10-19: one goal design system): a notice named by its title, a headline
-// that says how the last stretch went, a line under it, the choices the manager
-// has (the first marked as the one to take) and the one line that nothing changes
-// unless they choose. It is a labelled region and not a live region around a few
-// buttons, so a page that loads with it says it in turn. Nothing here sends
-// anything: each choice is the goal's own command, and a refusal is the goal's to
-// say (`error` draws it in the strip; a goal that says it in a toast passes none).
-// A goal passes its words and its commands; this part holds none of either.
+// Use a labelled region rather than a live region so a check-in present on page load is
+// announced in document order. Choices run only on a manager action.
+
 import { useId, type ReactNode } from 'react'
 import { FormErrorBanner } from '#/components/forms/form-error-banner'
 import { Alert, AlertDescription, AlertTitle } from '#/components/ui/alert'

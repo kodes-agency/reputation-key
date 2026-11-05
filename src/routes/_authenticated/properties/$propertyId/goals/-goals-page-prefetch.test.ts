@@ -5,6 +5,7 @@ import type { Role } from '#/shared/domain/roles'
 const mocks = vi.hoisted(() => ({
   can: vi.fn(),
   prefetchRatingGoalSection: vi.fn(async () => undefined),
+  prefetchRatingGoalOverview: vi.fn(async () => undefined),
   prefetchPortalGoalSection: vi.fn(async () => undefined),
   prefetchPortalGoalAdd: vi.fn(async () => undefined),
 }))
@@ -12,13 +13,13 @@ const mocks = vi.hoisted(() => ({
 vi.mock('#/shared/domain/permissions', () => ({ can: mocks.can }))
 vi.mock('./-rating-goal-queries', () => ({
   prefetchRatingGoalSection: mocks.prefetchRatingGoalSection,
+  prefetchRatingGoalOverview: mocks.prefetchRatingGoalOverview,
 }))
 vi.mock('./-portal-goal-queries', () => ({
   prefetchPortalGoalSection: mocks.prefetchPortalGoalSection,
   prefetchPortalGoalAdd: mocks.prefetchPortalGoalAdd,
 }))
 
-import { prefetchOverviewGoals } from '../-overview-goals-prefetch'
 import * as goalsPagePrefetch from './-goals-page-prefetch'
 import { prefetchGoalsPage } from './-goals-page-prefetch'
 
@@ -54,7 +55,19 @@ describe('prefetchGoalsPage', () => {
     expect(mocks.prefetchPortalGoalAdd).not.toHaveBeenCalled()
   })
 
-  it("is also the Overview loader's import, for one chunk of both loaders' priming", () => {
-    expect(goalsPagePrefetch.prefetchOverviewGoals).toBe(prefetchOverviewGoals)
+  it('also primes the Overview through the same lazy entry', async () => {
+    mocks.can.mockReturnValue(true)
+    const queryClient = new QueryClient()
+
+    await goalsPagePrefetch.prefetchOverviewGoals(
+      queryClient,
+      PROPERTY,
+      'PropertyManager',
+    )
+
+    expect(mocks.prefetchRatingGoalOverview).toHaveBeenCalledWith(queryClient, PROPERTY)
+    expect(mocks.prefetchPortalGoalSection).toHaveBeenCalledWith(queryClient, PROPERTY)
+    expect(mocks.prefetchRatingGoalSection).not.toHaveBeenCalled()
+    expect(mocks.prefetchPortalGoalAdd).not.toHaveBeenCalled()
   })
 })

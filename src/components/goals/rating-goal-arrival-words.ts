@@ -1,10 +1,7 @@
-// When a Google rating goal arrives, in words (round 5, PLAN-D E1): durations
-// from today in the setup's own words ("in about 3 months, likely 9 weeks to 4
-// months"), never a calendar month or date, so the card agrees with the
-// receipt the setup just showed. The card says it at the pace it works with
-// (Q8: the chosen one for 28 days, then the last 4 weeks') and names it.
-// The wizard's arrival on the page is `rating-goal-arrival.ts`, a different
-// thing.
+// Arrival estimates are durations from today, never calendar dates, matching the setup
+// receipt. Use and name the chosen pace for 28 days, then the last four weeks' actual
+// pace.
+
 import type {
   RatingArrivalView,
   RatingGoalCardView,

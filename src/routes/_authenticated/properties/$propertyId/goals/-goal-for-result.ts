@@ -1,6 +1,5 @@
-// A goal notice's resource is the monthly result it reports, and its link is
-// the Goals page with `?result=<id>` (notificationLink). The page opens the goal
-// that result belongs to, among the goals this viewer can see.
+// A notification identifies a monthly result, not a goal. Resolve it only among goals
+// visible to this viewer.
 
 type GoalWithResults = Readonly<{
   program: Readonly<{ id: string }>

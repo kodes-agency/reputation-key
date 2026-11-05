@@ -13,7 +13,7 @@ that code is doing. This amends [ADR 0033](0033-authorization-policy.md),
 [ADR 0052](0052-beta-people-access-attribution-and-manager-responsibility.md),
 [ADR 0064](0064-sealed-portal-address-and-download-again.md) and
 [ADR 0068](0068-monthly-portal-goal.md). The plan and every decision are in
-`docs/plan/staff-accounts.md`.
+[`docs/plan/staff-accounts.md`](https://github.com/kodes-agency/reputation-key/blob/docs-archive-2026-11-05/docs/plan/staff-accounts.md).
 
 ## Decision
 

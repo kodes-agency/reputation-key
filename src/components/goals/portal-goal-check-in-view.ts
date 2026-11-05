@@ -1,13 +1,6 @@
-// The Monthly portal goal's month-start check-in, worded (copy deck K-1…K-9;
-// PLAN PG-15; the strip's lines U-K1…U-K3, ADR 0068 amended 2026-10-19): the
-// month it asks about as the strip's name, the month before as the strip's
-// headline (so far, while it is read; then met or not met), what is offered
-// ("Your goal is 40 a month. 45 is recommended for December, a bit above your
-// usual of about 38."), "Use 45", "Keep 40", another number, and that nothing
-// changes unless a manager chooses; with nothing counted, the fact instead of a
-// number; with the recommended number the month's already, one line under the
-// card. The read decides whether it asks, the month, the numbers and the weeks
-// (PLAN E12); this only says them. Pure.
+// The read owns check-in eligibility and numbers. Nothing changes until a manager
+// chooses; no counted activity means no suggested number.
+
 import type { PortalGoalMeasure } from '#/contexts/reporting/application/dto/goal-recommendation.types'
 import type {
   PortalGoalCheckIn,

@@ -12,8 +12,10 @@ export function ratio(numerator: number, denominator: number): Rate {
 /** The mean of the values that exist; null when none does. */
 export function meanOf(values: readonly Rate[]): Rate {
   const present = values.filter((value): value is number => value !== null)
-  if (present.length === 0) return null
-  return present.reduce((total, value) => total + value, 0) / present.length
+  return ratio(
+    present.reduce((total, value) => total + value, 0),
+    present.length,
+  )
 }
 
 export type Prf = Readonly<{
@@ -30,14 +32,13 @@ export type Prf = Readonly<{
  * expected and nothing matched, and null only when there was nothing to match.
  */
 export function prf(tp: number, fp: number, fn: number): Prf {
-  const f1 = tp + fp + fn === 0 ? null : (2 * tp) / (2 * tp + fp + fn)
   return Object.freeze({
     tp,
     fp,
     fn,
     precision: ratio(tp, tp + fp),
     recall: ratio(tp, tp + fn),
-    f1,
+    f1: ratio(2 * tp, 2 * tp + fp + fn),
   })
 }
 

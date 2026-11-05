@@ -1,8 +1,3 @@
-// The set sheet's three suggested numbers (copy deck U-S2, from S-4): "your
-// usual", "a bit more" (the recommended one, P-3, with the shared recommendation
-// tag) and "stretch", as radio rows in the panel the sheet draws around them. The
-// row that holds the box's number is checked and wears the weight; the others are
-// muted. An own number checks none. Choosing one puts it in the box.
 import { Label } from '#/components/ui/label'
 import { RadioGroup, RadioGroupItem } from '#/components/ui/radio-group'
 import { cn } from '#/lib/utils'

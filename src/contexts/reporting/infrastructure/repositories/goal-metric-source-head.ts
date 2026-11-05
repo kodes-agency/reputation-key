@@ -12,18 +12,18 @@ type SourceScope = Pick<
   }>
 
 /** Include every fact, receipt, projection and correction, even unchanged totals. */
-export function goalMetricSourceHead(scope: SourceScope, eventTypes: readonly string[]) {
+function goalMetricSourceHeadQuery(scope: SourceScope, eventTypes: readonly string[]) {
   const types = sql.join(
     eventTypes.map((type) => sql`${type}`),
     sql`, `,
   )
-  return sql<string>`(
+  return sql<string>`
     SELECT encode(sha256(convert_to(
       jsonb_build_array(${scope.organizationId}::text, ${scope.propertyId}::uuid,
         ${scope.definitionVersionId}::uuid, ${scope.periodStart}::timestamptz,
         ${scope.periodEnd}::timestamptz)::text
       || COALESCE(string_agg(head.part, ',' ORDER BY head.part), ''), 'UTF8'
-    )), 'hex')
+    )), 'hex') AS value
     FROM (
       SELECT jsonb_build_array('source', source.id, source.event_type,
         source.payload, receipt.status)::text AS part
@@ -52,7 +52,11 @@ export function goalMetricSourceHead(scope: SourceScope, eventTypes: readonly st
         AND reading.definition_version_id = ${scope.definitionVersionId}::uuid
         AND reading.event_at >= ${scope.periodStart} AND reading.event_at < ${scope.periodEnd}
     ) AS head
-  )`
+  `
+}
+
+export function goalMetricSourceHead(scope: SourceScope, eventTypes: readonly string[]) {
+  return sql<string>`(${goalMetricSourceHeadQuery(scope, eventTypes)})`
 }
 
 export async function readGoalMetricSourceHead(
@@ -60,9 +64,7 @@ export async function readGoalMetricSourceHead(
   scope: SourceScope,
   eventTypes: readonly string[],
 ) {
-  const head = await db.execute(
-    sql`SELECT ${goalMetricSourceHead(scope, eventTypes)} AS value`,
-  )
+  const head = await db.execute(goalMetricSourceHeadQuery(scope, eventTypes))
   const value = head.rows[0]?.['value']
   if (typeof value !== 'string') throw new Error('Goal metric source head is missing')
   return { value, eventTypes }

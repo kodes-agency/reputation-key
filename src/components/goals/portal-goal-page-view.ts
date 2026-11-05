@@ -1,11 +1,6 @@
 import { staffPortalCounts } from './portal-goal-staff-counts'
-// The Monthly portal goal page's words (copy deck P-4…P-9, P-13…P-15): what each
-// Portal brought in and the quiet ones, each month's facts (the average goal's strip
-// and the bars both say them), and how the goal counts. The
-// read decides every state, day and number (PLAN E12); this only says them, in
-// one place, so the page, its stories and its tests spell each line once. The
-// running month itself is `portal-goal-running-view.ts`', and what changed is
-// `portal-goal-changes-view.ts`'. Pure.
+// The read owns eligibility, figures and dates. Share month facts between the average's
+// strip and count bars; do not derive competing results in presentation.
 import type { PortalGoalMeasure } from '#/contexts/reporting/application/dto/goal-recommendation.types'
 import type { GoalSubject } from '#/contexts/reporting/application/public-api'
 import type {

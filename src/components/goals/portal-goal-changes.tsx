@@ -1,10 +1,5 @@
-// "What changed" on the Monthly portal goal's page (copy deck P-10…P-12): each dated
-// fact, newest first, in the shared History list (ADR 0068, amended 2026-10-19: one
-// goal design system), closed until asked: the date in its column, the words beside
-// it, a note on a line of its own under them; the first 12, then "Show all", which
-// goes once pressed, so the first change it adds takes the focus. The list is a region
-// named "What changed". People are named once the page knows them (`personName`). The
-// words are `changeLines`'.
+// Show all removes its trigger, so focus the first revealed change.
+
 import { useState } from 'react'
 import type { PortalGoalChange } from '#/contexts/reporting/application/dto/monthly-portal-goal-page.types'
 import { Button } from '#/components/ui/button'

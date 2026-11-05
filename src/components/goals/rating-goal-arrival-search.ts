@@ -1,6 +1,5 @@
-// The address that opens the Google rating goal wizard on arrival at the Goals
-// page (`rating-goal-arrival.ts`). Constants only: the Properties list and the
-// setup strip link with it, and the list is first paint.
+// Keep arrival links in a constants-only module: the Properties list is first-paint
+// code.
 
 /** The search value that asks the Goals page to open the wizard on arrival. */
 export const RATING_GOAL_ARRIVAL = 'rating-goal'

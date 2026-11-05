@@ -1,12 +1,7 @@
-// The Monday check-in above a climbing Google rating goal's card (round 5,
-// PLAN-D D-3, owner answer Q4, mock D4): last week against the plan, and Keep,
-// Raise or Ease for this week. Never automatic: nothing here runs without a
-// press, and nothing changes unless a manager chooses. It is a labelled region
-// ("Last week"), not a live region around three buttons, so a page that loads
-// with it says it in turn. The commands come from the page that draws it (the
-// Goals page and the Property Overview), as the wizard's do; once one is
-// answered the page reads the goal again, the check-in is gone, and the focus
-// goes to the card's title.
+// Never change the plan without a manager action. Use a labelled region rather than a
+// live region so a check-in present at load is announced in order. After answering,
+// refresh the goal and focus its title because the strip disappears.
+
 import { useState } from 'react'
 import { toast } from 'sonner'
 import type {

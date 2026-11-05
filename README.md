@@ -73,6 +73,7 @@ CI runs `pnpm db:migrate-deploy` (`.github/workflows/ci.yml`, Predeploy migratio
 | `pnpm typecheck`    | TypeScript check: src + e2e, tooling (`tsconfig.scripts.json`), project-coverage guard    |
 | `pnpm lint`         | ESLint + filename/component-boundary checks                                               |
 | `pnpm lint:ci`      | `lint` + test-quality, Google ids, env contract, migration-journal, length/index ratchets |
+| `pnpm lint:static`  | `lint:ci` minus the unchecked-index ratchet, which CI runs after `typecheck`              |
 | `pnpm format`       | Prettier format                                                                           |
 
 ### Local stacks
@@ -225,6 +226,12 @@ from the one already tagged for the commit, `docker` fails with
 An e2e failure that passed on the re-run gets a row in
 `docs/operations/e2e-flake-register.md`.
 
+The replacement CI pipeline (`ci`, `image`) is proved from a branch before
+anything depends on it: `gh workflow run ci.yml --ref <branch>`, then
+`pnpm ops deploy-ci-images --verify-only --run <run id>` once the run is green.
+That reads the dispatched run's digest map with the deploy's acceptance rules
+and deploys nothing; a deploy never takes a dispatched run's map.
+
 ### Git hooks
 
 Husky runs one gate: **pre-commit** — `lint-staged` (eslint --fix + prettier
@@ -264,3 +271,9 @@ src/
 ├── bootstrap.ts    # Event/job handler registration
 └── worker/         # Background worker entry point
 ```
+
+## Archived documentation
+
+Retired plans, AI governance documents and release evidence are preserved at
+protected tag [docs-archive-2026-11-05](https://github.com/kodes-agency/reputation-key/tree/docs-archive-2026-11-05/docs).
+The [ADR index](docs/adr/README.md) locates retained and archived decisions.

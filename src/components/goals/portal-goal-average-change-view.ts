@@ -1,14 +1,7 @@
-// The average private rating goal's change sheet, worked out (PLAN PG-21; copy
-// deck S-15…S-21 in tenths, M-14): from the goal as its page read sent it and
-// what the manager has done in the sheet, every word and state it shows, and
-// what its primary sends. Two ways to change, as for a count: "November, now",
-// which judges November and the months after it against the new level, and
-// "From Dec 1", which leaves November as it is. There is no recommended
-// average, so no suggestions and no "How we worked this out": the box opens on
-// the level the goal has where the change would go, and the number sent is
-// always the manager's own. It never changes what the goal measures. The read
-// decides the months and the keys sent back (PLAN E12). Nothing here throws on
-// what was typed. Pure.
+// A change now applies to the running month and following months; a revision from next
+// month leaves the running month alone. An average has no recommendation and cannot
+// change measure. The read owns month keys; invalid typed input must not throw.
+
 import type { PortalGoalChangeFacts } from '#/contexts/reporting/application/dto/monthly-portal-goal.types'
 import type { PortalGoalAverageOfPage } from '#/contexts/reporting/application/dto/portal-goal-single-page.types'
 import {

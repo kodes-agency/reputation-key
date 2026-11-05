@@ -1,14 +1,3 @@
-// The Monthly portal goal on the Property Overview (PLAN PG-16; copy deck
-// O-1…O-6): its own slot after "How you are doing" and above "Guest voice",
-// never beside the Google rating goal. One line when the number is ready, with
-// "See it" to the Goals page's card and "Not now"; the running month as the
-// Goals page draws its card (ADR 0068, amended 2026-10-19: the same card, which
-// goes compact by its own width: the Portals' counts in one line in a narrow
-// slot), with the month-start check-in as the strip above it on the month's
-// first seven days. Nothing otherwise (`overviewPortalGoalView`, which the host
-// works out).
-// Presentational: the host hands it the view, Not now and the check-in's
-// commands.
 import { Link } from '@tanstack/react-router'
 import { Target } from 'lucide-react'
 import { Button } from '#/components/ui/button'

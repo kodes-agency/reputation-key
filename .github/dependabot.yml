@@ -1,5 +1,7 @@
 # Dependabot configuration — B0.4 supply chain security
-# Checks for vulnerable dependencies weekly and opens PRs for updates.
+# Version updates arrive once a month, grouped, so a month costs a few full CI
+# runs instead of one per package per week. Security updates ignore the
+# schedule and open immediately.
 
 version: 2
 updates:
@@ -7,8 +9,7 @@ updates:
   - package-ecosystem: npm
     directory: /
     schedule:
-      interval: weekly
-      day: monday
+      interval: monthly
     open-pull-requests-limit: 10
     # Group minor/patch updates to reduce PR noise
     groups:
@@ -116,8 +117,7 @@ updates:
   - package-ecosystem: docker
     directory: /
     schedule:
-      interval: weekly
-      day: monday
+      interval: monthly
     open-pull-requests-limit: 10
     groups:
       base-images:
@@ -140,8 +140,7 @@ updates:
   - package-ecosystem: github-actions
     directory: /
     schedule:
-      interval: weekly
-      day: monday
+      interval: monthly
     labels:
       - type:chore
     groups:
@@ -157,3 +156,9 @@ updates:
       codeql-action:
         patterns:
           - github/codeql-action*
+      # Every other action moves in one pull request a month. A dependency
+      # joins the first group that matches it, which keeps the pair above in
+      # theirs.
+      actions:
+        patterns:
+          - '*'

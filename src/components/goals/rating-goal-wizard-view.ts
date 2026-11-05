@@ -1,8 +1,6 @@
-// What the Google rating goal wizard opens for, sends and says when it is done
-// (pure). A goal to climb is one screen, opened already answered (rounds 3 and
-// 4, E2/E4: `rating-goal-setup-*`); a goal to keep is one step too, offered
-// first from a shown 4.7 (X1), the only choice at 4.9 or 5.0. The done screen repeats the
-// time the setup showed (X11): no date, no month name.
+// Offer Keep first from a shown 4.7 and alone at 4.9 or 5.0. Repeat the setup's
+// duration on completion, never a date or month name.
+
 import type { RatingGoalCardView } from '#/contexts/reporting/application/dto/rating-goal.types'
 import type { RatingFraction } from '#/contexts/reporting/application/dto/rating-goal-setup.types'
 import type {

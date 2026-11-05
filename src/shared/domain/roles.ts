@@ -29,10 +29,9 @@ export function hasRole(userRole: Role, requiredRole: Role): boolean {
 /**
  * Map a better-auth role string to our domain Role, or null for non-built-in roles.
  *
- * Stage 1 (ENABLE_CUSTOM_ROLES=false): resolveTenantContext treats null as a
- * boundary reject (403) — fail-closed. Stage 2 will route null to the dynamic
- * permission resolver (custom/multi roles). Returning null (instead of throwing)
- * lets the middleware decide policy without a try/catch on the auth hot path.
+ * Tenant resolution treats null as a boundary reject (403) — fail-closed.
+ * Returning null (instead of throwing) lets the middleware decide policy without a
+ * try/catch on the auth hot path.
  */
 export function toDomainRole(betterAuthRole: string): Role | null {
   switch (betterAuthRole) {
@@ -51,7 +50,7 @@ export function toDomainRole(betterAuthRole: string): Role | null {
  * `unknown_role` DomainError for non-built-in roles.
  *
  * Use at sites that require a `Role` (member/invitation DTOs, role write paths).
- * In Stage 1 a null never occurs in correct operation — no custom roles exist
+ * A null never occurs in correct operation — only the three built-in roles exist
  * (all write paths are blocked or built-in-validated) — so a throw surfaces data
  * corruption or a bypassed write path loudly instead of silently mislabelling.
  * Prefer `toDomainRole` where the caller decides null policy (e.g. middleware).

@@ -134,11 +134,6 @@ export type {
   PortalResultsTimeRange,
 } from './use-cases/get-portal-results-overview'
 export type {
-  SetupChecklist,
-  SetupChecklistAction,
-  SetupChecklistStep,
-} from './use-cases/get-setup-checklist'
-export type {
   PropertySetup,
   PropertySetupSection,
   PropertySetupStep,

@@ -136,10 +136,7 @@ function sentimentMetrics(runs: readonly ScoredRun[]): SentimentMetrics {
     }
   }
   const perClass = Object.fromEntries(
-    REVIEW_SENTIMENTS_V3.map((sentiment) => {
-      const one = counts.get(sentiment) ?? { tp: 0, fp: 0, fn: 0 }
-      return [sentiment, prf(one.tp, one.fp, one.fn)] as const
-    }),
+    [...counts].map(([sentiment, one]) => [sentiment, prf(one.tp, one.fp, one.fn)]),
   ) as Record<ReviewSentimentV3, Prf>
   return Object.freeze({
     accuracy: ratio(correct, runs.length),
@@ -167,13 +164,13 @@ function topicMetrics(runs: readonly ScoredRun[]): TopicMetrics {
       else if (expected.has(topic)) one.fn += 1
     }
   }
-  const stats = REVIEW_TOPICS_V3.map((topic) => {
-    const one = counts.get(topic) ?? { tp: 0, fp: 0, fn: 0, support: 0 }
-    return [
-      topic,
-      Object.freeze({ ...prf(one.tp, one.fp, one.fn), support: one.support }),
-    ] as const
-  })
+  const stats = [...counts].map(
+    ([topic, one]) =>
+      [
+        topic,
+        Object.freeze({ ...prf(one.tp, one.fp, one.fn), support: one.support }),
+      ] as const,
+  )
   const perTopic = Object.fromEntries(stats) as Record<ReviewTopicV3, TopicStat>
   const total = [...counts.values()].reduce(
     (sum, one) => ({ tp: sum.tp + one.tp, fp: sum.fp + one.fp, fn: sum.fn + one.fn }),
@@ -186,9 +183,7 @@ function topicMetrics(runs: readonly ScoredRun[]): TopicMetrics {
   }, null)
   return Object.freeze({
     micro: prf(total.tp, total.fp, total.fn),
-    macroF1: meanOf(
-      stats.filter(([, stat]) => stat.f1 !== null).map(([, stat]) => stat.f1),
-    ),
+    macroF1: meanOf(stats.map(([, stat]) => stat.f1)),
     perTopic: Object.freeze(perTopic),
     weakest,
     unsupportedTopicsPredicted: Object.freeze(
@@ -232,15 +227,16 @@ function urgentMetrics(runs: readonly ScoredRun[]): UrgentMetrics {
   const falseUrgent = nonUrgent.filter(saidUrgent)
   const nearMiss = nonUrgent.filter((run) => run.item.tags.includes(NEAR_MISS_TAG))
   const nearMissFalse = nearMiss.filter(saidUrgent)
+  const predictedUrgent = runs.filter(saidUrgent).length
   const rightReason = detected.filter(
     (run) => reasonOf(predictedOf(run)) === reasonOf(run.reference),
   )
   return Object.freeze({
     goldUrgent: urgentGold.length,
-    predictedUrgent: runs.filter(saidUrgent).length,
+    predictedUrgent,
     detected: detected.length,
     recall: ratio(detected.length, urgentGold.length),
-    precision: ratio(detected.length, runs.filter(saidUrgent).length),
+    precision: ratio(detected.length, predictedUrgent),
     safetyHealthCases: safetyHealth.length,
     safetyHealthMisses: safetyHealth.filter((run) => !saidUrgent(run)).length,
     nonUrgentItems: nonUrgent.length,

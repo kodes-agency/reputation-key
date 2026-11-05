@@ -1,10 +1,6 @@
-// How far along a goal is, as a ruler (2026-11-01, ADR 0067 and 0068: one goal
-// design system): the setup screen's ruler with the way already climbed filled in.
-// Where it started on the left, the goal's number on the right, the stops on the
-// way and a label for where the goal stands now. A goal passes finished words and
-// shares (`goal-ruler-view.ts` lays them out, pure); it is a picture named by one
-// sentence, so a screen reader hears that sentence and not each stop. Nothing
-// moves.
+// Name the ruler with one sentence so screen readers hear its meaning rather than every
+// decorative stop.
+
 import { Check } from 'lucide-react'
 import { cn } from '#/lib/utils'
 import type { GoalRulerModel, GoalRulerStop } from './goal-ruler-view'

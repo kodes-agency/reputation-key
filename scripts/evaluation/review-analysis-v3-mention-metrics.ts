@@ -37,17 +37,15 @@ const THING_WEIGHT = 4
 const POLARITY_WEIGHT = 2
 const SENTENCE_WEIGHT = 1
 
-function overlaps(left: readonly number[], right: readonly number[]): boolean {
-  return left.some((number) => right.includes(number))
-}
-
 function pairWeight(gold: Mention, predicted: Mention, causeKey: CauseKey): number {
   return (
     (causeKey(gold.topic, gold.thing) === causeKey(predicted.topic, predicted.thing)
       ? THING_WEIGHT
       : 0) +
     (gold.polarity === predicted.polarity ? POLARITY_WEIGHT : 0) +
-    (overlaps(gold.sentences, predicted.sentences) ? SENTENCE_WEIGHT : 0)
+    (gold.sentences.some((number) => predicted.sentences.includes(number))
+      ? SENTENCE_WEIGHT
+      : 0)
   )
 }
 
@@ -282,11 +280,12 @@ export function scoreMentions(
     alignMentions(side.gold, side.predicted, causeKey),
   )
   const pairs = alignments.flatMap((alignment) => alignment.pairs)
-  const strengthDistance = (pair: MentionPair) =>
+  const strengthDistances = pairs.map(({ gold, predicted }) =>
     Math.abs(
-      REVIEW_STRENGTH_RANK_V3[pair.gold.strength] -
-        REVIEW_STRENGTH_RANK_V3[pair.predicted.strength],
-    )
+      REVIEW_STRENGTH_RANK_V3[gold.strength] -
+        REVIEW_STRENGTH_RANK_V3[predicted.strength],
+    ),
+  )
   const evidence = evidenceCounts(pairs)
   const unmatchedGold = alignments.reduce((total, one) => total + one.unmatchedGold, 0)
   const unmatchedPredicted = alignments.reduce(
@@ -302,11 +301,11 @@ export function scoreMentions(
       pairs.length,
     ),
     strengthAccuracy: ratio(
-      pairs.filter((pair) => strengthDistance(pair) === 0).length,
+      strengthDistances.filter((distance) => distance === 0).length,
       pairs.length,
     ),
     strengthWithinOne: ratio(
-      pairs.filter((pair) => strengthDistance(pair) <= 1).length,
+      strengthDistances.filter((distance) => distance <= 1).length,
       pairs.length,
     ),
     causes: causeMetrics(pairs, unmatchedGold + unmatchedPredicted, sides, causeKey),

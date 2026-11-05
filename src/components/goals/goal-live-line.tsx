@@ -1,23 +1,8 @@
-// The live line under an active goal on the Goals list: the month so far in
-// words, and for a count with one subject a neutral bar and, where the pace was
-// judged, the pace pill. The words count and do not judge (no good or bad
-// colour); the pill is the one place a verdict shows, and it is the same pill
-// the goal's card and page wear (ADR 0068, amended 2026-10-19: one goal design
-// system): "On pace" or "Below pace", nothing for a month the rule does not
-// judge. The bar stays neutral.
-//
-// Where the pill goes is decided by the room the row's cell has, because the
-// room a row keeps while its month is read cannot know whether it will draw
-// one. A row on a phone has a cell narrower than 24 rem (288 px on a 320 px
-// screen), where the sentence and the pill may not fit one line (the sentence
-// with five-digit figures is 242 px and "Below pace" 97 px, 347 px with the
-// gap): a pill that followed the days left would wrap to a second line only for
-// the rows that have one, and push everything under them down when the figure
-// arrives. So from 24 rem the pill follows the days left, on the sentence's own
-// line; below it, it sits beside the bar, on a line the bar keeps as high as the
-// pill whether it is there or not. The cell is a container of its own, so it is
-// the cell that decides and not the window (a sidebar, or the page's gutters,
-// narrow it).
+// Keep the bar neutral; only the pace pill judges progress. Below a cell width of
+// 24rem, reserve a pill-height row beside the bar even before the read resolves,
+// preventing layout shift. Use cell width because sidebars and page gutters reduce the
+// available room.
+
 import { ProgressBar } from '#/components/ui/progress-bar'
 import { Skeleton } from '#/components/ui/skeleton'
 import { StatusBadge } from '#/components/ui/status-badge'

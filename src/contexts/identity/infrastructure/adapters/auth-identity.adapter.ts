@@ -3,12 +3,7 @@
 
 import type { Database } from '#/shared/db'
 import { and, count, eq, ne } from 'drizzle-orm'
-import { member, organizationRole, user } from '#/shared/db/schema/auth'
-import { organizationRolePolicy } from '#/shared/db/schema/dac.schema'
-import { buildPermissionStatement } from '#/shared/auth/permission-catalogue'
-import type { Clock } from '#/shared/domain/clock'
-import type { Permission } from '#/shared/domain/permissions'
-import type { DataScope } from '#/shared/domain/data-scope'
+import { member, user } from '#/shared/db/schema/auth'
 import type {
   MemberRecord,
   MemberListOptions,
@@ -85,15 +80,7 @@ function toOrganizationRecord(org: {
   }
 }
 
-type BetterAuthIdentityAdapterDeps = Readonly<{
-  clock: Clock
-  idGen: () => string
-}>
-
-export const createBetterAuthIdentityAdapter = (
-  db: Database,
-  deps: BetterAuthIdentityAdapterDeps,
-): IdentityPort => {
+export const createBetterAuthIdentityAdapter = (db: Database): IdentityPort => {
   const auth = getAuth()
   return {
     async signUp(
@@ -239,101 +226,5 @@ export const createBetterAuthIdentityAdapter = (
         name: session.user.name,
       }
     },
-
-    async createCustomRole(
-      ctx: AuthContext,
-      input: Readonly<{
-        role: string
-        permissions: ReadonlyArray<Permission>
-        dataScope: DataScope
-      }>,
-    ): Promise<void> {
-      const role = input.role.trim().toLowerCase()
-      try {
-        await db.transaction(async (tx) => {
-          await tx.insert(organizationRole).values({
-            id: deps.idGen(),
-            organizationId: ctx.organizationId as string,
-            role,
-            permission: JSON.stringify(buildPermissionStatement(input.permissions)),
-          })
-          await tx.insert(organizationRolePolicy).values({
-            organizationId: ctx.organizationId as string,
-            role,
-            dataScope: input.dataScope,
-          })
-        })
-      } catch (e) {
-        if (isUniqueViolation(e)) {
-          throw identityError('already_exists', `Role "${role}" already exists`)
-        }
-        throw e
-      }
-    },
-
-    async updateCustomRole(
-      ctx: AuthContext,
-      role: string,
-      input: Readonly<{
-        permissions: ReadonlyArray<Permission>
-        dataScope: DataScope
-      }>,
-    ): Promise<void> {
-      const r = role.trim().toLowerCase()
-      const permission = JSON.stringify(buildPermissionStatement(input.permissions))
-      const updatedAt = deps.clock()
-      await db.transaction(async (tx) => {
-        await tx
-          .update(organizationRole)
-          .set({ permission, updatedAt })
-          .where(
-            and(
-              eq(organizationRole.organizationId, ctx.organizationId as string),
-              eq(organizationRole.role, r),
-            ),
-          )
-        await tx
-          .update(organizationRolePolicy)
-          .set({ dataScope: input.dataScope, updatedAt })
-          .where(
-            and(
-              eq(organizationRolePolicy.organizationId, ctx.organizationId as string),
-              eq(organizationRolePolicy.role, r),
-            ),
-          )
-      })
-    },
-
-    async deleteCustomRole(ctx: AuthContext, role: string): Promise<void> {
-      const r = role.trim().toLowerCase()
-      await db.transaction(async (tx) => {
-        await tx
-          .delete(organizationRole)
-          .where(
-            and(
-              eq(organizationRole.organizationId, ctx.organizationId as string),
-              eq(organizationRole.role, r),
-            ),
-          )
-        await tx
-          .delete(organizationRolePolicy)
-          .where(
-            and(
-              eq(organizationRolePolicy.organizationId, ctx.organizationId as string),
-              eq(organizationRolePolicy.role, r),
-            ),
-          )
-      })
-    },
   }
-}
-
-/** True when a Postgres unique-constraint violation (SQLSTATE 23505) caused the error. */
-function isUniqueViolation(e: unknown): boolean {
-  return (
-    typeof e === 'object' &&
-    e !== null &&
-    'code' in e &&
-    (e as { code: unknown }).code === '23505'
-  )
 }

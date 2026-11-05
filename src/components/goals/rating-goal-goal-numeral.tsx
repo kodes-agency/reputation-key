@@ -1,12 +1,7 @@
-// The goal as the hero number of the one-screen setup (E2/E4): − and + either
-// side, and the number itself a spinbutton (the arrows a tenth, Home and End
-// the lowest and the highest goal). Its digits roll a step at a time on two
-// strips, the tenths strip fifty digits long so 3.9 → 4.0 rolls forward and
-// never rewinds; reduced motion stops the roll. At an end − or + stays
-// pressable (`aria-disabled`) so the press can say why in the status line. The
-// mock's one-off sizes (128 px, 88 px on a phone) are inline: a utility of its
-// own would grow the one stylesheet every page loads first. The − and + are the
-// shared hero stepper (`goal-setup-parts.tsx`), the number between them this one's.
+// Use a fifty-digit tenths strip so 3.9 to 4.0 rolls forward; reduced motion stops it.
+// Keep endpoint buttons pressable with aria-disabled so a press can explain the limit.
+// One-off sizes stay inline to avoid growing the first-paint stylesheet.
+
 import { useState, type KeyboardEvent, type Ref } from 'react'
 import { GoalHeroStepper } from './goal-setup-parts'
 

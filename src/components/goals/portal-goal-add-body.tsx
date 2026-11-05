@@ -1,10 +1,6 @@
-// The add sheet's steps (copy deck M-2…M-14): the header, the step the
-// manager is on, the refusal, and the footer with Back (Cancel on the first
-// step) and the step's own primary. It moves between steps and hands each send
-// up; every word, number and state is the add views'. Moving to a step puts the
-// focus on its first control, so a keyboard never loses its place. It keeps no
-// draft of its own: the sheet holds them, since a phone turned on its side
-// swaps the frame this is drawn in and mounts it afresh.
+// The sheet owns drafts above this body: changing the responsive frame can remount it.
+// Focus the first control when the step changes.
+
 import { useEffect, useRef, type ReactNode } from 'react'
 import type { PortalGoalAddOptions } from '#/contexts/reporting/application/dto/monthly-portal-goal-add.types'
 import { GoalSheetHeader } from './goal-sheet-frame'

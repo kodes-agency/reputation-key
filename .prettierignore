@@ -27,3 +27,6 @@ drizzle/meta/
 
 # Binary attachments
 *.pdf
+
+# Retired docs/plan, docs/archive and docs/release-evidence are preserved at
+# protected tag docs-archive-2026-11-05, outside this checkout's format targets.

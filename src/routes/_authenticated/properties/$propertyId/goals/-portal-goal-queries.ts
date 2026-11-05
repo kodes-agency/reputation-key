@@ -1,25 +1,8 @@
-// The Monthly portal goal's reads (the Goals page's card and the goal's own
-// page), defined once for every page that draws them
-// (route-query-definitions.test.ts), its commands (set, change now, change
-// from next month, stop, the check-in's Keep), and the one function every
-// Portal-goal command marks them stale through; its first caller is the
-// card's Use.
-//
-// None of it may reach first paint (scripts/check-bundle-budget.mjs):
-//
-// - The loader that primes the card imports this module on demand, through
-//   `-goals-page-prefetch.ts`, and the goal page's loader imports it the same
-//   way: a route's loader is first-paint code.
-// - The server functions are fetched with their first use, never imported:
-//   `#/contexts/reporting/server/monthly-portal-goals` is reached only by the
-//   `import()` below, so it stays a chunk of its own, fetched beside the first
-//   read. A server-function module that two entries share is grouped with the
-//   stubs first paint loads (vite.config.ts, `app-server-fns`).
-// - The Portal goal results page's reads (`portalGoalResultsQueries`, PG-18)
-//   live here too, and they are the one exception: they import the Goals
-//   list's server functions (`listGoalPrograms`, `listPortals`,
-//   `listPortalGroups`), whose stubs first paint already loads with the Goals
-//   route. Only `monthly-portal-goals` is reached by `import()`.
+// Load this module on demand because route loaders are first-paint code. Fetch monthly-
+// portal-goals only through import(): shared static RPC imports would join the first-
+// paint stub chunk. Results reads are the exception, reusing list RPCs already loaded
+// by the Goals route. Query definitions stay shared across pages.
+
 import { queryOptions, type QueryClient } from '@tanstack/react-query'
 import { dashboardKeys, goalKeys } from '#/shared/queries/query-keys'
 // The Portal goal results page's reads (below): the Goals list's own.

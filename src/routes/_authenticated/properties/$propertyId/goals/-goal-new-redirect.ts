@@ -1,14 +1,5 @@
-// Where an old New goal address goes now (PLAN PG-20): "Add a portal goal" on
-// the Monthly portal goal's page, opened on the step the address asked for.
-//
-//   /goals/new                           → ?add=choose
-//   /goals/new?mode=several              → ?add=each
-//   /goals/new?subject=portal:<id>       → ?add=portal&subject=portal:<id>
-//   /goals/new?subject=portal_group:<id> → ?add=group&subject=portal_group:<id>
-//   /goals/new?subject=property:<id>     → ?add=choose
-//
-// Every other key is dropped. Pure: the route's `beforeLoad` calls it with the
-// address as the router read it, so nothing of the old page reaches first paint.
+// Preserve old New goal links by opening the matching add-sheet step. Drop unrelated
+// search keys; Property subjects return to the choice step.
 
 type Address = Readonly<{
   add: 'choose' | 'each' | 'portal' | 'group'

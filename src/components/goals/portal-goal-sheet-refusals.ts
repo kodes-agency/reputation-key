@@ -1,14 +1,7 @@
-// What a Monthly portal goal command's refusal says when the card, the sheet
-// or Stop sent it (copy deck F-1…F-5). Each means the screen is behind the
-// server, so the goal is read again with it: someone changed the goal (F-1: a
-// change sheet then opens again on the latest), a goal was set a moment ago
-// (F-3: the sheet closes on the latest), the month turned while the sheet was
-// open (F-4: the goal commands' own sentence, and the sheet re-reads its
-// months; a change sheet opens again on the latest), the month a change was
-// for has ended (F-2: a change sheet opens again on the latest, on the next
-// month), or the goal was stopped a moment ago (F-5: nothing is left to change
-// or stop). Every other refusal keeps the goal commands' sentence
-// (`goal-refusal.ts`).
+// Stale goal or month refusals refresh the read. Change sheets reopen on the latest
+// state; already-set or stopped goals leave nothing to submit. Other refusals keep the
+// shared goal wording.
+
 import type { GoalRefusalSentences } from './goal-refusal'
 import { monthName } from './portal-goal-words'
 

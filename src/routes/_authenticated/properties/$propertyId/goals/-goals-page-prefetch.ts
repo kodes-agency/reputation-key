@@ -1,15 +1,15 @@
-// The Goals page loader's one on-demand import (PLAN §0.2 "Loader imports"):
-// it primes the Google section and the Portal goals section together, so the
-// page waits for no goal read after another, and their reads and server
-// functions stay out of first paint. Each section says its own failure; a
-// failed read here holds neither back. The Portal goals' card, and what "Add a
-// portal goal" offers, are read only for someone who may set the goal, since
-// that is who they are for.
+// Import on demand to keep goal reads and server functions out of first paint. Prime
+// both sections concurrently and isolate failures. Read card and add offers only for
+// viewers allowed to set goals.
+
 import type { QueryClient } from '@tanstack/react-query'
 import { can } from '#/shared/domain/permissions'
 import type { Role } from '#/shared/domain/roles'
 import { prefetchPortalGoalAdd, prefetchPortalGoalSection } from './-portal-goal-queries'
-import { prefetchRatingGoalSection } from './-rating-goal-queries'
+import {
+  prefetchRatingGoalOverview,
+  prefetchRatingGoalSection,
+} from './-rating-goal-queries'
 
 // The loader calls this through its import, never destructured: that would
 // cost first paint a wrapper that spells the name three times.
@@ -31,8 +31,17 @@ export async function prefetchGoalsPage(
   ])
 }
 
-// The Overview loader's priming (PG-16) is fetched through this same module,
-// so both loaders reach one on-demand chunk: a chunk of its own for it cost
-// first paint 26 B more (measured 2026-10-18, its name and dependency list in
-// the entry's preload map).
-export { prefetchOverviewGoals } from '../-overview-goals-prefetch'
+// Prime the Overview through the same lazy entry as the Goals page. A failed
+// read leaves its goal out, and both reads settle before priming completes.
+export async function prefetchOverviewGoals(
+  queryClient: QueryClient,
+  propertyId: string,
+  role: Role,
+): Promise<void> {
+  await Promise.allSettled([
+    prefetchRatingGoalOverview(queryClient, propertyId),
+    can(role, 'goal.create')
+      ? prefetchPortalGoalSection(queryClient, propertyId)
+      : Promise.resolve(),
+  ])
+}

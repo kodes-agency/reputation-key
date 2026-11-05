@@ -1,9 +1,3 @@
-// The frame every goal's card is drawn in (ADR 0068, amended 2026-10-19: one goal
-// design system): the card, its title with the one status pill in the corner, its
-// two columns, and the row its actions sit in.
-// Nothing here knows which goal it is drawing: the data-slot, the title and the
-// pill come in from the goal, and the markup is the reference goal's, so a card
-// that moves onto this frame does not move on the page.
 import type { ReactNode } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '#/components/ui/card'
 import { StatusBadge, type StatusPresentation } from '#/components/ui/status-badge'

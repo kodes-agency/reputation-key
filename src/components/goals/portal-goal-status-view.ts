@@ -1,9 +1,6 @@
-// The Monthly portal goal's pace, as the pill in its card's corner and its
-// page's header (ADR 0068, amended 2026-10-19: one goal design system). The
-// words and tones are the shared pace pills'; which month earns which is this
-// goal's own rule, read from what the server decided about the month: whether
-// its first quiet days are on (`quietDays`) and whether `goalPace` says behind
-// (`belowPace`, with null for a month it does not judge). Pure.
+// Use the server's quietDays and belowPace decision. Null means the month has no pace
+// verdict.
+
 import type { StatusPresentation } from '#/components/ui/status-badge'
 import type { PortalGoalRunningMonth } from '#/contexts/reporting/application/dto/monthly-portal-goal.types'
 import { GOAL_PACE_STATUS } from './goal-pace-status'

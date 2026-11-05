@@ -1,12 +1,7 @@
-// The line under the goal on the one-screen setup, and what the numeral says to
-// a screen reader (rounds 3 and 4, the approved mock's status). In this order:
-//   1. "Google should show 4.0 soon" while Google lags behind the cache (D28);
-//   2. at most one hint: + at the highest goal, − at the lowest, or a pinned
-//      goal the average no longer reaches;
-//   3. the faster pace, as a link, when the goal is more than six months away,
-//      a faster chip exists and no hint was said;
-//   4. "Recommended", with its reason only when nothing came before it, or the
-//      way back to it when the goal is pinned elsewhere.
+// Status priority: Google lag, one limit or unreachable-goal hint, a faster-pace link
+// for a goal beyond six months, then recommendation or return-to-recommendation. Later
+// messages must not displace an earlier one.
+
 import { formatNumber } from '#/lib/format'
 import type { GoalStatusPart } from './goal-setup-parts'
 import type { PaceUnit, SetupDraft, SetupPlan } from './rating-goal-setup-draft'

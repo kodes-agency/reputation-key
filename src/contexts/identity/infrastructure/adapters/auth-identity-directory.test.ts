@@ -19,10 +19,7 @@ const execute = vi.fn(async (_sql: string, _params: unknown[]) => ({
 }))
 // The proxy builds real PostgreSQL SQL and decodes driver rows without a connection.
 const db = drizzle(execute) as unknown as Database
-const adapter = createBetterAuthIdentityAdapter(db, {
-  clock: () => createdAt,
-  idGen: () => 'unused-id',
-})
+const adapter = createBetterAuthIdentityAdapter(db)
 const row = (id: string, role = 'admin', image: string | null = null) => [
   id,
   `user-${id}`,

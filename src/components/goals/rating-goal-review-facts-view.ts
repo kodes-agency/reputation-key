@@ -1,8 +1,6 @@
-// What the Google rating goal's page says about its new reviews (pure; 2026-11-01, ADR
-// 0067): whether enough good ones are coming in, what they average, how many were
-// low, the row that opens one and the bars of each week against the plan. Low means 3★ or less here, whatever
-// the goal needs: a 4★ review sets a goal of 4.1 back a little, and no manager wants
-// to read it first.
+// Low means three stars or less, regardless of the goal: a four-star review may slow a
+// climb but is not a low review to prioritise.
+
 import type {
   RatingGoalDetailView,
   RatingGoalLowReviewView,

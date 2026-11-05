@@ -154,12 +154,14 @@ describe('resolveProviders', () => {
     ])
   })
 
-  it('refuses to run a real provider, and says how to score one instead', () => {
+  it('rejects live provider names and lists only offline inputs', () => {
     for (const name of ['openai', 'anthropic']) {
       const attempt = () => resolveProviders(name, context)
 
       expect(attempt).toThrow(EvaluationProviderError)
-      expect(attempt).toThrow(/is not wired into this command/u)
+      expect(attempt).toThrow(
+        `unknown provider '${name}'. Use fake-gold or answers:<file>.`,
+      )
       expect(attempt).toThrow(/answers:<file>/u)
     }
   })

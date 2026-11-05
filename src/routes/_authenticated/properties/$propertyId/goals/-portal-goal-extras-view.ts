@@ -1,7 +1,3 @@
-// The other Portal goals' compact rows, worked out (PLAN PG-21): each goal but
-// the one the card shows, named for whom it counts and what ("Reception ·
-// Private ratings"; a goal for the Property, such as the average, by its
-// measure alone), the first `limit` of them, and whether there are more. Pure.
 import type { GoalMetric, GoalSubject } from '#/contexts/reporting/application/public-api'
 import { goalListSubjectText } from '#/components/goals/goal-assignment-subject-label'
 import { goalMetricLabel } from '#/components/goals/goal-metric-label'

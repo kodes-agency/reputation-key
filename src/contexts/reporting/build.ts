@@ -28,17 +28,13 @@ import type {
 import type { InboxPublicApi } from '#/contexts/inbox/application/public-api'
 import type { MetricPublicApi, PortalRatingGoalReadApi } from './application/public-api'
 
-import { createMetricRepository } from './infrastructure/repositories/metric.repository'
 import { createMetricRegistryRepository } from './infrastructure/repositories/metric-registry.repository'
 import { createPropertyLocalDateResolver } from './infrastructure/repositories/property-local-date'
 import { createGoalMetricSnapshotReader } from './infrastructure/repositories/goal-metric-snapshot'
 import { createAtomicMetricCommandStore } from './infrastructure/metric-command-store'
 import { recordMetric, recordMetrics } from './application/use-cases/record-metric'
 import { retractMetrics } from './application/use-cases/retract-metric'
-import { registerPortalWorkflowMetricConsumers } from './infrastructure/outbox-consumers'
 import { registerGuestMetricConsumers } from './infrastructure/guest-outbox-consumers'
-import { registerPublicReputationMetricConsumers } from './infrastructure/public-reputation-outbox-consumers'
-import type { ReviewRatingLookupPort } from './application/ports/review-rating-lookup.port'
 import { queryGoalMetric } from './application/use-cases/query-goal-metric'
 import { queryPortalAnalytics } from './application/use-cases/query-portal-analytics'
 import { createPortalAnalyticsRepository } from './infrastructure/repositories/portal-analytics.repository'
@@ -157,11 +153,6 @@ import {
   getFleetOverview,
   type GetFleetOverview,
 } from './application/use-cases/get-fleet-overview'
-import { createSetupChecklistRepository } from './infrastructure/repositories/setup-checklist.repository'
-import {
-  getSetupChecklist,
-  type GetSetupChecklist,
-} from './application/use-cases/get-setup-checklist'
 import { createPropertySetupRepository } from './infrastructure/repositories/property-setup.repository'
 import {
   getPropertySetup,
@@ -180,7 +171,6 @@ export type ReportingContextBuildInput = Readonly<{
   logger: LoggerPort
   portalGroupApi: PortalGroupPublicApi
   portalApi: PortalPublicApi
-  reviewRatingLookup: ReviewRatingLookupPort
   propertyApi: PropertyFactsPublicApi
   staffPublicApi: StaffPublicApi
   reviewServingStats: ReviewServingStats
@@ -194,7 +184,6 @@ export type ReportingContextBuildInput = Readonly<{
 }>
 
 function buildMetricModule(input: ReportingContextBuildInput) {
-  const metricRepo = createMetricRepository(input.db)
   const registry = createMetricRegistryRepository()
   const portalAnalytics = queryPortalAnalytics(
     createPortalAnalyticsRepository(input.db, input.clock),
@@ -251,40 +240,11 @@ function buildMetricModule(input: ReportingContextBuildInput) {
     return group ? { portalGroupId: group.id } : null
   }
 
-  const resolvePortalWorkflowAttribution = async (
-    organizationId: OrganizationId,
-    portalId: PortalId,
-    asOf: Date,
-  ) => {
-    const context = await input.portalApi.resolvePortalContext(portalId)
-    if (!context || context.organizationId !== organizationId) return null
-    const group = await input.portalGroupApi.findGroupForPortal(
-      organizationId,
-      portalId,
-      asOf,
-    )
-    if (group && group.propertyId !== context.propertyId) return null
-    return {
-      propertyId: context.propertyId,
-      portalGroupId: group?.id ?? null,
-    }
-  }
-
   const registerOutboxConsumers = (consumerRegistry: ConsumerRegistry): void => {
-    registerPortalWorkflowMetricConsumers(consumerRegistry, {
-      recordMetric: record,
-      resolveAttribution: resolvePortalWorkflowAttribution,
-      hasReading: metricRepo.hasReading,
-    })
     registerGuestMetricConsumers(consumerRegistry, {
       recordMetrics: recordBatch,
       retractMetrics: retractBatch,
       findGroupForPortal,
-    })
-    registerPublicReputationMetricConsumers(consumerRegistry, {
-      recordMetric: record,
-      reviewRatingLookup: input.reviewRatingLookup,
-      db: input.db,
     })
     registerCurrentGoogleReputationConsumer(consumerRegistry, currentGoogleReputation)
   }
@@ -655,7 +615,6 @@ function buildDashboardModule(
   const attentionSignals = createAttentionSignalsAdapter(input.db, input.clock)
   const fleetOverviewProjection = createFleetOverviewProjectionAdapter(input.db)
   const dashboardRepo = createDashboardRepository(input.reviewServingStats, metricStats)
-  const setupChecklistRepo = createSetupChecklistRepository(input.db)
   const propertySetupRepo = createPropertySetupRepository(input.db)
   // Identity's current grants: every Property-scoped dashboard read asks them
   // about its own reader before it reads (application/dashboard-property-access).
@@ -708,9 +667,6 @@ function buildDashboardModule(
     clock: input.clock,
     inboxTargets: input.inboxTargets,
   })
-  const getSetup: GetSetupChecklist = getSetupChecklist({
-    repository: setupChecklistRepo,
-  })
   const getPropertySetupRead: GetPropertySetup = getPropertySetup({
     repository: propertySetupRepo,
   })
@@ -733,12 +689,11 @@ function buildDashboardModule(
       getAttentionSignals: getAttention,
       getPropertyOverview: getOverview,
       getFleetOverview: getFleet,
-      getSetupChecklist: getSetup,
       getPropertySetup: getPropertySetupRead,
       listPropertySetupSummaries: listPropertySetupSummariesRead,
     },
     internal: {
-      repos: { dashboardRepo, setupChecklistRepo, propertySetupRepo },
+      repos: { dashboardRepo, propertySetupRepo },
       useCases: {
         getDashboardData: getDashboard,
         getPortalLinkTaps: getPortalLinkTaps({ portalMetrics, propertyAccess }),
@@ -747,7 +702,6 @@ function buildDashboardModule(
         getAttentionSignals: getAttention,
         getPropertyOverview: getOverview,
         getFleetOverview: getFleet,
-        getSetupChecklist: getSetup,
         getPropertySetup: getPropertySetupRead,
         listPropertySetupSummaries: listPropertySetupSummariesRead,
       },

@@ -1,10 +1,5 @@
-// The Portal goal results page, `/goals/portal-results` (ADR 0068 decision 14;
-// PLAN PG-18; amended 2026-11-01): every month's result of the Portal goals, each
-// goal with its months in a manager's words, and the Portal goals that have ended,
-// each with the day it ended. A part with nothing to
-// show is not drawn: the ways here (the Portal goals section's foot and the goal
-// page's "All monthly results") appear only once a month has closed or a goal
-// has ended.
+// Omit empty sections; entry links appear only after a month closes or a goal ends.
+
 import { useEffect } from 'react'
 import { Link, useRouterState } from '@tanstack/react-router'
 import type { GoalResultsMatrix as GoalResultsMatrixModel } from '#/contexts/reporting/application/public-api'

@@ -1,9 +1,6 @@
-// What a Google rating goal command's refusal says to the person who pressed
-// the button. The commands refuse with a code (`RatingGoalError`); here each
-// code has one plain sentence, as `goal-refusal.ts` does for Goal Programs. The
-// refusal keeps its name, code and status and takes the sentence as its
-// message, so the banner's one rule (`FormErrorBanner`: a 4xx refusal's own
-// sentence) prints it unchanged, and a caller can still tell refusals apart.
+// Replace command codes with readable messages while preserving name, code and status
+// for callers and the shared error banner.
+
 import {
   isServerFunctionError,
   ServerFunctionError,

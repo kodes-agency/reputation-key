@@ -1,14 +1,7 @@
-// The sheet's form (copy deck S-2…S-11, S-15…S-22, G-16, U-S1…U-S3): the month
-// (a choice only when there are two), the number as the hero with what it counts
-// under it, what the number is (said politely as it changes, and quiet while the
-// box has the focus, whose `aria-valuetext` says it then), the notes (said
-// politely as they appear), the three suggestions when setting, in a panel with
-// the ask-every-guest line when it counts private ratings, the row of links ("How
-// we worked this out" and the other measure), the change's note, the refusal and
-// the footer. It is drawn with the shared setup parts (`goal-setup-parts.tsx`).
-// While the command is on its way nothing in it changes the number. Everything it
-// says is the sheet views' (`portal-goal-sheet-view.ts`,
-// `portal-goal-sheet-change-view.ts`); it only draws it and hands each change up.
+// While the number box has focus, aria-valuetext announces its value instead of the
+// live status line. Freeze edits while a command is pending, and retain the ask-every-
+// guest explanation for private ratings.
+
 import { useId, useRef, useState, type ReactNode } from 'react'
 import { DialogErrorBanner } from '#/components/forms/dialog-error-banner'
 import { FormErrorBanner } from '#/components/forms/form-error-banner'

@@ -1,10 +1,5 @@
-// The page every goal's detail is laid out in (ADR 0068, amended 2026-10-19: one
-// goal design system): a column of blocks, where a goal stands in a card of its
-// own, and the tiles that read "so far" in a strip of three. A goal's page brings its blocks in the order
-// it wants them: the layout is the column and the gap, not a fixed order, so the
-// order is decided where the page is written. The tiles arrive finished; the
-// strip only lays them out: stacked until there is room for all three, never two
-// and one.
+// The summary tiles stack until all three fit; avoid a two-and-one layout.
+
 import type { ReactNode } from 'react'
 import { Card, CardContent } from '#/components/ui/card'
 import { Metric, MetricStrip, MetricValue } from '#/components/ui/metric-strip'

@@ -1,19 +1,7 @@
-// The average private rating goal's page, on `$goalId` (PLAN PG-21): the goal
-// page without a bar, laid out on the shared detail layout like the Monthly
-// portal goal's (ADR 0068, amended 2026-10-19: one goal design system). A
-// stopped or paused goal's state comes first, as a notice; then what the average
-// is and where it counts (L-6), and its tile: this month's governed average
-// against its level ("4.6 so far · goal 4.5"), or how many ratings it still
-// needs ("More ratings needed · 6 of 10"), or its first month while it waits for
-// it. It has no pill: a month's average is not judged against a pace. Then each
-// of its months and what changed, as on the Monthly portal goal's page. Its
-// actions are "Change number", which opens a sheet of its own (a box of tenths,
-// now or from its next month, no recommendation: there is none for an average),
-// and Stop, in the goal's menu, with the same confirmation as every portal
-// goal's. The sheet is a chunk of its own, fetched while its door is on screen;
-// it works from the goal as it opened on it, and when it is behind the goal the
-// page reads it again and opens it afresh on the latest. The focus goes back to
-// what opened it, or to the page's title.
+// Averages have no pace verdict. Show the governed average only above its sample floor.
+// A stale change refreshes and reopens on the latest goal; closing restores focus to
+// the opener or page title.
+
 import { lazy, Suspense, useEffect, useId, useRef, useState } from 'react'
 import type { PortalGoalSinglePageView } from '#/contexts/reporting/application/dto/portal-goal-single-page.types'
 import { PageHeader } from '#/components/layout/page-header'

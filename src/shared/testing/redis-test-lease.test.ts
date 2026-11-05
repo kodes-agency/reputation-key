@@ -274,7 +274,10 @@ describe('RedisTestLease (BQC-6.1)', () => {
       const integrationJobs = jobs.filter(({ block }) => RUNS_INTEGRATION.test(block))
       // A new job that runs the integration project joins this list only with
       // a Redis service and the requirement on its test step.
-      expect(integrationJobs.map(({ id }) => id)).toEqual(['ci.yml#test-integration'])
+      expect(integrationJobs.map(({ id }) => id)).toEqual([
+        'ci.yml#test-integration',
+        'ci.yml#integration',
+      ])
 
       for (const { id, block } of integrationJobs) {
         const steps = block

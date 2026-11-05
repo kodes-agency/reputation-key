@@ -1,18 +1,8 @@
-// The Monthly portal goal's change sheet, worked out (copy deck S-1, S-15…S-23,
-// with the set sheet's S-6…S-11; PLAN PG-14): from what the read sent (the
-// goal, what a change is made against, and the sheet's offers) and what the
-// manager has done in the sheet, every word, number and state it shows, and
-// what its primary sends. Two ways to change: "November, now", which judges
-// November and the months after it against the new number, and "From Dec 1",
-// which leaves November as it is. A change of measure ("Count scans instead")
-// is always from the next month: a month counts what it opened with, so a
-// change of number keeps each month's own measure, and once the next month
-// counts the other one, a change now is November's alone. There
-// are no suggested numbers to pick, only the line that says what the number
-// is. The read decides the months, the offers and the keys sent back (PLAN
-// E12); the sheet's own judgement is whether a number typed for now starts the
-// month below pace, by the one pace rule (`goalPace`). Nothing here throws on
-// what was typed.
+// A month keeps the measure it opened with, so measure changes start next month. If
+// next month switches measure, a change now affects only the running month. The read
+// owns month and revision keys; only below-pace feedback is derived locally through
+// goalPace. Invalid input must not throw.
+
 import type { PortalGoalMeasure } from '#/contexts/reporting/application/dto/goal-recommendation.types'
 import type {
   PortalGoalChangeFacts,

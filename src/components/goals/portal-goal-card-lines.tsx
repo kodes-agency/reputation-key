@@ -1,7 +1,3 @@
-// The small lines of the Monthly portal goal's card body, shared by the card's
-// running month and its waiting arm: a door to the sheet inside a line, the
-// month before (G-30, G-31), the recommended number the month keeps (K-7), and
-// the way on to the goal's page (G-28).
 import { Link } from '@tanstack/react-router'
 import { Check } from 'lucide-react'
 import type { PortalGoalOfCard } from '#/contexts/reporting/application/dto/monthly-portal-goal.types'

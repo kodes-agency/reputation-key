@@ -115,13 +115,13 @@ runner, destination, cadence approval, or live success evidence is claimed by
 this repository today; this is a release blocker, not an instruction to create
 an unapproved export destination.
 
-The exact external monitoring inventory is registered in
-`src/shared/observability/regional-platform-signals.ts`: backup age, WAL/PITR
-health, restore range, logical-export success, external web availability, error
-rate, and release/config drift for `cell-us` only. Application-owned queue,
+The external monitoring requirements and retained evidence are listed in
+[Alerts and security posture](alerts-and-security-posture.md#external-monitoring-requirements):
+backup age, WAL/PITR health, restore range, logical-export success, external web
+availability, error rate, and release/config drift for `cell-us` only. Application-owned queue,
 outbox, reply, Google-sync, and worker-readiness signals remain in
-`src/shared/observability/alert-definitions.ts`. A registered row is a required
-configuration/evidence contract; it is not deployed alert evidence.
+`src/shared/observability/alert-definitions.ts`. A documented requirement is not
+deployed alert evidence.
 
 **PITR EXECUTION stays platform-owned** (registered finding — runbooks.md
 "Registered gaps"): no app/ops command performs a point-in-time restore.
@@ -505,10 +505,9 @@ treat the static-rule total as the whole sweep.
 - **CI artifacts** (GitHub Actions): SBOM (`sbom-spdx`) 30d, container image
   SBOMs (`sbom-images-spdx`) 30d, e2e failure artifacts 7d
   (`.github/workflows/ci.yml`).
-- **Release evidence**: evidence packs live under `docs/release-evidence/` and are
-  git-retained (permanent, reviewable history). The only committed pack is
-  `docs/release-evidence/cnv-01/`; there is no `beta/` folder, and nothing
-  generates scale and recovery packs any more.
+- **Release evidence**: the historical `cnv-01` pack is permanently retained at
+  protected tag [docs-archive-2026-11-05](https://github.com/kodes-agency/reputation-key/tree/docs-archive-2026-11-05/docs/release-evidence/cnv-01).
+  No scale or recovery packs are generated.
 - **Operational Redis keys**: alert firing-state 24h TTL (re-notify window),
   one global content-free Guest observation-loss hash whose stale five-minute
   bucket fields are pruned on every access and whose key has a refreshed

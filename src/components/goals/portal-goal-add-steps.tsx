@@ -1,9 +1,3 @@
-// The add sheet's choosing steps (copy deck M-2…M-9): what to add, as radio
-// cards, with a closed one and the fact that closes it ("Your portals had 6 in
-// the last 4 weeks.", or the average's "Has a goal" and a link to that goal);
-// then which Portal or group, where one that has a goal is closed with "Has a
-// goal" and a link to that goal. Everything they say is
-// the add view's (`portal-goal-add-view.ts`); they draw it and hand each pick up.
 import { useId, type ReactNode } from 'react'
 import { InlineLink } from '#/components/ui/inline-link'
 import { Label } from '#/components/ui/label'

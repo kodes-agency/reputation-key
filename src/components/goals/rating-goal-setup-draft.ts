@@ -1,10 +1,8 @@
-// What the manager has done on the one-screen setup (rounds 3 and 4, E2/E4),
-// kept above the frame so a phone turned to landscape keeps it. The screen is
-// worked out from the draft (`choicesOf` → `workOutRatingGoal`); each change
-// here is an immutable step, and every step clears a one-off hint. The goal
-// follows the recommendation until − / + pins it, and a pin that lands on the
-// recommendation lets go again (the mock's `pinGoal`). Typed values are clamped
-// with a message, never refused.
+// Keep drafts above the responsive frame so rotation preserves them. Follow the
+// recommendation until pinned; a pin matching the recommendation releases it. Clear
+// transient hints on each change and explain clamping rather than refusing typed
+// values.
+
 import type {
   RatingGoalSetupChoices,
   RatingGoalSetupInputs,

@@ -15,7 +15,7 @@ import {
   resolveColour,
   type LinearRgb,
 } from '#/shared/testing/oklch-contrast'
-import { TOASTER_STYLE } from './toaster-theme'
+import { TOASTER_STYLE } from './sonner'
 import { TONE_INK, TONE_SURFACE } from './tone'
 
 const AA = 4.5

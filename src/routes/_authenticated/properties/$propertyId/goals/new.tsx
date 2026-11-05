@@ -1,8 +1,6 @@
-// The old New goal page's address (PLAN PG-20). The page is gone: a goal for one
-// Portal, for each, for a group, or the average is added from "Add a portal
-// goal" on the Monthly portal goal's page, and this route only sends an old link
-// or bookmark there, on the step it asked for (`-goal-new-redirect.ts`). No
-// component, loader or search schema: the redirect is all that loads.
+// Keep old links and bookmarks working through the add-sheet redirect without loading a
+// form.
+
 import { createFileRoute, redirect } from '@tanstack/react-router'
 import { goalNewRedirect } from './-goal-new-redirect'
 

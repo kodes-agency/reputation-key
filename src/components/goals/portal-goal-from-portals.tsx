@@ -1,9 +1,6 @@
-// What each Portal brought in, on the Monthly portal goal's page (P-1; copy deck P-6,
-// P-7): the evidence of "Where are they coming from?". Every published Portal's count
-// of the month in the read's name order, never sorted and with no bars, what the rest
-// brought in as "Other portals", and the total; a Portal gone quiet says so on its own
-// row, with the way to its code. The counts are there only when they add up to the
-// month's figure.
+// Keep counts in name order with no rankings, bars or shares. Display them only when
+// they reconcile to the month's total.
+
 import { InlineLink } from '#/components/ui/inline-link'
 import type { fromPortalsWords } from './portal-goal-page-view'
 

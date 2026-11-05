@@ -1,13 +1,7 @@
-// Stop the Monthly portal goal (copy deck X-1…X-4, F-5, P-16; PLAN PG-14): a
-// confirmation in the destructive tone, since a stop is not taken back. A
-// running goal keeps its month to the last day, with its result, and frees the
-// months after it; a goal that has not started frees its month at once. On a
-// stop a toast says so and the page hands over (it leaves for the Goals page);
-// a refusal is said in the dialog, which stays open, and the page is read
-// again (F-5: the goal was already stopped). The dialog is held by the page,
-// outside the menu that opens it, and words the goal as it was when it opened.
-// A goal for one Portal, a group or the average is stopped from its own page
-// the same way (PLAN PG-21), as "this portal goal".
+// Stop is irreversible. Keep the dialog outside its menu and preserve the opening
+// snapshot across refreshes. A refusal leaves it open. Running goals count through
+// month end; an unstarted goal frees its month immediately.
+
 import type { StopMonthlyPortalGoalRequest } from '#/contexts/reporting/application/dto/monthly-portal-goal.types'
 import { useActionMutation } from '#/components/hooks/use-action-mutation'
 import { ConfirmationDialog } from '#/components/ui/confirmation-dialog'

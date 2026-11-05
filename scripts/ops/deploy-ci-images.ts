@@ -1,5 +1,7 @@
 // Deploy the three immutable production images proved by a successful main CI
 // run. The command reports by default and mutates only with --apply.
+// --verify-only --run <id> reads a dispatched CI run instead, to prove the
+// replacement pipeline from a branch: it never reads Railway and deploys nothing.
 
 import { pathToFileURL } from 'node:url'
 import { resolve } from 'node:path'
@@ -10,6 +12,7 @@ import {
   downloadCiImageDigestMap,
   type ImageDigest,
   SOURCE_REVISION,
+  verifyDispatchedCiImageDigestMap,
 } from './ci-image-digest-map'
 import {
   checkedOutput,
@@ -684,35 +687,75 @@ function reportedProviderRedisKeep(
 }
 
 const COMMAND = 'ops:deploy-ci-images'
-const USAGE = 'pnpm ops deploy-ci-images [--sha <source-revision>] [--apply]'
+const USAGE =
+  'pnpm ops deploy-ci-images [--sha <source-revision>] [--apply] | --verify-only --run <ci-run-id>'
 
 function parseCommandArgs(argv: readonly string[]): {
   revision: string | undefined
   apply: boolean
+  verifyRun: number | undefined
 } {
-  let revision: string | undefined
-  let apply = false
+  const switches = new Set<string>()
+  const values = new Map<string, string>()
   for (let index = 0; index < argv.length; index++) {
-    const token = argv[index]
-    if (token === '--apply') {
-      apply = true
-      continue
+    const token = argv[index]!
+    if (token === '--apply' || token === '--verify-only') {
+      switches.add(token)
+    } else if (token === '--sha' || token === '--run') {
+      const value = argv[++index]
+      if (!value || values.has(token)) throw new Error(`usage: ${USAGE}`)
+      values.set(token, value)
+    } else {
+      throw new Error(`usage: ${USAGE}`)
     }
-    if (token === '--sha' && revision === undefined) {
-      revision = argv[++index]
-      if (!revision) throw new Error(`usage: ${USAGE}`)
-      continue
-    }
+  }
+  const apply = switches.has('--apply')
+  const revision = values.get('--sha')
+  const run = values.get('--run')
+  const verifyOnly = switches.has('--verify-only')
+  // Verifying never deploys, so it takes a run and neither a revision nor
+  // --apply; a run id means nothing to a deploy.
+  const validUsage = verifyOnly ? run !== undefined && !apply && !revision : !run
+  if (!validUsage || (run !== undefined && !/^[1-9][0-9]*$/u.test(run))) {
     throw new Error(`usage: ${USAGE}`)
   }
-  return { revision, apply }
+  return { revision, apply, verifyRun: run === undefined ? undefined : Number(run) }
 }
 
 export async function runDeployCiImagesCommand(
   argv: readonly string[] = process.argv.slice(2),
   out: (line: string) => void = console.log,
+  runner: CommandRunner = defaultCommandRunner,
 ): Promise<number> {
   const args = parseCommandArgs(argv)
+  if (args.verifyRun !== undefined) {
+    const verified = verifyDispatchedCiImageDigestMap(args.verifyRun, runner)
+    out(
+      JSON.stringify(
+        {
+          command: COMMAND,
+          mode: 'verify-only',
+          run: {
+            id: verified.runId,
+            ref: verified.digestMap.source.ref,
+            attempt: verified.attempt,
+            sourceRevision: verified.sourceRevision,
+          },
+          jobs: verified.jobs,
+          images: Object.fromEntries(
+            Object.entries(verified.digestMap.images).map(([name, entry]) => [
+              name,
+              `${entry.repository}@${entry.digest}`,
+            ]),
+          ),
+        },
+        null,
+        2,
+      ),
+    )
+    out('verified only: nothing was deployed, and a deploy never reads this map')
+    return 0
+  }
   const revision = resolveDeploymentRevision(
     args.revision,
     createGitRevisionReader(defaultCommandRunner),
