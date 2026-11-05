@@ -1,113 +1,66 @@
-// Property context — property read & delete server functions (split from properties.ts)
-
 import { createServerFn } from '@tanstack/react-start'
-import { tracedHandler } from '#/shared/observability/traced-server-fn'
 import { z } from 'zod/v4'
-import { headersFromContext } from '#/shared/auth/headers'
-import { resolveTenantContext } from '#/shared/auth/middleware'
-import { requireExecutionAllowed } from '#/shared/auth/execution-policy'
-import { throwContextError, catchUntagged } from '#/shared/auth/server-errors'
+import { command } from '#/shared/commands/command.server'
 import { getContainer } from '#/composition'
 import { toBrowserProperty } from '../application/dto/browser-property.dto'
-import {
-  isPropertyError,
-  PROPERTY_DELETION_UNAVAILABLE_MESSAGE,
-  propertyError,
-} from '../domain/errors'
-import { propertyErrorStatus } from './property-shared'
-
-// ── Shared Zod validators ──────────────────────────────────────────
+import { PROPERTY_DELETION_UNAVAILABLE_MESSAGE, propertyError } from '../domain/errors'
+import { propertyCommandErrors } from './property-shared'
 
 const propertyIdSchema = z.object({
   propertyId: z.string().min(1, 'Property ID is required'),
 })
 
-// ── listProperties ─────────────────────────────────────────────────
-
 export const listProperties = createServerFn({ method: 'GET' }).handler(
-  tracedHandler(
-    async () => {
-      const headers = await headersFromContext()
-      const ctx = await resolveTenantContext(headers)
-      // All authenticated roles can list properties (BQC-2.4: policy-wired)
-      await requireExecutionAllowed({ actor: ctx, action: 'property.read' })
-
-      try {
-        const { management } = getContainer().propertyPublicApi
-        const properties = await management.listProperties(ctx)
-        return { properties: properties.map(toBrowserProperty) }
-      } catch (e) {
-        if (isPropertyError(e))
-          throwContextError('PropertyError', e, propertyErrorStatus(e.code))
-        throw catchUntagged(e)
-      }
+  command(
+    {
+      method: 'GET',
+      name: 'property.listProperties',
+      action: 'property.read',
+      errors: propertyCommandErrors,
     },
-    'GET',
-    'property.listProperties',
+    async ({ actor }) => {
+      const properties =
+        await getContainer().propertyPublicApi.management.listProperties(actor)
+      return { properties: properties.map(toBrowserProperty) }
+    },
   ),
 )
-
-// ── getProperty ────────────────────────────────────────────────────
 
 export const getProperty = createServerFn({ method: 'GET' })
   .validator(propertyIdSchema)
   .handler(
-    tracedHandler(
-      async ({ data }) => {
-        const headers = await headersFromContext()
-        const ctx = await resolveTenantContext(headers)
-        await requireExecutionAllowed({
-          actor: ctx,
-          action: 'property.read',
-          propertyId: data.propertyId,
-        })
-
-        try {
-          const { management } = getContainer().propertyPublicApi
-          const property = await management.getProperty(data, ctx)
-          return { property: toBrowserProperty(property) }
-        } catch (e) {
-          if (isPropertyError(e))
-            throwContextError('PropertyError', e, propertyErrorStatus(e.code))
-          throw catchUntagged(e)
-        }
+    command(
+      {
+        method: 'GET',
+        name: 'property.getProperty',
+        action: 'property.read',
+        propertyId: (data) => data.propertyId,
+        errors: propertyCommandErrors,
       },
-      'GET',
-      'property.getProperty',
+      async ({ data, actor }) => {
+        const property = await getContainer().propertyPublicApi.management.getProperty(
+          data,
+          actor,
+        )
+        return { property: toBrowserProperty(property) }
+      },
     ),
   )
-
-// ── deleteProperty ──────────────────────────────────────────────────
 
 export const deleteProperty = createServerFn({ method: 'POST' })
   .validator(propertyIdSchema)
   .handler(
-    tracedHandler(
-      async ({ data }) => {
-        const headers = await headersFromContext()
-        const ctx = await resolveTenantContext(headers)
-        await requireExecutionAllowed({
-          actor: ctx,
-          action: 'property.delete',
-          propertyId: data.propertyId,
-        })
-
-        // LIF-01: keep this stale-client boundary so callers receive a typed,
-        // mild denial, but deliberately provide no edge to the legacy
-        // destructive use case. Archive/Disconnect and support-mediated
-        // erasure remains separate. The implemented recoverable lifecycle uses
-        // the dedicated Archive/Restore/Property-binding-disconnect commands.
-        const unavailable = propertyError(
-          'forbidden',
-          PROPERTY_DELETION_UNAVAILABLE_MESSAGE,
-        )
-        throwContextError(
-          'PropertyError',
-          unavailable,
-          propertyErrorStatus(unavailable.code),
-        )
+    command(
+      {
+        method: 'POST',
+        name: 'property.deleteProperty',
+        action: 'property.delete',
+        propertyId: (data) => data.propertyId,
+        errors: propertyCommandErrors,
       },
-      'POST',
-      'property.deleteProperty',
+      async () => {
+        // Keep the stale-client refusal without any edge to destructive services.
+        throw propertyError('forbidden', PROPERTY_DELETION_UNAVAILABLE_MESSAGE)
+      },
     ),
   )

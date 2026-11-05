@@ -27,9 +27,6 @@ vi.mock('#/composition', () => ({
     },
   })),
 }))
-vi.mock('./property-shared', () => ({
-  propertyErrorStatus: vi.fn(() => 400),
-}))
 
 import {
   listPropertyResponsibleManagers,
