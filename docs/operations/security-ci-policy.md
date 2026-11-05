@@ -369,8 +369,8 @@ GET /repos/kodes-agency/reputation-key/environments
       protection_rules [], deployment_branch_policy null, can_admins_bypass true
 ```
 
-**What is enforced.** A pull request cannot merge until those six checks pass
-on a branch that is up to date with `main`, and a direct push is rejected unless
+**What is enforced.** A pull request cannot merge until all required checks
+listed below pass on a branch that is up to date with `main`, and a direct push is rejected unless
 its commit already carries them. Admins are included: `enforce_admins` has been
 on since 2026-09-06, when a direct push was shown to fail with
 `GH006 … required status checks are expected`
@@ -385,13 +385,22 @@ job, not the dependency-audit step; `Analyze (javascript-typescript)` is CodeQL.
 same gates in less time: `lint`, `typecheck`, `unit`, `integration`, `probes`
 and `browser` under the `ci` aggregate, and `image build` and `image scan` under
 the `image` aggregate. Both aggregates are `always()` like the three above. The
-required checks still name the three above; `ci` and `image` become required
-only when the repository owner adds them. Before that, dispatch the workflow on
+required checks include `ci` and `image` alongside `check`, `docker`, `e2e`,
+`secrets`, `audit` and `Analyze (javascript-typescript)`, with strict mode kept
+on. The publishing handoff changes no required check or job name. Dispatch on
 a branch (`gh workflow run ci.yml --ref <branch>`) and, once it finishes, run
 `pnpm ops deploy-ci-images --verify-only --run <run id>`. It applies a deploy's
 acceptance rules to the dispatched run's digest map, fails on a missing or
 failed job, reads GitHub only and deploys nothing. A deploy still reads only a
-main push run's `docker` map. Firefox, WebKit and the iOS viewport run weekly
+main push run's map: `image-scan` stages scanned production digests, and `image`
+is the sole map writer. On main pushes, `image` preflights the complete set and
+existing commit tags, promotes by digest, and reads back every final tag before
+writing the map. Dispatch writes a distinct verification map and never tags a
+commit; pull requests never publish. The original image jobs keep their builds,
+smoke tests, SBOMs and scans but publish no images or digest maps. Production
+maps name `image` as their producer for rerun checks; historical maps without
+that discriminator still validate against the original image jobs for rollback.
+Firefox, WebKit and the iOS viewport run weekly
 in `browser-matrix.yml` instead of on every pull request.
 
 **What is not enforced.** Each of these is a repository-owner decision:

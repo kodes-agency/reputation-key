@@ -83,9 +83,14 @@ type FakeCiRun = Readonly<{
 }>
 
 function digestMapFrom(
-  overrides: Readonly<{ runId?: string; runAttempt?: number; sourceRevision?: string }>,
+  overrides: Readonly<{
+    runId?: string
+    runAttempt?: number
+    sourceRevision?: string
+    job?: 'image'
+  }>,
 ): Record<string, unknown> {
-  const value = digestMapValue()
+  const value = digestMapValue(overrides.job)
   const source = value.source as Record<string, unknown>
   return {
     ...value,
@@ -392,13 +397,13 @@ describe('closed-beta CI run that proves the images', () => {
       resolve(import.meta.dirname, '../../.github/workflows/ci.yml'),
       'utf8',
     )
-    const dockerJob = /\n {2}docker:\n[\s\S]*?(?=\n {2}[a-z][\w-]*:\n|$)/u.exec(
+    const imageJob = /\n {2}image:\n[\s\S]*?(?=\n {2}[a-z][\w-]*:\n|$)/u.exec(
       workflow,
     )?.[0]
 
     // A rename here would make every partial re-run undeployable again.
     expect(workflow).toMatch(/\n {2}docker-images:\n {4}name: docker image group \(/u)
-    expect(dockerJob).toContain('name: ci-image-digest-map-${{ github.sha }}')
+    expect(imageJob).toContain('name: ci-image-digest-map-${{ github.sha }}')
   })
 })
 
@@ -648,5 +653,106 @@ describe('what a deploy reads', () => {
       'image scan',
       'image',
     ])
+  })
+})
+
+describe('replacement main image maps', () => {
+  const imageJobs = [
+    'image build (web)',
+    'image build (support)',
+    'image scan',
+    'image',
+  ].map((name) => ({ name, conclusion: 'success', started_at: '2026-10-18T16:41:55Z' }))
+  const mainRun = (overrides: Partial<FakeCiRun> = {}) =>
+    fakeGitHub({
+      conclusion: 'success',
+      attempt: 2,
+      digestMap: digestMapFrom({ job: 'image' }),
+      attemptStarts: { 2: ATTEMPT_2_STARTED },
+      latestJobs: [...imageJobs, ...ATTEMPT_2_RERUN_JOBS],
+      ...overrides,
+    })
+
+  it('accepts replacement digests carried through a successful non-image rerun', () => {
+    const { runner } = mainRun()
+    expect(downloadCiImageDigestMap(REVISION, runner).source).toMatchObject({
+      job: 'image',
+      runAttempt: 1,
+    })
+  })
+
+  it.each(imageJobs.map(({ name }) => name))(
+    'refuses a stale map after %s reran',
+    (name) => {
+      const { runner } = mainRun({
+        latestJobs: imageJobs.map((job) =>
+          job.name === name ? { ...job, started_at: ATTEMPT_2_STARTED } : job,
+        ),
+      })
+      expect(() => downloadCiImageDigestMap(REVISION, runner)).toThrow(
+        `re-ran ${name} after attempt 1`,
+      )
+    },
+  )
+
+  it.each(imageJobs.map(({ name }) => name))('refuses a missing %s job', (name) => {
+    const { runner } = mainRun({
+      latestJobs: imageJobs.filter((job) => job.name !== name),
+    })
+    expect(() => downloadCiImageDigestMap(REVISION, runner)).toThrow(
+      `lists no ${name} job`,
+    )
+  })
+
+  it.each(['failure', 'skipped', 'cancelled'])(
+    'refuses a %s image job even if the run claims success',
+    (conclusion) => {
+      const { runner } = mainRun({
+        latestJobs: imageJobs.map((job) =>
+          job.name === 'image scan' ? { ...job, conclusion } : job,
+        ),
+      })
+      expect(() => downloadCiImageDigestMap(REVISION, runner)).toThrow(
+        `job image scan concluded ${conclusion}`,
+      )
+    },
+  )
+
+  it('accepts a first-attempt replacement map after checking all image jobs', () => {
+    const { runner } = mainRun({ attempt: 1, latestJobs: imageJobs })
+    expect(downloadCiImageDigestMap(REVISION, runner).source).toMatchObject({
+      job: 'image',
+      runAttempt: 1,
+    })
+  })
+
+  it('checks the image jobs even on a first-attempt replacement map', () => {
+    const { runner } = mainRun({
+      attempt: 1,
+      latestJobs: imageJobs.filter(({ name }) => name !== 'image scan'),
+    })
+    expect(() => downloadCiImageDigestMap(REVISION, runner)).toThrow(
+      'lists no image scan job',
+    )
+  })
+
+  it('ignores rerun legacy builders when the replacement owns the map', () => {
+    const { runner } = mainRun({
+      latestJobs: [
+        ...imageJobs,
+        ...ATTEMPT_1_IMAGE_JOBS.map((job) => ({ ...job, started_at: ATTEMPT_2_STARTED })),
+      ],
+    })
+    expect(downloadCiImageDigestMap(REVISION, runner).source.runAttempt).toBe(1)
+  })
+
+  it('refuses replacement branch maps and unknown producers', () => {
+    for (const source of [{ ref: 'refs/heads/other' }, { job: 'other' }]) {
+      const value = digestMapValue('image')
+      value.source = { ...(value.source as Record<string, unknown>), ...source }
+      expect(() => parseCiImageDigestMap(JSON.stringify(value), REVISION)).toThrow(
+        /source/u,
+      )
+    }
   })
 })
