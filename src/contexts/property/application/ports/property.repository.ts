@@ -17,13 +17,6 @@ export type PropertyRepository = Readonly<{
     slug: string,
     excludeId?: PropertyId,
   ) => Promise<boolean>
-  insert: (orgId: OrganizationId, property: Property) => Promise<void>
-  update: (
-    orgId: OrganizationId,
-    id: PropertyId,
-    patch: Readonly<Partial<Property>>,
-  ) => Promise<void>
-  hardDelete: (orgId: OrganizationId, id: PropertyId) => Promise<void>
   /**
    * Every non-deleted Property that holds this Google location, in every
    * Organization, ordered by Organization then id. Cross-tenant on purpose and
@@ -38,7 +31,4 @@ export type PropertyRepository = Readonly<{
     connectionId: GoogleConnectionId,
     orgId: OrganizationId,
   ) => Promise<ReadonlyArray<PropertyId>>
-
-  /** Insert a property and return the full inserted row. */
-  insertAndReturn: (orgId: OrganizationId, property: Property) => Promise<Property>
 }>

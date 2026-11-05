@@ -7,15 +7,17 @@ import { googleConnectionId, organizationId, propertyId } from '#/shared/domain/
 import { clearEventSchemas } from '#/shared/events/schema-registry'
 import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
 import { DEFAULT_PROPERTY_GOOGLE_PROFILE, type Property } from '../../domain/types'
-import { propertyDeleted, propertyGoogleBindingChanged } from '../../domain/events'
 import {
   PROPERTY_OPERATION_RECEIPT_TTL_MS,
   PropertyGoogleBindingError,
 } from '../../application/ports/property-google-binding.port'
 import { createPropertyGoogleBindingStore } from '../property-google-binding-store'
-import { createAtomicPropertyCommandStore } from '../property-command-store'
-import { propertyToRow } from '../mappers/property.mapper'
-import { properties } from '#/shared/db/schema/property.schema'
+import { seedTestProperty } from '../property-test-fixtures'
+import { idempotencyReceipts } from '#/shared/db/schema/outbox.schema'
+import {
+  propertyReceiptKey,
+  propertyReceiptPayload,
+} from '../property-operation-receipts'
 
 const ORG_ID = organizationId('org-google-binding-integration')
 const OTHER_ORG_ID = organizationId('org-google-binding-other')
@@ -332,7 +334,7 @@ describe.sequential('Property Google binding store', () => {
       sourceEpoch: 4,
       profileVersion: 3,
     }
-    await db.insert(properties).values(propertyToRow(disconnected))
+    await seedTestProperty(db, disconnected)
 
     const input = {
       organizationId: ORG_ID,
@@ -420,7 +422,7 @@ describe.sequential('Property Google binding store', () => {
   it('disconnects then scrubs provider identity while preserving profile generations', async () => {
     const store = createPropertyGoogleBindingStore(db)
     const property = makeActiveProperty('5', 'location-5')
-    await db.insert(properties).values(propertyToRow(property))
+    await seedTestProperty(db, property)
 
     const disconnected = await store.disconnect({
       organizationId: ORG_ID,
@@ -487,19 +489,29 @@ describe.sequential('Property Google binding store', () => {
     ])
   })
 
-  it('turns receipts into deletion tombstones and sweeps only released expiries', async () => {
+  it('replays retained deletion tombstones and sweeps only released expiries', async () => {
     const store = createPropertyGoogleBindingStore(db)
-    const commandStore = createAtomicPropertyCommandStore(db)
     const deletedProperty = makeActiveProperty('6', 'location-6')
     const retainedProperty = makeActiveProperty('7', 'location-7')
     const deletedKey = '20000000-0000-4000-8000-000000000007'
     const retainedKey = '20000000-0000-4000-8000-000000000008'
 
-    await store.createBoundProperty({
-      organizationId: ORG_ID,
-      idempotencyKey: deletedKey,
-      property: deletedProperty,
-      now: NOW,
+    // A retained deletion receipt must replay after its Property is gone.
+    await db.insert(idempotencyReceipts).values({
+      scope: 'property_operation',
+      key: propertyReceiptKey(ORG_ID, deletedKey),
+      payload: propertyReceiptPayload({
+        organizationId: ORG_ID,
+        idempotencyKey: deletedKey,
+        destinationPropertyId: null,
+        outcome: 'property_deleted',
+        destinationSourceEpoch: 2,
+        destinationProfileVersion: deletedProperty.profileVersion,
+        tombstone: true,
+        expiresAt: new Date(NOW.getTime() + PROPERTY_OPERATION_RECEIPT_TTL_MS),
+        retentionReleasedAt: null,
+      }),
+      recordedAt: NOW,
     })
     await store.createBoundProperty({
       organizationId: ORG_ID,
@@ -509,26 +521,6 @@ describe.sequential('Property Google binding store', () => {
     })
 
     const deletionTime = new Date(NOW.getTime() + 1_000)
-    await commandStore.deleteProperty({
-      organizationId: ORG_ID,
-      propertyId: deletedProperty.id,
-      expectedSourceEpoch: deletedProperty.sourceEpoch,
-      expectedProfileVersion: deletedProperty.profileVersion,
-      event: propertyDeleted({
-        organizationId: ORG_ID,
-        propertyId: deletedProperty.id,
-        occurredAt: deletionTime,
-      }),
-      bindingEvent: propertyGoogleBindingChanged({
-        organizationId: ORG_ID,
-        propertyId: deletedProperty.id,
-        connectionId: CONNECTION_ID,
-        sourceEpoch: 2,
-        change: 'deletion_started',
-        occurredAt: deletionTime,
-      }),
-    })
-
     expect(await store.readReceipt(ORG_ID, deletedKey, deletionTime)).toMatchObject({
       destinationPropertyId: null,
       outcome: 'property_deleted',
@@ -704,7 +696,7 @@ describe.sequential('Property Google binding store', () => {
         googlePrimaryCategory: 'Hotel',
         googlePrimaryCategoryUpdatedAt: CONFIRMED_AT,
       })
-      await db.insert(properties).values(propertyToRow(property))
+      await seedTestProperty(db, property)
 
       await store.relink(
         relinkInput(
@@ -737,7 +729,7 @@ describe.sequential('Property Google binding store', () => {
 
       for (const [suffix, read] of cases) {
         const property = disconnectedFor(suffix, held)
-        await db.insert(properties).values(propertyToRow(property))
+        await seedTestProperty(db, property)
 
         await store.relink(
           relinkInput(property, `20000000-0000-4000-8000-0000000000${suffix}`, read),
@@ -757,7 +749,7 @@ describe.sequential('Property Google binding store', () => {
         googlePrimaryCategory: 'Hotel',
         googlePrimaryCategoryUpdatedAt: CONFIRMED_AT,
       }
-      await db.insert(properties).values(propertyToRow(property))
+      await seedTestProperty(db, property)
       await store.disconnect({
         organizationId: ORG_ID,
         propertyId: property.id,
