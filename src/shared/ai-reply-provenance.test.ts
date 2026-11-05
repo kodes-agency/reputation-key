@@ -4,6 +4,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import {
   signAiReplyProvenance,
   verifyAiReplyProvenance,
+  type AiReplyProvenancePayload,
   type AiReplyProvenancePayloadV1,
   type AiReplyProvenancePayloadV2,
   type AiReplyProvenancePayloadV3,
@@ -12,6 +13,8 @@ import {
   AI_PERSONALIZED_REPLY_PROFILE_DIGEST,
   AI_PERSONALIZED_REPLY_PROFILE_VERSION,
 } from '#/shared/ai-personalized-reply-contract'
+import { REPLY_DRAFTING_V2_PROFILE_DIGEST } from './reply-drafting-v2-contract'
+import { REPLY_DRAFTING_V2_VERSIONS } from './reply-drafting-v2-schema'
 
 const UUIDS = {
   operation: '10000000-0000-4000-8000-000000000001',
@@ -20,6 +23,10 @@ const UUIDS = {
 const SHA = 'a'.repeat(64)
 const LEGACY_PERSONALIZED_REPLY_PROFILE_DIGEST =
   '86bb98cb3b0b1c8561141e2ec30e019725d5f0ba5dd57be4745c7db5bc851769'
+const PRIOR_GROUNDED_PROFILE_DIGEST =
+  '5949290a4d71a8cb5466596f066040ccc7194e8b2327ba361cf21e0152df45f2'
+const PRIOR_SENTENCE_PROFILE_DIGEST =
+  '41c1bdf74408dd526d2b29983e3e0c371d818a548575b46e3df2c78024884658'
 
 function commonPayload(kid: string) {
   return {
@@ -83,10 +90,97 @@ function tokenWith(payloadPart: string, signaturePart: string): string {
   return `rk_ai_reply_v1.${payloadPart}.${signaturePart}`
 }
 
+function sentencePayload(): Extract<
+  AiReplyProvenancePayload,
+  { version: 'ai-reply-provenance-v4' }
+> {
+  return {
+    ...groundedPersonalizedPayload(),
+    version: REPLY_DRAFTING_V2_VERSIONS.provenance,
+    operationProfileVersion: REPLY_DRAFTING_V2_VERSIONS.operation,
+    promptVersion: REPLY_DRAFTING_V2_VERSIONS.prompt,
+    replyProfileVersion: REPLY_DRAFTING_V2_VERSIONS.profile,
+    replyProfileDigest: REPLY_DRAFTING_V2_PROFILE_DIGEST,
+    replyVoiceDigest: SHA,
+    voiceChoices: {
+      closing: 0,
+      signOff: 0,
+      contactSentence: 0,
+      emoji: 0,
+      includeContact: false,
+    },
+    parentOperationId: null,
+    rewriteOrdinal: 0,
+  }
+}
+
 describe('AI reply provenance', () => {
   afterEach(() => {
     vi.restoreAllMocks()
+    vi.doUnmock('./ai-personalized-reply-contract')
+    vi.doUnmock('./reply-drafting-v2-contract')
+    vi.resetModules()
   })
+
+  it.each([
+    ['grounded', groundedPersonalizedPayload, PRIOR_GROUNDED_PROFILE_DIGEST],
+    ['sentence', sentencePayload, PRIOR_SENTENCE_PROFILE_DIGEST],
+    [
+      'prior grounded',
+      () => ({
+        ...groundedPersonalizedPayload(),
+        replyProfileDigest: PRIOR_GROUNDED_PROFILE_DIGEST,
+      }),
+      AI_PERSONALIZED_REPLY_PROFILE_DIGEST,
+    ],
+    [
+      'prior sentence',
+      () => ({
+        ...sentencePayload(),
+        replyProfileDigest: PRIOR_SENTENCE_PROFILE_DIGEST,
+      }),
+      REPLY_DRAFTING_V2_PROFILE_DIGEST,
+    ],
+  ] as const)(
+    'keeps a signed %s suggestion verifiable across a policy deployment',
+    async (_name, makePayload, otherSupportedDigest) => {
+      const keys = generateKeyPairSync('ed25519')
+      const original = makePayload()
+      const token = signAiReplyProvenance(original, keys.privateKey)
+      vi.resetModules()
+      vi.doMock('./ai-personalized-reply-contract', async (importOriginal) => ({
+        ...(await importOriginal<typeof import('./ai-personalized-reply-contract')>()),
+        AI_PERSONALIZED_REPLY_PROFILE_DIGEST: 'b'.repeat(64),
+      }))
+      vi.doMock('./reply-drafting-v2-contract', async (importOriginal) => ({
+        ...(await importOriginal<typeof import('./reply-drafting-v2-contract')>()),
+        REPLY_DRAFTING_V2_PROFILE_DIGEST: 'c'.repeat(64),
+      }))
+      const deployed = await import('./ai-reply-provenance')
+      const keyring = new Map([['reply-v1', keys.publicKey]])
+      expect(deployed.verifyAiReplyProvenance(token, keyring)).toEqual(original)
+      const [prefix, , signature] = token.split('.')
+      const changed = Buffer.from(
+        JSON.stringify({ ...original, replyProfileDigest: otherSupportedDigest }),
+      ).toString('base64url')
+      expect(
+        deployed.verifyAiReplyProvenance(`${prefix}.${changed}.${signature}`, keyring),
+      ).toBeNull()
+    },
+  )
+
+  it.each([groundedPersonalizedPayload, sentencePayload])(
+    'refuses an unknown reply policy digest',
+    (makePayload) => {
+      const keys = generateKeyPairSync('ed25519')
+      expect(() =>
+        signAiReplyProvenance(
+          { ...makePayload(), replyProfileDigest: '0'.repeat(64) },
+          keys.privateKey,
+        ),
+      ).toThrow(z.ZodError)
+    },
+  )
 
   it('round-trips one canonical token and zeroes signer-owned buffers', () => {
     const keys = generateKeyPairSync('ed25519')
