@@ -60,7 +60,6 @@ import type { InboxHistoryEntry } from './inbox-thread-model'
 import type { InboxDetailFns } from './types'
 import type { InboxDetailState } from './use-inbox-detail'
 import type { InboxAssignmentOption } from './inbox-owner-view'
-import type { getActivityTimelineFn } from '#/contexts/feed/server/activity'
 import type {
   addInboxNoteFn,
   getInboxItemDetailFn,
@@ -458,9 +457,6 @@ function detailFns(entries: readonly InboxHistoryEntry[] = []): InboxDetailFns {
     getInboxItemDetail: mockServerFn(async () =>
       reviewDetail(),
     ) as unknown as typeof getInboxItemDetailFn,
-    getActivityTimeline: mockServerFn(
-      async () => [],
-    ) as unknown as typeof getActivityTimelineFn,
     addInboxNote: mockServerFn(async () => ({
       ok: true,
     })) as unknown as typeof addInboxNoteFn,

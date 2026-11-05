@@ -16,10 +16,6 @@ import { headersFromContext } from '#/shared/auth/headers'
 import { resolveTenantContext } from '#/shared/auth/middleware'
 import { propertyId } from '#/shared/domain/ids'
 import { z } from 'zod/v4'
-import {
-  activityTimelineReadDto,
-  recentActivityListDto,
-} from '../application/dto/recent-activity-read.dto'
 import { isActivityError } from '../domain/activity-errors'
 import {
   isOperationalAction,
@@ -45,68 +41,6 @@ function throwActivityFailure(error: unknown): never {
   }
   throw catchUntagged(error)
 }
-
-// ── getActivityTimelineFn ───────────────────────────────────────────
-
-export const getActivityTimelineFn = createServerFn({ method: 'GET' })
-  .validator(activityTimelineReadDto)
-  .handler(
-    tracedHandler(
-      async ({ data }) => {
-        const headers = await headersFromContext()
-        const ctx = await resolveTenantContext(headers)
-        await requireExecutionAllowed({ actor: ctx, action: 'inbox.read' })
-        try {
-          const { feedPublicApi } = getContainer()
-          return await feedPublicApi.getActivityTimeline(
-            {
-              resourceType: data.resourceType,
-              resourceId: data.resourceId,
-              limit: data.limit,
-            },
-            ctx,
-          )
-        } catch (e) {
-          throwActivityFailure(e)
-        }
-      },
-      'GET',
-      'activity.getActivityTimeline',
-    ),
-  )
-
-// ── listRecentActivityFn ───────────────────────────────────────────────
-
-export const listRecentActivityFn = createServerFn({ method: 'GET' })
-  .validator(recentActivityListDto)
-  .handler(
-    tracedHandler(
-      async ({ data }) => {
-        const headers = await headersFromContext()
-        const ctx = await resolveTenantContext(headers)
-        await requireExecutionAllowed({
-          actor: ctx,
-          action: 'inbox.read',
-          propertyId: data.propertyId,
-        })
-        try {
-          const { feedPublicApi } = getContainer()
-          return await feedPublicApi.listRecentActivity(
-            {
-              propertyId: data.propertyId ? propertyId(data.propertyId) : undefined,
-              limit: data.limit,
-              offset: data.offset,
-            },
-            ctx,
-          )
-        } catch (e) {
-          throwActivityFailure(e)
-        }
-      },
-      'GET',
-      'activity.listRecentActivity',
-    ),
-  )
 
 const operationalActionSchema = z.custom<OperationalAction>(
   (value) => typeof value === 'string' && isOperationalAction(value),

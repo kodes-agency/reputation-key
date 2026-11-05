@@ -135,11 +135,7 @@
     },
     {
       "file": "src/contexts/feed/server/activity.ts",
-      "exports": [
-        "exportOperationalActionHistoryFn",
-        "listOperationalActionHistoryFn",
-        "listRecentActivityFn"
-      ]
+      "exports": ["exportOperationalActionHistoryFn", "listOperationalActionHistoryFn"]
     },
     {
       "file": "src/contexts/reporting/server/dashboard.ts",
