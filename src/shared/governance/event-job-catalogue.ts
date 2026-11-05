@@ -95,7 +95,6 @@ function job(
 // ── Consumer modules ────────────────────────────────────────────────
 
 const ACTIVITY_OUTBOX = 'src/contexts/feed/infrastructure/activity-outbox-consumers.ts'
-const METRIC_OUTBOX = 'src/contexts/reporting/infrastructure/outbox-consumers.ts'
 const METRIC_GUEST_OUTBOX =
   'src/contexts/reporting/infrastructure/guest-outbox-consumers.ts'
 const GOAL_METRIC_CORRECTION_OUTBOX =
@@ -313,15 +312,9 @@ const PORTAL_ROWS: ReadonlyArray<EventFamilyRow> = [
     ),
     settles('notification.settle-on-portal-destination-decided'),
   ]),
-  ev('portal.content_review.completed', [
-    durable('metric.portal-workflow', METRIC_OUTBOX),
-  ]),
-  ev('portal.configuration_completeness.recorded', [
-    durable('metric.portal-workflow', METRIC_OUTBOX),
-  ]),
-  ev('portal.approved_destination_ratio.recorded', [
-    durable('metric.portal-workflow', METRIC_OUTBOX),
-  ]),
+  ev('portal.content_review.completed', []),
+  ev('portal.configuration_completeness.recorded', []),
+  ev('portal.approved_destination_ratio.recorded', []),
   ev('portal.deleted', []),
   ev('portal.token.issued', []),
   ev('portal.token.rotated', []),
