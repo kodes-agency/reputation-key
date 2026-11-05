@@ -45,6 +45,7 @@ const inboxTargets = {
 let fixture: HeldTransaction | undefined
 let client: HeldTransaction['client']
 let statementCount = 0
+const statements: Array<{ query: string; params: unknown[] }> = []
 let db: Database
 
 beforeAll(async () => {
@@ -55,7 +56,8 @@ beforeAll(async () => {
   // SAVEPOINT inside the held one.
   fixture = await holdTransaction({
     logger: {
-      logQuery() {
+      logQuery(query, params) {
+        statements.push({ query, params })
         statementCount += 1
       },
     },
@@ -307,14 +309,16 @@ describe('fleet overview projection integration', () => {
         userId: userId('fleet-projection-reader'),
         organizationWide: true,
       },
-      portalReadEnabled: true,
       goalReadEnabled: true,
-      timeRange: '30d' as const,
     }
 
     statementCount = 0
+    statements.length = 0
     const firstPage = await getFleet(input)
     const fleetStatements = statementCount
+    const listQuery = statements.find(({ query }) =>
+      query.includes('metric_current_google_reputation_snapshots'),
+    )!
     statementCount = 0
     const secondPage = await getFleet({
       ...input,
@@ -346,90 +350,70 @@ describe('fleet overview projection integration', () => {
       durationMs: expect.any(Number),
     })
 
+    const explained = await client.query(
+      `EXPLAIN (ANALYZE, BUFFERS, FORMAT JSON) ${listQuery.query}`,
+      listQuery.params,
+    )
+    type PlanNode = { 'Relation Name'?: string; Plans?: PlanNode[] }
+    const relations = (node: PlanNode): string[] => [
+      ...(node['Relation Name'] ? [node['Relation Name']] : []),
+      ...(node.Plans ?? []).flatMap(relations),
+    ]
+    const plans = explained.rows[0]!['QUERY PLAN'] as Array<{ Plan: PlanNode }>
+    const scannedRelations = plans.flatMap(({ Plan }) => relations(Plan))
+    expect(scannedRelations).toContain('properties')
+    expect(scannedRelations).not.toContain('metric_readings')
+    expect(scannedRelations).not.toContain('metric_corrections')
+
     expect(firstPage.entries[0]).toMatchObject({
-      reviewCount: 1,
-      avgRating: 4.5,
-      avgRatingComparison: null,
-      scanCount: 7,
-      reviewEvidence: {
-        definitionVersionId: METRIC_VERSION_IDS.propertyReviewDashboard,
-        freshness: 'stale',
-        completeness: 1,
-        correctionCount: 1,
-      },
-      scanEvidence: {
-        definitionVersionId: METRIC_VERSION_IDS.portalScanAnalytics,
-        freshness: 'stale',
-        completeness: 1,
-        correctionCount: 0,
-      },
       attentionSignals: {
         overdue: 1,
         itemsToTriage: 2,
         escalated: 3,
         goalsBehindPace: 1,
-        ratingDrop: false,
         needsAttention: 4,
       },
       totalAttention: 4,
     })
-    // Portal read is an organization-wide capability (WP3.3-C): the second
-    // property's scans are visible, its unseeded feedback stays empty.
-    expect(firstPage.entries[1]).toMatchObject({
-      scanCount: 9,
-      feedbackCount: 0,
-      scanEvidence: expect.objectContaining({
-        definitionVersionId: METRIC_VERSION_IDS.portalScanAnalytics,
-      }),
-      feedbackEvidence: expect.objectContaining({
-        freshness: 'insufficient_data',
-        completeness: 0,
-      }),
-    })
   }, 30_000)
 
-  it('derives each Fleet row window from that Property timezone', async () => {
+  it('keeps the list cells unchanged when historical analytics receive a correction', async () => {
     const getFleet = getFleetOverview({
       projection: createFleetOverviewProjectionAdapter(db),
-      resolveAccessiblePropertyIds: async () => null,
-      clock: () => new Date('2026-03-20T16:00:00.000Z'),
+      resolveAccessiblePropertyIds: async () => [properties[0]!.propertyId],
+      clock: () => NOW,
       inboxTargets,
     })
-
-    const result = await getFleet({
+    const input = {
       organizationId: ORG,
-      scope: {
-        userId: userId('fleet-projection-timezone-reader'),
-        organizationWide: true,
-      },
-      portalReadEnabled: true,
+      scope: { userId: userId('fleet-history-reader'), organizationWide: false },
       goalReadEnabled: true,
-      timeRange: '30d',
-    })
+    }
+    const before = await getFleet(input)
 
-    expect(result.entries[1]).toMatchObject({
-      timezone: 'America/New_York',
-      reviewCount: 1,
-      avgRating: 1,
-      reviewEvidence: {
-        periodStart: new Date('2026-02-18T17:00:00.000Z'),
-        periodEnd: new Date('2026-03-20T16:00:00.000Z'),
-        timezone: 'America/New_York',
-      },
-    })
-    expect(result.entries[2]).toMatchObject({
+    await client.query(
+      `INSERT INTO metric_corrections (
+         reading_id, source_event_id, kind, reason, actor_type, actor_id,
+         event_at, recorded_at
+       )
+       SELECT id, $2, 'retract', 'verified source correction', 'system', 'fleet-test', $3, $3
+       FROM metric_readings
+       WHERE organization_id = $1 AND source_event_id = $4`,
+      [ORG, randomUUID(), NOW, `${METRIC_SOURCE_PREFIX}-3`],
+    )
+
+    expect(await getFleet(input)).toEqual(before)
+    expect(before.entries[0]).toMatchObject({
       timezone: 'UTC',
-      reviewCount: 2,
-      avgRating: 4,
-      reviewEvidence: {
-        periodStart: new Date('2026-02-18T16:00:00.000Z'),
-        periodEnd: new Date('2026-03-20T16:00:00.000Z'),
-        timezone: 'UTC',
+      google: null,
+      ratingGoal: { kind: 'none', offered: false },
+      attentionSignals: {
+        overdue: 1,
+        itemsToTriage: 2,
+        escalated: 3,
+        goalsBehindPace: 1,
       },
-    })
-    expect(result.totals).toMatchObject({
-      ratingSampleCount: 3,
-      overallAvgRating: 3,
+      totalAttention: 4,
     })
   })
 
@@ -448,9 +432,7 @@ describe('fleet overview projection integration', () => {
         userId: userId('fleet-projection-scoped-reader'),
         organizationWide: false,
       },
-      portalReadEnabled: true,
       goalReadEnabled: true,
-      timeRange: '30d',
     })
 
     expect(result.totals.propertyCount).toBe(1)
@@ -475,9 +457,7 @@ describe('fleet overview projection integration', () => {
           userId: userId('fleet-projection-lifecycle-reader'),
           organizationWide: false,
         },
-        portalReadEnabled: true,
         goalReadEnabled: true,
-        timeRange: 'all',
       })
 
     // Every test shares the held transaction, so this case puts the two rows
@@ -502,7 +482,6 @@ describe('fleet overview projection integration', () => {
       // of it may reach the totals the Properties list summarises.
       expect(result.totals).toMatchObject({
         propertyCount: 1,
-        ratingSampleCount: only!.reviewCount,
         totalAttention: only!.totalAttention,
       })
     } finally {
@@ -553,9 +532,7 @@ describe('fleet overview projection integration', () => {
         userId: userId('fleet-projection-month-target-reader'),
         organizationWide: false,
       },
-      portalReadEnabled: true,
       goalReadEnabled: true,
-      timeRange: '30d',
     })
 
     const behindPace = new Map(
@@ -606,9 +583,7 @@ describe('fleet overview projection integration', () => {
     const firstPage = await getFleet({
       organizationId: ORG,
       scope: { userId: userId('fleet-projection-total-reader'), organizationWide: false },
-      portalReadEnabled: true,
       goalReadEnabled: true,
-      timeRange: '30d',
     })
 
     expect(firstPage.entries).toHaveLength(50)
@@ -681,9 +656,7 @@ describe('fleet overview projection integration', () => {
       getFleet({
         organizationId: ORG,
         scope: { userId: userId('fleet-projection-google'), organizationWide: false },
-        portalReadEnabled: true,
         goalReadEnabled,
-        timeRange: 'all',
       })
 
     // Act
@@ -738,9 +711,7 @@ describe('fleet overview projection integration', () => {
     const result = await getFleet({
       organizationId: ORG,
       scope: { userId: userId('fleet-projection-small-goal'), organizationWide: false },
-      portalReadEnabled: true,
       goalReadEnabled: true,
-      timeRange: '30d',
     })
 
     expect(
@@ -777,9 +748,7 @@ describe('fleet overview projection integration', () => {
       getFleet({
         organizationId: ORG,
         scope: { userId: userId('fleet-projection-goal-gate'), organizationWide: false },
-        portalReadEnabled: true,
         goalReadEnabled,
-        timeRange: '30d',
       })
 
     const without = await read(false)

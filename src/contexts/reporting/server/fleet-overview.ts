@@ -12,16 +12,12 @@ import { resolveTenantContext } from '#/shared/auth/middleware'
 import { throwContextError, catchUntagged } from '#/shared/auth/server-errors'
 
 import { requireExecutionAllowed } from '#/shared/auth/execution-policy'
-import { timeRangePreset } from '../application/dto/dashboard.dto'
 import { isDashboardError } from '../domain/dashboard-errors'
 import { scopeForPermission } from '#/shared/domain/permissions'
 import { checkScopedCapability } from '#/shared/auth/beta-capabilities'
 import { dashboardErrorStatus as fleetOverviewErrorStatus } from './dashboard-error-status'
 
-/** Local error constructor — server must not import domain error constructors. */
-
 const getFleetOverviewDto = z.object({
-  timeRange: timeRangePreset.default('30d'),
   cursor: z.string().min(1).max(512).optional(),
 })
 
@@ -33,10 +29,8 @@ export const getFleetOverviewFn = createServerFn({ method: 'GET' })
         try {
           const headers = await headersFromContext()
           const ctx = await resolveTenantContext(headers)
-          // §9: the fleet route guard (_authenticated/dashboard.tsx) requires
-          // dashboard.fleet_read (PM+); the server fn must match so Member
-          // (which holds dashboard.read but not fleet_read) cannot reach the
-          // RPC directly and read cross-property reply-derived aggregates.
+          // Fleet attention includes Inbox work, so a reader needs both the
+          // dashboard and fleet permissions before any cross-Property read.
           await requireExecutionAllowed({ actor: ctx, action: 'dashboard.read' })
           await requireExecutionAllowed({ actor: ctx, action: 'dashboard.fleet_read' })
 
@@ -50,10 +44,7 @@ export const getFleetOverviewFn = createServerFn({ method: 'GET' })
               organizationWide:
                 scopeForPermission(ctx, 'dashboard.fleet_read') === 'organization',
             },
-            portalReadEnabled: checkScopedCapability(capabilityScope, 'portal.read')
-              .allowed,
             goalReadEnabled: checkScopedCapability(capabilityScope, 'goal.use').allowed,
-            timeRange: data.timeRange,
             cursor: data.cursor,
           })
         } catch (e) {

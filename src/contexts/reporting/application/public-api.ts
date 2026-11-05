@@ -105,7 +105,6 @@ export type {
   AttentionSignals,
   FleetEntry,
   FleetOverviewData,
-  FleetMetricEvidence,
   FleetRatingGoal,
   FleetTotals,
 } from '../domain/dashboard-types'
