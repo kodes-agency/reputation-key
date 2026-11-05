@@ -101,9 +101,10 @@ export function validateCiImagePipeline(
   const scanRows = pipelineScanRows(scan)
   const buildStep = buildSteps.find(({ name }) => name === 'Build images')
   const buildsFromRows =
-    /uses: docker\/setup-buildx-action@[0-9a-f]{40}\b/u.test(build) &&
     buildStep?.content.includes('docker buildx build') === true &&
-    buildStep.content.includes('--output "type=docker,dest=images/${name}.tar"') &&
+    buildStep.content.includes('--load') &&
+    buildStep.content.includes('docker save "${tags[@]}"') &&
+    buildStep.content.includes('images/${name}.tar.zst') &&
     buildStep.content.includes('build_flags+=(-t "$tag")') &&
     buildStep.content.includes('-f "$dockerfile"')
 

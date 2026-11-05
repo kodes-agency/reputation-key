@@ -136,16 +136,17 @@ describe('the replacement pipeline beside the original', () => {
     expect(job('unit')).toContain('--shard=${{ matrix.shard }}/4')
     expect(job('integration')).toMatch(/shard: \[1, 2\]/u)
     expect(job('integration')).toContain('--shard=${{ matrix.shard }}/2')
-    expect(job('browser')).toMatch(/shard: \[1, 2, 3, 4, 5\]/u)
-    expect(job('browser')).toContain('--shard=${{ matrix.shard }}/5')
+    expect(job('browser')).toMatch(/shard: \[1, 2, 3, 4, 5, 6\]/u)
+    expect(job('browser')).toContain('--shard=${{ matrix.shard }}/6')
   })
 
-  it('runs the full suite and the compatibility viewport once, on one shard', () => {
+  it('runs the full suite and the compatibility viewport once each, on the lightest shards', () => {
     const browser = job('browser')
 
     expect(browser.match(/--project=full/gu)).toHaveLength(1)
     expect(browser.match(/--project=compat-mobile-android/gu)).toHaveLength(1)
-    expect(browser.match(/if: matrix\.shard == 2/gu)).toHaveLength(2)
+    expect(browser).toMatch(/id: e2e_full\n {8}if: matrix\.shard == 1\n/u)
+    expect(browser).toMatch(/id: e2e_compatibility\n {8}if: matrix\.shard == 3\n/u)
   })
 
   it('leaves Firefox and WebKit to the weekly workflow, which runs all four projects', () => {

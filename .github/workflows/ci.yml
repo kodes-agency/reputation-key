@@ -1433,7 +1433,9 @@ jobs:
   # Dockerfile, so the `web` row builds it once and tags it twice. Each row
   # leaves its images as compressed archives; the scan job and the browser
   # shards load them, so what is smoked, scanned, staged and exercised by the
-  # e2e stacks is one set of bytes. No layer cache is used: the one the image
+  # e2e stacks is one set of bytes. The runner's own Docker builds them: a
+  # builder container cost about 50 s to start and stop on the path every
+  # browser shard waits for, and no layer cache is used. The one the image
   # groups above asked for never reached their builds (their logs show no cache
   # import or export), and a cached dependency layer costs about what
   # `pnpm install` does.
@@ -1454,8 +1456,6 @@ jobs:
 
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
 
       - name: Build images
         env:
@@ -1493,13 +1493,14 @@ jobs:
               fi
             fi
             docker buildx build \
-              --output "type=docker,dest=images/${name}.tar" \
+              --load \
               --provenance=false \
               --sbom=false \
               "${build_flags[@]}" \
               -f "$dockerfile" \
               .
-            zstd -T0 -3 --rm --quiet "images/${name}.tar"
+            mapfile -t tags < <(jq -r '.tags[]' <<<"$image")
+            docker save "${tags[@]}" | zstd -T0 -3 --quiet -o "images/${name}.tar.zst"
           done < <(jq -c '.[]' <<<"$IMAGE_BUILD_JSON")
 
       - name: Upload images
@@ -1841,18 +1842,18 @@ jobs:
   # now takes a minute rather than two and a half because nothing is built in
   # it. The compose file names its images by SOURCE_REVISION, so the loaded
   # archives are tagged with that name and E2E_STACK_PREBUILT makes the stack
-  # run them or fail. Measured critical seconds per shard, with 5 shards:
-  # 155, 41, 112, 170, 131; shard 2 takes the full suite and the Android
-  # compatibility viewport (69 s and 11 s).
+  # run them or fail. Measured critical seconds per shard, with 6 shards: 56,
+  # 86, 57, 122, 139, 134. The full suite (85 s) rides the lightest, shard 1,
+  # and the Android compatibility viewport (17 s) the next, shard 3.
   browser:
-    name: browser (${{ matrix.shard }}/5)
+    name: browser (${{ matrix.shard }}/6)
     needs: [image-build]
     runs-on: ubuntu-latest
     timeout-minutes: 25 # longest green run ~7 min
     strategy:
       fail-fast: false
       matrix:
-        shard: [1, 2, 3, 4, 5]
+        shard: [1, 2, 3, 4, 5, 6]
 
     env:
       CI: '1'
@@ -1925,7 +1926,7 @@ jobs:
         id: e2e_critical
         env:
           PLAYWRIGHT_JSON_OUTPUT_NAME: test-results/e2e-critical-report.json
-        run: pnpm test:e2e --project=critical --shard=${{ matrix.shard }}/5 --max-failures=1 ${{ github.event_name == 'push' && '--fail-on-flaky-tests' || '' }}
+        run: pnpm test:e2e --project=critical --shard=${{ matrix.shard }}/6 --max-failures=1 ${{ github.event_name == 'push' && '--fail-on-flaky-tests' || '' }}
       # Stop scheduling critical journeys after the first failure, but preserve
       # that attempt's trace even when the configured retry succeeds. This
       # upload runs before the full suite clears Playwright's outputDir.
@@ -1939,7 +1940,7 @@ jobs:
           retention-days: 7
       - name: Run full e2e suite (hard gate)
         id: e2e_full
-        if: matrix.shard == 2
+        if: matrix.shard == 1
         env:
           PLAYWRIGHT_JSON_OUTPUT_NAME: test-results/e2e-full-report.json
         run: pnpm test:e2e --project=full ${{ github.event_name == 'push' && '--fail-on-flaky-tests' || '' }}
@@ -1953,7 +1954,7 @@ jobs:
           retention-days: 7
       - name: Run mobile compatibility gate (Chromium, Android viewport)
         id: e2e_compatibility
-        if: matrix.shard == 2
+        if: matrix.shard == 3
         env:
           PLAYWRIGHT_JSON_OUTPUT_NAME: test-results/e2e-compatibility-report.json
         run: pnpm test:e2e --project=compat-mobile-android ${{ github.event_name == 'push' && '--fail-on-flaky-tests' || '' }}
