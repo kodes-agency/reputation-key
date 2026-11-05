@@ -1,10 +1,4 @@
-// What a provider is sent in the evaluation and how its answer is accepted
-// (contract section 8): the production prompt, the production answer schema,
-// the production source canonicalizer, redaction and request payload, and the
-// production acceptance point, so the evaluation measures what the live path
-// would do. Only the transport differs. A provider here is anything that turns a request into an
-// answer: a fake in tests and CI, a file of recorded answers, and later the real
-// providers, which this module never calls and cannot reach.
+// Prepare offline scoring evidence and accept answers through production rules.
 
 import { performance } from 'node:perf_hooks'
 import { acceptReviewAnalysisV3Answer } from '#/shared/ai-provider-control/review-evidence-request'
@@ -33,7 +27,7 @@ export const EVALUATION_REDACTION_COUNTRY = 'US'
 
 type ProviderPayload = ReturnType<typeof buildReviewAnalysisV3ProviderPayload>
 
-/** Everything a real provider adapter needs to ask the production question. */
+/** The production question used by the offline fixtures. */
 export type EvaluationRequest = Readonly<{
   itemId: string
   developerPrompt: string
@@ -44,23 +38,16 @@ export type EvaluationRequest = Readonly<{
 
 export type EvaluationUsage = Readonly<{ inputTokens: number; outputTokens: number }>
 
-export type EvaluationOutcome =
-  | Readonly<{
-      status: 'answered'
-      /** The provider's own answer, untrusted: the production normalizer decides. */
-      answer: unknown
-      latencyMillis?: number
-      usage?: EvaluationUsage
-    }>
-  | Readonly<{
-      status: 'refused' | 'truncated' | 'failed'
-      latencyMillis?: number
-      usage?: EvaluationUsage
-    }>
+export type EvaluationOutcome = Readonly<
+  (
+    | { status: 'answered'; answer: unknown }
+    | { status: 'refused' | 'truncated' | 'failed' }
+  ) & { latencyMillis?: number; usage?: EvaluationUsage }
+>
 
 export type EvaluationProvider = Readonly<{
   id: string
-  /** The exact model snapshot (decision 4 of the contract); a fake names itself. */
+  /** Identifies the gold echo or recorded answer set in reports. */
   model: string
   analyze: (request: EvaluationRequest) => Promise<EvaluationOutcome>
 }>
@@ -83,10 +70,6 @@ export type PreparedEvaluationItem =
       itemId: string
       reason: string
     }>
-
-function languageTagOf(language: string): string {
-  return language === 'mixed' ? 'und' : language
-}
 
 /** The reviews a Property holds carry a date; the evaluation never reads it. */
 const NO_REVIEW_DATE = 0
@@ -123,7 +106,7 @@ export function prepareEvaluationItem(
   item: EvaluationItem,
   options: Readonly<{ redactionCountry?: string }> = {},
 ): PreparedEvaluationItem {
-  const languageCode = languageTagOf(item.language)
+  const languageCode = item.language === 'mixed' ? 'und' : item.language
   const sentences = canonicalSentencesOf(item, languageCode)
   if (sentences === null) {
     return Object.freeze({

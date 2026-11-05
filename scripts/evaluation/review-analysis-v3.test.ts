@@ -229,6 +229,24 @@ describe('the fake provider that answers with the gold', () => {
     expect(provider.instability).toMatchObject({ items: 419, differentLabels: 0 })
     expect(files.has(join(OUT, 'labels-fake-gold-run2.jsonl'))).toBe(true)
   })
+
+  it('scores recorded gold answers identically to gold echo', async () => {
+    const { io, files } = harness({
+      'recorded.jsonl': answersFile((gold) => gold),
+    })
+
+    const code = await runEvaluationCli(
+      ['--providers', 'fake-gold,answers:recorded.jsonl', '--out', OUT],
+      io,
+    )
+
+    const [echo, replay] = reportOf(files).providers
+    expect(code).toBe(0)
+    expect(replay.runs).toEqual(echo.runs)
+    expect(files.get(join(OUT, 'labels-answers-recorded.jsonl-run1.jsonl'))).toBe(
+      files.get(join(OUT, 'labels-fake-gold-run1.jsonl')),
+    )
+  })
 })
 
 describe('a provider that gets Urgent wrong', () => {
@@ -330,14 +348,16 @@ describe('a provider that gets topics wrong', () => {
 
 describe('what the command refuses', () => {
   it.each(['openai', 'anthropic'])(
-    'does not run %s, which is declared and not wired',
+    'rejects %s as an unsupported offline input',
     async (name) => {
       const { io, files, errors } = harness()
 
       const code = await runEvaluationCli(['--providers', name, '--out', OUT], io)
 
       expect(code).toBe(2)
-      expect(errors.join('')).toContain(`${name} is not wired into this command`)
+      expect(errors.join('')).toContain(
+        `unknown provider '${name}'. Use fake-gold or answers:<file>.`,
+      )
       expect(files.has(join(OUT, 'report.json'))).toBe(false)
     },
   )
@@ -473,14 +493,21 @@ describe('the harness cannot reach a provider', () => {
         [name, readFileSync(join(ROOT, 'scripts/evaluation', name), 'utf8')] as const,
     )
 
-  it('makes no network call when it runs', async () => {
-    const fetchSpy = vi.spyOn(globalThis, 'fetch')
-    const { io } = harness()
+  it.each(['fake-gold', 'answers:recorded.jsonl'])(
+    'makes no network call when it runs %s',
+    async (provider) => {
+      const fetchSpy = vi.spyOn(globalThis, 'fetch')
+      const { io } = harness({ 'recorded.jsonl': answersFile((gold) => gold) })
 
-    await runEvaluationCli(['--runs', '2', '--out', OUT], io)
+      const code = await runEvaluationCli(
+        ['--providers', provider, '--runs', '2', '--out', OUT],
+        io,
+      )
 
-    expect(fetchSpy).not.toHaveBeenCalled()
-  })
+      expect(code).toBe(0)
+      expect(fetchSpy).not.toHaveBeenCalled()
+    },
+  )
 
   it.each([
     'fetch(',
