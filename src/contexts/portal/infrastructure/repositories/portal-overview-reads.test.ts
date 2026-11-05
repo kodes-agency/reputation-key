@@ -23,13 +23,19 @@ import { portalGroups } from '#/shared/db/schema/portal-group.schema'
 import { buildTestAuthContext } from '#/shared/testing/fixtures'
 import { listPortalOverview } from '../../application/use-cases/list-portal-overview'
 import { createPortalRepository } from './portal.repository'
-import { createPortalGroupTestRepository } from './portal-group-test.repository'
+import { createPortalGroupRepository } from './portal-group.repository'
 import { createPortalHealthRepository } from './portal-health.repository'
 import { createPortalPublicationRepository } from './portal-publication.repository'
 import { createPortalResponsibleManagerRepository } from './portal-responsible-manager.repository'
 import { createPortalTokenRepository } from './portal-token.repository'
 import { createPortalLookRepository } from './portal-look.repository'
 import { issueToken, rotateToken } from '../../domain/portal-token'
+import { portalGroupToRow } from '../mappers/portal-group.mapper'
+import {
+  seedPortalToken,
+  seedPortalGroupMembership,
+  seedPortalHealthInterval,
+} from '../testing/portal-read-fixtures'
 
 const ORG = organizationId('org-portal-overview-reads')
 const ORG_OTHER = organizationId('org-portal-overview-other')
@@ -114,7 +120,7 @@ beforeEach(async () => {
 })
 
 async function seedGroups() {
-  const repo = createPortalGroupTestRepository(getDb())
+  const repo = createPortalGroupRepository(getDb())
   const group = (id: typeof GROUP, org: typeof ORG, property: typeof PROPERTY) => ({
     id,
     organizationId: org,
@@ -126,13 +132,29 @@ async function seedGroups() {
     updatedAt: START,
     deletedAt: null,
   })
-  await repo.insert(ORG, group(GROUP, ORG, PROPERTY))
-  await repo.insert(ORG, group(GROUP_FORMER, ORG, PROPERTY))
-  await repo.insert(ORG_OTHER, group(GROUP_OTHER, ORG_OTHER, PROPERTY_OTHER))
-  await repo.seedMembership(ORG, GROUP, FULL, START, 'owner')
-  await repo.seedMembership(ORG, GROUP_FORMER, FORMER, START, 'owner')
-  await repo.removePortal(ORG, GROUP_FORMER, FORMER, LATER, 'moved')
-  await repo.seedMembership(ORG_OTHER, GROUP_OTHER, OTHER_TENANT_PORTAL, START, 'owner')
+  await getDb()
+    .insert(portalGroups)
+    .values(portalGroupToRow(group(GROUP, ORG, PROPERTY)))
+  await getDb()
+    .insert(portalGroups)
+    .values(portalGroupToRow(group(GROUP_FORMER, ORG, PROPERTY)))
+  await getDb()
+    .insert(portalGroups)
+    .values(portalGroupToRow(group(GROUP_OTHER, ORG_OTHER, PROPERTY_OTHER)))
+  await seedPortalGroupMembership(getDb(), ORG, GROUP, FULL, START, 'owner')
+  await seedPortalGroupMembership(getDb(), ORG, GROUP_FORMER, FORMER, START, 'owner')
+  await pool.query(
+    'UPDATE portal_group_memberships SET effective_to = $4, end_reason = $5 WHERE organization_id = $1 AND portal_group_id = $2 AND portal_id = $3 AND effective_to IS NULL',
+    [ORG, GROUP_FORMER, FORMER, LATER, 'moved'],
+  )
+  await seedPortalGroupMembership(
+    getDb(),
+    ORG_OTHER,
+    GROUP_OTHER,
+    OTHER_TENANT_PORTAL,
+    START,
+    'owner',
+  )
   return repo
 }
 
@@ -200,7 +222,7 @@ describe('portal group repository — listGroupsForPortals', () => {
 })
 
 describe('portal health repository — listCurrentForPortals', () => {
-  const transition = (
+  const seedHealth = (
     pid: PortalId,
     org: typeof ORG,
     property: typeof PROPERTY,
@@ -209,42 +231,45 @@ describe('portal health repository — listCurrentForPortals', () => {
       reason: 'operational' | 'publication_draft' | 'responsibility_needed'
     }>,
     at: Date,
+    effectiveTo: Date | null = null,
   ) =>
-    createPortalHealthRepository(getDb()).transition({
+    seedPortalHealthInterval(getDb(), {
       id: crypto.randomUUID(),
       organizationId: org,
       propertyId: property,
       portalId: pid,
       health,
       sourceVersion: at.toISOString(),
-      effectiveAt: at,
+      effectiveFrom: at,
+      effectiveTo,
       observedAt: at,
     })
 
   it('answers with the current interval of each Portal, matching the single read', async () => {
     const repo = createPortalHealthRepository(getDb())
-    await transition(
+    await seedHealth(
       FULL,
       ORG,
       PROPERTY,
       { status: 'degraded', reason: 'responsibility_needed' },
       START,
+      LATER,
     )
-    await transition(
+    await seedHealth(
       FULL,
       ORG,
       PROPERTY,
       { status: 'healthy', reason: 'operational' },
       LATER,
     )
-    await transition(
+    await seedHealth(
       BARE,
       ORG,
       PROPERTY,
       { status: 'unavailable', reason: 'publication_draft' },
       START,
     )
-    await transition(
+    await seedHealth(
       OTHER_TENANT_PORTAL,
       ORG_OTHER,
       PROPERTY_OTHER,
@@ -382,7 +407,7 @@ describe('portal token repository — findResolvableSummariesForPortals', () => 
   it('summarises the live token of each Portal, matching the single read', async () => {
     const repo = createPortalTokenRepository(getDb())
     const current = token('ee000000-0000-4000-8000-000000000041', ORG, PROPERTY, FULL, 1)
-    await repo.insert(current)
+    await seedPortalToken(getDb(), current)
     const rotation = rotateToken(
       current,
       {
@@ -396,7 +421,8 @@ describe('portal token repository — findResolvableSummariesForPortals', () => 
       START,
     )
     if (!('oldToken' in rotation)) throw new Error('rotation failed')
-    await repo.saveRotation(rotation)
+    await seedPortalToken(getDb(), rotation.oldToken)
+    await seedPortalToken(getDb(), rotation.newToken)
     const revoked = token(
       'ee000000-0000-4000-8000-000000000043',
       ORG,
@@ -404,15 +430,13 @@ describe('portal token repository — findResolvableSummariesForPortals', () => 
       FORMER,
       1,
     )
-    await repo.insert(revoked)
-    await repo.revokeForPortal({
-      organizationId: ORG,
-      portalId: FORMER,
-      revokedBy: 'owner',
-      reason: 'leaked',
-      at: LATER,
-    })
-    await repo.insert(
+    await seedPortalToken(getDb(), revoked)
+    await pool.query(
+      "UPDATE portal_tokens SET status = 'revoked', grace_period_ends = NULL WHERE organization_id = $1 AND portal_id = $2",
+      [ORG, FORMER],
+    )
+    await seedPortalToken(
+      getDb(),
       token(
         'ee000000-0000-4000-8000-000000000044',
         ORG_OTHER,
@@ -447,7 +471,7 @@ describe('portal token repository — findResolvableSummariesForPortals', () => 
         pid,
         1,
       )
-      await repo.insert(old)
+      await seedPortalToken(getDb(), old)
       const rotation = rotateToken(
         old,
         {
@@ -461,11 +485,13 @@ describe('portal token repository — findResolvableSummariesForPortals', () => 
         START,
       )
       if (!('oldToken' in rotation)) throw new Error('rotation failed')
-      await repo.saveRotation(rotation)
+      await seedPortalToken(getDb(), rotation.oldToken)
+      await seedPortalToken(getDb(), rotation.newToken)
     }
     await rotate(FULL, '1', 60_000)
     await rotate(BARE, '2', 120_000)
-    await repo.insert(
+    await seedPortalToken(
+      getDb(),
       token('ee000000-0000-4000-8000-000000000153', ORG, PROPERTY, FORMER, 1),
     )
 
@@ -493,8 +519,8 @@ describe('portal token repository — findResolvableSummariesForPortals', () => 
     const repo = createPortalTokenRepository(getDb())
     const full = token('ee000000-0000-4000-8000-000000000061', ORG, PROPERTY, FULL, 1)
     const bare = token('ee000000-0000-4000-8000-000000000062', ORG, PROPERTY, BARE, 1)
-    await repo.insert(full)
-    await repo.insert(bare)
+    await seedPortalToken(getDb(), full)
+    await seedPortalToken(getDb(), bare)
     const artifact = (
       id: string,
       pid: PortalId,
@@ -557,7 +583,7 @@ describe('portal token repository — findResolvableSummariesForPortals', () => 
       START,
     )
     if (!('oldToken' in rotation)) throw new Error('rotation failed')
-    await repo.insert(rotation.oldToken)
+    await seedPortalToken(getDb(), rotation.oldToken)
 
     await expect(
       repo.findResolvableSummariesForPortals(ORG, [FULL], START),
@@ -583,15 +609,14 @@ describe('listPortalOverview over the real repositories', () => {
     const db = getDb()
     const portalGroupRepo = await seedGroups()
     const portalTokenRepo = createPortalTokenRepository(db)
-    const healthRepo = createPortalHealthRepository(db)
-    await healthRepo.transition({
+    await seedPortalHealthInterval(getDb(), {
       id: crypto.randomUUID(),
       organizationId: ORG,
       propertyId: PROPERTY,
       portalId: FULL,
       health: { status: 'degraded', reason: 'responsibility_needed' },
       sourceVersion: 'v1',
-      effectiveAt: START,
+      effectiveFrom: START,
       observedAt: START,
     })
     await pool.query(
@@ -606,7 +631,8 @@ describe('listPortalOverview over the real repositories', () => {
        VALUES ($1, $2, $3, 'user-a', $4, 'owner')`,
       [ORG, PROPERTY, FULL, START],
     )
-    await portalTokenRepo.insert(
+    await seedPortalToken(
+      getDb(),
       issueToken({
         id: 'ee000000-0000-4000-8000-000000000051',
         organizationId: ORG,
@@ -631,7 +657,7 @@ describe('listPortalOverview over the real repositories', () => {
     )
     const useCase = listPortalOverview({
       portalRepo: createPortalRepository(db),
-      portalHealthRepo: healthRepo,
+      portalHealthRepo: createPortalHealthRepository(db),
       publicationRepo: createPortalPublicationRepository(db),
       portalGroupRepo,
       managerRepo: createPortalResponsibleManagerRepository(db),

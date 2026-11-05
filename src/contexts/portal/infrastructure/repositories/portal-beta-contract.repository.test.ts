@@ -11,6 +11,7 @@ import {
   userId,
 } from '#/shared/domain/ids'
 import { validatePortalDestinationUri } from '../../domain/approved-destination'
+import { seedPortalHealthInterval } from '../testing/portal-read-fixtures'
 import { createPortalApprovedDestinationRepository } from './portal-approved-destination.repository'
 import { createPortalExperienceRepository } from './portal-experience.repository'
 import { createPortalHealthRepository } from './portal-health.repository'
@@ -476,42 +477,28 @@ describe.sequential('Portal beta contract repositories (real PostgreSQL)', () =>
     expect(saved).toMatchObject({ title: 'Front desk', linktreeTitle: 'Around town' })
   })
 
-  it('keeps one current effective-dated Health interval with bounded history', async () => {
+  it('reads the current effective-dated Health interval with bounded history', async () => {
     const repo = createPortalHealthRepository(getDb())
-    await repo.transition({
+    const healthyAt = new Date(NOW.getTime() + 10_000)
+    await seedPortalHealthInterval(getDb(), {
       id: 'fa700000-0000-4000-8000-000000000001',
       organizationId: ORG_A,
       propertyId: PROPERTY_A,
       portalId: PORTAL_A,
       health: { status: 'unavailable', reason: 'publication_draft' },
       sourceVersion: 'draft-1',
-      effectiveAt: NOW,
+      effectiveFrom: NOW,
+      effectiveTo: healthyAt,
       observedAt: NOW,
     })
-    const healthyAt = new Date(NOW.getTime() + 10_000)
-    await repo.transition({
+    await seedPortalHealthInterval(getDb(), {
       id: 'fa700000-0000-4000-8000-000000000002',
       organizationId: ORG_A,
       propertyId: PROPERTY_A,
       portalId: PORTAL_A,
       health: { status: 'healthy', reason: 'operational' },
       sourceVersion: 'published-2',
-      effectiveAt: healthyAt,
-      observedAt: healthyAt,
-    })
-    const repeated = await repo.transition({
-      id: 'fa700000-0000-4000-8000-000000000003',
-      organizationId: ORG_A,
-      propertyId: PROPERTY_A,
-      portalId: PORTAL_A,
-      health: { status: 'healthy', reason: 'operational' },
-      sourceVersion: 'published-replayed',
-      effectiveAt: new Date(NOW.getTime() + 5_000),
-      observedAt: new Date(NOW.getTime() + 5_000),
-    })
-    expect(repeated).toMatchObject({
-      status: 'healthy',
-      reason: 'operational',
+      effectiveFrom: healthyAt,
       observedAt: healthyAt,
     })
     const history = await repo.listHistory(ORG_A, PROPERTY_A, PORTAL_A, 25)

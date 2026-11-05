@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 import type { StaffPublicApi } from '#/contexts/identity/application/public-api'
-import type { PortalTokenRepository } from '../ports/portal-token.repository'
+import type { MutablePortalTokenRepository as PortalTokenRepository } from '#/shared/testing/mutable-portal-repositories'
 import { createRecordedOutbox } from '#/shared/testing/recorded-outbox'
 import { createInMemoryPortalRepo } from '#/shared/testing/in-memory-portal-repo'
 import { createInMemoryPortalCommandStore } from '#/shared/testing/in-memory-portal-command-store'

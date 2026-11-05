@@ -36,31 +36,10 @@ export type PortalLinkRepository = Readonly<{
     portalId: PortalId,
     primaryLocale: GuestLocale,
   ) => Promise<ReadonlyArray<ResolvedPortalLinkText>>
-  insertCategory: (orgId: OrganizationId, cat: PortalLinkCategory) => Promise<void>
-  insertLink: (orgId: OrganizationId, link: PortalLink) => Promise<void>
-  updateLink: (
-    orgId: OrganizationId,
-    portalId: PortalId,
-    id: PortalLinkId,
-    // Never the legacy `label`: a link's wording is its texts.
-    patch: Readonly<Partial<Omit<PortalLink, 'label'>>>,
-  ) => Promise<void>
-  deleteLink: (
-    orgId: OrganizationId,
-    portalId: PortalId,
-    id: PortalLinkId,
-  ) => Promise<void>
-  reorderLinks: (
-    orgId: OrganizationId,
-    portalId: PortalId,
-    categoryId: PortalLinkCategoryId,
-    updates: ReadonlyArray<{ id: PortalLinkId; sortKey: string }>,
-  ) => Promise<void>
   findCategoryById: (
     orgId: OrganizationId,
     id: PortalLinkCategoryId,
   ) => Promise<PortalLinkCategory | null>
-  findLinkById: (orgId: OrganizationId, id: PortalLinkId) => Promise<PortalLink | null>
   /** Child state and its parent revision from one database snapshot. */
   findLinkCommandTarget: (
     orgId: OrganizationId,

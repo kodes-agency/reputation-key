@@ -271,13 +271,6 @@ export const TENANT_PREDICATE_EXEMPTIONS: readonly TenantPredicateExemption[] = 
     category: 'LEGITIMATE-GLOBAL',
   },
   {
-    file: 'src/contexts/portal/infrastructure/repositories/portal-token.repository.ts',
-    symbol: 'findResolvableByDigest',
-    reason:
-      'The public Portal token digest is the capability presented before tenant identity is known, so the lookup derives scope from the token row.',
-    category: 'PUBLIC-TOKEN',
-  },
-  {
     file: 'src/contexts/property/infrastructure/property-erase-command-store.ts',
     symbol: 'nextAdvanceable',
     reason:
@@ -647,13 +640,6 @@ export const TENANT_PREDICATE_EXEMPTIONS: readonly TenantPredicateExemption[] = 
     reason:
       'Returns only the Organization, Property and Portal that own a link id; the Portal server functions pass it to requirePortalResourceScope or requireMatchingPortalResourceScopes, which answer not found for any Organization but the caller.',
     category: 'OWNER-LOOKUP',
-  },
-  {
-    file: 'src/contexts/portal/infrastructure/repositories/portal-token.repository.ts',
-    symbol: 'listAccessArtifactReadinessGaps',
-    reason:
-      'No production code calls this port method; only its repository test does, with an Organization. It inventories resolvable tokens that have no published access artifact and returns identifiers, versions and instants, no content. The Organization filter is optional, so without one it lists the gaps of every tenant.',
-    category: 'LEGITIMATE-GLOBAL',
   },
   {
     file: 'src/contexts/portal/infrastructure/repositories/portal.repository.ts',

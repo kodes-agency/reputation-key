@@ -209,7 +209,7 @@ export const buildPortalContext = (deps: PortalContextDeps) => {
   const portalRepo = createPortalRepository(deps.db)
   const listCurrentPortalIds = createCurrentPortalIdReader(deps.db)
   const portalCommandStore = createAtomicPortalCommandStore(deps.db)
-  const portalLinkRepo = createPortalLinkRepository(deps.db, deps.clock)
+  const portalLinkRepo = createPortalLinkRepository(deps.db)
   const portalGroupRepo = createPortalGroupRepository(deps.db)
   const portalGroupHistoryRepo = createPortalGroupHistoryRepository(deps.db)
   const portalHistoryRepo = createPortalHistoryRepository(deps.db, deps.logger)
