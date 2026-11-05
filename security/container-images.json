@@ -35,14 +35,6 @@
       "classification": "acceptance-test-support",
       "promotion": "ci-only",
       "purpose": "Deterministic provider simulator used by local beta and acceptance stacks; never promoted to a customer Data Cell."
-    },
-    {
-      "id": "perf-runner",
-      "dockerfile": "Dockerfile.perf-runner",
-      "ciImage": "repkey-perf-runner:ci",
-      "classification": "acceptance-operator-tool",
-      "promotion": "ci-only",
-      "purpose": "Inert private-network load and fault runner invoked only by a named operator; never promoted as a serving release image."
     }
   ]
 }

@@ -507,9 +507,8 @@ treat the static-rule total as the whole sweep.
   (`.github/workflows/ci.yml`).
 - **Release evidence**: evidence packs live under `docs/release-evidence/` and are
   git-retained (permanent, reviewable history). The only committed pack is
-  `docs/release-evidence/cnv-01/`; there is no `beta/` folder. `pnpm perf:evidence`
-  creates `docs/release-evidence/beta/<release-id>/` when a scale and recovery pack
-  is made, and that pack is committed like the others.
+  `docs/release-evidence/cnv-01/`; there is no `beta/` folder, and nothing
+  generates scale and recovery packs any more.
 - **Operational Redis keys**: alert firing-state 24h TTL (re-notify window),
   one global content-free Guest observation-loss hash whose stale five-minute
   bucket fields are pruned on every access and whose key has a refreshed

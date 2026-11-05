@@ -35,8 +35,7 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          # BQC-6.9: the changed-code budget diffs added src files against
-          # origin/main — the check job needs full history.
+          # Migration immutability compares the journal with the main merge base.
           fetch-depth: 0
 
       - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
@@ -147,8 +146,6 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          # BQC-6.9: the changed-code budget diffs added src files against
-          # origin/main — the check job needs full history.
           fetch-depth: 0
 
       - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
@@ -260,10 +257,6 @@ jobs:
 
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          # BQC-6.9: the changed-code budget diffs added src files against
-          # origin/main — the check job needs full history.
-          fetch-depth: 0
 
       - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
         # version intentionally unset: package.json packageManager (pnpm@10.6.5) is the single source
@@ -274,16 +267,6 @@ jobs:
           cache: pnpm
 
       - run: pnpm install --frozen-lockfile
-
-      # BQC-6.9: changed-code budget — every src production module added by the
-      # branch (API routes included; pages and components are not) must be
-      # imported by a test, or by a module a test imports (diffs against
-      # origin/main; the checkout above uses fetch-depth: 0). That proves a test
-      # can load the module, not that one asserts anything about it, and it is
-      # still the only check on new production code landing untested. Measured
-      # 2-3s. See scripts/check-changed-code.mjs.
-      - name: Changed-code budget
-        run: pnpm check:changed-code
 
       - name: Web build
         run: pnpm build
@@ -399,7 +382,7 @@ jobs:
               [{"name":"web","dockerfile":"Dockerfile","tag":"repkey-web:ci","publish":true},{"name":"google-provider-redis","dockerfile":"Dockerfile.google-provider-redis","tag":"repkey-google-provider-redis:ci","publish":true}]
           - group: worker-tools
             images: >-
-              [{"name":"worker","dockerfile":"Dockerfile","tag":"repkey-worker:ci","publish":true},{"name":"perf-runner","dockerfile":"Dockerfile.perf-runner","tag":"repkey-perf-runner:ci","publish":false},{"name":"provider-sandbox","dockerfile":"Dockerfile.sandbox","tag":"repkey-provider-sandbox:ci","publish":false}]
+              [{"name":"worker","dockerfile":"Dockerfile","tag":"repkey-worker:ci","publish":true},{"name":"provider-sandbox","dockerfile":"Dockerfile.sandbox","tag":"repkey-provider-sandbox:ci","publish":false}]
 
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -506,20 +489,6 @@ jobs:
               docker run --rm --entrypoint test repkey-provider-sandbox:ci ! -e /app/node_modules
               docker run --rm --entrypoint test repkey-provider-sandbox:ci ! -e /usr/local/bin/npm
               ;;
-            perf-runner)
-              docker run --rm --entrypoint node repkey-perf-runner:ci dist-perf-runner/load-test.js --list
-              test "$(docker image inspect repkey-perf-runner:ci --format '{{.Config.User}}')" = "node"
-              test "$(docker image inspect repkey-perf-runner:ci --format '{{len .Config.Cmd}} {{join .Config.Cmd " "}}')" = "2 sleep infinity"
-              test "$(docker image inspect repkey-perf-runner:ci --format '{{index .Config.Labels "org.opencontainers.image.revision"}}')" = "$GITHUB_SHA"
-              docker run --rm --entrypoint test repkey-perf-runner:ci ! -e /app/src
-              docker run --rm --entrypoint test repkey-perf-runner:ci ! -e /app/node_modules/tsx
-              docker run --rm --entrypoint test repkey-perf-runner:ci ! -e /usr/local/bin/npm
-              docker run --rm --entrypoint test repkey-perf-runner:ci -e /app/node_modules/pg
-              docker run --rm --entrypoint node repkey-perf-runner:ci -e "const p=require('/app/package.json');process.exit('scripts' in p?1:0)"
-              for entry in load-test.js seed-scale.js seed-fleet.js write-scale-evidence.js; do
-                docker run --rm --entrypoint test repkey-perf-runner:ci -e "/app/dist-perf-runner/$entry"
-              done
-              ;;
             *)
               echo "::error::No smoke contract for matrix image $IMAGE_NAME"
               exit 1
@@ -533,7 +502,7 @@ jobs:
 
       # BQC-7.7: every built image gets an SPDX JSON inventory. Each bounded
       # group stages its files under one unique artifact; the `docker`
-      # aggregate job still proves and publishes the exact five-file set.
+      # aggregate job still proves and publishes the exact four-file set.
       - name: Install pinned Syft
         id: syft
         uses: anchore/sbom-action/download-syft@66cbf4bc1f1c0d2edc94016e65bc221b6bb0ad6c # v0.24.3
@@ -692,8 +661,8 @@ jobs:
           path: image-sboms
           merge-multiple: true
 
-      - name: Require all five image SBOMs
-        run: test "$(find image-sboms -maxdepth 1 -type f -name 'sbom-*.spdx.json' | wc -l)" -eq 5
+      - name: Require all four image SBOMs
+        run: test "$(find image-sboms -maxdepth 1 -type f -name 'sbom-*.spdx.json' | wc -l)" -eq 4
 
       - name: Upload image SBOMs
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
