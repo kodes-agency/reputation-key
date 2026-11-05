@@ -1,16 +1,7 @@
-// Reporting — what changing this month's target would touch.
-//
-// While a goal month runs, a manager can change its target, and by default the
-// new target also applies to the months after it. What that means for one goal
-// depends on which months are running, which version they belong to, whether a
-// change is already waiting for its month, and where the next version could
-// start. The rule is stated once here: the command calls it to decide what to
-// write, and the dialog calls it to say so before the manager saves, so what is
-// shown is what is written.
+// The command and dialog share this plan so the described change matches the write:
+// a running month's target, optionally followed by a version for future months.
+// Import the month key directly to keep calendar code out of first paint.
 
-// The month key comes from its own module, not through the Program module: the
-// dialog runs this in the browser, and the Program module is part of the
-// first-paint bundle.
 import { monthKeyOf } from '../domain/goal-start'
 import { monthTargetHistory } from './goal-month-target-marker'
 import { nextRevisionStart } from './goal-revision-start'

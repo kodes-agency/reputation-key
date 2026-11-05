@@ -1,8 +1,4 @@
-// What a goal is set for, and how one subject is told from another.
-//
-// Its own module, apart from the Program's other rules, because the new-goal
-// form compares subjects in the browser: the Program module is part of the
-// first-paint bundle (the command DTO imports it), and this must not add to it.
+// Keep browser subject comparisons apart from the first-paint Program module.
 
 export type GoalSubject =
   | Readonly<{ kind: 'property'; propertyId: string }>

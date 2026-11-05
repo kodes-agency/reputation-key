@@ -1,16 +1,8 @@
-// Property Google rating goal — the average new reviews are planned at (pure).
-//
-// Rounds 3 and 4 (2026-10-16, R4-1 and R4-3): a plan never assumes new reviews
-// at a Property's own rating. Most Properties never asked, so their history is
-// mostly unasked reviews, and asked guests rate higher. The automatic average
-// is the better of the Property's best evidence (its best calendar month or
-// year with ten reviews, as a tenth; a tie goes to the month, the more recent)
-// and halfway between the shown number and five stars, rounded half up, and
-// never above 4.8. A manager may type their own, from two tenths above the
-// shown number to 5.0; it is clamped, never refused. A goal is reachable at an
-// average that clears it by a tenth (`qualityProblem`, the one home of that
-// rule), so the goals run from the tenth above what Google shows (or above
-// what the cache has already earned, D28) to the highest that average reaches.
+// Asked guests may rate higher than the Property's historical unasked reviews.
+// Plan quality uses the better of best month/year evidence (at least ten reviews,
+// month wins ties) and halfway from Google's shown rating to five, half up, capped
+// at 4.8. Own quality is clamped from shown + 0.2★ to 5.0. Offered targets must
+// clear qualityProblem and skip tenths already earned by the cache.
 
 import { nearestTenth, qualityProblem, type BestYear } from './rating-goal-quality'
 import type { BestMonth } from './rating-goal-evidence'

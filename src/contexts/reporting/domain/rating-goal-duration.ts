@@ -1,14 +1,6 @@
-// Property Google rating goal — how long a goal takes at a pace (pure, exact).
-//
-// Rounds 3 and 4 (2026-10-16, R4-3 and R4-4): every goal has a central time (the
-// reviews it needs at the planned average, at the chosen pace) and a likely
-// range: the fast end at an average 0.1★ better and asking 10% more, the slow
-// end at 0.1★ worse and asking 10% less, open when 0.1★ worse no longer reaches
-// the goal. Since round 5 that range is the one arrival rule tracking uses too
-// (rating-goal-arrival.ts, PLAN-D E1). The recommended goal is the highest one reached within six months even at 0.1★
-// below plan, at least the next one. Days are integer fractions
-// (reviews × 70 / tenths a week), so no float decides a branch: "within six
-// months" is `reviews × 70 ≤ 182 × tenths`.
+// Setup and tracking share arrival ranges. Recommend the highest target reached
+// within six months at quality 0.1★ below plan, at least the next target.
+// Days stay exact: reviews × 70 ≤ 182 × pace tenths decides six months.
 
 import { FORECAST_MIX_DRIFT_THOUSANDTHS } from './rating-goal-forecast'
 import { ratio } from './rating-goal-numbers'

@@ -1,4 +1,3 @@
-// Dashboard context — staff portal resolver port
 // Resolves the portals a staff user is assigned to.
 // The dashboard context does NOT import staff context directly —
 // this port is implemented by the composition root.

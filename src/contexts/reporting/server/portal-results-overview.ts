@@ -1,6 +1,5 @@
 // Reporting — the Portals overview's results, for one Property's Portals or, with
 // no Property named, for every Portal of the Organization the caller may read.
-// Per architecture: "Server functions are the HTTP entry points into a context."
 //
 // The roster is Portal's: it is the list the caller may see (`portal.read`,
 // scoped to their Properties), with the group each Portal is in today. The

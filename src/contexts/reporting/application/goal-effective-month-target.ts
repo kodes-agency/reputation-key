@@ -1,19 +1,8 @@
-// The target a goal month is judged against.
-//
-// A month can carry its own target; when it does not, it uses the target of the
-// Program version it belongs to. Evaluation reads the target through here, when
-// a month is reconciled and when a closed one is corrected. The behind-pace read
-// (`goal-running-months.ts`) restates the rule in SQL as
-// `coalesce(result.target_value, version.target_value)`.
-//
-// Every surface that shows the target of a month reads it through here too:
-// the goal card (goal-progress.ts), the results matrix, the month rows of the
-// goal's page, and the row of a subject that already has a goal in the table
-// that sets several (goal-subject-holds.ts). A surface that shows the goal's
-// target for the months to come reads the head version's, which is a
-// different question.
-//
-// Type-only imports: this module is safe to reach from a route or a component.
+// A month's own target overrides its version's target. Evaluation and presentation
+// share this rule; goal-running-months.ts mirrors it with SQL coalesce.
+// Future-month offers use the head version's target instead.
+// Type-only dependencies keep this safe for browser callers.
+
 import type {
   GoalMonthlyResult,
   GoalProgramVersion,

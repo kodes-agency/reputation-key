@@ -1,9 +1,6 @@
-// Goal Program use cases — the details a Program carries outside its versions.
-//
-// A Program's name and description say what the goal is called. They are not
-// part of what is measured, so changing them writes no version and moves no
-// month: one update in place, with an audit row. The service composes
-// `renameGoal` (goal-programs.ts).
+// Renaming writes an audit row but no version: name and description do not
+// change what is measured or move any month.
+
 import type { GoalProgram } from '../ports/goal-program.repository'
 import {
   GoalProgramError,

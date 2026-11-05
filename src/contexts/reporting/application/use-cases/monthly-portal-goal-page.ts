@@ -1,19 +1,7 @@
-// Reporting — the Monthly portal goal's page, `/goals/portals` (ADR 0068, PLAN
-// PG-13).
-//
-// One composed read, asked for `goal.create` like the card, since whoever sees
-// the page is whoever may set the goal. It reads what the card reads, once, and
-// returns the card's arm: before a goal it is what the page shows. With a goal,
-// it adds what the page shows beside it: the month before (or that it had no
-// goal) and the usual for the month the goal counts or starts; every published
-// Portal's count of the running month, drawn only when they add up to the
-// governed figure; and the established Portals that have gone quiet. With a
-// goal or after one, the months of the goal and of the goals it took over from,
-// and what changed (`monthly-portal-goal-history.ts`): a stopped goal whose last
-// month has closed is no goal any more, but its months are still here. And
-// always the other Portal goals, with this month so far of the active ones and
-// their subjects' names: side reads, so a failure there leaves the page whole
-// and says so. It writes nothing.
+// Authorize goal.create and reuse the card read (ADR 0068). Keep ended goals'
+// months and changes after the current goal disappears. Show Portal rows only
+// when they sum to governed progress; isolate failures in other-goal side reads.
+
 import type { LoggerPort } from '#/shared/domain/logger.port'
 import { goalSubjectIdentity, type GoalSubject } from '../../domain/goal-subject'
 import { addLocalDays, localDateOf } from '../../domain/local-days'
