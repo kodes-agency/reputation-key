@@ -33,7 +33,6 @@
   "src/components/layout/manager-sidebar.stories.tsx": 7,
   "src/components/ui/timeline.stories.tsx": 3,
   "src/composition/google-provider-authority.ts": 4,
-  "src/contexts/ai/application/use-cases/read-property-insights.ts": 1,
   "src/contexts/ai/domain/rules.test.ts": 1,
   "src/contexts/ai/infrastructure/adapters/ai-output-store.adapter.ts": 6,
   "src/contexts/feed/domain/notification-delivery-policy.ts": 2,

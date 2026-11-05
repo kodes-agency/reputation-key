@@ -22,9 +22,8 @@ Reply publication, Portal/Guest data, metrics, goals, or notifications.
   read's permission held, current Property access) before the
   merchant-authorization gate is read; a refusal is a tagged `AiError`
   `forbidden`. The permission is the one the read's surface is gated on:
-  `dashboard.read` for `readPropertyAggregates`, `readPropertyInsights` and
-  `readReviewAnalysisProgress`, `ai.trends.read` for `readPropertyTrend`, and
-  `inbox.read` for `readReviewAnalysis`, which Inbox calls through its
+  `dashboard.read` for `readReviewAnalysisProgress`, `ai.trends.read` for
+  `readPropertyTrend`, and `inbox.read` for `readReviewAnalysis`, which Inbox calls through its
   `AiReviewInsightsPort` after it has authorized the item.
 - Not reader-authorized inside the context: the two review-id filters
   (`findCurrentReviewIdsByAttention`, `findCurrentReviewIdsByAspect`), which
@@ -731,28 +730,6 @@ Guest voice page reads too, so a stored `updating` report whose windows are all
 complete is worded as insufficient data). Before 2026-10-29 its stored coverage of
 0 (0 of 0) read as below 90% and left every quiet Property in `Updating`.
 
-Guest voice (`readPropertyInsights`) counts Reviews, not mentions: a Review that
-names a topic twice counts once (`aspect-review-evidence.ts`, shared with the 30-day
-aggregate read of Overview). Per topic and polarity it reads the Reviews, their
-stars as how many gave 1 to 5, those stars against every other Review in the window
-(the Reviews with only stars included here; the aggregate read has analyses only, so
-its "rest" is Reviews with text), and, against the Property's own previous 12 months
-(the 365 days that end the day before the window starts, whatever its length; a
-12-month window reaches back to the 24-month retention), whether the share moved
-more than its usual ups and downs (`guest-voice-statistics.ts`, the engine
-`GUEST_VOICE_STATISTICS_VERSION` names). Both shares are uncertain, so they are
-compared as two posteriors and a change is called at a two-sided 95%; a unit test
-enumerates both binomials exactly and pins an unchanged topic's false flags at 5% or
-less (rates of 10% and 30%, windows of 20 and 60 Reviews, a baseline four times the
-window). Without 20 analysed Reviews with text in those 12 months the change is
-unknown. A Property with too many Reviews to read the window with its 12 months
-(10,001) is read for the window alone and claims no change. The window is `auto` by
-default: the shortest of 30 days, 90 days, 6 months and 12 months holding 60 Reviews
-with text, or 12 months, with `enoughForPatterns` false under 10 in the year; a year
-too full to read is answered with 90 days. A recurring issue is a label two or more
-Reviews carry. Topics still come from the v2 analysis (taxonomy v1), where Staff and
-Service overlap, so a Review about the front desk can count under both.
-
 Guest voice 2.0 (`readGuestVoiceV2`, v3 contract section 9) is the Guest voice page, and since the
 switch-on (2026-10-30) the only one: the route reads it once. A Property whose reviews have a v3
 analysis gets the page; any other gets a reason instead (`hasV3Analyses`: a ready v3 contribution
@@ -760,7 +737,7 @@ under the Property's current epochs): "being prepared", or "AI analysis is off" 
 the consent was recorded under a notice no longer in force. Its types are
 `application/read-models/guest-voice-v2.ts`, content-free except `LiveEvidence`. The read joins two
 answers (`read-models/guest-voice-v2-join.ts`). Review says which reviews the Property has now
-(`readTrendPopulation`, as the insights read: two years in one read, the last year alone and no
+(`readTrendPopulation`: two years in one read, the last year alone and no
 change claimed when that is too full, 90 days when the year is). The analysis side
 (`AiGuestVoiceFactsPort`, `infrastructure/adapters/ai-guest-voice-facts.adapter.ts`) gives each
 review's latest ready v3 contribution and its effective mentions in one statement under the
