@@ -537,9 +537,6 @@ function buildGoalModule(input: ReportingContextBuildInput, metricApi: MetricPub
     PortalGoalAddRequestApi &
     PortalGoalSinglePageRequestApi = Object.freeze({
     create: (policy, ...args) => buildGoalPrograms(policy).create(...args),
-    revise: (policy, ...args) => buildGoalPrograms(policy).revise(...args),
-    changeAssignments: (policy, ...args) =>
-      buildGoalPrograms(policy).changeAssignments(...args),
     changeStatus: (policy, ...args) => buildGoalPrograms(policy).changeStatus(...args),
     rename: (policy, ...args) => buildGoalPrograms(policy).rename(...args),
     changeMonthTarget: (policy, ...args) =>

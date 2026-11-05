@@ -1800,7 +1800,6 @@ describe.sequential('Goal Program repository (integration)', () => {
         subjects: {
           getTimezone: async () => 'UTC',
           subjectBelongsToProperty: async () => true,
-          listCurrentPortalIds: async () => [],
         },
         metrics: {
           queryGoalMetric: async (query) => ({

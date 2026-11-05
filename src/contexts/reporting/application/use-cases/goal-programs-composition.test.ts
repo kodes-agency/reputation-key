@@ -13,7 +13,6 @@ import {
 } from './goal-programs'
 
 const SERVICE_METHODS = [
-  'changeAssignments',
   'changeMonthTarget',
   'changeStatus',
   'create',

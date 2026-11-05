@@ -1,106 +1,45 @@
 import { describe, expect, it } from 'vitest'
 import {
-  changeGoalProgramAssignmentsSchema,
   changeGoalProgramStatusSchema,
   createGoalProgramSchema,
-  reviseGoalProgramSchema,
 } from './goal-program.dto'
 
 const PROPERTY_ID = '00000000-0000-4000-8000-000000000001'
 const PORTAL_ID = '00000000-0000-4000-8000-000000000002'
 const PROGRAM_ID = '00000000-0000-4000-8000-000000000003'
 const subject = { kind: 'portal' as const, portalId: PORTAL_ID }
+const creation = {
+  propertyId: PROPERTY_ID,
+  name: 'Monthly ratings',
+  description: null,
+  metric: 'portal_rating_average' as const,
+  targetValue: 4.5,
+  subjects: [subject],
+}
 
 describe('Goal Program command DTOs', () => {
-  it('owns the complete create and revision validation contract', () => {
-    expect(
-      createGoalProgramSchema.safeParse({
-        propertyId: PROPERTY_ID,
-        name: 'Monthly ratings',
-        description: null,
-        metric: 'portal_rating_average',
-        targetValue: 4.5,
-        subjects: [subject],
-      }).success,
-    ).toBe(true)
-    expect(
-      reviseGoalProgramSchema.safeParse({
-        propertyId: PROPERTY_ID,
-        programId: PROGRAM_ID,
-        metric: 'portal_rating_count',
-        targetValue: 20,
-        subjects: [subject],
-        reason: 'Raise the monthly target',
-      }).success,
-    ).toBe(true)
+  it('accepts the complete create contract', () => {
+    expect(createGoalProgramSchema.safeParse(creation).success).toBe(true)
   })
 
-  it('rejects blank names, missing subjects, and no-op assignment changes', () => {
-    expect(
-      createGoalProgramSchema.safeParse({
-        propertyId: PROPERTY_ID,
-        name: ' ',
-        metric: 'qualified_scans',
-        targetValue: 10,
-        subjects: [],
-      }).success,
-    ).toBe(false)
-    expect(
-      changeGoalProgramAssignmentsSchema.safeParse({
-        propertyId: PROPERTY_ID,
-        programId: PROGRAM_ID,
-        expectedVersion: 1,
-        add: [],
-        remove: [],
-        selectAllCurrentPortals: false,
-        reason: 'No change',
-      }).success,
-    ).toBe(false)
-  })
+  it.each([{ name: ' ' }, { subjects: [] }])(
+    'rejects an invalid creation (%j)',
+    (patch) => {
+      expect(createGoalProgramSchema.safeParse({ ...creation, ...patch }).success).toBe(
+        false,
+      )
+    },
+  )
 
-  const revision = {
-    propertyId: PROPERTY_ID,
-    programId: PROGRAM_ID,
-    metric: 'portal_rating_count' as const,
-    targetValue: 20,
-    subjects: [subject],
-  }
-
-  it('takes every change without a note, and trims and bounds one that is given', () => {
-    expect(reviseGoalProgramSchema.safeParse(revision).success).toBe(true)
+  it('takes a status change without a note, and trims and bounds one that is given', () => {
+    const change = { propertyId: PROPERTY_ID, programId: PROGRAM_ID, status: 'paused' }
+    expect(changeGoalProgramStatusSchema.safeParse(change).success).toBe(true)
     expect(
-      changeGoalProgramStatusSchema.safeParse({
-        propertyId: PROPERTY_ID,
-        programId: PROGRAM_ID,
-        status: 'paused',
-      }).success,
-    ).toBe(true)
-    expect(
-      changeGoalProgramAssignmentsSchema.safeParse({
-        propertyId: PROPERTY_ID,
-        programId: PROGRAM_ID,
-        expectedVersion: 1,
-        add: [subject],
-      }).success,
-    ).toBe(true)
-
-    expect(
-      reviseGoalProgramSchema.parse({ ...revision, reason: '  Agreed  ' }).reason,
+      changeGoalProgramStatusSchema.parse({ ...change, reason: '  Agreed  ' }).reason,
     ).toBe('Agreed')
     expect(
-      reviseGoalProgramSchema.safeParse({ ...revision, reason: 'x'.repeat(501) }).success,
+      changeGoalProgramStatusSchema.safeParse({ ...change, reason: 'x'.repeat(501) })
+        .success,
     ).toBe(false)
-  })
-
-  it('carries the version a revision form was opened on, as a command field only', () => {
-    expect(
-      reviseGoalProgramSchema.parse({ ...revision, expectedVersion: 3 }).expectedVersion,
-    ).toBe(3)
-    for (const invalid of [0, 1.5, '3']) {
-      expect(
-        reviseGoalProgramSchema.safeParse({ ...revision, expectedVersion: invalid })
-          .success,
-      ).toBe(false)
-    }
   })
 })

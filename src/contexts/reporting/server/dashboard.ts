@@ -16,55 +16,6 @@ import { dashboardErrorStatus } from './dashboard-error-status'
 
 import { resolvePropertyPeriod } from './resolve-property-period'
 
-export const getDashboardDataFn = createServerFn({ method: 'GET' })
-  .validator(getDashboardDataDto)
-  .handler(
-    tracedHandler(
-      async ({ data }) => {
-        try {
-          const headers = await headersFromContext()
-          const ctx = await resolveTenantContext(headers)
-          await requireExecutionAllowed({
-            actor: ctx,
-            action: 'dashboard.read',
-            propertyId: data.propertyId,
-          })
-          const { dashboardPublicApi, clock, propertyPublicApi } = getContainer()
-          const pid = propertyId(data.propertyId)
-          const { startDate, endDate, propertyTimezone } = await resolvePropertyPeriod(
-            { propertyFacts: propertyPublicApi, clock },
-            {
-              organizationId: ctx.organizationId,
-              propertyId: pid,
-              timeRange: data.timeRange,
-            },
-          )
-
-          // The use case authorizes this reader for the Property (D6-001) and
-          // hides reply state from one who may not manage replies (§9).
-          return await dashboardPublicApi.getDashboardData(
-            {
-              organizationId: ctx.organizationId,
-              propertyId: pid,
-              portalId: data.portalId ? portalId(data.portalId) : null,
-              startDate,
-              endDate,
-              timeRange: data.timeRange,
-              propertyTimezone,
-            },
-            ctx,
-          )
-        } catch (e) {
-          if (isDashboardError(e))
-            throwContextError('DashboardError', e, dashboardErrorStatus(e.code))
-          throw catchUntagged(e)
-        }
-      },
-      'GET',
-      'dashboard.getDashboardData',
-    ),
-  )
-
 /** Property page projection: Dashboard and attention share one KPI snapshot. */
 export const getPropertyOverviewFn = createServerFn({ method: 'GET' })
   .validator(getDashboardDataDto)
