@@ -237,10 +237,6 @@
       "exports": ["assignInboxItemFn"]
     },
     {
-      "file": "src/contexts/identity/server/auth-settings.org.ts",
-      "exports": ["createOrganizationFn"]
-    },
-    {
       "file": "src/contexts/property/server/properties.ts",
       "exports": ["updateProperty"]
     },
