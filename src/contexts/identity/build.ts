@@ -26,9 +26,6 @@ import {
   type PropertyId,
   type UserId,
 } from '#/shared/domain/ids'
-import { createCustomRole } from './application/use-cases/create-custom-role'
-import { updateCustomRole } from './application/use-cases/update-custom-role'
-import { deleteCustomRole } from './application/use-cases/delete-custom-role'
 import { updateMemberRole } from './application/use-cases/update-member-role'
 import { removeMember } from './application/use-cases/remove-member'
 import {
@@ -843,9 +840,6 @@ export const buildIdentityContext = (deps: IdentityContextDeps) => {
       prepareGoogleConnectorDeparture: deps.prepareGoogleConnectorDeparture,
     }),
     ...organizationSettings,
-    createCustomRole: createCustomRole({ identity: deps.identityPort }),
-    updateCustomRole: updateCustomRole({ identity: deps.identityPort }),
-    deleteCustomRole: deleteCustomRole({ identity: deps.identityPort }),
     merchantAiAuthorization,
     merchantAiDecisionDeferral,
     listMerchantAiOverview: listMerchantAiOverviewRead,
@@ -873,9 +867,6 @@ export const buildIdentityContext = (deps: IdentityContextDeps) => {
     getInvitationPreview: useCases.getInvitationPreview,
     registerInvitedUser: useCases.registerInvitedUser,
     updateOrganization: useCases.updateOrganization,
-    createCustomRole: useCases.createCustomRole,
-    updateCustomRole: useCases.updateCustomRole,
-    deleteCustomRole: useCases.deleteCustomRole,
     merchantAiAuthorization: merchantAiRequestApi,
     merchantAiNoticeUpdates: merchantAiUpdates.updates,
     ...memberAccess,

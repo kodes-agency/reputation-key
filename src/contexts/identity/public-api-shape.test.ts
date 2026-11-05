@@ -23,8 +23,6 @@ const dbStub = new Proxy(
 const EXPECTED_REQUEST_KEYS = [
   'acceptInvitation',
   'cancelInvitation',
-  'createCustomRole',
-  'deleteCustomRole',
   // The invitation link's anonymous preview (ADR 0062).
   'getInvitationPreview',
   'inviteMember',
@@ -40,7 +38,6 @@ const EXPECTED_REQUEST_KEYS = [
   'removeMember',
   'resendInvitation',
   'setMemberPropertyAccess',
-  'updateCustomRole',
   'updateMemberRole',
   'updateOrganization',
 ] as const

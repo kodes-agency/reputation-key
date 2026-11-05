@@ -24,8 +24,9 @@ adapter; no other context reads its tables directly.
 ## Invariants
 
 - The role hierarchy is `AccountAdmin > PropertyManager > Member`. Only the first
-  two roles are interactive during the closed beta; Member/custom-role rows are
-  retained but tenant resolution fails closed.
+  two roles are interactive during the closed beta. These are the only roles:
+  there are no custom roles, and a role token that is not built in is refused by
+  tenant resolution.
 - Better Auth membership is Organization authority. An interactive login belongs
   to exactly one Organization, and the final AccountAdmin cannot leave or be removed.
 - Invitation-bound registration is the only beta account-creation path. Invitation

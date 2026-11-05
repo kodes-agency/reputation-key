@@ -16,10 +16,7 @@ const mockListMembers = vi.fn()
 const mockGetSession = vi.fn()
 const mockListUserInvitations = vi.fn()
 const mockSetActiveOrganization = vi.fn()
-const FIXED_NOW = new Date('2026-08-28T12:00:00.000Z')
 const adapterDeps = {
-  clock: vi.fn(() => FIXED_NOW),
-  idGen: vi.fn(() => 'generated-role-id'),
   // ARC-03-T13: the adapter takes the ambient request context as a port; it no
   // longer dynamically imports the web framework.
   requestContext: { currentRequestHeaders: async () => new Headers() },
@@ -42,11 +39,6 @@ vi.mock('@tanstack/react-start/server', () => ({
   getRequest: () => null,
 }))
 
-const db = {
-  transaction: vi.fn(),
-  delete: vi.fn().mockReturnValue({ where: vi.fn().mockResolvedValue(undefined) }),
-} as unknown as Parameters<typeof createBetterAuthIdentityAdapter>[0]
-
 import { createBetterAuthIdentityAdapter } from './auth-identity.adapter'
 
 const testCtx: AuthContext = {
@@ -59,7 +51,7 @@ beforeEach(() => {
   vi.clearAllMocks()
 })
 describe('createBetterAuthIdentityAdapter', () => {
-  const adapter = createBetterAuthIdentityAdapter(db, adapterDeps)
+  const adapter = createBetterAuthIdentityAdapter(adapterDeps)
 
   describe('signUp', () => {
     it('returns user ID on successful sign-up', async () => {
@@ -334,44 +326,6 @@ describe('createBetterAuthIdentityAdapter', () => {
         headers,
         body: { organizationId: 'org-1' },
       })
-    })
-  })
-
-  describe('custom role persistence', () => {
-    it('uses the injected identifier for the role row', async () => {
-      const values = vi.fn().mockResolvedValue(undefined)
-      const tx = { insert: vi.fn(() => ({ values })) }
-      vi.mocked(db.transaction).mockImplementationOnce(async (run) => run(tx as never))
-
-      await adapter.createCustomRole(testCtx, {
-        role: 'Concierge',
-        permissions: ['review.read'],
-        dataScope: 'assigned-properties',
-      })
-
-      expect(adapterDeps.idGen).toHaveBeenCalledOnce()
-      expect(values.mock.calls[0]?.[0]).toMatchObject({
-        id: 'generated-role-id',
-        organizationId: 'org-1',
-        role: 'concierge',
-      })
-    })
-
-    it('uses one injected timestamp for both role policy updates', async () => {
-      const where = vi.fn().mockResolvedValue(undefined)
-      const set = vi.fn((_value: Record<string, unknown>) => ({ where }))
-      const tx = { update: vi.fn(() => ({ set })) }
-      vi.mocked(db.transaction).mockImplementationOnce(async (run) => run(tx as never))
-
-      await adapter.updateCustomRole(testCtx, 'Concierge', {
-        permissions: ['review.read'],
-        dataScope: 'assigned-properties',
-      })
-
-      expect(adapterDeps.clock).toHaveBeenCalledOnce()
-      expect(set).toHaveBeenCalledTimes(2)
-      expect(set.mock.calls[0]?.[0]).toMatchObject({ updatedAt: FIXED_NOW })
-      expect(set.mock.calls[1]?.[0]).toMatchObject({ updatedAt: FIXED_NOW })
     })
   })
 })

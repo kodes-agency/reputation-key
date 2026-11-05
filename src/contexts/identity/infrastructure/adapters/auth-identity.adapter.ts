@@ -3,19 +3,9 @@
 // Wraps better-auth's API calls behind the port interface so use cases
 // remain testable with in-memory fakes.
 //
-// BQC-3.5: the invitation/member/org write paths moved to the atomic
-// identity command store (app-owned direct transactions, the precedent the
-// old acceptInvitation set here). What remains are reads, session/org
-// management and custom roles.
+// Invitation and member writes belong to the atomic Identity command store.
+// This adapter handles reads, registration and session Organization selection.
 
-import type { Database } from '#/shared/db'
-import { and, eq } from 'drizzle-orm'
-import { organizationRole } from '#/shared/db/schema/auth'
-import { organizationRolePolicy } from '#/shared/db/schema/dac.schema'
-import { buildPermissionStatement } from '#/shared/auth/permission-catalogue'
-import type { Clock } from '#/shared/domain/clock'
-import type { Permission } from '#/shared/domain/permissions'
-import type { DataScope } from '#/shared/domain/data-scope'
 import type {
   MemberRecord,
   IdentityPort,
@@ -89,15 +79,12 @@ function toOrganizationRecord(org: {
 }
 
 type BetterAuthIdentityAdapterDeps = Readonly<{
-  clock: Clock
-  idGen: () => string
   /** ARC-03-T13: the ambient request context, injected. Infrastructure no
    * longer reaches the web framework itself. */
   requestContext: RequestContextPort
 }>
 
 export const createBetterAuthIdentityAdapter = (
-  db: Database,
   deps: BetterAuthIdentityAdapterDeps,
 ): IdentityPort => {
   const auth = getAuth()
@@ -238,101 +225,5 @@ export const createBetterAuthIdentityAdapter = (
         name: session.user.name,
       }
     },
-
-    async createCustomRole(
-      ctx: AuthContext,
-      input: Readonly<{
-        role: string
-        permissions: ReadonlyArray<Permission>
-        dataScope: DataScope
-      }>,
-    ): Promise<void> {
-      const role = input.role.trim().toLowerCase()
-      try {
-        await db.transaction(async (tx) => {
-          await tx.insert(organizationRole).values({
-            id: deps.idGen(),
-            organizationId: ctx.organizationId as string,
-            role,
-            permission: JSON.stringify(buildPermissionStatement(input.permissions)),
-          })
-          await tx.insert(organizationRolePolicy).values({
-            organizationId: ctx.organizationId as string,
-            role,
-            dataScope: input.dataScope,
-          })
-        })
-      } catch (e) {
-        if (isUniqueViolation(e)) {
-          throw identityError('already_exists', `Role "${role}" already exists`)
-        }
-        throw e
-      }
-    },
-
-    async updateCustomRole(
-      ctx: AuthContext,
-      role: string,
-      input: Readonly<{
-        permissions: ReadonlyArray<Permission>
-        dataScope: DataScope
-      }>,
-    ): Promise<void> {
-      const r = role.trim().toLowerCase()
-      const permission = JSON.stringify(buildPermissionStatement(input.permissions))
-      const updatedAt = deps.clock()
-      await db.transaction(async (tx) => {
-        await tx
-          .update(organizationRole)
-          .set({ permission, updatedAt })
-          .where(
-            and(
-              eq(organizationRole.organizationId, ctx.organizationId as string),
-              eq(organizationRole.role, r),
-            ),
-          )
-        await tx
-          .update(organizationRolePolicy)
-          .set({ dataScope: input.dataScope, updatedAt })
-          .where(
-            and(
-              eq(organizationRolePolicy.organizationId, ctx.organizationId as string),
-              eq(organizationRolePolicy.role, r),
-            ),
-          )
-      })
-    },
-
-    async deleteCustomRole(ctx: AuthContext, role: string): Promise<void> {
-      const r = role.trim().toLowerCase()
-      await db.transaction(async (tx) => {
-        await tx
-          .delete(organizationRole)
-          .where(
-            and(
-              eq(organizationRole.organizationId, ctx.organizationId as string),
-              eq(organizationRole.role, r),
-            ),
-          )
-        await tx
-          .delete(organizationRolePolicy)
-          .where(
-            and(
-              eq(organizationRolePolicy.organizationId, ctx.organizationId as string),
-              eq(organizationRolePolicy.role, r),
-            ),
-          )
-      })
-    },
   }
-}
-
-/** True when a Postgres unique-constraint violation (SQLSTATE 23505) caused the error. */
-function isUniqueViolation(e: unknown): boolean {
-  return (
-    typeof e === 'object' &&
-    e !== null &&
-    'code' in e &&
-    (e as { code: unknown }).code === '23505'
-  )
 }

@@ -9,9 +9,6 @@ import type {
   OrganizationRecord,
 } from '#/contexts/identity/application/ports/identity.port'
 import type { AuthContext } from '#/shared/domain/auth-context'
-import type { Permission } from '#/shared/domain/permissions'
-import type { DataScope } from '#/shared/domain/data-scope'
-import { identityError } from '#/contexts/identity/domain/errors'
 
 export type InMemoryIdentityPort = IdentityPort & {
   /** Seed members for testing. */
@@ -40,7 +37,6 @@ export function createInMemoryIdentityPort(): InMemoryIdentityPort {
   const members = new Map<string, StoredMember>()
   const invitations = new Map<string, InvitationRecord>()
   const organizations = new Map<string, OrganizationRecord>()
-  const customRoles = new Map<string, { role: string }>()
   const activeOrganizationCalls: string[] = []
   let sessionUser: Readonly<{ id: string; email: string }> | null = null
 
@@ -84,37 +80,6 @@ export function createInMemoryIdentityPort(): InMemoryIdentityPort {
       _headers: Headers,
     ): Promise<Readonly<{ id: string; email: string }> | null> {
       return sessionUser
-    },
-
-    async createCustomRole(
-      ctx: AuthContext,
-      input: Readonly<{
-        role: string
-        permissions: ReadonlyArray<Permission>
-        dataScope: DataScope
-      }>,
-    ): Promise<void> {
-      const role = input.role.trim().toLowerCase()
-      const key = `${ctx.organizationId as string}:${role}`
-      if (customRoles.has(key)) {
-        throw identityError('already_exists', `Role "${role}" already exists`)
-      }
-      customRoles.set(key, { role })
-    },
-
-    async updateCustomRole(
-      ctx: AuthContext,
-      role: string,
-      _input: Readonly<{ permissions: ReadonlyArray<Permission>; dataScope: DataScope }>,
-    ): Promise<void> {
-      // Idempotent in-memory update; mirrors the adapter (no existence check).
-      customRoles.set(`${ctx.organizationId as string}:${role.trim().toLowerCase()}`, {
-        role: role.trim().toLowerCase(),
-      })
-    },
-
-    async deleteCustomRole(ctx: AuthContext, role: string): Promise<void> {
-      customRoles.delete(`${ctx.organizationId as string}:${role.trim().toLowerCase()}`)
     },
 
     // ── Test-only helpers ─────────────────────────────────────────────

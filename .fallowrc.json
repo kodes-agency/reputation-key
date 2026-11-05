@@ -309,13 +309,6 @@
   },
   "overrides": [
     {
-      "files": ["src/contexts/identity/server/organizations.roles.ts"],
-      "rules": {
-        "unused-files": "off",
-        "unused-exports": "off"
-      }
-    },
-    {
       "files": ["src/components/ui/**"],
       "rules": {
         "unused-exports": "off",

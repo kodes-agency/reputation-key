@@ -47,11 +47,6 @@ describe('Identity runtime dependency injection', () => {
       .join('\n')
     const bootstrap = readFileSync(join(ROOT, 'src/bootstrap.ts'), 'utf8')
 
-    // The adapter takes no logger: it only bridged the post-acceptance hook,
-    // and invited Property access is now granted in the acceptance transaction.
-    expect(composition).toMatch(
-      /createBetterAuthIdentityAdapter\(db, \{\s*clock,\s*idGen: randomUUID,\s*requestContext,\s*\}\)/u,
-    )
     // ARC-03-T13: the session is injected as an Identity-owned port. The root
     // selects the better-auth implementation; it no longer performs one.
     expect(composition).toContain('createBetterAuthSessionPort({ requestContext })')
