@@ -5,18 +5,22 @@ import type { Role } from '#/shared/domain/roles'
 const mocks = vi.hoisted(() => ({
   can: vi.fn(),
   prefetchRatingGoalOverview: vi.fn(async () => undefined),
+  prefetchRatingGoalSection: vi.fn(async () => undefined),
+  prefetchPortalGoalAdd: vi.fn(async () => undefined),
   prefetchPortalGoalSection: vi.fn(async () => undefined),
 }))
 
 vi.mock('#/shared/domain/permissions', () => ({ can: mocks.can }))
 vi.mock('./goals/-rating-goal-queries', () => ({
   prefetchRatingGoalOverview: mocks.prefetchRatingGoalOverview,
+  prefetchRatingGoalSection: mocks.prefetchRatingGoalSection,
 }))
 vi.mock('./goals/-portal-goal-queries', () => ({
   prefetchPortalGoalSection: mocks.prefetchPortalGoalSection,
+  prefetchPortalGoalAdd: mocks.prefetchPortalGoalAdd,
 }))
 
-import { prefetchOverviewGoals } from './-overview-goals-prefetch'
+import { prefetchOverviewGoals } from './goals/-goals-page-prefetch'
 
 const PROPERTY = 'property-1'
 
