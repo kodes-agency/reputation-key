@@ -250,7 +250,7 @@ a constant and not an environment value, and it names OpenAI alone. `createOpera
 (`ai-provider-choice.adapter.ts`) is the port the build wires; the egress runtime registers
 no Anthropic adapter. Moving to Anthropic needs a registered adapter, a key, a provider
 control head (migration 0083 seeded `provider:private-beta-global-v2` only), a change of the
-constant and the owner's date from the Privacy Notice (docs/BETA.md section 2). It needs no
+constant and the owner's date from the Privacy Notice (docs/obligations.md section 2). It needs no
 new deployment profile and no new consent.
 
 Consent: a consent recorded under any earlier notice is refused before work is claimed, and
@@ -911,7 +911,7 @@ those corrections are not repaired by the code: a head short of the ledger, and
 a review that stayed in its days after it was deleted. `docs/operations/runbooks.md`
 §22 gives a read-only statement that finds each, and a statement that recounts
 the first; the second is not withdrawn, and what it holds is de-identified
-insight data under the 24-month retention of `docs/BETA.md` §2.
+insight data under the 24-month retention of `docs/obligations.md` §2.
 
 Coverage owes a settlement for every sequence after the authorization's start
 up to the Review head, except the ones Review gave back. The Review writer

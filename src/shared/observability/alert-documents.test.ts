@@ -13,7 +13,7 @@ import { ALERT_DEFINITIONS } from './alert-definitions'
 
 const ALERT_GUIDE = readFileSync('docs/operations/alerts-and-security-posture.md', 'utf8')
 const RUNBOOKS = readFileSync('docs/operations/runbooks.md', 'utf8')
-const CONTRACT = readFileSync('docs/BETA.md', 'utf8')
+const CONTRACT = readFileSync('docs/obligations.md', 'utf8')
 
 /** A dotted name in code quotes, as the documents write an alert. */
 const ALERT_NAME = /`([a-z][a-z-]*(?:\.[a-z][a-z-]*)+)`/g

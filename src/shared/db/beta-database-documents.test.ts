@@ -33,7 +33,7 @@ const read = (path: string): string => readFileSync(path, 'utf8')
 const flowed = (text: string): string =>
   text.replace(/^\s*\/\/ ?/gmu, '').replace(/\s+/gu, ' ')
 
-const CONTRACT = read('docs/BETA.md')
+const CONTRACT = read('docs/obligations.md')
 const BACKUP_RECORD = read('docs/operations/backup-and-lifecycle.md')
 const DATABASE_GUIDE = read('src/shared/db/CONTEXT.md')
 const JOURNAL = JSON.parse(read('drizzle/meta/_journal.json')) as {
@@ -103,7 +103,7 @@ function admitsInPlatformRestoreTarget(environment: string): boolean {
 // one: it is the history of the program that ran while the premise held, and
 // it keeps the sentence, struck and dated, where it was decided.
 const CURRENT_PAGES: readonly (readonly [string, string])[] = [
-  ['docs/BETA.md', currentContract()],
+  ['docs/obligations.md', currentContract()],
   ['docs/operations/backup-and-lifecycle.md', BACKUP_RECORD],
   ['docs/operations/runbooks.md', read('docs/operations/runbooks.md')],
   ['src/shared/db/CONTEXT.md', DATABASE_GUIDE],

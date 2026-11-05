@@ -485,7 +485,7 @@ another source epoch keeps the old reading, because Inbox carries its head on
 that observation.
 
 A guest edit takes back what was put forward for the review it replaced
-(docs/BETA.md §3 "Inbox"; ADR 0055 decision 11). The transaction that records
+(docs/obligations.md §3 "Inbox"; ADR 0055 decision 11). The transaction that records
 the observation does it (`infrastructure/review-command-store.ts`), in three
 parts:
 
