@@ -44,7 +44,6 @@ import type {
   AiOperationUnreadableRow,
 } from './ports/ai-operation-store.port'
 import type { AiPropertyAggregateStorePort } from './ports/ai-property-aggregate-store.port'
-import type { AiReviewEventStorePort } from './ports/ai-review-event-store.port'
 
 const AI_EXECUTION_REAPER_BATCH_SIZE = 100
 
@@ -141,7 +140,6 @@ function countRecoveryResult(counts: RecoveryCounts, result: RecoveryResult): vo
 export function createAiOperationExecutionReaper(
   deps: Readonly<{
     store: ExecutionReaperStore
-    reviewEvents: Pick<AiReviewEventStorePort, 'settleOutcome'>
     aggregates: Pick<
       AiPropertyAggregateStorePort,
       'advanceWithoutAnalysis' | 'applyReviewAnalysis'
@@ -222,8 +220,8 @@ export function createAiOperationExecutionReaper(
     if (candidate.analysis === null) return false
     const { eventEnvelopeId, ...analysis } = candidate.analysis
     const settled = await settleReviewAnalysisWithoutResult(
-      { reviewEvents: deps.reviewEvents, aggregates: deps.aggregates },
-      { ...analysis, operationId: candidate.operationId, dispositionCode },
+      { aggregates: deps.aggregates },
+      { ...analysis, dispositionCode },
     )
     await deps.recordAnalysisReceipt(
       eventEnvelopeId,
@@ -262,8 +260,8 @@ export function createAiOperationExecutionReaper(
       ...analysis
     } = candidate.analysis
     const settled = await settleReviewAnalysisWithoutResult(
-      { reviewEvents: deps.reviewEvents, aggregates: deps.aggregates },
-      { ...analysis, operationId: candidate.operationId, dispositionCode },
+      { aggregates: deps.aggregates },
+      { ...analysis, dispositionCode },
     )
     await deps.recordAnalysisReceipt(
       eventEnvelopeId,
@@ -282,8 +280,8 @@ export function createAiOperationExecutionReaper(
       ...analysis
     } = candidate.analysis
     const settled = await settleReviewAnalysisWithResult(
-      { reviewEvents: deps.reviewEvents, aggregates: deps.aggregates },
-      { ...analysis, operationId: candidate.operationId },
+      { aggregates: deps.aggregates },
+      { ...analysis },
     )
     if (settled.status === 'generation_changed') {
       const fenced = await fenceCompletedDelivery(

@@ -36,19 +36,4 @@ export type AiReviewEventStorePort = Readonly<{
       disposition: AiReviewEventDisposition
     }>,
   ): Promise<AiReviewEventConsumeResult>
-  settleOutcome(
-    input: Readonly<{
-      organizationId: OrganizationId
-      propertyId: PropertyId
-      sourceEpoch: number
-      reviewAnalysisEpoch: number
-      analysisSequence: number
-      state: 'ready' | 'terminal_no_result'
-      operationId: string | null
-      dispositionCode: AiReviewAnalysisTerminalDisposition | null
-    }>,
-  ): Promise<Readonly<{
-    terminalAnalysisSequence: number
-    aggregateRevision: number
-  }> | null>
 }>

@@ -4,7 +4,7 @@
 // reviews is the one thing stood in for. Every row is invented; no guest's words exist
 // here, only ids, stars, topics and the numbers of sentences.
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
-import { eq } from 'drizzle-orm'
+import { and, eq } from 'drizzle-orm'
 import { aiPropertyIssueGroups, properties } from '#/shared/db/schema'
 import { getDb, type Database } from '#/shared/db'
 import { organizationId, propertyId, reviewId, userId } from '#/shared/domain/ids'
@@ -17,7 +17,6 @@ import {
 } from '../../application/use-cases/read-guest-voice-v2'
 import { createReadGuestVoiceDetail } from '../../application/use-cases/read-guest-voice-detail'
 import type { ReadGuestVoiceV2Dependencies } from '../../application/use-cases/read-guest-voice-v2'
-import { createAiIssueGroupStoreAdapter } from './ai-issue-group-store.adapter'
 import { createAiAuthorizationAdapter } from './ai-authorization.adapter'
 import { createAiPropertyCalendarAdapter } from './ai-property-calendar.adapter'
 import { createAiGuestVoiceFactsAdapter } from './ai-guest-voice-facts.adapter'
@@ -301,22 +300,23 @@ describe.sequential('Guest voice 2.0 read through the real stores (PostgreSQL)',
       (group) => group.canonicalThing === 'air conditioning',
     )
     if (airConditioning === undefined) throw new Error('the seed has no such issue')
-    const issues = createAiIssueGroupStoreAdapter(db)
-    const issueScope = { organizationId: IDS.organizationId, propertyId: IDS.propertyId }
-
-    await issues.rename(issueScope, airConditioning.id, 'Room AC', new Date())
-    await issues.setHidden(
-      issueScope,
-      airConditioning.id,
-      { at: new Date(), by: 'a-manager' },
-      new Date(),
+    const issueScope = and(
+      eq(aiPropertyIssueGroups.organizationId, IDS.organizationId),
+      eq(aiPropertyIssueGroups.propertyId, IDS.propertyId),
+      eq(aiPropertyIssueGroups.id, airConditioning.id),
     )
+    await db
+      .update(aiPropertyIssueGroups)
+      .set({ displayName: 'Room AC', hiddenAt: new Date(), hiddenBy: 'a-manager' })
+      .where(issueScope)
     const after = await facts.readFacts(scope, {
       startLocalDate: '2026-10-01',
       endLocalDate: '2026-10-31',
     })
-    await issues.setHidden(issueScope, airConditioning.id, null, new Date())
-    await issues.rename(issueScope, airConditioning.id, null, new Date())
+    await db
+      .update(aiPropertyIssueGroups)
+      .set({ displayName: null, hiddenAt: null, hiddenBy: null })
+      .where(issueScope)
 
     expect(after?.groups.find((group) => group.id === airConditioning.id)).toMatchObject({
       displayName: 'Room AC',
@@ -430,20 +430,6 @@ describe.sequential('Guest voice 2.0 read through the real stores (PostgreSQL)',
           id: otherIssueId,
           propertyId: otherPropertyId,
           mergedIntoIssueId: null,
-        })
-        const issues = createAiIssueGroupStoreAdapter(db)
-        expect(
-          await issues.resolve(
-            { organizationId: IDS.organizationId, propertyId: otherPropertyId },
-            otherIssueId,
-          ),
-        ).toMatchObject({
-          status: 'found',
-          issue: {
-            id: otherIssueId,
-            organizationId: IDS.organizationId,
-            propertyId: otherPropertyId,
-          },
         })
         const readDetail = createReadGuestVoiceDetail(pageDependencies())
         expect(
