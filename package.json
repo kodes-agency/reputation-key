@@ -55,7 +55,6 @@
     "check:production-artifacts": "node scripts/check-production-artifacts.mjs",
     "check:security-headers": "node scripts/check-security-headers.mjs",
     "check:language-verifier": "node scripts/check-runtime-language-verifier.mjs",
-    "check:changed-code": "node scripts/check-changed-code.mjs",
     "check:dependency-audit": "node scripts/check-dependency-audit.mjs",
     "check:licenses": "node scripts/check-licenses.mjs",
     "check:action-pins": "node scripts/check-action-pins.mjs",

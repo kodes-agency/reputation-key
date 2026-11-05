@@ -263,10 +263,6 @@
       ]
     },
     {
-      "file": "src/components/hooks/web-vitals.ts",
-      "exports": ["setVitalsReporter"]
-    },
-    {
       "file": "scripts/ops/operator-command.ts",
       "exports": ["runOperatorCommand"]
     },

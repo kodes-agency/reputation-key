@@ -13,9 +13,8 @@ vi.mock('./telemetry', () => ({
   },
 }))
 
-// Static side-effect imports deliberately make this test the runtime contract
-// owner recognized by the changed-code gate. Their order is the production
-// Node --import contract: load environment, initialize web, initialize worker.
+// Static side-effect imports. Their order is the production Node --import
+// contract: load environment, initialize web, initialize worker.
 import './web-observability-preload'
 import './worker-observability-preload'
 
