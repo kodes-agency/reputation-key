@@ -7,9 +7,19 @@ import {
   ciImageDigestMapArtifactName,
   downloadCiImageDigestMap,
   parseCiImageDigestMap,
+  REPLACEMENT_REQUIRED_JOBS,
   TRUSTED_REPOSITORY,
+  verifyDispatchedCiImageDigestMap,
 } from './ci-image-digest-map'
-import { digestMapValue, REVISION } from './ci-image-digest-map.test-fixtures'
+import {
+  DISPATCH_BRANCH,
+  DISPATCH_RUN_ID,
+  DISPATCHED_RUN_JOBS,
+  digestMapValue,
+  dispatchedDigestMapValue,
+  fakeDispatchedRun,
+  REVISION,
+} from './ci-image-digest-map.test-fixtures'
 import type { CommandRunner } from './command-runner'
 
 describe('closed-beta CI image digest map', () => {
@@ -389,5 +399,254 @@ describe('closed-beta CI run that proves the images', () => {
     // A rename here would make every partial re-run undeployable again.
     expect(workflow).toMatch(/\n {2}docker-images:\n {4}name: docker image group \(/u)
     expect(dockerJob).toContain('name: ci-image-digest-map-${{ github.sha }}')
+  })
+})
+
+describe('dispatched CI run that proves the replacement pipeline', () => {
+  it('accepts a run whose pipeline jobs are green and whose map names it', () => {
+    const { runner } = fakeDispatchedRun()
+
+    const verified = verifyDispatchedCiImageDigestMap(DISPATCH_RUN_ID, runner)
+
+    expect(verified).toMatchObject({
+      runId: DISPATCH_RUN_ID,
+      branch: DISPATCH_BRANCH,
+      sourceRevision: REVISION,
+      attempt: 1,
+      jobs: REPLACEMENT_REQUIRED_JOBS,
+    })
+    expect(Object.keys(verified.digestMap.images)).toEqual(CI_PRODUCTION_IMAGE_NAMES)
+    expect(verified.digestMap.source.event).toBe('workflow_dispatch')
+  })
+
+  it.each(REPLACEMENT_REQUIRED_JOBS)('refuses a run that lists no %s job', (name) => {
+    const { runner } = fakeDispatchedRun({
+      jobs: DISPATCHED_RUN_JOBS.filter((job) => job.name !== name),
+    })
+
+    expect(() => verifyDispatchedCiImageDigestMap(DISPATCH_RUN_ID, runner)).toThrow(
+      `CI run ${String(DISPATCH_RUN_ID)} attempt 1 lists no ${name} job`,
+    )
+  })
+
+  it.each(REPLACEMENT_REQUIRED_JOBS)(
+    'refuses a run whose %s job did not succeed',
+    (name) => {
+      const { runner } = fakeDispatchedRun({
+        jobs: DISPATCHED_RUN_JOBS.map((job) =>
+          job.name === name ? { ...job, conclusion: 'skipped' } : job,
+        ),
+      })
+
+      expect(() => verifyDispatchedCiImageDigestMap(DISPATCH_RUN_ID, runner)).toThrow(
+        `CI run ${String(DISPATCH_RUN_ID)} attempt 1 job ${name} concluded skipped`,
+      )
+    },
+  )
+
+  it('refuses a run that has not finished', () => {
+    const { runner } = fakeDispatchedRun({
+      run: { status: 'in_progress', conclusion: null },
+    })
+
+    expect(() => verifyDispatchedCiImageDigestMap(DISPATCH_RUN_ID, runner)).toThrow(
+      `CI run ${String(DISPATCH_RUN_ID)} has not completed (in_progress)`,
+    )
+  })
+
+  it('refuses a red run even when the pipeline jobs are green', () => {
+    const { runner } = fakeDispatchedRun({ run: { conclusion: 'failure' } })
+
+    expect(() => verifyDispatchedCiImageDigestMap(DISPATCH_RUN_ID, runner)).toThrow(
+      `CI run ${String(DISPATCH_RUN_ID)} concluded failure`,
+    )
+  })
+
+  it('refuses a push run, which a deploy reads and a verification does not', () => {
+    const { runner } = fakeDispatchedRun({ run: { event: 'push' } })
+
+    expect(() => verifyDispatchedCiImageDigestMap(DISPATCH_RUN_ID, runner)).toThrow(
+      'is a push run; --verify-only reads dispatched runs, and a deploy reads main push runs',
+    )
+  })
+
+  it('refuses a run of another workflow', () => {
+    const { runner } = fakeDispatchedRun({ run: { path: '.github/workflows/other.yml' } })
+
+    expect(() => verifyDispatchedCiImageDigestMap(DISPATCH_RUN_ID, runner)).toThrow(
+      'ran .github/workflows/other.yml, not .github/workflows/ci.yml',
+    )
+  })
+
+  it('refuses a job listing GitHub did not finish', () => {
+    const { runner } = fakeDispatchedRun({ totalJobs: 500 })
+
+    expect(() => verifyDispatchedCiImageDigestMap(DISPATCH_RUN_ID, runner)).toThrow(
+      'job listing is incomplete',
+    )
+  })
+
+  it('refuses a run with no digest map artifact, or an expired one', () => {
+    const name = ciImageDigestMapArtifactName(REVISION)
+
+    for (const artifacts of [[], [{ name, expired: true }]]) {
+      const { runner } = fakeDispatchedRun({ artifacts })
+
+      expect(() => verifyDispatchedCiImageDigestMap(DISPATCH_RUN_ID, runner)).toThrow(
+        `has no unexpired ${name} artifact`,
+      )
+    }
+  })
+
+  it('refuses an artifact listing GitHub did not finish', () => {
+    const { runner } = fakeDispatchedRun({ totalArtifacts: 300 })
+
+    expect(() => verifyDispatchedCiImageDigestMap(DISPATCH_RUN_ID, runner)).toThrow(
+      'artifact listing is incomplete',
+    )
+  })
+
+  it('refuses a map for another commit', () => {
+    const other = 'c'.repeat(40)
+    const { runner } = fakeDispatchedRun({
+      digestMap: dispatchedDigestMapValue({ sourceRevision: other }),
+    })
+
+    expect(() => verifyDispatchedCiImageDigestMap(DISPATCH_RUN_ID, runner)).toThrow(
+      `source revision ${other} does not match ${REVISION}`,
+    )
+  })
+
+  it('refuses a map written by another run', () => {
+    const { runner } = fakeDispatchedRun({
+      digestMap: dispatchedDigestMapValue({ runId: '42049999999' }),
+    })
+
+    expect(() => verifyDispatchedCiImageDigestMap(DISPATCH_RUN_ID, runner)).toThrow(
+      `written by workflow run 42049999999, not ${String(DISPATCH_RUN_ID)}`,
+    )
+  })
+
+  it('refuses a map that names a different branch than the run was dispatched on', () => {
+    const { runner } = fakeDispatchedRun({
+      digestMap: dispatchedDigestMapValue({ ref: 'refs/heads/other' }),
+    })
+
+    expect(() => verifyDispatchedCiImageDigestMap(DISPATCH_RUN_ID, runner)).toThrow(
+      `names refs/heads/other, not the branch ${DISPATCH_BRANCH}`,
+    )
+  })
+
+  it('refuses a map shaped like a main push map: a dispatched run names its event', () => {
+    const { runner } = fakeDispatchedRun({
+      digestMap: {
+        ...digestMapValue(),
+        source: {
+          ...(digestMapValue().source as Record<string, unknown>),
+          runId: String(DISPATCH_RUN_ID),
+        },
+      },
+    })
+
+    expect(() => verifyDispatchedCiImageDigestMap(DISPATCH_RUN_ID, runner)).toThrow(
+      /source\.event/u,
+    )
+  })
+
+  it('refuses a map whose images are not the three production repositories', () => {
+    const value = dispatchedDigestMapValue()
+    const images = value.images as Record<string, Record<string, unknown>>
+    images.worker = {
+      ...images.worker!,
+      repository: 'ghcr.io/someone-else/repkey-worker',
+    }
+    const { runner } = fakeDispatchedRun({ digestMap: value })
+
+    expect(() => verifyDispatchedCiImageDigestMap(DISPATCH_RUN_ID, runner)).toThrow(
+      'repository for worker must be ghcr.io/kodes-agency/repkey-worker',
+    )
+  })
+
+  it("accepts an earlier attempt's map when no later attempt re-ran an image job", () => {
+    const { runner } = fakeDispatchedRun({
+      run: { run_attempt: 2 },
+      digestMap: dispatchedDigestMapValue({ runAttempt: 1 }),
+      attemptStarts: { 2: '2026-11-05T10:30:00Z' },
+    })
+
+    expect(verifyDispatchedCiImageDigestMap(DISPATCH_RUN_ID, runner).attempt).toBe(2)
+  })
+
+  it("refuses an earlier attempt's map when a later attempt re-ran the image job", () => {
+    const { runner } = fakeDispatchedRun({
+      run: { run_attempt: 2 },
+      digestMap: dispatchedDigestMapValue({ runAttempt: 1 }),
+      attemptStarts: { 2: '2026-11-05T09:30:00Z' },
+    })
+
+    expect(() => verifyDispatchedCiImageDigestMap(DISPATCH_RUN_ID, runner)).toThrow(
+      `CI run ${String(DISPATCH_RUN_ID)} re-ran image build (web) after attempt 1`,
+    )
+  })
+})
+
+describe('what a deploy reads', () => {
+  it('refuses a dispatched map, whatever branch it names', () => {
+    for (const ref of ['refs/heads/main', `refs/heads/${DISPATCH_BRANCH}`]) {
+      const value = dispatchedDigestMapValue({ ref, runId: '33891370093' })
+
+      expect(() => parseCiImageDigestMap(JSON.stringify(value), REVISION)).toThrow(
+        /source/u,
+      )
+    }
+  })
+
+  it('does not take a dispatched run of main, only a push run', () => {
+    const runner: CommandRunner = (_command, args) => ({
+      status: 0,
+      stdout: args.includes('list')
+        ? JSON.stringify([
+            {
+              databaseId: DISPATCH_RUN_ID,
+              headSha: REVISION,
+              headBranch: 'main',
+              event: 'workflow_dispatch',
+              conclusion: 'success',
+              attempt: 1,
+            },
+          ])
+        : '{}',
+      stderr: '',
+    })
+
+    expect(() => downloadCiImageDigestMap(REVISION, runner)).toThrow(
+      `no successful main push CI run exists for source revision ${REVISION}`,
+    )
+  })
+
+  it('names the replacement jobs as ci.yml gives them', () => {
+    const workflow = readFileSync(
+      resolve(import.meta.dirname, '../../.github/workflows/ci.yml'),
+      'utf8',
+    )
+    const job = (id: string) =>
+      new RegExp(`\\n {2}${id}:\\n[\\s\\S]*?(?=\\n {2}[a-z][\\w-]*:\\n|$)`, 'u').exec(
+        workflow,
+      )?.[0] ?? ''
+
+    // A rename here would leave a verification asking for jobs that do not exist.
+    expect(job('ci')).toContain('needs: [')
+    expect(job('image')).toContain('name: ci-image-digest-map-${{ github.sha }}')
+    expect(job('image-build')).toContain('name: image build (${{ matrix.row }})')
+    expect(job('image-build')).toMatch(/- row: web\n/u)
+    expect(job('image-build')).toMatch(/- row: support\n/u)
+    expect(job('image-scan')).toContain('name: image scan')
+    expect(REPLACEMENT_REQUIRED_JOBS).toEqual([
+      'ci',
+      'image build (web)',
+      'image build (support)',
+      'image scan',
+      'image',
+    ])
   })
 })

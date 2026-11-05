@@ -1,10 +1,6 @@
-// The Portal goal results page (ADR 0068 decision 14; PLAN PG-18): every
-// month's result of the Property's Portal goals, the matrix that left the Goals
-// page, and the Portal goals that have ended. Behind `goal.use` with the other
-// goal routes (the Goals layout), for whoever may change a goal (`goal.update`),
-// the gate the matrix had on the Goals page. Its reads are the Goals page's,
-// primed by the loader from a module fetched on demand, so no query of its own
-// joins first paint.
+// Keep the results gate at goal.use and goal.update. Load shared reads on demand so no
+// results query joins first paint.
+
 import { useState } from 'react'
 import { Navigate, createFileRoute } from '@tanstack/react-router'
 import { useQuery, useSuspenseQuery } from '@tanstack/react-query'

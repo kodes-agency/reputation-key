@@ -1,12 +1,6 @@
-// The Goals page's Google part: the Google rating goal section with its own
-// Active / History tabs (P-7a, ADR 0068; `?view=` chooses only here), the card
-// on the Active view, its reached and ended goals on the History view, and the
-// wizard its doors open. Its reads are its own: the loader primes the card, the
-// setup and the History all at once, beside the Portal goals' reads, and a
-// failed one says so in this section and holds nothing else back. The setup and
-// History are drawn from only while there is no active goal (the empty states,
-// the wizard, and a goal reached or ended lately). Arrived at with `?start=`, it
-// opens the wizard once both are read, where the page's own door would.
+// Prime goal reads concurrently and isolate failures in this section. Arrival setup
+// waits for setup and History, opening only where the page would offer it.
+
 import { useEffect, useRef, useState } from 'react'
 import { useQuery, type UseQueryResult } from '@tanstack/react-query'
 import type {

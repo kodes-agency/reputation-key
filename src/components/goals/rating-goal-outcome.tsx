@@ -1,12 +1,7 @@
-// A goal reached, or ended by something other than a manager, told on the Goals
-// page for a while after it happened (`recentOutcome`): the snapshot consumer
-// usually reaches a goal before anyone looks, so the news comes from History as
-// often as from the read that found it. It says what happened, on which day,
-// and offers what comes next: after reaching, "Set your next goal" (the setup,
-// opened on its recommendation), "Keep 4.7" beside it at 4.7 or 4.8 (X1: the
-// next tenth needs new reviews of nearly five stars), or only "Keep 4.9" at 4.9
-// or 5.0, where no higher tenth can be planned (R2-9); after an end it did not
-// choose, a new goal (ADR 0067, decision 6).
+// The snapshot consumer often reaches a goal before the page is read, so recent
+// outcomes also come from History. Keep is offered alongside a climb at 4.7 or 4.8 and
+// alone at 4.9 or 5.0, where no higher tenth can be planned.
+
 import {
   HIGHEST_TARGET_TENTHS,
   KEEP_FIRST_FROM_TENTHS,

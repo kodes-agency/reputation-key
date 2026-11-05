@@ -10,6 +10,12 @@ Primary areas:
 
 - `auth/`, `security/`, `rate-limit/`, `provider-ephemeral/`, and
   `google-provider-control/` own reusable admission and transport fences.
+- `commands/command.server.ts` wraps tenant server handlers with headers,
+  membership, execution policy, tracing and declared error translation.
+  `commands/public-command.server.ts` resolves public scope and applies limits
+  and public execution policy without creating a manager session. `contracts.ts`
+  holds their browser-safe types; own-account and operator authorization stay
+  with their existing adapters.
 - `db/`, `events/`, `outbox/`, and `jobs/` own durable storage/delivery mechanics.
 - `architecture/` and `governance/` hold executable boundaries and catalogues.
 - `health/` and `observability/` expose content-minimal runtime evidence.

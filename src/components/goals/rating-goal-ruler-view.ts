@@ -1,8 +1,6 @@
-// The Google rating goal on the goal ruler (2026-11-01, ADR 0067): from what Google
-// showed when the goal was set to the goal, the tenths on the way as stops, and
-// where the exact average stands today. A tenth's stop sits at the average at which
-// Google shows it, so the bar reaches a stop when Google can show that number, and
-// a manager never sees 4.02 or 4.05. Pure.
+// Position each tenth at the exact average where Google shows it, without exposing
+// unrounded thresholds to the manager.
+
 import type { RatingGoalCardView } from '#/contexts/reporting/application/dto/rating-goal.types'
 import { rulerModel, type GoalRulerModel } from './goal-ruler-view'
 import { reviewCountText } from './rating-goal-tracking-words'

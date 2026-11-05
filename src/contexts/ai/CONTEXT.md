@@ -22,9 +22,8 @@ Reply publication, Portal/Guest data, metrics, goals, or notifications.
   read's permission held, current Property access) before the
   merchant-authorization gate is read; a refusal is a tagged `AiError`
   `forbidden`. The permission is the one the read's surface is gated on:
-  `dashboard.read` for `readPropertyAggregates`, `readPropertyInsights` and
-  `readReviewAnalysisProgress`, `ai.trends.read` for `readPropertyTrend`, and
-  `inbox.read` for `readReviewAnalysis`, which Inbox calls through its
+  `dashboard.read` for `readReviewAnalysisProgress`, `ai.trends.read` for
+  `readPropertyTrend`, and `inbox.read` for `readReviewAnalysis`, which Inbox calls through its
   `AiReviewInsightsPort` after it has authorized the item.
 - Not reader-authorized inside the context: the two review-id filters
   (`findCurrentReviewIdsByAttention`, `findCurrentReviewIdsByAspect`), which
@@ -584,8 +583,8 @@ counts of reviews by star rating are kept for 24 months, which holds only once t
 exists. Also left: including v3 derivatives in an organization export. The statistics that read
 the mentions (the Guest voice read model) and the wiring of `AiProviderChoicePort`, the runtime
 catalogue row and the served-contract constants (`isCurrentAuthorizedEffect`, the deployment
-profile string) shipped with PR-4 and the switch-on (2026-10-30). Property issue grouping itself
-is complete below; publishing its manager commands and reads remains PR-4 work.
+profile string) serve the current analysis contract. Property issue assignment and its
+Guest voice and Inbox readers are live; there are no rename, hide or merge commands.
 
 ### Property issue groups
 
@@ -602,27 +601,24 @@ the gold and the answer through the same function. A reviewed edit moves its dig
 regroup history because stored members win. No model clusters, proposes or learns a group across
 Properties.
 
-An ID survives re-analysis, epochs and new spellings. Merge preserves the target and leaves the
-source as a redirect; redirects into the source are flattened to the target in the same
-transaction, so resolution is one hop. Cross-topic merge is refused by the application and by
-composite database foreign keys: a read-model issue has exactly one topic, and the contract
-permits only same-topic merge proposals. Assignment, rename, hide, show, merge and resolve carry
-Organization and Property predicates. Mutations take the aggregate writer's Property advisory
-lock before locking changed groups `FOR UPDATE`; `resolve` is a read that takes no lock, so
-showing an issue never waits for an analysis to be stored.
+An ID survives re-analysis, epochs and new spellings. Assignment carries Organization and
+Property predicates and runs under the aggregate writer's Property advisory lock. Readers and
+assignment follow stored redirects in one hop; composite database foreign keys keep a group
+within its Property and topic. Guest voice honors stored display names and visibility.
 
 `expires_at` is the greatest expiry of any analysis assigned to the group and never moves back.
-Rename, hide and merge do not extend it; merge only raises the target to the greater of target and
-source. The sweep runs `ai_review_analyses.v3_expired` first, then deletes an expired group only
+The sweep runs `ai_review_analyses.v3_expired` first, then deletes an expired group only
 when no contribution mention references it; members and redirects cascade. Organization
 lifecycle removes contribution mentions before members and groups. A contribution mention's
 foreign key to its group is deferred to commit, because erasing a Property deletes groups and
 mentions along different cascade paths and an immediate check refused the erasure.
 
-The manager command factory is deliberately unwired. PR-4 must publish it behind its chosen
-permission, add the Guest voice read model and drawer, record the manager audit event, and map an
-Inbox mention to its surviving issue. `display_name` is manager text: it is a protected local fact
-and may reach none of provider input, logs or events.
+`display_name` is manager text: it is a protected local fact and may reach none of provider
+input, logs or events.
+
+Terminal analysis delivery always repeats the idempotent aggregate mutation, which owns the
+settlement ledger and terminal sequence. The reaper records the origin event's consumer receipt
+after that mutation and fences delivery with the operation's state and attempt.
 
 ### Evaluation harness (dark)
 
@@ -648,7 +644,7 @@ changed (`cl-0041`, `cl-0138`, `cl-0184`: it reads "oil.For" and "working.Not", 
 after a full stop, as web addresses) and any review the live path would not send. Causes are
 compared through `property-issue-normalization-v1`, so "ac" agrees with "air conditioning".
 
-The gates are decision 6 of the contract decisions (`docs/plan/guest-voice-2.md`), as gates v2
+The gates are decision 6 of the contract decisions ([`docs/plan/guest-voice-2.md`](https://github.com/kodes-agency/reputation-key/blob/docs-archive-2026-11-05/docs/plan/guest-voice-2.md)), as gates v2
 (`review-analysis-gates-v2`) read them after the first OpenAI measurement, for the whole set and
 for English, Bulgarian and Spanish: Urgent with zero safety or health misses, at least 95% recall
 and at most 2% of non-urgent reviews flagged; topic micro F1 at least 0.85 and no topic below 0.70
@@ -734,28 +730,6 @@ Guest voice page reads too, so a stored `updating` report whose windows are all
 complete is worded as insufficient data). Before 2026-10-29 its stored coverage of
 0 (0 of 0) read as below 90% and left every quiet Property in `Updating`.
 
-Guest voice (`readPropertyInsights`) counts Reviews, not mentions: a Review that
-names a topic twice counts once (`aspect-review-evidence.ts`, shared with the 30-day
-aggregate read of Overview). Per topic and polarity it reads the Reviews, their
-stars as how many gave 1 to 5, those stars against every other Review in the window
-(the Reviews with only stars included here; the aggregate read has analyses only, so
-its "rest" is Reviews with text), and, against the Property's own previous 12 months
-(the 365 days that end the day before the window starts, whatever its length; a
-12-month window reaches back to the 24-month retention), whether the share moved
-more than its usual ups and downs (`guest-voice-statistics.ts`, the engine
-`GUEST_VOICE_STATISTICS_VERSION` names). Both shares are uncertain, so they are
-compared as two posteriors and a change is called at a two-sided 95%; a unit test
-enumerates both binomials exactly and pins an unchanged topic's false flags at 5% or
-less (rates of 10% and 30%, windows of 20 and 60 Reviews, a baseline four times the
-window). Without 20 analysed Reviews with text in those 12 months the change is
-unknown. A Property with too many Reviews to read the window with its 12 months
-(10,001) is read for the window alone and claims no change. The window is `auto` by
-default: the shortest of 30 days, 90 days, 6 months and 12 months holding 60 Reviews
-with text, or 12 months, with `enoughForPatterns` false under 10 in the year; a year
-too full to read is answered with 90 days. A recurring issue is a label two or more
-Reviews carry. Topics still come from the v2 analysis (taxonomy v1), where Staff and
-Service overlap, so a Review about the front desk can count under both.
-
 Guest voice 2.0 (`readGuestVoiceV2`, v3 contract section 9) is the Guest voice page, and since the
 switch-on (2026-10-30) the only one: the route reads it once. A Property whose reviews have a v3
 analysis gets the page; any other gets a reason instead (`hasV3Analyses`: a ready v3 contribution
@@ -763,7 +737,7 @@ under the Property's current epochs): "being prepared", or "AI analysis is off" 
 the consent was recorded under a notice no longer in force. Its types are
 `application/read-models/guest-voice-v2.ts`, content-free except `LiveEvidence`. The read joins two
 answers (`read-models/guest-voice-v2-join.ts`). Review says which reviews the Property has now
-(`readTrendPopulation`, as the insights read: two years in one read, the last year alone and no
+(`readTrendPopulation`: two years in one read, the last year alone and no
 change claimed when that is too full, 90 days when the year is). The analysis side
 (`AiGuestVoiceFactsPort`, `infrastructure/adapters/ai-guest-voice-facts.adapter.ts`) gives each
 review's latest ready v3 contribution and its effective mentions in one statement under the

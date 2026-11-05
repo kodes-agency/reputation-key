@@ -157,8 +157,7 @@ type StatusMemberProps = Readonly<{
  * conjuncts are reproduced below, for either source type, so nothing refused is
  * ever offered: `inbox.manage` does not imply `inbox.write` anywhere — the
  * client `can` is a flat membership test over `effectivePermissions`
- * (`usePermissions.ts:26`) and custom roles carry no implication rules
- * (`custom-role.dto.ts:3`) — so a role holding `inbox.manage` without
+ * (`usePermissions.ts:26`) with no permission implication rules — so a role holding `inbox.manage` without
  * `inbox.write` would otherwise be offered a reopen the server throws on.
  *
  * `inbox.manage` is then added on top, deliberately narrowing the gate below

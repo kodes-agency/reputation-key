@@ -1,8 +1,3 @@
-// A Google rating goal that climbs, as its card on the Goals page and the Property
-// Overview (2026-11-01, ADR 0067): what is left to the next number Google can show,
-// when the goal arrives and the ruler of how far along it is; beside them this week
-// against the plan and the way to the detail. A narrow card puts one under the
-// other.
 import { Link } from '@tanstack/react-router'
 import type { RatingGoalCardView } from '#/contexts/reporting/application/dto/rating-goal.types'
 import { Button } from '#/components/ui/button'

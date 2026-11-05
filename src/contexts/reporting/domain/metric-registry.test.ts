@@ -58,26 +58,16 @@ describe('MetricRegistry', () => {
       }
     })
 
-    it('counts the Immersive Hub fields under their own completeness version', () => {
-      const legacy = findMetricVersionById(METRIC_VERSION_IDS.configurationCompleteness)
-      const immersive = findMetricVersionById(
-        METRIC_VERSION_IDS.configurationCompletenessImmersiveHub,
-      )
-
-      expect(immersive?.definition.key).toBe('portal.configuration_completeness')
-      expect(immersive?.version).toMatchObject({
-        version: 3,
-        definitionId: legacy?.version.definitionId,
-        effectiveFrom: new Date('2026-10-02T00:00:00.000Z'),
-        effectiveTo: null,
-        unit: 'percent',
-        permittedConsumers: legacy?.version.permittedConsumers,
-      })
-      // The legacy count keeps its meaning, and stays open for facts recorded before.
-      expect(legacy?.version).toMatchObject({
-        version: 1,
-        effectiveTo: null,
-      })
+    it.each([
+      '11111111-1111-4111-8111-111111111101',
+      '11111111-1111-4111-8111-111111112101',
+      '11111111-1111-4111-8111-111111111102',
+      '11111111-1111-4111-8111-111111112102',
+      '11111111-1111-4111-8111-111111113102',
+      '11111111-1111-4111-8111-111111111103',
+      '11111111-1111-4111-8111-111111112103',
+    ])('refuses retired workflow version %s for new readings', (versionId) => {
+      expect(findMetricVersionById(versionId)).toBeNull()
     })
 
     it('keeps notes and destination actions private to Portal analytics', () => {

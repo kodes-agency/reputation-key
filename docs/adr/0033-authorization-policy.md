@@ -117,3 +117,20 @@ real provider and database.
 [ADR 0076](0076-staff-accounts-and-personal-portals.md) amends this decision.
 
 Staff-only logins use a separate resolver for `staff.self`; `resolveTenant` still refuses the `member` token. The staff resolver checks the session's sole Organization membership on every request and asks the execution policy under `staff.accounts`. Identity then requires the active login link and an active personal participation belonging to that session. These reads grant no manager Property access. AccountAdmins and PropertyManagers may invite, rename, resend and remove staff only at Properties they can work. Only an AccountAdmin changes the colleague-list setting. A PropertyManager cannot choose another login role.
+
+## Custom roles are retired
+
+Authorization knows three built-in roles. A member's role token maps to the fixed
+permissions and data scope of that role (`owner` holds the organization, `admin` and
+`member` their assigned Properties), and any other token is refused. No custom role
+exists, no command creates, changes or deletes one, and no code reads a role
+definition. The provider's own custom-role endpoints stay refused
+(`dynamicAccessControl` is off) and the role tables stay as dormant schema until
+they are dropped. This retires the dynamic resolver of the earlier access-control
+decision (ADR 0001, no longer in the active set) and its `ENABLE_CUSTOM_ROLES`
+switch; a deployment that still sets the variable ignores it.
+
+Every resolved context, interactive or from a delayed worker, carries the
+organization's `permission_version`. A cached context is served only while that
+version is unchanged, and an unreadable version fails closed with 503. The
+`permission_version` triggers and the Property grant locks are unchanged.

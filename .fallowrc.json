@@ -256,15 +256,6 @@
     {
       "file": "src/shared/ops/operator-command.ts",
       "exports": ["runOperatorCommand"]
-    },
-    {
-      "file": "src/shared/bqc/status-schema.ts",
-      "exports": [
-        "BQC_STATES",
-        "bqcStateSchema",
-        "bqcEntrySchema",
-        "bqcStatusManifestSchema"
-      ]
     }
   ],
   "usedClassMembers": [
@@ -291,13 +282,6 @@
     "dev-dependencies-in-production": "off"
   },
   "overrides": [
-    {
-      "files": ["src/contexts/identity/server/organizations.roles.ts"],
-      "rules": {
-        "unused-files": "off",
-        "unused-exports": "off"
-      }
-    },
     {
       "files": ["src/components/ui/**"],
       "rules": {

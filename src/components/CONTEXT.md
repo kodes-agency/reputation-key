@@ -350,7 +350,7 @@ none` is not in the outline. Under it a section's title is a `CardTitle as="h2"`
   `feedback-ownership.test.ts` reads the sources and fails on a file that does
   both, a hand-built red paragraph, or a toast that
   echoes `error.message`. Typed toasts take their colours from the tone tokens
-  (`toaster-theme.ts`) and follow the applied theme.
+  (`sonner.tsx`) and follow the applied theme.
 - `ui/metric-delta` draws a period-over-period change (arrow, size, baseline,
   and the direction in words) and `#/lib/format` is the one place a date or a
   number becomes text: en-US, UTC unless a zone is named, `null` for an instant
@@ -413,7 +413,7 @@ Before adding UI, find the family here. Each one has a single implementation:
 the UI consistency scan of 2 October 2026
 (kept at git tag `docs-archive-2026-11-04`) found about a hundred places where
 a second had grown beside the first, and every stage of
-`docs/plan/ui-consistency-implementation.md` folded one family back into one
+[`docs/plan/ui-consistency-implementation.md`](https://github.com/kodes-agency/reputation-key/blob/docs-archive-2026-11-05/docs/plan/ui-consistency-implementation.md) folded one family back into one
 primitive. Use the canonical component. When it lacks something you need, extend
 it with a prop or a variant (the owner approves new primitives and variants)
 rather than overriding it with `className`. The paragraphs above say how each one

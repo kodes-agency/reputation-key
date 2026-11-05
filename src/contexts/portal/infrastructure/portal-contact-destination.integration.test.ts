@@ -151,7 +151,9 @@ describe('contact destinations (real PostgreSQL)', () => {
       at: STORED_AT,
     })
 
-    const due = await repo().listDueForNetworkRevalidation(A_DAY_LATER, 500)
+    const due = await repo().listDueForNetworkRevalidation(A_DAY_LATER, 500, {
+      at: A_DAY_LATER,
+    })
     const ours = due.filter((row) => row.organizationId === ORG_A).map((row) => row.id)
 
     expect(ours).toEqual([site.id])

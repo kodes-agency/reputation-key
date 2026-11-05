@@ -13,7 +13,9 @@ import {
 } from './review-analysis-v3-metrics'
 import type { Rate } from './review-analysis-v3-stats'
 
-const LANGUAGE_SLICES: readonly string[] = ['en', 'bg', 'es']
+const LANGUAGE_SLICES: readonly string[] = GATING_SLICES.filter(
+  (slice) => slice !== 'all',
+)
 
 export type SliceSummary = Readonly<{
   items: number
@@ -67,7 +69,11 @@ function groupBy<Key>(
 ): ReadonlyMap<Key, readonly ScoredRun[]> {
   const groups = new Map<Key, ScoredRun[]>()
   for (const run of runs) {
-    for (const key of keysOf(run)) groups.set(key, [...(groups.get(key) ?? []), run])
+    for (const key of keysOf(run)) {
+      const members = groups.get(key)
+      if (members === undefined) groups.set(key, [run])
+      else members.push(run)
+    }
   }
   return groups
 }
@@ -79,15 +85,13 @@ export function scoreSlices(
   familyOf: (business: string) => string,
 ): SliceScores {
   const byLanguage = groupBy(runs, (run) => [run.item.language])
-  const gatingRuns: Record<GatingSlice, readonly ScoredRun[]> = {
-    all: runs,
-    en: byLanguage.get('en') ?? [],
-    bg: byLanguage.get('bg') ?? [],
-    es: byLanguage.get('es') ?? [],
-  }
   const gating = Object.fromEntries(
     GATING_SLICES.map(
-      (slice) => [slice, scoreSlice(gatingRuns[slice], causeKey)] as const,
+      (slice) =>
+        [
+          slice,
+          scoreSlice(slice === 'all' ? runs : (byLanguage.get(slice) ?? []), causeKey),
+        ] as const,
     ),
   ) as Record<GatingSlice, SliceMetrics>
   const contextRuns = groupBy(runs, (run) => contextSlicesOf(run, familyOf))

@@ -1,9 +1,6 @@
-// The setup's two explanations, opened on request below the plan (E2/E4): "How
-// we worked this out" (the maths, the downside, an example of the average, and
-// that it is a forecast, not a target for guests or staff) and "Why every
-// guest" (R2-12 verbatim, then why asked guests rate higher). Each opens from
-// the shared `ExplainTrigger`, takes the focus, closes on Escape or its own
-// Close, and is held in the draft so a turned phone keeps it open.
+// Explain that the plan is a forecast, never a target for guests or staff, and preserve
+// the ask-every-guest wording. Keep open state in the draft so rotation preserves it.
+
 import type { ReactNode } from 'react'
 import { X } from 'lucide-react'
 import type { RatingGoalSetupInputs } from '#/contexts/reporting/application/dto/rating-goal-setup.types'

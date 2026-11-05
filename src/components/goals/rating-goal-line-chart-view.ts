@@ -1,13 +1,7 @@
-// "Your rating on Google" on the Google rating goal's page, worked out (pure,
-// 2026-11-01, ADR 0067): the chart every manager already knows from a weight or a
-// savings app. The exact average so far, quiet before the goal was set; the goal as
-// one straight line; one dotted line for the way left; real months under it; and
-// the tenths Google shows up the side. Each tenth's line sits at the average at
-// which Google shows it, so crossing "4.0" is Google showing 4.0 and no one reads a
-// rounded threshold. Every place is a share of the plot, 0 to 100, so the chart
-// fills its width with no measuring and nothing moves when it draws. While RepKey
-// lacks some of Google's reviews there is no exact line, and it steps through
-// Google's own numbers instead.
+// Place each displayed tenth at the exact average where Google shows it, not at the
+// rounded value. When cached reviews are incomplete, draw Google's own steps instead of
+// an exact-average line. Percentage coordinates avoid measuring the plot.
+
 import type {
   RatingGoalChartPoint,
   RatingGoalChartView,

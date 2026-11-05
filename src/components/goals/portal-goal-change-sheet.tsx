@@ -1,18 +1,7 @@
-// The sheet that changes the Monthly portal goal (PLAN PG-14; copy deck S-1,
-// S-15…S-23, F-1, F-2): "November, now" or "From Dec 1", the number box, what
-// the number is, a note on the way it starts the month when it is behind, the
-// other measure (from the next month only), and "Add a note". The primary
-// sends "now" as a change of the running month and the months after it, and
-// "from next month" as a revision; a toast says what was saved.
-//
-// It works from the goal as the sheet opened on it, never from a read that
-// moved on under it. A refusal is said in the banner above the footer. When
-// the sheet is behind the goal, the goal is read again and the sheet opens
-// afresh on the latest, still saying why: someone changed the goal (F-1), the
-// month a change now was for has ended (F-2: the latest then offers the month
-// after), or the month a change from a coming month starts with has turned
-// (F-4). A goal stopped a moment ago (F-5) leaves nothing to change: the sheet
-// closes on the latest and a toast says why. Part of the sheet's chunk.
+// Keep the goal snapshot from opening, even if background reads advance. Stale revision
+// or month keys require a fresh read and reopening with the refusal preserved; a
+// stopped goal closes the sheet.
+
 import type { PortalGoalMeasure } from '#/contexts/reporting/application/dto/goal-recommendation.types'
 import type {
   PortalGoalChangeFacts,

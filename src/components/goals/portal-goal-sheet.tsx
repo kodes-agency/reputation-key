@@ -1,19 +1,8 @@
-// The Monthly portal goal's sheet (PLAN PG-10, PG-14; copy deck S-1…S-23,
-// F-1…F-5): a dialog on a desktop and a full-screen sheet on a phone
-// (the shared `goal-sheet-frame.tsx`). It sets the goal, or changes it
-// (`portal-goal-change-sheet.tsx`), as the door that opened it says. Setting,
-// it opens on the number the card offered (or an empty box where there is
-// none yet), with the focus in the box; Set sends that month, that measure and
-// that number, recorded as recommended only when it is the recommendation.
-//
-// A chunk of its own, loaded when a door to it is on screen. It owns its draft
-// (the host mounts it afresh, with a key, for every opening) and its commands.
-// A refusal is said once: in the banner above the footer, with the goal read
-// again when it means the card is behind (the month turned, F-4: the sheet
-// then shows the months the read offers now); except a goal set a moment ago
-// elsewhere (F-3), which leaves nothing to set here, so the sheet closes on
-// the latest and a toast says why. While a command is on its way the sheet
-// cannot be dismissed.
+// Set submits the offered month, measure and number, marked recommended only when it
+// matches. Keep the draft above the responsive frame and mount afresh per opening.
+// Stale months refresh the offers; a goal already set elsewhere closes the sheet.
+// Pending commands prevent dismissal.
+
 import { useRef, useState } from 'react'
 import { toast } from 'sonner'
 import type {

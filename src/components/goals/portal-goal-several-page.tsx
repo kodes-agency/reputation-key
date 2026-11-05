@@ -1,10 +1,5 @@
-// The plain page of a goal for several subjects, on `$goalId` (PLAN PG-21): a
-// goal an older form could make, before goals had pages of their own. Its
-// title names whom it counts as its row on the Goals page does ("Reception and
-// 2 more · portal goal"); under it, what it counts where, this month as that
-// row says it, or a stopped or paused goal's state. Its one action is Stop,
-// with the same confirmation as every portal goal's, so a manager can still
-// end it: changing it is no longer offered.
+// Several-subject goals retain their page and history, with Stop as their only action.
+
 import type { PortalGoalSinglePageView } from '#/contexts/reporting/application/dto/portal-goal-single-page.types'
 import { PageHeader } from '#/components/layout/page-header'
 import { trailCrumbs } from '#/components/layout/page-identity'

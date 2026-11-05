@@ -1,9 +1,7 @@
-// "Your rating on Google" (2026-11-01, ADR 0067; `rating-goal-line-chart-view.ts`
-// works it out): an SVG stretched over the plot for the lines, and plain elements
-// for the words and the dots, so the text never stretches with it and the chart
-// needs no measuring and no chart library. The figure's name and caption are its
-// text alternative, and each point is read out as a list. One keyboard stop;
-// pointer, touch and keys choose the same point, whose line is under the chart.
+// Stretch only the SVG lines, keeping labels at their own size. A caption and point
+// list expose the chart without sight; pointer, touch and keyboard select the same
+// point.
+
 import { useId } from 'react'
 import { useBarSelection } from '#/components/hooks/use-bar-selection'
 import { cn } from '#/lib/utils'

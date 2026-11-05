@@ -1,7 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { resolveStaff } from './staff-resolver'
 import { resolveSessionOrganization } from './session-organization'
-import { resetEnv } from '#/shared/config/env'
 
 const mocks = vi.hoisted(() => ({
   session: vi.fn(),
@@ -16,11 +15,16 @@ vi.mock('./user-organization-membership-authority', () => ({
   checkUserOrganizationMembership: mocks.membership,
 }))
 vi.mock('./execution-policy', () => ({ requireExecutionAllowed: mocks.policy }))
+vi.mock('#/shared/db', () => ({
+  getDb: () => ({
+    select: () => ({
+      from: () => ({ where: () => ({ limit: async () => [{ version: 1 }] }) }),
+    }),
+  }),
+}))
 
 beforeEach(() => {
   vi.resetAllMocks()
-  process.env.ENABLE_CUSTOM_ROLES = 'false'
-  resetEnv()
   mocks.session.mockResolvedValue({
     session: { activeOrganizationId: 'org' },
     user: { id: 'person' },

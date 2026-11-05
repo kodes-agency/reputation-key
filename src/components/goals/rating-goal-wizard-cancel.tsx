@@ -1,8 +1,6 @@
-// The way out of a step of the Google rating goal wizard. In a dialog it is
-// Cancel (or the step's own word, such as Close); inside the Google import's
-// setup frame there is nothing to cancel back to, so it is "Not now", which
-// the frame's owner records (the setup checklist then counts the step as
-// decided). One component, so no step spells which.
+// Inline import setup has no dialog to cancel, so Not now is recorded by its owner as a
+// decided setup step.
+
 import { createContext, use, type ReactNode } from 'react'
 import { DialogCancel } from '#/components/ui/dialog'
 

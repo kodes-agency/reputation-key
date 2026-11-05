@@ -1,7 +1,6 @@
-// "Not now" for a Property's Google rating goal: the setup checklist counts its
-// step as decided and stops reminding (owner, 2026-10-14). The setup strip on the
-// Overview and in Property settings offers it beside the step, and the Google
-// import's last step offers it instead of the goal. It sets and changes no goal.
+// Not now marks the setup step decided and suppresses reminders; it neither sets nor
+// changes a goal.
+
 import {
   actionFailureMessage,
   useActionMutation,

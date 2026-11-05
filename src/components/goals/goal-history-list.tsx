@@ -1,19 +1,6 @@
-// A goal's History on its detail page (ADR 0068, amended 2026-10-19: one goal
-// design system): a card titled by the goal, one row to a dated fact, newest
-// first, the date in a column of its own and the fact beside it, and a line under
-// the list for what a goal adds to it. A goal brings its rows finished (the date,
-// and the words as a node, so a row may carry a link or a second line); the list
-// only lays them out.
-//
-// Four options a goal may ask for and the other never passes: `more`, a control
-// under the list (a "Show all"); `revealedFrom`, the row that control added, which
-// takes the focus once so a keyboard does not lose its place; `region`, which
-// makes the card a landmark named by its title; and `wideDates`, a date column
-// with room for a year. A list that passes none draws a card with no landmark and
-// a column of five rem, as it always did.
-//
-// On a goal's page it is closed until asked (2026-11-01): the page leads with how
-// the goal stands, and the dated facts are one tap away.
+// When Show all removes its own control, focus the first revealed row so keyboard
+// navigation keeps its place.
+
 import { useCallback, useId, useRef, type ReactNode } from 'react'
 import { ChevronDown } from 'lucide-react'
 import { RowButton } from '#/components/ui/button-layouts'

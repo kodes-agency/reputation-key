@@ -1,18 +1,8 @@
-// Opens "Add a portal goal" (PLAN PG-20; copy deck M-1…M-14): from its door at
-// the foot of the Goals page's Portal goals section, in place, and from the
-// Monthly portal goal's page, where an old link's address (`?add=…`) also opens
-// it on the step it named. The sheet is a chunk of its own, fetched while its
-// door is on screen, and it works from the add read (`portalGoalAddQuery`,
-// primed by both pages' loaders), so the door is drawn only when the read
-// offers something to add (the M-rule) and never pops in after the section. A
-// fresh sheet (new drafts, no old refusal) is mounted for every opening, as
-// the set sheet's host mounts its own (`afresh`).
-//
-// No Radix trigger opens it, so the host remembers what had the focus and
-// returns it there on closing, or to the page's goal title when that is gone
-// (`useFocusReturn`, as the set sheet's host does). An added goal marks every
-// Portal-goal read stale, and its group's goal card, never the Google rating
-// goal's reads.
+// Keep the sheet lazy and mount fresh drafts for each opening. Use the primed,
+// eligibility-filtered add read so the door does not appear late. Without a Radix
+// trigger, restore focus to the opener or goal title. Invalidate Portal goals and group
+// cards only.
+
 import { lazy, Suspense, useEffect, useState, type ReactNode } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import type { PortalGoalAddOptions } from '#/contexts/reporting/application/dto/monthly-portal-goal-add.types'

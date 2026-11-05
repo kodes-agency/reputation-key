@@ -1,11 +1,8 @@
-// How long a goal takes, in the setup's words (rounds 3 and 4, the approved
-// mock's `span` and `rangeOf`). Days arrive as exact integer fractions and every
-// threshold is compared on them, so no float decides which words are shown:
-// under 14 days in days, under 70 in weeks, under 349.6 in months (30.4 days),
-// then about a year, about N years, and more than 3 years past 1,095 days. A
-// likely range reads "a weeks to b months" when its fast end is under 70 days
-// (PLAN-R4 D16: the week/month boundary, which reproduces the four approved
-// ranges where the mock's 60 would turn "9 weeks to 4 months" into "2–4 months").
+// Compare exact integer fractions so floating-point error cannot change duration
+// wording. The week/month boundary is 70 days, including mixed ranges such as 9 weeks
+// to 4 months. A month is 30.4 days; durations beyond 1,095 days say more than three
+// years.
+
 import type { RatingFraction } from '#/contexts/reporting/application/dto/rating-goal-setup.types'
 
 const IN_DAYS_BELOW = 14

@@ -68,8 +68,7 @@ permission the Portals pages offer Archive on and the one a group's archive asks
 `publicationState: 'archived'`, alone or bundled with an edit), so the rule holds
 whichever server function carries the patch. The `updatePortal` server function asks
 the policy for `portal.update` before the use case reads the patch, so an archive sent
-that way needs both: the two built-in roles are unaffected, and a custom role holding
-`portal.delete` without `portal.update` is refused there. Disable and Restore are updates
+that way needs both, which the two built-in roles hold. Disable and Restore are updates
 (`portal.update`): a PropertyManager can take a live page down and bring an archived
 Portal back to Disabled.
 
@@ -832,11 +831,11 @@ Linktree link guests can open (the Linktree on and an approved link); and the Pr
 verified Google review destination, which the use case looks up. The fact names the fields
 it counted (`fieldSet: 'immersive_hub'`, event version 3). Every version 1 and 2 fact
 counted the legacy settings (name, `portals.description`, the Portal theme's colour, link
-categories, link addresses), which a v3 Portal cannot complete; Metric keeps the two under
-separate versions of `portal.configuration_completeness`. The destination ratio counts every
+categories, link addresses), which a v3 Portal cannot complete. Reporting does not project
+these workflow facts into metric readings. The destination ratio counts every
 link: one with a Property destination when that destination is approved, a raw legacy
-address by the safe-link allowlist (ADR 0044). The ratio needs five links for a reading and
-a new Portal holds at most four, so only an older Portal with more links ever records one.
+address by the safe-link allowlist (ADR 0044). The facts retain the durable record and
+idempotency of the editor’s link-check action.
 
 The earlier issued-image implementation (presigned browser upload, issuance
 table, background job) was removed and is not coming back. The nullable

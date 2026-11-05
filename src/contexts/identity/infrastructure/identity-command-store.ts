@@ -3,10 +3,10 @@ import { linkStaffInvitation } from './staff-invitation-link'
 //
 // One PostgreSQL transaction per command commits the better-auth-owned state
 // mutation (invitation / member rows — the app-owned write path, the same
-// precedent as the pre-existing acceptInvitation transaction and the
-// custom-role writes) together with its outbox_events fact. Acceptance also
-// commits the invitation's Property access grants there: Identity owns that
-// table, and an accepted invitation cannot be accepted again to add them.
+// precedent as the pre-existing acceptInvitation transaction) together with its
+// outbox_events fact. Acceptance also commits the invitation's Property access
+// grants there: Identity owns that table, and an accepted invitation cannot be
+// accepted again to add them.
 //
 // Crash contract:
 // - Crash anywhere inside the transaction rolls back BOTH the state mutation

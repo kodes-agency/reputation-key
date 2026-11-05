@@ -1,6 +1,3 @@
-// "Google shows 4.3 → your goal 4.5": the two numbers a goal to keep and the
-// detail page lead with. The climb card counts to the next number instead
-// (rating-goal-climb-card.tsx, round 5).
 import type { RatingGoalCardView } from '#/contexts/reporting/application/dto/rating-goal.types'
 import { googleShows, ratingText } from './rating-goal-view'
 

@@ -1,9 +1,6 @@
-// The rating ruler under the goal (E2/E4, R3-11): a tick a tenth from four
-// below today to 5.0, taller at whole stars, today's number as a fixed mark,
-// and the climb to the goal as a segment with the goal's dot at its end. It is
-// decoration (`aria-hidden`): the numeral and its sentence carry the goal. The
-// segment and the dot move by transform only, and stop moving for reduced
-// motion. Positions and the mock's one-off sizes are inline styles.
+// The numeral and sentence carry the accessible goal; this ruler is decorative. Animate
+// transforms only and stop for reduced motion.
+
 import { rulerGeometry } from './rating-goal-setup-copy'
 import { tenthsText } from './rating-goal-view'
 

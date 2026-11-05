@@ -1,9 +1,5 @@
-// The goal ruler, laid out (pure, 2026-11-01): a goal hands in its numbers and
-// words, and this decides what fits. Where the goal stands is clamped to the
-// ruler. A stop's words are drawn only where they cannot run into the two ends;
-// the "now" label stays inside the ruler at both ends. Each goal's own numbers
-// are worked out in its own view (`rating-goal-ruler-view.ts`,
-// `portal-goal-ruler-view.ts`), and no goal's words live here.
+// Clamp the current position and its label to the ruler. Hide stop labels that would
+// overlap the ends.
 
 export type GoalRulerEnd = Readonly<{ value: string; note: string | null }>
 

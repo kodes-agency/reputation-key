@@ -324,9 +324,9 @@ export const createPortalApprovedDestinationRepository = (
             lte(portalApprovedDestinations.lastValidatedAt, before),
             or(
               isNull(portalApprovedDestinations.nextAttemptAt),
-              lte(portalApprovedDestinations.nextAttemptAt, selection?.at ?? new Date()),
+              lte(portalApprovedDestinations.nextAttemptAt, selection.at),
             ),
-            selection?.excludeIds?.length
+            selection.excludeIds?.length
               ? sql`${portalApprovedDestinations.id} <> ALL(${sql.param(selection.excludeIds)}::uuid[])`
               : undefined,
           ),

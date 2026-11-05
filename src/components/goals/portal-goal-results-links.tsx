@@ -1,8 +1,5 @@
-// The Portal goals section's foot on the Goals page (copy deck R-3, R-4): the
-// way to every month's result (`/goals/portal-results`) once a month of a Portal
-// goal has closed, and to the ended Portal goals on that page (`#ended`) once one
-// has ended. The page draws it only for someone who may see the results
-// (`goal.update`, the gate the matrix had here).
+// Results links require goal.update, matching the results page's gate.
+
 import type { ReactNode } from 'react'
 import { InlineLink } from '#/components/ui/inline-link'
 import {

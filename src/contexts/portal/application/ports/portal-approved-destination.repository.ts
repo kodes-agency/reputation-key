@@ -52,7 +52,7 @@ export type PortalApprovedDestinationRepository = Readonly<{
   listDueForNetworkRevalidation: (
     before: Date,
     limit: number,
-    selection?: Readonly<{
+    selection: Readonly<{
       at: Date
       excludeIds?: readonly PortalApprovedDestinationId[]
     }>,

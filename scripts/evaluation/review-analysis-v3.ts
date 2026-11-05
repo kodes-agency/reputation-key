@@ -2,18 +2,15 @@
 //
 //   pnpm eval:review-analysis-v3 -- --providers fake-gold --out test-results/review-analysis-v3
 //
-// It loads the synthetic test set, asks each provider the production question
-// (the production prompt, redaction, request payload and normalizer), scores the
-// answers against the gold with the gates of decision 6, and writes a JSON report,
-// an HTML page and every final label to a local folder. It never calls a provider:
-// the providers it can name are a fake, a file of recorded answers, and two real
-// ones that are declared and refuse to run (review-analysis-v3-providers.ts).
+// It scores gold echo or recorded answers through production redaction and
+// acceptance, then writes JSON, HTML and final labels locally. No provider
+// transport is available.
 // Exit codes: 0 every gate passed, 1 a gate failed or could not be measured over
 // the whole set, 2 the command, the test set or a provider could not be used.
 
 import { createHash } from 'node:crypto'
 import { mkdirSync, readFileSync, realpathSync, writeFileSync } from 'node:fs'
-import { join, resolve } from 'node:path'
+import { basename, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import {
   REVIEW_ANALYSIS_NORMALIZATION_DIGEST,
@@ -50,7 +47,11 @@ import {
   type ItemRunResult,
   type PreparedEvaluationItem,
 } from './review-analysis-v3-provider'
-import { EvaluationProviderError, resolveProviders } from './review-analysis-v3-providers'
+import {
+  EvaluationProviderError,
+  FAKE_GOLD_PROVIDER_ID,
+  resolveProviders,
+} from './review-analysis-v3-providers'
 import {
   EVALUATION_HARNESS_VERSION,
   buildProviderReport,
@@ -89,9 +90,9 @@ const USAGE = [
   `  --items <files>     comma-separated JSONL   (default ${DEFAULT_ITEMS.join(',')})`,
   `  --gold <file>       gold labels JSONL        (default ${DEFAULT_GOLD})`,
   `  --out <dir>         where the reports go     (default ${DEFAULT_OUT})`,
-  `  --runs <n>          runs per provider, 1-${MAX_RUNS}   (default 1; use 2 on a live provider to measure instability)`,
+  `  --runs <n>          repeats per offline input, 1-${MAX_RUNS}   (default 1)`,
   `  --country <XX>      country the redactor reads phone numbers for   (default ${EVALUATION_REDACTION_COUNTRY})`,
-  'openai and anthropic are declared and not wired: score their recorded answers with answers:<file>.',
+  'This command is offline. Score recorded answers with answers:<file>.',
 ].join('\n')
 
 export type CliIo = Readonly<{
@@ -180,7 +181,7 @@ export function parseCliArguments(argv: readonly string[]): ParsedArguments {
   return {
     status: 'run',
     options: Object.freeze({
-      providers: flags.get('--providers') ?? 'fake-gold',
+      providers: flags.get('--providers') ?? FAKE_GOLD_PROVIDER_ID,
       items: Object.freeze(items),
       gold: flags.get('--gold') ?? DEFAULT_GOLD,
       out: flags.get('--out') ?? DEFAULT_OUT,
@@ -198,14 +199,10 @@ function loadTestSet(options: CliOptions, io: CliIo): LoadedTestSet {
   const items = itemFiles.flatMap((file) => parseEvaluationItems(file.path, file.source))
   const gold = parseGoldLabels(options.gold, goldSource)
   const digest = digestTestSetFiles([
-    ...itemFiles.map((file) => ({ name: baseName(file.path), source: file.source })),
-    { name: baseName(options.gold), source: goldSource },
+    ...itemFiles.map((file) => ({ name: basename(file.path), source: file.source })),
+    { name: basename(options.gold), source: goldSource },
   ])
   return { testSet: buildTestSet(items, gold), digest }
-}
-
-function baseName(path: string): string {
-  return path.slice(path.lastIndexOf('/') + 1)
 }
 
 type Reference = Readonly<{

@@ -1,11 +1,6 @@
-// The Portal goals section of the Goals page, below the Google section and apart
-// from it (ADR 0068): its title, a line on what the goal counts, the Monthly
-// portal goal's card, and three slots, `extras` (the other Portal goals),
-// `footer` (the way to add one) and `results` (the way to each month's result
-// and the ended goals, PG-18). A read on its way keeps the card's room; one
-// that failed says so here and holds nothing else back. It is the same on both
-// of the Google section's views (P-7a); a reader who cannot set goals gets no
-// card, the slots only.
+// The Google section's view never changes Portal goals. A read failure stays in this
+// section; readers who cannot set goals receive only the other-goal slots.
+
 import { useEffect, type ReactNode } from 'react'
 import { useRouterState } from '@tanstack/react-router'
 import type { PortalGoalCardView } from '#/contexts/reporting/application/dto/monthly-portal-goal.types'

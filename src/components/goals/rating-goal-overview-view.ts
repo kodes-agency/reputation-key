@@ -1,12 +1,6 @@
-// What the Property Overview says about the Google rating goal, worked out once
-// (pure). The Overview is a first-time surface too, so it says at most one
-// thing: the simple card of the active goal; a goal reached, or ended by
-// something other than a manager, while that is news (the Goals page's rule);
-// or, with no goal, a one-line prompt into the wizard, only where a goal can be
-// set, the viewer may set it and no manager chose "Not now" for it (the setup
-// strip's choice: a reminder after "Not now" is a nag). Nothing otherwise, and
-// nothing while a read is on its way or failed: the goal never holds the
-// Overview back.
+// The goal never blocks the Overview. Honour Not now and hide prompts while reads are
+// pending or failed; setup still requires eligibility and create permission.
+
 import type {
   RatingGoalCardView,
   RatingGoalHistoryEntry,

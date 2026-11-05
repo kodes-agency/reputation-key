@@ -1,9 +1,6 @@
-// The Google rating goal's History view on the Goals page: the Property's
-// reached and ended Google rating goals, newest first. Each row says what it
-// aimed at, how (climb at a pace, or keep), when it was set, when it was reached
-// or ended, and why it ended, in plain words. It is drawn inside the Google
-// section, under its tabs (`RatingGoalViews`, P-7a), which is the region named
-// "Google rating goal"; this part titles itself but is no region of its own.
+// The parent Google section owns the named region; History supplies a heading without
+// duplicating the landmark.
+
 import { History } from 'lucide-react'
 import type { RatingGoalHistoryEntry } from '#/contexts/reporting/application/dto/rating-goal.types'
 import {

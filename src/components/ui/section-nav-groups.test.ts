@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { groupSectionNavItems } from './section-nav-groups'
+import { groupSectionNavItems } from './section-nav'
 
 const item = (key: string, group?: string) => ({
   key,

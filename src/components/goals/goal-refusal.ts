@@ -1,11 +1,6 @@
-// What a goal command's refusal says to the person who pressed the button.
-//
-// The goal commands refuse with a code, and the server sends that code as the
-// message as well, so a banner or a toast that printed the message printed
-// "revision_conflict". Here each code has one sentence. The refusal keeps its
-// name, code and status and takes the sentence as its message, so the one rule
-// the banner and the toast share (`actionErrorMessage`) prints it unchanged,
-// and a caller can still tell refusals apart by code.
+// Replace command codes with readable messages while preserving name, code and status,
+// so banners and toasts share wording and callers can still distinguish refusals.
+
 import {
   isServerFunctionError,
   ServerFunctionError,
