@@ -1,10 +1,12 @@
+import { tenantScope } from '#/shared/queries/tenant-scope'
+import { useTenantScope } from '#/shared/hooks/useTenantScope'
 import { MerchantAiDataHandling } from '#/components/features/settings/merchant-ai-data-handling'
 import { MERCHANT_AI_NOTICE } from '#/contexts/identity/application/dto/merchant-ai-notice.dto'
 import {
   useActionMutation,
   actionFailureMessage,
 } from '#/components/hooks/use-action-mutation'
-import { identityKeys } from '#/shared/queries/query-keys'
+import { createKeys } from '#/shared/queries/query-keys'
 import type { MerchantAiNoticeUpdate } from '#/shared/merchant-ai-notice-announcements'
 import { createFileRoute, redirect } from '@tanstack/react-router'
 import { roleUnavailable } from '#/shared/auth/route-notice'
@@ -39,11 +41,14 @@ export const Route = createFileRoute('/_authenticated/settings/ai')({
       })
     }
   },
-  loader: ({ context }) => context.queryClient.ensureQueryData(merchantAiOverviewQuery),
+  loader: ({ context }) =>
+    context.queryClient.ensureQueryData(merchantAiOverviewQuery(tenantScope(context))),
   component: AiOverviewRoute,
 })
 
 function AiOverviewRoute() {
+  const scope = useTenantScope()
+  const { identityKeys } = createKeys(scope)
   const markUpdateSeen = useActionMutation(
     async (update: MerchantAiNoticeUpdate) => {
       const { markMerchantAiNoticeUpdateSeenFn } =
@@ -54,13 +59,13 @@ function AiOverviewRoute() {
     },
     {
       invalidateKeys: [
-        [...identityKeys.merchantAiNotice(), 'updates'],
+        identityKeys.merchantAiNoticeUpdate(),
         identityKeys.merchantAiOverview(),
       ],
       errorMessage: actionFailureMessage("Couldn't mark this AI update as seen."),
     },
   )
-  const { data: overview } = useSuspenseQuery(merchantAiOverviewQuery)
+  const { data: overview } = useSuspenseQuery(merchantAiOverviewQuery(scope))
   const { data: spend } = useQuery(organizationAiSpendQuery)
   const analysed = overview.properties.filter(
     (entry) =>

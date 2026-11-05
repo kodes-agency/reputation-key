@@ -12,6 +12,7 @@
 // addressed to you — not an audit log. The description says so rather than
 // implying a completeness the endpoint does not provide.
 
+import { useTenantScope } from '#/shared/hooks/useTenantScope'
 import { useMemo, useRef } from 'react'
 import { CheckCheck, Settings2, Trash2 } from 'lucide-react'
 import { Link } from '@tanstack/react-router'
@@ -65,10 +66,12 @@ export function NotificationPage({
     ? (properties.find((candidate) => candidate.id === propertyId) ?? null)
     : null
   const scope = property?.id
+  const tenantScope = useTenantScope()
   const { announcement, announce } = useNotificationAnnouncer()
   const listRef = useRef<HTMLDivElement>(null)
   const dismissAllConfirmed = useRef(false)
   const list = useNotifications(
+    tenantScope,
     notificationFns.getFeedHead,
     notificationFns.getList,
     organizationId,
@@ -77,8 +80,17 @@ export function NotificationPage({
     true,
     scope,
   )
-  const format = useNotificationFormat(notificationFns.getUserSettings, organizationId)
-  const mutations = useNotificationMutations(notificationFns, organizationId, announce)
+  const format = useNotificationFormat(
+    tenantScope,
+    notificationFns.getUserSettings,
+    organizationId,
+  )
+  const mutations = useNotificationMutations(
+    tenantScope,
+    notificationFns,
+    organizationId,
+    announce,
+  )
 
   // Needs you is one list, most pressing first; the others read by day.
   const groups = useMemo(

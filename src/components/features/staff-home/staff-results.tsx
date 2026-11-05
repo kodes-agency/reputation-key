@@ -1,21 +1,16 @@
+import { useTenantScope } from '#/shared/hooks/useTenantScope'
 import type { ReactNode } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '#/components/ui/select'
+import { RangeControl } from '#/components/ui/range-control'
 import { Skeleton } from '#/components/ui/skeleton'
 import { RegionError } from '#/components/ui/region-error'
 import { actionErrorMessage } from '#/components/hooks/use-action-mutation'
-import { staffSelfKeys } from '#/shared/queries/query-keys'
+import { createKeys } from '#/shared/queries/query-keys'
 import { StaffResultsView, StaffGoals, StaffColleagues } from './staff-results-view'
 import { useStaffResults } from './use-staff-results'
 import type { StaffHomeFns, StaffParticipation, StaffPeriod } from './types'
 
-const PERIODS = [
+const PERIODS: readonly Readonly<{ value: StaffPeriod; label: string }>[] = [
   { value: 'today', label: 'Today' },
   { value: 'week', label: 'This week' },
   { value: 'month', label: 'This month' },
@@ -36,6 +31,7 @@ export function StaffResults({
   /** Beside the period: the Property switch of someone at two. */
   children?: ReactNode
 }>) {
+  const { staffSelfKeys } = createKeys(useTenantScope())
   const { participationId, colleagueListEnabled } = participation
   const results = useStaffResults(fns.getMyResults, participationId, period)
   const goals = useQuery({
@@ -56,29 +52,13 @@ export function StaffResults({
   return (
     <>
       <div className="staff-results__controls">
-        <Select
+        <RangeControl
+          variant="select"
+          label="Period"
           value={period}
-          onValueChange={(value) => {
-            if (
-              value === 'today' ||
-              value === 'week' ||
-              value === 'month' ||
-              value === 'last_month'
-            )
-              onPeriod(value)
-          }}
-        >
-          <SelectTrigger aria-label="Period">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            {PERIODS.map((option) => (
-              <SelectItem key={option.value} value={option.value}>
-                {option.label}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+          onValueChange={onPeriod}
+          options={PERIODS}
+        />
         {children}
       </div>
       {results.isError ? (

@@ -21,9 +21,7 @@ describe('shell AI update gate', () => {
     expect(body).toContain('useQuery(')
   })
   it('keeps receipts in a user-and-organization Query cache and on the server', () => {
-    expect(query).toMatch(
-      /identityKeys\.merchantAiNotice\(\)\s*,\s*'updates',\s*userId,\s*organizationId/,
-    )
+    expect(query).toMatch(/createKeys\(scope\)\.identityKeys\.merchantAiNoticeUpdate\(\)/)
     expect(client).toContain('markMerchantAiNoticeUpdateSeenFn(')
     expect(markSeen).toContain(
       'client.setQueryData(merchantAiNoticeUpdateKey(scope), null)',

@@ -35,6 +35,7 @@ import {
 import { NotificationPanel } from './notification-panel'
 import { needsReader } from './notification-filters'
 import { findOpenBellPopover, openBell } from './notification.stories.bell'
+import { dismissFromTheKeyboard } from './notification.stories.row-menu'
 import type { NotificationServerFns } from './types'
 
 const ORGANIZATION_ID = '22222222-2222-4222-8222-222222222222'
@@ -89,22 +90,6 @@ async function dismissFirstRow(popover: Popover): Promise<number> {
   return before
 }
 
-/**
- * Opens a row's menu from the keyboard and chooses Dismiss. The menu opens on
- * its first item, "Mark as read" on an unread row; Dismiss is the next.
- */
-async function dismissFromTheKeyboard(trigger: HTMLElement): Promise<void> {
-  trigger.focus()
-  await userEvent.keyboard('{Enter}')
-  const menu = within(document.body)
-  await waitFor(() =>
-    expect(menu.getByRole('menuitem', { name: 'Mark as read' })).toHaveFocus(),
-  )
-  await userEvent.keyboard('{ArrowDown}')
-  expect(menu.getByRole('menuitem', { name: 'Dismiss' })).toHaveFocus()
-  await userEvent.keyboard('{Enter}')
-}
-
 /** The toast carrying `message`, once it has entered (sonner animates it in). */
 async function expectToast(message: string | RegExp): Promise<HTMLElement> {
   const text = await within(document.body).findByText(message)
@@ -127,6 +112,10 @@ const meta: Meta<typeof NotificationPanel> = {
   args: {
     notificationFns: makeStatefulNotificationFns(notificationFixtures),
     organizationId: ORGANIZATION_ID,
+    scope: {
+      userId: 'user-1',
+      organizationId: 'org-1',
+    },
   },
   // Sonner's store outlives a story, and a Toaster that mounts replays every
   // toast still showing, so one story's toast would reappear in the next.

@@ -1,8 +1,9 @@
+import { useTenantScope } from '#/shared/hooks/useTenantScope'
 import { useState } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import { ShieldCheck } from 'lucide-react'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '#/components/ui/tabs'
-import { identityKeys } from '#/shared/queries/query-keys'
+import { createKeys } from '#/shared/queries/query-keys'
 import type { ListMyBetaFeedback, SubmitBetaFeedback } from './beta-feedback-form-context'
 import { BetaFeedbackForm } from './beta-feedback-form'
 import { BetaFeedbackReceipt } from './beta-feedback-receipt'
@@ -50,6 +51,7 @@ function BetaFeedbackDialogBody({
   initialPanel = 'report',
   staff = false,
 }: Props) {
+  const { identityKeys } = createKeys(useTenantScope())
   const [reference, setReference] = useState<string | null>(null)
   const [panel, setPanel] = useState<Panel>(initialPanel)
   const queryClient = useQueryClient()
