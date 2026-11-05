@@ -131,7 +131,7 @@ export type RouteDeps = ReturnType<typeof createNotificationConsumerDeps> &
   }>
 
 /** Reads that find nothing, for tests that never run a handler. */
-export function inertRouteDeps(): RouteDeps {
+function inertRouteDeps(): RouteDeps {
   return {
     ...createNotificationConsumerDeps(),
     receipts: { insertReceipt: vi.fn(async () => {}) },

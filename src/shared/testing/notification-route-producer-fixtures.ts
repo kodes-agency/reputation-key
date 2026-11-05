@@ -73,17 +73,15 @@ import type { DomainEvent } from '#/shared/events/events'
 export const ORG = organizationId('org-route-contract')
 export const PROPERTY = propertyId('4d1f0c1e-2b7a-4c55-9a51-000000000001')
 export const PORTAL = portalId('4d1f0c1e-2b7a-4c55-9a51-000000000002')
-export const DESTINATION = portalApprovedDestinationId(
-  '4d1f0c1e-2b7a-4c55-9a51-000000000020',
-)
+const DESTINATION = portalApprovedDestinationId('4d1f0c1e-2b7a-4c55-9a51-000000000020')
 export const ITEM = inboxItemId('4d1f0c1e-2b7a-4c55-9a51-000000000003')
 export const REVIEW = reviewId('4d1f0c1e-2b7a-4c55-9a51-000000000004')
-export const REPLY = replyId('4d1f0c1e-2b7a-4c55-9a51-000000000005')
-export const NOTE = inboxNoteId('4d1f0c1e-2b7a-4c55-9a51-000000000006')
-export const CONNECTION = googleConnectionId('4d1f0c1e-2b7a-4c55-9a51-000000000007')
+const REPLY = replyId('4d1f0c1e-2b7a-4c55-9a51-000000000005')
+const NOTE = inboxNoteId('4d1f0c1e-2b7a-4c55-9a51-000000000006')
+const CONNECTION = googleConnectionId('4d1f0c1e-2b7a-4c55-9a51-000000000007')
 export const SNAPSHOT_RUN = '4d1f0c1e-2b7a-4c55-9a51-000000000013'
-export const INVITATION = invitationId('4d1f0c1e-2b7a-4c55-9a51-000000000008')
-export const REPORT_REFERENCE = '4d1f0c1e-2b7a-4c55-9a51-000000000009'
+const INVITATION = invitationId('4d1f0c1e-2b7a-4c55-9a51-000000000008')
+const REPORT_REFERENCE = '4d1f0c1e-2b7a-4c55-9a51-000000000009'
 export const CLOSURE_LINEAGE = '4d1f0c1e-2b7a-4c55-9a51-00000000000a'
 export const BULK = '4d1f0c1e-2b7a-4c55-9a51-00000000000b'
 export const GOAL = {
@@ -113,7 +111,7 @@ export const handlingCycleScope = {
   occurredAt: OCCURRED_AT,
 } as const
 
-export const replyFact = {
+const replyFact = {
   replyId: REPLY,
   reviewId: REVIEW,
   organizationId: ORG,

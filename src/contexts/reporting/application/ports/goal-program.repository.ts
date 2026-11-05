@@ -6,6 +6,7 @@ import type {
   GoalSubject,
   GoalTargetSource,
 } from '../../domain/goal-program'
+import type { GoalMetricSourceHead } from './goal-metric-source-status.port'
 
 export type GoalProgram = Readonly<{
   id: string
@@ -272,8 +273,9 @@ export type GoalProgramRepository = Readonly<{
    * finds its version history changed under it. Nothing is written then.
    * `reason` is the manager's note; without one no status reason is stored.
    *
-   * Ending closes the open version and its assignments. A Program that never
-   * started (still scheduled, with no month) keeps the empty window
+   * Ending an active Program opens its due months under the Program row lock,
+   * in the same transaction, before closing its version and assignments.
+   * A Program that never started (still scheduled, with no month) keeps the empty window
    * [from, from) whenever it is ended, so its subjects are free at once. A
    * Program that has started closes at the latest of the command time and the
    * end of a month still open or reconciling, which stays inside its window.
@@ -460,6 +462,10 @@ export type GoalProgramRepository = Readonly<{
     input: Readonly<{
       result: GoalMonthlyResult
       expectedStatus: GoalMonthlyResultStatus
+      /** Required for closure; captured with the governed evaluation snapshot. */
+      sourceHead?: GoalMetricSourceHead
+      /** Recheck live suspension and execution policy inside the write transaction. */
+      authorize(): Promise<void>
     }>,
   ): Promise<GoalMonthlyResult | null>
   getClosedResult(
