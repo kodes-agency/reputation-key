@@ -13,13 +13,21 @@ afterEach(() => {
   for (const root of roots.splice(0)) rmSync(root, { recursive: true, force: true })
 })
 
-function check(files: Record<string, string>) {
+function check(
+  files: Record<string, string>,
+  sources: Record<string, string[] | null> = {},
+) {
   const root = mkdtempSync(join(tmpdir(), 'bundle-budget-'))
   roots.push(root)
   const assets = join(root, 'assets')
   mkdirSync(assets)
   for (const [name, source] of Object.entries(files)) {
     writeFileSync(join(assets, name), source)
+    if (!name.endsWith('.js') || sources[name] === null) continue
+    writeFileSync(
+      join(assets, `${name}.map`),
+      JSON.stringify({ version: 3, sources: sources[name] ?? ['../../src/app.ts'] }),
+    )
   }
   const result = spawnSync(process.execPath, [script, assets], {
     encoding: 'utf8',
@@ -34,6 +42,12 @@ function largeChunk(bytes: number) {
 }
 
 describe('production bundle budget gate', () => {
+  it('budgets the entry as part of the initial closure', () => {
+    const result = check({ 'index-app.js': largeChunk(90_000) })
+    expect(result.status, result.output).toBe(0)
+    expect(result.output).toContain('initial closure (1 js + 0 css):')
+  })
+
   it('sums the static closure and all CSS once, leaving dynamic imports lazy', () => {
     const files = {
       'index-app.js': 'import{a}from"./shared.js";import"./side.js";import("./lazy.js");',
@@ -50,18 +64,17 @@ describe('production bundle budget gate', () => {
 
     expect(result.status, result.output).toBe(0)
     expect(result.output).toContain(
-      `initial closure (4 js + 1 css): ${initialBytes.toLocaleString('en-US')} B / 321,000 B gzip`,
+      `initial closure (4 js + 1 css): ${initialBytes.toLocaleString('en-US')} B / 345,000 B gzip`,
     )
     expect(result.output).toContain('largest chunk outside the closure lazy.js:')
     expect(result.output).toContain('/ 128,000 B gzip')
-    expect(result.output).toContain('/ 70,100 B gzip')
   })
 
   it.each<{ name: string; files: Record<string, string>; failure: string }>([
     {
-      name: 'entry',
-      files: { 'index-app.js': largeChunk(90_000) },
-      failure: 'main entry chunk index-app.js:',
+      name: 'entry in the initial closure',
+      files: { 'index-app.js': largeChunk(360_000) },
+      failure: 'initial static closure (1 js + 0 css):',
     },
     {
       name: 'initial closure',
@@ -108,11 +121,14 @@ describe('production bundle budget gate', () => {
   })
 
   it('retains cycle protection for vendor chunks outside first paint', () => {
-    const result = check({
-      'index-app.js': 'import("./lazy.js");',
-      'lazy.js': 'import"./vendor-lib.js";',
-      'vendor-lib.js': 'import"./lazy.js";',
-    })
+    const result = check(
+      {
+        'index-app.js': 'import("./lazy.js");',
+        'lazy.js': 'import"./vendor-lib.js";',
+        'vendor-lib.js': 'import"./lazy.js";',
+      },
+      { 'vendor-lib.js': ['../../node_modules/lib/index.js'] },
+    )
     expect(result.status, result.output).toBe(1)
     expect(result.output).toContain('lazy.js ↔ vendor-lib.js')
   })
@@ -143,13 +159,67 @@ describe('production bundle budget gate', () => {
   })
 
   it('keeps the Sentry SDK out of the initial static closure', () => {
-    const result = check({
-      'index-app.js': 'import"./vendor-sentry-sdk.js";',
-      'vendor-sentry-sdk.js': '',
-    })
+    const result = check(
+      {
+        'index-app.js': 'import"./vendor-sentry-sdk.js";',
+        'vendor-sentry-sdk.js': '',
+      },
+      { 'vendor-sentry-sdk.js': ['../../node_modules/@sentry/core/index.js'] },
+    )
     expect(result.status, result.output).toBe(1)
     expect(result.output).toContain('vendor-sentry-sdk.js')
     expect(result.output).toContain('is in the initial closure')
+  })
+
+  it('detects Sentry sources in an entry with a default chunk name', () => {
+    const result = check(
+      { 'index-app.js': '' },
+      {
+        'index-app.js': [
+          '../../../node_modules/.pnpm/@sentry+core/node_modules/@sentry/core/index.js',
+        ],
+      },
+    )
+    expect(result.status, result.output).toBe(1)
+    expect(result.output).toContain('Sentry SDK is in the initial closure')
+  })
+
+  it('detects a lazy library cycle without a vendor chunk name', () => {
+    const result = check(
+      {
+        'index-app.js': 'import("./chart.js");',
+        'chart.js': 'import"./shared.js";',
+        'shared.js': 'export*from"./chart.js";',
+      },
+      { 'chart.js': ['../../node_modules/recharts/index.js'] },
+    )
+    expect(result.status, result.output).toBe(1)
+    expect(result.output).toContain('chart.js ↔ shared.js')
+  })
+
+  it('fails when source provenance is missing rather than skipping library checks', () => {
+    const result = check({ 'index-app.js': '' }, { 'index-app.js': null })
+    expect(result.status, result.output).toBe(1)
+    expect(result.output).toContain('missing source map for index-app.js')
+  })
+
+  it('rejects an empty source map', () => {
+    const result = check({ 'index-app.js': '' }, { 'index-app.js': [] })
+    expect(result.status, result.output).toBe(1)
+    expect(result.output).toContain('empty source map for index-app.js')
+  })
+
+  it('allows generated bundler helpers without input source maps', () => {
+    const result = check(
+      {
+        'index-app.js':
+          'import"./preload-helper-built.js";import"./rolldown-runtime-built.js";',
+        'preload-helper-built.js': '',
+        'rolldown-runtime-built.js': '',
+      },
+      { 'preload-helper-built.js': null, 'rolldown-runtime-built.js': null },
+    )
+    expect(result.status, result.output).toBe(0)
   })
 
   it('fails a missing static chunk instead of undercounting the closure', () => {
