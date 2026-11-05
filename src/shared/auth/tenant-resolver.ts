@@ -5,8 +5,8 @@
 //   1. per-request memoization (ALS RequestContext)
 //   2. session decode + active-org extraction
 //   3. tenant-cache key construction, TTL, and max-size eviction
-//   4. the permission_version freshness protocol (Stage 2 DAC)
-//   5. the built-in-vs-custom role strategy (selected once per resolution by env flag)
+//   4. the permission_version freshness protocol
+//   5. built-in role authority (fixed permissions and data scope per role)
 //   6. span-enrichment points
 //
 // Cache freshness decision table (pure — see decideTenantCacheAction /
@@ -26,15 +26,11 @@ import { toDomainRole } from '#/shared/domain/roles'
 import { organizationId, userId } from '#/shared/domain/ids'
 import { throwAuthError } from './auth-errors'
 import { enrichSpan, getRequestContext } from '#/shared/observability/request-context'
-import { getEnv } from '#/shared/config/env'
 import { getLogger } from '#/shared/observability/logger'
-import { can, type Permission } from '#/shared/domain/permissions'
+import type { Permission } from '#/shared/domain/permissions'
 import type { DataScope } from '#/shared/domain/data-scope'
-import { VALID_PERMISSIONS } from './permission-catalogue'
-import { BUILT_IN_ROLE_SCOPE, resolvePermissions } from './resolve-permissions'
-import { builtInPermissionsForRole } from './role-definitions'
+import { BUILT_IN_ROLE_SCOPE, builtInPermissionsForRole } from './role-definitions'
 import {
-  fetchRoleDefinitions,
   fetchPermissionVersion,
   type RoleDefinitionDatabase,
 } from '#/shared/db/role-definitions'
@@ -155,10 +151,10 @@ function serveEntry(entry: TenantCacheEntry): AuthContext {
 }
 
 /**
- * Stage 2 (DAC): prove a versioned entry against the org's current
- * permission_version. A bump means roles/policies/assignments changed and the
- * cached ctx is stale; a read failure is treated the same. Either way the entry
- * is dropped and the caller falls through to a full re-resolve.
+ * Prove a versioned entry against the org's current permission_version. A bump
+ * means roles, grants or membership changed and the cached ctx is stale; a read
+ * failure is treated the same. Either way the entry is dropped and the caller
+ * falls through to a full re-resolve.
  */
 async function readCurrentPermissionVersion(orgId: string): Promise<number | null> {
   try {
@@ -199,95 +195,57 @@ async function tryServeFromCache(key: string): Promise<AuthContext | null> {
   return serveEntry(entry)
 }
 
-// ── Role resolution strategy ───────────────────────────────────
-
-type RoleStrategy = 'built-in-only' | 'dynamic'
-
-/** Selected once per resolution from the env flag — callers never branch on it. */
-function selectRoleStrategy(customRolesEnabled: boolean): RoleStrategy {
-  return customRolesEnabled ? 'dynamic' : 'built-in-only'
-}
+// ── Built-in role authority ────────────────────────────────────
 
 type MemberAuthorization = Readonly<{
-  domainRole: Role | null
+  domainRole: Role
   effectivePermissions: ReadonlySet<Permission>
   scopeByPermission: ReadonlyMap<Permission, DataScope>
-  permissionVersion: number | null
+  permissionVersion: number
 }>
 
-/** Stage 1: built-in role, flag off — fixed scopes, no DB. Fail-closed on custom roles. */
-function resolveBuiltInAuthorization(
+/**
+ * A member's authority: the fixed permissions and data scope of their built-in
+ * role, stamped with the organization's current permission_version. A role that
+ * is not built in is refused. An unreadable version fails closed (503): a cached
+ * context could not be proved fresh, and a delayed worker would act on authority
+ * it cannot date.
+ */
+async function resolveMemberAuthorization(
   memberRole: string,
-  domainRole: Role | null,
-): MemberAuthorization {
+  orgId: string,
+  database: RoleDefinitionDatabase,
+): Promise<MemberAuthorization> {
+  const domainRole = toDomainRole(memberRole)
   if (domainRole === null) {
-    // Stage 1 fail-closed: a non-built-in role (custom or comma-delimited multi-role)
-    // while custom roles are disabled. The warn log is the alerting anchor.
+    // The warn log is the alerting anchor: no Member Role other than the three
+    // built-in tokens is assigned, so a hit means a role was written around the app.
     getLogger().warn(
       { memberRole },
-      'auth.unsupported_member_role: custom role rejected while custom roles are disabled',
+      'auth.unsupported_member_role: member role is not a built-in role',
     )
     throwAuthError('forbidden', 'Member role is not supported')
   }
-  const builtInScope: DataScope = BUILT_IN_ROLE_SCOPE[memberRole] ?? 'none'
-  const effectivePermissions = new Set<Permission>(
-    VALID_PERMISSIONS.filter((p) => can(domainRole, p)),
-  )
-  const scopeByPermission = new Map<Permission, DataScope>(
-    [...effectivePermissions].map((p) => [p, builtInScope] as const),
-  )
-  return { domainRole, effectivePermissions, scopeByPermission, permissionVersion: null }
-}
-
-/** Stage 2: dynamic resolver (built-in + custom/multi roles; per-permission scope). */
-async function resolveDynamicAuthorization(
-  memberRole: string,
-  domainRole: Role | null,
-  context: { activeOrgId: string; userId: string },
-  database: RoleDefinitionDatabase = getDb(),
-): Promise<MemberAuthorization> {
-  // Fail-closed with 503 if role definitions can't load.
+  let permissionVersion: number
   try {
-    const permissionVersion = await fetchPermissionVersion(database, context.activeOrgId)
-    const { customRoles, policies } = await fetchRoleDefinitions(
-      database,
-      context.activeOrgId,
-    )
-    const resolved = resolvePermissions({
-      roleNames: memberRole.split(','),
-      customRoles,
-      policies,
-      builtInPermissions: builtInPermissionsForRole,
-    })
-    return {
-      domainRole,
-      effectivePermissions: resolved.effectivePermissions,
-      scopeByPermission: resolved.scopeByPermission,
-      permissionVersion,
-    }
+    permissionVersion = await fetchPermissionVersion(database, orgId)
   } catch (err) {
     getLogger().error(
-      {
-        err,
-        memberRole,
-      },
-      'auth.authorization_unavailable: dynamic resolver failed; fail-closed',
+      { err, memberRole },
+      'auth.authorization_unavailable: permission version unreadable; fail-closed',
     )
     throwAuthError('authorization_unavailable', 'Authorization resolution failed')
   }
-}
-
-function resolveMemberAuthorization(input: {
-  memberRole: string
-  activeOrgId: string
-  userId: string
-}): Promise<MemberAuthorization> {
-  const domainRole = toDomainRole(input.memberRole)
-  const context = { activeOrgId: input.activeOrgId, userId: input.userId }
-  if (selectRoleStrategy(getEnv().ENABLE_CUSTOM_ROLES) === 'dynamic') {
-    return resolveDynamicAuthorization(input.memberRole, domainRole, context)
+  const effectivePermissions = builtInPermissionsForRole(memberRole)
+  const scope: DataScope = BUILT_IN_ROLE_SCOPE[memberRole] ?? 'none'
+  return {
+    domainRole,
+    effectivePermissions,
+    scopeByPermission: new Map<Permission, DataScope>(
+      [...effectivePermissions].map((p) => [p, scope] as const),
+    ),
+    permissionVersion,
   }
-  return Promise.resolve(resolveBuiltInAuthorization(input.memberRole, domainRole))
 }
 
 function buildAuthContext(
@@ -298,10 +256,7 @@ function buildAuthContext(
   const ctx: AuthContext = {
     userId: userId(rawUserId),
     organizationId: organizationId(activeOrgId),
-    // Custom-only members have no built-in Role; 'Member' is a lowest-privilege placeholder —
-    // effectivePermissions/scopeByPermission are authoritative (all checks route through
-    // canForContext/scopeForPermission, never ctx.role directly).
-    role: authz.domainRole ?? 'Member',
+    role: authz.domainRole,
     effectivePermissions: Object.freeze(authz.effectivePermissions),
     scopeByPermission: Object.freeze(authz.scopeByPermission),
   }
@@ -324,16 +279,8 @@ export async function resolveMemberAuthContext(
     organizationId: string
     userId: string
   }>,
-): Promise<Readonly<{ context: AuthContext; permissionVersion: number | null }>> {
-  const authorization = await resolveMemberAuthorization({
-    memberRole: input.memberRole,
-    activeOrgId: input.organizationId,
-    userId: input.userId,
-  })
-  return {
-    context: buildAuthContext(input.userId, input.organizationId, authorization),
-    permissionVersion: authorization.permissionVersion,
-  }
+): Promise<Readonly<{ context: AuthContext; permissionVersion: number }>> {
+  return resolveMemberAuthContextWithDatabase(getDb(), input)
 }
 
 /** Resolve a durable member using the caller's transaction snapshot. */
@@ -344,17 +291,12 @@ export async function resolveMemberAuthContextWithDatabase(
     organizationId: string
     userId: string
   }>,
-): Promise<Readonly<{ context: AuthContext; permissionVersion: number | null }>> {
-  const domainRole = toDomainRole(input.memberRole)
-  const authorization =
-    selectRoleStrategy(getEnv().ENABLE_CUSTOM_ROLES) === 'dynamic'
-      ? await resolveDynamicAuthorization(
-          input.memberRole,
-          domainRole,
-          { activeOrgId: input.organizationId, userId: input.userId },
-          database,
-        )
-      : resolveBuiltInAuthorization(input.memberRole, domainRole)
+): Promise<Readonly<{ context: AuthContext; permissionVersion: number }>> {
+  const authorization = await resolveMemberAuthorization(
+    input.memberRole,
+    input.organizationId,
+    database,
+  )
   return {
     context: buildAuthContext(input.userId, input.organizationId, authorization),
     permissionVersion: authorization.permissionVersion,
@@ -378,7 +320,7 @@ export async function resolveTenant(headers: Headers): Promise<AuthContext> {
 
   const { session, activeOrgId } = await resolveSessionOrganization(headers)
 
-  // Stage 2 — tenant-cache freshness decision table. Keyed per (session, org) so
+  // Stage 1 — tenant-cache freshness decision table. Keyed per (session, org) so
   // an org switch A→B resolves fresh instead of serving org A's context.
   const key = tenantCacheKey(headers, activeOrgId)
   if (key) {
@@ -388,7 +330,7 @@ export async function resolveTenant(headers: Headers): Promise<AuthContext> {
     }
   }
 
-  // Stage 3 — fresh resolution: member record + role strategy.
+  // Stage 2 — fresh resolution: member record + built-in role authority.
   const member = await getAuth().api.getActiveMember({ headers })
   if (!member) {
     throwAuthError('forbidden', 'Not a member of the active organization')
@@ -410,8 +352,8 @@ export async function resolveTenant(headers: Headers): Promise<AuthContext> {
   })
   const ctx = resolved.context
 
-  // Stage 4 — cache (only with a valid key, i.e. non-empty cookies) + memo + span.
-  if (key && resolved.permissionVersion !== null) {
+  // Stage 3 — cache (only with a valid key, i.e. non-empty cookies) + memo + span.
+  if (key) {
     evictOldestIfNeeded()
     tenantCache.set(key, { ctx, ts: Date.now(), version: resolved.permissionVersion })
   }

@@ -20,6 +20,12 @@ const baseInput = {
   operationKey: 'oauth.token.exchange',
 }
 
+// The member's permission_version is read again through the transaction when the
+// member's authority is resolved; it answers 7, as the member row below does.
+const select = () => ({
+  from: () => ({ where: () => ({ limit: async () => [{ version: 7 }] }) }),
+})
+
 function checkWithRows(rows: readonly (readonly Record<string, unknown>[])[]) {
   const execute = vi.fn()
   for (const resultRows of rows) {
@@ -31,15 +37,13 @@ function checkWithRows(rows: readonly (readonly Record<string, unknown>[])[]) {
   })
   return {
     execute,
-    run: () => check({ execute } as unknown as Database, baseInput),
+    run: () => check({ execute, select } as unknown as Database, baseInput),
   }
 }
 
 const member = [{ role: 'owner', permission_version: 7 }]
 const policy = [{ version: 11, emergency_kill_version: 3 }]
-const originalCustomRoles = process.env.ENABLE_CUSTOM_ROLES
 beforeEach(() => {
-  process.env.ENABLE_CUSTOM_ROLES = 'false'
   resetEnv()
   resetCapabilityPolicyStore()
   initCapabilityPolicyStore(
@@ -50,8 +54,6 @@ beforeEach(() => {
 })
 
 afterEach(() => {
-  if (originalCustomRoles === undefined) delete process.env.ENABLE_CUSTOM_ROLES
-  else process.env.ENABLE_CUSTOM_ROLES = originalCustomRoles
   resetEnv()
   resetCapabilityPolicyStore()
 })
@@ -81,7 +83,7 @@ describe('Google OAuth content authorization', () => {
       createGoogleContentAuthorizationCheck({
         clock: () => new Date('2026-08-28T00:00:00Z'),
         hasActivePropertyGrant: vi.fn(async () => false),
-      })({ execute } as unknown as Database, {
+      })({ execute, select } as unknown as Database, {
         ...baseInput,
         operationKey: 'provider.oauth.token.exchange',
       }),

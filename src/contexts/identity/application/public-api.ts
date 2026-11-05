@@ -18,9 +18,6 @@ import type { CancelInvitation } from './use-cases/cancel-invitation'
 import type { GetInvitationPreview } from './use-cases/get-invitation-preview'
 import type { RegisterInvitedUser } from './use-cases/register-invited-user'
 import type { UpdateOrganization } from './use-cases/update-organization'
-import type { CreateCustomRole } from './use-cases/create-custom-role'
-import type { UpdateCustomRole } from './use-cases/update-custom-role'
-import type { DeleteCustomRole } from './use-cases/delete-custom-role'
 import type { MerchantAiAuthorization } from './use-cases/merchant-ai-authorization'
 import type { MerchantAiDecisionDeferralService } from './use-cases/merchant-ai-decision-deferral'
 import type { ListMerchantAiOverview } from './use-cases/merchant-ai-overview'
@@ -112,9 +109,6 @@ export type IdentityRequestApi = Readonly<{
   getInvitationPreview: GetInvitationPreview
   registerInvitedUser: RegisterInvitedUser
   updateOrganization: UpdateOrganization
-  createCustomRole: CreateCustomRole
-  updateCustomRole: UpdateCustomRole
-  deleteCustomRole: DeleteCustomRole
   merchantAiNoticeUpdates: MerchantAiNoticeUpdates
   merchantAiAuthorization: MerchantAiRequestApi
   /** AccountAdmins: which Properties each PropertyManager can work. */

@@ -38,7 +38,6 @@ import {
   resolveTenantContext,
   resetTenantCache,
 } from './middleware'
-import { resetEnv } from '#/shared/config/env'
 
 const makeHeaders = (extra: Record<string, string> = {}): Headers => {
   const h = new Headers()
@@ -52,6 +51,10 @@ beforeEach(() => {
   mockGetSession.mockReset()
   mockGetActiveMember.mockReset()
   mockDbSelect.mockReset()
+  // The permission_version read that stamps every resolved context.
+  mockDbSelect.mockImplementation(() => ({
+    from: () => ({ where: () => ({ limit: async () => [{ version: 1 }] }) }),
+  }))
   mockCheckOrganizationMembership.mockReset()
   mockCheckOrganizationMembership.mockResolvedValue({ kind: 'allow' })
   resetTenantCache()
@@ -59,7 +62,6 @@ beforeEach(() => {
 
 afterEach(() => {
   vi.useRealTimers()
-  resetEnv()
 })
 
 describe('getUserFromHeaders', () => {
@@ -147,12 +149,6 @@ describe('requireAuth', () => {
 })
 
 describe('resolveTenantContext (integration through the delegate)', () => {
-  beforeEach(() => {
-    // Stage 1: pin the flag so the test is hermetic w.r.t. the .env default.
-    process.env.ENABLE_CUSTOM_ROLES = 'false'
-    resetEnv()
-  })
-
   it('resolves the full pipeline to an AuthContext', async () => {
     // Arrange
     mockGetSession.mockResolvedValue({
