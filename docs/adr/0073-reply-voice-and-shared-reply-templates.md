@@ -207,3 +207,9 @@ customizes or hides one.
 - **The approving user as signer**: agency staff names would appear on client replies.
 - **Sending the reviewer's first name to the AI**: contradicts the merchant notice; the
   voice fills it locally.
+
+## Amended 2026-10-30: agency adoption is dropped
+
+On 2026-10-30 the owner dropped agency adoption: the workbook import, the voice table,
+sets and the star-only queue. So the consequence that the import script is rewritten no
+longer applies.
