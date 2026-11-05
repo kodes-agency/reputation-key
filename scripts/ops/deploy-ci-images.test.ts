@@ -5,7 +5,13 @@ import {
   parseCiImageDigestMap,
   TRUSTED_REPOSITORY,
 } from './ci-image-digest-map'
-import { digestMapValue, REVISION } from './ci-image-digest-map.test-fixtures'
+import {
+  DISPATCH_RUN_ID,
+  DISPATCHED_RUN_JOBS,
+  digestMapValue,
+  fakeDispatchedRun,
+  REVISION,
+} from './ci-image-digest-map.test-fixtures'
 import type { CommandRunner } from './command-runner'
 import {
   applyClosedBetaImageDeployment,
@@ -16,6 +22,7 @@ import {
   providerRedisKeptRevision,
   railwayTargetArgs,
   resolveDeploymentRevision,
+  runDeployCiImagesCommand,
   type ClosedBetaImageDeployment,
   type GitRevisionReader,
   type ProviderRedisKeepCheck,
@@ -767,5 +774,73 @@ describe('trusting a service only when its latest deployment runs the target', (
       withWebEndpointUp(() => applyClosedBetaImageDeployment({ plan: reviewed, runner })),
     ).rejects.toThrow('web source changed after the reviewed deployment plan')
     expect(calls.some((call) => call[1] === 'redeploy')).toBe(false)
+  })
+})
+
+describe('verifying a dispatched CI run without deploying', () => {
+  const run = String(DISPATCH_RUN_ID)
+
+  it('reports the images a dispatched run proved and touches nothing else', async () => {
+    const { runner, calls } = fakeDispatchedRun()
+    const lines: string[] = []
+
+    const status = await runDeployCiImagesCommand(
+      ['--verify-only', '--run', run],
+      (line) => lines.push(line),
+      runner,
+    )
+
+    expect(status).toBe(0)
+    const report = JSON.parse(lines[0]!) as Record<string, unknown>
+    expect(report).toMatchObject({
+      command: 'ops:deploy-ci-images',
+      mode: 'verify-only',
+      run: { id: DISPATCH_RUN_ID, ref: 'refs/heads/ci/replacement-pipeline' },
+      images: {
+        web: `ghcr.io/kodes-agency/repkey-web@sha256:${'1'.repeat(64)}`,
+        worker: `ghcr.io/kodes-agency/repkey-worker@sha256:${'2'.repeat(64)}`,
+      },
+    })
+    expect(lines.at(-1)).toContain('nothing was deployed')
+    // No Railway, no git, no registry: GitHub's API and the map artifact only.
+    expect(calls.every(([command]) => command === 'gh')).toBe(true)
+  })
+
+  it('fails when a pipeline job is missing from the run', async () => {
+    const { runner } = fakeDispatchedRun({
+      jobs: DISPATCHED_RUN_JOBS.filter(({ name }) => name !== 'image scan'),
+    })
+
+    await expect(
+      runDeployCiImagesCommand(['--verify-only', '--run', run], () => {}, runner),
+    ).rejects.toThrow('lists no image scan job')
+  })
+
+  it('fails when a pipeline job failed', async () => {
+    const { runner } = fakeDispatchedRun({
+      jobs: DISPATCHED_RUN_JOBS.map((job) =>
+        job.name === 'ci' ? { ...job, conclusion: 'failure' } : job,
+      ),
+    })
+
+    await expect(
+      runDeployCiImagesCommand(['--verify-only', '--run', run], () => {}, runner),
+    ).rejects.toThrow('job ci concluded failure')
+  })
+
+  it.each([
+    ['without a run', ['--verify-only']],
+    ['without --verify-only', ['--run', run]],
+    ['with --apply', ['--verify-only', '--run', run, '--apply']],
+    ['with a revision', ['--verify-only', '--run', run, '--sha', REVISION]],
+    ['with a run that is not a number', ['--verify-only', '--run', 'latest']],
+    ['with a second run', ['--verify-only', '--run', run, '--run', run]],
+  ])('refuses --verify-only %s, so it can never deploy', async (_label, argv) => {
+    const { runner, calls } = fakeDispatchedRun()
+
+    await expect(runDeployCiImagesCommand(argv, () => {}, runner)).rejects.toThrow(
+      /usage: pnpm ops deploy-ci-images/u,
+    )
+    expect(calls).toEqual([])
   })
 })

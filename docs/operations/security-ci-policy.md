@@ -381,6 +381,19 @@ over `static`/`test-unit`/`test-integration`/`artifacts`, `docker-images` and
 `e2e-shard`, so those jobs gate through them. `audit` is the Fallow workflow's
 job, not the dependency-audit step; `Analyze (javascript-typescript)` is CodeQL.
 
+**The replacement pipeline.** `ci.yml` holds a second set of jobs that runs the
+same gates in less time: `lint`, `typecheck`, `unit`, `integration`, `probes`
+and `browser` under the `ci` aggregate, and `image build` and `image scan` under
+the `image` aggregate. Both aggregates are `always()` like the three above. The
+required checks still name the three above; `ci` and `image` become required
+only when the repository owner adds them. Before that, dispatch the workflow on
+a branch (`gh workflow run ci.yml --ref <branch>`) and, once it finishes, run
+`pnpm ops deploy-ci-images --verify-only --run <run id>`. It applies a deploy's
+acceptance rules to the dispatched run's digest map, fails on a missing or
+failed job, reads GitHub only and deploys nothing. A deploy still reads only a
+main push run's `docker` map. Firefox, WebKit and the iOS viewport run weekly
+in `browser-matrix.yml` instead of on every pull request.
+
 **What is not enforced.** Each of these is a repository-owner decision:
 
 - no pull-request or review requirement, and no conversation resolution;

@@ -73,6 +73,7 @@ CI runs `pnpm db:migrate-deploy` (`.github/workflows/ci.yml`, Predeploy migratio
 | `pnpm typecheck`    | TypeScript check: src + e2e, tooling (`tsconfig.scripts.json`), project-coverage guard    |
 | `pnpm lint`         | ESLint + filename/component-boundary checks                                               |
 | `pnpm lint:ci`      | `lint` + test-quality, Google ids, env contract, migration-journal, length/index ratchets |
+| `pnpm lint:static`  | `lint:ci` minus the unchecked-index ratchet, which CI runs after `typecheck`              |
 | `pnpm format`       | Prettier format                                                                           |
 
 ### Local stacks
@@ -224,6 +225,12 @@ from the one already tagged for the commit, `docker` fails with
 `immutable image tag has a conflicting digest` and the commit cannot deploy.
 An e2e failure that passed on the re-run gets a row in
 `docs/operations/e2e-flake-register.md`.
+
+The replacement CI pipeline (`ci`, `image`) is proved from a branch before
+anything depends on it: `gh workflow run ci.yml --ref <branch>`, then
+`pnpm ops deploy-ci-images --verify-only --run <run id>` once the run is green.
+That reads the dispatched run's digest map with the deploy's acceptance rules
+and deploys nothing; a deploy never takes a dispatched run's map.
 
 ### Git hooks
 
