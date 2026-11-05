@@ -49,7 +49,6 @@ import { createAiOutputStoreAdapter } from './ai-output-store.adapter'
 import { createAiPropertyAggregateStoreAdapter } from './ai-property-aggregate-store.adapter'
 import { createAiOperationStoreAdapter } from './ai-operation-store.adapter'
 import { createAiReviewAnalysisReceiptWriter } from './ai-review-analysis-receipt.adapter'
-import { createAiReviewEventStoreAdapter } from './ai-review-event-store.adapter'
 import { REVIEW_ANALYSIS_NORMALIZATION_DIGEST } from '#/shared/review-analysis-v3-normalizer'
 
 const NOW = new Date('2026-09-08T10:00:00.000Z')
@@ -796,7 +795,6 @@ describe.sequential('AI output store analysis persistence (real PostgreSQL)', ()
     const operations = createAiOperationStoreAdapter(db, () => {
       throw new Error('Recovery does not create operation ids')
     })
-    const reviewEvents = createAiReviewEventStoreAdapter(db)
     const aggregates = createAiPropertyAggregateStoreAdapter(db)
     const writeReceipt = createAiReviewAnalysisReceiptWriter(db)
     const EXECUTION_HORIZON_MILLIS = 15 * 60_000
@@ -826,7 +824,6 @@ describe.sequential('AI output store analysis persistence (real PostgreSQL)', ()
     ) =>
       createAiOperationExecutionReaper({
         store: operations,
-        reviewEvents,
         aggregates,
         recordAnalysisReceipt,
         logger: { warn },
@@ -1059,7 +1056,6 @@ describe.sequential('AI output store analysis persistence (real PostgreSQL)', ()
   })
 
   describe('the reaper recording a receipt', () => {
-    const reviewEvents = createAiReviewEventStoreAdapter(db)
     const aggregates = createAiPropertyAggregateStoreAdapter(db)
     const writeReceipt = createAiReviewAnalysisReceiptWriter(db)
 
@@ -1097,7 +1093,6 @@ describe.sequential('AI output store analysis persistence (real PostgreSQL)', ()
         store: createAiOperationStoreAdapter(db, () => {
           throw new Error('Recovery does not create operation ids')
         }),
-        reviewEvents,
         aggregates,
         recordAnalysisReceipt: writeReceipt,
         nowEpochMillis: () => COMPLETED_AT.getTime() + 60 * 60_000,

@@ -153,8 +153,8 @@ export function useReplyComposer(input: ReplyComposerInput) {
   )
   const [hasAiDraft, setHasAiDraft] = useState(input.initialAiGenerated)
   // Client provenance for row 18's tag, never a server record: a literal `null`
-  // seed, so the product-state ledger has nothing to classify. Why it is not
-  // seeded from the saved reply is `replyDraftOrigin`'s comment.
+  // seed. Why it is not seeded from the saved reply is `replyDraftOrigin`'s
+  // comment.
   const [adoption, setAdoption] = useState<ReplyDraftAdoption | null>(null)
   const draftChecks = useReplyDraftChecks(draft.text, input.onCheckDraft)
   const history = useReplyComposerHistory()

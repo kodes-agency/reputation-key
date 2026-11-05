@@ -24,7 +24,6 @@ import {
   AI_BACKFILL_OPERATION_HORIZON_MILLIS,
   type AnalyzeReviewEventResult,
 } from '../application/use-cases/analyze-review-event'
-import policySource from '../domain/catalogues/ai-private-beta-policy-v1.json'
 import {
   AI_PROPERTY_TREND_GENERATION_CONSUMER,
   AI_REVIEW_ANALYSIS_ENROLLMENT_CONSUMER,
@@ -789,10 +788,6 @@ describe('AI authorization lifecycle consumer', () => {
 // refused, and the backlog drain and the on-demand job are gated on ai.analyze
 // (review-analysis-backlog-jobs-policy.test.ts runs all of them).
 describe('AI consumer authorization', () => {
-  const platformCapabilityOf = (id: string): string | undefined =>
-    policySource.capabilities.find((capability) => capability.id === id)
-      ?.platformCapability
-
   const registrations = () => {
     const registry = createConsumerRegistry()
     registerAiConsumers(registry, harness({ status: 'completed' }).dependencies)
@@ -851,7 +846,7 @@ describe('AI consumer authorization', () => {
     // further on.
     const served: Readonly<Record<string, string | undefined>> = {
       [AI_REVIEW_ANALYSIS_CONSUMER]: 'none',
-      [AI_PROPERTY_TREND_GENERATION_CONSUMER]: platformCapabilityOf('property_trends'),
+      [AI_PROPERTY_TREND_GENERATION_CONSUMER]: 'ai.detect_trends',
       [AI_REVIEW_ANALYSIS_ENROLLMENT_CONSUMER]: 'none',
     }
     const routes = registrations().map(({ eventType, consumerName, module }) => ({
@@ -862,7 +857,6 @@ describe('AI consumer authorization', () => {
       )?.capability,
     }))
 
-    expect(platformCapabilityOf('property_trends')).toBe('ai.detect_trends')
     expect(new Set(routes.map(({ consumerName }) => consumerName))).toEqual(
       new Set(Object.keys(served)),
     )

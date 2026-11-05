@@ -138,7 +138,6 @@ export function buildReadAndNotifyContexts(input: ReadAndNotifyContextsInput) {
     logger: input.logger,
     portalGroupApi: input.portal.publicApi.portalGroup,
     portalApi: input.portal.publicApi.portal,
-    reviewRatingLookup: input.review.publicApi,
     propertyApi: input.property.publicApi,
     staffPublicApi: input.identity.publicApi.people,
     reviewServingStats: input.reviewServingStats,

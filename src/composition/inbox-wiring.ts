@@ -29,9 +29,9 @@ export function wireInbox(
       decideManagerPropertyAuthorities:
         identity.authority.decideManagerPropertyAuthorities,
     }),
-    // BQC-1.4: review.publicApi IS the governed read interface — it satisfies
-    // the inbox ReviewLookupPort and metric ReviewRatingLookupPort directly.
-    // No per-context eligibility adapters remain (single rule, one owner).
+    // review.publicApi is the governed read interface: it satisfies the Inbox
+    // ReviewLookupPort directly, so no per-context eligibility adapter remains
+    // (single rule, one owner).
     reviewLookup: review.publicApi,
     aiInsights: {
       readCurrentReviewAnalysis: async (request) => {
