@@ -3,6 +3,7 @@ import {
   googleRetryFloorMs,
   parseGoogleRetryAfterMs,
 } from '#/shared/google-provider-control/provider-call'
+import { googleProviderErrorStatus } from '#/shared/domain/google-provider-failure'
 import type { GoogleProviderRouteDescriptor } from '#/shared/google-provider-control/route-catalogue'
 import type {
   GoogleAuthorizedProviderExecutor,
@@ -142,6 +143,25 @@ export type GoogleProviderSuccessfulResponse = Extract<
   { ok: true }
 >
 
+function machineStatus(body: Uint8Array) {
+  try {
+    const parsed: unknown = JSON.parse(
+      new TextDecoder('utf-8', { fatal: true }).decode(body),
+    )
+    const error =
+      typeof parsed === 'object' && parsed !== null && 'error' in parsed
+        ? parsed.error
+        : null
+    return googleProviderErrorStatus(
+      typeof error === 'object' && error !== null && 'status' in error
+        ? error.status
+        : null,
+    )
+  } catch {
+    return null
+  }
+}
+
 /**
  * The typed error for a provider answer that is not a 200. A rate limit or an
  * upstream failure always carries a real wait (`Retry-After`, or the schedule's
@@ -161,6 +181,7 @@ export function providerStatusError(
     providerBodyBytes: response.body.byteLength,
     dispatch: 'answered',
     providerStatus: response.status,
+    providerErrorStatus: machineStatus(response.body),
     // A 429 with no Retry-After previously produced no wait at all, so the
     // caller was told to wait while its retry control stayed enabled.
     retryAfterMs:

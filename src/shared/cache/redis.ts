@@ -10,6 +10,8 @@ import { getLogger } from '#/shared/observability/logger'
 const REDIS_KEY = Symbol.for('repkey.shared.cache.redis')
 type RedisStore = { [REDIS_KEY]?: Redis }
 
+const REDIS_COMMAND_TIMEOUT_MS = 2_000
+
 function redisStore(): RedisStore {
   return globalThis as RedisStore
 }
@@ -21,7 +23,14 @@ export function getRedis(): Redis | undefined {
     if (!env.REDIS_URL) return undefined
 
     const redis = new Redis(env.REDIS_URL, {
-      maxRetriesPerRequest: 3,
+      // A command settles within this deadline even when the server accepts the
+      // connection and never answers. A timeout does not prove a write did not
+      // happen, so a caller must never repeat one blindly.
+      commandTimeout: REDIS_COMMAND_TIMEOUT_MS,
+      maxRetriesPerRequest: 1,
+      // Kept on: the first command on a lazy client waits in the queue for the
+      // connection instead of failing.
+      enableOfflineQueue: true,
       lazyConnect: true,
     })
     redis.on('error', (err) => {

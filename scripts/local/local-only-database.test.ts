@@ -1,7 +1,7 @@
 import { spawnSync } from 'node:child_process'
 import { resolve } from 'node:path'
 import { describe, expect, it } from 'vitest'
-import { assertLocalOnlyDatabase } from './local-only-database'
+import { assertLocalOnlyDatabase, assertLocalOnlyRedis } from './local-only-database'
 
 const ROOT = resolve(import.meta.dirname, '../..')
 
@@ -126,6 +126,66 @@ describe('assertLocalOnlyDatabase', () => {
 
   it('never repeats the password in a refusal', () => {
     expect(refusal({ DATABASE_URL: DEPLOYED_DATABASE_URL })).not.toContain(
+      'not-a-real-password',
+    )
+  })
+})
+
+/** A deployed Redis as an operator's shell holds it, on a name that never resolves. */
+const DEPLOYED_REDIS_URL =
+  'redis://default:not-a-real-password@redis.example.invalid:6379'
+
+const redisRefusal = (env: Readonly<Record<string, string | undefined>>): string => {
+  try {
+    assertLocalOnlyRedis(env)
+  } catch (error) {
+    return error instanceof Error ? error.message : String(error)
+  }
+  return 'accepted'
+}
+
+describe('assertLocalOnlyRedis', () => {
+  it.each([
+    ['the local stack', 'redis://127.0.0.1:56379'],
+    ['localhost', 'redis://localhost:6379'],
+    ['IPv6 loopback', 'redis://[::1]:6379'],
+    ['TLS on loopback', 'rediss://:stack-password@127.0.0.1:6380'],
+  ])('accepts %s', (_name, url) => {
+    expect(redisRefusal({ REDIS_URL: url })).toBe('accepted')
+  })
+
+  it.each([
+    ['no address', undefined],
+    ['a blank address', '  '],
+  ])('accepts %s: there is nothing to clear', (_name, url) => {
+    expect(redisRefusal({ REDIS_URL: url })).toBe('accepted')
+  })
+
+  it('refuses a host that is not this machine, naming it', () => {
+    expect(redisRefusal({ REDIS_URL: DEPLOYED_REDIS_URL })).toBe(
+      'Local-only script refused: REDIS_URL points at host "redis.example.invalid", not at this machine',
+    )
+  })
+
+  it.each([
+    ['a Railway private address', 'redis://default:p@redis.railway.internal:6379'],
+    ['a name that only starts like loopback', 'redis://127.0.0.1.example.invalid:6379'],
+  ])('refuses %s', (_name, url) => {
+    expect(redisRefusal({ REDIS_URL: url })).toContain('not at this machine')
+  })
+
+  it.each([
+    ['text that is not an address', 'cache'],
+    ['a web address', 'http://127.0.0.1:6379'],
+    ['a database address', 'postgresql://u:p@127.0.0.1:5432/repkey_local'],
+  ])('refuses %s', (_name, url) => {
+    expect(redisRefusal({ REDIS_URL: url })).toBe(
+      'Local-only script refused: REDIS_URL is not a Redis address',
+    )
+  })
+
+  it('never repeats the password in a refusal', () => {
+    expect(redisRefusal({ REDIS_URL: DEPLOYED_REDIS_URL })).not.toContain(
       'not-a-real-password',
     )
   })

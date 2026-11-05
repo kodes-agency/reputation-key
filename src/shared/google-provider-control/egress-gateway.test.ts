@@ -450,7 +450,7 @@ describe('Google egress gateway dispatch evidence: a request left', () => {
         routeKey: DESCRIPTOR.routeKey,
         outcome: 'transport_error',
         dispatch: 'unknown',
-        err: { name: 'Error', message: 'completion hop unavailable' },
+        err: { name: 'Error' },
       },
       'Google admission completion failed',
     )
@@ -506,7 +506,7 @@ describe('Google egress gateway dispatch evidence: a request left', () => {
         routeKey: DESCRIPTOR.routeKey,
         deadlineLeftMs: DEADLINE_MS - NOW_MS,
         admissionMs: 3_000 - NOW_MS,
-        err: { name: 'Error', message: 'admission hop unavailable' },
+        err: { name: 'Error' },
       },
       'Google admission call failed',
     )
