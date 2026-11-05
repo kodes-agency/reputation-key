@@ -268,9 +268,8 @@ describe('provider routes at the /api/auth boundary, real provider and database'
   })
 
   // The in-process path that survives the provider option: a server call that
-  // names the user and carries no session is a system action. It is how the
-  // dormant createOrganizationFn creates once its capability gate has passed,
-  // and it leaves the session's active Organization for the caller to set.
+  // names the user and carries no session is a system action, and it leaves the
+  // session's active Organization for the caller to set.
   it('still creates as a system action, then activates the Organization for the session', async () => {
     const creator = await seedAccount('creator')
     const cookie = await signIn(creator)
