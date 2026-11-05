@@ -1,32 +1,22 @@
 # Reputation Key — agent guide
 
-## Agent skills
+Read [README.md](README.md), [ARCHITECTURE.md](ARCHITECTURE.md) and the current
+area map before changing code. [CONTEXT.md](CONTEXT.md) is the map of maps and
+the domain glossary. Follow [docs/rules.md](docs/rules.md) exactly as a human
+engineer would. [Closed beta obligations](docs/obligations.md) govern promises
+to Google and users.
 
-### Issue tracker
+Use the issue work queue and [docs/triage.md](docs/triage.md). Use one worktree
+per task and the pinned Node version. Reserve shared files with their owner.
+Keep server-function paths and central schema ownership stable. Run targeted
+checks locally; the normal CI pipeline runs the full suite.
 
-Issues and PRDs live as GitHub issues on `kodes-agency/reputation-key`, driven
-through the `gh` CLI; pull requests are **not** a request surface, so `/triage`
-ignores them. Open issues show on the triage board (Project #1), and errors
-that need code work come from Sentry. See `docs/agents/issue-tracker.md`.
+Give the owner protected lint patches when required. Use the existing lint
+configuration. Do not commit a programme plan, journal or agent notes. Report
+behaviour, test evidence and unresolved dependencies. Line figures are estimates
+or progress information.
 
-### Triage labels
-
-The five canonical triage roles map one-to-one to labels that already exist on
-the repo: `needs-triage`, `needs-info`, `ready-for-agent`, `ready-for-human`,
-`wontfix`. Every issue also carries one `type:` label (`bug`, `feature`,
-`improvement`, `chore`), and `source:sentry` or `source:beta-feedback` when it
-came from there. See `docs/agents/triage-labels.md`.
-
-### Domain docs
-
-Root-indexed multi-context: root `CONTEXT.md` is the map — read it first, then
-follow its Layer guides and Bounded contexts tables to the relevant nested
-`CONTEXT.md`. ADRs are system-wide in `docs/adr/`, navigated via its `README.md`.
-See `docs/agents/domain.md`.
-
-## UI
-
-Before adding UI, find the family in the "Pattern index" of
-`src/components/CONTEXT.md` and use its canonical component. When that lacks
-something you need, extend the primitive with a variant rather than overriding it
-with `className`.
+Before adding UI, find the family in the Pattern index of
+[src/components/CONTEXT.md](src/components/CONTEXT.md) and use its canonical
+component. When it lacks something needed, extend the primitive with a variant
+rather than overriding it with `className`.

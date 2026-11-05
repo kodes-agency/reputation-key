@@ -394,7 +394,7 @@ function feedbackReport(message: string) {
 
 describe('published error monitoring matches what a deployed cell does', () => {
   const notice = readFileSync('docs/legal/privacy-notice.md', 'utf8')
-  const contract = readFileSync('docs/BETA.md', 'utf8')
+  const contract = readFileSync('docs/obligations.md', 'utf8')
   const prose = () => monitoringProse(notice)
 
   afterEach(() => {
