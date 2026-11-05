@@ -115,13 +115,13 @@ runner, destination, cadence approval, or live success evidence is claimed by
 this repository today; this is a release blocker, not an instruction to create
 an unapproved export destination.
 
-The exact external monitoring inventory is registered in
-`src/shared/observability/regional-platform-signals.ts`: backup age, WAL/PITR
-health, restore range, logical-export success, external web availability, error
-rate, and release/config drift for `cell-us` only. Application-owned queue,
+The external monitoring requirements and retained evidence are listed in
+[Alerts and security posture](alerts-and-security-posture.md#external-monitoring-requirements):
+backup age, WAL/PITR health, restore range, logical-export success, external web
+availability, error rate, and release/config drift for `cell-us` only. Application-owned queue,
 outbox, reply, Google-sync, and worker-readiness signals remain in
-`src/shared/observability/alert-definitions.ts`. A registered row is a required
-configuration/evidence contract; it is not deployed alert evidence.
+`src/shared/observability/alert-definitions.ts`. A documented requirement is not
+deployed alert evidence.
 
 **PITR EXECUTION stays platform-owned** (registered finding — runbooks.md
 "Registered gaps"): no app/ops command performs a point-in-time restore.
