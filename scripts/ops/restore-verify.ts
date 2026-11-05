@@ -6,10 +6,12 @@
 // now runs every current retention lifecycle, invalidates restored authority,
 // fences unpublished effects, and records a durable cell recovery generation.
 //
-//   - Hard gates: RESTORE_MODE=isolated in this env AND an attested loopback
-//     or exact Railway PITR sibling DATABASE_URL — refusal happens before work.
+//   - Hard gates: RESTORE_MODE=isolated in this env, an attested loopback
+//     or exact Railway PITR sibling DATABASE_URL, and no Redis, queue or
+//     bucket setting — refusal happens before the harness opens anything.
 //   - All work runs IN-PROCESS through the production repository/handler
-//     paths — never a BullMQ enqueue; the drill has no worker.
+//     paths — never a BullMQ enqueue; the drill has no worker and no queue.
+//   - Erasure replay is not wired: the command says so on every run.
 //
 // Ordinary composition is inspection-only. This restore-only CLI admits
 // `--apply` only when all three REVIEW_LIFECYCLE_RECOVERY_APPROVAL_* values
