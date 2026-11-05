@@ -3,7 +3,7 @@
 // contact is approved as a manager enters it, the job that checks websites again
 // never takes one, and the guest edge serves one however long ago it was stored.
 
-import { beforeEach, describe, expect, it } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { getDb } from '#/shared/db'
 import { setupIntegrationDb } from '#/shared/testing/integration-helpers'
 import { buildTestAuthContext, buildTestPortal } from '#/shared/testing/fixtures'
@@ -17,6 +17,9 @@ import {
   userId,
 } from '#/shared/domain/ids'
 import type { StaffPublicApi } from '#/contexts/identity/application/public-api'
+import { revalidatePortalApprovedDestinations } from '../application/use-cases/manage-portal-approved-destinations'
+import { createRevalidateApprovedDestinationsHandler } from './jobs/revalidate-approved-destinations.job'
+import type { PortalDestinationNetworkValidator } from '../application/ports/portal-destination-network-validator.port'
 import { createLink } from '../application/use-cases/create-link'
 import {
   validatePortalDestinationUri,
@@ -321,5 +324,146 @@ describe('contact destinations (real PostgreSQL)', () => {
         approval_state: 'approved',
       },
     ])
+  })
+})
+
+describe('destination network retry scheduling (real PostgreSQL)', () => {
+  it.each(['unavailable', 'unauthorized'] as const)(
+    'validates a healthy destination after 50 %s rows in the same run',
+    async (failure) => {
+      const failingProperty = propertyId('9d000000-0000-4000-8000-000000000002')
+      await getPool().query(
+        `INSERT INTO properties (id, organization_id, name, slug, timezone, created_at, updated_at)
+         VALUES ($1, $2, 'Failing scope', 'failing-scope', 'UTC', $3, $3)`,
+        [failingProperty, ORG_B, STORED_AT],
+      )
+      for (let i = 0; i < 51; i += 1) {
+        await repo().request({
+          id: portalApprovedDestinationId(nextId()),
+          organizationId: i === 50 ? ORG_A : ORG_B,
+          propertyId: i === 50 ? PROPERTY_A : failingProperty,
+          destination: validatePortalDestinationUri(
+            `https://www.tripadvisor.com/Hotel${i}`,
+          ),
+          requestedBy: MANAGER,
+          approveCustom: false,
+          at: STORED_AT,
+        })
+      }
+      const validate = vi.fn<PortalDestinationNetworkValidator['validate']>(
+        async (uri) =>
+          uri.endsWith('/Hotel50')
+            ? {
+                outcome: 'safe',
+                validatedAt: A_DAY_LATER,
+                finalUri: uri,
+                redirectCount: 0,
+              }
+            : {
+                outcome: 'unavailable',
+                reason: 'dns_unavailable',
+                observedAt: A_DAY_LATER,
+              },
+      )
+      const run = createRevalidateApprovedDestinationsHandler({
+        revalidate: revalidatePortalApprovedDestinations({
+          destinationRepo: repo(),
+          destinationNetworkValidator: { validate },
+          clock: () => A_DAY_LATER,
+        }),
+        authorizeScope: async (org, property) =>
+          (org === ORG_A && property === PROPERTY_A) ||
+          (failure === 'unavailable' && org === ORG_B && property === failingProperty),
+        clock: () => A_DAY_LATER,
+        logger: { info: vi.fn() },
+        alertDispatcher: { dispatch: vi.fn(async () => {}) },
+      })
+      await run({} as never)
+      const healthy = (await repo().list(ORG_A, PROPERTY_A)).find((row) =>
+        row.normalizedUri.endsWith('/Hotel50'),
+      )
+      expect(healthy?.lastValidatedAt).toEqual(A_DAY_LATER)
+      expect(validate).toHaveBeenCalledTimes(failure === 'unavailable' ? 51 : 1)
+      const { rows } = await getPool().query(
+        `SELECT last_validated_at, validation_failures, next_attempt_at
+         FROM portal_approved_destinations WHERE organization_id = $1 AND property_id = $2`,
+        [ORG_B, failingProperty],
+      )
+      expect(rows).toHaveLength(50)
+      for (const row of rows) {
+        expect(row.last_validated_at).toEqual(STORED_AT)
+        expect(row.validation_failures).toBe(failure === 'unavailable' ? 1 : 0)
+        expect(row.next_attempt_at).toEqual(
+          failure === 'unavailable' ? new Date(A_DAY_LATER.getTime() + 60_000) : null,
+        )
+      }
+    },
+  )
+
+  it('persists backoff without changing approval or freshness, fences stale retries and resets after success', async () => {
+    const destination = await request('https://www.tripadvisor.com/Hotel')
+    const retryAt = new Date(A_DAY_LATER.getTime() + 60_000)
+    const input = {
+      organizationId: ORG_A,
+      propertyId: PROPERTY_A,
+      id: destination.id,
+      expectedLastValidatedAt: STORED_AT,
+      expectedNextAttemptAt: null,
+      result: { outcome: 'unavailable' as const, nextAttemptAt: retryAt },
+    }
+    const delayed = await repo().recordNetworkValidation(input)
+    expect(delayed).toMatchObject({
+      approvalState: 'approved',
+      lastValidatedAt: STORED_AT,
+      updatedAt: STORED_AT,
+    })
+    expect(await repo().recordNetworkValidation(input)).toBeNull()
+    const due = () =>
+      repo().listDueForNetworkRevalidation(A_DAY_LATER, 500, { at: A_DAY_LATER })
+    expect((await due()).some((row) => row.id === destination.id)).toBe(false)
+    const retried = (
+      await repo().listDueForNetworkRevalidation(A_DAY_LATER, 500, { at: retryAt })
+    ).find((row) => row.id === destination.id)
+    expect(retried).toMatchObject({ nextAttemptAt: retryAt, validationFailures: 1 })
+    await repo().recordNetworkValidation({
+      ...input,
+      expectedNextAttemptAt: retryAt,
+      result: { outcome: 'safe', validatedAt: retryAt },
+    })
+    const later = new Date(retryAt.getTime() + 11 * 60_000)
+    const refreshed = (
+      await repo().listDueForNetworkRevalidation(later, 500, { at: later })
+    ).find((row) => row.id === destination.id)
+    expect(refreshed).toMatchObject({
+      lastValidatedAt: retryAt,
+      nextAttemptAt: null,
+      validationFailures: 0,
+    })
+  })
+
+  it('advances past visited rows even when validation changes', async () => {
+    const first = await request('https://www.tripadvisor.com/First')
+    const second = await request('https://www.tripadvisor.com/Second')
+    const before = new Date(A_DAY_LATER.getTime() - 10 * 60_000)
+    const page = await repo().listDueForNetworkRevalidation(before, 500, {
+      at: A_DAY_LATER,
+    })
+    const firstCandidate = page.find((row) => row.id === first.id)!
+    expect(firstCandidate).toBeDefined()
+    // An old validation timestamp cannot cause a row already visited to move
+    // into another page, including when another run records it concurrently.
+    await repo().recordNetworkValidation({
+      organizationId: ORG_A,
+      propertyId: PROPERTY_A,
+      id: first.id,
+      expectedLastValidatedAt: STORED_AT,
+      result: { outcome: 'safe', validatedAt: new Date(STORED_AT.getTime() + 60_000) },
+    })
+    const following = await repo().listDueForNetworkRevalidation(before, 500, {
+      at: A_DAY_LATER,
+      excludeIds: [first.id],
+    })
+    expect(following.some((row) => row.id === first.id)).toBe(false)
+    expect(following.some((row) => row.id === second.id)).toBe(true)
   })
 })
