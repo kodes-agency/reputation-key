@@ -1,6 +1,6 @@
 # Context — Reputation Key
 
-**Authority:** [`docs/BETA.md`](docs/BETA.md) governs the closed beta and outranks this file. This page is orientation — architecture, glossary and where things live.
+**Authority:** [`docs/obligations.md`](docs/obligations.md) governs the closed beta and outranks this file. This page is orientation — architecture, glossary and where things live.
 
 ## Architecture
 
