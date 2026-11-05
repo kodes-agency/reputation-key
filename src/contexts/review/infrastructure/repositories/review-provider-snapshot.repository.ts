@@ -13,6 +13,11 @@ import {
   reviews,
 } from '#/shared/db/schema/review.schema'
 import { reviewGoogleReputationSnapshotFacts } from '#/shared/db/schema/review-reputation.schema'
+import type { GoogleProviderFailure } from '#/shared/domain/google-provider-failure'
+import {
+  recordHistoryImportFinished,
+  recordProviderFailure,
+} from './review-provider-snapshot-history'
 import { organizationId, propertyId, reviewId } from '#/shared/domain/ids'
 import type {
   ReviewProviderHistoryCutoff,
@@ -23,10 +28,8 @@ import type {
 } from '../../application/ports/review-provider-snapshot.repository'
 import {
   reviewGoogleReputationSnapshotVerified,
-  reviewPropertyHistoryImportFinished,
   reviewSourceTransitioned,
 } from '../../domain/events'
-import { historyImportFailureReason } from '../../application/historical-import-outcome'
 import { domainError } from '#/shared/domain/errors'
 import { historyListedSince } from './review-provider-history-listed'
 import { eraseReviewSourceContent } from '../review-source-content-store'
@@ -146,37 +149,6 @@ async function endsFirstHistoryImport(
   return row?.first_import === true && row.history_unlisted === true
 }
 
-/**
- * Write the import's own terminal fact, in the transaction that makes the run
- * terminal. Counts and identifiers only: what the run had listed, and the
- * closed reason a failure leaves a reader to act on.
- */
-async function recordHistoryImportFinished(
-  tx: Tx,
-  run: RunRow,
-  settlement:
-    | Readonly<{ outcome: 'completed' }>
-    | Readonly<{ outcome: 'failed'; code: ReviewProviderSnapshotFailureCode }>,
-): Promise<void> {
-  const rows = await tx.execute(sql`SELECT transaction_timestamp() AS finished_at`)
-  const value = (rows.rows[0] as { finished_at: Date | string }).finished_at
-  const finishedAt = value instanceof Date ? value : new Date(value)
-  const finished = reviewPropertyHistoryImportFinished({
-    organizationId: organizationId(run.organizationId),
-    propertyId: propertyId(run.propertyId),
-    sourceEpoch: run.sourceEpoch,
-    runId: run.id,
-    outcome: settlement.outcome,
-    reviewsObserved: run.mainUniqueCount,
-    failureReason:
-      settlement.outcome === 'failed'
-        ? historyImportFailureReason(settlement.code)
-        : null,
-    occurredAt: finishedAt,
-  })
-  await insertOutboxRow(tx, finished, { recordedAt: finishedAt })
-}
-
 /** A listing that moved under the run (a different set between the scans, a
  * different total or average from page to page, a review on two pages) is
  * recorded as `listing_changed` until it repeats
@@ -185,6 +157,7 @@ async function failLockedRun(
   tx: Tx,
   row: RunRow,
   requested: SnapshotFailureRequest,
+  providerFailure?: GoogleProviderFailure,
 ): Promise<RunRow> {
   if (row.state === 'completed' || row.state === 'failed') return row
   const code = await recordedFailureCode(tx, row, requested)
@@ -215,6 +188,9 @@ async function failLockedRun(
       'snapshot_run_missing_on_fail',
       'Snapshot run disappeared while failing',
     )
+  if (providerFailure !== undefined) {
+    await recordProviderFailure(tx, terminal[0], code, providerFailure)
+  }
   return terminal[0]
 }
 
@@ -1317,7 +1293,7 @@ export const createReviewProviderSnapshotRepository = (
       return { status: 'deleting' as const, run: fromRunRow(updated[0]) }
     }),
 
-  failRun: async ({ runId, organizationId, code }) =>
+  failRun: async ({ runId, organizationId, code, providerFailure }) =>
     db.transaction(async (tx) => {
       const rows = await tx
         .select()
@@ -1330,7 +1306,7 @@ export const createReviewProviderSnapshotRepository = (
         )
         .for('update')
       if (!rows[0]) throw domainError('snapshot_run_not_found', 'Snapshot run not found')
-      return fromRunRow(await failLockedRun(tx, rows[0], code))
+      return fromRunRow(await failLockedRun(tx, rows[0], code, providerFailure))
     }),
 
   applyDeletionBatch: async ({ runId, limit }) => {

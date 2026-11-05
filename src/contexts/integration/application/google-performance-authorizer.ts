@@ -1,3 +1,4 @@
+import { summarizeError } from '#/shared/observability/error-summary'
 import type { AuthContext } from '#/shared/domain/auth-context'
 import type { LoggerPort } from '#/shared/domain/logger.port'
 import {
@@ -160,7 +161,7 @@ export function createGooglePerformanceAuthorizer(
       return unavailable('integration_unavailable', null)
     }
     const errorFields = (error: unknown) =>
-      error instanceof Error ? { err: { name: error.name, message: error.message } } : {}
+      error instanceof Error ? { err: summarizeError(error) } : {}
 
     let actor: AuthContext | null
     try {

@@ -157,7 +157,7 @@ Every alert is defined in `src/shared/observability/alert-definitions.ts` (owner
 | `sync.failed-nonzero`                          | P2  | any coded sync failure whose retry is due                                                                                         | §13     |
 | `sync.push-missed`                             | P2  | topic set; any review polling found in 24h, dated within a day of that, with no Google push accepted within 60min                 | §4      |
 | `sync.push-silent`                             | P2  | topic set; polling found new reviews in 24h and Pub/Sub accepted no push at all in that time                                      | §4      |
-| `sync.reconciliation-age`                      | P2  | a syncable Property's newest completed reconciliation is over 8h old (parked coded failures excluded; independent of push)        | §13     |
+| `sync.reconciliation-age`                      | P2  | a syncable Property's newest completed reconciliation is over 8h old (counts failed Properties; independent of push)              | §13     |
 | `ai.review-analysis-stalled`                   | P2  | incomplete enabled coverage with no new settlement for > 15min; monitor failure also fires                                        | §22     |
 | `ai.review-analysis-empty-enrollment`          | P2  | any queued/running zero-snapshot enrollment while eligible reviews exist                                                          | §22     |
 | `retention.failure`                            | P1  | latest retention run failed for any subject; monitor failure (the `retention_runs` read) also fires                               | §8      |
@@ -172,6 +172,8 @@ Every alert is defined in `src/shared/observability/alert-definitions.ts` (owner
 | `notification.email-complaints`                | P2  | any spam complaint in the trailing 24h                                                                                            | §15     |
 | `notification.email-retry-exhausted`           | P2  | any email whose transient retry budget ran out in the trailing 24h (the delivery path gave up)                                    | §15     |
 | `notification.email-provider-feedback-missing` | P2  | more than two accepted emails (7-day lookback) with no provider outcome 6h after acceptance — silent webhook or capture transport | §15     |
+
+**Dead worker:** the worker evaluates every alert above, so a dead worker is detected outside it, by Sentry cron monitor `worker-heartbeat` (each health check checks in; two missed check-ins open an issue).
 
 **Off for the closed beta: `beta-feedback.triage-backlog` (P2, §16).** It paged when
 the oldest delivered unresolved local feedback receipt was older than 72h, or

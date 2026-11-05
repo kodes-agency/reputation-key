@@ -1141,7 +1141,10 @@ describe('Review Analysis for a review that arrives during a stop', () => {
   // delivery is the policy question it is handed, so the worker's composition
   // must hand it the drain's own.
   it('is given the scope authorizer of the drain where the worker is composed', () => {
-    const composition = readFileSync(join(process.cwd(), 'src/composition.ts'), 'utf8')
+    const composition = readFileSync(
+      join(process.cwd(), 'src/composition/ai-wiring.ts'),
+      'utf8',
+    )
     const build = readFileSync(join(process.cwd(), 'src/contexts/ai/build.ts'), 'utf8')
 
     expect(composition).toMatch(
