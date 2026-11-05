@@ -93,10 +93,22 @@ const legacyRatingRows: Row[] = [
   },
 ]
 
+const scanRows: Row[] = [
+  {
+    id: 'c0000000-0000-4000-8000-000000000001',
+    portal_id: 'f0000000-0000-4000-8000-000000000001',
+    source: 'qr',
+    created_at: '2025-06-01T00:00:00.000000Z',
+  },
+]
+
 const seeded = {
   responses: responseRows,
   privateFeedback: privateFeedbackRows,
   legacyRatings: legacyRatingRows,
+  legacyFeedbackFacts: [{ id: 'legacy-feedback', rating_id: legacyRatingRows[0]?.id }],
+  legacyFeedbackText: [{ id: 'legacy-feedback', body: 'Legacy stay' }],
+  legacyScanEvents: scanRows,
 }
 
 function contribute(
@@ -110,6 +122,31 @@ function contribute(
 }
 
 describe('Guest Organization Export contributor', () => {
+  it('exports current response facts and private text alongside unmatched visit records', async () => {
+    const result = await contribute(seeded)
+    const read = (path: string) => {
+      const entry = result.entries.find((candidate) => candidate.path === path)
+      if (!entry) throw new Error(`Missing export entry: ${path}`)
+      return JSON.parse(Buffer.from(entry.bytes).toString('utf8'))
+    }
+
+    expect(result.coverage).toBe('complete')
+    expect(read('guest/responses.json').responses).toEqual([...responseRows].reverse())
+    expect(read('guest/private-feedback.json')).toMatchObject({
+      privateFeedback: privateFeedbackRows,
+      legacyFeedbackText: seeded.legacyFeedbackText,
+    })
+    expect(read('guest/legacy-responses.json')).toEqual({
+      version: 'guest-organization-export/v1',
+      requestedAsOf: ASOF.toISOString(),
+      snapshotBound: 'repeatable_read_within_15m_of_request',
+      excludedRecordClasses: expect.any(Array),
+      legacyRatings: legacyRatingRows,
+      legacyFeedbackFacts: seeded.legacyFeedbackFacts,
+      legacyScanEvents: scanRows,
+    })
+  })
+
   it('fails closed when the request is older than the bounded snapshot window', async () => {
     await expect(contribute(seeded, '2026-08-28T10:16:01.000000Z')).rejects.toThrow(
       /snapshot window is unavailable/u,
