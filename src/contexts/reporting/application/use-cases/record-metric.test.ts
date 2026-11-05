@@ -5,9 +5,11 @@ import {
   type RecordMetricInput,
 } from './record-metric'
 import type { MetricReading } from '../../domain/metric-reading'
-import type { MetricSourceReceipt } from '../ports/metric-command-store.port'
+import type {
+  MetricSourceReceipt,
+  RecordMetricsCommand,
+} from '../ports/metric-command-store.port'
 import type { GovernedMetricVersion } from '../../domain/metric-registry'
-import { createRecordedOutbox } from '#/shared/testing/recorded-outbox'
 import { createSequentialMetricCommandStore } from '#/shared/testing/sequential-metric-command-store'
 import {
   metricReadingId,
@@ -23,14 +25,11 @@ const governed: GovernedMetricVersion = {
   definition: {
     id: 'definition-1',
     key: 'portal.content_review.completed',
-    name: 'Content reviews',
-    description: 'Explicit content reviews',
     valueKind: 'counter',
     workerDataFlag: false,
     privacyClass: 'operational',
     retentionClass: 'standard',
     lifecycleStatus: 'approved',
-    approvalOwner: 'product-governance',
   },
   version: {
     id: '11111111-1111-4111-8111-111111111101',
@@ -38,21 +37,14 @@ const governed: GovernedMetricVersion = {
     version: 1,
     effectiveFrom: new Date('2026-08-08T00:00:00Z'),
     effectiveTo: null,
-    numeratorDescription: 'Completed reviews',
-    denominatorDescription: null,
     unit: 'review',
     precision: 0,
-    aggregationRule: 'sum',
-    lateArrivalRule: 'accept_with_source_event_time',
     allowedScopes: ['property', 'portal_group'],
-    attributionRule: 'effective group at event time',
     minimumSample: 1,
     insufficientDataBehavior: 'unavailable',
     sourcePolicyAllowlist: ['first_party_workflow'],
     permittedConsumers: ['dashboard', 'goal', 'notification'],
     employmentDecisionEligible: false,
-    correctionBehavior: 'append_delta',
-    fairnessReviewStatus: 'approved_for_declared_consumers',
   },
 }
 
@@ -75,28 +67,34 @@ const input = (overrides: Partial<RecordMetricInput> = {}): RecordMetricInput =>
 const createDeps = (version: GovernedMetricVersion | null = governed) => {
   const readings: MetricReading[] = []
   const receipts: MetricSourceReceipt[] = []
-  const outbox = createRecordedOutbox()
+  const commands: RecordMetricsCommand[] = []
+  const commandStore = createSequentialMetricCommandStore({
+    insertReading: async (reading) => {
+      readings.push(reading)
+      return reading
+    },
+    recordReceipt: async (receipt) => {
+      receipts.push(receipt)
+    },
+  })
   const deps: RecordMetricDeps = {
-    commandStore: createSequentialMetricCommandStore({
-      insertReading: async (reading) => {
-        readings.push(reading)
-        return reading
+    commandStore: {
+      ...commandStore,
+      recordMetrics: async (command) => {
+        commands.push(command)
+        return commandStore.recordMetrics(command)
       },
-      outbox,
-      recordReceipt: async (receipt) => {
-        receipts.push(receipt)
-      },
-    }),
+    },
     registry: { findVersionById: async () => version },
     clock: () => NOW,
     idGen: () => metricReadingId('d4000000-0000-4000-8000-000000000071'),
     resolvePropertyLocalDate: async () => '2026-08-08',
   }
-  return { deps, readings, receipts, outbox }
+  return { deps, readings, receipts, commands }
 }
 
 describe('recordMetric', () => {
-  it('records a versioned reading and its registry-approved outbox fact', async () => {
+  it('records a versioned reading without an unconsumed outbox fact', async () => {
     const fakes = createDeps()
     const result = await recordMetric(fakes.deps)(input())
 
@@ -110,12 +108,7 @@ describe('recordMetric', () => {
       portalGroupId: 'd4000000-0000-4000-8000-000000000061',
       propertyLocalDate: '2026-08-08',
     })
-    expect(fakes.outbox.byTag('metric.recorded')).toEqual([
-      expect.objectContaining({
-        _tag: 'metric.recorded',
-        permittedConsumers: governed.version.permittedConsumers,
-      }),
-    ])
+    expect(fakes.commands[0]?.readings[0]).not.toHaveProperty('event')
   })
 
   it.each([
@@ -144,7 +137,6 @@ describe('recordMetric', () => {
       )
       expect(result.status).toBe('recorded')
       expect(fakes.readings[0]?.portalLinkId).toBe(expected)
-      expect(fakes.outbox.byTag('metric.recorded')).toHaveLength(1)
     },
   )
 
@@ -209,7 +201,7 @@ describe('recordMetric', () => {
       sourceEventId: 'event-1',
     })
     expect(fakes.readings).toEqual([])
-    expect(fakes.outbox.facts).toEqual([])
+    expect(fakes.commands).toEqual([])
   })
 
   it.each([

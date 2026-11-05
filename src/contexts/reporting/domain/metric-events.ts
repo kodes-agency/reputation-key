@@ -37,21 +37,6 @@ export type MetricRecorded = Readonly<{
   occurredAt: Date
   correlationId: string | null
 }>
-export const metricRecorded = (
-  args: Omit<MetricRecorded, '_tag' | 'correlationId' | 'eventId'> & {
-    correlationId?: string | null
-  },
-): MetricRecorded => {
-  assert(args.occurredAt instanceof Date, 'occurredAt must be Date')
-  return {
-    ...args,
-    _tag: 'metric.recorded',
-    eventId: newEventId(),
-    staffAttribution: args.staffAttribution ?? null,
-    correlationId: args.correlationId ?? null,
-  }
-}
-
 export type MetricCorrected = Readonly<{
   _tag: 'metric.corrected'
   eventId: string

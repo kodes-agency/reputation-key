@@ -21,8 +21,6 @@ export type PortalLookCommandDeps = Readonly<{
   portalLookRepo: Pick<PortalLookRepository, 'savePortalLookPart'>
   staffPublicApi: StaffPublicApi
   clock: () => Date
-  /** PORTAL_OWN_LOOK_ENABLED: off, every save is refused. */
-  portalOwnLookEnabled: boolean
 }>
 
 /** Which Portal a save names, and the Property the caller believes it is in. */
@@ -31,13 +29,10 @@ export type PortalLookTarget = Readonly<{ propertyId: string; portalId: string }
 /**
  * The Portal whose look may be changed: one the caller may update, not
  * archived, changed by an Account Admin of its Property, in the Property the
- * request names, and only while Portals may have a look of their own.
+ * request names.
  */
 export async function loadPortalForOwnLook(
-  deps: Pick<
-    PortalLookCommandDeps,
-    'portalRepo' | 'staffPublicApi' | 'portalOwnLookEnabled'
-  >,
+  deps: Pick<PortalLookCommandDeps, 'portalRepo' | 'staffPublicApi'>,
   ctx: AuthContext,
   target: PortalLookTarget,
 ): Promise<Portal> {
@@ -56,9 +51,6 @@ export async function loadPortalForOwnLook(
   await assertPropertyAccess(deps.staffPublicApi, ctx, 'portal.update', pid)
   if (portal.propertyId !== pid) {
     throw portalError('portal_not_found', 'Portal not found for this Property')
-  }
-  if (!deps.portalOwnLookEnabled) {
-    throw portalError('feature_unavailable', 'A portal cannot have its own look yet')
   }
   return portal
 }

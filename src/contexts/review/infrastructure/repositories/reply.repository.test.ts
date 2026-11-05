@@ -828,45 +828,6 @@ describe.sequential('replyRepository (integration)', () => {
     })
   })
 
-  describe('findGoogleSyncByReviewId', () => {
-    it('finds google_sync reply by review id', async () => {
-      const db = getDb()
-      await seedReview(db)
-      const repo = createReplyRepository(db, () => new Date())
-
-      await repo.upsert(makeReply({ source: 'google_sync' }))
-      await repo.upsert(
-        makeReply({
-          id: '2a000000-0000-0000-0000-000000000002',
-          source: 'internal',
-          status: 'draft',
-        }),
-      )
-
-      const found = await repo.findGoogleSyncByReviewId(
-        reviewId('3a000000-0000-0000-0000-000000000001'),
-        ORG_A,
-      )
-
-      expect(found).not.toBeNull()
-      expect(found!.source).toBe('google_sync')
-    })
-
-    it('returns null when no google_sync reply exists', async () => {
-      const db = getDb()
-      await seedReview(db)
-      const repo = createReplyRepository(db, () => new Date())
-
-      await repo.upsert(makeReply({ source: 'internal' }))
-
-      const found = await repo.findGoogleSyncByReviewId(
-        reviewId('3a000000-0000-0000-0000-000000000001'),
-        ORG_A,
-      )
-      expect(found).toBeNull()
-    })
-  })
-
   describe('upsert with conflict resolution', () => {
     it('updates existing reply on conflict (reviewId + source + org)', async () => {
       const db = getDb()

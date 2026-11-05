@@ -1,9 +1,4 @@
-// Revising a Program, changing its subjects, renaming it and changing its
-// running month's target start from one shared step, loadChangeableProgram: the Program must exist for the actor's
-// organization and Property, and an ended Program takes no further change.
-// goal-programs.test.ts pins only the ended refusal of changeAssignments; these
-// cases pin the refusal of each command on each of the two paths, so a later
-// rewrite of the shared step cannot loosen one of them unnoticed.
+// An ended or unknown Program must be refused before any write or side read.
 import { describe, expect, it, vi } from 'vitest'
 import type {
   GoalProgram,
@@ -98,22 +93,6 @@ const COMMANDS: ReadonlyArray<
           targetValue: 30,
           subjects: [{ kind: 'portal', portalId: 'portal-1' }],
           reason: 'Raise the target',
-        },
-        actor,
-      ),
-  ],
-  [
-    'changeAssignments',
-    (service, programId) =>
-      service.changeAssignments(
-        {
-          propertyId: 'property-1',
-          programId,
-          expectedVersion: 1,
-          add: [{ kind: 'portal', portalId: 'portal-2' }],
-          remove: [],
-          selectAllCurrentPortals: false,
-          reason: 'Add a portal',
         },
         actor,
       ),

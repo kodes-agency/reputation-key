@@ -64,6 +64,7 @@ const item = (
   publishedAt: T(days),
   publishedBy: { userId: 'u', displayName: 'Elena Petrova' },
   isLive: false,
+  restorable: true,
   isFirst: version === 1,
   languages: ['en'],
   changes: [],

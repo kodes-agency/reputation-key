@@ -262,7 +262,7 @@ export const createPropertyGoogleBindingStore = (
       const connectionIdValue = input.property.googleConnectionId
       if (!connectionIdValue) deny('invalid_binding')
       // An imported Property is a created Property: Recent Activity learns of it
-      // from the same fact a manual create records, committed with the row.
+      // from a property.created fact, committed with the row.
       const created = propertyCreated({
         organizationId: input.organizationId,
         propertyId: input.property.id,

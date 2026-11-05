@@ -120,10 +120,6 @@ describe('route permission checks', () => {
       uses: 1,
       decides: 'which roles an inviter may assign (at or below their own)',
     },
-    '_authenticated/settings/-leave-organization-section.tsx': {
-      uses: 2,
-      decides: 'whether the reader is the only account admin',
-    },
   }
 
   it('use hasRole only for the rank decisions listed, never for what a person may do', () => {

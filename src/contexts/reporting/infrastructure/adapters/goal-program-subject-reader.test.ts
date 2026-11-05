@@ -5,7 +5,6 @@ const propertyApi = { getPropertyTimezone: vi.fn() }
 const portalApi = {
   resolvePortalContext: vi.fn(),
   getPortalInfo: vi.fn(),
-  listCurrentPortalIds: vi.fn(),
   listPortalRatingFacts: vi.fn(),
 }
 const portalGroupApi = {
@@ -157,19 +156,6 @@ describe('Goal Program subject reader', () => {
         reader().getSubjectName('org-1', 'property-1', north),
       ).resolves.toBeNull()
     })
-  })
-
-  it('takes a bounded current-Portal snapshot through the Portal owner', async () => {
-    portalApi.listCurrentPortalIds.mockResolvedValue(['portal-1', 'portal-2'])
-
-    await expect(
-      reader().listCurrentPortalIds('org-1', 'property-1', 251),
-    ).resolves.toEqual(['portal-1', 'portal-2'])
-    expect(portalApi.listCurrentPortalIds).toHaveBeenCalledWith(
-      'org-1',
-      'property-1',
-      251,
-    )
   })
 })
 

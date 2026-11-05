@@ -9,6 +9,7 @@ import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest'
 import { createPropertyRepository } from './property.repository'
 import { getDb } from '#/shared/db'
 import { buildTestProperty } from '#/shared/testing/fixtures'
+import { seedTestProperty } from '../property-test-fixtures'
 import { organizationId } from '#/shared/domain/ids'
 import { Pool } from 'pg'
 import { getEnv } from '#/shared/config/env'
@@ -56,8 +57,8 @@ beforeEach(async () => {
 })
 
 describe('propertyRepository (integration)', () => {
-  describe('insert and findById', () => {
-    it('inserts and retrieves a property', async () => {
+  describe('findById', () => {
+    it('retrieves a property', async () => {
       const db = getDb()
       const repo = createPropertyRepository(db)
       const property = buildTestProperty({
@@ -67,7 +68,7 @@ describe('propertyRepository (integration)', () => {
         slug: 'grand-hotel',
       })
 
-      await repo.insert(ORG_A, property)
+      await seedTestProperty(getDb(), property)
 
       const found = await repo.findById(ORG_A, property.id as never)
       expect(found).not.toBeNull()
@@ -91,8 +92,8 @@ describe('propertyRepository (integration)', () => {
         slug: 'hotel-b',
       })
 
-      await repo.insert(ORG_A, propertyA)
-      await repo.insert(ORG_B, propertyB)
+      await seedTestProperty(getDb(), propertyA)
+      await seedTestProperty(getDb(), propertyB)
 
       const fromA = await repo.findById(ORG_A, propertyA.id as never)
       expect(fromA?.id).toBe(propertyA.id)
@@ -110,7 +111,7 @@ describe('propertyRepository (integration)', () => {
         slug: 'shared-slug',
       })
 
-      await repo.insert(ORG_A, propertyA)
+      await seedTestProperty(getDb(), propertyA)
 
       expect(await repo.slugExists(ORG_B, 'shared-slug')).toBe(false)
       expect(await repo.slugExists(ORG_A, 'shared-slug')).toBe(true)
@@ -122,8 +123,8 @@ describe('propertyRepository (integration)', () => {
       const pA = buildTestProperty({ id: 'p-a1', organizationId: ORG_A, slug: 'a1' })
       const pB = buildTestProperty({ id: 'p-b1', organizationId: ORG_B, slug: 'b1' })
 
-      await repo.insert(ORG_A, pA)
-      await repo.insert(ORG_B, pB)
+      await seedTestProperty(getDb(), pA)
+      await seedTestProperty(getDb(), pB)
 
       const orgAList = await repo.list(ORG_A)
       expect(orgAList).toHaveLength(1)
@@ -157,10 +158,10 @@ describe('propertyRepository (integration)', () => {
         deletedAt: new Date('2026-04-11T12:00:00Z'),
       }
       // Inserted in the opposite order to the one the answer must have.
-      await repo.insert(ORG_B, inB)
-      await repo.insert(ORG_B, deleted)
-      await repo.insert(ORG_A, elsewhere)
-      await repo.insert(ORG_A, inA)
+      await seedTestProperty(getDb(), inB)
+      await seedTestProperty(getDb(), deleted)
+      await seedTestProperty(getDb(), elsewhere)
+      await seedTestProperty(getDb(), inA)
 
       const holders = await repo.listByGbpLocationId('location-shared')
 
@@ -172,73 +173,9 @@ describe('propertyRepository (integration)', () => {
 
     it('returns nothing for a location no Property holds', async () => {
       const repo = createPropertyRepository(getDb())
-      await repo.insert(ORG_A, holding('prop-loc-only', ORG_A, 'location-held'))
+      await seedTestProperty(getDb(), holding('prop-loc-only', ORG_A, 'location-held'))
 
       await expect(repo.listByGbpLocationId('location-unheld')).resolves.toEqual([])
-    })
-  })
-
-  describe('hardDelete', () => {
-    it('removes property row entirely', async () => {
-      const db = getDb()
-      const repo = createPropertyRepository(db)
-      const property = buildTestProperty({
-        id: 'prop-del',
-        organizationId: ORG_A,
-        slug: 'to-delete',
-      })
-
-      await repo.insert(ORG_A, property)
-      await repo.hardDelete(ORG_A, property.id as never)
-
-      const found = await repo.findById(ORG_A, property.id as never)
-      expect(found).toBeNull()
-
-      const listed = await repo.list(ORG_A)
-      expect(listed).toHaveLength(0)
-    })
-
-    it('allows a new property with the same slug after hard-delete', async () => {
-      const db = getDb()
-      const repo = createPropertyRepository(db)
-      const original = buildTestProperty({
-        id: 'prop-reuse',
-        organizationId: ORG_A,
-        slug: 'reusable-slug',
-      })
-
-      await repo.insert(ORG_A, original)
-      await repo.hardDelete(ORG_A, original.id as never)
-
-      const replacement = buildTestProperty({
-        id: 'prop-reuse-2',
-        organizationId: ORG_A,
-        slug: 'reusable-slug',
-      })
-      await repo.insert(ORG_A, replacement)
-
-      const found = await repo.findById(ORG_A, replacement.id as never)
-      expect(found).not.toBeNull()
-      expect(found!.slug).toBe('reusable-slug')
-    })
-  })
-
-  describe('update', () => {
-    it('updates specified fields', async () => {
-      const db = getDb()
-      const repo = createPropertyRepository(db)
-      const property = buildTestProperty({
-        id: 'prop-upd',
-        organizationId: ORG_A,
-        slug: 'to-update',
-        name: 'Old Name',
-      })
-
-      await repo.insert(ORG_A, property)
-      await repo.update(ORG_A, property.id as never, { name: 'New Name' })
-
-      const found = await repo.findById(ORG_A, property.id as never)
-      expect(found!.name).toBe('New Name')
     })
   })
 })

@@ -2,7 +2,7 @@ import { buildPortalAddressOperations } from '../../build-address-operations'
 import { describe, expect, it, vi } from 'vitest'
 import type { StaffPublicApi } from '#/contexts/identity/application/public-api'
 import type { PortalCommandStore } from '../ports/portal-command-store.port'
-import type { PortalTokenRepository } from '../ports/portal-token.repository'
+import type { MutablePortalTokenRepository as PortalTokenRepository } from '#/shared/testing/mutable-portal-repositories'
 import type { PortalAddressFormat } from '../portal-address-urls'
 import { createRecordedOutbox } from '#/shared/testing/recorded-outbox'
 import { createInMemoryPortalRepo } from '#/shared/testing/in-memory-portal-repo'
@@ -28,7 +28,6 @@ const IDS = ['6a100000-0000-4000-8000-000000000001', QR_ID, NFC_ID] as const
 const ADDRESS: PortalAddressFormat = {
   appOrigin: 'https://example.test',
   printOrigin: 'https://ap.example.test',
-  printCodesEnabled: false,
 }
 
 const idSource = () => {
@@ -67,14 +66,12 @@ describe('issuePortalToken', () => {
 
     const issued = await useCase({ portalId: portal.id }, buildTestAuthContext())
 
-    const long = (artifactId: string) =>
-      `https://example.test/p/${issued.rawToken}?accessArtifact=${artifactId}`
     expect(issued).toEqual({
       rawToken: expect.stringMatching(/^pt_[A-Za-z0-9_-]{16}_[A-Za-z0-9_-]{43}$/u),
-      publicUrl: long(QR_ID),
+      publicUrl: expect.stringMatching(/^HTTPS:\/\/AP\.EXAMPLE\.TEST\/p\/[0-9A-Z]{20}$/u),
       publicUrls: {
-        qr: long(QR_ID),
-        nfc: long(NFC_ID),
+        qr: expect.stringMatching(/^HTTPS:\/\/AP\.EXAMPLE\.TEST\/p\/[0-9A-Z]{20}$/u),
+        nfc: expect.stringMatching(/^https:\/\/ap\.example\.test\/p\/[0-9A-Z]{20}$/u),
         direct: `https://example.test/p/${issued.rawToken}`,
       },
       tokenIdentifier: expect.any(String),
@@ -311,20 +308,9 @@ describe('issuePortalToken — print codes (ADR 0069)', () => {
     expect(derived?.qr.printCodeHash).not.toBe(derived?.nfc.printCodeHash)
   })
 
-  it('mints the hashes even when the short address is switched off, and shows the long one', async () => {
-    const { run, issued } = setup({ address: { ...ADDRESS, printCodesEnabled: false } })
-
-    const result = await run()
-
-    expect(issued[0]?.printCodeHashes.qr).toMatch(/^[0-9a-f]{64}$/u)
-    expect(result.publicUrls.qr).toContain('?accessArtifact=')
-    expect(result.publicUrls.nfc).toContain('?accessArtifact=')
-    expect(result.publicUrl).toBe(result.publicUrls.qr)
-  })
-
-  it('shows the short addresses, and the long one only as direct, when it is switched on', async () => {
+  it('shows the short addresses, and the long one only as direct, by default', async () => {
     const { run, tokenCodec } = setup({
-      address: { ...ADDRESS, printCodesEnabled: true },
+      address: ADDRESS,
     })
 
     const result = await run()
@@ -377,7 +363,7 @@ describe('issuePortalToken — print codes (ADR 0069)', () => {
 
   it('keeps every print code, its hash and the address out of the events it records', async () => {
     const { run, outbox, issued } = setup({
-      address: { ...ADDRESS, printCodesEnabled: true },
+      address: ADDRESS,
     })
 
     const result = await run()
@@ -443,7 +429,6 @@ describe('staff code checkpoint retry', () => {
         mediaUrls: async () => ({}),
         wordingRepo: { find: async () => null },
         lastPrintRepo: { find: async () => null },
-        finalKitEnabled: false,
 
         ...deps,
         propertyLifecycleApi: { isPropertyActive: async () => true },

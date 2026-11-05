@@ -118,7 +118,7 @@ export type ReplyLookupPort = Readonly<{
    *  reply when a live observation CONFIRMS it (`matchedReplyId`); the
    *  observation when one is live and matches nothing; otherwise the newest
    *  internal reply of ANY status — a `draft` included, which is what seeds the
-   *  compose box — and finally a legacy `google_sync` mirror row.
+   *  compose box.
    *
    *  The "any status" step is load-bearing and was previously described here as
    *  "a confirmed internal reply": narrowing it to `published` would delete the

@@ -10,10 +10,8 @@ import { useQueryClient, useSuspenseQuery } from '@tanstack/react-query'
 import { z } from 'zod/v4'
 import { authClient } from '#/shared/auth/auth-client'
 import { INVITATION_ID_MAX_LENGTH } from '#/shared/domain/ids'
-import {
-  clearTenantCacheAfterSessionEnd,
-  clearTenantCacheAfterTenantChange,
-} from '#/shared/queries/tenant-cache-transition'
+import { clearTenantCacheAfterTenantChange } from '#/shared/queries/tenant-cache-transition'
+import { useSignOut } from '#/components/hooks/use-sign-out'
 import { acceptInvitation } from '#/contexts/identity/server/organizations'
 import {
   AcceptInvitationPage,
@@ -100,15 +98,7 @@ function InvitationLinkRoute({
     return navigate({ to: '/join', search: { invitationId: id } })
   }
   useOnSessionEnd(session != null, () => void handBack())
-  const signOut = () =>
-    clearTenantCacheAfterSessionEnd(
-      queryClient,
-      async () => {
-        const result = await authClient.signOut()
-        if (result.error) throw new Error('Could not sign out. Please try again.')
-      },
-      handBack,
-    )
+  const signOut = useSignOut({ onSignedOut: handBack, feedback: 'inline' })
 
   return (
     <InvitationLinkPage

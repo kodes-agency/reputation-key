@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest'
-import { reviewAnalysisShare } from './review-analysis-progress-card'
+import { createElement } from 'react'
+import { renderToStaticMarkup } from 'react-dom/server'
+import {
+  ReviewAnalysisProgressCard,
+  reviewAnalysisShare,
+} from './review-analysis-progress-card'
 
 describe('reviewAnalysisShare', () => {
   it('counts settled reviews, with and without a result, against everything known', () => {
@@ -25,5 +30,26 @@ describe('reviewAnalysisShare', () => {
     }
     expect(reviewAnalysisShare({ status: 'caught_up', ...empty })).toBe(1)
     expect(reviewAnalysisShare({ status: 'analysing', ...empty })).toBe(0)
+    expect(reviewAnalysisShare({ status: 'needs_attention', ...empty })).toBe(0)
+  })
+
+  it('renders failed enrollment as needing attention instead of up to date', () => {
+    const html = renderToStaticMarkup(
+      createElement(ReviewAnalysisProgressCard, {
+        progress: {
+          status: 'needs_attention',
+          analysed: 0,
+          notAnalysable: 0,
+          queued: 0,
+          inProgress: 0,
+          verifiedThroughEpochMillis: null,
+        },
+      }),
+    )
+    expect(html).toContain('Needs attention')
+    expect(html).toContain(
+      'We couldn&#x27;t finish checking this property&#x27;s reviews. We&#x27;re looking into it.',
+    )
+    expect(html).not.toContain('Up to date')
   })
 })

@@ -37,7 +37,6 @@ export function buildIdentityPorts({ options, db, clock, logger }: CompositionRu
     createBetterAuthIdentityAdapter(db, {
       clock,
       idGen: randomUUID,
-      requestContext,
     })
   return { authSession, identityPort }
 }

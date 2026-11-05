@@ -1,18 +1,9 @@
 // Dashboard context — governed read facade (BQC-5.5).
 //
-// The ONE owner of read policy for dashboard's remaining direct SQL reads
-// (metric_readings, inbox_items, and the attention-signals review
-// count):
+// Read policy for dashboard's metric_readings and inbox_items SQL reads:
 //
 // - Scope: tenant + property + date-range predicates live here as builders —
 //   adapters compose them instead of open-coding where-clauses.
-// - Source eligibility: the attention-signals review count applies THE
-//   ADR 0031 predicate (a Review whose content is held, contentExpiresAt
-//   non-null and strictly in the future, `now` injected — BQC-5.3). Dashboard
-//   keeps its own copy because review's application public-api cannot export
-//   SQL fragments (application must not import shared/db); an integration
-//   equivalence test pins this predicate and the review-owned rule selecting
-//   the same rows over a shared fixture.
 // - Timeout: every direct read runs inside withStatementTimeout with
 //   DASHBOARD_READ_BUDGET_MS — a slow statement aborts with a tagged
 //   DashboardReadTimeout error instead of holding a pool connection.
@@ -21,15 +12,10 @@
 //   second read model beside the authoritative query path (BQC-5.5
 //   remove-decision: shared/cache/dashboard-cache.ts deleted unwired).
 
-import { and, count, eq, gte, gt, inArray, isNotNull, lt, or, sql } from 'drizzle-orm'
+import { and, count, eq, gte, inArray, isNotNull, lt, or, sql } from 'drizzle-orm'
 import type { SQL } from 'drizzle-orm'
 import type { Database, Tx } from '#/shared/db'
-import {
-  metricCorrections,
-  metricReadings,
-  inboxItems,
-  reviews,
-} from '#/shared/db/schema'
+import { metricCorrections, metricReadings, inboxItems } from '#/shared/db/schema'
 import type { OrganizationId, PropertyId, PortalId } from '#/shared/domain/ids'
 import { METRIC_VERSION_IDS, findMetricVersionById } from '../domain/metric-registry'
 import type { MetricStatsDataState } from '../application/ports/metric-stats.port'
@@ -105,26 +91,6 @@ export function inboxScopeWhere(organizationId: OrganizationId, propertyId: Prop
   return and(
     eq(inboxItems.organizationId, organizationId),
     eq(inboxItems.propertyId, propertyId),
-  )
-}
-
-/**
- * Attention-signals review scope: tenant + property + THE source-eligibility
- * predicate (ADR 0031 — mirrors review's isContentEligibleForRead with `now`
- * injected). Equivalence with the review-owned rule is pinned by
- * repositories/attention-eligibility-equivalence.test.ts.
- */
-export function eligibleAttentionReviewWhere(
-  organizationId: OrganizationId,
-  propertyId: PropertyId,
-  now: Date,
-) {
-  return and(
-    eq(reviews.organizationId, organizationId),
-    eq(reviews.propertyId, propertyId),
-    eq(reviews.sourceContentState, 'active'),
-    isNotNull(reviews.contentExpiresAt),
-    gt(reviews.contentExpiresAt, now),
   )
 }
 

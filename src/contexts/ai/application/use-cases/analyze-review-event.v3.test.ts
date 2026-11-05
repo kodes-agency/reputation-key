@@ -591,6 +591,27 @@ describe('the review analysis use case under the v3 contract', () => {
     expect(mocks.analyzeReview).not.toHaveBeenCalled()
   })
 
+  it('keeps preparation refusals runnable past the horizon and resumes after recovery', async () => {
+    const { analyze, mocks } = harness({
+      choice: { status: 'unavailable', code: 'provider_unavailable' },
+    })
+    const elapsed = {
+      ...input,
+      eventRecordedAtEpochMillis: NOW - input.operationHorizonMillis,
+    }
+    await expect(analyze(elapsed)).resolves.toMatchObject({
+      status: 'retry',
+      code: 'provider_unavailable',
+    })
+    expect(mocks.settleOutcome).not.toHaveBeenCalled()
+    expect(mocks.claim).not.toHaveBeenCalled()
+    mocks.chooseForReviewAnalysis.mockResolvedValueOnce({
+      status: 'chosen',
+      lineage: PROVIDER_LINEAGE,
+    })
+    await expect(analyze(elapsed)).resolves.toEqual({ status: 'completed' })
+  })
+
   it('waits when the source gave no numbered sentences', async () => {
     const { analyze, mocks } = harness({ sentences: undefined })
 

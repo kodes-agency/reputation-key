@@ -8,7 +8,7 @@ import { createInMemoryPortalCommandStore } from '#/shared/testing/in-memory-por
 import { buildTestAuthContext, buildTestPortal } from '#/shared/testing/fixtures'
 import { isPortalError } from '../../domain/errors'
 import type { StaffPublicApi } from '#/contexts/identity/application/public-api'
-import type { PortalTokenRepository } from '../ports/portal-token.repository'
+import type { MutablePortalTokenRepository as PortalTokenRepository } from '#/shared/testing/mutable-portal-repositories'
 import type { PropertyId } from '#/shared/domain/ids'
 
 const FIXED_TIME = new Date('2026-04-10T12:00:00Z')

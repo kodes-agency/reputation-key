@@ -17,7 +17,7 @@ Every `ops:*` command runs through the operator-command harness
   trace the harness leaves: copy it, with the reason, into the incident record.
   A fact a command commits carries the correlation id as its command id, and
   some commands keep the operator or the ticket in their own write (for
-  example `ops:republish-legacy-portals` and `ops:triage-beta-feedback`).
+  example `ops:triage-beta-feedback`).
   `--reason` is required with `--apply` and no command reads it.
 - Mutations are DRY-RUN by default; `--apply` executes and requires
   `--reason <text>` (`--ticket <ref>` where the op needs one). Destructive
@@ -49,29 +49,6 @@ The commands:
 - `ops:rebuild-projection --org <id> [--property <id>]` — repair the inbox projection (bounded, dry-run report first). It creates a missing item and stamps missing reply milestones, counting a reply written on Google; `closed` counts the items it creates closed because Google already shows a reply answering the review. It never changes an existing item's status and records no facts. §5
 - `ops:rebuild-metric-projection <portalId> --org <id> --property <id>` — inspect or repair one anonymous Portal lifetime projection from its sealed baseline plus retained governed facts. Dry-run is the default; apply requires `--reason`. §7
 - `ops:reconcile-publication <replyId> | --all-ambiguous [--resume <token>]` — list ambiguous Google reply publication that is due for reconciliation (one frozen keyset page across tenants, every row `not_evaluated`; no Google read). Report only: `--apply` is refused. The worker's `reconcile-ambiguous-publications` job re-reads Google for every due reply every five minutes, and a manager can use Check Google again on one reply in the Inbox; neither sends a reply. Both reads need `property.connect_gbp` for the Organization, and Check Google again needs `property.publish_reply` as well (so does the publish worker's own read of the review before it claims a fresh publication, which is admitted under `property.connect_gbp` too): while `BETA_CAPABILITIES_OFF` or `BETA_SUSPENDED_ORGS` stops one, that read is refused and the reply stays `ambiguous`. §6
-- `ops:republish-legacy-portals --org <id> [--property <id>] [--batch-size <n>] [--include-pending-edits]` — republish every live Portal whose active version is a v1 or v2 page as the current design (snapshot v3, the Immersive Hub), so every guest sees it and the legacy renderer can be removed. Each Portal goes through the ordinary publish-while-live use case: the same readiness gates, a new version, the previous activation closed as `replaced`, the same facts; the actor on the snapshot, the activation and the fact is `ops:<operator>` (use a short non-personal handle: it is stored in immutable snapshots). The Operational Action History files it as an `operator` row and managers read it as "Reputation Key" in the version history. Dry-run is the default and reports per Portal what would be republished and which would be skipped, with the reason; `--reason <text> --apply` writes. A Portal whose manager has unpublished edits is skipped as `pending_edits` (the republish would put those drafts live under the operator's name; the manager should publish or discard them); `--include-pending-edits` publishes them anyway and the report says how many went live. Idempotent: a republished Portal is on v3 and is not selected again, and a skipped one reports the same reason until it is fixed. Draft-only, disabled, archived and deleted Portals are never selected. Output is identifiers, versions and reason codes only. Exits 1 only if the run stopped at a fault that is not a Portal refusal; the report shows how far it got (`processed` in the totals), the cause is logged to stderr, and a rerun is safe. To see which organisations still have live v1/v2 Portals (the question slice 44 waits on), run this read-only SQL against the database:
-
-  ```sql
-  -- live-legacy-portals-by-organization
-  SELECT p.organization_id,
-         count(*) AS live_legacy_portals,
-         count(*) FILTER (WHERE s.configuration->>'schemaVersion' = '1') AS v1,
-         count(*) FILTER (WHERE s.configuration->>'schemaVersion' = '2') AS v2
-    FROM portals p
-    JOIN portal_publication_activations a
-      ON a.organization_id = p.organization_id AND a.property_id = p.property_id
-     AND a.portal_id = p.id AND a.deactivated_at IS NULL
-    JOIN portal_publication_snapshots s
-      ON s.organization_id = a.organization_id AND s.property_id = a.property_id
-     AND s.portal_id = a.portal_id AND s.id = a.snapshot_id
-   WHERE p.publication_state = 'published' AND p.deleted_at IS NULL
-     AND s.configuration->>'schemaVersion' IN ('1', '2')
-   GROUP BY p.organization_id
-   ORDER BY p.organization_id;
-  ```
-
-  No rows means no live Portal is left on an old page.
-
 - Contract cleanup checks (round 4, slice 44) — two read-only SQL queries, run against the database of each environment. Migration 0052 settles the first one at deploy (before new code serves); run it before and after, and expect no rows after.
 
   ```sql

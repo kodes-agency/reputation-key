@@ -14,7 +14,7 @@ import {
   type PortalGroupId,
   type PropertyId,
 } from '#/shared/domain/ids'
-import type { PortalGroupRepository } from '../ports/portal-group.repository'
+import type { MutablePortalGroupRepository as PortalGroupRepository } from '#/shared/testing/mutable-portal-repositories'
 import type { PortalGroup } from '../../domain/types'
 import type { StaffPublicApi } from '#/contexts/identity/application/public-api'
 import { createInMemoryPortalCommandStore } from '#/shared/testing/in-memory-portal-command-store'

@@ -212,47 +212,8 @@ const baseEnvSchema = z.object({
       if (problem !== undefined) context.addIssue({ code: 'custom', message: problem })
     })
     .optional(),
-  // The final print kit (counter, tent and Small card, upright and wide; final
-  // design spec 2026-10-25). 'true' shows it on the Share tab; unset or 'false'
-  // keeps today's kit (the Large card and the Letter-half tent) unchanged.
-  // Exactly 'true' or 'false': a near-miss refuses at boot rather than quietly
-  // showing the wrong kit. Non-secret and optional, default off: nothing in the
-  // deployed environment has to change. Web-read; a restart applies it. Turned
-  // on only after the owner's phone test and real print test (release slice).
-  PRINT_KIT_FINAL_ENABLED: z
-    .enum(['true', 'false'])
-    .default('false')
-    .transform((value) => value === 'true'),
-  // Whether a manager gets the short address (ADR 0069): the print kit, the QR
-  // downloads and "Copy NFC address" carry `<print host>/p/<print code>` instead of
-  // the long address. Default 'false': every manager-visible output is exactly what
-  // it was (the print codes are still minted and filled, which changes nothing a
-  // manager sees). Flip it only once a phone test has passed the uppercase QR form
-  // on current and old cameras: a printed card cannot be redrawn. Exactly 'true'
-  // or 'false': any other spelling refuses boot, so a mistyped switch cannot print
-  // an address nobody tested. Web-read; a redeploy applies it.
-  PORTAL_PRINT_CODES_ENABLED: z
-    .enum(['true', 'false'])
-    .default('false')
-    .transform((value) => value === 'true'),
   // Personal scan targets (ADR 0076): optional, default off; web reads at startup.
   STAFF_SCAN_TARGETS_ENABLED: z
-    .enum(['true', 'false'])
-    .default('false')
-    .transform((value) => value === 'true'),
-  // A Portal's own look (ADR 0070): an Account Admin may give one Portal its own
-  // photo, colours, or name and logo. 'true' lets the three portal-look saves
-  // through and shows their controls in the portal editor's Look section; unset
-  // or 'false' refuses every such save (feature_unavailable) and keeps today's
-  // read-only Look section. Whatever it says, the working-copy reader applies the
-  // rows that exist, so turning it off again is a kill switch that leaves every
-  // own look published and previewed correctly. Exactly 'true' or 'false': a
-  // near-miss refuses at boot rather than quietly showing or hiding the controls.
-  // Non-secret and optional, default off. Web-read; a restart applies it. Turn it
-  // on only once web and worker both run a release whose reader applies the rows
-  // (the worker needs no switch), and never put back a release without it while
-  // rows exist.
-  PORTAL_OWN_LOOK_ENABLED: z
     .enum(['true', 'false'])
     .default('false')
     .transform((value) => value === 'true'),

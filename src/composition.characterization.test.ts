@@ -99,7 +99,6 @@ const EXPECTED_TOP_LEVEL_KEYS = [
   'outboxRepo',
   'policyAdmin',
   'pool',
-  'portalMaintenanceRuntime',
   'portalPublicApi',
   'portalWorkerRuntime',
   'propertyPublicApi',
@@ -303,7 +302,6 @@ describe('composition characterization (BQC-5.2 parity baseline)', () => {
   it('exposes exact frozen Inbox lifecycle and maintenance capabilities', () => {
     expect(Object.keys(container.inboxLifecycleRuntime).sort()).toEqual([
       'getInboxResponseTarget',
-      'startReviewHandlingCycle',
     ])
     expect(Object.keys(container.inboxMaintenanceRuntime)).toEqual([
       'rebuildInboxProjection',

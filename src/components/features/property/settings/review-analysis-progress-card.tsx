@@ -15,15 +15,18 @@ type Props = Readonly<{
   progress: ReviewAnalysisProgress | undefined
 }>
 
-/** How the two counting states read as a pill; the setup flow adds its own around them. */
-export const REVIEW_ANALYSIS_STATUS: StatusMap<'analysing' | 'caught_up'> = {
+/** How progress reads as a pill; the setup flow adds its own states around it. */
+export const REVIEW_ANALYSIS_STATUS: StatusMap<
+  'analysing' | 'caught_up' | 'needs_attention'
+> = {
   analysing: { label: 'Analysing', tone: 'neutral' },
   caught_up: { label: 'Up to date', tone: 'positive' },
+  needs_attention: { label: 'Needs attention', tone: 'warn' },
 }
 
 /** How much of the review history has been read, as a share of what exists. */
 export function reviewAnalysisShare(
-  progress: Extract<ReviewAnalysisProgress, { status: 'analysing' | 'caught_up' }>,
+  progress: Exclude<ReviewAnalysisProgress, { status: 'disabled' }>,
 ): number {
   const total =
     progress.analysed + progress.notAnalysable + progress.queued + progress.inProgress
@@ -71,7 +74,9 @@ export function ReviewAnalysisProgressCard({ progress }: Props) {
         <CardDescription>
           {progress.status === 'analysing'
             ? `Reading reviews newest first. ${formatNumber(waiting)} still to go.`
-            : 'Every review this property has is analysed.'}
+            : progress.status === 'needs_attention'
+              ? "We couldn't finish checking this property's reviews. We're looking into it."
+              : 'Every review this property has is analysed.'}
         </CardDescription>
         <CardAction>
           <StatusBadge status={progress.status} map={REVIEW_ANALYSIS_STATUS} />

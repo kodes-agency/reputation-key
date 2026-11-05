@@ -84,7 +84,6 @@ export type SystemAction =
   | 'system:review.cancel_connection_publications'
   | 'system:review.cancel_property_publications'
   | 'system:reply.publish'
-  | 'system:metric.record'
   | 'system:metric.record_guest_analytics'
   | 'system:metric.record_public_reputation'
   | 'system:metric.record_portal_workflow'
@@ -335,8 +334,6 @@ const JOB_ROWS: ReadonlyArray<EntryPointRow> = [
     'tenant_cross',
     true,
   ),
-  job('project-recent-activity', 'system:activity.record', 'none', 'organization'),
-  job('insert-activity-log', 'system:activity.record', 'none', 'organization'),
   // Mandatory notices and the ADR 0059 report outcome have no Property. Feed
   // enforces each type's scope (notificationScopeForType) in the notification
   // and email constructors and their CHECKs; a job that carries a Property is
@@ -687,12 +684,6 @@ const CONSUMER_ROWS: ReadonlyArray<EntryPointRow> = [
     'metric.guest-analytics',
     'system:metric.record_guest_analytics',
     'portal.read',
-    'organization',
-  ),
-  consumer(
-    'metric.correction-reconciliation',
-    'system:metric.record',
-    'none',
     'organization',
   ),
 ]

@@ -49,13 +49,8 @@ function setup(
   const listPortalGroupsWithPortals = vi.fn(async () => groups)
   const useCase = listPortalGroups({
     portalGroupRepo: {
-      listByProperty: async () => [],
       findById: async () => null,
       nameExists: async () => false,
-      insert: async () => {},
-      update: async () => {},
-      softDelete: async () => {},
-      removePortal: async () => false,
       findPortalMembership: async () => null,
       getGroupPortalIds: async () => [],
       findGroupIdsByPortalIds: async () => [],

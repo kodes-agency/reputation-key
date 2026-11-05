@@ -10,23 +10,6 @@ import type { IdentityErrorCode } from '../../domain/errors'
 
 // ── Primitive schemas ───────────────────────────────────────────────
 
-/** User object nested inside member responses. */
-const betterAuthUserSchema = z.object({
-  id: z.string(),
-  email: z.string(),
-  name: z.string(),
-  image: z.string().nullable().optional(),
-})
-
-/** Member object returned by listMembers (includes nested user). */
-const betterAuthMemberSchema = z.object({
-  id: z.string(),
-  userId: z.string(),
-  role: z.string(),
-  createdAt: z.coerce.date(),
-  user: betterAuthUserSchema,
-})
-
 /** Invitation object returned by better-auth. */
 export const betterAuthInvitationSchema = z.object({
   id: z.string(),
@@ -66,12 +49,6 @@ export const signUpResponseSchema = z.object({
   user: z.object({
     id: z.string(),
   }),
-})
-
-/** listMembers response — { members: Member[], total: number } */
-export const listMembersResponseSchema = z.object({
-  members: z.array(betterAuthMemberSchema),
-  total: z.number().optional(),
 })
 
 /** listUserInvitations response — array of invitations (may include org info). */

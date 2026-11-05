@@ -1,8 +1,5 @@
-// Portal context — the guards a print file's server functions share (today's
-// print kit and the final one). Server only: a download puts the code's address
-// into a file, so it marks the response uncacheable before anything can fail,
-// runs the caller's scope and rights check, spends the same rate limit as
-// "Download again", and only then makes the file.
+// A print download is uncacheable before any refusal, checks the caller's scope,
+// spends the address rate limit, then makes the file.
 
 import { setResponseHeader } from '@tanstack/react-start/server'
 import { headersFromContext } from '#/shared/auth/headers'
@@ -11,11 +8,11 @@ import { catchUntagged, throwContextError } from '#/shared/auth/server-errors'
 import type { AuthContext } from '#/shared/domain/auth-context'
 import { getContainer } from '#/composition'
 import { portalId } from '#/shared/domain/ids'
-import {
-  printKitDownloadOf,
-  type PortalPrintKitDownload,
-  type PortalPrintKitFile,
-} from '../application/use-cases/create-portal-print-kit'
+import { printKitDownloadOf } from '../application/printing/print-download.server'
+import type {
+  PortalPrintKitFile,
+  PortalPrintKitDownload,
+} from '../application/printing/print-download'
 import { isPortalError, portalError } from '../domain/errors'
 import { portalErrorStatus } from './portals'
 import { checkPortalAddressRateLimit } from './portal-address-rate-limit.server'

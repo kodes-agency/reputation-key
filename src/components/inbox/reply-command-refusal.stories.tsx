@@ -35,7 +35,7 @@ import { liveEditTarget } from './composer-policy'
 import { inboxCachePolicy } from './inbox-cache-policy'
 import { openConfirmation } from './reply-editor.stories.play'
 import { ReplyMessage } from './reply-message'
-import { ReplyPublishedEditor } from './reply-published-edit'
+import { ReviewReplyPublishedEditor } from './reply-editor-views'
 import { REPLY_CHIP_WORDS } from './reply-state-copy'
 import { resolveReplyView, type ReplyData } from './reply-status-view'
 import { useReplyActions } from './use-reply-actions'
@@ -181,11 +181,14 @@ function ReplyPane(): ReactNode {
         onEditRejected={() => {}}
       />
       {editTarget === 'published' && reply && reply.kind !== 'google_observation' && (
-        <ReplyPublishedEditor
+        <ReviewReplyPublishedEditor
           reply={reply}
           isSaving={actions.isSaving}
-          onSaveEdit={actions.saveEdit}
-          onClose={() => setEditRequested(false)}
+          onSave={async (text) => {
+            await actions.saveEdit(text)
+            setEditRequested(false)
+          }}
+          onCancel={() => setEditRequested(false)}
         />
       )}
       <Toaster />

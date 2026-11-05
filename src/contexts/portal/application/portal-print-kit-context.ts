@@ -152,13 +152,6 @@ export function liveLocalesOf(
 }
 
 /**
- * Which print kit the Share tab shows: today's (the Large card and the
- * Letter-half tent) or the final kit (counter, tent and Small card, upright and
- * wide), which the server turns on with PRINT_KIT_FINAL_ENABLED.
- */
-export type PortalPrintKitGeneration = 'current' | 'final'
-
-/**
  * The Portal's last final print as the Share tab says it: when it was made, the
  * choices to set again, and what became of the photo since. Never the address, a
  * code or a file.
@@ -173,10 +166,11 @@ export type PortalPrintKitLastPrint = Readonly<{
 export type PortalPrintKitView = Readonly<{
   personal?: boolean
   portalId: string
-  kit: PortalPrintKitGeneration
-  /** The final kit's memory of the last print; null for today's kit and for a Portal never printed. */
+  /** Retained for existing clients. */
+  kit: 'final'
+  /** The final kit's memory of the last print; null for a Portal never printed. */
   lastPrint: PortalPrintKitLastPrint | null
-  /** The wording the manager saved for Share to open on; null for today's kit and when none was saved. */
+  /** The wording the manager saved for Share to open on; null when none was saved. */
   savedWording: PrintFinalSavedWording | null
   portalName: string
   primaryLocale: GuestLocale
@@ -199,14 +193,13 @@ export type PortalPrintKitView = Readonly<{
 export function presentPortalPrintKit(
   portalId: string,
   context: PortalPrintKitContext,
-  kit: PortalPrintKitGeneration,
   lastPrint: PortalPrintKitLastPrint | null = null,
   savedWording: PrintFinalSavedWording | null = null,
 ): PortalPrintKitView {
   const { look } = context
   return {
     portalId,
-    kit,
+    kit: 'final',
     lastPrint,
     savedWording,
     portalName: context.portalName,

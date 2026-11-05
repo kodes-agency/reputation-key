@@ -2,7 +2,7 @@
 //
 // "Save wording" in Share: the call to action the manager picked and the words
 // they wrote, kept per Portal so Share opens on them next time. It needs the same
-// right as a download (`portal.update`) and the final kit on, and refuses what a
+// right as a download (`portal.update`) and refuses what a
 // download refuses of the words themselves: an offer for the review (the input's
 // own rules, which the download shares, have already held the fields to a
 // headline on one line of at most 60 characters). It does not judge whether the
@@ -31,8 +31,6 @@ export type SavePortalPrintWordingDeps = Readonly<{
   staffPublicApi: StaffPublicApi
   wordingRepo: Pick<PortalPrintWordingRepository, 'save'>
   clock: () => Date
-  /** PRINT_KIT_FINAL_ENABLED: off, every save is refused as the download is. */
-  finalKitEnabled: boolean
 }>
 
 export const savePortalPrintWording =
@@ -45,9 +43,6 @@ export const savePortalPrintWording =
       permission: 'portal.update',
       forbiddenMessage: 'Insufficient permissions to save the print wording',
     })
-    if (!deps.finalKitEnabled) {
-      throw portalError('print_format_not_offered', 'This print is not available yet.')
-    }
     const words = { preset: input.callToAction, custom: input.customWords ?? null }
     assertPersonalPortalPublicText(portal, input.customWords)
     // Judged in the languages the words are written in: the save names no print.

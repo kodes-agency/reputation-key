@@ -28,6 +28,7 @@ export function InvitationLinkPage({
   joiningNotice,
 }: Props) {
   const [accepted, setAccepted] = useState(false)
+  const [lastAction, setLastAction] = useState<'accept' | 'leave'>('accept')
   // A double click must not send two acceptances: they race the membership
   // insert. Released on failure so the person can try again.
   const acceptingRef = useRef(false)
@@ -35,12 +36,14 @@ export function InvitationLinkPage({
   const leave = useAction(signOut)
 
   const handleSignOut = useCallback(() => {
+    setLastAction('leave')
     void leave(undefined).catch(() => undefined) // the error is kept in `leave.error`
   }, [leave])
 
   const handleAccept = useCallback(async () => {
     if (link.state !== 'pending' || acceptingRef.current) return
     acceptingRef.current = true
+    setLastAction('accept')
     try {
       await accept({ data: { invitationId: link.invitationId } })
       setAccepted(true)
@@ -79,7 +82,7 @@ export function InvitationLinkPage({
       signedInEmail={signedInEmail}
       onAccept={() => void handleAccept()}
       accepting={accept.isPending}
-      error={accept.error}
+      error={lastAction === 'leave' ? leave.error : accept.error}
       onSignOut={handleSignOut}
       signingOut={leave.isPending}
       joiningNotice={joiningNotice}

@@ -59,7 +59,6 @@ type GuestContextDeps = Readonly<{
   db: Database
   clock: Clock
   idGen: () => string
-  monotonicNow: () => number
   portalApi: PortalPublicApi & PortalContactRequestManagerAuthorityPublicApi
   identityManagerFacts: IdentityManagerFactsPublicApi
   identityAccountAdminAuthority: IdentityAccountAdminAuthorityPublicApi
@@ -73,10 +72,7 @@ type GuestContextDeps = Readonly<{
 }>
 
 export const buildGuestContext = (deps: GuestContextDeps) => {
-  const guestRepo = createGuestInteractionRepository(deps.db, {
-    logger: deps.logger,
-    monotonicNow: deps.monotonicNow,
-  })
+  const guestRepo = createGuestInteractionRepository(deps.db)
   const guestResponseRepo = createGuestResponseRepository(deps.db, deps.clock)
   const guestResponseCommandStore = createAtomicGuestResponseCommandStore(
     deps.db,

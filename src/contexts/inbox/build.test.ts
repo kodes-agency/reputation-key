@@ -55,10 +55,11 @@ describe('buildInboxContext', () => {
     expect(Object.keys(context.publicApi)).not.toContain('organizationLifecycle')
     // No raw item creation: the durable source consumers create Inbox Items,
     // under their receipts and after their source checks (Invariant 1).
-    expect(Object.keys(context.lifecycle).sort()).toEqual([
-      'getInboxResponseTarget',
+    expect(Object.keys(context.lifecycle).sort()).toEqual(['getInboxResponseTarget'])
+    expect(Object.keys(context.internal.useCases)).not.toContain('createInboxItem')
+    expect(Object.keys(context.internal.useCases)).not.toContain(
       'startReviewHandlingCycle',
-    ])
+    )
     expect(Object.keys(context.maintenance)).toEqual([
       'rebuildInboxProjection',
       'responseTargetExclusions',
@@ -73,9 +74,6 @@ describe('buildInboxContext', () => {
 
     expect(context.lifecycle.getInboxResponseTarget).toBe(
       context.internal.useCases.getInboxResponseTarget,
-    )
-    expect(context.lifecycle.startReviewHandlingCycle).toBe(
-      context.internal.useCases.startReviewHandlingCycle,
     )
     expect(context.maintenance.rebuildInboxProjection).toBe(
       context.internal.useCases.rebuildInboxProjection,

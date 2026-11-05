@@ -647,49 +647,6 @@ export async function bootstrap(
     'registered AI Review Analysis enrollment sweep job handler',
   )
 
-  // ── Recent Activity projection job ────────────────────────────────
-  const { PROJECT_RECENT_ACTIVITY_JOB_NAME, LEGACY_INSERT_ACTIVITY_LOG_JOB_NAME } =
-    await import('#/contexts/feed/infrastructure/jobs/project-recent-activity.job')
-  // ARC-03-T12: Activity owns the projection. The worker's job is transport
-  // only — it unwraps the BullMQ envelope and calls the context capability.
-  const projectRecentActivityHandler = async (
-    job: import('bullmq').Job<
-      import('#/contexts/feed/infrastructure/jobs/project-recent-activity.job').ProjectRecentActivityJobData
-    >,
-  ): Promise<void> => {
-    await container.activityWorkerRuntime.projectRecentActivity(job.data)
-  }
-  container.jobRegistry.register(
-    PROJECT_RECENT_ACTIVITY_JOB_NAME,
-    async (job): Promise<void> => {
-      await projectRecentActivityHandler(
-        job as import('bullmq').Job<
-          import('#/contexts/feed/infrastructure/jobs/project-recent-activity.job').ProjectRecentActivityJobData
-        >,
-      )
-    },
-  )
-  // Drain-only rolling compatibility. Nothing enqueues either name any more
-  // (see project-recent-activity.job.ts), but already-persisted queue items
-  // must remain processable.
-  container.jobRegistry.register(
-    LEGACY_INSERT_ACTIVITY_LOG_JOB_NAME,
-    async (job): Promise<void> => {
-      await projectRecentActivityHandler(
-        job as import('bullmq').Job<
-          import('#/contexts/feed/infrastructure/jobs/project-recent-activity.job').ProjectRecentActivityJobData
-        >,
-      )
-    },
-  )
-  logger.info(
-    {
-      job: PROJECT_RECENT_ACTIVITY_JOB_NAME,
-      legacyDrainJob: LEGACY_INSERT_ACTIVITY_LOG_JOB_NAME,
-    },
-    'registered Recent Activity projection and rolling drain handlers',
-  )
-
   await registerNotificationJobs(container, runtime, registerCapabilityGatedJob)
 }
 
