@@ -57,6 +57,13 @@ const candidates: readonly ImportCandidateDto[] = [
   },
 ]
 
+/**
+ * The name of a row's control: its label, then a screen-reader-only ", row n". The
+ * suffix is out of the text flow, so a space can come before its comma.
+ */
+const rowName = (label: string, row: number) => (name: string) =>
+  name.replace(' ,', ',') === `${label}, row ${row}`
+
 const flaggedDraft = (): ImportReviewDraft => createImportReviewDraft(candidates)
 
 const completeDraft = (): ImportReviewDraft => {
@@ -148,12 +155,12 @@ export const NeedsTimezone: Story = {
       'warn',
     )
     await expect(
-      canvas.getByRole('combobox', { name: /timezone, row 1/i }),
+      canvas.getByRole('combobox', { name: rowName('Timezone', 1) }),
     ).toHaveAttribute('aria-invalid', 'true')
     // France has one zone: derived, not guessed from the browser. It reads as a
     // city and its offset, not as the IANA id.
     await expect(
-      canvas.getByRole('combobox', { name: /timezone, row 2/i }),
+      canvas.getByRole('combobox', { name: rowName('Timezone', 2) }),
     ).toHaveTextContent(/^Paris \(UTC\+[12]\)$/)
     await expect(canvas.getByRole('button', { name: /start import/i })).toBeDisabled()
     await expect(
@@ -164,7 +171,10 @@ export const NeedsTimezone: Story = {
 }
 
 /** Opens a row's timezone picker; its list renders in a popover outside the canvas. */
-async function openTimezonePicker(canvasElement: HTMLElement, row: RegExp) {
+async function openTimezonePicker(
+  canvasElement: HTMLElement,
+  row: ReturnType<typeof rowName>,
+) {
   await userEvent.click(within(canvasElement).getByRole('combobox', { name: row }))
   return within(canvasElement.ownerDocument.body)
 }
@@ -178,7 +188,7 @@ export const SingleProperty: Story = {
     const canvas = within(canvasElement)
     await expect(canvas.getByText('1 of 1 property needs attention')).toBeVisible()
     await expect(
-      canvas.getByRole('combobox', { name: /timezone, row 1/i }),
+      canvas.getByRole('combobox', { name: rowName('Timezone', 1) }),
     ).toBeInTheDocument()
     await expect(
       canvas.queryByRole('combobox', { name: /timezone for all rows/i }),
@@ -203,13 +213,13 @@ export const PickingTheTimezoneClearsTheFlag: Story = {
   render: () => <ReviewHarness />,
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
-    const body = await openTimezonePicker(canvasElement, /timezone, row 1/i)
+    const body = await openTimezonePicker(canvasElement, rowName('Timezone', 1))
     // The row's country comes first.
     await expect(body.getByText('In United States')).toBeVisible()
     await userEvent.type(body.getByPlaceholderText(/search a city/i), 'los angeles')
     await userEvent.click(body.getByRole('option', { name: /los angeles \(utc/i }))
     await expect(
-      canvas.getByRole('combobox', { name: /timezone, row 1/i }),
+      canvas.getByRole('combobox', { name: rowName('Timezone', 1) }),
     ).toHaveTextContent(/^Los Angeles \(UTC\u2212[78]\)$/)
     await expect(canvas.getByText('3 properties ready to import')).toBeVisible()
     await expect(canvas.queryByText('Choose a timezone.')).toBeNull()
@@ -221,7 +231,7 @@ export const PickingTheTimezoneClearsTheFlag: Story = {
 export const SearchATimezoneByOffset: Story = {
   render: () => <ReviewHarness />,
   play: async ({ canvasElement }) => {
-    const body = await openTimezonePicker(canvasElement, /timezone, row 2/i)
+    const body = await openTimezonePicker(canvasElement, rowName('Timezone', 2))
     await expect(body.getByRole('dialog', { name: 'Choose a timezone' })).toBeVisible()
     await userEvent.type(body.getByPlaceholderText(/search a city/i), '+9:30')
     await expect(
@@ -239,12 +249,8 @@ export const SearchATimezoneByOffset: Story = {
 export const OpenListKeepsItsPlace: Story = {
   render: () => <ReviewHarness rerenderEveryMs={200} />,
   play: async ({ canvasElement }) => {
-    const body = await openTimezonePicker(canvasElement, /timezone, row 1/i)
+    const body = await openTimezonePicker(canvasElement, rowName('Timezone', 1))
     const list = await body.findByRole('listbox')
-    // This runner compiles no Tailwind: give the list the height its classes
-    // give it in the app, so it scrolls.
-    list.style.maxHeight = '300px'
-    list.style.overflowY = 'auto'
     list.scrollTop = 900
     await waitFor(() => expect(list.scrollTop).toBeGreaterThan(0))
     const scrolled = list.scrollTop
@@ -320,8 +326,7 @@ export const StartFailure: Story = {
 
 /**
  * At phone width the table reflows into one block per property, so every control
- * must name its own column and row. This runner compiles no Tailwind, so the
- * reflow itself is verified in a real browser; here the labels are the gate.
+ * must name its own column and row, and the header row is left out.
  */
 export const PhoneWidth: Story = {
   render: () => <ReviewHarness />,
@@ -330,24 +335,27 @@ export const PhoneWidth: Story = {
     const canvas = within(canvasElement)
     // Explicit roles keep the table navigable once CSS reflows it into blocks.
     const table = canvas.getByRole('table', { name: 'Confirm details' })
-    await expect(within(table).getAllByRole('row')).toHaveLength(4)
+    await expect(within(table).getAllByRole('row')).toHaveLength(3)
+    await expect(within(table).getAllByRole('row', { hidden: true })).toHaveLength(4)
     await expect(within(table).getAllByRole('cell')).toHaveLength(12)
     for (const row of [1, 2, 3]) {
       await expect(
-        canvas.getByRole('textbox', { name: `Property name, row ${row}` }),
+        canvas.getByRole('textbox', { name: rowName('Property name', row) }),
       ).toBeInTheDocument()
       await expect(
-        canvas.getByRole('textbox', { name: `Address, row ${row}` }),
+        canvas.getByRole('textbox', { name: rowName('Address', row) }),
       ).toBeInTheDocument()
       await expect(
-        canvas.getByRole('combobox', { name: `Timezone, row ${row}` }),
+        canvas.getByRole('combobox', { name: rowName('Timezone', row) }),
       ).toBeInTheDocument()
     }
     await expect(
-      canvas.getByRole('combobox', { name: 'Country, row 1' }),
+      canvas.getByRole('combobox', { name: rowName('Country', 1) }),
     ).toHaveTextContent('United States (US)')
     // A linked property keeps its country; there is nothing to choose.
-    await expect(canvas.queryByRole('combobox', { name: 'Country, row 3' })).toBeNull()
+    await expect(
+      canvas.queryByRole('combobox', { name: rowName('Country', 3) }),
+    ).toBeNull()
     await expect(canvas.getByRole('button', { name: /start import/i })).toBeDisabled()
   },
 }

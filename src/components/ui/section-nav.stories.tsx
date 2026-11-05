@@ -2,38 +2,14 @@
 // count and group heading (UI consistency scan: NAV-01, NAV-05, NAV-07, NAV-09,
 // FORM-07). Dark is the default theme; the light variants render the same navs on
 // the light surface (axe runs on both).
-//
-// What the Vitest runner can prove. No Tailwind is compiled here, so classes and
-// container queries are inert: the plays check structure, the one `aria-current`
-// row, focus and the strip's behaviour. `STRIP_LAYOUT` stands in for the layout
-// the strip's scrolling needs, only where Tailwind is missing; where it is compiled
-// (Storybook proper) the container-driven plays also read the real layout.
 import type { Meta, StoryObj } from '@storybook/react'
 import { Bell, Building2, Palette, Shield, User, Users } from 'lucide-react'
 import { expect, userEvent, waitFor, within } from 'storybook/test'
-import { tailwindIsCompiled } from '../../../.storybook/tailwind-compiled'
 import { useGrownAfterMount } from '../../../.storybook/use-grown-after-mount'
 import { NavCount } from './nav-count'
 import { SectionNav } from './section-nav'
 import { SectionNavLayout } from './section-nav-layout'
 import type { SectionNavItem } from './section-nav-types'
-
-const STRIP_LAYOUT = `
-  [data-slot='section-nav-scroller'] {
-    display: flex;
-    gap: 4px;
-    overflow-x: auto;
-    padding: 0 16px;
-    scrollbar-width: none;
-  }
-  [data-slot='section-nav-scroller'] > div { flex-shrink: 0; }
-  [data-slot='section-nav-scroller'] ul { display: flex; gap: 4px; }
-  [data-slot='section-nav-scroller'] li { flex-shrink: 0; }
-  [data-slot='section-nav-scroller'] a { white-space: nowrap; display: block; }
-  [data-slot='section-nav-scroller'] [data-slot='section-nav-label'] { display: inline; }
-  [data-presentation='strip'] [data-slot='section-nav-summary'],
-  [data-presentation='strip'] [data-slot='section-nav-heading'] { display: none; }
-`
 
 const PROPERTY_ID = '10000000-0000-4000-8000-000000000101'
 
@@ -94,14 +70,6 @@ const meta: Meta<typeof SectionNav> = {
   component: SectionNav,
   tags: ['autodocs'],
   parameters: { layout: 'padded' },
-  decorators: [
-    (Story) => (
-      <>
-        {tailwindIsCompiled() ? null : <style>{STRIP_LAYOUT}</style>}
-        <Story />
-      </>
-    ),
-  ],
   args: {
     'aria-label': 'Property settings sections',
     items: HUB,
@@ -197,7 +165,7 @@ export const StripOpenOnTheLastSection: Story = {
     const current = currentLinks(root)[0]
     expect(scroller).not.toBeNull()
     expect(current).toHaveTextContent('Danger zone')
-    if (tailwindIsCompiled() || scroller === null) return
+    if (scroller === null) throw new Error('Expected a section nav scroller')
     await waitFor(() => expect(scroller.scrollLeft).toBeGreaterThan(0))
     await waitFor(() => {
       const view = scroller.getBoundingClientRect()
@@ -266,10 +234,7 @@ export const StripThatFits: Story = {
   },
 }
 
-/**
- * `auto` in a narrow space: a strip. A container query cannot be read in the Vitest
- * runner; where Tailwind is compiled the play checks the row.
- */
+/** `auto` in a narrow space: a strip. */
 export const AutoInANarrowSpace: Story = {
   args: { current: 'people' },
   render: (args) => (
@@ -283,7 +248,6 @@ export const AutoInANarrowSpace: Story = {
   play: async ({ canvasElement }) => {
     const root = nav(canvasElement)
     expect(root).toHaveAttribute('data-presentation', 'auto')
-    if (!tailwindIsCompiled()) return
     const scroller = root.querySelector('[data-slot="section-nav-scroller"]')
     expect(getComputedStyle(scroller as Element).flexDirection).toBe('row')
   },
@@ -302,7 +266,6 @@ export const AutoInAWideSpace: Story = {
   ),
   play: async ({ canvasElement }) => {
     const root = nav(canvasElement)
-    if (!tailwindIsCompiled()) return
     const scroller = root.querySelector('[data-slot="section-nav-scroller"]')
     expect(getComputedStyle(scroller as Element).flexDirection).toBe('column')
     expect(within(root).getByText('Responsible managers')).toBeVisible()
