@@ -23,7 +23,6 @@ export type {
 export type { MetricRecorded, MetricEvent } from '../domain/metric-events'
 export {
   METRIC_DEFINITION_IDS,
-  METRIC_DEFINITIONS,
   METRIC_VERSION_IDS,
   findMetricVersionById,
 } from '../domain/metric-registry'

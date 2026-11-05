@@ -10,7 +10,6 @@ Missing numbers are retired, merged, or never issued: `0001–0006`, `0009–001
 | [0015](0015-import-protection-server-only-leak.md)                        | TanStack Start Import Protection: Server-Only Code Leak         | accepted | —             |
 | [0016](0016-active-property-url-query-param.md)                           | Active Property as URL Query-Param Context                      | accepted | —             |
 | [0017](0017-injectable-clock.md)                                          | Injectable Clock                                                | accepted | —             |
-| [0019](0019-simulation-harness.md)                                        | Simulation Harness & Deterministic Backends                     | accepted | —             |
 | [0030](0030-identifier-only-domain-events-and-outbox.md)                  | Identifier-only domain events and outbox payloads               | accepted | —             |
 | [0031](0031-google-source-content-and-ai-processing-boundary.md)          | Google source content and AI processing boundary                | accepted | —             |
 | [0032](0032-beta-capability-and-cohort-controls.md)                       | Beta capability and cohort controls                             | accepted | —             |
@@ -47,3 +46,9 @@ Missing numbers are retired, merged, or never issued: `0001–0006`, `0009–001
 | [0074](0074-merchant-ai-consent-follows-the-notice.md)                    | Merchant AI consent follows the notice                          | accepted | —             |
 | [0075](0075-standing-ai-opt-in-renews-automatically.md)                   | A standing AI opt-in renews automatically                       | accepted | —             |
 | [0076](0076-staff-accounts-and-personal-portals.md)                       | Staff accounts and personal Portals                             | accepted | —             |
+
+## Archived decisions
+
+| ADR  | Decision                                    | Location                                                                                                                                   |
+| ---- | ------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
+| 0019 | Simulation Harness & Deterministic Backends | [docs-archive-2026-11-04](https://github.com/kodes-agency/reputation-key/blob/docs-archive-2026-11-04/docs/adr/0019-simulation-harness.md) |

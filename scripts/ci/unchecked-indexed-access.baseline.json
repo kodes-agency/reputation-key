@@ -125,9 +125,6 @@
   "src/shared/jobs/worker-observability.test.ts": 1,
   "src/shared/ops/operator-command.test.ts": 5,
   "src/shared/outbox/dispatcher-gate.test.ts": 1,
-  "src/shared/testing/invariants/checkers/inbox-status-legal.test.ts": 5,
-  "src/shared/testing/invariants/index.test.ts": 20,
   "src/shared/testing/pinned-runtime.test.ts": 1,
-  "src/shared/testing/scenario/builder.server.ts": 3,
   "src/start.ts": 1
 }
