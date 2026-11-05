@@ -288,7 +288,7 @@ The caller isolates a failed side read from the primary Guest voice page.
   shows, with a planned quality (the average stars it assumes new Google reviews bring) and
   a chosen weekly pace of new Google reviews (a climb goal), or a watch that
   Google keeps showing a tenth it shows now (a keep goal). At most one is active per
-  Property (ADR 0067, `docs/plan/google-rating-goal.md`). It is not a Goal Program: it has
+  Property (ADR 0067, [`docs/plan/google-rating-goal.md`](https://github.com/kodes-agency/reputation-key/blob/docs-archive-2026-11-05/docs/plan/google-rating-goal.md)). It is not a Goal Program: it has
   no months, subjects, metric readings or monthly results, no deadline and no "missed". It
   is worked out from Google's own rating and review count (the Current on Google snapshot)
   and from counts and star sums of the Property's cached Google reviews, read through

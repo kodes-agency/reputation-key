@@ -264,3 +264,9 @@ src/
 ├── bootstrap.ts    # Event/job handler registration
 └── worker/         # Background worker entry point
 ```
+
+## Archived documentation
+
+Retired plans, AI governance documents and release evidence are preserved at
+protected tag [docs-archive-2026-11-05](https://github.com/kodes-agency/reputation-key/tree/docs-archive-2026-11-05/docs).
+The [ADR index](docs/adr/README.md) locates retained and archived decisions.

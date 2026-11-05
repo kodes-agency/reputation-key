@@ -505,10 +505,9 @@ treat the static-rule total as the whole sweep.
 - **CI artifacts** (GitHub Actions): SBOM (`sbom-spdx`) 30d, container image
   SBOMs (`sbom-images-spdx`) 30d, e2e failure artifacts 7d
   (`.github/workflows/ci.yml`).
-- **Release evidence**: evidence packs live under `docs/release-evidence/` and are
-  git-retained (permanent, reviewable history). The only committed pack is
-  `docs/release-evidence/cnv-01/`; there is no `beta/` folder, and nothing
-  generates scale and recovery packs any more.
+- **Release evidence**: the historical `cnv-01` pack is permanently retained at
+  protected tag [docs-archive-2026-11-05](https://github.com/kodes-agency/reputation-key/tree/docs-archive-2026-11-05/docs/release-evidence/cnv-01).
+  No scale or recovery packs are generated.
 - **Operational Redis keys**: alert firing-state 24h TTL (re-notify window),
   one global content-free Guest observation-loss hash whose stale five-minute
   bucket fields are pruned on every access and whose key has a refreshed

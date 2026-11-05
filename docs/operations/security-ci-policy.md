@@ -374,7 +374,7 @@ on a branch that is up to date with `main`, and a direct push is rejected unless
 its commit already carries them. Admins are included: `enforce_admins` has been
 on since 2026-09-06, when a direct push was shown to fail with
 `GH006 … required status checks are expected`
-(`docs/archive/LEAN_TRANSFORMATION_PLAN.md`, "Review is reinstated"). History
+([`docs/archive/LEAN_TRANSFORMATION_PLAN.md`](https://github.com/kodes-agency/reputation-key/blob/docs-archive-2026-11-05/docs/archive/LEAN_TRANSFORMATION_PLAN.md), "Review is reinstated"). History
 must stay linear, and `main` cannot be
 force-pushed or deleted. `check`, `docker` and `e2e` are `always()` aggregates
 over `static`/`test-unit`/`test-integration`/`artifacts`, `docker-images` and
@@ -394,7 +394,7 @@ job, not the dependency-audit step; `Analyze (javascript-typescript)` is CodeQL.
 
 This section previously reported (readback 2026-08-21) that `main` had no
 branch protection and every gate was advisory.
-`docs/archive/LEAN_TRANSFORMATION_PLAN.md` records that by 2026-09-06
+[`docs/archive/LEAN_TRANSFORMATION_PLAN.md`](https://github.com/kodes-agency/reputation-key/blob/docs-archive-2026-11-05/docs/archive/LEAN_TRANSFORMATION_PLAN.md) records that by 2026-09-06
 protection with these checks was in place but
 `enforce_admins` was false, so pushes bypassed it until then.
 
