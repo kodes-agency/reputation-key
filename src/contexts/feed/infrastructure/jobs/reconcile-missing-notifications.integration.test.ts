@@ -36,7 +36,6 @@ import {
   reviewId,
   userId,
 } from '#/shared/domain/ids'
-import type { StaffPublicApi } from '#/contexts/identity/application/public-api'
 import { inboxItemCreated } from '#/contexts/inbox/domain/events'
 import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
 import { toOutboxEvent } from '#/shared/outbox/event-adapter'
@@ -154,7 +153,6 @@ describe.sequential('missing-notification repair through the Feed build', () => 
     return buildFeedContext({
       activity: {
         db,
-        staffPublicApi: {} as StaffPublicApi,
         clock: () => NOW,
         logger,
         idGen: () => recentActivityEntryId(crypto.randomUUID()),
