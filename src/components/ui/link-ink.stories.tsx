@@ -55,7 +55,7 @@ const UTILITY_LAYER = `@layer utilities {
 
 function Surface() {
   return (
-    <div className="flex max-w-xl flex-col gap-6 text-sm">
+    <div className="flex max-w-xl flex-col gap-6 p-4 text-sm">
       <style>{UTILITY_LAYER}</style>
       <span
         aria-hidden="true"

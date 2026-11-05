@@ -69,6 +69,7 @@ export function spendShare(spend: AiOrganizationMonthSpend): number {
 export function analysisSummary(progress: ReviewAnalysisProgress | undefined): string {
   if (progress === undefined) return '…'
   if (progress.status === 'disabled') return 'Analysis off'
+  if (progress.status === 'needs_attention') return 'Analysis needs attention'
   if (progress.status === 'caught_up') return `${progress.analysed} analysed`
   const waiting = progress.queued + progress.inProgress
   return `${progress.analysed} analysed · ${waiting} to go`

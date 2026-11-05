@@ -1,15 +1,5 @@
-// Portal context — makes the final print kit's PDF (final design spec, slices 3
-// to 6 and 11).
-//
-// The final kit lives beside today's (`portal-print-kit-renderer.port.ts`) and
-// replaces none of it: only where PRINT_KIT_FINAL_ENABLED is on does the Share
-// tab ask for it. It prints single pieces, one face per page, in Paper or
-// Immersive, office sheets (several pieces to a sheet, each Immersive piece
-// with its own bleed and crop marks) when `sheets` is given, a print shop's file
-// (one card per page with its bleed, its trim and bleed boxes and optional crop
-// marks) when `shop` is given, and a card's optional back page after its front.
-// As with today's kit, nothing in the input is a URL: the logo and the photo are
-// bytes already read from Portal media.
+// Draws Paper or Immersive pieces, office sheets, print-shop files and optional
+// card backs. Pictures arrive as stored bytes; the renderer fetches no URLs.
 
 import type { PrintTextBlock } from '#/shared/domain/portal-print-kit'
 import type {
@@ -18,7 +8,7 @@ import type {
 } from '#/shared/domain/portal-print-final'
 import type { PrintFinalCodeRefusal } from '#/shared/domain/portal-print-final-code'
 import type { PrintFinalFramings } from '#/shared/domain/portal-print-final-framing'
-import type { PrintKitPhoto } from './portal-print-kit-renderer.port'
+import type { PrintKitPhoto } from '../printing/print-download'
 
 /**
  * Office sheets: how many pieces the manager needs, whether the last sheet's

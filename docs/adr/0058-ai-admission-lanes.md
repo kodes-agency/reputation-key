@@ -172,8 +172,10 @@ retry and a repeated click reuse it, and any finished answer rotates it.
   `operation_ambiguous`, though nothing had been granted or dispatched.
   1. At the source: an operation's next attempt is admitted afresh when its
      previous admission was released without charge (a withheld dispatch, or a
-     stale reservation the reaper released); a charged or still-open admission
-     still blocks it, since the ledger holds one reservation per operation. An
+     refusal by status that reported no usage); a charged or still-open
+     admission still blocks it, since the ledger holds one reservation per
+     operation (a stale reservation the reaper released was the second case until
+     2026-11-05). An
      admission authority that cannot answer is `provider_unavailable`, retried
      within the operation horizon without spending provider attempts.
   2. The safety net: the enrollment sweep reopens text reviews whose current
@@ -341,8 +343,8 @@ retry and a repeated click reuse it, and any finished answer rotates it.
      a 401 after a key or parameter change is a fault that is not the review's,
      so it must stay reopenable and spend the attempt budget; it must not
      retry unbudgeted as `provider_unavailable` or settle for good as
-     `provider_refused`. Unknown usage (a timeout, a lost connection) still does
-     not bind either.
+     `provider_refused`. Unknown usage (a timeout, a lost connection) remains
+     `operation_ambiguous`; the 2026-11-05 amendment changes how it is charged.
   2. A 429 whose body says `insufficient_quota` (in `error.type` or
      `error.code`) is the provider disposition `quota_exhausted`, not
      `rate_limited`. It is not retryable, and the gateway answers
@@ -400,3 +402,20 @@ retry and a repeated click reuse it, and any finished answer rotates it.
      round claims only its own 16 and waits for the slowest call: about 70 to
      80 a minute, from 45 to 60. These are what the table should give; neither
      has been measured at the new setting.
+- **2026-11-05** — Unknown usage is charged at the reservation. An attempt that
+  may have reached the provider and whose usage is unknown (a timeout, a lost
+  connection, a status the provider may have billed) used to settle at zero, so
+  the operation's next attempt could send the same request again. It now
+  settles at the operation's reserved maximum, which counts against the
+  organization's monthly cap, and the charged admission blocks the next attempt
+  as `already_consumed`: the ledger holds one reservation per operation. The
+  stale-reservation reaper charges an admission that never settled within
+  fifteen minutes in the same way. A reservation that was never admitted, a
+  withheld dispatch and a refusal by status that reported no usage still cost
+  nothing, and known usage is still priced from the provider's list. A
+  settlement that reaches an operation already settled at a different cost, by
+  the reaper or by another attempt, is refused and moves no counter. The caller
+  still hears `operation_ambiguous` for every such attempt: the gateway says so
+  itself and no longer relies on the receipt failing to bind (2026-10-25, item
+  1). Only the internal monthly cap moves, not customer charges or the provider
+  bill, and no stored row is rewritten.

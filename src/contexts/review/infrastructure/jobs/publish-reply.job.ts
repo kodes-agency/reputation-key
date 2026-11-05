@@ -9,7 +9,7 @@
 // writes: it runs the uncertain-attempt check below and then leaves the row to
 // the reconciliation sweep.
 //
-// BQC-3.3: provider outcomes are classified via the reply-publication saga
+// BQC-3.3: provider outcomes are classified by the reply publication workflow
 // (classifyPublicationFailure), from the dispatch the provider plane recorded
 // (D2): `not_sent` is the only evidence that lets a failed write be retried.
 // Every classified failure is logged as { attempt, failureClass,

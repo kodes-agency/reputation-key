@@ -508,7 +508,7 @@ describe('the running months of count goals', () => {
     async function pageAggregate(property: string, subject: GoalMetricSubject) {
       const governed = findMetricVersionById(METRIC_VERSION_IDS.qualifiedScanGoal)
       if (!governed) throw new Error('The qualified scan goal is not in the registry.')
-      return createMetricRepository(db, () => NOW).queryGoalAggregate({
+      return createMetricRepository(db).queryGoalAggregate({
         organizationId: organizationId(ORG),
         propertyId: toPropertyId(property),
         definitionVersionId: METRIC_VERSION_IDS.qualifiedScanGoal,

@@ -3,7 +3,7 @@
 // application-zone tests and browser bundles (Storybook) can use it without
 // importing the drizzle-backed atomic store (application must not import
 // infrastructure). Applies the same operation order (state → outbox)
-// against the repository ports without a real transaction.
+// against in-memory items without a real transaction.
 //
 // Not for production — production must use createAtomicInboxCommandStore
 // (src/contexts/inbox/infrastructure/inbox-command-store.ts).
@@ -16,6 +16,7 @@ import {
 import { resolveGoogleReplyCompletion } from '#/contexts/inbox/domain/response-target'
 import type { CurrentReplyObservationPermit } from '#/contexts/inbox/application/ports/reply-observation-authority.port'
 import type { InboxRepository } from '#/contexts/inbox/application/ports/inbox.repository'
+import type { InboxItem } from '#/contexts/inbox/domain/types'
 import type { InMemoryInboxRepo } from './in-memory-inbox-repo'
 import type { InboxNoteRepository } from '#/contexts/inbox/application/ports/inbox-note.repository'
 import type {
@@ -43,7 +44,9 @@ export function createSequentialInboxCommandStore(deps: {
    * writer this fake has: the production port has no such seam (the atomic
    * store writes the columns inside its own transaction).
    */
-  repo: InboxRepository & Partial<Pick<InMemoryInboxRepo, 'setManagerPriority'>>
+  repo: InboxRepository &
+    Pick<InMemoryInboxRepo, 'items'> &
+    Partial<Pick<InMemoryInboxRepo, 'setManagerPriority'>>
   noteRepo?: InboxNoteRepository
   outbox?: RecordedOutbox
   recordReceipt?: (
@@ -54,6 +57,42 @@ export function createSequentialInboxCommandStore(deps: {
 }): InboxCommandStore {
   const outbox = deps.outbox ?? createRecordedOutbox()
   const recordAndEmit = outbox.record
+
+  const insertItem = async (item: InboxItem): Promise<InboxItem> => {
+    const created = {
+      ...item,
+      managerPriority: null,
+      managerPrioritySetBy: null,
+      managerPrioritySetAt: null,
+    }
+    deps.repo.items.push(created)
+    return created
+  }
+
+  const writeItem = async (
+    id: InboxItem['id'],
+    orgId: InboxItem['organizationId'],
+    fields: Partial<InboxItem> | ((stamp: Date) => Partial<InboxItem>),
+    now = new Date(),
+  ): Promise<InboxItem> => {
+    const index = deps.repo.items.findIndex(
+      (item) => item.id === id && item.organizationId === orgId,
+    )
+    const current = deps.repo.items[index]
+    if (!current) throw new Error('not found')
+    const commandRevision = current.commandRevision + 1
+    if (!Number.isSafeInteger(commandRevision)) {
+      throw new Error('Inbox command revision is exhausted')
+    }
+    const saved = {
+      ...current,
+      ...(typeof fields === 'function' ? fields(now) : fields),
+      commandRevision,
+      updatedAt: now,
+    }
+    deps.repo.items[index] = saved
+    return saved
+  }
 
   const receipt = async (
     eventId: string,
@@ -73,7 +112,7 @@ export function createSequentialInboxCommandStore(deps: {
         item.organizationId,
       )
       if (existing) return { item: existing, created: false }
-      const created = await deps.repo.create(item, item.organizationId)
+      const created = await insertItem(item)
       if (event) await recordAndEmit(event)
       return { item: created, created: true }
     },
@@ -92,12 +131,12 @@ export function createSequentialInboxCommandStore(deps: {
         item.organizationId,
       )
       if (existing) return { item: existing, created: false }
-      const created = await deps.repo.create(item, item.organizationId)
-      const closed = await deps.repo.updateStatus(
+      const created = await insertItem(item)
+      const closed = await writeItem(
         created.id,
         created.organizationId,
-        'closed',
         {
+          status: 'closed',
           closedAt: observation.observedAt,
           ...(created.firstReplyPublishedAt === null
             ? { firstReplyPublishedAt: googleReplyTime(observation) }
@@ -108,24 +147,11 @@ export function createSequentialInboxCommandStore(deps: {
       return { item: closed, created: true }
     },
 
-    updateStatus: async (item, updates, event, now) => {
-      const saved = await deps.repo.updateStatus(
-        item.id,
-        item.organizationId,
-        updates.status,
-        updates.timestampFields,
-        now,
-      )
-      if (event) await recordAndEmit(event)
-      return saved
-    },
-
     reopenReviewCycle: async (command) => {
-      const saved = await deps.repo.updateStatus(
+      const saved = await writeItem(
         command.item.id,
         command.item.organizationId,
-        'open',
-        { closedAt: null },
+        { status: 'open', closedAt: null },
         command.now,
       )
       await recordAndEmit(command.fact)
@@ -139,11 +165,13 @@ export function createSequentialInboxCommandStore(deps: {
       for (const [index, item] of items.entries()) {
         const event = perItemEvents[index]
         if (!event) continue
-        await deps.repo.updateStatus(
+        await writeItem(
           item.id,
           item.organizationId,
-          event.newStatus,
-          timestampFieldsForStatus(event.newStatus, event.occurredAt),
+          {
+            status: event.newStatus,
+            ...timestampFieldsForStatus(event.newStatus, event.occurredAt),
+          },
           event.occurredAt,
         )
         await recordAndEmit(event)
@@ -160,10 +188,10 @@ export function createSequentialInboxCommandStore(deps: {
           results.push({ inboxItemId: item.id, outcome: 'unchanged' as const })
           continue
         }
-        await deps.repo.updateAssignment(
+        await writeItem(
           item.id,
           item.organizationId,
-          command.assignedTo,
+          { assignedTo: command.assignedTo },
           command.occurredAt,
         )
         const fact = command.assignedTo
@@ -214,10 +242,10 @@ export function createSequentialInboxCommandStore(deps: {
     },
 
     assign: async (item, updates, event, now) => {
-      const saved = await deps.repo.updateAssignment(
+      const saved = await writeItem(
         item.id,
         item.organizationId,
-        updates.assignedTo,
+        { assignedTo: updates.assignedTo },
         now,
       )
       if (event) await recordAndEmit(event)
@@ -225,10 +253,16 @@ export function createSequentialInboxCommandStore(deps: {
     },
 
     escalate: async (item, updates, event, now) => {
-      const saved = await deps.repo.setEscalation(
+      const saved = await writeItem(
         item.id,
         item.organizationId,
-        updates.escalatedBy,
+        (stamp) => ({
+          isEscalated: true,
+          escalatedAt: stamp,
+          escalatedBy: updates.escalatedBy,
+          escalationResolvedAt: null,
+          escalationResolvedBy: null,
+        }),
         now,
       )
       await recordAndEmit(event)
@@ -261,10 +295,14 @@ export function createSequentialInboxCommandStore(deps: {
     },
 
     resolveEscalation: async (item, updates, event, now) => {
-      const saved = await deps.repo.resolveEscalation(
+      const saved = await writeItem(
         item.id,
         item.organizationId,
-        updates.resolvedBy,
+        (stamp) => ({
+          isEscalated: false,
+          escalationResolvedAt: stamp,
+          escalationResolvedBy: updates.resolvedBy,
+        }),
         now,
       )
       await recordAndEmit(event)
@@ -274,12 +312,11 @@ export function createSequentialInboxCommandStore(deps: {
     addNote: async (item, note, event) => {
       if (!deps.noteRepo) throw new Error('noteRepo is required for addNote')
       // The production transaction advances the item's optimistic-concurrency
-      // fence before inserting the note. Reuse the repository's assignment
-      // update as a browser-safe touch while preserving the assignee value.
-      await deps.repo.updateAssignment(
+      // fence before inserting the note.
+      await writeItem(
         item.id,
         item.organizationId,
-        item.assignedTo,
+        { assignedTo: item.assignedTo },
         note.createdAt,
       )
       const saved = await deps.noteRepo.create(note, note.organizationId)
@@ -297,7 +334,7 @@ export function createSequentialInboxCommandStore(deps: {
         await receipt(command.eventId, command.consumerName, 'duplicate')
         return 'duplicate'
       }
-      await deps.repo.create(command.item, command.item.organizationId)
+      await insertItem(command.item)
       await recordAndEmit(command.fact)
       await receipt(command.eventId, command.consumerName, 'applied')
       return 'applied'
@@ -311,10 +348,10 @@ export function createSequentialInboxCommandStore(deps: {
       )
       const created = current === null
       if (!current) {
-        current = await deps.repo.create(command.item, command.item.organizationId)
+        current = await insertItem(command.item)
         await recordAndEmit(command.fact)
       }
-      await deps.repo.updateSourceMeta(
+      await writeItem(
         current.id,
         current.organizationId,
         {
@@ -328,11 +365,10 @@ export function createSequentialInboxCommandStore(deps: {
         current.status === 'open' &&
         command.projection.sourceContentErasedAt instanceof Date
       ) {
-        await deps.repo.updateStatus(
+        await writeItem(
           current.id,
           current.organizationId,
-          'closed',
-          { closedAt: command.projection.sourceContentErasedAt },
+          { status: 'closed', closedAt: command.projection.sourceContentErasedAt },
           command.now,
         )
         await recordAndEmit(
@@ -358,26 +394,14 @@ export function createSequentialInboxCommandStore(deps: {
         command.item.organizationId,
       )
       if (current && current.status === command.item.status) {
-        await deps.repo.updateStatus(
+        await writeItem(
           command.item.id,
           command.item.organizationId,
-          command.fact.newStatus,
-          { closedAt: command.now },
+          { status: command.fact.newStatus, closedAt: command.now },
           command.now,
         )
         await recordAndEmit(command.fact)
       }
-      await receipt(command.eventId, command.consumerName, 'applied')
-      return 'applied'
-    },
-
-    applyReviewUpdatedOnce: async (command) => {
-      await deps.repo.updateSourceMeta(
-        command.item.id,
-        command.item.organizationId,
-        { sourceDate: command.sourceDate, platform: command.platform },
-        command.now,
-      )
       await receipt(command.eventId, command.consumerName, 'applied')
       return 'applied'
     },
@@ -389,26 +413,21 @@ export function createSequentialInboxCommandStore(deps: {
       )
       if (current?.sourceType === 'review') {
         if (command.closeIfOpen && current.status === 'open') {
-          await deps.repo.updateStatus(
+          await writeItem(
             current.id,
             current.organizationId,
-            'closed',
-            { closedAt: command.transitionedAt },
+            { status: 'closed', closedAt: command.transitionedAt },
             command.transitionedAt,
           )
           await recordAndEmit(command.closeFact)
         }
-        await deps.repo.clearReviewSourceContent(
+        await writeItem(
           current.id,
           current.organizationId,
+          { rating: null, snippet: null, reviewerName: null },
           command.transitionedAt,
         )
       }
-      await receipt(command.eventId, command.consumerName, 'applied')
-      return 'applied'
-    },
-
-    applyReplyPublishedOnce: async (command) => {
       await receipt(command.eventId, command.consumerName, 'applied')
       return 'applied'
     },
@@ -429,11 +448,11 @@ export function createSequentialInboxCommandStore(deps: {
         observation.resolution === 'absent' &&
         observation.change === 'deleted'
       if (shouldClose && current.status === 'open') {
-        await deps.repo.updateStatus(
+        await writeItem(
           current.id,
           current.organizationId,
-          'closed',
           {
+            status: 'closed',
             closedAt: observation.observedAt,
             ...(current.firstReplyPublishedAt === null
               ? { firstReplyPublishedAt: googleReplyTime(observation) }
@@ -443,11 +462,10 @@ export function createSequentialInboxCommandStore(deps: {
         )
         await recordAndEmit(command.closeFact)
       } else if (shouldReopen && current.status === 'closed') {
-        await deps.repo.updateStatus(
+        await writeItem(
           current.id,
           current.organizationId,
-          'open',
-          { closedAt: null },
+          { status: 'open', closedAt: null },
           observation.observedAt,
         )
         await recordAndEmit(command.reopenFact)

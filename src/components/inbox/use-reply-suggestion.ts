@@ -9,7 +9,6 @@ import type { ReplyDraftSnapshot } from './use-reply-autosave'
 import {
   isReplySuggestionVerifiable,
   retryPendingReply,
-  chooseReplyTone,
   type PendingReplyRequest,
   type ReplyAssistScope,
   replySuggestionFixTarget,
@@ -354,7 +353,7 @@ export function useReplySuggestion(input: Input) {
   return {
     restoreMeasurement: measurement.restore,
     tone,
-    changeTone: (tone: ReplyTone) => chooseReplyTone(tone, setTone),
+    changeTone: (tone: ReplyTone) => setTone(tone),
     stream,
     stop: () => {
       dismiss(false)

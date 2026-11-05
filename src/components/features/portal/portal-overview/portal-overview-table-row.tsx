@@ -65,7 +65,7 @@ export function PortalOverviewTableRow({
   // A draft has no results: its card says so by saying nothing, as its table row does.
   const summary = figures.kind === 'figures' && !draft ? figures.measures.summary : null
   return (
-    <DataTableRow className={cn(archived && 'opacity-70')}>
+    <DataTableRow>
       <TableHead scope="row" className={classes.nameCell}>
         <div className="flex min-w-0 flex-col gap-1">
           <div className="flex min-w-0 flex-wrap items-baseline gap-x-3 gap-y-0.5">

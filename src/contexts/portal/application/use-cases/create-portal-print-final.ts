@@ -1,29 +1,6 @@
-// Portal context — the final print kit's PDF (final design spec §11, slice 7).
-//
-// The download behind the final Print cards section, which the Share tab shows
-// only where PRINT_KIT_FINAL_ENABLED is on; today's `createPortalPrintKit` is
-// untouched. It puts the code's address into a file, so the order is the same:
-//
-//   1. authorise, and load the Portal and what is live on it;
-//   2. refuse, before anything is read or revealed: the final kit where the
-//      server has it off, languages the live version does not offer, a choice
-//      the kit does not make (a quantity or a count a sheet out of range, a tent
-//      for a print shop), and words it does not print (a wording rule F holds
-//      back in one of the languages, or own words that offer something for the
-//      review);
-//   3. read the pictures from Portal media, checked against their stored hash;
-//   4. fetch the address through `revealPortalAddress`, which records the
-//      disclosure (as a download) before it decrypts;
-//   5. draw. The renderer refuses a piece whose code would print too small (a
-//      tent or Small card on today's long address), or whose two cues would not
-//      fit its bar, and the refusal is turned into words here.
-//
-// From the manager's own printer the pieces go on office sheets, exactly as many
-// as asked for; a print shop gets one piece per page with its bleed, and crop
-// marks when asked for (the page then grows to hold them). A card may ask for its
-// back page (the logo and the Property's name, no code), which follows each page
-// or sheet; a tent has none. Nothing is fetched by address: a picture is read from
-// the store by its asset id.
+// Authorizes the print and checks languages, layout and wording before reading
+// verified media and revealing the audited address. Only then may the renderer
+// draw the PDF; refused renders record neither last-print settings nor wording.
 
 import type { AuthContext } from '#/shared/domain/auth-context'
 import { assertPersonalPortalPublicText } from '../../domain/personal-portal-public-text'
@@ -75,10 +52,8 @@ import {
 import type { PortalPublicationRepository } from '../ports/portal-publication.repository'
 import type { PortalRepository } from '../ports/portal.repository'
 import type { StoragePort } from '../ports/storage.port'
-import {
-  readPicturesThenReveal,
-  type PortalPrintKitFile,
-} from './create-portal-print-kit'
+import { readPicturesThenReveal } from '../printing/print-download.server'
+import type { PortalPrintKitFile } from '../printing/print-download'
 import type { RevealPortalAddress } from './reveal-portal-address'
 
 export type CreatePortalPrintFinalDeps = RememberLastPrintDeps &
@@ -100,8 +75,6 @@ export type CreatePortalPrintFinalDeps = RememberLastPrintDeps &
       organizationId: OrganizationId,
       propertyId: PropertyId,
     ) => Promise<string | null>
-    /** PRINT_KIT_FINAL_ENABLED: off, every final download is refused. */
-    finalKitEnabled: boolean
   }>
 
 type Scope = Readonly<{ organizationId: OrganizationId; propertyId: PropertyId }>
@@ -177,9 +150,6 @@ export const createPortalPrintFinal =
       forbiddenMessage: 'Insufficient permissions to make a print kit',
     })
     assertPersonalPortalPublicText(portal, input.customWords)
-    if (!deps.finalKitEnabled) {
-      throw portalError('print_format_not_offered', 'This print is not available yet.')
-    }
     const context = await loadPortalPrintKitContext(deps, {
       organizationId: ctx.organizationId,
       portal,

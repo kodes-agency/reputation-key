@@ -131,23 +131,19 @@ describe('buildPortalPublicUrls', () => {
 })
 
 describe('portalPublicUrls', () => {
-  const format = (printCodesEnabled: boolean): PortalAddressFormat => ({
+  const format: PortalAddressFormat = {
     appOrigin: APP_HOST,
     printOrigin: PRINT_HOST,
-    printCodesEnabled,
-  })
+  }
   const input = { rawToken: RAW, artifacts: ARTIFACTS, printCodes: CODES }
 
-  it('shows the short addresses only when they are switched on', () => {
-    expect(portalPublicUrls(format(true), input).qr).toMatch(/^HTTPS:\/\/AP\.UP\./u)
-    expect(portalPublicUrls(format(false), input)).toEqual(
-      build({ printCodes: NO_CODES }),
-    )
+  it('shows verified short addresses without a rollout setting', () => {
+    expect(portalPublicUrls(format, input)).toEqual(build())
   })
 
-  it('shows the same direct address either way', () => {
-    expect(portalPublicUrls(format(true), input).direct).toBe(
-      portalPublicUrls(format(false), input).direct,
+  it('keeps the issued long address for channels without verified print codes', () => {
+    expect(portalPublicUrls(format, { ...input, printCodes: NO_CODES })).toEqual(
+      build({ printCodes: NO_CODES }),
     )
   })
 })

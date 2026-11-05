@@ -58,7 +58,7 @@ function useCase(
   const db = getDb()
   return createLink({
     portalRepo: createPortalRepository(db),
-    portalLinkRepo: createPortalLinkRepository(db, () => CREATED_AT),
+    portalLinkRepo: createPortalLinkRepository(db),
     staffPublicApi: staffApi,
     commandStore: wrapStore(createAtomicPortalCommandStore(db)),
     destinationRepo: createPortalApprovedDestinationRepository(db),

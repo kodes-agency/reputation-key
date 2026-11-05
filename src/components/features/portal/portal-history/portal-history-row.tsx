@@ -174,7 +174,7 @@ export function PortalHistoryRow({
               >
                 View
               </Button>
-              {canMakeLive && !version.isLive ? (
+              {canMakeLive && version.restorable && !version.isLive ? (
                 <Button
                   ref={restoreButton}
                   type="button"

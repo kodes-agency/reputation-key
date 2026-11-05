@@ -4,7 +4,6 @@
 // section and the preview, and no read. Kept out of PortalShare so the tab itself
 // stays a layout.
 
-import type { PortalPrintKitView } from '#/contexts/portal/application/public-api'
 import type { PortalShareProps } from './portal-share-types'
 import type { PortalPrintKitReader } from './portal-print-kit-types'
 import {
@@ -15,7 +14,6 @@ import {
 } from './print-kit-state'
 import { usePrintFinal } from './use-print-final'
 import { usePrintKit } from './use-print-kit'
-import { usePrintKitDownload } from './use-print-kit-download'
 
 /** Stands in for the read when the tab has no print kit; the query is off then and never calls it. */
 const NO_PRINT_KIT_READ: PortalPrintKitReader = () =>
@@ -38,58 +36,37 @@ export function usePortalPrintKit(props: PortalShareProps, view: View) {
     portalId: props.portalId,
     read: props.printKit?.read ?? NO_PRINT_KIT_READ,
     enabled: offered && hasLive,
-    countryCode: props.countryCode ?? null,
-    qrAddress: props.issuedLink?.publicUrl ?? null,
-    sizes: props.printKit?.sizes,
   })
   const nothingLive = offered && (!hasLive || isNothingLiveRefusal(printKit.error))
   const show = offered && !nothingLive
   const notLive = nothingLive
     ? describePrintKitNotLive(props.publicationState, props)
     : null
-  // A choice kept from when the portal was live must not make a file now.
-  const download = usePrintKitDownload({
-    portalId: props.portalId,
-    choice: show ? printKit.choice : null,
-    downloadMutation: props.printKit?.downloadMutation,
-  })
   // Why no print can be made at all: nothing live, or a code that cannot be fetched again.
   const blocked =
     notLive?.body ??
     printKitAvailability({ canDownloadAgain: view.canDownloadAgain }).reason
-  const final = usePortalPrintFinal(props, show ? printKit.view : null, printKit.refresh)
-  return {
-    show,
-    notLive,
-    printKit,
-    download,
-    unavailableReason: blocked ?? printKit.refusal,
-    isFinal: final.isFinal,
-    final: final.state,
-    finalUnavailableReason: blocked ?? final.state.refusal,
-  }
-}
-
-/**
- * The final Print cards section's state, live only where the read says the
- * server shows the final kit (PRINT_KIT_FINAL_ENABLED); today's kit otherwise.
- */
-function usePortalPrintFinal(
-  props: PortalShareProps,
-  read: PortalPrintKitView | null,
-  refreshRead: () => void,
-) {
-  const isFinal = read?.kit === 'final'
-  const state = usePrintFinal({
+  const final = usePrintFinal({
     portalId: props.portalId,
-    view: isFinal ? read : null,
-    enabled: isFinal,
+    view: show ? printKit.view : null,
+    enabled: show && printKit.view !== null,
     countryCode: props.countryCode ?? null,
     qrAddress: props.issuedLink?.publicUrl ?? null,
-    downloadMutation: isFinal ? props.printKit?.downloadFinalMutation : undefined,
-    saveWordingMutation: isFinal ? props.printKit?.saveWordingMutation : undefined,
-    onDownloaded: refreshRead,
-    onWordingSaved: refreshRead,
+    downloadMutation: props.printKit?.downloadFinalMutation,
+    saveWordingMutation: props.printKit?.saveWordingMutation,
+    onDownloaded: printKit.refresh,
+    onWordingSaved: printKit.refresh,
   })
-  return { isFinal, state }
+  // The Print cards lead the column and grow by most of a screen when their
+  // first read answers, so what follows them waits for it rather than being
+  // pushed away. A failed read stops the wait: the code does not depend on it.
+  const settling = show && printKit.isPending && !printKit.isError
+  return {
+    show,
+    settling,
+    notLive,
+    printKit,
+    final,
+    finalUnavailableReason: blocked ?? final.refusal,
+  }
 }

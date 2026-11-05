@@ -64,12 +64,27 @@ function settlementState(
 }
 
 /**
+ * What a settlement charges. A withheld dispatch costs nothing. A dispatch whose
+ * usage is unknown (a timeout, a lost connection) may have been billed in full,
+ * so it costs the reservation. Known usage, a refusal by status included, is
+ * priced from the provider's list.
+ */
+function settledCost(
+  request: AiSettlementRequestV1,
+  reservedMicros: number,
+  pricing: ReturnType<typeof priceCatalogueOfProvider>,
+): number {
+  if (request.disposition === 'no_dispatch' || pricing === null) return 0
+  if (!request.usageKnown) return reservedMicros
+  return Number(settledCostMicrosWith(pricing, request))
+}
+
+/**
  * An admission whose reservation was settled at zero cost: the gateway withheld
- * dispatch and released it, or the stale-reservation reaper released it. The
- * provider was never charged for it, so it must not block the operation's next
- * attempt. A charged or still-open admission keeps blocking: the ledger holds
- * one reservation per operation, and a second provider call against it would be
- * unaccounted.
+ * dispatch and released it, or the provider reported known zero usage. It must
+ * not block the operation's next attempt. A charged or still-open admission
+ * keeps blocking: the ledger holds one reservation per operation, and a second
+ * provider call against it would be unaccounted.
  */
 function releasedWithoutCharge(
   operation: Readonly<{ budgetSettledAt: Date | null; actualMicros: number | null }>,
@@ -276,10 +291,7 @@ export function createPostgresAiAdmissionAuthority(
         if (pricing === null && request.disposition !== 'no_dispatch') {
           return { status: 'denied' as const, code: 'settlement_conflict' as const }
         }
-        const cost =
-          request.disposition === 'no_dispatch' || pricing === null
-            ? 0
-            : Number(settledCostMicrosWith(pricing, request))
+        const cost = settledCost(request, operation.reservedMicros, pricing)
         if (!Number.isSafeInteger(cost) || cost > operation.reservedMicros) {
           return { status: 'denied' as const, code: 'settlement_conflict' as const }
         }

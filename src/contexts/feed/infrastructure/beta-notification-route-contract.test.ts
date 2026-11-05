@@ -108,7 +108,10 @@ import {
   goalMonthlyResultRevised,
   goalRatingGoalTransitioned,
 } from '#/contexts/reporting/domain/goal-events'
-import { BETA_NOTIFICATION_TRIGGER_MATRIX } from '../application/beta-notification-trigger-matrix'
+import {
+  assertBetaNotificationTriggerMatrix,
+  BETA_NOTIFICATION_TRIGGER_MATRIX,
+} from '../application/beta-notification-trigger-matrix'
 import type { NotificationRepositoryPort } from '../application/ports/notification-repository.port'
 import { notificationScopeForType } from '../domain/notification-delivery-policy'
 import type { NotificationType } from '../domain/notification-types'
@@ -751,6 +754,12 @@ afterEach(() => {
 })
 
 describe('every beta notification route passes the delayed execution gate', () => {
+  it('matches the registered notification consumers to the trigger matrix', () => {
+    expect(() =>
+      assertBetaNotificationTriggerMatrix(registerNotificationRoutes().list()),
+    ).not.toThrow()
+  })
+
   it('has a produced fact for every matrix row', () => {
     expect(
       BETA_NOTIFICATION_TRIGGER_MATRIX.filter(

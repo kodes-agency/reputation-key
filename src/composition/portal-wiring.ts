@@ -25,7 +25,6 @@ export function wirePortal(
     baseUrl: env.BETTER_AUTH_URL ?? 'http://localhost:3000',
     printCodes: {
       printOrigin: env.PORTAL_PRINT_ORIGIN,
-      enabled: env.PORTAL_PRINT_CODES_ENABLED,
     },
     idGen: () => crypto.randomUUID(),
     secureRandomBytes: randomBytes,
@@ -42,8 +41,6 @@ export function wirePortal(
       presignEndpoint: env.S3_PRESIGN_ENDPOINT,
       forcePathStyle: env.S3_FORCE_PATH_STYLE,
     },
-    printKitFinalEnabled: env.PRINT_KIT_FINAL_ENABLED,
-    portalOwnLookEnabled: env.PORTAL_OWN_LOOK_ENABLED,
   })
 
   return portal

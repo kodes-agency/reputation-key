@@ -9,6 +9,7 @@ import { publicationSource } from '../../domain/__fixtures__/publication-source'
 import type { PortalPublicationRepository } from '../ports/portal-publication.repository'
 import type { UpdatePortalCommand } from '../ports/portal-command-store.port'
 import type { StaffPublicApi } from '#/contexts/identity/application/public-api'
+import { GOLDEN_SNAPSHOT_ROWS } from '../__fixtures__/publication-snapshots.golden'
 
 const NOW = new Date('2026-08-26T12:00:00.000Z')
 const portal = buildTestPortal({ publicationState: 'published' })
@@ -62,6 +63,7 @@ function setup(
     state?: 'published' | 'disabled'
     /** The version live right now; the later one by default. */
     live?: 1 | 2
+    configuration?: typeof versionOne.configuration
   } = {},
 ) {
   const portalRepo = createInMemoryPortalRepo()
@@ -81,8 +83,13 @@ function setup(
     findSnapshotByVersion: async (_organizationId, _portalId, version) =>
       options.targetExists === false
         ? null
-        : ([versionOne, versionTwo].find((snapshot) => snapshot.version === version) ??
-          null),
+        : ([
+            {
+              ...versionOne,
+              configuration: options.configuration ?? versionOne.configuration,
+            },
+            versionTwo,
+          ].find((snapshot) => snapshot.version === version) ?? null),
     findActiveForPortal: async () => (options.live === 1 ? versionOne : versionTwo),
     listActivationHistoryPage: async () => ({
       records: [],
@@ -112,6 +119,19 @@ function setup(
 }
 
 describe('rollbackPortalPublication', () => {
+  it.each(Object.values(GOLDEN_SNAPSHOT_ROWS))(
+    'refuses retired format $configuration.schemaVersion without writing an activation',
+    async (row) => {
+      const harness = setup({
+        configuration: row.configuration as unknown as typeof versionOne.configuration,
+      })
+      await expect(
+        harness.useCase({ portalId: portal.id, version: 1 }, buildTestAuthContext()),
+      ).rejects.toMatchObject({ code: 'not_restorable' })
+      expect(harness.command()).toBeNull()
+    },
+  )
+
   it('appends an activation for an older immutable version', async () => {
     const harness = setup()
     const ctx = buildTestAuthContext({ role: 'AccountAdmin' })

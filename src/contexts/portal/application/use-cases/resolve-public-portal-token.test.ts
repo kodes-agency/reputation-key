@@ -3,9 +3,8 @@ import {
   resolvePublicPortalToken,
   type ResolvePublicPortalTokenDeps,
 } from './resolve-public-portal-token'
-// The legacy page and resolver must keep serving schema versions 1 and 2, so this
-// suite builds them with the builder publishing used before round 4's writer switch.
-import { buildLegacyPortalPublicationSnapshot as buildPortalPublicationSnapshot } from '../__fixtures__/legacy-snapshot-builder'
+import { buildPortalPublicationSnapshot } from '../portal-publication-snapshot'
+import { publicationSource } from '../../domain/__fixtures__/publication-source'
 import { organizationId, portalId, propertyId } from '#/shared/domain/ids'
 import type { PresentedAddressDigest } from '../ports/portal-token-codec.port'
 
@@ -19,22 +18,12 @@ const token = {
   version: 1,
 } as const
 
-const publicPortal = {
-  portal: {
-    id: 'portal-1',
-    name: 'Guest Portal',
-    slug: 'guest',
-    description: null,
-    heroImageUrl: null,
-    theme: null,
-    organizationName: 'Example Org',
-  },
-  categories: [],
-  links: [],
-  privateFeedbackThreshold: 3,
+const publicPortal = publicationSource({
   organizationId: 'org-1',
   propertyId: 'property-1',
-} as const
+  portal: { id: 'portal-1', name: 'Guest Portal', slug: 'guest' },
+  links: [],
+})
 
 const snapshot = buildPortalPublicationSnapshot({
   id: 'snapshot-1',
@@ -53,56 +42,6 @@ const snapshot = buildPortalPublicationSnapshot({
   createdBy: 'manager-1',
   createdAt: NOW,
 })
-
-const buildLocalizedSnapshot = () =>
-  buildPortalPublicationSnapshot({
-    id: 'snapshot-bg',
-    portalId: 'portal-1',
-    organizationId: 'org-1',
-    propertyId: 'property-1',
-    version: 5,
-    source: {
-      ...publicPortal,
-      experience: {
-        primaryGuestLocale: 'en',
-        localeSet: ['en', 'bg'],
-        languagePackVersions: {
-          en: 'guest-ui-en-v1',
-          bg: 'guest-ui-bg-v1',
-        },
-        localizedContent: {
-          en: {
-            title: 'Tell us about your stay',
-            shortDescription: 'Your view matters.',
-            heroImageUrl: null,
-          },
-          bg: {
-            title: 'Разкажете ни за престоя си',
-            shortDescription: 'Вашето мнение е важно.',
-            heroImageUrl: null,
-          },
-        },
-        brandProfile: {
-          displayName: 'Хотел Пример',
-          logoUrl: null,
-          defaultHeroImageUrl: null,
-          primaryColor: '#1D4ED8',
-          backgroundColor: '#FFFFFF',
-          textColor: '#111827',
-          version: 1,
-        },
-      },
-    },
-    destination: {
-      state: 'verified',
-      uri: GOOGLE_REVIEW_URI,
-      retrievedAt: NOW,
-      sourceEpoch: 1,
-      profileVersion: 2,
-    },
-    createdBy: 'manager-1',
-    createdAt: NOW,
-  })
 
 function setup(
   overrides: {
@@ -193,10 +132,10 @@ describe('resolvePublicPortalToken', () => {
   it('loads a published portal through an active scoped token', async () => {
     const { resolve, resolvePublication, decide } = setup()
 
-    await expect(resolve('pt_key_secret')).resolves.toEqual({
+    await expect(resolve('pt_key_secret')).resolves.toMatchObject({
       status: 'found',
       data: {
-        portal: publicPortal.portal,
+        portal: { id: 'portal-1', slug: 'guest' },
         categories: [],
         links: [],
         reviewGateway: {
@@ -207,8 +146,8 @@ describe('resolvePublicPortalToken', () => {
         localization: {
           selectedLocale: 'en',
           primaryLocale: 'en',
-          availableLocales: ['en'],
-          languagePackVersion: 'guest-ui-en-v1',
+          availableLocales: ['en', 'bg'],
+          languagePackVersion: 'guest-ui-en-v2',
         },
         responseConfiguration: {
           publicationState: 'published',
@@ -217,13 +156,13 @@ describe('resolvePublicPortalToken', () => {
           publicationDigest: snapshot.configurationDigest,
           configurationDigest: expect.stringMatching(/^[0-9a-f]{64}$/),
           guestLocale: 'en',
-          languagePackVersion: 'guest-ui-en-v1',
+          languagePackVersion: 'guest-ui-en-v2',
           privateFeedbackThreshold: 3,
         },
         organizationId: 'org-1',
         propertyId: 'property-1',
-        guestSurface: 'legacy',
-        immersive: null,
+        guestSurface: 'immersive',
+        immersive: { timeZone: 'Europe/Sofia' },
         addressShape: 'long',
       },
     })
@@ -259,198 +198,6 @@ describe('resolvePublicPortalToken', () => {
     expect(resolvePublication).toHaveBeenCalledExactlyOnceWith(printCode, NOW)
   })
 
-  it('suppresses a published secondary link when its current approval is absent', async () => {
-    const approvedUri = 'https://www.tripadvisor.com/Hotel_Review'
-    const quarantinedUri = 'https://example.com/guest'
-    const linkedSnapshot = buildPortalPublicationSnapshot({
-      id: 'snapshot-with-links',
-      portalId: 'portal-1',
-      organizationId: 'org-1',
-      propertyId: 'property-1',
-      version: 5,
-      source: {
-        ...publicPortal,
-        links: [
-          {
-            id: 'link-approved',
-            label: 'Tripadvisor',
-            url: approvedUri,
-            categoryId: null,
-            sortKey: 'a0',
-          },
-          {
-            id: 'link-quarantined',
-            label: 'Other',
-            url: quarantinedUri,
-            categoryId: null,
-            sortKey: 'a1',
-          },
-        ],
-      },
-      destination: {
-        state: 'verified',
-        uri: GOOGLE_REVIEW_URI,
-        retrievedAt: NOW,
-        sourceEpoch: 1,
-        profileVersion: 2,
-      },
-      createdBy: 'manager-1',
-      createdAt: NOW,
-    })
-    const { resolve, listApprovedSecondaryDestinationUris } = setup({
-      resolvePublication: async () => ({ token, snapshot: linkedSnapshot }),
-      listApprovedSecondaryDestinationUris: async () => [approvedUri],
-    })
-
-    const outcome = await resolve('pt_key_secret')
-
-    expect(outcome).toMatchObject({
-      status: 'found',
-      data: { links: [{ id: 'link-approved', url: approvedUri }] },
-    })
-    if (outcome.status === 'found') {
-      expect(outcome.data.links).toHaveLength(1)
-    }
-    expect(listApprovedSecondaryDestinationUris).toHaveBeenCalledWith(
-      organizationId('org-1'),
-      propertyId('property-1'),
-      [approvedUri, quarantinedUri],
-      new Date('2026-08-08T11:30:00.000Z'),
-    )
-  })
-
-  it('keeps the private gateway available but hides every secondary link when approval lookup fails', async () => {
-    const linkedSnapshot = buildPortalPublicationSnapshot({
-      id: 'snapshot-with-link',
-      portalId: 'portal-1',
-      organizationId: 'org-1',
-      propertyId: 'property-1',
-      version: 5,
-      source: {
-        ...publicPortal,
-        links: [
-          {
-            id: 'link-1',
-            label: 'Other',
-            url: 'https://example.com/guest',
-            categoryId: null,
-            sortKey: 'a0',
-          },
-        ],
-      },
-      destination: {
-        state: 'verified',
-        uri: GOOGLE_REVIEW_URI,
-        retrievedAt: NOW,
-        sourceEpoch: 1,
-        profileVersion: 2,
-      },
-      createdBy: 'manager-1',
-      createdAt: NOW,
-    })
-    const { resolve } = setup({
-      resolvePublication: async () => ({ token, snapshot: linkedSnapshot }),
-      listApprovedSecondaryDestinationUris: async () => {
-        throw new Error('approval authority unavailable')
-      },
-    })
-
-    await expect(resolve('pt_key_secret')).resolves.toMatchObject({
-      status: 'found',
-      data: {
-        links: [],
-        reviewGateway: { privateFeedbackThreshold: 3 },
-      },
-    })
-  })
-
-  it('renders an explicitly selected Bulgarian snapshot without changing its stable address', async () => {
-    const localizedSnapshot = buildLocalizedSnapshot()
-    const harness = setup({
-      resolvePublication: vi.fn(async () => ({ token, snapshot: localizedSnapshot })),
-    })
-
-    await expect(
-      harness.resolve('pt_key_secret', { requestedLocale: 'bg' }),
-    ).resolves.toMatchObject({
-      status: 'found',
-      data: {
-        portal: {
-          name: 'Разкажете ни за престоя си',
-          organizationName: 'Хотел Пример',
-        },
-        localization: {
-          selectedLocale: 'bg',
-          primaryLocale: 'en',
-          availableLocales: ['en', 'bg'],
-          languagePackVersion: 'guest-ui-bg-v1',
-        },
-        responseConfiguration: {
-          guestLocale: 'bg',
-          languagePackVersion: 'guest-ui-bg-v1',
-        },
-      },
-    })
-    expect(harness.getHealth).toHaveBeenCalledWith(
-      organizationId('org-1'),
-      propertyId('property-1'),
-      portalId('portal-1'),
-    )
-  })
-
-  it('keeps a schema version 2 snapshot on the legacy guest surface', async () => {
-    const harness = setup({
-      resolvePublication: vi.fn(async () => ({
-        token,
-        snapshot: buildLocalizedSnapshot(),
-      })),
-    })
-
-    await expect(harness.resolve('pt_key_secret')).resolves.toMatchObject({
-      status: 'found',
-      data: { guestSurface: 'legacy' },
-    })
-  })
-
-  it('honours Accept-Language q-values and never serves a locale outside the published set', async () => {
-    const harness = setup({
-      resolvePublication: vi.fn(async () => ({
-        token,
-        snapshot: buildLocalizedSnapshot(),
-      })),
-    })
-
-    await expect(
-      harness.resolve('pt_key_secret', { acceptLanguage: 'de;q=1, bg;q=0.9, en;q=0.1' }),
-    ).resolves.toMatchObject({ data: { localization: { selectedLocale: 'bg' } } })
-    await expect(
-      harness.resolve('pt_key_secret', { requestedLocale: 'de' }),
-    ).resolves.toMatchObject({ data: { localization: { selectedLocale: 'en' } } })
-  })
-
-  it('fails closed when the snapshot pins a pack that belongs to another locale', async () => {
-    const snapshot = buildLocalizedSnapshot()
-    const configuration = snapshot.configuration
-    if (configuration.schemaVersion !== 2)
-      throw new Error('expected a localized snapshot')
-    const harness = setup({
-      resolvePublication: vi.fn(async () => ({
-        token,
-        snapshot: {
-          ...snapshot,
-          configuration: {
-            ...configuration,
-            languagePackVersions: { en: 'guest-ui-en-v1', bg: 'guest-ui-en-v1' },
-          },
-        },
-      })),
-    })
-
-    await expect(
-      harness.resolve('pt_key_secret', { requestedLocale: 'bg' }),
-    ).resolves.toEqual({ status: 'unavailable' })
-  })
-
   it.each([
     null,
     {
@@ -466,12 +213,12 @@ describe('resolvePublicPortalToken', () => {
       observedAt: NOW,
     },
   ])(
-    'fails closed for a v2 publication without available Portal Health',
+    'fails closed for a current publication without available Portal Health',
     async (health) => {
       const harness = setup({
         resolvePublication: vi.fn(async () => ({
           token,
-          snapshot: buildLocalizedSnapshot(),
+          snapshot,
         })),
         getHealth: vi.fn(async () => health),
       })

@@ -1,39 +1,20 @@
-// Sequential property command store — NON-transactional test/Storybook fake
-// (BQC-3.5). Lives in shared/testing (with the in-memory property repo) so
-// application-zone tests and browser bundles can use it without importing
-// the drizzle-backed atomic store (application must not import
-// infrastructure). Applies the same operation order (state → outbox → emit)
-// against the repository port without a real transaction.
-//
-// Not for production — production must use createAtomicPropertyCommandStore
-// (src/contexts/property/infrastructure/property-command-store.ts).
+// In-memory fake of the profile-update command store for application tests. It is
+// not atomic and never runs in production; PostgreSQL tests prove the real store
+// (createAtomicPropertyCommandStore).
 
 import { createRecordedOutbox, type RecordedOutbox } from './recorded-outbox'
 import { propertyError } from '#/contexts/property/domain/errors'
-import type { PropertyRepository } from '#/contexts/property/application/ports/property.repository'
+import type { InMemoryPropertyRepo } from './in-memory-property-repo'
 import type { PropertyCommandStore } from '#/contexts/property/application/ports/property-command-store.port'
 
 export function createSequentialPropertyCommandStore(deps: {
-  repo: PropertyRepository
+  repo: InMemoryPropertyRepo
   outbox?: RecordedOutbox
 }): PropertyCommandStore {
   const outbox = deps.outbox ?? createRecordedOutbox()
   const recordAndEmit = outbox.record
 
   return {
-    createProperty: async (command) => {
-      // Tenant guard — same contract as the atomic store / repository.
-      if (command.property.organizationId !== command.organizationId) {
-        throw propertyError('forbidden', 'Tenant mismatch on property insert')
-      }
-      const inserted = await deps.repo.insertAndReturn(
-        command.organizationId,
-        command.property,
-      )
-      await recordAndEmit(command.event)
-      return inserted
-    },
-
     updateProperty: async (command) => {
       const current = await deps.repo.findById(command.organizationId, command.propertyId)
       if (
@@ -43,30 +24,10 @@ export function createSequentialPropertyCommandStore(deps: {
       ) {
         throw propertyError('stale_property', 'property changed before test update')
       }
-      await deps.repo.update(command.organizationId, command.propertyId, command.patch)
-      const committed = await deps.repo.findById(
-        command.organizationId,
-        command.propertyId,
-      )
-      if (!committed) {
-        throw propertyError('property_not_found', 'property vanished during test update')
-      }
+      const committed = { ...current, ...command.patch }
+      deps.repo.seed([committed])
       await recordAndEmit(command.event(committed))
       return committed
-    },
-
-    deleteProperty: async (command) => {
-      const current = await deps.repo.findById(command.organizationId, command.propertyId)
-      if (
-        !current ||
-        current.sourceEpoch !== command.expectedSourceEpoch ||
-        current.profileVersion !== command.expectedProfileVersion
-      ) {
-        throw propertyError('stale_property', 'property changed before test deletion')
-      }
-      await deps.repo.hardDelete(command.organizationId, command.propertyId)
-      await recordAndEmit(command.event)
-      if (command.bindingEvent) await recordAndEmit(command.bindingEvent)
     },
   }
 }

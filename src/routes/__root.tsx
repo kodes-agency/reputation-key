@@ -9,7 +9,7 @@ import type { QueryClient } from '@tanstack/react-query'
 
 import { Footer } from '#/components/layout/footer'
 import { Header } from '#/components/layout/header'
-import { authClient } from '#/shared/auth/auth-client'
+import { useSignOut } from '#/components/hooks/use-sign-out'
 import { showsPublicChrome } from '#/shared/public-chrome'
 import { documentLanguageOfMatches } from '#/shared/document-language'
 import { FontSetLinks } from '#/components/layout/font-set-links'
@@ -17,7 +17,6 @@ import { fontSetOfMatches } from '#/shared/font-sets'
 import { Toaster } from '#/components/ui/sonner'
 import appCss from '#/styles.css?url'
 import { notificationFns } from '#/routes/-notification-fns'
-import { clearTenantCacheAfterSessionEnd } from '#/shared/queries/tenant-cache-transition'
 import { getBrowserObservabilityConfigFn } from '#/shared/observability/browser-observability.server'
 
 const THEME_INIT_SCRIPT = `(function(){try{var stored=window.localStorage.getItem('theme');var mode=(stored==='light'||stored==='dark'||stored==='auto')?stored:'auto';var prefersDark=window.matchMedia('(prefers-color-scheme: dark)').matches;var resolved=mode==='auto'?(prefersDark?'dark':'light'):mode;var root=document.documentElement;root.classList.remove('light','dark');root.classList.add(resolved);root.style.colorScheme=resolved;}catch(e){}})();`
@@ -58,6 +57,7 @@ export const Route = createRootRouteWithContext<{
 
 function RootDocument({ children }: { children: React.ReactNode }) {
   const router = useRouter()
+  const signOut = useSignOut()
   const cspNonce = router.options.ssr?.nonce
 
   const showChrome = useRouterState({
@@ -105,10 +105,7 @@ function RootDocument({ children }: { children: React.ReactNode }) {
           <>
             <Header
               onSignOut={() => {
-                void clearTenantCacheAfterSessionEnd(
-                  router.options.context.queryClient,
-                  () => authClient.signOut(),
-                )
+                void signOut().catch(() => undefined)
               }}
               notificationFns={notificationFns}
             />

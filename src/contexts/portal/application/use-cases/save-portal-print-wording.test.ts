@@ -20,7 +20,6 @@ const staffApi = (accessible: readonly string[] | null): StaffPublicApi =>
 
 function setup(
   options: Readonly<{
-    enabled?: boolean
     accessible?: readonly string[] | null
     personal?: boolean
   }> = {},
@@ -38,7 +37,6 @@ function setup(
     staffPublicApi: staffApi(options.accessible ?? null),
     wordingRepo,
     clock: () => SAVED_AT,
-    finalKitEnabled: options.enabled ?? true,
   })
   return { portal, save, wordingRepo }
 }
@@ -161,15 +159,6 @@ describe('savePortalPrintWording', () => {
       code: 'print_format_not_offered',
       context: { cause: 'remove_offer' },
     })
-    expect(wordingRepo.saved()).toEqual([])
-  })
-
-  it('refuses where the server has the final kit off', async () => {
-    const { portal, save, wordingRepo } = setup({ enabled: false })
-
-    await expect(
-      save(parsed({ portalId: portal.id, callToAction: 'how_did_we_do' }), ctx),
-    ).rejects.toMatchObject({ code: 'print_format_not_offered' })
     expect(wordingRepo.saved()).toEqual([])
   })
 

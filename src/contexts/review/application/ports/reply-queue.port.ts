@@ -21,7 +21,7 @@ export type PublishReplyJobData = JobEnqueueAttribution &
 
 export type AddPublishJobOptions = Readonly<{
   /**
-   * RPL-01: saga idempotency key (reply-{replyId}-v{publicationCycle}) used as
+   * RPL-01: publication idempotency key (reply-{replyId}-v{publicationCycle}) used as
    * the BullMQ jobId so a duplicate enqueue of the same approval cycle is
    * deduped instead of running the provider publish twice.
    */

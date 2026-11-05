@@ -150,21 +150,13 @@ const setup = (
       nextCursor: null,
       totalCount: 0,
     }),
-    create: async (item) => item,
-    updateStatus: async () => storedDetail!.item,
-    bulkUpdateStatus: async () => ({ updated: 0, results: [] }),
     stampReplyMilestones: async () => storedDetail!.item,
-    updateAssignment: async () => storedDetail!.item,
     countByStatus: async () => 0,
     countFiltered: async () => 0,
     countFilteredByProperty: async () => [],
     findByIds: async () => [],
-    setEscalation: vi.fn(),
-    resolveEscalation: vi.fn(),
     countEscalatedActive: vi.fn(async () => 0),
     countOpenSince: vi.fn(async () => 0),
-    updateSourceMeta: vi.fn(async () => null),
-    clearReviewSourceContent: vi.fn(async () => null),
     scanReviewItems: vi.fn(async () => []),
     findDetailById,
   }
@@ -436,7 +428,7 @@ describe('getInboxItemDetail', () => {
     })
   })
 
-  it('attaches a google_sync mirror reply with its source intact (mirror fallback)', async () => {
+  it('attaches a Google-published reply with its source intact', async () => {
     const mirror = {
       ...makeReply(),
       status: 'published' as const,
@@ -453,8 +445,8 @@ describe('getInboxItemDetail', () => {
     const useCase = getInboxItemDetail({ repo, staffPublicApi: staffApi, replyLookup })
     const result = await useCase({ inboxItemId: ITEM_ID }, ctxFor('AccountAdmin'))
 
-    // The panel now receives mirror-published replies (previously invisible —
-    // the detail rendered a compose box over an existing Google-visible reply).
+    // The panel receives replies Google shows, so it never renders a compose
+    // box over an existing Google-visible reply.
     expect(result.reply?.source).toBe('google_sync')
     expect(result.reply?.status).toBe('published')
   })

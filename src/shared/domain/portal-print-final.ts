@@ -1,12 +1,5 @@
-// The final print kit's vocabulary (final design spec, 2026-10-25, §1, §8 and
-// §12 "Vocabulary"): three pieces, each upright or wide, in two looks, printed
-// on the manager's own printer or by a print shop.
-//
-// This lives beside today's kit (`portal-print-kit.ts`) and replaces none of it
-// yet: the Share tab shows the final kit only where PRINT_KIT_FINAL_ENABLED is
-// on, and today's Large card and Letter-half tent keep printing unchanged until
-// the release slice retires them. Pure and shared, like today's kit: the PDF and
-// the Share tab's preview read the same words and the same measures.
+// Print vocabulary shared by the PDF and browser preview: three pieces, each
+// upright or wide, in Paper or Immersive, on office sheets or at a print shop.
 
 import type { PrintKitPaper } from './portal-print-kit'
 

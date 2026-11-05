@@ -105,6 +105,14 @@ const meta = {
 export default meta
 type Story = StoryObj<typeof meta>
 
+/** The wizard step the frame marks as current. */
+function currentStep(canvasElement: HTMLElement): HTMLElement | undefined {
+  const steps = within(canvasElement).getByRole('list', { name: /import steps/i })
+  return within(steps)
+    .getAllByRole('listitem')
+    .find((step) => step.getAttribute('aria-current') === 'step')
+}
+
 /**
  * The `$importId` route mounts the manager with the import already loaded.
  * Under StrictMode the discovery hook's cleanup used to clear the step back to
@@ -124,8 +132,7 @@ export const ProgressRoute: Story = {
     await expect(
       canvas.queryByText(/google location details were cleared/i),
     ).not.toBeInTheDocument()
-    const current = canvas.getByRole('tab', { selected: true })
-    await expect(current).toHaveAccessibleName(/set up properties/i)
+    await expect(currentStep(canvasElement)).toHaveTextContent(/set up properties/i)
     await expect(
       canvas.findByRole('textbox', { name: 'Public display name' }, { timeout: 5_000 }),
     ).resolves.toHaveValue('Studio Priority')
@@ -310,9 +317,7 @@ export const ConfirmDetailsHidesTheConnection: Story = {
     await expect(
       canvas.findByRole('heading', { name: 'Confirm details' }),
     ).resolves.toBeVisible()
-    await expect(canvas.getByRole('tab', { selected: true })).toHaveAccessibleName(
-      /confirm details/i,
-    )
+    await expect(currentStep(canvasElement)).toHaveTextContent(/confirm details/i)
     await expect(canvas.queryByText('Google Business Profile connection')).toBeNull()
     await expect(
       canvas.queryByRole('combobox', { name: /connected google account/i }),

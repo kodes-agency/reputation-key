@@ -1,97 +1,13 @@
 import { describe, expect, it } from 'vitest'
 import { ServerFunctionError } from '#/shared/auth/server-function-error'
-import { printKitFaces, type PrintKitChoice } from '#/shared/domain/portal-print-kit'
 import {
   describePrintKitNotLive,
   describeUnprintable,
-  initialPrintKitChoice,
   isNothingLiveRefusal,
   languageChoiceLabel,
   printKitAvailability,
   printKitHasLiveVersion,
-  printableFace,
-  reconcilePrintKitChoice,
-  unprintableCharacters,
 } from './print-kit-state'
-
-const CARD: PrintKitChoice = {
-  style: 'paper',
-  paper: 'letter',
-  size: 'large',
-  output: 'office',
-  piece: 'counter_card',
-  languages: ['en', 'bg'],
-  callToAction: 'rate',
-  showPropertyName: true,
-}
-const TENT: PrintKitChoice = { ...CARD, piece: 'table_tent' }
-
-describe('initialPrintKitChoice', () => {
-  it('starts with a Paper counter card in the primary language and the next one, asking for a rating', () => {
-    expect(initialPrintKitChoice(['en', 'bg'], 'US')).toEqual(CARD)
-  })
-
-  it('starts with the one language a single-language portal has', () => {
-    expect(initialPrintKitChoice(['de'], 'US')).toEqual({
-      ...CARD,
-      languages: ['de'],
-    })
-  })
-
-  it.each([
-    ['the US', 'US', 'letter'],
-    ['Canada', 'CA', 'letter'],
-    ['Mexico', 'MX', 'letter'],
-    ['Bulgaria', 'BG', 'a4'],
-    ['Germany', 'DE', 'a4'],
-    ['the UK', 'GB', 'a4'],
-    ['a property with no country', null, 'letter'],
-  ] as const)('starts a property in %s on %s paper', (_label, country, paper) => {
-    expect(initialPrintKitChoice(['en'], country).paper).toBe(paper)
-  })
-})
-
-describe('reconcilePrintKitChoice', () => {
-  it("keeps the manager's choice while it is still offered", () => {
-    const chosen = { ...TENT, languages: ['bg'] } as const
-    expect(reconcilePrintKitChoice(chosen, ['en', 'bg'], 'US')).toBe(chosen)
-  })
-
-  it('keeps the paper the manager chose over the country’s', () => {
-    const chosen = { ...CARD, paper: 'a4' } as const
-    expect(reconcilePrintKitChoice(chosen, ['en', 'bg'], 'US').paper).toBe('a4')
-  })
-
-  it('starts again when a language it names is no longer offered', () => {
-    expect(reconcilePrintKitChoice(CARD, ['en', 'es'], 'US')).toEqual({
-      ...CARD,
-      languages: ['en', 'es'],
-    })
-  })
-
-  it('starts from the first choice when there is none yet', () => {
-    expect(reconcilePrintKitChoice(null, ['en', 'bg'], 'BG')).toEqual({
-      ...CARD,
-      paper: 'a4',
-    })
-  })
-
-  it('keeps the style, the paper, the piece and the call to action when only the languages have to change', () => {
-    const chosen = {
-      ...CARD,
-      style: 'immersive',
-      paper: 'a4',
-      output: 'print_shop',
-      languages: ['fr'],
-      callToAction: 'tell',
-      showPropertyName: false,
-    } as const
-    expect(reconcilePrintKitChoice(chosen, ['en', 'bg'], 'US')).toEqual({
-      ...chosen,
-      languages: ['en', 'bg'],
-    })
-  })
-})
 
 describe('languageChoiceLabel', () => {
   it('names each language in its own words', () => {
@@ -200,62 +116,6 @@ describe('describePrintKitNotLive', () => {
 })
 
 describe('what the fonts cannot print', () => {
-  const look = { wordmark: 'Avela', logoUrl: null }
-  const faces = printKitFaces(
-    TENT,
-    { en: 'Pool & Terrace', bg: 'Басейн и тераса' },
-    'Pool',
-  )
-
-  it('names nothing for the launch languages', () => {
-    expect(unprintableCharacters(look, faces)).toEqual([])
-    expect(describeUnprintable([])).toBeNull()
-  })
-
-  it('names the characters of a brand set as words, in capitals as the file sets it', () => {
-    expect(unprintableCharacters({ wordmark: 'Αθήνα', logoUrl: null }, faces)).toEqual([
-      'Α',
-      'Θ',
-      'Ή',
-      'Ν',
-    ])
-  })
-
-  it('ignores the wordmark while a logo stands in for it', () => {
-    expect(
-      unprintableCharacters(
-        { wordmark: 'Αθήνα', logoUrl: 'https://x.test/logo.png' },
-        faces,
-      ),
-    ).toEqual([])
-  })
-
-  it('names what a title carries on any face of the print', () => {
-    const marked = printKitFaces(TENT, { en: 'Pool 🏊', bg: 'Басейн 酒' }, 'Pool')
-
-    expect(unprintableCharacters(look, marked)).toEqual(['🏊', '酒'])
-  })
-
-  it('draws the face without what the file drops, the place label included', () => {
-    const [block] = printableFace({
-      side: 'front',
-      blocks: [
-        {
-          locale: 'en',
-          kicker: 'Pool 酒',
-          headline: 'Rate 🏊 now',
-          subline: 'Тихо 酒',
-        },
-      ],
-    }).blocks
-
-    expect(block).toMatchObject({
-      kicker: 'Pool ',
-      headline: 'Rate  now',
-      subline: 'Тихо ',
-    })
-  })
-
   it('names the characters in one line, and counts the rest past six', () => {
     expect(describeUnprintable(['Ω', 'ψ'])).toBe(
       'These characters will not print, because the print kit’s fonts don’t have them: Ω ψ.',

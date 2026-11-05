@@ -220,7 +220,7 @@ export const ReplacePhotoShowsAPhone: Story = {
  */
 export const ReplacePhotoOnAPortalWithItsOwnPhoto: Story = {
   parameters: { viewport: { defaultViewport: 'desktop' } },
-  args: { rows: AVELA_MIXED_PORTALS, ownLookEnabled: true },
+  args: { rows: AVELA_MIXED_PORTALS },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
     await userEvent.click(canvas.getByRole('button', { name: /Spa & thermal pools/ }))

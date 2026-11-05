@@ -312,7 +312,6 @@ export const writeSpy = () => fn<(input: unknown) => void>()
 export type LookResourcesOptions = Readonly<{
   look: PortalLookView | null
   siblingPortalCount?: number
-  enabled?: boolean
   /** An Account Admin; a Property Manager is false. */
   canManage?: boolean
   archived?: boolean
@@ -323,7 +322,6 @@ export type LookResourcesOptions = Readonly<{
 export function lookResources({
   look,
   siblingPortalCount = 3,
-  enabled = true,
   canManage = true,
   archived = false,
   actions,
@@ -343,7 +341,6 @@ export function lookResources({
       canManagePropertyBrand: canManage,
       portalLook: look,
       siblingPortalCount,
-      portalLookEnabled: enabled,
     },
     portalLookActions: actions,
   }

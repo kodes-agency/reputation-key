@@ -5,7 +5,6 @@ import type {
   FleetProjectionScope,
 } from '../ports/fleet-overview-projection.port'
 import type {
-  AttentionSignals,
   FleetEntry,
   FleetOverviewData,
   FleetRatingGoal,
@@ -13,17 +12,13 @@ import type {
 import { googleNumbersView, ratingGoalOffered } from '../../domain/google-numbers'
 import type { OrganizationId } from '#/shared/domain/ids'
 import { propertyId } from '#/shared/domain/ids'
-import type { TimeRangePreset } from '../dto/dashboard.dto'
 import type { InboxPublicApi } from '#/contexts/inbox/application/public-api'
-import { ratingComparison, RATING_DROP_THRESHOLD, timeRangeDays } from '../utils'
 import { dashboardError } from '../../domain/dashboard-errors'
 
 export type GetFleetOverviewInput = Readonly<{
   organizationId: OrganizationId
   scope: FleetProjectionScope
-  portalReadEnabled: boolean
   goalReadEnabled: boolean
-  timeRange: TimeRangePreset
   cursor?: string
 }>
 
@@ -93,9 +88,8 @@ function fleetRatingGoal(row: FleetOverviewProjectionRow): FleetRatingGoal {
 export const getFleetOverview =
   (deps: GetFleetOverviewDeps): GetFleetOverview =>
   async (input) => {
-    const { organizationId, scope, portalReadEnabled, goalReadEnabled, timeRange } = input
+    const { organizationId, scope, goalReadEnabled } = input
     const now = deps.clock()
-    const periodDays = timeRangeDays(timeRange)
     const accessiblePropertyIds = await deps.resolveAccessiblePropertyIds(
       organizationId,
       scope,
@@ -103,10 +97,8 @@ export const getFleetOverview =
     const projection = await deps.projection.read({
       organizationId,
       accessiblePropertyIds,
-      portalReadEnabled,
       goalReadEnabled,
       cursor: decodeFleetCursor(input.cursor),
-      periodDays,
       now,
     })
     const targetCounts = await deps.inboxTargets.getGoogleReviewTargetCountsByProperty({
@@ -116,40 +108,20 @@ export const getFleetOverview =
     })
 
     const entries: FleetEntry[] = projection.rows.map((row) => {
-      const avgRatingComparison =
-        periodDays === null
-          ? null
-          : ratingComparison(
-              row.avgRating,
-              row.reviewCount,
-              row.priorAvgRating,
-              row.priorReviewCount,
-            )
-      const ratingDrop =
-        avgRatingComparison !== null && avgRatingComparison <= -RATING_DROP_THRESHOLD
-      const attentionSignals: AttentionSignals = {
+      const attentionSignals: FleetEntry['attentionSignals'] = {
         overdue: targetCounts.get(row.propertyId)?.overdueCount ?? 0,
         itemsToTriage: row.itemsToTriage,
         goalsBehindPace: row.goalsBehindPace,
-        ratingDrop,
         escalated: row.escalated,
-        needsAttention: row.needsAttention + (ratingDrop ? 1 : 0),
+        needsAttention: row.needsAttention,
       }
       return {
         propertyId: row.propertyId,
         name: row.name,
         slug: row.slug,
         timezone: row.timezone,
-        avgRating: row.avgRating,
-        avgRatingComparison,
-        reviewCount: row.reviewCount,
-        feedbackCount: row.feedbackCount,
-        scanCount: row.scanCount,
-        reviewEvidence: row.reviewEvidence,
-        scanEvidence: row.scanEvidence,
-        feedbackEvidence: row.feedbackEvidence,
         attentionSignals,
-        totalAttention: row.needsAttention + (ratingDrop ? 1 : 0),
+        totalAttention: row.needsAttention,
         google: googleNumbersView(row.google, row.google?.bindingActive ?? false, now),
         ratingGoal: goalReadEnabled ? fleetRatingGoal(row) : null,
       }

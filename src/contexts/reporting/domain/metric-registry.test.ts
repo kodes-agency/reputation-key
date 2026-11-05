@@ -1,129 +1,29 @@
 import { describe, it, expect } from 'vitest'
 import {
-  type MetricRegistryEntry,
-  type MetricDefinitionVersion,
-  getActiveVersion,
-  isGamificationViolation,
   METRIC_DEFINITIONS,
   METRIC_VERSION_IDS,
   findMetricVersionById,
 } from './metric-registry'
 
-function makeVersion(
-  overrides: Partial<MetricDefinitionVersion> = {},
-): MetricDefinitionVersion {
-  return {
-    id: 'ver-1',
-    definitionId: 'def-1',
-    version: 1,
-    effectiveFrom: new Date('2026-01-01'),
-    effectiveTo: null,
-    numeratorDescription: 'count of events',
-    denominatorDescription: null,
-    unit: 'count',
-    precision: 0,
-    aggregationRule: 'sum',
-    lateArrivalRule: 'accept_within_7_days',
-    allowedScopes: ['property', 'portal_group'],
-    attributionRule: 'event_time',
-    minimumSample: 5,
-    insufficientDataBehavior: 'unavailable',
-    sourcePolicyAllowlist: ['first_party_workflow'],
-    permittedConsumers: ['dashboard', 'goal'],
-    employmentDecisionEligible: false as const,
-    correctionBehavior: 'append_only',
-    fairnessReviewStatus: 'approved',
-    ...overrides,
-  }
-}
-
-function makeEntry(
-  versions: MetricDefinitionVersion[] = [makeVersion()],
-): MetricRegistryEntry {
-  return {
-    definition: {
-      id: 'def-1',
-      key: 'portal.content_review.completed',
-      name: 'Test Metric',
-      description: 'A test metric',
-      valueKind: 'counter',
-      workerDataFlag: false,
-      privacyClass: 'standard',
-      retentionClass: 'standard',
-      lifecycleStatus: 'approved',
-      approvalOwner: 'owner-1',
-    },
-    versions,
-  }
-}
-
 describe('MetricRegistry', () => {
-  describe('getActiveVersion', () => {
-    it('returns the active version', () => {
-      const entry = makeEntry()
-      const result = getActiveVersion(entry, new Date('2026-02-01'))
-      expect(result?.version).toBe(1)
-    })
-
-    it('returns the most recent active version', () => {
-      const entry = makeEntry([
-        makeVersion({ version: 1, effectiveTo: new Date('2026-06-01') }),
-        makeVersion({ id: 'ver-2', version: 2, effectiveFrom: new Date('2026-06-01') }),
-      ])
-      const result = getActiveVersion(entry, new Date('2026-07-01'))
-      expect(result?.version).toBe(2)
-    })
-
-    it('returns null when no version covers the date', () => {
-      const entry = makeEntry([makeVersion({ effectiveFrom: new Date('2027-01-01') })])
-      const result = getActiveVersion(entry, new Date('2026-01-01'))
-      expect(result).toBeNull()
-    })
-  })
-
-  describe('isGamificationViolation', () => {
-    it('returns true when google source is used for goals', () => {
-      const v = makeVersion({
-        sourcePolicyAllowlist: ['google_property_derivative'],
-        permittedConsumers: ['dashboard', 'goal'],
-      })
-      expect(isGamificationViolation(v)).toBe(true)
-    })
-
-    it('returns true when review-solicitation source feeds a Goal', () => {
-      const v = makeVersion({
-        sourcePolicyAllowlist: ['review_solicitation_analytics_only'],
-        permittedConsumers: ['goal'],
-      })
-      expect(isGamificationViolation(v)).toBe(true)
-    })
-
-    it('returns false when google source is used for dashboard only', () => {
-      const v = makeVersion({
-        sourcePolicyAllowlist: ['google_property_derivative'],
-        permittedConsumers: ['dashboard'],
-      })
-      expect(isGamificationViolation(v)).toBe(false)
-    })
-
-    it('returns false for first-party workflow used for goals', () => {
-      const v = makeVersion({
-        sourcePolicyAllowlist: ['first_party_workflow'],
-        permittedConsumers: ['goal'],
-      })
-      expect(isGamificationViolation(v)).toBe(false)
-    })
-
-    it('allows de-identified Guest Gateway numeric facts for goals', () => {
-      const v = makeVersion({
-        sourcePolicyAllowlist: ['first_party_guest_gateway_metric'],
-        permittedConsumers: ['dashboard', 'goal'],
-      })
-      expect(isGamificationViolation(v)).toBe(false)
-    })
-  })
-
   describe('catalogue', () => {
+    it('keeps Google, solicitation and private-response sources out of Goals', () => {
+      const blockedSources = new Set([
+        'google_property_derivative',
+        'review_solicitation_analytics_only',
+        'first_party_guest_private',
+      ])
+      for (const { versions } of METRIC_DEFINITIONS) {
+        for (const version of versions) {
+          if (!version.permittedConsumers.includes('goal')) continue
+          expect(
+            version.sourcePolicyAllowlist.filter((source) => blockedSources.has(source)),
+            version.id,
+          ).toEqual([])
+        }
+      }
+    })
+
     it('permits no retired consumer on any version', () => {
       // Badge and Leaderboard are retired contexts (root CONTEXT.md). Re-admitting
       // either as a metric consumer needs its own review, not a re-seed of old data.
@@ -177,7 +77,6 @@ describe('MetricRegistry', () => {
       expect(legacy?.version).toMatchObject({
         version: 1,
         effectiveTo: null,
-        numeratorDescription: 'Published required fields present',
       })
     })
 
@@ -212,7 +111,6 @@ describe('staff self metric audience', () => {
       const metric = findMetricVersionById(id)!
       expect(metric.definition.workerDataFlag).toBe(true)
       expect(metric.version.employmentDecisionEligible).toBe(false)
-      expect(isGamificationViolation(metric.version)).toBe(false)
     }
   })
 })

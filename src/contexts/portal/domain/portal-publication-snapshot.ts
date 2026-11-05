@@ -248,22 +248,7 @@ export function languagePackGenerationOf(schemaVersion: number): 1 | 2 {
   return schemaVersion >= IMMERSIVE_HUB_SCHEMA_VERSION ? 2 : 1
 }
 
-/** Which guest page renders a snapshot: the pre-round-4 one, or the Immersive Hub. */
 export type GuestSurface = 'legacy' | 'immersive'
-
-/**
- * The guest surface a configuration is rendered on: schema version 3 and later
- * are the Immersive Hub, versions 1 and 2 stay on the legacy page. Everything
- * that must agree with the renderer (the web fonts today) derives from this one
- * fact instead of guessing from another field.
- */
-export function guestSurfaceOfConfiguration(
-  configuration: Readonly<{ schemaVersion: number }>,
-): GuestSurface {
-  return configuration.schemaVersion >= IMMERSIVE_HUB_SCHEMA_VERSION
-    ? 'immersive'
-    : 'legacy'
-}
 
 export type PortalPublicationSnapshot = Readonly<{
   id: string

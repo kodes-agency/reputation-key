@@ -1,7 +1,4 @@
-// Portal context — the final print kit's download (final design spec §11,
-// slice 7), behind PRINT_KIT_FINAL_ENABLED. A module of its own, beside today's
-// print kit functions, so its client stub lands in the portal page's chunk and
-// not in the first paint's. Thin: the shared guards, then the use case.
+// Print downloads and wording saves share the Portal scope, policy and rate-limit guards.
 
 import { createServerFn } from '@tanstack/react-start'
 import { tracedHandler } from '#/shared/observability/traced-server-fn'
@@ -15,7 +12,7 @@ import {
 } from './portal-print-file.server'
 import { requirePortalResourceScope } from './property-scope'
 
-/** The final kit's download (PRINT_KIT_FINAL_ENABLED): the same guards as today's. */
+/** Makes the PDF behind the shared print guards. */
 export const downloadPortalPrintFinal = createServerFn({ method: 'POST' })
   .validator(downloadPortalPrintFinalInputSchema)
   .handler(

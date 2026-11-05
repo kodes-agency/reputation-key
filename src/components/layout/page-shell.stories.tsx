@@ -51,6 +51,7 @@ export const Default: Story = {
       ?.parentElement
     expect(frame).toHaveClass('px-4', 'py-5', 'md:px-6', 'md:py-8')
     expect(frame).not.toHaveClass('overflow-y-auto')
+    expect(frame).not.toHaveAttribute('tabindex')
   },
 }
 
@@ -61,6 +62,10 @@ export const Scrolling: Story = {
     const frame = within(canvasElement).getByRole('heading', { level: 2 }).parentElement
       ?.parentElement
     expect(frame).toHaveClass('h-full', 'overflow-y-auto', 'px-4', 'py-5')
+    // Nothing inside takes focus, so the frame does: otherwise a keyboard cannot scroll it.
+    expect(frame).toHaveAttribute('tabindex', '0')
+    frame?.focus()
+    expect(frame).toHaveFocus()
   },
 }
 

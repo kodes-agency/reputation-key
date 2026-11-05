@@ -73,7 +73,6 @@ function PortalWorkspaceEditor() {
       revokeTokenMutation={actions.revokeToken}
       revealAddressMutation={actions.revealAddress}
       getPortalPrintKit={getPortalPrintKit}
-      downloadPrintKitMutation={actions.downloadPrintKit}
       downloadPrintFinalMutation={actions.downloadPrintFinal}
       savePrintWordingMutation={actions.savePrintWording}
       getPortalAnalytics={getPortalAnalyticsFn}

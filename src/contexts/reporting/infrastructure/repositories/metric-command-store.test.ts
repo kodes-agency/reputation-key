@@ -1,16 +1,3 @@
-// BQC-3.5 — metric command store integration tests (real Postgres).
-//
-// Crash-boundary proofs on the real metric_readings table:
-//   1. A forced outbox failure (unregistered fact type) rolls back EVERYTHING
-//      — no reading row survives.
-//   2. Happy path: the reading row and the outbox_events row commit together
-//      with the same eventId, and the fact's readingId matches the row id
-//      (the store inserts the use-case-assigned id explicitly).
-//   3. Qualified Scan delivery commits its reading and consumer receipt exactly
-//      once, while a missing source event commits neither.
-//   4. A retraction never reaches another Organization's reading, even one
-//      sharing every other coordinate of the command.
-
 import { randomUUID } from 'node:crypto'
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest'
 import { Pool } from 'pg'
@@ -34,7 +21,6 @@ import {
   type MetricReading,
   type ReadingResult,
 } from '../../domain/metric-reading'
-import { metricRecorded, type MetricRecorded } from '../../domain/metric-events'
 import { portalLifetimeFactForMetric } from '../../domain/portal-lifetime-aggregate'
 import { createAtomicMetricCommandStore } from '../metric-command-store'
 import type {
@@ -50,7 +36,6 @@ import {
 } from '../record-portal-metric'
 import { createConsumerRegistry } from '#/shared/outbox/consumer-registry'
 import { registerPublicReputationMetricConsumers } from '../public-reputation-outbox-consumers'
-import { registerMetricCorrectionConsumer } from '../correction-outbox-consumers'
 
 const ORG_ID = organizationId('org-metriccmd-0000-0000-0000-000000000001')
 const PROP_ID = propertyId('4d000000-0000-0000-0000-000000000001')
@@ -104,27 +89,6 @@ function makeReading(overrides: Partial<MetricReading> = {}): MetricReading {
     ...overrides,
   })
 }
-
-const recordedEvent = (reading: MetricReading = makeReading()) =>
-  metricRecorded({
-    readingId: reading.id,
-    organizationId: reading.organizationId,
-    propertyId: reading.propertyId,
-    portalId: reading.portalId,
-    portalGroupId: reading.portalGroupId,
-    definitionVersionId: reading.definitionVersionId,
-    sourceEventId: reading.sourceEventId,
-    sourcePolicy: reading.sourcePolicy,
-    metricKey: reading.metricKey,
-    value: reading.value,
-    numerator: reading.numerator,
-    denominator: reading.denominator,
-    sampleCount: reading.sampleCount,
-    attributionQuality: reading.attributionQuality,
-    permittedConsumers: ['dashboard'],
-    occurredAt: reading.occurredAt,
-    staffAttribution: reading.staffAttribution,
-  })
 
 async function truncateAll(p: Pool) {
   await p.query(
@@ -287,12 +251,11 @@ beforeEach(async () => {
 })
 
 describe.sequential('metricCommandStore (integration)', () => {
-  it('recordMetric commits the reading + recorded fact in one transaction', async () => {
+  it('recordMetric commits the reading without an unconsumed outbox fact', async () => {
     const store = createAtomicMetricCommandStore(db, randomUUID)
     const reading = makeReading()
-    const event = recordedEvent(reading)
 
-    const inserted = await store.recordMetric({ reading, event })
+    const inserted = await store.recordMetric({ reading })
 
     expect(inserted).toEqual({ status: 'recorded', reading })
     const rows = await pool.query(
@@ -307,10 +270,10 @@ describe.sequential('metricCommandStore (integration)', () => {
     })
     const facts = await pool.query(
       `SELECT id, payload FROM outbox_events
-       WHERE organization_id = $1 AND event_type = 'metric.recorded' AND id = $2`,
-      [ORG_ID, event.eventId],
+       WHERE organization_id = $1 AND event_type = 'metric.recorded'`,
+      [ORG_ID],
     )
-    expect(facts.rows).toHaveLength(1)
+    expect(facts.rows).toHaveLength(0)
   })
 
   it.each([
@@ -412,14 +375,12 @@ describe.sequential('metricCommandStore (integration)', () => {
     })
     await store.recordMetric({
       reading: original,
-      event: recordedEvent(original),
       portalLifetimeFact: fact,
     })
     const otherLinkReading = { ...original, portalLinkId: randomUUID() }
     await expect(
       store.recordMetric({
         reading: otherLinkReading,
-        event: recordedEvent(otherLinkReading),
         portalLifetimeFact: fact,
       }),
     ).rejects.toThrow('Duplicate metric reading Portal link does not match')
@@ -431,7 +392,6 @@ describe.sequential('metricCommandStore (integration)', () => {
     await expect(
       store.recordMetric({
         reading: wrongReplacement,
-        event: recordedEvent(wrongReplacement),
         portalLifetimeFact: fact,
         supersedesSourceEventId: original.sourceEventId,
       }),
@@ -443,7 +403,6 @@ describe.sequential('metricCommandStore (integration)', () => {
     }
     await store.recordMetric({
       reading: replacement,
-      event: recordedEvent(replacement),
       portalLifetimeFact: fact,
       supersedesSourceEventId: original.sourceEventId,
     })
@@ -460,7 +419,6 @@ describe.sequential('metricCommandStore (integration)', () => {
       (
         await store.recordMetric({
           reading: original,
-          event: recordedEvent(original),
           portalLifetimeFact: fact,
         })
       ).status,
@@ -634,7 +592,6 @@ describe.sequential('metricCommandStore (integration)', () => {
             value: reading.value,
             destinationKind: null,
           }),
-          event: recordedEvent(reading),
         }
       })
     }
@@ -676,9 +633,6 @@ describe.sequential('metricCommandStore (integration)', () => {
     expect(committed.rows).toEqual([{ reading_count: 3, receipt_count: 1 }])
 
     const missingReading = firstEntries[2]!
-    await pool.query('DELETE FROM outbox_events WHERE id = $1', [
-      missingReading.event.eventId,
-    ])
     await pool.query('DELETE FROM metric_readings WHERE id = $1', [
       missingReading.reading.id,
     ])
@@ -765,7 +719,6 @@ describe.sequential('metricCommandStore (integration)', () => {
           value: reading.value,
           destinationKind: null,
         }),
-        event: recordedEvent(reading),
       }
     })
     await store.recordMetrics({ readings: originalEntries })
@@ -955,99 +908,6 @@ describe.sequential('metricCommandStore (integration)', () => {
     ])
   })
 
-  it('deduplicates metric.corrected with the shared consumer receipt', async () => {
-    const eventId = '4f000000-0000-4000-8000-000000000061'
-    const missingEventId = '4f000000-0000-4000-8000-000000000062'
-    const definitionVersionId = '11111111-1111-4111-8111-111111111303'
-    const payload = {
-      correctionId: '4f000000-0000-4000-8000-000000000063',
-      correctedReadingId: '4f000000-0000-4000-8000-000000000064',
-      replacementReadingId: null,
-      organizationId: ORG_ID,
-      propertyId: PROP_ID,
-      definitionVersionId,
-      sourceEventId: '4f000000-0000-4000-8000-000000000065',
-      supersededSourceEventId: '4f000000-0000-4000-8000-000000000066',
-      occurredAt: NOW.toISOString(),
-    }
-    await pool.query(
-      `INSERT INTO outbox_events (
-         id, event_type, event_version, payload, organization_id, property_id,
-         source_context, source_aggregate_id
-       ) VALUES ($1, 'metric.corrected', 1, $2::jsonb, $3, $4, 'metric', $5)`,
-      [eventId, JSON.stringify(payload), ORG_ID, PROP_ID, payload.correctedReadingId],
-    )
-    const registry = createConsumerRegistry()
-    registerMetricCorrectionConsumer(registry, db)
-    const [consumer] = registry.listFor('metric.corrected')
-    if (!consumer) throw new Error('Metric correction consumer was not registered')
-    const envelope = {
-      eventId,
-      eventType: 'metric.corrected',
-      eventVersion: 1,
-      payload,
-      organizationId: ORG_ID,
-      propertyId: PROP_ID,
-      sourceContext: 'metric',
-      sourceAggregateId: payload.correctedReadingId,
-      occurredAt: NOW.toISOString(),
-      recordedAt: NOW.toISOString(),
-    }
-
-    await expect(consumer.handler(envelope)).resolves.toEqual({ status: 'applied' })
-    await expect(consumer.handler(envelope)).resolves.toEqual({ status: 'duplicate' })
-    await expect(
-      consumer.handler({
-        ...envelope,
-        eventId: missingEventId,
-        payload: {
-          ...payload,
-          sourceEventId: '4f000000-0000-4000-8000-000000000067',
-          occurredAt: new Date(NOW.getTime() + 60_000).toISOString(),
-        },
-      }),
-    ).rejects.toThrow(/Failed query/u)
-
-    const outcomes = await pool.query(
-      `SELECT
-         (
-           SELECT status FROM event_consumer_receipts
-           WHERE event_id = $1::uuid
-             AND consumer_name = 'metric.correction-reconciliation'
-         ) AS receipt_status,
-         (
-           SELECT count(*)::int FROM event_consumer_receipts
-           WHERE event_id = $2::uuid
-             AND consumer_name = 'metric.correction-reconciliation'
-         ) AS missing_receipt_count`,
-      [eventId, missingEventId],
-    )
-    expect(outcomes.rows).toEqual([
-      {
-        receipt_status: 'applied',
-        missing_receipt_count: 0,
-      },
-    ])
-  })
-
-  it('recordMetric rolls back the reading when the fact insert fails (unregistered type)', async () => {
-    const store = createAtomicMetricCommandStore(db, randomUUID)
-    const ghost = {
-      ...recordedEvent(),
-      _tag: 'metric.ghost',
-    } as unknown as MetricRecorded
-
-    await expect(
-      store.recordMetric({ reading: makeReading(), event: ghost }),
-    ).rejects.toThrow(/Event type metric\.ghost:v1 is not registered for the outbox/)
-
-    const rows = await pool.query(
-      'SELECT id FROM metric_readings WHERE organization_id = $1',
-      [ORG_ID],
-    )
-    expect(rows.rows).toHaveLength(0)
-  })
-
   it('retracts a specific Guest source fact without replacing it with zero', async () => {
     const store = createAtomicMetricCommandStore(db, randomUUID)
     const reading = makeReading({
@@ -1060,7 +920,7 @@ describe.sequential('metricCommandStore (integration)', () => {
       retentionClass: 'guest_gateway_24_month',
       staffAttribution: STAFF_ATTRIBUTION,
     })
-    await store.recordMetric({ reading, event: recordedEvent(reading) })
+    await store.recordMetric({ reading })
 
     const command = {
       organizationId: ORG_ID,
@@ -1139,7 +999,6 @@ describe.sequential('metricCommandStore (integration)', () => {
     })
     await store.recordMetric({
       reading: otherReading,
-      event: recordedEvent(otherReading),
     })
 
     // Property, Portal, definition and superseded source all name the other

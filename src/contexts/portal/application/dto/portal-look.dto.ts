@@ -155,7 +155,7 @@ export type PortalLookView = Readonly<{
 /**
  * What the Portal settings read (`getPropertyPortalExperience`) adds for a
  * Portal's own look. The editor shows the own-look controls only while the
- * switch is on, to an Account Admin, for a Portal that is not archived, and once
+ * caller is an Account Admin, the Portal is not archived, and
  * the Property has two live Portals or this one already has a look of its own.
  */
 export type PortalLookSettings = Readonly<{
@@ -163,6 +163,4 @@ export type PortalLookSettings = Readonly<{
   portalLook: PortalLookView | null
   /** The Property's Portals that are neither archived nor deleted, the named one included. */
   siblingPortalCount: number
-  /** PORTAL_OWN_LOOK_ENABLED: whether a Portal's own look may be changed at all. */
-  portalLookEnabled: boolean
 }>

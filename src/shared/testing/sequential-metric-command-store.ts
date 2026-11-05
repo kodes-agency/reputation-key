@@ -1,4 +1,3 @@
-import { createRecordedOutbox, type RecordedOutbox } from './recorded-outbox'
 import type { MetricReading } from '#/contexts/reporting/domain/metric-reading'
 import type {
   MetricCommandStore,
@@ -10,15 +9,12 @@ import type {
 
 export function createSequentialMetricCommandStore(deps: {
   insertReading: (reading: MetricReading) => Promise<MetricReading>
-  outbox?: RecordedOutbox
   recordReceipt?: (receipt: MetricSourceReceipt) => Promise<void>
 }): MetricCommandStore {
-  const outbox = deps.outbox ?? createRecordedOutbox()
   const recordMetrics = async (command: RecordMetricsCommand) => {
     const results = []
     for (const entry of command.readings) {
       const inserted = await deps.insertReading(entry.reading)
-      await outbox.record(entry.event)
       results.push({ status: 'recorded' as const, reading: inserted })
     }
     if (command.sourceReceipt && deps.recordReceipt) {

@@ -1,6 +1,6 @@
 // Identity context — last-owner guard tests.
 
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { assertAnotherOwnerRemains } from './last-owner-guard'
 import { createInMemoryIdentityPort } from '#/shared/testing/in-memory-identity-port'
 import { buildTestAuthContext } from '#/shared/testing/fixtures'
@@ -51,5 +51,15 @@ describe('assertAnotherOwnerRemains', () => {
     await expect(
       assertAnotherOwnerRemains(identity, buildTestAuthContext(), REFUSAL),
     ).resolves.toBeUndefined()
+  })
+
+  it('uses the exact tenant count rather than a directory page', async () => {
+    const ctx = buildTestAuthContext()
+    const identity = { countOwners: vi.fn(async () => 2) }
+
+    await expect(
+      assertAnotherOwnerRemains(identity, ctx, REFUSAL),
+    ).resolves.toBeUndefined()
+    expect(identity.countOwners).toHaveBeenCalledWith(ctx)
   })
 })

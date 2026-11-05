@@ -175,10 +175,7 @@ export function DataTable({
     // The container and the frame are two elements: a container cannot be queried
     // by its own classes, so a frame that appears from a width is drawn by the
     // element inside the one that measures it.
-    <div
-      aria-busy={busy || undefined}
-      className={cn('@container', busy && 'opacity-60 transition-opacity')}
-    >
+    <div aria-busy={busy || undefined} className="@container">
       <div
         className={
           layout === 'cards'

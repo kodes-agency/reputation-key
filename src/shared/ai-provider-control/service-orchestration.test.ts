@@ -183,9 +183,19 @@ function signedSuccessReceipt(request: AiSettlementRequestV1, grant: AiExecution
       // Derived from the catalogue, not frozen: this fixture's fake authority
       // is the only thing standing in for real settlement pricing, and a frozen
       // number here is why a repricing shipped green.
-      costMicros: Number(settledCostMicros(request)),
+      costMicros:
+        request.disposition === 'no_dispatch'
+          ? 0
+          : request.usageKnown
+            ? Number(settledCostMicros(request))
+            : grant.limits.costMicros,
       settledAtEpochMillis: NOW + 2_000,
-      settlementState: 'settled',
+      settlementState:
+        request.disposition === 'no_dispatch'
+          ? 'released'
+          : request.disposition === 'transport_ambiguous'
+            ? 'ambiguous'
+            : 'settled',
     },
     signingKeys.privateKey,
   )
@@ -335,11 +345,7 @@ describe('AI gateway execution orchestration', () => {
     expect(value.settle).toHaveBeenCalledTimes(1)
   })
 
-  // Closed beta, 2026-10-24: OpenAI answered every call 429 for 40 hours. The
-  // connector reported its usage as unknown, the gateway then expected the
-  // reserved maximum, the admission authority charged nothing, and the receipt
-  // never bound: each 429 reached the analysis as `operation_ambiguous`. The
-  // fake authority here prices as the real one does (settledCostMicros).
+  // Complete status refusals have known zero usage and retain their retry codes.
   it.each([
     ['rate_limited', true, 20, 'provider_rate_limited'],
     ['quota_exhausted', false, null, 'quota_exhausted'],
@@ -378,32 +384,49 @@ describe('AI gateway execution orchestration', () => {
     },
   )
 
-  it('still reports an attempt whose usage is unknown as ambiguous', async () => {
-    const value = harness()
-    value.invoke.mockResolvedValue({
-      disposition: 'deadline_exceeded',
-      reportedDisposition: 'deadline_exceeded',
-      result: null,
-      usageKnown: false,
-      providerRetryable: false,
-      usage: {
-        inputTokens: 0,
-        cachedTokens: 0,
-        outputTokens: 0,
-        reasoningTokens: 0,
-        totalTokens: 0,
-      },
-      retryAfterSeconds: null,
-      outboundFetchUsed: true,
-    })
+  // A 400 or a 401 keeps unknown usage: the receipt now binds at the reservation,
+  // and the caller must still hear `operation_ambiguous`, not `provider_refused`
+  // (which ends the operation) or `provider_unavailable` (which retries unbudgeted).
+  it.each([
+    ['deadline_exceeded', 'deadline_exceeded'],
+    ['provider_unavailable', 'provider_unavailable'],
+    ['provider_refused', 'provider_refused'],
+    ['output_invalid', 'success'],
+    ['transport_ambiguous', 'transport_ambiguous'],
+  ] as const)(
+    'keeps unknown usage ambiguous after reservation-cost settlement (%s)',
+    async (disposition, reportedDisposition) => {
+      const value = harness()
+      value.invoke.mockResolvedValue({
+        disposition,
+        reportedDisposition,
+        result: null,
+        usageKnown: false,
+        providerRetryable: false,
+        usage: {
+          inputTokens: 0,
+          cachedTokens: 0,
+          outputTokens: 0,
+          reasoningTokens: 0,
+          totalTokens: 0,
+        },
+        retryAfterSeconds: null,
+        outboundFetchUsed: true,
+      })
 
-    const response = await value.service.execute(
-      sourceLease(value.request),
-      new AbortController().signal,
-    )
+      const response = await value.service.execute(
+        sourceLease(value.request),
+        new AbortController().signal,
+      )
 
-    expect(response).toMatchObject({ status: 'error', code: 'operation_ambiguous' })
-  })
+      expect(response).toMatchObject({ status: 'error', code: 'operation_ambiguous' })
+      expect(value.settle).toHaveBeenCalledTimes(1)
+      expect(value.settle).toHaveBeenCalledWith(
+        expect.objectContaining({ disposition, usageKnown: false }),
+        expect.anything(),
+      )
+    },
+  )
 
   // Closed beta, 2026-09-29: during an import burst the admission authority's
   // database waited past its lock timeout. Nothing had been granted or

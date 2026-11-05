@@ -75,6 +75,13 @@ export function PortalHistoryView(props: Props) {
 
   const confirmation = (host: 'row' | 'dialog', version: number): ReactNode => {
     if (detail.status === 'ready' && detail.detail !== null) {
+      if (!detail.detail.restorable) {
+        return (
+          <p className="text-sm text-muted-foreground">
+            This earlier page design is view-only.
+          </p>
+        )
+      }
       return (
         <PortalRestoreConfirmation
           detail={detail.detail}

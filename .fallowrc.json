@@ -46,10 +46,8 @@
     "scripts/ops/gbp-subscribe.ts",
     "scripts/ops/inspect-decision.ts",
     "scripts/ops/job-repair.ts",
-    "scripts/ops/permit-start-deadline-backfill.ts",
     "scripts/ops/privacy-request.ts",
     "scripts/ops/property-erase.ts",
-    "scripts/ops/provision-google-admission-role.ts",
     "scripts/ops/quarantine-redrive.ts",
     "scripts/ops/queue-quarantine.ts",
     "scripts/ops/rebuild-metric-projection.ts",
@@ -137,10 +135,6 @@
     {
       "file": "src/contexts/feed/server/activity.ts",
       "exports": ["exportOperationalActionHistoryFn", "listOperationalActionHistoryFn"]
-    },
-    {
-      "file": "src/contexts/reporting/server/dashboard.ts",
-      "exports": ["getDashboardDataFn"]
     },
     {
       "file": "src/contexts/reporting/application/public-api.ts",
@@ -242,10 +236,6 @@
       "exports": ["assignInboxItemFn"]
     },
     {
-      "file": "src/contexts/identity/server/auth-settings.org.ts",
-      "exports": ["createOrganizationFn"]
-    },
-    {
       "file": "src/contexts/property/server/properties.ts",
       "exports": ["updateProperty"]
     },
@@ -275,10 +265,6 @@
         "bqcEntrySchema",
         "bqcStatusManifestSchema"
       ]
-    },
-    {
-      "file": "src/contexts/reporting/server/goal-programs.ts",
-      "exports": ["changeGoalProgramAssignments"]
     }
   ],
   "usedClassMembers": [
@@ -327,7 +313,7 @@
     }
   ],
   "duplicates": {
-    "ignore": ["src/components/ui/stepper.tsx"],
+    "ignore": [],
     "ignoredClones": ["dup:cdb48d6b:2", "dup:6f87acd9:2"],
     "mode": "mild",
     "minTokens": 50,
@@ -376,13 +362,6 @@
         "functions": ["mapRecentActivityFact"],
         "maxCyclomatic": 45,
         "reason": "cyclomatic=41 comes entirely from 40 sibling `case` arms of an exhaustive switch over the closed set of durable source-event types; cognitive=5 proves it is flat, not nested \u2014 each arm is an independent, trivially readable object literal, and the `default` arm throws on anything unregistered. Extrac"
-      },
-      {
-        "files": ["src/components/ui/stepper.tsx"],
-        "functions": ["onKeyDown"],
-        "maxCyclomatic": 33,
-        "maxCognitive": 48,
-        "reason": "Vendored verbatim from Dice UI (@diceui/stepper, fetched 2026-09-15). Its header limits local edits to import paths so a refresh stays a copy, so upstream's roving-focus key handler is not split into a fork. Its twin Prev/Next buttons are in duplicates.ignore for the same reason."
       }
     ],
     "maxCrap": 450

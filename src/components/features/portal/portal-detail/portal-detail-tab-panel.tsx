@@ -39,7 +39,6 @@ type SharePanelProps = Pick<
   | 'revokeTokenMutation'
   | 'revealAddressMutation'
   | 'getPortalPrintKit'
-  | 'downloadPrintKitMutation'
   | 'downloadPrintFinalMutation'
   | 'savePrintWordingMutation'
   | 'propertyTimeZone'
@@ -61,7 +60,6 @@ function SharePanel({
   revokeTokenMutation,
   revealAddressMutation,
   getPortalPrintKit,
-  downloadPrintKitMutation,
   downloadPrintFinalMutation,
   savePrintWordingMutation,
   issuedLink,
@@ -96,10 +94,9 @@ function SharePanel({
       revokeMutation={revokeTokenMutation}
       revealMutation={revealAddressMutation}
       printKit={
-        getPortalPrintKit && downloadPrintKitMutation
+        getPortalPrintKit && downloadPrintFinalMutation
           ? {
               read: getPortalPrintKit,
-              downloadMutation: downloadPrintKitMutation,
               downloadFinalMutation: downloadPrintFinalMutation,
               saveWordingMutation: savePrintWordingMutation,
             }

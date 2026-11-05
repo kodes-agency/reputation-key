@@ -4,7 +4,7 @@ import type { StaffPublicApi } from '#/contexts/identity/application/public-api'
 import type { PortalAddressFormat } from '../portal-address-urls'
 import type { PortalTokenCodec } from '../ports/portal-token-codec.port'
 import type { PrintCodeProblem } from '../ports/print-code-reporter.port'
-import type { PortalTokenRepository } from '../ports/portal-token.repository'
+import type { MutablePortalTokenRepository as PortalTokenRepository } from '#/shared/testing/mutable-portal-repositories'
 import { createRecordedOutbox } from '#/shared/testing/recorded-outbox'
 import { createInMemoryPortalRepo } from '#/shared/testing/in-memory-portal-repo'
 import { createInMemoryPortalCommandStore } from '#/shared/testing/in-memory-portal-command-store'
@@ -31,9 +31,8 @@ const ROTATED_RAW = `pt_${'C'.repeat(16)}_${'d'.repeat(43)}`
 const ADDRESS: PortalAddressFormat = {
   appOrigin: 'https://example.test',
   printOrigin: 'https://ap.example.test',
-  printCodesEnabled: false,
 }
-const SHORT: PortalAddressFormat = { ...ADDRESS, printCodesEnabled: true }
+const SHORT: PortalAddressFormat = ADDRESS
 
 /** The portal use cases wired over the in-memory stores, with or without a cipher. */
 function harness(
@@ -140,7 +139,6 @@ function harness(
         mediaUrls: async () => ({}),
         wordingRepo: { find: async () => null },
         lastPrintRepo: { find: async () => null },
-        finalKitEnabled: false,
 
         portalRepo,
         staffPublicApi: {
@@ -320,7 +318,7 @@ describe('revealPortalAddress', () => {
     const revealed = await h.reveal({ portalId: h.portal.id, purpose: 'download' }, h.ctx)
 
     expect(revealed.publicUrls).toEqual(rotated.publicUrls)
-    expect(revealed.publicUrl).toContain(ROTATED_RAW)
+    expect(revealed.publicUrls.direct).toContain(ROTATED_RAW)
     expect(revealed.version).toBe(2)
   })
 
@@ -405,20 +403,6 @@ describe('revealPortalAddress — print codes (ADR 0069)', () => {
 
     expect(second.publicUrls).toEqual(first.publicUrls)
     expect(asked).toHaveBeenCalledTimes(1)
-  })
-
-  it('fills a code but still shows the long address while the short one is switched off', async () => {
-    const h = harness({ address: ADDRESS })
-    await h.issue({ portalId: h.portal.id }, h.ctx)
-    const live = await h.addressRepo.findRevealable(h.ctx.organizationId, h.portal.id)
-    if (live === null) throw new Error('the code was not sealed')
-    h.addressRepo.store(SCOPE(h), { ...live, printCodeHashes: { qr: null, nfc: null } })
-
-    const revealed = await h.reveal({ portalId: h.portal.id, purpose: 'download' }, h.ctx)
-
-    expect(revealed.publicUrls.qr).toContain('?accessArtifact=')
-    expect(revealed.publicUrls.nfc).toContain('?accessArtifact=')
-    expect(h.addressRepo.printCodeHashesOf(SCOPE(h))?.qr).not.toBeNull()
   })
 
   it('falls back to the long address for a channel whose stored hash differs, and reports it once', async () => {

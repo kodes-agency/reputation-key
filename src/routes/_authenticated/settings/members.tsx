@@ -56,8 +56,6 @@ import {
 import type { MemberRow } from '#/components/features/identity'
 import { identityKeys } from '#/shared/queries/query-keys'
 import { membersQuery, propertiesQuery } from '#/routes/-queries/route-queries'
-import { getSelfServiceLeaveAvailabilityFn } from '#/contexts/identity/server/organization-leave-fns'
-import { LeaveOrganizationSection } from './-leave-organization-section'
 import { MemberAccessContainer } from './-member-access-container'
 
 const authRoute = getRouteApi('/_authenticated')
@@ -85,11 +83,8 @@ export const Route = createFileRoute('/_authenticated/settings/members')({
     const { role } = context as AuthRouteContext
     // Each read is issued only for a role the server would answer: a Property
     // Manager reads the member list and nothing about invitations or grants.
-    const [, leaveAvailability] = await Promise.all([
+    await Promise.all([
       context.queryClient.ensureQueryData(membersQuery),
-      // Whether self-service leave is composed at all. When it is not, the
-      // worklist read is never issued and the section is not drawn.
-      getSelfServiceLeaveAvailabilityFn(),
       can(role, 'invitation.list')
         ? context.queryClient.ensureQueryData(invitationsQuery)
         : null,
@@ -102,10 +97,7 @@ export const Route = createFileRoute('/_authenticated/settings/members')({
     const allowedRoles: ReadonlyArray<BetaInteractiveRole> = hasRole(role, 'AccountAdmin')
       ? ['PropertyManager', 'AccountAdmin']
       : ['PropertyManager']
-    return {
-      allowedRoles,
-      selfServiceLeaveAvailable: leaveAvailability.available,
-    }
+    return { allowedRoles }
   },
   // Members/invitations change only on mutation; refetch on invalidation.
   staleTime: 30_000,
@@ -119,9 +111,9 @@ const RENEWAL_EMAIL_UNSENT =
 
 function MembersSettingsRoute() {
   const queryClient = useQueryClient()
-  const { allowedRoles, selfServiceLeaveAvailable } = Route.useLoaderData()
+  const { allowedRoles } = Route.useLoaderData()
   const { data: memberResult } = useSuspenseQuery(membersQuery)
-  const { user, role, reportUnexpectedFailure } = authRoute.useRouteContext()
+  const { user, reportUnexpectedFailure } = authRoute.useRouteContext()
   const { can: canDo } = usePermissions()
   // Invitations and grants are read only by the roles the server answers; the
   // loader primed both caches for an AccountAdmin, so these hit without a fetch.
@@ -242,14 +234,6 @@ function MembersSettingsRoute() {
               cancelAction={cancelMutation}
             />
           </section>
-        )}
-
-        {selfServiceLeaveAvailable && (
-          <LeaveOrganizationSection
-            members={members}
-            currentUserId={user.id}
-            role={role}
-          />
         )}
       </div>
 
