@@ -4,11 +4,11 @@
 // (a different binding does not), and a settlement is priced from usage once.
 
 import { randomUUID } from 'node:crypto'
-import { eq } from 'drizzle-orm'
+import { eq, sql } from 'drizzle-orm'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { getDb } from '#/shared/db'
 import { getPool } from '#/shared/db/pool'
-import { aiOperations } from '#/shared/db/schema'
+import { aiOperations, aiOrganizationCostWindows } from '#/shared/db/schema'
 import { organizationId, propertyId } from '#/shared/domain/ids'
 import { settledCostMicros } from '#/shared/ai-openai-provider-profile'
 import type {
@@ -22,6 +22,7 @@ import {
 } from '#/shared/db/testing/ai-operation-fixture'
 import { createPostgresAiAdmissionAuthority } from './postgres-admission-authority'
 import { AI_REPLY_ADOPTION_WINDOW_MILLIS } from '#/shared/ai-reply-provenance'
+import { reapStaleAiReservations } from './ai-budget'
 
 type PropertyDescriptor = Extract<AiAdmissionDescriptorV1, { subjectKind: 'property' }>
 
@@ -200,6 +201,15 @@ describe.sequential('AI admission authority (real PostgreSQL)', () => {
     return { operationId, permitId }
   }
 
+  const reservedCost = async (operationId: string) => {
+    const [row] = await db
+      .select({ reservedMicros: aiOperations.reservedMicros })
+      .from(aiOperations)
+      .where(eq(aiOperations.id, operationId))
+    if (!row) throw new Error('operation missing')
+    return row.reservedMicros
+  }
+
   it('admits the executing attempt once and replays its nonce only for the same binding', async () => {
     const subject = await executingOperation()
 
@@ -354,6 +364,120 @@ describe.sequential('AI admission authority (real PostgreSQL)', () => {
       .where(eq(aiOperations.id, operationId))
     return { operationId, permitId, attemptNumber }
   }
+
+  // A timeout, a lost connection, a 400 or a 401, an unreadable answer: the call may
+  // have been billed in full and nothing says how much.
+  it.each([
+    ['transport_ambiguous', 'transport_ambiguous', 'ambiguous'],
+    ['deadline_exceeded', 'deadline_exceeded', 'settled'],
+    ['provider_refused', 'provider_refused', 'settled'],
+    ['provider_unavailable', 'provider_unavailable', 'settled'],
+    ['output_invalid', 'success', 'settled'],
+  ] as const)(
+    'charges unknown usage (%s) at the reservation and rejects a later lower-cost settlement',
+    async (disposition, reportedDisposition, settlementState) => {
+      const subject = await executingOperation()
+      const granted = await authority.authorizeProperty(descriptor(subject), BINDING)
+      if (granted.status !== 'admitted') throw new Error(`not admitted: ${granted.code}`)
+      const reservedMicros = await reservedCost(subject.operationId)
+      expect(reservedMicros).toBeGreaterThan(0)
+      const unknown = {
+        ...noDispatch({ ...subject, nonce: granted.nonce }),
+        disposition,
+        reportedDisposition,
+      }
+
+      await expect(authority.settle(unknown, SIGNING_KID)).resolves.toMatchObject({
+        status: 'settled',
+        usageKnown: false,
+        costMicros: reservedMicros,
+        settlementState,
+      })
+      await expect(authority.settle(unknown, SIGNING_KID)).resolves.toMatchObject({
+        status: 'settled',
+        costMicros: reservedMicros,
+      })
+      await expect(
+        authority.settle(
+          settlement(
+            { ...subject, nonce: granted.nonce },
+            { inputTokens: 1, cachedInputTokens: 0, outputTokens: 1 },
+          ),
+          SIGNING_KID,
+        ),
+      ).resolves.toEqual({ status: 'denied', code: 'settlement_conflict' })
+      const second = await claimNextAttempt(subject.operationId, 2)
+      await expect(
+        authority.authorizeProperty(descriptor(second), {
+          ...BINDING,
+          hmac: 'C'.repeat(43),
+        }),
+      ).resolves.toEqual({ status: 'denied', code: 'already_consumed' })
+    },
+  )
+
+  it('charges an expired admission once and refuses a late settlement with a different cost', async () => {
+    const subject = await executingOperation()
+    const granted = await authority.authorizeProperty(descriptor(subject), BINDING)
+    if (granted.status !== 'admitted') throw new Error(`not admitted: ${granted.code}`)
+    const reservedMicros = await reservedCost(subject.operationId)
+    await db
+      .update(aiOperations)
+      .set({ budgetReservedAt: sql`clock_timestamp() - interval '16 minutes'` })
+      .where(eq(aiOperations.id, subject.operationId))
+    await db.transaction(reapStaleAiReservations)
+
+    await expect(
+      db
+        .select({ actualMicros: aiOperations.actualMicros })
+        .from(aiOperations)
+        .where(eq(aiOperations.id, subject.operationId)),
+    ).resolves.toEqual([{ actualMicros: reservedMicros }])
+    await expect(
+      authority.settle(noDispatch({ ...subject, nonce: granted.nonce }), SIGNING_KID),
+    ).resolves.toEqual({ status: 'denied', code: 'settlement_conflict' })
+  })
+
+  it('lets only one competing settlement change the monthly counter', async () => {
+    const subject = await executingOperation()
+    const granted = await authority.authorizeProperty(descriptor(subject), BINDING)
+    if (granted.status !== 'admitted') throw new Error(`not admitted: ${granted.code}`)
+    const reservedMicros = await reservedCost(subject.operationId)
+    const costWindow = async () => {
+      const [row] = await db
+        .select({
+          reservedMicros: aiOrganizationCostWindows.reservedMicros,
+          settledMicros: aiOrganizationCostWindows.settledMicros,
+        })
+        .from(aiOrganizationCostWindows)
+        .where(eq(aiOrganizationCostWindows.organizationId, ORGANIZATION_ID))
+      if (!row) throw new Error('cost window missing')
+      return row
+    }
+    const before = await costWindow()
+    const results = await Promise.all(
+      [100, 300].map((outputTokens) =>
+        authority.settle(
+          settlement(
+            { ...subject, nonce: granted.nonce },
+            { inputTokens: 1_000, cachedInputTokens: 0, outputTokens },
+          ),
+          SIGNING_KID,
+        ),
+      ),
+    )
+    const winners = results.filter((result) => result.status === 'settled')
+    expect(winners).toHaveLength(1)
+    expect(results.filter((result) => result.status === 'denied')).toEqual([
+      { status: 'denied', code: 'settlement_conflict' },
+    ])
+    const winner = winners[0]
+    if (!winner || winner.status !== 'settled') throw new Error('settlement missing')
+    await expect(costWindow()).resolves.toEqual({
+      reservedMicros: before.reservedMicros - reservedMicros,
+      settledMicros: before.settledMicros + winner.costMicros,
+    })
+  })
 
   // Reproduced on the closed beta (2026-09-29): during an import burst, database
   // waits left three analyses less grant time than the provider call needs, so
