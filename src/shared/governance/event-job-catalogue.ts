@@ -552,28 +552,6 @@ const DEFAULT_QUEUE_ROWS: ReadonlyArray<JobFamilyRow> = [
     { retryAttempts: 5, retryBackoff: 'exponential:30000' },
   ),
   job(
-    'project-recent-activity',
-    'src/contexts/feed/infrastructure/jobs/project-recent-activity.job.ts',
-    {
-      queue: 'default',
-      capability: 'none',
-      action: 'system:activity.record',
-      schedule: 'none',
-      registration: 'enabled',
-    },
-  ),
-  job(
-    'insert-activity-log',
-    'src/contexts/feed/infrastructure/jobs/project-recent-activity.job.ts',
-    {
-      queue: 'default',
-      capability: 'none',
-      action: 'system:activity.record',
-      schedule: 'none',
-      registration: 'enabled',
-    },
-  ),
-  job(
     'insert-notification',
     'src/contexts/feed/infrastructure/jobs/insert-notification.job.ts',
     {

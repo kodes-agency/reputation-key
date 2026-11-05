@@ -6,13 +6,10 @@ const read = (file: string): string =>
   readFileSync(join(process.cwd(), 'src/contexts/feed', file), 'utf8')
 
 describe('Activity runtime dependency injection', () => {
-  it('keeps repository and job logging caller-owned', () => {
-    for (const file of [
-      'infrastructure/recent-activity-repository.drizzle.ts',
-      'infrastructure/jobs/project-recent-activity.job.ts',
-    ]) {
-      expect(read(file), file).not.toMatch(/\bgetLogger\s*\(/u)
-    }
+  it('keeps repository logging caller-owned', () => {
+    expect(read('infrastructure/recent-activity-repository.drizzle.ts')).not.toMatch(
+      /\bgetLogger\s*\(/u,
+    )
   })
 
   it('requires composition-owned Operational Action History identifiers', () => {
