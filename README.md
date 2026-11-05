@@ -247,7 +247,7 @@ src/
 │   └── features/  # domain-concept folders (portal/, identity/, property/, inbox/, etc.)
 ├── shared/         # Cross-cutting infrastructure
 │   ├── auth/      # Better Auth config, middleware, permissions
-│   ├── cache/     # Redis client + cache port/impl
+│   ├── cache/     # Redis client
 │   ├── config/    # Zod-validated env schema
 │   ├── db/        # Drizzle ORM, pool, schema/, migrations
 │   ├── domain/    # Brand types, IDs, roles, permissions, clock, Result

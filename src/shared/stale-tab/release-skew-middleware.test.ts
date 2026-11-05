@@ -33,10 +33,11 @@ vi.mock('@tanstack/react-start/server', () => ({
     }),
 }))
 
-vi.mock('#/shared/config/request-runtime-config', () => ({
-  requestRuntimeConfig: () => {
+vi.mock('#/shared/config/env', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('#/shared/config/env')>()),
+  getEnv: () => {
     if (hoisted.failConfig) throw new Error('env is not parsed')
-    return { env: { RELEASE_SHA: hoisted.release } }
+    return { RELEASE_SHA: hoisted.release }
   },
 }))
 

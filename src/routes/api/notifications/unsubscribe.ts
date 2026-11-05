@@ -4,7 +4,7 @@ import {
   handleOneClickUnsubscribeGet,
 } from '#/contexts/feed/server/one-click-unsubscribe'
 import { getContainer } from '#/composition'
-import { requestRuntimeConfig } from '#/shared/config/request-runtime-config'
+import { getEnv } from '#/shared/config/env'
 import { getLogger } from '#/shared/observability/logger'
 
 export const Route = createFileRoute('/api/notifications/unsubscribe')({
@@ -15,7 +15,7 @@ export const Route = createFileRoute('/api/notifications/unsubscribe')({
       GET: ({ request }) => handleOneClickUnsubscribeGet(request),
       POST: ({ request }) =>
         createOneClickUnsubscribePostHandler({
-          rawKeys: requestRuntimeConfig().notificationUnsubscribeHmacKeys,
+          rawKeys: getEnv().NOTIFICATION_UNSUBSCRIBE_HMAC_KEYS,
           logger: getLogger(),
           oneClickUnsubscribe: (target) =>
             getContainer().feedPublicApi.oneClickUnsubscribe(target),

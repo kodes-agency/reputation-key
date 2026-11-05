@@ -11,8 +11,7 @@
 
 import { createMiddleware } from '@tanstack/react-start'
 import { getRequest } from '@tanstack/react-start/server'
-import { getReleaseSha } from '#/shared/config/env'
-import { requestRuntimeConfig } from '#/shared/config/request-runtime-config'
+import { getEnv, getReleaseSha } from '#/shared/config/env'
 import {
   RELEASE_HEADER,
   answerSkew,
@@ -25,7 +24,7 @@ import { staleTab, type StaleTab } from './stale-tab'
 /** The server's own release, or undefined if it cannot be read: the check then lets calls through. */
 function readServerRelease(): string | undefined {
   try {
-    return getReleaseSha(requestRuntimeConfig().env)
+    return getReleaseSha(getEnv())
   } catch {
     return undefined
   }

@@ -26,7 +26,7 @@ import {
   verifySvixSignature,
   type SvixVerificationFailure,
 } from '#/shared/auth/svix-signature.verifier'
-import { requestRuntimeConfig } from '#/shared/config/request-runtime-config'
+import { getEnv } from '#/shared/config/env'
 import { getLogger } from '#/shared/observability/logger'
 import { captureObservabilityException } from '#/shared/observability/telemetry'
 import { trace } from '#/shared/observability/trace'
@@ -147,7 +147,7 @@ function invalidSignature(
 export async function handleResendWebhookPost(request: Request): Promise<Response> {
   return trace('webhook.resendEvents', async () => {
     const logger = getLogger()
-    const signingSecret = requestRuntimeConfig().resendWebhookSecret
+    const signingSecret = getEnv().RESEND_WEBHOOK_SECRET
 
     if (!signingSecret) {
       logger.warn(

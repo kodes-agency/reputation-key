@@ -103,7 +103,6 @@ export function buildContainerCapabilities({
     capabilityPolicyStore: identity.policy.capabilityPolicyStore,
     executionPolicy: identity.policy.executionPolicy,
     delayedExecutionPolicy: identity.policy.delayedExecutionPolicy,
-    cache: infra.cache,
     rateLimiter: infra.rateLimiter,
     jobQueue: infra.jobQueue,
     backgroundQueue: infra.backgroundQueue,

@@ -42,7 +42,6 @@ const EXPECTED_TOP_LEVEL_KEYS = [
   'alertDispatcher',
   'assetStorage',
   'backgroundQueue',
-  'cache',
   // ARC-03-T8: the policy trio is container-owned. Building a container no
   // longer installs it process-wide; one entry point binds one container.
   'capabilityPolicyStore',
@@ -361,10 +360,9 @@ describe('composition characterization (BQC-5.2 parity baseline)', () => {
     expect(container.identityLifecycleRuntime.organizationExport.service).toBeUndefined()
   })
 
-  it('wires the injected queues and defines cache/rateLimiter/jobRegistry', () => {
+  it('wires the injected queues and defines rateLimiter/jobRegistry', () => {
     expect(container.jobQueue).toBe(queue)
     expect(container.backgroundQueue).toBe(backgroundQueue)
-    expect(container.cache).toBeDefined()
     expect(container.rateLimiter).toBeDefined()
     expect(container.jobRegistry).toBeDefined()
     expect(container.redis).toBeUndefined()

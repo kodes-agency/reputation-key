@@ -11,7 +11,6 @@ import { INVITATION_EXPIRY_SECONDS } from '#/shared/auth/auth'
 import { sendInvitationEmail, sendStaffCodeReadyEmail } from '#/shared/auth/emails'
 import { organizationId, propertyId, userId } from '#/shared/domain/ids'
 import { composeOrganizationLifecycle } from './organization-export-contributors'
-import { buildIdentityPolicyDeps } from './identity-policy'
 import type { CompositionRuntime, ContextWiringInput } from './runtime'
 import type { buildPropertyContext } from '#/contexts/property/build'
 import type { buildPortalContext } from '#/contexts/portal/build'
@@ -154,11 +153,11 @@ export function wireIdentity(
       ),
     logger,
     betaFeedbackHmacSecret: env.BETTER_AUTH_SECRET,
-    policy: buildIdentityPolicyDeps({
+    policy: {
       env,
       propertyBelongsToOrganization: (orgId, pid) =>
         getProperty().publicApi.propertyExists(organizationId(orgId), propertyId(pid)),
-    }),
+    },
     cancelGoogleImportsForUser: (orgId, userIdValue) => {
       const cancel = getIntegration().lifecycle.cancelImportsForUser
       if (!cancel) throw new Error('Google import lifecycle unavailable')

@@ -25,6 +25,7 @@ vi.mock('ioredis', () => {
   class FakeRedis {
     static instances: FakeRedis[] = []
     status = 'ready'
+    ping = vi.fn(async () => 'PONG')
     readonly handlers = new Map<string, (err: unknown) => void>()
     quit = vi.fn(async () => {
       this.status = 'end'
@@ -51,7 +52,7 @@ vi.mock('ioredis', () => {
 })
 
 import { Redis } from 'ioredis'
-import { getRedis, closeRedis } from './redis'
+import { getRedis, closeRedis, isRedisHealthy } from './redis'
 
 type FakeRedisInstance = Redis & {
   url: string
@@ -179,5 +180,46 @@ describe('closeRedis', () => {
   it('no-ops when no client was ever created', async () => {
     await expect(closeRedis()).resolves.toBeUndefined()
     expect(fakes()).toHaveLength(0)
+  })
+})
+
+describe('isRedisHealthy', () => {
+  it('pings the shared client independently of the container', async () => {
+    process.env.REDIS_URL = 'redis://unit-test:6379'
+    resetEnv()
+
+    await expect(isRedisHealthy()).resolves.toBe(true)
+    expect(fakes()[0]?.ping).toHaveBeenCalledOnce()
+  })
+
+  it('reports unavailable when no cache Redis is configured', async () => {
+    delete process.env.REDIS_URL
+    resetEnv()
+
+    await expect(isRedisHealthy()).resolves.toBe(false)
+    expect(fakes()).toHaveLength(0)
+  })
+
+  it('reports an unexpected ping reply as unhealthy', async () => {
+    process.env.REDIS_URL = 'redis://unit-test:6379'
+    resetEnv()
+    const redis = getRedis()!
+    vi.mocked(redis.ping).mockResolvedValue('unexpected')
+
+    await expect(isRedisHealthy()).resolves.toBe(false)
+  })
+
+  it('reports a failed ping as unhealthy', async () => {
+    process.env.REDIS_URL = 'redis://unit-test:6379'
+    resetEnv()
+    const redis = getRedis()!
+    const failure = new Error('connection lost')
+    vi.mocked(redis.ping).mockRejectedValue(failure)
+
+    await expect(isRedisHealthy()).resolves.toBe(false)
+    expect(loggerSpies.warn).toHaveBeenCalledWith(
+      { err: failure },
+      '[redis] health check failed',
+    )
   })
 })
