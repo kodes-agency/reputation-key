@@ -143,8 +143,9 @@ The caller isolates a failed side read from the primary Guest voice page.
   Portal's included.
 - **Monthly portal goal** (ADR 0068; `application/monthly-portal-goal-identity.ts`): not a
   kind of Program but the Property's count goal, the one whose subject is the Property alone
-  and whose measure is private ratings or scans. One per Property is a screen rule, decided
-  by Program in `monthlyPortalGoalOf`: the earliest-created one that has not ended, else the
+  and whose measure is private ratings or scans. Writes serialize this identity under the
+  Property definition lock. Reads choose by Program in `monthlyPortalGoalOf`: the
+  earliest-created one that has not ended, else the
   most recently ended one that still counts a month (its window holds days after now, or a
   month of it is still open or reconciling: a goal stopped on Nov 12 is still it until
   November closes). An average and a goal for a Portal or a Portal Group never are. The
@@ -166,11 +167,12 @@ The caller isolates a failed side read from the primary Guest voice page.
   (`application/use-cases/monthly-portal-goal.ts`) makes an ordinary Program named "Monthly
   portal goal" with the Property as its one subject, from the month the card named. It
   authorizes `goal.create`, then refuses `subject_has_goal` while any Property count goal that
-  has not ended exists on either measure (a pre-check over every Program of the Property, no
-  lock); two sets in the same second on one measure meet the no-overlap rule instead, and
-  the second is refused the same way (a deadlock between the two inserts in that check is
-  run once more by the repository, so it meets the first and is refused). It
-  records the number's source as `recommended` only when the number is the one the card would
+  has not ended exists on either measure. The repository repeats the identity check under
+  the Property definition lock for all creates and revisions, including a month-target
+  change's following version; status changes take the same lock before the Program row.
+  Averages and several-subject Programs do not reserve this identity. Existing conflicts
+  are kept for inspection, never automatically ended. The command records the number's
+  source as `recommended` only when the number is the one the card would
   offer for that month and measure now, else `own`. Every Property count goal's `$goalId`
   page sends the reader to the card (`isPropertyCountGoal`), and the old new-goal form no
   longer offers the Property as a subject. Its types are
@@ -286,7 +288,11 @@ The caller isolates a failed side read from the primary Guest voice page.
   are the engine's own: `createGoal` for one Portal, one group or the average (named
   "Reception · Private ratings", "Average private rating"), and the save for several
   subjects for each Portal; each number is stored as recommended only when it is the one the
-  read offers that subject now. A count goal for the Property alone is never made here.
+  read offers that subject now. Saves over 50 rows run in batches. If a later batch is
+  refused, completed outcomes are returned and remaining rows are reported unsaved, so
+  the sheet refreshes saved goals and keeps the failed rows available. A new submission
+  clears the preceding submission's error. A count goal for the Property alone is never
+  made here.
 - **Property Google rating goal**: a Property's target for the one-decimal rating Google
   shows, with a planned quality (the average stars it assumes new Google reviews bring) and
   a chosen weekly pace of new Google reviews (a climb goal), or a watch that
