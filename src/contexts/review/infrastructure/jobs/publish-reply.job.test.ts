@@ -1,23 +1,7 @@
-// publish-reply job handler behavior.
-// BQC-3.2: the BQC-0.4 in-handler capability stop control moved to the
-// dispatch gate (src/shared/jobs/delayed-execution-gate.ts) — see
-// gated-dispatch.test.ts and architecture/delayed-policy-delegation.test.ts.
-// BQC-3.3: provider outcomes are classified by the reply publication workflow —
-// terminal 4xx rejections mark publish_failed WITHOUT burning BullMQ retries,
-// retryable failures rethrow for the configured attempts, and ambiguous
-// outcomes (timeout/unknown after the request may have landed) admit one
-// read-only retry before becoming publish_failed with a reconciliation deadline.
-// BQC-3.8: the classification writes the DURABLE publication state machine —
-// claim (sending), terminal, ambiguous (+ reconcile_due_at), retry-queued —
-// and the post-call race guard refuses to mark a reply the disconnect
-// cascade cancelled or purged while the Google call was in flight.
-//
-// Phase BQC-3 §6 external publication coverage lives here:
-//   - timeout BEFORE the request (provider-classified pre-request failure);
-//   - timeout DURING the request (abort → ambiguous);
-//   - failure AFTER provider success BEFORE the local acknowledgement
-//     (local outcome write fails → retry performs a targeted read first and
-//     never blindly repeats the provider write).
+// A successful provider write waits for observation; an uncertain write is
+// read back without resending. Only positive non-dispatch evidence permits
+// another publication cycle. Capability denials are exercised at dispatch in
+// publish-reply-gate.test.ts and shared/jobs/gated-dispatch.test.ts.
 
 import {
   GOOGLE_LOCATION_PRIMARY_RESOURCE,
@@ -279,16 +263,14 @@ const absentOnGoogle = () => ({
 })
 
 describe('publish-reply job handler', () => {
-  it('runs without an in-handler capability gate (delegated to dispatch)', async () => {
+  it('skips a missing reply without claiming or sending', async () => {
     const deps = makeDeps()
     deps.replyRepo.findById.mockResolvedValue(null)
     const handler = createPublishReplyHandler(deps as never)
 
     await handler(makeJob())
 
-    // No gate in the handler: the repository is consulted directly
-    // (reply not found → clean skip).
-    expect(deps.replyRepo.findById).toHaveBeenCalledTimes(1)
+    expect(deps.replyCommandStore.markPublicationSending).not.toHaveBeenCalled()
     expect(deps.googleReviewApi.replyToReview).not.toHaveBeenCalled()
   })
 
@@ -337,6 +319,9 @@ describe('publish-reply job handler', () => {
     expect(deps.replyCommandStore.markPublicationSending).not.toHaveBeenCalled()
     expect(deps.googleReviewApi.replyToReview).not.toHaveBeenCalled()
     expect(deps.replyCommandStore.markPublished).not.toHaveBeenCalled()
+    expect(
+      deps.replyCommandStore.markProviderOutcomePendingObservation,
+    ).not.toHaveBeenCalled()
   })
 
   it('rejects a delayed job from an older publication cycle before claim or send', async () => {
@@ -367,6 +352,9 @@ describe('publish-reply job handler', () => {
 
     expect(deps.googleReviewApi.replyToReview).not.toHaveBeenCalled()
     expect(deps.replyCommandStore.markPublished).not.toHaveBeenCalled()
+    expect(
+      deps.replyCommandStore.markProviderOutcomePendingObservation,
+    ).not.toHaveBeenCalled()
     expect(deps.replyCommandStore.markPublicationTerminal).not.toHaveBeenCalled()
     expect(deps.replyCommandStore.markPublicationAmbiguous).not.toHaveBeenCalled()
   })
@@ -391,6 +379,9 @@ describe('publish-reply job handler', () => {
     // Refused before or by Google: nothing was posted, and the notice says so.
     expect(event).toMatchObject({ outcome: 'refused' })
     expect(deps.replyCommandStore.markPublished).not.toHaveBeenCalled()
+    expect(
+      deps.replyCommandStore.markProviderOutcomePendingObservation,
+    ).not.toHaveBeenCalled()
   })
 
   it('names the reconnect remedy on the publish_failed fact of a reply blocked by reauthorization', async () => {
@@ -644,55 +635,34 @@ describe('publish-reply job handler', () => {
     expect(deps.replyCommandStore.markPublicationTerminal).not.toHaveBeenCalled()
   })
 
-  it('post-call race guard: reply purged during the Google call → returns WITHOUT marking published', async () => {
-    const deps = makeDeps()
-    deps.replyRepo.findById
-      .mockResolvedValueOnce(approvedReply) // initial read
-      .mockResolvedValueOnce(approvedReply) // reload after the read of Google
-      .mockResolvedValueOnce(null) // post-call re-read — purge cascade won
-    const handler = createPublishReplyHandler(deps as never)
-
-    await handler(makeJob())
-
-    expect(deps.googleReviewApi.replyToReview).toHaveBeenCalledTimes(1)
-    expect(deps.replyCommandStore.markPublished).not.toHaveBeenCalled()
-    expect(deps.replyCommandStore.markPublicationTerminal).not.toHaveBeenCalled()
-    expect(deps.replyCommandStore.markPublicationAmbiguous).not.toHaveBeenCalled()
-  })
-
-  it('post-call race guard: publication cancelled during the Google call → returns WITHOUT marking published', async () => {
-    const deps = makeDeps()
-    deps.replyRepo.findById
-      .mockResolvedValueOnce(approvedReply) // initial read
-      .mockResolvedValueOnce(approvedReply) // reload after the read of Google
-      .mockResolvedValueOnce({
+  it.each([
+    ['purged reply', null],
+    [
+      'cancelled publication',
+      {
         ...approvedReply,
         status: 'draft',
         publicationState: 'cancelled',
-      }) // post-call re-read — disconnect won the race
-    const handler = createPublishReplyHandler(deps as never)
-
-    await handler(makeJob())
-
-    expect(deps.googleReviewApi.replyToReview).toHaveBeenCalledTimes(1)
-    expect(deps.replyCommandStore.markPublished).not.toHaveBeenCalled()
-  })
-
-  it('post-call cycle fence: a newer authorization cannot be acknowledged by the older send', async () => {
+      },
+    ],
+    ['newer publication cycle', { ...approvedReply, publicationCycle: 2 }],
+  ])('post-call race guard: %s prevents acknowledgement', async (_case, current) => {
     const deps = makeDeps()
     deps.replyRepo.findById
       .mockResolvedValueOnce(approvedReply) // initial read
       .mockResolvedValueOnce(approvedReply) // reload after the read of Google
-      .mockResolvedValueOnce({
-        ...approvedReply,
-        publicationCycle: 2,
-      })
+      .mockResolvedValueOnce(current)
     const handler = createPublishReplyHandler(deps as never)
 
     await handler(makeJob())
 
     expect(deps.googleReviewApi.replyToReview).toHaveBeenCalledTimes(1)
+    expect(
+      deps.replyCommandStore.markProviderOutcomePendingObservation,
+    ).not.toHaveBeenCalled()
     expect(deps.replyCommandStore.markPublished).not.toHaveBeenCalled()
+    expect(deps.replyCommandStore.markPublicationTerminal).not.toHaveBeenCalled()
+    expect(deps.replyCommandStore.markPublicationAmbiguous).not.toHaveBeenCalled()
   })
 
   it('acknowledgement compare-and-set fences a cycle change after the post-call read', async () => {
@@ -720,7 +690,7 @@ describe('publish-reply job handler', () => {
     // @proof REPLY_PUBLICATION_CRASH#1
     // Stateful fake: the row persists publication_state across the two runs,
     // exactly as the atomic store would leave it ('sending' after run 1's
-    // claim; the failed markPublished never committed).
+    // claim; the failed provider acknowledgement never committed).
     let current = { ...approvedReply }
     const deps = makeDeps()
     deps.replyRepo.findById.mockImplementation(async () => current)
