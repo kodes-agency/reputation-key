@@ -18,6 +18,8 @@ import {
   type OperatorIO,
 } from './operator-command'
 import {
+  RESTORE_PREFLIGHT_SPEC,
+  RESTORE_VERIFY_REPLAY_NOTICE,
   RESTORE_VERIFY_SPEC,
   runRestoreVerifyAction,
   type RestoreVerifyDeps,
@@ -206,9 +208,62 @@ describe('ops:restore-verify spec contract (BQC-7.8)', () => {
     expect(RESTORE_VERIFY_SPEC.mutation).toBe(true)
     expect(RESTORE_VERIFY_SPEC.destructive).toBe(true)
   })
+
+  // The harness refuses before it opens a database or a queue only for a spec
+  // that says so; a restore command without the flag would boot first.
+  it.each([RESTORE_VERIFY_SPEC, RESTORE_PREFLIGHT_SPEC])(
+    '$name is fenced by the isolated-restore boot check',
+    (spec) => {
+      expect(spec.isolatedRestore).toBe(true)
+    },
+  )
 })
 
 describe('runRestoreVerifyAction (BQC-7.8)', () => {
+  // Planted faults: the verifier is started from an environment that carries a
+  // live Redis, queue or bucket setting. It refuses before it inspects or
+  // changes anything, and names the setting without printing its value.
+  it.each([
+    [
+      'production Redis',
+      'REDIS_URL',
+      'redis://default:live-secret@redis.railway.internal:6379',
+    ],
+    [
+      'production queue namespace',
+      'QUEUE_REDIS_URL',
+      'redis://default:live-secret@queue-redis.railway.internal:6379',
+    ],
+    [
+      'production bucket endpoint',
+      'S3_INTERNAL_ENDPOINT',
+      'https://live-bucket.storageapi.dev',
+    ],
+    ['production bucket', 'AWS_S3_BUCKET_NAME', 'live-bucket-name'],
+  ])(
+    'refuses a %s (%s) before any inspection or mutation',
+    async (_label, name, value) => {
+      for (const dryRun of [true, false]) {
+        const deps = depsFor({ env: { ...ISOLATED_ENV, [name]: value } })
+        const io = memoryIO()
+
+        expect(await runRestoreVerifyAction(ctxFor(dryRun), deps, io)).toBe(1)
+        expect(io.errLines.join('\n')).toContain(name)
+        expect(io.errLines.join('\n')).not.toContain(value)
+        expect(io.outLines).toEqual([])
+        expect(deps.countExpired).not.toHaveBeenCalled()
+        expect(deps.inspectGoogleImportLifecycle).not.toHaveBeenCalled()
+        expect(deps.inspectRetentionBacklog).not.toHaveBeenCalled()
+        expect(deps.inspectRecoveryFence).not.toHaveBeenCalled()
+        expect(deps.reviewLifecycle.admit).not.toHaveBeenCalled()
+        expect(deps.reviewApply).not.toHaveBeenCalled()
+        expect(deps.sweepGoogleImportLifecycle).not.toHaveBeenCalled()
+        expect(deps.sweepRetentionBacklog).not.toHaveBeenCalled()
+        expect(deps.applyRecoveryFence).not.toHaveBeenCalled()
+      }
+    },
+  )
+
   it('REFUSES when RESTORE_MODE is not isolated — nothing is purged', async () => {
     const io = memoryIO()
     const deps = depsFor({ env: { DATABASE_URL: ISOLATED_ENV.DATABASE_URL } })
@@ -232,6 +287,35 @@ describe('runRestoreVerifyAction (BQC-7.8)', () => {
     expect(io.errLines.join('\n')).toMatch(/not an admitted restore target/)
     expect(deps.reviewLifecycle.admit).not.toHaveBeenCalled()
     expect(deps.applyRecoveryFence).not.toHaveBeenCalled()
+  })
+
+  // Replay of the erasures a restore undid is not wired into the command. It
+  // says so on every run and never lists replay among the things it verified.
+  it('says on a dry run and on an apply that erasure replay is not wired', async () => {
+    for (const dryRun of [true, false]) {
+      const io = memoryIO()
+      const deps = depsFor({ countExpired: vi.fn().mockResolvedValue(0) })
+
+      expect(await runRestoreVerifyAction(ctxFor(dryRun), deps, io)).toBe(0)
+
+      expect(io.outLines.join('\n')).toContain(RESTORE_VERIFY_REPLAY_NOTICE)
+    }
+    // The wording is part of the contract: it must stay a plain statement that
+    // nothing is replayed, not something an operator could read as reassurance.
+    expect(RESTORE_VERIFY_REPLAY_NOTICE).toMatch(/^NOT WIRED: erasure replay/)
+    expect(RESTORE_VERIFY_REPLAY_NOTICE).toMatch(/does not re-apply/)
+  })
+
+  it('never claims that erasures were replayed or verified', async () => {
+    const io = memoryIO()
+    const deps = depsFor({ countExpired: vi.fn().mockResolvedValue(0) })
+
+    expect(await runRestoreVerifyAction(ctxFor(false), deps, io)).toBe(0)
+
+    const claims = io.outLines.filter((line) => line.startsWith('✓'))
+    expect(claims.length).toBeGreaterThan(0)
+    expect(claims.filter((line) => /erasure|replay/iu.test(line))).toEqual([])
+    expect(io.outLines.join('\n')).toMatch(/Re-apply by hand every erasure/)
   })
 
   it('dry-run reports the eligible count and purges nothing', async () => {

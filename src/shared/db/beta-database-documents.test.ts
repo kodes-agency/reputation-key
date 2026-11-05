@@ -12,8 +12,8 @@
 // can read. What is held here: no current page calls the database disposable
 // while the journal says it is migrated forward, the contract marks its
 // backup statements unverified for exactly as long as the backup record does,
-// and the backup record says that its restore procedure admits no in-platform
-// verifier where the beta runs, which the restore-mode check decides.
+// and the backup record names the restore environment the restore-mode check
+// admits.
 
 import { readFileSync } from 'node:fs'
 import { describe, expect, it } from 'vitest'
@@ -160,17 +160,15 @@ describe('what the documents say about its backups', () => {
     )
   })
 
-  // The record's restore procedure rests on the restore-mode check, which
-  // binds to the dedicated cell and not to the environment the beta runs in.
-  // The record has to say so where the owner reads the backup state; when the
-  // check is rebound, this fails and the bullet goes with it.
-  it('says its restore procedure admits no in-platform verifier where the beta runs', () => {
-    expect(admitsInPlatformRestoreTarget(CELL_US_RAILWAY_ENVIRONMENT_NAME)).toBe(true)
-    expect(admitsInPlatformRestoreTarget(CLOSED_BETA_RAILWAY_ENVIRONMENT_NAME)).toBe(
-      false,
-    )
+  // The record's restore procedure rests on the restore-mode check. The record
+  // has to name the environment that check admits where the owner reads the
+  // backup state; when the check is rebound, this fails and the bullet goes
+  // with it.
+  it('names the restore environment the target check admits where the beta runs', () => {
+    expect(admitsInPlatformRestoreTarget(CLOSED_BETA_RAILWAY_ENVIRONMENT_NAME)).toBe(true)
+    expect(admitsInPlatformRestoreTarget(CELL_US_RAILWAY_ENVIRONMENT_NAME)).toBe(false)
     expect(flowed(recordedBackupStateWithItsList())).toContain(
-      `are bound to \`${CELL_US_RAILWAY_ENVIRONMENT_NAME}\`: a restore target inside Railway is admitted only when the injected environment name is \`${CELL_US_RAILWAY_ENVIRONMENT_NAME}\`. So an in-platform verifier is refused in \`${CLOSED_BETA_RAILWAY_ENVIRONMENT_NAME}\``,
+      `admits \`${CLOSED_BETA_RAILWAY_ENVIRONMENT_NAME}\` and refuses \`${CELL_US_RAILWAY_ENVIRONMENT_NAME}\`: a restore target inside Railway is admitted only when the injected environment name is \`${CLOSED_BETA_RAILWAY_ENVIRONMENT_NAME}\``,
     )
   })
 

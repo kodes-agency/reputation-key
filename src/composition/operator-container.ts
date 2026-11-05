@@ -5,7 +5,13 @@
 // path with an explicit refusal. The executable boundary controls restrict this
 // builder to scripts/ops.
 
+import type { Queue } from 'bullmq'
 import { createOperatorContainerGraph, type Container } from '#/composition'
+import { getEnv, type Env } from '#/shared/config/env'
+import {
+  assertRestoreCommandEnvironment,
+  isRestoreIsolated,
+} from '#/shared/config/restore-mode'
 import { createJobQueue } from '#/shared/jobs/queue'
 import { QUARANTINE_QUEUE_NAME } from '#/shared/jobs/failure-quarantine'
 import { OPERATOR_GOOGLE_PROVIDER_REFUSAL_MESSAGE } from './google-provider-authority'
@@ -15,9 +21,53 @@ export type OperatorContainerOptions = Parameters<typeof createOperatorContainer
 export const OPERATOR_QUEUE_CONFIGURATION_ERROR =
   '[COMPOSITION] operator container requires QUEUE_REDIS_URL'
 
+/**
+ * The integration context is built around a job queue handle, but a restore
+ * never enqueues. This stand-in has no connection: it closes quietly and
+ * refuses every other use, so no queue namespace is reachable through it.
+ */
+function refusedRestoreQueue(): Queue {
+  return new Proxy(
+    { close: async () => {} },
+    {
+      get(target, property) {
+        if (property === 'close') return target.close
+        if (typeof property === 'symbol' || property === 'then') return undefined
+        throw new Error(
+          '[RESTORE MODE] queue access is refused during restore verification',
+        )
+      },
+    },
+  ) as unknown as Queue
+}
+
+/**
+ * An isolated restore verifies the database alone. Whatever the caller passed,
+ * its graph holds no Redis and no queue connection, and it is not built at all
+ * while the environment names a Redis, queue or bucket.
+ */
+function restoreGraphOptions(
+  env: Env,
+  options: OperatorContainerOptions,
+): NonNullable<OperatorContainerOptions> {
+  assertRestoreCommandEnvironment(env)
+  return {
+    ...(options ?? {}),
+    enableJobs: false,
+    redis: undefined,
+    queue: refusedRestoreQueue(),
+    backgroundQueue: undefined,
+    opsBackgroundQueue: undefined,
+    opsDomainEventsQueue: undefined,
+    opsQuarantineQueue: undefined,
+  }
+}
+
 function operatorGraphOptions(
   options: OperatorContainerOptions,
 ): NonNullable<OperatorContainerOptions> {
+  const env = options?.env ?? getEnv()
+  if (isRestoreIsolated(env)) return restoreGraphOptions(env, options)
   const queue = options?.queue ?? createJobQueue('default')
   const backgroundQueue = options?.backgroundQueue ?? createJobQueue('background')
   const opsBackgroundQueue = options?.opsBackgroundQueue ?? backgroundQueue

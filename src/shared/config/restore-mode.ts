@@ -20,7 +20,10 @@
 //   - Ops commands: ops:restore-preflight / ops:restore-verify run the
 //     source-policy purge against the restored data and only ever touch an
 //     attested local target or the exact private hostname of a Railway PITR
-//     sibling (isIsolatedRestoreTarget).
+//     sibling (isIsolatedRestoreTarget). They verify the database alone: a
+//     process that carries a Redis, queue or bucket setting is refused before
+//     it opens anything (assertRestoreCommandEnvironment), because a verifier
+//     started from the live environment carries the live values.
 //
 // Cutover back to serving = configure the verified recovery run/generation,
 // UNSET RESTORE_MODE, and redeploy. A Railway PITR sibling then refuses web
@@ -29,15 +32,52 @@
 // RESTORE_MODE is parsed by the env schema (src/shared/config/env.ts): the
 // only accepted non-empty value is 'isolated' — anything else fails boot.
 
+import { CLOSED_BETA_RAILWAY_ENVIRONMENT_NAME } from '#/shared/release/railway-deployment-profile'
+
 /**
- * The Railway environment restore drills bind to: `cell-us`, the dedicated
- * cell. Despite this constant's name the closed beta does not run there. It
- * runs in `closed-beta-v2` (src/shared/release/railway-deployment-profile.ts),
- * where an in-platform restore target is therefore refused. Whether drills
- * bind to that environment is the owner's decision, recorded as open in
- * docs/operations/backup-and-lifecycle.md §1.
+ * The Railway environment restore drills bind to: the one the closed beta runs
+ * in. A restore target inside Railway is admitted only when the injected
+ * environment name is this one; the tunnel path is bound to the sibling's name
+ * and to no environment.
  */
-const BETA_RAILWAY_ENVIRONMENT = 'cell-us'
+const BETA_RAILWAY_ENVIRONMENT = CLOSED_BETA_RAILWAY_ENVIRONMENT_NAME
+
+/**
+ * Every setting that points a process at Redis, a BullMQ queue or a bucket. A
+ * verifier started from the live environment carries them with the live
+ * values, so a restore command refuses all of them instead of judging which
+ * are live. A web verifier needs its Redis and storage settings to boot and is
+ * not held to this.
+ */
+const RESTORE_SIDE_SERVICE_SETTINGS = [
+  'REDIS_URL',
+  'QUEUE_REDIS_URL',
+  'PROVIDER_EPHEMERAL_REDIS_URL',
+  'AWS_S3_ACCESS_KEY',
+  'AWS_S3_SECRET_ACCESS_KEY',
+  'AWS_S3_BUCKET_NAME',
+  'S3_INTERNAL_ENDPOINT',
+  'S3_PRESIGN_ENDPOINT',
+] as const
+
+export type RestoreSideServicesEnv = Readonly<
+  Partial<Record<(typeof RESTORE_SIDE_SERVICE_SETTINGS)[number], string>>
+>
+
+/**
+ * Why a restore command must not run with the side-service settings in `env`,
+ * or null when it carries none. Names the settings, never their values.
+ */
+export function restoreSideServicesRefusal(env: RestoreSideServicesEnv): string | null {
+  const inherited = RESTORE_SIDE_SERVICE_SETTINGS.filter(
+    (name) => env[name] !== undefined,
+  )
+  if (inherited.length === 0) return null
+  return (
+    '[RESTORE MODE] restore commands verify the database alone and use no Redis, ' +
+    `queue or bucket: unset ${inherited.join(', ')}`
+  )
+}
 
 /** Structural env shape the restore-mode checks read (parsed Env fits). */
 export type RestoreModeEnv = Readonly<{
@@ -90,6 +130,26 @@ export function assertRestoreModeCompatible(
         'recovery cutover run/generation, then unset RESTORE_MODE to resume.',
     )
   }
+}
+
+/**
+ * What an ops restore command checks before it opens a database, builds the
+ * container or touches a queue: the drill posture is on, the target is
+ * admitted, and no Redis, queue or bucket setting is carried. A command is not
+ * a worker, so the web kind of the boot check is the one that applies: it
+ * admits the target and refuses nothing else.
+ */
+export function assertRestoreCommandEnvironment(
+  env: RestoreModeEnv & RestoreSideServicesEnv,
+): void {
+  if (!isRestoreIsolated(env)) {
+    throw new Error(
+      '[RESTORE MODE] RESTORE_MODE=isolated is required for restore commands',
+    )
+  }
+  assertRestoreModeCompatible(env, 'web')
+  const refusal = restoreSideServicesRefusal(env)
+  if (refusal !== null) throw new Error(refusal)
 }
 
 const RAILWAY_PITR_SERVICE_NAME = /^[a-z0-9][a-z0-9-]*-restored-[0-9]{8}-[0-9]{4}$/iu
