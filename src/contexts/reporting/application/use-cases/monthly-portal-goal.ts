@@ -1,7 +1,7 @@
 import { ratingSubjectSkipsPrivateRating } from '../goal-rating-eligibility'
 // Monthly Property count goals use ordinary Programs (ADR 0068). Authorize before
-// reading. The cross-measure pre-check is not a lock: same-measure races meet
-// the database overlap rule, but concurrent different measures can both land.
+// reading. The cross-measure pre-check gives early feedback; the repository
+// repeats it under the Property definition lock for creates and revisions.
 // The earliest-created non-ended goal is selected for the card.
 // Recompute recommended/own provenance from the current offer, not request claims.
 // Changes use the engine's month-target/revision commands; Stop preserves the

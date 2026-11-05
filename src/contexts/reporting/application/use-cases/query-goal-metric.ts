@@ -6,12 +6,14 @@ import {
   METRIC_VERSION_IDS,
   type GovernedMetricVersion,
 } from '../../domain/metric-registry'
-import type { GoalMetricSourceStatusPort } from '../ports/goal-metric-source-status.port'
+import type {
+  GoalMetricSourceHead,
+  GoalMetricSourceStatus,
+} from '../ports/goal-metric-source-status.port'
 import type {
   GoalMetricAggregate,
   GoalMetricAggregateQuery,
   GoalMetricSubject,
-  MetricRepository,
 } from '../ports/metric.repository'
 import type { MetricRegistryRepository } from '../ports/metric-registry.repository.port'
 
@@ -61,13 +63,22 @@ export type GovernedGoalMetricResult = Readonly<{
   minimumSample: number | null
   sourceCompleteThrough: Date | null
   correctionHead?: Date | null
+  sourceHead?: GoalMetricSourceHead
   reason: string | null
 }>
 
 export type QueryGoalMetricDeps = Readonly<{
-  metrics: MetricRepository
+  readSnapshot(
+    query: GoalMetricAggregateQuery,
+    eventTypes: readonly string[],
+  ): Promise<
+    Readonly<{
+      aggregate: GoalMetricAggregate
+      source: GoalMetricSourceStatus
+      sourceHead?: GoalMetricSourceHead
+    }>
+  >
   registry: MetricRegistryRepository
-  sourceStatus: GoalMetricSourceStatusPort
   validateSubject(
     organizationId: OrganizationId,
     propertyId: PropertyId,
@@ -189,10 +200,10 @@ export const queryGoalMetric =
       expectedMetricKey: spec.metricKey,
       allowedSourcePolicies: governed.version.sourcePolicyAllowlist,
     }
-    const [aggregate, source] = await Promise.all([
-      deps.metrics.queryGoalAggregate(aggregateQuery),
-      deps.sourceStatus.inspect(aggregateQuery, spec.eventTypes),
-    ])
+    const { aggregate, source, sourceHead } = await deps.readSnapshot(
+      aggregateQuery,
+      spec.eventTypes,
+    )
     const value = exactValue(spec, aggregate, governed.version.precision)
     const common = {
       definitionVersionId: query.definitionVersionId,
@@ -202,6 +213,7 @@ export const queryGoalMetric =
       minimumSample: governed.version.minimumSample,
       sourceCompleteThrough: null,
       correctionHead: aggregate.correctionHead,
+      ...(sourceHead ? { sourceHead } : {}),
     } as const
 
     if (source.state === 'quarantined' || hasInvalidAggregate(aggregate)) {

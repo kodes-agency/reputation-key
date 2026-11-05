@@ -31,7 +31,7 @@ describe('metric command store', () => {
       onConflictDoNothing: () => ({ returning: async () => [{ id: reading.id }] }),
     }))
     const insert = vi.fn(() => ({ values }))
-    const tx = { insert }
+    const tx = { insert, execute: vi.fn(async () => ({ rows: [] })) }
     const db = {
       transaction: async (run: (inner: typeof tx) => Promise<unknown>) => run(tx),
     } as unknown as Database

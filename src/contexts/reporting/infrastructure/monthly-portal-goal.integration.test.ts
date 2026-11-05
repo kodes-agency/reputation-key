@@ -1,11 +1,5 @@
-// The Monthly portal goal's set command on PostgreSQL (ADR 0068 decision 1,
-// PLAN PG-09): one per Property is a pre-check, not a lock. Two sets that both
-// pass it at the same moment meet the database's no-overlap rule on one
-// measure, which keeps the first and refuses the second `subject_has_goal` (the
-// two inserts often deadlock in that check; the repository runs the victim once
-// more, and it meets the first); on
-// two measures both land, and the earliest-created is the monthly goal (the
-// accepted race, watched by the beta count of PLAN §3.8).
+// A barrier lets both commands pass their pre-check before either writes.
+// The Property definition lock must still allow only one non-ended count goal.
 import { randomUUID } from 'node:crypto'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { getEnv } from '#/shared/config/env'
@@ -62,13 +56,8 @@ describe.sequential('Monthly portal goal set (integration)', () => {
     return id
   }
 
-  /**
-   * The command over PostgreSQL's Goal Program tables, with the Property's
-   * Programs read by every set before any of them writes.
-   */
-  function commandWith(repository: GoalProgramRepository, parties: number) {
-    const listed = barrier(parties)
-    const programs = createGoalProgramService({
+  function programsWith(repository: GoalProgramRepository) {
+    return createGoalProgramService({
       repository,
       policy: { authorize: async () => undefined },
       subjects: {
@@ -91,6 +80,12 @@ describe.sequential('Monthly portal goal set (integration)', () => {
       id: randomUUID,
       now: () => NOW,
     })
+  }
+
+  /** Every set reads the Property's Programs before any of them writes. */
+  function commandWith(repository: GoalProgramRepository, parties: number) {
+    const listed = barrier(parties)
+    const programs = programsWith(repository)
     return (propertyId: string, metric: PortalGoalMeasure) =>
       setMonthlyPortalGoal(
         {
@@ -163,28 +158,180 @@ describe.sequential('Monthly portal goal set (integration)', () => {
     RACE_TIMEOUT_MS,
   )
 
+  it('the generic create cannot set another count goal with a different start month', async () => {
+    const repository = createGoalProgramRepository(getDb())
+    const propertyId = await propertyFixture()
+    const programs = programsWith(repository)
+    await commandWith(repository, 1)(propertyId, 'portal_rating_count')
+    await expect(
+      programs.create(
+        {
+          propertyId,
+          name: 'Scans',
+          metric: 'qualified_scans',
+          targetValue: 40,
+          startMonth: '2026-10',
+          subjects: [{ kind: 'property', propertyId }],
+        },
+        actor,
+      ),
+    ).rejects.toMatchObject({ code: 'subject_has_goal' })
+    expect(await repository.list(organizationId, propertyId)).toHaveLength(1)
+  })
+
   it(
-    'two sets racing on the two measures both land, and the first is the monthly goal',
+    'serializes a generic create against a revision into the count identity',
+    async () => {
+      const repository = createGoalProgramRepository(getDb())
+      const propertyId = await propertyFixture()
+      const average = await programsWith(repository).create(
+        {
+          propertyId,
+          name: 'Average',
+          metric: 'portal_rating_average',
+          targetValue: 4.5,
+          startMonth: '2026-11',
+          subjects: [{ kind: 'property', propertyId }],
+        },
+        actor,
+      )
+      const ready = barrier(2)
+      const programs = programsWith({
+        ...repository,
+        create: async (input) => {
+          await ready()
+          return repository.create(input)
+        },
+        revise: async (input) => {
+          await ready()
+          return repository.revise(input)
+        },
+      })
+      const outcomes = await Promise.allSettled([
+        programs.create(
+          {
+            propertyId,
+            name: 'Ratings',
+            metric: 'portal_rating_count',
+            targetValue: 40,
+            startMonth: '2026-11',
+            subjects: [{ kind: 'property', propertyId }],
+          },
+          actor,
+        ),
+        programs.revise(
+          {
+            propertyId,
+            programId: average.program.id,
+            metric: 'qualified_scans',
+            targetValue: 40,
+            subjects: [{ kind: 'property', propertyId }],
+          },
+          actor,
+        ),
+      ])
+      expect(outcomes.map(({ status }) => status).sort()).toEqual([
+        'fulfilled',
+        'rejected',
+      ])
+      const refused = outcomes.find((outcome) => outcome.status === 'rejected')
+      expect(refused?.status === 'rejected' ? refused.reason : null).toMatchObject({
+        code: 'subject_has_goal',
+      })
+      const stored = await repository.list(organizationId, propertyId)
+      expect(
+        stored.filter(({ version }) => version.metric !== 'portal_rating_average'),
+      ).toHaveLength(1)
+    },
+    RACE_TIMEOUT_MS,
+  )
+
+  it('keeps average and several-subject programs alongside the Property count goal', async () => {
+    const repository = createGoalProgramRepository(getDb())
+    const propertyId = await propertyFixture()
+    const programs = programsWith(repository)
+    const portalId = randomUUID()
+    await lease.pool.query(
+      `INSERT INTO portals (id, organization_id, property_id, entity_type, entity_id, name, slug)
+       VALUES ($1, $2, $3, 'property', $4, 'Reception', $5)`,
+      [portalId, organizationId, propertyId, propertyId, `portal-${randomUUID()}`],
+    )
+    await programs.create(
+      {
+        propertyId,
+        name: 'Average',
+        metric: 'portal_rating_average',
+        targetValue: 4.5,
+        startMonth: '2026-11',
+        subjects: [{ kind: 'property', propertyId }],
+      },
+      actor,
+    )
+    await programs.create(
+      {
+        propertyId,
+        name: 'Several subjects',
+        metric: 'qualified_scans',
+        targetValue: 40,
+        startMonth: '2026-11',
+        subjects: [
+          { kind: 'property', propertyId },
+          { kind: 'portal', portalId },
+        ],
+      },
+      actor,
+    )
+    await commandWith(repository, 1)(propertyId, 'portal_rating_count')
+    const stored = await repository.list(organizationId, propertyId)
+    expect(stored).toHaveLength(3)
+    expect(
+      stored.find(({ program }) => program.name === 'Several subjects')?.assignments,
+    ).toHaveLength(2)
+  })
+
+  it('frees the identity after Stop without deleting the ended goal', async () => {
+    const repository = createGoalProgramRepository(getDb())
+    const propertyId = await propertyFixture()
+    const first = await commandWith(repository, 1)(propertyId, 'portal_rating_count')
+    await programsWith(repository).changeStatus(
+      {
+        propertyId,
+        programId: first.program.id,
+        status: 'ended',
+      },
+      actor,
+    )
+    await commandWith(repository, 1)(propertyId, 'qualified_scans')
+    const stored = await repository.list(organizationId, propertyId)
+    expect(stored).toHaveLength(2)
+    expect(
+      stored.find(({ program }) => program.id === first.program.id)?.program.status,
+    ).toBe('ended')
+  })
+
+  it(
+    'two sets racing on different count measures: one wins, the other is refused',
     async () => {
       const repository = createGoalProgramRepository(getDb())
       const propertyId = await propertyFixture()
       const set = commandWith(repository, 2)
 
-      const [ratings, scans] = await Promise.all([
+      const outcomes = await Promise.allSettled([
         set(propertyId, 'portal_rating_count'),
         set(propertyId, 'qualified_scans'),
       ])
 
       const stored = await repository.list(organizationId, propertyId)
-      expect(stored.map(({ program }) => program.id).sort()).toEqual(
-        [ratings.program.id, scans.program.id].sort(),
-      )
-      const first = [...stored].sort(
-        (a, b) =>
-          a.program.createdAt.getTime() - b.program.createdAt.getTime() ||
-          a.program.id.localeCompare(b.program.id),
-      )[0]
-      expect(monthlyPortalGoalOf(stored, NOW)?.program.id).toBe(first?.program.id)
+      expect(outcomes.map(({ status }) => status).sort()).toEqual([
+        'fulfilled',
+        'rejected',
+      ])
+      const refused = outcomes.find((outcome) => outcome.status === 'rejected')
+      expect(refused?.status === 'rejected' ? refused.reason : null).toMatchObject({
+        code: 'subject_has_goal',
+      })
+      expect(stored).toHaveLength(1)
+      expect(monthlyPortalGoalOf(stored, NOW)?.program.id).toBe(stored[0]?.program.id)
     },
     RACE_TIMEOUT_MS,
   )

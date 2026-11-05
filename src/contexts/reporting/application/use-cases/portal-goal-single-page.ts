@@ -24,6 +24,7 @@ import {
 } from '../monthly-portal-goal-identity'
 import type { GoalProgramBundle } from '../ports/goal-program.repository'
 import { listProgressOf } from './goal-list-progress'
+import { dueResultsForProgram } from './goal-program-shared'
 import {
   GoalProgramError,
   type GoalActor,
@@ -184,7 +185,26 @@ async function subjectViewOf(
   }
 }
 
-/** A goal's status, its first day while it waits, and the day it was stopped. */
+/** Stop opens due months before ending; progress and change availability cannot say what it retains. */
+function retainedMonthOnStop(
+  bundle: GoalProgramBundle,
+  now: Date,
+): Readonly<{ key: string }> | null {
+  if (bundle.program.status === 'scheduled') return null
+  const months = [
+    ...bundle.results,
+    ...(bundle.program.status === 'active'
+      ? dueResultsForProgram(bundle, () => '', now)
+      : []),
+  ].filter(({ status }) => status === 'open' || status === 'reconciling')
+  const latest = months.reduce<(typeof months)[number] | null>(
+    (last, month) => (!last || month.periodEnd > last.periodEnd ? month : last),
+    null,
+  )
+  return latest ? { key: monthKeyOf(latest.periodStart, latest.propertyTimezone) } : null
+}
+
+/** A goal's status, its first day while it waits, and the months Stop retains. */
 function goalOfPage(bundle: GoalProgramBundle, now: Date, timezone: string) {
   const { program, version } = bundle
   return {
@@ -199,6 +219,7 @@ function goalOfPage(bundle: GoalProgramBundle, now: Date, timezone: string) {
       program.status === 'ended' && program.endedAt
         ? localDateOf(program.endedAt, timezone)
         : null,
+    countingMonth: retainedMonthOnStop(bundle, now),
     change: changeFactsOf(bundle, now, timezone),
   }
 }

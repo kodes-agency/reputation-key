@@ -356,6 +356,8 @@ export const portalApprovedDestinations = pgTable(
     disabledAt: timestamp('disabled_at', { withTimezone: true }),
     disabledReason: varchar('disabled_reason', { length: 500 }),
     lastValidatedAt: timestamp('last_validated_at', { withTimezone: true }).notNull(),
+    nextAttemptAt: timestamp('next_attempt_at', { withTimezone: true }),
+    validationFailures: integer('validation_failures').notNull().default(0),
     createdAt: createdAtColumn(),
     updatedAt: updatedAtColumn(),
   },

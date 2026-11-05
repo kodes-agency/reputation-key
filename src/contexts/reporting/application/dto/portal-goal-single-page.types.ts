@@ -36,6 +36,8 @@ type GoalOfPage = Readonly<{
   startsOn: string | null
   /** Stopped: the local day it was stopped, when that was recorded; else null. */
   endedOn: string | null
+  /** The latest month Stop retains, including an active goal's due but unopened month. */
+  countingMonth: Readonly<{ key: string }> | null
   /** What a change or a stop is made against; null once it has been stopped. */
   change: PortalGoalChangeFacts | null
 }>

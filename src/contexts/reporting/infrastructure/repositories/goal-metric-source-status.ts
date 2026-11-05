@@ -207,7 +207,7 @@ function evaluateRelevantRows(
 }
 
 export const createGoalMetricSourceStatus = (
-  db: Database,
+  db: Pick<Database, 'execute'>,
   portalGroups: PortalGroupPublicApi,
 ): GoalMetricSourceStatusPort => {
   return {

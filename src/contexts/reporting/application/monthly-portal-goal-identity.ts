@@ -1,5 +1,6 @@
 // Select the Property's count goal across private ratings and scans (ADR 0068):
-// the earliest-created non-ended Program, else the most recently ended one whose
+// writes serialize the identity per Property; reads select the earliest-created
+// non-ended Program, else the most recently ended one whose
 // window or open/reconciling month still counts. A stopped November goal may still
 // be selected in December while November reconciles.
 // Average, Portal and Portal Group goals are separate. All Property count goals
@@ -22,7 +23,7 @@ export const isPortalGoalMeasure = (metric: GoalMetric): metric is PortalGoalMea
   COUNT_MEASURES.has(metric)
 
 /** The current version's subjects, as the goal names them now. */
-const currentAssignments = (bundle: GoalProgramBundle) =>
+const currentAssignments = (bundle: Pick<GoalProgramBundle, 'version' | 'assignments'>) =>
   bundle.assignments.filter(
     (assignment) => assignment.programVersionId === bundle.version.id,
   )
@@ -40,14 +41,11 @@ export const isPortalCountGoal = (bundle: GoalProgramBundle): bundle is PortalCo
 
 /** A count goal whose subject, today, is the Property alone. */
 export function isPropertyCountGoal(
-  bundle: GoalProgramBundle,
+  bundle: Pick<GoalProgramBundle, 'version' | 'assignments'>,
 ): bundle is PropertyCountGoal {
   if (!isPortalGoalMeasure(bundle.version.metric)) return false
   const subjects = currentAssignments(bundle)
-  return (
-    subjects.length > 0 &&
-    subjects.every((assignment) => assignment.subject.kind === 'property')
-  )
+  return subjects.length === 1 && subjects[0]?.subject.kind === 'property'
 }
 
 /**

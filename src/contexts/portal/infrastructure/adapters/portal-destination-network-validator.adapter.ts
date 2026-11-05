@@ -1,4 +1,4 @@
-import { lookup as dnsLookup } from 'node:dns/promises'
+import { Resolver } from 'node:dns/promises'
 import { BlockList, isIP, type LookupFunction } from 'node:net'
 import { Agent, fetch } from 'undici'
 import type {
@@ -57,18 +57,43 @@ export function isPublicPortalDestinationAddress(address: string): boolean {
   return first >= 0x2000 && first <= 0x3fff
 }
 
-async function resolvePublicAddresses(hostname: string): Promise<ResolvedAddress[]> {
-  const addresses = await dnsLookup(hostname, { all: true, verbatim: true })
-  if (addresses.length === 0) return []
-  const unique = new Map<string, ResolvedAddress>()
-  for (const address of addresses) {
-    if ((address.family !== 4 && address.family !== 6) || !address.address) continue
-    unique.set(`${address.family}:${address.address}`, {
-      address: address.address,
-      family: address.family,
-    })
+async function resolvePublicAddresses(
+  hostname: string,
+  signal: AbortSignal,
+): Promise<ResolvedAddress[]> {
+  signal.throwIfAborted()
+  // A resolver belongs to this hop so cancelling it cannot affect other sites.
+  const resolver = new Resolver()
+  const cancel = () => resolver.cancel()
+  signal.addEventListener('abort', cancel, { once: true })
+  try {
+    const answers = await Promise.allSettled([
+      resolver.resolve4(hostname),
+      resolver.resolve6(hostname),
+    ])
+    signal.throwIfAborted()
+    const addresses: ResolvedAddress[] = []
+    for (const [index, answer] of answers.entries()) {
+      if (answer.status === 'fulfilled') {
+        for (const address of new Set(answer.value))
+          addresses.push({ address, family: index === 0 ? 4 : 6 })
+      }
+    }
+    // A partial DNS outage must not hide an unvetted address family.
+    for (const answer of answers) {
+      if (answer.status === 'rejected') {
+        const code = (answer.reason as NodeJS.ErrnoException | undefined)?.code
+        if (code !== 'ENODATA' && code !== 'ENOTFOUND') throw answer.reason
+      }
+    }
+    if (addresses.length === 0) {
+      const missing = answers.find((answer) => answer.status === 'rejected')
+      if (missing?.status === 'rejected') throw missing.reason
+    }
+    return addresses
+  } finally {
+    signal.removeEventListener('abort', cancel)
   }
-  return [...unique.values()]
 }
 
 /**
@@ -94,7 +119,9 @@ export async function pinnedHead(
   uri: string,
   address: ResolvedAddress,
   timeoutMs: number,
+  signal?: AbortSignal,
 ): Promise<PinnedResponse> {
+  const requestSignal = signal ?? AbortSignal.timeout(timeoutMs)
   const agent = new Agent({
     connect: {
       lookup: pinnedLookup(address),
@@ -109,7 +136,7 @@ export async function pinnedHead(
       method: 'HEAD',
       redirect: 'manual',
       dispatcher: agent,
-      signal: AbortSignal.timeout(timeoutMs),
+      signal: requestSignal,
       headers: { 'user-agent': 'RepKey-Destination-Validator/1' },
     })
     if (response.status === 405 || response.status === 501) {
@@ -118,7 +145,7 @@ export async function pinnedHead(
         method: 'GET',
         redirect: 'manual',
         dispatcher: agent,
-        signal: AbortSignal.timeout(timeoutMs),
+        signal: requestSignal,
         headers: {
           'user-agent': 'RepKey-Destination-Validator/1',
           range: 'bytes=0-0',
@@ -132,22 +159,28 @@ export async function pinnedHead(
     await response.body?.cancel()
     return result
   } finally {
-    await agent.close()
+    await agent.destroy()
   }
 }
 
 type AdapterDeps = Readonly<{
   clock: () => Date
-  resolve?: (hostname: string) => Promise<readonly ResolvedAddress[]>
-  request?: (uri: string, address: ResolvedAddress) => Promise<PinnedResponse>
+  /** Transports must honor cancellation and settle only after cleanup. */
+  resolve?: (hostname: string, signal: AbortSignal) => Promise<readonly ResolvedAddress[]>
+  request?: (
+    uri: string,
+    address: ResolvedAddress,
+    signal: AbortSignal,
+  ) => Promise<PinnedResponse>
   maxRedirects?: number
+  /** Total budget for DNS, all addresses, redirects and the GET fallback. */
   timeoutMs?: number
 }>
 
 const REDIRECT_STATUSES = new Set([301, 302, 303, 307, 308])
 
 /** A hostname that does not exist is the manager's to fix; retrying cannot. */
-const DNS_NOT_FOUND_CODES = new Set(['ENOTFOUND', 'EAI_NONAME', 'NOTFOUND'])
+const DNS_NOT_FOUND_CODES = new Set(['ENOTFOUND', 'ENODATA', 'EAI_NONAME', 'NOTFOUND'])
 
 function dnsFailureReason(error: unknown): 'dns_not_found' | 'dns_unavailable' {
   const code =
@@ -196,7 +229,8 @@ export const createPortalDestinationNetworkValidator = (
   const timeoutMs = deps.timeoutMs ?? 5_000
   const request =
     deps.request ??
-    ((uri: string, address: ResolvedAddress) => pinnedHead(uri, address, timeoutMs))
+    ((uri: string, address: ResolvedAddress, signal: AbortSignal) =>
+      pinnedHead(uri, address, timeoutMs, signal))
   const maxRedirects = deps.maxRedirects ?? 5
 
   const unsafe = (reason: UnsafeReason): PortalDestinationNetworkValidation => ({
@@ -216,10 +250,15 @@ export const createPortalDestinationNetworkValidator = (
    * Resolves the hop's hostname, rejects the hop unless every DNS answer is
    * public, then requests through the first answer that connects.
    */
-  const fetchThroughVettedAddress = async (currentUri: string): Promise<HopFetch> => {
+  const fetchThroughVettedAddress = async (
+    currentUri: string,
+    signal: AbortSignal,
+  ): Promise<HopFetch> => {
     let addresses: readonly ResolvedAddress[]
     try {
-      addresses = await resolve(new URL(currentUri).hostname)
+      signal.throwIfAborted()
+      addresses = await resolve(new URL(currentUri).hostname, signal)
+      signal.throwIfAborted()
     } catch (error) {
       return { ok: false, validation: unavailable(dnsFailureReason(error)) }
     }
@@ -231,8 +270,12 @@ export const createPortalDestinationNetworkValidator = (
     }
     for (const address of addresses) {
       try {
-        return { ok: true, response: await request(currentUri, address) }
+        signal.throwIfAborted()
+        const response = await request(currentUri, address, signal)
+        signal.throwIfAborted()
+        return { ok: true, response }
       } catch {
+        if (signal.aborted) break
         // Try another already-vetted address. A later DNS lookup is never
         // performed inside the HTTP connector.
       }
@@ -269,31 +312,39 @@ export const createPortalDestinationNetworkValidator = (
       }
       const originalHostname = admitted.hostname
       let currentUri = admitted.normalizedUri
-      for (let redirectCount = 0; redirectCount <= maxRedirects; redirectCount += 1) {
-        const hop = await fetchThroughVettedAddress(currentUri)
-        if (!hop.ok) return hop.validation
-        const { response } = hop
-        if (!REDIRECT_STATUSES.has(response.status)) {
-          if (response.status < 100 || response.status > 599) {
-            return unavailable('invalid_response')
+      // All hops and address attempts share one deadline. Await the transport
+      // after aborting so the caller never releases a still-occupied slot.
+      const controller = new AbortController()
+      const timer = setTimeout(() => controller.abort(), timeoutMs)
+      try {
+        for (let redirectCount = 0; redirectCount <= maxRedirects; redirectCount += 1) {
+          const hop = await fetchThroughVettedAddress(currentUri, controller.signal)
+          if (!hop.ok) return hop.validation
+          const { response } = hop
+          if (!REDIRECT_STATUSES.has(response.status)) {
+            if (response.status < 100 || response.status > 599) {
+              return unavailable('invalid_response')
+            }
+            return {
+              outcome: 'safe',
+              validatedAt: deps.clock(),
+              finalUri: currentUri,
+              redirectCount,
+            }
           }
-          return {
-            outcome: 'safe',
-            validatedAt: deps.clock(),
-            finalUri: currentUri,
-            redirectCount,
-          }
+          if (redirectCount === maxRedirects) return unsafe('redirect_limit_exceeded')
+          const next = resolveRedirectTarget(
+            response.location,
+            currentUri,
+            originalHostname,
+          )
+          if (!next.ok) return next.validation
+          currentUri = next.uri
         }
-        if (redirectCount === maxRedirects) return unsafe('redirect_limit_exceeded')
-        const next = resolveRedirectTarget(
-          response.location,
-          currentUri,
-          originalHostname,
-        )
-        if (!next.ok) return next.validation
-        currentUri = next.uri
+        return unsafe('redirect_limit_exceeded')
+      } finally {
+        clearTimeout(timer)
       }
-      return unsafe('redirect_limit_exceeded')
     },
   }
 }
