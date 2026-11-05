@@ -43,6 +43,20 @@ export function reviewVersionKey(review: VersionedReview): string {
   return `${review.reviewId}:${review.sourceRevision}:${review.analysisSequence}`
 }
 
+/** Where a review settled without an analysis meets Review's count: the sequence Review issued. */
+function sequenceKey(review: Readonly<{ reviewId: string; analysisSequence: number }>) {
+  return `${review.reviewId}:${review.analysisSequence}`
+}
+
+type DatedUnavailableReview = Extract<
+  GuestVoiceUnavailableReview,
+  { sourceRevision: number }
+>
+
+function isDated(review: GuestVoiceUnavailableReview): review is DatedUnavailableReview {
+  return review.sourceRevision !== null
+}
+
 function inPeriod(localDate: string, period: Period): boolean {
   return localDate >= period.startLocalDate && localDate <= period.endLocalDate
 }
@@ -61,19 +75,28 @@ export function joinPeriod(
   const settled = new Set([
     ...counted.map(reviewVersionKey),
     ...unavailable
+      .filter(isDated)
       .filter(
         (review) =>
           byVersion.get(reviewVersionKey(review))?.localDate === review.localDate,
       )
       .map(reviewVersionKey),
   ])
+  // A review settled without any analysis has no revision or day of its own; Review's
+  // population supplies both, and the sequence it issued is what ties the two together.
+  // A newer sequence of the same review is not covered by an older settlement.
+  const excluded = new Set(
+    unavailable.filter((review) => !isDated(review)).map(sequenceKey),
+  )
   const withText = here.filter((review) => review.hasText)
   return {
     analysed: counted,
     currentPopulation: here,
     population: { stars: ratingCountsOf(here), textReviews: withText.length },
-    awaitingAnalysis: withText.filter((review) => !settled.has(reviewVersionKey(review)))
-      .length,
+    awaitingAnalysis: withText.filter(
+      (review) =>
+        !settled.has(reviewVersionKey(review)) && !excluded.has(sequenceKey(review)),
+    ).length,
   }
 }
 
