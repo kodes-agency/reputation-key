@@ -1079,3 +1079,951 @@ jobs:
       - name: Require every e2e shard to succeed
         if: needs.e2e-shard.result != 'success'
         run: exit 1
+
+  # ---------------------------------------------------------------------------
+  # Replacement pipeline: `ci` and `image` stand in for the jobs above. It runs
+  # beside them until the required checks move to its two aggregators and the
+  # jobs above are removed; nothing here edits them.
+  #
+  # What it changes, from the measured runs of the pipeline above:
+  #   - `static` ran its checks one after another (format 86 s, typecheck 157 s,
+  #     eslint 121 s, the unchecked-index ratchet 127 s). They now run in two
+  #     jobs side by side.
+  #   - The serving image was built six times a run: once per `docker image
+  #     group` row (web and worker are one Dockerfile) and once in each of the
+  #     four e2e stacks, each also building the stub image from nothing. It is
+  #     built once and every consumer loads those bytes.
+  #   - The Grype database was cached under the day's date, so a run after the
+  #     06:21 UTC database build still downloaded it (about 100 s per group).
+  #     The key is now the database's own build time.
+  #   - Firefox and WebKit ran on every pull request, three browsers installed
+  #     in every shard. They run weekly (browser-matrix.yml); Chromium and the
+  #     Android viewport stay on every pull request.
+  # ---------------------------------------------------------------------------
+
+  # The migration journal check compares with the main merge base, so this job
+  # takes the full history. The format check is here to balance this job
+  # against `typecheck`.
+  lint:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15 # longest green run ~4 min
+
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          # Migration immutability compares the journal with the main merge base.
+          fetch-depth: 0
+
+      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+        # version intentionally unset: package.json packageManager (pnpm@10.6.5) is the single source
+
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      - name: Lint
+        run: pnpm lint:static
+
+      - name: Format check
+        run: pnpm format:check
+
+  # The unchecked-index ratchet reads diagnostics that are its own only while
+  # the program is clean without its flag, so it follows the typecheck in the
+  # same job.
+  typecheck:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20 # longest green run ~6 min
+
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+        # version intentionally unset: package.json packageManager (pnpm@10.6.5) is the single source
+
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      - name: Dependency vulnerability audit
+        run: pnpm check:dependency-audit
+
+      - name: License policy
+        run: pnpm check:licenses
+
+      - name: Action/image pin policy
+        run: pnpm check:action-pins
+
+      - name: Container image inventory and coverage policy
+        run: pnpm check:container-images
+
+      - name: Typecheck
+        run: pnpm typecheck
+
+      - name: Unchecked-index ratchet
+        run: pnpm check:unchecked-indexed-access
+
+  unit:
+    name: unit (${{ matrix.shard }}/4)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10 # longest green run ~3 min
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3, 4]
+
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+
+      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+        # version intentionally unset: package.json packageManager (pnpm@10.6.5) is the single source
+
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      - name: Test unit shard ${{ matrix.shard }}/4
+        env:
+          NODE_ENV: test
+          DATABASE_URL: postgresql://test:test@localhost:5432/test
+          REDIS_URL: redis://localhost:6379
+          BETTER_AUTH_SECRET: test-secret-at-least-32-characters-long-for-ci
+          BETTER_AUTH_URL: http://localhost:3000
+          RESEND_API_KEY: re_ci_test_key_placeholder
+          GOOGLE_CLIENT_ID: ci-placeholder-client-id
+          GOOGLE_CLIENT_SECRET: ci-placeholder-client-secret
+          ENCRYPTION_KEY: aabbccddaabbccddaabbccddaabbccddaabbccddaabbccddaabbccddaabbccdd
+          OAUTH_STATE_SECRET: aabbccddaabbccddaabbccddaabbccdd
+        run: pnpm exec vitest run --project=unit --shard=${{ matrix.shard }}/4
+
+  # The integration files run one at a time against one scratch database
+  # (vitest.config.ts), 7 minutes of tests in a single job before. Each shard
+  # has its own services and database, so the one-at-a-time rule holds inside
+  # it; the migration checks run once, in the first. Two shards left the second
+  # 2.3 minutes behind the first and the slowest job of the pipeline.
+  integration:
+    name: integration (${{ matrix.shard }}/3)
+    runs-on: ubuntu-latest
+    timeout-minutes: 25 # longest green run ~5 min
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3]
+
+    services:
+      postgres:
+        # Digest-pinned (multi-arch index); the tag comment is for humans.
+        image: postgres:16@sha256:33f923b05f64ca54ac4401c01126a6b92afe839a0aa0a52bc5aeb5cc958e5f20 # 16.14
+        env:
+          POSTGRES_USER: test
+          POSTGRES_PASSWORD: test
+          POSTGRES_DB: test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+      redis:
+        # Digest-pinned (multi-arch index); the tag comment is for humans.
+        image: redis:7@sha256:595cc6f2bb3af6e03347b90deb6123c6aa2c81dea05ce08128de8a174b6ac67b # 7.4.10
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+
+      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+        # version intentionally unset: package.json packageManager (pnpm@10.6.5) is the single source
+
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      - name: Run migrations
+        env:
+          NODE_ENV: test
+          DATABASE_URL: postgresql://test:test@localhost:5432/test
+          BETTER_AUTH_SECRET: test-secret-at-least-32-characters-long-for-ci
+          BETTER_AUTH_URL: http://localhost:3000
+          GOOGLE_CLIENT_ID: ci-placeholder-client-id
+          GOOGLE_CLIENT_SECRET: ci-placeholder-client-secret
+          ENCRYPTION_KEY: aabbccddaabbccddaabbccddaabbccddaabbccddaabbccddaabbccddaabbccdd
+          OAUTH_STATE_SECRET: aabbccddaabbccddaabbccddaabbccdd
+        # Deploy apply order: Better Auth, then the Drizzle journal, so the
+        # tested database matches deploy state.
+        run: |
+          pnpm auth:migrate
+          pnpm db:migrate
+
+      # The deploy runner (scripts/migrate-deploy.ts, the Railway
+      # preDeployCommand) must converge instantly against the database the
+      # manual sequence just migrated: the deploy path and the documented
+      # manual path reach the same end state.
+      - name: Predeploy migration parity
+        if: matrix.shard == 1
+        env:
+          NODE_ENV: test
+          DEPLOY_MIGRATE: '1'
+          DATABASE_URL: postgresql://test:test@localhost:5432/test
+          BETTER_AUTH_SECRET: test-secret-at-least-32-characters-long-for-ci
+          BETTER_AUTH_URL: http://localhost:3000
+          GOOGLE_CLIENT_ID: ci-placeholder-client-id
+          GOOGLE_CLIENT_SECRET: ci-placeholder-client-secret
+          ENCRYPTION_KEY: aabbccddaabbccddaabbccddaabbccddaabbccddaabbccddaabbccddaabbccdd
+          OAUTH_STATE_SECRET: aabbccddaabbccddaabbccddaabbccdd
+          # One-run sealed migrator key: CI migrates an empty database, so the
+          # provider-subject inventory has no seeded row and the initializer
+          # fails closed unless a migrator key is injected exactly once, the
+          # contract production follows.
+          REVIEW_PROVIDER_SUBJECT_HMAC_MIGRATOR_KEYS: 'v1:cdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcd'
+        run: pnpm db:migrate-deploy
+
+      # The semantic model-to-catalog comparator against the database the
+      # migration steps just brought to deploy state.
+      - name: Schema drift (model ↔ migrated catalog)
+        if: matrix.shard == 1
+        env:
+          NODE_ENV: test
+          DATABASE_URL: postgresql://test:test@localhost:5432/test
+          BETTER_AUTH_SECRET: test-secret-at-least-32-characters-long-for-ci
+          BETTER_AUTH_URL: http://localhost:3000
+          GOOGLE_CLIENT_ID: ci-placeholder-client-id
+          GOOGLE_CLIENT_SECRET: ci-placeholder-client-secret
+          ENCRYPTION_KEY: aabbccddaabbccddaabbccddaabbccddaabbccddaabbccddaabbccddaabbccdd
+          OAUTH_STATE_SECRET: aabbccddaabbccddaabbccddaabbccdd
+        run: pnpm check:schema-drift
+
+      - name: Test
+        env:
+          NODE_ENV: test
+          DATABASE_URL: postgresql://test:test@localhost:5432/test
+          REDIS_URL: redis://localhost:6379
+          # This job has the Redis service above, so the Redis-backed suites
+          # must run (src/shared/testing/redis-test-lease.ts).
+          REQUIRE_TEST_REDIS: '1'
+          BETTER_AUTH_SECRET: test-secret-at-least-32-characters-long-for-ci
+          BETTER_AUTH_URL: http://localhost:3000
+          RESEND_API_KEY: re_ci_test_key_placeholder
+          GOOGLE_CLIENT_ID: ci-placeholder-client-id
+          GOOGLE_CLIENT_SECRET: ci-placeholder-client-secret
+          ENCRYPTION_KEY: aabbccddaabbccddaabbccddaabbccddaabbccddaabbccddaabbccddaabbccdd
+          OAUTH_STATE_SECRET: aabbccddaabbccddaabbccddaabbccdd
+        run: pnpm test:integration --shard=${{ matrix.shard }}/3
+
+  # Build output and every consumer/boundary stay in one chain. It keeps its own
+  # build because the client source maps exist only in a build that does not
+  # upload them: the image build's Sentry upload deletes them, and the check
+  # that they are there needs them.
+  probes:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10 # longest green run ~2 min
+
+    services:
+      redis:
+        # Digest-pinned (multi-arch index); the tag comment is for humans.
+        image: redis:7@sha256:595cc6f2bb3af6e03347b90deb6123c6aa2c81dea05ce08128de8a174b6ac67b # 7.4.10
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+        # version intentionally unset: package.json packageManager (pnpm@10.6.5) is the single source
+
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      - name: Web build
+        run: pnpm build
+        env:
+          NODE_ENV: production
+          DATABASE_URL: postgresql://test:test@localhost:5432/test
+          BETTER_AUTH_SECRET: test-secret-at-least-32-characters-long-for-ci
+          BETTER_AUTH_URL: http://localhost:3000
+          GOOGLE_CLIENT_ID: ci-placeholder-client-id
+          GOOGLE_CLIENT_SECRET: ci-placeholder-client-secret
+          ENCRYPTION_KEY: aabbccddaabbccddaabbccddaabbccddaabbccddaabbccddaabbccddaabbccdd
+          OAUTH_STATE_SECRET: aabbccddaabbccddaabbccddaabbccdd
+
+      # Boots the built server and asserts the full security header set on 200
+      # and 404 responses, plus x-request-id and the 413 body limit. The script
+      # generates its own per-run secrets.
+      - name: Security headers (booted artifact)
+        run: pnpm check:security-headers
+
+      # cld3-asm must stay external and still load and detect from inside
+      # .output/server; bundled, its loader throws and every reply suggestion
+      # fails, invisibly to a unit suite that injects a fake detector.
+      - name: Reply-language runtime (built artifact)
+        run: pnpm check:language-verifier
+
+      - name: Bundle budget
+        run: pnpm check:bundles
+
+      # The forbidden-source rules read source maps and nothing else, so the
+      # two places that must carry maps are named: a build that stopped
+      # emitting maps would otherwise pass with nothing inspected.
+      - name: Production artifact boundary
+        run: >-
+          pnpm check:production-artifacts
+          --require-source-maps .output/client-source-maps
+          --require-source-maps dist-worker
+          .output
+          dist-worker
+
+      # Deterministic tarball of the deploy artifacts (sorted names, zeroed
+      # mtimes and owners, gzip -n); the digest is build evidence.
+      - name: Artifact digest
+        run: |
+          tar --sort=name --mtime=@0 --owner=0 --group=0 --numeric-owner -cf - \
+            .output dist-worker \
+            | gzip -n > /tmp/artifact.tgz
+          DIGEST=$(shasum -a 256 /tmp/artifact.tgz | cut -d' ' -f1)
+          echo "sha256:$DIGEST  (all deploy artifacts)"
+          {
+            echo "### Build artifact digest"
+            echo "\`sha256:$DIGEST\` — all deploy artifacts (deterministic tar)"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Generate SBOM
+        uses: anchore/sbom-action@66cbf4bc1f1c0d2edc94016e65bc221b6bb0ad6c # v0.24.3
+        with:
+          format: spdx-json
+          output-file: sbom.spdx.json
+
+      - name: Upload SBOM
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: source-sbom-spdx
+          path: sbom.spdx.json
+          retention-days: 30
+
+  # Every classified image is built once, here. web and worker are one
+  # Dockerfile, so the `web` row builds it once and tags it twice. Each row
+  # leaves its images as compressed archives; the scan job and the browser
+  # shards load them, so what is smoked, scanned, staged and exercised by the
+  # e2e stacks is one set of bytes. The runner's own Docker builds them: a
+  # builder container cost about 50 s to start and stop on the path every
+  # browser shard waits for, and no layer cache is used. The one the image
+  # groups above asked for never reached their builds (their logs show no cache
+  # import or export), and a cached dependency layer costs about what
+  # `pnpm install` does.
+  image-build:
+    name: image build (${{ matrix.row }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 25 # longest green run ~3 min
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - row: web
+            images: >-
+              [{"name":"web","dockerfile":"Dockerfile","tags":["repkey-web:ci","repkey-worker:ci"]}]
+          - row: support
+            images: >-
+              [{"name":"google-provider-redis","dockerfile":"Dockerfile.google-provider-redis","tags":["repkey-google-provider-redis:ci"]},{"name":"provider-sandbox","dockerfile":"Dockerfile.sandbox","tags":["repkey-provider-sandbox:ci"]}]
+
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Build images
+        env:
+          IMAGE_BUILD_JSON: ${{ matrix.images }}
+          SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
+          SENTRY_ORG: ${{ vars.SENTRY_ORG }}
+          SENTRY_PROJECT: ${{ vars.SENTRY_PROJECT }}
+        run: |
+          set -euo pipefail
+          jq -e 'type == "array" and length > 0 and length <= 4 and all(.[]; (.name | type == "string") and (.dockerfile | type == "string") and (.tags | type == "array" and length > 0 and all(type == "string")))' <<<"$IMAGE_BUILD_JSON" >/dev/null
+          mkdir -p images
+          while IFS= read -r image; do
+            name=$(jq -r '.name' <<<"$image")
+            dockerfile=$(jq -r '.dockerfile' <<<"$image")
+            build_flags=(--build-arg "SOURCE_REVISION=$GITHUB_SHA")
+            while IFS= read -r tag; do
+              build_flags+=(-t "$tag")
+            done < <(jq -r '.tags[]' <<<"$image")
+            if [[ "$name" == "web" ]]; then
+              # Org and project NAME the release and are repository variables,
+              # not secrets, so they stay build arguments. The upload TOKEN is a
+              # BuildKit secret: a build argument is recorded in image history
+              # and build provenance, which would publish it to anyone who can
+              # pull or inspect the image. `check:container-images` fails the
+              # build if a secret-shaped value is passed as a build argument.
+              build_flags+=(
+                --build-arg "SENTRY_ORG=$SENTRY_ORG"
+                --build-arg "SENTRY_PROJECT=$SENTRY_PROJECT"
+              )
+              # Absent on forks and on any run without the repository secret;
+              # the Dockerfile then skips the source-map upload instead of
+              # failing, so the image still builds.
+              if [[ -n "${SENTRY_AUTH_TOKEN:-}" ]]; then
+                build_flags+=(--secret "id=sentry_auth_token,env=SENTRY_AUTH_TOKEN")
+              fi
+            fi
+            docker buildx build \
+              --load \
+              --provenance=false \
+              --sbom=false \
+              "${build_flags[@]}" \
+              -f "$dockerfile" \
+              .
+            mapfile -t tags < <(jq -r '.tags[]' <<<"$image")
+            docker save "${tags[@]}" | zstd -T0 -3 --quiet -o "images/${name}.tar.zst"
+          done < <(jq -c '.[]' <<<"$IMAGE_BUILD_JSON")
+
+      - name: Upload images
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: images-${{ matrix.row }}
+          path: images/*.tar.zst
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 1
+
+  # Smoke, inventory and scan every classified image from the archives above.
+  # The loops read IMAGES_JSON, so an image is covered by being listed.
+  image-scan:
+    name: image scan
+    needs: [image-build]
+    runs-on: ubuntu-latest
+    timeout-minutes: 25 # longest green run ~4 min
+    permissions:
+      contents: read
+      packages: write
+    env:
+      IMAGES_JSON: >-
+        [{"name":"web","tag":"repkey-web:ci","publish":true},{"name":"worker","tag":"repkey-worker:ci","publish":true},{"name":"google-provider-redis","tag":"repkey-google-provider-redis:ci","publish":true},{"name":"provider-sandbox","tag":"repkey-provider-sandbox:ci","publish":false}]
+
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Download images
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          pattern: images-*
+          path: images
+          merge-multiple: true
+
+      - name: Load images
+        run: |
+          set -euo pipefail
+          for archive in images/*.tar.zst; do
+            zstd -dc "$archive" | docker load
+          done
+
+      - name: Smoke images (contract, non-root, prod-deps purity)
+        run: |
+          set -euo pipefail
+          jq -e 'type == "array" and length > 0 and length <= 4' <<<"$IMAGES_JSON" >/dev/null
+          while IFS= read -r image; do
+            IMAGE_NAME=$(jq -r '.name' <<<"$image")
+            IMAGE_TAG=$(jq -r '.tag' <<<"$image")
+          case "$IMAGE_NAME" in
+            web)
+              docker run --rm repkey-web:ci node -e "process.exit(0)"
+              test "$(docker image inspect repkey-web:ci --format '{{.Config.User}}')" = "node"
+              docker run --rm --entrypoint test repkey-web:ci -e /app/node_modules/pg
+              docker run --rm --entrypoint node repkey-web:ci -e "const p=require('/app/package.json');process.exit('scripts' in p?1:0)"
+              for sentinel in vitest typescript eslint prettier; do
+                if docker run --rm --entrypoint test repkey-web:ci -e "/app/node_modules/$sentinel"; then
+                  echo "::error::devDependency $sentinel leaked into repkey-web:ci prod node_modules"
+                  exit 1
+                fi
+              done
+              test "$(docker image inspect repkey-web:ci --format '{{index .Config.Labels "com.repkey.google-import-contract"}}')" = "final"
+              test "$(docker image inspect repkey-web:ci --format '{{index .Config.Labels "com.repkey.rollout-scope"}}')" = "serving-final"
+              docker run --rm --entrypoint sh repkey-web:ci -c \
+                "! find /app/.output /app/dist-worker -type f \( -name '*seed-e2e-user*' -o -name '*provision-google-admission-role*' \) -print | grep -q . && ! grep -R -l 'password123' /app/.output /app/dist-worker 2>/dev/null"
+              ;;
+            worker)
+              docker run --rm repkey-worker:ci node -e "process.exit(0)"
+              # web and worker are ONE image; the image CMD is the web server,
+              # so prove the worker start command's entrypoints are present.
+              docker run --rm --entrypoint node repkey-worker:ci -e \
+                "require.resolve('/app/dist-worker/index.js');require.resolve('/app/dist-worker/worker-observability-preload.js')"
+              test "$(docker image inspect repkey-worker:ci --format '{{.Config.User}}')" = "node"
+              docker run --rm --entrypoint test repkey-worker:ci -e /app/node_modules/pg
+              docker run --rm --entrypoint node repkey-worker:ci -e "const p=require('/app/package.json');process.exit('scripts' in p?1:0)"
+              for sentinel in vitest typescript eslint prettier; do
+                if docker run --rm --entrypoint test repkey-worker:ci -e "/app/node_modules/$sentinel"; then
+                  echo "::error::devDependency $sentinel leaked into repkey-worker:ci prod node_modules"
+                  exit 1
+                fi
+              done
+              test "$(docker image inspect repkey-worker:ci --format '{{index .Config.Labels "com.repkey.google-import-contract"}}')" = "final"
+              test "$(docker image inspect repkey-worker:ci --format '{{index .Config.Labels "com.repkey.rollout-scope"}}')" = "serving-final"
+              docker run --rm --entrypoint sh repkey-worker:ci -c \
+                "! find /app/dist-worker -type f \( -name '*seed-e2e-user*' -o -name '*provision-google-admission-role*' \) -print | grep -q . && ! grep -R -l 'password123' /app/dist-worker 2>/dev/null"
+              ;;
+            google-provider-redis)
+              sh scripts/ci/smoke-provider-redis-image.sh repkey-google-provider-redis:ci
+              ;;
+            provider-sandbox)
+              docker run --rm --entrypoint sh repkey-provider-sandbox:ci -c 'set -eu; node provider-sandbox.mjs --kind=gbp --port=3000 >/tmp/provider-sandbox.log 2>&1 & child=$!; trap '\''kill "$child" 2>/dev/null || true; wait "$child" 2>/dev/null || true'\'' EXIT; attempt=0; until node -e "fetch('\''http://127.0.0.1:3000/__control/health'\'').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"; do attempt=$((attempt+1)); if [ "$attempt" -ge 30 ]; then cat /tmp/provider-sandbox.log; exit 1; fi; sleep 0.2; done'
+              test "$(docker image inspect repkey-provider-sandbox:ci --format '{{.Config.User}}')" = "node"
+              test "$(docker image inspect repkey-provider-sandbox:ci --format '{{index .Config.Labels "org.opencontainers.image.revision"}}')" = "$GITHUB_SHA"
+              docker run --rm --entrypoint test repkey-provider-sandbox:ci ! -e /app/node_modules
+              docker run --rm --entrypoint test repkey-provider-sandbox:ci ! -e /usr/local/bin/npm
+              ;;
+            *)
+              echo "::error::No smoke contract for image $IMAGE_NAME"
+              exit 1
+              ;;
+          esac
+          {
+            echo "### Governed image digest — $IMAGE_NAME"
+            echo "\`$IMAGE_TAG@$(docker image inspect "$IMAGE_TAG" --format '{{.Id}}')\`"
+          } >> "$GITHUB_STEP_SUMMARY"
+          done < <(jq -c '.[]' <<<"$IMAGES_JSON")
+
+      # Every image gets an SPDX JSON inventory.
+      - name: Install pinned Syft
+        id: syft
+        uses: anchore/sbom-action/download-syft@66cbf4bc1f1c0d2edc94016e65bc221b6bb0ad6c # v0.24.3
+        with:
+          syft-version: v1.42.3
+
+      - name: Generate image SBOMs
+        env:
+          SYFT_CMD: ${{ steps.syft.outputs.cmd }}
+        run: |
+          set -euo pipefail
+          mkdir -p image-sboms
+          while IFS= read -r image; do
+            name=$(jq -r '.name' <<<"$image")
+            tag=$(jq -r '.tag' <<<"$image")
+            "$SYFT_CMD" scan "$tag" -o "spdx-json=image-sboms/sbom-${name}.spdx.json"
+          done < <(jq -c '.[]' <<<"$IMAGES_JSON")
+
+      - name: Require an SBOM for every image
+        run: test "$(find image-sboms -maxdepth 1 -type f -name 'sbom-*.spdx.json' | wc -l)" -eq "$(jq 'length' <<<"$IMAGES_JSON")"
+
+      - name: Upload image SBOMs
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: image-sboms-spdx
+          path: image-sboms/sbom-*.spdx.json
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Install pinned Grype
+        id: grype
+        uses: anchore/scan-action/download-grype@27805bf3b4e84b4a5c980df22ed233c00390a439 # v7.4.2
+        with:
+          grype-version: v0.116.1
+
+      # The database is rebuilt daily at about 06:21 UTC. Keyed on the day, the
+      # cache held the database of the first run after midnight, so every later
+      # run re-downloaded it (about 100 s). Keyed on the build time that Grype's
+      # own listing reports, a run restores exactly the database it would
+      # otherwise download, and a new build is a miss, never a stale hit.
+      - name: Resolve Grype database build
+        id: grype-db
+        env:
+          GRYPE_CMD: ${{ steps.grype.outputs.cmd }}
+        run: echo "built=$("$GRYPE_CMD" db list -o json | jq -er '.[0].built')" >> "$GITHUB_OUTPUT"
+
+      - name: Restore Grype vulnerability DB
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.cache/grype/db
+          key: grype-db-v0.116.1-${{ steps.grype-db.outputs.built }}
+
+      # Hard fail on HIGH and above, scanning each generated SBOM with the
+      # config that holds every reviewed exception. The table names the package,
+      # CVE and fixed-in version; the SARIF is kept for the runs where it is
+      # not enough.
+      - name: Vulnerability scan images (grype)
+        env:
+          GRYPE_CMD: ${{ steps.grype.outputs.cmd }}
+        run: |
+          set -euo pipefail
+          mkdir -p image-scans
+          while IFS= read -r image; do
+            name=$(jq -r '.name' <<<"$image")
+            "$GRYPE_CMD" \
+              -v \
+              -o "sarif=image-scans/grype-${name}.sarif" \
+              -o table \
+              --fail-on high \
+              -c .grype.yaml \
+              "sbom:image-sboms/sbom-${name}.spdx.json"
+          done < <(jq -c '.[]' <<<"$IMAGES_JSON")
+
+      - name: Upload vulnerability scan reports
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: image-scan-reports
+          path: image-scans/grype-*.sarif
+          if-no-files-found: warn
+
+      # A dispatched run stages its scanned bytes under a run-scoped tag and the
+      # `image` job writes the digest map from them. A main push still stages and
+      # promotes through the `docker` job above, and both cannot tag one commit:
+      # builds are not byte-identical, so the second would meet a conflicting
+      # digest.
+      - name: Authenticate image stager
+        if: github.event_name == 'workflow_dispatch'
+        env:
+          GHCR_TOKEN: ${{ github.token }}
+        run: echo "$GHCR_TOKEN" | docker login ghcr.io --username "$GITHUB_ACTOR" --password-stdin
+
+      - name: Stage scanned images
+        if: github.event_name == 'workflow_dispatch'
+        run: |
+          set -euo pipefail
+          mkdir -p staged-image-digests
+          owner=$(tr '[:upper:]' '[:lower:]' <<<"$GITHUB_REPOSITORY_OWNER")
+          while IFS= read -r image; do
+            [[ "$(jq -r '.publish' <<<"$image")" == "true" ]] || continue
+            IMAGE_NAME=$(jq -r '.name' <<<"$image")
+            IMAGE_TAG=$(jq -r '.tag' <<<"$image")
+            repository="ghcr.io/${owner}/repkey-${IMAGE_NAME}"
+            staged_reference="${repository}:ci-run-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+            if docker buildx imagetools inspect "$staged_reference" >/dev/null 2>&1; then
+              echo "::error::run-scoped staging tag already exists: $staged_reference"
+              exit 1
+            fi
+            test "$(docker image inspect "$IMAGE_TAG" --format '{{index .Config.Labels "org.opencontainers.image.revision"}}')" = "$GITHUB_SHA"
+            docker tag "$IMAGE_TAG" "$staged_reference"
+            docker push "$staged_reference"
+            digest=$(docker buildx imagetools inspect "$staged_reference" --format '{{json .Manifest.Digest}}' | tr -d '"')
+            [[ "$digest" =~ ^sha256:[0-9a-f]{64}$ ]]
+            jq -S -n \
+              --arg image "$IMAGE_NAME" \
+              --arg repository "$repository" \
+              --arg stagedReference "$staged_reference" \
+              --arg digest "$digest" \
+              --arg sourceRevision "$GITHUB_SHA" \
+              '{image:$image,repository:$repository,stagedReference:$stagedReference,digest:$digest,sourceRevision:$sourceRevision}' \
+              > "staged-image-digests/${IMAGE_NAME}.json"
+          done < <(jq -c '.[]' <<<"$IMAGES_JSON")
+
+      - name: Stage scanned image descriptors
+        if: github.event_name == 'workflow_dispatch'
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: image-digests-${{ github.sha }}
+          path: staged-image-digests/*.json
+          if-no-files-found: error
+          retention-days: 90
+
+  # The `image` aggregate, the replacement for `docker`. A dispatched run turns
+  # the staged descriptors into the digest map that
+  # `pnpm ops deploy-ci-images --verify-only` reads back; every other event only
+  # requires the image jobs to have passed.
+  image:
+    needs: [image-build, image-scan]
+    if: always()
+    runs-on: ubuntu-latest
+    timeout-minutes: 10 # longest green run ~1 min
+    permissions:
+      contents: read
+      packages: read
+    steps:
+      - name: Require every image job to succeed
+        if: needs.image-build.result != 'success' || needs.image-scan.result != 'success'
+        run: exit 1
+
+      - name: Download staged image descriptors
+        if: github.event_name == 'workflow_dispatch'
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          pattern: image-digests-${{ github.sha }}
+          path: staged-image-digests
+          merge-multiple: true
+
+      - name: Validate complete staged image set
+        if: github.event_name == 'workflow_dispatch'
+        run: |
+          set -euo pipefail
+          test "$(find staged-image-digests -maxdepth 1 -type f -name '*.json' | wc -l)" -eq 3
+          jq -sS \
+            --arg revision "$GITHUB_SHA" \
+            --arg runId "$GITHUB_RUN_ID" \
+            --arg runAttempt "$GITHUB_RUN_ATTEMPT" \
+            'sort_by(.image) as $entries
+            | ["google-provider-redis","web","worker"] as $expected
+            | ($entries | map(.image)) as $observed
+            | if $observed != $expected then error("staged image set is incomplete or unexpected") else . end
+            | if any($entries[];
+                .sourceRevision != $revision
+                or (.digest | test("^sha256:[0-9a-f]{64}$") | not)
+                or .repository != ("ghcr.io/kodes-agency/repkey-" + .image)
+                or .stagedReference != (.repository + ":ci-run-" + $runId + "-" + $runAttempt)
+              )
+              then error("staged image repository, digest, source revision, or run reference is invalid")
+              else $entries
+              end' \
+            staged-image-digests/*.json > validated-image-digests.json
+
+      - name: Authenticate image reader
+        if: github.event_name == 'workflow_dispatch'
+        env:
+          GHCR_TOKEN: ${{ github.token }}
+        run: echo "$GHCR_TOKEN" | docker login ghcr.io --username "$GITHUB_ACTOR" --password-stdin
+
+      # The map is written only after the registry answers, under each staged
+      # tag, with the digest the scan job recorded, so a consumer never sees a
+      # digest nothing serves.
+      - name: Write image digest map
+        if: github.event_name == 'workflow_dispatch'
+        run: |
+          set -euo pipefail
+          while IFS= read -r image; do
+            staged_reference=$(jq -r '.stagedReference' <<<"$image")
+            expected_digest=$(jq -r '.digest' <<<"$image")
+            staged_digest=$(docker buildx imagetools inspect "$staged_reference" --format '{{json .Manifest.Digest}}' | tr -d '"')
+            test "$staged_digest" = "$expected_digest"
+          done < <(jq -c '.[]' validated-image-digests.json)
+
+          jq -S \
+            --arg revision "$GITHUB_SHA" \
+            --arg repository "$GITHUB_REPOSITORY" \
+            '{
+              version:"repkey-ci-image-digest-map-1",
+              sourceRevision:$revision,
+              source:{
+                repository:$repository,
+                ref:env.GITHUB_REF,
+                event:"workflow_dispatch",
+                workflow:".github/workflows/ci.yml",
+                runId:env.GITHUB_RUN_ID,
+                runAttempt:(env.GITHUB_RUN_ATTEMPT | tonumber)
+              },
+              images:(map({key:.image,value:{repository:.repository,digest:.digest,sourceRevision:.sourceRevision}}) | from_entries)
+            }' \
+            validated-image-digests.json > ci-image-digest-map.json
+
+      - name: Upload image digest map
+        if: github.event_name == 'workflow_dispatch'
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: ci-image-digest-map-${{ github.sha }}
+          path: ci-image-digest-map.json
+          if-no-files-found: error
+          retention-days: 90
+
+  # The e2e journeys run against the image built above. Sharding keeps the
+  # `critical` project's one-worker rule: each shard boots its own stack, which
+  # now takes a minute rather than two and a half because nothing is built in
+  # it. The compose file names its images by SOURCE_REVISION, so the loaded
+  # archives are tagged with that name and E2E_STACK_PREBUILT makes the stack
+  # run them or fail. Measured critical seconds per shard, with 6 shards: 56,
+  # 86, 57, 122, 139, 134. The full suite (85 s) rides the lightest, shard 1,
+  # and the Android compatibility viewport (17 s) the next, shard 3.
+  browser:
+    name: browser (${{ matrix.shard }}/6)
+    needs: [image-build]
+    runs-on: ubuntu-latest
+    timeout-minutes: 25 # longest green run ~5 min
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3, 4, 5, 6]
+
+    env:
+      CI: '1'
+      E2E_BASE_URL: http://127.0.0.1:3000
+      E2E_LOCKED_BASE_URL: http://127.0.0.1:3001
+      E2E_STACK_PREBUILT: '1'
+
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Download images
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          pattern: images-*
+          path: images
+          merge-multiple: true
+      # Loading the image takes about 25 s and nothing before the stack needs it,
+      # so it runs behind the installs below; the step before the stack waits.
+      - name: Load the stack's images in the background
+        run: |
+          rm -f /tmp/stack-images.status
+          nohup bash -c '
+            trap "echo failed > /tmp/stack-images.status" ERR
+            set -Eeuo pipefail
+            zstd -dc images/web.tar.zst | docker load
+            zstd -dc images/provider-sandbox.tar.zst | docker load
+            set -a
+            . ./e2e/stack.env
+            set +a
+            docker tag repkey-web:ci "repkey-local-web:${SOURCE_REVISION}"
+            docker tag repkey-provider-sandbox:ci "repkey-local-provider:${SOURCE_REVISION}"
+            echo ok > /tmp/stack-images.status
+          ' > /tmp/stack-images.log 2>&1 < /dev/null &
+      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+        # version intentionally unset: package.json packageManager (pnpm@10.6.5) is the single source
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      # Chromium only: Firefox and WebKit run weekly (browser-matrix.yml). The
+      # cache is shared with storybook-test, which needs the same one browser.
+      - name: Resolve Playwright version
+        id: pw
+        run: echo "version=$(node -p "require('@playwright/test/package.json').version")" >> "$GITHUB_OUTPUT"
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        id: pw-cache
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ steps.pw.outputs.version }}-chromium
+      - name: Install Playwright browser
+        if: steps.pw-cache.outputs.cache-hit != 'true'
+        timeout-minutes: 10
+        run: pnpm exec playwright install chromium
+      # Bounded, cached and self-naming: see the e2e-shard job of the same names.
+      - name: Week of the Ubuntu package cache
+        id: apt-week
+        run: echo "week=$(date -u +%G-W%V)" >> "$GITHUB_OUTPUT"
+      - name: Restore Ubuntu packages for Playwright
+        id: apt-cache
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.cache/playwright-apt
+          key: playwright-apt-${{ runner.os }}-${{ steps.pw.outputs.version }}-chromium_${{ steps.apt-week.outputs.week }}
+          restore-keys: playwright-apt-${{ runner.os }}-${{ steps.pw.outputs.version }}-chromium_
+      - name: Install Playwright system packages
+        timeout-minutes: 10
+        run: PLAYWRIGHT_DEPS_CACHE_DIR="$HOME/.cache/playwright-apt" sh scripts/ci/install-playwright-deps.sh chromium
+      - name: Save Ubuntu packages for Playwright
+        if: steps.apt-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.cache/playwright-apt
+          key: ${{ steps.apt-cache.outputs.cache-primary-key }}
+      - name: Wait for the stack's images
+        run: |
+          for _ in $(seq 1 180); do
+            if [ -f /tmp/stack-images.status ]; then
+              cat /tmp/stack-images.log
+              [ "$(cat /tmp/stack-images.status)" = ok ]
+              exit
+            fi
+            sleep 1
+          done
+          echo "::error::the stack's images were not loaded within 180 s"
+          cat /tmp/stack-images.log
+          exit 1
+      - name: Start local Compose application stack
+        run: pnpm e2e:stack:up
+      - name: Run critical e2e (hard gate)
+        id: e2e_critical
+        env:
+          PLAYWRIGHT_JSON_OUTPUT_NAME: test-results/e2e-critical-report.json
+        run: pnpm test:e2e --project=critical --shard=${{ matrix.shard }}/6 --max-failures=1 ${{ github.event_name == 'push' && '--fail-on-flaky-tests' || '' }}
+      # Stop scheduling critical journeys after the first failure, but preserve
+      # that attempt's trace even when the configured retry succeeds. This
+      # upload runs before the full suite clears Playwright's outputDir.
+      - name: Upload critical e2e first-failure artifacts
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: browser-artifacts-critical-${{ matrix.shard }}
+          path: test-results/playwright/**
+          if-no-files-found: ignore
+          retention-days: 7
+      - name: Run full e2e suite (hard gate)
+        id: e2e_full
+        if: matrix.shard == 1
+        env:
+          PLAYWRIGHT_JSON_OUTPUT_NAME: test-results/e2e-full-report.json
+        run: pnpm test:e2e --project=full ${{ github.event_name == 'push' && '--fail-on-flaky-tests' || '' }}
+      - name: Upload full e2e failure artifacts
+        if: steps.e2e_full.outcome == 'failure'
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: browser-artifacts-full-${{ matrix.shard }}
+          path: test-results/playwright/**
+          if-no-files-found: ignore
+          retention-days: 7
+      - name: Run mobile compatibility gate (Chromium, Android viewport)
+        id: e2e_compatibility
+        if: matrix.shard == 3
+        env:
+          PLAYWRIGHT_JSON_OUTPUT_NAME: test-results/e2e-compatibility-report.json
+        run: pnpm test:e2e --project=compat-mobile-android ${{ github.event_name == 'push' && '--fail-on-flaky-tests' || '' }}
+      - name: Upload exact browser reports
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: browser-reports-${{ matrix.shard }}
+          path: |
+            test-results/e2e-critical-report.json
+            test-results/e2e-full-report.json
+            test-results/e2e-compatibility-report.json
+          if-no-files-found: ignore
+          retention-days: 14
+      - name: Upload compatibility failure artifacts
+        if: steps.e2e_compatibility.outcome == 'failure'
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: browser-artifacts-compatibility-${{ matrix.shard }}
+          path: test-results/playwright/**
+          if-no-files-found: ignore
+          retention-days: 7
+      - name: Collect local Compose diagnostics
+        if: always()
+        run: pnpm e2e:stack:logs
+      - name: Upload local stack evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: browser-stack-evidence-${{ matrix.shard }}
+          path: test-results/local-stack/**
+          if-no-files-found: ignore
+          retention-days: 7
+      - name: Tear down local Compose application stack
+        if: always()
+        run: pnpm e2e:stack:down
+
+  # The aggregate the required check will name, the replacement for `check` and
+  # `e2e`. A failed, cancelled or skipped dependency cannot pass it.
+  ci:
+    needs: [lint, typecheck, unit, integration, probes, browser]
+    if: always()
+    runs-on: ubuntu-latest
+    timeout-minutes: 5 # longest green run ~1 min
+    steps:
+      - name: Require every gate to succeed
+        if: >-
+          contains(needs.*.result, 'failure') ||
+          contains(needs.*.result, 'cancelled') ||
+          contains(needs.*.result, 'skipped')
+        run: exit 1

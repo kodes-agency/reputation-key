@@ -1,6 +1,7 @@
 import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { describe, expect, it } from 'vitest'
+import { validateCiImagePipeline } from './check-image-pipeline-policy'
 import {
   dockerfileSecretMountIds,
   loadContainerImagePolicy,
@@ -181,5 +182,137 @@ describe('container image policy', () => {
     ).toContain(
       'Dockerfile.sandbox.dockerignore excludes COPY source e2e/fixtures/ai-provider-stub.ts',
     )
+  })
+})
+
+describe('replacement image pipeline policy', () => {
+  const policy = loadContainerImagePolicy(ROOT)
+  const workflow = readFileSync(resolve(ROOT, '.github/workflows/ci.yml'), 'utf8')
+  // The image groups above the pipeline share some of its lines, and a string
+  // replace edits the first match: edit only the jobs from `image-build` on.
+  const editPipeline = (edit: (jobs: string) => string): string => {
+    const start = workflow.indexOf('\n  image-build:\n')
+    return workflow.slice(0, start) + edit(workflow.slice(start))
+  }
+
+  it('builds, smokes, inventories, scans and stages every classified image', () => {
+    expect(validateCiImagePipeline(policy, workflow)).toEqual([])
+  })
+
+  it('rejects a workflow without the three image jobs', () => {
+    expect(validateCiImagePipeline(policy, 'jobs:\n  check:\n    steps: []\n')).toEqual([
+      'CI has no image-build, image-scan and image jobs',
+    ])
+  })
+
+  it('rejects the pipeline when its vulnerability scan is removed', () => {
+    const withoutScan = workflow.replace(
+      /\n\s+- name: Vulnerability scan images \(grype\)[\s\S]*?(?=\n\s+- name:|\n\s{2}#)/u,
+      '',
+    )
+
+    expect(validateCiImagePipeline(policy, withoutScan)).toContain(
+      'CI image pipeline scans is missing repkey-provider-sandbox:ci',
+    )
+  })
+
+  it('rejects a classified image missing from the build rows', () => {
+    const withoutSandboxRow = workflow.replace(
+      ',{"name":"provider-sandbox","dockerfile":"Dockerfile.sandbox","tags":["repkey-provider-sandbox:ci"]}',
+      '',
+    )
+
+    expect(validateCiImagePipeline(policy, withoutSandboxRow)).toContain(
+      'CI image pipeline builds is missing Dockerfile.sandbox=>repkey-provider-sandbox:ci',
+    )
+  })
+
+  it('rejects a classified image missing from the scan list', () => {
+    const withoutWorker = workflow.replace(
+      '{"name":"worker","tag":"repkey-worker:ci","publish":true},',
+      '',
+    )
+    const violations = validateCiImagePipeline(policy, withoutWorker)
+
+    expect(violations).toContain(
+      'CI image pipeline bindings is missing worker=>repkey-worker:ci',
+    )
+    expect(violations).toContain('CI image pipeline SBOMs is missing repkey-worker:ci')
+    expect(violations).toContain('CI image pipeline scans is missing repkey-worker:ci')
+  })
+
+  it('pins the three production runtimes versus one CI-only descriptor', () => {
+    const webMadeCiOnly = workflow.replace(
+      '{"name":"web","tag":"repkey-web:ci","publish":true}',
+      '{"name":"web","tag":"repkey-web:ci","publish":false}',
+    )
+
+    expect(validateCiImagePipeline(policy, webMadeCiOnly)).toContain(
+      'CI image pipeline publish bindings is missing web=>true',
+    )
+  })
+
+  it('keys the Grype database cache on the database build, not the day', () => {
+    const keyedOnDate = workflow.replace(
+      'key: grype-db-v0.116.1-${{ steps.grype-db.outputs.built }}',
+      'key: grype-db-v0.116.1-${{ steps.grype-db-date.outputs.utc }}',
+    )
+
+    expect(validateCiImagePipeline(policy, keyedOnDate)).toContain(
+      'CI image pipeline scans is missing repkey-web:ci',
+    )
+  })
+
+  it('rejects staging that a main push or a pull request could reach', () => {
+    const unguarded = workflow.replace(
+      "      - name: Stage scanned images\n        if: github.event_name == 'workflow_dispatch'\n",
+      '      - name: Stage scanned images\n',
+    )
+
+    expect(validateCiImagePipeline(policy, unguarded)).toContain(
+      'CI image pipeline must stage scanned images under unique run tags',
+    )
+  })
+
+  it('rejects a digest map written without reading the registry back', () => {
+    const withoutReadBack = editPipeline((jobs) =>
+      jobs.replace('            test "$staged_digest" = "$expected_digest"\n', ''),
+    )
+
+    expect(validateCiImagePipeline(policy, withoutReadBack)).toContain(
+      'CI image pipeline must read back the staged image set before writing its digest map',
+    )
+  })
+
+  it('rejects an image job barrier that no longer gates the map', () => {
+    const withoutBarrier = workflow.replace(
+      "        if: needs.image-build.result != 'success' || needs.image-scan.result != 'success'\n",
+      '',
+    )
+
+    expect(validateCiImagePipeline(policy, withoutBarrier)).toContain(
+      'CI image pipeline must read back the staged image set before writing its digest map',
+    )
+  })
+
+  it('rejects a secret-shaped build argument in the single build', () => {
+    const withTokenArgument = editPipeline((jobs) =>
+      jobs.replace(
+        '                --build-arg "SENTRY_ORG=$SENTRY_ORG"',
+        '                --build-arg "SENTRY_AUTH_TOKEN=$SENTRY_AUTH_TOKEN"\n                --build-arg "SENTRY_ORG=$SENTRY_ORG"',
+      ),
+    )
+
+    expect(validateCiImagePipeline(policy, withTokenArgument)).toContain(
+      'CI passes secret-shaped build argument SENTRY_AUTH_TOKEN; deliver it with --secret id=… instead',
+    )
+  })
+
+  it('checks the secrets the single build passes against the Dockerfile mounts', () => {
+    expect(
+      validateBuildSecretMounts(['sentry_upload_token'], workflow).filter((violation) =>
+        violation.includes('sentry_auth_token'),
+      ),
+    ).toHaveLength(1)
   })
 })

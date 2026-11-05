@@ -1,5 +1,11 @@
 // Which production images main CI proved for a commit: the digest map that
 // the `docker` job of a green main push run wrote, read back from that run.
+//
+// The replacement pipeline's `image` job writes the same map from a dispatched
+// run. `verifyDispatchedCiImageDigestMap` applies the deploy's acceptance rules
+// to such a run so the pipeline can be proved from a branch. No deploy reads a
+// dispatched map: it carries an `event` the deploy's schema refuses, and the
+// deploy lists only main push runs.
 
 import { mkdtempSync, readFileSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
@@ -36,25 +42,41 @@ const image = z.strictObject({
   digest: imageDigest,
   sourceRevision: z.string().regex(SOURCE_REVISION),
 })
-const DIGEST_MAP_SCHEMA = z.strictObject({
-  version: z.literal(CI_IMAGE_DIGEST_MAP_VERSION),
-  sourceRevision: z.string().regex(SOURCE_REVISION),
-  source: z.strictObject({
-    repository: z.literal(TRUSTED_REPOSITORY),
-    ref: z.literal('refs/heads/main'),
-    workflow: z.literal(TRUSTED_CI_WORKFLOW),
-    runId: z.string().regex(/^[1-9][0-9]*$/u),
-    runAttempt: z.number().int().positive(),
+const sourceFields = {
+  repository: z.literal(TRUSTED_REPOSITORY),
+  workflow: z.literal(TRUSTED_CI_WORKFLOW),
+  runId: z.string().regex(/^[1-9][0-9]*$/u),
+  runAttempt: z.number().int().positive(),
+}
+const digestMapSchema = <Source extends z.ZodType>(source: Source) =>
+  z.strictObject({
+    version: z.literal(CI_IMAGE_DIGEST_MAP_VERSION),
+    sourceRevision: z.string().regex(SOURCE_REVISION),
+    source,
+    images: z.strictObject({
+      web: image,
+      worker: image,
+      'google-provider-redis': image,
+    }),
+  })
+const DIGEST_MAP_SCHEMA = digestMapSchema(
+  z.strictObject({ ...sourceFields, ref: z.literal('refs/heads/main') }),
+)
+// The one difference: a map from a dispatched run names its branch and its
+// event. The event is what the schema above refuses, so no deploy takes it.
+const DISPATCHED_DIGEST_MAP_SCHEMA = digestMapSchema(
+  z.strictObject({
+    ...sourceFields,
+    ref: z.string().regex(/^refs\/heads\/\S+$/u),
+    event: z.literal('workflow_dispatch'),
   }),
-  images: z.strictObject({
-    web: image,
-    worker: image,
-    'google-provider-redis': image,
-  }),
-})
+)
 
 export type CiImageDigest = Readonly<z.output<typeof image>>
 export type CiImageDigestMap = Readonly<z.output<typeof DIGEST_MAP_SCHEMA>>
+export type DispatchedCiImageDigestMap = Readonly<
+  z.output<typeof DISPATCHED_DIGEST_MAP_SCHEMA>
+>
 
 const GITHUB_RUNS_SCHEMA = z.array(
   z.object({
@@ -70,6 +92,20 @@ const GITHUB_ARTIFACTS_SCHEMA = z.object({
   artifacts: z.array(z.object({ name: z.string(), expired: z.boolean() })),
 })
 const GITHUB_RUN_ATTEMPT_SCHEMA = z.object({ run_started_at: z.iso.datetime() })
+const GITHUB_RUN_SCHEMA = z.object({
+  id: z.number().int().positive(),
+  path: z.string(),
+  event: z.string(),
+  status: z.string(),
+  conclusion: z.string().nullable(),
+  head_sha: z.string(),
+  head_branch: z.string().nullable(),
+  run_attempt: z.number().int().positive(),
+})
+const GITHUB_ARTIFACT_LISTING_SCHEMA = z.object({
+  total_count: z.number().int().nonnegative(),
+  artifacts: z.array(z.object({ name: z.string(), expired: z.boolean() })),
+})
 const GITHUB_ATTEMPT_JOBS_SCHEMA = z.object({
   total_count: z.number().int().nonnegative(),
   jobs: z.array(
@@ -80,10 +116,28 @@ const GITHUB_ATTEMPT_JOBS_SCHEMA = z.object({
     }),
   ),
 })
-// The ci.yml jobs that make the images: the `docker image group (...)` matrix
-// rows build, scan and stage them; `docker` tags them and writes the digest map.
-const CI_DIGEST_MAP_JOB = 'docker'
-const CI_IMAGE_JOB = /^docker(?: image group \(.+\))?$/u
+/** The ci.yml jobs that make the images, and the one that writes the digest map. */
+type ImageJobs = Readonly<{ digestMapJob: string; imageJob: RegExp }>
+// The `docker image group (...)` matrix rows build, scan and stage the images;
+// `docker` tags them and writes the digest map of a main push run.
+const DEPLOYED_IMAGE_JOBS: ImageJobs = {
+  digestMapJob: 'docker',
+  imageJob: /^docker(?: image group \(.+\))?$/u,
+}
+// The replacement pipeline: `image build (...)` builds, `image scan` scans and
+// stages, `image` writes the map of a dispatched run, and `ci` gathers every
+// other gate. A name here that ci.yml does not give a job is a missing job.
+const REPLACEMENT_IMAGE_JOBS: ImageJobs = {
+  digestMapJob: 'image',
+  imageJob: /^image(?: build \(.+\)| scan)?$/u,
+}
+export const REPLACEMENT_REQUIRED_JOBS = [
+  'ci',
+  'image build (web)',
+  'image build (support)',
+  'image scan',
+  'image',
+] as const
 
 export function ciImageDigestMapArtifactName(sourceRevision: string): string {
   if (!SOURCE_REVISION.test(sourceRevision)) {
@@ -92,24 +146,29 @@ export function ciImageDigestMapArtifactName(sourceRevision: string): string {
   return `ci-image-digest-map-${sourceRevision}`
 }
 
-/**
- * `expectedRun` is the run the artifact was downloaded from. The map must name
- * that run: a map written by another run, or for another commit, proves
- * nothing about this one. Its attempt may be EARLIER than the
- * run's latest, because `gh run rerun --failed` re-runs only the failed jobs
- * and keeps the images and map an earlier attempt produced. Whether a later
- * attempt re-ran the image jobs is not in the map; `downloadCiImageDigestMap`
- * asks GitHub (`requireImageJobsFromAttempt`).
- */
-export function parseCiImageDigestMap(
-  content: string,
-  expectedRevision: string,
-  expectedRun?: Readonly<{ id: string; latestAttempt: number }>,
-): CiImageDigestMap {
-  if (!SOURCE_REVISION.test(expectedRevision)) {
+type ExpectedRun = Readonly<{ id: string; latestAttempt: number }>
+
+function requireRevision(revision: string): void {
+  if (!SOURCE_REVISION.test(revision)) {
     throw new Error('expected source revision must be a full lowercase git SHA')
   }
-  const parsed = parseJson(content, DIGEST_MAP_SCHEMA, 'CI image digest map')
+}
+
+/** The checks both kinds of map share: its commit, its run, its images. */
+function requireMapMatches(
+  parsed: Readonly<{
+    sourceRevision: string
+    source: Readonly<{ runId: string; runAttempt: number }>
+    images: Readonly<
+      Record<
+        CiProductionImageName,
+        Readonly<{ repository: string; sourceRevision: string }>
+      >
+    >
+  }>,
+  expectedRevision: string,
+  expectedRun: ExpectedRun | undefined,
+): void {
   if (parsed.sourceRevision !== expectedRevision) {
     throw new Error(
       `CI image digest map source revision ${parsed.sourceRevision} does not match ${expectedRevision}`,
@@ -139,6 +198,46 @@ export function parseCiImageDigestMap(
       )
     }
   }
+}
+
+/**
+ * `expectedRun` is the run the artifact was downloaded from. The map must name
+ * that run: a map written by another run, or for another commit, proves
+ * nothing about this one. Its attempt may be EARLIER than the
+ * run's latest, because `gh run rerun --failed` re-runs only the failed jobs
+ * and keeps the images and map an earlier attempt produced. Whether a later
+ * attempt re-ran the image jobs is not in the map; `downloadCiImageDigestMap`
+ * asks GitHub (`requireImageJobsFromAttempt`).
+ */
+export function parseCiImageDigestMap(
+  content: string,
+  expectedRevision: string,
+  expectedRun?: ExpectedRun,
+): CiImageDigestMap {
+  requireRevision(expectedRevision)
+  const parsed = parseJson(content, DIGEST_MAP_SCHEMA, 'CI image digest map')
+  requireMapMatches(parsed, expectedRevision, expectedRun)
+  return parsed
+}
+
+/** A dispatched run's map. It must name the branch the run was dispatched on. */
+function parseDispatchedCiImageDigestMap(
+  content: string,
+  expectedRevision: string,
+  expectedRun: ExpectedRun & Readonly<{ branch: string }>,
+): DispatchedCiImageDigestMap {
+  requireRevision(expectedRevision)
+  const parsed = parseJson(
+    content,
+    DISPATCHED_DIGEST_MAP_SCHEMA,
+    'dispatched CI image digest map',
+  )
+  requireMapMatches(parsed, expectedRevision, expectedRun)
+  if (parsed.source.ref !== `refs/heads/${expectedRun.branch}`) {
+    throw new Error(
+      `dispatched CI image digest map names ${parsed.source.ref}, not the branch ${expectedRun.branch} the run was dispatched on`,
+    )
+  }
   return parsed
 }
 
@@ -156,6 +255,7 @@ function requireImageJobsFromAttempt(
   mapAttempt: number,
   latestAttempt: number,
   runner: CommandRunner,
+  jobs: ImageJobs = DEPLOYED_IMAGE_JOBS,
 ): void {
   const run = `repos/${TRUSTED_REPOSITORY}/actions/runs/${String(runId)}`
   const label = `CI run ${String(runId)}`
@@ -177,9 +277,9 @@ function requireImageJobsFromAttempt(
   if (listing.jobs.length !== listing.total_count) {
     throw new Error(`${latest} job listing is incomplete`)
   }
-  const imageJobs = listing.jobs.filter(({ name }) => CI_IMAGE_JOB.test(name))
-  if (!imageJobs.some(({ name }) => name === CI_DIGEST_MAP_JOB)) {
-    throw new Error(`${latest} lists no ${CI_DIGEST_MAP_JOB} job`)
+  const imageJobs = listing.jobs.filter(({ name }) => jobs.imageJob.test(name))
+  if (!imageJobs.some(({ name }) => name === jobs.digestMapJob)) {
+    throw new Error(`${latest} lists no ${jobs.digestMapJob} job`)
   }
   for (const job of imageJobs) {
     if (job.conclusion !== 'success') {
@@ -291,4 +391,132 @@ export function downloadCiImageDigestMap(
   throw new Error(
     `no unexpired ${artifactName} artifact exists on a successful main push CI run`,
   )
+}
+
+export type VerifiedDispatchedRun = Readonly<{
+  runId: number
+  branch: string
+  sourceRevision: string
+  attempt: number
+  /** The replacement pipeline's jobs the run proved, by name. */
+  jobs: readonly string[]
+  digestMap: DispatchedCiImageDigestMap
+}>
+
+/**
+ * Whether a dispatched run of ci.yml proves its images the way a main push run
+ * must before a deploy: the run finished green, every job of the replacement
+ * pipeline is there and green, and the map in the run names this run, this
+ * commit and these images. It reads GitHub and nothing else, and it accepts a
+ * run on any branch, which is what lets the pipeline be proved before main
+ * runs it. A deploy never calls it: `downloadCiImageDigestMap` lists main push
+ * runs only.
+ */
+export function verifyDispatchedCiImageDigestMap(
+  runId: number,
+  runner: CommandRunner = defaultCommandRunner,
+): VerifiedDispatchedRun {
+  const api = `repos/${TRUSTED_REPOSITORY}/actions/runs/${String(runId)}`
+  const label = `CI run ${String(runId)}`
+  const run = parseJson(
+    checkedOutput(runner, 'gh', ['api', api]),
+    GITHUB_RUN_SCHEMA,
+    `GitHub ${label}`,
+  )
+  if (run.id !== runId) throw new Error(`GitHub answered for run ${String(run.id)}`)
+  if (run.path !== TRUSTED_CI_WORKFLOW) {
+    throw new Error(`${label} ran ${run.path}, not ${TRUSTED_CI_WORKFLOW}`)
+  }
+  if (run.event !== 'workflow_dispatch') {
+    throw new Error(
+      `${label} is a ${run.event} run; --verify-only reads dispatched runs, and a deploy reads main push runs`,
+    )
+  }
+  if (run.status !== 'completed') {
+    throw new Error(`${label} has not completed (${run.status})`)
+  }
+  if (run.conclusion !== 'success') {
+    throw new Error(`${label} concluded ${String(run.conclusion)}`)
+  }
+  if (!SOURCE_REVISION.test(run.head_sha) || !run.head_branch) {
+    throw new Error(`${label} names no full commit and branch`)
+  }
+
+  const attempt = `${label} attempt ${String(run.run_attempt)}`
+  const listing = parseJson(
+    checkedOutput(runner, 'gh', [
+      'api',
+      `${api}/attempts/${String(run.run_attempt)}/jobs?per_page=100`,
+    ]),
+    GITHUB_ATTEMPT_JOBS_SCHEMA,
+    `GitHub ${label} jobs`,
+  )
+  if (listing.jobs.length !== listing.total_count) {
+    throw new Error(`${attempt} job listing is incomplete`)
+  }
+  for (const name of REPLACEMENT_REQUIRED_JOBS) {
+    const job = listing.jobs.find((candidate) => candidate.name === name)
+    if (!job) throw new Error(`${attempt} lists no ${name} job`)
+    if (job.conclusion !== 'success') {
+      throw new Error(`${attempt} job ${name} concluded ${String(job.conclusion)}`)
+    }
+  }
+
+  const artifactName = ciImageDigestMapArtifactName(run.head_sha)
+  const artifacts = parseJson(
+    checkedOutput(runner, 'gh', ['api', `${api}/artifacts?per_page=100`]),
+    GITHUB_ARTIFACT_LISTING_SCHEMA,
+    `GitHub ${label} artifacts`,
+  )
+  if (artifacts.artifacts.length !== artifacts.total_count) {
+    throw new Error(`${label} artifact listing is incomplete`)
+  }
+  const matches = artifacts.artifacts.filter(
+    (artifact) => artifact.name === artifactName && !artifact.expired,
+  )
+  if (matches.length > 1) {
+    throw new Error(`${label} contains duplicate ${artifactName} artifacts`)
+  }
+  if (matches.length === 0) {
+    throw new Error(`${label} has no unexpired ${artifactName} artifact`)
+  }
+
+  const directory = mkdtempSync(join(tmpdir(), 'repkey-ci-image-digest-map-'))
+  try {
+    checkedOutput(runner, 'gh', [
+      'run',
+      'download',
+      String(runId),
+      '--repo',
+      TRUSTED_REPOSITORY,
+      '--name',
+      artifactName,
+      '--dir',
+      directory,
+    ])
+    const digestMap = parseDispatchedCiImageDigestMap(
+      readFileSync(join(directory, CI_IMAGE_DIGEST_MAP_FILE), 'utf8'),
+      run.head_sha,
+      { id: String(run.id), latestAttempt: run.run_attempt, branch: run.head_branch },
+    )
+    if (digestMap.source.runAttempt < run.run_attempt) {
+      requireImageJobsFromAttempt(
+        runId,
+        digestMap.source.runAttempt,
+        run.run_attempt,
+        runner,
+        REPLACEMENT_IMAGE_JOBS,
+      )
+    }
+    return {
+      runId,
+      branch: run.head_branch,
+      sourceRevision: run.head_sha,
+      attempt: run.run_attempt,
+      jobs: REPLACEMENT_REQUIRED_JOBS,
+      digestMap,
+    }
+  } finally {
+    rmSync(directory, { recursive: true, force: true })
+  }
 }
