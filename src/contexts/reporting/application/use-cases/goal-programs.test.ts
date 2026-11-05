@@ -31,14 +31,11 @@ const governedVersion = (id: string, minimumSample: number) => ({
         : id === METRIC_VERSION_IDS.portalRatingCountGoal
           ? ('portal.rating_count' as const)
           : ('portal.qualified_scan' as const),
-    name: 'Goal metric',
-    description: 'Governed Goal metric',
     valueKind: 'counter' as const,
     workerDataFlag: false,
     privacyClass: 'content_free',
     retentionClass: 'aggregate',
     lifecycleStatus: 'approved' as const,
-    approvalOwner: 'product',
   },
   version: {
     id,
@@ -46,21 +43,14 @@ const governedVersion = (id: string, minimumSample: number) => ({
     version: 1,
     effectiveFrom: new Date('2025-01-01T00:00:00.000Z'),
     effectiveTo: null,
-    numeratorDescription: 'events',
-    denominatorDescription: null,
     unit: 'count',
     precision: 1,
-    aggregationRule: 'sum',
-    lateArrivalRule: '24h',
     allowedScopes: ['property', 'portal_group', 'portal'] as const,
-    attributionRule: 'event time',
     minimumSample,
     insufficientDataBehavior: 'unavailable' as const,
     sourcePolicyAllowlist: ['first_party_guest_gateway_metric'] as const,
     permittedConsumers: ['goal'] as const,
     employmentDecisionEligible: false as const,
-    correctionBehavior: 'append',
-    fairnessReviewStatus: 'approved',
   },
 })
 
