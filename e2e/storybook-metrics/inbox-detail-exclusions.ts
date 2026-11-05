@@ -164,6 +164,4 @@ export const EXCLUDED_TITLES: Readonly<Record<string, string>> = {
     'one link button in the empty To handle state, shown or not by what the Portal presence read answers: no pane, nothing to press but a link; the empty state around it is pages-inbox--empty-feedback-queue',
   'Inbox/Hooks/Open item across queue moves':
     'a hook harness: three status paragraphs and three story buttons, drawn by the story to drive the hook — no product surface to measure',
-  'Inbox/Real Logic (In-Memory)':
-    'renders the in-memory use case’s counts as text: no pane, nothing to press',
 }
