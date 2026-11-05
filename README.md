@@ -216,18 +216,24 @@ A commit whose main CI went green only after **Re-run failed jobs**
 (`gh run rerun --failed`) deploys too. That re-run keeps the images and the
 digest map an earlier attempt of the same run produced, and the deploy takes
 that map when the run's latest attempt is green and no later attempt re-ran an
-image job (`docker image group (…)` or `docker`); such a re-run writes a newer
+image job (`image build (…)`, `image scan` or `image`); such a re-run writes a newer
 map, and the newer map is the one deployed. A map from another run or another
 commit, or a run whose latest attempt is red, is still refused
 (`scripts/ops/ci-image-digest-map.ts`). Re-run the failed jobs, not the whole
 workflow: a full re-run rebuilds the images, and when a rebuilt digest differs
-from the one already tagged for the commit, `docker` fails with
+from the one already tagged for the commit, `image` fails with
 `immutable image tag has a conflicting digest` and the commit cannot deploy.
 An e2e failure that passed on the re-run gets a row in
 `docs/operations/e2e-flake-register.md`.
 
-The replacement CI pipeline (`ci`, `image`) is proved from a branch before
-anything depends on it: `gh workflow run ci.yml --ref <branch>`, then
+The `image-scan` job stages the scanned images on main pushes and dispatched
+runs. The `image` job alone writes their digest map and, on main pushes only,
+promotes the complete set to immutable commit tags after preflight and registry
+readback. Pull requests never publish. The original `docker-images` and `docker`
+jobs keep building, smoking, inventorying and scanning during the handoff.
+Historical maps still use their original jobs for rerun validation and rollback.
+
+Prove the pipeline (`ci`, `image`) from a branch: `gh workflow run ci.yml --ref <branch>`, then
 `pnpm ops deploy-ci-images --verify-only --run <run id>` once the run is green.
 That reads the dispatched run's digest map with the deploy's acceptance rules
 and deploys nothing; a deploy never takes a dispatched run's map.

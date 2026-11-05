@@ -7,7 +7,7 @@ import {
   CI_PUBLISHED_IMAGE_IDS,
   ciSmokeViolations,
   listDifference,
-  requiredSteps,
+  workflowJob,
   secretShapedBuildInputs,
   workflowSteps,
   type WorkflowStep,
@@ -375,84 +375,21 @@ function ciEvidenceViolations(
   ]
 }
 
-/** Staging tags are unique per run attempt and must be pushed only AFTER the
- * scan step, never rebuilt, so what is promoted is what was scanned. */
-function ciStagingViolations(steps: readonly WorkflowStep[]): readonly string[] {
-  const named = requiredSteps(steps, [
-    'Authenticate production image stager',
-    'Stage scanned production images',
-    'Stage scanned image descriptors',
-    'Vulnerability scan grouped images (grype)',
-  ])
-  const failure = ['CI must stage scanned main images under unique run-attempt tags']
-  if (!named) return failure
-  const [stagingAuth, stageImages, stageDescriptors, scan] = named
-  const contract = [
-    stagingAuth.content.includes(CI_MAIN_ONLY_GUARD),
-    stageImages.content.includes(CI_MAIN_ONLY_GUARD),
-    stageDescriptors.content.includes(CI_MAIN_ONLY_GUARD),
-    stageImages.content.includes('[[ "$(jq -r \'.publish\' <<<"$image")" == "true" ]]'),
-    stageImages.content.includes(
-      'staged_reference="${repository}:ci-run-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"',
-    ),
-    stageImages.content.includes('docker tag "$IMAGE_TAG" "$staged_reference"'),
-    stageImages.content.includes('docker push "$staged_reference"'),
-    !stageImages.content.includes('docker buildx build'),
-    !stageImages.content.includes(':latest'),
-    // Staging after the scan is the whole point: it is what makes the promoted
-    // digest the scanned digest rather than a hopeful rebuild.
-    steps.indexOf(scan) < steps.indexOf(stageImages),
+/** The original jobs keep verifying their builds during the publishing handoff. */
+function ciVerificationOnlyViolations(workflow: string): readonly string[] {
+  const aggregate = workflowJob(workflow, 'docker')
+  const original = workflowJob(workflow, 'docker-images') + aggregate
+  return [
+    ...(!aggregate.includes("if: needs.docker-images.result != 'success'")
+      ? ['CI must require every original image group to succeed']
+      : []),
+    ...(/docker push|imagetools create|ci-image-digest-map|packages: write/u.test(
+      original,
+    )
+      ? ['Original image jobs must verify without publishing images or digest maps']
+      : []),
   ]
-  return contract.every(Boolean) ? [] : failure
 }
-
-/** Promotion is by digest across the complete staged set, and the digest map is
- * written only after the last read-back, so a consumer never sees a partial map. */
-function ciPromotionViolations(
-  workflow: string,
-  steps: readonly WorkflowStep[],
-): readonly string[] {
-  const named = requiredSteps(steps, [
-    'Require every image matrix entry to succeed',
-    'Validate complete staged production image set',
-    'Authenticate production image promoter',
-    'Promote complete production image set',
-  ])
-  const failure = [
-    'CI must promote the exact complete staged image set before writing its digest map',
-  ]
-  if (!named) return failure
-  const [barrier, validateStaged, promotionAuth, promote] = named
-  const mapWrite = 'validated-image-digests.json > ci-image-digest-map.json'
-  const finalVerification = promote.content.lastIndexOf(
-    'final_digest=$(docker buildx imagetools inspect',
-  )
-  const contract = [
-    barrier.content.includes("if: needs.docker-images.result != 'success'"),
-    validateStaged.content.includes(CI_MAIN_ONLY_GUARD),
-    validateStaged.content.includes(JSON.stringify([...CI_PUBLISHED_IMAGE_IDS])),
-    validateStaged.content.includes('staged image set is incomplete or unexpected'),
-    validateStaged.content.includes(
-      '.repository != ("ghcr.io/kodes-agency/repkey-" + .image)',
-    ),
-    promotionAuth.content.includes(CI_MAIN_ONLY_GUARD),
-    promote.content.includes(CI_MAIN_ONLY_GUARD),
-    promote.content.includes('docker buildx imagetools create'),
-    promote.content.includes('--prefer-index=false'),
-    promote.content.includes('"${repository}@${expected_digest}"'),
-    promote.content.includes('final_reference="${repository}:${GITHUB_SHA}"'),
-    !promote.content.includes('docker buildx build'),
-    !promote.content.includes(':latest'),
-    finalVerification >= 0,
-    // The map must be written strictly after the last digest read-back.
-    promote.content.indexOf(mapWrite) > finalVerification,
-    workflow.includes('name: ci-image-digest-map-${{ github.sha }}'),
-  ]
-  return contract.every(Boolean) ? [] : failure
-}
-
-const CI_MAIN_ONLY_GUARD =
-  "if: github.event_name == 'push' && github.ref == 'refs/heads/main'"
 
 export function validateCiContainerCoverage(
   policy: ContainerImagePolicy,
@@ -461,13 +398,12 @@ export function validateCiContainerCoverage(
   const expectedImages = policy.images.map(({ ciImage }) => ciImage)
   const matrixGroups = ciImageMatrixGroups(workflow)
   const matrixRows = matrixGroups.flatMap(({ images }) => images)
-  const steps = workflowSteps(workflow)
+  const steps = workflowSteps(workflowJob(workflow, 'docker-images'))
   return [
     ...ciBuildViolations(policy, workflow, matrixGroups, matrixRows, steps),
     ...ciSmokeViolations(expectedImages, steps),
     ...ciEvidenceViolations(expectedImages, matrixRows, steps),
-    ...ciStagingViolations(steps),
-    ...ciPromotionViolations(workflow, steps),
+    ...ciVerificationOnlyViolations(workflow),
   ]
 }
 

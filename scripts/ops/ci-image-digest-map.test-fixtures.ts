@@ -16,13 +16,14 @@ import type { CommandRunner } from './command-runner'
 
 export const REVISION = 'a'.repeat(40)
 
-export function digestMapValue(): Record<string, unknown> {
+export function digestMapValue(job?: 'image'): Record<string, unknown> {
   return {
     version: CI_IMAGE_DIGEST_MAP_VERSION,
     sourceRevision: REVISION,
     source: {
       repository: TRUSTED_REPOSITORY,
       ref: 'refs/heads/main',
+      ...(job ? { job } : {}),
       workflow: TRUSTED_CI_WORKFLOW,
       runId: '33891370093',
       runAttempt: 1,

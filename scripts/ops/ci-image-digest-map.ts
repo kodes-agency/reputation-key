@@ -1,5 +1,5 @@
 // Which production images main CI proved for a commit: the digest map that
-// the `docker` job of a green main push run wrote, read back from that run.
+// the `image` job of a green main push run wrote, read back from that run.
 //
 // The replacement pipeline's `image` job writes the same map from a dispatched
 // run. `verifyDispatchedCiImageDigestMap` applies the deploy's acceptance rules
@@ -60,10 +60,14 @@ const digestMapSchema = <Source extends z.ZodType>(source: Source) =>
     }),
   })
 const DIGEST_MAP_SCHEMA = digestMapSchema(
-  z.strictObject({ ...sourceFields, ref: z.literal('refs/heads/main') }),
+  z.strictObject({
+    ...sourceFields,
+    ref: z.literal('refs/heads/main'),
+    job: z.literal('image').optional(),
+  }),
 )
-// The one difference: a map from a dispatched run names its branch and its
-// event. The event is what the schema above refuses, so no deploy takes it.
+// A dispatched map names its branch and event instead of a production job.
+// The event is what the schema above refuses, so no deploy takes it.
 const DISPATCHED_DIGEST_MAP_SCHEMA = digestMapSchema(
   z.strictObject({
     ...sourceFields,
@@ -117,27 +121,27 @@ const GITHUB_ATTEMPT_JOBS_SCHEMA = z.object({
   ),
 })
 /** The ci.yml jobs that make the images, and the one that writes the digest map. */
-type ImageJobs = Readonly<{ digestMapJob: string; imageJob: RegExp }>
+type ImageJobs = Readonly<{ requiredJobs: readonly string[]; imageJob: RegExp }>
 // The `docker image group (...)` matrix rows build, scan and stage the images;
-// `docker` tags them and writes the digest map of a main push run.
+// `docker` wrote historical main push maps, which remain valid for rollback.
 const DEPLOYED_IMAGE_JOBS: ImageJobs = {
-  digestMapJob: 'docker',
+  requiredJobs: ['docker'],
   imageJob: /^docker(?: image group \(.+\))?$/u,
 }
 // The replacement pipeline: `image build (...)` builds, `image scan` scans and
-// stages, `image` writes the map of a dispatched run, and `ci` gathers every
+// stages, `image` writes main and dispatched maps, and `ci` gathers every
 // other gate. A name here that ci.yml does not give a job is a missing job.
-const REPLACEMENT_IMAGE_JOBS: ImageJobs = {
-  digestMapJob: 'image',
-  imageJob: /^image(?: build \(.+\)| scan)?$/u,
-}
-export const REPLACEMENT_REQUIRED_JOBS = [
-  'ci',
+const REPLACEMENT_IMAGE_JOB_NAMES = [
   'image build (web)',
   'image build (support)',
   'image scan',
   'image',
 ] as const
+const REPLACEMENT_IMAGE_JOBS: ImageJobs = {
+  requiredJobs: REPLACEMENT_IMAGE_JOB_NAMES,
+  imageJob: /^image(?: build \(.+\)| scan)?$/u,
+}
+export const REPLACEMENT_REQUIRED_JOBS = ['ci', ...REPLACEMENT_IMAGE_JOB_NAMES] as const
 
 export function ciImageDigestMapArtifactName(sourceRevision: string): string {
   if (!SOURCE_REVISION.test(sourceRevision)) {
@@ -259,12 +263,19 @@ function requireImageJobsFromAttempt(
 ): void {
   const run = `repos/${TRUSTED_REPOSITORY}/actions/runs/${String(runId)}`
   const label = `CI run ${String(runId)}`
-  const { run_started_at } = parseJson(
-    checkedOutput(runner, 'gh', ['api', `${run}/attempts/${String(mapAttempt + 1)}`]),
-    GITHUB_RUN_ATTEMPT_SCHEMA,
-    `GitHub ${label} attempt`,
-  )
-  const nextAttemptStarted = Date.parse(run_started_at)
+  const nextAttemptStarted =
+    mapAttempt < latestAttempt
+      ? Date.parse(
+          parseJson(
+            checkedOutput(runner, 'gh', [
+              'api',
+              `${run}/attempts/${String(mapAttempt + 1)}`,
+            ]),
+            GITHUB_RUN_ATTEMPT_SCHEMA,
+            `GitHub ${label} attempt`,
+          ).run_started_at,
+        )
+      : undefined
   const listing = parseJson(
     checkedOutput(runner, 'gh', [
       'api',
@@ -278,8 +289,10 @@ function requireImageJobsFromAttempt(
     throw new Error(`${latest} job listing is incomplete`)
   }
   const imageJobs = listing.jobs.filter(({ name }) => jobs.imageJob.test(name))
-  if (!imageJobs.some(({ name }) => name === jobs.digestMapJob)) {
-    throw new Error(`${latest} lists no ${jobs.digestMapJob} job`)
+  for (const name of jobs.requiredJobs) {
+    if (!imageJobs.some((job) => job.name === name)) {
+      throw new Error(`${latest} lists no ${name} job`)
+    }
   }
   for (const job of imageJobs) {
     if (job.conclusion !== 'success') {
@@ -289,7 +302,7 @@ function requireImageJobsFromAttempt(
     if (Number.isNaN(started)) {
       throw new Error(`${latest} job ${job.name} has no readable start time`)
     }
-    if (started >= nextAttemptStarted) {
+    if (nextAttemptStarted !== undefined && started >= nextAttemptStarted) {
       throw new Error(
         `${label} re-ran ${job.name} after attempt ${String(mapAttempt)}, so its attempt ${String(mapAttempt)} digest map is not the newest`,
       )
@@ -375,12 +388,13 @@ export function downloadCiImageDigestMap(
         revision,
         { id: String(run.databaseId), latestAttempt: run.attempt },
       )
-      if (digestMap.source.runAttempt < run.attempt) {
+      if (digestMap.source.job === 'image' || digestMap.source.runAttempt < run.attempt) {
         requireImageJobsFromAttempt(
           run.databaseId,
           digestMap.source.runAttempt,
           run.attempt,
           runner,
+          digestMap.source.job === 'image' ? REPLACEMENT_IMAGE_JOBS : DEPLOYED_IMAGE_JOBS,
         )
       }
       return digestMap
