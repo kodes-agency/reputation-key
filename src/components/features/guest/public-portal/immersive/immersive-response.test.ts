@@ -5,8 +5,8 @@
 // depend on the rating.
 //
 // ADR 0044, "Anti-gating rule": the Google card is the same markup in the same
-// place after every rating. The legacy page proves this in
-// `guest-page-view.test.ts`; this is the same proof on the immersive DOM.
+// place after every rating. `guest-page-view.test.ts` also exercises the live
+// page container and its preview.
 
 import { describe, expect, it } from 'vitest'
 import { PRIVATE_FEEDBACK_MAX_LENGTH } from '#/contexts/guest/application/dto/private-feedback.dto'

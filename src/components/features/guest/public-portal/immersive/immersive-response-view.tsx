@@ -27,7 +27,7 @@ export type {
  * Portal still collects notes, and "Your response". An existing note stays
  * visible. The threshold is the server's; the view never compares a rating.
  *
- * Like `GuestPageView` it binds no action: the container hands in the finished
+ * It binds no action: the container hands in the finished
  * state, which is what lets a preview, a story and the anti-gating test render
  * the markup a guest gets.
  */

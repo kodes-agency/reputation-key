@@ -34,7 +34,6 @@ import { createSharpImageProcessor } from './infrastructure/adapters/sharp-image
 import { createPortalMediaAssetRepository } from './infrastructure/repositories/portal-media-asset.repository'
 import { createPortalTokenRepository } from './infrastructure/repositories/portal-token.repository'
 import { createPortalPublicationRepository } from './infrastructure/repositories/portal-publication.repository'
-import { buildPortalMaintenance } from './build-maintenance'
 import { createPortalScopeRepository } from './infrastructure/repositories/portal-scope.repository'
 import {
   createPortalResponsibilityRecoveryStore,
@@ -828,8 +827,6 @@ export const buildPortalContext = (deps: PortalContextDeps) => {
         logger: deps.logger,
       }),
     }),
-    /** Operator-only Portal maintenance (round 4, slice 46); see build-maintenance.ts. */
-    maintenance: buildPortalMaintenance(deps.db, publishChangesDeps, deps.logger),
     /** ARC-03-T11: the named member-authority capability. Replaces the root's
      * Portal responsible-manager repository reach-through. */
     responsibility: createPortalResponsibilityRuntime(portalResponsibleManagerRepo),

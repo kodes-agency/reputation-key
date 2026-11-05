@@ -32,13 +32,10 @@ import type {
 import { APPROVED_DESTINATION_MAX_VALIDATION_AGE_MS } from '../approved-destination-age'
 import type { PortalHealthRepository } from '../ports/portal-health.repository'
 import {
-  guestSurfaceOfConfiguration,
   IMMERSIVE_HUB_SCHEMA_VERSION,
-  isLocalizedConfiguration,
   languagePackGenerationOf,
   type ImmersivePortalPublicationConfiguration,
   type PortalGuestLocale,
-  type PortalPublicationConfiguration,
   type PortalPublicationSnapshot,
 } from '../../domain/portal-publication-snapshot'
 import { selectPortalGuestLocale } from '../../domain/portal-experience'
@@ -108,6 +105,12 @@ export type GuestLocalePreference = Readonly<{
   acceptLanguage?: string | null
 }>
 
+type AdmittedPublication = Readonly<{
+  token: ResolvedPortalPublication['token']
+  snapshot: PortalPublicationSnapshot
+  configuration: ImmersivePortalPublicationConfiguration
+}>
+
 /**
  * Every public-edge admission gate behind the token digest, in order. Returns
  * null whenever the Portal must stay closed, so the caller never has to
@@ -117,13 +120,14 @@ async function admitPublicPortalRequest(
   deps: ResolvePublicPortalTokenDeps,
   digest: PresentedAddressDigest,
   now: Date,
-): Promise<ResolvedPortalPublication | null> {
+): Promise<AdmittedPublication | null> {
   const resolved = await deps.portalPublicationRepo.resolveActiveByTokenDigest(
     digest,
     now,
   )
   if (!resolved) return null
   const { token, snapshot } = resolved
+  const configuration = snapshot.configuration
   if (
     snapshot.organizationId !== token.organizationId ||
     snapshot.propertyId !== token.propertyId ||
@@ -148,19 +152,14 @@ async function admitPublicPortalRequest(
     return null
   }
 
-  // Localized publications (schema v2 and later) are created only after
-  // Portal Health became part of the public contract. Fail closed when that
-  // durable current posture is missing or explicitly unavailable. Legacy v1
-  // snapshots remain readable so existing printed addresses survive the
-  // rolling upgrade.
-  if (isLocalizedConfiguration(snapshot.configuration)) {
-    const health = await deps.portalHealthRepo.getCurrent(
-      organizationId(token.organizationId),
-      propertyId(token.propertyId),
-      portalId(token.portalId),
-    )
-    if (!health || health.status === 'unavailable') return null
-  }
+  // Earlier page designs stay stored as evidence and are never served.
+  if (configuration.schemaVersion !== IMMERSIVE_HUB_SCHEMA_VERSION) return null
+  const health = await deps.portalHealthRepo.getCurrent(
+    organizationId(token.organizationId),
+    propertyId(token.propertyId),
+    portalId(token.portalId),
+  )
+  if (!health || health.status === 'unavailable') return null
 
   const decision = await deps.decidePublic({
     action: 'portal.public_read',
@@ -170,7 +169,7 @@ async function admitPublicPortalRequest(
     now,
   })
   if (!decision.allowed) return null
-  return resolved
+  return { token, snapshot, configuration }
 }
 
 /** The gateway opens only while the live Property destination still matches the snapshot. */
@@ -272,16 +271,10 @@ type PortalPresentation = Readonly<{
  * snapshot cannot serve that locale, which fails the whole request closed.
  */
 function selectPresentation(
-  configuration: PortalPublicationConfiguration,
+  configuration: ImmersivePortalPublicationConfiguration,
   preference: GuestLocalePreference,
 ): PortalPresentation | null {
   const generation = languagePackGenerationOf(configuration.schemaVersion)
-  if (!isLocalizedConfiguration(configuration)) {
-    // Legacy v1: English only, and only the English v1 pack.
-    const languagePackVersion = configuration.languagePackVersion
-    if (!isSupportedGuestLanguagePack('en', languagePackVersion, generation)) return null
-    return { selectedLocale: 'en', languagePackVersion }
-  }
   const selectedLocale = selectPortalGuestLocale(
     configuration.localeSet,
     configuration.guestLocale,
@@ -303,58 +296,13 @@ type ServedContent = Readonly<{
   immersive: PublicImmersiveExperience | null
 }>
 
-/** The schema version 1 and 2 content: one legacy page, branded from the brand profile. */
-function legacyContent(
-  configuration: Exclude<
-    PortalPublicationConfiguration,
-    ImmersivePortalPublicationConfiguration
-  >,
-  selectedLocale: PortalGuestLocale,
-  links: PublicPortalResult['links'],
-): ServedContent | null {
-  if (!isLocalizedConfiguration(configuration)) {
-    return {
-      portal: configuration.portal,
-      links,
-      categories: configuration.categories,
-      immersive: null,
-    }
-  }
-  const selectedContent = configuration.localizedContent[selectedLocale]
-  if (!selectedContent) return null
-  return {
-    portal: {
-      ...configuration.portal,
-      name: selectedContent.title,
-      description: selectedContent.shortDescription,
-      heroImageUrl: selectedContent.heroImageUrl,
-      organizationName: configuration.brandProfile.displayName,
-      logoUrl: configuration.brandProfile.logoUrl,
-      theme: {
-        ...configuration.portal.theme,
-        primaryColor: configuration.brandProfile.primaryColor,
-        backgroundColor: configuration.brandProfile.backgroundColor,
-        textColor: configuration.brandProfile.textColor,
-      },
-    },
-    links,
-    categories: configuration.categories,
-    immersive: null,
-  }
-}
-
-/** What the page shows for the selected locale, from whichever schema version published it. */
 async function resolveServedContent(
   deps: ResolvePublicPortalTokenDeps,
   token: ResolvedPortalPublication['token'],
-  configuration: PortalPublicationConfiguration,
+  configuration: ImmersivePortalPublicationConfiguration,
   selectedLocale: PortalGuestLocale,
   now: Date,
 ): Promise<ServedContent | null> {
-  if (configuration.schemaVersion !== IMMERSIVE_HUB_SCHEMA_VERSION) {
-    const links = await resolveApprovedLinks(deps, token, configuration.links, now)
-    return legacyContent(configuration, selectedLocale, links)
-  }
   // A switched-off Linktree shows no links, and none may be followed by id either.
   const published = configuration.linktree.enabled ? configuration.links : []
   const [approvedLinks, mediaUrls] = await Promise.all([
@@ -380,10 +328,9 @@ export const resolvePublicPortalToken =
     if (!digest) return { status: 'unavailable' }
 
     const now = deps.clock()
-    const resolved = await admitPublicPortalRequest(deps, digest, now)
-    if (!resolved) return { status: 'unavailable' }
-    const { token, snapshot } = resolved
-    const configuration = snapshot.configuration
+    const admitted = await admitPublicPortalRequest(deps, digest, now)
+    if (!admitted) return { status: 'unavailable' }
+    const { token, snapshot, configuration } = admitted
 
     const googleReview = await resolveGoogleReviewGateway(deps, token, snapshot)
     const presentation = selectPresentation(configuration, preference)
@@ -401,9 +348,7 @@ export const resolvePublicPortalToken =
 
     const reviewGateway = {
       privateFeedbackThreshold: configuration.reviewGateway.privateFeedbackThreshold,
-      skipPrivateRating:
-        configuration.schemaVersion === 3 &&
-        configuration.reviewGateway.skipPrivateRating === true,
+      skipPrivateRating: configuration.reviewGateway.skipPrivateRating === true,
       googleReview,
     }
     const exactResolvedConfiguration = {
@@ -416,15 +361,8 @@ export const resolvePublicPortalToken =
       portal: localizedPortal,
       categories,
       links,
-      reviewGateway:
-        configuration.schemaVersion === 3
-          ? reviewGateway
-          : {
-              privateFeedbackThreshold: reviewGateway.privateFeedbackThreshold,
-              googleReview,
-            },
-      // Only a v3 publication has one, so every v1 and v2 digest is unchanged.
-      ...(immersive ? { immersive } : {}),
+      reviewGateway,
+      immersive,
     }
     const responseConfiguration = {
       publicationState: 'published' as const,
@@ -446,13 +384,11 @@ export const resolvePublicPortalToken =
         localization: {
           selectedLocale,
           primaryLocale: configuration.guestLocale,
-          availableLocales: isLocalizedConfiguration(configuration)
-            ? configuration.localeSet
-            : ['en'],
+          availableLocales: configuration.localeSet,
           languagePackVersion,
         },
         responseConfiguration,
-        guestSurface: guestSurfaceOfConfiguration(configuration),
+        guestSurface: 'immersive',
         immersive,
         organizationId: snapshot.organizationId,
         propertyId: snapshot.propertyId,

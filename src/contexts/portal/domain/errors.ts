@@ -45,6 +45,7 @@ export type PortalErrorCode =
   | 'portal_inactive'
   | 'invalid_publication_transition'
   | 'publication_snapshot_unavailable'
+  | 'not_restorable'
   | 'google_review_destination_unavailable'
   | 'token_unavailable'
   | 'address_unavailable'

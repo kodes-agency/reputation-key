@@ -21,6 +21,7 @@ import {
   type PortalVersionActor,
 } from '../portal-version-actors'
 import { portalError } from '../../domain/errors'
+import { IMMERSIVE_HUB_SCHEMA_VERSION } from '../../domain/portal-publication-snapshot'
 import {
   diffPublicationContent,
   publicationContentView,
@@ -42,6 +43,8 @@ export type PortalVersionDetail = Readonly<{
   publishedAt: string
   publishedBy: PortalVersionActor | null
   isLive: boolean
+  /** Earlier page designs remain readable but cannot be made live again. */
+  restorable: boolean
   liveVersion: number | null
   /** The number publishing the draft would get. */
   nextVersion: number
@@ -95,6 +98,7 @@ export const getPortalVersion =
       publishedAt: target.createdAt.toISOString(),
       publishedBy: versionActor(target.createdBy, names),
       isLive,
+      restorable: target.configuration.schemaVersion === IMMERSIVE_HUB_SCHEMA_VERSION,
       liveVersion: live?.version ?? null,
       nextVersion: cursor.nextSnapshotVersion,
       newestVersion: cursor.nextSnapshotVersion - 1,

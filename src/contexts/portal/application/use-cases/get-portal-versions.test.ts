@@ -17,6 +17,7 @@ import {
   immersiveConfiguration,
 } from '../../domain/__fixtures__/immersive-configuration'
 import type { PortalPublicationSnapshot } from '../../domain/portal-publication-snapshot'
+import { GOLDEN_SNAPSHOT_ROWS } from '../__fixtures__/publication-snapshots.golden'
 
 const T0 = new Date('2026-09-01T10:00:00.000Z')
 const at = (days: number) => new Date(T0.getTime() + days * 86_400_000)
@@ -105,6 +106,26 @@ function setup(seed: Seed = {}) {
 }
 
 describe('getPortalVersions', () => {
+  it.each(Object.values(GOLDEN_SNAPSHOT_ROWS))(
+    'lists retained format $configuration.schemaVersion alongside restorable current versions',
+    async (row) => {
+      const old = {
+        ...version(1, 1),
+        configuration:
+          row.configuration as unknown as PortalPublicationSnapshot['configuration'],
+      }
+      const { useCase } = setup({ versions: [old, version(2, 2)], live: 2 })
+      const result = await useCase({ portalId: portal.id }, ctx)
+      expect(
+        result.versions.map(({ version, restorable }) => ({ version, restorable })),
+      ).toEqual([
+        { version: 2, restorable: true },
+        { version: 1, restorable: false },
+      ])
+      expect(result.versions[1]?.languages.length).toBeGreaterThan(0)
+    },
+  )
+
   it('lists versions newest first, each with who published it and what it added', async () => {
     const withDinner = {
       ...base,
