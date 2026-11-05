@@ -11,14 +11,18 @@
 // toast ("Avatar updated") is the caller's mutation's.
 //
 // A mutation behind it that passes `errorMessage` as well would tell the person twice.
-import type { ReactNode } from 'react'
+import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
+import { toast } from 'sonner'
 import { ImageSettingView } from './image-setting/image-setting-view'
 import {
   DEFAULT_ACCEPTED_TYPES,
   DEFAULT_MAX_FILE_SIZE,
   imageSettingHelp,
+  invalidFileMessage,
+  removeFailureMessage,
+  uploadFailureMessage,
 } from './image-setting/image-setting-copy'
-import { useImageSetting } from './image-setting/use-image-setting'
+import type { ImageSettingStatus } from './image-setting/image-setting-view'
 
 type Props = Readonly<{
   /** What the image is, lower case: "avatar", "logo". It names the buttons. */
@@ -72,4 +76,176 @@ export function ImageSetting({
       dropProps={setting.dropProps}
     />
   )
+}
+
+type Options = Readonly<{
+  subject: string
+  /** What the page last saved. A new value from the page replaces what is shown. */
+  imageUrl: string | null
+  acceptedTypes: ReadonlyArray<string>
+  maxFileSize: number
+  disabled: boolean
+  onUpload: (file: File, onProgress: (percent: number) => void) => Promise<string>
+  onRemove: () => Promise<unknown>
+}>
+
+/** The value a prop holds now, or, once the prop moves, the new one: server truth wins. */
+function useAdopted<T>(value: T) {
+  const [seen, setSeen] = useState(value)
+  const [adopted, setAdopted] = useState(value)
+  if (value !== seen) {
+    setSeen(value)
+    setAdopted(value)
+  }
+  return [adopted, setAdopted] as const
+}
+
+function useImageSetting({
+  subject,
+  imageUrl,
+  acceptedTypes,
+  maxFileSize,
+  disabled,
+  onUpload,
+  onRemove,
+}: Options) {
+  const [shown, setShown] = useAdopted(imageUrl)
+  const [status, setStatus] = useState<ImageSettingStatus>('idle')
+  const [progress, setProgress] = useState(0)
+  const inputRef = useRef<HTMLInputElement>(null)
+  const chooseRef = useRef<HTMLButtonElement>(null)
+  // The Remove button leaves with the picture, and the focus with it: it moves to the
+  // Upload button that takes its place, never to the page.
+  const handFocusToChoose = useRef(false)
+  useEffect(() => {
+    if (handFocusToChoose.current && shown === null) {
+      handFocusToChoose.current = false
+      chooseRef.current?.focus()
+    }
+  }, [shown])
+
+  const upload = useCallback(
+    async (file: File) => {
+      const refusal = invalidFileMessage(file, acceptedTypes, maxFileSize)
+      if (refusal) {
+        toast.error(refusal)
+        return
+      }
+      setStatus('uploading')
+      setProgress(0)
+      try {
+        setShown(await onUpload(file, setProgress))
+      } catch (error: unknown) {
+        toast.error(uploadFailureMessage(subject)(error))
+      } finally {
+        setStatus('idle')
+        setProgress(0)
+      }
+    },
+    [acceptedTypes, maxFileSize, onUpload, setShown, subject],
+  )
+
+  const remove = useCallback(async () => {
+    setStatus('removing')
+    try {
+      await onRemove()
+      handFocusToChoose.current = true
+      setShown(null)
+    } catch (error: unknown) {
+      toast.error(removeFailureMessage(subject)(error))
+    } finally {
+      setStatus('idle')
+    }
+  }, [onRemove, setShown, subject])
+
+  const busy = status !== 'idle'
+  const choose = useCallback(() => {
+    if (!disabled && !busy) inputRef.current?.click()
+  }, [busy, disabled])
+  const { dragOver, handleDragOver, handleDragLeave, handleDrop } = useDragDrop({
+    disabled,
+    uploading: busy,
+    onDropFile: (file) => void upload(file),
+  })
+
+  return {
+    imageUrl: shown,
+    status,
+    progress,
+    dragOver,
+    inputRef,
+    chooseRef,
+    choose,
+    upload: (file: File) => void upload(file),
+    remove: () => void remove(),
+    dropProps: {
+      onDragOver: handleDragOver,
+      onDragLeave: handleDragLeave,
+      onDrop: handleDrop,
+    },
+  } as const
+}
+
+type UseDragDropOptions = Readonly<{
+  disabled: boolean
+  uploading: boolean
+  onDropFile: (file: File) => void
+}>
+
+type UseDragDropReturn = Readonly<{
+  dragOver: boolean
+  handleDragOver: (e: React.DragEvent) => void
+  handleDragLeave: (e: React.DragEvent) => void
+  handleDrop: (e: React.DragEvent) => void
+}>
+
+function useDragDrop({
+  disabled,
+  uploading,
+  onDropFile,
+}: UseDragDropOptions): UseDragDropReturn {
+  const [dragOver, setDragOver] = useState(false)
+
+  const handleDragOver = useCallback(
+    (e: React.DragEvent) => {
+      e.preventDefault()
+      e.stopPropagation()
+      if (!disabled && !uploading) {
+        setDragOver(true)
+      }
+    },
+    [disabled, uploading],
+  )
+
+  const handleDragLeave = useCallback((e: React.DragEvent) => {
+    e.preventDefault()
+    e.stopPropagation()
+    // Only deactivate when leaving the drop zone entirely, not when entering a child
+    if (!e.currentTarget.contains(e.relatedTarget as Node)) {
+      setDragOver(false)
+    }
+  }, [])
+
+  const handleDrop = useCallback(
+    (e: React.DragEvent) => {
+      e.preventDefault()
+      e.stopPropagation()
+      setDragOver(false)
+
+      if (disabled || uploading) return
+
+      const file = e.dataTransfer.files[0]
+      if (file) {
+        onDropFile(file)
+      }
+    },
+    [disabled, uploading, onDropFile],
+  )
+
+  return {
+    dragOver,
+    handleDragOver,
+    handleDragLeave,
+    handleDrop,
+  }
 }

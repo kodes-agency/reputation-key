@@ -1,6 +1,6 @@
 // The bar waits before it shows, so a fast page change never flashes it.
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { ROUTE_PROGRESS_DELAY_MS, showAfterDelay } from './route-progress'
+import { ROUTE_PROGRESS_DELAY_MS, showAfterDelay } from './app-top-bar'
 
 beforeEach(() => {
   vi.useFakeTimers()

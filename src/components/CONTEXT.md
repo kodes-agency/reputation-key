@@ -350,7 +350,7 @@ none` is not in the outline. Under it a section's title is a `CardTitle as="h2"`
   `feedback-ownership.test.ts` reads the sources and fails on a file that does
   both, a hand-built red paragraph, or a toast that
   echoes `error.message`. Typed toasts take their colours from the tone tokens
-  (`toaster-theme.ts`) and follow the applied theme.
+  (`sonner.tsx`) and follow the applied theme.
 - `ui/metric-delta` draws a period-over-period change (arrow, size, baseline,
   and the direction in words) and `#/lib/format` is the one place a date or a
   number becomes text: en-US, UTC unless a zone is named, `null` for an instant

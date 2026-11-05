@@ -4,7 +4,7 @@
 import { createElement } from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { describe, expect, it } from 'vitest'
-import { useFreshError } from './use-fresh-error'
+import { useFreshError } from './dialog-error-banner'
 
 function Probe({ error }: Readonly<{ error: unknown }>) {
   const fresh = useFreshError(error)
