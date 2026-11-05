@@ -40,6 +40,38 @@ function readsFor(accessible: ReadonlyArray<PropertyId> | null) {
 }
 
 describe('notification feed reads follow current Property access', () => {
+  it('keeps the same AccountAdmin separate in two Organizations for reads and bulk actions', async () => {
+    const { reads, heads, pages, bulk } = readsFor(null)
+    const otherOrganization = organizationId('org-notification-reads-other')
+    const contexts: AuthContext[] = [READER.organizationId, otherOrganization].map(
+      (organizationId) => ({ ...READER, organizationId, role: 'AccountAdmin' }),
+    )
+
+    for (const ctx of contexts) {
+      await reads.getFeedHead(ctx, { limit: 20, filter: 'all' })
+      await reads.getNotifications(ctx, { limit: 20, filter: 'all', before: null })
+      await reads.markAllRead(ctx, 'all')
+      await reads.dismissAll(ctx)
+    }
+
+    const scopes = [READER.organizationId, otherOrganization].map((organizationId) => ({
+      userId: READER.userId,
+      organizationId,
+      visiblePropertyIds: null,
+    }))
+    expect(heads).toEqual(scopes.map((scope) => ({ ...scope, limit: 20, filter: 'all' })))
+    expect(pages).toEqual(
+      scopes.map((scope) => ({ ...scope, limit: 20, filter: 'all', before: null })),
+    )
+    const at = new Date('2026-09-22T09:00:00.000Z')
+    expect(bulk).toEqual(
+      scopes.flatMap((scope) => [
+        ['read', scope, 'all', at],
+        ['dismissed', scope, at],
+      ]),
+    )
+  })
+
   it('scopes an assigned-Property manager to the Properties they can still access', async () => {
     const { reads, heads, pages, propertyAccess } = readsFor([HARBOR])
     const manager: AuthContext = { ...READER, role: 'PropertyManager' }
