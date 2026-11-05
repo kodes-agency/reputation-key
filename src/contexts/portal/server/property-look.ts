@@ -6,10 +6,8 @@
 
 import { createServerFn } from '@tanstack/react-start'
 import { requireExecutionAllowed } from '#/shared/auth/execution-policy'
-import { headersFromContext } from '#/shared/auth/headers'
 import { resolveTenantContext } from '#/shared/auth/middleware'
-import { catchUntagged, throwContextError } from '#/shared/auth/server-errors'
-import { tracedHandler } from '#/shared/observability/traced-server-fn'
+import { commandHandler } from '#/shared/commands/command.server'
 import { getContainer } from '#/composition'
 import {
   propertyDefaultLocalesInputSchema,
@@ -17,39 +15,24 @@ import {
   propertyLogoInputSchema,
   propertyLookInputSchema,
 } from '../application/dto/property-look.dto'
-import { isPortalError } from '../domain/errors'
-import { portalErrorStatus } from './portals'
-
-async function runLookCommand<T>(fn: () => Promise<T>): Promise<T> {
-  try {
-    return await fn()
-  } catch (error) {
-    if (isPortalError(error)) {
-      throwContextError('PortalError', error, portalErrorStatus(error.code))
-    }
-    throw catchUntagged(error)
-  }
-}
+import { portalCommandErrors } from './portal-command-errors'
 
 /** Save the accent, background and wordmark guests see on every page of the Property. */
 export const savePropertyLook = createServerFn({ method: 'POST' })
   .validator(propertyLookInputSchema)
   .handler(
-    tracedHandler(
-      async ({ data }) => {
-        const ctx = await resolveTenantContext(await headersFromContext())
+    commandHandler(
+      { method: 'POST', name: 'portal.savePropertyLook', errors: portalCommandErrors },
+      async ({ data, headers }) => {
+        const ctx = await resolveTenantContext(headers)
         await requireExecutionAllowed({
           actor: ctx,
           action: 'portal.update',
           capability: 'portal.write',
           propertyId: data.propertyId,
         })
-        return runLookCommand(() =>
-          getContainer().portalPublicApi.management.savePropertyLook(data, ctx),
-        )
+        return getContainer().portalPublicApi.management.savePropertyLook(data, ctx)
       },
-      'POST',
-      'portal.savePropertyLook',
     ),
   )
 
@@ -62,21 +45,18 @@ export const savePropertyLook = createServerFn({ method: 'POST' })
 export const savePropertyHero = createServerFn({ method: 'POST' })
   .validator(propertyHeroInputSchema)
   .handler(
-    tracedHandler(
-      async ({ data }) => {
-        const ctx = await resolveTenantContext(await headersFromContext())
+    commandHandler(
+      { method: 'POST', name: 'portal.savePropertyHero', errors: portalCommandErrors },
+      async ({ data, headers }) => {
+        const ctx = await resolveTenantContext(headers)
         await requireExecutionAllowed({
           actor: ctx,
           action: 'portal.update',
           capability: 'portal.write',
           propertyId: data.propertyId,
         })
-        return runLookCommand(() =>
-          getContainer().portalPublicApi.management.savePropertyHero(data, ctx),
-        )
+        return getContainer().portalPublicApi.management.savePropertyHero(data, ctx)
       },
-      'POST',
-      'portal.savePropertyHero',
     ),
   )
 
@@ -84,21 +64,18 @@ export const savePropertyHero = createServerFn({ method: 'POST' })
 export const savePropertyLogo = createServerFn({ method: 'POST' })
   .validator(propertyLogoInputSchema)
   .handler(
-    tracedHandler(
-      async ({ data }) => {
-        const ctx = await resolveTenantContext(await headersFromContext())
+    commandHandler(
+      { method: 'POST', name: 'portal.savePropertyLogo', errors: portalCommandErrors },
+      async ({ data, headers }) => {
+        const ctx = await resolveTenantContext(headers)
         await requireExecutionAllowed({
           actor: ctx,
           action: 'portal.update',
           capability: 'portal.write',
           propertyId: data.propertyId,
         })
-        return runLookCommand(() =>
-          getContainer().portalPublicApi.management.savePropertyLogo(data, ctx),
-        )
+        return getContainer().portalPublicApi.management.savePropertyLogo(data, ctx)
       },
-      'POST',
-      'portal.savePropertyLogo',
     ),
   )
 
@@ -106,23 +83,24 @@ export const savePropertyLogo = createServerFn({ method: 'POST' })
 export const savePropertyDefaultGuestLocales = createServerFn({ method: 'POST' })
   .validator(propertyDefaultLocalesInputSchema)
   .handler(
-    tracedHandler(
-      async ({ data }) => {
-        const ctx = await resolveTenantContext(await headersFromContext())
+    commandHandler(
+      {
+        method: 'POST',
+        name: 'portal.savePropertyDefaultGuestLocales',
+        errors: portalCommandErrors,
+      },
+      async ({ data, headers }) => {
+        const ctx = await resolveTenantContext(headers)
         await requireExecutionAllowed({
           actor: ctx,
           action: 'portal.update',
           capability: 'portal.write',
           propertyId: data.propertyId,
         })
-        return runLookCommand(() =>
-          getContainer().portalPublicApi.management.savePropertyDefaultGuestLocales(
-            data,
-            ctx,
-          ),
+        return getContainer().portalPublicApi.management.savePropertyDefaultGuestLocales(
+          data,
+          ctx,
         )
       },
-      'POST',
-      'portal.savePropertyDefaultGuestLocales',
     ),
   )

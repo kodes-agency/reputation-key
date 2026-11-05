@@ -891,6 +891,12 @@ goes quiet (`s3-storage.adapter.endpoints.test.ts`).
 
 ## Verification
 
+Portal server functions use the shared command handler for request headers,
+tracing and safe error translation. `server/portal-command-errors.ts` owns the
+Portal status mapping; the existing `server/portals.ts` export remains available.
+Permission, capability and resource-scope checks stay in the server adapters.
+Address and print handlers keep their early no-store headers and rate limits.
+
 Unit tests stay beside domain rules, publication, token, responsibility, and server
 contracts. PostgreSQL integration tests cover command atomicity, revision fences,
 public resolution, lifecycle contributors, and the POR-01 read-only reconciliation.
