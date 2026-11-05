@@ -1,16 +1,6 @@
-// The providers the evaluation command can name. None of them reaches a network.
-//
-//   fake-gold        answers every item with its own gold label: the harness's
-//                    smoke test and the ceiling of its scores.
-//   answers:<file>   scores answers recorded elsewhere (one JSON object per line,
-//                    `{ "id": ..., "answer": ... }`), so a real provider can be run
-//                    by any governed tool and measured here without this command
-//                    holding a key or an HTTP client.
-//   openai, anthropic  declared and not wired. The evaluation transport, the
-//                    separate evaluation keys and the dated model snapshots
-//                    (decision 4) belong to the activation work; naming one now is
-//                    a usage error that says so, never a silent fake.
+// Offline inputs: gold echo or JSONL rows of { id, answer } recorded elsewhere.
 
+import { basename } from 'node:path'
 import { z } from 'zod/v4'
 import type { EvaluationOutcome, EvaluationProvider } from './review-analysis-v3-provider'
 import {
@@ -23,7 +13,6 @@ import {
 export const FAKE_GOLD_PROVIDER_ID = 'fake-gold'
 const ANSWERS_PREFIX = 'answers:'
 const MAX_REPORTED_PROBLEMS = 20
-const DECLARED_REAL_PROVIDERS = Object.freeze(['openai', 'anthropic'] as const)
 
 /** The command named a provider it cannot run; the message says how to proceed. */
 export class EvaluationProviderError extends Error {
@@ -104,10 +93,6 @@ export function createAnswerFileProvider(
   })
 }
 
-function baseName(path: string): string {
-  return path.slice(path.lastIndexOf('/') + 1)
-}
-
 function providerFor(
   name: string,
   testSet: TestSet,
@@ -118,21 +103,12 @@ function providerFor(
     const path = name.slice(ANSWERS_PREFIX.length)
     if (path === '') throw new EvaluationProviderError('answers: needs a file path')
     return createAnswerFileProvider(
-      baseName(path),
-      parseAnswerRows(baseName(path), readFile(path)),
-    )
-  }
-  if ((DECLARED_REAL_PROVIDERS as readonly string[]).includes(name)) {
-    throw new EvaluationProviderError(
-      `${name} is not wired into this command. It needs the evaluation transport, a ` +
-        'separate evaluation key and the dated model snapshot (contract section 8, ' +
-        'decision 4). Run the provider with a governed tool and score its recorded ' +
-        `answers with answers:<file> instead.`,
+      basename(path),
+      parseAnswerRows(basename(path), readFile(path)),
     )
   }
   throw new EvaluationProviderError(
-    `unknown provider '${name}'. Use ${FAKE_GOLD_PROVIDER_ID}, answers:<file>, ` +
-      `${DECLARED_REAL_PROVIDERS.join(' or ')}.`,
+    `unknown provider '${name}'. Use ${FAKE_GOLD_PROVIDER_ID} or answers:<file>.`,
   )
 }
 
