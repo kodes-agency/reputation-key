@@ -17,12 +17,8 @@ import {
   DialogDescription,
 } from '#/components/ui/dialog'
 import { SecuritySettingsForm } from '#/components/features/identity/security-settings-form'
-import {
-  useActionMutation,
-  actionErrorMessage,
-} from '#/components/hooks/use-action-mutation'
-import { authClient } from '#/shared/auth/auth-client'
-import { clearTenantCacheAfterSessionEnd } from '#/shared/queries/tenant-cache-transition'
+import { useActionMutation } from '#/components/hooks/use-action-mutation'
+import { useSignOut } from '#/components/hooks/use-sign-out'
 import { invalidateShellContext } from '#/shared/queries/shell-context-cache'
 import type { StaffHomeFns } from './types'
 
@@ -41,18 +37,7 @@ export function StaffAccountMenu({ fns }: Readonly<{ fns: StaffHomeFns }>) {
       setPanel(null)
     },
   })
-  const leave = useActionMutation(
-    async () =>
-      clearTenantCacheAfterSessionEnd(
-        client,
-        async () => {
-          const result = await authClient.signOut()
-          if (result.error) throw new Error('Could not sign out. Please try again.')
-        },
-        () => navigate({ to: '/login' }),
-      ),
-    { errorMessage: actionErrorMessage },
-  )
+  const leave = useSignOut({ onSignedOut: () => navigate({ to: '/login' }) })
   return (
     <>
       <DropdownMenu>
@@ -70,7 +55,7 @@ export function StaffAccountMenu({ fns }: Readonly<{ fns: StaffHomeFns }>) {
           </DropdownMenuItem>
           <DropdownMenuItem
             disabled={leave.isPending}
-            onSelect={() => void leave(undefined).catch(() => undefined)}
+            onSelect={() => void leave().catch(() => undefined)}
           >
             Sign out
           </DropdownMenuItem>
