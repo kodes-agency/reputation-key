@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, expect, vi } from 'vitest'
-import { commands } from 'vitest/browser'
+import { commands, page } from 'vitest/browser'
 import type { StoryStart } from '../scripts/ci/storybook-story-starts'
+import { provideViewportSetter } from '../src/shared/testing/phone-width'
 import { stopUpdateLoop } from './stop-update-loop'
 
 declare module 'vitest/browser' {
@@ -17,6 +18,10 @@ declare module 'vitest/browser' {
 // Define it before any story module is imported: the app mounts under
 // StrictMode (src/client.tsx) and the component gate must too.
 Object.assign(globalThis, { FRAMEWORK_OPTIONS: { strictMode: true } })
+
+// A story checks itself at each phone width with `checkPhoneWidths`, which needs the
+// runner's viewport.
+provideViewportSetter((width, height) => page.viewport(width, height))
 
 // The stories load the app's compiled stylesheet (vitest.config.ts), so its enter and
 // exit animations run. A play reads the page as soon as it has clicked, while Radix
