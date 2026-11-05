@@ -1007,8 +1007,6 @@ export const notificationLink = (
       return type?.startsWith('goal.rating_')
         ? propertyLink(propertyId, '/goals')
         : propertyLink(propertyId, '/goals', { result: resourceId })
-    case 'badge':
-      return propertyLink(propertyId, '')
     case 'portal':
       return propertyLink(propertyId, `/portals/${resourceId}`, { tab: 'page' })
     case 'portal_destination':
