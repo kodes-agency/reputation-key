@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto'
 import { createAlertDispatcher } from '#/shared/observability/alert-dispatcher'
 import { reportAlertToObservability } from './alert-reporter'
+import { createContainerDisposer } from './container-lifecycle'
 import { buildIdentityPlatform } from './identity-wiring'
 import type { CompositionRuntime } from './runtime'
 import type { buildIdentityPorts, wireIdentity } from './identity-wiring'
@@ -83,12 +84,19 @@ export function buildContainerCapabilities({
       webhookUrl: env.ALERT_WEBHOOK_URL,
       report: reportAlertToObservability,
     }),
-    // ARC-03-T6: the container's owned release seam, for background work a
-    // build() starts for the life of the process, so the web graceful-shutdown
-    // plugin, the worker drain and closeContainer() stop it through one
-    // capability. Nothing is registered on it today, and it does not release
-    // queue or Redis connections (container-lifecycle.ts, STATE).
-    shutdown: containerShutdown,
+    // The container's one disposer. The web shutdown, the worker drain and
+    // closeContainer() all release through it: what the container opened closes
+    // before the shared queue connections under it (container-lifecycle.ts).
+    shutdown: createContainerDisposer(
+      {
+        shutdown: containerShutdown,
+        jobQueue: infra.jobQueue,
+        backgroundQueue: infra.backgroundQueue,
+        opsQueues,
+        providerEphemeralRedis,
+      },
+      logger,
+    ),
     // ARC-03-T8: the policy trio this container owns. Constructing it installs
     // nothing process-wide — an entry point calls bindProcessPolicies(container)
     // exactly once, so a second container can never silently take over.

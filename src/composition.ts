@@ -15,7 +15,6 @@
 // Dependencies are passed as function arguments. The wiring is in composition.ts, visible."
 
 import { randomUUID } from 'node:crypto'
-import { closeJobQueueConnections } from '#/shared/jobs/queue'
 import { createOutboxRepository } from '#/shared/outbox/infrastructure/outbox-repository'
 import { createConsumerRegistry } from '#/shared/outbox'
 import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
@@ -36,6 +35,13 @@ import { buildAiRuntime, wireAi } from './composition/ai-wiring'
 import { wireReview } from './composition/review-wiring'
 import { wireInbox } from './composition/inbox-wiring'
 import { buildContainerCapabilities } from './composition/container-capabilities'
+import {
+  assertContainerCanBuild,
+  closeProcessContainer,
+  createContainerDisposer,
+  markContainerFailed,
+  markContainerReady,
+} from './composition/container-lifecycle'
 import {
   buildReadAndNotifyContexts,
   notificationEmailAddressKeys,
@@ -280,46 +286,42 @@ function containerStore(): ContainerStore {
 export function getContainer(): Container {
   const store = containerStore()
   if (store[CONTAINER_KEY]) return store[CONTAINER_KEY]
+  assertContainerCanBuild()
   claimProcessContainer('web')
   try {
-    return (store[CONTAINER_KEY] = createContainer())
+    const container = (store[CONTAINER_KEY] = createContainer())
+    markContainerReady()
+    return container
   } catch (error) {
+    markContainerFailed(error)
     releaseProcessContainer()
     throw error
   }
 }
 
 /**
- * Close the singleton container's owned queue connections (BQC-7.1 graceful
- * shutdown). Only the getContainer() singleton is affected — containers built
- * directly via createContainer() (worker process, simulations, tests) own
- * their lifecycle. BullMQ queues hold dedicated Redis connections that would
- * otherwise keep the web process's event loop alive past SIGTERM; BullMQ
- * treats user-supplied connections as shared and does not close them on
- * queue.close(), so the tracked connections are quit explicitly after the
- * queues detach. No-op when the container was never built; resets the
- * singleton so a later getContainer() recreates it.
+ * Release the singleton container: its queues, queue connections and provider
+ * Redis handle. BullMQ treats the connections it is handed as shared, so they
+ * are quit explicitly once the queues detach. Only the getContainer() singleton
+ * is affected; a container built through createContainer() (the worker,
+ * simulations, tests) owns its own lifecycle.
+ *
+ * The singleton stays reachable while it releases, so a request already in
+ * flight keeps the handles it needs, and a draining process cannot build another
+ * afterwards. One release per process: concurrent callers share its promise, and
+ * it rejects once everything it could release has been released if any release failed.
  */
-export async function closeContainer(): Promise<void> {
-  const store = containerStore()
-  const container = store[CONTAINER_KEY]
-  store[CONTAINER_KEY] = undefined
-  releaseProcessContainer()
-  if (!container) return
-  // ARC-03-T6: release container-owned background work FIRST, so nothing a
-  // build() started is left reading the database while the connections below
-  // go away. No build registers any today (the identity policy poller this
-  // order was written for is gone), so the call releases nothing. Optional
-  // because the singleton is keyed by Symbol.for and shared across the two
-  // composition bundles the production build emits — an older bundle's
-  // container may predate the seam.
-  await container.shutdown?.run()
-  await Promise.all([
-    container.jobQueue?.close(),
-    container.backgroundQueue?.close(),
-    container.providerEphemeralRedis?.quit(),
-  ])
-  await closeJobQueueConnections()
+export function closeContainer(): Promise<void> {
+  return closeProcessContainer(async () => {
+    const store = containerStore()
+    const container = store[CONTAINER_KEY]
+    try {
+      await (container?.shutdown ?? createContainerDisposer(container ?? {})).run()
+    } finally {
+      store[CONTAINER_KEY] = undefined
+      releaseProcessContainer()
+    }
+  })
 }
 
 /**

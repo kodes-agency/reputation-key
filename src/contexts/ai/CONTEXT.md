@@ -325,8 +325,8 @@ nothing reads or seeds them yet (see "Left for the slices that need it" below).
 Every v3 derivative expires 24 months after it was generated: the sweep deletes the analysis
 on `expires_at` (`ai_review_analyses.v3_expired`, v3 rows only) and the three mention tables
 go with it by cascade; the daily star counts have a rule of their own, counted from the day
-they are for (`retention-registry-ai.ts`). Nothing in them is a quote, a sentence, a name or a
-provider response.
+they are for (`ai_property_review_population_daily.expired`). Nothing in them is a quote, a
+sentence, a name or a provider response.
 
 Vocabulary hints steer the `thing` of a v3 mention (`review-vocabulary-hints.ts`,
 `review-vocabulary-hints-v1`). A set is chosen from the Property's Google primary

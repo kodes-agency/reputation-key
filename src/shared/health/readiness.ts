@@ -1,46 +1,49 @@
-// BQC-7.2 — readiness/startup probe assembly for /api/health/ready,
-// /api/health (combined legacy) and /api/health/started.
+// Readiness and startup probe assembly for /api/health/ready, /api/health
+// (combined legacy) and /api/health/started.
 //
-// Each probe runs under a hard per-probe budget (READINESS_PROBE_BUDGET_MS)
-// via 5.5's withBudget: a probe that times out OR rejects reports false —
-// readiness degrades (503), never hangs the platform's probe window.
+// Each probe runs under a hard per-probe budget (READINESS_PROBE_BUDGET_MS) via
+// withBudget: a probe that times out OR rejects reports false, so readiness
+// degrades (503) and never hangs the platform's probe window.
 //
 // Real checks (routes inject them; unit tests inject fakes):
-//   - db / redis        — the existing BQR-6.1 probes (db-probe, cache/redis).
-//   - migrations        — the applied set (drizzle.__drizzle_migrations row
-//                         count, the 5.4 comparator's query shape) must match
-//                         the on-disk journal entry count
-//                         (drizzle/meta/_journal.json). Fewer applied = a
-//                         deploy whose migrations have not finished applying.
-//                         More applied = this image is older than the
-//                         database: never ready, by design — recovery is
-//                         forward-only (ADR 0038, amended 2026-10-12). The
-//                         outgoing container reads that way until the newer
-//                         release activates, and for good when that release
-//                         applied its migrations and never activated
-//                         (runbooks.md §28).
-//   - policy            — the process-static capability configuration parses
-//                         successfully and retains every hard-blocked
-//                         capability. Tenant grants/consent and the Google
-//                         execution control remain live request-time reads;
-//                         readiness does not query a deleted snapshot table.
+//   - container  — the composition root is built. The first check builds it,
+//                  which reads every provider key group construction needs, so a
+//                  deployment missing one stays unready instead of failing its
+//                  first request. False for good once the process is draining
+//                  and after a build failed (container-lifecycle.ts).
+//   - keys       — the environment parses and carries no placeholder secret.
+//   - db / redis — the existing db-probe and cache/redis probes.
+//   - migrations — the applied set (drizzle.__drizzle_migrations row count)
+//                  must match the on-disk journal entry count
+//                  (drizzle/meta/_journal.json). Fewer applied = a deploy whose
+//                  migrations have not finished applying. More applied = this
+//                  image is older than the database: never ready, by design —
+//                  recovery is forward-only (ADR 0038, amended 2026-10-12). The
+//                  outgoing container reads that way until the newer release
+//                  activates, and for good when that release applied its
+//                  migrations and never activated (runbooks.md §28).
+//   - policy     — the process-static capability configuration parses and
+//                  retains every hard-blocked capability. Tenant grants/consent
+//                  and the Google execution control remain live request-time
+//                  reads; readiness does not query a deleted snapshot table.
 //
-// Both DB checks reuse the SHARED pool handle (getPool) — no per-request
-// client construction (STD-P1-04). The journal path is anchored at
-// process.cwd(): the Nitro bundle's import.meta.url is not a stable root,
-// while cwd is the app root in every runtime layout (repo root for
-// dev/e2e/`pnpm start`; /app in the Docker web image, which copies drizzle/
-// next to the bundle — see Dockerfile).
+// Both DB checks reuse the SHARED pool handle (getPool). The journal path is
+// anchored at process.cwd(): the Nitro bundle's import.meta.url is not a stable
+// root, while cwd is the app root in every runtime layout (repo root for
+// dev/e2e/`pnpm start`; /app in the Docker web image, which copies drizzle/ next
+// to the bundle).
 //
-// WORKER HEARTBEAT IS DELIBERATELY NOT A READINESS/STARTUP INPUT: the web
-// tier serves traffic without a worker process. Queue Redis is still a web
-// dependency because the web process produces jobs; its independent probe is
-// combined with Cache Redis under the backward-compatible `redis` readiness
-// field. Worker-heartbeat alerting consumes the ops metrics snapshot
-// (BQC-7.4), not the platform probes.
+// WORKER HEARTBEAT IS DELIBERATELY NOT A READINESS/STARTUP INPUT: the web tier
+// serves traffic without a worker process. Queue Redis is still a web dependency
+// because the web process produces jobs; its independent probe is combined with
+// Cache Redis under the backward-compatible `redis` readiness field.
+// Worker-heartbeat alerting consumes the ops metrics snapshot, not the platform
+// probes.
 
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
+import { getEnv } from '#/shared/config/env'
+import { assertProductionSecrets } from '#/shared/config/production-secrets'
 import { migrationJournalPosition } from '#/shared/db/migration-journal-state'
 import { getPool } from '#/shared/db/pool'
 import { getLogger } from '#/shared/observability/logger'
@@ -102,7 +105,23 @@ export async function isPolicyConfigurationReady(): Promise<boolean> {
   }
 }
 
+/**
+ * The environment parses and carries no placeholder secret. The provider key
+ * groups parse during container construction, which the container probe covers.
+ */
+export async function isKeyConfigurationReady(): Promise<boolean> {
+  try {
+    assertProductionSecrets(getEnv())
+    return true
+  } catch {
+    getLogger().warn('[health] required key configuration check failed')
+    return false
+  }
+}
+
 export type ReadinessProbes = Readonly<{
+  container: () => boolean | Promise<boolean>
+  keys: () => Promise<boolean>
   db: () => Promise<boolean>
   redis: () => Promise<boolean>
   migrations: () => Promise<boolean>
@@ -110,8 +129,9 @@ export type ReadinessProbes = Readonly<{
 }>
 
 export type StartupProbes = Readonly<{
-  /** Succeeds (returns, does not throw) once the composition root is built. */
-  container: () => boolean
+  /** True once the composition root is built. */
+  container: () => boolean | Promise<boolean>
+  keys: () => Promise<boolean>
   migrations: () => Promise<boolean>
   policy: () => Promise<boolean>
 }>
@@ -137,15 +157,17 @@ export async function runReadiness(
   budgetMs: number = READINESS_PROBE_BUDGET_MS,
   now?: () => Date,
 ): Promise<ReadyProbe> {
-  const [db, redis, migrations, policy] = await Promise.all([
-    withBudget(probes.db(), budgetMs, () => false),
-    withBudget(probes.redis(), budgetMs, () => false),
-    withBudget(probes.migrations(), budgetMs, () => false),
-    withBudget(probes.policy(), budgetMs, () => false),
+  const [container, keys, db, redis, migrations, policy] = await Promise.all([
+    withBudget(Promise.resolve().then(probes.container), budgetMs, () => false),
+    withBudget(Promise.resolve().then(probes.keys), budgetMs, () => false),
+    withBudget(Promise.resolve().then(probes.db), budgetMs, () => false),
+    withBudget(Promise.resolve().then(probes.redis), budgetMs, () => false),
+    withBudget(Promise.resolve().then(probes.migrations), budgetMs, () => false),
+    withBudget(Promise.resolve().then(probes.policy), budgetMs, () => false),
   ])
-  const probe = readyProbe({ db, redis, migrations, policy }, now)
+  const probe = readyProbe({ container, keys, db, redis, migrations, policy }, now)
   if (probe.status === 'degraded') {
-    const failing = Object.entries({ db, redis, migrations, policy })
+    const failing = Object.entries({ container, keys, db, redis, migrations, policy })
       .filter(([, value]) => !value)
       .map(([name]) => name)
     getLogger().warn(
@@ -156,31 +178,21 @@ export async function runReadiness(
   return probe
 }
 
-/** Run the startup probes: container built + migrations + policy, budgeted. */
+/** Run the startup probes: container built + keys + migrations + policy, budgeted. */
 export async function runStartup(
   probes: StartupProbes,
   budgetMs: number = READINESS_PROBE_BUDGET_MS,
   now?: () => Date,
 ): Promise<StartupProbe> {
-  const [migrations, policy] = await Promise.all([
-    withBudget(probes.migrations(), budgetMs, () => false),
-    withBudget(probes.policy(), budgetMs, () => false),
+  const [container, keys, migrations, policy] = await Promise.all([
+    withBudget(Promise.resolve().then(probes.container), budgetMs, () => false),
+    withBudget(Promise.resolve().then(probes.keys), budgetMs, () => false),
+    withBudget(Promise.resolve().then(probes.migrations), budgetMs, () => false),
+    withBudget(Promise.resolve().then(probes.policy), budgetMs, () => false),
   ])
-  // The composition root throw is swallowed into `container: false`, which is
-  // right for the probe body and useless for diagnosis: a boot that cannot
-  // build reports the same shape as one that simply has not finished. Log the
-  // reason once here so a container that never activates leaves a trace.
-  const container = (() => {
-    try {
-      return probes.container()
-    } catch (err) {
-      getLogger().warn({ err }, '[health] startup container probe threw')
-      return false
-    }
-  })()
-  const probe = startupProbe({ container, migrations, policy }, now)
+  const probe = startupProbe({ container, keys, migrations, policy }, now)
   if (probe.status === 'degraded') {
-    const failing = Object.entries({ container, migrations, policy })
+    const failing = Object.entries({ container, keys, migrations, policy })
       .filter(([, value]) => !value)
       .map(([name]) => name)
     getLogger().warn(

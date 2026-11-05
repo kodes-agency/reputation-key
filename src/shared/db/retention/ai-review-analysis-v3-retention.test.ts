@@ -13,7 +13,6 @@ import * as v3Schema from '#/shared/db/schema/ai-review-analysis-v3.schema'
 import * as issueSchema from '#/shared/db/schema/ai-property-issue-groups.schema'
 import * as correctionSchema from '#/shared/db/schema/ai-review-analysis-corrections.schema'
 import { RETENTION_RULES } from '#/shared/jobs/retention-sweep.job'
-import { RETENTION_REGISTRY } from './retention-registry'
 
 function tablesOf(module: Record<string, unknown>): PgTable[] {
   return Object.values(module).filter((value): value is PgTable => isTable(value))
@@ -88,20 +87,6 @@ describe('Review Analysis v3 retention', () => {
     })
   })
 
-  it('states a 24-month horizon for every v3 table in the counsel registry', () => {
-    for (const table of V3_TABLES.map(getTableName)) {
-      const entries = RETENTION_REGISTRY.filter((rule) => rule.source === table)
-      expect(entries.length, table).toBeGreaterThanOrEqual(1)
-      for (const entry of entries) {
-        expect(entry.dataClass, entry.id).toBe('ai_derivatives')
-        expect(entry.eligibility.horizon, entry.id).toEqual({
-          kind: 'months',
-          months: 24,
-        })
-      }
-    }
-  })
-
   it('deletes a v3 analysis on the deadline it stamped, and no v2 analysis', () => {
     const [rule, ...others] = swept('ai_review_analyses')
 
@@ -155,17 +140,5 @@ describe('Review Analysis v3 retention', () => {
         'NOT EXISTS (SELECT 1 FROM ai_property_aggregate_contribution_mentions m WHERE m.issue_group_id = ai_property_issue_groups.id)',
     })
     expect(groupIndex).toBeGreaterThan(analysisIndex)
-  })
-
-  it('leaves the v2 aspect tables to the rule that still waits for them', () => {
-    const v2Registry = RETENTION_REGISTRY.find(
-      (rule) => rule.id === 'ai.local_derivatives',
-    )
-
-    expect(v2Registry?.eligibility.horizon).toEqual({
-      kind: 'accepted_unexecuted',
-      months: 24,
-    })
-    expect(v2Registry?.eligibility.implementedBoundary).toContain('v3')
   })
 })

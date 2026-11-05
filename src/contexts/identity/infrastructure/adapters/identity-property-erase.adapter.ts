@@ -20,7 +20,7 @@
 //                          data it was about.
 //
 // Both are `recoverable_archive`, and their retention classes are
-// counsel-approved work that is still open (`approvalState: pending_counsel`).
+// counsel-approved work that is still open.
 // Engineering deciding unilaterally to delete data-subject-request evidence
 // during an erasure is exactly the call this program does not let engineering
 // make alone.

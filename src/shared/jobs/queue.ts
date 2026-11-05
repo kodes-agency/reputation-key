@@ -123,22 +123,34 @@ export function createWorkerBarrierQueue(name: string): Queue | undefined {
 }
 
 /**
- * Quit every tracked dedicated queue connection (BQC-7.1 graceful shutdown,
- * web process — see CONNECTIONS_KEY note). Idempotent: already-ended
- * connections are skipped; a connection that refuses quit() is force-
- * disconnected so the event loop can drain. Never throws.
+ * Quit every tracked dedicated queue connection (graceful shutdown, web
+ * process — see CONNECTIONS_KEY note). Idempotent: already-ended connections are
+ * skipped. A connection that refuses quit() is force-disconnected so the event
+ * loop can drain, and the refusal is reported once every connection has been
+ * closed. A connection that ended while its quit was in flight is not a
+ * refusal: BullMQ ends a queue's connection as the queue closes, so QUIT can
+ * lose that race, and nothing is left to disconnect (disconnecting an ended
+ * connection would only leave ioredis's two-second socket timer holding the
+ * process open).
  */
 export async function closeJobQueueConnections(): Promise<void> {
   const connections = [...connectionStore()]
   connectionStore().clear()
+  const failures: unknown[] = []
+  // A call, not an inline comparison: the status changes while quit() is awaited.
+  const hasEnded = (connection: Redis): boolean => connection.status === 'end'
   await Promise.all(
     connections.map(async (connection) => {
-      if (connection.status === 'end') return
+      if (hasEnded(connection)) return
       try {
         await connection.quit()
-      } catch {
+      } catch (error) {
+        if (hasEnded(connection)) return
+        failures.push(error)
         connection.disconnect()
       }
     }),
   )
+  if (failures.length)
+    throw new AggregateError(failures, 'Queue connection shutdown failed')
 }

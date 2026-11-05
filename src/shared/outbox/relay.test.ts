@@ -315,3 +315,27 @@ describe('outbox relay (BQC-3.7)', () => {
     expect(claimArgs[1]).not.toBe(`relay-${process.pid}`)
   })
 })
+
+describe('relay shutdown', () => {
+  afterEach(() => vi.useRealTimers())
+  it('waits for the claimed batch to settle before dependencies can close', async () => {
+    vi.useFakeTimers()
+    const { repo, state } = makeRepo([makeEvent('pending')])
+    const { queue } = makeQueue()
+    const gate = Promise.withResolvers<Awaited<ReturnType<Queue['add']>>>()
+    vi.mocked(queue.add).mockReturnValueOnce(gate.promise)
+    const stop = createOutboxRelay(repo, queue).start(10)
+    await vi.advanceTimersByTimeAsync(10)
+    let settled = false
+    const stopping = Promise.resolve(stop()).then(() => {
+      settled = true
+    })
+    await Promise.resolve()
+    expect(settled).toBe(false)
+    gate.resolve({ id: 'pending' } as Awaited<ReturnType<Queue['add']>>)
+    await stopping
+    expect(state.markedPublished).toEqual(['pending'])
+    await vi.advanceTimersByTimeAsync(50)
+    expect(repo.claimUnpublished).toHaveBeenCalledOnce()
+  })
+})

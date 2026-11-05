@@ -39,7 +39,7 @@ export type OutboxRelay = Readonly<{
   /** Poll once: claim, publish, mark. Called on a schedule. */
   poll: () => Promise<void>
   /** Start polling on an interval. Returns a stop function. */
-  start: (intervalMs: number) => () => void
+  start: (intervalMs: number) => () => Promise<void>
 }>
 
 export type RelayConfig = Readonly<{
@@ -150,13 +150,12 @@ export function createOutboxRelay(
     },
 
     start: (intervalMs: number) => {
-      let polling = false
+      let polling: Promise<void> | undefined
       let stopped = false
       const timer = setInterval(() => {
         // One drain at a time: a tick that lands mid-drain leaves it to finish.
         if (polling) return
-        polling = true
-        void (async () => {
+        polling = (async () => {
           // A full batch means more rows are waiting. Keep publishing until a
           // poll comes back short, instead of one batch per interval: an
           // import writes about four events per review, so one batch a second
@@ -168,7 +167,7 @@ export function createOutboxRelay(
             logger.error({ err }, 'Outbox relay poll failed')
           })
           .finally(() => {
-            polling = false
+            polling = undefined
           })
       }, intervalMs)
 
@@ -178,6 +177,7 @@ export function createOutboxRelay(
         stopped = true
         clearInterval(timer)
         logger.info('Outbox relay stopped')
+        return polling ?? Promise.resolve()
       }
     },
   }

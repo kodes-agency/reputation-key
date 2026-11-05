@@ -34,7 +34,11 @@ import { CAPABILITY_POLICY_VERSION } from '#/shared/auth/beta-capabilities'
 import { EXECUTION_POLICY_VERSION } from '#/shared/auth/execution-policy'
 import { createGoogleSourceContentPolicy } from '#/shared/domain/source-content-policy'
 import type { OutboxRepository } from '#/shared/outbox'
-import { createContainerShutdown, type ContainerShutdown } from './container-lifecycle'
+import {
+  createContainerShutdown,
+  type ContainerShutdown,
+  type ContainerShutdownHook,
+} from './container-lifecycle'
 import { isEmailDeliveryAllowed } from './read-and-notify-contexts'
 import type { Infrastructure } from './infrastructure'
 
@@ -101,10 +105,15 @@ type OperationsQueues = ReturnType<typeof openOperationsQueues>
 function buildJobRuntimeReport(
   input: OperationalReadoutInput,
   opsQueues: OperationsQueues,
+  hooks: ContainerShutdownHook[],
 ) {
   if (!input.redis) return null
   const runtimeObservationRedis = createJobRedisConnection()
   if (!runtimeObservationRedis) return null
+  hooks.push({
+    label: 'runtime-observations',
+    release: () => runtimeObservationRedis.quit(),
+  })
   return createJobRuntimeReportReader({
     contracts: JOB_OPERATIONAL_CONTRACTS,
     store: createJobRuntimeObservationStore({ redis: runtimeObservationRedis }),
@@ -156,6 +165,14 @@ function buildOperationsSnapshot(
 
 export function buildOperationalReadout(input: OperationalReadoutInput) {
   const opsQueues = openOperationsQueues(input)
+  const hooks: ContainerShutdownHook[] = []
+  const queues = new Set(Object.values(opsQueues))
+  queues.delete(opsQueues.domainEvents)
+  queues.delete(input.infra.jobQueue)
+  queues.delete(input.infra.backgroundQueue)
+  for (const queue of queues) {
+    if (queue) hooks.push({ label: `queue:${queue.name}`, release: () => queue.close() })
+  }
   // ARC-03-T15: worker-owned dispatch handles are CONTAINER-owned. The worker
   // entry point used to build its own quarantine barrier queue and its own
   // domain-events queue, so a process had queue connections nobody could
@@ -172,12 +189,15 @@ export function buildOperationalReadout(input: OperationalReadoutInput) {
      * read handle observes, so the process opens one connection, not two. */
     domainEventsQueue: opsQueues.domainEvents,
   })
-  const jobRuntimeReport = buildJobRuntimeReport(input, opsQueues)
-  // No context starts a background policy poller, so the container-owned
-  // shutdown seam is built with no hooks and releases nothing today. The queue
-  // and Redis handles opened above are not registered on it: see the STATE
-  // note in container-lifecycle.ts for what closes them in each process.
-  const containerShutdown: ContainerShutdown = createContainerShutdown([], input.logger)
+  if (jobDispatchWorkerRuntime.quarantineQueue) {
+    const queue = jobDispatchWorkerRuntime.quarantineQueue
+    hooks.push({ label: 'quarantine-barrier', release: () => queue.close() })
+  }
+  const jobRuntimeReport = buildJobRuntimeReport(input, opsQueues, hooks)
+  const containerShutdown: ContainerShutdown = createContainerShutdown(
+    hooks,
+    input.logger,
+  )
 
   return Object.freeze({
     opsQueues,
