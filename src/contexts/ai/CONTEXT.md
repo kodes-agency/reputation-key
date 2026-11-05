@@ -644,7 +644,7 @@ changed (`cl-0041`, `cl-0138`, `cl-0184`: it reads "oil.For" and "working.Not", 
 after a full stop, as web addresses) and any review the live path would not send. Causes are
 compared through `property-issue-normalization-v1`, so "ac" agrees with "air conditioning".
 
-The gates are decision 6 of the contract decisions (`docs/plan/guest-voice-2.md`), as gates v2
+The gates are decision 6 of the contract decisions ([`docs/plan/guest-voice-2.md`](https://github.com/kodes-agency/reputation-key/blob/docs-archive-2026-11-05/docs/plan/guest-voice-2.md)), as gates v2
 (`review-analysis-gates-v2`) read them after the first OpenAI measurement, for the whole set and
 for English, Bulgarian and Spanish: Urgent with zero safety or health misses, at least 95% recall
 and at most 2% of non-urgent reviews flagged; topic micro F1 at least 0.85 and no topic below 0.70

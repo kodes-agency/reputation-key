@@ -413,7 +413,7 @@ Before adding UI, find the family here. Each one has a single implementation:
 the UI consistency scan of 2 October 2026
 (kept at git tag `docs-archive-2026-11-04`) found about a hundred places where
 a second had grown beside the first, and every stage of
-`docs/plan/ui-consistency-implementation.md` folded one family back into one
+[`docs/plan/ui-consistency-implementation.md`](https://github.com/kodes-agency/reputation-key/blob/docs-archive-2026-11-05/docs/plan/ui-consistency-implementation.md) folded one family back into one
 primitive. Use the canonical component. When it lacks something you need, extend
 it with a prop or a variant (the owner approves new primitives and variants)
 rather than overriding it with `className`. The paragraphs above say how each one
