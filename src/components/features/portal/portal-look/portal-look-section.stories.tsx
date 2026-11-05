@@ -42,7 +42,6 @@ const TARGET = { propertyId: PROPERTY_ID, portalId: PORTAL_ID } as const
 type StoryProps = Readonly<{
   look: PortalLookView | null
   siblingPortalCount?: number
-  enabled?: boolean
   canManage?: boolean
   archived?: boolean
   /** Every write the section makes, as it was sent. */
@@ -164,18 +163,6 @@ export const SinglePortalKeepsTodaysView: Story = {
       section.getByRole('link', { name: /edit the property look/i }),
     ).toHaveAttribute('href', '/properties/prop-1/portals/look')
     await expect(section.queryByRole('button')).toBeNull()
-  },
-}
-
-/** While the switch is off, a portal that has none of its own sees today's view too. */
-export const SwitchedOffKeepsTodaysView: Story = {
-  args: { enabled: false },
-  play: async ({ canvasElement }) => {
-    const section = lookSection(canvasElement)
-    await expect(
-      section.getByRole('link', { name: /edit the property look/i }),
-    ).toBeVisible()
-    await expect(section.queryByRole('button', { name: /set colours/i })).toBeNull()
   },
 }
 
@@ -329,19 +316,6 @@ export const ArchivedPortalShowsFacts: Story = {
     ).toBeVisible()
     await expect(section.queryByRole('button')).toBeNull()
     await expect(section.queryByRole('textbox')).toBeNull()
-  },
-}
-
-/** With the switch off, a portal that has its own look is told, and nobody is named to change it. */
-export const SwitchedOffOwnLookShowsFacts: Story = {
-  args: { look: OWN_COLOURS, enabled: false },
-  play: async ({ canvasElement }) => {
-    const section = lookSection(canvasElement)
-    await expect(section.getByText('This portal’s own')).toBeVisible()
-    await expect(
-      section.getByText('A portal’s own look cannot be changed at the moment.'),
-    ).toBeVisible()
-    await expect(section.queryByRole('button')).toBeNull()
   },
 }
 

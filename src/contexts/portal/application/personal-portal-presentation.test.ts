@@ -24,7 +24,6 @@ function fixture() {
     mediaUrls: vi.fn(async () => ({})),
     wordingRepo: { find: vi.fn(async () => null) },
     lastPrintRepo: { find: vi.fn(async () => null) },
-    finalKitEnabled: true,
   }
   return {
     deps,
@@ -143,12 +142,5 @@ describe('personal Portal presentation', () => {
     const bg = await personalPortalWords(deps, portal, 'bg')
     expect(bg.headline).toBe('Как беше вечерята?')
     expect(bg.subline).toBe('Благодарим')
-    expect(
-      await personalPortalWords({ ...deps, finalKitEnabled: false }, portal, 'en'),
-    ).toEqual({
-      headline: 'How did we do?',
-      subline: 'About 30 seconds',
-      cue: 'Scan with your camera',
-    })
   })
 })

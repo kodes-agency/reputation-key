@@ -1,7 +1,7 @@
 // Portal context — the Property look and guest-experience use cases, composed
 // from one set of dependencies. Split from `build.ts` to keep that module under
 // the file-length limit; every entry shares the same dependencies. A Portal's
-// own look (ADR 0070) is composed here too, with its repository and switch.
+// own look (ADR 0070) is composed here too, with its repository.
 
 import type { StaffPublicApi } from '#/contexts/identity/application/public-api'
 import {
@@ -36,8 +36,6 @@ type ExperienceDeps = Readonly<{
   staffPublicApi: StaffPublicApi
   idGen: () => string
   clock: () => Date
-  /** PORTAL_OWN_LOOK_ENABLED: whether a Portal's own look may be changed. */
-  portalOwnLookEnabled: boolean
 }>
 
 export const buildExperienceUseCases = (deps: ExperienceDeps) => ({

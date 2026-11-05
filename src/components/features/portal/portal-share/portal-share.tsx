@@ -12,7 +12,6 @@ import { PortalPrintKitNotLive } from './portal-print-kit-not-live'
 import {
   PortalSharePrintFinalSection,
   PortalSharePrintKitAside,
-  PortalSharePrintKitSection,
 } from './portal-share-print-kit'
 import { PortalLinkReveal } from './portal-link-reveal'
 import {
@@ -137,8 +136,6 @@ export function PortalShare(props: PortalShareProps) {
         <PortalScanGoalReadinessNotice show={showScanGoalReadiness(props, publicUrl)} />
 
         <PortalPrintKitNotLive notice={kit.notLive} />
-
-        <PortalSharePrintKitSection kit={kit} />
 
         <p className="sr-only" role="status" aria-live="polite">
           {liveStatusMessage(isPending, copied || nfcCopied)}
