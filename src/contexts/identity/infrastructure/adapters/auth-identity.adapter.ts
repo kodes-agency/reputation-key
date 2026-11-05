@@ -1,49 +1,51 @@
-// Identity context — better-auth adapter implementing the IdentityPort.
-// Per architecture: "Infrastructure implements ports defined by application."
-// Wraps better-auth's API calls behind the port interface so use cases
-// remain testable with in-memory fakes.
-//
-// Invitation and member writes belong to the atomic Identity command store.
-// This adapter handles reads, registration and session Organization selection.
+// Identity reads use organization-scoped SQL; registration and session management
+// delegate to Better Auth. Membership writes belong to the identity command store.
 
+import type { Database } from '#/shared/db'
+import { and, count, eq, ne } from 'drizzle-orm'
+import { member, user } from '#/shared/db/schema/auth'
 import type {
   MemberRecord,
+  MemberListOptions,
   IdentityPort,
   InvitationRecord,
   OrganizationRecord,
 } from '../../application/ports/identity.port'
 import type { AuthContext } from '#/shared/domain/auth-context'
 import { getAuth } from '#/shared/auth/auth'
-import { toDomainRole } from '#/shared/domain/roles'
+import { isOwnerToken, toDomainRole } from '#/shared/domain/roles'
 import { identityError } from '../../domain/errors'
 import { organizationId } from '#/shared/domain/ids'
 import {
   parseBetterAuthResponse,
   signUpResponseSchema,
-  listMembersResponseSchema,
   listUserInvitationsResponseSchema,
   betterAuthOrganizationSchema,
 } from './better-auth-schemas'
 import { runWithRegistrationAuthIds } from '#/shared/auth/registration-user-id'
 import type { RegistrationAuthIds } from '#/shared/domain/registration-auth-ids'
-import type { RequestContextPort } from '../../application/ports/request-context.port'
 
-/** Map a raw better-auth member object to our MemberRecord. */
-function toMemberRecord(m: {
-  id: string
-  userId: string
-  role: string
-  createdAt: Date
-  user: { id: string; email: string; name: string; image?: string | null }
-}): MemberRecord {
+const memberFields = {
+  id: member.id,
+  userId: member.userId,
+  role: member.role,
+  email: user.email,
+  name: user.name,
+  image: user.image,
+  createdAt: member.createdAt,
+}
+
+function toMemberRecord(
+  m: Omit<MemberRecord, 'role' | 'rawRole'> & { role: string },
+): MemberRecord {
   return {
     id: m.id,
     userId: m.userId,
-    email: m.user.email,
-    name: m.user.name,
+    email: m.email,
+    name: m.name,
     role: toDomainRole(m.role),
     rawRole: m.role,
-    image: m.user.image ?? null,
+    image: m.image,
     createdAt: m.createdAt,
   }
 }
@@ -78,31 +80,8 @@ function toOrganizationRecord(org: {
   }
 }
 
-type BetterAuthIdentityAdapterDeps = Readonly<{
-  /** ARC-03-T13: the ambient request context, injected. Infrastructure no
-   * longer reaches the web framework itself. */
-  requestContext: RequestContextPort
-}>
-
-export const createBetterAuthIdentityAdapter = (
-  deps: BetterAuthIdentityAdapterDeps,
-): IdentityPort => {
+export const createBetterAuthIdentityAdapter = (db: Database): IdentityPort => {
   const auth = getAuth()
-  // Local member lookup — used by getMember.
-  // Calling a closure-captured function (not `this.getMember`) keeps these methods
-  // safe to destructure / pass as callbacks, per the functional-style rule.
-  const getMemberImpl = async (memberId: string): Promise<MemberRecord | null> => {
-    const headers = await deps.requestContext.currentRequestHeaders()
-    const result = await auth.api.listMembers({ headers })
-    const data = parseBetterAuthResponse(
-      listMembersResponseSchema,
-      result,
-      'org_setup_failed',
-      'listMembers response did not match expected schema',
-    )
-    const member = data.members.find((m) => m.id === memberId)
-    return member ? toMemberRecord(member) : null
-  }
   return {
     async signUp(
       name: string,
@@ -135,27 +114,49 @@ export const createBetterAuthIdentityAdapter = (
       return data.user.id
     },
 
-    // Relies on better-auth session scoping — the active organization is bound
-    // to the session cookie. Members returned are scoped to that organization.
-    // If better-auth adds orgId to member records, verify it matches ctx.organizationId.
-    async listMembers(_ctx: AuthContext): Promise<ReadonlyArray<MemberRecord>> {
-      const headers = await deps.requestContext.currentRequestHeaders()
-      const result = await auth.api.listMembers({ headers })
-
-      const data = parseBetterAuthResponse(
-        listMembersResponseSchema,
-        result,
-        'org_setup_failed',
-        'listMembers response did not match expected schema',
-      )
-      return data.members.map(toMemberRecord)
+    async listMembers(
+      ctx: AuthContext,
+      options?: MemberListOptions,
+    ): Promise<ReadonlyArray<MemberRecord>> {
+      let query = db
+        .select(memberFields)
+        .from(member)
+        .innerJoin(user, eq(member.userId, user.id))
+        .where(
+          and(
+            eq(member.organizationId, ctx.organizationId),
+            options?.excludeStaff ? ne(member.role, 'member') : undefined,
+          ),
+        )
+        .orderBy(member.createdAt, member.id)
+        .$dynamic()
+      if (options?.limit !== undefined) query = query.limit(options.limit)
+      if (options?.offset !== undefined) query = query.offset(options.offset)
+      return (await query).map(toMemberRecord)
     },
 
-    // better-auth doesn't return orgId on individual member records.
-    // The listMembers call is session-scoped to the active org, so the
-    // membership is implicitly verified. No cross-tenant risk in practice.
-    async getMember(_ctx: AuthContext, memberId: string): Promise<MemberRecord | null> {
-      return getMemberImpl(memberId)
+    async countOwners(ctx: AuthContext): Promise<number> {
+      const counts = await db
+        .select({ role: member.role, members: count() })
+        .from(member)
+        .where(eq(member.organizationId, ctx.organizationId))
+        .groupBy(member.role)
+      return counts.reduce(
+        (owners, row) => owners + (isOwnerToken(row.role) ? row.members : 0),
+        0,
+      )
+    },
+
+    async getMember(ctx: AuthContext, memberId: string): Promise<MemberRecord | null> {
+      const [result] = await db
+        .select(memberFields)
+        .from(member)
+        .innerJoin(user, eq(member.userId, user.id))
+        .where(
+          and(eq(member.organizationId, ctx.organizationId), eq(member.id, memberId)),
+        )
+        .limit(1)
+      return result ? toMemberRecord(result) : null
     },
 
     async listUserInvitations(

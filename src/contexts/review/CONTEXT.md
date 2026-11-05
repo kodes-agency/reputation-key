@@ -773,8 +773,7 @@ included; a reply that is neither text still ends it, and an edit that never
 reached Google ends as terminal ambiguity that no reply command moves.
 
 `domain/reply-publication-workflow.property.test.ts` checks every cell of the
-two publication tables (the saga, and the persisted machine of state by event)
-against moves written by hand in that file. Neither table is exported, so no
-test can ask a table what it should say.
+persisted publication machine against moves written by hand in that file. The
+transition table is not exported, so no test can ask it what it should say.
 
 Recurring activation remains quarantined until the external shadow-parity/cutover audit is complete.

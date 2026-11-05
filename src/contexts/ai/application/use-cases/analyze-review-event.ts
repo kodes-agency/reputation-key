@@ -49,10 +49,13 @@ export { derivePrimaryCategoryV1 } from '../review-analysis-contract-v2'
 export type { AiAnalysisObservabilityPort }
 
 /**
- * Every retry branch is bounded in time by the plan's 15-minute background
- * operation horizon (§10.2). Before an operation exists the outbox row's stable
- * `recordedAt` anchors the horizon; afterwards the operation gets the later of
- * that instant and `createdAt + horizon`.
+ * A wait that comes before a provider attempt, for admission or for an operation
+ * another attempt holds, is bounded in time by the 15-minute background operation
+ * horizon. Before an operation exists the outbox row's stable `recordedAt`
+ * anchors the horizon; afterwards the operation gets the later of that instant
+ * and `createdAt + horizon`. A refusal that is not about the review (a missing or
+ * unreadable processing profile, the language runtime, a preparation refusal) has
+ * no horizon: the review stays runnable until the cause clears.
  *
  * Reaching the horizon here still depends on another dispatch. BullMQ's finite
  * retry budget can exhaust first, so the recurring operation reaper is the
@@ -278,6 +281,22 @@ export function createAnalyzeReviewEvent(
   }
 
   /**
+   * Retry with no horizon, for a cause that is not the review's: it is never
+   * terminal-settled for it. The closed `code` travels in the retry result and in
+   * telemetry.
+   */
+  function deferTransient(
+    code: string,
+    nowEpochMillis: number,
+  ): AnalyzeReviewEventResult {
+    return {
+      status: 'retry',
+      retryAtEpochMillis: nowEpochMillis + DEFERRED_RETRY_DELAY_MILLIS,
+      code,
+    }
+  }
+
+  /**
    * Retry while the operation horizon has not elapsed; terminal-settle once it
    * has. `policy_disabled` is the only generic terminal disposition the outcome
    * CHECK constraint admits, so the closed `code` travels in the retry result
@@ -299,11 +318,7 @@ export function createAnalyzeReviewEvent(
         'policy_disabled',
       )
     }
-    return {
-      status: 'retry',
-      retryAtEpochMillis: nowEpochMillis + DEFERRED_RETRY_DELAY_MILLIS,
-      code,
-    }
+    return deferTransient(code, nowEpochMillis)
   }
 
   /**
@@ -311,23 +326,15 @@ export function createAnalyzeReviewEvent(
    * `policy_unavailable` is a transient read failure. Neither is a merchant
    * decision, so neither may permanently terminal-skip this review.
    */
-  function settleUnavailableProfile(
+  async function settleUnavailableProfile(
     input: AnalyzeReviewEventInput,
     reviewAnalysisEpoch: number,
     propertyProfileVersion: number,
     status: Exclude<AiPropertyProfileResult['status'], 'available'>,
     nowEpochMillis: number,
-    horizonEpochMillis: number | null,
   ): Promise<AnalyzeReviewEventResult> {
     return status === 'not_found' || status === 'policy_unavailable'
-      ? deferOrSettle(
-          input,
-          reviewAnalysisEpoch,
-          propertyProfileVersion,
-          `property_profile_${status}`,
-          nowEpochMillis,
-          horizonEpochMillis,
-        )
+      ? deferTransient(`property_profile_${status}`, nowEpochMillis)
       : settleWithoutResult(
           input,
           reviewAnalysisEpoch,
@@ -496,7 +503,6 @@ export function createAnalyzeReviewEvent(
         profileVersionForSettle,
         runtime.status,
         nowEpochMillis,
-        eventHorizonEpochMillis,
       )
     }
     const profile = runtime.profile
@@ -536,14 +542,7 @@ export function createAnalyzeReviewEvent(
       // deliberate base-image digest bump can still move it: degrade, never
       // destroy — a terminal skip here would drop the review from the aggregates
       // permanently and could never be repaired by redeploying the right image.
-      return deferOrSettle(
-        input,
-        reviewAnalysisEpoch,
-        profile.profileVersion,
-        'language_runtime_unavailable',
-        nowEpochMillis,
-        eventHorizonEpochMillis,
-      )
+      return deferTransient('language_runtime_unavailable', nowEpochMillis)
     }
     if (language.status !== 'supported') {
       return settleWithoutResult(
@@ -592,8 +591,8 @@ export function createAnalyzeReviewEvent(
     })
     const requestFingerprint = aiRequestFingerprint({ identity, binding, provenance })
     // What the contract adds before the claim (v3: the hints, the provider and
-    // the normalizer the operation is claimed under). A refusal waits within the
-    // event's horizon, like any other wait that comes before an attempt.
+    // the normalizer the operation is claimed under). A configuration refusal
+    // stays runnable: restoring it must not require replaying the history.
     const prepared = await contract.prepare({
       organizationId: input.organizationId,
       propertyId: input.propertyId,
@@ -601,14 +600,7 @@ export function createAnalyzeReviewEvent(
       observation,
     })
     if (prepared.status === 'refused') {
-      return deferOrSettle(
-        input,
-        reviewAnalysisEpoch,
-        profile.profileVersion,
-        prepared.code,
-        nowEpochMillis,
-        eventHorizonEpochMillis,
-      )
+      return deferTransient(prepared.code, nowEpochMillis)
     }
     const preparation: Extract<typeof prepared, { status: 'ready' }> = prepared
     const claimed = await dependencies.operations.claim({

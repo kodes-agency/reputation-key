@@ -32,7 +32,6 @@ import type {
   getInboxItemDetailFn,
   getInboxItemHistoryFn,
 } from '#/contexts/inbox/server/inbox'
-import type { getActivityTimelineFn } from '#/contexts/feed/server/activity'
 import type { generateReplySuggestionFn } from '#/contexts/ai/server/reply-suggestion'
 import type { requestReviewAnalysisNowFn } from '#/contexts/ai/server/review-analysis'
 import { fn } from 'storybook/test'
@@ -174,9 +173,6 @@ const detailFns = {
     async ({ data }: Parameters<typeof getInboxItemDetailFn>[0]) =>
       data.inboxItemId === feedbackItem.id ? feedbackDetail : reviewDetail,
   ) as unknown as typeof getInboxItemDetailFn,
-  getActivityTimeline: mockServerFn(
-    async () => [],
-  ) as unknown as typeof getActivityTimelineFn,
   addInboxNote: mockServerFn(async () => ({
     ok: true,
   })) as unknown as typeof addInboxNoteFn,

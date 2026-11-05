@@ -17,7 +17,6 @@ import type { PropertyLookupPort } from './application/ports/property-lookup.por
 import type { StaffPublicApi } from '#/contexts/identity/application/public-api'
 import type { LoggerPort } from '#/shared/domain/logger.port'
 import type { InboxContextApi } from './build'
-import { createInboxItem as createInboxItemUseCase } from './application/use-cases/create-inbox-item'
 import { updateInboxStatus } from './application/use-cases/update-inbox-status'
 import { bulkUpdateInboxStatus } from './application/use-cases/bulk-update-inbox-status'
 import { bulkAssignInboxItems } from './application/use-cases/bulk-assign-inbox-items'
@@ -36,7 +35,6 @@ import { getReviewInboxItemIds } from './application/use-cases/get-review-inbox-
 import { getInboxNotes } from './application/use-cases/get-inbox-notes'
 import { getInboxItemHistory } from './application/use-cases/get-inbox-item-history'
 import { rebuildInboxProjection } from './application/use-cases/rebuild-inbox-projection'
-import { startReviewHandlingCycle } from './application/use-cases/start-review-handling-cycle'
 import { markFeedbackHandled } from './application/use-cases/mark-feedback-handled'
 import { correctFeedbackHandlingOutcome } from './application/use-cases/correct-feedback-handling-outcome'
 import {
@@ -82,12 +80,6 @@ type WireInput = Readonly<{
 
 export function wireUseCases(input: WireInput): InboxContextApi['internal']['useCases'] {
   return {
-    createInboxItem: createInboxItemUseCase({
-      repo: input.inboxRepo,
-      commandStore: input.commandStore,
-      idGen: () => inboxItemId(input.idGen()),
-      clock: input.clock,
-    }),
     updateInboxStatus: updateInboxStatus({
       repo: input.inboxRepo,
       commandStore: input.commandStore,
@@ -214,13 +206,6 @@ export function wireUseCases(input: WireInput): InboxContextApi['internal']['use
       idGen: () => inboxItemId(input.idGen()),
       clock: input.clock,
       logger: input.logger,
-    }),
-    startReviewHandlingCycle: startReviewHandlingCycle({
-      inboxRepo: input.inboxRepo,
-      cycleStore: input.handlingCycleStore,
-      reviewSourceLookup: input.reviewSourceLookup,
-      responseTargetAuthority: input.responseTargetAuthority,
-      clock: input.clock,
     }),
     markFeedbackHandled: markFeedbackHandled({
       repo: input.inboxRepo,

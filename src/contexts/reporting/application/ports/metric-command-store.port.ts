@@ -1,12 +1,4 @@
-// Metric command store — atomic metric_readings insert + outbox record
-// (BQC-3.5).
-//
-// Callers must not know Drizzle transaction types or outbox tables.
-// The production implementation commits the metric_readings state write and
-// its outbox_events fact in one PostgreSQL transaction.
-
 import type { MetricReading, ReadingResult } from '../../domain/metric-reading'
-import type { MetricRecorded } from '../../domain/metric-events'
 import type { OrganizationId, PortalId, PropertyId } from '#/shared/domain/ids'
 import type { PrimaryStaffAttributionSnapshot } from '#/shared/domain/primary-staff-attribution'
 import type { PortalLifetimeFact } from '../../domain/portal-lifetime-aggregate'
@@ -17,15 +9,13 @@ export type MetricSourceReceipt = Readonly<{
 }>
 
 /**
- * Reading insert + metric.recorded fact in one transaction. The reading id
- * is assigned by the use case (idGen) and inserted explicitly so the fact's
- * readingId always matches the committed row. Returns the committed reading.
+ * Commits the reading, source receipt and lifetime contribution atomically.
+ * Replacements also retract the prior reading and emit a correction fact.
  */
 export type RecordMetricCommand = Readonly<{
   reading: MetricReading
   supersedesSourceEventId?: string | null
   portalLifetimeFact?: PortalLifetimeFact | null
-  event: MetricRecorded
   /** Optional source-consumer receipt committed with the reading. */
   sourceReceipt?: MetricSourceReceipt
 }>

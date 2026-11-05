@@ -65,11 +65,12 @@ export const DashboardRanges: Story = {
       radios.filter((radio) => radio.getAttribute('aria-checked') === 'true'),
     ).toEqual([within(group).getByRole('radio', { name: '90 days' })])
     // The same options stand in as a Select below `sm`, under the same name. CSS
-    // shows one at a time; the Storybook Vitest project compiles no Tailwind, so
-    // here both are in the tree.
-    expect(canvas.getByRole('combobox', { name: 'Time range' })).toHaveTextContent(
-      '90 days',
-    )
+    // shows one at a time: at this width the Select is out of the tree, though it holds
+    // the same value.
+    expect(canvas.queryByRole('combobox', { name: 'Time range' })).toBeNull()
+    expect(
+      canvas.getByRole('combobox', { name: 'Time range', hidden: true }),
+    ).toHaveTextContent('90 days')
   },
 }
 
@@ -102,8 +103,7 @@ export const PortalResultsPresets: Story = {
 /**
  * Below `sm` the same options are a Select, still named "Time range". The play
  * drives the Select, which is what a phone sees, and proves it commits a choice
- * and prints it. The height is not asserted: the Storybook Vitest project
- * compiles no Tailwind, so the 44px token cannot show here.
+ * and prints it. The height is not asserted here.
  */
 export const Phone320: Story = {
   parameters: { viewport: { defaultViewport: 'mobileNarrow' } },
@@ -122,8 +122,8 @@ export const Phone320: Story = {
       expect(onChange).toHaveBeenCalledWith('30d')
       expect(select).toHaveTextContent('30 days')
     })
-    // The segments follow: one control, one value.
-    expect(canvas.getByRole('radio', { name: '30 days' })).toBeChecked()
+    // The segments follow: one control, one value. They are hidden on a phone.
+    expect(canvas.getByRole('radio', { name: '30 days', hidden: true })).toBeChecked()
   },
 }
 

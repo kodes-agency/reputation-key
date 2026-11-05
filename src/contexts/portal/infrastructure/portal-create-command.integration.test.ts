@@ -366,7 +366,7 @@ describe.sequential('create Portal command: copied content (real PostgreSQL)', (
     const seeded = alreadySeeded ? null : await seedSource()
     const db = getDb()
     const portalRepo = createPortalRepository(db)
-    const linkRepo = createPortalLinkRepository(db, () => NOW)
+    const linkRepo = createPortalLinkRepository(db)
     const loaded = (await portalRepo.findById(ORG_A, SOURCE)) ?? seeded?.source
     if (!loaded) throw new Error('expected the source Portal')
     const [categories, links, linkTexts, destinations] = await Promise.all([

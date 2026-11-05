@@ -12,12 +12,8 @@ import type {
 
 export type PortalGroupRepository = Readonly<{
   findById: (orgId: OrganizationId, id: PortalGroupId) => Promise<PortalGroup | null>
-  listByProperty: (
-    orgId: OrganizationId,
-    propertyId: PropertyId,
-  ) => Promise<ReadonlyArray<PortalGroup>>
   /**
-   * `listByProperty` with each group's current Portals, in one read (two
+   * Each group's current Portals, in one read (two
    * queries, however many groups). Every group of the Property is present, with
    * an empty list when nobody is in it. Archived groups are not listed.
    */
@@ -32,20 +28,6 @@ export type PortalGroupRepository = Readonly<{
     propertyId: PropertyId,
     name: string,
     excludeId?: PortalGroupId,
-  ) => Promise<boolean>
-  insert: (orgId: OrganizationId, group: PortalGroup) => Promise<void>
-  update: (
-    orgId: OrganizationId,
-    id: PortalGroupId,
-    patch: Readonly<Partial<Pick<PortalGroup, 'name' | 'sortKey' | 'updatedAt'>>>,
-  ) => Promise<void>
-  softDelete: (orgId: OrganizationId, id: PortalGroupId, at: Date) => Promise<void>
-  removePortal: (
-    orgId: OrganizationId,
-    groupId: PortalGroupId,
-    portalId: PortalId,
-    at: Date,
-    reason: string,
   ) => Promise<boolean>
   findPortalMembership: (
     orgId: OrganizationId,

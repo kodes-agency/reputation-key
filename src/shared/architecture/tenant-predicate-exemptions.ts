@@ -187,13 +187,6 @@ export const TENANT_PREDICATE_EXEMPTIONS: readonly TenantPredicateExemption[] = 
     category: 'PUBLIC-TOKEN',
   },
   {
-    file: 'src/contexts/integration/infrastructure/repositories/credential-lifecycle.repository.ts',
-    symbol: 'expireDeadlines',
-    reason:
-      'The bounded credential lifecycle sweep intentionally expires elapsed revoke permits across tenants under the global cleanup authority.',
-    category: 'LEGITIMATE-GLOBAL',
-  },
-  {
     file: 'src/contexts/integration/infrastructure/repositories/google-connection.repository.ts',
     symbol: 'listOrganizationIdsWithActiveConnections',
     reason:
@@ -269,13 +262,6 @@ export const TENANT_PREDICATE_EXEMPTIONS: readonly TenantPredicateExemption[] = 
     reason:
       'The bounded media sweep intentionally enumerates old unreferenced images across tenants, and each candidate is rechecked by tenant-scoped discardIfUnreferenced before anything is deleted.',
     category: 'LEGITIMATE-GLOBAL',
-  },
-  {
-    file: 'src/contexts/portal/infrastructure/repositories/portal-token.repository.ts',
-    symbol: 'findResolvableByDigest',
-    reason:
-      'The public Portal token digest is the capability presented before tenant identity is known, so the lookup derives scope from the token row.',
-    category: 'PUBLIC-TOKEN',
   },
   {
     file: 'src/contexts/property/infrastructure/property-erase-command-store.ts',
@@ -551,62 +537,6 @@ export const TENANT_PREDICATE_EXEMPTIONS: readonly TenantPredicateExemption[] = 
     category: 'LEGITIMATE-GLOBAL',
   },
   {
-    file: 'src/contexts/integration/infrastructure/repositories/credential-lifecycle.repository.ts',
-    symbol: 'registerSource',
-    reason:
-      'The source work permit is locked by its id, and a permit of another Organization or connection is refused with scope_mismatch before anything is registered.',
-    category: 'TENANT-CHECKED',
-  },
-  {
-    file: 'src/contexts/integration/infrastructure/repositories/credential-lifecycle.repository.ts',
-    symbol: 'markProviderStarted',
-    reason:
-      'The source operation is locked by its id and refused with scope_mismatch unless it belongs to the calling Organization.',
-    category: 'TENANT-CHECKED',
-  },
-  {
-    file: 'src/contexts/integration/infrastructure/repositories/credential-lifecycle.repository.ts',
-    symbol: 'completeWithoutCleanup',
-    reason:
-      'The source operation is locked by its id and refused with scope_mismatch unless it belongs to the calling Organization.',
-    category: 'TENANT-CHECKED',
-  },
-  {
-    file: 'src/contexts/integration/infrastructure/repositories/credential-lifecycle.repository.ts',
-    symbol: 'activateCleanup',
-    reason:
-      'The source operation is locked by its id and refused with scope_mismatch unless it belongs to the calling Organization.',
-    category: 'TENANT-CHECKED',
-  },
-  {
-    file: 'src/contexts/integration/infrastructure/repositories/credential-lifecycle.repository.ts',
-    symbol: 'finishCleanupWithoutDispatch',
-    reason:
-      'The revoke permit is locked by its id, and its source operation is refused with scope_mismatch unless it belongs to the calling Organization.',
-    category: 'TENANT-CHECKED',
-  },
-  {
-    file: 'src/contexts/integration/infrastructure/repositories/credential-lifecycle.repository.ts',
-    symbol: 'acquireCleanupDispatch',
-    reason:
-      'The revoke permit is locked by its id, and its source operation is refused with scope_mismatch unless it belongs to the calling Organization.',
-    category: 'TENANT-CHECKED',
-  },
-  {
-    file: 'src/contexts/integration/infrastructure/repositories/credential-lifecycle.repository.ts',
-    symbol: 'finishCleanup',
-    reason:
-      'The revoke permit is locked by its id, and its source operation is refused with scope_mismatch unless it belongs to the calling Organization.',
-    category: 'TENANT-CHECKED',
-  },
-  {
-    file: 'src/contexts/integration/infrastructure/repositories/credential-lifecycle.repository.ts',
-    symbol: 'markProviderOutcomeAmbiguous',
-    reason:
-      'The source operation is locked by its id and refused with scope_mismatch unless it belongs to the calling Organization.',
-    category: 'TENANT-CHECKED',
-  },
-  {
     file: 'src/contexts/integration/infrastructure/repositories/google-disconnect-revoke.repository.ts',
     symbol: 'reconcileElapsed',
     reason:
@@ -647,13 +577,6 @@ export const TENANT_PREDICATE_EXEMPTIONS: readonly TenantPredicateExemption[] = 
     reason:
       'Returns only the Organization, Property and Portal that own a link id; the Portal server functions pass it to requirePortalResourceScope or requireMatchingPortalResourceScopes, which answer not found for any Organization but the caller.',
     category: 'OWNER-LOOKUP',
-  },
-  {
-    file: 'src/contexts/portal/infrastructure/repositories/portal-token.repository.ts',
-    symbol: 'listAccessArtifactReadinessGaps',
-    reason:
-      'No production code calls this port method; only its repository test does, with an Organization. It inventories resolvable tokens that have no published access artifact and returns identifiers, versions and instants, no content. The Organization filter is optional, so without one it lists the gaps of every tenant.',
-    category: 'LEGITIMATE-GLOBAL',
   },
   {
     file: 'src/contexts/portal/infrastructure/repositories/portal.repository.ts',
@@ -703,13 +626,6 @@ export const TENANT_PREDICATE_EXEMPTIONS: readonly TenantPredicateExemption[] = 
     reason:
       'The bounded publication-reconciliation scheduler intentionally lists ambiguous replies that are due across tenants and returns each with its Organization.',
     category: 'LEGITIMATE-GLOBAL',
-  },
-  {
-    file: 'src/contexts/review/infrastructure/repositories/reply-template.repository.ts',
-    symbol: 'findPropertyOrganization',
-    reason:
-      'Returns only the Organization that owns a Property id; the reply library refuses the Property as not found unless that Organization is the caller.',
-    category: 'OWNER-LOOKUP',
   },
   {
     file: 'src/contexts/review/infrastructure/repositories/review-discovery.repository.ts',

@@ -54,7 +54,7 @@ const { getPool } = setupIntegrationDb({
 })
 
 const store = () => createAtomicPortalCommandStore(getDb())
-const links = () => createPortalLinkRepository(getDb(), () => CREATED_AT)
+const links = () => createPortalLinkRepository(getDb())
 
 let tickCount = 0
 const nextInstant = () => new Date(CREATED_AT.getTime() + (tickCount += 1) * 1000)
@@ -210,9 +210,9 @@ describe('the picture on a link tile', () => {
     await setImage(id, asset.id)
 
     expect(await storedImage(id)).toBe(asset.id)
-    expect((await links().findLinkById(ORG_A, portalLinkId(id)))?.imageAssetId).toBe(
-      asset.id,
-    )
+    expect(
+      (await links().findLinkCommandTarget(ORG_A, portalLinkId(id)))?.link.imageAssetId,
+    ).toBe(asset.id)
   })
 
   it('is taken off by writing null, and the icon is untouched', async () => {
@@ -223,7 +223,7 @@ describe('the picture on a link tile', () => {
     await setImage(id, null)
 
     expect(await storedImage(id)).toBeNull()
-    const link = await links().findLinkById(ORG_A, portalLinkId(id))
+    const link = (await links().findLinkCommandTarget(ORG_A, portalLinkId(id)))?.link
     expect(link).toMatchObject({ imageAssetId: null, iconKey: 'waves' })
   })
 

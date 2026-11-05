@@ -1,4 +1,3 @@
-import { REPLY_DRAFTING_V2_PROFILE_DIGEST } from './reply-drafting-v2-contract'
 import {
   REPLY_DRAFTING_V2_VERSIONS,
   REPLY_DRAFTING_V2_LANGUAGES,
@@ -14,7 +13,6 @@ import {
 } from './ai-openai-request-contract'
 import {
   AI_PERSONALIZED_REPLY_LANGUAGES,
-  AI_PERSONALIZED_REPLY_PROFILE_DIGEST,
   AI_PERSONALIZED_REPLY_PROFILE_VERSION,
 } from './ai-personalized-reply-contract'
 
@@ -35,6 +33,18 @@ const TOKEN_PREFIXES = Object.freeze({
 const LEGACY_PERSONALIZED_REPLY_PROFILE_VERSION = 'reply-draft-v1'
 const LEGACY_PERSONALIZED_REPLY_PROFILE_DIGEST =
   '86bb98cb3b0b1c8561141e2ec30e019725d5f0ba5dd57be4745c7db5bc851769'
+// Append each issuing policy's immutable digest here. Keep prior pins for at
+// least the adoption window after their last issuing process stops. Signature,
+// expiry and transactional adoption fences still apply; removing a pin
+// deliberately revokes its browser-held suggestions.
+const SUPPORTED_GROUNDED_REPLY_PROFILE_DIGESTS: readonly string[] = Object.freeze([
+  '5949290a4d71a8cb5466596f066040ccc7194e8b2327ba361cf21e0152df45f2',
+  '0ef5ff1301c271e6cb46898d7dda42b01073d456a6f89b9e286fc673ae112dec',
+])
+const SUPPORTED_SENTENCE_REPLY_PROFILE_DIGESTS: readonly string[] = Object.freeze([
+  '41c1bdf74408dd526d2b29983e3e0c371d818a548575b46e3df2c78024884658',
+  'f7a7277c2a255a59284d8b17131e39a6c1a4f82c1f8490d0db1c51d6f5c7ccfe',
+])
 const canonicalUuid = z
   .string()
   .regex(/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/)
@@ -139,7 +149,7 @@ const groundedPersonalizedPayloadSchema = z
     version: z.literal('ai-reply-provenance-v3'),
     ...commonPayloadShape,
     replyProfileVersion: z.literal(AI_PERSONALIZED_REPLY_PROFILE_VERSION),
-    replyProfileDigest: z.literal(AI_PERSONALIZED_REPLY_PROFILE_DIGEST),
+    replyProfileDigest: z.enum(SUPPORTED_GROUNDED_REPLY_PROFILE_DIGESTS),
     replyBrandProfileVersion: positive,
     replyBrandDisplayNameDigest: digest,
     /** Present for v3 suggestions produced after reply-voice framing shipped. */
@@ -155,7 +165,7 @@ const sentencePersonalizedPayloadSchema = z
     operationProfileVersion: z.literal(REPLY_DRAFTING_V2_VERSIONS.operation),
     promptVersion: z.literal(REPLY_DRAFTING_V2_VERSIONS.prompt),
     replyProfileVersion: z.literal(REPLY_DRAFTING_V2_VERSIONS.profile),
-    replyProfileDigest: z.literal(REPLY_DRAFTING_V2_PROFILE_DIGEST),
+    replyProfileDigest: z.enum(SUPPORTED_SENTENCE_REPLY_PROFILE_DIGESTS),
     replyBrandProfileVersion: positive,
     replyBrandDisplayNameDigest: digest,
     replyVoiceDigest: digest,

@@ -23,13 +23,16 @@ export type GuestVoiceFactsPeriod = Readonly<{
   endLocalDate: string
 }>
 
-/** A review the analysis could not read (its language), by the key Review counts it under. */
+/** A settled exclusion, including one that never produced an analysis row. */
 export type GuestVoiceUnavailableReview = Readonly<{
   reviewId: string
-  sourceRevision: number
   analysisSequence: number
-  localDate: string
-}>
+}> &
+  (
+    | Readonly<{ sourceRevision: number; localDate: string }>
+    /** The settlement ledger identifies the issued sequence, without a revision or day. */
+    | Readonly<{ sourceRevision: null; localDate: null }>
+  )
 
 export type GuestVoiceFactsRead = Readonly<{
   /** How far the analysis is: reviews owed and reviews settled. */

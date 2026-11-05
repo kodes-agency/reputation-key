@@ -383,8 +383,11 @@ export const TitleColumnKeepsItsWidth: Story = {
     // width. This does.
     expect(heading.getBoundingClientRect().width).toBeGreaterThan(150)
     expect(description.getBoundingClientRect().width).toBeGreaterThan(150)
-    // Single line, not a vertical character stack.
-    expect(heading.getBoundingClientRect().height).toBeLessThan(40)
+    // Single line, not a vertical character stack. The heading is a grid item and
+    // stretches to its row, so its text is measured, not its box.
+    const lines = document.createRange()
+    lines.selectNodeContents(heading)
+    expect(lines.getClientRects()).toHaveLength(1)
   },
 }
 

@@ -162,10 +162,13 @@ export const ActualPace: Story = {
   },
 }
 
-/** Set yesterday: the aim a day for this week, and a ruler that has not begun to fill. */
-export const JustSet: Story = {
-  args: { card: cardRead(CARD_HARBORLINE_JUST_SET) },
-  play: async ({ canvasElement }) => {
+/**
+ * The ruler's note under the goal needs a 32rem container, so a phone's ruler leaves
+ * it out.
+ */
+const justSetPlay =
+  (note: 'drawn' | 'left out'): NonNullable<Story['play']> =>
+  async ({ canvasElement }) => {
     const canvas = within(canvasElement)
     await expect(canvas.getByText('Getting started')).toBeVisible()
     await expectHeadline(
@@ -182,9 +185,16 @@ export const JustSet: Story = {
       ),
     ).toBeVisible()
     await expectRuler(canvas, 'Google shows 3.9 now. Your goal is 4.1.')
-    await expect(canvas.getByText('19 new reviews')).toBeVisible()
+    const rulerNote = canvas.getByText('19 new reviews')
+    if (note === 'drawn') await expect(rulerNote).toBeVisible()
+    else await expect(rulerNote).not.toBeVisible()
     await expect(canvas.queryByText(/is possible/u)).toBeNull()
-  },
+  }
+
+/** Set yesterday: the aim a day for this week, and a ruler that has not begun to fill. */
+export const JustSet: Story = {
+  args: { card: cardRead(CARD_HARBORLINE_JUST_SET) },
+  play: justSetPlay('drawn'),
 }
 
 export const GettingStarted: Story = {
@@ -347,7 +357,11 @@ export const OnPacePhone: Story = {
 }
 export const FarGoalPhone: Story = { ...FarGoal, parameters: PHONE }
 export const ActualPacePhone: Story = { ...ActualPace, parameters: PHONE }
-export const JustSetPhone: Story = { ...JustSet, parameters: PHONE }
+export const JustSetPhone: Story = {
+  ...JustSet,
+  parameters: PHONE,
+  play: justSetPlay('left out'),
+}
 export const ApproximateNumbersPhone: Story = { ...ApproximateNumbers, parameters: PHONE }
 /** The long chip drops below the title on a phone instead of squeezing it. */
 export const NewReviewsTooLowPhone: Story = { ...NewReviewsTooLow, parameters: PHONE }

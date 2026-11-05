@@ -47,6 +47,7 @@ describe('Identity runtime dependency injection', () => {
       .join('\n')
     const bootstrap = readFileSync(join(ROOT, 'src/bootstrap.ts'), 'utf8')
 
+    expect(composition).toContain('createBetterAuthIdentityAdapter(db)')
     // ARC-03-T13: the session is injected as an Identity-owned port. The root
     // selects the better-auth implementation; it no longer performs one.
     expect(composition).toContain('createBetterAuthSessionPort({ requestContext })')

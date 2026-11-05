@@ -40,7 +40,7 @@ const FENCED_MIRROR_WRITERS: Readonly<Record<string, string>> = {
   'contexts/inbox/infrastructure/review-handling-cycle.store.ts':
     'Review Handling Cycle store: the head is the authority and the mirror follows it in the same transaction.',
   'contexts/inbox/infrastructure/repositories/inbox.repository.ts':
-    'Creation insert plus the retained status seams the command store composes; every read it serves resolves from the head, and its milestone seam cannot express a status.',
+    'Only reply milestone stamping; every read it serves resolves from the head, and the milestone seam cannot express a status.',
 }
 
 function walk(directory: string): readonly string[] {
@@ -58,10 +58,9 @@ const relativeToSrc = (absolute: string): string =>
 
 /**
  * Any write to the `inbox_items` table. Detection is deliberately at table
- * granularity rather than at `status:` granularity: the repository sets status
- * through a shared `InboxItemSet` helper, so a key-level scan would miss it and
- * would miss the next helper someone introduces for the same reason. "Which
- * modules may write this table at all" is both precise and unfoolable.
+ * granularity rather than at `status:` granularity: a shared set-values helper
+ * can hide a status key from a key-level scan. "Which modules may write this
+ * table at all" is both precise and unfoolable.
  */
 function writesInboxItemsTable(source: string): boolean {
   return /\.(?:update|insert)\(inboxItems\)/.test(source)

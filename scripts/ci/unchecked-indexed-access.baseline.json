@@ -57,7 +57,6 @@
   "src/contexts/inbox/application/use-cases/add-inbox-note.test.ts": 1,
   "src/contexts/inbox/application/use-cases/assign-inbox-item.test.ts": 2,
   "src/contexts/inbox/application/use-cases/bulk-update-inbox-status.test.ts": 11,
-  "src/contexts/inbox/application/use-cases/create-inbox-item.test.ts": 1,
   "src/contexts/inbox/application/use-cases/escalate-inbox-item.test.ts": 1,
   "src/contexts/inbox/application/use-cases/get-inbox-item-history.test.ts": 1,
   "src/contexts/inbox/application/use-cases/get-inbox-items.test.ts": 10,

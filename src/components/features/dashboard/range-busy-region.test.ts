@@ -16,7 +16,7 @@ describe('RangeBusyRegion', () => {
     const html = render(false)
 
     expect(html).toContain('aria-busy="false"')
-    expect(html).not.toContain('opacity-60')
+    expect(html).not.toContain('opacity-95')
     expect(html).toContain('Figures')
   })
 
@@ -24,7 +24,7 @@ describe('RangeBusyRegion', () => {
     const html = render(true)
 
     expect(html).toContain('aria-busy="true"')
-    expect(html).toContain('opacity-60')
+    expect(html).toContain('opacity-95')
   })
 
   it('spaces its children as the page shell does, so wrapping them moves nothing', () => {

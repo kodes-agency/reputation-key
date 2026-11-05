@@ -4,11 +4,13 @@
 
 import type {
   IdentityPort,
+  MemberListOptions,
   MemberRecord,
   InvitationRecord,
   OrganizationRecord,
 } from '#/contexts/identity/application/ports/identity.port'
 import type { AuthContext } from '#/shared/domain/auth-context'
+import { isOwnerToken } from '#/shared/domain/roles'
 
 export type InMemoryIdentityPort = IdentityPort & {
   /** Seed members for testing. */
@@ -46,10 +48,26 @@ export function createInMemoryIdentityPort(): InMemoryIdentityPort {
       return id
     },
 
-    async listMembers(ctx: AuthContext): Promise<ReadonlyArray<MemberRecord>> {
+    async listMembers(
+      ctx: AuthContext,
+      options?: MemberListOptions,
+    ): Promise<ReadonlyArray<MemberRecord>> {
+      const offset = options?.offset ?? 0
       return [...members.values()]
         .filter((m) => m.organizationId === ctx.organizationId)
+        .filter((m) => !options?.excludeStaff || m.rawRole !== 'member')
+        .sort(
+          (a, b) =>
+            a.createdAt.getTime() - b.createdAt.getTime() || a.id.localeCompare(b.id),
+        )
+        .slice(offset, options?.limit === undefined ? undefined : offset + options.limit)
         .map(({ organizationId: _ignored, ...rest }) => rest)
+    },
+
+    async countOwners(ctx: AuthContext): Promise<number> {
+      return [...members.values()].filter(
+        (m) => m.organizationId === ctx.organizationId && isOwnerToken(m.rawRole),
+      ).length
     },
 
     async getMember(ctx: AuthContext, memberId: string): Promise<MemberRecord | null> {

@@ -244,10 +244,9 @@ function UnavailableReview({ status }: Readonly<{ status: string | null }>): Rea
  * together.
  *
  * `<details>` is kept deliberately. It is the disclosure this repo already uses
- * for supplementary prose (`property-insights-aspect-table.tsx`,
- * `google-performance-report.tsx`), and unlike a Radix `Collapsible` it leaves
- * the text in the DOM while closed — find-in-page reaches a review's original
- * words even when the translation is what is on screen.
+ * for supplementary prose (`google-performance-report.tsx`), and unlike a Radix
+ * `Collapsible` it leaves the text in the DOM while closed — find-in-page reaches
+ * a review's original words even when the translation is what is on screen.
  *
  * The label is a noun phrase and never an action (`guest-message-view.ts`,
  * `TRANSLATION_LABEL`): native `<details>` exposes expanded/collapsed on its

@@ -33,12 +33,13 @@ describe('Settings member directory', () => {
       image: null,
       createdAt: new Date('2026-01-01'),
     }
-    mocks.members.mockResolvedValue([
-      manager,
-      { ...manager, id: 'staff', userId: 'staff', role: 'Member', rawRole: 'member' },
-    ])
+    mocks.members.mockResolvedValue([manager])
     const invoke = listMembers as unknown as () => Promise<unknown>
     expect(await invoke()).toEqual({ members: [manager], requestingRole: 'AccountAdmin' })
+    expect(mocks.members).toHaveBeenCalledWith(
+      expect.objectContaining({ role: 'AccountAdmin' }),
+      { excludeStaff: true },
+    )
     expect(mocks.policy).toHaveBeenCalledWith({
       actor: expect.any(Object),
       action: 'member.list',

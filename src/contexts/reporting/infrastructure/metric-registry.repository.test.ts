@@ -18,7 +18,7 @@ describe('createMetricRegistryRepository', () => {
       definition: expect.objectContaining({
         id: '11111111-1111-4111-8111-111111110303',
         key: 'portal.rating_average',
-        name: 'Portal rating average',
+        valueKind: 'average',
         privacyClass: 'guest_gateway_numeric_with_worker_link',
       }),
       version: expect.objectContaining({

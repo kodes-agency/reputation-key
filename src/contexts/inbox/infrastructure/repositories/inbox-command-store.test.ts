@@ -60,6 +60,7 @@ import {
   type InboxCommandAuthority,
 } from '../inbox-command-store'
 import { readInboxEscalationHistory } from '../inbox-escalation-history'
+import { createReviewResponseTargetAuthority } from '#/contexts/review/infrastructure/response-target-authority'
 import { createReviewSourceLookupAdapter } from '../adapters/review-source-lookup.adapter'
 import { createReplyLookupAdapter } from '../adapters/reply-lookup.adapter'
 import { createReviewReplyObservationAuthority } from '#/contexts/review/infrastructure/reply-observation-authority'
@@ -474,7 +475,6 @@ describe.sequential('inboxCommandStore applyOnce (integration)', () => {
   })
 
   it('releases a quarantined legacy Property assignment without a uuid cast', async () => {
-    const repo = createInboxRepository(db, stubPorts, repositoryRuntime)
     const legacyPropertyId = propertyId('legacy-property-key')
     const item = makeItem({
       id: inboxItemId('4d000000-0000-0000-0000-000000000023'),
@@ -483,7 +483,7 @@ describe.sequential('inboxCommandStore applyOnce (integration)', () => {
       sourceId: feedbackId('4d000000-0000-0000-0000-000000000033'),
       assignedTo: USER_A,
     })
-    await repo.create(item, ORG_A)
+    await createAtomicInboxCommandStore(db).createItem(item, null)
     const authorize: InboxCommandAuthority = vi.fn(async () => ({
       allowed: true as const,
     }))
@@ -1407,17 +1407,32 @@ describe.sequential('inboxCommandStore applyOnce (integration)', () => {
     })
     await insertSourceEvent(source)
 
-    const command = {
-      eventId: source.eventId,
-      consumerName: 'inbox.on-review-updated',
-      item,
-      sourceDate: source.occurredAt,
-      platform: 'google',
-      materialReviewRevision: 2,
-      now: source.occurredAt,
-    } as const
-    await expect(store.applyReviewUpdatedOnce(command)).resolves.toBe('applied')
-    await expect(store.applyReviewUpdatedOnce(command)).resolves.toBe('applied')
+    const apply = () =>
+      createReviewResponseTargetAuthority(db).withInboxProjection(
+        {
+          organizationId: ORG_A,
+          propertyId: PROP_A,
+          reviewId: REVIEW_A,
+          sourceEpoch: 0,
+          eventSourceRevision: 2,
+          eventKind: 'updated',
+        },
+        (projection) =>
+          store.applyReviewProjectionOnce({
+            eventId: source.eventId,
+            consumerName: 'inbox.on-review-updated',
+            eventKind: 'updated',
+            item,
+            fact: createdFact(item),
+            projection,
+            now: source.occurredAt,
+          }),
+      )
+    await expect(apply()).resolves.toMatchObject({ status: 'current', value: 'applied' })
+    await expect(apply()).resolves.toMatchObject({
+      status: 'current',
+      value: 'duplicate',
+    })
 
     const lifecycle = await pool.query(
       `SELECT state_revision::int, cycle_number::int, kind, transition_reason,
@@ -1442,7 +1457,7 @@ describe.sequential('inboxCommandStore applyOnce (integration)', () => {
         kind: 'closed',
         transition_reason: 'superseded_by_source_revision',
         source_revision: 1,
-        trigger_event_id: source.eventId,
+        trigger_event_id: null,
       },
       {
         state_revision: 3,
@@ -1450,7 +1465,7 @@ describe.sequential('inboxCommandStore applyOnce (integration)', () => {
         kind: 'opened',
         transition_reason: 'material_revision_changed',
         source_revision: 2,
-        trigger_event_id: source.eventId,
+        trigger_event_id: null,
       },
     ])
     const facts = await pool.query<{
@@ -1475,7 +1490,7 @@ describe.sequential('inboxCommandStore applyOnce (integration)', () => {
           stateRevision: 2,
           closeReason: 'superseded_by_source_revision',
           sourceRevision: 1,
-          triggerEventId: source.eventId,
+          triggerEventId: null,
         }),
       }),
       expect.objectContaining({
@@ -1485,7 +1500,7 @@ describe.sequential('inboxCommandStore applyOnce (integration)', () => {
           stateRevision: 3,
           openReason: 'material_revision_changed',
           sourceRevision: 2,
-          triggerEventId: source.eventId,
+          triggerEventId: null,
         }),
       }),
     ])
@@ -1900,20 +1915,30 @@ describe.sequential('inboxCommandStore applyOnce (integration)', () => {
       await store.createItem(first, null, anchor)
       await store.createItem(second, null, anchor)
 
-      await store.updateStatus(
-        first,
-        { status: 'closed', timestampFields: { closedAt: NOW } },
-        inboxItemStatusChanged({
+      const source = guestFeedbackRetracted({
+        feedbackId: FEEDBACK_A,
+        organizationId: ORG_A,
+        propertyId: PROP_A,
+        portalId: PORTAL_A,
+        supersedesSourceEventId: crypto.randomUUID(),
+        occurredAt: NOW,
+      })
+      await insertSourceEvent(source)
+      await store.applySourceWithdrawnOnce({
+        eventId: source.eventId,
+        consumerName: 'inbox.on-guest-feedback-retracted',
+        item: first,
+        sourceRevision: 1,
+        now: NOW,
+        fact: inboxItemStatusChanged({
           inboxItemId: first.id,
           organizationId: first.organizationId,
           propertyId: first.propertyId,
           oldStatus: 'open',
           newStatus: 'closed',
-          userId: USER_A,
           occurredAt: NOW,
         }),
-        NOW,
-      )
+      })
 
       const heads = await pool.query(
         `SELECT organization_id, inbox_item_id::text, status, state_revision::int
@@ -1991,7 +2016,7 @@ describe.sequential('rebuildInboxProjection (integration)', () => {
   }
 
   async function seedCanonicalState() {
-    const { reviewRepo, replyRepo, repo, commandStore } = makeRebuild()
+    const { reviewRepo, replyRepo, commandStore } = makeRebuild()
     // LIVE-PUBLISHED: historical publish metadata is stamped, but rebuild is
     // not exact-current Reply authority and therefore cannot close the cycle.
     const livePublished = makeReview({
@@ -2026,12 +2051,12 @@ describe.sequential('rebuildInboxProjection (integration)', () => {
     )
     // PURGED/ORPHAN: deliberately raw repair fixture. It remains hidden from
     // active reads and rebuild must not guess a status transition.
-    await repo.create(
+    await commandStore.createItem(
       makeItem({
         id: inboxItemId('4d000000-0000-0000-0000-000000000023'),
         sourceId: reviewId('4d000000-0000-0000-0000-000000000099'),
       }),
-      ORG_A,
+      null,
     )
     // HEALTHY: live review, item closed with milestones — no change.
     const healthy = makeReview({ id: reviewId('4d000000-0000-0000-0000-000000000014') })

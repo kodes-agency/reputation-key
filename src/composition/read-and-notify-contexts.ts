@@ -152,7 +152,6 @@ export function buildReadAndNotifyContexts(input: ReadAndNotifyContextsInput) {
     activity: {
       db: input.db,
       outboxRepo: input.outboxRepo,
-      staffPublicApi: input.identity.publicApi.people,
       clock: input.clock,
       logger: input.logger,
       idGen: () => recentActivityEntryId(crypto.randomUUID()),

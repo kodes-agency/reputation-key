@@ -8,10 +8,6 @@ import type { MerchantAiNoticeUpdates } from './use-cases/merchant-ai-notice-upd
 
 import type { ManagerMembership } from './ports/identity.port'
 import type { StaffPublicApi } from './people-public-api'
-import type {
-  LeaveOrganization,
-  OutstandingResponsibility,
-} from './use-cases/leave-organization'
 import type { InviteMember } from './use-cases/invite-member'
 import type { UpdateMemberRole } from './use-cases/update-member-role'
 import type { RemoveMember } from './use-cases/remove-member'
@@ -72,11 +68,6 @@ export type {
   StaffParticipation,
   PortalResponsibility,
 } from './people-public-api'
-export type {
-  OffboardingResponsibilityKind,
-  OutstandingResponsibility,
-  ResponsibilityTransfer,
-} from './use-cases/leave-organization'
 
 /** Current manager membership facts. This facade carries no mutation authority. */
 export type IdentityManagerFactsPublicApi = Readonly<{
@@ -110,12 +101,6 @@ export type IdentityRequestApi = Readonly<{
   inviteMember: InviteMember
   updateMemberRole: UpdateMemberRole
   removeMember: RemoveMember
-  /**
-   * LIF-01-T21. Voluntary departure is deliberately a SEPARATE operation from
-   * `removeMember`: removal releases what the member held, leaving requires
-   * every responsibility to be handed over first.
-   */
-  leaveOrganization: LeaveOrganization
   listInvitations: ListInvitations
   resendInvitation: ResendInvitation
   acceptInvitation: AcceptInvitation
@@ -132,30 +117,10 @@ export type IdentityRequestApi = Readonly<{
   setMemberPropertyAccess: SetMemberPropertyAccess
 }>
 
-/**
- * The transfer worklist a departing member must clear (LIF-01-T21). Read-only
- * and identifier-only; it grants no authority to release anything.
- */
-export type IdentityOffboardingFactsPublicApi = Readonly<{
-  listOutstanding: (
-    organizationId: string,
-    userId: string,
-  ) => Promise<readonly OutstandingResponsibility[]>
-  /**
-   * Whether this deployment composes the responsibility facts transfer-first
-   * leave needs. When false, `listOutstanding` refuses by design and no
-   * self-service leave can succeed — removal by an AccountAdmin is the way
-   * out — so a surface can say so rather than read a worklist that is fenced.
-   * A composition fact, not a permission: it decides nothing on its own.
-   */
-  selfServiceLeaveAvailable: boolean
-}>
-
 /** Complete delivery-boundary facade used by Identity request handlers. */
 export type IdentityPublicApi = Readonly<{
   managerFacts: IdentityManagerFactsPublicApi
   accountAdminAuthority: IdentityAccountAdminAuthorityPublicApi
-  offboardingFacts: IdentityOffboardingFactsPublicApi
   staffAccounts: StaffAccountsApi
   staffSelf: StaffSelfReader
   people: StaffPublicApi

@@ -1,5 +1,4 @@
 import { useNavigate } from '@tanstack/react-router'
-import { useQueryClient } from '@tanstack/react-query'
 import { LogOut } from 'lucide-react'
 import { SidebarTrigger } from '#/components/ui/sidebar'
 import {
@@ -9,7 +8,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '#/components/ui/dropdown-menu'
-import { authClient } from '#/shared/auth/auth-client'
+import { useSignOut } from '#/components/hooks/use-sign-out'
 import { NotificationPanel } from '#/components/features/notification/notification-panel'
 import type { NotificationServerFns } from '#/components/features/notification/types'
 import { useThemeMode } from '#/components/hooks/use-theme-mode'
@@ -19,7 +18,6 @@ import type {
   ListMyBetaFeedback,
   SubmitBetaFeedback,
 } from '#/components/features/beta-feedback/beta-feedback-form-context'
-import { clearTenantCacheAfterSessionEnd } from '#/shared/queries/tenant-cache-transition'
 import { IconButton } from '#/components/ui/icon-button'
 import { lazy, Suspense, useId } from 'react'
 import type { ProductUpdatesClientGetter } from '#/shared/whats-new/types'
@@ -60,7 +58,7 @@ export function AppTopBar({
   getProductUpdatesClient,
 }: Props) {
   const navigate = useNavigate()
-  const queryClient = useQueryClient()
+  const signOut = useSignOut({ onSignedOut: () => navigate({ to: '/login' }) })
   // The bar is mounted for as long as the shell is, so it keeps the document in
   // step with the stored theme, and with the device while the mode is System.
   // The menu's control mounts only while the menu is open.
@@ -145,13 +143,8 @@ export function AppTopBar({
           )}
           <DropdownMenuSeparator />
           <DropdownMenuItem
-            onClick={async () => {
-              await clearTenantCacheAfterSessionEnd(
-                queryClient,
-                () => authClient.signOut(),
-                () => navigate({ to: '/login' }),
-              )
-            }}
+            disabled={signOut.isPending}
+            onClick={() => void signOut().catch(() => undefined)}
           >
             <LogOut className="size-4" />
             Sign out

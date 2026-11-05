@@ -78,6 +78,16 @@ describe('organization AI overview model', () => {
     expect(analysisSummary({ status: 'disabled' })).toBe('Analysis off')
     expect(
       analysisSummary({
+        status: 'needs_attention',
+        queued: 0,
+        inProgress: 0,
+        analysed: 0,
+        notAnalysable: 0,
+        verifiedThroughEpochMillis: null,
+      }),
+    ).toBe('Analysis needs attention')
+    expect(
+      analysisSummary({
         status: 'analysing',
         queued: 50,
         inProgress: 2,

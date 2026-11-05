@@ -1,7 +1,6 @@
 // Reply lookup adapter — getEffectiveReplyByReviewId selection tests.
-// The inbox detail must see mirror-only replies (google_sync) that the
-// internal-only lookup used to hide — otherwise the panel renders a compose
-// box over an existing Google-visible reply.
+// A reply Google shows is served from its current observation, so the panel
+// never renders a compose box over an existing Google-visible reply.
 
 import { describe, it, expect, vi } from 'vitest'
 import { createReplyLookupAdapter } from './reply-lookup.adapter'
@@ -75,15 +74,11 @@ describe('getEffectiveReplyByReviewId', () => {
     expect(result?.source).toBe('internal')
   })
 
-  it('falls back to the google_sync mirror when no internal reply exists', async () => {
+  it('does not serve a google_sync row when Google shows no reply and none is internal', async () => {
     const mirror = makeReply({ id: replyId('mirror-1'), source: 'google_sync' })
     const adapter = setup([mirror])
 
-    const result = await adapter.getEffectiveReplyByReviewId(REVIEW, ORG)
-
-    expect(result?.id).toBe(replyId('mirror-1'))
-    expect(result?.source).toBe('google_sync')
-    expect(result?.status).toBe('published')
+    await expect(adapter.getEffectiveReplyByReviewId(REVIEW, ORG)).resolves.toBeNull()
   })
 
   it('returns null when the review has no replies at all', async () => {

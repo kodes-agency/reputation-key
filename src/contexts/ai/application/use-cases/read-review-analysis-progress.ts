@@ -11,12 +11,16 @@ import type { ReviewAnalysisEnrollmentReadiness } from './read-review-analysis-e
 export type ReviewAnalysisProgress =
   | Readonly<{ status: 'disabled' }>
   | Readonly<{
-      /** `analysing` while work is queued, running, or enrollment is preparing. */
-      status: 'analysing' | 'caught_up'
+      /**
+       * `analysing` while work is queued, running, or enrollment is preparing;
+       * `needs_attention` once that work is done but enrollment stalled or was
+       * superseded, which an empty backlog does not make up to date.
+       */
+      status: 'analysing' | 'caught_up' | 'needs_attention'
       queued: number
       inProgress: number
       analysed: number
-      /** Settled without a result: no text, unsupported language, expired source. */
+      /** Settled without a result, including policy or execution refusals. */
       notAnalysable: number
       /** When enrollment last proved the whole eligible history was covered. */
       verifiedThroughEpochMillis: number | null
@@ -68,7 +72,11 @@ export function createReadReviewAnalysisProgress(
     const analysing =
       progress.queued + progress.inProgress > 0 || readiness.status === 'preparing'
     return {
-      status: analysing ? 'analysing' : 'caught_up',
+      status: analysing
+        ? 'analysing'
+        : readiness.status === 'unavailable'
+          ? 'needs_attention'
+          : 'caught_up',
       queued: progress.queued,
       inProgress: progress.inProgress,
       analysed: progress.analysed,

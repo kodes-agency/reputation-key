@@ -207,6 +207,8 @@ export const FirstPublication: Story = {
     review: REVIEW_FIRST_PUBLICATION,
     portal: { ...REVIEW_PORTAL, publicationState: 'draft' },
   },
+  // Under `lg` the preview is below the lists, and a button brings it up.
+  parameters: { viewport: { defaultViewport: 'tablet' } },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
     await expect(

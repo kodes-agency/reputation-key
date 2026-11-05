@@ -204,10 +204,9 @@ function expectedSettlementCostMicros(
   pricing: AiProviderPriceCatalogue,
 ): number | null {
   if (request.disposition === 'no_dispatch') return 0
-  // Unknown usage (a timeout, a lost connection) may have been billed in full.
-  // The admission authority charges such an attempt nothing, so its receipt
-  // does not bind and the caller sees `operation_ambiguous`, which is what the
-  // attempt is. A provider's refusal by status is known usage (none) and binds.
+  // Unknown usage (a timeout, a lost connection) may have been billed in full, so
+  // the admission authority charges the reservation and this check expects it. A
+  // provider's refusal by status has known zero usage and is priced normally.
   if (!request.usageKnown) return grant.limits.costMicros
   // The price list of the provider that ran the call: the admission authority
   // settles with the same one, or the receipt does not bind.
@@ -580,6 +579,19 @@ export function createAiEgressGatewayService(
               receiptBound,
               disposition:
                 settlement.status === 'settled' ? settlement.receipt.disposition : null,
+            })}\n`,
+          )
+          return errorResponse(route, 'operation_ambiguous')
+        }
+        if (!settleRequest.usageKnown && settleRequest.disposition !== 'no_dispatch') {
+          // Charged at the reservation, since it may have been billed. Whatever the
+          // connector called it, it is neither a refusal to retry nor a billed
+          // answer to settle on: the outcome is ambiguous.
+          process.stderr.write(
+            `${JSON.stringify({
+              event: 'gateway_usage_unknown',
+              route,
+              disposition: settleRequest.disposition,
             })}\n`,
           )
           return errorResponse(route, 'operation_ambiguous')

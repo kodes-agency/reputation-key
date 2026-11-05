@@ -67,6 +67,12 @@ export function PageShell({ tier = 'standard', children, className }: Props) {
   )
 }
 
+// A frame that owns its scroll takes focus, as the Inbox's panes do: with nothing
+// focusable inside it, a keyboard cannot scroll it at all. The outline is inset
+// because the surface around it clips a ring drawn outside.
+const SCROLL_FRAME =
+  'h-full overflow-y-auto focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ring'
+
 type FullBleedFrameProps = Readonly<
   Omit<ComponentProps<'div'>, 'ref'> & {
     /** Own the vertical scroll: fill the parent's height and scroll inside it. */
@@ -94,7 +100,8 @@ export function FullBleedFrame({
 }: FullBleedFrameProps) {
   return (
     <Tag
-      className={cn(PAGE_GUTTER, scroll && 'h-full overflow-y-auto', className)}
+      className={cn(PAGE_GUTTER, scroll && SCROLL_FRAME, className)}
+      tabIndex={scroll ? 0 : undefined}
       {...props}
     />
   )
