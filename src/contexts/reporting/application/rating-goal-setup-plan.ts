@@ -1,17 +1,6 @@
-// Property Google rating goal — the one-screen setup, worked out (pure, client-safe).
-//
-// Rounds 3 and 4 (2026-10-16, PLAN-R4 B.1): the setup opens already answered and
-// answers every change on the page with no server call. `workOutRatingGoal`
-// turns the setup read's exact inputs and what the manager chose into the
-// screen: the planned average (automatic, typed, or the plan's earlier one),
-// the pace chips and the pace, the goal (the recommendation unless − / + pinned
-// another), what it needs, when, the likely range, the next goal up, the
-// faster chip when it is more than six months away, and the average it ends
-// at. It never throws on what a manager typed or on a draft the inputs moved
-// under (D20): out-of-range values are clamped and reported.
-//
-// Components import the Reporting values they need from here, never from the
-// domain (D29, the components boundary in eslint.config.js).
+// Browser-safe setup calculations use exact inputs without another server call.
+// Clamp and report invalid typed choices or drafts whose inputs moved; never throw.
+// Components use this application entry point rather than importing the domain.
 
 import {
   automaticAverage,

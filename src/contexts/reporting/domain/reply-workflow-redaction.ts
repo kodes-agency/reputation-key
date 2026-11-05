@@ -1,4 +1,3 @@
-// Dashboard context — §9 reply-workflow redaction for dashboard reads.
 //
 // dashboard.read reaches roles without reply.manage, which may not see reply
 // state. `getDashboardData` passes its reply-derived fields through here for

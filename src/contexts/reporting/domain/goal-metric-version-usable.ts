@@ -1,9 +1,5 @@
-// Reporting — whether a governed metric version may answer a goal's question.
-//
-// One rule for every read of a goal's measure: the governed read of a goal's own
-// page and the set-based count behind the Overview chip and the Properties list
-// ask it, so a version that is retired, limited or not yet in effect is
-// unavailable to both and the two cannot disagree. Pure.
+// The governed page read and set-based pace reads share metric-version eligibility,
+// so retired, limited or not-yet-effective versions are unavailable in both.
 
 import type { MetricKey } from '#/shared/domain/metric-keys'
 import type { GovernedMetricVersion, MetricScope } from './metric-registry'

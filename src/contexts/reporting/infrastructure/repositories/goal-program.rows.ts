@@ -1,10 +1,6 @@
-// Goal Program persistence — the row shapes both repository modules share.
-//
-// A leaf: it imports no sibling repository module, so goal-program.repository.ts
-// and goal-monthly-result.repository.ts can each depend on it without a cycle.
-// It maps database rows to the port's types, builds insert values from them,
-// and holds the Postgres error helpers (the SQLSTATE test and the one rerun of
-// a deadlock victim) and the revision-conflict signal.
+// Shared row mapping and PostgreSQL conflict helpers. Keep this a leaf so
+// Program and monthly-result repositories can use it without a dependency cycle.
+
 import type {
   goalMonthlyResults,
   goalPrograms,

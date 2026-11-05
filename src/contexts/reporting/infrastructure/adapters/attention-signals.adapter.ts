@@ -1,4 +1,3 @@
-// Dashboard context — Drizzle adapter implementing AttentionSignalsPort.
 // Count queries for Dashboard-owned property attention reasons.
 // Inbox supplies overdue Google response-target counts at the use-case boundary;
 // this adapter owns only current Inbox work, escalations, Goal pace, and their

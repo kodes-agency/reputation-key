@@ -1,17 +1,7 @@
-// Monthly portal goal — the numbers a goal is set in (ADR 0068 decision 4).
-//
-// One grid serves the recommended number's rounding and the − and + steps of
-// the number box, so a rounded recommendation is always a step the box can
-// reach and a step is always a number the card could have offered:
-//
-//   every whole number from 1 to 29, then every 5 to 100, every 10 to 500,
-//   and every 50 above that.
-//
-// Rounding is up, onto the grid, from an exact rational: the usual is a sum of
-// counts over live days, whose denominators can overflow a float's integers,
-// so no float decides which step a number lands on. The note an own number
-// gets (about 4 times the usual, or under half of it) is decided the same way,
-// from the exact usual. Pure.
+// Recommendations and number-box steps share one grid (ADR 0068): whole numbers
+// to 29, fives to 100, tens to 500, then fifties. Round upward using exact rationals;
+// live-day denominators can exceed float integer precision. Own-number notes use
+// the same exact usual.
 
 /** A non-negative exact number `num / den`, `den` > 0. */
 export type ExactCount = Readonly<{ num: bigint; den: bigint }>

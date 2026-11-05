@@ -1,16 +1,7 @@
-// Property Google rating goal — the setup's evidence from the review cache (pure).
-//
-// Rounds 3 and 4 (2026-10-16) plan new reviews from what a Property has done
-// at its best and how busy it has been:
-//   - the best calendar month: the highest exact average among the Property's
-//     local calendar months from the one 11 months back through the current
-//     part month, each with at least ten reviews; the later month on a tie (12
-//     distinct month names, so "your best month, August" is never ambiguous);
-//   - the busiest 30 days: the most reviews on 30 consecutive Property-local
-//     dates within the last 365 local dates, today included. Dates are civil
-//     dates, not 24-hour spans, so a change of summer time moves nothing.
-// Review answers both reads over generous UTC bounds; the windows are trimmed
-// here, in the Property's calendar.
+// Best-month evidence uses twelve Property-local calendar months including this
+// partial month, at least ten reviews each, latest month on an exact-average tie.
+// Busiest pace uses 30 consecutive local dates within the last 365, today included.
+// Trim Review's UTC bounds to civil dates here so DST cannot move a window.
 
 import { propertyWallClockAt } from '#/shared/domain/property-calendar'
 import {

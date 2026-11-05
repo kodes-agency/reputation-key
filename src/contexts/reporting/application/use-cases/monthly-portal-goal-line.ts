@@ -1,18 +1,8 @@
-// Reporting — the Monthly portal goal's line on a Portal's Results tab (ADR
-// 0068, PLAN PG-16; copy deck R-1, R-2).
-//
-// One composed read, asked for `goal.create` like the card (whoever sees the
-// line is whoever may set the goal), over what the card reads: the Programs the
-// actor may see and the recommendation, at one instant. For the Portal it
-// names, this month: what it brought in toward the Monthly portal goal while
-// that goal counts the month (active, or stopped with the month still
-// counting), from the recommendation's one set read and only when every
-// Portal's count adds up to the goal's governed figure, as the card's rows are;
-// and the goal for this Portal alone, when one runs, with its own governed
-// figure against the month's number. A draft Portal (no line on its tab),
-// a Portal the read does not list, a Portal neither goal counts this month, and
-// one with nothing yet toward the Monthly portal goal and no goal of its own
-// have none. It writes nothing.
+// Authorize goal.create before reading the Portal's monthly contribution or own
+// goal (ADR 0068). Show contributions only while the Property goal counts and
+// all Portal counts sum to governed progress. Draft, missing or uncounted Portals
+// have no line; zero contribution without an own goal also has none.
+
 import type { PortalFacts } from '../../domain/goal-recommendation-types'
 import type {
   MonthlyPortalGoalLineRequest,

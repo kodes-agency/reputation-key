@@ -1,30 +1,10 @@
-// Reporting — the month so far of every active goal on the Goals list.
-//
-// One request for the page: the Property's goals are listed once (through the
-// Program list's own authorisation and visibility) and each reads its month to
-// date through the same governed read a goal's own page uses (`progressOf`).
-// Nothing here is a result. It is never stored, and a figure that cannot be
-// read is shown as such, never as a zero.
-//
-// The list needs less than the page of a goal, so it reads less:
-//
-// - one subject: its figure against the running month's target, and on a count
-//   whether it is below pace (`goalPace`);
-// - several subjects on a count: a figure for each, to say how many are below
-//   pace (`goalPace`), up to the subjects a goal's page reads;
-// - several subjects on an average, or more than that many: no figure, the
-//   count of subjects alone. An average has no pace to be below.
-//
-// A scheduled, paused or ended goal has no month counting, so it is not here.
-//
-// Each figure is the governed read of the goal's own page, one per subject, so
-// the list and the page can never disagree. That is one server call but several
-// statements, a deliberate departure from a single set-based read: the
-// set-based form of a count (`goal-running-months.ts`, for the Overview chip and
-// the Properties list) leaves out the outbox completeness proof the page applies.
-// So the page is bounded instead: it reads at most `MAX_GOAL_LIST_PROGRESS_READS`
-// figures, `GOAL_LIST_PROGRESS_CONCURRENCY` at a time, and the goals past that
-// carry no live line.
+// Read live progress through the same authorized `progressOf` as each goal's page;
+// never store it as a result or replace an unreadable figure with zero.
+// Only active goals have a line. Single subjects get a figure and count pace;
+// several count subjects get a below-pace count, while averages or oversized
+// subject sets get only the subject count.
+// Use bounded reads and concurrency: the faster set-based running-month read
+// omits the outbox completeness proof required here. Goals past the bound get no line.
 
 import { calendarPeriodRange } from '#/shared/domain/period-range'
 import type { GoalMetric, GoalSubject } from '../../domain/goal-program'

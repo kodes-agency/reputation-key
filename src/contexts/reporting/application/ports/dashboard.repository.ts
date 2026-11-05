@@ -1,5 +1,3 @@
-// Dashboard context — repository port
-
 import type {
   KPIs,
   RatingDistribution,

@@ -1,10 +1,6 @@
-// Reporting — which subjects a goal already holds for a measure.
-//
-// One subject carries one goal per measure at a time. This is the rule the
-// database's no-overlap constraint enforces and the create command checks
-// before it writes, stated once for a form that has the goal list in hand: it
-// can say which goal holds a subject, with what target and until when, without
-// another request.
+// A subject has at most one goal per measure at a time. Forms use the same
+// no-overlap rule as creation to show the holding goal, target and end date.
+
 import type { GoalMetric } from '../domain/goal-program'
 import { goalSubjectIdentity, type GoalSubject } from '../domain/goal-subject'
 import { effectiveMonthTarget } from './goal-effective-month-target'
