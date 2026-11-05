@@ -6,13 +6,16 @@
 // revoke any authority/effect intent resurrected by PITR. This command is the
 // bounded reconciliation + durable recovery-generation proof:
 //
-//   1. Hard gates (both refuse BEFORE any work):
+//   1. Hard gates (all refuse BEFORE any work):
 //      - RESTORE_MODE=isolated must be set in the command's own env — the
 //        drill posture (web capabilities deny fail-closed; the worker refuses
 //        to boot) must be active on the environment being verified;
 //      - DATABASE_URL must be an attested local target or the exact private
 //        hostname of a Railway PITR sibling — a recovery fence never runs
-//        against the live source database or a public proxy.
+//        against the live source database or a public proxy;
+//      - no Redis, queue or bucket setting may be carried: the verifier works
+//        on the database alone, so a process started from the live
+//        environment never reaches the live Redis, queues or bucket.
 //   2. Dry-run (default): reports retention/import backlog and every restored
 //      authentication/external-effect authority class.
 //   3. --apply: only when a separately reviewed Review cutover executor is
@@ -23,6 +26,11 @@
 //   4. Re-scans and proves every bounded backlog/authority count is zero.
 //   5. Prints retention + recovery evidence and the controlled cutover rules.
 //
+// Erasure replay is NOT wired: applyRestoreResurrectionFence and the Guest
+// replayer have no caller, so this command neither re-applies the erasures a
+// restore undid nor checks for them, and it says so on every run it admits
+// (RESTORE_VERIFY_REPLAY_NOTICE).
+//
 // The module is purge-agnostic by injection (fallow boundary: the shared
 // zone cannot import the review context) — scripts/ops/restore-verify.ts
 // wires the real repositories; the integration test wires the same against
@@ -32,6 +40,8 @@ import {
   isIsolatedRestoreTarget,
   isRestoreIsolated,
   RESTORE_ISOLATED_LOG_LINE,
+  restoreSideServicesRefusal,
+  type RestoreSideServicesEnv,
 } from '#/shared/config/restore-mode'
 import type { OperatorCommandSpec, OperatorContext, OperatorIO } from './operator-command'
 import type {
@@ -57,8 +67,26 @@ export const RESTORE_VERIFY_SPEC: OperatorCommandSpec = {
   scope: 'global',
   mutation: true,
   destructive: true,
+  isolatedRestore: true,
   usage: RESTORE_VERIFY_USAGE,
 }
+
+/** The preflight is read-only but boots the same operator runtime, so it is fenced alike. */
+export const RESTORE_PREFLIGHT_SPEC: OperatorCommandSpec = {
+  name: 'ops:restore-preflight',
+  scope: 'global',
+  isolatedRestore: true,
+  usage: 'pnpm ops restore-preflight --operator <id>',
+}
+
+/**
+ * Printed on every run. Replay of the erasures a restore undid is not wired
+ * into this command, and it must not read as if it were.
+ */
+export const RESTORE_VERIFY_REPLAY_NOTICE =
+  'NOT WIRED: erasure replay. This command does not re-apply the erasures made after ' +
+  'the restore point (RESTORE_POINT_AT), so data erased since then can be back in the ' +
+  'restored database, and nothing here checks for it.'
 
 export type RestoreVerifyEvidenceRow = Readonly<{
   subject: string
@@ -111,17 +139,18 @@ export type RestoreReviewLifecycleRuntimeTarget = Readonly<{
 
 export type RestoreVerifyDeps = Readonly<{
   /** The command's own env (RESTORE_MODE + DATABASE_URL are gate-checked). */
-  env: Readonly<{
-    RESTORE_MODE?: string
-    DATABASE_URL: string
-    RESTORE_POINT_AT?: string
-    RELEASE_SHA?: string
-    RELEASE_MANIFEST_SHA256?: string
-    RESTORE_DATABASE_SERVICE_NAME?: string
-    RAILWAY_PROJECT_ID?: string
-    RAILWAY_ENVIRONMENT_ID?: string
-    RAILWAY_ENVIRONMENT_NAME?: string
-  }>
+  env: RestoreSideServicesEnv &
+    Readonly<{
+      RESTORE_MODE?: string
+      DATABASE_URL: string
+      RESTORE_POINT_AT?: string
+      RELEASE_SHA?: string
+      RELEASE_MANIFEST_SHA256?: string
+      RESTORE_DATABASE_SERVICE_NAME?: string
+      RAILWAY_PROJECT_ID?: string
+      RAILWAY_ENVIRONMENT_ID?: string
+      RAILWAY_ENVIRONMENT_NAME?: string
+    }>
   /** Normal composition injects inspection_only; it can never masquerade as apply. */
   reviewLifecycle: RestoreReviewLifecycleAuthority
   /** Review-owned report count of active source-content rows due for expiry. */
@@ -181,8 +210,9 @@ function recoveryInput(
 }
 
 /**
- * Gate 1 — the drill posture must be active on THIS environment — and gate 2 —
- * never purge against a live or shared database. `true` means refused.
+ * Gate 1 — the drill posture must be active on THIS environment —, gate 2 —
+ * never purge against a live or shared database — and gate 3 — no Redis, queue
+ * or bucket setting is carried. `true` means refused.
  */
 function restoreDrillRefused(deps: RestoreVerifyDeps, io: OperatorIO): boolean {
   if (!isRestoreIsolated(deps.env)) {
@@ -200,6 +230,12 @@ function restoreDrillRefused(deps: RestoreVerifyDeps, io: OperatorIO): boolean {
         'loopback for a local drill or the named Railway PITR sibling private ' +
         'hostname in the beta deployment environment.',
     )
+    return true
+  }
+
+  const sideServices = restoreSideServicesRefusal(deps.env)
+  if (sideServices !== null) {
+    io.err(`REFUSED: ${sideServices}`)
     return true
   }
   return false
@@ -325,6 +361,9 @@ function reportCutoverChecklist(
   io.out(
     '  6. Rebuild projections/reconcile external state; do not redrive fenced outbox rows',
   )
+  io.out(
+    '  7. Re-apply by hand every erasure made after the restore point: erasure replay did not run',
+  )
 }
 
 /**
@@ -346,6 +385,7 @@ export async function runRestoreVerifyAction(
   }
 
   io.out(`✓ ${RESTORE_ISOLATED_LOG_LINE} — restore mode active, target admitted`)
+  io.out(RESTORE_VERIFY_REPLAY_NOTICE)
 
   if (!ctx.dryRun && deps.reviewLifecycle.kind !== 'reviewed_apply') {
     io.err(

@@ -15,7 +15,9 @@
 // Usage:
 //   pnpm ops restore-preflight --operator <id>
 //
-// Requires DATABASE_URL (pointed at the ISOLATED restore target). Read-only;
+// Requires RESTORE_MODE=isolated and DATABASE_URL pointed at the isolated target,
+// with every Redis, queue and bucket setting unset: the harness refuses before
+// it opens anything (RESTORE_PREFLIGHT_SPEC.isolatedRestore). Read-only;
 // policy-evaluated like every operator command. Runbook §8:
 // restore → PITR sibling, boot verifier isolated (RESTORE_MODE=isolated),
 // verify with ops:restore-verify, cutover — the only rollback path, reserved
@@ -25,17 +27,12 @@ import { sql } from 'drizzle-orm'
 import { getDb } from '../../src/shared/db'
 import { getEnv } from '../../src/shared/config/env'
 import { isIsolatedRestoreTarget } from '../../src/shared/config/restore-mode'
+import { RESTORE_PREFLIGHT_SPEC } from '../../src/shared/ops/restore-verify'
 import { runOperatorCommand } from './operator-command'
-
-const USAGE = 'pnpm ops restore-preflight --operator <id>'
 
 async function main(): Promise<void> {
   const result = await runOperatorCommand(
-    {
-      name: 'ops:restore-preflight',
-      scope: 'global',
-      usage: USAGE,
-    },
+    RESTORE_PREFLIGHT_SPEC,
     async (_ctx, _args, io) => {
       const env = getEnv()
       io.out(
@@ -70,7 +67,9 @@ async function main(): Promise<void> {
       io.out(
         '  1. PITR creates a new sibling Postgres service in this cell environment (Railway console — platform-owned)',
       )
-      io.out('  2. Point DATABASE_URL at the restored instance; re-run this preflight')
+      io.out(
+        '  2. Point DATABASE_URL at the restored instance with RESTORE_MODE=isolated and no Redis, queue or bucket setting; re-run this preflight',
+      )
       io.out(
         '  3. Boot ISOLATED: RESTORE_MODE=isolated (worker refuses to boot; web capabilities deny fail-closed)',
       )
@@ -85,6 +84,9 @@ async function main(): Promise<void> {
       )
       io.out(
         '  6. Cut over only after verification (pin recovery run/generation, remove approval values, UNSET RESTORE_MODE, redeploy) — restore is the ONLY rollback path, reserved for data loss',
+      )
+      io.out(
+        '· erasure replay is NOT wired: restore-verify does not re-apply the erasures made after the restore point, so re-apply them by hand before cutover',
       )
       io.out('')
     },
