@@ -1,6 +1,7 @@
-import { afterEach, beforeEach, vi } from 'vitest'
-import { commands } from 'vitest/browser'
+import { afterEach, beforeEach, expect, vi } from 'vitest'
+import { commands, page } from 'vitest/browser'
 import type { StoryStart } from '../scripts/ci/storybook-story-starts'
+import { provideViewportSetter } from '../src/shared/testing/phone-width'
 import { stopUpdateLoop } from './stop-update-loop'
 
 declare module 'vitest/browser' {
@@ -17,6 +18,29 @@ declare module 'vitest/browser' {
 // Define it before any story module is imported: the app mounts under
 // StrictMode (src/client.tsx) and the component gate must too.
 Object.assign(globalThis, { FRAMEWORK_OPTIONS: { strictMode: true } })
+
+// A story checks itself at each phone width with `checkPhoneWidths`, which needs the
+// runner's viewport.
+provideViewportSetter((width, height) => page.viewport(width, height))
+
+// The stories load the app's compiled stylesheet (vitest.config.ts), so its enter and
+// exit animations run. A play reads the page as soon as it has clicked, while Radix
+// keeps a closing menu or dialog mounted, and the page behind it `aria-hidden`, until
+// its animation ends, and a fading-in surface is at opacity 0 for its first frames.
+// Animation is switched off here, in the runner only: Storybook proper still shows it.
+// `prefers-reduced-motion` is not used for this, because the app's rule for it (0.01 ms)
+// still ends each animation a frame later.
+const noAnimation = document.createElement('style')
+noAnimation.textContent = '*, *::before, *::after { animation: none !important; }'
+document.head.append(noAnimation)
+
+// Radix locks the body (`overflow: hidden`) while a modal is open. axe takes a label
+// inside the fixed dialog for clipped when the body is only as tall as the story's
+// own root, and reports the field it names as unlabelled (label-title-only). In the
+// app the body holds the whole page; the runner gives it the same room.
+const lockedBody = document.createElement('style')
+lockedBody.textContent = 'body[data-scroll-locked] { min-height: 100vh; }'
+document.head.append(lockedBody)
 
 type ConsoleErrorAllowlistEntry = Readonly<{
   id: string
@@ -67,6 +91,20 @@ function renderArgument(value: unknown): string {
 // With no guard listening, the answer comes straight back.
 beforeEach(async ({ task }) => {
   await commands.storybookStoryStarts({ fileId: task.file.id, testId: task.id })
+})
+
+beforeEach(() => {
+  const probe = document.createElement('div')
+  probe.className = 'hidden'
+  document.body.append(probe)
+  try {
+    expect(
+      getComputedStyle(probe).display,
+      'Stories must load compiled src/styles.css',
+    ).toBe('none')
+  } finally {
+    probe.remove()
+  }
 })
 
 beforeEach(() => {

@@ -41,12 +41,13 @@ export const Default: Story = {
 
 /**
  * The header's New portal. The phone's bottom bar repeats it (board 11) and CSS
- * decides which one shows; story tests run without CSS, so both are in the tree,
- * the header's first.
+ * decides which one shows: at this width the bar is hidden, so both are looked
+ * for, the header's first.
  */
 function headerNewPortalButton(canvasElement: HTMLElement): HTMLElement {
   const [header, phone] = within(canvasElement).getAllByRole('button', {
     name: 'New portal',
+    hidden: true,
   })
   if (header === undefined || phone?.closest('.sm\\:hidden') == null) {
     throw new Error('expected New portal in the header and in the phone bar')
@@ -641,10 +642,10 @@ export const TheFirstGroupBringsGroupBy: Story = {
 }
 
 // A phone has no room for two secondary buttons above the first portal: they are
-// one menu beside the title (the desktop buttons are in the tree too, as story
-// tests compile no CSS to hide either).
+// one menu beside the title.
 export const HeaderActionsAreOneMenuOnAPhone: Story = {
   args: baseArgs,
+  parameters: { viewport: { defaultViewport: 'mobileStaff' } },
   play: async ({ canvasElement }) => {
     await userEvent.click(
       within(canvasElement).getByRole('button', { name: 'More actions for portals' }),

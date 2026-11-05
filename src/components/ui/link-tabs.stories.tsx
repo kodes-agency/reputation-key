@@ -11,34 +11,14 @@
 import { useState } from 'react'
 import type { Meta, StoryObj } from '@storybook/react'
 import { expect, userEvent, waitFor, within } from 'storybook/test'
-import { tailwindIsCompiled } from '../../../.storybook/tailwind-compiled'
 import { useGrownAfterMount } from '../../../.storybook/use-grown-after-mount'
 import { LinkTab, LinkTabs } from './link-tabs'
 import { TabCount, Tabs, TabsContent, TabsList, TabsTrigger } from './tabs'
-
-/**
- * The strip's layout where Tailwind is not compiled (the Vitest story runner): the
- * classes are inert there, so the scrolling row stands in for them. Where Tailwind
- * is compiled the classes are what is measured and nothing stands in.
- */
-const STRIP_LAYOUT = `
-  [data-slot='link-tabs'] { display: flex; overflow-x: auto; scrollbar-width: none; }
-  [data-slot='link-tabs'] ul { display: flex; gap: 4px; min-width: max-content; }
-  [data-slot='link-tabs'] a { display: block; padding: 0 12px; white-space: nowrap; }
-`
 
 const meta: Meta = {
   title: 'Patterns/View tabs',
   tags: ['autodocs'],
   parameters: { layout: 'padded' },
-  decorators: [
-    (Story) => (
-      <>
-        {tailwindIsCompiled() ? null : <style>{STRIP_LAYOUT}</style>}
-        <Story />
-      </>
-    ),
-  ],
 }
 
 export default meta

@@ -84,7 +84,7 @@ function TemplateRow({
     <li
       className={
         template.status === 'hidden'
-          ? 'flex flex-col gap-3 border-b py-4 opacity-60 sm:flex-row sm:items-center'
+          ? 'flex flex-col gap-3 border-b py-4 opacity-80 sm:flex-row sm:items-center'
           : 'flex flex-col gap-3 border-b py-4 sm:flex-row sm:items-center'
       }
     >
