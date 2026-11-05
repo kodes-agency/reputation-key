@@ -702,6 +702,11 @@ describe('runReviewProviderSnapshot', () => {
       runId,
       organizationId,
       code: 'authorization_changed',
+      providerFailure: {
+        providerStatus: null,
+        providerErrorStatus: null,
+        dispatch: 'unknown',
+      },
     })
   })
 
@@ -769,8 +774,74 @@ describe('runReviewProviderSnapshot', () => {
       runId,
       organizationId,
       code: 'provider_rejected',
+      providerFailure: {
+        providerStatus: 404,
+        providerErrorStatus: null,
+        dispatch: 'answered',
+      },
     })
     expect(deps.repository.commitPage).not.toHaveBeenCalled()
+  })
+
+  it.each(['provider_rejected', 'provider_failure', 'authorization_changed'])(
+    'records closed provider evidence on a failed run (%s)',
+    async (code) => {
+      const deps = makeDeps()
+      vi.mocked(deps.googleReviewApi.listReviewsPage).mockRejectedValue({
+        code,
+        failure: {
+          providerStatus: 403,
+          providerErrorStatus: 'PERMISSION_DENIED',
+          dispatch: 'answered',
+        },
+      })
+
+      await runReviewProviderSnapshot(deps)({ ...request, runId })
+
+      expect(deps.repository.failRun).toHaveBeenCalledWith({
+        runId,
+        organizationId,
+        code,
+        providerFailure: {
+          providerStatus: 403,
+          providerErrorStatus: 'PERMISSION_DENIED',
+          dispatch: 'answered',
+        },
+      })
+    },
+  )
+
+  it('cannot store unexpected provider content or status values', async () => {
+    const deps = makeDeps()
+    vi.mocked(deps.googleReviewApi.listReviewsPage).mockRejectedValue({
+      code: 'provider_rejected',
+      message: 'private customer content',
+      failure: {
+        providerStatus: 99999,
+        providerErrorStatus: 'PRIVATE_CUSTOMER_VALUE',
+        dispatch: 'private resource',
+        body: { error: { status: 'NOT_FOUND', message: 'private content' } },
+      },
+    })
+
+    await runReviewProviderSnapshot(deps)({ ...request, runId })
+
+    expect(deps.repository.failRun).toHaveBeenCalledWith({
+      runId,
+      organizationId,
+      code: 'provider_rejected',
+      providerFailure: {
+        providerStatus: null,
+        providerErrorStatus: null,
+        dispatch: 'unknown',
+      },
+    })
+    expect(JSON.stringify(vi.mocked(deps.repository.failRun).mock.calls)).not.toContain(
+      'private',
+    )
+    expect(JSON.stringify(vi.mocked(deps.logger.warn).mock.calls)).not.toContain(
+      'private',
+    )
   })
 
   it('ends the confirmation as provider_rejected when Google rejected the review request', async () => {
@@ -816,6 +887,7 @@ describe('runReviewProviderSnapshot', () => {
         {
           event: 'review_snapshot_provider_rejected',
           providerStatus,
+          providerErrorStatus: null,
           dispatch: 'answered',
           runId,
         },
@@ -840,6 +912,7 @@ describe('runReviewProviderSnapshot', () => {
       {
         event: 'review_snapshot_provider_rejected',
         providerStatus: null,
+        providerErrorStatus: null,
         dispatch: 'unknown',
         runId,
       },
@@ -883,7 +956,13 @@ describe('runReviewProviderSnapshot', () => {
     // runId only: BQC-7.3 bans tenant identifiers from logger call-sites, and
     // the run row resolves the property for whoever reads the log.
     expect(deps.logger.error).toHaveBeenCalledWith(
-      { err: error, runId },
+      {
+        err: error,
+        providerStatus: null,
+        providerErrorStatus: null,
+        dispatch: 'unknown',
+        runId,
+      },
       'review snapshot failed without a coded cause',
     )
   })

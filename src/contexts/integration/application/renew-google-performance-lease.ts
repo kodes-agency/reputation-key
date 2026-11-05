@@ -1,3 +1,4 @@
+import { summarizeError } from '#/shared/observability/error-summary'
 import type { AuthContext } from '#/shared/domain/auth-context'
 import type { PropertyId } from '#/shared/domain/ids'
 import type { LoggerPort } from '#/shared/domain/logger.port'
@@ -74,11 +75,7 @@ export function createRenewGooglePerformanceLease(
         ? failClosed({ code: renewed.code })
         : Object.freeze({ ok: false as const })
     } catch (error) {
-      return failClosed(
-        error instanceof Error
-          ? { err: { name: error.name, message: error.message } }
-          : {},
-      )
+      return failClosed(error instanceof Error ? { err: summarizeError(error) } : {})
     }
   }
 }

@@ -1,5 +1,9 @@
 import type { GoogleConnectionId, OrganizationId, PropertyId } from '#/shared/domain/ids'
 import { parseReviewProviderResource } from '#/shared/review-provider-subject-contract'
+import {
+  googleProviderFailure,
+  type GoogleProviderFailure,
+} from '#/shared/domain/google-provider-failure'
 import { sha256Hex } from '#/shared/domain/sha256'
 import {
   GOOGLE_CONNECTION_UNUSABLE_CODE,
@@ -236,6 +240,7 @@ const failAndDiscard = async (
   input: RunReviewProviderSnapshotInput,
   runId: string,
   code: ReviewProviderSnapshotFailureCode,
+  providerFailure?: GoogleProviderFailure,
 ): Promise<RunReviewProviderSnapshotResult> => {
   await deps.googleReviewApi.discardReviewCursors({
     organizationId: input.organizationId,
@@ -247,6 +252,7 @@ const failAndDiscard = async (
     runId,
     organizationId: input.organizationId,
     code,
+    ...(providerFailure === undefined ? {} : { providerFailure }),
   })
   return failedOutcome(deps, run, code)
 }
@@ -277,37 +283,6 @@ const replayFailedRun = async (
   }
 }
 
-/**
- * What a Google rejection says about the answer, as closed values: Google's
- * HTTP status (a number, the one fact that tells a removed location, 404, from
- * a refused request, 400) and whether the request was dispatched. Read off the
- * review API error's dispatch evidence; an error without it gives
- * `providerStatus: null` and `dispatch: 'unknown'`. The logger's `safeError`
- * keeps only an error's name and code, so the status reaches no log unless it
- * is copied out like this.
- */
-const providerRejectionEvidence = (
-  error: unknown,
-): Readonly<{
-  providerStatus: number | null
-  dispatch: 'not_sent' | 'answered' | 'unknown'
-}> => {
-  const failure =
-    typeof error === 'object' && error != null && 'failure' in error
-      ? error.failure
-      : null
-  if (typeof failure !== 'object' || failure == null) {
-    return { providerStatus: null, dispatch: 'unknown' }
-  }
-  const status = 'providerStatus' in failure ? failure.providerStatus : null
-  const dispatch = 'dispatch' in failure ? failure.dispatch : null
-  return {
-    providerStatus:
-      typeof status === 'number' && Number.isSafeInteger(status) ? status : null,
-    dispatch: dispatch === 'not_sent' || dispatch === 'answered' ? dispatch : 'unknown',
-  }
-}
-
 const failForProviderError = async (
   deps: RunReviewProviderSnapshotDeps,
   input: RunReviewProviderSnapshotInput,
@@ -315,11 +290,16 @@ const failForProviderError = async (
   error: unknown,
 ): Promise<RunReviewProviderSnapshotResult> => {
   const code = failureCodeForProviderError(error)
+  const evidence = googleProviderFailure(
+    typeof error === 'object' && error !== null && 'failure' in error
+      ? error.failure
+      : null,
+  )
   // BQC-7.3 bans tenant identifiers in logs; runId is the approved execution
   // identity and resolves the property through the run row.
   if (code === 'provider_failure') {
     deps.logger.error(
-      { err: error, runId },
+      { err: error, ...evidence, runId },
       'review snapshot failed without a coded cause',
     )
   }
@@ -329,13 +309,29 @@ const failForProviderError = async (
     deps.logger.warn(
       {
         event: 'review_snapshot_provider_rejected',
-        ...providerRejectionEvidence(error),
+        ...evidence,
         runId,
       },
       'Review snapshot rejected by Google: the location or request is not valid',
     )
   }
-  return failAndDiscard(deps, input, runId, code)
+  if (code === 'authorization_changed') {
+    deps.logger.warn(
+      { event: 'review_snapshot_authorization_changed', ...evidence, runId },
+      'Review snapshot authorization changed',
+    )
+  }
+  return failAndDiscard(
+    deps,
+    input,
+    runId,
+    code,
+    code === 'provider_failure' ||
+      code === 'provider_rejected' ||
+      code === 'authorization_changed'
+      ? evidence
+      : undefined,
+  )
 }
 
 const validatePage = (

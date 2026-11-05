@@ -4,7 +4,7 @@
 // on (the production build bundles this module twice — nitro app chunk + lazy
 // SSR chunk — so the Symbol.for store is what keeps one client per process):
 //   1. REDIS_URL absent → no client, no connection attempt;
-//   2. creation options (maxRetriesPerRequest=3, lazyConnect) and the
+//   2. creation options (maxRetriesPerRequest=1, commandTimeout=2000, lazyConnect) and the
 //      second-call dedup returning the SAME instance;
 //   3. the error handler is non-fatal in development and error-level
 //      otherwise;
@@ -111,7 +111,12 @@ describe('getRedis', () => {
     expect(first).toBe(second)
     const created = fakes()[0]
     expect(created.url).toBe('redis://unit-test:6379')
-    expect(created.options).toEqual({ maxRetriesPerRequest: 3, lazyConnect: true })
+    expect(created.options).toEqual({
+      maxRetriesPerRequest: 1,
+      commandTimeout: 2000,
+      enableOfflineQueue: true,
+      lazyConnect: true,
+    })
   })
 
   it('logs connection errors as non-fatal warnings in development', () => {

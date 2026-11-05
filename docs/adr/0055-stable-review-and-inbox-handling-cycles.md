@@ -909,9 +909,9 @@ Google no longer shows may be kept.
   more than 30 days ago. Their one use, the 2026-10-23 restatements, is done
   (the exclusion ledger above). From that rule on, a restatement creates no
   revision.
-- **Registry.** `google.superseded_observation_copies` (data class
-  `google_source_content`, horizon `row_deadline` on `content_expires_at`,
-  operation `redact`) is in `retention-registry.ts`. The data-fate row of
+- **Retention.** `review_source_observations.superseded_expired` in
+  `retention-sweep.job.ts` calls the Review-owned sweep to redact superseded
+  copies on their `content_expires_at` deadline. The data-fate row of
   `reviewSourceObservations` states its exit criteria. Retention policy version
   10 stamps the new evidence.
 
@@ -922,8 +922,8 @@ restated list unchanged, scan writes nothing, a second prune finds nothing,
 keyset batches, and an erased Review. On the redaction side: only superseded
 copies past their clock, digests kept, the newest row untouched even when its
 clock has passed, and the sweep cap. Also enforced by `retention-sweep.job.test.ts`
-(evidence and failure isolation), `review-observations-command.test.ts`, the
-tenant-predicate canary and the retention registry tests.
+(evidence and failure isolation), `review-observations-command.test.ts` and the
+tenant-predicate canary.
 
 ## Note 2026-10-25 — a step that finds its run already failed ends quietly
 
@@ -1147,6 +1147,10 @@ control just inside the limit).
 ## Note 2026-11-04 — a read that restates a Google reply moves its content clock
 
 A reply observation's `content_expires_at` was written only when the row was inserted, and a read that finds the same reply records no row. So a reply Google kept showing stopped being served 30 days after it was first stored, while its review's clock moved on every fetch. A restating read now moves the head row's `content_expires_at` to that read's expiry and its `updated_at` to the read's time, forward only and only while the row holds a reply (`renewHeadContentClock`). It writes no row, revision or fact, and leaves `observed_at` and `provider_updated_at` alone. The clock counts from the last fetch that returned the reply, as ADR 0031 requires for a review's content.
+
+## Note 2026-11-04 (b) — the reconciliation-age alert counts a Property with a recorded failure
+
+`sync.reconciliation-age` left out any Property with an `error_class`, because `sync.failed-nonzero` already names a coded failure. That alert raises only when a retry date passes before the next look re-dates the row, so a Property that failed every full read for days raised no standing signal at all. The read now judges every syncable Property alike. A Property whose connection needs reauthorization (`reauth_required`, which is also how `provider_revoked` is recorded) is not syncable, so it is still left to the reconnect notice.
 
 ## Merged from ADR 0003
 

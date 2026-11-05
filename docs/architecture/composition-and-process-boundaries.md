@@ -84,9 +84,12 @@ root:
 - selects the framework and provider adapters — the request context and the
   authenticated session are injected ports, not direct calls.
 
-Cohesive sub-graphs live in modules under `src/composition/`: provider runtime,
-infrastructure, the Google provider trust boundary, member authority,
-operational readout, and the refusing operator container.
+Cohesive sub-graphs live in modules under `src/composition/`: the shared process
+inputs, one wiring file per context build, the container's capability surface,
+provider runtime, infrastructure, the Google provider trust boundary, member
+authority, operational readout, and the refusing operator container.
+`src/composition.ts` fixes the order they run in; a callback into a context built
+later is passed as a getter and called only after construction ends.
 
 ## 5. Boundary controls
 
