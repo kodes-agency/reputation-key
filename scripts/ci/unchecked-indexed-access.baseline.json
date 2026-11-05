@@ -12,7 +12,7 @@
   "e2e/helpers/fixtures.ts": 11,
   "e2e/reset-password.spec.ts": 4,
   "e2e/storybook-metrics/notification-popover.metrics.ts": 3,
-  "scripts/ci/check-container-image-policy.ts": 28,
+  "scripts/ci/check-container-image-policy.ts": 2,
   "scripts/ops/bootstrap-owner.ts": 3,
   "scripts/ops/quarantine-redrive.ts": 1,
   "scripts/seed-e2e-user.ts": 2,

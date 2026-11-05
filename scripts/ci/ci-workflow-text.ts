@@ -90,13 +90,16 @@ export function ciSmokeViolations(
 }
 
 /** Resolves every named step or nothing, so callers assert content without
- * repeating an `undefined` check per step. */
-export function requiredSteps(
+ * repeating an `undefined` check per step. The result is a tuple as long as the
+ * names, so destructuring it yields a step for each name. */
+export function requiredSteps<const Names extends readonly string[]>(
   steps: readonly WorkflowStep[],
-  names: readonly string[],
-): readonly WorkflowStep[] | null {
+  names: Names,
+): { readonly [Index in keyof Names]: WorkflowStep } | null {
   const found = names.map((name) => steps.find((step) => step.name === name))
-  return found.every((step): step is WorkflowStep => step !== undefined) ? found : null
+  return found.every((step): step is WorkflowStep => step !== undefined)
+    ? (found as unknown as { readonly [Index in keyof Names]: WorkflowStep })
+    : null
 }
 
 /** One top-level job's text: its key line to the next job's. */
