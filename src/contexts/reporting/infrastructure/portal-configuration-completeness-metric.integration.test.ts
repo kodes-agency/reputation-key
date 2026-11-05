@@ -85,7 +85,7 @@ async function deliver(fact: Fact): Promise<unknown> {
     ],
   )
   const registry = createConsumerRegistry()
-  const metricRepo = createMetricRepository(db, () => NOW)
+  const metricRepo = createMetricRepository(db)
   registerPortalWorkflowMetricConsumers(registry, {
     recordMetric: recordMetric({
       commandStore: createAtomicMetricCommandStore(db, randomUUID),

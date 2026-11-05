@@ -503,7 +503,7 @@ describe('the month a Property goal counts', () => {
 
     const [recommendation, page] = await Promise.all([
       recommendationOf(property, [listed(reception, 'Reception')]),
-      createMetricRepository(db, () => NOW).queryGoalAggregate({
+      createMetricRepository(db).queryGoalAggregate({
         organizationId: organizationId(ORG),
         propertyId: toPropertyId(property),
         definitionVersionId: METRIC_VERSION_IDS.portalRatingCountGoal,

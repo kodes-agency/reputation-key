@@ -57,14 +57,11 @@ function governed(
     definition: {
       id: `definition-${id}`,
       key: metricKey,
-      name: metricKey,
-      description: metricKey,
       valueKind: metricKey === 'portal.rating_average' ? 'average' : 'counter',
       workerDataFlag: false,
       privacyClass: 'managerial_context',
       retentionClass: 'guest_gateway_24_month',
       lifecycleStatus: 'approved',
-      approvalOwner: 'architecture-review',
     },
     version: {
       id,
@@ -72,21 +69,14 @@ function governed(
       version: 1,
       effectiveFrom: new Date('2026-01-01T00:00:00.000Z'),
       effectiveTo: null,
-      numeratorDescription: 'eligible facts',
-      denominatorDescription: null,
       unit: metricKey === 'portal.rating_average' ? 'stars' : 'count',
       precision,
-      aggregationRule: metricKey === 'portal.rating_average' ? 'weighted_average' : 'sum',
-      lateArrivalRule: 'close_after_24h',
       allowedScopes: ['property', 'portal_group', 'portal'],
-      attributionRule: 'event_time_portal',
       minimumSample,
       insufficientDataBehavior: 'unavailable',
       sourcePolicyAllowlist: ['first_party_guest_gateway_metric'],
       permittedConsumers: ['dashboard', 'goal'],
       employmentDecisionEligible: false,
-      correctionBehavior: 'append_delta',
-      fairnessReviewStatus: 'approved_manager_context',
     },
   }
 }
@@ -104,14 +94,6 @@ function harness(input: {
   const versionId = input.versionId ?? METRIC_VERSION_IDS.portalRatingCountGoal
   const queryGoalAggregate = vi.fn(async () => input.aggregate ?? aggregate())
   const metrics: MetricRepository = {
-    queryAggregate: async () => ({
-      sum: 0,
-      count: 0,
-      max: 0,
-      available: false,
-      sampleCount: 0,
-      minimumSample: 1,
-    }),
     queryGoalAggregate,
     hasReading: async () => false,
   }

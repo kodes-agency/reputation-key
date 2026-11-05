@@ -84,7 +84,6 @@ export type SystemAction =
   | 'system:review.cancel_connection_publications'
   | 'system:review.cancel_property_publications'
   | 'system:reply.publish'
-  | 'system:metric.record'
   | 'system:metric.record_guest_analytics'
   | 'system:metric.record_public_reputation'
   | 'system:metric.record_portal_workflow'
@@ -685,12 +684,6 @@ const CONSUMER_ROWS: ReadonlyArray<EntryPointRow> = [
     'metric.guest-analytics',
     'system:metric.record_guest_analytics',
     'portal.read',
-    'organization',
-  ),
-  consumer(
-    'metric.correction-reconciliation',
-    'system:metric.record',
-    'none',
     'organization',
   ),
 ]

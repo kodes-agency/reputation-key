@@ -98,8 +98,6 @@ const ACTIVITY_OUTBOX = 'src/contexts/feed/infrastructure/activity-outbox-consum
 const METRIC_OUTBOX = 'src/contexts/reporting/infrastructure/outbox-consumers.ts'
 const METRIC_GUEST_OUTBOX =
   'src/contexts/reporting/infrastructure/guest-outbox-consumers.ts'
-const METRIC_CORRECTION_OUTBOX =
-  'src/contexts/reporting/infrastructure/correction-outbox-consumers.ts'
 const GOAL_METRIC_CORRECTION_OUTBOX =
   'src/contexts/reporting/infrastructure/metric-correction-outbox-consumers.ts'
 const REVIEW_OUTBOX = 'src/contexts/review/infrastructure/outbox-consumers.ts'
@@ -406,7 +404,6 @@ const INTEGRATION_ROWS: ReadonlyArray<EventFamilyRow> = [
 const METRIC_ROWS: ReadonlyArray<EventFamilyRow> = [
   ev('metric.recorded', []),
   ev('metric.corrected', [
-    durable('metric.correction-reconciliation', METRIC_CORRECTION_OUTBOX),
     durable('goal.metric-correction-reconciliation', GOAL_METRIC_CORRECTION_OUTBOX),
   ]),
 ]
