@@ -41,7 +41,6 @@ export const UNRESTRICTED_STATEMENT_BASELINE: Readonly<Record<string, number>> =
   'src/contexts/inbox/infrastructure/feedback-handling.store.ts#markHandled': 1,
   'src/contexts/inbox/infrastructure/inbox-command-store.ts#openNextFeedbackCycleOnResubmission': 1,
   'src/contexts/inbox/infrastructure/inbox-command-store.ts#reopenCycleOnDeletedReply': 1,
-  'src/contexts/inbox/infrastructure/inbox-command-store.ts#updateStatus': 1,
   'src/contexts/inbox/infrastructure/inbox-escalation-history.ts#readInboxEscalationHistory': 1,
   'src/contexts/inbox/infrastructure/response-target.store.ts#cancelResponseTargetForCycle': 2,
   'src/contexts/inbox/infrastructure/response-target.store.ts#stopPrivateFeedbackTarget': 2,

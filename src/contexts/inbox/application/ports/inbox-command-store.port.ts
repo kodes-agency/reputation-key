@@ -12,7 +12,6 @@ import type {
   InboxItem,
   InboxNote,
   InboxPriority,
-  InboxStatus,
 } from '../../domain/types'
 import type { ManualReopenReason } from '../../domain/types'
 import type {
@@ -35,12 +34,6 @@ import type {
   CurrentReviewInboxProjectionPermit,
   ReviewCycleTargetAnchor,
 } from './review-response-target-authority.port'
-
-/** Status mutation + the timestamp fields derived for the target status. */
-export type InboxStatusUpdate = Readonly<{
-  status: InboxStatus
-  timestampFields: Partial<Record<string, Date | null>>
-}>
 
 /** Receipt statuses — mirror the outbox consumer receipt contract. */
 export type ApplyReceiptStatus = 'applied' | 'duplicate' | 'obsolete'
@@ -131,22 +124,6 @@ export type ApplySourceWithdrawnCommand = Readonly<{
 }>
 
 /**
- * review.updated apply command: metadata-only refresh of the projection's
- * sourceDate/platform + receipt — one transaction. No fact: a metadata
- * refresh is not new inbox information.
- */
-export type ApplyReviewUpdatedCommand = Readonly<{
-  eventId: string
-  consumerName: string
-  item: InboxItem
-  sourceDate: Date
-  platform: string | null
-  materialReviewRevision?: number | null
-  responseTarget?: ReviewCycleTargetAnchor
-  now: Date
-}>
-
-/**
  * Ordered, content-free Review projection convergence command. Review holds
  * its current source fence while this one Inbox transaction creates the
  * stable item, restores every Material Revision cycle, closes inactive work,
@@ -177,22 +154,6 @@ export type ApplyReviewSourceTransitionedCommand = Readonly<{
   closeIfOpen: boolean
   closeReason?: HandlingCycleCloseReason
   closeFact: InboxItemStatusChanged
-}>
-
-/** Legacy review.reply.published compatibility envelope. The apply method is
- * receipt-only; these former mutation fields are ignored so older delivery
- * shapes cannot regain Inbox closure authority. */
-export type ApplyReplyPublishedCommand = Readonly<{
-  eventId: string
-  consumerName: string
-  item: InboxItem
-  occurredAt: Date
-  /** True when open → closed is a valid transition for the read item. */
-  closeItem: boolean
-  /** True when firstReplyPublishedAt is not yet stamped. */
-  stampMilestone: boolean
-  /** status_changed fact — present only when the close actually transitions. */
-  fact: InboxItemStatusChanged | null
 }>
 
 export type ApplyReplyObservedCommand = Readonly<{
@@ -266,19 +227,6 @@ export type InboxCommandStore = Readonly<{
     anchor: ReviewCycleCreationAnchor,
     observation: CurrentReplyObservationPermit,
   ): Promise<CreateItemResult>
-
-  /**
-   * Status transition + inbox.inbox_item.status_changed fact in one
-   * transaction. Throws not_found when the row vanished — the same contract
-   * as InboxRepository.updateStatus. `event` is null for fact-less
-   * projection writes (milestone stamping during rebuild).
-   */
-  updateStatus(
-    item: InboxItem,
-    updates: InboxStatusUpdate,
-    event: InboxItemStatusChanged | null,
-    now?: Date,
-  ): Promise<InboxItem>
 
   /**
    * Append a governed manual-reopen cycle and advance its canonical head while
@@ -371,14 +319,10 @@ export type InboxCommandStore = Readonly<{
   applySourceWithdrawnOnce(
     command: ApplySourceWithdrawnCommand,
   ): Promise<'applied' | 'obsolete'>
-  /** review.updated: metadata-only sourceDate/platform refresh + receipt. */
-  applyReviewUpdatedOnce(command: ApplyReviewUpdatedCommand): Promise<'applied'>
   /** Review source transition: scrub legacy content, close open work, and receipt. */
   applyReviewSourceTransitionedOnce(
     command: ApplyReviewSourceTransitionedCommand,
   ): Promise<'applied'>
-  /** review.reply.published compatibility receipt; never mutates Inbox state. */
-  applyReplyPublishedOnce(command: ApplyReplyPublishedCommand): Promise<'applied'>
   /**
    * Apply a Review-issued exact-current permit: atomically close or reopen the
    * current Handling Cycle, record the status fact, and commit the receipt.
