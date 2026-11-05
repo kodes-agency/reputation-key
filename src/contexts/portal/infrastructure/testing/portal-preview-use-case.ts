@@ -30,7 +30,7 @@ export function createPreviewUseCase() {
   const db = getDb()
   return getPortalPreview({
     portalRepo: createPortalRepository(db),
-    portalLinkRepo: createPortalLinkRepository(db, () => PREVIEW_NOW),
+    portalLinkRepo: createPortalLinkRepository(db),
     experienceRepo: createPortalExperienceRepository(db),
     portalLookRepo: createPortalLookRepository(db),
     destinationRepo: createPortalApprovedDestinationRepository(db),

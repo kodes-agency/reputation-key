@@ -5,6 +5,7 @@ import { organizationId, portalId, propertyId } from '#/shared/domain/ids'
 import { historyBoundFor, HISTORY_KEY_PREFIX } from '../../domain/portal-history'
 import { createPortalHealthRepository } from './portal-health.repository'
 import { createPortalHistoryRepository } from './portal-history.repository'
+import { seedPortalHealthInterval } from '../testing/portal-read-fixtures'
 
 const ORG = organizationId('org-portal-history-000000000001')
 const OTHER_ORG = organizationId('org-portal-history-000000000002')
@@ -504,25 +505,26 @@ describe.sequential('Portal history repository (real PostgreSQL)', () => {
       [3, 'degraded', 'responsibility_needed', 20],
     ] as const
     for (const [n, status, reason, minutes] of transitions) {
-      await health.transition({
+      await seedPortalHealthInterval(getDb(), {
         id: healthId(n),
         organizationId: ORG,
         propertyId: PROPERTY,
         portalId: PORTAL,
         health: { status, reason },
         sourceVersion: `v${n}`,
-        effectiveAt: at(minutes),
+        effectiveFrom: at(minutes),
+        effectiveTo: n < 3 ? at(minutes + 10) : null,
         observedAt: at(minutes),
       })
     }
-    await health.transition({
+    await seedPortalHealthInterval(getDb(), {
       id: healthId(9),
       organizationId: OTHER_ORG,
       propertyId: OTHER_PROPERTY,
       portalId: OTHER_PORTAL,
       health: { status: 'healthy', reason: 'operational' },
       sourceVersion: 'other',
-      effectiveAt: at(15),
+      effectiveFrom: at(15),
       observedAt: at(15),
     })
 

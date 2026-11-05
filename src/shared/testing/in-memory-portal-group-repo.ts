@@ -2,7 +2,7 @@
 // Memberships are effective-dated like the real table, so a test can see that a
 // move ended one membership with `moved_to_group` and began another.
 
-import type { PortalGroupRepository } from '#/contexts/portal/application/ports/portal-group.repository'
+import type { MutablePortalGroupRepository as PortalGroupRepository } from '#/shared/testing/mutable-portal-repositories'
 import type { PortalGroup } from '#/contexts/portal/domain/types'
 import type { OrganizationId, PortalGroupId, PortalId } from '#/shared/domain/ids'
 import { portalGroupId, portalId } from '#/shared/domain/ids'

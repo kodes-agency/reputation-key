@@ -2,14 +2,13 @@
 // Per architecture: factory function returning Readonly<{ method }>.
 // Every query filters by organization_id AND deleted_at IS NULL via baseWhere().
 
-import { and, asc, desc, eq, gt, inArray, isNull, lte, not, or, sql } from 'drizzle-orm'
+import { and, asc, desc, eq, gt, inArray, isNull, lte, not, or } from 'drizzle-orm'
 import type { Database } from '#/shared/db'
 import { baseWhere } from '#/shared/db/base-where'
 import { portalGroups } from '#/shared/db/schema/portal.schema'
 import { portalGroupMemberships } from '#/shared/db/schema/people-access.schema'
 import type { PortalGroupRepository } from '../../application/ports/portal-group.repository'
-import { portalGroupFromRow, portalGroupToRow } from '../mappers/portal-group.mapper'
-import { portalError } from '../../domain/errors'
+import { portalGroupFromRow } from '../mappers/portal-group.mapper'
 import { unbrand, portalGroupId, portalId } from '#/shared/domain/ids'
 import { trace } from '#/shared/observability/trace'
 
@@ -22,21 +21,6 @@ export const createPortalGroupRepository = (db: Database): PortalGroupRepository
         .where(and(...baseWhere(portalGroups, orgId), eq(portalGroups.id, unbrand(id))))
         .limit(1)
       return rows[0] ? portalGroupFromRow(rows[0]) : null
-    })
-  },
-
-  listByProperty: async (orgId, propertyId) => {
-    return trace('portalGroup.listByProperty', async () => {
-      const rows = await db
-        .select()
-        .from(portalGroups)
-        .where(
-          and(
-            ...baseWhere(portalGroups, orgId),
-            eq(portalGroups.propertyId, unbrand(propertyId)),
-          ),
-        )
-      return rows.map(portalGroupFromRow)
     })
   },
 
@@ -97,109 +81,6 @@ export const createPortalGroupRepository = (db: Database): PortalGroupRepository
         .limit(1)
       return rows.length > 0
     })
-  },
-
-  insert: async (orgId, group) => {
-    return trace('portalGroup.insert', async () => {
-      if (group.organizationId !== orgId) {
-        throw portalError('forbidden', 'Tenant mismatch on portal group insert')
-      }
-      await db.insert(portalGroups).values(portalGroupToRow(group))
-    })
-  },
-
-  update: async (orgId, id, patch) => {
-    return trace('portalGroup.update', async () => {
-      const setValues: Record<string, unknown> = {}
-      if (patch.name !== undefined) setValues['name'] = patch.name
-      if (patch.sortKey !== undefined) setValues['sortKey'] = patch.sortKey
-      if (patch.updatedAt !== undefined) setValues['updatedAt'] = patch.updatedAt
-
-      await db
-        .update(portalGroups)
-        .set(setValues)
-        .where(and(...baseWhere(portalGroups, orgId), eq(portalGroups.id, unbrand(id))))
-    })
-  },
-
-  softDelete: async (orgId, id, at) => {
-    return trace('portalGroup.softDelete', async () => {
-      await db.transaction(async (tx) => {
-        const active = await tx
-          .select({
-            id: portalGroupMemberships.id,
-            effectiveFrom: portalGroupMemberships.effectiveFrom,
-          })
-          .from(portalGroupMemberships)
-          .where(
-            and(
-              eq(portalGroupMemberships.organizationId, unbrand(orgId)),
-              eq(portalGroupMemberships.portalGroupId, unbrand(id)),
-              isNull(portalGroupMemberships.effectiveTo),
-            ),
-          )
-        const transientIds = active
-          .filter((row) => row.effectiveFrom >= at)
-          .map((row) => row.id)
-        const historicalIds = active
-          .filter((row) => row.effectiveFrom < at)
-          .map((row) => row.id)
-        if (transientIds.length > 0) {
-          await tx
-            .delete(portalGroupMemberships)
-            .where(inArray(portalGroupMemberships.id, transientIds))
-        }
-        if (historicalIds.length > 0) {
-          await tx
-            .update(portalGroupMemberships)
-            .set({ effectiveTo: at, endReason: 'group_archived' })
-            .where(inArray(portalGroupMemberships.id, historicalIds))
-        }
-        await tx
-          .update(portalGroups)
-          .set({ deletedAt: at, updatedAt: at })
-          .where(and(...baseWhere(portalGroups, orgId), eq(portalGroups.id, unbrand(id))))
-      })
-    })
-  },
-
-  removePortal: async (orgId, groupId, pid, at, reason) => {
-    return trace('portalGroup.removePortal', async () =>
-      db.transaction(async (tx) => {
-        await tx.execute(sql`
-          SELECT id FROM portal_group_memberships
-          WHERE organization_id = ${unbrand(orgId)}
-            AND portal_group_id = ${unbrand(groupId)}
-            AND portal_id = ${unbrand(pid)}
-            AND effective_to IS NULL
-          FOR UPDATE
-        `)
-        const [active] = await tx
-          .select()
-          .from(portalGroupMemberships)
-          .where(
-            and(
-              eq(portalGroupMemberships.organizationId, unbrand(orgId)),
-              eq(portalGroupMemberships.portalGroupId, unbrand(groupId)),
-              eq(portalGroupMemberships.portalId, unbrand(pid)),
-              isNull(portalGroupMemberships.effectiveTo),
-            ),
-          )
-          .limit(1)
-        if (!active) return false
-        if (active.effectiveFrom >= at) {
-          await tx
-            .delete(portalGroupMemberships)
-            .where(eq(portalGroupMemberships.id, active.id))
-        } else {
-          await tx
-            .update(portalGroupMemberships)
-            .set({ effectiveTo: at, endReason: reason })
-            .where(eq(portalGroupMemberships.id, active.id))
-        }
-        return true
-      }),
-    )
   },
 
   findPortalMembership: async (orgId, pid) => {

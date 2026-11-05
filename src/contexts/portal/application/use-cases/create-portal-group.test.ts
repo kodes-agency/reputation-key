@@ -15,7 +15,7 @@ import {
   type PropertyId,
   type PortalGroupId,
 } from '#/shared/domain/ids'
-import type { PortalGroupRepository } from '../ports/portal-group.repository'
+import type { MutablePortalGroupRepository as PortalGroupRepository } from '#/shared/testing/mutable-portal-repositories'
 import type { PortalGroup } from '../../domain/types'
 import type { PortalRepository } from '../ports/portal.repository'
 import type { Portal } from '../../domain/types'
