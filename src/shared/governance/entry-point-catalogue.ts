@@ -335,8 +335,6 @@ const JOB_ROWS: ReadonlyArray<EntryPointRow> = [
     'tenant_cross',
     true,
   ),
-  job('project-recent-activity', 'system:activity.record', 'none', 'organization'),
-  job('insert-activity-log', 'system:activity.record', 'none', 'organization'),
   // Mandatory notices and the ADR 0059 report outcome have no Property. Feed
   // enforces each type's scope (notificationScopeForType) in the notification
   // and email constructors and their CHECKs; a job that carries a Property is
