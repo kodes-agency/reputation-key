@@ -267,15 +267,6 @@
       "exports": ["runOperatorCommand"]
     },
     {
-      "file": "src/shared/bqc/status-schema.ts",
-      "exports": [
-        "BQC_STATES",
-        "bqcStateSchema",
-        "bqcEntrySchema",
-        "bqcStatusManifestSchema"
-      ]
-    },
-    {
       "file": "src/contexts/reporting/server/goal-programs.ts",
       "exports": ["changeGoalProgramAssignments"]
     }

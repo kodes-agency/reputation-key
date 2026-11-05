@@ -119,9 +119,9 @@ triages it and has an alert rule for new feedback. So the alert is off for the
 closed beta. There is no environment variable or posture flag for it: a flag
 would be one more setting to keep in step with a decision that holds for the
 whole closed beta, and the environment contract pins every variable. The
-definition and the `beta_feedback_triage` journey row in
-`beta-support-operations.ts` are removed, and a test pins that no alert of that
-name is defined or dispatched, whatever the ledger holds.
+definition is removed, and a test pins that no alert of that name is defined
+or dispatched, whatever the ledger holds. The journey-monitoring requirements
+are documented in `docs/operations/runbooks.md` §16.
 
 Kept: the ledger, its state machine and transition evidence, `pnpm ops
 triage-beta-feedback`, and the `betaFeedbackTriage` aux read, which the health
@@ -140,10 +140,10 @@ outcome notice. Record the transition when the reporter should hear back.
    `aux.betaFeedbackTriage`: value -1 when `monitorAvailable` is false, or when
    the count is above 0 and the age is missing; nothing when the count is 0 or
    the age is at most 72 hours; otherwise the age, with the count in the detail.
-3. Put the `beta_feedback_triage` journey back in
-   `src/shared/observability/beta-support-operations.ts` (status
-   `implemented_application_signal`, P2, evidence `content_free_queue_age_signal`,
-   `named_owner_coverage`, `local_alert_injection_test`).
+3. Add beta-feedback triage to the journey-monitoring requirements in
+   `docs/operations/runbooks.md` §16: implemented application signal, P2, with
+   content-free queue-age evidence, named owner coverage and a local
+   alert-injection test.
 4. Put the row back in `docs/operations/alerts-and-security-posture.md` and
    replace the off-notes there and in `docs/operations/runbooks.md` §16 with the
    alert's description.

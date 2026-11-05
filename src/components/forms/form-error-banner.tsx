@@ -25,8 +25,8 @@ type Props = Readonly<{
  * ZodError, and seroval hands the client an Error whose `.message` is the raw
  * `JSON.stringify(issues)` dump. Rendering that verbatim showed users
  * `[{"origin":"string","code":"too_small",...}]`. Parse it back into
- * `field: message` lines — the same shape `shared/config/env.ts` and
- * `shared/bqc/status-schema.ts` use for issue lists.
+ * `field: message` lines — the same shape `shared/config/env.ts` uses for
+ * issue lists.
  */
 type IssueLike = Readonly<{ path?: unknown; message?: unknown }>
 

@@ -665,14 +665,21 @@ contained with these controls and repaired by a fix deployed forward. A core
 journey outage uses the incident commander and §11; it is not silently hidden
 by a capability toggle.
 
-The exact one-cell journey-monitoring and support contract lives in
-`src/shared/observability/beta-support-operations.ts`. Google sync and ambiguous
-reply aging already have application signals. The next-business-day review
-target remains an expectation rather than an SLA. Invitation/onboarding, Google
-connection/import, Inbox, Portal gateway, and native-feedback delivery still
-require external synthetic configuration. Those external rows and the
-alert-delivery drill remain **external evidence required**, not a claim that a
-dashboard or alert route is deployed.
+Bozhidar Denev owns the following journey-monitoring requirements. Google sync
+and ambiguous reply aging have application signals; the other journeys require
+external synthetic configuration. Their evidence and the alert-delivery drill
+remain **external evidence required**, not a claim that a dashboard or alert
+route is deployed.
+
+| Journey                      | Signal                                     | Severity | Required content-free evidence                                                                      |
+| ---------------------------- | ------------------------------------------ | -------- | --------------------------------------------------------------------------------------------------- |
+| Invitation and onboarding    | `cell-us.journey.invitation-onboarding`    | P1       | Synthetic definition, successful and failed journey receipts, alert-injection receipt               |
+| Google connection and import | `cell-us.journey.google-connection-import` | P1       | Synthetic definition, OAuth/import terminal outcomes, alert-injection receipt                       |
+| Google review sync           | `sync.sweep-lag`                           | P1       | Health snapshot signal, dispatch transition, alert receipt                                          |
+| Review and Inbox triage      | `cell-us.journey.review-inbox-triage`      | P1       | Synthetic definition, source-to-Inbox receipt latency, alert-injection receipt                      |
+| Reply publish and reconcile  | `reply.ambiguous-aging`                    | P2       | Publication-state signal, reconciliation due age, alert receipt                                     |
+| Portal review gateway        | `cell-us.journey.portal-review-gateway`    | P1       | Supported-locale/device synthetics, private-rating durability receipt, alert-injection receipt      |
+| Beta feedback delivery       | `cell-us.journey.beta-feedback-delivery`   | P2       | Bug/suggestion synthetics, local-receipt/provider-reference reconciliation, alert-injection receipt |
 
 **The 72-hour triage backlog page is off for the closed beta (2026-10-19).** The
 alert named `beta-feedback.triage-backlog`, at P2, paged when the oldest
@@ -689,9 +696,8 @@ ledger, `pnpm ops triage-beta-feedback`, and the content-free count and age read
 transition when the reporter should hear the outcome: the bell notice of ADR
 0059 is sent from the ledger transition, so a report never recorded there gets
 none. Before general availability, restore the alert, its row in
-`docs/operations/alerts-and-security-posture.md` and the `beta_feedback_triage`
-journey in `beta-support-operations.ts`, following ADR 0059's note of
-2026-10-19.
+`docs/operations/alerts-and-security-posture.md` and the beta-feedback triage
+monitoring requirement here, following ADR 0059's note of 2026-10-19.
 
 For local verification, submit one Bug and one Suggestion from manager
 fixtures; prove the Suggestion cannot carry an attachment; exercise consent,
@@ -700,9 +706,14 @@ inspect tags for raw IDs; exceed each Redis budget; stop capture and prove
 503/no delivered receipt; seed email/token/review/contact markers through every
 boundary; and exercise CAS plus exact transition retry on a fresh migrated
 PostgreSQL database. Full OBS-01 closure additionally requires the Sentry
-project inspection, one test event per process/cell, inbound scrubber and source
-map inspection, external alert receipt, supported-device manual journey,
-provider expiry proof, and legal/retention approval.
+project inspection (approved region, subprocessors, release/cell filters), one
+test event per process/cell, seeded-marker inbound scrubber inspection, and
+source-map inspection for readable candidate-release stacks without source
+content. Retain the injected signal, named owner's alert receipt and delivery
+time; the supported-browser/device consent/preview/remove/cancel journey and
+text-only Suggestion proof; provider attachment retention of at most 30 days
+and verified expiry; and approval of the notice version, retention rule and
+subprocessor region. Repository tests cannot close these external checks.
 
 ---
 
