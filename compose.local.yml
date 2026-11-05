@@ -124,14 +124,5 @@ services:
     entrypoint: [/bin/sh, -ec]
     command: ['mc alias set local http://object-store:9000 "$$MINIO_ROOT_USER" "$$MINIO_ROOT_PASSWORD" && mc mb --ignore-existing "local/$$S3_BUCKET_NAME" && mc anonymous set none "local/$$S3_BUCKET_NAME"']
     networks: [app]
-  perf-runner:
-    profiles: [perf]
-    <<: *app
-    image: repkey-local-perf:${SOURCE_REVISION}
-    build: { context: ., dockerfile: Dockerfile.perf-runner, args: { SOURCE_REVISION: "${SOURCE_REVISION}" } }
-    command: [sleep, infinity]
-    environment: { <<: *app-environment, BETTER_AUTH_URL: http://127.0.0.1:3000, E2E_BASE_URL: http://web:3000, PERF_ARTIFACT_DIR: /artifacts/perf }
-    volumes: [./test-results/local-stack:/artifacts, ./e2e/.certs:/run/repkey:ro]
-    depends_on: { web: { condition: service_healthy }, worker: { condition: service_started } }
 networks: { app: {} }
 volumes: { postgres-data: {}, redis-data: {}, object-store-data: {} }

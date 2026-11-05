@@ -77,8 +77,8 @@ describe('BETA_ALLOWLIST_ORGS=*', () => {
 })
 
 describe('explicit BETA_ALLOWLIST_ORGS keeps refusing Organizations it does not name', () => {
-  // The perf probe and the local e2e stack measure capability darkness on an
-  // unlisted Organization; the wildcard must not have leaked into this mode.
+  // The local e2e stack measures capability darkness on an unlisted
+  // Organization; the wildcard must not have leaked into this mode.
   it('refuses an unlisted Organization', () => {
     expect(decide({ BETA_ALLOWLIST_ORGS: 'org-1,org-2' }, 'goal.use').reason).toBe(
       'org_not_allowlisted',

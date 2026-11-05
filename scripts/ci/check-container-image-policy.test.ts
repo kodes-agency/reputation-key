@@ -38,25 +38,25 @@ describe('container image policy', () => {
     )
 
     expect(validateCiContainerCoverage(policy, withoutMatrixScan)).toContain(
-      'CI vulnerability scans is missing repkey-perf-runner:ci',
+      'CI vulnerability scans is missing repkey-provider-sandbox:ci',
     )
   })
 
   it('rejects a classified image missing from a bounded evidence group', () => {
     const policy = loadContainerImagePolicy(ROOT)
     const workflow = readFileSync(resolve(ROOT, '.github/workflows/ci.yml'), 'utf8')
-    const withoutPerfRow = workflow.replace(
-      ',{"name":"perf-runner","dockerfile":"Dockerfile.perf-runner","tag":"repkey-perf-runner:ci","publish":false}',
+    const withoutSandboxRow = workflow.replace(
+      ',{"name":"provider-sandbox","dockerfile":"Dockerfile.sandbox","tag":"repkey-provider-sandbox:ci","publish":false}',
       '',
     )
-    const violations = validateCiContainerCoverage(policy, withoutPerfRow)
+    const violations = validateCiContainerCoverage(policy, withoutSandboxRow)
 
     expect(violations).toContain(
-      'CI image builds is missing Dockerfile.perf-runner=>repkey-perf-runner:ci',
+      'CI image builds is missing Dockerfile.sandbox=>repkey-provider-sandbox:ci',
     )
-    expect(violations).toContain('CI image SBOMs is missing repkey-perf-runner:ci')
+    expect(violations).toContain('CI image SBOMs is missing repkey-provider-sandbox:ci')
     expect(violations).toContain(
-      'CI vulnerability scans is missing repkey-perf-runner:ci',
+      'CI vulnerability scans is missing repkey-provider-sandbox:ci',
     )
   })
 
@@ -65,7 +65,7 @@ describe('container image policy', () => {
     const workflow = readFileSync(resolve(ROOT, '.github/workflows/ci.yml'), 'utf8')
     const overflowed = workflow.replace(
       '{"name":"provider-sandbox","dockerfile":"Dockerfile.sandbox","tag":"repkey-provider-sandbox:ci","publish":false}]',
-      '{"name":"provider-sandbox","dockerfile":"Dockerfile.sandbox","tag":"repkey-provider-sandbox:ci","publish":false},{"name":"overflow-1","dockerfile":"Dockerfile","tag":"overflow-1:ci","publish":false},{"name":"overflow-2","dockerfile":"Dockerfile","tag":"overflow-2:ci","publish":false}]',
+      '{"name":"provider-sandbox","dockerfile":"Dockerfile.sandbox","tag":"repkey-provider-sandbox:ci","publish":false},{"name":"overflow-1","dockerfile":"Dockerfile","tag":"overflow-1:ci","publish":false},{"name":"overflow-2","dockerfile":"Dockerfile","tag":"overflow-2:ci","publish":false},{"name":"overflow-3","dockerfile":"Dockerfile","tag":"overflow-3:ci","publish":false}]',
     )
 
     expect(validateCiContainerCoverage(policy, overflowed)).toContain(
@@ -73,7 +73,7 @@ describe('container image policy', () => {
     )
   })
 
-  it('pins the three production runtimes versus two CI-only descriptors', () => {
+  it('pins the three production runtimes versus one CI-only descriptor', () => {
     const policy = loadContainerImagePolicy(ROOT)
     const workflow = readFileSync(resolve(ROOT, '.github/workflows/ci.yml'), 'utf8')
     const webMadeCiOnly = workflow.replace(
@@ -121,7 +121,7 @@ describe('container image policy', () => {
     expect(aggregate).toContain('merge-multiple: true')
     expect(aggregate).toContain('name: sbom-images-spdx')
     expect(aggregate).toContain(
-      `run: test "$(find image-sboms -maxdepth 1 -type f -name 'sbom-*.spdx.json' | wc -l)" -eq 5`,
+      `run: test "$(find image-sboms -maxdepth 1 -type f -name 'sbom-*.spdx.json' | wc -l)" -eq 4`,
     )
   })
 
