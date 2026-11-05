@@ -55,10 +55,22 @@ The web owner releases through `closeContainer()`, the operator harness releases
 in its cleanup, the simulation releases when its container shuts down, and the
 worker owns its claim for the process lifetime.
 
+A process moves through one lifecycle (`src/composition/container-lifecycle.ts`):
+`starting` until its container is built, `ready`, then `draining` once shutdown
+begins or `failed` after a build or a release that did not complete. The last two
+are terminal: nothing builds another container, and `/api/health/ready` reports the
+process unready. The web refuses new requests, waits for the ones it admitted, then
+closes the container, Redis and the database pool; the worker finishes its jobs and
+does the same. Both run under one deadline (`DRAIN_BUDGET_MS`), and a failed close
+or an expired deadline exits 1.
+
 Executable evidence is split by behavior:
 
 - `src/shared/architecture/one-container-per-process.test.ts` proves named
   refusal, release/rebuild, and that production bootstrap is worker-only;
+- `src/shared/lifecycle/web-shutdown.test.ts` and `src/composition.lifecycle.test.ts`
+  prove that SIGTERM waits for a response already in flight and that a draining
+  process cannot rebuild its container;
 - `src/shared/architecture/outbox-consumer-registration.test.ts` proves
   deterministic consumer registration across claimed worker rebuilds;
 - `src/shared/auth/process-policy-binding.test.ts` proves the claimed simulation

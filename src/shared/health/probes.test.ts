@@ -40,11 +40,20 @@ describe('liveness dependency pin', () => {
 })
 
 describe('readyProbe', () => {
-  const allUp = { db: true, redis: true, migrations: true, policy: true }
+  const allUp = {
+    container: true,
+    keys: true,
+    db: true,
+    redis: true,
+    migrations: true,
+    policy: true,
+  }
 
   it('is ok when db, redis, migrations and policy are all healthy', () => {
     expect(readyProbe(allUp, fixedNow)).toEqual({
       status: 'ok',
+      container: true,
+      keys: true,
       db: true,
       redis: true,
       migrations: true,
@@ -68,12 +77,13 @@ describe('readyProbe', () => {
 })
 
 describe('startupProbe', () => {
-  const booted = { container: true, migrations: true, policy: true }
+  const booted = { container: true, keys: true, migrations: true, policy: true }
 
   it('is ok once container, migrations and policy are complete', () => {
     expect(startupProbe(booted, fixedNow)).toEqual({
       status: 'ok',
       container: true,
+      keys: true,
       migrations: true,
       policy: true,
       timestamp: '2026-07-16T12:00:00.000Z',

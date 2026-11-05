@@ -309,12 +309,10 @@ export function startJobSchedulerWatchdog(
     logger: pino.Logger
     onRestored: (restore: JobSchedulerRestore) => Promise<void>
   }>,
-): () => void {
-  let inFlight = false
+): () => Promise<void> {
+  let inFlight: Promise<void> | undefined
   let superseded = false
   const tick = async () => {
-    if (inFlight) return
-    inFlight = true
     try {
       const restore = await restoreMissingJobSchedulers(input)
       if (restore.superseded && !superseded) {
@@ -332,10 +330,16 @@ export function startJobSchedulerWatchdog(
       await input.onRestored(restore)
     } catch (err) {
       input.logger.warn({ err }, 'Job scheduler watchdog check failed')
-    } finally {
-      inFlight = false
     }
   }
-  const timer = setInterval(() => void tick(), input.intervalMs)
-  return () => clearInterval(timer)
+  const timer = setInterval(() => {
+    if (!inFlight)
+      inFlight = tick().finally(() => {
+        inFlight = undefined
+      })
+  }, input.intervalMs)
+  return () => {
+    clearInterval(timer)
+    return inFlight ?? Promise.resolve()
+  }
 }

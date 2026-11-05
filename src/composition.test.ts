@@ -211,7 +211,12 @@ describe('closeContainer (BQC-7.1)', () => {
     else (globalThis as Record<symbol, unknown>)[CONTAINER_KEY] = container
   }
 
-  afterEach(() => seed(undefined))
+  afterEach(() => {
+    seed(undefined)
+    delete (globalThis as Record<symbol, unknown>)[
+      Symbol.for('repkey.composition.lifecycle')
+    ]
+  })
 
   it('no-ops when the singleton was never built', async () => {
     seed(undefined)

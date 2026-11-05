@@ -14,8 +14,9 @@ import {
 import { runCapabilityBootGuard } from '#/shared/auth/capability-boot-guard'
 import { assertProductionSecrets } from '#/shared/config/production-secrets'
 import { assertReleaseIdentity } from '#/shared/config/release-identity'
+import { closeRedis } from '#/shared/cache/redis'
 import { getDb } from '#/shared/db'
-import { configurePoolMaxConnections } from '#/shared/db/pool'
+import { closePool, configurePoolMaxConnections } from '#/shared/db/pool'
 import { assertRecoveryCutoverAttestation } from '#/shared/config/recovery-cutover-attestation'
 import { createRecoveryCutoverRunReader } from '#/shared/db/recovery/recovery-cutover-run-reader'
 import {
@@ -24,6 +25,11 @@ import {
   RESTORE_ISOLATED_LOG_LINE,
 } from '#/shared/config/restore-mode'
 import { claimProcessContainer, createContainer } from '#/composition'
+import {
+  beginContainerDrain,
+  markContainerFailed,
+  markContainerReady,
+} from '#/composition/container-lifecycle'
 import { bindProcessPolicies } from '#/shared/auth/process-policy-binding'
 import { bootstrap, createBootstrapRuntimeConfig } from '#/bootstrap'
 import {
@@ -183,6 +189,8 @@ async function main() {
     // registered.
     listConsumers: container.consumerRegistry.list,
   })
+
+  markContainerReady()
 
   // BQC-3.2: dispatch-time scope resolution for jobs whose envelope lacks the
   // property id (publish-reply carries replyId only — resolved via reply →
@@ -400,33 +408,45 @@ async function main() {
   )
 
   // Graceful shutdown — drain in-progress jobs before exiting.
-  // BQC-7.1: the close sequence races DRAIN_BUDGET_MS (default 25s, below
-  // Railway's 30s drainingSeconds); a hung job previously stalled the deploy
-  // window until SIGKILL. Budget expiry exits 1 — an unclean stop the
-  // platform records — instead of an unbounded wait.
+  // The close sequence races DRAIN_BUDGET_MS (default 25s, below Railway's 30s
+  // drainingSeconds); a hung job would otherwise stall the deploy window until
+  // SIGKILL. Budget expiry or a close that failed exits 1 — an unclean stop the
+  // platform records — instead of an unbounded wait. Order: the relay and
+  // scheduler watchdog finish their pass, the workers finish their jobs, the
+  // container releases its queues and connections, then the shared Redis client,
+  // the database pool and the error-monitoring flush close in that order.
   const shutdown = async (trigger: WorkerTerminationTrigger, exitCode: 0 | 1) => {
+    beginContainerDrain()
     logger.info({ exitCode, trigger }, 'Worker termination requested, draining workers')
 
     // Stop the outbox relay first (stop claiming new events)
-    stopRelay()
+    const relayStopped = stopRelay()
     logger.info('Outbox relay stopped')
-    stopSchedulerWatchdog()
+    const schedulerStopped = stopSchedulerWatchdog()
 
     const result = await drainWorkerResources({
       workers: [
+        {
+          label: 'background-pollers',
+          close: async () => {
+            await Promise.all([relayStopped, schedulerStopped])
+          },
+        },
         namedCloseable('default', worker),
         namedCloseable('background', backgroundWorker),
         namedCloseable('domain-events', domainEventsWorker),
       ],
-      // ARC-03-T6: the worker built this container, so the worker runs its
-      // release seam. The seam holds no hooks today; connections the drain
-      // does not name below end with process.exit (container-lifecycle.ts).
       shutdown: container.shutdown,
-      queues: [
-        namedCloseable('default', container.jobQueue),
-        namedCloseable('background', container.backgroundQueue),
-        namedCloseable('domain-events', domainEventsQueue),
-        namedCloseable('quarantine', quarantineQueue),
+      resources: [
+        { label: 'cache-redis', close: closeRedis },
+        { label: 'pg-pool', close: closePool },
+        {
+          label: 'error-monitoring',
+          close: async () => {
+            if (!(await flushObservability()))
+              throw new Error('Error monitoring flush incomplete')
+          },
+        },
       ],
       budgetMs: env.DRAIN_BUDGET_MS,
       logger,
@@ -437,11 +457,13 @@ async function main() {
         { stuck: result.stuck, budgetMs: env.DRAIN_BUDGET_MS },
         'Drain budget exceeded — exiting with unclean shutdown',
       )
+      markContainerFailed()
+      // The budget may have ended before the monitoring flush ran.
       await flushObservability()
       process.exit(1)
     }
-    await flushObservability()
-    process.exit(exitCode)
+    if (result.failed.length) markContainerFailed()
+    process.exit(result.failed.length ? 1 : exitCode)
   }
 
   const processFailurePolicy = createWorkerProcessFailurePolicy({
@@ -490,6 +512,7 @@ function emitWorkerStartupFailure(error: unknown): void {
 }
 
 main().catch(async (err) => {
+  markContainerFailed()
   // stderr FIRST: the two calls below both depend on configuration that may be
   // the very thing that failed, so neither is allowed to swallow the diagnosis.
   emitWorkerStartupFailure(err)

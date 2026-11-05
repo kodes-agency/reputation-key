@@ -1,19 +1,23 @@
-// ARC-03-T6 — the shutdown seam's own contract.
+// The container disposer and process lifecycle contract.
 //
-// src/composition.lifecycle.test.ts proves the integration ordering. These
-// tests cover the reusable seam's behavior when one of several release hooks
-// fails or concurrent shutdown callers race.
-//
-//   - hooks run in registration order, one after the other (the comment at the
-//     registration site says "registered in release order");
-//   - a throwing hook is recorded and skipped, never allowed to abandon the
-//     hooks behind it — that is the whole point, since abandoning them leaks
-//     the resources this seam exists to release;
-//   - `run()` is idempotent under a worker drain racing the web plugin.
+// src/composition.lifecycle.test.ts proves the integration ordering. These tests
+// cover the reusable seam's behaviour:
+//   - hooks release in reverse acquisition order, one after the other;
+//   - a failing hook is recorded and never abandons the hooks behind it, since
+//     abandoning them leaks the resources this seam exists to release, and the
+//     failure is reported once the rest have run so a caller can exit nonzero;
+//   - `run()` is idempotent under a worker drain racing the web plugin;
+//   - once draining or failed, nothing builds another container.
 
-import { describe, expect, it, vi } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import {
   createContainerShutdown,
+  createContainerDisposer,
+  assertContainerCanBuild,
+  beginContainerDrain,
+  containerLifecycleState,
+  markContainerFailed,
+  markContainerReady,
   type ContainerShutdownHook,
   type ContainerShutdownLogger,
 } from './container-lifecycle'
@@ -50,7 +54,7 @@ describe('createContainerShutdown — the released capability', () => {
 })
 
 describe('createContainerShutdown — release sequence', () => {
-  it('releases hooks in registration order', async () => {
+  it('releases hooks in reverse acquisition order', async () => {
     const order: string[] = []
     const shutdown = createContainerShutdown([
       recordingHook(order, 'first'),
@@ -60,7 +64,7 @@ describe('createContainerShutdown — release sequence', () => {
 
     await shutdown.run()
 
-    expect(order).toEqual(['first', 'second', 'third'])
+    expect(order).toEqual(['third', 'second', 'first'])
   })
 
   it('awaits each hook before starting the next', async () => {
@@ -73,8 +77,8 @@ describe('createContainerShutdown — release sequence', () => {
       releaseSlow = resolve
     })
     const shutdown = createContainerShutdown([
-      recordingHook(order, 'slow', () => slowSettled),
       recordingHook(order, 'fast'),
+      recordingHook(order, 'slow', () => slowSettled),
     ])
 
     const running = shutdown.run()
@@ -102,9 +106,9 @@ describe('createContainerShutdown — a failing hook', () => {
       recordingHook(order, 'after'),
     ])
 
-    await shutdown.run()
+    await expect(shutdown.run()).rejects.toBeInstanceOf(AggregateError)
 
-    expect(order).toEqual(['before', 'after'])
+    expect(order).toEqual(['after', 'before'])
   })
 
   it('treats a rejected promise the same as a synchronous throw', async () => {
@@ -117,12 +121,12 @@ describe('createContainerShutdown — a failing hook', () => {
       recordingHook(order, 'after'),
     ])
 
-    await shutdown.run()
+    await expect(shutdown.run()).rejects.toBeInstanceOf(AggregateError)
 
     expect(order).toEqual(['after'])
   })
 
-  it('resolves rather than rejecting, so a caller cannot skip its own teardown', async () => {
+  it('rejects after completing teardown so the process can exit nonzero', async () => {
     const shutdown = createContainerShutdown([
       Object.freeze({
         label: 'thrower',
@@ -132,7 +136,7 @@ describe('createContainerShutdown — a failing hook', () => {
       }),
     ])
 
-    await expect(shutdown.run()).resolves.toBeUndefined()
+    await expect(shutdown.run()).rejects.toBeInstanceOf(AggregateError)
   })
 
   it('records the failure against the hook label', async () => {
@@ -150,7 +154,7 @@ describe('createContainerShutdown — a failing hook', () => {
       logger,
     )
 
-    await shutdown.run()
+    await expect(shutdown.run()).rejects.toBeInstanceOf(AggregateError)
 
     expect(logger.error).toHaveBeenCalledTimes(1)
     expect(logger.error).toHaveBeenCalledWith(
@@ -159,9 +163,7 @@ describe('createContainerShutdown — a failing hook', () => {
     )
   })
 
-  it('swallows the failure when no logger was supplied', async () => {
-    // The logger is optional at the call site, so an unlogged failure must not
-    // become an unhandled rejection that takes the shutdown path down with it.
+  it('reports failure even when no logger was supplied', async () => {
     const order: string[] = []
     const shutdown = createContainerShutdown([
       Object.freeze({
@@ -173,7 +175,7 @@ describe('createContainerShutdown — a failing hook', () => {
       recordingHook(order, 'after'),
     ])
 
-    await expect(shutdown.run()).resolves.toBeUndefined()
+    await expect(shutdown.run()).rejects.toBeInstanceOf(AggregateError)
     expect(order).toEqual(['after'])
   })
 })
@@ -215,10 +217,73 @@ describe('createContainerShutdown — idempotency', () => {
       logger,
     )
 
-    await shutdown.run()
-    await shutdown.run()
+    await expect(shutdown.run()).rejects.toBeInstanceOf(AggregateError)
+    await expect(shutdown.run()).rejects.toBeInstanceOf(AggregateError)
 
     expect(release).toHaveBeenCalledTimes(1)
     expect(logger.error).toHaveBeenCalledTimes(1)
+  })
+})
+
+const LIFECYCLE_KEY = Symbol.for('repkey.composition.lifecycle')
+afterEach(() => {
+  delete (globalThis as Record<symbol, unknown>)[LIFECYCLE_KEY]
+})
+
+describe('process lifecycle', () => {
+  it('never rebuilds after draining starts, including an unbuilt process', () => {
+    expect(containerLifecycleState()).toBe('starting')
+    beginContainerDrain()
+    expect(() => assertContainerCanBuild()).toThrow(/draining/)
+    markContainerReady()
+    expect(containerLifecycleState()).toBe('draining')
+  })
+
+  it('remembers a failed build with its cause and never retries it', () => {
+    const cause = new Error('a key group is missing')
+    markContainerFailed(cause)
+    markContainerReady()
+    beginContainerDrain()
+
+    expect(containerLifecycleState()).toBe('failed')
+    expect(() => assertContainerCanBuild()).toThrow(
+      expect.objectContaining({ message: 'Container is failed', cause }),
+    )
+  })
+})
+
+describe('complete container disposal', () => {
+  it('closes owned handles in reverse acquisition order before shared transports', async () => {
+    const order: string[] = []
+    await createContainerDisposer({
+      jobQueue: {
+        close: async () => {
+          order.push('default')
+        },
+      },
+      backgroundQueue: {
+        close: async () => {
+          order.push('background')
+        },
+      },
+      opsQueues: {
+        domainEvents: {
+          close: async () => {
+            order.push('domain-events')
+          },
+        },
+      },
+      providerEphemeralRedis: {
+        quit: async () => {
+          order.push('provider')
+        },
+      },
+      shutdown: {
+        run: async () => {
+          order.push('owned')
+        },
+      },
+    }).run()
+    expect(order).toEqual(['owned', 'provider', 'domain-events', 'background', 'default'])
   })
 })
