@@ -1,7 +1,8 @@
 #!/usr/bin/env node
 // Client bundle budget gate: gzip sizes and static import cycles in the production
 // build output (.output/public/assets). Run after `pnpm build` with
-// `pnpm check:bundles`; exits 1 naming every offending chunk.
+// `pnpm check:bundles`; exits 1 naming every offending chunk. An optional first
+// argument selects an assets directory for isolated artifact checks.
 //
 // The initial closure is what the browser must download before the app can
 // render: the entry chunk, every chunk reachable from it through static import
@@ -13,9 +14,10 @@ import { readdirSync, readFileSync, existsSync } from 'node:fs'
 import { join, dirname, basename } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { gzipSync } from 'node:zlib'
+import ts from 'typescript'
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..')
-const ASSETS_DIR = join(ROOT, '.output/public/assets')
+const ASSETS_DIR = process.argv[2] ?? join(ROOT, '.output/public/assets')
 
 const BUDGETS = {
   mainEntryGzip: 70_100,
@@ -44,23 +46,26 @@ if (entryFiles.length !== 1) {
 }
 
 const gzipSize = (file) => gzipSync(readFileSync(join(ASSETS_DIR, file))).length
+const failures = []
 
 const sizes = new Map()
 for (const f of [...jsFiles, ...cssFiles]) sizes.set(f, gzipSize(f))
 
-// Static specifiers only. `from"./x.js"` / `from'./x.js'` covers minified
-// `import{a}from"./x.js"` and `export{a}from"./x.js"`; `import"./x.js"` covers
-// side-effect-only imports. A dynamic `import("./x.js")` never matches because
-// the parenthesis sits between the keyword and the quote.
-const STATIC_SPECIFIER = /(?:\bfrom|\bimport)\s*["']([^"']+)["']/g
-
 function staticDependencies(file) {
   const source = readFileSync(join(ASSETS_DIR, file), 'utf8')
   const dependencies = new Set()
-  for (const [, specifier] of source.matchAll(STATIC_SPECIFIER)) {
+  // Only declarations create static edges; strings, comments and dynamic
+  // import expressions may contain identical-looking specifiers.
+  const parsed = ts.createSourceFile(file, source, ts.ScriptTarget.Latest)
+  for (const statement of parsed.statements) {
+    if (!ts.isImportDeclaration(statement) && !ts.isExportDeclaration(statement)) continue
+    const literal = statement.moduleSpecifier
+    if (!literal || !ts.isStringLiteral(literal)) continue
+    const specifier = literal.text
     if (!specifier.endsWith('.js')) continue
     const name = basename(specifier)
-    if (name !== file && jsFiles.includes(name)) dependencies.add(name)
+    if (sizes.has(name)) dependencies.add(name)
+    else failures.push(`missing static chunk ${specifier} imported by ${file}`)
   }
   return dependencies
 }
@@ -78,7 +83,7 @@ while (queue.length > 0) {
   }
 }
 
-/** Tarjan's strongly connected components; each one of 2+ chunks is a cycle. */
+/** Tarjan's strongly connected components, including static self-imports. */
 function importCycles(graph) {
   let index = 0
   const stack = []
@@ -108,7 +113,7 @@ function importCycles(graph) {
       onStack.delete(member)
       component.push(member)
     } while (member !== file)
-    if (component.length > 1) cycles.push(component.sort())
+    if (component.length > 1 || graph.get(file).has(file)) cycles.push(component.sort())
   }
   for (const file of graph.keys()) if (!indexOf.has(file)) visit(file)
   return cycles
@@ -123,7 +128,6 @@ const gatedCycles = importCycles(edges).filter((cycle) =>
   cycle.some((file) => closure.has(file) || file.startsWith('vendor-')),
 )
 
-const failures = []
 const fmt = (n) => `${n.toLocaleString('en-US')} B`
 const over = (what, actual, budget) =>
   failures.push(`${what}: ${fmt(actual)} exceeds budget ${fmt(budget)}`)
