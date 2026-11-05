@@ -1,10 +1,6 @@
-// A goal for one Portal, one Portal Group, or the average private rating — what
-// its page read returns (types only; ADR 0068, PLAN PG-21).
-//
-// No zod and no values: a component imports these with `import type`, so
-// nothing here reaches a bundle (PLAN E10). The server decides every state,
-// day and number; the page only words them (PLAN E12). Days are
-// Property-local `YYYY-MM-DD`, months `YYYY-MM`.
+// Browser-safe types for a Portal, Portal Group or average goal's page (ADR 0068).
+// The server decides states, days and numbers.
+// Days are Property-local YYYY-MM-DD; months are YYYY-MM.
 
 import type { GoalMetric } from '../../domain/goal-program'
 import type { GoalListProgress } from '../use-cases/goal-list-progress'

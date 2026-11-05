@@ -1,17 +1,7 @@
-// Property Google rating goal — what one low review set the goal back (pure, exact).
-//
-// Round 5 (PLAN-D D-2b, E20; the owner's exception, ADR 0067 2026-10-17): the
-// tracking page names the low reviews since the set and says how many new
-// reviews each one added to the goal. Since PR C the average the goal assumes
-// blends the plan (counted as 15 reviews) with every review since the set, so
-// one review moves both Google's average and that blend; a fixed-average
-// formula would be off by two to ten times. The setback is therefore a
-// counterfactual measured today, against the goal (not the headline's nearer
-// number): the count the goal needs now, less the same with that review taken
-// off Google's count and star sum and off the totals since the set, with the
-// average worked out again by `trackingMix` (its floor before the tenth review
-// and its switch to the reviews' own average while they are too low). Both
-// counts are un-ceiled ratios, so two ceilings cannot add a review of jitter.
+// A review changes both Google's average and the plan/review blend (ADR 0067).
+// Measure setback against the goal today: needed reviews now minus needed reviews
+// with that review removed from both totals, recomputing trackingMix and its floor.
+// Use un-ceiled ratios so subtracting ceilings cannot add a review of jitter.
 
 import {
   compareRatios,

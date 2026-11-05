@@ -1,9 +1,5 @@
-// Monthly portal goal — what the goal page read returns (types only).
-//
-// No zod and no values: a component imports these with `import type`, so
-// nothing here reaches a bundle (PLAN E10). The server decides every state,
-// day and number; the page only words them (PLAN E12). Days are
-// Property-local `YYYY-MM-DD`, months `YYYY-MM`.
+// Browser-safe types for the goal page. The server decides states, days and numbers.
+// Days are Property-local YYYY-MM-DD; months are YYYY-MM.
 
 import type { GoalProgramBundle } from '../ports/goal-program.repository'
 import type { GoalListProgress } from '../use-cases/goal-list-progress'
@@ -12,7 +8,7 @@ import type { PortalGoalCardView } from './monthly-portal-goal.types'
 
 /**
  * What a month of the history counted: private ratings or scans, or, on the
- * average's own page (PLAN PG-21), the average private rating.
+ * average's own page, the average private rating.
  */
 export type PortalGoalPageMeasure = PortalGoalMeasure | 'portal_rating_average'
 

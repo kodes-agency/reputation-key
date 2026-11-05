@@ -1,6 +1,4 @@
-// Dashboard context — portal analytics server function
-// Per architecture: "Server functions are the HTTP entry points into a context."
-// Resolves tenant context from authenticated session, NOT from client payload.
+// Resolve tenant scope from the authenticated session, never the client payload.
 
 import { createServerFn } from '@tanstack/react-start'
 import { tracedHandler } from '#/shared/observability/traced-server-fn'

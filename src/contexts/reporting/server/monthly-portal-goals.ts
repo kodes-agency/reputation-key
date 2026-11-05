@@ -1,20 +1,9 @@
-// Monthly portal goal — server functions (ADR 0068).
-//
-// Never statically imported. `routes/…/goals/-portal-goal-queries.ts` reaches
-// this module only by its own `import()`, so it stays a chunk of its own,
-// fetched beside the first read: a server-function module that two entries
-// share is grouped with the stubs first paint loads (PLAN §0.2, §3.3). It
-// imports no other server-function module, and its validators come only from
-// the lazy `monthly-portal-goal.dto.ts`, never from first-paint
-// `goal-program.dto.ts`; the reads are typed in `monthly-portal-goal.types.ts`.
-//
-// Each handler runs through `withGoalPrograms`, so every read and the set ask
-// the execution policy (capability `goal.use`, the Property grant) for
-// `goal.create` before anything is read; a change and the check-in's Keep ask
-// it for `goal.update`, and Stop for `goal.cancel`. The Overview prompt's
-// "Not now" and a Portal's Results line ask for `goal.create`, as the card. A
-// change and a stop never reach `server/goal-programs.ts`: this module imports
-// no other server-function module (PLAN §0.2, E10).
+// Keep this RPC module behind its own dynamic import. Sharing it with first-paint
+// entries or importing other RPC modules would merge its chunk. Validators stay
+// in the lazy monthly-portal-goal.dto.ts; read contracts are types only.
+// withGoalPrograms checks goal.use, Property access and the operation's permission
+// before reading: create for reads/set/deferral, update for change/Keep, cancel for Stop.
+
 import { createServerFn } from '@tanstack/react-start'
 import { tracedHandler } from '#/shared/observability/traced-server-fn'
 // For `.validator(...)` only: never re-exported (an `export … from` would keep
@@ -211,7 +200,7 @@ export const getMonthlyPortalGoalLine = createServerFn({ method: 'GET' })
     ),
   )
 
-/** A goal for one Portal, one Portal Group or the average: its own page (PLAN PG-21). */
+/** A goal for one Portal, one Portal Group or the average: its own page. */
 export const getPortalGoalSinglePage = createServerFn({ method: 'GET' })
   .validator(portalGoalSinglePageSchema)
   .handler(

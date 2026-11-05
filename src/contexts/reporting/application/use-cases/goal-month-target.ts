@@ -1,13 +1,7 @@
-// Goal Program use cases — changing the target of a month that is still running.
-//
-// A month opens on its version's target and can take one of its own while it
-// runs; once its period ends the target is locked. The change never touches a
-// version: versions keep the target they were written with, so the months that
-// closed under them keep theirs. When the manager also wants the new target for
-// the months after, that is a new version from the next month, written in the
-// same transaction as the month, the log of the change and the audit row. What
-// happened to the months after is decided before anything is written and stored
-// with the change. The service composes `changeMonthTarget` (goal-programs.ts).
+// A month's target locks at period end. Changing it preserves version targets
+// and closed months. Applying it to future months writes a new version in the
+// same transaction as the month target, change log and audit row.
+
 import {
   firstFullMonthlyPeriodAtOrAfter,
   monthKeyOf,

@@ -1,54 +1,15 @@
 import { ratingSubjectSkipsPrivateRating } from '../goal-rating-eligibility'
-// Reporting — setting the Property's Monthly portal goal (ADR 0068, PLAN PG-09).
-//
-// The card's Use (and, later, the set sheet) makes an ordinary Goal Program:
-// named "Monthly portal goal", with the Property as its one subject, counting
-// private ratings or scans, from the month the card named. It asks the policy
-// for `goal.create` before anything is read. One per Property is a screen rule
-// and this pre-check, not a lock or a database rule: while any Property count
-// goal that has not ended exists, on either measure, a set is refused
-// `subject_has_goal`. Two sets in the same second on one measure meet the
-// database's no-overlap rule instead, which refuses the second the same way
-// (when the two inserts deadlock in that check, the repository runs the victim
-// once more, and it meets the winner); on two measures both can land, and the
-// earliest-created is the monthly goal.
-//
-// The number's source is stored for learning (decision 11): `recommended` only
-// when the number is the one the card would offer for that month and measure
-// now, otherwise `own`, whatever the request said. The engine (`createGoal`)
-// refuses a target or a month it does not take, an Organization that is
-// closing, and decides scheduled or active.
-//
-// Changing it (PLAN PG-14) is the engine's own commands, each wrapped to work
-// on the Monthly portal goal only, and to record the number's source the same
-// way: "November, now" changes the running month and the months after it
-// (`changeMonthTarget`, `goal.update`); "From Dec 1" and "Count scans instead"
-// change it from its next month (`revise`, `goal.update`), the Property still
-// its one subject. Stop ends it (`goal.cancel`): the month it is counting
-// keeps counting to its last day and keeps its result, and the months after
-// are free for a new goal. Each asks the policy first, before anything is read.
-//
-// The month-start check-in (PLAN PG-15): its "Use 45" is the change now, with
-// the number the sheet recommends for the month now, so it is recorded as
-// recommended like any other; its Keep (`goal.update`) records the
-// month it answered and nothing else: no version, no change row, the same
-// again when pressed twice. Keep is taken only on the running month's first
-// seven local days (`check_in_closed` otherwise) and only from a goal that
-// runs.
-//
-// The Overview's "Not now" on the ready prompt (PLAN PG-16; `goal.create`, as
-// the read that shows the prompt) records the month the prompt named, for the
-// Property: it hides that month's prompt, never a later month's. A month
-// already gone (a tab left open since) is taken and changes nothing; a month
-// after next month's, which no prompt names, is refused.
-//
-// A goal for one Portal or one Portal Group takes the same changes from its own
-// page (PLAN PG-21), its one subject kept, and its number recorded as
-// recommended against its own numbers (the recommendation narrowed to it).
-// The average takes a change of its level, now or from its next month, always
-// the manager's own number (there is none to recommend), and never of what it
-// measures. Every one of them takes Stop, a goal for several subjects too (its
-// plain page offers nothing else).
+// Monthly Property count goals use ordinary Programs (ADR 0068). Authorize before
+// reading. The cross-measure pre-check is not a lock: same-measure races meet
+// the database overlap rule, but concurrent different measures can both land.
+// The earliest-created non-ended goal is selected for the card.
+// Recompute recommended/own provenance from the current offer, not request claims.
+// Changes use the engine's month-target/revision commands; Stop preserves the
+// final counting month. Keep answers only during its first seven local days,
+// idempotently without a version or change row. Deferrals hide their month and
+// earlier prompts; expired months are no-ops, months after next are refused.
+// Portal/group pages keep their subject and use narrowed offers. Averages keep
+// their measure and use own targets; several-subject goals retain Stop.
 import type { GoalMetric, GoalSubject } from '../../domain/goal-program'
 import { goalStartOptions, monthKeyOf } from '../../domain/goal-start'
 import type { PortalGoalMeasure } from '../../domain/goal-recommendation-types'
@@ -243,7 +204,7 @@ function theMonthlyGoal(
 type Changed = Readonly<{ goal: GoalProgramBundle; subject: GoalSubject }>
 
 /**
- * The Program asked for, when a change is made to it here (PLAN PG-21): a count
+ * The Program asked for, when a change is made to it here: a count
  * goal for one Portal or one Portal Group, the average private rating, or else
  * the Property's Monthly portal goal. A count's number is recorded as
  * recommended against the subject's own.

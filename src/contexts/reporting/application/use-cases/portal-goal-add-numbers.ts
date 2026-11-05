@@ -1,27 +1,9 @@
-// Reporting — the numbers "Add a portal goal" offers for one Portal or one
-// Portal Group (ADR 0068, PLAN PG-20). Pure.
-//
-// The Monthly portal goal's rule (`goal-recommendation.ts`), on a subject of
-// its own, in the month and measure the Property's recommendation offers (this
-// month through the 20th local day, else the next; private ratings, or scans
-// when the Portals had scans but no private ratings):
-//
-// - a Portal's rate is its own, once it has 2 weeks live, and this month's
-//   choices stand on its own month so far;
-// - a Portal Group's rate is the sum of its members' now (each with 2 weeks
-//   live), and its month so far is every reading recorded with the group,
-//   whatever Portal it came from then: a Portal that moved on the 10th counts
-//   in its old group until then and in its new one after (G19).
-//
-// A measure with a reading the governed read would quarantine, in the basis or
-// this month, has no number (the same caution as the Property's: a suggestion
-// never stands on a reading it cannot trust). Its live days are not told apart
-// here, so a flagged day of the basis on which the Portal was not live counts
-// too: it errs toward no number, never toward a wrong one.
-//
-// A goal for one Portal or one Portal Group stands on the same scope once it is
-// set (PLAN PG-21): its page's usual and its change sheet's offers come from the
-// Property's recommendation narrowed to it (`narrowedFor`).
+// Apply the Property recommendation rule to one Portal or Portal Group (ADR 0068).
+// Rates use current members with two live weeks; month totals use the group
+// recorded at event time, so moving a Portal preserves its earlier group's counts.
+// A quarantined basis/current day yields no offer, conservatively even if that
+// basis day was not live. Single-subject page/change offers use the same narrowed scope.
+
 import {
   narrowedRecommendation,
   subjectRecommendation,
@@ -200,8 +182,8 @@ const UNLISTED: SubjectScope = {
 }
 
 /**
- * The Property's recommendation narrowed to one Portal or one Portal Group
- * (PLAN PG-21): every month and measure of its own numbers, for the page and
+ * The Property recommendation narrowed to one Portal or Portal Group:
+ * every month and measure of its own numbers, for the page and
  * the change sheet of a goal set for it. A Portal Portal no longer lists has no
  * number and no month so far.
  */

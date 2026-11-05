@@ -1,15 +1,7 @@
-// Reporting — the Monthly portal goal's month-start check-in, on its card (ADR
-// 0068 decision 8, PLAN PG-15).
-//
-// The rule is the domain's (`monthlyCheckIn`); this gathers what it is asked
-// about from the goal as the card read it: the month running now and the
-// number it is judged against (from what a change is made against, so a
-// check-in is only asked while its month can take "Use 45"), the goal's first
-// month, the month a manager answered with Keep, whether this month's own
-// number has been changed since it began (Use, or another number through the
-// sheet), and the number recommended for the month in what it counts. The
-// month's days are the goal's own, cut in the zone its month was cut in.
-// Nothing here writes; Keep is its own command.
+// Gather the domain check-in inputs from the card's goal and its own calendar
+// (ADR 0068). Ask only while the running month can change; Keep and any change
+// to this month's target answer it. This read writes nothing.
+
 import { monthKeyOf } from '../../domain/goal-start'
 import { monthlyCheckIn } from '../../domain/portal-goal-check-in'
 import type { PortalGoalRecommendation } from '../dto/goal-recommendation.types'

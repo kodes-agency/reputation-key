@@ -1,18 +1,8 @@
-// Reporting — what a change to the Monthly portal goal is made against (ADR
-// 0068, PLAN PG-14).
-//
-// The sheet's two ways to change the goal are the engine's own commands, so it
-// is told what each of them checks: "November, now" changes the running month
-// and the months after it (the month-target plan: the month, its number now,
-// the version, and the month the months after start with; or the month alone,
-// while a change of the other measure waits for the next); "From Dec 1" and
-// "Count scans instead" change the goal from its next month (the month the
-// next revision starts with). Its last day, a month can still change: a
-// month's number locks only once the month has ended. The sheet opens on now
-// through the 20th local day, as a new goal does, and on the next month after
-// it, so a raise late in a month never makes it "below pace" unasked. A
-// stopped goal takes no change; once its windows have ended a new goal can
-// start, which the stopped card offers when the set sheet has that month. Pure.
+// The change sheet describes the engine's month-target and revision commands
+// (ADR 0068). The current month stays editable through its last day; default to
+// the next month after local day 20 to avoid an unasked late below-pace raise.
+// A stopped goal cannot change; offer a new one only after its windows end.
+
 import {
   defaultGoalStartMonth,
   firstFullMonthlyPeriodAtOrAfter,
@@ -27,8 +17,7 @@ import type { GoalProgramBundle } from '../ports/goal-program.repository'
 
 /**
  * What a change is sent against, as of `now`; null once the goal has ended.
- * A Portal's, a group's or the average's goal stops against the same facts
- * (PLAN PG-21).
+ * Portal, group and average goals stop against the same facts.
  */
 export function changeFactsOf(
   bundle: GoalProgramBundle,
