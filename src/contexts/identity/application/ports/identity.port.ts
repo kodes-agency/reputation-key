@@ -23,6 +23,13 @@ export type MemberRecord = Readonly<{
   createdAt: Date
 }>
 
+export type MemberListOptions = Readonly<{
+  /** Staff-only logins are not part of the manager directory. */
+  excludeStaff?: boolean
+  limit?: number
+  offset?: number
+}>
+
 /**
  * A signed-in user's own invitation (listUserInvitations). The Members page
  * reads OrganizationInvitation from the invitation read model instead.
@@ -76,10 +83,16 @@ export type IdentityPort = Readonly<{
     expectedAuthIds?: RegistrationAuthIds,
   ) => Promise<string>
 
-  /** List members of the active organization. */
-  listMembers: (ctx: AuthContext) => Promise<ReadonlyArray<MemberRecord>>
+  /** List members in ctx.organizationId; without pagination, return every member. */
+  listMembers: (
+    ctx: AuthContext,
+    options?: MemberListOptions,
+  ) => Promise<ReadonlyArray<MemberRecord>>
 
-  /** Get a single member by ID within the active organization. */
+  /** Exact count across the organization, including comma-delimited owner roles. */
+  countOwners: (ctx: AuthContext) => Promise<number>
+
+  /** Get a single member by ID within ctx.organizationId, including staff logins. */
   getMember: (ctx: AuthContext, memberId: string) => Promise<MemberRecord | null>
 
   /** List invitations for the current user across all organizations. */

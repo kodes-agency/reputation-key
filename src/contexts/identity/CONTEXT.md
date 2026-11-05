@@ -103,6 +103,11 @@ under `infrastructure/`. Beta-feedback requests reach the triage store only
 through the build's `betaFeedback` capability (`submit`, `listMine`); the
 operator triage workflow stays with `scripts/ops`.
 
+The Identity adapter reads members through Organization-scoped member/user SQL.
+Unpaged callers receive the full roster; the manager directory excludes staff-only
+logins in SQL before pagination. Member-by-id reads and the exact owner count use
+the caller's Organization, independently of the session's active Organization.
+
 `updateOrganization` is composed once, in `build-organization-settings.ts`, with the
 logo cleanup it needs (the object delete is late-bound: the object store is built
 with Portal, after Identity); its server function calls `requests.updateOrganization`
