@@ -8,12 +8,14 @@ import security from 'eslint-plugin-security'
 import { builtinRules } from 'eslint/use-at-your-own-risk'
 import crossContextPublicApi from './eslint-rules/cross-context-public-api.mjs'
 import zodV4 from './eslint-rules/zod-v4.mjs'
+import queryState from './eslint-rules/query-state.mjs'
 
 // BQC-5.1: local rules enforcing what eslint-plugin-boundaries cannot express.
 const local = {
   rules: {
     'cross-context-public-api': crossContextPublicApi,
     'zod-v4': zodV4,
+    'query-state': queryState,
   },
 }
 
@@ -228,6 +230,20 @@ export default tseslint.config(
     ],
     plugins: { local },
     rules: { 'local/zod-v4': 'error' },
+  },
+
+  // Cache keys come from the shared factories, and only sign-in and a failed
+  // route's retry invalidate the whole router.
+  {
+    files: [
+      ...UI_SOURCES,
+      'src/hooks/**/*.{ts,tsx}',
+      'src/shared/hooks/**/*.{ts,tsx}',
+      'src/contexts/*/ui/**/*.{ts,tsx}',
+    ],
+    ignores: NOT_A_UI_SOURCE,
+    plugins: { local },
+    rules: { 'local/query-state': 'error' },
   },
 
   // ─── Architectural boundary enforcement ────────────────────────────
@@ -450,6 +466,14 @@ export default tseslint.config(
             {
               from: elementType('test-helpers'),
               allow: { to: fileCategory('composition-root') },
+            },
+            // The test dispatcher composes Feed consumers without opening that
+            // infrastructure to other shared helpers or production callers.
+            {
+              from: {
+                file: { path: 'src/shared/testing/notification-route-test-harness.ts' },
+              },
+              allow: { to: { file: { path: 'src/contexts/feed/infrastructure/**' } } },
             },
             {
               from: elementType('top-level'),
