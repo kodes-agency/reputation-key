@@ -462,13 +462,12 @@ describe.sequential('a Portal’s own look through its use cases (real PostgreSQ
     getAccessiblePropertyIds: async () => null,
     getAssignedPortals: async () => [],
   }
-  const depsOf = (portalOwnLookEnabled = true) => ({
+  const depsOf = () => ({
     portalRepo: createPortalRepository(getDb()),
     portalLookRepo: repository(),
     mediaRepo: createPortalMediaAssetRepository(getDb()),
     staffPublicApi,
     clock: () => NOW,
-    portalOwnLookEnabled,
   })
   const target = { propertyId: String(PROPERTY), portalId: String(SPA) }
   const failsWith = (code: string) => (error: unknown) =>
@@ -529,7 +528,7 @@ describe.sequential('a Portal’s own look through its use cases (real PostgreSQ
     ).rejects.toSatisfy(failsWith('media_not_found'))
   })
 
-  it('lets only an Account Admin save, never on an archived Portal, and not while switched off', async () => {
+  it('lets only an Account Admin save, never on an archived Portal', async () => {
     const own = { ...target, colours: { mode: 'own' as const, accentColour: ACCENT } }
 
     await expect(savePortalLookColours(depsOf())(own, MANAGER_CTX)).rejects.toSatisfy(
@@ -538,9 +537,6 @@ describe.sequential('a Portal’s own look through its use cases (real PostgreSQ
     await expect(
       savePortalLookColours(depsOf())({ ...own, portalId: String(OLD_BAR) }, ADMIN_CTX),
     ).rejects.toSatisfy(failsWith('portal_inactive'))
-    await expect(savePortalLookColours(depsOf(false))(own, ADMIN_CTX)).rejects.toSatisfy(
-      failsWith('feature_unavailable'),
-    )
     await expect(overrideRow()).resolves.toBeUndefined()
     await expect(overrideRow(OLD_BAR)).resolves.toBeUndefined()
     await expect(pageEditRows()).resolves.toEqual([])

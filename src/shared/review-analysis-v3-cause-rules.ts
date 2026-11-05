@@ -142,7 +142,6 @@ export function reviewCauseReproducesQuotation(input: {
   readonly issue: string | null
   readonly reviewText: string
 }): boolean {
-  if (input.thing === null || input.issue === null) return false
   const words = causeWords(input.thing, input.issue)
   for (let start = 0; start + 4 <= words.length; start += 1) {
     const window = words.slice(start, start + 4).join(' ')

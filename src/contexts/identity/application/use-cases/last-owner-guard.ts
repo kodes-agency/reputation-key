@@ -3,7 +3,6 @@
 // the organization's only owner away.
 
 import type { AuthContext } from '#/shared/domain/auth-context'
-import { isOwnerToken } from '#/shared/domain/roles'
 import { identityError } from '../../domain/errors'
 import type { IdentityPort } from '../ports/identity.port'
 
@@ -15,12 +14,11 @@ import type { IdentityPort } from '../ports/identity.port'
  * under the org advisory lock (TOCTOU backstop).
  */
 export async function assertAnotherOwnerRemains(
-  identity: Pick<IdentityPort, 'listMembers'>,
+  identity: Pick<IdentityPort, 'countOwners'>,
   ctx: AuthContext,
   refusal: string,
 ): Promise<void> {
-  const members = await identity.listMembers(ctx)
-  const ownerCount = members.filter((m) => isOwnerToken(m.rawRole)).length
+  const ownerCount = await identity.countOwners(ctx)
   if (ownerCount <= 1) {
     throw identityError('forbidden', refusal)
   }

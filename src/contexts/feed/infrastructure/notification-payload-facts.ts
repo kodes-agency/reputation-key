@@ -10,7 +10,7 @@
 //     name, locally collected Portal rating, platform enum, when the current
 //     wait began, actor ROLE,
 //     whether an approver gave a reason (never the reason), and registered
-//     display names (goal/badge/portal). The inbox row also holds a snippet, a
+//     display names (goal/portal). The inbox row also holds a snippet, a
 //     reviewer name and media — those are never read here.
 //  2. BEST EFFORT. A failed or empty lookup degrades the COPY, never loses the
 //     notification: every template renders correctly from `{}`. Each lookup is

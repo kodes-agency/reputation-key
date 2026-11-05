@@ -17,7 +17,6 @@ import { AuthedRouterDecorator } from '../../../../../.storybook/AuthedRouterDec
 import { PortalShare } from './portal-share'
 import type {
   DownloadPrintFinalInput,
-  DownloadPrintKitInput,
   SavePrintWordingInput,
 } from './portal-print-kit-types'
 import type { IssuedPortalLink, PortalShareMutations } from './portal-share-types'
@@ -124,9 +123,6 @@ const printKit = (
   }),
 ) => ({
   read,
-  downloadMutation: action<DownloadPrintKitInput, PortalPrintKitDownload>(
-    async () => TINY_PDF,
-  ),
   downloadFinalMutation: action<DownloadPrintFinalInput, PortalPrintKitDownload>(
     async () => TINY_PDF,
   ),

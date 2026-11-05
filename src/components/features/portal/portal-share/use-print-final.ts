@@ -1,5 +1,5 @@
 // The final Print cards section's state (final design spec §11), shown where the
-// server says PRINT_KIT_FINAL_ENABLED: what the manager has chosen, the print it
+// server says the print kit: what the manager has chosen, the print it
 // makes, the code the preview draws and the tile the file would print it on, why
 // the server would refuse the print, the first sheet, and the download. The
 // Portal's titles and look come from the same read as today's section

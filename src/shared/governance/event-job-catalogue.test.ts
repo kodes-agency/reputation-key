@@ -204,16 +204,6 @@ const UNSCANNED_JOB_PRODUCERS: Readonly<
     module: 'src/contexts/feed/infrastructure/jobs/immediate-email-enqueue.ts',
     evidence: 'immediateEmailDispatch(target.propertyId)',
   },
-  // Rolling drain only: nothing enqueues either name any more, and the job
-  // module says when both handlers can go.
-  'project-recent-activity': {
-    module: 'src/contexts/feed/infrastructure/jobs/project-recent-activity.job.ts',
-    evidence: 'drain-only BullMQ handlers',
-  },
-  'insert-activity-log': {
-    module: 'src/contexts/feed/infrastructure/jobs/project-recent-activity.job.ts',
-    evidence: 'Rolling-deployment drain identifier only',
-  },
 }
 
 describe('enabled job families without a schedule', () => {

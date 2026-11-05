@@ -145,7 +145,7 @@ describe.sequential('AI budget ledger (real PostgreSQL)', () => {
     await db.transaction((tx) => budget.settleAiOperation(tx, second, 0))
   })
 
-  it('reaps only reservations older than the TTL and gives their micros back to the window', async () => {
+  it('releases only stale unadmitted reservations at zero cost', async () => {
     const stale = await fixture.seedOperation()
     await expect(
       db.transaction((tx) => budget.admitAiOperation(tx, admission(stale))),
@@ -194,5 +194,43 @@ describe.sequential('AI budget ledger (real PostgreSQL)', () => {
       reservedMicros: before.reservedMicros,
       settledMicros: before.settledMicros,
     })
+    await db.transaction((tx) => budget.settleAiOperation(tx, fresh, 0))
+  })
+
+  it('charges a stale admitted reservation once and keeps its cost against the cap', async () => {
+    const stale = await fixture.seedOperation()
+    await expect(
+      db.transaction((tx) => budget.admitAiOperation(tx, admission(stale))),
+    ).resolves.toMatchObject({ ok: true })
+    await db
+      .update(aiOperations)
+      .set({
+        admissionNonce: 'admitted-reservation',
+        budgetReservedAt: sql`clock_timestamp() - interval '16 minutes'`,
+      })
+      .where(eq(aiOperations.id, stale))
+    const before = await window()
+
+    await expect(db.transaction(reapStaleAiReservations)).resolves.toBe(1)
+    await expect(operation(stale)).resolves.toMatchObject({
+      actualMicros: RESERVED,
+      budgetSettledAt: expect.any(Date),
+    })
+    const expectedWindow = {
+      reservedMicros: before.reservedMicros - RESERVED,
+      settledMicros: before.settledMicros + RESERVED,
+    }
+    await expect(window()).resolves.toMatchObject(expectedWindow)
+    await expect(db.transaction(reapStaleAiReservations)).resolves.toBe(0)
+    await expect(window()).resolves.toMatchObject(expectedWindow)
+
+    const next = await fixture.seedOperation()
+    await expect(
+      db.transaction((tx) => budget.admitAiOperation(tx, admission(next))),
+    ).resolves.toEqual({ ok: false, code: 'budget_exhausted' })
+    await expect(
+      db.transaction((tx) => budget.settleAiOperation(tx, stale, 0)),
+    ).rejects.toThrow(/different cost/)
+    await expect(window()).resolves.toMatchObject(expectedWindow)
   })
 })

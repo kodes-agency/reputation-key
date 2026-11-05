@@ -569,6 +569,30 @@ export function createV3Seed(db: Database, ids: SeededIds, options: SeedOptions 
     },
 
     /**
+     * Seeds one review the analysis settled without a result, as it does for a language it
+     * cannot read: its sequence is settled in the ledger and no analysis stands behind it.
+     */
+    async addExcludedReview(review: SeededReview): Promise<void> {
+      lastIndex = Math.max(lastIndex, sequenceOf(review))
+      await insertReview(review)
+      const settled = await aggregates.advanceWithoutAnalysis({
+        organizationId: organizationId(ids.organizationId),
+        propertyId: propertyId(ids.propertyId),
+        sourceEpoch: SOURCE_EPOCH,
+        reviewId: reviewId(seededReviewId(ids, review.index)),
+        analysisSequence: sequenceOf(review),
+        reviewAnalysisEpoch: REVIEW_ANALYSIS_EPOCH,
+        propertyProfileVersion: PROPERTY_PROFILE_VERSION,
+        dispositionCode: 'language_not_supported',
+      })
+      if (settled.status !== 'applied') {
+        throw new Error(
+          `The seed could not settle review ${review.index}: ${settled.status}`,
+        )
+      }
+    },
+
+    /**
      * A newer analysis of a review already seeded, under a higher sequence: the review's
      * current analysis from then on, and the older one a superseded answer beside which
      * a correction may still sit.

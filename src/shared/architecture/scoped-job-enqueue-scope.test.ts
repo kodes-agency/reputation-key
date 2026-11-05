@@ -16,8 +16,6 @@
 // and policy. It is exhaustive over the entry-point catalogue: a new scoped
 // family fails here until it names how it is enqueued.
 
-import { readFileSync } from 'node:fs'
-import { join, relative } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { Queue } from 'bullmq'
 import {
@@ -40,7 +38,6 @@ import {
 import { gateJob } from '#/shared/jobs/delayed-execution-gate'
 import type { OutboxRepository } from '#/shared/outbox'
 import { createMockLogger } from '#/shared/testing/mock-logger'
-import { walk } from '#/shared/testing/source-tree'
 import {
   createAnalyzeReviewNowEnqueue,
   createPropertyTrendEnqueue,
@@ -60,7 +57,6 @@ vi.mock('#/shared/observability/trace', () => ({
   trace: async (_name: string, fn: () => Promise<unknown>) => fn(),
 }))
 
-const ROOT = process.cwd()
 const ORGANIZATION = 'scoped-job-enqueue-organization'
 const PROPERTY = '5c09ed00-0000-4000-8000-000000000001'
 const ID = (suffix: number) =>
@@ -83,18 +79,10 @@ function createRecordingQueue() {
   return { queue: queue as unknown as Queue, jobs }
 }
 
-/** How a scoped family reaches the queue. */
-type ScopedJobEnqueue =
-  /** Drives the family's own producer; everything it enqueues is gated. */
-  | Readonly<{ kind: 'producer'; enqueue: (queue: Queue) => Promise<void> }>
-  /**
-   * Nothing enqueues the family any more: its handler only drains jobs queued
-   * before a rename. `enqueuedAs` are the spellings a producer would use.
-   */
-  | Readonly<{ kind: 'drain_only'; enqueuedAs: readonly string[] }>
+/** Drives a scoped family's producer; everything it enqueues is gated. */
+type ScopedJobEnqueue = Readonly<{ enqueue: (queue: Queue) => Promise<void> }>
 
 const producer = (enqueue: (queue: Queue) => Promise<void>): ScopedJobEnqueue => ({
-  kind: 'producer',
   enqueue,
 })
 
@@ -266,14 +254,6 @@ const SCOPED_JOB_ENQUEUE: Readonly<Record<string, ScopedJobEnqueue>> = {
       organizationId: ORGANIZATION,
     })
   }),
-  'project-recent-activity': {
-    kind: 'drain_only',
-    enqueuedAs: ["'project-recent-activity'", 'PROJECT_RECENT_ACTIVITY_JOB_NAME'],
-  },
-  'insert-activity-log': {
-    kind: 'drain_only',
-    enqueuedAs: ["'insert-activity-log'", 'LEGACY_INSERT_ACTIVITY_LOG_JOB_NAME'],
-  },
 }
 
 const SCOPED_JOB_ROWS: ReadonlyArray<EntryPointRow> = ENTRY_POINT_CATALOGUE.filter(
@@ -281,24 +261,6 @@ const SCOPED_JOB_ROWS: ReadonlyArray<EntryPointRow> = ENTRY_POINT_CATALOGUE.filt
     row.kind === 'job' &&
     (row.resourceScope === 'organization' || row.resourceScope === 'property'),
 )
-
-const rowsEnqueuedBy = (kind: ScopedJobEnqueue['kind']) =>
-  SCOPED_JOB_ROWS.filter((row) => SCOPED_JOB_ENQUEUE[row.name]?.kind === kind).map(
-    (row) => [row.name, row] as const,
-  )
-
-/** Production sources that pass one of these spellings to a queue as a job name. */
-function sourcesEnqueuing(spellings: readonly string[]): string[] {
-  const name = spellings.map((s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|')
-  const enqueue = new RegExp(
-    `\\badd\\(\\s*(?:${name})\\s*,|\\bname:\\s*(?:${name})\\s*,`,
-    'u',
-  )
-  return walk(join(ROOT, 'src'))
-    .filter((file) => file.endsWith('.ts') && !file.endsWith('.test.ts'))
-    .filter((file) => enqueue.test(readFileSync(file, 'utf8')))
-    .map((file) => relative(ROOT, file))
-}
 
 describe('scoped job families are enqueued with the scope the gate decides on', () => {
   const requests: DelayedDecisionRequest[] = []
@@ -334,11 +296,11 @@ describe('scoped job families are enqueued with the scope the gate decides on', 
     )
   })
 
-  it.each(rowsEnqueuedBy('producer'))(
+  it.each(SCOPED_JOB_ROWS.map((row) => [row.name, row] as const))(
     '%s is allowed for the Organization and Property its producer enqueued',
     async (jobName, row) => {
       const entry = SCOPED_JOB_ENQUEUE[jobName]
-      if (entry?.kind !== 'producer') throw new Error(`no producer for ${jobName}`)
+      if (entry === undefined) throw new Error(`no producer for ${jobName}`)
       const { queue, jobs } = createRecordingQueue()
 
       await entry.enqueue(queue)
@@ -361,19 +323,6 @@ describe('scoped job families are enqueued with the scope the gate decides on', 
           expect(requests[0]?.propertyId).toBe(PROPERTY)
         }
       }
-    },
-  )
-
-  it.each(rowsEnqueuedBy('drain_only'))(
-    '%s has no producer left to enqueue it without a scope',
-    (jobName) => {
-      const entry = SCOPED_JOB_ENQUEUE[jobName]
-      if (entry?.kind !== 'drain_only') throw new Error(`${jobName} is not drain-only`)
-
-      expect(
-        sourcesEnqueuing(entry.enqueuedAs),
-        `${jobName} is enqueued again: register its producer in SCOPED_JOB_ENQUEUE`,
-      ).toEqual([])
     },
   )
 })

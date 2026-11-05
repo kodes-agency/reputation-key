@@ -13,7 +13,6 @@ import {
   savePropertyPortalBrandContent,
   updatePortal,
 } from '#/contexts/portal/server/portals'
-import { downloadPortalPrintKit } from '#/contexts/portal/server/portal-print-kit'
 import { publishPortalChanges } from '#/contexts/portal/server/portal-publish-changes'
 import { updatePortalResponsibleManagers } from '#/contexts/portal/server/portal-responsible-managers'
 import type { Action } from '#/components/hooks/use-action'
@@ -247,10 +246,7 @@ export function usePortalDetailActions(propertyId: string, portalId: string) {
   const revealAddress = useActionMutation(revealPortalAddress)
   // Silent on success (the browser's own download is the acknowledgement); a
   // refusal is a toast, because a download is an immediate action.
-  const downloadPrintKit = useActionMutation(downloadPortalPrintKit, {
-    errorMessage: actionErrorMessage,
-  })
-  // The final print kit's download (PRINT_KIT_FINAL_ENABLED), silent the same way.
+  // The print download, silent the same way.
   // Loaded on first use: the first paint has no room for another server
   // function's stub, and only a manager who prints asks for it.
   const downloadPrintFinal = useActionMutation(downloadPortalPrintFinalLazily, {
@@ -319,7 +315,6 @@ export function usePortalDetailActions(propertyId: string, portalId: string) {
     rotateToken,
     revokeToken,
     revealAddress,
-    downloadPrintKit,
     downloadPrintFinal,
     savePrintWording,
     completeReview,

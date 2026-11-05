@@ -8,11 +8,7 @@
 // to roles that have one; a property is its own Reviews page.
 
 import type { InboxPropertyCounts } from '#/contexts/inbox/application/public-api'
-import {
-  matchesPropertySearch,
-  offersPropertySearch,
-  sortPropertiesByName,
-} from '#/components/property/property-search'
+import { sortPropertiesByName } from '#/components/property/property-search'
 
 export type InboxScopeProperty = Readonly<{ id: string; name: string }>
 
@@ -40,20 +36,6 @@ export function sortScopeProperties(
 /** One property is not a choice, so it gets no section and no menu. */
 export function offersPropertyScope(properties: ReadonlyArray<unknown>): boolean {
   return properties.length > 1
-}
-
-/** Typing into a list you can read at a glance is noise, so short lists have
- * no search field. */
-export function offersScopeSearch(properties: ReadonlyArray<unknown>): boolean {
-  return offersPropertySearch(properties.length)
-}
-
-/**
- * Whether a property name answers a search, by the one rule every property
- * picker in the product uses (`#/components/property/property-search`).
- */
-export function matchesScopeSearch(name: string, search: string): boolean {
-  return matchesPropertySearch(name, search)
 }
 
 /** A scope row's count: the organization total for "All properties" (null). */

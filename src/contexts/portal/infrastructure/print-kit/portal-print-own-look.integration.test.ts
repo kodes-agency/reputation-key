@@ -215,7 +215,6 @@ async function harness() {
       mediaRepo,
       lastPrintRepo: createPortalLastPrintRepository(db),
       wordingRepo: createPortalPrintWordingRepository(db),
-      finalKitEnabled: true,
     }),
     make: createPortalPrintFinal({
       portalRepo,
@@ -235,12 +234,11 @@ async function harness() {
         address: {
           appOrigin: BASE_URL,
           printOrigin: PRINT_ORIGIN,
-          printCodesEnabled: true,
         },
       }),
       renderer,
       propertyCountry: createPropertyCountryReader(db),
-      finalKitEnabled: true,
+
       lastPrintRepo: createPortalLastPrintRepository(db),
       wordingRepo: createPortalPrintWordingRepository(db),
       clock: () => new Date('2026-10-26T10:00:00Z'),

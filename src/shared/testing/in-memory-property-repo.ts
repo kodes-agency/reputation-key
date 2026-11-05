@@ -37,22 +37,6 @@ export const createInMemoryPropertyRepo = (): InMemoryPropertyRepo => {
           (excludeId === undefined || p.id !== excludeId),
       ),
 
-    insert: async (_orgId, property) => {
-      store.set(property.id, property)
-    },
-
-    update: async (orgId, id, patch) => {
-      const existing = store.get(id)
-      if (!existing || !isAccessible(orgId, existing)) return
-      store.set(id, { ...existing, ...patch })
-    },
-
-    hardDelete: async (orgId, id) => {
-      const existing = store.get(id)
-      if (!existing || !isAccessible(orgId, existing)) return
-      store.delete(id)
-    },
-
     listByGbpLocationId: async (gbpLocationId) =>
       [...store.values()]
         .filter(
@@ -68,14 +52,6 @@ export const createInMemoryPropertyRepo = (): InMemoryPropertyRepo => {
       [...store.values()]
         .filter((p) => isAccessible(orgId, p) && p.googleConnectionId === connectionId)
         .map((p) => p.id),
-
-    insertAndReturn: async (orgId, property) => {
-      if (property.organizationId !== orgId) {
-        throw new Error('Tenant mismatch on property insert')
-      }
-      store.set(property.id, property)
-      return property
-    },
 
     // ── Test-only helpers ───────────────────────────────────────────
 

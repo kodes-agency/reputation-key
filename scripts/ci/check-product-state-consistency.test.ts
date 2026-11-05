@@ -152,7 +152,7 @@ describe('product-state consistency audit', () => {
 
   it('includes production shared-hook roots in the repository inventory', () => {
     expect(loadProductStateLedger(process.cwd()).scope).toEqual(
-      expect.arrayContaining(['src/hooks', 'src/shared/hooks']),
+      expect.arrayContaining(['src/shared/hooks']),
     )
   })
 

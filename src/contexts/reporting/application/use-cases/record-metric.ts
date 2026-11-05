@@ -7,7 +7,6 @@ import type {
 } from '#/shared/domain/ids'
 import { secondaryPortalLinkId } from '../../domain/portal-link-attribution'
 import type { AttributionQuality } from '../../domain/attribution-quality'
-import { metricRecorded } from '../../domain/metric-events'
 import {
   createReading,
   type ReadingDataQuality,
@@ -212,25 +211,6 @@ export async function buildRecordMetricEntry(
       reading,
       supersedesSourceEventId: input.supersedesSourceEventId ?? null,
       portalLifetimeFact,
-      event: metricRecorded({
-        readingId: reading.id,
-        organizationId: reading.organizationId,
-        propertyId: reading.propertyId,
-        portalId: reading.portalId,
-        portalGroupId: reading.portalGroupId,
-        definitionVersionId: reading.definitionVersionId,
-        sourceEventId: reading.sourceEventId,
-        sourcePolicy: reading.sourcePolicy,
-        metricKey: reading.metricKey,
-        value: reading.value,
-        numerator: reading.numerator,
-        denominator: reading.denominator,
-        sampleCount: reading.sampleCount,
-        attributionQuality: reading.attributionQuality,
-        permittedConsumers: version.permittedConsumers,
-        occurredAt: reading.occurredAt,
-        staffAttribution: reading.staffAttribution,
-      }),
     },
   }
 }

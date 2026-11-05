@@ -1,8 +1,7 @@
 // Portal context — give one Portal its own colours, or its own name and logo,
 // or put either back to the Property's (ADR 0070).
 //
-// Only an Account Admin may, as for the Property look itself, and only while
-// PORTAL_OWN_LOOK_ENABLED is on. A value left out keeps the Portal's own, or is
+// Only an Account Admin may, as for the Property look itself. A value left out keeps the Portal's own, or is
 // the Property's when the group becomes the Portal's, so "Set colours for this
 // portal" copies what guests already see and moves nothing. The write decides
 // what guests would see differently and records only that, as a page edit of

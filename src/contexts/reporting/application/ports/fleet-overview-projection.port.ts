@@ -1,5 +1,4 @@
 import type { OrganizationId, PropertyId, UserId } from '#/shared/domain/ids'
-import type { FleetMetricEvidence } from '../../domain/dashboard-types'
 import type { GoogleSnapshotFigures } from '../../domain/google-numbers'
 import type { RatingGoalMode, RatingGoalStatus } from '../../domain/rating-goal'
 
@@ -18,11 +17,8 @@ export type FleetCursorAnchor = Readonly<{
 export type FleetOverviewProjectionInput = Readonly<{
   organizationId: OrganizationId
   accessiblePropertyIds: readonly PropertyId[] | null
-  portalReadEnabled: boolean
   goalReadEnabled: boolean
   cursor: FleetCursorAnchor | null
-  /** Null means the unbounded All Time period; otherwise local calendar days. */
-  periodDays: number | null
   now: Date
 }>
 
@@ -31,21 +27,11 @@ export type FleetOverviewProjectionRow = Readonly<{
   name: string
   slug: string
   timezone: string
-  reviewCount: number
-  priorReviewCount: number
-  avgRating: number | null
-  priorAvgRating: number | null
-  scanCount: number
-  feedbackCount: number
-  overdue: number
   itemsToTriage: number
   escalated: number
   goalsBehindPace: number
-  /** Distinct Inbox work anchors plus goals behind pace, before rating-drop signal. */
+  /** Distinct Inbox work anchors plus goals behind pace. */
   needsAttention: number
-  reviewEvidence: FleetMetricEvidence
-  scanEvidence: FleetMetricEvidence | null
-  feedbackEvidence: FleetMetricEvidence | null
   /**
    * The Current on Google snapshot at the Property's current binding epoch,
    * and whether that binding is active now; null when Google sent none.
@@ -69,8 +55,6 @@ export type FleetOverviewProjectionResult = Readonly<{
   rows: readonly FleetOverviewProjectionRow[]
   summary: Readonly<{
     propertyCount: number
-    ratingSampleCount: number
-    overallAvgRating: number
     totalAttention: number
   }>
   nextAnchor: FleetCursorAnchor | null

@@ -58,7 +58,6 @@ async function harness() {
       staffPublicApi,
       wordingRepo,
       clock: () => new Date('2026-10-27T10:00:00Z'),
-      finalKitEnabled: true,
     }),
     read: getPortalPrintKit({
       portalRepo,
@@ -67,7 +66,6 @@ async function harness() {
       mediaRepo: createPortalMediaAssetRepository(db),
       lastPrintRepo: createPortalLastPrintRepository(db),
       wordingRepo,
-      finalKitEnabled: true,
     }),
     ctx: buildTestAuthContext({ organizationId: WORKING_COPY_ORG }),
   }

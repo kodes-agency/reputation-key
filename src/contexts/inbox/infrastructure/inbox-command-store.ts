@@ -283,7 +283,7 @@ async function tryUpdateItemRow(
   return result[0] ? itemFromRow(result[0]) : null
 }
 
-/** Single-row update mirroring InboxRepository's not_found contract. */
+/** Update one item under its command revision fence. */
 async function updateItemRow(
   tx: Tx,
   item: InboxItem,
@@ -1488,106 +1488,6 @@ export const createAtomicInboxCommandStore = (
       )
     },
 
-    updateStatus: async (item, updates, event, now) => {
-      const stamp = now ?? clock()
-      if (event === null || updates.status !== 'closed' || item.status !== 'open') {
-        return transition(
-          'inbox.commandStore.updateStatus',
-          item,
-          {
-            status: updates.status,
-            updatedAt: stamp,
-            ...updates.timestampFields,
-          },
-          'Inbox item status update failed — no row returned',
-          event,
-          stamp,
-        )
-      }
-      if (item.sourceType !== 'feedback') {
-        throw inboxError(
-          'invalid_input',
-          'Review Handling Cycles close only from provider authority',
-        )
-      }
-      const actorId = webActorId(event)
-      if (actorId === null) {
-        throw inboxError('invalid_input', 'Feedback close requires a user actor')
-      }
-      const saved = await db.transaction(async (tx) => {
-        const [headRow] = await tx
-          .select()
-          .from(inboxHandlingCycleHeads)
-          .where(
-            and(
-              eq(inboxHandlingCycleHeads.inboxItemId, item.id),
-              eq(inboxHandlingCycleHeads.organizationId, item.organizationId),
-              eq(inboxHandlingCycleHeads.sourceType, 'feedback'),
-              eq(inboxHandlingCycleHeads.sourceId, item.sourceId),
-            ),
-          )
-          .for('update')
-          .limit(1)
-        if (!headRow || headRow.status !== 'open') {
-          throw inboxError(
-            'revision_conflict',
-            'Feedback Handling Cycle changed; reload current state',
-          )
-        }
-        await assertCommandAuthority(
-          tx,
-          item.organizationId,
-          stamp,
-          authorityRequirements(item, actorPrincipals(item, event)),
-        )
-        const decision = closeHandlingCycle({
-          current: handlingCycleHeadFromRow(headRow),
-          closeReason: 'private_feedback_handled',
-          actorType: 'user',
-          actorUserId: userId(actorId),
-          triggerEventId: event.eventId,
-          closedAt: stamp,
-        })
-        if (decision.isErr()) throw decision.error
-        const cycleFact = lifecycleFactFor(decision.value.transition)
-        await tx
-          .insert(inboxHandlingCycleTransitions)
-          .values(transitionInsert(decision.value.transition, stamp))
-        const [updatedHead] = await tx
-          .update(inboxHandlingCycleHeads)
-          .set({
-            stateRevision: decision.value.head.stateRevision,
-            status: 'closed',
-            updatedAt: stamp,
-          })
-          .where(
-            and(
-              eq(inboxHandlingCycleHeads.inboxItemId, item.id),
-              eq(inboxHandlingCycleHeads.stateRevision, headRow.stateRevision),
-              eq(inboxHandlingCycleHeads.status, 'open'),
-            ),
-          )
-          .returning({ id: inboxHandlingCycleHeads.inboxItemId })
-        if (!updatedHead) {
-          throw inboxError('revision_conflict', 'Feedback Handling Cycle changed')
-        }
-        const saved = await updateItemRow(
-          tx,
-          item,
-          {
-            status: 'closed',
-            updatedAt: stamp,
-            ...updates.timestampFields,
-          },
-          'Feedback Inbox item close failed',
-        )
-        await insertOutboxRow(tx, event)
-        await insertOutboxRow(tx, cycleFact)
-        return saved
-      })
-      return saved
-    },
-
     reopenReviewCycle: async (command) => {
       return trace('inbox.commandStore.reopenReviewCycle', async () => {
         const { item, fact, expected, now } = command
@@ -2579,107 +2479,6 @@ export const createAtomicInboxCommandStore = (
       })
     },
 
-    applyReviewUpdatedOnce: async (command) => {
-      return trace('inbox.commandStore.applyReviewUpdatedOnce', async () => {
-        await db.transaction(async (tx) => {
-          if (!(await reserveReceiptRow(tx, command.eventId, command.consumerName)))
-            return
-          const [headRow] = await tx
-            .select()
-            .from(inboxHandlingCycleHeads)
-            .where(
-              and(
-                eq(inboxHandlingCycleHeads.inboxItemId, command.item.id),
-                eq(inboxHandlingCycleHeads.organizationId, command.item.organizationId),
-                eq(inboxHandlingCycleHeads.sourceType, 'review'),
-                eq(inboxHandlingCycleHeads.sourceId, command.item.sourceId),
-              ),
-            )
-            .for('update')
-            .limit(1)
-          if (!headRow) {
-            throw inboxError(
-              'not_found',
-              'Review update is waiting for its Inbox Handling Cycle',
-            )
-          }
-          const current = handlingCycleHeadFromRow(headRow)
-          const revision = command.materialReviewRevision ?? null
-          let cycleFacts: ReadonlyArray<DomainEvent> = []
-          if (revision !== null && revision > current.currentSourceRevision) {
-            const decision = createNextHandlingCycle({
-              current,
-              sourceRevision: revision,
-              openedReason: 'material_revision_changed',
-              openedBy: null,
-              actorType: 'provider',
-              triggerEventId: command.eventId,
-              openedAt: command.now,
-            })
-            if (decision.isErr()) throw decision.error
-            cycleFacts = await insertNextHandlingCycleDecision(
-              tx,
-              decision.value,
-              command.now,
-              command.responseTarget,
-            )
-            const [advanced] = await tx
-              .update(inboxHandlingCycleHeads)
-              .set({
-                currentCycleNumber: decision.value.head.currentCycleNumber,
-                currentSourceRevision: decision.value.head.currentSourceRevision,
-                currentMaterialReviewRevision: decision.value.head.currentSourceRevision,
-                stateRevision: decision.value.head.stateRevision,
-                status: 'open',
-                updatedAt: command.now,
-              })
-              .where(
-                and(
-                  eq(inboxHandlingCycleHeads.inboxItemId, command.item.id),
-                  eq(inboxHandlingCycleHeads.organizationId, command.item.organizationId),
-                  eq(inboxHandlingCycleHeads.stateRevision, current.stateRevision),
-                  eq(
-                    inboxHandlingCycleHeads.currentSourceRevision,
-                    current.currentSourceRevision,
-                  ),
-                ),
-              )
-              .returning({ id: inboxHandlingCycleHeads.inboxItemId })
-            if (!advanced) {
-              throw inboxError(
-                'revision_conflict',
-                'Review Handling Cycle changed during material update',
-              )
-            }
-          }
-
-          // Projection metadata and any newly actionable cycle co-commit with
-          // the receipt. A stale/replayed revision cannot move the head back.
-          await tx
-            .update(inboxItems)
-            .set({
-              sourceDate: command.sourceDate,
-              platform: command.platform,
-              ...(cycleFacts.length > 0
-                ? { status: 'open' as const, closedAt: null }
-                : {}),
-              commandRevision: sql<number>`${inboxItems.commandRevision} + 1`,
-              updatedAt: command.now,
-            })
-            .where(
-              and(
-                eq(inboxItems.id, command.item.id),
-                eq(inboxItems.organizationId, command.item.organizationId),
-                eq(inboxItems.sourceType, 'review'),
-                eq(inboxItems.sourceId, command.item.sourceId),
-              ),
-            )
-          for (const fact of cycleFacts) await insertOutboxRow(tx, fact)
-        })
-        return 'applied' as const
-      })
-    },
-
     applyReviewSourceTransitionedOnce: async (command) => {
       return trace('inbox.commandStore.applyReviewSourceTransitionedOnce', async () => {
         const { closeFact, item } = command
@@ -2756,15 +2555,6 @@ export const createAtomicInboxCommandStore = (
           if (cycleFact) await insertOutboxRow(tx, cycleFact)
         })
 
-        return 'applied' as const
-      })
-    },
-
-    applyReplyPublishedOnce: async (command) => {
-      return trace('inbox.commandStore.applyReplyPublishedOnce', async () => {
-        await db.transaction(async (tx) => {
-          await insertReceiptRow(tx, command.eventId, command.consumerName, 'applied')
-        })
         return 'applied' as const
       })
     },

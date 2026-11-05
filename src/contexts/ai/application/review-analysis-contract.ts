@@ -68,7 +68,7 @@ export type ReviewAnalysisPreparation =
         provider?: ReviewAnalysisRequestProvider
       }>
     }>
-  /** A transient or configuration refusal: the review waits for it within its horizon. */
+  /** A transient or configuration refusal: the review waits until it is restored. */
   | Readonly<{ status: 'refused'; code: string }>
 
 export type ReviewAnalysisPreparationInput = Readonly<{

@@ -74,7 +74,6 @@ describe.sequential('Monthly portal goal set (integration)', () => {
       subjects: {
         getTimezone: async () => 'UTC',
         subjectBelongsToProperty: async () => true,
-        listCurrentPortalIds: async () => [],
       },
       metrics: {
         queryGoalMetric: async (query) => ({

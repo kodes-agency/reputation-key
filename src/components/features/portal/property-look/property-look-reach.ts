@@ -99,28 +99,27 @@ export const portalCountOf = (rows: readonly CountedRow[]): number =>
   rows.filter((row) => row.publicationState !== 'archived').length
 
 /**
- * Whether the page tells of portals having their own look: the switch is on and
- * a second portal exists, or a portal already has a part of its own (which stays
- * true to say after the switch is turned off). A property with one portal sees
- * nothing new.
+ * Whether the page tells of portals having their own look: a second portal
+ * exists, or a portal already has a part of its own. A property with one portal
+ * sees nothing new.
  */
-export function offersOwnLook(rows: readonly CountedRow[], enabled: boolean): boolean {
+export function offersOwnLook(rows: readonly CountedRow[]): boolean {
   const hasOwn = rows.some(
     (row) => row.publicationState !== 'archived' && ownPartsOf(sourcesOf(row)).length > 0,
   )
-  return hasOwn || (enabled && portalCountOf(rows) >= 2)
+  return hasOwn || portalCountOf(rows) >= 2
 }
 
 /**
- * Whether the rail links a portal to its Look section: an Account Admin, the
- * switch on, and a second portal (or the portal already has a part of its own,
- * so it can still be undone after the others are archived).
+ * Whether the rail links a portal to its Look section: an Account Admin, and a
+ * second portal (or the portal already has a part of its own, so it can still be
+ * undone after the others are archived).
  */
 export function offersLookEdit(
-  viewer: Readonly<{ canEdit: boolean; ownLookEnabled: boolean; portalCount: number }>,
+  viewer: Readonly<{ canEdit: boolean; portalCount: number }>,
   row: Sourced,
 ): boolean {
-  if (!viewer.canEdit || !viewer.ownLookEnabled) return false
+  if (!viewer.canEdit) return false
   return viewer.portalCount >= 2 || ownPartsOf(sourcesOf(row)).length > 0
 }
 

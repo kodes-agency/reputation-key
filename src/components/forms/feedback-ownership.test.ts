@@ -84,10 +84,6 @@ const RED_ALERT_PARAGRAPH =
   /<p\b(?=[^>]*role="alert")(?=[^>]*\btext-(?:destructive|negative)\b)[^>]*>/u
 
 const RED_PARAGRAPH_ALLOWED: Readonly<Record<string, string>> = {
-  'src/components/features/guest/public-portal/guest-private-feedback-form.tsx':
-    'the guest renderer, out of scope',
-  'src/components/features/guest/public-portal/guest-rating-form.tsx':
-    'the guest renderer, out of scope',
   'src/components/features/portal/portal-share/portal-code-block.tsx':
     'the copy fallback: it sits beside the address the person can select instead',
   'src/components/features/portal/portal-share/portal-link-reveal.tsx':

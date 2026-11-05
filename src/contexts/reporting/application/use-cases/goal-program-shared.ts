@@ -4,11 +4,9 @@ import {
 } from '../../domain/staff-target-eligibility'
 // Goal Program use cases — the pieces every command module shares.
 //
-// A leaf among the Goal Program modules: it imports none of goal-programs.ts,
-// goal-program-maintenance.ts or goal-program-assignment-changes.ts (only
-// types from query-goal-metric.ts), so all three can depend on it without a
-// cycle. It holds the service's dependency types, its error, and the pure
-// builders and resolvers that more than one command uses.
+// A leaf among the Goal Program modules: command and maintenance modules can
+// depend on it without a cycle. It holds the service's dependency types, its
+// error, and the builders and resolvers shared by commands.
 import {
   METRIC_VERSION_IDS,
   type GovernedMetricVersion,
@@ -95,15 +93,6 @@ export type GoalProgramSubjectReader = Readonly<{
     propertyId: string,
     subject: GoalSubject,
   ): Promise<boolean>
-  /**
-   * Returns a bounded request-time snapshot. The result is never persisted as
-   * a selector and therefore cannot assign Portals created after this call.
-   */
-  listCurrentPortalIds(
-    organizationId: string,
-    propertyId: string,
-    limit: number,
-  ): Promise<readonly string[]>
 }>
 
 export type GoalProgramDependencies = Readonly<{

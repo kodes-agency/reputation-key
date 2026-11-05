@@ -301,9 +301,11 @@ export function createAiBudgetControl(
 }
 
 /**
- * Release reservations whose operation never settled within the TTL. Reads the
- * database clock so the recovery fence, which ages rows with `clock_timestamp()`
- * before calling this, and the reaper job agree on what "stale" means.
+ * Settle reservations whose operation never settled within the TTL. An admission
+ * may have dispatched and its usage is unknown, so it costs its reserved maximum;
+ * a reservation without an admission costs nothing. Reads the database clock so
+ * the recovery fence, which ages rows with `clock_timestamp()` before calling
+ * this, and the reaper job agree on what "stale" means.
  */
 export async function reapStaleAiReservations(tx: AiBudgetTx): Promise<number> {
   const operations = await tx
@@ -311,6 +313,7 @@ export async function reapStaleAiReservations(tx: AiBudgetTx): Promise<number> {
       id: aiOperations.id,
       costWindowId: aiOperations.costWindowId,
       reservedMicros: aiOperations.reservedMicros,
+      admissionNonce: aiOperations.admissionNonce,
     })
     .from(aiOperations)
     .where(
@@ -324,10 +327,12 @@ export async function reapStaleAiReservations(tx: AiBudgetTx): Promise<number> {
 
   for (const operation of operations) {
     if (!operation.costWindowId) continue
+    const actualMicros = operation.admissionNonce === null ? 0 : operation.reservedMicros
     const [released] = await tx
       .update(aiOrganizationCostWindows)
       .set({
         reservedMicros: sql`${aiOrganizationCostWindows.reservedMicros} - ${operation.reservedMicros}`,
+        settledMicros: sql`${aiOrganizationCostWindows.settledMicros} + ${actualMicros}`,
         updatedAt: sql`clock_timestamp()`,
       })
       .where(
@@ -341,7 +346,7 @@ export async function reapStaleAiReservations(tx: AiBudgetTx): Promise<number> {
     await tx
       .update(aiOperations)
       .set({
-        actualMicros: 0,
+        actualMicros,
         budgetSettledAt: sql`clock_timestamp()`,
         updatedAt: sql`clock_timestamp()`,
       })

@@ -67,11 +67,8 @@ export const removeMember =
     if (targetMember.rawRole === 'member')
       throw identityError('forbidden', 'Remove this person from Staff')
 
-    // 2a. Nobody removes themselves. Removal releases what the member held
-    // because another AccountAdmin is present to reassign it; a member who
-    // goes of their own accord uses `leaveOrganization`, which refuses until
-    // every responsibility is handed over. Before the last-owner guard, so a
-    // sole AccountAdmin is told this and not that.
+    // Removal releases responsibilities for another AccountAdmin to reassign.
+    // Check self-removal before the last-owner guard.
     if (targetMember.userId === ctx.userId) {
       throw identityError(
         'forbidden',

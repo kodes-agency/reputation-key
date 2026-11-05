@@ -21,8 +21,8 @@
 //   - deleting an unsent reply draft,
 //   - dismissing one notification.
 // Everything else that destructs confirms here, and a deliberate difference is
-// listed, not assumed: Leave organisation is a Dialog (it is a transfer form),
-// and the Inbox's Reject opens its reason field inline beside the reply.
+// listed, not assumed: the Inbox's Reject opens its reason field inline beside
+// the reply.
 //
 // The pending contract. Confirming runs `onConfirm`; until it settles the
 // dialog stays open, its confirm is a pending Button, Cancel is disabled and

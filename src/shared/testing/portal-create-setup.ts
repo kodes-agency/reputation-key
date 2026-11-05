@@ -20,7 +20,7 @@ import {
   type PropertyId,
 } from '#/shared/domain/ids'
 import type { PortalGroup } from '#/contexts/portal/domain/types'
-import type { PortalGroupRepository } from '#/contexts/portal/application/ports/portal-group.repository'
+import type { MutablePortalGroupRepository as PortalGroupRepository } from '#/shared/testing/mutable-portal-repositories'
 import type {
   CopiedPortalLook,
   CopiedPortalOverride,

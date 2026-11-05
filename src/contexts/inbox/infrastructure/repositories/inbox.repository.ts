@@ -41,10 +41,9 @@ import type {
   OrganizationId,
   PropertyId,
   ReviewId,
-  UserId,
 } from '#/shared/domain/ids'
 import { reviewId, feedbackId, inboxItemId, propertyId } from '#/shared/domain/ids'
-import { inboxItemFromRow, inboxItemToInsertRow } from '../mappers/inbox.mapper'
+import { inboxItemFromRow } from '../mappers/inbox.mapper'
 import {
   findSuggestedRowLevels,
   inboxSourceIdMatchesAny,
@@ -54,7 +53,6 @@ import {
 } from './inbox-list-narrowing'
 import { feedbackItemDetail, reviewItemDetail } from '../mappers/inbox-detail.mapper'
 import { trace } from '#/shared/observability/trace'
-import { inboxError } from '../../domain/errors'
 
 type InboxItemRow = Parameters<typeof inboxItemFromRow>[0]
 
@@ -89,34 +87,6 @@ const effectiveInboxStatus = sql<InboxStatus>`${inboxHandlingCycleHeads.status}`
 const activeInboxItemColumns = {
   ...getTableColumns(inboxItems),
   status: effectiveInboxStatus,
-}
-
-/** Mutable set-values for an inbox_items update. */
-type InboxItemSet = Partial<typeof inboxItems.$inferInsert>
-
-/**
- * Update one inbox item by id+org, throwing not_found with `notFoundMessage`
- * when the row vanished (single source for the update+guard shape, BQC-5.9 E14).
- */
-async function updateByIdAndOrg(
-  db: Database,
-  id: InboxItemId,
-  orgId: OrganizationId,
-  set: InboxItemSet,
-  notFoundMessage: string,
-): Promise<InboxItem> {
-  const result = await db
-    .update(inboxItems)
-    .set({
-      ...set,
-      commandRevision: sql<number>`${inboxItems.commandRevision} + 1`,
-    })
-    .where(and(eq(inboxItems.id, id), eq(inboxItems.organizationId, orgId)))
-    .returning()
-  if (!result[0]) {
-    throw inboxError('not_found', notFoundMessage)
-  }
-  return withDefaults(result[0])
 }
 
 /**
@@ -413,71 +383,6 @@ export const createInboxRepository = (
       })
     },
 
-    create: async (item: InboxItem, orgId: OrganizationId) => {
-      return trace('inbox.create', async () => {
-        if (item.organizationId !== orgId) {
-          throw inboxError('forbidden', 'InboxItem.create: tenant mismatch')
-        }
-        const row = inboxItemToInsertRow(item)
-        const result = await db.insert(inboxItems).values(row).returning()
-
-        if (!result[0]) {
-          throw inboxError('not_found', 'Inbox item insert failed — no row returned')
-        }
-        return withDefaults(result[0])
-      })
-    },
-
-    updateStatus: async (
-      id: InboxItemId,
-      orgId: OrganizationId,
-      status: InboxStatus,
-      timestampFields: Partial<Record<string, Date>>,
-      now?: Date,
-    ) => {
-      return trace('inbox.updateStatus', async () => {
-        return updateByIdAndOrg(
-          db,
-          id,
-          orgId,
-          {
-            status,
-            updatedAt: now ?? runtime.clock(),
-            ...timestampFields,
-          },
-          'Inbox item status update failed — no row returned',
-        )
-      })
-    },
-
-    bulkUpdateStatus: async (
-      ids: ReadonlyArray<InboxItemId>,
-      orgId: OrganizationId,
-      status: InboxStatus,
-      timestampFields: Partial<Record<string, Date>>,
-      now?: Date,
-    ) => {
-      return trace('inbox.bulkUpdateStatus', async () => {
-        const result = await db
-          .update(inboxItems)
-          .set({
-            status,
-            commandRevision: sql<number>`${inboxItems.commandRevision} + 1`,
-            updatedAt: now ?? runtime.clock(),
-            ...timestampFields,
-          })
-          .where(
-            and(
-              eq(inboxItems.organizationId, orgId),
-              inArray(inboxItems.id, [...ids] as string[]),
-            ),
-          )
-          .returning()
-
-        return { updated: result.length }
-      })
-    },
-
     stampReplyMilestones: async (
       id: InboxItemId,
       orgId: OrganizationId,
@@ -502,26 +407,6 @@ export const createInboxRepository = (
       })
     },
 
-    updateAssignment: async (
-      id: InboxItemId,
-      orgId: OrganizationId,
-      assignedTo: UserId | null,
-      now?: Date,
-    ) => {
-      return trace('inbox.updateAssignment', async () => {
-        return updateByIdAndOrg(
-          db,
-          id,
-          orgId,
-          {
-            assignedTo,
-            updatedAt: now ?? runtime.clock(),
-          },
-          'Inbox item assignment update failed — no row returned',
-        )
-      })
-    },
-
     countByStatus: async (
       orgId: OrganizationId,
       status: InboxStatus,
@@ -535,52 +420,6 @@ export const createInboxRepository = (
           propertyIds,
           sourceScopes,
           sql`${effectiveInboxStatus} = ${status}`,
-        )
-      })
-    },
-    setEscalation: async (
-      id: InboxItemId,
-      orgId: OrganizationId,
-      escalatedBy: UserId,
-      now?: Date,
-    ) => {
-      return trace('inbox.setEscalation', async () => {
-        const stamp = now ?? runtime.clock()
-        return updateByIdAndOrg(
-          db,
-          id,
-          orgId,
-          {
-            isEscalated: true,
-            escalatedAt: stamp,
-            escalatedBy,
-            escalationResolvedAt: null,
-            escalationResolvedBy: null,
-            updatedAt: stamp,
-          },
-          'Inbox item escalation update failed — no row returned',
-        )
-      })
-    },
-    resolveEscalation: async (
-      id: InboxItemId,
-      orgId: OrganizationId,
-      resolvedBy: UserId,
-      now?: Date,
-    ) => {
-      return trace('inbox.resolveEscalation', async () => {
-        const stamp = now ?? runtime.clock()
-        return updateByIdAndOrg(
-          db,
-          id,
-          orgId,
-          {
-            isEscalated: false,
-            escalationResolvedAt: stamp,
-            escalationResolvedBy: resolvedBy,
-            updatedAt: stamp,
-          },
-          'Inbox item resolve-escalation failed — no row returned',
         )
       })
     },
@@ -610,53 +449,6 @@ export const createInboxRepository = (
         const conditions: SQL[] = [sql`${effectiveInboxStatus} = 'open'`]
         if (since) conditions.push(gte(inboxItems.createdAt, since))
         return countWhere(db, orgId, propertyIds, sourceScopes, ...conditions)
-      })
-    },
-
-    updateSourceMeta: async (
-      id: InboxItemId,
-      orgId: OrganizationId,
-      fields: Readonly<{ sourceDate: Date; platform: string | null }>,
-      now?: Date,
-    ) => {
-      return trace('inbox.updateSourceMeta', async () => {
-        const result = await db
-          .update(inboxItems)
-          .set({
-            sourceDate: fields.sourceDate,
-            platform: fields.platform,
-            commandRevision: sql<number>`${inboxItems.commandRevision} + 1`,
-            updatedAt: now ?? runtime.clock(),
-          })
-          .where(and(eq(inboxItems.id, id), eq(inboxItems.organizationId, orgId)))
-          .returning()
-        return result[0] ? withDefaults(result[0]) : null
-      })
-    },
-
-    clearReviewSourceContent: async (id, orgId, now) => {
-      return trace('inbox.clearReviewSourceContent', async () => {
-        const result = await db
-          .update(inboxItems)
-          .set({
-            rating: null,
-            snippet: null,
-            reviewerName: null,
-            commandRevision: sql<number>`LEAST(
-            ${inboxItems.commandRevision} + 1,
-            '9007199254740991'::bigint
-          )`,
-            updatedAt: now ?? runtime.clock(),
-          })
-          .where(
-            and(
-              eq(inboxItems.id, id),
-              eq(inboxItems.organizationId, orgId),
-              eq(inboxItems.sourceType, 'review'),
-            ),
-          )
-          .returning()
-        return result[0] ? withDefaults(result[0]) : null
       })
     },
 

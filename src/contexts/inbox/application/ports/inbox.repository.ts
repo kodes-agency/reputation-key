@@ -114,38 +114,12 @@ export type InboxRepository = Readonly<{
     filters: InboxFilters,
     orgId: OrganizationId,
   ): Promise<ReadonlyArray<InboxPropertyCount>>
-  create(item: InboxItem, orgId: OrganizationId): Promise<InboxItem>
-  /**
-   * RETAINED for the receipt-coordinated command store only. Nothing in the
-   * Inbox context may call this directly: a status write that is not
-   * co-committed with `inbox_handling_cycle_heads` desynchronises the
-   * compatibility mirror from the workflow authority.
-   * `infrastructure/inbox-status-mirror.guard.test.ts` enforces that.
-   */
-  updateStatus(
-    id: InboxItemId,
-    orgId: OrganizationId,
-    status: InboxStatus,
-    timestampFields: Partial<Record<string, Date | null>>,
-    now?: Date,
-  ): Promise<InboxItem>
-  bulkUpdateStatus(
-    ids: ReadonlyArray<InboxItemId>,
-    orgId: OrganizationId,
-    status: InboxStatus,
-    timestampFields: Partial<Record<string, Date | null>>,
-    now?: Date,
-  ): Promise<{ updated: number }>
   /**
    * Stamp the first reply-submitted / reply-published milestones and NOTHING
    * else.
    *
-   * `inbox_items.status` is a write-side compatibility projection of the
-   * Handling Cycle head; every serving read already resolves status from the
-   * head. Milestone stamping used to borrow `updateStatus` and pass the item's
-   * own status back in, which made two unfenced writers of the mirror for no
-   * reason. This seam cannot express a status at all, so the mirror stays
-   * writable only where it co-commits with the head.
+   * `inbox_items.status` mirrors the Handling Cycle head. This seam cannot
+   * express a status, so milestone writes cannot move workflow authority.
    */
   stampReplyMilestones(
     id: InboxItemId,
@@ -156,30 +130,12 @@ export type InboxRepository = Readonly<{
     }>,
     now?: Date,
   ): Promise<InboxItem | null>
-  updateAssignment(
-    id: InboxItemId,
-    orgId: OrganizationId,
-    assignedTo: UserId | null,
-    now?: Date,
-  ): Promise<InboxItem>
   countByStatus(
     orgId: OrganizationId,
     status: InboxStatus,
     propertyIds?: ReadonlyArray<PropertyId>,
     sourceScopes?: ReadonlyArray<InboxSourceScope>,
   ): Promise<number>
-  setEscalation(
-    id: InboxItemId,
-    orgId: OrganizationId,
-    escalatedBy: UserId,
-    now?: Date,
-  ): Promise<InboxItem>
-  resolveEscalation(
-    id: InboxItemId,
-    orgId: OrganizationId,
-    resolvedBy: UserId,
-    now?: Date,
-  ): Promise<InboxItem>
   /** Count items with an active escalation flag (isEscalated AND not yet resolved). */
   countEscalatedActive(
     orgId: OrganizationId,
@@ -194,27 +150,6 @@ export type InboxRepository = Readonly<{
     sourceScopes?: ReadonlyArray<InboxSourceScope>,
   ): Promise<number>
   findDetailById(id: InboxItemId, orgId: OrganizationId): Promise<InboxItemDetail | null>
-  /**
-   * BQC-3.4: metadata-only refresh of the projection-owned source fields
-   * (review.updated consumer / rebuild). Returns null when the row vanished.
-   */
-  updateSourceMeta(
-    id: InboxItemId,
-    orgId: OrganizationId,
-    fields: Readonly<{ sourceDate: Date; platform: string | null }>,
-    now?: Date,
-  ): Promise<InboxItem | null>
-  /**
-   * Remove retained legacy provider-controlled values from one Review Inbox
-   * projection. Durable event handling uses the command store so this write
-   * and its receipt co-commit; this raw repository seam supports faithful
-   * test/repair adapters.
-   */
-  clearReviewSourceContent(
-    id: InboxItemId,
-    orgId: OrganizationId,
-    now?: Date,
-  ): Promise<InboxItem | null>
   /**
    * BQC-3.4: lightweight keyset scan of review-sourced items for projection
    * rebuild — no enrichment lookups, ordered by id, resuming AFTER `cursor`.

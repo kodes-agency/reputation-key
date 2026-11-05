@@ -28,16 +28,6 @@ export type ResolvablePortalTokenSummary = Readonly<{
   issuedBy: string | null
 }>
 
-export type PortalAccessArtifactReadinessGap = Readonly<{
-  organizationId: string
-  propertyId: string
-  portalId: string
-  tokenVersion: number
-  tokenStatus: 'active' | 'rotating'
-  issuedAt: Date
-  gracePeriodEnds: Date | null
-}>
-
 export type PortalTokenRepository = Readonly<{
   findLatestForPortal: (
     organizationId: OrganizationId,
@@ -45,9 +35,7 @@ export type PortalTokenRepository = Readonly<{
   ) => Promise<PortalToken | null>
   /**
    * Newest token for the portal that still resolves as of `asOf` — active, or
-   * rotating and inside its printed-code grace window. Shares one predicate
-   * with `findResolvableByDigest` so the management view and public token
-   * resolution cannot disagree about whether a portal has a live token.
+   * rotating and inside its printed-code grace window.
    */
   findResolvableSummaryForPortal: (
     organizationId: OrganizationId,
@@ -66,33 +54,4 @@ export type PortalTokenRepository = Readonly<{
   ) => Promise<
     readonly (ResolvablePortalTokenSummary & Readonly<{ portalId: PortalId }>)[]
   >
-  findResolvableByDigest: (
-    digest: Readonly<{
-      tokenIdentifier: string
-      tokenHash: string
-      tokenKeyVersion: number
-    }>,
-    asOf: Date,
-  ) => Promise<PortalToken | null>
-  /** Content-free inventory of currently reachable legacy addresses. */
-  listAccessArtifactReadinessGaps: (
-    asOf: Date,
-    organizationIds?: readonly string[],
-  ) => Promise<readonly PortalAccessArtifactReadinessGap[]>
-  insert: (token: PortalToken) => Promise<void>
-  saveRotation: (
-    input: Readonly<{
-      oldToken: PortalToken
-      newToken: PortalToken
-    }>,
-  ) => Promise<void>
-  revokeForPortal: (
-    input: Readonly<{
-      organizationId: OrganizationId
-      portalId: PortalId
-      revokedBy: string
-      reason: string
-      at: Date
-    }>,
-  ) => Promise<number>
 }>

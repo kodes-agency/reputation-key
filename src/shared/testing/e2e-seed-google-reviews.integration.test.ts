@@ -118,9 +118,7 @@ async function listedGoogleNumbers(
   const fleet = await read({
     organizationId: organizationId(organization),
     scope: { userId: userId('e2e-seed-google-reader'), organizationWide: false },
-    portalReadEnabled: true,
     goalReadEnabled: true,
-    timeRange: 'all',
   })
   return new Map(fleet.entries.map((entry) => [entry.propertyId, entry.google]))
 }

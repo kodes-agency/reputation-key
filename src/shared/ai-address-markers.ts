@@ -505,6 +505,7 @@ const OWN_PATTERNS: readonly Readonly<{ id: string; source: string; flags: strin
 
 /** What the detector profile digest records about the address markers. */
 export const ADDRESS_MARKER_PROFILE = Object.freeze({
+  algorithm: 'address-shape-and-name-v1',
   patterns: Object.freeze([
     ...OWN_PATTERNS,
     ...NUMBER_LAST_PROFILE.patterns,
@@ -537,6 +538,7 @@ export const ADDRESS_MARKER_PROFILE = Object.freeze({
     countFollowers: COUNT_FOLLOWER_WORDS,
     foreign: FOREIGN_ADDRESS_PROFILE.wordLists,
     bulgarianQuantities: Object.freeze([...BULGARIAN_QUANTITIES].sort()),
+    bulgarianNameParticles: Object.freeze([...BULGARIAN_NAME_PARTICLES].sort()),
   }),
   nameRules: ADDRESS_NAME_RULE_PROFILE,
   abbreviatedTypes: NUMBER_LAST_PROFILE.abbreviatedTypes,

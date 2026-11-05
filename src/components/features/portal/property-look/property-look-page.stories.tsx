@@ -77,13 +77,15 @@ export const Default: Story = {
     await expect(canvas.getByLabelText('Wordmark')).toHaveValue('AVELA')
     await expect(canvas.getByText('5 live · 1 draft')).toBeVisible()
     await expect(canvas.getByText('5 live portals use this look')).toBeVisible()
-    // Nothing about portals having a look of their own while the switch is off.
+    // A second portal is enough for the page to tell that a portal can have its own look.
     await expect(
       canvas.getByText(
-        'How every portal at Avela Resort looks. Portal wording and links stay per portal.',
+        'The look every portal at Avela Resort starts with. A portal can use its own photo, colours, or name and logo.',
       ),
     ).toBeVisible()
-    expect(canvas.queryByRole('link', { name: /Edit its look/ })).toBeNull()
+    expect(
+      canvas.getAllByRole('link', { name: /^Edit its look/ }).length,
+    ).toBeGreaterThan(0)
     // The archived portal is not reached by the look.
     await expect(canvas.queryByText('Old kiosk')).toBeNull()
     // The page, drawn from the first live portal's draft, in the draft colours.
@@ -384,7 +386,7 @@ export const AddingALanguage: Story = {
  * own, and the preview starts from a portal the look reaches.
  */
 export const PortalsWithTheirOwnLook: Story = {
-  args: { rows: AVELA_MIXED_PORTALS, ownLookEnabled: true },
+  args: { rows: AVELA_MIXED_PORTALS },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
     await expect(
@@ -438,7 +440,7 @@ export const PortalsWithTheirOwnLook: Story = {
 
 /** A portal with a photo of its own keeps it: the photo switch is the look's, so it steps aside. */
 export const APortalsOwnPhotoIsNotThePropertys: Story = {
-  args: { rows: AVELA_MIXED_PORTALS, ownLookEnabled: true },
+  args: { rows: AVELA_MIXED_PORTALS },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
     await expect(canvas.getByRole('radio', { name: 'With photo' })).toBeChecked()
@@ -466,7 +468,7 @@ export const APortalsOwnPhotoIsNotThePropertys: Story = {
 /** Someone who cannot edit still sees what each portal has of its own, but is offered no way to change it. */
 export const AManagerSeesWhatIsOwnButCannotEditIt: Story = {
   decorators: [withRole('PropertyManager')],
-  args: { rows: AVELA_MIXED_PORTALS, ownLookEnabled: true, canEdit: false },
+  args: { rows: AVELA_MIXED_PORTALS, canEdit: false },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
     await expect(
@@ -481,23 +483,9 @@ export const AManagerSeesWhatIsOwnButCannotEditIt: Story = {
   },
 }
 
-/** Switched off, what portals already have is still told as it is; nothing invites more. */
-export const OwnLookSwitchedOffStillTellsTheTruth: Story = {
-  args: { rows: AVELA_MIXED_PORTALS, ownLookEnabled: false },
-  play: async ({ canvasElement }) => {
-    const canvas = within(canvasElement)
-    await expect(
-      within(canvas.getByRole('button', { name: /Olive Terrace restaurant/ })).getByText(
-        'Own colours',
-      ),
-    ).toBeVisible()
-    expect(canvas.queryByRole('link', { name: /Edit its look/ })).toBeNull()
-  },
-}
-
 /** One portal sees nothing new, switch on or not: no sentence about own looks, no link, no group. */
 export const OnePortalSeesNothingNew: Story = {
-  args: { rows: AVELA_PORTALS.slice(0, 1), ownLookEnabled: true },
+  args: { rows: AVELA_PORTALS.slice(0, 1) },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
     await expect(
@@ -513,7 +501,7 @@ export const OnePortalSeesNothingNew: Story = {
 
 /** A second portal with a photo of its own: the line names it, and the other portal is still reached. */
 export const OnePortalWithItsOwnPhoto: Story = {
-  args: { rows: TWO_PORTALS_ONE_OWN_PHOTO, ownLookEnabled: true },
+  args: { rows: TWO_PORTALS_ONE_OWN_PHOTO },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
     await expect(

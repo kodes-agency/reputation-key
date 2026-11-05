@@ -34,7 +34,6 @@ describe('Guest runtime dependency injection', () => {
     expect(source).toContain('logger: LoggerPort')
     expect(source).toContain('clock: Clock')
     expect(source).toContain('idGen: () => string')
-    expect(source).toContain('monotonicNow: () => number')
     expect(source).toContain('publicOrigin: string')
     expect(source).toContain('createGuestNetworkPseudonymHasher')
   })

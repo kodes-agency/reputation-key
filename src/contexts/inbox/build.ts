@@ -41,7 +41,6 @@ import type {
   ReplyLookupSource,
   ReviewSourceLookupSource,
 } from './application/ports/lookup-sources.port'
-import type { CreateInboxItem } from './application/use-cases/create-inbox-item'
 import type { UpdateInboxStatus } from './application/use-cases/update-inbox-status'
 import type { BulkUpdateInboxStatus } from './application/use-cases/bulk-update-inbox-status'
 import type { BulkAssignInboxItems } from './application/use-cases/bulk-assign-inbox-items'
@@ -61,7 +60,6 @@ import type { GetInboxQueueCounts } from './application/use-cases/get-inbox-queu
 import type { GetInboxPropertyCounts } from './application/use-cases/get-inbox-property-counts'
 import type { GetReviewInboxItemIds } from './application/use-cases/get-review-inbox-item-ids'
 import type { RebuildInboxProjection } from './application/use-cases/rebuild-inbox-projection'
-import type { StartReviewHandlingCycle } from './application/use-cases/start-review-handling-cycle'
 import type { MarkFeedbackHandled } from './application/use-cases/mark-feedback-handled'
 import type { CorrectFeedbackHandlingOutcome } from './application/use-cases/correct-feedback-handling-outcome'
 import type {
@@ -138,7 +136,6 @@ export type InboxContextBuildInput = Readonly<{
 }>
 
 type InboxUseCases = Readonly<{
-  createInboxItem: CreateInboxItem
   updateInboxStatus: UpdateInboxStatus
   bulkUpdateInboxStatus: BulkUpdateInboxStatus
   bulkAssignInboxItems: BulkAssignInboxItems
@@ -158,7 +155,6 @@ type InboxUseCases = Readonly<{
   getInboxPropertyCounts: GetInboxPropertyCounts
   getReviewInboxItemIds: GetReviewInboxItemIds
   rebuildInboxProjection: RebuildInboxProjection
-  startReviewHandlingCycle: StartReviewHandlingCycle
   markFeedbackHandled: MarkFeedbackHandled
   correctFeedbackHandlingOutcome: CorrectFeedbackHandlingOutcome
   getInboxResponseTarget: GetInboxResponseTarget
@@ -207,7 +203,6 @@ export type InboxContextApi = Readonly<{
    * separate from request handlers and operator repair commands. */
   lifecycle: Readonly<{
     getInboxResponseTarget: GetInboxResponseTarget
-    startReviewHandlingCycle: StartReviewHandlingCycle
   }>
   /** Bounded operator repair capabilities owned by Inbox. */
   maintenance: Readonly<{
@@ -365,7 +360,6 @@ export const buildInboxContext = (input: InboxContextBuildInput): InboxContextAp
   const publicApi: InboxRequestApi = projectInboxRequestApi(useCases, responseTargetStore)
   const lifecycle = Object.freeze({
     getInboxResponseTarget: useCases.getInboxResponseTarget,
-    startReviewHandlingCycle: useCases.startReviewHandlingCycle,
   })
   const maintenance = Object.freeze({
     rebuildInboxProjection: useCases.rebuildInboxProjection,

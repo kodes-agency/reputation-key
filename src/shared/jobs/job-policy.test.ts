@@ -118,10 +118,10 @@ describe('withCatalogueJobOptions (BQC-3.6)', () => {
     const queue = fakeQueue()
     const wrapped = withCatalogueJobOptions(queue)
 
-    await wrapped.add('project-recent-activity', { resourceId: 'r1' })
+    await wrapped.add('insert-notification', { resourceId: 'r1' })
 
     expect(queue.add).toHaveBeenCalledWith(
-      'project-recent-activity',
+      'insert-notification',
       { resourceId: 'r1' },
       expect.objectContaining({
         attempts: 3,
@@ -145,8 +145,8 @@ describe('withCatalogueJobOptions (BQC-3.6)', () => {
     const queue = fakeQueue()
     withCatalogueJobOptions(queue)
 
-    await queue.add('project-recent-activity', {})
+    await queue.add('insert-notification', {})
 
-    expect(queue.add).toHaveBeenCalledWith('project-recent-activity', {})
+    expect(queue.add).toHaveBeenCalledWith('insert-notification', {})
   })
 })

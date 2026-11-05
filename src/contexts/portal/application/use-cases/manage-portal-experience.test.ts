@@ -189,7 +189,6 @@ const setup = (accessible: ReadonlyArray<PropertyId> | null = null) => {
       staffPublicApi: staffApiMock(accessible),
       idGen: () => GENERATED_ID,
       clock: () => NOW,
-      portalOwnLookEnabled: false,
     },
   }
 }
@@ -244,7 +243,6 @@ describe('getPropertyPortalExperience', () => {
       publicDisplayNameConfirmed: false,
       portalLook: null,
       siblingPortalCount: 0,
-      portalLookEnabled: false,
     })
     expect(experienceRepo.getPropertyExperience).toHaveBeenCalledWith(ORG, PROPERTY)
     // No portal was named, so the per-Portal override read must not happen.
@@ -414,23 +412,17 @@ describe('getPropertyPortalExperience', () => {
       lookVersion: 5,
     }
 
-    it('reads no look of its own for a Portal that follows the Property, and the flag as it is set', async () => {
+    it('reads no look of its own for a Portal that follows the Property', async () => {
       const { deps, portalRepo } = setup()
       const portal = buildTestPortal({ propertyId: PROPERTY })
       portalRepo.seed([portal])
       const ctx = buildTestAuthContext({ role: 'AccountAdmin' })
 
-      const off = await getPropertyPortalExperience(deps)(
+      const view = await getPropertyPortalExperience(deps)(
         { propertyId: PROPERTY, portalId: portal.id },
         ctx,
       )
-      const on = await getPropertyPortalExperience({
-        ...deps,
-        portalOwnLookEnabled: true,
-      })({ propertyId: PROPERTY, portalId: portal.id }, ctx)
-
-      expect(off).toMatchObject({ portalLook: null, portalLookEnabled: false })
-      expect(on).toMatchObject({ portalLook: null, portalLookEnabled: true })
+      expect(view.portalLook).toBeNull()
     })
 
     it('counts the Property’s Portals that are not archived, this one included', async () => {

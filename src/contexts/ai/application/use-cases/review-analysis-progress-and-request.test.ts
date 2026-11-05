@@ -155,6 +155,52 @@ describe('readReviewAnalysisProgress', () => {
     })
   })
 
+  it.each(['enrollment_stalled', 'enrollment_superseded'] as const)(
+    'reports %s as needing attention even with an empty backlog',
+    async (reason) => {
+      const read = createReadReviewAnalysisProgress({
+        ...gate(true),
+        propertyAccess: async () => null,
+        backlog: {
+          readProgress: vi.fn(async () => ({
+            queued: 0,
+            inProgress: 0,
+            analysed: 5,
+            settled: 5,
+          })),
+        },
+        readEnrollmentReadiness: async () => ({ status: 'unavailable', reason }),
+      })
+      await expect(read(PROGRESS_INPUT)).resolves.toMatchObject({
+        status: 'needs_attention',
+        verifiedThroughEpochMillis: null,
+      })
+    },
+  )
+
+  it('keeps reporting analysing while work is queued, whatever the enrollment says', async () => {
+    const read = createReadReviewAnalysisProgress({
+      ...gate(true),
+      propertyAccess: async () => null,
+      backlog: {
+        readProgress: vi.fn(async () => ({
+          queued: 3,
+          inProgress: 0,
+          analysed: 5,
+          settled: 5,
+        })),
+      },
+      readEnrollmentReadiness: async () => ({
+        status: 'unavailable',
+        reason: 'enrollment_stalled',
+      }),
+    })
+    await expect(read(PROGRESS_INPUT)).resolves.toMatchObject({
+      status: 'analysing',
+      queued: 3,
+    })
+  })
+
   it('reports an empty backlog with caught-up enrollment as caught up', async () => {
     const read = createReadReviewAnalysisProgress({
       ...gate(true),

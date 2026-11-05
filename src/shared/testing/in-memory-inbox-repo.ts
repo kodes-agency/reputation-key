@@ -151,13 +151,6 @@ function effectivePriorityOf(item: InboxItem): InboxPriority | null {
   return item.sourceType === 'review' ? (item.attention ?? null) : null
 }
 
-/** What `createItem` stores: a new row never carries a level (inserts omit it). */
-const NO_MANAGER_PRIORITY = {
-  managerPriority: null,
-  managerPrioritySetBy: null,
-  managerPrioritySetAt: null,
-} as const
-
 function applyEscalationFilter(
   items: ReadonlyArray<InboxItem>,
   filters: InboxFilters,
@@ -267,42 +260,6 @@ export function createInMemoryInboxRepo(): InMemoryInboxRepo {
       }
       return [...counts].map(([propertyId, count]) => ({ propertyId, count }))
     },
-    create: async (item) => {
-      const created = { ...item, ...NO_MANAGER_PRIORITY }
-      items.push(created)
-      return created
-    },
-    updateStatus: async (id, orgId, status, timestampFields, now) => {
-      const item = items.find((i) => i.id === id && i.organizationId === orgId)
-      if (!item) throw new Error('not found')
-      const idx = items.indexOf(item)
-      items[idx] = {
-        ...item,
-        status,
-        commandRevision: nextCommandRevision(item),
-        updatedAt: now ?? new Date(),
-        ...timestampFields,
-      }
-      return items[idx]
-    },
-    bulkUpdateStatus: async (ids, orgId, status, timestampFields, now) => {
-      let updated = 0
-      for (const id of ids) {
-        const item = items.find((i) => i.id === id && i.organizationId === orgId)
-        if (item) {
-          const idx = items.indexOf(item)
-          items[idx] = {
-            ...item,
-            status,
-            commandRevision: nextCommandRevision(item),
-            updatedAt: now ?? new Date(),
-            ...timestampFields,
-          }
-          updated++
-        }
-      }
-      return { updated }
-    },
     // Milestone-only writer: it cannot express `status`, matching the real
     // repository seam that keeps the `inbox_items.status` compatibility mirror
     // writable only where it co-commits with the Handling Cycle head.
@@ -318,18 +275,6 @@ export function createInMemoryInboxRepo(): InMemoryInboxRepo {
       }
       return items[idx]
     },
-    updateAssignment: async (id, orgId, assignedTo, now) => {
-      const item = items.find((i) => i.id === id && i.organizationId === orgId)
-      if (!item) throw new Error('not found')
-      const idx = items.indexOf(item)
-      items[idx] = {
-        ...item,
-        assignedTo,
-        commandRevision: nextCommandRevision(item),
-        updatedAt: now ?? new Date(),
-      }
-      return items[idx]
-    },
     countByStatus: async (orgId, status, propertyIds, sourceScopes) =>
       items.filter(
         (i) =>
@@ -338,38 +283,6 @@ export function createInMemoryInboxRepo(): InMemoryInboxRepo {
           (!propertyIds || propertyIds.includes(i.propertyId)) &&
           matchesSourceScopes(i, sourceScopes),
       ).length,
-    setEscalation: async (id, orgId, escalatedBy, now) => {
-      const item = items.find((i) => i.id === id && i.organizationId === orgId)
-      if (!item) throw new Error('not found')
-      const idx = items.indexOf(item)
-      const stamp = now ?? new Date()
-      items[idx] = {
-        ...item,
-        isEscalated: true,
-        escalatedAt: stamp,
-        escalatedBy,
-        escalationResolvedAt: null,
-        escalationResolvedBy: null,
-        commandRevision: nextCommandRevision(item),
-        updatedAt: stamp,
-      }
-      return items[idx]
-    },
-    resolveEscalation: async (id, orgId, resolvedBy, now) => {
-      const item = items.find((i) => i.id === id && i.organizationId === orgId)
-      if (!item) throw new Error('not found')
-      const idx = items.indexOf(item)
-      const stamp = now ?? new Date()
-      items[idx] = {
-        ...item,
-        isEscalated: false,
-        escalationResolvedAt: stamp,
-        escalationResolvedBy: resolvedBy,
-        commandRevision: nextCommandRevision(item),
-        updatedAt: stamp,
-      }
-      return items[idx]
-    },
     countEscalatedActive: async (orgId, propertyIds, sourceScopes) =>
       items.filter(
         (i) =>
@@ -388,35 +301,6 @@ export function createInMemoryInboxRepo(): InMemoryInboxRepo {
           (!propertyIds || propertyIds.includes(i.propertyId)) &&
           matchesSourceScopes(i, sourceScopes),
       ).length,
-    updateSourceMeta: async (id, orgId, fields, now) => {
-      const item = items.find((i) => i.id === id && i.organizationId === orgId)
-      if (!item) return null
-      const idx = items.indexOf(item)
-      items[idx] = {
-        ...item,
-        sourceDate: fields.sourceDate,
-        platform: fields.platform,
-        commandRevision: nextCommandRevision(item),
-        updatedAt: now ?? new Date(),
-      }
-      return items[idx]
-    },
-    clearReviewSourceContent: async (id, orgId, now) => {
-      const item = items.find(
-        (i) => i.id === id && i.organizationId === orgId && i.sourceType === 'review',
-      )
-      if (!item) return null
-      const idx = items.indexOf(item)
-      items[idx] = {
-        ...item,
-        rating: null,
-        snippet: null,
-        reviewerName: null,
-        commandRevision: nextCommandRevision(item),
-        updatedAt: now ?? new Date(),
-      }
-      return items[idx]
-    },
     scanReviewItems: async (orgId, opts) => {
       let filtered = items.filter(
         (i) =>

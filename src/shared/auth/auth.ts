@@ -258,8 +258,7 @@ export function createAuth() {
         // signed-in user create one unless told otherwise. With this off the
         // provider refuses every session-bound creation, over HTTP and in
         // process; only a system action (a server call that names the user
-        // and carries no session) creates, which is what createOrganizationFn
-        // does behind its capability gate. The operator console and
+        // and carries no session) can create. The operator console and
         // ops:bootstrap-owner insert the Organization row themselves.
         allowUserToCreateOrganization: false,
         invitationExpiresIn: INVITATION_EXPIRY_SECONDS, // 7 days

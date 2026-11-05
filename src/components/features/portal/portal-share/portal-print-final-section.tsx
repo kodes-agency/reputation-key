@@ -1,11 +1,5 @@
-// The final Print cards section of the Share tab (final design spec §11, the
-// boards share-desktop-light, share-desktop-dark and share-phone), shown where
-// the server says PRINT_KIT_FINAL_ENABLED; today's section is untouched
-// otherwise. Top to bottom: when the Portal was last printed, what is printed
-// and which way up, the look, who prints it, how many, the words, then the
-// download with its summary and How to print for the chosen layout. The preview
-// sits beside it from `lg`; below that, the phone's pinned bar holds the summary,
-// Preview and the download.
+// The Share tab's Print cards choices, last-print memory, wording and download.
+// The preview sits beside it from lg; the phone's pinned bar holds Preview and Download.
 
 import { Download } from 'lucide-react'
 import { Button } from '#/components/ui/button'

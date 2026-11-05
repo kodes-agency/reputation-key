@@ -1,7 +1,6 @@
 import { createHash } from 'node:crypto'
 import { describe, expect, it } from 'vitest'
 import { getGuestPortalCopy } from './guest-language-pack'
-import { resolvePortalLocale } from './portal-localization'
 
 describe('guest Portal language packs', () => {
   it('resolves the exact immutable English and Bulgarian v1 packs', () => {
@@ -118,39 +117,5 @@ describe('the frozen v1 packs', () => {
     expect(() => getGuestPortalCopy('en', 'guest-ui-en-v2')).toThrow(
       'guest-ui-en-v2 is not a generation 1 guest language pack',
     )
-  })
-})
-
-describe('resolvePortalLocale', () => {
-  it('falls back to English with no localization state', () => {
-    expect(resolvePortalLocale(undefined)).toEqual({
-      selectedLocale: 'en',
-      languagePackVersion: 'guest-ui-en-v1',
-    })
-  })
-
-  it('uses the pack the snapshot pinned, else the locale\u2019s current pack', () => {
-    const base = { primaryLocale: 'en', availableLocales: ['en', 'bg'] } as const
-    expect(resolvePortalLocale({ ...base, selectedLocale: 'bg' })).toEqual({
-      selectedLocale: 'bg',
-      languagePackVersion: 'guest-ui-bg-v1',
-    })
-    expect(
-      resolvePortalLocale({
-        ...base,
-        selectedLocale: 'en',
-        languagePackVersion: 'guest-ui-en-v1',
-      }).languagePackVersion,
-    ).toBe('guest-ui-en-v1')
-  })
-
-  it('throws for a locale with no pack', () => {
-    expect(() =>
-      resolvePortalLocale({
-        selectedLocale: 'fr',
-        primaryLocale: 'en',
-        availableLocales: ['en', 'fr'],
-      }),
-    ).toThrow('No guest language pack exists')
   })
 })
