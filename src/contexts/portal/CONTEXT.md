@@ -463,7 +463,7 @@ hidden in a segment do not survive, and the original is never stored.
 
 `portal.upload` is `controlled_beta`. The owner removed the SAFE-01 completion
 ceremony on 2026-09-30; the technical safeguards above stay in the build (ADR
-0063, ADR 0032, `docs/BETA.md` §8).
+0063, ADR 0032, `docs/obligations.md` §8).
 
 ## Print kit
 

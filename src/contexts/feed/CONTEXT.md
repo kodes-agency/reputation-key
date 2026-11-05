@@ -210,7 +210,7 @@ representative zone, else UTC, together with where it came from. A settings
 save writes only what the user changed; because the column cannot hold "follow
 the Organization", a first save that changes only the date format stores the
 zone delivery was already using. The format is an English convention, not a
-language: every word in the product is English (docs/BETA.md).
+language: every word in the product is English (docs/obligations.md).
 
 Quiet hours and the urgent bypass sit in that same row, one window for every
 Property the person has (ADR 0046, amended 2026-09-23), with an optional

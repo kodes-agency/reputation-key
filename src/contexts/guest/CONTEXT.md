@@ -113,7 +113,7 @@ their key and payload, and they are ordinary `idempotency_receipts` rows: they s
 deciding anything when the session ends, but only the shared 30-day receipt rule (or a
 Property erase or Organization purge) removes them. The Privacy Notice states both
 figures (`docs/legal/privacy-notice.md` §6), so changing either one is a notice change
-(`docs/BETA.md` §2, §3).
+(`docs/obligations.md` §2, §3).
 
 The visit itself is kept for 24 months, the figure the Privacy Notice gives for base Guest
 visit facts. The retention sweep deletes the counted visit (`guest_qualified_scans`) and
@@ -123,7 +123,7 @@ on age because every visit still writes it; `ratings` and `feedback`, which noth
 any more, are not. Deleting the Guest row does not remove the fact: Reporting recorded a
 reading from each visit, rating, private feedback and destination selection, with the same
 Portal, instant and source event, and no rule deletes a reading. For those copies the 24
-months are unenforced (`docs/BETA.md` §3).
+months are unenforced (`docs/obligations.md` §3).
 
 A Contact Request is a separate consented aggregate, encrypted for exactly 30 days
 and backend-only until its approval and handling requirements are met.
