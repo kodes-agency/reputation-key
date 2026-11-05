@@ -1222,7 +1222,7 @@ jobs:
 
     services:
       postgres:
-        # BQC-7.7: digest-pinned (multi-arch index) — tag comment for humans.
+        # Digest-pinned (multi-arch index); the tag comment is for humans.
         image: postgres:16@sha256:33f923b05f64ca54ac4401c01126a6b92afe839a0aa0a52bc5aeb5cc958e5f20 # 16.14
         env:
           POSTGRES_USER: test
@@ -1236,7 +1236,7 @@ jobs:
           --health-timeout 5s
           --health-retries 5
       redis:
-        # BQC-7.7: digest-pinned (multi-arch index) — tag comment for humans.
+        # Digest-pinned (multi-arch index); the tag comment is for humans.
         image: redis:7@sha256:595cc6f2bb3af6e03347b90deb6123c6aa2c81dea05ce08128de8a174b6ac67b # 7.4.10
         ports:
           - 6379:6379
@@ -1342,7 +1342,7 @@ jobs:
 
     services:
       redis:
-        # BQC-7.7: digest-pinned (multi-arch index) — tag comment for humans.
+        # Digest-pinned (multi-arch index); the tag comment is for humans.
         image: redis:7@sha256:595cc6f2bb3af6e03347b90deb6123c6aa2c81dea05ce08128de8a174b6ac67b # 7.4.10
         ports:
           - 6379:6379
