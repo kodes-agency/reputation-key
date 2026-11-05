@@ -77,13 +77,15 @@ export const Default: Story = {
     await expect(canvas.getByLabelText('Wordmark')).toHaveValue('AVELA')
     await expect(canvas.getByText('5 live · 1 draft')).toBeVisible()
     await expect(canvas.getByText('5 live portals use this look')).toBeVisible()
-    // Nothing about portals having a look of their own while the switch is off.
+    // A second portal is enough for the page to tell that a portal can have its own look.
     await expect(
       canvas.getByText(
-        'How every portal at Avela Resort looks. Portal wording and links stay per portal.',
+        'The look every portal at Avela Resort starts with. A portal can use its own photo, colours, or name and logo.',
       ),
     ).toBeVisible()
-    expect(canvas.queryByRole('link', { name: /Edit its look/ })).toBeNull()
+    expect(
+      canvas.getAllByRole('link', { name: /^Edit its look/ }).length,
+    ).toBeGreaterThan(0)
     // The archived portal is not reached by the look.
     await expect(canvas.queryByText('Old kiosk')).toBeNull()
     // The page, drawn from the first live portal's draft, in the draft colours.
