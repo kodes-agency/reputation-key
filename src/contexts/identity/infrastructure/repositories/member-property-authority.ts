@@ -467,10 +467,6 @@ export async function decideCurrentMemberPropertyAuthority(
  * model as interactive requests. For assigned scope, the grant row is locked
  * for the remainder of the caller transaction so revocation cannot race an
  * authorization-sensitive write.
- *
- * Runtime custom roles are beta-disabled. The dynamic resolver is still used
- * when explicitly enabled, but callers must add policy-row locking before
- * activating that dormant capability for transaction-sensitive commands.
  */
 export async function decideMemberPropertyAuthority(
   db: MemberPropertyAuthorityDatabase,

@@ -95,8 +95,6 @@ export type SequentialIdentityCommandStore = IdentityCommandStore &
      * creates none) and is recorded in `verifiedUserIds`.
      */
     seedUser: (row: StoredUser) => void
-    /** Register a custom role name that still exists (orgRole + policy). */
-    seedCustomRole: (role: string) => void
     /**
      * Seed a live Property of an Organization. An acceptance grants only the
      * invited Properties seeded here; any other is reported as ungranted.
@@ -122,7 +120,6 @@ export function createSequentialIdentityCommandStore(deps: {
   const organizations = new Map<string, StoredOrganization>()
   const users = new Map<string, StoredUser>()
   const verifiedUserIds: string[] = []
-  const customRoles = new Set<string>()
   const liveProperties = new Set<string>()
   const propertyGrants: StoredPropertyGrant[] = []
   const propertyKey = (organizationId: string, propertyId: string) =>
@@ -362,9 +359,6 @@ export function createSequentialIdentityCommandStore(deps: {
     },
     seedOrganization: (row) => {
       organizations.set(row.id, row)
-    },
-    seedCustomRole: (role) => {
-      customRoles.add(role)
     },
     seedUser: (row) => {
       users.set(row.id, row)

@@ -2,29 +2,6 @@
 // Consumers must not import AI domain, ports, adapters, jobs, or provider
 // control directly. Composition roots may wire infrastructure through build.ts.
 
-export type {
-  AiAspectAggregate,
-  AiEmergingIssue,
-  AiSentimentDay,
-} from './use-cases/read-property-aggregates'
-
-export type {
-  AiPropertyInsightAspect,
-  AiPropertyInsightAspectEvidenceState,
-  AiPropertyInsightComparedAspect,
-  AiPropertyInsightIssue,
-  AiPropertyInsightsAllTimeReady,
-  AiPropertyInsightsBasis,
-  AiPropertyInsightsPresetReady,
-  AiPropertyInsightsRatingBucket,
-  AiPropertyInsightsRead,
-  AiPropertyInsightsWindow,
-  AiPropertyInsightWeeklyPoint,
-  AiPropertyInsightWeeklySeries,
-  PropertyInsightsPreset,
-  PropertyInsightsRange,
-} from './use-cases/read-property-insights'
-
 // Guest voice 2.0: what the page and the issue drawer are drawn from. `Window`,
 // `Change` and `EvidenceLevel` are the read model's own names; they leave here
 // prefixed, so a consumer's `Window` is still the browser's.

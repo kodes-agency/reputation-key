@@ -349,14 +349,6 @@ const baseEnvSchema = z.object({
   // proven: a head check then covers the look between two completed listings.
   // Worker-read; a restart applies it.
   REVIEW_RECONCILE_WITHIN_HOURS: z.coerce.number().int().min(6).max(24).default(6),
-  // Dynamic Access Control — Stage 1 safety gate (ADR 0001).
-  // 'true' enables the custom-role model (Stage 2 dynamic resolver). Absent or any
-  // other value = false. Parsed as string→bool to avoid z.coerce.boolean()'s
-  // Boolean("false") === true pitfall.
-  ENABLE_CUSTOM_ROLES: z
-    .string()
-    .optional()
-    .transform((v) => v?.toLowerCase() === 'true'),
   // B0.6: Require email verification. In production, defaults to true.
   // In development/test, defaults to false for convenience.
   EMAIL_VERIFICATION_REQUIRED:

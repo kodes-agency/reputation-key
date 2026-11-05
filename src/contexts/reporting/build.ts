@@ -37,8 +37,6 @@ import { recordMetric, recordMetrics } from './application/use-cases/record-metr
 import { retractMetrics } from './application/use-cases/retract-metric'
 import { registerPortalWorkflowMetricConsumers } from './infrastructure/outbox-consumers'
 import { registerGuestMetricConsumers } from './infrastructure/guest-outbox-consumers'
-import { registerPublicReputationMetricConsumers } from './infrastructure/public-reputation-outbox-consumers'
-import type { ReviewRatingLookupPort } from './application/ports/review-rating-lookup.port'
 import { queryGoalMetric } from './application/use-cases/query-goal-metric'
 import { queryPortalAnalytics } from './application/use-cases/query-portal-analytics'
 import { createPortalAnalyticsRepository } from './infrastructure/repositories/portal-analytics.repository'
@@ -180,7 +178,6 @@ export type ReportingContextBuildInput = Readonly<{
   logger: LoggerPort
   portalGroupApi: PortalGroupPublicApi
   portalApi: PortalPublicApi
-  reviewRatingLookup: ReviewRatingLookupPort
   propertyApi: PropertyFactsPublicApi
   staffPublicApi: StaffPublicApi
   reviewServingStats: ReviewServingStats
@@ -281,11 +278,6 @@ function buildMetricModule(input: ReportingContextBuildInput) {
       recordMetrics: recordBatch,
       retractMetrics: retractBatch,
       findGroupForPortal,
-    })
-    registerPublicReputationMetricConsumers(consumerRegistry, {
-      recordMetric: record,
-      reviewRatingLookup: input.reviewRatingLookup,
-      db: input.db,
     })
     registerCurrentGoogleReputationConsumer(consumerRegistry, currentGoogleReputation)
   }

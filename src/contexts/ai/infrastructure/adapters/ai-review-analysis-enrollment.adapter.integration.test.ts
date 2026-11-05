@@ -38,7 +38,6 @@ import {
 import { AI_REVIEW_ANALYSIS_CONSUMER } from '../outbox-consumers'
 import { createAiOperationStoreAdapter } from './ai-operation-store.adapter'
 import { createAiPropertyAggregateStoreAdapter } from './ai-property-aggregate-store.adapter'
-import { createAiReviewEventStoreAdapter } from './ai-review-event-store.adapter'
 import { createReviewAnalysisEnrollmentAdapter } from './ai-review-analysis-enrollment.adapter'
 
 const NOW = new Date('2026-09-08T10:00:00.000Z')
@@ -527,7 +526,6 @@ describe('Review Analysis enrollment adapter (real PostgreSQL)', () => {
       store: createAiOperationStoreAdapter(db, () => {
         throw new Error('The reaper does not create operation ids')
       }),
-      reviewEvents: createAiReviewEventStoreAdapter(db),
       aggregates: createAiPropertyAggregateStoreAdapter(db),
       recordAnalysisReceipt: (eventId: string, status: 'applied' | 'obsolete') =>
         outbox.insertReceipt(eventId, AI_REVIEW_ANALYSIS_CONSUMER, status),
