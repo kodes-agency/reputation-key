@@ -1,4 +1,4 @@
-import { useNavigate } from '@tanstack/react-router'
+import { useNavigate, useRouterState } from '@tanstack/react-router'
 import { LogOut } from 'lucide-react'
 import { SidebarTrigger } from '#/components/ui/sidebar'
 import {
@@ -19,13 +19,12 @@ import type {
   SubmitBetaFeedback,
 } from '#/components/features/beta-feedback/beta-feedback-form-context'
 import { IconButton } from '#/components/ui/icon-button'
-import { lazy, Suspense, useId } from 'react'
+import { lazy, Suspense, useEffect, useId, useState } from 'react'
 import type { ProductUpdatesClientGetter } from '#/shared/whats-new/types'
 import {
   AccountButtonUpdatesDot,
   WhatsNewMenuItem,
 } from '#/components/features/whats-new/whats-new-menu-item'
-import { RouteProgress } from '#/components/layout/route-progress'
 
 const ProductUpdatesIdle = lazy(
   () => import('#/components/features/whats-new/product-updates-idle'),
@@ -162,5 +161,55 @@ export function AppTopBar({
       )}
       <RouteProgress />
     </header>
+  )
+}
+
+/**
+ * How long a navigation may take before the bar appears. A page that answers in
+ * the blink of an eye never shows it, so a fast click stays calm; one that makes
+ * the person wait gets a sign that the click was heard.
+ */
+export const ROUTE_PROGRESS_DELAY_MS = 150
+
+/**
+ * Calls `show` once `delayMs` has passed, unless the returned function is called
+ * first, so a navigation that finishes inside the delay never flashes the bar.
+ */
+export function showAfterDelay(show: () => void, delayMs: number): () => void {
+  const timer = setTimeout(show, delayMs)
+  return () => clearTimeout(timer)
+}
+
+/**
+ * A 2 px bar on the lower edge of the top bar while the router is loading the next
+ * page. The old page stays on screen during that wait, and nothing else says the
+ * click was heard.
+ *
+ * Decoration, so it is hidden from assistive technology. It moves with `transform`
+ * only; under reduced motion it is a still bar.
+ */
+function RouteProgress() {
+  const isPending = useRouterState({ select: (s) => s.status === 'pending' })
+  const [isShown, setIsShown] = useState(false)
+
+  useEffect(() => {
+    if (!isPending) return undefined
+    const cancel = showAfterDelay(() => setIsShown(true), ROUTE_PROGRESS_DELAY_MS)
+    return () => {
+      cancel()
+      setIsShown(false)
+    }
+  }, [isPending])
+
+  if (!isPending || !isShown) return null
+
+  return (
+    <div
+      aria-hidden="true"
+      data-slot="route-progress"
+      className="pointer-events-none absolute inset-x-0 bottom-0 h-0.5 overflow-hidden"
+    >
+      <div className="h-full w-1/3 animate-route-progress bg-primary motion-reduce:w-full motion-reduce:animate-none motion-reduce:opacity-60" />
+    </div>
   )
 }

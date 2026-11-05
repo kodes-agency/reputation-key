@@ -6,12 +6,6 @@ import { IconButton } from '#/components/ui/icon-button'
 import { Input } from '#/components/ui/input'
 import { InputGroup, InputGroupAddon, InputGroupInput } from '#/components/ui/input-group'
 import { cn } from '#/lib/utils'
-import {
-  reconcileDraft,
-  shownText,
-  typeIntoDraft,
-  type SearchDraft,
-} from './search-field-draft'
 
 /** The browser draws its own cancel glyph in a search input; the field draws one, so never two. */
 const NO_NATIVE_CANCEL = '[&::-webkit-search-cancel-button]:appearance-none'
@@ -53,7 +47,7 @@ type Props = Readonly<{
  *
  * The lists keep the search in the URL, and a keystroke is a navigation that
  * commits only once the route has loaded. So the field keeps what was typed as a
- * draft and shows it until `value` catches up (`search-field-draft.ts`); without
+ * draft and shows it until `value` catches up; without
  * it a slow network put the field back to an older search under the person's
  * fingers and dropped the keys typed meanwhile. Callers change nothing: `value`
  * is still the committed search, and a change to it that the person did not
@@ -142,4 +136,64 @@ export function SearchField({
       ) : null}
     </InputGroup>
   )
+}
+
+// What a search field shows while the page it filters is still catching up with
+// what was typed.
+//
+// A list keeps its search in the URL, and a keystroke is a navigation: the new
+// search is committed only after the route has loaded, which on a slow network
+// is long after the next keystroke. A field that shows the committed value then
+// puts the person's text back to what the URL last said, and the next key is
+// typed after the old text ("Bounded" became "d"). So the field keeps what was
+// typed as a draft, and shows it until the committed value has caught up.
+//
+
+export type SearchDraft = Readonly<{
+  /** What the field shows: the last thing typed. */
+  text: string
+  /** Everything typed that the committed value has not reached yet, oldest first. */
+  typed: readonly string[]
+  /** The committed value when it was last looked at, to tell a change from no change. */
+  seen: string
+}>
+
+/** A keystroke: the new text is the draft, and is now owed an echo from the page. */
+export function typeIntoDraft(
+  draft: SearchDraft | null,
+  committed: string,
+  text: string,
+): SearchDraft {
+  return {
+    text,
+    typed: [...(draft?.typed ?? []), text],
+    seen: draft?.seen ?? committed,
+  }
+}
+
+/**
+ * The draft after the committed value moved (or did not).
+ *
+ * - The same value: nothing to do, the same draft comes back (so a caller can
+ *   tell by identity that nothing changed).
+ * - The value reached the draft: the page has caught up, the draft is done.
+ * - A value the person typed, but an older one: a stale echo of an earlier
+ *   keystroke. The newer text stays; only the echoes already seen are forgotten.
+ * - A value the person never typed (Clear all, Back, a link): the page changed
+ *   the search under the field, so the field shows it.
+ */
+export function reconcileDraft(
+  draft: SearchDraft | null,
+  committed: string,
+): SearchDraft | null {
+  if (draft === null || committed === draft.seen) return draft
+  if (committed === draft.text) return null
+  const index = draft.typed.indexOf(committed)
+  if (index === -1) return null
+  return { ...draft, typed: draft.typed.slice(index + 1), seen: committed }
+}
+
+/** What the field shows. */
+export function shownText(draft: SearchDraft | null, committed: string): string {
+  return draft === null ? committed : draft.text
 }

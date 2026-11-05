@@ -19,12 +19,11 @@
 //
 // A Checkbox is not a setting: it stays for a statement the person agrees to
 // (`ConsentCheckbox`) and for choosing several things from a list.
-import type { ReactNode } from 'react'
+import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
 import { FieldDescription } from '#/components/ui/field'
 import { Label } from '#/components/ui/label'
 import { Switch } from '#/components/ui/switch'
 import { cn } from '#/lib/utils'
-import { useSaveStatus, type SaveStatus } from './use-save-status'
 
 type Props = Readonly<{
   id: string
@@ -187,4 +186,56 @@ export function SettingSwitchRow({
       </div>
     </div>
   )
+}
+
+// What the save behind a flipped switch is doing, as the row says it (UI consistency
+// scan: FORM-08). A row that saves as it is flipped hands its handler's promise to
+// `track`: "Saving…" while it runs, "Saved" for a moment when it lands, nothing when
+// it was refused (the caller has said so in a toast, decision 6).
+//
+// A save is refused when its promise rejects or resolves `false`. Anything else
+// resolved is a save that landed. Flips that overlap are one stretch of saving: the
+// row settles when the last of them has, and says "Saved" only if that one landed.
+
+/** How long "Saved" stays beside the switch. */
+const SAVED_NOTICE_MS = 2500
+
+type SaveStatus = 'idle' | 'saving' | 'saved'
+
+type TrackSave = (result: unknown) => void
+
+function useSaveStatus(): readonly [SaveStatus, TrackSave] {
+  const [status, setStatus] = useState<SaveStatus>('idle')
+  const inFlight = useRef(0)
+  const alive = useRef(false)
+  const hideTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
+
+  useEffect(() => {
+    alive.current = true
+    return () => {
+      alive.current = false
+      clearTimeout(hideTimer.current)
+    }
+  }, [])
+
+  const track = useCallback<TrackSave>((result) => {
+    if (!(result instanceof Promise)) return
+    clearTimeout(hideTimer.current)
+    inFlight.current += 1
+    setStatus('saving')
+    const settle = (landed: boolean) => {
+      inFlight.current -= 1
+      if (!alive.current || inFlight.current > 0) return
+      setStatus(landed ? 'saved' : 'idle')
+      if (landed) {
+        hideTimer.current = setTimeout(() => setStatus('idle'), SAVED_NOTICE_MS)
+      }
+    }
+    result.then(
+      (value) => settle(value !== false),
+      () => settle(false),
+    )
+  }, [])
+
+  return [status, track]
 }

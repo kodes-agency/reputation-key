@@ -4,7 +4,7 @@ import {
   shownText,
   typeIntoDraft,
   type SearchDraft,
-} from './search-field-draft'
+} from './search-field'
 
 /** Types each key into the draft while the committed value stays where it was. */
 function typeKeys(committed: string, keys: readonly string[]): SearchDraft | null {
