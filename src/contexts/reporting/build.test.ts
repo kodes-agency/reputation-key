@@ -11,7 +11,6 @@ function build(patch: Partial<ReportingContextBuildInput> = {}) {
     logger: createMockLogger(),
     portalGroupApi: {} as ReportingContextBuildInput['portalGroupApi'],
     portalApi: {} as ReportingContextBuildInput['portalApi'],
-    reviewRatingLookup: {} as ReportingContextBuildInput['reviewRatingLookup'],
     propertyApi: {} as ReportingContextBuildInput['propertyApi'],
     staffPublicApi: {} as ReportingContextBuildInput['staffPublicApi'],
     reviewServingStats: {} as ReportingContextBuildInput['reviewServingStats'],
@@ -89,6 +88,18 @@ describe('buildReportingContext', () => {
     expect(registry.list()).toContainEqual({
       eventType: 'property.archived',
       consumerName: 'goal.on-property-archived',
+    })
+  })
+
+  it('projects verified Google snapshots without recording individual review stars', () => {
+    const registry = createConsumerRegistry()
+
+    build().worker.registerOutboxConsumers(registry, { authorize: async () => undefined })
+
+    expect(registry.listFor('review.created')).toEqual([])
+    expect(registry.list()).toContainEqual({
+      eventType: 'review.google_reputation_snapshot.verified',
+      consumerName: 'metric.current-google-reputation',
     })
   })
 

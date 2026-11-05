@@ -86,7 +86,6 @@ function buildReportingFixture() {
     logger: createMockLogger(),
     portalGroupApi: {} as ReportingContextBuildInput['portalGroupApi'],
     portalApi: {} as ReportingContextBuildInput['portalApi'],
-    reviewRatingLookup: {} as ReportingContextBuildInput['reviewRatingLookup'],
     propertyApi: {} as ReportingContextBuildInput['propertyApi'],
     staffPublicApi: {} as ReportingContextBuildInput['staffPublicApi'],
     reviewServingStats: {} as ReportingContextBuildInput['reviewServingStats'],

@@ -8,6 +8,9 @@ metric authority.
 ## Responsibilities
 
 - Record version-pinned metric readings and append-only corrections.
+- Individual Google review stars are not recorded as metric readings; current
+  Google figures come from verified snapshots. Stored `property.review` readings
+  and their registry entry remain until those rows are erased.
 - Maintain anonymous Portal lifetime aggregates and Current on Google snapshots. A Current on Google snapshot is ordered, and `verifiedAt` dated, by when Google's numbers were READ (the event's `numbersObservedAt`, falling back to `evaluatedAt`), so a long snapshot that completes after a fresher head fact does not replace the newer numbers.
 - Resolve governed metric availability, provenance, completeness, and correction impact.
 - Create, revise, assign, schedule, evaluate, and close monthly Goal Programs.

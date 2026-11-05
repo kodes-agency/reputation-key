@@ -16,8 +16,6 @@ const ACTIVITY_OUTBOX = 'src/contexts/feed/infrastructure/activity-outbox-consum
 const AI_OUTBOX = 'src/contexts/ai/infrastructure/outbox-consumers.ts'
 const INBOX_OUTBOX = 'src/contexts/inbox/infrastructure/outbox-consumers.ts'
 const REVIEW_OUTBOX = 'src/contexts/review/infrastructure/outbox-consumers.ts'
-const METRIC_PUBLIC_REPUTATION_OUTBOX =
-  'src/contexts/reporting/infrastructure/public-reputation-outbox-consumers.ts'
 const METRIC_CURRENT_GOOGLE_REPUTATION_OUTBOX =
   'src/contexts/reporting/infrastructure/current-google-reputation-outbox-consumers.ts'
 const GOAL_RATING_GOAL_OUTBOX =
@@ -41,7 +39,6 @@ export const REVIEW_ROWS: ReadonlyArray<EventFamilyRow> = [
   ev('review.created', [
     durable('inbox.on-review-created', INBOX_OUTBOX),
     durable('ai.analyze-review-event', AI_OUTBOX),
-    durable('metric.public-reputation', METRIC_PUBLIC_REPUTATION_OUTBOX),
   ]),
   ev('review.updated', [
     durable('inbox.on-review-updated', INBOX_OUTBOX),
