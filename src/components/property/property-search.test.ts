@@ -6,6 +6,7 @@ import {
   foldSearchText,
   matchesPropertySearch,
   matchesSearchText,
+  offersPropertySearch,
 } from './property-search'
 
 describe('foldSearchText', () => {
@@ -57,5 +58,13 @@ describe('matchesPropertySearch', () => {
   it('is the same matcher applied to a property name', () => {
     expect(matchesPropertySearch('Café Plaza', 'cafe')).toBe(true)
     expect(matchesPropertySearch('Café Plaza', 'zzz')).toBe(false)
+  })
+})
+
+describe('offersPropertySearch', () => {
+  it('adds a search field only once the list is long enough to search', () => {
+    expect(offersPropertySearch(7)).toBe(false)
+    expect(offersPropertySearch(8)).toBe(true)
+    expect(offersPropertySearch(24)).toBe(true)
   })
 })

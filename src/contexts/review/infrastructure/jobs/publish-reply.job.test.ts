@@ -2,7 +2,7 @@
 // BQC-3.2: the BQC-0.4 in-handler capability stop control moved to the
 // dispatch gate (src/shared/jobs/delayed-execution-gate.ts) — see
 // gated-dispatch.test.ts and architecture/delayed-policy-delegation.test.ts.
-// BQC-3.3: provider outcomes are classified via the reply-publication saga —
+// BQC-3.3: provider outcomes are classified by the reply publication workflow —
 // terminal 4xx rejections mark publish_failed WITHOUT burning BullMQ retries,
 // retryable failures rethrow for the configured attempts, and ambiguous
 // outcomes (timeout/unknown after the request may have landed) admit one

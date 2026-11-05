@@ -153,7 +153,6 @@ import {
   cancelPublicationsForConnection,
   cancelPublicationsForProperty,
 } from './application/use-cases/cancel-publications'
-import { getStaffRecentActivity } from './application/use-cases/get-staff-recent-activity'
 import {
   createEligibleGoogleReplyReads,
   createEligibleReads,
@@ -250,8 +249,6 @@ export type ReviewContextApi = Readonly<{
         setTemplateHidden: SetReplyTemplateHidden
         resetTemplate: ResetReplyTemplate
       }>
-      /** Property-scoped Review activity query presented to Review HTTP adapters. */
-      getStaffRecentActivity: ReturnType<typeof getStaffRecentActivity>
     }>
   /** Bounded operator maintenance. These capabilities preserve Review's
    * invariants without exposing its repositories or request workflows. */
@@ -322,7 +319,6 @@ export type ReviewContextApi = Readonly<{
       listReplyTemplates: ListReplyTemplates
       loadReplyTemplate: LoadReplyTemplate
       reconcileReplyPublication: ReturnType<typeof reconcileReplyPublication>
-      getStaffRecentActivity: ReturnType<typeof getStaffRecentActivity>
       runReviewSourceContentLifecycle: RunReviewSourceContentLifecycle
     }>
     /**
@@ -688,11 +684,6 @@ export const buildReviewContext = (input: ReviewContextBuildInput): ReviewContex
     setReplyTemplateHidden: setReplyTemplateHidden(replyLibraryDeps),
     resetReplyTemplate: resetReplyTemplate(replyLibraryDeps),
     reconcileReplyPublication: reconcileReplyPublicationUseCase,
-    getStaffRecentActivity: getStaffRecentActivity({
-      reviewRepo,
-      staffPublicApi: input.staffPublicApi,
-      clock: input.clock,
-    }),
     runReviewSourceContentLifecycle: createRunReviewSourceContentLifecycle({
       store: sourceContentLifecycleStore,
       clock: input.clock,
@@ -814,7 +805,6 @@ export const buildReviewContext = (input: ReviewContextBuildInput): ReviewContex
         setTemplateHidden: useCases.setReplyTemplateHidden,
         resetTemplate: useCases.resetReplyTemplate,
       }),
-      getStaffRecentActivity: useCases.getStaffRecentActivity,
     },
     maintenance: Object.freeze({
       publicationReconciliation: Object.freeze({
