@@ -1,4 +1,6 @@
 import { describe, expect, it } from 'vitest'
+import { hashKey } from '@tanstack/react-query'
+import * as queryKeys from './query-keys'
 import {
   dashboardKeys,
   goalKeys,
@@ -9,6 +11,29 @@ import {
   propertyKeys,
   staffSelfKeys,
 } from './query-keys'
+
+describe('query key uniqueness', () => {
+  it('gives every factory a distinct root', () => {
+    const roots = Object.values(queryKeys).map((factory) => hashKey(factory.all))
+    expect(new Set(roots).size).toBe(roots.length)
+  })
+
+  it('gives every factory member a distinct cache key path', () => {
+    const paths = new Map<string, string>()
+    // Shared probe values expose collisions even when parameter names differ.
+    const args = Array.from({ length: 6 }, () => 'probe')
+    for (const [factoryName, factory] of Object.entries(queryKeys)) {
+      for (const [memberName, member] of Object.entries(factory)) {
+        const key =
+          typeof member === 'function' ? Reflect.apply(member, undefined, args) : member
+        const path = hashKey(key)
+        const name = `${factoryName}.${memberName}`
+        expect(paths.get(path), `${name} shares ${path}`).toBeUndefined()
+        paths.set(path, name)
+      }
+    }
+  })
+})
 
 describe('identity query keys', () => {
   it('keeps the organization AI overview beside, not inside, per-property consent snapshots', () => {
