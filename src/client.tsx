@@ -1,3 +1,4 @@
+import './shared/zod-jitless'
 import './instrument.client'
 import { StrictMode } from 'react'
 import { hydrateRoot } from 'react-dom/client'
