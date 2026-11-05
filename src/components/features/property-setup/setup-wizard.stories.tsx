@@ -1,6 +1,10 @@
 import type { Meta, StoryObj } from '@storybook/react'
-import { expect, within } from 'storybook/test'
+import { useState } from 'react'
+import { expect, userEvent, within } from 'storybook/test'
+import { Button } from '#/components/ui/button'
+import { Input } from '#/components/ui/input'
 import { SetupWizard } from './setup-wizard'
+import type { SetupWizardStepId } from './setup-wizard-steps'
 
 const meta = {
   title: 'PropertySetup/SetupWizard',
@@ -15,16 +19,20 @@ const meta = {
 export default meta
 type Story = StoryObj<typeof meta>
 
-/** The frame names every step and marks where the merchant is. */
 export const ConfirmDetails: Story = {
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
-    const steps = canvas.getByRole('tablist', { name: /import steps/i })
-    const current = within(steps).getByRole('tab', { selected: true })
+    const steps = canvas.getByRole('list', { name: /import steps/i })
+    const current = within(steps).getAllByRole('listitem')[2]!
     await expect(current).toHaveAttribute('aria-current', 'step')
-    await expect(current).toHaveAccessibleName(/confirm details/i)
-    await expect(within(steps).getAllByRole('tab')).toHaveLength(5)
-    await expect(canvas.getByRole('tabpanel')).toHaveTextContent('Confirm-details table')
+    await expect(current).toHaveTextContent('Confirm details')
+    await expect(within(steps).getAllByRole('listitem')).toHaveLength(5)
+    await expect(within(steps).queryByRole('button')).not.toBeInTheDocument()
+    await expect(canvas.getByText('Confirm-details table')).toBeVisible()
+    await expect(
+      within(steps).getByText('Confirm details').getBoundingClientRect().width,
+    ).toBeGreaterThan(1)
+    await expect(canvas.getByText('Step 3 of 5: Confirm details')).not.toBeVisible()
   },
 }
 
@@ -32,23 +40,93 @@ export const SetUpProperties: Story = {
   args: { step: 'setup', children: <p>Setup questions</p> },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
-    await expect(canvas.getByRole('tab', { selected: true })).toHaveAccessibleName(
-      /set up properties/i,
+    const steps = canvas.getByRole('list', { name: /import steps/i })
+    await expect(within(steps).getAllByRole('listitem')[4]).toHaveAttribute(
+      'aria-current',
+      'step',
     )
-    await expect(
-      canvas.getAllByRole('tab').filter((tab) => tab.dataset.state === 'completed'),
-    ).toHaveLength(4)
+    await expect(steps.querySelectorAll('svg')).toHaveLength(4)
   },
 }
 
-/** Phones print the step as a caption; the tabs keep their names for readers. */
 export const Mobile: Story = {
   parameters: { viewport: { defaultViewport: 'mobileStaff' } },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
-    await expect(canvas.getByRole('tab', { selected: true })).toHaveAccessibleName(
-      /confirm details/i,
+    const steps = canvas.getByRole('list', { name: /import steps/i })
+    await expect(within(steps).getAllByRole('listitem')[2]).toHaveAttribute(
+      'aria-current',
+      'step',
     )
+    const title = within(steps).getByText('Confirm details')
+    const caption = canvas.getByText('Step 3 of 5: Confirm details')
+    await expect(window.matchMedia('(min-width: 64rem)').matches).toBe(false)
+    await expect(title.getBoundingClientRect().width).toBeLessThanOrEqual(1)
+    await expect(
+      within(steps).getByText('Check each property').getBoundingClientRect().width,
+    ).toBeLessThanOrEqual(1)
+    await expect(caption).toBeVisible()
     await expect(canvasElement.scrollWidth).toBeLessThanOrEqual(canvasElement.clientWidth)
+  },
+}
+
+function PropertyQuestions({
+  onContinue,
+  onBack,
+}: Readonly<{
+  onContinue: () => void
+  onBack: () => void
+}>) {
+  const [name, setName] = useState('')
+  return (
+    <div className="flex flex-col gap-3">
+      <Input
+        aria-label="Property name"
+        value={name}
+        onChange={(event) => setName(event.target.value)}
+      />
+      <Button onClick={onContinue}>Continue</Button>
+      <Button variant="outline" onClick={onBack}>
+        Back
+      </Button>
+    </div>
+  )
+}
+
+function WizardInteraction() {
+  const [step, setStep] = useState<SetupWizardStepId>('confirm')
+  return (
+    <SetupWizard step={step}>
+      <PropertyQuestions
+        onContinue={() => setStep('setup')}
+        onBack={() => setStep('confirm')}
+      />
+    </SetupWizard>
+  )
+}
+
+export const KeepsScreenState: Story = {
+  render: () => <WizardInteraction />,
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    const name = canvas.getByRole('textbox', { name: 'Property name' })
+    await userEvent.type(name, 'Seaside hotel')
+    await userEvent.click(canvas.getByRole('button', { name: 'Continue' }))
+    let steps = canvas.getByRole('list', { name: /import steps/i })
+    await expect(within(steps).getAllByRole('listitem')[4]).toHaveAttribute(
+      'aria-current',
+      'step',
+    )
+    await expect(name).toHaveValue('Seaside hotel')
+    await expect(name).toBe(canvas.getByRole('textbox', { name: 'Property name' }))
+    await userEvent.click(canvas.getByRole('button', { name: 'Back' }))
+    steps = canvas.getByRole('list', { name: /import steps/i })
+    await expect(within(steps).getAllByRole('listitem')[2]).toHaveAttribute(
+      'aria-current',
+      'step',
+    )
+    await expect(canvas.getByRole('textbox', { name: 'Property name' })).toHaveValue(
+      'Seaside hotel',
+    )
   },
 }

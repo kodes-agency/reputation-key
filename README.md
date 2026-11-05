@@ -259,8 +259,7 @@ src/
 │   └── testing/   # In-memory port fakes, test fixtures
 ├── routes/         # TanStack Router file-based routes
 │   └── _authenticated/ # Protected routes with layout shell
-├── hooks/          # Low-level utility hooks (use-as-ref, use-lazy-ref)
-├── lib/            # Shared utilities (utils, compose-refs, lookups)
+├── lib/            # Shared utilities (utils, lookups)
 ├── composition.ts  # Dependency wiring
 ├── bootstrap.ts    # Event/job handler registration
 └── worker/         # Background worker entry point
