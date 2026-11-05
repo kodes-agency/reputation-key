@@ -1,13 +1,6 @@
-// Property Google rating goal — what its reads return (types only).
-//
-// No zod and no values here: the UI imports these with `import type`, so the
-// goal pages carry none of the command schemas into first paint (#794). The
-// command schemas live in rating-goal.dto.ts.
-//
-// Numbers are plain decimals for display: a target 4.5 also comes as
-// `targetTenths` 45, the exact average to three decimals; a pace is in tenths
-// of a review a week.
-// "Google shows" is always Google's own one-decimal number.
+// Browser-safe read types; command schemas stay in rating-goal.dto.ts.
+// Display decimals accompany exact target tenths and pace tenths per week.
+// "Google shows" always means Google's own one-decimal number.
 
 import type {
   RatingGoalChangeField,
@@ -42,8 +35,7 @@ export type RatingQualityBasis = QualityBasis
 export type RatingExactAverageSource = 'cache' | 'google'
 
 /**
- * When a target is expected, as durations from today in exact days (round 5,
- * PLAN-D E1/E3): the central time and the likely range (new reviews 0.1★
+ * Arrival durations from today in exact days: central and likely range (reviews 0.1★
  * better at 10% more a week, and 0.1★ worse at 10% less). No calendar date.
  */
 export type RatingArrivalView =
@@ -77,7 +69,7 @@ export type RatingGoalSetupView = Readonly<{
   /** Google shows 4.9 or 5.0: Keep is offered first, in place of a climb. */
   offerKeepFirst: boolean
   /**
-   * What the one-screen setup works its plan out from (rounds 3 and 4); null
+   * What the one-screen setup works its plan out from; null
    * while Google's numbers are waiting or show no tenth.
    */
   setupInputs: RatingGoalSetupInputs | null
@@ -133,7 +125,7 @@ export type RatingGoalCardView = Readonly<{
   qualityBasis: RatingQualityBasis | null
   setAt: string
   /**
-   * The number the card counts to (PLAN-D E5): the tenth above what the
+   * The number the card counts to: the tenth above what the
    * reviews have earned, at most the goal, with the new reviews it takes
    * (never 0). Null for a keep goal, without Google's numbers, once the
    * reviews have earned the goal (`googleShowsSoon`) or when no average
@@ -161,7 +153,7 @@ export type RatingGoalCardView = Readonly<{
   }> | null
   /**
    * The day of the Property week, 1 Monday … 7 Sunday, worked out on the
-   * server at every card read (PLAN-D E9). A page that stays focused past
+   * server at every card read. A page that stays focused past
    * midnight shows the day before until its next read.
    */
   weekday: number
@@ -170,7 +162,7 @@ export type RatingGoalCardView = Readonly<{
 }>
 
 /**
- * The Monday check-in (round 5, PLAN-D D-3, owner answer Q4): last
+ * The Monday check-in: last
  * Property-local week against the plan, and the paces Keep, Raise and Ease
  * leave. Shown from Monday until a manager answers it or the week ends; it
  * changes nothing by itself.

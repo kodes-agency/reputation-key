@@ -1,9 +1,6 @@
-// Reporting — who set a goal's target, when, and from which month it counts.
-//
-// A Program writes a new version for every change, including one that only
-// changes its subjects. The page says when the TARGET was set, so this walks
-// back from a version through the versions before it for as long as the
-// measure and the target stay the same, and reports the oldest of that run.
+// A subject-only revision does not reset when the target was set. Walk back
+// through unchanged measure/target pairs to find the start of that target.
+
 import type {
   GoalMonthlyResult,
   GoalProgramVersion,

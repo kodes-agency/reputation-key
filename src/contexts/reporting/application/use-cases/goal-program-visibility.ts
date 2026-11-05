@@ -1,12 +1,6 @@
-// Reporting — which Goal Program assignments and results an actor may read.
-//
-// An actor who can create Goals reads every Program at the Property. Anyone
-// else reads Property-wide assignments plus those for the Portals they are
-// responsible for and those Portals' groups, with only the matching results and
-// the target changes of those results; a Program with none of those assignments
-// is not found. Every built-in role that
-// reads Goals can also create them (Member lost goal.read in 77a0e1988), so
-// today only a custom role would be filtered.
+// Goal creators see every Program at the Property. Other readers see only
+// Property assignments and their responsible Portals/groups, matching results
+// and target changes. No visible assignments means the Program is not found.
 
 import { canForContext } from '#/shared/domain/permissions'
 import type { GoalSubject } from '../../domain/goal-program'

@@ -1,22 +1,9 @@
-// Reporting — adding a portal goal (ADR 0068, PLAN PG-20).
-//
-// The add sheet's two commands, each an ordinary Goal Program written by the
-// engine's own create (no new rule, no new storage):
-//
-// - `addPortalGoal`: a goal for one Portal or one Portal Group, counting
-//   private ratings or scans, or the average private rating for the whole
-//   Property. It goes through `createGoal`, named as a goal set for several
-//   subjects names each one ("Reception · Private ratings"; the average is
-//   "Average private rating").
-// - `addPortalGoals`: a goal for each ticked Portal, all in one month and
-//   measure, through `createGoalsForSubjects`: each row is its own goal, and a
-//   row that cannot be saved is reported without holding the others back.
-//
-// Both ask the policy for `goal.create` before anything is read. The number's
-// source is stored for learning (decision 11): `recommended` only when it is
-// the number the sheet would offer that subject for that month and measure
-// now, otherwise `own`, whatever the request said. A Property count goal is
-// never made here: that is the Monthly portal goal, set from its card.
+// Authorize goal.create before reading (ADR 0068). Single additions use createGoal;
+// bulk additions create one goal per selected Portal and report failures per row.
+// Recompute target provenance: recommended only if today's offer for the requested
+// subject, month and measure matches, otherwise own. Property count goals are set
+// through the Monthly portal goal card.
+
 import { MAX_GOAL_BULK_ITEMS } from '../../domain/goal-bulk-create'
 import type { GoalTargetSource } from '../../domain/goal-program'
 import type {

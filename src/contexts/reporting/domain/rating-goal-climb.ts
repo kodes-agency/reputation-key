@@ -1,9 +1,5 @@
-// Property Google rating goal — what the detail page still works out of a climb
-// (pure): reviews in four weeks as a month, and what a goal was set with.
-//
-// The cone and the likely band that lived here went with the fan chart they drew
-// (2026-11-01, ADR 0067): the page now draws a line to the goal, and the time it
-// says is the card's own arrival.
+// Detail uses four weeks of reviews as a month and retains the goal's set-time
+// figures. Arrival comes from the shared card calculation.
 
 import { roundHalfUpInt } from './rating-goal-numbers'
 import type { RatingGoalChangeField } from './rating-goal'

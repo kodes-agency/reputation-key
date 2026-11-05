@@ -1,13 +1,6 @@
-// Property Google rating goal — the planned quality of new reviews (pure).
-//
-// A plan assumes the average stars new Google reviews will bring: its planned
-// quality, a tenth of a star (round 2, 2026-10-15). It must clear the target's
-// threshold by 0.15★ or more, because reviews needed = gap / (quality − θ)
-// explodes near the threshold (4.5★ against 4.45 asks for about five times the
-// reviews 4.7★ does); as a tenth that is the target plus one. Rounds 3 and 4
-// (2026-10-16) plan it automatically from the best month or year
-// (rating-goal-average.ts); this module keeps the floor, the tenth of an
-// average and the best calendar year.
+// Plan quality must clear the target threshold by 0.15★: gap / (quality − θ)
+// explodes near the threshold. In whole tenths the floor is target + one.
+// Automatic quality comes from rating-goal-average.ts; this module owns its floor.
 
 import {
   compareRatios,

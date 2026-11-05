@@ -1,15 +1,7 @@
-// Monthly portal goal — how ready each Portal is, and what is quiet about it
-// (ADR 0068 decision 5).
-//
-// Before a Property's recommended number exists, each Portal shows three
-// steps: it is live, its code is made (a published QR or NFC marker, so its
-// scans count) and a first scan has arrived since that code was made. Once a
-// Portal counts, one quiet fact may be said about it: it has had no scans for
-// long enough that its own usual would have brought 5, or its code has been
-// out 14 days with no scan at all. Facts, never a verdict about a person.
-//
-// Days are Property-local calendar days as `YYYY-MM-DD`, decided by the
-// server. Pure.
+// Readiness records live status, code creation and the first subsequent scan
+// (ADR 0068). A counting Portal may have one quiet fact: no scans long enough
+// for its usual to bring five, or 14 days since code creation with none.
+// These are Portal facts, never a verdict about a person. Days are Property-local.
 
 import { daysBetween } from './local-days'
 

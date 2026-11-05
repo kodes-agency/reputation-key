@@ -1,5 +1,4 @@
 import { readPortalLastScans } from './portal-last-scans'
-// Metric context — the Portals overview's batched results read.
 //
 // Answers for every requested Portal in five statements, however many there
 // are: the governed sums (per Portal, per group the reading sat under, per

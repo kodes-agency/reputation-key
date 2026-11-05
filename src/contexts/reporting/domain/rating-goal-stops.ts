@@ -1,12 +1,6 @@
-// Property Google rating goal — the targets a goal can name (pure).
-//
-// A climb target runs from the tenth above what Google shows up to 4.9; 5.0 is
-// never a target, because it needs every review from now on to be five stars.
-// What a target needs at a planned average is `planNeeds`. Keep is offered
-// first from a shown 4.7 (owner, 2026-10-16, X1: a higher number needs new
-// reviews of nearly five stars); a climb stays possible below 4.9. Rounds
-// 3 and 4 (2026-10-16) retired the Realistic / Stretch labels and the 5.0 stop:
-// the setup recommends one goal and words its time (rating-goal-duration.ts).
+// Climb targets run from the next shown tenth to 4.9: 5.0 would require every
+// future review to be five stars. Keep is offered from shown 4.7 because the next
+// tenth needs nearly five-star reviews. Recommend arrival through rating-goal-duration.ts.
 
 import {
   bestCaseReviewsNeeded,

@@ -19,7 +19,7 @@ export const GOAL_PROGRAM_MAINTENANCE_JOB_NAME = 'goal-program.maintain' as cons
  * A stranded result can never reconcile or close, so maintenance counts it
  * rather than failing every run. Say so each run it is seen, or the count only
  * reaches the BullMQ return value. Counts only: tenant identifiers are never
- * log fields (BQC-7.3).
+ * log fields.
  */
 function warnAboutStranded(
   logger: Pick<LoggerPort, 'warn'>,
@@ -39,7 +39,7 @@ function warnAboutStranded(
 /**
  * A failed run reaches BullMQ as an error whose message is the count and the
  * causes; this says it in the log too, as fields. Causes are content-free codes
- * and error classes, never a message or an identifier (BQC-7.3).
+ * and error classes, never a message or an identifier.
  */
 function warnAboutFailures(
   logger: Pick<LoggerPort, 'warn'>,

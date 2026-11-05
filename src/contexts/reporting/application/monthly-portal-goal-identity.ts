@@ -1,23 +1,10 @@
-// Reporting — which Goal Program is a Property's Monthly portal goal (ADR 0068
-// decision 1, PLAN E9).
-//
-// The Monthly portal goal is not a kind of Program: it is the Property's count
-// goal, the one whose subject is the Property alone and whose measure is private
-// ratings or scans. One per Property is a screen rule, so it is chosen here and
-// nowhere else, by Program, from the Programs the Property has:
-//
-// - the earliest-created one that has not ended (scheduled, active or paused);
-// - else the most recently ended one that still counts a month: its window is
-//   not over yet (a goal stopped on Nov 12 counts to Nov 30), or one of its
-//   months is still open or reconciling (November is read on Dec 1 and 2).
-//
-// An average, a goal for a Portal or a Portal Group, and a goal whose month has
-// closed are never it. Every Property count goal, the monthly one or not, has
-// the card for its page (`$goalId` sends it there). A count goal for one Portal
-// or one Portal Group, and the average, have a page of their own on `$goalId`
-// (PLAN PG-21); so does a goal for several subjects, made before goals had
-// pages, a plain one with Stop. Pure and client-safe: it reads only the
-// bundles.
+// Select the Property's count goal across private ratings and scans (ADR 0068):
+// the earliest-created non-ended Program, else the most recently ended one whose
+// window or open/reconciling month still counts. A stopped November goal may still
+// be selected in December while November reconciles.
+// Average, Portal and Portal Group goals are separate. All Property count goals
+// use /goals/portals; other shapes keep their own page. Browser-safe.
+
 import type { GoalMetric, GoalSubject } from '../domain/goal-program'
 import type { PortalGoalMeasure } from '../domain/goal-recommendation-types'
 import type {
@@ -103,7 +90,7 @@ export function monthlyPortalGoalOf(
 }
 
 /**
- * The page `$goalId` draws for a goal (PLAN PG-21): the Monthly portal goal's
+ * The page `$goalId` draws for a goal: the Monthly portal goal's
  * own (`/goals/portals`) for a Property count goal; a subject's page for a count
  * goal for one Portal or one Portal Group; an average's page for the average; a
  * plain page for a goal that names several subjects now; none for a goal that

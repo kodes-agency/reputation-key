@@ -1,21 +1,13 @@
-// Property Google rating goal — Monday-to-Sunday weeks (pure).
-//
-// "This week" and the detail's chart count reviews in Monday-to-Sunday
-// weeks of the Property's time zone (the owner's default); the card names the
-// day of that week ("It’s Tuesday") from the server, so the page and its first
-// paint agree (PLAN-D E9). The detail's chart counts whole Property-local days
-// from today on the civil calendar, so a daylight-saving night never makes a
-// day 23 or 25 hours long. A week is named
-// by its Monday (`YYYY-MM-DD`), the same key PostgreSQL's
-// `date_trunc('week', ts AT TIME ZONE tz)` produces, and starts at local
-// midnight on that Monday, whatever the clocks did that weekend.
+// Use Property-local Monday–Sunday civil weeks, keyed by Monday YYYY-MM-DD,
+// matching PostgreSQL date_trunc('week', ts AT TIME ZONE tz). The server decides
+// today and weekday so first paint agrees; DST must not change calendar-day counts.
 
 import {
   propertyWallClockAt,
   propertyWallClockToInstant,
 } from '#/shared/domain/property-calendar'
 
-/** The detail's chart starts this many weeks before the week a goal was set (PLAN-D §4.3). */
+/** The detail's chart starts this many weeks before the week a goal was set. */
 const CHART_WEEKS_BEFORE_SET = 4
 /** And a year back at most. */
 const CHART_MAX_WEEKS = 52
