@@ -16,7 +16,6 @@ import type {
   getInboxItemDetailFn,
   getInboxItemHistoryFn,
 } from '#/contexts/inbox/server/inbox'
-import type { getActivityTimelineFn } from '#/contexts/feed/server/activity'
 import type { InboxItem } from '#/contexts/inbox/application/public-api'
 
 // Mirrors the server fns' { data } payloads (same as the detail-content
@@ -87,9 +86,6 @@ const detailFns = {
   getInboxItemDetail: mockServerFn(async () => {
     throw new Error('Story action only')
   }) as unknown as typeof getInboxItemDetailFn,
-  getActivityTimeline: mockServerFn(
-    async () => [],
-  ) as unknown as typeof getActivityTimelineFn,
   addInboxNote: mockServerFn(async () => ({
     ok: true,
   })) as unknown as typeof addInboxNoteFn,

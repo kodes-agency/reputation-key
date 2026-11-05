@@ -1,4 +1,3 @@
-import { cn } from '#/lib/utils'
 import type { PortalAnalyticsData } from '#/contexts/reporting/application/public-api'
 import type { TimeRangePreset } from '#/contexts/reporting/application/dto/dashboard.dto'
 import { PortalLifetimeReconciliationSummary } from './portal-lifetime-reconciliation-summary'
@@ -50,12 +49,7 @@ export function PortalAnalyticsContent({
           notes once published.
         </p>
       ) : null}
-      <div
-        className={cn(
-          'flex flex-col gap-4 transition-opacity md:gap-6',
-          busy && 'opacity-60',
-        )}
-      >
+      <div className="flex flex-col gap-4 md:gap-6">
         {empty && empty.kind !== 'quiet' ? (
           <EmptyResultsPanel empty={empty} place={place} />
         ) : (

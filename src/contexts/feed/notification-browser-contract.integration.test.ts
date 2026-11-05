@@ -12,7 +12,6 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 import { Pool } from 'pg'
 import { getDb } from '#/shared/db'
 import { getEnv } from '#/shared/config/env'
-import type { StaffPublicApi } from '#/contexts/identity/application/public-api'
 import type { OutboxRepository } from '#/shared/outbox'
 import { organizationId, recentActivityEntryId, userId } from '#/shared/domain/ids'
 import { createMockLogger } from '#/shared/testing/mock-logger'
@@ -53,7 +52,6 @@ function feedPublicApi() {
   return buildFeedContext({
     activity: {
       db: getDb(),
-      staffPublicApi: {} as StaffPublicApi,
       clock,
       logger,
       idGen: () => recentActivityEntryId('86300000-0000-4000-8000-000000000999'),

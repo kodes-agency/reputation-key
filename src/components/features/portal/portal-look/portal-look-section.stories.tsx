@@ -74,7 +74,8 @@ function LookInTheEditor({ look: initial, onWrite, uploadImage, ...rest }: Story
 const meta = {
   title: 'Portal/PortalEditor/Look',
   component: LookInTheEditor,
-  parameters: { layout: 'fullscreen' },
+  // The editor's sections are a list, with their summaries, from an 80rem container.
+  parameters: { layout: 'fullscreen', viewport: { defaultViewport: 'desktopManager' } },
   decorators: [
     (Story) => (
       <PortalDraftAutosaveProvider>
