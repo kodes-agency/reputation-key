@@ -75,7 +75,7 @@ export function ReviewAnalysisProgressCard({ progress }: Props) {
           {progress.status === 'analysing'
             ? `Reading reviews newest first. ${formatNumber(waiting)} still to go.`
             : progress.status === 'needs_attention'
-              ? 'Review history could not be verified. Analysis needs attention.'
+              ? "We couldn't finish checking this property's reviews. We're looking into it."
               : 'Every review this property has is analysed.'}
         </CardDescription>
         <CardAction>

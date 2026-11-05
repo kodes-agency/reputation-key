@@ -47,7 +47,9 @@ describe('reviewAnalysisShare', () => {
       }),
     )
     expect(html).toContain('Needs attention')
-    expect(html).toContain('Review history could not be verified')
+    expect(html).toContain(
+      'We couldn&#x27;t finish checking this property&#x27;s reviews. We&#x27;re looking into it.',
+    )
     expect(html).not.toContain('Up to date')
   })
 })
