@@ -584,8 +584,8 @@ counts of reviews by star rating are kept for 24 months, which holds only once t
 exists. Also left: including v3 derivatives in an organization export. The statistics that read
 the mentions (the Guest voice read model) and the wiring of `AiProviderChoicePort`, the runtime
 catalogue row and the served-contract constants (`isCurrentAuthorizedEffect`, the deployment
-profile string) shipped with PR-4 and the switch-on (2026-10-30). Property issue grouping itself
-is complete below; publishing its manager commands and reads remains PR-4 work.
+profile string) serve the current analysis contract. Property issue assignment and its
+Guest voice and Inbox readers are live; there are no rename, hide or merge commands.
 
 ### Property issue groups
 
@@ -602,27 +602,24 @@ the gold and the answer through the same function. A reviewed edit moves its dig
 regroup history because stored members win. No model clusters, proposes or learns a group across
 Properties.
 
-An ID survives re-analysis, epochs and new spellings. Merge preserves the target and leaves the
-source as a redirect; redirects into the source are flattened to the target in the same
-transaction, so resolution is one hop. Cross-topic merge is refused by the application and by
-composite database foreign keys: a read-model issue has exactly one topic, and the contract
-permits only same-topic merge proposals. Assignment, rename, hide, show, merge and resolve carry
-Organization and Property predicates. Mutations take the aggregate writer's Property advisory
-lock before locking changed groups `FOR UPDATE`; `resolve` is a read that takes no lock, so
-showing an issue never waits for an analysis to be stored.
+An ID survives re-analysis, epochs and new spellings. Assignment carries Organization and
+Property predicates and runs under the aggregate writer's Property advisory lock. Readers and
+assignment follow stored redirects in one hop; composite database foreign keys keep a group
+within its Property and topic. Guest voice honors stored display names and visibility.
 
 `expires_at` is the greatest expiry of any analysis assigned to the group and never moves back.
-Rename, hide and merge do not extend it; merge only raises the target to the greater of target and
-source. The sweep runs `ai_review_analyses.v3_expired` first, then deletes an expired group only
+The sweep runs `ai_review_analyses.v3_expired` first, then deletes an expired group only
 when no contribution mention references it; members and redirects cascade. Organization
 lifecycle removes contribution mentions before members and groups. A contribution mention's
 foreign key to its group is deferred to commit, because erasing a Property deletes groups and
 mentions along different cascade paths and an immediate check refused the erasure.
 
-The manager command factory is deliberately unwired. PR-4 must publish it behind its chosen
-permission, add the Guest voice read model and drawer, record the manager audit event, and map an
-Inbox mention to its surviving issue. `display_name` is manager text: it is a protected local fact
-and may reach none of provider input, logs or events.
+`display_name` is manager text: it is a protected local fact and may reach none of provider
+input, logs or events.
+
+Terminal analysis delivery always repeats the idempotent aggregate mutation, which owns the
+settlement ledger and terminal sequence. The reaper records the origin event's consumer receipt
+after that mutation and fences delivery with the operation's state and attempt.
 
 ### Evaluation harness (dark)
 

@@ -371,8 +371,8 @@ function analysisWithOpenGates(clock: Readonly<{ now: number }>, switches: AiSwi
       retryAfterEpochMillis: null,
     }),
   )
-  const settleOutcome = vi.fn(async () => ({
-    terminalAnalysisSequence: 7,
+  const advanceWithoutAnalysis = vi.fn(async () => ({
+    status: 'applied' as const,
     aggregateRevision: 1,
   }))
   const head = (
@@ -463,13 +463,9 @@ function analysisWithOpenGates(clock: Readonly<{ now: number }>, switches: AiSwi
         consumedSequence: 7,
         terminalAnalysisSequence: 6,
       }),
-      settleOutcome,
     },
     aggregates: {
-      advanceWithoutAnalysis: async () => ({
-        status: 'applied' as const,
-        aggregateRevision: 1,
-      }),
+      advanceWithoutAnalysis,
     },
     reviewSources: {
       readForAi: async (
@@ -520,7 +516,7 @@ function analysisWithOpenGates(clock: Readonly<{ now: number }>, switches: AiSwi
   return {
     analyzeReviewEvent: createAnalyzeReviewEvent(dependencies),
     analyzeReview,
-    settleOutcome,
+    advanceWithoutAnalysis,
     operations: operations.stored,
   }
 }
@@ -780,7 +776,7 @@ describe('Review Analysis backlog jobs under platform policy', () => {
       expect(run.analyzeReview).not.toHaveBeenCalled()
       // Still waiting, exactly as it was: no attempt counted, nothing settled
       // as "not analysable", and no horizon running against it.
-      expect(run.settleOutcome).not.toHaveBeenCalled()
+      expect(run.advanceWithoutAnalysis).not.toHaveBeenCalled()
       expect(rows).toEqual([
         {
           ...queued(1, { org: STOPPED_ORGANIZATION, prop: STOPPED_PROPERTY }),
@@ -910,7 +906,7 @@ describe('Review Analysis for a review that arrives during a stop', () => {
       // and the review waits as an untried entry the drain has already been
       // refused once.
       expect(run.analyzeReview).not.toHaveBeenCalled()
-      expect(run.settleOutcome).not.toHaveBeenCalled()
+      expect(run.advanceWithoutAnalysis).not.toHaveBeenCalled()
       expect(arrival).toMatchObject({ delivery: 'completed', receipt: 'applied' })
       expect(rows).toEqual([
         {
@@ -984,7 +980,7 @@ describe('Review Analysis for a review that arrives during a stop', () => {
     await run.fire()
 
     expect(run.analyzeReview).not.toHaveBeenCalled()
-    expect(run.settleOutcome).not.toHaveBeenCalled()
+    expect(run.advanceWithoutAnalysis).not.toHaveBeenCalled()
     expect(arrival).toMatchObject({ delivery: 'completed', receipt: 'applied' })
     const waiting = {
       eventEnvelopeId: arrival.eventId,
@@ -1027,7 +1023,7 @@ describe('Review Analysis for a review that arrives during a stop', () => {
     await run.fire()
 
     expect(run.analyzeReview).not.toHaveBeenCalled()
-    expect(run.settleOutcome).not.toHaveBeenCalled()
+    expect(run.advanceWithoutAnalysis).not.toHaveBeenCalled()
     expect(rows).toEqual([
       {
         ...queued(1, STOPPED_SCOPE),
@@ -1044,7 +1040,7 @@ describe('Review Analysis for a review that arrives during a stop', () => {
     await run.analyzeNow(queued(1, STOPPED_SCOPE))
 
     expect(run.analyzeReview).not.toHaveBeenCalled()
-    expect(run.settleOutcome).not.toHaveBeenCalled()
+    expect(run.advanceWithoutAnalysis).not.toHaveBeenCalled()
     expect(rows).toMatchObject([
       { state: 'queued', attempts: 0, firstStartedAtEpochMillis: null },
     ])
@@ -1084,7 +1080,7 @@ describe('Review Analysis for a review that arrives during a stop', () => {
         await run.fire()
         const duringTheStop = {
           operations: run.operations(),
-          settlements: run.settleOutcome.mock.calls.length,
+          settlements: run.advanceWithoutAnalysis.mock.calls.length,
           rows: rows.map((row) => ({ ...row })),
         }
 
@@ -1112,7 +1108,7 @@ describe('Review Analysis for a review that arrives during a stop', () => {
         ])
       })
 
-      it('closes that operation as suspended at the restore and settles the review against it', async () => {
+      it('closes that operation as suspended at the restore and settles the review sequence', async () => {
         const { run, rows, beforeTheKill } = await triedThenKilledThenRestored()
 
         // What the reopen pass selects: the review's operation failed with a
@@ -1120,11 +1116,9 @@ describe('Review Analysis for a review that arrives during a stop', () => {
         expect(run.operations()).toEqual([
           { ...beforeTheKill[0], state: 'failed', failureCode: 'execution_suspended' },
         ])
-        expect(run.settleOutcome.mock.calls).toEqual([
+        expect(run.advanceWithoutAnalysis.mock.calls).toEqual([
           [
             expect.objectContaining({
-              state: 'terminal_no_result',
-              operationId: beforeTheKill[0]?.id,
               dispositionCode: 'operation_abandoned',
             }),
           ],

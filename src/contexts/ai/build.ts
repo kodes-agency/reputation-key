@@ -200,7 +200,6 @@ export const buildAiContext = (input: AiContextBuildInput) => {
   })
   const reapAiOperations = createAiOperationExecutionReaper({
     store: operations,
-    reviewEvents,
     aggregates,
     recordAnalysisReceipt: createAiReviewAnalysisReceiptWriter(input.db),
     nowEpochMillis,

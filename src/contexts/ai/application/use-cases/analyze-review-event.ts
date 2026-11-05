@@ -144,7 +144,6 @@ export type SettleReviewAnalysisWithoutResultInput = Readonly<{
   reviewAnalysisEpoch: number
   analysisSequence: number
   propertyProfileVersion: number
-  operationId: string | null
   dispositionCode: AiReviewAnalysisTerminalDisposition
 }>
 
@@ -154,23 +153,11 @@ export type SettleReviewAnalysisWithoutResultResult = Readonly<{
 
 export async function settleReviewAnalysisWithoutResult(
   dependencies: Readonly<{
-    reviewEvents: Pick<AiReviewEventStorePort, 'settleOutcome'>
     aggregates: Pick<AiPropertyAggregateStorePort, 'advanceWithoutAnalysis'>
   }>,
   input: SettleReviewAnalysisWithoutResultInput,
 ): Promise<SettleReviewAnalysisWithoutResultResult> {
-  // A replayed terminal outcome does not prove the aggregate mutation committed.
-  // Always run its idempotent settlement to close that crash window.
-  await dependencies.reviewEvents.settleOutcome({
-    organizationId: input.organizationId,
-    propertyId: input.propertyId,
-    sourceEpoch: input.sourceEpoch,
-    reviewAnalysisEpoch: input.reviewAnalysisEpoch,
-    analysisSequence: input.analysisSequence,
-    state: 'terminal_no_result',
-    operationId: input.operationId,
-    dispositionCode: input.dispositionCode,
-  })
+  // Always repeat the idempotent aggregate settlement after a crash.
   const aggregate = await dependencies.aggregates.advanceWithoutAnalysis({
     organizationId: input.organizationId,
     propertyId: input.propertyId,
@@ -195,7 +182,6 @@ export type SettleReviewAnalysisWithResultInput = Readonly<{
   reviewAnalysisEpoch: number
   analysisSequence: number
   propertyProfileVersion: number
-  operationId: string
 }>
 
 export type SettleReviewAnalysisWithResultResult = Readonly<{
@@ -204,23 +190,11 @@ export type SettleReviewAnalysisWithResultResult = Readonly<{
 
 export async function settleReviewAnalysisWithResult(
   dependencies: Readonly<{
-    reviewEvents: Pick<AiReviewEventStorePort, 'settleOutcome'>
     aggregates: Pick<AiPropertyAggregateStorePort, 'applyReviewAnalysis'>
   }>,
   input: SettleReviewAnalysisWithResultInput,
 ): Promise<SettleReviewAnalysisWithResultResult> {
-  // The outcome and aggregate have separate crash windows. Re-run the
-  // idempotent aggregate mutation even when the outcome was already terminal.
-  await dependencies.reviewEvents.settleOutcome({
-    organizationId: input.organizationId,
-    propertyId: input.propertyId,
-    sourceEpoch: input.sourceEpoch,
-    reviewAnalysisEpoch: input.reviewAnalysisEpoch,
-    analysisSequence: input.analysisSequence,
-    state: 'ready',
-    operationId: input.operationId,
-    dispositionCode: null,
-  })
+  // Result persistence and aggregate delivery have separate crash windows.
   const aggregate = await dependencies.aggregates.applyReviewAnalysis({
     organizationId: input.organizationId,
     propertyId: input.propertyId,
@@ -241,7 +215,6 @@ export function createAnalyzeReviewEvent(
   dependencies: AnalyzeReviewEventDependencies,
 ): (input: AnalyzeReviewEventInput) => Promise<AnalyzeReviewEventResult> {
   const settlementDependencies = {
-    reviewEvents: dependencies.reviewEvents,
     aggregates: dependencies.aggregates,
   }
   const contract: ReviewAnalysisContract =
@@ -253,16 +226,11 @@ export function createAnalyzeReviewEvent(
         : { observability: dependencies.observability }),
     })
 
-  /**
-   * `operationId` names the operation the settlement closes. It is null when
-   * the review is settled before any operation of its own exists.
-   */
   function settleWithoutResult(
     input: AnalyzeReviewEventInput,
     reviewAnalysisEpoch: number,
     propertyProfileVersion: number,
     dispositionCode: AiReviewAnalysisTerminalDisposition,
-    operationId: string | null = null,
   ): Promise<AnalyzeReviewEventResult> {
     return settleReviewAnalysisWithoutResult(settlementDependencies, {
       organizationId: input.organizationId,
@@ -272,7 +240,6 @@ export function createAnalyzeReviewEvent(
       reviewAnalysisEpoch,
       analysisSequence: input.analysisSequence,
       propertyProfileVersion,
-      operationId,
       dispositionCode,
     })
   }
@@ -357,7 +324,6 @@ export function createAnalyzeReviewEvent(
       reviewAnalysisEpoch,
       analysisSequence: input.analysisSequence,
       propertyProfileVersion,
-      operationId: operation.id,
     })
     if (settled.status === 'generation_changed') {
       return { status: 'generation_changed' }
@@ -633,7 +599,6 @@ export function createAnalyzeReviewEvent(
         reviewAnalysisEpoch,
         profile.profileVersion,
         resolved.dispositionCode,
-        resolved.operationId,
       )
     }
     const operation = claimed.operation
@@ -815,7 +780,6 @@ export function createAnalyzeReviewEvent(
           reviewAnalysisEpoch,
           analysisSequence: input.analysisSequence,
           propertyProfileVersion: profile.profileVersion,
-          operationId: execution.id,
         })
         if (settled.status === 'generation_changed') {
           return { status: 'generation_changed' }

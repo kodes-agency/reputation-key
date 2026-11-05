@@ -180,10 +180,6 @@ function harness(
   const markDelivered = vi.fn<AiOperationStorePort['markDelivered']>(async () => true)
   const storeAnalysisV3 = vi.fn(async (_request: unknown) => options.stored !== false)
   const storeAnalysis = vi.fn(async () => true)
-  const settleOutcome = vi.fn(async () => ({
-    terminalAnalysisSequence: 7,
-    aggregateRevision: 4,
-  }))
   const applyReviewAnalysis = vi.fn(async () => ({
     status: 'applied' as const,
     aggregateRevision: 4,
@@ -325,7 +321,6 @@ function harness(
         consumedSequence: 7,
         terminalAnalysisSequence: 6,
       })),
-      settleOutcome,
     },
     reviewSources: {
       readForAi,
@@ -361,8 +356,8 @@ function harness(
       analyzeReview,
       storeAnalysis,
       storeAnalysisV3,
-      settleOutcome,
       applyReviewAnalysis,
+      advanceWithoutAnalysis,
       markDelivered,
       recordFailure,
       readForAi,
@@ -558,9 +553,8 @@ describe('the review analysis use case under the v3 contract', () => {
 
       expect(mocks.claim).not.toHaveBeenCalled()
       expect(mocks.analyzeReview).not.toHaveBeenCalled()
-      expect(mocks.settleOutcome).toHaveBeenCalledWith(
+      expect(mocks.advanceWithoutAnalysis).toHaveBeenCalledWith(
         expect.objectContaining({
-          state: 'terminal_no_result',
           dispositionCode: 'policy_disabled',
         }),
       )

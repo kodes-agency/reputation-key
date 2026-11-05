@@ -174,7 +174,6 @@ function createHarness(
   options: Readonly<{
     languageCode?: string | null
     operationState?: AiOperationRecord['state']
-    settleOutcome?: boolean
     aggregateStatus?: 'applied' | 'stale' | 'unavailable'
     profileStatus?: Exclude<AiPropertyProfileResult['status'], 'available'>
     admissionCode?: 'admission_busy' | 'admission_unavailable'
@@ -242,11 +241,6 @@ function createHarness(
   const recordFailure = vi.fn<AiOperationStorePort['recordFailure']>(async () => true)
   const markDelivered = vi.fn<AiOperationStorePort['markDelivered']>(async () => true)
   const storeAnalysis = vi.fn(async () => true)
-  const settleOutcome = vi.fn(async () =>
-    options.settleOutcome === false
-      ? null
-      : { terminalAnalysisSequence: 7, aggregateRevision: 4 },
-  )
   const applyReviewAnalysis = vi.fn(async () => {
     const status = options.aggregateStatus ?? 'applied'
     if (status === 'applied') return { status, aggregateRevision: 4 } as const
@@ -393,7 +387,6 @@ function createHarness(
       storeAnalysis,
       settleEphemeralReply: vi.fn(),
       findCurrentReviewIdsByAttention: vi.fn(),
-      storeTrendReport: vi.fn(),
       readAnalysisForDelivery: vi.fn(),
       readTrendReportForDelivery: vi.fn(),
     },
@@ -422,7 +415,6 @@ function createHarness(
     },
     reviewEvents: {
       consumeNext,
-      settleOutcome,
     },
     reviewSources: {
       readForAi: readReviewSource,
@@ -444,7 +436,6 @@ function createHarness(
     mocks: {
       analyzeReview,
       storeAnalysis,
-      settleOutcome,
       recordFailure,
       applyReviewAnalysis,
       advanceWithoutAnalysis,
@@ -498,7 +489,6 @@ describe('analyze review event', () => {
       expect(harness.mocks.readReviewSource).not.toHaveBeenCalled()
       expect(harness.mocks.analyzeReview).not.toHaveBeenCalled()
       expect(harness.mocks.storeAnalysis).not.toHaveBeenCalled()
-      expect(harness.mocks.settleOutcome).not.toHaveBeenCalled()
       expect(harness.mocks.advanceWithoutAnalysis).not.toHaveBeenCalled()
       expect(harness.mocks.applyReviewAnalysis).not.toHaveBeenCalled()
     })
@@ -509,9 +499,8 @@ describe('analyze review event', () => {
       await expect(harness.analyze(input)).resolves.toEqual({ status: 'terminal' })
       expect(harness.mocks.analyzeReview).not.toHaveBeenCalled()
       expect(harness.mocks.storeAnalysis).not.toHaveBeenCalled()
-      expect(harness.mocks.settleOutcome).toHaveBeenCalledWith(
+      expect(harness.mocks.advanceWithoutAnalysis).toHaveBeenCalledWith(
         expect.objectContaining({
-          state: 'terminal_no_result',
           dispositionCode: 'language_not_supported',
         }),
       )
@@ -527,7 +516,8 @@ describe('analyze review event', () => {
       expect(harness.mocks.claim).not.toHaveBeenCalled()
       expect(harness.mocks.acquire).not.toHaveBeenCalled()
       expect(harness.mocks.analyzeReview).not.toHaveBeenCalled()
-      expect(harness.mocks.settleOutcome).not.toHaveBeenCalled()
+      expect(harness.mocks.advanceWithoutAnalysis).not.toHaveBeenCalled()
+      expect(harness.mocks.applyReviewAnalysis).not.toHaveBeenCalled()
     })
 
     it('still settles a review with nothing to analyse when deferring', async () => {
@@ -537,7 +527,7 @@ describe('analyze review event', () => {
         status: 'terminal',
       })
       expect(harness.mocks.claim).not.toHaveBeenCalled()
-      expect(harness.mocks.settleOutcome).toHaveBeenCalledOnce()
+      expect(harness.mocks.advanceWithoutAnalysis).toHaveBeenCalledOnce()
     })
 
     it('admits an on-demand analysis in the requested lane with its headroom', async () => {
@@ -699,7 +689,6 @@ describe('analyze review event', () => {
     it('finishes an idempotent aggregate replay when its outcome is already terminal', async () => {
       const harness = createHarness({
         operationState: 'succeeded_pending_delivery',
-        settleOutcome: false,
       })
 
       await expect(harness.analyze(input)).resolves.toEqual({
@@ -732,8 +721,8 @@ describe('analyze review event', () => {
         code: 'admission_unavailable',
       })
       expect(harness.mocks.analyzeReview).not.toHaveBeenCalled()
-      expect(harness.mocks.settleOutcome).not.toHaveBeenCalled()
       expect(harness.mocks.advanceWithoutAnalysis).not.toHaveBeenCalled()
+      expect(harness.mocks.applyReviewAnalysis).not.toHaveBeenCalled()
     })
 
     it('keeps deferring an unavailable admission while the operation is inside its own horizon', async () => {
@@ -745,7 +734,8 @@ describe('analyze review event', () => {
         status: 'retry',
         code: 'admission_unavailable',
       })
-      expect(harness.mocks.settleOutcome).not.toHaveBeenCalled()
+      expect(harness.mocks.advanceWithoutAnalysis).not.toHaveBeenCalled()
+      expect(harness.mocks.applyReviewAnalysis).not.toHaveBeenCalled()
     })
 
     it('terminal-settles an unavailable admission once the operation horizon has elapsed', async () => {
@@ -758,9 +748,8 @@ describe('analyze review event', () => {
         status: 'terminal',
       })
       expect(harness.mocks.analyzeReview).not.toHaveBeenCalled()
-      expect(harness.mocks.settleOutcome).toHaveBeenCalledWith(
+      expect(harness.mocks.advanceWithoutAnalysis).toHaveBeenCalledWith(
         expect.objectContaining({
-          state: 'terminal_no_result',
           dispositionCode: 'policy_disabled',
         }),
       )
@@ -777,7 +766,8 @@ describe('analyze review event', () => {
         status: 'retry',
         code: 'admission_unavailable',
       })
-      expect(harness.mocks.settleOutcome).not.toHaveBeenCalled()
+      expect(harness.mocks.advanceWithoutAnalysis).not.toHaveBeenCalled()
+      expect(harness.mocks.applyReviewAnalysis).not.toHaveBeenCalled()
     })
 
     it('waits for a busy background lane even after the operation horizon', async () => {
@@ -796,7 +786,8 @@ describe('analyze review event', () => {
       )
       expect(harness.mocks.claimExecution).not.toHaveBeenCalled()
       expect(harness.mocks.analyzeReview).not.toHaveBeenCalled()
-      expect(harness.mocks.settleOutcome).not.toHaveBeenCalled()
+      expect(harness.mocks.advanceWithoutAnalysis).not.toHaveBeenCalled()
+      expect(harness.mocks.applyReviewAnalysis).not.toHaveBeenCalled()
     })
 
     describe('provider capacity', () => {
@@ -824,7 +815,8 @@ describe('analyze review event', () => {
             retryAtEpochMillis: NOW + 20_000,
           }),
         )
-        expect(harness.mocks.settleOutcome).not.toHaveBeenCalled()
+        expect(harness.mocks.advanceWithoutAnalysis).not.toHaveBeenCalled()
+        expect(harness.mocks.applyReviewAnalysis).not.toHaveBeenCalled()
       })
 
       it('keeps asking the provider past the budget while its last answer was capacity', async () => {
@@ -917,8 +909,8 @@ describe('analyze review event', () => {
         code: 'language_runtime_unavailable',
       })
       expect(harness.mocks.analyzeReview).not.toHaveBeenCalled()
-      expect(harness.mocks.settleOutcome).not.toHaveBeenCalled()
       expect(harness.mocks.advanceWithoutAnalysis).not.toHaveBeenCalled()
+      expect(harness.mocks.applyReviewAnalysis).not.toHaveBeenCalled()
     })
 
     it('terminal-settles only once the operation horizon has elapsed', async () => {
@@ -927,9 +919,8 @@ describe('analyze review event', () => {
       await expect(harness.analyze(elapsedInput)).resolves.toEqual({
         status: 'terminal',
       })
-      expect(harness.mocks.settleOutcome).toHaveBeenCalledWith(
+      expect(harness.mocks.advanceWithoutAnalysis).toHaveBeenCalledWith(
         expect.objectContaining({
-          state: 'terminal_no_result',
           dispositionCode: 'policy_disabled',
         }),
       )
@@ -948,8 +939,8 @@ describe('analyze review event', () => {
           retryAtEpochMillis: NOW + 30_000,
           code: `property_profile_${profileStatus}`,
         })
-        expect(harness.mocks.settleOutcome).not.toHaveBeenCalled()
         expect(harness.mocks.advanceWithoutAnalysis).not.toHaveBeenCalled()
+        expect(harness.mocks.applyReviewAnalysis).not.toHaveBeenCalled()
       },
     )
 
@@ -957,9 +948,8 @@ describe('analyze review event', () => {
       const harness = createHarness({ profileStatus: 'deleting' })
 
       await expect(harness.analyze(input)).resolves.toEqual({ status: 'terminal' })
-      expect(harness.mocks.settleOutcome).toHaveBeenCalledWith(
+      expect(harness.mocks.advanceWithoutAnalysis).toHaveBeenCalledWith(
         expect.objectContaining({
-          state: 'terminal_no_result',
           dispositionCode: 'policy_disabled',
         }),
       )
@@ -980,9 +970,8 @@ describe('analyze review event', () => {
       await expect(
         harness.analyze({ ...input, disposition: 'provider_deleted' }),
       ).resolves.toEqual({ status: 'terminal' })
-      expect(harness.mocks.settleOutcome).toHaveBeenCalledWith(
+      expect(harness.mocks.advanceWithoutAnalysis).toHaveBeenCalledWith(
         expect.objectContaining({
-          state: 'terminal_no_result',
           dispositionCode: 'provider_deleted',
         }),
       )
@@ -1005,8 +994,8 @@ describe('analyze review event', () => {
           status: 'replayed',
         })
         expect(harness.mocks.consumeNext).not.toHaveBeenCalled()
-        expect(harness.mocks.settleOutcome).not.toHaveBeenCalled()
         expect(harness.mocks.advanceWithoutAnalysis).not.toHaveBeenCalled()
+        expect(harness.mocks.applyReviewAnalysis).not.toHaveBeenCalled()
         expect(harness.mocks.analyzeReview).not.toHaveBeenCalled()
       },
     )
@@ -1158,10 +1147,8 @@ describe('analyze review event: a consent recorded under an earlier notice', () 
       const harness = createHarness({ consentNotice })
 
       await expect(harness.analyze(input)).resolves.toEqual({ status: 'terminal' })
-      expect(harness.mocks.settleOutcome).toHaveBeenCalledExactlyOnceWith(
+      expect(harness.mocks.advanceWithoutAnalysis).toHaveBeenCalledExactlyOnceWith(
         expect.objectContaining({
-          state: 'terminal_no_result',
-          operationId: null,
           dispositionCode: 'policy_disabled',
         }),
       )
@@ -1203,8 +1190,8 @@ describe('analyze review event: a stopped AI execution control', () => {
           await expect(harness.analyze({ ...input, execution })).resolves.toEqual({
             status: 'stopped',
           })
-          expect(harness.mocks.settleOutcome).not.toHaveBeenCalled()
           expect(harness.mocks.advanceWithoutAnalysis).not.toHaveBeenCalled()
+          expect(harness.mocks.applyReviewAnalysis).not.toHaveBeenCalled()
           expect(harness.mocks.claim).not.toHaveBeenCalled()
           expect(harness.mocks.acquire).not.toHaveBeenCalled()
           expect(harness.mocks.analyzeReview).not.toHaveBeenCalled()
@@ -1222,8 +1209,8 @@ describe('analyze review event: a stopped AI execution control', () => {
     })
 
     await expect(harness.analyze(input)).resolves.toEqual({ status: 'terminal' })
-    expect(harness.mocks.settleOutcome).toHaveBeenCalledExactlyOnceWith(
-      expect.objectContaining({ dispositionCode: 'policy_disabled', operationId: null }),
+    expect(harness.mocks.advanceWithoutAnalysis).toHaveBeenCalledExactlyOnceWith(
+      expect.objectContaining({ dispositionCode: 'policy_disabled' }),
     )
   })
 
@@ -1235,7 +1222,7 @@ describe('analyze review event: a stopped AI execution control', () => {
     await expect(
       harness.analyze({ ...input, disposition: 'provider_deleted' }),
     ).resolves.toEqual({ status: 'terminal' })
-    expect(harness.mocks.settleOutcome).toHaveBeenCalledExactlyOnceWith(
+    expect(harness.mocks.advanceWithoutAnalysis).toHaveBeenCalledExactlyOnceWith(
       expect.objectContaining({ dispositionCode: 'provider_deleted' }),
     )
   })
@@ -1311,7 +1298,8 @@ describe('analyze review event: an operation claimed before the AI execution con
       code: 'admission_busy',
     })
     expect(harness.mocks.recordFailure).not.toHaveBeenCalled()
-    expect(harness.mocks.settleOutcome).not.toHaveBeenCalled()
+    expect(harness.mocks.advanceWithoutAnalysis).not.toHaveBeenCalled()
+    expect(harness.mocks.applyReviewAnalysis).not.toHaveBeenCalled()
   })
 
   it.each([
@@ -1340,10 +1328,8 @@ describe('analyze review event: an operation claimed before the AI execution con
         retryAtEpochMillis: null,
         failedAtEpochMillis: NOW,
       })
-      expect(harness.mocks.settleOutcome).toHaveBeenCalledExactlyOnceWith(
+      expect(harness.mocks.advanceWithoutAnalysis).toHaveBeenCalledExactlyOnceWith(
         expect.objectContaining({
-          state: 'terminal_no_result',
-          operationId: OPERATION_ID,
           dispositionCode: 'operation_abandoned',
         }),
       )
@@ -1359,8 +1345,11 @@ describe('analyze review event: an operation claimed before the AI execution con
     harness.mocks.recordFailure.mockResolvedValue(false)
 
     await expect(harness.analyze(input)).resolves.toEqual({ status: 'terminal' })
-    expect(harness.mocks.settleOutcome).toHaveBeenCalledExactlyOnceWith(
-      expect.objectContaining({ state: 'terminal_no_result', operationId: OPERATION_ID }),
+    expect(harness.mocks.advanceWithoutAnalysis).toHaveBeenCalledExactlyOnceWith(
+      expect.objectContaining({
+        analysisSequence: input.analysisSequence,
+        dispositionCode: 'operation_abandoned',
+      }),
     )
   })
 
@@ -1379,8 +1368,8 @@ describe('analyze review event: an operation claimed before the AI execution con
 
     await expect(harness.analyze(input)).resolves.toEqual({ status: 'terminal' })
     expect(harness.mocks.recordFailure).not.toHaveBeenCalled()
-    expect(harness.mocks.settleOutcome).toHaveBeenCalledExactlyOnceWith(
-      expect.objectContaining({ operationId: null, dispositionCode: 'policy_disabled' }),
+    expect(harness.mocks.advanceWithoutAnalysis).toHaveBeenCalledExactlyOnceWith(
+      expect.objectContaining({ dispositionCode: 'policy_disabled' }),
     )
   })
 
@@ -1392,8 +1381,8 @@ describe('analyze review event: an operation claimed before the AI execution con
       status: 'terminal',
     })
     expect(harness.mocks.recordFailure).not.toHaveBeenCalled()
-    expect(harness.mocks.settleOutcome).toHaveBeenCalledExactlyOnceWith(
-      expect.objectContaining({ operationId: null, dispositionCode: 'policy_disabled' }),
+    expect(harness.mocks.advanceWithoutAnalysis).toHaveBeenCalledExactlyOnceWith(
+      expect.objectContaining({ dispositionCode: 'policy_disabled' }),
     )
   })
 })
