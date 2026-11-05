@@ -1,11 +1,6 @@
-// The Portal goal results page's own words (`/goals/portal-results`, PLAN
-// PG-18): its title, and the ended Portal goals it lists, each with what it
-// counted, its number (as the Goals list's History said it) and the day it
-// ended. Every month's result comes from the matrix (`buildGoalResultsMatrix`),
-// worked out by the route, in `portal-goal-results-list-view.ts`'s words. The way here from the
-// Portal goals section is `portal-goal-results-foot.ts`, on the Goals page.
-//
-// Pure.
+// Monthly figures come from buildGoalResultsMatrix. Keep navigation words in portal-
+// goal-results-foot so linking pages do not load this page.
+
 import type {
   buildGoalResultsMatrix,
   GoalSubject,

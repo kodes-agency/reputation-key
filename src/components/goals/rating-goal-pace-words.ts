@@ -1,9 +1,6 @@
-// How a Google rating goal's pace reads, in setup and in tracking (rounds 3 and
-// 4, R3-7). A pace is stored in tenths of a review a week; a plan reads per day
-// ("2 a day"), or per week under one a day ("3 a week"), and progress is counted
-// per week ("This week: 9 of 14"). "a month" is the setup's unit switch, 30.4
-// days. One module words it everywhere, from the values the Reporting
-// application hands components (never its domain).
+// Stored pace is tenths of a review per week. Display plans per day, or per week below
+// one a day, and progress per week. The setup's month unit is 30.4 days.
+
 import {
   dayTenthsOf,
   perMonthOf,

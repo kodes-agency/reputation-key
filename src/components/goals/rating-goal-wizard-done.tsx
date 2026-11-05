@@ -1,10 +1,6 @@
-// The wizard's last screen and its keep step. Done says what was set in two or
-// three lines and offers ONE next step on the portal side (PLAN PG-11): the
-// monthly portal goal's card once a Portal is live, otherwise a first Portal.
-// No number is carried over to Portal goals, which stay Google-free (ADR 0067,
-// ADR 0068). The keep step is the whole wizard for a goal that keeps the number
-// Google shows: its title, one sentence (the dialog's description) and "Start
-// watching".
+// Do not carry Google numbers into Portal goals (ADR 0067 and ADR 0068). Offer the
+// monthly goal only after a Portal is live; otherwise offer the first Portal.
+
 import type { MouseEvent, ReactNode } from 'react'
 import { Link } from '@tanstack/react-router'
 import { CircleCheck } from 'lucide-react'

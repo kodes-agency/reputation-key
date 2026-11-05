@@ -1,14 +1,8 @@
-// The Monthly portal goal page's actions (copy deck P-3, X-5; PLAN PG-14):
-// "Change number", which opens the change sheet on the goal's measure, and the
-// goal's "more actions" menu with the other measure ("Count scans instead",
-// from the next month) and "Stop this goal", the destructive item. Each is
-// drawn only for someone who may do it. The menu's items hand over once the
-// menu has closed, with the focus back on its trigger, so the sheet or the
-// dialog they open returns it there. A goal for one Portal or a group has the
-// same actions on its own page, its menu named after the page (PLAN PG-21),
-// without the other measure when its subject already holds a goal for it; the
-// average changes its level in a sheet of its own, and has no other measure; a
-// goal for several subjects has Stop alone.
+// Let the menu close and restore focus before opening a sheet or dialog, so it can
+// return focus to the trigger. Only offer a different measure when the subject has no
+// goal for it; averages cannot switch measure and several-subject goals only offer
+// Stop.
+
 import { useRef, useState, type ReactNode, type RefObject } from 'react'
 import type { PortalGoalMeasure } from '#/contexts/reporting/application/dto/goal-recommendation.types'
 import type { PortalGoalOfCard } from '#/contexts/reporting/application/dto/monthly-portal-goal.types'

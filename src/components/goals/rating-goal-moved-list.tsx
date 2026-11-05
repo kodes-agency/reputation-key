@@ -1,10 +1,6 @@
-// "What happened" on the Google rating goal's detail page (2026-11-01; closed until
-// asked): this week's new reviews and their stars, each day
-// Google's own number moved (up in the positive ink, back in the warning ink),
-// each change of the plan and each low review since the set with what it set
-// the goal back and a link to it in the Inbox ("Open in the inbox": it may be
-// answered already), newest first, and the day the goal was set. The rows say in
-// words what the chart draws, so the chart is never the only way to know it.
+// The rows provide a text alternative to the chart, including Google's moves, plan
+// changes and review setbacks.
+
 import type { RatingGoalDetailView } from '#/contexts/reporting/application/dto/rating-goal.types'
 import { InlineLink } from '#/components/ui/inline-link'
 import { GoalHistoryList } from './goal-history-list'

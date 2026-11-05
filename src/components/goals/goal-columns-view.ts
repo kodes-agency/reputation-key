@@ -1,6 +1,5 @@
-// A goal's bars, worked out (pure, 2026-11-01): one scale from none to a little
-// above the highest figure, number or plan, so the plan's line and a month's mark
-// always have room above the bars. The figures and words come from the goal.
+// Leave room above both figures and targets so plan lines and month markers stay inside
+// the plot.
 
 export type GoalColumn = Readonly<{
   key: string

@@ -1,14 +1,8 @@
-// The set sheet's number (copy deck S-3, S-11, U-S1): the number as the hero of
-// the sheet, in large bold figures between − and + (the shared hero stepper), and
-// under it what it counts in its month. The number is a spinbutton the manager
-// can also type into: ArrowUp and ArrowDown step along the goal grid, and Enter
-// or leaving the box writes the number plainly (what is half-typed stays as
-// typed). At an end − or + stays in the tab order (`aria-disabled`), so the focus
-// is never lost on a press; while Set is on its way the box is read-only and both
-// steps wait the same way, so the number shown is the number sent. The line under
-// the number names the box. The one-off sizes (128 px, 88 px on a phone, and the
-// smaller figures a narrow phone's room allows) are inline: a utility of its own
-// would grow the one stylesheet every page loads first.
+// Commit on Enter or blur so partial typing is preserved. Keep endpoint buttons in the
+// tab order to retain focus. While pending, freeze the box and steppers so the
+// displayed number matches the submitted value. One-off sizes stay inline to avoid
+// growing the first-paint stylesheet.
+
 import { useId, type KeyboardEvent, type Ref } from 'react'
 import { GoalHeroStepper, HERO_STEPPER_GAP, HERO_STEPPER_TOUCH } from './goal-setup-parts'
 import type { PortalGoalSheetModel } from './portal-goal-sheet-view'

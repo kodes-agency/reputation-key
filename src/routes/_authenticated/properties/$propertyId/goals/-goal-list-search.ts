@@ -1,14 +1,7 @@
-// What the Goals page reads from its address.
-//
-// `view` chooses the Google rating goal section's tab, Active or History: the
-// tabs are that section's own (P-7a, ADR 0068), and the Portal goals below it
-// are the same on both. `result` is the monthly result
-// a goal notice links to (notificationLink): the page opens that result's goal.
-// `start` asks the page to open the Google rating goal wizard on arrival (the
-// setup strip's step and the Properties list's "Set goal"); the page drops it
-// from the address once it has answered, so a reload does not open it again.
-// Anyone can type an address, so a value the page does not know is dropped
-// (a view it does not have opens the active goals) instead of failing the page.
+// Anyone can type an address, so discard unknown values rather than failing the page.
+// The view affects only Google goals. Consume start after answering it so reload does
+// not reopen setup.
+
 import { z } from 'zod/v4'
 import { RATING_GOAL_ARRIVAL } from '#/components/goals/rating-goal-arrival-search'
 

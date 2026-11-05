@@ -1,8 +1,3 @@
-// The Google rating goal on the Property Overview, between the attention band
-// and "How you are doing" (owner, 2026-10-14): the same simple card the Goals
-// page draws (with the Monday check-in above it while one is due), a goal reached or ended lately, or one line into the wizard
-// (not after a manager chose "Not now"). Nothing else, and nothing at all where
-// none of those applies (`overviewGoalView`).
 import { Target } from 'lucide-react'
 import type {
   RatingGoalCardView,

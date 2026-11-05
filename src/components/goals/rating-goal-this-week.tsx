@@ -1,8 +1,6 @@
-// "This week" on the Google rating goal card (R3-7: the plan reads per day,
-// progress is counted per week): the reviews since Monday against the plan's
-// week, a bar with no verdict, the day of the Property week and, once the goal
-// works at its actual pace, the last four weeks. While the goal is new, the aim
-// a day instead.
+// Plans read per day, but progress counts from Monday in the Property's week. After the
+// initial period, show actual pace from the last four weeks.
+
 import type { RatingGoalCardView } from '#/contexts/reporting/application/dto/rating-goal.types'
 import { GoalMeter } from './goal-meter'
 import { thisWeekOf } from './rating-goal-tracking-words'

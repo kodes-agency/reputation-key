@@ -1,4 +1,3 @@
-// Goals layout route — renders <Outlet /> for child routes (index, new, $goalId)
 import { createFileRoute, Outlet } from '@tanstack/react-router'
 import { gateControlledRoute } from '#/shared/shell-context/remembered-route-gate'
 

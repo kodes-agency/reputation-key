@@ -1,10 +1,6 @@
-// The one screen of a goal to climb (rounds 3 and 4, E2 on a desktop, E4 on a
-// phone): opened already answered with the recommendation, accepted in one tap
-// ("Aim for 4.1") or adjusted. The number Google is to show, its ruler, when it
-// arrives and what it needs, the status line, then the plan behind the number:
-// the pace and the average new reviews are planned at. Everything is worked
-// out here from the setup read's exact inputs and the draft, with no server
-// call (`workOutRatingGoal`). Composition only: each part words itself.
+// Compute the plan from the setup read's exact inputs and local draft without another
+// server call.
+
 import { useId, useRef, type FormEvent, type ReactNode } from 'react'
 import type { RatingGoalSetupView } from '#/contexts/reporting/application/dto/rating-goal.types'
 import { workOutRatingGoal } from '#/contexts/reporting/application/rating-goal-setup-plan'

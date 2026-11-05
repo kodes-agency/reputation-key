@@ -1,18 +1,7 @@
-// The Property Google rating goal's four reads, defined once for the Goals page,
-// the goal's detail page, the Property Overview and the Google import's last
-// step (route-query-definitions.test.ts), and its four commands.
-//
-// None of it may reach first paint (scripts/check-bundle-budget.mjs):
-//
-// - The loaders that prime the reads import this module on demand: a route's
-//   loader is first-paint code, and only the pages that draw the goal need it.
-// - The server functions are fetched with their first use, not imported. Two
-//   lazy pages (and the loaders' import) share them, and a server-function
-//   module that two entries share is grouped with the stubs first paint already
-//   loads (vite.config.ts, `app-server-fns`, merged under 16 KiB): measured on
-//   2026-10-14, the seven stubs put 318 B gzip into the first-paint closure. A
-//   module reached only by its own dynamic import is shared by nothing, so it
-//   stays a chunk of its own, fetched beside the first read.
+// Load this module on demand because route loaders are first-paint code. Fetch server
+// functions only through import(): static imports shared by lazy pages would join the
+// first-paint stub chunk. Query definitions stay shared across pages.
+
 import { queryOptions, type QueryClient } from '@tanstack/react-query'
 import { goalKeys } from '#/shared/queries/query-keys'
 

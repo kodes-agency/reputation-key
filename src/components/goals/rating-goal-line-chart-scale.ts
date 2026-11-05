@@ -1,6 +1,3 @@
-// The line to the goal's arithmetic (pure; 2026-11-01): the days along the bottom and
-// the stars up the side as shares of the plot, the paths, and the months under them.
-// `rating-goal-line-chart-view.ts` says what is drawn; this says where.
 import type {
   RatingGoalChartPoint,
   RatingGoalChartView,

@@ -1,9 +1,6 @@
-// "A goal for each portal" (copy deck M-11, M-13): one row per live Portal, in
-// the read's name order, with a tick box, its number between − and +, and what
-// it needs saying: "New · ready Oct 29", "Has a goal" with a link to that goal
-// (no tick reaches it), or "Not saved, try again". At an end − or + stays in the
-// tab order (`aria-disabled`), as the set sheet's box does. Everything it says
-// is the each view's (`portal-goal-add-each-view.ts`).
+// Keep stepper endpoints in the tab order with aria-disabled so focus is not lost at a
+// limit.
+
 import { Minus, Plus, type LucideIcon } from 'lucide-react'
 import { Checkbox } from '#/components/ui/checkbox'
 import { IconButton } from '#/components/ui/icon-button'

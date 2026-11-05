@@ -1,6 +1,5 @@
-// A goal that keeps the number Google shows, as its card: "Keeping 4.9 on
-// Google", Google's number (dated while it is stale), the one chip and the way
-// to the detail. It has no climb, no pace and no arrival.
+// A Keep goal has no climb, pace or arrival estimate.
+
 import { Link } from '@tanstack/react-router'
 import type { RatingGoalCardView } from '#/contexts/reporting/application/dto/rating-goal.types'
 import { Button } from '#/components/ui/button'

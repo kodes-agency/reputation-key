@@ -1,10 +1,6 @@
-// "How we worked this out" for the Monthly portal goal's number (copy deck
-// W-1…W-5): which Portals it stands on and what they brought in, the sum for
-// the month, each Portal's count over its live days (and the new ones, which
-// join once they have 2 weeks), and how the measure counts. It opens on
-// request from the shared `ExplainTrigger`, takes the focus, and closes on
-// Escape or its own Close with the focus back on the trigger. 520 px on a
-// desktop, the screen less its gutters on a phone.
+// New Portals join the recommendation after two live weeks. Restore focus to the
+// explanation trigger on closing.
+
 import { useState } from 'react'
 import { X } from 'lucide-react'
 import type { PortalGoalOffer } from '#/contexts/reporting/application/dto/monthly-portal-goal.types'

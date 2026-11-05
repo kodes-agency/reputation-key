@@ -1,17 +1,7 @@
-// The Monthly portal goal's month-start check-in, the strip above its card (PLAN
-// PG-15; copy deck K-1…K-11; ADR 0068 amended 2026-10-19: the Google rating
-// goal's strip, `goal-check-in.tsx`): on the first seven days of a month the
-// read asks about, a region named for the month ("For December"; never the
-// Google rating goal's "Last week") says how the month before went, what is
-// recommended and what it stands on ("How we worked this out"), and offers
-// "Use 45", "Keep 40" and "Other number", which opens the change sheet on the
-// month now; and that nothing changes unless a manager chooses. With nothing
-// counted there is no number, only Keep and another number. Nothing here is
-// automatic: each press sends one command, once. Use is the change now with
-// the month's change keys, as recommended; Keep records the month it answered.
-// Once answered, the card is read again (the strip is gone, for every manager)
-// and the focus goes to the card's title. A refusal says why in a toast; one
-// that means the card is behind reads it again.
+// Check-ins never apply changes automatically. Use sends the running month's change
+// keys; Keep records the answered month. After either command, refresh the shared read
+// and focus the card title because the strip disappears for every manager.
+
 import { useRef } from 'react'
 import type {
   ChangeMonthlyPortalGoalNowRequest,

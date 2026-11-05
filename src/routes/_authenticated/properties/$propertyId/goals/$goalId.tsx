@@ -1,17 +1,8 @@
-// A goal's own page (ADR 0068, PLAN PG-21). A Property count goal is the
-// Monthly portal goal, or one set beside it in a race: its page is the Monthly
-// portal goal's (`/goals/portals`), where a notice about it lands too
-// (`?result=` comes here). A goal for one Portal or one Portal Group has the
-// Monthly portal goal's page made from its own subject ("Reception · portal
-// goal"), with the same "Change number", "Count scans instead" (unless its
-// subject already holds a goal for the other measure) and Stop; the average has
-// the same page without a bar, with its own "Change number" and Stop; a goal
-// for several subjects, made before goals had pages, a plain page with Stop.
-// Behind `goal.use` with
-// the other goal routes; the route asks the static table for `goal.read`
-// alone, and the read itself asks for `goal.create`. Its read is primed by the
-// loader from a module fetched on demand, so neither the read nor its server
-// function joins first paint. A stop leaves for the Goals page.
+// Keep all goal shapes reachable, including average and several-subject goals. Property
+// count goals use the monthly page. The route checks goal.read; the read checks
+// goal.create. Load queries on demand to keep reads and server functions out of first
+// paint.
+
 import { createFileRoute, Navigate } from '@tanstack/react-router'
 import { useQuery, useQueryClient, useSuspenseQuery } from '@tanstack/react-query'
 import type { AuthRouteContext } from '#/routes/_authenticated'

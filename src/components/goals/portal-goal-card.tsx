@@ -1,15 +1,7 @@
-// The Monthly portal goal's card (ADR 0068, amended 2026-10-19: one goal design
-// system): drawn in the shared card frame, with the goal's name and, while a
-// goal runs, the one pace pill in the corner. Before its number is ready it is
-// the gates, the first weeks, nothing counted or an unreadable recommendation
-// (`portal-goal-card-before.tsx`); then the number to use
-// (`portal-goal-card-ready.tsx`); then the goal (`portal-goal-card-goal.tsx`).
-// Every arm once a Portal is live has a door to the set sheet. The title takes
-// the focus back from a sheet that closes, and after a set, wherever the card
-// is drawn, and after the month-start check-in is answered (the strip above the
-// goal's card, `portal-goal-card-goal.tsx`). On the goal's own
-// page the page's title names it, so the card draws none (one heading per
-// name) and the page's title takes the focus back.
+// On the goal's own page, omit the card title: the page supplies the heading and
+// receives restored focus. Elsewhere the card title receives focus after setting or
+// answering a check-in.
+
 import type { PortalGoalCardView } from '#/contexts/reporting/application/dto/monthly-portal-goal.types'
 import { CardContent } from '#/components/ui/card'
 import { GoalCardFrame } from './goal-card-frame'

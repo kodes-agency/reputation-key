@@ -1,8 +1,3 @@
-// The words of the one-screen setup (rounds 3 and 4, verbatim from the approved
-// mock E2-Number, with PLAN-R4's corrections: the example worded around the
-// planned average and the new lines X6–X8, X22; "step by step" is back with
-// the blend of real reviews into the planned average, owner X3).
-// Pure: the step and the popovers print what this returns.
 import type { RatingGoalSetupInputs } from '#/contexts/reporting/application/dto/rating-goal-setup.types'
 import {
   PLANNED_AVERAGE_WEIGHT_REVIEWS,

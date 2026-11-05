@@ -1,10 +1,6 @@
-// The Goals page opened to set a Google rating goal (pure): the setup strip's
-// "Set a Google rating goal" and the Properties list's "Set goal" link there
-// with `?start=rating-goal` (`rating-goal-arrival-search.ts`), and the wizard
-// opens on arrival, so either is one click into it, as the Overview's prompt
-// is. It opens only where the Goals page's own door would: no active goal, a
-// goal can be set, and the viewer may set it. Otherwise the page is the answer
-// (the card, or why no goal can be set).
+// Open on arrival only where the page would offer setup: no active goal, an eligible
+// Property and a viewer allowed to set it.
+
 import type {
   RatingGoalCardView,
   RatingGoalSetupView,

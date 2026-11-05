@@ -1,15 +1,6 @@
-// The Google rating goal wizard (ADR 0067, decision 9; rounds 3 and 4, E2/E4):
-// "Your Google goal", one screen opened already answered, then "Your goal is
-// set"; or, for a goal that keeps the number Google shows (offered first from
-// a shown 4.7, X1, the only choice at 4.9 or 5.0), one step. A change opens the screen on the goal's own plan,
-// saves only what differs against the version it was opened on, and closes
-// with a toast.
-//
-// A component with its two commands (set and change): the route hands in the
-// server functions and this owns the mutations, as the month target dialog
-// does. A refusal is said once, in the dialog's banner, in plain words
-// (`rating-goal-refusal.ts`), and re-reads the goal: a refusal usually means the
-// page is behind.
+// Changes submit only differences against the opening version. A refusal appears once
+// in the banner and refreshes the goal because the page may be stale.
+
 import { useEffect, useRef, useState } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import type {

@@ -1,23 +1,8 @@
 import { useCapabilities } from '#/shared/hooks/useCapabilities'
-// "Add a portal goal" (PLAN PG-20; copy deck M-2…M-14): a dialog on a desktop
-// and a full-screen sheet on a phone, in the shared sheet frame as the set sheet
-// is (it draws its own title, which changes with the step). It asks what to add
-// (a goal for one Portal, for each, for a group, or the average), then which
-// Portal or group and its number, or the rows of each Portal, or the average's
-// number, and sends it (`portal-goal-add-body.tsx`).
-// An address can open it on a step (`?add=portal&subject=portal:<id>`); Back
-// always leads to the choice.
-//
-// A chunk of its own, loaded when its door is on screen. It owns its drafts (the
-// host mounts it afresh, with a key, for every opening): the step, the rows of
-// each Portal and the number box, above the frame, so a phone turned on its side
-// (a sheet becoming a dialog) keeps what was typed. It owns the two commands; it
-// works from the add read’s filtered subjects (including private-rating eligibility),
-// so a refusal that
-// means the read is behind reads it again and the steps follow. A refusal is
-// said once, in the banner above the footer; a save for each Portal that kept
-// some rows and not others says so on those rows. While Set is on its way the
-// sheet cannot be dismissed.
+// Keep drafts above the responsive frame so rotation preserves them, and mount afresh
+// per opening. Use the read's filtered subjects, including private-rating eligibility.
+// Stale refusals refresh offers; partial saves retain per-row failures. Pending saves
+// prevent dismissal.
 import { useRef, useState } from 'react'
 import { toast } from 'sonner'
 import type {

@@ -1,9 +1,6 @@
-// The three questions on the Monthly portal goal's page, in words (pure; 2026-11-01,
-// ADR 0068): where they are coming from, how the month compares and what a manager
-// can do this week; the shape Guest voice, Portal Results and the Google rating
-// goal's page use. It never names a winner: Portals stay in name order with plain
-// counts (P-1), and the one Portal it names is one that has gone quiet (P-7). The
-// read decides every state and number; this only says them.
+// Keep Portals in name order with plain counts, never ranked. The read owns figures and
+// states; a named quiet Portal is an action opportunity, not a winner.
+
 import type { PortalGoalMeasure } from '#/contexts/reporting/application/dto/goal-recommendation.types'
 import type {
   PortalGoalPageMonth,

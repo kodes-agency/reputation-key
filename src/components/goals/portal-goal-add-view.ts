@@ -1,10 +1,6 @@
-// "Add a portal goal", worked out (PLAN PG-20; copy deck M-1…M-14): from what
-// the add read sent (`PortalGoalAddOptions`) and what the manager has chosen,
-// every word and state of the sheet's choosing steps, what an address opens,
-// and what Set says once done. The number steps are
-// `portal-goal-add-number-view.ts`, and "A goal for each portal"
-// `portal-goal-add-each-view.ts`. The read decides which choices are open,
-// every number, private-rating eligibility, and "Has a goal" (PLAN E12).
+// The add read owns subject availability, private-rating eligibility, recommendations
+// and existing-goal exclusions.
+
 import type {
   AddPortalGoalRequest,
   PortalGoalAddHeld,

@@ -1,6 +1,5 @@
-// The Google rating goal's approved sentences, in one place for setup and
-// tracking. Each is verbatim from the owner's decision named beside it; change
-// them only with a new decision.
+// Approved wording is shared by setup and tracking. Changes require a new product
+// decision.
 
 /** R2-12, approved verbatim: under the plan, and in "Why every guest". */
 export const PLAN_POLICY_LINE =

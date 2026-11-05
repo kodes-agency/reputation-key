@@ -1,7 +1,6 @@
-// What the Google rating goal card says about the climb: the new reviews to the
-// next number Google can show, and this week against the plan. Plain words,
-// sentence case; "review" is a Google review. While the exact average is Google's
-// own rounded figure every count is "about".
+// When the exact average is unavailable and Google's rounded figure is used, qualify
+// every review count with about.
+
 import type { RatingGoalCardView } from '#/contexts/reporting/application/dto/rating-goal.types'
 import { formatNumber } from '#/lib/format'
 import { actualPaceText, newReviewsAim, weeklyTarget } from './rating-goal-pace-words'

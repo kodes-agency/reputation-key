@@ -1,13 +1,7 @@
-// The Property Overview's Monthly portal goal (PLAN PG-16): the Goals page
-// card's own read (the Overview's loader primes it beside the Google rating
-// goal), drawn in the Overview's slot as `overviewPortalGoalView` says. It is
-// read only for someone who may set the goal; a read that fails leaves the slot
-// empty, never the Overview in an error. "Not now" hides the prompt at once
-// (the card's read is written as the server will answer it, and put back with
-// a toast when the command fails), then marks every Portal-goal read stale. On
-// the month's first seven days the check-in, the strip above the card, sends the
-// change now (Use) or Keep, and "Other number" opens the change sheet; once
-// answered, the slot's title takes the focus.
+// Read only for viewers allowed to set goals; failures must not block the Overview.
+// Optimistic Not now rolls back on failure. After check-in, focus the slot title
+// because the strip disappears.
+
 import { useQuery, useQueryClient, type QueryClient } from '@tanstack/react-query'
 import type { PortalGoalCardView } from '#/contexts/reporting/application/dto/monthly-portal-goal.types'
 import { withGoalRefusals } from '#/components/goals/goal-refusal'

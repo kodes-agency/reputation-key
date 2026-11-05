@@ -1,14 +1,6 @@
 import { staffPortalCounts } from './portal-goal-staff-counts'
-// The running Monthly portal goal's words (copy deck G-21…G-27, G-29…G-32,
-// ADR 0068 amended 2026-10-19 and 2026-11-01): the headline that says what is left
-// to the month's number, the days left in the month and what a day that leaves,
-// what each Portal brought in, a stop, and the month before. The ruler's words are
-// `portal-goal-ruler-view.ts`'. The read decides every state, day
-// and number (PLAN E12): the pace (P-6 included), the first quiet days, whether
-// the counts add up, and what each month counts (its own version's measure, not
-// the goal's latest). This only says them, in one place, so the card, its
-// stories and its tests spell each line once. The pace is not said in a word
-// here: the pill says it (`portal-goal-status-view.ts`). Pure.
+// The read owns pace, quiet days, reconciliation and each month's own measure, not the
+// goal's latest measure. Keep pace wording in the shared pill.
 import type { PortalGoalMeasure } from '#/contexts/reporting/application/dto/goal-recommendation.types'
 import type {
   PortalGoalLastMonth,

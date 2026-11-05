@@ -1,13 +1,5 @@
-// A goal's progress meter (ADR 0068, amended 2026-10-19: one goal design system):
-// a quiet caption, the figure, a bar with no verdict and a foot line. The words
-// are the goal's own and arrive finished; the meter only lays them out, so a
-// goal that moves onto it keeps its markup. The bar's tone is neutral: the pill
-// in the card's corner is where the pace is said.
-//
-// A goal whose way has a fixed length may also ask for two things the other
-// goal's meter never draws: a tick where a steady pace would stand today, and
-// the way's first and last point under the bar. Both are options a goal passes
-// in. A meter that passes neither draws the bar on its own, as before.
+// Keep the bar neutral: the card pill carries the pace verdict.
+
 import type { ReactNode } from 'react'
 import { ProgressBar } from '#/components/ui/progress-bar'
 

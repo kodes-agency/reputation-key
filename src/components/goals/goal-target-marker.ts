@@ -1,14 +1,7 @@
-// The marker beside a month's target once it is not the target the month
-// started with.
-//
-// A manager can change a running month's target. Wherever that target or its
-// result is shown, the page also says who changed it last, on which day, how
-// many times it changed, and what it started at, so a target lowered late in
-// the month is never read as the one the month was set against. A month changed
-// back to its first target has no marker (the read hands back none).
-//
-// Pure. One wording for the goal's page, the results matrix and a group's goal
-// card, and a short one for a line that lists other facts.
+// Show who last changed a running month's target, when, how often and its original
+// value so a late reduction cannot look like the original target. The read omits the
+// marker when the target returns to its original value.
+
 import type { GoalMetric } from '#/contexts/reporting/application/public-api'
 import type { GoalMonthTargetMarker } from '#/contexts/reporting/application/goal-month-target-marker'
 import { formatShortDate } from '#/lib/format'

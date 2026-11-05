@@ -1,8 +1,6 @@
-// What the Monday check-in says (round 5, PLAN-D D-3 §5.5, owner answer Q4,
-// mock D4 with V10/V15/V19/V20): last week against the plan, the plan as it
-// reads, and Keep, Raise and Ease with the pace each leaves. Plain words,
-// sentence case, "review" is a Google review. The card read worked the
-// numbers out; nothing here does maths beyond the difference it says.
+// The card read owns check-in figures; only the displayed difference is calculated
+// here.
+
 import type { RatingGoalCardView } from '#/contexts/reporting/application/dto/rating-goal.types'
 import { formatNumber } from '#/lib/format'
 import { paceText, weeklyTarget } from './rating-goal-pace-words'
