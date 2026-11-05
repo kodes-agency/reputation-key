@@ -29,7 +29,6 @@ import type {
   checkReviewOnGoogleFn,
   setInboxItemPriorityFn,
 } from '#/contexts/inbox/server/inbox'
-import type { getActivityTimelineFn } from '#/contexts/feed/server/activity'
 import type { generateReplySuggestionFn } from '#/contexts/ai/server/reply-suggestion'
 import type { requestReviewAnalysisNowFn } from '#/contexts/ai/server/review-analysis'
 import type {
@@ -48,7 +47,6 @@ export type InboxServerFns = Readonly<{
   getInboxItemDetail: typeof getInboxItemDetailFn
   getInboxNotes: typeof getInboxNotesFn
   getInboxItemHistory: typeof getInboxItemHistoryFn
-  getActivityTimeline: typeof getActivityTimelineFn
   getInboxQueueCounts: typeof getInboxQueueCountsFn
   getInboxPropertyCounts: typeof getInboxPropertyCountsFn
   stampLastInboxView: typeof stampLastInboxViewFn
@@ -102,7 +100,6 @@ export type InboxDetailFns = Pick<
   InboxServerFns,
   | 'getInboxItemDetail'
   | 'getInboxItemHistory'
-  | 'getActivityTimeline'
   | 'addInboxNote'
   | 'generateReplySuggestion'
   | 'requestReviewAnalysisNow'
