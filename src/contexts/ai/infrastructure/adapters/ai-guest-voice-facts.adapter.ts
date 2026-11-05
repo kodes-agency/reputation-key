@@ -175,6 +175,44 @@ async function readFactsRows(
   return result.rows
 }
 
+/** Settled sequences without a contribution need no provider result to close coverage. */
+async function readTerminalExclusions(
+  tx: Tx,
+  scope: GuestVoiceFactsScope,
+): Promise<readonly GuestVoiceUnavailableReview[]> {
+  const result = await tx.execute<{ reviewId: string; analysisSequence: number }>(sql`
+    WITH latest_settlements AS (
+      SELECT DISTINCT ON (settlement.review_id)
+        settlement.review_id, settlement.analysis_sequence
+      FROM ai_property_aggregate_settlements AS settlement
+      WHERE settlement.organization_id = ${scope.organizationId}
+        AND settlement.property_id = ${scope.propertyId}::uuid
+        AND settlement.source_epoch = ${scope.sourceEpoch}
+        AND settlement.review_analysis_epoch = ${scope.reviewAnalysisEpoch}
+      ORDER BY settlement.review_id, settlement.analysis_sequence DESC
+    )
+    SELECT settlement.review_id::text AS "reviewId",
+      settlement.analysis_sequence::float8 AS "analysisSequence"
+    FROM latest_settlements AS settlement
+    WHERE NOT EXISTS (
+      SELECT 1 FROM ai_property_aggregate_contributions AS contribution
+      WHERE contribution.organization_id = ${scope.organizationId}
+        AND contribution.property_id = ${scope.propertyId}::uuid
+        AND contribution.source_epoch = ${scope.sourceEpoch}
+        AND contribution.review_analysis_epoch = ${scope.reviewAnalysisEpoch}
+        AND contribution.property_profile_version = ${scope.propertyProfileVersion}
+        AND contribution.review_id = settlement.review_id
+        AND contribution.analysis_sequence = settlement.analysis_sequence
+    )
+  `)
+  return result.rows.map((row) => {
+    if (!Number.isSafeInteger(row.analysisSequence) || row.analysisSequence < 1) {
+      throw new Error('Guest voice exclusion has an invalid sequence')
+    }
+    return { ...row, sourceRevision: null, localDate: null }
+  })
+}
+
 function splitRows(
   rows: readonly FactsRow[],
   sourceEpoch: number,
@@ -233,10 +271,11 @@ export function createAiGuestVoiceFactsAdapter(db: Database): AiGuestVoiceFactsP
         if (locked === null) return null
         const rows = await readFactsRows(tx, scope, period)
         const { reviews, unavailable } = splitRows(rows, scope.sourceEpoch)
+        const terminalExclusions = await readTerminalExclusions(tx, scope)
         return {
           coverage: locked.coverage,
           reviews,
-          unavailable,
+          unavailable: [...unavailable, ...terminalExclusions],
           groups: await readIssueGroups(tx, scope),
         }
       }),

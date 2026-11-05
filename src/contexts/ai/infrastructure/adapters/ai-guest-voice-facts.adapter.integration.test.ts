@@ -10,6 +10,7 @@ import { getDb, type Database } from '#/shared/db'
 import { organizationId, propertyId, reviewId, userId } from '#/shared/domain/ids'
 import { buildTestAuthContext } from '#/shared/testing/fixtures'
 import { mentionRefKey } from '../../application/ports/ai-guest-voice-facts.port'
+import { joinWindows } from '../../application/read-models/guest-voice-v2-join'
 import {
   createReadGuestVoiceV2,
   type GuestVoiceV2Response,
@@ -556,3 +557,109 @@ describe.sequential('Guest voice 2.0 read through the real stores (PostgreSQL)',
     })
   })
 })
+
+const EXCLUSION_IDS = {
+  organizationId: 'ai-gv2-exclusion-test-org',
+  propertyId: '78000000-0000-4000-8000-000000000001',
+  idPrefix: '78000000',
+} as const
+
+describe.sequential(
+  'Guest voice reads a review the analysis settled without a result',
+  () => {
+    const db: Database = getDb()
+    const seed = createV3Seed(db, EXCLUSION_IDS)
+    const facts = createAiGuestVoiceFactsAdapter(db)
+    const period = { startLocalDate: '2026-10-01', endLocalDate: '2026-10-31' }
+    const analysed: SeededReview = {
+      index: 1,
+      rating: 4,
+      reviewedAt: NOON(10, 12),
+      sentiment: 'positive',
+      mentions: [mentionOf({ topic: 'staff_service', polarity: 'positive' })],
+    }
+    const unsupported: SeededReview = {
+      index: 2,
+      rating: 3,
+      reviewedAt: NOON(10, 13),
+    }
+    // The review analysed once, then settled without a result under a newer sequence.
+    const reanalysed: SeededReview = {
+      index: 3,
+      rating: 2,
+      reviewedAt: NOON(10, 14),
+      mentions: [mentionOf({ topic: 'facilities_equipment', polarity: 'negative' })],
+    }
+
+    beforeAll(async () => {
+      await seed.setUp()
+      await seed.addReview(analysed)
+      await seed.addExcludedReview(unsupported)
+      await seed.addReview(reanalysed)
+      await seed.seal()
+    })
+
+    afterAll(async () => {
+      await seed.tearDown()
+    })
+
+    /** Review's count of the Property's reviews: each seeded review, with text, on its day. */
+    async function joinedWithReview(sequences: ReadonlyMap<number, number>) {
+      const read = await facts.readFacts(seed.scope, period)
+      if (read === null) throw new Error('expected the Property to have facts')
+      return joinWindows({
+        window: period,
+        before: null,
+        population: [analysed, unsupported, reanalysed].map((review) => ({
+          reviewId: reviewId(seededReviewId(EXCLUSION_IDS, review.index)),
+          sourceRevision: 1,
+          analysisSequence: sequences.get(review.index) ?? review.index,
+          localDate: review.reviewedAt.toISOString().slice(0, 10),
+          hasText: true,
+          rating: review.rating,
+        })),
+        facts: read,
+      })
+    }
+
+    it('reads the settled exclusion beside the analyses, by the sequence it settled', async () => {
+      const read = await facts.readFacts(seed.scope, period)
+
+      expect(read?.reviews.map((review) => review.reviewId)).toEqual([
+        seededReviewId(EXCLUSION_IDS, 1),
+        seededReviewId(EXCLUSION_IDS, 3),
+      ])
+      expect(read?.unavailable).toEqual([
+        {
+          reviewId: seededReviewId(EXCLUSION_IDS, 2),
+          analysisSequence: 2,
+          sourceRevision: null,
+          localDate: null,
+        },
+      ])
+    })
+
+    it('does not hold a figure provisional for a review the analysis can never read', async () => {
+      const joined = await joinedWithReview(new Map())
+
+      expect(joined.now.awaitingAnalysis).toBe(0)
+      expect(joined.provisional).toBe(false)
+    })
+
+    it('still waits for a review whose current sequence is newer than the exclusion', async () => {
+      const joined = await joinedWithReview(new Map([[2, 9]]))
+
+      expect(joined.now.awaitingAnalysis).toBe(1)
+      expect(joined.provisional).toBe(true)
+    })
+
+    it('stops reading a review as excluded once a later sequence is analysed', async () => {
+      await seed.reanalyze({ ...unsupported, sequence: 9, mentions: [] })
+
+      const read = await facts.readFacts(seed.scope, period)
+
+      expect(read?.unavailable).toEqual([])
+      expect(read?.reviews.map((review) => review.analysisSequence)).toContain(9)
+    })
+  },
+)
