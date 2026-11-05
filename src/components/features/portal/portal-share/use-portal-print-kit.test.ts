@@ -7,6 +7,8 @@ import { createElement, type ReactNode } from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { describe, expect, it, vi } from 'vitest'
+import type { PortalPrintKitView } from '#/contexts/portal/application/public-api'
+import { portalKeys } from '#/shared/queries/query-keys'
 import type { PortalPublicationState } from '../shared/types'
 import type { PortalPrintKitReader } from './portal-print-kit-types'
 import type { PortalShareProps } from './portal-share-types'
@@ -17,14 +19,38 @@ type Seen = Readonly<{ show: boolean; notLive: Result['notLive'] }>
 
 const MANAGER_VIEW = { showActions: true, showCode: true, canDownloadAgain: true }
 
-function seenFor(
+/** What the read answers for a portal that prints in one language. */
+const ANSWER: PortalPrintKitView = {
+  portalId: 'portal-1',
+  kit: 'final',
+  lastPrint: null,
+  savedWording: null,
+  portalName: 'Reception',
+  primaryLocale: 'en',
+  locales: ['en'],
+  titles: { en: 'Reception' },
+  look: {
+    wordmark: 'Oakmere',
+    propertyName: 'Oakmere by Larkspur',
+    accentColour: '#A8C6FE',
+    fieldColour: '#16224A',
+    heroUrl: null,
+    heroFocal: null,
+    heroSize: null,
+    logoUrl: null,
+  },
+}
+
+function resultFor(
   state: PortalPublicationState | undefined,
   options: Readonly<{
     read?: PortalPrintKitReader
     view?: Parameters<typeof usePortalPrintKit>[1]
     withPrintKit?: boolean
+    /** What the read's cache holds when the tab opens. */
+    prime?: (client: QueryClient) => void
   }> = {},
-): Seen {
+): Result {
   const read = options.read ?? vi.fn()
   const props = {
     portalId: 'portal-1',
@@ -32,21 +58,42 @@ function seenFor(
     printKit:
       options.withPrintKit === false ? undefined : { read, downloadMutation: vi.fn() },
   } as unknown as PortalShareProps
-  let seen: Seen | null = null
+  const client = new QueryClient()
+  options.prime?.(client)
+  let seen: Result | null = null
   function Probe(): ReactNode {
-    const { show, notLive } = usePortalPrintKit(props, options.view ?? MANAGER_VIEW)
-    seen = { show, notLive }
+    seen = usePortalPrintKit(props, options.view ?? MANAGER_VIEW)
     return null
   }
   renderToStaticMarkup(
-    createElement(
-      QueryClientProvider,
-      { client: new QueryClient() },
-      createElement(Probe),
-    ),
+    createElement(QueryClientProvider, { client }, createElement(Probe)),
   )
   if (seen === null) throw new Error('The probe did not render')
   return seen
+}
+
+function seenFor(
+  state: PortalPublicationState | undefined,
+  options: Parameters<typeof resultFor>[1] = {},
+): Seen {
+  const { show, notLive } = resultFor(state, options)
+  return { show, notLive }
+}
+
+/** The read has been tried and refused, with nothing to show. */
+function failTheRead(client: QueryClient): void {
+  client
+    .getQueryCache()
+    .build(client, {
+      queryKey: portalKeys.printKit('portal-1'),
+      queryFn: () => Promise.reject(new Error('unavailable')),
+    })
+    .setState({
+      status: 'error',
+      error: new Error('unavailable'),
+      errorUpdateCount: 1,
+      fetchStatus: 'idle',
+    })
 }
 
 describe('usePortalPrintKit', () => {
@@ -87,6 +134,29 @@ describe('usePortalPrintKit', () => {
     expect(seenFor('draft', { withPrintKit: false })).toEqual({
       show: false,
       notLive: null,
+    })
+  })
+
+  describe('what follows the Print cards', () => {
+    it('waits while the first read is out, so the section it follows cannot push it away', () => {
+      expect(resultFor('published').settling).toBe(true)
+    })
+
+    it('stops waiting once the read has answered', () => {
+      const answered = resultFor('published', {
+        prime: (client) => client.setQueryData(portalKeys.printKit('portal-1'), ANSWER),
+      })
+
+      expect(answered.settling).toBe(false)
+    })
+
+    it('does not wait on a read that failed: the code is what the person came for', () => {
+      expect(resultFor('published', { prime: failTheRead }).settling).toBe(false)
+    })
+
+    it('does not wait where there is no read to wait on', () => {
+      expect(resultFor('draft').settling).toBe(false)
+      expect(resultFor('published', { withPrintKit: false }).settling).toBe(false)
     })
   })
 })

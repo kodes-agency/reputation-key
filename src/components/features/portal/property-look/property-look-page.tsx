@@ -86,8 +86,6 @@ export type PropertyLookPageProps = PropertyLookSaves &
     publishPortals: PublishPortalsAction
     /** The viewer holds `portal.update` and Portals writes are switched on. */
     canPublish: boolean
-    /** A portal may have its own photo, colours, or name and logo (`PORTAL_OWN_LOOK_ENABLED`). */
-    ownLookEnabled?: boolean
   }>
 
 const SIDE_COLUMN =
@@ -110,7 +108,7 @@ const LEAVE_COPY =
 
 export function PropertyLookPage(props: PropertyLookPageProps) {
   const { propertyId, propertyName, profile, canEdit, saveDisplayName } = props
-  const ownLook = offersOwnLook(props.rows, props.ownLookEnabled ?? false)
+  const ownLook = offersOwnLook(props.rows)
   return (
     <PageShell tier="dashboard">
       <PageHeader
@@ -159,7 +157,6 @@ function PropertyLookEditor({
   getPortalReview,
   publishPortals,
   canPublish,
-  ownLookEnabled = false,
   saveLook,
   saveLocales,
   saveHero,
@@ -173,7 +170,6 @@ function PropertyLookEditor({
   const affected = affectedPortals(rows)
   const lookEditViewer = {
     canEdit,
-    ownLookEnabled,
     portalCount: portalCountOf(rows),
   }
   const [showPhoto, setShowPhoto] = useState(true)

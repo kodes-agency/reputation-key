@@ -36,13 +36,12 @@ export function LookSection({ resources, canEdit }: PortalEditorSectionProps) {
   const profile = portalExperience?.profile ?? null
   const sources = portalExperience?.portalLook?.sources ?? PROPERTY_LOOK_SOURCES
   const canManage = canEdit && portalExperience?.canManagePropertyBrand === true
-  const enabled =
-    portalExperience?.portalLookEnabled === true && portalLookActions !== undefined
+  const hasActions = portalLookActions !== undefined
   const surface =
     profile === null
       ? 'summary'
       : portalLookSurfaceOf({
-          enabled,
+          hasActions,
           canChange: canManage,
           siblingPortalCount: portalExperience?.siblingPortalCount ?? 0,
           sources,
@@ -79,7 +78,7 @@ export function LookSection({ resources, canEdit }: PortalEditorSectionProps) {
         <PortalLookFacts
           propertyId={propertyId}
           sources={sources}
-          note={lookFactsNoteOf({ enabled, readOnlyReason })}
+          note={lookFactsNoteOf({ hasActions, readOnlyReason })}
         />
       ) : (
         <PortalLookSummary

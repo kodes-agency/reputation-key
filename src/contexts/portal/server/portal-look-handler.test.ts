@@ -123,9 +123,9 @@ describe('a portal’s own look server functions', () => {
     expect(mocks.savePortalLookPhoto).toHaveBeenCalledWith(data, ACTOR)
   })
 
-  it('carries the switch being off out as a tagged 409', async () => {
+  it('carries a refusal of the use case out as a tagged error with its status', async () => {
     mocks.savePortalLookPhoto.mockRejectedValue(
-      portalError('feature_unavailable', 'A portal cannot have its own look yet'),
+      portalError('portal_not_found', 'Portal not found for this Property'),
     )
 
     await expect(
@@ -134,8 +134,8 @@ describe('a portal’s own look server functions', () => {
       ),
     ).rejects.toMatchObject({
       _tag: 'PortalError',
-      code: 'feature_unavailable',
-      status: 409,
+      code: 'portal_not_found',
+      status: 404,
     })
   })
 

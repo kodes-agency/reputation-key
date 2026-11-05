@@ -24,7 +24,7 @@ import {
   PRINT_FINAL_SCRIM_INK,
   type PrintFinalPhotoSample,
 } from '#/shared/domain/portal-print-final-photo-sample'
-import type { PrintKitPhoto } from '../../application/ports/portal-print-kit-renderer.port'
+import type { PrintKitPhoto } from '../../application/printing/print-download'
 import { jpegImage, rampMask, type PdfRasterImage } from './print-kit-final-raster'
 
 async function sharpFactory() {

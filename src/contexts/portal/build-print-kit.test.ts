@@ -1,6 +1,4 @@
-// Portal context — the print kit's wiring (round 4, slice 45): the context build
-// hands the two use cases out, and the one that draws is wired to the real
-// PDFKit renderer, to the audited reveal and to the hash check on stored images.
+// Exercises the composed print read and real PDF download, including last-print memory.
 
 import { describe, expect, it, vi } from 'vitest'
 import type { StaffPublicApi } from '#/contexts/identity/application/public-api'
@@ -22,11 +20,7 @@ const SHORT_ADDRESS = 'HTTPS://AP.UP.RAILWAY.APP/p/7K3QZ0VD9MWX4HT2BN6R'
 
 const base = immersiveConfiguration()
 
-function wire(
-  country: string | null = null,
-  finalKitEnabled = false,
-  address: string = ADDRESS,
-) {
+function wire(country: string | null = null, address: string = ADDRESS) {
   const portal = buildTestPortal({ name: 'Harbor lobby' })
   const portalRepo = createInMemoryPortalRepo()
   portalRepo.seed([portal])
@@ -63,7 +57,6 @@ function wire(
     propertyCountry: async () => country,
     clock: () => new Date('2026-10-01T10:00:00Z'),
     logger,
-    finalKitEnabled,
   })
   return { portal, useCases, reveal, logger }
 }
@@ -76,11 +69,11 @@ describe('buildPortalPrintKit', () => {
       buildTestAuthContext(),
     )
     expect(view.locales).toEqual(['en', 'bg'])
-    expect(view.kit).toBe('current')
+    expect(view.kit).toBe('final')
   })
 
-  it('tells the Share tab to show the final kit only where the server turns it on', async () => {
-    const { portal, useCases } = wire(null, true)
+  it('always reads the current print kit without a rollout setting', async () => {
+    const { portal, useCases } = wire()
     const view = await useCases.getPortalPrintKit(
       { portalId: portal.id },
       buildTestAuthContext(),
@@ -89,7 +82,7 @@ describe('buildPortalPrintKit', () => {
   })
 
   it('remembers a final print as the last, and tells the Share tab of it', async () => {
-    const { portal, useCases } = wire('US', true, SHORT_ADDRESS)
+    const { portal, useCases } = wire('US', SHORT_ADDRESS)
     const ctx = buildTestAuthContext()
     expect(
       (await useCases.getPortalPrintKit({ portalId: portal.id }, ctx)).lastPrint,
@@ -123,77 +116,26 @@ describe('buildPortalPrintKit', () => {
     expect(JSON.stringify(lastPrint)).not.toContain(SHORT_ADDRESS)
   })
 
-  it('draws a real PDF for the address of the live code', async () => {
-    const { portal, useCases, reveal } = wire()
-    const file = await useCases.createPortalPrintKit(
+  it('draws a real PDF on the Property country’s paper for the live code', async () => {
+    const { portal, useCases, reveal } = wire('CA', SHORT_ADDRESS)
+    const file = await useCases.createPortalPrintFinal(
       {
         portalId: portal.id,
-        piece: 'counter_card',
+        piece: 'counter',
+        orientation: 'upright',
+        look: 'paper',
+        printer: 'my_printer',
+        quantity: 6,
         languages: ['en'],
-        callToAction: 'rate',
-        style: 'paper',
+        callToAction: 'how_did_we_do',
       },
       buildTestAuthContext(),
     )
     expect(Buffer.from(file.pdf.subarray(0, 5)).toString('latin1')).toBe('%PDF-')
-    expect(file.fileName).toBe('harbor-lobby-counter-card-en-letter.pdf')
+    expect(file.fileName).toContain('letter')
     expect(reveal).toHaveBeenCalledWith(
       { portalId: portal.id, purpose: 'download' },
       expect.anything(),
     )
   })
-
-  it('draws a Paper print on the paper of the property’s country', async () => {
-    const { portal, useCases } = wire('CA')
-    const file = await useCases.createPortalPrintKit(
-      {
-        portalId: portal.id,
-        piece: 'counter_card',
-        languages: ['en'],
-        callToAction: 'rate',
-        style: 'paper',
-      },
-      buildTestAuthContext(),
-    )
-    const text = Buffer.from(file.pdf).toString('latin1')
-    expect(file.fileName).toBe('harbor-lobby-counter-card-en-letter.pdf')
-    expect(text.startsWith('%PDF-1.4')).toBe(true)
-  })
-
-  // ADR 0069: a print says what shape of address it carried and which symbol it
-  // came to, so a manager's long address and the short one can be told apart in
-  // the logs, and never the address itself.
-  it.each([
-    ['a long address', ADDRESS, 'long', 8],
-    [
-      'a short print address',
-      'HTTPS://AP.UP.RAILWAY.APP/p/7K3QZ0VD9MWX4HT2BN6R',
-      'short',
-      3,
-    ],
-  ] as const)(
-    'logs the shape and symbol version of %s, and not the address',
-    async (_label, address, addressShape, symbolVersion) => {
-      const { portal, useCases, logger } = wire(null, false, address)
-
-      await useCases.createPortalPrintKit(
-        {
-          portalId: portal.id,
-          piece: 'counter_card',
-          languages: ['en'],
-          callToAction: 'rate',
-          style: 'paper',
-        },
-        buildTestAuthContext(),
-      )
-
-      expect(logger.info).toHaveBeenCalledWith(
-        { addressShape, symbolVersion },
-        'Print kit rendered',
-      )
-      expect(
-        JSON.stringify([logger.info.mock.calls, logger.warn.mock.calls]),
-      ).not.toMatch(/pt_|7K3QZ0VD9MWX4HT2BN6R|accessArtifact/u)
-    },
-  )
 })

@@ -1,7 +1,6 @@
 // Portal context — a Portal's own colours and name and logo (ADR 0070). What is
 // pinned here is who may change a Portal's look and when: an Account Admin of
 // the Portal's Property, never on an archived Portal, never for a Portal of
-// another Property, and only while PORTAL_OWN_LOOK_ENABLED is on; and that a
 // value left out is copied from the Property, so switching a group to the
 // Portal's own moves nothing guests see. Colours are held to the Property
 // look's own rules and the logo must be an uploaded logo of the Property.
@@ -55,7 +54,6 @@ const staffApi = (accessible: ReadonlyArray<PropertyId> | null): StaffPublicApi 
 
 const setup = (
   options: Readonly<{
-    enabled?: boolean
     archived?: boolean
     /** Archived only as the save sees it, after the caller's check (a race). */
     archivedAtSave?: boolean
@@ -102,7 +100,6 @@ const setup = (
       mediaRepo,
       staffPublicApi: staffApi(options.accessible ?? null),
       clock: () => NOW,
-      portalOwnLookEnabled: options.enabled ?? true,
     },
   }
 }
@@ -173,15 +170,6 @@ describe('savePortalLookColours', () => {
       lookVersion: 6,
       changed: true,
     })
-  })
-
-  it('refuses every save while portals may not have their own look', async () => {
-    const { deps, portalLookRepo } = setup({ enabled: false })
-
-    await expect(
-      savePortalLookColours(deps)({ ...target, colours: { mode: 'own' } }, ADMIN),
-    ).rejects.toSatisfy(failsWith('feature_unavailable'))
-    expect(portalLookRepo.saved()).toEqual([])
   })
 
   it('lets only an account admin change a portal’s look', async () => {
@@ -354,13 +342,5 @@ describe('savePortalLookIdentity', () => {
       group: 'identity',
       mode: 'inherit',
     })
-  })
-
-  it('refuses a save while portals may not have their own look', async () => {
-    const { deps } = setup({ enabled: false })
-
-    await expect(
-      savePortalLookIdentity(deps)({ ...target, identity: { mode: 'own' } }, ADMIN),
-    ).rejects.toSatisfy(failsWith('feature_unavailable'))
   })
 })

@@ -21,8 +21,7 @@ export function hasOwnLook(sources: PortalLookSources): boolean {
 }
 
 export type PortalLookSurfaceInput = Readonly<{
-  /** PORTAL_OWN_LOOK_ENABLED: whether a portal's own look may be changed at all. */
-  enabled: boolean
+  hasActions: boolean
   /** An Account Admin who may write portals, on a portal that is not archived. */
   canChange: boolean
   /** The property's portals that are not archived, this one included. */
@@ -31,7 +30,7 @@ export type PortalLookSurfaceInput = Readonly<{
 }>
 
 /**
- * The editor appears only while it is of use: the switch is on, the viewer may
+ * The editor appears only while it is of use: save actions are available, the viewer may
  * change the look, and the property has a second portal, or this one already has
  * a look of its own (so it can still be given back after the others are archived).
  * Anyone else sees the facts once there is something to tell; a property with one
@@ -40,8 +39,8 @@ export type PortalLookSurfaceInput = Readonly<{
 export function portalLookSurfaceOf(input: PortalLookSurfaceInput): PortalLookSurface {
   const hasOwn = hasOwnLook(input.sources)
   const hasSiblings = input.siblingPortalCount >= PORTALS_FOR_OWN_LOOK
-  if (input.enabled && input.canChange && (hasSiblings || hasOwn)) return 'editor'
-  if (hasOwn || (input.enabled && hasSiblings)) return 'facts'
+  if (input.hasActions && input.canChange && (hasSiblings || hasOwn)) return 'editor'
+  if (hasOwn || (input.hasActions && hasSiblings)) return 'facts'
   return 'summary'
 }
 
@@ -55,15 +54,15 @@ export const FACTS_NOTE = 'An account admin changes this portal’s look.'
 /**
  * Who can change the look, under the facts. It points to an Account Admin only
  * when one could act: not while the portal is archived, while the organisation's
- * portal changes are off, or while the switch is off.
+ * portal changes are off, or while save actions are unavailable.
  */
 export function lookFactsNoteOf(
-  input: Readonly<{ enabled: boolean; readOnlyReason: PortalReadOnlyReason | null }>,
+  input: Readonly<{ hasActions: boolean; readOnlyReason: PortalReadOnlyReason | null }>,
 ): string {
   if (input.readOnlyReason === 'archived') {
     return 'An archived portal’s look can be changed once it is restored.'
   }
-  if (input.readOnlyReason === 'capability' || !input.enabled) {
+  if (input.readOnlyReason === 'capability' || !input.hasActions) {
     return 'A portal’s own look cannot be changed at the moment.'
   }
   return FACTS_NOTE

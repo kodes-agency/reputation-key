@@ -1659,28 +1659,14 @@ with the feature is repaired by a fix deployed forward.
 `https://ap.up.railway.app/p/<print code>`, replaces the long address on new prints.
 Migration 0070, the codec, the print host redirect and the minting are in. Every new
 or replaced code stores its two print code hashes, and a "Download again" fills the
-hashes of a code made before, whatever `PORTAL_PRINT_CODES_ENABLED` says; the switch
-only decides whether a manager is shown the short address. The redirect does nothing
-until `PORTAL_PRINT_ORIGIN` is set.
+hashes of a code made before. Verified print codes are always shown in QR and NFC
+downloads; missing or mismatched hashes fall back to the issued long address.
+"Public address" and "Open page" keep the long address with no scan marker.
+The redirect does nothing until `PORTAL_PRINT_ORIGIN` is set.
 
-- **`PORTAL_PRINT_CODES_ENABLED`.** `true` or `false`, default `false`, any other
-  spelling stops web and worker at boot with the field named. Off, the print kit, the QR
-  downloads and "Copy NFC address" carry the long address exactly as before, and the
-  Share tab's "Public address" and "Open page" are the long address in both states.
-  On, they carry `HTTPS://AP.UP.RAILWAY.APP/p/<code>` (QR) and
-  `https://ap.up.railway.app/p/<code>` (NFC). **Flip it once, after a phone test has
-  passed the uppercase QR on current and old cameras (and an NTAG213 has opened on
-  an iPhone and a Samsung):** a card printed afterwards carries the short address for
-  life, and the name it carries is Railway's, not ours (ADR 0069, known lock-in). Set
-  it on web with `--skip-deploys`, then redeploy web; the worker makes no code and prints
-  nothing, so it does nothing with it.
-  Flipping it back stops new prints from carrying the short address and nothing
-  else: a printed short code keeps opening, and the redirect must stay. Before
-  flipping it, check that the hashes are filling (the second query below) and that
-  `PrintCodeDeriveMismatch` has not fired.
-- **Progress of the hashes** (read-only, no secrets). Before the switch: how many
+- **Progress of the hashes** (read-only, no secrets). Check how many
   live codes could get print codes (a code with no sealed copy cannot print at all),
-  and afterwards how many still lack a hash:
+  and how many still lack a hash:
 
   ```sql
   SELECT status, (encrypted_raw_token IS NOT NULL) AS sealed, count(*)
@@ -2246,71 +2232,24 @@ text.
 
 ---
 
-## 31. Per-Portal Looks (`PORTAL_OWN_LOOK_ENABLED`)
+## 31. Per-Portal Looks
 
-**Trigger/Symptoms:** Releasing a Portal's own look (ADR 0070, migration 0074); or
-turning it off again; or a Portal's page shows the Property look when its own was
-expected, or Review lists a look change nobody made.
+**Trigger/Symptoms:** A Portal shows the Property look when its own was expected,
+or Review lists a look change nobody made (ADR 0070).
 
-**Impact:** The release itself changes nothing a guest or a manager sees. Switched
-on, an Account Admin can give one Portal its own photo, colours, or name and logo,
-and a Property look edit asks only the Portals that follow the changed group to
-republish. Switched off again, no new own look can be saved; every own look already
-saved keeps being read, previewed and published.
+An Account Admin can give a Portal its own photo, colours, or name and logo.
+The controls appear when the Property has two or more Portals or the Portal
+already has its own look. Property look changes ask only the Portals following
+the changed group to republish. Own looks are always read, previewed and published.
 
-**Prerequisites:** The green `main` SHA, fetched first (`git fetch`, or the SHA is
-not found). Name both operating roles. No tenant content in the record.
+**Check:** On a two-Portal test Property, give the second Portal its own photo and
+colours and publish only that Portal. The first Portal's page, image metadata and
+print kit stay the same. Change the Property accent: only the first Portal needs
+to republish. Undo with "Use the property's colours" and republish.
 
-- **`PORTAL_OWN_LOOK_ENABLED`.** `true` or `false`, default `false`, any other
-  spelling stops the process at boot with the field named. Off, the three portal-look
-  saves answer `feature_unavailable` (HTTP 409) and a Portal's Look section shows the
-  read-only view it always had. On, the controls show to Account Admins of a Property
-  with two or more Portals (or a Portal that already has an own look). **Web reads
-  it; the worker makes no portal-look save and needs no switch**, but it reads the
-  working copy (the completeness fact, the legacy republish), so it must run the
-  release before any row can exist. A restart applies a change. Set it on web with
-  `--skip-deploys`, then redeploy web.
-- **The reader always runs.** From the release on, the working-copy reader and the
-  draft preview apply override rows whatever the flag says. The table is empty until
-  the flag is on, so nothing changes when the reader ships.
-
-**Order (the flag is switched on only after the reader is everywhere).**
-
-1. Merge on green required checks. Migration 0074 is purely additive and runs in
-   web's predeploy, before the new web serves. Re-check on `origin/main` that 0074 is
-   still the next free number before merging.
-2. `pnpm ops deploy-ci-images --sha <green main sha> --apply`. It rolls web, then the
-   worker; rerun it if the Railway API flakes (it is idempotent).
-3. Confirm web **and** worker both run the new SHA, and that nothing turned pending:
-
-   ```sql
-   SELECT count(*) FROM portal_look_overrides;   -- 0 before the flag is on
-   ```
-
-   Spot-check Review on two beta Portals ("Nothing to publish" where it was) and
-   confirm the overview's pending counts did not move.
-
-4. Set `PORTAL_OWN_LOOK_ENABLED=true` on web and redeploy web. From then on no server
-   that ignores overrides can meet an override row.
-5. Smoke on a two-Portal test Property: give the second Portal its own photo and
-   colours and publish only that Portal. The first Portal's page, `og:image` and print
-   kit are unchanged. Change the Property accent: the first Portal shows a pending
-   look change and the second none, and the batch on the Property look page shows the
-   second as "Already up to date". Undo with "Use the property's colours" and
-   republish.
-
-**Kill switch.** Set the flag to `false` and redeploy web. Saves stop; own looks that
-exist stay in force on the next publish of their Portal. Use it first if an own look
-behaves badly.
-
-**Rollback rule: never put back a release without the reader while own looks exist.**
-An older reader publishes the Property look for those Portals on their next publish,
-silently replacing their own photo, colours or name and logo. Recovery is forward-only
-anyway (§28), so a fault is fixed by a fix deployed forward. If a code rollback were
-ever unavoidable, switch the flag off **first** and accept that Portals with an own
-look lose it from their next publish; live snapshots are immutable and are not
-affected, and the table is inert for old code. To see whether any own look exists
-(ids and modes only):
+**Recovery:** Fix forward (§28). Never deploy a reader that ignores own looks:
+it would silently replace them on the next publish. To inspect whether own looks
+exist (identifiers and modes only):
 
 ```sql
 SELECT organization_id, property_id, portal_id, photo_mode, colours_mode,
@@ -2321,13 +2260,9 @@ WHERE photo_mode <> 'inherit' OR colours_mode <> 'inherit'
 ORDER BY updated_at DESC;
 ```
 
-**Verification:** `GET /api/health/ready` is healthy after each step; with the flag on,
-a save from a test Portal's Look section is accepted, and with it off the same save
-answers 409 `feature_unavailable`. A taken-down own photo is §27.
-
-**Escalation/Evidence:** Bozhidar Denev. Record the SHA, the step reached, the count
-of own looks at each step and the time the flag changed. No look values, photo
-descriptions or image bytes.
+**Verification:** A permitted save succeeds; a Property Manager or an archived
+Portal is refused. A taken-down own photo is §27. Record the release SHA and
+content-free counts; no look values, descriptions or image bytes.
 
 ---
 
@@ -2561,4 +2496,4 @@ accounting diverges.
 
 ## Staff scan-target switch — 2026-11-01
 
-`STAFF_SCAN_TARGETS_ENABLED` accepts exactly `true` or `false`, defaults to `false`, and is non-secret. Web reads it at startup, in the same way as `PORTAL_OWN_LOOK_ENABLED`. Restart web to apply a change. Off refuses new targets on a personal Portal or a Group holding one and returns no staff targets; existing manager history is retained. It does not enable `staff.accounts`, which is separately `controlled_beta` under ADR 0076 and the published staff documents (2026-11-02). Migration 0093 follows the skip-rating migration 0092.
+`STAFF_SCAN_TARGETS_ENABLED` accepts exactly `true` or `false`, defaults to `false`, and is non-secret. Web reads it at startup, as a strict boolean. Restart web to apply a change. Off refuses new targets on a personal Portal or a Group holding one and returns no staff targets; existing manager history is retained. It does not enable `staff.accounts`, which is separately `controlled_beta` under ADR 0076 and the published staff documents (2026-11-02). Migration 0093 follows the skip-rating migration 0092.

@@ -153,13 +153,8 @@ type PortalContextDeps = Readonly<{
   staffPublicApi: StaffPublicApi
   identityManagerFacts: IdentityManagerFactsPublicApi
   baseUrl: string
-  /**
-   * The print host and the switch for the short address (ADR 0069). `printOrigin`
-   * is `PORTAL_PRINT_ORIGIN`; unset, a print code is scanned on the app's own
-   * origin. `enabled` is `PORTAL_PRINT_CODES_ENABLED`: off, every address a
-   * manager sees is the long one, though print codes are still derived and stored.
-   */
-  printCodes?: Readonly<{ printOrigin?: string; enabled: boolean }>
+  /** The print host; absent, print codes use the app origin. */
+  printCodes?: Readonly<{ printOrigin?: string }>
   idGen: () => string
   secureRandomBytes: (size: number) => Buffer
   tokenHashSecret: string
@@ -184,11 +179,7 @@ type PortalContextDeps = Readonly<{
   storage?: StoragePort
   /** Optional image processor override (tests inject a fake decoder); absent = sharp. */
   imageProcessor?: ImageProcessorPort
-  /** PRINT_KIT_FINAL_ENABLED: the Share tab shows the final print kit. Absent = today's kit. */
-  printKitFinalEnabled?: boolean
   ratingGoalGuard: UpdatePortalDeps['ratingGoalGuard']
-  /** PORTAL_OWN_LOOK_ENABLED: a Portal's own look may be changed (ADR 0070). Absent = off. */
-  portalOwnLookEnabled?: boolean
 }>
 
 type ResolvePublishedAccessArtifactRequest = Omit<
@@ -247,7 +238,6 @@ export const buildPortalContext = (deps: PortalContextDeps) => {
   const addressFormat: PortalAddressFormat = {
     appOrigin: deps.baseUrl,
     printOrigin: deps.printCodes?.printOrigin ?? new URL(deps.baseUrl).origin,
-    printCodesEnabled: deps.printCodes?.enabled ?? false,
   }
   const reportPrintCodeProblem = createPrintCodeReporter(deps.logger)
   const portalWorkflowFactStore = createPortalWorkflowFactStore(deps.db)
@@ -290,7 +280,6 @@ export const buildPortalContext = (deps: PortalContextDeps) => {
     mediaUrls,
     wordingRepo: createPortalPrintWordingRepository(deps.db),
     lastPrintRepo: createPortalLastPrintRepository(deps.db),
-    finalKitEnabled: deps.printKitFinalEnabled ?? false,
     propertyLifecycleApi: deps.propertyApi,
     portalTokenRepo,
     commandStore: portalCommandStore,
@@ -379,7 +368,6 @@ export const buildPortalContext = (deps: PortalContextDeps) => {
       staffPublicApi: deps.staffPublicApi,
       idGen: deps.idGen,
       clock: deps.clock,
-      portalOwnLookEnabled: deps.portalOwnLookEnabled ?? false,
     }),
     resolvePortalManagementScope: portalScopeRepo.resolvePortal,
     resolvePortalGroupManagementScope: portalScopeRepo.resolveGroup,
@@ -646,7 +634,6 @@ export const buildPortalContext = (deps: PortalContextDeps) => {
       propertyCountry: createPropertyCountryReader(deps.db),
       clock: deps.clock,
       logger: deps.logger,
-      finalKitEnabled: deps.printKitFinalEnabled ?? false,
     }),
     revokePortalTokens: revokePortalTokens({
       portalRepo,

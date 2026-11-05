@@ -43,16 +43,13 @@ type Deps = Readonly<{
 /** What the settings read also needs for a Portal's own look (ADR 0070). */
 type PortalLookReadDeps = Readonly<{
   portalLookRepo: Pick<PortalLookRepository, 'findForPortal' | 'countLivePortals'>
-  /** PORTAL_OWN_LOOK_ENABLED. */
-  portalOwnLookEnabled: boolean
 }>
 
 /**
  * The read's facts about a Portal's own look (ADR 0070): its override with the
  * images that override names resolved the way the Property's are (so an own
  * photo that was taken down reads as no photo), how many live Portals the
- * Property has (the controls appear once there are two), and whether the
- * feature is switched on. A Portal with no row, and a read with no Portal, have
+ * Property has (the controls appear once there are two). A Portal with no row, and a read with no Portal, have
  * no override: every group follows the Property look.
  */
 async function portalLookSettingsOf(
@@ -85,7 +82,6 @@ async function portalLookSettingsOf(
   return {
     portalLook,
     siblingPortalCount,
-    portalLookEnabled: deps.portalOwnLookEnabled,
   }
 }
 

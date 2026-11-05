@@ -1,14 +1,4 @@
-// Portal context — the print kit read (round 4, slice 45).
-//
-// What the Share tab's preview draws: the Portal's title in each language, the
-// languages it offers, and the Property's look, as the live version has them. It carries no address (the
-// preview draws a placeholder code), so reading it discloses nothing and needs
-// only `portal.read`, like the editor's other reads. The PDF itself is
-// `createPortalPrintKit`, which does disclose. It also says which kit the Share
-// tab shows: today's, or the final kit where the server has it turned on, and
-// for the final kit what the Portal's last print was (choices and a day, and
-// whether the photo has changed since: never an address or a code) and the
-// wording the manager saved for Share to open on.
+// Reads the live print context, last print and saved wording without disclosing an address.
 
 import type { AuthContext } from '#/shared/domain/auth-context'
 import { portalId } from '#/shared/domain/ids'
@@ -39,8 +29,6 @@ export type GetPortalPrintKitDeps = Readonly<{
   /** The wording the Portal saved, which Share opens on. */
   wordingRepo: Pick<PortalPrintWordingRepository, 'find'>
   mediaRepo: Pick<PortalMediaAssetRepository, 'findById'>
-  /** PRINT_KIT_FINAL_ENABLED: the Share tab shows the final kit instead of today's. */
-  finalKitEnabled: boolean
 }>
 
 export const getPortalPrintKit =
@@ -57,7 +45,6 @@ export const getPortalPrintKit =
       organizationId: ctx.organizationId,
       portal,
     })
-    if (!deps.finalKitEnabled) return presentPortalPrintKit(portal.id, context, 'current')
     const [last, savedWording] = await Promise.all([
       deps.lastPrintRepo.find(ctx.organizationId, portal.id),
       deps.wordingRepo.find(ctx.organizationId, portal.id),
@@ -67,7 +54,7 @@ export const getPortalPrintKit =
         ? null
         : await presentLastPrint(deps, ctx.organizationId, context, last)
     return {
-      ...presentPortalPrintKit(portal.id, context, 'final', lastPrint, savedWording),
+      ...presentPortalPrintKit(portal.id, context, lastPrint, savedWording),
       ...(portal.kind === 'personal' ? { personal: true } : {}),
     }
   }
