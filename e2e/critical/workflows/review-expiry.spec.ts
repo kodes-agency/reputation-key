@@ -115,12 +115,14 @@ test.describe('Critical workflow: review expiry and the report-only purge', () =
     )
 
     // Dashboard aggregates exclude the expired review's 1★ (fresh is 5★).
-    const dashboard = await callServerFnGet<{
-      kpis: { avgRating: { value: number }; reviews: { value: number } }
-      recentReviews: ReadonlyArray<{ id: string }>
+    const { dashboard } = await callServerFnGet<{
+      dashboard: {
+        kpis: { avgRating: { value: number }; reviews: { value: number } }
+        recentReviews: ReadonlyArray<{ id: string }>
+      }
     }>(page, {
       file: 'src/contexts/reporting/server/dashboard.ts',
-      exportName: 'getDashboardDataFn',
+      exportName: 'getPropertyOverviewFn',
       data: { propertyId, timeRange: 'all' },
     })
     expect(dashboard.kpis.avgRating.value).toBe(5)
