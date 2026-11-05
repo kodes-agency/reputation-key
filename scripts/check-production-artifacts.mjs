@@ -6,7 +6,6 @@ const TEXT_EXTENSIONS = new Set(['.js', '.mjs', '.cjs', '.map', '.json'])
 
 const FORBIDDEN_NAMES = Object.freeze([
   /(?:^|\/)seed-e2e-user(?:\.|$)/u,
-  /(?:^|\/)provision-google-admission-role(?:\.|$)/u,
   /\.stories\.[cm]?[jt]sx?(?:\.|$)/u,
 ])
 
@@ -43,10 +42,6 @@ const FORBIDDEN_SOURCES = Object.freeze([
   {
     label: 'E2E seeder source',
     pattern: /scripts[\\/]seed-e2e-user\.ts/u,
-  },
-  {
-    label: 'Google admission role provisioner source',
-    pattern: /scripts[\\/]ops[\\/]provision-google-admission-role\.ts/u,
   },
   {
     label: 'simulation source',

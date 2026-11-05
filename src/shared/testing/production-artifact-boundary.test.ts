@@ -53,10 +53,10 @@ describe('production artifact boundary', () => {
   it.each([
     ['forbidden executable name', 'seed-e2e-user.js', 'export {}\n'],
     [
-      'forbidden Google provisioner import',
+      'operator-only command import',
       'index.js.map',
       JSON.stringify({
-        sources: ['../scripts/ops/provision-google-admission-role.ts'],
+        sources: ['../scripts/ops/check-google-oauth.ts'],
       }),
     ],
     ['default credential', 'index.js', 'const password = "password123"\n'],
@@ -169,7 +169,7 @@ function bundleWithMap(directory: string, sources: readonly string[]): void {
   writeFileSync(join(directory, 'index.js.map'), JSON.stringify({ sources }))
 }
 
-// The six forbidden-source rules read source maps and nothing else, so a tree
+// The forbidden-source rules read source maps and nothing else, so a tree
 // with no map passes them without their having looked at anything. That is
 // what the image build gave them: it deleted every map in the command before
 // the check. A caller that knows where maps must be says so.

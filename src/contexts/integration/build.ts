@@ -1,5 +1,5 @@
 // Integration context — build function.
-// Wires integration repos, adapters, use cases, and the GbpQueuePort.
+// Wires integration repos, adapters, use cases, and the import queue.
 // Per ADR-0001: the composition root calls this and passes useCases to the container.
 //
 // Cross-context contributions exposed to the composition root (BQC-5.2):
