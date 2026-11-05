@@ -23,7 +23,6 @@ import { resendInvitation } from './application/use-cases/resend-invitation'
 import { acceptInvitation } from './application/use-cases/accept-invitation'
 import { cancelInvitation } from './application/use-cases/cancel-invitation'
 import { getInvitationPreview } from './application/use-cases/get-invitation-preview'
-import { registerUser } from './application/use-cases/register-user'
 import { registerInvitedUser } from './application/use-cases/register-invited-user'
 import { recoverInvitedRegistrations } from './application/use-cases/recover-invited-registrations'
 import { createInvitationReadModel } from './infrastructure/invitation-read-model'
@@ -105,7 +104,6 @@ export function buildInvitationUseCases(deps: InvitationUseCaseDeps) {
       propertyNames: deps.propertyNames,
       clock,
     }),
-    registerUser: registerUser({ identity: deps.identityPort }),
     registerInvitedUser: registerInvitedUser({
       ...admission,
       commandStore,

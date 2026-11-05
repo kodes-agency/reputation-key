@@ -392,7 +392,9 @@ not be deleted; it does not mean that object is the only one waiting. Every
 
 ## Member offboarding
 
-The app-owned member-removal flow refuses removal of the final AccountAdmin.
+There is no self-service leave: an AccountAdmin removes a member, and nobody
+removes themselves. The app-owned member-removal flow refuses removal of the
+final AccountAdmin.
 Before the Identity command, composition fences Google connector/import work
 and releases current Property/Portal/Inbox manager authorities and Property
 access grants. The Identity transaction then locks the exact membership,
@@ -416,33 +418,6 @@ that is still in the outbox: such a fact has no receipt for them yet. That
 releases a Responsible Manager who was removed earlier and is still assigned; a
 member who is back keeps what they may hold; a fact with nothing left to
 release only records its receipt.
-
-### Transfer-first leave (LIF-01-T21)
-
-Self-service leave is a SEPARATE command from removal, because the two need
-opposite behaviour. Removal RELEASES what the member held — an AccountAdmin is
-present to reassign afterwards. A voluntary leave has no such supervisor, so
-`leaveOrganization` REFUSES until every Portal responsibility, Property
-responsibility and open Inbox assignment the leaver holds has been explicitly
-transferred to a named, currently eligible manager. There is no auto-assign and
-no "release to nobody": choosing a successor is an accountability decision.
-
-- The sole AccountAdmin cannot leave. Checked in the use case for a usable
-  message and re-checked under the Organization advisory lock in the command
-  store, which is what closes the race between two admins leaving at once.
-- The worklist is re-read AFTER the transfers are applied, so a responsibility
-  created during the hand-over blocks the leave instead of being abandoned.
-- The responsibility facts come from a composed `memberOffboarding` adapter.
-  ABSENT IS FAIL-CLOSED: with no adapter bound, leave refuses. A leave that
-  cannot see the worklist would silently strand everything on it.
-- Production does NOT compose `memberOffboarding` today, so self-service leave
-  always refuses and removal by an AccountAdmin is the supported path out of an
-  Organization. Identity publishes this as
-  `offboardingFacts.selfServiceLeaveAvailable` (false), and Settings → Members
-  says leaving on your own is not available in this beta instead of reading the
-  worklist.
-- `identity.leave_org` is capability-gated as usual. A closure request sets
-  no Organization suspension, so it does not by itself stop a leave.
 
 `property_access_grant` revocation now commits INSIDE the Identity transaction
 alongside session deletion, binding release, membership deletion and the

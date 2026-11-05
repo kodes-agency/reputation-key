@@ -30,11 +30,6 @@ const SITES = [
   ['src/routes/_authenticated/settings/members.tsx', 'removeMember'],
   // The member may be the reader, whose Property access the shell holds.
   ['src/routes/_authenticated/settings/-member-access-container.tsx', 'saveMemberAccess'],
-  // The session the shell remembered ended.
-  [
-    'src/routes/_authenticated/settings/-leave-organization-section.tsx',
-    'leaveOrganizationFn',
-  ],
   // The password change replaces the session and sets its Organization again.
   ['src/routes/_authenticated/settings/security.tsx', 'changePasswordFn'],
 ] as const
