@@ -1,6 +1,6 @@
 // Review context — reply-template server function contracts.
-// Runtime-imports the production module so changed-code evidence cannot be
-// satisfied by testing a detached DTO or a duplicate handler.
+// Runtime-imports the production module, so the contract is checked against the
+// real handlers and not a detached DTO or a duplicate handler.
 
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { AuthContext } from '#/shared/domain/auth-context'
