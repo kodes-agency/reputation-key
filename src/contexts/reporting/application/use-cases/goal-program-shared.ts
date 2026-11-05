@@ -327,6 +327,32 @@ export function openResultsForPeriods(
   )
 }
 
+/** Due months are planned per assignment so one subject cannot hide another's gap. */
+export function dueResultsForProgram(
+  bundle: GoalProgramBundle,
+  id: () => string,
+  now: Date,
+): readonly GoalMonthlyResult[] {
+  return bundle.assignments
+    .filter((assignment) => assignment.programVersionId === bundle.version.id)
+    .flatMap((assignment) => {
+      const latestPeriodEnd = bundle.results
+        .filter((result) => result.assignmentId === assignment.id)
+        .reduce<Date | null>(
+          (latest, result) =>
+            !latest || result.periodEnd > latest ? result.periodEnd : latest,
+          null,
+        )
+      const periods = dueMonthlyPeriods(bundle.version, latestPeriodEnd, now)
+      return openResultsForPeriods(
+        { ...bundle, assignments: [assignment] },
+        periods,
+        id,
+        now,
+      )
+    })
+}
+
 async function validateSubjects(
   deps: GoalProgramDependencies,
   organizationId: string,

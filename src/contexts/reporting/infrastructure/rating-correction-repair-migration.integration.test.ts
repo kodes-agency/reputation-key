@@ -32,7 +32,8 @@ const PORTAL = portalId('73000000-0000-4000-8000-000000000002')
 const RATING = METRIC_VERSION_IDS.portalRatingAnalytics
 const COUNT = METRIC_VERSION_IDS.portalRatingCountGoal
 const AVERAGE = METRIC_VERSION_IDS.portalRatingAverageGoal
-const COMPLETENESS = METRIC_VERSION_IDS.configurationCompleteness
+// Historical fixture: the migration must leave retired workflow readings alone.
+const COMPLETENESS = '11111111-1111-4111-8111-111111111102'
 const SOURCE_AT = '2026-09-15T12:00:00.000Z'
 const REPLACEMENT_AT = '2026-09-15T12:20:00.000Z'
 

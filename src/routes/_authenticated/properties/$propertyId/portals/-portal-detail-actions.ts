@@ -262,9 +262,6 @@ export function usePortalDetailActions(propertyId: string, portalId: string) {
     successMessage: 'All codes stopped',
     invalidateKeys: tokenInvalidations,
   })
-  // The only producer of the governed portal.content_review.completed /
-  // configuration_completeness / approved_destination_ratio facts. Legacy
-  // recognition projections stay inactive; active Goal consumers observe the fact.
   const completeReview = useActionMutation(completeContentReview, {
     successMessage: 'Link check recorded',
     invalidateKeys: [portalKeys.detail(portalId)],

@@ -1,6 +1,5 @@
-// S-19: "Add a note", then the field "Note", which takes the focus as it
-// appears; bounded as the Program commands bound a change's note. The change
-// sheets' (the Monthly portal goal's and a goal's own, PLAN PG-14, PG-21).
+// Use the command's note bound and focus the field when it appears.
+
 import { useEffect, useId, useRef } from 'react'
 import { Button } from '#/components/ui/button'
 import { Input } from '#/components/ui/input'

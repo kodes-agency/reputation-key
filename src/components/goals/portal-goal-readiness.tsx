@@ -1,8 +1,6 @@
-// Each published Portal's three steps before the Monthly portal goal's number is
-// ready (P-4, copy deck G-8 and G-10): Live, Code made, First scan, in Portal's
-// name order. A step is a check once done and a ring until then, said in words
-// for a screen reader. A code that has gone 14 days without a scan gets one
-// neutral line and a way to its share tab, never a warning colour.
+// Keep Portals in name order. A code with no scan for 14 days gets a neutral
+// explanation and share link, never a warning colour.
+
 import { Check, Circle } from 'lucide-react'
 import type { PortalReadinessRow } from '#/contexts/reporting/application/dto/monthly-portal-goal.types'
 import { InlineLink } from '#/components/ui/inline-link'

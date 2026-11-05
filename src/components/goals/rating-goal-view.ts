@@ -1,8 +1,6 @@
-// What the Property Google rating goal says, worked out once for the simple
-// card, the detail page and the history (ADR 0067). Google's own number leads;
-// the exact average is drawn on the detail's chart; when a goal arrives is a
-// duration from today (rating-goal-arrival-words.ts), never a date; "review"
-// means a Google review and nothing else.
+// Lead with Google's own number; the exact average belongs on the detail chart. Arrival
+// estimates are durations from today, never dates. Reviews here are Google reviews.
+
 import type {
   GoogleNumbersView,
   RatingGoalCardView,

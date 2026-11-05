@@ -11,7 +11,7 @@ facts and Goals) and [ADR 0049](0049-beta-local-acceptance.md) (rule 2, since
 2026-10-17 about staff goals, workforce recognition and Goal Programs; its
 amendment of that date), each by a dated note that points here; `docs/BETA.md` §2, §3 and §10; and version 2.1 of the
 Google Business Profile Access Disclosure and of the Closed Beta Participation
-Agreement. The plan is `docs/plan/google-rating-goal.md`.
+Agreement. The plan is [`docs/plan/google-rating-goal.md`](https://github.com/kodes-agency/reputation-key/blob/docs-archive-2026-11-05/docs/plan/google-rating-goal.md).
 
 ## Context
 

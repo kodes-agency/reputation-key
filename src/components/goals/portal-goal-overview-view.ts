@@ -1,15 +1,6 @@
-// What the Property Overview says about the Monthly portal goal, worked out once
-// (pure; PLAN PG-16, copy deck O-1…O-6). Its own slot, after "How you are
-// doing" and above "Guest voice", never beside the Google rating goal's. It
-// says at most one thing, from the card's own read: the number ready to use, in
-// one line, until a manager chooses "Not now" for its month (O-1); the running
-// month, as the Goals page's card draws it (O-2), with the month-start check-in
-// as the strip above it on the month's first seven days, for someone who may
-// change the goal (O-3…O-6, the card's K-1…K-5; ADR 0068 amended 2026-10-19).
-// Nothing in the first weeks and at the gates, after "Not now", for a goal that
-// has not started, once a goal was stopped, and while the read is on its way or
-// failed: the goal never holds the Overview back. The read decides every state
-// and number (PLAN E12); this only says them.
+// The goal never blocks the Overview. Hide unreadable, pending and ineligible prompts,
+// and honour Not now for the offered month.
+
 import type { PortalGoalMeasure } from '#/contexts/reporting/application/dto/goal-recommendation.types'
 import type {
   PortalGoalCardView,

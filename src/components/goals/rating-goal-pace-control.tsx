@@ -1,11 +1,6 @@
-// "New reviews": the one lever a manager is asked to pull (rounds 3 and 4,
-// R3-1/R3-3, R4-3). A day or a month, the recommended stops on the app's
-// Slider (its touch height built in), the stops' labels with "Recommended"
-// under the one it is, the note against today's pace, "Your own" in either
-// unit, and how to ask (R3-12). An own pace shows in the value and the note;
-// the thumb sits on the nearest stop, and moving it goes back to the stops. A
-// typed pace is applied on Enter or when the field is left, clamped with its
-// reason.
+// For an own pace, place the thumb on the nearest stop; moving it selects a stop again.
+// Commit typed values on Enter or blur and explain clamping.
+
 import { Button } from '#/components/ui/button'
 import { SegmentedControl } from '#/components/ui/segmented-control'
 import { Slider } from '#/components/ui/slider'

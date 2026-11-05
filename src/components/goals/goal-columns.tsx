@@ -1,11 +1,6 @@
-// A goal's bars (2026-11-01, ADR 0067 and 0068: one goal design system): the new
-// reviews each week against the plan, or each month against its number. One
-// scale, one baseline, the figure at the foot of a bar or on top of it, and the
-// bars from before the goal in a quieter ink. A column still counting is dashed,
-// as a Portal's Results chart draws its part week. One keyboard stop; pointer,
-// touch and keys read the same line under the bars, and the same figures are read
-// out as a list, so nothing is carried by height alone. The words are the goal's
-// own and arrive finished (`goal-columns-view.ts` works out the heights).
+// Pointer, touch and keyboard share the selected column. The list exposes the same
+// figures without relying on bar height.
+
 import { useId } from 'react'
 import { Check } from 'lucide-react'
 import { useBarSelection } from '#/components/hooks/use-bar-selection'

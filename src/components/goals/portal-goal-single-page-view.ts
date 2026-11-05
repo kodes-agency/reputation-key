@@ -1,10 +1,7 @@
-// The page of a goal for one Portal, one Portal Group or the average private
-// rating (PLAN PG-21): its title and whom it counts, where its ratings count,
-// the average's line and its tile, a stopped or paused goal's state, what its
-// Stop and its change sheet are called, and the plain page of a goal for
-// several subjects. A Portal's or a group's goal is otherwise the Monthly
-// portal goal's page, in its words (`portal-goal-page-view.ts`). The read
-// decides every state, day and number (PLAN E12); this only says them. Pure.
+// The read owns subject scope, eligibility, states and figures. Portal and group goals
+// reuse the monthly page; averages retain sample-floor messaging and several-subject
+// goals retain Stop.
+
 import type { GoalMetric, GoalSubject } from '#/contexts/reporting/application/public-api'
 import type {
   PortalGoalAverageOfPage,

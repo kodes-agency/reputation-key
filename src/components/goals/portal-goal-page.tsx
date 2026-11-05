@@ -1,24 +1,7 @@
-// The Monthly portal goal's page, `/goals/portals` (ADR 0068, amended 2026-11-01). Before
-// a goal it is the card's own state, as on the Goals page, under the page's title (the
-// card draws none). With a goal: the pace as the pill in the page's header; a stopped
-// goal's notice; where the goal stands (what is left, the days left and the ruler with
-// a steady month's stop on it); then three questions in the bands Guest voice, Portal
-// Results and the Google rating goal's page use: where they are coming from (plain
-// counts in name order, no ranking, P-1), how the month compares (each month against
-// its own number) and what to do this week. What changed and how the goal counts are
-// closed until asked; once a month has closed, the way to every month's result. A
-// stopped goal whose last month has closed is no goal any more, so its months and
-// changes sit under the card before a goal. Under it all, the other Portal goals and
-// the way to add one, which the route hands in (a component imports no routes). Its
-// actions (P-3: "Change number", and the menu with the other measure and Stop) are in
-// the header while the goal can change; the Stop dialog is held here, outside the menu
-// and the header, so a refusal that reads the page again keeps it.
-//
-// A goal for one Portal or one Portal Group has this page too, on `$goalId`
-// (PLAN PG-21): titled for its subject ("Reception · portal goal"), counting
-// from it and saying so in "How this goal counts", with the same actions (no
-// other measure when its subject already holds a goal for it) and no Portals'
-// rows or other goals.
+// Keep Portal counts in name order without ranking. Hold the Stop dialog outside the
+// menu and header so a refusal that refreshes the page does not unmount it. Portal and
+// group goals reuse this page without Property-wide Portal rows or other goals.
+
 import { useId, type ReactNode } from 'react'
 import type { PortalGoalPageView } from '#/contexts/reporting/application/dto/monthly-portal-goal-page.types'
 import type { PortalGoalOfCard } from '#/contexts/reporting/application/dto/monthly-portal-goal.types'

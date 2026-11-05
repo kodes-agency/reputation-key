@@ -1,12 +1,6 @@
-// The way to the Portal goal results page (`/goals/portal-results`; copy deck
-// P-15, R-3, R-4): "All monthly results", at the goal page's foot and the
-// Portal goals section's on the Goals page, once a month of a Portal goal has
-// closed, and the way to the ended Portal goals on that page, once one has
-// ended. Apart from the results page's own words (`portal-goal-results-view.ts`),
-// so neither page loads any of that page; the anchor and the title R-4 names
-// are held to that page's by its test.
-//
-// Pure.
+// Keep navigation words separate from the results page so callers do not load that
+// page's implementation. Tests hold its anchor and title to the destination.
+
 import type { buildGoalResultsMatrix } from '#/contexts/reporting/application/public-api'
 
 /** A Portal goal as the Goals list reads it, ended ones included, with its months. */

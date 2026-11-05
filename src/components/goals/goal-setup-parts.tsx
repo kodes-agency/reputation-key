@@ -1,14 +1,3 @@
-// The parts a goal's one-screen setup is drawn with (ADR 0068, amended 2026-10-19:
-// one goal design system): the goal's number as the hero with − and + either
-// side, the line under it, the muted panel holding the way to choose, the
-// recommendation's tag, the quoted aside and the row of explanation links. A goal
-// passes the number's own box, its words and its commands; nothing here holds
-// either, so the same screen reads the same for every goal.
-//
-// The recommendation wears the link ink: the tag says which choice to take, as the
-// headline's target says which figure a goal leads with. `GOAL_SETUP_LINK` is the
-// ink and the touch height of a link in the explanation row, for the goal that
-// draws its own trigger.
 import { Fragment, type ReactNode } from 'react'
 import { Minus, Plus } from 'lucide-react'
 import { Button } from '#/components/ui/button'

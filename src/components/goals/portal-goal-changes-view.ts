@@ -1,9 +1,3 @@
-// What changed on the Monthly portal goal, as its page lists it (copy deck
-// P-10…P-12): each dated fact the read returned, newest first, the person named
-// when the page knows them, "(recommended)" when the number was the one
-// recommended, the unit when the goal switched what it counts, a note on its
-// own line, and each Portal going live; a day of another year says its year.
-// At most 12 until "Show all". Pure.
 import type { PortalGoalChange } from '#/contexts/reporting/application/dto/monthly-portal-goal-page.types'
 import { formatLocalDate } from '#/lib/format'
 import { goalFigure } from './goal-so-far'

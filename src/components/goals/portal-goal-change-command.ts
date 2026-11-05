@@ -1,14 +1,7 @@
-// A change sheet's command (PLAN PG-14, PG-21; copy deck S-21, F-1, F-2, F-5):
-// the Monthly portal goal's, and the average's on its own page. "Now" is sent
-// as a change of the running month and the months after it, "from next month"
-// as a revision, once however often the primary is pressed; a toast says what
-// was saved, the reads are marked stale and the sheet is done. A refusal is
-// held for the sheet's banner, and the reads are marked stale when it means
-// they are behind; when it leaves the sheet behind the goal (F-1, F-2, F-4) the
-// host reads the goal again and opens the sheet afresh on the latest. A goal
-// stopped a moment ago (F-5) leaves nothing to change: the sheet closes on the
-// latest and a toast says why. The refusal a sheet opened with is said until
-// the next press.
+// Send once while pending. Stale refusals refresh reads and reopen against the latest
+// goal; a stopped goal closes the sheet. Preserve an opening refusal until the next
+// submission.
+
 import { useRef, useState } from 'react'
 import { toast } from 'sonner'
 import type {

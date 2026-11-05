@@ -1,7 +1,6 @@
-// The running Monthly portal goal on the goal ruler (2026-11-01, ADR 0068): from none
-// on the month's first day to the month's number, the month so far, and a stop that
-// finally says what it is: where a steady month would stand today. It is not drawn in
-// the first quiet days or once the number is passed. Pure.
+// The steady-month marker is not a forecast. Hide it during the first quiet days and
+// after the target is passed.
+
 import type { PortalGoalRunningMonth } from '#/contexts/reporting/application/dto/monthly-portal-goal.types'
 import { formatNumber } from '#/lib/format'
 import { rulerModel, type GoalRulerModel } from './goal-ruler-view'

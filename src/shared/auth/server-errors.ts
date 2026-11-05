@@ -143,6 +143,6 @@ export function catchUntagged(e: unknown): never {
     'Internal server error',
     'internal_error',
     500,
-    { cause: e },
+    { cause: e, requestId: ctx?.requestId },
   )
 }

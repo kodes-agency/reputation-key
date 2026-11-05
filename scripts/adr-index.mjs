@@ -101,6 +101,15 @@ ${table}
 ## Archived decisions
 
 ${archived}
+
+## Archived documentation
+
+Retired [plans](https://github.com/kodes-agency/reputation-key/tree/docs-archive-2026-11-05/docs/plan),
+[AI governance documents](https://github.com/kodes-agency/reputation-key/tree/docs-archive-2026-11-05/docs/archive)
+and [release evidence](https://github.com/kodes-agency/reputation-key/tree/docs-archive-2026-11-05/docs/release-evidence)
+are preserved at protected tag \`docs-archive-2026-11-05\`.
+Historical source comments keep their original paths; read them with
+\`git show docs-archive-2026-11-05:<path>\`.
 `
 
 await writeFile(new URL('README.md', adrDir), output)

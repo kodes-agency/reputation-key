@@ -1,10 +1,6 @@
-// The Monthly portal goal card's words, before a goal (copy deck G-2, G-5…G-11,
-// G-19) and for a goal with no month running (G-20); the running month's are
-// `portal-goal-running-view.ts`. The read decides every state, day and number
-// (PLAN E12); this only says them, in one place, so a card, its stories and
-// its tests spell each line once. Days arrive as Property-local `YYYY-MM-DD`,
-// months as `YYYY-MM`, and are printed as those days: no reader's zone can
-// move them.
+// The read owns states, numbers and dates. Property-local YYYY-MM-DD days and YYYY-MM
+// months must not shift with the reader's time zone.
+
 import type { PortalGoalMeasure } from '#/contexts/reporting/application/dto/goal-recommendation.types'
 import type {
   PortalGoalCardView,

@@ -1,7 +1,3 @@
-// "18 new reviews to 4.1": the headline a climbing Google rating goal leads
-// with on its card and on its detail page (round 5, PLAN-D E5), the figure
-// large and the number it counts to in the link ink (V23); or "Google should
-// show 4.1 soon" once the reviews have earned the goal.
 import type { RatingGoalCardView } from '#/contexts/reporting/application/dto/rating-goal.types'
 import { GoalHeadline } from './goal-headline'
 import { headlineOf } from './rating-goal-tracking-words'

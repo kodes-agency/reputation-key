@@ -1,19 +1,8 @@
-// The Monthly portal goal's page (ADR 0068): its month, what each Portal brought
-// in, each month and what changed, one click from the card on the Goals page.
-// Behind `goal.use` with the other goal routes (the Goals layout); the route
-// asks the static table for `goal.read` alone, as the Google rating goal's page
-// does, and the read itself asks for `goal.create`. Its read is primed by the
-// loader from a module fetched on demand, so neither the read nor its server
-// function joins first paint. Without a goal it shows the card's own state,
-// with its doors to the set sheet (`-portal-goal-sheet-host.tsx`, as on the
-// Goals page); the card draws no title here, so the page's title takes the
-// focus back from the sheet. With one, "Change number" and "Count scans
-// instead" open the same sheet to change it (`goal.update`), and Stop
-// (`goal.cancel`) ends it and leaves for the Goals page, where the card says
-// it was stopped. Under it all, "More portal goals": the other Portal goals,
-// and "Add a portal goal" when it offers something (the M-rule, PLAN PG-20),
-// whose sheet an address opens on a step (`?add=…`, where the old New goal
-// page's links now lead, `-goal-new-redirect.ts`).
+// The route checks goal.read; the read checks goal.create. Load queries on demand to
+// keep server functions out of first paint. The page title receives sheet focus because
+// its card omits a duplicate heading. Stop preserves the running month and returns to
+// Goals.
+
 import { useEffect } from 'react'
 import { createFileRoute } from '@tanstack/react-router'
 import { useQuery, useQueryClient, useSuspenseQuery } from '@tanstack/react-query'

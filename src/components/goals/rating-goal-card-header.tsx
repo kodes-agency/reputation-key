@@ -1,8 +1,4 @@
-// What every Google rating goal card says in its header: its title and the id of
-// that title. The card draws them through the shared goal card frame
-// (`goal-card-frame.tsx`). The wizard and the Monday recap hand the focus back to
-// this title, wherever the section draws it (the Goals page and the Property
-// Overview).
+// The wizard and recap restore focus to this title on both the Goals page and Overview.
 
 /**
  * The id of the section's heading, wherever the section draws it: the wizard

@@ -297,7 +297,7 @@ The caller isolates a failed side read from the primary Guest voice page.
   shows, with a planned quality (the average stars it assumes new Google reviews bring) and
   a chosen weekly pace of new Google reviews (a climb goal), or a watch that
   Google keeps showing a tenth it shows now (a keep goal). At most one is active per
-  Property (ADR 0067, `docs/plan/google-rating-goal.md`). It is not a Goal Program: it has
+  Property (ADR 0067, [`docs/plan/google-rating-goal.md`](https://github.com/kodes-agency/reputation-key/blob/docs-archive-2026-11-05/docs/plan/google-rating-goal.md)). It is not a Goal Program: it has
   no months, subjects, metric readings or monthly results, no deadline and no "missed". It
   is worked out from Google's own rating and review count (the Current on Google snapshot)
   and from counts and star sums of the Property's cached Google reviews, read through
@@ -484,12 +484,8 @@ The caller isolates a failed side read from the primary Guest voice page.
   read), a Property with no time zone on record is left out of the results rather than read in a
   guessed zone, and the one-read limit of 1000 Portals applies to the whole Organization (past it
   the page shows its list without results; each Property's own page still reads its own).
-- **Portal configuration completeness**: a content review's count of required Portal fields,
-  as a percentage. Version 1 holds counts on the legacy settings (every fact before event
-  version 3); version 3 holds counts on the Immersive Hub's fields. The fact's field set picks
-  the version, so each version's series holds only its own count. A correction replaces a
-  reading of its own version only: one that corrects a review counted on the other field set
-  starts its own version's series, and the earlier reading keeps its value.
+- Portal link-check facts remain Portal-owned and are not projected into Reporting.
+  Existing workflow readings and corrections remain stored until their data contraction.
 - **Property setup**: seven per-Property steps derived at read time from current facts
   (Google binding, first sync, reply language, AI decision, responsible manager, reply
   voice, published Portal), and an eighth, "Set a Google rating goal", where a goal can be
@@ -635,6 +631,30 @@ setup-checklist milestones, Portal lifetime, and Current on Google tables declar
 package. Repositories remain split by
 aggregate and read purpose even though they share a bounded context.
 
+Monthly goal totals and their source/receipt completeness proof are read in one
+read-only repeatable-read transaction (`goal-metric-snapshot.ts`). Stopping an
+active Program locks its row, opens due months per current assignment, and ends
+it in the same transaction; the last month still reconciles and closes.
+Single-goal page DTOs carry the latest month Stop retains, using that same due-month
+planner before hourly maintenance opens it. This calendar fact is independent of
+live progress reads and change availability, including for several subjects.
+
+Closure compares the snapshot's source head in the result update, covering source
+facts, consumer receipts, readings and corrections. Guest fact commits and metric
+commands share a Property fence; closure holds it exclusively through the result
+and outbox commit. A changed head leaves the month reconciling for a fresh read.
+Contended closure fences skip the month for retry so one held tenant cannot stall maintenance.
+Closure also holds the Organization lifecycle fence and rechecks execution policy
+inside its transaction, including before commit. A concurrent lifecycle transition
+defers closure for retry; a committed hold still lets existing months drain so
+purge readiness can clear. `goal-result-closure-barrier.test.ts` covers late source
+changes, concurrent suspension, and draining a month during Organization closure.
+`scripts/ops/find-stale-goal-results.sql` lists closed heads
+whose values or samples differ from current effective readings, including the
+latest revision. It is read-only and conservative, not a completeness proof.
+Changed outcomes require owner review and the existing result-revision command;
+the query authorizes no repair.
+
 Organization setup milestones have no product reader or writer. Their schema,
 export and lifecycle contributors, and purge-table declaration remain for existing data.
 Per-Property setup reads remain active.
@@ -642,15 +662,14 @@ Per-Property setup reads remain active.
 ## Durable facts
 
 Metric and Goal event modules are named `metric-events.ts` and `goal-events.ts`. Their event
-tags remain stable for outbox replay compatibility. Reporting consumes Guest, Portal, Review,
+tags remain stable for outbox replay compatibility. Reporting consumes Guest, Review,
 and metric-correction facts through the shared durable consumer registry. New readings
 commit with their source receipt and lifetime contribution, without emitting
 `metric.recorded`; both stored versions of that event remain decodable. Replacements
 and retractions still emit `metric.corrected` atomically. Each
 consumer holds a receipt for a fact it has finished. A fact that yields no reading is
-finished too: when the registry refuses it by design (a destination ratio under its minimum
-sample, a fact that cannot be attributed, one from before its measure took effect) the store
-commits an `obsolete` receipt and no reading, so it is not redelivered for nothing. A refusal
+finished too: when the registry refuses it by design (a fact that cannot be attributed, or one
+from before its measure took effect), the store commits an `obsolete` receipt and no reading, so it is not redelivered for nothing. A refusal
 that a registry or policy change would undo (`source_policy_not_allowed`, `scope_not_allowed`,
 `definition_not_approved`, `unknown_definition_version`) fails the delivery instead, and the
 retry applies once the change is deployed. The Goal correction consumer

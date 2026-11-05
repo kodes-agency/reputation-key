@@ -1,9 +1,13 @@
+import { randomUUID } from 'node:crypto'
+import {
+  dueResultsForProgram,
+  GoalProgramError,
+} from '../../application/use-cases/goal-program-shared'
 import { assertPersonalGoalAssignments } from './personal-goal-assignment-guard'
 import { assertPropertyCountGoalAvailable } from './property-count-goal-guard'
 import { and, asc, desc, eq, gt, inArray, isNull, ne, or, sql } from 'drizzle-orm'
 import type { Database } from '#/shared/db'
 import { lockStaffTargetProperty } from '#/shared/db/staff-target-lock'
-import { GoalProgramError } from '../../application/use-cases/goal-program-shared'
 import { auditLogs } from '#/shared/db/schema/audit'
 import {
   goalMonthlyResults,
@@ -71,7 +75,7 @@ async function selectByIds<Row>(
 }
 
 async function hydrateBundles(
-  db: Database,
+  db: Pick<Database, 'select'>,
   programs: readonly (typeof goalPrograms.$inferSelect)[],
 ): Promise<readonly GoalProgramBundle[]> {
   if (programs.length === 0) return []
@@ -336,7 +340,10 @@ async function endingBoundary(
   )
 }
 
-export const createGoalProgramRepository = (db: Database): GoalProgramRepository => {
+export const createGoalProgramRepository = (
+  db: Database,
+  id: () => string = randomUUID,
+): GoalProgramRepository => {
   /**
    * Runs a status change in a transaction. Ending a Program that finds its
    * version history changed under it throws GoalProgramRevisionConflict; the
@@ -463,6 +470,31 @@ export const createGoalProgramRepository = (db: Database): GoalProgramRepository
     async changeStatus(input) {
       return changeStatusOrConflict(async (tx) => {
         await lockStaffTargetProperty(tx, input.organizationId, input.propertyId)
+        if (input.status === 'ended' && input.expectedStatus === 'active') {
+          const [head] = await tx
+            .select()
+            .from(goalPrograms)
+            .where(
+              and(
+                eq(goalPrograms.organizationId, input.organizationId),
+                eq(goalPrograms.propertyId, input.propertyId),
+                eq(goalPrograms.id, input.programId),
+                eq(goalPrograms.status, 'active'),
+              ),
+            )
+            .for('update')
+            .limit(1)
+          if (!head) return null
+          const [bundle] = await hydrateBundles(tx, [head])
+          if (!bundle) throw new GoalProgramRevisionConflict()
+          const due = dueResultsForProgram(bundle, id, input.at)
+          if (due.length > 0) {
+            await tx
+              .insert(goalMonthlyResults)
+              .values(due.map(resultValues))
+              .onConflictDoNothing()
+          }
+        }
         const [row] = await tx
           .update(goalPrograms)
           .set({

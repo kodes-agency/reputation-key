@@ -1,8 +1,6 @@
-// A goal's subjects by name: one subject's own name, and who a goal is for as a
-// short list ("Reception and 2 more") on the Goals list and a goal's page. It
-// sits here, beside the one name, so the two routes that name a goal's subjects
-// share a module they already load rather than a new chunk (first paint's
-// preload map grows with every chunk two routes share).
+// Keep subject labels beside the single-name helper: both routes already load it,
+// avoiding another shared chunk in the first-paint preload map.
+
 import type { GoalSubject } from '#/contexts/reporting/application/public-api'
 
 export function goalAssignmentSubjectLabel(

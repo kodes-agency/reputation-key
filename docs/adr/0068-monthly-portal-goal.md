@@ -10,7 +10,7 @@ and [ADR 0041](0041-governed-metric-registry.md) (a note on the reads behind the
 recommended number), each by a dated section that points here.
 [ADR 0046](0046-notification-policy.md) gains its notes with the code they
 describe: the notices' wording and recipients, and the "Portal goals"
-notification row. The plan is `docs/plan/monthly-portal-goal.md`.
+notification row. The plan is [`docs/plan/monthly-portal-goal.md`](https://github.com/kodes-agency/reputation-key/blob/docs-archive-2026-11-05/docs/plan/monthly-portal-goal.md).
 
 ## Context
 
@@ -198,7 +198,7 @@ The owner approved decisions P-1 to P-8 and the smaller calls of the proposal on
   number on its own.
 - **On a one-Portal Property the Property goal is, in effect, that Portal's
   goal**, and every beta Property with a Portal has exactly one today
-  (`docs/plan/monthly-portal-goal.md`, Risks). Where one person runs that
+  ([`docs/plan/monthly-portal-goal.md`](https://github.com/kodes-agency/reputation-key/blob/docs-archive-2026-11-05/docs/plan/monthly-portal-goal.md), Risks). Where one person runs that
   Portal, the number can still read as theirs. That is accepted: the subject is
   the Property, not a person or a team, so it is not a staff goal under ADR 0049
   rule 2 as amended; the Portal's count is a fact, with no target or pace of its

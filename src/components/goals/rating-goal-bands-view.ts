@@ -1,9 +1,6 @@
-// The questions on the Google rating goal's page, in words (pure; 2026-11-01, ADR
-// 0067): is the rating going up and what can a manager do this week; whether enough
-// good reviews are coming in is `rating-goal-review-facts-view.ts`'. The same answer-first shape as Guest voice and Portal
-// Results, so a manager reads this page as they read those. The read decides every
-// state and number; this only says them, once. Nothing here is a date to come:
-// arrivals stay durations (R4-3).
+// The read owns figures and states. Arrival estimates remain durations, never future
+// dates.
+
 import type { RatingGoalDetailView } from '#/contexts/reporting/application/dto/rating-goal.types'
 import type { Tone } from '#/components/ui/tone'
 import { formatNumber, formatShortDate } from '#/lib/format'

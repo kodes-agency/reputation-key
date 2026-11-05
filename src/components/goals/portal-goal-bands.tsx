@@ -1,6 +1,3 @@
-// The questions on the Monthly portal goal's page (2026-11-01, ADR 0068): each is a
-// check-in band, the question and its answer beside what shows it. The words are
-// `portal-goal-bands-view.ts`'.
 import { Link } from '@tanstack/react-router'
 import { CalendarDays, Flag, Pencil, QrCode } from 'lucide-react'
 import type { PortalGoalMeasure } from '#/contexts/reporting/application/dto/goal-recommendation.types'

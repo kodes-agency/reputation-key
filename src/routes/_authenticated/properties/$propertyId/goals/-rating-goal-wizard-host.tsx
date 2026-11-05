@@ -1,16 +1,7 @@
-// Opens the Google rating goal wizard from a page: the Goals page (set a goal,
-// the next one, or one to keep) and the goal's detail page (change it). The
-// wizard is a chunk of its own, fetched when a door to it is on screen; the
-// setup read it works from is the one the Goals page's empty state reads, and a
-// fresh wizard (new state, no old refusal) is mounted for every opening.
-//
-// No Radix trigger opens it, so Radix has nowhere to put the focus back when it
-// closes: the host remembers what had the focus when it was opened and returns
-// it there, or to the Google section's heading when that is gone (the empty
-// state's "Set goal" is the card by the time the wizard closes). The done
-// screen's "See your portal goal" is the one way out that moves the page: the
-// wizard then hands the focus to the Portal goals' title itself, and from
-// another page the Portal goals take it as they are drawn.
+// Keep the wizard lazy and mount a fresh draft per opening. Without a Radix trigger,
+// restore focus to the opener or section heading if the opener disappeared. See your
+// portal goal hands focus to that section, including after navigation.
+
 import { lazy, Suspense, useRef, useState, type ReactNode } from 'react'
 import { useQuery, useQueryClient, type UseQueryResult } from '@tanstack/react-query'
 import { hasFailed, isRetrying } from '#/components/hooks/is-retrying'

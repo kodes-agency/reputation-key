@@ -1,24 +1,7 @@
-// The Monthly portal goal on its card, drawn in the shared card frame (ADR 0068,
-// amended 2026-10-19: one goal design system). The frame is the Google rating
-// goal's: the goal's name with the one pace pill in the corner (`portal-goal-
-// status-view.ts`), then the columns. While the goal runs: what is left to the
-// month's number and the days left (U-C2…U-C4), what is stopped or unchanged under
-// them, the ruler of how far along the month is with a steady month's stop on it;
-// beside them what each Portal brought in (G-26, G-27), and "View details" to the
-// goal's page (G-28). A month whose figure cannot be
-// read has no meter, so its lines stand in one column with "View details"
-// under them, as a goal with no month running does (G-25). While it waits for
-// its first month, or has no month running, its month and number (G-20), with
-// "Change" while it waits, for someone who may change it. A stopped goal says
-// so, that its month still counts, and offers the next goal from the month
-// after (G-29). Under it all, the month before while it is read and through
-// the 7th (G-30, G-31). On the month's first seven days, for someone who may
-// change the goal, the month-start check-in is the strip above the card
-// (`portal-goal-check-in.tsx`, `GoalWithCheckIn`): the card under it is the
-// running month, wears its pill, and leaves the month before to the strip's
-// headline; when the recommended number is the month's already, it is one line
-// under the month instead (K-7). The figure is the governed read's, never a
-// forecast; the words are the views'.
+// Use the governed month figure, never a forecast. An unreadable month has no meter.
+// During month-start check-in, the strip owns last month's result so the card does not
+// repeat it.
+
 import type {
   PortalGoalCheckIn as Asking,
   PortalGoalOfCard,

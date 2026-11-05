@@ -28,14 +28,12 @@ import type {
 import type { InboxPublicApi } from '#/contexts/inbox/application/public-api'
 import type { MetricPublicApi, PortalRatingGoalReadApi } from './application/public-api'
 
-import { createMetricRepository } from './infrastructure/repositories/metric.repository'
 import { createMetricRegistryRepository } from './infrastructure/repositories/metric-registry.repository'
 import { createPropertyLocalDateResolver } from './infrastructure/repositories/property-local-date'
-import { createGoalMetricSourceStatus } from './infrastructure/repositories/goal-metric-source-status'
+import { createGoalMetricSnapshotReader } from './infrastructure/repositories/goal-metric-snapshot'
 import { createAtomicMetricCommandStore } from './infrastructure/metric-command-store'
 import { recordMetric, recordMetrics } from './application/use-cases/record-metric'
 import { retractMetrics } from './application/use-cases/retract-metric'
-import { registerPortalWorkflowMetricConsumers } from './infrastructure/outbox-consumers'
 import { registerGuestMetricConsumers } from './infrastructure/guest-outbox-consumers'
 import { queryGoalMetric } from './application/use-cases/query-goal-metric'
 import { queryPortalAnalytics } from './application/use-cases/query-portal-analytics'
@@ -186,7 +184,6 @@ export type ReportingContextBuildInput = Readonly<{
 }>
 
 function buildMetricModule(input: ReportingContextBuildInput) {
-  const metricRepo = createMetricRepository(input.db)
   const registry = createMetricRegistryRepository()
   const portalAnalytics = queryPortalAnalytics(
     createPortalAnalyticsRepository(input.db, input.clock),
@@ -198,9 +195,8 @@ function buildMetricModule(input: ReportingContextBuildInput) {
   )
   const commandStore = createAtomicMetricCommandStore(input.db, input.idGen)
   const readGoalMetric = queryGoalMetric({
-    metrics: metricRepo,
+    readSnapshot: createGoalMetricSnapshotReader(input.db, input.portalGroupApi),
     registry,
-    sourceStatus: createGoalMetricSourceStatus(input.db, input.portalGroupApi),
     validateSubject: async (orgId, propertyId, subject) => {
       switch (subject.kind) {
         case 'property':
@@ -244,31 +240,7 @@ function buildMetricModule(input: ReportingContextBuildInput) {
     return group ? { portalGroupId: group.id } : null
   }
 
-  const resolvePortalWorkflowAttribution = async (
-    organizationId: OrganizationId,
-    portalId: PortalId,
-    asOf: Date,
-  ) => {
-    const context = await input.portalApi.resolvePortalContext(portalId)
-    if (!context || context.organizationId !== organizationId) return null
-    const group = await input.portalGroupApi.findGroupForPortal(
-      organizationId,
-      portalId,
-      asOf,
-    )
-    if (group && group.propertyId !== context.propertyId) return null
-    return {
-      propertyId: context.propertyId,
-      portalGroupId: group?.id ?? null,
-    }
-  }
-
   const registerOutboxConsumers = (consumerRegistry: ConsumerRegistry): void => {
-    registerPortalWorkflowMetricConsumers(consumerRegistry, {
-      recordMetric: record,
-      resolveAttribution: resolvePortalWorkflowAttribution,
-      hasReading: metricRepo.hasReading,
-    })
     registerGuestMetricConsumers(consumerRegistry, {
       recordMetrics: recordBatch,
       retractMetrics: retractBatch,
@@ -311,7 +283,7 @@ function buildMetricModule(input: ReportingContextBuildInput) {
 }
 
 function buildGoalModule(input: ReportingContextBuildInput, metricApi: MetricPublicApi) {
-  const goalProgramRepo = createGoalProgramRepository(input.db)
+  const goalProgramRepo = createGoalProgramRepository(input.db, input.idGen)
   const monthlyResultNotificationFacts = createMonthlyResultNotificationFactsLookup(
     input.db,
   )

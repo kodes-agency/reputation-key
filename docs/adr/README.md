@@ -52,3 +52,12 @@ Missing numbers are retired, merged, or never issued: `0001–0006`, `0009–001
 | ADR  | Decision                                    | Location                                                                                                                                   |
 | ---- | ------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
 | 0019 | Simulation Harness & Deterministic Backends | [docs-archive-2026-11-04](https://github.com/kodes-agency/reputation-key/blob/docs-archive-2026-11-04/docs/adr/0019-simulation-harness.md) |
+
+## Archived documentation
+
+Retired [plans](https://github.com/kodes-agency/reputation-key/tree/docs-archive-2026-11-05/docs/plan),
+[AI governance documents](https://github.com/kodes-agency/reputation-key/tree/docs-archive-2026-11-05/docs/archive)
+and [release evidence](https://github.com/kodes-agency/reputation-key/tree/docs-archive-2026-11-05/docs/release-evidence)
+are preserved at protected tag `docs-archive-2026-11-05`.
+Historical source comments keep their original paths; read them with
+`git show docs-archive-2026-11-05:<path>`.

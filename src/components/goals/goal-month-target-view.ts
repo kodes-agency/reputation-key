@@ -1,14 +1,6 @@
-// A goal's target, as the goals list printed it: the Portal goal results page
-// says an ended goal's number with it (`portal-goal-results-view.ts`).
-//
-// A month that is running can carry a target of its own, so "the target" is
-// two questions once a month has opened: what this month is judged against,
-// and what the months after it will be. The row answers them in one line. Both
-// read the running month through the plan the change command uses
-// (`monthTargetPlan`), so a target a revision has set for next month is never
-// shown as this month's.
-//
-// Pure.
+// A running month may have its own target. Read it through monthTargetPlan so a
+// revision for next month is never presented as this month's target.
+
 import type { GoalMetric } from '#/contexts/reporting/application/public-api'
 import type { monthTargetPlan } from '#/contexts/reporting/application/goal-month-target-plan'
 import { monthTargetMarker } from '#/contexts/reporting/application/goal-month-target-marker'

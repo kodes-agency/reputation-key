@@ -1,18 +1,7 @@
-// The frame a goal's setup sheet opens in (ADR 0068, amended 2026-10-19: one goal
-// design system): a dialog on a desktop and a full-screen sheet on a phone, one
-// component and one set of steps. Both are the same Radix dialog underneath, so
-// the app's `Dialog` root holds either: a request in flight keeps it from being
-// dismissed (`busy`), and the title and description name it for a screen reader.
-//
-// The frame opens on the step's own first stop (`data-autofocus`: the goal's
-// number) when it has one, not on the first button above it; a step without one
-// opens as Radix opens it, or as the caller's `onOpenAutoFocus` says. There is no
-// trigger for Radix to return the focus to on closing, so the caller says where
-// it goes (`onCloseAutoFocus`). The heading is drawn here (`title` and
-// `description`), or by the step itself when the step changes it as it goes
-// (`GoalSheetHeader`, drawn inside `children`).
-//
-// A goal passes its words and its markers; this part holds none of either.
+// Both responsive frames use Dialog so busy requests cannot be dismissed. Prefer the
+// step's data-autofocus target over the first button. There is no Radix trigger, so
+// callers must supply focus restoration. A step may supply its own changing heading.
+
 import type { ReactNode, Ref } from 'react'
 import { useIsMobile } from '#/components/hooks/use-mobile'
 import {

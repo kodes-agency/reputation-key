@@ -1,14 +1,7 @@
-// The frame the Google rating goal wizard sits in: a dialog on a desktop and a
-// full-screen sheet on a phone (ADR 0067, decision 10), one component and one
-// set of steps. The dialog and the sheet are the shared `GoalSheetFrame` (a
-// request in flight keeps it from being dismissed, the title and description
-// name it for a screen reader, the step's title takes the focus when the step
-// changes, and it opens on the step's own first stop: the setup's goal numeral).
-// At the end of a Google import it sits inside the setup frame instead
-// (`inline`): the same steps on the page, no overlay and nothing to dismiss, and
-// each step's way out reads "Not now". The `Dialog` root is still there, not
-// modal and with no content of its own, so the steps' titles and buttons work as
-// they do in it.
+// Inline import setup keeps a non-modal Dialog root without an overlay so the same step
+// titles and controls work. Dialog requests still prevent dismissal through
+// GoalSheetFrame.
+
 import type { ReactNode, Ref } from 'react'
 import { useIsMobile } from '#/components/hooks/use-mobile'
 import { Dialog } from '#/components/ui/dialog'
