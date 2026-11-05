@@ -86,7 +86,6 @@ export type SystemAction =
   | 'system:reply.publish'
   | 'system:metric.record_guest_analytics'
   | 'system:metric.record_public_reputation'
-  | 'system:metric.record_portal_workflow'
   | 'system:retention.sweep'
   | 'system:quarantine.ttl'
   | 'system:ai.execution_reap'
@@ -661,12 +660,6 @@ const CONSUMER_ROWS: ReadonlyArray<EntryPointRow> = [
     'system:goal.end_archived_property_goal',
     'none',
     'property',
-  ),
-  consumer(
-    'metric.portal-workflow',
-    'system:metric.record_portal_workflow',
-    'portal.write',
-    'organization',
   ),
   consumer(
     'metric.public-reputation',
