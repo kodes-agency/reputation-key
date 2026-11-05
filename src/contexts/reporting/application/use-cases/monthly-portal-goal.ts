@@ -4,14 +4,10 @@ import { ratingSubjectSkipsPrivateRating } from '../goal-rating-eligibility'
 // The card's Use (and, later, the set sheet) makes an ordinary Goal Program:
 // named "Monthly portal goal", with the Property as its one subject, counting
 // private ratings or scans, from the month the card named. It asks the policy
-// for `goal.create` before anything is read. One per Property is a screen rule
-// and this pre-check, not a lock or a database rule: while any Property count
-// goal that has not ended exists, on either measure, a set is refused
-// `subject_has_goal`. Two sets in the same second on one measure meet the
-// database's no-overlap rule instead, which refuses the second the same way
-// (when the two inserts deadlock in that check, the repository runs the victim
-// once more, and it meets the winner); on two measures both can land, and the
-// earliest-created is the monthly goal.
+// for `goal.create` before anything is read. While any Property count goal has
+// not ended, on either measure, a set is refused `subject_has_goal`. This
+// pre-check gives early feedback; the repository repeats it under the Property
+// definition lock, including creates and revisions through the Program engine.
 //
 // The number's source is stored for learning (decision 11): `recommended` only
 // when the number is the one the card would offer for that month and measure
