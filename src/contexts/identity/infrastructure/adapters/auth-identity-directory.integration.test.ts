@@ -59,10 +59,7 @@ describe('member directory tenant isolation', () => {
           })),
         )
         await tx.insert(member).values([...members, foreign])
-        const adapter = createBetterAuthIdentityAdapter(tx as unknown as Database, {
-          clock: () => now,
-          idGen: () => 'unused-id',
-        })
+        const adapter = createBetterAuthIdentityAdapter(tx as unknown as Database)
         const ctx: AuthContext = {
           organizationId: orgId,
           userId: userId(members[0]!.userId),

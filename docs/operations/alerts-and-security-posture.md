@@ -202,15 +202,27 @@ satisfied by that drill evidence, not app dispatch. The row above stays "not
 implemented at app level" by design, mirroring the `security.scan`
 disposition below.
 
-REG-04 expands that aggregate registration into the exact external `cell-us`
-authority in `src/shared/observability/regional-platform-signals.ts`: latest
-backup success age, WAL/PITR health, restore range, logical-export success,
-external web availability, Sentry error rate, and release/config drift.
-Application-owned queue, outbox, reply, and Google-sync signals cover worker
-readiness. The catalogue deliberately contains no `europe` or `global` monitor
-because those cells are dormant and must not be provisioned for beta. A green
-catalogue test proves coverage only; external configuration and alert-injection
-receipts remain required before customer data.
+### External monitoring requirements
+
+Bozhidar Denev owns these P1 monitoring requirements for `cell-us`, required
+before customer data. Each row names the content-free evidence to retain;
+listing it here does not claim that its monitor is configured. Do not provision
+`europe` or `global` monitors while those cells are dormant.
+
+| Signal                                      | Source / runbook           | Required evidence                                                                                                |
+| ------------------------------------------- | -------------------------- | ---------------------------------------------------------------------------------------------------------------- |
+| `cell-us.backup.latest-success-age`         | Railway Postgres / §8      | Backup schedule, latest successful backup time, alert-injection receipt                                          |
+| `cell-us.pitr.wal-health`                   | Railway Postgres / §8      | PITR enabled, WAL health, alert-injection receipt                                                                |
+| `cell-us.pitr.restore-range`                | Railway Postgres / §8      | Earliest and latest restore points, observation time                                                             |
+| `cell-us.logical-export.latest-success-age` | Logical-export runner / §8 | Encrypted-export digest, approved destination account and region, latest success time, restore/read verification |
+| `cell-us.web.external-availability`         | External synthetic / §12   | External probe configuration, alert-injection receipt                                                            |
+| `cell-us.error-monitoring.error-rate`       | Sentry / §16               | Approved project region, release/cell filters, alert-injection receipt                                           |
+| `cell-us.release.config-drift`              | Release controller / §11   | Signed release manifest, Railway read-back, fresh no-drift plan, alert-injection receipt                         |
+
+Application-owned queue, outbox, reply, Google-sync, and worker-readiness
+signals remain in `src/shared/observability/alert-definitions.ts`. External
+configuration and alert-injection receipts remain required before customer
+data; repository tests cannot supply them.
 
 **`security.scan` signal note (BQC-7.7):** the supply-chain/secret gates now
 exist — as CI hard gates, not app-level alert injection. The signal path is:

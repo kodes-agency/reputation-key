@@ -88,11 +88,7 @@ export function PropertyGuestVoicePage(props: Props) {
         {props.v2 !== undefined ? (
           <GuestVoiceV2Body propertyId={propertyId} view={props.v2} busy={busy} />
         ) : (
-          <GuestVoiceState
-            result={{ status: props.state }}
-            range={range}
-            propertyId={propertyId}
-          />
+          <GuestVoiceState result={{ status: props.state }} propertyId={propertyId} />
         )}
       </RangeBusyRegion>
     </PageShell>

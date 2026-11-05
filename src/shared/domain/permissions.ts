@@ -116,12 +116,11 @@ export function can(role: Role, permission: Permission): boolean {
   return _lookup(role, permission)
 }
 
-// ── Context-aware checks (dynamic resolver, ADR 0001) ──────────────
-// Additive: prefer the dynamic fields when present, fall back to the static role
-// table otherwise. Existing can(ctx.role, p) callers are unaffected; new callers
-// should use these so custom/multi roles resolve correctly once the flag flips.
+// ── Context-aware checks ───────────────────────────────────────────
+// Prefer the resolved fields when present, fall back to the static role table
+// otherwise. Existing can(ctx.role, p) callers are unaffected.
 
-/** Fixed v1 scope for each built-in role (mirrors resolve-permissions BUILT_IN_ROLE_SCOPE). */
+/** Fixed v1 scope for each built-in role (mirrors auth/role-definitions BUILT_IN_ROLE_SCOPE). */
 const BUILT_IN_SCOPE_FOR_ROLE: Readonly<Record<Role, DataScope>> = {
   AccountAdmin: 'organization',
   PropertyManager: 'assigned-properties',
@@ -129,9 +128,8 @@ const BUILT_IN_SCOPE_FOR_ROLE: Readonly<Record<Role, DataScope>> = {
 }
 
 /**
- * Action check that prefers the dynamic effectivePermissions when present, falling
- * back to the static role table. Use this instead of can(ctx.role, p) so custom/multi
- * roles resolve correctly once the dynamic resolver is wired.
+ * Action check that prefers the resolved effectivePermissions when present, falling
+ * back to the static role table. Use this instead of can(ctx.role, p).
  */
 export type PermissionAuthorityContext = Pick<
   AuthContext,
@@ -147,7 +145,7 @@ export function canForContext(
 }
 
 /**
- * Per-permission data scope. Uses the dynamic scopeByPermission map when present;
+ * Per-permission data scope. Uses the resolved scopeByPermission map when present;
  * falls back to the built-in role's fixed scope. A permission absent from the map →
  * 'none'. Each permission's scope governs ONLY that permission's records (no widening).
  */

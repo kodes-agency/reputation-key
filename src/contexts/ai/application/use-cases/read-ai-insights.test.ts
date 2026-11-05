@@ -270,7 +270,6 @@ function createHarness(
       storeAnalysis: vi.fn(),
       settleEphemeralReply: vi.fn(),
       findCurrentReviewIdsByAttention: vi.fn(),
-      storeTrendReport: vi.fn(),
       readAnalysisForDelivery,
       readTrendReportForDelivery,
     },

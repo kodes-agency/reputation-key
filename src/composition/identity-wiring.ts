@@ -20,7 +20,7 @@ import type { createDeferredMemberAuthorityLifecycle } from './member-authority-
 const PROPERTY_ID_SHAPE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/iu
 
-export function buildIdentityPorts({ options, db, clock, logger }: CompositionRuntime) {
+export function buildIdentityPorts({ options, db, logger }: CompositionRuntime) {
   // Identity port (adapter).
   // ARC-03-T13: the framework/provider seam is selected HERE and injected
   // everywhere else. No context and no other root line calls getRequest() or
@@ -32,12 +32,7 @@ export function buildIdentityPorts({ options, db, clock, logger }: CompositionRu
     options?.requestContext ?? createTanstackRequestContext({ observeAbsentRequest })
   const authSession =
     options?.authSession ?? createBetterAuthSessionPort({ requestContext })
-  const identityPort =
-    options?.identityPort ??
-    createBetterAuthIdentityAdapter(db, {
-      clock,
-      idGen: randomUUID,
-    })
+  const identityPort = options?.identityPort ?? createBetterAuthIdentityAdapter(db)
   return { authSession, identityPort }
 }
 
