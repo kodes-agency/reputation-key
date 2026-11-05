@@ -19,7 +19,6 @@ export const COMMANDS: Readonly<
   'gbp-subscribe': ['scripts/ops/gbp-subscribe.ts'],
   inbox: ['scripts/ops/inbox-exclude-restated-revision-targets.ts'],
   inspect: ['scripts/ops/inspect-decision.ts'],
-  'import-reply-templates': ['scripts/ops/import-reply-templates.ts'],
   jobs: ['scripts/ops/job-repair.ts'],
   'privacy-request': ['scripts/ops/privacy-request.ts'],
   'property-erase': ['scripts/ops/property-erase.ts'],
