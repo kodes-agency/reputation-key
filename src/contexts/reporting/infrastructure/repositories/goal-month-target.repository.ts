@@ -7,6 +7,7 @@
 // module must not import the module that composes it.
 import { and, asc, eq, gt, inArray, lte, ne } from 'drizzle-orm'
 import type { Database } from '#/shared/db'
+import { lockStaffTargetProperty } from '#/shared/db/staff-target-lock'
 import { auditLogs } from '#/shared/db/schema/audit'
 import {
   goalMonthlyResults,
@@ -180,9 +181,10 @@ export const createGoalMonthTargetRepository = (
   async changeMonthTarget(input) {
     try {
       return await db.transaction(async (tx) => {
-        // The Program row first, as activation, appending months and revising
-        // do: it serializes this change with every writer of versions, and it
-        // is the compare-and-set on the head. Then versions, then months.
+        await lockStaffTargetProperty(tx, input.organizationId, input.propertyId)
+        // After the Property fence, lock the Program row before versions and
+        // months, as activation, appending months and revising do. The row
+        // update also compares the head the command read.
         const [program] = await tx
           .update(goalPrograms)
           .set({ updatedAt: input.at })

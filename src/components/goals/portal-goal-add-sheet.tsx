@@ -108,12 +108,14 @@ function useAddCommands(
 ) {
   const { commands, onSettled } = props
   const sending = useRef(false)
+  const [error, setError] = useState<unknown>(null)
   const settle = async (message: string, subjects: readonly string[]) => {
     toast.success(message)
     await commands.onAdded(subjects)
     onSettled()
   }
   const behind = (error: unknown) => {
+    setError(error)
     if (PORTAL_GOAL_BEHIND.has(goalRefusalCode(error) ?? '')) void commands.onAdded([])
   }
   const one = useActionMutation(withGoalRefusals(commands.addPortalGoalFn), {
@@ -141,6 +143,8 @@ function useAddCommands(
   const once = (send: () => Promise<unknown>) => {
     if (sending.current) return
     sending.current = true
+    setError(null)
+    onSomeNotSaved(new Set())
     void send()
       // Held by the mutation: the banner says it above the footer.
       .catch(() => undefined)
@@ -152,7 +156,7 @@ function useAddCommands(
     sendOne: (data: AddPortalGoalRequest) => once(() => one({ data })),
     sendEach: (data: AddPortalGoalsRequest) => once(() => each({ data })),
     pending: one.isPending || each.isPending,
-    error: one.error ?? each.error,
+    error,
   }
 }
 

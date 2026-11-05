@@ -167,8 +167,8 @@ export async function addPortalGoal(
 /**
  * A goal for each Portal of the request, in its month and measure, in saves of
  * at most 50 rows. Each row is saved or not on its own; the answer says which,
- * in the order sent. A save refused as a whole (its month has turned, the
- * Organization is closing) throws.
+ * in the order sent. A refusal before any batch completes throws. After a
+ * completed batch, its outcomes are retained and the remaining rows are not saved.
  */
 export async function addPortalGoals(
   deps: PortalGoalAddDeps,
@@ -189,15 +189,24 @@ export async function addPortalGoals(
   }))
   const outcomes: AddPortalGoalsResult['outcomes'][number][] = []
   for (let start = 0; start < items.length; start += MAX_GOAL_BULK_ITEMS) {
-    const saved = await deps.createForSubjects(
-      {
-        propertyId: request.propertyId,
-        metric: request.metric,
-        startMonth: request.startMonth,
-        items: items.slice(start, start + MAX_GOAL_BULK_ITEMS),
-      },
-      actor,
-    )
+    let saved: GoalBulkCreateResult
+    try {
+      saved = await deps.createForSubjects(
+        {
+          propertyId: request.propertyId,
+          metric: request.metric,
+          startMonth: request.startMonth,
+          items: items.slice(start, start + MAX_GOAL_BULK_ITEMS),
+        },
+        actor,
+      )
+    } catch (error) {
+      if (outcomes.length === 0) throw error
+      outcomes.push(
+        ...request.items.slice(start).map(({ portalId }) => ({ portalId, saved: false })),
+      )
+      break
+    }
     for (const outcome of saved.outcomes) {
       if (outcome.subject.kind !== 'portal') continue
       outcomes.push({
