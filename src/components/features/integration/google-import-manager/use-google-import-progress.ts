@@ -1,3 +1,4 @@
+import { useTenantScope } from '#/shared/hooks/useTenantScope'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useNavigate } from '@tanstack/react-router'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
@@ -72,67 +73,15 @@ function useTerminalImportInvalidation(
   }, [onTerminal, progress])
 }
 
-export function useGoogleImportProgress({
-  initialProgress,
-  importFns,
-  step,
-  setStep,
-}: Props) {
-  const navigate = useNavigate()
-  const queryClient = useQueryClient()
+function useImportItemRetry(
+  progress: ImportProgressDto | undefined,
+  retryPropertyImportItem: Props['importFns']['retryPropertyImportItem'],
+  refresh: () => Promise<ImportProgressDto | null>,
+) {
   const retryRequests = useRef(new Map<string, RetryRequest>())
-  const [loadedImportId, setLoadedImportId] = useState<string | null>(null)
-  const activeImportId = initialProgress?.importJobId ?? loadedImportId
-  const getImportStatus = importFns.getPropertyImportV2Status
-  const progressQuery = useQuery({
-    ...googleImportStatusQuery(
-      activeImportId ?? 'inactive-google-import',
-      getImportStatus,
-    ),
-    enabled: activeImportId !== null && step === 'progress',
-    initialData:
-      initialProgress?.importJobId === activeImportId ? initialProgress : undefined,
-    refetchInterval: (query) =>
-      googleImportProgressPollInterval(query.state.data, step === 'progress'),
-    refetchIntervalInBackground: false,
-  })
-
-  const invalidateCompletedImport = useCallback(async () => {
-    await queryClient.invalidateQueries({ queryKey: propertyKeys.list() })
-  }, [queryClient])
-  useTerminalImportInvalidation(progressQuery.data, invalidateCompletedImport)
-
-  const loadProgress = useCallback(
-    async (importJobId: string) => {
-      await queryClient.fetchQuery(googleImportStatusQuery(importJobId, getImportStatus))
-      setLoadedImportId(importJobId)
-      setStep('progress')
-      await navigate({
-        to: '/properties/import-google/$importId',
-        params: { importId: importJobId },
-      })
-    },
-    [getImportStatus, navigate, queryClient, setStep],
-  )
-
-  const refresh = useCallback(async (): Promise<ImportProgressDto | null> => {
-    if (!activeImportId) return null
-    try {
-      return await queryClient.fetchQuery(
-        googleImportStatusQuery(activeImportId, getImportStatus),
-      )
-    } catch {
-      return null
-    }
-  }, [activeImportId, getImportStatus, queryClient])
-
-  const {
-    mutate: retryItem,
-    isPending: retryPending,
-    variables: retryVariables,
-  } = useMutation({
+  return useMutation({
     mutationFn: async (item: ImportProgressItemDto) => {
-      if (!progressQuery.data) return
+      if (!progress) return
       const request = getRetryRequest(
         retryRequests.current,
         item.itemId,
@@ -140,7 +89,7 @@ export function useGoogleImportProgress({
         () => crypto.randomUUID(),
       )
       const send = () =>
-        importFns.retryPropertyImportItem({
+        retryPropertyImportItem({
           data: {
             itemId: item.itemId,
             retryRequestId: request.retryRequestId,
@@ -164,6 +113,70 @@ export function useGoogleImportProgress({
       }
     },
   })
+}
+
+export function useGoogleImportProgress({
+  initialProgress,
+  importFns,
+  step,
+  setStep,
+}: Props) {
+  const scope = useTenantScope()
+  const navigate = useNavigate()
+  const queryClient = useQueryClient()
+  const [loadedImportId, setLoadedImportId] = useState<string | null>(null)
+  const activeImportId = initialProgress?.importJobId ?? loadedImportId
+  const getImportStatus = importFns.getPropertyImportV2Status
+  const progressQuery = useQuery({
+    ...googleImportStatusQuery(
+      scope,
+      activeImportId ?? 'inactive-google-import',
+      getImportStatus,
+    ),
+    enabled: activeImportId !== null && step === 'progress',
+    initialData:
+      initialProgress?.importJobId === activeImportId ? initialProgress : undefined,
+    refetchInterval: (query) =>
+      googleImportProgressPollInterval(query.state.data, step === 'progress'),
+    refetchIntervalInBackground: false,
+  })
+
+  const invalidateCompletedImport = useCallback(async () => {
+    await queryClient.invalidateQueries({ queryKey: propertyKeys.list() })
+  }, [queryClient])
+  useTerminalImportInvalidation(progressQuery.data, invalidateCompletedImport)
+
+  const loadProgress = useCallback(
+    async (importJobId: string) => {
+      await queryClient.fetchQuery(
+        googleImportStatusQuery(scope, importJobId, getImportStatus),
+      )
+      setLoadedImportId(importJobId)
+      setStep('progress')
+      await navigate({
+        to: '/properties/import-google/$importId',
+        params: { importId: importJobId },
+      })
+    },
+    [getImportStatus, navigate, queryClient, setStep, scope],
+  )
+
+  const refresh = useCallback(async (): Promise<ImportProgressDto | null> => {
+    if (!activeImportId) return null
+    try {
+      return await queryClient.fetchQuery(
+        googleImportStatusQuery(scope, activeImportId, getImportStatus),
+      )
+    } catch {
+      return null
+    }
+  }, [activeImportId, getImportStatus, queryClient, scope])
+
+  const {
+    mutate: retryItem,
+    isPending: retryPending,
+    variables: retryVariables,
+  } = useImportItemRetry(progressQuery.data, importFns.retryPropertyImportItem, refresh)
 
   const { mutate: cancelImport, isPending: isCancelling } = useMutation({
     mutationFn: async () => {
@@ -173,7 +186,7 @@ export function useGoogleImportProgress({
           data: { importJobId: activeImportId },
         })
         queryClient.setQueryData(
-          googleImportStatusQuery(activeImportId, getImportStatus).queryKey,
+          googleImportStatusQuery(scope, activeImportId, getImportStatus).queryKey,
           cancelled,
         )
       } catch {

@@ -29,7 +29,12 @@ import type { ClientAuthz } from '#/shared/domain/auth-context'
 import type { Permission } from '#/shared/domain/permissions'
 import { EMPTY_CLIENT_AUTHZ } from '#/shared/domain/auth-context'
 
-type AuthContext = Readonly<{ role: Role; authz: ClientAuthz }>
+type AuthContext = Readonly<{
+  role: Role
+  authz: ClientAuthz
+  user: { id: string }
+  activeOrganization: { id: string }
+}>
 
 type AuthedRouterOptions = Readonly<{
   /** The address the story is "on". Defaults to `/`. */
@@ -69,7 +74,7 @@ function makeAuthedRouter(
   return createRouter({
     routeTree,
     history: createMemoryHistory({ initialEntries: [at] }),
-    context: { role, authz },
+    context: { role, authz, user: { id: 'user-1' }, activeOrganization: { id: 'org-1' } },
   })
 }
 

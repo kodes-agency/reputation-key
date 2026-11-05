@@ -1,5 +1,5 @@
 import type { QueryClient } from '@tanstack/react-query'
-import { staffSelfKeys } from '#/shared/queries/query-keys'
+import { createKeys } from '#/shared/queries/query-keys'
 import {
   shellContextKeys,
   SHELL_CONTEXT_STALE_MS,
@@ -25,7 +25,10 @@ export async function staffHomeEntry(href: string, client?: QueryClient) {
     }
     const home = browser
       ? await client.fetchQuery({
-          queryKey: staffSelfKeys.home(session.user.id),
+          queryKey: createKeys({
+            userId: session.user.id,
+            organizationId: null,
+          }).staffSelfKeys.home(session.user.id),
           queryFn: () => getMyStaffHome(),
           staleTime: SHELL_CONTEXT_STALE_MS,
         })

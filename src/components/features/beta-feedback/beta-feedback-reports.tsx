@@ -1,3 +1,4 @@
+import { useTenantScope } from '#/shared/hooks/useTenantScope'
 import { useEffect, useMemo, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { Bug, ExternalLink, Lightbulb, MessageSquareDashed } from 'lucide-react'
@@ -7,7 +8,7 @@ import { RegionError } from '#/components/ui/region-error'
 import { Skeleton } from '#/components/ui/skeleton'
 import { StatusBadge } from '#/components/ui/status-badge'
 import { formatDateTime } from '#/lib/format-date-time'
-import { identityKeys } from '#/shared/queries/query-keys'
+import { createKeys } from '#/shared/queries/query-keys'
 import type { ListMyBetaFeedback, MyBetaFeedbackItem } from './beta-feedback-form-context'
 import {
   issueUrlFor,
@@ -133,6 +134,7 @@ export function BetaFeedbackReports({
   /** Told once what is on screen has been recorded as seen. */
   onSeen?: () => void
 }>) {
+  const { identityKeys } = createKeys(useTenantScope())
   const query = useQuery({
     queryKey: identityKeys.myBetaFeedback(),
     queryFn: () => listFeedback(),

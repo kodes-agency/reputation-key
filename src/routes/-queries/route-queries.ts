@@ -1,3 +1,4 @@
+import { type TenantScope } from '#/shared/queries/tenant-scope'
 // Cross-cutting route-data query options shared by the parent layout loaders
 // (_authenticated, properties/$propertyId) and their many consumers. Defined
 // here once so the loader (ensureQueryData) and every consumer (useSuspenseQuery)
@@ -23,13 +24,7 @@ import { listProperties, getProperty } from '#/contexts/property/server/properti
 import { listMembers } from '#/contexts/identity/server/organizations'
 import { listGoogleConnections } from '#/contexts/integration/server/google-connections'
 import { getNotificationUserSettingsFn } from '#/contexts/feed/server/notifications'
-import {
-  aiKeys,
-  identityKeys,
-  integrationKeys,
-  notificationKeys,
-  propertyKeys,
-} from '#/shared/queries/query-keys'
+import { aiKeys, propertyKeys, createKeys } from '#/shared/queries/query-keys'
 import { reviewAnalysisProgressRefetchInterval } from '#/shared/queries/review-analysis-progress-polling'
 // Structural property data consumed by the app shell and sibling routes.
 // Rarely changes; 5-min staleTime.
@@ -43,26 +38,30 @@ export const propertiesQuery = queryOptions({
 // A person's timezone, date format and quiet hours in one Organization: read
 // by Profile, which edits the first two (D6), and by the notification
 // settings, which edit quiet hours and show times on that clock.
-export const notificationUserSettingsQuery = (organizationId: string) =>
+export const notificationUserSettingsQuery = (scope: TenantScope) =>
   queryOptions({
-    queryKey: notificationKeys.userSettings(organizationId),
+    queryKey: createKeys(scope).notificationKeys.userSettings(
+      scope.organizationId ?? 'no-active-organization',
+    ),
     queryFn: () => getNotificationUserSettingsFn(),
     staleTime: 60_000,
   })
 
-export const membersQuery = queryOptions({
-  queryKey: identityKeys.members(),
-  queryFn: () => listMembers(),
-  staleTime: 30_000,
-})
+export const membersQuery = (scope: TenantScope) =>
+  queryOptions({
+    queryKey: createKeys(scope).identityKeys.members(),
+    queryFn: () => listMembers(),
+    staleTime: 30_000,
+  })
 
 // The Organization's Google connections: read by Settings → Integrations and by
 // both pages of the Google import, which must not each keep a copy.
-export const googleConnectionsQuery = queryOptions({
-  queryKey: integrationKeys.connections(),
-  queryFn: () => listGoogleConnections(),
-  staleTime: 60_000,
-})
+export const googleConnectionsQuery = (scope: TenantScope) =>
+  queryOptions({
+    queryKey: createKeys(scope).integrationKeys.connections(),
+    queryFn: () => listGoogleConnections(),
+    staleTime: 60_000,
+  })
 
 // A single property — consumed by the property layout + 9 property-scoped routes.
 export function propertyQuery(propertyId: string) {
@@ -97,11 +96,12 @@ export function reviewAnalysisProgressQuery(propertyId: string) {
   })
 }
 
-export const merchantAiOverviewQuery = queryOptions({
-  queryKey: identityKeys.merchantAiOverview(),
-  queryFn: () => listMerchantAiOverviewFn(),
-  staleTime: 30_000,
-})
+export const merchantAiOverviewQuery = (scope: TenantScope) =>
+  queryOptions({
+    queryKey: createKeys(scope).identityKeys.merchantAiOverview(),
+    queryFn: () => listMerchantAiOverviewFn(),
+    staleTime: 30_000,
+  })
 
 export const organizationAiSpendQuery = queryOptions({
   queryKey: aiKeys.organizationSpend(),

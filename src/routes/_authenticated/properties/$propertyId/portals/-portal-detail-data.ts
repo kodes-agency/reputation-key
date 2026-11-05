@@ -1,3 +1,5 @@
+import type { TenantScope } from '#/shared/queries/tenant-scope'
+import { useTenantScope } from '#/shared/hooks/useTenantScope'
 import { notFound } from '@tanstack/react-router'
 import { queryOptions, useSuspenseQuery, type QueryClient } from '@tanstack/react-query'
 import {
@@ -44,21 +46,21 @@ const propertyPortalsQuery = (propertyId: string) =>
     staleTime: 30_000,
   })
 
-export const portalLinksQuery = (portalId: string) =>
+const portalLinksQuery = (portalId: string) =>
   queryOptions({
     queryKey: portalKeys.links(portalId),
     queryFn: () => listPortalLinks({ data: { portalId } }),
     staleTime: 30_000,
   })
 
-export const portalLanguageCoverageQuery = (propertyId: string, portalId: string) =>
+const portalLanguageCoverageQuery = (propertyId: string, portalId: string) =>
   queryOptions({
     queryKey: portalKeys.languageCoverage(propertyId, portalId),
     queryFn: () => getPortalLanguageCoverage({ data: { portalId } }),
     staleTime: 30_000,
   })
 
-export const portalLinktreeQuery = (portalId: string) =>
+const portalLinktreeQuery = (portalId: string) =>
   queryOptions({
     queryKey: portalKeys.linktree(portalId),
     queryFn: () => getPortalLinktree({ data: { portalId } }),
@@ -91,14 +93,14 @@ export const portalReviewQuery = (portalId: string) =>
     staleTime: 30_000,
   })
 
-export const portalExperienceQuery = (propertyId: string, portalId: string) =>
+const portalExperienceQuery = (propertyId: string, portalId: string) =>
   queryOptions({
     queryKey: portalKeys.experience(propertyId, portalId),
     queryFn: () => getPropertyPortalExperience({ data: { propertyId, portalId } }),
     staleTime: 30_000,
   })
 
-export const portalApprovedDestinationsQuery = (portalId: string) =>
+const portalApprovedDestinationsQuery = (portalId: string) =>
   queryOptions({
     queryKey: portalKeys.approvedDestinations(portalId),
     queryFn: () => listPortalApprovedDestinations({ data: { portalId } }),
@@ -117,7 +119,7 @@ export const portalApprovedDestinationsQuery = (portalId: string) =>
  * The refetch costs nothing in the happy path — it runs only on a cache miss —
  * and removes that whole class of false negative for any stale list.
  */
-export const findAuthorizedPortal = async (
+const findAuthorizedPortal = async (
   queryClient: QueryClient,
   propertyId: string,
   portalId: string,
@@ -155,6 +157,7 @@ export const findAuthorizedPortal = async (
  */
 export async function loadPortalWorkspace(
   queryClient: QueryClient,
+  scope: TenantScope,
   propertyId: string,
   portalId: string,
 ): Promise<void> {
@@ -170,7 +173,7 @@ export async function loadPortalWorkspace(
     queryClient.ensureQueryData(portalLinktreeQuery(portalId)),
     queryClient.ensureQueryData(portalGroupsQuery(propertyId)),
     queryClient.ensureQueryData(responsibleManagersQuery(portalId)),
-    queryClient.ensureQueryData(membersQuery),
+    queryClient.ensureQueryData(membersQuery(scope)),
     queryClient.ensureQueryData(portalPublicationHistoryQuery(portalId)),
     queryClient.ensureQueryData(portalExperienceQuery(propertyId, portalId)),
     queryClient.ensureQueryData(portalApprovedDestinationsQuery(portalId)),
@@ -199,7 +202,7 @@ export function usePortalDetailData(propertyId: string, portalId: string) {
   const { data: responsibleManagers } = useSuspenseQuery(
     responsibleManagersQuery(portalId),
   )
-  const { data: membersData } = useSuspenseQuery(membersQuery)
+  const { data: membersData } = useSuspenseQuery(membersQuery(useTenantScope()))
   const { data: publicationHistory } = useSuspenseQuery(
     portalPublicationHistoryQuery(portalId),
   )

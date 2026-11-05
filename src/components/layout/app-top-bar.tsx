@@ -103,6 +103,7 @@ export function AppTopBar({
         />
       )}
       <NotificationPanel
+        scope={{ userId: user.id, organizationId }}
         notificationFns={notificationFns}
         organizationId={organizationId}
       />

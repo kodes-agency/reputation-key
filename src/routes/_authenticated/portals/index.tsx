@@ -1,3 +1,4 @@
+import { useTenantScope } from '#/shared/hooks/useTenantScope'
 // All properties — every Portal the reader may see, under the Property it
 // belongs to (board 10). The Portals page of one Property stays under
 // /properties/$propertyId/portals; this is the same overview over the whole
@@ -85,7 +86,7 @@ function AllPropertiesRoute() {
   // Names for the responsible managers' discs. An enrichment, not the page: a
   // role that cannot list members, or an outage, leaves the discs without initials.
   const members = useQuery({
-    ...membersQuery,
+    ...membersQuery(useTenantScope()),
     enabled: canDo('member.list'),
     retry: false,
   })

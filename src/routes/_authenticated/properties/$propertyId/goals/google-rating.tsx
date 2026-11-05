@@ -1,3 +1,4 @@
+import { useTenantScope } from '#/shared/hooks/useTenantScope'
 // Keep queries and server functions behind an on-demand loader import so they stay out
 // of first paint. Access requires goal.use and goal.read.
 
@@ -110,7 +111,7 @@ function GoogleRatingGoalRoute() {
     readSetup: active && canDo('goal.update'),
   })
   const members = useQuery({
-    ...membersQuery,
+    ...membersQuery(useTenantScope()),
     enabled: canDo('member.list'),
     retry: false,
   })

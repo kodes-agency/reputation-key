@@ -1,3 +1,4 @@
+import { useTenantScope } from '#/shared/hooks/useTenantScope'
 // Property-scoped reviews = the inbox triage surface filtered by this property.
 // propertyId comes from the route param (path), NOT from search params.
 import { createFileRoute, getRouteApi } from '@tanstack/react-router'
@@ -41,7 +42,7 @@ function PropertyReviewsRoute() {
   const { can: canDo } = usePermissions()
   // Member-directory access is separate from Inbox management authority.
   const { data: membersData } = useQuery({
-    ...membersQuery,
+    ...membersQuery(useTenantScope()),
     enabled: canDo('member.list'),
   })
   const { propertyId } = propertyRoute.useParams()
