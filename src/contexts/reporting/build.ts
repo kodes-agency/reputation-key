@@ -157,11 +157,6 @@ import {
   getFleetOverview,
   type GetFleetOverview,
 } from './application/use-cases/get-fleet-overview'
-import { createSetupChecklistRepository } from './infrastructure/repositories/setup-checklist.repository'
-import {
-  getSetupChecklist,
-  type GetSetupChecklist,
-} from './application/use-cases/get-setup-checklist'
 import { createPropertySetupRepository } from './infrastructure/repositories/property-setup.repository'
 import {
   getPropertySetup,
@@ -656,7 +651,6 @@ function buildDashboardModule(
   const attentionSignals = createAttentionSignalsAdapter(input.db, input.clock)
   const fleetOverviewProjection = createFleetOverviewProjectionAdapter(input.db)
   const dashboardRepo = createDashboardRepository(input.reviewServingStats, metricStats)
-  const setupChecklistRepo = createSetupChecklistRepository(input.db)
   const propertySetupRepo = createPropertySetupRepository(input.db)
   // Identity's current grants: every Property-scoped dashboard read asks them
   // about its own reader before it reads (application/dashboard-property-access).
@@ -709,9 +703,6 @@ function buildDashboardModule(
     clock: input.clock,
     inboxTargets: input.inboxTargets,
   })
-  const getSetup: GetSetupChecklist = getSetupChecklist({
-    repository: setupChecklistRepo,
-  })
   const getPropertySetupRead: GetPropertySetup = getPropertySetup({
     repository: propertySetupRepo,
   })
@@ -734,12 +725,11 @@ function buildDashboardModule(
       getAttentionSignals: getAttention,
       getPropertyOverview: getOverview,
       getFleetOverview: getFleet,
-      getSetupChecklist: getSetup,
       getPropertySetup: getPropertySetupRead,
       listPropertySetupSummaries: listPropertySetupSummariesRead,
     },
     internal: {
-      repos: { dashboardRepo, setupChecklistRepo, propertySetupRepo },
+      repos: { dashboardRepo, propertySetupRepo },
       useCases: {
         getDashboardData: getDashboard,
         getPortalLinkTaps: getPortalLinkTaps({ portalMetrics, propertyAccess }),
@@ -748,7 +738,6 @@ function buildDashboardModule(
         getAttentionSignals: getAttention,
         getPropertyOverview: getOverview,
         getFleetOverview: getFleet,
-        getSetupChecklist: getSetup,
         getPropertySetup: getPropertySetupRead,
         listPropertySetupSummaries: listPropertySetupSummariesRead,
       },

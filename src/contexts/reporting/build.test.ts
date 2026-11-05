@@ -72,7 +72,6 @@ describe('buildReportingContext', () => {
       'dashboardRepo',
       'goalProgramRepo',
       'propertySetupRepo',
-      'setupChecklistRepo',
     ])
   })
 
