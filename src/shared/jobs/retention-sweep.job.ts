@@ -1,3 +1,4 @@
+import { durableConsumersFor } from '#/shared/governance/event-job-catalogue'
 // Retention sweep job — BQC-1.6: production-scheduled bounded retention
 // with content-free evidence for every subject.
 //
@@ -168,7 +169,17 @@ export const RETENTION_RULES: ReadonlyArray<RetentionRule> = [
     // Deleting a fact also deletes its consumer receipts (see the header).
     tsColumn: 'published_at',
     olderThanMs: 30 * DAY_MS,
-    extraWhere: 'published_at IS NOT NULL',
+    extraWhere: `published_at IS NOT NULL AND (
+      event_type <> 'property.google_binding.changed' OR NOT EXISTS (
+        SELECT 1 FROM (VALUES ${durableConsumersFor('property.google_binding.changed')
+          .map(({ name }) => `('${name}')`)
+          .join(', ')}) AS expected(name)
+        WHERE NOT EXISTS (
+          SELECT 1 FROM event_consumer_receipts receipt
+          WHERE receipt.event_id = outbox_events.id AND receipt.consumer_name = expected.name
+        )
+      )
+    )`,
   },
   {
     subject: 'review_sync_runs',
@@ -199,6 +210,17 @@ export const RETENTION_RULES: ReadonlyArray<RetentionRule> = [
     keyColumns: ['scope', 'key'],
     tsColumn: 'recorded_at',
     olderThanMs: 30 * DAY_MS,
+    // Initial sync keeps its one run identity until acceptance; abandoned
+    // mappings retain the generic thirty-day cleanup once the event settles.
+    extraWhere: `(scope <> 'review_import_sync' OR NOT EXISTS (
+      SELECT 1 FROM outbox_events event
+      WHERE event.id::text = idempotency_receipts.key
+        AND event.event_type = 'property.google_binding.changed'
+        AND NOT EXISTS (
+          SELECT 1 FROM event_consumer_receipts receipt
+          WHERE receipt.event_id = event.id AND receipt.consumer_name = 'integration.import-review-sync'
+        )
+    ))`,
   },
   {
     subject: 'google_import_discovery_records.expired',
@@ -394,52 +416,15 @@ async function recordRetentionFailure(
   logger.warn({ err, subject }, logMessage)
 }
 
-async function sweepGuestContactRequests(
-  deps: RetentionSweepDeps,
-  sweep: NonNullable<RetentionSweepDeps['guestContactRequestRetentionSweep']>,
-  batchSize: number,
-  failures: RetentionSweepFailure[],
-  logger: RetentionSweepLogger,
-): Promise<void> {
-  const subject = GUEST_CONTACT_REQUEST_RETENTION_SUBJECT
-  const startedAt = deps.clock()
-  const runId = await openRetentionRun(deps.db, subject, batchSize, startedAt)
-  try {
-    const result = await sweep({ batchSize })
-    await closeRetentionRun(deps.db, runId, {
-      finishedAt: deps.clock(),
-      batches: result.batches,
-      rowsDeleted: 0,
-      rowsRedacted: result.processed,
-      outcome: 'completed',
-    })
-    logger.info(
-      { subject, ...result },
-      result.capped
-        ? 'Contact Request retention sweep reached its batch cap'
-        : 'Contact Request retention sweep completed',
-    )
-  } catch (err) {
-    await recordRetentionFailure(
-      deps,
-      runId,
-      subject,
-      err,
-      failures,
-      logger,
-      'Contact Request retention sweep failed',
-    )
-  }
-}
-
-async function sweepReviewObservations(
+async function sweepRedactedMaterial(
   deps: RetentionSweepDeps,
   sweep: NonNullable<RetentionSweepDeps['reviewObservationRetentionSweep']>,
   batchSize: number,
   failures: RetentionSweepFailure[],
   logger: RetentionSweepLogger,
+  subject: string,
+  label: string,
 ): Promise<void> {
-  const subject = REVIEW_SUPERSEDED_OBSERVATION_RETENTION_SUBJECT
   const startedAt = deps.clock()
   const runId = await openRetentionRun(deps.db, subject, batchSize, startedAt)
   try {
@@ -454,8 +439,8 @@ async function sweepReviewObservations(
     logger.info(
       { subject, ...result },
       result.capped
-        ? 'Superseded observation retention sweep reached its batch cap'
-        : 'Superseded observation retention sweep completed',
+        ? `${label} retention sweep reached its batch cap`
+        : `${label} retention sweep completed`,
     )
   } catch (err) {
     await recordRetentionFailure(
@@ -465,7 +450,7 @@ async function sweepReviewObservations(
       err,
       failures,
       logger,
-      'Superseded observation retention sweep failed',
+      `${label} retention sweep failed`,
     )
   }
 }
@@ -563,12 +548,28 @@ export const createRetentionSweepHandler = (deps: RetentionSweepDeps) => {
 
       const guestSweep = deps.guestContactRequestRetentionSweep
       if (guestSweep) {
-        await sweepGuestContactRequests(deps, guestSweep, batchSize, failures, logger)
+        await sweepRedactedMaterial(
+          deps,
+          guestSweep,
+          batchSize,
+          failures,
+          logger,
+          GUEST_CONTACT_REQUEST_RETENTION_SUBJECT,
+          'Contact Request',
+        )
       }
 
       const observationSweep = deps.reviewObservationRetentionSweep
       if (observationSweep) {
-        await sweepReviewObservations(deps, observationSweep, batchSize, failures, logger)
+        await sweepRedactedMaterial(
+          deps,
+          observationSweep,
+          batchSize,
+          failures,
+          logger,
+          REVIEW_SUPERSEDED_OBSERVATION_RETENTION_SUBJECT,
+          'Superseded observation',
+        )
       }
 
       const importSweep = deps.googleImportLifecycleSweep

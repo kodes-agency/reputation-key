@@ -1,3 +1,4 @@
+import type { Tx } from '#/shared/outbox/commit'
 import type { GoogleConnectionId, OrganizationId, PropertyId } from '#/shared/domain/ids'
 import type { Property } from '../../domain/types'
 import type { GoogleBindingState } from '../../domain/google-binding-contract'
@@ -98,7 +99,14 @@ export type PropertyGoogleBindingStore = Readonly<{
     organizationId: OrganizationId,
     idempotencyKey: string,
     now: Date,
+    transaction?: Tx,
   ) => Promise<PropertyOperationReceipt | null>
+  /** Restore durable effects before an unfinished import becomes terminal. */
+  ensureImportFollowUps: (
+    transaction: Tx,
+    receipt: PropertyOperationReceipt,
+    now: Date,
+  ) => Promise<void>
   createBoundProperty: (
     input: Readonly<{
       organizationId: OrganizationId

@@ -69,6 +69,21 @@ is not the identity or history authority.
   identity, which the rebuild hands back to the exact-current observation
   authority before it closes an item it creates.
 
+`infrastructure/repositories/review-provider-snapshot-scope.ts` owns the
+tenant-scoped snapshot run locks and subject predicates shared by snapshot
+commands.
+
+Initial import sync admission fixes the history cutoff and keeps one snapshot
+run identity in `idempotency_receipts` (`review_import_sync`, keyed by binding
+event) until worker acceptance. Queue loss redispatches that run, including a
+failed run so its retry deadline survives redelivery. The snapshot worker
+acknowledges the binding event after committing progress or recording its terminal
+retry schedule, atomically removing the admission mapping. A cursor or listing
+restart acknowledges the new run returned by the snapshot step. Unaccepted
+mappings remain while their binding fact is owed; abandoned mappings use the
+shared thirty-day receipt cleanup. The pending fact is independent of the
+Integration item's terminal status.
+
 ## Model
 
 A stable Review survives source deletion and content expiry. Erasable source

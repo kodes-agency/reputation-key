@@ -1,7 +1,7 @@
 import type { PropertyGoogleBindingPublicApi } from '#/contexts/property/application/public-api'
 import { organizationId } from '#/shared/domain/ids'
 import type { GoogleImportReferenceStore } from './ports/google-import-reference-store.port'
-import { EXPIRED_ITEM_WRITE, reconciledOutcomeCode } from './google-import-v2-contract'
+import { EXPIRED_ITEM_WRITE } from './google-import-v2-contract'
 import type {
   GoogleImportV2LifecycleScope,
   GoogleImportV2Store,
@@ -26,10 +26,7 @@ type LifecycleStore = Pick<
 
 type LifecyclePropertyApi = Pick<
   PropertyGoogleBindingPublicApi,
-  | 'readReceipt'
-  | 'sweepReleasedExpired'
-  | 'countUnreleasedExpired'
-  | 'cleanupOrganization'
+  'sweepReleasedExpired' | 'countUnreleasedExpired' | 'cleanupOrganization'
 >
 
 export type GoogleImportV2LifecycleSweepResult = Readonly<{
@@ -76,49 +73,18 @@ export function createGoogleImportV2Lifecycle(
     references?: LifecycleReferences
   }>,
 ) {
-  // Structurally similar to the item processor's `reconcileReceipt`, and
-  // deliberately not shared. The one rule that MUST NOT drift between them —
-  // how a tombstoned receipt reports its outcome — is factored into
-  // `reconciledOutcomeCode` in the contract module and called by both. What is
-  // left is the port call itself, and the two functions answer different
-  // questions with it: this one returns whether the reconcile COMPLETED, so the
-  // expiry sweep knows whether to keep the item; the processor's returns whether
-  // a receipt EXISTED at all, so the claim loop knows whether to fall through to
-  // a fresh import. Folding them together would need a parameter selecting
-  // between those two meanings, which is a worse artifact than either.
-  // Revisit if a THIRD receipt reconciler appears — at that point the port call
-  // plus null-check is a pattern rather than a coincidence.
-  // fallow-ignore-next-line code-duplication
   const reconcileReceipt = async (
     organizationIdValue: string,
     itemId: string,
     now: Date,
-  ): Promise<boolean> => {
-    const receipt = await deps.propertyBindingApi.readReceipt(
-      organizationId(organizationIdValue),
-      itemId,
-      now,
-    )
-    if (!receipt) return false
-    const reconciled = await deps.store.reconcileFromReceipt({
+  ): Promise<boolean> =>
+    (await deps.store.reconcileFromReceipt({
       organizationId: organizationIdValue,
       itemId,
-      destinationPropertyId: receipt.destinationPropertyId,
-      outcomeCode: reconciledOutcomeCode(receipt),
       now,
-    })
-    return reconciled === 'completed'
-  }
+    })) === 'completed'
 
-  const cancelScope = async (
-    scope: GoogleImportV2LifecycleScope,
-    outcomeCode: 'authorization_changed' | 'property_deleted' | 'user_cancelled',
-    invalidate?: () => Promise<boolean>,
-  ): Promise<GoogleImportV2LifecycleCancellationResult> => {
-    if (invalidate && !(await invalidate())) {
-      throw new Error('google import reference invalidation failed')
-    }
-    const now = deps.clock()
+  const fenceScopeParents = async (scope: GoogleImportV2LifecycleScope, now: Date) => {
     let parentsFenced = 0
     for (;;) {
       const parents = await deps.store.listLifecycleScopeParents(scope, SWEEP_LIMIT)
@@ -139,6 +105,41 @@ export function createGoogleImportV2Lifecycle(
         throw new Error('google import lifecycle parent fence made no progress')
       }
     }
+
+    return parentsFenced
+  }
+
+  const scrubScopeItems = async (
+    items: Awaited<ReturnType<LifecycleStore['listLifecycleScopeItems']>>,
+    now: Date,
+  ) => {
+    let batchProgress = 0
+    const byOrganization = new Map<string, string[]>()
+    for (const item of items) {
+      const itemIdsForOrganization = byOrganization.get(item.organizationId)
+      if (itemIdsForOrganization) itemIdsForOrganization.push(item.itemId)
+      else byOrganization.set(item.organizationId, [item.itemId])
+    }
+    for (const [organizationIdValue, itemIdsForOrganization] of byOrganization) {
+      batchProgress += await deps.store.scrubLifecycleItems({
+        organizationId: organizationIdValue,
+        itemIds: itemIdsForOrganization,
+        now,
+      })
+    }
+    return batchProgress
+  }
+
+  const cancelScope = async (
+    scope: GoogleImportV2LifecycleScope,
+    outcomeCode: 'authorization_changed' | 'property_deleted' | 'user_cancelled',
+    invalidate?: () => Promise<boolean>,
+  ): Promise<GoogleImportV2LifecycleCancellationResult> => {
+    if (invalidate && !(await invalidate())) {
+      throw new Error('google import reference invalidation failed')
+    }
+    const now = deps.clock()
+    const parentsFenced = await fenceScopeParents(scope, now)
 
     let itemsVisited = 0
     let receiptsReconciled = 0
@@ -161,6 +162,7 @@ export function createGoogleImportV2Lifecycle(
           organizationId: item.organizationId,
           itemId: item.itemId,
           retryRevision: item.retryRevision,
+          authority: { kind: 'lifecycle' },
           outcomeCode,
           retainRetryState: false,
           now,
@@ -170,19 +172,7 @@ export function createGoogleImportV2Lifecycle(
           batchProgress++
         }
       }
-      const byOrganization = new Map<string, string[]>()
-      for (const item of items) {
-        const itemIdsForOrganization = byOrganization.get(item.organizationId)
-        if (itemIdsForOrganization) itemIdsForOrganization.push(item.itemId)
-        else byOrganization.set(item.organizationId, [item.itemId])
-      }
-      for (const [organizationIdValue, itemIdsForOrganization] of byOrganization) {
-        batchProgress += await deps.store.scrubLifecycleItems({
-          organizationId: organizationIdValue,
-          itemIds: itemIdsForOrganization,
-          now,
-        })
-      }
+      batchProgress += await scrubScopeItems(items, now)
       if (batchProgress === 0) {
         throw new Error('google import lifecycle item cancellation made no progress')
       }
@@ -211,6 +201,7 @@ export function createGoogleImportV2Lifecycle(
         organizationId: item.organizationId,
         itemId: item.itemId,
         retryRevision: item.retryRevision,
+        authority: { kind: 'lifecycle' },
         ...EXPIRED_ITEM_WRITE,
         now,
       })

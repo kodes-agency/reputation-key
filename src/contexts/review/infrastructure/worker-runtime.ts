@@ -1,3 +1,4 @@
+import { acceptGoogleImportSync } from './google-import-sync-acceptance'
 import type { Job, Queue } from 'bullmq'
 import type { Pool } from 'pg'
 import type { Database } from '#/shared/db'
@@ -114,6 +115,7 @@ export async function registerReviewWorkerJobs(
   const reviewSyncActivity = createReviewSyncActivityRecorder(input.db)
   const syncReviewsHandler = createSyncPropertyReviewsHandler({
     runSnapshot: input.runSnapshot,
+    acknowledgeImportSync: (data) => acceptGoogleImportSync(input.db, data),
     runTargetedFetch: input.runTargetedFetch,
     propertySourceEpoch: input.propertySourceEpoch,
     enqueueContinuation: async (data, options) => {

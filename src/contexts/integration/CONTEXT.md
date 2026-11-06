@@ -30,6 +30,39 @@ for at most 24 hours. A confirmed import creates one durable saga, stable child
 batches of at most 100, and per-location checkpoints. The saga is the
 browser-visible job; child batches are worker checkpoints.
 
+Each active item has a durable recovery appointment. The minute sweep reserves
+at most 100 due items with `FOR UPDATE SKIP LOCKED` and advances their
+appointments before attempting work. Pending redispatch preserves the dispatch
+epoch; claim release, takeover and manual Retry advance it. Every acquired claim
+spends one of the revision's five PostgreSQL-held attempts, independent of queue
+delivery counts. Expired or exhausted work returns through the item processor
+for receipt reconciliation and its existing follow-ups. Item failures defer
+only that appointment and do not abort the page.
+
+`infrastructure/google-import-authorization-snapshot.ts` owns the stored
+authorization columns and reconstructs the frozen vector for item reads.
+
+`infrastructure/google-import-completion.ts` owns every terminal transition,
+including lifecycle and isolated restore. It locks the item before reading the
+Property receipt through Property's transaction-aware API, fixes Review's history
+cutoff before success, scrubs routing state and reduces parent counters in that
+transaction. Receipt failures leave the recovery appointment intact.
+
+Three independent `property.google_binding.changed` consumers initialize the
+conditional public name, assert notification subscription desired state, and admit
+initial review sync. Only facts explicitly marked for these follow-ups are eligible;
+retained unmarked facts are acknowledged without repeating finished imports.
+Before completing an unfinished item with a committed receipt, recovery asks
+Property to preserve a marked fact in the same transaction. Existing marked facts
+are reused; an unmarked fact's acknowledgements cannot settle the recovered work. Each
+checks the current binding epoch. Failed effects leave
+no acknowledgement. Review persists one initial run identity before enqueue and
+acknowledges after its worker commits snapshot progress or records the terminal
+retry schedule. Failed initial admissions reuse their run so binding redelivery
+preserves Review's backoff, including the day-long cap pause. Binding facts with
+missing acknowledgements remain retained and eligible for bounded redelivery,
+including after the ordinary outbox attempt budget and after import completion.
+
 A Property Google binding remains Property-owned. Business Profile Performance is
 returned with source/retrieval metadata and never persisted.
 
@@ -62,6 +95,11 @@ that section's rules:
   identifier only.
 
 ## Runtime
+
+`application/google-import-command-authorizer.ts` reauthorizes import provider
+calls against current membership and command authority after a credential refresh.
+`application/google-authorization-vector.ts` owns vector construction and the
+comparison that permits only the credential generation to change.
 
 Provider calls require a current connection, capability approval, execution
 permit, quota admission, and generation checks. Admission acquires Redis in-flight

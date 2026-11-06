@@ -39,6 +39,7 @@ export type GoogleImportV2DispatchItem = Readonly<{
   expectedConnectionLifecycleVersion: number
   expectedSourceEpoch: number | null
   retryRevision: number
+  dispatchEpoch: number
 }>
 
 export type GoogleImportV2ClaimedItem = Readonly<{
@@ -67,6 +68,7 @@ export type GoogleImportV2ClaimedItem = Readonly<{
   timezone: string
   retryRevision: number
   attemptOrdinal: number
+  dispatchEpoch: number
   claimFence: string
   effectDeadlineAt: Date
 }>
@@ -81,7 +83,13 @@ export type GoogleImportV2ClaimResult =
         | 'stale_revision'
         | 'stale_attempt'
         | 'claim_active'
-        | 'effect_expired'
+        | 'stale_dispatch'
+    }>
+  | Readonly<{
+      kind: 'ignored'
+      reason: 'effect_expired' | 'attempts_exhausted'
+      effectDeadlineAt: Date
+      authority: GoogleImportV2TerminalAuthority
     }>
 
 /**
@@ -94,11 +102,31 @@ export type GoogleImportV2OutcomeDetail =
   | Readonly<{ kind: 'invalid_profile_field'; field: ImportProfileField }>
   | Readonly<{ kind: 'existing_property'; propertyId: string }>
 
+export type GoogleImportV2TerminalAuthority =
+  | Readonly<{ kind: 'pending'; dispatchEpoch: number }>
+  | Readonly<{
+      kind: 'claim' | 'expired_claim'
+      dispatchEpoch: number
+      claimFence: string
+    }>
+  | Readonly<{ kind: 'lifecycle' }>
+
+export type GoogleImportV2DueItem = GoogleImportV2DispatchItem &
+  Readonly<{
+    organizationId: string
+    importJobId: string
+    status: 'pending' | 'processing'
+    claimFence: string | null
+    attemptOrdinal: number
+    effectDeadlineAt: Date
+  }>
+
 export type GoogleImportV2TerminalInput = Readonly<{
   organizationId: string
   itemId: string
   retryRevision: number
   claimFence: string
+  dispatchEpoch: number
   outcomeCode: ImportOutcomeCode
   /**
    * Whether the item keeps the provider identifiers and fences a retry needs.
@@ -163,22 +191,6 @@ export type GoogleImportV2ExpiredItem = Readonly<{
   organizationId: string
   itemId: string
   retryRevision: number
-}>
-
-/**
- * An item whose claim lease has elapsed while it is still `processing`: the
- * worker that held the claim died, blocked, or lost its transaction. Carries
- * the exact fence so recovery goes through `releaseClaimForRetry`'s CAS
- * rather than a blind status write.
- */
-export type GoogleImportV2StaleClaimItem = Readonly<{
-  organizationId: string
-  itemId: string
-  retryRevision: number
-  claimFence: string
-  attemptOrdinal: number
-  /** Past it a retry is refused, which decides how an exhausted item may end. */
-  effectDeadlineAt: Date
 }>
 
 export type GoogleImportV2PurgeCandidate = Readonly<{
@@ -265,7 +277,9 @@ export type GoogleImportV2Store = Readonly<{
       organizationId: string
       itemId: string
       retryRevision: number
+      /** Queue delivery ordinal; PostgreSQL allocates the durable attempt. */
       attemptOrdinal: number
+      dispatchEpoch: number
       claimFence: string
       now: Date
       leaseExpiresAt: Date
@@ -277,6 +291,7 @@ export type GoogleImportV2Store = Readonly<{
       itemId: string
       retryRevision: number
       attemptOrdinal: number
+      dispatchEpoch: number
       claimFence: string
       now: Date
     }>,
@@ -291,7 +306,9 @@ export type GoogleImportV2Store = Readonly<{
       organizationId: string
       itemId: string
       retryRevision: number
+      dispatchEpoch: number
       claimFence: string
+      expiredOnly?: boolean
       now: Date
     }>,
   ): Promise<'released' | 'lost'>
@@ -299,11 +316,6 @@ export type GoogleImportV2Store = Readonly<{
     input: Readonly<{
       organizationId: string
       itemId: string
-      destinationPropertyId: string | null
-      outcomeCode: Extract<
-        ImportOutcomeCode,
-        'imported' | 'relinked' | 'property_deleted'
-      >
       now: Date
     }>,
   ): Promise<'completed' | 'lost'>
@@ -313,6 +325,7 @@ export type GoogleImportV2Store = Readonly<{
       organizationId: string
       itemId: string
       retryRevision: number
+      authority: GoogleImportV2TerminalAuthority
       outcomeCode: ImportOutcomeCode
       retainRetryState: boolean
       now: Date
@@ -337,14 +350,8 @@ export type GoogleImportV2Store = Readonly<{
     now: Date,
     limit: number,
   ): Promise<readonly GoogleImportV2ExpiredItem[]>
-  /**
-   * Items still `processing` past their claim lease, oldest lease first.
-   * Bounded by the same 1..100 sweep limit as the other lifecycle scans.
-   */
-  listStaleClaimItems(
-    now: Date,
-    limit: number,
-  ): Promise<readonly GoogleImportV2StaleClaimItem[]>
+  /** Reserve and advance at most 100 due active items before doing work. */
+  reserveDueItems(now: Date, limit: number): Promise<readonly GoogleImportV2DueItem[]>
   listPurgeCandidates(
     now: Date,
     limit: number,

@@ -149,6 +149,10 @@ function resultFromRow(
 export async function applyRecoveryFence(
   db: Database,
   input: RecoveryFenceInput,
+  completeImports: (
+    tx: import('#/shared/outbox/commit').Tx,
+    now: Date,
+  ) => Promise<{ items: number; parents: number }>,
 ): Promise<RecoveryFenceResult> {
   validateRecoveryFenceInput(input)
   return db.transaction(async (tx) => {
@@ -314,121 +318,7 @@ export async function applyRecoveryFence(
       RETURNING id
     `)
 
-    // V2 imports carry both a claim/effect authority and enough protected
-    // routing material to resume provider work. Reconcile a still-valid
-    // Property receipt when the effect committed before the restore point;
-    // otherwise cancel the item and erase every claim/authorization handle.
-    // Parent counters are then reduced set-wise under the same transaction.
-    await tx.execute(sql`DROP TABLE IF EXISTS pg_temp.recovery_google_import_v2_parents`)
-    await tx.execute(sql`
-      CREATE TEMP TABLE recovery_google_import_v2_parents ON COMMIT DROP AS
-      SELECT request.organization_id, request.id
-      FROM gbp_import_requests request
-      WHERE request.status IN ('queued', 'processing')
-         OR EXISTS (
-           SELECT 1 FROM gbp_import_request_items item
-           WHERE item.organization_id = request.organization_id
-             AND item.import_job_id = request.id
-             AND (item.status IN ('pending', 'processing')
-               OR item.outcome_code = 'temporarily_unavailable')
-         )
-    `)
-    const googleImportV2Items = await tx.execute(sql`
-      WITH authority AS (
-        SELECT item.organization_id, item.id,
-               CASE
-                 WHEN (receipt.payload->>'tombstone')::boolean
-                   OR receipt.payload->>'outcome' = 'property_deleted'
-                   THEN 'property_deleted'
-                 WHEN receipt.payload->>'outcome' IN ('imported', 'relinked')
-                   THEN receipt.payload->>'outcome'
-                 ELSE 'authorization_changed'
-               END AS outcome
-        FROM gbp_import_request_items item
-        LEFT JOIN idempotency_receipts receipt
-          ON receipt.scope = 'property_operation'
-         AND receipt.key = item.id::text
-         AND receipt.payload->>'organizationId' = item.organization_id
-         AND (receipt.payload->>'expiresAt')::timestamptz > clock_timestamp()
-        WHERE item.status IN ('pending', 'processing')
-           OR item.outcome_code = 'temporarily_unavailable'
-      )
-      UPDATE gbp_import_request_items item
-      SET status = CASE
-            WHEN authority.outcome = 'imported' THEN 'imported'::google_import_v2_item_status
-            WHEN authority.outcome = 'relinked' THEN 'relinked'::google_import_v2_item_status
-            ELSE 'cancelled'::google_import_v2_item_status
-          END,
-          outcome_code = authority.outcome::google_import_v2_outcome,
-          connection_id = NULL,
-          existing_property_id = NULL,
-          destination_property_id = NULL,
-          provider_account_suffix = NULL,
-          provider_location_suffix = NULL,
-          expected_connection_lifecycle_version = NULL,
-          expected_connection_access_version = NULL,
-          expected_credential_generation = NULL,
-          expected_execution_policy_version = NULL,
-              expected_actor_role = NULL,
-          expected_permission_digest = NULL,
-          expected_source_epoch = NULL,
-          expected_profile_version = NULL,
-          claim_fence = NULL,
-          claim_lease_expires_at = NULL,
-          first_terminal_at = COALESCE(item.first_terminal_at, clock_timestamp()),
-          updated_at = clock_timestamp()
-      FROM authority
-      WHERE item.organization_id = authority.organization_id
-        AND item.id = authority.id
-      RETURNING item.id
-    `)
-    const googleImportV2Parents = await tx.execute(sql`
-      WITH reduced AS (
-        SELECT parent.organization_id, parent.id,
-               count(*)::int AS total_count,
-               count(*) FILTER (WHERE item.status = 'imported')::int AS imported_count,
-               count(*) FILTER (WHERE item.status = 'relinked')::int AS relinked_count,
-               count(*) FILTER (WHERE item.status = 'already_exists')::int AS already_exists_count,
-               count(*) FILTER (WHERE item.status = 'failed')::int AS failed_count,
-               count(*) FILTER (WHERE item.status = 'cancelled')::int AS cancelled_count,
-               bool_and(item.status IN ('imported', 'relinked')) AS all_success,
-               bool_or(item.status IN ('imported', 'relinked', 'already_exists')) AS has_positive,
-               bool_and(item.status = 'cancelled') AS all_cancelled,
-               bool_or(item.status = 'failed') AS has_failure
-        FROM recovery_google_import_v2_parents candidate
-        JOIN gbp_import_requests parent
-          ON parent.organization_id = candidate.organization_id
-         AND parent.id = candidate.id
-        JOIN gbp_import_request_items item
-          ON item.organization_id = parent.organization_id
-         AND item.import_job_id = parent.id
-        GROUP BY parent.organization_id, parent.id
-      )
-      UPDATE gbp_import_requests parent
-      SET status = CASE
-            WHEN reduced.all_success THEN 'completed'::google_import_v2_parent_status
-            WHEN NOT reduced.has_positive AND reduced.all_cancelled
-              THEN 'cancelled'::google_import_v2_parent_status
-            WHEN NOT reduced.has_positive AND reduced.has_failure
-              THEN 'failed'::google_import_v2_parent_status
-            ELSE 'completed_with_issues'::google_import_v2_parent_status
-          END,
-          processed_count = reduced.total_count,
-          pending_count = 0,
-          processing_count = 0,
-          imported_count = reduced.imported_count,
-          relinked_count = reduced.relinked_count,
-          already_exists_count = reduced.already_exists_count,
-          failed_count = reduced.failed_count,
-          cancelled_count = reduced.cancelled_count,
-          first_terminal_at = COALESCE(parent.first_terminal_at, statement_timestamp()),
-          purge_at = COALESCE(parent.first_terminal_at, statement_timestamp()) + interval '30 days',
-          updated_at = clock_timestamp()
-      FROM reduced
-      WHERE parent.organization_id = reduced.organization_id
-        AND parent.id = reduced.id
-      RETURNING parent.id
-    `)
+    const googleImports = await completeImports(tx, new Date())
 
     // A restore invalidates every in-flight AI operation. Age active
     // reservations into the shared reaper, then cancel the operation rows.
@@ -476,8 +366,8 @@ export async function applyRecoveryFence(
       googleExecutionPermitsFenced: googlePermits.rows.length,
       googleSourceOperationsFenced: googleSources.rows.length,
       googleRevokePermitsFenced: googleRevokes.rows.length,
-      googleImportV2ParentsFenced: googleImportV2Parents.rows.length,
-      googleImportV2ItemsFenced: googleImportV2Items.rows.length,
+      googleImportV2ParentsFenced: googleImports.parents,
+      googleImportV2ItemsFenced: googleImports.items,
       aiIssuedPermitsReleased: aiReservationsReleased,
       aiConsumedPermitsMadeAmbiguous: 0,
       aiOperationsFenced: activeAiOperationsFenced.rows.length,

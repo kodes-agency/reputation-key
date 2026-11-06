@@ -8,15 +8,13 @@ import {
 } from '#/shared/db/schema/google-import-v2.schema'
 import { idempotencyReceipts } from '#/shared/db/schema/outbox.schema'
 import { organizationId } from '#/shared/domain/ids'
-import { insertOutboxRow, type Tx } from '#/shared/outbox/commit'
+import { insertOutboxRow } from '#/shared/outbox/commit'
 import {
   GOOGLE_PROPERTY_IMPORT_CONTRACT_VERSION,
   PROPERTY_IMPORT_RETENTION_RELEASED_EVENT,
   getImportOutcomePresentation,
   isImportProfileField,
-  retainsRetryState,
   type GbpImportItemStatus,
-  type ImportOutcomeCode,
   type ImportProgressDto,
   type ImportProgressItemDto,
 } from '../application/google-import-v2-contract'
@@ -24,11 +22,21 @@ import type {
   GoogleImportV2ClaimedItem,
   GoogleImportV2Intent,
   GoogleImportV2LifecycleScope,
-  GoogleImportV2OutcomeDetail,
   GoogleImportV2Store,
+  GoogleImportV2TerminalAuthority,
 } from '../application/ports/google-import-v2-store.port'
+import { createGoogleImportDueReservation } from './google-import-dispatch-store'
+import {
+  AUTHORIZATION_SNAPSHOT_COLUMNS,
+  authorizationFromRow,
+} from './google-import-authorization-snapshot'
 import { importItemAdmitsAttempt } from '../application/google-import-item-attempt'
-import { reduceGoogleImportParent } from '../application/google-import-v2-reducer'
+import {
+  completeGoogleImportItem,
+  googleImportItemScope,
+  reduceParentFromItems,
+  type GoogleImportCompletionDeps,
+} from './google-import-completion'
 import {
   GOOGLE_IMPORT_BATCH_SIZE,
   reduceGoogleImportSaga,
@@ -100,6 +108,19 @@ function assertLifecycleSweepLimit(limit: number): void {
   }
 }
 
+function unclaimedTerminalAuthority(
+  row: Readonly<{ dispatchEpoch: number; claimFence: string | null }>,
+  expiredClaim: boolean,
+): GoogleImportV2TerminalAuthority {
+  return expiredClaim
+    ? {
+        kind: 'expired_claim',
+        dispatchEpoch: row.dispatchEpoch,
+        claimFence: row.claimFence!,
+      }
+    : { kind: 'pending', dispatchEpoch: row.dispatchEpoch }
+}
+
 function requestedEvent(
   input: Readonly<{
     eventId: string
@@ -160,24 +181,6 @@ function frozenCount(vector: FrozenVector, key: string): number {
 
 type FrozenVector = Readonly<Record<string, string | number | boolean | null>>
 
-/**
- * The ten columns that carry an item's frozen authorization and its source
- * expectations. Three reads select exactly these, so they are stated once.
- */
-const AUTHORIZATION_SNAPSHOT_COLUMNS = {
-  expectedConnectionLifecycleVersion:
-    gbpImportRequestItems.expectedConnectionLifecycleVersion,
-  expectedConnectionAccessVersion: gbpImportRequestItems.expectedConnectionAccessVersion,
-  expectedCredentialGeneration: gbpImportRequestItems.expectedCredentialGeneration,
-  expectedExecutionPolicyVersion: gbpImportRequestItems.expectedExecutionPolicyVersion,
-  expectedActorRole: gbpImportRequestItems.expectedActorRole,
-  expectedPermissionDigest: gbpImportRequestItems.expectedPermissionDigest,
-  expectedPrincipalKind: gbpImportRequestItems.expectedPrincipalKind,
-  expectedPermissionVersion: gbpImportRequestItems.expectedPermissionVersion,
-  expectedSourceEpoch: gbpImportRequestItems.expectedSourceEpoch,
-  expectedProfileVersion: gbpImportRequestItems.expectedProfileVersion,
-} as const
-
 function authorizationColumns(item: GoogleImportV2Intent['items'][number]) {
   const vector: FrozenVector = item.authorization.authorizationVector
   return {
@@ -186,203 +189,6 @@ function authorizationColumns(item: GoogleImportV2Intent['items'][number]) {
     expectedPermissionDigest: frozenText(vector, 'permissionDigest'),
     expectedPrincipalKind: frozenText(vector, 'principalKind'),
     expectedPermissionVersion: frozenCount(vector, 'permissionVersion'),
-  }
-}
-
-function authorizationFromRow(row: {
-  organizationId: string
-  initiatedBy: string
-  connectionId: string | null
-  expectedConnectionLifecycleVersion: number | null
-  expectedConnectionAccessVersion: number | null
-  expectedCredentialGeneration: number | null
-  expectedExecutionPolicyVersion: string | null
-  expectedActorRole: string | null
-  expectedPermissionDigest: string | null
-  expectedPrincipalKind: string | null
-  expectedPermissionVersion: number | null
-}) {
-  if (
-    row.connectionId === null ||
-    row.expectedConnectionLifecycleVersion === null ||
-    row.expectedConnectionAccessVersion === null ||
-    row.expectedCredentialGeneration === null ||
-    row.expectedExecutionPolicyVersion === null ||
-    row.expectedActorRole === null ||
-    row.expectedPermissionDigest === null ||
-    row.expectedPrincipalKind === null ||
-    row.expectedPermissionVersion === null
-  ) {
-    return null
-  }
-  return {
-    organizationId: row.organizationId,
-    userId: row.initiatedBy,
-    connectionId: row.connectionId,
-    connectionLifecycleVersion: row.expectedConnectionLifecycleVersion,
-    connectionAccessVersion: row.expectedConnectionAccessVersion,
-    credentialGeneration: row.expectedCredentialGeneration,
-    authorizationVector: {
-      executionPolicyVersion: row.expectedExecutionPolicyVersion,
-      role: row.expectedActorRole,
-      permissionDigest: row.expectedPermissionDigest,
-      principalKind: row.expectedPrincipalKind,
-      permissionVersion: row.expectedPermissionVersion,
-      connectionLifecycleVersion: row.expectedConnectionLifecycleVersion,
-      connectionAccessVersion: row.expectedConnectionAccessVersion,
-      credentialGeneration: row.expectedCredentialGeneration,
-    },
-  } as const
-}
-
-function parentPatch(reduction: ReturnType<typeof reduceGoogleImportParent>) {
-  return {
-    status: reduction.status,
-    processedCount: reduction.processedCount,
-    pendingCount: reduction.counts.pending,
-    processingCount: reduction.counts.processing,
-    importedCount: reduction.counts.imported,
-    relinkedCount: reduction.counts.relinked,
-    alreadyExistsCount: reduction.counts.already_exists,
-    failedCount: reduction.counts.failed,
-    cancelledCount: reduction.counts.cancelled,
-    firstTerminalAt: reduction.firstTerminalAt,
-    purgeAt: reduction.purgeAt,
-  }
-}
-
-type ParentReduction = Parameters<typeof reduceGoogleImportParent>[0]
-
-/**
- * Re-derives the parent row from its current item rows. Every item transition
- * ends here, so the parent's counts, status and purge window are never written
- * independently of the items they summarise.
- */
-async function reduceParentFromItems(
-  tx: Tx,
-  input: Readonly<{
-    organizationId: string
-    importJobId: string
-    firstTerminalAt: ParentReduction['firstTerminalAt']
-    now: ParentReduction['now']
-  }>,
-): Promise<void> {
-  const rows = await tx
-    .select({
-      status: gbpImportRequestItems.status,
-      outcomeCode: gbpImportRequestItems.outcomeCode,
-      highestAttemptForRevision: gbpImportRequestItems.highestAttemptForRevision,
-    })
-    .from(gbpImportRequestItems)
-    .where(
-      and(
-        eq(gbpImportRequestItems.organizationId, input.organizationId),
-        eq(gbpImportRequestItems.importJobId, input.importJobId),
-      ),
-    )
-  const reduction = reduceGoogleImportParent({
-    items: rows,
-    firstTerminalAt: input.firstTerminalAt,
-    now: input.now,
-  })
-  await tx
-    .update(gbpImportRequests)
-    .set({ ...parentPatch(reduction), updatedAt: input.now })
-    .where(
-      and(
-        eq(gbpImportRequests.organizationId, input.organizationId),
-        eq(gbpImportRequests.id, input.importJobId),
-      ),
-    )
-}
-
-/**
- * The detail a terminal outcome is allowed to carry. `tenant_profile_invalid`
- * must name its field; an existing Property is recorded only for
- * `already_exists`. Anything else is a programming error, refused before the
- * write rather than left to the CHECK constraint.
- */
-function assertOutcomeDetail(
-  outcomeCode: ImportOutcomeCode,
-  detail: GoogleImportV2OutcomeDetail | undefined,
-): void {
-  if (outcomeCode === 'tenant_profile_invalid') {
-    if (detail?.kind !== 'invalid_profile_field' || !isImportProfileField(detail.field)) {
-      throw new Error('tenant_profile_invalid requires the rejected profile field')
-    }
-    return
-  }
-  if (detail?.kind === 'existing_property' && outcomeCode === 'already_exists') return
-  if (detail !== undefined) {
-    throw new Error(`google import outcome ${outcomeCode} cannot carry this detail`)
-  }
-}
-
-/**
- * The items table accepts a `temporarily_unavailable` row only with its retry
- * state kept and a row of any other outcome only without it
- * (`gbp_import_request_items_profile_valid`). Refusing a mismatch here names the
- * caller's mistake before the write, instead of as a CHECK violation that aborts
- * the sweep or reaper pass holding the transaction.
- */
-function assertRetryStateMatchesOutcome(
-  input: Readonly<{ outcomeCode: ImportOutcomeCode; retainRetryState: boolean }>,
-): void {
-  if (input.retainRetryState === retainsRetryState(input.outcomeCode)) return
-  throw new Error(
-    `protected google import state ${input.retainRetryState ? 'may only' : 'must'} survive retryable failure`,
-  )
-}
-
-/**
- * The terminal patch for an import item. `retainRetryState` leaves the protected
- * intent and expectation columns untouched; callers only set it for a retryable
- * failure.
- */
-function terminalItemPatch(
-  input: Readonly<{
-    status: GbpImportItemStatus
-    outcomeCode: ImportOutcomeCode
-    retainRetryState: boolean
-    now: Date
-    detail?: GoogleImportV2OutcomeDetail
-  }>,
-) {
-  const protectedState = input.retainRetryState ? undefined : null
-  // The Property an `imported`/`relinked` item produced is an internal
-  // reference the import flow hands the merchant to; it outlives the terminal
-  // scrub of provider identifiers and fences (see the schema comment). An
-  // `already_exists` item instead records the Property that holds its location.
-  const producedProperty =
-    input.status === 'imported' || input.status === 'relinked'
-      ? undefined
-      : input.detail?.kind === 'existing_property'
-        ? input.detail.propertyId
-        : null
-  return {
-    status: input.status,
-    outcomeCode: input.outcomeCode,
-    invalidProfileField:
-      input.detail?.kind === 'invalid_profile_field' ? input.detail.field : null,
-    connectionId: protectedState,
-    existingPropertyId: protectedState,
-    destinationPropertyId: input.retainRetryState ? undefined : producedProperty,
-    expectedConnectionLifecycleVersion: protectedState,
-    expectedConnectionAccessVersion: protectedState,
-    expectedCredentialGeneration: protectedState,
-    providerAccountSuffix: protectedState,
-    providerLocationSuffix: protectedState,
-    googleReviewUri: protectedState,
-    googlePrimaryCategory: protectedState,
-    expectedExecutionPolicyVersion: protectedState,
-    expectedActorRole: protectedState,
-    expectedPermissionDigest: protectedState,
-    expectedSourceEpoch: protectedState,
-    expectedProfileVersion: protectedState,
-    claimFence: null,
-    claimLeaseExpiresAt: null,
-    firstTerminalAt: sql`coalesce(${gbpImportRequestItems.firstTerminalAt}, ${input.now})`,
-    updatedAt: input.now,
   }
 }
 
@@ -652,6 +458,7 @@ async function loadProgress(
 export const createGoogleImportV2Store = (
   db: Database,
   clock: Clock,
+  completion: GoogleImportCompletionDeps,
 ): GoogleImportV2Store => {
   return Object.freeze({
     findPropertyImportInitiator: async (organizationId, propertyId) => {
@@ -808,6 +615,7 @@ export const createGoogleImportV2Store = (
                 const { authorization: _authorization, ...persisted } = item
                 return {
                   ...persisted,
+                  nextDispatchAt: intent.now,
                   ...authorizationColumns(item),
                   organizationId: intent.organizationId,
                   importJobId: batch.id,
@@ -857,6 +665,7 @@ export const createGoogleImportV2Store = (
               const { authorization: _authorization, ...persisted } = item
               return {
                 ...persisted,
+                nextDispatchAt: intent.now,
                 ...authorizationColumns(item),
                 organizationId: intent.organizationId,
                 importJobId: intent.id,
@@ -903,6 +712,7 @@ export const createGoogleImportV2Store = (
             status: gbpImportRequestItems.status,
             outcomeCode: gbpImportRequestItems.outcomeCode,
             retryRevision: gbpImportRequestItems.retryRevision,
+            dispatchEpoch: gbpImportRequestItems.dispatchEpoch,
             effectDeadlineAt: gbpImportRequestItems.effectDeadlineAt,
           })
           .from(gbpImportRequestItems)
@@ -913,12 +723,7 @@ export const createGoogleImportV2Store = (
               eq(gbpImportRequests.id, gbpImportRequestItems.importJobId),
             ),
           )
-          .where(
-            and(
-              eq(gbpImportRequestItems.organizationId, input.organizationId),
-              eq(gbpImportRequestItems.id, input.itemId),
-            ),
-          )
+          .where(googleImportItemScope(input.organizationId, input.itemId))
           .for('update')
           .limit(1)
         if (!row) return { kind: 'rejected', reason: 'missing' } as const
@@ -1025,6 +830,8 @@ export const createGoogleImportV2Store = (
             status: 'pending',
             outcomeCode: null,
             retryRevision,
+            dispatchEpoch: sql`${gbpImportRequestItems.dispatchEpoch} + 1`,
+            nextDispatchAt: input.now,
             highestAttemptForRevision: 0,
             claimFence: null,
             claimLeaseExpiresAt: null,
@@ -1091,7 +898,9 @@ export const createGoogleImportV2Store = (
             timezone: gbpImportRequestItems.timezone,
             status: gbpImportRequestItems.status,
             retryRevision: gbpImportRequestItems.retryRevision,
+            dispatchEpoch: gbpImportRequestItems.dispatchEpoch,
             highestAttemptForRevision: gbpImportRequestItems.highestAttemptForRevision,
+            claimFence: gbpImportRequestItems.claimFence,
             claimLeaseExpiresAt: gbpImportRequestItems.claimLeaseExpiresAt,
             effectDeadlineAt: gbpImportRequestItems.effectDeadlineAt,
             parentPurgeAt: gbpImportRequests.purgeAt,
@@ -1104,12 +913,7 @@ export const createGoogleImportV2Store = (
               eq(gbpImportRequests.id, gbpImportRequestItems.importJobId),
             ),
           )
-          .where(
-            and(
-              eq(gbpImportRequestItems.organizationId, input.organizationId),
-              eq(gbpImportRequestItems.id, input.itemId),
-            ),
-          )
+          .where(googleImportItemScope(input.organizationId, input.itemId))
           .for('update', { of: gbpImportRequestItems })
           .limit(1)
         if (!row) return { kind: 'ignored', reason: 'missing' } as const
@@ -1118,6 +922,9 @@ export const createGoogleImportV2Store = (
         }
         if (row.retryRevision !== input.retryRevision) {
           return { kind: 'ignored', reason: 'stale_revision' } as const
+        }
+        if (row.dispatchEpoch !== input.dispatchEpoch) {
+          return { kind: 'ignored', reason: 'stale_dispatch' } as const
         }
         const expiredClaim =
           row.status === 'processing' &&
@@ -1130,13 +937,28 @@ export const createGoogleImportV2Store = (
           input.now >= row.effectDeadlineAt ||
           (row.parentPurgeAt !== null && input.now >= row.parentPurgeAt)
         ) {
-          return { kind: 'ignored', reason: 'effect_expired' } as const
+          return {
+            kind: 'ignored',
+            reason: 'effect_expired',
+            effectDeadlineAt: row.effectDeadlineAt,
+            authority: unclaimedTerminalAuthority(row, expiredClaim),
+          } as const
         }
         if (
-          !importItemAdmitsAttempt(row.highestAttemptForRevision, input.attemptOrdinal)
+          !importItemAdmitsAttempt(
+            row.highestAttemptForRevision,
+            row.highestAttemptForRevision + 1,
+          )
         ) {
-          return { kind: 'ignored', reason: 'stale_attempt' } as const
+          return {
+            kind: 'ignored',
+            reason: 'attempts_exhausted',
+            effectDeadlineAt: row.effectDeadlineAt,
+            authority: unclaimedTerminalAuthority(row, expiredClaim),
+          } as const
         }
+        const attemptOrdinal = row.highestAttemptForRevision + 1
+        const dispatchEpoch = row.dispatchEpoch + (expiredClaim ? 1 : 0)
         const authorization = authorizationFromRow(row)
         if (
           !authorization ||
@@ -1151,7 +973,9 @@ export const createGoogleImportV2Store = (
           .update(gbpImportRequestItems)
           .set({
             status: 'processing',
-            highestAttemptForRevision: input.attemptOrdinal,
+            highestAttemptForRevision: attemptOrdinal,
+            dispatchEpoch,
+            nextDispatchAt: input.leaseExpiresAt,
             claimFence: input.claimFence,
             claimLeaseExpiresAt: input.leaseExpiresAt,
             updatedAt: input.now,
@@ -1194,7 +1018,8 @@ export const createGoogleImportV2Store = (
             providerLocationSuffix: row.providerLocationSuffix,
             googleReviewUri: row.googleReviewUri,
             authorization,
-            attemptOrdinal: input.attemptOrdinal,
+            attemptOrdinal,
+            dispatchEpoch,
             claimFence: input.claimFence,
           } satisfies GoogleImportV2ClaimedItem,
         } as const
@@ -1206,6 +1031,7 @@ export const createGoogleImportV2Store = (
           .select({
             status: gbpImportRequestItems.status,
             retryRevision: gbpImportRequestItems.retryRevision,
+            dispatchEpoch: gbpImportRequestItems.dispatchEpoch,
             highestAttemptForRevision: gbpImportRequestItems.highestAttemptForRevision,
             claimFence: gbpImportRequestItems.claimFence,
             claimLeaseExpiresAt: gbpImportRequestItems.claimLeaseExpiresAt,
@@ -1220,18 +1046,14 @@ export const createGoogleImportV2Store = (
               eq(gbpImportRequests.id, gbpImportRequestItems.importJobId),
             ),
           )
-          .where(
-            and(
-              eq(gbpImportRequestItems.organizationId, input.organizationId),
-              eq(gbpImportRequestItems.id, input.itemId),
-            ),
-          )
+          .where(googleImportItemScope(input.organizationId, input.itemId))
           .for('update', { of: gbpImportRequestItems })
           .limit(1)
         if (
           !row ||
           row.status !== 'processing' ||
           row.retryRevision !== input.retryRevision ||
+          row.dispatchEpoch !== input.dispatchEpoch ||
           row.highestAttemptForRevision !== input.attemptOrdinal ||
           row.claimFence !== input.claimFence ||
           row.claimLeaseExpiresAt === null ||
@@ -1254,6 +1076,8 @@ export const createGoogleImportV2Store = (
           .update(gbpImportRequestItems)
           .set({
             status: 'pending',
+            dispatchEpoch: sql`${gbpImportRequestItems.dispatchEpoch} + 1`,
+            nextDispatchAt: new Date(input.now.getTime() + 60_000),
             claimFence: null,
             claimLeaseExpiresAt: null,
             updatedAt: input.now,
@@ -1263,6 +1087,10 @@ export const createGoogleImportV2Store = (
               eq(gbpImportRequestItems.organizationId, input.organizationId),
               eq(gbpImportRequestItems.id, input.itemId),
               eq(gbpImportRequestItems.retryRevision, input.retryRevision),
+              eq(gbpImportRequestItems.dispatchEpoch, input.dispatchEpoch),
+              ...(input.expiredOnly
+                ? [lte(gbpImportRequestItems.claimLeaseExpiresAt, input.now)]
+                : []),
               eq(gbpImportRequestItems.claimFence, input.claimFence),
               eq(gbpImportRequestItems.status, 'processing'),
             ),
@@ -1286,232 +1114,25 @@ export const createGoogleImportV2Store = (
       }),
 
     reconcileFromReceipt: async (input) =>
-      db.transaction(async (tx) => {
-        const [item] = await tx
-          .select({
-            importJobId: gbpImportRequestItems.importJobId,
-            action: gbpImportRequestItems.action,
-            destinationPropertyId: gbpImportRequestItems.destinationPropertyId,
-            firstTerminalAt: gbpImportRequestItems.firstTerminalAt,
-            status: gbpImportRequestItems.status,
-          })
-          .from(gbpImportRequestItems)
-          .where(
-            and(
-              eq(gbpImportRequestItems.organizationId, input.organizationId),
-              eq(gbpImportRequestItems.id, input.itemId),
-            ),
-          )
-          .for('update')
-          .limit(1)
-        if (!item) return 'lost' as const
-        // A cancelled or failed row has no destination: the terminal write that
-        // beat this receipt (a cancel that landed while the effect was in flight)
-        // scrubbed it. There is nothing left to disagree with, and the receipt,
-        // which is keyed by this item, proves the Property exists, so it is
-        // adopted below. An imported row whose destination is gone had it cleared
-        // by its Property's deletion, and stays as it is.
-        const scrubbedByTerminalWrite =
-          item.destinationPropertyId === null &&
-          (item.status === 'cancelled' || item.status === 'failed')
-        if (
-          (input.destinationPropertyId !== null &&
-            !scrubbedByTerminalWrite &&
-            input.destinationPropertyId !== item.destinationPropertyId) ||
-          (input.outcomeCode === 'imported' && item.action !== 'create') ||
-          (input.outcomeCode === 'relinked' && item.action !== 'relink')
-        ) {
-          return 'lost' as const
-        }
-        const presentation = getImportOutcomePresentation(input.outcomeCode)
-        if (!presentation) throw new Error('unknown google import receipt outcome')
-
-        const [parent] = await tx
-          .select({ firstTerminalAt: gbpImportRequests.firstTerminalAt })
-          .from(gbpImportRequests)
-          .where(
-            and(
-              eq(gbpImportRequests.organizationId, input.organizationId),
-              eq(gbpImportRequests.id, item.importJobId),
-            ),
-          )
-          .for('update')
-          .limit(1)
-        if (!parent) return 'lost' as const
-
-        await tx
-          .update(gbpImportRequestItems)
-          .set({
-            status: presentation.status,
-            outcomeCode: input.outcomeCode,
-            invalidProfileField: null,
-            connectionId: null,
-            existingPropertyId: null,
-            destinationPropertyId:
-              presentation.status === 'imported' || presentation.status === 'relinked'
-                ? (input.destinationPropertyId ?? undefined)
-                : null,
-            expectedConnectionLifecycleVersion: null,
-            expectedConnectionAccessVersion: null,
-            expectedCredentialGeneration: null,
-            providerAccountSuffix: null,
-            providerLocationSuffix: null,
-            googleReviewUri: null,
-            googlePrimaryCategory: null,
-            expectedExecutionPolicyVersion: null,
-            expectedActorRole: null,
-            expectedPermissionDigest: null,
-            expectedSourceEpoch: null,
-            expectedProfileVersion: null,
-            claimFence: null,
-            claimLeaseExpiresAt: null,
-            firstTerminalAt: item.firstTerminalAt ?? input.now,
-            updatedAt: input.now,
-          })
-          .where(
-            and(
-              eq(gbpImportRequestItems.organizationId, input.organizationId),
-              eq(gbpImportRequestItems.id, input.itemId),
-            ),
-          )
-
-        await reduceParentFromItems(tx, {
-          organizationId: input.organizationId,
-          importJobId: item.importJobId,
-          firstTerminalAt: parent.firstTerminalAt,
-          now: input.now,
-        })
-        return 'completed' as const
-      }),
-
+      db.transaction((tx) =>
+        completeGoogleImportItem(tx, completion, {
+          ...input,
+          authority: { kind: 'receipt' },
+        }),
+      ),
     completeClaim: async (input) =>
-      db.transaction(async (tx) => {
-        const [current] = await tx
-          .select({
-            importJobId: gbpImportRequestItems.importJobId,
-          })
-          .from(gbpImportRequestItems)
-          .where(
-            and(
-              eq(gbpImportRequestItems.organizationId, input.organizationId),
-              eq(gbpImportRequestItems.id, input.itemId),
-              eq(gbpImportRequestItems.retryRevision, input.retryRevision),
-              eq(gbpImportRequestItems.claimFence, input.claimFence),
-              eq(gbpImportRequestItems.status, 'processing'),
-            ),
-          )
-          .for('update')
-          .limit(1)
-        if (!current) return 'lost' as const
-        const presentation = getImportOutcomePresentation(input.outcomeCode)
-        if (!presentation) throw new Error('unknown google import outcome')
-        assertRetryStateMatchesOutcome(input)
-        assertOutcomeDetail(input.outcomeCode, input.detail)
-        await tx
-          .update(gbpImportRequestItems)
-          .set(
-            terminalItemPatch({
-              status: presentation.status,
-              outcomeCode: input.outcomeCode,
-              retainRetryState: input.retainRetryState,
-              now: input.now,
-              ...(input.detail ? { detail: input.detail } : {}),
-            }),
-          )
-          .where(
-            and(
-              eq(gbpImportRequestItems.organizationId, input.organizationId),
-              eq(gbpImportRequestItems.id, input.itemId),
-              eq(gbpImportRequestItems.retryRevision, input.retryRevision),
-              eq(gbpImportRequestItems.claimFence, input.claimFence),
-            ),
-          )
-        const [parent] = await tx
-          .select({ firstTerminalAt: gbpImportRequests.firstTerminalAt })
-          .from(gbpImportRequests)
-          .where(
-            and(
-              eq(gbpImportRequests.organizationId, input.organizationId),
-              eq(gbpImportRequests.id, current.importJobId),
-            ),
-          )
-          .for('update')
-          .limit(1)
-        if (!parent) throw new Error('google import parent missing')
-        await reduceParentFromItems(tx, {
-          organizationId: input.organizationId,
-          importJobId: current.importJobId,
-          firstTerminalAt: parent.firstTerminalAt,
-          now: input.now,
-        })
-        return 'completed' as const
-      }),
-
+      db.transaction((tx) =>
+        completeGoogleImportItem(tx, completion, {
+          ...input,
+          authority: {
+            kind: 'claim',
+            dispatchEpoch: input.dispatchEpoch,
+            claimFence: input.claimFence,
+          },
+        }),
+      ),
     terminalizeItem: async (input) =>
-      db.transaction(async (tx) => {
-        assertRetryStateMatchesOutcome(input)
-        const [current] = await tx
-          .select({
-            importJobId: gbpImportRequestItems.importJobId,
-          })
-          .from(gbpImportRequestItems)
-          .where(
-            and(
-              eq(gbpImportRequestItems.organizationId, input.organizationId),
-              eq(gbpImportRequestItems.id, input.itemId),
-              eq(gbpImportRequestItems.retryRevision, input.retryRevision),
-              or(
-                sql`${gbpImportRequestItems.status} IN ('pending', 'processing')`,
-                eq(gbpImportRequestItems.outcomeCode, 'temporarily_unavailable'),
-              ),
-            ),
-          )
-          .for('update')
-          .limit(1)
-        if (!current) return 'lost' as const
-        const presentation = getImportOutcomePresentation(input.outcomeCode)
-        if (!presentation) throw new Error('unknown google import outcome')
-        const [parent] = await tx
-          .select({ firstTerminalAt: gbpImportRequests.firstTerminalAt })
-          .from(gbpImportRequests)
-          .where(
-            and(
-              eq(gbpImportRequests.organizationId, input.organizationId),
-              eq(gbpImportRequests.id, current.importJobId),
-            ),
-          )
-          .for('update')
-          .limit(1)
-        if (!parent) return 'lost' as const
-        await tx
-          .update(gbpImportRequestItems)
-          .set(
-            terminalItemPatch({
-              status: presentation.status,
-              outcomeCode: input.outcomeCode,
-              retainRetryState: input.retainRetryState,
-              now: input.now,
-            }),
-          )
-          .where(
-            and(
-              eq(gbpImportRequestItems.organizationId, input.organizationId),
-              eq(gbpImportRequestItems.id, input.itemId),
-              eq(gbpImportRequestItems.retryRevision, input.retryRevision),
-              or(
-                sql`${gbpImportRequestItems.status} IN ('pending', 'processing')`,
-                eq(gbpImportRequestItems.outcomeCode, 'temporarily_unavailable'),
-              ),
-            ),
-          )
-        await reduceParentFromItems(tx, {
-          organizationId: input.organizationId,
-          importJobId: current.importJobId,
-          firstTerminalAt: parent.firstTerminalAt,
-          now: input.now,
-        })
-        return 'completed' as const
-      }),
+      db.transaction((tx) => completeGoogleImportItem(tx, completion, input)),
     listPendingDispatchItems: async (organizationId, importJobId) => {
       const [parent] = await db
         .select({
@@ -1537,6 +1158,7 @@ export const createGoogleImportV2Store = (
             gbpImportRequestItems.expectedConnectionLifecycleVersion,
           expectedSourceEpoch: gbpImportRequestItems.expectedSourceEpoch,
           retryRevision: gbpImportRequestItems.retryRevision,
+          dispatchEpoch: gbpImportRequestItems.dispatchEpoch,
         })
         .from(gbpImportRequestItems)
         .where(
@@ -1641,42 +1263,7 @@ export const createGoogleImportV2Store = (
         .limit(limit)
     },
 
-    // Claim-lease recovery selection. A row is stale exactly when it is still
-    // 'processing' and its lease instant has passed — equality is expired, the
-    // same boundary claimItem/runClaimedEffect use, so the reaper can never
-    // preempt a lease those paths still consider live. The schema check
-    // guarantees a 'processing' row has a non-null fence and an attempt
-    // ordinal in 1..5, so the projected fence is always present.
-    // Reads through the partial `(effect_deadline_at, id)` index's
-    // pending/processing subset — the active-item working set, not the table.
-    listStaleClaimItems: async (now, limit) => {
-      assertLifecycleSweepLimit(limit)
-      const rows = await db
-        .select({
-          organizationId: gbpImportRequestItems.organizationId,
-          itemId: gbpImportRequestItems.id,
-          retryRevision: gbpImportRequestItems.retryRevision,
-          claimFence: gbpImportRequestItems.claimFence,
-          attemptOrdinal: gbpImportRequestItems.highestAttemptForRevision,
-          effectDeadlineAt: gbpImportRequestItems.effectDeadlineAt,
-        })
-        .from(gbpImportRequestItems)
-        .where(
-          and(
-            eq(gbpImportRequestItems.status, 'processing'),
-            isNotNull(gbpImportRequestItems.claimFence),
-            lte(gbpImportRequestItems.claimLeaseExpiresAt, now),
-          ),
-        )
-        .orderBy(
-          asc(gbpImportRequestItems.claimLeaseExpiresAt),
-          asc(gbpImportRequestItems.id),
-        )
-        .limit(limit)
-      return rows.flatMap((row) =>
-        row.claimFence === null ? [] : [{ ...row, claimFence: row.claimFence }],
-      )
-    },
+    reserveDueItems: createGoogleImportDueReservation(db),
 
     listPurgeCandidates: async (now, limit) => {
       assertLifecycleSweepLimit(limit)
@@ -1852,6 +1439,7 @@ export const createGoogleImportV2Store = (
           importJobId: gbpImportRequestItems.importJobId,
           itemId: gbpImportRequestItems.id,
           retryRevision: gbpImportRequestItems.retryRevision,
+          dispatchEpoch: gbpImportRequestItems.dispatchEpoch,
           status: gbpImportRequestItems.status,
           outcomeCode: gbpImportRequestItems.outcomeCode,
         })

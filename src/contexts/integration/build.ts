@@ -1,3 +1,6 @@
+import { createGoogleImportV2ClaimReaper } from './application/google-import-v2-claim-reaper'
+import { completeGoogleImportsForRestore } from './infrastructure/google-import-completion'
+import { registerGoogleBindingFollowUpConsumers } from './infrastructure/google-binding-follow-up-consumers'
 // Integration context — build function.
 // Wires integration repos, adapters, use cases, and the import queue.
 // Per ADR-0001: the composition root calls this and passes useCases to the container.
@@ -73,6 +76,7 @@ import type { GoogleRefreshCoordination } from './application/ports/google-refre
 import { createActiveConnectionTokenProvider } from './application/active-connection-token-provider'
 import {
   createGoogleImportCommandAuthorizer,
+  createGoogleImportReauthorizer,
   type GoogleImportContentAuthorizer,
 } from './application/google-import-command-authorizer'
 import { createGoogleImportPropertyClassifier } from './application/google-import-property-classifier'
@@ -130,7 +134,7 @@ import { createGoogleReviewPushTargetResolver } from './infrastructure/adapters/
 import type { GooglePerformanceDependencyDescriptor } from '#/shared/architecture/google-performance-live-boundary'
 import { createIntegrationOrganizationLifecycleContributor } from './infrastructure/adapters/integration-organization-lifecycle.adapter'
 import { createGoogleOrganizationClosureProvider } from './infrastructure/adapters/google-organization-closure-provider.adapter'
-import { sameRecordEntries } from '#/shared/domain/record-entries'
+import { sameAuthorizationVectorExceptCredentialGeneration } from './application/google-authorization-vector'
 
 export type GoogleProviderEndpoints = Readonly<{
   gbpApiBaseUrl: string
@@ -191,17 +195,6 @@ export const GOOGLE_PERFORMANCE_LIVE_DEPENDENCY_DESCRIPTORS: readonly GooglePerf
     }),
   ])
 
-function sameAuthorizationVectorExceptCredentialGeneration(
-  left: Readonly<Record<string, string | number | boolean | null>>,
-  right: Readonly<Record<string, string | number | boolean | null>>,
-): boolean {
-  return sameRecordEntries(
-    left,
-    right,
-    (key) => key === 'credentialGeneration' || left[key] === right[key],
-  )
-}
-
 type IntegrationContextDeps = Readonly<{
   db: Database
   outboxRepo: OutboxRepository
@@ -212,6 +205,7 @@ type IntegrationContextDeps = Readonly<{
   propertyApi: PropertyPublicApi
   propertyBindingApi?: PropertyGoogleBindingPublicApi
   enqueueReviewSync?: ReviewQueuePort['addSyncJob']
+  prepareImportSync: import('#/contexts/review/application/public-api').PrepareGoogleImportSync
   enqueueTargetedReviewFetch?: TargetedGoogleReviewQueuePort['addTargetedFetchJob']
   /** Starts an imported Property's public display name as its confirmed name. */
   defaultPublicDisplayName?: PortalPublicDisplayNameDefaultPublicApi['ensureDefaultPublicDisplayName']
@@ -324,6 +318,11 @@ export type IntegrationContextApi = Readonly<{
   /** Context-owned worker registration; exposes no repositories or use cases. */
   worker: Readonly<{
     registerOutboxConsumers: (consumerRegistry: ConsumerRegistry) => void
+    recoverImports: ReturnType<typeof createGoogleImportV2ClaimReaper>
+    completeImportsForRestore: (
+      tx: import('#/shared/outbox/commit').Tx,
+      now: Date,
+    ) => Promise<{ items: number; parents: number }>
     processImportItem: GoogleImportV2Processor['process'] | null
     sweepImportLifecycle: ReturnType<typeof createGoogleImportV2Lifecycle>['sweep'] | null
     /** One bounded pass of both provider recovery stores; counts only. */
@@ -458,7 +457,18 @@ export const buildIntegrationContext = (deps: IntegrationContextDeps) => {
       },
     })
 
-  const googleImportV2Store = createGoogleImportV2Store(deps.db, deps.clock)
+  const googleImportV2Store = createGoogleImportV2Store(deps.db, deps.clock, {
+    readReceipt: (...args) => {
+      if (!deps.propertyBindingApi) throw new Error('Property receipt reader unavailable')
+      return deps.propertyBindingApi.readReceipt(...args)
+    },
+    prepareImportSync: deps.prepareImportSync,
+    ensureImportFollowUps: (...args) => {
+      if (!deps.propertyBindingApi)
+        throw new Error('Property follow-up recovery unavailable')
+      return deps.propertyBindingApi.ensureImportFollowUps(...args)
+    },
+  })
   const googleReviewPushReferences: GoogleReviewPushReferenceStore =
     deps.providerEphemeralStore && deps.googleOpaqueReferenceKeys
       ? createGoogleReviewPushReferenceStore({
@@ -513,6 +523,14 @@ export const buildIntegrationContext = (deps: IntegrationContextDeps) => {
       : null
 
   const registerOutboxConsumers = (consumerRegistry: ConsumerRegistry) => {
+    registerGoogleBindingFollowUpConsumers(consumerRegistry, {
+      propertyBindingApi: deps.propertyBindingApi,
+      enqueueReviewSync: deps.enqueueReviewSync,
+      defaultPublicDisplayName: deps.defaultPublicDisplayName,
+      subscribe: manageNotificationsUseCase.subscribe,
+      receipts: deps.outboxRepo,
+      newDeliveryId: deps.idGen,
+    })
     registerGoogleImportDispatchConsumer(consumerRegistry, {
       store: googleImportV2Store,
       queue: googleImportV2Queue,
@@ -697,49 +715,14 @@ export const buildIntegrationContext = (deps: IntegrationContextDeps) => {
       // identifier, which BANNED_LOG_KEYS forbids as a log field.
       warn: (fields, message) => deps.logger.warn(fields, message),
     })
-    reauthorizeGoogleImportProviderCall = async ({ authorization }) => {
-      if (
-        authorization.capability !== 'property.import_gbp_v2' ||
-        authorization.initiatorUserId === null
-      ) {
-        throw new Error('Google provider reauthorization is unavailable')
-      }
-      const actor = await resolveActiveMember(
-        authorization.organizationId,
-        authorization.initiatorUserId,
-      )
-      if (!actor) {
-        throw new Error('Google provider reauthorization is unavailable')
-      }
-      const refreshed = await authorizeGoogleImportCommand({
-        actor,
-        connectionId: authorization.connectionId,
-        phase: 'provider_call',
-        properties: [],
-        requireAccessToken: false,
-      })
-      if (!refreshed.ok) {
-        throw new Error('Google provider reauthorization is unavailable')
-      }
-      return {
-        capability: 'property.import_gbp_v2',
-        organizationId: authorization.organizationId,
-        propertyId: null,
-        connectionId: authorization.connectionId,
-        initiatorUserId: refreshed.authorization.userId,
-        expectedCredentialGeneration: refreshed.authorization.credentialGeneration,
-        authorizationVector: refreshed.authorization.authorizationVector,
-      }
-    }
+    reauthorizeGoogleImportProviderCall = createGoogleImportReauthorizer({
+      resolveActor: resolveActiveMember,
+      authorize: authorizeGoogleImportCommand,
+    })
     googleImportV2Processor = createGoogleImportV2Processor({
       store: googleImportV2Store,
       propertyBindingApi,
       authorizeGoogleImportCommand,
-      enqueueReviewSync: deps.enqueueReviewSync,
-      // The one place a Google-backed property becomes live. `subscribe` is a
-      // best-effort idempotent PATCH and no-ops when GBP_PUBSUB_TOPIC is empty.
-      subscribeToNotifications: manageNotificationsUseCase.subscribe,
-      defaultPublicDisplayName: deps.defaultPublicDisplayName,
       resolveActor: resolveActiveMember,
       clock: deps.clock,
       newClaimFence: deps.idGen,
@@ -1275,6 +1258,36 @@ export const buildIntegrationContext = (deps: IntegrationContextDeps) => {
     webhook: Object.freeze({ handleNotification: gbpNotificationHandler }),
     worker: Object.freeze({
       registerOutboxConsumers,
+      recoverImports: createGoogleImportV2ClaimReaper({
+        store: googleImportV2Store,
+        queue: googleImportV2Queue,
+        processItem: async (input) => {
+          if (!useCases.processGoogleImportV2Item)
+            throw new Error('Google import processor unavailable')
+          await useCases.processGoogleImportV2Item(input)
+        },
+        logger: deps.logger,
+        newDeliveryId: deps.idGen,
+        clock: deps.clock,
+      }),
+      completeImportsForRestore: (tx: import('#/shared/outbox/commit').Tx, now: Date) =>
+        completeGoogleImportsForRestore(
+          tx,
+          {
+            readReceipt: (...args) => {
+              if (!deps.propertyBindingApi)
+                throw new Error('Property receipt reader unavailable')
+              return deps.propertyBindingApi.readReceipt(...args)
+            },
+            prepareImportSync: deps.prepareImportSync,
+            ensureImportFollowUps: (...args) => {
+              if (!deps.propertyBindingApi)
+                throw new Error('Property follow-up recovery unavailable')
+              return deps.propertyBindingApi.ensureImportFollowUps(...args)
+            },
+          },
+          now,
+        ),
       processImportItem: useCases.processGoogleImportV2Item,
       sweepImportLifecycle: useCases.sweepGoogleImportV2Lifecycle,
       // The permit sweep's recovery pass, on the stores this build already

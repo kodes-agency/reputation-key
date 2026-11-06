@@ -21,7 +21,7 @@ export type IntegrationPropertyImportRetentionReleasedV1 = Readonly<{
 }>
 
 export type GooglePropertyImportItemJobId =
-  `import-item-${string}-l${number}-e${number | 'new'}-r${number}`
+  `import-item-${string}-l${number}-e${number | 'new'}-r${number}-d${number}-q${string}`
 
 export const IMPORT_PARENT_STATUSES = [
   'queued',

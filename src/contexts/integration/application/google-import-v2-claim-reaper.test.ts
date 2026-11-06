@@ -1,198 +1,139 @@
 import { describe, expect, it, vi } from 'vitest'
 import {
-  GOOGLE_IMPORT_ITEM_CLAIM_LEASE_MS,
   GOOGLE_IMPORT_ITEM_MAX_ATTEMPTS,
-  type GoogleImportV2StaleClaimItem,
+  type GoogleImportV2DueItem,
   type GoogleImportV2Store,
 } from './ports/google-import-v2-store.port'
 import { createGoogleImportV2ClaimReaper } from './google-import-v2-claim-reaper'
 
 const NOW = new Date('2026-08-12T10:00:00.000Z')
-const ORG_ID = 'org-1'
-const RETRYABLE_ITEM_ID = '20000000-0000-4000-8000-000000000001'
-const EXHAUSTED_ITEM_ID = '20000000-0000-4000-8000-000000000002'
-const FENCE_A = '20000000-0000-4000-8000-000000000003'
-const FENCE_B = '20000000-0000-4000-8000-000000000004'
+const ITEM_ID = '20000000-0000-4000-8000-000000000001'
+const FENCE = '20000000-0000-4000-8000-000000000003'
 
-function staleClaim(
-  over: Partial<GoogleImportV2StaleClaimItem> = {},
-): GoogleImportV2StaleClaimItem {
+function staleClaim(over: Partial<GoogleImportV2DueItem> = {}): GoogleImportV2DueItem {
   return {
-    organizationId: ORG_ID,
-    itemId: RETRYABLE_ITEM_ID,
+    organizationId: 'org-1',
+    importJobId: '20000000-0000-4000-8000-000000000009',
+    itemId: ITEM_ID,
     retryRevision: 2,
-    claimFence: FENCE_A,
+    dispatchEpoch: 4,
+    claimFence: FENCE,
+    status: 'processing',
     attemptOrdinal: 1,
+    expectedConnectionLifecycleVersion: 1,
+    expectedSourceEpoch: null,
     effectDeadlineAt: new Date(NOW.getTime() + 60 * 60 * 1_000),
     ...over,
   }
 }
 
-function setup(
-  staleClaims: readonly GoogleImportV2StaleClaimItem[] = [staleClaim()],
-  outcomes: {
-    release?: 'released' | 'lost'
-    terminalize?: 'completed' | 'lost'
-  } = {},
-) {
-  const listStaleClaimItems = vi.fn<GoogleImportV2Store['listStaleClaimItems']>(
-    async () => staleClaims,
-  )
+function setup(items: readonly GoogleImportV2DueItem[] = [staleClaim()]) {
+  const reserveDueItems = vi.fn<GoogleImportV2Store['reserveDueItems']>(async () => items)
   const releaseClaimForRetry = vi.fn<GoogleImportV2Store['releaseClaimForRetry']>(
-    async () => outcomes.release ?? 'released',
+    async () => 'released',
   )
-  const terminalizeItem = vi.fn<GoogleImportV2Store['terminalizeItem']>(
-    async () => outcomes.terminalize ?? 'completed',
-  )
+  const processItem = vi.fn(async () => {})
+  const addImportItemJobs = vi.fn(async () => {})
   const reap = createGoogleImportV2ClaimReaper({
-    store: { listStaleClaimItems, releaseClaimForRetry, terminalizeItem },
+    store: { reserveDueItems, releaseClaimForRetry },
+    queue: { addImportItemJobs },
+    processItem,
+    logger: { warn: vi.fn() },
     clock: () => NOW,
+    newDeliveryId: () => '20000000-0000-4000-8000-000000000008',
   })
-  return { reap, listStaleClaimItems, releaseClaimForRetry, terminalizeItem }
+  return { reap, reserveDueItems, releaseClaimForRetry, processItem, addImportItemJobs }
 }
 
 describe('GoogleImportV2ClaimReaper', () => {
-  it('scans the bounded stale-claim set at the current database-facing instant', async () => {
-    const harness = setup()
-
-    await harness.reap()
-
-    expect(harness.listStaleClaimItems).toHaveBeenCalledTimes(1)
-    expect(harness.listStaleClaimItems).toHaveBeenCalledWith(NOW, 100)
+  it('reserves the bounded due set at the current database-facing instant', async () => {
+    const h = setup()
+    await h.reap()
+    expect(h.reserveDueItems).toHaveBeenCalledExactlyOnceWith(NOW, 100)
   })
 
-  // Recovery MUST go through the CAS helper, never a blind status write: the
-  // scan is lock-free, so the exact retry revision and claim fence are what
-  // stop the reaper from stealing a claim that was renewed or replaced after
-  // the scan read it.
-  it('releases a stale claim through the fenced CAS helper', async () => {
-    const harness = setup([staleClaim({ retryRevision: 5, claimFence: FENCE_B })])
-
-    await expect(harness.reap()).resolves.toEqual({
-      staleClaimsVisited: 1,
+  it('releases a stale claim through the revision, epoch and fence CAS before redispatch', async () => {
+    const h = setup()
+    await expect(h.reap()).resolves.toEqual({
+      dueItemsVisited: 1,
       claimsReleased: 1,
-      itemsTerminalized: 0,
+      itemsDispatched: 1,
+      completionChecks: 0,
       claimsLost: 0,
+      itemFailures: 0,
     })
-
-    expect(harness.releaseClaimForRetry).toHaveBeenCalledWith({
-      organizationId: ORG_ID,
-      itemId: RETRYABLE_ITEM_ID,
-      retryRevision: 5,
-      claimFence: FENCE_B,
+    expect(h.releaseClaimForRetry).toHaveBeenCalledExactlyOnceWith({
+      organizationId: 'org-1',
+      itemId: ITEM_ID,
+      retryRevision: 2,
+      dispatchEpoch: 4,
+      claimFence: FENCE,
+      expiredOnly: true,
       now: NOW,
     })
-    expect(harness.terminalizeItem).not.toHaveBeenCalled()
+    expect(h.processItem).not.toHaveBeenCalled()
+    expect(h.releaseClaimForRetry.mock.invocationCallOrder[0]).toBeLessThan(
+      h.addImportItemJobs.mock.invocationCallOrder[0]!,
+    )
   })
 
-  // Releasing an item with no attempt left would park it 'pending' forever,
-  // so the budget-spent case terminalizes instead — with the RETRYABLE
-  // outcome, because the work never proved impossible: its owner vanished.
-  // That outcome promises a retry, so the item keeps the state a retry needs
-  // (the items table refuses the outcome without it).
-  it('terminalizes temporarily_unavailable once the attempt budget is spent, keeping its retry state', async () => {
-    const harness = setup([
-      staleClaim({
-        itemId: EXHAUSTED_ITEM_ID,
-        retryRevision: 3,
-        attemptOrdinal: GOOGLE_IMPORT_ITEM_MAX_ATTEMPTS,
-      }),
-    ])
-
-    await expect(harness.reap()).resolves.toEqual({
-      staleClaimsVisited: 1,
-      claimsReleased: 0,
-      itemsTerminalized: 1,
-      claimsLost: 0,
+  it('hands exhausted work to the receipt-aware processor after fencing its dead owner', async () => {
+    const h = setup([staleClaim({ attemptOrdinal: GOOGLE_IMPORT_ITEM_MAX_ATTEMPTS })])
+    await expect(h.reap()).resolves.toMatchObject({
+      completionChecks: 1,
+      claimsReleased: 1,
     })
-
-    expect(harness.releaseClaimForRetry).not.toHaveBeenCalled()
-    expect(harness.terminalizeItem).toHaveBeenCalledWith({
-      organizationId: ORG_ID,
-      itemId: EXHAUSTED_ITEM_ID,
-      retryRevision: 3,
-      outcomeCode: 'temporarily_unavailable',
-      retainRetryState: true,
-      now: NOW,
+    expect(h.processItem).toHaveBeenCalledExactlyOnceWith({
+      organizationId: 'org-1',
+      itemId: ITEM_ID,
+      retryRevision: 2,
+      dispatchEpoch: 5,
+      attemptOrdinal: 1,
     })
+    expect(h.addImportItemJobs).not.toHaveBeenCalled()
   })
 
-  // A retry is refused past the effect deadline, and the items table refuses a
-  // scrubbed `temporarily_unavailable` row, so the exhausted item ends as a
-  // plain failure there instead of wedging the reaper on the table's CHECK.
-  it('ends an item whose attempts ran out past its effect deadline as a scrubbed internal_error', async () => {
-    const harness = setup([
-      staleClaim({
-        itemId: EXHAUSTED_ITEM_ID,
-        retryRevision: 3,
-        attemptOrdinal: GOOGLE_IMPORT_ITEM_MAX_ATTEMPTS,
-        effectDeadlineAt: new Date(NOW.getTime() - 1),
-      }),
-    ])
-
-    await harness.reap()
-
-    expect(harness.terminalizeItem).toHaveBeenCalledExactlyOnceWith({
-      organizationId: ORG_ID,
-      itemId: EXHAUSTED_ITEM_ID,
-      retryRevision: 3,
-      outcomeCode: 'internal_error',
-      retainRetryState: false,
-      now: NOW,
-    })
+  it('also checks receipts through the processor after the effect deadline', async () => {
+    const h = setup([staleClaim({ effectDeadlineAt: new Date(NOW.getTime() - 1) })])
+    await h.reap()
+    expect(h.processItem).toHaveBeenCalledOnce()
+    expect(h.addImportItemJobs).not.toHaveBeenCalled()
   })
 
-  it('routes the last attempt to release and only the spent budget to terminal', async () => {
-    const harness = setup([
+  it('dispatches the last allowed attempt and reconciles only the spent budget', async () => {
+    const h = setup([
       staleClaim({ attemptOrdinal: GOOGLE_IMPORT_ITEM_MAX_ATTEMPTS - 1 }),
-      staleClaim({
-        itemId: EXHAUSTED_ITEM_ID,
-        claimFence: FENCE_B,
-        attemptOrdinal: GOOGLE_IMPORT_ITEM_MAX_ATTEMPTS,
-      }),
+      staleClaim({ attemptOrdinal: GOOGLE_IMPORT_ITEM_MAX_ATTEMPTS }),
     ])
-
-    await expect(harness.reap()).resolves.toEqual({
-      staleClaimsVisited: 2,
-      claimsReleased: 1,
-      itemsTerminalized: 1,
-      claimsLost: 0,
+    await expect(h.reap()).resolves.toMatchObject({
+      dueItemsVisited: 2,
+      claimsReleased: 2,
+      itemsDispatched: 1,
+      completionChecks: 1,
     })
   })
 
-  it('counts a lost CAS without retrying or falling back to a terminal write', async () => {
-    const harness = setup([staleClaim()], { release: 'lost' })
+  it('counts a lost CAS without a second write or dispatch', async () => {
+    const h = setup()
+    h.releaseClaimForRetry.mockResolvedValueOnce('lost')
+    await expect(h.reap()).resolves.toMatchObject({ claimsLost: 1, claimsReleased: 0 })
+    expect(h.releaseClaimForRetry).toHaveBeenCalledOnce()
+    expect(h.processItem).not.toHaveBeenCalled()
+    expect(h.addImportItemJobs).not.toHaveBeenCalled()
+  })
 
-    await expect(harness.reap()).resolves.toEqual({
-      staleClaimsVisited: 1,
+  it('does nothing when there is no due work', async () => {
+    const h = setup([])
+    await expect(h.reap()).resolves.toEqual({
+      dueItemsVisited: 0,
       claimsReleased: 0,
-      itemsTerminalized: 0,
-      claimsLost: 1,
-    })
-
-    expect(harness.releaseClaimForRetry).toHaveBeenCalledTimes(1)
-    expect(harness.terminalizeItem).not.toHaveBeenCalled()
-  })
-
-  it('does nothing when no claim lease has elapsed', async () => {
-    const harness = setup([])
-
-    await expect(harness.reap()).resolves.toEqual({
-      staleClaimsVisited: 0,
-      claimsReleased: 0,
-      itemsTerminalized: 0,
+      itemsDispatched: 0,
+      completionChecks: 0,
       claimsLost: 0,
+      itemFailures: 0,
     })
-
-    expect(harness.releaseClaimForRetry).not.toHaveBeenCalled()
-    expect(harness.terminalizeItem).not.toHaveBeenCalled()
-  })
-
-  // The reaper's whole point: bound recovery by the claim lease instead of the
-  // 24h effect deadline. A cadence above the lease would leave a dead worker's
-  // item stuck for longer than the lease it is supposed to enforce.
-  it('keeps the reaper cadence within one claim-lease width', () => {
-    const reaperCadenceMs = 60_000
-    expect(reaperCadenceMs).toBeLessThanOrEqual(GOOGLE_IMPORT_ITEM_CLAIM_LEASE_MS)
+    expect(h.releaseClaimForRetry).not.toHaveBeenCalled()
+    expect(h.processItem).not.toHaveBeenCalled()
+    expect(h.addImportItemJobs).not.toHaveBeenCalled()
   })
 })

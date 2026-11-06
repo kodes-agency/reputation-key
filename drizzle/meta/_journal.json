@@ -694,6 +694,27 @@
       "when": 1798000000000,
       "tag": "0098_work_items_organization_index",
       "breakpoints": true
+    },
+    {
+      "idx": 99,
+      "version": "7",
+      "when": 1798100000000,
+      "tag": "0099_google_import_dispatch",
+      "breakpoints": true
+    },
+    {
+      "idx": 100,
+      "version": "7",
+      "when": 1798200000000,
+      "tag": "0100_google_import_dispatch_validation",
+      "breakpoints": true
+    },
+    {
+      "idx": 101,
+      "version": "7",
+      "when": 1798300000000,
+      "tag": "0101_google_import_dispatch_index",
+      "breakpoints": true
     }
   ]
 }

@@ -1,3 +1,4 @@
+import { sameRecordEntries } from '#/shared/domain/record-entries'
 import type { AuthContext } from '#/shared/domain/auth-context'
 import {
   GOOGLE_CONTENT_EXECUTION_POLICY_VERSION,
@@ -64,4 +65,15 @@ export function googlePropertyAuthorizationVector(
     propertyProfileSource: binding.profileSource,
     propertyTimezoneConfirmed: binding.profileConfirmedAt !== null,
   }
+}
+
+export function sameAuthorizationVectorExceptCredentialGeneration(
+  left: Readonly<Record<string, string | number | boolean | null>>,
+  right: Readonly<Record<string, string | number | boolean | null>>,
+): boolean {
+  return sameRecordEntries(
+    left,
+    right,
+    (key) => key === 'credentialGeneration' || left[key] === right[key],
+  )
 }

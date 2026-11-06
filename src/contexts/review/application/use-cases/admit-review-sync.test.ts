@@ -91,4 +91,20 @@ describe('admitReviewSync', () => {
 
     expect(deps.queue.addSyncJob).not.toHaveBeenCalled()
   })
+  it('does not enqueue an import that a worker already accepted during redelivery', async () => {
+    const { deps } = setup()
+    const admitImportSync = vi.fn(async () => null)
+    await admitReviewSync({ ...deps, admitImportSync })(
+      { ...IMPORT_SYNC, importBindingEventId: '75000000-0000-4000-8000-000000000003' },
+      IMPORT_JOB,
+    )
+    expect(admitImportSync).toHaveBeenCalledOnce()
+    expect(deps.queue.addSyncJob).not.toHaveBeenCalled()
+  })
+  it('does not fix a later binding epoch or enqueue when the import binding moved during admission', async () => {
+    const { deps, admit } = setup({ sourceEpoch: 3 })
+    await admit({ ...IMPORT_SYNC, sourceEpoch: 2 }, IMPORT_JOB)
+    expect(deps.historyCutoffs.fixImportHistoryCutoff).not.toHaveBeenCalled()
+    expect(deps.queue.addSyncJob).not.toHaveBeenCalled()
+  })
 })

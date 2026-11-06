@@ -280,9 +280,11 @@ describe('composition characterization (BQC-5.2 parity baseline)', () => {
       'handleNotification',
     ])
     expect(Object.keys(container.integrationWorkerRuntime).sort()).toEqual([
+      'completeImportsForRestore',
       'processImportItem',
       'reconcileNotificationSubscriptions',
       'reconcileProviderRecovery',
+      'recoverImports',
       'registerOutboxConsumers',
       'sweepImportLifecycle',
     ])

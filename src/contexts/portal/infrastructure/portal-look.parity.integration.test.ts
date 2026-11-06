@@ -213,20 +213,32 @@ describe.sequential('the draft preview and the working copy agree on the look', 
 
   it('when an image was uploaded for another slot than the one that names it', async () => {
     const scenario = withOwnLook(OWN_PHOTO_LOOK)
+    const unrelated = { ...INCOMPLETE_SCENARIO, organizationId: WORKING_COPY_OTHER_ORG }
+    await seedScenarioForPreview(getPool(), unrelated)
+    const unrelatedBefore = await publishedLook(unrelated)
     await seedScenarioForPreview(getPool(), scenario)
     // The Portal's photograph names a logo, the Property's logo a tile picture.
-    await getPool().query(`UPDATE portal_look_overrides SET hero_asset_id = $1`, [
-      SCENARIO_OWN_LOGO_ASSET,
-    ])
     await getPool().query(
-      `UPDATE property_portal_brand_profiles SET logo_asset_id = $1`,
-      [SCENARIO_TILE_ASSET],
+      `UPDATE portal_look_overrides SET hero_asset_id = $1
+       WHERE organization_id = $2 AND property_id = $3 AND portal_id = $4`,
+      [
+        SCENARIO_OWN_LOGO_ASSET,
+        scenario.organizationId,
+        scenario.propertyId,
+        scenario.portalId,
+      ],
+    )
+    await getPool().query(
+      `UPDATE property_portal_brand_profiles SET logo_asset_id = $1
+       WHERE organization_id = $2 AND property_id = $3`,
+      [SCENARIO_TILE_ASSET, scenario.organizationId, scenario.propertyId],
     )
 
     const published = await publishedLook(scenario)
 
     expect(published).toMatchObject({ brand: { hero: null, logo: null } })
     await expect(previewedLook(scenario)).resolves.toEqual(published)
+    await expect(publishedLook(unrelated)).resolves.toEqual(unrelatedBefore)
   })
 
   // KNOWN_DIFFERENCES: what the two still do not agree on. Both need data the
@@ -237,7 +249,9 @@ describe.sequential('the draft preview and the working copy agree on the look', 
     it('a public display name that is only spaces: published as it is, previewed as the Portal’s name', async () => {
       await seedScenarioForPreview(getPool(), COMPLETE_SCENARIO)
       await getPool().query(
-        `UPDATE property_portal_brand_profiles SET display_name = '   '`,
+        `UPDATE property_portal_brand_profiles SET display_name = '   '
+         WHERE organization_id = $1 AND property_id = $2`,
+        [COMPLETE_SCENARIO.organizationId, COMPLETE_SCENARIO.propertyId],
       )
 
       const published = await publishedLook(COMPLETE_SCENARIO)

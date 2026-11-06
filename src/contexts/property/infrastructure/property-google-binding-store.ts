@@ -8,12 +8,7 @@ import {
 import { insertOutboxRow } from '#/shared/outbox/commit'
 import { trace } from '#/shared/observability/trace'
 import { purgeAiDraftsForProfile } from '#/shared/db/ai/ai-draft-purge'
-import {
-  googleConnectionId,
-  organizationId,
-  propertyId,
-  type OrganizationId,
-} from '#/shared/domain/ids'
+import { googleConnectionId, type OrganizationId } from '#/shared/domain/ids'
 import { isValidIanaTimezone } from '#/shared/domain/timezones'
 import { normalizeGooglePrimaryCategory } from '#/shared/domain/google-primary-category'
 import {
@@ -24,18 +19,18 @@ import {
   PROPERTY_OPERATION_RECEIPT_TTL_MS,
   PROPERTY_OPERATION_SWEEP_LIMIT,
   PropertyGoogleBindingError,
-  type PropertyGoogleBindingInternalView,
   type PropertyGoogleBindingStore,
-  type PropertyGoogleBindingSummary,
+  type PropertyGoogleBindingInternalView,
   type PropertyOperationCommit,
 } from '../application/ports/property-google-binding.port'
 import { propertyCreated, propertyGoogleBindingChanged } from '../domain/events'
-import { propertyToRow } from './mappers/property.mapper'
+import { propertyToRow, summaryFromRow, internalFromRow } from './mappers/property.mapper'
 import {
   propertyReceiptKey,
   propertyReceiptPayload,
   receiptFromRow,
   replayReceipt,
+  ensureImportFollowUps,
 } from './property-operation-receipts'
 import {
   awaitingRefreshGoogleReviewDestination,
@@ -80,52 +75,6 @@ function normalizeConfirmedProfile(profile: {
   return { name, address, timezone: profile.timezone, confirmedBy }
 }
 
-function summaryFromRow(
-  row: typeof properties.$inferSelect,
-): PropertyGoogleBindingSummary {
-  return {
-    state: row.googleBindingState as PropertyGoogleBindingSummary['state'],
-    sourceEpoch: row.sourceEpoch,
-    profileVersion: row.profileVersion,
-    profileSource: row.profileSource as PropertyGoogleBindingSummary['profileSource'],
-    profileConfirmedAt: row.profileConfirmedAt,
-  }
-}
-
-function internalFromRow(
-  row: typeof properties.$inferSelect,
-): PropertyGoogleBindingInternalView {
-  return {
-    organizationId: organizationId(row.organizationId),
-    propertyId: propertyId(row.id),
-    state: row.googleBindingState as PropertyGoogleBindingInternalView['state'],
-    connectionId: row.googleConnectionId
-      ? googleConnectionId(row.googleConnectionId)
-      : null,
-    accountId: row.gbpAccountId,
-    locationId: row.gbpLocationId,
-    sourceEpoch: row.sourceEpoch,
-    profileVersion: row.profileVersion,
-    profileSource:
-      row.profileSource as PropertyGoogleBindingInternalView['profileSource'],
-    profileConfirmedAt: row.profileConfirmedAt,
-    deletedAt: row.deletedAt,
-    name: row.name,
-    address: row.address,
-    countryCode: row.countryCode,
-    timezone: row.timezone,
-    lifecycleState: row.lifecycleState,
-    googleReviewDestination: {
-      state:
-        row.googleReviewDestinationState as PropertyGoogleBindingInternalView['googleReviewDestination']['state'],
-      uri: row.googleReviewUri,
-      retrievedAt: row.googleReviewDestinationRetrievedAt,
-      sourceEpoch: row.googleReviewDestinationSourceEpoch,
-      profileVersion: row.googleReviewDestinationProfileVersion,
-    },
-  }
-}
-
 function isUniqueViolation(error: unknown): boolean {
   if (typeof error !== 'object' || error === null) return false
   const candidate = error as { code?: unknown; cause?: unknown }
@@ -162,9 +111,10 @@ export const createPropertyGoogleBindingStore = (
     organizationIdValue,
     idempotencyKey,
     now,
+    transaction,
   ) => {
     validateIdempotencyKey(idempotencyKey)
-    const [row] = await db
+    const [row] = await (transaction ?? db)
       .select({ payload: idempotencyReceipts.payload })
       .from(idempotencyReceipts)
       .where(
@@ -234,6 +184,7 @@ export const createPropertyGoogleBindingStore = (
     },
 
     readReceipt,
+    ensureImportFollowUps,
 
     createBoundProperty: async (input) => {
       validateIdempotencyKey(input.idempotencyKey)
@@ -276,6 +227,7 @@ export const createPropertyGoogleBindingStore = (
         connectionId: connectionIdValue,
         sourceEpoch: input.property.sourceEpoch,
         change: 'created',
+        importFollowUps: true,
         occurredAt: input.now,
       })
 
@@ -502,6 +454,7 @@ export const createPropertyGoogleBindingStore = (
               connectionId: input.connectionId,
               sourceEpoch: nextSourceEpoch,
               change: 'relinked',
+              importFollowUps: true,
               occurredAt: input.now,
             })
             await insertOutboxRow(tx, event)

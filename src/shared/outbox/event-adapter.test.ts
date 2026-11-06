@@ -1,3 +1,5 @@
+import { googleConnectionId } from '#/shared/domain/ids'
+import { propertyGoogleBindingChanged } from '#/contexts/property/domain/events'
 // BQR-2.5 — allowlist validation at outbox insert.
 
 import { describe, it, expect, beforeEach } from 'vitest'
@@ -76,6 +78,23 @@ describe('toOutboxEvent allowlist (BQR-2.5)', () => {
         platform: z.string().optional(),
         occurredAt: z.string().optional(),
       }),
+    })
+  })
+
+  it('preserves explicit import follow-ups while retained binding facts remain unmarked', () => {
+    clearEventSchemas()
+    registerAllEventSchemas()
+    const binding = propertyGoogleBindingChanged({
+      organizationId: organizationId('org-1'),
+      propertyId: propertyId('20000000-0000-4000-8000-000000000002'),
+      connectionId: googleConnectionId('30000000-0000-4000-8000-000000000003'),
+      sourceEpoch: 1,
+      change: 'created',
+      occurredAt: NOW,
+    })
+    expect(toOutboxEvent(binding).payload).not.toHaveProperty('importFollowUps')
+    expect(toOutboxEvent({ ...binding, importFollowUps: true }).payload).toMatchObject({
+      importFollowUps: true,
     })
   })
 

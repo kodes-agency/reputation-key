@@ -318,7 +318,8 @@ export function createOutboxRepository(db: Database): OutboxRepository {
             WHERE o.published_at IS NOT NULL
               AND o.published_at <= ${input.cutoff}
               AND o.recovery_fenced_at IS NULL
-              AND o.consumer_redelivery_attempts < ${input.maxAttempts}
+              AND (o.consumer_redelivery_attempts < ${input.maxAttempts}
+                OR o.event_type = 'property.google_binding.changed')
               AND (
                 o.consumer_redelivery_next_at IS NULL
                 OR o.consumer_redelivery_next_at <= ${input.now}
@@ -342,7 +343,9 @@ export function createOutboxRepository(db: Database): OutboxRepository {
             UPDATE ${outboxEvents} AS o
             SET consumer_redelivery_attempts = o.consumer_redelivery_attempts + 1,
                 consumer_redelivery_next_at = ${input.now}::timestamptz
-                  + (${input.backoffBaseMs} * power(2, o.consumer_redelivery_attempts))
+                  + (${input.backoffBaseMs} * power(2, CASE WHEN o.event_type = 'property.google_binding.changed'
+                      THEN LEAST(o.consumer_redelivery_attempts, 3)
+                      ELSE o.consumer_redelivery_attempts END))
                     * INTERVAL '1 millisecond'
             FROM candidates
             WHERE o.id = candidates.id

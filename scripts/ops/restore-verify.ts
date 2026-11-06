@@ -117,7 +117,12 @@ async function main(): Promise<void> {
           await retentionHandler({} as never)
         },
         inspectRecoveryFence: () => inspectRecoveryFence(container.db),
-        applyRecoveryFence: (input) => applyRecoveryFence(container.db, input),
+        applyRecoveryFence: (input) =>
+          applyRecoveryFence(
+            container.db,
+            input,
+            container.integrationWorkerRuntime.completeImportsForRestore,
+          ),
         purgeEvidence: async (): Promise<ReadonlyArray<RestoreVerifyEvidenceRow>> => {
           const rows = await container.db.execute(sql`
             SELECT subject, rows_deleted, outcome, started_at

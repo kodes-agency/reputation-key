@@ -1,3 +1,7 @@
+import { completeGoogleImportsForRestore } from '#/contexts/integration/infrastructure/google-import-completion'
+import { createPropertyGoogleBindingStore } from '#/contexts/property/infrastructure/property-google-binding-store'
+import { fixHistoryCutoff } from '#/contexts/review/infrastructure/repositories/review-provider-snapshot.repository'
+import { organizationId, propertyId } from '#/shared/domain/ids'
 // REG-04 — real PostgreSQL proof for isolated-restore recovery fencing.
 //
 // This operation deliberately spans the restored database. The integration
@@ -32,6 +36,28 @@ describe('restore recovery fence (REG-04, integration)', () => {
 
     await expect(
       db.transaction(async (tx) => {
+        const completeImports = (
+          transaction: import('#/shared/outbox/commit').Tx,
+          now: Date,
+        ) =>
+          completeGoogleImportsForRestore(
+            transaction,
+            {
+              ensureImportFollowUps: createPropertyGoogleBindingStore(
+                transaction as unknown as Database,
+              ).ensureImportFollowUps,
+              readReceipt: createPropertyGoogleBindingStore(
+                transaction as unknown as Database,
+              ).readReceipt,
+              prepareImportSync: (ownerTx, scope) =>
+                fixHistoryCutoff(ownerTx, {
+                  ...scope,
+                  organizationId: organizationId(scope.organizationId),
+                  propertyId: propertyId(scope.propertyId),
+                }),
+            },
+            now,
+          )
         const transaction = tx as unknown as Database
         await transaction.execute(sql`
           INSERT INTO "user" (
@@ -118,13 +144,16 @@ describe('restore recovery fence (REG-04, integration)', () => {
             id, organization_id, import_job_id, connection_id,
             destination_property_id, provider_account_suffix, provider_location_suffix,
             expected_connection_lifecycle_version, expected_connection_access_version,
-            expected_credential_generation, action, update_existing_profile,
+            expected_credential_generation, expected_execution_policy_version,
+            expected_actor_role, expected_permission_digest, expected_principal_kind,
+            expected_permission_version, action, update_existing_profile,
             property_name, country_code, timezone, status, effect_deadline_at,
             created_at, updated_at
           )
           SELECT item_id, 'org-recovery-proof', ${IMPORT_V2_PARENT_ID}::uuid,
                  ${GOOGLE_CONNECTION_ID}::uuid, destination_id,
-                 'recovery-account', location_suffix, 1, 1, 1, 'create', true,
+                 'recovery-account', location_suffix, 1, 1, 1, 'beta-local-2',
+                 'AccountAdmin', repeat('a', 64), 'user', 1, 'create', true,
                  property_name, 'US', 'UTC', 'pending',
                  instant.at + interval '24 hours', instant.at, instant.at
           FROM instant
@@ -141,7 +170,7 @@ describe('restore recovery fence (REG-04, integration)', () => {
           INSERT INTO idempotency_receipts (scope, key, payload, recorded_at)
           VALUES (
             'property_operation',
-            ${IMPORT_V2_COMMITTED_ITEM_ID}::text,
+            ${JSON.stringify(['org-recovery-proof', IMPORT_V2_COMMITTED_ITEM_ID])},
             jsonb_build_object(
               'organizationId', 'org-recovery-proof',
               'idempotencyKey', ${IMPORT_V2_COMMITTED_ITEM_ID}::text,
@@ -185,7 +214,7 @@ describe('restore recovery fence (REG-04, integration)', () => {
           operatorId: 'restore-proof@example.com',
           correlationId: 'restore-proof-correlation',
         }
-        const first = await applyRecoveryFence(transaction, input)
+        const first = await applyRecoveryFence(transaction, input, completeImports)
         expect(first.replayed).toBe(false)
         expect(first.generation).toBeGreaterThanOrEqual(1)
         expect(first.counts.outboxEventsFenced).toBeGreaterThanOrEqual(1)
@@ -231,6 +260,7 @@ describe('restore recovery fence (REG-04, integration)', () => {
         `)
         expect(publication.rows[0]).toMatchObject({ publishedAt: null })
 
+        // Successful items retain the Property link, independently of execution authority.
         const authorityRows = await transaction.execute(sql`
           SELECT
             (SELECT count(*)::int FROM session WHERE id = ${SESSION_ID}) AS sessions,
@@ -242,10 +272,22 @@ describe('restore recovery fence (REG-04, integration)', () => {
             (SELECT outcome_code FROM gbp_import_request_items WHERE id = ${IMPORT_V2_CANCELLED_ITEM_ID}::uuid) AS v2_cancelled_outcome,
             (SELECT status FROM gbp_import_request_items WHERE id = ${IMPORT_V2_COMMITTED_ITEM_ID}::uuid) AS v2_committed_item,
             (SELECT outcome_code FROM gbp_import_request_items WHERE id = ${IMPORT_V2_COMMITTED_ITEM_ID}::uuid) AS v2_committed_outcome,
+            (SELECT destination_property_id FROM gbp_import_request_items WHERE id = ${IMPORT_V2_CANCELLED_ITEM_ID}::uuid) AS v2_cancelled_destination,
+            (SELECT destination_property_id FROM gbp_import_request_items WHERE id = ${IMPORT_V2_COMMITTED_ITEM_ID}::uuid) AS v2_committed_destination,
             (SELECT count(*)::int FROM gbp_import_request_items
               WHERE import_job_id = ${IMPORT_V2_PARENT_ID}::uuid
-                AND (connection_id IS NOT NULL OR destination_property_id IS NOT NULL
-                  OR claim_fence IS NOT NULL OR claim_lease_expires_at IS NOT NULL)) AS v2_authority_handles
+                AND (connection_id IS NOT NULL OR existing_property_id IS NOT NULL
+                  OR provider_account_suffix IS NOT NULL OR provider_location_suffix IS NOT NULL
+                  OR google_review_uri IS NOT NULL OR google_primary_category IS NOT NULL
+                  OR expected_connection_lifecycle_version IS NOT NULL
+                  OR expected_connection_access_version IS NOT NULL
+                  OR expected_credential_generation IS NOT NULL
+                  OR expected_execution_policy_version IS NOT NULL
+                  OR expected_actor_role IS NOT NULL OR expected_permission_digest IS NOT NULL
+                  OR expected_principal_kind IS NOT NULL OR expected_permission_version IS NOT NULL
+                  OR expected_source_epoch IS NOT NULL OR expected_profile_version IS NOT NULL
+                  OR claim_fence IS NOT NULL OR claim_lease_expires_at IS NOT NULL
+                  OR next_dispatch_at IS NOT NULL)) AS v2_authority_handles
         `)
         expect(authorityRows.rows[0]).toMatchObject({
           sessions: 0,
@@ -257,6 +299,8 @@ describe('restore recovery fence (REG-04, integration)', () => {
           v2_cancelled_outcome: 'authorization_changed',
           v2_committed_item: 'imported',
           v2_committed_outcome: 'imported',
+          v2_cancelled_destination: null,
+          v2_committed_destination: IMPORT_V2_PROPERTY_ID,
           v2_authority_handles: 0,
         })
 
@@ -282,7 +326,7 @@ describe('restore recovery fence (REG-04, integration)', () => {
         expect(replayBefore.sessionsInvalidated).toBeGreaterThanOrEqual(1)
         expect(replayBefore.outboxEventsFenced).toBeGreaterThanOrEqual(1)
 
-        const replay = await applyRecoveryFence(transaction, input)
+        const replay = await applyRecoveryFence(transaction, input, completeImports)
         expect(replay).toMatchObject({
           id: first.id,
           generation: first.generation,
@@ -302,16 +346,24 @@ describe('restore recovery fence (REG-04, integration)', () => {
         `)
         expect(replayFence.rows[0]).toMatchObject({ runId: first.id })
         await expect(
-          applyRecoveryFence(transaction, {
-            ...input,
-            sourceReleaseSha: 'c'.repeat(40),
-          }),
+          applyRecoveryFence(
+            transaction,
+            {
+              ...input,
+              sourceReleaseSha: 'c'.repeat(40),
+            },
+            completeImports,
+          ),
         ).rejects.toThrow(/identity, generation, or source binding conflicts/)
         await expect(
-          applyRecoveryFence(transaction, {
-            ...input,
-            operatorId: 'different-operator@example.com',
-          }),
+          applyRecoveryFence(
+            transaction,
+            {
+              ...input,
+              operatorId: 'different-operator@example.com',
+            },
+            completeImports,
+          ),
         ).rejects.toThrow(/identity, generation, or source binding conflicts/)
 
         proofCompleted = true

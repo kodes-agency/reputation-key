@@ -1,38 +1,26 @@
 import type { AuthContext } from '#/shared/domain/auth-context'
-import {
-  googleConnectionId,
-  organizationId,
-  propertyId,
-  type GoogleConnectionId,
-  type PropertyId,
-} from '#/shared/domain/ids'
+import { googleConnectionId, organizationId, propertyId } from '#/shared/domain/ids'
 import {
   buildGoogleImportedProperty,
   type PropertyGoogleBindingPublicApi,
 } from '#/contexts/property/application/public-api'
-import type { ReviewQueuePort } from '#/contexts/review/application/public-api'
-import type { PortalPublicDisplayNameDefaultPublicApi } from '#/contexts/portal/application/public-api'
 import type { LoggerPort } from '#/shared/domain/logger.port'
 import { jobRetryDelayUpperBoundMs } from '#/shared/jobs/job-policy'
 import type { GoogleImportCommandAuthorizer } from './google-import-discovery'
 import {
   EXPIRED_ITEM_WRITE,
   GOOGLE_PROPERTY_IMPORT_ITEM_JOB,
-  reconciledOutcomeCode,
   terminalWriteFor,
   type ImportOutcomeCode,
   type ImportProfileField,
 } from './google-import-v2-contract'
-import type {
-  GbpSubscribeOutcome,
-  ManageNotificationsApi,
-} from './use-cases/manage-notifications'
 import {
   GOOGLE_IMPORT_ITEM_CLAIM_LEASE_MS,
   GOOGLE_IMPORT_ITEM_MAX_ATTEMPTS,
   type GoogleImportV2ClaimedItem,
   type GoogleImportV2OutcomeDetail,
   type GoogleImportV2Store,
+  type GoogleImportV2TerminalAuthority,
 } from './ports/google-import-v2-store.port'
 import {
   googleImportErrorCode,
@@ -43,6 +31,7 @@ export type ProcessGoogleImportV2Item = Readonly<{
   organizationId: string
   itemId: string
   retryRevision: number
+  dispatchEpoch: number
   attemptOrdinal: number
 }>
 
@@ -53,20 +42,6 @@ export type GoogleImportV2Processor = Readonly<{
 type PropertyReceipt = NonNullable<
   Awaited<ReturnType<PropertyGoogleBindingPublicApi['readReceipt']>>
 >
-
-/**
- * The binding facts post-import follow-up needs, with the provider
- * identifiers already proven non-null. Follow-up cannot address Google
- * without all three, so resolving them is a single yes/no question rather
- * than three checks spread across the call site.
- */
-type ImportFollowUpTarget = Readonly<{
-  connectionId: GoogleConnectionId
-  accountId: string
-  locationId: string
-  /** The name the import confirmed; the public display name starts as it. */
-  propertyName: string
-}>
 
 type TerminalOutcome = Readonly<{
   outcomeCode: ImportOutcomeCode
@@ -156,41 +131,11 @@ function authorizationOutcome(
   }
 }
 
-/** Subscribe outcomes that leave nothing to report after an import. */
-const SETTLED_SUBSCRIBE_OUTCOMES: ReadonlySet<GbpSubscribeOutcome> = new Set([
-  'subscribed',
-  'already_subscribed',
-  'account_unresolved',
-  'topic_unset',
-])
-
 export function createGoogleImportV2Processor(
   deps: Readonly<{
     store: GoogleImportV2Store
     propertyBindingApi: PropertyGoogleBindingPublicApi
     authorizeGoogleImportCommand: GoogleImportCommandAuthorizer
-    enqueueReviewSync?: ReviewQueuePort['addSyncJob']
-    /**
-     * Tells Google to START publishing GBP notifications for this connection's
-     * account to our Pub/Sub topic — the counterpart of the unsubscribe the
-     * disconnect use case already performs. Called on the SAME receipt branch
-     * as `enqueueReviewSync`, because that branch is the definition of "this
-     * property is now live".
-     *
-     * Idempotent by construction: it resolves to a PATCH of the account's
-     * single `notificationSetting` resource, so re-importing, relinking, or
-     * re-running the ops backfill just re-asserts the same topic. Optional and
-     * best-effort — push is an optimization over the discovery sweep, never a
-     * correctness gate, so a failure is logged and the import proceeds.
-     */
-    subscribeToNotifications?: ManageNotificationsApi['subscribe']
-    /**
-     * Gives the Property its confirmed name as its public display name when it
-     * has none, so AI reply drafts are not refused straight after the import.
-     * Never replaces a name. Best-effort like the subscribe: the setup wizard
-     * and the Property's Profile settings can still set it.
-     */
-    defaultPublicDisplayName?: PortalPublicDisplayNameDefaultPublicApi['ensureDefaultPublicDisplayName']
     resolveActor: (organizationId: string, userId: string) => Promise<AuthContext | null>
     clock: () => Date
     newClaimFence: () => string
@@ -202,165 +147,15 @@ export function createGoogleImportV2Processor(
     logger: LoggerPort
   }>,
 ): GoogleImportV2Processor {
-  /**
-   * Resolve the binding that post-import follow-up (review backfill, public
-   * display name, GBP push subscribe) should target, or null when there is
-   * nothing to follow up on: no follow-up dependency is wired, the receipt is
-   * not a live import, or the binding is not an active one matching the
-   * receipt's source epoch.
-   *
-   * The epoch match is what makes follow-up safe to run at all — a binding
-   * that moved on since the receipt was written belongs to a later operation.
-   */
-  const readFollowUpTarget = async (
-    organizationIdValue: string,
-    receipt: PropertyReceipt,
-  ): Promise<ImportFollowUpTarget | null> => {
-    if (
-      !deps.enqueueReviewSync &&
-      !deps.subscribeToNotifications &&
-      !deps.defaultPublicDisplayName
-    ) {
-      return null
-    }
-    if (receipt.tombstone || receipt.destinationPropertyId === null) return null
-    if (receipt.outcome !== 'imported' && receipt.outcome !== 'relinked') return null
-
-    const binding = await deps.propertyBindingApi.readInternal(
-      organizationId(organizationIdValue),
-      receipt.destinationPropertyId,
-    )
-    if (
-      binding?.state !== 'active' ||
-      binding.connectionId === null ||
-      binding.accountId === null ||
-      binding.locationId === null ||
-      binding.sourceEpoch !== receipt.destinationSourceEpoch
-    ) {
-      return null
-    }
-    return {
-      connectionId: binding.connectionId,
-      accountId: binding.accountId,
-      locationId: binding.locationId,
-      propertyName: binding.name,
-    }
-  }
-
-  /**
-   * Start the public display name as the confirmed Property name. Swallows its
-   * own failure: reply drafting then asks for the name, which the setup wizard
-   * and Profile settings both set.
-   */
-  const defaultPublicDisplayNameBestEffort = async (
-    organizationIdValue: string,
-    itemId: string,
-    destinationPropertyId: PropertyId,
-    propertyName: string,
-  ): Promise<void> => {
-    if (!deps.defaultPublicDisplayName) return
-    try {
-      await deps.defaultPublicDisplayName({
-        organizationId: organizationId(organizationIdValue),
-        propertyId: destinationPropertyId,
-        displayName: propertyName,
-      })
-    } catch (error) {
-      // Content-free: the name itself is a Property profile field.
-      deps.logger.warn(
-        { itemId, errorName: error instanceof Error ? error.name : 'unknown' },
-        'Public display name default failed after import — reply drafting asks for the name until setup or Profile settings saves one',
-      )
-    }
-  }
-
-  /**
-   * Ask Google to push future reviews for this account. Swallows its own
-   * failure: the discovery sweep still finds new reviews, and the daily
-   * `reconcile-gbp-notification-subscriptions` job repairs the subscription.
-   */
-  const subscribeToNotificationsBestEffort = async (
-    organizationIdValue: string,
-    itemId: string,
-    connectionId: GoogleConnectionId,
-  ): Promise<void> => {
-    if (!deps.subscribeToNotifications) return
-    try {
-      const result = await deps.subscribeToNotifications(
-        organizationId(organizationIdValue),
-        connectionId,
-      )
-      // `topic_unset` already warned in the use case; `account_unresolved`
-      // means no bound account to subscribe. Anything else short of
-      // subscribed is worth seeing now, not only in tomorrow's summary.
-      if (!SETTLED_SUBSCRIBE_OUTCOMES.has(result.outcome)) {
-        deps.logger.warn(
-          {
-            itemId,
-            outcome: result.outcome,
-            failureCodes: result.accounts.failureCodes,
-          },
-          'GBP notification subscribe did not complete after import — push stays dark for this account until the daily subscription reconciliation; discovery sweep unaffected',
-        )
-      }
-    } catch (error) {
-      // Content-free, matching the capability-provisioning warn below.
-      deps.logger.warn(
-        {
-          itemId,
-          errorName: error instanceof Error ? error.name : 'unknown',
-          errorCode: googleImportErrorCode(error),
-        },
-        'GBP notification subscribe failed after import — push stays dark for this account until the daily subscription reconciliation; discovery sweep unaffected',
-      )
-    }
-  }
-
   const reconcileKnownReceipt = async (
     organizationIdValue: string,
     itemId: string,
-    receipt: PropertyReceipt,
+    _receipt: PropertyReceipt,
     now: Date,
   ): Promise<void> => {
-    const target = await readFollowUpTarget(organizationIdValue, receipt)
-    if (target && receipt.destinationPropertyId !== null) {
-      if (deps.enqueueReviewSync) {
-        await deps.enqueueReviewSync(
-          {
-            organizationId: organizationIdValue,
-            propertyId: receipt.destinationPropertyId,
-            connectionId: target.connectionId,
-            locationName: `accounts/${target.accountId}/locations/${target.locationId}`,
-            initiator: {
-              kind: 'system',
-              id: 'google-property-import',
-            },
-            correlationId: `google-import:${itemId}`,
-          },
-          {
-            jobId: `review-sync-${receipt.destinationPropertyId}-source-epoch-${receipt.destinationSourceEpoch}`,
-          },
-        )
-      }
-      await defaultPublicDisplayNameBestEffort(
-        organizationIdValue,
-        itemId,
-        receipt.destinationPropertyId,
-        target.propertyName,
-      )
-      // Runs AFTER the sync enqueue so a subscribe outage cannot delay the
-      // backfill that makes the property usable.
-      await subscribeToNotificationsBestEffort(
-        organizationIdValue,
-        itemId,
-        target.connectionId,
-      )
-    }
     await deps.store.reconcileFromReceipt({
       organizationId: organizationIdValue,
       itemId,
-      destinationPropertyId: receipt.destinationPropertyId,
-      outcomeCode: reconciledOutcomeCode(receipt),
       now,
     })
   }
@@ -391,6 +186,7 @@ export function createGoogleImportV2Processor(
       organizationId: item.organizationId,
       itemId: item.itemId,
       retryRevision: item.retryRevision,
+      dispatchEpoch: item.dispatchEpoch,
       claimFence: item.claimFence,
       ...terminalWriteFor(outcomeCode, item.effectDeadlineAt, now),
       now,
@@ -446,6 +242,7 @@ export function createGoogleImportV2Processor(
         organizationId: item.organizationId,
         itemId: item.itemId,
         retryRevision: item.retryRevision,
+        dispatchEpoch: item.dispatchEpoch,
         claimFence: item.claimFence,
         now,
       })
@@ -459,14 +256,21 @@ export function createGoogleImportV2Processor(
     await complete(item, 'temporarily_unavailable')
   }
 
-  const terminalizeExpired = async (input: ProcessGoogleImportV2Item): Promise<void> => {
+  const terminalizeUnclaimed = async (
+    input: ProcessGoogleImportV2Item,
+    authority: GoogleImportV2TerminalAuthority,
+    exhaustedUntil: Date | null,
+  ): Promise<void> => {
     const now = deps.clock()
     if (await reconcileReceipt(input.organizationId, input.itemId, now)) return
     await deps.store.terminalizeItem({
       organizationId: input.organizationId,
       itemId: input.itemId,
       retryRevision: input.retryRevision,
-      ...EXPIRED_ITEM_WRITE,
+      authority,
+      ...(exhaustedUntil
+        ? terminalWriteFor('temporarily_unavailable', exhaustedUntil, now)
+        : EXPIRED_ITEM_WRITE),
       now,
     })
   }
@@ -498,6 +302,7 @@ export function createGoogleImportV2Processor(
           itemId: item.itemId,
           retryRevision: item.retryRevision,
           attemptOrdinal: item.attemptOrdinal,
+          dispatchEpoch: item.dispatchEpoch,
           claimFence: item.claimFence,
           now,
         },
@@ -597,13 +402,25 @@ export function createGoogleImportV2Processor(
       )
 
       if (execution.kind === 'lost') return
-      if (execution.kind === 'effect_expired') {
-        return terminalizeExpired({
-          organizationId: item.organizationId,
-          itemId: item.itemId,
-          retryRevision: item.retryRevision,
-          attemptOrdinal: item.attemptOrdinal,
-        })
+      if (
+        execution.kind === 'effect_expired' ||
+        execution.value.kind === 'effect_expired'
+      ) {
+        return terminalizeUnclaimed(
+          {
+            organizationId: item.organizationId,
+            itemId: item.itemId,
+            retryRevision: item.retryRevision,
+            dispatchEpoch: item.dispatchEpoch,
+            attemptOrdinal: item.attemptOrdinal,
+          },
+          {
+            kind: 'claim',
+            dispatchEpoch: item.dispatchEpoch,
+            claimFence: item.claimFence,
+          },
+          null,
+        )
       }
       if (execution.value.kind === 'receipt') {
         await reconcileKnownReceipt(
@@ -613,14 +430,6 @@ export function createGoogleImportV2Processor(
           now,
         )
         return
-      }
-      if (execution.value.kind === 'effect_expired') {
-        return terminalizeExpired({
-          organizationId: item.organizationId,
-          itemId: item.itemId,
-          retryRevision: item.retryRevision,
-          attemptOrdinal: item.attemptOrdinal,
-        })
       }
       if (execution.value.kind === 'terminal') {
         return complete(item, execution.value.outcomeCode)
@@ -661,6 +470,8 @@ export function createGoogleImportV2Processor(
   return Object.freeze({
     process: async (input) => {
       if (
+        !Number.isSafeInteger(input.dispatchEpoch) ||
+        input.dispatchEpoch < 0 ||
         !Number.isSafeInteger(input.retryRevision) ||
         input.retryRevision < 0 ||
         !Number.isSafeInteger(input.attemptOrdinal) ||
@@ -675,28 +486,23 @@ export function createGoogleImportV2Processor(
         organizationId: input.organizationId,
         itemId: input.itemId,
         retryRevision: input.retryRevision,
+        dispatchEpoch: input.dispatchEpoch,
         attemptOrdinal: input.attemptOrdinal,
         claimFence: deps.newClaimFence(),
         now,
         leaseExpiresAt: new Date(now.getTime() + GOOGLE_IMPORT_ITEM_CLAIM_LEASE_MS),
       })
       if (claim.kind !== 'claimed') {
-        if (claim.reason === 'effect_expired') {
-          await terminalizeExpired(input)
+        if (claim.reason === 'effect_expired' || claim.reason === 'attempts_exhausted') {
+          await terminalizeUnclaimed(
+            input,
+            claim.authority,
+            claim.reason === 'attempts_exhausted' ? claim.effectDeadlineAt : null,
+          )
           return
         }
-        // A live claim lease means another attempt owns this item right now —
-        // or owned it inside a worker that was killed mid-effect. Returning
-        // normally would mark THIS BullMQ attempt completed, and if the
-        // arrival was BullMQ's single permitted stalled recovery
-        // (maxStalledCount 1) nothing would ever re-dispatch the item: the
-        // row would stay 'processing' until its effect deadline hours later.
-        // Throwing keeps the attempt budget alive, so the job retries after
-        // backoff; by then the 60s lease has expired (worker.ts pins
-        // lockDuration/stalledInterval above it) and claimItem takes the item
-        // over under a fresh fence. Re-claiming is safe: the claim path is
-        // idempotent and every effect is fenced by claimFence, so the loser
-        // of the race commits nothing.
+        // Keep this delivery retryable while a live owner holds the row.
+        // The durable appointment also recovers a lost or exhausted queue job.
         if (claim.reason === 'claim_active') {
           throw new Error('Google import item claim lease is still active')
         }

@@ -8,6 +8,7 @@ export type GoogleImportV2ItemJobData = Readonly<{
   importJobId: string
   itemId: string
   retryRevision: number
+  dispatchEpoch: number
 }>
 
 export type GoogleImportV2QueuePort = Readonly<{
