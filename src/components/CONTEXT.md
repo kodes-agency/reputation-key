@@ -545,6 +545,17 @@ Use TanStack Form, Zod v4 DTO schemas, and shadcn fields. The owning context's
 `application/dto/` schema is the source; derive a form shape with `.required()`,
 `.extend()`, or `.omit()` rather than copying validation.
 
+Use an explicit Save or command button for ordinary forms. Keep the established
+coordinators for Portal autosave, the reply composer, goal sheets, reply templates
+and Google import rows; their draft, revision and per-row progress rules remain
+with those features. This convention does not replace those workflows.
+
+All shared fields use `FormFieldFrame`: `field`, then `field-label`, the control,
+`field-description` when present, and `field-error` when refused. The label targets
+the control's id; `describedByOf` joins the help and current error ids for
+`aria-describedby`. Keep `data-invalid` on the field and `aria-invalid` on the
+control. Use the same slots for a custom control inside the frame.
+
 Validate on submit unless the interaction has a specific live-validation need.
 Drive pending/error/result UI from the sanctioned `Action`; do not call a server
 function directly or hand-roll submission state. Shared building blocks include
@@ -552,6 +563,9 @@ function directly or hand-roll submission state. Shared building blocks include
 `onSubmit` is `submitHandler(form)` (`forms/form-submit.ts`), never a copy of its
 `preventDefault` / `stopPropagation` / `handleSubmit`; a key shortcut calls
 `submitForm(form)`.
+
+`Switch` keeps its compact track and provides a centered 44 px hit area for both
+sizes. Boolean settings still compose it through `SettingSwitchRow`.
 
 ## Queries and actions
 
