@@ -1,28 +1,18 @@
-// Migration journal: what is on disk, and whether a database could apply it.
-//
-// `drizzle/meta/_journal.json` is the order of record. drizzle-orm's migrator
-// reads the newest applied row and then applies each entry, in array order,
-// whose `when` is GREATER than that row's `created_at`. Position decides the
-// order on an empty database; `when` decides whether an entry runs at all on a
-// database that is already migrated. The file is appended by hand, so both are
-// typed, and they must agree: every entry's `when` has to rise above the entry
-// before it, or the entry is applied in CI (which migrates an empty database)
-// and silently skipped on the deployed one.
-//
-// The file alone cannot say which entries a deployed database has applied. The
-// journal the base branch holds can: every entry there must still be here,
-// unchanged and at the same position (validateJournalIsAppendOnly).
-//
-// Shared/db only: consumed by ./schema-drift.ts, which backs
-// `pnpm check:schema-drift` and migration-verification.test.ts, and by
-// scripts/check-migration-journal.ts, which reads the base journal from git.
+// The journal is chronologically ordered, append-only schema history. Applied
+// rows retain each file's timestamp and hash. Prerequisites can execute before
+// historical files on an empty database without moving their journal entries.
 
 import { createHash } from 'node:crypto'
 import { readFileSync, readdirSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { join } from 'node:path'
 
-export type MigrationJournalEntry = Readonly<{ idx: number; tag: string; when: number }>
+export type MigrationJournalEntry = Readonly<{
+  idx: number
+  tag: string
+  when: number
+  prerequisite?: boolean
+}>
 
 /** A fault in the journal: the object it concerns and what is wrong with it. */
 export type MigrationJournalFault = Readonly<{ object: string; detail: string }>
@@ -139,7 +129,7 @@ export function validateMigrationJournal(
 const ENTRY_ON_MAIN_IS_FIXED =
   'an entry already on main keeps its position, idx and when, because a deployed database has applied it as main states it'
 
-const FIXED_FIELDS = ['idx', 'when'] as const
+const FIXED_FIELDS = ['idx', 'when', 'prerequisite'] as const
 
 /** An entry still at its base position: its `idx` and `when` must not differ. */
 function changedFaults(

@@ -15,10 +15,9 @@
 // statement on the pool of `src/shared/auth/auth-cli.ts`, which bounds every
 // connection it opens (`boundMigrationLockWait`).
 //
-// What it does not bound is how long the migrator HOLDS a lock: drizzle
-// applies every pending file in one transaction, so the first file's locks
-// are kept until the last file's statements finish. An application statement
-// waiting on one of them is failed by its own 10 s bound.
+// What it does not bound is how long the migrator HOLDS a lock: each file
+// keeps its locks until that file commits. An application statement waiting
+// on one of them is failed by its own 10 s bound.
 
 /** Below the application's bound, so sessions queued behind the migrator are released first. */
 export const MIGRATION_LOCK_TIMEOUT_MS = 5_000
@@ -39,15 +38,9 @@ export async function boundMigrationLockWait(session: MigrationSession): Promise
 }
 
 /**
- * Applies the journal with the lock wait bounded, then lifts the bound: the
- * concurrent-index sidecar runs next on the same session, and
- * `CREATE INDEX CONCURRENTLY` may rightly wait for an old transaction longer
- * than a migration may wait for a lock.
- *
- * A failure leaves the bound set, and deliberately has no `finally`: the
- * runner reads the journal state next on this session, which must not hang on
- * the lock that just failed the journal, and a reset sent on a broken
- * connection would replace the failure worth reading.
+ * Bounds every journal statement, including autocommit index builds. A failed
+ * run leaves the bound set so failure inspection cannot hang on the same lock.
+ * Successful runs reset it before the caller continues with other work.
  */
 export async function withMigrationLockTimeout<T>(
   session: MigrationSession,

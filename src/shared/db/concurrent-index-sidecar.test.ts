@@ -2,9 +2,9 @@ import type { QueryResult } from 'pg'
 import { describe, expect, it } from 'vitest'
 import {
   buildConcurrentIndex,
-  ConcurrentIndexSidecarError,
+  ConcurrentIndexMigrationError,
   type SqlClient,
-} from './concurrent-index-sidecar'
+} from './concurrent-index-migration'
 import type { ConcurrentIndexSpec } from './concurrent-index-registry'
 
 const SPEC: ConcurrentIndexSpec = Object.freeze({
@@ -13,7 +13,8 @@ const SPEC: ConcurrentIndexSpec = Object.freeze({
   columns: ['organization_id', 'widget_id'],
   unique: false,
   hasPredicate: true,
-  createSql: 'CREATE INDEX CONCURRENTLY "widgets_scope_idx" ON "widgets" (...)',
+  createSql:
+    'CREATE INDEX CONCURRENTLY "widgets_scope_idx" ON "widgets" ("organization_id", "widget_id") WHERE "active" IS TRUE',
 })
 
 type IndexRow = Readonly<{
@@ -22,6 +23,7 @@ type IndexRow = Readonly<{
   indisunique: boolean
   key_columns: readonly string[]
   has_predicate: boolean
+  predicate: string | null
 }>
 
 const MATCHING_ROW: IndexRow = Object.freeze({
@@ -30,6 +32,7 @@ const MATCHING_ROW: IndexRow = Object.freeze({
   indisunique: false,
   key_columns: SPEC.columns,
   has_predicate: true,
+  predicate: '(active IS TRUE)',
 })
 
 /**
@@ -45,9 +48,15 @@ function fakeClient(options: {
   indexRow?: IndexRow | null
   /** Row the inspect query returns after a successful CREATE. */
   createResultRow?: IndexRow
-  failOn?: 'inspect' | 'lock' | 'drop' | 'create'
+  failOn?: 'inspect' | 'lock' | 'drop' | 'create' | 'predicate'
 }): SqlClient {
   const state: { indexRow: IndexRow | null } = { indexRow: options.indexRow ?? null }
+
+  function recordQuery(operation: 'lock' | 'inspect' | 'drop' | 'create'): void {
+    options.events.push(operation)
+    if (options.failOn === operation) throw new Error(`${operation} failed`)
+  }
+
   return {
     async query<TRow extends Record<string, unknown>>(
       text: string,
@@ -62,28 +71,35 @@ function fakeClient(options: {
         }) as QueryResult<TRow>
 
       if (text.includes('pg_try_advisory_lock')) {
-        options.events.push('lock')
-        if (options.failOn === 'lock') throw new Error('lock failed')
+        recordQuery('lock')
         return result([{ acquired: options.acquired ?? true }])
       }
       if (text.includes('pg_advisory_unlock')) {
         options.events.push('unlock')
         return result([{ released: true }])
       }
+      if (text.includes('AS expected_predicate')) {
+        if (options.failOn === 'predicate') throw new Error('predicate lookup failed')
+        return result([{ expected_predicate: MATCHING_ROW.predicate }])
+      }
+      if (
+        text.startsWith('CREATE TEMP TABLE') ||
+        text.startsWith('CREATE INDEX ON pg_temp.') ||
+        text.startsWith('DROP TABLE pg_temp.')
+      ) {
+        return result([])
+      }
       if (text.includes('FROM pg_index')) {
-        options.events.push('inspect')
-        if (options.failOn === 'inspect') throw new Error('inspect failed')
+        recordQuery('inspect')
         return result(state.indexRow ? [state.indexRow] : [])
       }
       if (text.includes('DROP INDEX CONCURRENTLY')) {
-        options.events.push('drop')
-        if (options.failOn === 'drop') throw new Error('drop failed')
+        recordQuery('drop')
         state.indexRow = null
         return result([])
       }
-      if (text.includes('CREATE INDEX CONCURRENTLY')) {
-        options.events.push('create')
-        if (options.failOn === 'create') throw new Error('create failed')
+      if (/^CREATE (?:UNIQUE )?INDEX CONCURRENTLY/.test(text)) {
+        recordQuery('create')
         state.indexRow = options.createResultRow ?? MATCHING_ROW
         return result([])
       }
@@ -93,6 +109,33 @@ function fakeClient(options: {
 }
 
 describe('buildConcurrentIndex', () => {
+  it.each([false, true])(
+    'rebuilds a completed partial index with the wrong predicate (unique=%s)',
+    async (unique) => {
+      const events: string[] = []
+      const spec = {
+        ...SPEC,
+        unique,
+        createSql: unique
+          ? SPEC.createSql.replace('CREATE INDEX', 'CREATE UNIQUE INDEX')
+          : SPEC.createSql,
+      }
+      const matchingRow = { ...MATCHING_ROW, indisunique: unique }
+      const client = fakeClient({
+        events,
+        indexRow: { ...matchingRow, predicate: '(active IS FALSE)' },
+        createResultRow: matchingRow,
+      })
+
+      await expect(buildConcurrentIndex(client, spec)).resolves.toEqual({
+        name: SPEC.name,
+        ok: true,
+        code: 'recreated',
+      })
+      expect(events).toEqual(['lock', 'inspect', 'drop', 'create', 'inspect', 'unlock'])
+    },
+  )
+
   it('does nothing when a matching, valid index already exists', async () => {
     const events: string[] = []
     const client = fakeClient({ events, indexRow: MATCHING_ROW })
@@ -103,6 +146,29 @@ describe('buildConcurrentIndex', () => {
       code: 'ready',
     })
     expect(events).toEqual(['lock', 'inspect', 'unlock'])
+  })
+
+  it('preserves the existing index and releases its lock if predicate verification fails', async () => {
+    const events: string[] = []
+    const client = fakeClient({ events, indexRow: MATCHING_ROW, failOn: 'predicate' })
+
+    await expect(buildConcurrentIndex(client, SPEC)).rejects.toMatchObject({
+      safeCode: 'index_definition_failed',
+    })
+    expect(events).toEqual(['lock', 'inspect', 'unlock'])
+  })
+
+  it('refuses a build whose recorded predicate still differs from the requested predicate', async () => {
+    const events: string[] = []
+    const client = fakeClient({
+      events,
+      createResultRow: { ...MATCHING_ROW, predicate: '(active IS FALSE)' },
+    })
+
+    await expect(buildConcurrentIndex(client, SPEC)).resolves.toMatchObject({
+      ok: false,
+      code: 'index_invalid',
+    })
   })
 
   it('creates the index when none exists yet', async () => {
@@ -160,7 +226,7 @@ describe('buildConcurrentIndex', () => {
     expect(events).toEqual(['lock', 'inspect', 'create', 'inspect', 'unlock'])
   })
 
-  it('throws ConcurrentIndexSidecarError with a safe code when the catalog inspection query fails', async () => {
+  it('throws ConcurrentIndexMigrationError with a safe code when the catalog inspection query fails', async () => {
     const events: string[] = []
     const client = fakeClient({ events, indexRow: null, failOn: 'inspect' })
 
@@ -168,8 +234,8 @@ describe('buildConcurrentIndex', () => {
       (caught: unknown) => caught,
     )
 
-    expect(error).toBeInstanceOf(ConcurrentIndexSidecarError)
-    expect((error as ConcurrentIndexSidecarError).safeCode).toBe(
+    expect(error).toBeInstanceOf(ConcurrentIndexMigrationError)
+    expect((error as ConcurrentIndexMigrationError).safeCode).toBe(
       'index_inspection_failed',
     )
   })
@@ -182,8 +248,8 @@ describe('buildConcurrentIndex', () => {
       (caught: unknown) => caught,
     )
 
-    expect(error).toBeInstanceOf(ConcurrentIndexSidecarError)
-    expect((error as ConcurrentIndexSidecarError).safeCode).toBe('index_build_failed')
+    expect(error).toBeInstanceOf(ConcurrentIndexMigrationError)
+    expect((error as ConcurrentIndexMigrationError).safeCode).toBe('index_build_failed')
     expect(events).toEqual(['lock', 'inspect', 'create', 'unlock'])
   })
 })

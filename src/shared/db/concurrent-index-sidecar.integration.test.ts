@@ -10,7 +10,7 @@ import { randomUUID } from 'node:crypto'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { getEnv } from '#/shared/config/env'
 import { acquireTestLease, type TestLease } from '#/shared/testing/test-environment-lease'
-import { buildConcurrentIndex } from './concurrent-index-sidecar'
+import { buildConcurrentIndex } from './concurrent-index-migration'
 import { CONCURRENT_INDEX_REGISTRY } from './concurrent-index-registry'
 
 function specFor(name: string): (typeof CONCURRENT_INDEX_REGISTRY)[number] {
