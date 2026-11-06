@@ -25,6 +25,7 @@ function browserDocument() {
     body: { querySelectorAll: () => [] },
     querySelectorAll: vi.fn(() => [] as Element[]),
     fonts: { ready: Promise.resolve() },
+    getAnimations: vi.fn((): unknown[] => []),
   }
   Object.assign(view, { document: doc })
   const setViewport = vi.fn(async (width: number, height: number) => {
@@ -96,6 +97,63 @@ describe('phone-width measurements', () => {
     setViewport.mockRejectedValueOnce(new Error('resize failed'))
     await expect(measurePhoneWidths(doc)).rejects.toThrow('resize failed')
     expect(setViewport).toHaveBeenLastCalledWith(1200, 800)
+  })
+
+  function animation(endTime: number, finished: Promise<unknown>) {
+    return {
+      playState: 'running',
+      effect: { getComputedTiming: () => ({ endTime }) },
+      finished,
+    }
+  }
+
+  it('measures where a transition comes to rest', async () => {
+    const { doc } = browserDocument()
+    let landed = false
+    const arriving = animation(
+      300,
+      new Promise<void>((resolve) =>
+        setTimeout(() => {
+          landed = true
+          resolve()
+        }, 0),
+      ),
+    )
+    vi.mocked(doc.getAnimations).mockReturnValue([arriving as unknown as Animation])
+    Object.defineProperty(doc.documentElement, 'scrollWidth', {
+      get: () => (landed ? 0 : 340),
+    })
+    await expect(measurePhoneWidths(doc)).resolves.toEqual([
+      { width: 320, overflow: [], targets: [] },
+      { width: 390, overflow: [], targets: [] },
+    ])
+  })
+
+  it('does not wait for a looping animation', async () => {
+    vi.useFakeTimers({ toFake: ['setTimeout'] })
+    try {
+      const { doc } = browserDocument()
+      const spinner = animation(Infinity, new Promise(() => {}))
+      vi.mocked(doc.getAnimations).mockReturnValue([spinner as unknown as Animation])
+      await expect(measurePhoneWidths(doc)).resolves.toHaveLength(2)
+      expect(vi.getTimerCount()).toBe(0)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('measures a stalled transition after a second rather than waiting for ever', async () => {
+    vi.useFakeTimers({ toFake: ['setTimeout'] })
+    try {
+      const { doc } = browserDocument()
+      const stalled = animation(300, new Promise(() => {}))
+      vi.mocked(doc.getAnimations).mockReturnValue([stalled as unknown as Animation])
+      const measuring = measurePhoneWidths(doc)
+      await vi.advanceTimersByTimeAsync(2_000)
+      await expect(measuring).resolves.toHaveLength(2)
+    } finally {
+      vi.useRealTimers()
+    }
   })
 
   it('refuses to report both widths when no runner can resize the viewport', async () => {

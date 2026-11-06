@@ -8187,7 +8187,7 @@
     "storyId": "notification-notificationpanel--urgent-arrival-shows-a-toast",
     "state": "Urgent Arrival Shows A Toast",
     "width": 320,
-    "checks": ["targets"]
+    "checks": ["overflow", "targets"]
   },
   {
     "storyId": "notification-notificationpanel--urgent-arrival-shows-a-toast",
