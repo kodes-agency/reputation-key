@@ -2,6 +2,10 @@
 // Per architecture: pure functions, the only place where both row and domain shapes are known.
 
 import type { properties } from '#/shared/db/schema/property.schema'
+import type {
+  PropertyGoogleBindingInternalView,
+  PropertyGoogleBindingSummary,
+} from '../../application/ports/property-google-binding.port'
 import type { Property } from '../../domain/types'
 import type { PropertyLifecycleState } from '../../domain/property-lifecycle'
 import { unbrand } from '#/shared/domain/ids'
@@ -124,3 +128,49 @@ export const propertyToRow = (property: Property): PropertyInsertRow => ({
   responsibleManagerRevision: property.responsibleManagerRevision,
   responsibilityNeededSince: property.responsibilityNeededSince,
 })
+
+export function summaryFromRow(
+  row: typeof properties.$inferSelect,
+): PropertyGoogleBindingSummary {
+  return {
+    state: row.googleBindingState as PropertyGoogleBindingSummary['state'],
+    sourceEpoch: row.sourceEpoch,
+    profileVersion: row.profileVersion,
+    profileSource: row.profileSource as PropertyGoogleBindingSummary['profileSource'],
+    profileConfirmedAt: row.profileConfirmedAt,
+  }
+}
+
+export function internalFromRow(
+  row: typeof properties.$inferSelect,
+): PropertyGoogleBindingInternalView {
+  return {
+    organizationId: organizationId(row.organizationId),
+    propertyId: propertyId(row.id),
+    state: row.googleBindingState as PropertyGoogleBindingInternalView['state'],
+    connectionId: row.googleConnectionId
+      ? googleConnectionId(row.googleConnectionId)
+      : null,
+    accountId: row.gbpAccountId,
+    locationId: row.gbpLocationId,
+    sourceEpoch: row.sourceEpoch,
+    profileVersion: row.profileVersion,
+    profileSource:
+      row.profileSource as PropertyGoogleBindingInternalView['profileSource'],
+    profileConfirmedAt: row.profileConfirmedAt,
+    deletedAt: row.deletedAt,
+    name: row.name,
+    address: row.address,
+    countryCode: row.countryCode,
+    timezone: row.timezone,
+    lifecycleState: row.lifecycleState,
+    googleReviewDestination: {
+      state:
+        row.googleReviewDestinationState as PropertyGoogleBindingInternalView['googleReviewDestination']['state'],
+      uri: row.googleReviewUri,
+      retrievedAt: row.googleReviewDestinationRetrievedAt,
+      sourceEpoch: row.googleReviewDestinationSourceEpoch,
+      profileVersion: row.googleReviewDestinationProfileVersion,
+    },
+  }
+}

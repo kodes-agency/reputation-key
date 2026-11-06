@@ -63,6 +63,7 @@ const GOOGLE_BINDING_MEMBERS = Object.keys({
   readByLocationIds: true,
   readSummary: true,
   readReceipt: true,
+  ensureImportFollowUps: true,
   createBoundProperty: true,
   relink: true,
   disconnect: true,

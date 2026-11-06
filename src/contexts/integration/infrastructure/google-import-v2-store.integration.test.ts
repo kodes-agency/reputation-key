@@ -1,3 +1,8 @@
+import { buildGoogleImportedProperty } from '#/contexts/property/application/public-api'
+import { properties } from '#/shared/db/schema/property.schema'
+import { googleConnectionId } from '#/shared/domain/ids'
+import { fixHistoryCutoff } from '#/contexts/review/infrastructure/repositories/review-provider-snapshot.repository'
+import { organizationId, propertyId } from '#/shared/domain/ids'
 import { randomUUID } from 'node:crypto'
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
 import { and, eq, sql } from 'drizzle-orm'
@@ -15,6 +20,9 @@ import type {
   GoogleImportV2SagaIntent,
 } from '../application/ports/google-import-v2-store.port'
 import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
+import { createMockLogger } from '#/shared/testing/mock-logger'
+import { createPropertyGoogleBindingStore } from '#/contexts/property/infrastructure/property-google-binding-store'
+import { createGoogleImportV2Processor } from '../application/google-import-v2-processor'
 import { createGoogleImportV2ClaimReaper } from '../application/google-import-v2-claim-reaper'
 import { createGoogleImportV2Lifecycle } from '../application/google-import-v2-lifecycle'
 import { createGoogleImportV2Store } from './google-import-v2-store'
@@ -93,13 +101,22 @@ function intent(now = NOW, googlePrimaryCategory?: string | null): GoogleImportV
 
 describe('Google import v2 fenced store (real PostgreSQL)', () => {
   const db = getDb()
-  const store = createGoogleImportV2Store(db, () => NOW)
+  const store = createGoogleImportV2Store(db, () => NOW, {
+    ensureImportFollowUps: createPropertyGoogleBindingStore(db).ensureImportFollowUps,
+    readReceipt: createPropertyGoogleBindingStore(db).readReceipt,
+    prepareImportSync: (tx, scope) =>
+      fixHistoryCutoff(tx, {
+        ...scope,
+        organizationId: organizationId(scope.organizationId),
+        propertyId: propertyId(scope.propertyId),
+      }),
+  })
   const clearRetryReceipts = async () => {
     await db
       .delete(idempotencyReceipts)
       .where(
         and(
-          eq(idempotencyReceipts.scope, 'gbp_import_item_retry'),
+          sql`${idempotencyReceipts.scope} IN ('gbp_import_item_retry', 'property_operation')`,
           sql`${idempotencyReceipts.payload}->>'organizationId' = ${ORG_ID}`,
         ),
       )
@@ -108,6 +125,7 @@ describe('Google import v2 fenced store (real PostgreSQL)', () => {
     await clearRetryReceipts()
     await db.delete(gbpImportRequests).where(eq(gbpImportRequests.organizationId, ORG_ID))
     await db.delete(gbpImportSagas).where(eq(gbpImportSagas.organizationId, ORG_ID))
+    await db.delete(properties).where(eq(properties.organizationId, ORG_ID))
     await db.delete(outboxEvents).where(eq(outboxEvents.organizationId, ORG_ID))
     await db.delete(googleConnections).where(eq(googleConnections.organizationId, ORG_ID))
     await deleteTestOrganizations(db, [ORG_ID])
@@ -116,11 +134,57 @@ describe('Google import v2 fenced store (real PostgreSQL)', () => {
     await clearRetryReceipts()
     await db.delete(gbpImportRequests).where(eq(gbpImportRequests.organizationId, ORG_ID))
     await db.delete(gbpImportSagas).where(eq(gbpImportSagas.organizationId, ORG_ID))
+    await db.delete(properties).where(eq(properties.organizationId, ORG_ID))
     await db.delete(outboxEvents).where(eq(outboxEvents.organizationId, ORG_ID))
+  }
+  const reapAt = (now: Date) => {
+    const logger = createMockLogger()
+    const processor = createGoogleImportV2Processor({
+      store,
+      propertyBindingApi: createPropertyGoogleBindingStore(db),
+      authorizeGoogleImportCommand: async () => ({
+        ok: false,
+        code: 'authorization_changed',
+      }),
+      resolveActor: async () => null,
+      clock: () => now,
+      newClaimFence: randomUUID,
+      logger,
+    })
+    return createGoogleImportV2ClaimReaper({
+      store,
+      processItem: processor.process,
+      queue: { addImportItemJobs: vi.fn(async () => undefined) },
+      clock: () => now,
+      newDeliveryId: randomUUID,
+      logger,
+    })()
   }
   const resetIntent = async () => {
     await resetStorage()
     await expect(store.commitIntent(intent())).resolves.toBe('committed')
+  }
+
+  const recordReceipt = async (destination = PROPERTY_ID) => {
+    await createPropertyGoogleBindingStore(db).createBoundProperty({
+      organizationId: organizationId(ORG_ID),
+      idempotencyKey: ITEM_ID,
+      now: NOW,
+      property: buildGoogleImportedProperty({
+        organizationId: organizationId(ORG_ID),
+        propertyId: propertyId(destination),
+        importItemId: ITEM_ID,
+        connectionId: googleConnectionId(CONNECTION_ID),
+        accountId: 'account-1',
+        locationId: 'location-1',
+        name: 'Confirmed property',
+        address: null,
+        countryCode: 'US',
+        timezone: 'UTC',
+        confirmedBy: USER_ID,
+        now: NOW,
+      }),
+    })
   }
 
   beforeAll(async () => {
@@ -231,7 +295,6 @@ describe('Google import v2 fenced store (real PostgreSQL)', () => {
     const lifecycle = createGoogleImportV2Lifecycle({
       store,
       propertyBindingApi: {
-        readReceipt: vi.fn(async () => null),
         sweepReleasedExpired: vi.fn(async () => 0),
         countUnreleasedExpired: vi.fn(async () => 0),
         cleanupOrganization: vi.fn(async () => 0),
@@ -270,6 +333,7 @@ describe('Google import v2 fenced store (real PostgreSQL)', () => {
 
     await expect(
       store.claimItem({
+        dispatchEpoch: 0,
         organizationId: ORG_ID,
         itemId: ITEM_ID,
         retryRevision: 0,
@@ -286,6 +350,7 @@ describe('Google import v2 fenced store (real PostgreSQL)', () => {
     })
     await expect(
       store.claimItem({
+        dispatchEpoch: 0,
         organizationId: ORG_ID,
         itemId: ITEM_ID,
         retryRevision: 0,
@@ -300,6 +365,7 @@ describe('Google import v2 fenced store (real PostgreSQL)', () => {
     await expect(
       store.runClaimedEffect(
         {
+          dispatchEpoch: 0,
           organizationId: ORG_ID,
           itemId: ITEM_ID,
           retryRevision: 0,
@@ -320,6 +386,7 @@ describe('Google import v2 fenced store (real PostgreSQL)', () => {
     const expiredAt = new Date(NOW.getTime() + 1_000)
 
     await store.claimItem({
+      dispatchEpoch: 0,
       organizationId: ORG_ID,
       itemId: ITEM_ID,
       retryRevision: 0,
@@ -330,6 +397,7 @@ describe('Google import v2 fenced store (real PostgreSQL)', () => {
     })
     await expect(
       store.claimItem({
+        dispatchEpoch: 0,
         organizationId: ORG_ID,
         itemId: ITEM_ID,
         retryRevision: 0,
@@ -340,71 +408,67 @@ describe('Google import v2 fenced store (real PostgreSQL)', () => {
       }),
     ).resolves.toMatchObject({
       kind: 'claimed',
-      item: { claimFence: freshFence, attemptOrdinal: 1 },
+      item: { claimFence: freshFence, attemptOrdinal: 2, dispatchEpoch: 1 },
     })
   })
 
-  // The claim-lease reaper's selection predicate. Equality is expired — the
-  // same boundary claimItem uses for takeover — so the reaper can never
-  // release a lease those paths still consider live, and a pending row is
-  // never selected even though its lease columns are null.
-  it('selects only processing items whose claim lease has elapsed', async () => {
+  it('reserves pending work and only processing claims whose lease has elapsed', async () => {
     await resetIntent()
     const claimFence = '10000000-0000-4000-8000-00000000000a'
     const leaseExpiresAt = new Date(NOW.getTime() + 60_000)
-
-    // Pending: no claim, so never a reaper candidate.
-    await expect(store.listStaleClaimItems(NOW, 100)).resolves.toEqual([])
-
+    await expect(store.reserveDueItems(NOW, 100)).resolves.toMatchObject([
+      { itemId: ITEM_ID, status: 'pending', claimFence: null, dispatchEpoch: 0 },
+    ])
+    await expect(store.reserveDueItems(NOW, 100)).resolves.toEqual([])
     await expect(
       store.claimItem({
         organizationId: ORG_ID,
         itemId: ITEM_ID,
         retryRevision: 0,
+        dispatchEpoch: 0,
         attemptOrdinal: 1,
         claimFence,
         now: NOW,
         leaseExpiresAt,
       }),
     ).resolves.toMatchObject({ kind: 'claimed' })
-
     await expect(
-      store.listStaleClaimItems(new Date(leaseExpiresAt.getTime() - 1), 100),
+      store.reserveDueItems(new Date(leaseExpiresAt.getTime() - 1), 100),
     ).resolves.toEqual([])
-    await expect(store.listStaleClaimItems(leaseExpiresAt, 100)).resolves.toEqual([
+    await expect(store.reserveDueItems(leaseExpiresAt, 100)).resolves.toMatchObject([
       {
         organizationId: ORG_ID,
         itemId: ITEM_ID,
         retryRevision: 0,
+        dispatchEpoch: 0,
+        status: 'processing',
         claimFence,
         attemptOrdinal: 1,
         effectDeadlineAt: intent().items[0]!.effectDeadlineAt,
       },
     ])
-
-    // Released through the CAS helper: the row is pending again and drops out.
     await expect(
       store.releaseClaimForRetry({
         organizationId: ORG_ID,
         itemId: ITEM_ID,
         retryRevision: 0,
+        dispatchEpoch: 0,
         claimFence,
         now: leaseExpiresAt,
       }),
     ).resolves.toBe('released')
-    await expect(store.listStaleClaimItems(leaseExpiresAt, 100)).resolves.toEqual([])
+    await expect(store.reserveDueItems(leaseExpiresAt, 100)).resolves.toEqual([])
   })
 
-  // A worker died holding the claim. The reaper runs every minute and BullMQ
-  // returns a stalled job to the queue after 90 seconds or more, so the reaper
-  // usually gets there first. The job BullMQ then runs is the SAME attempt: a
-  // stall does not raise `attemptsMade`, so its ordinal is the dead one's.
+  // Queue delivery ordinals can repeat after a death; durable acquisition
+  // still spends the next attempt and rejects the previous claim fence.
   it('lets the stalled attempt take the item back after the reaper released its claim', async () => {
     await resetIntent()
     const deadFence = '10000000-0000-4000-8000-00000000000b'
     const recoveredFence = '10000000-0000-4000-8000-00000000000c'
     const leaseExpiresAt = new Date(NOW.getTime() + 60_000)
     await store.claimItem({
+      dispatchEpoch: 0,
       organizationId: ORG_ID,
       itemId: ITEM_ID,
       retryRevision: 0,
@@ -414,15 +478,17 @@ describe('Google import v2 fenced store (real PostgreSQL)', () => {
       leaseExpiresAt,
     })
 
-    const reaped = await createGoogleImportV2ClaimReaper({
-      store,
-      clock: () => leaseExpiresAt,
-    })()
-    expect(reaped).toMatchObject({ claimsReleased: 1, itemsTerminalized: 0 })
+    const reaped = await reapAt(leaseExpiresAt)
+    expect(reaped).toMatchObject({
+      claimsReleased: 1,
+      completionChecks: 0,
+      itemsDispatched: 1,
+    })
 
     const recoveredAt = new Date(leaseExpiresAt.getTime() + 30_000)
     await expect(
       store.claimItem({
+        dispatchEpoch: 1,
         organizationId: ORG_ID,
         itemId: ITEM_ID,
         retryRevision: 0,
@@ -433,13 +499,14 @@ describe('Google import v2 fenced store (real PostgreSQL)', () => {
       }),
     ).resolves.toMatchObject({
       kind: 'claimed',
-      item: { claimFence: recoveredFence, attemptOrdinal: 1 },
+      item: { claimFence: recoveredFence, attemptOrdinal: 2, dispatchEpoch: 1 },
     })
     // The dead attempt's fence owns nothing any more.
     const effect = vi.fn(async () => 'must-not-run')
     await expect(
       store.runClaimedEffect(
         {
+          dispatchEpoch: 0,
           organizationId: ORG_ID,
           itemId: ITEM_ID,
           retryRevision: 0,
@@ -453,12 +520,13 @@ describe('Google import v2 fenced store (real PostgreSQL)', () => {
     expect(effect).not.toHaveBeenCalled()
   })
 
-  it('still refuses an attempt older than the one whose claim was released', async () => {
+  it('refuses a delivery generation older than the claim that was released', async () => {
     await resetIntent()
     const firstFence = '10000000-0000-4000-8000-00000000000d'
     const secondFence = '10000000-0000-4000-8000-00000000000e'
     const lease = (from: Date) => new Date(from.getTime() + 60_000)
     await store.claimItem({
+      dispatchEpoch: 0,
       organizationId: ORG_ID,
       itemId: ITEM_ID,
       retryRevision: 0,
@@ -468,6 +536,7 @@ describe('Google import v2 fenced store (real PostgreSQL)', () => {
       leaseExpiresAt: lease(NOW),
     })
     await store.releaseClaimForRetry({
+      dispatchEpoch: 0,
       organizationId: ORG_ID,
       itemId: ITEM_ID,
       retryRevision: 0,
@@ -475,6 +544,7 @@ describe('Google import v2 fenced store (real PostgreSQL)', () => {
       now: NOW,
     })
     await store.claimItem({
+      dispatchEpoch: 1,
       organizationId: ORG_ID,
       itemId: ITEM_ID,
       retryRevision: 0,
@@ -484,6 +554,7 @@ describe('Google import v2 fenced store (real PostgreSQL)', () => {
       leaseExpiresAt: lease(NOW),
     })
     await store.releaseClaimForRetry({
+      dispatchEpoch: 1,
       organizationId: ORG_ID,
       itemId: ITEM_ID,
       retryRevision: 0,
@@ -493,6 +564,7 @@ describe('Google import v2 fenced store (real PostgreSQL)', () => {
 
     await expect(
       store.claimItem({
+        dispatchEpoch: 0,
         organizationId: ORG_ID,
         itemId: ITEM_ID,
         retryRevision: 0,
@@ -501,17 +573,18 @@ describe('Google import v2 fenced store (real PostgreSQL)', () => {
         now: NOW,
         leaseExpiresAt: lease(NOW),
       }),
-    ).resolves.toEqual({ kind: 'ignored', reason: 'stale_attempt' })
+    ).resolves.toEqual({ kind: 'ignored', reason: 'stale_dispatch' })
   })
 
-  it('rejects an out-of-range stale-claim sweep limit', async () => {
-    await expect(store.listStaleClaimItems(NOW, 0)).rejects.toThrow(/between 1 and 100/)
-    await expect(store.listStaleClaimItems(NOW, 101)).rejects.toThrow(/between 1 and 100/)
+  it('rejects an out-of-range recovery sweep limit', async () => {
+    await expect(store.reserveDueItems(NOW, 0)).rejects.toThrow(/between 1 and 100/)
+    await expect(store.reserveDueItems(NOW, 101)).rejects.toThrow(/between 1 and 100/)
   })
   it('atomically accepts and exactly replays one authorized manual retry', async () => {
     await resetIntent()
     await expect(
       store.terminalizeItem({
+        authority: { kind: 'lifecycle' },
         organizationId: ORG_ID,
         itemId: ITEM_ID,
         retryRevision: 0,
@@ -592,7 +665,7 @@ describe('Google import v2 fenced store (real PostgreSQL)', () => {
         .from(idempotencyReceipts)
         .where(
           and(
-            eq(idempotencyReceipts.scope, 'gbp_import_item_retry'),
+            sql`${idempotencyReceipts.scope} IN ('gbp_import_item_retry', 'property_operation')`,
             eq(
               idempotencyReceipts.key,
               JSON.stringify([ORG_ID, USER_ID, ITEM_ID, RETRY_REQUEST_ID]),
@@ -629,6 +702,7 @@ describe('Google import v2 fenced store (real PostgreSQL)', () => {
   it('rejects mismatched replay hashes without mutating the accepted revision', async () => {
     await resetIntent()
     await store.terminalizeItem({
+      authority: { kind: 'lifecycle' },
       organizationId: ORG_ID,
       itemId: ITEM_ID,
       retryRevision: 0,
@@ -708,6 +782,7 @@ describe('Google import v2 fenced store (real PostgreSQL)', () => {
 
     await expect(
       store.terminalizeItem({
+        authority: { kind: 'lifecycle' },
         organizationId: ORG_ID,
         itemId: ITEM_ID,
         retryRevision: 0,
@@ -767,6 +842,7 @@ describe('Google import v2 fenced store (real PostgreSQL)', () => {
 
     const claim = () =>
       store.claimItem({
+        dispatchEpoch: 0,
         organizationId: ORG_ID,
         itemId: ITEM_ID,
         retryRevision: 0,
@@ -806,6 +882,7 @@ describe('Google import v2 fenced store (real PostgreSQL)', () => {
 
       await expect(
         store.terminalizeItem({
+          authority: { kind: 'lifecycle' },
           organizationId: ORG_ID,
           itemId: ITEM_ID,
           retryRevision: 0,
@@ -820,6 +897,7 @@ describe('Google import v2 fenced store (real PostgreSQL)', () => {
       await expect(store.commitIntent(intent(NOW, 'Day spa'))).resolves.toBe('committed')
       await expect(
         store.terminalizeItem({
+          authority: { kind: 'lifecycle' },
           organizationId: ORG_ID,
           itemId: ITEM_ID,
           retryRevision: 0,
@@ -835,6 +913,7 @@ describe('Google import v2 fenced store (real PostgreSQL)', () => {
       await resetStorage()
       await expect(store.commitIntent(intent(NOW, 'Day spa'))).resolves.toBe('committed')
       await store.terminalizeItem({
+        authority: { kind: 'lifecycle' },
         organizationId: ORG_ID,
         itemId: ITEM_ID,
         retryRevision: 0,
@@ -879,13 +958,12 @@ describe('Google import v2 fenced store (real PostgreSQL)', () => {
 
   it('keeps the produced Property on an imported item until its own deletion sweep', async () => {
     await resetIntent()
+    await recordReceipt()
 
     await expect(
       store.reconcileFromReceipt({
         organizationId: ORG_ID,
         itemId: ITEM_ID,
-        destinationPropertyId: PROPERTY_ID,
-        outcomeCode: 'imported',
         now: NOW,
       }),
     ).resolves.toBe('completed')
@@ -949,6 +1027,7 @@ describe('Google import v2 fenced store (real PostgreSQL)', () => {
   const claimForTerminal = async (claimFence: string) => {
     await expect(
       store.claimItem({
+        dispatchEpoch: 0,
         organizationId: ORG_ID,
         itemId: ITEM_ID,
         retryRevision: 0,
@@ -973,10 +1052,15 @@ describe('Google import v2 fenced store (real PostgreSQL)', () => {
     const terminal = await claimForTerminal('10000000-0000-4000-8000-000000000015')
 
     await expect(
-      store.completeClaim({ ...terminal, outcomeCode: 'tenant_profile_invalid' }),
+      store.completeClaim({
+        dispatchEpoch: 0,
+        ...terminal,
+        outcomeCode: 'tenant_profile_invalid',
+      }),
     ).rejects.toThrow(/requires the rejected profile field/)
     await expect(
       store.completeClaim({
+        dispatchEpoch: 0,
         ...terminal,
         outcomeCode: 'internal_error',
         detail: { kind: 'invalid_profile_field', field: 'name' },
@@ -984,6 +1068,7 @@ describe('Google import v2 fenced store (real PostgreSQL)', () => {
     ).rejects.toThrow(/cannot carry this detail/)
     await expect(
       store.completeClaim({
+        dispatchEpoch: 0,
         ...terminal,
         outcomeCode: 'tenant_profile_invalid',
         detail: { kind: 'invalid_profile_field', field: 'timezone' },
@@ -1040,6 +1125,7 @@ describe('Google import v2 fenced store (real PostgreSQL)', () => {
 
     await expect(
       store.completeClaim({
+        dispatchEpoch: 0,
         ...terminal,
         outcomeCode: 'internal_error',
         detail: { kind: 'existing_property', propertyId: existingPropertyId },
@@ -1047,6 +1133,7 @@ describe('Google import v2 fenced store (real PostgreSQL)', () => {
     ).rejects.toThrow(/cannot carry this detail/)
     await expect(
       store.completeClaim({
+        dispatchEpoch: 0,
         ...terminal,
         outcomeCode: 'already_exists',
         detail: { kind: 'existing_property', propertyId: existingPropertyId },
@@ -1101,7 +1188,11 @@ describe('Google import v2 fenced store (real PostgreSQL)', () => {
     const terminal = await claimForTerminal('10000000-0000-4000-8000-000000000018')
 
     await expect(
-      store.completeClaim({ ...terminal, outcomeCode: 'already_exists' }),
+      store.completeClaim({
+        dispatchEpoch: 0,
+        ...terminal,
+        outcomeCode: 'already_exists',
+      }),
     ).resolves.toBe('completed')
 
     const progress = await store.getProgress(ORG_ID, USER_ID, REQUEST_ID)
@@ -1128,6 +1219,7 @@ describe('Google import v2 fenced store (real PostgreSQL)', () => {
 
     await expect(
       store.terminalizeItem({
+        authority: { kind: 'lifecycle' },
         organizationId: ORG_ID,
         itemId: ITEM_ID,
         retryRevision: 0,
@@ -1189,7 +1281,7 @@ describe('Google import v2 fenced store (real PostgreSQL)', () => {
         .from(idempotencyReceipts)
         .where(
           and(
-            eq(idempotencyReceipts.scope, 'gbp_import_item_retry'),
+            sql`${idempotencyReceipts.scope} IN ('gbp_import_item_retry', 'property_operation')`,
             sql`${idempotencyReceipts.payload}->>'itemId' = ${ITEM_ID}`,
           ),
         ),
@@ -1227,6 +1319,7 @@ describe('Google import v2 fenced store (real PostgreSQL)', () => {
       for (let attemptOrdinal = 1; attemptOrdinal <= 5; attemptOrdinal++) {
         const claimFence = `10000000-0000-4000-8000-0000000001${attemptOrdinal}0`
         await store.claimItem({
+          dispatchEpoch: attemptOrdinal - 1,
           organizationId: ORG_ID,
           itemId: ITEM_ID,
           retryRevision: 0,
@@ -1237,6 +1330,7 @@ describe('Google import v2 fenced store (real PostgreSQL)', () => {
         })
         if (attemptOrdinal < 5) {
           await store.releaseClaimForRetry({
+            dispatchEpoch: attemptOrdinal - 1,
             organizationId: ORG_ID,
             itemId: ITEM_ID,
             retryRevision: 0,
@@ -1266,7 +1360,6 @@ describe('Google import v2 fenced store (real PostgreSQL)', () => {
       const lifecycle = createGoogleImportV2Lifecycle({
         store,
         propertyBindingApi: {
-          readReceipt: async () => null,
           sweepReleasedExpired: async () => 0,
           countUnreleasedExpired: async () => 0,
           cleanupOrganization: async () => 0,
@@ -1297,12 +1390,9 @@ describe('Google import v2 fenced store (real PostgreSQL)', () => {
       await resetIntent()
       const leaseExpiresAt = await claimLastAttempt(NOW)
 
-      const reaped = await createGoogleImportV2ClaimReaper({
-        store,
-        clock: () => leaseExpiresAt,
-      })()
+      const reaped = await reapAt(leaseExpiresAt)
 
-      expect(reaped).toMatchObject({ itemsTerminalized: 1, claimsLost: 0 })
+      expect(reaped).toMatchObject({ completionChecks: 1, claimsLost: 0 })
       await expect(readItem()).resolves.toMatchObject({
         status: 'failed',
         outcomeCode: 'temporarily_unavailable',
@@ -1324,6 +1414,7 @@ describe('Google import v2 fenced store (real PostgreSQL)', () => {
       await resetIntent()
       await expect(
         store.terminalizeItem({
+          authority: { kind: 'lifecycle' },
           organizationId: ORG_ID,
           itemId: ITEM_ID,
           retryRevision: 0,
@@ -1337,12 +1428,11 @@ describe('Google import v2 fenced store (real PostgreSQL)', () => {
         destinationPropertyId: null,
       })
 
+      await recordReceipt()
       await expect(
         store.reconcileFromReceipt({
           organizationId: ORG_ID,
           itemId: ITEM_ID,
-          destinationPropertyId: PROPERTY_ID,
-          outcomeCode: 'imported',
           now: NOW,
         }),
       ).resolves.toBe('completed')
@@ -1358,11 +1448,10 @@ describe('Google import v2 fenced store (real PostgreSQL)', () => {
     // deletion sweep cleared the reference. That item is not a cancelled one.
     it('does not give a deleted Property back to an imported item whose reference was cleared', async () => {
       await resetIntent()
+      await recordReceipt()
       await store.reconcileFromReceipt({
         organizationId: ORG_ID,
         itemId: ITEM_ID,
-        destinationPropertyId: PROPERTY_ID,
-        outcomeCode: 'imported',
         now: NOW,
       })
       await store.scrubLifecycleItems({
@@ -1375,8 +1464,6 @@ describe('Google import v2 fenced store (real PostgreSQL)', () => {
         store.reconcileFromReceipt({
           organizationId: ORG_ID,
           itemId: ITEM_ID,
-          destinationPropertyId: PROPERTY_ID,
-          outcomeCode: 'imported',
           now: NOW,
         }),
       ).resolves.toBe('lost')
@@ -1389,13 +1476,12 @@ describe('Google import v2 fenced store (real PostgreSQL)', () => {
 
     it('still refuses a receipt that names a different Property than the item holds', async () => {
       await resetIntent()
+      await recordReceipt('10000000-0000-4000-8000-0000000000ff')
 
       await expect(
         store.reconcileFromReceipt({
           organizationId: ORG_ID,
           itemId: ITEM_ID,
-          destinationPropertyId: '10000000-0000-4000-8000-0000000000ff',
-          outcomeCode: 'imported',
           now: NOW,
         }),
       ).resolves.toBe('lost')
@@ -1413,6 +1499,7 @@ describe('Google import v2 fenced store (real PostgreSQL)', () => {
       await resetIntent()
       const claimFence = '10000000-0000-4000-8000-0000000001a0'
       await store.claimItem({
+        dispatchEpoch: 0,
         organizationId: ORG_ID,
         itemId: ITEM_ID,
         retryRevision: 0,
@@ -1430,6 +1517,7 @@ describe('Google import v2 fenced store (real PostgreSQL)', () => {
 
       await expect(
         store.terminalizeItem({
+          authority: { kind: 'lifecycle' },
           ...settle,
           outcomeCode: 'temporarily_unavailable',
           retainRetryState: false,
@@ -1437,6 +1525,7 @@ describe('Google import v2 fenced store (real PostgreSQL)', () => {
       ).rejects.toThrow('protected google import state must survive retryable failure')
       await expect(
         store.completeClaim({
+          dispatchEpoch: 0,
           ...settle,
           claimFence,
           outcomeCode: 'temporarily_unavailable',
@@ -1445,6 +1534,7 @@ describe('Google import v2 fenced store (real PostgreSQL)', () => {
       ).rejects.toThrow('protected google import state must survive retryable failure')
       await expect(
         store.completeClaim({
+          dispatchEpoch: 0,
           ...settle,
           claimFence,
           outcomeCode: 'internal_error',
@@ -1464,12 +1554,9 @@ describe('Google import v2 fenced store (real PostgreSQL)', () => {
       const claimedAt = new Date(deadline().getTime() - 30_000)
       const leaseExpiresAt = await claimLastAttempt(claimedAt)
 
-      const reaped = await createGoogleImportV2ClaimReaper({
-        store,
-        clock: () => leaseExpiresAt,
-      })()
+      const reaped = await reapAt(leaseExpiresAt)
 
-      expect(reaped).toMatchObject({ itemsTerminalized: 1, claimsLost: 0 })
+      expect(reaped).toMatchObject({ completionChecks: 1, claimsLost: 0 })
       await expect(readItem()).resolves.toMatchObject({
         status: 'failed',
         outcomeCode: 'internal_error',

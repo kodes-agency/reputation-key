@@ -1,21 +1,3 @@
-// Google import v2 claim-lease reaper job unit tests.
-//
-// The job module is the queue seam: one bounded reaper run per cadence tick
-// plus one content-free log line. The defects that matter for a background
-// worker are (a) the registered job name drifting from the catalogue/queue key,
-// so the repeatable job never reaches a handler, (b) the staleness boundary,
-// which either preempts a lease the claim path still considers live or strands
-// a dead claim for another cadence, (c) the attempt-budget boundary, where an
-// off-by-one either returns a row to 'pending' with no attempt left to consume
-// it or terminalizes a row that still had a retry, and (d) reporting success
-// after the store read failed.
-//
-// The real reaper (`createGoogleImportV2ClaimReaper`) is composed in with an
-// in-memory store that mirrors the Postgres predicate — still 'processing',
-// non-null fence, `claim_lease_expires_at <= now` (equality is expired), oldest
-// lease first, bounded — so the boundary assertions exercise production
-// comparison code rather than a hand-rolled stand-in.
-
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { fileURLToPath } from 'node:url'
 
@@ -32,6 +14,7 @@ vi.mock('#/shared/observability/trace', () => ({
 }))
 
 import type { Job } from 'bullmq'
+import type { LoggerPort } from '#/shared/domain/logger.port'
 import { trace } from '#/shared/observability/trace'
 import { JOB_FAMILY_ROWS } from '#/shared/governance/event-job-catalogue'
 import { createGoogleImportV2ClaimReaper } from '#/contexts/integration/application/google-import-v2-claim-reaper'
@@ -72,6 +55,8 @@ type ItemRow = Readonly<{
   status: 'pending' | 'processing' | 'completed'
   claimLeaseExpiresAt: Date | null
   effectDeadlineAt: Date
+  nextDispatchAt: Date
+  dispatchEpoch: number
 }>
 
 function processing(over: Partial<ItemRow> = {}): ItemRow {
@@ -81,6 +66,8 @@ function processing(over: Partial<ItemRow> = {}): ItemRow {
     // A first-attempt item on its original revision: the boundary values the
     // dispatch path actually writes.
     retryRevision: 0,
+    dispatchEpoch: 0,
+    nextDispatchAt: LEASE_EXPIRES_AT,
     claimFence: STALE_FENCE,
     attemptOrdinal: 1,
     status: 'processing',
@@ -91,46 +78,42 @@ function processing(over: Partial<ItemRow> = {}): ItemRow {
   }
 }
 
-/**
- * In-memory store with the Postgres repository's stale-claim contract, plus
- * recording CAS ports whose outcome each test chooses.
- */
+/** The job boundary supplies a bounded reservation and records recovery effects. */
 function createHarness(
   rows: readonly ItemRow[],
   now: Date,
-  outcomes: Readonly<{
-    release?: 'released' | 'lost'
-    terminalize?: 'completed' | 'lost'
-  }> = {},
+  outcomes: Readonly<{ release?: 'released' | 'lost' }> = {},
 ) {
-  const listStaleClaimItems = vi.fn<GoogleImportV2Store['listStaleClaimItems']>(
+  const reserveDueItems = vi.fn<GoogleImportV2Store['reserveDueItems']>(
     async (at, limit) =>
       rows
         .filter(
           (row) =>
-            row.status === 'processing' &&
-            row.claimLeaseExpiresAt !== null &&
-            row.claimLeaseExpiresAt.getTime() <= at.getTime(),
+            row.status !== 'completed' &&
+            row.nextDispatchAt <= at &&
+            (row.status === 'pending' ||
+              (row.claimLeaseExpiresAt !== null && row.claimLeaseExpiresAt <= at)),
         )
         .sort(
-          (left, right) =>
-            (left.claimLeaseExpiresAt?.getTime() ?? 0) -
-            (right.claimLeaseExpiresAt?.getTime() ?? 0),
+          (left, right) => left.nextDispatchAt.getTime() - right.nextDispatchAt.getTime(),
         )
         .slice(0, limit)
-        // Same projection shape as the repository: a fenceless row is dropped,
-        // never handed to the reaper with a synthesized fence.
         .flatMap((row) =>
-          row.claimFence === null
+          row.status === 'completed'
             ? []
             : [
                 {
                   organizationId: row.organizationId,
+                  importJobId: 'parent-import',
                   itemId: row.itemId,
                   retryRevision: row.retryRevision,
+                  dispatchEpoch: row.dispatchEpoch,
+                  status: row.status,
                   claimFence: row.claimFence,
                   attemptOrdinal: row.attemptOrdinal,
                   effectDeadlineAt: row.effectDeadlineAt,
+                  expectedConnectionLifecycleVersion: 1,
+                  expectedSourceEpoch: null,
                 },
               ],
         ),
@@ -138,21 +121,25 @@ function createHarness(
   const releaseClaimForRetry = vi.fn<GoogleImportV2Store['releaseClaimForRetry']>(
     async () => outcomes.release ?? 'released',
   )
-  const terminalizeItem = vi.fn<GoogleImportV2Store['terminalizeItem']>(
-    async () => outcomes.terminalize ?? 'completed',
-  )
+  const processItem = vi.fn(async () => undefined)
+  const addImportItemJobs = vi.fn(async () => undefined)
   const reap = vi.fn<GoogleImportV2ClaimReaper>(
     createGoogleImportV2ClaimReaper({
-      store: { listStaleClaimItems, releaseClaimForRetry, terminalizeItem },
+      store: { reserveDueItems, releaseClaimForRetry },
+      processItem,
+      queue: { addImportItemJobs },
       clock: () => now,
+      newDeliveryId: () => '20000000-0000-4000-8000-000000000006',
+      logger: mockLogger,
     }),
   )
   return {
     handler: createGoogleImportClaimReaperHandler({ reap, logger: mockLogger }),
     reap,
-    listStaleClaimItems,
+    reserveDueItems,
     releaseClaimForRetry,
-    terminalizeItem,
+    processItem,
+    addImportItemJobs,
   }
 }
 
@@ -192,15 +179,22 @@ describe('google import claim-lease reaper job', () => {
       itemId: STALE_ITEM_ID,
       retryRevision: 0,
       claimFence: STALE_FENCE,
+      dispatchEpoch: 0,
+      expiredOnly: true,
       now: new Date(LEASE_EXPIRES_AT.getTime() + 1),
     })
-    expect(harness.terminalizeItem).not.toHaveBeenCalled()
+    expect(harness.processItem).not.toHaveBeenCalled()
+    expect(harness.addImportItemJobs).toHaveBeenCalledWith([
+      expect.objectContaining({ itemId: STALE_ITEM_ID, dispatchEpoch: 1 }),
+    ])
     expect(trace).toHaveBeenCalledWith(`job.${JOB_NAME}`, expect.any(Function))
     expect(completionPayload()).toEqual({
       job: JOB_NAME,
-      staleClaimsVisited: 1,
+      dueItemsVisited: 1,
       claimsReleased: 1,
-      itemsTerminalized: 0,
+      completionChecks: 0,
+      itemsDispatched: 1,
+      itemFailures: 0,
       claimsLost: 0,
     })
   })
@@ -224,22 +218,21 @@ describe('google import claim-lease reaper job', () => {
 
     await harness.handler(tick())
 
-    expect(harness.listStaleClaimItems).toHaveBeenCalledWith(LEASE_EXPIRES_AT, 100)
+    expect(harness.reserveDueItems).toHaveBeenCalledWith(LEASE_EXPIRES_AT, 100)
     expect(harness.releaseClaimForRetry).toHaveBeenCalledTimes(1)
     expect(harness.releaseClaimForRetry).toHaveBeenCalledWith(
       expect.objectContaining({ itemId: STALE_ITEM_ID, claimFence: STALE_FENCE }),
     )
-    expect(harness.terminalizeItem).not.toHaveBeenCalled()
+    expect(harness.processItem).not.toHaveBeenCalled()
     expect(completionPayload()).toMatchObject({
-      staleClaimsVisited: 1,
+      dueItemsVisited: 1,
       claimsReleased: 1,
     })
   })
 
-  // The attempt-budget boundary, both sides in one run: at the ceiling the row
-  // must be terminalized (releasing would park it in 'pending' with no attempt
-  // left to consume it), one below the ceiling it must be released.
-  it('terminalizes exactly at the attempt ceiling and releases one attempt below it', async () => {
+  // Exhausted work needs receipt reconciliation through the processor;
+  // work with an attempt left can return through the queue.
+  it('runs receipt-aware processing at the attempt ceiling and dispatches one attempt below it', async () => {
     const harness = createHarness(
       [
         processing({ attemptOrdinal: GOOGLE_IMPORT_ITEM_MAX_ATTEMPTS - 1 }),
@@ -255,30 +248,30 @@ describe('google import claim-lease reaper job', () => {
 
     await harness.handler(tick())
 
-    expect(harness.releaseClaimForRetry).toHaveBeenCalledTimes(1)
+    expect(harness.releaseClaimForRetry).toHaveBeenCalledTimes(2)
     expect(harness.releaseClaimForRetry).toHaveBeenCalledWith(
       expect.objectContaining({ itemId: STALE_ITEM_ID }),
     )
-    expect(harness.terminalizeItem).toHaveBeenCalledTimes(1)
-    expect(harness.terminalizeItem).toHaveBeenCalledWith({
+    expect(harness.processItem).toHaveBeenCalledTimes(1)
+    expect(harness.processItem).toHaveBeenCalledWith({
       organizationId: ORG_ID,
       itemId: LIVE_ITEM_ID,
       retryRevision: 0,
-      outcomeCode: 'temporarily_unavailable',
-      retainRetryState: true,
-      now: new Date(LEASE_EXPIRES_AT.getTime() + 1),
+      dispatchEpoch: 1,
+      attemptOrdinal: 1,
     })
     expect(completionPayload()).toEqual({
       job: JOB_NAME,
-      staleClaimsVisited: 2,
-      claimsReleased: 1,
-      itemsTerminalized: 1,
+      dueItemsVisited: 2,
+      claimsReleased: 2,
+      completionChecks: 1,
+      itemsDispatched: 1,
+      itemFailures: 0,
       claimsLost: 0,
     })
   })
 
-  // Degrade, never destroy: a claim renewed, completed, or replaced between the
-  // lock-free scan and the write loses the CAS and is only counted.
+  // A claim completed or replaced after reservation loses the fenced release.
   it('counts a lost CAS on both recovery paths without failing the run', async () => {
     const harness = createHarness(
       [
@@ -290,16 +283,18 @@ describe('google import claim-lease reaper job', () => {
         }),
       ],
       new Date(LEASE_EXPIRES_AT.getTime() + 1),
-      { release: 'lost', terminalize: 'lost' },
+      { release: 'lost' },
     )
 
     await expect(harness.handler(tick())).resolves.toBeUndefined()
 
     expect(completionPayload()).toEqual({
       job: JOB_NAME,
-      staleClaimsVisited: 2,
+      dueItemsVisited: 2,
       claimsReleased: 0,
-      itemsTerminalized: 0,
+      completionChecks: 0,
+      itemsDispatched: 0,
+      itemFailures: 0,
       claimsLost: 2,
     })
   })
@@ -307,12 +302,12 @@ describe('google import claim-lease reaper job', () => {
   it('writes nothing and reports an all-zero run when no claim is stale', async () => {
     const harness = createHarness(
       [
-        // Live lease, and a pending row that never had a claim: neither is a
-        // reaper candidate.
+        // A live lease and a future pending appointment are both left alone.
         processing({ claimLeaseExpiresAt: new Date(LEASE_EXPIRES_AT.getTime() + 1) }),
         processing({
           itemId: LIVE_ITEM_ID,
           status: 'pending',
+          nextDispatchAt: new Date(LEASE_EXPIRES_AT.getTime() + 1),
           claimFence: null,
           attemptOrdinal: 0,
           claimLeaseExpiresAt: null,
@@ -325,12 +320,14 @@ describe('google import claim-lease reaper job', () => {
     await expect(harness.handler(tick({ unexpected: true }))).resolves.toBeUndefined()
 
     expect(harness.releaseClaimForRetry).not.toHaveBeenCalled()
-    expect(harness.terminalizeItem).not.toHaveBeenCalled()
+    expect(harness.processItem).not.toHaveBeenCalled()
     expect(completionPayload()).toEqual({
       job: JOB_NAME,
-      staleClaimsVisited: 0,
+      dueItemsVisited: 0,
       claimsReleased: 0,
-      itemsTerminalized: 0,
+      completionChecks: 0,
+      itemsDispatched: 0,
+      itemFailures: 0,
       claimsLost: 0,
     })
   })
@@ -347,6 +344,44 @@ describe('google import claim-lease reaper job', () => {
       expect(serialized).not.toContain(identifier)
     }
   })
+
+  it.each([0, 1])(
+    'keeps the logger receiver and selects warning only for item failures (%s)',
+    async (itemFailures) => {
+      const info = vi.fn()
+      const warn = vi.fn()
+      const logger: LoggerPort = {
+        ...mockLogger,
+        info(fields) {
+          expect(this).toBe(logger)
+          info(fields)
+        },
+        warn(fields) {
+          expect(this).toBe(logger)
+          warn(fields)
+        },
+      }
+      const reap = vi.fn<GoogleImportV2ClaimReaper>(async () => ({
+        dueItemsVisited: 3,
+        claimsReleased: 1,
+        itemsDispatched: 1,
+        completionChecks: 0,
+        claimsLost: 1,
+        itemFailures,
+      }))
+      await createGoogleImportClaimReaperHandler({ reap, logger })(tick())
+      expect(itemFailures === 0 ? info : warn).toHaveBeenCalledWith({
+        job: JOB_NAME,
+        dueItemsVisited: 3,
+        claimsReleased: 1,
+        itemsDispatched: 1,
+        completionChecks: 0,
+        claimsLost: 1,
+        itemFailures,
+      })
+      expect(itemFailures === 0 ? warn : info).not.toHaveBeenCalled()
+    },
+  )
 
   it('rejects so the attempt retries, and logs no completion line, when the scan fails', async () => {
     const failure = new Error('import store unavailable')

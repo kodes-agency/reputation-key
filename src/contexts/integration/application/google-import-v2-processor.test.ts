@@ -1,7 +1,4 @@
-import {
-  GOOGLE_LOCATION_PRIMARY_RESOURCE,
-  GOOGLE_PROVIDER_FIXTURES_V1,
-} from '#/test-fixtures/generated/google-provider-identifiers-v1'
+import { GOOGLE_PROVIDER_FIXTURES_V1 } from '#/test-fixtures/generated/google-provider-identifiers-v1'
 import { describe, expect, it, vi } from 'vitest'
 import type { GbpSubscribeResult } from './use-cases/manage-notifications'
 import type { AuthContext } from '#/shared/domain/auth-context'
@@ -82,6 +79,7 @@ function claimedItem(
     countryCode: 'US',
     timezone: 'America/New_York',
     retryRevision: 0,
+    dispatchEpoch: 0,
     attemptOrdinal: 1,
     claimFence: CLAIM_FENCE,
     effectDeadlineAt: new Date(NOW.getTime() + 60_000),
@@ -242,9 +240,6 @@ function setup(
     resolveActor,
     clock: over.clock ?? (() => NOW),
     newClaimFence: () => CLAIM_FENCE,
-    enqueueReviewSync,
-    subscribeToNotifications,
-    defaultPublicDisplayName,
     logger,
   })
   return {
@@ -289,6 +284,7 @@ describe('GoogleImportV2Processor', () => {
       organizationId: ORG_ID,
       itemId: ITEM_ID,
       retryRevision: 0,
+      dispatchEpoch: 0,
       attemptOrdinal: 1,
     })
 
@@ -297,6 +293,7 @@ describe('GoogleImportV2Processor', () => {
         organizationId: ORG_ID,
         itemId: ITEM_ID,
         retryRevision: 0,
+        dispatchEpoch: 0,
         attemptOrdinal: 1,
         claimFence: CLAIM_FENCE,
         now: NOW,
@@ -332,29 +329,8 @@ describe('GoogleImportV2Processor', () => {
     expect(harness.reconcileFromReceipt).toHaveBeenCalledWith({
       organizationId: ORG_ID,
       itemId: ITEM_ID,
-      destinationPropertyId: PROPERTY_ID,
-      outcomeCode: 'imported',
       now: NOW,
     })
-    expect(harness.enqueueReviewSync).toHaveBeenCalledWith(
-      {
-        organizationId: ORG_ID,
-        propertyId: PROPERTY_ID,
-        connectionId: CONNECTION_ID,
-        locationName: GOOGLE_LOCATION_PRIMARY_RESOURCE,
-        initiator: {
-          kind: 'system',
-          id: 'google-property-import',
-        },
-        correlationId: `google-import:${ITEM_ID}`,
-      },
-      {
-        jobId: `review-sync-${PROPERTY_ID}-source-epoch-0`,
-      },
-    )
-    expect(harness.enqueueReviewSync.mock.invocationCallOrder[0]).toBeLessThan(
-      harness.reconcileFromReceipt.mock.invocationCallOrder[0]!,
-    )
     expect(harness.completeClaim).not.toHaveBeenCalled()
     expect(harness.runClaimedEffect.mock.invocationCallOrder[0]).toBeLessThan(
       harness.createBoundProperty.mock.invocationCallOrder[0]!,
@@ -380,14 +356,13 @@ describe('GoogleImportV2Processor', () => {
       organizationId: ORG_ID,
       itemId: ITEM_ID,
       retryRevision: 0,
+      dispatchEpoch: 0,
       attemptOrdinal: 1,
     })
 
     expect(harness.reconcileFromReceipt).toHaveBeenCalledWith({
       organizationId: ORG_ID,
       itemId: ITEM_ID,
-      destinationPropertyId: PROPERTY_ID,
-      outcomeCode: 'imported',
       now: NOW,
     })
     expect(harness.claimItem).not.toHaveBeenCalled()
@@ -405,6 +380,7 @@ describe('GoogleImportV2Processor', () => {
       organizationId: ORG_ID,
       itemId: ITEM_ID,
       retryRevision: 0,
+      dispatchEpoch: 0,
       attemptOrdinal: 1,
     })
 
@@ -428,6 +404,7 @@ describe('GoogleImportV2Processor', () => {
         organizationId: ORG_ID,
         itemId: ITEM_ID,
         retryRevision: 0,
+        dispatchEpoch: 0,
         attemptOrdinal: 1,
       }),
     ).rejects.toThrow(/claim lease is still active/)
@@ -468,6 +445,7 @@ describe('GoogleImportV2Processor', () => {
           organizationId: ORG_ID,
           itemId: ITEM_ID,
           retryRevision: 0,
+          dispatchEpoch: 0,
           attemptOrdinal: 1,
         }),
       ).rejects.toBe(createError)
@@ -497,6 +475,7 @@ describe('GoogleImportV2Processor', () => {
         organizationId: ORG_ID,
         itemId: ITEM_ID,
         retryRevision: 0,
+        dispatchEpoch: 0,
         attemptOrdinal: 1,
       })
 
@@ -526,6 +505,7 @@ describe('GoogleImportV2Processor', () => {
         organizationId: ORG_ID,
         itemId: ITEM_ID,
         retryRevision: 0,
+        dispatchEpoch: 0,
         attemptOrdinal: 1,
       })
 
@@ -555,6 +535,7 @@ describe('GoogleImportV2Processor', () => {
       organizationId: ORG_ID,
       itemId: ITEM_ID,
       retryRevision: 0,
+      dispatchEpoch: 0,
       attemptOrdinal: 1,
     })
 
@@ -567,13 +548,19 @@ describe('GoogleImportV2Processor', () => {
 
   it('terminalizes an expired receipt-free item without claiming it', async () => {
     const harness = setup({
-      claim: { kind: 'ignored', reason: 'effect_expired' },
+      claim: {
+        kind: 'ignored',
+        reason: 'effect_expired',
+        effectDeadlineAt: NOW,
+        authority: { kind: 'pending', dispatchEpoch: 0 },
+      },
     })
 
     await harness.processor.process({
       organizationId: ORG_ID,
       itemId: ITEM_ID,
       retryRevision: 0,
+      dispatchEpoch: 0,
       attemptOrdinal: 1,
     })
 
@@ -581,12 +568,100 @@ describe('GoogleImportV2Processor', () => {
       organizationId: ORG_ID,
       itemId: ITEM_ID,
       retryRevision: 0,
+      authority: { kind: 'pending', dispatchEpoch: 0 },
       outcomeCode: 'internal_error',
       retainRetryState: false,
       now: NOW,
     })
     expect(harness.resolveActor).not.toHaveBeenCalled()
     expect(harness.createBoundProperty).not.toHaveBeenCalled()
+  })
+
+  it('checks a newly visible Property receipt before ending an exhausted pending revision', async () => {
+    const h = setup({
+      claim: {
+        kind: 'ignored',
+        reason: 'attempts_exhausted',
+        effectDeadlineAt: new Date(NOW.getTime() + 60_000),
+        authority: { kind: 'pending', dispatchEpoch: 7 },
+      },
+      receipts: [null, importedReceipt()],
+    })
+    await h.processor.process({
+      organizationId: ORG_ID,
+      itemId: ITEM_ID,
+      retryRevision: 0,
+      dispatchEpoch: 7,
+      attemptOrdinal: 1,
+    })
+    expect(h.reconcileFromReceipt).toHaveBeenCalledOnce()
+    expect(h.terminalizeItem).not.toHaveBeenCalled()
+    expect(h.createBoundProperty).not.toHaveBeenCalled()
+  })
+
+  it.each([
+    {
+      deadlineOffset: 60_000,
+      outcomeCode: 'temporarily_unavailable',
+      retainRetryState: true,
+    },
+    { deadlineOffset: -1, outcomeCode: 'internal_error', retainRetryState: false },
+  ])(
+    'keeps the existing exhaustion outcome at deadline offset $deadlineOffset',
+    async ({ deadlineOffset, outcomeCode, retainRetryState }) => {
+      const h = setup({
+        claim: {
+          kind: 'ignored',
+          reason: 'attempts_exhausted',
+          effectDeadlineAt: new Date(NOW.getTime() + deadlineOffset),
+          authority: { kind: 'pending', dispatchEpoch: 7 },
+        },
+      })
+      await h.processor.process({
+        organizationId: ORG_ID,
+        itemId: ITEM_ID,
+        retryRevision: 0,
+        dispatchEpoch: 7,
+        attemptOrdinal: 1,
+      })
+      expect(h.terminalizeItem).toHaveBeenCalledExactlyOnceWith({
+        organizationId: ORG_ID,
+        itemId: ITEM_ID,
+        retryRevision: 0,
+        authority: { kind: 'pending', dispatchEpoch: 7 },
+        outcomeCode,
+        retainRetryState,
+        now: NOW,
+      })
+      expect(h.createBoundProperty).not.toHaveBeenCalled()
+    },
+  )
+
+  it('defers exhausted completion when the Property receipt read fails', async () => {
+    const h = setup({
+      claim: {
+        kind: 'ignored',
+        reason: 'attempts_exhausted',
+        effectDeadlineAt: new Date(NOW.getTime() + 60_000),
+        authority: { kind: 'pending', dispatchEpoch: 7 },
+      },
+    })
+    h.readReceipt
+      .mockReset()
+      .mockResolvedValueOnce(null)
+      .mockRejectedValueOnce(new Error('receipt unavailable'))
+    await expect(
+      h.processor.process({
+        organizationId: ORG_ID,
+        itemId: ITEM_ID,
+        retryRevision: 0,
+        dispatchEpoch: 7,
+        attemptOrdinal: 1,
+      }),
+    ).rejects.toThrow('receipt unavailable')
+    expect(h.terminalizeItem).not.toHaveBeenCalled()
+    expect(h.completeClaim).not.toHaveBeenCalled()
+    expect(h.createBoundProperty).not.toHaveBeenCalled()
   })
 
   it('releases a transient failed attempt and throws for BullMQ retry', async () => {
@@ -597,6 +672,7 @@ describe('GoogleImportV2Processor', () => {
         organizationId: ORG_ID,
         itemId: ITEM_ID,
         retryRevision: 0,
+        dispatchEpoch: 0,
         attemptOrdinal: 1,
       }),
     ).rejects.toThrow('database unavailable')
@@ -605,6 +681,7 @@ describe('GoogleImportV2Processor', () => {
       organizationId: ORG_ID,
       itemId: ITEM_ID,
       retryRevision: 0,
+      dispatchEpoch: 0,
       claimFence: CLAIM_FENCE,
       now: NOW,
     })
@@ -624,6 +701,7 @@ describe('GoogleImportV2Processor', () => {
       organizationId: ORG_ID,
       itemId: ITEM_ID,
       retryRevision: 0,
+      dispatchEpoch: 0,
       attemptOrdinal: 1,
     })
 
@@ -652,6 +730,7 @@ describe('GoogleImportV2Processor', () => {
       organizationId: ORG_ID,
       itemId: ITEM_ID,
       retryRevision: 0,
+      dispatchEpoch: 0,
       attemptOrdinal: 1,
     })
 
@@ -676,6 +755,7 @@ describe('GoogleImportV2Processor', () => {
       organizationId: ORG_ID,
       itemId: ITEM_ID,
       retryRevision: 0,
+      dispatchEpoch: 0,
       attemptOrdinal: 5,
     })
 
@@ -706,6 +786,7 @@ describe('GoogleImportV2Processor', () => {
         organizationId: ORG_ID,
         itemId: ITEM_ID,
         retryRevision: 0,
+        dispatchEpoch: 0,
         attemptOrdinal: 1,
       })
 
@@ -715,6 +796,7 @@ describe('GoogleImportV2Processor', () => {
         organizationId: ORG_ID,
         itemId: ITEM_ID,
         retryRevision: 0,
+        dispatchEpoch: 0,
         claimFence: CLAIM_FENCE,
         outcomeCode: 'tenant_profile_invalid',
         retainRetryState: false,
@@ -746,6 +828,7 @@ describe('GoogleImportV2Processor', () => {
         organizationId: ORG_ID,
         itemId: ITEM_ID,
         retryRevision: 0,
+        dispatchEpoch: 0,
         attemptOrdinal: 1,
       })
 
@@ -766,6 +849,7 @@ describe('GoogleImportV2Processor', () => {
       organizationId: ORG_ID,
       itemId: ITEM_ID,
       retryRevision: 0,
+      dispatchEpoch: 0,
       attemptOrdinal: 1,
     })
 
@@ -792,6 +876,7 @@ describe('GoogleImportV2Processor', () => {
         organizationId: ORG_ID,
         itemId: ITEM_ID,
         retryRevision: 0,
+        dispatchEpoch: 0,
         attemptOrdinal: 1,
       })
 
@@ -889,6 +974,7 @@ describe('GoogleImportV2Processor', () => {
       organizationId: ORG_ID,
       itemId: ITEM_ID,
       retryRevision: 0,
+      dispatchEpoch: 0,
       attemptOrdinal: 1,
     })
 
@@ -945,6 +1031,7 @@ describe('GoogleImportV2Processor', () => {
       organizationId: ORG_ID,
       itemId: ITEM_ID,
       retryRevision: 0,
+      dispatchEpoch: 0,
       attemptOrdinal: 1,
     })
 
@@ -973,202 +1060,29 @@ describe('GoogleImportV2Processor', () => {
     )
     expect(harness.reconcileFromReceipt).toHaveBeenCalledWith(
       expect.objectContaining({
-        outcomeCode: 'relinked',
-        destinationPropertyId: PROPERTY_ID,
+        organizationId: ORG_ID,
+        itemId: ITEM_ID,
       }),
     )
     expect(harness.completeClaim).not.toHaveBeenCalled()
   })
 
-  // GBP push activation: the imported/relinked receipt branch is the moment the
-  // property is live, so it is where we ask Google to START publishing. Without
-  // this call nothing ever invoked `subscribe` and push was dark by
-  // construction, no matter how GBP_PUBSUB_TOPIC was configured.
-  it('subscribes the connection to GBP notifications when a property goes live', async () => {
+  it('leaves receipt-backed follow-ups to independent durable consumers', async () => {
     const harness = setup({ receipts: [null, null, importedReceipt()] })
-
     await harness.processor.process({
       organizationId: ORG_ID,
       itemId: ITEM_ID,
       retryRevision: 0,
+      dispatchEpoch: 0,
       attemptOrdinal: 1,
     })
-
-    expect(harness.subscribeToNotifications).toHaveBeenCalledWith(ORG_ID, CONNECTION_ID)
-    // After the backfill enqueue: a slow subscribe must not delay the sync that
-    // makes the property usable.
-    expect(harness.subscribeToNotifications.mock.invocationCallOrder[0]).toBeGreaterThan(
-      harness.enqueueReviewSync.mock.invocationCallOrder[0]!,
-    )
-  })
-
-  // Reply drafting refuses a Property without a public display name, so a live
-  // import starts it as the name the manager just confirmed.
-  it('starts the public display name as the confirmed name when a property goes live', async () => {
-    const harness = setup({ receipts: [null, null, importedReceipt()] })
-
-    await harness.processor.process({
+    expect(harness.reconcileFromReceipt).toHaveBeenCalledWith({
       organizationId: ORG_ID,
       itemId: ITEM_ID,
-      retryRevision: 0,
-      attemptOrdinal: 1,
+      now: NOW,
     })
-
-    expect(harness.defaultPublicDisplayName).toHaveBeenCalledWith({
-      organizationId: ORG_ID,
-      propertyId: PROPERTY_ID,
-      displayName: 'Acme Hotel',
-    })
-    expect(harness.defaultPublicDisplayName.mock.invocationCallOrder[0]).toBeLessThan(
-      harness.reconcileFromReceipt.mock.invocationCallOrder[0]!,
-    )
-  })
-
-  it('imports the property even when the public display name default fails', async () => {
-    const harness = setup({
-      receipts: [null, null, importedReceipt()],
-      defaultPublicDisplayNameError: new Error(
-        'brand profile store for Acme Hotel is down',
-      ),
-    })
-
-    await harness.processor.process({
-      organizationId: ORG_ID,
-      itemId: ITEM_ID,
-      retryRevision: 0,
-      attemptOrdinal: 1,
-    })
-
-    expect(harness.releaseClaimForRetry).not.toHaveBeenCalled()
-    expect(harness.subscribeToNotifications).toHaveBeenCalledOnce()
-    expect(harness.reconcileFromReceipt).toHaveBeenCalledWith(
-      expect.objectContaining({ outcomeCode: 'imported' }),
-    )
-    expect(harness.logger.warn).toHaveBeenCalledWith(
-      { itemId: ITEM_ID, errorName: 'Error' },
-      expect.stringContaining('Public display name default failed after import'),
-    )
-    const logged = JSON.stringify(harness.logger.warn.mock.calls)
-    expect(logged).not.toContain('Acme Hotel')
-    expect(logged).not.toContain(ORG_ID)
-  })
-
-  it('does not subscribe when the receipt is not an imported/relinked live property', async () => {
-    const harness = setup({
-      receipt: {
-        organizationId: ORG_ID,
-        idempotencyKey: ITEM_ID,
-        destinationPropertyId: PROPERTY_ID,
-        outcome: 'property_deleted',
-        destinationSourceEpoch: 0,
-        destinationProfileVersion: 1,
-        tombstone: true,
-        expiresAt: new Date(NOW.getTime() + 60_000),
-        retentionReleasedAt: null,
-      } as Awaited<ReturnType<PropertyGoogleBindingPublicApi['readReceipt']>>,
-    })
-
-    await harness.processor.process({
-      organizationId: ORG_ID,
-      itemId: ITEM_ID,
-      retryRevision: 0,
-      attemptOrdinal: 1,
-    })
-
-    expect(harness.subscribeToNotifications).not.toHaveBeenCalled()
+    expect(harness.enqueueReviewSync).not.toHaveBeenCalled()
     expect(harness.defaultPublicDisplayName).not.toHaveBeenCalled()
+    expect(harness.subscribeToNotifications).not.toHaveBeenCalled()
   })
-
-  // Push is an optimization over the discovery sweep, never a correctness gate:
-  // a subscribe outage must not cost the import its committed Property effect.
-  it('imports the property even when the notification subscribe fails', async () => {
-    const harness = setup({
-      receipts: [null, null, importedReceipt()],
-      subscribeToNotificationsError: Object.assign(new Error('GBP 503 from Google'), {
-        code: 'upstream_error',
-        name: 'GbpApiError',
-      }),
-    })
-
-    await harness.processor.process({
-      organizationId: ORG_ID,
-      itemId: ITEM_ID,
-      retryRevision: 0,
-      attemptOrdinal: 1,
-    })
-
-    expect(harness.createBoundProperty).toHaveBeenCalledOnce()
-    expect(harness.releaseClaimForRetry).not.toHaveBeenCalled()
-    expect(harness.reconcileFromReceipt).toHaveBeenCalledWith(
-      expect.objectContaining({
-        outcomeCode: 'imported',
-        destinationPropertyId: PROPERTY_ID,
-      }),
-    )
-    expect(harness.logger.warn).toHaveBeenCalledWith(
-      { itemId: ITEM_ID, errorName: 'GbpApiError', errorCode: 'upstream_error' },
-      expect.stringContaining('GBP notification subscribe failed after import'),
-    )
-    const logged = JSON.stringify(harness.logger.warn.mock.calls)
-    expect(logged).not.toContain('GBP 503 from Google')
-    expect(logged).not.toContain(ORG_ID)
-  })
-
-  // subscribe never throws; it reports. A connection it could not subscribe
-  // must still be visible at import time, not only in the next daily summary.
-  it('warns, content-free, when the subscribe did not settle', async () => {
-    const harness = setup({
-      receipts: [null, null, importedReceipt()],
-      subscribeResult: {
-        outcome: 'provider_failed',
-        accounts: {
-          subscribed: 0,
-          alreadySubscribed: 0,
-          failed: 1,
-          failureCodes: { coordination_unavailable: 1 },
-        },
-      },
-    })
-
-    await harness.processor.process({
-      organizationId: ORG_ID,
-      itemId: ITEM_ID,
-      retryRevision: 0,
-      attemptOrdinal: 1,
-    })
-
-    expect(harness.createBoundProperty).toHaveBeenCalledOnce()
-    expect(harness.logger.warn).toHaveBeenCalledWith(
-      {
-        itemId: ITEM_ID,
-        outcome: 'provider_failed',
-        failureCodes: { coordination_unavailable: 1 },
-      },
-      expect.stringContaining('GBP notification subscribe did not complete after import'),
-    )
-  })
-
-  it.each(['already_subscribed', 'account_unresolved', 'topic_unset'] as const)(
-    'stays quiet when the subscribe settled as %s',
-    async (outcome) => {
-      const harness = setup({
-        receipts: [null, null, importedReceipt()],
-        subscribeResult: {
-          outcome,
-          accounts: { subscribed: 0, alreadySubscribed: 0, failed: 0, failureCodes: {} },
-        },
-      })
-
-      await harness.processor.process({
-        organizationId: ORG_ID,
-        itemId: ITEM_ID,
-        retryRevision: 0,
-        attemptOrdinal: 1,
-      })
-
-      expect(JSON.stringify(harness.logger.warn.mock.calls)).not.toContain(
-        'GBP notification subscribe',
-      )
-    },
-  )
 })

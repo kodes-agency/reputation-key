@@ -15,6 +15,7 @@ export type SyncPropertyReviewsJobData = JobEnqueueAttribution &
     /** Present only on snapshot continuations; initial jobs resolve it fresh. */
     sourceEpoch?: number
     /** Content-free active snapshot run identity. */
+    importBindingEventId?: string
     runId?: string
   }>
 

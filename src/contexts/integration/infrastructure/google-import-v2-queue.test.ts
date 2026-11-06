@@ -16,6 +16,7 @@ const item = (suffix: number) => ({
   importJobId: '72000000-0000-4000-8000-000000000001',
   itemId: `72000000-0000-4000-8000-00000000010${suffix}`,
   retryRevision: 0,
+  dispatchEpoch: 0,
 })
 
 function createQueue() {

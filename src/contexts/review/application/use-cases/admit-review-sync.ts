@@ -18,6 +18,9 @@ import {
 
 export type AdmitReviewSyncDeps = Readonly<{
   queue: Pick<ReviewQueuePort, 'addSyncJob'>
+  admitImportSync?: (
+    data: SyncPropertyReviewsJobData,
+  ) => Promise<SyncPropertyReviewsJobData | null>
   propertySourceEpoch: PropertySourceEpochPort
   historyCutoffs: Pick<ReviewProviderSnapshotRepository, 'fixImportHistoryCutoff'>
 }>
@@ -29,23 +32,33 @@ export type AdmitReviewSync = ReviewQueuePort['addSyncJob']
 const fixImportHistoryCutoff = async (
   deps: AdmitReviewSyncDeps,
   data: SyncPropertyReviewsJobData,
-): Promise<void> => {
+): Promise<boolean> => {
   const organization = organizationId(data.organizationId)
   const property = propertyId(data.propertyId)
   const current = await deps.propertySourceEpoch.getSourceEpoch(organization, property)
-  if (current == null) return
+  if (data.sourceEpoch !== undefined && current?.sourceEpoch !== data.sourceEpoch)
+    return false
+  if (current == null) return true
   await deps.historyCutoffs.fixImportHistoryCutoff({
     organizationId: organization,
     propertyId: property,
     sourceEpoch: current.sourceEpoch,
   })
+  return true
 }
 
 export const admitReviewSync =
   (deps: AdmitReviewSyncDeps): AdmitReviewSync =>
   async (data, options) => {
     if (data.initiator?.id === GOOGLE_PROPERTY_IMPORT_SYNC_INITIATOR_ID) {
-      await fixImportHistoryCutoff(deps, data)
+      if (!(await fixImportHistoryCutoff(deps, data))) return
     }
-    await deps.queue.addSyncJob(data, options)
+    const admitted = data.importBindingEventId
+      ? await (() => {
+          if (!deps.admitImportSync)
+            throw new Error('Durable import sync admission unavailable')
+          return deps.admitImportSync(data)
+        })()
+      : data
+    if (admitted) await deps.queue.addSyncJob(admitted, options)
   }

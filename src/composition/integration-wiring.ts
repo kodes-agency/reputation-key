@@ -73,6 +73,8 @@ export function wireIntegration(
     jobQueue: infra.jobQueue,
     propertyApi: property.publicApi,
     propertyBindingApi: property.googleBinding,
+    prepareImportSync: (tx, scope) =>
+      getReview().publicApi.syncAdmission.prepareImportSync(tx, scope),
     enqueueReviewSync: (data, options) =>
       getReview().publicApi.syncAdmission.addSyncJob(data, options),
     enqueueTargetedReviewFetch: (data, options) =>

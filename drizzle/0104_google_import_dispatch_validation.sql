@@ -1,0 +1,2 @@
+ALTER TABLE gbp_import_request_items
+  VALIDATE CONSTRAINT gbp_import_request_items_dispatch_epoch_valid;

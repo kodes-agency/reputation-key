@@ -8,8 +8,7 @@ import type { GoogleImportV2Store } from './ports/google-import-v2-store.port'
 import type { GooglePropertyImportItemJobId } from './google-import-v2-contract'
 import { GOOGLE_PROPERTY_IMPORT_REQUESTED_EVENT } from './google-import-v2-contract'
 
-export const GOOGLE_IMPORT_DISPATCH_CONSUMER =
-  'integration.property-import-dispatch' as const
+const GOOGLE_IMPORT_DISPATCH_CONSUMER = 'integration.property-import-dispatch' as const
 
 const UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
@@ -22,8 +21,8 @@ function requireNonNegativeInteger(value: number, name: string): void {
 
 /**
  * BullMQ forbids ':' in custom job IDs. This canonical identifier is scoped
- * to the immutable connection lifecycle/source epoch and the accepted retry
- * revision, so ambiguous addBulk delivery converges without hiding new work.
+ * to the binding, retry revision and work generation. A separate delivery
+ * identifier lets recovery enqueue again without invalidating delayed jobs.
  */
 export function googlePropertyImportItemJobId(
   input: Readonly<{
@@ -31,6 +30,8 @@ export function googlePropertyImportItemJobId(
     lifecycleVersion: number
     sourceEpoch: number | null
     retryRevision: number
+    dispatchEpoch: number
+    deliveryId: string
   }>,
 ): GooglePropertyImportItemJobId {
   if (!UUID_RE.test(input.itemId)) throw new Error('itemId must be a UUID')
@@ -39,8 +40,10 @@ export function googlePropertyImportItemJobId(
     requireNonNegativeInteger(input.sourceEpoch, 'sourceEpoch')
   }
   requireNonNegativeInteger(input.retryRevision, 'retryRevision')
+  requireNonNegativeInteger(input.dispatchEpoch, 'dispatchEpoch')
+  if (!UUID_RE.test(input.deliveryId)) throw new Error('deliveryId must be a UUID')
   const sourceEpoch = input.sourceEpoch ?? 'new'
-  return `import-item-${input.itemId}-l${input.lifecycleVersion}-e${sourceEpoch}-r${input.retryRevision}`
+  return `import-item-${input.itemId}-l${input.lifecycleVersion}-e${sourceEpoch}-r${input.retryRevision}-d${input.dispatchEpoch}-q${input.deliveryId}`
 }
 
 type RequestedPayload = Readonly<{
@@ -104,11 +107,14 @@ export function createGoogleImportDispatchHandler(
         lifecycleVersion: item.expectedConnectionLifecycleVersion,
         sourceEpoch: item.expectedSourceEpoch,
         retryRevision: item.retryRevision,
+        dispatchEpoch: item.dispatchEpoch,
+        deliveryId: event.eventId,
       }),
       organizationId: payload.organizationId,
       importJobId: payload.importJobId,
       itemId: item.itemId,
       retryRevision: item.retryRevision,
+      dispatchEpoch: item.dispatchEpoch,
     }))
 
     await deps.queue.addImportItemJobs(jobs)

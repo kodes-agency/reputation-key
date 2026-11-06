@@ -264,6 +264,9 @@ export const gbpImportRequestItems = pgTable(
     invalidProfileField: varchar('invalid_profile_field', { length: 16 }),
     effectDeadlineAt: timestamptz('effect_deadline_at').notNull(),
     retryRevision: integer('retry_revision').notNull().default(0),
+    dispatchEpoch: integer('dispatch_epoch').notNull().default(0),
+    // The next recovery appointment survives lost or exhausted queue deliveries.
+    nextDispatchAt: timestamptz('next_dispatch_at'),
     highestAttemptForRevision: integer('highest_attempt_for_revision')
       .notNull()
       .default(0),
@@ -316,6 +319,8 @@ export const gbpImportRequestItems = pgTable(
     index('gbp_import_request_items_dispatch_idx')
       .on(t.organizationId, t.id, t.status)
       .where(sql`${t.status} IN ('pending', 'processing')`),
+    index('gbp_import_request_items_due_idx').on(t.nextDispatchAt, t.id),
+    check('gbp_import_request_items_dispatch_epoch_valid', sql`${t.dispatchEpoch} >= 0`),
     check(
       'gbp_import_request_items_profile_valid',
       sql`(

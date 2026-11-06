@@ -25,12 +25,10 @@ import {
   createGoogleImportClaimReaperHandler,
   JOB_NAME as GOOGLE_IMPORT_CLAIM_REAPER_JOB,
 } from '#/contexts/integration/infrastructure/jobs/google-import-claim-reaper.job'
-import { createGoogleImportV2ClaimReaper } from '#/contexts/integration/application/google-import-v2-claim-reaper'
 import {
   createReconcileGbpNotificationSubscriptionsHandler,
   JOB_NAME as RECONCILE_GBP_NOTIFICATION_SUBSCRIPTIONS_JOB,
 } from '#/contexts/integration/infrastructure/jobs/reconcile-gbp-notification-subscriptions.job'
-import { createGoogleImportV2Store } from '#/contexts/integration/infrastructure/google-import-v2-store'
 import {
   createRecoverInvitedRegistrationsHandler,
   JOB_NAME as RECOVER_INVITED_REGISTRATIONS_JOB,
@@ -340,19 +338,12 @@ export async function bootstrap(
     throw new Error('Google import v2 processor dependencies are unavailable')
   }
 
-  // Claim-lease reaper for the job above. Registered under the same
-  // capability so its posture cannot drift from the work it recovers, and
-  // built from the container db directly: it only needs the import store's
-  // CAS helpers, no processor dependencies, so it stays available even when
-  // the item processor could not be constructed.
+  // Recovery owns a durable appointment even when Queue Redis loses a job.
   registerCapabilityGatedJob(
     GOOGLE_IMPORT_CLAIM_REAPER_JOB,
     'property.import_gbp_v2',
     createGoogleImportClaimReaperHandler({
-      reap: createGoogleImportV2ClaimReaper({
-        store: createGoogleImportV2Store(container.db, container.clock),
-        clock: container.clock,
-      }),
+      reap: container.integrationWorkerRuntime.recoverImports,
       logger: container.logger,
     }),
   )

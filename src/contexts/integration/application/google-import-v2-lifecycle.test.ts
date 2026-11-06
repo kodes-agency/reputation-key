@@ -32,7 +32,7 @@ function setup(overrides?: { unreleasedExpired?: number }) {
       { organizationId: ORG_ID, itemId: EXPIRED_ITEM_ID, retryRevision: 3 },
     ]),
     reconcileFromReceipt: vi.fn<GoogleImportV2Store['reconcileFromReceipt']>(
-      async () => 'completed',
+      async (input) => (input.itemId === RECEIPT_ITEM_ID ? 'completed' : 'lost'),
     ),
     terminalizeItem: vi.fn<GoogleImportV2Store['terminalizeItem']>(
       async () => 'completed',
@@ -99,11 +99,10 @@ describe('Google import v2 lifecycle', () => {
     expect(fixture.store.reconcileFromReceipt).toHaveBeenCalledWith({
       organizationId: ORG_ID,
       itemId: RECEIPT_ITEM_ID,
-      destinationPropertyId: receipt().destinationPropertyId,
-      outcomeCode: 'imported',
       now: NOW,
     })
     expect(fixture.store.terminalizeItem).toHaveBeenCalledWith({
+      authority: { kind: 'lifecycle' },
       organizationId: ORG_ID,
       itemId: EXPIRED_ITEM_ID,
       retryRevision: 3,
@@ -179,6 +178,7 @@ describe('Google import v2 lifecycle', () => {
       now: NOW,
     })
     expect(fixture.store.terminalizeItem).toHaveBeenCalledWith({
+      authority: { kind: 'lifecycle' },
       organizationId: ORG_ID,
       itemId: EXPIRED_ITEM_ID,
       retryRevision: 3,
@@ -226,8 +226,6 @@ describe('Google import v2 lifecycle', () => {
     expect(fixture.store.reconcileFromReceipt).toHaveBeenLastCalledWith({
       organizationId: ORG_ID,
       itemId: RECEIPT_ITEM_ID,
-      destinationPropertyId: null,
-      outcomeCode: 'property_deleted',
       now: NOW,
     })
   })
@@ -263,6 +261,7 @@ describe('Google import v2 lifecycle', () => {
       expect.objectContaining({ parentsFenced: 1, itemsCancelled: 1 }),
     )
     expect(fixture.store.terminalizeItem).toHaveBeenCalledWith({
+      authority: { kind: 'lifecycle' },
       organizationId: ORG_ID,
       itemId: EXPIRED_ITEM_ID,
       retryRevision: 3,

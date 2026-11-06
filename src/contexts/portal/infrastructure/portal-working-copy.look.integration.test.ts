@@ -35,6 +35,7 @@ import {
 } from './testing/portal-working-copy-publish'
 import {
   COMPLETE_SCENARIO,
+  INCOMPLETE_SCENARIO,
   NO_BRAND_SCENARIO,
   NO_PHOTO_LOOK,
   OWN_COLOURS_LOOK,
@@ -288,7 +289,9 @@ describe.sequential("a Portal's own look in the working copy (real PostgreSQL)",
       // The Property moves its accent and its look version, as its writer does.
       await getPool().query(
         `UPDATE property_portal_brand_profiles
-            SET primary_color = '#00AA00', look_version = look_version + 1`,
+            SET primary_color = '#00AA00', look_version = look_version + 1
+          WHERE organization_id = $1 AND property_id = $2`,
+        [scenario.organizationId, scenario.propertyId],
       )
 
       await expect(workingCopyDiffersFromLive(scenario)).resolves.toBe(false)
@@ -420,9 +423,16 @@ describe.sequential("a Portal's own look in the working copy (real PostgreSQL)",
       const scenario = withOwnLook(OWN_PHOTO_LOOK)
       await seedPortalWorkingCopy(getPool(), scenario)
       // The Portal's own photo names a logo.
-      await getPool().query(`UPDATE portal_look_overrides SET hero_asset_id = $1`, [
-        SCENARIO_OWN_LOGO_ASSET,
-      ])
+      await getPool().query(
+        `UPDATE portal_look_overrides SET hero_asset_id = $1
+         WHERE organization_id = $2 AND property_id = $3 AND portal_id = $4`,
+        [
+          SCENARIO_OWN_LOGO_ASSET,
+          scenario.organizationId,
+          scenario.propertyId,
+          scenario.portalId,
+        ],
+      )
 
       const source = await sourceOf(scenario)
 
@@ -430,17 +440,28 @@ describe.sequential("a Portal's own look in the working copy (real PostgreSQL)",
     })
 
     it('draws no photograph or logo the Property named from an image uploaded for another slot', async () => {
-      await seedPortalWorkingCopy(getPool(), withOwnLook(OWN_COLOURS_LOOK))
+      const scenario = withOwnLook(OWN_COLOURS_LOOK)
+      const unrelated = { ...INCOMPLETE_SCENARIO, organizationId: WORKING_COPY_OTHER_ORG }
+      await seedPortalWorkingCopy(getPool(), unrelated)
+      const unrelatedBefore = await sourceOf(unrelated)
+      await seedPortalWorkingCopy(getPool(), scenario)
       // The Property's photograph names a tile picture, and its logo a photograph.
       await getPool().query(
-        `UPDATE property_portal_brand_profiles SET hero_asset_id = $1, logo_asset_id = $2`,
-        [SCENARIO_TILE_ASSET, SCENARIO_HERO_ASSET],
+        `UPDATE property_portal_brand_profiles SET hero_asset_id = $1, logo_asset_id = $2
+         WHERE organization_id = $3 AND property_id = $4`,
+        [
+          SCENARIO_TILE_ASSET,
+          SCENARIO_HERO_ASSET,
+          scenario.organizationId,
+          scenario.propertyId,
+        ],
       )
 
       const source = await sourceOf(COMPLETE_SCENARIO)
 
       expect(source.look?.hero).toBeNull()
       expect(source.look?.logo).toBeNull()
+      await expect(sourceOf(unrelated)).resolves.toEqual(unrelatedBefore)
     })
   })
 

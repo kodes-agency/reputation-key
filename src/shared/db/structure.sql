@@ -5242,9 +5242,12 @@ CREATE TABLE "public"."gbp_import_request_items" (
     "updated_at" timestamp with time zone DEFAULT "now"() NOT NULL,
     "invalid_profile_field" character varying(16),
     "google_primary_category" character varying(512),
+    "next_dispatch_at" timestamp with time zone,
+    "dispatch_epoch" integer DEFAULT 0 NOT NULL,
     CONSTRAINT "gbp_import_request_items_attempt_fence_valid" CHECK (((("highest_attempt_for_revision" >= 0) AND ("highest_attempt_for_revision" <= 5)) AND (("claim_fence" IS NULL) = ("claim_lease_expires_at" IS NULL)) AND (("status" <> 'processing'::"public"."google_import_v2_item_status") OR (("claim_fence" IS NOT NULL) AND (("highest_attempt_for_revision" >= 1) AND ("highest_attempt_for_revision" <= 5)))))),
     CONSTRAINT "gbp_import_request_items_authorization_snapshot_valid" CHECK (((("expected_execution_policy_version" IS NULL) AND ("expected_actor_role" IS NULL) AND ("expected_permission_digest" IS NULL) AND ("expected_principal_kind" IS NULL) AND ("expected_permission_version" IS NULL)) OR ((("char_length"(("expected_execution_policy_version")::"text") >= 1) AND ("char_length"(("expected_execution_policy_version")::"text") <= 32)) AND (("char_length"(("expected_actor_role")::"text") >= 1) AND ("char_length"(("expected_actor_role")::"text") <= 50)) AND (("expected_permission_digest")::"text" ~ '^[a-f0-9]{64}$'::"text") AND (("char_length"(("expected_principal_kind")::"text") >= 1) AND ("char_length"(("expected_principal_kind")::"text") <= 32)) AND ("expected_permission_version" >= 0)))),
     CONSTRAINT "gbp_import_request_items_deadline_valid" CHECK (("effect_deadline_at" = ("created_at" + '24:00:00'::interval))),
+    CONSTRAINT "gbp_import_request_items_dispatch_epoch_valid" CHECK (("dispatch_epoch" >= 0)),
     CONSTRAINT "gbp_import_request_items_generations_valid" CHECK ((((("expected_connection_lifecycle_version" >= 1) AND ("expected_connection_access_version" >= 1) AND ("expected_credential_generation" >= 1)) OR (("status" <> ALL (ARRAY['pending'::"public"."google_import_v2_item_status", 'processing'::"public"."google_import_v2_item_status"])) AND ("outcome_code" <> 'temporarily_unavailable'::"public"."google_import_v2_outcome") AND ("expected_connection_lifecycle_version" IS NULL) AND ("expected_connection_access_version" IS NULL) AND ("expected_credential_generation" IS NULL))) AND ("retry_revision" >= 0))),
     CONSTRAINT "gbp_import_request_items_google_primary_category_valid" CHECK ((("google_primary_category" IS NULL) OR ((("char_length"(("google_primary_category")::"text") >= 1) AND ("char_length"(("google_primary_category")::"text") <= 512)) AND (("google_primary_category")::"text" = "btrim"(("google_primary_category")::"text"))))),
     CONSTRAINT "gbp_import_request_items_google_review_uri_valid" CHECK ((("google_review_uri" IS NULL) OR (("google_review_uri")::"text" ~ '^https://'::"text"))),
@@ -11407,6 +11410,13 @@ CREATE UNIQUE INDEX "feedback_session_portal_unique" ON "public"."feedback" USIN
 --
 
 CREATE INDEX "gbp_import_request_items_dispatch_idx" ON "public"."gbp_import_request_items" USING "btree" ("organization_id", "id", "status") WHERE ("status" = ANY (ARRAY['pending'::"public"."google_import_v2_item_status", 'processing'::"public"."google_import_v2_item_status"]));
+
+
+--
+-- Name: gbp_import_request_items_due_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX "gbp_import_request_items_due_idx" ON "public"."gbp_import_request_items" USING "btree" ("next_dispatch_at", "id");
 
 
 --

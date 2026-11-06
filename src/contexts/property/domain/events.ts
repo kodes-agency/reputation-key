@@ -157,6 +157,8 @@ export type PropertyGoogleBindingChanged = Readonly<{
   connectionId: GoogleConnectionId
   sourceEpoch: number
   change: 'created' | 'relinked' | 'disconnected' | 'deletion_started'
+  /** Only marked facts owe the durable import follow-ups. Retained facts do not. */
+  importFollowUps?: true
   occurredAt: Date
   correlationId: string | null
 }>

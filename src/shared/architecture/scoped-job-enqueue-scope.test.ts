@@ -131,6 +131,7 @@ const SCOPED_JOB_ENQUEUE: Readonly<Record<string, ScopedJobEnqueue>> = {
         importJobId: ID(3),
         itemId: ID(2),
         retryRevision: 0,
+        dispatchEpoch: 0,
       },
     ])
   }),
