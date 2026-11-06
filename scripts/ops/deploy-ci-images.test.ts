@@ -137,6 +137,13 @@ describe('closed-beta CI image deployment authority', () => {
     const calls: string[][] = []
     let connected = false
     const runner: CommandRunner = (command, args) => {
+      if (
+        command === 'git' &&
+        args[0] === 'show' &&
+        args[1]?.endsWith(':drizzle/meta/_journal.json')
+      ) {
+        return { status: 0, stdout: JSON.stringify({ entries: [] }), stderr: '' }
+      }
       calls.push([command, ...args])
       if (args[0] === 'service' && args[1] === 'list') {
         const inventory = serviceInventory().map((service) => ({
@@ -214,6 +221,13 @@ describe('closed-beta CI image deployment authority', () => {
     const calls: string[][] = []
     let redeployed = false
     const runner: CommandRunner = (command, args) => {
+      if (
+        command === 'git' &&
+        args[0] === 'show' &&
+        args[1]?.endsWith(':drizzle/meta/_journal.json')
+      ) {
+        return { status: 0, stdout: JSON.stringify({ entries: [] }), stderr: '' }
+      }
       calls.push([command, ...args])
       if (args[0] === 'variable' && args[1] === 'list') {
         return { status: 0, stdout: `RELEASE_SHA=${'c'.repeat(40)}\n`, stderr: '' }
@@ -424,6 +438,13 @@ describe('keeping google-provider-redis when its image sources did not change', 
     const plan = [{ ...service, beforeSource: { repo: null, image: RUNNING_IMAGE } }]
     const calls: string[][] = []
     const runner: CommandRunner = (command, args) => {
+      if (
+        command === 'git' &&
+        args[0] === 'show' &&
+        args[1]?.endsWith(':drizzle/meta/_journal.json')
+      ) {
+        return { status: 0, stdout: JSON.stringify({ entries: [] }), stderr: '' }
+      }
       calls.push([command, ...args])
       if (args[0] === 'variable' && args[1] === 'list') {
         return { status: 0, stdout: `RELEASE_SHA=${RUNNING}\n`, stderr: '' }
@@ -486,6 +507,13 @@ describe('keeping google-provider-redis when its image sources did not change', 
     const calls: string[][] = []
     const answers = [0, 1, 128]
     const runner: CommandRunner = (command, args) => {
+      if (
+        command === 'git' &&
+        args[0] === 'show' &&
+        args[1]?.endsWith(':drizzle/meta/_journal.json')
+      ) {
+        return { status: 0, stdout: JSON.stringify({ entries: [] }), stderr: '' }
+      }
       calls.push([command, ...args])
       return { status: answers.shift() ?? 0, stdout: '', stderr: '' }
     }
@@ -555,6 +583,13 @@ describe('trusting a service only when its latest deployment runs the target', (
     let redeployed = false
     let listingsSinceRedeploy = 0
     const runner: CommandRunner = (command, args) => {
+      if (
+        command === 'git' &&
+        args[0] === 'show' &&
+        args[1]?.endsWith(':drizzle/meta/_journal.json')
+      ) {
+        return { status: 0, stdout: JSON.stringify({ entries: [] }), stderr: '' }
+      }
       calls.push([command, ...args])
       if (args[0] === 'variable' && args[1] === 'list') {
         return ok(`RELEASE_SHA=${REVISION}\n`)

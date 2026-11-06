@@ -1,26 +1,11 @@
-// Migration journal state (BQC-7.1 / BQC-7.2) — how the migrations a database
-// has applied compare with the journal the running image carries, and what the
-// deploy runner says when the deploy migration state is not reached. Pure: no
-// pool, no filesystem.
-//
-// Two gates require the applied count to equal the image's journal — the
-// predeploy runner (scripts/migrate-deploy.ts) and the readiness probe
-// (src/shared/health/readiness.ts). Both read the direction of a mismatch from
-// here, so they cannot disagree about what it means:
-//
-//   database_behind — the image carries migrations the database has not
-//                     applied: a deploy in flight or a failed migration. A
-//                     rerun converges (runbooks.md §8).
-//   database_ahead  — the database applied migrations the image does not
-//                     carry: the image is older than the database, or it was
-//                     built from a commit whose journal lost an applied
-//                     migration (a revert that deleted one). Refused by
-//                     design, and no rerun converges (runbooks.md §28).
+// The migration authority requires an exact journal match. Runtime readiness
+// also accepts later expands; a later contract ends compatibility.
 
 import {
   isMigrationLockTimeout,
   MIGRATION_LOCK_TIMEOUT_MS,
 } from './migration-lock-timeout'
+import { ConcurrentIndexMigrationError } from './concurrent-index-migration'
 
 type MigrationJournalPosition = 'matched' | 'database_behind' | 'database_ahead'
 
@@ -46,7 +31,7 @@ export function migrationJournalPosition(
  * catches the second, so the message names it for the operator whose fix is
  * the image being refused.
  */
-class ImageOlderThanDatabaseError extends Error {
+export class ImageOlderThanDatabaseError extends Error {
   constructor(applied: number, journalEntries: number) {
     super(
       `This image is older than the database: ${applied} migrations are applied and this image's journal holds ${journalEntries}. ` +
@@ -90,8 +75,8 @@ export function deployMigrationStateRefusal(state: DeployMigrationState): Error 
 
 /**
  * The schema track the runner had reached when it failed. The Better Auth
- * track runs first and commits statement by statement; the journal is one
- * transaction, and every later step runs with it applied.
+ * track runs first and commits statement by statement; the journal commits
+ * file by file, and every later step runs with it applied.
  */
 export type DeploySchemaTrack = 'better_auth' | 'journal'
 
@@ -109,7 +94,7 @@ const LOCK_WAIT_RECOVERY: Readonly<Record<DeploySchemaTrack, string>> = {
   journal:
     `Lock wait: a migration statement waited ${LOCK_WAIT_SECONDS} s for a lock ` +
     'another session holds and gave up, so that the application does not queue behind it. ' +
-    'The journal runs in one transaction, so nothing of it was applied. Redeploy; if it ' +
+    'The failed journal file was rolled back; earlier files remain applied. Redeploy; if it ' +
     'happens again, find the session holding the lock (pg_stat_activity, pg_blocking_pids) ' +
     'first (runbooks.md §8).',
 }
@@ -125,6 +110,9 @@ export function deployFailureRecovery(
   failure: unknown,
   track: DeploySchemaTrack,
 ): string {
+  if (failure instanceof ConcurrentIndexMigrationError) {
+    return 'The concurrent-index file did not finish. Earlier files remain applied. Redeploy to inspect and repair an invalid index, or reuse a completed build, before recording its journal row.'
+  }
   if (failure instanceof ImageOlderThanDatabaseError) {
     return (
       'Forward-only recovery: do not rerun this image, and do not edit ' +

@@ -23,8 +23,7 @@ export type ConcurrentIndexSpec = Readonly<{
   /** Column order exactly as PostgreSQL reports it via `unnest(pg_index.indkey)`. */
   columns: readonly string[]
   unique: boolean
-  /** Whether the index carries a `WHERE` clause. The predicate TEXT is not
-   * compared — see `concurrent-index-sidecar.ts` for why. */
+  /** Whether the index carries a `WHERE` clause; its expression comes from createSql. */
   hasPredicate: boolean
   /** The exact statement the sidecar runs. Never executed inside a transaction. */
   createSql: string
