@@ -1,5 +1,6 @@
 import { readFileSync } from 'node:fs'
 import { describe, expect, it, vi } from 'vitest'
+import { railwayServiceManifest } from '../../src/shared/release/railway-service-settings.test-fixtures'
 import { readMigrationJournal } from '../../src/shared/db/migration-journal-order'
 import * as imageMaps from './ci-image-digest-map'
 import { digestMapValue, REVISION } from './ci-image-digest-map.test-fixtures'
@@ -174,7 +175,10 @@ describe('contraction preflight', () => {
               {
                 id: current.latestDeployment.id,
                 status: current.status,
-                meta: { imageDigest: selected.digest },
+                meta: {
+                  imageDigest: selected.digest,
+                  serviceManifest: railwayServiceManifest(selected.serviceName),
+                },
               },
             ]),
           )

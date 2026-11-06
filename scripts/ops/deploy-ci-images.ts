@@ -6,6 +6,7 @@
 import { pathToFileURL } from 'node:url'
 import { resolve } from 'node:path'
 import { z } from 'zod/v4'
+import { assertRailwayServiceSettings } from '../../src/shared/release/railway-service-settings'
 import {
   type CiImageDigestMap,
   type CiProductionImageName,
@@ -111,7 +112,12 @@ const RAILWAY_DEPLOYMENTS_SCHEMA = z.array(
     status: z.string().min(1),
     // A deployment may record no image digest, or no meta at all. That must
     // read as "not proven", never as a parse failure that blocks the deploy.
-    meta: z.object({ imageDigest: z.string().nullish() }).nullish(),
+    meta: z
+      .object({
+        imageDigest: z.string().nullish(),
+        serviceManifest: z.unknown().optional(),
+      })
+      .nullish(),
   }),
 )
 const PENDING_DEPLOYMENT_STATUS: Readonly<Record<string, true>> = {
@@ -261,7 +267,6 @@ function serviceIsHealthy(service: RailwayServiceObservation): boolean {
   )
 }
 
-/** What `providerRedisKeptRevision` must prove before it keeps the service. */
 export type ProviderRedisKeepCheck = Readonly<{
   isAncestor: (ancestor: string, descendant: string) => boolean
   /** True when no PROVIDER_REDIS_IMAGE_SOURCES path differs between the two. */
@@ -270,7 +275,6 @@ export type ProviderRedisKeepCheck = Readonly<{
   ciImageReference: (revision: string) => string | null
 }>
 
-/** Keep an unchanged provider store only when its running image is proved. */
 export function providerRedisKeptRevision(
   service: ClosedBetaImageDeployment,
   current: RailwayServiceObservation,
@@ -338,6 +342,7 @@ type LatestDeployment = Readonly<{
   status: string
   /** The image digest Railway recorded for it, or null when it recorded none. */
   imageDigest: string | null
+  serviceManifest: unknown
 }>
 
 function readLatestDeployment(
@@ -364,6 +369,7 @@ function readLatestDeployment(
     id: deployment.id,
     status: deployment.status,
     imageDigest: deployment.meta?.imageDigest ?? null,
+    serviceManifest: deployment.meta?.serviceManifest,
   }
 }
 
@@ -381,7 +387,14 @@ function latestDeploymentRunsTarget(
     )
     return false
   }
-  if (latest.imageDigest === service.digest) return true
+  if (latest.imageDigest === service.digest) {
+    assertRailwayServiceSettings(
+      service.serviceName,
+      latest.serviceManifest,
+      current.configuredReplicas,
+    )
+    return true
+  }
   out(
     `${service.serviceName}: source already names ${service.imageReference}, but its latest deployment ${latest.id} runs ${
       latest.imageDigest ?? 'an unrecorded digest'
@@ -390,7 +403,6 @@ function latestDeploymentRunsTarget(
   return false
 }
 
-/** Redeploy from source when the configured image is not yet running. */
 function deployArgs(
   service: ClosedBetaImageDeployment,
   configuredAtTarget: boolean,
@@ -424,7 +436,6 @@ async function waitForServiceHealth(
   const deadline = Date.now() + DEPLOY_TIMEOUT_MS
   while (Date.now() <= deadline) {
     const deployment = readLatestDeployment(service, runner)
-    // Require a new deployment on the exact target digest.
     if (deployment.id !== previousDeploymentId) {
       if (deployment.status === 'SUCCESS') {
         if (deployment.imageDigest !== service.digest) {
@@ -438,6 +449,11 @@ async function waitForServiceHealth(
           service.serviceName,
         )
         if (current.deploymentId === deployment.id && serviceIsHealthy(current)) {
+          assertRailwayServiceSettings(
+            service.serviceName,
+            deployment.serviceManifest,
+            current.configuredReplicas,
+          )
           out(
             `${service.serviceName}: deployment ${deployment.id} is healthy at ${service.digest}`,
           )
@@ -625,7 +641,6 @@ export async function applyClosedBetaImageDeployment(
   return settled
 }
 
-/** Verify Google accepts the deployed callback and credentials. */
 export function verifyClosedBetaGoogleOAuth(
   out: (line: string) => void = console.log,
   runner: CommandRunner = defaultCommandRunner,
@@ -638,7 +653,6 @@ export function verifyClosedBetaGoogleOAuth(
   })
 }
 
-/** Verify browser uploads are allowed by the bucket CORS rule. */
 export async function verifyClosedBetaStorageCors(
   apply: boolean,
   out: (line: string) => void = console.log,
