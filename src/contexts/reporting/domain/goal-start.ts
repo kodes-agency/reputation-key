@@ -1,14 +1,7 @@
-// When a new goal starts, and the month a change to a goal starts in.
-//
-// A goal starts in the current month of the Property's calendar or in the next
-// one, chosen when it is created. The choice travels as the month itself
-// (`YYYY-MM`), never as "this" or "next", so it cannot drift when a form is
-// left open across the last midnight of a month.
-//
-// Its own module, apart from the Program's other rules, because the new-goal
-// form and the dialogs that change a goal run it in the browser: the Program
-// module is part of the first-paint bundle (the command DTO imports it), and
-// this calendar code must not be.
+// Send the chosen Property-local month as YYYY-MM, rather than "this" or "next",
+// so an open form cannot drift across midnight. Keep this calendar code apart
+// from the Program module that the first-paint command DTO loads.
+
 import {
   calendarPeriodRange,
   dayKeyInTimezone,

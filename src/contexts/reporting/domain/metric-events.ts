@@ -1,6 +1,3 @@
-// Metric context — domain events
-// Standards: docs/standards.md §1
-
 import { newEventId } from '#/shared/domain/event-id'
 import { assert } from '#/shared/domain/assert'
 import type {

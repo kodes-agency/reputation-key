@@ -1,5 +1,6 @@
 import { and, eq, isNull, or } from 'drizzle-orm'
 import type { Database } from '#/shared/db'
+import { lockMetricSource } from '#/shared/db/metric-source-lock'
 import { metricCorrections, metricReadings } from '#/shared/db/schema/metric.schema'
 import { eventConsumerReceipts } from '#/shared/db/schema/outbox.schema'
 import { insertOutboxRow } from '#/shared/outbox/commit'
@@ -695,6 +696,9 @@ export const createAtomicMetricCommandStore = (
       }
 
       const committed = await db.transaction(async (tx) => {
+        for (const { reading } of command.readings) {
+          await lockMetricSource(tx, reading.organizationId, reading.propertyId, 'writer')
+        }
         const priorReadingIds: Array<string | null> = command.readings.map(() => null)
         if (
           command.sourceReceipt &&
@@ -753,6 +757,9 @@ export const createAtomicMetricCommandStore = (
       }
 
       const committed = await db.transaction(async (tx) => {
+        for (const command of commands) {
+          await lockMetricSource(tx, command.organizationId, command.propertyId, 'writer')
+        }
         const priorCorrections: Array<DuplicateRetractionResult | null> = commands.map(
           () => null,
         )

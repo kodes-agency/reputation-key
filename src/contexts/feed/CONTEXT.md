@@ -210,7 +210,7 @@ representative zone, else UTC, together with where it came from. A settings
 save writes only what the user changed; because the column cannot hold "follow
 the Organization", a first save that changes only the date format stores the
 zone delivery was already using. The format is an English convention, not a
-language: every word in the product is English (docs/BETA.md).
+language: every word in the product is English (docs/obligations.md).
 
 Quiet hours and the urgent bypass sit in that same row, one window for every
 Property the person has (ADR 0046, amended 2026-09-23), with an optional
@@ -657,3 +657,13 @@ contracts. PostgreSQL-backed repository, recovery, delivery, export, and
 lifecycle tests stay beside their infrastructure subjects. The build test pins
 that one Feed build exposes both former APIs without widening either lifecycle
 surface.
+
+Notification route examples live in
+`infrastructure/beta-notification-route-contract.test.ts` and
+`infrastructure/notification-acceptance.test.ts`. Their shared producer fixtures
+and dispatcher harness in `src/shared/testing/` also drive
+`notification-acceptance.integration.test.ts`, which reads the persisted outbox
+envelope and checks delivery receipts,
+redelivery, and same-user isolation across Organizations in PostgreSQL. Unit
+controls catch an omitted consumer and incorrect application read/mutation scope;
+database isolation still requires the integration project.

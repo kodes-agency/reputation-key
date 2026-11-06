@@ -1,15 +1,7 @@
-// Goal Program use cases — setting goals for several subjects in one save.
-//
-// One goal per row. Each row names a Portal or a Portal Group and its target,
-// and becomes its own Program through `createGoalCore`, in its own
-// transaction. The save is authorised once and its start month is resolved
-// once, so every goal of one save starts in the same month and was set at the
-// same instant. A row that cannot be saved is reported and never holds back
-// the others; saving again is safe, because a subject that got its goal the
-// first time reads `subject_has_goal` the second.
-//
-// A sibling of goal-program-create.ts: it imports the core from there and is
-// composed beside the service (build.ts), not through goal-programs.ts.
+// Each row creates its own single-subject Program in its own transaction.
+// Authorize and resolve the start month once for the save; report failed rows
+// without blocking the rest. Retrying a saved subject returns subject_has_goal.
+
 import type { LoggerPort } from '#/shared/domain/logger.port'
 import {
   isGoalBulkSubject,

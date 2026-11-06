@@ -1,16 +1,8 @@
-// Property Google rating goal — the pace chips of the setup (pure, exact).
-//
-// Rounds 3 and 4 (2026-10-16, R3-1 and R3-3): the pace question is how many new
-// reviews a day the Property will ask for, not a multiple of today's pace.
-// The proven pace is the busier of the last 90 days and the busiest 30
-// consecutive days of the last year, a day. The recommendation is the nice
-// pace (1, 2, 3, 5, 7, 10, 15, 20, 30, 50 a day) nearest one and a half times
-// the proven one, at least 1 a day (a tie goes to the higher, nothing above 50).
-// A quiet Property (proven under 1 a day) is offered "A few a week", 1, 2, 3 and
-// 5 a day; a busy one its busiest month, the recommendation and the three nice
-// paces above it (the approved mock's five stops). A pace is stored in tenths
-// of a review a week, so 1.5 a day (105), 0.2 a day (14) and 20 a month (46)
-// all round-trip; a month is 30.4 days.
+// Recommend asking pace from the busier of the last 90 days and busiest 30-day
+// period of the year: nearest nice pace to 1.5× proven, ties upward, 1–50 per day.
+// Quiet Properties get a few-per-week option; busy ones get their busiest pace,
+// the recommendation and three higher stops. Store tenths per week so daily and
+// monthly choices round-trip; a month is 30.4 days.
 
 import { compareRatios, ratio, roundHalfUpInt, type Ratio } from './rating-goal-numbers'
 import { MAX_PACE_TENTHS_PER_WEEK, MIN_PACE_TENTHS_PER_WEEK } from './rating-goal-pace'
@@ -148,7 +140,7 @@ export function ownPaceTenths(
 }
 
 /**
- * The Monday check-in's ladder (round 5, E27): 1 a week, 3 a week, then the
+ * The Monday check-in's ladder: 1 a week, 3 a week, then the
  * nice paces a day, 1 to 50. Raise and Ease step over it from any pace, so a
  * pace between two rungs moves to the next one either way.
  */

@@ -1,5 +1,3 @@
-// Dashboard context — domain errors
-
 import { createErrorFactory } from '#/shared/domain/errors'
 
 export type DashboardErrorCode =

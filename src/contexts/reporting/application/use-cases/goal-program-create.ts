@@ -1,11 +1,7 @@
-// Goal Program use cases — creating a Program.
-//
-// `createGoal` is the request command: it authorises, resolves the month the
-// goal starts in on the Property's calendar, and hands over to
-// `createGoalCore`. The core validates the definition, checks that no subject
-// already holds the metric, and writes the Program. It takes the start period
-// from its caller, so a save of several goals resolves the month once for all
-// of them. The service composes `createGoal` (goal-programs.ts).
+// The request authorizes and resolves a Property-local start month before
+// calling createGoalCore. Bulk saves resolve that month once for every row;
+// the core validates the metric, checks subject overlap and writes the Program.
+
 import type { GovernedMetricVersion } from '../../domain/metric-registry'
 import type {
   GoalProgramBundle,

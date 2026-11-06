@@ -1,4 +1,3 @@
-// Dashboard context — getDashboardData use case
 // Authorizes the reader for the Property, orchestrates all repo queries into a
 // single DashboardData response, and hides reply state from a reader who may
 // not manage replies.

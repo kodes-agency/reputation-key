@@ -1,6 +1,5 @@
 import type { PortalLinkTaps } from './portal-link-taps'
 import type { PortalScanPatterns } from './portal-scan-patterns'
-// Dashboard context — domain response shapes
 // Read-only aggregation surface. No domain rules, no events, no writes.
 
 import { ok, err, type Result } from '#/shared/domain'

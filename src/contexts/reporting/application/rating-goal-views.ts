@@ -1,14 +1,6 @@
-// Property Google rating goal — the views its reads return (pure).
-//
-// Builders from the domain values to the DTO types in dto/rating-goal.types.ts.
-// No I/O: the use cases read, evaluate and pass the results here. The setup
-// view carries the exact inputs the page works its plan out from
-// (rating-goal-setup-plan.ts); no planning maths runs here (PLAN-R4 D18).
-//
-// A goal's own numbers (its forecast, what it still needs, the next tenth)
-// assume the quality the goal now expects of new reviews: its planned quality
-// blended with the reviews since it was set, the plan counted as 15 reviews,
-// or their own average while they are too low for the target (round 4, X3).
+// Map domain values to read DTOs without I/O. Setup sends exact inputs for local
+// planning. Tracking blends planned quality (weight 15) with reviews since set,
+// or uses their own average while they are too low for the target.
 
 import {
   displayedTenths,

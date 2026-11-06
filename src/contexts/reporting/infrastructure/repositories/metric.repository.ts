@@ -19,7 +19,9 @@ function dateOrNull(value: unknown): Date | null {
   return parsed
 }
 
-export const createMetricRepository = (db: Database): MetricRepository => ({
+export const createMetricRepository = (
+  db: Pick<Database, 'select'>,
+): MetricRepository => ({
   queryGoalAggregate: async (query) =>
     trace('metric.queryGoalAggregate', async () => {
       const correctionTips = db

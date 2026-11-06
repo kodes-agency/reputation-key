@@ -463,7 +463,7 @@ hidden in a segment do not survive, and the original is never stored.
 
 `portal.upload` is `controlled_beta`. The owner removed the SAFE-01 completion
 ceremony on 2026-09-30; the technical safeguards above stay in the build (ADR
-0063, ADR 0032, `docs/BETA.md` §8).
+0063, ADR 0032, `docs/obligations.md` §8).
 
 ## Print kit
 
@@ -577,21 +577,8 @@ exceptions to that section's rules:
   address, which has nothing to check); the public edge serves an approval up
   to 30 minutes old, which leaves room for a run that starts up to 10 minutes late
   (`approved-destination-age.ts`, `approved-destination-age.test.ts`). That holds only
-  while a run can take everything that is due. A run takes pages of 50 destinations,
-  pending and approved together, oldest first, from all tenants, and keeps taking them
-  until a page comes back short, a page validated and quarantined nothing, or 150
-  seconds have passed (half the job's 5 minute timeout, which fails a run that passes it;
-  `revalidate-approved-destinations.job.test.ts`). Capacity is a time budget, not a page:
-  checks run one after another, so a run takes a few hundred destinations at about a
-  second each. A row that never validates keeps its place at the head of every page and
-  is tried again on each page of the run, so 50 of them end the run before the rest. That
-  is review finding S09-02 (deferred: the fix is a per-row retry clock, which needs a
-  migration).
-- One other context calls the surface: Reporting's Portal results adapter
-  (`reporting/server/portal-results-overview.ts`) reads the roster through
-  `listPortalOverview`, which authorizes the caller itself, and
-  `listPortalManagementPropertyIds`, whose answer it filters by the caller's Properties
-  and the policy.
+  while a run can take everything that is due. See [Destination revalidation](#destination-revalidation)
+  for paging, retry scheduling and the lag alert.
 
 `findDestinationApprovalNotificationFacts` (the Portal public API, read by Feed) is
 what the notice that a site is waiting for an account admin needs: the site's state
@@ -891,6 +878,12 @@ goes quiet (`s3-storage.adapter.endpoints.test.ts`).
 
 ## Verification
 
+Portal server functions use the shared command handler for request headers,
+tracing and safe error translation. `server/portal-command-errors.ts` owns the
+Portal status mapping; the existing `server/portals.ts` export remains available.
+Permission, capability and resource-scope checks stay in the server adapters.
+Address and print handlers keep their early no-store headers and rate limits.
+
 Unit tests stay beside domain rules, publication, token, responsibility, and server
 contracts. PostgreSQL integration tests cover command atomicity, revision fences,
 public resolution, lifecycle contributors, and the POR-01 read-only reconciliation.
@@ -955,3 +948,27 @@ Personal final-print downloads use a sanitized person-first filename and identif
 the person only in available sheet/crop-mark margins. The guest face and public PDF
 title keep the public name. A single piece without a margin identifies the person
 only in its filename. Share says the saved opening line is also the phone's line.
+
+### Destination revalidation
+
+The worker fixes its due cutoff at the start of each run and takes pages of 50
+pending or approved websites, oldest validation first, excluding visited ids.
+Checks run in batches of at most five so slow failures leave time for later
+pages. Each validation has one five-second deadline across DNS, address retries,
+redirects and the HEAD-to-GET fallback. Expiry cancels its resolver or request;
+the transport drains before its batch slot is released. Each active batch
+settles before the page returns, including on error.
+Each row is visited at most once per run; denied scopes get neither network
+checks nor writes.
+Transient failures retain the last successful validation time, persist
+`next_attempt_at` and back off for 1, 2, 4, 8, then at most 15 minutes. Successful
+validation or explicit approval clears the retry state. Contacts never enter
+the network queue; unsafe websites still enter quarantine through the existing
+publication lock, ledger and outbox path. Guest freshness remains 30 minutes.
+
+The existing alert dispatcher sends `portal.destination-revalidation-lag` when
+a run exhausts its 150-second paging budget or an authorized site's check is
+still unavailable at the freshness limit. Alerts contain only elapsed times and
+fixed descriptions. Check worker run summaries for unavailable, unauthorized
+and stale counts, confirm provider/DNS availability and inspect worker capacity;
+keep the public freshness cutoff and scope checks in place during recovery.

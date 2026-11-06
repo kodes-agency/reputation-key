@@ -1,4 +1,3 @@
-// Metric context — what every governed Portal analytics read agrees on.
 //
 // One Portal's Results view and the batched Portals overview must count the
 // same things the same way, so the definitions they share live here: which

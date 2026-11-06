@@ -362,7 +362,8 @@
           "**/*.test.ts",
           "**/*.test.tsx",
           "**/*.integration.test.ts",
-          "**/*.test-fixtures.ts"
+          "**/*.test-fixtures.ts",
+          "src/shared/testing/notification-route-test-harness.ts"
         ]
       },
       {

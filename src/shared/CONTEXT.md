@@ -27,7 +27,9 @@ Notification, Integration, Staff self and Identity query families come from
 `queries/query-keys.ts`'s `createKeys(scope)`. `TenantScope` names the signed-in
 person and Organization; own-account reads outside the manager workspace use a
 null Organization. Loaders pass their scope explicitly, while components use
-`hooks/useTenantScope.ts`. Reads, optimistic updates and invalidations share that
+`hooks/useTenantScope.ts`, which takes the deepest resolved identity in the
+presented matches while a pending route's descendants await their context.
+Reads, optimistic updates and invalidations share that
 scope. Tenant and session transitions still clear the caches independently.
 
 - `testing/` and `db/testing/` are test-only support, never runtime authorities.

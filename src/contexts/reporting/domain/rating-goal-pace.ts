@@ -1,12 +1,6 @@
-// Property Google rating goal — pace (pure).
-//
-// A climb goal carries a pace of new Google reviews in tenths of a review a
-// week (rounds 3 and 4, 2026-10-16): 1 a week (10) to 50 a day (3500), so a
-// pace a day or a month round-trips. The setup's paces are proactive and
-// worked out from the proven pace (rating-goal-pace-chips.ts), no longer
-// multiples of today's. The current pace is the reviews created in the last 28
-// days, per week, which tracking judges a goal on. One release keeps a whole
-// weekly mirror of the pace (migration 0060).
+// Climb pace is tenths of a review per week, from 10 (1/week) to 3500 (50/day).
+// Tracking uses the last 28 days' reviews per week. Retain the whole-weekly mirror
+// for stored/rolling-deploy compatibility (migration 0060).
 
 import { ratio, type Ratio } from './rating-goal-numbers'
 

@@ -1,19 +1,9 @@
-// Property Google rating goal — when a goal arrives, in days (pure, exact).
-//
-// Round 5 (2026-10-16, PLAN-D E1): one arrival rule for the setup and for
-// tracking, so the card never contradicts the receipt the setup just showed.
-// A goal arrives after the reviews it needs at an average, at a pace: a central
-// time, and a likely range whose fast end is the average 0.1★ better (never
-// above five stars) at a pace 10% faster, and whose slow end is 0.1★ worse at
-// 10% slower, open when 0.1★ worse no longer clears the goal by 0.15★ (the
-// setup's margin, `minimumQualityTenths`). A pace is a count of reviews per a
-// number of days: the chosen one is tenths a week per 70 days, the actual one
-// the reviews of the last 28 days per 28, so both stay exact integers and no
-// float decides a branch (PLAN-R4 D15). Months were retired with this rule.
-//
-// The card counts to the next number Google can show, which skips a tenth the
-// cache already clears while Google lags (D28): with Google at 4.3, the exact
-// average at 4.36 and a goal of 4.5 it counts to 4.5, never "0 to 4.4".
+// Setup and tracking share exact arrival arithmetic. The likely range varies
+// quality by ±0.1★ and pace by ±10%; the slow end is open if quality no longer
+// clears the target by 0.15★. Chosen pace is tenths per 70 days, actual pace is
+// reviews per 28 days, so no float decides a branch.
+// Skip tenths the cache already clears while Google lags: Google 4.3 and exact
+// 4.36 toward 4.5 counts to 4.5, never "0 to 4.4".
 
 import {
   FORECAST_MIX_DRIFT_THOUSANDTHS,

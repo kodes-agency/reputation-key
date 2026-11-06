@@ -223,4 +223,101 @@ describe('adding a portal goal', () => {
 
     expect(calls).toEqual(['authorize', 'create for subjects'])
   })
+
+  it.each([50, 51, 100])('reports every outcome for %i portals', async (size) => {
+    const { deps } = setup()
+    deps.createForSubjects.mockImplementation(async ({ items }) => ({
+      outcomes: items.map(({ subject }) => ({
+        subject: {
+          kind: 'portal',
+          portalId: subject.kind === 'portal' ? subject.portalId : '',
+        },
+        code: 'created',
+        programId: 'created-goal',
+      })),
+    }))
+    const items = Array.from({ length: size }, (_, index) => ({
+      portalId: `portal-${index}`,
+      targetValue: 30,
+      targetSource: 'own' as const,
+    }))
+    const result = await addPortalGoals(
+      deps,
+      {
+        propertyId: PROPERTY_ID,
+        metric: 'portal_rating_count',
+        startMonth: '2026-12',
+        items,
+      },
+      actor,
+    )
+
+    expect(result.outcomes).toEqual(
+      items.map(({ portalId }) => ({ portalId, saved: true })),
+    )
+    expect(
+      deps.createForSubjects.mock.calls.map(([input]) => input.items.length),
+    ).toEqual(size === 50 ? [50] : [50, size - 50])
+  })
+
+  it.each([51, 100, 151])(
+    'keeps committed outcomes when the second batch of %i fails',
+    async (size) => {
+      const { deps } = setup()
+      deps.createForSubjects
+        .mockImplementationOnce(async ({ items }) => ({
+          outcomes: items.map(({ subject }, index) => ({
+            subject: {
+              kind: 'portal',
+              portalId: subject.kind === 'portal' ? subject.portalId : '',
+            },
+            code: index === 0 ? 'subject_has_goal' : 'created',
+            programId: 'created-goal',
+          })),
+        }))
+        .mockRejectedValueOnce(new Error('second batch refused'))
+      const items = Array.from({ length: size }, (_, index) => ({
+        portalId: `portal-${index}`,
+        targetValue: 30,
+        targetSource: 'own' as const,
+      }))
+
+      const result = await addPortalGoals(
+        deps,
+        {
+          propertyId: PROPERTY_ID,
+          metric: 'portal_rating_count',
+          startMonth: '2026-12',
+          items,
+        },
+        actor,
+      )
+
+      expect(result.outcomes).toEqual(
+        items.map(({ portalId }, index) => ({
+          portalId,
+          saved: index > 0 && index < 50,
+        })),
+      )
+      expect(deps.createForSubjects).toHaveBeenCalledTimes(2)
+    },
+  )
+
+  it('still reports a whole-save refusal when no batch has completed', async () => {
+    const { deps } = setup()
+    const refusal = new Error('save refused')
+    deps.createForSubjects.mockRejectedValueOnce(refusal)
+    await expect(
+      addPortalGoals(
+        deps,
+        {
+          propertyId: PROPERTY_ID,
+          metric: 'portal_rating_count',
+          startMonth: '2026-12',
+          items: [{ portalId: RECEPTION, targetValue: 30, targetSource: 'own' }],
+        },
+        actor,
+      ),
+    ).rejects.toBe(refusal)
+  })
 })

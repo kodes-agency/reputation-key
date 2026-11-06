@@ -1,4 +1,3 @@
-// Dashboard context — ReviewStatsPort (facade port per ADR-0007)
 // Aggregation queries against review/reply data.
 // Dashboard never imports review/reply tables directly — this port is the boundary.
 

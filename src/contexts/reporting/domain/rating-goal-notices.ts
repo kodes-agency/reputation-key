@@ -1,31 +1,10 @@
-// Property Google rating goal — which changes its managers are told (pure).
-//
-// Five notices, change-only (ADR 0067 decision 6, ADR 0046 amended
-// 2026-10-14 and 2026-10-15). An evaluation that only repeats what the goal
-// already holds tells nobody anything:
-//   reached                 Google shows the target (the only notice then,
-//                           even when the same change is a tenth gained);
-//   google_rating_changed   Google shows another tenth than it last showed;
-//   entered_below_pace      a climb goal is below its pace, at most once in
-//                           14 days;
-//   entered_reviews_too_low ten or more reviews since the goal was set
-//                           average at or below the target's threshold, at
-//                           most once in 14 days, and with no star figure
-//                           (round 2, 2026-10-15: it replaced "can't reach at
-//                           the recent mix"; no notice for merely trailing the
-//                           plan's quality);
-//   keep_dropped_below      a keep goal's tenth is no longer shown (in place of
-//                           the tenth lost, which is the same change).
-// A status is "entered" against the last status that was not waiting for
-// Google, so a day without Google's numbers never repeats a notice. Nor is the
-// fresh start after a manager changed the pace (round 5, owner answer Q3) a
-// status the goal knows: it keeps the one from before the change, so leaving
-// the fresh start tells only a status that differs from it. A status
-// the goal has not known before (a new goal, a plan a manager just changed) is
-// stored without a notice: notices report what Google and the reviews did,
-// never a manager's own change. An evaluation that ends the goal tells nobody.
-// The engine's status order already keeps Below pace out while a goal is
-// waiting, getting started, reached or too low (rating-goal-status.ts).
+// Only external changes notify managers (ADR 0067, ADR 0046). Reached and keep-drop
+// notices replace the same change's tenth notice; below-pace and too-low notices
+// are throttled to once per 14 days. Too-low notices carry no star figure.
+// Compare against the last known status: waiting for Google and a fresh pace
+// start must not reset it and repeat notices. Initial status and manager plan
+// changes are stored silently; ended goals send nothing. Status precedence comes
+// from rating-goal-status.ts.
 
 import type { PropertyRatingGoal, RatingGoalMode, RatingGoalStatus } from './rating-goal'
 import { restartsAfterPaceChange, type PaceWindow } from './rating-goal-status'

@@ -4,8 +4,9 @@
 // Composed into the one GoalProgramRepository port by goal-program.repository.ts.
 // The Program, version and assignment writes stay there; the row mapping both
 // modules use is in goal-program.rows.ts.
-import { and, asc, desc, eq, gt, lte, or } from 'drizzle-orm'
+import { and, asc, desc, eq, gt, lte, or, sql, type SQL } from 'drizzle-orm'
 import type { Database } from '#/shared/db'
+import { lockMetricSource } from '#/shared/db/metric-source-lock'
 import { auditLogs } from '#/shared/db/schema/audit'
 import {
   goalMonthlyResults,
@@ -15,6 +16,7 @@ import {
   goalSubjectAssignments,
 } from '#/shared/db/schema/goal.schema'
 import { insertOutboxRow } from '#/shared/outbox/commit'
+import { goalMetricSourceHead } from './goal-metric-source-head'
 import type {
   GoalMonthlyResult,
   GoalProgramRepository,
@@ -221,7 +223,59 @@ export const createGoalMonthlyResultRepository = (
     },
 
     async updateResult(input) {
+      const sourceHead = input.sourceHead
+      if (
+        input.result.status === 'closed' &&
+        (!sourceHead || sourceHead.eventTypes.length === 0)
+      )
+        return null
       return db.transaction(async (tx) => {
+        let sourceMatches: SQL | undefined
+        if (input.result.status === 'closed' && sourceHead) {
+          // Serialize with lifecycle transitions, including the first authority row.
+          // A committed hold stops new months; existing months must drain before purge.
+          const lifecycleFence =
+            await tx.execute(sql`SELECT pg_try_advisory_xact_lock_shared(hashtextextended(
+            ${`organization-lifecycle:${input.result.organizationId}`}, 0)) AS locked`)
+          if (lifecycleFence.rows[0]?.['locked'] !== true) return null
+          const sourceLocked = await lockMetricSource(
+            tx,
+            input.result.organizationId,
+            input.result.propertyId,
+            'closure',
+          )
+          if (!sourceLocked) return null
+          const [current] = await tx
+            .select({
+              organizationId: goalMonthlyResults.organizationId,
+              propertyId: goalMonthlyResults.propertyId,
+              periodStart: goalMonthlyResults.periodStart,
+              periodEnd: goalMonthlyResults.periodEnd,
+              definitionVersionId: goalProgramVersions.metricDefinitionVersionId,
+            })
+            .from(goalMonthlyResults)
+            .innerJoin(
+              goalProgramVersions,
+              and(
+                eq(goalProgramVersions.id, goalMonthlyResults.programVersionId),
+                eq(goalProgramVersions.organizationId, goalMonthlyResults.organizationId),
+                eq(goalProgramVersions.propertyId, goalMonthlyResults.propertyId),
+                eq(goalProgramVersions.programId, goalMonthlyResults.programId),
+              ),
+            )
+            .where(
+              and(
+                eq(goalMonthlyResults.organizationId, input.result.organizationId),
+                eq(goalMonthlyResults.propertyId, input.result.propertyId),
+                eq(goalMonthlyResults.id, input.result.id),
+                eq(goalMonthlyResults.status, input.expectedStatus),
+              ),
+            )
+            .for('update', { of: goalMonthlyResults, skipLocked: true })
+          if (!current) return null
+          sourceMatches = sql`${goalMetricSourceHead(current, sourceHead.eventTypes)} = ${sourceHead.value}`
+        }
+        await input.authorize()
         const [row] = await tx
           .update(goalMonthlyResults)
           .set({
@@ -242,6 +296,7 @@ export const createGoalMonthlyResultRepository = (
               eq(goalMonthlyResults.propertyId, input.result.propertyId),
               eq(goalMonthlyResults.id, input.result.id),
               eq(goalMonthlyResults.status, input.expectedStatus),
+              sourceMatches,
             ),
           )
           .returning()
@@ -275,6 +330,7 @@ export const createGoalMonthlyResultRepository = (
             recordedAt: updated.updatedAt,
           })
         }
+        await input.authorize()
         return updated
       })
     },

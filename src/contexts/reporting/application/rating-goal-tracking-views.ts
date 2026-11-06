@@ -1,14 +1,6 @@
-// Property Google rating goal — what the card says about the climb (pure).
-//
-// Round 5 (2026-10-16, PLAN-D D-1): the card counts to the next number Google
-// can show (E5), names the number above the goal as possible (R4-4), says when
-// the goal arrives in durations from today with the setup's one rule (E1), and
-// carries this week's day and the last four weeks' pace, all worked out here
-// inside the one card read (E8): no new query.
-//
-// The arrival keeps Q8's basis (E4): the chosen pace until the pace is 28 days
-// old (from the set, or its latest change: round 5 D-3, Q3), then the reviews of
-// the last 28 days, and the sentence names which.
+// Build card tracking from the existing read using the shared setup arrival rule.
+// Use chosen pace until it is 28 days old, then actual reviews over the last 28
+// days, and name that basis. Count toward the next unearned Google tenth.
 
 import {
   actualRate,

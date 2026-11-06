@@ -1,10 +1,6 @@
-// Reporting — the month a change to a goal starts in.
-//
-// A change to a goal's measure, target or subjects is a new version that
-// starts with a whole Property-local month. Which month depends on how far the
-// goal's head version has come, so the rule is stated once here: the revise
-// and change-subjects commands call it to write the version, and the dialogs
-// call it to say "Applies from {date}" before the manager saves.
+// Commands and dialogs share the first whole Property-local month a revision
+// can use, so "Applies from" describes the month that will be written.
+
 import type { GoalProgramStatus } from '../domain/goal-program'
 // From its own module, not through the Program module: the dialogs run this
 // in the browser, and the Program module is part of the first-paint bundle.

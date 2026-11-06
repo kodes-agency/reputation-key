@@ -126,5 +126,10 @@ describe('Guest feedback Portal attribution', () => {
     )
 
     await expect(lookup()(ORG_A, LEGACY_FEEDBACK)).resolves.toBe(PORTAL_A)
+    await expect(lookup()(ORG_B, LEGACY_FEEDBACK)).resolves.toBeNull()
+  })
+
+  it('returns no attribution for a missing feedback source', async () => {
+    await expect(lookup()(ORG_A, RESPONSE)).resolves.toBeNull()
   })
 })

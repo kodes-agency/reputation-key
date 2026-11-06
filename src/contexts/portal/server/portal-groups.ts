@@ -1,21 +1,17 @@
-// fallow-ignore-file code-duplication
-// r4 s38: parallel dialog forms, server-function shells and ledger rows share intentional boilerplate.
 // Portal context — portal group server functions
 // Per architecture: thin — resolve auth → validate input → call use case → translate errors → return
 
 import { createServerFn } from '@tanstack/react-start'
-import { tracedHandler } from '#/shared/observability/traced-server-fn'
+import { commandHandler } from '#/shared/commands/command.server'
 import { requireExecutionAllowed } from '#/shared/auth/execution-policy'
 import { z } from 'zod/v4'
-import { headersFromContext } from '#/shared/auth/headers'
 import { resolveTenantContext } from '#/shared/auth/middleware'
-import { throwContextError, catchUntagged } from '#/shared/auth/server-errors'
 import { getContainer } from '#/composition'
 import { createPortalGroupInputSchema } from '../application/dto/create-portal-group.dto'
 import { updatePortalGroupInputSchema } from '../application/dto/update-portal-group.dto'
 import { portalGroupMemberSchema } from '../application/dto/portal-group-membership.dto'
-import { isPortalError, portalError } from '../domain/errors'
-import { portalErrorStatus } from './portals'
+import { portalError } from '../domain/errors'
+import { portalCommandErrors } from './portal-command-errors'
 import type { AuthContext } from '#/shared/domain/auth-context'
 import {
   portalGroupId as toPortalGroupId,
@@ -31,50 +27,38 @@ async function authorizePortalGroupResource(
   rawGroupId: string,
   action: 'portal.read' | 'portal.update' | 'portal.delete',
 ): Promise<void> {
-  try {
-    await requirePortalResourceScope({
-      actor: ctx,
-      action,
-      capability: action === 'portal.read' ? 'portal.read' : 'portal.write',
-      notFound: portalError('group_not_found', 'portal group not found'),
-      lookup: () =>
-        getContainer().portalPublicApi.management.resolvePortalGroupManagementScope(
-          toPortalGroupId(rawGroupId),
-        ),
-    })
-  } catch (error) {
-    if (isPortalError(error))
-      throwContextError('PortalError', error, portalErrorStatus(error.code))
-    throw error
-  }
+  await requirePortalResourceScope({
+    actor: ctx,
+    action,
+    capability: action === 'portal.read' ? 'portal.read' : 'portal.write',
+    notFound: portalError('group_not_found', 'portal group not found'),
+    lookup: () =>
+      getContainer().portalPublicApi.management.resolvePortalGroupManagementScope(
+        toPortalGroupId(rawGroupId),
+      ),
+  })
 }
 
 async function authorizePortalGroupMembership(
   ctx: AuthContext,
   input: Readonly<{ portalGroupId: string; portalId: string }>,
 ): Promise<void> {
-  try {
-    await requireMatchingPortalResourceScopes({
-      actor: ctx,
-      action: 'portal.update',
-      capability: 'portal.write',
-      notFound: portalError('portal_not_in_group', 'portal and group do not match'),
-      lookups: [
-        () =>
-          getContainer().portalPublicApi.management.resolvePortalGroupManagementScope(
-            toPortalGroupId(input.portalGroupId),
-          ),
-        () =>
-          getContainer().portalPublicApi.management.resolvePortalManagementScope(
-            toPortalId(input.portalId),
-          ),
-      ],
-    })
-  } catch (error) {
-    if (isPortalError(error))
-      throwContextError('PortalError', error, portalErrorStatus(error.code))
-    throw error
-  }
+  await requireMatchingPortalResourceScopes({
+    actor: ctx,
+    action: 'portal.update',
+    capability: 'portal.write',
+    notFound: portalError('portal_not_in_group', 'portal and group do not match'),
+    lookups: [
+      () =>
+        getContainer().portalPublicApi.management.resolvePortalGroupManagementScope(
+          toPortalGroupId(input.portalGroupId),
+        ),
+      () =>
+        getContainer().portalPublicApi.management.resolvePortalManagementScope(
+          toPortalId(input.portalId),
+        ),
+    ],
+  })
 }
 
 // ── createPortalGroup ─────────────────────────────────────────────
@@ -82,9 +66,13 @@ async function authorizePortalGroupMembership(
 export const createPortalGroup = createServerFn({ method: 'POST' })
   .validator(createPortalGroupInputSchema)
   .handler(
-    tracedHandler(
-      async ({ data }) => {
-        const headers = await headersFromContext()
+    commandHandler(
+      {
+        method: 'POST',
+        name: 'portal-group.createPortalGroup',
+        errors: portalCommandErrors,
+      },
+      async ({ data, headers }) => {
         const ctx = await resolveTenantContext(headers)
         await requireExecutionAllowed({
           actor: ctx,
@@ -93,18 +81,10 @@ export const createPortalGroup = createServerFn({ method: 'POST' })
           propertyId: data.propertyId,
         })
 
-        try {
-          const { management: useCases } = getContainer().portalPublicApi
-          const group = await useCases.createPortalGroup(data, ctx)
-          return { group }
-        } catch (e) {
-          if (isPortalError(e))
-            throwContextError('PortalError', e, portalErrorStatus(e.code))
-          throw catchUntagged(e)
-        }
+        const { management: useCases } = getContainer().portalPublicApi
+        const group = await useCases.createPortalGroup(data, ctx)
+        return { group }
       },
-      'POST',
-      'portal-group.createPortalGroup',
     ),
   )
 
@@ -113,24 +93,20 @@ export const createPortalGroup = createServerFn({ method: 'POST' })
 export const updatePortalGroup = createServerFn({ method: 'POST' })
   .validator(updatePortalGroupInputSchema)
   .handler(
-    tracedHandler(
-      async ({ data }) => {
-        const headers = await headersFromContext()
+    commandHandler(
+      {
+        method: 'POST',
+        name: 'portal-group.updatePortalGroup',
+        errors: portalCommandErrors,
+      },
+      async ({ data, headers }) => {
         const ctx = await resolveTenantContext(headers)
         await authorizePortalGroupResource(ctx, data.portalGroupId, 'portal.update')
 
-        try {
-          const { management: useCases } = getContainer().portalPublicApi
-          const group = await useCases.updatePortalGroup(data, ctx)
-          return { group }
-        } catch (e) {
-          if (isPortalError(e))
-            throwContextError('PortalError', e, portalErrorStatus(e.code))
-          throw catchUntagged(e)
-        }
+        const { management: useCases } = getContainer().portalPublicApi
+        const group = await useCases.updatePortalGroup(data, ctx)
+        return { group }
       },
-      'POST',
-      'portal-group.updatePortalGroup',
     ),
   )
 
@@ -143,9 +119,13 @@ const listPortalGroupsSchema = z.object({
 export const listPortalGroups = createServerFn({ method: 'GET' })
   .validator(listPortalGroupsSchema)
   .handler(
-    tracedHandler(
-      async ({ data }) => {
-        const headers = await headersFromContext()
+    commandHandler(
+      {
+        method: 'GET',
+        name: 'portal-group.listPortalGroups',
+        errors: portalCommandErrors,
+      },
+      async ({ data, headers }) => {
         const ctx = await resolveTenantContext(headers)
         await requireExecutionAllowed({
           actor: ctx,
@@ -154,18 +134,10 @@ export const listPortalGroups = createServerFn({ method: 'GET' })
           propertyId: data.propertyId,
         })
 
-        try {
-          const { management: useCases } = getContainer().portalPublicApi
-          const groups = await useCases.listPortalGroups(data, ctx)
-          return { groups }
-        } catch (e) {
-          if (isPortalError(e))
-            throwContextError('PortalError', e, portalErrorStatus(e.code))
-          throw catchUntagged(e)
-        }
+        const { management: useCases } = getContainer().portalPublicApi
+        const groups = await useCases.listPortalGroups(data, ctx)
+        return { groups }
       },
-      'GET',
-      'portal-group.listPortalGroups',
     ),
   )
 
@@ -178,24 +150,20 @@ const portalGroupIdSchema = z.object({
 export const softDeletePortalGroup = createServerFn({ method: 'POST' })
   .validator(portalGroupIdSchema)
   .handler(
-    tracedHandler(
-      async ({ data }) => {
-        const headers = await headersFromContext()
+    commandHandler(
+      {
+        method: 'POST',
+        name: 'portal-group.softDeletePortalGroup',
+        errors: portalCommandErrors,
+      },
+      async ({ data, headers }) => {
         const ctx = await resolveTenantContext(headers)
         await authorizePortalGroupResource(ctx, data.portalGroupId, 'portal.delete')
 
-        try {
-          const { management: useCases } = getContainer().portalPublicApi
-          await useCases.softDeletePortalGroup(data, ctx)
-          return { deleted: true, portalGroupId: data.portalGroupId }
-        } catch (e) {
-          if (isPortalError(e))
-            throwContextError('PortalError', e, portalErrorStatus(e.code))
-          throw catchUntagged(e)
-        }
+        const { management: useCases } = getContainer().portalPublicApi
+        await useCases.softDeletePortalGroup(data, ctx)
+        return { deleted: true, portalGroupId: data.portalGroupId }
       },
-      'POST',
-      'portal-group.softDeletePortalGroup',
     ),
   )
 
@@ -204,24 +172,20 @@ export const softDeletePortalGroup = createServerFn({ method: 'POST' })
 export const addPortalToGroup = createServerFn({ method: 'POST' })
   .validator(portalGroupMemberSchema)
   .handler(
-    tracedHandler(
-      async ({ data }) => {
-        const headers = await headersFromContext()
+    commandHandler(
+      {
+        method: 'POST',
+        name: 'portal-group.addPortalToGroup',
+        errors: portalCommandErrors,
+      },
+      async ({ data, headers }) => {
         const ctx = await resolveTenantContext(headers)
         await authorizePortalGroupMembership(ctx, data)
 
-        try {
-          const { management: useCases } = getContainer().portalPublicApi
-          await useCases.addPortalToGroup(data, ctx)
-          return { added: true }
-        } catch (e) {
-          if (isPortalError(e))
-            throwContextError('PortalError', e, portalErrorStatus(e.code))
-          throw catchUntagged(e)
-        }
+        const { management: useCases } = getContainer().portalPublicApi
+        await useCases.addPortalToGroup(data, ctx)
+        return { added: true }
       },
-      'POST',
-      'portal-group.addPortalToGroup',
     ),
   )
 
@@ -230,24 +194,20 @@ export const addPortalToGroup = createServerFn({ method: 'POST' })
 export const removePortalFromGroup = createServerFn({ method: 'POST' })
   .validator(portalGroupMemberSchema)
   .handler(
-    tracedHandler(
-      async ({ data }) => {
-        const headers = await headersFromContext()
+    commandHandler(
+      {
+        method: 'POST',
+        name: 'portal-group.removePortalFromGroup',
+        errors: portalCommandErrors,
+      },
+      async ({ data, headers }) => {
         const ctx = await resolveTenantContext(headers)
         await authorizePortalGroupMembership(ctx, data)
 
-        try {
-          const { management: useCases } = getContainer().portalPublicApi
-          await useCases.removePortalFromGroup(data, ctx)
-          return { removed: true }
-        } catch (e) {
-          if (isPortalError(e))
-            throwContextError('PortalError', e, portalErrorStatus(e.code))
-          throw catchUntagged(e)
-        }
+        const { management: useCases } = getContainer().portalPublicApi
+        await useCases.removePortalFromGroup(data, ctx)
+        return { removed: true }
       },
-      'POST',
-      'portal-group.removePortalFromGroup',
     ),
   )
 
@@ -259,24 +219,20 @@ export const removePortalFromGroup = createServerFn({ method: 'POST' })
 export const movePortalToGroup = createServerFn({ method: 'POST' })
   .validator(portalGroupMemberSchema)
   .handler(
-    tracedHandler(
-      async ({ data }) => {
-        const headers = await headersFromContext()
+    commandHandler(
+      {
+        method: 'POST',
+        name: 'portal-group.movePortalToGroup',
+        errors: portalCommandErrors,
+      },
+      async ({ data, headers }) => {
         const ctx = await resolveTenantContext(headers)
         await authorizePortalGroupMembership(ctx, data)
 
-        try {
-          const { management: useCases } = getContainer().portalPublicApi
-          await useCases.movePortalToGroup(data, ctx)
-          return { moved: true }
-        } catch (e) {
-          if (isPortalError(e))
-            throwContextError('PortalError', e, portalErrorStatus(e.code))
-          throw catchUntagged(e)
-        }
+        const { management: useCases } = getContainer().portalPublicApi
+        await useCases.movePortalToGroup(data, ctx)
+        return { moved: true }
       },
-      'POST',
-      'portal-group.movePortalToGroup',
     ),
   )
 
@@ -285,23 +241,19 @@ export const movePortalToGroup = createServerFn({ method: 'POST' })
 export const listPortalGroupHistory = createServerFn({ method: 'GET' })
   .validator(portalGroupIdSchema)
   .handler(
-    tracedHandler(
-      async ({ data }) => {
-        const headers = await headersFromContext()
+    commandHandler(
+      {
+        method: 'GET',
+        name: 'portal-group.listPortalGroupHistory',
+        errors: portalCommandErrors,
+      },
+      async ({ data, headers }) => {
         const ctx = await resolveTenantContext(headers)
         await authorizePortalGroupResource(ctx, data.portalGroupId, 'portal.read')
 
-        try {
-          const { management: useCases } = getContainer().portalPublicApi
-          const entries = await useCases.listPortalGroupHistory(data, ctx)
-          return { entries }
-        } catch (e) {
-          if (isPortalError(e))
-            throwContextError('PortalError', e, portalErrorStatus(e.code))
-          throw catchUntagged(e)
-        }
+        const { management: useCases } = getContainer().portalPublicApi
+        const entries = await useCases.listPortalGroupHistory(data, ctx)
+        return { entries }
       },
-      'GET',
-      'portal-group.listPortalGroupHistory',
     ),
   )

@@ -1,11 +1,5 @@
-// Property Google rating goal — the Monday check-in on the card (pure).
-//
-// Round 5 (PLAN-D D-3, owner answer Q4): when the check-in is due
-// (domain/rating-goal-recap.ts), the card read hands on last week's count, its
-// average as a tenth only from ten reviews (Review gives no week sum under
-// ten), the whole reviews a week the plan asked for when last week had one
-// plan, and the paces Raise and Ease move to (E27). All from the one card
-// read: no new query.
+// Reuse the card read for the weekly check-in. Show an average only from ten
+// reviews, and a planned count only if last week had one plan throughout.
 
 import type { GoogleRatingRangeTotals } from '#/contexts/review/application/public-api'
 import type { PropertyRatingGoal, RatingGoalStatus } from '../domain/rating-goal'

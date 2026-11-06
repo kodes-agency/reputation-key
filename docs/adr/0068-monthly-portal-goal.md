@@ -57,9 +57,12 @@ The owner approved decisions P-1 to P-8 and the smaller calls of the proposal on
    goal is found on the server by Program id: the earliest-created Property goal
    on a count measure that has not ended; else the most recently ended one whose
    window still covers a month that is open or reconciling. One goal per
-   Property is a screen rule plus a pre-check in the set command, which refuses
-   while a Property count goal that has not ended exists on either measure. There
-   is no domain rule, no database constraint and no lock.
+   Property is checked in the set command and enforced by the repository under
+   the Property definition lock across creates, revisions and status changes.
+   A non-ended Property count goal reserves the identity across both count
+   measures, regardless of its start month. Averages and several-subject
+   Programs do not reserve it; ended goals keep their history. Existing
+   conflicts require inspection rather than automatically ending either goal.
 2. **Each Portal's count is a fact (P-1).** The card and the goal page show each
    Portal's count as a plain number, in name order, and never sort by count.
    There are no share bars and no target or pace for a Portal. The rows are drawn

@@ -1,11 +1,7 @@
-// Server-only: the rating goal detail's low reviews, linked to the Inbox items
-// that open them (round 5, PLAN-D D-2b, E17/E18; the owner's exception, ADR
-// 0067 2026-10-17). The use case hands its rows over with Review's ids; here
-// they become Inbox item ids and the review ids are dropped, so the browser
-// never sees one. Opening an item is an Inbox read, which `goal.read` does not
-// grant: a viewer the policy refuses `inbox.read` on the Property gets the
-// rows without links rather than a failed page (ai/server/property-trend.ts is
-// the precedent). One lookup for at most ten ids.
+// Replace Review ids with Inbox item ids before responding (ADR 0067).
+// Goal access does not grant inbox.read: denied viewers get unlinked rows rather
+// than a failed page. Batch at most ten ids in one lookup.
+
 import { getContainer } from '#/composition'
 import { getExecutionPolicy } from '#/shared/auth/execution-policy'
 import type { AuthContext } from '#/shared/domain/auth-context'

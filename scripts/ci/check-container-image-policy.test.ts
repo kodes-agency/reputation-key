@@ -87,7 +87,7 @@ describe('container image policy', () => {
     )
   })
 
-  it('requires a cross-group success barrier before immutable SHA promotion', () => {
+  it('requires the original cross-group verification barrier', () => {
     const policy = loadContainerImagePolicy(ROOT)
     const workflow = readFileSync(resolve(ROOT, '.github/workflows/ci.yml'), 'utf8')
     const withoutBarrier = workflow.replace(
@@ -96,9 +96,26 @@ describe('container image policy', () => {
     )
 
     expect(validateCiContainerCoverage(policy, withoutBarrier)).toContain(
-      'CI must promote the exact complete staged image set before writing its digest map',
+      'CI must require every original image group to succeed',
     )
   })
+
+  it.each(['docker push obsolete', 'cat old-map > ci-image-digest-map.json'])(
+    'rejects an original job regaining publication through %s',
+    (command) => {
+      const policy = loadContainerImagePolicy(ROOT)
+      const workflow = readFileSync(
+        resolve(ROOT, '.github/workflows/ci.yml'),
+        'utf8',
+      ).replace(
+        '      - name: Require every image matrix entry to succeed',
+        `      - name: Publish\n        run: ${command}\n      - name: Require every image matrix entry to succeed`,
+      )
+      expect(validateCiContainerCoverage(policy, workflow)).toContain(
+        'Original image jobs must verify without publishing images or digest maps',
+      )
+    },
+  )
 
   it('requires an isolated read/write Buildx cache for every grouped image', () => {
     const policy = loadContainerImagePolicy(ROOT)
@@ -263,9 +280,9 @@ describe('replacement image pipeline policy', () => {
     )
   })
 
-  it('rejects staging that a main push or a pull request could reach', () => {
+  it('rejects staging that a pull request or branch push could reach', () => {
     const unguarded = workflow.replace(
-      "      - name: Stage scanned images\n        if: github.event_name == 'workflow_dispatch'\n",
+      "      - name: Stage scanned images\n        if: (github.event_name == 'push' && github.ref == 'refs/heads/main') || github.event_name == 'workflow_dispatch'\n",
       '      - name: Stage scanned images\n',
     )
 

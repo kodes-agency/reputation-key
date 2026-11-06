@@ -1,6 +1,3 @@
-// Metric context — metric repository port
-// Per architecture: "Repository ports for all data access."
-
 import type { MetricKey } from '../../domain/metric-types'
 import type {
   OrganizationId,

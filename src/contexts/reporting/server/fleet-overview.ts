@@ -1,7 +1,5 @@
-// Dashboard context — fleet-overview server function.
-// Per architecture: server functions are the HTTP entry points into a context.
-// Resolves tenant context from the authenticated session, NOT from client payload.
-// Accessible properties are resolved server-side (role-aware) — never trusted from the client.
+// Resolve tenant and accessible Properties server-side from the session and role;
+// never trust client scope.
 
 import { createServerFn } from '@tanstack/react-start'
 import { z } from 'zod/v4'

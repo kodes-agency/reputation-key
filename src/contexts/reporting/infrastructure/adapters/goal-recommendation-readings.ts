@@ -1,52 +1,13 @@
-// Reporting — the readings behind a Property's recommended portal goal number,
-// in one statement (ADR 0068 decision 12).
-//
-// The recommendation is a `goal` consumer of the qualified-scan and
-// private-rating-count goal versions (…1301, …1302). It reads them as the
-// behind-pace count does (`goal-running-months.ts`): every reading of the
-// Property at its latest correction, a reading the governed read would
-// quarantine flagged with its Portal, measure and day (the domain decides what
-// it spoils), and the outbox completeness proof left out. A suggestion needs
-// only the counts, and the figure a running goal shows still comes from the
-// governed read.
-//
-// One statement, however many Portals:
-// - each Portal's (or no Portal's) count per measure and Property-local day,
-//   from `from` to `to`. There is no Portal filter: a Property goal counts
-//   every reading, so readings with no Portal, and those of draft, disabled,
-//   archived or deleted Portals, come back too;
-// - each Portal Group's count per measure and local day over the same rows, by
-//   the group each reading was recorded with ("the effective Portal Group at
-//   source-event time", as a group goal's governed read attributes it), so a
-//   group's month so far is its own (PLAN PG-20);
-// - each published Portal's last scan that was not retracted, looked for from
-//   its own instant on (its code's date, at most a year back): from the counted
-//   rows when it was scanned in the range, and only otherwise further back, one
-//   quiet Portal at a time on its own index.
-//
-// It runs under the dashboard read budget, so a slow plan aborts instead of
-// holding a pool connection.
-//
-// Measured 2026-10-18 with EXPLAIN ANALYZE, with stale and with fresh
-// statistics, on a loaded machine:
-// - 5,000 Properties, 423,000 readings: a Property with 2 Portals reads in
-//   about 1 ms; one with 100 Portals and 10,000 readings in the range in
-//   20–75 ms.
-// - The same, with 40 of the 100 Portals quiet but holding a year of readings
-//   each (about 17,000; 20 of them disabled) and 2% of all readings retracted,
-//   1.08 million readings in all: 100–215 ms. Each quiet published Portal costs
-//   4–5 ms, because its walk fetches and sorts every reading it ever had. The
-//   walk used to look up the correction of every one of them and to cover
-//   disabled Portals too; that read took 350–550 ms.
-// The counts come from `metric_readings_version_event_idx`, alone or in a
-// BitmapAnd with `metric_readings_org_property_idx`, so they grow with the
-// whole fleet's readings in the range, not the Property's. An index on
-// (organization_id, property_id, definition_version_id, event_at) would bound
-// them; none is added in v1.
-//
-// The Portal Groups' rows (PLAN PG-20) aggregate the same counted rows: EXPLAIN
-// on 2026-10-18 shows `counted` materialized once and scanned by the days, the
-// group days and the recent scans alike, so the readings are still read once.
+// Read latest-corrected goal counts in one statement (ADR 0068). Quarantined
+// readings retain Portal/measure/day flags; suggestions omit outbox completeness,
+// but running progress still uses the governed read. Count every Property reading,
+// including absent, draft, disabled and deleted Portals; attribute groups at event time.
+// Find each published Portal's last unretracted scan from its code date, at most
+// a year back, falling back to its index only when the counted range has no scan.
+// Share materialized counted rows across daily, group and recent-scan aggregates.
+// Use the dashboard statement budget. The current version/event index can scan
+// fleet-wide range rows; quiet-Portal fallback walks can fetch/sort a year of scans.
+// A tenant/Property/version/event index would bound that work.
 
 import { sql, type SQL } from 'drizzle-orm'
 import type { Database } from '#/shared/db'
