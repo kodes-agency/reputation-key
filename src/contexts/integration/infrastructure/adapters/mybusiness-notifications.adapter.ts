@@ -4,6 +4,7 @@ import type { MyBusinessNotificationsPort } from '../../application/ports/mybusi
 import type { GoogleProviderCallAuthorization } from '../../application/google-provider-contract'
 import type { GoogleAuthorizedProviderExecutor } from '../../application/ports/google-authorized-provider-executor.port'
 import { createGbpApiError, isGbpApiError } from '../../domain/gbp-api-error'
+import { googleCallError } from '../../domain/google-call-error'
 import {
   executeGoogleProviderJson,
   executeGoogleProviderRaw,
@@ -30,7 +31,7 @@ function sameTypes(left: readonly string[], right: readonly string[]): boolean {
 }
 
 function writeOutcomeCouldBeAmbiguous(error: unknown): boolean {
-  return isGbpApiError(error) && error.kind === 'upstream_error'
+  return isGbpApiError(error) && googleCallError(error).code === 'upstream_error'
 }
 
 export const createMyBusinessNotificationsAdapter = (

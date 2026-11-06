@@ -5,7 +5,7 @@
 import { z } from 'zod/v4'
 import type { GbpApiPort, GbpApiAccount } from '../../application/ports/gbp-api.port'
 import { createGbpApiError } from '../../domain/gbp-api-error'
-import type { GbpApiErrorKind } from '../../domain/gbp-api-error'
+import { googleCallErrorCodeForStatus } from '../../domain/google-call-error'
 import { trace } from '#/shared/observability/trace'
 import { providerFetch } from './gbp-provider-fetch'
 
@@ -27,13 +27,6 @@ const pageSchema = z
     nextPageToken: z.string().min(1).max(2_048).optional(),
   })
   .passthrough()
-
-function classifyHttpStatus(status: number): GbpApiErrorKind {
-  if (status === 401) return 'auth_failed'
-  if (status === 403) return 'permission_denied'
-  if (status === 429) return 'rate_limited'
-  return 'upstream_error'
-}
 
 function mapAccount(account: z.infer<typeof accountSchema>): GbpApiAccount {
   const accountName = account.name.slice('accounts/'.length)
@@ -70,7 +63,10 @@ export const createGbpApiAdapter = (config: {
       )
       if (!response.ok) {
         await response.body?.cancel().catch(() => undefined)
-        throw createGbpApiError('listAccounts', classifyHttpStatus(response.status))
+        throw createGbpApiError(
+          'listAccounts',
+          googleCallErrorCodeForStatus(response.status),
+        )
       }
 
       const parsed = pageSchema.safeParse(await response.json())
