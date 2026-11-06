@@ -715,6 +715,13 @@
       "when": 1798300000000,
       "tag": "0101_validate_merchant_ai_notice_retention_corrections",
       "breakpoints": true
+    },
+    {
+      "idx": 102,
+      "version": "7",
+      "when": 1798300001000,
+      "tag": "0102_always_erasure_guards",
+      "breakpoints": true
     }
   ]
 }
