@@ -13,15 +13,8 @@
 //                  and after a build failed (container-lifecycle.ts).
 //   - keys       — the environment parses and carries no placeholder secret.
 //   - db / redis — the existing db-probe and cache/redis probes.
-//   - migrations — the applied set (drizzle.__drizzle_migrations row count)
-//                  must match the on-disk journal entry count
-//                  (drizzle/meta/_journal.json). Fewer applied = a deploy whose
-//                  migrations have not finished applying. More applied = this
-//                  image is older than the database: never ready, by design —
-//                  recovery is forward-only (ADR 0038, amended 2026-10-12). The
-//                  outgoing container reads that way until the newer release
-//                  activates, and for good when that release applied its
-//                  migrations and never activated (runbooks.md §28).
+//   - migrations — all of this image's migrations have applied. Later expands
+//                  remain compatible; a later contract ends that compatibility.
 //   - policy     — the process-static capability configuration parses and
 //                  retains every hard-blocked capability. Tenant grants/consent
 //                  and the Google execution control remain live request-time
@@ -58,36 +51,24 @@ import {
 /** Hard per-probe budget. A probe slower than this reports false. */
 export const READINESS_PROBE_BUDGET_MS = 2000
 
-/** On-disk migration journal entry count (drizzle/meta/_journal.json). */
-function journalEntryCount(
-  journalPath = join(process.cwd(), 'drizzle', 'meta', '_journal.json'),
-): number {
-  // eslint-disable-next-line security/detect-non-literal-fs-filename -- BQC-7.7 (owner: platform): default param is a server-constant path (process.cwd()/drizzle), never request input
-  const raw = readFileSync(journalPath, 'utf8')
-  return (JSON.parse(raw) as { entries: readonly unknown[] }).entries.length
-}
-
-/**
- * Applied migration set matches the on-disk journal (deploy finished). False
- * in both directions; the probe body cannot tell them apart, so the one that
- * no waiting resolves — an image older than the database — is logged.
- */
+/** Expands preserve older readers; contract files require the newer journal. */
 export async function isMigrationJournalMatched(): Promise<boolean> {
   try {
-    const journalEntries = journalEntryCount()
+    const journal = JSON.parse(
+      // eslint-disable-next-line security/detect-non-literal-fs-filename -- committed migration history, never request input
+      readFileSync(join(process.cwd(), 'drizzle', 'meta', '_journal.json'), 'utf8'),
+    ) as {
+      entries: { when: number }[]
+    }
     const result = await getPool().query(MIGRATION_COUNT_SQL)
     const applied = Number(result.rows[0]?.count ?? -1)
-    const position = migrationJournalPosition(applied, journalEntries)
-    if (position === 'database_ahead') {
-      getLogger().warn(
-        { applied, journalEntries },
-        '[health] this image is older than the database — more migrations are applied than its journal holds, ' +
-          'so it is never ready by design (forward-only recovery, ADR 0038). ' +
-          'Expected on the outgoing container until the newer release activates; ' +
-          'if that release never activates, this container cannot be redeployed (runbooks.md §28)',
-      )
-    }
-    return position === 'matched'
+    const contractWhen = Number(result.rows[0]?.contract_when ?? 0)
+    return (
+      migrationJournalPosition(applied, journal.entries.length) !== 'database_behind' &&
+      Number.isFinite(applied) &&
+      Number.isFinite(contractWhen) &&
+      contractWhen <= (journal.entries.at(-1)?.when ?? 0)
+    )
   } catch (err) {
     getLogger().warn({ err }, '[health] migration journal check failed')
     return false

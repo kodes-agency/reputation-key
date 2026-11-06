@@ -9,8 +9,9 @@ import { getPool } from '#/shared/db/pool'
 
 // drizzle.__drizzle_migrations row count — the cheap form of the 5.4
 // comparator's journal query (schema-drift.ts fetchCatalog).
-export const MIGRATION_COUNT_SQL =
-  'SELECT count(*)::int AS count FROM drizzle.__drizzle_migrations'
+export const MIGRATION_COUNT_SQL = `SELECT count(*)::int AS count,
+    max(created_at) FILTER (WHERE (to_jsonb(m)->>'is_contract')::boolean) AS contract_when
+   FROM drizzle.__drizzle_migrations m`
 
 /**
  * The applied journal count. Returns null when the read fails — a degraded
