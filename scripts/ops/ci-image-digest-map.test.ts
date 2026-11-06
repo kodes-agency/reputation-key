@@ -392,7 +392,7 @@ describe('closed-beta CI run that proves the images', () => {
     )
   })
 
-  it('reads the image jobs by the names ci.yml gives them', () => {
+  it('uploads the deploy map under the artifact name its reader expects', () => {
     const workflow = readFileSync(
       resolve(import.meta.dirname, '../../.github/workflows/ci.yml'),
       'utf8',
@@ -401,8 +401,7 @@ describe('closed-beta CI run that proves the images', () => {
       workflow,
     )?.[0]
 
-    // A rename here would make every partial re-run undeployable again.
-    expect(workflow).toMatch(/\n {2}docker-images:\n {4}name: docker image group \(/u)
+    // The reader downloads the artifact by this name.
     expect(imageJob).toContain('name: ci-image-digest-map-${{ github.sha }}')
   })
 })

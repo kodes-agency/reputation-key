@@ -1,5 +1,5 @@
 // What the image policy reads out of ci.yml: its steps and jobs by name, and the
-// checks both image pipelines owe. A commented-out contract proves nothing, so
+// image pipeline checks. A commented-out contract proves nothing, so
 // each of these reads only executable lines.
 
 // CI builds all four classified image descriptors. On main, it publishes the
