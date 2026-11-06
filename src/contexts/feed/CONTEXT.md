@@ -648,8 +648,11 @@ delivery-lag source read once a bulk import raised its cost estimate.
 4. Email delivery rechecks preference, capability, responsibility, delayed
    execution policy, and whether the work still waits immediately before the
    provider effect.
-5. User-facing notification copy is produced only by
-   `domain/notification-templates.ts`.
+5. User-facing notification copy is rendered through
+   `domain/notification-templates.ts`, with arrival/import and reply-outcome
+   copy in named family modules alongside the account and goal renderers.
+   Reply outcome delivery derives the notice type from the durable event and
+   shares payload construction for authors and responsible-manager fallbacks.
 6. Mandatory notices are Organization-scoped; every other notice is
    Property-scoped, with three named exceptions. `beta_feedback.outcome`
    (ADR 0059) and `integration.google_disconnected` (ADR 0046, amended
@@ -687,3 +690,10 @@ routes share `enqueueInboxWorkflowNotifications` in
 `infrastructure/inbox-notification-fanout.ts`; grouped routes keep their
 per-Property job identities. Database concurrency and assignment-generation
 fences require separate PostgreSQL coverage.
+
+`infrastructure/notification-family-acceptance.test.ts` preserves recipients,
+categories, defaults and copy for invitation acceptance, review updates, reply
+outcomes, import completion, goal results and feedback outcomes through real
+producers and the dispatcher. Its preference contract round trips keep Google
+rating goals (`recognition`) independent from Portal goals (`portal_goals`);
+database persistence remains covered by the preference repository integration tests.
