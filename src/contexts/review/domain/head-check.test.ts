@@ -196,6 +196,29 @@ describe('compareHead: what a head page would persist', () => {
       expect(result).toMatchObject({ replyChangedCount: 1, wouldPersist: 1 })
     })
 
+    it.each([
+      ['2026-10-20T12:00:00.999Z', '2026-10-20T12:00:01.000Z'],
+      ['2026-10-20T12:00:01.000Z', '2026-10-20T12:00:00.999Z'],
+    ])('detects adjacent reply seconds (%s, %s)', (storedTime, listTime) => {
+      const review = google({ replyText: 'Thanks', replyUpdatedAt: new Date(listTime) })
+      const input: HeadComparisonInput = {
+        now: NOW,
+        sourceEpoch: EPOCH,
+        reviews: [review],
+        copies: [
+          stored({ reply: { state: 'live', providerUpdatedAt: new Date(storedTime) } }),
+        ],
+        googleTotal: 1,
+        googleAverage: 5,
+        storedLiveCount: 1,
+        storedAverage: 5,
+        hasMore: false,
+      }
+
+      expect(compareHead(input)).toMatchObject({ replyChangedCount: 1, wouldPersist: 1 })
+      expect(headReviewsToPersist(input)).toEqual([review])
+    })
+
     it('does not count no reply on both sides', () => {
       const result = compare({
         reviews: [google()],
