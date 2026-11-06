@@ -8,7 +8,6 @@
   "src/contexts/review/infrastructure/reply-command-store.ts": 918,
   "src/contexts/review/infrastructure/repositories/review-provider-snapshot.repository.ts": 1382,
   "src/shared/ai-internal-transport-contract.ts": 1055,
-  "src/shared/db/schema-drift.ts": 947,
   "src/shared/db/schema/ai.schema.ts": 1174,
   "src/shared/db/schema/inbox.schema.ts": 842,
   "src/shared/db/schema/review.schema.ts": 1409,
