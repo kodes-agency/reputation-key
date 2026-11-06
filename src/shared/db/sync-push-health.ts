@@ -139,6 +139,19 @@ async function readLedgerCounts(db: Database) {
 }
 
 async function readPolledSightings(db: Database): Promise<LedgerSighting[]> {
+  const facts = reviewGoogleReputationSnapshotFacts
+  // The discovering run completes after the sighting; only an earlier listing
+  // can prove Google had not published this Review when it was written.
+  const previousListingAt = sql<string | null>`(
+    SELECT ${facts.evaluatedAt} FROM ${facts}
+    WHERE ${facts.organizationId} = ${reviewFirstSightings.organizationId}
+      AND ${facts.propertyId} = ${reviewFirstSightings.propertyId}
+      AND ${facts.sourceEpoch} = ${reviewFirstSightings.sourceEpoch}
+      AND ${facts.listingComplete}
+      AND ${facts.evaluatedAt} < ${reviewFirstSightings.firstSeenAt}
+    ORDER BY ${facts.evaluatedAt} DESC
+    LIMIT 1
+  )`
   const rows = await db
     .select({
       organizationId: reviewFirstSightings.organizationId,
@@ -149,6 +162,7 @@ async function readPolledSightings(db: Database): Promise<LedgerSighting[]> {
       firstSeenAt: reviewFirstSightings.firstSeenAt,
       pushAcceptedAt: reviewFirstSightings.pushAcceptedAt,
       sourceCreatedAt: reviews.sourceCreatedAt,
+      previousListingAt,
     })
     .from(reviewFirstSightings)
     .innerJoin(
@@ -181,6 +195,8 @@ async function readPolledSightings(db: Database): Promise<LedgerSighting[]> {
     firstSeenAt: row.firstSeenAt,
     pushAcceptedAt: row.pushAcceptedAt,
     sourceCreatedAt: row.sourceCreatedAt,
+    previousListingAt:
+      row.previousListingAt === null ? null : new Date(row.previousListingAt),
     locationKey: `${row.organizationId}/${row.propertyId}`,
     accountKey: `${row.organizationId}/${row.connectionId}/${row.accountId}`,
   }))

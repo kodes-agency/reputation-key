@@ -29,11 +29,9 @@ export const PUSH_MISSED_AFTER_MS = 60 * 60 * 1000
 export const PUSH_PAIRING_WINDOW_MS = 24 * 60 * 60 * 1000
 
 /**
- * A Review Google dates this long before RepKey first saw it was not a new
- * arrival. Polling lists a Property about every six hours, so a Review that old
- * was not in Google's listing until now: Google published it late. Google does
- * not reliably announce those, so a missing push for one says nothing about the
- * fast path (ADR 0055, note 2026-11-01).
+ * Fallback when no previous completed listing is known: a Review Google dates
+ * more than this long before RepKey first saw it is treated as published late.
+ * Google does not reliably announce those (ADR 0055, note 2026-11-01).
  */
 export const LATE_PUBLISHED_AFTER_MS = 24 * 60 * 60 * 1000
 
@@ -73,6 +71,8 @@ export type FirstSightingFacts = Readonly<{
   pushAcceptedAt: Date | null
   /** The date Google gives the Review; null when the read has none for it. */
   sourceCreatedAt: Date | null
+  /** The Property's last completed listing before this first sighting, in its source epoch. */
+  previousListingAt: Date | null
 }>
 
 /**
@@ -88,11 +88,13 @@ export type PushCoverage = Readonly<{
 }>
 
 function publishedLate(sighting: FirstSightingFacts): boolean {
-  return (
-    sighting.sourceCreatedAt !== null &&
-    sighting.firstSeenAt.getTime() - sighting.sourceCreatedAt.getTime() >
-      LATE_PUBLISHED_AFTER_MS
-  )
+  if (sighting.sourceCreatedAt === null) return false
+  const createdAt = sighting.sourceCreatedAt.getTime()
+  // A Review dated before a listing that did not contain it was published late.
+  if (sighting.previousListingAt !== null) {
+    return createdAt < sighting.previousListingAt.getTime()
+  }
+  return sighting.firstSeenAt.getTime() - createdAt > LATE_PUBLISHED_AFTER_MS
 }
 
 /** Judge one first sighting at `now`. */
