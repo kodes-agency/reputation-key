@@ -31,36 +31,30 @@ vi.mock('#/routes/_authenticated/properties/$propertyId/-settings-queries', () =
 }))
 
 import { Route } from './members'
+import { routeQueryClient, runRouteHook } from '#/routes/route-harness'
+import type { Role } from '#/shared/domain/roles'
 
-type Role = 'AccountAdmin' | 'PropertyManager'
-
-/** Runs the route's loader as `role`, reading through the real query functions. */
-async function runLoader(role: Role) {
+function runLoader(role: Role) {
   const loader = Route.options.loader
-  if (typeof loader !== 'function') {
-    throw new Error('Members route must define a loader function')
-  }
-  return loader({
+  if (typeof loader !== 'function') throw new Error('The route loader is missing')
+  return runRouteHook(loader, {
     context: {
       role,
-      user: { id: 'user-1' },
-      activeOrganization: { id: 'org-1' },
-      queryClient: {
-        ensureQueryData: async (options: { queryFn: () => Promise<unknown> }) =>
-          options.queryFn(),
+      user: { id: 'user-1', name: 'Ana', email: 'ana@example.com', image: null },
+      activeOrganization: {
+        id: 'org-1',
+        name: 'Hotel',
+        slug: 'hotel',
+        contactEmail: null,
       },
+      queryClient: routeQueryClient(),
     },
-  } as never)
+  })
 }
 
-/** What the route's beforeLoad throws for `role` (a redirect), or undefined. */
-function thrownByBeforeLoad(role: string): unknown {
-  const beforeLoad = Route.options.beforeLoad
-  if (typeof beforeLoad !== 'function') {
-    throw new Error('Members route must define beforeLoad')
-  }
+function thrownByBeforeLoad(role: Role): unknown {
   try {
-    beforeLoad({ context: { role } } as never)
+    runRouteHook(Route.options.beforeLoad, { context: { role } })
   } catch (thrown) {
     return thrown
   }
