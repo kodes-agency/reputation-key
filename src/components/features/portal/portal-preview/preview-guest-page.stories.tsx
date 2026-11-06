@@ -19,7 +19,7 @@ if (english === undefined) throw new Error('the draft fixture has no English pag
 const pack = await loadGuestPortalCopyV2('en')
 
 const PhoneFrame: Decorator = (Story) => (
-  <div style={{ ...PHONE, margin: '0 auto', overflowY: 'auto' }}>
+  <div style={{ ...PHONE, maxWidth: '100%', margin: '0 auto', overflowY: 'auto' }}>
     <link rel="stylesheet" href={GUEST_FONT_STYLESHEET} />
     <Story />
   </div>
