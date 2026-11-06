@@ -22,7 +22,15 @@ const SESSION_KEY = 'footer-story-session'
 const BRAND = { accentColour: '#EAD6A8', fieldColour: '#15110D', hero: null } as const
 
 const PhoneFrame: Decorator = (Story) => (
-  <div style={{ width: 390, height: 520, margin: '0 auto', overflowY: 'auto' }}>
+  <div
+    style={{
+      width: 390,
+      maxWidth: '100%',
+      height: 520,
+      margin: '0 auto',
+      overflowY: 'auto',
+    }}
+  >
     <link rel="stylesheet" href={GUEST_FONT_STYLESHEET} />
     <Story />
   </div>

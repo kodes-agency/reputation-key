@@ -57,6 +57,8 @@ export const IMMERSIVE_RESPONSE_CSS = `
 .ih-fieldset:disabled { opacity: 0.65; }
 .ih-stars { display: flex; justify-content: space-between; }
 .ih-star {
+  flex: 0 1 54px;
+  min-width: 44px;
   width: 54px;
   height: 54px;
   box-sizing: border-box;
@@ -93,7 +95,9 @@ export const IMMERSIVE_RESPONSE_CSS = `
 }
 .ih-scale__end--high { text-align: end; }
 .ih-scale .ih-scale__word {
+  min-width: 0;
   min-height: 30px;
+  text-align: center;
   font-size: 25px;
   font-style: italic;
   font-weight: 500;
@@ -134,8 +138,10 @@ export const IMMERSIVE_RESPONSE_CSS = `
   gap: 8px;
   box-sizing: border-box;
   width: 100%;
+  min-width: 44px;
+  max-width: 100%;
   min-height: 52px;
-  padding: 0 22px;
+  padding: 10px 22px;
   border: 1px solid transparent;
   border-radius: 999px;
   font: inherit;
@@ -158,7 +164,10 @@ export const IMMERSIVE_RESPONSE_CSS = `
 .ih-button:hover { filter: brightness(1.07); }
 .ih-button:active { transform: scale(0.985); }
 .ih-button:disabled { opacity: 0.65; cursor: default; filter: none; transform: none; }
+.ih-button > svg { flex: none; }
 .ih-text-button {
+  min-width: 44px;
+  max-width: 100%;
   min-height: 44px;
   padding: 0 6px;
   border: 0;
@@ -230,6 +239,7 @@ export const IMMERSIVE_RESPONSE_CSS = `
   gap: 14px;
   padding: 20px 18px;
 }
+.ih-google-card--unavailable > div { min-width: 0; }
 .ih-disc {
   flex: none;
   display: inline-flex;
@@ -251,7 +261,7 @@ export const IMMERSIVE_RESPONSE_CSS = `
   background: rgba(8, 10, 9, 0.22);
 }
 .ih-note--sent { display: flex; align-items: center; gap: 14px; padding: 14px 16px; border-radius: 24px; }
-.ih-note--sent p { margin: 0; font-size: 16px; line-height: 1.35; }
+.ih-note--sent p { min-width: 0; margin: 0; font-size: 16px; line-height: 1.35; }
 .ih-note__hint {
   display: flex;
   align-items: center;
@@ -280,7 +290,7 @@ export const IMMERSIVE_RESPONSE_CSS = `
 .ih-note__field:focus { border-color: var(--ih-accent); }
 .ih-note__field[aria-invalid="true"] { border-color: var(--ih-accent-text); }
 .ih-note__fine { margin: 0; font-size: 14px; color: rgba(255, 255, 255, 0.78); }
-.ih-note__actions { display: flex; align-items: center; gap: 10px; margin-top: 6px; }
+.ih-note__actions { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-top: 6px; }
 .ih-note__actions .ih-button { flex: 1 1 auto; width: auto; }
 
 ${IMMERSIVE_SECTION_CSS}
