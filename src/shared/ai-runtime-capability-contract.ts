@@ -110,19 +110,6 @@ export const AI_RUNTIME_CAPABILITY_CATALOGUE = Object.freeze([
     noticesInForce: MERCHANT_AI_NOTICES_IN_FORCE.reply_drafting,
     served: true,
   }),
-  Object.freeze({
-    capability: 'property_trends',
-    runtimeProfileVersion: 'property-trends-runtime-v1',
-    purpose: 'ai.detect_trends',
-    sourceRoute: 'property-trend',
-    gatewayPath: '/v1/property-trend',
-    gatewayProfileVersion: 'property-trend-gateway-v1',
-    caller: 'worker',
-    operationProfileVersion: 'property-trend-v1',
-    providerDeploymentProfileVersion: SERVED_PROVIDER_DEPLOYMENT_PROFILE,
-    noticesInForce: MERCHANT_AI_NOTICES_IN_FORCE.property_trends,
-    served: true,
-  }),
 ] as const)
 
 const EXPECTED_RUNTIME_CAPABILITIES = AI_RUNTIME_CAPABILITY_CATALOGUE.filter(
@@ -181,12 +168,13 @@ export function resolveAiRuntimeCapabilitySet(
   }
   const requested = new Set<string>()
   for (const capability of requestedCapabilities) {
-    if (!CAPABILITY_SET.has(capability)) failContract(`unknown capability ${capability}`)
+    if (
+      !CAPABILITY_SET.has(capability) ||
+      !AI_RUNTIME_CAPABILITIES_V1.some((entry) => entry.capability === capability)
+    )
+      failContract(`unavailable capability ${capability}`)
     if (requested.has(capability)) failContract(`duplicate capability ${capability}`)
     requested.add(capability)
-  }
-  if (requested.has('property_trends') && !requested.has('review_analysis')) {
-    failContract('property_trends requires review_analysis')
   }
 
   const mapping: Partial<Record<MerchantAiCapability, string>> = {}

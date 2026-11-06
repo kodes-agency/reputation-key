@@ -6,7 +6,7 @@
 
 The AI context owns governed AI authorization reads, operation admission,
 provider-inference orchestration, derivative output lineage/lifecycle, Review
-Analysis enrollment, deterministic Property Trends, and on-demand Reply Drafting.
+Analysis enrollment, Guest voice, and on-demand Reply Drafting.
 It does not own Google Review source content, Property access, Inbox workflow,
 Reply publication, Portal/Guest data, metrics, goals, or notifications.
 
@@ -22,8 +22,7 @@ Reply publication, Portal/Guest data, metrics, goals, or notifications.
   read's permission held, current Property access) before the
   merchant-authorization gate is read; a refusal is a tagged `AiError`
   `forbidden`. The permission is the one the read's surface is gated on:
-  `dashboard.read` for `readReviewAnalysisProgress`, `ai.trends.read` for
-  `readPropertyTrend`, and `inbox.read` for `readReviewAnalysis`, which Inbox calls through its
+  `dashboard.read` for `readReviewAnalysisProgress` and `inbox.read` for `readReviewAnalysis`, which Inbox calls through its
   `AiReviewInsightsPort` after it has authorized the item.
 - Not reader-authorized inside the context: the two review-id filters
   (`findCurrentReviewIdsByAttention`, `findCurrentReviewIdsByAspect`), which
@@ -38,11 +37,14 @@ Reply publication, Portal/Guest data, metrics, goals, or notifications.
 
 ## Model
 
-The fixed beta capabilities are Review Analysis, on-demand editable Reply
-Drafting, and deterministic Property Trends. Property Trends aggregate completed
-Review Analysis and never make a second provider-generation call.
+The active per-Property capabilities are Review Analysis and Reply Drafting.
+Guest voice reads completed Review Analysis. Property Trends has no scheduler,
+worker job, provider preparation or delivery endpoint. Its tables, recorded
+consent vocabulary and operation-profile attestations remain for retention,
+export and stored provenance; they confer no execution authority.
 
-All three are dark until the AccountAdmin authorization, live access, notice version, provider policy, platform gate, runtime catalogue, and cell-local admission/egress controls agree. Property Trends additionally requires Review Analysis. A capability being present in code or schema is not activation.
+Both active capabilities require AccountAdmin authorization, live access, notice
+coverage, provider policy, platform gates and runtime admission controls.
 
 Merchant authorization follows the acknowledged notice, independently of the
 runtime/deployment recorded as historical evidence (ADR 0074). The shared pure
@@ -52,20 +54,16 @@ pairs fail closed. Operations and execution controls use the served selection;
 the gateway still requires the exact served operation/runtime/deployment.
 New provider work and settlement use this compatibility rule while retaining
 lineage, state, membership, source, epoch and control-generation fences. Reads
-and delivery of already-produced outputs, draft adoption/publication and trend
-scheduling retain their previous rules, including stored analysis under an
+and delivery of already-produced outputs, and draft adoption/publication retain their previous rules, including stored analysis under an
 unchanged grant whose notice has lapsed.
 
-Today only the 2026-10-30 notice is in force. Its introduction materially changed
-all three capabilities, so earlier consent requires renewal. An out-of-force
-notice answers `consent_renewal_required` for drafting, after tenant/access
-checks and before claiming work, with the notice fix target. Re-consent advances
-only capabilities whose membership/source scope changed or whose notice data
-use materially changed across intervening versions. Source policy, routing policy
-and redaction family changes still advance every previously or newly enabled
-capability epoch. A drafting-only material
-notice preserves Review Analysis and trends epochs and the analysis frontier.
-A technical runtime/deployment refresh writes no consent evidence or epoch.
+The served notice is `merchant-ai-notice-2026-11-06.v2`. Earlier notices remain
+in force per capability where data use is unchanged; the notice catalogue is
+the authority. An out-of-force notice answers `consent_renewal_required` for
+drafting, after tenant/access checks and before claiming work. Standing renewal
+(ADR 0075) advances only capabilities whose membership/source scope or notice
+data use materially changed. A technical runtime refresh writes no consent
+evidence or epoch. Retiring Trends advances neither active capability epoch.
 
 Operations, settlements, derivative generations, enrollment heads, schedules,
 and output lineage pin authorization, source, policy, model, and lifecycle fences.
@@ -242,8 +240,7 @@ the envelope names OpenAI and Anthropic; the provider every capability runs on i
 runtime profile `review-analysis-runtime-v2`, and the served notice
 `merchant-ai-notice-2026-10-30.v1`, the only one in force. The v2 profile stays in the
 catalogue as retired so that pending and historical v2 operations can still be read and
-settled; no new work is claimed on it. Reply drafting and property trends run on the same
-deployment profile, so they run on `gpt-6-luna` too.
+settled; no new work is claimed on it. Reply drafting uses its independently served runtime and deployment profile.
 
 The provider choice is `OPERATOR_PROVIDER_SELECTION` (`ai-provider-control/operator-provider-selection.ts`),
 a constant and not an environment value, and it names OpenAI alone. `createOperatorProviderChoice`
@@ -274,7 +271,7 @@ nothing without an error because a v3 analysis has no aspects; the Priority sugg
 v3 attention; reply drafting reads no analysis topics; Settings offer the Guest voice summary
 and the Urgent reviews wording while `REVIEW_ANALYSIS_V3_LIVE` holds, a constant a test pins to
 the runtime catalogue. The pages and server functions that read the v2 aspect aggregates
-(`property-insights.ts`, `property-aggregates.ts`, `property-trend.ts`) are no longer called by
+(`property-insights.ts`, `property-aggregates.ts`) are no longer called by
 any route; they are kept for the cleanup that removes the aspect read model.
 
 ## Review analysis v3 contracts
@@ -722,14 +719,11 @@ no longer holds a figure provisional; a newer sequence still waits.
 Reply Draft provider output remains session-ephemeral until an explicit,
 atomically revalidated adoption creates Review-owned draft content.
 
-Property Trends compare the latest 30 complete Property-local days with the prior 30. Readiness requires at least 20 analyzed text Reviews, at least 90% coverage,
-and a caught-up enrollment; incomplete settlement coverage reports
-`preparing`/`Updating` rather than a fabricated zero. A window with no text Review
-has nothing to analyse, so it is not incomplete: it reports `insufficient_data`
-(`trendWindowIsIncomplete`, `src/shared/ai-property-trend-minimums.ts`, which the
-Guest voice page reads too, so a stored `updating` report whose windows are all
-complete is worded as insufficient data). Before 2026-10-29 its stored coverage of
-0 (0 of 0) read as below 90% and left every quiet Property in `Updating`.
+Property Trends is retired. The served merchant notice
+`merchant-ai-notice-2026-11-06.v2` removes its processing promise and marks
+`property_trends` alone as materially changed. The previous notice stays in
+force for analysis and drafting, so this retirement advances neither live
+capability epoch and cannot erase or replay their results (ADR 0075).
 
 Guest voice 2.0 (`readGuestVoiceV2`, v3 contract section 9) is the Guest voice page, and since the
 switch-on (2026-10-30) the only one: the route reads it once. A Property whose reviews have a v3
@@ -920,8 +914,7 @@ records a sequence it allocated and did not use (a replayed or out-of-order
 observation) in `review_ai_analysis_released_sequences`, and every reader of
 coverage subtracts the released numbers of the same source epoch that lie in
 that range and that no settlement already counts: the stall monitor
-(`alert-aux-reads.ts`), the aggregate read, the trend scheduler and the trend
-report (`releasedAwaitingSequenceCountSql` in
+(`alert-aux-reads.ts`), the aggregate read (`releasedAwaitingSequenceCountSql` in
 `src/shared/db/review-analysis-released-sequences.ts`). AI never writes the
 ledger. Its own allocations (the reopen pass and the enrollment replay) stamp
 the number on a review and announce it in the same transaction, or roll back.
@@ -1089,11 +1082,9 @@ Re-verified map items 7–8 against origin/main `cf1e33c66` (B1 merged):
 
 ## Verification
 
-Unit tests stay beside admission, lineage, lifecycle, enrollment, trend, drafting,
+Unit tests stay beside admission, lineage, lifecycle, enrollment, drafting,
 worker, server, and public-boundary subjects. PostgreSQL integration tests cover
-transactional fences, replay, erasure, lifecycle, and export behavior, and which
-Properties the Property Trend scheduler picks and whose outcome it still accepts
-(`ai-property-trend-schedule-store.adapter.integration.test.ts`).
+transactional fences, replay, erasure, lifecycle, aggregate coverage and export behavior.
 
 The context contains substantial control, admission, lifecycle, analysis, drafting, aggregate, and schedule infrastructure. That does not mean every beta capability is release-ready. The comprehensive program status ledger is the completion authority; live provider/cell drills, full product-facing enrollment progress, and deployed lifecycle/recovery evidence remain required until their packages are evidence-complete.
 

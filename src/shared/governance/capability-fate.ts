@@ -149,8 +149,8 @@ export const CAPABILITY_FATE = Object.freeze({
   'ai.generate_reply': CONTROLLED(
     'Per-Property genuine EN/BG drafting requires independent authorization and explicit human adoption.',
   ),
-  'ai.detect_trends': CONTROLLED(
-    'Per-Property deterministic trends require independent authorization and caught-up analysis.',
+  'ai.detect_trends': DISABLED(
+    'Property Trends is retired; recorded grants do not authorize execution.',
   ),
   'gbp.reply.auto_publish': fate(
     'permanently_denied',

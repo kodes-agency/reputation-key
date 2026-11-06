@@ -320,41 +320,6 @@ export const TENANT_PREDICATE_EXEMPTIONS: readonly TenantPredicateExemption[] = 
     category: 'TENANT-CORRELATED',
   },
   {
-    file: 'src/contexts/ai/infrastructure/adapters/ai-property-trend-schedule-store.adapter.ts',
-    symbol: 'lockCurrentScheduleBinding',
-    reason:
-      "The trend worker locks a schedule by the id its own scheduler minted; the statement reads the schedule's Organization and Property from that row and ties every joined table to them.",
-    category: 'LEGITIMATE-GLOBAL',
-  },
-  {
-    file: 'src/contexts/ai/infrastructure/adapters/ai-property-trend-schedule-store.adapter.ts',
-    symbol: 'read',
-    reason:
-      'The trend worker reads a schedule by the id carried in its generation request, before it holds a tenant, and returns the schedule with its Organization and Property.',
-    category: 'LEGITIMATE-GLOBAL',
-  },
-  {
-    file: 'src/contexts/ai/infrastructure/adapters/ai-property-trend-schedule-store.adapter.ts',
-    symbol: 'recordDeterministicReport',
-    reason:
-      "The trend worker looks an outcome up by its schedule id, which is the outcome's key; the row it writes takes its Organization from the schedule binding locked in the same transaction.",
-    category: 'LEGITIMATE-GLOBAL',
-  },
-  {
-    file: 'src/contexts/ai/infrastructure/adapters/ai-property-trend-schedule-store.adapter.ts',
-    symbol: 'recordProviderFreeOutcome',
-    reason:
-      "The trend worker looks an outcome up by its schedule id, which is the outcome's key; the row it writes takes its Organization from the schedule binding locked in the same transaction.",
-    category: 'LEGITIMATE-GLOBAL',
-  },
-  {
-    file: 'src/contexts/ai/infrastructure/adapters/ai-property-trend-schedule-store.adapter.ts',
-    symbol: 'scheduleDueBatch',
-    reason:
-      'The bounded trend scheduler intentionally walks enabled Properties across tenants in Organization and Property order and writes each schedule with the tenant of its candidate row.',
-    category: 'LEGITIMATE-GLOBAL',
-  },
-  {
     file: 'src/contexts/ai/infrastructure/adapters/ai-review-analysis-backlog.adapter.ts',
     symbol: 'claimReady',
     reason:

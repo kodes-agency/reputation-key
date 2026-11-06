@@ -12,21 +12,6 @@ export type AiPropertyTrendGenerationRequested = Readonly<{
   correlationId: string | null
 }>
 
-export const aiPropertyTrendGenerationRequested = (
-  args: Omit<AiPropertyTrendGenerationRequested, '_tag' | 'eventId' | 'correlationId'> & {
-    correlationId?: string | null
-  },
-): AiPropertyTrendGenerationRequested => {
-  assert(args.occurredAt instanceof Date, 'occurredAt must be a Date')
-  assert(args.scheduleId !== '', 'scheduleId required')
-  return {
-    ...args,
-    _tag: 'ai.property_trend.generation_requested',
-    eventId: newEventId(),
-    correlationId: args.correlationId ?? null,
-  }
-}
-
 /**
  * One review re-admitted to review analysis by the first-enablement Review
  * Analysis enrollment replay, carrying the FRESH analysis sequence allocated for it.

@@ -569,7 +569,7 @@ function reviewEventDelivery(
     receipts: receiptStore,
     backlog: wiring.backlog,
     nowEpochMillis: () => wiring.clock.now,
-    enqueuePropertyTrend: async () => {},
+
     authorizeScope: createScheduledScopeAuthorizer(
       'system:ai.review_analysis_backlog_drain',
     ),

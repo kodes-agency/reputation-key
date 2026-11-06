@@ -3,51 +3,34 @@
 // switch-on of 2026-10-30 rolled every Property on its next AI read). The
 // settlement ledger spans profile versions, but the rolled generation's
 // aggregate head counts only its own settlements, so it reads incomplete until
-// it is rebuilt (migration 0010). The trend run takes coverage from that head
-// (`readLockedAggregateHead`). A scheduler that counted the ledger instead
-// scheduled a run that could only ask to be retried, so the run dead-lettered
-// and paged (Sentry JAVASCRIPT-TANSTACKSTART-REACT-1D, -J, -K). Every trend
-// reader has to read the head the run reads. One Property per case:
+// it is rebuilt (migration 0010). Aggregate coverage must follow that head.
 //
 //   ROLLED   head 3, sequences 1 2 settled under profile 1, then the profile
 //            rolls to 2 and sequence 3 settles under it: ledger 3, head 1
 //   CURRENT  head 3, sequences 1 2 3 settled under profile 1: ledger 3, head 3
-import { randomUUID } from 'node:crypto'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
-import { and, eq, inArray, sql } from 'drizzle-orm'
+import { eq, sql } from 'drizzle-orm'
 import { getDb } from '#/shared/db'
 import {
   aiPropertyProcessingProfiles,
-  aiPropertyTrendSchedules,
   aiReviewAnalysisEnrollments,
   outboxEvents,
   properties,
   reviewAiAnalysisHeads,
   reviews,
 } from '#/shared/db/schema'
-import {
-  AI_PROPERTY_TREND_DEFINITION_DIGEST,
-  AI_PROPERTY_TREND_DEFINITION_VERSION,
-  AI_TREND_RENDER_PROFILE_DIGEST,
-  AI_TREND_RENDER_PROFILE_VERSION,
-} from '#/shared/ai-property-trend-contract'
 import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
 import { clearEventSchemas } from '#/shared/events/schema-registry'
-import { organizationId, propertyId, reviewId, userId } from '#/shared/domain/ids'
+import { organizationId, propertyId, reviewId } from '#/shared/domain/ids'
 import { seedEnabledReviewAnalysis } from '#/shared/db/testing/enabled-review-analysis-fixture'
 import { deleteTestOrganizations } from '#/shared/testing/integration-helpers'
-import type { AiTrendEvidence } from '../application/ports/ai-output-store.port'
-import { createAiOutputStoreAdapter } from './adapters/ai-output-store.adapter'
 import { createAiPropertyAggregateStoreAdapter } from './adapters/ai-property-aggregate-store.adapter'
-import { createAiPropertyTrendScheduleStore } from './adapters/ai-property-trend-schedule-store.adapter'
 
 const ORG = 'ai-rolled-profile-test'
-const LEASE_OWNER = '5eed0600-0000-4000-8000-0000000000a1'
 const EMPTY_SET_DIGEST =
   'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855'
 const HOURS_PER_DAY = 24
 const NOON = 12
-const MAX_DRAIN_BATCHES = 50
 const AT = new Date('2026-09-10T12:00:00.000Z')
 const WINDOW = { startLocalDate: '2026-09-01', endLocalDate: '2026-09-30' } as const
 
@@ -76,18 +59,8 @@ const CURRENT: Case = {
 }
 const CASES = [ROLLED, CURRENT] as const
 
-const currentProfileOf = (target: Case): number =>
-  target.settledUnderRolledProfile.length > 0 ? 2 : 1
-
 const db = getDb()
 const aggregates = createAiPropertyAggregateStoreAdapter(db)
-const outputs = createAiOutputStoreAdapter(db)
-const mintedScheduleIds: string[] = []
-const schedules = createAiPropertyTrendScheduleStore(db, () => {
-  const id = randomUUID()
-  mintedScheduleIds.push(id)
-  return id
-})
 
 const propertyOf = (target: Case) => uuid('10', target.index)
 const reviewOf = (target: Case, sequence: number) => uuid(`2${target.index}`, sequence)
@@ -213,37 +186,8 @@ async function seed(target: Case, timezone: string): Promise<void> {
 
 async function clearFixture(): Promise<void> {
   await db.delete(outboxEvents).where(eq(outboxEvents.organizationId, ORG))
-  if (mintedScheduleIds.length > 0) {
-    await db
-      .delete(aiPropertyTrendSchedules)
-      .where(inArray(aiPropertyTrendSchedules.id, mintedScheduleIds))
-  }
   await db.delete(properties).where(eq(properties.organizationId, ORG))
   await deleteTestOrganizations(db, [ORG])
-}
-
-function emptyEvidence(timezone: string): AiTrendEvidence {
-  const window = {
-    period: WINDOW,
-    textCandidateCount: 0,
-    analyzedCount: 0,
-    excludedCount: 0,
-    starOnlyCount: 0,
-    coverageBasisPoints: 0,
-  }
-  return {
-    definitionVersion: AI_PROPERTY_TREND_DEFINITION_VERSION,
-    definitionDigest: AI_PROPERTY_TREND_DEFINITION_DIGEST,
-    renderProfileVersion: AI_TREND_RENDER_PROFILE_VERSION,
-    renderProfileDigest: AI_TREND_RENDER_PROFILE_DIGEST,
-    timezone,
-    dataThroughLocalDate: WINDOW.endLocalDate,
-    baseline: window,
-    current: window,
-    modelLineage: [],
-    selectedSignals: [],
-    supportingReviews: [],
-  }
 }
 
 describe.sequential('trend coverage of a rolled profile generation (PostgreSQL)', () => {
@@ -280,80 +224,5 @@ describe.sequential('trend coverage of a rolled profile generation (PostgreSQL)'
       expectedAnalysisCount: 3,
       awaitingAnalysisCount: 2,
     })
-  })
-
-  it('says the rolled generation is updating and the current one is preparing', async () => {
-    const read = async (target: Case) =>
-      outputs.readTrendReportForDelivery(
-        {
-          organizationId: organizationId(ORG),
-          actorUserId: userId('rolled-profile-actor'),
-          propertyId: propertyId(propertyOf(target)),
-          sourceEpoch: 0,
-          reviewAnalysisEpoch: 1,
-          propertyTrendsEpoch: 1,
-          propertyProfileVersion: currentProfileOf(target),
-          reportProfileVersion: 'property-trend-v1',
-          nowEpochMillis: AT.getTime(),
-        },
-        async (result) => result.status,
-      )
-
-    await expect(read(ROLLED)).resolves.toBe('updating')
-    await expect(read(CURRENT)).resolves.toBe('preparing')
-  })
-
-  it('records no outcome for a schedule made for the rolled generation', async () => {
-    // What the scheduler minted while it counted the ledger. A past due date
-    // keeps it apart from anything the scheduler mints today.
-    const scheduleId = randomUUID()
-    mintedScheduleIds.push(scheduleId)
-    await db.insert(aiPropertyTrendSchedules).values({
-      id: scheduleId,
-      outboxEventId: randomUUID(),
-      organizationId: ORG,
-      propertyId: propertyOf(ROLLED),
-      dueLocalDate: '2026-10-01',
-      sourceEpoch: 0,
-      reviewAnalysisEpoch: 1,
-      propertyTrendsEpoch: 1,
-      propertyProfileVersion: 2,
-      terminalAnalysisSequence: 3,
-      aggregateRevision: 1,
-      timezone: dueZone,
-      calendarProfileVersion: 'property-calendar-v1',
-      reportProfileVersion: 'property-trend-v1',
-      schedulerGeneration: 1,
-      scheduledAt: AT,
-    })
-
-    await expect(
-      schedules.recordProviderFreeOutcome({
-        scheduleId,
-        disposition: 'updating',
-        evidence: emptyEvidence(dueZone),
-      }),
-    ).resolves.toBe('stale')
-  })
-
-  it('schedules a trend for the current generation and not for the rolled one', async () => {
-    for (let batch = 0; batch < MAX_DRAIN_BATCHES; batch += 1) {
-      const result = await schedules.scheduleDueBatch({ leaseOwner: LEASE_OWNER })
-      if (result.status !== 'scheduled')
-        throw new Error(`Scheduler said ${result.status}`)
-      if (!result.hasMore) break
-    }
-
-    const scheduledToday = await db
-      .select({ propertyId: aiPropertyTrendSchedules.propertyId })
-      .from(aiPropertyTrendSchedules)
-      .where(
-        and(
-          eq(aiPropertyTrendSchedules.organizationId, ORG),
-          inArray(aiPropertyTrendSchedules.id, mintedScheduleIds),
-          sql`${aiPropertyTrendSchedules.dueLocalDate} <> '2026-10-01'`,
-        ),
-      )
-    expect(scheduledToday.map((row) => row.propertyId)).toEqual([propertyOf(CURRENT)])
   })
 })

@@ -42,7 +42,7 @@ the presence of a route, table, or retained legacy module.
 |     | Team        | Quarantined historical Team data and reconciliation; no beta surface                                  | Team, TeamMembership                                |
 |     | Integration | Organization-owned Google authority, import, discovery, notifications, and provider I/O               | GoogleConnection, GoogleImportSaga                  |
 |     | Review      | Stable Reviews, source observations/lifecycle, and RepKey-owned Reply workflow                        | Review, ReviewSourceObservation, Reply              |
-|     | AI          | Governed review analysis, reply drafting, and Property trends                                         | AiOperation, AiReviewAnalysis                       |
+|     | AI          | Governed review analysis, Guest voice, and reply drafting                                             | AiOperation, AiReviewAnalysis                       |
 |     | Inbox       | Stable Inbox Items with numbered Handling Cycles for Google and private feedback work                 | InboxItem, HandlingCycle, InboxNote                 |
 |     | Reporting   | Governed metrics, monthly Goal Programs, Property Google rating goals, and dashboard read models      | MetricReading, GoalProgram, GoalMonthlyResult       |
 |     | Badge       | Inert legacy recognition inventory; no beta product behavior                                          | Historical BadgeAward envelope                      |

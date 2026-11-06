@@ -6,6 +6,14 @@ export type MerchantAiNoticeAnnouncement = Readonly<{
 export const MERCHANT_AI_NOTICE_ANNOUNCEMENTS: Readonly<
   Record<string, MerchantAiNoticeAnnouncement>
 > = {
+  'merchant-ai-notice-2026-11-06.v2': {
+    title: 'Property Trends retired',
+    points: [
+      'Daily Property Trends are no longer generated.',
+      'Guest voice summaries, review analysis and reply drafting remain available.',
+      'Your existing analysis results and reply drafts are unchanged by this retirement.',
+    ],
+  },
   'merchant-ai-notice-2026-11-06.v1': {
     title: 'AI data-use notice corrected',
     points: [

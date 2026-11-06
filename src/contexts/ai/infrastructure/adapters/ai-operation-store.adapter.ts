@@ -11,6 +11,7 @@ import {
 import { organizationId, propertyId, reviewId } from '#/shared/domain/ids'
 import { AI_OPERATION_PROFILES, AI_ROUTING_POLICY } from '#/shared/ai-operation-profiles'
 import { getAiRuntimeCapability } from '#/shared/ai-runtime-capability-contract'
+import { RECORDED_RUNTIME_PROFILE_VERSIONS } from '#/shared/domain/merchant-ai-capability'
 import { AI_PROVIDER_IDS, type AiProviderId } from '#/shared/ai-provider-ids'
 import {
   REVIEW_VOCABULARY_HINTS_VERSION,
@@ -229,7 +230,9 @@ function parseBinding(
     operationProfileVersion: row.operationProfileVersion,
     capabilityRuntimeProfileVersion:
       row.capabilityRuntimeProfileVersion ??
-      getAiRuntimeCapability(identity.capability).runtimeProfileVersion,
+      (identity.capability === 'property_trends'
+        ? RECORDED_RUNTIME_PROFILE_VERSIONS.property_trends[0]!
+        : getAiRuntimeCapability(identity.capability).runtimeProfileVersion),
     aiSubjectHmacKeyVersion: row.subjectHmacKeyVersion,
     stopFence: {
       globalControlId: row.globalControlId,

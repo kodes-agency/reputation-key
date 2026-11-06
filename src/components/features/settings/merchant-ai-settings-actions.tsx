@@ -54,7 +54,7 @@ export function MerchantAiSettingsActions({
               // Reversible: Enable AI features turns it back on, so the tone is neutral.
               tone="neutral"
               title={`Turn off AI features for ${propertyName}?`}
-              description="Future review analysis, reply drafting, and property trend processing will stop for this property. This does not disconnect Google."
+              description="Future review analysis and reply drafting will stop for this property. This does not disconnect Google."
               cancelLabel="Keep AI features on"
               confirmLabel="Turn off"
               pendingLabel="Turning off…"
@@ -75,7 +75,7 @@ export function MerchantAiSettingsActions({
             // The title asks the notice's call to action, which names no
             // property; the description says which one, as turning off does.
             title={`${enableCallToAction}?`}
-            description={`You confirm the data-handling notice above and authorize review analysis, editable reply drafting, and de-identified property trends for ${propertyName}.`}
+            description={`You confirm the data-handling notice above and authorize review analysis and editable reply drafting for ${propertyName}.`}
             cancelLabel="Cancel"
             confirmLabel="Confirm & enable"
             pendingLabel="Enabling…"
