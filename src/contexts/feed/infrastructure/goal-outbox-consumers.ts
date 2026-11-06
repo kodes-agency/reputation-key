@@ -5,7 +5,7 @@ import type {
   GoalSubject,
   MonthlyResultNotificationFactsLookup,
 } from '#/contexts/reporting/application/public-api'
-import { organizationId, propertyId, unbrand, type UserId } from '#/shared/domain/ids'
+import { organizationId, propertyId, unbrand } from '#/shared/domain/ids'
 import type { ResponsibleManagerLookupPort } from '../application/ports/responsible-manager-lookup.port'
 import type { UserLookupPort } from '../application/ports/notification-user-lookup.port'
 import type { NotificationAudience } from '../application/notification-audience'
@@ -223,7 +223,6 @@ async function enqueueGoalNotices(
      */
     outcome: 'met' | 'not_met' | 'unavailable'
     audience: NotificationAudience
-    jobId: (recipient: UserId) => string
   }>,
 ): Promise<void> {
   const organization = organizationId(result.organizationId)
@@ -265,7 +264,9 @@ async function enqueueGoalNotices(
           },
           audience: notice.audience,
         },
-        { jobId: notice.jobId(recipient) },
+        // Each durable event must settle independently, even if its notice
+        // later coalesces with another event's unread row.
+        { jobId: `${event.eventId}-${unbrand(recipient)}` },
       ),
     ),
   )
@@ -308,7 +309,6 @@ export async function handleNotificationGoalMonthlyResultClosed(
       assignmentId: payload.assignmentId,
       monthlyResultId: payload.monthlyResultId,
     },
-    jobId: (recipient) => `${event.eventId}-${unbrand(recipient)}`,
   })
   return settle(deps, event, consumer, 'applied')
 }
@@ -368,12 +368,6 @@ export async function handleNotificationGoalMonthlyResultRevised(
       evaluationState: payload.evaluationState,
       achieved: payload.achieved,
     },
-    // Keyed by the event, like every durable route. The delivery bridge
-    // records an enqueue receipt per event, so an event whose add converged
-    // on another event's job would never settle and the repair sweep would
-    // replay it minutes later. Late corrections that still describe the head
-    // meet in the reader's one unread row instead (ADR 0046 r.2).
-    jobId: (recipient) => `${event.eventId}-${unbrand(recipient)}`,
   })
   return settle(deps, event, consumer, 'applied')
 }

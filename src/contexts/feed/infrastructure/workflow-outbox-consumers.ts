@@ -633,13 +633,9 @@ export async function handleWorkflowNotificationEvent(
       await enqueueSubmittedNotifications(deps, parsed)
       break
     case 'review.reply.approved':
-      await enqueueReplyAuthorNotification(deps, parsed, 'reply.approved')
-      break
     case 'review.reply.rejected':
-      await enqueueReplyAuthorNotification(deps, parsed, 'reply.rejected')
-      break
     case 'review.reply.published':
-      await enqueueReplyAuthorNotification(deps, parsed, 'reply.published')
+      await enqueueReplyAuthorNotification(deps, parsed)
       break
     case 'review.reply.publish_failed':
       await enqueuePublishFailedNotification(deps, parsed)

@@ -1,32 +1,20 @@
-// Feed notification surface — render-time copy templates.
-//
-// ONE renderer drives every surface: the in-app row, the urgent email, the
-// digest line, and the email subject. Copy therefore cannot drift between
-// channels, and fixing a sentence fixes it everywhere including rows already
-// in the database (we render from `type` + `payload`, not from the stored
-// string).
-//
-// Copy rules, derived from ADR 0046 r.8 and from what a hotel manager actually
-// needs to decide whether to act:
-//
-//   1. NEVER an identifier. No UUIDs, no "Inbox item 61ed98fc-…". The whole
-//      point of `resourceId` is that the deep link carries it silently.
-//   2. Lead with the DECISION. "Approve this reply" beats "Reply pending
-//      approval" — the title says what the reader must do.
-//   3. Say WHERE. A locally collected guest rating may add context to Portal
-//      feedback, but a Google/provider review's rating never enters
-//      Notification storage. The Google rating goal notices state the
-//      Property's own figures, the tenth Google shows for it among them
-//      (ADR 0046, amended 2026-10-14).
-//   4. Say HOW LONG something had waited when the notice was raised, where
-//      it was waiting. The read measures it (`waitedHours`); it is a fact
-//      beside the sentence (email facts line, in-app meta strip), never
-//      inside it, and never an age that keeps growing after the fact.
-//   5. One primary action, imperative, ≤ 3 words.
-//   6. Degrade gracefully. Every field is optional; missing metadata must
-//      shorten the sentence, never produce "undefined" or an empty title.
-//
+// Render copy from type and payload for in-app notifications, immediate mail
+// and digests. Provider review stars and customer content stay out of payloads;
+// missing metadata must shorten the copy without breaking its action or link.
 import { SUPPORT_EMAIL } from '#/shared/domain/support-contact'
+import {
+  renderFeedbackCreated,
+  renderReviewCreated,
+  renderReviewImportFinished,
+  renderReviewUpdated,
+} from './notification-templates-arrival'
+import {
+  renderReplyApproved,
+  renderReplyPublicationCancelled,
+  renderReplyPublished,
+  renderReplyPublishFailed,
+  renderReplyRejected,
+} from './notification-templates-reply'
 import {
   renderInvitationAccepted,
   renderOrganizationAccessGranted,
@@ -176,60 +164,8 @@ const ratedNoun = (p: NotificationPayload): string =>
 // Each returns copy that reads correctly with an EMPTY payload and gets
 // sharper as metadata arrives.
 
-// A Low ratings notice says so, and why — the reader's own threshold — but
-// never how many stars: a Google review's rating stays in Review's cache
-// (ADR 0031), and the Inbox shows it when the item is opened.
-const LOW_RATING_REASON = 'It is at or below the rating you asked to hear about.'
-
-const renderReviewCreated = (p: NotificationPayload): RendererCopy =>
-  p.lowRating === true
-    ? {
-        title: `Low-rated review${atProperty(p)}`,
-        body: sentence(LOW_RATING_REASON, 'Open it to read the review and reply.'),
-        actionLabel: 'Read review',
-        summary: factsAt(p, 'low-rated review'),
-      }
-    : {
-        title: `New ${'review'}${atProperty(p)}`,
-        body: 'Open it to read the review and reply.',
-        actionLabel: 'Read review',
-        summary: factsAt(p, 'review'),
-      }
-
-const renderReviewUpdated = (p: NotificationPayload): RendererCopy =>
-  p.lowRating === true
-    ? {
-        title: `Review edited to a low rating${atProperty(p)}`,
-        body: sentence(
-          'The guest changed their review, and it is now at or below the rating you asked to hear about.',
-          'Open it to check the latest details.',
-        ),
-        actionLabel: 'Review update',
-        summary: factsAt(p, 'review edited to a low rating'),
-      }
-    : {
-        title: `Review updated${atProperty(p)}`,
-        body: 'The guest changed their review. Open it to check the latest details.',
-        actionLabel: 'Review update',
-        summary: factsAt(p, 'updated review'),
-      }
-
-// Always feedback, even when the item lookup failed and left no platform.
-// Its rating is RepKey's own (the Portal collected it), so it is shown.
-const renderFeedbackCreated = (p: NotificationPayload): RendererCopy =>
-  p.lowRating === true
-    ? {
-        title: `Low-rated guest feedback${atProperty(p)}`,
-        body: sentence(LOW_RATING_REASON, 'Open it to read the feedback.'),
-        actionLabel: 'Read feedback',
-        summary: factsAt(p, ratedFeedback(p)),
-      }
-    : {
-        title: `New guest feedback${atProperty(p)}`,
-        body: 'Open it to read the feedback.',
-        actionLabel: 'Read feedback',
-        summary: factsAt(p, ratedFeedback(p)),
-      }
+/** The shared close of a notice that asks the reader to look, not to act. */
+const SEE_WHERE = 'Open it to see where it stands.'
 
 const renderReplyPendingApproval = (p: NotificationPayload): RendererCopy => ({
   title: `Approve a reply${atProperty(p)}`,
@@ -237,154 +173,6 @@ const renderReplyPendingApproval = (p: NotificationPayload): RendererCopy => ({
   actionLabel: 'Review reply',
   summary: factsAt(p, 'review'),
 })
-
-const renderReplyApproved = (p: NotificationPayload): RendererCopy => ({
-  title: `Your reply was approved${atProperty(p)}`,
-  body: 'It is queued to publish to Google.',
-  actionLabel: 'View reply',
-  summary: factsAt(p, 'review'),
-})
-
-/**
- * The approver's reason never enters a notification (ADR 0030); only whether
- * there is one does. The flag outranks a quoted reason, which only historical
- * rows carry, because a coalesced row's flag describes the latest rejection.
- * With neither, the copy must not claim the reason is there or missing.
- */
-const rejectionReasonBody = (p: NotificationPayload): string => {
-  if (p.hasModerationReason === true) {
-    return 'The approver left a reason. Open the reply to read it, then edit and resubmit.'
-  }
-  if (p.hasModerationReason === false) {
-    return 'It was sent back without a reason. Edit it and resubmit.'
-  }
-  if (p.moderationReason !== undefined) {
-    return sentence(`Reason: ${p.moderationReason}`, 'Edit it and resubmit.')
-  }
-  return 'Open it to see any note from the approver, then edit and resubmit.'
-}
-
-const renderReplyRejected = (p: NotificationPayload): RendererCopy => {
-  const body = rejectionReasonBody(p)
-  const knowsReason =
-    p.hasModerationReason !== undefined || p.moderationReason !== undefined
-  return {
-    title: `Your reply needs changes${atProperty(p)}`,
-    body,
-    detail: knowsReason ? body : '',
-    actionLabel: 'Edit reply',
-    summary: factsAt(p, 'review'),
-  }
-}
-
-const renderReplyPublished = (p: NotificationPayload): RendererCopy => ({
-  title: `Your reply is live on Google${atProperty(p)}`,
-  body: 'Guests can see it now. No further action needed.',
-  actionLabel: 'View reply',
-  summary: factsAt(p, 'review'),
-})
-
-/** The shared close of a notice that asks the reader to look, not to act. */
-const SEE_WHERE = 'Open it to see where it stands.'
-
-// `not_sent` includes an answered 429, so it says nothing was posted, as the
-// Inbox's "Not published" copy does, not that nothing reached Google.
-const PUBLISH_FAILURE_BODIES = {
-  not_sent: 'Nothing was posted to Google, so it is safe to try again.',
-  refused: 'Nothing was posted to Google. Check the Google connection, then try again.',
-  unconfirmed: "RepKey won't send it twice. Open it to check.",
-} as const
-
-const RECONNECT_FIRST =
-  'Google needs reconnecting first. An account admin can reconnect it in Settings, then retry — the draft is saved.'
-
-// A connection waiting for a fresh consent refuses every retry, and the
-// author may not be the one allowed to reconnect it, so the copy says who can.
-const renderReplyPublishNeedsReconnect = (p: NotificationPayload): RendererCopy => ({
-  title: `Reply not published${atProperty(p)}`,
-  body: RECONNECT_FIRST,
-  detail: RECONNECT_FIRST,
-  actionLabel: 'Open reply',
-  summary: factsAt(p, 'review', 'reconnect Google'),
-})
-
-/**
- * One fact covers every way a publication ends without a confirmed live
- * reply, and Google never saw most of them, so the copy follows the outcome
- * and never says Google rejected it. A reply that may be live gets no retry;
- * neither does a row too old to say. When the remedy is reconnecting Google,
- * that cause decides the copy instead: a retry alone cannot succeed. It can
- * reach a responsible manager instead of the author, so it never says "your".
- */
-const renderReplyPublishFailed = (p: NotificationPayload): RendererCopy => {
-  if (p.publishFailureCause === 'google_reauthorization_required') {
-    return renderReplyPublishNeedsReconnect(p)
-  }
-  const outcome = p.publishOutcome
-  const state = outcome === 'unconfirmed' ? 'not confirmed' : 'not published'
-  const cause = outcome === undefined ? '' : PUBLISH_FAILURE_BODIES[outcome]
-  return {
-    title: `Reply ${state}${outcome === 'unconfirmed' ? ' on Google' : ''}${atProperty(p)}`,
-    body: cause === '' ? 'Open the reply to see where it stands.' : cause,
-    detail: cause,
-    actionLabel:
-      outcome === 'not_sent' || outcome === 'refused' ? 'Retry publish' : 'View reply',
-    summary: factsAt(p, 'review', state),
-  }
-}
-
-/**
- * A reply RepKey stopped on its way to Google. Each cause takes a different
- * next step, so the cause decides the whole sentence: reconnect, nothing to
- * do here, write a new reply, or just look. A disconnect or a policy stop
- * only ever cancels a cycle that never went out, so only those say so; a
- * guest edit or a different live reply can stop one Google may already hold,
- * so neither claims it was not sent. The title never says "your" — the same
- * notice goes to the approvers who have to act on it.
- *
- * `source_changed` does not say "approved". A guest edit also returns to
- * draft a reply that was still awaiting approval, and one whose publication
- * had failed (Review CONTEXT, Model), so its sentence names what all three
- * have in common: the reply was written before the guest changed the review.
- *
- * `ai_draft_withdrawn` is the one cause that leaves no draft behind: the AI
- * draft purge removed an unedited AI reply that was awaiting approval or
- * confirmed but not dispatched. So it says the draft is gone, not "returned".
- * The fact does not say why the purge ran, so the copy states the rule every
- * reason falls under: such a draft is publishable only for a few minutes, and
- * only while what it was written from stays the same. Naming the changes alone
- * would be false for a draft whose time simply ran out.
- */
-const PUBLICATION_CANCELLATION_BODIES = {
-  disconnect:
-    'The Google connection was disconnected before it went out. The draft is saved: reconnect Google, then approve it again.',
-  policy:
-    'This property can no longer publish to Google, so it was never sent. The draft is saved.',
-  source_changed:
-    'The guest changed their review, so RepKey stopped the reply that was written before the change. Open it to check what Google shows, then reply to the new review.',
-  provider_truth:
-    'A different reply is live on Google, so this one is not. Open it to check.',
-  ai_draft_withdrawn:
-    'An AI draft nobody edited can only be published within minutes of being written, and only while the review, the property and its AI settings stay the same. That window closed, so nothing was posted to Google and RepKey removed the draft. Write a new reply.',
-} as const
-
-const renderReplyPublicationCancelled = (p: NotificationPayload): RendererCopy => {
-  const cause = p.publicationCancellationCause
-  const why = cause === undefined ? '' : PUBLICATION_CANCELLATION_BODIES[cause]
-  const draftRemoved = cause === 'ai_draft_withdrawn'
-  return {
-    title: `${draftRemoved ? 'AI draft removed' : 'Reply returned to draft'}${atProperty(p)}`,
-    body: why === '' ? SEE_WHERE : why,
-    detail: why,
-    actionLabel:
-      cause === 'source_changed' || draftRemoved ? 'Open review' : 'Open reply',
-    summary: factsAt(
-      p,
-      'review',
-      draftRemoved ? 'AI draft removed' : 'returned to draft',
-    ),
-  }
-}
 
 /**
  * Escalation is a manual call with no reason field, and an answered or closed
@@ -728,61 +516,6 @@ const renderIntegrationGoogleDisconnected = (): RendererCopy => ({
   actionLabel: 'Review connection',
   summary: 'Google disconnected',
 })
-
-/**
- * A Property's Google review history has been imported. This one notice stands
- * in for every review it brought in — the flood PR #597 suppressed — so it
- * leads with the two numbers that decide whether anyone has work to do, and
- * sends the reader to the Property's open Inbox queue.
- *
- * A stopped import says what to do instead. `temporary` never reaches a
- * reader (RepKey retries it), but it renders honestly if one ever sees it.
- */
-const IMPORT_STOPPED_COPY: Record<
-  NonNullable<NotificationPayload['importFailureReason']>,
-  string
-> = {
-  google_authorization: 'Reconnect Google, then import the history again.',
-  property_source_changed:
-    'This property\u2019s Google location changed. Link it again, then import the history.',
-  location_too_large:
-    'This location has more reviews than one import can take in. Contact RepKey support.',
-  temporary: 'Nothing to do \u2014 RepKey is trying again.',
-}
-
-const importedBody = (p: NotificationPayload): string => {
-  if (p.importedCount === undefined) return 'Open the inbox to see what came in.'
-  const imported = `We imported ${p.importedCount} reviews`
-  // An unknown count (the Inbox never settled, or a read failed) is not zero,
-  // nor a sign that any are waiting: ADR 0046 drops the second number.
-  if (p.unansweredCount === undefined) return `${imported}.`
-  return p.unansweredCount === 0
-    ? `${imported}. Nothing is waiting for a reply.`
-    : `${imported}; ${p.unansweredCount} still need a reply.`
-}
-
-const renderReviewImportFinished = (p: NotificationPayload): RendererCopy =>
-  p.importOutcome === 'failed'
-    ? {
-        title: `Review history import stopped${atProperty(p)}`,
-        body:
-          p.importFailureReason === undefined
-            ? 'Open the property to start the import again.'
-            : IMPORT_STOPPED_COPY[p.importFailureReason],
-        detail:
-          p.importFailureReason === undefined
-            ? ''
-            : IMPORT_STOPPED_COPY[p.importFailureReason],
-        actionLabel: 'Open inbox',
-        summary: factsAt(p, 'review import stopped'),
-      }
-    : {
-        title: `Review history imported${atProperty(p)}`,
-        body: importedBody(p),
-        detail: p.importedCount === undefined ? '' : importedBody(p),
-        actionLabel: 'Open inbox',
-        summary: factsAt(p, 'review history imported'),
-      }
 
 /**
  * The recipient's own beta report reached an outcome. The copy never quotes
