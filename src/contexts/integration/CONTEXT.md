@@ -65,8 +65,9 @@ that section's rules:
 
 Provider calls require a current connection, capability approval, execution
 permit, quota admission, and generation checks. Admission acquires Redis in-flight
-capacity, then quota, then starts the permit; permit refusal refunds quota.
-Admission and egress share a local handle rather than a signed Redis grant.
+capacity, then quota, then starts the permit; a refused permit keeps its quota
+charge until the bucket refills. Admission and egress share a local handle
+rather than a signed Redis grant.
 Completion retries only bookkeeping and preserves the provider response; the
 permit sweep and Redis lease expiry settle leftovers. OAuth exchange, refresh, revoke,
 notification, import, Review fallback, and recovery execute through governed
