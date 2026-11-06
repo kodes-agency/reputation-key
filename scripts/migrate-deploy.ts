@@ -15,6 +15,7 @@ import { authorizeDeployMigrationRuntime } from '../src/shared/db/deploy-migrati
 import {
   deployFailureRecovery,
   deployMigrationStateRefusal,
+  ImageOlderThanDatabaseError,
   type DeploySchemaTrack,
 } from '../src/shared/db/migration-journal-state'
 import { initializeReviewProviderSubjectKeyInventoryFromEnvironment } from '../src/contexts/review/infrastructure/provider-subject-key-initializer'
@@ -212,6 +213,12 @@ async function main(): Promise<void> {
     const journal = await readJournalState(client).catch(() => ({
       applied: 'unreachable',
     }))
+    if (err instanceof ImageOlderThanDatabaseError) {
+      log('migration state', {
+        journalApplied: journal.applied,
+        journalExpected: expectedJournalCount(),
+      })
+    }
     console.error('[migrate-deploy] FAILED', err)
     console.error('[migrate-deploy] journal state at failure:', JSON.stringify(journal))
     console.error(`[migrate-deploy] ${deployFailureRecovery(err, track)}`)

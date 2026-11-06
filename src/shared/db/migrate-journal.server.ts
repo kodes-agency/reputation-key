@@ -9,6 +9,7 @@ import { journalConcurrentIndex } from './journal-concurrent-index'
 import { assertOnlineConstraints, contractionRequirement } from './migration-safety'
 import { withMigrationLockTimeout } from './migration-lock-timeout'
 import { withMigrationSessionLock } from './migration-session-lock'
+import { ImageOlderThanDatabaseError } from './migration-journal-state'
 import type { QueryResult } from 'pg'
 
 type JournalSession = Readonly<{
@@ -116,10 +117,7 @@ export async function migrateJournal(
         const file = files.find(
           (migration) => migration.folderMillis === Number(row.created_at),
         )
-        if (!file)
-          throw new Error(
-            'Applied migration is absent from the local journal; use a release containing every applied migration',
-          )
+        if (!file) throw new ImageOlderThanDatabaseError(latest.rows.length, files.length)
         if (file.hash !== row.hash)
           throw new Error('Applied migration changed; restore its committed SQL')
       }

@@ -7,6 +7,7 @@ import { migrateJournal } from './migrate-journal.server'
 import { MIGRATION_LOCK_SQL, MIGRATION_UNLOCK_SQL } from './migration-session-lock'
 import { isMigrationLockTimeout } from './migration-lock-timeout'
 import { readMigrationJournal } from './migration-journal-order'
+import { deployFailureRecovery } from './migration-journal-state'
 
 const folders: string[] = []
 
@@ -342,9 +343,14 @@ describe('migrateJournal', () => {
     ]
     const db = database(applied)
 
-    await expect(migrateJournal(db.session, journal(files))).rejects.toThrow(
-      /(?:applied|database|migration|journal)/i,
+    const migration = migrateJournal(db.session, journal(files))
+    await expect(migration).rejects.toThrow(/(?:applied|database|migration|journal)/i)
+    await expect(migration).rejects.toMatchObject({ name: 'ImageOlderThanDatabaseError' })
+    const recovery = await migration.catch((error: unknown) =>
+      deployFailureRecovery(error, 'journal'),
     )
+    expect(recovery).toContain('Forward-only recovery:')
+    expect(recovery).not.toContain('the rerun converges')
 
     expect(db.state.applied).toEqual(applied)
     expect(db.journalWrites).toEqual([])
@@ -373,9 +379,14 @@ describe('migrateJournal', () => {
     ]
     const db = database(applied)
 
-    await expect(migrateJournal(db.session, journal(files, identities))).rejects.toThrow(
-      /(?:applied|database|migration|journal)/i,
+    const migration = migrateJournal(db.session, journal(files, identities))
+    await expect(migration).rejects.toThrow(/(?:applied|database|migration|journal)/i)
+    await expect(migration).rejects.toMatchObject({ name: 'ImageOlderThanDatabaseError' })
+    const recovery = await migration.catch((error: unknown) =>
+      deployFailureRecovery(error, 'journal'),
     )
+    expect(recovery).toContain('Forward-only recovery:')
+    expect(recovery).not.toContain('the rerun converges')
 
     expect(db.state.applied).toEqual(applied)
     expect(db.journalWrites).toEqual([])

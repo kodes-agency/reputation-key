@@ -31,7 +31,7 @@ export function migrationJournalPosition(
  * catches the second, so the message names it for the operator whose fix is
  * the image being refused.
  */
-class ImageOlderThanDatabaseError extends Error {
+export class ImageOlderThanDatabaseError extends Error {
   constructor(applied: number, journalEntries: number) {
     super(
       `This image is older than the database: ${applied} migrations are applied and this image's journal holds ${journalEntries}. ` +
