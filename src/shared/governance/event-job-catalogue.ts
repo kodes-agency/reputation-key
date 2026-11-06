@@ -110,6 +110,8 @@ const PROPERTY_RETENTION_OUTBOX =
   'src/contexts/property/infrastructure/outbox-consumers.ts'
 const INTEGRATION_IMPORT_OUTBOX =
   'src/contexts/integration/infrastructure/outbox-consumers.ts'
+const INTEGRATION_BINDING_FOLLOW_UPS_OUTBOX =
+  'src/contexts/integration/infrastructure/google-binding-follow-up-consumers.ts'
 const INTEGRATION_GBP_PUSH_OUTBOX =
   'src/contexts/integration/infrastructure/google-review-push-outbox-consumers.ts'
 const NOTIFICATION_OUTBOX =
@@ -257,6 +259,9 @@ const PROPERTY_ROWS: ReadonlyArray<EventFamilyRow> = [
     durable('activity.operational-action-history', ACTIVITY_OUTBOX),
   ]),
   ev('property.google_binding.changed', [
+    durable('integration.import-display-name', INTEGRATION_BINDING_FOLLOW_UPS_OUTBOX),
+    durable('integration.import-subscription', INTEGRATION_BINDING_FOLLOW_UPS_OUTBOX),
+    durable('integration.import-review-sync', INTEGRATION_BINDING_FOLLOW_UPS_OUTBOX),
     durable('integration.provider-authorization-invalidation', INTEGRATION_IMPORT_OUTBOX),
     durable('portal.reconcile-health-dependencies', PORTAL_HEALTH_OUTBOX),
   ]),

@@ -200,6 +200,7 @@ describe.sequential('Property Google binding store', () => {
       connectionId: CONNECTION_ID,
       sourceEpoch: 1,
       change: 'created',
+      importFollowUps: true,
     })
     expect(outbox.rows[0].payload).not.toHaveProperty('accountId')
     expect(outbox.rows[0].payload).not.toHaveProperty('locationId')

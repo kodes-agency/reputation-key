@@ -530,10 +530,17 @@ export const TENANT_PREDICATE_EXEMPTIONS: readonly TenantPredicateExemption[] = 
     category: 'LEGITIMATE-GLOBAL',
   },
   {
-    file: 'src/contexts/integration/infrastructure/google-import-v2-store.ts',
-    symbol: 'listStaleClaimItems',
+    file: 'src/contexts/integration/infrastructure/google-import-completion.ts',
+    symbol: 'completeGoogleImportsForRestore',
     reason:
-      'The bounded claim reaper intentionally lists processing items whose claim lease has lapsed across tenants and returns each with its Organization and claim fence.',
+      'The isolated restore recovery fence intentionally inventories active or retryable import checkpoints and unfinished parents across tenants. Each completion and parent reduction checks the selected Organization inside the serialized recovery transaction.',
+    category: 'LEGITIMATE-GLOBAL',
+  },
+  {
+    file: 'src/contexts/integration/infrastructure/google-import-dispatch-store.ts',
+    symbol: 'createGoogleImportDueReservation',
+    reason:
+      'The bounded recovery appointment reserves at most 100 due active items across tenants with SKIP LOCKED. Each appointment update and subsequent effect uses the reserved row’s Organization and claim authority.',
     category: 'LEGITIMATE-GLOBAL',
   },
   {

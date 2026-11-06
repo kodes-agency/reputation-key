@@ -1,3 +1,4 @@
+import { propertyGoogleBindingChangedSchema } from './property-google-binding-event-schema'
 // Event schema registrations for the outbox (PRE17A A4).
 //
 // Registers Zod schemas for all domain event types that flow through the
@@ -611,30 +612,6 @@ const propertyResponsibleManagersUpdatedSchema = z.object({
   assignmentCount: z.number().int().nonnegative(),
   occurredAt: z.iso.datetime(),
 })
-
-const propertyGoogleBindingChangedSchema = z
-  .object({
-    _tag: z.literal('property.google_binding.changed').optional(),
-    eventId: z.string().optional(),
-    correlationId: z.string().nullable().optional(),
-    occurredAt: z.string().optional(),
-    organizationId: z.string(),
-    propertyId: z.string(),
-    connectionId: z.string(),
-    sourceEpoch: z.number().int().nonnegative(),
-    change: z.enum(['created', 'relinked', 'disconnected', 'deletion_started']),
-  })
-  .strict()
-  .transform(
-    ({ organizationId, propertyId, connectionId, sourceEpoch, change, occurredAt }) => ({
-      organizationId,
-      propertyId,
-      connectionId,
-      sourceEpoch,
-      change,
-      occurredAt,
-    }),
-  )
 
 const integrationPropertyImportRetentionReleasedSchema = z
   .object({

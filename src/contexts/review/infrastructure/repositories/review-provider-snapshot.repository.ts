@@ -1,3 +1,8 @@
+import {
+  lockSnapshotRun,
+  requireSnapshotRun,
+  snapshotSubjectScope,
+} from './review-provider-snapshot-scope'
 import { timingSafeEqual } from 'node:crypto'
 import { and, asc, eq, gt, inArray, lte, sql } from 'drizzle-orm'
 import type { Database } from '#/shared/db'
@@ -214,7 +219,7 @@ type HistoryCutoffScope = Parameters<
  * Fix an epoch's history cutoff at this transaction's instant. The first
  * import wins; a later one, or a retry of the same one, keeps it.
  */
-async function fixHistoryCutoff(
+export async function fixHistoryCutoff(
   executor: Pick<Tx, 'insert'>,
   scope: HistoryCutoffScope,
 ): Promise<void> {
@@ -357,9 +362,7 @@ async function applyDeletionCandidate(
     .from(reviewProviderSubjects)
     .where(
       and(
-        eq(reviewProviderSubjects.organizationId, run.organizationId),
-        eq(reviewProviderSubjects.propertyId, run.propertyId),
-        eq(reviewProviderSubjects.sourceEpoch, run.sourceEpoch),
+        snapshotSubjectScope(run.organizationId, run.propertyId, run.sourceEpoch),
         eq(reviewProviderSubjects.reviewId, candidate.reviewId),
       ),
     )
@@ -652,9 +655,7 @@ async function findSubjectMatches(
       .from(reviewProviderSubjects)
       .where(
         and(
-          eq(reviewProviderSubjects.organizationId, run.organizationId),
-          eq(reviewProviderSubjects.propertyId, run.propertyId),
-          eq(reviewProviderSubjects.sourceEpoch, run.sourceEpoch),
+          snapshotSubjectScope(run.organizationId, run.propertyId, run.sourceEpoch),
           eq(reviewProviderSubjects.keyVersion, subject.keyVersion),
           eq(reviewProviderSubjects.locatorHmac, Buffer.from(subject.locatorHmac)),
         ),
@@ -701,9 +702,7 @@ async function recordObservationMapping(
       .from(reviewProviderSubjects)
       .where(
         and(
-          eq(reviewProviderSubjects.organizationId, run.organizationId),
-          eq(reviewProviderSubjects.propertyId, run.propertyId),
-          eq(reviewProviderSubjects.sourceEpoch, run.sourceEpoch),
+          snapshotSubjectScope(run.organizationId, run.propertyId, run.sourceEpoch),
           eq(reviewProviderSubjects.reviewId, observation.reviewId),
         ),
       )
@@ -746,9 +745,7 @@ async function recordObservationMapping(
     .from(reviewProviderSubjects)
     .where(
       and(
-        eq(reviewProviderSubjects.organizationId, run.organizationId),
-        eq(reviewProviderSubjects.propertyId, run.propertyId),
-        eq(reviewProviderSubjects.sourceEpoch, run.sourceEpoch),
+        snapshotSubjectScope(run.organizationId, run.propertyId, run.sourceEpoch),
         eq(reviewProviderSubjects.keyVersion, active.keyVersion),
         eq(reviewProviderSubjects.locatorHmac, Buffer.from(active.locatorHmac)),
       ),
@@ -864,50 +861,53 @@ async function recordSourceTransition(
   await insertOutboxRow(tx, event)
 }
 
+export async function startOrResumeSnapshot(
+  tx: Tx,
+  idGen: () => string,
+  input: StartOrResumeInput,
+) {
+  const existing = await tx
+    .select()
+    .from(reviewProviderSnapshotRuns)
+    .where(
+      and(
+        eq(reviewProviderSnapshotRuns.organizationId, input.organizationId),
+        eq(reviewProviderSnapshotRuns.propertyId, input.propertyId),
+        eq(reviewProviderSnapshotRuns.sourceEpoch, input.sourceEpoch),
+        inArray(reviewProviderSnapshotRuns.state, [...ACTIVE_STATES]),
+      ),
+    )
+    .for('update')
+  if (existing[0]) {
+    await recordImportHistoryCutoff(tx, input)
+    return fromRunRow(existing[0])
+  }
+  const rows = await tx
+    .insert(reviewProviderSnapshotRuns)
+    .values({
+      id: idGen(),
+      organizationId: input.organizationId,
+      propertyId: input.propertyId,
+      sourceEpoch: input.sourceEpoch,
+      observationOrigin: input.observationOrigin,
+      state: 'scanning',
+      phase: 'main',
+      startedAt: sql`transaction_timestamp()`,
+      expiresAt: sql`transaction_timestamp() + interval '12 hours'`,
+    })
+    .returning()
+  if (!rows[0])
+    throw domainError('snapshot_run_insert_empty', 'Snapshot run insert returned no row')
+  await recordImportHistoryCutoff(tx, input)
+  return fromRunRow(rows[0])
+}
+
 export const createReviewProviderSnapshotRepository = (
   db: Database,
   idGen: () => string,
 ): ReviewProviderSnapshotRepository => ({
   startOrResume: async (input) =>
-    db.transaction(async (tx) => {
-      const existing = await tx
-        .select()
-        .from(reviewProviderSnapshotRuns)
-        .where(
-          and(
-            eq(reviewProviderSnapshotRuns.organizationId, input.organizationId),
-            eq(reviewProviderSnapshotRuns.propertyId, input.propertyId),
-            eq(reviewProviderSnapshotRuns.sourceEpoch, input.sourceEpoch),
-            inArray(reviewProviderSnapshotRuns.state, [...ACTIVE_STATES]),
-          ),
-        )
-        .for('update')
-      if (existing[0]) {
-        await recordImportHistoryCutoff(tx, input)
-        return fromRunRow(existing[0])
-      }
-      const rows = await tx
-        .insert(reviewProviderSnapshotRuns)
-        .values({
-          id: idGen(),
-          organizationId: input.organizationId,
-          propertyId: input.propertyId,
-          sourceEpoch: input.sourceEpoch,
-          observationOrigin: input.observationOrigin,
-          state: 'scanning',
-          phase: 'main',
-          startedAt: sql`transaction_timestamp()`,
-          expiresAt: sql`transaction_timestamp() + interval '12 hours'`,
-        })
-        .returning()
-      if (!rows[0])
-        throw domainError(
-          'snapshot_run_insert_empty',
-          'Snapshot run insert returned no row',
-        )
-      await recordImportHistoryCutoff(tx, input)
-      return fromRunRow(rows[0])
-    }),
+    db.transaction((tx) => startOrResumeSnapshot(tx, idGen, input)),
 
   fixImportHistoryCutoff: (input) => fixHistoryCutoff(db, input),
 
@@ -1143,17 +1143,7 @@ export const createReviewProviderSnapshotRepository = (
 
   recordCandidateObservation: async ({ runId, organizationId, observation }) =>
     db.transaction(async (tx) => {
-      const runs = await tx
-        .select()
-        .from(reviewProviderSnapshotRuns)
-        .where(
-          and(
-            eq(reviewProviderSnapshotRuns.id, runId),
-            eq(reviewProviderSnapshotRuns.organizationId, organizationId),
-          ),
-        )
-        .for('update')
-      const run = runs[0]
+      const run = await lockSnapshotRun(tx, { runId, organizationId })
       if (!run || run.state !== 'confirming') return 'run_failed'
       try {
         await recordObservationMapping(tx, run, observation)
@@ -1178,18 +1168,7 @@ export const createReviewProviderSnapshotRepository = (
 
   beginConfirmationScan: async ({ runId, organizationId }) =>
     db.transaction(async (tx) => {
-      const rows = await tx
-        .select()
-        .from(reviewProviderSnapshotRuns)
-        .where(
-          and(
-            eq(reviewProviderSnapshotRuns.id, runId),
-            eq(reviewProviderSnapshotRuns.organizationId, organizationId),
-          ),
-        )
-        .for('update')
-      const run = rows[0]
-      if (!run) throw domainError('snapshot_run_not_found', 'Snapshot run not found')
+      const run = await requireSnapshotRun(tx, { runId, organizationId })
       if (run.state !== 'confirming' || run.phase !== 'confirmation') {
         throw domainError('snapshot_run_not_confirming', 'Snapshot run is not confirming')
       }
@@ -1214,17 +1193,16 @@ export const createReviewProviderSnapshotRepository = (
 
   finishConfirmationScan: async ({ runId, organizationId }) =>
     db.transaction(async (tx) => {
-      const rows = await tx
+      const [run] = await tx
         .select()
         .from(reviewProviderSnapshotRuns)
         .where(
           and(
-            eq(reviewProviderSnapshotRuns.id, runId),
             eq(reviewProviderSnapshotRuns.organizationId, organizationId),
+            eq(reviewProviderSnapshotRuns.id, runId),
           ),
         )
         .for('update')
-      const run = rows[0]
       if (!run) throw domainError('snapshot_run_not_found', 'Snapshot run not found')
       if (run.state === 'deleting') {
         return { status: 'deleting' as const, run: fromRunRow(run) }
@@ -1295,18 +1273,8 @@ export const createReviewProviderSnapshotRepository = (
 
   failRun: async ({ runId, organizationId, code, providerFailure }) =>
     db.transaction(async (tx) => {
-      const rows = await tx
-        .select()
-        .from(reviewProviderSnapshotRuns)
-        .where(
-          and(
-            eq(reviewProviderSnapshotRuns.id, runId),
-            eq(reviewProviderSnapshotRuns.organizationId, organizationId),
-          ),
-        )
-        .for('update')
-      if (!rows[0]) throw domainError('snapshot_run_not_found', 'Snapshot run not found')
-      return fromRunRow(await failLockedRun(tx, rows[0], code, providerFailure))
+      const run = await requireSnapshotRun(tx, { runId, organizationId })
+      return fromRunRow(await failLockedRun(tx, run, code, providerFailure))
     }),
 
   applyDeletionBatch: async ({ runId, limit }) => {

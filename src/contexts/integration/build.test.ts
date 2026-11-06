@@ -83,6 +83,7 @@ function buildDeps(overrides: {
 }) {
   return {
     db: dbStub,
+    prepareImportSync: vi.fn(async () => undefined),
     outboxRepo: {} as unknown as OutboxRepository,
     clock: () => new Date('2026-01-15T12:00:00.000Z'),
     idGen: () => '00000000-0000-4000-8000-000000000101',
@@ -141,9 +142,11 @@ describe('buildIntegrationContext provider slots (BQC-6.1)', () => {
       ctx.internal.useCases.sweepGoogleImportV2Lifecycle,
     )
     expect(Object.keys(ctx.worker).sort()).toEqual([
+      'completeImportsForRestore',
       'processImportItem',
       'reconcileNotificationSubscriptions',
       'reconcileProviderRecovery',
+      'recoverImports',
       'registerOutboxConsumers',
       'sweepImportLifecycle',
     ])

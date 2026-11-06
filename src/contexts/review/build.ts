@@ -1,3 +1,4 @@
+import { admitGoogleImportSync } from './infrastructure/google-import-sync-acceptance'
 // Review context — build function (composition root)
 // Per architecture: "Build functions wire ports → adapters, deps → use cases."
 // Returns the public API surface of the review context.
@@ -86,7 +87,10 @@ import {
   type ReviewProviderSubjectSecretKeyring,
 } from './application/provider-subject-keyring'
 import { createReviewProviderSubjectKeyInventoryRepository } from './infrastructure/provider-subject-key-inventory.repository'
-import { createReviewProviderSnapshotRepository } from './infrastructure/repositories/review-provider-snapshot.repository'
+import {
+  createReviewProviderSnapshotRepository,
+  fixHistoryCutoff,
+} from './infrastructure/repositories/review-provider-snapshot.repository'
 import { createReviewFirstSightingRecorder } from './infrastructure/repositories/review-first-sighting.repository'
 import { createReviewSyncActivityRecorder } from './infrastructure/repositories/review-sync-activity.repository'
 import { createReviewSourceContentLifecycleStore } from './infrastructure/repositories/source-content-lifecycle-store.repository'
@@ -156,7 +160,7 @@ import {
   createEligibleReads,
   type EligibleReads,
 } from './application/eligible-reads'
-import { reviewId, replyId } from '#/shared/domain/ids'
+import { reviewId, replyId, organizationId, propertyId } from '#/shared/domain/ids'
 import type { ReviewHeadChecksMode } from './domain/head-check'
 import { jobEnqueueOptions } from '#/shared/jobs/job-policy'
 import { createJobExecutionEnvelope } from '#/shared/jobs/delayed-execution-gate'
@@ -224,8 +228,9 @@ export type ReviewContextApi = Readonly<{
       aiReplyVoice: AiReplyVoicePublicApi
       /** Review-owned queue admission used by Integration import/push workflows. */
       syncAdmission: Readonly<
-        Pick<ReviewQueuePort, 'addSyncJob'> &
-          Pick<TargetedGoogleReviewQueuePort, 'addTargetedFetchJob'>
+        Pick<ReviewQueuePort, 'addSyncJob'> & {
+          prepareImportSync: import('./application/public-api').PrepareGoogleImportSync
+        } & Pick<TargetedGoogleReviewQueuePort, 'addTargetedFetchJob'>
       >
       /** Review-owned reply workflow presented to Review HTTP adapters. */
       reply: Readonly<{
@@ -774,12 +779,19 @@ export const buildReviewContext = (input: ReviewContextBuildInput): ReviewContex
       aiReviewSource,
       aiReplyVoice,
       syncAdmission: Object.freeze({
+        prepareImportSync: (tx, scope) =>
+          fixHistoryCutoff(tx, {
+            organizationId: organizationId(scope.organizationId),
+            propertyId: propertyId(scope.propertyId),
+            sourceEpoch: scope.sourceEpoch,
+          }),
         // A Google import fixes its epoch's history cutoff before its sync is
         // queued, and so before the import settles.
         addSyncJob: admitReviewSync({
           queue,
           propertySourceEpoch: propertySourceEpochLookup,
           historyCutoffs: snapshotRepository,
+          admitImportSync: (data) => admitGoogleImportSync(input.db, input.idGen, data),
         }),
         addTargetedFetchJob: targetedQueue.addTargetedFetchJob,
       }),

@@ -71,6 +71,7 @@ type SyncHandlerDeps = Readonly<{
    * first snapshot failure (it grows with consecutive failures, see
    * domain/snapshot-failure-backoff.ts).
    */
+  acknowledgeImportSync?: (data: SyncPropertyReviewsJobData) => Promise<void>
   hotIntervalMs: number
 }>
 
@@ -439,6 +440,19 @@ async function recordSnapshotFailure(
   return isParkedSnapshotFailure(code)
 }
 
+async function acknowledgeImportProgress(
+  deps: SyncHandlerDeps,
+  data: SyncPropertyReviewsJobData,
+  sourceEpoch: number,
+  result: Awaited<ReturnType<RunReviewProviderSnapshot>>,
+) {
+  if (data.importBindingEventId) {
+    if (!deps.acknowledgeImportSync)
+      throw new Error('Import sync acknowledgement unavailable')
+    await deps.acknowledgeImportSync({ ...data, sourceEpoch, runId: result.runId })
+  }
+}
+
 /** One bounded page, confirmation, or deletion batch of a provider snapshot
  * run, plus the continuation that carries the run forward. */
 async function runSnapshotStep(
@@ -473,10 +487,13 @@ async function runSnapshotStep(
     locationName: data.locationName,
     ...(data.runId == null ? {} : { runId: data.runId }),
   })
+  if (result.status !== 'failed')
+    await acknowledgeImportProgress(deps, data, scope.sourceEpoch, result)
   // A run caught mid-way by a connection that stopped being usable: the use
   // case already ended it and discarded its cursors. Nothing continues and no
   // failure is recorded.
   if (result.status === 'failed' && result.code === GOOGLE_CONNECTION_UNUSABLE_CODE) {
+    await acknowledgeImportProgress(deps, data, scope.sourceEpoch, result)
     return skipUnusableConnection(deps, 'snapshot')
   }
   if (result.status === 'checkpointed' || result.status === 'deleting') {
@@ -496,14 +513,23 @@ async function runSnapshotStep(
   // and recorded the backoff (or, if it died first, this one records it), so
   // this one ends without failing again.
   if (result.status === 'failed' && result.alreadyFailed) {
-    return skipFailedRunReplay(deps, data, result.code, result.alreadyFailed.failedAt)
+    const skipped = await skipFailedRunReplay(
+      deps,
+      data,
+      result.code,
+      result.alreadyFailed.failedAt,
+    )
+    await acknowledgeImportProgress(deps, data, scope.sourceEpoch, result)
+    return skipped
   }
   if (result.status === 'failed') {
     const previous = await deps.discoveryRepo.findFailureState(data.propertyId)
     // A parked failure (a location over the cap, or one Google rejects) is
     // recorded and the job ends normally, whichever step it is: nothing is
     // thrown, retried, dead-lettered, reported or latched.
-    if (await recordSnapshotFailure(deps, data, result.code, previous)) return result
+    const parked = await recordSnapshotFailure(deps, data, result.code, previous)
+    await acknowledgeImportProgress(deps, data, scope.sourceEpoch, result)
+    if (parked) return result
     // The step that failed the run fails the job with the ordinary
     // `ReviewProviderSnapshotFailure`, built and thrown here, in
     // `runSnapshotStep`: error monitoring groups by stack, and the existing

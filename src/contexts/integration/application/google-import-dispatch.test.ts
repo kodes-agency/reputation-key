@@ -33,6 +33,7 @@ const ITEM: GoogleImportV2DispatchItem = {
   expectedConnectionLifecycleVersion: 7,
   expectedSourceEpoch: null,
   retryRevision: 0,
+  dispatchEpoch: 0,
 }
 
 function setup(items: readonly GoogleImportV2DispatchItem[] | null = [ITEM]) {
@@ -55,8 +56,12 @@ describe('google import v2 durable dispatch', () => {
         lifecycleVersion: ITEM.expectedConnectionLifecycleVersion,
         sourceEpoch: ITEM.expectedSourceEpoch,
         retryRevision: ITEM.retryRevision,
+        dispatchEpoch: 0,
+        deliveryId: EVENT.eventId,
       }),
-    ).toBe('import-item-10000000-0000-4000-8000-000000000003-l7-enew-r0')
+    ).toBe(
+      'import-item-10000000-0000-4000-8000-000000000003-l7-enew-r0-d0-q10000000-0000-4000-8000-000000000001',
+    )
 
     expect(
       googlePropertyImportItemJobId({
@@ -64,8 +69,12 @@ describe('google import v2 durable dispatch', () => {
         lifecycleVersion: 8,
         sourceEpoch: 12,
         retryRevision: 3,
+        dispatchEpoch: 5,
+        deliveryId: EVENT.eventId,
       }),
-    ).toBe('import-item-10000000-0000-4000-8000-000000000003-l8-e12-r3')
+    ).toBe(
+      'import-item-10000000-0000-4000-8000-000000000003-l8-e12-r3-d5-q10000000-0000-4000-8000-000000000001',
+    )
   })
 
   it('loads only tenant-parent pending items, dispatches content-free jobs, then records receipt', async () => {
@@ -79,11 +88,13 @@ describe('google import v2 durable dispatch', () => {
     )
     expect(fixture.addImportItemJobs).toHaveBeenCalledWith([
       {
-        jobId: 'import-item-10000000-0000-4000-8000-000000000003-l7-enew-r0',
+        jobId:
+          'import-item-10000000-0000-4000-8000-000000000003-l7-enew-r0-d0-q10000000-0000-4000-8000-000000000001',
         organizationId: 'org-1',
         importJobId: '10000000-0000-4000-8000-000000000002',
         itemId: '10000000-0000-4000-8000-000000000003',
         retryRevision: 0,
+        dispatchEpoch: 0,
       },
     ])
     expect(fixture.insertReceipt).toHaveBeenCalledWith(

@@ -4,11 +4,13 @@ import type { GoogleImportV2ItemJobData } from '../../application/ports/gbp-queu
 import { createGoogleImportV2ItemJobHandler } from './import-gbp-property-item-v2.job'
 
 const DATA: GoogleImportV2ItemJobData = {
-  jobId: 'import-item-10000000-0000-4000-8000-000000000001-l2-enew-r0',
+  jobId:
+    'import-item-10000000-0000-4000-8000-000000000001-l2-enew-r0-d0-q20000000-0000-4000-8000-000000000001',
   organizationId: 'org-1',
   importJobId: '20000000-0000-4000-8000-000000000002',
   itemId: '10000000-0000-4000-8000-000000000001',
   retryRevision: 0,
+  dispatchEpoch: 0,
 }
 
 function job(
@@ -29,11 +31,31 @@ describe('Google import v2 item job boundary', () => {
       organizationId: DATA.organizationId,
       itemId: DATA.itemId,
       retryRevision: DATA.retryRevision,
+      dispatchEpoch: DATA.dispatchEpoch,
       attemptOrdinal: 1,
     })
   })
 
-  it('normalizes Bull attemptsMade to a one-based durable ordinal', async () => {
+  it('keeps an already queued delivery without an epoch compatible with generation zero', async () => {
+    const processItem = vi.fn(async () => {})
+    const { dispatchEpoch: _epoch, ...legacy } = DATA
+    const oldId = 'import-item-10000000-0000-4000-8000-000000000001-l2-enew-r0'
+    const delivery = {
+      id: oldId,
+      data: { ...legacy, jobId: oldId },
+      attemptsMade: 0,
+    } as Job<typeof legacy>
+    await createGoogleImportV2ItemJobHandler(processItem)(delivery)
+    expect(processItem).toHaveBeenCalledExactlyOnceWith({
+      organizationId: DATA.organizationId,
+      itemId: DATA.itemId,
+      retryRevision: 0,
+      dispatchEpoch: 0,
+      attemptOrdinal: 1,
+    })
+  })
+
+  it('passes the one-based queue delivery ordinal as a non-authoritative hint', async () => {
     const processItem = vi.fn(async () => {})
 
     await createGoogleImportV2ItemJobHandler(processItem)(job(DATA, DATA.jobId, 3))

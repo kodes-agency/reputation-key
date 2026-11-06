@@ -1,3 +1,4 @@
+import type { GoogleAuthorizedProviderExecutor } from './ports/google-authorized-provider-executor.port'
 import {
   googleConnectionAuthorizationVector,
   googleUserAuthorizationVector,
@@ -531,5 +532,53 @@ export function createGoogleImportCommandAuthorizer(
     if (frozenDenial) return frozenDenial
 
     return { ok: true, authorization, accessToken }
+  }
+}
+
+type ProviderAuthorization = Parameters<
+  GoogleAuthorizedProviderExecutor['execute']
+>[1]['authorization']
+
+export function createGoogleImportReauthorizer(
+  deps: Readonly<{
+    resolveActor: (organizationId: string, userId: string) => Promise<AuthContext | null>
+    authorize: GoogleImportCommandAuthorizer
+  }>,
+): (
+  input: Readonly<{ authorization: ProviderAuthorization }>,
+) => Promise<ProviderAuthorization> {
+  return async ({ authorization }) => {
+    if (
+      authorization.capability !== 'property.import_gbp_v2' ||
+      authorization.initiatorUserId === null
+    ) {
+      throw new Error('Google provider reauthorization is unavailable')
+    }
+    const actor = await deps.resolveActor(
+      authorization.organizationId,
+      authorization.initiatorUserId,
+    )
+    if (!actor) {
+      throw new Error('Google provider reauthorization is unavailable')
+    }
+    const refreshed = await deps.authorize({
+      actor,
+      connectionId: authorization.connectionId,
+      phase: 'provider_call',
+      properties: [],
+      requireAccessToken: false,
+    })
+    if (!refreshed.ok) {
+      throw new Error('Google provider reauthorization is unavailable')
+    }
+    return {
+      capability: 'property.import_gbp_v2',
+      organizationId: authorization.organizationId,
+      propertyId: null,
+      connectionId: authorization.connectionId,
+      initiatorUserId: refreshed.authorization.userId,
+      expectedCredentialGeneration: refreshed.authorization.credentialGeneration,
+      authorizationVector: refreshed.authorization.authorizationVector,
+    }
   }
 }

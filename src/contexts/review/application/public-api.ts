@@ -7,18 +7,12 @@
  * are exported here. Remaining port types are imported directly from
  * `application/ports/` by the adapters that implement them.
  */
+import type { Tx } from '#/shared/outbox/commit'
+
 export type { GoogleReview, StarRating } from '../domain/types'
 export type { ReplyModeration } from '../domain/reply-moderation'
 
-// BQC-5.3: reply length limit — single source of truth lives in
-// domain/rules; inbox reply editor components import it from here
-// (components may not import domain directly).
-export {
-  MAX_REPLY_LENGTH,
-  REPLY_TEMPLATE_SLOT_TOKENS,
-  unfilledReplySlots,
-  unfilledReplySlotsMessage,
-} from '../domain/rules'
+export { unfilledReplySlotsMessage } from '../domain/rules'
 
 // Event re-exports — cross-context consumers must import events from public-api, not domain/events
 export type {
@@ -141,3 +135,9 @@ export type {
   AiTrendPopulationRequest,
   AiTrendPopulationResult,
 } from './ports/ai-review-source.port'
+
+/** Fixes onboarding history before Integration commits receipt-backed success. */
+export type PrepareGoogleImportSync = (
+  transaction: Tx,
+  scope: Readonly<{ organizationId: string; propertyId: string; sourceEpoch: number }>,
+) => Promise<void>

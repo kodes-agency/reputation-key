@@ -203,7 +203,7 @@ function memoryStore() {
     listRetryCandidates,
     listPendingDispatchItems: vi.fn(async () => []),
     listExpiredItems: vi.fn(async () => []),
-    listStaleClaimItems: vi.fn(async () => []),
+    reserveDueItems: vi.fn(async () => []),
     listPurgeCandidates: vi.fn(async () => []),
     purgeParent: vi.fn(async () => 'lost' as const),
     listLifecycleScopeParents: vi.fn(async () => []),

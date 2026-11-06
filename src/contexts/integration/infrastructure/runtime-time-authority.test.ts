@@ -27,6 +27,6 @@ describe('Integration infrastructure time authority', () => {
     expect(build).toMatch(
       /createAtomicIntegrationCommandStore\(\s*deps\.db,\s*deps\.clock,?\s*\)/u,
     )
-    expect(build).toContain('createGoogleImportV2Store(deps.db, deps.clock)')
+    expect(build).toContain('createGoogleImportV2Store(deps.db, deps.clock, {')
   })
 })
