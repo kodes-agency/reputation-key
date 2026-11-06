@@ -1,9 +1,8 @@
 import { canonicalizeRfc8785 } from '#/shared/canonical-json'
 import { randomBytes, randomUUID } from 'node:crypto'
 import { and, eq } from 'drizzle-orm'
-import { drizzle } from 'drizzle-orm/node-postgres'
 import type { Pool } from 'pg'
-import type { Database } from '#/shared/db'
+import { createDatabase } from '#/shared/db'
 import { aiOperations } from '#/shared/db/schema'
 import { AI_OPERATION_PROFILES } from '#/shared/ai-operation-profiles'
 import { AI_REPLY_ADOPTION_WINDOW_MILLIS } from '#/shared/ai-reply-provenance'
@@ -111,7 +110,7 @@ export function createPostgresAiAdmissionAuthority(
   if (!KEY_ID.test(input.signingKid)) {
     throw new Error('AI admission database signing key ID is invalid')
   }
-  const db = drizzle(input.pool) as Database
+  const db = createDatabase(input.pool)
   const now = input.now ?? (() => new Date())
   const budget = input.budgetControl ?? createAiBudgetControl({ idGen: randomUUID, now })
   const nonce = input.nonce ?? (() => randomBytes(18).toString('base64url'))

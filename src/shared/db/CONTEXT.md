@@ -13,6 +13,12 @@ the worker sizes its pool from every queue's concurrency at boot
 while it opens a second transaction reserves both clients first
 (`pool-client-reservation.ts`): a lock holder never waits on the pool.
 
+Job dispatch supplies an abort signal and deadline through
+`execution-deadline.server.ts`. Databases built by `createDatabase` (including
+`getDb` and AI admission) set a transaction-local PostgreSQL statement timeout
+from the remaining deadline and refuse commit after abort. Transactions outside
+job dispatch keep their existing behaviour.
+
 Every pooled session is set to UTC beside its lock timeouts (`pool.ts`). Six
 CHECK constraints compare a deadline with `timestamptz + interval 'N days'`, a
 sum PostgreSQL makes in the session's zone, and the application counts those

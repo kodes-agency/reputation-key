@@ -147,7 +147,7 @@ export function createJobWorker<T>(
   // Await the terminal-attempt dead-letter write while this process retains
   // the BullMQ lock. The staged copy remains non-redrivable until the `failed`
   // event (or proof-based operator reconciliation).
-  const handlerWithQuarantineBarrier: JobHandler<T> = async (job) => {
+  const handlerWithQuarantineBarrier = async (job: Job<T>) => {
     const jobId = job.id ?? generateRequestId()
     return runWithContext(
       jobId,
