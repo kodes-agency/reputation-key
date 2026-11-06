@@ -478,6 +478,64 @@ describe('resolveTenant cache', () => {
     expect(mockGetActiveMember).toHaveBeenCalledTimes(2)
   })
 
+  it('removes owner permissions and narrows Property scope after a cached owner is demoted', async () => {
+    const headers = makeHeaders({ cookie: 'better-auth.session_token=owner-session' })
+    adminSession()
+    mockGetActiveMember.mockResolvedValue({ role: 'owner' })
+
+    const before = await resolveTenant(headers)
+    expect(canForContext(before, 'member.update')).toBe(true)
+    expect(scopeForPermission(before, 'property.read')).toBe('organization')
+
+    mockGetActiveMember.mockResolvedValue({ role: 'admin' })
+    mockDbSelect.mockImplementation(versionRows(8))
+
+    const interactive = await resolveTenant(headers)
+    const delayed = await resolveMemberAuthContext({
+      memberRole: 'admin',
+      organizationId: 'org-1',
+      userId: 'u1',
+    })
+
+    expect(interactive.role).toBe('PropertyManager')
+    expect(canForContext(interactive, 'member.update')).toBe(false)
+    expect(scopeForPermission(interactive, 'member.update')).toBe('none')
+    expect(scopeForPermission(interactive, 'property.read')).toBe('assigned-properties')
+    expect(delayed.context).toEqual(interactive)
+    expect(delayed.permissionVersion).toBe(8)
+  })
+
+  it.each(['member', 'content-manager'])(
+    'refuses a cached manager whose role becomes %s after a permission version bump',
+    async (memberRole) => {
+      const headers = makeHeaders({ cookie: 'better-auth.session_token=manager-session' })
+      adminSession()
+      await resolveTenant(headers)
+
+      mockGetActiveMember.mockResolvedValue({ role: memberRole })
+      mockDbSelect.mockImplementation(versionRows(8))
+
+      await expect(resolveTenant(headers)).rejects.toMatchObject({
+        code: 'beta_role_inactive',
+        status: 403,
+      })
+    },
+  )
+
+  it('refuses a removed member after a permission version bump invalidates their cached authority', async () => {
+    const headers = makeHeaders({ cookie: 'better-auth.session_token=removed-session' })
+    adminSession()
+    await resolveTenant(headers)
+
+    mockGetActiveMember.mockResolvedValue(null)
+    mockDbSelect.mockImplementation(versionRows(8))
+
+    await expect(resolveTenant(headers)).rejects.toMatchObject({
+      code: 'forbidden',
+      status: 403,
+    })
+  })
+
   it('does not serve a cached context when its freshness cannot be proved', async () => {
     const cookie = 'better-auth.session_token=abc123'
     adminSession()
