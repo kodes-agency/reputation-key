@@ -133,8 +133,7 @@ export type RatingGoalScopeCursor = Pick<RatingGoalScope, 'goalId'>
 
 /**
  * A goal's change log as the detail reads it: the newest changes, and the
- * oldest change of each field, whose old value is what the goal was set with
- * (PLAN-D E31), however long the log grows.
+ * oldest change of each field, preserving set-time values however long the log grows.
  */
 export type RatingGoalChangeLog = Readonly<{
   /** Newest first, at most the limit. */

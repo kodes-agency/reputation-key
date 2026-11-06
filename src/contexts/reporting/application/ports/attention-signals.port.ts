@@ -1,4 +1,3 @@
-// Dashboard context — AttentionSignalsPort (facade port per ADR-0007)
 // Count queries for the property "attention band" — what needs a manager's eye.
 // Dashboard never imports review/inbox/goal tables directly — this port is the boundary.
 

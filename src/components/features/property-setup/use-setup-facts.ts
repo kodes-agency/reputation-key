@@ -1,10 +1,11 @@
+import { useTenantScope } from '#/shared/hooks/useTenantScope'
 import { useQueries, useQuery } from '@tanstack/react-query'
 import type { MerchantAiNoticeDto } from '#/contexts/identity/application/dto/merchant-ai-notice.dto'
 import {
-  identityKeys,
   portalKeys,
   propertyKeys,
   reviewKeys,
+  createKeys,
 } from '#/shared/queries/query-keys'
 import type {
   PropertySetupFns,
@@ -32,6 +33,7 @@ export function useSetupFacts(
   properties: readonly SetupImportedProperty[],
   fns: PropertySetupFns,
 ): SetupFactsState {
+  const { identityKeys } = createKeys(useTenantScope())
   const list = useQuery({
     queryKey: propertyKeys.list(),
     queryFn: () => fns.listProperties(),

@@ -1,21 +1,10 @@
-// Reporting — the number the Monthly portal goal's card offers (ADR 0068
-// decisions 3 to 5, PLAN PG-09).
-//
-// The recommendation decides every number; this only picks the ones the card
-// offers and says what they stand on. The month is the recommendation's
-// default (this month through the 20th local day, else the next) and the
-// measure its default (private ratings, or scans when the Portals had scans
-// but no private ratings). This month's choices are on top of what already
-// counts; the next month's are a whole month's. The set command asks the same
-// question of the month and measure it was sent, so "recommended" means the
-// number this read would offer. The set sheet (PLAN PG-10) is offered the same
-// numbers for both months and both measures, with the exact usual an own
-// number is measured against: the one its "your usual" is rounded from, so for
-// this month what already counts plus the days left at the usual. The
-// month-start check-in (PLAN PG-15) offers this month's one recommended
-// number, the sheet's (PLAN E6), worked out as a whole month ("a 31-day month
-// gets about 38") only while the rest of the month is all of it: on its first
-// day with nothing in yet, when the two are the same numbers. Pure.
+// Use the recommendation's default month (current through local day 20) and
+// measure (scans first only when there are scans but no private ratings).
+// Current-month offers include what already counts; next month offers a full month.
+// The set command recomputes the same offer to establish target provenance.
+// Send both months/measures and exact usuals to the sheet. Check-in uses the same
+// remaining-month number; it equals a full-month offer only on day one with zero counted.
+
 import type {
   Choices,
   PortalGoalMeasure,
@@ -130,7 +119,7 @@ export function portalGoalOfferOf(
 
 /**
  * What the month-start check-in offers for this month, in `measure`: the
- * number the sheet offers for it now, on top of what already counts (PLAN E6).
+ * number the sheet offers for it now, on top of what already counts.
  * On the month's first day with nothing in yet that is the whole month's (G4:
  * 40 · 45 · 50 for a 31-day December, 45 recommended), and it is worked out
  * as one ("a 31-day month gets about 38").

@@ -1,700 +1,82 @@
-// Every beta notification route, from its real producer.
-//
-// Consumer tests hand-build their envelopes, and that is how whole routes
-// shipped dead while every suite stayed green: the delayed execution gate
-// keyed Property scope by action, so each Organization-scoped route was denied
-// before its handler ran, and the Portal Health consumer rejected the envelope
-// aggregate its producer really writes. Here each
-// BETA_NOTIFICATION_TRIGGER_MATRIX row starts from the upstream context's real
-// event constructor and travels the production path — toOutboxEvent, a jsonb
-// round trip, buildConsumerEvent — into the REAL delayed execution policy, the
-// worker's dispatcher, the registered consumer and the durable delivery
-// bridge. Nothing on that path is mocked; only the consumers' reads are fakes.
-
-import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
-import type { DomainEvent } from '#/shared/events/events'
-import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
-import { toOutboxEvent } from '#/shared/outbox/event-adapter'
-import { buildConsumerEvent, type ConsumerEvent } from '#/shared/outbox/envelope'
+// Notification acceptance examples use real producers and the worker dispatcher.
+import { identityOrganizationLifecycleChanged } from '#/contexts/identity/domain/events'
 import {
-  createConsumerRegistry,
-  type ConsumerRegistry,
-} from '#/shared/outbox/consumer-registry'
+  inboxHandlingCycleOpened,
+  inboxHandlingCycleReopened,
+  inboxItemAssigned,
+} from '#/contexts/inbox/domain/events'
 import {
-  createJobExecutionEnvelope,
-  gateDispatcherConsumer,
-  gateJob,
-} from '#/shared/jobs/delayed-execution-gate'
+  portalHealthChanged,
+  portalResponsibleManagersUpdated,
+} from '#/contexts/portal/domain/events'
+import { propertyResponsibleManagersUpdated } from '#/contexts/property/domain/events'
 import {
-  createDelayedExecutionPolicy,
-  initDelayedExecutionPolicy,
-  resetDelayedExecutionPolicy,
-} from '#/shared/auth/system-execution-policy'
+  goalMonthlyResultClosed,
+  goalMonthlyResultRevised,
+} from '#/contexts/reporting/domain/goal-events'
+import { reviewPropertyHistoryImportFinished } from '#/contexts/review/domain/events'
 import {
   createEnvCapabilityPolicyStore,
   initCapabilityPolicyStore,
   resetCapabilityPolicyStore,
 } from '#/shared/auth/beta-capabilities'
 import {
-  googleConnectionId,
-  inboxItemId,
-  notificationId,
-  inboxNoteId,
-  invitationId,
-  organizationId,
-  portalApprovedDestinationId,
-  portalId,
-  propertyId,
-  replyId,
-  reviewId,
-  userId,
-  type NotificationId,
-  type OrganizationId,
-  type UserId,
-} from '#/shared/domain/ids'
+  createDelayedExecutionPolicy,
+  initDelayedExecutionPolicy,
+  resetDelayedExecutionPolicy,
+} from '#/shared/auth/system-execution-policy'
+import type { DomainEvent } from '#/shared/events/events'
+import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
 import {
-  identityBetaFeedbackOutcomeReached,
-  identityInvitationAccepted,
-  identityMemberPropertyAccessChanged,
-  identityMemberRemoved,
-  identityMemberRoleChanged,
-  identityOrganizationLifecycleChanged,
-} from '#/contexts/identity/domain/events'
-import {
-  inboxAssignmentsReleased,
-  inboxBulkAssignmentCompleted,
-  inboxBulkReopenCompleted,
-  inboxHandlingCycleClosed,
-  inboxHandlingCycleOpened,
-  inboxHandlingCycleReopened,
-  inboxItemAssigned,
-  inboxItemCreated,
-  inboxItemEscalated,
-  inboxItemEscalationResolved,
-  inboxNoteAdded,
-  inboxResponseTargetReminderDue,
-} from '#/contexts/inbox/domain/events'
-import {
-  aiGuestVoiceSummaryReady,
-  aiReviewUrgentDetected,
-} from '#/contexts/ai/domain/events'
-import {
-  reviewPropertyHistoryImportFinished,
-  reviewReplyApproved,
-  reviewReplyPublicationCancelled,
-  reviewReplyPublished,
-  reviewReplyPublishFailed,
-  reviewReplyRejected,
-  reviewReplySubmitted,
-} from '#/contexts/review/domain/events'
-import {
-  portalApprovedDestinationUpdated,
-  portalHealthChanged,
-  portalResponsibilityNeeded,
-  portalResponsibleManagersUpdated,
-} from '#/contexts/portal/domain/events'
-import {
-  propertyArchived,
-  propertyResponsibilityNeeded,
-  propertyResponsibleManagersUpdated,
-} from '#/contexts/property/domain/events'
-import {
-  integrationGoogleAccountConnected,
-  integrationGoogleAccountDisconnected,
-  integrationGoogleAccountReauthorizationRequired,
-} from '#/contexts/integration/domain/events'
-import {
-  goalMonthlyResultClosed,
-  goalMonthlyResultRevised,
-  goalRatingGoalTransitioned,
-} from '#/contexts/reporting/domain/goal-events'
+  createJobExecutionEnvelope,
+  gateDispatcherConsumer,
+  gateJob,
+} from '#/shared/jobs/delayed-execution-gate'
+import { type ConsumerEvent } from '#/shared/outbox/envelope'
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   assertBetaNotificationTriggerMatrix,
   BETA_NOTIFICATION_TRIGGER_MATRIX,
 } from '../application/beta-notification-trigger-matrix'
-import type { NotificationRepositoryPort } from '../application/ports/notification-repository.port'
-import { notificationScopeForType } from '../domain/notification-delivery-policy'
-import type { NotificationType } from '../domain/notification-types'
-import { createNotificationConsumerDeps } from './notification-consumer-test-fixtures'
-import { registerNotificationConsumers } from './notification-outbox-consumers'
-import { registerWorkflowNotificationConsumers } from './workflow-outbox-consumers'
-import type { PortalPublicApi } from '#/contexts/portal/application/public-api'
-import { registerPortalNotificationConsumers } from './portal-outbox-consumers'
-import { registerPortalDestinationNotificationConsumer } from './portal-destination-outbox-consumers'
-import { registerPropertyNotificationConsumers } from './property-outbox-consumers'
-import { registerIntegrationNotificationConsumers } from './integration-outbox-consumers'
-import {
-  registerReviewImportNotificationConsumers,
-  type PropertyImportInitiatorLookup,
-} from './review-import-outbox-consumers'
-import { registerBulkAssignmentNotificationConsumer } from './bulk-assignment-outbox-consumers'
-import { registerAssignmentReleaseNotificationConsumer } from './assignment-release-outbox-consumers'
-import { registerEscalationResolutionNotificationConsumer } from './escalation-resolution-outbox-consumers'
-import { registerGoalNotificationConsumer } from './goal-outbox-consumers'
-import { registerAiGuestVoiceSummaryNoticeConsumer } from './ai-guest-voice-summary-notice-consumers'
-import { registerAiUrgentReviewNoticeConsumer } from './ai-urgent-review-notice-consumers'
-import { registerRatingGoalNoticeConsumer } from './rating-goal-notice-consumers'
-import { registerHandlingCycleNotificationConsumers } from './handling-cycle-outbox-consumers'
-import { registerNotificationSettlementConsumers } from './notification-settlement-outbox-consumers'
-import { noGroupedReopens, waitingWorkState } from './jobs/test-fixtures'
-import { registerResponseTargetNotificationConsumer } from './response-target-outbox-consumers'
-import { registerPortalHealthNotificationConsumer } from './portal-health-outbox-consumers'
-import {
-  registerIdentityAccountNotificationConsumers,
-  registerOrganizationPurgePendingNoticeConsumer,
-} from './identity-account-outbox-consumers'
-import {
-  INSERT_NOTIFICATION_JOB_NAME,
-  type InsertNotificationJobData,
-} from './jobs/insert-notification.job'
-import type { GoogleConnectionPropertyLookup } from './integration-outbox-consumers'
-import {
-  parseOutboxNotificationDelivery,
-  withBetaOutboxNotificationDelivery,
-} from './outbox-notification-delivery'
 import {
   createNotificationAudienceAuthorizer,
   parseNotificationAudience,
 } from '../application/notification-audience'
-import type { EscalationResolutionLookupPort } from '../application/ports/escalation-resolution-lookup.port'
-import type { MonthlyResultNotificationFactsLookup } from '#/contexts/reporting/application/public-api'
-import type { OutboxRepository } from '#/shared/outbox'
-import { createDispatcherHandler } from '#/shared/outbox/dispatcher'
-import type { Job } from 'bullmq'
+import { notificationScopeForType } from '../domain/notification-delivery-policy'
+import type { NotificationType } from '../domain/notification-types'
+import { INSERT_NOTIFICATION_JOB_NAME } from './jobs/insert-notification.job'
 import { MANDATORY_EMAIL_JOB_NAME, URGENT_EMAIL_JOB_NAME } from './jobs/urgent-email.job'
+import { parseOutboxNotificationDelivery } from './outbox-notification-delivery'
 
-const ORG = organizationId('org-route-contract')
-const PROPERTY = propertyId('4d1f0c1e-2b7a-4c55-9a51-000000000001')
-const PORTAL = portalId('4d1f0c1e-2b7a-4c55-9a51-000000000002')
-const DESTINATION = portalApprovedDestinationId('4d1f0c1e-2b7a-4c55-9a51-000000000020')
-const ITEM = inboxItemId('4d1f0c1e-2b7a-4c55-9a51-000000000003')
-const REVIEW = reviewId('4d1f0c1e-2b7a-4c55-9a51-000000000004')
-const REPLY = replyId('4d1f0c1e-2b7a-4c55-9a51-000000000005')
-const NOTE = inboxNoteId('4d1f0c1e-2b7a-4c55-9a51-000000000006')
-const CONNECTION = googleConnectionId('4d1f0c1e-2b7a-4c55-9a51-000000000007')
-const SNAPSHOT_RUN = '4d1f0c1e-2b7a-4c55-9a51-000000000013'
-const INVITATION = invitationId('4d1f0c1e-2b7a-4c55-9a51-000000000008')
-const REPORT_REFERENCE = '4d1f0c1e-2b7a-4c55-9a51-000000000009'
-const CLOSURE_LINEAGE = '4d1f0c1e-2b7a-4c55-9a51-00000000000a'
-const BULK = '4d1f0c1e-2b7a-4c55-9a51-00000000000b'
-const GOAL = {
-  programId: '4d1f0c1e-2b7a-4c55-9a51-00000000000c',
-  programVersionId: '4d1f0c1e-2b7a-4c55-9a51-00000000000d',
-  assignmentId: '4d1f0c1e-2b7a-4c55-9a51-00000000000e',
-  monthlyResultId: '4d1f0c1e-2b7a-4c55-9a51-00000000000f',
-  periodStart: new Date('2026-08-01T00:00:00.000Z'),
-  periodEnd: new Date('2026-09-01T00:00:00.000Z'),
-} as const
-const ACTOR = userId('user-actor')
-const RECIPIENT = userId('user-recipient')
-const DEPARTING = userId('user-departing')
-const OCCURRED_AT = new Date('2026-09-02T09:00:00.000Z')
-const SCHEDULED_FOR = new Date('2026-09-02T08:00:00.000Z')
-
-const handlingCycleScope = {
-  inboxItemId: ITEM,
-  cycleNumber: 2,
-  stateRevision: 3,
-  organizationId: ORG,
-  propertyId: PROPERTY,
-  sourceType: 'review',
-  sourceId: REVIEW,
-  sourceRevision: 2,
-  triggerEventId: null,
-  occurredAt: OCCURRED_AT,
-} as const
-
-const replyFact = {
-  replyId: REPLY,
-  reviewId: REVIEW,
-  organizationId: ORG,
-  propertyId: PROPERTY,
-  occurredAt: OCCURRED_AT,
-} as const
-
-/**
- * One fact per matrix row, built by its producing context's own constructor.
- * Each satisfies the row's event condition, so the route has work to do.
- */
-/** A site's state changed: the first state, or the decision after it. */
-const destinationUpdated = (approvalState: 'pending' | 'approved') =>
-  portalApprovedDestinationUpdated({
-    approvedDestinationId: DESTINATION,
-    organizationId: ORG,
-    propertyId: PROPERTY,
-    approvalState,
-    sourceAggregateVersion: OCCURRED_AT.toISOString(),
-    occurredAt: OCCURRED_AT,
-  })
-
-const PRODUCED_FACTS: Readonly<Record<string, () => DomainEvent>> = {
-  'identity.invitation.accepted': () =>
-    identityInvitationAccepted({
-      invitationId: INVITATION,
-      organizationId: ORG,
-      userId: RECIPIENT,
-      propertyIds: [PROPERTY],
-      inviterId: ACTOR,
-      occurredAt: OCCURRED_AT,
-    }),
-  'identity.member.property_access_changed': () =>
-    identityMemberPropertyAccessChanged({
-      organizationId: ORG,
-      memberUserId: RECIPIENT,
-      userId: ACTOR,
-      grantedPropertyIds: [PROPERTY],
-      revokedPropertyIds: [],
-      occurredAt: OCCURRED_AT,
-    }),
-  'identity.member.role_changed': () =>
-    identityMemberRoleChanged({
-      organizationId: ORG,
-      memberUserId: RECIPIENT,
-      previousRole: 'PropertyManager',
-      newRole: 'AccountAdmin',
-      userId: ACTOR,
-      occurredAt: OCCURRED_AT,
-    }),
-  'identity.member.removed': () =>
-    identityMemberRemoved({
-      organizationId: ORG,
-      userId: RECIPIENT,
-      removedBy: ACTOR,
-      occurredAt: OCCURRED_AT,
-    }),
-  'identity.beta_feedback.outcome_reached': () =>
-    identityBetaFeedbackOutcomeReached({
-      organizationId: ORG,
-      userId: RECIPIENT,
-      reference: REPORT_REFERENCE,
-      outcome: 'accepted',
-      occurredAt: OCCURRED_AT,
-    }),
-  'identity.organization_lifecycle.changed': () =>
-    identityOrganizationLifecycleChanged({
-      organizationId: ORG,
-      closureLineageId: CLOSURE_LINEAGE,
-      state: 'purge_pending',
-      revision: 3,
-      reactivationRequired: true,
-      recoverableUntil: new Date('2026-10-02T09:00:00.000Z'),
-      occurredAt: OCCURRED_AT,
-    }),
-  'inbox.inbox_item.created': () =>
-    inboxItemCreated({
-      inboxItemId: ITEM,
-      organizationId: ORG,
-      propertyId: PROPERTY,
-      sourceType: 'review',
-      sourceId: REVIEW,
-      occurredAt: OCCURRED_AT,
-    }),
-  'inbox.handling_cycle.opened': () =>
-    inboxHandlingCycleOpened({
-      ...handlingCycleScope,
-      actorType: 'provider',
-      userId: null,
-      openReason: 'material_revision_changed',
-    }),
-  'inbox.handling_cycle.closed': () =>
-    inboxHandlingCycleClosed({
-      ...handlingCycleScope,
-      actorType: 'user',
-      userId: ACTOR,
-      closeReason: 'confirmed_on_google',
-      source: 'web',
-    }),
-  'inbox.handling_cycle.reopened': () =>
-    inboxHandlingCycleReopened({
-      ...handlingCycleScope,
-      actorType: 'user',
-      userId: ACTOR,
-      reopenReason: 'new_information',
-      source: 'web',
-    }),
-  'inbox.inbox_items.bulk_reopen_completed': () =>
-    inboxBulkReopenCompleted({
-      organizationId: ORG,
-      userId: ACTOR,
-      bulkId: BULK,
-      reopened: [
-        {
-          inboxItemId: ITEM,
-          propertyId: PROPERTY,
-          sourceType: handlingCycleScope.sourceType,
-          sourceId: REVIEW,
-          cycleNumber: handlingCycleScope.cycleNumber,
-          sourceRevision: handlingCycleScope.sourceRevision,
-          stateRevision: handlingCycleScope.stateRevision,
-        },
-      ],
-      occurredAt: OCCURRED_AT,
-    }),
-  'inbox.response_target.reminder_due': () =>
-    inboxResponseTargetReminderDue({
-      inboxItemId: ITEM,
-      cycleNumber: 2,
-      organizationId: ORG,
-      propertyId: PROPERTY,
-      targetKind: 'google_review_response',
-      reminderKind: 'target_passed',
-      scheduledFor: SCHEDULED_FOR,
-      occurredAt: OCCURRED_AT,
-    }),
-  'inbox.inbox_item.assigned': () =>
-    inboxItemAssigned({
-      inboxItemId: ITEM,
-      organizationId: ORG,
-      propertyId: PROPERTY,
-      userId: ACTOR,
-      assignedTo: RECIPIENT,
-      occurredAt: OCCURRED_AT,
-    }),
-  'inbox.inbox_items.bulk_assignment_completed': () =>
-    inboxBulkAssignmentCompleted({
-      organizationId: ORG,
-      userId: ACTOR,
-      bulkId: BULK,
-      transitions: [
-        {
-          inboxItemId: ITEM,
-          propertyId: PROPERTY,
-          previousAssignee: null,
-          nextAssignee: RECIPIENT,
-        },
-      ],
-      occurredAt: OCCURRED_AT,
-    }),
-  'inbox.inbox_items.assignments_released': () =>
-    inboxAssignmentsReleased({
-      organizationId: ORG,
-      userId: ACTOR,
-      releasedFrom: DEPARTING,
-      releaseReason: 'member_offboarded',
-      releases: [{ propertyId: PROPERTY, anchorInboxItemId: ITEM, count: 1 }],
-      occurredAt: OCCURRED_AT,
-    }),
-  'inbox.inbox_item.escalated': () =>
-    inboxItemEscalated({
-      inboxItemId: ITEM,
-      organizationId: ORG,
-      propertyId: PROPERTY,
-      userId: ACTOR,
-      occurredAt: OCCURRED_AT,
-    }),
-  'inbox.inbox_item.escalation_resolved': () =>
-    inboxItemEscalationResolved({
-      inboxItemId: ITEM,
-      organizationId: ORG,
-      propertyId: PROPERTY,
-      userId: ACTOR,
-      occurredAt: OCCURRED_AT,
-    }),
-  'inbox.inbox_note.added': () =>
-    inboxNoteAdded({
-      inboxItemId: ITEM,
-      organizationId: ORG,
-      propertyId: PROPERTY,
-      userId: ACTOR,
-      noteId: NOTE,
-      occurredAt: OCCURRED_AT,
-    }),
-  'review.reply.submitted': () => reviewReplySubmitted({ ...replyFact, userId: ACTOR }),
-  'review.reply.approved': () =>
-    reviewReplyApproved({ ...replyFact, userId: ACTOR, authorId: RECIPIENT }),
-  'review.reply.rejected': () =>
-    reviewReplyRejected({
-      ...replyFact,
-      userId: ACTOR,
-      authorId: RECIPIENT,
-      reason: null,
-    }),
-  'review.reply.published': () =>
-    reviewReplyPublished({ ...replyFact, userId: ACTOR, authorId: RECIPIENT }),
-  'review.reply.publish_failed': () =>
-    reviewReplyPublishFailed({ ...replyFact, authorId: RECIPIENT, outcome: 'not_sent' }),
-  'review.reply.publication_cancelled': () =>
-    reviewReplyPublicationCancelled({
-      ...replyFact,
-      authorId: RECIPIENT,
-      cause: 'disconnect',
-    }),
-  'portal.responsibility_became_needed': () =>
-    portalResponsibilityNeeded({
-      portalId: PORTAL,
-      organizationId: ORG,
-      propertyId: PROPERTY,
-      sourceAggregateVersion: OCCURRED_AT.toISOString(),
-      occurredAt: OCCURRED_AT,
-    }),
-  'portal.approved_destination.updated': () => destinationUpdated('pending'),
-  'portal.health.changed': () =>
-    portalHealthChanged({
-      portalId: PORTAL,
-      organizationId: ORG,
-      propertyId: PROPERTY,
-      previousStatus: 'healthy',
-      previousReason: 'operational',
-      status: 'unavailable',
-      reason: 'publication_snapshot_unavailable',
-      sourceVersion: 'health-fence-1',
-      occurredAt: OCCURRED_AT,
-    }),
-  'property.responsibility_became_needed': () =>
-    propertyResponsibilityNeeded({
-      organizationId: ORG,
-      propertyId: PROPERTY,
-      occurredAt: OCCURRED_AT,
-    }),
-  'property.archived': () =>
-    propertyArchived({
-      organizationId: ORG,
-      propertyId: PROPERTY,
-      userId: ACTOR,
-      previousState: 'active',
-      sourceEpoch: 1,
-      recoveryDeadline: new Date('2026-10-24T09:00:00.000Z'),
-      occurredAt: OCCURRED_AT,
-    }),
-  'property.responsible_managers.updated': () =>
-    propertyResponsibleManagersUpdated({
-      organizationId: ORG,
-      propertyId: PROPERTY,
-      assignmentCount: 1,
-      occurredAt: OCCURRED_AT,
-    }),
-  'portal.responsible_managers.updated': () =>
-    portalResponsibleManagersUpdated({
-      portalId: PORTAL,
-      organizationId: ORG,
-      propertyId: PROPERTY,
-      assignmentCount: 1,
-      sourceAggregateVersion: OCCURRED_AT.toISOString(),
-      occurredAt: OCCURRED_AT,
-    }),
-  'review.property_history_import.finished': () =>
-    reviewPropertyHistoryImportFinished({
-      organizationId: ORG,
-      propertyId: PROPERTY,
-      sourceEpoch: 0,
-      runId: SNAPSHOT_RUN,
-      outcome: 'completed',
-      reviewsObserved: 260,
-      failureReason: null,
-      occurredAt: OCCURRED_AT,
-    }),
-  'integration.google_account.reauthorization_required': () =>
-    integrationGoogleAccountReauthorizationRequired({
-      connectionId: CONNECTION,
-      organizationId: ORG,
-      cause: 'member_removed',
-      occurredAt: OCCURRED_AT,
-    }),
-  'integration.google_account.connected': () =>
-    integrationGoogleAccountConnected({
-      connectionId: CONNECTION,
-      organizationId: ORG,
-      userId: ACTOR,
-      occurredAt: OCCURRED_AT,
-    }),
-  'integration.google_account.disconnected': () =>
-    integrationGoogleAccountDisconnected({
-      connectionId: CONNECTION,
-      organizationId: ORG,
-      userId: ACTOR,
-      occurredAt: OCCURRED_AT,
-    }),
-  'goal.monthly_result.closed': () =>
-    goalMonthlyResultClosed({
-      ...GOAL,
-      organizationId: ORG,
-      propertyId: PROPERTY,
-      evaluationState: 'eligible',
-      achieved: true,
-      occurredAt: OCCURRED_AT,
-    }),
-  'goal.monthly_result.revised': () =>
-    goalMonthlyResultRevised({
-      ...GOAL,
-      organizationId: ORG,
-      propertyId: PROPERTY,
-      evaluationState: 'eligible',
-      achieved: true,
-      revisionId: '4d1f0c1e-2b7a-4c55-9a51-000000000010',
-      revision: 2,
-      supersedesRevisionId: '4d1f0c1e-2b7a-4c55-9a51-000000000011',
-      outcomeChanged: true,
-      availabilityChanged: false,
-      occurredAt: OCCURRED_AT,
-    }),
-  // A review analysis found the review Urgent: the revision the Inbox item stands at.
-  'ai.review_analysis.urgent_detected': () =>
-    aiReviewUrgentDetected({
-      organizationId: ORG,
-      propertyId: PROPERTY,
-      reviewId: REVIEW,
-      sourceEpoch: 0,
-      sourceRevision: handlingCycleScope.sourceRevision,
-      analysisSequence: 5,
-      occurredAt: OCCURRED_AT,
-    }),
-  // The Monday email: the page's lines as governed facts, for a Property's Monday.
-  'ai.guest_voice_summary.ready': () =>
-    aiGuestVoiceSummaryReady({
-      organizationId: ORG,
-      propertyId: PROPERTY,
-      summaryKind: 'weekly',
-      localDate: '2026-09-07',
-      window: '90d',
-      startLocalDate: '2026-06-10',
-      endLocalDate: '2026-09-07',
-      lines: [
-        {
-          kind: 'fix_first',
-          topic: 'facilities_equipment',
-          issueId: '4d1f0c1e-2b7a-4c55-9a51-000000000030',
-          reviewCount: 19,
-          textReviewCount: 128,
-          upTo: 0.2,
-          change: null,
-          polarity: null,
-        },
-      ],
-      occurredAt: OCCURRED_AT,
-    }),
-  'goal.rating_goal.transitioned': () =>
-    goalRatingGoalTransitioned({
-      organizationId: ORG,
-      propertyId: PROPERTY,
-      goalId: '4d1f0c1e-2b7a-4c55-9a51-000000000014',
-      mode: 'climb',
-      notice: {
-        transition: 'entered_below_pace',
-        targetTenths: 45,
-        paceTenthsPerWeek: 110,
-        pacePerWeek: 11,
-        recentPaceTenths: 65,
-        paceWindow: 'last_4_weeks',
-      },
-      occurredAt: OCCURRED_AT,
-    }),
-}
-
-/** The producer's commit, the outbox row's jsonb round trip, and the relay. */
-function deliveredEnvelope(fact: DomainEvent): ConsumerEvent {
-  const row = toOutboxEvent(fact)
-  return buildConsumerEvent({
-    id: fact.eventId,
-    eventType: row.eventType,
-    eventVersion: row.eventVersion ?? 1,
-    payload: JSON.parse(JSON.stringify(row.payload)),
-    organizationId: row.organizationId,
-    propertyId: row.propertyId ?? null,
-    sourceContext: row.sourceContext,
-    sourceAggregateId: row.sourceAggregateId,
-    recordedAt: OCCURRED_AT,
-  })
-}
-
-type RouteDeps = ReturnType<typeof createNotificationConsumerDeps> &
-  Readonly<{
-    receipts: Pick<OutboxRepository, 'insertReceipt'>
-    escalationResolutions: EscalationResolutionLookupPort
-    monthlyResultFacts: MonthlyResultNotificationFactsLookup
-    googleConnectionProperties: GoogleConnectionPropertyLookup
-    notifications: {
-      settleUnreadForResource: ReturnType<
-        typeof vi.fn<
-          (
-            input: Parameters<NotificationRepositoryPort['settleUnreadForResource']>[0],
-          ) => Promise<ReadonlyArray<NotificationId>>
-        >
-      >
-      settleUnreadForProperty: ReturnType<
-        typeof vi.fn<
-          (
-            input: Parameters<NotificationRepositoryPort['settleUnreadForProperty']>[0],
-          ) => Promise<ReadonlyArray<NotificationId>>
-        >
-      >
-      findRecipientsOfNotice: ReturnType<
-        typeof vi.fn<() => Promise<ReadonlyArray<UserId>>>
-      >
-    }
-    emails: {
-      cancelQueuedForNotifications: ReturnType<
-        typeof vi.fn<
-          (
-            ids: ReadonlyArray<NotificationId>,
-            orgId: OrganizationId,
-            reason: string,
-            at: Date,
-          ) => Promise<number>
-        >
-      >
-    }
-    importInitiators: PropertyImportInitiatorLookup
-    destinations: Pick<PortalPublicApi, 'findDestinationApprovalNotificationFacts'>
-    workState: ReturnType<typeof waitingWorkState>
-    groupedReopens: ReturnType<typeof noGroupedReopens>
-  }>
-
-/** Reads that find nothing, for tests that never run a handler. */
-function inertRouteDeps(): RouteDeps {
-  return {
-    ...createNotificationConsumerDeps(),
-    receipts: { insertReceipt: vi.fn(async () => {}) },
-    escalationResolutions: {
-      findEscalationResolutionFacts: vi.fn(async () => null),
-    },
-    monthlyResultFacts: {
-      findMonthlyResultNotificationFacts: vi.fn(async () => null),
-      findMonthlyResultRevisionNotificationFacts: vi.fn(async () => null),
-    },
-    googleConnectionProperties: {
-      findGoogleNotificationAnchor: vi.fn(async () => null),
-    },
-    notifications: {
-      settleUnreadForResource: vi.fn(async () => []),
-      settleUnreadForProperty: vi.fn(async () => []),
-      findRecipientsOfNotice: vi.fn(async () => []),
-    },
-    emails: { cancelQueuedForNotifications: vi.fn(async () => 0) },
-    importInitiators: { findPropertyImportInitiator: vi.fn(async () => null) },
-    destinations: { findDestinationApprovalNotificationFacts: vi.fn(async () => null) },
-    workState: waitingWorkState(),
-    groupedReopens: noGroupedReopens(),
-  }
-}
-
-/** Every notification consumer the worker registers, over the given reads. */
-function registerNotificationRoutes(
-  deps: RouteDeps = inertRouteDeps(),
-): ConsumerRegistry {
-  const registry = createConsumerRegistry()
-  registerIdentityAccountNotificationConsumers(registry, deps)
-  registerOrganizationPurgePendingNoticeConsumer(registry, deps)
-  registerNotificationConsumers(registry, deps)
-  registerWorkflowNotificationConsumers(registry, deps)
-  registerBulkAssignmentNotificationConsumer(registry, deps)
-  registerAssignmentReleaseNotificationConsumer(registry, deps)
-  registerEscalationResolutionNotificationConsumer(registry, deps)
-  registerHandlingCycleNotificationConsumers(registry, deps)
-  registerNotificationSettlementConsumers(registry, deps)
-  registerResponseTargetNotificationConsumer(registry, deps)
-  registerGoalNotificationConsumer(registry, deps)
-  registerRatingGoalNoticeConsumer(registry, deps)
-  registerAiUrgentReviewNoticeConsumer(registry, deps)
-  registerAiGuestVoiceSummaryNoticeConsumer(registry, deps)
-  registerPortalNotificationConsumers(registry, deps)
-  registerPortalDestinationNotificationConsumer(registry, deps)
-  registerPortalHealthNotificationConsumer(registry, deps)
-  registerPropertyNotificationConsumers(registry, deps)
-  registerIntegrationNotificationConsumers(registry, deps)
-  registerReviewImportNotificationConsumers(registry, deps)
-  return registry
-}
-
+import {
+  ACTOR,
+  ADMIN,
+  BULK,
+  CLOSURE_LINEAGE,
+  destinationUpdated,
+  GOAL,
+  handlingCycleScope,
+  ITEM,
+  OCCURRED_AT,
+  ORG,
+  PORTAL,
+  PRODUCED_FACTS,
+  PROPERTY,
+  RECIPIENT,
+  REVIEW,
+  SETTLED_NOTIFICATION,
+  SETTLED_RESOURCE,
+  SETTLING_FACTS,
+  SNAPSHOT_RUN,
+} from '#/shared/testing/notification-route-producer-fixtures'
+import {
+  currentRouteDeps,
+  deliveredEnvelope,
+  dispatch,
+  expectAnnouncingRoute,
+  registerNotificationRoutes,
+  type RouteDeps,
+} from '#/shared/testing/notification-route-test-harness'
 /** The job a route queues for one notification type, scoped as the type demands. */
 function insertNotificationJob(type: NotificationType, envelope: ConsumerEvent) {
   return {
@@ -868,202 +250,6 @@ describe('every beta notification route passes the delayed execution gate', () =
   })
 })
 
-const MANAGER = userId('user-manager')
-const ADMIN = userId('user-admin')
-const SETTLED_NOTIFICATION = notificationId('4d1f0c1e-2b7a-4c55-9a51-000000000013')
-
-/**
- * What each settling route's notices point at. Reply and Inbox notices are
- * filed against the Inbox item; a "choose a responsible manager" request
- * against the scope that had the gap.
- */
-const SETTLED_RESOURCE: Readonly<Record<string, string>> = {
-  'property.responsible_managers.updated': PROPERTY,
-  'portal.responsible_managers.updated': PORTAL,
-  'portal.health.changed': PORTAL,
-  'portal.approved_destination.updated': DESTINATION,
-  'integration.google_account.connected': CONNECTION,
-  'integration.google_account.disconnected': CONNECTION,
-  'identity.organization_lifecycle.changed': ORG,
-}
-
-/**
- * A settling route whose event also announces: the produced fact above is the
- * announcing shape, so the settling shape is built here, by the same producer.
- */
-const SETTLING_FACTS: Readonly<Record<string, () => DomainEvent>> = {
-  'notification.settle-on-portal-destination-decided': () =>
-    destinationUpdated('approved'),
-  'notification.settle-on-organization-purge-cancelled': () =>
-    identityOrganizationLifecycleChanged({
-      organizationId: ORG,
-      closureLineageId: CLOSURE_LINEAGE,
-      state: 'active',
-      revision: 4,
-      reactivationRequired: true,
-      recoverableUntil: new Date('2026-10-02T09:00:00.000Z'),
-      occurredAt: OCCURRED_AT,
-    }),
-  'notification.settle-on-portal-health-recovered': () =>
-    portalHealthChanged({
-      portalId: PORTAL,
-      organizationId: ORG,
-      propertyId: PROPERTY,
-      previousStatus: 'unavailable',
-      previousReason: 'publication_snapshot_unavailable',
-      status: 'healthy',
-      reason: 'operational',
-      sourceVersion: 'health-fence-2',
-      occurredAt: OCCURRED_AT,
-    }),
-}
-
-/** Reads that find each route's subject still current, so every route has work. */
-function currentRouteDeps(): RouteDeps {
-  const deps = inertRouteDeps()
-  const item = {
-    propertyId: PROPERTY,
-    portalId: null,
-    assignedTo: null,
-    propertyName: 'Riverside Hotel',
-    guestRating: null,
-    sourceType: 'review',
-    createdAt: OCCURRED_AT,
-  }
-  const cycle = {
-    ...item,
-    sourceId: REVIEW,
-    currentCycleNumber: handlingCycleScope.cycleNumber,
-    currentSourceRevision: handlingCycleScope.sourceRevision,
-    stateRevision: handlingCycleScope.stateRevision,
-    status: 'open',
-  } as const
-  const goal = {
-    programId: GOAL.programId,
-    assignmentId: GOAL.assignmentId,
-    monthlyResultId: GOAL.monthlyResultId,
-    programName: 'Monthly rating goal',
-    periodMonth: '2026-10',
-    subject: { kind: 'property', propertyId: PROPERTY },
-    setDuringMonth: false,
-    targetChangedInMonth: false,
-    metric: 'portal_rating_count',
-    value: 41,
-    target: 40,
-    subjectName: null,
-  } as const
-  deps.userLookup.findByRole.mockResolvedValue([ADMIN])
-  deps.responsibleManagers.findForProperty.mockResolvedValue([MANAGER])
-  deps.responsibleManagers.findForPortal.mockResolvedValue([MANAGER])
-  deps.responsibleManagers.isEligibleForProperty.mockResolvedValue(true)
-  deps.inboxItemLookup.findInboxItemByReviewId.mockResolvedValue(ITEM)
-  deps.inboxItemLookup.findInboxItemFacts.mockResolvedValue(item)
-  deps.inboxItemLookup.findHandlingCycleNotificationFacts.mockResolvedValue(cycle)
-  deps.inboxItemLookup.findResponseTargetReminderNotificationFacts.mockResolvedValue({
-    ...cycle,
-    sourceType: 'review',
-    targetKind: 'google_review_response',
-    reminderKind: 'target_passed',
-    scheduledFor: SCHEDULED_FOR,
-    dueAt: SCHEDULED_FOR,
-  })
-  return {
-    ...deps,
-    escalationResolutions: {
-      findEscalationResolutionFacts: vi.fn(async () => ({
-        propertyId: PROPERTY,
-        assignedTo: null,
-        propertyName: 'Riverside Hotel',
-        isEscalated: false,
-        escalatedAt: null,
-        resolvedAt: OCCURRED_AT,
-        resolvedBy: ACTOR,
-      })),
-    },
-    monthlyResultFacts: {
-      findMonthlyResultNotificationFacts: vi.fn(async () => goal),
-      findMonthlyResultRevisionNotificationFacts: vi.fn(async () => ({
-        ...goal,
-        programVersionId: GOAL.programVersionId,
-        revisionId: '4d1f0c1e-2b7a-4c55-9a51-000000000010',
-        revision: 2,
-        evaluationState: 'eligible' as const,
-        achieved: true,
-      })),
-    },
-    googleConnectionProperties: {
-      findGoogleNotificationAnchor: vi.fn(async () => PROPERTY),
-    },
-    notifications: {
-      settleUnreadForResource: vi.fn(async () => [SETTLED_NOTIFICATION]),
-      settleUnreadForProperty: vi.fn(async () => [SETTLED_NOTIFICATION]),
-      findRecipientsOfNotice: vi.fn(async () => []),
-    },
-    emails: { cancelQueuedForNotifications: vi.fn(async () => 1) },
-    importInitiators: {
-      findPropertyImportInitiator: vi.fn(async () => RECIPIENT as string),
-    },
-    destinations: {
-      findDestinationApprovalNotificationFacts: vi.fn(async () => ({
-        propertyId: PROPERTY,
-        hostname: 'menu.example.com',
-        approvalState: 'pending' as const,
-        requestedBy: MANAGER,
-        portal: { id: PORTAL, name: 'Lobby' },
-        otherPortalCount: 0,
-      })),
-    },
-  }
-}
-
-type Receipt = Readonly<{ eventId: string; consumerName: string; status: string }>
-
-const recordInto =
-  (receipts: Receipt[]) =>
-  async (eventId: string, consumerName: string, status: string) => {
-    receipts.push({ eventId, consumerName, status })
-  }
-
-/**
- * Run one produced fact through the worker's dispatcher, its consumers
- * enqueueing through the durable delivery bridge onto a recording queue.
- * `receipts` are the ones the consumers and the bridge wrote; `gateDenials`
- * the ones the dispatcher wrote itself, which it does only when the gate
- * denies a consumer terminally — under the consumer's own name, as
- * `obsolete`, without running it.
- */
-async function dispatch(fact: DomainEvent, deps: RouteDeps = currentRouteDeps()) {
-  const receipts: Receipt[] = []
-  const gateDenials: Receipt[] = []
-  const recordReceipt = recordInto(receipts)
-  const queued: InsertNotificationJobData[] = []
-  const recordingQueue = {
-    add: async (_name: string, data: unknown) => {
-      queued.push(data as InsertNotificationJobData)
-    },
-  }
-  const registry = registerNotificationRoutes({
-    ...deps,
-    queue: withBetaOutboxNotificationDelivery(recordingQueue, {
-      insertReceipt: recordReceipt,
-    }) as RouteDeps['queue'],
-    receipts: { insertReceipt: recordReceipt },
-  })
-  const envelope = deliveredEnvelope(fact)
-  const repo = {
-    hasReceipt: async () => false,
-    insertReceipt: recordInto(gateDenials),
-  } as unknown as OutboxRepository
-
-  await createDispatcherHandler(repo, { consumers: registry })({
-    id: envelope.eventId,
-    name: envelope.eventType,
-    data: envelope,
-  } as unknown as Job)
-
-  return { envelope, receipts, gateDenials, queued }
-}
-
 /**
  * A fact per conditional row that its condition turns away, and the receipt
  * the consumer records for it. A condition that only chooses between the
@@ -1118,6 +304,20 @@ const NO_NOTICE: Readonly<
         reopenReason: 'new_information',
         bulkId: BULK,
         source: 'web',
+      }),
+    status: 'applied',
+  },
+  'inbox.inbox_item.assigned': {
+    fact: () =>
+      inboxItemAssigned({
+        inboxItemId: ITEM,
+        organizationId: ORG,
+        propertyId: PROPERTY,
+        assignedTo: RECIPIENT,
+        userId: ACTOR,
+        bulkId: BULK,
+        source: 'web',
+        occurredAt: OCCURRED_AT,
       }),
     status: 'applied',
   },
@@ -1232,6 +432,13 @@ const CONDITION_ONLY_CHOOSES_TYPE: ReadonlySet<string> = new Set([
   'inbox.response_target.reminder_due',
 ])
 
+// These facts choose one type; a reassignment instead must emit both branches.
+const SELECTED_FACT_TYPES: Readonly<Record<string, ReadonlyArray<NotificationType>>> = {
+  'inbox.inbox_item.created': ['review.created'],
+  'inbox.response_target.reminder_due': ['inbox.response_target_passed'],
+  'goal.rating_goal.transitioned': ['goal.rating_below_pace'],
+}
+
 describe('every beta notification route queues its notice from its real producer', () => {
   it('has a turned-away fact for every row whose condition can turn one away', () => {
     expect(
@@ -1295,31 +502,14 @@ describe('every beta notification route queues its notice from its real producer
     (candidate) => candidate.settles === undefined,
   )) {
     it(`${route.eventType}: ${route.consumerName} queues its notification durably`, async () => {
-      const {
-        envelope,
-        receipts,
-        gateDenials,
-        queued: everyJob,
-      } = await dispatch(PRODUCED_FACTS[route.eventType]!())
-      // A fact with two notice consumers (an accepted invitation tells the new
-      // member and its inviter) queues both; each route answers for its own.
-      const queued = everyJob.filter(
-        (job) =>
-          parseOutboxNotificationDelivery(job)?.consumerName === route.consumerName,
+      const result = await dispatch(PRODUCED_FACTS[route.eventType]!())
+      const { envelope } = result
+      const queued = expectAnnouncingRoute(
+        route,
+        result,
+        SELECTED_FACT_TYPES[route.eventType],
       )
-      const routeTypes: ReadonlyArray<string> = route.notifications.map(
-        ({ type }) => type,
-      )
-
-      expect(gateDenials).toEqual([])
-      expect(receipts).toContainEqual({
-        eventId: envelope.eventId,
-        consumerName: route.consumerName,
-        status: 'applied',
-      })
-      expect(queued.length).toBeGreaterThan(0)
       for (const job of queued) {
-        expect(routeTypes).toContain(job.type)
         expect(parseOutboxNotificationDelivery(job)).toMatchObject({
           eventId: envelope.eventId,
           eventType: route.eventType,

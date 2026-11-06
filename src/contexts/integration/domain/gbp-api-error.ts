@@ -1,31 +1,21 @@
-// Integration context — GBP API error type
-// Per ADR 0005: hybrid Error + tagged record (no class — keeps the tagged-union
-// convention). The factory returns a real Error so `instanceof Error` holds, stack
-// traces are captured, and logs serialize correctly. The adapter classifies the HTTP
-// status into `kind` at the boundary, and `kind` stays the only classification
-// callers branch on for retry and UI decisions.
-//
-// `providerStatus` is carried alongside it as dispatch evidence, not as a second
-// taxonomy: a reply write that failed must say whether Google answered, never
-// received, or may have received the request, because only the first two can
-// decide whether sending it again could post twice (CONTRACT-REPLY D2).
+// The reachable GBP interface keeps its Error identity, tag and kind for existing
+// consumers. GoogleCallError owns the provider vocabulary; kind mirrors its code.
+// Dispatch evidence remains independent: a write's classification alone cannot
+// prove that Google never received it.
 
 import type { GoogleProviderErrorStatus } from '#/shared/domain/google-provider-failure'
+import type { GoogleCallError, GoogleCallErrorCode } from './google-call-error'
 
-export type GbpApiErrorKind =
-  'auth_failed' | 'rate_limited' | 'permission_denied' | 'upstream_error' | 'parse_error'
+export type GbpApiErrorKind = Exclude<GoogleCallErrorCode, 'unclassified'>
 
-/**
- * Mirrors `GoogleProviderDispatch` (shared/google-provider-control/egress-gateway).
- * Declared here because the domain layer may import only `shared/domain`; the
- * provider adapter asserts both unions stay identical at compile time.
- */
-export type GbpApiDispatch = 'not_sent' | 'answered' | 'unknown'
+/** The provider adapter asserts this union matches the gateway at compile time. */
+export type GbpApiDispatch = GoogleCallError['dispatch']
 
 export type GbpApiError = Readonly<{
   _tag: 'GbpApiError'
   operation: string
-  /** Domain classification set at the adapter boundary from the raw HTTP status. */
+  code: GbpApiErrorKind
+  /** Compatibility alias of code for existing error consumers. */
   kind: GbpApiErrorKind
   /** Content-free diagnostics. Provider response bytes are never retained. */
   providerBodyBytes: number
@@ -76,6 +66,7 @@ export const createGbpApiError = (
     name: defineEnumerable('GbpApiError'),
     _tag: defineEnumerable('GbpApiError'),
     operation: defineEnumerable(operation),
+    code: defineEnumerable(kind),
     kind: defineEnumerable(kind),
     providerBodyBytes: defineEnumerable(
       typeof details === 'string'

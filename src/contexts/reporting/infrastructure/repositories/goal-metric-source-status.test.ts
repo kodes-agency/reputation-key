@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto'
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 import { sql } from 'drizzle-orm'
-import { getDb } from '#/shared/db'
+import { getDb, type Database, type Tx } from '#/shared/db'
 import { deleteTestOrganizations } from '#/shared/testing/integration-helpers'
 import {
   metricReadingId,
@@ -13,6 +13,7 @@ import {
 } from '#/shared/domain/ids'
 import type { PortalGroupPublicApi } from '#/contexts/portal/application/public-api'
 import type { GoalMetricAggregateQuery } from '../../application/ports/metric.repository'
+import { createGoalMetricSnapshotReader } from './goal-metric-snapshot'
 import { createGoalMetricSourceStatus } from './goal-metric-source-status'
 import { createAtomicMetricCommandStore } from '../metric-command-store'
 import { createMetricRegistryRepository } from './metric-registry.repository'
@@ -185,6 +186,77 @@ afterAll(async () => {
 })
 
 describe.sequential('Goal metric durable source status (integration)', () => {
+  it('keeps the total and receipt proof in the same snapshot during a late projection', async () => {
+    await insertSource(SUBMITTED_EVENT, 'guest.rating.submitted')
+    const reachedProof = Promise.withResolvers<void>()
+    const projected = Promise.withResolvers<void>()
+    // Pause after the aggregate and before the source query on the real transaction.
+    const gatedDb = new Proxy(db, {
+      get(target, key) {
+        if (key !== 'transaction') return Reflect.get(target, key)
+        return (
+          work: (tx: Tx) => Promise<unknown>,
+          config: Parameters<Database['transaction']>[1],
+        ) =>
+          target.transaction(
+            (tx) =>
+              work(
+                new Proxy(tx, {
+                  get(transaction, operation) {
+                    if (operation !== 'execute')
+                      return Reflect.get(transaction, operation)
+                    return async (...args: Parameters<Tx['execute']>) => {
+                      reachedProof.resolve()
+                      await projected.promise
+                      return transaction.execute(...args)
+                    }
+                  },
+                }),
+              ),
+            config,
+          )
+      },
+    })
+    const aggregateQuery = query({ kind: 'property', propertyId: PROPERTY })
+    const eventTypes = ['guest.rating.submitted', 'guest.rating.retracted']
+    const pending = createGoalMetricSnapshotReader(gatedDb, portalGroups)(
+      aggregateQuery,
+      eventTypes,
+    )
+    void pending.catch(reachedProof.reject)
+    try {
+      await reachedProof.promise
+      await db.transaction(async (tx) => {
+        await tx.execute(sql`
+          INSERT INTO metric_readings (
+            id, organization_id, property_id, portal_id, metric_key, value, recorded_at,
+            definition_version_id, source_event_id, source_policy, exact_value, sample_count,
+            attribution_quality, event_at, property_local_date, data_quality, retention_class
+          ) VALUES (
+            ${READING}::uuid, ${ORG}, ${PROPERTY}::uuid, ${PORTAL}::uuid, 'portal.rating_count', 1, ${OCCURRED},
+            ${VERSION}::uuid, ${SUBMITTED_EVENT}, 'first_party_guest_gateway_metric', 1, 1,
+            'exact', ${OCCURRED}, '2026-06-15', 'exact', 'guest_gateway_24_month'
+          )
+        `)
+        await tx.execute(sql`INSERT INTO event_consumer_receipts (event_id, consumer_name, status)
+          VALUES (${SUBMITTED_EVENT}::uuid, 'metric.guest-analytics', 'applied')`)
+      })
+    } finally {
+      projected.resolve()
+      await pending.catch(() => undefined)
+    }
+    await expect(pending).resolves.toMatchObject({
+      aggregate: { sum: 0 },
+      source: { state: 'pending' },
+    })
+    await expect(
+      createGoalMetricSnapshotReader(db, portalGroups)(aggregateQuery, eventTypes),
+    ).resolves.toMatchObject({
+      aggregate: { sum: 1 },
+      source: { state: 'complete' },
+    })
+  })
+
   it('treats an empty source period as complete, not as an implicit reading', async () => {
     const status = createGoalMetricSourceStatus(db, portalGroups)
     await expect(

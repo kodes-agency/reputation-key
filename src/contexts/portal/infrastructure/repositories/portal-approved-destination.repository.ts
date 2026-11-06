@@ -1,4 +1,17 @@
-import { and, asc, eq, gte, inArray, like, lte, ne, or, type SQL } from 'drizzle-orm'
+import {
+  and,
+  asc,
+  eq,
+  gte,
+  inArray,
+  isNull,
+  like,
+  lte,
+  ne,
+  or,
+  sql,
+  type SQL,
+} from 'drizzle-orm'
 import type { Database } from '#/shared/db'
 import { portalApprovedDestinations, portalLinks } from '#/shared/db/schema/portal.schema'
 import {
@@ -80,6 +93,8 @@ async function promoteOnRequest(tx: Tx, input: RequestInput): Promise<boolean> {
       disabledAt: null,
       disabledReason: null,
       lastValidatedAt: input.at,
+      nextAttemptAt: null,
+      validationFailures: 0,
       updatedAt: input.at,
     })
     .where(
@@ -186,6 +201,8 @@ export const createPortalApprovedDestinationRepository = (
             disabledAt: null,
             disabledReason: null,
             lastValidatedAt: input.at,
+            nextAttemptAt: null,
+            validationFailures: 0,
             createdAt: input.at,
             updatedAt: input.at,
           })
@@ -293,7 +310,7 @@ export const createPortalApprovedDestinationRepository = (
       return rows.map((row) => row.normalizedUri)
     }),
 
-  listDueForNetworkRevalidation: (before, limit) =>
+  listDueForNetworkRevalidation: (before, limit, selection) =>
     trace('portalApprovedDestination.listDueForNetworkRevalidation', async () => {
       const rows = await db
         .select()
@@ -305,6 +322,13 @@ export const createPortalApprovedDestinationRepository = (
             // email address has nothing to resolve and takes no place in a page.
             ne(portalApprovedDestinations.sourceType, 'contact'),
             lte(portalApprovedDestinations.lastValidatedAt, before),
+            or(
+              isNull(portalApprovedDestinations.nextAttemptAt),
+              lte(portalApprovedDestinations.nextAttemptAt, selection.at),
+            ),
+            selection.excludeIds?.length
+              ? sql`${portalApprovedDestinations.id} <> ALL(${sql.param(selection.excludeIds)}::uuid[])`
+              : undefined,
           ),
         )
         .orderBy(
@@ -312,7 +336,11 @@ export const createPortalApprovedDestinationRepository = (
           asc(portalApprovedDestinations.id),
         )
         .limit(Math.min(500, Math.max(1, limit)))
-      return rows.map(fromRow)
+      return rows.map((row) => ({
+        ...fromRow(row),
+        nextAttemptAt: row.nextAttemptAt,
+        validationFailures: row.validationFailures,
+      }))
     }),
 
   recordNetworkValidation: (input) =>
@@ -323,21 +351,29 @@ export const createPortalApprovedDestinationRepository = (
           unbrand(input.organizationId),
           unbrand(input.propertyId),
         )
-        const safe = input.result.outcome === 'safe'
-        const at = safe ? input.result.validatedAt : input.result.observedAt
+        const result = input.result
         const [row] = await tx
           .update(portalApprovedDestinations)
           .set(
-            safe
-              ? { lastValidatedAt: at }
-              : {
-                  approvalState: 'quarantined',
-                  approvedBy: null,
-                  approvedAt: null,
-                  disabledAt: at,
-                  disabledReason: `${NETWORK_QUARANTINE_REASON}${input.result.reason}`,
-                  updatedAt: at,
-                },
+            result.outcome === 'safe'
+              ? {
+                  lastValidatedAt: result.validatedAt,
+                  nextAttemptAt: null,
+                  validationFailures: 0,
+                }
+              : result.outcome === 'unavailable'
+                ? {
+                    nextAttemptAt: result.nextAttemptAt,
+                    validationFailures: sql`least(${portalApprovedDestinations.validationFailures} + 1, 30)`,
+                  }
+                : {
+                    approvalState: 'quarantined',
+                    approvedBy: null,
+                    approvedAt: null,
+                    disabledAt: result.observedAt,
+                    disabledReason: `${NETWORK_QUARANTINE_REASON}${result.reason}`,
+                    updatedAt: result.observedAt,
+                  },
           )
           .where(
             and(
@@ -351,6 +387,14 @@ export const createPortalApprovedDestinationRepository = (
                 portalApprovedDestinations.lastValidatedAt,
                 input.expectedLastValidatedAt,
               ),
+              input.expectedNextAttemptAt === undefined
+                ? undefined
+                : input.expectedNextAttemptAt === null
+                  ? isNull(portalApprovedDestinations.nextAttemptAt)
+                  : eq(
+                      portalApprovedDestinations.nextAttemptAt,
+                      input.expectedNextAttemptAt,
+                    ),
               inArray(portalApprovedDestinations.approvalState, ['pending', 'approved']),
               // A run that started before a row was due could still reach a
               // contact; it is never checked, so it is never quarantined.
@@ -358,7 +402,7 @@ export const createPortalApprovedDestinationRepository = (
             ),
           )
           .returning()
-        if (!row || safe) {
+        if (!row || result.outcome !== 'unsafe') {
           return row ? fromRow(row) : null
         }
         await recordDestinationChange(tx, row, null)
@@ -394,6 +438,8 @@ export const createPortalApprovedDestinationRepository = (
             disabledAt: null,
             disabledReason: null,
             lastValidatedAt: input.at,
+            nextAttemptAt: null,
+            validationFailures: 0,
             updatedAt: input.at,
           })
           .where(

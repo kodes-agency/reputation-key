@@ -1,215 +1,303 @@
-// Every write that can close a language gap must refresh the language coverage
-// read, or the Languages rows and the section list keep showing a stale count.
-// The coverage key descends from the Portal's experience key, so one experience
-// invalidation refreshes it; these tests pin that for each such write.
-
-import { readFileSync } from 'node:fs'
-import { fileURLToPath } from 'node:url'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import type { ActionMutationOptions } from '#/components/hooks/use-action-mutation'
+import { toast } from 'sonner'
+import { createRouteHarness } from '#/routes/route-harness'
 import { portalKeys } from '#/shared/queries/query-keys'
+import { usePortalDetailActions } from './-portal-detail-actions'
+import * as portals from '#/contexts/portal/server/portals'
+import * as look from '#/contexts/portal/server/portal-look'
+import * as print from '#/contexts/portal/server/portal-print-final'
+import { updatePortalResponsibleManagers } from '#/contexts/portal/server/portal-responsible-managers'
 
-const PROPERTY_ID = 'property-1'
-const PORTAL_ID = 'portal-1'
-
-const captured = new Map<unknown, ActionMutationOptions<unknown, unknown> | undefined>()
-const mutationOptions: Array<{ onSuccess?: () => Promise<void> | void }> = []
-const invalidated: unknown[][] = []
-const toasted: string[] = []
-
-vi.mock('#/components/hooks/use-action-mutation', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('#/components/hooks/use-action-mutation')>()),
-  useActionMutation: (fn: unknown, options?: ActionMutationOptions<unknown, unknown>) => {
-    captured.set(fn, options)
-    return {}
-  },
-}))
-vi.mock('@tanstack/react-query', () => ({
-  useMutation: (options: { onSuccess?: () => Promise<void> | void }) => {
-    mutationOptions.push(options)
-    return { mutateAsync: vi.fn(), isPending: false, error: null, isSuccess: false }
-  },
-  useQueryClient: () => ({
-    invalidateQueries: async ({ queryKey }: { queryKey: unknown[] }) => {
-      invalidated.push(queryKey)
-    },
-  }),
-}))
-vi.mock('sonner', () => ({
-  toast: { success: (message: string) => void toasted.push(message) },
-}))
+vi.mock('sonner', () => ({ toast: { success: vi.fn(), error: vi.fn() } }))
 vi.mock('#/contexts/portal/server/portals', () => ({
-  completeContentReview: 'completeContentReview',
-  approvePortalApprovedDestination: 'approvePortalApprovedDestination',
-  disablePortalApprovedDestination: 'disablePortalApprovedDestination',
-  issuePortalToken: 'issuePortalToken',
-  requestPortalApprovedDestination: 'requestPortalApprovedDestination',
-  revokePortalTokens: 'revokePortalTokens',
-  revealPortalAddress: 'revealPortalAddress',
-  rotatePortalToken: 'rotatePortalToken',
-  rollbackPortalPublication: 'rollbackPortalPublication',
-  savePortalLocalizedOverride: 'savePortalLocalizedOverride',
-  savePropertyPortalBrandContent: 'savePropertyPortalBrandContent',
+  completeContentReview: vi.fn(),
+  approvePortalApprovedDestination: vi.fn(),
+  disablePortalApprovedDestination: vi.fn(),
+  issuePortalToken: vi.fn(),
+  requestPortalApprovedDestination: vi.fn(),
+  revokePortalTokens: vi.fn(),
+  revealPortalAddress: vi.fn(),
+  rotatePortalToken: vi.fn(),
+  rollbackPortalPublication: vi.fn(),
+  savePortalLocalizedOverride: vi.fn(),
+  savePropertyPortalBrandContent: vi.fn(),
   updatePortal: vi.fn(),
 }))
 vi.mock('#/contexts/portal/server/portal-responsible-managers', () => ({
-  updatePortalResponsibleManagers: 'updatePortalResponsibleManagers',
+  updatePortalResponsibleManagers: vi.fn(),
 }))
 
-import { usePortalDetailActions } from './-portal-detail-actions'
+vi.mock('#/contexts/portal/server/portal-look', () => ({
+  savePortalLookColours: vi.fn(),
+  savePortalLookIdentity: vi.fn(),
+  savePortalLookPhoto: vi.fn(),
+}))
+vi.mock('#/contexts/portal/server/portal-print-final', () => ({
+  downloadPortalPrintFinal: vi.fn(),
+  savePortalPrintWording: vi.fn(),
+}))
 
-const coverageKey = portalKeys.languageCoverage(PROPERTY_ID, PORTAL_ID)
+vi.mock('#/contexts/portal/server/portal-publish-changes', () => ({
+  publishPortalChanges: vi.fn(),
+}))
 
-const refreshesCoverage = (keys: ReadonlyArray<readonly unknown[]>) =>
-  keys.some((key) => key.every((part, index) => coverageKey[index] === part))
+const PROPERTY_ID = 'property-1'
+const PORTAL_ID = 'portal-1'
+const scope = { propertyId: PROPERTY_ID, portalId: PORTAL_ID }
+type Actions = ReturnType<typeof usePortalDetailActions>
 
-describe('portal detail actions and the language coverage read', () => {
-  let actions: ReturnType<typeof usePortalDetailActions>
+const lookWrites = [
+  {
+    name: 'colours',
+    command: look.savePortalLookColours,
+    input: { data: { ...scope, colours: { mode: 'inherit' } } },
+    run: (a: Actions) =>
+      a.look.saveColours({ data: { ...scope, colours: { mode: 'inherit' } } }),
+  },
+  {
+    name: 'identity',
+    command: look.savePortalLookIdentity,
+    input: { data: { ...scope, identity: { mode: 'inherit' } } },
+    run: (a: Actions) =>
+      a.look.saveIdentity({ data: { ...scope, identity: { mode: 'inherit' } } }),
+  },
+  {
+    name: 'photo',
+    command: look.savePortalLookPhoto,
+    input: { data: { ...scope, photo: { mode: 'inherit' } } },
+    run: (a: Actions) =>
+      a.look.savePhoto({ data: { ...scope, photo: { mode: 'inherit' } } }),
+  },
+]
+const contentWrites = [
+  {
+    name: 'localized content',
+    command: portals.savePortalLocalizedOverride,
+    run: (a: Actions) =>
+      a.experience.saveOverride({
+        data: {
+          portalId: PORTAL_ID,
+          locale: 'en',
+          title: 'Welcome',
+          shortDescription: null,
+        },
+      }),
+  },
+  {
+    name: 'property content',
+    command: portals.savePropertyPortalBrandContent,
+    run: (a: Actions) =>
+      a.experience.saveContent({
+        data: {
+          ...scope,
+          locale: 'en',
+          title: 'Welcome',
+          shortDescription: 'A place to stay',
+        },
+      }),
+  },
+]
 
-  beforeEach(() => {
-    captured.clear()
-    mutationOptions.length = 0
-    invalidated.length = 0
-    toasted.length = 0
-    actions = usePortalDetailActions(PROPERTY_ID, PORTAL_ID)
+describe('Portal detail actions', () => {
+  let harness: Awaited<ReturnType<typeof createRouteHarness>>
+  let actions: Actions
+  beforeEach(async () => {
+    vi.resetAllMocks()
+    harness = await createRouteHarness()
+    actions = harness.renderHook(() => usePortalDetailActions(PROPERTY_ID, PORTAL_ID))
+  })
+  const seed = (keys: ReadonlyArray<readonly unknown[]>) => {
+    for (const key of keys) harness.queryClient.setQueryData(key, { saved: 'before' })
+  }
+  const expectStale = (keys: ReadonlyArray<readonly unknown[]>) => {
+    for (const key of keys) {
+      expect(harness.queryClient.getQueryState(key)?.isInvalidated, String(key)).toBe(
+        true,
+      )
+    }
+  }
+
+  it('saves a portal patch silently and refreshes detail, coverage and lists', async () => {
+    const keys = [
+      portalKeys.detail(PORTAL_ID),
+      portalKeys.languageCoverage(PROPERTY_ID, PORTAL_ID),
+      portalKeys.links(PORTAL_ID),
+      portalKeys.list(PROPERTY_ID),
+      portalKeys.publicationHistory(PORTAL_ID),
+    ]
+    seed(keys)
+    const input = { data: { portalId: PORTAL_ID, name: 'New name' } }
+    await actions.autosaveUpdate(input)
+    expect(portals.updatePortal).toHaveBeenCalledExactlyOnceWith(input)
+    expectStale(keys)
+    expect(toast.success).not.toHaveBeenCalled()
   })
 
-  // The page has one portal patch. A second copy that toasted "Portal updated"
-  // was built beside it and handed to the page, where no component called it.
-  it('builds one portal patch, with no second copy that nothing calls', () => {
-    expect(mutationOptions).toHaveLength(1)
-    expect(Object.keys(actions)).toContain('autosaveUpdate')
-    expect(Object.keys(actions)).not.toContain('update')
+  it('rolls back a refused optimistic portal edit', async () => {
+    const key = portalKeys.detail(PORTAL_ID)
+    const previous = { portal: { id: PORTAL_ID, name: 'Original' } }
+    harness.queryClient.setQueryData(key, previous)
+    let reject!: (error: Error) => void
+    vi.mocked(portals.updatePortal).mockImplementationOnce(
+      () =>
+        new Promise((_resolve, refused) => {
+          reject = refused
+        }),
+    )
+    const saving = actions.autosaveUpdate({
+      data: { portalId: PORTAL_ID, name: 'Edited' },
+    })
+    await vi.waitFor(() =>
+      expect(harness.queryClient.getQueryData(key)).toMatchObject({
+        portal: { name: 'Edited' },
+      }),
+    )
+    const failure = new Error('Save refused')
+    const rejected = expect(saving).rejects.toBe(failure)
+    reject(failure)
+    await rejected
+    expect(harness.queryClient.getQueryData(key)).toEqual(previous)
+    expect(toast.success).not.toHaveBeenCalled()
   })
 
-  // The header's save status is the patch's acknowledgement, for a section
-  // that autosaves and for the language Save alike.
-  it('acknowledges a portal patch in the header, never in a toast', async () => {
-    await mutationOptions[0]?.onSuccess?.()
-
-    expect(toasted).toEqual([])
-    expect(invalidated).toContainEqual(portalKeys.detail(PORTAL_ID))
-  })
-
-  it.each(['savePortalLocalizedOverride', 'savePropertyPortalBrandContent'])(
-    'refreshes the coverage after %s',
-    (name) => {
-      expect(refreshesCoverage(captured.get(name)?.invalidateKeys ?? [])).toBe(true)
+  it.each(contentWrites)(
+    'refreshes language coverage after $name',
+    async ({ run, command }) => {
+      const key = portalKeys.languageCoverage(PROPERTY_ID, PORTAL_ID)
+      seed([key])
+      await run(actions)
+      expect(command).toHaveBeenCalledOnce()
+      expectStale([key])
     },
   )
 
-  it('refreshes the coverage after a portal update (a language added or removed)', async () => {
-    const onSuccess = mutationOptions[0]?.onSuccess
-    await onSuccess?.()
-    expect(refreshesCoverage(invalidated)).toBe(true)
-  })
-
-  it('nests the coverage under the Portal experience and the Property experience', () => {
-    expect(coverageKey.slice(0, -1)).toEqual(
-      portalKeys.experience(PROPERTY_ID, PORTAL_ID),
-    )
-    expect(
-      coverageKey.slice(0, portalKeys.propertyExperience(PROPERTY_ID).length),
-    ).toEqual(portalKeys.propertyExperience(PROPERTY_ID))
-  })
-
-  // Making a version live again changes what the header says is live, what the
-  // History tab lists (both read under the detail key), and the overview.
-  it('refreshes the detail, the list and the overview after making a version live again', () => {
-    const keys = captured.get('rollbackPortalPublication')?.invalidateKeys ?? []
-
-    expect(keys).toContainEqual(portalKeys.detail(PORTAL_ID))
-    expect(keys).toContainEqual(portalKeys.list(PROPERTY_ID))
-    expect(keys).toContainEqual(portalKeys.overview(PROPERTY_ID))
-  })
-
-  // A refused save means another admin changed the managers, and the card's
-  // Reset can only show that once the page has read it. The Portal is the one
-  // the command named: this hook's render may be for another Portal by then.
-  it('re-reads the responsible managers of the Portal a refused save named', () => {
-    const options = captured.get('updatePortalResponsibleManagers')
-
-    options?.onError?.(new Error('responsible managers changed; reload them'), {
-      data: { portalId: 'portal-2', managerUserIds: [], expectedRevision: 5 },
-    })
-
-    expect(invalidated).toEqual([portalKeys.responsibleManagers('portal-2')])
-    expect(options?.invalidateKeys).toEqual([
+  it('refreshes every History descendant, list and overview after making a version live again', async () => {
+    const keys = [
       portalKeys.detail(PORTAL_ID),
-      portalKeys.responsibleManagers(PORTAL_ID),
-    ])
+      portalKeys.historyFor(PORTAL_ID, 'all'),
+      portalKeys.versions(PORTAL_ID),
+      portalKeys.version(PORTAL_ID, 4),
+      portalKeys.list(PROPERTY_ID),
+      portalKeys.overview(PROPERTY_ID),
+    ]
+    seed(keys)
+    await actions.makeVersionLive({ data: { portalId: PORTAL_ID, version: 4 } })
+    expectStale(keys)
+    expect(toast.success).toHaveBeenCalledOnce()
   })
 
-  it('keeps the History reads under the detail key, so one refresh reaches them', () => {
-    const detail = portalKeys.detail(PORTAL_ID)
-
-    expect(portalKeys.historyFor(PORTAL_ID, 'all').slice(0, detail.length)).toEqual(
-      detail,
-    )
-    expect(portalKeys.versions(PORTAL_ID).slice(0, detail.length)).toEqual(detail)
-    expect(
-      portalKeys.version(PORTAL_ID, 4).slice(0, portalKeys.versions(PORTAL_ID).length),
-    ).toEqual(portalKeys.versions(PORTAL_ID))
+  it('refreshes the managers of the submitted Portal on refusal, leaving the open Portal alone', async () => {
+    const submitted = portalKeys.responsibleManagers('portal-2')
+    const open = portalKeys.responsibleManagers(PORTAL_ID)
+    seed([submitted, open])
+    const refusal = new Error('Managers changed')
+    vi.mocked(updatePortalResponsibleManagers).mockRejectedValueOnce(refusal)
+    await expect(
+      actions.updateResponsibleManagers({
+        data: { portalId: 'portal-2', managerUserIds: [], expectedRevision: 5 },
+      }),
+    ).rejects.toBe(refusal)
+    expectStale([submitted])
+    expect(harness.queryClient.getQueryState(open)?.isInvalidated).toBe(false)
   })
 
-  // A portal's own look is the draft guests will see: the editor's settings, the
-  // draft preview and everything under the publication history (the review, the
-  // print kit, the header's pending count), the overview and the Property look
-  // page's rail and batch review all read it, so one write refreshes them all.
-  describe('a portal’s own look', () => {
-    const lookWrites = () =>
-      [...captured.values()].filter((options) =>
-        options?.invalidateKeys?.some(
-          (key) => key.join('/') === portalKeys.lookReview(PROPERTY_ID).join('/'),
-        ),
-      )
-
-    it('has one write for colours, one for name and logo and one for the photo', () => {
-      expect(lookWrites()).toHaveLength(3)
-      expect(Object.keys(actions.look).sort()).toEqual([
-        'saveColours',
-        'saveIdentity',
-        'savePhoto',
-      ])
+  it('refreshes the detail and responsible managers after their save', async () => {
+    const keys = [portalKeys.detail(PORTAL_ID), portalKeys.responsibleManagers(PORTAL_ID)]
+    seed(keys)
+    await actions.updateResponsibleManagers({
+      data: { portalId: PORTAL_ID, managerUserIds: [], expectedRevision: 5 },
     })
-
-    it.each([
-      ['experience', portalKeys.experience(PROPERTY_ID, PORTAL_ID)],
-      ['draft preview', portalKeys.preview(PORTAL_ID, 'draft')],
-      ['publication history', portalKeys.publicationHistory(PORTAL_ID)],
-      ['review', portalKeys.review(PORTAL_ID)],
-      ['print kit', portalKeys.printKit(PORTAL_ID)],
-      ['overview', portalKeys.overview(PROPERTY_ID)],
-      ['property experience', portalKeys.propertyExperience(PROPERTY_ID)],
-      ['look review', portalKeys.lookReview(PROPERTY_ID)],
-    ])('refreshes the %s after every write', (_name, key) => {
-      for (const options of lookWrites()) {
-        expect(options?.invalidateKeys).toContainEqual(key)
-      }
-    })
-
-    it('reports nothing itself: the header and the section’s buttons do', () => {
-      for (const options of lookWrites()) {
-        expect(options?.successMessage).toBeUndefined()
-        expect(options?.errorMessage).toBeUndefined()
-      }
-    })
-
-    // The first paint has no room for three more server-function stubs, and only
-    // an Account Admin on a property with a second portal ever writes a look.
-    it('imports the server functions only when a write is made', () => {
-      const source = readFileSync(
-        fileURLToPath(new URL('./-portal-detail-actions.ts', import.meta.url)),
-        'utf8',
-      )
-      const importsOfTheModule = source
-        .split('\n')
-        .filter((line) => line.includes('server/portal-look'))
-
-      expect(importsOfTheModule.length).toBeGreaterThan(0)
-      for (const line of importsOfTheModule) {
-        expect(line).toMatch(/await import\(|typeof import\(/u)
-      }
-    })
+    expectStale(keys)
   })
+
+  it.each(lookWrites)(
+    'refreshes all draft and publication reads after saving $name silently',
+    async ({ run, command, input }) => {
+      const keys = [
+        portalKeys.languageCoverage(PROPERTY_ID, PORTAL_ID),
+        portalKeys.experience(PROPERTY_ID, PORTAL_ID),
+        portalKeys.preview(PORTAL_ID, 'draft'),
+        portalKeys.publicationHistory(PORTAL_ID),
+        portalKeys.review(PORTAL_ID),
+        portalKeys.printKit(PORTAL_ID),
+        portalKeys.overview(PROPERTY_ID),
+        portalKeys.propertyExperience(PROPERTY_ID),
+        portalKeys.lookReview(PROPERTY_ID),
+      ]
+      seed(keys)
+      const unrelated = portalKeys.detail('another-portal')
+      seed([unrelated])
+      await run(actions)
+      expect(command).toHaveBeenCalledExactlyOnceWith(input)
+      expectStale(keys)
+      expect(harness.queryClient.getQueryState(unrelated)?.isInvalidated).toBe(false)
+      expect(toast.success).not.toHaveBeenCalled()
+      expect(toast.error).not.toHaveBeenCalled()
+    },
+  )
+
+  it.each(lookWrites)(
+    'propagates a refused $name save without invalidating or toasting',
+    async ({ run, command, input }) => {
+      const key = portalKeys.experience(PROPERTY_ID, PORTAL_ID)
+      seed([key])
+      const refusal = new Error('Save refused')
+      vi.mocked(command).mockRejectedValueOnce(refusal)
+      await expect(run(actions)).rejects.toBe(refusal)
+      expect(command).toHaveBeenCalledExactlyOnceWith(input)
+      expect(harness.queryClient.getQueryState(key)?.isInvalidated).toBe(false)
+      expect(toast.error).not.toHaveBeenCalled()
+    },
+  )
+
+  it.each([
+    {
+      name: 'download',
+      command: print.downloadPortalPrintFinal,
+      input: {
+        data: {
+          portalId: PORTAL_ID,
+          piece: 'counter',
+          orientation: 'upright',
+          look: 'paper',
+          printer: 'my_printer',
+          quantity: 1,
+          languages: ['en'],
+          callToAction: 'how_did_we_do',
+        },
+      },
+      run: (a: Actions) =>
+        a.downloadPrintFinal({
+          data: {
+            portalId: PORTAL_ID,
+            piece: 'counter',
+            orientation: 'upright',
+            look: 'paper',
+            printer: 'my_printer',
+            quantity: 1,
+            languages: ['en'],
+            callToAction: 'how_did_we_do',
+          },
+        }),
+    },
+    {
+      name: 'wording',
+      command: print.savePortalPrintWording,
+      input: { data: { portalId: PORTAL_ID, callToAction: 'how_did_we_do' } },
+      run: (a: Actions) =>
+        a.savePrintWording({
+          data: { portalId: PORTAL_ID, callToAction: 'how_did_we_do' },
+        }),
+    },
+  ])(
+    'sends $name to its command and reports a refusal once',
+    async ({ command, run, input }) => {
+      const refusal = new Error('Print refused')
+      vi.mocked(command).mockRejectedValueOnce(refusal)
+      await expect(run(actions)).rejects.toBe(refusal)
+      expect(command).toHaveBeenCalledExactlyOnceWith(input)
+      expect(toast.error).toHaveBeenCalledOnce()
+      expect(toast.success).not.toHaveBeenCalled()
+    },
+  )
 })

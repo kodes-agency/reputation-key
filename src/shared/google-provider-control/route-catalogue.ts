@@ -1,154 +1,22 @@
 import { createHash } from 'node:crypto'
-import { z } from 'zod/v4'
 import {
   GOOGLE_PERFORMANCE_DAILY_METRICS,
+  GOOGLE_PROVIDER_ROUTE_KEYS,
   GOOGLE_PROVIDER_ROUTE_CATALOGUE_VERSION,
   type GoogleEndpointClass,
   type GoogleProviderRouteKey,
   type GoogleRequestClass,
 } from './contracts'
 import { replyCommentProblem } from './reply-comment'
+import { REVIEW_LIST_NEWEST_UPDATED_FIRST } from './review-route-descriptors'
 import {
-  REVIEW_LIST_NEWEST_UPDATED_FIRST,
-  boundedRouteString,
-  optionalPageTokenSchema,
-  reviewRouteDescriptorSchemas,
-  type ReviewRouteDescriptor,
-} from './review-route-descriptors'
+  routeDescriptorSchema,
+  type GoogleProviderRouteDescriptor,
+} from './route-descriptors'
+
+export type { GoogleProviderRouteDescriptor } from './route-descriptors'
 
 export { GOOGLE_PROVIDER_ROUTE_CATALOGUE_VERSION } from './contracts'
-
-const routeDescriptorSchema = z.discriminatedUnion('routeKey', [
-  z
-    .object({
-      routeKey: z.literal('account-management.accounts.list'),
-      accessToken: boundedRouteString,
-      pageToken: optionalPageTokenSchema,
-    })
-    .strict(),
-  z
-    .object({
-      routeKey: z.literal('business-information.locations.list'),
-      accessToken: boundedRouteString,
-      accountId: z.string().min(1).max(255),
-      pageToken: optionalPageTokenSchema,
-    })
-    .strict(),
-  z
-    .object({
-      routeKey: z.literal('performance.fetch'),
-      accessToken: boundedRouteString,
-      locationId: z.string().min(1).max(255),
-      startLocalDate: z.string().regex(/^[0-9]{4}-[0-9]{2}-[0-9]{2}$/),
-      endLocalDate: z.string().regex(/^[0-9]{4}-[0-9]{2}-[0-9]{2}$/),
-    })
-    .strict(),
-  z
-    .object({
-      routeKey: z.literal('oauth.token.exchange'),
-      code: boundedRouteString,
-      clientId: boundedRouteString,
-      clientSecret: boundedRouteString,
-      redirectUri: boundedRouteString,
-      codeVerifier: boundedRouteString,
-    })
-    .strict(),
-  z
-    .object({
-      routeKey: z.literal('oauth.token.refresh'),
-      refreshToken: boundedRouteString,
-      clientId: boundedRouteString,
-      clientSecret: boundedRouteString,
-    })
-    .strict(),
-  z.object({ routeKey: z.literal('oauth.jwks') }).strict(),
-  z
-    .object({
-      routeKey: z.literal('oauth.revoke'),
-      token: boundedRouteString,
-    })
-    .strict(),
-  z
-    .object({
-      routeKey: z.literal('notifications.get'),
-      accessToken: boundedRouteString,
-      accountId: z.string().min(1).max(255),
-    })
-    .strict(),
-  z
-    .object({
-      routeKey: z.literal('notifications.subscribe'),
-      accessToken: boundedRouteString,
-      accountId: z.string().min(1).max(255),
-      pubsubTopic: z.string().min(1).max(1_024),
-      notificationTypes: z
-        .array(z.enum(['NEW_REVIEW', 'UPDATED_REVIEW']))
-        .min(1)
-        .max(2),
-    })
-    .strict(),
-  z
-    .object({
-      routeKey: z.literal('notifications.unsubscribe'),
-      accessToken: boundedRouteString,
-      accountId: z.string().min(1).max(255),
-    })
-    .strict(),
-  ...reviewRouteDescriptorSchemas,
-])
-export type GoogleProviderRouteDescriptor =
-  | Readonly<{
-      routeKey: 'account-management.accounts.list'
-      accessToken: string
-      pageToken?: string
-    }>
-  | Readonly<{
-      routeKey: 'business-information.locations.list'
-      accessToken: string
-      accountId: string
-      pageToken?: string
-    }>
-  | Readonly<{
-      routeKey: 'performance.fetch'
-      accessToken: string
-      locationId: string
-      startLocalDate: string
-      endLocalDate: string
-    }>
-  | Readonly<{
-      routeKey: 'oauth.token.exchange'
-      code: string
-      clientId: string
-      clientSecret: string
-      redirectUri: string
-      codeVerifier: string
-    }>
-  | Readonly<{
-      routeKey: 'oauth.token.refresh'
-      refreshToken: string
-      clientId: string
-      clientSecret: string
-    }>
-  | Readonly<{ routeKey: 'oauth.jwks' }>
-  | Readonly<{ routeKey: 'oauth.revoke'; token: string }>
-  | Readonly<{
-      routeKey: 'notifications.get'
-      accessToken: string
-      accountId: string
-    }>
-  | Readonly<{
-      routeKey: 'notifications.subscribe'
-      accessToken: string
-      accountId: string
-      pubsubTopic: string
-      notificationTypes: ReadonlyArray<'NEW_REVIEW' | 'UPDATED_REVIEW'>
-    }>
-  | Readonly<{
-      routeKey: 'notifications.unsubscribe'
-      accessToken: string
-      accountId: string
-    }>
-  | ReviewRouteDescriptor
 
 export type GoogleProviderAdmissionMetadata = Readonly<{
   routeKey: GoogleProviderRouteKey
@@ -175,14 +43,39 @@ export type CompiledGoogleProviderRequest = Readonly<{
   admission: GoogleProviderAdmissionMetadata
 }>
 
-export type GoogleProviderRoutePolicy = Readonly<{
-  endpointClass: GoogleEndpointClass
-  requestClass: GoogleRequestClass
-  maxRequestBytes: number
-  maxResponseBytes: number
-  quotaPolicyId: string
-  inFlightPolicyId: string
+export type GoogleProviderRecoveryRule =
+  | 'safe_read_repeat'
+  | 'preserve_then_never_reexchange'
+  | 'renewable_single_flight_generation_cas'
+  | 'one_use_revoke_reconciliation'
+  | 'desired_state_readback'
+  | 'publication_observation'
+
+type GoogleProviderEgressPolicy = Readonly<{
+  method: 'GET' | 'POST' | 'PUT' | 'PATCH'
+  origin: (typeof GOOGLE_PROVIDER_PRODUCTION_ORIGINS)[number]
+  credential:
+    | 'none'
+    | 'access_token'
+    | 'authorization_code_pkce_client_secret'
+    | 'refresh_token_client_secret'
+    | 'revoke_token'
+  transport: 'authorized_gateway_mtls' | 'direct_fixed_trust_read'
+  repositoryState:
+    'gateway_wired' | 'gateway_wired_durable_recovery' | 'direct_fixed_trust_read'
+  recovery: GoogleProviderRecoveryRule
+  ownerModule: string
 }>
+
+export type GoogleProviderRoutePolicy = GoogleProviderEgressPolicy &
+  Readonly<{
+    endpointClass: GoogleEndpointClass
+    requestClass: GoogleRequestClass
+    maxRequestBytes: number
+    maxResponseBytes: number
+    quotaPolicyId: string
+    inFlightPolicyId: string
+  }>
 
 const DISCOVERY_POLICY = Object.freeze({
   requestClass: 'discovery' as const,
@@ -209,14 +102,38 @@ const REVIEWS_POLICY = Object.freeze({
 
 export const GOOGLE_PROVIDER_ROUTE_POLICIES = Object.freeze({
   'account-management.accounts.list': Object.freeze({
+    method: 'GET',
+    origin: 'https://mybusinessaccountmanagement.googleapis.com',
+    credential: 'access_token',
+    transport: 'authorized_gateway_mtls',
+    repositoryState: 'gateway_wired',
+    recovery: 'safe_read_repeat',
+    ownerModule:
+      'src/contexts/integration/infrastructure/adapters/google-account-management.adapter.ts',
     ...DISCOVERY_POLICY,
     endpointClass: 'account-management' as const,
   }),
   'business-information.locations.list': Object.freeze({
+    method: 'GET',
+    origin: 'https://mybusinessbusinessinformation.googleapis.com',
+    credential: 'access_token',
+    transport: 'authorized_gateway_mtls',
+    repositoryState: 'gateway_wired',
+    recovery: 'safe_read_repeat',
+    ownerModule:
+      'src/contexts/integration/infrastructure/adapters/google-business-information.adapter.ts',
     ...DISCOVERY_POLICY,
     endpointClass: 'business-information' as const,
   }),
   'performance.fetch': Object.freeze({
+    method: 'GET',
+    origin: 'https://businessprofileperformance.googleapis.com',
+    credential: 'access_token',
+    transport: 'authorized_gateway_mtls',
+    repositoryState: 'gateway_wired',
+    recovery: 'safe_read_repeat',
+    ownerModule:
+      'src/contexts/integration/infrastructure/adapters/google-performance.adapter.ts',
     endpointClass: 'performance' as const,
     requestClass: 'performance' as const,
     maxRequestBytes: 0,
@@ -225,11 +142,27 @@ export const GOOGLE_PROVIDER_ROUTE_POLICIES = Object.freeze({
     inFlightPolicyId: 'google-performance-read-v1',
   }),
   'oauth.token.exchange': Object.freeze({
+    method: 'POST',
+    origin: 'https://oauth2.googleapis.com',
+    credential: 'authorization_code_pkce_client_secret',
+    transport: 'authorized_gateway_mtls',
+    repositoryState: 'gateway_wired_durable_recovery',
+    recovery: 'preserve_then_never_reexchange',
+    ownerModule:
+      'src/contexts/integration/infrastructure/adapters/google-oauth.adapter.ts',
     ...IDENTITY_POLICY,
     endpointClass: 'oauth-token' as const,
     maxResponseBytes: 64 * 1024,
   }),
   'oauth.token.refresh': Object.freeze({
+    method: 'POST',
+    origin: 'https://oauth2.googleapis.com',
+    credential: 'refresh_token_client_secret',
+    transport: 'authorized_gateway_mtls',
+    repositoryState: 'gateway_wired',
+    recovery: 'renewable_single_flight_generation_cas',
+    ownerModule:
+      'src/contexts/integration/infrastructure/adapters/google-oauth.adapter.ts',
     endpointClass: 'oauth-token' as const,
     requestClass: 'credential_refresh' as const,
     maxRequestBytes: 64 * 1024,
@@ -238,11 +171,27 @@ export const GOOGLE_PROVIDER_ROUTE_POLICIES = Object.freeze({
     inFlightPolicyId: 'google-credential-refresh-v1',
   }),
   'oauth.jwks': Object.freeze({
+    method: 'GET',
+    origin: 'https://www.googleapis.com',
+    credential: 'none',
+    transport: 'direct_fixed_trust_read',
+    repositoryState: 'direct_fixed_trust_read',
+    recovery: 'safe_read_repeat',
+    ownerModule:
+      'src/contexts/integration/infrastructure/adapters/google-oauth.adapter.ts',
     ...IDENTITY_POLICY,
     endpointClass: 'oauth-jwks' as const,
     maxRequestBytes: 0,
   }),
   'oauth.revoke': Object.freeze({
+    method: 'POST',
+    origin: 'https://oauth2.googleapis.com',
+    credential: 'revoke_token',
+    transport: 'authorized_gateway_mtls',
+    repositoryState: 'gateway_wired_durable_recovery',
+    recovery: 'one_use_revoke_reconciliation',
+    ownerModule:
+      'src/contexts/integration/infrastructure/adapters/google-oauth.adapter.ts',
     endpointClass: 'oauth-revoke' as const,
     requestClass: 'credential_cleanup' as const,
     maxRequestBytes: 64 * 1024,
@@ -251,6 +200,14 @@ export const GOOGLE_PROVIDER_ROUTE_POLICIES = Object.freeze({
     inFlightPolicyId: 'google-credential-cleanup-v1',
   }),
   'notifications.get': Object.freeze({
+    method: 'GET',
+    origin: 'https://mybusinessnotifications.googleapis.com',
+    credential: 'access_token',
+    transport: 'authorized_gateway_mtls',
+    repositoryState: 'gateway_wired',
+    recovery: 'safe_read_repeat',
+    ownerModule:
+      'src/contexts/integration/infrastructure/adapters/mybusiness-notifications.adapter.ts',
     endpointClass: 'notifications' as const,
     requestClass: 'notifications' as const,
     maxRequestBytes: 0,
@@ -259,6 +216,14 @@ export const GOOGLE_PROVIDER_ROUTE_POLICIES = Object.freeze({
     inFlightPolicyId: 'google-notifications-read-v1',
   }),
   'notifications.subscribe': Object.freeze({
+    method: 'PATCH',
+    origin: 'https://mybusinessnotifications.googleapis.com',
+    credential: 'access_token',
+    transport: 'authorized_gateway_mtls',
+    repositoryState: 'gateway_wired',
+    recovery: 'desired_state_readback',
+    ownerModule:
+      'src/contexts/integration/infrastructure/adapters/mybusiness-notifications.adapter.ts',
     endpointClass: 'notifications' as const,
     requestClass: 'notifications' as const,
     maxRequestBytes: 64 * 1024,
@@ -267,6 +232,14 @@ export const GOOGLE_PROVIDER_ROUTE_POLICIES = Object.freeze({
     inFlightPolicyId: 'google-notifications-write-v1',
   }),
   'notifications.unsubscribe': Object.freeze({
+    method: 'PATCH',
+    origin: 'https://mybusinessnotifications.googleapis.com',
+    credential: 'access_token',
+    transport: 'authorized_gateway_mtls',
+    repositoryState: 'gateway_wired',
+    recovery: 'desired_state_readback',
+    ownerModule:
+      'src/contexts/integration/infrastructure/adapters/mybusiness-notifications.adapter.ts',
     endpointClass: 'notifications' as const,
     requestClass: 'notifications' as const,
     maxRequestBytes: 64 * 1024,
@@ -275,15 +248,39 @@ export const GOOGLE_PROVIDER_ROUTE_POLICIES = Object.freeze({
     inFlightPolicyId: 'google-notifications-write-v1',
   }),
   'reviews.list': Object.freeze({
+    method: 'GET',
+    origin: 'https://mybusiness.googleapis.com',
+    credential: 'access_token',
+    transport: 'authorized_gateway_mtls',
+    repositoryState: 'gateway_wired',
+    recovery: 'safe_read_repeat',
+    ownerModule:
+      'src/contexts/integration/infrastructure/adapters/google-review-api.adapter.ts',
     ...REVIEWS_POLICY,
     maxRequestBytes: 0,
   }),
   'reviews.get': Object.freeze({
+    method: 'GET',
+    origin: 'https://mybusiness.googleapis.com',
+    credential: 'access_token',
+    transport: 'authorized_gateway_mtls',
+    repositoryState: 'gateway_wired',
+    recovery: 'safe_read_repeat',
+    ownerModule:
+      'src/contexts/integration/infrastructure/adapters/google-review-api.adapter.ts',
     ...REVIEWS_POLICY,
     maxRequestBytes: 0,
     maxResponseBytes: 64 * 1024,
   }),
   'reviews.reply': Object.freeze({
+    method: 'PUT',
+    origin: 'https://mybusiness.googleapis.com',
+    credential: 'access_token',
+    transport: 'authorized_gateway_mtls',
+    repositoryState: 'gateway_wired',
+    recovery: 'publication_observation',
+    ownerModule:
+      'src/contexts/integration/infrastructure/adapters/google-review-api.adapter.ts',
     ...REVIEWS_POLICY,
     maxResponseBytes: 64 * 1024,
     // Its own lane: see `google-reviews-write-v1` in quota-coordinator.ts.
@@ -295,17 +292,10 @@ export const GOOGLE_PROVIDER_ROUTE_POLICIES = Object.freeze({
 type CredentialBinder = (credential: string) => string
 
 type CompiledParts = Readonly<{
-  endpointClass: GoogleEndpointClass
-  requestClass: GoogleRequestClass
-  method: 'GET' | 'POST' | 'PUT' | 'PATCH'
   url: string
   headers: Readonly<Record<string, string>>
   body: Uint8Array | null
   credential: string | null
-  maxRequestBytes: number
-  maxResponseBytes: number
-  quotaPolicyId: string
-  inFlightPolicyId: string
 }>
 
 const textEncoder = new TextEncoder()
@@ -399,36 +389,29 @@ function queryUrl(
   return suffix.length === 0 ? base : `${base}?${suffix}`
 }
 
-function compileParts(descriptor: GoogleProviderRouteDescriptor): CompiledParts {
+function compileParts(
+  descriptor: GoogleProviderRouteDescriptor,
+  origin: string,
+): CompiledParts {
   switch (descriptor.routeKey) {
     case 'account-management.accounts.list': {
       const accessToken = requireBounded(descriptor.accessToken)
       return {
-        endpointClass: 'account-management',
-        requestClass: 'discovery',
-        method: 'GET',
-        url: queryUrl('https://mybusinessaccountmanagement.googleapis.com/v1/accounts', [
+        url: queryUrl(`${origin}/v1/accounts`, [
           ['pageSize', '20'],
           ['pageToken', optionalPageToken(descriptor.pageToken)],
         ]),
         headers: bearerHeaders(accessToken),
         body: null,
         credential: accessToken,
-        maxRequestBytes: 0,
-        maxResponseBytes: 5 * 1024 * 1024,
-        quotaPolicyId: 'google-discovery-read-v1',
-        inFlightPolicyId: 'google-discovery-read-v1',
       }
     }
     case 'business-information.locations.list': {
       const accessToken = requireBounded(descriptor.accessToken)
       const accountId = requireBounded(descriptor.accountId, 255)
       return {
-        endpointClass: 'business-information',
-        requestClass: 'discovery',
-        method: 'GET',
         url: queryUrl(
-          `https://mybusinessbusinessinformation.googleapis.com/v1/accounts/${encodeURIComponent(accountId)}/locations`,
+          `${origin}/v1/accounts/${encodeURIComponent(accountId)}/locations`,
           [
             ['pageSize', '100'],
             ['readMask', 'name,title,storefrontAddress,categories,metadata'],
@@ -438,10 +421,6 @@ function compileParts(descriptor: GoogleProviderRouteDescriptor): CompiledParts 
         headers: bearerHeaders(accessToken),
         body: null,
         credential: accessToken,
-        maxRequestBytes: 0,
-        maxResponseBytes: 5 * 1024 * 1024,
-        quotaPolicyId: 'google-discovery-read-v1',
-        inFlightPolicyId: 'google-discovery-read-v1',
       }
     }
     case 'performance.fetch': {
@@ -451,11 +430,8 @@ function compileParts(descriptor: GoogleProviderRouteDescriptor): CompiledParts 
       const end = parseLocalDate(descriptor.endLocalDate)
       if (descriptor.startLocalDate > descriptor.endLocalDate) return invalidInput()
       return {
-        endpointClass: 'performance',
-        requestClass: 'performance',
-        method: 'GET',
         url: queryUrl(
-          `https://businessprofileperformance.googleapis.com/v1/locations/${encodeURIComponent(locationId)}:fetchMultiDailyMetricsTimeSeries`,
+          `${origin}/v1/locations/${encodeURIComponent(locationId)}:fetchMultiDailyMetricsTimeSeries`,
           [
             ...GOOGLE_PERFORMANCE_DAILY_METRICS.map(
               (metric) => ['dailyMetrics', metric] as const,
@@ -472,10 +448,6 @@ function compileParts(descriptor: GoogleProviderRouteDescriptor): CompiledParts 
         headers: bearerHeaders(accessToken),
         body: null,
         credential: accessToken,
-        maxRequestBytes: 0,
-        maxResponseBytes: 5 * 1024 * 1024,
-        quotaPolicyId: 'google-performance-read-v1',
-        inFlightPolicyId: 'google-performance-read-v1',
       }
     }
     case 'oauth.token.exchange': {
@@ -489,17 +461,10 @@ function compileParts(descriptor: GoogleProviderRouteDescriptor): CompiledParts 
         ['code_verifier', descriptor.codeVerifier],
       ])
       return {
-        endpointClass: 'oauth-token',
-        requestClass: 'identity',
-        method: 'POST',
-        url: 'https://oauth2.googleapis.com/token',
+        url: `${origin}/token`,
         headers: Object.freeze({ 'content-type': CONTENT_TYPE_FORM }),
         body,
         credential: code,
-        maxRequestBytes: MAX_FORM_BYTES,
-        maxResponseBytes: MAX_FORM_BYTES,
-        quotaPolicyId: 'google-identity-v1',
-        inFlightPolicyId: 'google-identity-v1',
       }
     }
     case 'oauth.token.refresh': {
@@ -511,65 +476,37 @@ function compileParts(descriptor: GoogleProviderRouteDescriptor): CompiledParts 
         ['grant_type', 'refresh_token'],
       ])
       return {
-        endpointClass: 'oauth-token',
-        requestClass: 'credential_refresh',
-        method: 'POST',
-        url: 'https://oauth2.googleapis.com/token',
+        url: `${origin}/token`,
         headers: Object.freeze({ 'content-type': CONTENT_TYPE_FORM }),
         body,
         credential: refreshToken,
-        maxRequestBytes: MAX_FORM_BYTES,
-        maxResponseBytes: MAX_FORM_BYTES,
-        quotaPolicyId: 'google-credential-refresh-v1',
-        inFlightPolicyId: 'google-credential-refresh-v1',
       }
     }
     case 'oauth.jwks':
       return {
-        endpointClass: 'oauth-jwks',
-        requestClass: 'identity',
-        method: 'GET',
-        url: 'https://www.googleapis.com/oauth2/v3/certs',
+        url: `${origin}/oauth2/v3/certs`,
         headers: Object.freeze({}),
         body: null,
         credential: null,
-        maxRequestBytes: 0,
-        maxResponseBytes: 1024 * 1024,
-        quotaPolicyId: 'google-identity-v1',
-        inFlightPolicyId: 'google-identity-v1',
       }
     case 'oauth.revoke': {
       const token = requireBounded(descriptor.token)
       const body = formBody([['token', token]])
       return {
-        endpointClass: 'oauth-revoke',
-        requestClass: 'credential_cleanup',
-        method: 'POST',
-        url: 'https://oauth2.googleapis.com/revoke',
+        url: `${origin}/revoke`,
         headers: Object.freeze({ 'content-type': CONTENT_TYPE_FORM }),
         body,
         credential: token,
-        maxRequestBytes: MAX_FORM_BYTES,
-        maxResponseBytes: MAX_FORM_BYTES,
-        quotaPolicyId: 'google-credential-cleanup-v1',
-        inFlightPolicyId: 'google-credential-cleanup-v1',
       }
     }
     case 'notifications.get': {
       const accessToken = requireBounded(descriptor.accessToken)
       if (!PROVIDER_ACCOUNT_ID.test(descriptor.accountId)) return invalidInput()
       return {
-        endpointClass: 'notifications',
-        requestClass: 'notifications',
-        method: 'GET',
-        url: `https://mybusinessnotifications.googleapis.com/v1/accounts/${descriptor.accountId}/notificationSetting`,
+        url: `${origin}/v1/accounts/${descriptor.accountId}/notificationSetting`,
         headers: bearerHeaders(accessToken),
         body: null,
         credential: accessToken,
-        maxRequestBytes: 0,
-        maxResponseBytes: MAX_FORM_BYTES,
-        quotaPolicyId: 'google-notifications-read-v1',
-        inFlightPolicyId: 'google-notifications-read-v1',
       }
     }
     case 'notifications.subscribe': {
@@ -591,11 +528,8 @@ function compileParts(descriptor: GoogleProviderRouteDescriptor): CompiledParts 
         notificationTypes: [...descriptor.notificationTypes],
       })
       return {
-        endpointClass: 'notifications',
-        requestClass: 'notifications',
-        method: 'PATCH',
         url: queryUrl(
-          `https://mybusinessnotifications.googleapis.com/v1/accounts/${descriptor.accountId}/notificationSetting`,
+          `${origin}/v1/accounts/${descriptor.accountId}/notificationSetting`,
           [['updateMask', 'pubsubTopic,notificationTypes']],
         ),
         headers: Object.freeze({
@@ -604,10 +538,6 @@ function compileParts(descriptor: GoogleProviderRouteDescriptor): CompiledParts 
         }),
         body,
         credential: accessToken,
-        maxRequestBytes: MAX_FORM_BYTES,
-        maxResponseBytes: MAX_FORM_BYTES,
-        quotaPolicyId: 'google-notifications-write-v1',
-        inFlightPolicyId: 'google-notifications-write-v1',
       }
     }
     case 'notifications.unsubscribe': {
@@ -618,11 +548,8 @@ function compileParts(descriptor: GoogleProviderRouteDescriptor): CompiledParts 
         pubsubTopic: '',
       })
       return {
-        endpointClass: 'notifications',
-        requestClass: 'notifications',
-        method: 'PATCH',
         url: queryUrl(
-          `https://mybusinessnotifications.googleapis.com/v1/accounts/${descriptor.accountId}/notificationSetting`,
+          `${origin}/v1/accounts/${descriptor.accountId}/notificationSetting`,
           [['updateMask', 'pubsubTopic']],
         ),
         headers: Object.freeze({
@@ -631,10 +558,6 @@ function compileParts(descriptor: GoogleProviderRouteDescriptor): CompiledParts 
         }),
         body,
         credential: accessToken,
-        maxRequestBytes: MAX_FORM_BYTES,
-        maxResponseBytes: MAX_FORM_BYTES,
-        quotaPolicyId: 'google-notifications-write-v1',
-        inFlightPolicyId: 'google-notifications-write-v1',
       }
     }
     case 'reviews.list': {
@@ -647,41 +570,24 @@ function compileParts(descriptor: GoogleProviderRouteDescriptor): CompiledParts 
         return invalidInput()
       }
       return {
-        endpointClass: 'reviews',
-        requestClass: 'reviews',
-        method: 'GET',
-        url: queryUrl(
-          `https://mybusiness.googleapis.com/v4/${descriptor.locationName}/reviews`,
-          [
-            ['pageSize', '50'],
-            ['pageToken', optionalPageToken(descriptor.pageToken)],
-            ['orderBy', descriptor.orderBy],
-          ],
-        ),
+        url: queryUrl(`${origin}/v4/${descriptor.locationName}/reviews`, [
+          ['pageSize', '50'],
+          ['pageToken', optionalPageToken(descriptor.pageToken)],
+          ['orderBy', descriptor.orderBy],
+        ]),
         headers: bearerHeaders(accessToken),
         body: null,
         credential: accessToken,
-        maxRequestBytes: 0,
-        maxResponseBytes: 5 * 1024 * 1024,
-        quotaPolicyId: 'google-reviews-v1',
-        inFlightPolicyId: 'google-reviews-v1',
       }
     }
     case 'reviews.get': {
       const accessToken = requireBounded(descriptor.accessToken)
       if (!PROVIDER_REVIEW_NAME.test(descriptor.reviewName)) return invalidInput()
       return {
-        endpointClass: 'reviews',
-        requestClass: 'reviews',
-        method: 'GET',
-        url: `https://mybusiness.googleapis.com/v4/${descriptor.reviewName}`,
+        url: `${origin}/v4/${descriptor.reviewName}`,
         headers: bearerHeaders(accessToken),
         body: null,
         credential: accessToken,
-        maxRequestBytes: 0,
-        maxResponseBytes: 64 * 1024,
-        quotaPolicyId: 'google-reviews-v1',
-        inFlightPolicyId: 'google-reviews-v1',
       }
     }
     case 'reviews.reply': {
@@ -692,20 +598,13 @@ function compileParts(descriptor: GoogleProviderRouteDescriptor): CompiledParts 
       // (incident b129e390). JSON.stringify escapes \n, \r and \t safely.
       const body = jsonBody({ comment: requireReplyComment(descriptor.comment) })
       return {
-        endpointClass: 'reviews',
-        requestClass: 'reviews',
-        method: 'PUT',
-        url: `https://mybusiness.googleapis.com/v4/${descriptor.reviewName}/reply`,
+        url: `${origin}/v4/${descriptor.reviewName}/reply`,
         headers: Object.freeze({
           ...bearerHeaders(accessToken),
           'content-type': CONTENT_TYPE_JSON,
         }),
         body,
         credential: accessToken,
-        maxRequestBytes: MAX_REVIEW_BODY_BYTES,
-        maxResponseBytes: MAX_FORM_BYTES,
-        quotaPolicyId: 'google-reviews-write-v1',
-        inFlightPolicyId: 'google-reviews-write-v1',
       }
     }
     default:
@@ -758,7 +657,7 @@ export function compileGoogleProviderRequest(
 ): CompiledGoogleProviderRequest {
   const policy = GOOGLE_PROVIDER_ROUTE_POLICIES[descriptor.routeKey]
   if (!policy) throw new Error('provider route is unknown')
-  const parts = compileParts(descriptor)
+  const parts = compileParts(descriptor, policy.origin)
   const url = targetRouteUrl(parts.url, target)
   const bodySha256 =
     parts.body === null ? null : createHash('sha256').update(parts.body).digest('hex')
@@ -771,7 +670,7 @@ export function compileGoogleProviderRequest(
     .update(
       JSON.stringify([
         descriptor.routeKey,
-        parts.method,
+        policy.method,
         url,
         bodySha256,
         credentialBinding,
@@ -781,7 +680,7 @@ export function compileGoogleProviderRequest(
   return Object.freeze({
     routeKey: descriptor.routeKey,
     catalogueVersion: GOOGLE_PROVIDER_ROUTE_CATALOGUE_VERSION,
-    method: parts.method,
+    method: policy.method,
     url,
     headers: parts.headers,
     body: parts.body,
@@ -808,4 +707,54 @@ export function parseGoogleProviderRouteDescriptor(
   const parsed = routeDescriptorSchema.safeParse(value)
   if (!parsed.success) throw new Error('provider route input is invalid')
   return parsed.data
+}
+
+function assertWriteRecoveryRule(
+  routeKey: GoogleProviderRouteKey,
+  route: GoogleProviderRoutePolicy,
+): void {
+  if (route.method !== 'GET' && route.recovery === 'safe_read_repeat') {
+    throw new Error(`Google provider write cannot be blindly repeated: ${routeKey}`)
+  }
+}
+
+function assertTransportState(
+  routeKey: GoogleProviderRouteKey,
+  route: GoogleProviderRoutePolicy,
+): void {
+  if (
+    (route.transport === 'direct_fixed_trust_read') !==
+    (route.repositoryState === 'direct_fixed_trust_read')
+  ) {
+    throw new Error(`Google provider egress state is invalid: ${routeKey}`)
+  }
+}
+
+export function assertGoogleProviderRoutePolicies(): void {
+  const actualKeys = Object.keys(GOOGLE_PROVIDER_ROUTE_POLICIES).sort()
+  const expectedKeys = [...GOOGLE_PROVIDER_ROUTE_KEYS].sort()
+  if (JSON.stringify(actualKeys) !== JSON.stringify(expectedKeys)) {
+    throw new Error('Google provider egress route inventory is incomplete')
+  }
+  for (const routeKey of GOOGLE_PROVIDER_ROUTE_KEYS) {
+    const route = GOOGLE_PROVIDER_ROUTE_POLICIES[routeKey]
+    if (!GOOGLE_PROVIDER_PRODUCTION_ORIGINS.includes(route.origin)) {
+      throw new Error(`Google provider egress origin is not approved: ${routeKey}`)
+    }
+    if (!route.ownerModule.startsWith('src/contexts/integration/')) {
+      throw new Error(`Google provider egress owner is outside Integration: ${routeKey}`)
+    }
+    if (route.transport === 'direct_fixed_trust_read') {
+      if (
+        routeKey !== 'oauth.jwks' ||
+        route.method !== 'GET' ||
+        route.credential !== 'none' ||
+        route.recovery !== 'safe_read_repeat'
+      ) {
+        throw new Error(`Google provider direct egress exception is invalid: ${routeKey}`)
+      }
+    }
+    assertTransportState(routeKey, route)
+    assertWriteRecoveryRule(routeKey, route)
+  }
 }

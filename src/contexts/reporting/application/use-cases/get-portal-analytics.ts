@@ -1,7 +1,6 @@
 import { portalLinkTaps } from '../../domain/portal-link-taps'
 import { portalScanPatterns } from '../../domain/portal-scan-patterns'
 import type { PortalScanPatternsReader } from '#/contexts/guest/application/public-api'
-// Dashboard context — getPortalAnalytics use case
 // Authorizes the reader for the Property, then orchestrates portal-scoped
 // queries into a single PortalAnalyticsData response.
 

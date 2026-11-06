@@ -1,16 +1,7 @@
-// Property Google rating goal — the aggregate and its rules (pure).
-//
-// A Property's Google rating goal is NOT a Goal Program: it has no months, no
-// subjects and no metric reading. One Property holds at most one active goal.
-// A climb goal aims at a tenth Google will show and carries a plan: the
-// average stars it assumes new Google reviews bring (its planned quality,
-// round 2, 2026-10-15) and a pace in tenths of a review a week (rounds 3 and
-// 4, 2026-10-16); a keep goal watches a tenth Google
-// shows now and carries neither. A goal runs until Google shows the target
-// (reached), or it is ended: by a manager, by the Google location changing
-// under it, or by the Property being archived. Changes to target, quality,
-// pace or mode are logged with who and when, old -> new, and no reason
-// (ADR 0067).
+// A rating goal is separate from monthly Goal Programs (ADR 0067). At most one
+// is active per Property. Climb carries quality and pace; Keep carries neither.
+// Only Google's shown target reaches it. Manager end, binding change or Property
+// archive ends it. Log plan changes with actor, time and old/new values, without a reason.
 
 import { createErrorFactory } from '#/shared/domain/errors'
 import { isValidPaceTenths } from './rating-goal-pace'
@@ -102,14 +93,13 @@ export type PropertyRatingGoal = RatingGoalPlan &
     createdAt: Date
     updatedAt: Date
     /**
-     * When the pace came into force: the set, or the latest change of the pace
-     * (round 5, owner answer Q3). A new pace is judged only from it: the goal
-     * is getting started again for 14 days and its pace window starts here.
+     * Pace start or latest pace change. The window starts here, with 14 quiet
+     * days before the new pace is judged.
      */
     paceSince: Date
     /**
      * The Property-local Monday (YYYY-MM-DD) of the week whose check-in a
-     * manager answered with Keep; null until one did (round 5, Q4).
+     * manager answered with Keep; null until one did.
      */
     recapAnsweredWeek: string | null
     /** Optimistic concurrency: a change names the version it was made on. */
@@ -152,7 +142,7 @@ export type RatingGoalErrorCode =
   | 'no_change'
   /** The Organization's closure holds it: no goal is set there. */
   | 'organization_closing'
-  /** The Monday check-in a Keep answers is not the one open now (round 5, Q4). */
+  /** The Monday check-in a Keep answers is not the one open now. */
   | 'recap_closed'
 
 export type RatingGoalError = Readonly<{

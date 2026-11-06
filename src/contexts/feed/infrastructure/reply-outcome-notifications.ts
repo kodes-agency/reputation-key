@@ -8,7 +8,7 @@
 // Split from workflow-outbox-consumers.ts, which parses the facts and routes
 // them here: the reply routes are one family and change together.
 
-import type { UserId } from '#/shared/domain/ids'
+import type { InboxItemId, UserId } from '#/shared/domain/ids'
 import type { LoggerPort } from '#/shared/domain/logger.port'
 import type {
   ReplyPublishFailureOutcome,
@@ -21,6 +21,7 @@ import type { UserLookupPort } from '../application/ports/notification-user-look
 import type { InboxItemLookupPort } from '../application/ports/notification-inbox-item-lookup.port'
 import type { ResponsibleManagerLookupPort } from '../application/ports/responsible-manager-lookup.port'
 import { resolveResponsibleRecipients } from '../application/responsible-recipients'
+import type { NotificationAudience } from '../application/notification-audience'
 import type { InsertNotificationJobData } from './jobs/insert-notification.job'
 import { INSERT_NOTIFICATION_JOB_NAME } from './jobs/insert-notification.job'
 import { buildInboxItemPayload } from './notification-payload-facts'
@@ -61,10 +62,52 @@ const replyDecider = (event: ReplyAuthorEvent): UserId | null =>
     ? event.userId
     : null
 
+const NOTICE_TYPES = {
+  'review.reply.approved': 'reply.approved',
+  'review.reply.rejected': 'reply.rejected',
+  'review.reply.published': 'reply.published',
+  'review.reply.publish_failed': 'reply.publish_failed',
+} as const satisfies Record<ReplyAuthorEvent['_tag'], InsertNotificationJobData['type']>
+
+async function enqueueReplyOutcome(
+  deps: ReplyOutcomeNotificationDeps,
+  event: ReplyAuthorEvent,
+  inboxItem: InboxItemId,
+  recipients: ReadonlyArray<UserId>,
+  audience: NotificationAudience,
+): Promise<void> {
+  const payload = await buildInboxItemPayload(deps, {
+    inboxItemId: inboxItem,
+    orgId: event.organizationId,
+    hasModerationReason: event._tag === 'review.reply.rejected' ? event.hasReason : null,
+    publishOutcome: event._tag === 'review.reply.publish_failed' ? event.outcome : null,
+    publishFailureCause:
+      event._tag === 'review.reply.publish_failed' ? (event.cause ?? null) : null,
+  })
+  await Promise.all(
+    recipients.map((recipientId) =>
+      deps.queue.add(
+        INSERT_NOTIFICATION_JOB_NAME,
+        {
+          userId: recipientId,
+          organizationId: event.organizationId,
+          propertyId: event.propertyId,
+          type: NOTICE_TYPES[event._tag],
+          resourceType: 'inbox_item',
+          resourceId: inboxItem,
+          eventId: event.eventId,
+          payload,
+          audience,
+        },
+        { jobId: `${event.eventId}-${recipientId}` },
+      ),
+    ),
+  )
+}
+
 export async function enqueueReplyAuthorNotification(
   deps: ReplyOutcomeNotificationDeps,
   event: ReplyAuthorEvent,
-  type: InsertNotificationJobData['type'],
 ): Promise<void> {
   if (!event.authorId) return
   // Deciding on your own reply is not news to you; Google's verdict still is.
@@ -76,29 +119,9 @@ export async function enqueueReplyAuthorNotification(
   )
   if (!inboxItem) return
 
-  const payload = await buildInboxItemPayload(deps, {
-    inboxItemId: inboxItem,
-    orgId: event.organizationId,
-    hasModerationReason: event._tag === 'review.reply.rejected' ? event.hasReason : null,
-    publishOutcome: event._tag === 'review.reply.publish_failed' ? event.outcome : null,
-    publishFailureCause:
-      event._tag === 'review.reply.publish_failed' ? (event.cause ?? null) : null,
+  await enqueueReplyOutcome(deps, event, inboxItem, [event.authorId], {
+    kind: 'property_operator',
   })
-  await deps.queue.add(
-    INSERT_NOTIFICATION_JOB_NAME,
-    {
-      userId: event.authorId,
-      organizationId: event.organizationId,
-      propertyId: event.propertyId,
-      type,
-      resourceType: 'inbox_item',
-      resourceId: inboxItem,
-      eventId: event.eventId,
-      payload,
-      audience: { kind: 'property_operator' },
-    },
-    { jobId: `${event.eventId}-${event.authorId}` },
-  )
 }
 
 /**
@@ -120,7 +143,7 @@ export async function enqueuePublishFailedNotification(
       event.authorId,
     ))
   if (authorCanRetry) {
-    await enqueueReplyAuthorNotification(deps, event, 'reply.publish_failed')
+    await enqueueReplyAuthorNotification(deps, event)
     return
   }
 
@@ -131,31 +154,8 @@ export async function enqueuePublishFailedNotification(
   if (!inboxItem) return
   const scope = { kind: 'property', propertyId: event.propertyId } as const
   const recipients = await resolveResponsibleRecipients(deps, event.organizationId, scope)
-  const payload = await buildInboxItemPayload(deps, {
-    inboxItemId: inboxItem,
-    orgId: event.organizationId,
-    publishOutcome: event.outcome,
-    // A manager cannot retry past a lapsed Google grant any more than the
-    // author could, so they need the reconnect cause too.
-    publishFailureCause: event.cause ?? null,
+  await enqueueReplyOutcome(deps, event, inboxItem, recipients, {
+    kind: 'responsible_scope',
+    scope,
   })
-  await Promise.all(
-    recipients.map((recipientId) =>
-      deps.queue.add(
-        INSERT_NOTIFICATION_JOB_NAME,
-        {
-          userId: recipientId,
-          organizationId: event.organizationId,
-          propertyId: event.propertyId,
-          type: 'reply.publish_failed',
-          resourceType: 'inbox_item',
-          resourceId: inboxItem,
-          eventId: event.eventId,
-          payload,
-          audience: { kind: 'responsible_scope', scope },
-        },
-        { jobId: `${event.eventId}-${recipientId}` },
-      ),
-    ),
-  )
 }

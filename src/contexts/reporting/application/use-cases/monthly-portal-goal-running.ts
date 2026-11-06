@@ -1,23 +1,9 @@
-// Reporting — the Monthly portal goal on its card once there is one (ADR 0068,
-// PLAN PG-12).
-//
-// While it waits for its first month: the day it starts and this month so far.
-// While it runs: the month it is counting, with the governed figure
-// (`progressOf`) against that month's own number, its days, and whether it is
-// behind pace (`goalPace`, P-6 included). A goal that was stopped still counts
-// to the end of the month it was stopped in, so that month is read the same way
-// (`readSubjectMonth`) and the card says when it was stopped. With a month, each
-// published Portal's count of it, from the recommendation's one set read, but
-// only when those counts and what the other Portals bring in add up to the
-// governed figure: a race or a pending fact draws no rows rather than rows that
-// disagree with the headline. And the month before, while its result is being
-// read (with its governed figure so far) and, once closed, through the 7th.
-// Each month is worded in the measure of the version it opened under: a change
-// from a coming month ("Count scans instead") leaves the month already counting
-// as it was. On the month's first seven local days, the month-start check-in
-// (`monthly-portal-goal-check-in.ts`). Everything here is decided by the
-// server; the card only words it. A goal for one Portal or one Portal Group
-// reads its own subject the same way on its page (PLAN PG-21).
+// Use governed progress against each month's own target and version's measure
+// (ADR 0068). Stopped goals still count through their final month. Show Portal
+// rows only when their sum matches the headline, including other Portals.
+// Keep the prior month while reconciling and, once closed, through the 7th.
+// Single Portal and Portal Group pages read their own subject by the same rule.
+
 import { GOAL_RECONCILIATION_DELAY_MS } from '#/shared/domain/metric-governance'
 import { calendarPeriodRange } from '#/shared/domain/period-range'
 import { goalMonthDays, goalPace } from '../../domain/goal-pace'

@@ -3,14 +3,12 @@
 
 import { createServerFn } from '@tanstack/react-start'
 import { z } from 'zod/v4'
-import { headersFromContext } from '#/shared/auth/headers'
 import { resolveTenantContext } from '#/shared/auth/middleware'
-import { catchUntagged, throwContextError } from '#/shared/auth/server-errors'
-import { tracedHandler } from '#/shared/observability/traced-server-fn'
+import { commandHandler } from '#/shared/commands/command.server'
 import { getContainer } from '#/composition'
 import { portalId } from '#/shared/domain/ids'
-import { isPortalError, portalError } from '../domain/errors'
-import { portalErrorStatus } from './portals'
+import { portalError } from '../domain/errors'
+import { portalCommandErrors } from './portal-command-errors'
 import { requirePortalResourceScope } from './property-scope'
 
 const coverageInput = z.object({ portalId: z.string().min(1, 'Portal ID is required') })
@@ -18,32 +16,28 @@ const coverageInput = z.object({ portalId: z.string().min(1, 'Portal ID is requi
 export const getPortalLanguageCoverage = createServerFn({ method: 'GET' })
   .validator(coverageInput)
   .handler(
-    tracedHandler(
-      async ({ data }) => {
-        const ctx = await resolveTenantContext(await headersFromContext())
-        try {
-          await requirePortalResourceScope({
-            actor: ctx,
-            action: 'portal.read',
-            capability: 'portal.read',
-            notFound: portalError('portal_not_found', 'portal not found'),
-            lookup: () =>
-              getContainer().portalPublicApi.management.resolvePortalManagementScope(
-                portalId(data.portalId),
-              ),
-          })
-          return await getContainer().portalPublicApi.management.getPortalLanguageCoverage(
-            data,
-            ctx,
-          )
-        } catch (error) {
-          if (isPortalError(error)) {
-            throwContextError('PortalError', error, portalErrorStatus(error.code))
-          }
-          throw catchUntagged(error)
-        }
+    commandHandler(
+      {
+        method: 'GET',
+        name: 'portal.getPortalLanguageCoverage',
+        errors: portalCommandErrors,
       },
-      'GET',
-      'portal.getPortalLanguageCoverage',
+      async ({ data, headers }) => {
+        const ctx = await resolveTenantContext(headers)
+        await requirePortalResourceScope({
+          actor: ctx,
+          action: 'portal.read',
+          capability: 'portal.read',
+          notFound: portalError('portal_not_found', 'portal not found'),
+          lookup: () =>
+            getContainer().portalPublicApi.management.resolvePortalManagementScope(
+              portalId(data.portalId),
+            ),
+        })
+        return await getContainer().portalPublicApi.management.getPortalLanguageCoverage(
+          data,
+          ctx,
+        )
+      },
     ),
   )

@@ -1,5 +1,3 @@
-// Metric context — durable Guest fact projections into governed Portal metrics.
-
 import type {
   GuestFeedbackRetracted,
   GuestFeedbackSubmitted,

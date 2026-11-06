@@ -332,6 +332,33 @@ export const EachPortalRowFailed: Story = {
   },
 }
 
+export const EachPortalAfterOneFailed: Story = {
+  args: { options: ADD_EACH_OCT_23 },
+  play: async ({ canvasElement }) => {
+    addOneMock.mockRejectedValueOnce(refusal('start_month_changed'))
+    addEachMock.mockImplementationOnce(async ({ data }) => ({
+      outcomes: data.items.map(({ portalId }) => ({
+        portalId,
+        saved: portalId === ADD_IDS.RECEPTION,
+      })),
+    }))
+    const { in: sheet } = await openSheet(canvasElement)
+    await choose(sheet, /^A goal for one portal/u)
+    await choose(sheet, /^Reception/u)
+    await userEvent.click(sheet.getByRole('button', { name: 'Set 26 for November' }))
+    const message = 'The month has changed. Check the start and save again.'
+    await expect(await sheet.findByText(message)).toBeVisible()
+    await userEvent.click(sheet.getByRole('button', { name: 'Back' }))
+    await userEvent.click(sheet.getByRole('button', { name: 'Back' }))
+    await choose(sheet, /^A goal for each portal/u)
+    await userEvent.click(sheet.getByRole('button', { name: 'Set 2 goals' }))
+    await expect(await sheet.findByText('Not saved, try again')).toBeVisible()
+    await expect(sheet.queryByText(message)).toBeNull()
+    await expectToast('1 portal goal set')
+    await expect(onAddedMock).toHaveBeenLastCalledWith([`portal:${ADD_IDS.RECEPTION}`])
+  },
+}
+
 /** M-5: a group's own number, from its members' usual. */
 export const Group: Story = {
   play: async ({ canvasElement }) => {

@@ -3,7 +3,7 @@ import {
   useActionMutation,
   actionFailureMessage,
 } from '#/components/hooks/use-action-mutation'
-import { identityKeys } from '#/shared/queries/query-keys'
+import { createKeys } from '#/shared/queries/query-keys'
 import type {
   MerchantAiNoticeUpdate,
   MerchantAiNoticeUpdateClientGetter,
@@ -32,7 +32,7 @@ export function useMarkMerchantAiNoticeUpdateSeen(
       })
     },
     {
-      invalidateKeys: [identityKeys.merchantAiOverview()],
+      invalidateKeys: [createKeys(scope).identityKeys.merchantAiOverview()],
       onSuccess: () => {
         client.setQueryData(merchantAiNoticeUpdateKey(scope), null)
       },

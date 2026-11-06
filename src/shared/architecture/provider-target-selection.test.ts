@@ -116,9 +116,6 @@ describe('BQC-4.3: Google endpoint URLs live only in the composition provider ma
       // The egress gateway's frozen route compiler owns the exact approved
       // methods, origins, paths, and queries for every provider route key.
       'src/shared/google-provider-control/route-catalogue.ts',
-      // Exact executable provider-egress inventory: it independently checks
-      // every credential-bearing route against the authorized gateway path.
-      'src/shared/google-provider-control/egress-inventory.ts',
       // JWKS URI for INBOUND Pub/Sub webhook signature verification — not
       // outbound provider execution; shared/auth cannot import the composition
       // root (zone boundary), documented in the data-flow map.

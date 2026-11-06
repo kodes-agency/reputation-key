@@ -1,8 +1,3 @@
-// The replacement image pipeline's half of the container image policy: the
-// `image-build`, `image-scan` and `image` jobs of ci.yml owe the same promises as
-// the `docker-images` and `docker` jobs, and are read from the workflow text the
-// same way.
-
 import {
   ciBuildArgumentViolations,
   CI_PUBLISHED_IMAGE_IDS,
@@ -23,7 +18,10 @@ type ImagePipelinePolicy = Readonly<{
   }>[]
 }>
 
-const CI_DISPATCH_ONLY_GUARD = "if: github.event_name == 'workflow_dispatch'"
+const CI_PUBLISH_GUARD =
+  "if: (github.event_name == 'push' && github.ref == 'refs/heads/main') || github.event_name == 'workflow_dispatch'"
+const CI_MAIN_ONLY_GUARD =
+  "if: github.event_name == 'push' && github.ref == 'refs/heads/main'"
 
 function descriptorLists(job: string, pattern: RegExp): readonly unknown[][] {
   return [...job.matchAll(pattern)].map((match) => {
@@ -77,8 +75,7 @@ function pipelineScanRows(job: string): readonly PipelineScanRow[] {
 }
 
 /**
- * The replacement pipeline holds the same promises as the groups above it, from
- * the jobs `image-build`, `image-scan` and `image`: every classified image is
+ * The jobs `image-build`, `image-scan` and `image` ensure every classified image is
  * built from the Dockerfile the policy names, smoke-tested, inventoried and
  * scanned from one archive of the build, staged only after the scan, and named
  * in a digest map only after the registry answers for it.
@@ -196,8 +193,7 @@ function pipelineEvidenceViolations(
 }
 
 /** Staged after the scan, under a tag no other run can hold, from the loaded
- * image and never a rebuild; only a dispatched run stages here, because a main
- * push stages and promotes through the `docker` job. */
+ * image and never a rebuild; main pushes and dispatched runs stage here. */
 function pipelineStagingViolations(steps: readonly WorkflowStep[]): readonly string[] {
   const named = requiredSteps(steps, [
     'Authenticate image stager',
@@ -209,9 +205,9 @@ function pipelineStagingViolations(steps: readonly WorkflowStep[]): readonly str
   if (!named) return failure
   const [stagingAuth, stageImages, stageDescriptors, scan] = named
   const contract = [
-    stagingAuth.content.includes(CI_DISPATCH_ONLY_GUARD),
-    stageImages.content.includes(CI_DISPATCH_ONLY_GUARD),
-    stageDescriptors.content.includes(CI_DISPATCH_ONLY_GUARD),
+    stagingAuth.content.includes(CI_PUBLISH_GUARD),
+    stageImages.content.includes(CI_PUBLISH_GUARD),
+    stageDescriptors.content.includes(CI_PUBLISH_GUARD),
     stageImages.content.includes('[[ "$(jq -r \'.publish\' <<<"$image")" == "true" ]]'),
     stageImages.content.includes(
       'staged_reference="${repository}:ci-run-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"',
@@ -237,31 +233,56 @@ function pipelineMapViolations(
     'Authenticate image reader',
     'Write image digest map',
     'Upload image digest map',
+    'Download staged image descriptors',
+    'Promote complete production image set',
   ])
   const failure = [
     'CI image pipeline must read back the staged image set before writing its digest map',
   ]
   if (!named) return failure
-  const [barrier, validateStaged, auth, write, upload] = named
+  const [barrier, validateStaged, auth, write, upload, download, promote] = named
   const readBack = write.content.indexOf(
     'staged_digest=$(docker buildx imagetools inspect',
   )
   const mapWrite = 'validated-image-digests.json > ci-image-digest-map.json'
   const contract = [
+    workflowJob(workflow, 'image').includes('packages: write'),
+    download.content.includes(CI_PUBLISH_GUARD),
+    download.content.includes('pattern: image-digests-${{ github.sha }}'),
     barrier.content.includes(
       "if: needs.image-build.result != 'success' || needs.image-scan.result != 'success'",
     ),
-    validateStaged.content.includes(CI_DISPATCH_ONLY_GUARD),
+    validateStaged.content.includes(CI_PUBLISH_GUARD),
     validateStaged.content.includes(JSON.stringify([...CI_PUBLISHED_IMAGE_IDS])),
     validateStaged.content.includes('staged image set is incomplete or unexpected'),
     validateStaged.content.includes(
       '.repository != ("ghcr.io/kodes-agency/repkey-" + .image)',
     ),
-    auth.content.includes(CI_DISPATCH_ONLY_GUARD),
-    write.content.includes(CI_DISPATCH_ONLY_GUARD),
-    upload.content.includes(CI_DISPATCH_ONLY_GUARD),
+    auth.content.includes(CI_PUBLISH_GUARD),
+    write.content.includes(CI_PUBLISH_GUARD),
+    upload.content.includes(CI_PUBLISH_GUARD),
     write.content.includes('test "$staged_digest" = "$expected_digest"'),
-    write.content.includes('event:"workflow_dispatch"'),
+    write.content.includes('env.GITHUB_EVENT_NAME == "workflow_dispatch"'),
+    write.content.includes('.source.event = "workflow_dispatch"'),
+    write.content.includes('.source.job = "image"'),
+    validateStaged.content.includes('.sourceRevision != $revision'),
+    validateStaged.content.includes(
+      '.stagedReference != (.repository + ":ci-run-" + $runId + "-" + $runAttempt)',
+    ),
+    promote.content.includes(CI_MAIN_ONLY_GUARD),
+    promote.content.includes('immutable image tag has a conflicting digest'),
+    promote.content.includes('test "$staged_digest" = "$expected_digest"'),
+    promote.content.includes('docker buildx imagetools create'),
+    promote.content.includes('--prefer-index=false'),
+    promote.content.includes('"${repository}@${expected_digest}"'),
+    promote.content.includes('final_reference="${repository}:${GITHUB_SHA}"'),
+    promote.content.includes('test "$final_digest" = "$expected_digest"'),
+    promote.content.lastIndexOf('final_digest=$(docker buildx imagetools inspect') >
+      promote.content.indexOf('docker buildx imagetools create'),
+    steps.indexOf(validateStaged) < steps.indexOf(promote),
+    steps.indexOf(auth) < steps.indexOf(promote),
+    steps.indexOf(promote) < steps.indexOf(write),
+    steps.indexOf(write) < steps.indexOf(upload),
     !write.content.includes('docker buildx build'),
     !write.content.includes('imagetools create'),
     !write.content.includes(':latest'),

@@ -1,32 +1,9 @@
-// Keep server stubs out of shared first-paint chunks.
-const getGuestVoicePage = async (
-  input: Parameters<
-    (typeof import('#/contexts/ai/server/guest-voice-v2'))['getGuestVoiceV2Fn']
-  >[0],
-) => (await import('#/contexts/ai/server/guest-voice-v2')).getGuestVoiceV2Fn(input)
-const getGuestVoiceDetail = async (
-  input: Parameters<
-    (typeof import('#/contexts/ai/server/guest-voice-details'))['getGuestVoiceDetailFn']
-  >[0],
-) =>
-  (await import('#/contexts/ai/server/guest-voice-details')).getGuestVoiceDetailFn(input)
-const getGuestVoiceGoogle = async (
-  input: Parameters<
-    (typeof import('#/contexts/reporting/server/property-google-numbers'))['getPropertyGoogleNumbersFn']
-  >[0],
-) =>
-  (
-    await import('#/contexts/reporting/server/property-google-numbers')
-  ).getPropertyGoogleNumbersFn(input)
+import { getGuestVoiceV2Fn } from '#/contexts/ai/server/guest-voice-v2'
+import { getGuestVoiceDetailFn } from '#/contexts/ai/server/guest-voice-details'
+import { getPropertyGoogleNumbersFn } from '#/contexts/reporting/server/property-google-numbers'
 
 export const guestVoiceFns = {
-  get getGuestVoicePage() {
-    return getGuestVoicePage
-  },
-  get getGuestVoiceDetail() {
-    return getGuestVoiceDetail
-  },
-  get getGuestVoiceGoogle() {
-    return getGuestVoiceGoogle
-  },
+  getGuestVoicePage: getGuestVoiceV2Fn,
+  getGuestVoiceDetail: getGuestVoiceDetailFn,
+  getGuestVoiceGoogle: getPropertyGoogleNumbersFn,
 }

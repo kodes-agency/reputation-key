@@ -1,10 +1,17 @@
+import {
+  googleConnectionHasUsableCredential,
+  type GooglePropertyAuthorizationView,
+} from './google-property-authorization'
+import { sameGooglePerformanceScope } from './google-performance-authorization-snapshot'
+import {
+  googleConnectionAuthorizationVector,
+  googleUserAuthorizationVector,
+  googlePropertyAuthorizationVector,
+} from './google-authorization-vector'
 import { summarizeError } from '#/shared/observability/error-summary'
 import type { AuthContext } from '#/shared/domain/auth-context'
 import type { LoggerPort } from '#/shared/domain/logger.port'
-import {
-  googleAuthorizationPermissionDigest,
-  sameFrozenGoogleContentAuthorizationVector,
-} from '#/shared/domain/google-content-authorization-vector'
+import { sameFrozenGoogleContentAuthorizationVector } from '#/shared/domain/google-content-authorization-vector'
 import type { GoogleConnectionId, OrganizationId, PropertyId } from '#/shared/domain/ids'
 import {
   createProviderAuthorizationPrincipalBinding,
@@ -14,7 +21,6 @@ import {
 import type { VersionedHmacKeyring } from '#/shared/security/versioned-hmac-keyring'
 import type { GoogleConnection } from '../domain/types'
 import type { ActiveConnectionTokenProvider } from './active-connection-token-provider'
-import { GOOGLE_BUSINESS_MANAGE_SCOPE } from './google-provider-contract'
 import type {
   GooglePerformanceAuthorizationResult,
   GooglePerformanceAuthorizationSnapshot,
@@ -22,20 +28,10 @@ import type {
 } from './get-property-google-performance'
 import type { GoogleImportContentAuthorizationResult } from './google-import-command-authorizer'
 
-type PropertyAuthorizationView = Readonly<{
-  organizationId: OrganizationId
-  propertyId: PropertyId
-  state: string
-  connectionId: GoogleConnectionId | null
-  locationId: string | null
-  sourceEpoch: number
-  profileVersion: number
-  profileSource: 'legacy' | 'tenant_confirmed'
-  profileConfirmedAt: Date | null
-  timezone: string | null
-  lifecycleState: string
-  deletedAt: Date | null
-}>
+type PropertyAuthorizationView = GooglePropertyAuthorizationView &
+  Readonly<{
+    timezone: string | null
+  }>
 
 type PerformanceDecision = Readonly<{
   allowed: boolean
@@ -72,11 +68,11 @@ function unavailable(
     | 'reauthentication_required'
     | 'integration_unavailable',
   action: 'set_timezone' | 'reauthenticate' | 'open_integrations' | null,
-): GooglePerformanceAuthorizationResult {
+): Extract<GooglePerformanceAuthorizationResult, { ok: false }> {
   return { ok: false, result: { status: 'unavailable', reason, action } }
 }
 
-function staleSource(): GooglePerformanceAuthorizationResult {
+function staleSource(): Extract<GooglePerformanceAuthorizationResult, { ok: false }> {
   return {
     ok: false,
     result: {
@@ -98,21 +94,15 @@ function connectionBelongsToOrganization(
 function sameSnapshot(
   current: GooglePerformanceAuthorizationSnapshot,
   expected: GooglePerformanceAuthorizationSnapshot,
+  allowCredentialRefresh = false,
 ): boolean {
   return (
-    current.organizationId === expected.organizationId &&
-    current.propertyId === expected.propertyId &&
-    current.connectionId === expected.connectionId &&
-    current.locationId === expected.locationId &&
-    current.timezone === expected.timezone &&
-    current.sourceEpoch === expected.sourceEpoch &&
-    current.profileVersion === expected.profileVersion &&
-    current.connectionLifecycleVersion === expected.connectionLifecycleVersion &&
-    current.connectionAccessVersion === expected.connectionAccessVersion &&
-    current.credentialGeneration === expected.credentialGeneration &&
-    current.authorizationVectorSha256 === expected.authorizationVectorSha256 &&
-    current.principalHmacKeyVersion === expected.principalHmacKeyVersion &&
-    current.principalHmac === expected.principalHmac
+    sameGooglePerformanceScope(current, expected) &&
+    (allowCredentialRefresh
+      ? current.credentialGeneration >= expected.credentialGeneration &&
+        current.authorizationFenceSha256 === expected.authorizationFenceSha256
+      : current.credentialGeneration === expected.credentialGeneration &&
+        current.authorizationVectorSha256 === expected.authorizationVectorSha256)
   )
 }
 
@@ -135,34 +125,24 @@ export function createGooglePerformanceAuthorizer(
     authorizeGoogleContent: PerformanceContentAuthorizer
     principalKeys: VersionedHmacKeyring
     clock: () => Date
-    /**
-     * Optional so existing constructions and tests keep working. When absent
-     * this module behaves exactly as before — it just says nothing.
-     */
     logger?: Pick<LoggerPort, 'warn'>
   }>,
 ): GooglePerformanceAuthorizer {
-  return async (input) => {
-    // Every branch below fails closed to an `unavailable(...)` snapshot, which
-    // the route renders as a 200 with an empty performance panel. That is the
-    // right user-facing behaviour and the wrong operator behaviour: on
-    // 2026-09-01 stale authorization state denied this capability on every
-    // property page view and produced no server-side signal, so the panel was
-    // simply blank with nothing to grep for. The response shape is unchanged;
-    // only the silence is.
-    const failClosed = (
-      stage: string,
-      detail?: Readonly<Record<string, unknown>>,
-    ): GooglePerformanceAuthorizationResult => {
-      deps.logger?.warn(
-        { surface: 'google-performance', stage, ...detail },
-        'Google performance authorization failed closed',
-      )
-      return unavailable('integration_unavailable', null)
-    }
-    const errorFields = (error: unknown) =>
-      error instanceof Error ? { err: summarizeError(error) } : {}
+  // Keep infrastructure refusals observable while returning the controlled panel state.
+  const failClosed = (
+    stage: string,
+    detail?: Readonly<Record<string, unknown>>,
+  ): Extract<GooglePerformanceAuthorizationResult, { ok: false }> => {
+    deps.logger?.warn(
+      { surface: 'google-performance', stage, ...detail },
+      'Google performance authorization failed closed',
+    )
+    return unavailable('integration_unavailable', null)
+  }
+  const errorFields = (error: unknown) =>
+    error instanceof Error ? { err: summarizeError(error) } : {}
 
+  const authorizeProperty = async (input: Parameters<GooglePerformanceAuthorizer>[0]) => {
     let actor: AuthContext | null
     try {
       actor = await deps.resolveActor(input.actor.organizationId, input.actor.userId)
@@ -238,6 +218,30 @@ export function createGooglePerformanceAuthorizer(
       return unavailable('timezone_required', canUpdate ? 'set_timezone' : null)
     }
 
+    return {
+      ok: true as const,
+      actor,
+      binding: {
+        ...binding,
+        connectionId: binding.connectionId,
+        locationId: binding.locationId,
+        timezone: binding.timezone,
+      },
+      readDecision,
+      remediationAllowed,
+    }
+  }
+
+  type PropertyScope = Extract<
+    Awaited<ReturnType<typeof authorizeProperty>>,
+    { ok: true }
+  >
+
+  const authorizeConnection = async ({
+    actor,
+    binding,
+    remediationAllowed,
+  }: PropertyScope) => {
     let connection: GoogleConnection | null
     try {
       connection = await deps.findConnection(actor.organizationId, binding.connectionId)
@@ -255,22 +259,26 @@ export function createGooglePerformanceAuthorizer(
       const canManage = await remediationAllowed('integration.manage')
       return unavailable('reauthentication_required', canManage ? 'reauthenticate' : null)
     }
-    if (
-      connection.status !== 'active' ||
-      connection.credentialUseState !== 'active' ||
-      !connection.scopes.includes(GOOGLE_BUSINESS_MANAGE_SCOPE)
-    ) {
+    if (!googleConnectionHasUsableCredential(connection)) {
       const canManage = await remediationAllowed('integration.manage')
       return unavailable('disconnected', canManage ? 'open_integrations' : null)
     }
 
+    return { ok: true as const, connection }
+  }
+
+  const authorizeContent = async (
+    { actor, binding, readDecision }: PropertyScope,
+    connection: GoogleConnection,
+    phase: Parameters<GooglePerformanceAuthorizer>[0]['phase'],
+  ) => {
     let content: Extract<GoogleImportContentAuthorizationResult, { ok: true }>
     try {
       const result = await deps.authorizeGoogleContent({
         actor,
-        propertyId: input.propertyId,
+        propertyId: binding.propertyId,
         connectionId: connection.id,
-        phase: input.phase,
+        phase,
       })
       if (!result.ok) {
         // The authority's own code is the diagnosis; the caller only ever sees
@@ -307,30 +315,16 @@ export function createGooglePerformanceAuthorizer(
       return unavailable('policy_disabled', null)
     }
     const expectedAuthorizationVector = Object.freeze({
-      executionPolicyVersion: readDecision.policyVersion,
-      principalKind: 'user',
-      role: actor.role,
-      permissionVersion: Number(permissionVersion),
-      permissionDigest: googleAuthorizationPermissionDigest(actor),
-      connectionLifecycleVersion: connection.lifecycleVersion,
-      connectionAccessVersion: connection.accessVersion,
-      credentialGeneration: connection.credentialGeneration,
-      propertySourceEpoch: binding.sourceEpoch,
-      propertyProfileVersion: binding.profileVersion,
-      propertyBindingState: binding.state,
-      propertyLifecycleState: binding.lifecycleState,
-      propertyProfileSource: binding.profileSource,
-      propertyTimezoneConfirmed: binding.profileConfirmedAt !== null,
+      ...googleUserAuthorizationVector(
+        actor,
+        Number(permissionVersion),
+        readDecision.policyVersion,
+      ),
+      ...googleConnectionAuthorizationVector(connection),
+      ...googlePropertyAuthorizationVector(binding),
     })
     if (
-      // Same request, different reads: `content.authorizationVector` comes from
-      // the authority's own SQL, the expectation above from this call's
-      // `connection` row. The two non-revoking counters can differ across them
-      // (a concurrent capability write bumps the global policy generation, a
-      // token refresh bumps the credential generation), and neither withdraws
-      // authority - the lease fence digest below already omits the second for
-      // exactly this reason. Every property-binding key stays compared
-      // exactly, which is what the fence is for.
+      // Separate reads may straddle a refresh; all revocation facts stay exact.
       !sameFrozenGoogleContentAuthorizationVector(
         content.authorizationVector,
         expectedAuthorizationVector,
@@ -338,6 +332,19 @@ export function createGooglePerformanceAuthorizer(
     ) {
       return unavailable('policy_disabled', null)
     }
+
+    return content
+  }
+
+  const authorizeScope: GooglePerformanceAuthorizer = async (input) => {
+    const scope = await authorizeProperty(input)
+    if (!scope.ok) return scope
+    const connected = await authorizeConnection(scope)
+    if (!connected.ok) return connected
+    const { connection } = connected
+    const content = await authorizeContent(scope, connection, input.phase)
+    if (!content.ok) return content
+    const { actor, binding } = scope
     const authorizationVector = content.authorizationVector
     const principal = createProviderAuthorizationPrincipalBinding({
       keys: deps.principalKeys,
@@ -376,15 +383,33 @@ export function createGooglePerformanceAuthorizer(
     if (input.expected && !sameSnapshot(snapshot, input.expected)) {
       return staleSource()
     }
-    if (input.phase === 'before_return' || input.requireAccessToken === false) {
-      return { ok: true, snapshot, accessToken: null }
+    return { ok: true, snapshot, accessToken: null }
+  }
+
+  return async (input) => {
+    const initial = await authorizeScope(input)
+    if (
+      !initial.ok ||
+      input.phase === 'before_return' ||
+      input.requireAccessToken === false
+    ) {
+      return initial
     }
 
+    let accessToken: string
     try {
-      const accessToken = await deps.getAccessToken(actor.organizationId, connection.id)
-      return { ok: true, snapshot, accessToken }
+      accessToken = await deps.getAccessToken(
+        initial.snapshot.organizationId,
+        initial.snapshot.connectionId,
+      )
     } catch {
       return unavailable('integration_unavailable', null)
     }
+    // Token refresh may advance the credential generation, but cannot carry a
+    // changed member, Property binding or connection authority into a permit.
+    const current = await authorizeScope({ ...input, expected: undefined })
+    if (!current.ok) return current
+    if (!sameSnapshot(current.snapshot, initial.snapshot, true)) return staleSource()
+    return { ...current, accessToken }
   }
 }

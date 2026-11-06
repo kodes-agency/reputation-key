@@ -36,6 +36,8 @@ const candidate = {
   disabledAt: null,
   disabledReason: null,
   lastValidatedAt: LAST_VALIDATED,
+  nextAttemptAt: null,
+  validationFailures: 0,
   createdAt: LAST_VALIDATED,
   updatedAt: LAST_VALIDATED,
 }
@@ -174,6 +176,61 @@ describe('disablePortalApprovedDestination', () => {
 })
 
 describe('revalidatePortalApprovedDestinations', () => {
+  it('drains active checks before rejecting a failed write and starts no further batch', async () => {
+    vi.useFakeTimers()
+    try {
+      vi.setSystemTime(NOW)
+      const rows = Array.from({ length: 6 }, (_, i) => ({
+        ...candidate,
+        id: portalApprovedDestinationId(`destination-${i}`),
+        normalizedUri: `https://example.com/${i}`,
+      }))
+      const failure = new Error('Validation write failed')
+      const recordNetworkValidation = vi.fn(async (input) => {
+        if (input.id === rows[0]!.id) throw failure
+        return rows.find((row) => row.id === input.id)!
+      })
+      const validate = vi.fn(async (uri: string) => {
+        if (uri !== rows[0]!.normalizedUri)
+          await new Promise((resolve) => setTimeout(resolve, 5_000))
+        return {
+          outcome: 'safe' as const,
+          validatedAt: new Date(),
+          finalUri: uri,
+          redirectCount: 0,
+        }
+      })
+      const useCase = revalidatePortalApprovedDestinations({
+        destinationRepo: {
+          listDueForNetworkRevalidation: async () => rows,
+          recordNetworkValidation,
+        } as never,
+        destinationNetworkValidator: { validate },
+        clock: () => new Date(),
+      })
+      let settled = false
+      const running = useCase({ authorizeScope: async () => true })
+      const refusal = expect(running).rejects.toBe(failure)
+      const completion = running.catch(() => {
+        settled = true
+      })
+
+      await vi.advanceTimersByTimeAsync(0)
+      expect(recordNetworkValidation).toHaveBeenCalledTimes(1)
+      expect(settled).toBe(false)
+
+      await vi.advanceTimersByTimeAsync(5_000)
+      await refusal
+      await completion
+      expect(settled).toBe(true)
+      expect(validate).toHaveBeenCalledTimes(5)
+      expect(recordNetworkValidation).toHaveBeenCalledTimes(5)
+      expect(vi.getTimerCount()).toBe(0)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
   it('quarantines a later-unsafe destination after exact scope authorization', async () => {
     const recordNetworkValidation = vi.fn(async (input) => ({
       ...candidate,
@@ -208,6 +265,7 @@ describe('revalidatePortalApprovedDestinations', () => {
       propertyId: candidate.propertyId,
       id: candidate.id,
       expectedLastValidatedAt: LAST_VALIDATED,
+      expectedNextAttemptAt: null,
       result: {
         outcome: 'unsafe',
         reason: 'redirect_host_changed',
@@ -232,10 +290,11 @@ describe('revalidatePortalApprovedDestinations', () => {
     expect(listDueForNetworkRevalidation).toHaveBeenCalledWith(
       new Date(NOW.getTime() - 10 * 60 * 1_000),
       100,
+      { at: NOW, excludeIds: undefined },
     )
   })
 
-  it('does not mutate on transient network failure or denied scope', async () => {
+  it('schedules a transient failure without refreshing freshness and never mutates a denied scope', async () => {
     const recordNetworkValidation = vi.fn()
     const useCase = revalidatePortalApprovedDestinations({
       destinationRepo: {
@@ -260,6 +319,48 @@ describe('revalidatePortalApprovedDestinations', () => {
       unauthorized: 1,
       unavailable: 1,
     })
-    expect(recordNetworkValidation).not.toHaveBeenCalled()
+    expect(recordNetworkValidation).toHaveBeenCalledTimes(1)
+    expect(recordNetworkValidation).toHaveBeenCalledWith(
+      expect.objectContaining({
+        result: {
+          outcome: 'unavailable',
+          nextAttemptAt: new Date(NOW.getTime() + 60_000),
+        },
+      }),
+    )
+  })
+
+  it.each([
+    [0, 1],
+    [1, 2],
+    [2, 4],
+    [3, 8],
+    [4, 15],
+    [30, 15],
+  ])('backs off failure count %i for %i minutes', async (validationFailures, minutes) => {
+    const recordNetworkValidation = vi.fn(async () => candidate)
+    const useCase = revalidatePortalApprovedDestinations({
+      destinationRepo: {
+        listDueForNetworkRevalidation: async () => [{ ...candidate, validationFailures }],
+        recordNetworkValidation,
+      } as never,
+      destinationNetworkValidator: {
+        validate: async () => ({
+          outcome: 'unavailable',
+          reason: 'dns_unavailable',
+          observedAt: NOW,
+        }),
+      },
+      clock: () => NOW,
+    })
+    await useCase({ authorizeScope: async () => true })
+    expect(recordNetworkValidation).toHaveBeenCalledWith(
+      expect.objectContaining({
+        result: {
+          outcome: 'unavailable',
+          nextAttemptAt: new Date(NOW.getTime() + minutes * 60_000),
+        },
+      }),
+    )
   })
 })

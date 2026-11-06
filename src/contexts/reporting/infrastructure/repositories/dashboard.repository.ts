@@ -1,7 +1,5 @@
-// Dashboard context — repository implementation (composition logic only)
-// Per ADR-0007: does NOT directly query review/reply/metric tables.
-// Delegates to ReviewStatsPort and MetricStatsPort facade ports.
-// Wrapped in trace() for observability.
+// Compose facade reads without querying Review/Reply/Metric tables directly
+// (ADR 0007).
 
 import type { DashboardRepository } from '../../application/ports/dashboard.repository'
 import type {
@@ -35,7 +33,7 @@ import {
 } from '../../application/utils'
 
 /**
- * KPI assembly — single source for getKPIs/getKPIsForPortals (BQC-5.9 E4).
+ * KPI assembly — single source for getKPIs/getKPIsForPortals.
  * The two methods differ only in how they select the metric sums; the
  * current-vs-prior composition must not drift between them.
  */

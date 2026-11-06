@@ -256,6 +256,7 @@ export async function bootstrap(
       ),
       clock: container.clock,
       logger: container.logger,
+      alertDispatcher: container.alertDispatcher,
     }),
   )
   logger.info(

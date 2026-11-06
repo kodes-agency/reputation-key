@@ -97,7 +97,7 @@ describe('route query options', () => {
   it('finds the definitions it is meant to read', () => {
     const keys = ROUTE_SOURCES.flatMap(definitionsIn).map((definition) => definition.key)
 
-    expect(keys).toContain('identityKeys.members()')
+    expect(keys).toContain('createKeys(scope).identityKeys.members()')
     expect(keys).toContain('propertyKeys.list()')
     // The Monthly portal goal's card and page, in the Goals route's queries module only.
     expect(keys).toContain("goalKeys.portalGoalRead(propertyId, 'card')")

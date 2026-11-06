@@ -1,3 +1,5 @@
+import { tenantScope } from '#/shared/queries/tenant-scope'
+import { useTenantScope } from '#/shared/hooks/useTenantScope'
 import { createFileRoute } from '@tanstack/react-router'
 import { useSuspenseQuery } from '@tanstack/react-query'
 import { z } from 'zod/v4'
@@ -40,14 +42,16 @@ export const Route = createFileRoute('/_authenticated/properties/import-google/'
   },
   staleTime: 60_000,
   loader: async ({ context }) => {
-    await context.queryClient.ensureQueryData(googleConnectionsQuery)
+    await context.queryClient.ensureQueryData(
+      googleConnectionsQuery(tenantScope(context)),
+    )
   },
   component: ImportPage,
 })
 
 function ImportPage() {
   const search = Route.useSearch()
-  const { data } = useSuspenseQuery(googleConnectionsQuery)
+  const { data } = useSuspenseQuery(googleConnectionsQuery(useTenantScope()))
   const { activeOrganization, user } = Route.useRouteContext()
 
   return (

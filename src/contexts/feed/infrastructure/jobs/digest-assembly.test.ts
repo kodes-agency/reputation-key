@@ -3,9 +3,8 @@ import {
   digestBatchIdempotencyKey,
   digestMemberSet,
   digestProviderRequest,
-  groupItemsByProperty,
-  type DigestItem,
-} from './digest-assembly'
+} from '../digest-batch-identity'
+import { groupItemsByProperty, type DigestItem } from './digest-assembly'
 import { buildDigestItem } from './test-fixtures'
 
 const url = (path: string, search: Readonly<Record<string, string>>) =>

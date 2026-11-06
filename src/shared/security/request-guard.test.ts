@@ -1,14 +1,15 @@
-// Tests for the request guard (BQC-7.6): body-size limit + x-request-id.
+// Tests for the request guard: body-size limit + x-request-id.
 //
 // The plugin is the nitro v3 wiring of two request-boundary controls:
 //   - 413 short-circuit via h3's config.onRequest (the nitro `request`
 //     runtime hook cannot short-circuit — nitro routes hook errors into
 //     captureError and lets the request through, so the guard installs ahead
-//     of it; a thrown web Response bypasses the h3 error handler and still
-//     passes through the response hooks).
+//     of it; a typed HTTP error carries the content-free Response through
+//     h3's error handling and response hooks).
 //   - x-request-id on every response via the nitro `response` hook.
 
 import { describe, it, expect, vi } from 'vitest'
+import { HTTPError } from 'nitro/h3'
 import {
   resolveRequestId,
   bodyLimitFor,
@@ -127,7 +128,7 @@ describe('createRequestGuardPlugin', () => {
     }),
   })
 
-  it('installs an onRequest wrapper that throws a 413 Response for oversized bodies', () => {
+  it('installs an onRequest wrapper that throws an HTTP 413 for oversized bodies', () => {
     const { app, h3 } = fakeNitroApp()
     createRequestGuardPlugin({ bodyLimitBytes: 100, idGen: () => 'gid' })(app as never)
     expect(h3.config.onRequest).toBeTypeOf('function')
@@ -135,8 +136,8 @@ describe('createRequestGuardPlugin', () => {
       h3.config.onRequest!(postWithLength('101'))
       expect.unreachable('oversized bodies must not reach the handler chain')
     } catch (thrown) {
-      expect(thrown).toBeInstanceOf(Response)
-      expect((thrown as Response).status).toBe(413)
+      expect(thrown).toBeInstanceOf(HTTPError)
+      expect((thrown as HTTPError).status).toBe(413)
     }
   })
 
@@ -225,9 +226,11 @@ describe('createRequestGuardPlugin', () => {
         (thrown: unknown) => thrown,
       )
 
-      expect(refusal).toBeInstanceOf(Response)
-      expect((refusal as Response).status).toBe(413)
-      await expect((refusal as Response).json()).resolves.toEqual({
+      expect(refusal).toBeInstanceOf(HTTPError)
+      expect((refusal as HTTPError).status).toBe(413)
+      const response = (refusal as HTTPError & { response: Response }).response
+      expect(response.status).toBe(413)
+      await expect(response.json()).resolves.toEqual({
         error: 'payload_too_large',
       })
       expect(previous).not.toHaveBeenCalled()

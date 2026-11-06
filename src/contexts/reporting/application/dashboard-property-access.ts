@@ -1,11 +1,6 @@
-// Reporting — the Property decision every Property-scoped dashboard read makes
-// first (docs/standards.md §2.2 step 1; D6-001).
-//
-// The reader must belong to the Organization, hold `dashboard.read`, and reach
-// every Property the read names: an Organization-wide holder reaches all of
-// them, a manager only the Properties currently granted. It used to be asked by
-// each server function, so a caller that was not one (a job, another context,
-// a script) read any Property of the Organization.
+// The reader must belong to the Organization, hold `dashboard.read`, and
+// reach every requested Property through Organization-wide access or current
+// Property grants. Enforce this in the use case so non-HTTP callers are scoped too.
 
 import type { AuthContext } from '#/shared/domain/auth-context'
 import type { OrganizationId, PropertyId } from '#/shared/domain/ids'

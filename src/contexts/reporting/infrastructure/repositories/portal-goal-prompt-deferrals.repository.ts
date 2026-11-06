@@ -1,12 +1,7 @@
-// Reporting — PostgreSQL persistence of "Not now" on the Overview's Monthly
-// portal goal prompt (ADR 0068, PLAN PG-16; migration 0062).
-//
-// One row per Property (`property_id` is the key), bound to its Organization by
-// the composite foreign key, which also cascades it away with the Property.
-// "Not now" is an upsert that only moves the month on: a later month replaces
-// the row, an earlier or the same month leaves it untouched, so a tab left open
-// since last month never brings back a prompt put off since. Every read and
-// write names the Organization as well as the Property.
+// One row per Property, tenant-bound and cascaded by the composite foreign key
+// (ADR 0068). Upsert advances the month only: a stale tab must not revive a prompt
+// already deferred for a later month. Every statement includes Organization scope.
+
 import { and, eq, sql } from 'drizzle-orm'
 import type { Database } from '#/shared/db'
 import { portalGoalPromptDeferrals } from '#/shared/db/schema/goal.schema'

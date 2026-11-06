@@ -59,6 +59,10 @@ const meta: Meta<typeof NotificationPopoverContent> = {
     // Where the body reads Updates from: the fixture feed, by filter.
     notificationFns: makeStatefulNotificationFns(notificationFixtures),
     organizationId: ORGANIZATION_ID,
+    scope: {
+      userId: 'user-1',
+      organizationId: 'org-1',
+    },
   },
   decorators: [
     (Story) => (

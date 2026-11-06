@@ -1,12 +1,7 @@
-// Server-only request plumbing for the Goal Program server functions.
-//
-// goal-programs.ts and monthly-portal-goals.ts run their handlers through
-// `withGoalPrograms`. It
-// reaches the composition root and the server-only error throwers, so it lives
-// in a *.server.ts module: a server-function module that exported it would
-// carry those imports into the client build, which the import protection
-// refuses. Called only inside handler bodies, this import is stripped from the
-// client with them.
+// Keep composition and error helpers server-only. Exporting this plain helper
+// from an RPC module would leak server imports into the browser; handler-only
+// imports are stripped with the handler bodies.
+
 import { getContainer } from '#/composition'
 import { headersFromContext } from '#/shared/auth/headers'
 import { resolveTenantContext } from '#/shared/auth/middleware'

@@ -4,7 +4,7 @@
 // active goals by identifier and asks `authorizeScope` (the schedule's own
 // action under goal.use) about each goal's Organization and Property before it
 // reads or writes anything of theirs (application/use-cases/rating-goal-sweep.ts).
-// Counts only reach the log: tenant identifiers are never log fields (BQC-7.3).
+// Counts only reach the log: tenant identifiers are never log fields.
 
 import type { Job } from 'bullmq'
 import type { LoggerPort } from '#/shared/domain/logger.port'

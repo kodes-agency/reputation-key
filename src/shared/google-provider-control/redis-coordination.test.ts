@@ -106,6 +106,136 @@ describe('Redis Google provider coordination', () => {
     expect(endpointBucket?.tokens).toBe(9_000_000)
   })
 
+  it('refills every bucket only up to capacity after intervening consumption', async () => {
+    let nowMs = 1_000
+    const redis = createFakeGoogleCoordinationRedis()
+    const policy: GoogleQuotaPolicy = {
+      ...discoveryPolicy,
+      buckets: [
+        discoveryPolicy.buckets[0]!,
+        {
+          id: 'connection-minute',
+          scope: 'connection',
+          capacity: 2,
+          refillTokens: 1,
+          refillIntervalMs: 60_000,
+        },
+      ],
+    }
+    const create = () =>
+      createRedisGoogleQuotaCoordinator({
+        redis,
+        nowMs: () => nowMs,
+        policyId: 'refill-test-v1',
+        policy,
+      })
+    const first = create()
+    const other = create()
+    await expect(first.acquire(quotaKey, 2, 10_000)).resolves.toEqual({
+      ok: true,
+      remaining: 0,
+    })
+    nowMs += 500
+    await expect(other.acquire(quotaKey, 1, 10_000)).resolves.toMatchObject({ ok: false })
+    nowMs += 120_000
+    await expect(other.acquire(quotaKey, 2, nowMs + 1_000)).resolves.toEqual({
+      ok: true,
+      remaining: 0,
+    })
+    await expect(first.acquire(quotaKey, 1, nowMs + 1_000)).resolves.toMatchObject({
+      ok: false,
+    })
+  })
+
+  it('keeps quota spent when an unanswered acquisition is replayed', async () => {
+    const storage = createFakeGoogleCoordinationRedis()
+    let replay = true
+    const quota = createRedisGoogleQuotaCoordinator({
+      redis: {
+        eval: async (script, numberOfKeys, ...args) => {
+          const reply = await storage.eval(script, numberOfKeys, ...args)
+          if (replay) {
+            replay = false
+            return storage.eval(script, numberOfKeys, ...args)
+          }
+          return reply
+        },
+      },
+      nowMs: () => 1_000,
+      policyId: 'acquire-replay-v1',
+      policy: {
+        ...discoveryPolicy,
+        buckets: discoveryPolicy.buckets.map((bucket) => ({ ...bucket, capacity: 3 })),
+      },
+    })
+    await expect(quota.acquire(quotaKey, 1, 10_000)).resolves.toEqual({
+      ok: true,
+      remaining: 1,
+    })
+    await expect(quota.acquire(quotaKey, 1, 10_000)).resolves.toEqual({
+      ok: true,
+      remaining: 0,
+    })
+    await expect(quota.acquire(quotaKey, 1, 10_000)).resolves.toMatchObject({ ok: false })
+  })
+
+  it('does not partially debit on a bucket binding collision', async () => {
+    const redis = createFakeGoogleCoordinationRedis()
+    const policy: GoogleQuotaPolicy = {
+      ...discoveryPolicy,
+      buckets: [
+        discoveryPolicy.buckets[0]!,
+        {
+          id: 'connection-minute',
+          scope: 'connection',
+          capacity: 2,
+          refillTokens: 1,
+          refillIntervalMs: 60_000,
+        },
+      ],
+    }
+    const quota = createRedisGoogleQuotaCoordinator({
+      redis,
+      nowMs: () => 1_000,
+      policyId: 'collision-test-v1',
+      policy,
+    })
+    await quota.acquire(quotaKey, 1, 10_000)
+    const buckets = [...redis.quotas.values()]
+    const collision = buckets[1]
+    if (!collision) throw new Error('expected second bucket')
+    collision.binding = 'different-binding'
+    await expect(quota.acquire(quotaKey, 1, 10_000)).resolves.toEqual({
+      ok: false,
+      code: 'key_collision',
+      retryAfterMs: 0,
+    })
+    expect(buckets.map((bucket) => bucket.tokens)).toEqual([1_000_000, 1_000_000])
+  })
+
+  it('fails closed when Redis is down and rejects invalid costs', async () => {
+    const redis = createFakeGoogleCoordinationRedis()
+    const quota = createRedisGoogleQuotaCoordinator({
+      redis,
+      nowMs: () => 1_000,
+      policyId: 'quota-down-v1',
+      policy: discoveryPolicy,
+    })
+    redis.fail = true
+    for (const cost of [0, 3]) {
+      await expect(quota.acquire(quotaKey, cost, 10_000)).resolves.toEqual({
+        ok: false,
+        code: 'invalid_request',
+        retryAfterMs: 0,
+      })
+    }
+    await expect(quota.acquire(quotaKey, 1, 10_000)).resolves.toEqual({
+      ok: false,
+      code: 'coordination_unavailable',
+      retryAfterMs: 0,
+    })
+  })
+
   it('requires the tenant dimensions named by the frozen policy', async () => {
     const quota = createRedisGoogleQuotaCoordinator({
       redis: createFakeGoogleCoordinationRedis(),
@@ -121,6 +251,23 @@ describe('Redis Google provider coordination', () => {
       code: 'invalid_request',
       retryAfterMs: 0,
     })
+  })
+
+  it('refuses a request class outside its policy before touching Redis', async () => {
+    const redis = createFakeGoogleCoordinationRedis()
+    const coordinator = createRedisGoogleInFlightCoordinator({
+      redis,
+      nowMs: () => 1_000,
+      leaseId: () => 'request-class-lease-0001',
+      policyId: 'google-discovery-read-v1',
+      policy: discoveryPolicy,
+    })
+
+    await expect(
+      coordinator.acquire({ ...quotaKey, requestClass: 'identity' }, 5_000),
+    ).resolves.toEqual({ ok: false, code: 'invalid_request', retryAfterMs: 0 })
+    expect(redis.bindings.size).toBe(0)
+    expect(redis.leases.size).toBe(0)
   })
 
   it('expires semaphore leases and allows another replica to proceed', async () => {

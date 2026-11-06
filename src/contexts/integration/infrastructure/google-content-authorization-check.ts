@@ -1,11 +1,15 @@
+import {
+  googleConnectionAuthorizationVector,
+  googlePropertyAuthorizationVector,
+  googleSystemAuthorizationVector,
+  googleUserAuthorizationVector,
+} from '../application/google-authorization-vector'
 import { sql } from 'drizzle-orm'
 import { checkScopedCapability } from '#/shared/auth/beta-capabilities'
 import { resolveMemberAuthContextWithDatabase } from '#/shared/auth/tenant-resolver'
 import type { Database } from '#/shared/db'
 import type { GoogleContentCapability } from '#/shared/domain/google-content-capability'
 import {
-  GOOGLE_CONTENT_EXECUTION_POLICY_VERSION,
-  googleAuthorizationPermissionDigest,
   hasGoogleProviderRequestBindingKeys,
   type GoogleContentAuthorizationCheck,
   type GoogleContentAuthorizationScope,
@@ -177,15 +181,14 @@ const resolveReviewSyncPrincipal = (input: AuthorizationInput): VectorStage => {
   }
   return stageVector(
     Object.freeze({
-      principalKind: 'system',
-      systemPrincipal: notificationOperation
-        ? GOOGLE_NOTIFICATION_SYSTEM_PRINCIPAL
-        : GOOGLE_REVIEW_SYNC_SYSTEM_PRINCIPAL,
-      role: 'System',
-      permissionVersion: null,
-      permissionDigest: notificationOperation
-        ? GOOGLE_NOTIFICATION_SYSTEM_PERMISSION_DIGEST
-        : GOOGLE_REVIEW_SYNC_SYSTEM_PERMISSION_DIGEST,
+      ...googleSystemAuthorizationVector(
+        notificationOperation
+          ? GOOGLE_NOTIFICATION_SYSTEM_PRINCIPAL
+          : GOOGLE_REVIEW_SYNC_SYSTEM_PRINCIPAL,
+        notificationOperation
+          ? GOOGLE_NOTIFICATION_SYSTEM_PERMISSION_DIGEST
+          : GOOGLE_REVIEW_SYNC_SYSTEM_PERMISSION_DIGEST,
+      ),
     }),
   )
 }
@@ -213,11 +216,10 @@ const resolveReplyPublicationPrincipal = (input: AuthorizationInput): VectorStag
   }
   return stageVector(
     Object.freeze({
-      principalKind: 'system',
-      systemPrincipal: GOOGLE_REPLY_PUBLICATION_SYSTEM_PRINCIPAL,
-      role: 'System',
-      permissionVersion: null,
-      permissionDigest: GOOGLE_REPLY_PUBLICATION_SYSTEM_PERMISSION_DIGEST,
+      ...googleSystemAuthorizationVector(
+        GOOGLE_REPLY_PUBLICATION_SYSTEM_PRINCIPAL,
+        GOOGLE_REPLY_PUBLICATION_SYSTEM_PERMISSION_DIGEST,
+      ),
     }),
   )
 }
@@ -284,12 +286,7 @@ const resolveUserPrincipal = async (
     if (!hasGrant) return deny()
   }
   return stageVector(
-    Object.freeze({
-      principalKind: 'user',
-      role: actor.role,
-      permissionVersion,
-      permissionDigest: googleAuthorizationPermissionDigest(actor),
-    }),
+    Object.freeze(googleUserAuthorizationVector(actor, permissionVersion)),
   )
 }
 
@@ -375,9 +372,11 @@ const resolveOauthVector = (
 const connectionVersionVector = (
   connection: ConnectionRow | undefined,
 ): GoogleContentAuthorizationVector => ({
-  connectionLifecycleVersion: connection ? Number(connection.lifecycle_version) : 0,
-  connectionAccessVersion: connection ? Number(connection.access_version) : 0,
-  credentialGeneration: connection ? Number(connection.credential_generation) : 0,
+  ...googleConnectionAuthorizationVector({
+    lifecycleVersion: connection ? Number(connection.lifecycle_version) : 0,
+    accessVersion: connection ? Number(connection.access_version) : 0,
+    credentialGeneration: connection ? Number(connection.credential_generation) : 0,
+  }),
 })
 
 const resolvePropertyVector = async (
@@ -422,12 +421,14 @@ const resolvePropertyVector = async (
   }
   return stageVector(
     Object.freeze({
-      propertySourceEpoch: Number(property.source_epoch),
-      propertyProfileVersion: Number(property.profile_version),
-      propertyBindingState: property.google_binding_state,
-      propertyLifecycleState: property.lifecycle_state,
-      propertyProfileSource: property.profile_source,
-      propertyTimezoneConfirmed: property.profile_confirmed_at !== null,
+      ...googlePropertyAuthorizationVector({
+        sourceEpoch: Number(property.source_epoch),
+        profileVersion: Number(property.profile_version),
+        state: property.google_binding_state,
+        lifecycleState: property.lifecycle_state,
+        profileSource: property.profile_source,
+        profileConfirmedAt: property.profile_confirmed_at,
+      }),
     }),
   )
 }
@@ -622,7 +623,6 @@ export const createGoogleContentAuthorizationCheck = (
     const decision = {
       allowed: true as const,
       vector: {
-        executionPolicyVersion: GOOGLE_CONTENT_EXECUTION_POLICY_VERSION,
         ...principal.value,
         ...connectionVersionVector(connection),
         ...oauth.value,

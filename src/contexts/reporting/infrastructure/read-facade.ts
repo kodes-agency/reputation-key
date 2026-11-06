@@ -1,16 +1,8 @@
-// Dashboard context — governed read facade (BQC-5.5).
-//
-// Read policy for dashboard's metric_readings and inbox_items SQL reads:
-//
-// - Scope: tenant + property + date-range predicates live here as builders —
-//   adapters compose them instead of open-coding where-clauses.
-// - Timeout: every direct read runs inside withStatementTimeout with
-//   DASHBOARD_READ_BUDGET_MS — a slow statement aborts with a tagged
-//   DashboardReadTimeout error instead of holding a pool connection.
-// - Cache policy: NONE server-side, deliberately. Client TanStack Query
-//   staleTimes are the authoritative cache policy; a server cache would be a
-//   second read model beside the authoritative query path (BQC-5.5
-//   remove-decision: shared/cache/dashboard-cache.ts deleted unwired).
+// Share tenant/Property/date predicates and aggregate SQL across dashboard reads.
+// Every direct read uses DASHBOARD_READ_BUDGET_MS inside withStatementTimeout,
+// raising DashboardReadTimeout instead of holding the pool connection indefinitely.
+// Client TanStack Query stale times own caching; a server cache would duplicate
+// the authoritative read model.
 
 import { and, count, eq, gte, inArray, isNotNull, lt, or, sql } from 'drizzle-orm'
 import type { SQL } from 'drizzle-orm'

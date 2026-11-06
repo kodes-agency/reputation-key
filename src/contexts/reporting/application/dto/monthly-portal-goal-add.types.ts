@@ -1,12 +1,5 @@
-// Monthly portal goal — what the add sheet reads and sends (types only; PLAN
-// PG-20, copy deck M-1…M-14).
-//
-// "Add a portal goal" is one click deeper than the Monthly portal goal (P-5): a
-// goal for one Portal, one for each Portal, one for a Portal Group, or the
-// average private rating. No zod and no values: a component imports these with
-// `import type`, so nothing here reaches a bundle (PLAN E10). The server decides
-// every number, which options are open and why (PLAN E12); the sheet only words
-// them. Days are Property-local `YYYY-MM-DD`, months `YYYY-MM`.
+// Browser-safe types for the add sheet. The server decides numbers and eligibility.
+// Days are Property-local YYYY-MM-DD; months are YYYY-MM.
 
 import type { PortalGoalMeasure } from './goal-recommendation.types'
 

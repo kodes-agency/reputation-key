@@ -66,28 +66,34 @@ describe('closed-beta CI image deployment authority', () => {
     expect([...served].sort()).toEqual([...CI_PRODUCTION_IMAGE_NAMES].sort())
   })
 
-  it('binds each selected digest to its fixed service without a mutable tag', () => {
-    const digestMap = parseCiImageDigestMap(JSON.stringify(digestMapValue()), REVISION)
-    const plan = buildClosedBetaImageDeploymentPlan(digestMap, serviceInventory())
+  it.each([undefined, 'image'] as const)(
+    'binds each selected digest from %s to its fixed service without a mutable tag',
+    (job) => {
+      const digestMap = parseCiImageDigestMap(
+        JSON.stringify(digestMapValue(job)),
+        REVISION,
+      )
+      const plan = buildClosedBetaImageDeploymentPlan(digestMap, serviceInventory())
 
-    expect(
-      plan.map(({ imageName, serviceName, serviceId, imageReference }) => ({
-        imageName,
-        serviceName,
-        serviceId,
-        imageReference,
-      })),
-    ).toEqual(
-      CLOSED_BETA_IMAGE_SERVICES.map(({ imageName, serviceName, serviceId }) => ({
-        imageName,
-        serviceName,
-        serviceId,
-        imageReference: `ghcr.io/kodes-agency/repkey-${imageName}@sha256:${String(
-          CI_PRODUCTION_IMAGE_NAMES.indexOf(imageName) + 1,
-        ).repeat(64)}`,
-      })),
-    )
-  })
+      expect(
+        plan.map(({ imageName, serviceName, serviceId, imageReference }) => ({
+          imageName,
+          serviceName,
+          serviceId,
+          imageReference,
+        })),
+      ).toEqual(
+        CLOSED_BETA_IMAGE_SERVICES.map(({ imageName, serviceName, serviceId }) => ({
+          imageName,
+          serviceName,
+          serviceId,
+          imageReference: `ghcr.io/kodes-agency/repkey-${imageName}@sha256:${String(
+            CI_PRODUCTION_IMAGE_NAMES.indexOf(imageName) + 1,
+          ).repeat(64)}`,
+        })),
+      )
+    },
+  )
 
   it('plans all three promoted services in dependency-safe order', () => {
     const digestMap = parseCiImageDigestMap(JSON.stringify(digestMapValue()), REVISION)

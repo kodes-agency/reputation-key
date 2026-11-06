@@ -5,7 +5,7 @@ import { ModuleKind, transpileModule } from 'typescript'
 
 // Pin the released reader, so committing the compatibility change cannot
 // silently turn the rollout proof into another test of the new reader.
-const revision = 'bbec7dbbf35ddfe3072642a909231975d2109a33'
+const revision = '088ef5e353e8cd70efd3a49f56c4e815f14fc65d'
 
 function source(path: string): string {
   return execFileSync('git', ['show', `${revision}:${path}`], { encoding: 'utf8' })

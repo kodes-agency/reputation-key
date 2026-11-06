@@ -1,11 +1,6 @@
-// Reporting — a manager's "Not now" on the Overview's ready prompt for the
-// Monthly portal goal (ADR 0068, PLAN PG-16; migration 0062's
-// `portal_goal_prompt_deferrals`, one row per Property).
-//
-// Disposable decision state: the month a manager put the prompt off for, who
-// and when. It hides that month's prompt and every earlier one, never a later
-// month's. Neither read nor write checks a permission; the use case has
-// authorized `goal.create` first.
+// A manager's prompt deferral hides its month and earlier ones, never later
+// months (ADR 0068). The use case authorizes goal.create before reading/writing;
+// one disposable row per Property records month, actor and time.
 
 export type PortalGoalPromptDeferral = Readonly<{
   organizationId: string

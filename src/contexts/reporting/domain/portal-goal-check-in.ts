@@ -1,18 +1,8 @@
-// Monthly portal goal — the month-start check-in (ADR 0068 decision 8, PLAN
-// PG-15).
-//
-// On local days 1 to 7 of a month that is not the goal's first, the goal's
-// card asks once whether the month keeps its number: Use the recommended one
-// when it differs ("Use 45"), Keep the one it has ("Keep 40"), or another
-// number. Nothing changes unless a manager chooses, and nothing is automatic:
-// an ignored check-in keeps the number and folds away after the 7th. It asks
-// only while the goal runs, and once a month: Keep records the month it
-// answered, and a change of this month's own number (Use, or another number
-// through the sheet) answers it as well. When the recommended number is the
-// month's already, it is one line, not a choice; when nothing came in over the
-// basis there is no number to offer, only Keep and another number; and with no
-// recommendation that can be read, it asks nothing. The days are the
-// Property's local days, so a clock change never moves one. Pure.
+// On local days 1–7, after a goal's first month, ask once whether to keep or
+// change the running target (ADR 0068). Ignoring it keeps the target; Keep or a
+// change to this month's number answers it. Equal recommendations need no choice;
+// zero basis offers only Keep/own, and unreadable recommendations ask nothing.
+
 import type { GoalProgramStatus } from './goal-program'
 import type { Choices } from './goal-recommendation-types'
 import { localDateOf } from './local-days'

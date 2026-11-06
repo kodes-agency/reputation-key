@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from 'vitest'
 import type { z } from 'zod/v4'
 
 vi.mock('#/routes/-queries/route-queries', () => ({
-  merchantAiOverviewQuery: {},
+  merchantAiOverviewQuery: () => ({}),
   organizationAiSpendQuery: {},
   reviewAnalysisProgressQuery: vi.fn(),
 }))

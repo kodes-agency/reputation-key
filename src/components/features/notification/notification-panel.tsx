@@ -19,6 +19,7 @@
 // siblings from screen readers, and the toaster and the live regions are
 // siblings — the Undo a dismissal offers could be neither pressed nor heard.
 
+import type { TenantScope } from '#/shared/queries/tenant-scope'
 import { Suspense, useCallback, useEffect, useState } from 'react'
 import { Bell } from 'lucide-react'
 import { Button } from '#/components/ui/button'
@@ -129,11 +130,13 @@ function NotificationAriaLive({ count }: Readonly<{ count: number }>) {
 }
 
 type Props = Readonly<{
+  /** The shell's identity, independent of the current page's own-account scope. */
+  scope: TenantScope
   notificationFns: NotificationServerFns
   organizationId: string
 }>
 
-export function NotificationPanel({ notificationFns, organizationId }: Props) {
+export function NotificationPanel({ scope, notificationFns, organizationId }: Props) {
   const [open, setOpen] = useState(false)
   const isPhone = useIsMobile()
   useLockPageScroll(isPhone && open)
@@ -144,6 +147,7 @@ export function NotificationPanel({ notificationFns, organizationId }: Props) {
   // request. The badge counts what still waits on the reader (D2); unread news
   // shows in Updates with its dot, and does not raise the badge.
   const needsYou = useNotifications(
+    scope,
     notificationFns.getFeedHead,
     notificationFns.getList,
     organizationId,
@@ -161,8 +165,17 @@ export function NotificationPanel({ notificationFns, organizationId }: Props) {
     bellOpen: open,
     openBell,
   })
-  const format = useNotificationFormat(notificationFns.getUserSettings, organizationId)
-  const mutations = useNotificationMutations(notificationFns, organizationId, announce)
+  const format = useNotificationFormat(
+    scope,
+    notificationFns.getUserSettings,
+    organizationId,
+  )
+  const mutations = useNotificationMutations(
+    scope,
+    notificationFns,
+    organizationId,
+    announce,
+  )
 
   const actions: NotificationRowActions = {
     ...mutations,
@@ -208,6 +221,7 @@ export function NotificationPanel({ notificationFns, organizationId }: Props) {
       }
     >
       <NotificationPopoverContent
+        scope={scope}
         needsYou={{
           notifications: needsYou.notifications,
           isLoading: needsYou.isLoading,

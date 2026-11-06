@@ -506,7 +506,7 @@ or chat transcript.
    uploads them when the repository has the `SENTRY_AUTH_TOKEN` secret and
    the `SENTRY_ORG`/`SENTRY_PROJECT` variables: server bundles and the worker
    by debug id, browser chunks by release (no per-chunk snippet, which would
-   have cost first paint 16.8 KB). Read the `docker image group (web)` job log
+   have cost first paint 16.8 KB). Read the `image build (web)` job log
    for `sentry-cli` and `[sentry-vite-plugin] Error` lines; `skipping
 source-map upload` means the token is unset. Events from releases built
    before the upload worked stay unreadable.

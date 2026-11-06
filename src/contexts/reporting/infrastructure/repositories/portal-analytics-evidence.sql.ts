@@ -1,24 +1,10 @@
-// Metric context — the SQL behind Portal metric evidence.
-//
-// One statement answers, for every requested Portal and each metric family,
-// whether the projection is complete: source facts against consumer receipts
-// (are they all applied?), applied facts against the readings and corrections
-// they must have produced, and readings that fail the governed-reading
-// contract. A single Portal's Results view asks about one Portal; the Portals
-// overview asks about all of them in the same statement.
-//
-// Shape, and why. Each big table (`outbox_events`, `metric_readings`) is
-// scanned once per question, filtered to the requested Portals with a plain
-// `= ANY(array)` and aggregated by (Portal, family) with a HASH aggregate:
-// nothing here needs DISTINCT (an event type belongs to exactly one family and
-// a receipt is unique per event and consumer), so nothing forces a sort of every
-// reading. The three small aggregates are stacked with UNION ALL and folded by
-// one more GROUP BY. There is no join between them and no roster join: a
-// planner working from stale statistics turns those into nested loops that go
-// quadratic in the Portals asked about, which is how the Fleet projection went
-// wrong. Portals and families with nothing to report have no row; the caller
-// reads a missing row as zero (`foldEvidenceRows`), a verified "nothing to wait
-// for".
+// One statement checks source facts against receipts, effects against readings/
+// corrections, and invalid readings for every requested Portal and metric family.
+// Filter large tables with ANY and aggregate each question by Portal/family;
+// UNION ALL and GROUP BY combine the small results. Avoid roster/aggregate joins:
+// stale statistics can produce quadratic nested loops. Unique receipts and
+// single-family event types make DISTINCT unnecessary. Missing rows mean verified
+// zero evidence, folded by foldEvidenceRows.
 
 import { sql, type SQL } from 'drizzle-orm'
 import type { OrganizationId, PortalId, PropertyId } from '#/shared/domain/ids'

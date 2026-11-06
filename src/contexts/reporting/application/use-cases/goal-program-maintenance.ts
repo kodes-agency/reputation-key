@@ -1,11 +1,6 @@
-// Goal Program use cases — maintenance: activating scheduled Programs, opening
-// the monthly results that have come due, and reconciling and closing them.
-//
-// These commands run from the hourly maintenance job and the correction
-// consumer, not from a request. The service composes them (goal-programs.ts)
-// and re-exports the maintenance error so its importers stay where they were.
-// The one piece a request uses is `loadCaughtUpProgram`: the change commands
-// open a Program's due months with it before they read its head.
+// Hourly maintenance and correction delivery activate, open and reconcile months.
+// Request changes use loadCaughtUpProgram to open due months before reading the head.
+
 import { unclassifiedFailureCause } from './failure-cause'
 import type { GovernedGoalMetricResult } from './query-goal-metric'
 import {
@@ -27,6 +22,7 @@ import {
 import { effectiveMonthTarget } from '../goal-effective-month-target'
 import {
   dueMonthlyPeriods,
+  dueResultsForProgram,
   GoalProgramError,
   loadChangeableProgram,
   metricSubject,
@@ -58,7 +54,7 @@ export type GoalProgramMaintenanceStats = Readonly<{
   /**
    * What the failed operations died of, by content-free cause: a Goal error
    * code, `sqlstate_<code>` for a database refusal, else the error's class.
-   * Never a message or an identifier (BQC-7.3).
+   * Never a message or an identifier.
    */
   failureCauses: Readonly<Record<string, number>>
 }>
@@ -276,18 +272,7 @@ async function appendDueResults(
   now: Date,
 ): Promise<DueResultsOutcome> {
   if (bundle.program.status !== 'active') return { due: 0, opened: 0 }
-  const currentResults = bundle.results.filter(
-    (result) => result.programVersionId === bundle.version.id,
-  )
-  const latestPeriodEnd =
-    currentResults.length === 0
-      ? null
-      : currentResults.reduce(
-          (latest, result) => (result.periodEnd > latest ? result.periodEnd : latest),
-          currentResults[0]!.periodEnd,
-        )
-  const periods = dueMonthlyPeriods(bundle.version, latestPeriodEnd, now)
-  const nextResults = openResultsForPeriods(bundle, periods, deps.id, now)
+  const nextResults = dueResultsForProgram(bundle, deps.id, now)
   if (nextResults.length === 0) return { due: 0, opened: 0 }
   const opened = await deps.repository.appendResults({
     program: bundle.program,
@@ -386,10 +371,10 @@ type DueResultOutcome =
   | Readonly<{ kind: 'failed'; cause: string }>
 
 /**
- * 'closed' also counts as reconciled; the caller tallies both. A result the run
- * lost to another (already closed, so `not_found` for a result that is not due
- * any more, or its compare-and-set lost) was settled by the winner and is not a
- * failure. A result whose references are missing is a failure and names itself.
+ * 'closed' also counts as reconciled; the caller tallies both. A result no
+ * longer due, whose status or source changed, or whose closure fence is held
+ * is not a maintenance failure. A later pass retries unsettled months with
+ * fresh evidence. Missing references are a failure and name themselves.
  */
 async function reconcileDueResult(
   reconcile: () => Promise<Readonly<{ status: string }>>,
@@ -490,6 +475,14 @@ export async function reconcileResult(
   const updated = await deps.repository.updateResult({
     result: next,
     expectedStatus: result.status,
+    sourceHead: reading.sourceHead,
+    authorize: () =>
+      deps.policy.authorize({
+        actor: 'system',
+        organizationId: result.organizationId,
+        propertyId: result.propertyId,
+        action: 'goal.update',
+      }),
   })
   if (!updated) throw new GoalProgramError('revision_conflict')
   return updated

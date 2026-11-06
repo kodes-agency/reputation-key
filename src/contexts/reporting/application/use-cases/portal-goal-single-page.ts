@@ -1,25 +1,10 @@
-// Reporting — the page of a goal for one Portal, one Portal Group, or the
-// average private rating, on `$goalId` (ADR 0068, PLAN PG-21).
-//
-// One composed read, asked for `goal.create` like the Monthly portal goal's,
-// since whoever sees a portal goal's page is whoever may set one. It reads the
-// clock once, then the one Program asked for (the actor's visibility applied),
-// and says which page it has before reading anything else. A Property count
-// goal is the Monthly portal goal: it says so, and `$goalId` sends it to
-// `/goals/portals`, with nothing more read. A count goal for one Portal or one
-// Portal Group is shown as the Monthly portal goal is, from its own subject:
-// the Property's recommendation narrowed to it (`narrowedFor`) gives its usual,
-// its change sheet's offers and its Portals' go-lives, the governed read of
-// its own subject gives its months, and the Property's other goals say
-// whether its subject already holds the other measure (then no "Count scans
-// instead"). It has no Portals' rows, no quiet Portals and no other goals, and
-// no way to a next goal once stopped (that is "Add a portal goal"'s). The
-// average has no number to recommend, so no recommendation is read: its level,
-// while it is active this month's governed average or how many ratings it
-// still needs, and its own months and changes, in its Property's zone. A goal
-// for several subjects, made before goals had pages, has a plain page: whom it
-// counts, this month as its row on the Goals page says it, and Stop. It writes
-// nothing.
+// Authorize goal.create and apply Program visibility before reading page details
+// (ADR 0068). Property count goals redirect to /goals/portals without further reads.
+// Portal/group count goals use their own governed progress and narrowed offers;
+// an existing goal on the other measure prevents a measure switch. Average goals
+// read governed averages/sample floors without a recommendation. Several-subject
+// goals retain subject history, list progress and Stop. All shapes keep their months.
+
 import { goalMonthDays } from '../../domain/goal-pace'
 import { goalSubjectIdentity, type GoalSubject } from '../../domain/goal-subject'
 import { localDateOf } from '../../domain/local-days'
@@ -39,6 +24,7 @@ import {
 } from '../monthly-portal-goal-identity'
 import type { GoalProgramBundle } from '../ports/goal-program.repository'
 import { listProgressOf } from './goal-list-progress'
+import { dueResultsForProgram } from './goal-program-shared'
 import {
   GoalProgramError,
   type GoalActor,
@@ -199,7 +185,26 @@ async function subjectViewOf(
   }
 }
 
-/** A goal's status, its first day while it waits, and the day it was stopped. */
+/** Stop opens due months before ending; progress and change availability cannot say what it retains. */
+function retainedMonthOnStop(
+  bundle: GoalProgramBundle,
+  now: Date,
+): Readonly<{ key: string }> | null {
+  if (bundle.program.status === 'scheduled') return null
+  const months = [
+    ...bundle.results,
+    ...(bundle.program.status === 'active'
+      ? dueResultsForProgram(bundle, () => '', now)
+      : []),
+  ].filter(({ status }) => status === 'open' || status === 'reconciling')
+  const latest = months.reduce<(typeof months)[number] | null>(
+    (last, month) => (!last || month.periodEnd > last.periodEnd ? month : last),
+    null,
+  )
+  return latest ? { key: monthKeyOf(latest.periodStart, latest.propertyTimezone) } : null
+}
+
+/** A goal's status, its first day while it waits, and the months Stop retains. */
 function goalOfPage(bundle: GoalProgramBundle, now: Date, timezone: string) {
   const { program, version } = bundle
   return {
@@ -214,6 +219,7 @@ function goalOfPage(bundle: GoalProgramBundle, now: Date, timezone: string) {
       program.status === 'ended' && program.endedAt
         ? localDateOf(program.endedAt, timezone)
         : null,
+    countingMonth: retainedMonthOnStop(bundle, now),
     change: changeFactsOf(bundle, now, timezone),
   }
 }

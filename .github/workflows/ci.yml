@@ -28,760 +28,8 @@ permissions:
   security-events: write
 jobs:
   # ~5.3m measured: independent source and policy gates need no services.
-  static:
-    runs-on: ubuntu-latest
-    timeout-minutes: 20 # longest green run ~8 min
-
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          # Migration immutability compares the journal with the main merge base.
-          fetch-depth: 0
-
-      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
-        # version intentionally unset: package.json packageManager (pnpm@10.6.5) is the single source
-
-      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
-        with:
-          node-version-file: .nvmrc
-          cache: pnpm
-
-      - run: pnpm install --frozen-lockfile
-
-      # BQC-7.7: supply-chain gates — hard failures (no continue-on-error).
-      # Thresholds + exception policy: docs/operations/security-ci-policy.md
-      - name: Dependency vulnerability audit
-        run: pnpm check:dependency-audit
-
-      - name: License policy
-        run: pnpm check:licenses
-
-      - name: Action/image pin policy
-        run: pnpm check:action-pins
-
-      - name: Container image inventory and coverage policy
-        run: pnpm check:container-images
-
-      - name: Format check
-        run: pnpm format:check
-
-      - name: Typecheck
-        run: pnpm typecheck
-
-      - name: Lint
-        run: pnpm lint:ci
-
-  # Fast unit feedback is split by Vitest's file-balanced native shard. Each
-  # matrix row reports its own failing files while all four run concurrently.
-  test-unit:
-    name: test-unit (${{ matrix.shard }}/4)
-    runs-on: ubuntu-latest
-    timeout-minutes: 10 # longest green run ~3 min
-    strategy:
-      fail-fast: false
-      matrix:
-        shard: [1, 2, 3, 4]
-
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          fetch-depth: 0
-
-      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
-        # version intentionally unset: package.json packageManager (pnpm@10.6.5) is the single source
-
-      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
-        with:
-          node-version-file: .nvmrc
-          cache: pnpm
-
-      - run: pnpm install --frozen-lockfile
-
-      - name: Test unit shard ${{ matrix.shard }}/4
-        env:
-          NODE_ENV: test
-          DATABASE_URL: postgresql://test:test@localhost:5432/test
-          REDIS_URL: redis://localhost:6379
-          BETTER_AUTH_SECRET: test-secret-at-least-32-characters-long-for-ci
-          BETTER_AUTH_URL: http://localhost:3000
-          RESEND_API_KEY: re_ci_test_key_placeholder
-          GOOGLE_CLIENT_ID: ci-placeholder-client-id
-          GOOGLE_CLIENT_SECRET: ci-placeholder-client-secret
-          ENCRYPTION_KEY: aabbccddaabbccddaabbccddaabbccddaabbccddaabbccddaabbccddaabbccdd
-          OAUTH_STATE_SECRET: aabbccddaabbccddaabbccddaabbccdd
-        run: pnpm exec vitest run --project=unit --shard=${{ matrix.shard }}/4
-
-  # ~4.6m measured test work plus migration gates: integration owns the shared
-  # scratch database; vitest.config.ts explicitly marks unit DB/Redis-free.
-  test-integration:
-    runs-on: ubuntu-latest
-    timeout-minutes: 25 # longest green run ~10 min
-
-    services:
-      postgres:
-        # BQC-7.7: digest-pinned (multi-arch index) — tag comment for humans.
-        image: postgres:16@sha256:33f923b05f64ca54ac4401c01126a6b92afe839a0aa0a52bc5aeb5cc958e5f20 # 16.14
-        env:
-          POSTGRES_USER: test
-          POSTGRES_PASSWORD: test
-          POSTGRES_DB: test
-        ports:
-          - 5432:5432
-        options: >-
-          --health-cmd pg_isready
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
-      redis:
-        # BQC-7.7: digest-pinned (multi-arch index) — tag comment for humans.
-        image: redis:7@sha256:595cc6f2bb3af6e03347b90deb6123c6aa2c81dea05ce08128de8a174b6ac67b # 7.4.10
-        ports:
-          - 6379:6379
-        options: >-
-          --health-cmd "redis-cli ping"
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
-
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          fetch-depth: 0
-
-      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
-        # version intentionally unset: package.json packageManager (pnpm@10.6.5) is the single source
-
-      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
-        with:
-          node-version-file: .nvmrc
-          cache: pnpm
-
-      - run: pnpm install --frozen-lockfile
-
-      - name: Run migrations
-        env:
-          NODE_ENV: test
-          DATABASE_URL: postgresql://test:test@localhost:5432/test
-          BETTER_AUTH_SECRET: test-secret-at-least-32-characters-long-for-ci
-          BETTER_AUTH_URL: http://localhost:3000
-          GOOGLE_CLIENT_ID: ci-placeholder-client-id
-          GOOGLE_CLIENT_SECRET: ci-placeholder-client-secret
-          ENCRYPTION_KEY: aabbccddaabbccddaabbccddaabbccddaabbccddaabbccddaabbccddaabbccdd
-          OAUTH_STATE_SECRET: aabbccddaabbccddaabbccddaabbccdd
-        # BQC-5.4: deploy apply order — Better Auth, then the Drizzle
-        # journal — so the tested DB matches deploy state.
-        run: |
-          pnpm auth:migrate
-          pnpm db:migrate
-
-      # BQC-7.1: predeploy migration parity — the deploy runner
-      # (scripts/migrate-deploy.ts, the Railway preDeployCommand) must
-      # converge instantly against the DB the manual sequence just migrated.
-      # Exit 0 = the deploy path and the documented manual path reach the
-      # same end state; guards drift between the two on every PR.
-      - name: Predeploy migration parity
-        env:
-          NODE_ENV: test
-          DEPLOY_MIGRATE: '1'
-          DATABASE_URL: postgresql://test:test@localhost:5432/test
-          BETTER_AUTH_SECRET: test-secret-at-least-32-characters-long-for-ci
-          BETTER_AUTH_URL: http://localhost:3000
-          GOOGLE_CLIENT_ID: ci-placeholder-client-id
-          GOOGLE_CLIENT_SECRET: ci-placeholder-client-secret
-          ENCRYPTION_KEY: aabbccddaabbccddaabbccddaabbccddaabbccddaabbccddaabbccddaabbccdd
-          OAUTH_STATE_SECRET: aabbccddaabbccddaabbccddaabbccdd
-          # One-run sealed migrator key. CI migrates an empty database, so the
-          # provider-subject inventory has no seeded row and the initializer
-          # fails closed (provider_subject_key_initialization_invalid) unless a
-          # migrator key is injected exactly once — the same contract production
-          # follows, with the key removed before normal services start.
-          REVIEW_PROVIDER_SUBJECT_HMAC_MIGRATOR_KEYS: 'v1:cdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcd'
-        run: pnpm db:migrate-deploy
-
-      # BQC-7.7: migration artifact consistency as a NAMED gate — the semantic
-      # model↔catalog comparator (src/shared/db/schema-drift.ts) against the DB
-      # the migration steps just brought to deploy state.
-      - name: Schema drift (model ↔ migrated catalog)
-        env:
-          NODE_ENV: test
-          DATABASE_URL: postgresql://test:test@localhost:5432/test
-          BETTER_AUTH_SECRET: test-secret-at-least-32-characters-long-for-ci
-          BETTER_AUTH_URL: http://localhost:3000
-          GOOGLE_CLIENT_ID: ci-placeholder-client-id
-          GOOGLE_CLIENT_SECRET: ci-placeholder-client-secret
-          ENCRYPTION_KEY: aabbccddaabbccddaabbccddaabbccddaabbccddaabbccddaabbccddaabbccdd
-          OAUTH_STATE_SECRET: aabbccddaabbccddaabbccddaabbccdd
-        run: pnpm check:schema-drift
-
-      # Pull requests and main run the identical test pair: the unit project
-      # in the four test-unit shards above, the integration project here.
-      # Neither runs under coverage and no coverage floor is enforced: the
-      # BQC-6.9 `check:coverage` ratchet was deleted on 2026-09-05.
-      - name: Test
-        env:
-          NODE_ENV: test
-          DATABASE_URL: postgresql://test:test@localhost:5432/test
-          REDIS_URL: redis://localhost:6379
-          # This job has the Redis service above, so the Redis-backed suites
-          # must run. Without this an unanswered probe makes them return before
-          # their first assertion and report green
-          # (src/shared/testing/redis-test-lease.ts). Only a job with a Redis
-          # service may set it; redis-test-lease.test.ts pins both halves.
-          REQUIRE_TEST_REDIS: '1'
-          BETTER_AUTH_SECRET: test-secret-at-least-32-characters-long-for-ci
-          BETTER_AUTH_URL: http://localhost:3000
-          RESEND_API_KEY: re_ci_test_key_placeholder
-          GOOGLE_CLIENT_ID: ci-placeholder-client-id
-          GOOGLE_CLIENT_SECRET: ci-placeholder-client-secret
-          ENCRYPTION_KEY: aabbccddaabbccddaabbccddaabbccddaabbccddaabbccddaabbccddaabbccdd
-          OAUTH_STATE_SECRET: aabbccddaabbccddaabbccddaabbccdd
-        run: pnpm test:integration
-
-  # Build output and every consumer/boundary stay in one chain.
-  # The booted security-header probe needs Redis, but no PostgreSQL.
-  artifacts:
-    runs-on: ubuntu-latest
-    timeout-minutes: 10 # longest green run ~2 min
-
-    services:
-      redis:
-        # BQC-7.7: digest-pinned (multi-arch index) — tag comment for humans.
-        image: redis:7@sha256:595cc6f2bb3af6e03347b90deb6123c6aa2c81dea05ce08128de8a174b6ac67b # 7.4.10
-        ports:
-          - 6379:6379
-        options: >-
-          --health-cmd "redis-cli ping"
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
-
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-
-      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
-        # version intentionally unset: package.json packageManager (pnpm@10.6.5) is the single source
-
-      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
-        with:
-          node-version-file: .nvmrc
-          cache: pnpm
-
-      - run: pnpm install --frozen-lockfile
-
-      - name: Web build
-        run: pnpm build
-        env:
-          NODE_ENV: production
-          DATABASE_URL: postgresql://test:test@localhost:5432/test
-          BETTER_AUTH_SECRET: test-secret-at-least-32-characters-long-for-ci
-          BETTER_AUTH_URL: http://localhost:3000
-          GOOGLE_CLIENT_ID: ci-placeholder-client-id
-          GOOGLE_CLIENT_SECRET: ci-placeholder-client-secret
-          ENCRYPTION_KEY: aabbccddaabbccddaabbccddaabbccddaabbccddaabbccddaabbccddaabbccdd
-          OAUTH_STATE_SECRET: aabbccddaabbccddaabbccddaabbccdd
-
-      # BQC-7.6 / STD-P1-07: booted-artifact security gate — boots the built
-      # server and asserts the full B0.7 header set on 200 AND 404 responses
-      # (plus x-request-id and the 413 body limit). The script generates its
-      # own per-run secrets; no placeholder env is passed to the boot.
-      - name: Security headers (booted artifact)
-        run: pnpm check:security-headers
-
-      # Built-artifact gate for the pinned reply-language runtime: cld3-asm must
-      # stay external and still load + detect from inside .output/server. When
-      # it gets bundled, its emscripten loader throws `runtimeModule is not a
-      # function` and every reply suggestion 500s — invisible to the unit suite,
-      # which injects a fake detector.
-      - name: Reply-language runtime (built artifact)
-        run: pnpm check:language-verifier
-
-      # BQC-6.8: client bundle budgets on the production output (main entry /
-      # initial payload / lazy chunks — see scripts/check-bundle-budget.mjs).
-      - name: Bundle budget
-        run: pnpm check:bundles
-
-      # The worker build is part of `pnpm build`; the single tsup invocation
-      # emits the web preload and worker/migration bundles.
-
-      # The forbidden-source rules read source maps and nothing else, so the
-      # two places that must carry maps are named: without them a build that
-      # stopped emitting maps would pass with nothing inspected. This step is
-      # the only run that reads the client maps: the image build's may already
-      # be deleted by the Sentry upload.
-      - name: Production artifact boundary
-        run: >-
-          pnpm check:production-artifacts
-          --require-source-maps .output/client-source-maps
-          --require-source-maps dist-worker
-          .output
-          dist-worker
-
-      # BQC-7.1: artifact digest — deterministic tarball of the deploy
-      # artifacts (sorted names, zeroed mtimes/owners, gzip -n), digest in
-      # the step output and job summary as build evidence.
-      - name: Artifact digest
-        run: |
-          tar --sort=name --mtime=@0 --owner=0 --group=0 --numeric-owner -cf - \
-            .output dist-worker \
-            | gzip -n > /tmp/artifact.tgz
-          DIGEST=$(shasum -a 256 /tmp/artifact.tgz | cut -d' ' -f1)
-          echo "sha256:$DIGEST  (all deploy artifacts)"
-          {
-            echo "### Build artifact digest"
-            echo "\`sha256:$DIGEST\` — all deploy artifacts (deterministic tar)"
-          } >> "$GITHUB_STEP_SUMMARY"
-
-      # BQC-7.1: source SBOM (SPDX JSON) retained as a build artifact.
-      - name: Generate SBOM
-        uses: anchore/sbom-action@66cbf4bc1f1c0d2edc94016e65bc221b6bb0ad6c # v0.24.3
-        with:
-          format: spdx-json
-          output-file: sbom.spdx.json
-
-      - name: Upload SBOM
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
-        with:
-          name: sbom-spdx
-          path: sbom.spdx.json
-          retention-days: 30
-
-  # Aggregate-only seam (no measured workload): retain the required status
-  # context without allowing a failed, cancelled, or skipped dependency to pass.
-  check:
-    needs: [static, test-unit, test-integration, artifacts]
-    if: always()
-    runs-on: ubuntu-latest
-    timeout-minutes: 5 # longest green run ~1 min
-    steps:
-      - name: Require every check shard to succeed
-        if: >-
-          contains(needs.*.result, 'failure') ||
-          contains(needs.*.result, 'cancelled') ||
-          contains(needs.*.result, 'skipped')
-        run: exit 1
-
-  # BQC-7.1: the production containers are the single deploy build path
-  # (nixpacks removed) — prove every classified image builds reproducibly on
-  # every PR and satisfies its explicit runtime contract.
-  #
-  # Two bounded groups keep the two heaviest web and worker builds concurrent.
-  # Every descriptor still owns its build, smoke, SBOM, and Grype evidence.
-  docker-images:
-    name: docker image group (${{ matrix.group }})
-    runs-on: ubuntu-latest
-    timeout-minutes: 25 # longest green run ~8 min
-    permissions:
-      contents: read
-      packages: write
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - group: web
-            images: >-
-              [{"name":"web","dockerfile":"Dockerfile","tag":"repkey-web:ci","publish":true},{"name":"google-provider-redis","dockerfile":"Dockerfile.google-provider-redis","tag":"repkey-google-provider-redis:ci","publish":true}]
-          - group: worker-tools
-            images: >-
-              [{"name":"worker","dockerfile":"Dockerfile","tag":"repkey-worker:ci","publish":true},{"name":"provider-sandbox","dockerfile":"Dockerfile.sandbox","tag":"repkey-provider-sandbox:ci","publish":false}]
-
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
-
-      - name: Build grouped images
-        env:
-          IMAGE_GROUP_JSON: ${{ matrix.images }}
-          SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
-          SENTRY_ORG: ${{ vars.SENTRY_ORG }}
-          SENTRY_PROJECT: ${{ vars.SENTRY_PROJECT }}
-        run: |
-          set -euo pipefail
-          jq -e 'type == "array" and length > 0 and length <= 4 and all(.[]; (.name | type == "string") and (.dockerfile | type == "string") and (.tag | type == "string") and (.publish | type == "boolean"))' <<<"$IMAGE_GROUP_JSON" >/dev/null
-          while IFS= read -r image; do
-            name=$(jq -r '.name' <<<"$image")
-            dockerfile=$(jq -r '.dockerfile' <<<"$image")
-            tag=$(jq -r '.tag' <<<"$image")
-            build_flags=(--build-arg "SOURCE_REVISION=$GITHUB_SHA")
-            if [[ "$name" == "web" ]]; then
-              # Org and project NAME the release and are repository variables,
-              # not secrets, so they stay build arguments. The upload TOKEN is a
-              # BuildKit secret: a build argument is recorded in image history,
-              # build provenance and the exported GHA layer cache, which would
-              # publish it to anyone who can pull or inspect the image.
-              # `check:container-images` fails the build if a secret-shaped
-              # value is passed as a build argument again.
-              build_flags+=(
-                --build-arg "SENTRY_ORG=$SENTRY_ORG"
-                --build-arg "SENTRY_PROJECT=$SENTRY_PROJECT"
-              )
-              # Absent on forks and on any run without the repository secret;
-              # the Dockerfile then skips the source-map upload instead of
-              # failing, so the image still builds.
-              if [[ -n "${SENTRY_AUTH_TOKEN:-}" ]]; then
-                build_flags+=(--secret "id=sentry_auth_token,env=SENTRY_AUTH_TOKEN")
-              fi
-            fi
-            docker buildx build \
-              --load \
-              --cache-from "type=gha,scope=ci-image-${name}" \
-              --cache-to "type=gha,mode=max,scope=ci-image-${name}" \
-              "${build_flags[@]}" \
-              -f "$dockerfile" \
-              -t "$tag" \
-              .
-          done < <(jq -c '.[]' <<<"$IMAGE_GROUP_JSON")
-
-      - name: Smoke images (contract, non-root, prod-deps purity)
-        env:
-          IMAGE_GROUP_JSON: ${{ matrix.images }}
-        run: |
-          set -euo pipefail
-          jq -e 'type == "array" and length > 0 and length <= 4' <<<"$IMAGE_GROUP_JSON" >/dev/null
-          while IFS= read -r image; do
-            IMAGE_NAME=$(jq -r '.name' <<<"$image")
-            IMAGE_TAG=$(jq -r '.tag' <<<"$image")
-          case "$IMAGE_NAME" in
-            web)
-              docker run --rm repkey-web:ci node -e "process.exit(0)"
-              test "$(docker image inspect repkey-web:ci --format '{{.Config.User}}')" = "node"
-              docker run --rm --entrypoint test repkey-web:ci -e /app/node_modules/pg
-              docker run --rm --entrypoint node repkey-web:ci -e "const p=require('/app/package.json');process.exit('scripts' in p?1:0)"
-              for sentinel in vitest typescript eslint prettier; do
-                if docker run --rm --entrypoint test repkey-web:ci -e "/app/node_modules/$sentinel"; then
-                  echo "::error::devDependency $sentinel leaked into repkey-web:ci prod node_modules"
-                  exit 1
-                fi
-              done
-              test "$(docker image inspect repkey-web:ci --format '{{index .Config.Labels "com.repkey.google-import-contract"}}')" = "final"
-              test "$(docker image inspect repkey-web:ci --format '{{index .Config.Labels "com.repkey.rollout-scope"}}')" = "serving-final"
-              docker run --rm --entrypoint sh repkey-web:ci -c \
-                "! find /app/.output /app/dist-worker -type f \( -name '*seed-e2e-user*' -o -name '*provision-google-admission-role*' \) -print | grep -q . && ! grep -R -l 'password123' /app/.output /app/dist-worker 2>/dev/null"
-              ;;
-            worker)
-              docker run --rm repkey-worker:ci node -e "process.exit(0)"
-              # web and worker are ONE image now; the image CMD is the web
-              # server, so prove the worker start command's entrypoints are
-              # present (railway.worker.json `startCommand` runs them).
-              docker run --rm --entrypoint node repkey-worker:ci -e \
-                "require.resolve('/app/dist-worker/index.js');require.resolve('/app/dist-worker/worker-observability-preload.js')"
-              test "$(docker image inspect repkey-worker:ci --format '{{.Config.User}}')" = "node"
-              docker run --rm --entrypoint test repkey-worker:ci -e /app/node_modules/pg
-              docker run --rm --entrypoint node repkey-worker:ci -e "const p=require('/app/package.json');process.exit('scripts' in p?1:0)"
-              for sentinel in vitest typescript eslint prettier; do
-                if docker run --rm --entrypoint test repkey-worker:ci -e "/app/node_modules/$sentinel"; then
-                  echo "::error::devDependency $sentinel leaked into repkey-worker:ci prod node_modules"
-                  exit 1
-                fi
-              done
-              test "$(docker image inspect repkey-worker:ci --format '{{index .Config.Labels "com.repkey.google-import-contract"}}')" = "final"
-              test "$(docker image inspect repkey-worker:ci --format '{{index .Config.Labels "com.repkey.rollout-scope"}}')" = "serving-final"
-              docker run --rm --entrypoint sh repkey-worker:ci -c \
-                "! find /app/dist-worker -type f \( -name '*seed-e2e-user*' -o -name '*provision-google-admission-role*' \) -print | grep -q . && ! grep -R -l 'password123' /app/dist-worker 2>/dev/null"
-              ;;
-            google-provider-redis)
-              sh scripts/ci/smoke-provider-redis-image.sh repkey-google-provider-redis:ci
-              ;;
-            provider-sandbox)
-              docker run --rm --entrypoint sh repkey-provider-sandbox:ci -c 'set -eu; node provider-sandbox.mjs --kind=gbp --port=3000 >/tmp/provider-sandbox.log 2>&1 & child=$!; trap '\''kill "$child" 2>/dev/null || true; wait "$child" 2>/dev/null || true'\'' EXIT; attempt=0; until node -e "fetch('\''http://127.0.0.1:3000/__control/health'\'').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"; do attempt=$((attempt+1)); if [ "$attempt" -ge 30 ]; then cat /tmp/provider-sandbox.log; exit 1; fi; sleep 0.2; done'
-              test "$(docker image inspect repkey-provider-sandbox:ci --format '{{.Config.User}}')" = "node"
-              test "$(docker image inspect repkey-provider-sandbox:ci --format '{{index .Config.Labels "org.opencontainers.image.revision"}}')" = "$GITHUB_SHA"
-              docker run --rm --entrypoint test repkey-provider-sandbox:ci ! -e /app/node_modules
-              docker run --rm --entrypoint test repkey-provider-sandbox:ci ! -e /usr/local/bin/npm
-              ;;
-            *)
-              echo "::error::No smoke contract for matrix image $IMAGE_NAME"
-              exit 1
-              ;;
-          esac
-          {
-            echo "### Governed image digest — $IMAGE_NAME"
-            echo "\`$IMAGE_TAG@$(docker image inspect "$IMAGE_TAG" --format '{{.Id}}')\`"
-          } >> "$GITHUB_STEP_SUMMARY"
-          done < <(jq -c '.[]' <<<"$IMAGE_GROUP_JSON")
-
-      # BQC-7.7: every built image gets an SPDX JSON inventory. Each bounded
-      # group stages its files under one unique artifact; the `docker`
-      # aggregate job still proves and publishes the exact four-file set.
-      - name: Install pinned Syft
-        id: syft
-        uses: anchore/sbom-action/download-syft@66cbf4bc1f1c0d2edc94016e65bc221b6bb0ad6c # v0.24.3
-        with:
-          syft-version: v1.42.3
-
-      - name: Generate grouped image SBOMs
-        env:
-          IMAGE_GROUP_JSON: ${{ matrix.images }}
-          SYFT_CMD: ${{ steps.syft.outputs.cmd }}
-        run: |
-          set -euo pipefail
-          while IFS= read -r image; do
-            name=$(jq -r '.name' <<<"$image")
-            tag=$(jq -r '.tag' <<<"$image")
-            "$SYFT_CMD" scan "$tag" -o "spdx-json=sbom-${name}.spdx.json"
-          done < <(jq -c '.[]' <<<"$IMAGE_GROUP_JSON")
-
-      - name: Stage grouped image SBOMs
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
-        with:
-          name: sbom-image-group-${{ matrix.group }}-spdx
-          path: sbom-*.spdx.json
-          if-no-files-found: error
-          retention-days: 1
-
-      # BQC-7.7: hard fail on HIGH+ findings. Scanning each generated SBOM
-      # avoids re-cataloguing the image, and the explicit config keeps every
-      # reviewed exception in the fail-closed gate.
-      #
-      # Own the database cache and rotate its exact key once per UTC day; no
-      # restore prefix may fall back to a stale prior-day DB.
-      - name: Resolve Grype DB cache date
-        id: grype-db-date
-        run: echo "utc=$(date -u +%F)" >> "$GITHUB_OUTPUT"
-
-      - name: Restore daily Grype vulnerability DB
-        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
-        with:
-          path: ~/.cache/grype/db
-          key: grype-db-v0.116.1-${{ steps.grype-db-date.outputs.utc }}
-
-      - name: Install pinned Grype
-        id: grype
-        uses: anchore/scan-action/download-grype@27805bf3b4e84b4a5c980df22ed233c00390a439 # v7.4.2
-        with:
-          grype-version: v0.116.1
-
-      # The gate prints WHAT it found, not just that it found something.
-      #
-      # This step used to emit SARIF to a file that nothing uploaded and nothing
-      # read, so a failure said only `discovered vulnerabilities at or above the
-      # severity threshold` — no package, no CVE, no fixed-in version. On
-      # 2026-09-06 that cost a day: the gate went red on a vulnerability-database
-      # rollover, and the finding could not be named from CI at all, so the
-      # documented response (bump the base, or write an exception with an owner
-      # and a reason) could not be chosen on evidence. grype takes repeated `-o`,
-      # so the table costs one line and the SARIF is retained as an artifact for
-      # the runs where the table is not enough.
-      - name: Vulnerability scan grouped images (grype)
-        env:
-          GRYPE_CMD: ${{ steps.grype.outputs.cmd }}
-          IMAGE_GROUP_JSON: ${{ matrix.images }}
-        run: |
-          set -euo pipefail
-          while IFS= read -r image; do
-            name=$(jq -r '.name' <<<"$image")
-            "$GRYPE_CMD" \
-              -v \
-              -o "sarif=grype-${name}.sarif" \
-              -o table \
-              --fail-on high \
-              -c .grype.yaml \
-              "sbom:sbom-${name}.spdx.json"
-          done < <(jq -c '.[]' <<<"$IMAGE_GROUP_JSON")
-
-      - name: Upload vulnerability scan reports
-        if: always()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
-        with:
-          name: grype-scan-${{ matrix.group }}
-          path: grype-*.sarif
-          if-no-files-found: warn
-
-      # Each group pushes its scanned bytes under a unique run/attempt staging
-      # tag. The source-SHA tags are created only by the aggregate after both
-      # groups pass, preventing a failed row from stranding a partial set.
-      - name: Authenticate production image stager
-        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-        env:
-          GHCR_TOKEN: ${{ github.token }}
-        run: echo "$GHCR_TOKEN" | docker login ghcr.io --username "$GITHUB_ACTOR" --password-stdin
-
-      - name: Stage scanned production images
-        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-        env:
-          IMAGE_GROUP_JSON: ${{ matrix.images }}
-        run: |
-          set -euo pipefail
-          mkdir -p staged-image-digests
-          owner=$(tr '[:upper:]' '[:lower:]' <<<"$GITHUB_REPOSITORY_OWNER")
-          while IFS= read -r image; do
-            [[ "$(jq -r '.publish' <<<"$image")" == "true" ]] || continue
-            IMAGE_NAME=$(jq -r '.name' <<<"$image")
-            IMAGE_TAG=$(jq -r '.tag' <<<"$image")
-            repository="ghcr.io/${owner}/repkey-${IMAGE_NAME}"
-            staged_reference="${repository}:ci-run-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
-            if docker buildx imagetools inspect "$staged_reference" >/dev/null 2>&1; then
-              echo "::error::run-scoped staging tag already exists: $staged_reference"
-              exit 1
-            fi
-            test "$(docker image inspect "$IMAGE_TAG" --format '{{index .Config.Labels "org.opencontainers.image.revision"}}')" = "$GITHUB_SHA"
-            docker tag "$IMAGE_TAG" "$staged_reference"
-            docker push "$staged_reference"
-            digest=$(docker buildx imagetools inspect "$staged_reference" --format '{{json .Manifest.Digest}}' | tr -d '"')
-            [[ "$digest" =~ ^sha256:[0-9a-f]{64}$ ]]
-            jq -S -n \
-              --arg image "$IMAGE_NAME" \
-              --arg repository "$repository" \
-              --arg stagedReference "$staged_reference" \
-              --arg digest "$digest" \
-              --arg sourceRevision "$GITHUB_SHA" \
-              '{image:$image,repository:$repository,stagedReference:$stagedReference,digest:$digest,sourceRevision:$sourceRevision}' \
-              > "staged-image-digests/${IMAGE_NAME}.json"
-          done < <(jq -c '.[]' <<<"$IMAGE_GROUP_JSON")
-
-      - name: Stage scanned image descriptors
-        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
-        with:
-          name: ci-image-digests-${{ matrix.group }}-${{ github.sha }}
-          path: staged-image-digests/*.json
-          if-no-files-found: error
-          retention-days: 90
-
-  # Keep the protected `docker` context stable while two measured image groups
-  # fan out above. The final artifacts are assembled here because upload-artifact
-  # v4+ forbids concurrent jobs mutating one shared artifact.
-  docker:
-    needs: [docker-images]
-    if: always()
-    runs-on: ubuntu-latest
-    timeout-minutes: 10 # longest green run ~1 min
-    permissions:
-      contents: read
-      packages: write
-    steps:
-      - name: Require every image matrix entry to succeed
-        if: needs.docker-images.result != 'success'
-        run: exit 1
-
-      - name: Download staged image SBOMs
-        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
-        with:
-          pattern: sbom-image-group-*-spdx
-          path: image-sboms
-          merge-multiple: true
-
-      - name: Require all four image SBOMs
-        run: test "$(find image-sboms -maxdepth 1 -type f -name 'sbom-*.spdx.json' | wc -l)" -eq 4
-
-      - name: Upload image SBOMs
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
-        with:
-          name: sbom-images-spdx
-          path: image-sboms/sbom-*.spdx.json
-          if-no-files-found: error
-          retention-days: 30
-
-      - name: Download staged production image descriptors
-        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
-        with:
-          pattern: ci-image-digests-*-${{ github.sha }}
-          path: staged-image-digests
-          merge-multiple: true
-
-      - name: Validate complete staged production image set
-        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-        run: |
-          set -euo pipefail
-          test "$(find staged-image-digests -maxdepth 1 -type f -name '*.json' | wc -l)" -eq 3
-          jq -sS \
-            --arg revision "$GITHUB_SHA" \
-            --arg runId "$GITHUB_RUN_ID" \
-            --arg runAttempt "$GITHUB_RUN_ATTEMPT" \
-            'sort_by(.image) as $entries
-            | ["google-provider-redis","web","worker"] as $expected
-            | ($entries | map(.image)) as $observed
-            | if $observed != $expected then error("staged image set is incomplete or unexpected") else . end
-            | if any($entries[];
-                .sourceRevision != $revision
-                or (.digest | test("^sha256:[0-9a-f]{64}$") | not)
-                or .repository != ("ghcr.io/kodes-agency/repkey-" + .image)
-                or .stagedReference != (.repository + ":ci-run-" + $runId + "-" + $runAttempt)
-              )
-              then error("staged image repository, digest, source revision, or run reference is invalid")
-              else $entries
-              end' \
-            staged-image-digests/*.json > validated-image-digests.json
-
-      - name: Authenticate production image promoter
-        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-        env:
-          GHCR_TOKEN: ${{ github.token }}
-        run: echo "$GHCR_TOKEN" | docker login ghcr.io --username "$GITHUB_ACTOR" --password-stdin
-
-      - name: Promote complete production image set
-        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-        run: |
-          set -euo pipefail
-          # Preflight every staged digest and every existing immutable tag
-          # before creating any source-SHA tag.
-          while IFS= read -r image; do
-            repository=$(jq -r '.repository' <<<"$image")
-            staged_reference=$(jq -r '.stagedReference' <<<"$image")
-            expected_digest=$(jq -r '.digest' <<<"$image")
-            staged_digest=$(docker buildx imagetools inspect "$staged_reference" --format '{{json .Manifest.Digest}}' | tr -d '"')
-            test "$staged_digest" = "$expected_digest"
-            final_reference="${repository}:${GITHUB_SHA}"
-            if docker buildx imagetools inspect "$final_reference" >/dev/null 2>&1; then
-              final_digest=$(docker buildx imagetools inspect "$final_reference" --format '{{json .Manifest.Digest}}' | tr -d '"')
-              if [[ "$final_digest" != "$expected_digest" ]]; then
-                echo "::error::immutable image tag has a conflicting digest: $final_reference"
-                exit 1
-              fi
-            fi
-          done < <(jq -c '.[]' validated-image-digests.json)
-
-          while IFS= read -r image; do
-            repository=$(jq -r '.repository' <<<"$image")
-            expected_digest=$(jq -r '.digest' <<<"$image")
-            final_reference="${repository}:${GITHUB_SHA}"
-            if ! docker buildx imagetools inspect "$final_reference" >/dev/null 2>&1; then
-              docker buildx imagetools create \
-                --prefer-index=false \
-                --tag "$final_reference" \
-                "${repository}@${expected_digest}"
-            fi
-          done < <(jq -c '.[]' validated-image-digests.json)
-
-          # The release map is written only after all three final tags resolve
-          # to the staged digests.
-          while IFS= read -r image; do
-            repository=$(jq -r '.repository' <<<"$image")
-            expected_digest=$(jq -r '.digest' <<<"$image")
-            final_reference="${repository}:${GITHUB_SHA}"
-            final_digest=$(docker buildx imagetools inspect "$final_reference" --format '{{json .Manifest.Digest}}' | tr -d '"')
-            test "$final_digest" = "$expected_digest"
-          done < <(jq -c '.[]' validated-image-digests.json)
-
-          jq -S \
-            --arg revision "$GITHUB_SHA" \
-            --arg repository "$GITHUB_REPOSITORY" \
-            '{
-              version:"repkey-ci-image-digest-map-1",
-              sourceRevision:$revision,
-              source:{
-                repository:$repository,
-                ref:"refs/heads/main",
-                workflow:".github/workflows/ci.yml",
-                runId:env.GITHUB_RUN_ID,
-                runAttempt:(env.GITHUB_RUN_ATTEMPT | tonumber)
-              },
-              images:(map({key:.image,value:{repository:.repository,digest:.digest,sourceRevision:.sourceRevision}}) | from_entries)
-            }' \
-            validated-image-digests.json > ci-image-digest-map.json
-
-      - name: Upload production image digest map
-        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
-        with:
-          name: ci-image-digest-map-${{ github.sha }}
-          path: ci-image-digest-map.json
-          if-no-files-found: error
-          retention-days: 90
-
   # BQC-7.7: secret scanning (gitleaks, default rules plus the allowlists in
-  # .gitleaks.toml). Separate job: runs in parallel with check (no pnpm install
+  # .gitleaks.toml). Separate job: runs in parallel with ci (no pnpm install
   # needed) and its failure is a distinct required check. It scans only the
   # commits the event adds (scripts/ci/secret-scan-range.sh): a finding in old
   # history cannot be rewritten away, so scanning all of it here would keep
@@ -842,7 +90,7 @@ jobs:
         if: steps.pw-cache.outputs.cache-hit != 'true'
         timeout-minutes: 10
         run: pnpm exec playwright install chromium
-      # Bounded, cached and self-naming: see the e2e job's steps of the same names.
+      # Bounded, cached and self-naming: see the browser job's steps of the same names.
       - name: Week of the Ubuntu package cache
         id: apt-week
         run: echo "week=$(date -u +%G-W%V)" >> "$GITHUB_OUTPUT"
@@ -878,228 +126,6 @@ jobs:
           --reporter=default
           --reporter=github-actions
           --reporter=./scripts/ci/storybook-stall-guard.ts
-
-  # Sharded because e2e WAS the entire CI critical path: 9m05s of a 9m05s wall,
-  # 283s of it the `critical` project at one worker and 148s booting the Compose
-  # stack. Measured per file from the uploaded Playwright JSON, not estimated.
-  #
-  # WHY SHARDS AND NOT MORE WORKERS. The `critical` project pins `workers: 1`
-  # because its journeys toggle a shared kill switch and restore it, so a second
-  # browser against the same stack observes the bounded window and fails
-  # (playwright.config.ts). Every shard below boots its OWN Compose stack and
-  # seeds it from empty, so that constraint holds inside each shard while the
-  # shards run concurrently. Raising `workers` would have broken it; sharding
-  # does not, and that was checked first rather than last.
-  #
-  # PROVEN BEFORE LANDING. Each shard was run locally against a freshly reseeded
-  # stack and passed alone: 23 / 21 / 12 / 17 tests. Shards are file-atomic by
-  # construction — see the `fullyParallel: false` note in playwright.config.ts.
-  #
-  # COST. Four Compose stacks instead of one: roughly 4x the runner minutes for
-  # this job, bought to remove ~4 minutes of wall from every push. Stack boot
-  # (148s) is now the floor and the next thing worth attacking.
-  e2e-shard:
-    name: e2e shard (${{ matrix.shard }}/4)
-    runs-on: ubuntu-latest
-    # BQR-5.1: critical Playwright project is a hard gate (auth + properties shell).
-    # BQC-6.7: the full suite is a hard gate too — deterministic and green
-    # (fake mail outbox, hydration-safe specs, F-PEOPLE fix); required for
-    # release-candidate promotion.
-    timeout-minutes: 25
-    strategy:
-      # Every shard reports its own failures; one red shard must not hide the
-      # others, exactly as test-unit does.
-      fail-fast: false
-      matrix:
-        shard: [1, 2, 3, 4]
-
-    env:
-      CI: '1'
-      E2E_BASE_URL: http://127.0.0.1:3000
-      E2E_LOCKED_BASE_URL: http://127.0.0.1:3001
-
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
-        # version intentionally unset: package.json packageManager (pnpm@10.6.5) is the single source
-      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
-        with:
-          node-version-file: .nvmrc
-          cache: pnpm
-      - run: pnpm install --frozen-lockfile
-      # The release browser matrix is cached on the resolved Playwright version;
-      # a dependency bump therefore replaces Chromium, Firefox, and WebKit as
-      # one coherent test runtime.
-      - name: Resolve Playwright version
-        id: pw
-        run: echo "version=$(node -p "require('@playwright/test/package.json').version")" >> "$GITHUB_OUTPUT"
-      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
-        id: pw-cache
-        with:
-          path: ~/.cache/ms-playwright
-          key: playwright-${{ runner.os }}-${{ steps.pw.outputs.version }}-chromium-firefox-webkit
-      # The cache key names the BROWSER SET, not just the Playwright version.
-      # Three jobs share ~/.cache/ms-playwright: two need chromium alone and
-      # this one also needs firefox and webkit for the compatibility gate. On
-      # a shared key whichever job populated the cache first won, so a hit
-      # here ran `install-deps` against a chromium-only directory and every
-      # Firefox and WebKit test failed with "Executable doesn't exist".
-      - name: Install Playwright release browsers
-        if: steps.pw-cache.outputs.cache-hit != 'true'
-        timeout-minutes: 10
-        run: pnpm exec playwright install chromium firefox webkit
-      # The browsers' system packages (~119 MB of .deb files) came from
-      # Ubuntu's mirrors on every run. On 2026-10-22 the mirror GitHub's
-      # runners prefer trickled, then archive.ubuntu.com did too, and this
-      # install (~30 s) took 17-25 min: 12 shards hit timeout-minutes, some
-      # inside a later step that was not at fault. The packages are now cached
-      # per ISO week, so a warm run downloads only what Ubuntu updated since
-      # (apt checks every cached file against the signed package lists). The
-      # script gives any download a deadline, moves to the next mirror once,
-      # and names the phase and mirror when it gives up
-      # (scripts/ci/install-playwright-deps.sh). timeout-minutes here only
-      # backstops the script itself.
-      - name: Week of the Ubuntu package cache
-        id: apt-week
-        run: echo "week=$(date -u +%G-W%V)" >> "$GITHUB_OUTPUT"
-      - name: Restore Ubuntu packages for Playwright
-        id: apt-cache
-        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
-        with:
-          path: ~/.cache/playwright-apt
-          key: playwright-apt-${{ runner.os }}-${{ steps.pw.outputs.version }}-chromium-firefox-webkit_${{ steps.apt-week.outputs.week }}
-          restore-keys: playwright-apt-${{ runner.os }}-${{ steps.pw.outputs.version }}-chromium-firefox-webkit_
-      - name: Install Playwright system packages
-        timeout-minutes: 10
-        run: PLAYWRIGHT_DEPS_CACHE_DIR="$HOME/.cache/playwright-apt" sh scripts/ci/install-playwright-deps.sh chromium firefox webkit
-      # Saved straight after the install, so a later test failure still keeps
-      # this week's packages. Once main has saved a week's, pull requests hit
-      # it exactly and save nothing; before that, a rerun of a failed shard
-      # finds what a sibling shard downloaded.
-      - name: Save Ubuntu packages for Playwright
-        if: steps.apt-cache.outputs.cache-hit != 'true'
-        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
-        with:
-          path: ~/.cache/playwright-apt
-          key: ${{ steps.apt-cache.outputs.cache-primary-key }}
-      - name: Start local Compose application stack
-        run: pnpm e2e:stack:up
-      - name: Run critical e2e (hard gate — BQR-5.1)
-        id: e2e_critical
-        env:
-          PLAYWRIGHT_JSON_OUTPUT_NAME: test-results/e2e-critical-report.json
-        run: pnpm test:e2e --project=critical --shard=${{ matrix.shard }}/4 --max-failures=1 ${{ github.event_name == 'push' && '--fail-on-flaky-tests' || '' }}
-      # BQC-6.4: stop scheduling critical journeys after the first failure, but
-      # preserve that attempt's trace even when the configured retry succeeds.
-      # This upload runs before the full suite clears Playwright's outputDir.
-      - name: Upload critical e2e first-failure artifacts
-        if: always()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
-        with:
-          name: e2e-artifacts-critical-${{ matrix.shard }}
-          path: test-results/playwright/**
-          if-no-files-found: ignore
-          retention-days: 7
-      # `full` (34s) and the compatibility gate (49s) are too small to justify
-      # their own Compose stack, so both ride the lightest critical shard
-      # instead of being sharded themselves. Measured critical seconds per
-      # shard: 1=66.6, 2=84.9, 3=14.4, 4=111.8. Loading both onto shard 3 puts
-      # it at 97.4s, still under shard 4's 111.8s, so neither becomes the long
-      # pole. Shard 4 — nine `workflows/` files — is now this job's floor apart
-      # from stack boot.
-      - name: Run full e2e suite (hard gate — BQC-6.7)
-        id: e2e_full
-        if: matrix.shard == 3
-        env:
-          PLAYWRIGHT_JSON_OUTPUT_NAME: test-results/e2e-full-report.json
-        run: pnpm test:e2e --project=full ${{ github.event_name == 'push' && '--fail-on-flaky-tests' || '' }}
-      # BQC-6.7: the full suite is a hard gate — its failure fails the job, so
-      # `if: failure()` would also fire; gating on the step outcome stays more
-      # precise (a skipped full run after a critical-gate failure does not
-      # upload here — the critical upload above owns those artifacts).
-      - name: Upload full e2e failure artifacts
-        if: steps.e2e_full.outcome == 'failure'
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
-        with:
-          name: e2e-artifacts-full-${{ matrix.shard }}
-          path: test-results/playwright/**
-          if-no-files-found: ignore
-          retention-days: 7
-      - name: Run bounded browser and mobile compatibility gate
-        id: e2e_compatibility
-        if: matrix.shard == 3
-        env:
-          PLAYWRIGHT_JSON_OUTPUT_NAME: test-results/e2e-compatibility-report.json
-        run: pnpm test:e2e:compatibility ${{ github.event_name == 'push' && '--fail-on-flaky-tests' || '' }}
-      - name: Upload exact browser reports
-        if: always()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
-        with:
-          name: e2e-browser-reports-${{ matrix.shard }}
-          path: |
-            test-results/e2e-critical-report.json
-            test-results/e2e-full-report.json
-            test-results/e2e-compatibility-report.json
-          if-no-files-found: ignore
-          retention-days: 14
-      - name: Upload compatibility failure artifacts
-        if: steps.e2e_compatibility.outcome == 'failure'
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
-        with:
-          name: e2e-artifacts-compatibility-${{ matrix.shard }}
-          path: test-results/playwright/**
-          if-no-files-found: ignore
-          retention-days: 7
-      - name: Collect local Compose diagnostics
-        if: always()
-        run: pnpm e2e:stack:logs
-      - name: Upload local stack evidence
-        if: always()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
-        with:
-          name: e2e-local-stack-evidence-${{ matrix.shard }}
-          path: test-results/local-stack/**
-          if-no-files-found: ignore
-          retention-days: 7
-      - name: Tear down local Compose application stack
-        if: always()
-        run: pnpm e2e:stack:down
-
-  # Keeps the required status check named exactly `e2e` after the matrix split.
-  # Renaming the job to `e2e-shard` without this would leave branch protection
-  # waiting forever for a check that no longer exists — the same failure mode as
-  # the `audit` check that sat red for eight commits because its config named a
-  # deleted file. Same house pattern as `docker` over `docker-images`.
-  e2e:
-    needs: [e2e-shard]
-    if: always()
-    runs-on: ubuntu-latest
-    timeout-minutes: 5 # longest green run ~1 min
-    steps:
-      - name: Require every e2e shard to succeed
-        if: needs.e2e-shard.result != 'success'
-        run: exit 1
-
-  # ---------------------------------------------------------------------------
-  # Replacement pipeline: `ci` and `image` stand in for the jobs above. It runs
-  # beside them until the required checks move to its two aggregators and the
-  # jobs above are removed; nothing here edits them.
-  #
-  # What it changes, from the measured runs of the pipeline above:
-  #   - `static` ran its checks one after another (format 86 s, typecheck 157 s,
-  #     eslint 121 s, the unchecked-index ratchet 127 s). They now run in two
-  #     jobs side by side.
-  #   - The serving image was built six times a run: once per `docker image
-  #     group` row (web and worker are one Dockerfile) and once in each of the
-  #     four e2e stacks, each also building the stub image from nothing. It is
-  #     built once and every consumer loads those bytes.
-  #   - The Grype database was cached under the day's date, so a run after the
-  #     06:21 UTC database build still downloaded it (about 100 s per group).
-  #     The key is now the database's own build time.
-  #   - Firefox and WebKit ran on every pull request, three browsers installed
-  #     in every shard. They run weekly (browser-matrix.yml); Chromium and the
-  #     Android viewport stay on every pull request.
-  # ---------------------------------------------------------------------------
 
   # The migration journal check compares with the main merge base, so this job
   # takes the full history. The format check is here to balance this job
@@ -1434,12 +460,8 @@ jobs:
   # Dockerfile, so the `web` row builds it once and tags it twice. Each row
   # leaves its images as compressed archives; the scan job and the browser
   # shards load them, so what is smoked, scanned, staged and exercised by the
-  # e2e stacks is one set of bytes. The runner's own Docker builds them: a
-  # builder container cost about 50 s to start and stop on the path every
-  # browser shard waits for, and no layer cache is used. The one the image
-  # groups above asked for never reached their builds (their logs show no cache
-  # import or export), and a cached dependency layer costs about what
-  # `pnpm install` does.
+  # e2e stacks is one set of bytes. The runner's own Docker builds them; no
+  # builder container or layer cache is used.
   image-build:
     name: image build (${{ matrix.row }})
     runs-on: ubuntu-latest
@@ -1691,19 +713,16 @@ jobs:
           path: image-scans/grype-*.sarif
           if-no-files-found: warn
 
-      # A dispatched run stages its scanned bytes under a run-scoped tag and the
-      # `image` job writes the digest map from them. A main push still stages and
-      # promotes through the `docker` job above, and both cannot tag one commit:
-      # builds are not byte-identical, so the second would meet a conflicting
-      # digest.
+      # Only this pipeline stages scanned images; main also promotes the
+      # complete set to commit tags, while dispatch writes a verification map.
       - name: Authenticate image stager
-        if: github.event_name == 'workflow_dispatch'
+        if: (github.event_name == 'push' && github.ref == 'refs/heads/main') || github.event_name == 'workflow_dispatch'
         env:
           GHCR_TOKEN: ${{ github.token }}
         run: echo "$GHCR_TOKEN" | docker login ghcr.io --username "$GITHUB_ACTOR" --password-stdin
 
       - name: Stage scanned images
-        if: github.event_name == 'workflow_dispatch'
+        if: (github.event_name == 'push' && github.ref == 'refs/heads/main') || github.event_name == 'workflow_dispatch'
         run: |
           set -euo pipefail
           mkdir -p staged-image-digests
@@ -1734,7 +753,7 @@ jobs:
           done < <(jq -c '.[]' <<<"$IMAGES_JSON")
 
       - name: Stage scanned image descriptors
-        if: github.event_name == 'workflow_dispatch'
+        if: (github.event_name == 'push' && github.ref == 'refs/heads/main') || github.event_name == 'workflow_dispatch'
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: image-digests-${{ github.sha }}
@@ -1742,10 +761,7 @@ jobs:
           if-no-files-found: error
           retention-days: 90
 
-  # The `image` aggregate, the replacement for `docker`. A dispatched run turns
-  # the staged descriptors into the digest map that
-  # `pnpm ops deploy-ci-images --verify-only` reads back; every other event only
-  # requires the image jobs to have passed.
+  # One map writer for main pushes and dispatched verification runs.
   image:
     needs: [image-build, image-scan]
     if: always()
@@ -1753,14 +769,14 @@ jobs:
     timeout-minutes: 10 # longest green run ~1 min
     permissions:
       contents: read
-      packages: read
+      packages: write
     steps:
       - name: Require every image job to succeed
         if: needs.image-build.result != 'success' || needs.image-scan.result != 'success'
         run: exit 1
 
       - name: Download staged image descriptors
-        if: github.event_name == 'workflow_dispatch'
+        if: (github.event_name == 'push' && github.ref == 'refs/heads/main') || github.event_name == 'workflow_dispatch'
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
           pattern: image-digests-${{ github.sha }}
@@ -1768,7 +784,7 @@ jobs:
           merge-multiple: true
 
       - name: Validate complete staged image set
-        if: github.event_name == 'workflow_dispatch'
+        if: (github.event_name == 'push' && github.ref == 'refs/heads/main') || github.event_name == 'workflow_dispatch'
         run: |
           set -euo pipefail
           test "$(find staged-image-digests -maxdepth 1 -type f -name '*.json' | wc -l)" -eq 3
@@ -1792,16 +808,60 @@ jobs:
             staged-image-digests/*.json > validated-image-digests.json
 
       - name: Authenticate image reader
-        if: github.event_name == 'workflow_dispatch'
+        if: (github.event_name == 'push' && github.ref == 'refs/heads/main') || github.event_name == 'workflow_dispatch'
         env:
           GHCR_TOKEN: ${{ github.token }}
         run: echo "$GHCR_TOKEN" | docker login ghcr.io --username "$GITHUB_ACTOR" --password-stdin
+
+      - name: Promote complete production image set
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        run: |
+          set -euo pipefail
+          # Preflight every staged digest and every existing immutable tag
+          # before creating any source-SHA tag.
+          while IFS= read -r image; do
+            repository=$(jq -r '.repository' <<<"$image")
+            staged_reference=$(jq -r '.stagedReference' <<<"$image")
+            expected_digest=$(jq -r '.digest' <<<"$image")
+            staged_digest=$(docker buildx imagetools inspect "$staged_reference" --format '{{json .Manifest.Digest}}' | tr -d '"')
+            test "$staged_digest" = "$expected_digest"
+            final_reference="${repository}:${GITHUB_SHA}"
+            if docker buildx imagetools inspect "$final_reference" >/dev/null 2>&1; then
+              final_digest=$(docker buildx imagetools inspect "$final_reference" --format '{{json .Manifest.Digest}}' | tr -d '"')
+              if [[ "$final_digest" != "$expected_digest" ]]; then
+                echo "::error::immutable image tag has a conflicting digest: $final_reference"
+                exit 1
+              fi
+            fi
+          done < <(jq -c '.[]' validated-image-digests.json)
+
+          while IFS= read -r image; do
+            repository=$(jq -r '.repository' <<<"$image")
+            expected_digest=$(jq -r '.digest' <<<"$image")
+            final_reference="${repository}:${GITHUB_SHA}"
+            if ! docker buildx imagetools inspect "$final_reference" >/dev/null 2>&1; then
+              docker buildx imagetools create \
+                --prefer-index=false \
+                --tag "$final_reference" \
+                "${repository}@${expected_digest}"
+            fi
+          done < <(jq -c '.[]' validated-image-digests.json)
+
+          # The release map is written only after all three final tags resolve
+          # to the staged digests.
+          while IFS= read -r image; do
+            repository=$(jq -r '.repository' <<<"$image")
+            expected_digest=$(jq -r '.digest' <<<"$image")
+            final_reference="${repository}:${GITHUB_SHA}"
+            final_digest=$(docker buildx imagetools inspect "$final_reference" --format '{{json .Manifest.Digest}}' | tr -d '"')
+            test "$final_digest" = "$expected_digest"
+          done < <(jq -c '.[]' validated-image-digests.json)
 
       # The map is written only after the registry answers, under each staged
       # tag, with the digest the scan job recorded, so a consumer never sees a
       # digest nothing serves.
       - name: Write image digest map
-        if: github.event_name == 'workflow_dispatch'
+        if: (github.event_name == 'push' && github.ref == 'refs/heads/main') || github.event_name == 'workflow_dispatch'
         run: |
           set -euo pipefail
           while IFS= read -r image; do
@@ -1820,17 +880,20 @@ jobs:
               source:{
                 repository:$repository,
                 ref:env.GITHUB_REF,
-                event:"workflow_dispatch",
                 workflow:".github/workflows/ci.yml",
                 runId:env.GITHUB_RUN_ID,
                 runAttempt:(env.GITHUB_RUN_ATTEMPT | tonumber)
               },
               images:(map({key:.image,value:{repository:.repository,digest:.digest,sourceRevision:.sourceRevision}}) | from_entries)
-            }' \
+            }
+            | if env.GITHUB_EVENT_NAME == "workflow_dispatch"
+              then .source.event = "workflow_dispatch"
+              else .source.job = "image"
+              end' \
             validated-image-digests.json > ci-image-digest-map.json
 
       - name: Upload image digest map
-        if: github.event_name == 'workflow_dispatch'
+        if: (github.event_name == 'push' && github.ref == 'refs/heads/main') || github.event_name == 'workflow_dispatch'
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: ci-image-digest-map-${{ github.sha }}
@@ -1908,7 +971,7 @@ jobs:
         if: steps.pw-cache.outputs.cache-hit != 'true'
         timeout-minutes: 10
         run: pnpm exec playwright install chromium
-      # Bounded, cached and self-naming: see the e2e-shard job of the same names.
+      # Package downloads have bounded retries and share the weekly cache.
       - name: Week of the Ubuntu package cache
         id: apt-week
         run: echo "week=$(date -u +%G-W%V)" >> "$GITHUB_OUTPUT"
@@ -2013,8 +1076,7 @@ jobs:
         if: always()
         run: pnpm e2e:stack:down
 
-  # The aggregate the required check will name, the replacement for `check` and
-  # `e2e`. A failed, cancelled or skipped dependency cannot pass it.
+  # A failed, cancelled or skipped dependency cannot pass the aggregate.
   ci:
     needs: [lint, typecheck, unit, integration, probes, browser]
     if: always()

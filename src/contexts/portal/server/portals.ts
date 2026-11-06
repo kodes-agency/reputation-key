@@ -4,7 +4,7 @@
 import { createServerFn } from '@tanstack/react-start'
 import { setResponseHeader } from '@tanstack/react-start/server'
 import { tracedHandler } from '#/shared/observability/traced-server-fn'
-import { match } from 'ts-pattern'
+import { commandHandler } from '#/shared/commands/command.server'
 import { requireExecutionAllowed } from '#/shared/auth/execution-policy'
 import { z } from 'zod/v4'
 import { headersFromContext } from '#/shared/auth/headers'
@@ -33,7 +33,6 @@ import {
 } from '../application/dto/portal-token-lifecycle.dto'
 import { isPortalError, portalError } from '../domain/errors'
 import { PORTAL_HISTORY_CATEGORIES } from '../domain/portal-history'
-import type { PortalErrorCode } from '../domain/errors'
 import type { AuthContext } from '#/shared/domain/auth-context'
 import type { Capability } from '#/shared/auth/beta-capabilities'
 import type { Permission } from '#/shared/domain/permissions'
@@ -41,81 +40,11 @@ import { portalId as toPortalId } from '#/shared/domain/ids'
 import { requirePortalResourceScope } from './property-scope'
 import { checkPortalAddressRateLimit } from './portal-address-rate-limit.server'
 import { listAuthorizedPortalPropertyIds } from './authorized-portal-properties.server'
+import { portalCommandErrors, portalErrorStatus } from './portal-command-errors'
 
 // ── Error → HTTP status mapping ───────────────────────────────────
 
-export const portalErrorStatus = (code: PortalErrorCode): number =>
-  match(code)
-    .with('forbidden', () => 403)
-    .with(
-      'portal_not_found',
-      'property_not_found',
-      'category_not_found',
-      'link_not_found',
-      'destination_not_found',
-      'media_not_found',
-      () => 404,
-    )
-    .with(
-      'slug_taken',
-      'revision_conflict',
-      'running_rating_goal',
-      'print_code_collision',
-      'destination_not_approved',
-      'link_limit_reached',
-      'brand_profile_missing',
-      'personal_portal_name_private',
-      'personal_portal_goal_locked',
-      () => 409,
-    )
-    .with(
-      'upload_failed',
-      'image_rejected',
-      'print_code_too_small',
-      'token_unavailable',
-      'address_unavailable',
-      'responsible_manager_ineligible',
-      () => 422,
-    )
-    .with('group_not_found', 'portal_not_in_group', () => 404)
-    .with('group_name_taken', 'portal_already_grouped', () => 409)
-    .with(
-      'personal_portal_rename_locked',
-      'personal_portal_archive_locked',
-      'personal_portal_restore_locked',
-      'source_has_unpublished_changes',
-      'source_archived',
-      'address_keyring_missing',
-      () => 409,
-    )
-    .with('portal_inactive', () => 410)
-    .with('rate_limited', () => 429)
-    .with(
-      'invalid_publication_transition',
-      'publication_snapshot_unavailable',
-      'not_restorable',
-      'guest_wording_missing',
-      'language_pack_missing',
-      'time_zone_invalid',
-      'google_review_destination_unavailable',
-      () => 409,
-    )
-    .with(
-      'invalid_slug',
-      'invalid_name',
-      'invalid_description',
-      'invalid_theme',
-      'invalid_threshold',
-      'invalid_skip_private_rating',
-      'invalid_url',
-      'invalid_label',
-      'invalid_icon',
-      'invalid_title',
-      'locale_not_offered',
-      'print_format_not_offered',
-      () => 400,
-    )
-    .exhaustive()
+export { portalErrorStatus } from './portal-command-errors'
 
 // ── Shared Zod validators ──────────────────────────────────────────
 
@@ -148,38 +77,28 @@ const listPortalOverviewSchema = z.object({
   propertyId: z.string().min(1).optional(),
 })
 
-async function runPortalExperienceCommand<T>(fn: () => Promise<T>): Promise<T> {
-  try {
-    return await fn()
-  } catch (error) {
-    if (isPortalError(error)) {
-      throwContextError('PortalError', error, portalErrorStatus(error.code))
-    }
-    throw catchUntagged(error)
-  }
-}
-
 export const getPropertyPortalExperience = createServerFn({ method: 'GET' })
   .validator(propertyPortalExperienceInputSchema)
   .handler(
-    tracedHandler(
-      async ({ data }) => {
-        const ctx = await resolveTenantContext(await headersFromContext())
+    commandHandler(
+      {
+        method: 'GET',
+        name: 'portal.getPropertyPortalExperience',
+        errors: portalCommandErrors,
+      },
+      async ({ data, headers }) => {
+        const ctx = await resolveTenantContext(headers)
         await requireExecutionAllowed({
           actor: ctx,
           action: 'portal.read',
           capability: 'portal.read',
           propertyId: data.propertyId,
         })
-        return runPortalExperienceCommand(() =>
-          getContainer().portalPublicApi.management.getPropertyPortalExperience(
-            data,
-            ctx,
-          ),
+        return getContainer().portalPublicApi.management.getPropertyPortalExperience(
+          data,
+          ctx,
         )
       },
-      'GET',
-      'portal.getPropertyPortalExperience',
     ),
   )
 
@@ -187,167 +106,175 @@ export const getPropertyPortalExperience = createServerFn({ method: 'GET' })
 export const savePropertyPortalBrandProfile = createServerFn({ method: 'POST' })
   .validator(propertyPortalBrandProfileInputSchema)
   .handler(
-    tracedHandler(
-      async ({ data }) => {
-        const ctx = await resolveTenantContext(await headersFromContext())
+    commandHandler(
+      {
+        method: 'POST',
+        name: 'portal.savePropertyPortalBrandProfile',
+        errors: portalCommandErrors,
+      },
+      async ({ data, headers }) => {
+        const ctx = await resolveTenantContext(headers)
         await requireExecutionAllowed({
           actor: ctx,
           action: 'portal.update',
           capability: 'portal.write',
           propertyId: data.propertyId,
         })
-        return runPortalExperienceCommand(() =>
-          getContainer().portalPublicApi.management.savePropertyPortalBrandProfile(
-            data,
-            ctx,
-          ),
+        return getContainer().portalPublicApi.management.savePropertyPortalBrandProfile(
+          data,
+          ctx,
         )
       },
-      'POST',
-      'portal.savePropertyPortalBrandProfile',
     ),
   )
 
 export const savePropertyPublicDisplayName = createServerFn({ method: 'POST' })
   .validator(propertyPublicDisplayNameInputSchema)
   .handler(
-    tracedHandler(
-      async ({ data }) => {
-        const ctx = await resolveTenantContext(await headersFromContext())
+    commandHandler(
+      {
+        method: 'POST',
+        name: 'portal.savePropertyPublicDisplayName',
+        errors: portalCommandErrors,
+      },
+      async ({ data, headers }) => {
+        const ctx = await resolveTenantContext(headers)
         await requireExecutionAllowed({
           actor: ctx,
           action: 'portal.update',
           capability: 'portal.write',
           propertyId: data.propertyId,
         })
-        return runPortalExperienceCommand(() =>
-          getContainer().portalPublicApi.management.savePropertyPublicDisplayName(
-            data,
-            ctx,
-          ),
+        return getContainer().portalPublicApi.management.savePropertyPublicDisplayName(
+          data,
+          ctx,
         )
       },
-      'POST',
-      'portal.savePropertyPublicDisplayName',
     ),
   )
 
 export const savePropertyPortalBrandContent = createServerFn({ method: 'POST' })
   .validator(propertyPortalBrandContentInputSchema)
   .handler(
-    tracedHandler(
-      async ({ data }) => {
-        const ctx = await resolveTenantContext(await headersFromContext())
+    commandHandler(
+      {
+        method: 'POST',
+        name: 'portal.savePropertyPortalBrandContent',
+        errors: portalCommandErrors,
+      },
+      async ({ data, headers }) => {
+        const ctx = await resolveTenantContext(headers)
         await requireExecutionAllowed({
           actor: ctx,
           action: 'portal.update',
           capability: 'portal.write',
           propertyId: data.propertyId,
         })
-        return runPortalExperienceCommand(() =>
-          getContainer().portalPublicApi.management.savePropertyPortalBrandContent(
-            data,
-            ctx,
-          ),
+        return getContainer().portalPublicApi.management.savePropertyPortalBrandContent(
+          data,
+          ctx,
         )
       },
-      'POST',
-      'portal.savePropertyPortalBrandContent',
     ),
   )
 
 export const savePortalLocalizedOverride = createServerFn({ method: 'POST' })
   .validator(portalLocalizedOverrideInputSchema)
   .handler(
-    tracedHandler(
-      async ({ data }) => {
-        const ctx = await resolveTenantContext(await headersFromContext())
+    commandHandler(
+      {
+        method: 'POST',
+        name: 'portal.savePortalLocalizedOverride',
+        errors: portalCommandErrors,
+      },
+      async ({ data, headers }) => {
+        const ctx = await resolveTenantContext(headers)
         await authorizePortalResource(ctx, data.portalId, 'portal.update', 'portal.write')
-        return runPortalExperienceCommand(() =>
-          getContainer().portalPublicApi.management.savePortalLocalizedOverride(
-            data,
-            ctx,
-          ),
+        return getContainer().portalPublicApi.management.savePortalLocalizedOverride(
+          data,
+          ctx,
         )
       },
-      'POST',
-      'portal.savePortalLocalizedOverride',
     ),
   )
 
 export const listPortalApprovedDestinations = createServerFn({ method: 'GET' })
   .validator(portalApprovedDestinationListInputSchema)
   .handler(
-    tracedHandler(
-      async ({ data }) => {
-        const ctx = await resolveTenantContext(await headersFromContext())
+    commandHandler(
+      {
+        method: 'GET',
+        name: 'portal.listPortalApprovedDestinations',
+        errors: portalCommandErrors,
+      },
+      async ({ data, headers }) => {
+        const ctx = await resolveTenantContext(headers)
         await authorizePortalResource(ctx, data.portalId, 'portal.read', 'portal.read')
-        return runPortalExperienceCommand(() =>
-          getContainer().portalPublicApi.management.listPortalApprovedDestinations(
-            data,
-            ctx,
-          ),
+        return getContainer().portalPublicApi.management.listPortalApprovedDestinations(
+          data,
+          ctx,
         )
       },
-      'GET',
-      'portal.listPortalApprovedDestinations',
     ),
   )
 
 export const requestPortalApprovedDestination = createServerFn({ method: 'POST' })
   .validator(portalApprovedDestinationRequestInputSchema)
   .handler(
-    tracedHandler(
-      async ({ data }) => {
-        const ctx = await resolveTenantContext(await headersFromContext())
+    commandHandler(
+      {
+        method: 'POST',
+        name: 'portal.requestPortalApprovedDestination',
+        errors: portalCommandErrors,
+      },
+      async ({ data, headers }) => {
+        const ctx = await resolveTenantContext(headers)
         await authorizePortalResource(ctx, data.portalId, 'portal.update', 'portal.write')
-        return runPortalExperienceCommand(() =>
-          getContainer().portalPublicApi.management.requestPortalApprovedDestination(
-            data,
-            ctx,
-          ),
+        return getContainer().portalPublicApi.management.requestPortalApprovedDestination(
+          data,
+          ctx,
         )
       },
-      'POST',
-      'portal.requestPortalApprovedDestination',
     ),
   )
 
 export const approvePortalApprovedDestination = createServerFn({ method: 'POST' })
   .validator(portalApprovedDestinationDecisionInputSchema)
   .handler(
-    tracedHandler(
-      async ({ data }) => {
-        const ctx = await resolveTenantContext(await headersFromContext())
+    commandHandler(
+      {
+        method: 'POST',
+        name: 'portal.approvePortalApprovedDestination',
+        errors: portalCommandErrors,
+      },
+      async ({ data, headers }) => {
+        const ctx = await resolveTenantContext(headers)
         await authorizePortalResource(ctx, data.portalId, 'portal.update', 'portal.write')
-        return runPortalExperienceCommand(() =>
-          getContainer().portalPublicApi.management.approvePortalApprovedDestination(
-            data,
-            ctx,
-          ),
+        return getContainer().portalPublicApi.management.approvePortalApprovedDestination(
+          data,
+          ctx,
         )
       },
-      'POST',
-      'portal.approvePortalApprovedDestination',
     ),
   )
 
 export const disablePortalApprovedDestination = createServerFn({ method: 'POST' })
   .validator(portalApprovedDestinationDisableInputSchema)
   .handler(
-    tracedHandler(
-      async ({ data }) => {
-        const ctx = await resolveTenantContext(await headersFromContext())
+    commandHandler(
+      {
+        method: 'POST',
+        name: 'portal.disablePortalApprovedDestination',
+        errors: portalCommandErrors,
+      },
+      async ({ data, headers }) => {
+        const ctx = await resolveTenantContext(headers)
         await authorizePortalResource(ctx, data.portalId, 'portal.update', 'portal.write')
-        return runPortalExperienceCommand(() =>
-          getContainer().portalPublicApi.management.disablePortalApprovedDestination(
-            data,
-            ctx,
-          ),
+        return getContainer().portalPublicApi.management.disablePortalApprovedDestination(
+          data,
+          ctx,
         )
       },
-      'POST',
-      'portal.disablePortalApprovedDestination',
     ),
   )
 async function authorizePortalResource(
@@ -379,9 +306,9 @@ async function authorizePortalResource(
 export const createPortal = createServerFn({ method: 'POST' })
   .validator(createPortalInputSchema)
   .handler(
-    tracedHandler(
-      async ({ data }) => {
-        const headers = await headersFromContext()
+    commandHandler(
+      { method: 'POST', name: 'portal.createPortal', errors: portalCommandErrors },
+      async ({ data, headers }) => {
         const ctx = await resolveTenantContext(headers)
         await requireExecutionAllowed({
           actor: ctx,
@@ -390,18 +317,10 @@ export const createPortal = createServerFn({ method: 'POST' })
           propertyId: data.propertyId,
         })
 
-        try {
-          const { management: useCases } = getContainer().portalPublicApi
-          const portal = await useCases.createPortal(data, ctx)
-          return { portal }
-        } catch (e) {
-          if (isPortalError(e))
-            throwContextError('PortalError', e, portalErrorStatus(e.code))
-          throw catchUntagged(e)
-        }
+        const { management: useCases } = getContainer().portalPublicApi
+        const portal = await useCases.createPortal(data, ctx)
+        return { portal }
       },
-      'POST',
-      'portal.createPortal',
     ),
   )
 
@@ -416,9 +335,13 @@ const portalCreationOptionsSchema = z.object({
 export const getPortalCreationOptions = createServerFn({ method: 'GET' })
   .validator(portalCreationOptionsSchema)
   .handler(
-    tracedHandler(
-      async ({ data }) => {
-        const headers = await headersFromContext()
+    commandHandler(
+      {
+        method: 'GET',
+        name: 'portal.getPortalCreationOptions',
+        errors: portalCommandErrors,
+      },
+      async ({ data, headers }) => {
         const ctx = await resolveTenantContext(headers)
         await requireExecutionAllowed({
           actor: ctx,
@@ -426,12 +349,11 @@ export const getPortalCreationOptions = createServerFn({ method: 'GET' })
           capability: 'portal.write',
           propertyId: data.propertyId,
         })
-        return runPortalExperienceCommand(() =>
-          getContainer().portalPublicApi.management.getPortalCreationOptions(data, ctx),
+        return getContainer().portalPublicApi.management.getPortalCreationOptions(
+          data,
+          ctx,
         )
       },
-      'GET',
-      'portal.getPortalCreationOptions',
     ),
   )
 
@@ -440,50 +362,37 @@ export const getPortalCreationOptions = createServerFn({ method: 'GET' })
 export const updatePortal = createServerFn({ method: 'POST' })
   .validator(updatePortalInputSchema)
   .handler(
-    tracedHandler(
-      async ({ data }) => {
-        const headers = await headersFromContext()
+    commandHandler(
+      { method: 'POST', name: 'portal.updatePortal', errors: portalCommandErrors },
+      async ({ data, headers }) => {
         const ctx = await resolveTenantContext(headers)
         await authorizePortalResource(ctx, data.portalId, 'portal.update', 'portal.write')
 
-        try {
-          const { management: useCases } = getContainer().portalPublicApi
-          const portal = await useCases.updatePortal(data, ctx)
-          return { portal }
-        } catch (e) {
-          if (isPortalError(e))
-            throwContextError('PortalError', e, portalErrorStatus(e.code))
-          throw catchUntagged(e)
-        }
+        const { management: useCases } = getContainer().portalPublicApi
+        const portal = await useCases.updatePortal(data, ctx)
+        return { portal }
       },
-      'POST',
-      'portal.updatePortal',
     ),
   )
 
 export const rollbackPortalPublication = createServerFn({ method: 'POST' })
   .validator(rollbackPortalPublicationSchema)
   .handler(
-    tracedHandler(
-      async ({ data }) => {
-        const headers = await headersFromContext()
+    commandHandler(
+      {
+        method: 'POST',
+        name: 'portal.rollbackPortalPublication',
+        errors: portalCommandErrors,
+      },
+      async ({ data, headers }) => {
         const ctx = await resolveTenantContext(headers)
         await authorizePortalResource(ctx, data.portalId, 'portal.update', 'portal.write')
 
-        try {
-          return await getContainer().portalPublicApi.management.rollbackPortalPublication(
-            data,
-            ctx,
-          )
-        } catch (error) {
-          if (isPortalError(error)) {
-            throwContextError('PortalError', error, portalErrorStatus(error.code))
-          }
-          throw catchUntagged(error)
-        }
+        return await getContainer().portalPublicApi.management.rollbackPortalPublication(
+          data,
+          ctx,
+        )
       },
-      'POST',
-      'portal.rollbackPortalPublication',
     ),
   )
 
@@ -492,9 +401,9 @@ export const rollbackPortalPublication = createServerFn({ method: 'POST' })
 export const listPortals = createServerFn({ method: 'GET' })
   .validator(listPortalsSchema)
   .handler(
-    tracedHandler(
-      async ({ data }) => {
-        const headers = await headersFromContext()
+    commandHandler(
+      { method: 'GET', name: 'portal.listPortals', errors: portalCommandErrors },
+      async ({ data, headers }) => {
         const ctx = await resolveTenantContext(headers)
         const { management: useCases } = getContainer().portalPublicApi
         const propertyIds = data.propertyId
@@ -509,21 +418,13 @@ export const listPortals = createServerFn({ method: 'GET' })
           })
         }
 
-        try {
-          const portals_list = (
-            await Promise.all(
-              propertyIds.map((propertyId) => useCases.listPortals({ propertyId }, ctx)),
-            )
-          ).flat()
-          return { portals: portals_list }
-        } catch (e) {
-          if (isPortalError(e))
-            throwContextError('PortalError', e, portalErrorStatus(e.code))
-          throw catchUntagged(e)
-        }
+        const portals_list = (
+          await Promise.all(
+            propertyIds.map((propertyId) => useCases.listPortals({ propertyId }, ctx)),
+          )
+        ).flat()
+        return { portals: portals_list }
       },
-      'GET',
-      'portal.listPortals',
     ),
   )
 
@@ -535,9 +436,9 @@ export const listPortals = createServerFn({ method: 'GET' })
 export const listPortalOverview = createServerFn({ method: 'GET' })
   .validator(listPortalOverviewSchema)
   .handler(
-    tracedHandler(
-      async ({ data }) => {
-        const headers = await headersFromContext()
+    commandHandler(
+      { method: 'GET', name: 'portal.listPortalOverview', errors: portalCommandErrors },
+      async ({ data, headers }) => {
         const ctx = await resolveTenantContext(headers)
         const { management: useCases } = getContainer().portalPublicApi
         if (data.propertyId) {
@@ -555,16 +456,8 @@ export const listPortalOverview = createServerFn({ method: 'GET' })
               propertyIds: await listAuthorizedPortalPropertyIds(ctx),
             } as const)
 
-        try {
-          return { portals: await useCases.listPortalOverview(input, ctx) }
-        } catch (e) {
-          if (isPortalError(e))
-            throwContextError('PortalError', e, portalErrorStatus(e.code))
-          throw catchUntagged(e)
-        }
+        return { portals: await useCases.listPortalOverview(input, ctx) }
       },
-      'GET',
-      'portal.listPortalOverview',
     ),
   )
 
@@ -573,52 +466,37 @@ export const listPortalOverview = createServerFn({ method: 'GET' })
 export const getPortal = createServerFn({ method: 'GET' })
   .validator(portalIdSchema)
   .handler(
-    tracedHandler(
-      async ({ data }) => {
-        const headers = await headersFromContext()
+    commandHandler(
+      { method: 'GET', name: 'portal.getPortal', errors: portalCommandErrors },
+      async ({ data, headers }) => {
         const ctx = await resolveTenantContext(headers)
         await authorizePortalResource(ctx, data.portalId, 'portal.read', 'portal.read')
 
-        try {
-          const { management: useCases } = getContainer().portalPublicApi
-          // C2: `tokenStatus` sibling — existence/metadata only, never the raw
-          // token, so the Share tab can offer rotate/revoke after a reload.
-          const { portal, tokenStatus } = await useCases.getPortal(data, ctx)
-          return { portal, tokenStatus }
-        } catch (e) {
-          if (isPortalError(e))
-            throwContextError('PortalError', e, portalErrorStatus(e.code))
-          throw catchUntagged(e)
-        }
+        const { management: useCases } = getContainer().portalPublicApi
+        const { portal, tokenStatus } = await useCases.getPortal(data, ctx)
+        return { portal, tokenStatus }
       },
-      'GET',
-      'portal.getPortal',
     ),
   )
 
 export const getPortalPublicationHistory = createServerFn({ method: 'GET' })
   .validator(portalPublicationHistorySchema)
   .handler(
-    tracedHandler(
-      async ({ data }) => {
-        const headers = await headersFromContext()
+    commandHandler(
+      {
+        method: 'GET',
+        name: 'portal.getPortalPublicationHistory',
+        errors: portalCommandErrors,
+      },
+      async ({ data, headers }) => {
         const ctx = await resolveTenantContext(headers)
         await authorizePortalResource(ctx, data.portalId, 'portal.read', 'portal.read')
 
-        try {
-          return await getContainer().portalPublicApi.management.getPortalPublicationHistory(
-            data,
-            ctx,
-          )
-        } catch (error) {
-          if (isPortalError(error)) {
-            throwContextError('PortalError', error, portalErrorStatus(error.code))
-          }
-          throw catchUntagged(error)
-        }
+        return await getContainer().portalPublicApi.management.getPortalPublicationHistory(
+          data,
+          ctx,
+        )
       },
-      'GET',
-      'portal.getPortalPublicationHistory',
     ),
   )
 
@@ -626,26 +504,14 @@ export const getPortalPublicationHistory = createServerFn({ method: 'GET' })
 export const getPortalHistory = createServerFn({ method: 'GET' })
   .validator(portalHistorySchema)
   .handler(
-    tracedHandler(
-      async ({ data }) => {
-        const headers = await headersFromContext()
+    commandHandler(
+      { method: 'GET', name: 'portal.getPortalHistory', errors: portalCommandErrors },
+      async ({ data, headers }) => {
         const ctx = await resolveTenantContext(headers)
         await authorizePortalResource(ctx, data.portalId, 'portal.read', 'portal.read')
 
-        try {
-          return await getContainer().portalPublicApi.management.getPortalHistory(
-            data,
-            ctx,
-          )
-        } catch (error) {
-          if (isPortalError(error)) {
-            throwContextError('PortalError', error, portalErrorStatus(error.code))
-          }
-          throw catchUntagged(error)
-        }
+        return await getContainer().portalPublicApi.management.getPortalHistory(data, ctx)
       },
-      'GET',
-      'portal.getPortalHistory',
     ),
   )
 
@@ -654,27 +520,19 @@ export const getPortalHistory = createServerFn({ method: 'GET' })
 export const deletePortal = createServerFn({ method: 'POST' })
   .validator(portalIdSchema)
   .handler(
-    tracedHandler(
-      async ({ data }) => {
-        const headers = await headersFromContext()
+    commandHandler(
+      { method: 'POST', name: 'portal.deletePortal', errors: portalCommandErrors },
+      async ({ data, headers }) => {
         const ctx = await resolveTenantContext(headers)
         await authorizePortalResource(ctx, data.portalId, 'portal.delete', 'portal.write')
 
-        try {
-          const { management: useCases } = getContainer().portalPublicApi
-          await useCases.updatePortal(
-            { portalId: data.portalId, publicationState: 'archived' },
-            ctx,
-          )
-          return { archived: true, portalId: data.portalId }
-        } catch (e) {
-          if (isPortalError(e))
-            throwContextError('PortalError', e, portalErrorStatus(e.code))
-          throw catchUntagged(e)
-        }
+        const { management: useCases } = getContainer().portalPublicApi
+        await useCases.updatePortal(
+          { portalId: data.portalId, publicationState: 'archived' },
+          ctx,
+        )
+        return { archived: true, portalId: data.portalId }
       },
-      'POST',
-      'portal.deletePortal',
     ),
   )
 
@@ -777,47 +635,35 @@ export const revealPortalAddress = createServerFn({ method: 'POST' })
 export const revokePortalTokens = createServerFn({ method: 'POST' })
   .validator(revokePortalTokensInputSchema)
   .handler(
-    tracedHandler(
-      async ({ data }) => {
-        const headers = await headersFromContext()
+    commandHandler(
+      { method: 'POST', name: 'portal.revokePortalTokens', errors: portalCommandErrors },
+      async ({ data, headers }) => {
         const ctx = await resolveTenantContext(headers)
         await authorizePortalResource(ctx, data.portalId, 'portal.update', 'portal.write')
-        try {
-          return await getContainer().portalPublicApi.management.revokePortalTokens(
-            data,
-            ctx,
-          )
-        } catch (error) {
-          if (isPortalError(error)) {
-            throwContextError('PortalError', error, portalErrorStatus(error.code))
-          }
-          throw catchUntagged(error)
-        }
+        return await getContainer().portalPublicApi.management.revokePortalTokens(
+          data,
+          ctx,
+        )
       },
-      'POST',
-      'portal.revokePortalTokens',
     ),
   )
 
 export const completeContentReview = createServerFn({ method: 'POST' })
   .validator(completeContentReviewInputSchema)
   .handler(
-    tracedHandler(
-      async ({ data }) => {
-        const ctx = await resolveTenantContext(await headersFromContext())
-        await authorizePortalResource(ctx, data.portalId, 'portal.update', 'portal.write')
-        try {
-          return await getContainer().portalPublicApi.management.completeContentReview(
-            data,
-            ctx,
-          )
-        } catch (error) {
-          if (isPortalError(error))
-            throwContextError('PortalError', error, portalErrorStatus(error.code))
-          throw catchUntagged(error)
-        }
+    commandHandler(
+      {
+        method: 'POST',
+        name: 'portal.completeContentReview',
+        errors: portalCommandErrors,
       },
-      'POST',
-      'portal.completeContentReview',
+      async ({ data, headers }) => {
+        const ctx = await resolveTenantContext(headers)
+        await authorizePortalResource(ctx, data.portalId, 'portal.update', 'portal.write')
+        return await getContainer().portalPublicApi.management.completeContentReview(
+          data,
+          ctx,
+        )
+      },
     ),
   )
