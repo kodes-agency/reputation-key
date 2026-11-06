@@ -564,8 +564,8 @@ function directly or hand-roll submission state. Shared building blocks include
 `preventDefault` / `stopPropagation` / `handleSubmit`; a key shortcut calls
 `submitForm(form)`.
 
-`Switch` keeps its compact track and provides a centered 44 px hit area for both
-sizes. Boolean settings still compose it through `SettingSwitchRow`.
+`Switch` keeps its compact track and provides a 44 px hit area for both sizes,
+growing left from the track's right edge so it never widens a row. Boolean settings still compose it through `SettingSwitchRow`.
 
 ## Queries and actions
 
