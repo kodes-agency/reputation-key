@@ -80,6 +80,28 @@ CI runs `pnpm db:migrate-deploy` (`.github/workflows/ci.yml`, Predeploy migratio
 | `pnpm lint:static`  | `lint:ci` minus the unchecked-index ratchet, which CI runs after `typecheck`              |
 | `pnpm format`       | Prettier format                                                                           |
 
+### Storybook phone-width baseline
+
+Every story state checks sideways overflow and 44 px targets at 320 and 390 px.
+Normal runs reject any failure the list does not hold. Every listed check that
+passes prints `[phone-width] passes now; the next record run drops it` without
+failing the story: layout can settle at different moments, so one passing run
+is no proof of a repair. Remove repaired checks from the inventory using the
+full browser suite:
+
+```bash
+PHONE_WIDTH_RECORD=1 pnpm test:storybook
+```
+
+Record mode writes only the intersection of `.storybook/phone-width-failures.json`
+and current failures. It may remove whole entries or individual checks, but never
+add one: any new failure fails the run with its story, state, width and check.
+Observations are merged across story files and sorted by story id, state and width.
+Record mode permits repaired checks to pass; interaction, accessibility,
+console-error and other checks still fail normally. Review and commit the generated
+list only after the full run finishes successfully. Run the command without story
+filters so that the inventory covers every state.
+
 ### Local stacks
 
 Both stacks share the committed `e2e/stack.env` and the same Compose services:
