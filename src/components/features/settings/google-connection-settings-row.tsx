@@ -86,10 +86,9 @@ export function GoogleConnectionSettingsRow({
             disabled={authorizationPending}
           />
         ) : null}
-        {/* Stops syncing and replying and revokes Google's access, for every
-            Property that uses the account: higher blast radius than the
-            Property-level disconnect, which already confirms. What it imported
-            stays until Google's 30-day limit. */}
+        {/* Account-wide access revocation affects every bound Property, so it
+            confirms here too. Imported content keeps its existing expiry,
+            30 days from the last successful fetch, rather than from disconnect. */}
         <ConfirmationDialog
           trigger={
             <ConfirmationTrigger
@@ -101,7 +100,7 @@ export function GoogleConnectionSettingsRow({
             </ConfirmationTrigger>
           }
           title="Disconnect this Google account?"
-          description="RepKey stops syncing and replying through this account for every property that uses it, and revokes its access. Reviews and replies it imported stay in the Inbox until Google's 30-day limit. Nothing is deleted on Google."
+          description="RepKey stops syncing and replying through this account for every property that uses it, and revokes its access. Imported reviews and replies stay in the Inbox until 30 days after they were last fetched from Google. Disconnecting does not restart that clock. Nothing is deleted on Google."
           cancelLabel="Keep connected"
           confirmLabel="Disconnect account"
           pendingLabel="Disconnecting…"
