@@ -549,70 +549,22 @@ back every Organization, Property and privacy subject erased after the restore
 point. That is the worst outcome in the whole lifecycle package: data the
 product promised was destroyed becomes readable again.
 
-**The control.** `backup_erasure_ledger` is an append-only record of every
-irreversible erasure — subject class, tenant/property/subject identity, the
-owning context, the effective erasure instant, a row count and a content-free
-evidence reference. It has **no foreign key** to `organization` or `properties`:
-an entry exists precisely because its subject is gone, and a referential
-dependency would cascade away the evidence that prevents resurrection. UPDATE,
-DELETE and TRUNCATE are refused by `ENABLE ALWAYS` triggers and revoked from
-`PUBLIC`, because an entry an operator can quietly remove after a bad restore is
-exactly the failure this ledger exists to prevent.
+**Inactive foundations.** The table `backup_erasure_ledger` and the append
+helper in `src/shared/db/lifecycle/backup-erasure-ledger.ts` exist, but no
+production caller records erasures through that helper. This is not an active
+erasure journal.
 
-**Where entries come from.**
+The retained `applyRestoreResurrectionFence` helper can classify and replay
+ledger entries, but nothing calls it. Neither
+`src/shared/db/recovery/postgres-recovery-fence.ts` nor `ops:restore-verify`
+runs it; the latter prints `NOT WIRED: erasure replay`. Only the Guest
+organization-scoped replayer exists (`createGuestBackupErasureReplayer`),
+and it has no caller either.
 
-| Source                          | Subject class     | Lineage                                     |
-| ------------------------------- | ----------------- | ------------------------------------------- |
-| Organization purge (LIF-01-T14) | `organization`    | closure lineage, one entry per context plan |
-| Property Erase (LIF-01-T19)     | `property`        | erase authority id                          |
-| Privacy erasure (LIF-01-T20)    | `privacy_subject` | privacy request id                          |
-
-Each append is idempotent by `(subject_class, closure_lineage_id,
-lifecycle_revision, context)`, so a retried purge phase cannot inflate the
-counts the fence later replays.
-
-**The fence.** `applyRestoreResurrectionFence` (see
-`src/shared/db/lifecycle/backup-erasure-ledger.ts`) reads the ledger for the cell and
-classifies every entry against the restore point:
-
-- `already_erased` — the erasure took effect at or before the restore point, so
-  it is already baked into the restored bytes. Replaying it would double-count.
-  This is what makes the fence convergent.
-- `replay_required` — the erasure took effect after the restore point, so the
-  restore undid it. A registered replayer re-applies it.
-- `held` — the entry carries a documented delayed-erasure / legal-hold policy
-  reference and no counsel-authorised release. It is deferred, reported, and
-  **not** re-applied until a `backup_erasure_hold_release:*` event is appended
-  to `organization_lifecycle_events` (itself append-only).
-
-**Fail-closed.** `verified` is false whenever any entry could not be re-applied
-— typically because no replayer is registered for its `(context, subjectClass)`.
-`assertRestoredCellVerified` throws in that case, and a restored cell that is not
-verified must not be opened for traffic. A partially re-erased restore is never
-declared verified; being noisy here is strictly better than quietly serving data
-the product said was destroyed.
-
-**Operator procedure after a restore.**
-
-1. Run `ops:restore-preflight` as today (restore point inside the platform
-   range).
-2. Run the recovery fence (`src/shared/db/recovery/postgres-recovery-fence.ts`).
-3. Run the resurrection fence with the SAME `restorePointAt`. Record the
-   returned `BackupErasureReplayCounts` alongside the `RecoveryFenceCounts` —
-   `mergeRecoveryFenceCounts` produces the combined document. No command runs
-   the fence today (see below).
-4. If `verified` is false, DO NOT open the cell. Register the missing replayer,
-   or obtain a counsel-authorised hold release, and re-run. The fence is
-   convergent, so re-running is safe.
-
-**Wiring not yet composed.** Nothing calls the resurrection fence:
-`postgres-recovery-fence.ts` does not, and neither does `ops:restore-verify`,
-which prints `NOT WIRED: erasure replay` on every run instead of reporting a
-replay. Only the Guest organization-scoped replayer exists
-(`createGuestBackupErasureReplayer`), and it has no caller either. Until the
-command runs the fence and every erasing context registers a replayer, a
-restore does not re-apply the erasures made after its point, and nothing checks
-for them; re-apply those by hand before opening the cell.
+A restore does not automatically re-apply erasures made after its restore point,
+and no active journal establishes a complete list of those erasures. Identify
+and re-apply them manually before opening the restored cell. The isolated data
+restore rehearsal does not prove this recovery step.
 
 ---
 

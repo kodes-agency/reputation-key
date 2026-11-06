@@ -215,7 +215,7 @@ runs the real functions in a forced parallel plan. PostgreSQL prints no clause f
 
 ADR 0074 names a forward-only exception to the baseline byte-copy rule:
 `apply_merchant_ai_transition_v1` (migration 0084's definition) and
-`merchant_ai_notice_material_changes_v1` (restated by 0088 with the 2026-11-01 notice) are
+`merchant_ai_notice_material_changes_v1` (restated by 0100 with the 2026-11-06 notice) are
 stated in `db-constructs.sql`, while 0001
 and 0016 remain immutable historical SQL. The transition has only its live
 27-argument signature, including the ceremony id; never recreate the retired

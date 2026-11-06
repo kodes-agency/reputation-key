@@ -1,17 +1,89 @@
 import { readFileSync } from 'node:fs'
 import { describe, expect, it } from 'vitest'
 
+const legalBody = (file: string) =>
+  readFileSync(`docs/legal/${file}.md`, 'utf8')
+    .split(/## (?:\d+\. )?Changes/u)[0]!
+    .replace(/\s+/gu, ' ')
+
+describe('current notice corrections', () => {
+  it('discloses stored Reporting copies, current AI cleanup and inactive source deletion', () => {
+    const privacy = legalBody('privacy-notice')
+    expect(
+      privacy.match(/Reporting can retain legacy per-review star values/gu),
+    ).toHaveLength(2)
+    expect(privacy).toContain('per-review rating, review text and language')
+    expect(privacy).toContain('a new successful fetch restarts that period')
+    expect(privacy).toContain(
+      'automatic deletion of the stored current source content is not active yet',
+    )
+    expect(privacy).toContain(
+      'Database backups are deleted on a fixed schedule within 30 days: daily copies after six days and weekly copies after 27 days.',
+    )
+    expect(privacy).toContain(
+      'Automatic recording and re-application of erasures after a restore is not active.',
+    )
+    expect(privacy).toContain(
+      'Restoring an older backup can therefore bring back information erased after that backup was made.',
+    )
+    expect(privacy).toContain('except the stored business category')
+    expect(privacy).toContain('expire after 730 days and are deleted by daily cleanup')
+    expect(privacy).toContain('Operational Action History has no active deletion rule')
+    expect(privacy).toContain('These copies await removal.')
+    expect(privacy).not.toContain('23,349')
+    expect(privacy).not.toContain('365 days under the current engineering policy')
+    expect(privacy).not.toContain('The stored business category is cleared')
+    expect(privacy).not.toContain('daily counts of reviews by star rating')
+    expect(privacy).not.toContain('the answers kept for quality testing')
+    expect(privacy).toContain(
+      'Quality checks use an offline scorer on test material or answers already recorded. The scorer does not send reviews to an AI provider.',
+    )
+    expect(privacy).toContain('check the quality of AI analysis using an offline scorer')
+  })
+
+  it('states disconnect limits and the rehearsal evidence without publishing later safeguards', () => {
+    const disclosure = legalBody('google-access-disclosure')
+    expect(disclosure).toContain(
+      'Disconnecting Google stops syncing and reply publication',
+    )
+    expect(disclosure).toContain('it deletes nothing on Google')
+    expect(disclosure).toContain(
+      'Automatic deletion of expired current imported content is not active yet.',
+    )
+    expect(disclosure).toContain(
+      'disconnection stops new Google work and does not itself erase imported content',
+    )
+    const agreement = legalBody('internal-beta-agreement')
+    expect(agreement).toContain(
+      'A restore into an isolated database was rehearsed on 2026-11-04.',
+    )
+    expect(agreement).toContain(
+      'Erasure replay was not tested, and the app’s restore verifier was not used.',
+    )
+    expect(agreement).toContain('Privacy Notice version 3.5, effective 2026-11-06')
+    expect(agreement).toContain(
+      'Google Business Profile Access Disclosure version 2.5, effective 2026-11-06',
+    )
+    expect(agreement).not.toContain('docs/BETA.md')
+    expect(agreement.match(/schedule (?:is )?maintained in/gu)).toHaveLength(2)
+    expect(agreement).not.toContain('four feature switches')
+    expect(agreement).toContain('Property Trends')
+    expect(agreement).toContain('Recent Activity')
+    expect(agreement).toContain(
+      'does not promise unavailable self-service export or deletion',
+    )
+  })
+})
+
 describe('staff account release documents', () => {
   it.each([
-    ['privacy-notice', '3.4'],
-    ['internal-beta-agreement', '2.5'],
-    ['google-access-disclosure', '2.4'],
+    ['privacy-notice', '3.5'],
+    ['internal-beta-agreement', '2.6'],
+    ['google-access-disclosure', '2.5'],
   ])('publishes %s version %s on the approved release date', (file, version) => {
     const text = readFileSync(`docs/legal/${file}.md`, 'utf8')
     expect(text).toContain(`**Version:** ${version}`)
-    expect(text).toContain(
-      `**Effective date:** ${file === 'google-access-disclosure' ? '2026-11-02' : '2026-11-03'}`,
-    )
+    expect(text).toContain('**Effective date:** 2026-11-06')
     expect(text).toContain('without a waiting period')
   })
   it.each(['privacy-notice', 'internal-beta-agreement'])(
@@ -22,7 +94,7 @@ describe('staff account release documents', () => {
       expect(body).toContain(
         'Managers may also see a marker when someone who has joined has had no scans for 14 days. It prompts a conversation; nothing happens automatically, and staff do not see it.',
       )
-      expect(text).toContain('amended_on: 2026-11-03')
+      expect(text).toContain('amended_on: 2026-11-06')
     },
   )
   it('preserves the Google ban and states the staff scan target and manager Google selection plainly', () => {

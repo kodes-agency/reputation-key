@@ -127,12 +127,26 @@ describe('capability-specific merchant AI consent epochs', () => {
       property_trends: 8,
     })
   })
-  it('records the drafting-only release and the preceding all-capability switch-on', () => {
+  it('renews analysis alone for the corrected retention and quality-testing notice', () => {
     const notice = MERCHANT_AI_NOTICE_CHANGES[0]!
+    const changes = materiallyChangedMerchantAiCapabilities(notice.replaces!, notice)
+    expect(changes).toEqual(['review_analysis'])
+    expect(nextMerchantAiCapabilityEpochs(current, input, false, changes)).toEqual({
+      review_analysis: 4,
+      reply_drafting: 5,
+      property_trends: 7,
+    })
+  })
+  it('records the drafting-only release and the preceding all-capability switch-on', () => {
+    const notice = MERCHANT_AI_NOTICE_CHANGES.find(
+      (entry) => entry.noticeVersion === 'merchant-ai-notice-2026-11-01.v1',
+    )!
     expect(materiallyChangedMerchantAiCapabilities(notice.replaces!, notice)).toEqual([
       'reply_drafting',
     ])
-    const previous = MERCHANT_AI_NOTICE_CHANGES[1]!
+    const previous = MERCHANT_AI_NOTICE_CHANGES.find(
+      (entry) => entry.noticeVersion === notice.replaces!.noticeVersion,
+    )!
     expect(materiallyChangedMerchantAiCapabilities(previous.replaces!, previous)).toEqual(
       CURRENT_MERCHANT_AI_CAPABILITIES,
     )

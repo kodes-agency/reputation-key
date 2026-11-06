@@ -518,12 +518,29 @@ describe('the review analysis use case under the v3 contract', () => {
     })
   })
 
-  // The switch-on (2026-10-30): a consent recorded before it is under a notice, a
-  // deployment profile and a runtime profile the catalogue no longer serves, and none of
-  // the three keeps AI running. The review is settled as not analysable and nothing is
-  // claimed or sent until an AccountAdmin confirms the new notice and the epoch bump
-  // analyses the history again.
+  // A notice that materially changes analysis requires renewal before claiming
+  // work, even when the recorded runtime and deployment remain compatible.
   it.each([
+    {
+      name: 'the 2026-11-01 drafting-only notice',
+      options: {
+        consentNotice: {
+          noticeVersion: 'merchant-ai-notice-2026-11-01.v1',
+          noticeDigest:
+            'e9574380fd1ba5f4b7bd7b9899bc5e6bdf371f9d9871584f33c5c1e6131290ef',
+        },
+      },
+    },
+    {
+      name: 'the 2026-10-30 analysis notice',
+      options: {
+        consentNotice: {
+          noticeVersion: 'merchant-ai-notice-2026-10-30.v1',
+          noticeDigest:
+            'dadad7b81dbda360678fc57f7265b104c7311cbc213f877f32306c53b4852a5e',
+        },
+      },
+    },
     {
       name: 'the 2026-10-17 notice, in force until the switch-on',
       options: {
