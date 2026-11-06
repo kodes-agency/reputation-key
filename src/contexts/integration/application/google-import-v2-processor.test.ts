@@ -724,6 +724,40 @@ describe('GoogleImportV2Processor', () => {
     },
   )
 
+  it.each(['create', 'relink'] as const)(
+    'reports reconnect_required when disconnect wins before %s publication',
+    async (action) => {
+      const unavailable = Object.assign(new Error('connection unavailable'), {
+        code: 'connection_unavailable',
+      })
+      const item = claimedItem({
+        action,
+        existingPropertyId: action === 'relink' ? PROPERTY_ID : null,
+        expectedSourceEpoch: action === 'relink' ? 0 : null,
+        expectedProfileVersion: action === 'relink' ? 1 : null,
+      })
+      const harness = setup({
+        claim: { kind: 'claimed', item },
+        createError: unavailable,
+        relinkError: unavailable,
+      })
+
+      await harness.processor.process({
+        organizationId: ORG_ID,
+        itemId: ITEM_ID,
+        retryRevision: 0,
+        attemptOrdinal: 1,
+      })
+
+      expect(harness.completeClaim).toHaveBeenCalledWith(
+        expect.objectContaining({
+          outcomeCode: 'reconnect_required',
+        }),
+      )
+      expect(harness.releaseClaimForRetry).not.toHaveBeenCalled()
+    },
+  )
+
   it('names the field when the Property builder itself rejects the confirmed profile', async () => {
     const item = claimedItem({ timezone: 'Mars/Olympus' })
     const harness = setup({ claim: { kind: 'claimed', item } })

@@ -58,6 +58,7 @@ const identityManagerFacts = { listActiveManagers: async () => [] }
 
 // Keyed by the store type, so a new binding method must be listed here.
 const GOOGLE_BINDING_MEMBERS = Object.keys({
+  refreshPrimaryCategory: true,
   readInternal: true,
   readByLocationIds: true,
   readSummary: true,

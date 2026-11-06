@@ -1,12 +1,5 @@
-// Integration context — connect Google account use case tests
-
 import { describe, expect, it, vi } from 'vitest'
-import { connectGoogleAccount } from './connect-google-account'
-import { createInMemoryGoogleConnectionRepo } from '#/shared/testing/in-memory-google-connection-repo'
-import { createSequentialIntegrationCommandStore } from '#/shared/testing/sequential-integration-command-store'
-import { createInMemoryGoogleOAuthPort } from '#/shared/testing/in-memory-google-oauth-port'
-import { createInMemoryTokenEncryption } from '#/shared/testing/in-memory-token-encryption'
-import { createRecordedOutbox } from '#/shared/testing/recorded-outbox'
+import { createGoogleConnectionCeremonyFixture as setup } from '#/shared/testing/google-connection-ceremony-fixture'
 import {
   buildTestAuthContext,
   buildTestGoogleConnection,
@@ -14,12 +7,7 @@ import {
 import { integrationError, isIntegrationError } from '../../domain/errors'
 import { organizationId } from '#/shared/domain/ids'
 import type { GoogleOAuthProviderCallAuthorizer } from '../ports/google-oauth.port'
-import type {
-  GoogleOAuthExchangeAttemptFacts,
-  GoogleOAuthExchangeRecoveryStore,
-} from '../google-oauth-exchange-recovery'
 
-const FIXED_TIME = new Date('2026-04-10T12:00:00Z')
 const VERIFIER = 'test-code-verifier'
 const OIDC_NONCE = 'test-oidc-nonce'
 const input = (visibility: 'private' | 'organization' = 'private') => ({
@@ -35,133 +23,6 @@ const input = (visibility: 'private' | 'organization' = 'private') => ({
     oidcNonce: OIDC_NONCE,
   },
 })
-
-const setup = (authorizeProviderCall?: GoogleOAuthProviderCallAuthorizer) => {
-  const connectionRepo = createInMemoryGoogleConnectionRepo()
-  const oauth = createInMemoryGoogleOAuthPort()
-  let attempt:
-    | (GoogleOAuthExchangeAttemptFacts & {
-        state:
-          | 'prepared'
-          | 'provider_started'
-          | 'response_preserved'
-          | 'applying'
-          | 'completed'
-        encryptedResult?: string
-      })
-    | undefined
-  const finishWithoutResult = vi.fn<
-    GoogleOAuthExchangeRecoveryStore['finishWithoutResult']
-  >(async () => ({ ok: true, value: { finished: true } }))
-  const exchangeRecovery: GoogleOAuthExchangeRecoveryStore = {
-    begin: async (value) => {
-      attempt = { ...value, state: 'prepared' }
-      return { ok: true, value: { state: 'prepared' } }
-    },
-    markProviderStarted: async () => {
-      if (!attempt || attempt.state !== 'prepared') {
-        return { ok: false, code: 'invalid_transition' }
-      }
-      attempt.state = 'provider_started'
-      return { ok: true, value: { started: true } }
-    },
-    preserveSuccessfulResult: async ({ encryptedResult }) => {
-      if (!attempt || attempt.state !== 'provider_started') {
-        return { ok: false, code: 'invalid_transition' }
-      }
-      attempt.state = 'response_preserved'
-      attempt.encryptedResult = encryptedResult
-      return { ok: true, value: { preserved: true } }
-    },
-    claimPreservedResult: async () => {
-      if (attempt?.state === 'completed') {
-        return { ok: false, code: 'completed' }
-      }
-      if (
-        !attempt ||
-        attempt.state !== 'response_preserved' ||
-        !attempt.encryptedResult
-      ) {
-        return { ok: false, code: 'invalid_transition' }
-      }
-      attempt.state = 'applying'
-      return {
-        ok: true,
-        value: { ...attempt, encryptedResult: attempt.encryptedResult },
-      } as const satisfies Awaited<
-        ReturnType<GoogleOAuthExchangeRecoveryStore['claimPreservedResult']>
-      >
-    },
-    loadCompletedAttempt: async ({ id, organizationId, initiatorUserId }) =>
-      attempt?.state === 'completed' &&
-      attempt.id === id &&
-      attempt.organizationId === organizationId &&
-      attempt.initiatorUserId === initiatorUserId
-        ? attempt
-        : null,
-    releaseClaim: async () => ({ ok: true, value: { released: true } }),
-    discardClaim: async () => ({ ok: true, value: { discarded: true } }),
-    finishWithoutResult,
-    expire: async () => ({ expired: 0 }),
-  }
-  const originalExchange = oauth.exchangeCode
-  const exchangeCode = vi.fn(async (request: Parameters<typeof originalExchange>[0]) => {
-    if (request.preservedResult) {
-      return {
-        identity: {
-          kind: 'oidc' as const,
-          googleSubject: 'google-subject-123',
-          email: 'owner@example.com',
-        },
-        accessToken: request.preservedResult.accessToken,
-        refreshToken: request.preservedResult.refreshToken,
-        expiresIn: request.preservedResult.expiresIn,
-        scopes: request.preservedResult.scopes,
-      }
-    }
-    const result = await originalExchange(request)
-    await request.preserveSuccessfulResult?.({
-      accessToken: result.accessToken,
-      refreshToken: result.refreshToken,
-      expiresIn: result.expiresIn,
-      scopes: result.scopes,
-      idToken: 'fake-signed-id-token',
-    })
-    return result
-  })
-  const recoverableOauth = {
-    ...oauth,
-    exchangeCode,
-  }
-  const encryption = createInMemoryTokenEncryption()
-  const outbox = createRecordedOutbox()
-  const useCase = connectGoogleAccount({
-    connectionRepo,
-    oauth: recoverableOauth,
-    encryption,
-    commandStore: createSequentialIntegrationCommandStore({ connectionRepo, outbox }),
-    exchangeRecovery,
-    clock: () => FIXED_TIME,
-    idGen: () => 'test-connection-id',
-    callbackUrl: 'http://localhost:3000/api/auth/google/callback',
-    ...(authorizeProviderCall ? { authorizeProviderCall } : {}),
-  })
-  return {
-    useCase,
-    connectionRepo,
-    oauth,
-    exchangeCode,
-    outbox,
-    finishWithoutResult,
-    markAttemptCompleted: () => {
-      if (!attempt || attempt.state !== 'applying') {
-        throw new Error('Expected an applying OAuth exchange attempt')
-      }
-      attempt.state = 'completed'
-      delete attempt.encryptedResult
-    },
-  }
-}
 
 describe('connectGoogleAccount', () => {
   it('creates an OIDC connection and records the v2 lifecycle fact', async () => {
@@ -298,6 +159,38 @@ describe('connectGoogleAccount', () => {
     expect(outbox.byTag('integration.google_account.connected')[0]).toMatchObject({
       connectionId: existing.id,
     })
+  })
+
+  it('leaves category refresh to the committed fact on reconnect and completed callback retry', async () => {
+    const refresh = vi.fn(async () => {})
+    const { useCase, connectionRepo, markAttemptCompleted, exchangeCode } = setup(
+      undefined,
+      refresh,
+    )
+    const ctx = buildTestAuthContext({ role: 'AccountAdmin' })
+    const existing = buildTestGoogleConnection({
+      status: 'disconnected',
+      googleSubject: null,
+    })
+    connectionRepo.seed([existing])
+
+    const connected = await useCase(
+      {
+        ...input(),
+        connectionMode: 'reconnect',
+        targetConnectionId: existing.id,
+      },
+      ctx,
+    )
+    expect(refresh).not.toHaveBeenCalled()
+    markAttemptCompleted()
+    refresh.mockRejectedValueOnce(new Error('category read unavailable'))
+    await expect(
+      useCase.resume({ attemptId: input().exchangeAttemptId }, ctx),
+    ).resolves.toEqual(connected)
+    await useCase.resume({ attemptId: input().exchangeAttemptId }, ctx)
+    expect(refresh).not.toHaveBeenCalled()
+    expect(exchangeCode).toHaveBeenCalledTimes(1)
   })
 
   it('refuses a reconnect that loses the race to a disconnect and keeps it disconnected', async () => {

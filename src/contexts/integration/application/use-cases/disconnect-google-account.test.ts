@@ -122,6 +122,37 @@ describe('disconnectGoogleAccount', () => {
     expect(outbox.byTag('integration.google_account.disconnected')).toHaveLength(0)
   })
 
+  it('retries local cleanup and an interrupted source purge without repeating provider cleanup', async () => {
+    const { baseDeps, connectionRepo, outbox } = setup()
+    const ctx = buildTestAuthContext({ role: 'AccountAdmin' })
+    const connection = buildTestGoogleConnection({ status: 'active' })
+    connectionRepo.seed([connection])
+    const cleanup = vi.spyOn(baseDeps.commandStore, 'disconnectGoogleAccount')
+    const unsubscribe = vi.fn()
+    const forConnection = vi.fn().mockRejectedValueOnce(new Error('purge interrupted'))
+    const command = disconnectGoogleAccount({
+      ...baseDeps,
+      unsubscribeFromNotifications: unsubscribe,
+      sourceContentPurge: {
+        forConnection,
+        forProperty: vi.fn(),
+        forOrganization: vi.fn(),
+        inboxForProperty: vi.fn(),
+      },
+    })
+
+    await expect(command({ connectionId: connection.id }, ctx)).rejects.toThrow(
+      'purge interrupted',
+    )
+    await expect(command({ connectionId: connection.id }, ctx)).resolves.toMatchObject({
+      status: 'disconnected',
+    })
+    expect(cleanup).toHaveBeenCalledTimes(2)
+    expect(forConnection).toHaveBeenCalledTimes(2)
+    expect(unsubscribe).toHaveBeenCalledTimes(1)
+    expect(outbox.byTag('integration.google_account.disconnected')).toHaveLength(1)
+  })
+
   it('returns the connection an overlapping disconnect committed first, without a second fact', async () => {
     const { baseDeps, connectionRepo, outbox } = setup()
     const ctx = buildTestAuthContext({ role: 'AccountAdmin' })
@@ -144,6 +175,59 @@ describe('disconnectGoogleAccount', () => {
       encryptedRefreshToken: 'redacted',
     })
     expect(outbox.byTag('integration.google_account.disconnected')).toHaveLength(1)
+  })
+
+  it('leaves a reconnect that commits before a disconnected retry locked read intact', async () => {
+    const { baseDeps, connectionRepo, outbox } = setup()
+    const ctx = buildTestAuthContext({ role: 'AccountAdmin' })
+    const disconnected = buildTestGoogleConnection({ status: 'disconnected' })
+    connectionRepo.seed([disconnected])
+    const forConnection = vi.fn()
+    const disconnect = baseDeps.commandStore.disconnectGoogleAccount
+    const command = disconnectGoogleAccount({
+      ...baseDeps,
+      commandStore: {
+        ...baseDeps.commandStore,
+        disconnectGoogleAccount: async (input) => {
+          await baseDeps.commandStore.reconnectGoogleAccount({
+            organizationId: ctx.organizationId,
+            connectionId: disconnected.id,
+            expected: disconnected,
+            googleSubject: 'reconnected-subject',
+            googleAccountEmail: null,
+            encryptedAccessToken: 'enc:new-access',
+            encryptedRefreshToken: 'enc:new-refresh',
+            tokenExpiresAt: new Date(FIXED_TIME.getTime() + 3_600_000),
+            scopes: ['https://www.googleapis.com/auth/business.manage'],
+            visibility: 'organization',
+            event: {
+              ...input.event,
+              _tag: 'integration.google_account.connected',
+              userId: ctx.userId,
+            },
+          })
+          return disconnect(input)
+        },
+      },
+      sourceContentPurge: {
+        forConnection,
+        forProperty: vi.fn(),
+        forOrganization: vi.fn(),
+        inboxForProperty: vi.fn(),
+      },
+    })
+
+    await expect(command({ connectionId: disconnected.id }, ctx)).rejects.toMatchObject({
+      code: 'invalid_transition',
+    })
+    await expect(
+      connectionRepo.findById(ctx.organizationId, disconnected.id),
+    ).resolves.toMatchObject({
+      status: 'active',
+      encryptedRefreshToken: 'enc:new-refresh',
+    })
+    expect(forConnection).not.toHaveBeenCalled()
+    expect(outbox.byTag('integration.google_account.disconnected')).toHaveLength(0)
   })
 
   it('still disconnects when a token refresh commits between its read and its write', async () => {

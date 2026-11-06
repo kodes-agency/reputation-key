@@ -1,6 +1,7 @@
 // Integration context — domain rules
 
 import type { GoogleConnection, GoogleConnectionVisibility } from './types'
+import { integrationError } from './errors'
 
 const VALID_VISIBILITIES: ReadonlySet<string> = new Set(['private', 'organization'])
 
@@ -10,6 +11,25 @@ export const isValidEmail = (email: string): boolean => EMAIL_RE.test(email)
 
 export const isValidVisibility = (v: string): v is GoogleConnectionVisibility =>
   VALID_VISIBILITIES.has(v)
+
+type DisconnectAuthority = Pick<GoogleConnection, 'status' | 'lifecycleVersion'>
+
+/** Cleanup retries must leave a connection that has since reconnected untouched. */
+export function assertGoogleDisconnectAuthority(
+  connection: DisconnectAuthority | null | undefined,
+  cleanupLifecycleVersion: number | undefined,
+): asserts connection is DisconnectAuthority {
+  if (!connection) {
+    throw integrationError('connection_not_found', 'Google connection not found')
+  }
+  if (
+    cleanupLifecycleVersion !== undefined &&
+    (connection.status !== 'disconnected' ||
+      connection.lifecycleVersion !== cleanupLifecycleVersion)
+  ) {
+    throw integrationError('invalid_transition', 'Google connection authority changed')
+  }
+}
 
 /**
  * A governed disconnect holds its connection in `disconnecting` from the moment
