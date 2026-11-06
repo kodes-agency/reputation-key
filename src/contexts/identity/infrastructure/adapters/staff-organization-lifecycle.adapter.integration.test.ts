@@ -170,7 +170,7 @@ const deleteReceipts = async (organizationIds: readonly string[]): Promise<void>
     )
     await client.query(
       `ALTER TABLE organization_lifecycle_events
-       ENABLE ALWAYS TRIGGER organization_lifecycle_events_append_only`,
+       ENABLE TRIGGER organization_lifecycle_events_append_only`,
     )
     await client.query('COMMIT')
   } catch (error) {

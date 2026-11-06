@@ -48,7 +48,7 @@ async function withReminderGuardDisabled(work: () => Promise<void>): Promise<voi
     await work()
   } finally {
     await pool.query(
-      'ALTER TABLE inbox_response_target_reminders ENABLE ALWAYS TRIGGER "inbox_response_target_reminders_terminal_guard"',
+      'ALTER TABLE inbox_response_target_reminders ENABLE TRIGGER "inbox_response_target_reminders_terminal_guard"',
     )
   }
 }

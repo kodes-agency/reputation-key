@@ -1,24 +1,9 @@
-// Migration verification test — semantic schema authority gate.
-//
-// Two layers:
-//   1. Presence assertions (PRE17A A1 heritage): the objects CI's
-//      "empty → latest" migration path must produce.
-//   2. Semantic parity (BQC-5.4): the full Drizzle model (including the
-//      better-auth mirror) compared against the migrated PostgreSQL catalog —
-//      columns/types/nullability/defaults, PK/unique/check/FK constraints incl.
-//      actions, indexes incl. order/direction/expressions/predicates, enum
-//      labels, journal order and continuity, the DB-only register (both
-//      directions closed) and the definition of every function and trigger in
-//      it. See ./CONTEXT.md and ./schema-drift.ts.
-//
-// In CI this runs after `auth:migrate && db:migrate` + the registered deploy
-// sidecar against a fresh database. Locally it requires a migrated test
-// database with the sidecar applied (see src/shared/db/CONTEXT.md).
+// The CI migration path and operator check share the canonical schema comparison.
 
 import { describe, it, expect, beforeAll, afterAll } from 'vitest'
 import { getEnv } from '#/shared/config/env'
 import { acquireTestLease, type TestLease } from '#/shared/testing/test-environment-lease'
-import { collectSchemaDrift, formatDrifts } from './schema-drift'
+import { checkStructure } from './structure.server'
 
 const EXPECTED_TABLES = [
   'recovery_runs',
@@ -220,28 +205,8 @@ describe('migration verification (PRE17A A1 presence)', () => {
   })
 })
 
-describe('semantic schema parity (BQC-5.4)', () => {
-  let lease: TestLease
-
-  beforeAll(async () => {
-    const env = getEnv()
-    lease = await acquireTestLease(env.DATABASE_URL)
-  })
-
-  afterAll(async () => {
-    await lease?.release()
-  })
-
-  it('drizzle model matches the migrated catalog exactly (both directions closed)', async () => {
-    const drifts = await collectSchemaDrift(lease.pool)
-    expect(
-      drifts,
-      `Schema drift detected (${drifts.length}):\n${formatDrifts(drifts)}\n\n` +
-        'Fix the model in src/shared/db/schema/*.ts to match the migrated DB, ' +
-        'or register intentional DB-only constructs in ' +
-        'src/shared/db/schema/db-only-constructs.ts (see src/shared/db/CONTEXT.md). ' +
-        'A function or trigger whose definition differs is restated in ' +
-        'db-constructs.sql, its 0001 copy and the migration that changes it.',
-    ).toEqual([])
+describe('canonical schema parity', () => {
+  it('the migrated database matches structure.sql and the applied journal', async () => {
+    expect(await checkStructure(getEnv().DATABASE_URL)).toEqual([])
   })
 })
