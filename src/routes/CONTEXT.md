@@ -159,9 +159,9 @@ done with it.
 ## Server-function bundles and mutations
 
 Routes are the sanctioned delivery layer for importing context server functions.
-When several contexts power one component, expose a lazy getter bundle from a
-route-local `-*-fns.ts` module and pass it as a prop. The getters preserve the
-server-function wrappers without eagerly touching unrelated runtime modules.
+When several contexts power one component, collect server-function references in a
+route-local `-*-fns.ts` module and pass them as a prop. Import the functions directly;
+the built-artifact bundle check guards against static chunk cycles.
 
 Create mutations with `useActionMutation`, provide targeted `invalidateKeys`, and
 pass the resulting `Action` to forms/components. Silent fire-and-forget work uses

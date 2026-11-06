@@ -22,15 +22,19 @@ const page = vi.hoisted(() => ({
   pending: vi.fn<() => void>(),
 }))
 
-vi.mock('@tanstack/react-router', () => ({
-  createFileRoute: () => (options: unknown) => ({
-    options,
-    useParams: () => ({ propertyId: page.propertyId }),
-    useSearch: () => ({ range: page.range }),
-    useNavigate: () => vi.fn(),
-  }),
-  notFound: vi.fn(),
-}))
+vi.mock('@tanstack/react-router', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@tanstack/react-router')>()
+  return {
+    ...actual,
+    createFileRoute: () => (options: unknown) => ({
+      options,
+      useParams: () => ({ propertyId: page.propertyId }),
+      useSearch: () => ({ range: page.range }),
+      useNavigate: () => vi.fn(),
+    }),
+    notFound: vi.fn(),
+  }
+})
 vi.mock('#/contexts/ai/server/guest-voice-v2', () => ({
   getGuestVoiceV2Fn: page.read,
 }))
