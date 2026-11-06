@@ -1,7 +1,10 @@
 import { createHmac } from 'node:crypto'
 import { describe, expect, it, vi } from 'vitest'
 import type { GoogleInFlightCoordinator, GoogleQuotaCoordinator } from './contracts'
-import { googleQuotaCredentialFingerprint } from './quota-coordinator'
+import {
+  createInMemoryGoogleQuotaCoordinator,
+  googleQuotaCredentialFingerprint,
+} from './quota-coordinator'
 import {
   compileGoogleProviderRequest,
   type GoogleProviderAdmissionMetadata,
@@ -48,7 +51,6 @@ function permitFor(
 function testCoordinators() {
   const quota: GoogleQuotaCoordinator = Object.freeze({
     acquire: vi.fn(async () => ({ ok: true as const, remaining: 9 })),
-    refund: vi.fn(async () => true),
   })
   const release = vi.fn(async () => true)
   let leaseSequence = 0
@@ -166,7 +168,7 @@ describe('Google in-process admission service', () => {
     )
   })
 
-  it('releases a semaphore after start CAS denial and refunds unused quota', async () => {
+  it('releases a semaphore after start CAS denial while keeping quota spent', async () => {
     const compiled = compile({
       routeKey: 'account-management.accounts.list',
       accessToken: 'access-token',
@@ -175,6 +177,12 @@ describe('Google in-process admission service', () => {
       permit: permitFor('permit-cas-000001', compiled.admission),
       startResult: 'changed',
     })
+    const quota = createInMemoryGoogleQuotaCoordinator({
+      nowMs: () => 1_000,
+      capacity: 1,
+      refillTokensPerSecond: 1,
+    })
+    vi.mocked(fixture.quota.acquire).mockImplementation(quota.acquire)
     await expect(
       fixture.service.start({
         permitId: 'permit-cas-000001',
@@ -189,11 +197,17 @@ describe('Google in-process admission service', () => {
     expect(fixture.quota.acquire).toHaveBeenCalledTimes(1)
     expect(fixture.inFlight.acquire).toHaveBeenCalledTimes(1)
     expect(fixture.release).toHaveBeenCalledTimes(1)
-    expect(fixture.quota.refund).toHaveBeenCalledWith(
-      expect.anything(),
-      1,
-      expect.any(String),
-    )
+    await expect(
+      quota.acquire(
+        permitFor('permit-cas-000001', compiled.admission).quotaKey,
+        1,
+        10_000,
+      ),
+    ).resolves.toEqual({
+      ok: false,
+      code: 'quota_exhausted',
+      retryAfterMs: 1_000,
+    })
   })
 
   // The gateway checks the same deadline before it asks; the time spent reaching
@@ -354,6 +368,12 @@ describe('Google in-process admission service', () => {
     const fixture = admissionFixture({
       permit: permitFor('permit-once-00001', compiled.admission),
     })
+    const quota = createInMemoryGoogleQuotaCoordinator({
+      nowMs: () => 1_000,
+      capacity: 2,
+      refillTokensPerSecond: 1,
+    })
+    vi.mocked(fixture.quota.acquire).mockImplementation(quota.acquire)
     let started = false
     vi.mocked(fixture.authority.start).mockImplementation(async () => {
       if (started) return 'changed'
@@ -376,11 +396,17 @@ describe('Google in-process admission service', () => {
       dispatch: 'not_sent',
     })
     expect(fetchMock).toHaveBeenCalledTimes(1)
-    expect(fixture.quota.refund).toHaveBeenCalledExactlyOnceWith(
-      expect.anything(),
-      1,
-      expect.any(String),
-    )
+    await expect(
+      quota.acquire(
+        permitFor('permit-once-00001', compiled.admission).quotaKey,
+        1,
+        10_000,
+      ),
+    ).resolves.toEqual({
+      ok: false,
+      code: 'quota_exhausted',
+      retryAfterMs: 1_000,
+    })
     expect(fixture.complete).toHaveBeenCalledTimes(1)
     expect(fixture.release).toHaveBeenCalledTimes(2)
   })
@@ -404,7 +430,6 @@ describe('Google in-process admission service', () => {
       }),
       1,
       10_000,
-      expect.any(String),
     )
   })
 })

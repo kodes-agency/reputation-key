@@ -105,7 +105,12 @@ vi.mock('#/components/features/identity', () => ({
 import { Route as AuthenticatedRoute } from '#/routes/_authenticated'
 import { Route as SettingsRoute } from '#/routes/_authenticated/settings'
 import { Route as ProfileRoute } from './profile'
-import { identityKeys } from '#/shared/queries/query-keys'
+import { createKeys } from '#/shared/queries/query-keys'
+
+const { identityKeys } = createKeys({
+  userId: 'user-1',
+  organizationId: 'organization-1',
+})
 
 const AVATAR = '/api/public/identity-assets/avatars/user-1/3f1b2c4d'
 

@@ -1,3 +1,4 @@
+import { useTenantScope } from '#/shared/hooks/useTenantScope'
 // Inbox route v2 — three-panel email-style layout
 import { createFileRoute, getRouteApi } from '@tanstack/react-router'
 import { roleUnavailable } from '#/shared/auth/route-notice'
@@ -35,7 +36,7 @@ function InboxRoute() {
   const { can: canDo } = usePermissions()
   // Member-directory access is separate from Inbox management authority.
   const { data: membersData } = useQuery({
-    ...membersQuery,
+    ...membersQuery(useTenantScope()),
     enabled: canDo('member.list'),
   })
   const search = Route.useSearch() as InboxSearchParams

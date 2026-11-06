@@ -1,7 +1,7 @@
 import { QueryClient } from '@tanstack/react-query'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { ImportProgressDto } from '#/contexts/integration/application/public-api'
-import { integrationKeys } from '#/shared/queries/query-keys'
+import { createKeys } from '#/shared/queries/query-keys'
 import {
   googleImportAccountsQuery,
   googleImportCandidatesQuery,
@@ -10,6 +10,8 @@ import {
   googleImportStatusQuery,
   scheduleGoogleImportExpiries,
 } from './google-import-queries'
+
+const { integrationKeys } = createKeys({ userId: 'user-1', organizationId: 'org-1' })
 
 const CONNECTION_ID = '10000000-0000-4000-8000-000000000003'
 const guard = vi.fn()
@@ -49,7 +51,11 @@ describe('Google import progress query', () => {
     const client = new QueryClient({
       defaultOptions: { queries: { retry: false } },
     })
-    const options = googleImportStatusQuery(processing.importJobId, getImportStatus)
+    const options = googleImportStatusQuery(
+      { userId: 'user-1', organizationId: 'org-1' },
+      processing.importJobId,
+      getImportStatus,
+    )
 
     expect(options.queryKey).toEqual(integrationKeys.import(processing.importJobId))
 
@@ -94,6 +100,7 @@ describe('Google import discovery while the tab is hidden', () => {
 
   it('keeps renewing the authorization lease in the background', () => {
     const options = googleImportLeaseQuery({
+      scope: { userId: 'user-1', organizationId: 'org-1' },
       organizationId: 'org-1',
       connectionId: CONNECTION_ID,
       leaseRef: 'lease.ref',
@@ -123,15 +130,32 @@ describe('Google import discovery while the tab is hidden', () => {
       renewLease: vi.fn() as never,
     }
 
-    expect(googleImportLeaseQuery({ ...base, hasProviderContent: false }).enabled).toBe(
-      false,
-    )
-    expect(googleImportLeaseQuery({ ...base, leaseRef: null }).enabled).toBe(false)
-    expect(googleImportLeaseQuery({ ...base, enabled: false }).enabled).toBe(false)
+    expect(
+      googleImportLeaseQuery({
+        scope: { userId: 'user-1', organizationId: 'org-1' },
+        ...base,
+        hasProviderContent: false,
+      }).enabled,
+    ).toBe(false)
+    expect(
+      googleImportLeaseQuery({
+        scope: { userId: 'user-1', organizationId: 'org-1' },
+        ...base,
+        leaseRef: null,
+      }).enabled,
+    ).toBe(false)
+    expect(
+      googleImportLeaseQuery({
+        scope: { userId: 'user-1', organizationId: 'org-1' },
+        ...base,
+        enabled: false,
+      }).enabled,
+    ).toBe(false)
   })
 
   it('never refetches a discovery page on return, reconnect or remount', () => {
     const accounts = googleImportAccountsQuery({
+      scope: { userId: 'user-1', organizationId: 'org-1' },
       organizationId: 'org-1',
       connectionId: CONNECTION_ID,
       enabled: true,
@@ -140,6 +164,7 @@ describe('Google import discovery while the tab is hidden', () => {
       listAccounts: vi.fn() as never,
     })
     const candidates = googleImportCandidatesQuery({
+      scope: { userId: 'user-1', organizationId: 'org-1' },
       organizationId: 'org-1',
       connectionId: CONNECTION_ID,
       accountRef: 'account.ref',

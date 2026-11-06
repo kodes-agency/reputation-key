@@ -86,7 +86,7 @@ function signInToAcceptInvitation(invitationId: string) {
 
 /** What /accept-invitation renders, decided once in `beforeLoad`. */
 export type AcceptEntry =
-  | Readonly<{ kind: 'list' }>
+  | Readonly<{ kind: 'list'; userId: string }>
   | Readonly<{ kind: 'link'; link: InvitationLink; signedInEmail: string }>
   // Signed out, and the link needs no account to explain itself.
   | Readonly<{ kind: 'unusable'; link: UnusableInvitationLink }>
@@ -96,13 +96,16 @@ export async function resolveAcceptEntry(
   queryClient: Pick<QueryClient, 'ensureQueryData'>,
 ): Promise<{ entry: AcceptEntry }> {
   if (!id) {
-    if (!(await getSession())) {
+    const session = await getSession()
+    if (!session) {
       throw redirect({ to: '/join', search: { invitationId: undefined } })
     }
     // The list page reads this same query; priming it here, where the page is
     // chosen, keeps a `loader` (and its code) out of the first-paint bundle.
-    await queryClient.ensureQueryData(pendingInvitationsQuery)
-    return { entry: { kind: 'list' } }
+    await queryClient.ensureQueryData(
+      pendingInvitationsQuery({ userId: session.user.id, organizationId: null }),
+    )
+    return { entry: { kind: 'list', userId: session.user.id } }
   }
   const { link, accountExists, signedInEmail } = await loadInvitationEntry(id)
   if (signedInEmail !== null) {

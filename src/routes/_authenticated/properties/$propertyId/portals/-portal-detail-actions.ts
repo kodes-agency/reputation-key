@@ -25,56 +25,15 @@ import type { PortalLookActions } from '#/components/features/portal/portal-look
 import { portalKeys } from '#/shared/queries/query-keys'
 import type { UpdatePortalVariables } from '#/components/features/portal/shared/types'
 import type { PortalQueryResult } from './-portal-detail-data'
-
-type DownloadPortalPrintFinal =
-  typeof import('#/contexts/portal/server/portal-print-final').downloadPortalPrintFinal
-
-/** The final print kit's download, its server function's module loaded when it is first asked for. */
-const downloadPortalPrintFinalLazily = async (
-  input: Parameters<DownloadPortalPrintFinal>[0],
-): Promise<Awaited<ReturnType<DownloadPortalPrintFinal>>> => {
-  const { downloadPortalPrintFinal } =
-    await import('#/contexts/portal/server/portal-print-final')
-  return downloadPortalPrintFinal(input)
-}
-
-type SavePortalPrintWording =
-  typeof import('#/contexts/portal/server/portal-print-final').savePortalPrintWording
-
-/** Saving the final kit's wording, in the same lazily loaded module as its download. */
-const savePortalPrintWordingLazily = async (
-  input: Parameters<SavePortalPrintWording>[0],
-): Promise<Awaited<ReturnType<SavePortalPrintWording>>> => {
-  const { savePortalPrintWording } =
-    await import('#/contexts/portal/server/portal-print-final')
-  return savePortalPrintWording(input)
-}
-
-type PortalLookServer = typeof import('#/contexts/portal/server/portal-look')
-
-/**
- * The three writes of a portal's own look, their server functions' module loaded
- * when one is first used: only an Account Admin on a property with a second
- * portal ever asks, and the first paint has no room for three more stubs.
- */
-const savePortalLookColoursLazily = async (
-  input: Parameters<PortalLookServer['savePortalLookColours']>[0],
-): Promise<Awaited<ReturnType<PortalLookServer['savePortalLookColours']>>> => {
-  const { savePortalLookColours } = await import('#/contexts/portal/server/portal-look')
-  return savePortalLookColours(input)
-}
-const savePortalLookIdentityLazily = async (
-  input: Parameters<PortalLookServer['savePortalLookIdentity']>[0],
-): Promise<Awaited<ReturnType<PortalLookServer['savePortalLookIdentity']>>> => {
-  const { savePortalLookIdentity } = await import('#/contexts/portal/server/portal-look')
-  return savePortalLookIdentity(input)
-}
-const savePortalLookPhotoLazily = async (
-  input: Parameters<PortalLookServer['savePortalLookPhoto']>[0],
-): Promise<Awaited<ReturnType<PortalLookServer['savePortalLookPhoto']>>> => {
-  const { savePortalLookPhoto } = await import('#/contexts/portal/server/portal-look')
-  return savePortalLookPhoto(input)
-}
+import {
+  downloadPortalPrintFinal,
+  savePortalPrintWording,
+} from '#/contexts/portal/server/portal-print-final'
+import {
+  savePortalLookColours,
+  savePortalLookIdentity,
+  savePortalLookPhoto,
+} from '#/contexts/portal/server/portal-look'
 
 /**
  * The portal patch, for every section that saves one. It is silent on success:
@@ -206,9 +165,9 @@ function usePortalLookActions(propertyId: string, portalId: string): PortalLookA
     portalKeys.lookReview(propertyId),
   ]
   return {
-    saveColours: useActionMutation(savePortalLookColoursLazily, { invalidateKeys }),
-    saveIdentity: useActionMutation(savePortalLookIdentityLazily, { invalidateKeys }),
-    savePhoto: useActionMutation(savePortalLookPhotoLazily, { invalidateKeys }),
+    saveColours: useActionMutation(savePortalLookColours, { invalidateKeys }),
+    saveIdentity: useActionMutation(savePortalLookIdentity, { invalidateKeys }),
+    savePhoto: useActionMutation(savePortalLookPhoto, { invalidateKeys }),
   }
 }
 
@@ -247,14 +206,12 @@ export function usePortalDetailActions(propertyId: string, portalId: string) {
   // Silent on success (the browser's own download is the acknowledgement); a
   // refusal is a toast, because a download is an immediate action.
   // The print download, silent the same way.
-  // Loaded on first use: the first paint has no room for another server
-  // function's stub, and only a manager who prints asks for it.
-  const downloadPrintFinal = useActionMutation(downloadPortalPrintFinalLazily, {
+  const downloadPrintFinal = useActionMutation(downloadPortalPrintFinal, {
     errorMessage: actionErrorMessage,
   })
   // "Save wording" beside it: a manager who saves asked for it, so it says so,
   // and a refusal is a toast like the download's.
-  const savePrintWording = useActionMutation(savePortalPrintWordingLazily, {
+  const savePrintWording = useActionMutation(savePortalPrintWording, {
     successMessage: 'Wording saved',
     errorMessage: actionErrorMessage,
   })

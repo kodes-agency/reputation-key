@@ -21,8 +21,10 @@ import {
   STAFF_HOME_FNS,
   STAFF_RESULTS_FIXTURE,
 } from './staff-home-fixtures'
-import { staffSelfKeys } from '#/shared/queries/query-keys'
+import { createKeys } from '#/shared/queries/query-keys'
 import { staffHomeSearch } from '#/shared/staff-home-search'
+
+const { staffSelfKeys } = createKeys({ userId: 'polly', organizationId: null })
 
 vi.mock('#/components/ui/inline-link', () => ({
   InlineLink: ({ to, children }: { to: string; children: unknown }) =>
@@ -164,14 +166,29 @@ describe('staff home views', () => {
     const client = new QueryClient()
     const result = await readStaffResults(
       client,
+      { userId: 'polly', organizationId: null },
       STAFF_HOME_FNS.getMyResults,
       'own',
       'month',
     )
-    expect(staffResultsKey('own', 'month', result).at(-1)).toBe(
-      STAFF_RESULTS_FIXTURE.ratingsCutoff,
-    )
-    expect(client.getQueryData(staffResultsKey('own', 'month', result))).toEqual(result)
+    expect(
+      staffResultsKey(
+        { userId: 'polly', organizationId: null },
+        'own',
+        'month',
+        result,
+      ).at(-1),
+    ).toBe(STAFF_RESULTS_FIXTURE.ratingsCutoff)
+    expect(
+      client.getQueryData(
+        staffResultsKey(
+          { userId: 'polly', organizationId: null },
+          'own',
+          'month',
+          result,
+        ),
+      ),
+    ).toEqual(result)
     client.clear()
   })
   it('renders the seeded cutoff through the real result hook without a missing-query warning', () => {
@@ -182,7 +199,12 @@ describe('staff home views', () => {
       STAFF_RESULTS_FIXTURE,
     )
     client.setQueryData(
-      staffResultsKey(participation.participationId, 'month', STAFF_RESULTS_FIXTURE),
+      staffResultsKey(
+        { userId: 'polly', organizationId: null },
+        participation.participationId,
+        'month',
+        STAFF_RESULTS_FIXTURE,
+      ),
       STAFF_RESULTS_FIXTURE,
     )
     client.setQueryData(staffSelfKeys.goals(participation.participationId), { goals: [] })
@@ -224,3 +246,7 @@ describe('staff home views', () => {
     ).toBe(true)
   })
 })
+
+vi.mock('#/shared/hooks/useTenantScope', () => ({
+  useTenantScope: () => ({ userId: 'polly', organizationId: null }),
+}))

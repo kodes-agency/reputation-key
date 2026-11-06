@@ -6,7 +6,10 @@ import {
   type GoogleAdmissionPermitSnapshot,
 } from './admission-service'
 import type { GoogleInFlightCoordinator, GoogleQuotaCoordinator } from './contracts'
-import { googleQuotaCredentialFingerprint } from './quota-coordinator'
+import {
+  createInMemoryGoogleQuotaCoordinator,
+  googleQuotaCredentialFingerprint,
+} from './quota-coordinator'
 import { compileGoogleProviderRequest } from './route-catalogue'
 
 const bindCredential = (credential: string) =>
@@ -54,7 +57,6 @@ function fixture(
 ) {
   const calls: string[] = []
   const release = vi.fn(async () => true)
-  const refund = vi.fn(async () => true)
   const complete = vi.fn<GoogleAdmissionPermitAuthority['complete']>(
     async () => undefined,
   )
@@ -81,7 +83,7 @@ function fixture(
   const service = createGoogleExecutionAdmissionService({
     nowMs: options.nowMs ?? (() => 1_000),
     authority: { load, start: startPermit, failStarted, complete },
-    quotaForPolicy: () => ({ acquire: acquireQuota, refund }),
+    quotaForPolicy: () => ({ acquire: acquireQuota }),
     inFlightForPolicy: () => ({ acquire: acquireInFlight, release }),
   })
   const start = () =>
@@ -94,7 +96,6 @@ function fixture(
     acquireQuota,
     startPermit,
     release,
-    refund,
     complete,
     failStarted,
   }
@@ -108,13 +109,7 @@ describe('Google in-process admission handle', () => {
     expect(result.ok).toBe(true)
     expect(test.calls).toEqual(['in-flight', 'quota', 'permit'])
     expect(test.startPermit).toHaveBeenCalledWith(permit)
-    expect(test.acquireQuota).toHaveBeenCalledWith(
-      permit.quotaKey,
-      1,
-      10_000,
-      'inflight-handle-test',
-    )
-    expect(test.refund).not.toHaveBeenCalled()
+    expect(test.acquireQuota).toHaveBeenCalledWith(permit.quotaKey, 1, 10_000)
     expect(test.release).not.toHaveBeenCalled()
   })
 
@@ -147,7 +142,6 @@ describe('Google in-process admission handle', () => {
       await expect(test.start()).resolves.toEqual({ ok: false, code, retryAfterMs: 100 })
       expect(test.startPermit).not.toHaveBeenCalled()
       expect(test.release).toHaveBeenCalledTimes(1)
-      expect(test.refund).not.toHaveBeenCalled()
     },
   )
 
@@ -156,18 +150,28 @@ describe('Google in-process admission handle', () => {
     ['expired', 'permit_expired'],
     ['unavailable', 'coordination_unavailable'],
   ] as const)(
-    'refunds quota and releases the slot when permit start is %s',
+    'keeps quota spent and releases the slot when permit start is %s',
     async (outcome, code) => {
-      const test = fixture({ startPermit: async () => outcome })
+      const quota = createInMemoryGoogleQuotaCoordinator({
+        nowMs: () => 1_000,
+        capacity: 1,
+        refillTokensPerSecond: 1,
+      })
+      const test = fixture({
+        startPermit: async () => outcome,
+        acquireQuota: quota.acquire,
+      })
 
       await expect(test.start()).resolves.toEqual({ ok: false, code, retryAfterMs: 0 })
-      expect(test.refund).toHaveBeenCalledExactlyOnceWith(
-        permit.quotaKey,
-        1,
-        'inflight-handle-test',
-      )
       expect(test.release).toHaveBeenCalledTimes(1)
       expect(test.complete).not.toHaveBeenCalled()
+      await expect(test.start()).resolves.toEqual({
+        ok: false,
+        code: 'quota_exhausted',
+        retryAfterMs: 1_000,
+      })
+      expect(test.startPermit).toHaveBeenCalledTimes(1)
+      expect(test.release).toHaveBeenCalledTimes(2)
     },
   )
 

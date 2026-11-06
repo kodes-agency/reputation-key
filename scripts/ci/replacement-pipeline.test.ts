@@ -1,11 +1,7 @@
 import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { describe, expect, it } from 'vitest'
-
-// While the replacement pipeline runs beside the original, two things must stay
-// true: the contexts branch protection requires today keep their names, and the
-// new `ci` and `image` aggregators gate everything the original jobs gate. This
-// file goes when the original jobs do.
+import { workflowSteps } from './ci-workflow-text'
 
 const ROOT = resolve(import.meta.dirname, '../..')
 const workflow = readFileSync(resolve(ROOT, '.github/workflows/ci.yml'), 'utf8')
@@ -32,20 +28,8 @@ function needs(id: string): readonly string[] {
   return list === undefined ? [] : list.split(',').map((name) => name.trim())
 }
 
-const ORIGINAL_JOBS = [
-  'static',
-  'test-unit',
-  'test-integration',
-  'artifacts',
-  'check',
-  'docker-images',
-  'docker',
-  'secrets',
-  'storybook-test',
-  'e2e-shard',
-  'e2e',
-] as const
-const REPLACEMENT_GATES = [
+const INDEPENDENT_JOBS = ['secrets', 'storybook-test'] as const
+const CI_GATES = [
   'lint',
   'typecheck',
   'unit',
@@ -53,44 +37,85 @@ const REPLACEMENT_GATES = [
   'probes',
   'browser',
 ] as const
-const REPLACEMENT_IMAGE_JOBS = ['image-build', 'image-scan'] as const
+const IMAGE_JOBS = ['image-build', 'image-scan'] as const
 
-describe('the replacement pipeline beside the original', () => {
-  it('keeps every job the original pipeline has, under its name', () => {
-    expect([...jobs.keys()]).toEqual(expect.arrayContaining([...ORIGINAL_JOBS]))
-    // The contexts branch protection requires: renaming one strands every PR.
-    for (const context of ['check', 'docker', 'e2e', 'secrets']) {
+describe('CI pipeline', () => {
+  it('keeps the independent checks and stable aggregate names', () => {
+    expect([...jobs.keys()]).toEqual(expect.arrayContaining([...INDEPENDENT_JOBS]))
+    for (const context of ['ci', 'image', 'secrets', 'storybook-test']) {
       expect(job(context)).not.toMatch(/^ {4}name:/mu)
     }
-    expect(job('docker-images')).toContain('name: docker image group (')
-    expect(job('e2e-shard')).toContain('name: e2e shard (')
+    expect(job('storybook-test')).toContain('pnpm test:storybook')
+    expect(job('secrets')).toContain('Gitleaks')
+  })
+
+  it('has no dependency on a missing job', () => {
+    for (const id of jobs.keys()) {
+      for (const dependency of needs(id)) {
+        expect(jobs.has(dependency), `${id} needs ${dependency}`).toBe(true)
+      }
+    }
   })
 
   it('gathers every gate in `ci` and both image jobs in `image`', () => {
-    expect(needs('ci')).toEqual([...REPLACEMENT_GATES])
-    expect(needs('image')).toEqual([...REPLACEMENT_IMAGE_JOBS])
+    expect(needs('ci')).toEqual([...CI_GATES])
+    expect(needs('image')).toEqual([...IMAGE_JOBS])
     for (const aggregate of ['ci', 'image']) {
       expect(job(aggregate)).toContain('if: always()')
     }
   })
 
-  it('has no replacement job outside the two aggregators', () => {
-    const replacement = [...REPLACEMENT_GATES, ...REPLACEMENT_IMAGE_JOBS, 'ci', 'image']
-    const added = [...jobs.keys()].filter(
-      (id) => !(ORIGINAL_JOBS as readonly string[]).includes(id),
+  it('contains only the aggregated pipeline and independent checks', () => {
+    expect([...jobs.keys()].sort()).toEqual(
+      [...CI_GATES, ...IMAGE_JOBS, 'ci', 'image', ...INDEPENDENT_JOBS].sort(),
     )
-
-    expect(added.sort()).toEqual(replacement.sort())
   })
 
-  it('bounds every replacement job, as every original job is', () => {
+  for (const aggregate of ['ci', 'image']) {
+    const barrier = workflowSteps(job(aggregate))[0]!
+    const condition = /\n {8}if: (?:>-\n([\s\S]*?)(?=\n {8}run:)|([^\n]+))/u.exec(
+      barrier.content,
+    )
+    const expression = (condition?.[1] ?? condition?.[2] ?? '').trim()
+    const blocks = (results: Record<string, string>): boolean =>
+      expression.split('||').some((clause) => {
+        const contains = /^contains\(needs\.\*\.result, '(\w+)'\)$/u.exec(clause.trim())
+        if (contains) return Object.values(results).includes(contains[1]!)
+        const differs = /^needs\.([\w-]+)\.result != 'success'$/u.exec(clause.trim())
+        if (differs) return results[differs[1]!] !== 'success'
+        throw new Error(`Unsupported aggregate condition: ${clause}`)
+      })
+
+    it(`${aggregate} accepts successful dependencies`, () => {
+      expect(barrier.content).toMatch(/^ {8}run: exit 1$/mu)
+      expect(
+        blocks(Object.fromEntries(needs(aggregate).map((id) => [id, 'success']))),
+      ).toBe(false)
+    })
+
+    for (const dependency of needs(aggregate)) {
+      it.each(['failure', 'cancelled', 'skipped'])(
+        `${aggregate} rejects a %s result from ${dependency}`,
+        (result) => {
+          const results = Object.fromEntries(
+            needs(aggregate).map((id) => [id, 'success']),
+          )
+          results[dependency] = result
+          expect(barrier.content).toMatch(/^ {8}run: exit 1$/mu)
+          expect(blocks(results)).toBe(true)
+        },
+      )
+    }
+  }
+
+  it('bounds every job', () => {
     for (const id of jobs.keys()) {
       expect(job(id), `${id} sets timeout-minutes`).toMatch(/^ {4}timeout-minutes: \d+/mu)
     }
   })
 
-  it('runs every gate the original static, test and e2e jobs run', () => {
-    const originalGates = [
+  it('runs every static, test, build and browser gate', () => {
+    const gates = [
       'pnpm check:dependency-audit',
       'pnpm check:licenses',
       'pnpm check:action-pins',
@@ -113,12 +138,10 @@ describe('the replacement pipeline beside the original', () => {
       'pnpm test:e2e --project=critical',
       'pnpm test:e2e --project=full',
     ]
-    const original = ORIGINAL_JOBS.map(job).join('\n')
-    const replacement = [...REPLACEMENT_GATES].map(job).join('\n')
+    const pipeline = [...CI_GATES].map(job).join('\n')
 
-    for (const gate of originalGates) {
-      expect(original, `the original pipeline runs ${gate}`).toContain(gate)
-      expect(replacement, `the replacement pipeline runs ${gate}`).toContain(gate)
+    for (const gate of gates) {
+      expect(pipeline, `CI runs ${gate}`).toContain(gate)
     }
   })
 
@@ -126,7 +149,6 @@ describe('the replacement pipeline beside the original', () => {
     expect(packageJson.scripts['lint:ci']).toBe(
       'pnpm lint:static && pnpm check:unchecked-indexed-access',
     )
-    expect(job('static')).toContain('pnpm lint:ci')
     expect(job('lint')).toContain('pnpm lint:static')
     expect(job('typecheck')).toContain('pnpm check:unchecked-indexed-access')
   })

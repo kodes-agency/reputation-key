@@ -22,6 +22,16 @@ Primary areas:
 - `domain/`, `http/`, `email/`, `cache/`, and `lifecycle/` hold small mechanisms.
 - `hooks/` and `queries/` are browser-safe cross-feature access/cache utilities.
 - `ops/` and `release/` own reviewed operational and promotion contracts.
+
+Notification, Integration, Staff self and Identity query families come from
+`queries/query-keys.ts`'s `createKeys(scope)`. `TenantScope` names the signed-in
+person and Organization; own-account reads outside the manager workspace use a
+null Organization. Loaders pass their scope explicitly, while components use
+`hooks/useTenantScope.ts`, which takes the deepest resolved identity in the
+presented matches while a pending route's descendants await their context.
+Reads, optimistic updates and invalidations share that
+scope. Tenant and session transitions still clear the caches independently.
+
 - `testing/` and `db/testing/` are test-only support, never runtime authorities.
 
 Shared-area dependency and production/test fences are enforced by `eslint.config.js` and `scripts/check-architecture-boundary-controls.mjs`.
@@ -181,7 +191,7 @@ Redis-backed integration suites take their client from `testing/redis-test-lease
 On a machine with no Redis the lease reports unavailable and those tests return
 without asserting, so a green local run does not prove they ran. With
 `REQUIRE_TEST_REDIS=1` an unanswered probe throws and the suite fails; CI's
-`test-integration` job sets it, and `testing/redis-test-lease.test.ts` pins that the
+`integration` job sets it, and `testing/redis-test-lease.test.ts` pins that the
 job running the integration project has a Redis service and requires it.
 
 ## Verification

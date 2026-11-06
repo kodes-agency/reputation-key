@@ -12,13 +12,13 @@ import {
 } from './admission-service'
 import { createGoogleEgressGateway } from './egress-gateway'
 import {
+  createGoogleCoordinationLookup,
   createRedisGoogleInFlightCoordinator,
   createRedisGoogleQuotaCoordinator,
   googleQuotaCredentialFingerprint,
   type GoogleCoordinationRedis,
   type GoogleQuotaPolicy,
 } from './quota-coordinator'
-import { REFUND_QUOTA_SCRIPT } from './redis-coordination-scripts'
 import { compileGoogleProviderRequest } from './route-catalogue'
 
 const NOW_MS = 1_000
@@ -87,30 +87,34 @@ function tracked(redis: Redis): GoogleCoordinationRedis {
   }
 }
 
-function coordinators(redis: GoogleCoordinationRedis, policyId: string) {
+function coordinators(
+  redis: GoogleCoordinationRedis,
+  policyId: string,
+  nowMs = () => NOW_MS,
+) {
   return {
     quota: createRedisGoogleQuotaCoordinator({
       redis,
       policyId,
       policy,
-      nowMs: () => NOW_MS,
+      nowMs,
     }),
     inFlight: createRedisGoogleInFlightCoordinator({
       redis,
       policyId,
       policy,
-      nowMs: () => NOW_MS,
+      nowMs,
       leaseId: randomUUID,
     }),
   }
 }
 
-function replicas() {
+function replicas(nowMs = () => NOW_MS) {
   if (!firstLease?.redis || !secondLease?.redis) return undefined
   const policyId = `redis-admission-${randomUUID()}`
   return [
-    coordinators(tracked(firstLease.redis), policyId),
-    coordinators(tracked(secondLease.redis), policyId),
+    coordinators(tracked(firstLease.redis), policyId, nowMs),
+    coordinators(tracked(secondLease.redis), policyId, nowMs),
   ] as const
 }
 
@@ -176,29 +180,24 @@ describe('Redis Google admission across processes', () => {
     await expect(second.inFlight.release(inFlightKey, next.lease)).resolves.toBe(true)
   })
 
-  it('shares quota buckets across replicas and refunds both scopes', async () => {
-    const pair = replicas()
+  it('shares quota buckets across replicas and refills only with elapsed time', async () => {
+    let nowMs = NOW_MS
+    const pair = replicas(() => nowMs)
     if (!pair) return
     const [first, second] = pair
-    const quotaDeadline = NOW_MS + 60_000
+    const quotaDeadline = () => nowMs + 60_000
 
-    await expect(
-      first.quota.acquire(quotaKey, 1, quotaDeadline, 'refund-reservation'),
-    ).resolves.toEqual({
+    await expect(first.quota.acquire(quotaKey, 1, quotaDeadline())).resolves.toEqual({
       ok: true,
       remaining: 0,
     })
-    await expect(second.quota.acquire(quotaKey, 1, quotaDeadline)).resolves.toMatchObject(
-      {
-        ok: false,
-        code: 'quota_exhausted',
-      },
-    )
-    await expect(first.quota.refund(quotaKey, 1, 'refund-reservation')).resolves.toBe(
-      true,
-    )
-    // Each bucket has capacity one; either missed refund makes this fail.
-    await expect(second.quota.acquire(quotaKey, 1, quotaDeadline)).resolves.toEqual({
+    await expect(second.quota.acquire(quotaKey, 1, quotaDeadline())).resolves.toEqual({
+      ok: false,
+      code: 'quota_exhausted',
+      retryAfterMs: 60_000,
+    })
+    nowMs += 60_000
+    await expect(second.quota.acquire(quotaKey, 1, quotaDeadline())).resolves.toEqual({
       ok: true,
       remaining: 0,
     })
@@ -206,60 +205,49 @@ describe('Redis Google admission across processes', () => {
       first.quota.acquire(
         { ...quotaKey, connectionId: 'another-connection' },
         1,
-        quotaDeadline,
+        quotaDeadline(),
       ),
     ).resolves.toMatchObject({ ok: false, code: 'quota_exhausted' })
   })
 
-  it('does not credit twice when Redis replays an executed refund after losing its reply', async () => {
+  it('keeps quota spent when Redis replays an executed acquisition after losing its reply', async () => {
     if (!firstLease?.redis) return
     const redis = tracked(firstLease.redis)
+    let replay = true
     const quota = createRedisGoogleQuotaCoordinator({
       redis: {
         eval: async (script, numberOfKeys, ...args) => {
           const reply = await redis.eval(script, numberOfKeys, ...args)
-          if (script === REFUND_QUOTA_SCRIPT) {
+          if (replay) {
+            replay = false
             return redis.eval(script, numberOfKeys, ...args)
           }
           return reply
         },
       },
       nowMs: () => NOW_MS,
-      policyId: `refund-replay-${randomUUID()}`,
+      policyId: `acquire-replay-${randomUUID()}`,
       policy: {
         ...policy,
         buckets: policy.buckets.map((bucket) => ({ ...bucket, capacity: 3 })),
       },
     })
-    for (const id of ['reservation-a', 'reservation-b', 'reservation-c']) {
-      await expect(quota.acquire(quotaKey, 1, DEADLINE_MS, id)).resolves.toMatchObject({
-        ok: true,
-      })
-    }
-
-    await expect(quota.refund(quotaKey, 1, 'reservation-a')).resolves.toBe(true)
-    await expect(quota.acquire(quotaKey, 1, DEADLINE_MS)).resolves.toMatchObject({
+    await expect(quota.acquire(quotaKey, 1, DEADLINE_MS)).resolves.toEqual({
       ok: true,
+      remaining: 1,
     })
-    await expect(quota.acquire(quotaKey, 1, DEADLINE_MS)).resolves.toMatchObject({
-      ok: false,
-    })
-    await expect(quota.refund(quotaKey, 1, 'reservation-a')).resolves.toBe(true)
-    await expect(quota.acquire(quotaKey, 1, DEADLINE_MS)).resolves.toMatchObject({
-      ok: false,
-    })
-    await expect(quota.refund(quotaKey, 1, 'reservation-b')).resolves.toBe(true)
-    await expect(quota.acquire(quotaKey, 1, DEADLINE_MS)).resolves.toMatchObject({
+    await expect(quota.acquire(quotaKey, 1, DEADLINE_MS)).resolves.toEqual({
       ok: true,
+      remaining: 0,
     })
     await expect(quota.acquire(quotaKey, 1, DEADLINE_MS)).resolves.toMatchObject({
       ok: false,
     })
   })
 
-  it('credits a reservation once when separate replicas refund it concurrently', async () => {
+  it('admits only one replica when both acquire the last token concurrently', async () => {
     if (!firstLease?.redis || !secondLease?.redis) return
-    const policyId = `concurrent-refund-${randomUUID()}`
+    const policyId = `concurrent-quota-${randomUUID()}`
     const quotaFor = (redis: Redis) =>
       createRedisGoogleQuotaCoordinator({
         redis: tracked(redis),
@@ -272,35 +260,27 @@ describe('Redis Google admission across processes', () => {
       })
     const first = quotaFor(firstLease.redis)
     const second = quotaFor(secondLease.redis)
-    for (const id of ['reservation-a', 'reservation-b', 'reservation-c']) {
-      await expect(first.acquire(quotaKey, 1, DEADLINE_MS, id)).resolves.toMatchObject({
-        ok: true,
-      })
-    }
-
-    await expect(
-      Promise.all([
-        first.refund(quotaKey, 1, 'reservation-a'),
-        second.refund(quotaKey, 1, 'reservation-a'),
-      ]),
-    ).resolves.toEqual([true, true])
-    await expect(second.acquire(quotaKey, 1, DEADLINE_MS)).resolves.toMatchObject({
+    await expect(first.acquire(quotaKey, 2, DEADLINE_MS)).resolves.toEqual({
       ok: true,
+      remaining: 1,
     })
+    const results = await Promise.all([
+      first.acquire(quotaKey, 1, DEADLINE_MS),
+      second.acquire(quotaKey, 1, DEADLINE_MS),
+    ])
+    expect(results.filter((result) => result.ok)).toHaveLength(1)
+    expect(results.filter((result) => !result.ok)).toHaveLength(1)
     await expect(first.acquire(quotaKey, 1, DEADLINE_MS)).resolves.toMatchObject({
       ok: false,
-    })
-    await expect(second.refund(quotaKey, 1, 'reservation-b')).resolves.toBe(true)
-    await expect(first.acquire(quotaKey, 1, DEADLINE_MS)).resolves.toMatchObject({
-      ok: true,
     })
     await expect(second.acquire(quotaKey, 1, DEADLINE_MS)).resolves.toMatchObject({
       ok: false,
     })
   })
 
-  it('refunds every quota bucket and the slot when the permit refuses start', async () => {
-    const pair = replicas()
+  it('releases the slot but keeps every quota bucket spent when the permit refuses start', async () => {
+    let nowMs = NOW_MS
+    const pair = replicas(() => nowMs)
     if (!pair) return
     const [first, second] = pair
     const start = vi.fn<GoogleAdmissionPermitAuthority['start']>(async () => 'started')
@@ -308,8 +288,14 @@ describe('Redis Google admission across processes', () => {
     const permitAuthority = authority(start)
     const service = (replica: typeof first) =>
       createGoogleExecutionAdmissionService({
-        nowMs: () => NOW_MS,
-        authority: permitAuthority.store,
+        nowMs: () => nowMs,
+        authority: {
+          ...permitAuthority.store,
+          load: async (id) => {
+            const permit = await permitAuthority.store.load(id)
+            return permit ? { ...permit, expiresAtMs: 200_000 } : null
+          },
+        },
         quotaForPolicy: () => replica.quota,
         inFlightForPolicy: () => replica.inFlight,
       })
@@ -324,10 +310,21 @@ describe('Redis Google admission across processes', () => {
       code: 'authorization_changed',
       retryAfterMs: 0,
     })
-    // No time advances. A leaked slot or either spent quota bucket blocks this.
-    const next = await service(second).start(input)
+    const slot = await second.inFlight.acquire(inFlightKey, DEADLINE_MS)
+    expect(slot.ok).toBe(true)
+    if (!slot.ok) throw new Error('expected released in-flight slot')
+    await expect(second.inFlight.release(inFlightKey, slot.lease)).resolves.toBe(true)
+    await expect(service(second).start(input)).resolves.toEqual({
+      ok: false,
+      code: 'quota_exhausted',
+      retryAfterMs: 60_000,
+    })
+    expect(start).toHaveBeenCalledTimes(1)
+
+    nowMs += 60_000
+    const next = await service(second).start({ ...input, deadlineMs: nowMs + 10_000 })
     expect(next.ok).toBe(true)
-    if (!next.ok) throw new Error('expected refunded admission on second replica')
+    if (!next.ok) throw new Error('expected admission after refill')
     expect(start).toHaveBeenCalledTimes(2)
     await expect(
       next.handle.complete({ outcome: 'success', retryAfterMs: null }),
@@ -338,6 +335,87 @@ describe('Redis Google admission across processes', () => {
       'success',
       null,
     )
+  })
+
+  it('does not allow a fifth discovery call after refill, intervening consumption and delayed refusal', async () => {
+    if (!firstLease?.redis || !secondLease?.redis) return
+    let nowMs = NOW_MS
+    const entered = Promise.withResolvers<void>()
+    const resume = Promise.withResolvers<void>()
+    const permitAuthority = authority(async (permit) => {
+      if (permit.permitId !== 'stalled-permit') return 'started'
+      entered.resolve()
+      await resume.promise
+      return 'changed'
+    })
+    const fetchProvider = vi.fn<typeof fetch>(async () => new Response('{}'))
+    // Isolate the production policy's fixed keys from other suites using this Redis.
+    const replica = (redis: Redis) => {
+      const redisPort = tracked(redis)
+      const coordination = createGoogleCoordinationLookup({
+        redis: {
+          eval: (script, numberOfKeys, ...args) =>
+            redisPort.eval(
+              script,
+              numberOfKeys,
+              ...args.map((arg, index) =>
+                index < numberOfKeys
+                  ? `burst-${permitAuthority.permit.permitId}:${arg}`
+                  : arg,
+              ),
+            ),
+        },
+        nowMs: () => nowMs,
+        leaseId: randomUUID,
+      })
+      const service = createGoogleExecutionAdmissionService({
+        nowMs: () => nowMs,
+        authority: {
+          ...permitAuthority.store,
+          load: async (permitId) => ({
+            ...permitAuthority.permit,
+            permitId,
+          }),
+        },
+        ...coordination,
+      })
+      return createGoogleEgressGateway({
+        nowMs: () => nowMs,
+        bindCredential,
+        admission: service,
+        fetch: fetchProvider,
+      })
+    }
+    const first = replica(firstLease.redis)
+    const second = replica(secondLease.redis)
+    const execute = (permitId: string) =>
+      second.execute({ permitId, descriptor, deadlineMs: DEADLINE_MS })
+    const stalled = first.execute({
+      permitId: 'stalled-permit',
+      descriptor,
+      deadlineMs: DEADLINE_MS,
+    })
+    await entered.promise
+    nowMs += 1_000
+    for (let index = 0; index < 4; index++) {
+      await expect(execute(`burst-permit-${index}`)).resolves.toMatchObject({ ok: true })
+    }
+    resume.resolve()
+    await expect(stalled).resolves.toMatchObject({
+      ok: false,
+      admissionCode: 'authorization_changed',
+      dispatch: 'not_sent',
+    })
+    await expect(execute('fifth-permit')).resolves.toMatchObject({
+      ok: false,
+      admissionCode: 'quota_exhausted',
+      dispatch: 'not_sent',
+      retryAfterMs: 250,
+    })
+    expect(fetchProvider).toHaveBeenCalledTimes(4)
+    nowMs += 250
+    await expect(execute('refilled-permit')).resolves.toMatchObject({ ok: true })
+    expect(fetchProvider).toHaveBeenCalledTimes(5)
   })
 
   it('denies egress without fetching when its Redis connection is down', async () => {

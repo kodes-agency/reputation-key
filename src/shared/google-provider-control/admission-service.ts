@@ -281,18 +281,17 @@ type AdmissionDependencies = Readonly<{
   inFlightForPolicy: (policyId: string) => GoogleInFlightCoordinator | null
 }>
 
-/** Commit a capacity reservation to its permit, refunding any unused reservation. */
+/** Start the permit without crediting quota that may already have refilled. */
 async function startReservedPermit(
   deps: AdmissionDependencies,
   permit: GoogleAdmissionPermitSnapshot,
   deadlineMs: number,
   capacity: Readonly<{
-    quota: GoogleQuotaCoordinator
     inFlight: GoogleInFlightCoordinator
     lease: GoogleInFlightLease
   }>,
 ): Promise<GoogleAdmissionStartResult> {
-  const { quota, inFlight, lease } = capacity
+  const { inFlight, lease } = capacity
   const inFlightKey = Object.freeze({
     ...permit.quotaKey,
     requestClass: permit.expectedAdmission.requestClass,
@@ -304,10 +303,7 @@ async function startReservedPermit(
     started = 'unavailable'
   }
   if (started !== 'started') {
-    await Promise.allSettled([
-      quota.refund(permit.quotaKey, 1, lease.leaseId),
-      inFlight.release(inFlightKey, lease),
-    ])
+    await Promise.allSettled([inFlight.release(inFlightKey, lease)])
     return {
       ok: false,
       code:
@@ -325,7 +321,6 @@ async function startReservedPermit(
   if (expiresAtMs <= grantedAtMs) {
     await Promise.allSettled([
       deps.authority.failStarted(permit, 'grant_expired'),
-      quota.refund(permit.quotaKey, 1, lease.leaseId),
       inFlight.release(inFlightKey, lease),
     ])
     return {
@@ -390,12 +385,7 @@ export function createGoogleExecutionAdmissionService(
           deps.nowMs,
         )
       }
-      const quotaResult = await quota.acquire(
-        permit.quotaKey,
-        1,
-        input.deadlineMs,
-        inFlightResult.lease.leaseId,
-      )
+      const quotaResult = await quota.acquire(permit.quotaKey, 1, input.deadlineMs)
       if (!quotaResult.ok) {
         await inFlight.release(inFlightKey, inFlightResult.lease)
         return capacityDenial(
@@ -406,7 +396,6 @@ export function createGoogleExecutionAdmissionService(
         )
       }
       return startReservedPermit(deps, permit, input.deadlineMs, {
-        quota,
         inFlight,
         lease: inFlightResult.lease,
       })

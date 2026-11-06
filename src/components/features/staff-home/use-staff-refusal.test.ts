@@ -1,9 +1,12 @@
 import { QueryClient } from '@tanstack/react-query'
 import { expect, it, vi } from 'vitest'
 import { ServerFunctionError } from '#/shared/auth/server-function-error'
-import { staffSelfKeys } from '#/shared/queries/query-keys'
+import { createKeys } from '#/shared/queries/query-keys'
 import { shellContextKeys } from '#/shared/queries/shell-context-cache'
 import { watchStaffRefusals } from './use-staff-refusal'
+
+const { staffSelfKeys } = createKeys({ userId: 'polly', organizationId: null })
+
 it('forgets the guard and leaves on refused staff reads, keeping infrastructure errors retryable', async () => {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
   const leave = vi.fn(),

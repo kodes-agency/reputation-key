@@ -1,8 +1,3 @@
-// The replacement image pipeline's half of the container image policy: the
-// `image-build`, `image-scan` and `image` jobs of ci.yml owe the same promises as
-// the `docker-images` and `docker` jobs, and are read from the workflow text the
-// same way.
-
 import {
   ciBuildArgumentViolations,
   CI_PUBLISHED_IMAGE_IDS,
@@ -80,8 +75,7 @@ function pipelineScanRows(job: string): readonly PipelineScanRow[] {
 }
 
 /**
- * The replacement pipeline holds the same promises as the groups above it, from
- * the jobs `image-build`, `image-scan` and `image`: every classified image is
+ * The jobs `image-build`, `image-scan` and `image` ensure every classified image is
  * built from the Dockerfile the policy names, smoke-tested, inventoried and
  * scanned from one archive of the build, staged only after the scan, and named
  * in a digest map only after the registry answers for it.

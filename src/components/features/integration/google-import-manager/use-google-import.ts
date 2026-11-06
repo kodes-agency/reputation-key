@@ -1,3 +1,4 @@
+import { useTenantScope } from '#/shared/hooks/useTenantScope'
 import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'react'
 import { useForm } from '@tanstack/react-form'
 import { useInfiniteQuery, useQuery, useQueryClient } from '@tanstack/react-query'
@@ -9,7 +10,6 @@ import {
   googleImportReviewDraftSchema,
   type GoogleImportReviewDraftInput,
 } from '#/contexts/integration/application/dto/google-import-v2.dto'
-import { integrationKeys } from '#/shared/queries/query-keys'
 import type {
   GoogleImportContentOptions,
   GoogleImportDiscoveryController,
@@ -60,13 +60,18 @@ function useGoogleImportContent({
   importFns,
   clearProviderState,
 }: GoogleImportContentOptions) {
+  const scope = useTenantScope()
   const queryClient = useQueryClient()
   const organizationIdRef = useRef(organizationId)
   const [epoch, setEpoch] = useState(0)
   const [lifecycle] = useState(() =>
     createGoogleImportContentLifecycle({
       removeQueries: () =>
-        queryClient.removeQueries({ queryKey: integrationKeys.googleImportContent() }),
+        queryClient.removeQueries({
+          predicate: (query) =>
+            query.queryKey[0] === 'integrations' &&
+            query.queryKey[3] === 'google-import-content',
+        }),
       clearContent: () => {
         clearProviderState()
         setEpoch((value) => value + 1)
@@ -75,6 +80,7 @@ function useGoogleImportContent({
   )
   const accountsQuery = useInfiniteQuery(
     googleImportAccountsQuery({
+      scope,
       organizationId,
       connectionId,
       enabled,
@@ -85,6 +91,7 @@ function useGoogleImportContent({
   )
   const candidatesQuery = useInfiniteQuery(
     googleImportCandidatesQuery({
+      scope,
       organizationId,
       connectionId,
       accountRef,
@@ -103,6 +110,7 @@ function useGoogleImportContent({
     ?.authorizationLease
   const leaseQuery = useQuery(
     googleImportLeaseQuery({
+      scope,
       organizationId,
       connectionId,
       leaseRef: authorizationLease?.leaseRef ?? null,

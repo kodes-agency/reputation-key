@@ -2,10 +2,13 @@ import { act, createElement, useState } from 'react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { expect, it, vi } from 'vitest'
 import { setupHookRoot } from '#/shared/testing/hook-root'
-import { staffSelfKeys } from '#/shared/queries/query-keys'
+import { createKeys } from '#/shared/queries/query-keys'
 import { StaffHome } from './staff-home'
 import { STAFF_HOME_FIXTURE, STAFF_HOME_FNS } from './staff-home-fixtures'
 import type { StaffHomeSearch } from './types'
+
+const { staffSelfKeys } = createKeys({ userId: 'polly', organizationId: null })
+
 const drawn = vi.hoisted(() => ({
   view: vi.fn(),
   notice: vi.fn(),
@@ -102,3 +105,7 @@ it('keeps Code and its data when a background refetch fails', async () => {
   expect(drawn.view.mock.lastCall![0].search.tab).toBe('code')
   expect(drawn.view.mock.lastCall![0].home).toEqual(STAFF_HOME_FIXTURE)
 })
+
+vi.mock('#/shared/hooks/useTenantScope', () => ({
+  useTenantScope: () => ({ userId: 'polly', organizationId: null }),
+}))

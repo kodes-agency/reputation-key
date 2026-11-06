@@ -61,12 +61,23 @@ describe('query-state lint rule', () => {
   it('accepts a key built on an imported factory prefix', async () => {
     expect(
       await messages(`
-      import { guestKeys as keys, identityKeys } from '#/shared/queries/query-keys'
+      import { guestKeys as keys, propertyKeys } from '#/shared/queries/query-keys'
       const { invalidateKeys } = options ?? {}
       useQuery({ queryKey: [...keys.all, 'unavailable-copy'] as const })
       useActionMutation(save, {
-        invalidateKeys: [[...identityKeys.merchantAiNotice(), 'updates']],
+        invalidateKeys: [[...propertyKeys.all, 'setup']],
       })
+    `),
+    ).toEqual([])
+  })
+
+  it('accepts scoped query factories for reads and invalidations', async () => {
+    expect(
+      await messages(`
+      import { createKeys } from '#/shared/queries/query-keys'
+      const { identityKeys } = createKeys(scope)
+      useQuery({ queryKey: identityKeys.members() })
+      useActionMutation(save, { invalidateKeys: [identityKeys.merchantAiNoticeUpdate()] })
     `),
     ).toEqual([])
   })
