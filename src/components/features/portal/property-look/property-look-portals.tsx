@@ -1,3 +1,4 @@
+// The selectable portal rows keep their multiline identity and separate edit link.
 // "Portals using this look" (board 09): every portal the look reaches, with its
 // group and whether it is live, and a way to choose which one the preview
 // draws. A live portal changes only when it is published again; the note says
@@ -50,6 +51,7 @@ function PortalRow({ propertyId, row, isSelected, onSelect, hasEditLink }: RowPr
         )}
       >
         <button
+          data-slot="picker-tile"
           type="button"
           aria-pressed={isSelected}
           onClick={() => onSelect(row.portalId)}

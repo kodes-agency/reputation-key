@@ -1,3 +1,4 @@
+// The radio cards keep their roving focus and card geometry rather than action-button styling.
 import { useRef, type ReactNode } from 'react'
 import { cn } from '#/lib/utils'
 
@@ -69,6 +70,7 @@ export function BetaFeedbackChoiceGroup<TValue extends string>({
           const selected = option.value === value
           return (
             <button
+              data-slot="picker-tile"
               key={option.value}
               ref={(node) => {
                 refs.current[index] = node

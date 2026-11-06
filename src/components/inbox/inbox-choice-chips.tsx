@@ -1,3 +1,4 @@
+// The radio pills keep their wrapping layout and roving keyboard selection.
 import { useId, type KeyboardEvent } from 'react'
 import { cn } from '#/lib/utils'
 import type { InboxFilterOption } from './inbox-filter-options'
@@ -62,6 +63,7 @@ export function InboxChoiceChips({
           const isChecked = index === checkedIndex
           return (
             <button
+              data-slot="picker-tile"
               key={option.value}
               type="button"
               role="radio"

@@ -2,6 +2,7 @@ import { createFileRoute, redirect } from '@tanstack/react-router'
 import { z } from 'zod/v4'
 import type { AuthRouteContext } from '#/routes/_authenticated'
 import { can } from '#/shared/domain/permissions'
+import { roleUnavailable } from '#/shared/auth/route-notice'
 
 // A property id this old link does not carry in a readable form is dropped:
 // the link still redirects (to the properties list) instead of failing.
@@ -13,8 +14,12 @@ const progressSearch = z.object({
 export const Route = createFileRoute('/_authenticated/progress')({
   validateSearch: progressSearch,
   beforeLoad: ({ context, search }) => {
-    if (!search.propertyId || !can((context as AuthRouteContext).role, 'goal.read')) {
+    if (!search.propertyId) {
       throw redirect({ to: '/properties' })
+    }
+
+    if (!can((context as AuthRouteContext).role, 'goal.read')) {
+      throw roleUnavailable('Goals', 'properties')
     }
 
     throw redirect({
