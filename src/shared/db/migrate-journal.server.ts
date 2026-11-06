@@ -10,7 +10,18 @@ import { assertOnlineConstraints, contractionRequirement } from './migration-saf
 import { withMigrationLockTimeout } from './migration-lock-timeout'
 import { withMigrationSessionLock } from './migration-session-lock'
 import { ImageOlderThanDatabaseError } from './migration-journal-state'
+import appliedMigrationHashes from './applied-migration-hashes.json'
 import type { QueryResult } from 'pg'
+
+// The beta applied these files before a later edit changed their bytes. Each recorded hash is
+// accepted for its own migration only; any other difference still stops the deploy.
+const recordedHashes: Readonly<
+  Record<string, Readonly<{ tag: string; appliedHash: string }>>
+> = appliedMigrationHashes
+
+function recordedBeforeEdit(createdAt: number, hash: unknown): boolean {
+  return recordedHashes[String(createdAt)]?.appliedHash === hash
+}
 
 type JournalSession = Readonly<{
   query: (
@@ -118,7 +129,7 @@ export async function migrateJournal(
           (migration) => migration.folderMillis === Number(row.created_at),
         )
         if (!file) throw new ImageOlderThanDatabaseError(latest.rows.length, files.length)
-        if (file.hash !== row.hash)
+        if (file.hash !== row.hash && !recordedBeforeEdit(file.folderMillis, row.hash))
           throw new Error('Applied migration changed; restore its committed SQL')
       }
       // The auth adoption file is appended without moving immutable history.
