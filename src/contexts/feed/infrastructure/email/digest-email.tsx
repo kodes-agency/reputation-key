@@ -1,10 +1,4 @@
-// The daily digest email.
-//
-// Grouped by property because that is the unit a manager acts on: one property
-// is one person's morning. Every row carries its own deep link, so the digest
-// is a worklist rather than a "you have updates, go look" nudge — the previous
-// version joined its rows with the literal two-character sequence `\n` and had
-// no links at all.
+// One digest groups actionable links under each Property display name.
 
 import { Heading, Section, Text } from '@react-email/components'
 import type { RenderedNotification } from '../../domain/notification-templates'
@@ -41,39 +35,40 @@ export type DigestEmailProps = Readonly<{
   inboxUrl: string | null
 }>
 
-const DigestRow = ({ rendered, actionUrl }: DigestEmailItem) => (
-  <Section style={{ padding: '0 0 14px' }}>
-    <Heading
-      as="h3"
-      className="rk-ink"
-      style={{
-        color: light.textPrimary,
-        fontSize: '15px',
-        fontWeight: 600,
-        lineHeight: 1.35,
-        margin: '0 0 2px',
-      }}
-    >
-      {rendered.title}
-    </Heading>
-    <Text
-      className="rk-muted"
-      style={{
-        color: light.textSecondary,
-        fontSize: '13px',
-        lineHeight: 1.5,
-        margin: '0 0 4px',
-      }}
-    >
-      {toPlainFacts(rendered.summary) === ''
-        ? rendered.body
-        : toPlainFacts(rendered.summary)}
-    </Text>
-    <Text style={{ margin: 0 }}>
-      <EmailTextLink href={actionUrl}>{rendered.actionLabel}</EmailTextLink>
-    </Text>
-  </Section>
-)
+const DigestRow = ({ rendered, actionUrl }: DigestEmailItem) => {
+  const facts = toPlainFacts(rendered.summary)
+  return (
+    <Section style={{ padding: '0 0 14px' }}>
+      <Heading
+        as="h3"
+        className="rk-ink"
+        style={{
+          color: light.textPrimary,
+          fontSize: '15px',
+          fontWeight: 600,
+          lineHeight: 1.35,
+          margin: '0 0 2px',
+        }}
+      >
+        {rendered.title}
+      </Heading>
+      <Text
+        className="rk-muted"
+        style={{
+          color: light.textSecondary,
+          fontSize: '13px',
+          lineHeight: 1.5,
+          margin: '0 0 4px',
+        }}
+      >
+        {facts === '' ? rendered.body : facts}
+      </Text>
+      <Text style={{ margin: 0 }}>
+        <EmailTextLink href={actionUrl}>{rendered.actionLabel}</EmailTextLink>
+      </Text>
+    </Section>
+  )
+}
 
 const DigestGroup = ({ propertyName, items }: DigestEmailGroup) => (
   <Section style={{ padding: '0 0 6px' }}>
