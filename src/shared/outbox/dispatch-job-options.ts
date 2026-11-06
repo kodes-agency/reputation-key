@@ -1,21 +1,30 @@
 import type { JobsOptions } from 'bullmq'
 
-/**
- * Domain-event dispatch retry policy.
- *
- * Jobs on this queue are event-typed rather than job-catalogue-typed, so every
- * producer of a canonical or accelerated delivery must use this contract.
- * Eight attempts are required because Review Analysis can consume pre-provider
- * retries and only terminal-settles a provider failure on its fourth attempt.
- * The 15-minute domain horizon remains the terminal authority: the minimum
- * exponential delay puts attempt seven after that horizon, with one attempt to
- * spare. This budget is recovery, not ordering; the backfill chain wakes N+1
- * when N settles instead of waiting for these retries to align by chance.
- */
-export const DISPATCH_JOB_OPTIONS = {
-  attempts: 8,
-  backoff: { type: 'exponential', delay: 30_000, jitter: 0.5 },
-} as const
+export const OUTBOX_DELIVERY_KIND = 'outbox-delivery' as const
+
+// Expire before BullMQ's recovery lock; the session advisory lock protects
+// live consumers even when their execution outlasts this lease.
+export const OUTBOX_DELIVERY_LEASE_MS = 60_000
+
+// Four windows of eight execution claims; transport spends no budget.
+export const OUTBOX_DELIVERY_MAX_ATTEMPTS = 32
+
+export function deliveryRetryDelayMs(attempt: number): number {
+  const turn = (attempt - 1) % 8
+  return turn === 7
+    ? 2 * 60 * 60_000 * 2 ** (Math.floor(attempt / 8) - 1)
+    : 30_000 * 2 ** turn
+}
+
+export function deliveryWorkJobOptions(workId: string, eventType?: string): JobsOptions {
+  return {
+    jobId: `${workId}-initial`,
+    attempts: 1,
+    ...(eventType && EXPEDITED_DISPATCH_EVENT_TYPES.has(eventType) ? { lifo: true } : {}),
+    removeOnComplete: true,
+    removeOnFail: true,
+  }
+}
 
 /**
  * Event types a manager is watching, published to the front of the dispatch
@@ -35,20 +44,3 @@ export const DISPATCH_JOB_OPTIONS = {
 export const EXPEDITED_DISPATCH_EVENT_TYPES: ReadonlySet<string> = new Set([
   'identity.merchant_ai.changed',
 ])
-
-/**
- * How every dispatch of an outbox fact is added: the fact's id as the job id,
- * so a second add of a job Redis still holds is a no-op; the retry policy;
- * the expedite rule; bounded history.
- */
-export function dispatchJobAddOptions(
-  event: Readonly<{ id: string; eventType: string }>,
-): JobsOptions {
-  return {
-    jobId: event.id,
-    ...DISPATCH_JOB_OPTIONS,
-    ...(EXPEDITED_DISPATCH_EVENT_TYPES.has(event.eventType) ? { lifo: true } : {}),
-    removeOnComplete: { count: 1000 },
-    removeOnFail: { count: 500 },
-  }
-}

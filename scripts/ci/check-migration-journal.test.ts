@@ -32,6 +32,7 @@ function gitWith(
       return { status: refs.includes(rest.at(-1) ?? '') ? 0 : 1, stdout: '' }
     }
     if (command === 'merge-base') return { status: 0, stdout: MERGE_BASE }
+    if (command === 'diff') return { status: 0, stdout: '' }
     return { status: 0, stdout: journal }
   }
   return Object.assign(git, { calls })
@@ -42,6 +43,7 @@ const found = (entries: readonly MigrationJournalEntry[]): BaseJournal => ({
   ref: 'origin/main',
   mergeBase: MERGE_BASE,
   entries,
+  sqlFaults: [],
 })
 
 describe('readBaseJournal', () => {
@@ -53,6 +55,29 @@ describe('readBaseJournal', () => {
       ['rev-parse', '--verify', '--quiet', 'origin/main'],
       ['merge-base', 'origin/main', 'HEAD'],
       ['show', `${MERGE_BASE}:drizzle/meta/_journal.json`],
+      [
+        'diff',
+        '--name-only',
+        '--no-renames',
+        '--no-ext-diff',
+        '--no-textconv',
+        '-z',
+        MERGE_BASE,
+        '--',
+        'drizzle',
+      ],
+      [
+        'diff',
+        '--cached',
+        '--name-only',
+        '--no-renames',
+        '--no-ext-diff',
+        '--no-textconv',
+        '-z',
+        MERGE_BASE,
+        '--',
+        'drizzle',
+      ],
     ])
   })
 

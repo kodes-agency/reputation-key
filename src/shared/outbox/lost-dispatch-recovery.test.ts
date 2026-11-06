@@ -1,104 +1,154 @@
-// Queue Redis is disposable (ADR 0053): a restart without persistence, or a
-// failover to an empty replica, drops every waiting and retrying dispatch job.
-// Their outbox rows are already published, so the relay never looks at them
-// again, and the redelivery sweep waits two hours before it does. Recovery
-// puts back exactly the jobs Redis no longer has.
+// Queue Redis may lose accepted jobs. The durable dispatch reservation must
+// enqueue a fresh queue identity for the same work and isolate failed enqueues.
 
 import { describe, expect, it, vi } from 'vitest'
-import type { UnpublishedEvent } from './infrastructure/outbox-repository'
-import {
-  republishLostDispatches,
-  type PublishedAwaitingReceipt,
-} from './lost-dispatch-recovery'
+import { reconcileWorkItems } from '#/shared/jobs/work-items.server'
 
-const NOW = new Date('2026-09-28T12:00:00.000Z')
+const KIND = 'outbox-delivery'
 
-function published(id: string, minutesAgo: number): PublishedAwaitingReceipt {
-  const event: UnpublishedEvent = {
-    id,
-    eventType: 'inbox.inbox_item.created',
-    eventVersion: 1,
-    payload: {},
-    organizationId: 'org-1',
-    propertyId: null,
-    sourceContext: 'inbox',
-    sourceAggregateId: id,
-    recordedAt: new Date(NOW.getTime() - minutesAgo * 60_000 - 1_000),
-  }
-  return { ...event, publishedAt: new Date(NOW.getTime() - minutesAgo * 60_000) }
-}
-
-function harness(pages: PublishedAwaitingReceipt[][], stillQueued: readonly string[]) {
-  const read = vi.fn(async (_input: unknown) => pages.shift() ?? [])
-  const add = vi.fn(async (_name: string, _data: unknown, _options: unknown) => undefined)
-  const getJob = vi.fn(async (id: string) =>
-    stillQueued.includes(id) ? { id } : undefined,
-  )
-  const logger = { info: vi.fn(), warn: vi.fn() }
-  const run = (pageSize = 50) =>
-    republishLostDispatches({
-      readPublishedAwaitingReceipts: read,
-      queue: { add, getJob },
-      clock: () => NOW,
-      logger,
-      consumerExpectations: [
-        {
-          eventType: 'inbox.inbox_item.created',
-          consumerName: 'notification.on-inbox-item-created',
-        },
-      ],
-      config: { windowMs: 2 * 60 * 60_000, pageSize, maxEvents: 1_000 },
+describe('durable dispatch recovery', () => {
+  it('recovers 10,000 lost jobs in one pass with bounded transport concurrency', async () => {
+    const pending = Array.from({ length: 10_000 }, (_, index) => ({
+      id: `work-${index}`,
+      kind: KIND,
+      dispatchSequence: 2,
+    }))
+    const reserveDispatch = vi.fn(async () => pending.splice(0, 100))
+    let active = 0
+    let peak = 0
+    const enqueue = vi.fn(async (_kind: string, _data: unknown, _jobId: string) => {
+      active++
+      peak = Math.max(peak, active)
+      await Promise.resolve()
+      active--
     })
-  return { read, add, getJob, logger, run }
-}
 
-describe('lost dispatch recovery', () => {
-  it('republishes a published fact whose job Redis no longer has, under its own id', async () => {
-    const { add, run } = harness(
-      [[published('evt-lost', 20), published('evt-queued', 10)]],
-      ['evt-queued'],
-    )
-
-    const result = await run()
-
-    expect(result).toEqual({ checked: 2, republished: 1, failures: 0 })
-    expect(add).toHaveBeenCalledOnce()
-    expect(add).toHaveBeenCalledWith(
-      'inbox.inbox_item.created',
-      expect.objectContaining({ eventId: 'evt-lost' }),
-      expect.objectContaining({ jobId: 'evt-lost', attempts: 8 }),
-    )
+    expect(await reconcileWorkItems({ reserveDispatch, enqueue })).toEqual({
+      queued: 10_000,
+      failed: 0,
+    })
+    expect(pending).toHaveLength(0)
+    expect(new Set(enqueue.mock.calls.map((call) => call[2])).size).toBe(10_000)
+    expect(peak).toBeLessThanOrEqual(10)
   })
 
-  it('reads the window page by page from where the last page ended', async () => {
-    const first = [published('evt-1', 90), published('evt-2', 80)]
-    const { read, add, run } = harness([first, [published('evt-3', 5)]], [])
-
-    const result = await run(2)
-
-    expect(result.republished).toBe(3)
-    expect(add).toHaveBeenCalledTimes(3)
-    expect(read).toHaveBeenCalledTimes(2)
-    expect(read.mock.calls[0]![0]).toMatchObject({
-      publishedAfter: new Date(NOW.getTime() - 2 * 60 * 60_000),
-      after: null,
-      limit: 2,
+  it('bounds a pass even when new due work keeps filling every batch', async () => {
+    const reserveDispatch = vi.fn(async () =>
+      Array.from({ length: 100 }, (_, index) => ({
+        id: `work-${index}`,
+        kind: KIND,
+        dispatchSequence: 1,
+      })),
+    )
+    const enqueue = vi.fn(async () => undefined)
+    expect(await reconcileWorkItems({ reserveDispatch, enqueue })).toEqual({
+      queued: 20_000,
+      failed: 0,
     })
-    expect(read.mock.calls[1]![0]).toMatchObject({
-      after: { publishedAt: first[1]!.publishedAt, id: 'evt-2' },
-    })
+    expect(reserveDispatch).toHaveBeenCalledTimes(200)
   })
 
-  it('counts a failed add and carries on with the rest', async () => {
-    const { add, logger, run } = harness(
-      [[published('evt-a', 30), published('evt-b', 20)]],
-      [],
-    )
-    add.mockRejectedValueOnce(new Error('connection lost'))
+  it('keeps the reservation cutoff fixed when a pass takes longer than a minute', async () => {
+    const started = new Date('2026-11-06T10:00:00Z')
+    let now = started
+    const reserveDispatch = vi
+      .fn<
+        (
+          cutoff: Date,
+        ) => Promise<{ id: string; kind: string; dispatchSequence: number }[]>
+      >()
+      .mockResolvedValue([])
+      .mockResolvedValueOnce(
+        Array.from({ length: 100 }, (_, index) => ({
+          id: `work-${index}`,
+          kind: KIND,
+          dispatchSequence: 1,
+        })),
+      )
+    const enqueue = vi.fn(async () => {
+      now = new Date(started.getTime() + 120_000)
+    })
+    expect(
+      await reconcileWorkItems({ reserveDispatch, enqueue, clock: () => now }),
+    ).toEqual({ queued: 100, failed: 0 })
+    expect(reserveDispatch.mock.calls).toEqual([[started], [started]])
+    expect(now.getTime() - started.getTime()).toBe(120_000)
+  })
 
-    const result = await run()
+  it('continues to later batches when every enqueue in the first batch fails', async () => {
+    const pending = Array.from({ length: 205 }, (_, index) => ({
+      id: `work-${index}`,
+      kind: KIND,
+      dispatchSequence: 2,
+    }))
+    const reserveDispatch = vi.fn(async () => pending.splice(0, 100))
+    let called = 0
+    const enqueue = vi.fn(async () => {
+      if (called++ < 100) throw new Error('transport unavailable')
+    })
+    expect(await reconcileWorkItems({ reserveDispatch, enqueue })).toEqual({
+      queued: 105,
+      failed: 100,
+    })
+    expect(enqueue).toHaveBeenCalledTimes(205)
+  })
 
-    expect(result).toEqual({ checked: 2, republished: 1, failures: 1 })
-    expect(logger.warn).toHaveBeenCalled()
+  it('requeues the same work after queue loss with a fresh transport identity', async () => {
+    const reserveDispatch = vi
+      .fn()
+      .mockResolvedValueOnce([{ id: 'work-lost', kind: KIND, dispatchSequence: 1 }])
+      .mockResolvedValueOnce([{ id: 'work-lost', kind: KIND, dispatchSequence: 2 }])
+    const enqueue = vi.fn(async () => undefined)
+
+    expect(await reconcileWorkItems({ reserveDispatch, enqueue })).toEqual({
+      queued: 1,
+      failed: 0,
+    })
+    expect(await reconcileWorkItems({ reserveDispatch, enqueue })).toEqual({
+      queued: 1,
+      failed: 0,
+    })
+    expect(enqueue.mock.calls).toEqual([
+      [KIND, { workId: 'work-lost' }, 'work-lost-1'],
+      [KIND, { workId: 'work-lost' }, 'work-lost-2'],
+    ])
+  })
+
+  it('continues after failed transport and recovers that work on its next reservation', async () => {
+    const reserveDispatch = vi
+      .fn()
+      .mockResolvedValueOnce([
+        { id: 'work-failed', kind: KIND, dispatchSequence: 1 },
+        { id: 'work-healthy', kind: KIND, dispatchSequence: 1 },
+      ])
+      .mockResolvedValueOnce([{ id: 'work-failed', kind: KIND, dispatchSequence: 2 }])
+    const enqueue = vi
+      .fn()
+      .mockRejectedValueOnce(new Error('transport unavailable'))
+      .mockResolvedValue(undefined)
+
+    expect(await reconcileWorkItems({ reserveDispatch, enqueue })).toEqual({
+      queued: 1,
+      failed: 1,
+    })
+    expect(await reconcileWorkItems({ reserveDispatch, enqueue })).toEqual({
+      queued: 1,
+      failed: 0,
+    })
+    expect(enqueue.mock.calls).toEqual([
+      [KIND, { workId: 'work-failed' }, 'work-failed-1'],
+      [KIND, { workId: 'work-healthy' }, 'work-healthy-1'],
+      [KIND, { workId: 'work-failed' }, 'work-failed-2'],
+    ])
+  })
+
+  it('does no queue work when durable admission has no due dispatches', async () => {
+    const reserveDispatch = vi.fn(async () => [])
+    const enqueue = vi.fn(async () => undefined)
+    expect(await reconcileWorkItems({ reserveDispatch, enqueue })).toEqual({
+      queued: 0,
+      failed: 0,
+    })
+    expect(enqueue).not.toHaveBeenCalled()
   })
 })

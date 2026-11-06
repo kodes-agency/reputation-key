@@ -19,7 +19,10 @@ export type WorkRequest = Readonly<{
   maxAttempts?: number
 }>
 
+export const WORK_DISPATCH_BATCH_SIZE = 100
+
 export function createWorkItems(db: Database, clock: Clock) {
+  const executing = new Set<string>()
   const inspect = async (
     organizationId: string,
     id: string,
@@ -34,6 +37,76 @@ export function createWorkItems(db: Database, clock: Clock) {
 
   return {
     inspect,
+    async readQuarantineMetrics(kind: string) {
+      const [row] = await db
+        .select({
+          count: sql<number>`count(*)::int`,
+          oldestAt: sql<Date | null>`min(${workItems.updatedAt})`.mapWith(
+            workItems.updatedAt,
+          ),
+        })
+        .from(workItems)
+        .where(and(eq(workItems.kind, kind), eq(workItems.state, 'quarantined')))
+      return {
+        count: row?.count ?? 0,
+        oldestAgeMs: row?.oldestAt
+          ? Math.max(0, clock().getTime() - row.oldestAt.getTime())
+          : null,
+      }
+    },
+    // A session lock isolates a live callback even after its durable lease
+    // expires. No transaction stays open around provider or consumer I/O.
+    async runExclusive<T>(id: string, run: () => Promise<T>): Promise<T | undefined> {
+      if (executing.has(id)) return undefined
+      executing.add(id)
+      const client = await db.$client.connect().catch((error: unknown) => {
+        executing.delete(id)
+        throw error
+      })
+      const key = `work-item:${id}`
+      let acquired = false
+      let destroy = false
+      try {
+        const result = await client.query<{ acquired: boolean }>(
+          'SELECT pg_try_advisory_lock(hashtextextended($1, 0)) AS acquired',
+          [key],
+        )
+        acquired = result.rows[0]?.acquired === true
+        if (!acquired) return undefined
+        return await run()
+      } finally {
+        if (acquired) {
+          try {
+            await client.query('SELECT pg_advisory_unlock(hashtextextended($1, 0))', [
+              key,
+            ])
+          } catch {
+            destroy = true
+          }
+        }
+        client.release(destroy)
+        executing.delete(id)
+      }
+    },
+    async renew(organizationId: string, id: string, leaseToken: string, leaseMs: number) {
+      const now = clock()
+      const [row] = await db
+        .update(workItems)
+        .set({
+          leaseExpiresAt: new Date(now.getTime() + leaseMs),
+          updatedAt: now,
+        })
+        .where(
+          and(
+            eq(workItems.organizationId, organizationId),
+            eq(workItems.id, id),
+            eq(workItems.state, 'running'),
+            eq(workItems.leaseToken, leaseToken),
+          ),
+        )
+        .returning()
+      return row !== undefined
+    },
     // Worker dispatch starts from an opaque queue ID, before entering tenant scope.
     async resolveDispatch(
       id: string,
@@ -164,17 +237,22 @@ export function createWorkItems(db: Database, clock: Clock) {
         return true
       })
     },
-    async fail(organizationId: string, id: string, leaseToken: string) {
+    async fail(
+      organizationId: string,
+      id: string,
+      leaseToken: string,
+      options: Readonly<{ retryAt?: Date; terminal?: boolean }> = {},
+    ) {
       const now = clock()
       return db
         .update(workItems)
         .set({
-          state: sql`CASE WHEN ${workItems.recovery} = 'read_back' THEN 'uncertain' WHEN ${workItems.attempts} >= ${workItems.maxAttempts} THEN 'quarantined' ELSE 'pending' END`,
+          state: sql`CASE WHEN ${workItems.recovery} = 'read_back' THEN 'uncertain' WHEN ${options.terminal ?? false} OR ${workItems.attempts} >= ${workItems.maxAttempts} THEN 'quarantined' ELSE 'pending' END`,
           errorCode: sql`CASE WHEN ${workItems.recovery} = 'read_back' THEN 'uncertain_write' WHEN ${workItems.attempts} >= ${workItems.maxAttempts} THEN 'attempts_exhausted' ELSE 'handler_failed' END`,
           leaseToken: null,
           leaseExpiresAt: null,
-          dueAt: new Date(now.getTime() + 60_000),
-          dispatchAfter: new Date(now.getTime() + 60_000),
+          dueAt: options.retryAt ?? new Date(now.getTime() + 60_000),
+          dispatchAfter: options.retryAt ?? new Date(now.getTime() + 60_000),
           updatedAt: now,
         })
         .where(
@@ -232,25 +310,36 @@ export function createWorkItems(db: Database, clock: Clock) {
         .returning()
       return changed !== undefined
     },
-    async reserveDispatch() {
+    async reserveDispatch(dispatchBefore?: Date) {
       const now = clock()
+      const cutoff = dispatchBefore ?? now
       return db.transaction(async (tx) => {
         // No LIMIT before SKIP LOCKED: locked/poison rows must not fill a
         // candidate page and hide healthy tenants outside it.
         await tx.execute(sql`
           WITH ranked AS (
             SELECT id, row_number() OVER (PARTITION BY organization_id ORDER BY lease_expires_at, id) AS turn
-            FROM work_items WHERE state = 'running' AND lease_expires_at <= ${now}
-          ), expired AS (
+            FROM work_items w WHERE state = 'running' AND lease_expires_at <= ${now}
+              AND NOT EXISTS (
+                SELECT 1 FROM pg_locks l
+                WHERE l.locktype = 'advisory' AND l.granted AND l.objsubid = 1
+                  AND l.database = (SELECT oid FROM pg_database WHERE datname = current_database())
+                  AND l.classid = ((hashtextextended('work-item:' || w.id::text, 0) >> 32) & 4294967295)::oid
+                  AND l.objid = (hashtextextended('work-item:' || w.id::text, 0) & 4294967295)::oid
+              )
+          ), expired AS MATERIALIZED (
             SELECT w.id FROM work_items w JOIN ranked r ON w.id = r.id
             WHERE w.state = 'running' AND w.lease_expires_at <= ${now}
             ORDER BY r.turn, w.lease_expires_at, w.id FOR UPDATE OF w SKIP LOCKED LIMIT 100
+          ), available AS MATERIALIZED (
+            SELECT id FROM expired
+            WHERE pg_try_advisory_xact_lock(hashtextextended('work-item:' || id::text, 0))
           )
           UPDATE work_items w SET
             state = CASE WHEN recovery = 'read_back' THEN 'uncertain' WHEN attempts >= max_attempts THEN 'quarantined' ELSE 'pending' END,
             error_code = CASE WHEN recovery = 'read_back' THEN 'uncertain_write' WHEN attempts >= max_attempts THEN 'attempts_exhausted' ELSE 'lease_expired' END,
             lease_token = NULL, lease_expires_at = NULL, updated_at = ${now}, dispatch_after = ${now}
-          FROM expired e WHERE w.id = e.id`)
+          FROM available e WHERE w.id = e.id`)
         const dispatched = await tx.execute<{
           id: string
           kind: string
@@ -258,11 +347,11 @@ export function createWorkItems(db: Database, clock: Clock) {
         }>(sql`
           WITH ranked AS (
             SELECT id, row_number() OVER (PARTITION BY organization_id ORDER BY dispatch_after, id) AS turn
-            FROM work_items WHERE state = 'pending' AND due_at <= ${now} AND dispatch_after <= ${now}
+            FROM work_items WHERE state = 'pending' AND due_at <= ${now} AND dispatch_after <= ${cutoff}
           ), picked AS (
             SELECT w.id FROM work_items w JOIN ranked r ON w.id = r.id
-            WHERE w.state = 'pending' AND w.due_at <= ${now} AND w.dispatch_after <= ${now}
-            ORDER BY r.turn, w.dispatch_after, w.id FOR UPDATE OF w SKIP LOCKED LIMIT 100
+            WHERE w.state = 'pending' AND w.due_at <= ${now} AND w.dispatch_after <= ${cutoff}
+            ORDER BY r.turn, w.dispatch_after, w.id FOR UPDATE OF w SKIP LOCKED LIMIT ${WORK_DISPATCH_BATCH_SIZE}
           )
           UPDATE work_items w SET dispatch_after = ${new Date(now.getTime() + 60_000)},
             dispatch_sequence = dispatch_sequence + 1, updated_at = ${now}

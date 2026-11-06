@@ -21,7 +21,7 @@ import {
   parseConstructDefinitions,
   readConstructsFileDefinitions,
   type ConstructDefinition,
-} from './construct-definitions'
+} from './construct-sql.test-fixtures'
 
 /** The labels that let the planner run a function in a parallel worker or its leader. */
 const PARALLEL_LABEL = /\bPARALLEL (?:SAFE|RESTRICTED)\b/u

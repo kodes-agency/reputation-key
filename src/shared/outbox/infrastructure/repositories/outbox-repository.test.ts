@@ -1,56 +1,45 @@
-// BQC-3.7 — outbox repository lease lifecycle tests (real PostgreSQL).
-// Proves the claim/lease/renew/reclaim/release contract under multiple
-// relay workers:
-//   (a) two concurrent claimers never claim the same row twice (SKIP LOCKED)
-//   (b) renewLease extends lease_expires_at only for the owner's rows
-//   (c) an expired-lease row is reclaimed by a second relay's claim
-//   (d) markPublished clears the lease fields
-//   (e) claim order is created_at ascending
-// Plus: claimed rows carry recordedAt (row created_at) for the envelope, and
-// findExpiredLeases (now wired into health-metrics) returns expired,
-// unpublished rows with recordedAt.
+// Real PostgreSQL proofs for durable admission, ordering and rolling-release
+// leases. Legacy leases remain readable until the outgoing worker drains.
 
 import { describe, it, expect, beforeEach, afterAll } from 'vitest'
-import { sql } from 'drizzle-orm'
-import { getDb } from '#/shared/db'
+import { eq, sql } from 'drizzle-orm'
+import { getDb, type Database } from '#/shared/db'
+import { outboxEvents } from '#/shared/db/schema/outbox.schema'
 import { createOutboxRepository } from '../outbox-repository'
 
 const db = getDb()
-const repo = createOutboxRepository(db)
-
-const NOW = Date.now()
+const NOW = new Date('2026-11-06T12:00:00.000Z')
+const ORG = 'org-delivery-admission-test'
+const repo = createOutboxRepository(db, () => NOW)
 
 async function insertEvent(createdAt: Date): Promise<string> {
-  const result = await db.execute(sql`
+  const result = await db.execute<{ id: string }>(sql`
     INSERT INTO outbox_events
       (event_type, event_version, payload, organization_id, source_context, source_aggregate_id, created_at)
     VALUES
-      ('test.lease', 1, '{"resourceId":"r-1"}'::jsonb, 'org-lease-test', 'test', 'agg-1', ${createdAt})
+      ('test.delivery', 1, '{"resourceId":"r-1"}'::jsonb, ${ORG}, 'test', 'agg-1', ${createdAt})
     RETURNING id
   `)
-  return (result.rows[0] as { id: string }).id
+  const row = result.rows[0]
+  if (!row) throw new Error('Event fixture missing')
+  return row.id
 }
 
-/** Epoch ms of a row's lease columns, for clock-skew-proof comparisons. */
-async function leaseRow(id: string): Promise<{
-  leaseOwner: string | null
-  leaseExpiresAtMs: number | null
-  publishedAtMs: number | null
-}> {
-  const result = await db.execute(sql`
-    SELECT lease_owner AS "leaseOwner",
-           (EXTRACT(EPOCH FROM lease_expires_at) * 1000)::float8 AS "leaseExpiresAtMs",
-           (EXTRACT(EPOCH FROM published_at) * 1000)::float8 AS "publishedAtMs"
-    FROM outbox_events WHERE id = ${id}
-  `)
-  return result.rows[0] as {
-    leaseOwner: string | null
-    leaseExpiresAtMs: number | null
-    publishedAtMs: number | null
-  }
+async function publicationRow(id: string) {
+  const [row] = await db
+    .select({
+      leaseOwner: outboxEvents.leaseOwner,
+      leasedAt: outboxEvents.leasedAt,
+      leaseExpiresAt: outboxEvents.leaseExpiresAt,
+      publishedAt: outboxEvents.publishedAt,
+    })
+    .from(outboxEvents)
+    .where(eq(outboxEvents.id, id))
+  return row
 }
 
 async function clean(): Promise<void> {
+  await db.execute(sql`DELETE FROM work_items WHERE organization_id = ${ORG}`)
   await db.execute(sql`DELETE FROM event_consumer_receipts`)
   await db.execute(sql`DELETE FROM outbox_events`)
 }
@@ -58,168 +47,181 @@ async function clean(): Promise<void> {
 beforeEach(clean)
 afterAll(clean)
 
-describe('outbox repository lease lifecycle (BQC-3.7)', () => {
-  it('claims in created_at order and carries recordedAt from the row', async () => {
-    const t1 = new Date(NOW - 3000)
-    const t2 = new Date(NOW - 2000)
-    const t3 = new Date(NOW - 1000)
-    // Insert out of order to prove ordering comes from created_at, not insertion.
+describe('outbox durable admission', () => {
+  it('admits only the oldest rows within a bounded batch and preserves envelope metadata', async () => {
+    const t1 = new Date(NOW.getTime() - 3_000)
+    const t2 = new Date(NOW.getTime() - 2_000)
+    const t3 = new Date(NOW.getTime() - 1_000)
     const id3 = await insertEvent(t3)
     const id1 = await insertEvent(t1)
     const id2 = await insertEvent(t2)
 
-    // A limit claims only the oldest rows.
-    const claimed = await repo.claimUnpublished(2, 'relay-a', 30_000)
+    const admitted = await repo.delivery.schedulePending(2)
 
-    expect(claimed.map((e) => e.id)).toEqual([id1, id2])
-    for (const event of claimed) {
-      expect(event.recordedAt).toBeInstanceOf(Date)
-    }
-    expect(claimed[0]!.recordedAt.getTime()).toBe(t1.getTime())
-
-    // The remaining unleased row is claimed next (leased rows are skipped).
-    const rest = await repo.claimUnpublished(2, 'relay-a', 30_000)
-    expect(rest.map((e) => e.id)).toEqual([id3])
+    expect(admitted.map((work) => work.subjectId)).toEqual([id1, id2])
+    const event = await repo.delivery.readEvent(ORG, id1)
+    expect(event).toEqual({
+      id: id1,
+      eventType: 'test.delivery',
+      eventVersion: 1,
+      payload: { resourceId: 'r-1' },
+      organizationId: ORG,
+      propertyId: null,
+      sourceContext: 'test',
+      sourceAggregateId: 'agg-1',
+      recordedAt: t1,
+    })
+    const rest = await repo.delivery.schedulePending(2)
+    expect(rest.map((work) => work.subjectId)).toEqual([id3])
   })
 
-  it('two concurrent claimers never claim the same row twice (SKIP LOCKED)', async () => {
+  it('never admits the same fact twice when two workers run concurrently', async () => {
     const ids: string[] = []
-    for (let i = 0; i < 20; i++) {
-      ids.push(await insertEvent(new Date(NOW - (20 - i) * 1000)))
+    for (let index = 0; index < 20; index++) {
+      ids.push(await insertEvent(new Date(NOW.getTime() - (20 - index) * 1_000)))
     }
 
-    const [claimA, claimB] = await Promise.all([
-      repo.claimUnpublished(10, 'relay-a', 30_000),
-      repo.claimUnpublished(10, 'relay-b', 30_000),
+    const [first, second] = await Promise.all([
+      repo.delivery.schedulePending(10),
+      repo.delivery.schedulePending(10),
     ])
 
-    const idsA = new Set(claimA.map((e) => e.id))
-    const idsB = new Set(claimB.map((e) => e.id))
-    const overlap = [...idsA].filter((id) => idsB.has(id))
-
-    expect(overlap).toEqual([])
-    // Whether serialized or truly concurrent, every row is claimed exactly once.
-    expect(claimA.length + claimB.length).toBe(20)
-  })
-  // `relay.ts` publishes in the order this returns, so the returned order IS
-  // the delivery order. The ORDER BY inside the claim CTE only decides which
-  // rows are taken - `UPDATE ... RETURNING` defines no row order - so this
-  // inserts NEWEST FIRST, making insertion order the reverse of the contract.
-  // A claim that leans on RETURNING's incidental order fails this; the outer
-  // ORDER BY is what satisfies it.
-  it('returns the batch oldest-first regardless of insertion order', async () => {
-    const newest = await insertEvent(new Date(NOW - 1000))
-    const middle = await insertEvent(new Date(NOW - 2000))
-    const oldest = await insertEvent(new Date(NOW - 3000))
-
-    const claimed = await repo.claimUnpublished(3, 'relay-order', 30_000)
-
-    expect(claimed.map((e) => e.id)).toEqual([oldest, middle, newest])
+    const subjects = [...first, ...second].map((work) => work.subjectId)
+    expect(subjects).toHaveLength(20)
+    expect(new Set(subjects).size).toBe(20)
+    expect([...subjects].sort()).toEqual([...ids].sort())
+    expect(new Set([...first, ...second].map((work) => work.id)).size).toBe(20)
+    expect(await repo.delivery.schedulePending(10)).toEqual([])
   })
 
-  it('breaks a created_at tie by id, so a batch never reorders between claims', async () => {
-    const sameInstant = new Date(NOW - 5000)
+  it('returns the batch oldest first regardless of insertion order', async () => {
+    const newest = await insertEvent(new Date(NOW.getTime() - 1_000))
+    const middle = await insertEvent(new Date(NOW.getTime() - 2_000))
+    const oldest = await insertEvent(new Date(NOW.getTime() - 3_000))
+
+    const admitted = await repo.delivery.schedulePending(3)
+
+    expect(admitted.map((work) => work.subjectId)).toEqual([oldest, middle, newest])
+  })
+
+  it('breaks timestamp ties by fact ID', async () => {
+    const instant = new Date(NOW.getTime() - 5_000)
     const ids = [
-      await insertEvent(sameInstant),
-      await insertEvent(sameInstant),
-      await insertEvent(sameInstant),
+      await insertEvent(instant),
+      await insertEvent(instant),
+      await insertEvent(instant),
     ]
 
-    const claimed = await repo.claimUnpublished(3, 'relay-tie', 30_000)
+    const admitted = await repo.delivery.schedulePending(3)
 
-    expect(claimed.map((e) => e.id)).toEqual([...ids].sort())
+    expect(admitted.map((work) => work.subjectId)).toEqual([...ids].sort())
   })
 
-  it('renewLease extends lease_expires_at only for the owner\u2019s unpublished rows', async () => {
-    const a1 = await insertEvent(new Date(NOW - 4000))
-    const a2 = await insertEvent(new Date(NOW - 3000))
-    const b1 = await insertEvent(new Date(NOW - 2000))
-    const b2 = await insertEvent(new Date(NOW - 1000))
+  it('leaves an outgoing worker its active lease and adopts it after expiry', async () => {
+    const id = await insertEvent(new Date(NOW.getTime() - 1_000))
+    await db.execute(sql`
+      UPDATE outbox_events
+      SET lease_owner = 'outgoing-worker', leased_at = ${NOW},
+          lease_expires_at = ${new Date(NOW.getTime() + 30_000)}
+      WHERE id = ${id}::uuid
+    `)
 
-    const claimA = await repo.claimUnpublished(2, 'relay-a', 30_000)
-    const claimB = await repo.claimUnpublished(2, 'relay-b', 30_000)
-    expect(claimA.map((e) => e.id)).toEqual([a1, a2])
-    expect(claimB.map((e) => e.id)).toEqual([b1, b2])
+    expect(await repo.delivery.schedulePending(10)).toEqual([])
+    expect(await publicationRow(id)).toMatchObject({
+      leaseOwner: 'outgoing-worker',
+      publishedAt: null,
+    })
+    expect(await repo.delivery.workItems.list(ORG)).toEqual([])
 
-    const before = {
-      a1: (await leaseRow(a1)).leaseExpiresAtMs!,
-      b1: (await leaseRow(b1)).leaseExpiresAtMs!,
-    }
+    await db.execute(sql`
+      UPDATE outbox_events SET lease_expires_at = ${new Date(NOW.getTime() - 1)}
+      WHERE id = ${id}::uuid
+    `)
+    const adopted = await repo.delivery.schedulePending(10)
 
-    // relay-a renews a batch that (mistakenly or racily) includes relay-b's row.
-    const renewed = await repo.renewLease([a1, a2, b1], 'relay-a', 90_000)
-    expect(renewed).toBe(2) // only relay-a's own rows
-
-    const after = {
-      a1: (await leaseRow(a1)).leaseExpiresAtMs!,
-      a2: (await leaseRow(a2)).leaseExpiresAtMs!,
-      b1: (await leaseRow(b1)).leaseExpiresAtMs!,
-      b2: (await leaseRow(b2)).leaseExpiresAtMs!,
-    }
-
-    // Renewed rows move from ~30s to ~90s out; relay-b's rows are untouched.
-    expect(after.a1).toBeGreaterThan(before.a1 + 30_000)
-    expect(after.a2).toBeGreaterThan(before.a1 + 30_000)
-    expect(after.b1).toBe(before.b1)
-    expect(after.b2).toBeLessThan(after.a1)
-
-    // A published row is never renewed (published_at IS NULL guard).
-    await repo.markPublished(a1)
-    const renewedAfterPublish = await repo.renewLease([a1, a2], 'relay-a', 120_000)
-    expect(renewedAfterPublish).toBe(1)
-    expect((await leaseRow(a1)).leaseExpiresAtMs).toBeNull()
+    expect(adopted).toHaveLength(1)
+    expect(adopted[0]!.subjectId).toBe(id)
+    expect(await publicationRow(id)).toEqual({
+      publishedAt: NOW,
+      leaseOwner: null,
+      leasedAt: null,
+      leaseExpiresAt: null,
+    })
   })
 
-  it('reclaims an expired-lease row under a second relay, but not an unexpired one', async () => {
-    const id = await insertEvent(new Date(NOW - 1000))
+  it('commits publication and pending work together without spending an attempt', async () => {
+    const id = await insertEvent(new Date(NOW.getTime() - 1_000))
 
-    const first = await repo.claimUnpublished(10, 'relay-a', 30_000)
-    expect(first).toHaveLength(1)
+    const [admitted] = await repo.delivery.schedulePending(1)
 
-    // Unexpired lease — relay-b cannot take it.
-    const blocked = await repo.claimUnpublished(10, 'relay-b', 30_000)
-    expect(blocked).toHaveLength(0)
-
-    // Expire the lease, then relay-b reclaims and owns it.
-    await repo.renewLease([id], 'relay-a', -60_000)
-    const reclaimed = await repo.claimUnpublished(10, 'relay-b', 30_000)
-    expect(reclaimed).toHaveLength(1)
-    expect(reclaimed[0]!.id).toBe(id)
-    expect((await leaseRow(id)).leaseOwner).toBe('relay-b')
+    expect(admitted).toMatchObject({ subjectId: id, organizationId: ORG })
+    if (!admitted) throw new Error('Admission missing')
+    expect(await publicationRow(id)).toMatchObject({ publishedAt: NOW })
+    expect(await repo.delivery.workItems.inspect(ORG, admitted.id)).toMatchObject({
+      subjectId: id,
+      idempotencyKey: id,
+      kind: 'outbox-delivery',
+      state: 'pending',
+      attempts: 0,
+      dueAt: NOW,
+    })
+    expect(await repo.delivery.schedulePending(1)).toEqual([])
   })
 
-  it('markPublished clears lease fields and excludes the row from claims', async () => {
-    const id = await insertEvent(new Date(NOW - 1000))
-    await repo.claimUnpublished(10, 'relay-a', 30_000)
-
-    await repo.markPublished(id)
-
-    const row = await leaseRow(id)
-    expect(row.publishedAtMs).not.toBeNull()
-    expect(row.leaseOwner).toBeNull()
-    expect(row.leaseExpiresAtMs).toBeNull()
-
-    // Even after the lease would have expired, published rows are never claimed.
-    const again = await repo.claimUnpublished(10, 'relay-b', 30_000)
-    expect(again).toHaveLength(0)
+  it('rolls back work admission when the publication write fails', async () => {
+    const id = await insertEvent(new Date(NOW.getTime() - 1_000))
+    const rollback = new Error('rollback admission failure fixture')
+    let checked = false
+    await expect(
+      db.transaction(async (tx) => {
+        const transaction = tx as unknown as Database
+        // A scratch-database constraint supplies a real failure after work
+        // insertion. The outer rollback always removes this planted fault.
+        await transaction.execute(
+          sql`
+          ALTER TABLE outbox_events ADD CONSTRAINT reject_delivery_publication
+          CHECK (id <> ${id}::uuid OR published_at IS NULL)
+        `.inlineParams(),
+        )
+        const failing = createOutboxRepository(transaction, () => NOW)
+        await expect(failing.delivery.schedulePending(1)).rejects.toMatchObject({
+          cause: { code: '23514', constraint: 'reject_delivery_publication' },
+        })
+        const result = await transaction.execute(sql`
+          SELECT
+            (SELECT published_at FROM outbox_events WHERE id = ${id}::uuid) AS publication,
+            (SELECT count(*)::int FROM work_items
+              WHERE organization_id = ${ORG} AND subject_id = ${id}) AS work
+        `)
+        expect(result.rows[0]).toEqual({ publication: null, work: 0 })
+        checked = true
+        throw rollback
+      }),
+    ).rejects.toBe(rollback)
+    expect(checked).toBe(true)
+    expect(await repo.delivery.workItems.list(ORG)).toEqual([])
   })
 
-  it('findExpiredLeases returns unpublished expired rows with recordedAt', async () => {
-    const expired = await insertEvent(new Date(NOW - 2000))
-    await insertEvent(new Date(NOW - 1000)) // active lease — must not surface
-
-    await repo.claimUnpublished(2, 'relay-a', 30_000)
-    // Expire only the first row's lease (ownership-guarded renew with negative duration).
-    await repo.renewLease([expired], 'relay-a', -60_000)
-
+  it('keeps the expired legacy lease health read until admission clears it', async () => {
+    const expired = await insertEvent(new Date(NOW.getTime() - 2_000))
+    const active = await insertEvent(new Date(NOW.getTime() - 1_000))
+    // The compatibility health read uses the database clock.
+    await db.execute(sql`
+      UPDATE outbox_events SET lease_owner = 'outgoing-worker',
+        leased_at = NOW(), lease_expires_at = NOW() - INTERVAL '1 second'
+      WHERE id = ${expired}::uuid
+    `)
+    await db.execute(sql`
+      UPDATE outbox_events SET lease_owner = 'outgoing-worker',
+        leased_at = NOW(), lease_expires_at = NOW() + INTERVAL '1 day'
+      WHERE id = ${active}::uuid
+    `)
     const rows = await repo.findExpiredLeases(10)
-    expect(rows.map((r) => r.id)).toEqual([expired])
-    expect(rows[0]!.recordedAt).toBeInstanceOf(Date)
-    expect(rows[0]!.recordedAt.getTime()).toBe(new Date(NOW - 2000).getTime())
+    expect(rows.map((event) => event.id)).toEqual([expired])
+    expect(rows[0]!.recordedAt).toEqual(new Date(NOW.getTime() - 2_000))
 
-    // Publish the expired row — it drops out of the expired-lease signal.
-    await repo.markPublished(expired)
-    const afterPublish = await repo.findExpiredLeases(10)
-    expect(afterPublish).toHaveLength(0)
+    // Use the live clock for admission so the active fixture stays excluded.
+    await createOutboxRepository(db).delivery.schedulePending(10)
+    expect(await repo.findExpiredLeases(10)).toEqual([])
   })
 })
