@@ -257,6 +257,48 @@ describe('Redis Google admission across processes', () => {
     })
   })
 
+  it('credits a reservation once when separate replicas refund it concurrently', async () => {
+    if (!firstLease?.redis || !secondLease?.redis) return
+    const policyId = `concurrent-refund-${randomUUID()}`
+    const quotaFor = (redis: Redis) =>
+      createRedisGoogleQuotaCoordinator({
+        redis: tracked(redis),
+        nowMs: () => NOW_MS,
+        policyId,
+        policy: {
+          ...policy,
+          buckets: policy.buckets.map((bucket) => ({ ...bucket, capacity: 3 })),
+        },
+      })
+    const first = quotaFor(firstLease.redis)
+    const second = quotaFor(secondLease.redis)
+    for (const id of ['reservation-a', 'reservation-b', 'reservation-c']) {
+      await expect(first.acquire(quotaKey, 1, DEADLINE_MS, id)).resolves.toMatchObject({
+        ok: true,
+      })
+    }
+
+    await expect(
+      Promise.all([
+        first.refund(quotaKey, 1, 'reservation-a'),
+        second.refund(quotaKey, 1, 'reservation-a'),
+      ]),
+    ).resolves.toEqual([true, true])
+    await expect(second.acquire(quotaKey, 1, DEADLINE_MS)).resolves.toMatchObject({
+      ok: true,
+    })
+    await expect(first.acquire(quotaKey, 1, DEADLINE_MS)).resolves.toMatchObject({
+      ok: false,
+    })
+    await expect(second.refund(quotaKey, 1, 'reservation-b')).resolves.toBe(true)
+    await expect(first.acquire(quotaKey, 1, DEADLINE_MS)).resolves.toMatchObject({
+      ok: true,
+    })
+    await expect(second.acquire(quotaKey, 1, DEADLINE_MS)).resolves.toMatchObject({
+      ok: false,
+    })
+  })
+
   it('refunds every quota bucket and the slot when the permit refuses start', async () => {
     const pair = replicas()
     if (!pair) return

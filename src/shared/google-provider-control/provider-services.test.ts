@@ -558,9 +558,14 @@ describe('Google in-process egress gateway', () => {
     },
   )
 
-  it.each([200, 429, 503])(
-    'delivers a Google %i at ten seconds while failed lease releases finish in the background',
-    async (status) => {
+  it.each([
+    { status: 200, responseAtMs: 10_000 },
+    { status: 429, responseAtMs: 10_000 },
+    { status: 503, responseAtMs: 10_000 },
+    { status: 200, responseAtMs: 14_999 },
+  ])(
+    'delivers a Google $status at $responseAtMs ms while failed lease releases finish in the background',
+    async ({ status, responseAtMs }) => {
       vi.useFakeTimers()
       vi.setSystemTime(0)
       try {
@@ -574,7 +579,7 @@ describe('Google in-process egress gateway', () => {
           throw new Error('release unavailable')
         })
         const fetchProvider = vi.fn(async () => {
-          await new Promise((resolve) => setTimeout(resolve, 10_000))
+          await new Promise((resolve) => setTimeout(resolve, responseAtMs))
           return new Response('provider answer', {
             status,
             headers: { 'retry-after': '30', 'cache-control': 'no-store' },
@@ -597,7 +602,7 @@ describe('Google in-process egress gateway', () => {
           })
           .then(delivered)
 
-        await vi.advanceTimersByTimeAsync(10_000)
+        await vi.advanceTimersByTimeAsync(responseAtMs)
         expect(delivered).toHaveBeenCalledExactlyOnceWith(
           expect.objectContaining({
             ok: true,
