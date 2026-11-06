@@ -228,11 +228,4 @@ function TimelineContent({ className, ...props }: React.ComponentProps<'div'>) {
   )
 }
 
-export {
-  Timeline,
-  TimelineConnector,
-  TimelineContent,
-  TimelineIndicator,
-  TimelineItem,
-  timelineIndicatorVariants,
-}
+export { Timeline, TimelineConnector, TimelineContent, TimelineIndicator, TimelineItem }
