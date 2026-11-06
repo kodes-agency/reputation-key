@@ -42,7 +42,7 @@ async function deleteExportFixtures(requestIds: readonly string[]): Promise<void
     )
     await client.query(
       `ALTER TABLE organization_export_retrieval_issuances
-       ENABLE ALWAYS TRIGGER organization_export_retrieval_issuances_update_delete_guard`,
+       ENABLE TRIGGER organization_export_retrieval_issuances_update_delete_guard`,
     )
     await client.query('DELETE FROM organization_exports WHERE id = ANY($1::uuid[])', [
       requestIds,
