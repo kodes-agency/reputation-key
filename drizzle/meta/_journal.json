@@ -666,6 +666,34 @@
       "when": 1797600000000,
       "tag": "0094_portal_destination_revalidation",
       "breakpoints": true
+    },
+    {
+      "idx": 95,
+      "version": "7",
+      "when": 1797700000000,
+      "tag": "0095_work_items",
+      "breakpoints": true
+    },
+    {
+      "idx": 96,
+      "version": "7",
+      "when": 1797800000000,
+      "tag": "0096_work_items_due_index",
+      "breakpoints": true
+    },
+    {
+      "idx": 97,
+      "version": "7",
+      "when": 1797900000000,
+      "tag": "0097_work_items_lease_index",
+      "breakpoints": true
+    },
+    {
+      "idx": 98,
+      "version": "7",
+      "when": 1798000000000,
+      "tag": "0098_work_items_organization_index",
+      "breakpoints": true
     }
   ]
 }
