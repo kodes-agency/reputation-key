@@ -18,8 +18,10 @@ function Switch({
       data-slot="switch"
       data-size={size}
       className={cn(
-        // Keep the track compact while its centered pad accepts a 44 px tap.
-        'relative after:absolute after:top-1/2 after:left-1/2 after:size-11 after:-translate-x-1/2 after:-translate-y-1/2',
+        // Keep the track compact while a 44 px pad accepts the tap. The pad grows from
+        // the track's right edge, where row layouts put the switch, so it never widens
+        // the row or the page.
+        'relative after:absolute after:top-1/2 after:right-0 after:size-11 after:-translate-y-1/2',
         'peer group/switch inline-flex shrink-0 items-center rounded-full border border-transparent data-[state=unchecked]:border-border-control shadow-xs transition-all outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 disabled:cursor-not-allowed data-[state=unchecked]:disabled:opacity-50 data-[state=checked]:disabled:opacity-75 data-[size=default]:h-[1.15rem] data-[size=default]:w-8 data-[size=sm]:h-3.5 data-[size=sm]:w-6 data-[state=checked]:bg-primary data-[state=unchecked]:bg-input dark:data-[state=unchecked]:bg-input/80',
         className,
       )}
