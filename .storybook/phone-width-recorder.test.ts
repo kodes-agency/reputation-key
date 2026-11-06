@@ -12,7 +12,7 @@ async function inventory(entries: readonly PhoneWidthBaselineEntry[] = existing)
   temporaryDirectories.push(directory)
   const file = join(directory, 'phone-width-failures.json')
   await writeFile(file, JSON.stringify(entries))
-  return { file, record: createPhoneWidthRecorder(file) }
+  return { file, record: createPhoneWidthRecorder(file, 'linux') }
 }
 
 afterEach(async () => {
@@ -71,7 +71,7 @@ describe('phone-width inventory browser command', () => {
       { storyId: first.storyId, state: first.state, width: 390, checks: ['targets'] },
     ])
 
-    const nextRun = createPhoneWidthRecorder(file)
+    const nextRun = createPhoneWidthRecorder(file, 'linux')
     await nextRun(undefined, second)
     await nextRun(undefined, first)
     expect(await readFile(file, 'utf8')).toBe(contents)
@@ -179,6 +179,12 @@ describe('phone-width inventory browser command', () => {
       ])
     },
   )
+
+  it('refuses to record anywhere but Linux, where CI measures the inventory', () => {
+    expect(() => createPhoneWidthRecorder('phone-width-failures.json', 'darwin')).toThrow(
+      'Record the phone-width inventory on Linux, as CI runs it, not on darwin',
+    )
+  })
 
   it('propagates write errors rather than reporting a successful inventory', async () => {
     const { file, record } = await inventory()

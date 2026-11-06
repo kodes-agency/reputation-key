@@ -9,8 +9,17 @@ export type PhoneWidthObservation = Readonly<{
   measurements: readonly PhoneWidthMeasurement[]
 }>
 
-/** One command instance in Vitest's Node process collects all browser story files. */
-export function createPhoneWidthRecorder(outputFile: string) {
+/**
+ * One command instance in Vitest's Node process collects all browser story files.
+ * The inventory is what CI measures: its Linux Chromium sets text a few pixels
+ * wider than macOS does, so a record run on a Mac drops states CI still fails.
+ */
+export function createPhoneWidthRecorder(outputFile: string, platform: NodeJS.Platform) {
+  if (platform !== 'linux') {
+    throw new Error(
+      `Record the phone-width inventory on Linux, as CI runs it, not on ${platform}: text measures differently there, so states that still fail in CI would be dropped.`,
+    )
+  }
   const states = new Map<string, PhoneWidthBaselineEntry[]>()
   let baseline: readonly PhoneWidthBaselineEntry[] | undefined
   let pending = Promise.resolve()
