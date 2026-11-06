@@ -35,7 +35,7 @@ export const IMMERSIVE_SECTION_CSS = `
 .ih-yr__toggle:focus-visible,
 .ih-yr__button:focus-visible,
 .ih-yr__start-over:focus-visible { outline: 2px solid var(--ih-accent-text); outline-offset: 3px; }
-.ih-yr__labels { display: flex; flex-direction: column; }
+.ih-yr__labels { display: flex; flex-direction: column; min-width: 0; }
 .ih-yr__title { font-size: 15px; font-weight: 600; line-height: 20px; }
 .ih-yr__summary { font-size: 13px; line-height: 18px; color: rgba(255, 255, 255, 0.76); }
 .ih-yr__chevron { flex: none; transition: transform 150ms ease-out; }
@@ -57,7 +57,7 @@ export const IMMERSIVE_SECTION_CSS = `
 .ih-yr__row-text { min-width: 0; }
 .ih-yr__row-title { margin: 0; font-size: 15px; font-weight: 600; line-height: 20px; }
 .ih-yr__detail { margin: 2px 0 0; font-size: 13px; line-height: 18px; color: rgba(255, 255, 255, 0.76); }
-.ih-yr .ih-yr__button { flex: none; width: auto; min-height: 44px; padding: 0 16px; font-size: 14px; }
+.ih-yr .ih-yr__button { flex: none; width: auto; min-height: 44px; padding: 10px 16px; font-size: 14px; }
 .ih-yr__change { padding: 12px 0 4px; }
 .ih-yr__confirm {
   margin-top: 10px;

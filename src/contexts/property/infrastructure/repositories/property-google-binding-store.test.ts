@@ -617,13 +617,17 @@ describe.sequential('Property Google binding store', () => {
         )
       ).rows[0]
 
-    const disconnectedFor = (idSuffix: string, overrides: Partial<Property> = {}) => ({
-      ...makeActiveProperty(idSuffix, `old-location-${idSuffix}`),
-      googleBindingState: 'disconnected' as const,
-      sourceEpoch: 4,
-      profileVersion: 3,
-      ...overrides,
-    })
+    const disconnect = (
+      store: ReturnType<typeof createPropertyGoogleBindingStore>,
+      property: Property,
+    ) =>
+      store.disconnect({
+        organizationId: ORG_ID,
+        propertyId: property.id,
+        expectedSourceEpoch: property.sourceEpoch,
+        expectedProfileVersion: property.profileVersion,
+        now: NOW,
+      })
 
     const relinkInput = (
       property: Property,
@@ -644,8 +648,8 @@ describe.sequential('Property Google binding store', () => {
           confirmedBy: 'user-2',
           ...(googlePrimaryCategory === undefined ? {} : { googlePrimaryCategory }),
         },
-        expectedSourceEpoch: 4,
-        expectedProfileVersion: 3,
+        expectedSourceEpoch: property.sourceEpoch + 1,
+        expectedProfileVersion: property.profileVersion,
         now: NOW,
       }) as const
 
@@ -690,13 +694,29 @@ describe.sequential('Property Google binding store', () => {
       })
     })
 
-    it('is replaced by the one a relink read, which moves no version beyond the relink’s own', async () => {
+    it('is cleared on disconnect and read afresh on reconnect without changing retained identity', async () => {
       const store = createPropertyGoogleBindingStore(db)
-      const property = disconnectedFor('10', {
+      const property = {
+        ...makeActiveProperty('10', 'location-10'),
         googlePrimaryCategory: 'Hotel',
         googlePrimaryCategoryUpdatedAt: CONFIRMED_AT,
-      })
+      }
       await seedTestProperty(db, property)
+      await disconnect(store, property)
+      expect(await categoryRow(property.id)).toMatchObject({
+        category: null,
+        updated_at: null,
+      })
+      expect(await store.readInternal(ORG_ID, property.id)).toMatchObject({
+        state: 'disconnected',
+        connectionId: CONNECTION_ID,
+        accountId: 'account-1',
+        locationId: 'location-10',
+        googleReviewDestination: {
+          state: 'awaiting_refresh',
+          uri: property.googleReviewDestination?.uri,
+        },
+      })
 
       await store.relink(
         relinkInput(
@@ -710,37 +730,47 @@ describe.sequential('Property Google binding store', () => {
         category: 'Boat rental service',
         updated_at: NOW,
         // The relink bumps these; the category adds nothing to them.
-        source_epoch: 5,
-        profile_version: 4,
+        source_epoch: 3,
+        profile_version: 2,
       })
     })
 
-    it('is kept by a relink that read none, so a missing answer never erases a hint', async () => {
-      const store = createPropertyGoogleBindingStore(db)
-      const held = {
-        googlePrimaryCategory: 'Hotel',
-        googlePrimaryCategoryUpdatedAt: CONFIRMED_AT,
-      }
-      const cases: ReadonlyArray<readonly [string, string | null | undefined]> = [
-        ['11', null],
-        ['12', undefined],
-        ['13', '\u0000not text'],
-      ]
+    it.each([false, true])(
+      'keeps only a hint that disconnect has not cleared (disconnect first: %s)',
+      async (disconnectFirst) => {
+        const store = createPropertyGoogleBindingStore(db)
+        const held = {
+          googlePrimaryCategory: 'Hotel',
+          googlePrimaryCategoryUpdatedAt: CONFIRMED_AT,
+        }
+        const cases: ReadonlyArray<readonly [string, string | null | undefined]> = [
+          ['11', null],
+          ['12', undefined],
+          ['13', '\u0000not text'],
+        ]
 
-      for (const [suffix, read] of cases) {
-        const property = disconnectedFor(suffix, held)
-        await seedTestProperty(db, property)
+        for (const [suffix, read] of cases) {
+          const property = {
+            ...makeActiveProperty(suffix, `location-${suffix}`),
+            ...held,
+            googleBindingState: disconnectFirst
+              ? ('active' as const)
+              : ('disconnected' as const),
+          }
+          await seedTestProperty(db, property)
+          if (disconnectFirst) await disconnect(store, property)
+          await store.relink({
+            ...relinkInput(property, `20000000-0000-4000-8000-0000000000${suffix}`, read),
+            expectedSourceEpoch: property.sourceEpoch + Number(disconnectFirst),
+          })
 
-        await store.relink(
-          relinkInput(property, `20000000-0000-4000-8000-0000000000${suffix}`, read),
-        )
-
-        expect(await categoryRow(property.id), String(read)).toMatchObject({
-          category: 'Hotel',
-          updated_at: CONFIRMED_AT,
-        })
-      }
-    })
+          expect(await categoryRow(property.id), String(read)).toMatchObject({
+            category: disconnectFirst ? null : 'Hotel',
+            updated_at: disconnectFirst ? null : CONFIRMED_AT,
+          })
+        }
+      },
+    )
 
     it('goes with the provider identity when it is scrubbed', async () => {
       const store = createPropertyGoogleBindingStore(db)
@@ -750,20 +780,10 @@ describe.sequential('Property Google binding store', () => {
         googlePrimaryCategoryUpdatedAt: CONFIRMED_AT,
       }
       await seedTestProperty(db, property)
-      await store.disconnect({
-        organizationId: ORG_ID,
-        propertyId: property.id,
-        expectedSourceEpoch: 1,
-        expectedProfileVersion: 1,
-        now: NOW,
-      })
-      // A disconnected Property is still bound to its location and keeps the hint.
-      expect(await categoryRow(property.id)).toMatchObject({ category: 'Hotel' })
-
       await store.scrubProviderIdentity({
         organizationId: ORG_ID,
         propertyId: property.id,
-        expectedSourceEpoch: 2,
+        expectedSourceEpoch: 1,
         expectedProfileVersion: 1,
         now: NOW,
       })

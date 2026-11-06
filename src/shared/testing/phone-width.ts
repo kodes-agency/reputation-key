@@ -24,6 +24,8 @@ const PHONE_MAX_PX = 480
 const PHONE_HEIGHT_PX = 900
 /** Layout rounding only; a target 43 px wide is a finding. */
 const SLACK_PX = 0.5
+/** Longer than any of the app's transitions; one that stalls is measured where it stopped. */
+const ANIMATION_WAIT_MS = 1_000
 
 const WIDGET_ROLES = [
   'button',
@@ -179,8 +181,33 @@ export function assertPhoneWidth(doc: Document = document): void {
   }
 }
 
+/**
+ * A toast or popover is measured where it comes to rest, not wherever its
+ * transition happens to be: a leaving toast hung past the edge in some runs only.
+ * Looping animations, such as spinners, never finish and are not waited for.
+ */
+async function animationsFinished(view: Window): Promise<void> {
+  const running = view.document
+    .getAnimations()
+    .filter(
+      (animation) =>
+        animation.playState === 'running' &&
+        animation.effect?.getComputedTiming().endTime !== Infinity,
+    )
+  if (running.length === 0) return
+  let timer: ReturnType<typeof setTimeout> | undefined
+  await Promise.race([
+    Promise.all(running.map((animation) => animation.finished.catch(() => undefined))),
+    new Promise<void>((resolve) => {
+      timer = setTimeout(resolve, ANIMATION_WAIT_MS)
+    }),
+  ])
+  clearTimeout(timer)
+}
+
 async function settled(view: Window): Promise<void> {
   await view.document.fonts.ready
+  await animationsFinished(view)
   await new Promise<void>((resolve) =>
     view.requestAnimationFrame(() => view.requestAnimationFrame(() => resolve())),
   )

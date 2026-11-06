@@ -74,11 +74,11 @@ const FORWARD_MIGRATIONS = [
   ),
   new URL('../../../../../drizzle/0088_reply_drafting_v2_release.sql', import.meta.url),
   new URL(
-    '../../../../../drizzle/0099_merchant_ai_notice_retention_corrections.sql',
+    '../../../../../drizzle/0100_merchant_ai_notice_retention_corrections.sql',
     import.meta.url,
   ),
   new URL(
-    '../../../../../drizzle/0100_validate_merchant_ai_notice_retention_corrections.sql',
+    '../../../../../drizzle/0101_validate_merchant_ai_notice_retention_corrections.sql',
     import.meta.url,
   ),
 ] as const

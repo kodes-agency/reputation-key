@@ -23,11 +23,11 @@ describe('merchant AI release migrations', () => {
         expect(predicate).toContain(notice.noticeVersion)
         expect(predicate).toContain(notice.noticeDigest)
       }
-      expect(migration('0099_merchant_ai_notice_retention_corrections')).toContain(
+      expect(migration('0100_merchant_ai_notice_retention_corrections')).toContain(
         `ADD CONSTRAINT "${check.name}" CHECK (${predicate}) NOT VALID;`,
       )
       expect(
-        migration('0100_validate_merchant_ai_notice_retention_corrections'),
+        migration('0101_validate_merchant_ai_notice_retention_corrections'),
       ).toContain(`ALTER TABLE "${config.name}" VALIDATE CONSTRAINT "${check.name}";`)
     },
   )

@@ -30,19 +30,23 @@ export const IMMERSIVE_FOOTER_CSS = `
 .ih-root .ih-footer__link {
   display: inline-flex;
   align-items: center;
+  min-width: 44px;
+  max-width: 100%;
   min-height: 44px;
   padding-inline: 6px;
   font-weight: 600;
 }
 .ih-root .ih-footer__row {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
   gap: 12px;
   padding-inline: 4px;
 }
 .ih-root .ih-footer__made {
-  margin: 0;
+  min-width: 0;
+  margin: 0 0 0 auto;
   text-align: end;
   line-height: 16px;
   color: rgba(255, 255, 255, ${FOOTER_TEXT_ALPHA.made});
@@ -68,6 +72,8 @@ export const IMMERSIVE_FOOTER_CSS = `
 .ih-root .ih-footer__ack {
   display: inline-flex;
   align-items: center;
+  min-width: 44px;
+  max-width: 100%;
   min-height: 44px;
   padding: 0;
   border: 0;

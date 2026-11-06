@@ -300,462 +300,6 @@
     "checks": ["targets"]
   },
   {
-    "storyId": "features-guest-immersivefooter--acknowledge-hides-the-notice",
-    "state": "Acknowledge Hides The Notice",
-    "width": 320,
-    "checks": ["overflow"]
-  },
-  {
-    "storyId": "features-guest-immersivefooter--acknowledged-guest-is-still-counted",
-    "state": "Acknowledged Guest Is Still Counted",
-    "width": 320,
-    "checks": ["overflow"]
-  },
-  {
-    "storyId": "features-guest-immersivefooter--bulgarian",
-    "state": "Bulgarian",
-    "width": 320,
-    "checks": ["overflow"]
-  },
-  {
-    "storyId": "features-guest-immersivefooter--first-visit-is-counted-before-acknowledging",
-    "state": "First Visit Is Counted Before Acknowledging",
-    "width": 320,
-    "checks": ["overflow"]
-  },
-  {
-    "storyId": "features-guest-immersivefooter--g-01-notice-showing",
-    "state": "G 01 Notice Showing",
-    "width": 320,
-    "checks": ["overflow"]
-  },
-  {
-    "storyId": "features-guest-immersivefooter--g-04-acknowledged",
-    "state": "G 04 Acknowledged",
-    "width": 320,
-    "checks": ["overflow"]
-  },
-  {
-    "storyId": "features-guest-immersivefooter--german-says-the-notice-is-in-english",
-    "state": "German Says The Notice Is In English",
-    "width": 320,
-    "checks": ["overflow"]
-  },
-  {
-    "storyId": "features-guest-immersiveheader--g-01-header-and-title",
-    "state": "G 01 Header And Title",
-    "width": 320,
-    "checks": ["overflow"]
-  },
-  {
-    "storyId": "features-guest-immersiveheader--g-02-language-sheet",
-    "state": "G 02 Language Sheet",
-    "width": 320,
-    "checks": ["overflow"]
-  },
-  {
-    "storyId": "features-guest-immersiveheader--g-10-german",
-    "state": "G 10 German",
-    "width": 320,
-    "checks": ["overflow"]
-  },
-  {
-    "storyId": "features-guest-immersiveheader--g-11-bulgarian",
-    "state": "G 11 Bulgarian",
-    "width": 320,
-    "checks": ["overflow"]
-  },
-  {
-    "storyId": "features-guest-immersiveheader--logo-replaces-wordmark",
-    "state": "Logo Replaces Wordmark",
-    "width": 320,
-    "checks": ["overflow"]
-  },
-  {
-    "storyId": "features-guest-immersiveheader--medium-wordmark-steps-down",
-    "state": "Medium Wordmark Steps Down",
-    "width": 320,
-    "checks": ["overflow"]
-  },
-  {
-    "storyId": "features-guest-immersiveheader--no-wordmark-no-logo-is-just-the-chip",
-    "state": "No Wordmark No Logo Is Just The Chip",
-    "width": 320,
-    "checks": ["overflow"]
-  },
-  {
-    "storyId": "features-guest-immersiveheader--one-language-shows-no-chip",
-    "state": "One Language Shows No Chip",
-    "width": 320,
-    "checks": ["overflow"]
-  },
-  {
-    "storyId": "features-guest-immersiveheader--sheet-keyboard-and-focus",
-    "state": "Sheet Keyboard And Focus",
-    "width": 320,
-    "checks": ["overflow"]
-  },
-  {
-    "storyId": "features-guest-immersiveheader--short-wordmark-keeps-the-boards-size",
-    "state": "Short Wordmark Keeps The Boards Size",
-    "width": 320,
-    "checks": ["overflow"]
-  },
-  {
-    "storyId": "features-guest-immersiveheader--six-languages",
-    "state": "Six Languages",
-    "width": 320,
-    "checks": ["overflow"]
-  },
-  {
-    "storyId": "features-guest-immersiveheader--two-languages",
-    "state": "Two Languages",
-    "width": 320,
-    "checks": ["overflow"]
-  },
-  {
-    "storyId": "features-guest-immersivelinktree--after-a-rating",
-    "state": "After A Rating",
-    "width": 320,
-    "checks": ["overflow"]
-  },
-  {
-    "storyId": "features-guest-immersivelinktree--before-a-rating",
-    "state": "Before A Rating",
-    "width": 320,
-    "checks": ["overflow"]
-  },
-  {
-    "storyId": "features-guest-immersivelinktree--default-title",
-    "state": "Default Title",
-    "width": 320,
-    "checks": ["overflow"]
-  },
-  {
-    "storyId": "features-guest-immersivelinktree--german-with-fallback",
-    "state": "German With Fallback",
-    "width": 320,
-    "checks": ["overflow"]
-  },
-  {
-    "storyId": "features-guest-immersivelinktree--modified-click-leaves-the-tap-to-the-browser",
-    "state": "Modified Click Leaves The Tap To The Browser",
-    "width": 320,
-    "checks": ["overflow"]
-  },
-  {
-    "storyId": "features-guest-immersivelinktree--one-link",
-    "state": "One Link",
-    "width": 320,
-    "checks": ["overflow"]
-  },
-  {
-    "storyId": "features-guest-immersivelinktree--phone-and-email-tiles",
-    "state": "Phone And Email Tiles",
-    "width": 320,
-    "checks": ["overflow"]
-  },
-  {
-    "storyId": "features-guest-immersivelinktree--phone-tile-after-a-rating",
-    "state": "Phone Tile After A Rating",
-    "width": 320,
-    "checks": ["overflow"]
-  },
-  {
-    "storyId": "features-guest-immersivelinktree--rejected-tap-still-navigates",
-    "state": "Rejected Tap Still Navigates",
-    "width": 320,
-    "checks": ["overflow"]
-  },
-  {
-    "storyId": "features-guest-immersivelinktree--switched-off",
-    "state": "Switched Off",
-    "width": 320,
-    "checks": ["overflow"]
-  },
-  {
-    "storyId": "features-guest-immersivelinktree--tap-before-a-rating-is-plain-navigation",
-    "state": "Tap Before A Rating Is Plain Navigation",
-    "width": 320,
-    "checks": ["overflow"]
-  },
-  {
-    "storyId": "features-guest-immersivelinktree--three-links",
-    "state": "Three Links",
-    "width": 320,
-    "checks": ["overflow"]
-  },
-  {
-    "storyId": "features-guest-immersiveresponse--asks-for-a-rating",
-    "state": "Asks For A Rating",
-    "width": 320,
-    "checks": ["overflow"]
-  },
-  {
-    "storyId": "features-guest-immersiveresponse--bulgarian-after-low",
-    "state": "Bulgarian After Low",
-    "width": 320,
-    "checks": ["overflow"]
-  },
-  {
-    "storyId": "features-guest-immersiveresponse--bulgarian-removed-response",
-    "state": "Bulgarian Removed Response",
-    "width": 320,
-    "checks": ["overflow"]
-  },
-  {
-    "storyId": "features-guest-immersiveresponse--bulgarian-your-response",
-    "state": "Bulgarian Your Response",
-    "width": 320,
-    "checks": ["overflow"]
-  },
-  {
-    "storyId": "features-guest-immersiveresponse--changes-the-rating",
-    "state": "Changes The Rating",
-    "width": 320,
-    "checks": ["overflow"]
-  },
-  {
-    "storyId": "features-guest-immersiveresponse--direct-google",
-    "state": "Direct Google",
-    "width": 320,
-    "checks": ["overflow"]
-  },
-  {
-    "storyId": "features-guest-immersiveresponse--escape-closes-the-rating-form",
-    "state": "Escape Closes The Rating Form",
-    "width": 320,
-    "checks": ["overflow"]
-  },
-  {
-    "storyId": "features-guest-immersiveresponse--full-withdrawal-asks-first",
-    "state": "Full Withdrawal Asks First",
-    "width": 320,
-    "checks": ["overflow"]
-  },
-  {
-    "storyId": "features-guest-immersiveresponse--g-03-rating-chosen",
-    "state": "G 03 Rating Chosen",
-    "width": 320,
-    "checks": ["overflow"]
-  },
-  {
-    "storyId": "features-guest-immersiveresponse--g-04-after-low",
-    "state": "G 04 After Low",
-    "width": 320,
-    "checks": ["overflow"]
-  },
-  {
-    "storyId": "features-guest-immersiveresponse--g-05-after-high",
-    "state": "G 05 After High",
-    "width": 320,
-    "checks": ["overflow"]
-  },
-  {
-    "storyId": "features-guest-immersiveresponse--g-06-note-writing",
-    "state": "G 06 Note Writing",
-    "width": 320,
-    "checks": ["overflow"]
-  },
-  {
-    "storyId": "features-guest-immersiveresponse--g-07-note-sent",
-    "state": "G 07 Note Sent",
-    "width": 320,
-    "checks": ["overflow"]
-  },
-  {
-    "storyId": "features-guest-immersiveresponse--g-07-your-response-open",
-    "state": "G 07 Your Response Open",
-    "width": 320,
-    "checks": ["overflow"]
-  },
-  {
-    "storyId": "features-guest-immersiveresponse--g-08-google-unavailable",
-    "state": "G 08 Google Unavailable",
-    "width": 320,
-    "checks": ["overflow"]
-  },
-  {
-    "storyId": "features-guest-immersiveresponse--g-11-bulgarian-error",
-    "state": "G 11 Bulgarian Error",
-    "width": 320,
-    "checks": ["overflow"]
-  },
-  {
-    "storyId": "features-guest-immersiveresponse--keyboard-chooses-a-star",
-    "state": "Keyboard Chooses A Star",
-    "width": 320,
-    "checks": ["overflow"]
-  },
-  {
-    "storyId": "features-guest-immersiveresponse--note-is-sent",
-    "state": "Note Is Sent",
-    "width": 320,
-    "checks": ["overflow"]
-  },
-  {
-    "storyId": "features-guest-immersiveresponse--note-opens-and-closes",
-    "state": "Note Opens And Closes",
-    "width": 320,
-    "checks": ["overflow"]
-  },
-  {
-    "storyId": "features-guest-immersiveresponse--note-removed-notice",
-    "state": "Note Removed Notice",
-    "width": 320,
-    "checks": ["overflow"]
-  },
-  {
-    "storyId": "features-guest-immersiveresponse--opens-and-closes-by-keyboard",
-    "state": "Opens And Closes By Keyboard",
-    "width": 320,
-    "checks": ["overflow"]
-  },
-  {
-    "storyId": "features-guest-immersiveresponse--rating-save-failed",
-    "state": "Rating Save Failed",
-    "width": 320,
-    "checks": ["overflow"]
-  },
-  {
-    "storyId": "features-guest-immersiveresponse--ratings-cannot-be-sent-from-here",
-    "state": "Ratings Cannot Be Sent From Here",
-    "width": 320,
-    "checks": ["overflow"]
-  },
-  {
-    "storyId": "features-guest-immersiveresponse--receipt-change-opens-the-form",
-    "state": "Receipt Change Opens The Form",
-    "width": 320,
-    "checks": ["overflow"]
-  },
-  {
-    "storyId": "features-guest-immersiveresponse--removal-failed",
-    "state": "Removal Failed",
-    "width": 320,
-    "checks": ["overflow"]
-  },
-  {
-    "storyId": "features-guest-immersiveresponse--removed-response-can-start-over",
-    "state": "Removed Response Can Start Over",
-    "width": 320,
-    "checks": ["overflow"]
-  },
-  {
-    "storyId": "features-guest-immersiveresponse--removed-start-over-failed",
-    "state": "Removed Start Over Failed",
-    "width": 320,
-    "checks": ["overflow"]
-  },
-  {
-    "storyId": "features-guest-immersiveresponse--removes-the-note",
-    "state": "Removes The Note",
-    "width": 320,
-    "checks": ["overflow"]
-  },
-  {
-    "storyId": "features-guest-immersiveresponse--sending",
-    "state": "Sending",
-    "width": 320,
-    "checks": ["overflow"]
-  },
-  {
-    "storyId": "features-guest-immersiveresponse--sends-the-chosen-rating",
-    "state": "Sends The Chosen Rating",
-    "width": 320,
-    "checks": ["overflow"]
-  },
-  {
-    "storyId": "features-guest-immersiveresponse--starts-over",
-    "state": "Starts Over",
-    "width": 320,
-    "checks": ["overflow"]
-  },
-  {
-    "storyId": "features-guest-immersiveresponse--windows-ended",
-    "state": "Windows Ended",
-    "width": 320,
-    "checks": ["overflow"]
-  },
-  {
-    "storyId": "features-guest-immersiveshell--container-leaves-the-document",
-    "state": "Container Leaves The Document",
-    "width": 320,
-    "checks": ["overflow"]
-  },
-  {
-    "storyId": "features-guest-immersiveshell--dark-accent-is-replaced",
-    "state": "Dark Accent Is Replaced",
-    "width": 320,
-    "checks": ["overflow"]
-  },
-  {
-    "storyId": "features-guest-immersiveshell--g-01-arrival",
-    "state": "G 01 Arrival",
-    "width": 320,
-    "checks": ["overflow"]
-  },
-  {
-    "storyId": "features-guest-immersiveshell--g-09-no-photo",
-    "state": "G 09 No Photo",
-    "width": 320,
-    "checks": ["overflow"]
-  },
-  {
-    "storyId": "features-guest-immersiveshell--hero-grows-on-a-tablet",
-    "state": "Hero Grows On A Tablet",
-    "width": 320,
-    "checks": ["overflow"]
-  },
-  {
-    "storyId": "features-guest-immersiveshell--hero-grows-on-a-tablet",
-    "state": "Hero Grows On A Tablet",
-    "width": 390,
-    "checks": ["overflow"]
-  },
-  {
-    "storyId": "features-guest-immersiveshell--hero-is-bounded-on-a-desktop",
-    "state": "Hero Is Bounded On A Desktop",
-    "width": 320,
-    "checks": ["overflow"]
-  },
-  {
-    "storyId": "features-guest-immersiveshell--hero-is-bounded-on-a-desktop",
-    "state": "Hero Is Bounded On A Desktop",
-    "width": 390,
-    "checks": ["overflow"]
-  },
-  {
-    "storyId": "features-guest-immersiveshell--ignores-the-app-theme",
-    "state": "Ignores The App Theme",
-    "width": 320,
-    "checks": ["overflow"]
-  },
-  {
-    "storyId": "features-guest-immersiveshell--no-photo-page-does-not-grow",
-    "state": "No Photo Page Does Not Grow",
-    "width": 320,
-    "checks": ["overflow"]
-  },
-  {
-    "storyId": "features-guest-immersiveshell--no-photo-page-does-not-grow",
-    "state": "No Photo Page Does Not Grow",
-    "width": 390,
-    "checks": ["overflow"]
-  },
-  {
-    "storyId": "features-guest-immersiveshell--wide-viewport",
-    "state": "Wide Viewport",
-    "width": 320,
-    "checks": ["overflow"]
-  },
-  {
-    "storyId": "features-guest-immersiveshell--wide-viewport",
-    "state": "Wide Viewport",
-    "width": 390,
-    "checks": ["overflow"]
-  },
-  {
     "storyId": "features-responsiblemanagers-responsiblemanagerspanel--a-change-made-after-the-refresh-is-still-refused",
     "state": "A Change Made After The Refresh Is Still Refused",
     "width": 320,
@@ -8036,12 +7580,6 @@
   {
     "storyId": "notification-notificationpanel--mark-all-read-is-optimistic",
     "state": "Mark All Read Is Optimistic",
-    "width": 320,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "notification-notificationpanel--mark-all-read-is-optimistic",
-    "state": "Mark All Read Is Optimistic",
     "width": 390,
     "checks": ["targets"]
   },
@@ -8193,7 +7731,7 @@
     "storyId": "notification-notificationpanel--urgent-arrival-shows-a-toast",
     "state": "Urgent Arrival Shows A Toast",
     "width": 320,
-    "checks": ["targets"]
+    "checks": ["overflow", "targets"]
   },
   {
     "storyId": "notification-notificationpanel--urgent-arrival-shows-a-toast",
@@ -8694,66 +8232,6 @@
     "checks": ["overflow"]
   },
   {
-    "storyId": "organization-response-target-settings--cleared",
-    "state": "Cleared",
-    "width": 320,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "organization-response-target-settings--cleared",
-    "state": "Cleared",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "organization-response-target-settings--default",
-    "state": "Default",
-    "width": 320,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "organization-response-target-settings--default",
-    "state": "Default",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "organization-response-target-settings--low-rating-target-is-a-switch-and-a-rating-select",
-    "state": "Low Rating Target Is A Switch And A Rating Select",
-    "width": 320,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "organization-response-target-settings--low-rating-target-is-a-switch-and-a-rating-select",
-    "state": "Low Rating Target Is A Switch And A Rating Select",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "organization-response-target-settings--low-rating-target-is-a-switch-and-a-rating-select-light",
-    "state": "Low Rating Target Is A Switch And A Rating Select Light",
-    "width": 320,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "organization-response-target-settings--low-rating-target-is-a-switch-and-a-rating-select-light",
-    "state": "Low Rating Target Is A Switch And A Rating Select Light",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "organization-response-target-settings--reset-restores-the-saved-hours",
-    "state": "Reset Restores The Saved Hours",
-    "width": 320,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "organization-response-target-settings--reset-restores-the-saved-hours",
-    "state": "Reset Restores The Saved Hours",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
     "storyId": "pages-inbox--approved-panels",
     "state": "Approved Panels",
     "width": 320,
@@ -9002,48 +8480,6 @@
   {
     "storyId": "patterns-button--sizes",
     "state": "Sizes",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "patterns-consent-checkbox--anatomy",
-    "state": "Anatomy",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "patterns-consent-checkbox--anatomy-light",
-    "state": "Anatomy Light",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "patterns-consent-checkbox--disabled",
-    "state": "Disabled",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "patterns-consent-checkbox--disabled-light",
-    "state": "Disabled Light",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "patterns-consent-checkbox--refused",
-    "state": "Refused",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "patterns-consent-checkbox--refused-light",
-    "state": "Refused Light",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "patterns-consent-checkbox--without-help",
-    "state": "Without Help",
     "width": 390,
     "checks": ["targets"]
   },
@@ -9700,150 +9136,6 @@
     "state": "Strip That Fits",
     "width": 390,
     "checks": ["overflow"]
-  },
-  {
-    "storyId": "patterns-setting-switch-row--cell",
-    "state": "Cell",
-    "width": 320,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "patterns-setting-switch-row--cell",
-    "state": "Cell",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "patterns-setting-switch-row--cell-light",
-    "state": "Cell Light",
-    "width": 320,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "patterns-setting-switch-row--cell-light",
-    "state": "Cell Light",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "patterns-setting-switch-row--commit-timing-is-visible",
-    "state": "Commit Timing Is Visible",
-    "width": 320,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "patterns-setting-switch-row--commit-timing-is-visible",
-    "state": "Commit Timing Is Visible",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "patterns-setting-switch-row--commit-timing-is-visible-light",
-    "state": "Commit Timing Is Visible Light",
-    "width": 320,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "patterns-setting-switch-row--commit-timing-is-visible-light",
-    "state": "Commit Timing Is Visible Light",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "patterns-setting-switch-row--deferred",
-    "state": "Deferred",
-    "width": 320,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "patterns-setting-switch-row--deferred",
-    "state": "Deferred",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "patterns-setting-switch-row--deferred-light",
-    "state": "Deferred Light",
-    "width": 320,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "patterns-setting-switch-row--deferred-light",
-    "state": "Deferred Light",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "patterns-setting-switch-row--immediate",
-    "state": "Immediate",
-    "width": 320,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "patterns-setting-switch-row--immediate",
-    "state": "Immediate",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "patterns-setting-switch-row--immediate-light",
-    "state": "Immediate Light",
-    "width": 320,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "patterns-setting-switch-row--immediate-light",
-    "state": "Immediate Light",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "patterns-setting-switch-row--immediate-optimistic",
-    "state": "Immediate Optimistic",
-    "width": 320,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "patterns-setting-switch-row--immediate-optimistic",
-    "state": "Immediate Optimistic",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "patterns-setting-switch-row--immediate-refused",
-    "state": "Immediate Refused",
-    "width": 320,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "patterns-setting-switch-row--immediate-refused",
-    "state": "Immediate Refused",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "patterns-setting-switch-row--locked",
-    "state": "Locked",
-    "width": 320,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "patterns-setting-switch-row--locked",
-    "state": "Locked",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "patterns-setting-switch-row--locked-light",
-    "state": "Locked Light",
-    "width": 320,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "patterns-setting-switch-row--locked-light",
-    "state": "Locked Light",
-    "width": 390,
-    "checks": ["targets"]
   },
   {
     "storyId": "patterns-theme-mode-control--arrow-keys",
@@ -11493,7 +10785,7 @@
     "storyId": "portal-portaleditor-look--own-look",
     "state": "Own Look",
     "width": 390,
-    "checks": ["overflow", "targets"]
+    "checks": ["targets"]
   },
   {
     "storyId": "portal-portaleditor-look--own-look-keeps-the-editor-at-one-portal",
@@ -11529,7 +10821,7 @@
     "storyId": "portal-portaleditor-look--own-photo-only",
     "state": "Own Photo Only",
     "width": 390,
-    "checks": ["overflow", "targets"]
+    "checks": ["targets"]
   },
   {
     "storyId": "portal-portaleditor-look--own-photo-taken-down",
@@ -14292,32 +13584,38 @@
     "checks": ["targets"]
   },
   {
-    "storyId": "portal-previewguestpage--language-chip",
-    "state": "Language Chip",
+    "storyId": "portal-propertylook-batchpublish--a-failed-portal-does-not-stop-the-rest",
+    "state": "A Failed Portal Does Not Stop The Rest",
     "width": 320,
     "checks": ["overflow"]
   },
   {
-    "storyId": "portal-previewguestpage--one-language",
-    "state": "One Language",
+    "storyId": "portal-propertylook-batchpublish--a-not-allowed-portal-has-no-tick",
+    "state": "A Not Allowed Portal Has No Tick",
     "width": 320,
     "checks": ["overflow"]
   },
   {
-    "storyId": "portal-previewguestpage--waiting-tile",
-    "state": "Waiting Tile",
+    "storyId": "portal-propertylook-batchpublish--a-refused-request-says-why",
+    "state": "A Refused Request Says Why",
     "width": 320,
     "checks": ["overflow"]
   },
   {
-    "storyId": "portal-previewguestpage--with-footer",
-    "state": "With Footer",
+    "storyId": "portal-propertylook-batchpublish--a-retry-keeps-the-outcomes-on-screen",
+    "state": "A Retry Keeps The Outcomes On Screen",
     "width": 320,
     "checks": ["overflow"]
   },
   {
-    "storyId": "portal-previewguestpage--with-photo-tile",
-    "state": "With Photo Tile",
+    "storyId": "portal-propertylook-batchpublish--a-server-fault-does-not-claim-nothing-was-published",
+    "state": "A Server Fault Does Not Claim Nothing Was Published",
+    "width": 320,
+    "checks": ["overflow"]
+  },
+  {
+    "storyId": "portal-propertylook-batchpublish--an-unreadable-portal-is-left-out",
+    "state": "An Unreadable Portal Is Left Out",
     "width": 320,
     "checks": ["overflow"]
   },
@@ -14325,7 +13623,7 @@
     "storyId": "portal-propertylook-batchpublish--button-counts-the-live-portals",
     "state": "Button Counts The Live Portals",
     "width": 320,
-    "checks": ["targets"]
+    "checks": ["overflow", "targets"]
   },
   {
     "storyId": "portal-propertylook-batchpublish--button-counts-the-live-portals",
@@ -14334,10 +13632,16 @@
     "checks": ["targets"]
   },
   {
+    "storyId": "portal-propertylook-batchpublish--fifty-live-portals",
+    "state": "Fifty Live Portals",
+    "width": 320,
+    "checks": ["overflow"]
+  },
+  {
     "storyId": "portal-propertylook-batchpublish--no-button-with-no-live-portal",
     "state": "No Button With No Live Portal",
     "width": 320,
-    "checks": ["targets"]
+    "checks": ["overflow", "targets"]
   },
   {
     "storyId": "portal-propertylook-batchpublish--no-button-with-no-live-portal",
@@ -14349,7 +13653,7 @@
     "storyId": "portal-propertylook-batchpublish--no-button-without-the-right-to-publish",
     "state": "No Button Without The Right To Publish",
     "width": 320,
-    "checks": ["targets"]
+    "checks": ["overflow", "targets"]
   },
   {
     "storyId": "portal-propertylook-batchpublish--no-button-without-the-right-to-publish",
@@ -14358,10 +13662,22 @@
     "checks": ["targets"]
   },
   {
+    "storyId": "portal-propertylook-batchpublish--nothing-to-publish",
+    "state": "Nothing To Publish",
+    "width": 320,
+    "checks": ["overflow"]
+  },
+  {
+    "storyId": "portal-propertylook-batchpublish--owners-and-followers-in-one-review",
+    "state": "Owners And Followers In One Review",
+    "width": 320,
+    "checks": ["overflow"]
+  },
+  {
     "storyId": "portal-propertylook-batchpublish--publishes-the-ticked-portals",
     "state": "Publishes The Ticked Portals",
     "width": 320,
-    "checks": ["targets"]
+    "checks": ["overflow", "targets"]
   },
   {
     "storyId": "portal-propertylook-batchpublish--publishes-the-ticked-portals",
@@ -14373,43 +13689,31 @@
     "storyId": "portal-propertylook-batchpublish--ready-rows-link-to-their-changes",
     "state": "Ready Rows Link To Their Changes",
     "width": 320,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "portal-propertylook-batchpublish--ready-rows-link-to-their-changes",
-    "state": "Ready Rows Link To Their Changes",
-    "width": 390,
-    "checks": ["targets"]
+    "checks": ["overflow"]
   },
   {
     "storyId": "portal-propertylook-batchpublish--review-lists-each-live-portal",
     "state": "Review Lists Each Live Portal",
     "width": 320,
-    "checks": ["targets"]
+    "checks": ["overflow"]
   },
   {
-    "storyId": "portal-propertylook-batchpublish--review-lists-each-live-portal",
-    "state": "Review Lists Each Live Portal",
-    "width": 390,
-    "checks": ["targets"]
+    "storyId": "portal-propertylook-batchpublish--rows-say-what-the-publish-carries",
+    "state": "Rows Say What The Publish Carries",
+    "width": 320,
+    "checks": ["overflow"]
   },
   {
     "storyId": "portal-propertylook-batchpublish--the-ticks-lock-while-publishing",
     "state": "The Ticks Lock While Publishing",
     "width": 320,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "portal-propertylook-batchpublish--the-ticks-lock-while-publishing",
-    "state": "The Ticks Lock While Publishing",
-    "width": 390,
-    "checks": ["targets"]
+    "checks": ["overflow"]
   },
   {
     "storyId": "portal-propertylook-batchpublish--waits-for-the-save-to-settle",
     "state": "Waits For The Save To Settle",
     "width": 320,
-    "checks": ["targets"]
+    "checks": ["overflow", "targets"]
   },
   {
     "storyId": "portal-propertylook-batchpublish--waits-for-the-save-to-settle",
@@ -14421,7 +13725,7 @@
     "storyId": "portal-propertylook-photo-and-logo--a-new-photograph-starts-without-the-old-description",
     "state": "A New Photograph Starts Without The Old Description",
     "width": 320,
-    "checks": ["targets"]
+    "checks": ["overflow", "targets"]
   },
   {
     "storyId": "portal-propertylook-photo-and-logo--a-new-photograph-starts-without-the-old-description",
@@ -14433,7 +13737,7 @@
     "storyId": "portal-propertylook-photo-and-logo--adding-a-first-photo",
     "state": "Adding A First Photo",
     "width": 320,
-    "checks": ["targets"]
+    "checks": ["overflow", "targets"]
   },
   {
     "storyId": "portal-propertylook-photo-and-logo--adding-a-first-photo",
@@ -14445,7 +13749,7 @@
     "storyId": "portal-propertylook-photo-and-logo--cannot-be-closed-while-sending",
     "state": "Cannot Be Closed While Sending",
     "width": 320,
-    "checks": ["targets"]
+    "checks": ["overflow", "targets"]
   },
   {
     "storyId": "portal-propertylook-photo-and-logo--cannot-be-closed-while-sending",
@@ -14457,7 +13761,7 @@
     "storyId": "portal-propertylook-photo-and-logo--description-is-bounded",
     "state": "Description Is Bounded",
     "width": 320,
-    "checks": ["targets"]
+    "checks": ["overflow", "targets"]
   },
   {
     "storyId": "portal-propertylook-photo-and-logo--description-is-bounded",
@@ -14469,7 +13773,7 @@
     "storyId": "portal-propertylook-photo-and-logo--editing-the-description-alone",
     "state": "Editing The Description Alone",
     "width": 320,
-    "checks": ["targets"]
+    "checks": ["overflow", "targets"]
   },
   {
     "storyId": "portal-propertylook-photo-and-logo--editing-the-description-alone",
@@ -14481,7 +13785,7 @@
     "storyId": "portal-propertylook-photo-and-logo--focal-point-moves-with-the-keys-and-autosaves",
     "state": "Focal Point Moves With The Keys And Autosaves",
     "width": 320,
-    "checks": ["targets"]
+    "checks": ["overflow", "targets"]
   },
   {
     "storyId": "portal-propertylook-photo-and-logo--focal-point-moves-with-the-keys-and-autosaves",
@@ -14493,7 +13797,7 @@
     "storyId": "portal-propertylook-photo-and-logo--focal-point-stops-at-the-edge",
     "state": "Focal Point Stops At The Edge",
     "width": 320,
-    "checks": ["targets"]
+    "checks": ["overflow", "targets"]
   },
   {
     "storyId": "portal-propertylook-photo-and-logo--focal-point-stops-at-the-edge",
@@ -14505,7 +13809,7 @@
     "storyId": "portal-propertylook-photo-and-logo--keeping-the-photo",
     "state": "Keeping The Photo",
     "width": 320,
-    "checks": ["targets"]
+    "checks": ["overflow", "targets"]
   },
   {
     "storyId": "portal-propertylook-photo-and-logo--keeping-the-photo",
@@ -14517,7 +13821,7 @@
     "storyId": "portal-propertylook-photo-and-logo--narrow-photo-gets-print-advice-but-can-be-used",
     "state": "Narrow Photo Gets Print Advice But Can Be Used",
     "width": 320,
-    "checks": ["targets"]
+    "checks": ["overflow", "targets"]
   },
   {
     "storyId": "portal-propertylook-photo-and-logo--narrow-photo-gets-print-advice-but-can-be-used",
@@ -14529,7 +13833,7 @@
     "storyId": "portal-propertylook-photo-and-logo--no-logo-yet",
     "state": "No Logo Yet",
     "width": 320,
-    "checks": ["targets"]
+    "checks": ["overflow", "targets"]
   },
   {
     "storyId": "portal-propertylook-photo-and-logo--no-logo-yet",
@@ -14553,7 +13857,7 @@
     "storyId": "portal-propertylook-photo-and-logo--refused-upload-is-shown-in-place",
     "state": "Refused Upload Is Shown In Place",
     "width": 320,
-    "checks": ["targets"]
+    "checks": ["overflow", "targets"]
   },
   {
     "storyId": "portal-propertylook-photo-and-logo--refused-upload-is-shown-in-place",
@@ -14565,7 +13869,7 @@
     "storyId": "portal-propertylook-photo-and-logo--refused-write-says-why",
     "state": "Refused Write Says Why",
     "width": 320,
-    "checks": ["targets"]
+    "checks": ["overflow", "targets"]
   },
   {
     "storyId": "portal-propertylook-photo-and-logo--refused-write-says-why",
@@ -14577,7 +13881,7 @@
     "storyId": "portal-propertylook-photo-and-logo--removing-fails-in-place",
     "state": "Removing Fails In Place",
     "width": 320,
-    "checks": ["targets"]
+    "checks": ["overflow", "targets"]
   },
   {
     "storyId": "portal-propertylook-photo-and-logo--removing-fails-in-place",
@@ -14589,7 +13893,7 @@
     "storyId": "portal-propertylook-photo-and-logo--removing-the-logo",
     "state": "Removing The Logo",
     "width": 320,
-    "checks": ["targets"]
+    "checks": ["overflow", "targets"]
   },
   {
     "storyId": "portal-propertylook-photo-and-logo--removing-the-logo",
@@ -14613,7 +13917,7 @@
     "storyId": "portal-propertylook-photo-and-logo--replace-photo",
     "state": "Replace Photo",
     "width": 320,
-    "checks": ["targets"]
+    "checks": ["overflow", "targets"]
   },
   {
     "storyId": "portal-propertylook-photo-and-logo--replace-photo",
@@ -14625,7 +13929,7 @@
     "storyId": "portal-propertylook-photo-and-logo--replace-photo-on-a-portal-with-its-own-photo",
     "state": "Replace Photo On A Portal With Its Own Photo",
     "width": 320,
-    "checks": ["targets"]
+    "checks": ["overflow", "targets"]
   },
   {
     "storyId": "portal-propertylook-photo-and-logo--replace-photo-on-a-portal-with-its-own-photo",
@@ -14637,7 +13941,7 @@
     "storyId": "portal-propertylook-photo-and-logo--replace-photo-shows-a-phone",
     "state": "Replace Photo Shows A Phone",
     "width": 320,
-    "checks": ["targets"]
+    "checks": ["overflow", "targets"]
   },
   {
     "storyId": "portal-propertylook-photo-and-logo--replace-photo-shows-a-phone",
@@ -14649,7 +13953,7 @@
     "storyId": "portal-propertylook-photo-and-logo--retry-does-not-send-the-file-twice",
     "state": "Retry Does Not Send The File Twice",
     "width": 320,
-    "checks": ["targets"]
+    "checks": ["overflow", "targets"]
   },
   {
     "storyId": "portal-propertylook-photo-and-logo--retry-does-not-send-the-file-twice",
@@ -14661,7 +13965,7 @@
     "storyId": "portal-propertylook-photo-and-logo--small-logo-fails-the-check",
     "state": "Small Logo Fails The Check",
     "width": 320,
-    "checks": ["targets"]
+    "checks": ["overflow", "targets"]
   },
   {
     "storyId": "portal-propertylook-photo-and-logo--small-logo-fails-the-check",
@@ -14673,7 +13977,7 @@
     "storyId": "portal-propertylook-photo-and-logo--small-photo-fails-the-check",
     "state": "Small Photo Fails The Check",
     "width": 320,
-    "checks": ["targets"]
+    "checks": ["overflow", "targets"]
   },
   {
     "storyId": "portal-propertylook-photo-and-logo--small-photo-fails-the-check",
@@ -14685,7 +13989,7 @@
     "storyId": "portal-propertylook-photo-and-logo--uploading-a-logo",
     "state": "Uploading A Logo",
     "width": 320,
-    "checks": ["targets"]
+    "checks": ["overflow", "targets"]
   },
   {
     "storyId": "portal-propertylook-photo-and-logo--uploading-a-logo",
@@ -14697,7 +14001,7 @@
     "storyId": "portal-propertylook-photo-and-logo--with-a-photo",
     "state": "With A Photo",
     "width": 320,
-    "checks": ["targets"]
+    "checks": ["overflow", "targets"]
   },
   {
     "storyId": "portal-propertylook-photo-and-logo--with-a-photo",
@@ -14709,7 +14013,7 @@
     "storyId": "portal-propertylook-photo-and-logo--wrong-format-is-turned-away",
     "state": "Wrong Format Is Turned Away",
     "width": 320,
-    "checks": ["targets"]
+    "checks": ["overflow", "targets"]
   },
   {
     "storyId": "portal-propertylook-photo-and-logo--wrong-format-is-turned-away",
@@ -14733,7 +14037,7 @@
     "storyId": "portal-propertylook-propertylookpage--a-portals-own-photo-is-not-the-propertys",
     "state": "A Portals Own Photo Is Not The Propertys",
     "width": 320,
-    "checks": ["targets"]
+    "checks": ["overflow", "targets"]
   },
   {
     "storyId": "portal-propertylook-propertylookpage--a-portals-own-photo-is-not-the-propertys",
@@ -14745,7 +14049,7 @@
     "storyId": "portal-propertylook-propertylookpage--accent-saves-as-a-draft",
     "state": "Accent Saves As A Draft",
     "width": 320,
-    "checks": ["targets"]
+    "checks": ["overflow", "targets"]
   },
   {
     "storyId": "portal-propertylook-propertylookpage--accent-saves-as-a-draft",
@@ -14757,7 +14061,7 @@
     "storyId": "portal-propertylook-propertylookpage--adding-a-language",
     "state": "Adding A Language",
     "width": 320,
-    "checks": ["targets"]
+    "checks": ["overflow", "targets"]
   },
   {
     "storyId": "portal-propertylook-propertylookpage--adding-a-language",
@@ -14769,7 +14073,7 @@
     "storyId": "portal-propertylook-propertylookpage--choosing-a-portal-to-preview",
     "state": "Choosing A Portal To Preview",
     "width": 320,
-    "checks": ["targets"]
+    "checks": ["overflow", "targets"]
   },
   {
     "storyId": "portal-propertylook-propertylookpage--choosing-a-portal-to-preview",
@@ -14781,7 +14085,7 @@
     "storyId": "portal-propertylook-propertylookpage--custom-background",
     "state": "Custom Background",
     "width": 320,
-    "checks": ["targets"]
+    "checks": ["overflow", "targets"]
   },
   {
     "storyId": "portal-propertylook-propertylookpage--custom-background",
@@ -14793,7 +14097,7 @@
     "storyId": "portal-propertylook-propertylookpage--custom-starts-from-a-readable-field",
     "state": "Custom Starts From A Readable Field",
     "width": 320,
-    "checks": ["targets"]
+    "checks": ["overflow", "targets"]
   },
   {
     "storyId": "portal-propertylook-propertylookpage--custom-starts-from-a-readable-field",
@@ -14805,7 +14109,7 @@
     "storyId": "portal-propertylook-propertylookpage--default",
     "state": "Default",
     "width": 320,
-    "checks": ["targets"]
+    "checks": ["overflow", "targets"]
   },
   {
     "storyId": "portal-propertylook-propertylookpage--default",
@@ -14817,7 +14121,7 @@
     "storyId": "portal-propertylook-propertylookpage--default-languages",
     "state": "Default Languages",
     "width": 320,
-    "checks": ["targets"]
+    "checks": ["overflow", "targets"]
   },
   {
     "storyId": "portal-propertylook-propertylookpage--default-languages",
@@ -14829,7 +14133,7 @@
     "storyId": "portal-propertylook-propertylookpage--default-palette-saves-a-wordmark",
     "state": "Default Palette Saves A Wordmark",
     "width": 320,
-    "checks": ["targets"]
+    "checks": ["overflow", "targets"]
   },
   {
     "storyId": "portal-propertylook-propertylookpage--default-palette-saves-a-wordmark",
@@ -14841,7 +14145,7 @@
     "storyId": "portal-propertylook-propertylookpage--every-live-portal-shows-the-look",
     "state": "Every Live Portal Shows The Look",
     "width": 320,
-    "checks": ["targets"]
+    "checks": ["overflow", "targets"]
   },
   {
     "storyId": "portal-propertylook-propertylookpage--every-live-portal-shows-the-look",
@@ -14853,7 +14157,7 @@
     "storyId": "portal-propertylook-propertylookpage--failed-save-offers-retry",
     "state": "Failed Save Offers Retry",
     "width": 320,
-    "checks": ["targets"]
+    "checks": ["overflow", "targets"]
   },
   {
     "storyId": "portal-propertylook-propertylookpage--failed-save-offers-retry",
@@ -14865,7 +14169,7 @@
     "storyId": "portal-propertylook-propertylookpage--hard-to-see-accent-is-flagged-not-refused",
     "state": "Hard To See Accent Is Flagged Not Refused",
     "width": 320,
-    "checks": ["targets"]
+    "checks": ["overflow", "targets"]
   },
   {
     "storyId": "portal-propertylook-propertylookpage--hard-to-see-accent-is-flagged-not-refused",
@@ -14877,7 +14181,7 @@
     "storyId": "portal-propertylook-propertylookpage--language-controls-are-touch-targets",
     "state": "Language Controls Are Touch Targets",
     "width": 320,
-    "checks": ["targets"]
+    "checks": ["overflow", "targets"]
   },
   {
     "storyId": "portal-propertylook-propertylookpage--language-controls-are-touch-targets",
@@ -14889,7 +14193,7 @@
     "storyId": "portal-propertylook-propertylookpage--leaving-after-a-failed-save-asks",
     "state": "Leaving After A Failed Save Asks",
     "width": 320,
-    "checks": ["targets"]
+    "checks": ["overflow", "targets"]
   },
   {
     "storyId": "portal-propertylook-propertylookpage--leaving-after-a-failed-save-asks",
@@ -14901,7 +14205,7 @@
     "storyId": "portal-propertylook-propertylookpage--no-portals-yet",
     "state": "No Portals Yet",
     "width": 320,
-    "checks": ["targets"]
+    "checks": ["overflow", "targets"]
   },
   {
     "storyId": "portal-propertylook-propertylookpage--no-portals-yet",
@@ -14937,7 +14241,7 @@
     "storyId": "portal-propertylook-propertylookpage--one-portal-sees-nothing-new",
     "state": "One Portal Sees Nothing New",
     "width": 320,
-    "checks": ["targets"]
+    "checks": ["overflow", "targets"]
   },
   {
     "storyId": "portal-propertylook-propertylookpage--one-portal-sees-nothing-new",
@@ -14949,7 +14253,7 @@
     "storyId": "portal-propertylook-propertylookpage--one-portal-with-its-own-photo",
     "state": "One Portal With Its Own Photo",
     "width": 320,
-    "checks": ["targets"]
+    "checks": ["overflow", "targets"]
   },
   {
     "storyId": "portal-propertylook-propertylookpage--one-portal-with-its-own-photo",
@@ -14961,7 +14265,7 @@
     "storyId": "portal-propertylook-propertylookpage--portals-with-their-own-look",
     "state": "Portals With Their Own Look",
     "width": 320,
-    "checks": ["targets"]
+    "checks": ["overflow", "targets"]
   },
   {
     "storyId": "portal-propertylook-propertylookpage--portals-with-their-own-look",
@@ -14973,7 +14277,7 @@
     "storyId": "portal-propertylook-propertylookpage--preview-without-a-photo",
     "state": "Preview Without A Photo",
     "width": 320,
-    "checks": ["targets"]
+    "checks": ["overflow", "targets"]
   },
   {
     "storyId": "portal-propertylook-propertylookpage--preview-without-a-photo",
@@ -14997,7 +14301,7 @@
     "storyId": "portal-propertylook-propertylookpage--refused-save-says-why",
     "state": "Refused Save Says Why",
     "width": 320,
-    "checks": ["targets"]
+    "checks": ["overflow", "targets"]
   },
   {
     "storyId": "portal-propertylook-propertylookpage--refused-save-says-why",
@@ -15009,7 +14313,7 @@
     "storyId": "portal-propertylook-propertylookpage--saved-look-not-yet-live",
     "state": "Saved Look Not Yet Live",
     "width": 320,
-    "checks": ["targets"]
+    "checks": ["overflow", "targets"]
   },
   {
     "storyId": "portal-propertylook-propertylookpage--saved-look-not-yet-live",
@@ -15021,7 +14325,7 @@
     "storyId": "portal-propertylook-propertylookpage--wordmark-clears-and-is-bounded",
     "state": "Wordmark Clears And Is Bounded",
     "width": 320,
-    "checks": ["targets"]
+    "checks": ["overflow", "targets"]
   },
   {
     "storyId": "portal-propertylook-propertylookpage--wordmark-clears-and-is-bounded",
@@ -15033,25 +14337,13 @@
     "storyId": "product-updates-preferences--save-failure",
     "state": "Save Failure",
     "width": 320,
-    "checks": ["overflow", "targets"]
+    "checks": ["overflow"]
   },
   {
     "storyId": "product-updates-preferences--save-failure",
     "state": "Save Failure",
     "width": 390,
-    "checks": ["overflow", "targets"]
-  },
-  {
-    "storyId": "product-updates-preferences--saved",
-    "state": "Saved",
-    "width": 320,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "product-updates-preferences--saved",
-    "state": "Saved",
-    "width": 390,
-    "checks": ["targets"]
+    "checks": ["overflow"]
   },
   {
     "storyId": "property-googleperformancesection--compact-320",
@@ -15351,7 +14643,7 @@
     "storyId": "property-guestvoice2-check-in--small",
     "state": "Small",
     "width": 320,
-    "checks": ["targets"]
+    "checks": ["overflow", "targets"]
   },
   {
     "storyId": "property-guestvoice2-check-in--small",
@@ -15363,7 +14655,7 @@
     "storyId": "property-guestvoice2-check-in--small-phone",
     "state": "Small Phone",
     "width": 320,
-    "checks": ["targets"]
+    "checks": ["overflow", "targets"]
   },
   {
     "storyId": "property-guestvoice2-check-in--small-phone",
@@ -15375,7 +14667,7 @@
     "storyId": "property-guestvoice2-check-in--small-with-concern",
     "state": "Small With Concern",
     "width": 320,
-    "checks": ["targets"]
+    "checks": ["overflow", "targets"]
   },
   {
     "storyId": "property-guestvoice2-check-in--small-with-concern",
@@ -15387,7 +14679,7 @@
     "storyId": "property-guestvoice2-check-in--small-with-concern-phone",
     "state": "Small With Concern Phone",
     "width": 320,
-    "checks": ["targets"]
+    "checks": ["overflow", "targets"]
   },
   {
     "storyId": "property-guestvoice2-check-in--small-with-concern-phone",
@@ -15513,7 +14805,7 @@
     "storyId": "property-propertyguestvoicepage--reading-next-range",
     "state": "Reading Next Range",
     "width": 320,
-    "checks": ["targets"]
+    "checks": ["overflow", "targets"]
   },
   {
     "storyId": "property-propertyguestvoicepage--reading-next-range",
@@ -16400,12 +15692,12 @@
   {
     "storyId": "propertysetup-setupratinggoalstep--offered",
     "state": "Offered",
-    "width": 390,
+    "width": 320,
     "checks": ["targets"]
   },
   {
-    "storyId": "propertysetup-setupreview--twenty-four-properties-consent",
-    "state": "Twenty Four Properties Consent",
+    "storyId": "propertysetup-setupratinggoalstep--offered",
+    "state": "Offered",
     "width": 390,
     "checks": ["targets"]
   },
@@ -16461,517 +15753,265 @@
     "storyId": "settings-notificationssettingspage--a-failed-reset-says-so",
     "state": "A Failed Reset Says So",
     "width": 320,
-    "checks": ["overflow", "targets"]
+    "checks": ["overflow"]
   },
   {
     "storyId": "settings-notificationssettingspage--a-failed-reset-says-so",
     "state": "A Failed Reset Says So",
     "width": 390,
-    "checks": ["overflow", "targets"]
-  },
-  {
-    "storyId": "settings-notificationssettingspage--action-needed-keeps-in-app-on",
-    "state": "Action Needed Keeps In App On",
-    "width": 320,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "settings-notificationssettingspage--action-needed-keeps-in-app-on",
-    "state": "Action Needed Keeps In App On",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "settings-notificationssettingspage--checks-email-availability-first",
-    "state": "Checks Email Availability First",
-    "width": 320,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "settings-notificationssettingspage--checks-email-availability-first",
-    "state": "Checks Email Availability First",
-    "width": 390,
-    "checks": ["targets"]
+    "checks": ["overflow"]
   },
   {
     "storyId": "settings-notificationssettingspage--choosing-how-low-saves-it",
     "state": "Choosing How Low Saves It",
     "width": 320,
-    "checks": ["overflow", "targets"]
+    "checks": ["overflow"]
   },
   {
     "storyId": "settings-notificationssettingspage--choosing-how-low-saves-it",
     "state": "Choosing How Low Saves It",
     "width": 390,
-    "checks": ["overflow", "targets"]
-  },
-  {
-    "storyId": "settings-notificationssettingspage--each-category-row-says-whose-setting-it-is",
-    "state": "Each Category Row Says Whose Setting It Is",
-    "width": 320,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "settings-notificationssettingspage--each-category-row-says-whose-setting-it-is",
-    "state": "Each Category Row Says Whose Setting It Is",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "settings-notificationssettingspage--each-goal-has-its-own-row",
-    "state": "Each Goal Has Its Own Row",
-    "width": 320,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "settings-notificationssettingspage--each-goal-has-its-own-row",
-    "state": "Each Goal Has Its Own Row",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "settings-notificationssettingspage--email-allowed",
-    "state": "Email Allowed",
-    "width": 320,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "settings-notificationssettingspage--email-allowed",
-    "state": "Email Allowed",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "settings-notificationssettingspage--email-availability-check-failed",
-    "state": "Email Availability Check Failed",
-    "width": 320,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "settings-notificationssettingspage--email-availability-check-failed",
-    "state": "Email Availability Check Failed",
-    "width": 390,
-    "checks": ["targets"]
+    "checks": ["overflow"]
   },
   {
     "storyId": "settings-notificationssettingspage--email-timing-waits-for-email",
     "state": "Email Timing Waits For Email",
     "width": 320,
-    "checks": ["overflow", "targets"]
+    "checks": ["overflow"]
   },
   {
     "storyId": "settings-notificationssettingspage--email-timing-waits-for-email",
     "state": "Email Timing Waits For Email",
     "width": 390,
-    "checks": ["overflow", "targets"]
-  },
-  {
-    "storyId": "settings-notificationssettingspage--email-unavailable-for-property",
-    "state": "Email Unavailable For Property",
-    "width": 320,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "settings-notificationssettingspage--email-unavailable-for-property",
-    "state": "Email Unavailable For Property",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "settings-notificationssettingspage--every-control-names-its-category",
-    "state": "Every Control Names Its Category",
-    "width": 320,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "settings-notificationssettingspage--every-control-names-its-category",
-    "state": "Every Control Names Its Category",
-    "width": 390,
-    "checks": ["targets"]
+    "checks": ["overflow"]
   },
   {
     "storyId": "settings-notificationssettingspage--following-again-is-kept-when-the-save-fails",
     "state": "Following Again Is Kept When The Save Fails",
     "width": 320,
-    "checks": ["overflow", "targets"]
+    "checks": ["overflow"]
   },
   {
     "storyId": "settings-notificationssettingspage--following-again-is-kept-when-the-save-fails",
     "state": "Following Again Is Kept When The Save Fails",
     "width": 390,
-    "checks": ["overflow", "targets"]
+    "checks": ["overflow"]
   },
   {
     "storyId": "settings-notificationssettingspage--goal-email-is-daily-only",
     "state": "Goal Email Is Daily Only",
     "width": 320,
-    "checks": ["overflow", "targets"]
+    "checks": ["overflow"]
   },
   {
     "storyId": "settings-notificationssettingspage--goal-email-is-daily-only",
     "state": "Goal Email Is Daily Only",
     "width": 390,
-    "checks": ["overflow", "targets"]
+    "checks": ["overflow"]
   },
   {
     "storyId": "settings-notificationssettingspage--goal-rows-at-desktop-manager",
     "state": "Goal Rows At Desktop Manager",
     "width": 320,
-    "checks": ["overflow", "targets"]
+    "checks": ["overflow"]
   },
   {
     "storyId": "settings-notificationssettingspage--goal-rows-at-desktop-manager",
     "state": "Goal Rows At Desktop Manager",
     "width": 390,
-    "checks": ["overflow", "targets"]
+    "checks": ["overflow"]
   },
   {
     "storyId": "settings-notificationssettingspage--goal-rows-at-mobile-narrow",
     "state": "Goal Rows At Mobile Narrow",
     "width": 320,
-    "checks": ["overflow", "targets"]
-  },
-  {
-    "storyId": "settings-notificationssettingspage--goal-rows-at-mobile-narrow",
-    "state": "Goal Rows At Mobile Narrow",
-    "width": 390,
-    "checks": ["targets"]
+    "checks": ["overflow"]
   },
   {
     "storyId": "settings-notificationssettingspage--goal-rows-at-mobile-staff",
     "state": "Goal Rows At Mobile Staff",
     "width": 320,
-    "checks": ["overflow", "targets"]
+    "checks": ["overflow"]
   },
   {
     "storyId": "settings-notificationssettingspage--goal-rows-at-mobile-staff",
     "state": "Goal Rows At Mobile Staff",
     "width": 390,
-    "checks": ["overflow", "targets"]
+    "checks": ["overflow"]
   },
   {
     "storyId": "settings-notificationssettingspage--goal-rows-at-tablet",
     "state": "Goal Rows At Tablet",
     "width": 320,
-    "checks": ["overflow", "targets"]
+    "checks": ["overflow"]
   },
   {
     "storyId": "settings-notificationssettingspage--goal-rows-at-tablet",
     "state": "Goal Rows At Tablet",
     "width": 390,
-    "checks": ["overflow", "targets"]
+    "checks": ["overflow"]
   },
   {
     "storyId": "settings-notificationssettingspage--goal-rows-in-light-theme",
     "state": "Goal Rows In Light Theme",
     "width": 320,
-    "checks": ["overflow", "targets"]
-  },
-  {
-    "storyId": "settings-notificationssettingspage--goal-rows-in-light-theme",
-    "state": "Goal Rows In Light Theme",
-    "width": 390,
-    "checks": ["targets"]
+    "checks": ["overflow"]
   },
   {
     "storyId": "settings-notificationssettingspage--guest-voice-summary-is-opt-in",
     "state": "Guest Voice Summary Is Opt In",
     "width": 320,
-    "checks": ["overflow", "targets"]
+    "checks": ["overflow"]
   },
   {
     "storyId": "settings-notificationssettingspage--guest-voice-summary-is-opt-in",
     "state": "Guest Voice Summary Is Opt In",
     "width": 390,
-    "checks": ["overflow", "targets"]
+    "checks": ["overflow"]
   },
   {
     "storyId": "settings-notificationssettingspage--guest-voice-summary-is-opt-in-phone",
     "state": "Guest Voice Summary Is Opt In Phone",
     "width": 320,
-    "checks": ["overflow", "targets"]
+    "checks": ["overflow"]
   },
   {
     "storyId": "settings-notificationssettingspage--guest-voice-summary-is-opt-in-phone",
     "state": "Guest Voice Summary Is Opt In Phone",
     "width": 390,
-    "checks": ["overflow", "targets"]
-  },
-  {
-    "storyId": "settings-notificationssettingspage--inherited-default-is-what-a-new-property-gets",
-    "state": "Inherited Default Is What A New Property Gets",
-    "width": 320,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "settings-notificationssettingspage--inherited-default-is-what-a-new-property-gets",
-    "state": "Inherited Default Is What A New Property Gets",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "settings-notificationssettingspage--low-ratings-ask-how-low",
-    "state": "Low Ratings Ask How Low",
-    "width": 320,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "settings-notificationssettingspage--low-ratings-ask-how-low",
-    "state": "Low Ratings Ask How Low",
-    "width": 390,
-    "checks": ["targets"]
+    "checks": ["overflow"]
   },
   {
     "storyId": "settings-notificationssettingspage--low-ratings-default-carries-the-threshold",
     "state": "Low Ratings Default Carries The Threshold",
     "width": 320,
-    "checks": ["overflow", "targets"]
+    "checks": ["overflow"]
   },
   {
     "storyId": "settings-notificationssettingspage--low-ratings-default-carries-the-threshold",
     "state": "Low Ratings Default Carries The Threshold",
     "width": 390,
-    "checks": ["overflow", "targets"]
+    "checks": ["overflow"]
   },
   {
     "storyId": "settings-notificationssettingspage--makes-a-category-my-default",
     "state": "Makes A Category My Default",
     "width": 320,
-    "checks": ["overflow", "targets"]
+    "checks": ["overflow"]
   },
   {
     "storyId": "settings-notificationssettingspage--makes-a-category-my-default",
     "state": "Makes A Category My Default",
     "width": 390,
-    "checks": ["overflow", "targets"]
+    "checks": ["overflow"]
   },
   {
     "storyId": "settings-notificationssettingspage--making-a-default-keeps-a-mute",
     "state": "Making A Default Keeps A Mute",
     "width": 320,
-    "checks": ["overflow", "targets"]
+    "checks": ["overflow"]
   },
   {
     "storyId": "settings-notificationssettingspage--making-a-default-keeps-a-mute",
     "state": "Making A Default Keeps A Mute",
     "width": 390,
-    "checks": ["overflow", "targets"]
+    "checks": ["overflow"]
   },
   {
     "storyId": "settings-notificationssettingspage--making-a-default-leaves-unavailable-email-alone",
     "state": "Making A Default Leaves Unavailable Email Alone",
     "width": 320,
-    "checks": ["overflow", "targets"]
+    "checks": ["overflow"]
   },
   {
     "storyId": "settings-notificationssettingspage--making-a-default-leaves-unavailable-email-alone",
     "state": "Making A Default Leaves Unavailable Email Alone",
     "width": 390,
-    "checks": ["overflow", "targets"]
-  },
-  {
-    "storyId": "settings-notificationssettingspage--mandatory-category-is-organization-policy",
-    "state": "Mandatory Category Is Organization Policy",
-    "width": 320,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "settings-notificationssettingspage--mandatory-category-is-organization-policy",
-    "state": "Mandatory Category Is Organization Policy",
-    "width": 390,
-    "checks": ["targets"]
+    "checks": ["overflow"]
   },
   {
     "storyId": "settings-notificationssettingspage--one-property-can-override-the-window",
     "state": "One Property Can Override The Window",
     "width": 320,
-    "checks": ["overflow", "targets"]
+    "checks": ["overflow"]
   },
   {
     "storyId": "settings-notificationssettingspage--one-property-can-override-the-window",
     "state": "One Property Can Override The Window",
     "width": 390,
-    "checks": ["overflow", "targets"]
+    "checks": ["overflow"]
   },
   {
     "storyId": "settings-notificationssettingspage--one-property-can-still-make-a-default",
     "state": "One Property Can Still Make A Default",
     "width": 320,
-    "checks": ["overflow", "targets"]
+    "checks": ["overflow"]
   },
   {
     "storyId": "settings-notificationssettingspage--one-property-can-still-make-a-default",
     "state": "One Property Can Still Make A Default",
     "width": 390,
-    "checks": ["overflow", "targets"]
+    "checks": ["overflow"]
   },
   {
     "storyId": "settings-notificationssettingspage--personal-quiet-hours-cover-every-property",
     "state": "Personal Quiet Hours Cover Every Property",
     "width": 320,
-    "checks": ["overflow", "targets"]
+    "checks": ["overflow"]
   },
   {
     "storyId": "settings-notificationssettingspage--personal-quiet-hours-cover-every-property",
     "state": "Personal Quiet Hours Cover Every Property",
     "width": 390,
-    "checks": ["overflow", "targets"]
+    "checks": ["overflow"]
   },
   {
     "storyId": "settings-notificationssettingspage--portal-goals-save-their-own-row",
     "state": "Portal Goals Save Their Own Row",
     "width": 320,
-    "checks": ["overflow", "targets"]
+    "checks": ["overflow"]
   },
   {
     "storyId": "settings-notificationssettingspage--portal-goals-save-their-own-row",
     "state": "Portal Goals Save Their Own Row",
     "width": 390,
-    "checks": ["overflow", "targets"]
-  },
-  {
-    "storyId": "settings-notificationssettingspage--quiet-hours-need-two-different-times",
-    "state": "Quiet Hours Need Two Different Times",
-    "width": 320,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "settings-notificationssettingspage--quiet-hours-need-two-different-times",
-    "state": "Quiet Hours Need Two Different Times",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "settings-notificationssettingspage--quiet-hours-refusal-is-a-banner-not-a-toast",
-    "state": "Quiet Hours Refusal Is A Banner Not A Toast",
-    "width": 320,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "settings-notificationssettingspage--quiet-hours-refusal-is-a-banner-not-a-toast",
-    "state": "Quiet Hours Refusal Is A Banner Not A Toast",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "settings-notificationssettingspage--quiet-hours-reset-puts-the-saved-window-back",
-    "state": "Quiet Hours Reset Puts The Saved Window Back",
-    "width": 320,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "settings-notificationssettingspage--quiet-hours-reset-puts-the-saved-window-back",
-    "state": "Quiet Hours Reset Puts The Saved Window Back",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "settings-notificationssettingspage--quiet-hours-run-on-the-organization-clock",
-    "state": "Quiet Hours Run On The Organization Clock",
-    "width": 320,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "settings-notificationssettingspage--quiet-hours-run-on-the-organization-clock",
-    "state": "Quiet Hours Run On The Organization Clock",
-    "width": 390,
-    "checks": ["targets"]
+    "checks": ["overflow"]
   },
   {
     "storyId": "settings-notificationssettingspage--rapid-changes-build-on-each-other",
     "state": "Rapid Changes Build On Each Other",
     "width": 320,
-    "checks": ["overflow", "targets"]
+    "checks": ["overflow"]
   },
   {
     "storyId": "settings-notificationssettingspage--rapid-changes-build-on-each-other",
     "state": "Rapid Changes Build On Each Other",
     "width": 390,
-    "checks": ["overflow", "targets"]
+    "checks": ["overflow"]
   },
   {
     "storyId": "settings-notificationssettingspage--resets-each-listed-property-once-confirmed",
     "state": "Resets Each Listed Property Once Confirmed",
     "width": 320,
-    "checks": ["overflow", "targets"]
+    "checks": ["overflow"]
   },
   {
     "storyId": "settings-notificationssettingspage--resets-each-listed-property-once-confirmed",
     "state": "Resets Each Listed Property Once Confirmed",
     "width": 390,
-    "checks": ["overflow", "targets"]
-  },
-  {
-    "storyId": "settings-notificationssettingspage--resetting-a-mute-asks-first",
-    "state": "Resetting A Mute Asks First",
-    "width": 320,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "settings-notificationssettingspage--resetting-a-mute-asks-first",
-    "state": "Resetting A Mute Asks First",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "settings-notificationssettingspage--switching-property-shows-its-own-override",
-    "state": "Switching Property Shows Its Own Override",
-    "width": 320,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "settings-notificationssettingspage--switching-property-shows-its-own-override",
-    "state": "Switching Property Shows Its Own Override",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "settings-notificationssettingspage--the-quiet-hours-row-names-what-it-follows",
-    "state": "The Quiet Hours Row Names What It Follows",
-    "width": 320,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "settings-notificationssettingspage--the-quiet-hours-row-names-what-it-follows",
-    "state": "The Quiet Hours Row Names What It Follows",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "settings-notificationssettingspage--timezone-is-set-in-profile",
-    "state": "Timezone Is Set In Profile",
-    "width": 320,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "settings-notificationssettingspage--timezone-is-set-in-profile",
-    "state": "Timezone Is Set In Profile",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "settings-notificationssettingspage--title-column-keeps-its-width",
-    "state": "Title Column Keeps Its Width",
-    "width": 320,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "settings-notificationssettingspage--title-column-keeps-its-width",
-    "state": "Title Column Keeps Its Width",
-    "width": 390,
-    "checks": ["targets"]
+    "checks": ["overflow"]
   },
   {
     "storyId": "settings-notificationssettingspage--use-my-default-here-resets-only-this-property",
     "state": "Use My Default Here Resets Only This Property",
     "width": 320,
-    "checks": ["overflow", "targets"]
+    "checks": ["overflow"]
   },
   {
     "storyId": "settings-notificationssettingspage--use-my-default-here-resets-only-this-property",
     "state": "Use My Default Here Resets Only This Property",
     "width": 390,
-    "checks": ["overflow", "targets"]
+    "checks": ["overflow"]
   },
   {
     "storyId": "settings-timezoneandformatcard--keeps-a-legacy-timezone-the-list-no-longer-offers",

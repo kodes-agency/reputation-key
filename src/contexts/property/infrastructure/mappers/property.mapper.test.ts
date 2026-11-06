@@ -27,6 +27,7 @@ const makePropertyRow = (overrides: Record<string, unknown> = {}) => ({
   googleReviewDestinationRetrievedAt: null,
   googleReviewDestinationSourceEpoch: null,
   googleReviewDestinationProfileVersion: null,
+  googlePrimaryCategoryRefreshEventId: null,
   profileSource: 'legacy',
   profileConfirmedAt: null,
   profileConfirmedBy: null,
