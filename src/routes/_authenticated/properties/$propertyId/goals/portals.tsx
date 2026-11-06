@@ -1,3 +1,4 @@
+import { useTenantScope } from '#/shared/hooks/useTenantScope'
 // The route checks goal.read; the read checks goal.create. Load queries on demand to
 // keep server functions out of first paint. The page title receives sheet focus because
 // its card omits a duplicate heading. Stop preserves the running month and returns to
@@ -112,7 +113,7 @@ function MonthlyPortalGoalRoute() {
   // Who made each change, by name. A side read that never holds the page back:
   // until it is read, a change is told without a person.
   const members = useQuery({
-    ...membersQuery,
+    ...membersQuery(useTenantScope()),
     enabled: canDo('member.list'),
     retry: false,
   })

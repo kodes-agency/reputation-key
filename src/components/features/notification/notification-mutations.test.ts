@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it } from 'vitest'
 import { QueryClient, QueryObserver } from '@tanstack/react-query'
-import { notificationKeys } from '#/shared/queries/query-keys'
+import { createKeys } from '#/shared/queries/query-keys'
 import type { NotificationFeedHead } from '#/contexts/feed/application/public-api'
 import {
   makeNotification,
@@ -8,6 +8,9 @@ import {
   notificationPageFixture,
 } from './notification.stories.fixtures'
 import { patchNotificationFeedCache } from './notification-feed-cache'
+
+const scope = { userId: 'user-1', organizationId: 'org-1' }
+const { notificationKeys } = createKeys(scope)
 
 /** Lets settled promises and zero-delay timers run. */
 const settle = () => new Promise((resolve) => setTimeout(resolve, 0))
@@ -41,7 +44,7 @@ describe('notification optimistic cache updates', () => {
       pages: [notificationPageFixture([target, older])],
       pageParams: [20],
     })
-    const undo = patchNotificationFeedCache(client, 'org-1', (row) =>
+    const undo = patchNotificationFeedCache(client, scope, 'org-1', (row) =>
       row.id === target.id
         ? { ...row, status: 'read' as const, readAt: new Date(0) }
         : row,
@@ -89,6 +92,7 @@ describe('notification optimistic cache updates', () => {
 
     const undo = patchNotificationFeedCache(
       client,
+      scope,
       'org-1',
       (row) => ({ ...row, status: 'read' as const, readAt: new Date(0) }),
       { clearsUnreadOf: 'all' },
@@ -122,7 +126,7 @@ describe('notification optimistic cache updates', () => {
     const unsubscribe = observer.subscribe(() => {})
     expect(answers).toHaveLength(1)
 
-    patchNotificationFeedCache(client, 'org-1', (current) =>
+    patchNotificationFeedCache(client, scope, 'org-1', (current) =>
       current.id === row.id
         ? { ...current, status: 'read' as const, readAt: new Date(0) }
         : current,
@@ -159,7 +163,7 @@ describe('notification optimistic cache updates', () => {
     })
 
     // Marked read from the page's head.
-    patchNotificationFeedCache(client, 'org-1', (row) =>
+    patchNotificationFeedCache(client, scope, 'org-1', (row) =>
       row.id === loadedLater.id
         ? { ...row, status: 'read' as const, readAt: new Date(0) }
         : row,
@@ -201,6 +205,7 @@ describe('notification optimistic cache updates', () => {
     // "Mark all read" on the page's Workflow tab.
     patchNotificationFeedCache(
       client,
+      scope,
       'org-1',
       (row) =>
         row.status === 'unread' && row.category === 'workflow_collaboration'
@@ -252,7 +257,7 @@ describe('notification optimistic cache updates', () => {
     })
 
     it('a Property-scoped "Mark all read" moves the bell by the loaded rows, never to zero', () => {
-      patchNotificationFeedCache(client, 'org-1', (row) =>
+      patchNotificationFeedCache(client, scope, 'org-1', (row) =>
         row.propertyId === HARBOUR && row.status === 'unread' ? readNow(row) : row,
       )
 
@@ -265,7 +270,7 @@ describe('notification optimistic cache updates', () => {
     })
 
     it("does not move for another Property's row", () => {
-      patchNotificationFeedCache(client, 'org-1', (row) =>
+      patchNotificationFeedCache(client, scope, 'org-1', (row) =>
         row.id === riverside.id ? readNow(row) : row,
       )
 
@@ -289,6 +294,7 @@ describe('notification optimistic cache updates', () => {
       // head says four rows went, but only one of them was Harbour's.
       patchNotificationFeedCache(
         client,
+        scope,
         'org-1',
         (row) =>
           row.type === 'inbox.escalated' && row.status === 'unread' ? readNow(row) : row,
@@ -302,6 +308,7 @@ describe('notification optimistic cache updates', () => {
     it('an unscoped tab\'s "Mark all read" takes a filtered head\'s count only when every unread row went', () => {
       patchNotificationFeedCache(
         client,
+        scope,
         'org-1',
         (row) => (row.status === 'unread' ? readNow(row) : row),
         { clearsUnreadOf: 'all' },
@@ -329,7 +336,7 @@ describe('notification optimistic cache updates', () => {
       filterUnreadCount: 3,
     })
 
-    patchNotificationFeedCache(client, 'org-1', (row) =>
+    patchNotificationFeedCache(client, scope, 'org-1', (row) =>
       row.id === urgentWorkflow.id ? { ...row, status: 'read' as const } : row,
     )
 

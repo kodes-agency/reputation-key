@@ -1,3 +1,4 @@
+import { useTenantScope } from '#/shared/hooks/useTenantScope'
 // Keep the results gate at goal.use and goal.update. Load shared reads on demand so no
 // results query joins first paint.
 
@@ -51,7 +52,7 @@ function PortalGoalResultsRoute() {
   // Who changed a month's number, by name. A side read that never holds the
   // page back: until it is read, the change is told without one.
   const members = useQuery({
-    ...membersQuery,
+    ...membersQuery(useTenantScope()),
     enabled: canDo('member.list'),
     retry: false,
   })

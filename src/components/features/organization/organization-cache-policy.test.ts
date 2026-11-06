@@ -1,15 +1,20 @@
 import { describe, expect, it } from 'vitest'
 import { QueryClient } from '@tanstack/react-query'
-import { identityKeys } from '#/shared/queries/query-keys'
+import { createKeys } from '#/shared/queries/query-keys'
 import { shellContextKeys } from '#/shared/queries/shell-context-cache'
 import { organizationCachePolicy } from './organization-cache-policy'
+
+const { identityKeys } = createKeys({ userId: 'user-1', organizationId: 'org-1' })
 
 describe('organizationCachePolicy.onOrganizationUpdated', () => {
   it('refreshes the active beta organization', async () => {
     const queryClient = new QueryClient()
     queryClient.setQueryData(identityKeys.activeOrg(), { organization: { name: 'Old' } })
 
-    await organizationCachePolicy.onOrganizationUpdated(queryClient)
+    await organizationCachePolicy.onOrganizationUpdated(queryClient, {
+      userId: 'user-1',
+      organizationId: 'org-1',
+    })
 
     expect(queryClient.getQueryState(identityKeys.activeOrg())?.isInvalidated).toBe(true)
   })
@@ -20,7 +25,10 @@ describe('organizationCachePolicy.onOrganizationUpdated', () => {
     queryClient.setQueryData(shellContextKeys.session(), { user: { id: 'user-1' } })
     queryClient.setQueryData(shellContextKeys.organization('user-1'), { name: 'Old' })
 
-    await organizationCachePolicy.onOrganizationUpdated(queryClient)
+    await organizationCachePolicy.onOrganizationUpdated(queryClient, {
+      userId: 'user-1',
+      organizationId: 'org-1',
+    })
 
     expect(
       queryClient.getQueryCache().findAll({ queryKey: shellContextKeys.all }),

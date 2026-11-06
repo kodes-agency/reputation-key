@@ -1,5 +1,5 @@
 import { queryOptions } from '@tanstack/react-query'
-import { identityKeys } from '#/shared/queries/query-keys'
+import { createKeys } from '#/shared/queries/query-keys'
 import type { MerchantAiNoticeUpdateClientGetter } from '#/shared/merchant-ai-notice-announcements'
 
 /** Whose update it is: the cache is kept per person and Organization. */
@@ -8,11 +8,8 @@ export type MerchantAiNoticeUpdateScope = Readonly<{
   organizationId: string
 }>
 
-export const merchantAiNoticeUpdateKey = ({
-  userId,
-  organizationId,
-}: MerchantAiNoticeUpdateScope) =>
-  [...identityKeys.merchantAiNotice(), 'updates', userId, organizationId] as const
+export const merchantAiNoticeUpdateKey = (scope: MerchantAiNoticeUpdateScope) =>
+  createKeys(scope).identityKeys.merchantAiNoticeUpdate()
 
 /**
  * An AccountAdmin's pending AI update (null once seen). The settings banner and

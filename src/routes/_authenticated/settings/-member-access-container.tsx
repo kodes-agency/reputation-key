@@ -1,3 +1,4 @@
+import { useTenantScope } from '#/shared/hooks/useTenantScope'
 // Loads and saves one manager's access for the Members page's Manage access
 // sheet: which of the member's properties they are a Responsible manager of
 // (one read per granted property the checklist lists, only while the sheet is
@@ -25,7 +26,7 @@ import {
 } from '#/contexts/property/server/property-responsible-managers'
 import { setMemberPropertyAccess } from '#/contexts/identity/server/organizations'
 import { responsibleManagersQuery } from '#/routes/_authenticated/properties/$propertyId/-settings-queries'
-import { identityKeys, propertyKeys } from '#/shared/queries/query-keys'
+import { propertyKeys, createKeys } from '#/shared/queries/query-keys'
 import { invalidateShellContext } from '#/shared/queries/shell-context-cache'
 import {
   createSaveMemberAccess,
@@ -59,6 +60,7 @@ export function MemberAccessContainer({
   removeMemberAction,
   reportFailure,
 }: Props) {
+  const { identityKeys } = createKeys(useTenantScope())
   const queryClient = useQueryClient()
   const saveMemberAccess = useMemo(
     () =>

@@ -225,8 +225,11 @@ describe('notification history paging on a live feed', () => {
     feed.arrive(5)
     feed.holdHeads()
     await vi.advanceTimersByTimeAsync(NOTIFICATION_POLL_INTERVAL)
-    patchNotificationFeedCache(client, 'org-1', (row) =>
-      feed.label(row.id) === 'R0' ? { ...row, status: 'read' as const } : row,
+    patchNotificationFeedCache(
+      client,
+      { userId: 'user-1', organizationId: 'org-1' },
+      'org-1',
+      (row) => (feed.label(row.id) === 'R0' ? { ...row, status: 'read' as const } : row),
     )
     feed.releaseHeads()
     await vi.advanceTimersByTimeAsync(0)
@@ -243,8 +246,11 @@ describe('notification history paging on a live feed', () => {
 
     feed.holdPages()
     const loading = view.loadMore()
-    patchNotificationFeedCache(client, 'org-1', (row) =>
-      feed.label(row.id) === 'R25' ? { ...row, status: 'read' as const } : row,
+    patchNotificationFeedCache(
+      client,
+      { userId: 'user-1', organizationId: 'org-1' },
+      'org-1',
+      (row) => (feed.label(row.id) === 'R25' ? { ...row, status: 'read' as const } : row),
     )
     feed.releasePages()
     await loading

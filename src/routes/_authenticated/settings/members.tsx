@@ -1,3 +1,5 @@
+import { tenantScope, type TenantScope } from '#/shared/queries/tenant-scope'
+import { useTenantScope } from '#/shared/hooks/useTenantScope'
 // Settings → Members: who can sign in to the Organization, what they can do and
 // which properties they work. AccountAdmins invite people, change roles, edit a
 // Property Manager's properties and remove members; a Property Manager only
@@ -54,24 +56,26 @@ import {
   propertyIdsByUser,
 } from '#/components/features/identity'
 import type { MemberRow } from '#/components/features/identity'
-import { identityKeys } from '#/shared/queries/query-keys'
+import { createKeys } from '#/shared/queries/query-keys'
 import { membersQuery, propertiesQuery } from '#/routes/-queries/route-queries'
 import { MemberAccessContainer } from './-member-access-container'
 
 const authRoute = getRouteApi('/_authenticated')
-const invitationsQuery = queryOptions({
-  queryKey: identityKeys.organizationInvitations(),
-  queryFn: () => listInvitations(),
-  staleTime: 30_000,
-})
+const invitationsQuery = (scope: TenantScope) =>
+  queryOptions({
+    queryKey: createKeys(scope).identityKeys.organizationInvitations(),
+    queryFn: () => listInvitations(),
+    staleTime: 30_000,
+  })
 
 // Every member's active Property grants. Below identityKeys.members(), so any
 // mutation that invalidates the member list refreshes it too.
-const memberPropertyAccessQuery = queryOptions({
-  queryKey: identityKeys.memberPropertyAccess(),
-  queryFn: () => listMemberPropertyAccess(),
-  staleTime: 30_000,
-})
+const memberPropertyAccessQuery = (scope: TenantScope) =>
+  queryOptions({
+    queryKey: createKeys(scope).identityKeys.memberPropertyAccess(),
+    queryFn: () => listMemberPropertyAccess(),
+    staleTime: 30_000,
+  })
 
 export const Route = createFileRoute('/_authenticated/settings/members')({
   staticData: { page: { title: 'Members', tier: 'narrow', under: 'settings' } },
@@ -84,12 +88,14 @@ export const Route = createFileRoute('/_authenticated/settings/members')({
     // Each read is issued only for a role the server would answer: a Property
     // Manager reads the member list and nothing about invitations or grants.
     await Promise.all([
-      context.queryClient.ensureQueryData(membersQuery),
+      context.queryClient.ensureQueryData(membersQuery(tenantScope(context))),
       can(role, 'invitation.list')
-        ? context.queryClient.ensureQueryData(invitationsQuery)
+        ? context.queryClient.ensureQueryData(invitationsQuery(tenantScope(context)))
         : null,
       can(role, 'member.update')
-        ? context.queryClient.ensureQueryData(memberPropertyAccessQuery)
+        ? context.queryClient.ensureQueryData(
+            memberPropertyAccessQuery(tenantScope(context)),
+          )
         : null,
     ])
     // An inviter may only assign roles at or below their own privilege level.
@@ -110,19 +116,21 @@ const RENEWAL_EMAIL_UNSENT =
   'Invitation renewed, but the email could not be sent. Try Resend again.'
 
 function MembersSettingsRoute() {
+  const scope = useTenantScope()
+  const { identityKeys } = createKeys(scope)
   const queryClient = useQueryClient()
   const { allowedRoles } = Route.useLoaderData()
-  const { data: memberResult } = useSuspenseQuery(membersQuery)
+  const { data: memberResult } = useSuspenseQuery(membersQuery(scope))
   const { user, reportUnexpectedFailure } = authRoute.useRouteContext()
   const { can: canDo } = usePermissions()
   // Invitations and grants are read only by the roles the server answers; the
   // loader primed both caches for an AccountAdmin, so these hit without a fetch.
   const { data: invitationsResult } = useQuery({
-    ...invitationsQuery,
+    ...invitationsQuery(scope),
     enabled: canDo('invitation.list'),
   })
   const { data: accessResult } = useQuery({
-    ...memberPropertyAccessQuery,
+    ...memberPropertyAccessQuery(scope),
     enabled: canDo('member.update'),
   })
   const { data: propsData } = useSuspenseQuery(propertiesQuery)

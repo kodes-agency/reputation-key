@@ -37,12 +37,21 @@ const onChange = fn()
 function Controlled({
   initial,
   options,
-}: Readonly<{ initial: string; options: ReadonlyArray<RangeOption<string>> }>) {
+  variant,
+  label,
+}: Readonly<{
+  initial: string
+  options: ReadonlyArray<RangeOption<string>>
+  variant?: 'responsive' | 'select'
+  label?: string
+}>) {
   const [value, setValue] = useState(initial)
   return (
     <RangeControl
       value={value}
       options={options}
+      variant={variant}
+      label={label}
       onValueChange={(next) => {
         onChange(next)
         setValue(next)
@@ -86,6 +95,29 @@ export const Choosing: Story = {
       expect(canvas.getByRole('radio', { name: '6 months' })).toBeChecked(),
     )
     expect(canvas.getByRole('radio', { name: '90 days' })).not.toBeChecked()
+  },
+}
+
+export const Dropdown: Story = {
+  render: () => (
+    <Controlled initial="90d" options={DASHBOARD} variant="select" label="Period" />
+  ),
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    onChange.mockClear()
+    const select = canvas.getByRole('combobox', { name: 'Period' })
+    expect(select).toHaveTextContent('90 days')
+    expect(canvas.queryByRole('radiogroup')).toBeNull()
+    await userEvent.click(select)
+    const options = within(await within(document.body).findByRole('listbox'))
+    expect(options.getAllByRole('option').map((option) => option.textContent)).toEqual(
+      DASHBOARD.map((option) => option.label),
+    )
+    await userEvent.click(options.getByRole('option', { name: 'All time' }))
+    await waitFor(() => {
+      expect(onChange).toHaveBeenCalledWith('all')
+      expect(select).toHaveTextContent('All time')
+    })
   },
 }
 

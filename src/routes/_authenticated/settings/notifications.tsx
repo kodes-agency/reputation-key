@@ -1,3 +1,5 @@
+import { tenantScope, type TenantScope } from '#/shared/queries/tenant-scope'
+import { useTenantScope } from '#/shared/hooks/useTenantScope'
 import { createFileRoute, getRouteApi, useNavigate } from '@tanstack/react-router'
 import { z } from 'zod/v4'
 import { queryOptions, useQuery, useSuspenseQuery } from '@tanstack/react-query'
@@ -12,7 +14,7 @@ import {
 } from '#/contexts/feed/server/notifications'
 import { NotificationsSettingsPage } from '#/components/features/settings'
 import { notificationPropertyScopeKey } from '#/components/features/settings/notification-property-selection'
-import { notificationKeys } from '#/shared/queries/query-keys'
+import { createKeys } from '#/shared/queries/query-keys'
 import {
   notificationUserSettingsQuery,
   propertiesQuery,
@@ -23,9 +25,11 @@ import { hasFailed, isRetrying } from '#/components/hooks/is-retrying'
 
 const authRoute = getRouteApi('/_authenticated')
 
-const preferencesQuery = (organizationId: string) =>
+const preferencesQuery = (scope: TenantScope) =>
   queryOptions({
-    queryKey: notificationKeys.preferences(organizationId),
+    queryKey: createKeys(scope).notificationKeys.preferences(
+      scope.organizationId ?? 'no-active-organization',
+    ),
     queryFn: () => getNotificationPreferencesFn(),
     staleTime: 60_000,
   })
@@ -42,13 +46,11 @@ export const Route = createFileRoute('/_authenticated/settings/notifications')({
   staticData: { page: { title: 'Notifications', tier: 'narrow', under: 'settings' } },
   validateSearch: (search) => notificationsSearchSchema.parse(search),
   loader: async ({ context }) => {
-    const routeContext = context as AuthRouteContext & {
-      queryClient: typeof context.queryClient
-    }
-    const organizationId = routeContext.activeOrganization?.id ?? 'no-active-organization'
     await Promise.all([
-      context.queryClient.ensureQueryData(preferencesQuery(organizationId)),
-      context.queryClient.ensureQueryData(notificationUserSettingsQuery(organizationId)),
+      context.queryClient.ensureQueryData(preferencesQuery(tenantScope(context))),
+      context.queryClient.ensureQueryData(
+        notificationUserSettingsQuery(tenantScope(context)),
+      ),
       context.queryClient.ensureQueryData(propertiesQuery),
     ])
   },
@@ -79,10 +81,10 @@ function NotificationsSettings() {
 function NotificationSettingsPropertyScope({
   organizationId,
 }: Readonly<{ organizationId: string }>) {
-  const { data: preferences } = useSuspenseQuery(preferencesQuery(organizationId))
-  const { data: userSettings } = useSuspenseQuery(
-    notificationUserSettingsQuery(organizationId),
-  )
+  const scope = useTenantScope()
+  const { notificationKeys } = createKeys(scope)
+  const { data: preferences } = useSuspenseQuery(preferencesQuery(scope))
+  const { data: userSettings } = useSuspenseQuery(notificationUserSettingsQuery(scope))
   const { data: properties } = useSuspenseQuery(propertiesQuery)
   const search = Route.useSearch()
   const navigate = useNavigate({ from: Route.fullPath })

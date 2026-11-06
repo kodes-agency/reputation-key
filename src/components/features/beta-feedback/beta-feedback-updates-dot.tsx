@@ -1,6 +1,7 @@
+import { useTenantScope } from '#/shared/hooks/useTenantScope'
 import { useMemo } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { identityKeys } from '#/shared/queries/query-keys'
+import { createKeys } from '#/shared/queries/query-keys'
 import type { ListMyBetaFeedback } from './beta-feedback-form-context'
 import {
   browserStorage,
@@ -24,6 +25,7 @@ type Props = Readonly<{
  * fetch and a submission's invalidation refreshes both.
  */
 function BetaFeedbackUpdatesDot({ listFeedback, seenVersion }: Props) {
+  const { identityKeys } = createKeys(useTenantScope())
   const query = useQuery({
     queryKey: identityKeys.myBetaFeedback(),
     queryFn: () => listFeedback(),
