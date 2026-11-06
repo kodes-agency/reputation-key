@@ -13,7 +13,6 @@ import type {
 } from './admission-service'
 
 const SHA256 = /^[a-f0-9]{64}$/
-const SAFE_REVISION = /^[A-Za-z0-9._:@/-]{1,255}$/
 
 type PermitRow = Readonly<{
   id: string
@@ -71,10 +70,7 @@ function parseVector(raw: unknown): AuthorizationVector | null {
   }
 }
 
-function snapshotFromRow(
-  row: PermitRow,
-  gatewayIdentity: string,
-): GoogleAdmissionPermitSnapshot | null {
+function snapshotFromRow(row: PermitRow): GoogleAdmissionPermitSnapshot | null {
   if (
     row.state !== 'admitted' ||
     row.route_catalog_version !== GOOGLE_PROVIDER_ROUTE_CATALOGUE_VERSION ||
@@ -112,7 +108,6 @@ function snapshotFromRow(
   return Object.freeze({
     permitId: row.id,
     kind: routeKey === 'oauth.revoke' ? 'credential_cleanup' : 'work',
-    gatewayIdentity,
     routeKey,
     routeCatalogueVersion: GOOGLE_PROVIDER_ROUTE_CATALOGUE_VERSION,
     expectedAdmission,
@@ -133,12 +128,8 @@ function snapshotFromRow(
 export function createPostgresGoogleAdmissionPermitAuthority(
   deps: Readonly<{
     pool: Pool
-    gatewayIdentity: string
   }>,
 ): PostgresGoogleAdmissionPermitAuthority {
-  if (!SAFE_REVISION.test(deps.gatewayIdentity)) {
-    throw new Error('Google admission authority configuration is invalid')
-  }
   return Object.freeze({
     load: async (permitId) => {
       const result = await deps.pool.query<PermitRow>(
@@ -146,7 +137,7 @@ export function createPostgresGoogleAdmissionPermitAuthority(
         [permitId],
       )
       const row = result.rows[0]
-      return row ? snapshotFromRow(row, deps.gatewayIdentity) : null
+      return row ? snapshotFromRow(row) : null
     },
     start: async (permit) => {
       const result = await deps.pool.query<{ outcome: string }>(

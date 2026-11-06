@@ -1,6 +1,6 @@
-import type { VersionedHmacKeyring } from '../security/versioned-hmac-keyring'
 import type {
   GoogleInFlightCoordinator,
+  GoogleInFlightLease,
   GoogleProviderRouteKey,
   GoogleQuotaCoordinator,
   GoogleQuotaKey,
@@ -11,18 +11,9 @@ import {
   GOOGLE_PROVIDER_ROUTE_POLICIES,
   type GoogleProviderAdmissionMetadata,
 } from './route-catalogue'
-import {
-  signGoogleAdmissionGrant,
-  verifyGoogleAdmissionGrant,
-  type GoogleAdmissionGrant,
-  type GoogleAdmissionGrantRecord,
-  type GoogleAdmissionGrantStore,
-} from './admission-grant-store'
-
 export type GoogleAdmissionPermitSnapshot = Readonly<{
   permitId: string
   kind: 'work' | 'credential_cleanup'
-  gatewayIdentity: string
   routeKey: GoogleProviderRouteKey
   routeCatalogueVersion: typeof GOOGLE_PROVIDER_ROUTE_CATALOGUE_VERSION
   expectedAdmission: GoogleProviderAdmissionMetadata
@@ -60,13 +51,12 @@ export type GoogleProviderOutcome =
 
 export type GoogleAdmissionStartInput = Readonly<{
   permitId: string
-  gatewayIdentity: string
   admission: GoogleProviderAdmissionMetadata
   deadlineMs: number
 }>
 
 export type GoogleAdmissionStartResult =
-  | Readonly<{ ok: true; grant: GoogleAdmissionGrant }>
+  | Readonly<{ ok: true; handle: GoogleAdmissionHandle }>
   | Readonly<{
       ok: false
       code:
@@ -75,40 +65,30 @@ export type GoogleAdmissionStartResult =
         | 'deadline_exceeded'
         | 'permit_unknown'
         | 'permit_expired'
-        | 'gateway_mismatch'
         | 'route_mismatch'
         | 'request_mismatch'
         | 'quota_exhausted'
         | 'in_flight_exhausted'
         | 'coordination_unavailable'
         | 'authorization_changed'
-        | 'grant_unavailable'
       retryAfterMs: number
     }>
 
-export type GoogleAdmissionRedeemResult =
-  | Readonly<{ ok: true }>
-  | Readonly<{
-      ok: false
-      code: 'grant_unknown' | 'grant_expired' | 'grant_replayed' | 'grant_mismatch'
-    }>
+type GoogleAdmissionCompletion = Readonly<{
+  outcome: GoogleProviderOutcome
+  retryAfterMs: number | null
+}>
+
+/** A local capability: only admission can bind it to a started permit. */
+export type GoogleAdmissionHandle = Readonly<{
+  expiresAtMs: number
+  /** Resolves after the durable outcome is recorded, independently of lease release. */
+  permitCompletion: Promise<void>
+  complete(input: GoogleAdmissionCompletion): Promise<boolean>
+}>
 
 export type GoogleExecutionAdmissionService = Readonly<{
   start(input: GoogleAdmissionStartInput): Promise<GoogleAdmissionStartResult>
-  redeem(
-    input: Readonly<{
-      grant: GoogleAdmissionGrant
-      gatewayIdentity: string
-      admission: GoogleProviderAdmissionMetadata
-    }>,
-  ): Promise<GoogleAdmissionRedeemResult>
-  complete(
-    input: Readonly<{
-      admissionId: string
-      outcome: GoogleProviderOutcome
-      retryAfterMs: number | null
-    }>,
-  ): Promise<boolean>
 }>
 
 const SHA256 = /^[a-f0-9]{64}$/
@@ -158,7 +138,6 @@ function validAdmissionMetadata(metadata: GoogleProviderAdmissionMetadata): bool
 function validPermitSnapshot(snapshot: GoogleAdmissionPermitSnapshot): boolean {
   if (
     !SAFE_ID.test(snapshot.permitId) ||
-    !SAFE_ID.test(snapshot.gatewayIdentity) ||
     !SAFE_ID.test(snapshot.authorityRevision) ||
     !Number.isSafeInteger(snapshot.expiresAtMs) ||
     !validAdmissionMetadata(snapshot.expectedAdmission) ||
@@ -179,41 +158,191 @@ function validPermitSnapshot(snapshot: GoogleAdmissionPermitSnapshot): boolean {
     : snapshot.routeKey !== 'oauth.revoke'
 }
 
-function admissionRecord(
-  grant: GoogleAdmissionGrant,
+function createAdmissionHandle(
   permit: GoogleAdmissionPermitSnapshot,
-  inFlightLease: GoogleAdmissionGrantRecord['inFlightLease'],
-): GoogleAdmissionGrantRecord {
+  expiresAtMs: number,
+  lease: GoogleInFlightLease,
+  inFlight: GoogleInFlightCoordinator,
+  authority: GoogleAdmissionPermitAuthority,
+): GoogleAdmissionHandle {
+  const key = { ...permit.quotaKey, requestClass: permit.expectedAdmission.requestClass }
+  let completion: GoogleAdmissionCompletion | undefined
+  let pending: Promise<boolean> | undefined
+  let permitCompleted = false
+  let released = false
+  const { promise: permitCompletion, resolve: markPermitCompleted } =
+    Promise.withResolvers<void>()
   return Object.freeze({
-    grant,
-    state: 'issued',
-    quotaKey: permit.quotaKey,
-    authorityRevision: permit.authorityRevision,
-    inFlightKey: Object.freeze({
-      ...permit.quotaKey,
-      requestClass: permit.expectedAdmission.requestClass,
-    }),
-    inFlightLease,
+    expiresAtMs,
+    permitCompletion,
+    complete: (input: GoogleAdmissionCompletion): Promise<boolean> => {
+      if (
+        ![
+          'success',
+          'provider_4xx',
+          'provider_5xx',
+          'rate_limited',
+          'deadline_exceeded',
+          'transport_error',
+          'response_too_large',
+          'caller_abandoned',
+        ].includes(input.outcome) ||
+        (input.retryAfterMs !== null &&
+          (!Number.isSafeInteger(input.retryAfterMs) ||
+            input.retryAfterMs < 0 ||
+            input.retryAfterMs > 300_000)) ||
+        (completion !== undefined &&
+          (completion.outcome !== input.outcome ||
+            completion.retryAfterMs !== input.retryAfterMs))
+      )
+        return Promise.resolve(false)
+      completion ??= Object.freeze({ ...input })
+      if (pending) return pending
+      const recorded = completion
+      pending = (async () => {
+        if (!permitCompleted) {
+          try {
+            await authority.complete(
+              permit.permitId,
+              permit.authorityRevision,
+              recorded.outcome,
+              recorded.retryAfterMs,
+            )
+            permitCompleted = true
+            markPermitCompleted()
+          } catch {
+            // The durable permit sweep fences anything left after bounded retries.
+          }
+        }
+        if (!released) {
+          try {
+            released = await inFlight.release(key, lease)
+          } catch {
+            // The Redis lease still expires if its release cannot be recorded.
+          }
+        }
+        return permitCompleted && released
+      })().finally(() => {
+        pending = undefined
+      })
+      return pending
+    },
   })
 }
 
-export function createGoogleExecutionAdmissionService(
-  deps: Readonly<{
-    nowMs: () => number
-    admissionId: () => string
-    grantKeyring: VersionedHmacKeyring
-    grantStore: GoogleAdmissionGrantStore
-    authority: GoogleAdmissionPermitAuthority
-    quotaForPolicy: (policyId: string) => GoogleQuotaCoordinator | null
-    inFlightForPolicy: (policyId: string) => GoogleInFlightCoordinator | null
+type AdmissionDenial = Extract<GoogleAdmissionStartResult, { ok: false }>
+
+function permitDenial(
+  permit: GoogleAdmissionPermitSnapshot,
+  admission: GoogleProviderAdmissionMetadata,
+  nowMs: number,
+): AdmissionDenial | null {
+  if (permit.expiresAtMs <= nowMs) {
+    return { ok: false, code: 'permit_expired', retryAfterMs: 0 }
+  }
+  if (
+    permit.routeKey !== admission.routeKey ||
+    permit.routeCatalogueVersion !== admission.catalogueVersion
+  ) {
+    return { ok: false, code: 'route_mismatch', retryAfterMs: 0 }
+  }
+  if (!sameAdmissionMetadata(permit.expectedAdmission, admission)) {
+    return { ok: false, code: 'request_mismatch', retryAfterMs: 0 }
+  }
+  return null
+}
+
+/** An elapsed deadline differs from capacity whose next availability is too late. */
+function capacityDenial(
+  result: Readonly<{ code: string; retryAfterMs: number }>,
+  exhaustedCode: 'quota_exhausted' | 'in_flight_exhausted',
+  deadlineMs: number,
+  nowMs: () => number,
+): AdmissionDenial {
+  let code: AdmissionDenial['code'] = 'coordination_unavailable'
+  if (result.code === 'deadline_exceeded') {
+    code =
+      result.retryAfterMs === 0 || deadlineMs <= nowMs()
+        ? 'deadline_exceeded'
+        : exhaustedCode
+  } else if (
+    result.code ===
+    (exhaustedCode === 'quota_exhausted' ? 'quota_exhausted' : 'limit_exhausted')
+  ) {
+    code = exhaustedCode
+  }
+  return { ok: false, code, retryAfterMs: result.retryAfterMs }
+}
+
+type AdmissionDependencies = Readonly<{
+  nowMs: () => number
+  authority: GoogleAdmissionPermitAuthority
+  quotaForPolicy: (policyId: string) => GoogleQuotaCoordinator | null
+  inFlightForPolicy: (policyId: string) => GoogleInFlightCoordinator | null
+}>
+
+/** Start the permit without crediting quota that may already have refilled. */
+async function startReservedPermit(
+  deps: AdmissionDependencies,
+  permit: GoogleAdmissionPermitSnapshot,
+  deadlineMs: number,
+  capacity: Readonly<{
+    inFlight: GoogleInFlightCoordinator
+    lease: GoogleInFlightLease
   }>,
+): Promise<GoogleAdmissionStartResult> {
+  const { inFlight, lease } = capacity
+  const inFlightKey = Object.freeze({
+    ...permit.quotaKey,
+    requestClass: permit.expectedAdmission.requestClass,
+  })
+  let started: Awaited<ReturnType<GoogleAdmissionPermitAuthority['start']>>
+  try {
+    started = await deps.authority.start(permit)
+  } catch {
+    started = 'unavailable'
+  }
+  if (started !== 'started') {
+    await Promise.allSettled([inFlight.release(inFlightKey, lease)])
+    return {
+      ok: false,
+      code:
+        started === 'expired'
+          ? 'permit_expired'
+          : started === 'changed'
+            ? 'authorization_changed'
+            : 'coordination_unavailable',
+      retryAfterMs: 0,
+    }
+  }
+  // Waiting for capacity and starting the permit both spend the deadline.
+  const grantedAtMs = deps.nowMs()
+  const expiresAtMs = Math.min(permit.expiresAtMs, deadlineMs, grantedAtMs + 30_000)
+  if (expiresAtMs <= grantedAtMs) {
+    await Promise.allSettled([
+      deps.authority.failStarted(permit, 'grant_expired'),
+      inFlight.release(inFlightKey, lease),
+    ])
+    return {
+      ok: false,
+      code: deadlineMs <= grantedAtMs ? 'deadline_exceeded' : 'permit_expired',
+      retryAfterMs: 0,
+    }
+  }
+  return {
+    ok: true,
+    handle: createAdmissionHandle(permit, expiresAtMs, lease, inFlight, deps.authority),
+  }
+}
+
+export function createGoogleExecutionAdmissionService(
+  deps: AdmissionDependencies,
 ): GoogleExecutionAdmissionService {
   return Object.freeze({
     start: async (input) => {
       const nowMs = deps.nowMs()
       if (
         !SAFE_ID.test(input.permitId) ||
-        !SAFE_ID.test(input.gatewayIdentity) ||
         !validAdmissionMetadata(input.admission) ||
         !Number.isSafeInteger(input.deadlineMs) ||
         input.deadlineMs > nowMs + 60_000
@@ -230,21 +359,8 @@ export function createGoogleExecutionAdmissionService(
       if (!permit || !validPermitSnapshot(permit)) {
         return { ok: false, code: 'permit_unknown', retryAfterMs: 0 }
       }
-      if (permit.expiresAtMs <= nowMs) {
-        return { ok: false, code: 'permit_expired', retryAfterMs: 0 }
-      }
-      if (permit.gatewayIdentity !== input.gatewayIdentity) {
-        return { ok: false, code: 'gateway_mismatch', retryAfterMs: 0 }
-      }
-      if (
-        permit.routeKey !== input.admission.routeKey ||
-        permit.routeCatalogueVersion !== input.admission.catalogueVersion
-      ) {
-        return { ok: false, code: 'route_mismatch', retryAfterMs: 0 }
-      }
-      if (!sameAdmissionMetadata(permit.expectedAdmission, input.admission)) {
-        return { ok: false, code: 'request_mismatch', retryAfterMs: 0 }
-      }
+      const denial = permitDenial(permit, input.admission, nowMs)
+      if (denial) return denial
       // Reading the permit takes time too. A deadline it used up is reported as
       // elapsed here: past this point the quota step answers "too late" as
       // `quota_exhausted`, which blamed quota for a stalled refresh (#946).
@@ -256,162 +372,33 @@ export function createGoogleExecutionAdmissionService(
       if (!quota || !inFlight) {
         return { ok: false, code: 'coordination_unavailable', retryAfterMs: 0 }
       }
-      // A coordinator answers "too late" two ways. With no wait (or once the
-      // deadline is behind us) the time had already run out, which is not
-      // pressure on the limit; with a wait, the next free slot falls past the
-      // deadline, which is.
-      const elapsed = (code: string, retryAfterMs: number): boolean =>
-        code === 'deadline_exceeded' &&
-        (retryAfterMs === 0 || input.deadlineMs <= deps.nowMs())
-      const quotaResult = await quota.acquire(permit.quotaKey, 1, input.deadlineMs)
-      if (!quotaResult.ok) {
-        return {
-          ok: false,
-          code: elapsed(quotaResult.code, quotaResult.retryAfterMs)
-            ? 'deadline_exceeded'
-            : quotaResult.code === 'quota_exhausted' ||
-                quotaResult.code === 'deadline_exceeded'
-              ? 'quota_exhausted'
-              : 'coordination_unavailable',
-          retryAfterMs: quotaResult.retryAfterMs,
-        }
-      }
       const inFlightKey = Object.freeze({
         ...permit.quotaKey,
         requestClass: permit.expectedAdmission.requestClass,
       })
       const inFlightResult = await inFlight.acquire(inFlightKey, input.deadlineMs)
       if (!inFlightResult.ok) {
-        return {
-          ok: false,
-          code: elapsed(inFlightResult.code, inFlightResult.retryAfterMs)
-            ? 'deadline_exceeded'
-            : inFlightResult.code === 'limit_exhausted' ||
-                inFlightResult.code === 'deadline_exceeded'
-              ? 'in_flight_exhausted'
-              : 'coordination_unavailable',
-          retryAfterMs: inFlightResult.retryAfterMs,
-        }
-      }
-      const started = await deps.authority.start(permit)
-      if (started !== 'started') {
-        await inFlight.release(inFlightKey, inFlightResult.lease)
-        return {
-          ok: false,
-          code:
-            started === 'expired'
-              ? 'permit_expired'
-              : started === 'changed'
-                ? 'authorization_changed'
-                : 'coordination_unavailable',
-          retryAfterMs: 0,
-        }
-      }
-      // Waiting for a slot and the permit's start round trip took time, so the
-      // grant is measured against the clock now, not the one read at entry.
-      const grantedAtMs = deps.nowMs()
-      const expiresAtMs = Math.min(
-        permit.expiresAtMs,
-        input.deadlineMs,
-        grantedAtMs + 30_000,
-      )
-      if (expiresAtMs <= grantedAtMs) {
-        await deps.authority.failStarted(permit, 'grant_expired')
-        await inFlight.release(inFlightKey, inFlightResult.lease)
-        return {
-          ok: false,
-          code: input.deadlineMs <= grantedAtMs ? 'deadline_exceeded' : 'permit_expired',
-          retryAfterMs: 0,
-        }
-      }
-      const grant = signGoogleAdmissionGrant(
-        {
-          admissionId: deps.admissionId(),
-          permitId: permit.permitId,
-          routeKey: permit.routeKey,
-          routeCatalogueVersion: permit.routeCatalogueVersion,
-          gatewayIdentity: permit.gatewayIdentity,
-          requestBindingSha256: input.admission.requestBindingSha256,
-          credentialBinding: input.admission.credentialBinding,
-          expiresAtMs,
-        },
-        deps.grantKeyring,
-      )
-      const issued = await deps.grantStore.issue(
-        admissionRecord(grant, permit, inFlightResult.lease),
-      )
-      if (!issued) {
-        await deps.authority.failStarted(permit, 'grant_unavailable')
-        await inFlight.release(inFlightKey, inFlightResult.lease)
-        return { ok: false, code: 'grant_unavailable', retryAfterMs: 0 }
-      }
-      return { ok: true, grant }
-    },
-
-    redeem: async (input) => {
-      const nowMs = deps.nowMs()
-      if (
-        !verifyGoogleAdmissionGrant(input.grant, deps.grantKeyring) ||
-        input.grant.gatewayIdentity !== input.gatewayIdentity ||
-        input.grant.routeKey !== input.admission.routeKey ||
-        input.grant.routeCatalogueVersion !== input.admission.catalogueVersion ||
-        input.grant.requestBindingSha256 !== input.admission.requestBindingSha256 ||
-        input.grant.credentialBinding !== input.admission.credentialBinding
-      ) {
-        return { ok: false, code: 'grant_mismatch' }
-      }
-      if (input.grant.expiresAtMs <= nowMs) {
-        return { ok: false, code: 'grant_expired' }
-      }
-      const redeemed = await deps.grantStore.redeem(
-        input.grant.admissionId,
-        input.grant.signature,
-        nowMs,
-      )
-      if (redeemed === 'expired') return { ok: false, code: 'grant_expired' }
-      if (redeemed === 'replayed') return { ok: false, code: 'grant_replayed' }
-      if (redeemed === 'mismatch') return { ok: false, code: 'grant_mismatch' }
-      if (redeemed === 'unknown') return { ok: false, code: 'grant_unknown' }
-      return { ok: true }
-    },
-
-    complete: async (input) => {
-      if (
-        !SAFE_ID.test(input.admissionId) ||
-        ![
-          'success',
-          'provider_4xx',
-          'provider_5xx',
-          'rate_limited',
-          'deadline_exceeded',
-          'transport_error',
-          'response_too_large',
-          'caller_abandoned',
-        ].includes(input.outcome) ||
-        (input.retryAfterMs !== null &&
-          (!Number.isSafeInteger(input.retryAfterMs) ||
-            input.retryAfterMs < 0 ||
-            input.retryAfterMs > 300_000))
-      ) {
-        return false
-      }
-      const record = await deps.grantStore.complete(input.admissionId)
-      if (!record) return false
-      const inFlight = deps.inFlightForPolicy(
-        GOOGLE_PROVIDER_ROUTE_POLICIES[record.grant.routeKey].inFlightPolicyId,
-      )
-      await inFlight?.release(record.inFlightKey, record.inFlightLease)
-      try {
-        await deps.authority.complete(
-          record.grant.permitId,
-          record.authorityRevision,
-          input.outcome,
-          input.retryAfterMs,
+        return capacityDenial(
+          inFlightResult,
+          'in_flight_exhausted',
+          input.deadlineMs,
+          deps.nowMs,
         )
-        return true
-      } catch {
-        return false
       }
+      const quotaResult = await quota.acquire(permit.quotaKey, 1, input.deadlineMs)
+      if (!quotaResult.ok) {
+        await inFlight.release(inFlightKey, inFlightResult.lease)
+        return capacityDenial(
+          quotaResult,
+          'quota_exhausted',
+          input.deadlineMs,
+          deps.nowMs,
+        )
+      }
+      return startReservedPermit(deps, permit, input.deadlineMs, {
+        inFlight,
+        lease: inFlightResult.lease,
+      })
     },
   })
 }
