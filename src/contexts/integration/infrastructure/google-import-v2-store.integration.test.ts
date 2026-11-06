@@ -1301,11 +1301,8 @@ describe('Google import v2 fenced store (real PostgreSQL)', () => {
       },
     })
   })
-  // The table forbids a scrubbed `temporarily_unavailable` row: the outcome
-  // means "the tenant may retry", so the retry state has to survive it. An item
-  // past its deadline cannot be retried at all, so it must end some other way.
-  // These run the real lifecycle sweep and claim reaper against the real table;
-  // the unit tests mock the store and cannot see the CHECK.
+  // Retryable outcomes retain their state to satisfy the real table CHECK.
+  // Expired work can only resume through fresh discovery and confirmation.
   describe('an item the import cannot finish', () => {
     const deadline = () => intent().items[0]!.effectDeadlineAt
     const readItem = async () => {
@@ -1355,7 +1352,7 @@ describe('Google import v2 fenced store (real PostgreSQL)', () => {
         authorize: async () => 'authorized' as const,
       })
 
-    it('ends an item that outlived its deadline through the sweep, with nothing left to retry', async () => {
+    it('offers fresh confirmation for an item that outlived its deadline', async () => {
       await resetIntent()
       const lifecycle = createGoogleImportV2Lifecycle({
         store,
@@ -1375,15 +1372,34 @@ describe('Google import v2 fenced store (real PostgreSQL)', () => {
 
       await expect(readItem()).resolves.toMatchObject({
         status: 'failed',
-        outcomeCode: 'internal_error',
-        connectionId: null,
-        providerAccountSuffix: null,
-        providerLocationSuffix: null,
+        outcomeCode: 'temporarily_unavailable',
+        connectionId: CONNECTION_ID,
+        providerAccountSuffix: 'account-1',
+        providerLocationSuffix: 'location-1',
       })
+      await expect(store.getProgress(ORG_ID, USER_ID, REQUEST_ID)).resolves.toMatchObject(
+        {
+          canRetry: true,
+          items: [expect.objectContaining({ retryable: true, userAction: 'retry' })],
+        },
+      )
+      await expect(
+        store.listRetryCandidates(ORG_ID, USER_ID, REQUEST_ID, deadline()),
+      ).resolves.toMatchObject([{ itemId: ITEM_ID }])
+      await expect(
+        store.listRetryCandidates(ORG_ID, 'another-user', REQUEST_ID, deadline()),
+      ).resolves.toEqual([])
       await expect(retry(deadline())).resolves.toEqual({
         kind: 'rejected',
-        reason: 'not_retryable',
+        reason: 'effect_expired',
       })
+      await expect(readItem()).resolves.toMatchObject({
+        retryRevision: 0,
+        effectDeadlineAt: deadline(),
+      })
+      await expect(
+        db.select().from(outboxEvents).where(eq(outboxEvents.id, RETRY_OUTBOX_ID)),
+      ).resolves.toEqual([])
     })
 
     it('keeps an item whose attempts ran out before its deadline retryable', async () => {
@@ -1549,7 +1565,7 @@ describe('Google import v2 fenced store (real PostgreSQL)', () => {
       })
     })
 
-    it('ends an item whose attempts ran out past its deadline without offering a retry', async () => {
+    it('keeps an item whose attempts ran out past its deadline available for fresh confirmation', async () => {
       await resetIntent()
       const claimedAt = new Date(deadline().getTime() - 30_000)
       const leaseExpiresAt = await claimLastAttempt(claimedAt)
@@ -1559,9 +1575,13 @@ describe('Google import v2 fenced store (real PostgreSQL)', () => {
       expect(reaped).toMatchObject({ completionChecks: 1, claimsLost: 0 })
       await expect(readItem()).resolves.toMatchObject({
         status: 'failed',
-        outcomeCode: 'internal_error',
-        connectionId: null,
-        providerAccountSuffix: null,
+        outcomeCode: 'temporarily_unavailable',
+        connectionId: CONNECTION_ID,
+        providerAccountSuffix: 'account-1',
+      })
+      await expect(retry(leaseExpiresAt)).resolves.toEqual({
+        kind: 'rejected',
+        reason: 'effect_expired',
       })
     })
   })

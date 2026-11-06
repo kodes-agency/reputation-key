@@ -37,7 +37,11 @@ epoch; claim release, takeover and manual Retry advance it. Every acquired claim
 spends one of the revision's five PostgreSQL-held attempts, independent of queue
 delivery counts. Expired or exhausted work returns through the item processor
 for receipt reconciliation and its existing follow-ups. Item failures defer
-only that appointment and do not abort the page.
+only that appointment and do not abort the page. An item past its effect deadline
+ends as retryable `temporarily_unavailable`. Retry opens fresh discovery and asks
+the manager to confirm the Google location again; confirmation creates a new import
+with a new deadline rather than extending or executing the expired work. Before
+the deadline, Retry preserves the existing revision and replay fences.
 
 `infrastructure/google-import-authorization-snapshot.ts` owns the stored
 authorization columns and reconstructs the frozen vector for item reads.

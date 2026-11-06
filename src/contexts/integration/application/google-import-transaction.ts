@@ -16,12 +16,16 @@ import type {
   GoogleImportReferenceStore,
 } from './ports/google-import-reference-store.port'
 import type {
+  GoogleImportV2ItemIntent,
   GoogleImportV2RetryCandidate,
+  GoogleImportV2SagaIntent,
   GoogleImportV2Store,
 } from './ports/google-import-v2-store.port'
 import {
   createGoogleImportReplayDigests,
+  type GoogleImportReplayScope,
   type GoogleImportSemanticItem,
+  type GoogleImportSemanticRequest,
 } from './google-import-replay'
 import type { VersionedHmacKeyring } from '#/shared/security/versioned-hmac-keyring'
 import { planGoogleImportSagaBatches } from './google-import-saga'
@@ -109,6 +113,90 @@ function semanticItem(
     expectedSourceEpoch: claim.candidate.expectedSourceEpoch ?? null,
     expectedProfileVersion: claim.candidate.expectedProfileVersion ?? null,
     profile: semanticProfile(input, claim),
+  }
+}
+
+function orderClaimedCandidates(
+  items: readonly ImportInputItem[],
+  claimedCandidates: readonly ClaimedImportCandidate[],
+  scope: GoogleImportReplayScope,
+): readonly OrderedImportCandidate[] {
+  if (claimedCandidates.length !== items.length) return fail('invalid_reference')
+  const byReference = new Map<string, ClaimedImportCandidate>()
+  for (const candidate of claimedCandidates) {
+    if (
+      byReference.has(candidate.candidateRef) ||
+      candidate.authorization.organizationId !== scope.organizationId ||
+      candidate.authorization.userId !== scope.userId
+    ) {
+      return fail('invalid_reference')
+    }
+    byReference.set(candidate.candidateRef, candidate)
+  }
+  return items.map((item) => {
+    const candidate = byReference.get(item.candidateRef)
+    if (!candidate) return fail('invalid_reference')
+    if (candidate.candidate.eligibility.kind !== item.action) {
+      return fail('invalid_reference')
+    }
+    if (
+      item.action === 'relink' &&
+      candidate.candidate.eligibility.kind === 'relink' &&
+      candidate.candidate.eligibility.propertyId !== item.existingPropertyId
+    ) {
+      return fail('invalid_reference')
+    }
+    return { input: item, claim: candidate }
+  })
+}
+
+function importItemIntent(
+  item: GoogleImportSemanticItem,
+  source: OrderedImportCandidate | undefined,
+  scope: GoogleImportReplayScope,
+  now: Date,
+  idGen: () => string,
+): GoogleImportV2ItemIntent {
+  if (!source) return fail('invalid_reference')
+  const currentAuthorization = source.claim.authorization
+  const vector = currentAuthorization.authorizationVector
+  if (
+    currentAuthorization.organizationId !== scope.organizationId ||
+    currentAuthorization.userId !== scope.userId ||
+    currentAuthorization.connectionId !== item.connectionId ||
+    typeof vector.executionPolicyVersion !== 'string' ||
+    !/^[a-z0-9][a-z0-9._-]{0,31}$/.test(vector.executionPolicyVersion) ||
+    typeof vector.role !== 'string' ||
+    vector.role.length < 1 ||
+    typeof vector.permissionDigest !== 'string' ||
+    !/^[a-f0-9]{64}$/.test(vector.permissionDigest)
+  ) {
+    return fail('invalid_reference')
+  }
+  return {
+    id: idGen(),
+    connectionId: item.connectionId,
+    existingPropertyId: item.existingPropertyId,
+    destinationPropertyId: item.action === 'create' ? idGen() : item.existingPropertyId!,
+    authorization: currentAuthorization,
+    providerAccountSuffix: item.accountId,
+    providerLocationSuffix: item.locationId,
+    googleReviewUri: item.googleReviewUri,
+    googlePrimaryCategory: normalizeGooglePrimaryCategory(
+      source.claim.candidate.primaryCategory,
+    ),
+    expectedConnectionLifecycleVersion: item.expectedConnectionLifecycleVersion,
+    expectedConnectionAccessVersion: item.expectedConnectionAccessVersion,
+    expectedCredentialGeneration: item.expectedCredentialGeneration,
+    expectedSourceEpoch: item.expectedSourceEpoch,
+    expectedProfileVersion: item.expectedProfileVersion,
+    action: item.action,
+    updateExistingProfile: item.profile.updateExistingProfile,
+    propertyName: item.profile.name,
+    propertyAddress: item.profile.address,
+    countryCode: item.profile.countryCode,
+    timezone: item.profile.timezone,
+    effectDeadlineAt: new Date(now.getTime() + EFFECT_DEADLINE_MS),
   }
 }
 
@@ -204,6 +292,68 @@ export function createGoogleImportTransaction(
     return authorization.code === 'runtime_unavailable' ? 'unavailable' : 'denied'
   }
 
+  const claimCandidates = async (
+    identity: Parameters<GoogleImportReferenceStore['claimCandidates']>[0],
+  ): Promise<readonly ClaimedImportCandidate[]> => {
+    let claimed
+    try {
+      claimed = await deps.references.claimCandidates(identity)
+    } catch {
+      return fail('temporarily_unavailable')
+    }
+    if (!claimed.ok) {
+      return fail(
+        claimed.code === 'runtime_unavailable'
+          ? 'temporarily_unavailable'
+          : 'invalid_reference',
+      )
+    }
+    return claimed.candidates
+  }
+
+  const publishSaga = async (
+    intent: GoogleImportV2SagaIntent,
+    semanticRequest: GoogleImportSemanticRequest,
+  ): Promise<Readonly<{ importJobId: string; replayed: boolean }> | null> => {
+    let missingReplayCode: GoogleImportTransactionErrorCode = 'request_conflict'
+    try {
+      if ((await deps.store.commitSaga(intent)) === 'committed') {
+        return { importJobId: intent.id, replayed: false }
+      }
+    } catch (error) {
+      const failureClass = classifyGoogleImportCommitFailure(error)
+      if (failureClass === 'unclassified') {
+        deps.logger.error(
+          { err: error, operation: 'commitSaga', requestId: intent.requestId },
+          'Google import saga commit threw without a classified cause',
+        )
+      }
+      if (failureClass === 'contract_rejected') return fail('contract_rejected')
+      missingReplayCode = 'temporarily_unavailable'
+    }
+
+    let recovered
+    try {
+      recovered = await deps.store.findReplay(intent.organizationId, intent.requestId)
+    } catch {
+      // An unavailable read cannot establish whether the commit succeeded.
+      return null
+    }
+    const scope = {
+      organizationId: intent.organizationId,
+      userId: intent.initiatedBy,
+      requestId: intent.requestId,
+    }
+    if (
+      recovered?.initiatedBy === scope.userId &&
+      recovered.semanticReplay &&
+      replay.verifySemantic(scope, semanticRequest, recovered.semanticReplay)
+    ) {
+      return { importJobId: recovered.importJobId, replayed: true }
+    }
+    return fail(recovered ? 'request_conflict' : missingReplayCode)
+  }
+
   const start = async (
     input: StartPropertyImportV2Input,
     actor: AuthContext,
@@ -249,51 +399,11 @@ export function createGoogleImportTransaction(
           userId: scope.userId,
           requestId: input.requestId,
         }
-        let claimed
-        try {
-          claimed = await deps.references.claimCandidates(identity)
-        } catch {
-          return fail('temporarily_unavailable')
-        }
-        if (!claimed.ok) {
-          return fail(
-            claimed.code === 'runtime_unavailable'
-              ? 'temporarily_unavailable'
-              : 'invalid_reference',
-          )
-        }
+        const claimed = await claimCandidates(identity)
         claimIdentities.push(identity)
-        claimedCandidates.push(...claimed.candidates)
+        claimedCandidates.push(...claimed)
       }
-      if (claimedCandidates.length !== input.items.length) {
-        return fail('invalid_reference')
-      }
-      const byReference = new Map<string, ClaimedImportCandidate>()
-      for (const candidate of claimedCandidates) {
-        if (
-          byReference.has(candidate.candidateRef) ||
-          candidate.authorization.organizationId !== scope.organizationId ||
-          candidate.authorization.userId !== scope.userId
-        ) {
-          return fail('invalid_reference')
-        }
-        byReference.set(candidate.candidateRef, candidate)
-      }
-      const ordered: readonly OrderedImportCandidate[] = input.items.map((item) => {
-        const candidate = byReference.get(item.candidateRef)
-        if (!candidate) return fail('invalid_reference')
-        if (candidate.candidate.eligibility.kind !== item.action) {
-          return fail('invalid_reference')
-        }
-        if (
-          item.action === 'relink' &&
-          candidate.candidate.eligibility.kind === 'relink' &&
-          candidate.candidate.eligibility.propertyId !== item.existingPropertyId
-        ) {
-          return fail('invalid_reference')
-        }
-        return { input: item, claim: candidate }
-      })
+      const ordered = orderClaimedCandidates(input.items, claimedCandidates, scope)
 
       await authorizeEntries(ordered, actor)
       const semanticItems = ordered.map((entry) => semanticItem(entry.input, entry.claim))
@@ -312,51 +422,9 @@ export function createGoogleImportTransaction(
       const now = deps.clock()
       const importJobId = idGen()
       const items = await Promise.all(
-        semanticItems.map(async (item, index) => {
-          const source = ordered[index]
-          if (!source) return fail('invalid_reference')
-          const currentAuthorization = source.claim.authorization
-          const vector = currentAuthorization.authorizationVector
-          if (
-            currentAuthorization.organizationId !== scope.organizationId ||
-            currentAuthorization.userId !== scope.userId ||
-            currentAuthorization.connectionId !== item.connectionId ||
-            typeof vector.executionPolicyVersion !== 'string' ||
-            !/^[a-z0-9][a-z0-9._-]{0,31}$/.test(vector.executionPolicyVersion) ||
-            typeof vector.role !== 'string' ||
-            vector.role.length < 1 ||
-            typeof vector.permissionDigest !== 'string' ||
-            !/^[a-f0-9]{64}$/.test(vector.permissionDigest)
-          ) {
-            return fail('invalid_reference')
-          }
-          return {
-            id: idGen(),
-            connectionId: item.connectionId,
-            existingPropertyId: item.existingPropertyId,
-            destinationPropertyId:
-              item.action === 'create' ? idGen() : item.existingPropertyId!,
-            authorization: currentAuthorization,
-            providerAccountSuffix: item.accountId,
-            providerLocationSuffix: item.locationId,
-            googleReviewUri: item.googleReviewUri,
-            googlePrimaryCategory: normalizeGooglePrimaryCategory(
-              source.claim.candidate.primaryCategory,
-            ),
-            expectedConnectionLifecycleVersion: item.expectedConnectionLifecycleVersion,
-            expectedConnectionAccessVersion: item.expectedConnectionAccessVersion,
-            expectedCredentialGeneration: item.expectedCredentialGeneration,
-            expectedSourceEpoch: item.expectedSourceEpoch,
-            expectedProfileVersion: item.expectedProfileVersion,
-            action: item.action,
-            updateExistingProfile: item.profile.updateExistingProfile,
-            propertyName: item.profile.name,
-            propertyAddress: item.profile.address,
-            countryCode: item.profile.countryCode,
-            timezone: item.profile.timezone,
-            effectDeadlineAt: new Date(now.getTime() + EFFECT_DEADLINE_MS),
-          }
-        }),
+        semanticItems.map(async (item, index) =>
+          importItemIntent(item, ordered[index], scope, now, idGen),
+        ),
       )
 
       // Close authorization/profile races before publishing a durable dispatch intent.
@@ -378,60 +446,14 @@ export function createGoogleImportTransaction(
         batches,
         now,
       }
-      let committedResult
-      try {
-        committedResult = await deps.store.commitSaga(intent)
-      } catch (error) {
-        const failureClass = classifyGoogleImportCommitFailure(error)
-        if (failureClass === 'unclassified') {
-          deps.logger.error(
-            { err: error, operation: 'commitSaga', requestId: input.requestId },
-            'Google import saga commit threw without a classified cause',
-          )
-        }
-        if (failureClass === 'contract_rejected') {
-          return fail('contract_rejected')
-        }
-
-        let recovered
-        try {
-          recovered = await deps.store.findReplay(scope.organizationId, input.requestId)
-        } catch {
-          // The commit outcome is ambiguous. Preserve the bounded claims until
-          // expiry rather than permitting overlapping work.
-          releaseClaims = false
-          return fail('temporarily_unavailable')
-        }
-        if (
-          recovered?.initiatedBy === scope.userId &&
-          recovered.semanticReplay &&
-          replay.verifySemantic(scope, semanticRequest, recovered.semanticReplay)
-        ) {
-          await consumeClaims()
-          return { importJobId: recovered.importJobId, replayed: true }
-        }
-        return fail(recovered ? 'request_conflict' : 'temporarily_unavailable')
-      }
-      if (committedResult === 'conflict') {
-        let recovered
-        try {
-          recovered = await deps.store.findReplay(scope.organizationId, input.requestId)
-        } catch {
-          releaseClaims = false
-          return fail('temporarily_unavailable')
-        }
-        if (
-          recovered?.initiatedBy === scope.userId &&
-          recovered.semanticReplay &&
-          replay.verifySemantic(scope, semanticRequest, recovered.semanticReplay)
-        ) {
-          await consumeClaims()
-          return { importJobId: recovered.importJobId, replayed: true }
-        }
-        return fail('request_conflict')
+      const result = await publishSaga(intent, semanticRequest)
+      if (result === null) {
+        // Preserve the bounded claims until expiry when the commit is ambiguous.
+        releaseClaims = false
+        return fail('temporarily_unavailable')
       }
       await consumeClaims()
-      return { importJobId, replayed: false }
+      return result
     } finally {
       if (releaseClaims) {
         for (const identity of claimIdentities) {
@@ -445,11 +467,12 @@ export function createGoogleImportTransaction(
     input: RetryPropertyImportItemInput,
     actor: AuthContext,
   ): Promise<
-    Readonly<{
-      importJobId: string
-      retryRevision: number
-      replayed: boolean
-    }>
+    | Readonly<{
+        importJobId: string
+        retryRevision: number
+        replayed: boolean
+      }>
+    | Readonly<{ confirmationRequired: true }>
   > => {
     const scope = replayScope(actor, input.retryRequestId)
     let result
@@ -487,8 +510,9 @@ export function createGoogleImportTransaction(
       case 'request_conflict':
       case 'stale_revision':
       case 'not_retryable':
-      case 'effect_expired':
         return fail('request_conflict')
+      case 'effect_expired':
+        return { confirmationRequired: true }
     }
   }
 

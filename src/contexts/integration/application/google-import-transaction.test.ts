@@ -454,25 +454,29 @@ describe('Google import transaction', () => {
     },
   )
 
-  it('recovers a committed intent after an ambiguous commit response', async () => {
-    const fixture = setup()
-    fixture.commitSaga.mockImplementationOnce(async (intent) => {
-      fixture.replays.set(`${intent.organizationId}:${intent.requestId}`, {
-        importJobId: intent.id,
-        initiatedBy: intent.initiatedBy,
-        wireReplay: intent.wireReplay,
-        semanticReplay: intent.semanticReplay,
+  it.each(['throw', 'conflict'] as const)(
+    'recovers a committed intent after %s',
+    async (outcome) => {
+      const fixture = setup()
+      fixture.commitSaga.mockImplementationOnce(async (intent) => {
+        fixture.replays.set(`${intent.organizationId}:${intent.requestId}`, {
+          importJobId: intent.id,
+          initiatedBy: intent.initiatedBy,
+          wireReplay: intent.wireReplay,
+          semanticReplay: intent.semanticReplay,
+        })
+        if (outcome === 'throw') throw new Error('connection dropped after commit')
+        return 'conflict'
       })
-      throw new Error('connection dropped after commit')
-    })
 
-    await expect(fixture.transaction.start(startInput(), actor)).resolves.toEqual({
-      importJobId: JOB_ID,
-      replayed: true,
-    })
-    expect(fixture.consumeCandidateClaims).toHaveBeenCalledTimes(1)
-    expect(fixture.releaseCandidateClaims).not.toHaveBeenCalled()
-  })
+      await expect(fixture.transaction.start(startInput(), actor)).resolves.toEqual({
+        importJobId: JOB_ID,
+        replayed: true,
+      })
+      expect(fixture.consumeCandidateClaims).toHaveBeenCalledTimes(1)
+      expect(fixture.releaseCandidateClaims).not.toHaveBeenCalled()
+    },
+  )
 
   it('classifies a strict outbox-schema rejection as non-retryable', async () => {
     const fixture = setup()
@@ -675,6 +679,29 @@ describe('Google import transaction', () => {
       properties: [],
       requireAccessToken: false,
     })
+  })
+
+  it('asks for fresh confirmation when retry work has expired', async () => {
+    const fixture = setup()
+    fixture.retryItem.mockResolvedValueOnce({
+      kind: 'rejected',
+      reason: 'effect_expired',
+    })
+    await expect(
+      fixture.transaction.retry(
+        {
+          itemId: ITEM_ID,
+          retryRequestId: RETRY_REQUEST_ID,
+          expectedRetryRevision: 0,
+        },
+        actor,
+      ),
+    ).resolves.toEqual({ confirmationRequired: true })
+    expect(fixture.commitSaga).not.toHaveBeenCalled()
+    await fixture.transaction.start(startInput(), actor)
+    expect(fixture.sagaIntents).toHaveLength(1)
+    expect(fixture.sagaIntents[0]?.requestId).toBe(REQUEST_ID)
+    expect(fixture.sagaIntents[0]?.batches[0]?.items[0]?.id).not.toBe(ITEM_ID)
   })
 
   it('maps stale retry revisions and unavailable authorization safely', async () => {

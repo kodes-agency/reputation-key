@@ -8,6 +8,7 @@ import type {
   ImportProgressItemDto,
 } from '#/contexts/integration/application/public-api'
 import { propertyKeys } from '#/shared/queries/query-keys'
+import type { TenantScope } from '#/shared/queries/tenant-scope'
 import type {
   GoogleImportFns,
   GoogleImportManagerProps,
@@ -77,6 +78,7 @@ function useImportItemRetry(
   progress: ImportProgressDto | undefined,
   retryPropertyImportItem: Props['importFns']['retryPropertyImportItem'],
   refresh: () => Promise<ImportProgressDto | null>,
+  confirmLocation: () => Promise<void>,
 ) {
   const retryRequests = useRef(new Map<string, RetryRequest>())
   return useMutation({
@@ -97,8 +99,12 @@ function useImportItemRetry(
           },
         })
       try {
-        await sendRetryWithOneReplay(send)
+        const result = await sendRetryWithOneReplay(send)
         retryRequests.current.delete(item.itemId)
+        if ('confirmationRequired' in result) {
+          await confirmLocation()
+          return
+        }
         await refresh()
       } catch {
         const recovered = await refresh()
@@ -113,6 +119,44 @@ function useImportItemRetry(
       }
     },
   })
+}
+
+function useImportCancellation(
+  activeImportId: string | null,
+  importFns: Props['importFns'],
+  refresh: () => Promise<ImportProgressDto | null>,
+  scope: TenantScope,
+) {
+  const queryClient = useQueryClient()
+  const { mutate: cancelImport, isPending: isCancelling } = useMutation({
+    mutationFn: async () => {
+      if (!activeImportId) return
+      try {
+        const cancelled = await importFns.cancelPropertyImportV2({
+          data: { importJobId: activeImportId },
+        })
+        queryClient.setQueryData(
+          googleImportStatusQuery(
+            scope,
+            activeImportId,
+            importFns.getPropertyImportV2Status,
+          ).queryKey,
+          cancelled,
+        )
+      } catch {
+        const recovered = await refresh()
+        if (!recovered || !isImportParentTerminal(recovered.status)) {
+          toast.error(
+            'The import could not be cancelled. Refresh its status and try again.',
+          )
+        }
+      }
+    },
+  })
+  const cancel = useCallback(() => {
+    if (!isCancelling && activeImportId) cancelImport()
+  }, [activeImportId, cancelImport, isCancelling])
+  return { cancel, isCancelling }
 }
 
 export function useGoogleImportProgress({
@@ -172,33 +216,28 @@ export function useGoogleImportProgress({
     }
   }, [activeImportId, getImportStatus, queryClient, scope])
 
+  const confirmLocation = useCallback(async () => {
+    await navigate({ to: '/properties/import-google', search: {} })
+    toast.info('Confirm the Google location again to retry.')
+  }, [navigate])
+
   const {
     mutate: retryItem,
     isPending: retryPending,
     variables: retryVariables,
-  } = useImportItemRetry(progressQuery.data, importFns.retryPropertyImportItem, refresh)
+  } = useImportItemRetry(
+    progressQuery.data,
+    importFns.retryPropertyImportItem,
+    refresh,
+    confirmLocation,
+  )
 
-  const { mutate: cancelImport, isPending: isCancelling } = useMutation({
-    mutationFn: async () => {
-      if (!activeImportId) return
-      try {
-        const cancelled = await importFns.cancelPropertyImportV2({
-          data: { importJobId: activeImportId },
-        })
-        queryClient.setQueryData(
-          googleImportStatusQuery(scope, activeImportId, getImportStatus).queryKey,
-          cancelled,
-        )
-      } catch {
-        const recovered = await refresh()
-        if (!recovered || !isImportParentTerminal(recovered.status)) {
-          toast.error(
-            'The import could not be cancelled. Refresh its status and try again.',
-          )
-        }
-      }
-    },
-  })
+  const { cancel, isCancelling } = useImportCancellation(
+    activeImportId,
+    importFns,
+    refresh,
+    scope,
+  )
 
   const retry = useCallback(
     (item: ImportProgressItemDto) => {
@@ -206,9 +245,6 @@ export function useGoogleImportProgress({
     },
     [retryItem, retryPending],
   )
-  const cancel = useCallback(() => {
-    if (!isCancelling && activeImportId) cancelImport()
-  }, [activeImportId, cancelImport, isCancelling])
 
   return {
     progress: progressQuery.data ?? null,
