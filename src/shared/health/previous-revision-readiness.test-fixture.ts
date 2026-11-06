@@ -6,9 +6,10 @@ import { ModuleKind, transpileModule } from 'typescript'
 // Pin the released reader, so committing the compatibility change cannot
 // silently turn the rollout proof into another test of the new reader.
 const revision = '088ef5e353e8cd70efd3a49f56c4e815f14fc65d'
+const compatibilityRevision = 'dc00ff7df760fe559cbdf1d94660c85662d6698b'
 
-function source(path: string): string {
-  return execFileSync('git', ['show', `${revision}:${path}`], { encoding: 'utf8' })
+function source(path: string, sourceRevision = revision): string {
+  return execFileSync('git', ['show', `${sourceRevision}:${path}`], { encoding: 'utf8' })
 }
 
 export const previousJournal = JSON.parse(source('drizzle/meta/_journal.json')) as {
@@ -20,6 +21,11 @@ export const previousJournal = JSON.parse(source('drizzle/meta/_journal.json')) 
     breakpoints: boolean
   }[]
 }
+
+// The compatibility image shipped before later releases appended migrations.
+export const compatibilityJournal = JSON.parse(
+  source('drizzle/meta/_journal.json', compatibilityRevision),
+) as typeof previousJournal
 
 /** Execute the released probe and query, isolating only filesystem and I/O. */
 export function previousRevisionReadiness(

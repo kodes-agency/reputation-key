@@ -166,6 +166,23 @@ Jobs, outbox delivery, health, and observability expose infrastructure mechanics
 Contexts own handler meaning, source transactions, recovery policy, content
 classification, and mutation authority.
 
+`jobs/work-items.server.ts` exposes the platform-owned work ledger. A source
+command schedules IDs-only work in its own transaction. Adopters register a
+kind handler. Before authorization the worker resolves the queue's `workId`
+to its ledger Organization and subject, and checks that the kind matches.
+The kind's scope resolver derives Property scope from that tenant-bound
+`subjectId`; queue-supplied scope is ignored. The existing policy gate runs
+before the handler can claim a lease. `complete` commits database effects and the
+receipt together; external effects retain their provider fences. `read_back`
+work never automatically resends after an expired lease or failed handler.
+The worker's independent minute poll fairly rotates due tenants even when
+Redis loses its jobs or schedulers; queue acceptance spends no attempt.
+Unfinished rows and settled idempotency receipts remain until their owner
+explicitly retires them. `pnpm ops work` lists and inspects by Organization,
+and retries, cancels or discards with a named operator, reason and `--apply`.
+Retry refuses uncertain effects and active leases. Existing jobs keep their
+delivery path until their owning handlers adopt the ledger.
+
 ## Domain and boundaries
 
 `shared/domain/` contains pure cross-context identifiers, result/error primitives,

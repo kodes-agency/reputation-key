@@ -7,11 +7,16 @@ import { getEnv } from '#/shared/config/env'
 import { acquireTestLease, type TestLease } from '#/shared/testing/test-environment-lease'
 import { migrateJournal } from '#/shared/db/migrate-journal.server'
 import {
+  compatibilityJournal,
   previousJournal,
   previousRevisionReadiness,
 } from './previous-revision-readiness.test-fixture'
 
 const mocks = vi.hoisted(() => ({ query: vi.fn() }))
+vi.mock('node:fs', async (importOriginal) => {
+  const fs = await importOriginal<typeof import('node:fs')>()
+  return { ...fs, readFileSync: vi.fn(fs.readFileSync) }
+})
 vi.mock('#/shared/db/pool', async (importOriginal) => ({
   ...(await importOriginal<typeof import('#/shared/db/pool')>()),
   getPool: () => ({ query: mocks.query }),
@@ -23,6 +28,19 @@ let lease: TestLease
 let database: string
 let folder: string
 
+function copyCompatibilityMigrations(destination: string): void {
+  cpSync(join(process.cwd(), 'drizzle'), destination, { recursive: true })
+  writeFileSync(
+    join(destination, 'meta/_journal.json'),
+    JSON.stringify(compatibilityJournal),
+  )
+}
+
+function compatibilityReady(): Promise<boolean> {
+  vi.mocked(readFileSync).mockReturnValueOnce(JSON.stringify(compatibilityJournal))
+  return isMigrationJournalMatched()
+}
+
 beforeAll(async () => {
   maintenance = await acquireTestLease(getEnv().DATABASE_URL)
   database = `test_readiness_${randomUUID().replaceAll('-', '')}`
@@ -31,7 +49,7 @@ beforeAll(async () => {
   url.pathname = `/${database}`
   lease = await acquireTestLease(url.toString())
   folder = mkdtempSync(join(tmpdir(), 'readiness-rollout-'))
-  cpSync(join(process.cwd(), 'drizzle'), folder, { recursive: true })
+  copyCompatibilityMigrations(folder)
   mocks.query.mockImplementation((sql: string) => lease.pool.query(sql))
 })
 
@@ -76,25 +94,26 @@ it('rolls out compatibility before expands while retaining the released reader a
   await seedReleasedJournal(lease.pool, folder)
   const previousReady = previousRevisionReadiness((sql) => lease.pool.query(sql))
   await expect(previousReady()).resolves.toBe(true)
-  await expect(isMigrationJournalMatched()).resolves.toBe(true)
+  await expect(isMigrationJournalMatched()).resolves.toBe(false)
+  await expect(compatibilityReady()).resolves.toBe(true)
   const client = await lease.pool.connect()
   try {
     await migrateJournal(client, folder)
     await expect(previousReady()).resolves.toBe(true)
-    await expect(isMigrationJournalMatched()).resolves.toBe(true)
+    await expect(compatibilityReady()).resolves.toBe(true)
 
     // Only the compatibility reader remains serving during the next predeploy.
     appendMigration('expand_records', 'CREATE TABLE records (value int, retired int)')
     await migrateJournal(client, folder)
     await expect(previousReady()).resolves.toBe(false)
-    await expect(isMigrationJournalMatched()).resolves.toBe(true)
+    await expect(compatibilityReady()).resolves.toBe(true)
 
     appendMigration(
       'contract_records',
       `-- migrate:contract ${'a'.repeat(40)}\nALTER TABLE records DROP retired;`,
     )
     await migrateJournal(client, folder)
-    await expect(isMigrationJournalMatched()).resolves.toBe(false)
+    await expect(compatibilityReady()).resolves.toBe(false)
     expect(
       (
         await lease.pool.query(
@@ -123,7 +142,7 @@ it.each([
     const client = await caseLease.pool.connect()
     mocks.query.mockImplementation((query: string) => caseLease.pool.query(query))
     const contractFolder = mkdtempSync(join(tmpdir(), 'readiness-contract-'))
-    cpSync(join(process.cwd(), 'drizzle'), contractFolder, { recursive: true })
+    copyCompatibilityMigrations(contractFolder)
     try {
       await seedReleasedJournal(caseLease.pool, contractFolder)
       await client.query(`CREATE SCHEMA archive;
@@ -142,7 +161,7 @@ it.each([
       })
       writeFileSync(path, JSON.stringify(journal))
       writeFileSync(join(contractFolder, `${tag}.sql`), sql)
-      await expect(isMigrationJournalMatched()).resolves.toBe(true)
+      await expect(compatibilityReady()).resolves.toBe(true)
       expect(
         (await client.query('INSERT INTO records DEFAULT VALUES RETURNING value')).rows,
       ).toEqual([{ value: 7 }])
@@ -154,7 +173,7 @@ it.each([
         (await client.query('SELECT to_regclass($1) AS relation', [relation])).rows[0]
           .relation,
       ).not.toBeNull()
-      await expect(isMigrationJournalMatched()).resolves.toBe(true)
+      await expect(compatibilityReady()).resolves.toBe(true)
       expect(
         (await client.query('INSERT INTO records DEFAULT VALUES RETURNING value')).rows,
       ).toEqual([{ value: 7 }])
@@ -171,7 +190,7 @@ it.each([
           )
         ).rows,
       ).toEqual([{ is_contract: true }])
-      await expect(isMigrationJournalMatched()).resolves.toBe(false)
+      await expect(compatibilityReady()).resolves.toBe(false)
       if (removesDefault) {
         await expect(
           client.query('INSERT INTO records DEFAULT VALUES'),
