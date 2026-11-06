@@ -98,18 +98,16 @@ Property/location metadata and review source content, including reviewer
 information, per-review rating, review text and language, review time, Google
 identifiers, and current reply content/state. The Service also stores
 manager-authored reply workflow and reconciliation evidence. Per-review Google
-ratings remain part of the short-lived review source. Reporting currently holds
-23,349 separate copies of per-review star values with no enforced expiry. These
-copies are being removed.
+ratings remain part of the short-lived review source. Reporting still keeps separate per-review star values with no enforced expiry.
+These copies await removal.
 
 Google-controlled source content is kept separately from longer-lived
 application records. Its intended limit is 30 calendar days from the last
 successful fetch; a new successful fetch restarts that period. Expired content
 is withheld from ordinary reads and external processing, but automatic deletion
 of the stored content is not active yet. Disconnecting Google or letting the
-connection lapse does not erase it early or restart the period. Reporting
-currently holds 23,349 separate copies of per-review star values with no
-enforced expiry. These copies are being removed.
+connection lapse does not erase it early or restart the period. Reporting still keeps separate per-review star values with no enforced expiry.
+These copies await removal.
 
 See the separate [Google Business Profile Access Disclosure](/privacy/google-access-disclosure).
 
@@ -327,8 +325,9 @@ reason. The reason shows only inside the Service.
 Review Analysis keeps topics, how strongly a guest felt, a short cause, the
 numbers of the sentences each result comes from, a flag for whether those
 sentences name a team member or someone else (never the name), an Urgent
-reason, and the business category Google lists for the Property, as a hint
-only. It does not copy the review text. Guest voice
+reason, and the business category Google lists for the Property. The category
+is used as AI context and to pick example words, and is shown during Google import.
+Review Analysis does not copy the review text. Guest voice
 reads guests' words from the review text the Service holds when a manager opens
 the page. It does not store them or send them by email.
 
@@ -355,7 +354,7 @@ repository:
 | Published outbox facts, consumer receipts, sync/refresh runs, inbound webhook receipts | 30 days                                                                                                                                                                                    |
 | Terminal notifications/email/digest evidence                                           | 90 days; open retry work is retained                                                                                                                                                       |
 | Recent Activity                                                                        | 90 days                                                                                                                                                                                    |
-| Policy-decision and significant-action records                                         | 365 days under the current engineering policy                                                                                                                                              |
+| Operational Action History                                                             | Operational Action History has no active deletion rule                                                                                                                                     |
 | Google-controlled source content                                                       | Per-row source-policy expiry; intended maximum 30 days from latest fetch                                                                                                                   |
 | Optional masked Bug layout                                                             | Application expiry no later than 30 days after the report is submitted, then deleted by a daily clean-up; kept in the Service's own database and not sent to the error-monitoring provider |
 | Screenshot attached to a beta feedback report                                          | Not kept by the Service; sent to the error-monitoring provider with the report and kept by the provider with it                                                                            |
@@ -394,7 +393,7 @@ The accepted rules for the remaining information classes are:
   history are kept for the life of the Organization and purged at closure;
 - Contact Requests are disabled;
 - provider reply content follows the 30-day source-content policy;
-- de-identified AI derivatives are used and shown for no more than 24 months and are withheld immediately when authorization is withdrawn. The results listed in section 5, except the stored business category, are deleted from the Service when they are 24 months old;
+- de-identified AI derivatives are used and shown for no more than 24 months and are withheld immediately when authorization is withdrawn. The results listed in section 5, except the stored business category, expire after 730 days and are deleted by daily cleanup. A group of similar causes expires with its newest result and is deleted by daily cleanup once no retained contribution refers to it. Withdrawal immediately denies access; background processing then purges stored AI results;
 - application logs are content-minimized and held by the hosting provider for
   no more than 30 days;
 - there is no quarantine retention class because no quarantine tables remain;
@@ -565,7 +564,10 @@ Version 3.4 (2026-11-03) adds the manager-only marker for staff who have joined 
 Version 3.5 (2026-11-06) corrects the descriptions of Google disconnection,
 source-content deletion, Reporting's separate per-review star copies, AI analysis
 records and offline quality checks. It clarifies the stored business category's
-exception to the 24-month AI-result limit. Database backups and point-in-time
+use as AI context, its display during Google import and its exception to the
+730-day AI-result limit. Results expire after 730 days; daily cleanup deletes
+them and expired cause groups once no retained contribution refers to them.
+Operational Action History has no active deletion rule. Database backups and point-in-time
 recovery are enabled; automatic erasure recording and replay after restore are
 not active. It takes effect on publication without a waiting period, on the
 accountable owner's decision for the two closed-beta Organizations the owner

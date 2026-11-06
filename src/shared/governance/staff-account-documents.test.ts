@@ -7,10 +7,10 @@ const legalBody = (file: string) =>
     .replace(/\s+/gu, ' ')
 
 describe('current notice corrections', () => {
-  it('discloses stored Reporting copies and inactive source deletion and erasure replay', () => {
+  it('discloses stored Reporting copies, current AI cleanup and inactive source deletion', () => {
     const privacy = legalBody('privacy-notice')
     expect(
-      privacy.match(/Reporting currently holds 23,349 separate copies/gu),
+      privacy.match(/Reporting still keeps separate per-review star values/gu),
     ).toHaveLength(2)
     expect(privacy).toContain('per-review rating, review text and language')
     expect(privacy).toContain('a new successful fetch restarts that period')
@@ -24,6 +24,11 @@ describe('current notice corrections', () => {
       'Restoring an older backup can therefore bring back information erased after that backup was made.',
     )
     expect(privacy).toContain('except the stored business category')
+    expect(privacy).toContain('expire after 730 days and are deleted by daily cleanup')
+    expect(privacy).toContain('Operational Action History has no active deletion rule')
+    expect(privacy).toContain('These copies await removal.')
+    expect(privacy).not.toContain('23,349')
+    expect(privacy).not.toContain('365 days under the current engineering policy')
     expect(privacy).not.toContain('The stored business category is cleared')
     expect(privacy).not.toContain('daily counts of reviews by star rating')
     expect(privacy).not.toContain('the answers kept for quality testing')

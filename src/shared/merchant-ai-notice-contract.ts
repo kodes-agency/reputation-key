@@ -154,7 +154,7 @@ export const MERCHANT_AI_NOTICE_PAYLOAD: MerchantAiNoticePayload = Object.freeze
         'Cause. A short note on the specific thing and what was wrong or right, such as "air conditioning" and "not working". Each part is one to three lowercase words, which RepKey asks the provider to write in English. RepKey refuses a cause that repeats four or more words of the review in a row, or that contains a word the review writes with a capital letter, such as a name, brand or place. A name written in lowercase can pass that check. Similar causes are grouped within one property, by fixed rules. A manager can rename, merge or hide a group.',
         'Evidence and names. The numbers of the sentences each result comes from, and whether a sentence names a team member, names someone else, or names nobody. RepKey keeps no sentence and no name.',
         'Urgent. The AI marks a review Urgent when a guest reports a risk to safety, a risk to health, discrimination, or a legal threat. RepKey keeps which of the four it is, and no details. It also keeps a level for each review (Urgent, High, Medium or Low), worked out from the answer and the star rating. The Inbox shows that level as a suggestion only.',
-        "Also kept. The business category Google lists for the property: used only to pick example words, never shown, and removed when Google is disconnected. Manager corrections: kept beside the AI's answer, dropped when the guest edits the review, never sent to a provider.",
+        "Also kept. The business category Google lists for the property: used as AI context and to pick example words, shown during Google import, and removed when Google is disconnected. Manager corrections: kept beside the AI's answer, dropped when the guest edits the review, never sent to a provider.",
       ]),
       links: Object.freeze([]),
     }),
@@ -206,8 +206,8 @@ export const MERCHANT_AI_NOTICE_PAYLOAD: MerchantAiNoticePayload = Object.freeze
       title: 'Limits, retention, and revocation',
       body: Object.freeze([
         'Review analysis and reply suggestions accept at most 16 KiB of source and use a 70-second outer attempt deadline. Property trends accept at most 64 KiB and use a 100-second outer attempt deadline. Oversized or unsupported input is skipped rather than truncated into a different meaning.',
-        'RepKey uses and shows raw review source for up to 30 days after it was last fetched from Google, and de-identified insights for up to 24 months. It deletes the results listed under "What review analysis keeps", except the stored business category, when they are 24 months old. A group of similar causes is deleted when the newest result in it is 24 months old.',
-        'Turning a capability off immediately denies new work, fences in-flight results, hides its prior outputs, and purges unpublished AI-assisted reply drafts. Erasure immediately denies access and purges persisted local AI content; an already-authorized in-memory attempt is discarded by its outer deadline. Both cover everything listed under "What review analysis keeps".',
+        'RepKey uses and shows raw review source for up to 30 days after it was last fetched from Google, and de-identified insights for up to 24 months. The results listed under "What review analysis keeps", except the stored business category, expire after 730 days and are deleted by daily cleanup. A group of similar causes expires with its newest result and is deleted by daily cleanup once no retained contribution refers to it.',
+        'Turning a capability off immediately denies new work, fences in-flight results and hides its prior outputs. Turning Reply Drafting off withdraws eligible unedited AI drafts; drafts already dispatched or failed at publication can keep their text. Withdrawal immediately denies access; background processing then purges stored AI results. An already-authorized in-memory attempt is discarded by its outer deadline. Both cover the results listed under "What review analysis keeps", except the stored business category.',
       ]),
       links: Object.freeze([
         Object.freeze({ label: 'Privacy contact', target: '/privacy#contact' }),
@@ -265,7 +265,7 @@ export const MERCHANT_AI_NOTICE_PAYLOAD: MerchantAiNoticePayload = Object.freeze
       id: 'repkey_derivatives',
       label: 'RepKey de-identified insights',
       value:
-        'Up to 24 months. The results listed under "What review analysis keeps" are deleted then',
+        'The results listed under "What review analysis keeps", except the stored business category, expire after 730 days and are deleted by daily cleanup',
     }),
     Object.freeze({
       id: 'provider_monitoring',
@@ -289,7 +289,7 @@ export const MERCHANT_AI_NOTICE_PAYLOAD: MerchantAiNoticePayload = Object.freeze
 noticePayloadSchema.parse(MERCHANT_AI_NOTICE_PAYLOAD)
 
 export const MERCHANT_AI_NOTICE_DIGEST =
-  '0bc68a446ee42ed76a15575ad44b090480742a3187184a8a19157dd0492e14d9' as const
+  'a686609cd7b9a68984f9a54909f3d8a1846a95b10b6bff586f8262bdd1e0b073' as const
 
 /** The notice a consent was recorded under, by version and digest. */
 export type MerchantAiNoticeReference = Readonly<{

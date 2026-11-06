@@ -82,7 +82,7 @@ describe('Merchant AI notice contract', () => {
       ),
     )
     expect(MERCHANT_AI_NOTICE_DIGEST).toBe(
-      '0bc68a446ee42ed76a15575ad44b090480742a3187184a8a19157dd0492e14d9',
+      'a686609cd7b9a68984f9a54909f3d8a1846a95b10b6bff586f8262bdd1e0b073',
     )
   })
 
@@ -268,4 +268,32 @@ it('preserves the actual previous payload and its historical drafting-only prede
   expect(noticeDigestOf(previous)).toBe(
     'dadad7b81dbda360678fc57f7265b104c7311cbc213f877f32306c53b4852a5e',
   )
+})
+
+it('states category use, daily cleanup and withdrawal limits in the served notice', () => {
+  const text = MERCHANT_AI_NOTICE_PAYLOAD.sections
+    .flatMap((section) => section.body)
+    .join(' ')
+  expect(text).toContain(
+    'used as AI context and to pick example words, shown during Google import, and removed when Google is disconnected',
+  )
+  expect(text).not.toContain('used only to pick example words, never shown')
+  expect(text).toContain('expire after 730 days and are deleted by daily cleanup')
+  expect(text).toContain('once no retained contribution refers to it')
+  expect(text).toContain(
+    'Turning Reply Drafting off withdraws eligible unedited AI drafts',
+  )
+  expect(text).toContain(
+    'drafts already dispatched or failed at publication can keep their text',
+  )
+  expect(text).toContain(
+    'Withdrawal immediately denies access; background processing then purges stored AI results',
+  )
+  expect(text).toContain(
+    'Both cover the results listed under "What review analysis keeps", except the stored business category',
+  )
+  expect(MERCHANT_AI_NOTICE_PAYLOAD.retentionAndRevocation[1]?.value).toContain(
+    'except the stored business category',
+  )
+  expect(text).not.toContain('purges unpublished AI-assisted reply drafts')
 })

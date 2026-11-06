@@ -11,7 +11,7 @@ export const MERCHANT_AI_NOTICE_ANNOUNCEMENTS: Readonly<
     points: [
       'Review analysis does not keep separate daily counts of reviews by star rating.',
       'Quality checks use an offline scorer on test material or recorded answers, without sending reviews to an AI provider.',
-      'The stored business category is excepted from the 24-month analysis-result limit.',
+      'Analysis results expire after 730 days and are deleted by daily cleanup. The stored business category is excepted.',
       'Existing AI choices carry over automatically. You can turn them off at any time in AI settings.',
     ],
   },
