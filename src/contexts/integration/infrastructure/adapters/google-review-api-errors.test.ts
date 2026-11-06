@@ -54,4 +54,50 @@ describe('Google call errors at the Review boundary', () => {
       expect(classifyPublicationFailure(error)).toBe(outcome)
     },
   )
+
+  it.each([400, 404])(
+    'retries an incomplete response with HTTP %i instead of parking the snapshot',
+    (providerStatus) => {
+      const error = executorErrorToReviewApiError({
+        code: 'upstream_error',
+        executionCode: 'response_too_large',
+        dispatch: 'answered',
+        providerStatus,
+        retryAfterMs: 5_000,
+      })
+
+      expect(error).toMatchObject({
+        code: 'provider_unavailable',
+        recoverable: true,
+        retryAfterMs: 5_000,
+        failure: {
+          executionCode: 'response_too_large',
+          dispatch: 'answered',
+          providerStatus,
+        },
+      })
+    },
+  )
+
+  it('drops arbitrary provider content at the Review boundary', () => {
+    const error = executorErrorToReviewApiError({
+      code: 'upstream_error',
+      dispatch: 'answered',
+      providerStatus: 404,
+      providerErrorStatus: 'PRIVATE_CUSTOMER_VALUE',
+      message: 'private customer content',
+      body: { error: { status: 'NOT_FOUND', message: 'private resource' } },
+    })
+
+    expect(error).toMatchObject({
+      code: 'provider_rejected',
+      failure: {
+        executionCode: null,
+        dispatch: 'answered',
+        providerStatus: 404,
+        providerErrorStatus: null,
+      },
+    })
+    expect(`${error.message} ${JSON.stringify(error)}`).not.toMatch(/private/iu)
+  })
 })
