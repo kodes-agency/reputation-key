@@ -64,7 +64,7 @@ describe('ledger scope at the dispatch gate', () => {
       subjectId: work.subjectId,
     })
     expect(refreshPolicy).toHaveBeenCalledOnce()
-    expect(handler).toHaveBeenCalledWith(queued)
+    expect(handler).toHaveBeenCalledWith(queued, expect.any(AbortSignal))
     expect(queued.data).toEqual({ workId: 'work-1' })
   })
 

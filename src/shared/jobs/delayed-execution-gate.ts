@@ -44,12 +44,13 @@ import {
 } from '#/shared/auth/execution-policy'
 import type { ConsumerEvent } from '#/shared/outbox/envelope'
 import { getLogger } from '#/shared/observability/logger'
-import { GateDenyRetryError, JobTimeoutError, UnknownJobError } from './errors'
+import { GateDenyRetryError, UnknownJobError } from './errors'
 import type { GateDeniedExecutionKind, GateDeniedResult } from './gate-denial'
 import { jobTimeoutMs } from './job-policy'
 import type { JobRegistry } from './registry'
 import type { WorkItems } from './work-items.server'
 import { executionKindOf } from './schedule-firing'
+import { runJobWithDeadline } from './job-deadline.server'
 
 /**
  * Sentinel organization for tenant_cross/none-scope work that has no org at
@@ -377,33 +378,6 @@ export async function gateDispatcherConsumer(
 // ── Gated worker dispatch ────────────────────────────────────────────
 
 /**
- * BQC-3.6: enforce the catalogue-declared job timeout. BullMQ v5 removed the
- * job-level `timeout` option, so the race lives here. The handler promise is
- * NOT cancelled on timeout (no AbortController threading) — handlers must
- * stay idempotent under a retry that races a zombie execution.
- */
-async function withJobTimeout<TResult>(
-  jobName: string,
-  timeoutMs: number,
-  work: Promise<TResult>,
-): Promise<TResult> {
-  let timer: ReturnType<typeof setTimeout> | undefined
-  try {
-    return await Promise.race([
-      work,
-      new Promise<never>((_, reject) => {
-        timer = setTimeout(
-          () => reject(new JobTimeoutError(jobName, timeoutMs)),
-          timeoutMs,
-        )
-      }),
-    ])
-  } finally {
-    clearTimeout(timer)
-  }
-}
-
-/**
  * Log a terminal denial and build the result BullMQ keeps for the completed
  * job. Every schedule row is enumeration-only (tenant-cross or unscoped), so a
  * denied firing is a catalogue or configuration defect, not a kill switch: the
@@ -486,7 +460,9 @@ export function createGatedJobHandler(
       resolveScope,
     )
     if (outcome.kind === 'allow') {
-      return withJobTimeout(job.name, timeoutForJob(job.name), handler(job))
+      return runJobWithDeadline(job.name, timeoutForJob(job.name), (signal) =>
+        handler(job, signal),
+      )
     }
     if (outcome.kind === 'deny_terminal') {
       return terminalDenial(logger, job.name, outcome.decision, executionKind)

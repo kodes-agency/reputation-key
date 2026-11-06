@@ -70,6 +70,12 @@ credential generation in PostgreSQL is the durable commit fence. Queue Redis mus
 use `noeviction`; PostgreSQL may retry pool acquisition only, never a SQL statement
 whose commit outcome is ambiguous.
 
+The delayed job gate gives handlers an abort signal at their catalogue deadline.
+It holds their BullMQ slot until cleanup finishes; work still running after five
+seconds of grace terminates the worker nonzero. Shared database transactions
+inherit that deadline and refuse commit after abort. Normal handler results and
+policy denials retain their existing meaning.
+
 ### Stale tabs (`stale-tab/`)
 
 Deploys happen several times a day and a tab outlives them: it keeps the code of
