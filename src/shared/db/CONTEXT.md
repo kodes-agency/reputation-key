@@ -45,6 +45,14 @@ journal INSERT failures, cancellation, lock release and reruns.
 
 Schema, journal, barrel, auth-mirror, DB-only construct, and deploy-runner parity are enforced by `src/shared/db/migration-verification.test.ts`, `src/shared/db/schema/schema-migration-parity.test.ts`, `src/shared/db/schema/migratable.test.ts`, and `src/shared/db/deploy-migration-runtime.test.ts`.
 
+`test-fixtures/populated-upgrade/` pins a synthetic two-tenant PostgreSQL dump
+and its byte digests. `populated-upgrade.integration.test.ts` restores it into
+leased databases, runs pending deploy migrations, interrupts a committed file
+and compares recovery and reapplication with an uninterrupted upgrade. A planted
+row-dependent migration must fail. CI's `populated-upgrade` gate also boots the
+released and candidate web/worker images on an internal network. Expands keep the
+released image ready; contractions must make its migration probe refuse readiness.
+
 ## Change loop
 
 ```bash
