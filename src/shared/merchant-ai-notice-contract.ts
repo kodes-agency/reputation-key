@@ -207,7 +207,7 @@ export const MERCHANT_AI_NOTICE_PAYLOAD: MerchantAiNoticePayload = Object.freeze
       body: Object.freeze([
         'Review analysis and reply suggestions accept at most 16 KiB of source and use a 70-second outer attempt deadline. Property trends accept at most 64 KiB and use a 100-second outer attempt deadline. Oversized or unsupported input is skipped rather than truncated into a different meaning.',
         'RepKey uses and shows raw review source for up to 30 days after it was last fetched from Google, and de-identified insights for up to 24 months. The results listed under "What review analysis keeps", except the stored business category, expire after 730 days and are deleted by daily cleanup. A group of similar causes expires with its newest result and is deleted by daily cleanup once no retained contribution refers to it.',
-        'Turning a capability off immediately denies new work, fences in-flight results and hides its prior outputs. Turning Reply Drafting off withdraws eligible unedited AI drafts; drafts already dispatched or failed at publication can keep their text. Withdrawal immediately denies access; background processing then purges stored AI results. An already-authorized in-memory attempt is discarded by its outer deadline. Turning Review Analysis off and withdrawing authorization cover the results listed under "What review analysis keeps", except the stored business category.',
+        'Turning a capability off immediately denies new work, fences in-flight results and hides its prior outputs. Turning Reply Drafting off withdraws eligible unedited AI drafts; drafts already dispatched or failed at publication can keep their text. Withdrawal immediately denies access; background processing then purges stored AI results. An already-authorized in-memory attempt is discarded by its outer deadline. Turning Review Analysis off and withdrawing authorization cover the results listed under "What review analysis keeps".',
       ]),
       links: Object.freeze([
         Object.freeze({ label: 'Privacy contact', target: '/privacy#contact' }),
@@ -289,7 +289,7 @@ export const MERCHANT_AI_NOTICE_PAYLOAD: MerchantAiNoticePayload = Object.freeze
 noticePayloadSchema.parse(MERCHANT_AI_NOTICE_PAYLOAD)
 
 export const MERCHANT_AI_NOTICE_DIGEST =
-  '4c6cc6203744fa3f341fde5e109440724858040f0155b3fe9e8bf85f95532be0' as const
+  'eb810fedbb445bf9361d03280cfa44f31c3a8a8563a905549c3a7bdaed1a88f3' as const
 
 /** The notice a consent was recorded under, by version and digest. */
 export type MerchantAiNoticeReference = Readonly<{
