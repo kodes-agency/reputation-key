@@ -19,7 +19,7 @@ async function setLifecycleEventsGuard(
   executor: TestOrganizationCleanupExecutor,
   enabled: boolean,
 ): Promise<void> {
-  const action = enabled ? 'ENABLE ALWAYS' : 'DISABLE'
+  const action = enabled ? 'ENABLE' : 'DISABLE'
   const statement = `ALTER TABLE organization_lifecycle_events ${action} TRIGGER ${ORGANIZATION_LIFECYCLE_EVENTS_TRIGGER}`
   if ('execute' in executor) {
     await executor.execute(sql.raw(statement))

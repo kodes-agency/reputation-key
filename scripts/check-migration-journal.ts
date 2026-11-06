@@ -2,13 +2,15 @@
 // `pnpm check:migration-journal` and run by `lint:ci`, in the `static` job,
 // which checks out full history.
 //
-// WHAT. Two checks on drizzle/meta/_journal.json:
+// Checks on drizzle/meta/_journal.json and its SQL files:
 //   1. the file's own order (validateMigrationJournal): idx, a rising `when`,
 //      one entry per tag, an SQL file for every entry. The same check is a unit
 //      test and the first thing `pnpm check:schema-drift` does.
 //   2. append-only against main (validateJournalIsAppendOnly): every entry of
 //      the journal at the merge base with main is still here, unchanged, at the
 //      same position.
+//   3. SQL already journalled at that merge base is unchanged, including staged
+//      and unstaged edits. New migrations may still change before they merge.
 //
 // WHY 2. One file cannot tell a new entry from one a deployed database has
 // applied. drizzle applies an entry only when its `when` is above the newest
@@ -55,6 +57,7 @@ export type BaseJournal =
       ref: string
       mergeBase: string
       entries: readonly MigrationJournalEntry[]
+      sqlFaults: readonly MigrationJournalFault[]
     }>
   | Readonly<{ kind: 'no-base-ref'; tried: readonly string[] }>
   | Readonly<{ kind: 'unreadable'; ref: string; reason: string }>
@@ -74,7 +77,37 @@ function journalAt(git: Git, ref: string, mergeBase: string): BaseJournal {
     }
   }
   try {
-    return { kind: 'found', ref, mergeBase, entries: parseMigrationJournal(shown.stdout) }
+    const entries = parseMigrationJournal(shown.stdout)
+    const comparisons = [[], ['--cached']].map((mode) =>
+      git([
+        'diff',
+        ...mode,
+        '--name-only',
+        '--no-renames',
+        '--no-ext-diff',
+        '--no-textconv',
+        '-z',
+        mergeBase,
+        '--',
+        'drizzle',
+      ]),
+    )
+    if (comparisons.some(({ status }) => status !== 0)) {
+      return {
+        kind: 'unreadable',
+        ref,
+        reason: `migration SQL at ${mergeBase} cannot be compared`,
+      }
+    }
+    const paths = new Set(comparisons.flatMap(({ stdout }) => stdout.split('\0')))
+    const sqlFaults = entries
+      .filter(({ tag }) => paths.has(`drizzle/${tag}.sql`))
+      .map(({ tag }) => ({
+        object: `migration ${tag}`,
+        detail:
+          'SQL differs from the merge base; restore the applied file and append a new migration',
+      }))
+    return { kind: 'found', ref, mergeBase, entries, sqlFaults }
   } catch (error) {
     const reason = error instanceof Error ? error.message : String(error)
     return {
@@ -165,6 +198,7 @@ export function evaluateMigrationJournal(input: JournalGateInput): JournalGateRe
   const faults = [
     ...fileFaults,
     ...validateJournalIsAppendOnly(input.entries, base.entries),
+    ...base.sqlFaults,
   ]
   if (faults.length > 0) return failed(describeFaults(faults))
   const added = input.entries.length - base.entries.length
