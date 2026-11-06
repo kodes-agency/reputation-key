@@ -6,7 +6,7 @@ describe('Google import dispatch index migration', () => {
   it('can be applied and recovered by the journal runner', () => {
     const sql = readFileSync(
       new URL(
-        '../../../../drizzle/0104_google_import_dispatch_index.sql',
+        '../../../../drizzle/0105_google_import_dispatch_index.sql',
         import.meta.url,
       ),
       'utf8',

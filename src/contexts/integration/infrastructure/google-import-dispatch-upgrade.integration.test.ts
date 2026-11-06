@@ -26,9 +26,9 @@ import { acquireTestLease, type TestLease } from '#/shared/testing/test-environm
 import { createGoogleImportV2Store } from './google-import-v2-store'
 
 const DRIZZLE = join(import.meta.dirname, '..', '..', '..', '..', 'drizzle')
-const EXPAND = '0102_google_import_dispatch.sql'
-const VALIDATE = '0103_google_import_dispatch_validation.sql'
-const INDEX = '0104_google_import_dispatch_index.sql'
+const EXPAND = '0103_google_import_dispatch.sql'
+const VALIDATE = '0104_google_import_dispatch_validation.sql'
+const INDEX = '0105_google_import_dispatch_index.sql'
 const NOW = new Date('2026-10-20T10:00:00.000Z')
 const DEADLINE = new Date(NOW.getTime() + 86_400_000)
 const ORG = 'google-import-dispatch-upgrade'

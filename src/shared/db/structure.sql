@@ -14015,12 +14015,16 @@ CREATE TRIGGER "ai_execution_control_heads_transition_guard" BEFORE DELETE OR UP
 
 CREATE TRIGGER "backup_erasure_ledger_truncate_guard" BEFORE TRUNCATE ON "public"."backup_erasure_ledger" FOR EACH STATEMENT EXECUTE FUNCTION "public"."reject_backup_erasure_ledger_mutation_v1"();
 
+ALTER TABLE "public"."backup_erasure_ledger" ENABLE ALWAYS TRIGGER "backup_erasure_ledger_truncate_guard";
+
 
 --
 -- Name: backup_erasure_ledger backup_erasure_ledger_update_delete_guard; Type: TRIGGER; Schema: public; Owner: -
 --
 
 CREATE TRIGGER "backup_erasure_ledger_update_delete_guard" BEFORE DELETE OR UPDATE ON "public"."backup_erasure_ledger" FOR EACH ROW EXECUTE FUNCTION "public"."reject_backup_erasure_ledger_mutation_v1"();
+
+ALTER TABLE "public"."backup_erasure_ledger" ENABLE ALWAYS TRIGGER "backup_erasure_ledger_update_delete_guard";
 
 
 --
@@ -14308,6 +14312,8 @@ CREATE TRIGGER "property_access_grant_perm_ver_iud" AFTER INSERT OR DELETE OR UP
 --
 
 CREATE TRIGGER "property_erase_authorities_transition_guard" BEFORE DELETE OR UPDATE ON "public"."property_erase_authorities" FOR EACH ROW EXECUTE FUNCTION "public"."reject_property_erase_authority_mutation_v1"();
+
+ALTER TABLE "public"."property_erase_authorities" ENABLE ALWAYS TRIGGER "property_erase_authorities_transition_guard";
 
 
 --

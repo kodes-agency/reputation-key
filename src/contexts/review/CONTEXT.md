@@ -240,7 +240,10 @@ Organization purge, not exported). A targeted push read stamps the acceptance
 time on a row polling wrote first (`ReviewFirstSightingRecorder`); the first
 acceptance time wins. Missed, late and the location and account health derived
 from the rows are computed on read in `src/shared/domain/push-health.ts`
-and are not stored.
+and are not stored. A polled Review dated before its Property's previous
+completed listing in the sighting's source epoch was published late and is
+excluded from push health. Without that earlier listing, the fallback excludes
+Reviews dated more than 24 hours before the first sighting.
 
 Analysis sequences (migration 0068, ADR 0058 amendment 2026-10-22): `upsertAndRecord`
 takes the Property's next AI-analysis sequence (`lock_review_ai_analysis_head_v1`,
