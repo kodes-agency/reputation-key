@@ -435,6 +435,14 @@ holder once per Property, as the grouped `inbox.bulk_unassigned`
 (`property_operator`, opening the Property's open queue). A bulk release, and a
 release caused by lost eligibility, tell no previous holder.
 
+Assignment retirement carries the fact that moved the item away. Both that
+consumer and a delayed `inbox.unassigned` delivery leave the reader's assignment
+notice and its mail open if a later recorded assignment fact gave them the item
+again, including when that assignment coalesced into the earlier unread row.
+Assignment facts carry the committed item command revision; wall clocks never
+order generations. A legacy removal without a revision is fenced by the current
+persisted assignee through the Inbox lookup adapter.
+
 An approval request goes to the Property's responsible managers who hold
 `reply.manage` (the `reply_approver` audience), falling back to AccountAdmins
 only when none of them can act, and never to the submitter. Responsibility and
@@ -667,3 +675,11 @@ envelope and checks delivery receipts,
 redelivery, and same-user isolation across Organizations in PostgreSQL. Unit
 controls catch an omitted consumer and incorrect application read/mutation scope;
 database isolation still requires the integration project.
+
+`infrastructure/inbox-workflow-acceptance.test.ts` checks producer-to-dispatcher
+payload/copy parity, note audience precedence, bulk/per-item arrival order and
+receipt-last retries for assignment, note and escalation fanout. Those single-item
+routes share `enqueueInboxWorkflowNotifications` in
+`infrastructure/inbox-notification-fanout.ts`; grouped routes keep their
+per-Property job identities. Database concurrency and assignment-generation
+fences require separate PostgreSQL coverage.

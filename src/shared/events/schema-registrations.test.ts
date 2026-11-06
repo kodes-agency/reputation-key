@@ -441,3 +441,39 @@ describe('registered Google reputation snapshot verified schema', () => {
     ).toThrow(ZodError)
   })
 })
+
+describe('registered Inbox assignment ordering', () => {
+  beforeEach(() => {
+    clearEventSchemas()
+    registerAllEventSchemas()
+  })
+
+  const assignment = {
+    inboxItemId: 'item-1',
+    organizationId: 'organization-1',
+    assignedTo: 'manager-1',
+    previousAssignee: 'manager-2',
+  }
+
+  it.each(['inbox.inbox_item.assigned', 'inbox.inbox_item.unassigned'])(
+    '%s retains the committed revision and accepts legacy facts',
+    (type) => {
+      const payload = validateEventPayload(type, 1, { ...assignment, commandRevision: 4 })
+      expect(payload).toMatchObject({ commandRevision: 4 })
+      expect(validateEventPayload(type, 1, assignment)).not.toHaveProperty(
+        'commandRevision',
+      )
+    },
+  )
+
+  it.each([1, 2.5, Number.MAX_SAFE_INTEGER + 1])(
+    'rejects unsafe assignment revision %s',
+    (commandRevision) => {
+      for (const type of ['inbox.inbox_item.assigned', 'inbox.inbox_item.unassigned']) {
+        expect(() =>
+          validateEventPayload(type, 1, { ...assignment, commandRevision }),
+        ).toThrowError(ZodError)
+      }
+    },
+  )
+})

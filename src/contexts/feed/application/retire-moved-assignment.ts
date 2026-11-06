@@ -24,18 +24,20 @@ export type RetireMovedAssignment = (
     /** Who held the item before it moved. */
     userId: UserId
     inboxItemId: InboxItemId
+    eventId: string
     at: Date
   }>,
 ) => Promise<void>
 
 export const createRetireMovedAssignment =
   (deps: RetireMovedAssignmentDeps): RetireMovedAssignment =>
-  async ({ organizationId, userId, inboxItemId, at }) => {
+  async ({ organizationId, userId, inboxItemId, eventId, at }) => {
     const settled = await deps.notifications.settleUnreadForReader({
       organizationId,
       userId,
       types: ['inbox.assigned'],
       resourceId: inboxItemId,
+      supersededByEventId: eventId,
       resolvedAt: at,
     })
     if (settled.length === 0) return
