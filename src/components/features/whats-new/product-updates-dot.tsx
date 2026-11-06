@@ -1,5 +1,6 @@
 import type { ProductUpdatesClientGetter } from '#/shared/whats-new/types'
 import { useQuery } from '@tanstack/react-query'
+import { useTenantScope } from '#/shared/hooks/useTenantScope'
 import { usePropertyId } from '#/components/hooks/use-property-id'
 import { useHydrated } from '#/components/hooks/use-hydrated'
 import { productUpdatesQuery } from './queries'
@@ -24,7 +25,9 @@ export default function ProductUpdatesDot({
   placement = 'menu',
   hintId,
 }: Props) {
-  const query = useQuery(productUpdatesQuery(usePropertyId(), getClient))
+  const query = useQuery(
+    productUpdatesQuery(useTenantScope(), usePropertyId(), getClient),
+  )
   // The server never has the read; drawing before hydration would mismatch it.
   const hydrated = useHydrated()
   if (!hydrated || !query.data?.unseenIds.length) return null

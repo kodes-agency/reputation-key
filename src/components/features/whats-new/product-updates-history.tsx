@@ -1,6 +1,7 @@
 import type { ProductUpdatesClientGetter } from '#/shared/whats-new/types'
 import { useEffect, useRef } from 'react'
 import { useQuery } from '@tanstack/react-query'
+import { useTenantScope } from '#/shared/hooks/useTenantScope'
 import { Sparkles } from 'lucide-react'
 import { usePropertyId } from '#/components/hooks/use-property-id'
 import { PageHeader } from '#/components/layout/page-header'
@@ -56,7 +57,7 @@ export function ProductUpdatesHistory({
   getClient,
 }: Readonly<{ getClient: ProductUpdatesClientGetter }>) {
   const propertyId = usePropertyId()
-  const query = useQuery(productUpdatesQuery(propertyId, getClient))
+  const query = useQuery(productUpdatesQuery(useTenantScope(), propertyId, getClient))
   const markSeen = useMarkProductUpdatesSeen(propertyId, getClient)
   useMarkHistorySeen(query.data?.unseenIds ?? [], markSeen)
   return (
