@@ -1,7 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { QueryClient } from '@tanstack/react-query'
+import type { QueryClient } from '@tanstack/react-query'
 import { isNotFound } from '@tanstack/react-router'
 import { ServerFunctionError } from '#/shared/auth/server-function-error'
+import { routeQueryClient, runRouteHook } from './route-harness'
 import { platformKeys } from '#/shared/queries/query-keys'
 
 const mocks = vi.hoisted(() => ({
@@ -29,17 +30,13 @@ const SESSION = {
 }
 
 function beforeLoad() {
-  const hook = Route.options.beforeLoad
-  if (!hook) throw new Error('The operator route must define beforeLoad')
-  return hook({ location: { href: '/operator' } } as never)
+  return runRouteHook(Route.options.beforeLoad, { location: { href: '/operator' } })
 }
 
 function load(queryClient: QueryClient) {
   const loader = Route.options.loader
-  if (typeof loader !== 'function') {
-    throw new Error('The operator route must define a loader function')
-  }
-  return loader({ context: { queryClient } } as never)
+  if (typeof loader !== 'function') throw new Error('The route loader is missing')
+  return runRouteHook(loader, { context: { queryClient } })
 }
 
 const refusal = (code: string, status: number) =>
@@ -72,7 +69,7 @@ describe('operator route', () => {
   it('primes the Organization list under its platform key', async () => {
     const organizations = [{ id: 'org-1', name: 'Hotel Riviera' }]
     mocks.listPlatformOrganizationsFn.mockResolvedValue(organizations)
-    const queryClient = new QueryClient()
+    const queryClient = routeQueryClient()
 
     await load(queryClient)
 
@@ -86,7 +83,7 @@ describe('operator route', () => {
   ])('answers Not Found to %s (%s), so the console is not advertised', async (code) => {
     mocks.listPlatformOrganizationsFn.mockRejectedValue(refusal(code, 403))
 
-    const thrown = await load(new QueryClient()).catch((error: unknown) => error)
+    const thrown = await load(routeQueryClient()).catch((error: unknown) => error)
 
     expect(isNotFound(thrown)).toBe(true)
   })
@@ -95,7 +92,7 @@ describe('operator route', () => {
     const failure = refusal('unauthorized', status)
     mocks.listPlatformOrganizationsFn.mockRejectedValue(failure)
 
-    const thrown = await load(new QueryClient()).catch((error: unknown) => error)
+    const thrown = await load(routeQueryClient()).catch((error: unknown) => error)
 
     expect(thrown).toBe(failure)
     expect(isNotFound(thrown)).toBe(false)
