@@ -1,5 +1,6 @@
 import { existsSync, readFileSync } from 'node:fs'
 import { describe, expect, it, vi } from 'vitest'
+import { railwayServiceManifest } from '../../src/shared/release/railway-service-settings.test-fixtures'
 import {
   CI_PRODUCTION_IMAGE_NAMES,
   parseCiImageDigestMap,
@@ -172,7 +173,10 @@ describe('closed-beta CI image deployment authority', () => {
             {
               id: connected ? 'deployment-web-next' : 'deployment-0',
               status: 'SUCCESS',
-              meta: { imageDigest: plan[0]!.digest },
+              meta: {
+                imageDigest: plan[0]!.digest,
+                serviceManifest: railwayServiceManifest('web'),
+              },
             },
           ]),
           stderr: '',
@@ -264,7 +268,10 @@ describe('closed-beta CI image deployment authority', () => {
             {
               id: redeployed ? 'deployment-web-next' : 'deployment-0',
               status: 'SUCCESS',
-              meta: { imageDigest: target.digest },
+              meta: {
+                imageDigest: target.digest,
+                serviceManifest: railwayServiceManifest('web'),
+              },
             },
           ]),
           stderr: '',
@@ -623,7 +630,10 @@ describe('trusting a service only when its latest deployment runs the target', (
               ? {
                   id: 'deployment-web-next',
                   status: 'SUCCESS',
-                  meta: { imageDigest: options.redeployedDigest ?? target.digest },
+                  meta: {
+                    imageDigest: options.redeployedDigest ?? target.digest,
+                    serviceManifest: railwayServiceManifest('web'),
+                  },
                 }
               : {
                   id: options.runningId ?? 'deployment-0',
@@ -742,7 +752,10 @@ describe('trusting a service only when its latest deployment runs the target', (
 
   it('stays "already healthy" when the source and the latest deployment both run the target', async () => {
     const { target, plan, runner, calls } = outage({
-      runningMeta: { imageDigest: WEB_DIGEST },
+      runningMeta: {
+        imageDigest: WEB_DIGEST,
+        serviceManifest: railwayServiceManifest('web'),
+      },
     })
     const lines: string[] = []
 
