@@ -30,6 +30,7 @@ export type ResourceScope =
 
 /** Canonical actions for session, public, delayed, and operator work. */
 export type SystemAction =
+  | 'system:integration.refresh_google_categories'
   | 'system:identity.merchant_ai_standing_renewal'
   // session / identity bootstrap
   | 'system:session.read'
@@ -368,6 +369,15 @@ const JOB_ROWS: ReadonlyArray<EntryPointRow> = [
 ]
 
 const CONSUMER_ROWS: ReadonlyArray<EntryPointRow> = [
+  // Provider admission happens in the handler so a temporary refusal remains
+  // retryable rather than permanently settling the connection fact.
+  consumer(
+    'integration.google-category-refresh',
+    'system:integration.refresh_google_categories',
+    'none',
+    'organization',
+    true,
+  ),
   consumer(
     'review.outbox-consumers',
     'system:reply.publish',
