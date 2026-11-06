@@ -111,11 +111,12 @@ import {
   type PersistedHead,
   type PersistedItem,
 } from './inbox-command-guards'
-import {
-  appendEscalationHistory,
-  readCurrentCycleNumber,
-} from './inbox-escalation-history'
+import { appendEscalationHistory } from './inbox-escalation-history'
 import { resolveBulkReopenAssignee } from './inbox-bulk-reopen-assignee'
+import {
+  currentAssignmentCycleNumber,
+  insertAssignmentFact,
+} from './inbox-assignment-facts'
 import type {
   InboxCommandAuthority,
   InboxCommandAuthorityPrincipal,
@@ -321,20 +322,6 @@ async function updateItemRow(
     throw inboxError('not_found', notFoundMessage)
   }
   return updated
-}
-
-async function currentAssignmentCycleNumber(
-  tx: Tx,
-  item: InboxItem,
-): Promise<number | null> {
-  const cycleNumber = await readCurrentCycleNumber(tx, item)
-  if (cycleNumber === null) {
-    throw inboxError(
-      'not_found',
-      'Inbox item has no current Handling Cycle for assignment',
-    )
-  }
-  return cycleNumber
 }
 
 /** Canonical projection lock order: Handling Cycle head first, then the Inbox row. */
@@ -975,7 +962,7 @@ async function applyBulkAssignmentToItem(
     bulkId,
     occurredAt,
   })
-  await insertOutboxRow(tx, fact)
+  await insertAssignmentFact(tx, fact, row.commandRevision)
   return { outcome, previousAssignee }
 }
 
@@ -1100,7 +1087,7 @@ async function reopenLockedBulkItem(
     })
   }
   for (const fact of cycleFacts) await insertOutboxRow(tx, fact)
-  if (unassignedFact) await insertOutboxRow(tx, unassignedFact)
+  if (unassignedFact) await insertAssignmentFact(tx, unassignedFact, row.commandRevision)
   await insertOutboxRow(tx, event)
   return {
     inboxItemId: item.id,
@@ -1274,7 +1261,7 @@ export const createAtomicInboxCommandStore = (
         source: 'web',
         occurredAt: input.at,
       })
-      await insertOutboxRow(tx, fact)
+      await insertAssignmentFact(tx, fact, row.commandRevision)
       released += 1
       // Closing an item keeps its assignee, so a departing manager still holds
       // everything they ever handled. Releasing those is right, but only open
@@ -1708,7 +1695,9 @@ export const createAtomicInboxCommandStore = (
           }
           await insertOutboxRow(tx, fact)
           for (const cycleFact of cycleFacts) await insertOutboxRow(tx, cycleFact)
-          if (unassignedFact) await insertOutboxRow(tx, unassignedFact)
+          if (unassignedFact) {
+            await insertAssignmentFact(tx, unassignedFact, updatedItem.commandRevision)
+          }
           return itemFromRow(updatedItem)
         })
         return saved
@@ -2115,7 +2104,7 @@ export const createAtomicInboxCommandStore = (
               bulkId: null,
               occurredAt: stamp,
             })
-            await insertOutboxRow(tx, event)
+            await insertAssignmentFact(tx, event, row.commandRevision)
           }
           return row
         })

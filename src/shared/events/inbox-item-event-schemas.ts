@@ -1,7 +1,7 @@
 // Inbox item event schemas, registered by ./schema-registrations.ts.
 //
 // The facts about one Inbox item that carry who acted and nothing else:
-// escalated, escalation resolved, and the manager priority change (ADR 0071).
+// assignment, escalation, and the manager priority change (ADR 0071).
 // Identifiers and closed values only (ADR 0030). Never `.strict()`: an unknown
 // key is a producer ahead of this deploy, not a bad payload.
 
@@ -44,8 +44,45 @@ const inboxItemPriorityChangedSchema = z.object({
   previousPriority: inboxPriorityLevelSchema,
 })
 
-/** Register the three item facts; called once from registerAllEventSchemas. */
+const inboxItemAssignedSchema = z.object({
+  inboxItemId: z.string(),
+  organizationId: z.string(),
+  assignedTo: z.string(),
+  // Who held the item before. Optional: facts recorded before a reassignment
+  // was news to the previous holder do not say.
+  previousAssignee: z.string().nullable().optional(),
+  bulkId: z.string().optional(),
+  commandRevision: z.number().int().min(2).max(Number.MAX_SAFE_INTEGER).optional(),
+  propertyId: z.string().nullable().optional(),
+  userId: z.string().optional(),
+  source: z.string().optional(),
+  occurredAt: z.string().optional(),
+})
+
+const inboxItemUnassignedSchema = z.object({
+  inboxItemId: z.string(),
+  organizationId: z.string(),
+  previousAssignee: z.string(),
+  bulkId: z.string().optional(),
+  commandRevision: z.number().int().min(2).max(Number.MAX_SAFE_INTEGER).optional(),
+  propertyId: z.string().nullable().optional(),
+  userId: z.string().nullable().optional(),
+  source: z.string().optional(),
+  occurredAt: z.string().optional(),
+})
+
+/** Register item facts; called once from registerAllEventSchemas. */
 export function registerInboxItemEventSchemas(version: number): void {
+  registerEventSchema({
+    type: 'inbox.inbox_item.assigned',
+    version,
+    schema: inboxItemAssignedSchema,
+  })
+  registerEventSchema({
+    type: 'inbox.inbox_item.unassigned',
+    version,
+    schema: inboxItemUnassignedSchema,
+  })
   registerEventSchema({
     type: 'inbox.inbox_item.escalated',
     version,

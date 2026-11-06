@@ -11,12 +11,15 @@ import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
 import {
   inboxItemId,
   notificationId,
+  organizationId,
   propertyId,
   type NotificationId,
 } from '#/shared/domain/ids'
 import { createMockLogger } from '#/shared/testing/mock-logger'
 import type { NotificationWorkDecision } from '../application/notification-work-state'
 import { handleNotificationSettlementEvent } from './notification-settlement-outbox-consumers'
+import { settleGroupedReopens } from './grouped-reopen-settlement'
+import type { WaitingGroupedReopen } from '../application/ports/grouped-reopen-store.port'
 
 const ORG = 'organization-grouped-reopen'
 const PROPERTY = propertyId('99000000-0000-4000-8000-000000000001')
@@ -52,7 +55,7 @@ const waitingRow = (coalescedCount = 1) => ({
 
 const makeDeps = (
   work: NotificationWorkDecision,
-  rows: ReadonlyArray<ReturnType<typeof waitingRow>> = [waitingRow()],
+  rows: ReadonlyArray<WaitingGroupedReopen> = [waitingRow()],
 ) => ({
   notifications: {
     settleUnreadForProperty: vi.fn(
@@ -155,5 +158,50 @@ describe('a grouped reopen that still stands', () => {
     // The row stands for items its first fact does not name.
     expect(deps.workState.isWaiting).not.toHaveBeenCalled()
     expect(deps.groupedReopens.settle).not.toHaveBeenCalled()
+  })
+
+  it.each([
+    null,
+    {},
+    { reopened: [] },
+    { reopened: [cycle(FIRST, OTHER_PROPERTY)] },
+    { reopened: [{ propertyId: PROPERTY }] },
+  ])(
+    'keeps a row whose source cannot identify its Property cycles: %j',
+    async (source) => {
+      const deps = makeDeps(false, [{ ...waitingRow(), source }])
+      await settleGroupedReopens(deps, {
+        organizationId: organizationId(ORG),
+        propertyId: PROPERTY,
+        resolvedAt: NOW,
+      })
+      expect(deps.workState.isWaiting).not.toHaveBeenCalled()
+      expect(deps.groupedReopens.settle).not.toHaveBeenCalled()
+      expect(deps.emails.cancelQueuedForNotifications).not.toHaveBeenCalled()
+    },
+  )
+
+  it('cancels mail only for rows that were still waiting when settlement ran', async () => {
+    const second = notificationId('99000000-0000-4000-8000-000000000006')
+    const deps = makeDeps(false, [waitingRow(), { ...waitingRow(), id: second }])
+    deps.groupedReopens.settle.mockResolvedValue([second])
+    await expect(
+      settleGroupedReopens(deps, {
+        organizationId: organizationId(ORG),
+        propertyId: PROPERTY,
+        resolvedAt: NOW,
+      }),
+    ).resolves.toBe(1)
+    expect(deps.groupedReopens.settle).toHaveBeenCalledWith({
+      organizationId: ORG,
+      ids: [GROUPED, second],
+      resolvedAt: NOW,
+    })
+    expect(deps.emails.cancelQueuedForNotifications).toHaveBeenCalledWith(
+      [second],
+      ORG,
+      'work_settled',
+      NOW,
+    )
   })
 })

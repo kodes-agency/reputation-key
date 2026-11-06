@@ -259,7 +259,9 @@ state.
 
 1. Bare ratings (no feedback comment) do not create Inbox Items.
 2. Every human command authorizes its complete unique `(principal, Property)` requirement set once inside the write transaction. Multi-item commands cannot lock the permission generation after one item and then acquire a later item's membership or grant row.
-3. Human mutations compare-and-swap the observed item revision; adding a note
+3. Human mutations compare-and-swap the observed item revision; assignment and
+   unassignment facts carry the committed revision so delayed notification
+   retirement can distinguish generations without ordering clocks. Adding a note
    advances the same fence atomically with its identifier-only fact. A
    single-item command decides Property scope before it answers the revision,
    as the bulk commands do, so a conflict (which names the item's current
