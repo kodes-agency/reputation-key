@@ -20,6 +20,7 @@ const sighting = (over: Partial<FirstSightingFacts> = {}): FirstSightingFacts =>
   firstSeenAt: SEEN,
   pushAcceptedAt: null,
   sourceCreatedAt: at(-5),
+  previousListingAt: null,
   ...over,
 })
 
@@ -91,6 +92,34 @@ describe('classifyFirstSighting', () => {
   describe('a Review Google published late', () => {
     const LATE_PUBLISHED_MINUTES = LATE_PUBLISHED_AFTER_MS / MINUTE
 
+    it.each([-1, 0, 1])(
+      'uses the previous listing boundary with a creation offset of %i ms',
+      (offset) => {
+        const previousListingAt = at(-6 * 60)
+        const result = classifyFirstSighting(
+          sighting({
+            previousListingAt,
+            sourceCreatedAt: new Date(previousListingAt.getTime() + offset),
+          }),
+          at(120),
+        )
+        expect(result).toEqual({
+          healthy: offset < 0,
+          pending: false,
+          late: false,
+          missed: offset >= 0,
+        })
+      },
+    )
+
+    it('keeps a genuinely new Review missed after a long gap between listings', () => {
+      const result = classifyFirstSighting(
+        sighting({ previousListingAt: at(-36 * 60), sourceCreatedAt: at(-30 * 60) }),
+        at(120),
+      )
+      expect(result.missed).toBe(true)
+    })
+
     it('does not count as a missed push when Google dates it over a day before it was seen', () => {
       const result = classifyFirstSighting(
         sighting({ sourceCreatedAt: at(-(LATE_PUBLISHED_MINUTES + 1)) }),
@@ -160,6 +189,7 @@ describe('summarizeLedger', () => {
     firstSeenAt: ago(minutesAgo),
     pushAcceptedAt: null,
     sourceCreatedAt: ago(minutesAgo + 5),
+    previousListingAt: null,
     locationKey,
     accountKey: over.accountKey ?? 'account-1',
     ...over,
@@ -171,6 +201,28 @@ describe('summarizeLedger', () => {
       missed24h: 0,
       late24h: 0,
       latePublished24h: 0,
+      locationsSuspect: 0,
+      accountsDark: 0,
+    })
+  })
+
+  it('excludes a batch released after the previous listing, including Reviews under a day old', () => {
+    const summary = summarizeLedger(
+      [19 * 60, 23.6 * 60, 2 * 24 * 60, 3 * 24 * 60, 3.5 * 24 * 60, 4 * 24 * 60].map(
+        (ageAtSighting) =>
+          found('a', 120, {
+            sourceCreatedAt: ago(120 + ageAtSighting),
+            previousListingAt: ago(120 + 6 * 60),
+          }),
+      ),
+      NOW,
+    )
+
+    expect(summary).toEqual({
+      pending: 0,
+      missed24h: 0,
+      late24h: 0,
+      latePublished24h: 6,
       locationsSuspect: 0,
       accountsDark: 0,
     })

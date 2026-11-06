@@ -248,6 +248,73 @@ describe('push health read (real reads)', () => {
     expect(after.locationsSuspect).toBe(baseline.locationsSuspect)
   })
 
+  it('excludes a batch Google released after the previous completed listing', async () => {
+    const baseline = (await read()).push
+    const property = await seedProperty({ suffix: '0c' })
+    await seedFact(property, 0, 36 * HOUR)
+    await seedFact(property, 0, 8 * HOUR)
+    for (const age of [19 * HOUR, 23.6 * HOUR, 2 * DAY, 3 * DAY, 3.5 * DAY, 4 * DAY]) {
+      await seedSighting(property, {
+        via: 'snapshot',
+        seenMinutesAgo: 2 * HOUR,
+        writtenMinutesAgo: 2 * HOUR + age,
+      })
+    }
+
+    const after = (await read()).push
+
+    expect(after.newByPoll24h).toBe(baseline.newByPoll24h)
+    expect(after.pending).toBe(baseline.pending)
+    expect(after.missed24h).toBe(baseline.missed24h)
+    expect(after.late24h).toBe(baseline.late24h)
+    expect(after.locationsSuspect).toBe(baseline.locationsSuspect)
+    expect(after.accountsDark).toBe(baseline.accountsDark)
+  })
+
+  it('counts a new Review as missed using only its Property and epoch listings before first sighting', async () => {
+    const baseline = (await read()).push
+    const property = await seedProperty({ suffix: '0d' })
+    const otherProperty = await seedProperty({ suffix: '0e' })
+    await seedFact(property, 0, 8 * HOUR)
+    await seedFact(property, 0, 3 * HOUR, false)
+    await seedFact(property, 1, 3 * HOUR)
+    await seedFact(otherProperty, 0, 3 * HOUR)
+    await seedFact(property, 0, HOUR)
+    await seedSighting(property, {
+      via: 'snapshot',
+      seenMinutesAgo: 2 * HOUR,
+      writtenMinutesAgo: 4 * HOUR,
+    })
+
+    const after = (await read()).push
+
+    expect(after.newByPoll24h).toBe(baseline.newByPoll24h + 1)
+    expect(after.missed24h).toBe(baseline.missed24h + 1)
+    expect(after.locationsSuspect).toBe(baseline.locationsSuspect + 1)
+  })
+
+  it('falls back to the day cutoff when the Property has no earlier completed listing', async () => {
+    const baseline = (await read()).push
+    const property = await seedProperty({ suffix: '0f' })
+    await seedFact(property, 0, 8 * HOUR, false)
+    await seedFact(property, 1, 8 * HOUR)
+    await seedFact(property, 0, HOUR)
+    for (const age of [19 * HOUR, 4 * DAY]) {
+      await seedSighting(property, {
+        via: 'snapshot',
+        seenMinutesAgo: 2 * HOUR,
+        writtenMinutesAgo: 2 * HOUR + age,
+      })
+    }
+
+    const after = (await read()).push
+
+    expect(after.newByPoll24h).toBe(baseline.newByPoll24h + 1)
+    expect(after.missed24h).toBe(baseline.missed24h + 1)
+    expect(after.locationsSuspect).toBe(baseline.locationsSuspect + 1)
+    expect(after.accountsDark).toBe(baseline.accountsDark)
+  })
+
   it('still holds a missing push against a Review Google dates just before polling saw it', async () => {
     const baseline = (await read()).push
     const property = await seedProperty({ suffix: '0b' })
