@@ -314,6 +314,29 @@ describe('migrateJournal', () => {
     expect(db.statements).not.toContain('BEGIN')
   })
 
+  it('accepts the hash the beta recorded before a file was edited, for that migration only', async () => {
+    const recorded = 'b42c4fb6cf040663e03fe492c5931898fa321d6724efcc081e72d26c3392886d'
+    const edited = journal(
+      ['CREATE TABLE edited_after_apply (id int)'],
+      [{ tag: '0001_db_constructs', when: 1788840803209 }],
+    )
+    const db = database([{ hash: recorded, created_at: 1788840803209 }])
+
+    await migrateJournal(db.session, edited)
+
+    expect(db.statements).not.toContain('BEGIN')
+    expect(db.effects).toEqual([])
+
+    const elsewhere = journal(
+      ['CREATE TABLE other_file (id int)'],
+      [{ tag: 'other', when: 1788840803210 }],
+    )
+    const other = database([{ hash: recorded, created_at: 1788840803210 }])
+    await expect(migrateJournal(other.session, elsewhere)).rejects.toThrow(
+      'Applied migration changed',
+    )
+  })
+
   it('refuses an applied file whose contents changed', async () => {
     const folder = journal(['CREATE TABLE changed_file (id int)'])
     const db = database([{ hash: 'different-applied-hash', created_at: 1000 }])
