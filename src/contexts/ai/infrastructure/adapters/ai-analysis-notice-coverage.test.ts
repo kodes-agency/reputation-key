@@ -30,22 +30,22 @@ describe('analysisNoticeStillCovers', () => {
   })
 
   it('covers an analysis stored under a notice the grant notice changed only for drafting', () => {
-    const servedChange = changeFor(served)
+    const servedChange = MERCHANT_AI_NOTICE_CHANGES.find(
+      (entry) => entry.noticeVersion === 'merchant-ai-notice-2026-11-01.v1',
+    )
     expect(servedChange?.materiallyChanges).not.toContain('review_analysis')
 
-    expect(analysisNoticeStillCovers(storedUnder(servedChange!.replaces!), served)).toBe(
-      true,
-    )
+    expect(
+      analysisNoticeStillCovers(storedUnder(servedChange!.replaces!), servedChange!),
+    ).toBe(true)
   })
 
   it('withholds an analysis stored before a notice that changed analysis', () => {
-    const previous = changeFor(served)!.replaces!
-    const previousChange = changeFor(previous)
-    expect(previousChange?.materiallyChanges).toContain('review_analysis')
-
-    expect(
-      analysisNoticeStillCovers(storedUnder(previousChange!.replaces!), served),
-    ).toBe(false)
+    const servedChange = changeFor(served)!
+    expect(servedChange.materiallyChanges).toContain('review_analysis')
+    expect(analysisNoticeStillCovers(storedUnder(servedChange.replaces!), served)).toBe(
+      false,
+    )
   })
 
   it('withholds an analysis stored without a notice or under an unknown digest', () => {

@@ -43,7 +43,7 @@ describe('execution compatibility with merchant consent', () => {
     ).toBe(false)
   })
 
-  it('keeps 10-30 consent in force for analysis and trends, while drafting alone needs renewal', () => {
+  it('keeps 10-30 consent for trends while analysis and drafting need renewal', () => {
     const notice = {
       noticeVersion: 'merchant-ai-notice-2026-10-30.v1',
       noticeDigest: 'dadad7b81dbda360678fc57f7265b104c7311cbc213f877f32306c53b4852a5e',
@@ -55,7 +55,7 @@ describe('execution compatibility with merchant consent', () => {
           acknowledgedNotice: notice,
           servedExecution: entry,
         }),
-      ).toBe(entry.capability !== 'reply_drafting')
+      ).toBe(entry.capability === 'property_trends')
       expect(
         isExecutionCompatibleWithConsent({
           capability: entry.capability,
@@ -63,7 +63,31 @@ describe('execution compatibility with merchant consent', () => {
           recordedNotice: notice,
           servedExecution: entry,
         }),
-      ).toBe(entry.capability !== 'reply_drafting')
+      ).toBe(entry.capability === 'property_trends')
+    }
+  })
+  it('preserves drafting and trends admission and settlement across the analysis correction', () => {
+    const previous = {
+      noticeVersion: 'merchant-ai-notice-2026-11-01.v1',
+      noticeDigest: 'e9574380fd1ba5f4b7bd7b9899bc5e6bdf371f9d9871584f33c5c1e6131290ef',
+    }
+    for (const entry of AI_RUNTIME_CAPABILITIES_V1) {
+      const preserved = entry.capability !== 'review_analysis'
+      expect(
+        isExecutionCompatibleWithConsent({
+          capability: entry.capability,
+          acknowledgedNotice: previous,
+          servedExecution: entry,
+        }),
+      ).toBe(preserved)
+      expect(
+        isExecutionCompatibleWithConsent({
+          capability: entry.capability,
+          acknowledgedNotice,
+          recordedNotice: previous,
+          servedExecution: entry,
+        }),
+      ).toBe(preserved)
     }
   })
   it('explicitly admits every served execution under the notice in force', () => {
