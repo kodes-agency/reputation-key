@@ -1,3 +1,5 @@
+import { tenantScope, type TenantScope } from '#/shared/queries/tenant-scope'
+import { useTenantScope } from '#/shared/hooks/useTenantScope'
 import { createFileRoute } from '@tanstack/react-router'
 import { roleUnavailable } from '#/shared/auth/route-notice'
 import { queryOptions, useQueryClient, useSuspenseQuery } from '@tanstack/react-query'
@@ -20,13 +22,14 @@ import {
 } from '#/contexts/inbox/server/inbox'
 import { OrganizationSettingsPage } from '#/components/features/organization'
 import { organizationCachePolicy } from '#/components/features/organization/organization-cache-policy'
-import { identityKeys, inboxKeys } from '#/shared/queries/query-keys'
+import { inboxKeys, createKeys } from '#/shared/queries/query-keys'
 
-const activeOrgQuery = queryOptions({
-  queryKey: identityKeys.activeOrg(),
-  queryFn: () => getActiveOrganization(),
-  staleTime: 60_000,
-})
+const activeOrgQuery = (scope: TenantScope) =>
+  queryOptions({
+    queryKey: createKeys(scope).identityKeys.activeOrg(),
+    queryFn: () => getActiveOrganization(),
+    staleTime: 60_000,
+  })
 
 const responseTargetPolicyQuery = queryOptions({
   queryKey: inboxKeys.responseTargetPolicies(),
@@ -56,7 +59,7 @@ export const Route = createFileRoute('/_authenticated/settings/organization')({
   },
   loader: async ({ context }) => {
     await Promise.all([
-      context.queryClient.ensureQueryData(activeOrgQuery),
+      context.queryClient.ensureQueryData(activeOrgQuery(tenantScope(context))),
       context.queryClient.ensureQueryData(responseTargetPolicyQuery),
       context.queryClient.ensureQueryData(privateFeedbackTargetAnalyticsQuery),
       context.queryClient.ensureQueryData(googleReviewTargetAnalyticsQuery),
@@ -68,8 +71,9 @@ export const Route = createFileRoute('/_authenticated/settings/organization')({
 })
 
 function OrganizationSettingsRoute() {
+  const scope = useTenantScope()
   const queryClient = useQueryClient()
-  const { data: orgResult } = useSuspenseQuery(activeOrgQuery)
+  const { data: orgResult } = useSuspenseQuery(activeOrgQuery(scope))
   const { data: responseTargetSettings } = useSuspenseQuery(responseTargetPolicyQuery)
   const { data: privateFeedbackTargetAnalytics } = useSuspenseQuery(
     privateFeedbackTargetAnalyticsQuery,
@@ -84,17 +88,17 @@ function OrganizationSettingsRoute() {
   })
   const updateOrganizationAction = useActionMutation(updateOrganization, {
     successMessage: 'Organization saved',
-    onSuccess: () => organizationCachePolicy.onOrganizationUpdated(queryClient),
+    onSuccess: () => organizationCachePolicy.onOrganizationUpdated(queryClient, scope),
   })
   // The logo is an image setting, which says a refusal itself (a toast), so neither
   // of these passes an `errorMessage`; a failure never lands in the identity form's banner.
   const removeOrganizationLogo = useActionMutation(updateOrganization, {
     successMessage: 'Logo removed',
-    onSuccess: () => organizationCachePolicy.onOrganizationUpdated(queryClient),
+    onSuccess: () => organizationCachePolicy.onOrganizationUpdated(queryClient, scope),
   })
   const finalizeOrgLogo = useActionMutation(finalizeOrgLogoUpload, {
     successMessage: 'Logo updated',
-    onSuccess: () => organizationCachePolicy.onOrganizationUpdated(queryClient),
+    onSuccess: () => organizationCachePolicy.onOrganizationUpdated(queryClient, scope),
   })
 
   return (

@@ -1,3 +1,4 @@
+import { useTenantScope } from '#/shared/hooks/useTenantScope'
 import { StaffSurface } from './staff-surface'
 import { StaffInstallContent, useStaffInstall } from './staff-install'
 import { StaffHomeView } from './staff-home-view'
@@ -8,7 +9,7 @@ import {
   useActionMutation,
 } from '#/components/hooks/use-action-mutation'
 import { STAFF_NOTICE_VERSION } from '#/contexts/identity/application/public-api'
-import { staffSelfKeys } from '#/shared/queries/query-keys'
+import { createKeys } from '#/shared/queries/query-keys'
 import { useStaffRefusal } from './use-staff-refusal'
 import { StaffNotice } from './staff-notice'
 import type { StaffHomeData, StaffHomeFns, StaffHomeSearch } from './types'
@@ -35,6 +36,7 @@ export function StaffHome({
   fns: StaffHomeFns
   embedded?: boolean
 }>) {
+  const { staffSelfKeys } = createKeys(useTenantScope())
   const install = useStaffInstall(!embedded)
   const client = useQueryClient()
   useStaffRefusal()

@@ -1,6 +1,6 @@
 import { QueryClient } from '@tanstack/react-query'
 import { shellContextKeys } from '#/shared/queries/shell-context-cache'
-import { staffSelfKeys } from '#/shared/queries/query-keys'
+import { createKeys } from '#/shared/queries/query-keys'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 const mocks = vi.hoisted(() => ({
   home: vi.fn(),
@@ -128,7 +128,12 @@ it('remembers browser entry checks for thirty seconds under the signed-in person
     client.setQueryData(shellContextKeys.session(), { user: { id: 'another-person' } })
     await staffHomeEntry('/my', client)
     expect(mocks.home).toHaveBeenCalledTimes(2)
-    client.invalidateQueries({ queryKey: staffSelfKeys.home('another-person') })
+    client.invalidateQueries({
+      queryKey: createKeys({
+        userId: 'another-person',
+        organizationId: null,
+      }).staffSelfKeys.home('another-person'),
+    })
     mocks.home.mockRejectedValue(
       new ServerFunctionError('AuthError', 'Removed', 'forbidden', 403),
     )

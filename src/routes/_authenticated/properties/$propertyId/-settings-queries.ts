@@ -1,13 +1,14 @@
+import { type TenantScope } from '#/shared/queries/tenant-scope'
 import { queryOptions } from '@tanstack/react-query'
 import { getMerchantAiAuthorizationFn } from '#/contexts/identity/server/merchant-ai'
 import { listPropertyResponsibleManagers } from '#/contexts/property/server/property-responsible-managers'
 import { getResponseTargetPolicySettingsFn } from '#/contexts/inbox/server/inbox'
 import { getPropertyPortalExperience } from '#/contexts/portal/server/portals'
 import {
-  identityKeys,
   inboxKeys,
   portalKeys,
   propertyKeys,
+  createKeys,
 } from '#/shared/queries/query-keys'
 
 /** Queries the property settings sections share; each section loads only its own. */
@@ -32,9 +33,9 @@ export const propertyPortalExperienceQuery = (propertyId: string) =>
     staleTime: 30_000,
   })
 
-export const merchantAiAuthorizationQuery = (propertyId: string) =>
+export const merchantAiAuthorizationQuery = (scope: TenantScope, propertyId: string) =>
   queryOptions({
-    queryKey: identityKeys.merchantAiAuthorization(propertyId),
+    queryKey: createKeys(scope).identityKeys.merchantAiAuthorization(propertyId),
     queryFn: () => getMerchantAiAuthorizationFn({ data: { propertyId } }),
     staleTime: 0,
   })

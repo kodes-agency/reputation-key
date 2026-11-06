@@ -5,8 +5,10 @@ import {
   clearTenantCacheAfterTenantChange,
   clearTenantCacheBeforeNavigation,
 } from './tenant-cache-transition'
-import { notificationKeys } from './query-keys'
+import { createKeys } from './query-keys'
 import { shellContextKeys } from './shell-context-cache'
+
+const { notificationKeys } = createKeys({ userId: 'user-1', organizationId: 'org-1' })
 
 describe('tenant cache transition', () => {
   it('clears cached tenant data before organization navigation starts', async () => {

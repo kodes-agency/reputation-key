@@ -1,3 +1,5 @@
+import { tenantScope } from '#/shared/queries/tenant-scope'
+import { useTenantScope } from '#/shared/hooks/useTenantScope'
 import { createFileRoute, useRouter } from '@tanstack/react-router'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { PageHeader } from '#/components/layout/page-header'
@@ -16,7 +18,7 @@ import { updateNotificationUserSettingsFn } from '#/contexts/feed/server/notific
 import { ProfileSettingsPage } from '#/components/features/identity'
 import { TimezoneAndFormatCard } from '#/components/features/settings'
 import { notificationUserSettingsQuery } from '#/routes/-queries/route-queries'
-import { identityKeys, notificationKeys } from '#/shared/queries/query-keys'
+import { createKeys } from '#/shared/queries/query-keys'
 import { invalidateShellContext } from '#/shared/queries/shell-context-cache'
 import type { AuthRouteContext } from '#/routes/_authenticated'
 
@@ -25,8 +27,6 @@ const NO_ACTIVE_ORGANIZATION = 'no-active-organization'
 export const Route = createFileRoute('/_authenticated/settings/profile')({
   staticData: { page: { title: 'Profile', tier: 'narrow', under: 'settings' } },
   loader: async ({ context }) => {
-    const organizationId =
-      (context as AuthRouteContext).activeOrganization?.id ?? NO_ACTIVE_ORGANIZATION
     // Awaited, so the server renders the card the client hydrates: rendering
     // it on one side and its loading state on the other is a hydration
     // mismatch, and React then re-renders the page under the reader's first
@@ -34,7 +34,7 @@ export const Route = createFileRoute('/_authenticated/settings/profile')({
     // with Try again, and never takes the name and avatar down with it.
     // No retry here: a failing read would hold the whole page for it.
     await context.queryClient.prefetchQuery({
-      ...notificationUserSettingsQuery(organizationId),
+      ...notificationUserSettingsQuery(tenantScope(context)),
       retry: false,
     })
   },
@@ -42,6 +42,8 @@ export const Route = createFileRoute('/_authenticated/settings/profile')({
 })
 
 function ProfileSettings() {
+  const scope = useTenantScope()
+  const { notificationKeys, identityKeys } = createKeys(scope)
   const ctx = Route.useRouteContext() as AuthRouteContext
   const router = useRouter()
   const queryClient = useQueryClient()
@@ -86,7 +88,7 @@ function ProfileSettings() {
   // Timezone and date format are the person's clock (D6): quiet hours, the
   // daily digest and every notification time go by them. They are kept per
   // Organization membership, so only an active Organization has them.
-  const userSettings = useQuery(notificationUserSettingsQuery(organizationId))
+  const userSettings = useQuery(notificationUserSettingsQuery(scope))
   const updateUserSettings = useActionMutation(updateNotificationUserSettingsFn, {
     invalidateKeys: [notificationKeys.userSettings(organizationId)],
   })

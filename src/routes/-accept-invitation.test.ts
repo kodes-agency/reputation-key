@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { ServerFunctionError } from '#/shared/auth/server-function-error'
-import { identityKeys } from '#/shared/queries/query-keys'
+import { createKeys } from '#/shared/queries/query-keys'
 
 const { getSession, getInvitationPreview } = vi.hoisted(() => ({
   getSession: vi.fn(),
@@ -17,6 +17,8 @@ vi.mock('#/contexts/identity/server/organizations', () => ({
 import { invitationPreviewInputSchema } from '#/contexts/identity/application/dto/invitation.dto'
 import { INVITATION_ID_MAX_LENGTH } from '#/shared/domain/ids'
 import { acceptInvitationSearch, Route } from './accept-invitation'
+
+const { identityKeys } = createKeys({ userId: 'user-1', organizationId: null })
 
 const INVITATION_ID = 'b3c1f0de-4a52-4d7e-9f61-2f1c7a9e5d10'
 
@@ -74,7 +76,7 @@ const pendingPreview = (accountExists: boolean) => ({
   accountExists,
 })
 
-const signedInAs = (email: string) => ({ user: { email }, session: {} })
+const signedInAs = (email: string) => ({ user: { id: 'user-1', email }, session: {} })
 
 const ensureQueryData = vi.fn()
 
@@ -117,7 +119,7 @@ describe('accept-invitation route', () => {
       getSession.mockResolvedValue(signedInAs('dana@meridian.test'))
 
       await expect(runBeforeLoad(undefined)).resolves.toEqual({
-        entry: { kind: 'list' },
+        entry: { kind: 'list', userId: 'user-1' },
       })
       expect(getInvitationPreview).not.toHaveBeenCalled()
     })
