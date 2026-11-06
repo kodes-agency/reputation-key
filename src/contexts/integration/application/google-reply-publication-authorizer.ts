@@ -1,36 +1,29 @@
 import {
+  googleConnectionHasUsableCredential,
+  readGooglePropertyAuthorization,
+  type GooglePropertyAuthorizationReader,
+  type GooglePropertyAuthorizationView,
+} from './google-property-authorization'
+import {
+  googleConnectionAuthorizationVector,
+  googleSystemAuthorizationVector,
+  googlePropertyAuthorizationVector,
+} from './google-authorization-vector'
+import {
   exactVectorDrift,
-  GOOGLE_CONTENT_EXECUTION_POLICY_VERSION,
   sameGoogleContentAuthorizationVector,
 } from '#/shared/domain/google-content-authorization-vector'
 import type { GoogleConnectionId, OrganizationId, PropertyId } from '#/shared/domain/ids'
 import { sha256Hex } from '#/shared/domain/sha256'
 import type { GoogleConnection } from '../domain/types'
 import type { ActiveConnectionTokenProvider } from './active-connection-token-provider'
-import {
-  GOOGLE_BUSINESS_MANAGE_SCOPE,
-  type GoogleReplyPublicationProviderCallAuthorization,
-} from './google-provider-contract'
+import type { GoogleReplyPublicationProviderCallAuthorization } from './google-provider-contract'
 
 export const GOOGLE_REPLY_PUBLICATION_SYSTEM_PRINCIPAL =
   'reply-publication-worker-v1' as const
 export const GOOGLE_REPLY_PUBLICATION_SYSTEM_PERMISSION_DIGEST = sha256Hex(
   GOOGLE_REPLY_PUBLICATION_SYSTEM_PRINCIPAL,
 )
-
-type PublicationPropertyAuthorizationView = Readonly<{
-  organizationId: OrganizationId
-  propertyId: PropertyId
-  state: string
-  connectionId: GoogleConnectionId | null
-  locationId: string | null
-  sourceEpoch: number
-  profileVersion: number
-  profileSource: 'legacy' | 'tenant_confirmed'
-  profileConfirmedAt: Date | null
-  lifecycleState: string
-  deletedAt: Date | null
-}>
 
 export type GoogleReplyPublicationIdentity = Readonly<{
   organizationId: OrganizationId
@@ -72,40 +65,6 @@ export type GoogleReplyPublicationAuthorizationResult =
 export type GoogleReplyPublicationAuthorizer = (
   input: GoogleReplyPublicationIdentity,
 ) => Promise<GoogleReplyPublicationAuthorizationResult>
-
-function currentBinding(
-  binding: PublicationPropertyAuthorizationView | null,
-  input: GoogleReplyPublicationIdentity,
-): binding is PublicationPropertyAuthorizationView & {
-  connectionId: GoogleConnectionId
-  locationId: string
-} {
-  return Boolean(
-    binding &&
-    binding.organizationId === input.organizationId &&
-    binding.propertyId === input.propertyId &&
-    binding.connectionId === input.connectionId &&
-    binding.locationId &&
-    binding.sourceEpoch === input.sourceEpoch &&
-    binding.state === 'active' &&
-    binding.lifecycleState === 'active' &&
-    binding.deletedAt === null,
-  )
-}
-
-function usableConnection(
-  connection: GoogleConnection | null,
-  input: GoogleReplyPublicationIdentity,
-): connection is GoogleConnection {
-  return Boolean(
-    connection &&
-    connection.organizationId === input.organizationId &&
-    connection.id === input.connectionId &&
-    connection.status === 'active' &&
-    connection.credentialUseState === 'active' &&
-    connection.scopes.includes(GOOGLE_BUSINESS_MANAGE_SCOPE),
-  )
-}
 
 function safeGeneration(value: unknown, minimum = 0): value is number {
   return Number.isSafeInteger(value) && Number(value) >= minimum
@@ -157,31 +116,22 @@ function validPublicationVector(
 
 function expectedSystemVector(
   input: GoogleReplyPublicationIdentity,
-  binding: PublicationPropertyAuthorizationView,
+  binding: GooglePropertyAuthorizationView,
   connection: GoogleConnection,
   content: Extract<GoogleReplyPublicationContentAuthorizationResult, { ok: true }>,
 ) {
   const vector = content.authorizationVector
   if (!validPublicationVector(input, vector)) return null
   return Object.freeze({
-    executionPolicyVersion: GOOGLE_CONTENT_EXECUTION_POLICY_VERSION,
-    principalKind: 'system',
-    systemPrincipal: GOOGLE_REPLY_PUBLICATION_SYSTEM_PRINCIPAL,
-    role: 'System',
-    permissionVersion: null,
-    permissionDigest: GOOGLE_REPLY_PUBLICATION_SYSTEM_PERMISSION_DIGEST,
+    ...googleSystemAuthorizationVector(
+      GOOGLE_REPLY_PUBLICATION_SYSTEM_PRINCIPAL,
+      GOOGLE_REPLY_PUBLICATION_SYSTEM_PERMISSION_DIGEST,
+    ),
     confirmingActorUserId: vector.confirmingActorUserId,
     confirmingActorRole: vector.confirmingActorRole,
     confirmingActorPermissionVersion: vector.confirmingActorPermissionVersion,
-    connectionLifecycleVersion: connection.lifecycleVersion,
-    connectionAccessVersion: connection.accessVersion,
-    credentialGeneration: connection.credentialGeneration,
-    propertySourceEpoch: binding.sourceEpoch,
-    propertyProfileVersion: binding.profileVersion,
-    propertyBindingState: binding.state,
-    propertyLifecycleState: binding.lifecycleState,
-    propertyProfileSource: binding.profileSource,
-    propertyTimezoneConfirmed: binding.profileConfirmedAt !== null,
+    ...googleConnectionAuthorizationVector(connection),
+    ...googlePropertyAuthorizationVector(binding),
     reviewId: input.reviewId,
     replyId: input.replyId,
     publicationCycle: input.publicationCycle,
@@ -195,7 +145,7 @@ function expectedSystemVector(
 
 function validSystemContent(
   input: GoogleReplyPublicationIdentity,
-  binding: PublicationPropertyAuthorizationView,
+  binding: GooglePropertyAuthorizationView,
   connection: GoogleConnection,
   content: Extract<GoogleReplyPublicationContentAuthorizationResult, { ok: true }>,
 ): boolean {
@@ -217,36 +167,19 @@ function validSystemContent(
  * only identifiers, revisions, digests, and the current credential generation.
  */
 export function createGoogleReplyPublicationAuthorizer(
-  deps: Readonly<{
-    readBinding(
-      organizationId: OrganizationId,
-      propertyId: PropertyId,
-    ): Promise<PublicationPropertyAuthorizationView | null>
-    findConnection(
-      organizationId: OrganizationId,
-      connectionId: GoogleConnectionId,
-    ): Promise<GoogleConnection | null>
-    getAccessToken: ActiveConnectionTokenProvider['getAccessToken']
-    authorizeGoogleContent: GoogleReplyPublicationContentAuthorizer
-    warn?: (fields: Readonly<Record<string, unknown>>, message: string) => void
-  }>,
+  deps: GooglePropertyAuthorizationReader &
+    Readonly<{
+      getAccessToken: ActiveConnectionTokenProvider['getAccessToken']
+      authorizeGoogleContent: GoogleReplyPublicationContentAuthorizer
+      warn?: (fields: Readonly<Record<string, unknown>>, message: string) => void
+    }>,
 ): GoogleReplyPublicationAuthorizer {
   return async (input) => {
     if (!validIdentity(input)) return { ok: false, code: 'authorization_denied' }
-    let initialBinding: PublicationPropertyAuthorizationView | null
-    let initialConnection: GoogleConnection | null
-    try {
-      ;[initialBinding, initialConnection] = await Promise.all([
-        deps.readBinding(input.organizationId, input.propertyId),
-        deps.findConnection(input.organizationId, input.connectionId),
-      ])
-    } catch {
-      return { ok: false, code: 'runtime_unavailable' }
-    }
-    if (!currentBinding(initialBinding, input)) {
-      return { ok: false, code: 'stale_source' }
-    }
-    if (!usableConnection(initialConnection, input)) {
+    const initial = await readGooglePropertyAuthorization(deps, input)
+    if (!initial.ok) return initial
+    const { binding: initialBinding, connection: initialConnection } = initial
+    if (!googleConnectionHasUsableCredential(initialConnection)) {
       return { ok: false, code: 'authorization_denied' }
     }
 
@@ -271,18 +204,10 @@ export function createGoogleReplyPublicationAuthorizer(
       return { ok: false, code: 'runtime_unavailable' }
     }
 
-    let binding: PublicationPropertyAuthorizationView | null
-    let connection: GoogleConnection | null
-    try {
-      ;[binding, connection] = await Promise.all([
-        deps.readBinding(input.organizationId, input.propertyId),
-        deps.findConnection(input.organizationId, input.connectionId),
-      ])
-    } catch {
-      return { ok: false, code: 'runtime_unavailable' }
-    }
-    if (!currentBinding(binding, input)) return { ok: false, code: 'stale_source' }
-    if (!usableConnection(connection, input)) {
+    const current = await readGooglePropertyAuthorization(deps, input)
+    if (!current.ok) return current
+    const { binding, connection } = current
+    if (!googleConnectionHasUsableCredential(connection)) {
       return { ok: false, code: 'authorization_denied' }
     }
 
