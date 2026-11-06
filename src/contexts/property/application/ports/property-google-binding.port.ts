@@ -54,6 +54,7 @@ export type PropertyGoogleBindingErrorCode =
   | 'property_not_found'
   | 'property_deleted'
   | 'invalid_binding'
+  | 'connection_unavailable'
   | 'location_already_bound'
   | 'active_binding_conflict'
   | 'stale_binding'
@@ -82,6 +83,23 @@ export type PropertyOperationCommit = Readonly<{
 }>
 
 export type PropertyGoogleBindingStore = Readonly<{
+  refreshPrimaryCategory: (
+    input: Readonly<{
+      organizationId: OrganizationId
+      propertyId: PropertyId
+      connectionId: GoogleConnectionId
+      accountId: string
+      locationId: string
+      expectedConnectionLifecycleVersion: number
+      expectedConnectionAccessVersion: number
+      expectedSourceEpoch: number
+      expectedProfileVersion: number
+      category: string | null
+      /** The reconnect fact that requested this refresh, retained across retries. */
+      refreshEventId: string
+      readAt: Date
+    }>,
+  ) => Promise<boolean>
   readInternal: (
     organizationId: OrganizationId,
     propertyId: PropertyId,

@@ -1,5 +1,10 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { handleGoogleOAuthCallback } from './callback'
+import { createGoogleConnectionCeremonyFixture } from '#/shared/testing/google-connection-ceremony-fixture'
+import {
+  buildTestAuthContext,
+  buildTestGoogleConnection,
+} from '#/shared/testing/fixtures'
 
 // This hoisted mock bundle and the trace/logger/env/composition vi.mock chain
 // under it match the opening of src/routes/api/webhooks/resend/-events.test.ts.
@@ -230,6 +235,54 @@ describe('GET /api/auth/google/callback', () => {
       { organizationId: 'org-1', userId: 'user-1' },
     )
   })
+
+  it.each(['reconnect', 'reauth'] as const)(
+    'returns success for %s without waiting for category discovery, including completed replay',
+    async (connectionMode) => {
+      const refresh = vi.fn(async () => {
+        throw new Error('category provider unavailable')
+      })
+      const fixture = createGoogleConnectionCeremonyFixture(undefined, refresh)
+      const actor = buildTestAuthContext({ role: 'AccountAdmin' })
+      const target = buildTestGoogleConnection({
+        organizationId: actor.organizationId,
+        googleSubject: 'google-subject-123',
+        status: connectionMode === 'reauth' ? 'reauth_required' : 'disconnected',
+      })
+      fixture.connectionRepo.seed([target])
+      mocks.resolveTenantContext.mockResolvedValue(actor)
+      mocks.redeemState.mockResolvedValue({
+        ...redeemed,
+        connectionMode,
+        targetConnectionId: target.id,
+      })
+      mocks.connectGoogleAccount.mockImplementation(fixture.useCase)
+      mocks.resumeGoogleAccountConnection.mockImplementation(fixture.useCase.resume)
+
+      const response = await handleGoogleOAuthCallback(
+        request('state=v2.v2.secret.handle&code=provider-secret'),
+      )
+      expect(response.headers.get('location')).toBe(
+        `https://app.example.test/properties/import-google?connectionId=${target.id}`,
+      )
+      expect(fixture.connectionRepo.all()[0]?.status).toBe('active')
+      expect(refresh).not.toHaveBeenCalled()
+      fixture.markAttemptCompleted()
+      mocks.redeemState.mockResolvedValue({
+        ok: true,
+        kind: 'recovery',
+        exchangeAttemptId: redeemed.exchangeAttemptId,
+        returnRoute: redeemed.returnRoute,
+      })
+      const replay = await handleGoogleOAuthCallback(
+        request('state=v2.v2.secret.handle&code=provider-secret'),
+      )
+      expect(replay.headers.get('location')).toBe(response.headers.get('location'))
+      expect(refresh).not.toHaveBeenCalled()
+      expect(fixture.exchangeCode).toHaveBeenCalledTimes(1)
+      expect(fixture.outbox.byTag('integration.google_account.connected')).toHaveLength(1)
+    },
+  )
 
   it('resumes a preserved exchange from a recovery tombstone without reusing the provider code', async () => {
     mocks.redeemState.mockResolvedValue({

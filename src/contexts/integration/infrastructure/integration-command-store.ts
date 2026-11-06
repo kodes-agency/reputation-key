@@ -6,13 +6,18 @@
 import { and, eq, sql } from 'drizzle-orm'
 import type { SQL } from 'drizzle-orm'
 import type { Database } from '#/shared/db'
+import { clearGooglePrimaryCategoryForConnection } from '#/shared/db/google-primary-category-purge'
+import { requestGooglePrimaryCategoryRefresh } from '#/shared/db/google-primary-category-refresh'
 import type { Clock } from '#/shared/domain/clock'
 import { googleConnections } from '#/shared/db/schema/google-connection.schema'
 import { idempotencyReceipts } from '#/shared/db/schema/outbox.schema'
 import { insertOutboxRow, type Tx } from '#/shared/outbox/commit'
 import { trace } from '#/shared/observability/trace'
 import { integrationError } from '../domain/errors'
-import { isGovernedDisconnectInFlight } from '../domain/rules'
+import {
+  assertGoogleDisconnectAuthority,
+  isGovernedDisconnectInFlight,
+} from '../domain/rules'
 import { uniqueViolationError } from '../application/ports/google-connection.repository'
 import {
   googleConnectionFromRow,
@@ -199,6 +204,11 @@ export const createAtomicIntegrationCommandStore = (
                 ? integrationError('oauth_failed', 'Google connection authority changed')
                 : integrationError('connection_not_found', 'Google connection not found')
             }
+            await requestGooglePrimaryCategoryRefresh(tx, {
+              organizationId: command.organizationId,
+              connectionId: command.connectionId,
+              eventId: command.event.eventId,
+            })
             await completeOAuthExchangeAttempt(tx, {
               attemptId: command.exchangeAttemptId,
               organizationId: command.organizationId,
@@ -225,7 +235,8 @@ export const createAtomicIntegrationCommandStore = (
           const now = clock()
           // Held until commit, so a governed revoke, a reconnect or another
           // disconnect of this row cannot change it between these checks and
-          // the write.
+          // the write. Binding publication takes a conflicting share lock first;
+          // unrelated Property foreign-key checks remain compatible.
           const [current] = await tx
             .select()
             .from(googleConnections)
@@ -235,14 +246,15 @@ export const createAtomicIntegrationCommandStore = (
                 eq(googleConnections.id, command.connectionId),
               ),
             )
-            .for('update')
+            .for('no key update')
             .limit(1)
-          if (!current) {
-            throw integrationError('connection_not_found', 'Google connection not found')
-          }
+          assertGoogleDisconnectAuthority(current, command.cleanupOnly?.lifecycleVersion)
           // An overlapping disconnect already committed: there is nothing left
           // to redact, and a second fact would send the admins a second notice.
-          if (current.status === 'disconnected') return current
+          if (current.status === 'disconnected') {
+            await clearGooglePrimaryCategoryForConnection(tx, command)
+            return current
+          }
           if (isGovernedDisconnectInFlight(current, now)) {
             throw integrationError(
               'invalid_transition',
@@ -268,6 +280,7 @@ export const createAtomicIntegrationCommandStore = (
           if (!redacted) {
             throw integrationError('connection_not_found', 'Google connection not found')
           }
+          await clearGooglePrimaryCategoryForConnection(tx, command)
           await insertOutboxRow(tx, command.event)
           return redacted
         })

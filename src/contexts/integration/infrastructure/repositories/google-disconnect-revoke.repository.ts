@@ -1,5 +1,6 @@
 import { and, asc, eq, not, sql } from 'drizzle-orm'
 import type { Database } from '#/shared/db'
+import { clearGooglePrimaryCategoryForConnection } from '#/shared/db/google-primary-category-purge'
 import {
   authorizationExecutionPermits,
   googleConnections,
@@ -383,6 +384,7 @@ async function redactConnection(
       ),
     )
     .returning()
+  if (connection) await clearGooglePrimaryCategoryForConnection(tx, attempt)
   return connection ?? null
 }
 

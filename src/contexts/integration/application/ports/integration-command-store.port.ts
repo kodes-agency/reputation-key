@@ -62,8 +62,9 @@ export type ReconnectGoogleAccountCommand = Readonly<{
  * google_account.disconnected fact in one transaction.
  * Throws `connection_not_found` when the row vanished — records NO fact.
  *
- * Deliberately not fenced on the credential or lifecycle versions it read: a
- * token refresh that commits meanwhile must not make a disconnect fail. It is
+ * A requested disconnect is not fenced on the credential or lifecycle versions:
+ * a token refresh that commits meanwhile must not make it fail. Cleanup-only
+ * retries are fenced on the disconnected lifecycle they observed. It is
  * idempotent instead: a connection an overlapping disconnect already finished
  * is returned as it is, with NO second fact, and a governed disconnect still
  * inside its cleanup window is left to its attempt (`invalid_transition`).
@@ -71,6 +72,8 @@ export type ReconnectGoogleAccountCommand = Readonly<{
 export type DisconnectGoogleAccountCommand = Readonly<{
   organizationId: OrganizationId
   connectionId: GoogleConnectionId
+  /** Cleanup retries may only touch the disconnected generation they observed. */
+  cleanupOnly?: Readonly<{ lifecycleVersion: number }>
   event: IntegrationGoogleAccountDisconnected
 }>
 

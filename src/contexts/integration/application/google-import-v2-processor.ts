@@ -90,6 +90,8 @@ function propertyOutcome(error: unknown): TerminalOutcome | null {
       return { outcomeCode: 'already_exists' }
     case 'active_binding_conflict':
       return { outcomeCode: 'active_binding_conflict' }
+    case 'connection_unavailable':
+      return { outcomeCode: 'reconnect_required' }
     case 'stale_binding':
     case 'stale_profile':
       return { outcomeCode: 'stale_binding' }

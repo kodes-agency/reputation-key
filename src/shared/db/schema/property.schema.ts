@@ -67,6 +67,8 @@ export const properties = pgTable(
     googlePrimaryCategoryUpdatedAt: timestamp('google_primary_category_updated_at', {
       withTimezone: true,
     }),
+    // Erasure clears the request, fencing late discovery and its redelivery.
+    googlePrimaryCategoryRefreshEventId: uuid('google_primary_category_refresh_event_id'),
     profileSource: varchar('profile_source', { length: 32 }).notNull().default('legacy'),
     profileConfirmedAt: timestamp('profile_confirmed_at', { withTimezone: true }),
     profileConfirmedBy: varchar('profile_confirmed_by', { length: 255 }),

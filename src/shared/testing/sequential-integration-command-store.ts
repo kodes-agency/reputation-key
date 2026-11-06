@@ -4,7 +4,10 @@
 
 import { createRecordedOutbox, type RecordedOutbox } from './recorded-outbox'
 import { integrationError } from '#/contexts/integration/domain/errors'
-import { isGovernedDisconnectInFlight } from '#/contexts/integration/domain/rules'
+import {
+  assertGoogleDisconnectAuthority,
+  isGovernedDisconnectInFlight,
+} from '#/contexts/integration/domain/rules'
 import type { GoogleConnectionRepository } from '#/contexts/integration/application/ports/google-connection.repository'
 import type { IntegrationCommandStore } from '#/contexts/integration/application/ports/integration-command-store.port'
 
@@ -68,9 +71,7 @@ export function createSequentialIntegrationCommandStore(deps: {
         command.organizationId,
         command.connectionId,
       )
-      if (!current) {
-        throw integrationError('connection_not_found', 'Google connection not found')
-      }
+      assertGoogleDisconnectAuthority(current, command.cleanupOnly?.lifecycleVersion)
       if (current.status === 'disconnected') return current
       if (isGovernedDisconnectInFlight(current, clock())) {
         throw integrationError(

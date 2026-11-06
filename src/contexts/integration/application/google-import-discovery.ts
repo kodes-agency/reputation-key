@@ -1,10 +1,6 @@
 import type { AuthContext } from '#/shared/domain/auth-context'
-import {
-  googleConnectionId,
-  organizationId,
-  type GoogleConnectionId,
-  type PropertyId,
-} from '#/shared/domain/ids'
+import type { GoogleConnectionId, PropertyId } from '#/shared/domain/ids'
+import { googleImportProviderAuthorization } from './google-authorization-vector'
 import type { ProviderContentLeaseDto } from '#/shared/domain/provider-content-lease'
 import { isGbpApiError } from '../domain/gbp-api-error'
 import { googleCallError } from '../domain/google-call-error'
@@ -307,17 +303,6 @@ export function createGoogleImportDiscovery(
     return result
   }
 
-  const providerAuthorization = (authorization: ImportDiscoveryAuthorization) =>
-    Object.freeze({
-      capability: 'property.import_gbp_v2' as const,
-      organizationId: organizationId(authorization.organizationId),
-      propertyId: null,
-      connectionId: googleConnectionId(authorization.connectionId),
-      initiatorUserId: authorization.userId,
-      expectedCredentialGeneration: authorization.credentialGeneration,
-      authorizationVector: authorization.authorizationVector,
-    })
-
   const listAccounts = async (
     input: Readonly<{
       connectionId: GoogleConnectionId
@@ -344,7 +329,7 @@ export function createGoogleImportDiscovery(
     try {
       providerPage = await deps.accounts.listAccounts({
         accessToken: initial.accessToken!,
-        authorization: providerAuthorization(initial.authorization),
+        authorization: googleImportProviderAuthorization(initial.authorization),
         ...(cursor ? { pageToken: cursor.pageToken } : {}),
         signal: input.signal,
       })
@@ -432,7 +417,7 @@ export function createGoogleImportDiscovery(
     try {
       providerPage = await deps.locations.listLocations({
         accessToken: initial.accessToken!,
-        authorization: providerAuthorization(initial.authorization),
+        authorization: googleImportProviderAuthorization(initial.authorization),
         accountId: account.accountId,
         accountDisplayName,
         ...(account.pageToken ? { pageToken: account.pageToken } : {}),

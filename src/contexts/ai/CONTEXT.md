@@ -258,7 +258,8 @@ re-consent moves the notice; its declared material changes advance the affected 
 (`apply_merchant_ai_transition_v1`). The review analysis epoch bump makes the enrollment
 replay analyse the history again, and `eraseRetiredDerivatives` deletes the retired epoch's
 derivatives. Turning AI off, revoking or erasing also deletes the per-Property issue groups and
-the daily star counts (`eraseReviewAnalysisV3Remainder`;
+the daily star counts, and clears the stored Google category and its read time in the
+same transaction (`eraseReviewAnalysisV3Remainder`;
 `ai-review-analysis-v3-turn-off.integration.test.ts`). Operating it, killing it and the limits of a
 rollback are `docs/operations/runbooks.md` section 32.
 

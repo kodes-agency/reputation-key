@@ -130,7 +130,12 @@ import { createGoogleReviewPushTargetResolver } from './infrastructure/adapters/
 import type { GooglePerformanceDependencyDescriptor } from '#/shared/architecture/google-performance-live-boundary'
 import { createIntegrationOrganizationLifecycleContributor } from './infrastructure/adapters/integration-organization-lifecycle.adapter'
 import { createGoogleOrganizationClosureProvider } from './infrastructure/adapters/google-organization-closure-provider.adapter'
-import { sameRecordEntries } from '#/shared/domain/record-entries'
+import {
+  googleImportProviderAuthorization,
+  sameAuthorizationVectorExceptCredentialGeneration,
+} from './application/google-authorization-vector'
+import { createRefreshBoundGoogleCategories } from './application/refresh-bound-google-categories'
+import { registerGoogleCategoryRefreshConsumer } from './infrastructure/google-category-refresh-outbox-consumers'
 
 export type GoogleProviderEndpoints = Readonly<{
   gbpApiBaseUrl: string
@@ -190,17 +195,6 @@ export const GOOGLE_PERFORMANCE_LIVE_DEPENDENCY_DESCRIPTORS: readonly GooglePerf
       modulePath: '#/shared/domain/clock',
     }),
   ])
-
-function sameAuthorizationVectorExceptCredentialGeneration(
-  left: Readonly<Record<string, string | number | boolean | null>>,
-  right: Readonly<Record<string, string | number | boolean | null>>,
-): boolean {
-  return sameRecordEntries(
-    left,
-    right,
-    (key) => key === 'credentialGeneration' || left[key] === right[key],
-  )
-}
 
 type IntegrationContextDeps = Readonly<{
   db: Database
@@ -513,6 +507,17 @@ export const buildIntegrationContext = (deps: IntegrationContextDeps) => {
       : null
 
   const registerOutboxConsumers = (consumerRegistry: ConsumerRegistry) => {
+    registerGoogleCategoryRefreshConsumer(consumerRegistry, {
+      findConnection: connectionRepo.findById,
+      resolveActor: resolveActiveMember,
+      refresh: async (connection, actor, refreshEventId) => {
+        if (!refreshBoundGoogleCategories) {
+          throw new Error('Google category refresh unavailable')
+        }
+        await refreshBoundGoogleCategories(connection, actor, refreshEventId)
+      },
+      receipts: deps.outboxRepo,
+    })
     registerGoogleImportDispatchConsumer(consumerRegistry, {
       store: googleImportV2Store,
       queue: googleImportV2Queue,
@@ -653,6 +658,8 @@ export const buildIntegrationContext = (deps: IntegrationContextDeps) => {
   let googleImportTransaction: ReturnType<typeof createGoogleImportTransaction> | null =
     null
   let googleImportV2Processor: GoogleImportV2Processor | null = null
+  let refreshBoundGoogleCategories:
+    ReturnType<typeof createRefreshBoundGoogleCategories> | undefined
   const resolveActiveMember = createActiveMemberAuthResolver(deps.db)
   const googleImportV2Lifecycle = deps.propertyBindingApi
     ? createGoogleImportV2Lifecycle({
@@ -697,6 +704,18 @@ export const buildIntegrationContext = (deps: IntegrationContextDeps) => {
       // identifier, which BANNED_LOG_KEYS forbids as a log field.
       warn: (fields, message) => deps.logger.warn(fields, message),
     })
+    if (googleImportProviderExecutor) {
+      refreshBoundGoogleCategories = createRefreshBoundGoogleCategories({
+        findPropertyIds: deps.propertyApi.findIdsByGoogleConnection,
+        binding: propertyBindingApi,
+        authorize: authorizeGoogleImportCommand,
+        locations: createGoogleBusinessInformationAdapter({
+          executor: googleImportProviderExecutor,
+          nowMs: () => deps.clock().getTime(),
+        }),
+        clock: deps.clock,
+      })
+    }
     reauthorizeGoogleImportProviderCall = async ({ authorization }) => {
       if (
         authorization.capability !== 'property.import_gbp_v2' ||
@@ -721,15 +740,7 @@ export const buildIntegrationContext = (deps: IntegrationContextDeps) => {
       if (!refreshed.ok) {
         throw new Error('Google provider reauthorization is unavailable')
       }
-      return {
-        capability: 'property.import_gbp_v2',
-        organizationId: authorization.organizationId,
-        propertyId: null,
-        connectionId: authorization.connectionId,
-        initiatorUserId: refreshed.authorization.userId,
-        expectedCredentialGeneration: refreshed.authorization.credentialGeneration,
-        authorizationVector: refreshed.authorization.authorizationVector,
-      }
+      return googleImportProviderAuthorization(refreshed.authorization)
     }
     googleImportV2Processor = createGoogleImportV2Processor({
       store: googleImportV2Store,
