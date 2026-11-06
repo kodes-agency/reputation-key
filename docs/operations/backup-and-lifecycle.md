@@ -502,8 +502,8 @@ treat the static-rule total as the whole sweep.
   retention sweep: local code can assess eligibility/holds but cannot delete.
   Counsel approval, deployed least-privilege proof, and isolated restore/export
   evidence are required before a destructive lifecycle can be designed.
-- **CI artifacts** (GitHub Actions): SBOM (`sbom-spdx`) 30d, container image
-  SBOMs (`sbom-images-spdx`) 30d, e2e failure artifacts 7d
+- **CI artifacts** (GitHub Actions): SBOM (`source-sbom-spdx`) 30d, container image
+  SBOMs (`image-sboms-spdx`) 30d, e2e failure artifacts 7d
   (`.github/workflows/ci.yml`).
 - **Release evidence**: the historical `cnv-01` pack is permanently retained at
   protected tag [docs-archive-2026-11-05](https://github.com/kodes-agency/reputation-key/tree/docs-archive-2026-11-05/docs/release-evidence/cnv-01).
