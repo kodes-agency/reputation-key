@@ -1,3 +1,4 @@
+import { sameGooglePerformanceScope } from './google-performance-authorization-snapshot'
 import type { AuthContext } from '#/shared/domain/auth-context'
 import type { GoogleConnectionId, OrganizationId, PropertyId } from '#/shared/domain/ids'
 import { sameRecordEntries } from '#/shared/domain/record-entries'
@@ -161,22 +162,12 @@ function sameSnapshot(
   expected: GooglePerformanceAuthorizationSnapshot,
 ): boolean {
   return (
-    current.organizationId === expected.organizationId &&
-    current.propertyId === expected.propertyId &&
-    current.connectionId === expected.connectionId &&
-    current.locationId === expected.locationId &&
-    current.timezone === expected.timezone &&
-    current.sourceEpoch === expected.sourceEpoch &&
-    current.profileVersion === expected.profileVersion &&
-    current.connectionLifecycleVersion === expected.connectionLifecycleVersion &&
-    current.connectionAccessVersion === expected.connectionAccessVersion &&
+    sameGooglePerformanceScope(current, expected) &&
     current.authorizationFenceSha256 === expected.authorizationFenceSha256 &&
     sameAuthorizationVectorExceptCredentialGeneration(
       current.authorizationVector,
       expected.authorizationVector,
-    ) &&
-    current.principalHmacKeyVersion === expected.principalHmacKeyVersion &&
-    current.principalHmac === expected.principalHmac
+    )
   )
 }
 
