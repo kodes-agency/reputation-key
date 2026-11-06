@@ -1,8 +1,3 @@
-// Portal context — domain events
-// Per architecture: "Events are facts, named in the past tense."
-// Events live in their owning context's domain/events.ts.
-
-import { newEventId } from '#/shared/domain/event-id'
 import { assert } from '#/shared/domain/assert'
 import {
   isGuestLocale,
@@ -22,7 +17,13 @@ import type { PortalPublicationState } from './portal-publication'
 import type { PortalAccessArtifactChannel } from './portal-access-artifact'
 import type { PortalHealthReason, PortalHealthStatus } from './portal-health'
 import type { PortalConfigurationFieldSet } from './portal-configuration-completeness'
-import { assertPortalLifecycleFact, type PortalEventArgs } from './portal-event-base'
+import {
+  assertPortalLifecycleFact,
+  createPortalEvent,
+  type PortalEventArgs,
+  type PortalLifecycleFact,
+  type PortalFact,
+} from './portal-event-base'
 import type {
   PortalAddedToGroup,
   PortalGroupCreated,
@@ -41,8 +42,6 @@ import type {
   PortalLinkUpdated,
 } from './portal-link-events'
 
-// Group and link facts live in flat sibling modules (round 4 F3). Re-exported
-// unchanged so every importer of './events' keeps working.
 export type {
   PortalAddedToGroup,
   PortalGroupCreated,
@@ -80,103 +79,75 @@ export {
 
 // ── Portal events ──────────────────────────────────────────────────
 
-export type PortalCreated = Readonly<{
-  _tag: 'portal.created'
-  eventId: string
-  portalId: PortalId
-  organizationId: OrganizationId
-  propertyId: PropertyId
-  publicationState: PortalPublicationState
-  sourceAggregateVersion: string
-  occurredAt: Date
-  correlationId: string | null
-}>
+export type PortalCreated = PortalLifecycleFact<
+  'portal.created',
+  {
+    portalId: PortalId
+    publicationState: PortalPublicationState
+  }
+>
 
-export type PortalUpdated = Readonly<{
-  _tag: 'portal.updated'
-  eventId: string
-  portalId: PortalId
-  organizationId: OrganizationId
-  propertyId: PropertyId
-  previousPublicationState: PortalPublicationState
-  publicationState: PortalPublicationState
-  sourceAggregateVersion: string
-  occurredAt: Date
-  correlationId: string | null
-}>
+export type PortalUpdated = PortalLifecycleFact<
+  'portal.updated',
+  {
+    portalId: PortalId
+    previousPublicationState: PortalPublicationState
+    publicationState: PortalPublicationState
+  }
+>
 
 /**
  * Exact immutable publication evidence for a deliberate publish/republish.
  * The digest is safe verification metadata; resolved Portal content and the
  * provider destination remain in the owning snapshot tables.
  */
-export type PortalPublicationPublished = Readonly<{
-  _tag: 'portal.publication.published'
-  eventId: string
-  organizationId: OrganizationId
-  propertyId: PropertyId
-  portalId: PortalId
-  publicationSnapshotId: string
-  publicationVersion: number
-  publicationDigest: string
-  userId: UserId
-  sourceAggregateVersion: string
-  occurredAt: Date
-  correlationId: string | null
-}>
+export type PortalPublicationPublished = PortalLifecycleFact<
+  'portal.publication.published',
+  {
+    portalId: PortalId
+    publicationSnapshotId: string
+    publicationVersion: number
+    publicationDigest: string
+    userId: UserId
+  }
+>
 
 /** Exact target snapshot evidence for an append-only publication rollback. */
-export type PortalPublicationRolledBack = Readonly<{
-  _tag: 'portal.publication.rolled_back'
-  eventId: string
-  organizationId: OrganizationId
-  propertyId: PropertyId
-  portalId: PortalId
-  publicationSnapshotId: string
-  publicationVersion: number
-  publicationDigest: string
-  userId: UserId
-  sourceAggregateVersion: string
-  occurredAt: Date
-  correlationId: string | null
-}>
+export type PortalPublicationRolledBack = PortalLifecycleFact<
+  'portal.publication.rolled_back',
+  {
+    portalId: PortalId
+    publicationSnapshotId: string
+    publicationVersion: number
+    publicationDigest: string
+    userId: UserId
+  }
+>
 
 /** Content-free proof of a recoverable transition into Archived. */
-export type PortalArchived = Readonly<{
-  _tag: 'portal.archived'
-  eventId: string
-  organizationId: OrganizationId
-  propertyId: PropertyId
-  portalId: PortalId
-  userId: UserId
-  sourceAggregateVersion: string
-  occurredAt: Date
-  correlationId: string | null
-}>
+export type PortalArchived = PortalLifecycleFact<
+  'portal.archived',
+  {
+    portalId: PortalId
+    userId: UserId
+  }
+>
 
 /** Content-free proof that Archived returned to Disabled, never Published. */
-export type PortalRestored = Readonly<{
-  _tag: 'portal.restored'
-  eventId: string
-  organizationId: OrganizationId
-  propertyId: PropertyId
-  portalId: PortalId
-  userId: UserId
-  sourceAggregateVersion: string
-  occurredAt: Date
-  correlationId: string | null
-}>
+export type PortalRestored = PortalLifecycleFact<
+  'portal.restored',
+  {
+    portalId: PortalId
+    userId: UserId
+  }
+>
 
-export type PortalDeleted = Readonly<{
-  _tag: 'portal.deleted'
-  eventId: string
-  portalId: PortalId
-  organizationId: OrganizationId
-  propertyId: PropertyId
-  sourceAggregateVersion: string
-  occurredAt: Date
-  correlationId: string | null
-}>
+export type PortalDeleted = PortalLifecycleFact<
+  'portal.deleted',
+  {
+    portalId: PortalId
+  }
+>
 
 /**
  * Recovery fact raised on the transition from one-or-more eligible responsible
@@ -184,167 +155,120 @@ export type PortalDeleted = Readonly<{
  * Identifier-only by design: consumers resolve any display data through an
  * authorized read, and the recovery notification intentionally needs none.
  */
-export type PortalResponsibilityNeeded = Readonly<{
-  _tag: 'portal.responsibility_became_needed'
-  eventId: string
-  portalId: PortalId
-  organizationId: OrganizationId
-  propertyId: PropertyId
-  /**
-   * Whose action left the Portal unstaffed, when a person's did. Nobody is
-   * asked to fix work they have just caused, and a system release names no one.
-   */
-  actorUserId?: UserId | null
-  sourceAggregateVersion: string
-  occurredAt: Date
-  correlationId: string | null
-}>
+export type PortalResponsibilityNeeded = PortalLifecycleFact<
+  'portal.responsibility_became_needed',
+  {
+    portalId: PortalId
+    /**
+     * Whose action left the Portal unstaffed, when a person's did. Nobody is
+     * asked to fix work they have just caused, and a system release names no one.
+     */
+    actorUserId?: UserId | null
+  }
+>
 
 /** Identifier-only fact for a committed responsible-manager selection change. */
-export type PortalResponsibleManagersUpdated = Readonly<{
-  _tag: 'portal.responsible_managers.updated'
-  eventId: string
-  portalId: PortalId
-  organizationId: OrganizationId
-  propertyId: PropertyId
-  assignmentCount: number
-  sourceAggregateVersion: string
-  occurredAt: Date
-  correlationId: string | null
-}>
+export type PortalResponsibleManagersUpdated = PortalLifecycleFact<
+  'portal.responsible_managers.updated',
+  {
+    portalId: PortalId
+    assignmentCount: number
+  }
+>
 
 /**
  * Identifier-only fact for an automatically reconciled Health interval change.
  * It carries the prior and committed enum pairs so downstream notifications can
  * distinguish recovery from degradation without loading guest-facing content.
  */
-export type PortalHealthChanged = Readonly<{
-  _tag: 'portal.health.changed'
-  eventId: string
-  portalId: PortalId
-  organizationId: OrganizationId
-  propertyId: PropertyId
-  previousStatus: PortalHealthStatus
-  previousReason: PortalHealthReason
-  status: PortalHealthStatus
-  reason: PortalHealthReason
-  sourceVersion: string
-  occurredAt: Date
-  correlationId: string | null
-}>
+export type PortalHealthChanged = PortalFact<
+  'portal.health.changed',
+  {
+    portalId: PortalId
+    previousStatus: PortalHealthStatus
+    previousReason: PortalHealthReason
+    status: PortalHealthStatus
+    reason: PortalHealthReason
+    sourceVersion: string
+  }
+>
 
-export type PortalPropertyBrandProfileUpdated = Readonly<{
-  _tag: 'portal.property_brand_profile.updated'
-  eventId: string
-  organizationId: OrganizationId
-  propertyId: PropertyId
-  profileVersion: number
-  sourceAggregateVersion: string
-  occurredAt: Date
-  correlationId: string | null
-}>
+export type PortalPropertyBrandProfileUpdated = PortalLifecycleFact<
+  'portal.property_brand_profile.updated',
+  {
+    profileVersion: number
+  }
+>
 
-export type PortalPropertyBrandContentUpdated = Readonly<{
-  _tag: 'portal.property_brand_content.updated'
-  eventId: string
-  organizationId: OrganizationId
-  propertyId: PropertyId
-  guestLocale: GuestLocale
-  contentVersion: number
-  sourceAggregateVersion: string
-  occurredAt: Date
-  correlationId: string | null
-}>
+export type PortalPropertyBrandContentUpdated = PortalLifecycleFact<
+  'portal.property_brand_content.updated',
+  {
+    guestLocale: GuestLocale
+    contentVersion: number
+  }
+>
 
-export type PortalLocalizedOverrideUpdated = Readonly<{
-  _tag: 'portal.localized_override.updated'
-  eventId: string
-  organizationId: OrganizationId
-  propertyId: PropertyId
-  portalId: PortalId
-  guestLocale: GuestLocale
-  overrideVersion: number | null
-  sourceAggregateVersion: string
-  occurredAt: Date
-  correlationId: string | null
-}>
+export type PortalLocalizedOverrideUpdated = PortalLifecycleFact<
+  'portal.localized_override.updated',
+  {
+    portalId: PortalId
+    guestLocale: GuestLocale
+    overrideVersion: number | null
+  }
+>
 
-export type PortalLocaleSetUpdated = Readonly<{
-  _tag: 'portal.locale_set.updated'
-  eventId: string
-  organizationId: OrganizationId
-  propertyId: PropertyId
-  portalId: PortalId
-  primaryGuestLocale: GuestLocale
-  additionalGuestLocales: readonly GuestLocale[]
-  sourceAggregateVersion: string
-  occurredAt: Date
-  correlationId: string | null
-}>
+export type PortalLocaleSetUpdated = PortalLifecycleFact<
+  'portal.locale_set.updated',
+  {
+    portalId: PortalId
+    primaryGuestLocale: GuestLocale
+    additionalGuestLocales: readonly GuestLocale[]
+  }
+>
 
-export type PortalApprovedDestinationUpdated = Readonly<{
-  _tag: 'portal.approved_destination.updated'
-  eventId: string
-  approvedDestinationId: PortalApprovedDestinationId
-  organizationId: OrganizationId
-  propertyId: PropertyId
-  approvalState: 'pending' | 'approved' | 'disabled' | 'quarantined'
-  sourceAggregateVersion: string
-  occurredAt: Date
-  correlationId: string | null
-}>
+export type PortalApprovedDestinationUpdated = PortalLifecycleFact<
+  'portal.approved_destination.updated',
+  {
+    approvedDestinationId: PortalApprovedDestinationId
+    approvalState: 'pending' | 'approved' | 'disabled' | 'quarantined'
+  }
+>
 
-export type PortalTokenIssued = Readonly<{
-  _tag: 'portal.token.issued'
-  eventId: string
-  portalId: PortalId
-  organizationId: OrganizationId
-  propertyId: PropertyId
-  tokenIdentifier: string
-  version: number
-  sourceAggregateVersion: string
-  occurredAt: Date
-  correlationId: string | null
-}>
+export type PortalTokenIssued = PortalLifecycleFact<
+  'portal.token.issued',
+  {
+    portalId: PortalId
+    tokenIdentifier: string
+    version: number
+  }
+>
 
-export type PortalTokenRotated = Readonly<{
-  _tag: 'portal.token.rotated'
-  eventId: string
-  portalId: PortalId
-  organizationId: OrganizationId
-  propertyId: PropertyId
-  previousVersion: number
-  version: number
-  gracePeriodEnds: Date
-  sourceAggregateVersion: string
-  occurredAt: Date
-  correlationId: string | null
-}>
+export type PortalTokenRotated = PortalLifecycleFact<
+  'portal.token.rotated',
+  {
+    portalId: PortalId
+    previousVersion: number
+    version: number
+    gracePeriodEnds: Date
+  }
+>
 
-export type PortalTokenRevoked = Readonly<{
-  _tag: 'portal.token.revoked'
-  eventId: string
-  portalId: PortalId
-  organizationId: OrganizationId
-  propertyId: PropertyId
-  sourceAggregateVersion: string
-  occurredAt: Date
-  correlationId: string | null
-}>
+export type PortalTokenRevoked = PortalLifecycleFact<
+  'portal.token.revoked',
+  {
+    portalId: PortalId
+  }
+>
 
 /** Identifier-only proof that a controlled channel marker was published. */
-export type PortalAccessArtifactPublished = Readonly<{
-  _tag: 'portal.access_artifact.published'
-  eventId: string
-  accessArtifactId: PortalAccessArtifactId
-  portalId: PortalId
-  organizationId: OrganizationId
-  propertyId: PropertyId
-  channel: PortalAccessArtifactChannel
-  sourceAggregateVersion: string
-  occurredAt: Date
-  correlationId: string | null
-}>
+export type PortalAccessArtifactPublished = PortalLifecycleFact<
+  'portal.access_artifact.published',
+  {
+    accessArtifactId: PortalAccessArtifactId
+    portalId: PortalId
+    channel: PortalAccessArtifactChannel
+  }
+>
 
 type PortalWorkflowFactFields = Readonly<{
   reviewId: string
@@ -359,56 +283,44 @@ type PortalWorkflowFactFields = Readonly<{
   correlationId?: string | null
 }>
 
-export type PortalContentReviewCompleted = Readonly<{
-  _tag: 'portal.content_review.completed'
-  eventId: string
-  reviewId: string
-  revision: number
-  organizationId: OrganizationId
-  propertyId: PropertyId
-  portalId: PortalId
-  portalGroupId: PortalGroupId | null
-  supersedesSourceEventId: string | null
-  sourceAggregateVersion: string
-  occurredAt: Date
-  correlationId: string | null
-}>
+export type PortalContentReviewCompleted = PortalLifecycleFact<
+  'portal.content_review.completed',
+  {
+    reviewId: string
+    revision: number
+    portalId: PortalId
+    portalGroupId: PortalGroupId | null
+    supersedesSourceEventId: string | null
+  }
+>
 
-export type PortalConfigurationCompletenessRecorded = Readonly<{
-  _tag: 'portal.configuration_completeness.recorded'
-  eventId: string
-  reviewId: string
-  revision: number
-  organizationId: OrganizationId
-  propertyId: PropertyId
-  portalId: PortalId
-  portalGroupId: PortalGroupId | null
-  supersedesSourceEventId: string | null
-  sourceAggregateVersion: string
-  completedFields: number
-  requiredFields: number
-  /** Which fields were counted; facts from before the Immersive Hub count say `legacy`. */
-  fieldSet: PortalConfigurationFieldSet
-  occurredAt: Date
-  correlationId: string | null
-}>
+export type PortalConfigurationCompletenessRecorded = PortalLifecycleFact<
+  'portal.configuration_completeness.recorded',
+  {
+    reviewId: string
+    revision: number
+    portalId: PortalId
+    portalGroupId: PortalGroupId | null
+    supersedesSourceEventId: string | null
+    completedFields: number
+    requiredFields: number
+    /** Which fields were counted; facts from before the Immersive Hub count say `legacy`. */
+    fieldSet: PortalConfigurationFieldSet
+  }
+>
 
-export type PortalApprovedDestinationRatioRecorded = Readonly<{
-  _tag: 'portal.approved_destination_ratio.recorded'
-  eventId: string
-  reviewId: string
-  revision: number
-  organizationId: OrganizationId
-  propertyId: PropertyId
-  portalId: PortalId
-  portalGroupId: PortalGroupId | null
-  supersedesSourceEventId: string | null
-  sourceAggregateVersion: string
-  approvedDestinations: number
-  configuredDestinations: number
-  occurredAt: Date
-  correlationId: string | null
-}>
+export type PortalApprovedDestinationRatioRecorded = PortalLifecycleFact<
+  'portal.approved_destination_ratio.recorded',
+  {
+    reviewId: string
+    revision: number
+    portalId: PortalId
+    portalGroupId: PortalGroupId | null
+    supersedesSourceEventId: string | null
+    approvedDestinations: number
+    configuredDestinations: number
+  }
+>
 
 // ── Event union ────────────────────────────────────────────────────
 
@@ -453,22 +365,18 @@ export type PortalEvent =
 
 export const portalCreated = (args: PortalEventArgs<PortalCreated>): PortalCreated => {
   assertPortalLifecycleFact(args)
-  return {
+  return createPortalEvent({
     _tag: 'portal.created',
-    eventId: newEventId(),
     ...args,
-    correlationId: args.correlationId ?? null,
-  }
+  })
 }
 
 export const portalUpdated = (args: PortalEventArgs<PortalUpdated>): PortalUpdated => {
   assertPortalLifecycleFact(args)
-  return {
+  return createPortalEvent({
     _tag: 'portal.updated',
-    eventId: newEventId(),
     ...args,
-    correlationId: args.correlationId ?? null,
-  }
+  })
 }
 
 type PortalPublicationFactArgs<
@@ -517,26 +425,24 @@ export const portalPublicationPublished = (
   args: PortalPublicationFactArgs<PortalPublicationPublished>,
 ): PortalPublicationPublished => {
   assertPortalPublicationFact(args)
-  return {
+  return createPortalEvent({
     _tag: 'portal.publication.published',
-    eventId: newEventId(),
     ...portalPublicationFactPayload(args),
     occurredAt: args.occurredAt,
-    correlationId: args.correlationId ?? null,
-  }
+    correlationId: args.correlationId,
+  })
 }
 
 export const portalPublicationRolledBack = (
   args: PortalPublicationFactArgs<PortalPublicationRolledBack>,
 ): PortalPublicationRolledBack => {
   assertPortalPublicationFact(args)
-  return {
+  return createPortalEvent({
     _tag: 'portal.publication.rolled_back',
-    eventId: newEventId(),
     ...portalPublicationFactPayload(args),
     occurredAt: args.occurredAt,
-    correlationId: args.correlationId ?? null,
-  }
+    correlationId: args.correlationId,
+  })
 }
 
 type PortalArchiveFactArgs<T extends PortalArchived | PortalRestored> = PortalEventArgs<T>
@@ -564,48 +470,42 @@ export const portalArchived = (
   args: PortalArchiveFactArgs<PortalArchived>,
 ): PortalArchived => {
   assertPortalArchiveFact(args)
-  return {
+  return createPortalEvent({
     _tag: 'portal.archived',
-    eventId: newEventId(),
     ...portalArchiveFactPayload(args),
     occurredAt: args.occurredAt,
-    correlationId: args.correlationId ?? null,
-  }
+    correlationId: args.correlationId,
+  })
 }
 
 export const portalRestored = (
   args: PortalArchiveFactArgs<PortalRestored>,
 ): PortalRestored => {
   assertPortalArchiveFact(args)
-  return {
+  return createPortalEvent({
     _tag: 'portal.restored',
-    eventId: newEventId(),
     ...portalArchiveFactPayload(args),
     occurredAt: args.occurredAt,
-    correlationId: args.correlationId ?? null,
-  }
+    correlationId: args.correlationId,
+  })
 }
 
 export const portalDeleted = (args: PortalEventArgs<PortalDeleted>): PortalDeleted => {
   assertPortalLifecycleFact(args)
-  return {
+  return createPortalEvent({
     _tag: 'portal.deleted',
-    eventId: newEventId(),
     ...args,
-    correlationId: args.correlationId ?? null,
-  }
+  })
 }
 
 export const portalResponsibilityNeeded = (
   args: PortalEventArgs<PortalResponsibilityNeeded>,
 ): PortalResponsibilityNeeded => {
   assertPortalLifecycleFact(args)
-  return {
+  return createPortalEvent({
     _tag: 'portal.responsibility_became_needed',
-    eventId: newEventId(),
     ...args,
-    correlationId: args.correlationId ?? null,
-  }
+  })
 }
 
 export const portalResponsibleManagersUpdated = (
@@ -616,12 +516,10 @@ export const portalResponsibleManagersUpdated = (
     Number.isInteger(args.assignmentCount) && args.assignmentCount >= 0,
     'assignmentCount must be a non-negative integer',
   )
-  return {
+  return createPortalEvent({
     _tag: 'portal.responsible_managers.updated',
-    eventId: newEventId(),
     ...args,
-    correlationId: args.correlationId ?? null,
-  }
+  })
 }
 
 export const portalHealthChanged = (
@@ -636,12 +534,10 @@ export const portalHealthChanged = (
     args.previousStatus !== args.status || args.previousReason !== args.reason,
     'Portal Health change must change the persisted status or reason',
   )
-  return {
+  return createPortalEvent({
     _tag: 'portal.health.changed',
-    eventId: newEventId(),
     ...args,
-    correlationId: args.correlationId ?? null,
-  }
+  })
 }
 
 export const portalPropertyBrandProfileUpdated = (
@@ -652,12 +548,10 @@ export const portalPropertyBrandProfileUpdated = (
     Number.isInteger(args.profileVersion) && args.profileVersion > 0,
     'Portal brand profile version must be a positive integer',
   )
-  return {
+  return createPortalEvent({
     _tag: 'portal.property_brand_profile.updated',
-    eventId: newEventId(),
     ...args,
-    correlationId: args.correlationId ?? null,
-  }
+  })
 }
 
 export const portalPropertyBrandContentUpdated = (
@@ -669,12 +563,10 @@ export const portalPropertyBrandContentUpdated = (
     Number.isInteger(args.contentVersion) && args.contentVersion > 0,
     'Portal brand content version must be a positive integer',
   )
-  return {
+  return createPortalEvent({
     _tag: 'portal.property_brand_content.updated',
-    eventId: newEventId(),
     ...args,
-    correlationId: args.correlationId ?? null,
-  }
+  })
 }
 
 export const portalLocalizedOverrideUpdated = (
@@ -690,12 +582,10 @@ export const portalLocalizedOverrideUpdated = (
       (Number.isInteger(args.overrideVersion) && args.overrideVersion > 0),
     'Portal localized override version must be null or a positive integer',
   )
-  return {
+  return createPortalEvent({
     _tag: 'portal.localized_override.updated',
-    eventId: newEventId(),
     ...args,
-    correlationId: args.correlationId ?? null,
-  }
+  })
 }
 
 export const portalLocaleSetUpdated = (
@@ -710,60 +600,50 @@ export const portalLocaleSetUpdated = (
     isValidAdditionalGuestLocales(args.primaryGuestLocale, args.additionalGuestLocales),
     'Portal additional guest locales must be supported, unique, and not repeat the primary',
   )
-  return {
+  return createPortalEvent({
     _tag: 'portal.locale_set.updated',
-    eventId: newEventId(),
     ...args,
-    correlationId: args.correlationId ?? null,
-  }
+  })
 }
 
 export const portalApprovedDestinationUpdated = (
   args: PortalEventArgs<PortalApprovedDestinationUpdated>,
 ): PortalApprovedDestinationUpdated => {
   assertPortalLifecycleFact(args)
-  return {
+  return createPortalEvent({
     _tag: 'portal.approved_destination.updated',
-    eventId: newEventId(),
     ...args,
-    correlationId: args.correlationId ?? null,
-  }
+  })
 }
 
 export const portalTokenIssued = (
   args: PortalEventArgs<PortalTokenIssued>,
 ): PortalTokenIssued => {
   assertPortalLifecycleFact(args)
-  return {
+  return createPortalEvent({
     _tag: 'portal.token.issued',
-    eventId: newEventId(),
     ...args,
-    correlationId: args.correlationId ?? null,
-  }
+  })
 }
 
 export const portalTokenRotated = (
   args: PortalEventArgs<PortalTokenRotated>,
 ): PortalTokenRotated => {
   assertPortalLifecycleFact(args)
-  return {
+  return createPortalEvent({
     _tag: 'portal.token.rotated',
-    eventId: newEventId(),
     ...args,
-    correlationId: args.correlationId ?? null,
-  }
+  })
 }
 
 export const portalTokenRevoked = (
   args: PortalEventArgs<PortalTokenRevoked>,
 ): PortalTokenRevoked => {
   assertPortalLifecycleFact(args)
-  return {
+  return createPortalEvent({
     _tag: 'portal.token.revoked',
-    eventId: newEventId(),
     ...args,
-    correlationId: args.correlationId ?? null,
-  }
+  })
 }
 
 export const portalAccessArtifactPublished = (
@@ -772,12 +652,10 @@ export const portalAccessArtifactPublished = (
   assertPortalLifecycleFact(args)
   assert(args.accessArtifactId !== '', 'accessArtifactId required')
   assert(args.channel === 'qr' || args.channel === 'nfc', 'controlled channel required')
-  return {
+  return createPortalEvent({
     _tag: 'portal.access_artifact.published',
-    eventId: newEventId(),
     ...args,
-    correlationId: args.correlationId ?? null,
-  }
+  })
 }
 
 type PortalWorkflowFact =
@@ -800,12 +678,10 @@ export const portalContentReviewCompleted = (
   args: PortalWorkflowFactArgs<PortalContentReviewCompleted>,
 ): PortalContentReviewCompleted => {
   assertPortalWorkflowFact(args)
-  return {
+  return createPortalEvent({
     _tag: 'portal.content_review.completed',
-    eventId: newEventId(),
     ...args,
-    correlationId: args.correlationId ?? null,
-  }
+  })
 }
 
 export const portalConfigurationCompletenessRecorded = (
@@ -826,12 +702,10 @@ export const portalConfigurationCompletenessRecorded = (
     args.fieldSet === 'legacy' || args.fieldSet === 'immersive_hub',
     'fieldSet must name the fields that were counted',
   )
-  return {
+  return createPortalEvent({
     _tag: 'portal.configuration_completeness.recorded',
-    eventId: newEventId(),
     ...args,
-    correlationId: args.correlationId ?? null,
-  }
+  })
 }
 
 export const portalApprovedDestinationRatioRecorded = (
@@ -848,10 +722,8 @@ export const portalApprovedDestinationRatioRecorded = (
       args.approvedDestinations <= args.configuredDestinations,
     'approvedDestinations must be between zero and configuredDestinations',
   )
-  return {
+  return createPortalEvent({
     _tag: 'portal.approved_destination_ratio.recorded',
-    eventId: newEventId(),
     ...args,
-    correlationId: args.correlationId ?? null,
-  }
+  })
 }
