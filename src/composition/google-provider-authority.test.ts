@@ -193,8 +193,6 @@ describe('buildGoogleProviderAuthority', () => {
         redis: {} as NonNullable<GoogleProviderAuthorityInput['redis']>,
         env: envWith({
           GOOGLE_CREDENTIAL_BINDING_HMAC_KEYS: `local:${'11'.repeat(32)}`,
-          GOOGLE_ADMISSION_GRANT_HMAC_KEYS: `local:${'22'.repeat(32)}`,
-          GOOGLE_EGRESS_GATEWAY_IDENTITY: 'local-google-provider-runtime-v1',
         }),
       }),
     )
@@ -203,18 +201,29 @@ describe('buildGoogleProviderAuthority', () => {
     expect(authority.googleAuthorizedProviderExecutor).toBeDefined()
   })
 
-  it('refuses a partially configured egress runtime instead of degrading', () => {
-    // The runtime signs grants with one secret, binds credentials with another
-    // and stamps permits with an identity. Any one of the three alone is a
-    // half-built egress path, and silently treating it as "Google is off"
-    // is how a misconfiguration reaches users as a 503 nobody ordered.
+  it('refuses an egress runtime without coordination Redis', () => {
     expect(() =>
       buildGoogleProviderAuthority(
         buildInput({
-          env: envWith({ GOOGLE_EGRESS_GATEWAY_IDENTITY: 'google-egress-runtime-1' }),
+          db: { $client: {} } as unknown as Database,
+          env: envWith({
+            GOOGLE_CREDENTIAL_BINDING_HMAC_KEYS: `local:${'11'.repeat(32)}`,
+          }),
         }),
       ),
-    ).toThrow('Google egress runtime configuration is incomplete')
+    ).toThrow('Google egress runtime requires provider-ephemeral Redis')
+  })
+
+  it('refuses empty credential binding keys instead of omitting the executor', () => {
+    expect(() =>
+      buildGoogleProviderAuthority(
+        buildInput({
+          db: { $client: {} } as unknown as Database,
+          redis: {} as NonNullable<GoogleProviderAuthorityInput['redis']>,
+          env: envWith({ GOOGLE_CREDENTIAL_BINDING_HMAC_KEYS: '' }),
+        }),
+      ),
+    ).toThrow('HMAC keyring is empty or malformed')
   })
 
   it('takes configuration only as an argument — never from the ambient process', () => {

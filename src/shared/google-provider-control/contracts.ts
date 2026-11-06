@@ -1,14 +1,12 @@
-export const GOOGLE_ENDPOINT_CLASSES = [
-  'account-management',
-  'business-information',
-  'performance',
-  'oauth-token',
-  'oauth-jwks',
-  'oauth-revoke',
-  'reviews',
-  'notifications',
-] as const
-export type GoogleEndpointClass = (typeof GOOGLE_ENDPOINT_CLASSES)[number]
+export type GoogleEndpointClass =
+  | 'account-management'
+  | 'business-information'
+  | 'performance'
+  | 'oauth-token'
+  | 'oauth-jwks'
+  | 'oauth-revoke'
+  | 'reviews'
+  | 'notifications'
 
 export const GOOGLE_PROVIDER_ROUTE_CATALOGUE_VERSION = '2026-10-21' as const
 
@@ -41,10 +39,6 @@ export function isGooglePerformanceDailyMetric(
 }
 export const MAX_GOOGLE_PERFORMANCE_DAILY_VALUE = 6_152_458_507_336 as const
 export const MAX_GOOGLE_PERFORMANCE_RESPONSE_BYTES = 5 * 1024 * 1024
-export const GOOGLE_PERFORMANCE_EXCLUDED_DAILY_METRICS = Object.freeze([
-  'DAILY_METRIC_UNKNOWN',
-  'BUSINESS_FOOD_ORDERS',
-] as const)
 export const GOOGLE_PROVIDER_ROUTE_KEYS = [
   'account-management.accounts.list',
   'business-information.locations.list',

@@ -266,7 +266,6 @@ async function seedDispatchingCleanupPermit(): Promise<void> {
 function authority() {
   return createPostgresGoogleAdmissionPermitAuthority({
     pool,
-    gatewayIdentity: 'google-egress-runtime-1',
   })
 }
 
