@@ -7,57 +7,19 @@ import { googleProviderErrorStatus } from '#/shared/domain/google-provider-failu
 import type { GoogleProviderRouteDescriptor } from '#/shared/google-provider-control/route-catalogue'
 import type {
   GoogleAuthorizedProviderExecutor,
-  GoogleProviderAdmissionCode,
   GoogleProviderExecutionResult,
 } from '../../application/ports/google-authorized-provider-executor.port'
 import type { GoogleProviderCallAuthorization } from '../../application/google-provider-contract'
 import { createGbpApiError, type GbpApiErrorKind } from '../../domain/gbp-api-error'
+import {
+  googleCallErrorCodeForExecution,
+  googleCallErrorCodeForStatus,
+} from '../../domain/google-call-error'
 
 const PROVIDER_DEADLINE_MS = 15_000
 const JSON_CONTENT_TYPE = /^application\/json(?:\s*;|$)/i
 
-function classifyProviderStatus(status: number): GbpApiErrorKind {
-  if (status === 401) return 'auth_failed'
-  if (status === 403) return 'permission_denied'
-  if (status === 429) return 'rate_limited'
-  return 'upstream_error'
-}
-
-function admissionFailureKind(
-  admissionCode: GoogleProviderAdmissionCode | undefined,
-): GbpApiErrorKind {
-  switch (admissionCode) {
-    // Only real provider quota pressure is rate limiting. Permit/policy fences
-    // (elapsed start deadline, coordination outage) all surfaced as "Google is
-    // limiting requests" before this, which pointed operators at provider
-    // quota instead of our own admission path.
-    case 'quota_exhausted':
-    case 'in_flight_exhausted':
-      return 'rate_limited'
-    // The caller's authorization moved while the request was in flight. These
-    // are decisions, not outages: reporting them as retryable "temporarily
-    // unavailable" hid a real permission change behind a useless retry.
-    case 'authorization_changed':
-    case 'authorization_denied':
-      return 'permission_denied'
-    // Everything else — including `policy_refresh_unavailable` — is our own
-    // admission path being momentarily unable to decide.
-    default:
-      return 'upstream_error'
-  }
-}
-
 type GoogleProviderExecutionFailure = Exclude<GoogleProviderExecutionResult, { ok: true }>
-
-function gatewayFailureKind(failure: GoogleProviderExecutionFailure): GbpApiErrorKind {
-  if (failure.code === 'admission_denied') {
-    return admissionFailureKind(failure.admissionCode)
-  }
-  if (failure.code === 'response_too_large' || failure.code === 'malformed_request') {
-    return 'parse_error'
-  }
-  return 'upstream_error'
-}
 
 /**
  * The typed error for an execution the gateway refused or could not finish. It
@@ -69,7 +31,7 @@ export function gatewayFailureError(
   operation: string,
   failure: GoogleProviderExecutionFailure,
 ) {
-  const gatewayKind = gatewayFailureKind(failure)
+  const gatewayKind = googleCallErrorCodeForExecution(failure)
   return createGbpApiError(operation, gatewayKind, {
     retryAfterMs: retryableBackoffMs(gatewayKind, failure.retryAfterMs),
     ...(failure.code === 'admission_denied' && failure.admissionCode !== undefined
@@ -175,7 +137,7 @@ export function providerStatusError(
   nowMs: () => number,
   startedAtMs: number,
 ) {
-  const statusKind = classifyProviderStatus(response.status)
+  const statusKind = googleCallErrorCodeForStatus(response.status)
   const observedAtMs = nowMs()
   return createGbpApiError(operation, statusKind, {
     providerBodyBytes: response.body.byteLength,

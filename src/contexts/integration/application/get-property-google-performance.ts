@@ -14,6 +14,7 @@ import {
   GooglePerformanceReportError,
 } from './google-performance-report'
 import { isGbpApiError } from '../domain/gbp-api-error'
+import { googleCallError } from '../domain/google-call-error'
 
 const CONTENT_TTL_MS = 15 * 60_000
 
@@ -122,6 +123,7 @@ function mapProviderError(error: unknown): UnavailablePerformanceResult {
     return errorResult('stale_source', true)
   }
   if (!isGbpApiError(error)) return errorResult('temporarily_unavailable', true)
+  const call = googleCallError(error)
   if (
     error.executionAdmissionCode === 'credential_unavailable' ||
     error.executionAdmissionCode === 'runtime_unavailable' ||
@@ -130,10 +132,10 @@ function mapProviderError(error: unknown): UnavailablePerformanceResult {
     return errorResult('authorization_stale', true)
   }
   const retryAfterSeconds =
-    error.retryAfterMs === null || error.retryAfterMs <= 0
+    call.retryAfterMs === null || call.retryAfterMs <= 0
       ? null
-      : Math.max(1, Math.ceil(error.retryAfterMs / 1_000))
-  switch (error.kind) {
+      : Math.max(1, Math.ceil(call.retryAfterMs / 1_000))
+  switch (call.code) {
     case 'rate_limited':
       return errorResult('rate_limited', true, retryAfterSeconds)
     case 'parse_error':
@@ -142,6 +144,7 @@ function mapProviderError(error: unknown): UnavailablePerformanceResult {
     case 'permission_denied':
       return errorResult('provider_rejected', false)
     case 'upstream_error':
+    case 'unclassified':
       return errorResult('temporarily_unavailable', true, retryAfterSeconds)
   }
 }
