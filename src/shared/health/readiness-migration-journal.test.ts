@@ -7,6 +7,11 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({ query: vi.fn(), warn: vi.fn() }))
 
+vi.mock('node:fs', async (importOriginal) => {
+  const fs = await importOriginal<typeof import('node:fs')>()
+  return { ...fs, readFileSync: vi.fn(fs.readFileSync) }
+})
+
 vi.mock('#/shared/db/pool', async (importOriginal) => ({
   ...(await importOriginal<typeof import('#/shared/db/pool')>()),
   getPool: () => ({ query: mocks.query }),
@@ -20,6 +25,7 @@ vi.mock('#/shared/observability/logger', async (importOriginal) => ({
 import { MIGRATION_COUNT_SQL } from './migration-version'
 import { isMigrationJournalMatched } from './readiness'
 import {
+  compatibilityJournal,
   previousJournal,
   previousRevisionReadiness,
 } from './previous-revision-readiness.test-fixture'
@@ -63,17 +69,21 @@ describe('isMigrationJournalMatched', () => {
   })
 
   it('keeps the actual previous revision ready through the compatibility release', async () => {
-    const journal = JSON.parse(
-      readFileSync(join(process.cwd(), 'drizzle/meta/_journal.json'), 'utf8'),
-    ) as typeof previousJournal
     const previousReady = previousRevisionReadiness(mocks.query)
     applied(previousJournal.entries.length)
     await expect(previousReady()).resolves.toBe(true)
-    applied(journalEntries)
+    applied(compatibilityJournal.entries.length)
     await expect(previousReady()).resolves.toBe(true)
-    expect(journal).toEqual(previousJournal)
-    applied(journalEntries)
+    expect(compatibilityJournal).toEqual(previousJournal)
+    applied(compatibilityJournal.entries.length)
+    vi.mocked(readFileSync).mockReturnValueOnce(JSON.stringify(compatibilityJournal))
     await expect(isMigrationJournalMatched()).resolves.toBe(true)
+  })
+
+  it('keeps this image unready while only the released journal is applied', async () => {
+    applied(previousJournal.entries.length)
+
+    await expect(isMigrationJournalMatched()).resolves.toBe(false)
   })
 
   it('proves why migrations must follow the compatibility release', async () => {

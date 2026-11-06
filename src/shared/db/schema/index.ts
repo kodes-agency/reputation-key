@@ -54,3 +54,5 @@ export * from './merchant-ai-notice-update.schema'
 export * from './product-updates.schema'
 
 export * from './staff-accounts.schema'
+
+export * from './work-items.schema'

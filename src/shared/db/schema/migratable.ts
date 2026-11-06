@@ -62,3 +62,5 @@ export * from './review-sync.schema'
 export * from './product-updates.schema'
 
 export * from './staff-accounts.schema'
+
+export * from './work-items.schema'

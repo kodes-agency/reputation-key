@@ -48,6 +48,7 @@ import { GateDenyRetryError, JobTimeoutError, UnknownJobError } from './errors'
 import type { GateDeniedExecutionKind, GateDeniedResult } from './gate-denial'
 import { jobTimeoutMs } from './job-policy'
 import type { JobRegistry } from './registry'
+import type { WorkItems } from './work-items.server'
 import { executionKindOf } from './schedule-firing'
 
 /**
@@ -118,7 +119,11 @@ export type GateOutcome =
   | Readonly<{ kind: 'deny_terminal'; decision: DelayedDecision }>
   | Readonly<{ kind: 'deny_retry'; decision: DelayedDecision }>
 
-/** Resolves dispatch-time scope not carried in the payload (e.g. reply → property). */
+/**
+ * Resolves property scope (e.g. reply → property). Ledger dispatches supply
+ * the authoritative organizationId and subjectId with workId instead of
+ * domain payload fields; adopters resolve that subject within its tenant.
+ */
 export type ScopeResolver = (
   jobName: string,
   data: unknown,
@@ -429,14 +434,15 @@ function terminalDenial(
  * The dispatch closure shared by the default/background BullMQ workers.
  * Replaces the duplicated inline closures in src/worker/index.ts.
  *
- * Enforcement order: registry lookup → schedule classification → 3.2 policy
- * gate (gateJob) → handler.
+ * Enforcement order: registry lookup → ledger scope → schedule classification
+ * → policy gate (gateJob) → handler.
  */
 export function createGatedJobHandler(
   queueLabel: string,
   registry: JobRegistry,
   resolveScope?: ScopeResolver,
   timeoutForJob: (jobName: string) => number = jobTimeoutMs,
+  resolveWorkDispatch?: WorkItems['resolveDispatch'],
 ): (job: Job) => Promise<unknown> {
   const logger = getLogger()
   return async (job: Job) => {
@@ -453,10 +459,28 @@ export function createGatedJobHandler(
       )
       throw new UnknownJobError(job.name, job.id)
     }
+    let policyData: unknown = job.data
+    if (isRecord(job.data) && Object.hasOwn(job.data, 'workId')) {
+      const workId = job.data.workId
+      const work =
+        typeof workId === 'string' && workId.length > 0
+          ? await resolveWorkDispatch?.(workId)
+          : undefined
+      if (!work || work.kind !== job.name) {
+        throw new Error('Work dispatch unavailable')
+      }
+      // Queue scope is not authority for ledger work. Keep the original
+      // IDs-only job for the handler, which claims only after authorization.
+      policyData = {
+        workId,
+        organizationId: work.organizationId,
+        subjectId: work.subjectId,
+      }
+    }
     const executionKind = executionKindOf(job)
     const outcome = await gateJob(
       job.name,
-      job.data,
+      policyData,
       executionKind === 'schedule' ? `schedule:${job.name}` : `worker:${queueLabel}`,
       executionKind,
       resolveScope,

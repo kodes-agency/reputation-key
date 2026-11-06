@@ -39,6 +39,7 @@ export const COMMANDS: Readonly<
   'review-observations': ['scripts/ops/review-observations.ts'],
   'storage-cors': ['scripts/ops/storage-cors.ts'],
   'triage-beta-feedback': ['scripts/ops/triage-beta-feedback.ts'],
+  work: ['scripts/ops/work.ts'],
 })
 
 /** The AI family shares its top-level command while selecting one script per action. */
