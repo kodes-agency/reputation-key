@@ -54,7 +54,10 @@ const storybookProject: TestProjectConfiguration[] =
           test: {
             name: 'storybook',
             setupFiles: ['./.storybook/vitest.setup.ts'],
-            env: { PHONE_WIDTH_RECORD: process.env.PHONE_WIDTH_RECORD ?? '' },
+            env: {
+              PHONE_WIDTH_RECORD: process.env.PHONE_WIDTH_RECORD ?? '',
+              PHONE_WIDTH_PLATFORM: process.platform,
+            },
             // The console spy is browser-global, so concurrent stories could
             // reset or restore another story's gate before its assertions run.
             maxConcurrency: 1,
