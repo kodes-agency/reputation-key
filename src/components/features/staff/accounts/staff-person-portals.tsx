@@ -1,3 +1,4 @@
+import { useTenantScope } from '#/shared/hooks/useTenantScope'
 import { useQuery } from '@tanstack/react-query'
 import { Link } from '@tanstack/react-router'
 import { QrCode } from 'lucide-react'
@@ -6,7 +7,7 @@ import { DescriptionList, DescriptionItem } from '#/components/ui/description-li
 import { FormErrorBanner } from '#/components/forms/form-error-banner'
 import { usePermissions } from '#/shared/hooks/usePermissions'
 import { useCapabilities } from '#/shared/hooks/useCapabilities'
-import { identityKeys, portalKeys } from '#/shared/queries/query-keys'
+import { portalKeys, createKeys } from '#/shared/queries/query-keys'
 import type { Action } from '#/components/hooks/use-action'
 import { useStaffAccounts } from './staff-accounts-context'
 import { useStaffFunctions } from './staff-account-functions'
@@ -53,6 +54,7 @@ export function StaffPersonPortals({
 }
 
 function StaffPersonManagers({ member }: Readonly<{ member: StaffMember }>) {
+  const { identityKeys } = createKeys(useTenantScope())
   const functions = useStaffFunctions()
   const managers = useQuery({
     queryKey: portalKeys.responsibleManagers(member.portalId!),

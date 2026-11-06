@@ -23,7 +23,11 @@ const OWNER_ROLE: Role = 'AccountAdmin'
 
 function createStoryRouter(Story: () => ReactNode) {
   const StoryRoute = () => <Story />
-  const rootRoute = createRootRouteWithContext<{ role: Role }>()({
+  const rootRoute = createRootRouteWithContext<{
+    role: Role
+    user: { id: string }
+    activeOrganization: { id: string }
+  }>()({
     component: Outlet,
   })
   const authRoute = createRoute({
@@ -42,7 +46,11 @@ function createStoryRouter(Story: () => ReactNode) {
   const routeTree = rootRoute.addChildren([authRoute.addChildren([indexRoute])])
   return createRouter({
     routeTree,
-    context: { role: OWNER_ROLE },
+    context: {
+      role: OWNER_ROLE,
+      user: { id: 'user-1' },
+      activeOrganization: { id: 'org-1' },
+    },
     history: createMemoryHistory({ initialEntries: ['/_authenticated/'] }),
   })
 }

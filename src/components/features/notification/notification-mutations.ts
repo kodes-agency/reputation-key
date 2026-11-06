@@ -25,7 +25,8 @@ import {
   useActionMutation,
 } from '#/components/hooks/use-action-mutation'
 import { categoryInSentence } from '#/components/features/settings/notifications-type-rows'
-import { notificationKeys } from '#/shared/queries/query-keys'
+import { createKeys } from '#/shared/queries/query-keys'
+import type { TenantScope } from '#/shared/queries/tenant-scope'
 import type {
   NotificationListFilter,
   NotificationView,
@@ -82,16 +83,18 @@ export type NotificationFeedMutations = Readonly<{
 }>
 
 export function useNotificationMutations(
+  scope: TenantScope,
   fns: NotificationServerFns,
   organizationId: string,
   announce: (text: string) => void,
 ): NotificationFeedMutations {
+  const { notificationKeys } = createKeys(scope)
   const qc = useQueryClient()
   const invalidateKeys = [notificationKeys.feed(organizationId)]
   const patchFeed = (
-    patch: Parameters<typeof patchNotificationFeedCache>[2],
-    options?: Parameters<typeof patchNotificationFeedCache>[3],
-  ) => patchNotificationFeedCache(qc, organizationId, patch, options)
+    patch: Parameters<typeof patchNotificationFeedCache>[3],
+    options?: Parameters<typeof patchNotificationFeedCache>[4],
+  ) => patchNotificationFeedCache(qc, scope, organizationId, patch, options)
 
   const markRead = useActionMutation(fns.markRead, {
     invalidateKeys,

@@ -1,3 +1,4 @@
+import { useTenantScope } from '#/shared/hooks/useTenantScope'
 // Accept invitation route. The emailed link (`?id=`) resolves in `beforeLoad`:
 // a signed-out visitor goes to sign up (new address) or sign in (existing
 // account), and a signed-in one sees a confirm step. Nothing is accepted on
@@ -112,7 +113,9 @@ function InvitationLinkRoute({
 }
 
 function PendingInvitationsRoute() {
-  const { data: invitations } = useSuspenseQuery(pendingInvitationsQuery)
+  const { data: invitations } = useSuspenseQuery(
+    pendingInvitationsQuery(useTenantScope()),
+  )
   const navigate = useNavigate()
   const queryClient = useQueryClient()
   const acceptInvitationFn = useActionMutation(acceptInvitation, {

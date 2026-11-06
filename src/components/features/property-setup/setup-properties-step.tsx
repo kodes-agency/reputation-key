@@ -1,3 +1,4 @@
+import { useTenantScope } from '#/shared/hooks/useTenantScope'
 import { useMemo, useState, type ReactNode } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import { Alert, AlertDescription, AlertTitle } from '#/components/ui/alert'
@@ -5,10 +6,10 @@ import { RegionError } from '#/components/ui/region-error'
 import { Skeleton } from '#/components/ui/skeleton'
 import {
   aiKeys,
-  identityKeys,
   portalKeys,
   propertyKeys,
   reviewKeys,
+  createKeys,
 } from '#/shared/queries/query-keys'
 import type {
   PropertySetupFns,
@@ -102,6 +103,7 @@ function SetupFlow({
   viewerUserId: string
   then: ReactNode
 }>) {
+  const { identityKeys } = createKeys(useTenantScope())
   const queryClient = useQueryClient()
   const [phase, setPhase] = useState<'questions' | 'review' | 'results'>('questions')
   const [answers, setAnswers] = useState<SetupAnswers>(() =>

@@ -19,6 +19,7 @@ import {
   type NotificationFixtureOverrides,
 } from './notification.stories.fixtures'
 import { NotificationRow } from './notification-row'
+import { dismissFromTheKeyboard } from './notification.stories.row-menu'
 import type { NotificationRowActions } from './types'
 
 const actions: NotificationRowActions = {
@@ -703,14 +704,7 @@ export const DismissIsKeyboardReachable: Story = {
     // It fades in while the row has focus.
     await waitFor(() => expect(trigger).toBeVisible())
 
-    await userEvent.keyboard('{Enter}')
-    const menu = within(canvasElement.ownerDocument.body)
-    await waitFor(() =>
-      expect(menu.getByRole('menuitem', { name: 'Mark as read' })).toHaveFocus(),
-    )
-    await userEvent.keyboard('{ArrowDown}')
-    expect(menu.getByRole('menuitem', { name: 'Dismiss' })).toHaveFocus()
-    await userEvent.keyboard('{Enter}')
+    await dismissFromTheKeyboard(trigger)
     expect(actions.onDismiss).toHaveBeenCalledWith(args.notification.id)
 
     await expectMenuSettled(canvasElement)

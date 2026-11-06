@@ -454,6 +454,10 @@ export const BellHistoryFollowsThePage: Story = {
   render: (args) => (
     <>
       <NotificationPanel
+        scope={{
+          userId: 'user-1',
+          organizationId: 'org-1',
+        }}
         notificationFns={args.notificationFns}
         organizationId={args.organizationId}
       />

@@ -21,6 +21,15 @@ function render(extra: Record<string, unknown> = {}): string {
 }
 
 describe('RangeControl', () => {
+  it('can keep a period choice in one named dropdown at every width', () => {
+    const html = render({ variant: 'select', label: 'Period' })
+
+    expect(html.match(/role="combobox"/g)).toHaveLength(1)
+    expect(html.match(/aria-label="Period"/g)).toHaveLength(1)
+    expect(html).not.toContain('role="radiogroup"')
+    expect(html).toContain('90 days')
+  })
+
   it('is a segmented control named "Time range" where a row of segments fits', () => {
     const html = render()
 
