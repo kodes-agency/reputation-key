@@ -28,7 +28,6 @@ export const COMMANDS: Readonly<
   'rebuild-metric-projection': ['scripts/ops/rebuild-metric-projection.ts'],
   'rebuild-projection': ['scripts/ops/rebuild-projection.ts'],
   'reconcile-publication': ['scripts/ops/reconcile-publication.ts'],
-  'recover-recent-activity': ['scripts/ops/recover-recent-activity.ts'],
   refresh: ['scripts/ops/enqueue-refresh.ts'],
   'repair-partial-offboarding': ['scripts/ops/repair-partial-offboarding.ts'],
   'reparse-review-translations': ['scripts/ops/reparse-review-translations.ts'],

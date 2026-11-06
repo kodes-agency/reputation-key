@@ -154,25 +154,17 @@ const settles = (name: string): EventConsumerRef =>
 
 const INBOX_ROWS: ReadonlyArray<EventFamilyRow> = [
   ev('inbox.inbox_item.created', [
-    durable('activity.recent-activity', ACTIVITY_OUTBOX),
     durable('notification.on-inbox-item-created', NOTIFICATION_OUTBOX),
   ]),
-  ev('inbox.inbox_item.status_changed', [
-    durable('activity.recent-activity', ACTIVITY_OUTBOX),
-  ]),
+  ev('inbox.inbox_item.status_changed', []),
   ev('inbox.inbox_item.assigned', [
-    durable('activity.recent-activity', ACTIVITY_OUTBOX),
     durable('notification.on-inbox-inbox_item-assigned', NOTIFICATION_WORKFLOW_OUTBOX),
   ]),
-  ev('inbox.inbox_item.unassigned', [
-    durable('activity.recent-activity', ACTIVITY_OUTBOX),
-  ]),
+  ev('inbox.inbox_item.unassigned', []),
   ev('inbox.inbox_item.escalated', [
-    durable('activity.recent-activity', ACTIVITY_OUTBOX),
     durable('notification.on-inbox-inbox_item-escalated', NOTIFICATION_WORKFLOW_OUTBOX),
   ]),
   ev('inbox.inbox_item.escalation_resolved', [
-    durable('activity.recent-activity', ACTIVITY_OUTBOX),
     durable(
       'notification.on-inbox-escalation-resolved',
       NOTIFICATION_ESCALATION_RESOLUTION_OUTBOX,
@@ -180,12 +172,9 @@ const INBOX_ROWS: ReadonlyArray<EventFamilyRow> = [
     settles('notification.settle-on-inbox-escalation-resolved'),
   ]),
   ev('inbox.inbox_note.added', [
-    durable('activity.recent-activity', ACTIVITY_OUTBOX),
     durable('notification.on-inbox-inbox_note-added', NOTIFICATION_WORKFLOW_OUTBOX),
   ]),
-  ev('inbox.inbox_item.bulk_status_changed', [
-    durable('activity.recent-activity', ACTIVITY_OUTBOX),
-  ]),
+  ev('inbox.inbox_item.bulk_status_changed', []),
   ev('inbox.inbox_items.assignments_released', [
     durable(
       'notification.on-inbox-assignments-released',
@@ -226,25 +215,21 @@ const INBOX_ROWS: ReadonlyArray<EventFamilyRow> = [
     ),
   ]),
   ev('inbox.response_target.policy_changed', []),
-  // Audit-only (ADR 0071): setting a priority notifies nobody and writes no
-  // Recent Activity line.
+  // Audit-only (ADR 0071): setting a priority has no downstream consumer.
   ev('inbox.inbox_item.priority_changed', []),
 ]
 
 const PROPERTY_ROWS: ReadonlyArray<EventFamilyRow> = [
-  ev('property.created', [durable('activity.recent-activity', ACTIVITY_OUTBOX)]),
+  ev('property.created', []),
   ev('property.updated', [
-    durable('activity.recent-activity', ACTIVITY_OUTBOX),
     durable('portal.reconcile-health-dependencies', PORTAL_HEALTH_OUTBOX),
   ]),
   ev('property.deleted', [
-    durable('activity.recent-activity', ACTIVITY_OUTBOX),
     durable('activity.operational-action-history', ACTIVITY_OUTBOX),
     durable('portal.reconcile-health-dependencies', PORTAL_HEALTH_OUTBOX),
   ]),
   ev('property.archived', [
     durable('portal.reconcile-health-dependencies', PORTAL_HEALTH_OUTBOX),
-    durable('activity.recent-activity', ACTIVITY_OUTBOX),
     durable('activity.operational-action-history', ACTIVITY_OUTBOX),
     durable('inbox.on-property-archived', INBOX_PROPERTY_LIFECYCLE_OUTBOX),
     durable('review.on-property-archived', REVIEW_OUTBOX),
@@ -255,7 +240,6 @@ const PROPERTY_ROWS: ReadonlyArray<EventFamilyRow> = [
   ev('property.restored', [
     durable('portal.reconcile-health-dependencies', PORTAL_HEALTH_OUTBOX),
     durable('portal.on-property-restored', PORTAL_PROPERTY_LIFECYCLE_OUTBOX),
-    durable('activity.recent-activity', ACTIVITY_OUTBOX),
     durable('activity.operational-action-history', ACTIVITY_OUTBOX),
   ]),
   ev('property.google_binding.changed', [
@@ -280,17 +264,13 @@ const PORTAL_ROWS: ReadonlyArray<EventFamilyRow> = [
   ev('portal.created', []),
   ev('portal.updated', []),
   ev('portal.publication.published', [
-    durable('activity.recent-activity', ACTIVITY_OUTBOX),
     durable('activity.operational-action-history', ACTIVITY_OUTBOX),
   ]),
-  ev('portal.publication.rolled_back', [
-    durable('activity.recent-activity', ACTIVITY_OUTBOX),
-  ]),
+  ev('portal.publication.rolled_back', []),
   ev('portal.archived', [
-    durable('activity.recent-activity', ACTIVITY_OUTBOX),
     durable('activity.operational-action-history', ACTIVITY_OUTBOX),
   ]),
-  ev('portal.restored', [durable('activity.recent-activity', ACTIVITY_OUTBOX)]),
+  ev('portal.restored', []),
   ev('portal.responsibility_became_needed', [
     durable('notification.on-portal-responsibility-needed', NOTIFICATION_PORTAL_OUTBOX),
   ]),
@@ -299,7 +279,6 @@ const PORTAL_ROWS: ReadonlyArray<EventFamilyRow> = [
     settles('notification.settle-on-portal-responsibility-restored'),
   ]),
   ev('portal.health.changed', [
-    durable('activity.recent-activity', ACTIVITY_OUTBOX),
     durable('notification.on-portal-health-changed', NOTIFICATION_PORTAL_HEALTH_OUTBOX),
     settles('notification.settle-on-portal-health-recovered'),
   ]),
@@ -369,12 +348,10 @@ const INTEGRATION_ROWS: ReadonlyArray<EventFamilyRow> = [
       'integration.google-category-refresh',
       'src/contexts/integration/infrastructure/google-category-refresh-outbox-consumers.ts',
     ),
-    durable('activity.recent-activity', ACTIVITY_OUTBOX),
     durable('activity.operational-action-history', ACTIVITY_OUTBOX),
     settles('notification.settle-on-google-account-connected'),
   ]),
   ev('integration.google_account.disconnected', [
-    durable('activity.recent-activity', ACTIVITY_OUTBOX),
     durable('activity.operational-action-history', ACTIVITY_OUTBOX),
     durable('review.on-google-account-disconnected', REVIEW_OUTBOX),
     durable(
@@ -398,9 +375,7 @@ const INTEGRATION_ROWS: ReadonlyArray<EventFamilyRow> = [
   ev('integration.property_import.retention_released', [
     durable('property.import-retention-release', PROPERTY_RETENTION_OUTBOX),
   ]),
-  ev('integration.google_connection.visibility_changed', [
-    durable('activity.recent-activity', ACTIVITY_OUTBOX),
-  ]),
+  ev('integration.google_connection.visibility_changed', []),
 ]
 
 const METRIC_ROWS: ReadonlyArray<EventFamilyRow> = [

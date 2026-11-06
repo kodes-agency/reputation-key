@@ -27,7 +27,6 @@ export const UNRESTRICTED_STATEMENT_BASELINE: Readonly<Record<string, number>> =
   'src/contexts/ai/infrastructure/adapters/ai-review-analysis-enrollment.adapter.ts#catchUp': 1,
   'src/contexts/ai/infrastructure/adapters/ai-review-analysis-enrollment.adapter.ts#reconcile': 2,
   'src/contexts/ai/infrastructure/adapters/property-processing-profile.adapter.ts#refreshForAi': 1,
-  'src/contexts/feed/infrastructure/activity-recovery-store.ts#restoreProjection': 2,
   'src/contexts/feed/infrastructure/operational-action-history-store.ts#readReadiness': 1,
   'src/contexts/feed/infrastructure/operational-action-history-store.ts#redactSubject': 1,
   'src/contexts/feed/infrastructure/recent-activity-privacy-store.ts#redactActorLabels': 2,

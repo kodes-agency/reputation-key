@@ -179,9 +179,6 @@ export function buildContainerCapabilities({
     goalPublicApi: reporting.publicApi,
     goalWorkerRuntime: reporting.worker,
     feedPublicApi: feed.publicApi,
-    activityWorkerRuntime: Object.freeze({
-      projectRecentActivity: activity.worker.projectRecentActivity,
-    }),
     identityPort,
     // Request-scoped Identity handlers consume only their parsed, semantic
     // key material. They never re-read process configuration after boot.
