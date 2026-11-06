@@ -23,20 +23,16 @@ export function throwContextError(
 ): never {
   const ctx = getRequestContext()
   const logger = getLogger()
+  const summary = summarizeError({ name: errorName, code: e.code })
 
   logger.error(
     {
       requestId: ctx?.requestId,
-      errorType: errorName,
-      code: e.code,
+      errorType: summary.name,
+      code: summary.code,
       status,
-      message: e.message,
-      // The wire error deliberately carries no context (it can name internal
-      // state), but an operator diagnosing a refusal needs it — a conflict
-      // without the two revisions is unactionable.
-      ...(e.context ? { context: e.context } : {}),
     },
-    `← THROW ${errorName}(${e.code}) → ${status}`,
+    `← THROW ${summary.name}(${summary.code ?? 'unknown'}) → ${status}`,
   )
 
   // A domain error class keeps the stack of where it was raised; monitoring
@@ -110,16 +106,16 @@ export function catchUntagged(e: unknown): never {
       (errMessage && errMessage !== statusName ? errMessage : '') ||
       API_ERROR_MESSAGE[statusName] ||
       statusName
+    const summary = summarizeError({ name: 'APIError', code })
 
     logger.error(
       {
         requestId: ctx?.requestId,
         errorType: 'APIError',
-        status: statusName,
-        code,
-        message,
+        status: httpStatus,
+        code: summary.code,
       },
-      `← THROW APIError(${statusName}) → ${httpStatus}`,
+      `← THROW APIError → ${httpStatus}`,
     )
 
     throw new ServerFunctionError('APIError', message, code, httpStatus, { cause: e })

@@ -12,7 +12,43 @@ const REDACTED = '[Redacted]'
  * What a flattened error leaves behind: its stack opens with the message, and
  * a Drizzle query error carries the values it was bound to as `params`.
  */
-const ERROR_CONTENT_FIELDS: ReadonlySet<string> = new Set(['stack', 'params'])
+const ERROR_CONTENT_FIELDS: ReadonlySet<string> = new Set([
+  'message',
+  'errormessage',
+  'failurereason',
+  'stack',
+  'params',
+])
+
+function sanitizeErrorField(value: unknown, seen: WeakMap<object, unknown>): unknown {
+  if (value instanceof Error) return summarizeError(value)
+  if (value && typeof value === 'object' && 'message' in value) {
+    const status = 'status' in value ? value.status : undefined
+    return {
+      ...summarizeError(value),
+      ...(typeof status === 'number' &&
+      Number.isInteger(status) &&
+      status >= 100 &&
+      status <= 599
+        ? { status }
+        : {}),
+    }
+  }
+  return typeof value === 'string' ? REDACTED : sanitizeTelemetryValue(value, seen)
+}
+
+function sanitizeTelemetryField(
+  key: string,
+  value: unknown,
+  seen: WeakMap<object, unknown>,
+): unknown {
+  const field = key.toLowerCase().replaceAll(/[^a-z0-9]/gu, '')
+  if (isSensitiveObservabilityField(key) || ERROR_CONTENT_FIELDS.has(field)) {
+    return REDACTED
+  }
+  if (field === 'error' || field === 'err') return sanitizeErrorField(value, seen)
+  return sanitizeTelemetryValue(value, seen)
+}
 
 /**
  * Copies telemetry data while removing credential, OAuth, provider-resource,
@@ -40,10 +76,7 @@ export function sanitizeTelemetryValue(
     const copy: Record<string, unknown> = {}
     seen.set(value, copy)
     for (const [key, entry] of Object.entries(value)) {
-      copy[key] =
-        isSensitiveObservabilityField(key) || ERROR_CONTENT_FIELDS.has(key)
-          ? REDACTED
-          : sanitizeTelemetryValue(entry, seen)
+      copy[key] = sanitizeTelemetryField(key, entry, seen)
     }
     return copy
   }
