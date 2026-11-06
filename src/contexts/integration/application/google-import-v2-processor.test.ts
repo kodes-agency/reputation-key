@@ -569,8 +569,8 @@ describe('GoogleImportV2Processor', () => {
       itemId: ITEM_ID,
       retryRevision: 0,
       authority: { kind: 'pending', dispatchEpoch: 0 },
-      outcomeCode: 'internal_error',
-      retainRetryState: false,
+      outcomeCode: 'temporarily_unavailable',
+      retainRetryState: true,
       now: NOW,
     })
     expect(harness.resolveActor).not.toHaveBeenCalled()
@@ -605,9 +605,14 @@ describe('GoogleImportV2Processor', () => {
       outcomeCode: 'temporarily_unavailable',
       retainRetryState: true,
     },
-    { deadlineOffset: -1, outcomeCode: 'internal_error', retainRetryState: false },
+    {
+      deadlineOffset: -1,
+      outcomeCode: 'temporarily_unavailable',
+      retainRetryState: true,
+    },
+    { deadlineOffset: 0, outcomeCode: 'temporarily_unavailable', retainRetryState: true },
   ])(
-    'keeps the existing exhaustion outcome at deadline offset $deadlineOffset',
+    'keeps exhaustion retryable at deadline offset $deadlineOffset',
     async ({ deadlineOffset, outcomeCode, retainRetryState }) => {
       const h = setup({
         claim: {
@@ -714,10 +719,7 @@ describe('GoogleImportV2Processor', () => {
     )
   })
 
-  // A retry is refused past the effect deadline and the items table refuses a
-  // scrubbed `temporarily_unavailable` row, so an attempt whose failure lands
-  // after the deadline ends as a scrubbed plain failure.
-  it('ends a transient failure that lands after the effect deadline as a scrubbed internal_error', async () => {
+  it('keeps a transient failure retryable when it lands after the effect deadline', async () => {
     const item = claimedItem({ effectDeadlineAt: new Date(NOW.getTime() + 60_000) })
     let now = NOW
     const harness = setup({ claim: { kind: 'claimed', item }, clock: () => now })
@@ -737,8 +739,8 @@ describe('GoogleImportV2Processor', () => {
     expect(harness.releaseClaimForRetry).not.toHaveBeenCalled()
     expect(harness.completeClaim).toHaveBeenCalledExactlyOnceWith(
       expect.objectContaining({
-        outcomeCode: 'internal_error',
-        retainRetryState: false,
+        outcomeCode: 'temporarily_unavailable',
+        retainRetryState: true,
         now,
       }),
     )

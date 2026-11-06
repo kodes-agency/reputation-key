@@ -31,7 +31,7 @@ const OUTCOME_MESSAGES: Record<ImportOutcomeCode, string> = {
   organization_suspended: 'Import stopped because the organization is suspended.',
   property_suspended: 'Import stopped because the property is suspended.',
   property_deleted: 'Import stopped because the property was deleted.',
-  temporarily_unavailable: 'Google is temporarily unavailable. Retry this item.',
+  temporarily_unavailable: 'Import is temporarily unavailable. Try again.',
   cleanup_required: 'Import could not finish safely. Contact support.',
   internal_error: 'Import could not be completed.',
   tenant_profile_invalid:

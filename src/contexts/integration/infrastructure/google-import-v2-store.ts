@@ -1218,7 +1218,6 @@ export const createGoogleImportV2Store = (
             sql`${gbpImportRequestItems.connectionId} IS NOT NULL`,
             sql`${gbpImportRequestItems.providerAccountSuffix} IS NOT NULL`,
             sql`${gbpImportRequestItems.providerLocationSuffix} IS NOT NULL`,
-            sql`${gbpImportRequestItems.effectDeadlineAt} > ${now}`,
             sql`(${gbpImportRequests.purgeAt} IS NULL OR ${gbpImportRequests.purgeAt} > ${now})`,
           ),
         )
