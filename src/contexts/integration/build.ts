@@ -551,6 +551,22 @@ export const buildIntegrationContext = (deps: IntegrationContextDeps) => {
     clock: deps.clock,
     refreshGoogleToken: refreshGoogleTokenUseCase,
   })
+  const googleProviderTokenAccess: Pick<
+    Parameters<typeof createSingle401RefreshExecutor>[0],
+    'refreshAccessToken' | 'getAccessToken'
+  > = {
+    refreshAccessToken: ({ authorization }) =>
+      activeConnectionTokenProvider.forceRefreshAccessToken(
+        authorization.organizationId,
+        authorization.connectionId,
+        authorization.expectedCredentialGeneration,
+      ),
+    getAccessToken: ({ authorization }) =>
+      activeConnectionTokenProvider.getAccessToken(
+        authorization.organizationId,
+        authorization.connectionId,
+      ),
+  }
   let reauthorizeGoogleImportProviderCall:
     Parameters<typeof createSingle401RefreshExecutor>[0]['reauthorize'] | undefined
   let reauthorizeGoogleNotificationProviderCall:
@@ -560,17 +576,7 @@ export const buildIntegrationContext = (deps: IntegrationContextDeps) => {
   const googleImportProviderExecutor = deps.googleAuthorizedProviderExecutor
     ? createSingle401RefreshExecutor({
         executor: deps.googleAuthorizedProviderExecutor,
-        refreshAccessToken: ({ authorization }) =>
-          activeConnectionTokenProvider.forceRefreshAccessToken(
-            authorization.organizationId,
-            authorization.connectionId,
-            authorization.expectedCredentialGeneration,
-          ),
-        getAccessToken: ({ authorization }) =>
-          activeConnectionTokenProvider.getAccessToken(
-            authorization.organizationId,
-            authorization.connectionId,
-          ),
+        ...googleProviderTokenAccess,
         reauthorize: async (input) => {
           if (!reauthorizeGoogleImportProviderCall) {
             throw new Error('Google provider reauthorization is unavailable')
@@ -583,17 +589,7 @@ export const buildIntegrationContext = (deps: IntegrationContextDeps) => {
   const googleNotificationProviderExecutor = deps.googleAuthorizedProviderExecutor
     ? createSingle401RefreshExecutor({
         executor: deps.googleAuthorizedProviderExecutor,
-        refreshAccessToken: ({ authorization }) =>
-          activeConnectionTokenProvider.forceRefreshAccessToken(
-            authorization.organizationId,
-            authorization.connectionId,
-            authorization.expectedCredentialGeneration,
-          ),
-        getAccessToken: ({ authorization }) =>
-          activeConnectionTokenProvider.getAccessToken(
-            authorization.organizationId,
-            authorization.connectionId,
-          ),
+        ...googleProviderTokenAccess,
         reauthorize: async (input) => {
           if (!reauthorizeGoogleNotificationProviderCall) {
             throw new Error('Google notification reauthorization is unavailable')
@@ -685,6 +681,7 @@ export const buildIntegrationContext = (deps: IntegrationContextDeps) => {
         const property = await propertyBindingApi.readInternal(organizationId, propertyId)
         return property
           ? {
+              organizationId: property.organizationId,
               propertyId: property.propertyId,
               sourceEpoch: property.sourceEpoch,
               profileVersion: property.profileVersion,
@@ -1152,17 +1149,7 @@ export const buildIntegrationContext = (deps: IntegrationContextDeps) => {
   const googleReviewProviderExecutor = deps.googleAuthorizedProviderExecutor
     ? createSingle401RefreshExecutor({
         executor: deps.googleAuthorizedProviderExecutor,
-        refreshAccessToken: ({ authorization }) =>
-          activeConnectionTokenProvider.forceRefreshAccessToken(
-            authorization.organizationId,
-            authorization.connectionId,
-            authorization.expectedCredentialGeneration,
-          ),
-        getAccessToken: ({ authorization }) =>
-          activeConnectionTokenProvider.getAccessToken(
-            authorization.organizationId,
-            authorization.connectionId,
-          ),
+        ...googleProviderTokenAccess,
         reauthorize: async ({ authorization }) => {
           if (authorization.initiatorUserId !== null) {
             throw new Error('Google review provider reauthorization is unavailable')

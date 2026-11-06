@@ -169,6 +169,155 @@ function setup(
 }
 
 describe('createGooglePerformanceAuthorizer', () => {
+  it('refuses authority withdrawn during token access even without a credential change', async () => {
+    let tokenRead = false
+    const fixture = setup({
+      decide: () => ({
+        allowed: !tokenRead,
+        reason: tokenRead ? 'capability_disabled' : 'allowed',
+        policyVersion: 'beta-local-2',
+      }),
+    })
+    fixture.getAccessToken.mockImplementation(async () => {
+      tokenRead = true
+      return 'access-token'
+    })
+
+    await expect(
+      fixture.authorize({ actor, propertyId: PROPERTY_ID, phase: 'before_provider' }),
+    ).resolves.toMatchObject({
+      ok: false,
+      result: { status: 'unavailable', reason: 'policy_disabled' },
+    })
+  })
+
+  it('refuses a foreign binding returned after token access', async () => {
+    const fixture = setup()
+    fixture.getAccessToken.mockImplementation(async () => {
+      fixture.readBinding.mockResolvedValue(
+        binding({ organizationId: organizationId('org-2') }),
+      )
+      return 'access-token'
+    })
+
+    await expect(
+      fixture.authorize({ actor, propertyId: PROPERTY_ID, phase: 'before_provider' }),
+    ).resolves.toMatchObject({ ok: false })
+  })
+
+  it.each<{
+    change: string
+    currentBinding: ReturnType<typeof binding>
+    currentConnection: GoogleConnection
+    vector: Readonly<Record<string, number>>
+  }>([
+    {
+      change: 'binding source epoch advances',
+      currentBinding: binding({ sourceEpoch: 8 }),
+      currentConnection: connection(),
+      vector: { propertySourceEpoch: 8 },
+    },
+    {
+      change: 'binding profile version advances',
+      currentBinding: binding({ profileVersion: 9 }),
+      currentConnection: connection(),
+      vector: { propertyProfileVersion: 9 },
+    },
+    {
+      change: 'connection lifecycle version advances',
+      currentBinding: binding(),
+      currentConnection: connection({ lifecycleVersion: 5 }),
+      vector: { connectionLifecycleVersion: 5 },
+    },
+    {
+      change: 'connection access version advances',
+      currentBinding: binding(),
+      currentConnection: connection({ accessVersion: 6 }),
+      vector: { connectionAccessVersion: 6 },
+    },
+    {
+      change: 'credential generation regresses',
+      currentBinding: binding(),
+      currentConnection: connection({ credentialGeneration: 5 }),
+      vector: { credentialGeneration: 5 },
+    },
+  ])(
+    'returns stale_source when $change during token access despite fresh authority',
+    async ({ currentBinding, currentConnection, vector }) => {
+      const fixture = setup()
+      const initial = await fixture.authorize({
+        actor,
+        propertyId: PROPERTY_ID,
+        phase: 'before_provider',
+        requireAccessToken: false,
+      })
+      if (!initial.ok) throw new Error('expected initial authorization')
+      const freshVector = { ...initial.snapshot.authorizationVector, ...vector }
+      fixture.getAccessToken.mockImplementation(async () => {
+        fixture.readBinding.mockResolvedValue(currentBinding)
+        fixture.findConnection.mockResolvedValue(currentConnection)
+        fixture.authorizeGoogleContent.mockResolvedValue({
+          ok: true,
+          policyVersion: 12,
+          emergencyKillVersion: 3,
+          authorizationVector: freshVector,
+        })
+        return 'access-token'
+      })
+
+      await expect(
+        fixture.authorize({ actor, propertyId: PROPERTY_ID, phase: 'before_provider' }),
+      ).resolves.toEqual({
+        ok: false,
+        result: {
+          status: 'error',
+          errorCode: 'stale_source',
+          retryable: true,
+          retryAfterSeconds: null,
+        },
+      })
+      expect(fixture.getAccessToken).toHaveBeenCalledOnce()
+
+      await expect(
+        fixture.authorize({
+          actor,
+          propertyId: PROPERTY_ID,
+          phase: 'before_provider',
+          requireAccessToken: false,
+        }),
+      ).resolves.toMatchObject({
+        ok: true,
+        accessToken: null,
+        snapshot: { authorizationVector: freshVector },
+      })
+    },
+  )
+
+  it('emits the refreshed credential generation with the token it authorizes', async () => {
+    const fixture = setup()
+    fixture.getAccessToken.mockImplementation(async () => {
+      fixture.findConnection.mockResolvedValue(connection({ credentialGeneration: 7 }))
+      const content = await fixture.authorizeGoogleContent()
+      if (!content.ok) throw new Error('expected content authority')
+      fixture.authorizeGoogleContent.mockResolvedValue({
+        ...content,
+        authorizationVector: { ...content.authorizationVector, credentialGeneration: 7 },
+      })
+      return 'refreshed-token'
+    })
+
+    await expect(
+      fixture.authorize({ actor, propertyId: PROPERTY_ID, phase: 'before_provider' }),
+    ).resolves.toMatchObject({
+      ok: true,
+      accessToken: 'refreshed-token',
+      snapshot: {
+        credentialGeneration: 7,
+        authorizationVector: { credentialGeneration: 7 },
+      },
+    })
+  })
+
   it('records the authority code when content authorization is denied', async () => {
     // The caller only ever sees `policy_disabled`, and the route renders that
     // as a 200 with an empty panel. On 2026-09-01 stale authorization state
