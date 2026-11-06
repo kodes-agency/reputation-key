@@ -23,8 +23,8 @@ Primary areas:
 - `hooks/` and `queries/` are browser-safe cross-feature access/cache utilities.
 - `ops/` and `release/` own reviewed operational and promotion contracts.
 
-Notification, Integration, Staff self and Identity query families come from
-`queries/query-keys.ts`'s `createKeys(scope)`. `TenantScope` names the signed-in
+Notification, Integration, Staff self, Identity and Product updates query families
+come from `queries/query-keys.ts`'s `createKeys(scope)`. `TenantScope` names the signed-in
 person and Organization; own-account reads outside the manager workspace use a
 null Organization. Loaders pass their scope explicitly, while components use
 `hooks/useTenantScope.ts`, which takes the deepest resolved identity in the

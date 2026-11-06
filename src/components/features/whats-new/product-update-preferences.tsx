@@ -11,7 +11,8 @@ import {
 import type { Action } from '#/components/hooks/use-action'
 import { usePropertyId } from '#/components/hooks/use-property-id'
 import { useHydrated } from '#/components/hooks/use-hydrated'
-import { productUpdateKeys } from '#/shared/queries/query-keys'
+import { createKeys } from '#/shared/queries/query-keys'
+import { useTenantScope } from '#/shared/hooks/useTenantScope'
 import { productUpdatesQuery } from './queries'
 
 import { optimisticAutoShow } from './preferences-cache'
@@ -44,13 +45,15 @@ export function ProductUpdatePreferences({
   getClient,
 }: Readonly<{ getClient: ProductUpdatesClientGetter }>) {
   const client = useQueryClient()
-  const query = useQuery(productUpdatesQuery(usePropertyId(), getClient))
+  const scope = useTenantScope()
+  const { productUpdateKeys } = createKeys(scope)
+  const query = useQuery(productUpdatesQuery(scope, usePropertyId(), getClient))
   const hydrated = useHydrated()
   const save = useActionMutation(
     async (autoShow: boolean) => (await getClient()).setAutoShow({ data: { autoShow } }),
     {
       errorMessage: actionFailureMessage("Couldn't save your update preference."),
-      optimistic: (autoShow) => optimisticAutoShow(client, autoShow),
+      optimistic: (autoShow) => optimisticAutoShow(client, scope, autoShow),
       invalidateKeys: [productUpdateKeys.all],
     },
   )
