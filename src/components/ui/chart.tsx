@@ -334,6 +334,6 @@ function getPayloadConfigFromPayload(config: ChartConfig, payload: unknown, key:
   return configLabelKey in config ? config[configLabelKey] : config[key]
 }
 
-export { ChartContainer, ChartTooltipContent, ChartLegendContent, ChartStyle }
+export { ChartContainer, ChartTooltipContent, ChartLegendContent }
 
 export { Legend as ChartLegend, Tooltip as ChartTooltip } from 'recharts'
