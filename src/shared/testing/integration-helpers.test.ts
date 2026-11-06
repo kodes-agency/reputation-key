@@ -19,7 +19,7 @@ describe('integration Organization fixture cleanup', () => {
         [['org-b', 'org-a']],
       ],
       [
-        'ALTER TABLE organization_lifecycle_events ENABLE ALWAYS TRIGGER organization_lifecycle_events_append_only',
+        'ALTER TABLE organization_lifecycle_events ENABLE TRIGGER organization_lifecycle_events_append_only',
       ],
       [
         'DELETE FROM organization_exports WHERE organization_id = ANY($1::text[])',

@@ -1,26 +1,6 @@
-// Register of intentional DB-only constructs.
-//
-// `../db-constructs.sql` is the authority for functions and triggers: it is the
-// second migration, and it is what creates them. `drizzle/0001_db_constructs.sql`
-// is its byte copy, kept by hand and held by `../construct-definitions.test.ts`.
-// Listing those names a second time by hand is how the old 1,863-line register
-// drifted, so they are PARSED from that file instead — one source, no second
-// list of names to keep in sync.
-//
-// The remaining dozen entries cannot be parsed from it: they are btree_gist
-// exclusion indexes, CHECK constraints and one legacy table that live in the
-// migration SQL or on Better Auth-owned tables, where two migrators must not
-// share DDL ownership. Those stay explicit. So do the function and trigger of a
-// table that a migration after 0001 created (`MIGRATION_CREATED_CONSTRUCTS` in
-// ../construct-definitions.ts): 0001 is the file's byte copy and runs before
-// that table exists, so the trigger cannot be stated there.
-//
-// The drift test (../schema-drift.ts) enforces both directions:
-//   - every entry here must EXIST in pg_catalog;
-//   - every trigger/function in pg_catalog must appear here;
-//   - entries here are exempt from model-vs-catalog comparison;
-//   - a function or trigger must also be DEFINED as that file states it
-//     (../construct-definitions.ts) — the name alone is not parity.
+// Source inventory retained for concurrent-index and historical SQL parity tests.
+// Runtime schema verification compares structure.sql with pg_dump output,
+// including every function, trigger, index and constraint definition.
 
 import { readFileSync } from 'node:fs'
 import { CONCURRENT_INDEX_REGISTRY } from '../concurrent-index-registry'
