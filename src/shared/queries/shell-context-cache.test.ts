@@ -10,7 +10,9 @@ import {
   noteSignedInUser,
   shellContextKeys,
 } from './shell-context-cache'
-import { identityKeys } from './query-keys'
+import { createKeys } from './query-keys'
+
+const { identityKeys } = createKeys({ userId: 'user-1', organizationId: 'org-1' })
 
 const USER = 'user-1'
 

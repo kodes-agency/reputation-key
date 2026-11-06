@@ -1,3 +1,5 @@
+import { tenantScope } from '#/shared/queries/tenant-scope'
+import { useTenantScope } from '#/shared/hooks/useTenantScope'
 import { createFileRoute } from '@tanstack/react-router'
 import { useQueryClient, useSuspenseQuery } from '@tanstack/react-query'
 import { useActionMutation } from '#/components/hooks/use-action-mutation'
@@ -13,7 +15,7 @@ export const Route = createFileRoute(
   loader: ({ params: { propertyId }, context }) =>
     Promise.all([
       context.queryClient.ensureQueryData(responsibleManagersQuery(propertyId)),
-      context.queryClient.ensureQueryData(membersQuery),
+      context.queryClient.ensureQueryData(membersQuery(tenantScope(context))),
     ]),
   component: PropertyPeopleSettings,
 })
@@ -24,7 +26,7 @@ function PropertyPeopleSettings() {
   const { data: responsibleManagers } = useSuspenseQuery(
     responsibleManagersQuery(propertyId),
   )
-  const { data: membersData } = useSuspenseQuery(membersQuery)
+  const { data: membersData } = useSuspenseQuery(membersQuery(useTenantScope()))
   const queryClient = useQueryClient()
   const updateAction = useActionMutation(updatePropertyResponsibleManagers, {
     successMessage: 'Responsible managers saved',

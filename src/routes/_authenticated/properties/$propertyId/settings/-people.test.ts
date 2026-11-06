@@ -52,6 +52,8 @@ vi.mock('@tanstack/react-router', () => {
   /** The authenticated layout's context: the role and, when resolved, the member's permissions. */
   const routeContext = () => ({
     role: 'AccountAdmin',
+    user: { id: 'user-1' },
+    activeOrganization: { id: 'org-1' },
     ...(page.resolvedPermissions === null
       ? {}
       : {
@@ -66,9 +68,13 @@ vi.mock('@tanstack/react-router', () => {
       options,
       useParams: () => ({ propertyId: page.propertyId }),
       useRouteContext: routeContext,
+      useRouterState: ({ select }: { select: (state: unknown) => unknown }) =>
+        select({ matches: [{ context: routeContext() }] }),
     }),
     // What `usePermissions()` reads.
     useRouteContext: routeContext,
+    useRouterState: ({ select }: { select: (state: unknown) => unknown }) =>
+      select({ matches: [{ context: routeContext() }] }),
     useRouter: () => ({ navigate: vi.fn() }),
     // `server-function-error.ts` builds its wire adapter at module load; only the
     // class is used here.
@@ -87,10 +93,11 @@ vi.mock('../-settings-queries', async () => {
   const { queryOptions } = await import('@tanstack/react-query')
   const keys = await import('#/shared/queries/query-keys')
   return {
-    membersQuery: queryOptions({
-      queryKey: ['test', 'members'],
-      queryFn: () => ({ members: [] }),
-    }),
+    membersQuery: () =>
+      queryOptions({
+        queryKey: ['test', 'members'],
+        queryFn: () => ({ members: [] }),
+      }),
     responsibleManagersQuery: (propertyId: string) =>
       queryOptions({
         queryKey: keys.propertyKeys.responsibleManagers(propertyId),
@@ -187,7 +194,7 @@ function showManagers(propertyId: string) {
 /** Render the people tab of `propertyId` and hand back the save it gave its card. */
 async function openPeopleTab(propertyId: string) {
   page.propertyId = propertyId
-  await client.fetchQuery(membersQuery)
+  await client.fetchQuery(membersQuery({ userId: 'user-1', organizationId: 'org-1' }))
   await settle()
   const component = Route.options.component
   if (!component) throw new Error('the people route has no component')

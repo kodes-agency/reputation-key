@@ -1,3 +1,4 @@
+import type { TenantScope } from '#/shared/queries/tenant-scope'
 import { infiniteQueryOptions, queryOptions } from '@tanstack/react-query'
 import { contentExpiryDelayMs } from '#/contexts/integration/application/public-api'
 import type {
@@ -9,7 +10,7 @@ import type {
   listImportCandidates,
   renewImportAuthorizationLease,
 } from '#/contexts/integration/server/gbp-import'
-import { integrationKeys } from '#/shared/queries/query-keys'
+import { createKeys } from '#/shared/queries/query-keys'
 import { isImportParentTerminal } from './google-import-progress-model'
 
 const GOOGLE_IMPORT_LEASE_RENEW_INTERVAL_MS = 10_000
@@ -89,6 +90,7 @@ export function scheduleGoogleImportExpiries(
 }
 
 export function googleImportAccountsQuery(input: {
+  scope: TenantScope
   organizationId: string
   connectionId: string | null
   enabled: boolean
@@ -97,7 +99,7 @@ export function googleImportAccountsQuery(input: {
   listAccounts: typeof listImportAccounts
 }) {
   return infiniteQueryOptions({
-    queryKey: integrationKeys.googleImportAccounts(
+    queryKey: createKeys(input.scope).integrationKeys.googleImportAccounts(
       input.organizationId,
       input.connectionId ?? 'none',
       input.epoch,
@@ -132,6 +134,7 @@ export function googleImportAccountsQuery(input: {
 }
 
 export function googleImportCandidatesQuery(input: {
+  scope: TenantScope
   organizationId: string
   connectionId: string | null
   accountRef: string | null
@@ -141,7 +144,7 @@ export function googleImportCandidatesQuery(input: {
   listCandidates: typeof listImportCandidates
 }) {
   return infiniteQueryOptions({
-    queryKey: integrationKeys.googleImportCandidates(
+    queryKey: createKeys(input.scope).integrationKeys.googleImportCandidates(
       input.organizationId,
       input.connectionId ?? 'none',
       input.accountRef,
@@ -183,6 +186,7 @@ export function googleImportCandidatesQuery(input: {
  * revalidates current access on the server and never calls Google.
  */
 export function googleImportLeaseQuery(input: {
+  scope: TenantScope
   organizationId: string
   connectionId: string | null
   leaseRef: string | null
@@ -193,7 +197,7 @@ export function googleImportLeaseQuery(input: {
   renewLease: typeof renewImportAuthorizationLease
 }) {
   return queryOptions({
-    queryKey: integrationKeys.googleImportLease(
+    queryKey: createKeys(input.scope).integrationKeys.googleImportLease(
       input.organizationId,
       input.connectionId ?? 'none',
       input.leaseRef ?? 'none',
@@ -232,11 +236,12 @@ export type GoogleImportStatusLoader = (input: {
 }) => Promise<ImportProgressDto>
 
 export function googleImportStatusQuery(
+  scope: TenantScope,
   importJobId: string,
   getImportStatus: GoogleImportStatusLoader,
 ) {
   return queryOptions({
-    queryKey: integrationKeys.import(importJobId),
+    queryKey: createKeys(scope).integrationKeys.import(importJobId),
     queryFn: () => getImportStatus({ data: { importJobId } }),
     staleTime: 0,
     retry: false,

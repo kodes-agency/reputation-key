@@ -1,3 +1,5 @@
+import { tenantScope } from '#/shared/queries/tenant-scope'
+import { useTenantScope } from '#/shared/hooks/useTenantScope'
 import { createFileRoute } from '@tanstack/react-router'
 import { useQuery, useSuspenseQuery } from '@tanstack/react-query'
 import { useActionMutation } from '#/components/hooks/use-action-mutation'
@@ -18,12 +20,7 @@ import { propertyQuery, propertySetupQuery } from '#/routes/-queries/route-queri
 import { roleUnavailable } from '#/shared/auth/route-notice'
 import { can } from '#/shared/domain/permissions'
 import { usePermissions } from '#/shared/hooks/usePermissions'
-import {
-  aiKeys,
-  identityKeys,
-  inboxKeys,
-  propertyKeys,
-} from '#/shared/queries/query-keys'
+import { aiKeys, inboxKeys, propertyKeys, createKeys } from '#/shared/queries/query-keys'
 import {
   merchantAiAuthorizationQuery,
   reviewAnalysisProgressQuery,
@@ -46,7 +43,9 @@ export const Route = createFileRoute(
     // Only an AccountAdmin reads the authorization; a manager reads the state from
     // the property's setup, which the settings layout already loads.
     if (can(role, 'ai.manage')) {
-      await context.queryClient.ensureQueryData(merchantAiAuthorizationQuery(propertyId))
+      await context.queryClient.ensureQueryData(
+        merchantAiAuthorizationQuery(tenantScope(context), propertyId),
+      )
     }
   },
   component: PropertyAiSettings,
@@ -87,10 +86,12 @@ function PropertyAiReadOnly() {
 }
 
 function PropertyAiConsent() {
+  const scope = useTenantScope()
+  const { identityKeys } = createKeys(scope)
   const { propertyId } = Route.useParams()
   const { data: propertyData } = useSuspenseQuery(propertyQuery(propertyId))
   const { data: authorization } = useSuspenseQuery(
-    merchantAiAuthorizationQuery(propertyId),
+    merchantAiAuthorizationQuery(scope, propertyId),
   )
   const { data: progress } = useQuery(reviewAnalysisProgressQuery(propertyId))
   const afterChange = [

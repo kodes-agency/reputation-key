@@ -41,11 +41,11 @@ vi.mock('#/contexts/portal/server/portal-responsible-managers', () => ({
   listPortalResponsibleManagers: reads.listPortalResponsibleManagers,
 }))
 vi.mock('#/routes/-queries/route-queries', () => ({
-  membersQuery: {
+  membersQuery: () => ({
     queryKey: ['members-test'],
     queryFn: () => reads.listMembers(),
     staleTime: 30_000,
-  },
+  }),
   propertyQuery: (propertyId: string) => ({
     queryKey: ['property-test', propertyId],
     queryFn: () => Promise.resolve({ property: { id: propertyId } }),
@@ -100,7 +100,12 @@ describe('loadPortalWorkspace', () => {
     )
 
     // Act
-    const loading = loadPortalWorkspace(new QueryClient(), PROPERTY, PORTAL)
+    const loading = loadPortalWorkspace(
+      new QueryClient(),
+      { userId: 'user-1', organizationId: 'org-1' },
+      PROPERTY,
+      PORTAL,
+    )
     await Promise.resolve()
 
     // Assert: every read is in flight while the list is still pending.
@@ -113,7 +118,12 @@ describe('loadPortalWorkspace', () => {
   it('fills the cache for a portal in the list', async () => {
     const queryClient = new QueryClient()
 
-    await loadPortalWorkspace(queryClient, PROPERTY, PORTAL)
+    await loadPortalWorkspace(
+      queryClient,
+      { userId: 'user-1', organizationId: 'org-1' },
+      PROPERTY,
+      PORTAL,
+    )
 
     expect(queryClient.getQueryData(['members-test'])).toEqual({ ok: true })
   })
@@ -123,7 +133,14 @@ describe('loadPortalWorkspace', () => {
     reads.getPortal.mockRejectedValue(new Error('forbidden'))
     reads.listPortalLinks.mockRejectedValue(new Error('forbidden'))
 
-    const error = await caught(loadPortalWorkspace(new QueryClient(), PROPERTY, PORTAL))
+    const error = await caught(
+      loadPortalWorkspace(
+        new QueryClient(),
+        { userId: 'user-1', organizationId: 'org-1' },
+        PROPERTY,
+        PORTAL,
+      ),
+    )
 
     // No read's failure tells a portal of another property from a removed one.
     expect(isNotFound(error)).toBe(true)
@@ -132,7 +149,14 @@ describe('loadPortalWorkspace', () => {
   it('refetches the list once before concluding the portal is gone', async () => {
     reads.listPortals.mockResolvedValue(listing([]))
 
-    const error = await caught(loadPortalWorkspace(new QueryClient(), PROPERTY, PORTAL))
+    const error = await caught(
+      loadPortalWorkspace(
+        new QueryClient(),
+        { userId: 'user-1', organizationId: 'org-1' },
+        PROPERTY,
+        PORTAL,
+      ),
+    )
 
     expect(isNotFound(error)).toBe(true)
     expect(reads.listPortals).toHaveBeenCalledTimes(2)
@@ -144,7 +168,12 @@ describe('loadPortalWorkspace', () => {
       .mockResolvedValueOnce(listing([PORTAL]))
 
     await expect(
-      loadPortalWorkspace(new QueryClient(), PROPERTY, PORTAL),
+      loadPortalWorkspace(
+        new QueryClient(),
+        { userId: 'user-1', organizationId: 'org-1' },
+        PROPERTY,
+        PORTAL,
+      ),
     ).resolves.toBeUndefined()
   })
 
@@ -153,7 +182,14 @@ describe('loadPortalWorkspace', () => {
     reads.listPortalLinks.mockRejectedValue(first)
     reads.getPortalLinktree.mockRejectedValue(new Error('linktree failed'))
 
-    const error = await caught(loadPortalWorkspace(new QueryClient(), PROPERTY, PORTAL))
+    const error = await caught(
+      loadPortalWorkspace(
+        new QueryClient(),
+        { userId: 'user-1', organizationId: 'org-1' },
+        PROPERTY,
+        PORTAL,
+      ),
+    )
 
     expect(error).toBe(first)
   })
@@ -162,7 +198,14 @@ describe('loadPortalWorkspace', () => {
     const failure = new Error('list failed')
     reads.listPortals.mockRejectedValue(failure)
 
-    const error = await caught(loadPortalWorkspace(new QueryClient(), PROPERTY, PORTAL))
+    const error = await caught(
+      loadPortalWorkspace(
+        new QueryClient(),
+        { userId: 'user-1', organizationId: 'org-1' },
+        PROPERTY,
+        PORTAL,
+      ),
+    )
 
     expect(error).toBe(failure)
   })
@@ -180,7 +223,14 @@ describe('loadPortalWorkspace', () => {
     )
     reads.listPortalLinks.mockRejectedValue(new Error('links failed'))
 
-    await caught(loadPortalWorkspace(new QueryClient(), PROPERTY, PORTAL))
+    await caught(
+      loadPortalWorkspace(
+        new QueryClient(),
+        { userId: 'user-1', organizationId: 'org-1' },
+        PROPERTY,
+        PORTAL,
+      ),
+    )
 
     expect(finished).toBe(true)
   })

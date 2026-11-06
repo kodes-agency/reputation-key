@@ -1,3 +1,4 @@
+import { useTenantScope } from '#/shared/hooks/useTenantScope'
 // Keep all goal shapes reachable, including average and several-subject goals. Property
 // count goals use the monthly page. The route checks goal.read; the read checks
 // goal.create. Load queries on demand to keep reads and server functions out of first
@@ -90,7 +91,7 @@ function useGoalPageReads() {
   const { data: propData } = useSuspenseQuery(propertyQuery(propertyId))
   const pageRead = useSuspenseQuery(portalGoalSinglePageQuery(propertyId, goalId))
   const members = useQuery({
-    ...membersQuery,
+    ...membersQuery(useTenantScope()),
     enabled: canDo('member.list'),
     retry: false,
   })

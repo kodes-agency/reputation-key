@@ -1,3 +1,5 @@
+import { tenantScope } from '#/shared/queries/tenant-scope'
+import { useTenantScope } from '#/shared/hooks/useTenantScope'
 import { createFileRoute } from '@tanstack/react-router'
 import { roleUnavailable } from '#/shared/auth/route-notice'
 import { useSuspenseQuery } from '@tanstack/react-query'
@@ -13,7 +15,7 @@ import {
   getGoogleAuthUrl,
 } from '#/contexts/integration/server/google-connections'
 import { IntegrationsSettingsPage } from '#/components/features/settings'
-import { integrationKeys } from '#/shared/queries/query-keys'
+import { createKeys } from '#/shared/queries/query-keys'
 import { googleConnectionsQuery } from '#/routes/-queries/route-queries'
 
 export const Route = createFileRoute('/_authenticated/settings/integrations')({
@@ -25,14 +27,17 @@ export const Route = createFileRoute('/_authenticated/settings/integrations')({
     }
   },
   loader: async ({ context }) => {
-    await context.queryClient.ensureQueryData(googleConnectionsQuery)
+    await context.queryClient.ensureQueryData(
+      googleConnectionsQuery(tenantScope(context)),
+    )
   },
   staleTime: 60_000,
   component: IntegrationsSettings,
 })
 
 function IntegrationsSettings() {
-  const { data } = useSuspenseQuery(googleConnectionsQuery)
+  const { integrationKeys } = createKeys(useTenantScope())
+  const { data } = useSuspenseQuery(googleConnectionsQuery(useTenantScope()))
   const connections = data.connections
   // getGoogleAuthUrl is a GET (generates a signed OAuth URL) — treat as an action
   // since it has a side effect (CSRF state) and the result drives a redirect.

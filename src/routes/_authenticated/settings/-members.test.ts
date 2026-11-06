@@ -24,7 +24,7 @@ vi.mock('#/contexts/property/server/property-responsible-managers', () => ({
 vi.mock('#/routes/-queries/route-queries', () => ({
   propertiesQuery: {},
   // The shared member list read; the route no longer keeps a copy of it.
-  membersQuery: { queryKey: ['members'], queryFn: () => server.listMembers() },
+  membersQuery: () => ({ queryKey: ['members'], queryFn: () => server.listMembers() }),
 }))
 vi.mock('#/routes/_authenticated/properties/$propertyId/-settings-queries', () => ({
   responsibleManagersQuery: vi.fn(),
@@ -43,6 +43,8 @@ async function runLoader(role: Role) {
   return loader({
     context: {
       role,
+      user: { id: 'user-1' },
+      activeOrganization: { id: 'org-1' },
       queryClient: {
         ensureQueryData: async (options: { queryFn: () => Promise<unknown> }) =>
           options.queryFn(),
