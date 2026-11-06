@@ -7,9 +7,10 @@
 // every payload field whose NAME reads like free text must be registered
 // below with its justification; any NEW free-text-ish field fails the suite.
 //
-// Deliberately simple heuristic, documented so it stays reviewable:
+// Field-name heuristic, documented so it stays reviewable:
 //   1. Parse each context's `domain/events.ts` and `domain/*-events.ts` files
-//      for `export type X = Readonly<{…}>` blocks (payloads are flat).
+//      with TypeScript and resolve exported object payload types, including
+//      imported generic envelopes and intersections (payloads are flat).
 //   2. Ignore envelope fields: _tag, eventId, occurredAt, correlationId.
 //   3. A field is "free-text-ish" when its name matches FREE_TEXTISH below:
 //      a prose word (text, comment, reason, …) or a name word (name, slug,
@@ -28,8 +29,10 @@
 // outbox row keeps.
 
 import { describe, it, expect } from 'vitest'
-import { readFileSync, readdirSync, existsSync } from 'node:fs'
+import { readdirSync, existsSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
+import { tmpdir } from 'node:os'
+import ts from 'typescript'
 
 /** field name → justification (BQC-1-owned gaps are findings, not fixes). */
 const REGISTER: Readonly<Record<string, string>> = {
@@ -82,39 +85,70 @@ const ENVELOPE_FIELDS = new Set(['_tag', 'eventId', 'occurredAt', 'correlationId
 // Prose words, then name words. `note` stops short of `noteId`: an id is a fact.
 const FREE_TEXTISH =
   /text|comment|email|reason|body|content|description|message|name|slug|title|label|summary|phone|note(?!Id)/i
-const EVENT_TYPE_BLOCK = /export type (\w+) = Readonly<\{([\s\S]*?)\}>/g
-const FIELD_LINE = /(\w+)\??:/g
-
-function stripComments(source: string): string {
-  return source.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/[^\n]*/g, '')
+function createEventProgram(eventFiles: string[]): ts.Program {
+  const config = ts.getParsedCommandLineOfConfigFile(
+    'tsconfig.json',
+    {},
+    {
+      ...ts.sys,
+      onUnRecoverableConfigFileDiagnostic(diagnostic) {
+        throw new Error(ts.flattenDiagnosticMessageText(diagnostic.messageText, '\n'))
+      },
+    },
+  )
+  if (!config || config.errors.length > 0) {
+    throw new Error('Cannot load TypeScript configuration for event payload discovery')
+  }
+  return ts.createProgram(eventFiles, config.options)
 }
 
-/** Parse `export type X = Readonly<{ … }>` blocks into `Type.field` keys. */
-function collectPayloadFields(filePath: string): Set<string> {
-  const source = stripComments(readFileSync(filePath, 'utf-8'))
+/** Resolve concrete exported payload types into `Type.field` keys. */
+function collectPayloadFields(
+  filePath: string,
+  program = createEventProgram([filePath]),
+): Set<string> {
+  const source = program.getSourceFile(filePath)
+  if (!source) throw new Error(`Event source not found: ${filePath}`)
+  const checker = program.getTypeChecker()
   const fields = new Set<string>()
-  for (const block of source.matchAll(EVENT_TYPE_BLOCK)) {
-    const [, typeName, body] = block
-    for (const field of body.matchAll(FIELD_LINE)) {
-      const name = field[1]
+  for (const declaration of source.statements) {
+    if (
+      !ts.isTypeAliasDeclaration(declaration) ||
+      declaration.typeParameters?.length ||
+      !declaration.modifiers?.some(
+        (modifier) => modifier.kind === ts.SyntaxKind.ExportKeyword,
+      )
+    )
+      continue
+    const type = checker.getTypeAtLocation(declaration)
+    if (type.flags & ts.TypeFlags.Any) {
+      throw new Error(`Cannot resolve event payload type: ${declaration.name.text}`)
+    }
+    // Event unions and scalar vocabularies are not individual payloads.
+    if (!(type.flags & (ts.TypeFlags.Object | ts.TypeFlags.Intersection))) continue
+    for (const field of checker.getPropertiesOfType(type)) {
+      const name = field.getName()
       if (ENVELOPE_FIELDS.has(name)) continue
-      fields.add(`${typeName}.${name}`)
+      fields.add(`${declaration.name.text}.${name}`)
     }
   }
   return fields
 }
 
 function collectAllEventFields(): Set<string> {
-  const all = new Set<string>()
+  const eventFiles: string[] = []
   for (const context of readdirSync('src/contexts')) {
     const domainDirectory = join('src/contexts', context, 'domain')
     if (!existsSync(domainDirectory)) continue
-    const eventFiles = readdirSync(domainDirectory, { withFileTypes: true })
+    const contextEventFiles = readdirSync(domainDirectory, { withFileTypes: true })
       .filter((entry) => entry.isFile() && /^(?:events|.+-events)\.ts$/u.test(entry.name))
       .map((entry) => join(domainDirectory, entry.name))
-    for (const eventFile of eventFiles) {
-      for (const field of collectPayloadFields(eventFile)) all.add(field)
-    }
+    eventFiles.push(...contextEventFiles)
+  }
+  const program = createEventProgram(eventFiles)
+  const all = new Set<string>()
+  for (const eventFile of eventFiles) {
+    for (const field of collectPayloadFields(eventFile, program)) all.add(field)
   }
   return all
 }
@@ -157,5 +191,70 @@ describe('architecture: event payloads are content-free facts (BQC-5.6)', () => 
   it('register entries reference real payload fields (no stale entries)', () => {
     const stale = Object.keys(REGISTER).filter((key) => !allFields.has(key))
     expect(stale, `stale register entries:\n${stale.join('\n')}`).toEqual([])
+  })
+
+  it('discovers payload fields through imported generic envelopes and intersections', () => {
+    const directory = mkdtempSync(join(tmpdir(), 'event-payload-fields-'))
+    try {
+      writeFileSync(
+        join(directory, 'event-base.ts'),
+        `export type Fact<Tag extends string, Payload> = Readonly<Payload & {
+          _tag: Tag
+          eventId: string
+          occurredAt: Date
+          correlationId: string | null
+          organizationId: string
+          body?: string
+        }>
+        export type LifecycleFact<Tag extends string, Payload> = Fact<
+          Tag, Payload & { sourceAggregateVersion: string }
+        >`,
+      )
+      const file = join(directory, 'events.ts')
+      writeFileSync(
+        file,
+        `import type { Fact, LifecycleFact } from './event-base'
+        export type LiteralFact = Readonly<{ _tag: 'literal'; name: string }>
+        export type GenericFact = Fact<'generic', { reason: string; 'label'?: string }>
+        type WorkflowFields = Readonly<{ contentVersion: number }>
+        export type WorkflowFact = LifecycleFact<
+          'workflow', WorkflowFields & { noteId: string }
+        >
+        export type Event = LiteralFact | GenericFact | WorkflowFact`,
+      )
+
+      const fields = collectPayloadFields(file)
+      expect([...fields].sort()).toEqual(
+        [
+          'LiteralFact.name',
+          'GenericFact.organizationId',
+          'GenericFact.body',
+          'GenericFact.reason',
+          'GenericFact.label',
+          'WorkflowFact.organizationId',
+          'WorkflowFact.body',
+          'WorkflowFact.sourceAggregateVersion',
+          'WorkflowFact.contentVersion',
+          'WorkflowFact.noteId',
+        ].sort(),
+      )
+      expect(
+        [...fields]
+          .filter((key) => FREE_TEXTISH.test(key.slice(key.indexOf('.') + 1)))
+          .sort(),
+      ).toEqual(
+        [
+          'LiteralFact.name',
+          'GenericFact.body',
+          'GenericFact.reason',
+          'GenericFact.label',
+          'WorkflowFact.body',
+          'WorkflowFact.contentVersion',
+        ].sort(),
+      )
+      expect(fields.has('WorkflowFact.removedField')).toBe(false)
+    } finally {
+      rmSync(directory, { recursive: true, force: true })
+    }
   })
 })
