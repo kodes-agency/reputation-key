@@ -26,6 +26,7 @@ const PhoneFrame: Decorator = (Story, { parameters }) => (
     data-testid="phone-frame"
     style={{
       width: parameters.frameWidth ?? 390,
+      maxWidth: '100%',
       height: PHONE_HEIGHT,
       margin: '0 auto',
       overflowY: 'auto',

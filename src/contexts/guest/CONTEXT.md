@@ -187,6 +187,11 @@ stores, integrity, reconciliation, retention, lifecycle, and export subjects.
 PostgreSQL integration tests cover receipt atomicity, exact deadlines, replay,
 withdrawal/reveal serialization, outbox readiness, and tenant fences.
 
+Public Portal UI lives in `src/components/features/guest/public-portal/immersive/`.
+The response phone stories leave feedback validation, rating correction and
+withdrawal confirmation open in all six languages for the shared phone-width
+and accessibility checks.
+
 The activation lifecycle remains absent from `build.ts`, server functions, routes, workers, and public API. Manager relationships are freshly resolved immediately before a Guest operation; the documented cross-transaction revocation interval must be accepted or replaced by a transactional permit before activation.
 
 `portal.guest_contact` is safety-blocked for beta. The backend foundation and tests do not create an activation path. Tenant allowlists, E2E overrides, routes, UI, workers, and public APIs cannot enable it. The only composed job path is fail-closed cleanup of encrypted material already present in migration-compatible storage. Activation still requires named approval evidence for the guest notice, 30-day retention wording, manager handling, and delivery channel, plus an accepted disposition for the documented authority-revocation interval and production key lifecycle; phone remains excluded.
