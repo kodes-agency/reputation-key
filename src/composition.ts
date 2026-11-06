@@ -75,9 +75,8 @@ function buildContainer(
   const memberAuthorityLifecycle = createDeferredMemberAuthorityLifecycle()
 
   // PRE17A A4: Create outbox repository and register event schemas.
-  // The outbox records domain events durably. Event schemas are registered
-  // once at startup so the relay can validate payloads before publishing.
-  const outboxRepo = createOutboxRepository(db)
+  // The dispatcher validates stored facts before invoking their consumers.
+  const outboxRepo = createOutboxRepository(db, clock)
   // ARC-03-T7: the durable consumer registry is CONTAINER-OWNED. It used to be
   // a module-level Map whose duplicate check spanned the whole process, so a
   // second container could not register its consumers at all. Every context

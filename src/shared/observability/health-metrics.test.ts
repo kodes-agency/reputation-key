@@ -49,6 +49,9 @@ const PUBLICATION_ROW = [
 function fakeOutboxRepo(expiredRows: unknown[]): OutboxRepository {
   return {
     findExpiredLeases: vi.fn(async () => expiredRows),
+    delivery: {
+      readQuarantineMetrics: vi.fn(async () => ({ count: 0, oldestAgeMs: null })),
+    },
   } as unknown as OutboxRepository
 }
 
@@ -121,6 +124,21 @@ describe('health checker outbox metrics (BQC-3.7)', () => {
 })
 
 describe('health checker quarantine metrics (BQC-3.7)', () => {
+  it('reads durable terminal deliveries without a Redis quarantine handle', async () => {
+    const workItems = { count: 1, oldestAgeMs: 16 * 60_000 }
+    const readQuarantineMetrics = vi.fn(async () => workItems)
+    const repo = {
+      ...fakeOutboxRepo([]),
+      delivery: { readQuarantineMetrics } as unknown as OutboxRepository['delivery'],
+    }
+    expect(await createHealthChecker(fakeDb([]), repo).signals.quarantine()).toEqual({
+      count: 0,
+      oldestAgeMs: null,
+      workItems,
+    })
+    expect(readQuarantineMetrics).toHaveBeenCalledOnce()
+  })
+
   it('counts waiting/delayed quarantined jobs and the oldest age', async () => {
     const oneHourAgo = new Date(Date.now() - 3_600_000).toISOString()
     // Both quarantine tests spell out their own fakeQuarantine + fakeDb

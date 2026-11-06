@@ -8,6 +8,7 @@
 
 import { describe, expect, it } from 'vitest'
 import { GOOGLE_IMPORT_ITEM_CLAIM_LEASE_MS } from '#/contexts/integration/application/ports/google-import-v2-store.port'
+import { OUTBOX_DELIVERY_LEASE_MS } from '#/shared/outbox/dispatch-job-options'
 import {
   JOB_LOCK_DURATION_MS,
   JOB_STALLED_INTERVAL_MS,
@@ -22,6 +23,7 @@ describe('BullMQ lock/stall ordering', () => {
   // lease boundary.
   it('expires every domain claim lease strictly before a job can stall', () => {
     expect(GOOGLE_IMPORT_ITEM_CLAIM_LEASE_MS).toBeLessThan(JOB_LOCK_DURATION_MS)
+    expect(OUTBOX_DELIVERY_LEASE_MS).toBeLessThan(JOB_LOCK_DURATION_MS)
   })
 
   it('never detects a stall before the lock it is detecting could expire', () => {

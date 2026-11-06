@@ -25,6 +25,7 @@ import { Redis } from 'ioredis'
 import { getJobRedisUrl } from './redis-topology'
 import type { JobRuntimeObservationSink } from './runtime-observations'
 import { executionKindOf } from './schedule-firing'
+import { isWorkItemJob } from './work-items.server'
 import {
   JOB_OPERATIONAL_QUEUE_CONCURRENCY,
   JOB_OPERATIONAL_QUEUE_RATE_LIMIT,
@@ -108,6 +109,14 @@ function isQuarantineRedrive(data: unknown): boolean {
   )
 }
 
+function reportsTerminalFailure(job: Job, error: unknown): boolean {
+  // A single failed queue delivery is recoverable through the ledger.
+  // Its handler marks poison work and exhausted ledger budgets unrecoverable.
+  return (
+    !isWorkItemJob(job) || (error instanceof Error && error.name === 'UnrecoverableError')
+  )
+}
+
 /**
  * Create a BullMQ worker for the given queue name.
  * Uses a dedicated Redis connection with maxRetriesPerRequest=null
@@ -155,7 +164,7 @@ export function createJobWorker<T>(
         try {
           return await handler(job)
         } catch (err) {
-          if (quarantineQueue) {
+          if (quarantineQueue && reportsTerminalFailure(job, err)) {
             try {
               const outcome = await quarantineFinalAttemptJob(quarantineQueue, job, err)
               if (outcome.quarantined) {
@@ -269,7 +278,9 @@ export function createJobWorker<T>(
       },
       'job failed',
     )
-    const terminal = job ? isTerminalFailedEvent(job, err) : false
+    const terminal = job
+      ? reportsTerminalFailure(job, err) && isTerminalFailedEvent(job, err)
+      : false
     if (job && terminal) {
       captureObservabilityException(err, {
         source: 'bullmq-job',

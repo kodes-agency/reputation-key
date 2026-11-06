@@ -10,8 +10,8 @@
 // The surviving fault conditions prove that transport and provider failures
 // never select an alternate queue or provider:
 //   (a) QUEUE UNAVAILABLE AT PUBLISH — the relay's BullMQ add fails against a
-//       dead-port connection; the claimed event is NOT marked published; its
-//       lease expires; a healthy handle of the SAME queue reclaims it.
+//       dead-port connection; pending delivery stays durable without spending
+//       an attempt; reconciliation enqueues on the SAME queue after recovery.
 //   (c) PROVIDER (GBP) DOWN — a 5xx leaves the single provider write
 //       ambiguous. The retry performs one targeted read; absence remains
 //       ambiguous, schedules bounded reconciliation, and never authorizes a
@@ -26,7 +26,7 @@
 //       after recovery its protected side effect applies exactly once.
 //
 // Determinism: relay polls and dispatch closures are invoked directly (never
-// interval-driven); lease expiry is simulated by backdating lease_expires_at
+// interval-driven); due time is simulated by backdating dispatch_after
 // (never a wall-clock sleep); BullMQ worker completion is awaited via bounded
 // condition polling (vi.waitFor); queue names are unique to this suite and
 // obliterated up front; unavailability uses a dead-port connection — the
@@ -56,6 +56,7 @@ import { sha256Hex } from '#/shared/domain/sha256'
 import { deleteTestOrganizations } from '#/shared/testing/integration-helpers'
 import { createOutboxRepository } from '#/shared/outbox/infrastructure/outbox-repository'
 import { createOutboxRelay } from '#/shared/outbox/relay'
+import { reconcileWorkItems } from '#/shared/jobs/work-items.server'
 import { createGatedJobHandler } from '#/shared/jobs/delayed-execution-gate'
 import { createJobRegistry } from '#/shared/jobs/registry'
 import { createJobWorker } from '#/shared/jobs/worker'
@@ -159,6 +160,7 @@ afterAll(async () => {
   for (const name of Object.keys(queues)) await queues[name]?.close()
   redisLease?.release()
   await db.execute(sql`DELETE FROM outbox_events WHERE organization_id = ${OUTBOX_ORG}`)
+  await db.execute(sql`DELETE FROM work_items WHERE organization_id = ${OUTBOX_ORG}`)
 })
 
 // ── Shared helpers ───────────────────────────────────────────────────
@@ -252,9 +254,10 @@ function stubPolicyAllow(): void {
 describe('(a) queue unavailable at publish (BQC-4.6)', () => {
   beforeEach(async () => {
     await db.execute(sql`DELETE FROM outbox_events`)
+    await db.execute(sql`DELETE FROM work_items WHERE organization_id = ${OUTBOX_ORG}`)
   })
 
-  it('leaves a claimed event unpublished until a healthy relay reclaims it on the same queue', async () => {
+  it('retains pending delivery without spending an attempt and recovers on the same queue', async () => {
     if (!redisAvailable) return
     const eventId = await insertOutboxEvent(new Date(Date.now() - 60_000))
 
@@ -265,39 +268,46 @@ describe('(a) queue unavailable at publish (BQC-4.6)', () => {
     })
     deadQueue.on('error', () => {}) // tolerate the refused-connection error event
     try {
-      const deadRelay = createOutboxRelay(repo, deadQueue, {
-        relayId: 'bqc46-a-dead',
-        leaseDurationMs: 30_000,
+      await createOutboxRelay(repo, deadQueue).poll()
+
+      // Queue failure cannot erase the committed delivery intent or consume
+      // an execution attempt. Publication records admission to the ledger.
+      const admitted = await leaseRow(eventId)
+      expect(admitted.publishedAtMs).not.toBeNull()
+      expect(admitted.leaseOwner).toBeNull()
+      const pending = (await repo.delivery.workItems.list(OUTBOX_ORG)).find(
+        (work) => work.subjectId === eventId,
+      )
+      expect(pending).toMatchObject({
+        kind: 'outbox-delivery',
+        state: 'pending',
+        attempts: 0,
       })
-      await deadRelay.poll()
-
-      // Claimed but NOT published — the lease owns the row until expiry.
-      const mid = await leaseRow(eventId)
-      expect(mid.publishedAtMs).toBeNull()
-      expect(mid.leaseOwner).toBe('bqc46-a-dead')
-
-      // The lease expires (backdated — no wall-clock sleep) ...
+      if (!pending) throw new Error('Delivery work missing')
       await db.execute(sql`
-        UPDATE outbox_events
-        SET lease_expires_at = NOW() - INTERVAL '1 second'
-        WHERE id = ${eventId}
+        UPDATE work_items SET dispatch_after = NOW() - INTERVAL '1 second'
+        WHERE id = ${pending.id}::uuid
       `)
 
-      // ... and a healthy handle of the SAME queue reclaims and publishes.
-      const healthyRelay = createOutboxRelay(repo, q(QUEUE_A), {
-        relayId: 'bqc46-a-healthy',
-        leaseDurationMs: 30_000,
+      const recovered = await reconcileWorkItems({
+        reserveDispatch: repo.delivery.workItems.reserveDispatch,
+        enqueue: async (kind, data, jobId) => {
+          expect(kind).toBe('outbox-delivery')
+          return q(QUEUE_A).add(EVENT_TYPE, data, { jobId, attempts: 1 })
+        },
       })
-      await healthyRelay.poll()
 
-      const after = await leaseRow(eventId)
-      expect(after.publishedAtMs).not.toBeNull()
-      expect(after.leaseOwner).toBeNull()
-
+      expect(recovered).toEqual({ queued: 1, failed: 0 })
+      expect(await repo.delivery.workItems.inspect(OUTBOX_ORG, pending.id)).toMatchObject(
+        {
+          state: 'pending',
+          attempts: 0,
+        },
+      )
       const jobs = await q(QUEUE_A).getJobs(['waiting', 'delayed', 'prioritized'])
       expect(jobs).toHaveLength(1)
       expect(jobs[0]!.queueName).toBe(QUEUE_A)
-      expect(jobs[0]!.id).toBe(eventId)
+      expect(jobs[0]!.data).toEqual({ workId: pending.id })
       expect(jobs[0]!.name).toBe(EVENT_TYPE)
     } finally {
       await deadQueue.close().catch(() => {})

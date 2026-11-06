@@ -16,6 +16,7 @@ import {
 } from '#/shared/db/retention/execute-retention-rule'
 import { closeRetentionRun, openRetentionRun } from '#/shared/db/retention/evidence'
 import { retentionRuleCutoff } from '#/shared/db/retention/retention-cutoff'
+import { SETTLED_OUTBOX_EVENTS_WHERE } from '#/shared/outbox/infrastructure/retention.server'
 import { getLogger } from '#/shared/observability/logger'
 import { trace } from '#/shared/observability/trace'
 
@@ -160,15 +161,12 @@ export const RETENTION_RULES: ReadonlyArray<RetentionRule> = [
     subject: 'outbox_events.published',
     table: 'outbox_events',
     keyColumns: ['id'],
-    // BQC-3.7: keyed on published_at (the rule already filters published rows)
-    // so an event unpublished 29d then published survives a full 30d window —
-    // created_at keying deleted it ~1d after publication. 30d is BQC-1.6's
-    // deliberate value; the applied migration file's comment says 7d/90d —
-    // that comment drift is NOT fixed here (applied migrations are immutable).
-    // Deleting a fact also deletes its consumer receipts (see the header).
+    // Keep a full 30 days after publication, and longer while a catalogued
+    // consumer still owes its receipt or recovery holds the fact. Receipts
+    // leave only with their settled fact through the foreign-key cascade.
     tsColumn: 'published_at',
     olderThanMs: 30 * DAY_MS,
-    extraWhere: 'published_at IS NOT NULL',
+    extraWhere: SETTLED_OUTBOX_EVENTS_WHERE,
   },
   {
     subject: 'review_sync_runs',

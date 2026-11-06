@@ -31,6 +31,7 @@ import type { AlertFacts } from './alert-facts'
 import {
   inAppDeliveryLagFacts,
   quarantineFacts,
+  quarantineTotals,
   unreadyJobFacts,
 } from './alert-snapshot-facts'
 import { readPushMissed, readPushSilent, readReconciliationAge } from './alert-sync-push'
@@ -544,7 +545,7 @@ export const ALERT_DEFINITIONS: readonly AlertDefinition[] = [
     threshold: QUARANTINE_REDRIVE_SLA_ALERT_MS,
     blindedBy: ['health.quarantine'],
     read: (snapshot) => {
-      const q = snapshot.quarantine
+      const q = quarantineTotals(snapshot)
       if (q == null || q.count <= 0) return null
       if (q.oldestAgeMs == null || q.oldestAgeMs <= QUARANTINE_REDRIVE_SLA_ALERT_MS)
         return null
@@ -568,14 +569,14 @@ export const ALERT_DEFINITIONS: readonly AlertDefinition[] = [
     threshold: QUARANTINE_NONEMPTY_ALERT_MS,
     blindedBy: ['health.quarantine'],
     read: (snapshot) => {
-      const q = snapshot.quarantine
+      const q = quarantineTotals(snapshot)
       if (q == null || q.count <= 0) return null
       if (q.oldestAgeMs == null || q.oldestAgeMs <= QUARANTINE_NONEMPTY_ALERT_MS) {
         return null
       }
       return {
         value: q.oldestAgeMs,
-        detail: `${q.count} job(s) sitting in the unconsumed quarantine, oldest ${q.oldestAgeMs}ms — dropped work: no worker drains it and the TTL sweep deletes it`,
+        detail: `${q.count} quarantined record(s), oldest ${q.oldestAgeMs}ms — unresolved work requires operator repair`,
         facts: quarantineFacts(snapshot, q.count),
       }
     },

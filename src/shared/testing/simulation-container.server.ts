@@ -28,6 +28,8 @@ import {
 import { createInMemoryQueue, type InMemoryQueue } from './in-memory-queue'
 import { createOutboxRelay } from '#/shared/outbox/relay'
 import { createDispatcherHandler } from '#/shared/outbox/dispatcher'
+import { OUTBOX_DELIVERY_KIND } from '#/shared/outbox/dispatch-job-options'
+import { reconcileWorkItems } from '#/shared/jobs/work-items.server'
 import type { Job, Queue } from 'bullmq'
 import type { Clock } from '#/shared/domain/clock'
 import type { Database } from '#/shared/db'
@@ -158,8 +160,7 @@ export async function createSimulationContainer(
     queue.connectRegistry(simulationContainer.jobRegistry)
 
     // 6. Inline outbox delivery: the same consumer set the worker registers,
-    //    then the real relay claims/marks rows and its "queue" hands each
-    //    envelope straight to the real dispatcher.
+    //    then the relay and reconciler hand work IDs to the real dispatcher.
     const outboxRepo = simulationContainer.outboxRepo
     if (!outboxRepo) throw new Error('Simulation container has no outbox repository')
     simulationContainer.registerOutboxConsumers()
@@ -175,7 +176,6 @@ export async function createSimulationContainer(
       },
     } as unknown as Queue
     const relay = createOutboxRelay(outboxRepo, inlineQueue, {
-      relayId: 'simulation',
       batchSize: 200,
     })
 
@@ -190,6 +190,15 @@ export async function createSimulationContainer(
         for (let polls = 0; polls < 100; polls++) {
           const seen = dispatched
           await relay.poll()
+          await reconcileWorkItems({
+            clock: () => currentTime,
+            reserveDispatch: outboxRepo.delivery.workItems.reserveDispatch,
+            enqueue: (kind, data, jobId) =>
+              (kind === OUTBOX_DELIVERY_KIND ? inlineQueue : queue).add(kind, data, {
+                jobId,
+                attempts: 1,
+              }),
+          })
           if (dispatched === seen) break
         }
         return dispatched - before
