@@ -1,7 +1,12 @@
 import type { TenantScope } from '#/shared/queries/tenant-scope'
 import { useTenantScope } from '#/shared/hooks/useTenantScope'
 import { notFound } from '@tanstack/react-router'
-import { queryOptions, useSuspenseQuery, type QueryClient } from '@tanstack/react-query'
+import {
+  queryOptions,
+  useQueries,
+  useSuspenseQuery,
+  type QueryClient,
+} from '@tanstack/react-query'
 import {
   getPropertyPortalExperience,
   getPortal,
@@ -132,97 +137,80 @@ const findAuthorizedPortal = async (
   return fresh.portals.find((candidate) => String(candidate.id) === portalId) ?? null
 }
 
-/**
- * The workspace loader: the portal is looked up in the property's authorized
- * collection AND the ten reads of the screen start at the same moment.
- *
- * They used to run in sequence (the list, then the ten), which put a whole
- * round trip in front of every read (a chain six deep on a slow network, the
- * preview at 4.4 s). The reads do not depend on the lookup, so they start
- * together; what the lookup decides is what the person is told.
- *
- * - The portal is not in this property's collection: `notFound()`, whatever the
- *   other reads did. A portal of another property or organization fails some of
- *   them for reasons of its own, and those must not tell it apart from one that
- *   was removed (a direct URL never reveals that a portal exists elsewhere).
- * - The portal is there and a read failed: that failure, the first, so the route
- *   shows its error and Try again as before. Every read is waited for, so none
- *   is left running unobserved.
- *
- * `notFound()`, not `/unavailable`: that page states the whole Portals feature
- * is switched off, which is a lie while the sidebar still links to a working
- * list. `notFoundComponent` renders an in-route "no longer available" state
- * instead. `/unavailable` stays for the capability-denied and cross-tenant
- * PROPERTY cases, which `gateControlledRoute` decides in `beforeLoad`.
- */
+/** Authorize through the URL property before reading the Portal itself. */
 export async function loadPortalWorkspace(
   queryClient: QueryClient,
-  scope: TenantScope,
   propertyId: string,
   portalId: string,
 ): Promise<void> {
-  const [lookup, ...reads] = await Promise.allSettled([
-    findAuthorizedPortal(queryClient, propertyId, portalId),
-    // The detail entry is FETCHED, not seeded from the list row: `getPortal`
-    // also returns `tokenStatus` (C2), which no list row carries, so a
-    // hand-built `{ portal }` seed would leave the Share tab reading
-    // `tokenStatus` as undefined instead of triggering a fetch.
-    queryClient.ensureQueryData(portalQuery(portalId)),
-    queryClient.ensureQueryData(portalLinksQuery(portalId)),
-    queryClient.ensureQueryData(portalLanguageCoverageQuery(propertyId, portalId)),
-    queryClient.ensureQueryData(portalLinktreeQuery(portalId)),
-    queryClient.ensureQueryData(portalGroupsQuery(propertyId)),
-    queryClient.ensureQueryData(responsibleManagersQuery(portalId)),
-    queryClient.ensureQueryData(membersQuery(scope)),
-    queryClient.ensureQueryData(portalPublicationHistoryQuery(portalId)),
-    queryClient.ensureQueryData(portalExperienceQuery(propertyId, portalId)),
-    queryClient.ensureQueryData(portalApprovedDestinationsQuery(portalId)),
-  ])
-  if (lookup.status === 'rejected') throw lookup.reason
-  if (!lookup.value) throw notFound()
-  for (const read of reads) {
-    if (read.status === 'rejected') throw read.reason
-  }
+  if (!(await findAuthorizedPortal(queryClient, propertyId, portalId))) throw notFound()
+  // Detail includes tokenStatus; the collection row cannot seed this cache entry.
+  await queryClient.ensureQueryData(portalQuery(portalId))
 }
 
-/**
- * Every read the portal detail screen needs. The route loader has already
- * seeded all of these, so each `useSuspenseQuery` resolves from cache on the
- * first render.
- */
+export const portalShareQueries = (scope: TenantScope, portalId: string) =>
+  [responsibleManagersQuery(portalId), membersQuery(scope)] as const
+
+export const portalHistoryQueries = (portalId: string) =>
+  [portalPublicationHistoryQuery(portalId)] as const
+
+export const portalPageQueries = (
+  scope: TenantScope,
+  propertyId: string,
+  portalId: string,
+) =>
+  [
+    portalLinksQuery(portalId),
+    portalLanguageCoverageQuery(propertyId, portalId),
+    portalLinktreeQuery(portalId),
+    portalGroupsQuery(propertyId),
+    ...portalShareQueries(scope, portalId),
+    ...portalHistoryQueries(portalId),
+    portalExperienceQuery(propertyId, portalId),
+    portalApprovedDestinationsQuery(portalId),
+  ] as const
+
+/** The Page tab owns its editor resources; other tabs read only their own data. */
 export function usePortalDetailData(propertyId: string, portalId: string) {
   const { data: portalData } = useSuspenseQuery(portalQuery(portalId))
-  const { data: linksData } = useSuspenseQuery(portalLinksQuery(portalId))
-  const { data: languageCoverage } = useSuspenseQuery(
-    portalLanguageCoverageQuery(propertyId, portalId),
-  )
-  const { data: linktree } = useSuspenseQuery(portalLinktreeQuery(portalId))
-  const { data: groupsData } = useSuspenseQuery(portalGroupsQuery(propertyId))
   const { data: propData } = useSuspenseQuery(propertyQuery(propertyId))
-  const { data: responsibleManagers } = useSuspenseQuery(
-    responsibleManagersQuery(portalId),
-  )
-  const { data: membersData } = useSuspenseQuery(membersQuery(useTenantScope()))
-  const { data: publicationHistory } = useSuspenseQuery(
-    portalPublicationHistoryQuery(portalId),
-  )
-  const { data: portalExperience } = useSuspenseQuery(
-    portalExperienceQuery(propertyId, portalId),
-  )
-  const { data: approvedDestinations } = useSuspenseQuery(
-    portalApprovedDestinationsQuery(portalId),
-  )
-  return {
-    portalData,
-    linksData,
-    languageCoverage,
-    linktree,
-    groupsData,
-    propData,
-    responsibleManagers,
-    membersData,
-    publicationHistory,
-    portalExperience,
-    approvedDestinations,
-  }
+  const queries = useQueries({
+    queries: portalPageQueries(useTenantScope(), propertyId, portalId),
+  })
+  const [
+    links,
+    languages,
+    tree,
+    groups,
+    managers,
+    members,
+    history,
+    experience,
+    destinations,
+  ] = queries
+  const data =
+    links.data &&
+    languages.data &&
+    tree.data &&
+    groups.data &&
+    managers.data &&
+    members.data &&
+    history.data &&
+    experience.data &&
+    destinations.data
+      ? {
+          portalData,
+          propData,
+          linksData: links.data,
+          languageCoverage: languages.data,
+          linktree: tree.data,
+          groupsData: groups.data,
+          responsibleManagers: managers.data,
+          membersData: members.data,
+          publicationHistory: history.data,
+          portalExperience: experience.data,
+          approvedDestinations: destinations.data,
+        }
+      : null
+  return { data, queries }
 }

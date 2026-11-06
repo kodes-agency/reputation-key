@@ -1,10 +1,9 @@
-// The workspace layout's header, with every fact it shows read from the cache
-// the layout's loader seeded: the status line (and what stops guests, the way
-// the Portals list says it), what is waiting to go live, whether the publish
-// step has anything to do, the live page, and the way back to the list the
-// manager came from.
+import { hasFailed } from '#/components/hooks/is-retrying'
+import { PortalReadState } from '#/components/features/portal/portal-detail/portal-read-state'
+// Publication status and group labels load locally, so a failed status read
+// cannot replace the workspace. Publish affordances wait for those facts.
 import { notFound, useRouter } from '@tanstack/react-router'
-import { useSuspenseQuery } from '@tanstack/react-query'
+import { useQuery, useSuspenseQuery } from '@tanstack/react-query'
 import { useState } from 'react'
 import { useCapabilities } from '#/shared/hooks/useCapabilities'
 import { usePermissions } from '#/shared/hooks/usePermissions'
@@ -75,12 +74,22 @@ export function PortalWorkspaceHeaderSlot({
   const { can } = usePermissions()
   const { data: portalData } = useSuspenseQuery(portalQuery(portalId))
   const { data: propData } = useSuspenseQuery(propertyQuery(propertyId))
-  const { data: history } = useSuspenseQuery(portalPublicationHistoryQuery(portalId))
-  const { data: groupsData } = useSuspenseQuery(portalGroupsQuery(propertyId))
+  const historyQuery = useQuery(portalPublicationHistoryQuery(portalId))
+  const groupsQuery = useQuery(portalGroupsQuery(propertyId))
   const revealForOpenPage = usePortalOpenPageReveal()
   const { portal, tokenStatus } = portalData
   if (!portal) throw notFound()
 
+  const queries = [historyQuery, groupsQuery]
+  if (
+    queries.some((query) => query.data === undefined && hasFailed(query)) ||
+    !historyQuery.data ||
+    !groupsQuery.data
+  ) {
+    return <PortalReadState queries={queries} label="portal status" />
+  }
+  const history = historyQuery.data
+  const groupsData = groupsQuery.data
   const access = {
     canUpdate: can('portal.update'),
     portalWriteEnabled: has('portal.write'),

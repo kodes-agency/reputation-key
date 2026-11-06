@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react'
 import { useServerFn } from '@tanstack/react-start'
 import type { Action } from '#/components/hooks/use-action'
 import { ImageSetting } from '#/components/forms/image-setting'
@@ -10,13 +11,6 @@ import {
   CardTitle,
 } from '#/components/ui/card'
 import { OrganizationSettingsForm } from './organization-settings-form'
-import { ResponseTargetSettingsCard } from './response-target-settings-card'
-import type {
-  GoogleReviewTargetAnalytics,
-  PrivateFeedbackTargetAnalytics,
-  ResponseTargetPolicySettings,
-} from '#/contexts/inbox/application/public-api'
-import type { setResponseTargetPolicyFn } from '#/contexts/inbox/server/inbox'
 import type {
   updateOrganization,
   requestOrgLogoUpload,
@@ -32,13 +26,7 @@ type OrgData = Readonly<{
 }>
 type Props = Readonly<{
   organization: OrgData
-  responseTargetSettings: ResponseTargetPolicySettings
-  privateFeedbackTargetAnalytics: PrivateFeedbackTargetAnalytics
-  googleReviewTargetAnalytics: GoogleReviewTargetAnalytics
-  updateResponseTargetPolicy: Action<
-    Parameters<typeof setResponseTargetPolicyFn>[0],
-    Awaited<ReturnType<typeof setResponseTargetPolicyFn>>
-  >
+  responseTargets: ReactNode
   updateOrganization: Action<
     Parameters<typeof updateOrganization>[0],
     Awaited<ReturnType<typeof updateOrganization>>
@@ -106,10 +94,7 @@ function OrganizationLogoCard({
 
 export function OrganizationSettingsPage({
   organization,
-  responseTargetSettings,
-  privateFeedbackTargetAnalytics,
-  googleReviewTargetAnalytics,
-  updateResponseTargetPolicy,
+  responseTargets,
   updateOrganization,
   removeOrganizationLogo,
   requestOrgLogoUploadFn,
@@ -133,12 +118,7 @@ export function OrganizationSettingsPage({
         isPending={updateOrganization.isPending}
         error={updateOrganization.error}
       />
-      <ResponseTargetSettingsCard
-        settings={responseTargetSettings}
-        privateFeedbackAnalytics={privateFeedbackTargetAnalytics}
-        googleReviewAnalytics={googleReviewTargetAnalytics}
-        updatePolicy={updateResponseTargetPolicy}
-      />
+      {responseTargets}
     </div>
   )
 }

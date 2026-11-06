@@ -124,6 +124,13 @@ lists two goal reads that stay per route because sharing them costs first-paint
 bytes (the measurement is beside the list), and holds their copies to the same
 read.
 
+The Portal workspace loader first resolves the Portal in the URL Property's
+authorized collection, then primes its detail (including token status). A missing
+lookup starts no Portal detail or ancillary read. Header status and each tab own
+their remaining reads, with local skeletons and retry; a failed Page read does
+not block Share, History or Results. Organization settings primes only the active
+Organization; response policy and each performance summary load independently.
+
 A loader may also start a side read the page can draw without (the figures beside
 a list, a setup strip) and hold the page for it at most a grace. It does that
 through `primeWithinGrace` (`-queries/prime-within-grace.ts`), never its own
