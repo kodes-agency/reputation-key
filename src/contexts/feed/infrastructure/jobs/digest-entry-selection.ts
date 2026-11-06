@@ -276,7 +276,12 @@ export async function retireStaleEntries(
   ctx: RecipientContext,
   entries: readonly NotificationEmail[],
 ): Promise<readonly NotificationEmail[]> {
-  const stale = entries.filter((entry) => isStaleQueuedEmail(entry, ctx.now))
+  const stale: NotificationEmail[] = []
+  const fresh: NotificationEmail[] = []
+  for (const entry of entries) {
+    if (isStaleQueuedEmail(entry, ctx.now)) stale.push(entry)
+    else fresh.push(entry)
+  }
   for (const entry of stale) {
     await deps.emailRepo.markSuppressed(
       notificationEmailId(entry.id as string),
@@ -292,7 +297,7 @@ export async function retireStaleEntries(
       'Digest entries suppressed as too old to send',
     )
   }
-  return entries.filter((entry) => !stale.includes(entry))
+  return fresh
 }
 
 /**

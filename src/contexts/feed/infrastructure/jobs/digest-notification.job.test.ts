@@ -13,7 +13,7 @@ import {
 } from '#/shared/domain/ids'
 import type { Notification, NotificationEmail } from '../../domain/notification-types'
 import type { NotificationDigestBatch } from '../../application/ports/notification-email-repository.port'
-import { digestProviderRequest } from './digest-assembly'
+import { digestProviderRequest } from '../digest-batch-identity'
 import {
   activeScope,
   baseDeps,
