@@ -1,9 +1,4 @@
-// Pure assembly for the daily digest: idempotency key, property grouping, and
-// the ADR 0046 r.8 content boundary for the group heading.
-//
-// Kept separate from the job so the interesting invariants — key stability,
-// grouping, "no Google content in a heading" — are testable without a pool, a
-// queue, or a clock.
+// Group digest lines by Property without adding source content to headings.
 
 import type { Notification, NotificationEmail } from '../../domain/notification-types'
 import type {
@@ -12,13 +7,7 @@ import type {
 } from '../../domain/notification-templates'
 import { notificationLink, renderNotification } from '../../domain/notification-templates'
 import { splitFacts } from '../email/notification-facts'
-import {
-  digestBatchIdempotencyKey,
-  digestMemberSet,
-  digestProviderRequest,
-} from '../digest-batch-identity'
-
-export { digestBatchIdempotencyKey, digestMemberSet, digestProviderRequest }
+import type { DigestEmailGroup } from '../email/digest-email'
 
 /** One deliverable digest line: the queue row plus its in-app notification. */
 export type DigestItem = Readonly<{
@@ -26,16 +15,9 @@ export type DigestItem = Readonly<{
   notification: Notification
 }>
 
-/** Exactly the shape `renderDigestEmail` consumes. */
-export type DigestGroup = Readonly<{
-  propertyName: string
-  items: ReadonlyArray<Readonly<{ rendered: RenderedNotification; actionUrl: string }>>
-}>
-
 /**
  * Group one user's digest lines by property, preserving queue order within a
- * group and first-appearance order between groups (so the email is stable
- * across sweeps rather than reordering with a Map's hash).
+ * group and first-appearance order between groups using Map insertion order.
  *
  * ADR 0046 r.8: the heading uses the property DISPLAY NAME — allowed — and
  * nothing else. `payload.propertyName` is the primary source because it was
@@ -50,24 +32,21 @@ export function groupItemsByProperty(
   buildActionUrl: (path: string, search: Readonly<Record<string, string>>) => string,
   /** The recipient's clock — ADR 0046 r.4 already frames the digest on it. */
   context?: NotificationRenderContext,
-): ReadonlyArray<DigestGroup> {
-  const order: string[] = []
+): ReadonlyArray<DigestEmailGroup> {
   const byProperty = new Map<string, DigestItem[]>()
 
   for (const item of items) {
     const key = item.entry.propertyId as string
-    if (!byProperty.has(key)) {
-      byProperty.set(key, [])
-      order.push(key)
-    }
-    byProperty.get(key)!.push(item)
+    const group = byProperty.get(key)
+    if (group) group.push(item)
+    else byProperty.set(key, [item])
   }
 
-  return order.map((key) => {
-    const propertyName = resolvePropertyHeading(key, items, propertyNames)
+  return [...byProperty].map(([key, group]) => {
+    const propertyName = resolvePropertyHeading(key, group, propertyNames)
     return {
       propertyName,
-      items: byProperty.get(key)!.map(({ notification }) => {
+      items: group.map(({ notification }) => {
         const link = notificationLink(
           notification.resourceType,
           notification.resourceId,
@@ -109,9 +88,7 @@ function resolvePropertyHeading(
   propertyNames: ReadonlyMap<string, string>,
 ): string {
   const fromPayload = items.find(
-    (item) =>
-      (item.entry.propertyId as string) === propertyId &&
-      item.notification.payload.propertyName !== undefined,
+    (item) => item.notification.payload.propertyName !== undefined,
   )?.notification.payload.propertyName
   return fromPayload ?? propertyNames.get(propertyId) ?? 'Property'
 }

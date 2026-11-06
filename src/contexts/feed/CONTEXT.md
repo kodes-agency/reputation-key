@@ -585,7 +585,11 @@ recipient for it). Both counts are restated at send. A closed cycle settles a gr
 reopen in-app once none of its items stands, except a row that coalesced a
 second bulk reopen.
 The activity worker also exposes bounded projection recovery. Notification
-jobs perform insert, urgent-email, digest, and missing-notification repair work.
+jobs perform insert, urgent-email, digest, and missing-notification repair work. The daily
+digest groups lines in queue order and freezes membership from those same lines.
+`digest-batch-identity.ts` owns member, request and provider-key fingerprints;
+assembly uses the email renderer's group contract. The repository retains the
+transactional batch and member settlement boundary.
 A durable delivery is settled once its materialization receipt is claimed: a
 row was written, preferences asked for none, or the recipient no longer
 qualified. The repair replays a delivery Redis accepted that never settled
