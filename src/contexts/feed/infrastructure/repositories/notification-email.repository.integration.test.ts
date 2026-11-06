@@ -22,7 +22,7 @@ import {
   digestBatchIdempotencyKey,
   digestMemberSet,
   digestProviderRequest,
-} from '../jobs/digest-assembly'
+} from '../digest-batch-identity'
 
 const ORG = organizationId('notification-digest-batch-test-org')
 const USER = userId('notification-digest-batch-test-user')

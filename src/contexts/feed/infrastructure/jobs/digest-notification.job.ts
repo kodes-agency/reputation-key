@@ -1,27 +1,5 @@
-// Feed notification surface — daily digest + delivery sweep.
-//
-// This job was restructured, not patched. It used to iterate PROPERTIES and use
-// the PROPERTY timezone, so a manager responsible for three hotels received
-// three separate digests, each at that hotel's local 08:00. ADR 0046 r.3/r.4
-// require ONE digest per USER, in the USER's IANA timezone with an organization
-// fallback, grouped by property inside a single email.
-//
-// It now iterates RECIPIENTS. `notification_user_settings.timezone` has been
-// written by `updateNotificationUserSettingsFn` since migration 0026 and read
-// by nothing until here.
-//
-// Also gone: the hand-rolled `emailShell(items.join('\\n'))`, whose separator
-// was a literal two-character backslash-n — so every digest was one unbroken
-// run of paragraphs with a stray `\n` between them. HTML is now produced only
-// by `renderDigestEmail`.
-//
-// Note the dispatch axis: "daily digest" is a CADENCE (`cadence === 'daily'`),
-// never a category. This job has always selected on cadence and continues to.
-//
-// The `immediate`-cadence orphan sweep runs first on every tick. It lives in
-// `immediate-orphan-sweep.ts`: the recovery path for an immediate email whose
-// enqueue failed or whose job gave up, for Property- and Organization-scoped
-// rows alike.
+// One daily digest per recipient in their local timezone, grouped by Property.
+// Immediate-email recovery runs first on every tick.
 
 import type { Job } from 'bullmq'
 import type { Pool } from 'pg'
@@ -59,9 +37,8 @@ import {
   digestBatchIdempotencyKey,
   digestMemberSet,
   digestProviderRequest,
-  groupItemsByProperty,
-  type DigestItem,
-} from './digest-assembly'
+} from '../digest-batch-identity'
+import { groupItemsByProperty, type DigestItem } from './digest-assembly'
 import {
   assertPreferencesLink,
   PREFERENCES_PATH,
@@ -174,15 +151,7 @@ async function buildProviderRequest(
   batchId: string,
   unsubscribeKeyVersion: string,
   localDate: string,
-): Promise<
-  Readonly<{
-    to: string
-    subject: string
-    html: string
-    text: string
-    headers: Readonly<Record<string, string>>
-  }>
-> {
+): Promise<FrozenDigestRequest> {
   const orgScope = await deps.resolveOrganizationScope(ctx.rawOrgId)
   // An aggregate digest is never legally-required mail, so its mail class is a
   // literal rather than something derived from its contents. ADR 0046 r.7
@@ -226,10 +195,10 @@ async function dispatch(
   deps: DigestDeps,
   ctx: RecipientContext,
   batch: NotificationDigestBatch,
-  request: Awaited<ReturnType<typeof buildProviderRequest>>,
+  request: FrozenDigestRequest,
   items: readonly DigestItem[],
-  contentDigest: string,
 ): Promise<void> {
+  const contentDigest = digestProviderRequest(request)
   const maxRetry = Math.max(...items.map((item) => item.entry.retryCount))
   // Before the call, never after: an attempt that never reports back must
   // count as possibly accepted, or a later refusal would make the batch look
@@ -393,18 +362,16 @@ async function reprepareRefusedBatch(
   deps: DigestDeps,
   ctx: RecipientContext,
   openBatch: NotificationDigestBatch,
-  members: readonly NotificationEmail[],
-  request: Awaited<ReturnType<typeof buildProviderRequest>>,
+  recipient: string,
   items: readonly DigestItem[],
-  contentDigest: string,
 ): Promise<void> {
-  if (!(await supersedeBatch(deps, ctx, openBatch, contentDigest))) return
+  if (!(await supersedeBatch(deps, ctx, openBatch, openBatch.contentDigest))) return
   const batchId = notificationDigestBatchId(deps.batchIdGen())
   const unsubscribeKeyVersion = deps.activeOneClickUnsubscribeKeyVersion()
   const fresh = await buildProviderRequest(
     deps,
     ctx,
-    request.to,
+    recipient,
     items,
     batchId as string,
     unsubscribeKeyVersion,
@@ -418,10 +385,8 @@ async function reprepareRefusedBatch(
     deps,
     ctx,
     batchId,
-    members,
     fresh,
     items,
-    digestProviderRequest(fresh),
     unsubscribeKeyVersion,
     openBatch.localDate,
   )
@@ -438,28 +403,20 @@ async function retryOpenBatch(
   deps: DigestDeps,
   ctx: RecipientContext,
   openBatch: NotificationDigestBatch,
-  members: readonly NotificationEmail[],
-  request: Awaited<ReturnType<typeof buildProviderRequest>>,
+  request: FrozenDigestRequest,
   items: readonly DigestItem[],
-  contentDigest: string,
 ): Promise<void> {
   const membershipChanged =
-    digestMemberSet(members.map((entry) => entry.id as string)) !== openBatch.memberDigest
+    digestMemberSet(items.map((item) => item.entry.id as string)) !==
+    openBatch.memberDigest
+  const contentDigest = digestProviderRequest(request)
   const contentChanged = contentDigest !== openBatch.contentDigest
   if (!membershipChanged && !contentChanged) {
-    await dispatch(deps, ctx, openBatch, request, items, contentDigest)
+    await dispatch(deps, ctx, openBatch, request, items)
     return
   }
   if (openBatch.everyAttemptRefused) {
-    await reprepareRefusedBatch(
-      deps,
-      ctx,
-      openBatch,
-      members,
-      request,
-      items,
-      contentDigest,
-    )
+    await reprepareRefusedBatch(deps, ctx, openBatch, request.to, items)
     return
   }
   if (membershipChanged) {
@@ -484,15 +441,14 @@ async function prepareAndDispatchBatch(
   deps: DigestDeps,
   ctx: RecipientContext,
   batchId: ReturnType<typeof notificationDigestBatchId>,
-  deliverable: readonly NotificationEmail[],
-  request: Awaited<ReturnType<typeof buildProviderRequest>>,
+  request: FrozenDigestRequest,
   items: readonly DigestItem[],
-  contentDigest: string,
   unsubscribeKeyVersion: string,
   localDate: string,
 ): Promise<void> {
-  const memberIds = deliverable.map((entry) => notificationEmailId(entry.id as string))
+  const memberIds = items.map((item) => notificationEmailId(item.entry.id as string))
   const memberDigest = digestMemberSet(memberIds)
+  const contentDigest = digestProviderRequest(request)
   const prepared = await deps.emailRepo.prepareDigestBatch({
     id: batchId,
     organizationId: ctx.orgId,
@@ -519,7 +475,7 @@ async function prepareAndDispatchBatch(
     )
     return
   }
-  await dispatch(deps, ctx, prepared.batch, request, items, contentDigest)
+  await dispatch(deps, ctx, prepared.batch, request, items)
 }
 
 /**
@@ -582,10 +538,6 @@ async function sendUserDigest(
     await invalidateBatch(deps, ctx, openBatch, 'notification_source_unavailable')
     return
   }
-  // Only rows that will actually be rendered are frozen, or re-frozen: a
-  // member with no notification would be settled as accepted, never sent.
-  const members = items.map((item) => item.entry)
-
   const batchId = openBatch?.id ?? notificationDigestBatchId(deps.batchIdGen())
   const unsubscribeKeyVersion =
     openBatch?.unsubscribeKeyVersion ?? deps.activeOneClickUnsubscribeKeyVersion()
@@ -601,19 +553,16 @@ async function sendUserDigest(
       unsubscribeKeyVersion,
       localDate,
     ))
-  const contentDigest = digestProviderRequest(request)
   if (openBatch) {
-    await retryOpenBatch(deps, ctx, openBatch, members, request, items, contentDigest)
+    await retryOpenBatch(deps, ctx, openBatch, request, items)
     return
   }
   await prepareAndDispatchBatch(
     deps,
     ctx,
     batchId,
-    members,
     request,
     items,
-    contentDigest,
     unsubscribeKeyVersion,
     localDate,
   )
