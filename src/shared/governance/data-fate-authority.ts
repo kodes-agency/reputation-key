@@ -88,6 +88,15 @@ const COMPATIBILITY_EXIT =
  */
 export const DATA_FATE_AUTHORITY = Object.freeze([
   ...rows({
+    schemaFile: 'work-items.schema.ts',
+    exportNames: ['workItems'],
+    owner: 'platform',
+    disposition: 'active_authority',
+    authority: 'Durable work delivery',
+    exitCriteria:
+      'Retain unfinished work and settled idempotency receipts until an owning command explicitly retires them; Redis retention is never authority for deletion.',
+  }),
+  ...rows({
     schemaFile: 'activity.schema.ts',
     exportNames: ['recentActivityEntries'],
     owner: 'feed',

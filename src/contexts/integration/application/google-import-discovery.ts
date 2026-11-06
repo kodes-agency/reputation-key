@@ -7,6 +7,7 @@ import {
 } from '#/shared/domain/ids'
 import type { ProviderContentLeaseDto } from '#/shared/domain/provider-content-lease'
 import { isGbpApiError } from '../domain/gbp-api-error'
+import { googleCallError } from '../domain/google-call-error'
 import type {
   GbpLocationCandidate,
   GoogleAccountManagementPort,
@@ -156,7 +157,7 @@ export function authorizerDenialErrorCode(
  */
 function providerDenialCode(error: unknown): GoogleImportDiscoveryErrorCode {
   if (!isGbpApiError(error)) return 'provider_unavailable'
-  switch (error.kind) {
+  switch (googleCallError(error).code) {
     case 'auth_failed':
       return 'reauthentication_required'
     case 'permission_denied':
@@ -164,6 +165,7 @@ function providerDenialCode(error: unknown): GoogleImportDiscoveryErrorCode {
     case 'rate_limited':
     case 'upstream_error':
     case 'parse_error':
+    case 'unclassified':
       return 'provider_unavailable'
   }
 }

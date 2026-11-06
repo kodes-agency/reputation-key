@@ -2,10 +2,13 @@ import { act, createElement, useState } from 'react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { expect, it, vi } from 'vitest'
 import { setupHookRoot } from '#/shared/testing/hook-root'
-import { staffSelfKeys } from '#/shared/queries/query-keys'
+import { createKeys } from '#/shared/queries/query-keys'
 import { useStaffCode } from './use-staff-code'
 import { watchStaffRefusals } from './use-staff-refusal'
 import { STAFF_HOME_FNS } from './staff-home-fixtures'
+
+const { staffSelfKeys } = createKeys({ userId: 'polly', organizationId: null })
+
 vi.mock('#/components/features/portal/portal-share/portal-qr', () => ({
   renderQrPreviewDataUrl: async (qr: string) => `image:${qr}`,
 }))
@@ -101,3 +104,7 @@ it('starts empty on a fresh app open and removes the retained code when access e
   stop()
   client.clear()
 })
+
+vi.mock('#/shared/hooks/useTenantScope', () => ({
+  useTenantScope: () => ({ userId: 'polly', organizationId: null }),
+}))

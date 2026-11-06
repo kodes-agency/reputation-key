@@ -321,6 +321,10 @@ export default tseslint.config(
         },
         { category: 'stylesheet', pattern: 'src/**/*.css' },
         {
+          category: 'phone-width-helper',
+          pattern: 'src/shared/testing/phone-width.ts',
+        },
+        {
           category: 'story-file',
           pattern: ['src/**/*.stories.ts', 'src/**/*.stories.tsx'],
         },
@@ -596,6 +600,10 @@ export default tseslint.config(
             {
               from: fileCategory('story-file'),
               allow: { to: elementType('story-fixtures') },
+            },
+            {
+              from: fileCategory('story-file'),
+              allow: { to: fileCategory('phone-width-helper') },
             },
           ],
         },
@@ -974,9 +982,7 @@ export default tseslint.config(
   },
 
   // ─── Component file length enforcement ─────────────────────────────
-  // shadcn/ui primitives are auto-generated and not subject to our limits.
-  // Files exceeding 150 lines are exempt until their feature is restructured
-  // (Phase 2-4). New files and restructured files must comply.
+  // Components use the same 800-line limit as other source files.
   {
     ignores: [
       'src/components/ui/**',
@@ -987,11 +993,7 @@ export default tseslint.config(
     ],
     files: ['src/components/**/*.{ts,tsx}'],
     rules: {
-      // Max file length to prevent monolith components. 300, because 200 was
-      // being satisfied by splitting a page into sub-components that had one
-      // caller and no independent meaning — fragmentation that reads as
-      // structure. A page past 300 counted lines is genuinely doing too much.
-      'max-lines': ['error', { max: 300, skipBlankLines: true, skipComments: true }],
+      'max-lines': ['error', { max: 800, skipBlankLines: true, skipComments: true }],
     },
   },
 

@@ -1,8 +1,5 @@
-// Reporting — what a Goal Program version records as its reason when the
-// manager left no note: the kind of change the command made. One list, for the
-// commands that write a version and the reads that tell a manager's note from
-// the kind of change, so a new kind can never show as a quoted note. Pure and
-// client-safe.
+// Shared generated revision reasons distinguish command changes from manager
+// notes, so generated text is never presented as a quotation. Browser-safe.
 
 /** A version's reason when no note was given, by the command that writes it. */
 export const GOAL_VERSION_REASONS = {

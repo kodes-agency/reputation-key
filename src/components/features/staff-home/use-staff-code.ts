@@ -1,7 +1,8 @@
-import { useEffect } from 'react'
+import { useTenantScope } from '#/shared/hooks/useTenantScope'
+import { useEffect, useMemo } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { renderQrPreviewDataUrl } from '#/components/features/portal/portal-share/portal-qr'
-import { staffSelfKeys } from '#/shared/queries/query-keys'
+import { createKeys } from '#/shared/queries/query-keys'
 import type { StaffHomeFns } from './types'
 
 export function useStaffCode(
@@ -9,13 +10,15 @@ export function useStaffCode(
   participationId: string,
   paused: boolean,
 ) {
+  const scope = useTenantScope()
+  const { staffSelfKeys } = useMemo(() => createKeys(scope), [scope])
   const client = useQueryClient()
   useEffect(() => {
     if (paused) {
       void client.cancelQueries({ queryKey: staffSelfKeys.code(participationId) })
       client.setQueryData(staffSelfKeys.code(participationId), { state: 'paused' })
     }
-  }, [client, participationId, paused])
+  }, [client, participationId, paused, staffSelfKeys])
   const code = useQuery({
     queryKey: staffSelfKeys.code(participationId),
     queryFn: async () => {

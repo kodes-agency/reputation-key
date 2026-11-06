@@ -210,7 +210,7 @@ representative zone, else UTC, together with where it came from. A settings
 save writes only what the user changed; because the column cannot hold "follow
 the Organization", a first save that changes only the date format stores the
 zone delivery was already using. The format is an English convention, not a
-language: every word in the product is English (docs/BETA.md).
+language: every word in the product is English (docs/obligations.md).
 
 Quiet hours and the urgent bypass sit in that same row, one window for every
 Property the person has (ADR 0046, amended 2026-09-23), with an optional
@@ -435,6 +435,14 @@ holder once per Property, as the grouped `inbox.bulk_unassigned`
 (`property_operator`, opening the Property's open queue). A bulk release, and a
 release caused by lost eligibility, tell no previous holder.
 
+Assignment retirement carries the fact that moved the item away. Both that
+consumer and a delayed `inbox.unassigned` delivery leave the reader's assignment
+notice and its mail open if a later recorded assignment fact gave them the item
+again, including when that assignment coalesced into the earlier unread row.
+Assignment facts carry the committed item command revision; wall clocks never
+order generations. A legacy removal without a revision is fenced by the current
+persisted assignee through the Inbox lookup adapter.
+
 An approval request goes to the Property's responsible managers who hold
 `reply.manage` (the `reply_approver` audience), falling back to AccountAdmins
 only when none of them can act, and never to the submitter. Responsibility and
@@ -577,7 +585,11 @@ recipient for it). Both counts are restated at send. A closed cycle settles a gr
 reopen in-app once none of its items stands, except a row that coalesced a
 second bulk reopen.
 The activity worker also exposes bounded projection recovery. Notification
-jobs perform insert, urgent-email, digest, and missing-notification repair work.
+jobs perform insert, urgent-email, digest, and missing-notification repair work. The daily
+digest groups lines in queue order and freezes membership from those same lines.
+`digest-batch-identity.ts` owns member, request and provider-key fingerprints;
+assembly uses the email renderer's group contract. The repository retains the
+transactional batch and member settlement boundary.
 A durable delivery is settled once its materialization receipt is claimed: a
 row was written, preferences asked for none, or the recipient no longer
 qualified. The repair replays a delivery Redis accepted that never settled
@@ -636,8 +648,11 @@ delivery-lag source read once a bulk import raised its cost estimate.
 4. Email delivery rechecks preference, capability, responsibility, delayed
    execution policy, and whether the work still waits immediately before the
    provider effect.
-5. User-facing notification copy is produced only by
-   `domain/notification-templates.ts`.
+5. User-facing notification copy is rendered through
+   `domain/notification-templates.ts`, with arrival/import and reply-outcome
+   copy in named family modules alongside the account and goal renderers.
+   Reply outcome delivery derives the notice type from the durable event and
+   shares payload construction for authors and responsible-manager fallbacks.
 6. Mandatory notices are Organization-scoped; every other notice is
    Property-scoped, with three named exceptions. `beta_feedback.outcome`
    (ADR 0059) and `integration.google_disconnected` (ADR 0046, amended
@@ -657,3 +672,28 @@ contracts. PostgreSQL-backed repository, recovery, delivery, export, and
 lifecycle tests stay beside their infrastructure subjects. The build test pins
 that one Feed build exposes both former APIs without widening either lifecycle
 surface.
+
+Notification route examples live in
+`infrastructure/beta-notification-route-contract.test.ts` and
+`infrastructure/notification-acceptance.test.ts`. Their shared producer fixtures
+and dispatcher harness in `src/shared/testing/` also drive
+`notification-acceptance.integration.test.ts`, which reads the persisted outbox
+envelope and checks delivery receipts,
+redelivery, and same-user isolation across Organizations in PostgreSQL. Unit
+controls catch an omitted consumer and incorrect application read/mutation scope;
+database isolation still requires the integration project.
+
+`infrastructure/inbox-workflow-acceptance.test.ts` checks producer-to-dispatcher
+payload/copy parity, note audience precedence, bulk/per-item arrival order and
+receipt-last retries for assignment, note and escalation fanout. Those single-item
+routes share `enqueueInboxWorkflowNotifications` in
+`infrastructure/inbox-notification-fanout.ts`; grouped routes keep their
+per-Property job identities. Database concurrency and assignment-generation
+fences require separate PostgreSQL coverage.
+
+`infrastructure/notification-family-acceptance.test.ts` preserves recipients,
+categories, defaults and copy for invitation acceptance, review updates, reply
+outcomes, import completion, goal results and feedback outcomes through real
+producers and the dispatcher. Its preference contract round trips keep Google
+rating goals (`recognition`) independent from Portal goals (`portal_goals`);
+database persistence remains covered by the preference repository integration tests.

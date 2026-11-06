@@ -96,7 +96,7 @@ function captured(source: string, pattern: RegExp, what: string): string {
 
 describe('published Guest session retention matches the retention sweep', () => {
   const notice = readFileSync('docs/legal/privacy-notice.md', 'utf8')
-  const contract = readFileSync('docs/BETA.md', 'utf8')
+  const contract = readFileSync('docs/obligations.md', 'utf8')
   const inventory = readFileSync('docs/security/data-inventory.md', 'utf8')
 
   it('gives the receipt retention on every Privacy Notice row that names a Guest receipt', () => {

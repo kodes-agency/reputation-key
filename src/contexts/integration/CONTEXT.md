@@ -64,10 +64,30 @@ that section's rules:
 ## Runtime
 
 Provider calls require a current connection, capability approval, execution
-permit, quota admission, and generation checks. OAuth exchange, refresh, revoke,
+permit, quota admission, and generation checks. Admission acquires Redis in-flight
+capacity, then quota, then starts the permit; a refused permit keeps its quota
+charge until the bucket refills. Admission and egress share a local handle
+rather than a signed Redis grant.
+Completion retries only bookkeeping and preserves the provider response; the
+permit sweep and Redis lease expiry settle leftovers. OAuth exchange, refresh, revoke,
 notification, import, Review fallback, and recovery execute through governed
 routes. Durable outbox dispatch is always on; worker boot fails when delivery
 dependencies are unavailable.
+
+`domain/google-call-error.ts` owns provider error codes and normalizes dispatch,
+HTTP status, allowlisted Google refusal status, and retry hints. Import,
+Performance, notification and Review boundaries map those facts to their existing
+product errors. The reachable GBP Error tag and `kind` alias remain compatible;
+neither a retryable code nor missing evidence proves a write was not sent.
+
+The import, Performance, sync and publication authorizers share vector fields
+with the transactional content resolver. Sync and publication share the
+tenant-scoped binding and connection read; Performance keeps its interactive
+scope, connection and content checks separate. Token access is bracketed by
+authority checks; a routine refresh may advance credentials, but changed tenant,
+member, Property or connection authority is refused. Permit admission checks
+again and the SQL start predicate remains the final send fence. Notification
+management retains its own system principal through the sync authorizer.
 
 GBP push is desired state per Google account: each account bound to an active
 Property publishes to `GBP_PUBSUB_TOPIC`. An import item asserts it, and the
@@ -116,7 +136,7 @@ without resending the token.
 5. Every credential-bearing Google operation executes in this deployment; there is no credential home or routing directory.
 6. Discovery reads Google's output-only `metadata.newReviewUri`, validates it against the approved HTTPS Google-host policy, and hands it to the Property binding effect. It is never manually entered by an administrator. Discovery also reads the location's primary category (`categories.primaryCategory.displayName`); the import item carries it, in the form `normalizeGooglePrimaryCategory` gives it, from the claimed candidate to the Property the effect creates or relinks (`gbp_import_request_items.google_primary_category`, scrubbed with the item's other provider state). It is left out of the replay digests, so a category Google moved between two attempts of one request is not a conflict. The review adapter likewise reads each review's output-only `reviewReplyUrl` and keeps it only as `https://business.google.com/n/{the review's own location}/reviews/{token}` (`normalizeGoogleReviewReplyUrl`); anything else, of any type or length, is null and counted (`reviews_reply_url_refused`, a count and the route, never a value), and never fails the page. The schema stays non-strict. It also reads each reply's output-only `reviewReplyState` and `policyViolation` (Google's moderation of the reply) as `unknown` values, maps them to a closed type in `google-review-reply-moderation.ts` (an undocumented state is `unspecified`, a code that is not an enum word is `UNKNOWN`, the code is kept only when `REJECTED`) and counts them per read (`reviews_reply_moderation`, `reviews_reply_moderation_unknown`: counts only, never a value or reply text). Nothing decides on them yet (Review CONTEXT, Model).
 7. Production credential-bearing Google adapters have no direct-socket escape hatch. OAuth exchange/refresh/revoke, legacy account lookup, notifications, and Review fallbacks fail before network access unless a governed executor owns the route; fixed-origin JWKS retrieval is the only current non-credential direct trust read.
-8. `GOOGLE_PROVIDER_EGRESS_INVENTORY` is the exhaustive executable authority for every provider route, credential class, fixed production origin, transport, owner, recovery rule, and current repository activation state. A new route cannot compile without an explicit inventory decision.
+8. `GOOGLE_PROVIDER_ROUTE_POLICIES` in `src/shared/google-provider-control/route-catalogue.ts` is the exhaustive executable authority for every provider route, credential class, fixed production origin, transport, owner, recovery rule, and current repository activation state. A new route cannot compile without an explicit route-policy decision.
 9. The browser can supply only the one-use code and opaque state; it never supplies PKCE verifier or token material to a general server function.
 10. A bound callback replay carries no code verifier and can only claim that preserved response; it never re-exchanges the provider code. Claims use a 30-second lease, ciphertext expires after ten minutes, and every terminal path erases it. The five-minute provider-recovery sweep bounds abandoned ciphertext retention and records an unpreserved started exchange as ambiguous.
 11. Provider success, provable not-sent, and ambiguous outcomes commit with local token/subject redaction; an elapsed attempt reconciles the linked permit and never sends the token again. An elapsed attempt whose connection has already moved on is closed with that outcome, without redaction or a fact of its own. The attempt window is 60 seconds and the same five-minute sweep bounds crash recovery. Neither route may fall back to a direct credential socket.
@@ -128,7 +148,7 @@ without resending the token.
 
 17. A review sync page token lives behind an opaque cursor ref with a replay bound of ten sends to Google (`google-review-cursor-store.ts`). The adapter redeems before the call, because the gateway admits the exact request, and releases the redemption when the call never reached Google (dispatch `not_sent`: a quota or permit refusal). A dispatched Google 429 or 5xx, or a transport failure after `fetch` (`unknown`), keeps its use. A quota wait of any length therefore spends nothing; before 2026-10-18 each refusal spent one and the sixth failed the run as `cursor_failure`.
 18. The cursor store keeps nothing across a restart (ADR 0050), so a deploy that restarts google-provider-redis drops the cursor of every review sync run then in flight. A `cursor_not_found`, from a redeem or from publishing the next page under a parent that is gone, carries when the store started (`INFO server` uptime, `startedAtMs` on the provider-ephemeral store), and the `reviews_cursor_rejected` warning logs it as `storeStartedAt`. The snapshot run ends as `cursor_lost` when the store started after the run did, and the sync job starts a fresh run at once with no coded failure, retry or dead letter. A store up since before the run began, or one that cannot say, leaves it `cursor_failure`, which fails loudly as before.
-19. `reviews.list` has a head variant, `readReviewsHead`: page 1 only, `pageSize=50` with an explicit `orderBy=updateTime desc` (the route's one allowed ordering, a literal in the strict descriptor schema, `review-route-descriptors.ts`). It uses the same authorizer, route and `google-reviews-v1` lane as a list page but publishes and redeems no cursor and takes no run id; Google's `nextPageToken` is reduced to `hasMore` and dropped. A page whose `updateTime` values are not non-increasing, or that lacks one, comes back as `order_violation` and is never returned as reviews. The catalogue version is `2026-10-21` for it: web, worker and the Google sidecars must run one commit, because a permit or grant of the old version is refused and an older sidecar's strict schema rejects `orderBy`.
+19. `reviews.list` has a head variant, `readReviewsHead`: page 1 only, `pageSize=50` with an explicit `orderBy=updateTime desc` (the route's one allowed ordering, a literal in the strict descriptor schema, `review-route-descriptors.ts`). It uses the same authorizer, route and `google-reviews-v1` lane as a list page but publishes and redeems no cursor and takes no run id; Google's `nextPageToken` is reduced to `hasMore` and dropped. A page whose `updateTime` values are not non-increasing, or that lacks one, comes back as `order_violation` and is never returned as reviews. The catalogue version is `2026-10-21` for it; admission refuses a permit from a different catalogue version.
 
 ## Verification
 

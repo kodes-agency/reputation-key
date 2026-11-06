@@ -3,8 +3,8 @@ import type {
   GoogleReviewApiErrorCode,
 } from '#/contexts/review/application/public-api'
 import type { GoogleReviewApiFailure } from '#/contexts/review/application/ports/google-review-api.port'
-import { googleProviderErrorStatus } from '#/shared/domain/google-provider-failure'
 import { googleRetryFloorMs } from '#/shared/google-provider-control/provider-call'
+import { googleCallError, type GoogleCallError } from '../../domain/google-call-error'
 import type { GoogleReviewCursorFailureCode } from '../google-review-cursor-store'
 
 // The review API adapter's error vocabulary: how a provider answer, a gateway
@@ -119,29 +119,22 @@ function contentFreeCode(value: unknown): string | null {
 }
 
 /**
- * Reads the GbpApiError dispatch fields `executeGoogleProviderRaw` records. A
- * missing or unrecognised dispatch is `unknown`: only the provider plane's
- * explicit `not_sent` may later make a failure safe to retry.
+ * Preserve the normalized provider facts at the consumer-owned Review port.
+ * Only explicit `not_sent` evidence may make a failed write safe to retry.
  */
 function executorFailure(
   error: unknown,
+  call: GoogleCallError,
 ): Readonly<{ label: string; failure: GoogleReviewApiFailure }> {
-  const executionCode =
-    contentFreeCode(errorField(error, 'executionAdmissionCode')) ??
-    contentFreeCode(errorField(error, 'executionCode'))
-  const dispatch = errorField(error, 'dispatch')
-  const status = errorField(error, 'providerStatus')
-  const machineStatus = errorField(error, 'providerErrorStatus')
   return {
-    label: executionCode ?? contentFreeCode(errorField(error, 'kind')) ?? 'unclassified',
+    label: call.executionCode ?? call.code,
     failure: {
-      executionCode,
-      dispatch: dispatch === 'not_sent' || dispatch === 'answered' ? dispatch : 'unknown',
-      providerStatus:
-        typeof status === 'number' && Number.isSafeInteger(status) ? status : null,
-      ...(machineStatus === undefined
+      executionCode: call.executionCode,
+      dispatch: call.dispatch,
+      providerStatus: call.providerStatus,
+      ...(errorField(error, 'providerErrorStatus') === undefined
         ? {}
-        : { providerErrorStatus: googleProviderErrorStatus(machineStatus) }),
+        : { providerErrorStatus: call.providerErrorStatus }),
     },
   }
 }
@@ -164,51 +157,34 @@ function isPermanentProviderAnswer(
   )
 }
 
-/**
- * Maps an authorized-executor rejection onto the review API's error vocabulary,
- * preserving the backoff hint the executor already computed
- * (`googleRetryFloorMs` over Retry-After or the admission denial). Dropping it
- * turned a rate-limited provider into a queue-speed retry loop.
- *
- * The code mapping stays coarse, but the dispatch evidence rides along: the
- * incident reply's compile refusal (no permit, no fetch) arrived here as
- * `parse_error`, left as a bare `provider_unavailable`, and was classified
- * ambiguous (reply-publication-workflow.ts classifyPublicationFailure).
- */
+/** Map provider facts into the Review port without losing backoff or write evidence. */
 export function executorErrorToReviewApiError(error: unknown): GoogleReviewApiError {
-  const kind = errorField(error, 'kind')
-  const { label, failure } = executorFailure(error)
-  // A refusal is an ANSWER, not an outage. Collapsing 401/403 into
-  // `provider_unavailable` told the reply publication workflow the outcome was
-  // unknown, so a permanently refused write burned every retry and never
-  // reached publish_failed.
-  if (kind === 'auth_failed' || kind === 'permission_denied') {
+  const call = googleCallError(error)
+  const { code, retryAfterMs } = call
+  const { label, failure } = executorFailure(error, call)
+  // An authorization refusal is terminal even when no request was dispatched.
+  if (code === 'auth_failed' || code === 'permission_denied') {
     return reviewApiError('authorization_changed', false, {
       failure,
       failureLabel: label,
     })
   }
-  // Google ANSWERED that the Location or the request is not valid. Asking again
-  // gets the same answer, so a retryable code only kept a run looping until its
-  // 12 h expiry; the run ends and the next poll starts afresh.
-  if (isPermanentProviderAnswer(kind, failure)) {
+  // Repeating an answered invalid request or missing Location cannot repair it.
+  if (isPermanentProviderAnswer(code, failure)) {
     return reviewApiError('provider_rejected', false, {
       failure,
       failureLabel: label,
     })
   }
-  // A rate limit AND an upstream failure (a 5xx, a gateway that could not
-  // decide) carry a real wait. Dropping the second re-ran the same step at queue
-  // speed for as long as the run lasted. Other kinds (an unreadable body) carry
-  // the floor `reviewApiError` gives every retried code.
-  const hint = errorField(error, 'retryAfterMs')
-  const rateLimited = kind === 'rate_limited'
+  // A rate limit or upstream failure keeps its hint. Other retryable failures
+  // receive the floor from reviewApiError so they cannot retry at queue speed.
+  const rateLimited = code === 'rate_limited'
   return reviewApiError(
     rateLimited ? 'provider_rate_limited' : 'provider_unavailable',
     true,
     {
-      ...(typeof hint === 'number' && (rateLimited || kind === 'upstream_error')
-        ? { retryAfterMs: hint }
+      ...(retryAfterMs !== null && (rateLimited || code === 'upstream_error')
+        ? { retryAfterMs }
         : {}),
       failure,
       failureLabel: label,

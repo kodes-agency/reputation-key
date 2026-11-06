@@ -20,7 +20,12 @@ import {
   parseJson,
   type CommandRunner,
 } from './command-runner'
+import { parseDeployCiImagesArgs } from './deploy-ci-images-args'
 import { runGoogleOAuthPreflight } from './google-oauth-preflight'
+import {
+  assertContractionPreflight,
+  readPendingContractRequirements,
+} from './migration-preflight'
 
 export const CLOSED_BETA_ENVIRONMENT = 'closed-beta-v2' as const
 export const CLOSED_BETA_PROJECT_ID = '91ab4b88-25a1-404c-9961-4f2b392e2874' as const
@@ -49,12 +54,7 @@ export const CLOSED_BETA_IMAGE_SERVICES = [
   serviceId: string
 }>[]
 
-/**
- * What the google-provider-redis image is built from. CI also bakes the source
- * revision into it (IMAGE_SOURCE_REVISION, which its entrypoint compares with
- * RELEASE_SHA), so its digest changes on every commit even when none of these
- * did. Every COPY in the Dockerfile must read from one of them.
- */
+/** Inputs whose changes require restarting the provider store. */
 export const PROVIDER_REDIS_IMAGE_SOURCES = [
   'Dockerfile.google-provider-redis',
   'services/google-provider-redis',
@@ -270,22 +270,7 @@ export type ProviderRedisKeepCheck = Readonly<{
   ciImageReference: (revision: string) => string | null
 }>
 
-/**
- * The revision google-provider-redis may stay on instead of moving to the
- * target, or null when it must move.
- *
- * It keeps nothing across a restart (ADR 0050), so every redeploy drops the
- * page cursors of the Google review syncs in flight and the OAuth state of any
- * Google connect in progress. When nothing it is built from changed between
- * the revision it runs and the target, the new image differs only by the
- * revision baked in, and the restart buys nothing. It stays only when that is
- * proved: it is healthy, its RELEASE_SHA is an ancestor of the target (not a
- * rollback), its image sources are identical, and the image it runs is the
- * one CI built for that RELEASE_SHA. The last guards an interrupted deploy,
- * which writes RELEASE_SHA before it connects the image: keeping that service
- * would leave an identity its image does not carry, and the entrypoint refuses
- * to boot on the next restart.
- */
+/** Keep an unchanged provider store only when its running image is proved. */
 export function providerRedisKeptRevision(
   service: ClosedBetaImageDeployment,
   current: RailwayServiceObservation,
@@ -301,11 +286,7 @@ export function providerRedisKeptRevision(
   return check.ciImageReference(identity) === runningImage ? identity : null
 }
 
-/**
- * The real proofs: git for ancestry and the image sources, the running
- * release's own CI digest map for its image. Anything that cannot be read
- * proves nothing, so the service moves as it always did.
- */
+/** Git proves ancestry and unchanged inputs; CI proves the running image. */
 export function createProviderRedisKeepCheck(
   runner: CommandRunner,
   out: (line: string) => void,
@@ -386,18 +367,7 @@ function readLatestDeployment(
   }
 }
 
-/**
- * Whether the container Railway runs right now is the target image.
- *
- * The configured source says only what Railway will deploy next. During the
- * 2026-10-21 Railway outage `service source connect` stored the new image and
- * created no deployment: the latest deployment stayed SUCCESS on the morning's
- * image while the source already named the target, and four deploys reported
- * "already healthy". Only the latest deployment's own image digest proves what
- * runs. A deployment that records no digest, or that is not the deployment the
- * service inventory calls latest, proves nothing, so it counts as not running
- * the target and the service is redeployed.
- */
+/** Only the latest deployment digest proves what is running. */
 function latestDeploymentRunsTarget(
   service: ClosedBetaImageDeployment,
   current: RailwayServiceObservation,
@@ -420,15 +390,7 @@ function latestDeploymentRunsTarget(
   return false
 }
 
-/**
- * The Railway command that puts the target image in front of a service.
- *
- * With the source already on the target, connecting it again may create no
- * deployment, so it redeploys. A plain `railway redeploy` runs the latest
- * deployment again, and that is the old image whenever the latest deployment
- * was not proved to run the target; `--from-source` deploys the configured
- * image instead.
- */
+/** Redeploy from source when the configured image is not yet running. */
 function deployArgs(
   service: ClosedBetaImageDeployment,
   configuredAtTarget: boolean,
@@ -462,8 +424,7 @@ async function waitForServiceHealth(
   const deadline = Date.now() + DEPLOY_TIMEOUT_MS
   while (Date.now() <= deadline) {
     const deployment = readLatestDeployment(service, runner)
-    // Only a deployment other than the one that ran before counts, and only one
-    // on the target digest: the deployment that was already SUCCESS is not it.
+    // Require a new deployment on the exact target digest.
     if (deployment.id !== previousDeploymentId) {
       if (deployment.status === 'SUCCESS') {
         if (deployment.imageDigest !== service.digest) {
@@ -566,13 +527,46 @@ export async function applyClosedBetaImageDeployment(
     plan: readonly ClosedBetaImageDeployment[]
     runner?: CommandRunner
     out?: (line: string) => void
-    /** Absent: google-provider-redis moves with the others, as it always did. */
     keepProviderRedis?: ProviderRedisKeepCheck
   }>,
 ): Promise<readonly Readonly<{ serviceName: string; deploymentId: string }>[]> {
   const runner = input.runner ?? defaultCommandRunner
   const out = input.out ?? console.log
   const settled: Array<Readonly<{ serviceName: string; deploymentId: string }>> = []
+
+  const revision = input.plan[0]?.sourceRevision
+  const contracts = revision
+    ? readPendingContractRequirements(revision, runner, railwayTargetArgs('Postgres'))
+    : []
+  if (contracts.length) {
+    const inventory = readClosedBetaServiceInventory(runner)
+    const running = ['web', 'worker'].map((serviceName) => {
+      const service = input.plan.find(
+        (candidate) => candidate.serviceName === serviceName,
+      )
+      if (!service) throw new Error(`Contract preflight requires ${serviceName}`)
+      const current = serviceObservation(inventory, service.serviceId, serviceName)
+      const latest = readLatestDeployment(service, runner)
+      const identity = readReleaseIdentity(service, runner)
+      const map = identity ? downloadCiImageDigestMap(identity, runner) : null
+      return {
+        serviceName,
+        revision: identity,
+        healthy:
+          serviceIsHealthy(current) &&
+          latest.status === 'SUCCESS' &&
+          latest.id === current.deploymentId,
+        runningDigest: latest.imageDigest,
+        revisionDigest: map?.images[service.imageName].digest ?? null,
+      }
+    })
+    assertContractionPreflight(
+      contracts,
+      running,
+      createGitRevisionReader(runner).isAncestor,
+    )
+    out('contract preflight: both running services have removed the affected readers')
+  }
 
   // Promotion barrier: each exact digest settles healthy before the next moves.
   for (const service of input.plan) {
@@ -631,11 +625,7 @@ export async function applyClosedBetaImageDeployment(
   return settled
 }
 
-/**
- * Google must accept the web service's callback address and client secret, or
- * "Connect Google" dead-ends on Google's own error page. Neither depends on the
- * image, so a failure never blocks the deploy; it fails the command instead.
- */
+/** Verify Google accepts the deployed callback and credentials. */
 export function verifyClosedBetaGoogleOAuth(
   out: (line: string) => void = console.log,
   runner: CommandRunner = defaultCommandRunner,
@@ -648,11 +638,7 @@ export function verifyClosedBetaGoogleOAuth(
   })
 }
 
-/**
- * The bucket must let the app's origin PUT, or avatar and logo uploads fail in
- * the browser. A deploy adds the rule when it is missing; a report only says so.
- * Like the Google check it never blocks the deploy, it fails the command.
- */
+/** Verify browser uploads are allowed by the bucket CORS rule. */
 export async function verifyClosedBetaStorageCors(
   apply: boolean,
   out: (line: string) => void = console.log,
@@ -687,47 +673,12 @@ function reportedProviderRedisKeep(
 }
 
 const COMMAND = 'ops:deploy-ci-images'
-const USAGE =
-  'pnpm ops deploy-ci-images [--sha <source-revision>] [--apply] | --verify-only --run <ci-run-id>'
-
-function parseCommandArgs(argv: readonly string[]): {
-  revision: string | undefined
-  apply: boolean
-  verifyRun: number | undefined
-} {
-  const switches = new Set<string>()
-  const values = new Map<string, string>()
-  for (let index = 0; index < argv.length; index++) {
-    const token = argv[index]!
-    if (token === '--apply' || token === '--verify-only') {
-      switches.add(token)
-    } else if (token === '--sha' || token === '--run') {
-      const value = argv[++index]
-      if (!value || values.has(token)) throw new Error(`usage: ${USAGE}`)
-      values.set(token, value)
-    } else {
-      throw new Error(`usage: ${USAGE}`)
-    }
-  }
-  const apply = switches.has('--apply')
-  const revision = values.get('--sha')
-  const run = values.get('--run')
-  const verifyOnly = switches.has('--verify-only')
-  // Verifying never deploys, so it takes a run and neither a revision nor
-  // --apply; a run id means nothing to a deploy.
-  const validUsage = verifyOnly ? run !== undefined && !apply && !revision : !run
-  if (!validUsage || (run !== undefined && !/^[1-9][0-9]*$/u.test(run))) {
-    throw new Error(`usage: ${USAGE}`)
-  }
-  return { revision, apply, verifyRun: run === undefined ? undefined : Number(run) }
-}
-
 export async function runDeployCiImagesCommand(
   argv: readonly string[] = process.argv.slice(2),
   out: (line: string) => void = console.log,
   runner: CommandRunner = defaultCommandRunner,
 ): Promise<number> {
-  const args = parseCommandArgs(argv)
+  const args = parseDeployCiImagesArgs(argv)
   if (args.verifyRun !== undefined) {
     const verified = verifyDispatchedCiImageDigestMap(args.verifyRun, runner)
     out(

@@ -361,8 +361,11 @@
         "patterns": [
           "**/*.test.ts",
           "**/*.test.tsx",
+          "**/*.stories.ts",
+          "**/*.stories.tsx",
           "**/*.integration.test.ts",
-          "**/*.test-fixtures.ts"
+          "**/*.test-fixtures.ts",
+          "src/shared/testing/notification-route-test-harness.ts"
         ]
       },
       {

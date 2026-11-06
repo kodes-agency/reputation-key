@@ -15,6 +15,7 @@
 // its Dialog title, so the dialog is named by the visible heading, and a close
 // button, since there is no page left around it to tap.
 
+import type { TenantScope } from '#/shared/queries/tenant-scope'
 import {
   useLayoutEffect,
   useMemo,
@@ -50,6 +51,7 @@ type NeedsYouList = Readonly<{
 }>
 
 type Props = Readonly<{
+  scope: TenantScope
   needsYou: NeedsYouList
   /** Every row still waiting on the reader: what "Mark all read" changes. */
   unreadCount: number
@@ -96,6 +98,7 @@ export function NotificationPopoverContent(props: Props) {
   const listRef = useRef<HTMLDivElement>(null)
   useFocusListOnLateArrival(listRef)
   const updates = useNotifications(
+    props.scope,
     props.notificationFns.getFeedHead,
     props.notificationFns.getList,
     props.organizationId,

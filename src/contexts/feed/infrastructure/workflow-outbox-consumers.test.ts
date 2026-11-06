@@ -298,6 +298,7 @@ describe('durable workflow notification consumers', () => {
         organizationId: NOTIF_TEST_IDS.orgId,
         userId: NOTIF_TEST_IDS.manager1,
         inboxItemId: NOTIF_TEST_IDS.inboxItemId,
+        eventId: EVENT_ID,
         at: expect.any(Date),
       })
       // They are not told about their own handoff; only the new holder is.

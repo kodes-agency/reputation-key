@@ -1,12 +1,6 @@
-// Google's own rating and review count, as every headline shows them (pure).
-//
-// One rating number (ADR 0067, decision 16): the Property Overview's Rating
-// tile, the Properties list and the rating goal all lead with the number Google
-// shows and Google's count, read from the Current on Google snapshot, never
-// RepKey's own average of the reviews it holds. Numbers more than a day old, or
-// read while the Google binding is not active, are still Google's last numbers:
-// a headline shows them with their date ("4.3 · as of Oct 12"), and a dash only
-// when Google never sent numbers for the Property's current binding.
+// Headlines use Google's own rating and count, never a cache-derived average
+// (ADR 0067). Stale or disconnected snapshots still show their dated last numbers;
+// only a missing snapshot for the current binding produces a dash.
 
 import { displayedTenths } from './rating-goal-numbers'
 import { googleIsWaiting } from './rating-goal-status'

@@ -61,6 +61,8 @@ function fakeJob(over: Record<string, unknown> = {}): Job {
 afterEach(() => {
   resetDelayedExecutionPolicy()
   vi.clearAllMocks()
+  vi.restoreAllMocks()
+  vi.useRealTimers()
 })
 
 describe('createGatedJobHandler', () => {
@@ -75,7 +77,7 @@ describe('createGatedJobHandler', () => {
     const job = fakeJob()
     await dispatch(job)
 
-    expect(handler).toHaveBeenCalledWith(job)
+    expect(handler).toHaveBeenCalledWith(job, expect.any(AbortSignal))
   })
 
   it('returns the handler result to BullMQ for evidence-bearing jobs', async () => {
@@ -239,17 +241,65 @@ describe('createGatedJobHandler', () => {
     })
   })
 
-  it('fails a job that exceeds its catalogue timeout (BQC-3.6)', async () => {
+  it('aborts at the deadline and holds the slot until cooperative cleanup finishes', async () => {
+    vi.useFakeTimers()
     decideMock.mockResolvedValue(ALLOW)
     initDelayedExecutionPolicy({ decide: decideMock })
     const registry = createJobRegistry()
-    registry.register(
-      'health-check',
-      vi.fn(() => new Promise<void>(() => {})), // never resolves
-    )
+    let signal: AbortSignal | undefined
+    registry.register('health-check', (_job, abortSignal) => {
+      signal = abortSignal
+      return new Promise<void>((resolve) => {
+        abortSignal?.addEventListener('abort', () => setTimeout(resolve, 10), {
+          once: true,
+        })
+      })
+    })
     const dispatch = createGatedJobHandler('default', registry, undefined, () => 5)
+    let settled = false
+    const outcome = dispatch(fakeJob()).catch((error: unknown) => {
+      settled = true
+      return error
+    })
 
-    await expect(dispatch(fakeJob())).rejects.toThrow(JobTimeoutError)
+    await vi.advanceTimersByTimeAsync(5)
+    expect(signal?.aborted).toBe(true)
+    expect(settled).toBe(false)
+    await vi.advanceTimersByTimeAsync(10)
+    expect(await outcome).toBeInstanceOf(JobTimeoutError)
+    expect(settled).toBe(true)
+  })
+
+  it('terminates an uncooperative worker after grace without releasing the slot', async () => {
+    vi.useFakeTimers()
+    const exit = vi.spyOn(process, 'exit').mockReturnValue(undefined as never)
+    decideMock.mockResolvedValue(ALLOW)
+    initDelayedExecutionPolicy({ decide: decideMock })
+    const registry = createJobRegistry()
+    const work = Promise.withResolvers<void>()
+    registry.register('health-check', () => work.promise)
+    let settled = false
+    const outcome = createGatedJobHandler(
+      'default',
+      registry,
+      undefined,
+      () => 5,
+    )(fakeJob()).catch((error: unknown) => {
+      settled = true
+      return error
+    })
+
+    await vi.advanceTimersByTimeAsync(5)
+    expect(settled).toBe(false)
+    expect(exit).not.toHaveBeenCalled()
+    await vi.advanceTimersByTimeAsync(4_999)
+    expect(exit).not.toHaveBeenCalled()
+    await vi.advanceTimersByTimeAsync(1)
+    expect(exit).toHaveBeenCalledWith(1)
+    expect(settled).toBe(false)
+    // The real exit never returns. Settle the fake's work to avoid leaking it.
+    work.resolve()
+    expect(await outcome).toBeInstanceOf(JobTimeoutError)
   })
 
   it('lets a job that finishes inside its timeout complete', async () => {

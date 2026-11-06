@@ -7,7 +7,7 @@
 // threshold, as a tenth) and its pace. A change names the version its form was
 // opened on, writes one log row per changed field and no reason. Ending is
 // always allowed while the goal is active. Keeping the pace answers the Monday
-// check-in (round 5, Q4) for every manager, with no version and no log row.
+// check-in for every manager, with no version and no log row.
 // Nothing here is a deadline.
 
 import { ratioToNumber } from '../../domain/rating-goal-numbers'

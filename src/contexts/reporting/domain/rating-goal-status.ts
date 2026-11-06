@@ -1,31 +1,9 @@
-// Property Google rating goal — status and the average its numbers assume (pure).
-//
-// A climb goal's status, the first rule that holds wins:
-//   waiting_for_google  no current snapshot, one older than 24 hours, or the
-//                       Google binding is not active
-//   reached             Google shows the target
-//   reviews_too_low     at least ten reviews arrived since the goal was set,
-//                       and their average does not clear the target's
-//                       threshold (round 2, 2026-10-15; it replaced "Can't
-//                       reach at this mix", which judged the recent mix)
-//   getting_started     the goal's pace is younger than 14 days
-//   on_pace             reviews in the pace window at 90% of the chosen pace
-//   below_pace          otherwise
-// The pace is judged from when it came into force (`paceSince`, round 5, owner
-// answer Q3): the set, or the latest change of the pace, after which the goal
-// is getting started again for 14 days. The pace window is the last 28 days
-// once the pace is 28 days old, before that the days since it started (only
-// judged from day 14). A keep goal holds
-// while Google shows the kept tenth, and waits for Google the same way.
-// There is no deadline and no "missed".
-//
-// Until ten reviews arrived since the goal was set there is no verdict on
-// their stars. The goal's numbers assume its planned quality blended with the
-// reviews since the set from the first one, the plan counted as 15 reviews
-// (round 4, X3). Before the tenth they never assume less than the least a plan
-// for the target may assume (minimumQualityTenths, or the plan if it is lower):
-// below it a blend could read "not reachable", a verdict R2-5 holds to ten.
-// While those reviews are too low, their own average (trackingMix).
+// Status precedence is waiting, reached, reviews too low, getting started, then
+// pace. A changed pace restarts 14 quiet days; its window grows to 28 days.
+// Quality gets no verdict before ten reviews since set. Until then, floor the
+// plan/review blend at minimumQualityTenths (or the lower plan) so early reviews
+// cannot imply "not reachable". The plan weighs 15 reviews; once reviews are too
+// low, use their own average. Keep goals watch Google's shown tenth, with no deadline.
 
 import {
   compareRatios,
@@ -139,7 +117,7 @@ export type QualityBasis = 'planned' | 'blended' | 'since_set'
 export type TrackingMix = Readonly<{ mix: Ratio; basis: QualityBasis }>
 
 /**
- * The stars new reviews are expected to average (round 4, X3): the plan's
+ * The stars new reviews are expected to average: the plan's
  * tenths q blended with the n reviews since the set and their star sum s,
  * (W × q / 10 + s) / (W + n), exact. Too low for the target, their own
  * average (s / n) instead: the verdict judges them unblended (`reviewsTooLow`).

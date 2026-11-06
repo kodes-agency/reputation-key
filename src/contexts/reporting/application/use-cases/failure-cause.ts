@@ -1,10 +1,5 @@
-// What a failed operation failed of, in words that name no tenant (BQC-7.3).
-//
-// The Goal sweeps count their failures by cause and fail the run with those
-// counts. A cause is never a message or an identifier, because a message can
-// carry a tenant's values: it is the SQLSTATE of a database refusal, else the
-// class of the error. A caller names its own domain errors by their code first
-// and leaves everything else to `unclassifiedFailureCause`.
+// Sweep failures expose counts and allowlisted causes, never messages or tenant
+// identifiers. Prefer a domain error code, then SQLSTATE, then error class.
 
 const SQLSTATE = /^[0-9A-Z]{5}$/u
 

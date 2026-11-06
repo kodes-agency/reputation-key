@@ -20,7 +20,7 @@ import {
   environmentManager,
   focusManager,
 } from '@tanstack/react-query'
-import { notificationKeys } from '#/shared/queries/query-keys'
+import { createKeys } from '#/shared/queries/query-keys'
 import { ServerFunctionError } from '#/shared/auth/server-function-error'
 import type { NotificationFeedHead } from '#/contexts/feed/application/public-api'
 import {
@@ -33,6 +33,8 @@ import {
   NOTIFICATION_POLL_INTERVAL,
   NOTIFICATION_POLL_OPTIONS,
 } from './notification-feed-pagination'
+
+const { notificationKeys } = createKeys({ userId: 'user-1', organizationId: 'org-1' })
 
 let client: QueryClient
 

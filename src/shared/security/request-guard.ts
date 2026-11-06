@@ -1,4 +1,4 @@
-// Request guard — BQC-7.6 request-boundary hardening (body limit + request id).
+// Request-boundary body limit and request id.
 //
 // Two controls wired as one nitro v3 plugin (server/plugins/request-guard.ts):
 //
@@ -9,10 +9,10 @@
 //      Mechanism: the nitro `request` runtime hook CANNOT short-circuit (nitro
 //      routes hook errors into captureError and lets the request through —
 //      verified against nitro's runtime app.mjs), so the guard wraps the h3
-//      app's config.onRequest directly. A thrown web `Response` bypasses the
-//      h3 error handler (prepareResponse returns non-ok Response instances
-//      as-is — no stack/error page) and still flows through the response hook
-//      chain, so the 413 carries the B0.7 headers and a request id too.
+//      app's config.onRequest directly. H3 normalizes thrown non-Errors to 500,
+//      so a typed HTTP error carries the refusal to a matching onError wrapper.
+//      Returning its Response there preserves the content-free body and response
+//      hooks, including security headers and the request id.
 //      A declared length is exact (the HTTP parser frames the body by it), so
 //      such a body is never read here: its handler decides what to read, and
 //      when. A body with NO declared length (chunked) is counted as it arrives
@@ -27,6 +27,7 @@
 // The pure decisions live here (unit-tested); the plugin file is thin wiring.
 
 import type { NitroAppPlugin } from 'nitro/types'
+import { HTTPError } from 'nitro/h3'
 import { getLogger } from '#/shared/observability/logger'
 
 /** Maximum accepted length for an inbound x-request-id (bytes as chars). */
@@ -60,6 +61,12 @@ function payloadTooLarge(): Response {
     status: 413,
     headers: { 'content-type': 'application/json' },
   })
+}
+
+class PayloadTooLargeError extends HTTPError {
+  constructor(readonly response: Response) {
+    super({ status: 413 })
+  }
 }
 
 /**
@@ -159,6 +166,11 @@ export function createRequestGuardPlugin(opts: RequestGuardOptions): NitroAppPlu
         '[request-guard] nitroApp.h3 unavailable — body-limit guard NOT installed',
       )
     } else {
+      const previousError = h3.config.onError
+      h3.config.onError = (error, event) => {
+        if (error instanceof PayloadTooLargeError) return error.response
+        return previousError?.(error, event)
+      }
       const previous = h3.config.onRequest
       h3.config.onRequest = (event) => {
         const limitBytes = bodyLimitFor(
@@ -172,7 +184,7 @@ export function createRequestGuardPlugin(opts: RequestGuardOptions): NitroAppPlu
             { contentLength, limitBytes },
             '[request-guard] body limit exceeded — 413',
           )
-          throw rejection
+          throw new PayloadTooLargeError(rejection)
         }
         const declaredRejection = bodyLimitRejection(contentLength, limitBytes)
         if (declaredRejection) refuse(declaredRejection)

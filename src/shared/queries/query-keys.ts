@@ -1,3 +1,5 @@
+import type { TenantScope } from './tenant-scope'
+
 // Query-key factories — centralized so cache invalidation stays targeted.
 //
 // Convention: each context/feature exposes a factory whose keys form a hierarchy
@@ -64,86 +66,6 @@ export const inboxKeys = {
       'google-review-target-analytics',
       propertyId ?? 'organization',
     ] as const,
-}
-
-// Two deliberately DISJOINT subtrees under `all`:
-//
-//   notifications → feed     → list → head   (the bell + /notifications)
-//   notifications → settings → preferences | user-settings | email-capability
-//
-// They are siblings, not ancestor/descendant, because the feed is invalidated on
-// every read/dismiss while the settings queries are 60s-cached. When `count` and
-// `preferences` shared a `forOrganization(org)` parent, invalidating that parent
-// — which merely OPENING the bell used to do — evicted the settings page's
-// cache. Feed invalidation must never reach `settings`, so there is no key that
-// spans both; `all` exists only for tenant-switch teardown.
-export const notificationKeys = {
-  all: ['notifications'] as const,
-
-  // ── Feed (bell popover + /notifications page) ────────────────────────
-  feed: (organizationId: string) =>
-    [...notificationKeys.all, 'feed', organizationId] as const,
-  lists: (organizationId: string) =>
-    [...notificationKeys.feed(organizationId), 'list'] as const,
-  /** `propertyId`: the page's Property filter; absent for the whole feed. */
-  list: (organizationId: string, limit: number, filter = 'all', propertyId?: string) =>
-    [
-      ...notificationKeys.lists(organizationId),
-      propertyId ? { limit, filter, propertyId } : { limit, filter },
-    ] as const,
-  /**
-   * Periodically refreshed first page. Older pages stay under `list(...)` so
-   * an interval refresh never asks the server for the whole loaded history.
-   */
-  head: (organizationId: string, limit: number, filter = 'all', propertyId?: string) =>
-    [
-      ...notificationKeys.list(organizationId, limit, filter, propertyId),
-      'head',
-    ] as const,
-
-  // ── Settings (/settings/notifications) ──────────────────────────────
-  settings: (organizationId: string) =>
-    [...notificationKeys.all, 'settings', organizationId] as const,
-  preferences: (organizationId: string) =>
-    [...notificationKeys.settings(organizationId), 'preferences'] as const,
-  userSettings: (organizationId: string) =>
-    [...notificationKeys.settings(organizationId), 'user-settings'] as const,
-  /**
-   * Per-property `notification.send_email` decision. Property-scoped because
-   * the capability is allowlisted per property, so the answer changes with the
-   * settings property selector.
-   */
-  emailCapability: (organizationId: string, propertyId: string) =>
-    [
-      ...notificationKeys.settings(organizationId),
-      'email-capability',
-      propertyId,
-    ] as const,
-}
-
-// ── Identity / organization context ────────────────────────────────────
-export const identityKeys = {
-  all: ['identity'] as const,
-  activeOrg: () => [...identityKeys.all, 'active-org'] as const,
-  members: () => [...identityKeys.all, 'members'] as const,
-  /**
-   * Every member's active Property grants, for the AccountAdmin's access sheet.
-   * Below the member list, so the existing members invalidation after any role,
-   * removal or access change refreshes it too.
-   */
-  memberPropertyAccess: () => [...identityKeys.members(), 'property-access'] as const,
-  invitations: () => [...identityKeys.all, 'invitations'] as const,
-  userInvitations: () => [...identityKeys.invitations(), 'user'] as const,
-  organizationInvitations: () => [...identityKeys.invitations(), 'organization'] as const,
-  /** Merchant AI consent snapshot for one property (import onboarding). */
-  merchantAiAuthorization: (propertyId: string) =>
-    [...identityKeys.all, 'merchant-ai', propertyId] as const,
-  /** Read-only Organization AI overview across the Properties the viewer manages. */
-  merchantAiOverview: () => [...identityKeys.all, 'merchant-ai-overview'] as const,
-  /** The Merchant AI notice currently served, independent of any Property. */
-  merchantAiNotice: () => [...identityKeys.all, 'merchant-ai-notice'] as const,
-  /** The signed-in reporter's own beta reports and their triage state. */
-  myBetaFeedback: () => [...identityKeys.all, 'beta-feedback', 'mine'] as const,
 }
 
 // ── Properties ──────────────────────────────────────────────────────────
@@ -415,54 +337,6 @@ export const portalKeys = {
     ] as const,
 }
 
-// ── Integrations (Google connections + bounded import content) ───────────
-export const integrationKeys = {
-  all: ['integrations'] as const,
-  connections: () => [...integrationKeys.all, 'connections'] as const,
-  googleImportContent: () => [...integrationKeys.all, 'google-import-content'] as const,
-  googleImportAccounts: (
-    organizationId: string,
-    connectionId: string,
-    viewEpoch: number,
-  ) =>
-    [
-      ...integrationKeys.googleImportContent(),
-      organizationId,
-      connectionId,
-      'accounts',
-      viewEpoch,
-    ] as const,
-  googleImportCandidates: (
-    organizationId: string,
-    connectionId: string,
-    accountRef: string | null,
-    viewEpoch: number,
-  ) =>
-    [
-      ...integrationKeys.googleImportContent(),
-      organizationId,
-      connectionId,
-      'candidates',
-      accountRef,
-      viewEpoch,
-    ] as const,
-  googleImportLease: (
-    organizationId: string,
-    connectionId: string,
-    leaseRef: string,
-    viewEpoch: number,
-  ) =>
-    [
-      ...integrationKeys.googleImportContent(),
-      organizationId,
-      connectionId,
-      'lease',
-      leaseRef,
-      viewEpoch,
-    ] as const,
-  import: (importId: string) => [...integrationKeys.all, 'import', importId] as const,
-}
-
 // ── Guest / public portal ────────────────────────────────────────────────
 export const guestKeys = {
   all: ['guest'] as const,
@@ -478,31 +352,161 @@ export const platformKeys = {
   organizations: () => [...platformKeys.all, 'organizations'] as const,
 }
 
-export const productUpdateKeys = {
-  all: ['product-updates'] as const,
-  scope: (propertyId: string | null) =>
-    [...productUpdateKeys.all, propertyId ?? 'organization'] as const,
-}
+/** Tenant-owned reads and their invalidations share the same explicit identity. */
+export function createKeys({ userId, organizationId }: TenantScope) {
+  const productUpdateKeys = {
+    all: ['product-updates', userId, organizationId] as const,
+    scope: (propertyId: string | null) =>
+      [...productUpdateKeys.all, propertyId ?? 'organization'] as const,
+  }
 
-/** Staff reads never alias a manager query, another participation or a rating cutoff. */
-export const staffSelfKeys = {
-  all: ['staff-self'] as const,
-  home: (userId: string) => [...staffSelfKeys.all, 'home', userId] as const,
-  code: (participationId: string) =>
-    [...staffSelfKeys.all, participationId, 'code'] as const,
-  resultsCurrent: (
-    participationId: string,
-    period: 'today' | 'week' | 'month' | 'last_month',
-  ) => [...staffSelfKeys.all, participationId, 'current-results', period] as const,
-  results: (
-    participationId: string,
-    period: 'today' | 'week' | 'month' | 'last_month',
-    ratingsCutoff: string,
-  ) => [...staffSelfKeys.all, participationId, 'results', period, ratingsCutoff] as const,
-  goals: (participationId: string) =>
-    [...staffSelfKeys.all, participationId, 'goals'] as const,
-  colleagues: (
-    participationId: string,
-    period: 'today' | 'week' | 'month' | 'last_month',
-  ) => [...staffSelfKeys.all, participationId, 'colleagues', period] as const,
+  // Feed writes must not invalidate the separately cached settings.
+  const notificationKeys = {
+    all: ['notifications', userId, organizationId] as const,
+
+    // ── Feed (bell popover + /notifications page) ────────────────────────
+    feed: (organizationId: string) =>
+      [...notificationKeys.all, 'feed', organizationId] as const,
+    lists: (organizationId: string) =>
+      [...notificationKeys.feed(organizationId), 'list'] as const,
+    /** `propertyId`: the page's Property filter; absent for the whole feed. */
+    list: (organizationId: string, limit: number, filter = 'all', propertyId?: string) =>
+      [
+        ...notificationKeys.lists(organizationId),
+        propertyId ? { limit, filter, propertyId } : { limit, filter },
+      ] as const,
+    /**
+     * Periodically refreshed first page. Older pages stay under `list(...)` so
+     * an interval refresh never asks the server for the whole loaded history.
+     */
+    head: (organizationId: string, limit: number, filter = 'all', propertyId?: string) =>
+      [
+        ...notificationKeys.list(organizationId, limit, filter, propertyId),
+        'head',
+      ] as const,
+
+    // ── Settings (/settings/notifications) ──────────────────────────────
+    settings: (organizationId: string) =>
+      [...notificationKeys.all, 'settings', organizationId] as const,
+    preferences: (organizationId: string) =>
+      [...notificationKeys.settings(organizationId), 'preferences'] as const,
+    userSettings: (organizationId: string) =>
+      [...notificationKeys.settings(organizationId), 'user-settings'] as const,
+    /**
+     * Per-property `notification.send_email` decision. Property-scoped because
+     * the capability is allowlisted per property, so the answer changes with the
+     * settings property selector.
+     */
+    emailCapability: (organizationId: string, propertyId: string) =>
+      [
+        ...notificationKeys.settings(organizationId),
+        'email-capability',
+        propertyId,
+      ] as const,
+  }
+
+  const identityKeys = {
+    all: ['identity', userId, organizationId] as const,
+    activeOrg: () => [...identityKeys.all, 'active-org'] as const,
+    members: () => [...identityKeys.all, 'members'] as const,
+    /**
+     * Every member's active Property grants, for the AccountAdmin's access sheet.
+     * Below the member list, so the existing members invalidation after any role,
+     * removal or access change refreshes it too.
+     */
+    memberPropertyAccess: () => [...identityKeys.members(), 'property-access'] as const,
+    invitations: () => [...identityKeys.all, 'invitations'] as const,
+    userInvitations: () => [...identityKeys.invitations(), 'user'] as const,
+    organizationInvitations: () =>
+      [...identityKeys.invitations(), 'organization'] as const,
+    /** Merchant AI consent snapshot for one property (import onboarding). */
+    merchantAiAuthorization: (propertyId: string) =>
+      [...identityKeys.all, 'merchant-ai', propertyId] as const,
+    /** Read-only Organization AI overview across the Properties the viewer manages. */
+    merchantAiOverview: () => [...identityKeys.all, 'merchant-ai-overview'] as const,
+    /** The Merchant AI notice currently served, independent of any Property. */
+    merchantAiNotice: () => [...identityKeys.all, 'merchant-ai-notice'] as const,
+    merchantAiNoticeUpdate: () =>
+      [...identityKeys.merchantAiNotice(), 'updates'] as const,
+    /** The signed-in reporter's own beta reports and their triage state. */
+    myBetaFeedback: () => [...identityKeys.all, 'beta-feedback', 'mine'] as const,
+  }
+
+  const integrationKeys = {
+    all: ['integrations', userId, organizationId] as const,
+    connections: () => [...integrationKeys.all, 'connections'] as const,
+    googleImportContent: () => [...integrationKeys.all, 'google-import-content'] as const,
+    googleImportAccounts: (
+      organizationId: string,
+      connectionId: string,
+      viewEpoch: number,
+    ) =>
+      [
+        ...integrationKeys.googleImportContent(),
+        organizationId,
+        connectionId,
+        'accounts',
+        viewEpoch,
+      ] as const,
+    googleImportCandidates: (
+      organizationId: string,
+      connectionId: string,
+      accountRef: string | null,
+      viewEpoch: number,
+    ) =>
+      [
+        ...integrationKeys.googleImportContent(),
+        organizationId,
+        connectionId,
+        'candidates',
+        accountRef,
+        viewEpoch,
+      ] as const,
+    googleImportLease: (
+      organizationId: string,
+      connectionId: string,
+      leaseRef: string,
+      viewEpoch: number,
+    ) =>
+      [
+        ...integrationKeys.googleImportContent(),
+        organizationId,
+        connectionId,
+        'lease',
+        leaseRef,
+        viewEpoch,
+      ] as const,
+    import: (importId: string) => [...integrationKeys.all, 'import', importId] as const,
+  }
+
+  /** Staff reads stay apart from manager queries, participations and rating cutoffs. */
+  const staffSelfKeys = {
+    all: ['staff-self', userId, organizationId] as const,
+    home: (userId: string) => [...staffSelfKeys.all, 'home', userId] as const,
+    code: (participationId: string) =>
+      [...staffSelfKeys.all, participationId, 'code'] as const,
+    resultsCurrent: (
+      participationId: string,
+      period: 'today' | 'week' | 'month' | 'last_month',
+    ) => [...staffSelfKeys.all, participationId, 'current-results', period] as const,
+    results: (
+      participationId: string,
+      period: 'today' | 'week' | 'month' | 'last_month',
+      ratingsCutoff: string,
+    ) =>
+      [...staffSelfKeys.all, participationId, 'results', period, ratingsCutoff] as const,
+    goals: (participationId: string) =>
+      [...staffSelfKeys.all, participationId, 'goals'] as const,
+    colleagues: (
+      participationId: string,
+      period: 'today' | 'week' | 'month' | 'last_month',
+    ) => [...staffSelfKeys.all, participationId, 'colleagues', period] as const,
+  }
+  return {
+    notificationKeys,
+    identityKeys,
+    integrationKeys,
+    staffSelfKeys,
+    productUpdateKeys,
+  }
 }

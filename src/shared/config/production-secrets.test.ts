@@ -103,7 +103,6 @@ describe('findPlaceholderSecrets (BQC-7.6)', () => {
       ['GOOGLE_SESSION_BINDING_HMAC_KEYS', `v1:${'0'.repeat(64)}`],
       ['GOOGLE_OPAQUE_REFERENCE_HMAC_KEYS', `v1:${'ab'.repeat(32)}`],
       ['GOOGLE_REPLAY_HMAC_KEYS', `v1:${'0'.repeat(64)}`],
-      ['GOOGLE_ADMISSION_GRANT_HMAC_KEYS', `v1:${'11'.repeat(32)}`],
       ['GOOGLE_CREDENTIAL_BINDING_HMAC_KEYS', `v1:${'22'.repeat(32)}`],
       ['AI_SUBJECT_HMAC_KEYS', `subject-v1:${'33'.repeat(32)}`],
       ['AI_REQUEST_BINDING_HMAC_KEYS', `request-v1:${'44'.repeat(32)}`],

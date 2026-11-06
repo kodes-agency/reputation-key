@@ -1,5 +1,3 @@
-// Resolve server-function bindings only when a route or component reads them.
-// Eager object members can capture `undefined` when Vite splits a cyclic chunk.
 import {
   cancelPropertyImportV2,
   getPropertyImportV2Status,
@@ -32,94 +30,38 @@ import type {
   GoogleImportFns,
   GoogleImportSetupFns,
 } from '#/components/features/integration/google-import-manager/google-import-manager-contract'
-
-type PropertySetupServer = typeof import('#/contexts/reporting/server/property-setup')
-type ReplyLibraryServer = typeof import('#/contexts/review/server/reply-library')
+import { getPropertySetupFn } from '#/contexts/reporting/server/property-setup'
+import {
+  getReplyLibraryFn,
+  saveReplyVoiceFn,
+} from '#/contexts/review/server/reply-library'
 
 export const importFns: GoogleImportFns = {
-  get getGoogleAuthUrl() {
-    return getGoogleAuthUrl
-  },
-  get listImportAccounts() {
-    return listImportAccounts
-  },
-  get listImportCandidates() {
-    return listImportCandidates
-  },
-  get renewImportAuthorizationLease() {
-    return renewImportAuthorizationLease
-  },
-  get startPropertyImportV2() {
-    return startPropertyImportV2
-  },
-  get recoverPropertyImportV2() {
-    return recoverPropertyImportV2
-  },
-  get getPropertyImportV2Status() {
-    return getPropertyImportV2Status
-  },
-  get retryPropertyImportItem() {
-    return retryPropertyImportItem
-  },
-  get cancelPropertyImportV2() {
-    return cancelPropertyImportV2
-  },
-}
-
-const importSetupFns: Omit<
-  GoogleImportSetupFns,
-  'getPropertySetup' | 'getReplyLibrary' | 'saveReplyVoice'
-> = {
-  get listProperties() {
-    return listProperties
-  },
-  get listMembers() {
-    return listMembers
-  },
-  get listPropertyResponsibleManagers() {
-    return listPropertyResponsibleManagers
-  },
-  get listMerchantAiOverview() {
-    return listMerchantAiOverviewFn
-  },
-  get getMerchantAiAuthorization() {
-    return getMerchantAiAuthorizationFn
-  },
-  get getReviewAnalysisProgress() {
-    return getReviewAnalysisProgressFn
-  },
-  get getPropertyPortalExperience() {
-    return getPropertyPortalExperience
-  },
-  get savePropertyPublicDisplayName() {
-    return savePropertyPublicDisplayName
-  },
-  get updateProperty() {
-    return updateProperty
-  },
-  get updatePropertyResponsibleManagers() {
-    return updatePropertyResponsibleManagers
-  },
-  get enableMerchantAiForProperties() {
-    return enableMerchantAiForPropertiesFn
-  },
-  get deferMerchantAiDecision() {
-    return deferMerchantAiDecisionFn
-  },
+  getGoogleAuthUrl,
+  listImportAccounts,
+  listImportCandidates,
+  renewImportAuthorizationLease,
+  startPropertyImportV2,
+  recoverPropertyImportV2,
+  getPropertyImportV2Status,
+  retryPropertyImportItem,
+  cancelPropertyImportV2,
 }
 
 export const importReplySetupFns: GoogleImportSetupFns = {
-  ...importSetupFns,
-  getPropertySetup: (input: Parameters<PropertySetupServer['getPropertySetupFn']>[0]) =>
-    import('#/contexts/reporting/server/property-setup').then(({ getPropertySetupFn }) =>
-      getPropertySetupFn(input),
-    ),
-  getReplyLibrary: (input: Parameters<ReplyLibraryServer['getReplyLibraryFn']>[0]) =>
-    import('#/contexts/review/server/reply-library').then(({ getReplyLibraryFn }) =>
-      getReplyLibraryFn(input),
-    ),
-  saveReplyVoice: (input: Parameters<ReplyLibraryServer['saveReplyVoiceFn']>[0]) =>
-    import('#/contexts/review/server/reply-library').then(({ saveReplyVoiceFn }) =>
-      saveReplyVoiceFn(input),
-    ),
+  listProperties,
+  listMembers,
+  listPropertyResponsibleManagers,
+  listMerchantAiOverview: listMerchantAiOverviewFn,
+  getMerchantAiAuthorization: getMerchantAiAuthorizationFn,
+  getReviewAnalysisProgress: getReviewAnalysisProgressFn,
+  getPropertyPortalExperience,
+  savePropertyPublicDisplayName,
+  updateProperty,
+  updatePropertyResponsibleManagers,
+  enableMerchantAiForProperties: enableMerchantAiForPropertiesFn,
+  deferMerchantAiDecision: deferMerchantAiDecisionFn,
+  getPropertySetup: getPropertySetupFn,
+  getReplyLibrary: getReplyLibraryFn,
+  saveReplyVoice: saveReplyVoiceFn,
 }

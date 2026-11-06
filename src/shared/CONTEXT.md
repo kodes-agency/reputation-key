@@ -22,6 +22,16 @@ Primary areas:
 - `domain/`, `http/`, `email/`, `cache/`, and `lifecycle/` hold small mechanisms.
 - `hooks/` and `queries/` are browser-safe cross-feature access/cache utilities.
 - `ops/` and `release/` own reviewed operational and promotion contracts.
+
+Notification, Integration, Staff self, Identity and Product updates query families
+come from `queries/query-keys.ts`'s `createKeys(scope)`. `TenantScope` names the signed-in
+person and Organization; own-account reads outside the manager workspace use a
+null Organization. Loaders pass their scope explicitly, while components use
+`hooks/useTenantScope.ts`, which takes the deepest resolved identity in the
+presented matches while a pending route's descendants await their context.
+Reads, optimistic updates and invalidations share that
+scope. Tenant and session transitions still clear the caches independently.
+
 - `testing/` and `db/testing/` are test-only support, never runtime authorities.
 
 Shared-area dependency and production/test fences are enforced by `eslint.config.js` and `scripts/check-architecture-boundary-controls.mjs`.
@@ -59,6 +69,12 @@ single-flight/backoff remains Integration-owned through a shared mechanism;
 credential generation in PostgreSQL is the durable commit fence. Queue Redis must
 use `noeviction`; PostgreSQL may retry pool acquisition only, never a SQL statement
 whose commit outcome is ambiguous.
+
+The delayed job gate gives handlers an abort signal at their catalogue deadline.
+It holds their BullMQ slot until cleanup finishes; work still running after five
+seconds of grace terminates the worker nonzero. Shared database transactions
+inherit that deadline and refuse commit after abort. Normal handler results and
+policy denials retain their existing meaning.
 
 ### Stale tabs (`stale-tab/`)
 
@@ -156,6 +172,23 @@ Jobs, outbox delivery, health, and observability expose infrastructure mechanics
 Contexts own handler meaning, source transactions, recovery policy, content
 classification, and mutation authority.
 
+`jobs/work-items.server.ts` exposes the platform-owned work ledger. A source
+command schedules IDs-only work in its own transaction. Adopters register a
+kind handler. Before authorization the worker resolves the queue's `workId`
+to its ledger Organization and subject, and checks that the kind matches.
+The kind's scope resolver derives Property scope from that tenant-bound
+`subjectId`; queue-supplied scope is ignored. The existing policy gate runs
+before the handler can claim a lease. `complete` commits database effects and the
+receipt together; external effects retain their provider fences. `read_back`
+work never automatically resends after an expired lease or failed handler.
+The worker's independent minute poll fairly rotates due tenants even when
+Redis loses its jobs or schedulers; queue acceptance spends no attempt.
+Unfinished rows and settled idempotency receipts remain until their owner
+explicitly retires them. `pnpm ops work` lists and inspects by Organization,
+and retries, cancels or discards with a named operator, reason and `--apply`.
+Retry refuses uncertain effects and active leases. Existing jobs keep their
+delivery path until their owning handlers adopt the ledger.
+
 ## Domain and boundaries
 
 `shared/domain/` contains pure cross-context identifiers, result/error primitives,
@@ -181,7 +214,7 @@ Redis-backed integration suites take their client from `testing/redis-test-lease
 On a machine with no Redis the lease reports unavailable and those tests return
 without asserting, so a green local run does not prove they ran. With
 `REQUIRE_TEST_REDIS=1` an unanswered probe throws and the suite fails; CI's
-`test-integration` job sets it, and `testing/redis-test-lease.test.ts` pins that the
+`integration` job sets it, and `testing/redis-test-lease.test.ts` pins that the
 job running the integration project has a Redis service and requires it.
 
 ## Verification

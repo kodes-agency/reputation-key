@@ -1,17 +1,12 @@
-// The shared text, textarea and number fields (UI consistency scan: FORM-05).
-//
-// Eleven files rebuilt "label, control, error" by hand because the shared field had no
-// help line and no optional marker. The three shared fields now take the same two
-// props, wire the help to the control by id, and share one anatomy (Field, FieldLabel,
-// control, help, then the error). Error timing stays what each documents: the text
-// and textarea fields report after the field has been touched, the number field as
-// soon as the schema names a fault (a refused target must show its reason).
+// Shared fields keep their accessible label, help and error contract across
+// control kinds. Text reports after touch; a refused number reports immediately.
 import { createElement } from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { describe, expect, it } from 'vitest'
 import { FormNumberField, type NumberFieldApi } from './form-number-field'
 import { blankAsNull, FormTextField, type BaseFieldApi } from './form-text-field'
 import { FormTextarea, type BaseFieldApiTextarea } from './form-textarea'
+import { FormSelectField } from './form-select-field'
 
 const meta = { isTouched: false, isValid: true, errors: [] }
 const invalidMeta = {
@@ -65,13 +60,26 @@ const numberField = (props: object = {}, field = number()) =>
     }),
   )
 
+const selectField = (props: object = {}) =>
+  renderToStaticMarkup(
+    createElement(FormSelectField, {
+      id: 'metric',
+      label: 'Metric',
+      value: 'scans',
+      options: [{ value: 'scans', label: 'Scans' }],
+      onValueChange: () => undefined,
+      ...props,
+    }),
+  )
+
 const FIELDS = [
   { kind: 'text', render: textField, id: 'name', label: 'Name' },
   { kind: 'textarea', render: textareaField, id: 'note', label: 'Note' },
   { kind: 'number', render: numberField, id: 'hours', label: 'Hours' },
+  { kind: 'select', render: selectField, id: 'metric', label: 'Metric' },
 ] as const
 
-describe.each(FIELDS)('the $kind field', ({ render, id, label }) => {
+describe.each(FIELDS)('the $kind field', ({ kind, render, id, label }) => {
   it('is a Field with a FieldLabel tied to its control', () => {
     const html = render()
 
@@ -96,9 +104,11 @@ describe.each(FIELDS)('the $kind field', ({ render, id, label }) => {
     expect(html).toContain(`id="${id}-description"`)
     expect(html).toContain(`aria-describedby="${id}-description"`)
     expect(html).toContain('Shown to guests.')
-    expect(html.search(/<(?:input|textarea)/u)).toBeLessThan(
-      html.indexOf('Shown to guests.'),
+    const control = html.search(
+      kind === 'select' ? /<button[^>]*role="combobox"/u : /<(?:input|textarea)/u,
     )
+    expect(control).toBeGreaterThanOrEqual(0)
+    expect(control).toBeLessThan(html.indexOf('Shown to guests.'))
   })
 
   it('marks a field the person may leave empty, inside its label', () => {
@@ -110,14 +120,23 @@ describe.each(FIELDS)('the $kind field', ({ render, id, label }) => {
 })
 
 describe('error and help together', () => {
-  it('puts the help directly under the control and the error after it', () => {
-    const html = textField(
-      { description: 'Shown to guests.' },
-      text({ meta: invalidMeta }),
-    )
+  const props = { description: 'Shown to guests.' }
+  it.each([
+    ['text', () => textField(props, text({ meta: invalidMeta }))],
+    ['textarea', () => textareaField(props, textarea({ meta: invalidMeta }))],
+    ['number', () => numberField(props, number(invalidMeta.errors))],
+    [
+      'select',
+      () => selectField({ ...props, invalid: true, errors: invalidMeta.errors }),
+    ],
+  ] as const)('puts help before the error in a refused %s field', (_kind, render) => {
+    const html = render()
 
     expect(html.indexOf('Shown to guests.')).toBeLessThan(html.indexOf('Enter a name'))
     expect(html).toContain('aria-invalid="true"')
+    expect(html).toContain('data-invalid="true"')
+    expect(html).toMatch(/data-slot="field-description"/u)
+    expect(html).toMatch(/data-slot="field-error"/u)
   })
 })
 

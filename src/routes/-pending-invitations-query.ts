@@ -1,3 +1,4 @@
+import { type TenantScope } from '#/shared/queries/tenant-scope'
 // The signed-in list of pending invitations at /accept-invitation (no `?id=`).
 //
 // Its own module so the route file keeps none of it: the route file's
@@ -9,24 +10,25 @@
 // shows.
 
 import { queryOptions } from '@tanstack/react-query'
-import { identityKeys } from '#/shared/queries/query-keys'
+import { createKeys } from '#/shared/queries/query-keys'
 import { listUserInvitations } from '#/contexts/identity/server/organizations'
 
-export const pendingInvitationsQuery = queryOptions({
-  queryKey: identityKeys.userInvitations(),
-  queryFn: async () => {
-    const { invitations } = await listUserInvitations()
-    return invitations
-      .filter((inv) => inv.status === 'pending')
-      .map((inv) => ({
-        id: inv.id,
-        organizationName: inv.organizationName ?? 'Unknown Organization',
-        role:
-          inv.role === 'Member' || inv.rawRole === 'member'
-            ? 'Staff'
-            : (inv.role ?? inv.rawRole),
-        expiresAt: inv.expiresAt,
-      }))
-  },
-  staleTime: 30_000,
-})
+export const pendingInvitationsQuery = (scope: TenantScope) =>
+  queryOptions({
+    queryKey: createKeys(scope).identityKeys.userInvitations(),
+    queryFn: async () => {
+      const { invitations } = await listUserInvitations()
+      return invitations
+        .filter((inv) => inv.status === 'pending')
+        .map((inv) => ({
+          id: inv.id,
+          organizationName: inv.organizationName ?? 'Unknown Organization',
+          role:
+            inv.role === 'Member' || inv.rawRole === 'member'
+              ? 'Staff'
+              : (inv.role ?? inv.rawRole),
+          expiresAt: inv.expiresAt,
+        }))
+    },
+    staleTime: 30_000,
+  })

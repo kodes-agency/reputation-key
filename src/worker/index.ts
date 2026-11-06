@@ -72,6 +72,11 @@ import { createOutboxRelay } from '#/shared/outbox/relay'
 import { republishLostDispatches } from '#/shared/outbox/lost-dispatch-recovery'
 import { createPublishedAwaitingReceiptsReader } from '#/shared/outbox/infrastructure/published-awaiting-receipts'
 import { createDispatcherHandler } from '#/shared/outbox/dispatcher'
+import {
+  createWorkItems,
+  reconcileWorkItems,
+  startWorkItemReconciler,
+} from '#/shared/jobs/work-items.server'
 
 // Worker entry wires 10+ job schedules — complexity is inherent to the
 // registration seam. Owner: BQC-3 (returned by BQC-5.7).
@@ -196,6 +201,7 @@ async function main() {
   // property id (publish-reply carries replyId only — resolved via reply →
   // review → propertyId). Every other job name falls through to the payload.
   const resolveScope = createPublishReplyScopeResolver({ db: container.db })
+  const workItems = createWorkItems(container.db, container.clock)
 
   // ARC-03-T15: the dead-letter quarantine barrier queue is CONTAINER-owned.
   // It is written to and never processed; jobs whose attempt budget is spent
@@ -233,7 +239,13 @@ async function main() {
   // dispatch (current policy — a stale allow never overrides a deny).
   const worker = createJobWorker(
     'default',
-    createGatedJobHandler('default', registry, resolveScope),
+    createGatedJobHandler(
+      'default',
+      registry,
+      resolveScope,
+      undefined,
+      workItems.resolveDispatch,
+    ),
     DEFAULT_QUEUE_CONCURRENCY,
     quarantineQueue,
     runtimeObservationStore ?? undefined,
@@ -255,7 +267,13 @@ async function main() {
   const schedulerPlan = createOperationalSchedulerPlan()
   const backgroundWorker = createJobWorker(
     'background',
-    createGatedJobHandler('background', registry, resolveScope),
+    createGatedJobHandler(
+      'background',
+      registry,
+      resolveScope,
+      undefined,
+      workItems.resolveDispatch,
+    ),
     BACKGROUND_QUEUE_CONCURRENCY,
     quarantineQueue,
     runtimeObservationStore ?? undefined,
@@ -386,6 +404,33 @@ async function main() {
     },
   })
 
+  // This poller survives loss of Redis schedulers. Adopters register a kind
+  // whose scope is resolved before the policy gate and whose handler claims
+  // its lease; existing payload-based handlers keep their delivery path.
+  const workQueue = container.jobQueue
+  const stopWorkReconciler = startWorkItemReconciler({
+    reconcile: async () => {
+      const result = await reconcileWorkItems({
+        reserveDispatch: workItems.reserveDispatch,
+        enqueue: (kind, data, jobId) => {
+          if (!registry.getHandler(kind)) throw new Error('Work handler unavailable')
+          return workQueue.add(kind, data, {
+            jobId,
+            attempts: 1,
+            removeOnComplete: true,
+            removeOnFail: true,
+          })
+        },
+      })
+      if (result.failed) logger.warn(result, 'Durable work dispatch remains pending')
+    },
+    onError: () =>
+      logger.error(
+        { code: 'work_reconciliation_failed' },
+        'Durable work reconciliation failed',
+      ),
+  })
+
   // ── Outbox relay + dispatcher ─────────────────────────────────────
   // The only delivery path: every command commits its fact as an outbox row,
   // the relay claims unpublished rows (SKIP LOCKED over the partial index
@@ -423,13 +468,14 @@ async function main() {
     const relayStopped = stopRelay()
     logger.info('Outbox relay stopped')
     const schedulerStopped = stopSchedulerWatchdog()
+    const workReconcilerStopped = stopWorkReconciler()
 
     const result = await drainWorkerResources({
       workers: [
         {
           label: 'background-pollers',
           close: async () => {
-            await Promise.all([relayStopped, schedulerStopped])
+            await Promise.all([relayStopped, schedulerStopped, workReconcilerStopped])
           },
         },
         namedCloseable('default', worker),

@@ -1,3 +1,8 @@
+import {
+  ACQUIRE_QUOTA_SCRIPT,
+  ACQUIRE_IN_FLIGHT_SCRIPT,
+  RELEASE_IN_FLIGHT_SCRIPT,
+} from './redis-coordination-scripts'
 import { createHash } from 'node:crypto'
 import type {
   GoogleInFlightCoordinator,
@@ -233,78 +238,6 @@ export function googleQuotaCredentialFingerprint(
     .digest('hex')
 }
 
-const ACQUIRE_QUOTA_SCRIPT = `-- google-quota-v2
-local nowMs = tonumber(ARGV[1])
-local cost = tonumber(ARGV[2])
-local states = {}
-local allowed = 1
-local advice = 0
-for index = 1, #KEYS do
-  local offset = 2 + ((index - 1) * 5)
-  local binding = ARGV[offset + 1]
-  local capacity = tonumber(ARGV[offset + 2])
-  local refillPerMs = tonumber(ARGV[offset + 3])
-  local ttlMs = tonumber(ARGV[offset + 4])
-  local bucketCost = tonumber(ARGV[offset + 5])
-  local storedBinding = redis.call('HGET', KEYS[index], 'binding')
-  if storedBinding and storedBinding ~= binding then return {-2, 0} end
-  local tokens = tonumber(redis.call('HGET', KEYS[index], 'tokens')) or capacity
-  local updatedAtMs = tonumber(redis.call('HGET', KEYS[index], 'updatedAtMs')) or nowMs
-  if nowMs > updatedAtMs then
-    tokens = math.min(capacity, tokens + ((nowMs - updatedAtMs) * refillPerMs))
-  end
-  if tokens < bucketCost then
-    allowed = 0
-    advice = math.max(advice, math.ceil((bucketCost - tokens) / refillPerMs))
-  end
-  states[index] = {binding, tokens, ttlMs, bucketCost}
-end
-local remaining = nil
-for index = 1, #KEYS do
-  local state = states[index]
-  local tokens = state[2]
-  if allowed == 1 then tokens = tokens - state[4] end
-  redis.call(
-    'HSET',
-    KEYS[index],
-    'binding', state[1],
-    'tokens', tokens,
-    'updatedAtMs', nowMs
-  )
-  redis.call('PEXPIRE', KEYS[index], state[3])
-  if remaining == nil or tokens < remaining then remaining = tokens end
-end
-if allowed == 1 then return {1, math.floor(remaining or 0)} end
-return {0, advice}
-`
-
-const ACQUIRE_IN_FLIGHT_SCRIPT = `-- google-inflight-acquire-v1
-local binding = redis.call('GET', KEYS[1])
-if binding and binding ~= ARGV[1] then return {-2, 0} end
-local nowMs = tonumber(ARGV[2])
-local limit = tonumber(ARGV[3])
-local leaseMs = tonumber(ARGV[4])
-redis.call('ZREMRANGEBYSCORE', KEYS[2], '-inf', nowMs)
-local count = redis.call('ZCARD', KEYS[2])
-if count >= limit then
-  local oldest = redis.call('ZRANGE', KEYS[2], 0, 0, 'WITHSCORES')
-  local retryAfterMs = 1
-  if oldest[2] then retryAfterMs = math.max(1, tonumber(oldest[2]) - nowMs) end
-  return {0, retryAfterMs}
-end
-redis.call('SET', KEYS[1], ARGV[1], 'PX', leaseMs * 2)
-redis.call('ZADD', KEYS[2], nowMs + leaseMs, ARGV[5])
-redis.call('PEXPIRE', KEYS[2], leaseMs * 2)
-return {1, nowMs + leaseMs}
-`
-
-const RELEASE_IN_FLIGHT_SCRIPT = `-- google-inflight-release-v1
-local binding = redis.call('GET', KEYS[1])
-if not binding then return 0 end
-if binding ~= ARGV[1] then return -2 end
-return redis.call('ZREM', KEYS[2], ARGV[2])
-`
-
 function validBaseKey(key: GoogleQuotaKey): boolean {
   return (
     FINGERPRINT.test(key.credentialFingerprint) &&
@@ -322,40 +255,27 @@ function scopeBinding(key: GoogleQuotaKey, scope: GoogleQuotaScope): string | nu
   const initiatorUserId = requiredScopeId(key.initiatorUserId)
   const connectionId = requiredScopeId(key.connectionId)
   const propertyId = requiredScopeId(key.propertyId)
-  const parts: readonly string[] | null =
-    scope === 'endpoint'
-      ? ['endpoint', key.endpointClass]
-      : scope === 'project'
-        ? ['project', key.projectFingerprint]
-        : scope === 'connection'
-          ? connectionId
-            ? ['connection', connectionId]
-            : null
-          : scope === 'user_organization_connection'
-            ? initiatorUserId && organizationId && connectionId
-              ? [
-                  'user_organization_connection',
-                  initiatorUserId,
-                  organizationId,
-                  connectionId,
-                ]
-              : null
-            : scope === 'user_organization_property'
-              ? initiatorUserId && organizationId && propertyId
-                ? [
-                    'user_organization_property',
-                    initiatorUserId,
-                    organizationId,
-                    propertyId,
-                  ]
-                : null
-              : [
-                  'credential_project_endpoint',
-                  key.credentialFingerprint,
-                  key.projectFingerprint,
-                  key.endpointClass,
-                ]
-  return parts ? JSON.stringify(parts) : null
+  switch (scope) {
+    case 'endpoint':
+      return JSON.stringify(['endpoint', key.endpointClass])
+    case 'project':
+      return JSON.stringify(['project', key.projectFingerprint])
+    case 'connection':
+      return connectionId ? JSON.stringify(['connection', connectionId]) : null
+    case 'user_organization_connection':
+      if (!initiatorUserId || !organizationId || !connectionId) return null
+      return JSON.stringify([scope, initiatorUserId, organizationId, connectionId])
+    case 'user_organization_property':
+      if (!initiatorUserId || !organizationId || !propertyId) return null
+      return JSON.stringify([scope, initiatorUserId, organizationId, propertyId])
+    case 'credential_project_endpoint':
+      return JSON.stringify([
+        scope,
+        key.credentialFingerprint,
+        key.projectFingerprint,
+        key.endpointClass,
+      ])
+  }
 }
 
 function coordinationKey(
@@ -470,6 +390,47 @@ export function createInMemoryGoogleQuotaCoordinator(
   })
 }
 
+function quotaBucketArguments(
+  resolved: ReadonlyArray<
+    Readonly<{ policy: GoogleQuotaBucketPolicy; binding: string | null }>
+  >,
+  cost: number,
+): Array<string | number> {
+  return resolved.flatMap(({ policy, binding }) => {
+    const capacity = policy.capacity * MICRO_TOKENS
+    const refillPerMs = (policy.refillTokens * MICRO_TOKENS) / policy.refillIntervalMs
+    const ttlMs = Math.min(
+      24 * 60 * 60_000,
+      Math.max(60_000, Math.ceil(capacity / refillPerMs) * 2),
+    )
+    return [binding as string, capacity, refillPerMs, ttlMs, cost * MICRO_TOKENS]
+  })
+}
+
+/** Quota and semaphore scripts share the same collision/refusal/success reply. */
+type CoordinationReply =
+  | Readonly<{ ok: true; outcome: 0 | 1; advice: number }>
+  | Readonly<{
+      ok: false
+      code: 'coordination_unavailable' | 'key_collision'
+      retryAfterMs: 0
+    }>
+
+function coordinationReply(raw: unknown): CoordinationReply {
+  const unavailable = {
+    ok: false,
+    code: 'coordination_unavailable',
+    retryAfterMs: 0,
+  } as const
+  if (!Array.isArray(raw) || raw.length !== 2) return unavailable
+  const outcome = Number(raw[0])
+  const advice = Number(raw[1])
+  if (!Number.isFinite(advice) || advice < 0) return unavailable
+  if (outcome === -2) return { ok: false, code: 'key_collision', retryAfterMs: 0 }
+  if (outcome !== 0 && outcome !== 1) return unavailable
+  return { ok: true, outcome, advice }
+}
+
 export function createRedisGoogleQuotaCoordinator(
   deps: Readonly<{
     redis: GoogleCoordinationRedis
@@ -503,15 +464,7 @@ export function createRedisGoogleQuotaCoordinator(
       const keys = resolved.map((entry) =>
         coordinationKey('quota', deps.policyId, entry.policy.id, entry.binding as string),
       )
-      const bucketArguments = resolved.flatMap(({ policy, binding }) => {
-        const capacity = policy.capacity * MICRO_TOKENS
-        const refillPerMs = (policy.refillTokens * MICRO_TOKENS) / policy.refillIntervalMs
-        const ttlMs = Math.min(
-          24 * 60 * 60_000,
-          Math.max(60_000, Math.ceil(capacity / refillPerMs) * 2),
-        )
-        return [binding as string, capacity, refillPerMs, ttlMs, cost * MICRO_TOKENS]
-      })
+      const bucketArguments = quotaBucketArguments(resolved, cost)
       try {
         const raw = await deps.redis.eval(
           ACQUIRE_QUOTA_SCRIPT,
@@ -521,25 +474,14 @@ export function createRedisGoogleQuotaCoordinator(
           cost * MICRO_TOKENS,
           ...bucketArguments,
         )
-        if (!Array.isArray(raw) || raw.length !== 2) {
-          return { ok: false, code: 'coordination_unavailable', retryAfterMs: 0 }
-        }
-        const outcome = Number(raw[0])
-        const advice = Number(raw[1])
-        if (!Number.isFinite(advice) || advice < 0) {
-          return { ok: false, code: 'coordination_unavailable', retryAfterMs: 0 }
-        }
-        if (outcome === -2) {
-          return { ok: false, code: 'key_collision', retryAfterMs: 0 }
-        }
+        const reply = coordinationReply(raw)
+        if (!reply.ok) return reply
+        const { outcome, advice } = reply
         if (outcome === 1) {
           return {
             ok: true,
             remaining: Math.max(0, Math.floor(advice / MICRO_TOKENS)),
           }
-        }
-        if (outcome !== 0) {
-          return { ok: false, code: 'coordination_unavailable', retryAfterMs: 0 }
         }
         const retryAfterMs = Math.max(1, Math.ceil(advice))
         if (nowMs + retryAfterMs > deadlineMs) {
@@ -620,6 +562,42 @@ export function createRedisGoogleInFlightCoordinator(
       new Promise<void>((resolve) => {
         setTimeout(resolve, delayMs)
       }))
+  async function acquireLease(
+    base: string,
+    binding: string,
+    nowMs: number,
+    nextLeaseId: string,
+  ): Promise<GoogleInFlightResult> {
+    try {
+      const raw = await deps.redis.eval(
+        ACQUIRE_IN_FLIGHT_SCRIPT,
+        2,
+        `${base}:binding`,
+        `${base}:leases`,
+        binding,
+        nowMs,
+        deps.policy.maxInFlight,
+        deps.policy.leaseMs,
+        nextLeaseId,
+      )
+      const reply = coordinationReply(raw)
+      if (!reply.ok) return reply
+      const { outcome, advice } = reply
+      if (outcome === 1) {
+        return {
+          ok: true,
+          lease: Object.freeze({ leaseId: nextLeaseId, expiresAtMs: advice }),
+        }
+      }
+      return {
+        ok: false,
+        code: 'limit_exhausted',
+        retryAfterMs: Math.max(1, Math.ceil(advice)),
+      }
+    } catch {
+      return { ok: false, code: 'coordination_unavailable', retryAfterMs: 0 }
+    }
+  }
   return Object.freeze({
     acquire: async (key, deadlineMs): Promise<GoogleInFlightResult> => {
       const binding = scopeBinding(key, deps.policy.inFlightScope)
@@ -646,61 +624,32 @@ export function createRedisGoogleInFlightCoordinator(
         if (!LEASE_ID.test(nextLeaseId)) {
           return { ok: false, code: 'invalid_request', retryAfterMs: 0 }
         }
+        const result = await acquireLease(base, binding, nowMs, nextLeaseId)
+        if (result.ok || result.code !== 'limit_exhausted') return result
+        // The advice is when the oldest lease LAPSES, an upper bound on the wait
+        // (20-30 seconds in production). A call that finishes releases its slot
+        // long before that, so the caller polls for a release within its wait
+        // budget instead of comparing the lease's lifetime with the budget, and
+        // gives up with the advice once the budget is spent.
+        const retryAfterMs = result.retryAfterMs
+        const remainingWaitMs = Math.min(
+          deps.policy.maxWaitMs - waitedMs,
+          deadlineMs - nowMs,
+        )
+        if (remainingWaitMs <= 0) {
+          return {
+            ok: false,
+            code: deadlineMs - nowMs <= 0 ? 'deadline_exceeded' : 'limit_exhausted',
+            retryAfterMs,
+          }
+        }
+        const delayMs = Math.min(retryAfterMs, remainingWaitMs, IN_FLIGHT_POLL_MS)
         try {
-          const raw = await deps.redis.eval(
-            ACQUIRE_IN_FLIGHT_SCRIPT,
-            2,
-            `${base}:binding`,
-            `${base}:leases`,
-            binding,
-            nowMs,
-            deps.policy.maxInFlight,
-            deps.policy.leaseMs,
-            nextLeaseId,
-          )
-          if (!Array.isArray(raw) || raw.length !== 2) {
-            return { ok: false, code: 'coordination_unavailable', retryAfterMs: 0 }
-          }
-          const outcome = Number(raw[0])
-          const advice = Number(raw[1])
-          if (!Number.isFinite(advice) || advice < 0) {
-            return { ok: false, code: 'coordination_unavailable', retryAfterMs: 0 }
-          }
-          if (outcome === -2) {
-            return { ok: false, code: 'key_collision', retryAfterMs: 0 }
-          }
-          if (outcome === 1) {
-            return {
-              ok: true,
-              lease: Object.freeze({ leaseId: nextLeaseId, expiresAtMs: advice }),
-            }
-          }
-          if (outcome !== 0) {
-            return { ok: false, code: 'coordination_unavailable', retryAfterMs: 0 }
-          }
-          // The advice is when the oldest lease LAPSES, an upper bound on the wait
-          // (20-30 seconds in production). A call that finishes releases its slot
-          // long before that, so the caller polls for a release within its wait
-          // budget instead of comparing the lease's lifetime with the budget, and
-          // gives up with the advice once the budget is spent.
-          const retryAfterMs = Math.max(1, Math.ceil(advice))
-          const remainingWaitMs = Math.min(
-            deps.policy.maxWaitMs - waitedMs,
-            deadlineMs - nowMs,
-          )
-          if (remainingWaitMs <= 0) {
-            return {
-              ok: false,
-              code: deadlineMs - nowMs <= 0 ? 'deadline_exceeded' : 'limit_exhausted',
-              retryAfterMs,
-            }
-          }
-          const delayMs = Math.min(retryAfterMs, remainingWaitMs, IN_FLIGHT_POLL_MS)
           await sleep(delayMs)
-          waitedMs += delayMs
         } catch {
           return { ok: false, code: 'coordination_unavailable', retryAfterMs: 0 }
         }
+        waitedMs += delayMs
       }
     },
     release: async (key, lease: GoogleInFlightLease): Promise<boolean> => {

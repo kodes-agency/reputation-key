@@ -1,6 +1,19 @@
+import { OrganizationReadRegion } from '#/components/features/organization/organization-read-region'
+import { ResponseTargetSettingsCard } from '#/components/features/organization/response-target-settings-card'
+import {
+  GoogleReviewTargetSummary,
+  PrivateFeedbackTargetSummary,
+} from '#/components/features/organization/response-target-analytics-summary'
+import { tenantScope, type TenantScope } from '#/shared/queries/tenant-scope'
+import { useTenantScope } from '#/shared/hooks/useTenantScope'
 import { createFileRoute } from '@tanstack/react-router'
 import { roleUnavailable } from '#/shared/auth/route-notice'
-import { queryOptions, useQueryClient, useSuspenseQuery } from '@tanstack/react-query'
+import {
+  queryOptions,
+  useQuery,
+  useQueryClient,
+  useSuspenseQuery,
+} from '@tanstack/react-query'
 import { PageHeader } from '#/components/layout/page-header'
 import { trailCrumbs } from '#/components/layout/page-identity'
 import { useActionMutation } from '#/components/hooks/use-action-mutation'
@@ -20,13 +33,14 @@ import {
 } from '#/contexts/inbox/server/inbox'
 import { OrganizationSettingsPage } from '#/components/features/organization'
 import { organizationCachePolicy } from '#/components/features/organization/organization-cache-policy'
-import { identityKeys, inboxKeys } from '#/shared/queries/query-keys'
+import { inboxKeys, createKeys } from '#/shared/queries/query-keys'
 
-const activeOrgQuery = queryOptions({
-  queryKey: identityKeys.activeOrg(),
-  queryFn: () => getActiveOrganization(),
-  staleTime: 60_000,
-})
+const activeOrgQuery = (scope: TenantScope) =>
+  queryOptions({
+    queryKey: createKeys(scope).identityKeys.activeOrg(),
+    queryFn: () => getActiveOrganization(),
+    staleTime: 60_000,
+  })
 
 const responseTargetPolicyQuery = queryOptions({
   queryKey: inboxKeys.responseTargetPolicies(),
@@ -55,12 +69,7 @@ export const Route = createFileRoute('/_authenticated/settings/organization')({
     }
   },
   loader: async ({ context }) => {
-    await Promise.all([
-      context.queryClient.ensureQueryData(activeOrgQuery),
-      context.queryClient.ensureQueryData(responseTargetPolicyQuery),
-      context.queryClient.ensureQueryData(privateFeedbackTargetAnalyticsQuery),
-      context.queryClient.ensureQueryData(googleReviewTargetAnalyticsQuery),
-    ])
+    await context.queryClient.ensureQueryData(activeOrgQuery(tenantScope(context)))
   },
   // Organization settings rarely change — refetch only on explicit invalidation.
   staleTime: 60_000,
@@ -68,33 +77,23 @@ export const Route = createFileRoute('/_authenticated/settings/organization')({
 })
 
 function OrganizationSettingsRoute() {
+  const scope = useTenantScope()
   const queryClient = useQueryClient()
-  const { data: orgResult } = useSuspenseQuery(activeOrgQuery)
-  const { data: responseTargetSettings } = useSuspenseQuery(responseTargetPolicyQuery)
-  const { data: privateFeedbackTargetAnalytics } = useSuspenseQuery(
-    privateFeedbackTargetAnalyticsQuery,
-  )
-  const { data: googleReviewTargetAnalytics } = useSuspenseQuery(
-    googleReviewTargetAnalyticsQuery,
-  )
+  const { data: orgResult } = useSuspenseQuery(activeOrgQuery(scope))
   const organization = orgResult.organization
-  const updateResponseTargetPolicy = useActionMutation(setResponseTargetPolicyFn, {
-    successMessage: 'Response target saved',
-    invalidateKeys: [inboxKeys.responseTargetPolicies()],
-  })
   const updateOrganizationAction = useActionMutation(updateOrganization, {
     successMessage: 'Organization saved',
-    onSuccess: () => organizationCachePolicy.onOrganizationUpdated(queryClient),
+    onSuccess: () => organizationCachePolicy.onOrganizationUpdated(queryClient, scope),
   })
   // The logo is an image setting, which says a refusal itself (a toast), so neither
   // of these passes an `errorMessage`; a failure never lands in the identity form's banner.
   const removeOrganizationLogo = useActionMutation(updateOrganization, {
     successMessage: 'Logo removed',
-    onSuccess: () => organizationCachePolicy.onOrganizationUpdated(queryClient),
+    onSuccess: () => organizationCachePolicy.onOrganizationUpdated(queryClient, scope),
   })
   const finalizeOrgLogo = useActionMutation(finalizeOrgLogoUpload, {
     successMessage: 'Logo updated',
-    onSuccess: () => organizationCachePolicy.onOrganizationUpdated(queryClient),
+    onSuccess: () => organizationCachePolicy.onOrganizationUpdated(queryClient, scope),
   })
 
   return (
@@ -107,10 +106,7 @@ function OrganizationSettingsRoute() {
       {organization ? (
         <OrganizationSettingsPage
           organization={organization}
-          responseTargetSettings={responseTargetSettings}
-          privateFeedbackTargetAnalytics={privateFeedbackTargetAnalytics}
-          googleReviewTargetAnalytics={googleReviewTargetAnalytics}
-          updateResponseTargetPolicy={updateResponseTargetPolicy}
+          responseTargets={<OrganizationResponseTargets />}
           updateOrganization={updateOrganizationAction}
           removeOrganizationLogo={removeOrganizationLogo}
           requestOrgLogoUploadFn={requestOrgLogoUpload}
@@ -122,5 +118,43 @@ function OrganizationSettingsRoute() {
         </div>
       )}
     </>
+  )
+}
+
+function OrganizationResponseTargets() {
+  const policy = useQuery(responseTargetPolicyQuery)
+  const update = useActionMutation(setResponseTargetPolicyFn, {
+    successMessage: 'Response target saved',
+    invalidateKeys: [inboxKeys.responseTargetPolicies()],
+  })
+  return (
+    <OrganizationReadRegion query={policy} label="response targets">
+      {(settings) => (
+        <ResponseTargetSettingsCard
+          settings={settings}
+          updatePolicy={update}
+          googleReviewSummary={<GoogleResponsePerformance />}
+          privateFeedbackSummary={<PrivateFeedbackPerformance />}
+        />
+      )}
+    </OrganizationReadRegion>
+  )
+}
+
+function GoogleResponsePerformance() {
+  const query = useQuery(googleReviewTargetAnalyticsQuery)
+  return (
+    <OrganizationReadRegion query={query} label="Google review performance">
+      {(analytics) => <GoogleReviewTargetSummary analytics={analytics} />}
+    </OrganizationReadRegion>
+  )
+}
+
+function PrivateFeedbackPerformance() {
+  const query = useQuery(privateFeedbackTargetAnalyticsQuery)
+  return (
+    <OrganizationReadRegion query={query} label="private feedback performance">
+      {(analytics) => <PrivateFeedbackTargetSummary analytics={analytics} />}
+    </OrganizationReadRegion>
   )
 }

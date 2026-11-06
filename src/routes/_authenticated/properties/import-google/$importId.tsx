@@ -1,3 +1,5 @@
+import { tenantScope } from '#/shared/queries/tenant-scope'
+import { useTenantScope } from '#/shared/hooks/useTenantScope'
 import { createFileRoute } from '@tanstack/react-router'
 import { useSuspenseQuery } from '@tanstack/react-query'
 import { importFns, importReplySetupFns } from './-import-fns'
@@ -36,9 +38,13 @@ export const Route = createFileRoute(
   loader: async ({ context, params: { importId } }) => {
     await Promise.all([
       context.queryClient.ensureQueryData(
-        googleImportStatusQuery(importId, importFns.getPropertyImportV2Status),
+        googleImportStatusQuery(
+          tenantScope(context),
+          importId,
+          importFns.getPropertyImportV2Status,
+        ),
       ),
-      context.queryClient.ensureQueryData(googleConnectionsQuery),
+      context.queryClient.ensureQueryData(googleConnectionsQuery(tenantScope(context))),
     ])
   },
   component: ImportProgressPage,
@@ -48,9 +54,15 @@ function ImportProgressPage() {
   const { importId } = Route.useParams()
   const { activeOrganization, user } = Route.useRouteContext()
   const { data: progress } = useSuspenseQuery(
-    googleImportStatusQuery(importId, importFns.getPropertyImportV2Status),
+    googleImportStatusQuery(
+      useTenantScope(),
+      importId,
+      importFns.getPropertyImportV2Status,
+    ),
   )
-  const { data: connectionData } = useSuspenseQuery(googleConnectionsQuery)
+  const { data: connectionData } = useSuspenseQuery(
+    googleConnectionsQuery(useTenantScope()),
+  )
 
   return (
     <PageShell>

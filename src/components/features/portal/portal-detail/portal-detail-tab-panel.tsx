@@ -48,7 +48,7 @@ type SharePanelProps = Pick<
 > &
   PortalLinkIssuance
 
-function SharePanel({
+export function SharePanel({
   portal,
   propertyTimeZone,
   propertyCountryCode,
@@ -106,7 +106,7 @@ function SharePanel({
   )
 }
 
-function AnalyticsPanel({
+export function AnalyticsPanel({
   portal,
   propertyId,
   tokenStatus,
@@ -144,7 +144,7 @@ function AnalyticsPanel({
   )
 }
 
-function HistoryPanel({
+export function HistoryPanel({
   portal,
   propertyTimeZone,
   publicationHistory,

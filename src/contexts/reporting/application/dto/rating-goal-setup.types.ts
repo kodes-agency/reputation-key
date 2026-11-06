@@ -1,9 +1,5 @@
-// Property Google rating goal — what the setup works its plan out from (types only).
-//
-// Rounds 3 and 4 (2026-10-16): the setup opens already answered, worked out on
-// the page from these exact inputs with no server call. The server runs no
-// planning maths for it (PLAN-R4 D18). Averages are integer fractions; no
-// review and no per-review value is here, only Property-level totals.
+// Browser-safe inputs for local setup calculations. Averages are exact integer
+// fractions; only Property totals cross this boundary, never per-review values.
 
 import type { RatingExactAverageSource } from './rating-goal.types'
 

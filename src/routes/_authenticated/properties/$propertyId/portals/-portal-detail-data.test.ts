@@ -41,18 +41,18 @@ vi.mock('#/contexts/portal/server/portal-responsible-managers', () => ({
   listPortalResponsibleManagers: reads.listPortalResponsibleManagers,
 }))
 vi.mock('#/routes/-queries/route-queries', () => ({
-  membersQuery: {
+  membersQuery: () => ({
     queryKey: ['members-test'],
     queryFn: () => reads.listMembers(),
     staleTime: 30_000,
-  },
+  }),
   propertyQuery: (propertyId: string) => ({
     queryKey: ['property-test', propertyId],
     queryFn: () => Promise.resolve({ property: { id: propertyId } }),
   }),
 }))
 
-import { loadPortalWorkspace } from './-portal-detail-data'
+import { loadPortalWorkspace, portalQuery } from './-portal-detail-data'
 
 const PROPERTY = 'property-1'
 const PORTAL = 'portal-1'
@@ -90,7 +90,7 @@ describe('loadPortalWorkspace', () => {
     for (const read of DETAIL_READS) read.mockResolvedValue({ ok: true })
   })
 
-  it('starts the ten reads before the portal list has answered', async () => {
+  it('waits for authorization before starting any portal detail read', async () => {
     // Arrange: a list that stays out until we say so.
     let releaseList: (value: unknown) => void = () => undefined
     reads.listPortals.mockReturnValue(
@@ -103,9 +103,9 @@ describe('loadPortalWorkspace', () => {
     const loading = loadPortalWorkspace(new QueryClient(), PROPERTY, PORTAL)
     await Promise.resolve()
 
-    // Assert: every read is in flight while the list is still pending.
+    // No detail endpoint may probe a portal outside the authorized collection.
     expect(reads.listPortals).toHaveBeenCalledOnce()
-    for (const read of DETAIL_READS) expect(read).toHaveBeenCalledOnce()
+    for (const read of DETAIL_READS) expect(read).not.toHaveBeenCalled()
     releaseList(listing([PORTAL]))
     await loading
   })
@@ -115,7 +115,9 @@ describe('loadPortalWorkspace', () => {
 
     await loadPortalWorkspace(queryClient, PROPERTY, PORTAL)
 
-    expect(queryClient.getQueryData(['members-test'])).toEqual({ ok: true })
+    expect(queryClient.getQueryData(portalQuery(PORTAL).queryKey)).toEqual({ ok: true })
+    expect(reads.getPortal).toHaveBeenCalledOnce()
+    expect(queryClient.getQueryData(['members-test'])).toBeUndefined()
   })
 
   it('says not found for a portal that is absent, even when other reads failed', async () => {
@@ -127,6 +129,7 @@ describe('loadPortalWorkspace', () => {
 
     // No read's failure tells a portal of another property from a removed one.
     expect(isNotFound(error)).toBe(true)
+    for (const read of DETAIL_READS) expect(read).not.toHaveBeenCalled()
   })
 
   it('refetches the list once before concluding the portal is gone', async () => {
@@ -148,14 +151,24 @@ describe('loadPortalWorkspace', () => {
     ).resolves.toBeUndefined()
   })
 
-  it('rethrows the first failed read for a portal that is there', async () => {
+  it('resolves entry without starting ancillary reads that would reject', async () => {
     const first = new Error('links failed')
     reads.listPortalLinks.mockRejectedValue(first)
     reads.getPortalLinktree.mockRejectedValue(new Error('linktree failed'))
 
     const error = await caught(loadPortalWorkspace(new QueryClient(), PROPERTY, PORTAL))
 
-    expect(error).toBe(first)
+    expect(error).toBeUndefined()
+    expect(reads.listPortalLinks).not.toHaveBeenCalled()
+    expect(reads.getPortalLinktree).not.toHaveBeenCalled()
+  })
+
+  it('preserves the detail failure after authorization', async () => {
+    const failure = new Error('detail failed')
+    reads.getPortal.mockRejectedValue(failure)
+    expect(await caught(loadPortalWorkspace(new QueryClient(), PROPERTY, PORTAL))).toBe(
+      failure,
+    )
   })
 
   it('rethrows the list failing, not not-found', async () => {
@@ -167,7 +180,7 @@ describe('loadPortalWorkspace', () => {
     expect(error).toBe(failure)
   })
 
-  it('waits for every read before it settles, so none is left unobserved', async () => {
+  it('resolves entry without waiting for pending ancillary reads', async () => {
     let finished = false
     reads.getPortalLinktree.mockImplementation(
       () =>
@@ -182,6 +195,7 @@ describe('loadPortalWorkspace', () => {
 
     await caught(loadPortalWorkspace(new QueryClient(), PROPERTY, PORTAL))
 
-    expect(finished).toBe(true)
+    expect(finished).toBe(false)
+    expect(reads.getPortalLinktree).not.toHaveBeenCalled()
   })
 })

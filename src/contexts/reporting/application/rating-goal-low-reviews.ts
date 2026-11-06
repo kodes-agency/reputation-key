@@ -1,16 +1,7 @@
-// Property Google rating goal — the detail's per-review rows (round 5, PLAN-D
-// D-2b; the owner's exception, ADR 0067 2026-10-17).
-//
-// "What happened" names the low reviews since the set with the new reviews
-// each one set the goal back (domain/rating-goal-setback.ts), and says this
-// week's stars. Both are read live for the goal's managers and kept nowhere.
-// The rows still carry Review's id here: the server function turns it into
-// the Inbox item that opens it and drops it (rating-goal-inbox-links.server.ts),
-// so the browser never sees a review id.
-//
-// A keep goal has no plan to set back, and a goal the read found reached or
-// ended looks ahead no more: neither reads low reviews, nor does a goal
-// without Google's numbers (no count to measure a setback against).
+// Low reviews and this week's stars are read live for goal managers and not stored
+// (ADR 0067). The server replaces Review ids with Inbox links before responding.
+// Keep, reached and ended goals need no setback; neither does a goal without
+// Google's numbers, since there is no count to measure a setback against.
 
 import type {
   GoogleRatingLowReview,

@@ -1,11 +1,5 @@
 import { useState } from 'react'
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '#/components/ui/select'
+import { RangeControl } from '#/components/ui/range-control'
 import { SectionTitle } from '#/components/ui/section-title'
 import { FormErrorBanner } from '#/components/forms/form-error-banner'
 import { MetricStrip, Metric, MetricValue } from '#/components/ui/metric-strip'
@@ -63,24 +57,13 @@ export function StaffPersonResults({
     <section className="space-y-3" aria-label="Results">
       <div className="flex items-center justify-between gap-3">
         <SectionTitle>Results</SectionTitle>
-        <Select
+        <RangeControl
+          variant="select"
+          label="Period"
           value={period}
-          onValueChange={(value) => {
-            const next = PERIODS.find((option) => option.value === value)
-            if (next) setPeriod(next.value)
-          }}
-        >
-          <SelectTrigger aria-label="Period">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            {PERIODS.map((option) => (
-              <SelectItem key={option.value} value={option.value}>
-                {option.label}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+          onValueChange={setPeriod}
+          options={PERIODS}
+        />
       </div>
       <FormErrorBanner error={results.error} />
       <MetricStrip aria-label="Results" variant="boxed">

@@ -1,8 +1,6 @@
-// Server-only request plumbing for the Property Google rating goal server
-// functions (rating-goals.ts). It reaches the composition root and the
-// server-only error throwers, so it lives in a *.server.ts module, as the Goal
-// Program plumbing does; called only inside handler bodies, the import is
-// stripped from the client with them.
+// Keep composition and error helpers server-only, imported only inside RPC
+// handlers so the client transform strips them.
+
 import { getContainer } from '#/composition'
 import { headersFromContext } from '#/shared/auth/headers'
 import { resolveTenantContext } from '#/shared/auth/middleware'

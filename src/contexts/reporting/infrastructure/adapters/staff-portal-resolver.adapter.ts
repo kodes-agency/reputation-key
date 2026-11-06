@@ -1,4 +1,3 @@
-// Dashboard context — staff portal resolver adapter
 // Delegates to staff context's public API to resolve assigned portals.
 // Per ADR-0007: dashboard facade ports are implemented by adapters that
 // delegate to other contexts' public APIs.

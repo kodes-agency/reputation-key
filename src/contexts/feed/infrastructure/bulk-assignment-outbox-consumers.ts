@@ -108,7 +108,7 @@ type RecipientGroup = Omit<NoticeGroup, 'type'>
 /** Transitions grouped by recipient and Property, in canonical (item id) order. */
 const groupBy = (
   transitions: ReadonlyArray<Transition>,
-  recipientOf: (transition: Transition) => string,
+  recipientOf: (transition: Transition) => string | null,
 ): ReadonlyArray<RecipientGroup> => {
   const groups = new Map<
     string,
@@ -116,6 +116,7 @@ const groupBy = (
   >()
   for (const transition of transitions) {
     const recipient = recipientOf(transition)
+    if (recipient === null) continue
     const key = `${recipient}\u0000${transition.propertyId}`
     const group = groups.get(key) ?? {
       recipient,
@@ -148,15 +149,11 @@ const noticeGroups = (payload: Payload): ReadonlyArray<NoticeGroup> => {
           ...group,
           type: 'inbox.bulk_assigned' as const,
         }))
-  const displaced = payload.transitions.filter(
-    (transition) =>
-      transition.previousAssignee !== null &&
-      transition.previousAssignee !== payload.userId &&
-      transition.previousAssignee !== nextAssignee,
-  )
-  const unassigned = groupBy(displaced, (transition) => transition.previousAssignee!).map(
-    (group) => ({ ...group, type: 'inbox.bulk_unassigned' as const }),
-  )
+  const unassigned = groupBy(payload.transitions, ({ previousAssignee }) =>
+    previousAssignee !== payload.userId && previousAssignee !== nextAssignee
+      ? previousAssignee
+      : null,
+  ).map((group) => ({ ...group, type: 'inbox.bulk_unassigned' as const }))
   return [...assigned, ...unassigned]
 }
 

@@ -44,11 +44,13 @@ import {
 } from '#/shared/auth/execution-policy'
 import type { ConsumerEvent } from '#/shared/outbox/envelope'
 import { getLogger } from '#/shared/observability/logger'
-import { GateDenyRetryError, JobTimeoutError, UnknownJobError } from './errors'
+import { GateDenyRetryError, UnknownJobError } from './errors'
 import type { GateDeniedExecutionKind, GateDeniedResult } from './gate-denial'
 import { jobTimeoutMs } from './job-policy'
 import type { JobRegistry } from './registry'
+import type { WorkItems } from './work-items.server'
 import { executionKindOf } from './schedule-firing'
+import { runJobWithDeadline } from './job-deadline.server'
 
 /**
  * Sentinel organization for tenant_cross/none-scope work that has no org at
@@ -118,7 +120,11 @@ export type GateOutcome =
   | Readonly<{ kind: 'deny_terminal'; decision: DelayedDecision }>
   | Readonly<{ kind: 'deny_retry'; decision: DelayedDecision }>
 
-/** Resolves dispatch-time scope not carried in the payload (e.g. reply → property). */
+/**
+ * Resolves property scope (e.g. reply → property). Ledger dispatches supply
+ * the authoritative organizationId and subjectId with workId instead of
+ * domain payload fields; adopters resolve that subject within its tenant.
+ */
 export type ScopeResolver = (
   jobName: string,
   data: unknown,
@@ -372,33 +378,6 @@ export async function gateDispatcherConsumer(
 // ── Gated worker dispatch ────────────────────────────────────────────
 
 /**
- * BQC-3.6: enforce the catalogue-declared job timeout. BullMQ v5 removed the
- * job-level `timeout` option, so the race lives here. The handler promise is
- * NOT cancelled on timeout (no AbortController threading) — handlers must
- * stay idempotent under a retry that races a zombie execution.
- */
-async function withJobTimeout<TResult>(
-  jobName: string,
-  timeoutMs: number,
-  work: Promise<TResult>,
-): Promise<TResult> {
-  let timer: ReturnType<typeof setTimeout> | undefined
-  try {
-    return await Promise.race([
-      work,
-      new Promise<never>((_, reject) => {
-        timer = setTimeout(
-          () => reject(new JobTimeoutError(jobName, timeoutMs)),
-          timeoutMs,
-        )
-      }),
-    ])
-  } finally {
-    clearTimeout(timer)
-  }
-}
-
-/**
  * Log a terminal denial and build the result BullMQ keeps for the completed
  * job. Every schedule row is enumeration-only (tenant-cross or unscoped), so a
  * denied firing is a catalogue or configuration defect, not a kill switch: the
@@ -429,14 +408,15 @@ function terminalDenial(
  * The dispatch closure shared by the default/background BullMQ workers.
  * Replaces the duplicated inline closures in src/worker/index.ts.
  *
- * Enforcement order: registry lookup → schedule classification → 3.2 policy
- * gate (gateJob) → handler.
+ * Enforcement order: registry lookup → ledger scope → schedule classification
+ * → policy gate (gateJob) → handler.
  */
 export function createGatedJobHandler(
   queueLabel: string,
   registry: JobRegistry,
   resolveScope?: ScopeResolver,
   timeoutForJob: (jobName: string) => number = jobTimeoutMs,
+  resolveWorkDispatch?: WorkItems['resolveDispatch'],
 ): (job: Job) => Promise<unknown> {
   const logger = getLogger()
   return async (job: Job) => {
@@ -453,16 +433,36 @@ export function createGatedJobHandler(
       )
       throw new UnknownJobError(job.name, job.id)
     }
+    let policyData: unknown = job.data
+    if (isRecord(job.data) && Object.hasOwn(job.data, 'workId')) {
+      const workId = job.data.workId
+      const work =
+        typeof workId === 'string' && workId.length > 0
+          ? await resolveWorkDispatch?.(workId)
+          : undefined
+      if (!work || work.kind !== job.name) {
+        throw new Error('Work dispatch unavailable')
+      }
+      // Queue scope is not authority for ledger work. Keep the original
+      // IDs-only job for the handler, which claims only after authorization.
+      policyData = {
+        workId,
+        organizationId: work.organizationId,
+        subjectId: work.subjectId,
+      }
+    }
     const executionKind = executionKindOf(job)
     const outcome = await gateJob(
       job.name,
-      job.data,
+      policyData,
       executionKind === 'schedule' ? `schedule:${job.name}` : `worker:${queueLabel}`,
       executionKind,
       resolveScope,
     )
     if (outcome.kind === 'allow') {
-      return withJobTimeout(job.name, timeoutForJob(job.name), handler(job))
+      return runJobWithDeadline(job.name, timeoutForJob(job.name), (signal) =>
+        handler(job, signal),
+      )
     }
     if (outcome.kind === 'deny_terminal') {
       return terminalDenial(logger, job.name, outcome.decision, executionKind)

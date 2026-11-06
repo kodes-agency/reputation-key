@@ -1,11 +1,6 @@
-// Property Google rating goal — what the detail page draws (pure).
-//
-// 2026-11-01 (ADR 0067): the line to the goal (the exact average over time from
-// Review's week-end averages, a line for each tenth, the day the goal was set and
-// Google's own moves), the new reviews of each week, the pace before the goal and
-// the rows of "What happened" that carry no per-review value. Days are whole
-// Property-local days from today; star values thousandths, half up. A partial
-// cache draws no history: the line would be the cache's, not Google's.
+// Build the detail's line, weekly counts and content-free history (ADR 0067).
+// Use whole Property-local days and thousandths of a star, rounded half up.
+// A partial cache draws no history because it cannot represent Google's average.
 
 import type {
   GoogleRatingHistory,

@@ -84,8 +84,8 @@ function PortalNoLongerAvailable() {
 
 /**
  * The workspace layout: header, tab strip and one scrolling body, with the
- * editor (`index`) or the review page (`review`) rendered inside it. Every read
- * the header needs was seeded by the loader, so these resolve from cache.
+ * editor (`index`) or the review page (`review`) rendered inside it. Ancillary
+ * header and tab reads have local loading and failure states.
  */
 function PortalWorkspaceLayout() {
   const { propertyId, portalId } = Route.useParams()

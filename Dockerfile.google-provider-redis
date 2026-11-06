@@ -19,7 +19,9 @@ FROM redis:7.4.11-alpine@sha256:520775a41a63e77e06c73e35d2fd9cc15921a60951681879
 # TLS it serves, not only the scan. Exact so the build FAILS if the mirror stops
 # carrying r2 rather than silently drifting. Drop this RUN when re-pinning to an
 # upstream build that ships r2 or newer.
-RUN apk add --no-cache libssl3=3.3.7-r2 libcrypto3=3.3.7-r2
+# musl 1.2.5-r12 (Alpine v3.21, 2026-11-06) closes CVE-2026-107891 (High)
+# against the r11 in the same build; exact for the same reason.
+RUN apk add --no-cache libssl3=3.3.7-r2 libcrypto3=3.3.7-r2 musl=1.2.5-r12 musl-utils=1.2.5-r12
 
 ARG SOURCE_REVISION
 ENV IMAGE_SOURCE_REVISION=$SOURCE_REVISION

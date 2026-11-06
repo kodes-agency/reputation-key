@@ -30,6 +30,7 @@ type Props<T extends string> = Readonly<{
   options: ReadonlyArray<RangeOption<T>>
   /** The control's name, at any width. */
   label?: string
+  variant?: 'responsive' | 'select'
 }>
 
 export const RANGE_CONTROL_LABEL = 'Time range'
@@ -39,6 +40,7 @@ export function RangeControl<T extends string>({
   onValueChange,
   options,
   label = RANGE_CONTROL_LABEL,
+  variant = 'responsive',
 }: Props<T>) {
   // The options are the only source of a value, so a value that is not one of
   // them (a stale event) is dropped here rather than cast to T.
@@ -46,24 +48,31 @@ export function RangeControl<T extends string>({
     const option = options.find((candidate) => candidate.value === next)
     if (option) onValueChange(option.value)
   }
+  const select = (
+    <Select value={value} onValueChange={choose}>
+      <SelectTrigger
+        aria-label={label}
+        className={variant === 'responsive' ? 'min-w-32' : undefined}
+      >
+        <SelectValue>
+          {options.find((option) => option.value === value)?.label}
+        </SelectValue>
+      </SelectTrigger>
+      <SelectContent>
+        <SelectGroup>
+          {options.map((option) => (
+            <SelectItem key={option.value} value={option.value}>
+              {option.label}
+            </SelectItem>
+          ))}
+        </SelectGroup>
+      </SelectContent>
+    </Select>
+  )
+  if (variant === 'select') return select
   return (
     <>
-      <div className="sm:hidden">
-        <Select value={value} onValueChange={choose}>
-          <SelectTrigger aria-label={label} className="min-w-32">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectGroup>
-              {options.map((option) => (
-                <SelectItem key={option.value} value={option.value}>
-                  {option.label}
-                </SelectItem>
-              ))}
-            </SelectGroup>
-          </SelectContent>
-        </Select>
-      </div>
+      <div className="sm:hidden">{select}</div>
       <SegmentedControl
         aria-label={label}
         value={value}

@@ -138,6 +138,8 @@ export type NotificationRepositoryPort = Readonly<{
       categories?: ReadonlyArray<NotificationCategory> | null
       /** Only rows still waiting in the app, never an email-only anchor. */
       inAppOnly?: boolean
+      /** A moved assignment must not retire work assigned again after this fact. */
+      supersededByEventId?: string
       resourceId: string
       resolvedAt: Date
     }>,

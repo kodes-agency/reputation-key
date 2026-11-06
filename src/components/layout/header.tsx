@@ -71,11 +71,8 @@ export function Header({
 }: Readonly<{ onSignOut: () => void; notificationFns: NotificationServerFns }>) {
   const { data: session } = authClient.useSession()
   const isLoggedIn = !!session?.user
-  // The bell used to mount without an organizationId, so it fell back to the
-  // literal 'no-active-organization' sentinel and a signed-in user on a public
-  // route read and wrote a DIFFERENT cache namespace than the app shell — two
-  // unread counts for one user. Better Auth carries the active org on the
-  // session, which is the same value _authenticated.tsx passes to AppTopBar.
+  // Public pages need session identity even when their route context has none.
+  // The active Organization keeps this bell in the manager shell's cache scope.
   const organizationId = session?.session.activeOrganizationId ?? null
   return (
     <header className="sticky top-0 z-50 border-b border-border bg-surface/80 px-4 backdrop-blur-lg">
@@ -97,8 +94,9 @@ export function Header({
           )}
         </div>
         <div className="flex items-center gap-2">
-          {isLoggedIn && organizationId !== null && (
+          {session?.user && organizationId !== null && (
             <NotificationPanel
+              scope={{ userId: session.user.id, organizationId }}
               notificationFns={notificationFns}
               organizationId={organizationId}
             />

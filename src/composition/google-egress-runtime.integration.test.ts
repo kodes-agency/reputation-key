@@ -1,5 +1,5 @@
 // A GBP notification call through the whole in-process Google egress runtime:
-// the permit in Postgres, quota / in-flight / grant coordination in Redis, the
+// the permit in Postgres, quota / in-flight coordination in Redis, the
 // start_google_execution_permit SQL gate, and the gateway's own fetch.
 //
 // Regression for 2026-09-29 on closed-beta-v2. Both provider calls of the
@@ -50,7 +50,6 @@ const CONNECTION_ID = '8e000000-0000-4000-8000-0000000000a1'
 const PROPERTY_ID = '8f000000-0000-4000-8000-0000000000a1'
 const ACCOUNT_ID = GOOGLE_REVIEW_PRIMARY_SEGMENTS.accountId
 const PROJECT_FINGERPRINT = 'b'.repeat(64)
-const GATEWAY_IDENTITY = 'google-egress-runtime-1'
 const TOPIC = 'projects/repkey-project/topics/gbp-notifications'
 
 type SystemPrincipal = Readonly<{ name: string; digest: string }>
@@ -115,9 +114,7 @@ function runtime() {
     pool,
     redis,
     nowMs: () => Date.now(),
-    gatewayIdentity: GATEWAY_IDENTITY,
     credentialBindingKeys: `v1:${'11'.repeat(32)}`,
-    grantKeys: `v1:${'22'.repeat(32)}`,
     logger: { warn: () => undefined },
   })
 }
