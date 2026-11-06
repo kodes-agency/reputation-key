@@ -1,35 +1,5 @@
-// The outbox's delivery contract at its crash boundaries (PRE17A A3).
-//
-// A fact commits with its state, is published at least once and is applied
-// once. This file runs the production relay and dispatcher over a fake
-// repository and a fake queue and breaks each hand-over that needs neither
-// PostgreSQL nor Redis: boundaries 2, 3 and 5 below. The others need a real
-// transaction or a real queue and are held where one runs.
-//
-//   1. Crash before the business commit: no state and no outbox row.
-//      Each context's command store suite, against PostgreSQL: a failed fact
-//      insert rolls the state back (`reply-command-store.test.ts`,
-//      `inbox-command-store.test.ts`, `identity-command-store.test.ts`, …).
-//   2. After the commit, before the queue add: the row stays unpublished and
-//      the next poll adds it. Here, and `relay.test.ts`.
-//   3. After the queue add, before `published_at`: the relay adds the fact
-//      again under its own id, so the queue still holds one job. Here.
-//   4. Consumer state change before its receipt commits: both roll back.
-//      `inbox-command-store.test.ts` ("rolls back item + fact when the receipt
-//      insert fails"), against PostgreSQL.
-//   5. After the consumer commit, before the acknowledgement: the redelivered
-//      job finds the receipt and applies nothing. Here, and end to end in
-//      `infrastructure/repositories/durable-cutover.test.ts`.
-//   6. Worker killed during a handler: redelivery is BullMQ's stalled-job
-//      recovery, which this repository does not test. What it owns is that a
-//      redelivered job is safe (5) and that a published fact still missing a
-//      receipt is dispatched again (`published-event-redelivery.integration.test.ts`).
-//   7. Redis unavailable: the command commits regardless (1), nothing is
-//      marked published (2, and `relay.test.ts` with no queue at all), and the
-//      row waits for a poll that reaches the queue.
-//
-// The schema-registry, registration and envelope cases at the top are the
-// contracts those hand-overs rest on.
+// Source state and facts commit together; delivery admission commits before
+// enqueue. Consumer receipts prevent duplicate effects after acknowledgement loss.
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 import type { Job, Queue } from 'bullmq'
@@ -46,6 +16,7 @@ import { createConsumerRegistry, type ConsumerRegistry } from './consumer-regist
 import { createDispatcherHandler } from './dispatcher'
 import { buildConsumerEvent, parseConsumerEvent } from './envelope'
 import { createOutboxRelay } from './relay'
+import { reconcileWorkItems } from '#/shared/jobs/work-items.server'
 import { z, ZodError } from 'zod/v4'
 import type {
   OutboxRepository,
@@ -89,20 +60,33 @@ function committedFact(id = 'evt-001'): UnpublishedEvent {
   }
 }
 
-/**
- * `outbox_events` and `event_consumer_receipts` as the relay and dispatcher
- * see them: a row is claimed again on every poll until it is marked published,
- * and a receipt, once written, is found by every later delivery.
- */
+/** Facts and durable admission are committed before the queue is called. */
 function fakeOutbox(rows: readonly UnpublishedEvent[]) {
   const published = new Set<string>()
   const receipts = new Set<string>()
+  const admitted = new Map<
+    string,
+    { id: string; kind: string; dispatchSequence: number }
+  >()
+  const schedulePending = vi.fn(async () => {
+    const pending = rows.filter((row) => !published.has(row.id))
+    for (const row of pending) {
+      published.add(row.id)
+      admitted.set(row.id, {
+        id: `work-${row.id}`,
+        kind: 'outbox-delivery',
+        dispatchSequence: 1,
+      })
+    }
+    return pending.map((row) => ({
+      id: `work-${row.id}`,
+      subjectId: row.id,
+      organizationId: row.organizationId,
+      eventType: row.eventType,
+    }))
+  })
   const repo = {
-    claimUnpublished: vi.fn(async () => rows.filter((row) => !published.has(row.id))),
-    markPublished: vi.fn(async (id: string) => {
-      published.add(id)
-    }),
-    renewLease: vi.fn(async (ids: readonly string[]) => ids.length),
+    delivery: { schedulePending },
     hasReceipt: vi.fn(async (eventId: string, consumer: string) =>
       receipts.has(`${eventId}:${consumer}`),
     ),
@@ -112,7 +96,8 @@ function fakeOutbox(rows: readonly UnpublishedEvent[]) {
   }
   return {
     repo: repo as unknown as OutboxRepository,
-    markPublished: repo.markPublished,
+    schedulePending,
+    admitted,
     published,
     receipts,
   }
@@ -253,40 +238,50 @@ describe('outbox crash boundaries', () => {
   })
 
   describe('crash boundaries held without a database or Redis', () => {
-    it('keeps a fact unpublished when the queue add fails, and the next poll adds it (boundary 2)', async () => {
-      const outbox = fakeOutbox([committedFact()])
-      const { queue, add, jobIds } = fakeQueue()
-      add.mockRejectedValueOnce(new Error('redis unavailable'))
-      const relay = createOutboxRelay(outbox.repo, queue, { relayId: 'relay-test' })
-
-      await relay.poll()
-
-      // The add failed, so nothing may say the fact was handed over.
-      expect(jobIds).toEqual([])
-      expect([...outbox.published]).toEqual([])
-
-      await relay.poll()
-
-      expect(jobIds).toEqual(['evt-001'])
-      expect([...outbox.published]).toEqual(['evt-001'])
-    })
-
-    it('adds a fact again under its own id when the crash fell before published_at (boundary 3)', async () => {
+    it('retries admission after a crash before the ledger commits', async () => {
       const outbox = fakeOutbox([committedFact()])
       const { queue, jobIds } = fakeQueue()
-      outbox.markPublished.mockRejectedValueOnce(new Error('connection lost'))
-      const relay = createOutboxRelay(outbox.repo, queue, { relayId: 'relay-test' })
+      outbox.schedulePending.mockRejectedValueOnce(new Error('connection lost'))
+      const relay = createOutboxRelay(outbox.repo, queue)
 
-      // The queue has the job; the row could not be marked.
       await expect(relay.poll()).rejects.toThrow('connection lost')
+      expect(jobIds).toEqual([])
       expect([...outbox.published]).toEqual([])
+      expect(outbox.admitted.size).toBe(0)
 
       await relay.poll()
 
-      // Same job id both times: BullMQ keeps one job per id, so the second add
-      // is the queue's no-op and not a second delivery.
-      expect(jobIds).toEqual(['evt-001', 'evt-001'])
+      expect(jobIds).toEqual(['work-evt-001-initial'])
       expect([...outbox.published]).toEqual(['evt-001'])
+      expect(outbox.admitted.size).toBe(1)
+    })
+
+    it('recovers committed admission when the process loses its enqueue acknowledgement', async () => {
+      const outbox = fakeOutbox([committedFact()])
+      const { queue, add, jobIds } = fakeQueue()
+      add.mockRejectedValueOnce(new Error('acknowledgement lost'))
+      const relay = createOutboxRelay(outbox.repo, queue)
+
+      await relay.poll()
+
+      expect(jobIds).toEqual([])
+      expect([...outbox.published]).toEqual(['evt-001'])
+      expect(outbox.admitted.size).toBe(1)
+      // An ordinary admission poll cannot create a second work item. The
+      // independent ledger reconciler repairs a lost or failed queue add.
+      await relay.poll()
+      expect(outbox.schedulePending).toHaveBeenCalledTimes(2)
+      const recovered = await reconcileWorkItems({
+        reserveDispatch: async () => [...outbox.admitted.values()],
+        enqueue: async (_kind, data, jobId) => {
+          expect(data).toEqual({ workId: 'work-evt-001' })
+          return queue.add(TEST_EVENT_TYPE, data, { jobId })
+        },
+      })
+
+      expect(recovered).toEqual({ queued: 1, failed: 0 })
+      expect(jobIds).toEqual(['work-evt-001-1'])
+      expect(outbox.admitted.size).toBe(1)
     })
 
     it('applies nothing when a job is delivered again after its consumer committed (boundary 5)', async () => {

@@ -340,6 +340,18 @@ It enqueues no sync. For each Property with a review whose content expires withi
 
 **Alert:** `queue.quarantine-nonempty` (P1) — a job has been sitting in the `quarantine` queue for more than 15 minutes. `queue.quarantine-growth` (P2, §4) is the same condition aged past the 24-hour operator redrive SLA.
 
+The same alerts cover quarantined outbox delivery in PostgreSQL, including a
+worker killed on its final attempt without writing a Redis dead letter. The
+operations snapshot exposes these records separately as
+`quarantine.workItems.count` and `quarantine.workItems.oldestAgeMs`; queue
+metrics still describe Redis only. A delivery can have a record in both stores,
+so alert counts describe records rather than distinct deliveries. Durable work
+and unresolved facts survive the Redis quarantine TTL. After fixing the cause,
+inspect and retry the ledger through `pnpm ops work` with its Organization and
+work ID, operator and reason; retry is a dry run until `--apply`. A Redis
+redrive alone cannot reopen an exhausted ledger budget. Confirm the durable
+count clears after settlement as well as checking the Redis queue.
+
 **What it means:** the quarantine is a dead-letter queue with **no consumer** — nothing drains it, and the daily `quarantine-ttl-sweep` DELETES entries after `QUARANTINE_TTL_DAYS` (default 30d). A job that lands there is lost work that no retry will ever pick up. If it was a review sync, a notification fan-out, or a reply publication, that unit of work simply never happened and nobody was told. Fifteen minutes is three health-check evaluation cadences: long enough that an operator actively redriving right now does not trip it, short enough that the loss is still recoverable.
 
 Only on-demand work lands here. A schedule firing is never dead-lettered: every schedule is enumeration-only, so its next firing repeats the whole pass and nothing is lost, and there is no unit of work to redrive. A firing that fails past its retry budget is logged (`job failed` at error level, then `terminal schedule firing failure — not dead-lettered, the next firing repeats the pass` as a warning), captured in error monitoring, kept in BullMQ's retained failed set, and shown as `repair_required` on its family's job-runtime row until a later success, for as long as the family is active with a schedule; the row's `lastScheduleFailureAt` and `failedCount` keep the record after that (§17). A manual run of a scheduled family (`pnpm ops refresh`, `pnpm ops purge`) is on-demand work and lands here like any other.

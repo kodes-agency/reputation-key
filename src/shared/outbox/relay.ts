@@ -1,154 +1,58 @@
-// Outbox relay — polls for unpublished events and publishes to BullMQ (PRE17A A3).
-//
-// The relay runs on a schedule, claims a batch of unpublished events using
-// SKIP LOCKED, publishes each to the 'domain-events' BullMQ queue with the
-// event UUID as the job ID (for deduplication), and marks them as published.
-//
-// BQC-3.7 hardening:
-//   - Lease renewal: every LEASE_RENEW_EVERY published events the relay
-//     renews the lease on the unprocessed remainder, so a slow batch cannot
-//     lose its lease mid-publish (double-publish race; jobId dedup + receipts
-//     were the only guard before).
-//   - Host-scoped identity: relay-<hostname>-<pid> (pid-only is useless
-//     across hosts/containers).
-//   - Dispatch retry policy: enqueued jobs carry attempts + exponential
-//     backoff so a first-failure dispatch retries, then quarantines via
-//     BQC-3.6 (previously neither retried nor quarantined).
-//   - NO payload pre-validation: the dispatcher is the single validation
-//     authority (its 3.6 UnrecoverableError quarantines poison events).
-//     Relay-side validation made a failing row un-enqueueable, so it was
-//     re-claimed every poll forever — a poison busy loop.
-//
-// "Job already exists" is treated as accepted — the event was published
-// but the markPublished call failed. The receipt in the consumer ensures
-// idempotent processing regardless.
-
-import { hostname } from 'node:os'
+// Admit facts into PostgreSQL work before touching Redis. Lost queue jobs are
+// recovered by the independent work reconciler; enqueueing spends no attempt.
 import type { Queue } from 'bullmq'
-import {
-  DEFAULT_LEASE_DURATION_MS,
-  type OutboxRepository,
-  type UnpublishedEvent,
+import type {
+  DurableConsumerExpectation,
+  OutboxRepository,
 } from './infrastructure/outbox-repository'
-import { buildConsumerEvent } from './envelope'
-import { dispatchJobAddOptions } from './dispatch-job-options'
+import { deliveryWorkJobOptions } from './dispatch-job-options'
 import { getLogger } from '#/shared/observability/logger'
 import { trace } from '#/shared/observability/trace'
 
 export type OutboxRelay = Readonly<{
-  /** Poll once: claim, publish, mark. Called on a schedule. */
   poll: () => Promise<void>
-  /** Start polling on an interval. Returns a stop function. */
   start: (intervalMs: number) => () => Promise<void>
 }>
 
 export type RelayConfig = Readonly<{
-  /** Max events to claim per poll cycle. */
   batchSize: number
-  /** How long to lease an event before another relay can reclaim it. */
-  leaseDurationMs: number
-  /** Identifier for this relay instance (for lease ownership). */
-  relayId: string
+  consumerExpectations?: readonly DurableConsumerExpectation[]
 }>
-
-/** Renew the lease on the unprocessed remainder after this many publishes. */
-const LEASE_RENEW_EVERY = 10
-
-const DEFAULT_CONFIG: RelayConfig = {
-  batchSize: 50,
-  leaseDurationMs: DEFAULT_LEASE_DURATION_MS,
-  relayId: `relay-${hostname()}-${process.pid}`,
-}
 
 export function createOutboxRelay(
   repo: OutboxRepository,
-  queue: Queue | undefined,
+  queue: Pick<Queue, 'add'> | undefined,
   config: Partial<RelayConfig> = {},
 ): OutboxRelay {
-  const cfg = { ...DEFAULT_CONFIG, ...config }
+  const cfg = { batchSize: 50, ...config }
   const logger = getLogger()
-
-  async function publishEvent(event: UnpublishedEvent): Promise<boolean> {
-    if (!queue) {
-      logger.warn(
-        { eventType: event.eventType },
-        'No domain-events queue — skipping publish',
-      )
-      return false
-    }
-
-    try {
-      // BQC-3.7: no payload validation here — the dispatcher validates (and
-      // quarantines poison via 3.6 UnrecoverableError). The envelope carries
-      // the stored payload plus envelope-grade metadata from the row.
-      const envelope = buildConsumerEvent(event)
-
-      // Use the event UUID as the BullMQ job ID for deduplication.
-      // If the job already exists (re-publish after a crash), BullMQ
-      // returns the existing job — treat as accepted.
-      await queue.add(event.eventType, envelope, dispatchJobAddOptions(event))
-
-      return true
-    } catch (err) {
-      // Redis failure — the lease expires and the row is reclaimed (jobId
-      // dedup + receipts make the re-publish safe).
-      logger.error(
-        { err, eventType: event.eventType },
-        'Failed to publish outbox event to BullMQ',
-      )
-      return false
-    }
-  }
-
-  /** Renew the lease on the unprocessed remainder; failure is tolerated. */
-  async function renewRemainingLease(
-    remaining: readonly UnpublishedEvent[],
-  ): Promise<void> {
-    try {
-      await repo.renewLease(
-        remaining.map((e) => e.id),
-        cfg.relayId,
-        cfg.leaseDurationMs,
-      )
-    } catch (err) {
-      // A failed renewal is not fatal: worst case the lease expires and the
-      // rows are reclaimed (enqueue dedups on jobId, receipts dedup effects).
-      logger.warn({ err, count: remaining.length }, 'Outbox lease renewal failed')
-    }
-  }
-
-  /** One claim-and-publish round. Returns how many rows it claimed. */
   const claimAndPublish = (): Promise<number> =>
     trace('outbox.relay.poll', async () => {
-      const events = await repo.claimUnpublished(
+      const work = await repo.delivery.schedulePending(
         cfg.batchSize,
-        cfg.relayId,
-        cfg.leaseDurationMs,
+        cfg.consumerExpectations,
       )
-
-      if (events.length === 0) return 0
-
-      logger.info({ count: events.length }, 'Relay claimed outbox events')
-
-      for (let i = 0; i < events.length; i++) {
-        if (i > 0 && i % LEASE_RENEW_EVERY === 0) {
-          await renewRemainingLease(events.slice(i))
+      for (const item of work) {
+        if (!queue) continue
+        try {
+          await queue.add(
+            item.eventType,
+            { workId: item.id },
+            deliveryWorkJobOptions(item.id, item.eventType),
+          )
+        } catch {
+          // Acceptance may be ambiguous. The ledger stays pending either way;
+          // its lease and consumer receipts fence a later dispatch.
+          logger.warn({ eventType: item.eventType }, 'Outbox delivery awaits transport')
         }
-        const published = await publishEvent(events[i]!)
-        if (published) {
-          await repo.markPublished(events[i]!.id)
-        }
-        // If publish failed, the lease will expire and another relay
-        // (or this one on the next poll) will reclaim it.
       }
-      return events.length
+      return work.length
     })
 
   return {
     poll: async () => {
       await claimAndPublish()
     },
-
     start: (intervalMs: number) => {
       let polling: Promise<void> | undefined
       let stopped = false
@@ -171,7 +75,7 @@ export function createOutboxRelay(
           })
       }, intervalMs)
 
-      logger.info({ intervalMs, relayId: cfg.relayId }, 'Outbox relay started')
+      logger.info({ intervalMs }, 'Outbox relay started')
 
       return () => {
         stopped = true

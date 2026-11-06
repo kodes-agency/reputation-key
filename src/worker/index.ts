@@ -69,8 +69,7 @@ import {
 } from './process-failure'
 import { createPublishReplyScopeResolver } from '#/contexts/review/infrastructure/jobs/publish-reply-scope-resolver'
 import { createOutboxRelay } from '#/shared/outbox/relay'
-import { republishLostDispatches } from '#/shared/outbox/lost-dispatch-recovery'
-import { createPublishedAwaitingReceiptsReader } from '#/shared/outbox/infrastructure/published-awaiting-receipts'
+import { OUTBOX_DELIVERY_KIND } from '#/shared/outbox/dispatch-job-options'
 import { createDispatcherHandler } from '#/shared/outbox/dispatcher'
 import {
   createWorkItems,
@@ -367,26 +366,6 @@ async function main() {
     )
   }
 
-  // Dispatch jobs live only in Queue Redis too. Their outbox rows are already
-  // published, so after a loss nothing but this pass puts them back inside the
-  // redelivery sweep's two-hour horizon. It runs at boot and whenever the
-  // watchdog below finds Queue Redis emptied; it never throws.
-  const recoverLostDispatches = async (): Promise<void> => {
-    if (!domainEventsQueue) return
-    try {
-      await republishLostDispatches({
-        readPublishedAwaitingReceipts: createPublishedAwaitingReceiptsReader(
-          container.db,
-        ),
-        queue: domainEventsQueue,
-        clock: container.clock,
-        logger,
-      })
-    } catch (err) {
-      logger.error({ err }, 'Lost dispatch recovery failed')
-    }
-  }
-
   // Schedulers — and the boot observations beside them — live only in Queue
   // Redis, which needs no persistence (ADR 0053). A restart without it, or a
   // failover to an empty replica, would leave this reconnected worker running
@@ -400,7 +379,6 @@ async function main() {
     logger,
     onRestored: async () => {
       await runtimeObservationStore?.recordBoot(bootObservation)
-      await recoverLostDispatches()
     },
   })
 
@@ -413,8 +391,10 @@ async function main() {
       const result = await reconcileWorkItems({
         reserveDispatch: workItems.reserveDispatch,
         enqueue: (kind, data, jobId) => {
-          if (!registry.getHandler(kind)) throw new Error('Work handler unavailable')
-          return workQueue.add(kind, data, {
+          const queue = kind === OUTBOX_DELIVERY_KIND ? domainEventsQueue : workQueue
+          if (!queue || (kind !== OUTBOX_DELIVERY_KIND && !registry.getHandler(kind)))
+            throw new Error('Work handler unavailable')
+          return queue.add(kind, data, {
             jobId,
             attempts: 1,
             removeOnComplete: true,
@@ -431,18 +411,14 @@ async function main() {
       ),
   })
 
-  // ── Outbox relay + dispatcher ─────────────────────────────────────
-  // The only delivery path: every command commits its fact as an outbox row,
-  // the relay claims unpublished rows (SKIP LOCKED over the partial index
-  // outbox_events_unpublished_idx) into the domain-events queue, and the
-  // dispatcher hands each envelope to the registered durable consumers. A
-  // worker with no delivery path must not start.
+  // The relay admits new and previously stranded facts into durable work.
+  // Both immediate delivery and the independent reconciler send work IDs to
+  // the same dispatcher; receipts remain the completion authority.
   if (!container.outboxRepo || !jobRedisUrl || !domainEventsQueue) {
     throw new Error('[WORKER] outbox relay requires outboxRepo and a job Redis URL')
   }
   const relay = createOutboxRelay(container.outboxRepo, domainEventsQueue)
   const stopRelay = relay.start(1_000)
-  void recoverLostDispatches()
   const domainEventsWorker = createJobWorker(
     'domain-events',
     createDispatcherHandler(container.outboxRepo, {
@@ -450,6 +426,7 @@ async function main() {
     }),
     DOMAIN_EVENTS_QUEUE_CONCURRENCY,
     quarantineQueue,
+    runtimeObservationStore ?? undefined,
   )
 
   // Graceful shutdown — drain in-progress jobs before exiting.

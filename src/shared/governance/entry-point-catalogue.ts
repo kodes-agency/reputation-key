@@ -69,7 +69,6 @@ export type SystemAction =
   | 'system:ui.render'
   // delayed/system execution
   | 'system:health.check'
-  | 'system:outbox.redeliver'
   | 'system:portal.health_reconcile'
   | 'system:portal.responsibility_reannounce'
   | 'system:portal.release_member_responsibility'
@@ -189,7 +188,6 @@ const JOB_ROWS: ReadonlyArray<EntryPointRow> = [
   // upload capability, because it is what makes switching uploads off safe.
   job('portal-media-sweep', 'system:portal.media_sweep', 'none', 'tenant_cross', true),
   job('health-check', 'system:health.check', 'none', 'none'),
-  job('published-event-redelivery', 'system:outbox.redeliver', 'none', 'tenant_cross'),
   job(
     'import-gbp-property-item-v2',
     'system:property.import_v2',
@@ -699,12 +697,6 @@ const SCHEDULE_ROWS: ReadonlyArray<EntryPointRow> = [
     'tenant_cross',
   ),
   schedule('health-check-recurring', 'system:health.check', 'none', 'none'),
-  schedule(
-    'published-event-redelivery-recurring',
-    'system:outbox.redeliver',
-    'none',
-    'tenant_cross',
-  ),
   schedule(
     'ai-review-analysis-backlog-drain-recurring',
     'system:ai.review_analysis_backlog_drain',

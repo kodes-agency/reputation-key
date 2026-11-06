@@ -69,6 +69,7 @@ describe('job operational catalogue', () => {
     'ai-authorization-derivative-erasure',
     'ai-review-analysis-backfill-advance',
     'portal-upload-source-cleanup',
+    'published-event-redelivery',
   ])('retains a removal tombstone for the retired %s scheduler', (jobName) => {
     const plan = createOperationalSchedulerPlan()
 

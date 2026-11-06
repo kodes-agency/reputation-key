@@ -64,6 +64,9 @@ describe('canary: the OperationsSnapshot carries no tenant identifiers (BQC-7.3)
       ]),
       outboxRepo: {
         findExpiredLeases: vi.fn(async () => []),
+        delivery: {
+          readQuarantineMetrics: vi.fn(async () => ({ count: 0, oldestAgeMs: null })),
+        },
       } as unknown as OutboxRepository,
       queues: {
         default: { getJobCounts: vi.fn(async () => ({ waiting: 1 })) },

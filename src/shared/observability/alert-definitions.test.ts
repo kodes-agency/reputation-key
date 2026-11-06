@@ -607,6 +607,28 @@ describe('evaluateAlerts on a degraded snapshot', () => {
 // ── quarantine depth: dropped work ────────────────────────────────
 
 describe('queue.quarantine-nonempty', () => {
+  it('reports durable delivery quarantine after worker death even with an empty Redis quarantine', () => {
+    const s = healthy()
+    s.quarantine = {
+      count: 0,
+      oldestAgeMs: null,
+      workItems: { count: 1, oldestAgeMs: QUARANTINE_NONEMPTY_ALERT_MS + 1 },
+    }
+    expect(evaluateOne('queue.quarantine-nonempty', s)).toMatchObject({
+      severity: 'P1',
+      facts: { count: 1, jobs: ['outbox-delivery'] },
+    })
+    expect(evaluateOne('queue.quarantine-growth', s)).toBeNull()
+    s.quarantine = {
+      ...s.quarantine,
+      workItems: { count: 1, oldestAgeMs: QUARANTINE_REDRIVE_SLA_ALERT_MS + 1 },
+    }
+    expect(evaluateOne('queue.quarantine-growth', s)).toMatchObject({
+      severity: 'P2',
+      facts: { count: 1, jobs: ['outbox-delivery'] },
+    })
+  })
+
   it('fires once a quarantined job has sat past the sustainment window', () => {
     const s = healthy()
     s.quarantine = { count: 2, oldestAgeMs: QUARANTINE_NONEMPTY_ALERT_MS + 1 }

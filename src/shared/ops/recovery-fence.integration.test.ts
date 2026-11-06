@@ -27,7 +27,7 @@ const IMPORT_V2_COMMITTED_ITEM_ID = '10000000-0000-4000-8000-000000000409'
 const IMPORT_V2_PROPERTY_ID = '10000000-0000-4000-8000-000000000410'
 
 describe('restore recovery fence (REG-04, integration)', () => {
-  it('atomically fences unpublished facts, excludes relay claims, and replays evidence', async () => {
+  it('atomically fences unpublished facts, refuses delivery admission, and replays evidence', async () => {
     let proofCompleted = false
 
     await expect(
@@ -221,10 +221,15 @@ describe('restore recovery fence (REG-04, integration)', () => {
         expect(row.rows[0]?.fencedAt).not.toBeNull()
 
         const relay = createOutboxRepository(transaction)
-        expect(await relay.claimUnpublished(10, 'relay-recovery-proof', 30_000)).toEqual(
-          [],
-        )
-        await relay.markPublished(eventId)
+        expect(await relay.delivery.schedulePending(10)).toEqual([])
+        expect(
+          await relay.delivery.readEvent('org-recovery-proof', eventId),
+        ).toBeUndefined()
+        const deliveryWork = await transaction.execute(sql`
+          SELECT count(*)::int AS count FROM work_items
+          WHERE organization_id = 'org-recovery-proof' AND subject_id = ${eventId}
+        `)
+        expect(deliveryWork.rows[0]).toEqual({ count: 0 })
         const publication = await transaction.execute(sql`
           SELECT published_at AS "publishedAt"
           FROM outbox_events WHERE id = ${eventId}::uuid

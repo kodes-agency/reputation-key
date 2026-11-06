@@ -65,17 +65,25 @@ describe('expedited dispatch (real BullMQ queue and worker)', () => {
     )
     const events = [...burst, event('evt-ai', 'identity.merchant_ai.changed')]
     const repo = {
-      claimUnpublished: vi.fn(async () => events),
-      markPublished: vi.fn(async () => {}),
-      renewLease: vi.fn(async (ids: readonly string[]) => ids.length),
+      delivery: {
+        schedulePending: vi.fn(async () =>
+          events.map((fact) => ({
+            id: `work-${fact.id}`,
+            subjectId: fact.id,
+            organizationId: fact.organizationId,
+            eventType: fact.eventType,
+          })),
+        ),
+      },
     } as unknown as OutboxRepository
 
-    await createOutboxRelay(repo, queue, { relayId: 'relay-expedited-it' }).poll()
+    await createOutboxRelay(repo, queue).poll()
 
     const dispatched: string[] = []
     const worker = new Worker(
       QUEUE,
       async (job) => {
+        expect(Object.keys(job.data)).toEqual(['workId'])
         dispatched.push(job.name)
       },
       {
@@ -104,17 +112,25 @@ describe('expedited dispatch (real BullMQ queue and worker)', () => {
     )
     const events = [...waiting, ...replay]
     const repo = {
-      claimUnpublished: vi.fn(async () => events),
-      markPublished: vi.fn(async () => {}),
-      renewLease: vi.fn(async (ids: readonly string[]) => ids.length),
+      delivery: {
+        schedulePending: vi.fn(async () =>
+          events.map((fact) => ({
+            id: `work-${fact.id}`,
+            subjectId: fact.id,
+            organizationId: fact.organizationId,
+            eventType: fact.eventType,
+          })),
+        ),
+      },
     } as unknown as OutboxRepository
 
-    await createOutboxRelay(repo, queue, { relayId: 'relay-expedited-it' }).poll()
+    await createOutboxRelay(repo, queue).poll()
 
     const dispatched: string[] = []
     const worker = new Worker(
       QUEUE,
       async (job) => {
+        expect(Object.keys(job.data)).toEqual(['workId'])
         dispatched.push(job.name)
       },
       {

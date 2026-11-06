@@ -1,16 +1,15 @@
 // A `metric.corrected` fact against the real receipt store.
 //
 // The fact has two catalogued consumers: Metric's and the Goal one. The
-// redelivery sweep treats a published fact as delivered only when each of them
-// holds a receipt for it, so a consumer that does its work and writes none has
-// the fact dispatched again every two hours, three times, and then counted as
-// an exhausted delivery until retention removes it.
+// delivery ledger admits a published fact only while a required receipt is
+// missing. A consumer that finishes without its receipt must remain recoverable.
 
-import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 import { eq, inArray } from 'drizzle-orm'
-import type { Job } from 'bullmq'
 import { getDb } from '#/shared/db'
 import { eventConsumerReceipts, outboxEvents } from '#/shared/db/schema/outbox.schema'
+import { workItems } from '#/shared/db/schema/work-items.schema'
+import { EVENT_FAMILY_ROWS } from '#/shared/governance/event-job-catalogue'
 import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
 import { clearEventSchemas } from '#/shared/events/schema-registry'
 import {
@@ -18,11 +17,6 @@ import {
   type ConsumerEvent,
 } from '#/shared/outbox/consumer-registry'
 import { createOutboxRepository } from '#/shared/outbox/infrastructure/outbox-repository'
-import {
-  CATALOGUED_CONSUMER_EXPECTATIONS,
-  createPublishedEventRedeliveryHandler,
-  PUBLISHED_EVENT_REDELIVERY_HORIZON_MS,
-} from '#/shared/outbox/published-event-redelivery.job'
 import type { ReconcileMetricCorrection } from '../application/use-cases/reconcile-metric-correction'
 import {
   GOAL_METRIC_CORRECTION_CONSUMER,
@@ -39,16 +33,16 @@ const EVENT_IDS = [DELIVERED, PENDING, REDELIVERED] as const
 // Older than any other row a shared database can hold, so the sweep's oldest-
 // first batch always reaches these fixtures.
 const PUBLISHED_AT = new Date('2020-01-01T00:00:00.000Z')
-const SWEEP_AT = new Date(
-  PUBLISHED_AT.getTime() + 2 * PUBLISHED_EVENT_REDELIVERY_HORIZON_MS,
-)
+const SWEEP_AT = new Date('2020-01-02T00:00:00.000Z')
 
-const EXPECTED_CONSUMERS = CATALOGUED_CONSUMER_EXPECTATIONS.filter(
-  (expectation) => expectation.eventType === EVENT_TYPE,
+const EXPECTED_CONSUMERS = EVENT_FAMILY_ROWS.flatMap(({ eventType, consumers }) =>
+  eventType === EVENT_TYPE
+    ? consumers.map(({ name }) => ({ eventType, consumerName: name }))
+    : [],
 )
 
 const db = getDb()
-const outbox = createOutboxRepository(db)
+const outbox = createOutboxRepository(db, () => SWEEP_AT)
 
 const payload = {
   correctionId: '6c000000-0000-4000-8000-0000000000c1',
@@ -108,26 +102,16 @@ async function receiptsOf(eventId: string) {
   return rows.sort((left, right) => left.consumerName.localeCompare(right.consumerName))
 }
 
-/** Runs the real redelivery sweep and answers which fixture facts it re-dispatched. */
+/** Answers which fixture facts need durable delivery after consumer execution. */
 async function sweepRedeliveries(): Promise<readonly string[]> {
-  const redelivered: string[] = []
-  const sweep = createPublishedEventRedeliveryHandler({
-    repo: outbox,
-    queue: {
-      add: async (_name, data) => {
-        redelivered.push((data as { eventId: string }).eventId)
-        return undefined
-      },
-    },
-    clock: () => SWEEP_AT,
-    logger: { info: vi.fn(), warn: vi.fn() },
-    consumerExpectations: EXPECTED_CONSUMERS,
-  })
-  await sweep({} as Job)
-  return redelivered.filter((eventId) => EVENT_IDS.some((id) => id === eventId))
+  const admitted = await outbox.delivery.schedulePending(100, EXPECTED_CONSUMERS)
+  return admitted
+    .map(({ subjectId }) => subjectId)
+    .filter((eventId) => EVENT_IDS.some((id) => id === eventId))
 }
 
 async function clearFixture(): Promise<void> {
+  await db.delete(workItems).where(eq(workItems.organizationId, ORGANIZATION_ID))
   // Receipts go with their fact (ON DELETE CASCADE).
   await db.delete(outboxEvents).where(inArray(outboxEvents.id, [...EVENT_IDS]))
 }

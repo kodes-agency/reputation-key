@@ -419,6 +419,9 @@ async function assembleSnapshot() {
     ]),
     outboxRepo: {
       findExpiredLeases: vi.fn(async () => []),
+      delivery: {
+        readQuarantineMetrics: vi.fn(async () => ({ count: 0, oldestAgeMs: null })),
+      },
     } as unknown as OutboxRepository,
     queues: {
       default: {
