@@ -45,6 +45,40 @@ describe('construct definition drift against the migrated catalog', () => {
     expect(await checkStructure(url)).toEqual([])
   })
 
+  it('keeps only the promised ledger and transition guards enabled for replica sessions', async () => {
+    const { rows } = await lease.pool.query<{ name: string; mode: string }>(`
+      SELECT t.tgname AS name, t.tgenabled AS mode
+      FROM pg_trigger t
+      JOIN pg_class c ON c.oid = t.tgrelid
+      JOIN pg_namespace n ON n.oid = c.relnamespace
+      WHERE n.nspname = 'public' AND NOT t.tgisinternal
+      ORDER BY t.tgname
+    `)
+    expect(rows.filter(({ mode }) => mode === 'A')).toEqual([
+      { name: 'backup_erasure_ledger_truncate_guard', mode: 'A' },
+      { name: 'backup_erasure_ledger_update_delete_guard', mode: 'A' },
+      { name: 'property_erase_authorities_transition_guard', mode: 'A' },
+    ])
+    expect(
+      rows.filter(({ mode }) => mode !== 'A').every(({ mode }) => mode === 'O'),
+    ).toBe(true)
+  })
+
+  it('reports an ALWAYS guard downgraded to ordinary enablement', async () => {
+    await detectsChange(
+      async () => {
+        await lease.pool.query(
+          'ALTER TABLE public.backup_erasure_ledger ENABLE TRIGGER backup_erasure_ledger_update_delete_guard',
+        )
+      },
+      async () => {
+        await lease.pool.query(
+          'ALTER TABLE public.backup_erasure_ledger ENABLE ALWAYS TRIGGER backup_erasure_ledger_update_delete_guard',
+        )
+      },
+    )
+  })
+
   it('reports a function whose body differs under the same signature', async () => {
     const current = await lease.pool.query<{ definition: string }>(
       `SELECT pg_get_functiondef('public.ai_epoch_millis_v1(timestamptz)'::regprocedure) AS definition`,
@@ -99,6 +133,9 @@ describe('construct definition drift against the migrated catalog', () => {
       async () => {
         await lease.pool.query(drop)
         await lease.pool.query(original.rows[0]!.definition)
+        await lease.pool.query(
+          'ALTER TABLE public.backup_erasure_ledger ENABLE ALWAYS TRIGGER backup_erasure_ledger_update_delete_guard',
+        )
       },
     )
   })

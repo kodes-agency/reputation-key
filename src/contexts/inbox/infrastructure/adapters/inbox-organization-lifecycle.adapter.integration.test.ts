@@ -148,7 +148,7 @@ async function forgetInboxReceipt(): Promise<void> {
 }
 
 /**
- * Reminder and history rows sit behind ALWAYS triggers that accept a delete
+ * Reminder and history rows sit behind triggers that accept a delete
  * only as an item cascade. Fixture teardown lifts the reminder guard, exactly
  * as the Inbox export fixture does; no runtime path disables a trigger.
  */
