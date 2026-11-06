@@ -32,7 +32,6 @@ import {
   organizationId,
   portalId,
   propertyId,
-  recentActivityEntryId,
   reviewId,
   userId,
 } from '#/shared/domain/ids'
@@ -155,7 +154,6 @@ describe.sequential('missing-notification repair through the Feed build', () => 
         db,
         clock: () => NOW,
         logger,
-        idGen: () => recentActivityEntryId(crypto.randomUUID()),
         operationalHistoryIdGen: () =>
           operationalActionHistoryRecordId(crypto.randomUUID()),
         operationalHistoryHoldIdGen: () => crypto.randomUUID(),

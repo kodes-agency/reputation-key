@@ -12,7 +12,6 @@ import { buildReportingContext } from '#/contexts/reporting/build'
 import { buildFeedContext } from '#/contexts/feed/build'
 import { createScheduledScopeAuthorizer } from '#/shared/jobs/delayed-execution-gate'
 import { checkScopedCapability } from '#/shared/auth/beta-capabilities'
-import { recentActivityEntryId } from '#/shared/domain/ids'
 import { operationalActionHistoryRecordId } from '#/contexts/feed/domain/operational-action-history'
 import type { Queue } from 'bullmq'
 import type { Database } from '#/shared/db'
@@ -153,7 +152,6 @@ export function buildReadAndNotifyContexts(input: ReadAndNotifyContextsInput) {
       outboxRepo: input.outboxRepo,
       clock: input.clock,
       logger: input.logger,
-      idGen: () => recentActivityEntryId(crypto.randomUUID()),
       operationalHistoryIdGen: () =>
         operationalActionHistoryRecordId(crypto.randomUUID()),
       operationalHistoryHoldIdGen: () => crypto.randomUUID(),

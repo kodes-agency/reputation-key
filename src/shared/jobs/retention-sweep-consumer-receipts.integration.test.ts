@@ -111,7 +111,7 @@ afterAll(clean)
 
 describe.sequential('consumer receipt retention (real PostgreSQL)', () => {
   it('keeps an expired fact until every required consumer settles, even after redelivery is exhausted', async () => {
-    const eventType = 'property.updated'
+    const eventType = 'property.deleted'
     const expiredAt = new Date(NOW.getTime() - OUTBOX_RETENTION_MS - DAY_MS)
     const fact = await insertPublishedFact(expiredAt, eventType)
     await db.execute(sql`
@@ -136,17 +136,17 @@ describe.sequential('consumer receipt retention (real PostgreSQL)', () => {
     await sweep({} as Job)
     expect(await storedFactIds(eventType)).toEqual([fact])
 
-    await repo.insertReceipt(fact, 'activity.recent-activity', 'applied')
+    await repo.insertReceipt(fact, 'activity.operational-action-history', 'applied')
     expect(await countCandidates()).toBe(0)
     await sweep({} as Job)
     expect(await storedFactIds(eventType)).toEqual([fact])
-    expect(await repo.hasReceipt(fact, 'activity.recent-activity')).toBe(true)
+    expect(await repo.hasReceipt(fact, 'activity.operational-action-history')).toBe(true)
 
     await repo.insertReceipt(fact, 'portal.reconcile-health-dependencies', 'obsolete')
     expect(await countCandidates()).toBe(1)
     await sweep({} as Job)
     expect(await storedFactIds(eventType)).toEqual([])
-    expect(await repo.hasReceipt(fact, 'activity.recent-activity')).toBe(false)
+    expect(await repo.hasReceipt(fact, 'activity.operational-action-history')).toBe(false)
     expect(await repo.hasReceipt(fact, 'portal.reconcile-health-dependencies')).toBe(
       false,
     )

@@ -3,7 +3,6 @@ import type { SQL } from 'drizzle-orm'
 import { PgDialect } from 'drizzle-orm/pg-core'
 import type { Database } from '#/shared/db'
 import type { OutboxRepository } from '#/shared/outbox'
-import { recentActivityEntryId } from '#/shared/domain/ids'
 import { createMockLogger } from '#/shared/testing/mock-logger'
 import { operationalActionHistoryRecordId } from './domain/operational-action-history'
 import { buildFeedContext } from './build'
@@ -16,7 +15,6 @@ function buildWith(db: Database) {
       db,
       clock: () => new Date('2026-08-28T00:00:00.000Z'),
       logger,
-      idGen: () => recentActivityEntryId('00000000-0000-4000-8000-000000000999'),
       operationalHistoryIdGen: () =>
         operationalActionHistoryRecordId('00000000-0000-4000-8000-000000000998'),
       operationalHistoryHoldIdGen: () => '00000000-0000-4000-8000-000000000997',
@@ -64,18 +62,15 @@ describe('buildFeedContext', () => {
       expect(surface.publicApi).not.toHaveProperty('organizationExportContributor')
       expect(surface.publicApi).not.toHaveProperty('organizationLifecycleContributor')
     }
-    expect(Object.keys(activity.worker).sort()).toEqual([
-      'projectRecentActivity',
-      'registerOutboxConsumers',
-    ])
+    expect(Object.keys(activity.worker).sort()).toEqual(['registerOutboxConsumers'])
     expect(activity.worker.registerOutboxConsumers).toBeTypeOf('function')
     expect(Object.keys(activity.internal).sort()).toEqual(['repos', 'useCases'])
     expect(activity.internal.useCases).toMatchObject({
       listOperationalActionHistory: context.publicApi.listOperationalActionHistory,
       exportOperationalActionHistory: context.publicApi.exportOperationalActionHistory,
     })
-    expect(activity.internal.useCases.recoverRecentActivity).toBeTypeOf('function')
-    expect(activity.internal.useCases.getRecentActivityReadiness).toBeTypeOf('function')
+    expect(activity.internal.useCases).not.toHaveProperty('recoverRecentActivity')
+    expect(activity.internal.useCases).not.toHaveProperty('getRecentActivityReadiness')
     expect(activity.internal.useCases.appendOperationalAction).toBeTypeOf('function')
     expect(activity.internal.useCases.getOperationalActionHistoryReadiness).toBeTypeOf(
       'function',

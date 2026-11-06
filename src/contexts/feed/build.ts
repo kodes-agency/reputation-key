@@ -7,12 +7,7 @@ import { createConsumerRegistry, type ConsumerRegistry } from '#/shared/outbox'
 import type { PortalPublicApi } from '#/contexts/portal/application/public-api'
 import type { LoggerPort } from '#/shared/domain/logger.port'
 import { createRecentActivityRepository } from './infrastructure/recent-activity-repository.drizzle'
-import { createDbInboxItemLookupAdapter } from './infrastructure/adapters/db-inbox-item-lookup.adapter'
-import { createActivityDbUserLookupAdapter } from './infrastructure/adapters/activity-db-user-lookup.adapter'
-import { createActivityDeliveryStore } from './infrastructure/activity-delivery-store'
 import { registerActivityOutboxConsumers } from './infrastructure/activity-outbox-consumers'
-import { createRecentActivityRecoveryRuntime } from './infrastructure/recent-activity-recovery-runtime'
-import type { RecentActivityEntryId } from '#/shared/domain/ids'
 import type { OperationalActionHistoryRecordId } from './domain/operational-action-history'
 import { createOperationalActionHistoryStore } from './infrastructure/operational-action-history-store'
 import { createRecentActivityPrivacyStore } from './infrastructure/recent-activity-privacy-store'
@@ -30,7 +25,6 @@ import {
   redactOperationalActionHistorySubject,
   releaseOperationalActionHistoryLegalHold,
 } from './application/use-cases/operational-action-history-lifecycle'
-import { createActivityProjectionRuntime } from './application/activity-projection-runtime'
 
 import type { Queue } from 'bullmq'
 import {
@@ -158,21 +152,13 @@ type ActivityBuildInput = Readonly<{
   outboxRepo?: import('#/shared/outbox').OutboxRepository
   clock: () => Date
   logger: LoggerPort
-  idGen: () => RecentActivityEntryId
   operationalHistoryAccessAuthority?: OperationalHistoryAccessAuthority
   operationalHistoryIdGen: () => OperationalActionHistoryRecordId
   operationalHistoryHoldIdGen: () => string
 }>
 
-const buildActivityFeed = (
-  input: ActivityBuildInput,
-  monthlyResultFacts: MonthlyResultNotificationFactsLookup,
-) => {
-  const repo = createRecentActivityRepository(input.db, input.logger)
-  const inboxItemLookup = createDbInboxItemLookupAdapter(input.db)
-  const userLookup = createActivityDbUserLookupAdapter(input.db)
-  const deliveryStore = createActivityDeliveryStore(input.db, input.clock)
-  const recoveryRuntime = createRecentActivityRecoveryRuntime(input.db, input.logger)
+const buildActivityFeed = (input: ActivityBuildInput) => {
+  const repo = createRecentActivityRepository(input.db)
   const privacyStore = createRecentActivityPrivacyStore(input.db)
   const operationalHistoryStore = createOperationalActionHistoryStore(input.db)
   const operationalHistoryIdGen = input.operationalHistoryIdGen
@@ -200,42 +186,20 @@ const buildActivityFeed = (
 
   const registerOutboxConsumers = (consumerRegistry: ConsumerRegistry) =>
     registerActivityOutboxConsumers(consumerRegistry, {
-      deliveryStore,
-      userLookup,
-      inboxItemLookup,
-      monthlyResultFacts,
       clock: input.clock,
-      logger: input.logger,
-      idGen: input.idGen,
       operationalHistoryDeliveryStore: operationalHistoryStore,
       operationalHistoryIdGen,
     })
 
-  // ACT-005: projectRecentActivity is NOT constructed here — bootstrap.ts owns the
-  // worker-side instantiation (it has the BullMQ job handler). This build
-  // function exposes query APIs and durable outbox-consumer registration.
   return {
     publicApi,
-    // ARC-03-T12: Activity owns its projection end to end. The container used
-    // to hand bootstrap the recent-activity REPOSITORY so the worker could
-    // assemble this itself.
-    worker: Object.freeze({
-      registerOutboxConsumers,
-      ...createActivityProjectionRuntime({
-        repo,
-        userLookup,
-        clock: input.clock,
-        logger: input.logger,
-        idGen: input.idGen,
-      }),
-    }),
+    worker: Object.freeze({ registerOutboxConsumers }),
     internal: {
       repos: {
         recentActivityRepo: repo,
         operationalActionHistoryStore: operationalHistoryStore,
       },
       useCases: {
-        ...recoveryRuntime,
         redactRecentActivityActorLabels: redactRecentActivityActorLabels({
           store: privacyStore,
           clock: input.clock,
@@ -918,12 +882,7 @@ type BuildInput = Readonly<{
 }>
 
 export const buildFeedContext = (input: BuildInput) => {
-  // Reporting's read of a closed Goal month serves both halves: the Goal
-  // notices and the Recent Activity row carry the same marker from it.
-  const activity = buildActivityFeed(
-    input.activity,
-    input.notification.monthlyResultFacts,
-  )
+  const activity = buildActivityFeed(input.activity)
   const notification = buildNotificationFeed(input.notification)
 
   return Object.freeze({

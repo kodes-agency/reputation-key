@@ -6,7 +6,7 @@
 
 Feed owns two related downstream experiences:
 
-- Recent Activity and restricted Operational Action History projections.
+- Restricted Operational Action History and retained Recent Activity records.
 - In-app notifications, notification preferences, email queueing, digests, and
   one-click unsubscribe.
 
@@ -37,14 +37,10 @@ own source review, inbox, property, portal, identity, or goal state.
 
 ## Model
 
-Recent Activity is a privacy-filtered operational projection, not an event log
-or source-content archive. The Organization export and recovery read it (with
-90-day replay facts). There is no manager read API; the Inbox item timeline and
-Portal history use their own stores. An entry is written once per
-event and names its actor from the member lookup: a lookup that fails fails the
-delivery, which is retried, so an outage never leaves an entry that names System
-for something a person did (an actor the lookup does not find still gets the
-fallback name). Operational Action History is append-oriented,
+Recent Activity records are retained for Organization export, privacy redaction
+and lifecycle fulfilment. No projection writer, recovery command or manager read
+API remains. Existing rows retain their 90-day expiry. Inbox item timeline and
+Portal history use their own stores. Operational Action History is append-oriented,
 organization-scoped evidence with restricted list/export access and legal-hold
 handling. `listOperationalActionHistoryFn` and `exportOperationalActionHistoryFn`
 are that restricted AccountAdmin API and have no UI on purpose
@@ -584,8 +580,7 @@ assigned to its recipient on that Property (the work check is given the
 recipient for it). Both counts are restated at send. A closed cycle settles a grouped
 reopen in-app once none of its items stands, except a row that coalesced a
 second bulk reopen.
-The activity worker also exposes bounded projection recovery. Notification
-jobs perform insert, urgent-email, digest, and missing-notification repair work. The daily
+Notification jobs perform insert, urgent-email, digest, and missing-notification repair work. The daily
 digest groups lines in queue order and freezes membership from those same lines.
 `digest-batch-identity.ts` owns member, request and provider-key fingerprints;
 assembly uses the email renderer's group contract. The repository retains the
@@ -643,7 +638,7 @@ delivery-lag source read once a bulk import raised its cost estimate.
    its unread badge also follow the reader's current Property access for
    `notification.read`, so a revoked or expired grant hides that Property's
    rows; Organization-scoped notices are never Property-gated.
-3. Activity replay and notification delivery are idempotent. Redelivery must
+3. Operational Action History and notification delivery are idempotent. Redelivery must
    converge through receipts and deterministic identities.
 4. Email delivery rechecks preference, capability, responsibility, delayed
    execution policy, and whether the work still waits immediately before the
@@ -668,7 +663,7 @@ delivery-lag source read once a bulk import raised its cost estimate.
 ## Verification
 
 Unit tests stay beside domain rules, use cases, consumers, jobs, and server
-contracts. PostgreSQL-backed repository, recovery, delivery, export, and
+contracts. PostgreSQL-backed repository, export, and
 lifecycle tests stay beside their infrastructure subjects. The build test pins
 that one Feed build exposes both former APIs without widening either lifecycle
 surface.
