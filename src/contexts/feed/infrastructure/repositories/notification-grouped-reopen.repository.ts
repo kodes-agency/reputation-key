@@ -61,17 +61,13 @@ export const createGroupedReopenStore = (db: Database): GroupedReopenStorePort =
         ),
       )
     const sources = new Map(facts.map((fact) => [fact.id, fact.payload]))
-    return rows.flatMap((row) =>
-      sources.has(row.eventId)
-        ? [
-            {
-              id: notificationId(row.id),
-              coalescedCount: row.coalescedCount,
-              source: sources.get(row.eventId),
-            },
-          ]
-        : [],
-    )
+    return rows
+      .filter((row) => sources.has(row.eventId))
+      .map((row) => ({
+        id: notificationId(row.id),
+        coalescedCount: row.coalescedCount,
+        source: sources.get(row.eventId),
+      }))
   },
 
   settle: async ({ organizationId, ids, resolvedAt }) => {

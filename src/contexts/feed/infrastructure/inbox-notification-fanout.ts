@@ -30,6 +30,7 @@ import {
   resolveResponsibleRecipients,
 } from '../application/responsible-recipients'
 import type { NotificationAudience } from '../application/notification-audience'
+import type { InsertNotificationJobData } from './jobs/insert-notification.job'
 
 /**
  * The enqueue surface the fan-out needs. A bullmq `Queue` satisfies it, and so
@@ -39,6 +40,28 @@ import type { NotificationAudience } from '../application/notification-audience'
 export type NotificationJobEnqueuePort = Readonly<{
   add(name: string, data: unknown, opts?: JobsOptions): Promise<unknown>
 }>
+
+/** One item's workflow fact, with each recipient's reason for admission intact. */
+export async function enqueueInboxWorkflowNotifications(
+  queue: NotificationJobEnqueuePort,
+  common: Pick<
+    InsertNotificationJobData,
+    'organizationId' | 'propertyId' | 'resourceId' | 'eventId' | 'payload'
+  >,
+  recipients: ReadonlyArray<
+    Pick<InsertNotificationJobData, 'userId' | 'type' | 'audience'>
+  >,
+): Promise<void> {
+  await Promise.all(
+    recipients.map((recipient) =>
+      queue.add(
+        INSERT_NOTIFICATION_JOB_NAME,
+        { ...common, ...recipient, resourceType: 'inbox_item' },
+        { jobId: `${common.eventId}-${unbrand(recipient.userId)}` },
+      ),
+    ),
+  )
+}
 
 export type InboxFanoutDeps = Readonly<{
   queue: NotificationJobEnqueuePort

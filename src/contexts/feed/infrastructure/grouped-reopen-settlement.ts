@@ -1,14 +1,17 @@
 // Settling a grouped reopen once none of its items still stands.
 //
-// "5 items reopened at Hotel H" is one notice filed under the first of its
-// items, so the (type, resource) settlement every other notice uses cannot
-// retire it: closing the first item says nothing about the other four, and
-// closing any other item does not even reach it. It used to stand in the bell
-// forever. Each closed cycle now reads back the grouped reopens still waiting
+// "5 items reopened at Hotel H" is one notice filed under the first item:
+// closing that item says nothing about the other four. Each closed cycle reads
+// back the grouped reopens still waiting
 // on its Property, rebuilds the cycles each one stands for from the fact that
 // raised it, and asks the work-state gate whether any of them is still open.
 
-import { inboxItemId, type OrganizationId, type PropertyId } from '#/shared/domain/ids'
+import {
+  inboxItemId,
+  type NotificationId,
+  type OrganizationId,
+  type PropertyId,
+} from '#/shared/domain/ids'
 import type { NotificationEmailRepositoryPort } from '../application/ports/notification-email-repository.port'
 import type {
   GroupedReopenStorePort,
@@ -53,26 +56,26 @@ const groupedAudience = (
 }
 
 /**
- * Whether none of the row's items still stands. A row a later grouped reopen
+ * A finished row's id. A row a later grouped reopen
  * was folded into stands for items its first fact does not name, so it is
  * never judged by that fact alone.
  */
-const isFinished = async (
+const finishedNotificationId = async (
   deps: GroupedReopenSettlementDeps,
   organizationId: OrganizationId,
   propertyId: PropertyId,
   row: WaitingGroupedReopen,
-): Promise<boolean> => {
-  if (row.coalescedCount > 1) return false
+): Promise<NotificationId | null> => {
+  if (row.coalescedCount > 1) return null
   const grouped = groupedAudience(row.source, propertyId)
-  if (grouped === null) return false
+  if (grouped === null) return null
   const work = await deps.workState.isWaiting({
     organizationId,
     type: 'inbox.bulk_reopened',
     resourceId: inboxItemId(grouped.first),
     audience: grouped.audience,
   })
-  return work === false
+  return work === false ? row.id : null
 }
 
 /** Settle the Property's grouped reopens with nothing left open; answers how many. */
@@ -88,10 +91,12 @@ export async function settleGroupedReopens(
     organizationId: input.organizationId,
     propertyId: input.propertyId,
   })
-  const verdicts = await Promise.all(
-    waiting.map((row) => isFinished(deps, input.organizationId, input.propertyId, row)),
+  const candidates = await Promise.all(
+    waiting.map((row) =>
+      finishedNotificationId(deps, input.organizationId, input.propertyId, row),
+    ),
   )
-  const finished = waiting.filter((_row, index) => verdicts[index]).map((row) => row.id)
+  const finished = candidates.filter((id): id is NotificationId => id !== null)
   if (finished.length === 0) return 0
 
   const settled = await deps.groupedReopens.settle({

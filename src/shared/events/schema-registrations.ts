@@ -298,31 +298,6 @@ const inboxNoteAddedSchema = z.object({
   ...inboxActorShape,
 })
 
-const inboxItemAssignedSchema = z.object({
-  inboxItemId: z.string(),
-  organizationId: z.string(),
-  assignedTo: z.string(),
-  // Who held the item before. Optional: facts recorded before a reassignment
-  // was news to the previous holder do not say.
-  previousAssignee: z.string().nullable().optional(),
-  bulkId: z.string().optional(),
-  propertyId: z.string().nullable().optional(),
-  userId: z.string().optional(),
-  source: z.string().optional(),
-  occurredAt: z.string().optional(),
-})
-
-const inboxItemUnassignedSchema = z.object({
-  inboxItemId: z.string(),
-  organizationId: z.string(),
-  previousAssignee: z.string(),
-  bulkId: z.string().optional(),
-  propertyId: z.string().nullable().optional(),
-  userId: z.string().nullable().optional(),
-  source: z.string().optional(),
-  occurredAt: z.string().optional(),
-})
-
 // Per-item shape — one event per affected item, linked by bulkId (the
 // Recent Activity groups per-item entries via payload.bulkId).
 const inboxItemBulkStatusChangedSchema = z.object({
@@ -1294,16 +1269,6 @@ export function registerAllEventSchemas(): void {
     type: 'inbox.inbox_note.added',
     version: EVENT_VERSION,
     schema: inboxNoteAddedSchema,
-  })
-  registerEventSchema({
-    type: 'inbox.inbox_item.assigned',
-    version: EVENT_VERSION,
-    schema: inboxItemAssignedSchema,
-  })
-  registerEventSchema({
-    type: 'inbox.inbox_item.unassigned',
-    version: EVENT_VERSION,
-    schema: inboxItemUnassignedSchema,
   })
   registerEventSchema({
     type: 'inbox.inbox_item.bulk_status_changed',

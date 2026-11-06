@@ -115,6 +115,8 @@ export type InboxItemAssigned = Readonly<{
   previousAssignee?: UserId | null
   /** Present when this per-item fact belongs to one atomic bulk command. */
   bulkId?: string
+  /** Committed item revision; absent only on facts recorded before this fence. */
+  commandRevision?: number
   source: 'web' | 'import'
   occurredAt: Date
   correlationId: string | null
@@ -153,6 +155,8 @@ export type InboxItemUnassigned = Readonly<{
   previousAssignee: UserId
   /** Present when this per-item fact belongs to one atomic bulk command. */
   bulkId?: string
+  /** Committed item revision; absent only on facts recorded before this fence. */
+  commandRevision?: number
   source: 'web' | 'import'
   occurredAt: Date
   correlationId: string | null

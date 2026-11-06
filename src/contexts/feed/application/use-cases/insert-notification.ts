@@ -401,6 +401,7 @@ const settleSupersededForReader = async (
   deps: InsertNotificationDeps,
   notification: DomainNotification,
   channels: Readonly<{ shownInApp: boolean; sendsEmail: boolean }>,
+  sourceEventId: string,
 ): Promise<void> => {
   const rule = SUPERSEDED_FOR_READER[notification.type]
   if (rule === undefined || (rule.onlyWhenShownInApp && !channels.shownInApp)) return
@@ -411,6 +412,9 @@ const settleSupersededForReader = async (
     types: rule.types,
     categories: rule.categories,
     inAppOnly: rule.keepsEmail,
+    ...(notification.type === 'inbox.unassigned'
+      ? { supersededByEventId: sourceEventId }
+      : {}),
     resourceId: notification.resourceId,
     resolvedAt,
   })
@@ -530,10 +534,15 @@ const foldIntoWaitingRow = async (
   // A repeat still takes over what it takes over: a second "No longer yours"
   // folding into an unread first one must still retire the "Assigned to you"
   // written in between.
-  await settleSupersededForReader(deps, coalesced, {
-    shownInApp: true,
-    sendsEmail: mailsRepeat,
-  })
+  await settleSupersededForReader(
+    deps,
+    coalesced,
+    {
+      shownInApp: true,
+      sendsEmail: mailsRepeat,
+    },
+    input.eventId,
+  )
   return coalesced
 }
 
@@ -606,10 +615,15 @@ export const insertNotification =
     }
 
     // 4b. This notice takes over the reader's own earlier ones about the item.
-    await settleSupersededForReader(deps, inserted, {
-      shownInApp: channels.inAppEnabled,
-      sendsEmail: channels.emailEnabled,
-    })
+    await settleSupersededForReader(
+      deps,
+      inserted,
+      {
+        shownInApp: channels.inAppEnabled,
+        sendsEmail: channels.emailEnabled,
+      },
+      input.eventId,
+    )
 
     // 5. Return notification only if in-app channel is enabled
     if (!channels.inAppEnabled) {
