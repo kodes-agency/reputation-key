@@ -35,7 +35,7 @@ const db: Database = getDb()
 let pool: Pool
 
 /**
- * Reminder rows are append-only behind an ALWAYS trigger, and they cascade from
+ * Reminder rows are append-only behind a trigger, and they cascade from
  * `inbox_items`, so fixture teardown has to lift the guard for the duration of
  * the delete. This escape hatch exists only in test code against the isolated,
  * single-worker integration database; no runtime path disables it.

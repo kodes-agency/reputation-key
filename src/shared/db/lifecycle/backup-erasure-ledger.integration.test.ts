@@ -257,42 +257,58 @@ describe('backup erasure ledger and restore resurrection fence (LIF-01-T15)', ()
     ).rejects.toBe(ROLLBACK)
   })
 
-  it('refuses to rewrite or delete a ledger entry', async () => {
-    await expect(
-      db.transaction(async (raw) => {
-        const tx = raw as unknown as Tx
-        const fixture = await seedPurgedOrganization(tx)
-        const entryId = await appendBackupErasureLedgerEntry(tx, entryFor(fixture))
+  it.each(['origin', 'replica'] as const)(
+    'refuses ledger updates, deletes and truncation in a %s session',
+    async (role) => {
+      await expect(
+        db.transaction(async (raw) => {
+          const tx = raw as unknown as Tx
+          const fixture = await seedPurgedOrganization(tx)
+          const entryId = await appendBackupErasureLedgerEntry(tx, entryFor(fixture))
 
-        // An entry an operator can remove after a bad restore is exactly the
-        // resurrection this ledger prevents, so both paths must be closed.
-        const database = raw as unknown as Database
-        expect(
-          await rejectionCause(
-            database.execute(
-              sql`UPDATE backup_erasure_ledger SET erased_row_count = 0 WHERE id = ${entryId}::uuid`,
+          // An entry an operator can remove after a bad restore is exactly the
+          // resurrection this ledger prevents, so both paths must be closed.
+          const database = raw as unknown as Database
+          await tx.execute(sql`SET LOCAL session_replication_role = ${sql.raw(role)}`)
+          expect(
+            await rejectionCause(
+              database.execute(
+                sql`UPDATE backup_erasure_ledger SET erased_row_count = 0 WHERE id = ${entryId}::uuid`,
+              ),
             ),
-          ),
-        ).toMatch(/append-only/u)
-        throw ROLLBACK
-      }),
-    ).rejects.toBe(ROLLBACK)
+          ).toMatch(/append-only/u)
+          throw ROLLBACK
+        }),
+      ).rejects.toBe(ROLLBACK)
 
-    await expect(
-      db.transaction(async (raw) => {
-        const tx = raw as unknown as Tx
-        const fixture = await seedPurgedOrganization(tx)
-        const entryId = await appendBackupErasureLedgerEntry(tx, entryFor(fixture))
-        const database = raw as unknown as Database
-        expect(
-          await rejectionCause(
-            database.execute(
-              sql`DELETE FROM backup_erasure_ledger WHERE id = ${entryId}::uuid`,
+      await expect(
+        db.transaction(async (raw) => {
+          const tx = raw as unknown as Tx
+          const fixture = await seedPurgedOrganization(tx)
+          const entryId = await appendBackupErasureLedgerEntry(tx, entryFor(fixture))
+          const database = raw as unknown as Database
+          await tx.execute(sql`SET LOCAL session_replication_role = ${sql.raw(role)}`)
+          expect(
+            await rejectionCause(
+              database.execute(
+                sql`DELETE FROM backup_erasure_ledger WHERE id = ${entryId}::uuid`,
+              ),
             ),
-          ),
-        ).toMatch(/append-only/u)
-        throw ROLLBACK
-      }),
-    ).rejects.toBe(ROLLBACK)
-  })
+          ).toMatch(/append-only/u)
+          throw ROLLBACK
+        }),
+      ).rejects.toBe(ROLLBACK)
+
+      await expect(
+        db.transaction(async (raw) => {
+          const tx = raw as unknown as Tx
+          await tx.execute(sql`SET LOCAL session_replication_role = ${sql.raw(role)}`)
+          expect(
+            await rejectionCause(tx.execute(sql`TRUNCATE backup_erasure_ledger`)),
+          ).toMatch(/append-only/u)
+          throw ROLLBACK
+        }),
+      ).rejects.toBe(ROLLBACK)
+    },
+  )
 })

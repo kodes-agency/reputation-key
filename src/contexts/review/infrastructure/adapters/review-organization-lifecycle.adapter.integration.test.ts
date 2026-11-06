@@ -145,7 +145,7 @@ async function advanceAuthorityTo(
   return contribution()
 }
 
-/** Lifecycle events retain their ALWAYS append-only guard in production. */
+/** Lifecycle events keep their append-only guard in production. */
 async function withLifecycleEventGuardDisabled(work: () => Promise<void>): Promise<void> {
   await pool.query(
     'ALTER TABLE organization_lifecycle_events DISABLE TRIGGER organization_lifecycle_events_append_only',

@@ -379,72 +379,77 @@ describe('permanent Property Erase command store (LIF-01-T19)', () => {
     expect(proofCompleted).toBe(true)
   })
 
-  it('refuses cancellation after purging through the database trigger', async () => {
-    await expect(
-      db.transaction(async (raw) => {
-        const tx = raw as unknown as Tx
-        const fixture = await seed(tx)
-        const store = createPropertyEraseCommandStore(tx as unknown as Database).withTx(
-          tx,
-        )
-        const authority = await store.request({
-          organizationId: fixture.organizationId,
-          propertyId: fixture.targetPropertyId,
-          requestedByUserId: fixture.userId,
-          identityVerificationRef: 'identity:webauthn:2027-06-01',
-          supportOperatorId: 'ops-erase',
-          supportAuthorizationRef: 'support:auth:zd-99002',
-          evidenceRef: 'erase:request:zd-99002',
-          correlationId: 'corr-erase-trigger',
-          requestedAt: NOW,
-        })
-        await store.recordPreview({
-          authorityId: authority.id,
-          organizationId: fixture.organizationId,
-          inventoryRevision: 1,
-          inventoryDigest: 'a'.repeat(64),
-          retentionPreviewRef: 'retention:preview:2027-06-01',
-          occurredAt: NOW,
-        })
-        await store.confirm({
-          authorityId: authority.id,
-          organizationId: fixture.organizationId,
-          confirmationDigest: 'b'.repeat(64),
-          inventoryRevision: 1,
-          graceExpiresAt: NOW,
-          occurredAt: NOW,
-        })
-        await store.transition({
-          authorityId: authority.id,
-          from: 'confirmed',
-          to: 'purge_pending',
-          occurredAt: NOW,
-        })
-        await store.transition({
-          authorityId: authority.id,
-          from: 'purge_pending',
-          to: 'purging',
-          occurredAt: NOW,
-        })
+  it.each(['origin', 'replica'] as const)(
+    'refuses cancellation after purging through the database trigger in a %s session',
+    async (role) => {
+      await expect(
+        db.transaction(async (raw) => {
+          const tx = raw as unknown as Tx
+          const fixture = await seed(tx)
+          const store = createPropertyEraseCommandStore(tx as unknown as Database).withTx(
+            tx,
+          )
+          const authority = await store.request({
+            organizationId: fixture.organizationId,
+            propertyId: fixture.targetPropertyId,
+            requestedByUserId: fixture.userId,
+            identityVerificationRef: 'identity:webauthn:2027-06-01',
+            supportOperatorId: 'ops-erase',
+            supportAuthorizationRef: 'support:auth:zd-99002',
+            evidenceRef: 'erase:request:zd-99002',
+            correlationId: 'corr-erase-trigger',
+            requestedAt: NOW,
+          })
+          await store.recordPreview({
+            authorityId: authority.id,
+            organizationId: fixture.organizationId,
+            inventoryRevision: 1,
+            inventoryDigest: 'a'.repeat(64),
+            retentionPreviewRef: 'retention:preview:2027-06-01',
+            occurredAt: NOW,
+          })
+          await store.confirm({
+            authorityId: authority.id,
+            organizationId: fixture.organizationId,
+            confirmationDigest: 'b'.repeat(64),
+            inventoryRevision: 1,
+            graceExpiresAt: NOW,
+            occurredAt: NOW,
+          })
+          await store.transition({
+            authorityId: authority.id,
+            from: 'confirmed',
+            to: 'purge_pending',
+            occurredAt: NOW,
+          })
+          await store.transition({
+            authorityId: authority.id,
+            from: 'purge_pending',
+            to: 'purging',
+            occurredAt: NOW,
+          })
 
-        // Direct SQL, bypassing the domain transition table entirely.
-        let message = ''
-        try {
-          await (raw as unknown as Database).execute(sql`
+          await tx.execute(sql`SET LOCAL session_replication_role = ${sql.raw(role)}`)
+
+          // Direct SQL, bypassing the domain transition table entirely.
+          let message = ''
+          try {
+            await (raw as unknown as Database).execute(sql`
             UPDATE property_erase_authorities
             SET state = 'cancelled', cancelled_at = now()
             WHERE id = ${authority.id}::uuid
           `)
-        } catch (error) {
-          const cause = (error as { cause?: { message?: string } }).cause
-          message = cause?.message ?? String(error)
-        }
-        expect(message).toMatch(/irreversible once purging has begun/u)
+          } catch (error) {
+            const cause = (error as { cause?: { message?: string } }).cause
+            message = cause?.message ?? String(error)
+          }
+          expect(message).toMatch(/irreversible once purging has begun/u)
 
-        throw ROLLBACK
-      }),
-    ).rejects.toBe(ROLLBACK)
-  })
+          throw ROLLBACK
+        }),
+      ).rejects.toBe(ROLLBACK)
+    },
+  )
 
   it('returns the Property to archived when the erase is cancelled during the grace period', async () => {
     let proofCompleted = false
