@@ -74,6 +74,12 @@ notification, import, Review fallback, and recovery execute through governed
 routes. Durable outbox dispatch is always on; worker boot fails when delivery
 dependencies are unavailable.
 
+`domain/google-call-error.ts` owns provider error codes and normalizes dispatch,
+HTTP status, allowlisted Google refusal status, and retry hints. Import,
+Performance, notification and Review boundaries map those facts to their existing
+product errors. The reachable GBP Error tag and `kind` alias remain compatible;
+neither a retryable code nor missing evidence proves a write was not sent.
+
 The import, Performance, sync and publication authorizers share vector fields
 with the transactional content resolver. Sync and publication share the
 tenant-scoped binding and connection read; Performance keeps its interactive

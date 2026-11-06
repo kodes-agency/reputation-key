@@ -12,6 +12,7 @@ import type {
   MyBusinessNotificationsPort,
 } from '../ports/mybusiness-notifications.port'
 import { isGbpApiError } from '../../domain/gbp-api-error'
+import { googleCallError } from '../../domain/google-call-error'
 import type { LoggerPort } from '#/shared/domain/logger.port'
 import type { OrganizationId } from '#/shared/domain/ids'
 
@@ -177,9 +178,10 @@ export const sumGbpAccountTallies = (
  */
 const gbpNotificationFailureCode = (error: unknown): string => {
   if (!isGbpApiError(error)) return 'unexpected_error'
-  if (error.executionAdmissionCode) return error.executionAdmissionCode
-  if (error.providerStatus !== undefined) return `provider_${error.providerStatus}`
-  return error.executionCode ?? error.kind
+  const call = googleCallError(error)
+  if (error.executionAdmissionCode && call.executionCode) return call.executionCode
+  if (call.providerStatus !== null) return `provider_${call.providerStatus}`
+  return call.executionCode ?? call.code
 }
 
 const connectionOutcome = (accounts: GbpAccountTally): GbpSubscribeOutcome => {
