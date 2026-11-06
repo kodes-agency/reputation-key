@@ -13,6 +13,12 @@ export const PHONE_WIDTHS = [320, 390] as const
 /** The smaller side of a target. */
 export const MIN_TARGET_PX = 44
 
+export type PhoneWidthMeasurement = Readonly<{
+  width: (typeof PHONE_WIDTHS)[number]
+  overflow: readonly string[]
+  targets: readonly string[]
+}>
+
 /** Wider than any phone: past it a window is not a phone's. */
 const PHONE_MAX_PX = 480
 const PHONE_HEIGHT_PX = 900
@@ -188,19 +194,36 @@ async function settled(view: Window): Promise<void> {
 export async function checkPhoneWidths(doc: Document = document): Promise<void> {
   const view = doc.defaultView
   if (!view) throw new Error('Expected a browser document')
+  if (!registry[VIEWPORT_SETTER]) return assertPhoneWidth(doc)
+  const measurements = await measurePhoneWidths(doc)
+  const failures = measurements.flatMap(({ width, overflow, targets }) =>
+    [...overflow, ...targets].map((finding) => `${width} px: ${finding}`),
+  )
+  if (failures.length > 0) throw new Error(failures.join('\n'))
+}
+
+/** Records each check separately for a runner's story-state baseline. */
+export async function measurePhoneWidths(
+  doc: Document = document,
+): Promise<PhoneWidthMeasurement[]> {
+  const view = doc.defaultView
+  if (!view) throw new Error('Expected a browser document')
   const setViewport = registry[VIEWPORT_SETTER]
-  if (!setViewport) return assertPhoneWidth(doc)
+  if (!setViewport) throw new Error('Phone-width measurements require a viewport setter')
   const original = { width: view.innerWidth, height: view.innerHeight }
-  const failures: string[] = []
+  const measurements: PhoneWidthMeasurement[] = []
   try {
     for (const width of PHONE_WIDTHS) {
       await setViewport(width, PHONE_HEIGHT_PX)
       await settled(view)
-      for (const finding of phoneWidthFindings(doc))
-        failures.push(`${width} px: ${finding}`)
+      measurements.push({
+        width,
+        overflow: overflowFindings(doc, view),
+        targets: targetFindings(doc, view),
+      })
     }
   } finally {
     await setViewport(original.width, original.height)
   }
-  if (failures.length > 0) throw new Error(failures.join('\n'))
+  return measurements
 }
