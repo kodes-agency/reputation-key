@@ -1,6 +1,7 @@
 import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { describe, expect, it } from 'vitest'
+import { RAILWAY_SERVICE_SETTINGS } from '#/shared/release/railway-service-settings'
 
 const read = (path: string) => readFileSync(resolve(process.cwd(), path), 'utf8')
 
@@ -34,13 +35,10 @@ describe('production error-monitoring wiring', () => {
     )
     // One image serves web and worker, so the image CMD is the web server and
     // the worker's preload lives in the start command of every worker
-    // deployment surface. Nothing else guarantees the worker gets it.
+    // deployment surface. Image promotion checks the deployed manifest too.
     const workerStart =
       'node --import ./dist-worker/worker-observability-preload.js dist-worker/index.js'
-    const railwayWorker = JSON.parse(read('railway.worker.json')) as {
-      deploy?: { startCommand?: string }
-    }
-    expect(railwayWorker.deploy?.startCommand).toBe(workerStart)
+    expect(RAILWAY_SERVICE_SETTINGS.worker.startCommand).toBe(workerStart)
     expect(read('compose.local.yml')).toContain(
       './dist-worker/worker-observability-preload.js',
     )

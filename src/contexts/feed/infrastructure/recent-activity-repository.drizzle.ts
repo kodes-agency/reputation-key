@@ -1,7 +1,6 @@
 import { and, eq, desc, inArray } from 'drizzle-orm'
 import { assertLiteral } from '#/shared/domain/assert'
 import type { Database } from '#/shared/db'
-import type { LoggerPort } from '#/shared/domain/logger.port'
 import { recentActivityEntries } from '#/shared/db/schema/activity.schema'
 import type { OrganizationId } from '#/shared/domain/ids'
 import {
@@ -10,10 +9,7 @@ import {
   propertyId as toPropertyId,
   organizationId as toOrgId,
 } from '#/shared/domain/ids'
-import type {
-  RecentActivityRepository,
-  FindRecentActivityDuplicateInput,
-} from '../ports/recent-activity-repository.port'
+import type { RecentActivityRepository } from '../ports/recent-activity-repository.port'
 import {
   ACTIVITY_ACTIONS,
   ACTIVITY_RESOURCE_TYPES,
@@ -58,58 +54,8 @@ const activityFromRow = (
 
 export const createRecentActivityRepository = (
   db: Database,
-  logger: LoggerPort,
 ): RecentActivityRepository => {
-  const log = logger.child({ component: 'recent-activity-repository' })
   return {
-    insert: async (entry) => {
-      try {
-        await db.insert(recentActivityEntries).values({
-          id: entry.id as string,
-          actorId: entry.actorId as string,
-          actorName: entry.actorName,
-          actorAvatarUrl: entry.actorAvatarUrl,
-          actorRole: entry.actorRole,
-          action: entry.action,
-          resourceType: entry.resourceType,
-          resourceId: entry.resourceId,
-          propertyId: entry.propertyId as string | null,
-          organizationId: entry.organizationId as string,
-          payload: entry.payload,
-          source: entry.source,
-          eventId: entry.eventId,
-          createdAt: entry.createdAt,
-        })
-      } catch (error) {
-        // ACT-006: unique violation on (eventId, organizationId) — the job was
-        // redelivered after a concurrent insert succeeded. Treat as idempotent
-        // no-op so BullMQ doesn't retry a job whose effect already landed.
-        const isPg23505 =
-          error instanceof Error &&
-          'code' in error &&
-          (error as { code: string }).code === '23505'
-        if (isPg23505) {
-          log.info('Recent Activity entry already exists — idempotent no-op')
-          return
-        }
-        throw error
-      }
-    },
-
-    findDuplicate: async (input: FindRecentActivityDuplicateInput) => {
-      const rows = await db
-        .select({ id: recentActivityEntries.id })
-        .from(recentActivityEntries)
-        .where(
-          and(
-            eq(recentActivityEntries.eventId, input.eventId),
-            eq(recentActivityEntries.organizationId, input.organizationId as string),
-          ),
-        )
-        .limit(1)
-      return rows.length > 0
-    },
-
     findByResource: async (orgId: OrganizationId, resourceType, resourceId, limit) => {
       const rows = await db
         .select()

@@ -28,12 +28,9 @@ const settles = (name: string): EventConsumerRef =>
   durable(name, NOTIFICATION_SETTLEMENT_OUTBOX)
 
 export const IDENTITY_ROWS: ReadonlyArray<EventFamilyRow> = [
-  ev('identity.organization.created', [
-    durable('activity.recent-activity', ACTIVITY_OUTBOX),
-  ]),
-  ev('identity.member.invited', [durable('activity.recent-activity', ACTIVITY_OUTBOX)]),
+  ev('identity.organization.created', []),
+  ev('identity.member.invited', []),
   ev('identity.invitation.accepted', [
-    durable('activity.recent-activity', ACTIVITY_OUTBOX),
     durable(
       'notification.on-identity-invitation-accepted',
       NOTIFICATION_IDENTITY_ACCOUNT_OUTBOX,
@@ -44,9 +41,7 @@ export const IDENTITY_ROWS: ReadonlyArray<EventFamilyRow> = [
       NOTIFICATION_IDENTITY_ACCOUNT_OUTBOX,
     ),
   ]),
-  ev('identity.invitation.canceled', [
-    durable('activity.recent-activity', ACTIVITY_OUTBOX),
-  ]),
+  ev('identity.invitation.canceled', []),
   // ADR 0059: tells the reporter their own beta report reached an outcome.
   ev('identity.beta_feedback.outcome_reached', [
     durable(
@@ -58,7 +53,6 @@ export const IDENTITY_ROWS: ReadonlyArray<EventFamilyRow> = [
   // release of the member's responsibilities: each owner releases again here
   // whatever the member was assigned in between.
   ev('identity.member.removed', [
-    durable('activity.recent-activity', ACTIVITY_OUTBOX),
     durable(
       'notification.on-identity-member-removed',
       NOTIFICATION_IDENTITY_ACCOUNT_OUTBOX,
@@ -67,7 +61,6 @@ export const IDENTITY_ROWS: ReadonlyArray<EventFamilyRow> = [
     durable('portal.on-member-removed', PORTAL_MEMBER_OFFBOARDING_OUTBOX),
   ]),
   ev('identity.member.role_changed', [
-    durable('activity.recent-activity', ACTIVITY_OUTBOX),
     durable('activity.operational-action-history', ACTIVITY_OUTBOX),
     durable(
       'notification.on-identity-member-role-changed',

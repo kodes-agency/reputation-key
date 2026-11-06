@@ -1,13 +1,6 @@
-// BQC-6.5 item 10 — in-app notification + activity surfaces show
-// content-safe facts. A new review with SENSITIVE marker content arrives
-// through the real chain (stub → sync → review.created → inbox projection →
-// worker-side insert-activity-log / insert-notification jobs), then triage
-// actions add activity facts.
-//
-// Transitions verified: notification row + activity rows exist for the right
-// resources, and NEITHER surface ever carries the review's text or reviewer
-// name — at rest (DB payloads) and rendered (notification popover, and the
-// Handling History rows in the inbox thread).
+// Notifications and Inbox Handling History keep source review content private.
+// A synced review is projected into the Inbox, then closed, reopened and noted.
+// Notification payloads and rendered history must exclude source content.
 
 import { test, expect } from '../../helpers/error-detection'
 import { clickWhenReady, waitForHydration } from '../../helpers/interaction'
@@ -26,7 +19,6 @@ import {
   getInboxItemForReview,
   getInboxItemById,
   closeInboxItemBySourceAuthority,
-  getActivityRows,
   getNotificationsForUser,
   enqueueReviewSync,
   waitFor,
@@ -40,7 +32,7 @@ const LOCATION = `${ACCOUNT_NAME}/locations/not-loc`
 const SENSITIVE_TEXT = 'SENSITIVE-REVIEW-TEXT-MARKER never shown'
 const SENSITIVE_NAME = 'SENSITIVE-REVIEWER-NAME-MARKER'
 
-test.describe('Critical workflow: content-safe notification + activity facts', () => {
+test.describe('Critical workflow: content-safe notifications and handling history', () => {
   test.beforeEach(async () => {
     // Stale provider syncs from an earlier spec retry against a stub scope that
     // has moved on, and burn the shared reviews quota this one needs.
@@ -171,7 +163,7 @@ test.describe('Critical workflow: content-safe notification + activity facts', (
       'SENSITIVE-REVIEWER-NAME-MARKER',
     )
 
-    // Triage actions (each a durable activity fact): close, reopen, note.
+    // Triage actions: close, reopen, note.
     //
     // Closing is an OUTCOME, not a manager toggle — there is deliberately no
     // Close control anywhere in the detail or the bulk toolbar (asserted by
@@ -224,33 +216,6 @@ test.describe('Critical workflow: content-safe notification + activity facts', (
       timeout: 10_000,
     })
 
-    // Activity rows (worker-processed insert-activity-log jobs).
-    const activityRows = await waitFor(
-      async () => {
-        const rows = await getActivityRows({
-          organizationId: seed.organizationId,
-          resourceType: 'inbox_item',
-          resourceId: inboxItem.id as string,
-        })
-        const actions = new Set(rows.map((r) => r.action))
-        return actions.has('created') && actions.has('changed') && actions.has('added')
-          ? rows
-          : null
-      },
-      { timeoutMs: 30_000, description: 'activity facts for triage actions' },
-    )
-    // Content-safe at rest: no review text, no reviewer name in ANY payload.
-    for (const row of activityRows) {
-      expect(JSON.stringify(row.payload)).not.toContain('SENSITIVE-REVIEW-TEXT-MARKER')
-      expect(JSON.stringify(row.payload)).not.toContain('SENSITIVE-REVIEWER-NAME-MARKER')
-    }
-
-    // Rendered surfaces: the pane reads the reopen from Handling History in the
-    // thread now, not from the Recent Activity feed — that collapsible was
-    // deleted with the detail-pane rebuild. The activity FACTS asserted above
-    // are still written; only the UI that displayed them is gone, and the
-    // thread is always expanded, so there is no trigger left to click.
-    //
     // The manager's REOPEN is the status change under test; the close was the
     // source authority's. The reopen dialog above picked `New information`,
     // which the thread renders as the sentence below — see

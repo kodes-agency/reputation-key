@@ -36,7 +36,6 @@ const dbStub = new Proxy(
 ) as unknown as Database
 
 const EXPECTED_TOP_LEVEL_KEYS = [
-  'activityWorkerRuntime',
   'aiPublicApi',
   'aiWorkerRuntime',
   'alertDispatcher',

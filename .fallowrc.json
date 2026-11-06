@@ -52,7 +52,6 @@
     "scripts/ops/queue-quarantine.ts",
     "scripts/ops/rebuild-metric-projection.ts",
     "scripts/ops/rebuild-projection.ts",
-    "scripts/ops/recover-recent-activity.ts",
     "scripts/ops/repair-partial-offboarding.ts",
     "scripts/ops/reparse-review-translations.ts",
     "scripts/ops/report-organization-lifecycle.ts",
@@ -81,10 +80,6 @@
     "opencc-js"
   ],
   "ignoreExports": [
-    {
-      "file": "src/contexts/feed/domain/recent-activity-replay-fact.ts",
-      "exports": ["RECENT_ACTIVITY_REPLAY_SOURCE_KINDS"]
-    },
     {
       "file": "src/contexts/identity/domain/organization-lifecycle.ts",
       "exports": ["ORGANIZATION_LIFECYCLE_RECEIPT_PHASES"]
@@ -123,10 +118,7 @@
     },
     {
       "file": "src/contexts/feed/infrastructure/activity-outbox-consumers.ts",
-      "exports": [
-        "DURABLE_OPERATIONAL_ACTION_HISTORY_EVENT_TYPES",
-        "DURABLE_RECENT_ACTIVITY_EVENT_TYPES"
-      ]
+      "exports": ["DURABLE_OPERATIONAL_ACTION_HISTORY_EVENT_TYPES"]
     },
     {
       "file": "src/contexts/identity/domain/partialOffboarding.ts",

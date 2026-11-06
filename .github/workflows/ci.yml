@@ -1077,8 +1077,117 @@ jobs:
         run: pnpm e2e:stack:down
 
   # A failed, cancelled or skipped dependency cannot pass the aggregate.
+  populated-upgrade:
+    needs: [image-build]
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      NODE_ENV: test
+      ALLOW_DESTRUCTIVE_DB_TESTS: '1'
+      TEST_DATABASE_URL: postgresql://test:test@localhost:5432/test
+      REVIEW_PROVIDER_SUBJECT_HMAC_MIGRATOR_KEYS: 'v1:cdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcd'
+
+    services:
+      postgres:
+        # Digest-pinned (multi-arch index); the tag comment is for humans.
+        image: postgres:16@sha256:33f923b05f64ca54ac4401c01126a6b92afe839a0aa0a52bc5aeb5cc958e5f20 # 16.14
+        env:
+          POSTGRES_USER: test
+          POSTGRES_PASSWORD: test
+          POSTGRES_DB: test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+      redis:
+        # Digest-pinned (multi-arch index); the tag comment is for humans.
+        image: redis:7@sha256:595cc6f2bb3af6e03347b90deb6123c6aa2c81dea05ce08128de8a174b6ac67b # 7.4.10
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: PostgreSQL 16 clients
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y postgresql-client-16
+          echo /usr/lib/postgresql/16/bin >> "$GITHUB_PATH"
+      - name: Download candidate image
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: images-web
+          path: images
+      - name: Load candidate and pin previous image
+        env:
+          PREVIOUS_REVISION: ${{ github.event.pull_request.base.sha || github.event.before }}
+        run: |
+          set -euo pipefail
+          zstd -dc images/web.tar.zst | docker load
+          previous="$PREVIOUS_REVISION"
+          if [[ -z "$previous" || "$previous" == 0000000000000000000000000000000000000000 ]]; then
+            previous=$(git merge-base HEAD origin/main)
+          fi
+          [[ "$previous" =~ ^[0-9a-f]{40}$ ]]
+          # Only main pushes publish SHA tags. Dispatch branches can have
+          # several unpublished commits, and main's latest image may still
+          # be publishing, so resolve an available main ancestor first.
+          revisions=$(git rev-list --first-parent --max-count=100 "$previous")
+          reference=''
+          for revision in $revisions; do
+            candidate="ghcr.io/kodes-agency/repkey-web:${revision}"
+            if docker manifest inspect "$candidate" >/dev/null 2>&1; then
+              previous="$revision"
+              reference="$candidate"
+              break
+            fi
+          done
+          if [[ -z "$reference" ]]; then
+            echo '::error::No published populated-upgrade baseline found'
+            exit 1
+          fi
+          docker pull "$reference"
+          test "$(docker image inspect --format '{{index .Config.Labels "org.opencontainers.image.revision"}}' "$reference")" = "$previous"
+          digest=$(docker image inspect --format '{{index .RepoDigests 0}}' "$reference")
+          echo "POPULATED_UPGRADE_PREVIOUS_IMAGE=$digest" >> "$GITHUB_ENV"
+          echo 'POPULATED_UPGRADE_NEW_IMAGE=repkey-web:ci' >> "$GITHUB_ENV"
+      - name: Isolate image dependencies
+        env:
+          POSTGRES_CONTAINER: ${{ job.services.postgres.id }}
+          REDIS_CONTAINER: ${{ job.services.redis.id }}
+        run: |
+          docker network create --internal populated-upgrade
+          docker network connect --alias upgrade-postgres populated-upgrade "$POSTGRES_CONTAINER"
+          docker network connect --alias upgrade-redis populated-upgrade "$REDIS_CONTAINER"
+      - name: Released and candidate image boots
+        run: pnpm exec tsx scripts/ci/populated-upgrade-image-check.ts
+      - name: Disconnect isolated dependencies
+        if: always()
+        env:
+          POSTGRES_CONTAINER: ${{ job.services.postgres.id }}
+          REDIS_CONTAINER: ${{ job.services.redis.id }}
+        run: |
+          docker network disconnect populated-upgrade "$POSTGRES_CONTAINER" || true
+          docker network disconnect populated-upgrade "$REDIS_CONTAINER" || true
+          docker network rm populated-upgrade || true
+
   ci:
-    needs: [lint, typecheck, unit, integration, probes, browser]
+    needs: [lint, typecheck, unit, integration, probes, browser, populated-upgrade]
     if: always()
     runs-on: ubuntu-latest
     timeout-minutes: 5 # longest green run ~1 min

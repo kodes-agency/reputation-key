@@ -9,6 +9,7 @@
 
 import { describe, it, expect, beforeAll, afterAll } from 'vitest'
 import { sql } from 'drizzle-orm'
+import { recentActivityEntries } from '#/shared/db/schema/activity.schema'
 import { getDb } from '#/shared/db'
 import { createRecentActivityRepository } from '../recent-activity-repository.drizzle'
 import type { RecentActivityEntry } from '../../domain/activity-types'
@@ -18,10 +19,9 @@ import {
   propertyId,
   organizationId,
 } from '#/shared/domain/ids'
-import { createMockLogger } from '#/shared/testing/mock-logger'
 
 const db = getDb()
-const repo = createRecentActivityRepository(db, createMockLogger())
+const repo = createRecentActivityRepository(db)
 const ORG_A = organizationId('org-activity-iso-a')
 const ORG_B = organizationId('org-activity-iso-b')
 const ORG_C = organizationId('org-activity-valid-vocabulary')
@@ -65,9 +65,9 @@ beforeAll(async () => {
   await db.execute(
     sql`DELETE FROM recent_activity_entries WHERE organization_id IN (${ORG_A}, ${ORG_B}, ${ORG_C})`,
   )
-  await repo.insert(ROW_A)
-  await repo.insert(ROW_B)
-  await repo.insert(ROW_C)
+  await db.insert(recentActivityEntries).values(ROW_A)
+  await db.insert(recentActivityEntries).values(ROW_B)
+  await db.insert(recentActivityEntries).values(ROW_C)
 })
 
 afterAll(async () => {

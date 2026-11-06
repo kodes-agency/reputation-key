@@ -45,16 +45,10 @@ describe('architecture: core Portal lifecycle facts are atomic', () => {
       'portal.created': [],
       'portal.updated': [],
       'portal.deleted': [],
-      'portal.publication.published': [
-        'activity.operational-action-history',
-        'activity.recent-activity',
-      ],
-      'portal.publication.rolled_back': ['activity.recent-activity'],
-      'portal.archived': [
-        'activity.operational-action-history',
-        'activity.recent-activity',
-      ],
-      'portal.restored': ['activity.recent-activity'],
+      'portal.publication.published': ['activity.operational-action-history'],
+      'portal.publication.rolled_back': [],
+      'portal.archived': ['activity.operational-action-history'],
+      'portal.restored': [],
     }
 
     for (const [eventType, expected] of Object.entries(expectedConsumers)) {

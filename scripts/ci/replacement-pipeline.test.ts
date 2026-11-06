@@ -36,6 +36,7 @@ const CI_GATES = [
   'integration',
   'probes',
   'browser',
+  'populated-upgrade',
 ] as const
 const IMAGE_JOBS = ['image-build', 'image-scan'] as const
 

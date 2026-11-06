@@ -22,6 +22,8 @@ Primary areas:
 - `domain/`, `http/`, `email/`, `cache/`, and `lifecycle/` hold small mechanisms.
 - `hooks/` and `queries/` are browser-safe cross-feature access/cache utilities.
 - `ops/` and `release/` own reviewed operational and promotion contracts.
+  `release/railway-service-settings.ts` defines web and worker settings; image
+  promotion checks deployed manifests and replica counts against that contract.
 
 Notification, Integration, Staff self, Identity and Product updates query families
 come from `queries/query-keys.ts`'s `createKeys(scope)`. `TenantScope` names the signed-in
@@ -171,6 +173,11 @@ next navigation. The caller still sees the failure either way.
 Jobs, outbox delivery, health, and observability expose infrastructure mechanics.
 Contexts own handler meaning, source transactions, recovery policy, content
 classification, and mutation authority.
+
+Server error logs retain validated names, codes and HTTP status, with no client
+message or domain context. The logger redacts flattened error text recursively;
+Error objects retain their content-free summaries and database facts. Client
+error wording and the original monitoring cause are independent of those logs.
 
 Outbox delivery admits new and previously published unresolved facts into
 `work_items` in the same transaction as the publication marker. The relay sends

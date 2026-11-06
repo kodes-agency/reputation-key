@@ -47,20 +47,6 @@ export type TenantPredicateExemption = Readonly<{
 
 export const TENANT_PREDICATE_EXEMPTIONS: readonly TenantPredicateExemption[] = [
   {
-    file: 'src/contexts/feed/infrastructure/activity-recovery-store.ts',
-    symbol: 'listMissing',
-    reason:
-      'The bounded replay-recovery scan intentionally inventories projection gaps across tenants and returns the replay authority with its tenant identity.',
-    category: 'LEGITIMATE-GLOBAL',
-  },
-  {
-    file: 'src/contexts/feed/infrastructure/activity-recovery-store.ts',
-    symbol: 'readGap',
-    reason:
-      'The recovery health snapshot intentionally aggregates replay-authority gaps across tenants without mutating any tenant-owned row.',
-    category: 'LEGITIMATE-GLOBAL',
-  },
-  {
     file: 'src/contexts/ai/infrastructure/adapters/ai-operation-store.adapter.ts',
     symbol: 'claim',
     reason:

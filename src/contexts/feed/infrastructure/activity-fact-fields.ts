@@ -1,14 +1,11 @@
-// Feed activity surface — reading fields off a durable fact's validated payload.
-//
-// A leaf: the Recent Activity consumers and the Goal mapping beside them both
-// read a fact through these, so neither has to import the other.
+// Read fields from a durable Operational Action History fact.
 
 export type ActivityFactPayload = Readonly<Record<string, unknown>>
 
 export const stringValue = (payload: ActivityFactPayload, key: string): string => {
   const value = payload[key]
   if (typeof value !== 'string' || value.length === 0) {
-    throw new Error(`Recent Activity fact ${key} is invalid`)
+    throw new Error(`Operational Action History fact ${key} is invalid`)
   }
   return value
 }

@@ -13,7 +13,6 @@ import { withStartContext } from '#/shared/testing/tanstack-start-als'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { Database } from '#/shared/db'
 import type { OutboxRepository } from '#/shared/outbox'
-import { recentActivityEntryId } from '#/shared/domain/ids'
 import { createMockLogger } from '#/shared/testing/mock-logger'
 
 const mocks = vi.hoisted(() => ({
@@ -66,7 +65,6 @@ function buildFeedPublicApi() {
       db: noNotificationRows,
       clock,
       logger,
-      idGen: () => recentActivityEntryId('90000000-0000-4000-8000-000000000999'),
       operationalHistoryIdGen: () =>
         operationalActionHistoryRecordId('90000000-0000-4000-8000-000000000998'),
       operationalHistoryHoldIdGen: () => '90000000-0000-4000-8000-000000000997',

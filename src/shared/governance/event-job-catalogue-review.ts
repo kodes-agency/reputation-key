@@ -78,12 +78,10 @@ export const REVIEW_ROWS: ReadonlyArray<EventFamilyRow> = [
   ]),
   ev('review.expired', [durable('inbox.on-review-expired', INBOX_OUTBOX)]),
   ev('review.reply.submitted', [
-    durable('activity.recent-activity', ACTIVITY_OUTBOX),
     durable('notification.on-review-reply-submitted', NOTIFICATION_WORKFLOW_OUTBOX),
     durable('inbox.on-reply-submitted', INBOX_OUTBOX),
   ]),
   ev('review.reply.approved', [
-    durable('activity.recent-activity', ACTIVITY_OUTBOX),
     durable('notification.on-review-reply-approved', NOTIFICATION_WORKFLOW_OUTBOX),
     settles('notification.settle-on-review-reply-approved'),
   ]),
@@ -91,12 +89,10 @@ export const REVIEW_ROWS: ReadonlyArray<EventFamilyRow> = [
     durable('review.on-reply-publication-requested', REVIEW_OUTBOX),
   ]),
   ev('review.reply.rejected', [
-    durable('activity.recent-activity', ACTIVITY_OUTBOX),
     durable('notification.on-review-reply-rejected', NOTIFICATION_WORKFLOW_OUTBOX),
     settles('notification.settle-on-review-reply-rejected'),
   ]),
   ev('review.reply.published', [
-    durable('activity.recent-activity', ACTIVITY_OUTBOX),
     durable('activity.operational-action-history', ACTIVITY_OUTBOX),
     durable('notification.on-review-reply-published', NOTIFICATION_WORKFLOW_OUTBOX),
     settles('notification.settle-on-review-reply-published'),
@@ -107,12 +103,11 @@ export const REVIEW_ROWS: ReadonlyArray<EventFamilyRow> = [
     durable('notification.on-review-reply-publish_failed', NOTIFICATION_WORKFLOW_OUTBOX),
   ]),
   ev('review.reply.publication_cancelled', [
-    durable('activity.recent-activity', ACTIVITY_OUTBOX),
     durable(
       'notification.on-review-reply-publication_cancelled',
       NOTIFICATION_WORKFLOW_OUTBOX,
     ),
     settles('notification.settle-on-review-reply-publication-cancelled'),
   ]),
-  ev('review.reply.updated', [durable('activity.recent-activity', ACTIVITY_OUTBOX)]),
+  ev('review.reply.updated', []),
 ]
