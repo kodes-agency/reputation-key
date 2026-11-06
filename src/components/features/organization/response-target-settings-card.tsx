@@ -1,5 +1,5 @@
 import { SectionTitle } from '#/components/ui/section-title'
-import { useState } from 'react'
+import { useState, type ReactNode } from 'react'
 import { useForm } from '@tanstack/react-form'
 import type { Action } from '#/components/hooks/use-action'
 import { FormActions } from '#/components/forms/form-actions'
@@ -21,15 +21,9 @@ import {
   type SetResponseTargetPolicyDtoInput,
 } from '#/contexts/inbox/application/dto/inbox.dto'
 import type {
-  GoogleReviewTargetAnalytics,
-  PrivateFeedbackTargetAnalytics,
   ResponseTargetPolicySettings,
   ResponseTargetPolicyWriteResult,
 } from '#/contexts/inbox/application/public-api'
-import {
-  GoogleReviewTargetSummary,
-  PrivateFeedbackTargetSummary,
-} from './response-target-analytics-summary'
 
 type UpdatePolicyAction = Action<
   Readonly<{ data: SetResponseTargetPolicyDtoInput }>,
@@ -207,14 +201,14 @@ function TargetPolicyForm({
 
 export function ResponseTargetSettingsCard({
   settings,
-  privateFeedbackAnalytics,
-  googleReviewAnalytics,
   updatePolicy,
+  privateFeedbackSummary,
+  googleReviewSummary,
 }: Readonly<{
   settings: ResponseTargetPolicySettings
-  privateFeedbackAnalytics: PrivateFeedbackTargetAnalytics
-  googleReviewAnalytics: GoogleReviewTargetAnalytics
   updatePolicy: UpdatePolicyAction
+  privateFeedbackSummary: ReactNode
+  googleReviewSummary: ReactNode
 }>) {
   return (
     <Card>
@@ -246,7 +240,7 @@ export function ResponseTargetSettingsCard({
               at the time RepKey saw them.
             </p>
           </div>
-          <GoogleReviewTargetSummary analytics={googleReviewAnalytics} />
+          {googleReviewSummary}
         </div>
         <TargetPolicyForm
           key={`feedback:${settings.organization.privateFeedbackHandling.policyVersion ?? 'default'}`}
@@ -262,7 +256,7 @@ export function ResponseTargetSettingsCard({
               Only cycles with a reliable saved target are included.
             </p>
           </div>
-          <PrivateFeedbackTargetSummary analytics={privateFeedbackAnalytics} />
+          {privateFeedbackSummary}
         </div>
       </CardContent>
     </Card>

@@ -1,4 +1,3 @@
-import { tenantScope } from '#/shared/queries/tenant-scope'
 import { createFileRoute, Outlet, type SearchSchemaInput } from '@tanstack/react-router'
 import { roleUnavailable } from '#/shared/auth/route-notice'
 import type { AuthRouteContext } from '#/routes/_authenticated'
@@ -48,12 +47,7 @@ export const Route = createFileRoute(
   },
   staleTime: 30_000,
   loader: ({ params, context }) =>
-    loadPortalWorkspace(
-      context.queryClient,
-      tenantScope(context),
-      params.propertyId,
-      params.portalId,
-    ),
+    loadPortalWorkspace(context.queryClient, params.propertyId, params.portalId),
   // The tab is titled after the portal (the static title is the fallback while
   // nothing is cached). Read from the cache the loader filled and every edit
   // updates, so a renamed portal's tab follows on the next navigation.
@@ -90,8 +84,8 @@ function PortalNoLongerAvailable() {
 
 /**
  * The workspace layout: header, tab strip and one scrolling body, with the
- * editor (`index`) or the review page (`review`) rendered inside it. Every read
- * the header needs was seeded by the loader, so these resolve from cache.
+ * editor (`index`) or the review page (`review`) rendered inside it. Ancillary
+ * header and tab reads have local loading and failure states.
  */
 function PortalWorkspaceLayout() {
   const { propertyId, portalId } = Route.useParams()

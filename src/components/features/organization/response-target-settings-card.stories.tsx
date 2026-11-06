@@ -9,6 +9,10 @@ import type { Meta, StoryObj } from '@storybook/react'
 import { expect, fn, mocked, userEvent, waitFor, within } from 'storybook/test'
 import { propertyId } from '#/shared/domain/ids'
 import { ResponseTargetSettingsCard } from './response-target-settings-card'
+import {
+  GoogleReviewTargetSummary,
+  PrivateFeedbackTargetSummary,
+} from './response-target-analytics-summary'
 
 const updatePolicy = Object.assign(
   fn(async () => undefined),
@@ -50,28 +54,36 @@ const meta: Meta<typeof ResponseTargetSettingsCard> = {
         effectiveSource: 'organization_policy',
       },
     },
-    googleReviewAnalytics: {
-      targetKind: 'google_review_response',
-      measuredCycleCount: 12,
-      activeCount: 2,
-      currentOverdueCount: 1,
-      respondedOnTimeCount: 8,
-      respondedLateCount: 1,
-      reopenCount: 0,
-      historicalOnboardingExcludedCount: 3,
-      legacyUnknownExcludedCount: 0,
-      averageTimeToResponseMinutes: 400,
-    },
-    privateFeedbackAnalytics: {
-      targetKind: 'private_feedback_handling',
-      measuredCycleCount: 5,
-      activeCount: 1,
-      currentOverdueCount: 0,
-      handledOnTimeCount: 4,
-      handledLateCount: 0,
-      reopenCount: 0,
-      averageTimeToFirstHandlingMinutes: 90,
-    },
+    googleReviewSummary: (
+      <GoogleReviewTargetSummary
+        analytics={{
+          targetKind: 'google_review_response',
+          measuredCycleCount: 12,
+          activeCount: 2,
+          currentOverdueCount: 1,
+          respondedOnTimeCount: 8,
+          respondedLateCount: 1,
+          reopenCount: 0,
+          historicalOnboardingExcludedCount: 3,
+          legacyUnknownExcludedCount: 0,
+          averageTimeToResponseMinutes: 400,
+        }}
+      />
+    ),
+    privateFeedbackSummary: (
+      <PrivateFeedbackTargetSummary
+        analytics={{
+          targetKind: 'private_feedback_handling',
+          measuredCycleCount: 5,
+          activeCount: 1,
+          currentOverdueCount: 0,
+          handledOnTimeCount: 4,
+          handledLateCount: 0,
+          reopenCount: 0,
+          averageTimeToFirstHandlingMinutes: 90,
+        }}
+      />
+    ),
     updatePolicy,
   },
 }
