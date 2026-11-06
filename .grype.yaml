@@ -165,7 +165,7 @@ ignore:
       type: go-module
 
   # ── Debian trixie base packages, util-linux 2.41.5-0+deb13u1 and zlib1g
-  #    1:1.3.dfsg+really1.3.1-1+b1 (5 CVEs) ───────────────────────────────
+  #    1:1.3.dfsg+really1.3.1-1+b1 (6 CVEs) ───────────────────────────────
   # owner: platform — reason: won't-fix on trixie as on bookworm (util-linux
   # is fixed only in unstable; zlib is unfixed upstream). The reachable
   # surface was removed rather than excepted:
@@ -173,12 +173,15 @@ ignore:
   #     helpers; every production runtime stage drops every setuid/setgid
   #     bit (`RUN find / -xdev -perm /6000 -type f -exec chmod ug-s {} +`),
   #     and the processes run as a non-root user with no CAP_SYS_ADMIN;
-  #   - the zlib CVE is in the system libz `gz_vacate()` path; the runtime
-  #     `node` binary is built with `shared_zlib: false` and does not link
-  #     libz at all, so the application cannot reach it.
+  #   - the zlib CVEs are in the system libz (CVE-2026-85091 in `gz_vacate()`;
+  #     CVE-2026-76844 added 2026-11-06, the Debian tracker listing trixie and
+  #     forky both vulnerable with no fix); the runtime `node` binary is built
+  #     with `shared_zlib: false` and does not link libz at all, so the
+  #     application cannot reach either.
   # expiresAt: 2026-12-07
   - vulnerability: CVE-2026-76642 # util-linux, no trixie fix
   - vulnerability: CVE-2026-78408 # util-linux, no trixie fix
   - vulnerability: CVE-2026-78409 # util-linux, no trixie fix
   - vulnerability: CVE-2026-78410 # util-linux, no trixie fix
   - vulnerability: CVE-2026-85091 # zlib1g, unfixed upstream
+  - vulnerability: CVE-2026-76844 # zlib1g, no trixie fix
