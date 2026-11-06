@@ -20,9 +20,10 @@ const seed = requireE2eSeedState()
 const GUEST_STYLESHEET = '/fonts/guest/guest-fonts.css'
 /** Long enough that a late font would shift text if the fallbacks did not hold the metrics. */
 const FONT_DELAY_MS = 1500
-// PROVISIONAL owner-controlled ceiling. Replace before merge with the normal
-// built CI journey's measured total plus 10% (rounded up).
-const GUEST_DOWNLOAD_LIMIT_BYTES = 2_000_000
+// Owner-controlled ceiling: the built CI journey measured 1,537,624 bytes on
+// 2026-11-06 (identical in two runs), plus 10%, rounded up. Only the owner changes
+// it, and at programme end only downward.
+const GUEST_DOWNLOAD_LIMIT_BYTES = 1_691_387
 
 const { viewport, userAgent, deviceScaleFactor, isMobile, hasTouch } = devices['Pixel 7']
 const PIXEL_7_PROFILE = { viewport, userAgent, deviceScaleFactor, isMobile, hasTouch }
