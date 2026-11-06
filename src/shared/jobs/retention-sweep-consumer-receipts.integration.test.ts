@@ -1,21 +1,20 @@
 // Consumer receipts against real PostgreSQL. A receipt is the dispatcher's only
-// proof that a consumer already handled a fact, and the five-minute redelivery
-// sweep replays every published fact that lacks one, however old it is. So a
-// receipt must never leave before its fact. These cases run the retention
-// sweep's own rules for the two tables and then the redelivery sweep itself:
+// proof that a consumer already handled a fact, and durable delivery adopts
+// every published fact that lacks one, however old it is. So a receipt must
+// never leave before its fact. These cases run the retention rules for the
+// two tables and then admit any remaining unsettled facts for delivery:
 // whatever the retention run did (took its time, failed on the fact rule,
 // stopped at its per-run cap), no fact that is still stored may be replayed.
 
 import { sql } from 'drizzle-orm'
 import type { Job } from 'bullmq'
-import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterAll, beforeEach, describe, expect, it } from 'vitest'
 import { getDb } from '#/shared/db'
-import { DEFAULT_MAX_BATCHES_PER_RUN } from '#/shared/db/retention/execute-retention-rule'
-import { createOutboxRepository } from '#/shared/outbox/infrastructure/outbox-repository'
 import {
-  createPublishedEventRedeliveryHandler,
-  type PublishedEventRedeliveryQueue,
-} from '#/shared/outbox/published-event-redelivery.job'
+  countRetentionRuleCandidates,
+  DEFAULT_MAX_BATCHES_PER_RUN,
+} from '#/shared/db/retention/execute-retention-rule'
+import { createOutboxRepository } from '#/shared/outbox/infrastructure/outbox-repository'
 import { createRetentionSweepHandler, RETENTION_RULES } from './retention-sweep.job'
 
 const db = getDb()
@@ -36,6 +35,9 @@ const outboxRules = RETENTION_RULES.filter(({ table }) => OUTBOX_TABLES.has(tabl
 const SUBJECTS = outboxRules.map(({ subject }) => subject)
 
 async function clean(): Promise<void> {
+  await db.execute(
+    sql`DELETE FROM work_items WHERE organization_id = 'org-receipt-retention-test'`,
+  )
   await db.execute(sql`DELETE FROM event_consumer_receipts`)
   await db.execute(sql`DELETE FROM outbox_events`)
   await db.execute(sql`
@@ -76,9 +78,9 @@ async function insertReceipt(eventId: string, createdAt: Date): Promise<void> {
   `)
 }
 
-async function storedFactIds(): Promise<ReadonlyArray<string>> {
+async function storedFactIds(eventType = EVENT_TYPE): Promise<ReadonlyArray<string>> {
   const result = await db.execute<{ id: string }>(
-    sql`SELECT id FROM outbox_events WHERE event_type = ${EVENT_TYPE} ORDER BY published_at`,
+    sql`SELECT id FROM outbox_events WHERE event_type = ${eventType} ORDER BY published_at`,
   )
   return result.rows.map(({ id }) => id)
 }
@@ -96,30 +98,60 @@ function tickingClock(): () => Date {
   return () => new Date(NOW.getTime() + reads++ * SECOND_MS)
 }
 
-/** Runs the redelivery sweep after the retention run and returns what it replays. */
-async function factsRedelivered(): Promise<ReadonlyArray<unknown>> {
-  const replayed: unknown[] = []
-  const queue: PublishedEventRedeliveryQueue = {
-    add: async (_name, data) => {
-      replayed.push(data)
-      return undefined
-    },
-  }
-  const redeliver = createPublishedEventRedeliveryHandler({
-    repo,
-    queue,
-    clock: () => new Date(NOW.getTime() + DAY_MS / 2),
-    logger: { info: vi.fn(), warn: vi.fn() },
-    consumerExpectations: [{ eventType: EVENT_TYPE, consumerName: CONSUMER }],
-  })
-  await redeliver({} as Job)
-  return replayed
+/** Admits unsettled facts after retention and returns what could be replayed. */
+async function factsRedelivered(): Promise<ReadonlyArray<string>> {
+  const work = await repo.delivery.schedulePending(100, [
+    { eventType: EVENT_TYPE, consumerName: CONSUMER },
+  ])
+  return work.map(({ subjectId }) => subjectId)
 }
 
 beforeEach(clean)
 afterAll(clean)
 
 describe.sequential('consumer receipt retention (real PostgreSQL)', () => {
+  it('keeps an expired fact until every required consumer settles, even after redelivery is exhausted', async () => {
+    const eventType = 'property.updated'
+    const expiredAt = new Date(NOW.getTime() - OUTBOX_RETENTION_MS - DAY_MS)
+    const fact = await insertPublishedFact(expiredAt, eventType)
+    await db.execute(sql`
+      UPDATE outbox_events SET consumer_redelivery_attempts = 3
+      WHERE id = ${fact}::uuid
+    `)
+    const sweep = createRetentionSweepHandler({
+      db,
+      clock: () => NOW,
+      rules: outboxRules,
+    })
+    const rule = outboxRules.find(({ table }) => table === 'outbox_events')
+    if (!rule) throw new Error('Outbox retention rule missing')
+    const countCandidates = () =>
+      countRetentionRuleCandidates(
+        db,
+        rule,
+        new Date(NOW.getTime() - OUTBOX_RETENTION_MS),
+      )
+
+    expect(await countCandidates()).toBe(0)
+    await sweep({} as Job)
+    expect(await storedFactIds(eventType)).toEqual([fact])
+
+    await repo.insertReceipt(fact, 'activity.recent-activity', 'applied')
+    expect(await countCandidates()).toBe(0)
+    await sweep({} as Job)
+    expect(await storedFactIds(eventType)).toEqual([fact])
+    expect(await repo.hasReceipt(fact, 'activity.recent-activity')).toBe(true)
+
+    await repo.insertReceipt(fact, 'portal.reconcile-health-dependencies', 'obsolete')
+    expect(await countCandidates()).toBe(1)
+    await sweep({} as Job)
+    expect(await storedFactIds(eventType)).toEqual([])
+    expect(await repo.hasReceipt(fact, 'activity.recent-activity')).toBe(false)
+    expect(await repo.hasReceipt(fact, 'portal.reconcile-health-dependencies')).toBe(
+      false,
+    )
+  })
+
   it('keeps the receipt of a fact published just inside the window, however long the rules before it run', async () => {
     // Published one second inside the fact rule's 30 days and receipted half a
     // second later: a receipt rule that starts two seconds after the fact rule

@@ -4,6 +4,7 @@
 
 import type { OperationsSnapshot } from '#/shared/health/operations-snapshot'
 import type { AlertFacts } from './alert-facts'
+import { OUTBOX_DELIVERY_KIND } from '#/shared/outbox/dispatch-job-options'
 
 type DeliveryLag = OperationsSnapshot['notifications']['deliveryLag']
 
@@ -24,7 +25,19 @@ export function quarantineFacts(snapshot: OperationsSnapshot, count: number): Al
   const jobs = (snapshot.jobs?.rows ?? [])
     .filter((row) => row.deadLetterCount > 0)
     .map((row) => row.jobName)
-  return jobs.length > 0 ? { count, jobs } : { count }
+  if (snapshot.quarantine?.workItems?.count) jobs.push(OUTBOX_DELIVERY_KIND)
+  return jobs.length > 0 ? { count, jobs: [...new Set(jobs)] } : { count }
+}
+
+/** Queue copies and durable terminal records both require operator repair. */
+export function quarantineTotals(snapshot: OperationsSnapshot) {
+  const q = snapshot.quarantine
+  if (!q) return null
+  const count = q.count + (q.workItems?.count ?? 0)
+  const ages = [q.oldestAgeMs, q.workItems?.oldestAgeMs].filter(
+    (age): age is number => age != null,
+  )
+  return { count, oldestAgeMs: ages.length ? Math.max(...ages) : null }
 }
 
 /**

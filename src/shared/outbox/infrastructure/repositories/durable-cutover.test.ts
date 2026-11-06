@@ -388,6 +388,7 @@ beforeAll(async () => {
   )
   await pool.query('DELETE FROM replies WHERE organization_id = $1', [ORG])
   await pool.query('DELETE FROM reviews WHERE organization_id = $1', [ORG])
+  await pool.query('DELETE FROM work_items WHERE organization_id = $1', [ORG])
   await pool.query('DELETE FROM outbox_events WHERE organization_id = $1', [ORG])
 
   // The production relay claims globally. Remove pending facts before creating
@@ -516,6 +517,7 @@ afterAll(async () => {
     )
     await pool.query('DELETE FROM replies WHERE organization_id = $1', [ORG])
     await pool.query('DELETE FROM reviews WHERE organization_id = $1', [ORG])
+    await pool.query('DELETE FROM work_items WHERE organization_id = $1', [ORG])
     // Consumer receipts cascade from their source rows.
     await pool.query('DELETE FROM outbox_events WHERE organization_id = $1', [ORG])
     await pool.query('DELETE FROM properties WHERE id = $1', [PROP])
