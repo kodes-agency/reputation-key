@@ -1,0 +1,1 @@
+ALTER TABLE properties ADD COLUMN google_primary_category_refresh_event_id uuid;

@@ -143,7 +143,12 @@ const JOB_RUNTIME = {
 }
 
 function fakeOutboxRepo(): OutboxRepository {
-  return { findExpiredLeases: vi.fn(async () => []) } as unknown as OutboxRepository
+  return {
+    findExpiredLeases: vi.fn(async () => []),
+    delivery: {
+      readQuarantineMetrics: vi.fn(async () => ({ count: 0, oldestAgeMs: null })),
+    },
+  } as unknown as OutboxRepository
 }
 
 function fakeQueue(waiting: number) {

@@ -154,7 +154,7 @@ async function withLifecycleEventGuardDisabled(work: () => Promise<void>): Promi
     await work()
   } finally {
     await pool.query(
-      'ALTER TABLE organization_lifecycle_events ENABLE ALWAYS TRIGGER organization_lifecycle_events_append_only',
+      'ALTER TABLE organization_lifecycle_events ENABLE TRIGGER organization_lifecycle_events_append_only',
     )
   }
 }

@@ -4,6 +4,7 @@ import { storybookTest } from '@storybook/addon-vitest/vitest-plugin'
 import { playwright } from '@vitest/browser-playwright'
 import tailwindcss from '@tailwindcss/vite'
 import { storybookStoryStarts } from './scripts/ci/storybook-story-starts'
+import { createPhoneWidthRecorder } from './.storybook/phone-width-recorder'
 import { testEnvironment } from './src/shared/testing/test-environment'
 
 // B0.3: Do NOT load .env here — Vitest must not inherit developer .env
@@ -53,6 +54,10 @@ const storybookProject: TestProjectConfiguration[] =
           test: {
             name: 'storybook',
             setupFiles: ['./.storybook/vitest.setup.ts'],
+            env: {
+              PHONE_WIDTH_RECORD: process.env.PHONE_WIDTH_RECORD ?? '',
+              PHONE_WIDTH_PLATFORM: process.platform,
+            },
             // The console spy is browser-global, so concurrent stories could
             // reset or restore another story's gate before its assertions run.
             maxConcurrency: 1,
@@ -64,7 +69,17 @@ const storybookProject: TestProjectConfiguration[] =
               // Every story's page awaits this before it renders, so the CI
               // stall guard can name a page that freezes. Without the guard,
               // as in local runs and the Storybook UI's, it does nothing.
-              commands: { storybookStoryStarts },
+              commands: {
+                storybookStoryStarts,
+                ...(process.env.PHONE_WIDTH_RECORD === '1'
+                  ? {
+                      recordPhoneWidthFailures: createPhoneWidthRecorder(
+                        resolve(__dirname, '.storybook/phone-width-failures.json'),
+                        process.platform,
+                      ),
+                    }
+                  : {}),
+              },
             },
           },
         },

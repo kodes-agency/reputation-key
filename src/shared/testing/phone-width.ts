@@ -13,11 +13,19 @@ export const PHONE_WIDTHS = [320, 390] as const
 /** The smaller side of a target. */
 export const MIN_TARGET_PX = 44
 
+export type PhoneWidthMeasurement = Readonly<{
+  width: (typeof PHONE_WIDTHS)[number]
+  overflow: readonly string[]
+  targets: readonly string[]
+}>
+
 /** Wider than any phone: past it a window is not a phone's. */
 const PHONE_MAX_PX = 480
 const PHONE_HEIGHT_PX = 900
 /** Layout rounding only; a target 43 px wide is a finding. */
 const SLACK_PX = 0.5
+/** Longer than any of the app's transitions; one that stalls is measured where it stopped. */
+const ANIMATION_WAIT_MS = 1_000
 
 const WIDGET_ROLES = [
   'button',
@@ -173,8 +181,33 @@ export function assertPhoneWidth(doc: Document = document): void {
   }
 }
 
+/**
+ * A toast or popover is measured where it comes to rest, not wherever its
+ * transition happens to be: a leaving toast hung past the edge in some runs only.
+ * Looping animations, such as spinners, never finish and are not waited for.
+ */
+async function animationsFinished(view: Window): Promise<void> {
+  const running = view.document
+    .getAnimations()
+    .filter(
+      (animation) =>
+        animation.playState === 'running' &&
+        animation.effect?.getComputedTiming().endTime !== Infinity,
+    )
+  if (running.length === 0) return
+  let timer: ReturnType<typeof setTimeout> | undefined
+  await Promise.race([
+    Promise.all(running.map((animation) => animation.finished.catch(() => undefined))),
+    new Promise<void>((resolve) => {
+      timer = setTimeout(resolve, ANIMATION_WAIT_MS)
+    }),
+  ])
+  clearTimeout(timer)
+}
+
 async function settled(view: Window): Promise<void> {
   await view.document.fonts.ready
+  await animationsFinished(view)
   await new Promise<void>((resolve) =>
     view.requestAnimationFrame(() => view.requestAnimationFrame(() => resolve())),
   )
@@ -188,19 +221,36 @@ async function settled(view: Window): Promise<void> {
 export async function checkPhoneWidths(doc: Document = document): Promise<void> {
   const view = doc.defaultView
   if (!view) throw new Error('Expected a browser document')
+  if (!registry[VIEWPORT_SETTER]) return assertPhoneWidth(doc)
+  const measurements = await measurePhoneWidths(doc)
+  const failures = measurements.flatMap(({ width, overflow, targets }) =>
+    [...overflow, ...targets].map((finding) => `${width} px: ${finding}`),
+  )
+  if (failures.length > 0) throw new Error(failures.join('\n'))
+}
+
+/** Records each check separately for a runner's story-state baseline. */
+export async function measurePhoneWidths(
+  doc: Document = document,
+): Promise<PhoneWidthMeasurement[]> {
+  const view = doc.defaultView
+  if (!view) throw new Error('Expected a browser document')
   const setViewport = registry[VIEWPORT_SETTER]
-  if (!setViewport) return assertPhoneWidth(doc)
+  if (!setViewport) throw new Error('Phone-width measurements require a viewport setter')
   const original = { width: view.innerWidth, height: view.innerHeight }
-  const failures: string[] = []
+  const measurements: PhoneWidthMeasurement[] = []
   try {
     for (const width of PHONE_WIDTHS) {
       await setViewport(width, PHONE_HEIGHT_PX)
       await settled(view)
-      for (const finding of phoneWidthFindings(doc))
-        failures.push(`${width} px: ${finding}`)
+      measurements.push({
+        width,
+        overflow: overflowFindings(doc, view),
+        targets: targetFindings(doc, view),
+      })
     }
   } finally {
     await setViewport(original.width, original.height)
   }
-  if (failures.length > 0) throw new Error(failures.join('\n'))
+  return measurements
 }

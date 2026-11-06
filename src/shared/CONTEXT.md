@@ -172,6 +172,33 @@ Jobs, outbox delivery, health, and observability expose infrastructure mechanics
 Contexts own handler meaning, source transactions, recovery policy, content
 classification, and mutation authority.
 
+Outbox delivery admits new and previously published unresolved facts into
+`work_items` in the same transaction as the publication marker. The relay sends
+only the work ID; the independent minute reconciler restores lost or failed
+transport in bounded batches, up to 20,000 deliveries per pass, without an age
+window or an attempt charge. The dispatcher resolves the tenant and fact from
+the ledger, claims an execution, applies current policy
+to each consumer, and settles only after all required receipts exist. A session
+lock isolates a live callback past its lease expiry, without holding a database
+transaction around consumer I/O. Failed
+executions retry through the ledger and eventually remain visibly quarantined;
+terminal failures also reach Redis quarantine, runtime observations and error
+monitoring, while `ops work` owns ledger repair. The one-minute delivery lease
+expires before BullMQ recovery, and session advisory locks still isolate live
+consumers. Health reads also count quarantined delivery work directly from
+PostgreSQL, so final-attempt worker death remains covered by the existing
+quarantine alerts and error monitoring after Redis loss. Stored recovery fences still
+refuse delivery. Legacy queue envelopes drain during rolling releases; their
+producers and recovery sweeps are removed.
+
+Outbox retention counts 30 days from publication and then removes only facts
+with every catalogued durable consumer receipt. Missing receipts survive even
+after redelivery exhausts its budget; recovery-fenced facts also remain. The
+receipts leave with their fact through the database cascade. Audit-only facts
+need no receipts. `outbox/retention.test.ts` exercises the rule's generated SQL
+in memory; `jobs/retention-sweep-consumer-receipts.integration.test.ts` covers
+PostgreSQL deletion and receipt cascades.
+
 `jobs/work-items.server.ts` exposes the platform-owned work ledger. A source
 command schedules IDs-only work in its own transaction. Adopters register a
 kind handler. Before authorization the worker resolves the queue's `workId`

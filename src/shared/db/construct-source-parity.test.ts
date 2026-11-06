@@ -1,26 +1,16 @@
-// db-constructs.sql is the authority for the DB-only functions and triggers, and
-// drizzle/0001_db_constructs.sql is its byte copy; a later migration that
-// changes one restates it there (docs/BETA.md §6). These cases hold the pure
-// half of that rule: how a definition is read and compared, and — with no
-// database — that the file states the definition the journal ends on for every
-// construct a later migration creates. The catalog half is
-// construct-definitions.integration.test.ts.
-
 import { readFileSync } from 'node:fs'
 import { describe, expect, it } from 'vitest'
 import {
   FORWARD_ONLY_CONSTRUCT_DEFINITIONS,
   MIGRATION_CREATED_CONSTRUCTS,
   SUPERSEDED_CONSTRUCT_DEFINITIONS,
-  compareConstructDefinitions,
   expectedConstructDefinitions,
   normalizeFunctionDefinition,
   normalizeTriggerDefinition,
-  parseConstructDefinitions,
   readConstructsFileDefinitions,
   readMigrationDefinitions,
   type ConstructDefinition,
-} from './construct-definitions'
+} from './construct-sql.test-fixtures'
 import { readMigrationJournal } from './migration-journal-order'
 import { DB_ONLY_CONSTRUCTS } from './schema/db-only-constructs'
 import { withoutForwardOnlyConstructs } from './construct-baseline-parity.test-fixtures'
@@ -54,21 +44,6 @@ const FILE_TRIGGER =
   'CREATE TRIGGER ledger_guard BEFORE DELETE OR TRUNCATE OR UPDATE ON public.ledger FOR EACH STATEMENT EXECUTE FUNCTION reject_ledger_mutation();'
 const CATALOG_TRIGGER =
   'CREATE TRIGGER ledger_guard BEFORE DELETE OR UPDATE OR TRUNCATE ON public.ledger FOR EACH STATEMENT EXECUTE FUNCTION reject_ledger_mutation()'
-
-const fromFile = (sql: string) => parseConstructDefinitions(sql, 'file.sql')
-const inDatabase = (
-  kind: ConstructDefinition['kind'],
-  name: string,
-  statement: string,
-): ConstructDefinition => ({
-  kind,
-  name,
-  definition:
-    kind === 'function'
-      ? normalizeFunctionDefinition(statement)
-      : normalizeTriggerDefinition(statement),
-  source: 'db',
-})
 
 describe('construct definition normalization', () => {
   it('reads a function the same from the file and from the catalog', () => {
@@ -153,112 +128,6 @@ describe('construct definition normalization', () => {
   })
 })
 
-describe('construct definition parsing and comparison', () => {
-  const FILE = `-- a comment before the first statement
-${FILE_FUNCTION}
---> statement-breakpoint
-${FILE_TRIGGER}
---> statement-breakpoint
-CREATE UNIQUE INDEX IF NOT EXISTS ledger_key ON ledger (id);
-`
-
-  it('finds every function and trigger statement of a SQL file', () => {
-    expect(fromFile(FILE).map(({ kind, name, source }) => [kind, name, source])).toEqual([
-      ['function', 'count_rows', 'file.sql'],
-      ['trigger', 'ledger_guard', 'file.sql'],
-    ])
-  })
-
-  it('reports nothing when the database holds what the file states', () => {
-    expect(
-      compareConstructDefinitions(fromFile(FILE), [
-        inDatabase('function', 'count_rows', CATALOG_FUNCTION),
-        inDatabase('trigger', 'ledger_guard', CATALOG_TRIGGER),
-      ]),
-    ).toEqual([])
-  })
-
-  it('reports a body the database runs and the file does not state', () => {
-    const superseded = CATALOG_FUNCTION.replace(
-      'RETURN public.summarise(p_table);',
-      'RETURN public.summarise_v2(p_table);',
-    )
-
-    expect(
-      compareConstructDefinitions(fromFile(FILE), [
-        inDatabase('function', 'count_rows', superseded),
-        inDatabase('trigger', 'ledger_guard', CATALOG_TRIGGER),
-      ]),
-    ).toEqual([
-      {
-        object: 'function count_rows',
-        detail:
-          'definition differs from file.sql at line 5: expected [  RETURN public.summarise(p_table);] vs db [  RETURN public.summarise_v2(p_table);]',
-      },
-    ])
-  })
-
-  it('reports a second overload beside the stated function', () => {
-    const overload = CATALOG_FUNCTION.replace(', p_limit integer DEFAULT 10', '')
-
-    expect(
-      compareConstructDefinitions(fromFile(FILE), [
-        inDatabase('function', 'count_rows', CATALOG_FUNCTION),
-        inDatabase('function', 'count_rows', overload),
-      ]),
-    ).toEqual([
-      {
-        object: 'function count_rows',
-        detail: '2 definition(s) in db vs 1 in file.sql',
-      },
-    ])
-  })
-
-  it('reports a trigger recreated with other events', () => {
-    expect(
-      compareConstructDefinitions(fromFile(FILE), [
-        inDatabase(
-          'trigger',
-          'ledger_guard',
-          CATALOG_TRIGGER.replace(' OR TRUNCATE', ''),
-        ),
-      ]),
-    ).toEqual([
-      {
-        object: 'trigger ledger_guard',
-        detail:
-          'definition differs from file.sql at line 1: expected […ledger_guard BEFORE DELETE OR TRUNCATE OR UPDATE ON ledger FOR EACH STATEMENT EXECUTE FUNCTION reject_ledger_mutation()] vs db […ledger_guard BEFORE DELETE OR UPDATE ON ledger FOR EACH STATEMENT EXECUTE FUNCTION reject_ledger_mutation()]',
-      },
-    ])
-  })
-
-  it('points at the difference in a signature too long to print', () => {
-    const padding = Array.from({ length: 30 }, (_, index) => `p_${index} text`).join(', ')
-    const longer = (last: string) =>
-      FILE_FUNCTION.replace('p_table text', `${padding}, ${last}`)
-
-    expect(
-      compareConstructDefinitions(fromFile(longer('p_request_hash text')), [
-        inDatabase('function', 'count_rows', longer('p_ceremony_id uuid')),
-      ]),
-    ).toEqual([
-      {
-        object: 'function count_rows',
-        detail:
-          'definition differs from file.sql at line 1: expected […text, p_28 text, p_29 text, p_request_hash text, p_limit integer DEFAULT 10) RETURNS row_summary LANGUAGE plpgsql SECURI…] vs db […text, p_28 text, p_29 text, p_ceremony_id uuid, p_limit integer DEFAULT 10) RETURNS row_summary LANGUAGE plpgsql SECURIT…]',
-      },
-    ])
-  })
-
-  it('leaves a name on one side only to the register check', () => {
-    expect(
-      compareConstructDefinitions(fromFile(FILE), [
-        inDatabase('function', 'unregistered_function', CATALOG_FUNCTION),
-      ]),
-    ).toEqual([])
-  })
-})
-
 describe('the committed constructs file', () => {
   const keyOf = ({ kind, name }: Readonly<{ kind: string; name: string }>) =>
     `${kind} ${name}`
@@ -290,6 +159,7 @@ describe('the committed constructs file', () => {
         [
           ...readMigrationDefinitions('0084_merchant_ai_consent_follows_notice'),
           ...readMigrationDefinitions('0088_reply_drafting_v2_release'),
+          ...readMigrationDefinitions('0100_merchant_ai_notice_retention_corrections'),
         ]
           .reverse()
           .find((entry) => entry.name === name)?.definition,

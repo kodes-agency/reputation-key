@@ -3,6 +3,8 @@ import { z } from 'zod/v4'
 export { canonicalizeRfc8785 } from './canonical-json'
 
 // Changelog — every entry is a new version; the newest is first.
+// 2026-11-06: corrected analysis retention and offline quality checks; materially
+// changes review_analysis alone. Drafting and trends retain their epochs.
 // 2026-11-01: background/body-only drafting v2; materially changes reply_drafting
 // alone. Review Analysis and trends retain their epochs (ADR 0074).
 //
@@ -62,7 +64,7 @@ export { canonicalizeRfc8785 } from './canonical-json'
 // (merchant-ai-authorization.schema.ts), and a head granted under an earlier
 // version is re-granted, not rewritten. Whether it still admits AI work is
 // `isMerchantAiNoticeInForce`.
-export const MERCHANT_AI_NOTICE_VERSION = 'merchant-ai-notice-2026-11-01.v1' as const
+export const MERCHANT_AI_NOTICE_VERSION = 'merchant-ai-notice-2026-11-06.v1' as const
 
 const capabilitySchema = z
   .object({
@@ -152,7 +154,7 @@ export const MERCHANT_AI_NOTICE_PAYLOAD: MerchantAiNoticePayload = Object.freeze
         'Cause. A short note on the specific thing and what was wrong or right, such as "air conditioning" and "not working". Each part is one to three lowercase words, which RepKey asks the provider to write in English. RepKey refuses a cause that repeats four or more words of the review in a row, or that contains a word the review writes with a capital letter, such as a name, brand or place. A name written in lowercase can pass that check. Similar causes are grouped within one property, by fixed rules. A manager can rename, merge or hide a group.',
         'Evidence and names. The numbers of the sentences each result comes from, and whether a sentence names a team member, names someone else, or names nobody. RepKey keeps no sentence and no name.',
         'Urgent. The AI marks a review Urgent when a guest reports a risk to safety, a risk to health, discrimination, or a legal threat. RepKey keeps which of the four it is, and no details. It also keeps a level for each review (Urgent, High, Medium or Low), worked out from the answer and the star rating. The Inbox shows that level as a suggestion only.',
-        "Also kept. The business category Google lists for the property: used only to pick example words, never shown, and removed when Google is disconnected. Daily counts of reviews by star rating for each property, with no review identity, for 24 months from the day they count. Manager corrections: kept beside the AI's answer, dropped when the guest edits the review, never sent to a provider.",
+        "Also kept. The business category Google lists for the property: used as AI context and to pick example words, shown during Google import, and removed when Google is disconnected. Manager corrections: kept beside the AI's answer, no longer applied when the guest edits the review, never sent to a provider.",
       ]),
       links: Object.freeze([]),
     }),
@@ -195,7 +197,7 @@ export const MERCHANT_AI_NOTICE_PAYLOAD: MerchantAiNoticePayload = Object.freeze
       body: Object.freeze([
         'RepKey may use OpenAI or Anthropic for review analysis and reply drafting. RepKey chooses the provider for each kind of work and may change the choice without asking you to confirm again.',
         'Each attempt goes to one provider, and RepKey switches provider only on purpose. After a switch it may send unfinished work to the other provider and may analyse past reviews again. The two providers can judge the same review differently, so your counts and trends can shift.',
-        "Quality testing. RepKey tests its analysis on a set of reviews. For properties that have enabled AI features under this notice, the set can include some of their reviews. A test can send the same minimized and redacted review to both providers, and a person at RepKey may read it, inside the app, to settle a disagreement between answers. RepKey keeps the review's own internal ID, the checked answers and how they were produced, never its text, and deletes them when they are 24 months old. A review leaves the set when Google no longer has it, when RepKey no longer holds its text, or when AI features are turned off for the property.",
+        'Quality testing. RepKey checks analysis quality using an offline scorer on test material or answers already recorded. The scorer does not send reviews to an AI provider.',
       ]),
       links: Object.freeze([]),
     }),
@@ -204,8 +206,8 @@ export const MERCHANT_AI_NOTICE_PAYLOAD: MerchantAiNoticePayload = Object.freeze
       title: 'Limits, retention, and revocation',
       body: Object.freeze([
         'Review analysis and reply suggestions accept at most 16 KiB of source and use a 70-second outer attempt deadline. Property trends accept at most 64 KiB and use a 100-second outer attempt deadline. Oversized or unsupported input is skipped rather than truncated into a different meaning.',
-        'RepKey uses and shows raw review source for up to 30 days after it was last fetched from Google, and de-identified insights for up to 24 months. It deletes the results listed under "What review analysis keeps" when they are 24 months old. A group of similar causes is deleted when the newest result in it is 24 months old.',
-        'Turning a capability off immediately denies new work, fences in-flight results, hides its prior outputs, and purges unpublished AI-assisted reply drafts. Erasure immediately denies access and purges persisted local AI content; an already-authorized in-memory attempt is discarded by its outer deadline. Both cover everything listed under "What review analysis keeps" and the answers kept for quality testing.',
+        'RepKey uses and shows raw review source for up to 30 days after it was last fetched from Google, and de-identified insights for up to 24 months. The results listed under "What review analysis keeps", except the stored business category, expire after 730 days and are deleted by daily cleanup. A group of similar causes expires with its newest result and is deleted by daily cleanup once no retained contribution refers to it.',
+        'Turning a capability off immediately denies new work, fences in-flight results and hides its prior outputs. Turning Reply Drafting off withdraws eligible unedited AI drafts; drafts already dispatched or failed at publication can keep their text. Withdrawal immediately denies access; background processing then purges stored AI results. An already-authorized in-memory attempt is discarded by its outer deadline. Turning Review Analysis off and withdrawing authorization cover the results listed under "What review analysis keeps".',
       ]),
       links: Object.freeze([
         Object.freeze({ label: 'Privacy contact', target: '/privacy#contact' }),
@@ -263,7 +265,7 @@ export const MERCHANT_AI_NOTICE_PAYLOAD: MerchantAiNoticePayload = Object.freeze
       id: 'repkey_derivatives',
       label: 'RepKey de-identified insights',
       value:
-        'Up to 24 months. The results listed under "What review analysis keeps" are deleted then',
+        'The results listed under "What review analysis keeps", except the stored business category, expire after 730 days and are deleted by daily cleanup',
     }),
     Object.freeze({
       id: 'provider_monitoring',
@@ -287,7 +289,7 @@ export const MERCHANT_AI_NOTICE_PAYLOAD: MerchantAiNoticePayload = Object.freeze
 noticePayloadSchema.parse(MERCHANT_AI_NOTICE_PAYLOAD)
 
 export const MERCHANT_AI_NOTICE_DIGEST =
-  'e9574380fd1ba5f4b7bd7b9899bc5e6bdf371f9d9871584f33c5c1e6131290ef' as const
+  'eb810fedbb445bf9361d03280cfa44f31c3a8a8563a905549c3a7bdaed1a88f3' as const
 
 /** The notice a consent was recorded under, by version and digest. */
 export type MerchantAiNoticeReference = Readonly<{
@@ -307,6 +309,17 @@ export const MERCHANT_AI_NOTICE_CHANGES: ReadonlyArray<MerchantAiNoticeChange> =
     Object.freeze({
       noticeVersion: MERCHANT_AI_NOTICE_VERSION,
       noticeDigest: MERCHANT_AI_NOTICE_DIGEST,
+      replaces: Object.freeze({
+        noticeVersion: 'merchant-ai-notice-2026-11-01.v1',
+        noticeDigest: 'e9574380fd1ba5f4b7bd7b9899bc5e6bdf371f9d9871584f33c5c1e6131290ef',
+      }),
+      // Retention and quality-record corrections concern analysis, not drafting
+      // or the summaries built from analysis.
+      materiallyChanges: Object.freeze(['review_analysis'] as const),
+    }),
+    Object.freeze({
+      noticeVersion: 'merchant-ai-notice-2026-11-01.v1',
+      noticeDigest: 'e9574380fd1ba5f4b7bd7b9899bc5e6bdf371f9d9871584f33c5c1e6131290ef',
       replaces: Object.freeze({
         noticeVersion: 'merchant-ai-notice-2026-10-30.v1',
         noticeDigest: 'dadad7b81dbda360678fc57f7265b104c7311cbc213f877f32306c53b4852a5e',
@@ -343,8 +356,15 @@ const SERVED_NOTICE = Object.freeze({
   noticeVersion: MERCHANT_AI_NOTICE_VERSION,
   noticeDigest: MERCHANT_AI_NOTICE_DIGEST,
 })
-const ANALYSIS_NOTICES = Object.freeze([
+const DRAFTING_NOTICES = Object.freeze([
   SERVED_NOTICE,
+  Object.freeze({
+    noticeVersion: 'merchant-ai-notice-2026-11-01.v1',
+    noticeDigest: 'e9574380fd1ba5f4b7bd7b9899bc5e6bdf371f9d9871584f33c5c1e6131290ef',
+  }),
+])
+const TRENDS_NOTICES = Object.freeze([
+  ...DRAFTING_NOTICES,
   Object.freeze({
     noticeVersion: 'merchant-ai-notice-2026-10-30.v1',
     noticeDigest: 'dadad7b81dbda360678fc57f7265b104c7311cbc213f877f32306c53b4852a5e',
@@ -353,9 +373,9 @@ const ANALYSIS_NOTICES = Object.freeze([
 export const MERCHANT_AI_NOTICES_IN_FORCE: Readonly<
   Record<MerchantAiCapability, ReadonlyArray<MerchantAiNoticeReference>>
 > = Object.freeze({
-  review_analysis: ANALYSIS_NOTICES,
-  property_trends: ANALYSIS_NOTICES,
-  reply_drafting: Object.freeze([SERVED_NOTICE]),
+  review_analysis: Object.freeze([SERVED_NOTICE]),
+  property_trends: TRENDS_NOTICES,
+  reply_drafting: DRAFTING_NOTICES,
 })
 
 export function isMerchantAiNoticeInForce(

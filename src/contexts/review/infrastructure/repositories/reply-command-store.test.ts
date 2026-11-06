@@ -91,6 +91,7 @@ async function truncateAll(p: Pool) {
     'DELETE FROM reply_publication_authorizations WHERE organization_id = $1',
     [ORG_A],
   )
+  await p.query('DELETE FROM work_items WHERE organization_id = $1', [ORG_A])
   await p.query('DELETE FROM outbox_events WHERE organization_id = $1', [ORG_A])
   await p.query('DELETE FROM replies WHERE organization_id = $1', [ORG_A])
   await p.query('DELETE FROM reviews WHERE organization_id = $1', [ORG_A])
@@ -245,8 +246,8 @@ describe.sequential('replyCommandStore (integration)', () => {
       publicationState: 'authorized',
       publicationCycle: 1,
     })
-    const claimed = await outboxRepo.claimUnpublished(1_000, 'rpl-01-test', 30_000)
-    const committed = claimed.filter((row) => row.organizationId === ORG_A)
+    const admitted = await outboxRepo.delivery.schedulePending(1_000)
+    const committed = admitted.filter((row) => row.organizationId === ORG_A)
     expect(committed.map((row) => row.eventType).sort()).toEqual([
       'review.reply.approved',
       'review.reply.publication_requested',
@@ -255,6 +256,10 @@ describe.sequential('replyCommandStore (integration)', () => {
       (row) => row.eventType === 'review.reply.publication_requested',
     )
     expect(committedIntent).toBeDefined()
+    const intentEvent = committedIntent
+      ? await outboxRepo.delivery.readEvent(ORG_A, committedIntent.subjectId)
+      : undefined
+    expect(intentEvent).toBeDefined()
 
     const result = await handleReplyPublicationRequested(
       {
@@ -266,7 +271,7 @@ describe.sequential('replyCommandStore (integration)', () => {
         },
         receipts: outboxRepo,
       },
-      buildConsumerEvent(committedIntent!),
+      buildConsumerEvent(intentEvent!),
     )
 
     expect(result).toEqual({ status: 'applied' })

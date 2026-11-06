@@ -34,6 +34,7 @@ import {
 import { getTableConfig } from 'drizzle-orm/pg-core'
 import type { RetentionRule } from '#/shared/db/retention/execute-retention-rule'
 import { eventConsumerReceipts } from '#/shared/db/schema/outbox.schema'
+import { SETTLED_OUTBOX_EVENTS_WHERE } from '#/shared/outbox/infrastructure/retention.server'
 
 const NOW = new Date('2026-07-17T12:00:00Z')
 const THIRTY_DAYS_MS = 30 * 24 * 60 * 60 * 1000
@@ -560,15 +561,7 @@ describe('retention rule registry (BQC-3.7)', () => {
     // An event unpublished 29d then published must survive ~30 more days —
     // keying on created_at would delete it ~1d after publication.
     expect(outboxRule!.tsColumn).toBe('published_at')
-    expect(outboxRule!.extraWhere).toBe(`published_at IS NOT NULL AND (
-      event_type <> 'property.google_binding.changed' OR NOT EXISTS (
-        SELECT 1 FROM (VALUES ('integration.import-display-name'), ('integration.import-subscription'), ('integration.import-review-sync'), ('integration.provider-authorization-invalidation'), ('portal.reconcile-health-dependencies')) AS expected(name)
-        WHERE NOT EXISTS (
-          SELECT 1 FROM event_consumer_receipts receipt
-          WHERE receipt.event_id = outbox_events.id AND receipt.consumer_name = expected.name
-        )
-      )
-    )`)
+    expect(outboxRule!.extraWhere).toBe(SETTLED_OUTBOX_EVENTS_WHERE)
     // BQC-1.6's deliberate 30d value (the migration-file comment drift —
     // 7d/90d — is documented at the rule; applied migrations are immutable).
     expect(outboxRule!.olderThanMs).toBe(30 * 24 * 60 * 60 * 1000)

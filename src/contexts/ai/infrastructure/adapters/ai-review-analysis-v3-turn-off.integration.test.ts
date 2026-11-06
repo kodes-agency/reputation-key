@@ -11,7 +11,7 @@
 // a manager's rename, merge or hide survives it, and a day's count follows the reviews,
 // not an analysis. Every row is invented; no guest's words exist here.
 import { randomUUID } from 'node:crypto'
-import { afterAll, beforeEach, describe, expect, it } from 'vitest'
+import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import { and, eq, sql } from 'drizzle-orm'
 import { getDb } from '#/shared/db'
 import {
@@ -20,7 +20,18 @@ import {
   merchantAiConsentEvidence,
   merchantAiEnablement,
   outboxEvents,
+  properties,
+  googleConnections,
 } from '#/shared/db/schema'
+import { googleConnectionId, organizationId } from '#/shared/domain/ids'
+import {
+  buildTestAuthContext,
+  buildTestGoogleConnection,
+} from '#/shared/testing/fixtures'
+import { createGoogleConnectionCeremonyFixture } from '#/shared/testing/google-connection-ceremony-fixture'
+import { requestGooglePrimaryCategoryRefresh } from '#/shared/db/google-primary-category-refresh'
+import { createRefreshBoundGoogleCategories } from '#/contexts/integration/application/refresh-bound-google-categories'
+import { createPropertyGoogleBindingStore } from '#/contexts/property/infrastructure/property-google-binding-store'
 import { clearEventSchemas } from '#/shared/events/schema-registry'
 import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
 import {
@@ -44,6 +55,7 @@ const IDS = {
 // The lineage the seed's grant is under (ai-v3-seed.ts lineageId).
 const LINEAGE_ID = '78000000-0002-4000-8000-000000000001'
 const NOW = new Date('2026-10-30T10:00:00.000Z')
+const CONNECTION = googleConnectionId('78000000-0003-4000-8000-000000000001')
 const NOON = (month: number, day: number) =>
   new Date(Date.UTC(2026, month - 1, day, 16, 0, 0))
 
@@ -109,7 +121,7 @@ const EVERYTHING_THE_NOTICE_LISTS = {
 } as const
 
 type Posture = Readonly<{
-  state: 'enabled' | 'revoked'
+  state: 'disabled' | 'enabled' | 'revoked'
   capabilities: readonly ('review_analysis' | 'reply_drafting')[]
   reviewAnalysisEpoch: number
 }>
@@ -178,19 +190,20 @@ async function grantMoves(posture: Posture): Promise<number> {
 }
 
 /** What the lifecycle consumer is told when the grant moved: the fence of the new state. */
-async function consumerRuns(posture: Posture, stateVersion: number) {
+async function consumerRuns(posture: Posture, stateVersion: number, recordEvent = true) {
   const eventEnvelopeId = randomUUID()
-  await db.insert(outboxEvents).values({
-    id: eventEnvelopeId,
-    eventType: 'identity.merchant_ai.changed',
-    eventVersion: 1,
-    payload: { state: posture.state },
-    organizationId: IDS.organizationId,
-    propertyId: IDS.propertyId,
-    sourceContext: 'identity',
-    sourceAggregateId: IDS.propertyId,
-    createdAt: NOW,
-  })
+  if (recordEvent)
+    await db.insert(outboxEvents).values({
+      id: eventEnvelopeId,
+      eventType: 'identity.merchant_ai.changed',
+      eventVersion: 1,
+      payload: { state: posture.state },
+      organizationId: IDS.organizationId,
+      propertyId: IDS.propertyId,
+      sourceContext: 'identity',
+      sourceAggregateId: IDS.propertyId,
+      createdAt: NOW,
+    })
   return enrollments.applyAuthorizationLifecycle({
     eventEnvelopeId,
     organizationId: IDS.organizationId as never,
@@ -210,12 +223,113 @@ async function consumerRuns(posture: Posture, stateVersion: number) {
   })
 }
 
+async function categoryRow() {
+  const [row] = await db
+    .select({
+      category: properties.googlePrimaryCategory,
+      readAt: properties.googlePrimaryCategoryUpdatedAt,
+      sourceEpoch: properties.sourceEpoch,
+      profileVersion: properties.profileVersion,
+    })
+    .from(properties)
+    .where(
+      and(
+        eq(properties.organizationId, IDS.organizationId),
+        eq(properties.id, IDS.propertyId),
+      ),
+    )
+  return row
+}
+
+async function reconnectRefresh() {
+  const actor = buildTestAuthContext({
+    organizationId: organizationId(IDS.organizationId),
+    role: 'AccountAdmin',
+  })
+  const connection = buildTestGoogleConnection({
+    id: CONNECTION,
+    organizationId: actor.organizationId,
+    credentialAuthorizedBy: actor.userId,
+    lifecycleVersion: 2,
+    accessVersion: 2,
+  })
+  await db.insert(googleConnections).values({
+    id: CONNECTION,
+    organizationId: IDS.organizationId,
+    googleSubject: 'turn-off-category-subject',
+    encryptedAccessToken: 'synthetic',
+    encryptedRefreshToken: 'synthetic',
+    tokenExpiresAt: new Date(NOW.getTime() + 60_000),
+    connectedBy: actor.userId,
+    lifecycleVersion: 2,
+    accessVersion: 2,
+    scopes: ['https://www.googleapis.com/auth/business.manage'],
+  })
+  await db
+    .update(properties)
+    .set({
+      googleConnectionId: CONNECTION,
+      gbpAccountId: 'account',
+      gbpLocationId: 'location',
+      googleBindingState: 'active',
+      googlePrimaryCategoryRefreshEventId: '78000000-0005-4000-8000-000000000001',
+    })
+    .where(eq(properties.id, IDS.propertyId))
+  const listLocations = vi.fn(async () => ({
+    items: [
+      {
+        binding: { accountId: 'account', locationId: 'location' },
+        accountDisplayName: 'Synthetic account',
+        businessName: 'Synthetic Property',
+        address: null,
+        primaryCategory: 'Restaurant',
+        countryCode: null,
+        verification: 'unknown' as const,
+      },
+    ],
+    nextPageToken: null,
+  }))
+  const refresh = createRefreshBoundGoogleCategories({
+    findPropertyIds: async () => [IDS.propertyId],
+    binding: createPropertyGoogleBindingStore(db),
+    authorize: async () => ({
+      ok: true,
+      accessToken: 'synthetic',
+      authorization: {
+        organizationId: actor.organizationId,
+        userId: actor.userId,
+        connectionId: CONNECTION,
+        connectionLifecycleVersion: 2,
+        connectionAccessVersion: 2,
+        credentialGeneration: connection.credentialGeneration,
+        authorizationVector: {},
+      },
+    }),
+    locations: { listLocations },
+    clock: () => NOW,
+  })
+  return {
+    actor,
+    connection,
+    listLocations,
+    refresh: (refreshEventId = '78000000-0005-4000-8000-000000000001') =>
+      refresh(connection, actor, refreshEventId),
+  }
+}
+
 describe('turning review analysis off (real PostgreSQL)', () => {
   beforeEach(async () => {
     await clearUp()
     clearEventSchemas()
     registerAllEventSchemas()
     await seed.setUp()
+    await db
+      .update(properties)
+      .set({
+        googlePrimaryCategory: 'Hotel',
+        googlePrimaryCategoryUpdatedAt: NOW,
+      })
+      .where(eq(properties.id, IDS.propertyId))
     for (const review of REVIEWS) await seed.addReview(review)
     await seed.seal()
     // The daily counts of reviews by star rating, one row per day, as the projection
@@ -270,6 +384,7 @@ describe('turning review analysis off (real PostgreSQL)', () => {
       .delete(aiPropertyReviewPopulationDaily)
       .where(eq(aiPropertyReviewPopulationDaily.organizationId, IDS.organizationId))
     await seed.tearDown()
+    await db.delete(googleConnections).where(eq(googleConnections.id, CONNECTION))
   }
 
   afterAll(async () => {
@@ -292,21 +407,36 @@ describe('turning review analysis off (real PostgreSQL)', () => {
     expect(before.sentences).toBeGreaterThan(0)
     expect(before.issue_groups).toBeGreaterThan(0)
     expect(before.issue_members).toBeGreaterThan(0)
+    expect(await categoryRow()).toEqual({
+      category: 'Hotel',
+      readAt: NOW,
+      sourceEpoch: 0,
+      profileVersion: 1,
+    })
   })
 
-  it('deletes the analyses, mentions, corrections, issue groups and daily star counts when the grant is revoked', async () => {
-    const posture: Posture = {
-      state: 'revoked',
-      capabilities: [],
-      reviewAnalysisEpoch: 2,
-    }
-    const stateVersion = await grantMoves(posture)
+  it.each(['disabled', 'revoked'] as const)(
+    'deletes the category and analysis data when the grant is %s',
+    async (state) => {
+      const posture: Posture = {
+        state,
+        capabilities: [],
+        reviewAnalysisEpoch: 2,
+      }
+      const stateVersion = await grantMoves(posture)
 
-    const result = await consumerRuns(posture, stateVersion)
+      const result = await consumerRuns(posture, stateVersion)
 
-    expect(result).toMatchObject({ status: 'applied' })
-    expect(await counts()).toEqual({ ...EVERYTHING_THE_NOTICE_LISTS, properties: 1 })
-  })
+      expect(result).toMatchObject({ status: 'applied' })
+      expect(await counts()).toEqual({ ...EVERYTHING_THE_NOTICE_LISTS, properties: 1 })
+      expect(await categoryRow()).toEqual({
+        category: null,
+        readAt: null,
+        sourceEpoch: 0,
+        profileVersion: 1,
+      })
+    },
+  )
 
   it('deletes them as well when only review analysis is taken off the grant', async () => {
     const posture: Posture = {
@@ -320,6 +450,12 @@ describe('turning review analysis off (real PostgreSQL)', () => {
 
     expect(result).toMatchObject({ status: 'applied' })
     expect(await counts()).toEqual({ ...EVERYTHING_THE_NOTICE_LISTS, properties: 1 })
+    expect(await categoryRow()).toEqual({
+      category: null,
+      readAt: null,
+      sourceEpoch: 0,
+      profileVersion: 1,
+    })
   })
 
   it('keeps the issue groups and the star counts when review analysis stays on and only the epoch moves', async () => {
@@ -347,5 +483,150 @@ describe('turning review analysis off (real PostgreSQL)', () => {
     expect(after.issue_groups).toBe(before.issue_groups)
     expect(after.issue_members).toBe(before.issue_members)
     expect(after.star_counts).toBe(before.star_counts)
+    expect(await categoryRow()).toEqual({
+      category: 'Hotel',
+      readAt: NOW,
+      sourceEpoch: 0,
+      profileVersion: 1,
+    })
+  })
+
+  it('rolls back the category and analysis erasure together when its consumer receipt cannot commit', async () => {
+    const posture: Posture = {
+      state: 'revoked',
+      capabilities: [],
+      reviewAnalysisEpoch: 2,
+    }
+    const before = await counts()
+    const categoryBefore = await categoryRow()
+    const stateVersion = await grantMoves(posture)
+
+    // The missing outbox event makes the final consumer receipt's foreign key fail.
+    await expect(consumerRuns(posture, stateVersion, false)).rejects.toMatchObject({
+      cause: { code: '23503', table: 'event_consumer_receipts' },
+    })
+
+    expect(await counts()).toEqual(before)
+    expect(await categoryRow()).toEqual(categoryBefore)
+  })
+
+  it('keeps AI erasure when a reconnect category lookup completes after the purge', async () => {
+    const subject = await reconnectRefresh()
+    const page = await subject.listLocations()
+    subject.listLocations.mockClear()
+    const started = Promise.withResolvers<void>()
+    const released = Promise.withResolvers<void>()
+    subject.listLocations.mockImplementationOnce(async () => {
+      started.resolve()
+      await released.promise
+      return page
+    })
+    const refreshing = subject.refresh()
+    try {
+      await started.promise
+      const posture: Posture = {
+        state: 'disabled',
+        capabilities: [],
+        reviewAnalysisEpoch: 2,
+      }
+      await consumerRuns(posture, await grantMoves(posture))
+    } finally {
+      released.resolve()
+      await refreshing
+    }
+    expect(await categoryRow()).toEqual({
+      category: null,
+      readAt: null,
+      sourceEpoch: 0,
+      profileVersion: 1,
+    })
+    // Redelivery must keep the original refresh request identity, even though it
+    // reads the binding again after the erasure has committed.
+    await subject.refresh()
+    expect((await categoryRow())?.category).toBeNull()
+    expect(subject.listLocations).toHaveBeenCalledTimes(2)
+    const [current] = await db
+      .select()
+      .from(googleConnections)
+      .where(eq(googleConnections.id, CONNECTION))
+    expect(current).toMatchObject({
+      status: 'active',
+      lifecycleVersion: 2,
+      accessVersion: 2,
+    })
+  })
+
+  it('keeps AI erasure on completed OAuth callback replay without re-reading Google', async () => {
+    const subject = await reconnectRefresh()
+    const refresh = vi.fn(async () => subject.refresh())
+    const fixture = createGoogleConnectionCeremonyFixture(undefined, refresh)
+    fixture.connectionRepo.seed([
+      {
+        ...subject.connection,
+        lifecycleVersion: 1,
+        accessVersion: 1,
+        googleSubject: 'google-subject-123',
+        status: 'disconnected',
+      },
+    ])
+    const attemptId = '78000000-0004-4000-8000-000000000001'
+    const connected = await fixture.useCase(
+      {
+        exchangeAttemptId: attemptId,
+        code: 'valid-auth-code',
+        visibility: 'organization',
+        purpose: 'reviews',
+        connectionMode: 'reconnect',
+        targetConnectionId: CONNECTION,
+        verifierMaterial: {
+          contractVersion: 'v2',
+          codeVerifier: 'v'.repeat(43),
+          oidcNonce: 'n'.repeat(43),
+        },
+      },
+      subject.actor,
+    )
+    fixture.markAttemptCompleted()
+    const posture: Posture = {
+      state: 'revoked',
+      capabilities: [],
+      reviewAnalysisEpoch: 2,
+    }
+    await consumerRuns(posture, await grantMoves(posture))
+
+    await expect(fixture.useCase.resume({ attemptId }, subject.actor)).resolves.toEqual(
+      connected,
+    )
+    expect((await categoryRow())?.category).toBeNull()
+    expect(refresh).not.toHaveBeenCalled()
+    expect(subject.listLocations).not.toHaveBeenCalled()
+    expect(fixture.exchangeCode).toHaveBeenCalledTimes(1)
+  })
+
+  it('allows a new reconnect refresh request after erasure while fencing the old request', async () => {
+    const subject = await reconnectRefresh()
+    const posture: Posture = {
+      state: 'disabled',
+      capabilities: [],
+      reviewAnalysisEpoch: 2,
+    }
+    await consumerRuns(posture, await grantMoves(posture))
+    const nextRequest = '78000000-0005-4000-8000-000000000002'
+    await db.transaction((tx) =>
+      requestGooglePrimaryCategoryRefresh(tx, {
+        organizationId: IDS.organizationId,
+        connectionId: CONNECTION,
+        eventId: nextRequest,
+      }),
+    )
+    await subject.refresh()
+    expect((await categoryRow())?.category).toBeNull()
+    await subject.refresh(nextRequest)
+    expect(await categoryRow()).toEqual({
+      category: 'Restaurant',
+      readAt: NOW,
+      sourceEpoch: 0,
+      profileVersion: 1,
+    })
   })
 })

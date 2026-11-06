@@ -1,5 +1,5 @@
-// Consumer dispatcher — receives events from BullMQ and dispatches to
-// registered consumers idempotently (PRE17A A3).
+// The dispatcher resolves work IDs to stored facts, then applies each consumer
+// idempotently. Consumer receipts, rather than queue success, settle delivery.
 //
 // The dispatcher is a BullMQ worker on the 'domain-events' queue. For each
 // event, it:
@@ -29,7 +29,8 @@
 import type { Job } from 'bullmq'
 import { UnrecoverableError } from 'bullmq'
 import type { OutboxRepository } from './infrastructure/outbox-repository'
-import { parseConsumerEvent, type ConsumerEvent } from './envelope'
+import { buildConsumerEvent, parseConsumerEvent, type ConsumerEvent } from './envelope'
+import { OUTBOX_DELIVERY_KIND, OUTBOX_DELIVERY_LEASE_MS } from './dispatch-job-options'
 import type { ConsumerRegistration, ConsumerRegistry } from './consumer-registry'
 import { validateEventPayload } from '#/shared/events/schema-registry'
 import { getLogger } from '#/shared/observability/logger'
@@ -159,7 +160,7 @@ async function invokeConsumer(
  * Create a dispatcher handler for the BullMQ 'domain-events' worker.
  * This function is passed to createJobWorker as the handler.
  */
-export function createDispatcherHandler(
+function createEnvelopeDispatcher(
   repo: OutboxRepository,
   options: Readonly<{
     /**
@@ -270,6 +271,92 @@ export function createDispatcherHandler(
             .map((f) => f.consumerName)
             .join(', ')}`,
         )
+      }
+    })
+  }
+}
+
+export function createDispatcherHandler(
+  repo: OutboxRepository,
+  options: Readonly<{ consumers: ConsumerRegistry }>,
+) {
+  const dispatch = createEnvelopeDispatcher(repo, options)
+  return async (job: Job) => {
+    const data: unknown = job.data
+    // Drain envelopes accepted by the previous release during a rolling deploy.
+    // Every new producer carries only the durable work ID.
+    if (!data || typeof data !== 'object' || !Object.hasOwn(data, 'workId'))
+      return dispatch(job)
+    const workId = (data as { workId: unknown }).workId
+    if (typeof workId !== 'string' || !workId)
+      throw new UnrecoverableError('Invalid outbox work ID')
+    const { workItems, readEvent } = repo.delivery
+    const scope = await workItems.resolveDispatch(workId)
+    if (!scope || scope.kind !== OUTBOX_DELIVERY_KIND)
+      throw new UnrecoverableError('Outbox work binding unavailable')
+    return workItems.runExclusive(workId, async () => {
+      const work = await workItems.claim(
+        scope.organizationId,
+        workId,
+        OUTBOX_DELIVERY_LEASE_MS,
+      )
+      if (!work?.leaseToken) return
+      try {
+        const event = await readEvent(work.organizationId, work.subjectId)
+        if (event) {
+          await dispatch({
+            id: job.id,
+            name: event.eventType,
+            data: buildConsumerEvent(event),
+          } as Job)
+          const required = new Set([
+            ...durableConsumersFor(event.eventType).map(({ name }) => name),
+            ...options.consumers
+              .listFor(event.eventType)
+              .map(({ consumerName }) => consumerName),
+          ])
+          for (const name of required) {
+            if (!(await repo.hasReceipt(event.id, name)))
+              throw new Error('Outbox consumer receipt missing')
+          }
+        }
+        if (
+          !(await workItems.renew(
+            work.organizationId,
+            work.id,
+            work.leaseToken,
+            OUTBOX_DELIVERY_LEASE_MS,
+          ))
+        )
+          throw new Error('Outbox work lease lost')
+        await workItems.complete(
+          work.organizationId,
+          work.id,
+          work.leaseToken,
+          async () => {},
+        )
+      } catch (error) {
+        await workItems.renew(
+          work.organizationId,
+          work.id,
+          work.leaseToken,
+          OUTBOX_DELIVERY_LEASE_MS,
+        )
+        const [failed] = await workItems.fail(
+          work.organizationId,
+          work.id,
+          work.leaseToken,
+          {
+            retryAt: repo.delivery.retryAt(work.attempts),
+            terminal: error instanceof UnrecoverableError,
+          },
+        )
+        if (failed?.state === 'quarantined' && !(error instanceof UnrecoverableError)) {
+          throw Object.assign(new UnrecoverableError('Outbox delivery quarantined'), {
+            cause: error,
+          })
+        }
+        throw error
       }
     })
   }

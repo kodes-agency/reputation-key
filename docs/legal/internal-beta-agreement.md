@@ -2,14 +2,14 @@
 status: accepted
 accepted_by: Bozhidar Denev
 accepted_on: 2026-09-08
-amended_on: 2026-11-03
+amended_on: 2026-11-06
 ---
 
 # Closed Beta Participation Agreement — Reputation Key
 
 **Status:** Accepted for publication and invited-beta use
-**Effective date:** 2026-11-03
-**Version:** 2.5
+**Effective date:** 2026-11-06
+**Version:** 2.6
 **Accountable owner:** Bozhidar Denev
 
 ## 1. Parties and beta purpose
@@ -47,7 +47,7 @@ release readiness, the core product includes:
 
 Core analytics are part of the Service. There is no product option to decline
 the affected operational metrics while continuing to use the workflow. The
-accepted [Privacy Notice version 3.4](/privacy), effective 2026-11-03, forms part
+accepted [Privacy Notice version 3.5](/privacy), effective 2026-11-06, forms part
 of this agreement and states the applicable roles, legal bases, and rights
 process.
 
@@ -68,10 +68,7 @@ and each feature's release evidence permit it:
 - Reply Drafting; and
 - Property Trends, which also depends on Review Analysis.
 
-Code presence is not activation. The activated-capability schedule is the fate
-table in `docs/BETA.md` section 4, backed by
-`src/shared/governance/capability-fate.ts`. Its current policy and release gates
-determine which controlled capabilities the cohort may use.
+Code presence is not activation. The activated-capability schedule is maintained in `src/shared/governance/capability-fate.ts`. Its policy and release gates determine what the cohort may use.
 
 ### 2.3 Excluded or unavailable functions
 
@@ -254,7 +251,7 @@ agreement does not create them.
 
 ## 9. Data handling, retention, and providers
 
-The accepted [Privacy Notice version 3.4](/privacy), effective 2026-11-03, and
+The accepted [Privacy Notice version 3.5](/privacy), effective 2026-11-06, and
 its retention and provider schedules form part of this agreement. They cover
 Participant, Google source, Portal and Guest, manager-authored, AI-derived,
 monitoring, export, backup, and independently retained evidence classes.
@@ -266,9 +263,11 @@ The provider inventory, processing locations, transfer mechanism, retention,
 backup rules, and privacy and security contact are stated in the Privacy
 Notice.
 
-Older references to Neon, AWS Paris, a single-US-property pilot, or live PITR
-do not describe this agreement and are not release evidence unless independently
-verified for the signed candidate.
+Database backups and point-in-time recovery are enabled for the beta’s Railway
+deployment. A restore into an isolated database was rehearsed on 2026-11-04.
+Erasure replay was not tested, and the app’s restore verifier was not used.
+Older references to Neon, AWS Paris or a single-US-property pilot do not
+describe this deployment.
 
 ## 10. Access, export, withdrawal, and closure
 
@@ -305,10 +304,10 @@ capability schedule are available.
 
 This agreement is accepted together with:
 
-- Privacy Notice version 3.4, effective 2026-11-03, at `/privacy`;
-- Google Business Profile Access Disclosure version 2.4, effective 2026-11-02,
+- Privacy Notice version 3.5, effective 2026-11-06, at `/privacy`;
+- Google Business Profile Access Disclosure version 2.5, effective 2026-11-06,
   at `/privacy/google-access-disclosure`;
-- the activated-capability schedule in `docs/BETA.md` section 4; and
+- the activated-capability schedule maintained in `src/shared/governance/capability-fate.ts`; and
 - the retention, provider, transfer, rights, deployment, and change rules in
   the Privacy Notice.
 
@@ -319,7 +318,7 @@ invited Participant accepts the Participant obligations by joining.
 
 ## 13. Changes
 
-This agreement takes effect on 2026-11-03 and is version 2.5. It replaces version 2.4, effective 2026-11-02, which replaced version 2.3, effective 2026-11-02, which replaced version 2.2, effective 2026-11-01, which replaced
+This agreement takes effect on 2026-11-06 and is version 2.6. It replaces version 2.5, effective 2026-11-03, which replaced version 2.4, effective 2026-11-02, which replaced version 2.3, effective 2026-11-02, which replaced version 2.2, effective 2026-11-01, which replaced
 version 2.1, which took effect on 2026-10-14 and had replaced version 2.0, which
 took effect on 2026-09-08.
 
@@ -371,3 +370,12 @@ on the accountable owner's decision of 2026-11-01 for the two beta Organizations
 the owner controls.
 
 Version 2.5 (2026-11-03) discloses the manager-only no-scans marker, for a conversation with no automatic consequence.
+
+Version 2.6 (2026-11-06) records the enabled database backups and point-in-time
+recovery and the isolated restore rehearsal of 2026-11-04, without claiming
+erasure-replay or app-verifier proof. It corrects the activated-capability
+schedule reference and names Privacy Notice 3.5 and Google Business Profile
+Access Disclosure 2.5, both effective 2026-11-06. It takes effect on publication
+without a waiting period, on the accountable owner's decision for the two
+closed-beta Organizations the owner controls. Existing users are not asked to
+accept again; new members continue to accept through the invitation flow.

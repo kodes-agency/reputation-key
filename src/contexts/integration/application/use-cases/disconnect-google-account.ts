@@ -207,16 +207,13 @@ export const disconnectGoogleAccount = (deps: DisconnectGoogleAccountDeps) => {
       throw integrationError('connection_not_found', 'Google connection not found')
     }
 
-    if (connection.status === 'disconnected') {
-      return connection
+    let revoked: GoogleConnection | null = null
+    if (connection.status !== 'disconnected') {
+      await deps.cancelGoogleImportsForConnection?.(ctx.organizationId, connectionId)
+      await unsubscribeFromNotifications(ctx.organizationId, input.connectionId)
+      // A retry still owes local cleanup, but must never resend provider cleanup.
+      revoked = await governedRevoke(connection, connectionId, ctx)
     }
-
-    await deps.cancelGoogleImportsForConnection?.(ctx.organizationId, connectionId)
-
-    await unsubscribeFromNotifications(ctx.organizationId, input.connectionId)
-
-    // 3. Governed provider cleanup, when every governed dependency is present.
-    const revoked = await governedRevoke(connection, connectionId, ctx)
 
     // 4. If provider cleanup is unavailable, local disconnect remains safe and
     // deterministic. Status, identifier/secret redaction, and the durable
@@ -227,6 +224,9 @@ export const disconnectGoogleAccount = (deps: DisconnectGoogleAccountDeps) => {
       (await deps.commandStore.disconnectGoogleAccount({
         organizationId: ctx.organizationId,
         connectionId,
+        ...(connection.status === 'disconnected'
+          ? { cleanupOnly: { lifecycleVersion: connection.lifecycleVersion } }
+          : {}),
         event: integrationGoogleAccountDisconnected({
           connectionId,
           organizationId: ctx.organizationId,

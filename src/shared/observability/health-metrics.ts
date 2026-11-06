@@ -50,7 +50,7 @@ export type QuarantineMetricsPort = Readonly<{
 }>
 
 export type HealthMetricsDeps = Readonly<{
-  /** The BQC-3.6 dead-letter queue; quarantine metrics are null without it. */
+  /** Redis dead letters; durable delivery quarantine is read independently. */
   quarantineQueue?: QuarantineMetricsPort | null
   /**
    * Relay lease duration the stalled threshold derives from (stalled =
@@ -155,6 +155,8 @@ export type NotificationDeliveryLagMetrics = Readonly<{
 export type QuarantineMetrics = Readonly<{
   count: number
   oldestAgeMs: number | null
+  /** Durable terminal deliveries survive loss or expiry of Redis entries. */
+  workItems?: Readonly<{ count: number; oldestAgeMs: number | null }>
 }>
 
 /**
@@ -1070,11 +1072,19 @@ function createHealthSignalReads(
           : EMPTY_OUTBOX_METRICS,
       ),
     quarantine: () =>
-      trace('health.check.quarantine', async () =>
-        deps?.quarantineQueue
-          ? readQuarantineMetrics(deps.quarantineQueue, new Date())
-          : null,
-      ),
+      trace('health.check.quarantine', async () => {
+        const [queue, work] = await Promise.all([
+          deps?.quarantineQueue
+            ? readQuarantineMetrics(deps.quarantineQueue, new Date())
+            : null,
+          outboxRepo?.delivery.readQuarantineMetrics(),
+        ])
+        if (!queue && !work?.count) return null
+        return {
+          ...(queue ?? { count: 0, oldestAgeMs: null }),
+          ...(work?.count ? { workItems: work } : {}),
+        }
+      }),
     // Review content lifecycle metrics (columns from migration 0006 / Drizzle)
     reviews: () => trace('health.check.reviews', () => readReviewContentMetrics(db)),
     // Sync state metrics (migration 0007 / Drizzle)

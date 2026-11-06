@@ -4,6 +4,7 @@ const logger = vi.hoisted(() => ({
   info: vi.fn(),
   warn: vi.fn(),
   error: vi.fn(),
+  debug: vi.fn(),
 }))
 const captureObservabilityException = vi.hoisted(() => vi.fn())
 
@@ -19,6 +20,10 @@ vi.mock('#/shared/observability/telemetry', () => ({
   captureObservabilityException,
 }))
 
+vi.mock('#/shared/observability/trace', () => ({
+  trace: (_name: string, run: () => unknown) => run(),
+}))
+
 vi.mock('ioredis', () => ({
   Redis: class FakeRedis {
     constructor(
@@ -28,7 +33,8 @@ vi.mock('ioredis', () => ({
   },
 }))
 
-vi.mock('bullmq', () => {
+vi.mock('bullmq', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('bullmq')>()
   class FakeWorker {
     static instances: FakeWorker[] = []
     listeners = new Map<string, (...args: unknown[]) => void>()
@@ -47,12 +53,17 @@ vi.mock('bullmq', () => {
     }
   }
 
-  return { Worker: FakeWorker }
+  return { ...actual, Worker: FakeWorker }
 })
 
 import { Worker, type Job, type Queue } from 'bullmq'
 import { createJobWorker } from './worker'
 import { getRequestContext } from '#/shared/observability/request-context'
+import { createDispatcherHandler } from '#/shared/outbox/dispatcher'
+import { createConsumerRegistry } from '#/shared/outbox/consumer-registry'
+import type { OutboxRepository } from '#/shared/outbox/infrastructure/outbox-repository'
+import { registerEventSchema } from '#/shared/events/schema-registry'
+import { z } from 'zod/v4'
 
 type FakeWorker = Worker & {
   listeners: Map<string, (...args: unknown[]) => void>
@@ -64,6 +75,128 @@ function fakeWorkers(): FakeWorker[] {
 }
 
 describe('worker observability', () => {
+  it.each(['malformed', 'exhausted', 'retryable'] as const)(
+    'alerts through quarantine, runtime observations and Sentry only for terminal ledger delivery: %s',
+    async (failureKind) => {
+      if (failureKind === 'malformed') {
+        registerEventSchema({
+          type: 'test.malformed_payload',
+          version: 1,
+          schema: z.object({ resourceId: z.string() }),
+        })
+      }
+      const work = {
+        id: 'work-terminal',
+        organizationId: 'org-1',
+        subjectId: 'event-terminal',
+        kind: 'outbox-delivery',
+        leaseToken: 'lease-1',
+        attempts: failureKind === 'exhausted' ? 32 : 1,
+        maxAttempts: 32,
+      }
+      const readFailure = new Error('Stored fact unavailable')
+      const fail = vi.fn(async () => [
+        {
+          ...work,
+          state: failureKind === 'retryable' ? 'pending' : 'quarantined',
+        },
+      ])
+      const repo = {
+        delivery: {
+          workItems: {
+            resolveDispatch: async () => work,
+            runExclusive: async (_id: string, run: () => Promise<unknown>) => run(),
+            claim: async () => work,
+            renew: async () => true,
+            fail,
+          },
+          retryAt: () => new Date('2026-11-06T11:00:00Z'),
+          readEvent: async () => {
+            if (failureKind !== 'malformed') throw readFailure
+            return {
+              id: work.subjectId,
+              eventType: 'test.malformed_payload',
+              eventVersion: 1,
+              payload: {},
+              organizationId: work.organizationId,
+              propertyId: null,
+              sourceContext: 'test',
+              sourceAggregateId: work.subjectId,
+              recordedAt: new Date(),
+            }
+          },
+        },
+      } as unknown as OutboxRepository
+      const observationSink = {
+        recordStarted: vi.fn(async () => undefined),
+        recordSucceeded: vi.fn(async () => undefined),
+        recordDenied: vi.fn(async () => undefined),
+        recordTerminalFailure: vi.fn(async () => undefined),
+        recordStalled: vi.fn(async () => undefined),
+      }
+      const updateProgress = vi.fn(async () => undefined)
+      const quarantineQueue = {
+        add: vi.fn(async () => ({ id: 'quarantine-job' })),
+        getJob: vi.fn(async () => ({ updateProgress })),
+      } as unknown as Queue
+      createJobWorker(
+        'domain-events',
+        createDispatcherHandler(repo, { consumers: createConsumerRegistry() }),
+        1,
+        quarantineQueue,
+        observationSink,
+      )
+      const worker = fakeWorkers().at(-1)!
+      const runtimeHandler = worker.handler as (job: Job) => Promise<unknown>
+      const delivery = {
+        id: 'work-terminal-1',
+        name: 'outbox-delivery',
+        queueName: 'domain-events',
+        data: { workId: work.id },
+        attemptsMade: 0,
+        opts: { attempts: 1 },
+      }
+      const failure = await runtimeHandler(delivery as Job).catch(
+        (error: unknown) => error,
+      )
+      expect(failure).toBeInstanceOf(Error)
+      if (failureKind === 'malformed')
+        expect(failure).toHaveProperty('name', 'UnrecoverableError')
+      expect(fail).toHaveBeenCalledWith(
+        work.organizationId,
+        work.id,
+        work.leaseToken,
+        expect.objectContaining({ terminal: failureKind === 'malformed' }),
+      )
+      worker.listeners.get('failed')?.({ ...delivery, attemptsMade: 1 }, failure)
+
+      if (failureKind === 'retryable') {
+        expect(failure).toBe(readFailure)
+        expect(quarantineQueue.add).not.toHaveBeenCalled()
+        expect(quarantineQueue.getJob).not.toHaveBeenCalled()
+        expect(observationSink.recordTerminalFailure).not.toHaveBeenCalled()
+        expect(captureObservabilityException).not.toHaveBeenCalledWith(
+          failure,
+          expect.objectContaining({ source: 'bullmq-job' }),
+        )
+        return
+      }
+
+      await vi.waitFor(() => expect(updateProgress).toHaveBeenCalledOnce())
+      expect(quarantineQueue.add).toHaveBeenCalledOnce()
+      expect(observationSink.recordTerminalFailure).toHaveBeenCalledWith(
+        expect.objectContaining({ queue: 'domain-events', jobId: delivery.id }),
+      )
+      expect(captureObservabilityException).toHaveBeenCalledWith(failure, {
+        source: 'bullmq-job',
+        queue: 'domain-events',
+        jobName: 'outbox-delivery',
+      })
+      if (failureKind === 'exhausted')
+        expect(failure).toHaveProperty('cause', readFailure)
+    },
+  )
+
   it('routes BullMQ error events through structured logging', () => {
     createJobWorker(
       'default',
@@ -72,7 +205,7 @@ describe('worker observability', () => {
     const error = Object.assign(new Error('connection string must not be logged'), {
       code: 'ECONNRESET',
     })
-    fakeWorkers()[0].listeners.get('error')?.(error)
+    fakeWorkers().at(-1)!.listeners.get('error')?.(error)
 
     expect(logger.error).toHaveBeenCalledWith(
       {
@@ -236,6 +369,118 @@ describe('worker observability', () => {
       jobName: 'sync-property-reviews',
     })
   })
+
+  it.each(['default', 'domain-events'])(
+    'leaves a failed work-ID delivery on %s to ledger recovery without a legacy dead letter',
+    async (queueName) => {
+      const observationSink = {
+        recordStarted: vi.fn(async () => undefined),
+        recordSucceeded: vi.fn(async () => undefined),
+        recordDenied: vi.fn(async () => undefined),
+        recordTerminalFailure: vi.fn(async () => undefined),
+        recordStalled: vi.fn(async () => undefined),
+      }
+      const updateProgress = vi.fn(async () => undefined)
+      const quarantineQueue = {
+        add: vi.fn(async () => ({ id: 'quarantine-job' })),
+        getJob: vi.fn(async () => ({ updateProgress })),
+      } as unknown as Queue
+      const failure = new Error('transient consumer failure')
+      createJobWorker(
+        queueName,
+        vi.fn(async () => {
+          throw failure
+        }),
+        1,
+        quarantineQueue,
+        observationSink,
+      )
+      const worker = fakeWorkers().at(-1)!
+      const runtimeHandler = worker.handler as (job: Job) => Promise<unknown>
+      const delivery = {
+        id: 'work-1-dispatch-1',
+        name: 'review.created',
+        queueName,
+        data: { workId: 'work-1' },
+        attemptsMade: 0,
+        opts: { attempts: 1 },
+      }
+
+      await expect(runtimeHandler(delivery as Job)).rejects.toBe(failure)
+      worker.listeners.get('failed')?.(
+        { ...delivery, attemptsMade: 1 },
+        failure,
+        'active',
+      )
+      await Promise.resolve()
+
+      expect(quarantineQueue.add).not.toHaveBeenCalled()
+      expect(quarantineQueue.getJob).not.toHaveBeenCalled()
+      expect(updateProgress).not.toHaveBeenCalled()
+      expect(observationSink.recordTerminalFailure).not.toHaveBeenCalled()
+      expect(captureObservabilityException).not.toHaveBeenCalledWith(
+        failure,
+        expect.objectContaining({ source: 'bullmq-job' }),
+      )
+    },
+  )
+
+  it.each([undefined, null, [], {}, { workId: '' }, { workId: null }, { workId: 1 }])(
+    'keeps legacy quarantine for a final attempt with no valid work ID: %j',
+    async (data) => {
+      const observationSink = {
+        recordStarted: vi.fn(async () => undefined),
+        recordSucceeded: vi.fn(async () => undefined),
+        recordDenied: vi.fn(async () => undefined),
+        recordTerminalFailure: vi.fn(async () => undefined),
+        recordStalled: vi.fn(async () => undefined),
+      }
+      const updateProgress = vi.fn(async () => undefined)
+      const quarantineQueue = {
+        add: vi.fn(async () => ({ id: 'quarantine-job' })),
+        getJob: vi.fn(async () => ({ updateProgress })),
+      } as unknown as Queue
+      const failure = new Error('legacy final attempt failed')
+      createJobWorker(
+        'domain-events',
+        vi.fn(async () => {
+          throw failure
+        }),
+        1,
+        quarantineQueue,
+        observationSink,
+      )
+      const worker = fakeWorkers().at(-1)!
+      const runtimeHandler = worker.handler as (job: Job) => Promise<unknown>
+      const delivery = {
+        id: 'legacy-event-1',
+        name: 'review.created',
+        queueName: 'domain-events',
+        data,
+        attemptsMade: 0,
+        opts: { attempts: 1 },
+      }
+
+      await expect(runtimeHandler(delivery as Job)).rejects.toBe(failure)
+      worker.listeners.get('failed')?.(
+        { ...delivery, attemptsMade: 1 },
+        failure,
+        'active',
+      )
+
+      await vi.waitFor(() => expect(updateProgress).toHaveBeenCalledOnce())
+      expect(quarantineQueue.add).toHaveBeenCalledOnce()
+      expect(quarantineQueue.getJob).toHaveBeenCalledWith(
+        'quarantine:domain-events:legacy-event-1',
+      )
+      expect(observationSink.recordTerminalFailure).toHaveBeenCalledOnce()
+      expect(captureObservabilityException).toHaveBeenCalledWith(failure, {
+        source: 'bullmq-job',
+        queue: 'domain-events',
+        jobName: 'review.created',
+      })
+    },
+  )
 
   it('fails a schedule firing terminally without a dead letter or a transport error', async () => {
     const observationSink = {

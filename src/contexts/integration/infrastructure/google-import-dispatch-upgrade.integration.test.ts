@@ -26,9 +26,9 @@ import { acquireTestLease, type TestLease } from '#/shared/testing/test-environm
 import { createGoogleImportV2Store } from './google-import-v2-store'
 
 const DRIZZLE = join(import.meta.dirname, '..', '..', '..', '..', 'drizzle')
-const EXPAND = '0099_google_import_dispatch.sql'
-const VALIDATE = '0100_google_import_dispatch_validation.sql'
-const INDEX = '0101_google_import_dispatch_index.sql'
+const EXPAND = '0102_google_import_dispatch.sql'
+const VALIDATE = '0103_google_import_dispatch_validation.sql'
+const INDEX = '0104_google_import_dispatch_index.sql'
 const NOW = new Date('2026-10-20T10:00:00.000Z')
 const DEADLINE = new Date(NOW.getTime() + 86_400_000)
 const ORG = 'google-import-dispatch-upgrade'
@@ -123,6 +123,7 @@ describe('Google import dispatch populated upgrade (real PostgreSQL)', () => {
       'gbp_import_requests',
       'gbp_import_request_items',
       'outbox_events',
+      'work_items',
       'event_consumer_receipts',
       'properties',
       'idempotency_receipts',
@@ -339,19 +340,22 @@ describe('Google import dispatch populated upgrade (real PostgreSQL)', () => {
       IMPORT_SUBSCRIPTION_CONSUMER,
       IMPORT_REVIEW_SYNC_CONSUMER,
     ]
-    const events = await receipts.claimPublishedForConsumerRedelivery({
-      consumerExpectations: names.map((consumerName) => ({
+    const deliveries = await receipts.delivery.schedulePending(
+      100,
+      names.map((consumerName) => ({
         eventType: 'property.google_binding.changed',
         consumerName,
       })),
-      cutoff: new Date(NOW.getTime() + 60_000),
-      now: new Date(NOW.getTime() + 120_000),
-      limit: 100,
-      maxAttempts: 8,
-      backoffBaseMs: 60_000,
-    })
-    expect(events.map((event) => event.id).sort()).toEqual(
+    )
+    expect(deliveries.map((work) => work.subjectId).sort()).toEqual(
       [LEGACY_EVENT, UNFINISHED_EVENT].sort(),
+    )
+    const events = await Promise.all(
+      deliveries.map(async (work) => {
+        const event = await receipts.delivery.readEvent(ORG, work.subjectId)
+        if (!event) throw new Error('Missing adopted binding fact')
+        return event
+      }),
     )
     const effects = {
       propertyBindingApi: createPropertyGoogleBindingStore(db),

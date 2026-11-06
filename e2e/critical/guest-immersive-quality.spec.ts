@@ -1,28 +1,87 @@
-// The Immersive Hub on the SEEDED v3 portal (round 4, slice 19): the quality
-// gate of slice 18 (`pnpm test:guest:quality`) measures the page's pieces in
-// Storybook because no route mounted them. They are mounted now, and this is the
-// same check on the real route: the self-hosted fonts, LCP and CLS.
+// Quality on the seeded Immersive Hub: self-hosted fonts, LCP, CLS and
+// downloaded bytes through a phone visit, rating and private note.
 //
 // Chromium only, which is the only browser the `critical` project runs:
 // `largest-contentful-paint` and `layout-shift` are not exposed by WebKit or
 // Firefox (see `e2e/helpers/web-vitals.ts`). The seed publishes the
 // default look and no photo, so the largest paint is the display name; the
 // photo case is the Storybook gate's, until uploads are in a seed.
-//
-// Not run by the slice's author: it needs the local stack, which the slice's
-// rules forbid starting. It reads the same helpers the Storybook gate does.
 
+import { devices, type Page, type TestInfo } from '@playwright/test'
 import { test, expect } from '../helpers/error-detection'
 import { attachRequestLog } from '../helpers/request-log'
 import { requireE2eSeedState } from '../helpers/seed-state'
 import { installWebVitals, readWebVitals, vitalsViolations } from '../helpers/web-vitals'
 import { settleGuestConsent } from '../helpers/guest-consent'
 import { resetGuestRateLimits } from '../helpers/fixtures'
+import { assertDownloadBudget, attachDownloadLog } from '../helpers/download-log'
 
 const seed = requireE2eSeedState()
 const GUEST_STYLESHEET = '/fonts/guest/guest-fonts.css'
 /** Long enough that a late font would shift text if the fallbacks did not hold the metrics. */
 const FONT_DELAY_MS = 1500
+// Owner-controlled ceiling: the built CI journey measured 1,537,624 bytes on
+// 2026-11-06 (identical in two runs), plus 10%, rounded up. Only the owner changes
+// it, and at programme end only downward.
+const GUEST_DOWNLOAD_LIMIT_BYTES = 1_691_387
+
+const { viewport, userAgent, deviceScaleFactor, isMobile, hasTouch } = devices['Pixel 7']
+const PIXEL_7_PROFILE = { viewport, userAgent, deviceScaleFactor, isMobile, hasTouch }
+
+async function checkGuestPhoneDownloads(
+  page: Page,
+  testInfo: TestInfo,
+  excessDownload: boolean,
+) {
+  const finishDownloads = attachDownloadLog(page)
+
+  await page.goto(`/p/${seed.portalToken}`)
+  await settleGuestConsent(page, 'immersive')
+  await page.locator('label:has(input[aria-label="2 stars, Fair"])').click()
+  await page.getByRole('button', { name: 'Send', exact: true }).click()
+  await expect(page.getByText('Fair · sent')).toBeVisible()
+  await page.getByRole('button', { name: 'Report the issue' }).click()
+  await page
+    .getByRole('textbox', { name: 'Your note (optional)' })
+    .fill('Guest quality check.')
+  await page.getByRole('button', { name: 'Send note' }).click()
+  await expect(page.getByText('Your note was sent to E2E Guest Portal P1.')).toBeVisible()
+
+  if (excessDownload) {
+    // Bypass the cache so the negative control adds real response bytes.
+    await page.evaluate(async (limitBytes) => {
+      const font = performance
+        .getEntriesByType('resource')
+        .find((entry) => /\/fonts\/guest\/.+\.woff2$/u.test(entry.name))
+      if (!font) throw new Error('No guest font available for excess download')
+      const download = async () => {
+        const response = await fetch(font.name, { cache: 'no-store' })
+        if (!response.ok) throw new Error('Excess font download failed')
+        const bytes = (await response.arrayBuffer()).byteLength
+        if (bytes === 0) throw new Error('Excess font download was empty')
+        return bytes
+      }
+      const fontBytes = await download()
+      for (let remaining = Math.ceil(limitBytes / fontBytes); remaining > 0; remaining--)
+        await download()
+    }, GUEST_DOWNLOAD_LIMIT_BYTES)
+  }
+
+  const downloads = await finishDownloads()
+  console.log(
+    `[guest-download-bytes] ${downloads.bytes} (${excessDownload ? 'planted excess' : 'normal journey'})`,
+  )
+  await testInfo.attach('guest-downloads', {
+    body: JSON.stringify(
+      { unit: 'encoded response body + response header bytes', ...downloads },
+      null,
+      2,
+    ),
+    contentType: 'application/json',
+  })
+  if (excessDownload) expect(downloads.bytes).toBeGreaterThan(GUEST_DOWNLOAD_LIMIT_BYTES)
+  assertDownloadBudget(downloads, GUEST_DOWNLOAD_LIMIT_BYTES)
+}
 
 test.describe('Critical: Immersive Hub quality on the seeded portal', () => {
   test.beforeEach(async () => {
@@ -102,5 +161,27 @@ test.describe('Critical: Immersive Hub quality on the seeded portal', () => {
         lcp: vitals.lcp && { ...vitals.lcp, startTime: 0 },
       }),
     ).toEqual([])
+  })
+
+  test.describe('guest phone downloads', () => {
+    // A describe group may not switch browser type, so take the phone profile without it.
+    test.use(PIXEL_7_PROFILE)
+
+    test('holds its download budget through a rating and private note', async ({
+      page,
+    }, testInfo) => {
+      await checkGuestPhoneDownloads(page, testInfo, false)
+    })
+
+    test('rejects planted excess downloads through a rating and private note', async ({
+      page,
+    }, testInfo) => {
+      await expect(checkGuestPhoneDownloads(page, testInfo, true)).rejects.toThrow(
+        new RegExp(
+          `^Guest downloaded \\d+ bytes; fixed limit is ${GUEST_DOWNLOAD_LIMIT_BYTES} bytes$`,
+          'u',
+        ),
+      )
+    })
   })
 })

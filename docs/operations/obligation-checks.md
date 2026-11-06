@@ -152,6 +152,13 @@ execution evidence exists. Verify bucket expiry and provider-side deletion
 separately from database counts. Include every backup, including Manual copies,
 in the published 30-day ceiling; an indefinite Manual copy is unresolved.
 
+Checked 2026-11-06 (read-only, Railway API): the beta Postgres volume has two
+backup schedules, daily copies kept 6 days and weekly copies kept 27 days, and two
+backups, both scheduled and both expiring by 2026-11-11. No Manual copy remains;
+the last was deleted on 2026-11-05. The detached volume restored for the
+2026-11-04 rehearsal is scheduled for deletion on 2026-11-08. Recheck before each
+notice revision.
+
 ## Release, recovery and stop conditions
 
 At release, complete every item in obligations §6 and record its observed result:

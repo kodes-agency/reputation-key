@@ -17,7 +17,10 @@ import {
 import { GateDenyRetryError } from '#/shared/jobs/errors'
 import type { ConsumerEvent } from '#/shared/outbox/consumer-registry'
 import { createConsumerRegistry, type OutboxRepository } from '#/shared/outbox'
-import { DISPATCH_JOB_OPTIONS } from '#/shared/outbox/dispatch-job-options'
+import {
+  deliveryRetryDelayMs,
+  OUTBOX_DELIVERY_MAX_ATTEMPTS,
+} from '#/shared/outbox/dispatch-job-options'
 import { organizationId, propertyId } from '#/shared/domain/ids'
 import {
   AI_ANALYSIS_OPERATION_HORIZON_MILLIS,
@@ -602,18 +605,15 @@ describe('AI review outbox consumer', () => {
   })
 
   it('gives the analysis consumer a dispatch budget that outlasts its operation horizon', () => {
-    // Budget alignment: the domain terminal-settles a provider failure only on
-    // its 4th attempt, and pre-attempt deferrals (quota, lease, runtime drift,
-    // missing profile) consume dispatch attempts without consuming a domain
-    // attempt. BullMQ's exponential backoff with jitter j waits at least
-    // (1 - j) * delay * 2^(n-1) before attempt n+1, so the attempt before the
-    // last must already be past the horizon.
-    const { attempts, backoff } = DISPATCH_JOB_OPTIONS
+    // The first eight claims must outlast an operation's terminal horizon;
+    // later windows remain available after a temporary configuration outage.
+    const attempts = OUTBOX_DELIVERY_MAX_ATTEMPTS
     let minimumElapsedBeforePenultimateAttempt = 0
-    for (let attempt = 1; attempt < attempts - 1; attempt += 1) {
-      minimumElapsedBeforePenultimateAttempt +=
-        (1 - backoff.jitter) * backoff.delay * 2 ** (attempt - 1)
-    }
+    for (let attempt = 1; attempt < 7; attempt++)
+      minimumElapsedBeforePenultimateAttempt += deliveryRetryDelayMs(attempt)
+    expect(deliveryRetryDelayMs(8)).toBeGreaterThanOrEqual(2 * 60 * 60_000)
+    expect(deliveryRetryDelayMs(16)).toBeGreaterThanOrEqual(4 * 60 * 60_000)
+    expect(deliveryRetryDelayMs(24)).toBeGreaterThanOrEqual(8 * 60 * 60_000)
 
     expect(attempts).toBeGreaterThan(4)
     expect(minimumElapsedBeforePenultimateAttempt).toBeGreaterThan(

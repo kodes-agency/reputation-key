@@ -365,6 +365,10 @@ const GUEST_ROWS: ReadonlyArray<EventFamilyRow> = [
 
 const INTEGRATION_ROWS: ReadonlyArray<EventFamilyRow> = [
   ev('integration.google_account.connected', [
+    durable(
+      'integration.google-category-refresh',
+      'src/contexts/integration/infrastructure/google-category-refresh-outbox-consumers.ts',
+    ),
     durable('activity.recent-activity', ACTIVITY_OUTBOX),
     durable('activity.operational-action-history', ACTIVITY_OUTBOX),
     settles('notification.settle-on-google-account-connected'),
@@ -587,18 +591,6 @@ const BACKGROUND_QUEUE_ROWS: ReadonlyArray<JobFamilyRow> = [
       registration: 'enabled',
     },
     { timeoutMs: 30_000 },
-  ),
-  job(
-    'published-event-redelivery',
-    'src/shared/outbox/published-event-redelivery.job.ts',
-    {
-      queue: 'background',
-      capability: 'none',
-      action: 'system:outbox.redeliver',
-      schedule: 'every:300000',
-      registration: 'enabled',
-    },
-    { timeoutMs: 120_000 },
   ),
   job(
     'refresh-expiring-reviews',

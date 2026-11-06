@@ -1,3 +1,8 @@
+import {
+  assertBindingProfile,
+  normalizeConfirmedProfile,
+} from './property-google-profile'
+import { createGooglePrimaryCategoryRefresh } from './property-google-category-store'
 import { and, eq, inArray, isNull, sql } from 'drizzle-orm'
 import type { Database } from '#/shared/db'
 import { properties } from '#/shared/db/schema/property.schema'
@@ -8,13 +13,11 @@ import {
 import { insertOutboxRow } from '#/shared/outbox/commit'
 import { trace } from '#/shared/observability/trace'
 import { purgeAiDraftsForProfile } from '#/shared/db/ai/ai-draft-purge'
+import { clearGooglePrimaryCategoryForProperty } from '#/shared/db/google-primary-category-purge'
+import { lockGoogleConnectionBindingAuthority } from '#/shared/db/google-connection-binding-authority'
 import { googleConnectionId, type OrganizationId } from '#/shared/domain/ids'
-import { isValidIanaTimezone } from '#/shared/domain/timezones'
 import { normalizeGooglePrimaryCategory } from '#/shared/domain/google-primary-category'
-import {
-  isGoogleBindingTupleValid,
-  isGoogleResourceSuffix,
-} from '../domain/google-binding-contract'
+import { isGoogleResourceSuffix } from '../domain/google-binding-contract'
 import {
   PROPERTY_OPERATION_RECEIPT_TTL_MS,
   PROPERTY_OPERATION_SWEEP_LIMIT,
@@ -48,60 +51,10 @@ function validateIdempotencyKey(value: string): void {
   if (!UUID.test(value)) deny('invalid_binding')
 }
 
-function normalizeConfirmedProfile(profile: {
-  name: string
-  address: string | null
-  timezone: string
-  confirmedBy: string
-}): {
-  name: string
-  address: string | null
-  timezone: string
-  confirmedBy: string
-} {
-  const name = profile.name.trim()
-  const address = profile.address?.trim() || null
-  const confirmedBy = profile.confirmedBy.trim()
-  if (
-    name.length < 1 ||
-    name.length > 100 ||
-    (address !== null && address.length > 500) ||
-    !isValidIanaTimezone(profile.timezone) ||
-    confirmedBy.length < 1 ||
-    confirmedBy.length > 255
-  ) {
-    deny('invalid_binding')
-  }
-  return { name, address, timezone: profile.timezone, confirmedBy }
-}
-
 function isUniqueViolation(error: unknown): boolean {
   if (typeof error !== 'object' || error === null) return false
   const candidate = error as { code?: unknown; cause?: unknown }
   return candidate.code === '23505' || isUniqueViolation(candidate.cause)
-}
-
-function assertBindingProfile(input: {
-  state: 'unbound' | 'account_confirmation_required' | 'active' | 'disconnected'
-  connectionId: ReturnType<typeof googleConnectionId> | null
-  accountId: string | null
-  locationId: string | null
-  profileVersion: number
-  profileSource: string
-  profileConfirmedAt: Date | null
-  profileConfirmedBy: string | null
-}): void {
-  if (
-    !isGoogleBindingTupleValid(input) ||
-    input.state !== 'active' ||
-    input.profileSource !== 'tenant_confirmed' ||
-    input.profileConfirmedAt === null ||
-    input.profileConfirmedBy === null ||
-    !Number.isSafeInteger(input.profileVersion) ||
-    input.profileVersion < 1
-  ) {
-    deny('invalid_binding')
-  }
 }
 
 export const createPropertyGoogleBindingStore = (
@@ -132,6 +85,7 @@ export const createPropertyGoogleBindingStore = (
   }
 
   return Object.freeze({
+    refreshPrimaryCategory: createGooglePrimaryCategoryRefresh(db),
     readInternal: async (organizationIdValue, propertyIdValue) => {
       const [row] = await db
         .select()
@@ -261,6 +215,13 @@ export const createPropertyGoogleBindingStore = (
               return replayReceipt(receiptFromRow(racedReceipt), 'imported')
             }
 
+            if (
+              !(await lockGoogleConnectionBindingAuthority(tx, {
+                organizationId: input.organizationId,
+                connectionId: connectionIdValue,
+              }))
+            )
+              deny('connection_unavailable')
             await tx.insert(properties).values(propertyToRow(input.property))
             const expiresAt = new Date(
               input.now.getTime() + PROPERTY_OPERATION_RECEIPT_TTL_MS,
@@ -366,6 +327,9 @@ export const createPropertyGoogleBindingStore = (
                 'relinked',
                 input.propertyId,
               )
+            }
+            if (!(await lockGoogleConnectionBindingAuthority(tx, input))) {
+              deny('connection_unavailable')
             }
             const [current] = await tx
               .select()
@@ -500,8 +464,10 @@ export const createPropertyGoogleBindingStore = (
             .limit(1)
           if (!current) deny('property_not_found')
           if (current.deletedAt !== null) deny('property_deleted')
-          if (current.googleBindingState === 'disconnected')
+          if (current.googleBindingState === 'disconnected') {
+            await clearGooglePrimaryCategoryForProperty(tx, input)
             return summaryFromRow(current)
+          }
           if (current.sourceEpoch !== input.expectedSourceEpoch) deny('stale_binding')
           if (current.profileVersion !== input.expectedProfileVersion)
             deny('stale_profile')
@@ -523,6 +489,8 @@ export const createPropertyGoogleBindingStore = (
               googleBindingState: 'disconnected',
               sourceEpoch: nextSourceEpoch,
               googleReviewDestinationState: nextDestination.state,
+              googlePrimaryCategory: null,
+              googlePrimaryCategoryUpdatedAt: null,
               updatedAt: input.now,
             })
             .where(

@@ -24,6 +24,7 @@
 
 import { sql } from 'drizzle-orm'
 import type { Database } from '#/shared/db'
+import { clearGooglePrimaryCategoryForOrganization } from '#/shared/db/google-primary-category-purge'
 import {
   createOrganizationLifecycleContributorScaffold,
   type OrganizationLifecycleContributionRequest,
@@ -235,9 +236,8 @@ const PURGE_DELETE_TABLES = Object.freeze([
  *   the `properties` rows it hangs off, which is the only path the schema
  *   permits.
  *
- * Nothing here drops a table, removes a compatibility mirror, or touches a row
- * owned by Review, Property or Identity — the source Reviews an analysis was
- * derived from stay Review's to purge.
+ * The Property's Google category hint is cleared with the results that used it.
+ * Source Reviews stay Review's to purge; consent evidence remains with Identity.
  */
 const purge = async (
   tx: Tx,
@@ -259,6 +259,8 @@ const purge = async (
     )
     deleted += result.rows.length
   }
+
+  await clearGooglePrimaryCategoryForOrganization(tx, request.organizationId)
 
   return footprint === 0
     ? { outcome: 'no_data', evidenceRef: evidenceRef('purge', request, [0]) }

@@ -140,9 +140,26 @@ foreign keys deliberately stop cross-owner deletion.
     analysis and never a venue type: no manager surface shows it, nothing filters or
     gates on it, and it is not exported. Create stores what discovery read; a
     relink stores the one it read and keeps the held one when it read none, so a
-    missing answer never erases a hint; the provider identity scrub clears it with
-    the other Google-supplied descriptors. Like the review destination it has no
-    background refresh. It moves no `profileVersion`, `sourceEpoch` or AI epoch.
+    missing answer never erases a hint. Disconnect clears the category and its read
+    time in the binding transaction, so a reconnect starts with Google's new answer.
+    AI result erasure clears both in its transaction too; an epoch-only reanalysis
+    keeps them. Account-level disconnect clears hints for Properties bound to that
+    connection too, through `shared/db/google-primary-category-purge.ts`; a lapsed
+    connection keeps them. Both public disconnect commands repeat local cleanup on
+    retries without another lifecycle fact. Create and relink lock and recheck active
+    connection authority before locking or inserting the Property, so account
+    disconnect either clears their publication or prevents it from committing.
+    The provider identity scrub also clears them with the other
+    Google-supplied descriptors. Like the review destination it has no
+    periodic background refresh. Account reconnect requests a recoverable outbox
+    refresh of the locations still bound to that account; its callback succeeds
+    independently. Property restores their categories only while the connection
+    lifecycle/access and the binding/profile versions still match, and no erasure
+    cleared or superseded the original refresh request. Reconnect records its
+    event identity with each bound Property in the connection transaction;
+    erasure clears it. The same request identity fences every redelivery. A missing
+    category leaves the hint empty after disconnect. It moves no `profileVersion`,
+    `sourceEpoch` or AI epoch.
 
 ## Verification
 
@@ -157,3 +174,6 @@ publication and the guest page are then told about the Google destination.
 asserts that neither undoes the other.
 `property-restore-manager-fence.integration.test.ts` releases the last
 Responsible Manager between Restore's check and its commit, and after it.
+`property-google-category-disconnect.integration.test.ts` exercises both public
+disconnect retries and overlaps create/relink publication with account disconnect
+in both transaction orders, including receipt replay after cleanup.

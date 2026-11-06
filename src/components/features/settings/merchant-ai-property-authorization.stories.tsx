@@ -380,19 +380,37 @@ export const PausedUntilGoogleIsReconnected: Story = {
   },
 }
 
-export const AnalysisAndTrendsKeepTheirConsent: Story = {
+// The 11-06 notice corrects what Review Analysis keeps and nothing else, so
+// drafting and trends consented under 11-01 stay in force.
+export const DraftingAndTrendsKeepTheirConsent: Story = {
   args: {
     snapshot: {
       ...enabled,
-      noticeVersion: 'merchant-ai-notice-2026-10-30.v1',
-      noticeDigest: 'dadad7b81dbda360678fc57f7265b104c7311cbc213f877f32306c53b4852a5e',
-      capabilities: ['review_analysis', 'property_trends'],
+      noticeVersion: 'merchant-ai-notice-2026-11-01.v1',
+      noticeDigest: 'e9574380fd1ba5f4b7bd7b9899bc5e6bdf371f9d9871584f33c5c1e6131290ef',
+      capabilities: ['reply_drafting', 'property_trends'],
     },
   },
   play: async ({ canvasElement }) => {
     const c = within(canvasElement)
     await userEvent.click(c.getByRole('checkbox', { name: AI_CONSENT_ACKNOWLEDGEMENT }))
     expect(c.getByRole('button', { name: /save feature access/i })).toBeDisabled()
+  },
+}
+
+// The 11-06 notice requires renewal only when Review Analysis is enabled.
+export const ReconsentForAnalysisCorrections: Story = {
+  args: {
+    snapshot: {
+      ...enabled,
+      noticeVersion: 'merchant-ai-notice-2026-11-01.v1',
+      noticeDigest: 'e9574380fd1ba5f4b7bd7b9899bc5e6bdf371f9d9871584f33c5c1e6131290ef',
+    },
+  },
+  play: async ({ canvasElement }) => {
+    const c = within(canvasElement)
+    await userEvent.click(c.getByRole('checkbox', { name: AI_CONSENT_ACKNOWLEDGEMENT }))
+    await expect(c.getByRole('button', { name: /save feature access/i })).toBeEnabled()
   },
 }
 

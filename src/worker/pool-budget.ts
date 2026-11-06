@@ -33,17 +33,16 @@ import {
  *   other (`WORST_CASE_POOL_CLIENTS_PER_JOB`).
  * - background: health-check's operations snapshot reads about six things in
  *   parallel. The AI backlog drain is budgeted on its own.
- * - domain-events: the dispatcher holds no client around a consumer, so one.
+ * - domain-events: one session isolates live work plus one consumer client.
  *   Exact-current applies add a second client each, budgeted on their own.
  */
 const PEAK_CLIENTS_PER_JOB = Object.freeze({
   default: Math.max(3, WORST_CASE_POOL_CLIENTS_PER_JOB),
   background: 6,
-  'domain-events': 1,
+  'domain-events': 2,
 })
 
-/** Outbox relay (one poll at a time) and lost-dispatch recovery (boot and
- * watchdog runs can overlap). */
+/** Outbox admission, work reconciliation and scheduler repair may overlap. */
 const RUNTIME_CLIENTS = 3
 
 export const WORKER_POOL_CLIENT_BUDGET = Object.freeze({

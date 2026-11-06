@@ -1,48 +1,40 @@
-// Standalone schema-drift check (BQC-5.4).
-//
-// Runs the semantic comparator (src/shared/db/schema-drift.ts) against a
-// target database and exits non-zero on any drift. The same comparator backs
-// the integration gate (src/shared/db/migration-verification.test.ts).
-//
-// Usage:
-//   tsx scripts/check-schema-drift.ts [DATABASE_URL]
-//   pnpm check:schema-drift            (uses $DATABASE_URL)
-//
-// The target DB must be fully migrated (`auth:migrate` then `db:migrate`) or
-// every missing object reports as drift.
+import { checkStructure, writeStructure } from '../src/shared/db/structure.server'
+import { validateTestDatabaseTarget } from '../src/shared/testing/test-environment-lease'
+import { realpathSync } from 'node:fs'
+import { fileURLToPath } from 'node:url'
 
-import { Pool } from 'pg'
-import { collectSchemaDrift, formatDrifts } from '../src/shared/db/schema-drift'
-
-async function main() {
-  const url = process.argv[2] ?? process.env.DATABASE_URL
-  if (!url) {
-    console.error('Usage: tsx scripts/check-schema-drift.ts [DATABASE_URL]')
-    process.exit(2)
+export async function main(args = process.argv.slice(2)): Promise<void> {
+  const write = args[0] === '--write'
+  const url = args[write ? 1 : 0] ?? (write ? undefined : process.env.DATABASE_URL)
+  if (!url || args.length > (write ? 2 : 1)) {
+    throw new Error(
+      'Usage: tsx scripts/check-schema-drift.ts [DATABASE_URL] | --write <disposable DATABASE_URL>',
+    )
   }
-  const pool = new Pool({ connectionString: url })
-  try {
-    const drifts = await collectSchemaDrift(pool)
-    if (drifts.length > 0) {
-      console.error(`✗ Schema drift detected (${drifts.length}):`)
-      console.error(formatDrifts(drifts))
-      console.error(
-        '\nFix the model in src/shared/db/schema/*.ts or register intentional ' +
-          'DB-only constructs in src/shared/db/schema/db-only-constructs.ts ' +
-          '(see src/shared/db/CONTEXT.md). A function or trigger whose definition ' +
-          'differs is restated, never renamed: src/shared/db/db-constructs.sql, ' +
-          'its copy drizzle/0001_db_constructs.sql and the migration that changes ' +
-          'it carry the same statement.',
-      )
-      process.exit(1)
-    }
-    console.log('✓ No schema drift — model matches the migrated catalog.')
-  } finally {
-    await pool.end()
+  if (write) {
+    validateTestDatabaseTarget(url)
+    await writeStructure(url)
+    console.log('Recorded structure.sql; review its diff before committing.')
+    return
   }
+  const faults = await checkStructure(url)
+  if (faults.length > 0) {
+    console.error(faults.map(({ object, detail }) => `${object}: ${detail}`).join('\n'))
+    process.exitCode = 1
+    return
+  }
+  console.log('Schema and migration journal match the canonical structure.')
 }
 
-main().catch((err) => {
-  console.error(err)
-  process.exit(2)
-})
+const startedScript = process.argv[1]
+if (
+  startedScript !== undefined &&
+  realpathSync(startedScript) === realpathSync(fileURLToPath(import.meta.url))
+) {
+  main().catch(() => {
+    console.error(
+      'Schema check failed. Check the canonical structure.sql, PostgreSQL 16 pg_dump client and database access; use --write <disposable DATABASE_URL> only after migrating a fresh reference database.',
+    )
+    process.exitCode = 2
+  })
+}

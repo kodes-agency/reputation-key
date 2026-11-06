@@ -14,9 +14,9 @@ import { buildGoogleImportedProperty } from '#/contexts/property/application/pub
 import { googleConnectionId } from '#/shared/domain/ids'
 import { createOutboxRepository } from '#/shared/outbox/infrastructure/outbox-repository'
 import { buildConsumerEvent, type ConsumerEvent } from '#/shared/outbox/envelope'
-import { republishLostDispatches } from '#/shared/outbox/lost-dispatch-recovery'
-import { createPublishedAwaitingReceiptsReader } from '#/shared/outbox/infrastructure/published-awaiting-receipts'
-import { CATALOGUED_CONSUMER_EXPECTATIONS } from '#/shared/outbox/published-event-redelivery.job'
+import { createOutboxRelay } from '#/shared/outbox/relay'
+import { reconcileWorkItems } from '#/shared/jobs/work-items.server'
+import { workItems } from '#/shared/db/schema/work-items.schema'
 import { createMockLogger } from '#/shared/testing/mock-logger'
 import { createPortalExperienceRepository } from '#/contexts/portal/infrastructure/repositories/portal-experience.repository'
 import { ensureDefaultPublicDisplayName } from '#/contexts/portal/application/use-cases/manage-portal-experience'
@@ -144,6 +144,7 @@ describe('Google import completion and follow-up crash recovery (real PostgreSQL
       .where(inArray(propertyPortalBrandProfiles.organizationId, ORGS))
     await db.delete(portalPageEdits).where(inArray(portalPageEdits.organizationId, ORGS))
     await db.delete(properties).where(inArray(properties.organizationId, ORGS))
+    await db.delete(workItems).where(inArray(workItems.organizationId, ORGS))
     await db.delete(outboxEvents).where(inArray(outboxEvents.organizationId, ORGS))
   }
 
@@ -532,21 +533,22 @@ describe('Google import completion and follow-up crash recovery (real PostgreSQL
       .update(outboxEvents)
       .set({ publishedAt: NOW })
       .where(eq(outboxEvents.id, event.eventId))
-    const redispatches: ConsumerEvent[] = []
-    await republishLostDispatches({
-      readPublishedAwaitingReceipts: createPublishedAwaitingReceiptsReader(db),
-      queue: {
-        getJob: async () => null,
-        add: async (_name, data) => {
-          redispatches.push(data as ConsumerEvent)
-        },
+    const repo = createOutboxRepository(db, () => minuteAfter(NOW))
+    // Publication without a queue leaves pending work for the independent sweep.
+    await createOutboxRelay(repo, undefined).poll()
+    const redispatches: string[] = []
+    await reconcileWorkItems({
+      reserveDispatch: (cutoff) => repo.delivery.workItems.reserveDispatch(cutoff),
+      enqueue: async (_kind, data) => {
+        const work = await repo.delivery.workItems.inspect(ORG_A, data.workId)
+        if (work) {
+          expect(work).toMatchObject({ state: 'pending', attempts: 0 })
+          redispatches.push(work.subjectId)
+        }
       },
       clock: () => minuteAfter(NOW),
-      logger: createMockLogger(),
     })
-    expect(
-      redispatches.some((redelivered) => redelivered.eventId === event.eventId),
-    ).toBe(true)
+    expect(redispatches).toContain(event.eventId)
     await follow.handlers.displayName(event)
     await follow.handlers.subscription(event)
     await expect(follow.handlers.reviewSync(event)).rejects.toThrow(
@@ -754,15 +756,13 @@ describe('Google import completion and follow-up crash recovery (real PostgreSQL
       .set({ publishedAt: NOW, consumerRedeliveryAttempts: 3 })
       .where(eq(outboxEvents.id, event.eventId))
     const repo = createOutboxRepository(db)
-    const due = await repo.claimPublishedForConsumerRedelivery({
-      consumerExpectations: CATALOGUED_CONSUMER_EXPECTATIONS,
-      now: minuteAfter(NOW),
-      cutoff: minuteAfter(NOW),
-      limit: 50,
-      maxAttempts: 3,
-      backoffBaseMs: 1000,
+    const due = await repo.delivery.schedulePending(50)
+    const delivery = due.find((row) => row.subjectId === event.eventId)
+    expect(delivery).toBeDefined()
+    expect(await repo.delivery.workItems.inspect(ORG_A, delivery!.id)).toMatchObject({
+      state: 'pending',
+      attempts: 0,
     })
-    expect(due.some((row) => row.id === event.eventId)).toBe(true)
   })
 
   it('uses receipt authority and the historical cutoff during isolated restore completion', async () => {

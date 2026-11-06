@@ -1,13 +1,32 @@
 import { afterEach, beforeEach, expect, vi } from 'vitest'
 import { commands, page } from 'vitest/browser'
 import type { StoryStart } from '../scripts/ci/storybook-story-starts'
-import { provideViewportSetter } from '../src/shared/testing/phone-width'
+import {
+  measurePhoneWidths,
+  provideViewportSetter,
+} from '../src/shared/testing/phone-width'
+import {
+  assertPhoneWidthBaseline,
+  type PhoneWidthBaselineEntry,
+} from './phone-width-baseline'
+import phoneWidthBaseline from './phone-width-failures.json'
+import type { PhoneWidthObservation } from './phone-width-recorder'
 import { stopUpdateLoop } from './stop-update-loop'
+
+declare module 'vitest' {
+  interface TaskMeta {
+    /** Populated by @storybook/addon-vitest before the story renders. */
+    storyId?: string
+    phoneWidth?: PhoneWidthObservation
+  }
+}
 
 declare module 'vitest/browser' {
   interface BrowserCommands {
     /** Registered in vitest.config.ts; see scripts/ci/storybook-story-starts.ts. */
     storybookStoryStarts: (start: StoryStart) => Promise<void>
+    /** Collects observations in Vitest's Node process across all story files. */
+    recordPhoneWidthFailures: (observation: PhoneWidthObservation) => Promise<void>
   }
 }
 
@@ -19,8 +38,7 @@ declare module 'vitest/browser' {
 // StrictMode (src/client.tsx) and the component gate must too.
 Object.assign(globalThis, { FRAMEWORK_OPTIONS: { strictMode: true } })
 
-// A story checks itself at each phone width with `checkPhoneWidths`, which needs the
-// runner's viewport.
+// Shared by explicit play-function checks and the global check after each story.
 provideViewportSetter((width, height) => page.viewport(width, height))
 
 // The stories load the app's compiled stylesheet (vitest.config.ts), so its enter and
@@ -53,6 +71,7 @@ type ConsoleErrorAllowlistEntry = Readonly<{
 
 const CONSOLE_ERROR_ALLOWLIST: readonly ConsoleErrorAllowlistEntry[] = []
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/u
+const RESIZE_LOOP = 'ResizeObserver loop completed with undelivered notifications'
 
 let recordedErrors: unknown[][] = []
 let restoreConsoleError: (() => void) | undefined
@@ -119,7 +138,48 @@ beforeEach(() => {
   restoreConsoleError = () => spy.mockRestore()
 })
 
-afterEach(() => {
+afterEach(async ({ task }) => {
+  const errors: unknown[] = []
+  try {
+    const storyId = task.meta.storyId
+    if (typeof storyId !== 'string' || !storyId) {
+      throw new Error('Phone-width checks require the Storybook story id')
+    }
+    // The addon leaves the rendered state mounted until the next story starts.
+    // Its test metadata supplies the stable id, including stories with no play.
+    const story = { storyId, state: task.name }
+    const heard = recordedErrors.length
+    const measurements = await measurePhoneWidths()
+    // Resizing the window is the check's own doing: observers it wakes can miss
+    // the frame, which Chromium reports as an error that says nothing about the story.
+    recordedErrors = [
+      ...recordedErrors.slice(0, heard),
+      ...recordedErrors
+        .slice(heard)
+        .filter((args) => !args.some((arg) => renderArgument(arg).includes(RESIZE_LOOP))),
+    ]
+    task.meta.phoneWidth = { ...story, measurements }
+    if (import.meta.env.PHONE_WIDTH_RECORD === '1') {
+      await commands.recordPhoneWidthFailures(task.meta.phoneWidth)
+    } else {
+      try {
+        assertPhoneWidthBaseline(
+          story,
+          measurements,
+          phoneWidthBaseline as readonly PhoneWidthBaselineEntry[],
+        )
+      } catch (error) {
+        // The inventory is what CI's Linux Chromium measures. Text sets a few
+        // pixels differently elsewhere, so another platform reports, not fails.
+        if (import.meta.env.PHONE_WIDTH_PLATFORM === 'linux') throw error
+        const findings = error instanceof Error ? error.message : String(error)
+        console.info(`[phone-width] not failing off Linux:\n${findings}`)
+      }
+    }
+  } catch (error) {
+    errors.push(error)
+  }
+
   const unexpected = recordedErrors
     .map((args) => args.map(renderArgument).join(' '))
     .filter((message) => {
@@ -135,10 +195,16 @@ afterEach(() => {
   restoreConsoleError = undefined
 
   if (unexpected.length > 0) {
-    throw new Error(
-      `Unexpected console.error output:\n${unexpected
-        .map((message, index) => `${index + 1}. ${message}`)
-        .join('\n')}`,
+    errors.push(
+      new Error(
+        `Unexpected console.error output:\n${unexpected
+          .map((message, index) => `${index + 1}. ${message}`)
+          .join('\n')}`,
+      ),
     )
+  }
+  if (errors.length === 1) throw errors[0]
+  if (errors.length > 1) {
+    throw new AggregateError(errors, errors.map(renderArgument).join('\n'))
   }
 })

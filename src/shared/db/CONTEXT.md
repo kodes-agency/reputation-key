@@ -4,7 +4,9 @@
 
 ## Responsibility
 
-Drizzle `pgTable` declarations are the application-schema authority. Shared DB also owns connection/pool mechanics, the migration journal, non-DSL PostgreSQL constructs, control-plane seed rows, schema drift comparison, and test isolation.
+Journaled SQL is the deployed-schema authority; Drizzle `pgTable` declarations
+provide its application types, and `structure.sql` records the reviewed database
+structure. Shared DB also owns connection/pool mechanics, the migration journal, non-DSL PostgreSQL constructs, control-plane seed rows, the canonical PostgreSQL structure, and test isolation.
 Bounded contexts retain the business meaning and lifecycle of their records.
 
 Each process has one pool (`pool.ts`). Web keeps `POOL_MAX_CONNECTIONS` (10);
@@ -60,9 +62,9 @@ keeps its data between deploys, so the journal is never regenerated and an
 applied entry keeps its position, `idx` and `when`. Write the SQL by hand beside
 the model change and append the journal entry under the rules of "Deploy and
 recovery" below (the next `idx`, a `when` stepped from the entry before it, last
-in the file). `pnpm check:schema-drift` then compares the migrated catalogue
-with the model, and `pnpm db:reset` proves the whole journal still applies from
-empty, as CI applies it.
+in the file). `pnpm check:schema-drift` compares the migrated database with
+`structure.sql` and verifies every applied journal hash. The integration gate
+also migrates a new empty database and requires the same canonical dump.
 
 Two commands that look like this loop are not it. `pnpm db:baseline` deletes
 `drizzle/` and writes the three generated entries again. It was the loop while
@@ -78,8 +80,7 @@ migration that changes one restates it (below). Put every construct expressible
 by Drizzle in the model instead. The exception is a trigger on a table a later
 migration creates: `0001` copies `db-constructs.sql` byte for byte and runs
 before that table exists, so the trigger is stated only in its migration and
-registered in `MIGRATION_CREATED_CONSTRUCTS` and `UNPARSED_CONSTRUCTS`
-(`construct-definitions.ts`), as `0069` does for the Response Target exclusions.
+covered by the canonical dump, as `0069` does for the Response Target exclusions.
 
 An index on a continuously written table uses `CREATE INDEX CONCURRENTLY`.
 The existing registry remains authoritative until its journal-adoption release.
@@ -141,10 +142,31 @@ rerun the journal and leave completed files intact. Keep long backfills outside
 schema transactions. Each file holds acquired locks until its commit; the wait
 bound limits waiting, not transaction duration.
 
-`migration-verification.test.ts` compares the migrated PostgreSQL catalogue with
-the full model in both directions: columns, types, defaults, keys, checks, foreign
-keys/actions, indexes, predicates, enums, registered constructs, and journal
-continuity. `pnpm check:schema-drift` exposes the same comparator for operators.
+`structure.sql` is the reviewed, schema-only PostgreSQL dump of a freshly migrated
+reference database. `structure.server.ts` invokes `pg_dump` read-only, with no
+owners, ACLs, comments, security labels, tablespaces or row data. The test lease
+table is excluded. Only the dump envelope (client/server versions and random
+restriction keys) and the client's transaction-timeout setting are normalized;
+object SQL and function bodies remain verbatim. The checker requires PostgreSQL
+16 `pg_dump`, matching the CI database major, for reproducible SQL rendering.
+The same client major must generate and check the snapshot.
+
+After a schema migration, build a new disposable database through the supported
+migration path, then record its structure:
+
+```bash
+pnpm check:schema-drift --write <disposable-database-url>
+pnpm check:schema-drift <disposable-database-url>
+```
+
+Review the SQL diff with the migration. Never regenerate the reference from a
+database being investigated for drift. The write command requires an explicit
+disposable target and a complete journal with matching hashes. The operator
+command and `migration-verification.test.ts` compare that snapshot against the
+actual migrated database. `structure.integration.test.ts` proves empty-to-latest
+equality and plants changes to tables, defaults, checks, indexes, foreign keys,
+enums, function attributes and applied hashes. Construct integration tests retain
+the changed-body, obsolete-overload and changed-trigger-event denials.
 
 The journal is appended by hand. `migration-journal-order.ts` checks that each
 entry's `idx` is its position, `when` rises, tags are unique, and every SQL file
@@ -153,6 +175,13 @@ file hash, including after a prerequisite commits before historical files.
 The last `when` is dated ahead of the calendar: step a new entry from the
 previous one (100,000,000 ms) instead of stamping real time.
 `migration-journal-order.test.ts` runs the file check with no database.
+
+The merge-base gate also compares the SQL files named by that base journal.
+An edit, deletion or rename fails even when the journal entry itself is
+unchanged; staged and unstaged changes are included. New migrations appended
+after the base remain editable until they merge. A failed Git comparison fails
+the gate rather than treating the SQL as unchanged. The unit tests use local
+Git trees and need no database.
 
 The journal is append-only: an entry already on `main` keeps its position, `idx`
 and `when`, and a new entry goes after them, last. The file alone cannot show a
@@ -166,15 +195,12 @@ migration a second time and skip the new one, and its row count would equal the
 journal's, so the deploy runner's count check passes. After a journal conflict,
 take `main`'s entries as they are and re-step only your own.
 
-Functions and triggers are compared by definition, not by name
-(`construct-definitions.ts`): signature, attributes and body of every function,
-and every trigger's statement, as `db-constructs.sql` states them. Both sides
-are PostgreSQL's own rendering, so state a new function or trigger the way
-`pg_get_functiondef` / `pg_get_triggerdef` print it. A migration that changes
-one restates it in three places with the same text: `db-constructs.sql`, its
-byte copy `drizzle/0001_db_constructs.sql`, and the new migration.
-`construct-definitions.test.ts` holds the copy and, with no database, that each
-construct's last migration creates what the comparator expects.
+Functions and triggers are included in the canonical dump by full definition,
+including signature, attributes, body and trigger events. SQL source parity tests
+still hold `db-constructs.sql` against its historical baseline and later
+restatements until those source files retire. Their SQL readers are test-only;
+there is no second production construct comparator or name register in the drift
+path.
 
 A change to an attribute alone (volatility, strictness, parallel safety) can be
 made with `ALTER FUNCTION` instead of restating the body, as `0075` did for the
@@ -189,7 +215,7 @@ runs the real functions in a forced parallel plan. PostgreSQL prints no clause f
 
 ADR 0074 names a forward-only exception to the baseline byte-copy rule:
 `apply_merchant_ai_transition_v1` (migration 0084's definition) and
-`merchant_ai_notice_material_changes_v1` (restated by 0088 with the 2026-11-01 notice) are
+`merchant_ai_notice_material_changes_v1` (restated by 0100 with the 2026-11-06 notice) are
 stated in `db-constructs.sql`, while 0001
 and 0016 remain immutable historical SQL. The transition has only its live
 27-argument signature, including the ceremony id; never recreate the retired

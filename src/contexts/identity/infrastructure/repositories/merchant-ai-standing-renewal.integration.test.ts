@@ -67,10 +67,10 @@ const POLICY = {
   providerDeploymentProfileVersion: 'private-beta-global-v2' as const,
   redactionProfileFamily: 'gbp-review-global-v1',
 }
-// Still in force for analysis and trends: the served notice changed drafting alone.
-const ANALYSIS_KEPT = {
-  noticeVersion: 'merchant-ai-notice-2026-10-30.v1',
-  noticeDigest: 'dadad7b81dbda360678fc57f7265b104c7311cbc213f877f32306c53b4852a5e',
+// Drafting and trends remain covered; the new notice changes analysis alone.
+const PREVIOUS_NOTICE = {
+  noticeVersion: 'merchant-ai-notice-2026-11-01.v1',
+  noticeDigest: 'e9574380fd1ba5f4b7bd7b9899bc5e6bdf371f9d9871584f33c5c1e6131290ef',
 }
 // 2026-09-15 -> 2026-10-17 changed no data use, so no epoch moves.
 const IMMATERIAL_TARGET = {
@@ -287,31 +287,94 @@ describe('standing renewal persistence', () => {
     ])
     expect(await sweep()).toMatchObject({ visited: 0, renewed: 0 })
   })
-  it('renews a head for drafting alone and leaves one without drafting on its notice', async () => {
-    const drafting = await seedProperty()
-    const analysisOnly = await seedProperty()
+  it('renews analysis alone, resets replay coverage, preserves saved drafts and leaves drafting-only heads alone', async () => {
+    const analysis = await seedProperty()
+    const draftingOnly = await seedProperty()
     const store = createMerchantAiAuthorizationStore(db, randomUUID)
-    const before = await store.mutate({ ...command(drafting), ...ANALYSIS_KEPT })
-    await store.mutate({
-      ...command(analysisOnly),
-      ...ANALYSIS_KEPT,
-      capabilities: ['review_analysis', 'property_trends'],
+    const before = await store.mutate({ ...command(analysis), ...PREVIOUS_NOTICE })
+    const draftingBefore = await store.mutate({
+      ...command(draftingOnly),
+      ...PREVIOUS_NOTICE,
+      capabilities: ['reply_drafting'],
     })
-    expect(await sweep()).toMatchObject({ visited: 1, renewed: 1, failed: 0 })
-    expect(outcomeOf(drafting)).toBe('renewed')
-    expect(outcomeOf(analysisOnly)).toBeUndefined()
-    expect(await store.getSnapshot(drafting)).toMatchObject({
+    await seedSavedDraft(analysis)
+    await db.execute(sql`
+      UPDATE review_ai_analysis_heads SET head_sequence = 38
+      WHERE organization_id = ${analysis.organizationId}
+        AND property_id = ${analysis.propertyId}::uuid AND source_epoch = 0
+    `)
+    const ceremonyId = randomUUID()
+    expect(await sweep(ceremonyId)).toMatchObject({ visited: 1, renewed: 1, failed: 0 })
+    expect(outcomeOf(analysis)).toBe('renewed')
+    expect(outcomeOf(draftingOnly)).toBeUndefined()
+    expect(await store.getSnapshot(analysis)).toMatchObject({
       noticeVersion: POLICY.noticeVersion,
+      noticeDigest: POLICY.noticeDigest,
+      capabilities: before.capabilities,
+      authorizationLineageId: before.authorizationLineageId,
+      authorizedSourceEpoch: before.authorizedSourceEpoch,
+      capabilityRuntimeProfileVersions: before.capabilityRuntimeProfileVersions,
+      providerDeploymentProfileVersion: before.providerDeploymentProfileVersion,
+      stateVersion: before.stateVersion + 1,
       capabilityEpochs: {
         ...before.capabilityEpochs,
-        reply_drafting: before.capabilityEpochs.reply_drafting + 1,
+        review_analysis: before.capabilityEpochs.review_analysis + 1,
       },
-      analysisStartSequence: before.analysisStartSequence,
+      analysisStartSequence: 38,
     })
-    expect(await store.getSnapshot(analysisOnly)).toMatchObject({
-      noticeVersion: ANALYSIS_KEPT.noticeVersion,
-      stateVersion: 1,
+    expect(await store.getSnapshot(draftingOnly)).toEqual(draftingBefore)
+    expect(await savedDrafts(analysis)).toEqual([
+      { text: DRAFT_TEXT, authorship: 'ai_assisted' },
+    ])
+    const evidence = await db.execute(sql`
+      SELECT reason_code, ceremony_id, actor_user_id
+      FROM merchant_ai_consent_evidence
+      WHERE organization_id = ${analysis.organizationId} AND state_version = 2
+    `)
+    expect(evidence.rows).toEqual([
+      {
+        reason_code: 'standing_renewal',
+        ceremony_id: ceremonyId,
+        actor_user_id: analysis.actorUserId,
+      },
+    ])
+    const replay = await db.execute(sql`
+      SELECT payload FROM outbox_events
+      WHERE organization_id = ${analysis.organizationId}
+        AND event_type = 'identity.merchant_ai.changed'
+        AND (payload->>'stateVersion')::integer = 2
+    `)
+    expect(replay.rows).toHaveLength(1)
+    expect(replay.rows[0]?.payload).toMatchObject({
+      authorizationLineageId: before.authorizationLineageId,
+      reviewAnalysisEpoch: before.capabilityEpochs.review_analysis + 1,
+      replyDraftingEpoch: before.capabilityEpochs.reply_drafting,
+      propertyTrendsEpoch: before.capabilityEpochs.property_trends,
+      authorizedSourceEpoch: before.authorizedSourceEpoch,
+      analysisStartSequence: 38,
+      stateVersion: 2,
     })
+    const receipts = createMerchantAiNoticeUpdateStore(db)
+    const reader = {
+      organizationId: analysis.organizationId,
+      actorUserId: analysis.actorUserId,
+      unseenOnly: true,
+    }
+    expect(await receipts.latest(reader)).toMatchObject({
+      noticeVersion: POLICY.noticeVersion,
+      noticeDigest: POLICY.noticeDigest,
+      title: MERCHANT_AI_NOTICE_ANNOUNCEMENTS[POLICY.noticeVersion]?.title,
+    })
+    await receipts.markSeen({
+      ...reader,
+      noticeVersion: POLICY.noticeVersion,
+      noticeDigest: POLICY.noticeDigest,
+    })
+    expect(await receipts.latest(reader)).toBeNull()
+    expect(
+      await receipts.latest({ ...reader, actorUserId: analysis.oldestOwner }),
+    ).not.toBeNull()
+    expect(await sweep()).toMatchObject({ visited: 0, renewed: 0 })
   })
   it('falls back to the longest-standing live owner after the consent author is demoted', async () => {
     const f = await seedProperty()
