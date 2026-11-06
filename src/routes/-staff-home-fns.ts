@@ -21,31 +21,13 @@ async function changePassword(input: Parameters<typeof changeMyStaffPassword>[0]
 }
 
 export const staffHomeFns = {
-  get getMyStaffHome() {
-    return getMyStaffHome
-  },
-  get getMyCode() {
-    return getMyCode
-  },
-  get acknowledgeStaffNotice() {
-    return acknowledgeStaffNotice
-  },
-  get getMyResults() {
-    return getMyResults
-  },
-  get getMyGoals() {
-    return getMyGoals
-  },
-  get getMyColleagues() {
-    return getMyColleagues
-  },
-  get changePassword() {
-    return changePassword
-  },
-  get submitFeedback() {
-    return submitMyStaffFeedback
-  },
-  get listFeedback() {
-    return listMyStaffFeedback
-  },
+  getMyStaffHome,
+  getMyCode,
+  acknowledgeStaffNotice,
+  getMyResults,
+  getMyGoals,
+  getMyColleagues,
+  changePassword,
+  submitFeedback: submitMyStaffFeedback,
+  listFeedback: listMyStaffFeedback,
 }

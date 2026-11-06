@@ -1,16 +1,16 @@
-// Load this module on demand because route loaders are first-paint code. Fetch server
-// functions only through import(): static imports shared by lazy pages would join the
-// first-paint stub chunk. Query definitions stay shared across pages.
-
 import { queryOptions, type QueryClient } from '@tanstack/react-query'
 import { goalKeys } from '#/shared/queries/query-keys'
-
-type RatingGoalServer = typeof import('#/contexts/reporting/server/rating-goals')
-
-const server = (): Promise<RatingGoalServer> =>
-  import('#/contexts/reporting/server/rating-goals')
-
-type Input<K extends keyof RatingGoalServer> = Parameters<RatingGoalServer[K]>[0]
+import {
+  setRatingGoal,
+  changeRatingGoal,
+  endRatingGoal,
+  keepRatingGoalPace,
+  deferRatingGoal,
+  getRatingGoalCard,
+  getRatingGoalSetup,
+  getRatingGoalDetail,
+  getRatingGoalHistory,
+} from '#/contexts/reporting/server/rating-goals'
 
 /**
  * Set, change and end: the commands the wizard and the detail page send; Keep,
@@ -18,16 +18,11 @@ type Input<K extends keyof RatingGoalServer> = Parameters<RatingGoalServer[K]>[0
  * which the setup strip and the import's last step send.
  */
 export const ratingGoalCommands = {
-  setRatingGoal: async (input: Input<'setRatingGoal'>) =>
-    (await server()).setRatingGoal(input),
-  changeRatingGoal: async (input: Input<'changeRatingGoal'>) =>
-    (await server()).changeRatingGoal(input),
-  endRatingGoal: async (input: Input<'endRatingGoal'>) =>
-    (await server()).endRatingGoal(input),
-  keepRatingGoalPace: async (input: Input<'keepRatingGoalPace'>) =>
-    (await server()).keepRatingGoalPace(input),
-  deferRatingGoal: async (input: Input<'deferRatingGoal'>) =>
-    (await server()).deferRatingGoal(input),
+  setRatingGoal,
+  changeRatingGoal,
+  endRatingGoal,
+  keepRatingGoalPace,
+  deferRatingGoal,
 }
 
 export type RatingGoalCommands = typeof ratingGoalCommands
@@ -38,7 +33,7 @@ const RATING_GOAL_STALE_MS = 30_000
 export const ratingGoalCardQuery = (propertyId: string) =>
   queryOptions({
     queryKey: goalKeys.ratingGoalRead(propertyId, 'card'),
-    queryFn: async () => (await server()).getRatingGoalCard({ data: { propertyId } }),
+    queryFn: () => getRatingGoalCard({ data: { propertyId } }),
     staleTime: RATING_GOAL_STALE_MS,
   })
 
@@ -46,21 +41,21 @@ export const ratingGoalCardQuery = (propertyId: string) =>
 export const ratingGoalSetupQuery = (propertyId: string) =>
   queryOptions({
     queryKey: goalKeys.ratingGoalRead(propertyId, 'setup'),
-    queryFn: async () => (await server()).getRatingGoalSetup({ data: { propertyId } }),
+    queryFn: () => getRatingGoalSetup({ data: { propertyId } }),
     staleTime: RATING_GOAL_STALE_MS,
   })
 
 export const ratingGoalDetailQuery = (propertyId: string) =>
   queryOptions({
     queryKey: goalKeys.ratingGoalRead(propertyId, 'detail'),
-    queryFn: async () => (await server()).getRatingGoalDetail({ data: { propertyId } }),
+    queryFn: () => getRatingGoalDetail({ data: { propertyId } }),
     staleTime: RATING_GOAL_STALE_MS,
   })
 
 export const ratingGoalHistoryQuery = (propertyId: string) =>
   queryOptions({
     queryKey: goalKeys.ratingGoalRead(propertyId, 'history'),
-    queryFn: async () => (await server()).getRatingGoalHistory({ data: { propertyId } }),
+    queryFn: () => getRatingGoalHistory({ data: { propertyId } }),
     staleTime: RATING_GOAL_STALE_MS,
   })
 
@@ -89,8 +84,6 @@ export async function prefetchRatingGoalSection(
  * Overview one goal read. `prefetchQuery` never throws: a failed read leaves the
  * Overview without the goal, never in an error.
  */
-// Used through the Overview loader's on-demand import, which fallow does not follow.
-// fallow-ignore-next-line unused-export
 export async function prefetchRatingGoalOverview(
   queryClient: QueryClient,
   propertyId: string,
