@@ -72,6 +72,7 @@ const storybookProject: TestProjectConfiguration[] =
                   ? {
                       recordPhoneWidthFailures: createPhoneWidthRecorder(
                         resolve(__dirname, '.storybook/phone-width-failures.json'),
+                        process.platform,
                       ),
                     }
                   : {}),

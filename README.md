@@ -93,6 +93,11 @@ full browser suite:
 PHONE_WIDTH_RECORD=1 pnpm test:storybook
 ```
 
+The inventory is what CI measures. CI's Linux Chromium sets text a few pixels
+wider than macOS does, so some states fail only there. Record mode therefore
+refuses to run anywhere but Linux; on a Mac, delete the entries a CI run prints
+as passing instead.
+
 Record mode writes only the intersection of `.storybook/phone-width-failures.json`
 and current failures. It may remove whole entries or individual checks, but never
 add one: any new failure fails the run with its story, state, width and check.
