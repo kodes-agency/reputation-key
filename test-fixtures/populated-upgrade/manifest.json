@@ -1,0 +1,10 @@
+{
+  "sourceRevision": "b4d0744ff",
+  "postgresMajor": 16,
+  "appliedMigrations": 94,
+  "publicTables": 195,
+  "rows": 733,
+  "sha256Gzip": "4c1c83eacf8ce7e3b8c2b18f4ff2f44667a5761dec55de2fbd68caebabf0cd54",
+  "sha256Sql": "277aaefc40cd66a0541e5aab18b38b9a7ce97d70d9cc65800fc2f2830303025b",
+  "organizationIds": ["sim-ci-org", "sim-org-2-1793846908838"]
+}
