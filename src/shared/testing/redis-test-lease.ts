@@ -16,7 +16,7 @@
 // Where Redis MUST exist, set REQUIRE_TEST_REDIS=1 and ABSENT is refused too:
 // a probe that fails or times out throws, so the suite fails in beforeAll
 // instead of returning before its first assertion and reporting green. CI's
-// test-integration job sets it beside its Redis service
+// integration job sets it beside its Redis service
 // (.github/workflows/ci.yml); redis-test-lease.test.ts pins that wiring. Run
 // `REQUIRE_TEST_REDIS=1 pnpm test:integration` locally to prove the
 // Redis-backed suites really ran.
