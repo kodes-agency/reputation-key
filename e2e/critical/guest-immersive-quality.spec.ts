@@ -24,6 +24,9 @@ const FONT_DELAY_MS = 1500
 // built CI journey's measured total plus 10% (rounded up).
 const GUEST_DOWNLOAD_LIMIT_BYTES = 2_000_000
 
+const { viewport, userAgent, deviceScaleFactor, isMobile, hasTouch } = devices['Pixel 7']
+const PIXEL_7_PROFILE = { viewport, userAgent, deviceScaleFactor, isMobile, hasTouch }
+
 async function checkGuestPhoneDownloads(
   page: Page,
   testInfo: TestInfo,
@@ -160,7 +163,8 @@ test.describe('Critical: Immersive Hub quality on the seeded portal', () => {
   })
 
   test.describe('guest phone downloads', () => {
-    test.use({ ...devices['Pixel 7'] })
+    // A describe group may not switch browser type, so take the phone profile without it.
+    test.use(PIXEL_7_PROFILE)
 
     test('holds its download budget through a rating and private note', async ({
       page,
