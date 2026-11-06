@@ -98,15 +98,15 @@ Property/location metadata and review source content, including reviewer
 information, per-review rating, review text and language, review time, Google
 identifiers, and current reply content/state. The Service also stores
 manager-authored reply workflow and reconciliation evidence. Per-review Google
-ratings remain part of the short-lived review source. Reporting still keeps separate per-review star values with no enforced expiry.
+ratings remain part of the short-lived review source. Reporting can retain legacy per-review star values with no enforced expiry.
 These copies await removal.
 
 Google-controlled source content is kept separately from longer-lived
 application records. Its intended limit is 30 calendar days from the last
 successful fetch; a new successful fetch restarts that period. Expired content
 is withheld from ordinary reads and external processing, but automatic deletion
-of the stored content is not active yet. Disconnecting Google or letting the
-connection lapse does not erase it early or restart the period. Reporting still keeps separate per-review star values with no enforced expiry.
+of the stored current source content is not active yet. Disconnecting Google or letting the
+connection lapse does not erase it early or restart the period. Reporting can retain legacy per-review star values with no enforced expiry.
 These copies await removal.
 
 See the separate [Google Business Profile Access Disclosure](/privacy/google-access-disclosure).
@@ -400,7 +400,7 @@ The accepted rules for the remaining information classes are:
 - Organization Export objects are kept for no more than seven days, and their
   retrieval links for no more than 24 hours.
 
-The hosting provider keeps encrypted backups for no more than 30 days. Database
+Database backups are deleted on a fixed schedule within 30 days: daily copies after six days and weekly copies after 27 days. Database
 backups and point-in-time recovery are enabled. Automatic recording and
 re-application of erasures after a restore is not active. Restoring an older
 backup can therefore bring back information erased after that backup was made.

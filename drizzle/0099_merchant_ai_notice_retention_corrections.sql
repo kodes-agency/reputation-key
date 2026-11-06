@@ -25,7 +25,7 @@ ALTER TABLE "merchant_ai_consent_evidence" ADD CONSTRAINT "merchant_ai_consent_e
           OR ("merchant_ai_consent_evidence"."notice_version"::text = 'merchant-ai-notice-2026-11-01.v1'::text
             AND "merchant_ai_consent_evidence"."notice_digest"::text = 'e9574380fd1ba5f4b7bd7b9899bc5e6bdf371f9d9871584f33c5c1e6131290ef'::text)
           OR ("merchant_ai_consent_evidence"."notice_version"::text = 'merchant-ai-notice-2026-11-06.v1'::text
-            AND "merchant_ai_consent_evidence"."notice_digest"::text = 'a686609cd7b9a68984f9a54909f3d8a1846a95b10b6bff586f8262bdd1e0b073'::text)
+            AND "merchant_ai_consent_evidence"."notice_digest"::text = '4c6cc6203744fa3f341fde5e109440724858040f0155b3fe9e8bf85f95532be0'::text)
         )
         AND "merchant_ai_consent_evidence"."source_policy_id"::text = 'google-business-profile-source-policy-v1'::text
         AND "merchant_ai_consent_evidence"."routing_policy_version" = 1::integer
@@ -53,7 +53,7 @@ ALTER TABLE "merchant_ai_enablement" ADD CONSTRAINT "merchant_ai_enablement_cont
           OR ("merchant_ai_enablement"."notice_version"::text = 'merchant-ai-notice-2026-11-01.v1'::text
             AND "merchant_ai_enablement"."notice_digest"::text = 'e9574380fd1ba5f4b7bd7b9899bc5e6bdf371f9d9871584f33c5c1e6131290ef'::text)
           OR ("merchant_ai_enablement"."notice_version"::text = 'merchant-ai-notice-2026-11-06.v1'::text
-            AND "merchant_ai_enablement"."notice_digest"::text = 'a686609cd7b9a68984f9a54909f3d8a1846a95b10b6bff586f8262bdd1e0b073'::text)
+            AND "merchant_ai_enablement"."notice_digest"::text = '4c6cc6203744fa3f341fde5e109440724858040f0155b3fe9e8bf85f95532be0'::text)
         )
         AND "merchant_ai_enablement"."source_policy_id"::text = 'google-business-profile-source-policy-v1'::text
         AND "merchant_ai_enablement"."routing_policy_version" = 1::integer
@@ -81,7 +81,7 @@ BEGIN
     SELECT replaces_version, replaces_digest, materially_changes
       INTO prior_version, prior_digest, changed
     FROM (VALUES
-      ('merchant-ai-notice-2026-11-06.v1', 'a686609cd7b9a68984f9a54909f3d8a1846a95b10b6bff586f8262bdd1e0b073',
+      ('merchant-ai-notice-2026-11-06.v1', '4c6cc6203744fa3f341fde5e109440724858040f0155b3fe9e8bf85f95532be0',
        'merchant-ai-notice-2026-11-01.v1', 'e9574380fd1ba5f4b7bd7b9899bc5e6bdf371f9d9871584f33c5c1e6131290ef',
        ARRAY['review_analysis']::text[]),
       ('merchant-ai-notice-2026-11-01.v1', 'e9574380fd1ba5f4b7bd7b9899bc5e6bdf371f9d9871584f33c5c1e6131290ef',

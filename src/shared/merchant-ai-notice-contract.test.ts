@@ -82,7 +82,7 @@ describe('Merchant AI notice contract', () => {
       ),
     )
     expect(MERCHANT_AI_NOTICE_DIGEST).toBe(
-      'a686609cd7b9a68984f9a54909f3d8a1846a95b10b6bff586f8262bdd1e0b073',
+      '4c6cc6203744fa3f341fde5e109440724858040f0155b3fe9e8bf85f95532be0',
     )
   })
 
@@ -290,7 +290,10 @@ it('states category use, daily cleanup and withdrawal limits in the served notic
     'Withdrawal immediately denies access; background processing then purges stored AI results',
   )
   expect(text).toContain(
-    'Both cover the results listed under "What review analysis keeps", except the stored business category',
+    'Turning Review Analysis off and withdrawing authorization cover the results listed under "What review analysis keeps", except the stored business category',
+  )
+  expect(text).toContain(
+    "Manager corrections: kept beside the AI's answer, no longer applied when the guest edits the review, never sent to a provider.",
   )
   expect(MERCHANT_AI_NOTICE_PAYLOAD.retentionAndRevocation[1]?.value).toContain(
     'except the stored business category',

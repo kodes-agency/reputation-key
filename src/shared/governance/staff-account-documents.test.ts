@@ -10,12 +10,15 @@ describe('current notice corrections', () => {
   it('discloses stored Reporting copies, current AI cleanup and inactive source deletion', () => {
     const privacy = legalBody('privacy-notice')
     expect(
-      privacy.match(/Reporting still keeps separate per-review star values/gu),
+      privacy.match(/Reporting can retain legacy per-review star values/gu),
     ).toHaveLength(2)
     expect(privacy).toContain('per-review rating, review text and language')
     expect(privacy).toContain('a new successful fetch restarts that period')
     expect(privacy).toContain(
-      'automatic deletion of the stored content is not active yet',
+      'automatic deletion of the stored current source content is not active yet',
+    )
+    expect(privacy).toContain(
+      'Database backups are deleted on a fixed schedule within 30 days: daily copies after six days and weekly copies after 27 days.',
     )
     expect(privacy).toContain(
       'Automatic recording and re-application of erasures after a restore is not active.',
@@ -45,7 +48,7 @@ describe('current notice corrections', () => {
     )
     expect(disclosure).toContain('it deletes nothing on Google')
     expect(disclosure).toContain(
-      'Automatic deletion of expired imported content is not active yet.',
+      'Automatic deletion of expired current imported content is not active yet.',
     )
     expect(disclosure).toContain(
       'disconnection stops new Google work and does not itself erase imported content',

@@ -179,7 +179,8 @@ const PINNED_PROVIDER_LEVEL = {
     '33aebd2c6985580b83ea6ccab6b3f0157bc1a17cc3e186eae3c076bfe09ac9ef',
 } as const
 
-// Request bindings include the served notice digest; provider bytes are pinned separately.
+// Request bindings include the corrected 2026-11-06 notice digest;
+// provider bytes, profiles and limits remain unchanged.
 const PINNED_ROUTES = {
   analysis: {
     sourceDigest: '40eb9e177955783972f0271b399a23bfc949deef751adcb80db6caaa666ee3f2',
@@ -197,7 +198,7 @@ const PINNED_ROUTES = {
       costMicros: 3797,
     },
     requestBindingKeyId: 'request-v1',
-    requestBindingHmac: 'eHPc-t5xn8BlhV_yf3lLWGTIRGs0jB5pxZoTZDjW0sY',
+    requestBindingHmac: '3FJMrV73Qs_KnBnRkynQD5YjuBgJwhYIURS_CHYwe4g',
     canonicalProviderBytesSha256:
       'b6f063d3da8527243da1bb8ade4597edb704afb8031fb7d162f207ae558c6dc4',
     canonicalProviderByteLength: 18090,
@@ -218,7 +219,7 @@ const PINNED_ROUTES = {
       costMicros: 719,
     },
     requestBindingKeyId: 'request-v1',
-    requestBindingHmac: 'nr0__Im9t-V_Er-gB7VboR5EdnFAdxI2ItAbXbqt6uo',
+    requestBindingHmac: 'vxsDCqlQr6GwFcZKYD0VI2ad4PMZAyRtlqi5Ysuh3p0',
     canonicalProviderBytesSha256:
       'b4cb8a3a87ff7777837bcb997c816e1d3849f32f3c867af03b042f0d290f2d23',
     canonicalProviderByteLength: 2441,
@@ -239,7 +240,7 @@ const PINNED_ROUTES = {
       costMicros: 1267,
     },
     requestBindingKeyId: 'request-v1',
-    requestBindingHmac: '-N-Drr6WebDwyYG76YBz2Y5K2iQ2T9vg4oDdzR1a8co',
+    requestBindingHmac: 'QqkRpFolfnIiCXlyTQvJqJdq8jUOIndeQYnOpfA64DA',
     canonicalProviderBytesSha256:
       '1ccada2805a47972a921007fc81325b31652b42dd632382239b535893ee6372e',
     canonicalProviderByteLength: 2962,

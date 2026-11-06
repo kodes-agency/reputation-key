@@ -173,7 +173,7 @@ Property’s Google review destination. It does not immediately erase imported
 reviews or imported replies, and it deletes nothing on Google. Their existing
 limit of 30 days from the last successful fetch still applies; disconnecting or
 allowing a connection to lapse does not restart that clock. Automatic deletion
-of expired imported content is not active yet. Manager-authored replies and
+of expired current imported content is not active yet. Manager-authored replies and
 notes follow their separate retention rules. Token revocation, source erasure,
 derived-data handling, backups, and independently retained manager-authored
 history follow their distinct accepted lifecycle procedures.
@@ -265,7 +265,7 @@ release without a waiting period, on the accountable owner's decision of
 Version 2.5 (2026-11-06) clarifies that disconnecting Google stops syncing and
 reply publication without immediately erasing imported content or deleting
 anything on Google. The existing fetch-based expiry still applies, and
-automatic deletion of expired imported content is not active yet. It separates
+automatic deletion of expired current imported content is not active yet. It separates
 source-expiry restrictions from disconnection. It takes effect on publication
 without a waiting period, on the accountable owner's decision for the two
 closed-beta Organizations the owner controls. Existing users are not asked to
