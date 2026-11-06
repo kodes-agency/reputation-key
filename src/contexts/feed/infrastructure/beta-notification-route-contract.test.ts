@@ -3,6 +3,7 @@ import { identityOrganizationLifecycleChanged } from '#/contexts/identity/domain
 import {
   inboxHandlingCycleOpened,
   inboxHandlingCycleReopened,
+  inboxItemAssigned,
 } from '#/contexts/inbox/domain/events'
 import {
   portalHealthChanged,
@@ -303,6 +304,20 @@ const NO_NOTICE: Readonly<
         reopenReason: 'new_information',
         bulkId: BULK,
         source: 'web',
+      }),
+    status: 'applied',
+  },
+  'inbox.inbox_item.assigned': {
+    fact: () =>
+      inboxItemAssigned({
+        inboxItemId: ITEM,
+        organizationId: ORG,
+        propertyId: PROPERTY,
+        assignedTo: RECIPIENT,
+        userId: ACTOR,
+        bulkId: BULK,
+        source: 'web',
+        occurredAt: OCCURRED_AT,
       }),
     status: 'applied',
   },

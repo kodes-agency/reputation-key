@@ -166,12 +166,15 @@ export const BETA_NOTIFICATION_TRIGGER_MATRIX = [
     eventCondition: 'reminderKind selects halfway or target-passed notification',
   },
   // I15: the new assignee, and on a manual reassignment the previous one.
-  route(
-    'inbox.inbox_item.assigned',
-    'notification.on-inbox-inbox_item-assigned',
-    ['inbox.assigned', 'inbox.unassigned'],
-    ['inbox_assignee', 'property_operator'],
-  ),
+  {
+    ...route(
+      'inbox.inbox_item.assigned',
+      'notification.on-inbox-inbox_item-assigned',
+      ['inbox.assigned', 'inbox.unassigned'],
+      ['inbox_assignee', 'property_operator'],
+    ),
+    eventCondition: 'bulkId is absent',
+  },
   // I15: the new assignee, and the previous holders — each once per Property.
   route(
     'inbox.inbox_items.bulk_assignment_completed',

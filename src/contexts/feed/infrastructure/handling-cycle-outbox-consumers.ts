@@ -301,23 +301,36 @@ async function groupByRecipientAndProperty(
   actorUserId: UserId,
   current: ReadonlyArray<CurrentBulkCycle>,
 ): Promise<ReadonlyArray<RecipientGroup>> {
-  const recipientsPerItem = await Promise.all(
-    current.map(({ facts }) => resolveHandlingCycleRecipients(deps, orgId, facts)),
+  const addressed = await Promise.all(
+    current.map(async (entry) => ({
+      ...entry,
+      recipients: await resolveHandlingCycleRecipients(deps, orgId, entry.facts),
+    })),
   )
-  const groups = new Map<string, RecipientGroup>()
-  current.forEach(({ cycle, facts }, index) => {
-    for (const recipient of recipientsPerItem[index] ?? []) {
+  const groups = new Map<
+    string,
+    {
+      recipient: UserId
+      propertyId: string
+      propertyName: string | null
+      cycles: BulkReopenedCycle[]
+    }
+  >()
+  for (const { cycle, facts, recipients } of addressed) {
+    for (const recipient of recipients) {
       if (recipient === actorUserId) continue
       const key = `${recipient}\u0000${cycle.propertyId}`
-      const group = groups.get(key)
-      groups.set(key, {
+      const group = groups.get(key) ?? {
         recipient,
         propertyId: cycle.propertyId,
-        propertyName: group?.propertyName ?? facts.propertyName,
-        cycles: [...(group?.cycles ?? []), cycle],
-      })
+        propertyName: null,
+        cycles: [],
+      }
+      group.propertyName ??= facts.propertyName
+      group.cycles.push(cycle)
+      groups.set(key, group)
     }
-  })
+  }
   return [...groups.values()]
 }
 

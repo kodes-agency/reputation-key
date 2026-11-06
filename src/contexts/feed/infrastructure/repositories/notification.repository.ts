@@ -13,6 +13,7 @@ import {
 } from '#/shared/domain/ids'
 import type { Notification, NotificationStatus } from '../../domain/notification-types'
 import { notificationFromRow } from './notification-row.mapper'
+import { isCurrentInboxAssignee } from '../adapters/inbox-item-lookup.adapter'
 import { notificationError } from '../../domain/notification-errors'
 import { ACTIONABLE_NOTIFICATION_TYPES } from '../../domain/notification-settlement'
 import { NOTIFICATION_CATEGORIES } from '../../domain/notification-delivery-policy'
@@ -382,6 +383,7 @@ export const createNotificationRepository = (db: Database) => ({
     categories?: ReadonlyArray<string> | null
     /** Only rows still waiting in the app, never an email-only anchor. */
     inAppOnly?: boolean
+    supersededByEventId?: string
     resourceId: string
     resolvedAt: Date
   }): Promise<readonly NotificationId[]> => {
@@ -399,6 +401,35 @@ export const createNotificationRepository = (db: Database) => ({
             ? inArray(notifications.category, [...input.categories])
             : undefined,
           input.inAppOnly ? stillWaiting : awaitingSettlement,
+          // The row can have absorbed a newer assignment while this removal
+          // waited in either queue. Its original event id then still names the
+          // old assignment. Item command revisions order assignment facts even
+          // when application clocks repeat or move backwards.
+          input.supersededByEventId
+            ? sql`NOT EXISTS (
+                SELECT 1 FROM outbox_events ended
+                WHERE ended.id = ${input.supersededByEventId}::uuid
+                  AND ended.organization_id = ${notifications.organizationId}
+                  AND ended.source_aggregate_id = ${notifications.resourceId}
+                  AND (
+                    ${isCurrentInboxAssignee(
+                      sql`${notifications.organizationId}`,
+                      sql`${notifications.resourceId}`,
+                      sql`${notifications.userId}`,
+                      sql`(ended.payload->>'commandRevision')::bigint`,
+                    )}
+                    OR EXISTS (
+                      SELECT 1 FROM outbox_events assigned
+                      WHERE assigned.organization_id = ended.organization_id
+                        AND assigned.source_aggregate_id = ended.source_aggregate_id
+                        AND assigned.event_type = 'inbox.inbox_item.assigned'
+                        AND assigned.payload->>'assignedTo' = ${notifications.userId}
+                        AND (assigned.payload->>'commandRevision')::bigint >
+                            (ended.payload->>'commandRevision')::bigint
+                    )
+                  )
+              )`
+            : undefined,
         ),
       )
       .returning({ id: notifications.id })

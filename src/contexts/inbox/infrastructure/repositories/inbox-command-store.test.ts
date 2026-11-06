@@ -37,6 +37,7 @@ import type { InboxItem, InboxPriority } from '../../domain/types'
 import type { Reply, Review } from '#/contexts/review/domain/types'
 import {
   inboxItemAssigned,
+  inboxItemUnassigned,
   inboxItemBulkStatusChanged,
   inboxItemCreated,
   inboxItemEscalated,
@@ -383,6 +384,7 @@ describe.sequential('inboxCommandStore applyOnce (integration)', () => {
     expect(facts.rows[0].payload).toMatchObject({
       previousAssignee: USER_A,
       userId: USER_B,
+      commandRevision: 2,
     })
     expect(facts.rows[1].payload).toMatchObject({
       releasedFrom: USER_A,
@@ -517,6 +519,78 @@ describe.sequential('inboxCommandStore applyOnce (integration)', () => {
     ])
   })
 
+  it.each(['single', 'bulk'] as const)(
+    '%s assignment records committed revisions across repeated and reversed clocks',
+    async (mode) => {
+      await seedReviewRevisionOne()
+      const store = createAtomicInboxCommandStore(db)
+      let item = makeItem()
+      await store.createItem(item, null, { materialReviewRevision: 1 })
+      const earlier = new Date(NOW.getTime() - 60_000)
+      const decisions = [
+        { assignedTo: USER_A, at: NOW },
+        { assignedTo: USER_B, at: NOW },
+        { assignedTo: USER_A, at: earlier },
+        { assignedTo: null, at: earlier },
+      ]
+      for (const { assignedTo, at } of decisions) {
+        const scope = {
+          inboxItemId: item.id,
+          organizationId: item.organizationId,
+          propertyId: item.propertyId,
+          userId: USER_B,
+          occurredAt: at,
+          commandRevision: 900,
+        }
+        const fact =
+          assignedTo === null
+            ? inboxItemUnassigned({ ...scope, previousAssignee: item.assignedTo! })
+            : inboxItemAssigned({
+                ...scope,
+                assignedTo,
+                previousAssignee: item.assignedTo,
+              })
+        if (mode === 'single') item = await store.assign(item, { assignedTo }, fact, at)
+        else {
+          await expect(
+            store.bulkAssign({
+              items: [item],
+              assignedTo,
+              actorId: USER_B,
+              bulkId: crypto.randomUUID(),
+              occurredAt: at,
+            }),
+          ).resolves.toMatchObject({ updated: 1 })
+          const repo = createInboxRepository(db, stubPorts, repositoryRuntime)
+          item = (await repo.findById(item.id, ORG_A))!
+        }
+      }
+
+      const facts = await pool.query(
+        `SELECT payload->>'commandRevision' AS revision, payload->>'assignedTo' AS assignee
+       FROM outbox_events
+       WHERE organization_id = $1
+         AND event_type IN ('inbox.inbox_item.assigned', 'inbox.inbox_item.unassigned')
+       ORDER BY (payload->>'commandRevision')::bigint`,
+        [ORG_A],
+      )
+      expect(facts.rows).toEqual([
+        { revision: '2', assignee: USER_A },
+        { revision: '3', assignee: USER_B },
+        { revision: '4', assignee: USER_A },
+        { revision: '5', assignee: null },
+      ])
+      const history = await pool.query(
+        `SELECT resulting_command_revision::text AS revision, next_assignee AS assignee
+       FROM inbox_assignment_history WHERE inbox_item_id = $1
+       ORDER BY resulting_command_revision`,
+        [item.id],
+      )
+      expect(history.rows).toEqual(facts.rows)
+      expect(item.commandRevision).toBe(5)
+    },
+  )
+
   it('anchors a human Review assignment to its current Handling Cycle', async () => {
     const reviewRepo = createReviewRepository(db, () => new Date())
     await reviewRepo.upsert(
@@ -546,6 +620,14 @@ describe.sequential('inboxCommandStore applyOnce (integration)', () => {
       NOW,
     )
 
+    const facts = await pool.query(
+      `SELECT payload FROM outbox_events
+       WHERE organization_id = $1 AND event_type = 'inbox.inbox_item.assigned'`,
+      [ORG_A],
+    )
+    expect(facts.rows).toEqual([
+      { payload: expect.objectContaining({ commandRevision: 2 }) },
+    ])
     expect(assigned.commandRevision).toBe(2)
     const history = await pool.query(
       `SELECT resulting_command_revision::text, handling_cycle_number::text,

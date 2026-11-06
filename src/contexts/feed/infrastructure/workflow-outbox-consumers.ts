@@ -52,7 +52,10 @@ import { resolveReplyApprovalRecipients } from '../application/reply-approval-re
 import { resolveEscalationRecipients } from '../application/escalation-recipients'
 import type { ReplyApprovalAuthorityPort } from '../application/ports/reply-approval-authority.port'
 import type { ActivePropertyLookup } from '../application/ports/active-property.port'
-import type { NotificationJobEnqueuePort } from './inbox-notification-fanout'
+import {
+  enqueueInboxWorkflowNotifications,
+  type NotificationJobEnqueuePort,
+} from './inbox-notification-fanout'
 import type { NotificationAudience } from '../application/notification-audience'
 import {
   enqueuePublicationCancelledNotifications,
@@ -173,6 +176,7 @@ async function enqueueAssignmentNotification(
       organizationId: event.organizationId,
       userId: previous,
       inboxItemId: event.inboxItemId,
+      eventId: event.eventId,
       at: deps.clock(),
     })
   }
@@ -187,30 +191,24 @@ async function enqueueAssignmentNotification(
     orgId: event.organizationId,
     actorId: event.userId,
   })
-  await Promise.all(
-    recipients.map((recipient) =>
-      deps.queue.add(
-        INSERT_NOTIFICATION_JOB_NAME,
-        {
-          userId: recipient.userId,
-          organizationId: event.organizationId,
-          propertyId: event.propertyId,
-          type: recipient.type,
-          resourceType: 'inbox_item',
-          resourceId: event.inboxItemId,
-          eventId: event.eventId,
-          payload,
-          // The new assignee is admitted as the assignee; the previous one no
-          // longer is, so they are admitted as somebody who may still act on
-          // the Property.
-          audience:
-            recipient.type === 'inbox.assigned'
-              ? { kind: 'inbox_assignee', inboxItemId: event.inboxItemId }
-              : { kind: 'property_operator' },
-        },
-        { jobId: `${event.eventId}-${recipient.userId}` },
-      ),
-    ),
+  await enqueueInboxWorkflowNotifications(
+    deps.queue,
+    {
+      organizationId: event.organizationId,
+      propertyId: event.propertyId,
+      resourceId: event.inboxItemId,
+      eventId: event.eventId,
+      payload,
+    },
+    recipients.map((recipient) => ({
+      ...recipient,
+      // The previous holder is no longer the assignee; send-time admission
+      // checks their Property authority instead.
+      audience:
+        recipient.type === 'inbox.assigned'
+          ? { kind: 'inbox_assignee', inboxItemId: event.inboxItemId }
+          : { kind: 'property_operator' },
+    })),
   )
 }
 
@@ -249,35 +247,24 @@ async function enqueueEscalationNotifications(
     actorId: event.userId,
     measureWait: true,
   })
-  await Promise.all(
-    recipients.map((recipientId) =>
-      deps.queue.add(
-        INSERT_NOTIFICATION_JOB_NAME,
-        {
-          userId: recipientId,
-          organizationId: event.organizationId,
-          propertyId: event.propertyId,
-          type: 'inbox.escalated',
-          resourceType: 'inbox_item',
-          resourceId: event.inboxItemId,
-          eventId: event.eventId,
-          payload,
-          audience,
-        },
-        { jobId: `${event.eventId}-${recipientId}` },
-      ),
-    ),
+  await enqueueInboxWorkflowNotifications(
+    deps.queue,
+    {
+      organizationId: event.organizationId,
+      propertyId: event.propertyId,
+      resourceId: event.inboxItemId,
+      eventId: event.eventId,
+      payload,
+    },
+    recipients.map((userId) => ({ userId, type: 'inbox.escalated', audience })),
   )
 }
 
 /**
  * Everyone already working on the item, and why each of them is (I15).
  *
- * A note used to reach the assignee alone, so a note written BY the assignee
- * reached nobody and notes could not be used to ask for help. It now reaches
- * the assignee, the item's responsible scope, and whoever has written on it
- * before — each under the audience that admitted them, so the send rechecks
- * the right thing.
+ * The assignee, the item's responsible scope, and earlier note authors each
+ * keep the audience that admitted them, so the send rechecks the right thing.
  */
 async function noteRecipients(
   deps: WorkflowNotificationDeliveryDeps,
@@ -341,23 +328,16 @@ async function enqueueNoteNotifications(
     orgId: event.organizationId,
     actorId: event.userId,
   })
-  const jobs: InsertNotificationJobData[] = filtered.map((recipient) => ({
-    userId: recipient.userId,
-    organizationId: event.organizationId,
-    propertyId: event.propertyId,
-    type: 'inbox_note.added',
-    resourceType: 'inbox_item',
-    resourceId: event.inboxItemId,
-    eventId: event.eventId,
-    payload,
-    audience: recipient.audience,
-  }))
-  await Promise.all(
-    jobs.map((data) =>
-      deps.queue.add(INSERT_NOTIFICATION_JOB_NAME, data, {
-        jobId: `${event.eventId}-${data.userId}`,
-      }),
-    ),
+  await enqueueInboxWorkflowNotifications(
+    deps.queue,
+    {
+      organizationId: event.organizationId,
+      propertyId: event.propertyId,
+      resourceId: event.inboxItemId,
+      eventId: event.eventId,
+      payload,
+    },
+    filtered.map((recipient) => ({ ...recipient, type: 'inbox_note.added' })),
   )
 }
 

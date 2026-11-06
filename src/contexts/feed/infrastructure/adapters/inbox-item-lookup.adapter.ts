@@ -6,7 +6,7 @@
 // already reads `properties` from this context. Whether an item arrived as
 // Google history is the predicate the missing-notification gauge also reads.
 import type { Database } from '#/shared/db'
-import { and, count, eq, isNotNull, isNull, sql } from 'drizzle-orm'
+import { and, count, eq, isNotNull, isNull, sql, type SQL } from 'drizzle-orm'
 import { notExcludedFromResponseTargetReporting } from '#/shared/db/inbox-response-target-exclusions'
 import {
   inboxHandlingCycleHeads,
@@ -35,6 +35,20 @@ import type {
 import type { FeedbackPortalLookupPort } from '../../application/ports/feedback-portal-lookup.port'
 import { historicalOnboardingItem } from '../historical-onboarding-item'
 import { activePropertyCondition } from '../repositories/active-property'
+
+/** Current ownership protects reassignment even after its outbox fact expires. */
+export const isCurrentInboxAssignee = (
+  organizationId: SQL,
+  itemId: SQL,
+  assigneeId: SQL,
+  afterCommandRevision: SQL,
+): SQL => sql`EXISTS (
+  SELECT 1 FROM ${inboxItems}
+  WHERE ${inboxItems.organizationId} = ${organizationId}
+    AND ${inboxItems.id}::text = ${itemId}
+    AND ${inboxItems.assignedTo} = ${assigneeId}
+    AND (${afterCommandRevision} IS NULL OR ${inboxItems.commandRevision} > ${afterCommandRevision})
+)`
 
 const findInboxItemFacts = async (
   db: Database,
