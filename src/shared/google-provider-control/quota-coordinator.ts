@@ -4,7 +4,7 @@ import {
   ACQUIRE_IN_FLIGHT_SCRIPT,
   RELEASE_IN_FLIGHT_SCRIPT,
 } from './redis-coordination-scripts'
-import { createHash } from 'node:crypto'
+import { createHash, randomUUID } from 'node:crypto'
 import type {
   GoogleInFlightCoordinator,
   GoogleInFlightLease,
@@ -280,7 +280,7 @@ function scopeBinding(key: GoogleQuotaKey, scope: GoogleQuotaScope): string | nu
 }
 
 function coordinationKey(
-  kind: 'quota' | 'inflight',
+  kind: 'quota' | 'inflight' | 'quota-reservation',
   policyId: string,
   bucketId: string,
   binding: string,
@@ -351,16 +351,32 @@ export function createInMemoryGoogleQuotaCoordinator(
     throw new Error('Google quota configuration is invalid')
   }
   const buckets = new Map<string, { tokens: number; updatedAtMs: number }>()
+  const reservations = new Map<string, { cost: number; expiresAtMs: number }>()
   const refillPerMs = deps.refillTokensPerSecond / 1_000
+  const reservationTtlMs = Math.min(
+    24 * 60 * 60_000,
+    Math.max(60_000, Math.ceil(deps.capacity / refillPerMs) * 2),
+  )
 
   return Object.freeze({
-    refund: async (key, cost) => {
+    refund: async (key, cost, reservationId) => {
       const id = fullKeyBinding(key)
-      if (!id || !Number.isSafeInteger(cost) || cost < 1 || cost > deps.capacity)
+      if (
+        !id ||
+        !SAFE_SCOPE_ID.test(reservationId) ||
+        !Number.isSafeInteger(cost) ||
+        cost < 1 ||
+        cost > deps.capacity
+      )
         return false
-      const current = buckets.get(id)
-      if (!current) return true
+      const reservationKey = JSON.stringify([id, reservationId])
+      const reservation = reservations.get(reservationKey)
       const nowMs = deps.nowMs()
+      if (!reservation || reservation.expiresAtMs <= nowMs) return true
+      if (reservation.cost < cost) return false
+      const current = buckets.get(id)
+      reservations.delete(reservationKey)
+      if (!current) return true
       current.tokens = Math.min(
         deps.capacity,
         current.tokens + Math.max(0, nowMs - current.updatedAtMs) * refillPerMs + cost,
@@ -368,11 +384,17 @@ export function createInMemoryGoogleQuotaCoordinator(
       current.updatedAtMs = nowMs
       return true
     },
-    acquire: async (key, cost, deadlineMs): Promise<GoogleQuotaResult> => {
+    acquire: async (
+      key,
+      cost,
+      deadlineMs,
+      reservationId = randomUUID(),
+    ): Promise<GoogleQuotaResult> => {
       const nowMs = deps.nowMs()
       const id = fullKeyBinding(key)
       if (
         !id ||
+        !SAFE_SCOPE_ID.test(reservationId) ||
         !Number.isSafeInteger(cost) ||
         cost < 1 ||
         cost > deps.capacity ||
@@ -393,6 +415,13 @@ export function createInMemoryGoogleQuotaCoordinator(
       if (current.tokens >= cost) {
         current.tokens -= cost
         buckets.set(id, current)
+        for (const [key, reservation] of reservations) {
+          if (reservation.expiresAtMs <= nowMs) reservations.delete(key)
+        }
+        reservations.set(JSON.stringify([id, reservationId]), {
+          cost,
+          expiresAtMs: nowMs + reservationTtlMs,
+        })
         return { ok: true, remaining: Math.floor(current.tokens) }
       }
       buckets.set(id, current)
@@ -458,13 +487,14 @@ export function createRedisGoogleQuotaCoordinator(
     throw new Error('Google quota configuration is invalid')
   }
   return Object.freeze({
-    refund: async (key, cost) => {
+    refund: async (key, cost, reservationId) => {
       const resolved = deps.policy.buckets.map((policy) => ({
         policy,
         binding: scopeBinding(key, policy.scope),
       }))
       if (
         resolved.some((entry) => entry.binding === null) ||
+        !SAFE_SCOPE_ID.test(reservationId) ||
         !Number.isSafeInteger(cost) ||
         cost < 1 ||
         deps.policy.buckets.some((entry) => cost > entry.capacity)
@@ -472,6 +502,14 @@ export function createRedisGoogleQuotaCoordinator(
         return false
       const keys = resolved.map((entry) =>
         coordinationKey('quota', deps.policyId, entry.policy.id, entry.binding as string),
+      )
+      keys.push(
+        coordinationKey(
+          'quota-reservation',
+          deps.policyId,
+          'reservation',
+          JSON.stringify([reservationId, ...keys]),
+        ),
       )
       const bucketArguments = quotaBucketArguments(resolved, cost)
       try {
@@ -488,7 +526,12 @@ export function createRedisGoogleQuotaCoordinator(
         return false
       }
     },
-    acquire: async (key, cost, deadlineMs): Promise<GoogleQuotaResult> => {
+    acquire: async (
+      key,
+      cost,
+      deadlineMs,
+      reservationId = randomUUID(),
+    ): Promise<GoogleQuotaResult> => {
       const nowMs = deps.nowMs()
       const resolved = deps.policy.buckets.map((policy) => ({
         policy,
@@ -496,6 +539,7 @@ export function createRedisGoogleQuotaCoordinator(
       }))
       if (
         resolved.some((entry) => entry.binding === null) ||
+        !SAFE_SCOPE_ID.test(reservationId) ||
         !Number.isSafeInteger(cost) ||
         cost < 1 ||
         deps.policy.buckets.some((entry) => cost > entry.capacity) ||
@@ -508,6 +552,14 @@ export function createRedisGoogleQuotaCoordinator(
       }
       const keys = resolved.map((entry) =>
         coordinationKey('quota', deps.policyId, entry.policy.id, entry.binding as string),
+      )
+      keys.push(
+        coordinationKey(
+          'quota-reservation',
+          deps.policyId,
+          'reservation',
+          JSON.stringify([reservationId, ...keys]),
+        ),
       )
       const bucketArguments = quotaBucketArguments(resolved, cost)
       try {

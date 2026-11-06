@@ -69,7 +69,9 @@ function testAuthority(
   permit: GoogleAdmissionPermitSnapshot,
   startResult: AuthorityStartResult = 'started',
 ) {
-  const complete = vi.fn(async () => undefined)
+  const complete = vi.fn<GoogleAdmissionPermitAuthority['complete']>(
+    async () => undefined,
+  )
   const failStarted = vi.fn(async () => undefined)
   const authority: GoogleAdmissionPermitAuthority = Object.freeze({
     load: vi.fn(async (permitId: string) =>
@@ -187,7 +189,11 @@ describe('Google in-process admission service', () => {
     expect(fixture.quota.acquire).toHaveBeenCalledTimes(1)
     expect(fixture.inFlight.acquire).toHaveBeenCalledTimes(1)
     expect(fixture.release).toHaveBeenCalledTimes(1)
-    expect(fixture.quota.refund).toHaveBeenCalledWith(expect.anything(), 1)
+    expect(fixture.quota.refund).toHaveBeenCalledWith(
+      expect.anything(),
+      1,
+      expect.any(String),
+    )
   })
 
   // The gateway checks the same deadline before it asks; the time spent reaching
@@ -370,7 +376,11 @@ describe('Google in-process admission service', () => {
       dispatch: 'not_sent',
     })
     expect(fetchMock).toHaveBeenCalledTimes(1)
-    expect(fixture.quota.refund).toHaveBeenCalledExactlyOnceWith(expect.anything(), 1)
+    expect(fixture.quota.refund).toHaveBeenCalledExactlyOnceWith(
+      expect.anything(),
+      1,
+      expect.any(String),
+    )
     expect(fixture.complete).toHaveBeenCalledTimes(1)
     expect(fixture.release).toHaveBeenCalledTimes(2)
   })
@@ -394,6 +404,7 @@ describe('Google in-process admission service', () => {
       }),
       1,
       10_000,
+      expect.any(String),
     )
   })
 })
@@ -488,6 +499,200 @@ describe('Google in-process egress gateway', () => {
       retryAfterMs: 0,
     })
   })
+
+  it.each([
+    'notifications.subscribe',
+    'notifications.get',
+    'notifications.unsubscribe',
+  ] as const)(
+    'records the %s permit before delivering its response',
+    async (routeKey) => {
+      vi.useFakeTimers()
+      vi.setSystemTime(0)
+      try {
+        const descriptor = {
+          routeKey,
+          accessToken: 'access-token',
+          accountId: 'account-1',
+          pubsubTopic: 'projects/test/topics/notifications',
+          notificationTypes: ['NEW_REVIEW' as const],
+        }
+        const fixture = admissionFixture({
+          permit: permitFor('permit-delayed-completion', compile(descriptor).admission),
+          nowMs: Date.now,
+        })
+        let permitState = 'started'
+        fixture.complete.mockImplementation(async () => {
+          await new Promise((resolve) => setTimeout(resolve, 20))
+          permitState = 'completed'
+        })
+        const fetchProvider = vi.fn(async () => new Response('{}'))
+        const gateway = createGoogleEgressGateway({
+          nowMs: Date.now,
+          bindCredential,
+          admission: fixture.service,
+          fetch: fetchProvider,
+        })
+        const delivered = vi.fn()
+        const execution = gateway
+          .execute({
+            permitId: 'permit-delayed-completion',
+            descriptor,
+            deadlineMs: 15_000,
+          })
+          .then((result) => delivered({ result, permitState }))
+
+        await vi.advanceTimersByTimeAsync(20)
+        await execution
+        expect(delivered).toHaveBeenCalledExactlyOnceWith({
+          result: expect.objectContaining({ ok: true, status: 200 }),
+          permitState: 'completed',
+        })
+        expect(fixture.complete).toHaveBeenCalledTimes(1)
+        expect(fixture.release).toHaveBeenCalledTimes(1)
+        expect(fetchProvider).toHaveBeenCalledTimes(1)
+      } finally {
+        vi.clearAllTimers()
+        vi.useRealTimers()
+      }
+    },
+  )
+
+  it.each([200, 429, 503])(
+    'delivers a Google %i at ten seconds while failed lease releases finish in the background',
+    async (status) => {
+      vi.useFakeTimers()
+      vi.setSystemTime(0)
+      try {
+        const descriptor = { routeKey: 'oauth.jwks' as const }
+        const fixture = admissionFixture({
+          permit: permitFor('permit-slow-release', compile(descriptor).admission),
+          nowMs: Date.now,
+        })
+        fixture.release.mockImplementation(async () => {
+          await new Promise((resolve) => setTimeout(resolve, 2_000))
+          throw new Error('release unavailable')
+        })
+        const fetchProvider = vi.fn(async () => {
+          await new Promise((resolve) => setTimeout(resolve, 10_000))
+          return new Response('provider answer', {
+            status,
+            headers: { 'retry-after': '30', 'cache-control': 'no-store' },
+          })
+        })
+        const warn = vi.fn()
+        const gateway = createGoogleEgressGateway({
+          nowMs: Date.now,
+          bindCredential,
+          admission: fixture.service,
+          fetch: fetchProvider,
+          logger: { warn },
+        })
+        const delivered = vi.fn()
+        const execution = gateway
+          .execute({
+            permitId: 'permit-slow-release',
+            descriptor,
+            deadlineMs: 15_000,
+          })
+          .then(delivered)
+
+        await vi.advanceTimersByTimeAsync(10_000)
+        expect(delivered).toHaveBeenCalledExactlyOnceWith(
+          expect.objectContaining({
+            ok: true,
+            status,
+            headers: expect.objectContaining({
+              retryAfter: '30',
+              cacheControl: 'no-store',
+            }),
+            body: new TextEncoder().encode('provider answer'),
+          }),
+        )
+        expect(fixture.release).toHaveBeenCalledTimes(1)
+        await execution
+        await vi.advanceTimersByTimeAsync(6_000)
+        expect(fixture.release).toHaveBeenCalledTimes(3)
+        expect(fixture.complete).toHaveBeenCalledTimes(1)
+        expect(fetchProvider).toHaveBeenCalledTimes(1)
+        expect(warn).toHaveBeenCalledTimes(1)
+      } finally {
+        vi.clearAllTimers()
+        vi.useRealTimers()
+      }
+    },
+  )
+
+  it.each([
+    [5_000, 1_000],
+    [50, 25],
+  ])(
+    'bounds a stalled durable completion with %i ms left to %i ms',
+    async (remainingMs, waitMs) => {
+      vi.useFakeTimers()
+      vi.setSystemTime(0)
+      try {
+        const descriptor = { routeKey: 'oauth.jwks' as const }
+        const fixture = admissionFixture({
+          permit: permitFor('permit-stalled-completion', compile(descriptor).admission),
+          nowMs: Date.now,
+        })
+        const { promise: databaseCompletion, resolve: completeDatabase } =
+          Promise.withResolvers<void>()
+        fixture.complete.mockImplementation(() => databaseCompletion)
+        const fetchProvider = vi.fn(async () => {
+          await new Promise((resolve) => setTimeout(resolve, 10_000))
+          return new Response('provider answer', {
+            status: 429,
+            headers: { 'retry-after': '30', 'cache-control': 'no-store' },
+          })
+        })
+        const warn = vi.fn()
+        const gateway = createGoogleEgressGateway({
+          nowMs: Date.now,
+          bindCredential,
+          admission: fixture.service,
+          fetch: fetchProvider,
+          logger: { warn },
+        })
+        const delivered = vi.fn()
+        const execution = gateway
+          .execute({
+            permitId: 'permit-stalled-completion',
+            descriptor,
+            deadlineMs: 10_000 + remainingMs,
+          })
+          .then(delivered)
+
+        await vi.advanceTimersByTimeAsync(10_000 + waitMs - 1)
+        expect(delivered).not.toHaveBeenCalled()
+        expect(fixture.release).not.toHaveBeenCalled()
+        await vi.advanceTimersByTimeAsync(1)
+        await execution
+        expect(delivered).toHaveBeenCalledExactlyOnceWith(
+          expect.objectContaining({
+            ok: true,
+            status: 429,
+            headers: expect.objectContaining({
+              retryAfter: '30',
+              cacheControl: 'no-store',
+            }),
+            body: new TextEncoder().encode('provider answer'),
+          }),
+        )
+        completeDatabase()
+        await vi.advanceTimersByTimeAsync(0)
+        expect(fixture.complete).toHaveBeenCalledTimes(1)
+        expect(fixture.release).toHaveBeenCalledTimes(1)
+        expect(fetchProvider).toHaveBeenCalledTimes(1)
+        expect(warn).not.toHaveBeenCalled()
+        expect(vi.getTimerCount()).toBe(0)
+      } finally {
+        vi.clearAllTimers()
+        vi.useRealTimers()
+      }
+    },
+  )
 
   it('keeps a provider response when durable completion is unavailable', async () => {
     const descriptor = {

@@ -49,7 +49,11 @@ function harness(
       input.start ??
       (async (): Promise<GoogleAdmissionStartResult> => ({
         ok: true,
-        handle: { expiresAtMs: 20_000, complete },
+        handle: {
+          expiresAtMs: 20_000,
+          permitCompletion: new Promise<void>(() => undefined),
+          complete,
+        },
       })),
     complete,
   }
@@ -191,7 +195,14 @@ describe('Google egress gateway dispatch evidence: nothing was sent', () => {
   it('does not dispatch an expired admission handle and still completes bookkeeping', async () => {
     const complete = vi.fn(async () => true)
     const { gateway, fetchMock } = harness({
-      start: async () => ({ ok: true, handle: { expiresAtMs: NOW_MS, complete } }),
+      start: async () => ({
+        ok: true,
+        handle: {
+          expiresAtMs: NOW_MS,
+          permitCompletion: new Promise<void>(() => undefined),
+          complete,
+        },
+      }),
     })
     await expect(execute(gateway)).resolves.toEqual({
       ok: false,
@@ -209,7 +220,14 @@ describe('Google egress gateway dispatch evidence: nothing was sent', () => {
   it('allows an admitted request to finish after admission expiry within its call deadline', async () => {
     const complete = vi.fn(async () => true)
     const { gateway } = harness({
-      start: async () => ({ ok: true, handle: { expiresAtMs: NOW_MS + 1, complete } }),
+      start: async () => ({
+        ok: true,
+        handle: {
+          expiresAtMs: NOW_MS + 1,
+          permitCompletion: new Promise<void>(() => undefined),
+          complete,
+        },
+      }),
       fetch: async (_url, init) => {
         await new Promise<void>((resolve) => setTimeout(resolve, 20))
         init?.signal?.throwIfAborted()

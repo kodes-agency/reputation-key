@@ -90,11 +90,13 @@ export type GoogleQuotaResult =
 
 export type GoogleQuotaCoordinator = Readonly<{
   /** Return capacity for an admitted call that was refused before dispatch. */
-  refund: (key: GoogleQuotaKey, cost: number) => Promise<boolean>
+  refund: (key: GoogleQuotaKey, cost: number, reservationId: string) => Promise<boolean>
   acquire: (
     key: GoogleQuotaKey,
     cost: number,
     deadlineMs: number,
+    /** Supply the in-flight lease ID when this debit may need a refund. */
+    reservationId?: string,
   ) => Promise<GoogleQuotaResult>
 }>
 

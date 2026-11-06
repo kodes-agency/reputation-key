@@ -108,7 +108,12 @@ describe('Google in-process admission handle', () => {
     expect(result.ok).toBe(true)
     expect(test.calls).toEqual(['in-flight', 'quota', 'permit'])
     expect(test.startPermit).toHaveBeenCalledWith(permit)
-    expect(test.acquireQuota).toHaveBeenCalledWith(permit.quotaKey, 1, 10_000)
+    expect(test.acquireQuota).toHaveBeenCalledWith(
+      permit.quotaKey,
+      1,
+      10_000,
+      'inflight-handle-test',
+    )
     expect(test.refund).not.toHaveBeenCalled()
     expect(test.release).not.toHaveBeenCalled()
   })
@@ -156,7 +161,11 @@ describe('Google in-process admission handle', () => {
       const test = fixture({ startPermit: async () => outcome })
 
       await expect(test.start()).resolves.toEqual({ ok: false, code, retryAfterMs: 0 })
-      expect(test.refund).toHaveBeenCalledExactlyOnceWith(permit.quotaKey, 1)
+      expect(test.refund).toHaveBeenCalledExactlyOnceWith(
+        permit.quotaKey,
+        1,
+        'inflight-handle-test',
+      )
       expect(test.release).toHaveBeenCalledTimes(1)
       expect(test.complete).not.toHaveBeenCalled()
     },

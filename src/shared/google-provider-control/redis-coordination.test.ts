@@ -5,6 +5,7 @@ import {
   createRedisGoogleInFlightCoordinator,
   createRedisGoogleQuotaCoordinator,
 } from './quota-coordinator'
+import { REFUND_QUOTA_SCRIPT } from './redis-coordination-scripts'
 import { createFakeGoogleCoordinationRedis } from '#/shared/testing/fake-google-coordination-redis'
 
 const fingerprint = (character: string) => character.repeat(64)
@@ -131,19 +132,56 @@ describe('Redis Google provider coordination', () => {
       })
     const first = create()
     const other = create()
-    await expect(first.acquire(quotaKey, 2, 10_000)).resolves.toMatchObject({ ok: true })
+    await expect(
+      first.acquire(quotaKey, 2, 10_000, 'refund-reservation'),
+    ).resolves.toMatchObject({ ok: true })
     nowMs += 500
-    await expect(first.refund(quotaKey, 1)).resolves.toBe(true)
-    await expect(other.acquire(quotaKey, 1, 10_000)).resolves.toMatchObject({ ok: true })
+    await expect(first.refund(quotaKey, 1, 'refund-reservation')).resolves.toBe(true)
+    await expect(
+      other.acquire(quotaKey, 1, 10_000, 'second-reservation'),
+    ).resolves.toMatchObject({ ok: true })
     await expect(other.acquire(quotaKey, 1, 10_000)).resolves.toMatchObject({ ok: false })
     nowMs += 120_000
-    await expect(first.refund(quotaKey, 2)).resolves.toBe(true)
+    await expect(first.refund(quotaKey, 1, 'second-reservation')).resolves.toBe(true)
     await expect(other.acquire(quotaKey, 2, nowMs + 1_000)).resolves.toMatchObject({
       ok: true,
     })
     await expect(other.acquire(quotaKey, 1, nowMs + 1_000)).resolves.toMatchObject({
       ok: false,
     })
+  })
+
+  it('credits each reservation once when an unanswered refund command is replayed', async () => {
+    const storage = createFakeGoogleCoordinationRedis()
+    const quota = createRedisGoogleQuotaCoordinator({
+      redis: {
+        eval: async (script, numberOfKeys, ...args) => {
+          const reply = await storage.eval(script, numberOfKeys, ...args)
+          if (script === REFUND_QUOTA_SCRIPT) {
+            return storage.eval(script, numberOfKeys, ...args)
+          }
+          return reply
+        },
+      },
+      nowMs: () => 1_000,
+      policyId: 'refund-replay-v1',
+      policy: {
+        ...discoveryPolicy,
+        buckets: discoveryPolicy.buckets.map((bucket) => ({ ...bucket, capacity: 3 })),
+      },
+    })
+    await quota.acquire(quotaKey, 1, 10_000, 'reservation-a')
+    await quota.acquire(quotaKey, 1, 10_000, 'reservation-b')
+    await quota.acquire(quotaKey, 1, 10_000, 'reservation-c')
+
+    await expect(quota.refund(quotaKey, 1, 'reservation-a')).resolves.toBe(true)
+    await expect(quota.acquire(quotaKey, 1, 10_000)).resolves.toMatchObject({ ok: true })
+    await expect(quota.acquire(quotaKey, 1, 10_000)).resolves.toMatchObject({ ok: false })
+    await expect(quota.refund(quotaKey, 1, 'reservation-a')).resolves.toBe(true)
+    await expect(quota.acquire(quotaKey, 1, 10_000)).resolves.toMatchObject({ ok: false })
+    await expect(quota.refund(quotaKey, 1, 'reservation-b')).resolves.toBe(true)
+    await expect(quota.acquire(quotaKey, 1, 10_000)).resolves.toMatchObject({ ok: true })
+    await expect(quota.acquire(quotaKey, 1, 10_000)).resolves.toMatchObject({ ok: false })
   })
 
   it('does not partially refund on a bucket binding collision', async () => {
@@ -167,12 +205,12 @@ describe('Redis Google provider coordination', () => {
       policyId: 'collision-test-v1',
       policy,
     })
-    await quota.acquire(quotaKey, 1, 10_000)
+    await quota.acquire(quotaKey, 1, 10_000, 'refund-reservation')
     const buckets = [...redis.quotas.values()]
     const collision = buckets[1]
     if (!collision) throw new Error('expected second bucket')
     collision.binding = 'different-binding'
-    await expect(quota.refund(quotaKey, 1)).resolves.toBe(false)
+    await expect(quota.refund(quotaKey, 1, 'refund-reservation')).resolves.toBe(false)
     expect(buckets.map((bucket) => bucket.tokens)).toEqual([1_000_000, 1_000_000])
   })
 
@@ -184,11 +222,11 @@ describe('Redis Google provider coordination', () => {
       policyId: 'refund-down-v1',
       policy: discoveryPolicy,
     })
-    await quota.acquire(quotaKey, 1, 10_000)
-    await expect(quota.refund(quotaKey, 0)).resolves.toBe(false)
-    await expect(quota.refund(quotaKey, 3)).resolves.toBe(false)
+    await quota.acquire(quotaKey, 1, 10_000, 'refund-reservation')
+    await expect(quota.refund(quotaKey, 0, 'refund-reservation')).resolves.toBe(false)
+    await expect(quota.refund(quotaKey, 3, 'refund-reservation')).resolves.toBe(false)
     redis.fail = true
-    await expect(quota.refund(quotaKey, 1)).resolves.toBe(false)
+    await expect(quota.refund(quotaKey, 1, 'refund-reservation')).resolves.toBe(false)
   })
 
   it('requires the tenant dimensions named by the frozen policy', async () => {

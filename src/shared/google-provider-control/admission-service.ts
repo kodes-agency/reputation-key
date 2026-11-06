@@ -82,6 +82,8 @@ type GoogleAdmissionCompletion = Readonly<{
 /** A local capability: only admission can bind it to a started permit. */
 export type GoogleAdmissionHandle = Readonly<{
   expiresAtMs: number
+  /** Resolves after the durable outcome is recorded, independently of lease release. */
+  permitCompletion: Promise<void>
   complete(input: GoogleAdmissionCompletion): Promise<boolean>
 }>
 
@@ -168,8 +170,11 @@ function createAdmissionHandle(
   let pending: Promise<boolean> | undefined
   let permitCompleted = false
   let released = false
+  const { promise: permitCompletion, resolve: markPermitCompleted } =
+    Promise.withResolvers<void>()
   return Object.freeze({
     expiresAtMs,
+    permitCompletion,
     complete: (input: GoogleAdmissionCompletion): Promise<boolean> => {
       if (
         ![
@@ -204,6 +209,7 @@ function createAdmissionHandle(
               recorded.retryAfterMs,
             )
             permitCompleted = true
+            markPermitCompleted()
           } catch {
             // The durable permit sweep fences anything left after bounded retries.
           }
@@ -299,7 +305,7 @@ async function startReservedPermit(
   }
   if (started !== 'started') {
     await Promise.allSettled([
-      quota.refund(permit.quotaKey, 1),
+      quota.refund(permit.quotaKey, 1, lease.leaseId),
       inFlight.release(inFlightKey, lease),
     ])
     return {
@@ -319,7 +325,7 @@ async function startReservedPermit(
   if (expiresAtMs <= grantedAtMs) {
     await Promise.allSettled([
       deps.authority.failStarted(permit, 'grant_expired'),
-      quota.refund(permit.quotaKey, 1),
+      quota.refund(permit.quotaKey, 1, lease.leaseId),
       inFlight.release(inFlightKey, lease),
     ])
     return {
@@ -384,7 +390,12 @@ export function createGoogleExecutionAdmissionService(
           deps.nowMs,
         )
       }
-      const quotaResult = await quota.acquire(permit.quotaKey, 1, input.deadlineMs)
+      const quotaResult = await quota.acquire(
+        permit.quotaKey,
+        1,
+        input.deadlineMs,
+        inFlightResult.lease.leaseId,
+      )
       if (!quotaResult.ok) {
         await inFlight.release(inFlightKey, inFlightResult.lease)
         return capacityDenial(

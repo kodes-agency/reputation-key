@@ -18,6 +18,7 @@ import {
   type GoogleCoordinationRedis,
   type GoogleQuotaPolicy,
 } from './quota-coordinator'
+import { REFUND_QUOTA_SCRIPT } from './redis-coordination-scripts'
 import { compileGoogleProviderRequest } from './route-catalogue'
 
 const NOW_MS = 1_000
@@ -181,7 +182,9 @@ describe('Redis Google admission across processes', () => {
     const [first, second] = pair
     const quotaDeadline = NOW_MS + 60_000
 
-    await expect(first.quota.acquire(quotaKey, 1, quotaDeadline)).resolves.toEqual({
+    await expect(
+      first.quota.acquire(quotaKey, 1, quotaDeadline, 'refund-reservation'),
+    ).resolves.toEqual({
       ok: true,
       remaining: 0,
     })
@@ -191,7 +194,9 @@ describe('Redis Google admission across processes', () => {
         code: 'quota_exhausted',
       },
     )
-    await expect(first.quota.refund(quotaKey, 1)).resolves.toBe(true)
+    await expect(first.quota.refund(quotaKey, 1, 'refund-reservation')).resolves.toBe(
+      true,
+    )
     // Each bucket has capacity one; either missed refund makes this fail.
     await expect(second.quota.acquire(quotaKey, 1, quotaDeadline)).resolves.toEqual({
       ok: true,
@@ -204,6 +209,52 @@ describe('Redis Google admission across processes', () => {
         quotaDeadline,
       ),
     ).resolves.toMatchObject({ ok: false, code: 'quota_exhausted' })
+  })
+
+  it('does not credit twice when Redis replays an executed refund after losing its reply', async () => {
+    if (!firstLease?.redis) return
+    const redis = tracked(firstLease.redis)
+    const quota = createRedisGoogleQuotaCoordinator({
+      redis: {
+        eval: async (script, numberOfKeys, ...args) => {
+          const reply = await redis.eval(script, numberOfKeys, ...args)
+          if (script === REFUND_QUOTA_SCRIPT) {
+            return redis.eval(script, numberOfKeys, ...args)
+          }
+          return reply
+        },
+      },
+      nowMs: () => NOW_MS,
+      policyId: `refund-replay-${randomUUID()}`,
+      policy: {
+        ...policy,
+        buckets: policy.buckets.map((bucket) => ({ ...bucket, capacity: 3 })),
+      },
+    })
+    for (const id of ['reservation-a', 'reservation-b', 'reservation-c']) {
+      await expect(quota.acquire(quotaKey, 1, DEADLINE_MS, id)).resolves.toMatchObject({
+        ok: true,
+      })
+    }
+
+    await expect(quota.refund(quotaKey, 1, 'reservation-a')).resolves.toBe(true)
+    await expect(quota.acquire(quotaKey, 1, DEADLINE_MS)).resolves.toMatchObject({
+      ok: true,
+    })
+    await expect(quota.acquire(quotaKey, 1, DEADLINE_MS)).resolves.toMatchObject({
+      ok: false,
+    })
+    await expect(quota.refund(quotaKey, 1, 'reservation-a')).resolves.toBe(true)
+    await expect(quota.acquire(quotaKey, 1, DEADLINE_MS)).resolves.toMatchObject({
+      ok: false,
+    })
+    await expect(quota.refund(quotaKey, 1, 'reservation-b')).resolves.toBe(true)
+    await expect(quota.acquire(quotaKey, 1, DEADLINE_MS)).resolves.toMatchObject({
+      ok: true,
+    })
+    await expect(quota.acquire(quotaKey, 1, DEADLINE_MS)).resolves.toMatchObject({
+      ok: false,
+    })
   })
 
   it('refunds every quota bucket and the slot when the permit refuses start', async () => {

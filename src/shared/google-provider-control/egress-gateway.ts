@@ -157,6 +157,26 @@ type GatewayLogger = Readonly<{
 
 type CompletionAttempt = Readonly<{ completed: boolean; error?: unknown }>
 
+async function waitForPermitCompletion(
+  handle: GoogleAdmissionHandle,
+  completion: Promise<void>,
+  budgetMs: number,
+): Promise<void> {
+  if (budgetMs <= 0) return
+  let timer: ReturnType<typeof setTimeout> | undefined
+  try {
+    await Promise.race([
+      handle.permitCompletion,
+      completion,
+      new Promise<void>((resolve) => {
+        timer = setTimeout(resolve, budgetMs)
+      }),
+    ])
+  } finally {
+    clearTimeout(timer)
+  }
+}
+
 /** Retry bookkeeping only; never repeat the provider request. */
 async function completeAdmission(
   handle: GoogleAdmissionHandle,
@@ -292,12 +312,19 @@ async function executeAdmittedRequest(
     ...evidence,
     retryAfterMs: 0,
   }
-  await completeAdmission(handle, deps.logger, {
+  const completion = completeAdmission(handle, deps.logger, {
     routeKey: compiled.admission.routeKey,
     outcome,
     retryAfterMs,
     evidence,
   })
+  // Let a healthy authority record the outcome before returning. Slow bookkeeping
+  // continues in the background, leaving at least half the caller's remaining time.
+  await waitForPermitCompletion(
+    handle,
+    completion,
+    Math.min(1_000, Math.floor((deadlineMs - deps.nowMs()) / 2)),
+  )
   return settled
 }
 

@@ -11,6 +11,7 @@ import type { GoogleCoordinationRedis } from '#/shared/google-provider-control/q
 type QuotaBucket = { binding: string; tokens: number; updatedAtMs: number }
 
 type FakeCoordinationState = {
+  readonly reservations: Map<string, number>
   readonly quotas: Map<string, QuotaBucket>
   readonly bindings: Map<string, string>
   readonly leases: Map<string, Map<string, number>>
@@ -73,7 +74,7 @@ function refilled(
 
 function acquireQuota(state: FakeCoordinationState, args: ScriptArguments): unknown {
   const nowMs = Number(args.values[0])
-  const requests = bucketRequests(args)
+  const requests = bucketRequests({ ...args, keys: args.keys.slice(0, -1) })
   const buckets = requests.map((request) => refilled(state, request, nowMs))
   if (buckets.some((bucket) => bucket === null)) return [-2, 0]
   const shortfalls = requests.map((request, index) => {
@@ -89,11 +90,16 @@ function acquireQuota(state: FakeCoordinationState, args: ScriptArguments): unkn
     state.quotas.set(request.key, { ...bucket, tokens })
     return tokens
   })
+  if (allowed) state.reservations.set(args.keys.at(-1)!, Number(args.values[1]))
   return allowed ? [1, Math.floor(Math.min(...remaining))] : [0, Math.max(...shortfalls)]
 }
 
 function refundQuota(state: FakeCoordinationState, args: ScriptArguments): unknown {
-  const requests = bucketRequests(args, 1)
+  const reservationKey = args.keys.at(-1)!
+  const reservedCost = state.reservations.get(reservationKey)
+  if (reservedCost === undefined) return 1
+  const requests = bucketRequests({ ...args, keys: args.keys.slice(0, -1) }, 1)
+  if (requests.some((request) => request.cost > reservedCost)) return 0
   const buckets = requests.map((request) =>
     refilled(state, request, Number(args.values[0])),
   )
@@ -105,6 +111,7 @@ function refundQuota(state: FakeCoordinationState, args: ScriptArguments): unkno
       tokens: Math.min(request.capacity, bucket.tokens + request.cost),
     })
   })
+  state.reservations.delete(reservationKey)
   return 1
 }
 
@@ -149,6 +156,7 @@ const SCRIPTS: ReadonlyArray<
 
 export function createFakeGoogleCoordinationRedis(): FakeGoogleCoordinationRedis {
   const fake: FakeGoogleCoordinationRedis = {
+    reservations: new Map(),
     quotas: new Map(),
     bindings: new Map(),
     leases: new Map(),
