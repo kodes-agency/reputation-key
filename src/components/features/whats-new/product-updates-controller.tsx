@@ -13,6 +13,7 @@ import {
   type RefObject,
 } from 'react'
 import { useQuery } from '@tanstack/react-query'
+import { useTenantScope } from '#/shared/hooks/useTenantScope'
 import { usePropertyId } from '#/components/hooks/use-property-id'
 import { productUpdatesQuery } from './queries'
 import { planAutoOpen, productUpdatesSession, winOpening } from './auto-open'
@@ -110,7 +111,7 @@ function restoreFocus(target: HTMLElement | null) {
 export default function ProductUpdatesController(props: Props) {
   const { userId, organizationId, getClient } = props
   const propertyId = usePropertyId()
-  const query = useQuery(productUpdatesQuery(propertyId, getClient))
+  const query = useQuery(productUpdatesQuery(useTenantScope(), propertyId, getClient))
   const ai = useLeadingAiUpdate({ userId, organizationId }, getClient)
   const [selection, setSelection] = useState<Selection | null>(null)
   const returnFocus = useRef<HTMLElement | null>(null)

@@ -30,7 +30,6 @@ describe('query key uniqueness', () => {
       'inboxKeys',
       'platformKeys',
       'portalKeys',
-      'productUpdateKeys',
       'propertyKeys',
       'reviewKeys',
       'staffKeys',

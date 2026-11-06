@@ -352,14 +352,14 @@ export const platformKeys = {
   organizations: () => [...platformKeys.all, 'organizations'] as const,
 }
 
-export const productUpdateKeys = {
-  all: ['product-updates'] as const,
-  scope: (propertyId: string | null) =>
-    [...productUpdateKeys.all, propertyId ?? 'organization'] as const,
-}
-
 /** Tenant-owned reads and their invalidations share the same explicit identity. */
 export function createKeys({ userId, organizationId }: TenantScope) {
+  const productUpdateKeys = {
+    all: ['product-updates', userId, organizationId] as const,
+    scope: (propertyId: string | null) =>
+      [...productUpdateKeys.all, propertyId ?? 'organization'] as const,
+  }
+
   // Feed writes must not invalidate the separately cached settings.
   const notificationKeys = {
     all: ['notifications', userId, organizationId] as const,
@@ -502,5 +502,11 @@ export function createKeys({ userId, organizationId }: TenantScope) {
       period: 'today' | 'week' | 'month' | 'last_month',
     ) => [...staffSelfKeys.all, participationId, 'colleagues', period] as const,
   }
-  return { notificationKeys, identityKeys, integrationKeys, staffSelfKeys }
+  return {
+    notificationKeys,
+    identityKeys,
+    integrationKeys,
+    staffSelfKeys,
+    productUpdateKeys,
+  }
 }
