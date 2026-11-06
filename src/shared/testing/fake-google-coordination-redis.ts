@@ -1,7 +1,7 @@
 // In-memory stand-in for the Redis the Google quota and in-flight coordinators
 // share (`GoogleCoordinationRedis`).
 //
-// It executes the same three Lua scripts by their version tag, with the same
+// It executes the quota and lease Lua scripts by their version tag, with the same
 // token-bucket and lease arithmetic, so a test can drive the real coordinators
 // (and anything built on them, such as the admission service) without a Redis
 // server. Any other script is refused, so a new script cannot silently pass.
@@ -35,9 +35,12 @@ type BucketRequest = Readonly<{
   cost: number
 }>
 
-function bucketRequests({ keys, values }: ScriptArguments): BucketRequest[] {
+function bucketRequests(
+  { keys, values }: ScriptArguments,
+  firstBucketOffset = 2,
+): BucketRequest[] {
   return keys.map((key, index) => {
-    const offset = 2 + index * 5
+    const offset = firstBucketOffset + index * 5
     return {
       key,
       binding: String(values[offset]),
@@ -89,6 +92,22 @@ function acquireQuota(state: FakeCoordinationState, args: ScriptArguments): unkn
   return allowed ? [1, Math.floor(Math.min(...remaining))] : [0, Math.max(...shortfalls)]
 }
 
+function refundQuota(state: FakeCoordinationState, args: ScriptArguments): unknown {
+  const requests = bucketRequests(args, 1)
+  const buckets = requests.map((request) =>
+    refilled(state, request, Number(args.values[0])),
+  )
+  if (buckets.some((bucket) => bucket === null)) return 0
+  requests.forEach((request, index) => {
+    const bucket = buckets[index] as QuotaBucket
+    state.quotas.set(request.key, {
+      ...bucket,
+      tokens: Math.min(request.capacity, bucket.tokens + request.cost),
+    })
+  })
+  return 1
+}
+
 function acquireInFlight(state: FakeCoordinationState, args: ScriptArguments): unknown {
   const [bindingKey = '', leasesKey = ''] = args.keys
   const [binding, nowRaw, limitRaw, leaseMsRaw, leaseId] = args.values
@@ -123,6 +142,7 @@ const SCRIPTS: ReadonlyArray<
   ]
 > = [
   ['-- google-quota-v2', acquireQuota],
+  ['-- google-quota-refund-v1', refundQuota],
   ['-- google-inflight-acquire-v1', acquireInFlight],
   ['-- google-inflight-release-v1', releaseInFlight],
 ]

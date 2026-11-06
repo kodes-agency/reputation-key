@@ -592,25 +592,7 @@ export function buildGoogleProviderAuthority(input: GoogleProviderAuthorityInput
 
   const googleDisconnectRevokeStore = createGoogleDisconnectRevokeRepository(db)
 
-  // WP2.1: the egress runtime is in this process, so "configured" no longer
-  // means "an origin, a server name and a private CA are present". It means the
-  // two secrets the runtime signs with, the identity permits are bound to, and
-  // a Redis to coordinate quota through. The six `GOOGLE_INTERNAL_MTLS_*`
-  // variables, both gateway origins and both admission server names are gone.
-  const gatewayConfig = [
-    env.GOOGLE_CREDENTIAL_BINDING_HMAC_KEYS,
-    env.GOOGLE_ADMISSION_GRANT_HMAC_KEYS,
-    env.GOOGLE_EGRESS_GATEWAY_IDENTITY,
-  ] as const
-  const configuredGatewayValues = gatewayConfig.filter(
-    (value): value is string => value !== undefined,
-  )
-  if (
-    configuredGatewayValues.length !== 0 &&
-    configuredGatewayValues.length !== gatewayConfig.length
-  ) {
-    throw new Error('Google egress runtime configuration is incomplete')
-  }
+  const credentialBindingKeys = env.GOOGLE_CREDENTIAL_BINDING_HMAC_KEYS
   let googleAuthorizedProviderExecutor =
     options?.providers?.googleAuthorizedProviderExecutor
   // Bind each permit to the OAuth client id for the Google project under which
@@ -629,7 +611,7 @@ export function buildGoogleProviderAuthority(input: GoogleProviderAuthorityInput
       .digest('hex')
     return projectFingerprint
   }
-  const gatewayConfigured = configuredGatewayValues.length > 0
+  const gatewayConfigured = credentialBindingKeys !== undefined
   if (gatewayConfigured) {
     logger.info(
       { capabilities: [...GOOGLE_CONTENT_CAPABILITIES].sort() },
@@ -643,14 +625,13 @@ export function buildGoogleProviderAuthority(input: GoogleProviderAuthorityInput
   }
   const egressCoordinationRedis =
     providerEphemeralRedis ?? (env.NODE_ENV === 'production' ? undefined : redis)
-  if (!googleAuthorizedProviderExecutor && gatewayConfigured) {
+  if (!googleAuthorizedProviderExecutor && credentialBindingKeys !== undefined) {
     // Production keeps its dedicated coordination Redis contract. Local/test
     // stacks deliberately share their single Redis for cache, BullMQ and
     // provider admission; the production topology guard remains fail-closed.
     if (!egressCoordinationRedis) {
       throw new Error('Google egress runtime requires provider-ephemeral Redis')
     }
-    const [credentialBindingKeys, grantKeys, gatewayIdentity] = configuredGatewayValues
     // One definition. The executor compiles the admission metadata and the
     // gateway compiles the request it actually sends; if these two disagreed
     // about the target, the request binding would not match the permit.
@@ -669,9 +650,7 @@ export function buildGoogleProviderAuthority(input: GoogleProviderAuthorityInput
       pool: db.$client,
       redis: egressCoordinationRedis,
       nowMs: () => clock().getTime(),
-      gatewayIdentity,
       credentialBindingKeys,
-      grantKeys,
       routeTarget,
       logger,
     })

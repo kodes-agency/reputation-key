@@ -106,6 +106,91 @@ describe('Redis Google provider coordination', () => {
     expect(endpointBucket?.tokens).toBe(9_000_000)
   })
 
+  it('refunds every bucket for a refused permit without exceeding capacity', async () => {
+    let nowMs = 1_000
+    const redis = createFakeGoogleCoordinationRedis()
+    const policy: GoogleQuotaPolicy = {
+      ...discoveryPolicy,
+      buckets: [
+        { ...discoveryPolicy.buckets[0]!, capacity: 2 },
+        {
+          id: 'connection-minute',
+          scope: 'connection',
+          capacity: 2,
+          refillTokens: 1,
+          refillIntervalMs: 60_000,
+        },
+      ],
+    }
+    const create = () =>
+      createRedisGoogleQuotaCoordinator({
+        redis,
+        nowMs: () => nowMs,
+        policyId: 'refund-test-v1',
+        policy,
+      })
+    const first = create()
+    const other = create()
+    await expect(first.acquire(quotaKey, 2, 10_000)).resolves.toMatchObject({ ok: true })
+    nowMs += 500
+    await expect(first.refund(quotaKey, 1)).resolves.toBe(true)
+    await expect(other.acquire(quotaKey, 1, 10_000)).resolves.toMatchObject({ ok: true })
+    await expect(other.acquire(quotaKey, 1, 10_000)).resolves.toMatchObject({ ok: false })
+    nowMs += 120_000
+    await expect(first.refund(quotaKey, 2)).resolves.toBe(true)
+    await expect(other.acquire(quotaKey, 2, nowMs + 1_000)).resolves.toMatchObject({
+      ok: true,
+    })
+    await expect(other.acquire(quotaKey, 1, nowMs + 1_000)).resolves.toMatchObject({
+      ok: false,
+    })
+  })
+
+  it('does not partially refund on a bucket binding collision', async () => {
+    const redis = createFakeGoogleCoordinationRedis()
+    const policy: GoogleQuotaPolicy = {
+      ...discoveryPolicy,
+      buckets: [
+        discoveryPolicy.buckets[0]!,
+        {
+          id: 'connection-minute',
+          scope: 'connection',
+          capacity: 2,
+          refillTokens: 1,
+          refillIntervalMs: 60_000,
+        },
+      ],
+    }
+    const quota = createRedisGoogleQuotaCoordinator({
+      redis,
+      nowMs: () => 1_000,
+      policyId: 'collision-test-v1',
+      policy,
+    })
+    await quota.acquire(quotaKey, 1, 10_000)
+    const buckets = [...redis.quotas.values()]
+    const collision = buckets[1]
+    if (!collision) throw new Error('expected second bucket')
+    collision.binding = 'different-binding'
+    await expect(quota.refund(quotaKey, 1)).resolves.toBe(false)
+    expect(buckets.map((bucket) => bucket.tokens)).toEqual([1_000_000, 1_000_000])
+  })
+
+  it('fails refund closed when Redis is down and rejects invalid refund costs', async () => {
+    const redis = createFakeGoogleCoordinationRedis()
+    const quota = createRedisGoogleQuotaCoordinator({
+      redis,
+      nowMs: () => 1_000,
+      policyId: 'refund-down-v1',
+      policy: discoveryPolicy,
+    })
+    await quota.acquire(quotaKey, 1, 10_000)
+    await expect(quota.refund(quotaKey, 0)).resolves.toBe(false)
+    await expect(quota.refund(quotaKey, 3)).resolves.toBe(false)
+    redis.fail = true
+    await expect(quota.refund(quotaKey, 1)).resolves.toBe(false)
+  })
+
   it('requires the tenant dimensions named by the frozen policy', async () => {
     const quota = createRedisGoogleQuotaCoordinator({
       redis: createFakeGoogleCoordinationRedis(),
@@ -121,6 +206,23 @@ describe('Redis Google provider coordination', () => {
       code: 'invalid_request',
       retryAfterMs: 0,
     })
+  })
+
+  it('refuses a request class outside its policy before touching Redis', async () => {
+    const redis = createFakeGoogleCoordinationRedis()
+    const coordinator = createRedisGoogleInFlightCoordinator({
+      redis,
+      nowMs: () => 1_000,
+      leaseId: () => 'request-class-lease-0001',
+      policyId: 'google-discovery-read-v1',
+      policy: discoveryPolicy,
+    })
+
+    await expect(
+      coordinator.acquire({ ...quotaKey, requestClass: 'identity' }, 5_000),
+    ).resolves.toEqual({ ok: false, code: 'invalid_request', retryAfterMs: 0 })
+    expect(redis.bindings.size).toBe(0)
+    expect(redis.leases.size).toBe(0)
   })
 
   it('expires semaphore leases and allows another replica to proceed', async () => {

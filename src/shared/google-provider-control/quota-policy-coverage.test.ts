@@ -8,7 +8,6 @@
 // subscription could never succeed anywhere, and nothing failed at build time.
 
 import { describe, expect, it } from 'vitest'
-import { createVersionedHmacKeyring } from '#/shared/security/versioned-hmac-keyring'
 import { createFakeGoogleCoordinationRedis } from '#/shared/testing/fake-google-coordination-redis'
 import {
   GOOGLE_REVIEW_PRIMARY_RESOURCE,
@@ -263,7 +262,6 @@ function systemPermit(descriptor: GoogleProviderRouteDescriptor): Readonly<{
     snapshot: {
       permitId: 'permit-0001',
       kind: 'work',
-      gatewayIdentity: 'google-egress-runtime-1',
       routeKey: compiled.routeKey,
       routeCatalogueVersion: compiled.catalogueVersion,
       expectedAdmission: compiled.admission,
@@ -292,13 +290,6 @@ describe('system-principal admission through the real coordinators', () => {
       const coordination = lookup()
       const service = createGoogleExecutionAdmissionService({
         nowMs: () => NOW_MS,
-        admissionId: () => 'admission-identifier-0001',
-        grantKeyring: createVersionedHmacKeyring(`v1:${'11'.repeat(32)}`),
-        grantStore: {
-          issue: async () => true,
-          redeem: async () => 'unknown',
-          complete: async () => null,
-        },
         authority: {
           load: async () => snapshot,
           start: async () => 'started',
@@ -311,7 +302,6 @@ describe('system-principal admission through the real coordinators', () => {
 
       const started = await service.start({
         permitId: snapshot.permitId,
-        gatewayIdentity: snapshot.gatewayIdentity,
         admission,
         deadlineMs: NOW_MS + 10_000,
       })

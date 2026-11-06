@@ -248,14 +248,7 @@ const baseEnvSchema = z.object({
   // evidence. Protected production issuance requires exact, fresh parity.
   GOOGLE_RUNTIME_ISOLATION_PROFILE_JSON: z.string().optional(),
   GOOGLE_CONTROL_PLANE_POLICY_GENERATION: z.string().min(1).optional(),
-  // The Google egress runtime runs in THIS process (WP2.1). It used to be two
-  // sidecars reached over mTLS, which is why an origin, a server name and a
-  // private CA triplet — in two encodings, eight variables in all — used to
-  // live here. What remains is what the runtime actually needs: the two HMAC
-  // secrets it signs with and the identity its permits are bound to. All three
-  // are all-or-none, validated by the composition root.
-  GOOGLE_EGRESS_GATEWAY_IDENTITY: z.string().min(1).optional(),
-  GOOGLE_ADMISSION_GRANT_HMAC_KEYS: z.string().optional(),
+  // Binds a credential to the authorized request without storing its value.
   GOOGLE_CREDENTIAL_BINDING_HMAC_KEYS: z.string().optional(),
 
   // Settlement-receipt and provenance verification keyrings. The transport that

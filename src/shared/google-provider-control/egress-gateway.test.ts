@@ -1,27 +1,20 @@
 import { createHmac } from 'node:crypto'
 import { describe, expect, it, vi } from 'vitest'
-import { createVersionedHmacKeyring } from '#/shared/security/versioned-hmac-keyring'
-import { signGoogleAdmissionGrant } from './admission-grant-store'
 import type {
-  GoogleAdmissionRedeemResult,
+  GoogleAdmissionHandle,
   GoogleAdmissionStartResult,
   GoogleExecutionAdmissionService,
 } from './admission-service'
 import { createGoogleEgressGateway } from './egress-gateway'
-import {
-  compileGoogleProviderRequest,
-  type GoogleProviderRouteDescriptor,
-} from './route-catalogue'
+import { type GoogleProviderRouteDescriptor } from './route-catalogue'
 
 // Every failure must say whether a request could have reached Google. The reply
 // publication workflow may only treat a failed send as safe to repeat on
 // positive evidence that `fetch` was never called for that attempt
 // (CONTRACT-REPLY D2), so each exit below is pinned to the stage it leaves at.
 
-const grantKeyring = createVersionedHmacKeyring(`v1:${'11'.repeat(32)}`)
 const bindCredential = (credential: string) =>
   createHmac('sha256', 'credential-binding-test-key').update(credential).digest('hex')
-const GATEWAY_IDENTITY = 'google-egress-runtime-1'
 const PERMIT_ID = 'permit-dispatch-01'
 const NOW_MS = 1_000
 const DEADLINE_MS = 10_000
@@ -30,32 +23,12 @@ const DESCRIPTOR: GoogleProviderRouteDescriptor = Object.freeze({
   accessToken: 'provider-access-token',
 })
 
-function signedGrant(overrides: Readonly<{ permitId?: string }> = {}) {
-  const compiled = compileGoogleProviderRequest(DESCRIPTOR, bindCredential)
-  return signGoogleAdmissionGrant(
-    {
-      admissionId: 'admission-dispatch-0001',
-      permitId: overrides.permitId ?? PERMIT_ID,
-      routeKey: compiled.routeKey,
-      routeCatalogueVersion: compiled.catalogueVersion,
-      gatewayIdentity: GATEWAY_IDENTITY,
-      requestBindingSha256: compiled.admission.requestBindingSha256,
-      credentialBinding: compiled.admission.credentialBinding,
-      expiresAtMs: 20_000,
-    },
-    grantKeyring,
-  )
-}
-
-type AdmissionStub = Pick<
-  GoogleExecutionAdmissionService,
-  'start' | 'redeem' | 'complete'
->
+type AdmissionStub = GoogleExecutionAdmissionService &
+  Pick<GoogleAdmissionHandle, 'complete'>
 
 function harness(
   input: Readonly<{
     start?: AdmissionStub['start']
-    redeem?: AdmissionStub['redeem']
     complete?: AdmissionStub['complete']
     fetch?: (url: RequestInfo | URL, init?: RequestInit) => Promise<Response>
     nowMs?: () => number
@@ -76,17 +49,13 @@ function harness(
       input.start ??
       (async (): Promise<GoogleAdmissionStartResult> => ({
         ok: true,
-        grant: signedGrant(),
+        handle: { expiresAtMs: 20_000, complete },
       })),
-    redeem:
-      input.redeem ?? (async (): Promise<GoogleAdmissionRedeemResult> => ({ ok: true })),
     complete,
   }
   const gateway = createGoogleEgressGateway({
     nowMs: input.nowMs ?? (() => NOW_MS),
-    gatewayIdentity: GATEWAY_IDENTITY,
     bindCredential,
-    grantKeyring,
     admission,
     fetch: fetchMock as unknown as typeof fetch,
     logger: { warn },
@@ -205,53 +174,54 @@ describe('Google egress gateway dispatch evidence: nothing was sent', () => {
     expect(fetchMock).not.toHaveBeenCalled()
   })
 
-  it('reports not_sent when the signed grant does not match this request', async () => {
+  it('reports not_sent when admission rejects a different request binding', async () => {
     const { gateway, fetchMock } = harness({
-      start: async () => ({
-        ok: true,
-        grant: signedGrant({ permitId: 'permit-someone-else' }),
-      }),
+      start: async () => ({ ok: false, code: 'request_mismatch', retryAfterMs: 0 }),
     })
-
     await expect(execute(gateway)).resolves.toEqual({
       ok: false,
-      code: 'admission_mismatch',
+      code: 'admission_denied',
+      admissionCode: 'request_mismatch',
       dispatch: 'not_sent',
       retryAfterMs: 0,
     })
     expect(fetchMock).not.toHaveBeenCalled()
   })
 
-  it.each([
-    [
-      'refuses',
-      async (): Promise<GoogleAdmissionRedeemResult> => ({
-        ok: false,
-        code: 'grant_replayed',
-      }),
-    ],
-    [
-      'throws',
-      async (): Promise<GoogleAdmissionRedeemResult> => {
-        throw new Error('redeem hop unavailable')
-      },
-    ],
-  ] as const)('reports not_sent when grant redemption %s', async (_label, redeem) => {
-    const { gateway, fetchMock } = harness({ redeem })
-
+  it('does not dispatch an expired admission handle and still completes bookkeeping', async () => {
+    const complete = vi.fn(async () => true)
+    const { gateway, fetchMock } = harness({
+      start: async () => ({ ok: true, handle: { expiresAtMs: NOW_MS, complete } }),
+    })
     await expect(execute(gateway)).resolves.toEqual({
       ok: false,
-      code: 'admission_mismatch',
+      code: 'deadline_exceeded',
       dispatch: 'not_sent',
       retryAfterMs: 0,
     })
     expect(fetchMock).not.toHaveBeenCalled()
+    expect(complete).toHaveBeenCalledWith({
+      outcome: 'deadline_exceeded',
+      retryAfterMs: null,
+    })
+  })
+
+  it('allows an admitted request to finish after admission expiry within its call deadline', async () => {
+    const complete = vi.fn(async () => true)
+    const { gateway } = harness({
+      start: async () => ({ ok: true, handle: { expiresAtMs: NOW_MS + 1, complete } }),
+      fetch: async (_url, init) => {
+        await new Promise<void>((resolve) => setTimeout(resolve, 20))
+        init?.signal?.throwIfAborted()
+        return new Response('finished', { status: 200 })
+      },
+    })
+    await expect(execute(gateway)).resolves.toMatchObject({ ok: true, status: 200 })
   })
 
   it('reports not_sent when the deadline elapses before fetch', async () => {
-    // Validation and grant checks read a time inside the deadline; the
-    // pre-fetch read finds it already gone.
-    const readings = [NOW_MS, NOW_MS, DEADLINE_MS]
+    // The admission timing read observes that the deadline has elapsed.
+    const readings = [NOW_MS, DEADLINE_MS]
     const { gateway, fetchMock } = harness({
       nowMs: () => readings.shift() ?? DEADLINE_MS,
     })
@@ -394,19 +364,23 @@ describe('Google egress gateway dispatch evidence: a request left', () => {
     })
   })
 
-  it('keeps answered and the status when completion fails after a 404', async () => {
+  it('keeps the provider response when completion fails after a 404', async () => {
     const { gateway, complete, warn } = harness({
       fetch: async () => new Response('{}', { status: 404 }),
       complete: async () => false,
     })
 
     await expect(execute(gateway)).resolves.toEqual({
-      ok: false,
-      code: 'admission_denied',
-      dispatch: 'answered',
-      providerStatus: 404,
-      retryAfterMs: 0,
+      ok: true,
+      status: 404,
+      headers: {
+        contentType: 'text/plain;charset=UTF-8',
+        cacheControl: null,
+        retryAfter: null,
+      },
+      body: new TextEncoder().encode('{}'),
     })
+    expect(complete).toHaveBeenCalledTimes(3)
     expect(complete).toHaveBeenCalledWith(
       expect.objectContaining({ outcome: 'provider_4xx' }),
     )
@@ -438,7 +412,7 @@ describe('Google egress gateway dispatch evidence: a request left', () => {
 
     await expect(execute(gateway)).resolves.toEqual({
       ok: false,
-      code: 'admission_denied',
+      code: 'transport_error',
       dispatch: 'unknown',
       retryAfterMs: 0,
     })
@@ -454,6 +428,53 @@ describe('Google egress gateway dispatch evidence: a request left', () => {
       },
       'Google admission completion failed',
     )
+  })
+
+  it.each([200, 429, 503])(
+    'preserves status %i, headers and body when bookkeeping keeps failing',
+    async (status) => {
+      const { gateway, fetchMock, complete, warn } = harness({
+        fetch: async () =>
+          new Response('provider answer', {
+            status,
+            headers: {
+              'content-type': 'application/json',
+              'retry-after': '30',
+              'cache-control': 'no-store',
+            },
+          }),
+        complete: async () => false,
+      })
+      await expect(execute(gateway)).resolves.toEqual({
+        ok: true,
+        status,
+        headers: {
+          contentType: 'application/json',
+          retryAfter: '30',
+          cacheControl: 'no-store',
+        },
+        body: new TextEncoder().encode('provider answer'),
+      })
+      expect(fetchMock).toHaveBeenCalledTimes(1)
+      expect(complete).toHaveBeenCalledTimes(3)
+      expect(warn).toHaveBeenCalledTimes(1)
+    },
+  )
+
+  it('retries only bookkeeping when completion fails transiently', async () => {
+    const complete = vi
+      .fn<AdmissionStub['complete']>()
+      .mockRejectedValueOnce(new Error('completion unavailable'))
+      .mockResolvedValueOnce(false)
+      .mockResolvedValueOnce(true)
+    const fixture = harness({ complete })
+    await expect(execute(fixture.gateway)).resolves.toMatchObject({
+      ok: true,
+      status: 200,
+    })
+    expect(fixture.fetchMock).toHaveBeenCalledTimes(1)
+    expect(complete).toHaveBeenCalledTimes(3)
+    expect(fixture.warn).not.toHaveBeenCalled()
   })
 
   // On 2026-10-23 two token refreshes were refused with 9 and 12 seconds gone,

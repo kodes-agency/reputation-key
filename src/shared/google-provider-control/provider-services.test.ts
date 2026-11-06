@@ -1,8 +1,6 @@
 import { createHmac } from 'node:crypto'
 import { describe, expect, it, vi } from 'vitest'
-import { createVersionedHmacKeyring } from '#/shared/security/versioned-hmac-keyring'
 import type { GoogleInFlightCoordinator, GoogleQuotaCoordinator } from './contracts'
-import { createInMemoryGoogleAdmissionGrantStore } from './admission-grant-store'
 import { googleQuotaCredentialFingerprint } from './quota-coordinator'
 import {
   compileGoogleProviderRequest,
@@ -15,12 +13,10 @@ import {
   type GoogleAdmissionPermitSnapshot,
 } from './admission-service'
 import { createGoogleEgressGateway } from './egress-gateway'
-const grantKeyring = createVersionedHmacKeyring(`v1:${'11'.repeat(32)}`)
 const bindCredential = (credential: string) =>
   createHmac('sha256', 'credential-binding-test-key').update(credential).digest('hex')
 type AuthorityStartResult = 'started' | 'changed' | 'expired' | 'unavailable'
 const projectFingerprint = 'd'.repeat(64)
-const gatewayIdentity = 'google-egress-runtime-1'
 
 function permitFor(
   permitId: string,
@@ -29,7 +25,6 @@ function permitFor(
   return Object.freeze({
     permitId,
     kind: admission.requestClass === 'credential_cleanup' ? 'credential_cleanup' : 'work',
-    gatewayIdentity,
     routeKey: admission.routeKey,
     routeCatalogueVersion: admission.catalogueVersion,
     expectedAdmission: admission,
@@ -53,6 +48,7 @@ function permitFor(
 function testCoordinators() {
   const quota: GoogleQuotaCoordinator = Object.freeze({
     acquire: vi.fn(async () => ({ ok: true as const, remaining: 9 })),
+    refund: vi.fn(async () => true),
   })
   const release = vi.fn(async () => true)
   let leaseSequence = 0
@@ -96,12 +92,8 @@ function admissionFixture(
   const nowMs = input.nowMs ?? (() => 1_000)
   const coordinators = testCoordinators()
   const authority = testAuthority(input.permit, input.startResult)
-  let admissionSequence = 0
   const service = createGoogleExecutionAdmissionService({
     nowMs,
-    admissionId: () => `admission-id-${String(++admissionSequence).padStart(8, '0')}`,
-    grantKeyring,
-    grantStore: createInMemoryGoogleAdmissionGrantStore(nowMs),
     authority: authority.authority,
     quotaForPolicy: () => coordinators.quota,
     inFlightForPolicy: () => coordinators.inFlight,
@@ -131,7 +123,6 @@ describe('Google in-process admission service', () => {
     await expect(
       fixture.service.start({
         permitId: 'permit-route-0001',
-        gatewayIdentity,
         admission: locations.admission,
         deadlineMs: 10_000,
       }),
@@ -143,7 +134,7 @@ describe('Google in-process admission service', () => {
     expect(fixture.quota.acquire).not.toHaveBeenCalled()
   })
 
-  it('issues, redeems once, completes, and rejects replay', async () => {
+  it('completes a local handle idempotently without repeating durable completion', async () => {
     const compiled = compile({
       routeKey: 'account-management.accounts.list',
       accessToken: 'access-token',
@@ -153,30 +144,18 @@ describe('Google in-process admission service', () => {
     })
     const started = await fixture.service.start({
       permitId: 'permit-happy-0001',
-      gatewayIdentity,
       admission: compiled.admission,
       deadlineMs: 10_000,
     })
-    expect(started.ok).toBe(true)
-    if (!started.ok) throw new Error('expected admission grant')
-    const redemption = {
-      grant: started.grant,
-      gatewayIdentity,
-      admission: compiled.admission,
-    }
-    await expect(fixture.service.redeem(redemption)).resolves.toEqual({ ok: true })
-    await expect(fixture.service.redeem(redemption)).resolves.toEqual({
-      ok: false,
-      code: 'grant_replayed',
-    })
+    if (!started.ok) throw new Error('expected admission handle')
     await expect(
-      fixture.service.complete({
-        admissionId: started.grant.admissionId,
-        outcome: 'success',
-        retryAfterMs: null,
-      }),
+      started.handle.complete({ outcome: 'success', retryAfterMs: null }),
+    ).resolves.toBe(true)
+    await expect(
+      started.handle.complete({ outcome: 'success', retryAfterMs: null }),
     ).resolves.toBe(true)
     expect(fixture.release).toHaveBeenCalledTimes(1)
+    expect(fixture.complete).toHaveBeenCalledTimes(1)
     expect(fixture.complete).toHaveBeenCalledWith(
       'permit-happy-0001',
       'authority-revision-1',
@@ -184,35 +163,8 @@ describe('Google in-process admission service', () => {
       null,
     )
   })
-  it('reports an expired signed grant distinctly from a grant mismatch', async () => {
-    let nowMs = 1_000
-    const compiled = compile({
-      routeKey: 'account-management.accounts.list',
-      accessToken: 'access-token',
-    })
-    const fixture = admissionFixture({
-      permit: permitFor('permit-expiry-0001', compiled.admission),
-      nowMs: () => nowMs,
-    })
-    const started = await fixture.service.start({
-      permitId: 'permit-expiry-0001',
-      gatewayIdentity,
-      admission: compiled.admission,
-      deadlineMs: 10_000,
-    })
-    if (!started.ok) throw new Error('expected grant')
-    nowMs = started.grant.expiresAtMs
 
-    await expect(
-      fixture.service.redeem({
-        grant: started.grant,
-        gatewayIdentity,
-        admission: compiled.admission,
-      }),
-    ).resolves.toEqual({ ok: false, code: 'grant_expired' })
-  })
-
-  it('releases a semaphore after start CAS denial without refunding quota', async () => {
+  it('releases a semaphore after start CAS denial and refunds unused quota', async () => {
     const compiled = compile({
       routeKey: 'account-management.accounts.list',
       accessToken: 'access-token',
@@ -224,7 +176,6 @@ describe('Google in-process admission service', () => {
     await expect(
       fixture.service.start({
         permitId: 'permit-cas-000001',
-        gatewayIdentity,
         admission: compiled.admission,
         deadlineMs: 10_000,
       }),
@@ -236,6 +187,7 @@ describe('Google in-process admission service', () => {
     expect(fixture.quota.acquire).toHaveBeenCalledTimes(1)
     expect(fixture.inFlight.acquire).toHaveBeenCalledTimes(1)
     expect(fixture.release).toHaveBeenCalledTimes(1)
+    expect(fixture.quota.refund).toHaveBeenCalledWith(expect.anything(), 1)
   })
 
   // The gateway checks the same deadline before it asks; the time spent reaching
@@ -259,7 +211,6 @@ describe('Google in-process admission service', () => {
       await expect(
         fixture.service.start({
           permitId: 'permit-late-00001',
-          gatewayIdentity,
           admission: compiled.admission,
           deadlineMs: 10_000,
         }),
@@ -292,7 +243,6 @@ describe('Google in-process admission service', () => {
     await expect(
       fixture.service.start({
         permitId: 'permit-load-00001',
-        gatewayIdentity,
         admission: compiled.admission,
         deadlineMs: 10_000,
       }),
@@ -338,7 +288,6 @@ describe('Google in-process admission service', () => {
       await expect(
         fixture.service.start({
           permitId: 'permit-late-00002',
-          gatewayIdentity,
           admission: compiled.admission,
           deadlineMs: 10_000,
         }),
@@ -346,15 +295,12 @@ describe('Google in-process admission service', () => {
     },
   )
 
-  // Waiting for a semaphore slot and the permit's start round trip both take
-  // time. A grant is signed for what is left of the permit and the call, measured
-  // after them; a clock read before them signed a grant that was already dead,
-  // and the guard that should have refused it could never fire.
+  // Admission expiry is measured after waiting for capacity and starting the permit.
   it.each([
     ['the call deadline', 10_000, 10_000, 'deadline_exceeded'],
     ['the permit expiry', 20_000, 30_000, 'permit_expired'],
   ] as const)(
-    'refuses to sign a grant once %s passed while it waited for a slot',
+    'refuses to issue a handle once %s passed while it waited for a slot',
     async (_label, lateNowMs, deadlineMs, code) => {
       let nowMs = 1_000
       const compiled = compile({
@@ -379,7 +325,6 @@ describe('Google in-process admission service', () => {
       await expect(
         fixture.service.start({
           permitId: 'permit-slow-00001',
-          gatewayIdentity,
           admission: compiled.admission,
           deadlineMs,
         }),
@@ -394,6 +339,42 @@ describe('Google in-process admission service', () => {
     },
   )
 
+  it('does not dispatch the same permit twice under concurrent calls', async () => {
+    const descriptor = {
+      routeKey: 'account-management.accounts.list' as const,
+      accessToken: 'access-token',
+    }
+    const compiled = compile(descriptor)
+    const fixture = admissionFixture({
+      permit: permitFor('permit-once-00001', compiled.admission),
+    })
+    let started = false
+    vi.mocked(fixture.authority.start).mockImplementation(async () => {
+      if (started) return 'changed'
+      started = true
+      return 'started'
+    })
+    const fetchMock = vi.fn(async () => new Response('{}'))
+    const gateway = createGoogleEgressGateway({
+      nowMs: () => 1_000,
+      bindCredential,
+      admission: fixture.service,
+      fetch: fetchMock,
+    })
+    const input = { permitId: 'permit-once-00001', descriptor, deadlineMs: 10_000 }
+    const results = await Promise.all([gateway.execute(input), gateway.execute(input)])
+    expect(results.filter((result) => result.ok)).toHaveLength(1)
+    expect(results.find((result) => !result.ok)).toMatchObject({
+      code: 'admission_denied',
+      admissionCode: 'authorization_changed',
+      dispatch: 'not_sent',
+    })
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+    expect(fixture.quota.refund).toHaveBeenCalledExactlyOnceWith(expect.anything(), 1)
+    expect(fixture.complete).toHaveBeenCalledTimes(1)
+    expect(fixture.release).toHaveBeenCalledTimes(2)
+  })
+
   it('requires credential-cleanup permits to use only the fixed revoke route', async () => {
     const revoke = compile({ routeKey: 'oauth.revoke', token: 'token-to-revoke' })
     const fixture = admissionFixture({
@@ -402,7 +383,6 @@ describe('Google in-process admission service', () => {
     await expect(
       fixture.service.start({
         permitId: 'permit-revoke-001',
-        gatewayIdentity,
         admission: revoke.admission,
         deadlineMs: 10_000,
       }),
@@ -435,9 +415,7 @@ describe('Google in-process egress gateway', () => {
     return {
       gateway: createGoogleEgressGateway({
         nowMs: () => 1_000,
-        gatewayIdentity,
         bindCredential,
-        grantKeyring,
         admission,
         fetch: fetchMock as typeof fetch,
       }),
@@ -484,7 +462,7 @@ describe('Google in-process egress gateway', () => {
     expect(admissionPayload).not.toContain('next-page-token')
   })
 
-  it('fails a declared oversized response and still completes the redeemed grant', async () => {
+  it('fails a declared oversized response and still completes the admission handle', async () => {
     const descriptor = {
       routeKey: 'account-management.accounts.list' as const,
       accessToken: 'provider-access-token',
@@ -511,7 +489,7 @@ describe('Google in-process egress gateway', () => {
     })
   })
 
-  it('discards a provider response when durable completion is unavailable', async () => {
+  it('keeps a provider response when durable completion is unavailable', async () => {
     const descriptor = {
       routeKey: 'oauth.jwks' as const,
     }
@@ -519,14 +497,16 @@ describe('Google in-process egress gateway', () => {
     const fixture = admissionFixture({
       permit: permitFor('permit-completion-01', compiled.admission),
     })
+    const complete = vi.fn(async () => false)
+    const start = fixture.service.start
     const gateway = createGoogleEgressGateway({
       nowMs: () => 1_000,
-      gatewayIdentity,
       bindCredential,
-      grantKeyring,
       admission: {
-        ...fixture.service,
-        complete: vi.fn(async () => false),
+        start: async (input) => {
+          const result = await start(input)
+          return result.ok ? { ok: true, handle: { ...result.handle, complete } } : result
+        },
       },
       fetch: vi.fn(async () => new Response('{"keys":[]}')) as typeof fetch,
     })
@@ -537,12 +517,7 @@ describe('Google in-process egress gateway', () => {
         descriptor,
         deadlineMs: 10_000,
       }),
-    ).resolves.toEqual({
-      ok: false,
-      code: 'admission_denied',
-      dispatch: 'answered',
-      providerStatus: 200,
-      retryAfterMs: 0,
-    })
+    ).resolves.toMatchObject({ ok: true, status: 200 })
+    expect(complete).toHaveBeenCalledTimes(3)
   })
 })

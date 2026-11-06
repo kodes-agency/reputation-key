@@ -1,15 +1,13 @@
 import { summarizeError } from '#/shared/observability/error-summary'
-import type { VersionedHmacKeyring } from '../security/versioned-hmac-keyring'
 import {
   compileGoogleProviderRequest,
   type CompiledGoogleProviderRequest,
   type GoogleProviderRouteDescriptor,
   type GoogleProviderRouteTarget,
 } from './route-catalogue'
-import { verifyGoogleAdmissionGrant } from './admission-grant-store'
 import { parseGoogleRetryAfterMs } from './provider-call'
 import type {
-  GoogleAdmissionRedeemResult,
+  GoogleAdmissionHandle,
   GoogleAdmissionStartInput,
   GoogleAdmissionStartResult,
   GoogleExecutionAdmissionService,
@@ -32,10 +30,6 @@ export type GoogleEgressGatewayRequest = Readonly<{
  * - `unknown`: `fetch` was called and no response was observed (it threw, was
  *   aborted, or the caller stopped waiting). Google may have acted on it.
  *
- * The error code alone cannot say this: `admission_denied` is reported both
- * before any request and when completion bookkeeping fails after Google
- * answered (see `execute` below), and on 2026-09-14 a request refused by
- * compilation was classified as an ambiguous send.
  */
 export type GoogleProviderDispatch = 'not_sent' | 'answered' | 'unknown'
 
@@ -157,51 +151,36 @@ function admissionAccepted(
   return result.ok
 }
 
-function redemptionAccepted(
-  result: GoogleAdmissionRedeemResult,
-): result is Extract<GoogleAdmissionRedeemResult, { ok: true }> {
-  return result.ok
-}
-
 type GatewayLogger = Readonly<{
   warn: (fields: Readonly<Record<string, unknown>>, message: string) => void
 }>
 
 type CompletionAttempt = Readonly<{ completed: boolean; error?: unknown }>
 
-/**
- * Settles the admission once the call is over and reports whether it did.
- *
- * A failure here reaches the caller only as `admission_denied` (see `execute`),
- * and nothing else records it: the admission service answers `false` silently
- * for a missing grant record or a permit whose revision moved, and a throwing
- * hop (Redis, the permit authority) is swallowed here. That is the blind spot
- * the start branch records from 2026-09-02, so the operator gets the stage,
- * the outcome and what the call proved, never the admission or permit
- * identifier. `err` is present only when the hop threw.
- */
+/** Retry bookkeeping only; never repeat the provider request. */
 async function completeAdmission(
-  admission: Pick<GoogleExecutionAdmissionService, 'complete'>,
+  handle: GoogleAdmissionHandle,
   logger: GatewayLogger | undefined,
   input: Readonly<{
-    admissionId: string
     routeKey: string
     outcome: GoogleProviderOutcome
     retryAfterMs: number | null
     evidence: DispatchEvidence
   }>,
-): Promise<boolean> {
-  const attempt = await admission
-    .complete({
-      admissionId: input.admissionId,
-      outcome: input.outcome,
-      retryAfterMs: input.retryAfterMs,
-    })
-    .then(
-      (completed): CompletionAttempt => ({ completed }),
-      (error: unknown): CompletionAttempt => ({ completed: false, error }),
-    )
-  if (attempt.completed) return true
+): Promise<void> {
+  let attempt: CompletionAttempt = { completed: false }
+  for (let remaining = 3; remaining > 0; remaining--) {
+    attempt = await handle
+      .complete({
+        outcome: input.outcome,
+        retryAfterMs: input.retryAfterMs,
+      })
+      .then(
+        (completed): CompletionAttempt => ({ completed }),
+        (error: unknown): CompletionAttempt => ({ completed: false, error }),
+      )
+    if (attempt.completed) return
+  }
   logger?.warn(
     {
       surface: 'google-egress-gateway',
@@ -213,24 +192,117 @@ async function completeAdmission(
     },
     'Google admission completion failed',
   )
-  return false
+}
+
+type GatewayDependencies = Readonly<{
+  nowMs: () => number
+  bindCredential: (credential: string) => string
+  routeTarget?: GoogleProviderRouteTarget
+  admission: GoogleExecutionAdmissionService
+  fetch: typeof fetch
+  /**
+   * Optional so existing constructions keep working; without it this behaves
+   * exactly as before and simply says nothing.
+   */
+  logger?: GatewayLogger
+}>
+
+async function executeAdmittedRequest(
+  deps: GatewayDependencies,
+  compiled: CompiledGoogleProviderRequest,
+  handle: GoogleAdmissionHandle,
+  deadlineMs: number,
+): Promise<GoogleEgressGatewayResult> {
+  /** What an aborted or failed exchange is: the deadline, or the transport. */
+  const interruptedOutcome = (): 'deadline_exceeded' | 'transport_error' =>
+    deps.nowMs() >= deadlineMs ? 'deadline_exceeded' : 'transport_error'
+  let outcome: GoogleProviderOutcome = 'caller_abandoned'
+  let retryAfterMs: number | null = null
+  // What this attempt proves about reaching Google, updated at the two
+  // moments that change it: just before `fetch` is invoked (a missing
+  // response is now `unknown`) and when a response object arrives
+  // (`answered`). Each failure keeps that evidence.
+  let evidence: DispatchEvidence = { dispatch: 'not_sent' }
+  let result: GoogleEgressGatewayResult | null = null
+  try {
+    const dispatchAtMs = deps.nowMs()
+    const remainingMs = deadlineMs - dispatchAtMs
+    if (remainingMs <= 0 || handle.expiresAtMs <= dispatchAtMs) {
+      outcome = 'deadline_exceeded'
+      result = notSent('deadline_exceeded')
+    } else {
+      let response: Response | null = null
+      try {
+        const init: RequestInit = {
+          method: compiled.method,
+          headers: compiled.headers,
+          body: compiled.body === null ? null : Buffer.from(compiled.body),
+          redirect: 'error',
+          signal: AbortSignal.timeout(remainingMs),
+        }
+        evidence = { dispatch: 'unknown' }
+        response = await deps.fetch(compiled.url, init)
+      } catch {
+        outcome = interruptedOutcome()
+        result = { ok: false, code: outcome, ...evidence, retryAfterMs: 0 }
+      }
+      if (response) {
+        evidence = { dispatch: 'answered', providerStatus: response.status }
+        outcome = providerOutcome(response.status)
+        retryAfterMs = parseGoogleRetryAfterMs(
+          response.headers.get('retry-after'),
+          deps.nowMs(),
+        )
+        try {
+          const body = await readBoundedResponse(
+            response,
+            compiled.admission.maxResponseBytes,
+          )
+          result = {
+            ok: true,
+            status: response.status,
+            headers: Object.freeze({
+              contentType: response.headers.get('content-type'),
+              cacheControl: response.headers.get('cache-control'),
+              retryAfter: response.headers.get('retry-after'),
+            }),
+            body,
+          }
+        } catch (error) {
+          // Google answered; the body is what failed. Only a size verdict is
+          // `response_too_large`: a reset or the deadline firing mid-body is
+          // the fault it was, with the answered evidence kept.
+          outcome =
+            error instanceof ResponseTooLargeError
+              ? 'response_too_large'
+              : interruptedOutcome()
+          result = { ok: false, code: outcome, ...evidence, retryAfterMs: 0 }
+        }
+      }
+    }
+  } catch {
+    outcome = 'transport_error'
+    result = { ok: false, code: 'transport_error', ...evidence, retryAfterMs: 0 }
+  }
+  // `fetch` resolving to nothing leaves no branch assigned; the evidence
+  // still says the call was made.
+  const settled = result ?? {
+    ok: false,
+    code: 'transport_error',
+    ...evidence,
+    retryAfterMs: 0,
+  }
+  await completeAdmission(handle, deps.logger, {
+    routeKey: compiled.admission.routeKey,
+    outcome,
+    retryAfterMs,
+    evidence,
+  })
+  return settled
 }
 
 export function createGoogleEgressGateway(
-  deps: Readonly<{
-    nowMs: () => number
-    gatewayIdentity: string
-    bindCredential: (credential: string) => string
-    routeTarget?: GoogleProviderRouteTarget
-    grantKeyring: VersionedHmacKeyring
-    admission: Pick<GoogleExecutionAdmissionService, 'start' | 'redeem' | 'complete'>
-    fetch: typeof fetch
-    /**
-     * Optional so existing constructions keep working; without it this behaves
-     * exactly as before and simply says nothing.
-     */
-    logger?: GatewayLogger
-  }>,
+  deps: GatewayDependencies,
 ): GoogleEgressGateway {
   return Object.freeze({
     execute: async (input) => {
@@ -259,7 +331,6 @@ export function createGoogleEgressGateway(
       }
       const admissionInput: GoogleAdmissionStartInput = Object.freeze({
         permitId: input.permitId,
-        gatewayIdentity: deps.gatewayIdentity,
         admission: compiled.admission,
         deadlineMs: input.deadlineMs,
       })
@@ -323,125 +394,7 @@ export function createGoogleEgressGateway(
           retryAfterMs: started.retryAfterMs,
         }
       }
-      if (
-        !verifyGoogleAdmissionGrant(started.grant, deps.grantKeyring) ||
-        started.grant.gatewayIdentity !== deps.gatewayIdentity ||
-        started.grant.permitId !== input.permitId ||
-        started.grant.routeKey !== compiled.routeKey ||
-        started.grant.routeCatalogueVersion !== compiled.catalogueVersion ||
-        started.grant.requestBindingSha256 !== compiled.admission.requestBindingSha256 ||
-        started.grant.credentialBinding !== compiled.admission.credentialBinding ||
-        started.grant.expiresAtMs <= deps.nowMs()
-      ) {
-        return notSent('admission_mismatch')
-      }
-      let redeemed: GoogleAdmissionRedeemResult
-      try {
-        redeemed = await deps.admission.redeem({
-          grant: started.grant,
-          gatewayIdentity: deps.gatewayIdentity,
-          admission: compiled.admission,
-        })
-      } catch {
-        return notSent('admission_mismatch')
-      }
-      if (!redemptionAccepted(redeemed)) {
-        return notSent('admission_mismatch')
-      }
-
-      /** What an aborted or failed exchange is: the deadline, or the transport. */
-      const interruptedOutcome = (): 'deadline_exceeded' | 'transport_error' =>
-        deps.nowMs() >= input.deadlineMs ? 'deadline_exceeded' : 'transport_error'
-      let outcome: GoogleProviderOutcome = 'caller_abandoned'
-      let retryAfterMs: number | null = null
-      // What this attempt proves about reaching Google, updated at the two
-      // moments that change it: just before `fetch` is invoked (a missing
-      // response is now `unknown`) and when a response object arrives
-      // (`answered`). Every failure below, including the completion failure
-      // after the call, reports it rather than a per-branch guess.
-      let evidence: DispatchEvidence = { dispatch: 'not_sent' }
-      let result: GoogleEgressGatewayResult | null = null
-      try {
-        const remainingMs = input.deadlineMs - deps.nowMs()
-        if (remainingMs <= 0) {
-          outcome = 'deadline_exceeded'
-          result = notSent('deadline_exceeded')
-        } else {
-          let response: Response | null = null
-          try {
-            const init: RequestInit = {
-              method: compiled.method,
-              headers: compiled.headers,
-              body: compiled.body === null ? null : Buffer.from(compiled.body),
-              redirect: 'error',
-              signal: AbortSignal.timeout(remainingMs),
-            }
-            evidence = { dispatch: 'unknown' }
-            response = await deps.fetch(compiled.url, init)
-          } catch {
-            outcome = interruptedOutcome()
-            result = { ok: false, code: outcome, ...evidence, retryAfterMs: 0 }
-          }
-          if (response) {
-            evidence = { dispatch: 'answered', providerStatus: response.status }
-            outcome = providerOutcome(response.status)
-            retryAfterMs = parseGoogleRetryAfterMs(
-              response.headers.get('retry-after'),
-              deps.nowMs(),
-            )
-            try {
-              const body = await readBoundedResponse(
-                response,
-                compiled.admission.maxResponseBytes,
-              )
-              result = {
-                ok: true,
-                status: response.status,
-                headers: Object.freeze({
-                  contentType: response.headers.get('content-type'),
-                  cacheControl: response.headers.get('cache-control'),
-                  retryAfter: response.headers.get('retry-after'),
-                }),
-                body,
-              }
-            } catch (error) {
-              // Google answered; the body is what failed. Only a size verdict is
-              // `response_too_large`: a reset or the deadline firing mid-body is
-              // the fault it was, with the answered evidence kept.
-              outcome =
-                error instanceof ResponseTooLargeError
-                  ? 'response_too_large'
-                  : interruptedOutcome()
-              result = { ok: false, code: outcome, ...evidence, retryAfterMs: 0 }
-            }
-          }
-        }
-      } catch {
-        outcome = 'transport_error'
-        result = { ok: false, code: 'transport_error', ...evidence, retryAfterMs: 0 }
-      }
-      // `fetch` resolving to nothing leaves no branch assigned; the evidence
-      // still says the call was made.
-      const settled = result ?? {
-        ok: false,
-        code: 'transport_error',
-        ...evidence,
-        retryAfterMs: 0,
-      }
-      const completed = await completeAdmission(deps.admission, deps.logger, {
-        admissionId: started.grant.admissionId,
-        routeKey: compiled.admission.routeKey,
-        outcome,
-        retryAfterMs,
-        evidence,
-      })
-      // The code stays `admission_denied` for existing callers, but once fetch
-      // was invoked Google may already have answered (or received) the request,
-      // so the evidence reports what happened rather than implying a refusal
-      // before dispatch.
-      return completed
-        ? settled
-        : { ok: false, code: 'admission_denied', ...evidence, retryAfterMs: 0 }
+      return executeAdmittedRequest(deps, compiled, started.handle, input.deadlineMs)
     },
   })
 }
