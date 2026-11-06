@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+import { ConcurrentIndexMigrationError } from './concurrent-index-migration'
 import {
   deployFailureRecovery,
   deployMigrationStateRefusal,
@@ -102,6 +103,16 @@ describe('deployMigrationStateRefusal', () => {
 })
 
 describe('deployFailureRecovery', () => {
+  it('describes repair of an interrupted nontransactional file without promising rollback', () => {
+    const recovery = deployFailureRecovery(
+      new ConcurrentIndexMigrationError('index_build_failed'),
+      'journal',
+    )
+    expect(recovery).toContain('Earlier files remain applied')
+    expect(recovery).toContain('repair an invalid index')
+    expect(recovery).toContain('reuse a completed build')
+    expect(recovery).not.toContain('rolled back')
+  })
   const RERUN =
     'Forward recovery: fix the failing migration SQL and redeploy — every step is idempotent, ' +
     'the rerun converges. Do NOT hand-roll partial schema state (runbooks.md §8).'
@@ -143,8 +154,8 @@ describe('deployFailureRecovery', () => {
 
     expect(recovery).toBe(
       'Lock wait: a migration statement waited 5 s for a lock another session holds and ' +
-        'gave up, so that the application does not queue behind it. The journal runs in one ' +
-        'transaction, so nothing of it was applied. Redeploy; if it happens again, find the ' +
+        'gave up, so that the application does not queue behind it. The failed journal file ' +
+        'was rolled back; earlier files remain applied. Redeploy; if it happens again, find the ' +
         'session holding the lock (pg_stat_activity, pg_blocking_pids) first (runbooks.md §8).',
     )
     expect(recovery).not.toContain('fix the failing migration SQL')
