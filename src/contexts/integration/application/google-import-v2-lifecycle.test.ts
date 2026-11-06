@@ -106,8 +106,8 @@ describe('Google import v2 lifecycle', () => {
       organizationId: ORG_ID,
       itemId: EXPIRED_ITEM_ID,
       retryRevision: 3,
-      outcomeCode: 'internal_error',
-      retainRetryState: false,
+      outcomeCode: 'temporarily_unavailable',
+      retainRetryState: true,
       now: NOW,
     })
     expect(fixture.store.purgeParent).toHaveBeenCalledWith({

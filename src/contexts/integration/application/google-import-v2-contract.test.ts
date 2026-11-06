@@ -8,6 +8,7 @@ import {
   IMPORT_PARENT_STATUSES,
   PROPERTY_IMPORT_RETENTION_RELEASED_EVENT,
   getImportOutcomePresentation,
+  terminalWriteFor,
 } from './google-import-v2-contract'
 
 describe('Google property import v2 contract', () => {
@@ -62,4 +63,16 @@ describe('Google property import v2 contract', () => {
     expect(IMPORT_PARENT_STATUSES).not.toContain('completed_with_skips')
     expect(IMPORT_PARENT_STATUSES).not.toContain('completed_with_failures')
   })
+})
+
+describe('import terminal retry state', () => {
+  it.each([
+    ['temporarily_unavailable', true],
+    ['authorization_changed', false],
+  ] as const)(
+    'keeps the required retry state for %s',
+    (outcomeCode, retainRetryState) => {
+      expect(terminalWriteFor(outcomeCode)).toEqual({ outcomeCode, retainRetryState })
+    },
+  )
 })

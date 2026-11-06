@@ -8,7 +8,6 @@ import type { LoggerPort } from '#/shared/domain/logger.port'
 import { jobRetryDelayUpperBoundMs } from '#/shared/jobs/job-policy'
 import type { GoogleImportCommandAuthorizer } from './google-import-discovery'
 import {
-  EXPIRED_ITEM_WRITE,
   GOOGLE_PROPERTY_IMPORT_ITEM_JOB,
   terminalWriteFor,
   type ImportOutcomeCode,
@@ -190,7 +189,7 @@ export function createGoogleImportV2Processor(
       retryRevision: item.retryRevision,
       dispatchEpoch: item.dispatchEpoch,
       claimFence: item.claimFence,
-      ...terminalWriteFor(outcomeCode, item.effectDeadlineAt, now),
+      ...terminalWriteFor(outcomeCode),
       now,
       ...(detail ? { detail } : {}),
     })
@@ -261,7 +260,6 @@ export function createGoogleImportV2Processor(
   const terminalizeUnclaimed = async (
     input: ProcessGoogleImportV2Item,
     authority: GoogleImportV2TerminalAuthority,
-    exhaustedUntil: Date | null,
   ): Promise<void> => {
     const now = deps.clock()
     if (await reconcileReceipt(input.organizationId, input.itemId, now)) return
@@ -270,9 +268,7 @@ export function createGoogleImportV2Processor(
       itemId: input.itemId,
       retryRevision: input.retryRevision,
       authority,
-      ...(exhaustedUntil
-        ? terminalWriteFor('temporarily_unavailable', exhaustedUntil, now)
-        : EXPIRED_ITEM_WRITE),
+      ...terminalWriteFor('temporarily_unavailable'),
       now,
     })
   }
@@ -421,7 +417,6 @@ export function createGoogleImportV2Processor(
             dispatchEpoch: item.dispatchEpoch,
             claimFence: item.claimFence,
           },
-          null,
         )
       }
       if (execution.value.kind === 'receipt') {
@@ -496,11 +491,7 @@ export function createGoogleImportV2Processor(
       })
       if (claim.kind !== 'claimed') {
         if (claim.reason === 'effect_expired' || claim.reason === 'attempts_exhausted') {
-          await terminalizeUnclaimed(
-            input,
-            claim.authority,
-            claim.reason === 'attempts_exhausted' ? claim.effectDeadlineAt : null,
-          )
+          await terminalizeUnclaimed(input, claim.authority)
           return
         }
         // Keep this delivery retryable while a live owner holds the row.

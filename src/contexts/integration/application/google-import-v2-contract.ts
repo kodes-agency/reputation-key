@@ -124,33 +124,17 @@ export function retainsRetryState(outcomeCode: ImportOutcomeCode): boolean {
   return outcomeCode === 'temporarily_unavailable'
 }
 
-/**
- * How an item ends once its effect deadline has passed without a receipt. A retry
- * is refused past the deadline (`retryItem` answers `effect_expired`), so the item
- * cannot end `temporarily_unavailable`, which promises one; and the table refuses
- * that outcome without its retry state. It ends as a plain failure with every
- * provider identifier scrubbed, and the manager imports the location again.
- */
+/** Expired work stays retryable through fresh discovery and confirmation. */
 export const EXPIRED_ITEM_WRITE: ImportItemTerminalWrite = Object.freeze({
-  outcomeCode: 'internal_error',
-  retainRetryState: false,
+  outcomeCode: 'temporarily_unavailable',
+  retainRetryState: true,
 })
 
-/**
- * The terminal write for an outcome an attempt chose. A retryable outcome keeps
- * its retry state while a retry is still possible and degrades to
- * `EXPIRED_ITEM_WRITE` once the effect deadline has passed; every other outcome is
- * final and scrubbed.
- */
+/** Retryable outcomes keep the state required by the items table. */
 export function terminalWriteFor(
   outcomeCode: ImportOutcomeCode,
-  effectDeadlineAt: Date,
-  now: Date,
 ): ImportItemTerminalWrite {
-  if (!retainsRetryState(outcomeCode)) return { outcomeCode, retainRetryState: false }
-  return now < effectDeadlineAt
-    ? { outcomeCode, retainRetryState: true }
-    : EXPIRED_ITEM_WRITE
+  return { outcomeCode, retainRetryState: retainsRetryState(outcomeCode) }
 }
 
 export type ImportItemUserAction =
