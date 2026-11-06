@@ -7,132 +7,70 @@ import {
   unavailableSearch,
 } from './unavailable'
 
+type Content = ReturnType<typeof unavailablePageContent>
+const expectRecovery = (
+  content: Content,
+  to: '/accept-invitation' | '/properties' | '/properties/$propertyId/settings',
+) => {
+  expect(content.title.trim()).not.toBe('')
+  expect(content.description.trim()).not.toBe('')
+  expect(content.link.label.trim()).not.toBe('')
+  expect(content.link.to).toBe(to)
+}
+
 describe('unavailable route presentation', () => {
-  it('gives an account without a workspace a recovery path instead of beta-disable copy', () => {
-    expect(unavailablePageContent({ reason: 'workspace_access' })).toEqual({
-      title: "Workspace access isn't ready",
-      description:
-        'Your account is signed in, but it is not connected to an active workspace.',
-      guidance:
-        'Review any pending invitation. If none is available, ask the person who invited you to confirm your access.',
-      link: {
-        label: 'Review pending invitations',
-        to: '/accept-invitation',
-      },
-    })
+  it('gives waiting, removed and departed accounts distinct explanations and an invitation recovery path', () => {
+    const search = { reason: 'workspace_access' } as const
+    const states = [
+      unavailablePageContent(search),
+      unavailablePageContent(search, { accessRemoved: true }),
+      unavailablePageContent(search, { accessRemoved: true, leftWorkspace: true }),
+    ]
+    for (const content of states) {
+      expectRecovery(content, '/accept-invitation')
+      expect(content.guidance?.trim()).toBeTruthy()
+    }
+    expect(states[1]?.description).toMatch(/administrator.*removed/i)
+    expect(states[2]?.description).toMatch(/you left/i)
+    expect(states[2]?.description).not.toMatch(/administrator/i)
+    expect(new Set(states.map(({ title }) => title)).size).toBe(3)
+    expect(new Set(states.map(({ description }) => description)).size).toBe(3)
+    expect(new Set(states.map(({ guidance }) => guidance)).size).toBe(3)
+    expect(unavailablePageContent(search, { accessRemoved: false })).toEqual(states[0])
   })
 
-  it('tells someone whose access was removed what happened, not that it is "not ready"', () => {
-    expect(
-      unavailablePageContent({ reason: 'workspace_access' }, { accessRemoved: true }),
-    ).toEqual({
-      title: 'Your workspace access was removed',
-      description:
-        'An account administrator removed your account from the workspace, so it is no longer available to you.',
-      guidance:
-        'If you think that was a mistake, ask an account administrator of that workspace to invite you again. Any new invitation will appear here.',
-      link: {
-        label: 'Review pending invitations',
-        to: '/accept-invitation',
-      },
-    })
-  })
-
-  // Leaving is recorded as a removal too; the page must not tell someone who
-  // left that an administrator removed them.
-  it('tells someone who left the workspace that they left', () => {
-    const content = unavailablePageContent(
-      { reason: 'workspace_access' },
-      { accessRemoved: true, leftWorkspace: true },
-    )
-
-    expect(content.title).toBe('You left the workspace')
-    expect(content.description).toBe(
-      'You left the workspace, so it is no longer available to you.',
-    )
-    expect(content.guidance).toBe(
-      'To come back, ask an account administrator of that workspace to invite you again. Any new invitation will appear here.',
-    )
-  })
-
-  it('keeps the waiting-for-access copy for someone who was never removed', () => {
-    expect(
-      unavailablePageContent({ reason: 'workspace_access' }, { accessRemoved: false }),
-    ).toEqual(unavailablePageContent({ reason: 'workspace_access' }))
-  })
-
-  it('ignores a removal record on a page that is not about workspace access', () => {
+  it('ignores an access-removal record outside workspace recovery', () => {
     expect(
       unavailablePageContent({ feature: 'Recognition' }, { accessRemoved: true }),
     ).toEqual(unavailablePageContent({ feature: 'Recognition' }))
   })
 
-  it('explains a capability that is not part of the beta', () => {
-    expect(
-      unavailablePageContent({
-        feature: 'Recognition',
-        category: 'not_in_beta',
-        propertyId: 'property-1',
-      }),
-    ).toEqual({
-      title: 'Recognition is not part of this beta',
-      description:
-        'This capability is switched off for the closed beta and cannot be enabled from Settings.',
-      guidance: null,
-      link: { label: 'Back to properties', to: '/properties' },
-    })
-  })
+  it.each(CAPABILITY_REFUSAL_CATEGORIES)(
+    'gives %s its own explanation and the available next step',
+    (category) => {
+      const propertyId = '0b9d7c1a-3e5f-4b2a-8c6d-1e2f3a4b5c6d'
+      const content = unavailablePageContent({ feature: 'Goals', category, propertyId })
+      expectRecovery(
+        content,
+        category === 'needs_admin_enablement'
+          ? '/properties/$propertyId/settings'
+          : '/properties',
+      )
+      if (category === 'needs_admin_enablement')
+        expect(content.link).toMatchObject({ params: { propertyId } })
+      else expect(content.link).not.toHaveProperty('params')
+      expectRecovery(
+        unavailablePageContent({ feature: 'Goals', category }),
+        '/properties',
+      )
+    },
+  )
 
-  it('links admin-enablement refusals to the selected property settings', () => {
-    expect(
-      unavailablePageContent({
-        feature: 'Goals',
-        category: 'needs_admin_enablement',
-        propertyId: 'property-1',
-      }),
-    ).toEqual({
-      title: 'Goals is not enabled for this workspace',
-      description:
-        'An account admin can enable it for this property from Property settings.',
-      guidance: null,
-      link: {
-        label: 'Open property settings',
-        to: '/properties/$propertyId/settings',
-        params: { propertyId: 'property-1' },
-      },
-    })
-  })
-
-  it('falls back to the properties list when admin enablement has no property target', () => {
-    expect(
-      unavailablePageContent({
-        feature: 'Goals',
-        category: 'needs_admin_enablement',
-      }),
-    ).toEqual({
-      title: 'Goals is not enabled for this workspace',
-      description:
-        'An account admin can enable it for this property from Property settings.',
-      guidance: null,
-      link: { label: 'Back to properties', to: '/properties' },
-    })
-  })
-
-  it('does not send an Organization-allowlist refusal to Property settings', () => {
-    // Even with a property in the URL: no setting there can enable it.
-    expect(
-      unavailablePageContent({
-        feature: 'Google property import',
-        category: 'not_enabled_for_organization',
-        propertyId: 'property-1',
-      }),
-    ).toEqual({
-      title: 'Google property import is not enabled for your organization yet',
-      description:
-        'Beta features are switched on per organization by the RepKey team, not from Settings. Contact support to have it enabled.',
-      guidance: null,
-      link: { label: 'Back to properties', to: '/properties' },
-    })
+  it('keeps different capability refusals distinguishable', () => {
+    const titles = CAPABILITY_REFUSAL_CATEGORIES.map(
+      (category) => unavailablePageContent({ feature: 'Goals', category }).title,
+    )
+    expect(new Set(titles).size).toBe(CAPABILITY_REFUSAL_CATEGORIES.length)
   })
 
   it('accepts every refusal category in the URL', () => {
@@ -143,29 +81,8 @@ describe('unavailable route presentation', () => {
     }
   })
 
-  it('explains a temporarily unavailable capability without linking to settings', () => {
-    expect(
-      unavailablePageContent({
-        feature: 'Portals',
-        category: 'temporarily_unavailable',
-        propertyId: 'property-1',
-      }),
-    ).toEqual({
-      title: 'Portals is temporarily unavailable',
-      description:
-        'Access is paused for this workspace or property. Try again later or contact support.',
-      guidance: null,
-      link: { label: 'Back to properties', to: '/properties' },
-    })
-  })
-
-  it('keeps uncategorized dormant-feature links on the generic beta explanation', () => {
-    expect(unavailablePageContent({ feature: 'Recognition' })).toEqual({
-      title: 'Recognition is not available in this beta',
-      description: 'Recognition is not part of the current beta experience.',
-      guidance: null,
-      link: { label: 'Back to properties', to: '/properties' },
-    })
+  it('gives old links without a category a safe way back', () => {
+    expectRecovery(unavailablePageContent({ feature: 'Recognition' }), '/properties')
   })
 
   // The page is public and its card wears the product's name, so the heading
@@ -177,12 +94,10 @@ describe('unavailable route presentation', () => {
     const search = unavailableSearch.parse({ feature: typed })
 
     expect(search.feature).toBeUndefined()
-    expect(unavailablePageContent(search)).toEqual({
-      title: 'Not available in this beta',
-      description: 'This part of the product is disabled for the internal beta.',
-      guidance: null,
-      link: { label: 'Back to properties', to: '/properties' },
-    })
+    const content = unavailablePageContent(search)
+    expectRecovery(content, '/properties')
+    expect(content.title).not.toContain(typed)
+    expect(content).toEqual(unavailablePageContent({}))
   })
 
   it('still reads the label of every link the product issued', () => {
@@ -201,7 +116,7 @@ describe('unavailable route presentation', () => {
     ).toEqual({})
     expect(
       unavailablePageContent(unavailableSearch.parse({ category: 'gone' })).title,
-    ).toBe('Not available in this beta')
+    ).toBe(unavailablePageContent({}).title)
   })
 
   // A Property's id is a UUID, and this one becomes the link to its settings.

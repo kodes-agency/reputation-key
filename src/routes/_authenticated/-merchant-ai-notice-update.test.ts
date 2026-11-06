@@ -1,46 +1,190 @@
-import { readFileSync } from 'node:fs'
-import { describe, expect, it } from 'vitest'
+import { createElement, useEffect, type ComponentProps } from 'react'
+import { renderToReadableStream } from 'react-dom/server'
+import { RouterProvider } from '@tanstack/react-router'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { setupHookRoot } from '#/shared/testing/hook-root'
+import { createRouteHarness } from '#/routes/route-harness'
+import { createKeys } from '#/shared/queries/query-keys'
+import type { MerchantAiNoticeUpdate } from '#/shared/merchant-ai-notice-announcements'
+import type { ProductUpdatesClient } from '#/shared/whats-new/types'
+import { merchantAiNoticeUpdateKey } from '#/components/features/settings/merchant-ai-notice-update-query'
+import type { MerchantAiNoticeUpdateBanner } from '#/components/features/settings/merchant-ai-notice-update-banner'
+import { useLeadingAiUpdate } from '#/components/features/whats-new/use-leading-ai-update'
+import MerchantAiNoticeUpdateGate from './-merchant-ai-notice-update'
+import { merchantAiNoticeUpdateClient } from './-merchant-ai-notice-update-client'
+import { Route as AuthenticatedRoute } from '../_authenticated'
+import { propertiesQuery } from '../-queries/route-queries'
+import { UNKNOWN_VIEWPORT } from '#/components/hooks/viewport-hint'
 
-const read = (path: string) => readFileSync(new URL(path, import.meta.url), 'utf8')
+const server = vi.hoisted(() => ({ get: vi.fn(), markSeen: vi.fn() }))
+vi.mock('#/contexts/identity/server/merchant-ai-notice-updates', () => ({
+  getMerchantAiNoticeUpdateFn: server.get,
+  markMerchantAiNoticeUpdateSeenFn: server.markSeen,
+}))
+vi.mock('#/components/layout/manager-sidebar', () => ({ ManagerSidebar: () => null }))
+vi.mock('#/components/layout/settings-sidebar', () => ({ SettingsSidebar: () => null }))
+vi.mock('#/components/layout/app-top-bar', () => ({ AppTopBar: () => null }))
+let banner: ComponentProps<typeof MerchantAiNoticeUpdateBanner> | undefined
+vi.mock('#/components/features/settings/merchant-ai-notice-update-banner', () => ({
+  MerchantAiNoticeUpdateBanner: (
+    props: ComponentProps<typeof MerchantAiNoticeUpdateBanner>,
+  ) => {
+    banner = props
+    return null
+  },
+}))
+const update: MerchantAiNoticeUpdate = {
+  title: 'An AI update',
+  points: ['Details'],
+  noticeVersion: 'notice-1',
+  noticeDigest: 'a'.repeat(64),
+  renewedAt: '2026-11-01T09:00:00.000Z',
+}
+const scope = { userId: 'user-1', organizationId: 'organization-1' }
+const client: ProductUpdatesClient = {
+  get: vi.fn(),
+  claim: vi.fn(),
+  markSeen: vi.fn(),
+  setAutoShow: vi.fn(),
+  aiNoticeUpdate: merchantAiNoticeUpdateClient,
+}
+const root = setupHookRoot()
+let leading: ReturnType<typeof useLeadingAiUpdate>
+function WhatsNew() {
+  const value = useLeadingAiUpdate(scope, async () => client)
+  useEffect(() => {
+    leading = value
+  }, [value])
+  return null
+}
 
-describe('shell AI update gate', () => {
-  const shell = read('../_authenticated.tsx')
-  const body = read('./-merchant-ai-notice-update.tsx')
-  const client = read('./-merchant-ai-notice-update-client.ts')
-  const settings = '../../components/features/settings'
-  const query = read(`${settings}/merchant-ai-notice-update-query.ts`)
-  const markSeen = read(`${settings}/use-mark-merchant-ai-notice-update-seen.ts`)
-  it('loads the side read only through a lazy boundary behind AccountAdmin and ai.manage', () => {
-    expect(shell).toMatch(
-      /lazy\(\s*\(\) => import\('\.\/_authenticated\/-merchant-ai-notice-update'\)/,
-    )
-    expect(shell).toMatch(/permissions\.can\('ai.manage'\)/)
-    expect(shell).not.toContain('server/merchant-ai-notice-updates')
-    expect(shell).not.toContain('getMerchantAiNoticeUpdateFn')
-    expect(body).toContain("role === 'AccountAdmin'")
-    expect(body).toContain('useQuery(')
+beforeEach(() => {
+  vi.resetAllMocks()
+  vi.stubGlobal('self', globalThis)
+  banner = undefined
+  server.get.mockResolvedValue(update)
+})
+
+describe('merchant AI update readers', () => {
+  it.each([false, true])(
+    'the AccountAdmin shell mounts the notice only with ai.manage (granted: %s)',
+    async (mayManageAi) => {
+      const harness = await createRouteHarness({
+        role: 'AccountAdmin',
+        authz: {
+          effectivePermissions: mayManageAi
+            ? ['property.read', 'ai.manage']
+            : ['property.read'],
+          scopeByPermission: {},
+        },
+      })
+      harness.queryClient.setQueryData(propertiesQuery.queryKey, { properties: [] })
+      harness.authenticated
+        .updateLoader({ loader: () => ({ viewportHint: UNKNOWN_VIEWPORT }) })
+        .update({ component: AuthenticatedRoute.options.component })
+      await harness.router.invalidate()
+      const stream = await renderToReadableStream(
+        harness.provide(createElement(RouterProvider, { router: harness.router })),
+      )
+      await stream.allReady
+      const html = await new Response(stream).text()
+      expect(html).toContain('<main')
+      const noticeQuery = harness.queryClient.getQueryState(
+        merchantAiNoticeUpdateKey(scope),
+      )
+      if (mayManageAi) {
+        expect(banner).toBeDefined()
+        expect(noticeQuery).toBeDefined()
+      } else {
+        expect(server.get).not.toHaveBeenCalled()
+        expect(banner).toBeUndefined()
+        expect(noticeQuery).toBeUndefined()
+      }
+    },
+  )
+
+  it.each(['PropertyManager', 'Member'] as const)(
+    'starts no notice read for %s and settles without an update',
+    async (role) => {
+      const harness = await createRouteHarness({ role })
+      await root.render(
+        harness.provide([
+          createElement(MerchantAiNoticeUpdateGate, { key: 'banner' }),
+          createElement(WhatsNew, { key: 'whats-new' }),
+        ]),
+      )
+      expect(server.get).not.toHaveBeenCalled()
+      expect(banner).toBeUndefined()
+      expect(leading.update).toBeNull()
+      expect(leading.settled).toBe(true)
+    },
+  )
+
+  it('does not read through What’s new when ai.manage is absent', async () => {
+    const harness = await createRouteHarness({
+      authz: { effectivePermissions: ['property.read'], scopeByPermission: {} },
+    })
+    await root.render(harness.provide(createElement(WhatsNew)))
+    expect(server.get).not.toHaveBeenCalled()
+    expect(leading.settled).toBe(true)
   })
-  it('keeps receipts in a user-and-organization Query cache and on the server', () => {
-    expect(query).toMatch(/createKeys\(scope\)\.identityKeys\.merchantAiNoticeUpdate\(\)/)
-    expect(client).toContain('markMerchantAiNoticeUpdateSeenFn(')
-    expect(markSeen).toContain(
-      'client.setQueryData(merchantAiNoticeUpdateKey(scope), null)',
+
+  it('shares the read and receipt between the banner and What’s new without touching another tenant', async () => {
+    const harness = await createRouteHarness()
+    const otherScope = { ...scope, organizationId: 'organization-2' }
+    const overview = createKeys(scope).identityKeys.merchantAiOverview()
+    harness.queryClient.setQueryData(overview, { saved: true })
+    harness.queryClient.setQueryData(merchantAiNoticeUpdateKey(otherScope), update)
+    await root.render(
+      harness.provide([
+        createElement(MerchantAiNoticeUpdateGate, { key: 'banner' }),
+        createElement(WhatsNew, { key: 'whats-new' }),
+      ]),
     )
-    expect(body + query + markSeen + client).not.toContain('localStorage')
+    await root.flush()
+    expect(server.get).toHaveBeenCalledOnce()
+    expect(banner?.update).toEqual(update)
+    expect(leading.update).toEqual(update)
+    await leading.markSeen(update)
+    await root.flush()
+    expect(server.markSeen).toHaveBeenCalledExactlyOnceWith({
+      data: { noticeVersion: update.noticeVersion, noticeDigest: update.noticeDigest },
+    })
+    expect(banner?.update).toBeNull()
+    expect(leading.update).toBeNull()
+    expect(harness.queryClient.getQueryState(overview)?.isInvalidated).toBe(true)
+    expect(
+      harness.queryClient.getQueryData(merchantAiNoticeUpdateKey(otherScope)),
+    ).toEqual(update)
   })
-  it('imports the server module only in the route layer, lazily', () => {
-    expect(client).toContain(
-      "import('#/contexts/identity/server/merchant-ai-notice-updates')",
+
+  it('keeps both readers retryable when recording the receipt fails', async () => {
+    const harness = await createRouteHarness()
+    await root.render(
+      harness.provide([
+        createElement(MerchantAiNoticeUpdateGate, { key: 'banner' }),
+        createElement(WhatsNew, { key: 'whats-new' }),
+      ]),
     )
-    expect(client).not.toMatch(/^import .*server\/merchant-ai-notice-updates/mu)
-    expect(query + markSeen).not.toContain('contexts/identity/server')
+    await root.flush()
+    const refusal = new Error('Receipt unavailable')
+    server.markSeen.mockRejectedValueOnce(refusal)
+    await expect(leading.markSeen(update)).rejects.toBe(refusal)
+    await root.flush()
+    expect(banner?.update).toEqual(update)
+    expect(leading.update).toEqual(update)
+    if (!banner) throw new Error('The banner must remain available')
+    await banner.markSeen(update)
+    await root.flush()
+    expect(leading.update).toBeNull()
   })
-  it("lets What's new read and mark the same update through the same options", () => {
-    const whatsNew = '../../components/features/whats-new'
-    const leading = read(`${whatsNew}/use-leading-ai-update.ts`)
-    expect(body).toContain('merchantAiNoticeUpdateQuery(scope, getClient)')
-    expect(body).toContain('useMarkMerchantAiNoticeUpdateSeen(scope, getClient)')
-    expect(leading).toContain('merchantAiNoticeUpdateQuery(scope, getAiClient)')
-    expect(leading).toContain('useMarkMerchantAiNoticeUpdateSeen(scope, getAiClient)')
+
+  it('settles a failed side read without a leading update', async () => {
+    server.get.mockRejectedValueOnce(new Error('Side read unavailable'))
+    const harness = await createRouteHarness()
+    await root.render(harness.provide(createElement(WhatsNew)))
+    await root.flush()
+    expect(leading.settled).toBe(true)
+    expect(leading.update).toBeNull()
   })
 })
