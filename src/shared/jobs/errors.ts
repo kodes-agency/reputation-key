@@ -47,11 +47,9 @@ export class GateDenyRetryError extends Error {
 }
 
 /**
- * A job exceeded its catalogue-declared timeout (BQC-3.6). BullMQ v5 removed
- * the job-level `timeout` option, so the gated dispatch closure enforces the
- * catalogue's timeoutMs with a race — the job fails (and retries/quarantines)
- * like any other failure. The underlying handler promise is NOT cancelled
- * (no AbortController threading yet); retries must stay idempotent.
+ * A job exceeded its catalogue deadline. The gate aborts its handler and
+ * waits for cleanup before failing the attempt. Work that outlives the grace
+ * period terminates the worker while its BullMQ slot is still occupied.
  */
 export class JobTimeoutError extends Error {
   readonly jobName: string

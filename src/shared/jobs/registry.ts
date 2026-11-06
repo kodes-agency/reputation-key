@@ -3,7 +3,10 @@
 
 import type { Job } from 'bullmq'
 
-export type JobHandler<T = unknown, TResult = unknown> = (job: Job<T>) => Promise<TResult>
+export type JobHandler<T = unknown, TResult = unknown> = (
+  job: Job<T>,
+  signal?: AbortSignal,
+) => Promise<TResult>
 
 export type JobRegistry = Readonly<{
   /** Register a handler for a job name. */
