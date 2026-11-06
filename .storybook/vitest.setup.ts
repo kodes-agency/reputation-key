@@ -71,6 +71,7 @@ type ConsoleErrorAllowlistEntry = Readonly<{
 
 const CONSOLE_ERROR_ALLOWLIST: readonly ConsoleErrorAllowlistEntry[] = []
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/u
+const RESIZE_LOOP = 'ResizeObserver loop completed with undelivered notifications'
 
 let recordedErrors: unknown[][] = []
 let restoreConsoleError: (() => void) | undefined
@@ -147,16 +148,33 @@ afterEach(async ({ task }) => {
     // The addon leaves the rendered state mounted until the next story starts.
     // Its test metadata supplies the stable id, including stories with no play.
     const story = { storyId, state: task.name }
+    const heard = recordedErrors.length
     const measurements = await measurePhoneWidths()
+    // Resizing the window is the check's own doing: observers it wakes can miss
+    // the frame, which Chromium reports as an error that says nothing about the story.
+    recordedErrors = [
+      ...recordedErrors.slice(0, heard),
+      ...recordedErrors
+        .slice(heard)
+        .filter((args) => !args.some((arg) => renderArgument(arg).includes(RESIZE_LOOP))),
+    ]
     task.meta.phoneWidth = { ...story, measurements }
     if (import.meta.env.PHONE_WIDTH_RECORD === '1') {
       await commands.recordPhoneWidthFailures(task.meta.phoneWidth)
     } else {
-      assertPhoneWidthBaseline(
-        story,
-        measurements,
-        phoneWidthBaseline as readonly PhoneWidthBaselineEntry[],
-      )
+      try {
+        assertPhoneWidthBaseline(
+          story,
+          measurements,
+          phoneWidthBaseline as readonly PhoneWidthBaselineEntry[],
+        )
+      } catch (error) {
+        // The inventory is what CI's Linux Chromium measures. Text sets a few
+        // pixels differently elsewhere, so another platform reports, not fails.
+        if (import.meta.env.PHONE_WIDTH_PLATFORM === 'linux') throw error
+        const findings = error instanceof Error ? error.message : String(error)
+        console.info(`[phone-width] not failing off Linux:\n${findings}`)
+      }
     }
   } catch (error) {
     errors.push(error)

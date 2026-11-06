@@ -18,9 +18,10 @@ const baseline = [
   },
 ]
 
-async function setup(record = '') {
+async function setup(record = '', platform = 'linux') {
   vi.resetModules()
   vi.stubEnv('PHONE_WIDTH_RECORD', record)
+  vi.stubEnv('PHONE_WIDTH_PLATFORM', platform)
   type Context = {
     task: {
       id: string
@@ -54,6 +55,7 @@ async function setup(record = '') {
     documentElement: { scrollWidth: 0 },
     querySelectorAll: vi.fn((): Element[] => []),
     fonts: { ready: Promise.resolve() },
+    getAnimations: () => [],
   }
   Object.assign(view, { document: doc })
   vi.stubGlobal('document', doc)
@@ -235,6 +237,16 @@ describe('Storybook global phone-width gate', () => {
     expect(viewport).toHaveBeenLastCalledWith(1200, 800)
   })
 
+  it('reports an unlisted finding off Linux without failing the story', async () => {
+    const { finish, context, smallTarget } = await setup('', 'darwin')
+    const info = vi.spyOn(console, 'info').mockImplementation(() => {})
+    smallTarget()
+    await expect(finish(context('forms-save--error', 'Error'))).resolves.toBeUndefined()
+    expect(info).toHaveBeenCalledWith(
+      expect.stringMatching(/not failing off Linux.*forms-save--error.*320 px.*targets/s),
+    )
+  })
+
   it('uses the stable story id and state to accept only recorded failing checks', async () => {
     const { finish, context, smallTarget } = await setup()
     smallTarget()
@@ -339,6 +351,30 @@ describe('Storybook global phone-width gate', () => {
         targets: ['Save is 60x36; a target is at least 44 px'],
       })),
     })
+  })
+
+  it('ignores the resize-observer loop its own resizing causes', async () => {
+    const { starts, finish, context, viewport } = await setup()
+    const ctx = context('forms-save--new', 'New')
+    await starts[2]!(ctx)
+    viewport.mockImplementationOnce(async () => {
+      console.error(
+        new Error('ResizeObserver loop completed with undelivered notifications.'),
+      )
+    })
+    await expect(finish(ctx)).resolves.toBeUndefined()
+  })
+
+  it('still rejects a resize-observer loop the story raised itself', async () => {
+    const { starts, finish, context } = await setup()
+    const ctx = context('forms-save--new', 'New')
+    await starts[2]!(ctx)
+    console.error(
+      new Error('ResizeObserver loop completed with undelivered notifications.'),
+    )
+    await expect(finish(ctx)).rejects.toThrow(
+      /Unexpected console.error.*ResizeObserver loop/s,
+    )
   })
 
   it('preserves the console-error gate alongside a phone-width failure', async () => {

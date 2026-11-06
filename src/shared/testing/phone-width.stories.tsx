@@ -94,6 +94,28 @@ export const LayerHangsOffTheWindow: Story = {
   },
 }
 
+export const MeasuresWhereALayerComesToRest: Story = {
+  render: () => (
+    <div role="status" className="fixed top-2 left-2 h-11 w-[200px] border">
+      Arriving toast
+    </div>
+  ),
+  play: async () => {
+    const layer = document.querySelector('[role="status"]')
+    if (layer === null) throw new Error('the layer did not render')
+    // Sliding in from the right, it is past the edge until it lands.
+    const sliding = layer.animate(
+      [{ transform: 'translateX(240px)' }, { transform: 'none' }],
+      300,
+    )
+    await sliding.ready
+    expect(phoneWidthFindings()).toContainEqual(
+      expect.stringMatching(/Arriving toast extends past the right edge/),
+    )
+    await checkPhoneWidths()
+  },
+}
+
 export const ScrollerMustFitItself: Story = {
   render: () => (
     <Surface>
