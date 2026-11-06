@@ -271,6 +271,46 @@ describe('restoreProperty', () => {
 })
 
 describe('disconnectPropertyGoogleBinding', () => {
+  it('routes an already-disconnected Property through idempotent cleanup', async () => {
+    const propertyRepo = createInMemoryPropertyRepo()
+    const property = buildTestProperty({
+      lifecycleState: 'archived',
+      googleBindingState: 'disconnected',
+      sourceEpoch: 9,
+    })
+    propertyRepo.seed([property])
+    const summary = {
+      state: property.googleBindingState,
+      sourceEpoch: property.sourceEpoch,
+      profileVersion: property.profileVersion,
+      profileSource: property.profileSource,
+      profileConfirmedAt: property.profileConfirmedAt,
+    }
+    const disconnect = vi.fn(async () => summary)
+    const readSummary = vi.fn(async () => summary)
+    const command = disconnectPropertyGoogleBinding({
+      propertyRepo,
+      staffPublicApi: { getAccessiblePropertyIds: async () => null },
+      bindingStore: { disconnect, readSummary },
+      clock: () => NOW,
+    })
+    const ctx = buildTestAuthContext({
+      role: 'AccountAdmin',
+      effectivePermissions: new Set(['property.disconnect']),
+      scopeByPermission: new Map([['property.disconnect', 'organization']]),
+    })
+
+    await expect(command({ propertyId: property.id }, ctx)).resolves.toEqual(summary)
+    expect(disconnect).toHaveBeenCalledWith({
+      organizationId: property.organizationId,
+      propertyId: property.id,
+      expectedSourceEpoch: 9,
+      expectedProfileVersion: property.profileVersion,
+      now: NOW,
+    })
+    expect(readSummary).not.toHaveBeenCalled()
+  })
+
   it('disconnects only the archived Property binding and preserves the Organization connection', async () => {
     const propertyRepo = createInMemoryPropertyRepo()
     const property = buildTestProperty({

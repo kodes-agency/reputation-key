@@ -248,10 +248,7 @@ export const disconnectPropertyGoogleBinding =
         { from: property.lifecycleState, to: 'disconnected' },
       )
     }
-    if (
-      property.googleBindingState === 'disconnected' ||
-      property.googleBindingState === 'unbound'
-    ) {
+    if (property.googleBindingState === 'unbound') {
       const summary = await deps.bindingStore.readSummary(
         property.organizationId,
         property.id,
@@ -259,7 +256,10 @@ export const disconnectPropertyGoogleBinding =
       if (!summary) throw propertyError('property_not_found', 'property not found')
       return summary
     }
-    if (property.googleBindingState !== 'active') {
+    if (
+      property.googleBindingState !== 'active' &&
+      property.googleBindingState !== 'disconnected'
+    ) {
       throw propertyError(
         'google_binding_not_disconnectable',
         'The Property Google binding cannot be disconnected in its current state',

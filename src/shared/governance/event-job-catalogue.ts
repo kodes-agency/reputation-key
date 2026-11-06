@@ -360,6 +360,10 @@ const GUEST_ROWS: ReadonlyArray<EventFamilyRow> = [
 
 const INTEGRATION_ROWS: ReadonlyArray<EventFamilyRow> = [
   ev('integration.google_account.connected', [
+    durable(
+      'integration.google-category-refresh',
+      'src/contexts/integration/infrastructure/google-category-refresh-outbox-consumers.ts',
+    ),
     durable('activity.recent-activity', ACTIVITY_OUTBOX),
     durable('activity.operational-action-history', ACTIVITY_OUTBOX),
     settles('notification.settle-on-google-account-connected'),
