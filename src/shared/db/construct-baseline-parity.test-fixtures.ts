@@ -1,4 +1,4 @@
-import { FORWARD_ONLY_CONSTRUCT_DEFINITIONS } from './construct-definitions'
+import { FORWARD_ONLY_CONSTRUCT_DEFINITIONS } from './construct-sql.test-fixtures'
 
 /** Remove only the named forward-only statements and their own separators.
  * Every byte outside these exceptions must still match the historical copy. */
