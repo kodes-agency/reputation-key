@@ -12,7 +12,10 @@ const NOW = new Date('2026-11-06T12:00:00.000Z')
 const CUTOFF = new Date(NOW.getTime() - 30 * DAY)
 const OLD = new Date(CUTOFF.getTime() - DAY).toISOString()
 const LIVE = new Date(CUTOFF.getTime() + DAY).toISOString()
-const CONSUMERS = ['activity.recent-activity', 'portal.reconcile-health-dependencies']
+const CONSUMERS = [
+  'activity.operational-action-history',
+  'portal.reconcile-health-dependencies',
+]
 
 const rule = RETENTION_RULES.find(({ subject }) => subject === 'outbox_events.published')
 if (!rule) throw new Error('Outbox retention rule missing')
@@ -77,7 +80,7 @@ function fact(
     )
     .run(
       id,
-      options.eventType ?? 'property.updated',
+      options.eventType ?? 'property.deleted',
       options.publishedAt === undefined ? OLD : options.publishedAt,
       options.fenced ? OLD : null,
       options.exhausted ? 3 : 0,

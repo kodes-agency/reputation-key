@@ -15,7 +15,7 @@ Ten bounded contexts own product meaning and state:
 - **AI** — governed Review Analysis, Reply Drafting, and Property Trends.
 - **Inbox** — triage Items, Handling Cycles, notes, and Response Targets.
 - **Reporting** — Metric, Goal, and Dashboard read/reporting models.
-- **Feed** — Recent Activity, Operational Action History, and notifications.
+- **Feed** — Operational Action History, retained Recent Activity records, and notifications.
 
 Each package's `CONTEXT.md` defines its owner, prohibited inferences, runtime entry
 path, invariants, residual gaps, and verification authority.

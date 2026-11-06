@@ -11,7 +11,6 @@
 import type { JobFamilyRow } from './event-job-catalogue'
 import { durable, ev, type EventFamilyRow } from './event-job-catalogue-rows'
 
-const ACTIVITY_OUTBOX = 'src/contexts/feed/infrastructure/activity-outbox-consumers.ts'
 const NOTIFICATION_GOAL_OUTBOX =
   'src/contexts/feed/infrastructure/goal-outbox-consumers.ts'
 const NOTIFICATION_RATING_GOAL_OUTBOX =
@@ -19,14 +18,10 @@ const NOTIFICATION_RATING_GOAL_OUTBOX =
 
 export const GOAL_ROWS: ReadonlyArray<EventFamilyRow> = [
   ev('goal.monthly_result.closed', [
-    durable('activity.recent-activity', ACTIVITY_OUTBOX),
     durable('notification.on-goal-monthly-result-closed', NOTIFICATION_GOAL_OUTBOX),
   ]),
-  ev('goal.monthly_result.reconciled', [
-    durable('activity.recent-activity', ACTIVITY_OUTBOX),
-  ]),
+  ev('goal.monthly_result.reconciled', []),
   ev('goal.monthly_result.revised', [
-    durable('activity.recent-activity', ACTIVITY_OUTBOX),
     durable('notification.on-goal-monthly-result-revised', NOTIFICATION_GOAL_OUTBOX),
   ]),
   // One fact per notice a Property's Google rating goal raises (ADR 0067).
