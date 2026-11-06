@@ -164,6 +164,19 @@ External obligations (§2) → this page → ADRs → [engineering rules](rules.
 
 ## 10. Change log
 
+- **2026-11-06:** Privacy Notice version 3.5, effective 2026-11-06, Participation
+  Agreement version 2.6 and Google Business Profile Access Disclosure version 2.5
+  correct the current descriptions of Google disconnection, stored source
+  deletion, Reporting star copies, backups and the isolated restore rehearsal.
+  Merchant AI notice `merchant-ai-notice-2026-11-06.v1` corrects analysis retention
+  and offline quality checks. Its material change applies to Review Analysis;
+  existing drafting and Trends notice coverage remains in force. Standing renewal
+  preserves the enabled choices and announces the revision in the Service. The
+  owner approved publication without a waiting period or email for the two
+  owner-controlled beta Organizations and no re-acceptance by existing users.
+  Later lifecycle safeguards and the new category-clearing statement await their
+  implementing releases.
+
 - **2026-11-04:** §6 and §7 give the backup and restore state read on 2026-11-04 in place of the **UNVERIFIED** marker of 2026-10-13. Point-in-time recovery and daily and weekly backups are on, and a restore into a separate service recovered the database to the moment chosen; no full restore to operational state was timed (`docs/operations/backup-and-lifecycle.md` §1).
 - **2026-11-02:** Staff accounts open for the controlled beta cohort: Code, My results, notice, My code and account actions. Privacy Notice version 3.3, effective 2026-11-02, Agreement 2.4 and Google Access Disclosure 2.4 take effect on release under D18. No What's new entry before the owner tries it.
 - **2026-11-02:** A Portal may skip the private rating and note after Review & publish (owner decision 2026-11-01; ADR 0044). The Google card is the main action, followed by the Linktree. Google unavailable falls back to the normal rating journey. Earlier responses keep correction and withdrawal. Creating or changing rating goals is refused for switched Portals and all-switched groups. Switching on is also refused for a running single-Portal rating goal or its Group or Property’s last rating collector; an all-switched Property’s Monthly portal goal offers scans. Privacy Notice version 3.2, effective 2026-11-02, Participation Agreement version 2.3 and Access Disclosure version 2.3 take effect on release with no waiting period because both beta Organizations are the accountable owner’s, as in WAIVED 2026-10-29. Migration 0092.

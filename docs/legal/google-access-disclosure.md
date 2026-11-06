@@ -2,14 +2,14 @@
 status: accepted
 accepted_by: Bozhidar Denev
 accepted_on: 2026-09-08
-amended_on: 2026-11-02
+amended_on: 2026-11-06
 ---
 
 # Google Business Profile Access Disclosure
 
 **Status:** Accepted for publication
-**Effective date:** 2026-11-02
-**Version:** 2.4
+**Effective date:** 2026-11-06
+**Version:** 2.5
 **Accountable owner:** Bozhidar Denev
 
 ## What access Reputation Key requests
@@ -168,11 +168,15 @@ and erasure/recovery tooling. Recurring production erasure remains a release
 gate pending backfill, parity, restore-boundary, and live-cell evidence. This
 disclosure therefore does not claim that repository tests prove live deletion.
 
-Disconnecting Google access stops new provider work and invalidates the
-Property's Google destination. Token revocation, source erasure, derived-data
-handling, backups, and independently retained manager-authored history follow
-their distinct accepted lifecycle procedures. The time commitments are stated
-in the accepted retention schedule rather than inferred from this disclosure.
+Disconnecting Google stops syncing and reply publication and invalidates the
+Property’s Google review destination. It does not immediately erase imported
+reviews or imported replies, and it deletes nothing on Google. Their existing
+limit of 30 days from the last successful fetch still applies; disconnecting or
+allowing a connection to lapse does not restart that clock. Automatic deletion
+of expired imported content is not active yet. Manager-authored replies and
+notes follow their separate retention rules. Token revocation, source erasure,
+derived-data handling, backups, and independently retained manager-authored
+history follow their distinct accepted lifecycle procedures.
 
 ## Security and operational controls
 
@@ -184,7 +188,7 @@ The repository is designed so that:
 - authorization is rechecked for the exact Organization and Property;
 - provider notifications are authenticated and deduplicated before work is
   accepted;
-- source expiry and disconnection stop new content use; and
+- expired source content is withheld from ordinary reads and external processing; disconnection stops new Google work and does not itself erase imported content; and
 - release tooling verifies one signed candidate and its provider-approval
   evidence before promotion.
 
@@ -221,7 +225,7 @@ AI purpose, or publication behavior changes.
 
 ## Changes
 
-This disclosure takes effect on 2026-11-02 and is version 2.4. It replaces version 2.3, effective 2026-11-02, which replaced version 2.2, effective 2026-11-01, which replaced
+This disclosure takes effect on 2026-11-06 and is version 2.5. It replaces version 2.4, effective 2026-11-02, which replaced version 2.3, effective 2026-11-02, which replaced version 2.2, effective 2026-11-01, which replaced
 version 2.1, which took effect on 2026-10-14 and had replaced version 2.0, which
 took effect on 2026-09-08.
 
@@ -257,3 +261,12 @@ managers can see Google-action selections on each staff member's Portal. The
 ban under “Uses the product does not allow” is unchanged. It takes effect on
 release without a waiting period, on the accountable owner's decision of
 2026-11-01 for the two beta Organizations the owner controls.
+
+Version 2.5 (2026-11-06) clarifies that disconnecting Google stops syncing and
+reply publication without immediately erasing imported content or deleting
+anything on Google. The existing fetch-based expiry still applies, and
+automatic deletion of expired imported content is not active yet. It separates
+source-expiry restrictions from disconnection. It takes effect on publication
+without a waiting period, on the accountable owner's decision for the two
+closed-beta Organizations the owner controls. Existing users are not asked to
+accept again.

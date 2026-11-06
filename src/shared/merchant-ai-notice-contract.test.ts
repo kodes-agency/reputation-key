@@ -1,4 +1,5 @@
 import { createHash } from 'node:crypto'
+import previousPayload from './testing/fixtures/merchant-ai-notice-2026-11-01.json'
 import { describe, expect, it } from 'vitest'
 import {
   isMerchantAiNoticeInForce,
@@ -70,7 +71,7 @@ describe('Merchant AI notice contract', () => {
   })
 
   it('binds the immutable notice version and structured payload into the digest', () => {
-    expect(MERCHANT_AI_NOTICE_VERSION).toBe('merchant-ai-notice-2026-11-01.v1')
+    expect(MERCHANT_AI_NOTICE_VERSION).toBe('merchant-ai-notice-2026-11-06.v1')
     expect(MERCHANT_AI_NOTICE_DIGEST).toMatch(/^[0-9a-f]{64}$/)
     expect(MERCHANT_AI_NOTICE_DIGEST).toBe(
       noticeDigestOf(
@@ -81,7 +82,7 @@ describe('Merchant AI notice contract', () => {
       ),
     )
     expect(MERCHANT_AI_NOTICE_DIGEST).toBe(
-      'e9574380fd1ba5f4b7bd7b9899bc5e6bdf371f9d9871584f33c5c1e6131290ef',
+      '0bc68a446ee42ed76a15575ad44b090480742a3187184a8a19157dd0492e14d9',
     )
   })
 
@@ -165,9 +166,15 @@ describe('Merchant AI notice contract', () => {
     expect(
       isMerchantAiNoticeInForceForCapabilities({
         ...notice,
-        capabilities: ['review_analysis', 'property_trends'],
+        capabilities: ['property_trends'],
       }),
     ).toBe(true)
+    expect(
+      isMerchantAiNoticeInForceForCapabilities({
+        ...notice,
+        capabilities: ['review_analysis'],
+      }),
+    ).toBe(false)
     expect(
       isMerchantAiNoticeInForceForCapabilities({
         ...notice,
@@ -175,11 +182,15 @@ describe('Merchant AI notice contract', () => {
       }),
     ).toBe(false)
   })
-  it('keeps the served notice in force alone: every earlier consent lapses', () => {
+  it('keeps unchanged drafting under the prior notice and rejects older or mismatched consent', () => {
     expect(MERCHANT_AI_NOTICES_IN_FORCE.reply_drafting).toEqual([
       {
         noticeVersion: MERCHANT_AI_NOTICE_VERSION,
         noticeDigest: MERCHANT_AI_NOTICE_DIGEST,
+      },
+      {
+        noticeVersion: 'merchant-ai-notice-2026-11-01.v1',
+        noticeDigest: 'e9574380fd1ba5f4b7bd7b9899bc5e6bdf371f9d9871584f33c5c1e6131290ef',
       },
     ])
     expect(
@@ -235,9 +246,12 @@ describe('Merchant AI notice contract', () => {
   })
 })
 
-it('changes only the three drafting passages and keeps every other word of the prior notice', () => {
+it('preserves the actual previous payload and its historical drafting-only predecessor', () => {
+  expect(noticeDigestOf(previousPayload)).toBe(
+    'e9574380fd1ba5f4b7bd7b9899bc5e6bdf371f9d9871584f33c5c1e6131290ef',
+  )
   const previous = JSON.parse(
-    JSON.stringify(MERCHANT_AI_NOTICE_PAYLOAD)
+    JSON.stringify(previousPayload)
       .replace(
         'property context needed for the selected feature, and facts your property chose to share with the AI.',
         'property context needed for the selected feature.',

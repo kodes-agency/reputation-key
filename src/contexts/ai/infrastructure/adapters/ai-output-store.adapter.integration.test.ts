@@ -615,24 +615,24 @@ describe.sequential('AI output store analysis persistence (real PostgreSQL)', ()
       async (result) => result,
     )
 
+  const setGrantNotice = async (noticeVersion: string, noticeDigest: string) => {
+    await db.transaction(async (tx) => {
+      // Isolate notice coverage from the epoch and lineage fences a transition also moves.
+      await tx.execute(
+        sql`ALTER TABLE merchant_ai_enablement DISABLE TRIGGER merchant_ai_enablement_transition_guard`,
+      )
+      await tx
+        .update(merchantAiEnablement)
+        .set({ noticeVersion, noticeDigest })
+        .where(eq(merchantAiEnablement.propertyId, PROPERTY_ID))
+      await tx.execute(
+        sql`ALTER TABLE merchant_ai_enablement ENABLE TRIGGER merchant_ai_enablement_transition_guard`,
+      )
+    })
+  }
+
   it('keeps a stored analysis readable under a lapsed notice until its grant changes', async () => {
     await seedStoredReviewA()
-    const setGrantNotice = async (noticeVersion: string, noticeDigest: string) => {
-      await db.transaction(async (tx) => {
-        // The head guard refuses a notice edit outside a transition; this synthetic
-        // lapse switches it off for the one row edit, inside the transaction.
-        await tx.execute(
-          sql`ALTER TABLE merchant_ai_enablement DISABLE TRIGGER merchant_ai_enablement_transition_guard`,
-        )
-        await tx
-          .update(merchantAiEnablement)
-          .set({ noticeVersion, noticeDigest })
-          .where(eq(merchantAiEnablement.propertyId, PROPERTY_ID))
-        await tx.execute(
-          sql`ALTER TABLE merchant_ai_enablement ENABLE TRIGGER merchant_ai_enablement_transition_guard`,
-        )
-      })
-    }
     try {
       await setGrantNotice(EARLIER_NOTICE_VERSION, EARLIER_NOTICE_DIGEST)
       await db
@@ -685,19 +685,43 @@ describe.sequential('AI output store analysis persistence (real PostgreSQL)', ()
     )
 
     it('keeps its stored analysis when the newer notice changed only drafting', async () => {
-      const served = MERCHANT_AI_NOTICE_CHANGES.find(
-        (change) => change.noticeVersion === MERCHANT_AI_NOTICE_VERSION,
+      const draftingOnly = MERCHANT_AI_NOTICE_CHANGES.find(
+        (change) => change.noticeVersion === 'merchant-ai-notice-2026-11-01.v1',
       )
-      // The premise: the served notice replaced one without changing analysis.
-      expect(served?.materiallyChanges).not.toContain('review_analysis')
+      expect(draftingOnly?.materiallyChanges).toEqual(['reply_drafting'])
       await seedStoredReviewA()
 
-      await claimUnderAnotherNotice(served!.replaces!)
+      try {
+        await setGrantNotice(draftingOnly!.noticeVersion, draftingOnly!.noticeDigest)
+        await claimUnderAnotherNotice(draftingOnly!.replaces!)
 
-      await expect(readReviewA()).resolves.toMatchObject({
-        status: 'ready',
-        sentiment: 'positive',
-      })
+        await expect(readReviewA()).resolves.toMatchObject({
+          status: 'ready',
+          sentiment: 'positive',
+        })
+      } finally {
+        await setGrantNotice(MERCHANT_AI_NOTICE_VERSION, MERCHANT_AI_NOTICE_DIGEST)
+      }
+    })
+
+    it('withholds stored analysis and in-flight results across a notice that changed analysis', async () => {
+      const analysisChange = MERCHANT_AI_NOTICE_CHANGES.find(
+        (change) => change.noticeVersion === 'merchant-ai-notice-2026-11-06.v1',
+      )
+      expect(analysisChange?.materiallyChanges).toContain('review_analysis')
+      await claimUnderAnotherNotice(analysisChange!.replaces!)
+      await expect(storeReviewA()).resolves.toBe(false)
+      await expect(
+        db
+          .select({ reviewId: aiReviewAnalyses.reviewId })
+          .from(aiReviewAnalyses)
+          .where(eq(aiReviewAnalyses.propertyId, PROPERTY_ID)),
+      ).resolves.toEqual([])
+
+      await seedStoredReviewA()
+      const withheld = await readReviewA()
+      expect(withheld.status).toBe('none')
+      expect(withheld).not.toHaveProperty('sentiment')
     })
 
     it.each(DRIFTS)('stores nothing for it (notice %s)', async (_field, notice) => {

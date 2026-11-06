@@ -5,11 +5,32 @@ import {
   merchantAiConsentEvidence,
   merchantAiEnablement,
 } from './merchant-ai-authorization.schema'
+import { MERCHANT_AI_NOTICE_CHANGES } from '../../merchant-ai-notice-contract'
 
 const migration = (name: string) =>
   readFileSync(new URL(`../../../../drizzle/${name}.sql`, import.meta.url), 'utf8')
 
-describe('dark streaming deployment migration', () => {
+describe('merchant AI release migrations', () => {
+  it.each([merchantAiConsentEvidence, merchantAiEnablement])(
+    'expands notice evidence while preserving every historical notice pair',
+    (table) => {
+      const config = getTableConfig(table)
+      const check = config.checks.find(
+        (candidate) => candidate.name === `${config.name}_contract_valid`,
+      )!
+      const predicate = new PgDialect().sqlToQuery(check.value).sql
+      for (const notice of MERCHANT_AI_NOTICE_CHANGES) {
+        expect(predicate).toContain(notice.noticeVersion)
+        expect(predicate).toContain(notice.noticeDigest)
+      }
+      expect(migration('0099_merchant_ai_notice_retention_corrections')).toContain(
+        `ADD CONSTRAINT "${check.name}" CHECK (${predicate}) NOT VALID;`,
+      )
+      expect(
+        migration('0100_validate_merchant_ai_notice_retention_corrections'),
+      ).toContain(`ALTER TABLE "${config.name}" VALIDATE CONSTRAINT "${check.name}";`)
+    },
+  )
   it.each([merchantAiConsentEvidence, merchantAiEnablement])(
     'admits the streaming deployment only at release',
     (table) => {

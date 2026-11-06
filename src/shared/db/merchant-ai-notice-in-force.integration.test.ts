@@ -11,8 +11,7 @@ import { merchantAiNoticeInForceSql } from './merchant-ai-notice-in-force'
 const served = MERCHANT_AI_NOTICE_CHANGES[0]!
 const notices = [
   served,
-  served.replaces!,
-  MERCHANT_AI_NOTICE_CHANGES[1]!.replaces!,
+  ...MERCHANT_AI_NOTICE_CHANGES.map((notice) => notice.replaces!),
   { ...served, noticeDigest: 'f'.repeat(64) },
 ]
 const capabilitySets: ReadonlyArray<ReadonlyArray<MerchantAiCapability>> = [
@@ -46,7 +45,7 @@ describe('Merchant AI notice-in-force SQL parity', () => {
     },
   )
 
-  it('keeps analysis and trends under the notice the served one replaced, not drafting', async () => {
+  it('keeps drafting and trends under the preceding notice, while analysis needs renewal', async () => {
     const replaced = served.replaces!
     const read = async (capabilities: ReadonlyArray<MerchantAiCapability>) =>
       (
@@ -58,7 +57,8 @@ describe('Merchant AI notice-in-force SQL parity', () => {
           )} AS in_force`,
         )
       ).rows[0]?.in_force
-    expect(await read(['review_analysis', 'property_trends'])).toBe(true)
+    expect(await read(['reply_drafting', 'property_trends'])).toBe(true)
+    expect(await read(['review_analysis'])).toBe(false)
     expect(await read(['review_analysis', 'reply_drafting', 'property_trends'])).toBe(
       false,
     )

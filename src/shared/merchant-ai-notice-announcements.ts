@@ -6,6 +6,15 @@ export type MerchantAiNoticeAnnouncement = Readonly<{
 export const MERCHANT_AI_NOTICE_ANNOUNCEMENTS: Readonly<
   Record<string, MerchantAiNoticeAnnouncement>
 > = {
+  'merchant-ai-notice-2026-11-06.v1': {
+    title: 'AI data-use notice corrected',
+    points: [
+      'Review analysis does not keep separate daily counts of reviews by star rating.',
+      'Quality checks use an offline scorer on test material or recorded answers, without sending reviews to an AI provider.',
+      'The stored business category is excepted from the 24-month analysis-result limit.',
+      'Existing AI choices carry over automatically. You can turn them off at any time in AI settings.',
+    ],
+  },
   'merchant-ai-notice-2026-11-01.v1': {
     title: 'AI reply drafts got better',
     points: [

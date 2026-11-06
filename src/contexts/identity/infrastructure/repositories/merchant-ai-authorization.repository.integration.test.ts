@@ -55,6 +55,15 @@ const NOTICE_2026_10_17 = {
   noticeDigest: '2bcd2be15cbb81f324f9a9390ad00baff3ffbb25a6c0db8bff71fbb2b1b0975e',
 } as const
 
+const NOTICE_2026_10_30 = {
+  noticeVersion: 'merchant-ai-notice-2026-10-30.v1',
+  noticeDigest: 'dadad7b81dbda360678fc57f7265b104c7311cbc213f877f32306c53b4852a5e',
+} as const
+const NOTICE_2026_11_01 = {
+  noticeVersion: 'merchant-ai-notice-2026-11-01.v1',
+  noticeDigest: 'e9574380fd1ba5f4b7bd7b9899bc5e6bdf371f9d9871584f33c5c1e6131290ef',
+} as const
+
 const store = createMerchantAiAuthorizationStore(db, randomUUID)
 
 /** The migrations that state the notice catalogue function, oldest first. */
@@ -64,6 +73,14 @@ const FORWARD_MIGRATIONS = [
     import.meta.url,
   ),
   new URL('../../../../../drizzle/0088_reply_drafting_v2_release.sql', import.meta.url),
+  new URL(
+    '../../../../../drizzle/0099_merchant_ai_notice_retention_corrections.sql',
+    import.meta.url,
+  ),
+  new URL(
+    '../../../../../drizzle/0100_validate_merchant_ai_notice_retention_corrections.sql',
+    import.meta.url,
+  ),
 ] as const
 
 /** A migration's statements, split the way the Drizzle migrator splits them. */
@@ -314,7 +331,7 @@ afterAll(async () => {
 })
 
 describe('Merchant AI authorization store', () => {
-  it('renews the drafting-only notice once, retains analysis/trends epochs, and reads streaming deployment evidence', async () => {
+  it('accumulates analysis and drafting changes once, retains trends, and reads streaming deployment evidence', async () => {
     const before = await store.mutate(
       command({
         noticeVersion: 'merchant-ai-notice-2026-10-30.v1',
@@ -323,7 +340,7 @@ describe('Merchant AI authorization store', () => {
     )
     for (const capability of CURRENT_MERCHANT_AI_CAPABILITIES) {
       expect(underServedContract(before, capability)).toBe(
-        capability !== 'reply_drafting',
+        capability === 'property_trends',
       )
       expect(
         await hasActiveMerchantAiConsent(db, {
@@ -336,13 +353,13 @@ describe('Merchant AI authorization store', () => {
           }[capability],
           expectedFence: fence(before, capability),
         }),
-      ).toBe(capability !== 'reply_drafting')
+      ).toBe(capability === 'property_trends')
     }
-    await advanceAnalysisHead()
+    const analysisHead = await advanceAnalysisHead()
     const after = await store.mutate(
       command({
         operation: 'change',
-        idempotencyKey: 'drafting-v2-notice',
+        idempotencyKey: 'notice-renewal',
         expectedStateVersion: before.stateVersion,
         reasonCode: 'capabilities_changed',
       }),
@@ -363,15 +380,15 @@ describe('Merchant AI authorization store', () => {
       ).toBe(true)
     }
     expect(after.capabilityEpochs).toEqual({
-      review_analysis: before.capabilityEpochs.review_analysis,
+      review_analysis: before.capabilityEpochs.review_analysis + 1,
       reply_drafting: before.capabilityEpochs.reply_drafting + 1,
       property_trends: before.capabilityEpochs.property_trends,
     })
-    expect(after.analysisStartSequence).toBe(before.analysisStartSequence)
+    expect(after.analysisStartSequence).toBe(analysisHead)
     const again = await store.mutate(
       command({
         operation: 'change',
-        idempotencyKey: 'drafting-v2-notice',
+        idempotencyKey: 'notice-renewal',
         expectedStateVersion: before.stateVersion,
         reasonCode: 'capabilities_changed',
       }),
@@ -884,7 +901,7 @@ describe('Merchant AI authorization store', () => {
 
   it('keeps pre-existing historical evidence readable across the forward migrations', async () => {
     const before = await enableAsBeforeTheSwitchOn()
-    // Both migrations state merchant_ai_notice_material_changes_v1, and the later one
+    // Later migrations restate merchant_ai_notice_material_changes_v1, and the newest
     // wins, so they are replayed in journal order inside a held transaction that is
     // always rolled back. A committed replay of 0084 alone would put the superseded
     // catalogue back for every test and every suite that runs after this one.
@@ -972,26 +989,14 @@ describe('Merchant AI authorization store', () => {
   })
 
   it('matches TypeScript epochs and preserves the analysis frontier for a drafting-only material notice', async () => {
-    const initial = await enableAsBeforeTheSwitchOn()
+    const initial = await enableAsBeforeTheSwitchOn(NOTICE_2026_10_30)
     const expected = nextMerchantAiCapabilityEpochs(
       initial,
       { ...initial, operation: 'change', capabilities: CURRENT_MERCHANT_AI_CAPABILITIES },
       false,
       ['reply_drafting'],
     )
-    // Simulate the next notice's catalogue metadata only, inside a
-    // transaction that restores it before commit. Production notice text, identities and material scope stay pinned.
     await db.transaction(async (tx) => {
-      const definition = await tx.execute(
-        sql`SELECT pg_get_functiondef('public.merchant_ai_notice_material_changes_v1(character varying, character varying, character varying, character varying)'::regprocedure) AS definition`,
-      )
-      const original = String(definition.rows[0]?.definition)
-      const replacement = original.replace(
-        "ARRAY['review_analysis', 'reply_drafting', 'property_trends']::text[]),",
-        "ARRAY['reply_drafting']::text[]),",
-      )
-      expect(replacement).not.toBe(original)
-      await tx.execute(sql.raw(replacement))
       await tx.execute(
         sql`UPDATE review_ai_analysis_heads SET head_sequence = 38 WHERE organization_id = ${ORG} AND property_id = ${PROPERTY}::uuid AND source_epoch = 3`,
       )
@@ -1000,7 +1005,7 @@ describe('Merchant AI authorization store', () => {
         ARRAY['review_analysis', 'reply_drafting', 'property_trends']::text[],
         ${JSON.stringify({ review_analysis: 'review-analysis-runtime-v2', reply_drafting: 'reply-drafting-runtime-v1', property_trends: 'property-trends-runtime-v1' })}::jsonb,
         ${expected.review_analysis}, ${expected.reply_drafting}, ${expected.property_trends},
-        3, ${initial.analysisStartSequence}, ${MERCHANT_AI_NOTICE_VERSION}, ${MERCHANT_AI_NOTICE_DIGEST},
+        3, ${initial.analysisStartSequence}, ${NOTICE_2026_11_01.noticeVersion}, ${NOTICE_2026_11_01.noticeDigest},
         'google-business-profile-source-policy-v1', 1, 'global', 'private-beta-global-v2', 'gbp-review-global-v1',
         ${USER}, 'notice_reconsented', 'drafting-material-only', ${'c'.repeat(64)}, ${NOW}, ${randomUUID()}::uuid
       )).*`)
@@ -1010,8 +1015,6 @@ describe('Merchant AI authorization store', () => {
         property_trends_epoch: 1,
         analysis_start_sequence: String(initial.analysisStartSequence),
       })
-      // Restore the metadata before commit; no synthetic catalogue can escape.
-      await tx.execute(sql.raw(original))
     })
   })
 

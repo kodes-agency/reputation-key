@@ -290,6 +290,7 @@ describe('the committed constructs file', () => {
         [
           ...readMigrationDefinitions('0084_merchant_ai_consent_follows_notice'),
           ...readMigrationDefinitions('0088_reply_drafting_v2_release'),
+          ...readMigrationDefinitions('0099_merchant_ai_notice_retention_corrections'),
         ]
           .reverse()
           .find((entry) => entry.name === name)?.definition,

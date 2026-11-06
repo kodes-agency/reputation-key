@@ -14,27 +14,27 @@ describe('Merchant AI notice change catalogue', () => {
     })
   })
 
-  it.each(['../../drizzle/0088_reply_drafting_v2_release.sql', './db/db-constructs.sql'])(
-    'lists the same changes in the same order in TypeScript and %s',
-    (path) => {
-      const sql = readFileSync(new URL(path, import.meta.url), 'utf8')
-      const values = /FROM \(VALUES([\s\S]*?)\) AS notices/u.exec(sql)?.[1] ?? ''
-      const rows = [
-        ...values.matchAll(
-          /\('([^']+)', '([^']+)',\s*'([^']+)', '([^']+)',\s*ARRAY\[([^\]]*)\]::text\[\]\)/gu,
+  it.each([
+    '../../drizzle/0099_merchant_ai_notice_retention_corrections.sql',
+    './db/db-constructs.sql',
+  ])('lists the same changes in the same order in TypeScript and %s', (path) => {
+    const sql = readFileSync(new URL(path, import.meta.url), 'utf8')
+    const values = /FROM \(VALUES([\s\S]*?)\) AS notices/u.exec(sql)?.[1] ?? ''
+    const rows = [
+      ...values.matchAll(
+        /\('([^']+)', '([^']+)',\s*'([^']+)', '([^']+)',\s*ARRAY\[([^\]]*)\]::text\[\]\)/gu,
+      ),
+    ].map(
+      ([, noticeVersion, noticeDigest, previousVersion, previousDigest, changed]) => ({
+        noticeVersion,
+        noticeDigest,
+        replaces: { noticeVersion: previousVersion, noticeDigest: previousDigest },
+        materiallyChanges: [...(changed ?? '').matchAll(/'([^']+)'/gu)].map(
+          ([, capability]) => capability,
         ),
-      ].map(
-        ([, noticeVersion, noticeDigest, previousVersion, previousDigest, changed]) => ({
-          noticeVersion,
-          noticeDigest,
-          replaces: { noticeVersion: previousVersion, noticeDigest: previousDigest },
-          materiallyChanges: [...(changed ?? '').matchAll(/'([^']+)'/gu)].map(
-            ([, capability]) => capability,
-          ),
-        }),
-      )
-      expect(rows.length).toBeGreaterThan(0)
-      expect(rows).toEqual(MERCHANT_AI_NOTICE_CHANGES)
-    },
-  )
+      }),
+    )
+    expect(rows.length).toBeGreaterThan(0)
+    expect(rows).toEqual(MERCHANT_AI_NOTICE_CHANGES)
+  })
 })

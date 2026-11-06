@@ -196,7 +196,7 @@ const PINNED_ROUTES = {
       costMicros: 3797,
     },
     requestBindingKeyId: 'request-v1',
-    requestBindingHmac: 'mSdoo-ZQhdE2GD5-rORP8XOnRbgQl5mxQUdqDZu_8yk',
+    requestBindingHmac: 'AHxrr9rCMPBzauHIlHzVbV1MiVsSw2AyUgOhiVsnjSI',
     canonicalProviderBytesSha256:
       'b6f063d3da8527243da1bb8ade4597edb704afb8031fb7d162f207ae558c6dc4',
     canonicalProviderByteLength: 18090,
@@ -217,7 +217,7 @@ const PINNED_ROUTES = {
       costMicros: 719,
     },
     requestBindingKeyId: 'request-v1',
-    requestBindingHmac: 'mRwgC50lEIPpAVEkgrb74pvR9tWF_tH6dnUfj_x1FIE',
+    requestBindingHmac: 'B8lw23hy_48k3zo6zryoW8sd8i1dcU3EVK9421KHrfY',
     canonicalProviderBytesSha256:
       'b4cb8a3a87ff7777837bcb997c816e1d3849f32f3c867af03b042f0d290f2d23',
     canonicalProviderByteLength: 2441,
@@ -238,7 +238,7 @@ const PINNED_ROUTES = {
       costMicros: 1267,
     },
     requestBindingKeyId: 'request-v1',
-    requestBindingHmac: 'aXbAWv9xBVA_LikOADVdqQv_sAHxrCtHFr6e_hXXbFg',
+    requestBindingHmac: 'Jjj8KI5_jaFCQwRc2OWBFCWCaLj6Pf4q_D3ZdVQCBlY',
     canonicalProviderBytesSha256:
       '1ccada2805a47972a921007fc81325b31652b42dd632382239b535893ee6372e',
     canonicalProviderByteLength: 2962,
