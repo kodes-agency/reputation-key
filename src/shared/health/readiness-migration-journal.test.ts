@@ -19,6 +19,10 @@ vi.mock('#/shared/observability/logger', async (importOriginal) => ({
 
 import { MIGRATION_COUNT_SQL } from './migration-version'
 import { isMigrationJournalMatched } from './readiness'
+import {
+  previousJournal,
+  previousRevisionReadiness,
+} from './previous-revision-readiness.test-fixture'
 
 const journalEntries = (
   JSON.parse(
@@ -51,17 +55,46 @@ describe('isMigrationJournalMatched', () => {
     expect(mocks.warn).not.toHaveBeenCalled()
   })
 
-  it('is never ready on an image older than the database, and says that is by design', async () => {
+  it('accepts a later expand for an image with compatibility support', async () => {
     applied(journalEntries + 1)
 
+    await expect(isMigrationJournalMatched()).resolves.toBe(true)
+    expect(mocks.warn).not.toHaveBeenCalled()
+  })
+
+  it('keeps the actual previous revision ready through the compatibility release', async () => {
+    const journal = JSON.parse(
+      readFileSync(join(process.cwd(), 'drizzle/meta/_journal.json'), 'utf8'),
+    ) as typeof previousJournal
+    const previousReady = previousRevisionReadiness(mocks.query)
+    applied(previousJournal.entries.length)
+    await expect(previousReady()).resolves.toBe(true)
+    applied(journalEntries)
+    await expect(previousReady()).resolves.toBe(true)
+    expect(journal).toEqual(previousJournal)
+    applied(journalEntries)
+    await expect(isMigrationJournalMatched()).resolves.toBe(true)
+  })
+
+  it('proves why migrations must follow the compatibility release', async () => {
+    const previousReady = previousRevisionReadiness(mocks.query)
+    applied(previousJournal.entries.length + 24)
+    await expect(previousReady()).resolves.toBe(false)
+    applied(previousJournal.entries.length + 24)
+    await expect(isMigrationJournalMatched()).resolves.toBe(true)
+  })
+
+  it('ends compatibility when the database has applied a later contract', async () => {
+    const journal = JSON.parse(
+      readFileSync(join(process.cwd(), 'drizzle/meta/_journal.json'), 'utf8'),
+    ) as { entries: { when: number }[] }
+    mocks.query.mockResolvedValueOnce({
+      rows: [
+        { count: journalEntries + 1, contract_when: journal.entries.at(-1)!.when + 1 },
+      ],
+    })
+
     await expect(isMigrationJournalMatched()).resolves.toBe(false)
-    expect(mocks.warn).toHaveBeenCalledExactlyOnceWith(
-      { applied: journalEntries + 1, journalEntries },
-      '[health] this image is older than the database — more migrations are applied than its journal holds, ' +
-        'so it is never ready by design (forward-only recovery, ADR 0038). ' +
-        'Expected on the outgoing container until the newer release activates; ' +
-        'if that release never activates, this container cannot be redeployed (runbooks.md §28)',
-    )
   })
 
   it('is not ready when the applied count cannot be read', async () => {

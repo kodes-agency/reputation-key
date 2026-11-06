@@ -21,21 +21,19 @@ hours. Do not rely on the server default: `pool-session-time-zone.integration.te
 connects with a daylight-saving default and writes across a change. A session
 opened outside the pool (a script's own `pg.Client`) keeps the server default.
 
-## Schema tracks
+## Schema history
 
-1. **Drizzle journal** — `drizzle/meta/_journal.json` and one SQL file per
-   entry. The first three entries are the squashed journal as it was last
-   regenerated, on 2026-09-08: `0000_baseline.sql` holds every application
-   table as of that day, `0001_db_constructs.sql` copies `db-constructs.sql`,
-   and `0002_db_seed.sql` copies `db-seed.sql`. Every entry after them was
-   appended, one per schema or data change: drizzle-kit generated some of
-   `0003`–`0013`, and every one since `0014` is written by hand.
-   `pnpm db:migrate` applies the whole journal, including functions, triggers,
-   and DDL on Better Auth tables.
-2. **Better Auth** — `pnpm auth:migrate` owns `user`, `session`, `account`,
-   `verification`, `organization`, `member`, `invitation`, and
-   `organizationRole`. `schema/auth.ts` is a read-only Drizzle query mirror.
-   This track runs first so the DB-only constructs can reference its tables.
+`drizzle/meta/_journal.json` and its SQL files are the application schema history.
+Applied entries retain their position, timestamps and SQL. Better Auth still
+provisions its tables through the pinned runtime before the journal runs;
+`schema/auth.ts` mirrors those tables. Registered concurrent indexes still run
+through `concurrent-index-sidecar.ts` after the journal.
+
+`migrate-journal.server.ts` serializes the journal with a session advisory lock.
+Ordinary files and their journal rows commit together, one file at a time, with
+a five-second lock-wait bound. Failed files roll back; completed files survive.
+`migrate-journal.integration.test.ts` exercises actual PostgreSQL lock waits,
+journal INSERT failures, cancellation, lock release and reruns.
 
 Schema, journal, barrel, auth-mirror, DB-only construct, and deploy-runner parity are enforced by `src/shared/db/migration-verification.test.ts`, `src/shared/db/schema/schema-migration-parity.test.ts`, `src/shared/db/schema/migratable.test.ts`, and `src/shared/db/deploy-migration-runtime.test.ts`.
 
@@ -77,10 +75,13 @@ before that table exists, so the trigger is stated only in its migration and
 registered in `MIGRATION_CREATED_CONSTRUCTS` and `UNPARSED_CONSTRUCTS`
 (`construct-definitions.ts`), as `0069` does for the Response Target exclusions.
 
-An index on a table that is written continuously is not journalled: a plain
-`CREATE INDEX` holds a SHARE lock for the whole build. Add it to
-`concurrent-index-registry.ts`, leave it out of the `pgTable` and note it at the
-table; the deploy runner's sidecar builds it with `CREATE INDEX CONCURRENTLY`.
+An index on a continuously written table uses `CREATE INDEX CONCURRENTLY`.
+The existing registry remains authoritative until its journal-adoption release.
+The journal runner also supports files headed `-- migrate:nontransactional`
+containing one concurrent build: it repairs interrupted invalid indexes and
+records a row only after a valid build. If recording fails, a rerun reuses the
+completed index.
+
 The retention sweep orders every batch by its rule's timestamp, so each rule
 needs an index that leads with that column. For a delete a plain one is enough:
 matched rows leave the range. A redaction keeps its rows, so everything it has
@@ -93,57 +94,57 @@ on a rule with no index its batch can use.
 
 ## Deploy and recovery
 
-Deploy order is `pnpm auth:migrate` → `pnpm db:migrate`.
-The signed web image runs that sequence under a deployment advisory lock only
-after proving its exact cell/project/environment/service identity. Recovery is
-fix-forward-and-rerun—never hand-roll partial schema state.
+`pnpm db:migrate-deploy` runs Better Auth, the committed journal and registered
+concurrent indexes under the deploy identity guard and advisory lock, initializes
+provider-subject keys, then applies the declared capability posture.
+`pnpm db:migrate` applies the journal; `pnpm auth:migrate` runs pinned Better Auth.
 
-Both of the runner's schema tracks wait at most 5 seconds for a lock
-(`migration-lock-timeout.ts`), half the bound a pooled application session has.
-A statement waiting for a lock holds every later statement on that object in
-the queue behind it, so a migration blocked by one long query would stall the
-application on that table; the runner gives up first, fails the deploy with
-`[migrate-deploy] Lock wait:` and names the track, and a rerun converges. The
-journal is bounded on the runner's own session and is one transaction, so
-nothing of it is applied. The Better Auth track runs on the pool of
-`src/shared/auth/auth-cli.ts`, which bounds every connection it opens; it
-commits statement by statement, so it keeps what it added before the wait and
-adds only what is missing on the rerun. The bound is on the wait, not the hold:
-every pending journal file runs in that one transaction, so a lock the first
-file takes is kept until the last file's statements finish. Keep long backfills
-out of a release that also alters a hot table.
+New existing-table CHECK additions require `NOT VALID`; put `VALIDATE CONSTRAINT`
+in a separate file so the validation scan cannot extend the DDL transaction.
+The original tags, timestamps and SQL hashes of pre-existing history are retained
+as compatibility exceptions in `legacy-migration-hashes.json`; edited SQL or a
+different journal identity gets no exception. The runner also refuses a file
+whose hash differs from its applied journal row.
 
-Recovery is also forward-only (ADR 0038, amended 2026-10-12). The deploy runner
-and the readiness probe require the applied migration count to equal the image's
-journal, and `migration-journal-state.ts` names the direction of a mismatch for
-both. Fewer applied than the journal is an incomplete deploy: a rerun converges.
-More applied than the journal means the image is older than the database: it is
-refused by design, no rerun converges, and the repair is a fix deployed forward
-(`docs/operations/runbooks.md` §28). `migration-journal-state.test.ts` pins both
-messages.
+Deploy readiness compatibility with the existing journal before appending any
+migrations: an outgoing image that requires exact counts becomes unready as soon
+as an expand is recorded. `readiness-migration-journal.test.ts` executes the pinned
+previous revision's probe and journal; `readiness-rollout.integration.test.ts`
+checks that transition against PostgreSQL, including the old journal table shape.
+Only after both services run the compatibility release may auth/index adoption
+append migrations and replace their existing provisioning paths.
 
-The count reads the same for an image whose journal lost an applied migration.
-So a migration file and its journal entry are never deleted once a deployed
-database has applied them, and a commit that touched `drizzle/` is never plainly
-reverted: revert the code and keep `drizzle/` and the schema model, or undo the
-schema change with a new migration. Nothing in CI catches a shortened journal,
-because CI migrates an empty database from the same checkout. On a developer
-machine the same refusal from `pnpm db:migrate-deploy` only means the checkout
-is behind the local database: bring the checkout up to date, or start the local
-database again with `pnpm db:reset` (it drops the database; localhost only).
+Only explicitly supported expand forms bypass contraction preflight: new tables,
+nullable column additions or additions with constant defaults, nonunique concurrent
+indexes, named `NOT VALID` constraints and separate constraint validation. Every
+other form requires reader-removal evidence, including unrecognised statements
+and `ALTER COLUMN ... DROP DEFAULT`, which can break inserts from older images.
+
+Thereafter expands preserve readiness for the previous image. An incomplete
+journal keeps the new image unready. A contract file declares
+`-- migrate:contract <reader-removal commit>`; deployment preflight reads the
+target revision's SQL and checks the database journal for pending contractions.
+Only pending contractions require verification of both healthy running web and
+worker digests against their release's CI images and removal-commit ancestry
+before any deploy mutation. A later applied contract makes an older journal
+unready. The migration command itself still refuses an authority older than the
+database.
+
+Never delete an applied migration to revert application code. Recover forward,
+rerun the journal and leave completed files intact. Keep long backfills outside
+schema transactions. Each file holds acquired locks until its commit; the wait
+bound limits waiting, not transaction duration.
 
 `migration-verification.test.ts` compares the migrated PostgreSQL catalogue with
 the full model in both directions: columns, types, defaults, keys, checks, foreign
 keys/actions, indexes, predicates, enums, registered constructs, and journal
 continuity. `pnpm check:schema-drift` exposes the same comparator for operators.
 
-The journal is appended by hand, so the comparator checks the file before it
-looks at a database (`migration-journal-order.ts`): each entry's `idx` is its
-position, its `when` is above the entry before it, a tag is journalled once, and
-every entry has its SQL file and every SQL file its entry. drizzle applies an
-entry only when its `when` is greater than the newest applied row, so an entry
-that does not rise is applied on CI's empty database and skipped on a migrated
-one. The last `when` is dated ahead of the calendar: step a new entry from the
+The journal is appended by hand. `migration-journal-order.ts` checks that each
+entry's `idx` is its position, `when` rises, tags are unique, and every SQL file
+has exactly one entry. Applied rows are matched by timestamp and verified by
+file hash, including after a prerequisite commits before historical files.
+The last `when` is dated ahead of the calendar: step a new entry from the
 previous one (100,000,000 ms) instead of stamping real time.
 `migration-journal-order.test.ts` runs the file check with no database.
 
@@ -202,9 +203,10 @@ capability killed. The deploy runner lifts only the ones the environment declare
 (`GOOGLE_CONTENT_CAPABILITIES_ALLOWED`, `AI_CAPABILITIES_ENABLED`) and only while
 they are still that seed default — ADR 0032, amended 2026-09-29.
 
-`schema/auth.ts` must match the tables produced by the pinned Better Auth migrator,
-including names, types, nullability, and defaults. Drizzle never migrates this
-mirror. DB-only DDL on those tables lives in `db-constructs.sql` and is parity-tested.
+`schema/auth.ts` must match the committed auth SQL and pinned Better Auth configuration,
+including names, types, nullability, and defaults. The pinned Better Auth runtime
+provisions these tables. DB-only DDL on those tables lives in `db-constructs.sql`
+and is parity-tested.
 
 ## Boundaries
 
