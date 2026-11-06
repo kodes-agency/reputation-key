@@ -48,12 +48,12 @@ export const Targets: Story = {
     await checkPhoneWidths(doc)
     for (const control of canvas.getAllByRole('switch')) {
       if (control.hasAttribute('disabled')) continue
+      // The pad spans 44 px leftwards from the track's right edge and 44 px tall.
       const rect = control.getBoundingClientRect()
-      const x = rect.left + rect.width / 2
       const y = rect.top + rect.height / 2
-      for (const dx of [-21, 21]) {
+      for (const x of [rect.right - 2, rect.right - 42]) {
         for (const dy of [-21, 21]) {
-          const hit = doc.elementFromPoint(x + dx, y + dy)
+          const hit = doc.elementFromPoint(x, y + dy)
           expect(hit === control || (hit !== null && control.contains(hit))).toBe(true)
         }
       }
