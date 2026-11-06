@@ -1,7 +1,22 @@
-// Portal context — shared shape and guard for the domain event modules
-// (events.ts, portal-link-events.ts, portal-group-events.ts).
-
 import { assert } from '#/shared/domain/assert'
+import { newEventId } from '#/shared/domain/event-id'
+import type { OrganizationId, PropertyId } from '#/shared/domain/ids'
+
+export type PortalFact<Tag extends string, Payload> = Readonly<
+  Payload & {
+    _tag: Tag
+    eventId: string
+    organizationId: OrganizationId
+    propertyId: PropertyId
+    occurredAt: Date
+    correlationId: string | null
+  }
+>
+
+export type PortalLifecycleFact<Tag extends string, Payload> = PortalFact<
+  Tag,
+  Payload & { sourceAggregateVersion: string }
+>
 
 export type PortalEventArgs<T> = Omit<T, '_tag' | 'eventId' | 'correlationId'> &
   Readonly<{ correlationId?: string | null }>
@@ -16,4 +31,14 @@ export function assertPortalLifecycleFact(args: {
       new Date(args.sourceAggregateVersion).toISOString() === args.sourceAggregateVersion,
     'sourceAggregateVersion must be an ISO timestamp',
   )
+}
+
+export function createPortalEvent<
+  const T extends { _tag: string; correlationId?: string | null },
+>(args: T) {
+  return {
+    eventId: newEventId(),
+    ...args,
+    correlationId: args.correlationId ?? null,
+  }
 }
