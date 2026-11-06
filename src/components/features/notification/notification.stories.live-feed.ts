@@ -11,7 +11,7 @@ import {
   QueryObserver,
   type QueryClient,
 } from '@tanstack/react-query'
-import { notificationKeys } from '#/shared/queries/query-keys'
+import { createKeys } from '#/shared/queries/query-keys'
 import type { NotificationFeedCursor } from '#/contexts/feed/application/public-api'
 import {
   makeNotification,
@@ -23,6 +23,8 @@ import {
   notificationHeadQueryOptions,
   notificationHistoryQueryOptions,
 } from './notification-feed-pagination'
+
+const { notificationKeys } = createKeys({ userId: 'user-1', organizationId: 'org-1' })
 
 export const LIVE_FEED_LIMIT = 20
 const FEED_START = Date.parse('2026-09-01T12:00:00.000Z')

@@ -1,3 +1,4 @@
+import { useTenantScope } from '#/shared/hooks/useTenantScope'
 // The workspace's review page: where a manager checks what guests will see
 // before publishing. Publishing is a write, so it is gated like one; a viewer
 // who cannot update the portal is told so, with a way back to the portal, rather
@@ -64,7 +65,7 @@ function PortalWorkspaceReview() {
   const { data: review } = useSuspenseQuery(portalReviewQuery(portalId))
   const { data: propData } = useSuspenseQuery(propertyQuery(propertyId))
   const { data: managers } = useSuspenseQuery(responsibleManagersQuery(portalId))
-  const { data: membersData } = useSuspenseQuery(membersQuery)
+  const { data: membersData } = useSuspenseQuery(membersQuery(useTenantScope()))
   const actions = usePortalDetailActions(propertyId, portalId)
   const { portal } = portalData
   if (!portal) throw notFound()

@@ -1,3 +1,4 @@
+import { useTenantScope } from '#/shared/hooks/useTenantScope'
 // fallow-ignore-file code-duplication
 // r4 s38: parallel dialog forms, server-function shells and ledger rows share intentional boilerplate.
 // Portal list — shows all portals for a property
@@ -66,7 +67,7 @@ function PortalListRoute() {
   // Names for the responsible managers' discs. An enrichment, not the page: a
   // role that cannot list members, or an outage, leaves the discs without initials.
   const members = useQuery({
-    ...membersQuery,
+    ...membersQuery(useTenantScope()),
     enabled: canDo('member.list'),
     retry: false,
   })

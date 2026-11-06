@@ -1,3 +1,4 @@
+import { type TenantScope } from '#/shared/queries/tenant-scope'
 import {
   InfiniteQueryObserver,
   type Query,
@@ -9,7 +10,7 @@ import type {
   NotificationListFilter,
   NotificationPage,
 } from '#/contexts/feed/application/public-api'
-import { notificationKeys } from '#/shared/queries/query-keys'
+import { createKeys } from '#/shared/queries/query-keys'
 import { matchesNotificationFilter } from './notification-filters'
 import type { NotificationHistoryPages } from './notification-feed-pagination'
 import {
@@ -137,6 +138,7 @@ const clearedFor = (
  */
 export function patchNotificationFeedCache(
   qc: QueryClient,
+  scope: TenantScope,
   organizationId: string,
   patch: RowPatch,
   options: Readonly<{
@@ -144,6 +146,7 @@ export function patchNotificationFeedCache(
     clearsUnreadOf?: NotificationListFilter
   }> = {},
 ): (() => void) | undefined {
+  const { notificationKeys } = createKeys(scope)
   // A read already in flight (opening the bell starts one, and so does every
   // poll) answers with the feed from before this write, and would land on top
   // of it: the badge would go 5 → 0 → 5 → 0. Cancelling reverts that query to

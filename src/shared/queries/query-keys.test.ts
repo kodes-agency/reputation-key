@@ -1,18 +1,42 @@
 import { describe, expect, it } from 'vitest'
 import { hashKey } from '@tanstack/react-query'
-import * as queryKeys from './query-keys'
+import * as unscopedQueryKeys from './query-keys'
 import {
   dashboardKeys,
   goalKeys,
-  identityKeys,
-  integrationKeys,
   platformKeys,
   portalKeys,
   propertyKeys,
-  staffSelfKeys,
+  createKeys,
 } from './query-keys'
 
+const { identityKeys, integrationKeys, staffSelfKeys } = createKeys({
+  userId: 'user-1',
+  organizationId: 'org-1',
+})
+const { createKeys: _, ...remainingKeys } = unscopedQueryKeys
+const queryKeys = {
+  ...remainingKeys,
+  ...createKeys({ userId: 'user-1', organizationId: 'org-1' }),
+}
+
 describe('query key uniqueness', () => {
+  it('keeps unscoped factories limited to the remaining feature groups', () => {
+    expect(Object.keys(remainingKeys).sort()).toEqual([
+      'aiKeys',
+      'dashboardKeys',
+      'goalKeys',
+      'guestKeys',
+      'inboxKeys',
+      'platformKeys',
+      'portalKeys',
+      'productUpdateKeys',
+      'propertyKeys',
+      'reviewKeys',
+      'staffKeys',
+    ])
+  })
+
   it('gives every factory a distinct root', () => {
     const roots = Object.values(queryKeys).map((factory) => hashKey(factory.all))
     expect(new Set(roots).size).toBe(roots.length)
@@ -39,9 +63,11 @@ describe('identity query keys', () => {
   it('keeps the organization AI overview beside, not inside, per-property consent snapshots', () => {
     expect(identityKeys.merchantAiOverview()).toEqual([
       'identity',
+      'user-1',
+      'org-1',
       'merchant-ai-overview',
     ])
-    expect(identityKeys.merchantAiAuthorization('property-1').slice(0, 2)).not.toEqual(
+    expect(identityKeys.merchantAiAuthorization('property-1').slice(0, -1)).not.toEqual(
       identityKeys.merchantAiOverview(),
     )
   })
@@ -60,6 +86,8 @@ describe('member property access query key', () => {
   it('nests the Property access grants under the member list, so a members invalidation refreshes them', () => {
     expect(identityKeys.memberPropertyAccess()).toEqual([
       'identity',
+      'user-1',
+      'org-1',
       'members',
       'property-access',
     ])
@@ -93,6 +121,8 @@ describe('volatile provider query keys', () => {
   it('isolates imported provider content by view epoch and lease', () => {
     expect(integrationKeys.googleImportAccounts('org-1', 'connection-1', 4)).toEqual([
       'integrations',
+      'user-1',
+      'org-1',
       'google-import-content',
       'org-1',
       'connection-1',
@@ -103,6 +133,8 @@ describe('volatile provider query keys', () => {
       integrationKeys.googleImportCandidates('org-1', 'connection-1', 'account-1', 4),
     ).toEqual([
       'integrations',
+      'user-1',
+      'org-1',
       'google-import-content',
       'org-1',
       'connection-1',
@@ -114,6 +146,8 @@ describe('volatile provider query keys', () => {
       integrationKeys.googleImportLease('org-1', 'connection-1', 'lease-1', 4),
     ).toEqual([
       'integrations',
+      'user-1',
+      'org-1',
       'google-import-content',
       'org-1',
       'connection-1',

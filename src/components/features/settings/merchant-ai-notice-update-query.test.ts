@@ -1,12 +1,14 @@
 import { QueryClient } from '@tanstack/react-query'
 import { describe, expect, it, vi } from 'vitest'
-import { identityKeys } from '#/shared/queries/query-keys'
+import { createKeys } from '#/shared/queries/query-keys'
 import { MERCHANT_AI_NOTICE_ANNOUNCEMENTS } from '#/shared/merchant-ai-notice-announcements'
 import type { MerchantAiNoticeUpdate } from '#/shared/merchant-ai-notice-announcements'
 import {
   merchantAiNoticeUpdateKey,
   merchantAiNoticeUpdateQuery,
 } from './merchant-ai-notice-update-query'
+
+const { identityKeys } = createKeys({ userId: 'user-1', organizationId: 'org-1' })
 
 const scope = { userId: 'user-1', organizationId: 'org-1' }
 const update: MerchantAiNoticeUpdate = {
@@ -26,8 +28,6 @@ describe('the pending AI update query', () => {
     expect(merchantAiNoticeUpdateKey(scope)).toEqual([
       ...identityKeys.merchantAiNotice(),
       'updates',
-      'user-1',
-      'org-1',
     ])
     expect(merchantAiNoticeUpdateKey({ ...scope, organizationId: 'org-2' })).not.toEqual(
       merchantAiNoticeUpdateKey(scope),

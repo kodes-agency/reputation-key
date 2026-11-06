@@ -32,7 +32,8 @@
 // across replicas to be correct, and 30s polling is not the bottleneck today.
 
 import { useQuery, useInfiniteQuery, useQueryClient } from '@tanstack/react-query'
-import { notificationKeys } from '#/shared/queries/query-keys'
+import { createKeys } from '#/shared/queries/query-keys'
+import type { TenantScope } from '#/shared/queries/tenant-scope'
 import {
   DEFAULT_NOTIFICATION_FORMAT,
   type NotificationFormat,
@@ -54,6 +55,7 @@ import type {
 } from '#/contexts/feed/application/public-api'
 
 export function useNotifications(
+  tenantScope: TenantScope,
   getFeedHead: typeof getNotificationFeedHeadFn,
   getList: typeof getNotificationsFn,
   organizationId: string,
@@ -63,6 +65,7 @@ export function useNotifications(
   /** The page's Property filter; absent reads the whole feed. */
   propertyId?: string,
 ) {
+  const { notificationKeys } = createKeys(tenantScope)
   const qc = useQueryClient()
   const historyKey = notificationKeys.list(organizationId, limit, filter, propertyId)
   const headKey = notificationKeys.head(organizationId, limit, filter, propertyId)
@@ -123,9 +126,11 @@ export function useNotifications(
  * browser's) so the server render and the first client render agree.
  */
 export function useNotificationFormat(
+  tenantScope: TenantScope,
   getUserSettings: typeof getNotificationUserSettingsFn,
   organizationId: string,
 ): NotificationFormat {
+  const { notificationKeys } = createKeys(tenantScope)
   const query = useQuery({
     queryKey: notificationKeys.userSettings(organizationId),
     queryFn: () => getUserSettings(),
