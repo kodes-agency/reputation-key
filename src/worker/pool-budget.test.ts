@@ -5,8 +5,8 @@
 // the exact-current applies shared the same 10 clients, and a 244-review import
 // on the closed beta starved the pool.
 
-import { readFileSync } from 'node:fs'
 import { describe, expect, it } from 'vitest'
+import { RAILWAY_SERVICE_SETTINGS } from '#/shared/release/railway-service-settings'
 import { AI_BACKLOG_DRAIN_CONCURRENCY } from '#/contexts/ai/application/use-cases/drain-review-analysis-backlog'
 import {
   REVIEW_EXACT_CURRENT_APPLY_CLIENTS,
@@ -31,17 +31,6 @@ import {
  * `drainingSeconds`, so each service can briefly hold two pools.
  */
 const DEPLOY_OVERLAP = 2
-
-function replicas(config: URL): number {
-  const parsed = JSON.parse(readFileSync(config, 'utf8')) as {
-    deploy?: { numReplicas?: unknown }
-  }
-  const count = parsed.deploy?.numReplicas
-  if (typeof count !== 'number' || !Number.isSafeInteger(count) || count < 1) {
-    throw new Error(`${config.pathname} declares no replica count`)
-  }
-  return count
-}
 
 describe('worker pool budget', () => {
   it('sizes the pool to the sum of every budgeted consumer', () => {
@@ -76,11 +65,9 @@ describe('worker pool budget', () => {
   })
 
   it('fits web and worker, both mid-deploy, under the database connection limit', () => {
-    const webConnections =
-      replicas(new URL('../../railway.json', import.meta.url)) * POOL_MAX_CONNECTIONS
+    const webConnections = RAILWAY_SERVICE_SETTINGS.web.numReplicas * POOL_MAX_CONNECTIONS
     const workerConnections =
-      replicas(new URL('../../railway.worker.json', import.meta.url)) *
-      WORKER_POOL_MAX_CONNECTIONS
+      RAILWAY_SERVICE_SETTINGS.worker.numReplicas * WORKER_POOL_MAX_CONNECTIONS
     const available =
       DATABASE_CONNECTION_LIMIT.maxConnections -
       DATABASE_CONNECTION_LIMIT.superuserReserved

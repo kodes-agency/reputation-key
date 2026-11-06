@@ -22,6 +22,8 @@ Primary areas:
 - `domain/`, `http/`, `email/`, `cache/`, and `lifecycle/` hold small mechanisms.
 - `hooks/` and `queries/` are browser-safe cross-feature access/cache utilities.
 - `ops/` and `release/` own reviewed operational and promotion contracts.
+  `release/railway-service-settings.ts` defines web and worker settings; image
+  promotion checks deployed manifests and replica counts against that contract.
 
 Notification, Integration, Staff self, Identity and Product updates query families
 come from `queries/query-keys.ts`'s `createKeys(scope)`. `TenantScope` names the signed-in
