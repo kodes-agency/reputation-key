@@ -1,10 +1,12 @@
 import { describe, expect, it } from 'vitest'
+import { DatabaseError } from 'pg'
 import {
   FAILED_WRITE_CONSTRAINT,
   failedFeedbackWrite,
 } from '#/shared/db/testing/database-failure-fixtures'
 import {
   isPrettyTransportAvailable,
+  getLogger,
   normalizeTelemetryPath,
   sanitizeTelemetryValue,
 } from './logger'
@@ -20,6 +22,104 @@ describe('development log transport', () => {
         throw new Error('module unavailable')
       }),
     ).toBe(false)
+  })
+})
+
+describe('final structured log safety', () => {
+  const lines: string[] = []
+  const logger = getLogger({ write: (line: string) => lines.push(line) })
+
+  it.each([
+    'error',
+    'err',
+    'message',
+    'errorMessage',
+    'error_message',
+    'failureReason',
+    'failure_reason',
+  ])('redacts a database failure flattened into %s, including nested fields', (field) => {
+    const marker = 'private bound customer value'
+    const failure = failedFeedbackWrite(marker)
+    logger.error(
+      { [field]: failure.message, nested: [{ [field]: failure.message }] },
+      'Database write failed',
+    )
+
+    const line = lines.at(-1)!
+    expect(line).not.toContain(marker)
+    expect(JSON.parse(line)).toMatchObject({
+      [field]: '[Redacted]',
+      nested: [{ [field]: '[Redacted]' }],
+      msg: 'Database write failed',
+    })
+  })
+
+  it('redacts the dispatcher failure reason while retaining error facts and correlation', () => {
+    const marker = 'private customer input'
+    const err = Object.assign(
+      new DatabaseError(`invalid input syntax for type uuid: "${marker}"`, 120, 'error'),
+      { severity: 'ERROR', code: '22P02' },
+    )
+    logger.error(
+      {
+        err,
+        correlationId: 'correlation-1',
+        consumerName: 'inbox.project-review',
+        failureReason: `${err.name}: ${err.message.split('\n')[0] ?? ''}`.slice(0, 200),
+      },
+      'Consumer handler failed — job will fail after remaining consumers run',
+    )
+
+    const line = lines.at(-1)!
+    expect(line).not.toContain(marker)
+    expect(JSON.parse(line)).toMatchObject({
+      err: { name: 'error', code: '22P02', db_code: '22P02' },
+      correlationId: 'correlation-1',
+      consumerName: 'inbox.project-review',
+      failureReason: '[Redacted]',
+      msg: 'Consumer handler failed — job will fail after remaining consumers run',
+    })
+  })
+
+  it('allowlists a plain error record while retaining safe status and code', () => {
+    const marker = 'private bound customer value'
+    logger.error(
+      {
+        error: {
+          name: 'DatabaseError',
+          code: 'write_failed',
+          status: 500,
+          message: marker,
+          detail: marker,
+          params: [marker],
+          cause: { detail: marker },
+        },
+      },
+      'Database write failed',
+    )
+
+    const line = lines.at(-1)!
+    expect(line).not.toContain(marker)
+    expect(JSON.parse(line).error).toEqual({
+      name: 'DatabaseError',
+      code: 'write_failed',
+      status: 500,
+    })
+  })
+
+  it('preserves the safe Error-object serializer in the final log line', () => {
+    const marker = 'private bound customer value'
+    logger.error({ error: failedFeedbackWrite(marker) }, 'Database write failed')
+
+    const line = lines.at(-1)!
+    expect(line).not.toContain(marker)
+    expect(JSON.parse(line).error).toEqual({
+      name: 'DrizzleQueryError',
+      cause_code: '23505',
+      db_code: '23505',
+      db_constraint: FAILED_WRITE_CONSTRAINT,
+      db_table: 'feedback',
+    })
   })
 })
 
