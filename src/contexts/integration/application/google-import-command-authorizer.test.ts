@@ -159,6 +159,53 @@ function setup(
 }
 
 describe('authorizeGoogleImportCommand', () => {
+  it('refuses content authority withdrawn during token access without a credential change', async () => {
+    let tokenRead = false
+    const fixture = setup({
+      authorizeGoogleContent: async () =>
+        tokenRead ? { ok: false, code: 'authorization_denied' } : contentAuthorization(),
+    })
+    fixture.getAccessToken.mockImplementation(async () => {
+      tokenRead = true
+      return 'plain-access-token'
+    })
+
+    await expect(
+      fixture.authorize({
+        actor,
+        connectionId,
+        phase: 'provider_call',
+        requireAccessToken: true,
+      }),
+    ).resolves.toEqual({ ok: false, code: 'authorization_denied' })
+  })
+
+  it('refuses a relink target changed during token access', async () => {
+    const fixture = setup()
+    fixture.getAccessToken.mockImplementation(async () => {
+      const property = await fixture.readProperty()
+      fixture.readProperty.mockResolvedValue({ ...property, sourceEpoch: 9 })
+      return 'plain-access-token'
+    })
+
+    await expect(
+      fixture.authorize({
+        actor,
+        connectionId,
+        phase: 'provider_call',
+        requireAccessToken: true,
+        properties: [
+          {
+            propertyId: destinationId,
+            sourceEpoch: 8,
+            profileVersion: 6,
+            action: 'property.update',
+          },
+        ],
+      }),
+    ).resolves.toEqual({ ok: false, code: 'authorization_changed' })
+  })
+
   it('returns a connection generation snapshot only after both capability decisions', async () => {
     const { authorize, decide, getAccessToken } = setup()
 
@@ -169,7 +216,18 @@ describe('authorizeGoogleImportCommand', () => {
       requireAccessToken: true,
     })
 
-    expect(decide).toHaveBeenCalledTimes(2)
+    expect(decide.mock.calls.map(([request]) => request.capability)).toEqual([
+      'property.import_gbp_v2',
+      'property.connect_gbp',
+      'property.import_gbp_v2',
+      'property.connect_gbp',
+    ])
+    expect(decide.mock.invocationCallOrder[1]).toBeLessThan(
+      getAccessToken.mock.invocationCallOrder[0]!,
+    )
+    expect(decide.mock.invocationCallOrder[2]).toBeGreaterThan(
+      getAccessToken.mock.invocationCallOrder[0]!,
+    )
     expect(getAccessToken).toHaveBeenCalledWith(actor.organizationId, connectionId)
     expect(result).toMatchObject({
       ok: true,

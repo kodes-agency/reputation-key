@@ -69,6 +69,15 @@ notification, import, Review fallback, and recovery execute through governed
 routes. Durable outbox dispatch is always on; worker boot fails when delivery
 dependencies are unavailable.
 
+The import, Performance, sync and publication authorizers share vector fields
+with the transactional content resolver. Sync and publication share the
+tenant-scoped binding and connection read; Performance keeps its interactive
+scope, connection and content checks separate. Token access is bracketed by
+authority checks; a routine refresh may advance credentials, but changed tenant,
+member, Property or connection authority is refused. Permit admission checks
+again and the SQL start predicate remains the final send fence. Notification
+management retains its own system principal through the sync authorizer.
+
 GBP push is desired state per Google account: each account bound to an active
 Property publishes to `GBP_PUBSUB_TOPIC`. An import item asserts it, and the
 daily `reconcile-gbp-notification-subscriptions` job re-asserts it for every
