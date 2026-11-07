@@ -11,6 +11,7 @@ export const COMMANDS: Readonly<
   'ai-reopen-analyses': ['scripts/ops/ai-reopen-analyses.ts'],
   'bootstrap-owner': ['scripts/ops/bootstrap-owner.ts'],
   'check-google-oauth': ['scripts/ops/check-google-oauth.ts'],
+  'db-roles': ['scripts/ops/db-roles.ts'],
   'deploy-ci-images': ['scripts/ops/deploy-ci-images.ts'],
   'disconnect-connection': ['scripts/ops/disconnect-connection.ts'],
   'feedback-issue': ['scripts/ops/feedback-issue.ts'],
