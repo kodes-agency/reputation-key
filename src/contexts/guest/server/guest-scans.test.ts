@@ -33,6 +33,7 @@ const mocks = vi.hoisted(() => ({
   enrichSpan: vi.fn(),
   issueSession: vi.fn(),
   responseState: vi.fn(),
+  getDropped: vi.fn(),
   resolveLinkAndTrack: vi.fn(),
 }))
 
@@ -100,6 +101,7 @@ vi.mock('#/composition', () => ({
           issue: mocks.issueSession,
         },
         responseLifecycle: { getState: mocks.responseState },
+        responseCeiling: { getDropped: mocks.getDropped },
         resolveLinkAndTrack: mocks.resolveLinkAndTrack,
         guestPublicRuntime: { hashNetworkPseudonym: mocks.hashNetworkPseudonym },
         consumeGuestNetworkPressure: mocks.consumeGuestNetworkPressure,
@@ -442,6 +444,25 @@ describe('a print code on the guest routes', () => {
         guestLocale: 'en',
       })
       mocks.responseState.mockResolvedValue(null)
+      mocks.getDropped.mockResolvedValue(null)
+    })
+
+    it('recovers the dropped receipt on reload without writing another response', async () => {
+      mocks.getPublicPortal.mockResolvedValue(page('long'))
+      const dropped = {
+        dropped: true,
+        status: 'submitted',
+        rating: null,
+        correctionAvailable: false,
+        responseWithdrawalAvailable: false,
+      }
+      mocks.getDropped.mockResolvedValue(dropped)
+      const loaded = await getPublicPortal({ data: { token: 'pt_live' } })
+      expect(loaded.response).toEqual(dropped)
+      expect(mocks.getDropped).toHaveBeenCalledWith(
+        expect.objectContaining({ portalId: PORTAL_ID }),
+        expect.objectContaining({ sessionId: SESSION_ID }),
+      )
     })
 
     it.each(['long', 'short'] as const)(

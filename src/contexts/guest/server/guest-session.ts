@@ -22,6 +22,14 @@ export type GuestSessionScope = Readonly<{
 }>
 
 export type GuestSessionManager = Readonly<{
+  rememberDroppedResponse(
+    session: GuestSession,
+    rating: number,
+    submittedAt: Date,
+  ): Readonly<{
+    session: GuestSession
+    cookies: readonly [string, string, string]
+  }>
   issue(
     scope: GuestSessionScope,
     guestLocale?: GuestLocale,
@@ -54,7 +62,23 @@ type SignedSessionPayload = Readonly<{
   expires: string
   /** Optional for backward compatibility with already-issued v1 cookies. */
   locale?: GuestLocale
+  dropped?: GuestSession['droppedResponse']
 }>
+
+function readDroppedResponse(
+  dropped: SignedSessionPayload['dropped'],
+): GuestSession['droppedResponse'] {
+  if (
+    dropped &&
+    Number.isInteger(dropped.rating) &&
+    dropped.rating >= 1 &&
+    dropped.rating <= 5 &&
+    Number.isFinite(Date.parse(dropped.submittedAt))
+  ) {
+    return dropped
+  }
+  return undefined
+}
 
 function readCookie(cookieHeader: string): string | null {
   for (const part of cookieHeader.split(';')) {
@@ -95,6 +119,7 @@ export function createGuestSessionManager(
       issued: session.issuedAt.toISOString(),
       expires: session.expiresAt.toISOString(),
       ...(session.guestLocale ? { locale: session.guestLocale } : {}),
+      ...(session.droppedResponse ? { dropped: session.droppedResponse } : {}),
     }
     const encoded = Buffer.from(JSON.stringify(payload)).toString('base64url')
     const cookieAttrs = buildCookieAttributes(session, input.secureCookies)
@@ -118,6 +143,22 @@ export function createGuestSessionManager(
   }
 
   return {
+    rememberDroppedResponse: (session, rating, submittedAt) => {
+      if (
+        !Number.isInteger(rating) ||
+        rating < 1 ||
+        rating > 5 ||
+        !Number.isFinite(submittedAt.getTime())
+      ) {
+        throw new Error('Invalid dropped response receipt')
+      }
+      return serialize({
+        ...session,
+        issuedAt: input.clock(),
+        expiresAt: new Date(submittedAt.getTime() + 24 * 60 * 60 * 1000),
+        droppedResponse: { rating, submittedAt: submittedAt.toISOString() },
+      })
+    },
     issue: (scope, guestLocale) => {
       const session = createSession({
         sessionId: guestSessionId(randomId()),
@@ -180,7 +221,9 @@ export function createGuestSessionManager(
         ) {
           return null
         }
+        const droppedResponse = readDroppedResponse(payload.dropped)
         const session: GuestSession = {
+          ...(droppedResponse ? { droppedResponse } : {}),
           sessionId: guestSessionId(payload.sid),
           csrfNonce: payload.csrf,
           organizationId: organizationId(payload.org),

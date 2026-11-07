@@ -96,13 +96,19 @@ keep their 429 and the fail-closed rule. Whenever any network-and-Portal layer i
 exhausted, filtered submit included, one content-free warning
 `guest.network_budget_exhausted` names the action and nothing else: never the address,
 its pseudonym or a session, and not the Organization or the Portal either, because the
-log policy (BQC-7.3) bans tenant identifiers in log objects. Residual gap: a client that
-drops its cookie can place up to 60 accepted ratings an hour on a Portal from one address
-(it was 5); the rest are kept but filtered, and nothing bounds how many it stores. Only the
-rating is filtered: the Google open and the private note that follow a filtered rating
-still count in Results, within their own budgets (300 and 60 an hour). Whether to bound
-session issuance as well is an owner tuning decision and has not been taken: a limit by
-network would also bind the guests of one venue who share an address.
+log policy (BQC-7.3) bans tenant identifiers in log objects. After these controls, `application/use-cases/response-ceiling.server.ts` reserves each new response
+once: 300 per Portal per UTC hour, 2,000 per Portal per UTC day, and 5,000 per
+Organization per UTC day. PostgreSQL serializes reservations by Organization;
+content-free pressure records make retries idempotent. Existing responses and
+follow-up actions spend no additional slot. Beyond the ceiling no response or
+content row is written. The signed session cookie carries the temporary rating
+receipt; reload checks the admission outcome, retaining thank-you and Google and
+hiding correction, withdrawal and private feedback. The Google action navigates
+without a selection fact for an unstored response. One content-free warning per
+exhausted window identifies only its kind. `application/use-cases/response-ceiling-budgets.ts`
+owns the three constants. Admission outcomes use the existing seven-day pressure retention; a purpose- and
+scope-separated HMAC of the session identifies each record without storing its
+UUID. They stop deciding anything at the signed-session deadline.
 
 The signed session ends 24 hours after the guest opens the Portal, or 24 hours after
 their rating or private feedback if that is later. Its own records follow it: the
