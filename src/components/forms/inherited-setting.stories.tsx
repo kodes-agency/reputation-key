@@ -1,8 +1,6 @@
-// InheritedSetting: "follow the parent, or set my own", in both commit modes. Dark is
-// the default theme; the light variants render the same row on the light surface (axe
-// runs on both). The Storybook Vitest project compiles no Tailwind, so the plays pin
-// behaviour and wiring (what the row says it follows, the button that swaps the state,
-// the link to the owner, the busy button while an immediate row saves), not colours.
+// Follow the parent or set an override, with deferred and immediate saves.
+// The same interactions and accessibility checks run in both themes.
+import { playInThemes } from '../../../.storybook/play-in-themes'
 import { useState } from 'react'
 import type { Meta, StoryObj } from '@storybook/react'
 import { expect, userEvent, waitFor, within } from 'storybook/test'
@@ -11,11 +9,6 @@ import { InlineLink } from '#/components/ui/inline-link'
 import { Input } from '#/components/ui/input'
 import { InheritedSetting } from './inherited-setting'
 
-/** Stands in for the utilities layer, which this runner does not compile: a link in a sentence stays underlined (axe link-in-text-block). */
-const UTILITY_LAYER = `@layer utilities {
-  .underline { text-decoration-line: underline; }
-}`
-
 /** A Property's target in a group that saves on its Save: the buttons only change what Save will send. */
 function DeferredTarget({
   startsOverridden = false,
@@ -23,7 +16,6 @@ function DeferredTarget({
   const [overridden, setOverridden] = useState(startsOverridden)
   return (
     <div className="flex max-w-xl flex-col gap-4">
-      <style>{UTILITY_LAYER}</style>
       <InheritedSetting
         source={
           <InlineLink to="/settings/organization" underline="always">
@@ -58,7 +50,6 @@ function ImmediateWindow() {
   const [pending, setPending] = useState(false)
   return (
     <div className="max-w-xl">
-      <style>{UTILITY_LAYER}</style>
       <InheritedSetting
         source={
           <InlineLink to="/settings/notifications" underline="always">
@@ -122,7 +113,7 @@ type Story = StoryObj
 /** While inherited it says what it follows and what that is worth, and links to the owner; Override starts a value of its own. */
 export const DeferredInherited: Story = {
   render: () => <DeferredTarget />,
-  play: async ({ canvasElement }) => {
+  play: playInThemes(async ({ canvasElement }) => {
     const canvas = within(canvasElement)
     expect(canvas.getByText(/Follows/)).toHaveTextContent(
       'Follows the Organization target, currently 24 hours.',
@@ -143,17 +134,12 @@ export const DeferredInherited: Story = {
     // The same button, now the way back: the focus stays on it.
     const back = canvas.getByRole('button', { name: 'Use organization target' })
     expect(back).toHaveFocus()
-  },
-}
-
-export const DeferredInheritedLight: Story = {
-  ...DeferredInherited,
-  parameters: { theme: 'light' },
+  }),
 }
 
 export const DeferredOverridden: Story = {
   render: () => <DeferredTarget startsOverridden />,
-  play: async ({ canvasElement }) => {
+  play: playInThemes(async ({ canvasElement }) => {
     const canvas = within(canvasElement)
     expect(canvas.getByRole('spinbutton', { name: 'Property hours' })).toBeEnabled()
 
@@ -161,18 +147,13 @@ export const DeferredOverridden: Story = {
 
     expect(canvas.getByRole('spinbutton', { name: 'Property hours' })).toBeDisabled()
     expect(canvas.getByText(/Follows/)).toBeVisible()
-  },
-}
-
-export const DeferredOverriddenLight: Story = {
-  ...DeferredOverridden,
-  parameters: { theme: 'light' },
+  }),
 }
 
 /** An immediate row keeps its pressed button busy while the save runs, then shows the new state. */
 export const ImmediateSaving: Story = {
   render: () => <ImmediateWindow />,
-  play: async ({ canvasElement }) => {
+  play: playInThemes(async ({ canvasElement }) => {
     const canvas = within(canvasElement)
     const follow = canvas.getByRole('button', { name: 'Follow my quiet hours here' })
 
@@ -188,18 +169,13 @@ export const ImmediateSaving: Story = {
     expect(canvas.getByText(/Follows/)).toHaveTextContent(
       'Follows your quiet hours, currently 22:00 to 07:00.',
     )
-  },
-}
-
-export const ImmediateSavingLight: Story = {
-  ...ImmediateSaving,
-  parameters: { theme: 'light' },
+  }),
 }
 
 /** Where editing overrides, the row has no Override button, and its other commands sit before the way back. */
 export const ImplicitOverrideHere: Story = {
   render: () => <ImplicitOverride ownHere />,
-  play: ({ canvasElement }) => {
+  play: playInThemes(({ canvasElement }) => {
     const canvas = within(canvasElement)
     const buttons = canvas.getAllByRole('button').map((button) => button.textContent)
 
@@ -210,12 +186,7 @@ export const ImplicitOverrideHere: Story = {
     expect(
       canvas.getByRole('button', { name: 'Make this my default' }),
     ).toHaveAccessibleDescription('A new property gets in-app on, email off.')
-  },
-}
-
-export const ImplicitOverrideHereLight: Story = {
-  ...ImplicitOverrideHere,
-  parameters: { theme: 'light' },
+  }),
 }
 
 /** Following the default, there is nothing to undo: only the row's own commands show. */

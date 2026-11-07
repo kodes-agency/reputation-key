@@ -1,9 +1,5 @@
-// The one search input of a list, in the two forms the product draws it: the
-// bordered field of a toolbar (Properties, Portals, Google import) and the bare
-// field of a bar that is its own frame (the Inbox's list header). Dark is the
-// default theme; the light variants render the same field on the light surface
-// (axe runs on both). The Storybook Vitest project compiles no Tailwind, so the
-// plays prove structure and behaviour, not geometry.
+// Search, clear and keyboard behaviour for framed and bare fields in both themes.
+import { playInThemes } from '../../../.storybook/play-in-themes'
 import { useState } from 'react'
 import type { Meta, StoryObj } from '@storybook/react'
 import { expect, fn, userEvent, within } from 'storybook/test'
@@ -32,13 +28,13 @@ type Story = StoryObj<typeof Controlled>
 
 /** Empty: a search box with its glyph and no clear button to offer. */
 export const Empty: Story = {
-  play: async ({ canvasElement }) => {
+  play: playInThemes(async ({ canvasElement }) => {
     const canvas = within(canvasElement)
     const box = canvas.getByRole('searchbox', { name: 'Search properties' })
     expect(box).toHaveAttribute('placeholder', 'Search name or address')
     expect(box).toHaveAttribute('maxlength', '100')
     expect(canvas.queryByRole('button')).toBeNull()
-  },
+  }),
 }
 
 /** With text: the X appears, named for what it does, and clearing keeps the focus in the field. */
@@ -106,17 +102,15 @@ export const Bare: Story = {
     ),
   ],
   beforeEach: () => onKeyDown.mockClear(),
-  play: async ({ canvasElement }) => {
+  play: playInThemes(async ({ canvasElement }) => {
     const canvas = within(canvasElement)
     const box = canvas.getByRole('searchbox', { name: 'Search reviews' })
     expect(box).toHaveFocus()
     expect(canvas.queryByRole('button')).toBeNull()
     await userEvent.keyboard('{Escape}')
     expect(onKeyDown).toHaveBeenCalled()
-  },
+  }),
 }
-
-export const EmptyLight: Story = { ...Empty, parameters: { theme: 'light' } }
 export const FilledLight: Story = {
   args: { initial: 'rila grand' },
   parameters: { theme: 'light' },
@@ -126,4 +120,3 @@ export const FilledLight: Story = {
     ).toBeVisible()
   },
 }
-export const BareLight: Story = { ...Bare, parameters: { theme: 'light' } }

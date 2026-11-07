@@ -1,7 +1,5 @@
-// Section titles under a page's one h1. Dark is the default theme; the light variants
-// render the same outline on the light surface (axe runs on both). The Storybook Vitest
-// project compiles no Tailwind, so the plays pin the outline (which level each title is
-// and in what order), not the sizes.
+// Section headings preserve the document outline in both themes.
+import { playInThemes } from '../../../.storybook/play-in-themes'
 import type { Meta, StoryObj } from '@storybook/react'
 import { expect, within } from 'storybook/test'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './card'
@@ -60,7 +58,7 @@ export const Outline: Story = {
       </div>
     </div>
   ),
-  play: ({ canvasElement }) => {
+  play: playInThemes(({ canvasElement }) => {
     expect(levels(canvasElement)).toEqual([
       [1, 'Notifications'],
       [2, 'Quiet hours'],
@@ -69,10 +67,8 @@ export const Outline: Story = {
       [2, 'Members'],
       [2, 'Pending invitations'],
     ])
-  },
+  }),
 }
-
-export const OutlineLight: Story = { ...Outline, parameters: { theme: 'light' } }
 
 /** A Card whose title is not a section (a tile) stays a div and is not in the outline. */
 export const CardTitleStaysADiv: Story = {

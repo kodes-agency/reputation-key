@@ -3,8 +3,8 @@
 // named "Close", and the refusal to be dismissed while a request is in flight.
 // A footer takes its note beside the actions, and Cancel is one outline Button.
 // Dark is the default theme; the light variants draw the same dialogs on the
-// light surface. The Storybook Vitest project compiles no Tailwind, so the plays
-// read which recipe an element carries rather than a measured width.
+// light surface. The plays measure the rendered dialog and its pinned footer.
+import { playInThemes } from '../../../.storybook/play-in-themes'
 import { useState } from 'react'
 import type { Meta, StoryObj } from '@storybook/react'
 import { expect, userEvent, waitFor, within } from 'storybook/test'
@@ -39,6 +39,12 @@ async function open(canvasElement: HTMLElement) {
   await userEvent.click(within(canvasElement).getByRole('button', { name: 'Open' }))
   const dialog = await bodyOf(canvasElement).findByRole('dialog')
   await waitFor(() => expect(dialog).toBeVisible())
+  await Promise.all(
+    dialog
+      .getAnimations()
+      .filter((animation) => animation.effect?.getComputedTiming().endTime !== Infinity)
+      .map((animation) => animation.finished.catch(() => undefined)),
+  )
   return { dialog, page: bodyOf(canvasElement) }
 }
 
@@ -79,15 +85,12 @@ function Demo({
   )
 }
 
-const WIDTH_CLASS: Readonly<Record<DialogSize, string>> = {
-  sm: '[--dialog-w:24rem]',
-  md: '[--dialog-w:32rem]',
-  lg: '[--dialog-w:42rem]',
-  xl: '[--dialog-w:56rem]',
+const WIDTH_PX: Readonly<Record<DialogSize, number>> = {
+  sm: 384,
+  md: 512,
+  lg: 672,
+  xl: 896,
 }
-
-/** Every size is capped at the window less a rem a side, so none touches an edge. */
-const WINDOW_CAP_CLASS = 'max-w-[min(var(--dialog-w),calc(100%-2rem))]'
 
 function sizeStory(size: DialogSize, theme?: 'light'): Story {
   return {
@@ -96,8 +99,10 @@ function sizeStory(size: DialogSize, theme?: 'light'): Story {
     play: async ({ canvasElement }) => {
       const { dialog } = await open(canvasElement)
       expect(dialog).toHaveAttribute('data-size', size)
-      expect(dialog.className).toContain(WIDTH_CLASS[size])
-      expect(dialog.className).toContain(WINDOW_CAP_CLASS)
+      expect(dialog.getBoundingClientRect().width).toBeCloseTo(
+        Math.min(WIDTH_PX[size], window.innerWidth - 32),
+        0,
+      )
     },
   }
 }
@@ -122,17 +127,35 @@ export const TallContentScrolls: Story = {
   render: () => <Demo tall />,
   play: async ({ canvasElement }) => {
     const { dialog } = await open(canvasElement)
-    expect(dialog.className).toContain('max-h-[calc(100dvh-2rem)]')
-    expect(dialog.className).toContain('overflow-y-auto')
+    expect(dialog.getBoundingClientRect().height).toBeLessThanOrEqual(
+      window.innerHeight - 32,
+    )
+    expect(dialog.scrollHeight).toBeGreaterThan(dialog.clientHeight)
+    expect(getComputedStyle(dialog).overflowY).toBe('auto')
     const footer = within(dialog)
       .getByRole('button', { name: 'Save name' })
       .closest('[data-slot=dialog-footer]')
-    expect(footer?.className).toContain('sticky')
-    expect(footer?.className).toContain('-bottom-(--dialog-pad)')
-    // Its controls are positioned, so they paint over the fade above the footer: the
-    // first row sits on the footer's top edge, and the fade would cut the top off
-    // their focus ring. A class pin: Tailwind is not compiled in this runner.
-    expect(footer?.className).toContain('*:relative')
+    const footerTop = footer!.getBoundingClientRect().top
+    dialog.scrollTop = dialog.scrollHeight
+    expect(footer!.getBoundingClientRect().top).toBeCloseTo(footerTop, 0)
+    expect(footer!.getBoundingClientRect().bottom).toBeLessThanOrEqual(
+      dialog.getBoundingClientRect().bottom,
+    )
+    // Hit testing skips the pointer-events:none fade. At the same stack level,
+    // positioned controls paint after ::before, keeping their focus rings above it.
+    const fade = getComputedStyle(footer as HTMLElement, '::before')
+    expect(fade.position).toBe('absolute')
+    expect(fade.zIndex).toBe('auto')
+    for (const button of within(footer as HTMLElement).getAllByRole('button')) {
+      const style = getComputedStyle(button)
+      expect(style.position).toBe('relative')
+      expect(style.zIndex).toBe('auto')
+      const box = button.getBoundingClientRect()
+      expect(
+        document.elementFromPoint(box.left + box.width / 2, box.top + box.height / 2),
+      ).toBe(button)
+    }
+    dialog.scrollTop = 0
   },
 }
 
@@ -142,7 +165,10 @@ export const TallContentWithANoteKeepsTheFooter: Story = {
   play: async ({ canvasElement }) => {
     const { dialog } = await open(canvasElement)
     const note = within(dialog).getByText('Nothing is public until you publish.')
-    expect(note.closest('[data-slot=dialog-footer]')?.className).toContain('sticky')
+    const top = note.getBoundingClientRect().top
+    dialog.scrollTop = dialog.scrollHeight
+    expect(note.getBoundingClientRect().top).toBeCloseTo(top, 0)
+    dialog.scrollTop = 0
   },
 }
 
@@ -173,10 +199,14 @@ export const TitleLeavesRoomForTheCloseInAForm: Story = {
   ),
   play: async ({ canvasElement }) => {
     const { dialog } = await open(canvasElement)
-    const header = within(dialog).getByRole('heading').parentElement
-    expect(header?.className).toContain('[&>[data-slot=dialog-title]]:pe-12')
-    expect(header?.className).toContain('md:[&>[data-slot=dialog-title]]:pe-8')
-    expect(header?.className).not.toContain('text-center')
+    const title = within(dialog).getByRole('heading')
+    const close = within(dialog).getByRole('button', { name: 'Close' })
+    const text = document.createRange()
+    text.selectNodeContents(title)
+    expect(text.getBoundingClientRect().right).toBeLessThanOrEqual(
+      close.getBoundingClientRect().left,
+    )
+    expect(getComputedStyle(title.parentElement!).textAlign).toBe('start')
   },
 }
 
@@ -199,8 +229,9 @@ export const TitleKeepsItsWidthWithoutTheCorner: Story = {
   ),
   play: async ({ canvasElement }) => {
     const { dialog } = await open(canvasElement)
-    const header = within(dialog).getByRole('heading').parentElement
-    expect(header?.className).not.toContain('dialog-title')
+    const title = within(dialog).getByRole('heading')
+    expect(within(dialog).queryByRole('button', { name: 'Close' })).toBeNull()
+    expect(getComputedStyle(title).paddingInlineEnd).toBe('0px')
   },
 }
 
@@ -249,19 +280,14 @@ export const FooterWithANote: Story = {
  */
 export const BusyCannotBeDismissed: Story = {
   render: () => <Demo busy />,
-  play: async ({ canvasElement }) => {
+  play: playInThemes(async ({ canvasElement }) => {
     const { dialog } = await open(canvasElement)
     expect(dialog).toHaveAttribute('aria-busy', 'true')
     expect(within(dialog).getByRole('button', { name: 'Close' })).toBeDisabled()
     expect(within(dialog).getByRole('button', { name: 'Cancel' })).toBeDisabled()
     await userEvent.keyboard('{Escape}')
     expect(dialog).toBeVisible()
-  },
-}
-
-export const BusyCannotBeDismissedLight: Story = {
-  ...BusyCannotBeDismissed,
-  parameters: { theme: 'light' },
+  }),
 }
 
 function Saving() {
@@ -344,17 +370,12 @@ function Refusing() {
  */
 export const ARefusalShowsOnlyOnceTried: Story = {
   render: () => <Refusing />,
-  play: async ({ canvasElement }) => {
+  play: playInThemes(async ({ canvasElement }) => {
     const { dialog } = await open(canvasElement)
     expect(within(dialog).queryByRole('alert')).not.toBeInTheDocument()
     await userEvent.click(within(dialog).getByRole('button', { name: 'Save name' }))
     await within(dialog).findByText('That name is taken.')
     expect(within(dialog).getAllByRole('alert')).toHaveLength(1)
     expect(within(dialog).queryByText('An earlier refusal')).not.toBeInTheDocument()
-  },
-}
-
-export const ARefusalShowsOnlyOnceTriedLight: Story = {
-  ...ARefusalShowsOnlyOnceTried,
-  parameters: { theme: 'light' },
+  }),
 }

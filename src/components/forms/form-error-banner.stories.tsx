@@ -10,6 +10,7 @@
 // Stories feed it the realistic shapes a mutation surfaces: no error, a field
 // validation refusal, a permission refusal, an internal server error and a
 // non-Error object (both of which read as the generic sentence).
+import { playInThemes } from '../../../.storybook/play-in-themes'
 import type { Meta, StoryObj } from '@storybook/react'
 import { expect, within } from 'storybook/test'
 import { GENERIC_ACTION_ERROR_MESSAGE } from '#/components/hooks/use-action-mutation'
@@ -178,7 +179,7 @@ export const AboveTheActions: Story = {
       </CardFooter>
     </Card>
   ),
-  play: async ({ canvasElement }) => {
+  play: playInThemes(async ({ canvasElement }) => {
     const alert = within(canvasElement).getByRole('alert')
     const save = within(canvasElement).getByRole('button', { name: 'Save profile' })
     expect(alert).toHaveTextContent('That workspace name is already in use.')
@@ -190,10 +191,5 @@ export const AboveTheActions: Story = {
     expect(alert.closest('[data-slot="card-content"]')?.nextElementSibling).toBe(
       save.closest('[data-slot="card-footer"]'),
     )
-  },
-}
-
-export const AboveTheActionsLight: Story = {
-  ...AboveTheActions,
-  parameters: { layout: 'padded', theme: 'light' },
+  }),
 }

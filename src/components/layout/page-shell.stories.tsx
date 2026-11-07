@@ -4,9 +4,8 @@
 // Property Reviews, the portal workspace) drops that padding to own its scroll,
 // and a body inside it that reads like an ordinary page wears this frame. The
 // stories draw the full-bleed surface as a bordered, fixed-height box with no
-// padding of its own. The Storybook Vitest project compiles no Tailwind, so the
-// plays pin the classes that produce the geometry and the landmark a labelled
-// section exposes; the pixels are the browser's.
+// padding of its own. The plays measure the gutter and scroll with the app's CSS.
+import { playInThemes } from '../../../.storybook/play-in-themes'
 import type { Meta, StoryObj } from '@storybook/react'
 import { expect, within } from 'storybook/test'
 import { FullBleedFrame, PageShell } from './page-shell'
@@ -43,14 +42,25 @@ function Body({ rows = 3 }: Readonly<{ rows?: number }>) {
   )
 }
 
+function expectGutter(frame: HTMLElement) {
+  const style = getComputedStyle(frame)
+  const desktop = window.innerWidth >= 768
+  expect([style.paddingLeft, style.paddingRight]).toEqual(
+    desktop ? ['24px', '24px'] : ['16px', '16px'],
+  )
+  expect([style.paddingTop, style.paddingBottom]).toEqual(
+    desktop ? ['32px', '32px'] : ['20px', '20px'],
+  )
+}
+
 // The default: the same 16 / 24 px gutter `<main>` gives an ordinary page.
 export const Default: Story = {
   args: { children: <Body /> },
   play: async ({ canvasElement }) => {
-    const frame = within(canvasElement).getByRole('heading', { level: 2 }).parentElement
-      ?.parentElement
-    expect(frame).toHaveClass('px-4', 'py-5', 'md:px-6', 'md:py-8')
-    expect(frame).not.toHaveClass('overflow-y-auto')
+    const frame = within(canvasElement).getByRole('heading', { level: 2 }).parentElement!
+      .parentElement!
+    expectGutter(frame)
+    expect(getComputedStyle(frame).overflowY).toBe('visible')
     expect(frame).not.toHaveAttribute('tabindex')
   },
 }
@@ -58,15 +68,22 @@ export const Default: Story = {
 // A body taller than its surface scrolls inside the frame, not the surface.
 export const Scrolling: Story = {
   args: { scroll: true, children: <Body rows={12} /> },
-  play: async ({ canvasElement }) => {
-    const frame = within(canvasElement).getByRole('heading', { level: 2 }).parentElement
-      ?.parentElement
-    expect(frame).toHaveClass('h-full', 'overflow-y-auto', 'px-4', 'py-5')
+  play: playInThemes(async ({ canvasElement }) => {
+    const frame = within(canvasElement).getByRole('heading', { level: 2 }).parentElement!
+      .parentElement!
+    expectGutter(frame)
+    expect(frame.clientHeight).toBe(
+      within(canvasElement).getByTestId('surface').clientHeight,
+    )
+    expect(frame.scrollHeight).toBeGreaterThan(frame.clientHeight)
+    frame.scrollTop = 40
+    expect(frame.scrollTop).toBe(40)
+    frame.scrollTop = 0
     // Nothing inside takes focus, so the frame does: otherwise a keyboard cannot scroll it.
     expect(frame).toHaveAttribute('tabindex', '0')
-    frame?.focus()
+    frame.focus()
     expect(frame).toHaveFocus()
-  },
+  }),
 }
 
 // A width limit sits beside the gutter on the same box (the workspace tab
@@ -77,9 +94,13 @@ export const WithWidthLimit: Story = {
     children: <Body />,
   },
   play: async ({ canvasElement }) => {
-    const frame = within(canvasElement).getByRole('heading', { level: 2 }).parentElement
-      ?.parentElement
-    expect(frame).toHaveClass('px-4', 'mx-auto', 'max-w-5xl')
+    const frame = within(canvasElement).getByRole('heading', { level: 2 }).parentElement!
+      .parentElement!
+    expectGutter(frame)
+    const surface = within(canvasElement).getByTestId('surface').getBoundingClientRect()
+    const box = frame.getBoundingClientRect()
+    expect(box.width).toBeCloseTo(Math.min(surface.width, 1024), 0)
+    expect(box.left - surface.left).toBeCloseTo(surface.right - box.right, 0)
   },
 }
 
@@ -103,11 +124,6 @@ export const LabelledSection: Story = {
   play: async ({ canvasElement }) => {
     const region = within(canvasElement).getByRole('region', { name: 'Share' })
     expect(region.tagName).toBe('SECTION')
-    expect(region).toHaveClass('px-4', 'py-5')
+    expectGutter(region)
   },
-}
-
-export const LightTheme: Story = {
-  ...Scrolling,
-  parameters: { layout: 'fullscreen', theme: 'light' },
 }

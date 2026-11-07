@@ -3,6 +3,7 @@
 // tone wears, and the label. It never prints the stored token, and a status the
 // map does not know reads "Unknown". Dark is the default theme; the light
 // variant renders the same row on the light surface (axe runs on both).
+import { playInThemes } from '../../../.storybook/play-in-themes'
 import type { Meta, StoryObj } from '@storybook/react'
 import { expect, within } from 'storybook/test'
 import { StatusBadge, type StatusMap } from './status-badge'
@@ -37,7 +38,7 @@ export const FromAMap: Story = {
       ))}
     </ul>
   ),
-  play: async ({ canvasElement }) => {
+  play: playInThemes(async ({ canvasElement }) => {
     const canvas = within(canvasElement)
     expect(canvas.getByText('Connected')).toHaveAttribute('data-variant', 'positive')
     expect(canvas.getByText('Needs attention')).toHaveAttribute('data-variant', 'warn')
@@ -52,7 +53,7 @@ export const FromAMap: Story = {
     for (const badge of canvasElement.querySelectorAll('[data-slot="badge"]')) {
       expect(badge.querySelectorAll('svg[aria-hidden="true"]')).toHaveLength(1)
     }
-  },
+  }),
 }
 
 /** A state with no status enum behind it takes a tone and a label directly. */
@@ -75,5 +76,3 @@ export const UnknownStatus: Story = {
     expect(canvas.queryByText('archived_by_support')).toBeNull()
   },
 }
-
-export const FromAMapLight: Story = { ...FromAMap, parameters: { theme: 'light' } }

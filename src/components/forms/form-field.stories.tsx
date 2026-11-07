@@ -2,6 +2,7 @@
 // help and the error, in that order. The text, textarea, number and select fields share
 // it, so they read as one field. Both themes check accessible names, descriptions
 // and errors, with real CSS at phone widths.
+import { playInThemes } from '../../../.storybook/play-in-themes'
 import type { Meta, StoryObj } from '@storybook/react'
 import { expect, within } from 'storybook/test'
 import { checkPhoneWidths } from '#/shared/testing/phone-width'
@@ -94,7 +95,7 @@ type Story = StoryObj<typeof Fields>
 
 /** The label names the control, Optional is inside the label, the help is the control's description. */
 export const Anatomy: Story = {
-  play: async ({ canvasElement }) => {
+  play: playInThemes(async ({ canvasElement }) => {
     const canvas = within(canvasElement)
     const name = canvas.getByRole('textbox', { name: 'Workspace name' })
     expect(name).toHaveAccessibleDescription('The name your team sees.')
@@ -111,15 +112,13 @@ export const Anatomy: Story = {
     // A field that is required says nothing: only the optional one is marked.
     expect(canvas.getAllByText('Optional')).toHaveLength(2)
     await checkPhoneWidths(canvasElement.ownerDocument)
-  },
+  }),
 }
-
-export const AnatomyLight: Story = { ...Anatomy, parameters: { theme: 'light' } }
 
 /** The error follows the help, so the help stays where the eye left it. */
 export const Refused: Story = {
   args: { invalid: true },
-  play: async ({ canvasElement }) => {
+  play: playInThemes(async ({ canvasElement }) => {
     const canvas = within(canvasElement)
     const name = canvas.getByRole('textbox', { name: 'Workspace name' })
     expect(name).toHaveAttribute('aria-invalid', 'true')
@@ -141,8 +140,6 @@ export const Refused: Story = {
     expect(metric).toHaveAttribute('aria-invalid', 'true')
     expect(metric).toHaveAccessibleDescription('What the goal counts. Choose a metric')
     await checkPhoneWidths(canvasElement.ownerDocument)
-  },
+  }),
   render: (args) => <Fields {...args} />,
 }
-
-export const RefusedLight: Story = { ...Refused, parameters: { theme: 'light' } }

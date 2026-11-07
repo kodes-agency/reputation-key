@@ -1,9 +1,5 @@
-// SettingSwitchRow: one row for a boolean setting. Dark is the default theme; the light
-// variants render the same rows on the light surface (axe runs on both). The Storybook
-// Vitest project compiles no Tailwind, so the plays pin behaviour and wiring (the label
-// names the switch, a row that saves as it is flipped says Saving while it runs and
-// Saved when it lands, a row the group saves says Unsaved until the group saves), not
-// placement.
+// Immediate and deferred boolean settings, with keyboard and save checks in both themes.
+import { playInThemes } from '../../../.storybook/play-in-themes'
 import { useState } from 'react'
 import type { Meta, StoryObj } from '@storybook/react'
 import { expect, userEvent, waitFor, within } from 'storybook/test'
@@ -123,7 +119,7 @@ type Story = StoryObj
 /** Flipping a row that saves at once says Saving while the request runs, then Saved, and the switch waits. */
 export const Immediate: Story = {
   render: () => <ImmediateRow />,
-  play: async ({ canvasElement }) => {
+  play: playInThemes(async ({ canvasElement }) => {
     const canvas = within(canvasElement)
     const urgent = canvas.getByRole('switch', { name: 'Let urgent email through anyway' })
     expect(urgent).not.toBeChecked()
@@ -137,10 +133,8 @@ export const Immediate: Story = {
     await waitFor(() => expect(urgent).toBeChecked())
     expect(await canvas.findByRole('status')).toHaveTextContent('Saved')
     expect(urgent).toBeEnabled()
-  },
+  }),
 }
-
-export const ImmediateLight: Story = { ...Immediate, parameters: { theme: 'light' } }
 
 /** An optimistic row moves at once and stays usable while it says Saving, then Saved. */
 export const ImmediateOptimistic: Story = {
@@ -178,7 +172,7 @@ export const ImmediateRefused: Story = {
 /** A row the group saves says Unsaved while it differs from the saved value, and says nothing about saving. */
 export const Deferred: Story = {
   render: () => <DeferredRow />,
-  play: async ({ canvasElement }) => {
+  play: playInThemes(async ({ canvasElement }) => {
     const canvas = within(canvasElement)
     const emoji = canvas.getByRole('switch', {
       name: 'Allow emoji in rendered templates',
@@ -192,15 +186,13 @@ export const Deferred: Story = {
 
     await userEvent.click(emoji)
     expect(canvas.queryByRole('status')).toBeNull()
-  },
+  }),
 }
-
-export const DeferredLight: Story = { ...Deferred, parameters: { theme: 'light' } }
 
 /** The same flip, told apart: the row that saves at once says Saved, the row the group saves says Unsaved. */
 export const CommitTimingIsVisible: Story = {
   render: () => <BothRows />,
-  play: async ({ canvasElement }) => {
+  play: playInThemes(async ({ canvasElement }) => {
     const canvas = within(canvasElement)
     const urgent = canvas.getByRole('switch', { name: 'Let urgent email through anyway' })
     const emoji = canvas.getByRole('switch', {
@@ -213,33 +205,26 @@ export const CommitTimingIsVisible: Story = {
     expect(await canvas.findByText('Unsaved')).toBeVisible()
     expect(await canvas.findByText('Saved')).toBeVisible()
     expect(canvas.queryByText('Saving…')).toBeNull()
-  },
-}
-
-export const CommitTimingIsVisibleLight: Story = {
-  ...CommitTimingIsVisible,
-  parameters: { theme: 'light' },
+  }),
 }
 
 /** A setting that cannot change says why in a note, which is the switch's description. */
 export const Locked: Story = {
   render: () => <LockedRow />,
-  play: ({ canvasElement }) => {
+  play: playInThemes(({ canvasElement }) => {
     const canvas = within(canvasElement)
     const inApp = canvas.getByRole('switch', { name: 'Action needed: In-app' })
 
     expect(inApp).toBeDisabled()
     expect(inApp).toBeChecked()
     expect(inApp).toHaveAccessibleDescription('Always on')
-  },
+  }),
 }
-
-export const LockedLight: Story = { ...Locked, parameters: { theme: 'light' } }
 
 /** In a table cell the label is read but not drawn, and the state is in words beside the switch. */
 export const Cell: Story = {
   render: () => <CellRow />,
-  play: async ({ canvasElement }) => {
+  play: playInThemes(async ({ canvasElement }) => {
     const canvas = within(canvasElement)
     const enabled = canvas.getByRole('switch', { name: 'Enabled: General appreciation' })
     expect(canvas.getByText('On')).toBeVisible()
@@ -247,7 +232,5 @@ export const Cell: Story = {
     await userEvent.click(enabled)
     expect(canvas.getByText('Off')).toBeVisible()
     expect(canvas.queryByText('On')).toBeNull()
-  },
+  }),
 }
-
-export const CellLight: Story = { ...Cell, parameters: { theme: 'light' } }
