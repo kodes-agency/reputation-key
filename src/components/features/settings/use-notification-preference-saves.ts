@@ -93,14 +93,26 @@ export function useNotificationPreferenceSaves({
     requested.get(preferenceRowKey(propertyId, category, channel)) ??
     stored(category, channel)
 
+  const valuesFor = (
+    category: ConfigurableNotificationCategory,
+    channel: NotificationChannel,
+    patch: PreferencePatch,
+  ) =>
+    applyPreferencePatch(
+      category,
+      channel,
+      latest.current.get(preferenceRowKey(propertyId, category, channel)) ??
+        stored(category, channel),
+      patch,
+    )
+
   const savePreference = async (
     category: ConfigurableNotificationCategory,
     channel: NotificationChannel,
     patch: PreferencePatch,
   ): Promise<boolean> => {
     const key = preferenceRowKey(propertyId, category, channel)
-    const current = latest.current.get(key) ?? stored(category, channel)
-    const values = applyPreferencePatch(category, channel, current, patch)
+    const values = valuesFor(category, channel, patch)
     commit(new Map(latest.current).set(key, values))
     try {
       await runner.run(key, () =>
@@ -133,12 +145,7 @@ export function useNotificationPreferenceSaves({
   const applyToAll = async (category: ConfigurableNotificationCategory) => {
     const outcome = await applyEverywhereInOrder(emailAllowed, (channel) => {
       const key = preferenceRowKey(propertyId, category, channel)
-      const values = applyPreferencePatch(
-        category,
-        channel,
-        latest.current.get(key) ?? stored(category, channel),
-        {},
-      )
+      const values = valuesFor(category, channel, {})
       return runner.run(key, () =>
         updatePreference({
           data: {

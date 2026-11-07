@@ -549,4 +549,153 @@ describe.sequential('personal notification delivery (real PostgreSQL)', () => {
       },
     })
   })
+
+  it('isolates defaults, preference mutations and quiet windows by user and Organization', async () => {
+    const otherOrg = organizationId('notification-preference-isolation-org')
+    const otherUser = userId('notification-preference-isolation-user')
+    const otherProperty = propertyId('84000000-0000-4000-8000-000000000011')
+    const scopes = [
+      { user: USER, org: ORG, property: PROPERTY },
+      { user: USER, org: otherOrg, property: otherProperty },
+      { user: otherUser, org: ORG, property: PROPERTY },
+    ]
+    const repo = createNotificationPreferenceRepository(db)
+    await db.insert(properties).values({
+      id: otherProperty,
+      organizationId: otherOrg,
+      name: 'Isolated Preference Property',
+      slug: 'notification-preference-isolation',
+      timezone: 'UTC',
+    })
+    try {
+      for (const [index, scope] of scopes.entries()) {
+        await repo.saveCategoryDefault(
+          categoryDefault({
+            userId: scope.user,
+            organizationId: scope.org,
+            enabled: false,
+          }),
+          scope.property,
+        )
+        await repo.upsert(
+          preference({
+            id: notificationPreferenceId(`84000000-0000-4000-8000-00000000002${index}`),
+            userId: scope.user,
+            organizationId: scope.org,
+            propertyId: scope.property,
+            channel: 'email',
+          }),
+        )
+        await repo.upsertPropertyDeliveryWindow({
+          userId: scope.user,
+          organizationId: scope.org,
+          propertyId: scope.property,
+          quietHoursStart: '01:00',
+          quietHoursEnd: '02:00',
+          urgentBypassEnabled: true,
+          createdAt: CREATED,
+          updatedAt: CREATED,
+        })
+        await expect(repo.findByUser(scope.user, scope.org)).resolves.toHaveLength(1)
+        await expect(
+          repo.findCategoryDefaults(scope.user, scope.org),
+        ).resolves.toHaveLength(1)
+        await expect(
+          repo.findPropertyDeliveryWindows(scope.user, scope.org),
+        ).resolves.toHaveLength(1)
+      }
+
+      // A mismatched Organization cannot read or remove the other account's row.
+      await expect(
+        repo.findPropertyPreference(
+          USER,
+          ORG,
+          otherProperty,
+          'workflow_collaboration',
+          'email',
+        ),
+      ).resolves.toBeNull()
+      await expect(
+        repo.resolveDeliveryWindow(USER, ORG, otherProperty),
+      ).resolves.toMatchObject({ quietHoursStart: null })
+      await repo.deletePropertyPreference(
+        USER,
+        ORG,
+        otherProperty,
+        'workflow_collaboration',
+        'email',
+      )
+      await repo.resetPropertyCategory(USER, ORG, otherProperty, 'workflow_collaboration')
+      await repo.clearPropertyDeliveryWindow(USER, ORG, otherProperty)
+
+      // Applying a default, resetting and undoing a mute must also leave another
+      // user's own row at this very Property untouched.
+      await repo.saveCategoryDefault(categoryDefault({ enabled: false }), PROPERTY)
+      await repo.upsert(preference({ channel: 'email' }))
+      await repo.upsertEnabled(preference({ channel: 'email', enabled: false }))
+      await repo.deletePropertyPreference(
+        USER,
+        ORG,
+        PROPERTY,
+        'workflow_collaboration',
+        'email',
+      )
+      await repo.upsert(preference({ channel: 'email' }))
+      await repo.resetPropertyCategory(USER, ORG, PROPERTY, 'workflow_collaboration')
+      await repo.clearPropertyDeliveryWindow(USER, ORG, PROPERTY)
+      await expect(repo.findByUser(USER, ORG)).resolves.toEqual([])
+      await expect(repo.findPropertyDeliveryWindows(USER, ORG)).resolves.toEqual([])
+
+      for (const scope of scopes.slice(1)) {
+        await expect(repo.findByUser(scope.user, scope.org)).resolves.toEqual([
+          expect.objectContaining({
+            enabled: true,
+            cadence: 'immediate',
+            propertyId: scope.property,
+          }),
+        ])
+        await expect(repo.findCategoryDefaults(scope.user, scope.org)).resolves.toEqual([
+          expect.objectContaining({ enabled: false, cadence: 'daily' }),
+        ])
+        await expect(
+          repo.resolveForDelivery(
+            scope.user,
+            scope.org,
+            scope.property,
+            'workflow_collaboration',
+            'email',
+          ),
+        ).resolves.toEqual({ enabled: true, cadence: 'immediate' })
+        await expect(
+          repo.findPropertyDeliveryWindows(scope.user, scope.org),
+        ).resolves.toHaveLength(1)
+        await expect(
+          repo.resolveDeliveryWindow(scope.user, scope.org, scope.property),
+        ).resolves.toEqual({
+          quietHoursStart: '01:00',
+          quietHoursEnd: '02:00',
+          urgentBypassEnabled: true,
+        })
+      }
+    } finally {
+      for (const scope of scopes) {
+        await repo.resetPropertyCategory(
+          scope.user,
+          scope.org,
+          scope.property,
+          'workflow_collaboration',
+        )
+        await repo.clearPropertyDeliveryWindow(scope.user, scope.org, scope.property)
+        await db
+          .delete(notificationCategoryDefaults)
+          .where(
+            and(
+              eq(notificationCategoryDefaults.userId, scope.user),
+              eq(notificationCategoryDefaults.organizationId, scope.org),
+            ),
+          )
+      }
+      await db.delete(properties).where(eq(properties.id, otherProperty))
+    }
+  })
 })

@@ -222,13 +222,23 @@ but a Property with no row of its own now inherits the person's default for
 that (category, channel) before falling through to the versioned defaults. A
 Property added or reassigned after everything else was configured used to fall
 straight through, which is how a brand-new Property mailed urgent notices at
-03:00. "Apply to all my properties" writes that default and clears the
-per-Property rows that would have overridden it; while email is not allowed
+03:00. "Make this my default" writes that default and clears the selected
+Property's row for that channel. Other Properties keep their own settings,
+including bell mutes, until explicitly reset. While email is not allowed
 for the Property in view it applies the in-app half only and says so. The
 in-app list and badge resolve in-app the same way — the Property's row, then
 the person's category default, then the versioned default — and hide a
 Property notice that resolves off. Mandatory, urgent_operational and
 Organization notices are never hidden.
+
+Settings controls and their serialized save hook live in
+`src/components/features/settings/notification-*.{ts,tsx}` and
+`use-notification-preference-saves.ts`. Preference reads, apply-default writes,
+resets and mute Undo share their user/Organization/Property/category scope in
+`infrastructure/repositories/notification-preference.repository.ts`. Property
+quiet-window reads and clearing share their recipient scope there too. Undo
+removes a mute-created row when the Property previously inherited, or restores
+only the switch when it had its own row, preserving cadence and threshold.
 
 Known gaps that need a nullable column or a product decision: that stored zone
 is the Organization's, or UTC while the Organization has no active Property,
