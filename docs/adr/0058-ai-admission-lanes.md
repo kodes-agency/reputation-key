@@ -419,3 +419,11 @@ retry and a repeated click reuse it, and any finished answer rotates it.
   itself and no longer relies on the receipt failing to bind (2026-10-25, item
   1). Only the internal monthly cap moves, not customer charges or the provider
   bill, and no stored row is rewritten.
+
+- **2026-11-07** — Settlement is an in-process `settle(permit, outcome)` call.
+  PostgreSQL validates the stored permit and prices usage from the operation's
+  recorded provider. The gateway no longer calculates a second expected cost
+  or signs and verifies settlement receipts. It still checks the returned
+  attempt, permit, usage, disposition and delivery deadlines. Admission grants
+  and browser provenance remain signed. Unknown usage, reaping and late
+  settlement retain the accounting rules above.

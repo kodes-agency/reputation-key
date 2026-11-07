@@ -8,7 +8,10 @@ import { AI_OPERATION_PROFILES } from '#/shared/ai-operation-profiles'
 import { AI_REPLY_ADOPTION_WINDOW_MILLIS } from '#/shared/ai-reply-provenance'
 import { settledCostMicrosWith } from '#/shared/ai-provider-pricing'
 import { priceCatalogueOfProvider } from '#/shared/ai-provider-pricing-registry'
-import type { AiSettlementRequestV1 } from '#/shared/ai-internal-transport-contract'
+import {
+  aiSettlementRequestSchema,
+  type AiSettlementRequestV1,
+} from '#/shared/ai-internal-transport-contract'
 import type {
   AiAdmissionDatabaseAuthority,
   AiAdmissionDenialCode,
@@ -245,9 +248,11 @@ export function createPostgresAiAdmissionAuthority(
       code: 'canary_not_eligible' as const,
     }),
 
-    settle: async (request, receiptKid) => {
-      if (receiptKid !== input.signingKid) {
-        throw new Error('AI settlement receipt key ID does not match authority')
+    settle: async (permit, outcome) => {
+      if (
+        !aiSettlementRequestSchema.shape.operationId.safeParse(permit.operationId).success
+      ) {
+        return { status: 'denied', code: 'settlement_conflict' }
       }
       return db.transaction(async (tx) => {
         const [operation] = await tx
@@ -265,7 +270,7 @@ export function createPostgresAiAdmissionAuthority(
             budgetSettledAt: aiOperations.budgetSettledAt,
           })
           .from(aiOperations)
-          .where(eq(aiOperations.id, request.operationId))
+          .where(eq(aiOperations.id, permit.operationId))
           .limit(1)
           .for('update')
         if (!operation) {
@@ -275,17 +280,28 @@ export function createPostgresAiAdmissionAuthority(
           }
         }
         if (
-          operation.executionPermitId !== request.permitId ||
-          operation.executionAttempt !== request.attemptNumber ||
-          operation.admissionNonce !== request.nonce ||
-          operation.grantKid !== receiptKid ||
+          operation.executionPermitId !== permit.permitId ||
+          operation.executionAttempt !== permit.attemptNumber ||
+          operation.admissionNonce !== permit.nonce ||
+          operation.grantKid !== permit.grantKid ||
+          permit.grantKid !== input.signingKid ||
           operation.requestBindingHmac === null
         ) {
           return { status: 'denied' as const, code: 'permit_mismatch' as const }
         }
-        // Priced by the provider the operation was claimed under (OpenAI when it
-        // records none), the same list the gateway checks the receipt against. A
-        // provider with no price list settles nothing.
+        const parsed = aiSettlementRequestSchema.safeParse({
+          ...outcome,
+          operationId: permit.operationId,
+          permitId: permit.permitId,
+          attemptNumber: permit.attemptNumber,
+          nonce: permit.nonce,
+        })
+        if (!parsed.success) {
+          return { status: 'denied' as const, code: 'settlement_conflict' as const }
+        }
+        const request = parsed.data
+        // Price from the stored provider, never a caller-supplied catalogue.
+        // A provider with no price list settles nothing.
         const pricing = priceCatalogueOfProvider(operation.providerId)
         if (pricing === null && request.disposition !== 'no_dispatch') {
           return { status: 'denied' as const, code: 'settlement_conflict' as const }
@@ -302,9 +318,15 @@ export function createPostgresAiAdmissionAuthority(
         const settledAtEpochMillis = now().getTime()
         return {
           status: 'settled' as const,
-          grantKid: receiptKid,
+          version: 'ai-settlement-receipt-v1' as const,
+          grantKid: operation.grantKid,
+          operationId: request.operationId,
+          permitId: request.permitId,
+          attemptNumber: request.attemptNumber,
+          nonce: request.nonce,
           requestBindingHmac: operation.requestBindingHmac,
           disposition: request.disposition,
+          reportedDisposition: request.reportedDisposition,
           usageKnown: request.usageKnown,
           providerRetryable: request.providerRetryable,
           inputTokens: request.inputTokens,

@@ -2,13 +2,13 @@ import type { KeyObject } from 'node:crypto'
 import {
   parseAiAdmissionRequest,
   signAiExecutionGrant,
-  signAiSettlementReceipt,
   verifyAiRequestBinding,
   type AiAdmissionDescriptorV1,
   type AiAdmissionRequestV1,
   type AiExecutionGrantV1,
   type AiSettlementReceiptV1,
-  type AiSettlementRequestV1,
+  type AiSettlementPermit,
+  type AiSettlementOutcome,
 } from '#/shared/ai-internal-transport-contract'
 import type { VersionedHmacKeyring } from '#/shared/security/versioned-hmac-keyring'
 
@@ -49,21 +49,7 @@ type DatabaseAdmissionResult =
     }>
 
 type DatabaseSettlementResult =
-  | Readonly<{
-      status: 'settled'
-      grantKid: string
-      requestBindingHmac: string
-      disposition: AiSettlementRequestV1['disposition']
-      usageKnown: boolean
-      providerRetryable: boolean
-      inputTokens: number
-      cachedInputTokens: number
-      outputTokens: number
-      reasoningTokens: number
-      costMicros: number
-      settledAtEpochMillis: number
-      settlementState: 'settled' | 'released' | 'ambiguous'
-    }>
+  | (AiSettlementReceiptV1 & Readonly<{ status: 'settled' }>)
   | Readonly<{ status: 'denied'; code: AiSettlementDenialCode }>
 
 export type AiAdmissionDatabaseAuthority = Readonly<{
@@ -76,8 +62,8 @@ export type AiAdmissionDatabaseAuthority = Readonly<{
     requestBinding: Readonly<{ keyId: string; hmac: string }>,
   ): Promise<DatabaseAdmissionResult>
   settle(
-    input: AiSettlementRequestV1,
-    receiptKid: string,
+    permit: AiSettlementPermit,
+    outcome: AiSettlementOutcome,
   ): Promise<DatabaseSettlementResult>
   readiness(): Promise<boolean>
 }>
@@ -90,7 +76,8 @@ export type AiExecutionAdmissionService = Readonly<{
     | Readonly<{ ok: false; code: AiAdmissionDenialCode }>
   >
   settle(
-    request: AiSettlementRequestV1,
+    permit: AiSettlementPermit,
+    outcome: AiSettlementOutcome,
   ): Promise<
     | Readonly<{ ok: true; receipt: AiSettlementReceiptV1 }>
     | Readonly<{ ok: false; code: AiSettlementDenialCode }>
@@ -177,6 +164,9 @@ export function createAiExecutionAdmissionService(
               permitId: parsed.descriptor.permitId,
               attemptNumber: parsed.descriptor.attemptNumber,
               nonce: result.nonce,
+              grantKid: dependencies.signingKid,
+            },
+            {
               disposition: 'no_dispatch',
               reportedDisposition: 'no_dispatch',
               providerRetryable: false,
@@ -187,7 +177,6 @@ export function createAiExecutionAdmissionService(
               reasoningTokens: 0,
               retryAfterSeconds: null,
             },
-            dependencies.signingKid,
           )
           if (
             released.status !== 'settled' ||
@@ -205,45 +194,16 @@ export function createAiExecutionAdmissionService(
       }
     },
 
-    settle: async (request) => {
+    settle: async (permit, outcome) => {
       let result: DatabaseSettlementResult
       try {
-        result = await dependencies.database.settle(request, dependencies.signingKid)
+        result = await dependencies.database.settle(permit, outcome)
       } catch {
         throw unavailable()
       }
       if (result.status === 'denied') return { ok: false, code: result.code }
-      try {
-        return {
-          ok: true,
-          receipt: signAiSettlementReceipt(
-            {
-              version: 'ai-settlement-receipt-v1',
-              receiptKid: dependencies.signingKid,
-              grantKid: result.grantKid,
-              operationId: request.operationId,
-              permitId: request.permitId,
-              attemptNumber: request.attemptNumber,
-              nonce: request.nonce,
-              requestBindingHmac: result.requestBindingHmac,
-              disposition: result.disposition,
-              reportedDisposition: request.reportedDisposition,
-              providerRetryable: result.providerRetryable,
-              usageKnown: result.usageKnown,
-              inputTokens: result.inputTokens,
-              cachedInputTokens: result.cachedInputTokens,
-              outputTokens: result.outputTokens,
-              reasoningTokens: result.reasoningTokens,
-              costMicros: result.costMicros,
-              settledAtEpochMillis: result.settledAtEpochMillis,
-              settlementState: result.settlementState,
-            },
-            dependencies.signingPrivateKey,
-          ),
-        }
-      } catch {
-        throw unavailable()
-      }
+      const { status: _status, ...receipt } = result
+      return { ok: true, receipt }
     },
 
     readiness: async () => {

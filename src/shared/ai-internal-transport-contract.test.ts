@@ -16,10 +16,8 @@ import {
   parseAiExecutionGrant,
   parseAiSettlementReceipt,
   signAiExecutionGrant,
-  signAiSettlementReceipt,
   signAiRequestBinding,
   verifyAiExecutionGrant,
-  verifyAiSettlementReceipt,
   verifyAiRequestBinding,
   type AiAdmissionDescriptorV1,
 } from './ai-internal-transport-contract'
@@ -438,32 +436,28 @@ describe('AI admission signatures', () => {
     ).toBe(false)
   })
 
-  it('uses a distinct receipt domain and rejects a grant signature as a receipt signature', () => {
+  it('validates settlement usage and rejects a signed envelope as a typed result', () => {
     const request = signAiRequestBinding(descriptor(), hmac)
-    const receipt = signAiSettlementReceipt(
-      {
-        version: 'ai-settlement-receipt-v1',
-        receiptKid: 'grant-v1',
-        grantKid: 'grant-v1',
-        operationId: UUIDS.operation,
-        permitId: UUIDS.permit,
-        attemptNumber: 1,
-        nonce: 'AQIDBA',
-        requestBindingHmac: request.requestBindingHmac,
-        disposition: 'success',
-        reportedDisposition: 'success',
-        usageKnown: true,
-        inputTokens: 100,
-        cachedInputTokens: 20,
-        outputTokens: 20,
-        reasoningTokens: 5,
-        costMicros: 1_000,
-        providerRetryable: false,
-        settledAtEpochMillis: 1_780_000_010_000,
-        settlementState: 'settled',
-      },
-      privateKey,
-    )
+    const receipt = parseAiSettlementReceipt({
+      version: 'ai-settlement-receipt-v1',
+      grantKid: 'grant-v1',
+      operationId: UUIDS.operation,
+      permitId: UUIDS.permit,
+      attemptNumber: 1,
+      nonce: 'AQIDBA',
+      requestBindingHmac: request.requestBindingHmac,
+      disposition: 'success',
+      reportedDisposition: 'success',
+      usageKnown: true,
+      inputTokens: 100,
+      cachedInputTokens: 20,
+      outputTokens: 20,
+      reasoningTokens: 5,
+      costMicros: 1_000,
+      providerRetryable: false,
+      settledAtEpochMillis: 1_780_000_010_000,
+      settlementState: 'settled',
+    })
     expect(parseAiSettlementReceipt(receipt)).toEqual(receipt)
     expect(
       aiSettlementReceiptSchema.safeParse({
@@ -471,10 +465,6 @@ describe('AI admission signatures', () => {
         reportedDisposition: 'policy_denied',
       }).success,
     ).toBe(false)
-    expect(verifyAiSettlementReceipt(receipt, new Map([['grant-v1', publicKey]]))).toBe(
-      true,
-    )
-
     const grant = signAiExecutionGrant(
       {
         version: 'ai-execution-grant-v1',
@@ -497,10 +487,10 @@ describe('AI admission signatures', () => {
       privateKey,
     )
     expect(
-      verifyAiSettlementReceipt(
-        { ...receipt, receiptSignature: grant.grantSignature },
-        new Map([['grant-v1', publicKey]]),
-      ),
+      aiSettlementReceiptSchema.safeParse({
+        ...receipt,
+        grantSignature: grant.grantSignature,
+      }).success,
     ).toBe(false)
   })
 })

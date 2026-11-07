@@ -5,12 +5,11 @@ import {
 } from '#/shared/reply-drafting-progress'
 import { timingSafeEqual, type KeyObject } from 'node:crypto'
 import {
-  aiSettlementRequestSchema,
+  aiSettlementReceiptSchema,
   verifyAiExecutionGrant,
-  verifyAiSettlementReceipt,
   type AiExecutionGrantV1,
   type AiSettlementReceiptV1,
-  type AiSettlementRequestV1,
+  type AiSettlementOutcome,
 } from '#/shared/ai-internal-transport-contract'
 import {
   parseAiGatewayRouteResponse,
@@ -28,10 +27,6 @@ import type {
 } from './contracts'
 import { createAiSettlementSignal } from './settlement-signal'
 import { enforceOutboundFetchDisposition } from './dispositions'
-import {
-  settledCostMicrosWith,
-  type AiProviderPriceCatalogue,
-} from '#/shared/ai-provider-pricing'
 import { createOpenAiProviderAdapter } from './openai-provider-adapter'
 import type { AiProviderAdapter } from './provider-contracts'
 import { createAiProviderRegistry, type AiProviderRegistry } from './provider-selection'
@@ -198,22 +193,6 @@ function dispositionCode(
   }
 }
 
-function expectedSettlementCostMicros(
-  request: AiSettlementRequestV1,
-  grant: AiExecutionGrantV1,
-  pricing: AiProviderPriceCatalogue,
-): number | null {
-  if (request.disposition === 'no_dispatch') return 0
-  // Unknown usage (a timeout, a lost connection) may have been billed in full, so
-  // the admission authority charges the reservation and this check expects it. A
-  // provider's refusal by status has known zero usage and is priced normally.
-  if (!request.usageKnown) return grant.limits.costMicros
-  // The price list of the provider that ran the call: the admission authority
-  // settles with the same one, or the receipt does not bind.
-  const value = settledCostMicrosWith(pricing, request)
-  return value <= BigInt(Number.MAX_SAFE_INTEGER) ? Number(value) : null
-}
-
 function errorResponse(
   route: AiGatewayRouteRequestV1['route'],
   code: AiGatewayErrorCode,
@@ -227,15 +206,10 @@ function errorResponse(
   })
 }
 
-function settlementRequest(
-  grant: AiExecutionGrantV1,
+function settlementOutcome(
   outcome: OpenAiConnectorOutcome<unknown>,
-): AiSettlementRequestV1 {
-  return aiSettlementRequestSchema.parse({
-    operationId: grant.operationId,
-    permitId: grant.permitId,
-    attemptNumber: grant.attemptNumber,
-    nonce: grant.nonce,
+): AiSettlementOutcome {
+  return {
     disposition: outcome.disposition,
     reportedDisposition: outcome.reportedDisposition,
     providerRetryable: outcome.providerRetryable,
@@ -245,15 +219,13 @@ function settlementRequest(
     outputTokens: outcome.usage.outputTokens,
     reasoningTokens: outcome.usage.reasoningTokens,
     retryAfterSeconds: outcome.retryAfterSeconds,
-  })
+  }
 }
 
 function receiptMatches(
   receipt: AiSettlementReceiptV1,
   grant: AiExecutionGrantV1,
-  request: AiSettlementRequestV1,
-  publicKeys: ReadonlyMap<string, KeyObject>,
-  pricing: AiProviderPriceCatalogue,
+  request: AiSettlementOutcome,
 ): boolean {
   const finalDispositionAccepted =
     receipt.disposition === request.disposition ||
@@ -265,14 +237,13 @@ function receiptMatches(
       : receipt.disposition === 'transport_ambiguous'
         ? 'ambiguous'
         : 'settled'
-  const expectedCost = expectedSettlementCostMicros(request, grant, pricing)
   return (
-    verifyAiSettlementReceipt(receipt, publicKeys) &&
+    aiSettlementReceiptSchema.safeParse(receipt).success &&
     receipt.grantKid === grant.grantKid &&
-    receipt.operationId === request.operationId &&
-    receipt.permitId === request.permitId &&
-    receipt.attemptNumber === request.attemptNumber &&
-    receipt.nonce === request.nonce &&
+    receipt.operationId === grant.operationId &&
+    receipt.permitId === grant.permitId &&
+    receipt.attemptNumber === grant.attemptNumber &&
+    receipt.nonce === grant.nonce &&
     constantEqual(receipt.requestBindingHmac, grant.requestBindingHmac) &&
     finalDispositionAccepted &&
     receipt.reportedDisposition === request.reportedDisposition &&
@@ -283,8 +254,6 @@ function receiptMatches(
     receipt.cachedInputTokens === request.cachedInputTokens &&
     receipt.outputTokens === request.outputTokens &&
     receipt.reasoningTokens === request.reasoningTokens &&
-    expectedCost !== null &&
-    receipt.costMicros === expectedCost &&
     receipt.settlementState === expectedState
   )
 }
@@ -542,13 +511,14 @@ export function createAiEgressGatewayService(
             outcome = { ...outcome, disposition: 'output_invalid', result: null }
           }
         }
-        const settleRequest = settlementRequest(grant, outcome)
+        const settleRequest = settlementOutcome(outcome)
         const settlementDeadline = createAiSettlementSignal(
           Math.max(0, outerDeadlineEpochMillis - now()),
         )
         let settlement: Awaited<ReturnType<AiAdmissionClient['settle']>>
         try {
           settlement = await dependencies.admission.settle(
+            grant,
             settleRequest,
             settlementDeadline.signal,
           )
@@ -557,13 +527,7 @@ export function createAiEgressGatewayService(
         }
         const receiptBound =
           settlement.status === 'settled' &&
-          receiptMatches(
-            settlement.receipt,
-            grant,
-            settleRequest,
-            dependencies.admissionPublicKeys,
-            adapter.pricing,
-          )
+          receiptMatches(settlement.receipt, grant, settleRequest)
         if (settlement.status !== 'settled' || !receiptBound) {
           // Two independent causes behind one exit: admission did not return a
           // settled receipt, or it returned one that does not bind to this

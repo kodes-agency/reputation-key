@@ -267,7 +267,6 @@ export function trendRequest(): PropertyTrendGatewayRequestV1 {
 
 export const receipt = {
   version: 'ai-settlement-receipt-v1',
-  receiptKid: 'receipt_v1',
   grantKid: 'grant_v1',
   operationId: UUIDS.operation,
   permitId: UUIDS.permit,
@@ -285,5 +284,4 @@ export const receipt = {
   costMicros: 42,
   settledAtEpochMillis: 1_780_000_001_000,
   settlementState: 'settled',
-  receiptSignature: 'A'.repeat(86),
 } as const

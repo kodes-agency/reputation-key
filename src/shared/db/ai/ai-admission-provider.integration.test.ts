@@ -182,6 +182,14 @@ describe.sequential('admission and settlement by provider (real PostgreSQL)', ()
     now: () => NOW,
   })
 
+  async function settle(request: AiSettlementRequestV1, grantKid: string) {
+    const { operationId, permitId, attemptNumber, nonce, ...outcome } = request
+    return authority.settle(
+      { operationId, permitId, attemptNumber, nonce, grantKid },
+      outcome,
+    )
+  }
+
   const admission = (
     operationKey: string,
     operationProfileVersion?: string,
@@ -316,13 +324,13 @@ describe.sequential('admission and settlement by provider (real PostgreSQL)', ()
       await record(openAi.operationId, OPENAI)
 
       await expect(
-        authority.settle(settlement(none, 'success', usage), SIGNING_KID),
+        settle(settlement(none, 'success', usage), SIGNING_KID),
       ).resolves.toMatchObject({
         status: 'settled',
         costMicros: Number(settledCostMicros(usage)),
       })
       await expect(
-        authority.settle(settlement(openAi, 'success', usage), SIGNING_KID),
+        settle(settlement(openAi, 'success', usage), SIGNING_KID),
       ).resolves.toMatchObject({
         status: 'settled',
         costMicros: Number(settledCostMicros(usage)),
@@ -338,19 +346,17 @@ describe.sequential('admission and settlement by provider (real PostgreSQL)', ()
       await record(withheld.operationId, ANTHROPIC)
 
       await expect(
-        authority.settle(settlement(priced, 'success', usage), SIGNING_KID),
+        settle(settlement(priced, 'success', usage), SIGNING_KID),
       ).resolves.toMatchObject({
         status: 'settled',
         costMicros: Number(settledCostMicrosWith(anthropicList, usage)),
       })
-      // The two real lists carry the same per-million figures since the switch-on
-      // ($0.10 / $0.01 / $0.50 for gpt-6-luna and for claude-haiku-5-5), so the equality
-      // of the two settlements proves nothing here. That the list follows the provider
-      // is shown with a list that differs: `ai-provider-pricing.test.ts` and
-      // `service-providers.test.ts`.
+      // The real catalogues have identical rates, so equal costs alone cannot
+      // distinguish their selection. Their IDs still distinguish provenance;
+      // the gateway's acceptance of the authority's cost is tested separately.
       expect(anthropicList.catalogueId).not.toBe(OPENAI_PRICE_CATALOGUE_V2.catalogueId)
       await expect(
-        authority.settle(settlement(withheld, 'no_dispatch', usage), SIGNING_KID),
+        settle(settlement(withheld, 'no_dispatch', usage), SIGNING_KID),
       ).resolves.toMatchObject({
         status: 'settled',
         costMicros: 0,

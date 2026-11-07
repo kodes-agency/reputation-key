@@ -6,14 +6,9 @@ import {
 } from './ai-openai-provider-profile'
 
 /**
- * The admission authority signs `costMicros`; the egress gateway independently
- * recomputes it and refuses any receipt that disagrees. They MUST derive it from
- * the same catalogue.
- *
- * They did not. The gateway carried its own per-million literals, so repricing
- * the model to gpt-5.6-luna made every settled reply fail receipt verification
- * AFTER the provider had run and been charged, surfacing to the operator as
- * "A suggestion is unavailable right now."
+ * PostgreSQL owns the charge. Keep rates in the provider catalogue so repricing
+ * cannot leave copied prices in the authority or its fixtures. The gateway
+ * accepts the authority's cost without recomputing it.
  */
 const COST_CRITICAL_SOURCES = [
   'src/shared/ai-provider-control/service.ts',
@@ -109,7 +104,11 @@ describe('settled cost agreement', () => {
         )
       })
       expect(found).toEqual([])
-      expect(source).toContain('settledCostMicros')
+      if (file === 'src/shared/ai-provider-control/service.ts') {
+        expect(source).not.toContain('settledCostMicros')
+      } else {
+        expect(source).toContain('settledCostMicros')
+      }
     },
   )
 })

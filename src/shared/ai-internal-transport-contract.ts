@@ -11,7 +11,6 @@ export const AI_INTERNAL_RESPONSE_MAX_BYTES = 65_536 as const
 
 const REQUEST_BINDING_AUDIENCE = 'ai-request-binding-v1'
 const GRANT_DOMAIN = 'ai-execution-grant-v1\0'
-const RECEIPT_DOMAIN = 'ai-settlement-receipt-v1\0'
 const INTERNAL_ERROR = 'AI internal request is invalid'
 const SAFE_ID = /^[A-Za-z0-9._:@/-]{1,255}$/
 const KEY_ID = /^[a-z][a-z0-9_-]{0,31}$/
@@ -842,7 +841,6 @@ function validateReceiptUsage(
 const receiptBaseSchema = z
   .object({
     version: z.literal('ai-settlement-receipt-v1'),
-    receiptKid: keyId,
     grantKid: keyId,
     operationId: canonicalUuid,
     permitId: canonicalUuid,
@@ -862,13 +860,8 @@ const receiptBaseSchema = z
     settlementState: z.enum(['settled', 'released', 'ambiguous']),
   })
   .strict()
-const unsignedReceiptSchema = receiptBaseSchema.superRefine(validateReceiptUsage)
-const receiptSchema = receiptBaseSchema
-  .extend({ receiptSignature: signature })
-  .strict()
-  .superRefine(validateReceiptUsage)
+const receiptSchema = receiptBaseSchema.superRefine(validateReceiptUsage)
 export const aiSettlementReceiptSchema = receiptSchema
-export type AiSettlementReceiptUnsignedV1 = z.infer<typeof unsignedReceiptSchema>
 export type AiSettlementReceiptV1 = z.infer<typeof receiptSchema>
 
 /**
@@ -954,44 +947,6 @@ export function parseAiSettlementReceipt(value: unknown): AiSettlementReceiptV1 
   return receiptSchema.parse(value)
 }
 
-export function signAiSettlementReceipt(
-  unsigned: AiSettlementReceiptUnsignedV1,
-  privateKey: KeyObject,
-): AiSettlementReceiptV1 {
-  const parsed = unsignedReceiptSchema.parse(unsigned)
-  const canonical = canonicalAiSigningBytes(RECEIPT_DOMAIN, parsed)
-  let signature: Buffer | null = null
-  try {
-    signature = sign(null, canonical, privateKey)
-    return receiptSchema.parse({
-      ...parsed,
-      receiptSignature: signature.toString('base64url'),
-    })
-  } finally {
-    canonical.fill(0)
-    signature?.fill(0)
-  }
-}
-
-export function verifyAiSettlementReceipt(
-  receipt: AiSettlementReceiptV1,
-  publicKeys: ReadonlyMap<string, KeyObject>,
-): boolean {
-  const parsed = receiptSchema.safeParse(receipt)
-  if (!parsed.success) return false
-  const { receiptSignature, ...unsigned } = parsed.data
-  const key = publicKeys.get(unsigned.receiptKid)
-  if (key === undefined) return false
-  const canonical = canonicalAiSigningBytes(RECEIPT_DOMAIN, unsigned)
-  const signature = Buffer.from(receiptSignature, 'base64url')
-  try {
-    return verify(null, canonical, key, signature)
-  } finally {
-    canonical.fill(0)
-    signature.fill(0)
-  }
-}
-
 export const aiAdmissionRequestSchema = admissionRequestSchema
 export const aiSettlementRequestSchema = z
   .object({
@@ -1040,6 +995,15 @@ export const aiSettlementRequestSchema = z
     }
   })
 export type AiSettlementRequestV1 = z.infer<typeof aiSettlementRequestSchema>
+
+export type AiSettlementPermit = Pick<
+  AiExecutionGrantV1,
+  'operationId' | 'permitId' | 'attemptNumber' | 'nonce' | 'grantKid'
+>
+export type AiSettlementOutcome = Omit<
+  AiSettlementRequestV1,
+  'operationId' | 'permitId' | 'attemptNumber' | 'nonce'
+>
 
 import { canonicalAiSigningBytes } from './security/ai-signing-bytes'
 import { replyDraftingV2BindingSchema } from './reply-drafting-v2-binding'

@@ -264,7 +264,7 @@ function createHarness(
           result: options.analysisResult ?? VALID_ANALYSIS_RESULT,
           settlementReceipt: {
             version: 'ai-settlement-receipt-v1' as const,
-            receiptKid: 'receipt_v1',
+
             grantKid: 'grant_v1',
             operationId: OPERATION_ID,
             permitId: PERMIT_ID,
@@ -282,7 +282,6 @@ function createHarness(
             costMicros: 42,
             settledAtEpochMillis: NOW + 1_000,
             settlementState: 'settled' as const,
-            receiptSignature: 'A'.repeat(86),
           },
         }
   })

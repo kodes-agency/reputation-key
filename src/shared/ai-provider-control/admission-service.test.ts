@@ -4,7 +4,6 @@ import { createVersionedHmacKeyring } from '#/shared/security/versioned-hmac-key
 import {
   signAiRequestBinding,
   verifyAiExecutionGrant,
-  verifyAiSettlementReceipt,
   type AiAdmissionDescriptorV1,
 } from '#/shared/ai-internal-transport-contract'
 import {
@@ -105,6 +104,11 @@ function database(): AiAdmissionDatabaseAuthority {
     })),
     settle: vi.fn(async () => ({
       status: 'settled' as const,
+      version: 'ai-settlement-receipt-v1' as const,
+      operationId: descriptor().operationId,
+      permitId: descriptor().permitId,
+      attemptNumber: 1,
+      nonce: 'AQIDBA',
       grantKid: 'grant-v1',
       requestBindingHmac: 'A'.repeat(43),
       disposition: 'success' as const,
@@ -156,7 +160,7 @@ describe('AI execution admission service', () => {
     expect(authority.authorizeCanary).toHaveBeenCalledOnce()
   })
 
-  it('signs the canonical database settlement result', async () => {
+  it('returns the authority cost and database-clock settlement without signing', async () => {
     const settlement = {
       operationId: '10000000-0000-4000-8000-000000000001',
       permitId: '10000000-0000-4000-8000-000000000002',
@@ -172,7 +176,11 @@ describe('AI execution admission service', () => {
       reasoningTokens: 1,
       retryAfterSeconds: null,
     } as const
-    const result = await service().settle(settlement)
+    const { operationId, permitId, attemptNumber, nonce, ...outcome } = settlement
+    const permit = { operationId, permitId, attemptNumber, nonce, grantKid: 'grant-v1' }
+    const authority = database()
+    const result = await service(authority).settle(permit, outcome)
+    expect(authority.settle).toHaveBeenCalledWith(permit, outcome)
 
     expect(result.ok).toBe(true)
     if (!result.ok) throw new Error('expected a settlement receipt')
@@ -182,18 +190,18 @@ describe('AI execution admission service', () => {
       costMicros: 1_000,
       settlementState: 'settled',
     })
-    expect(
-      verifyAiSettlementReceipt(result.receipt, new Map([['grant-v1', publicKey]])),
-    ).toBe(true)
+    expect(result.receipt.settledAtEpochMillis).toBe(1_780_000_010_000)
   })
 
   it('releases an admitted permit as no-dispatch when grant signing fails', async () => {
     const authority = database()
-    vi.mocked(authority.settle).mockImplementationOnce(async (request, receiptKid) => ({
+    vi.mocked(authority.settle).mockImplementationOnce(async (permit, outcome) => ({
       status: 'settled',
-      grantKid: receiptKid,
+      version: 'ai-settlement-receipt-v1',
+      ...permit,
       requestBindingHmac: 'A'.repeat(43),
-      disposition: request.disposition,
+      disposition: outcome.disposition,
+      reportedDisposition: outcome.reportedDisposition,
       providerRetryable: false,
       usageKnown: false,
       inputTokens: 0,
@@ -215,12 +223,12 @@ describe('AI execution admission service', () => {
       admission.authorize(signAiRequestBinding(descriptor(), requestKeys)),
     ).rejects.toThrow('AI admission authority is unavailable')
     expect(authority.settle).toHaveBeenCalledWith(
+      expect.objectContaining({ grantKid: 'grant-v1', nonce: 'AQIDBA' }),
       expect.objectContaining({
         disposition: 'no_dispatch',
         usageKnown: false,
         providerRetryable: false,
       }),
-      'grant-v1',
     )
   })
 
