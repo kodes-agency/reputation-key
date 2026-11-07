@@ -757,6 +757,27 @@
       "when": 1798800001000,
       "tag": "0107_validate_merchant_ai_notice_retire_trends",
       "breakpoints": true
+    },
+    {
+      "idx": 108,
+      "version": "7",
+      "when": 1798900001000,
+      "tag": "0108_audit_events",
+      "breakpoints": true
+    },
+    {
+      "idx": 109,
+      "version": "7",
+      "when": 1799000001000,
+      "tag": "0109_audit_events_org_time_index",
+      "breakpoints": true
+    },
+    {
+      "idx": 110,
+      "version": "7",
+      "when": 1799100001000,
+      "tag": "0110_audit_events_retention_index",
+      "breakpoints": true
     }
   ]
 }

@@ -227,3 +227,5 @@ adoption, refusal codes, rewrite rate, latency percentiles and available submitt
 edit distances describe tenant usage. Unavailable distances are counted separately;
 a reload cannot recover the browser's adopted baseline. Published counts require a
 confirmed Google observation, rather than approval or dispatch. No `--apply` mode.
+
+- `ops:audit-events --operator <id> --org <id> [--property <id>] [--batch-size <1..100>]` — read the new content-free audit table for one Organization, newest first, within 365 days of occurrence. Reads only; no copying or writer cutover. See [audit operations](audit-events.md).

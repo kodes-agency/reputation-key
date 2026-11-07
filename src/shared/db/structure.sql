@@ -4962,6 +4962,44 @@ CREATE TABLE "public"."ai_review_analysis_mentions" (
 
 
 --
+-- Name: audit_events; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE "public"."audit_events" (
+    "id" "uuid" DEFAULT "gen_random_uuid"() NOT NULL,
+    "organization_id" "text" NOT NULL,
+    "property_id" "text",
+    "actor_type" "text" NOT NULL,
+    "actor_id" "text",
+    "action" "text" NOT NULL,
+    "outcome" "text" NOT NULL,
+    "resource_type" "text" NOT NULL,
+    "resource_id" "text",
+    "source_kind" "text" NOT NULL,
+    "source_id" "text" NOT NULL,
+    "source_event_type" "text",
+    "source_event_version" integer,
+    "source_context" "text",
+    "source_aggregate_id" "text",
+    "occurred_at" timestamp with time zone NOT NULL,
+    CONSTRAINT "audit_events_action_valid" CHECK (("action" ~ '^[a-z][a-z0-9_.:-]{0,79}$'::"text")),
+    CONSTRAINT "audit_events_actor_attribution_valid" CHECK ((("actor_type" !~ '^(system|public)$'::"text") OR ("actor_id" IS NULL))),
+    CONSTRAINT "audit_events_actor_id_valid" CHECK (("actor_id" ~ '^[A-Za-z0-9][A-Za-z0-9_.:@/-]{0,254}$'::"text")),
+    CONSTRAINT "audit_events_actor_type_valid" CHECK (("actor_type" ~ '^(user|system|operator|service|public)$'::"text")),
+    CONSTRAINT "audit_events_organization_id_valid" CHECK (("organization_id" ~ '^[A-Za-z0-9][A-Za-z0-9_.:@/-]{0,254}$'::"text")),
+    CONSTRAINT "audit_events_outcome_valid" CHECK (("outcome" ~ '^(succeeded|denied|failed)$'::"text")),
+    CONSTRAINT "audit_events_property_id_valid" CHECK (("property_id" ~ '^[A-Za-z0-9][A-Za-z0-9_.:@/-]{0,254}$'::"text")),
+    CONSTRAINT "audit_events_resource_id_valid" CHECK (("resource_id" ~ '^[A-Za-z0-9][A-Za-z0-9_.:@/-]{0,254}$'::"text")),
+    CONSTRAINT "audit_events_resource_type_valid" CHECK (("resource_type" ~ '^[a-z][a-z0-9_.:-]{0,39}$'::"text")),
+    CONSTRAINT "audit_events_source_aggregate_id_valid" CHECK (("source_aggregate_id" ~ '^[A-Za-z0-9][A-Za-z0-9_.:@/-]{0,254}$'::"text")),
+    CONSTRAINT "audit_events_source_context_valid" CHECK (("source_context" ~ '^[a-z][a-z0-9_.:-]{0,127}$'::"text")),
+    CONSTRAINT "audit_events_source_event_type_valid" CHECK (("source_event_type" ~ '^[a-z][a-z0-9_.:-]{0,127}$'::"text")),
+    CONSTRAINT "audit_events_source_id_valid" CHECK (("source_id" ~ '^[A-Za-z0-9][A-Za-z0-9_.:@/-]{0,254}$'::"text")),
+    CONSTRAINT "audit_events_source_valid" CHECK (((("source_kind" = 'domain_fact'::"text") AND ("source_event_type" IS NOT NULL) AND ("source_event_version" IS NOT NULL) AND ("source_event_version" >= 1) AND ("source_context" IS NOT NULL) AND ("source_aggregate_id" IS NOT NULL)) OR (("source_kind" ~ '^(policy_decision|interactive_command|worker_command|operator_command|history_access|history_lifecycle)$'::"text") AND ("source_event_type" IS NULL) AND ("source_event_version" IS NULL) AND ("source_context" IS NULL) AND ("source_aggregate_id" IS NULL))))
+);
+
+
+--
 -- Name: audit_logs; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -9407,6 +9445,22 @@ ALTER TABLE ONLY "public"."ai_review_analysis_mentions"
 
 
 --
+-- Name: audit_events audit_events_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY "public"."audit_events"
+    ADD CONSTRAINT "audit_events_pkey" PRIMARY KEY ("id");
+
+
+--
+-- Name: audit_events audit_events_source_uniq; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY "public"."audit_events"
+    ADD CONSTRAINT "audit_events_source_uniq" UNIQUE ("organization_id", "source_kind", "source_id");
+
+
+--
 -- Name: audit_logs audit_logs_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -11238,6 +11292,20 @@ CREATE UNIQUE INDEX "ai_review_analysis_mention_corrections_mention_unique" ON "
 --
 
 CREATE UNIQUE INDEX "ai_review_analysis_mentions_identity_unique" ON "public"."ai_review_analysis_mentions" USING "btree" ("organization_id", "property_id", "review_id", "source_epoch", "source_revision", "analysis_sequence", "topic", COALESCE("thing", ''::character varying), "polarity");
+
+
+--
+-- Name: audit_events_org_time_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX "audit_events_org_time_idx" ON "public"."audit_events" USING "btree" ("organization_id", "occurred_at", "id");
+
+
+--
+-- Name: audit_events_retention_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX "audit_events_retention_idx" ON "public"."audit_events" USING "btree" ("occurred_at", "id");
 
 
 --
