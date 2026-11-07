@@ -10,7 +10,7 @@ amended_on: 2026-11-06
 
 **Status:** Accepted for publication
 **Effective date:** 2026-11-06
-**Version:** 3.5
+**Version:** 3.6
 **Accountable owner:** Bozhidar Denev
 
 ## 1. About this notice
@@ -130,7 +130,7 @@ existing response remain available.
 
 The private rating is not a Google rating and is not sent to Google. The
 Service can record that the Guest selected the Google action, but cannot know
-or claim that a Google review was completed or published.
+or claim that a Google review was completed or published. During an unusually busy period or abuse, a response may not be stored because a limit has been reached. The Guest still sees the normal thank-you and the same Google Review option, with the same order, timing, copy and prominence. If no response was stored, there is nothing to correct or withdraw and those options are unavailable.
 
 Depending on enabled Portal features, the Service may handle:
 
@@ -407,9 +407,9 @@ backup can therefore bring back information erased after that backup was made.
 
 ## 7. Choices, corrections, and withdrawal
 
-- A Guest may correct the private rating once and may withdraw the whole
+- For a stored response, a Guest may correct the private rating once and may withdraw the whole
   response within 24 hours of the initial rating.
-- Eligible private feedback may be withdrawn within its 24-hour window.
+- Eligible stored private feedback may be withdrawn within its 24-hour window.
 - Withdrawing a response removes the effective rating and any still-effective
   feedback, while retaining only bounded content-free lineage needed for
   correctness and abuse prevention.
@@ -572,3 +572,5 @@ recovery are enabled; automatic erasure recording and replay after restore are
 not active. It takes effect on publication without a waiting period, on the
 accountable owner's decision for the two closed-beta Organizations the owner
 controls. Existing users are not asked to accept again.
+
+Version 3.6 (2026-11-06) explains that unusually busy periods or abuse can prevent a private response from being stored while leaving thank-you and Google Review available. Correction and withdrawal apply to stored responses. The submitted rating for an unstored response remains only in the signed session cookie for no more than 24 hours; admission records contain no rating or text and follow the existing seven-day network-pressure retention. This notice takes effect on 2026-11-06 and is version 3.6. This revision takes effect with the response-admission release, without a waiting period under the accountable owner's closed-beta waiver of 2026-11-06.

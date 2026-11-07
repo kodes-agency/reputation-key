@@ -274,3 +274,40 @@ When any candidate Portal is published, published candidates decide whether
 the Monthly portal goal offers private ratings; otherwise all candidates do.
 With every such candidate skipping ratings, it defaults to scans and offers no
 private rating measure (ADR 0068, P-2). Historical results remain visible.
+
+## Amendment 2026-11-06 — shared response admission
+
+Device and network controls still run first. Before a new response can write,
+one PostgreSQL transaction reserves capacity under an Organization advisory lock:
+300 new responses per Portal per UTC hour, 2,000 per Portal per UTC day and 5,000
+per Organization per UTC day. The Organization limit is one constant beside the
+other public admission budgets. Windows are half-open, and the clock is read
+after the lock. Admission receipts count reservations conservatively: a failed
+response write retains its reservation, and retrying uses the same slot. Existing
+responses, corrections, feedback, scans and navigation spend no new slot.
+
+The existing seven-day network-pressure records retain scope identifiers, the
+admission outcome and times. A purpose- and scope-separated HMAC of the signed
+session supplies the record ID; no session UUID, rating or text is stored.
+Fixed markers distinguish admitted, dropped and exhausted-window records from
+the per-network pseudonyms consumed by device/address controls. Existing
+retention and erasure paths cover them, and no new schema is needed. A dropped
+response creates no response, private-feedback, experience, integrity or outbox
+row. Its signed HttpOnly session cookie retains the rating and submission time
+for the normal receipt strip, within 24 hours. Reload checks the durable admission
+record; even if the reply cookie was lost it restores thank-you and Google
+without inventing a rating or offering correction, withdrawal or private text.
+Start over issues a fresh session under the existing controls. A dropped Google
+action navigates without recording a selection. Other responses retain their
+existing analytics and integrity behavior.
+
+Each exhausted Portal-hour, Portal-day or Organization-day window claims a
+unique content-free pressure record before emitting `guest.response_ceiling_exhausted`.
+The warning contains only the window kind; no tenant, Portal or session identity.
+Warning delivery is best effort if logging fails after commit; the record prevents
+repeated warnings across replicas. Erasing a Portal also removes its pressure
+records. The Privacy Notice describes the unstored-response exception and the
+temporary browser receipt.
+PostgreSQL boundary/concurrency tests cover the actual lock and receipt queries;
+unit tests cover the admission decisions, signed-session recovery, public
+handlers and identical Google markup in all six languages.

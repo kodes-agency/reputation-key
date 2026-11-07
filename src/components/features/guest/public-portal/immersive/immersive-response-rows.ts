@@ -81,6 +81,7 @@ export function responseSectionRows(
   response: GuestResponseView,
   clock: ResponseClock,
 ): readonly ResponseRow[] {
+  if (response.dropped) return []
   const { copy } = pack
   const windows = {
     change: {

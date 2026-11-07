@@ -70,3 +70,38 @@ describe.each(PACKS)('the Google action on the guest page [$locale]', (pack) => 
     }
   })
 })
+
+describe.each(PACKS)('a dropped response on the guest page [$locale]', (pack) => {
+  it.each([1, 2, 3, 4, 5, null])(
+    'keeps the thank-you and identical Google card after reload, rating %s',
+    (rating) => {
+      const dropped = {
+        ...RATED,
+        dropped: true as const,
+        rating,
+        privateFeedbackEligible: false,
+        correctionAvailable: false,
+        responseWithdrawalAvailable: false,
+        feedbackWithdrawalAvailable: false,
+        correctionDeadline: null,
+        responseWithdrawalDeadline: null,
+      }
+      const html = renderImmersivePortal({
+        pack,
+        selectedLocale: pack.locale,
+        initialResponse: dropped,
+      })
+      const stored = renderImmersivePortal({
+        pack,
+        selectedLocale: pack.locale,
+        initialResponse: { ...RATED, rating: 5 },
+      })
+      expect(cards(html)[0]).toContain(pack.copy.ratingThanks)
+      expect(cards(html)[1]).toEqual(cards(stored)[1])
+      const responseText = text(cards(html).join(''))
+      expect(responseText).not.toContain(pack.copy.ratingChange)
+      expect(responseText).not.toContain(pack.copy.responseRemoveAllAction)
+      expect(responseText).not.toContain(pack.copy.responseRemoveNoteAction)
+    },
+  )
+})

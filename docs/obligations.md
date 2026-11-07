@@ -303,3 +303,5 @@ Personal print filenames and available margins identify the person, outside the
 cut piece only. Privacy Notice version 3.4, effective 2026-11-03, and Participation Agreement
 version 2.5 take effect 2026-11-03; Access Disclosure 2.4 and staff.accounts capability posture are unchanged.
 No production/demo cleanup or What's new entry is performed in this PR.
+
+- **2026-11-06:** Privacy Notice version 3.6, effective 2026-11-06 with the response-admission release, explains that an exhausted response budget preserves thank-you and Google while creating no response or content record; correction and withdrawal apply to stored responses. Content-free reservations use the existing seven-day pressure retention, and the signed browser receipt lasts no more than 24 hours.
