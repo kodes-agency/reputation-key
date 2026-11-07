@@ -42,6 +42,7 @@ function lifecyclePage(mode: 'report' | 'shadow'): ReviewSourceContentLifecycleR
 
 function executionStore(): ReviewLifecycleRecoveryExecutionStore {
   return {
+    loadActive: vi.fn(async () => null),
     resume: vi.fn(async () => null),
     begin: vi.fn(),
     complete: vi.fn(),
@@ -50,7 +51,7 @@ function executionStore(): ReviewLifecycleRecoveryExecutionStore {
 }
 
 describe('Review lifecycle recovery maintenance factory', () => {
-  it('keeps missing or partial approval credentials inspection-only', async () => {
+  it('keeps a missing environment confirmation inspection-only', async () => {
     const run = vi.fn<RunReviewSourceContentLifecycle>(async (input) => {
       if (input.mode === 'apply') throw new Error('inspection may not apply')
       return lifecyclePage(input.mode)
@@ -63,9 +64,7 @@ describe('Review lifecycle recovery maintenance factory', () => {
       loadNextRecoveryGeneration: vi.fn(async () => 4),
     })
 
-    const authority = factory.createAuthority({
-      approvalContent: '{"incomplete":true}',
-    })
+    const authority = factory.createAuthority({})
 
     expect(authority.kind).toBe('inspection_only')
     if (authority.kind !== 'inspection_only') throw new Error('unreachable')
@@ -76,7 +75,7 @@ describe('Review lifecycle recovery maintenance factory', () => {
     expect(run.mock.calls.some(([input]) => input.mode === 'apply')).toBe(false)
   })
 
-  it('refuses an invalid complete keyring instead of weakening to inspection authority', () => {
+  it('refuses a wrong environment name instead of weakening to inspection authority', () => {
     const factory = createReviewLifecycleRecoveryAuthorityFactory({
       clock: () => NOW,
       createRunLifecycle: () => vi.fn() as RunReviewSourceContentLifecycle,
@@ -87,10 +86,72 @@ describe('Review lifecycle recovery maintenance factory', () => {
 
     expect(() =>
       factory.createAuthority({
-        approvalContent: '{}\n',
-        approvalBundleSha256: '0'.repeat(64),
-        approvalPublicKeysJson: '{}',
+        environmentConfirmation: 'production',
       }),
-    ).toThrow('approval public keyring is invalid')
+    ).toThrow('--yes closed-beta-v2')
+  })
+  it('admits the exact environment and records operator, time and resumable evidence', async () => {
+    const executions = executionStore()
+    vi.mocked(executions.begin).mockImplementation(async (input) => ({
+      state: 'applying',
+      reportExpired: input.reportExpired,
+      checkpoint: null,
+      pages: 0,
+      scanned: 0,
+      rowsRedacted: 0,
+      legacyGoogleRepliesReconciled: 0,
+      resumed: false,
+    }))
+    const run = vi.fn<RunReviewSourceContentLifecycle>(async (input) => {
+      if (input.mode === 'apply') throw new Error('admission must not apply')
+      return lifecyclePage(input.mode)
+    })
+    const factory = createReviewLifecycleRecoveryAuthorityFactory({
+      clock: () => NOW,
+      createRunLifecycle: () => run,
+      executions,
+      createRecoveryRunId: () => '10000000-0000-4000-8000-000000000099',
+      loadNextRecoveryGeneration: vi.fn(async () => 4),
+    })
+    const authority = factory.createAuthority({
+      environmentConfirmation: 'closed-beta-v2',
+    })
+    if (authority.kind !== 'confirmed_apply') throw new Error('apply authority required')
+    const admitted = await authority.admit(TARGET)
+    expect(admitted.recoveryInput.generation).toBe(4)
+    expect(executions.begin).toHaveBeenCalledWith(
+      expect.objectContaining({
+        approverIdentity: TARGET.operatorId,
+        operatorId: TARGET.operatorId,
+        approvedAt: NOW,
+        approvalKeyId: 'typed-environment',
+        reportExpired: 2,
+      }),
+    )
+    const binding = vi.mocked(executions.begin).mock.calls[0]![0]
+    vi.mocked(executions.loadActive).mockResolvedValue(binding)
+    vi.mocked(executions.resume).mockResolvedValue({
+      state: 'lifecycle_applied',
+      reportExpired: 2,
+      checkpoint: null,
+      pages: 1,
+      scanned: 2,
+      rowsRedacted: 2,
+      legacyGoogleRepliesReconciled: 0,
+    })
+    run.mockClear()
+    const resumed = await authority.admit({
+      ...TARGET,
+      operatorId: 'confirmer@example.com',
+      correlationId: 'next-invocation',
+    })
+    await resumed.applyReviewLifecycle()
+    expect(resumed.recoveryInput).toEqual(admitted.recoveryInput)
+    expect(run).not.toHaveBeenCalled()
+    expect(executions.begin).toHaveBeenCalledTimes(1)
+    await expect(
+      authority.admit({ ...TARGET, releaseSha: 'c'.repeat(40) }),
+    ).rejects.toThrow('wrong_target')
+    expect(executions.begin).toHaveBeenCalledTimes(1)
   })
 })

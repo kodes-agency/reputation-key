@@ -74,16 +74,16 @@ async function main(): Promise<void> {
         '  3. Boot ISOLATED: RESTORE_MODE=isolated (worker refuses to boot; web capabilities deny fail-closed)',
       )
       io.out(
-        '  4. Run pnpm ops restore-verify --operator <id>; independently review/sign its exact Review report request',
+        '  4. Run pnpm ops restore-verify --operator <id>; inspect its aggregate Review report and recovery inventories',
       )
       io.out(
-        '  5. Configure the one-shot approval only on the isolated verifier, then run the typed --apply command',
+        '  5. Run pnpm ops restore-verify --operator <id> --reason <text> --apply --yes closed-beta-v2',
       )
       io.out(
         '     — enforces retention, invalidates restored authority, fences unpublished effects, and proves zero backlog',
       )
       io.out(
-        '  6. Cut over only after verification (pin recovery run/generation, remove approval values, UNSET RESTORE_MODE, redeploy) — restore is the ONLY rollback path, reserved for data loss',
+        '  6. Cut over only after verification (pin recovery run/generation, UNSET RESTORE_MODE, redeploy) — restore is the ONLY rollback path, reserved for data loss',
       )
       io.out(
         '· erasure replay is NOT wired: restore-verify does not re-apply the erasures made after the restore point, so re-apply them by hand before cutover',

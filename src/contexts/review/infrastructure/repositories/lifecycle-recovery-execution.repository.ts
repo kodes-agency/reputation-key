@@ -108,6 +108,25 @@ export const createReviewLifecycleRecoveryExecutionRepository = (
   db: Database,
 ): ReviewLifecycleRecoveryExecutionStore => {
   return {
+    loadActive: async () => {
+      const rows = await db
+        .select()
+        .from(reviewLifecycleRecoveryExecutions)
+        .where(
+          sql`${reviewLifecycleRecoveryExecutions.state} IN ('applying', 'lifecycle_applied')`,
+        )
+        .limit(2)
+      if (rows.length > 1)
+        throw new Error('Multiple Review lifecycle recovery executions are active')
+      const row = rows[0]
+      if (!row) return null
+      return {
+        ...row,
+        state: 'applying',
+        recoveryRunId: row.id,
+        recoveryGeneration: row.recoveryGeneration,
+      }
+    },
     resume: async (input) =>
       db.transaction(async (tx) => {
         await tx.execute(
@@ -325,7 +344,7 @@ export const createReviewLifecycleRecoveryExecutionRepository = (
           .select({
             id: recoveryRuns.id,
             generation: recoveryRuns.generation,
-            completedAt: recoveryRuns.completedAt,
+            completedAt: sql<string>`${recoveryRuns.completedAt}::text`,
           })
           .from(recoveryRuns)
           .where(
@@ -337,7 +356,7 @@ export const createReviewLifecycleRecoveryExecutionRepository = (
           .limit(1)
         if (
           !recovery[0] ||
-          !sameInstant(recovery[0].completedAt, input.recoveryCompletedAt)
+          !sameInstant(new Date(recovery[0].completedAt), input.recoveryCompletedAt)
         ) {
           throw new Error(
             'Review lifecycle recovery completion has no exact recovery run',
@@ -348,7 +367,8 @@ export const createReviewLifecycleRecoveryExecutionRepository = (
           .set({
             state: 'completed',
             recoveryReplayed: input.recoveryReplayed,
-            completedAt: input.recoveryCompletedAt,
+            // Preserve PostgreSQL microseconds for the trigger's exact run binding.
+            completedAt: sql`${recovery[0].completedAt}::timestamptz`,
             updatedAt: sql`clock_timestamp()`,
             errorCode: null,
           })

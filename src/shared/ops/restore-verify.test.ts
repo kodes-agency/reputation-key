@@ -12,6 +12,12 @@
 // (src/shared/jobs/infrastructure/repositories/restore-verify.test.ts).
 
 import { describe, it, expect, vi } from 'vitest'
+import { createReviewLifecycleRecoveryAuthorityFactory } from '#/contexts/review/application/recovery-maintenance'
+import { createRunReviewSourceContentLifecycle } from '#/contexts/review/application/use-cases/run-source-content-lifecycle'
+import type { ReviewLifecycleRecoveryExecutionAuthorityInput } from '#/contexts/review/application/ports/lifecycle-recovery-execution-store.port'
+import type { ReviewSourceContentLifecycleInspection } from '#/contexts/review/application/ports/source-content-lifecycle-store.port'
+import { reviewId } from '#/shared/domain/ids'
+import type { ReviewSourceContentLifecycleStore } from '#/contexts/review/application/ports/source-content-lifecycle-store.port'
 import {
   validateOperatorArgs,
   type OperatorContext,
@@ -90,9 +96,142 @@ const inspectionPlan = () => ({
   expired: 4,
 })
 
+it('retries restore-verify when Review content expires after lifecycle completion', async () => {
+  const startedAt = new Date('2026-08-28T10:00:00.000Z')
+  let now = startedAt
+  let binding: ReviewLifecycleRecoveryExecutionAuthorityInput | null = null
+  const rows: ReviewSourceContentLifecycleInspection[] = [1, 2, 3].map((id) => ({
+    reviewId: reviewId(`10000000-0000-4000-8000-${String(id).padStart(12, '0')}`),
+    createdAt: new Date('2026-08-20T10:00:00.000Z'),
+    sourceContentState: 'active',
+    lifecycleClock: new Date(
+      startedAt.getTime() + (id === 1 ? 1 : id === 2 ? -1 : 3) * 86_400_000,
+    ),
+    shadowFindings: [],
+  }))
+  const readPage: ReviewSourceContentLifecycleStore['readInspectionBatch'] = async ({
+    after,
+    limit,
+  }) =>
+    rows.filter((row) => after == null || row.reviewId > after.reviewId).slice(0, limit)
+  const store: ReviewSourceContentLifecycleStore = {
+    readInspectionBatch: readPage,
+    applyLifecycleBatch: async (input) => {
+      const page = await readPage(input)
+      const before = page.map((row) => ({ ...row }))
+      let redacted = 0
+      for (const row of page) {
+        if (
+          row.sourceContentState === 'active' &&
+          row.lifecycleClock! <= input.evaluatedAt
+        ) {
+          rows[rows.indexOf(row)] = { ...row, sourceContentState: 'source_expired' }
+          redacted += 1
+        }
+      }
+      return {
+        rows: before,
+        hasMore: false,
+        rowsRedacted: redacted,
+        legacyGoogleRepliesReconciled: 0,
+      }
+    },
+  }
+  const complete = vi.fn(async () => {})
+  const factory = createReviewLifecycleRecoveryAuthorityFactory({
+    clock: () => now,
+    createRunLifecycle: (input) =>
+      createRunReviewSourceContentLifecycle({ store, ...input }),
+    createRecoveryRunId: () => '10000000-0000-4000-8000-000000000001',
+    loadNextRecoveryGeneration: async () => 1,
+    executions: {
+      loadActive: async () => binding,
+      resume: async () =>
+        binding == null
+          ? null
+          : {
+              state: 'lifecycle_applied',
+              reportExpired: 1,
+              checkpoint: null,
+              pages: 1,
+              scanned: 3,
+              rowsRedacted: 1,
+              legacyGoogleRepliesReconciled: 0,
+            },
+      begin: async (input) => {
+        binding = input
+        return {
+          state: 'applying',
+          resumed: false,
+          reportExpired: 1,
+          checkpoint: null,
+          pages: 0,
+          scanned: 0,
+          rowsRedacted: 0,
+          legacyGoogleRepliesReconciled: 0,
+        }
+      },
+      complete,
+      fail: async () => {},
+    },
+  })
+  const authority = () =>
+    factory.createAuthority({ environmentConfirmation: 'closed-beta-v2' })
+  const deps = depsFor({
+    clock: () => now,
+    reviewLifecycle: authority(),
+    countExpired: async () =>
+      rows.filter(
+        (row) => row.sourceContentState === 'active' && row.lifecycleClock! <= now,
+      ).length,
+  })
+  const interrupted = new Error('interrupted before the fence')
+  deps.applyRecoveryFence.mockRejectedValueOnce(interrupted)
+  await expect(runRestoreVerifyAction(ctxFor(false), deps, memoryIO())).rejects.toBe(
+    interrupted,
+  )
+  expect(complete).not.toHaveBeenCalled()
+  const originalBinding = binding
+
+  now = new Date('2026-08-30T10:00:00.000Z')
+  expect(await deps.countExpired()).toBe(1)
+  const io = memoryIO()
+  expect(
+    await runRestoreVerifyAction(
+      ctxFor(false),
+      { ...deps, reviewLifecycle: authority() },
+      io,
+    ),
+  ).toBe(0)
+  expect(io.errLines).toEqual([])
+  expect(await deps.countExpired()).toBe(0)
+  expect(rows.map((row) => row.sourceContentState)).toEqual([
+    'source_expired',
+    'source_expired',
+    'active',
+  ])
+  expect(binding).toEqual(originalBinding)
+  expect(complete).toHaveBeenCalledOnce()
+})
+
+it('keeps the receipt unfinished if Review content expires while the fence commits', async () => {
+  const deps = depsFor({
+    countExpired: vi
+      .fn()
+      .mockResolvedValueOnce(0)
+      .mockResolvedValueOnce(0)
+      .mockResolvedValue(1),
+  })
+  const io = memoryIO()
+  expect(await runRestoreVerifyAction(ctxFor(false), deps, io)).toBe(1)
+  expect(deps.applyRecoveryFence).toHaveBeenCalledOnce()
+  expect(deps.reviewComplete).not.toHaveBeenCalled()
+  expect(io.errLines.join('\n')).toContain('1 expired-content row(s) remain')
+})
+
 function depsFor(overrides: Partial<RestoreVerifyDeps> = {}): RestoreVerifyDeps & {
   reviewLifecycle: {
-    kind: 'reviewed_apply'
+    kind: 'confirmed_apply'
     admit: ReturnType<typeof vi.fn>
   }
   reviewApply: ReturnType<typeof vi.fn>
@@ -110,8 +249,10 @@ function depsFor(overrides: Partial<RestoreVerifyDeps> = {}): RestoreVerifyDeps 
   const reviewComplete = vi.fn(async () => {})
   return {
     env: ISOLATED_ENV,
+    confirmation: 'closed-beta-v2',
+    clock: () => new Date('2026-11-07T10:00:00.000Z'),
     reviewLifecycle: {
-      kind: 'reviewed_apply',
+      kind: 'confirmed_apply',
       admit: vi.fn(async () => ({
         recoveryInput: {
           runId: '10000000-0000-4000-8000-000000000001',
@@ -160,7 +301,7 @@ function depsFor(overrides: Partial<RestoreVerifyDeps> = {}): RestoreVerifyDeps 
     ...overrides,
   } as RestoreVerifyDeps & {
     reviewLifecycle: {
-      kind: 'reviewed_apply'
+      kind: 'confirmed_apply'
       admit: ReturnType<typeof vi.fn>
     }
     reviewApply: ReturnType<typeof vi.fn>
@@ -180,14 +321,14 @@ describe('ops:restore-verify spec contract (BQC-7.8)', () => {
   const base = { operator: 'op@example.com' }
 
   it('requires --reason with --apply', () => {
-    const args = { ...base, apply: true, yes: 'ops:restore-verify' }
+    const args = { ...base, apply: true, yes: 'closed-beta-v2' }
     expect(validateOperatorArgs(RESTORE_VERIFY_SPEC, args as never)).toMatch(/--reason/)
   })
 
-  it('requires the typed confirmation --yes ops:restore-verify with --apply', () => {
+  it('requires the typed confirmation --yes closed-beta-v2 with --apply', () => {
     const args = { ...base, apply: true, reason: 'drill', yes: 'ops:purge' }
     expect(validateOperatorArgs(RESTORE_VERIFY_SPEC, args as never)).toMatch(
-      /--yes ops:restore-verify/,
+      /--yes closed-beta-v2/,
     )
   })
 
@@ -197,7 +338,7 @@ describe('ops:restore-verify spec contract (BQC-7.8)', () => {
         ...base,
         apply: true,
         reason: 'restore drill 2026-07-31',
-        yes: 'ops:restore-verify',
+        yes: 'closed-beta-v2',
       } as never),
     ).toBeNull()
     expect(validateOperatorArgs(RESTORE_VERIFY_SPEC, base as never)).toBeNull()
@@ -220,6 +361,60 @@ describe('ops:restore-verify spec contract (BQC-7.8)', () => {
 })
 
 describe('runRestoreVerifyAction (BQC-7.8)', () => {
+  it.each([undefined, '', 'production', 'closed-beta-v2 '])(
+    'refuses confirmation %s before any mutation',
+    async (confirmation) => {
+      const deps = depsFor({ confirmation })
+      const io = memoryIO()
+      expect(await runRestoreVerifyAction(ctxFor(false), deps, io)).toBe(1)
+      expect(io.errLines.join('\n')).toContain('--yes closed-beta-v2')
+      expect(deps.reviewLifecycle.admit).not.toHaveBeenCalled()
+      expect(deps.reviewApply).not.toHaveBeenCalled()
+      expect(deps.sweepGoogleImportLifecycle).not.toHaveBeenCalled()
+      expect(deps.sweepRetentionBacklog).not.toHaveBeenCalled()
+      expect(deps.applyRecoveryFence).not.toHaveBeenCalled()
+    },
+  )
+
+  it('logs the confirmed environment, operator and time before admitting mutation', async () => {
+    const deps = depsFor()
+    const io = memoryIO()
+    deps.reviewLifecycle.admit.mockImplementationOnce(async () => {
+      expect(io.outLines).toContain(
+        'restore confirmation — environment=closed-beta-v2 operator=op@example.com at=2026-11-07T10:00:00.000Z correlation=corr-1',
+      )
+      throw new Error('stop after confirmation')
+    })
+    await expect(runRestoreVerifyAction(ctxFor(false), deps, io)).rejects.toThrow(
+      'stop after confirmation',
+    )
+  })
+
+  it('logs the current confirmer separately from the resumed fence identity', async () => {
+    const deps = depsFor()
+    const io = memoryIO()
+    const ctx = {
+      ...ctxFor(false),
+      operatorId: 'confirmer@example.com',
+      correlationId: 'next-invocation',
+    }
+
+    expect(await runRestoreVerifyAction(ctx, deps, io)).toBe(0)
+    expect(io.outLines).toContain(
+      'restore confirmation — environment=closed-beta-v2 operator=confirmer@example.com at=2026-11-07T10:00:00.000Z correlation=next-invocation',
+    )
+    expect(deps.reviewLifecycle.admit).toHaveBeenCalledWith(
+      expect.objectContaining({
+        operatorId: ctx.operatorId,
+        correlationId: ctx.correlationId,
+      }),
+    )
+    expect(deps.applyRecoveryFence).toHaveBeenCalledExactlyOnceWith(
+      expect.objectContaining({ operatorId: 'op@example.com', correlationId: 'corr-1' }),
+    )
+    expect(deps.reviewComplete).toHaveBeenCalledOnce()
+  })
+
   // Planted faults: the verifier is started from an environment that carries a
   // live Redis, queue or bucket setting. It refuses before it inspects or
   // changes anything, and names the setting without printing its value.
@@ -328,7 +523,7 @@ describe('runRestoreVerifyAction (BQC-7.8)', () => {
     const out = io.outLines.join('\n')
     expect(out).toMatch(/RESTORE MODE ISOLATED/)
     expect(out).toMatch(/7 expired-content row\(s\)/)
-    expect(out).toMatch(/--apply --yes ops:restore-verify/)
+    expect(out).toMatch(/--apply --yes closed-beta-v2/)
   })
 
   it('inspection-only dry-run reports that apply authority is unavailable', async () => {
@@ -336,7 +531,7 @@ describe('runRestoreVerifyAction (BQC-7.8)', () => {
     const deps = depsFor({
       reviewLifecycle: {
         kind: 'inspection_only',
-        reason: 'reviewed_cutover_authority_required',
+        reason: 'environment_confirmation_required',
         prepare: vi.fn(async () => inspectionPlan()),
       },
     })
@@ -348,7 +543,7 @@ describe('runRestoreVerifyAction (BQC-7.8)', () => {
     expect(io.outLines.join('\n')).not.toMatch(/re-run with --apply/)
     expect(io.outLines.join('\n')).toContain('e'.repeat(64))
     expect(io.outLines.join('\n')).toContain('f'.repeat(64))
-    expect(io.outLines.join('\n')).toMatch(/independent approver/i)
+    expect(io.outLines.join('\n')).toContain('--yes closed-beta-v2')
     expect(deps.countExpired).not.toHaveBeenCalled()
   })
 
@@ -357,7 +552,7 @@ describe('runRestoreVerifyAction (BQC-7.8)', () => {
     const deps = depsFor({
       reviewLifecycle: {
         kind: 'inspection_only',
-        reason: 'reviewed_cutover_authority_required',
+        reason: 'environment_confirmation_required',
         prepare: vi.fn(async () => inspectionPlan()),
       },
     })
@@ -369,13 +564,13 @@ describe('runRestoreVerifyAction (BQC-7.8)', () => {
     expect(deps.sweepGoogleImportLifecycle).not.toHaveBeenCalled()
     expect(deps.sweepRetentionBacklog).not.toHaveBeenCalled()
     expect(deps.applyRecoveryFence).not.toHaveBeenCalled()
-    expect(io.errLines.join('\n')).toMatch(/no reviewed cutover authority/i)
+    expect(io.errLines.join('\n')).toMatch(/no environment confirmation/i)
   })
 
   it('apply runs the purge in-process, prints evidence, and exits 0 when nothing remains', async () => {
     const io = memoryIO()
     const deps = depsFor({
-      countExpired: vi.fn().mockResolvedValueOnce(2).mockResolvedValueOnce(0),
+      countExpired: vi.fn().mockResolvedValue(0).mockResolvedValueOnce(2),
     })
     const code = await runRestoreVerifyAction(ctxFor(false), deps, io)
     expect(code).toBe(0)
@@ -390,6 +585,9 @@ describe('runRestoreVerifyAction (BQC-7.8)', () => {
     expect(out).toMatch(/rows_deleted=2/)
     expect(out).toMatch(/zero expired-content row\(s\) remain/)
     expect(out).toMatch(/recovery generation 1 completed/)
+    expect(out).toContain(
+      'restore confirmation — environment=closed-beta-v2 operator=op@example.com at=2026-11-07T10:00:00.000Z correlation=corr-1',
+    )
     // Cutover reminder: RESTORE_MODE must be UNSET.
     expect(out).toMatch(/UNSET RESTORE_MODE/)
   })

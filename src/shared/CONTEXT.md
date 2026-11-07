@@ -21,7 +21,17 @@ Primary areas:
 - `health/` and `observability/` expose content-minimal runtime evidence.
 - `domain/`, `http/`, `email/`, `cache/`, and `lifecycle/` hold small mechanisms.
 - `hooks/` and `queries/` are browser-safe cross-feature access/cache utilities.
-- `ops/` and `release/` own reviewed operational and promotion contracts.
+- `ops/` and `release/` own operational and promotion contracts. Restore apply
+  requires `--yes closed-beta-v2`, logged with the operator and time, after the
+  isolated database and side-service refusals. Review retains durable page
+  checkpoints; retries keep the receipt's original operator and correlation
+  for fence execution while logging the current confirmer separately.
+  After resuming the frozen pass, verification sweeps expiry again from the
+  start at a fresh cutoff. These atomic pages can replay after interruption
+  without changing the receipt's evidence or resetting its durable checkpoint.
+  Expiry is checked again after fencing before the receipt can complete.
+  `recovery_runs` retains the fence and cutover generation. Erasure
+  replay is a separate prerequisite and is not wired into this command.
   `release/railway-service-settings.ts` defines web and worker settings; image
   promotion checks deployed manifests and replica counts against that contract.
 
