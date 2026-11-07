@@ -156,6 +156,16 @@ export const SYNC_METRIC_DEFINITIONS = [
       'Google accounts (Organization, connection and account) that missed two or more pushes across their locations in the last 7 days.',
   },
   {
+    name: 'sync.reconciliation_overdue_after_ms',
+    kind: 'gauge',
+    unit: 'ms',
+    labels: {},
+    snapshotPath: ['syncPush.reconciliation.overdueAfterMs'],
+    emitted: true,
+    description:
+      'Configured reconciliation window plus two hours of slack, used by the health read and its overdue alert.',
+  },
+  {
     name: 'sync.reconciliation_overdue',
     kind: 'gauge',
     unit: 'count',
@@ -163,7 +173,7 @@ export const SYNC_METRIC_DEFINITIONS = [
     snapshotPath: ['syncPush.reconciliation.overdueCount'],
     emitted: true,
     description:
-      'Syncable Properties whose newest completed reconciliation of the current source epoch is older than 8 hours (no reconciliation: since the Property qualified). Properties parked with a coded failure are left to their own alert.',
+      'Syncable Properties whose newest completed reconciliation of the current source epoch is older than the configured reconciliation window plus two hours (no reconciliation: since the Property qualified). Includes Properties with a coded failure.',
   },
   {
     name: 'sync.oldest_reconciliation_age_ms',

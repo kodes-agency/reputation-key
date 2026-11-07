@@ -43,11 +43,15 @@ export const PUSH_ALERT_WINDOW_MS = 24 * 60 * 60 * 1000
 
 /**
  * A syncable Property is reconciliation-overdue past this age. The discovery
- * sweep guarantees a completed reconciliation about every six hours (ADR 0055
- * decision 5, plus up to one sweep of latency and the sync itself); two hours
- * of slack on top keeps one slow sweep from paging.
+ * window is REVIEW_RECONCILE_WITHIN_HOURS; two hours of slack on top keeps one
+ * slow sweep and its snapshot from paging (ADR 0055).
  */
-export const RECONCILIATION_OVERDUE_AFTER_MS = 8 * 60 * 60 * 1000
+export function reconciliationOverdueAfterMs(reconcileWithinHours: number): number {
+  return (reconcileWithinHours + 2) * 60 * 60 * 1000
+}
+
+/** Default limit while the reconciliation window remains six hours. */
+export const RECONCILIATION_OVERDUE_AFTER_MS = reconciliationOverdueAfterMs(6)
 
 /** A location is suspect after this many missed pushes in the health window. */
 const LOCATION_SUSPECT_MISSED = 1

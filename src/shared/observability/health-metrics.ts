@@ -63,6 +63,8 @@ export type HealthMetricsDeps = Readonly<{
    * honest default: without the topic there is no push subscription.
    */
   gbpPushEnabled?: boolean
+  /** REVIEW_RECONCILE_WITHIN_HOURS, shared with the discovery sweep. */
+  reviewReconcileWithinHours?: number
   /**
    * `notification.send_email` is open to every Organization — globally
    * enabled, or `BETA_ALLOWLIST_ORGS=*`. Absent = treated as closed: with
@@ -1118,7 +1120,11 @@ function createHealthSignalReads(
     // Push health + reconciliation age, from the first-sighting ledger.
     syncPush: () =>
       trace('health.check.syncPush', () =>
-        readSyncPushHealth(db, deps?.gbpPushEnabled === true),
+        readSyncPushHealth(
+          db,
+          deps?.gbpPushEnabled === true,
+          deps?.reviewReconcileWithinHours,
+        ),
       ),
   }
 }

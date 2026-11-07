@@ -2,14 +2,12 @@
 // (alert-definitions.ts declares the alerts; this holds what they measure).
 //
 // All three are P2: each is a degraded fast path or a slipping safety net, not
-// lost data. Polling still finds every Review within about six hours, so none
-// of them pages out of hours. Their facts are counts only (alert-facts.ts).
+// lost data. Polling provides the full-read safety net within the configured
+// window. Their facts are counts only (alert-facts.ts).
 
 import type { OperationsSnapshot } from '#/shared/health/operations-snapshot'
-import type { AlertFacts } from './alert-facts'
+import type { AlertReading } from './alert-reading'
 import { PUSH_MISSED_AFTER_MS } from '#/shared/domain/push-health'
-
-type AlertReading = Readonly<{ value: number; detail: string; facts?: AlertFacts }>
 
 const MINUTES = PUSH_MISSED_AFTER_MS / 60_000
 
@@ -47,15 +45,17 @@ export function readPushSilent(snapshot: OperationsSnapshot): AlertReading | nul
 
 /**
  * A syncable Property has gone past the limit without a completed
- * reconciliation. It does not depend on push: the six-hour reconciliation is
+ * reconciliation. It does not depend on push: the full reconciliation is
  * the safety net push relies on, and with push dark it is the only path.
  */
 export function readReconciliationAge(snapshot: OperationsSnapshot): AlertReading | null {
-  const { overdueCount, oldestAgeMs } = snapshot.syncPush.reconciliation
+  const { overdueCount, oldestAgeMs, overdueAfterMs } = snapshot.syncPush.reconciliation
   if (overdueCount <= 0) return null
   return {
     value: oldestAgeMs ?? 0,
-    detail: `${overdueCount} syncable property(ies) have no completed reconciliation inside the limit; the oldest is ${oldestAgeMs ?? 0}ms behind`,
+    threshold: overdueAfterMs,
+    windowMs: overdueAfterMs,
+    detail: `${overdueCount} syncable property(ies) have no completed reconciliation inside ${overdueAfterMs}ms; the oldest is ${oldestAgeMs ?? 0}ms behind`,
     facts: { count: overdueCount },
   }
 }

@@ -904,9 +904,29 @@ describe('sync.push-silent', () => {
 describe('sync.reconciliation-age', () => {
   const overdue = (count: number, oldestAgeMs: number | null) => {
     const s = healthy()
-    s.syncPush = { ...s.syncPush, reconciliation: { overdueCount: count, oldestAgeMs } }
+    s.syncPush = {
+      ...s.syncPush,
+      reconciliation: {
+        ...s.syncPush.reconciliation,
+        overdueCount: count,
+        oldestAgeMs,
+      },
+    }
     return s
   }
+
+  it('reports the daily-window threshold used by the health read', () => {
+    const limit = 26 * 3_600_000
+    const snapshot = overdue(1, limit + 1)
+    snapshot.syncPush.reconciliation.overdueAfterMs = limit
+
+    expect(evaluateOne('sync.reconciliation-age', snapshot)).toMatchObject({
+      threshold: limit,
+      windowMs: limit,
+      value: limit + 1,
+      facts: { count: 1 },
+    })
+  })
 
   it('fires when a syncable Property has gone past eight hours without a completed reconciliation', () => {
     const ageMs = RECONCILIATION_OVERDUE_AFTER_MS + 60_000

@@ -276,6 +276,52 @@ SELECT listing_complete, count(*), max(evaluated_at)
 
 **Rolling back:** set `REVIEW_HEAD_CHECKS=dark` on the worker and restart. Head facts already written stay and are ignored by the readers that mean a completed listing; reviews already stored are ordinary reviews. Do not roll the code back past migration 0067 without first deleting the `listing_complete = false` rows.
 
+### Daily full reads
+
+The code still defaults to a six-hour full-read window and dark head checks.
+Daily reads are a separate operational change, after persisting head checks have
+been observed and their persistent false signals explained or fixed. Do not
+widen the window while head checks are `off` or `dark`.
+
+Before changing cadence, capture at least one complete UTC day of Google request
+counts for review reads, admission refusals (`quota_exhausted` and
+`in_flight_exhausted`), and retry waits. Record the observation period and active
+Property count so the comparison has the same denominator. Google Cloud's API
+request counts measure calls; a run's `page_count` alone misses retries and
+targeted reads. Group snapshot and head starts by UTC hour to measure bunching:
+
+```sql
+SELECT date_trunc('hour', started_at AT TIME ZONE 'UTC') AS utc_hour,
+       mode, count(*) AS starts, sum(page_count) AS pages
+  FROM review_sync_runs
+ WHERE started_at >= now() - interval '2 days'
+   AND mode IN ('snapshot', 'head', 'head_dark')
+ GROUP BY 1, 2 ORDER BY 1, 2;
+```
+
+Set `REVIEW_RECONCILE_WITHIN_HOURS=24` on web and worker and restart both, keeping
+`REVIEW_HEAD_CHECKS=persist` on the worker. The sweep uses that window; each
+process's health read uses the same setting. `syncPush.reconciliation.overdueAfterMs`
+must be `93600000` (26 hours). Imports, push reads, failure retries, quota limits,
+and the 30-day content clock retain their rules.
+
+Capture the same measurements for a complete UTC day after the change. Compare
+both hourly peaks and daily totals: the existing ten-minute start spread does
+not establish that starts are distributed across the day. Check completed
+`listing_complete = true` facts for every currently syncable Property and source
+epoch over successive daily windows, including cold Properties. Confirm actual
+completion gaps remain within 24 hours; head facts and successful enqueues do
+not prove this. The 26-hour alert allows operational slack and does not prove
+the 24-hour target by itself. Keep overdue, failed, and quota-wait observations
+with the comparison before treating the rollout as complete.
+
+Guests see the same Portal and Google actions. Managers keep push and persisted
+head updates, but a change outside the newest page can wait until the daily full
+read instead of the six-hour read. Check Goals' displayed number and freshness
+against head observations as well as completed listings. If that freshness
+regresses, quota waits grow, or completed reads miss the window, set the window
+back to `6` on both processes. Return to `6` before setting head checks to `dark`.
+
 **Remediate:** dead worker → §7. Poison property → read `review_sync_state.error_class` / `last_terminal_error_at` for the property at the cursor and clear or fix it, then `ops:refresh reviews` for one bounded catch-up run. Starving sweep → raise `REVIEW_DISCOVERY_INTERVAL_MINUTES` so fewer properties come due per tick, or raise the batch budget; the alert clears once the oldest overdue property is polled. Raising the interval does not change how often a busy Property is actually read in full below six hours: that is the skip rule. To put every look back to a full snapshot (for example if a missed push needs finding sooner), set `REVIEW_DISCOVERY_SKIP_RECENTLY_RECONCILED=false` on the worker and restart it. Quota/throttle from Google → §3.
 
 **Verification:** `sync.oldest_due_age_ms` falls back under 60 minutes and keeps falling; `sync.due_for_incremental` drains.
@@ -300,7 +346,7 @@ SELECT listing_complete, count(*), max(evaluated_at)
 
 **What the system does.** The snapshot run ends as `provider_rejected` (`review_provider_snapshot_runs.failure_code`) and discards its cursors. The worker writes one warning, `review_snapshot_provider_rejected`, with `providerStatus` (Google's HTTP status, 400 or 404; null if the error carried none), `providerErrorStatus` (the status name in Google's error body, such as `NOT_FOUND` or `INVALID_ARGUMENT`; null when the body had none or one outside a fixed list), `dispatch` (`answered`) and `runId`. The same values are stored on a `review_sync_runs` row with the snapshot run's id (`mode = 'snapshot'`, `error_class` the code, `result` JSON; kept 30 days), for `provider_failure` and `authorization_changed` runs too, so the answer outlives the log. Look the status up there or in the worker log: 404 means Google no longer has the Location through this connection, 400 means it refuses the request for it. The job then parks the Property like a location over the cap: it records `error_class = provider_rejected`, the failure time and the retry date, logs `review_snapshot_failure_deferred`, and ends normally. It throws nothing, so there is no BullMQ retry, no dead letter, no quarantine entry, no Sentry event and no repair latch (`worker.job-runtime-unready` stays clear), and `markSyncSucceeded` is not called. The wait is the ordinary ladder (15 minutes, 1 hour, 4 hours, 6 hours cap), not a day, so a Location fixed on Google is read again within hours and a completed run clears the failure.
 
-**What you see.** `sync.failed-nonzero`, with `alert_codes` `provider_rejected:N` (N Properties), only as an edge, not a standing signal; and `sync.reconciliation-age` (§13), which is standing, once the Property has gone 8 hours without a completed reconciliation. The retry date is written into the future when the failure is recorded, and `sync.failed-nonzero` counts a Property only from that date until the next look fails again and dates a new one: about one 15-minute sweep per rung of the ladder, once per 6 hours at the cap. So it raises and clears on every rung while the Location stays unreachable, and a quiet one does not mean the Location is readable. The durable view of what is rejected right now is the query under "What to do". 401 and 403 are not this: they are `authorization_changed` / `authorization_denied` (reconnect Google), 429 and 5xx are retried on the same run, and a code-less failure is still `provider_failure` with its loud error line.
+**What you see.** `sync.failed-nonzero`, with `alert_codes` `provider_rejected:N` (N Properties), only as an edge, not a standing signal; and `sync.reconciliation-age` (§13), which is standing, once the Property has gone past the configured reconciliation window plus two hours without a completed reconciliation. The retry date is written into the future when the failure is recorded, and `sync.failed-nonzero` counts a Property only from that date until the next look fails again and dates a new one: about one 15-minute sweep per rung of the ladder, once per 6 hours at the cap. So it raises and clears on every rung while the Location stays unreachable, and a quiet one does not mean the Location is readable. The durable view of what is rejected right now is the query under "What to do". 401 and 403 are not this: they are `authorization_changed` / `authorization_denied` (reconnect Google), 429 and 5xx are retried on the same run, and a code-less failure is still `provider_failure` with its loud error line.
 
 **What to do.** Find the Properties: `select property_id, error_class, last_terminal_error_at, error_retry_at from review_sync_state where error_class = 'provider_rejected'` (read-only session). What Google answered for one of them: `select started_at, error_class, result from review_sync_runs where mode = 'snapshot' and property_id = '<property id>' order by started_at desc limit 5`. Then check each Location in Google Business Profile: it is still there, verified, not suspended, and still managed by the account the Organization connected (a Location the account no longer manages is the likeliest 404). If the owner removed the Location on purpose, archive or disconnect the Property in RepKey. If it was fixed on Google, nothing else is needed: the next look reads it and clears the failure. To read it sooner, set `next_incremental_at` and `error_retry_at` of that `review_sync_state` row to now and leave `error_class` in place (see "Retry sooner" above). If every location of one connection is rejected, or the status is 400 for locations that look healthy on Google, treat it as a RepKey request defect instead (the status in the warning and the number of Properties tell the two apart) and take it to the engineers; do not wait on Google.
 
@@ -322,9 +368,9 @@ It enqueues no sync. For each Property with a review whose content expires withi
 
 ### Reconciliation age (`sync.reconciliation-age`)
 
-**Alert:** `sync.reconciliation-age` (P2) — a Property the sweep still polls has no completed reconciliation (a completed provider snapshot run, recorded as a `listing_complete` `review_google_reputation_snapshot_facts` row for its current source epoch; a head fact from `REVIEW_HEAD_CHECKS=persist` does not count) inside the last 8 hours.
+**Alert:** `sync.reconciliation-age` (P2) — a Property the sweep still polls has no completed reconciliation (a completed provider snapshot run, recorded as a `listing_complete` `review_google_reputation_snapshot_facts` row for its current source epoch; a head fact from `REVIEW_HEAD_CHECKS=persist` does not count) inside `REVIEW_RECONCILE_WITHIN_HOURS` plus two hours: 8 hours at the default, 26 hours with daily reads.
 
-**What it means:** the six-hour reconciliation is the safety net that finds a review whose push never came (ADR 0055 decision 5), and the only path while push is dark. The sweep guarantees one about every six hours; the alert fires two hours later, so a slow sweep does not page. A Property with no completed reconciliation yet is counted from the day it became syncable (`properties.updated_at`, `google_connections.credential_authorized_at`, as for `sync.sweep-lag`), and a Property restored with an old reconciliation is counted from the day it qualified again. A Property with a recorded failure (`review_sync_state.error_class`, for example `provider_rejected`, or `review_cap_exceeded` for a location over the cap) is counted like any other, because a run that fails never completes a reconciliation: `sync.failed-nonzero` names the code, this alert says how long it has been. A Property whose Google connection needs reauthorization (`reauth_required`, which is also how `provider_revoked` is recorded) is not syncable and is not counted: the reconnect notice is its signal. The alert does not depend on push. It is held while the `health.sync` or `health.syncPush` section is degraded.
+**What it means:** full reconciliation is the safety net that finds a review whose push never came (ADR 0055 decision 5). The sweep targets the configured window; the alert fires two hours later, so a slow sweep does not page. A Property with no completed reconciliation yet is counted from the day it became syncable (`properties.updated_at`, `google_connections.credential_authorized_at`, as for `sync.sweep-lag`), and a Property restored with an old reconciliation is counted from the day it qualified again. A Property with a recorded failure (`review_sync_state.error_class`, for example `provider_rejected`, or `review_cap_exceeded` for a location over the cap) is counted like any other, because a run that fails never completes a reconciliation: `sync.failed-nonzero` names the code, this alert says how long it has been. A Property whose Google connection needs reauthorization (`reauth_required`, which is also how `provider_revoked` is recorded) is not syncable and is not counted: the reconnect notice is its signal. The alert does not depend on push. It is held while the `health.sync` or `health.syncPush` section is degraded.
 
 **First things to check:** `GET /api/health/metrics` → `syncPush.reconciliation.overdueCount` and `oldestAgeMs` (`sync.reconciliation_overdue`, `sync.oldest_reconciliation_age_ms`). If `sync.oldest_due_age_ms` is also high the sweep itself is behind: follow the checks above. If the sweep is healthy, read the overdue Properties' runs: a run that keeps failing before it completes (see the sync failure codes on `review_sync_state`), or a location that never finishes its listing, never writes a fact.
 

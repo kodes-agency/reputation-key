@@ -336,11 +336,11 @@ const baseEnvSchema = z.object({
   REVIEW_HEAD_CHECKS: z.enum(['off', 'dark', 'persist']).default('dark'),
   // How recent a COMPLETED reconciliation must be for the discovery sweep to
   // skip a Property's look (ADR 0055 decision 5; the skip rule above). Whole
-  // hours, 6 to 24, default 6. Below 6 the reconciliation-age alert (8 h) would
-  // page, and above 24 a Property would go a day without a completed listing.
+  // hours, 6 to 24, default 6. The reconciliation-age alert follows this
+  // window plus two hours; above 24 a Property goes a day without a listing.
   // The owner's plan is to raise it once REVIEW_HEAD_CHECKS=persist is on and
   // proven: a head check then covers the look between two completed listings.
-  // Worker-read; a restart applies it.
+  // Set on web and worker so their health reads agree; a restart applies it.
   REVIEW_RECONCILE_WITHIN_HOURS: z.coerce.number().int().min(6).max(24).default(6),
   // B0.6: Require email verification. In production, defaults to true.
   // In development/test, defaults to false for convenience.

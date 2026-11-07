@@ -28,6 +28,7 @@
 import type { OperationsSnapshot } from '#/shared/health/operations-snapshot'
 import type { SnapshotSection } from '#/shared/observability/metrics-schema'
 import type { AlertFacts } from './alert-facts'
+import type { AlertReading } from './alert-reading'
 import {
   inAppDeliveryLagFacts,
   quarantineFacts,
@@ -292,14 +293,11 @@ function percentOf(part: number, whole: number): number {
   return whole <= 0 ? 0 : Math.round((part / whole) * 1000) / 10
 }
 
-/** The per-evaluation reading a definition produces when it breaches. */
-type AlertReading = Readonly<{ value: number; detail: string; facts?: AlertFacts }>
-
 /**
  * Build an implemented definition: the static identity (name/severity/
  * runbook/threshold/window) is declared once; `read` returns only the
- * measured value + detail on breach. The wrapped evaluate assembles the
- * full dispatch event.
+ * measured value + detail on breach, with optional snapshot-derived limits.
+ * The wrapped evaluate assembles the full dispatch event.
  */
 function define(
   def: Readonly<{
@@ -328,6 +326,8 @@ function define(
         owner: OWNER,
         value: reading.value,
         detail: reading.detail,
+        threshold: reading.threshold ?? statics.threshold,
+        windowMs: reading.windowMs ?? statics.windowMs,
         ...(reading.facts ? { facts: reading.facts } : {}),
       }
     },
@@ -672,7 +672,8 @@ export const ALERT_DEFINITIONS: readonly AlertDefinition[] = [
     blindedBy: ['health.syncPush', 'health.sync'],
     read: readPushSilent,
   }),
-  // The six-hour reconciliation is the safety net push relies on.
+  // Full reconciliation is the safety net push relies on. The reading carries
+  // the configured limit; the registry describes the six-hour default.
   define({
     name: 'sync.reconciliation-age',
     severity: 'P2',

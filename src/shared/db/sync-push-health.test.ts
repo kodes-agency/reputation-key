@@ -4,7 +4,8 @@ import { describe, expect, it, vi } from 'vitest'
 import type { Database } from '#/shared/db'
 import { readSyncPushHealth } from './sync-push-health'
 
-async function reconciliationQuery() {
+async function reconciliationQuery(reconcileWithinHours = 6) {
+  let selected: { overdue: SQL; oldestAgeMs: SQL } | undefined
   const where = vi.fn(async (_predicate: SQL | undefined) => [
     { overdue: 1, oldestAgeMs: 36_000_000 },
   ])
@@ -14,19 +15,44 @@ async function reconciliationQuery() {
     leftJoin: () => query,
     where,
   }
-  const db = { select: () => query } as unknown as Database
-  const health = await readSyncPushHealth(db, false)
+  const db = {
+    select: (fields: typeof selected) => {
+      selected = fields
+      return query
+    },
+  } as unknown as Database
+  const health = await readSyncPushHealth(db, false, reconcileWithinHours)
   const predicate = where.mock.calls[0]?.[0]
   if (!predicate) throw new Error('Missing reconciliation predicate')
-  return { health, ...new PgDialect().sqlToQuery(predicate) }
+  if (!selected) throw new Error('Missing reconciliation selection')
+  return {
+    health,
+    overdue: new PgDialect().sqlToQuery(selected.overdue),
+    ...new PgDialect().sqlToQuery(predicate),
+  }
 }
 
 describe('reconciliation age selection', () => {
+  it.each([
+    [6, 8],
+    [12, 14],
+    [24, 26],
+  ])('uses the %ih window plus two hours of slack', async (window, limit) => {
+    const query = await reconciliationQuery(window)
+
+    expect(query.overdue.params).toContain(limit * 3_600_000)
+    expect(query.health.reconciliation.overdueAfterMs).toBe(limit * 3_600_000)
+    expect(query.overdue.sql).toContain('listing_complete')
+    expect(query.overdue.sql).toContain('source_epoch')
+    expect(query.overdue.sql).toContain('GREATEST')
+  })
+
   it('does not exclude failed properties from the overdue count', async () => {
     const query = await reconciliationQuery()
 
     expect(query.sql).not.toContain('error_class')
     expect(query.health.reconciliation).toEqual({
+      overdueAfterMs: 8 * 3_600_000,
       overdueCount: 1,
       oldestAgeMs: 36_000_000,
     })

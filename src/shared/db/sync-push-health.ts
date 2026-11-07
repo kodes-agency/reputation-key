@@ -1,7 +1,7 @@
 // Push health and reconciliation age (ADR 0055), computed on read.
 // Lives in shared/db beside the other operational reads that name Drizzle tables.
 //
-// Since the skip rule, polling reconciles a Property about every six hours and
+// Polling reconciles a Property within the configured window and
 // Google's push is the fast path for a new Review. Nothing else noticed a push
 // outage: it looked like a quiet week. This read answers two questions from
 // tables that already exist:
@@ -12,7 +12,7 @@
 //     the pure rules in push-health.ts judge each one. Receipts count the
 //     pushes Pub/Sub accepted.
 //   - Is every Property still being reconciled? The newest completed snapshot
-//     fact of its current source epoch, against the six-hour guarantee.
+//     fact of its current source epoch, against that window plus two hours.
 //
 // It is its own health signal (`syncPush`), so a slow query here degrades only
 // this section and cannot blind the `sync` signals the sweep alerts hold on.
@@ -34,6 +34,7 @@ import {
   PUSH_COVERED_VIA,
   PUSH_HEALTH_WINDOW_MS,
   RECONCILIATION_OVERDUE_AFTER_MS,
+  reconciliationOverdueAfterMs,
   summarizeLedger,
   type LedgerSighting,
 } from '#/shared/domain/push-health'
@@ -63,6 +64,8 @@ export type SyncPushHealth = Readonly<{
     accountsDark: number
   }>
   reconciliation: Readonly<{
+    /** Configured reconciliation window plus slack, used by this read and its alert. */
+    overdueAfterMs: number
     /** Syncable Properties whose newest completed reconciliation is over the limit. */
     overdueCount: number
     /** Age of the oldest overdue one; null when none is overdue. */
@@ -91,7 +94,11 @@ const EMPTY_PUSH: SyncPushHealth['push'] = {
 
 export const ZERO_SYNC_PUSH_HEALTH: SyncPushHealth = {
   push: EMPTY_PUSH,
-  reconciliation: { overdueCount: 0, oldestAgeMs: null },
+  reconciliation: {
+    overdueAfterMs: RECONCILIATION_OVERDUE_AFTER_MS,
+    overdueCount: 0,
+    oldestAgeMs: null,
+  },
 }
 
 const secondsAgo = (ms: number) => sql`NOW() - (${ms / 1000} * INTERVAL '1 second')`
@@ -245,6 +252,7 @@ async function readPushHealth(db: Database): Promise<SyncPushHealth['push']> {
  */
 async function readReconciliationAge(
   db: Database,
+  overdueAfterMs: number,
 ): Promise<SyncPushHealth['reconciliation']> {
   const facts = reviewGoogleReputationSnapshotFacts
   const newestFact = sql`(
@@ -257,7 +265,7 @@ async function readReconciliationAge(
     LIMIT 1
   )`
   const ageMs = sql`EXTRACT(EPOCH FROM (NOW() - GREATEST(${newestFact}, ${propertySyncableSince}))) * 1000`
-  const overdue = sql`${ageMs} > ${RECONCILIATION_OVERDUE_AFTER_MS}`
+  const overdue = sql`${ageMs} > ${overdueAfterMs}`
   const [row] = await db
     .select({
       overdue: sql<number>`count(*) FILTER (WHERE ${overdue})::int`,
@@ -267,6 +275,7 @@ async function readReconciliationAge(
     .innerJoin(googleConnections, eq(googleConnections.id, properties.googleConnectionId))
     .where(propertyIsSyncable)
   return {
+    overdueAfterMs,
     overdueCount: row?.overdue ?? 0,
     oldestAgeMs: row?.oldestAgeMs == null ? null : Math.round(Number(row.oldestAgeMs)),
   }
@@ -281,7 +290,14 @@ async function readReconciliationAge(
 export async function readSyncPushHealth(
   db: Database,
   gbpPushEnabled: boolean,
+  reconcileWithinHours = 6,
 ): Promise<SyncPushHealth> {
   const push = gbpPushEnabled ? await readPushHealth(db) : EMPTY_PUSH
-  return { push, reconciliation: await readReconciliationAge(db) }
+  return {
+    push,
+    reconciliation: await readReconciliationAge(
+      db,
+      reconciliationOverdueAfterMs(reconcileWithinHours),
+    ),
+  }
 }
