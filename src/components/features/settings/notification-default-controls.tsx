@@ -1,6 +1,3 @@
-// The person's default for one category, as the per-property settings page
-// offers it (D7). Split out of the category row it sits in.
-
 import { ConfirmationDialog } from '#/components/ui/confirmation-dialog'
 import { InheritedSetting } from '#/components/forms/inherited-setting'
 import { Button } from '#/components/ui/button'
@@ -16,14 +13,11 @@ export const named = (categoryLabel: string, control: string) =>
 
 /**
  * The person's default for a category: what every property without a setting
- * of its own gets, including the ones they are given next — which used to fall
- * through to the versioned defaults, so a newly added property mailed urgent
- * notices at 03:00 whatever the person had chosen everywhere else.
+ * of its own gets, including the ones they are given next.
  *
  * Making the answer at this property the default never touches another
- * property's own setting (D7): those are named beneath it, and resetting them
- * is a choice of its own, confirmed. It used to replace them all without a
- * word, mutes made from the bell included.
+ * property's own setting: those are named beneath it, and resetting them
+ * is a choice of its own, confirmed.
  */
 export function DefaultControls({
   category,
@@ -52,6 +46,8 @@ export function DefaultControls({
   const noteId = `${category}-inherited`
   const count = setDifferently.length
   const includesMute = setDifferently.some((property) => property.muted)
+  const propertyIds = setDifferently.map((property) => property.id)
+  const propertyNames = namesInBrief(setDifferently.map((property) => property.name))
   return (
     <InheritedSetting
       source="your default"
@@ -67,8 +63,7 @@ export function DefaultControls({
           {count > 0 && (
             <>
               {' '}
-              {namesInBrief(setDifferently.map((property) => property.name))}{' '}
-              {count === 1 ? 'keeps its' : 'keep their'} own setting
+              {propertyNames} {count === 1 ? 'keeps its' : 'keep their'} own setting
               {includesMute ? ', including a mute from the notification bell' : ''}.
             </>
           )}
@@ -104,7 +99,7 @@ export function DefaultControls({
             </Button>
           }
           title={`Reset ${count} ${count === 1 ? 'property' : 'properties'} to your default?`}
-          description={`${namesInBrief(setDifferently.map((property) => property.name))} ${
+          description={`${propertyNames} ${
             count === 1 ? 'loses its' : 'lose their'
           } own ${categoryInSentence(category)} settings${
             includesMute ? ', including a mute from the notification bell,' : ''
@@ -112,12 +107,7 @@ export function DefaultControls({
           cancelLabel="Keep them"
           confirmLabel="Reset"
           pendingLabel="Resetting…"
-          onConfirm={() =>
-            resetToDefault(
-              category,
-              setDifferently.map((property) => property.id),
-            )
-          }
+          onConfirm={() => resetToDefault(category, propertyIds)}
         />
       )}
     </InheritedSetting>

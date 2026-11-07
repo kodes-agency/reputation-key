@@ -111,7 +111,7 @@ export async function undoNotificationCategoryMute(
 ): Promise<void> {
   // Only what a mute accepts can be un-muted: the same construction refuses a
   // required category before anything is written.
-  preferenceWith(input, false, deps)
+  const preference = preferenceWith(input, false, deps)
   const { previous } = input
   if (previous === null) {
     await deps.deletePropertyPreference(
@@ -123,5 +123,5 @@ export async function undoNotificationCategoryMute(
     )
     return
   }
-  await deps.upsertEnabled(preferenceWith(input, previous.enabled, deps))
+  await deps.upsertEnabled({ ...preference, enabled: previous.enabled })
 }

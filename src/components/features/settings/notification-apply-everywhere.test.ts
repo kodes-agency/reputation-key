@@ -20,6 +20,38 @@ const refused = async () => {
 }
 
 describe('applyEverywhereInOrder', () => {
+  it('waits for in-app to finish before applying email', async () => {
+    const calls: NotificationChannel[] = []
+    let finishInApp!: () => void
+    const inApp = new Promise<void>((resolve) => {
+      finishInApp = resolve
+    })
+    const applying = applyEverywhereInOrder(true, async (channel) => {
+      calls.push(channel)
+      if (channel === 'in_app') await inApp
+    })
+
+    expect(calls).toEqual(['in_app'])
+    finishInApp()
+    await expect(applying).resolves.toEqual({
+      applied: ['in_app', 'email'],
+      failed: null,
+      skipped: [],
+    })
+    expect(calls).toEqual(['in_app', 'email'])
+  })
+
+  it('never attempts email when applying in-app is refused', async () => {
+    const calls: NotificationChannel[] = []
+    const outcome = await applyEverywhereInOrder(true, async (channel) => {
+      calls.push(channel)
+      throw new Error('capability_denied')
+    })
+
+    expect(calls).toEqual(['in_app'])
+    expect(outcome).toEqual({ applied: [], failed: 'in_app', skipped: [] })
+  })
+
   it('leaves email alone while the Property in view cannot send it', async () => {
     const calls: NotificationChannel[] = []
 
@@ -98,6 +130,28 @@ const row = (
 })
 
 describe('setDifferentlyElsewhere', () => {
+  it('keeps property order, combines channel overrides and only calls an in-app opt-out muted', () => {
+    const preferences = [
+      row(2, { channel: 'email', enabled: false }),
+      row(2, { enabled: false }),
+      row(1, { channel: 'email', enabled: false }),
+      row(0, { enabled: false }),
+      row(1, { category: 'recognition', enabled: false }),
+    ]
+
+    expect(
+      setDifferentlyElsewhere(
+        'workflow_collaboration',
+        preferences,
+        PROPERTIES,
+        PROPERTIES[0]!.id,
+      ),
+    ).toEqual([
+      { id: PROPERTIES[1]!.id, name: 'Harbor & Pine', muted: false },
+      { id: PROPERTIES[2]!.id, name: 'Lakeside Lodge', muted: true },
+    ])
+  })
+
   it('names the other properties with their own setting for the category, and their mutes', () => {
     const preferences = [
       row(0),
