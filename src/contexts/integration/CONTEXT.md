@@ -202,3 +202,10 @@ cover exchange preservation, permits, generations, sagas, cancellation, replay,
 closure, export, and purge. Redis tests cover renewable refresh leadership,
 ownership proof, backoff, and ambiguity denial. Executable inventory tests pin
 every production provider route and forbid direct credential sockets.
+
+`src/shared/architecture/google-import-acceptance.integration.test.ts` exercises
+`integrationPublicApi.imports` through the composition root against PostgreSQL with
+fake provider and queue transport. Its shared fixture builds the application
+container with the production authorizers, discovery store, Property receipts,
+worker recovery and lifecycle sweep. It covers stale authority, request replay, bounded crash
+recovery, claim races, scoped discovery, partial success, cancellation and retention.
