@@ -14,7 +14,7 @@
 //                     nothing.
 //   --dry-run         Explicit report mode (conflicts with --apply).
 //   --yes <name>      Typed confirmation — required WITH --apply when the
-//                     spec is destructive (must equal the command name).
+//                     spec is destructive (command name or its explicit target).
 //   --batch-size <n>  Bounded work, when the spec enables it (clamped to the
 //                     spec's max).
 //
@@ -71,6 +71,8 @@ export type OperatorCommandSpec = Readonly<{
   mutation?: boolean
   /** Destructive mutations additionally require typed confirmation --yes <name>. */
   destructive?: boolean
+  /** Override the destructive confirmation with an exact target name. */
+  confirmation?: string
   /** Requires --ticket <ref> with --apply (policy-admin operations). */
   requiresTicket?: boolean
   /** Enables --batch-size with a default and an upper bound. */
@@ -304,8 +306,9 @@ function validateMutationRequirements(
   if (spec.requiresTicket && !args.ticket) {
     return '--ticket <ref> is required with --apply'
   }
-  if (spec.destructive && args.yes !== spec.name) {
-    return `destructive command — confirm with --yes ${spec.name}`
+  const confirmation = spec.confirmation ?? spec.name
+  if (spec.destructive && args.yes !== confirmation) {
+    return `destructive command — confirm with --yes ${confirmation}`
   }
   return null
 }

@@ -10,7 +10,7 @@
 // operator-command.test.ts (BQC-7.5).
 //
 // Proves the restore-verify chain end to end:
-//   1. --apply --reason --yes ops:restore-verify — evaluated through the REAL
+//   1. --apply --reason --yes closed-beta-v2 — evaluated through the REAL
 //      ExecutionPolicy operator branch; SAFE-03 inspection-only authority
 //      refuses before any lifecycle is invoked, so every Review survives and
 //      no false expiry fact or retention evidence is written;
@@ -135,9 +135,11 @@ function realDeps(env: RestoreVerifyDeps['env']): RestoreVerifyDeps {
   const clock = () => new Date()
   return {
     env,
+    confirmation: 'closed-beta-v2',
+    clock: () => new Date(),
     reviewLifecycle: {
       kind: 'inspection_only',
-      reason: 'reviewed_cutover_authority_required',
+      reason: 'environment_confirmation_required',
       prepare: async () => ({
         requestContent: '{"kind":"review-lifecycle-recovery"}\n',
         requestSha256: 'a'.repeat(64),
@@ -268,7 +270,7 @@ describe('ops:restore-verify (BQC-7.8, integration)', () => {
         'restore drill',
         '--apply',
         '--yes',
-        'ops:restore-verify',
+        'closed-beta-v2',
       ],
       io,
     )
@@ -297,7 +299,7 @@ describe('ops:restore-verify (BQC-7.8, integration)', () => {
     const out = io.outLines.join('\n')
     const err = io.errLines.join('\n')
     expect(out).toMatch(/RESTORE MODE ISOLATED/)
-    expect(err).toMatch(/no reviewed cutover authority/i)
+    expect(err).toMatch(/no environment confirmation/i)
     expect(out).not.toMatch(/UNSET RESTORE_MODE/)
   })
 
@@ -375,7 +377,7 @@ describe('ops:restore-verify (BQC-7.8, integration)', () => {
         'restore drill',
         '--apply',
         '--yes',
-        'ops:restore-verify',
+        'closed-beta-v2',
       ],
       io,
     )

@@ -45,11 +45,13 @@ export type BeginReviewLifecycleRecoveryExecutionInput =
   ReviewLifecycleRecoveryExecutionAuthorityInput & Readonly<{ reportExpired: number }>
 
 export interface ReviewLifecycleRecoveryExecutionStore {
-  /** Return only an exact resumable signed receipt; never creates authority. */
+  /** Load the frozen binding of unfinished work so a new invocation can resume it. */
+  loadActive(): Promise<ReviewLifecycleRecoveryExecutionAuthorityInput | null>
+  /** Return only an exact resumable recovery receipt; never creates authority. */
   resume(
     input: ReviewLifecycleRecoveryExecutionAuthorityInput,
   ): Promise<ReviewLifecycleRecoveryExecutionProgress | null>
-  /** Reserve or resume the exact signed tuple; completed approvals are refused. */
+  /** Reserve or resume the exact recovery tuple; completed approvals are refused. */
   begin(
     input: BeginReviewLifecycleRecoveryExecutionInput,
   ): Promise<ReviewLifecycleRecoveryExecutionProgress & Readonly<{ resumed: boolean }>>

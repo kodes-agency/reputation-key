@@ -1,9 +1,9 @@
-import { createHash, generateKeyPairSync, sign } from 'node:crypto'
+import { createHash } from 'node:crypto'
 import { describe, expect, it, vi } from 'vitest'
 import { canonicalizeRfc8785 } from '#/shared/canonical-json'
+import { organizationId } from '#/shared/domain/ids'
 import {
   REVIEW_LIFECYCLE_RECOVERY_APPROVAL_VERSION,
-  reviewLifecycleRecoveryApprovalSignaturePayload,
   type ReviewLifecycleRecoveryApprovalRequest,
 } from '#/shared/ops/review-lifecycle-recovery-approval'
 import type { RecoveryFenceResult } from '#/shared/ops/recovery-fence'
@@ -95,6 +95,7 @@ function memoryExecutionStore(
   fail: ReturnType<typeof vi.fn>
 } {
   return {
+    loadActive: vi.fn(async () => null),
     resume: vi.fn(async () => resumed),
     begin: vi.fn(async (input) => ({
       ...progress('applying', { reportExpired: input.reportExpired }),
@@ -106,9 +107,12 @@ function memoryExecutionStore(
 }
 
 async function fixture(
-  options: { resumed?: ReviewLifecycleRecoveryExecutionProgress } = {},
+  options: {
+    resumed?: ReviewLifecycleRecoveryExecutionProgress
+    confirmation?: string
+    now?: Date
+  } = {},
 ) {
-  const { privateKey, publicKey } = generateKeyPairSync('ed25519')
   const runLifecycle = vi
     .fn<RunReviewSourceContentLifecycle>()
     .mockImplementation(async (input) =>
@@ -130,8 +134,7 @@ async function fixture(
       }),
     )
 
-  // First use the public evidence collector through an unsigned executor
-  // fixture to obtain the independently recomputed report digest.
+  // Collect the frozen report independently of executor admission.
   const { collectReviewLifecycleRecoveryEvidence } =
     await import('./collect-lifecycle-recovery-evidence')
   const evidence = await collectReviewLifecycleRecoveryEvidence(runLifecycle)
@@ -176,14 +179,7 @@ async function fixture(
   const bundle = {
     request,
     requestSha256,
-    approval: {
-      ...unsigned,
-      signature: sign(
-        null,
-        reviewLifecycleRecoveryApprovalSignaturePayload(unsigned),
-        privateKey,
-      ).toString('base64'),
-    },
+    approval: unsigned,
   }
   const approvalContent = `${canonicalizeRfc8785(bundle)}\n`
   const approvalBundleSha256 = createHash('sha256')
@@ -191,22 +187,55 @@ async function fixture(
     .digest('hex')
   const executions = memoryExecutionStore(options.resumed ?? null)
 
+  const createRunLifecycle = vi.fn<
+    Parameters<typeof createRunReviewLifecycleRecoveryExecutor>[0]['createRunLifecycle']
+  >(({ authorizeApply }) => {
+    expect(authorizeApply).toBeTypeOf('function')
+    return runLifecycle
+  })
   const executor = createRunReviewLifecycleRecoveryExecutor({
-    approvalContent,
-    approvalBundleSha256,
-    trustedPublicKeys: new Map([[unsigned.keyId, publicKey]]),
-    clock: () => new Date('2026-08-28T11:00:00.000Z'),
-    createRunLifecycle: ({ authorizeApply }) => {
-      expect(authorizeApply).toBeTypeOf('function')
-      return runLifecycle
-    },
+    clock: () => options.now ?? new Date(EVALUATED_AT),
+    environmentConfirmation:
+      'confirmation' in options ? options.confirmation : 'closed-beta-v2',
+    prepare: async () => ({
+      request,
+      authority: {
+        state: 'applying',
+        recoveryRunId: request.target.recoveryRunId,
+        recoveryGeneration: request.target.recoveryGeneration,
+        approvalId: unsigned.approvalId,
+        approvalBundleSha256,
+        approverIdentity: unsigned.approverIdentity,
+        approvalKeyId: 'typed-environment',
+        approvedAt: new Date(unsigned.approvedAt),
+        expiresAt: new Date(unsigned.expiresAt),
+        ...target(),
+        evaluatedAt: new Date(EVALUATED_AT),
+        sourcePolicyVersion: request.lifecycle.sourcePolicyVersion,
+        retentionPolicyVersion: request.lifecycle.retentionPolicyVersion,
+        policySha256: request.lifecycle.policySha256,
+        reportSha256: request.lifecycle.reportSha256,
+      },
+    }),
+    createRunLifecycle,
     executions,
   })
-  return { executor, executions, runLifecycle, evidence, bundle }
+  return { executor, executions, runLifecycle, evidence, bundle, createRunLifecycle }
 }
 
-describe('sealed Review lifecycle recovery executor', () => {
-  it('rechecks the signed report before reserving and applies only bounded Review pages', async () => {
+describe('confirmed Review lifecycle recovery executor', () => {
+  it.each([undefined, '', 'production', 'ops:restore-verify'])(
+    'refuses confirmation %s before loading or reserving an execution',
+    async (confirmation) => {
+      const { executor, executions, runLifecycle } = await fixture({ confirmation })
+      await expect(executor.admit(target())).rejects.toThrow('--yes closed-beta-v2')
+      expect(executions.resume).not.toHaveBeenCalled()
+      expect(executions.begin).not.toHaveBeenCalled()
+      expect(runLifecycle).not.toHaveBeenCalled()
+    },
+  )
+
+  it('rechecks the frozen report before reserving and applies only bounded Review pages', async () => {
     const { executor, executions, runLifecycle, bundle } = await fixture()
 
     const admitted = await executor.admit(target())
@@ -248,6 +277,31 @@ describe('sealed Review lifecycle recovery executor', () => {
     expect(executions.begin).not.toHaveBeenCalled()
   })
 
+  it.each(['applying', 'lifecycle_applied'] as const)(
+    'preserves receipt identity for a new confirmer while %s',
+    async (state) => {
+      const { executor, executions } = await fixture({ resumed: progress(state) })
+      const original = target()
+      const admitted = await executor.admit({
+        ...original,
+        operatorId: 'confirmer@example.com',
+        correlationId: 'next-invocation',
+      })
+
+      expect(admitted.recoveryInput).toMatchObject({
+        operatorId: original.operatorId,
+        correlationId: original.correlationId,
+      })
+      expect(executions.resume).toHaveBeenCalledWith(
+        expect.objectContaining({
+          operatorId: original.operatorId,
+          correlationId: original.correlationId,
+        }),
+      )
+      expect(executions.begin).not.toHaveBeenCalled()
+    },
+  )
+
   it('resumes the exact durable checkpoint without re-reporting mutated rows', async () => {
     const checkpoint = {
       createdAt: new Date('2026-08-20T09:00:00.000Z'),
@@ -283,6 +337,100 @@ describe('sealed Review lifecycle recovery executor', () => {
         }),
       }),
     )
+  })
+
+  it.each(['applying', 'lifecycle_applied'] as const)(
+    'drains a fresh expiry window from the start after resuming %s',
+    async (state) => {
+      const now = new Date('2026-08-30T10:00:00.000Z')
+      const checkpoint = {
+        createdAt: new Date('2026-08-20T09:00:00.000Z'),
+        reviewId: '10000000-0000-4000-8000-000000000099',
+      }
+      const { executor, executions, runLifecycle, createRunLifecycle } = await fixture({
+        resumed: progress(state, {
+          checkpoint: state === 'applying' ? checkpoint : null,
+        }),
+        now,
+      })
+      const admitted = await executor.admit(target())
+      await admitted.applyReviewLifecycle()
+      if (state === 'applying') {
+        expect(runLifecycle).toHaveBeenNthCalledWith(
+          1,
+          expect.objectContaining({
+            checkpoint: expect.objectContaining({
+              evaluatedAt: EVALUATED_AT,
+              after: {
+                createdAt: checkpoint.createdAt.toISOString(),
+                reviewId: checkpoint.reviewId,
+              },
+            }),
+            recoveryExecution: expect.objectContaining({
+              recoveryRunId: admitted.recoveryInput.runId,
+            }),
+          }),
+        )
+      }
+      expect(runLifecycle).toHaveBeenCalledTimes(state === 'applying' ? 2 : 1)
+      expect(runLifecycle).toHaveBeenLastCalledWith({
+        mode: 'apply',
+        batchSize: 100,
+        applyConfirmation: 'apply-review-source-content-lifecycle-v1',
+      })
+      const current = createRunLifecycle.mock.calls[1]![0]
+      expect(current.clock()).toEqual(now)
+      const input = {
+        contract: 'review-source-content-lifecycle-v1' as const,
+        scope: { kind: 'expired' as const },
+        evaluatedAt: now,
+        priorApproval: null,
+      }
+      const approval = await current.authorizeApply(input)
+      expect(approval.approvalId).toBe(admitted.approvalId)
+      await expect(
+        current.authorizeApply({ ...input, priorApproval: approval }),
+      ).resolves.toEqual(approval)
+      await expect(
+        current.authorizeApply({ ...input, evaluatedAt: new Date(EVALUATED_AT) }),
+      ).rejects.toThrow('continuation changed')
+      await expect(
+        current.authorizeApply({
+          ...input,
+          scope: {
+            kind: 'organization',
+            organizationId: organizationId('another-organization'),
+          },
+        }),
+      ).rejects.toThrow('continuation changed')
+      await expect(
+        current.authorizeApply({
+          ...input,
+          priorApproval: { ...approval, evidenceSha256: 'f'.repeat(64) },
+        }),
+      ).rejects.toThrow('continuation changed')
+      expect(executions.begin).not.toHaveBeenCalled()
+      expect(executions.complete).not.toHaveBeenCalled()
+    },
+  )
+
+  it('leaves a completed lifecycle pass resumable when the fresh expiry sweep fails', async () => {
+    const { executor, executions, runLifecycle } = await fixture({
+      resumed: progress('lifecycle_applied'),
+      now: new Date('2026-08-30T10:00:00.000Z'),
+    })
+    const admitted = await executor.admit(target())
+    runLifecycle.mockRejectedValueOnce(new Error('interrupted current expiry sweep'))
+    await expect(admitted.applyReviewLifecycle()).rejects.toThrow(
+      'interrupted current expiry sweep',
+    )
+    expect(executions.fail).toHaveBeenCalledWith(
+      expect.objectContaining({
+        recoveryRunId: admitted.recoveryInput.runId,
+        errorCode: 'review_lifecycle_apply_failed',
+      }),
+    )
+    expect(executions.complete).not.toHaveBeenCalled()
   })
 
   it('binds completion to the exact recovery result and rejects another run', async () => {

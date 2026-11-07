@@ -40,6 +40,8 @@ import {
 } from '../../src/shared/auth/process-policy-binding'
 import {
   runOperatorCommand as runCore,
+  parseOperatorArgs,
+  validateOperatorArgs,
   type OperatorArgs,
   type OperatorCommandResult,
   type OperatorContext,
@@ -112,7 +114,18 @@ export async function runOperatorCommand(
   // Before anything opens: the runtime below connects the database and builds
   // queue handles, and a BullMQ queue writes its metadata to the Redis it is
   // pointed at as soon as it connects.
-  if (spec.isolatedRestore) assertRestoreCommandEnvironment(getEnv())
+  if (spec.isolatedRestore) {
+    assertRestoreCommandEnvironment(getEnv())
+    if (!argv.includes('--help')) {
+      const parsed = parseOperatorArgs(argv, spec)
+      const invalid = parsed.ok ? validateOperatorArgs(spec, parsed.args) : parsed.error
+      if (invalid) {
+        const writeError = io?.err ?? console.error
+        writeError(`${invalid}\nusage: ${spec.usage}`)
+        return { exitCode: 1 }
+      }
+    }
+  }
   const boot = await bootOperatorRuntime()
   try {
     if (argv.includes('--help')) {

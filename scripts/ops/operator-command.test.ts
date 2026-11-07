@@ -42,7 +42,8 @@ vi.mock('../../src/shared/auth/process-policy-binding', () => ({
   bindProcessPolicies: vi.fn(),
   releaseProcessPolicies: vi.fn(),
 }))
-vi.mock('../../src/shared/ops/operator-command', () => ({
+vi.mock('../../src/shared/ops/operator-command', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../../src/shared/ops/operator-command')>()),
   runOperatorCommand: fakes.runCore,
 }))
 
@@ -67,7 +68,9 @@ describe.each([RESTORE_PREFLIGHT_SPEC, RESTORE_VERIFY_SPEC])(
     })
 
     it('boots the harness for a database-only isolated restore', async () => {
-      expect(await runOperatorCommand(spec, action, [])).toEqual({ exitCode: 0 })
+      expect(await runOperatorCommand(spec, action, ['--operator', 'operator'])).toEqual({
+        exitCode: 0,
+      })
       expect(fakes.getDb).toHaveBeenCalledOnce()
       expect(fakes.createContainer).toHaveBeenCalledOnce()
       expect(fakes.runCore).toHaveBeenCalledOnce()
@@ -115,7 +118,9 @@ describe.each([RESTORE_PREFLIGHT_SPEC, RESTORE_VERIFY_SPEC])(
     ])('refuses %s before opening any runtime handle', async (_label, setting, value) => {
       fakes.env[setting] = value
 
-      await expect(runOperatorCommand(spec, action, [])).rejects.toThrow(/RESTORE MODE/)
+      await expect(
+        runOperatorCommand(spec, action, ['--operator', 'operator']),
+      ).rejects.toThrow(/RESTORE MODE/)
       expect(fakes.getDb).not.toHaveBeenCalled()
       expect(fakes.createContainer).not.toHaveBeenCalled()
       expect(fakes.runCore).not.toHaveBeenCalled()
@@ -153,5 +158,47 @@ describe('a command that is not a restore command', () => {
       exitCode: 0,
     })
     expect(fakes.createContainer).toHaveBeenCalledOnce()
+  })
+})
+
+describe('restore apply confirmation before boot', () => {
+  it.each([undefined, 'production', 'ops:restore-verify'])(
+    'refuses %s without opening any runtime handle',
+    async (confirmation) => {
+      vi.clearAllMocks()
+      fakes.env = { ...ISOLATED_RESTORE_ENV }
+      const argv = [
+        '--operator',
+        'operator',
+        '--reason',
+        'restore',
+        '--apply',
+        ...(confirmation === undefined ? [] : ['--yes', confirmation]),
+      ]
+      const io = { out: vi.fn(), err: vi.fn() }
+      expect(await runOperatorCommand(RESTORE_VERIFY_SPEC, vi.fn(), argv, io)).toEqual({
+        exitCode: 1,
+      })
+      expect(io.err).toHaveBeenCalledWith(expect.stringContaining('--yes closed-beta-v2'))
+      expect(fakes.getDb).not.toHaveBeenCalled()
+      expect(fakes.createContainer).not.toHaveBeenCalled()
+      expect(fakes.runCore).not.toHaveBeenCalled()
+    },
+  )
+  it('boots with the exact environment confirmation', async () => {
+    vi.clearAllMocks()
+    fakes.env = { ...ISOLATED_RESTORE_ENV }
+    expect(
+      await runOperatorCommand(RESTORE_VERIFY_SPEC, vi.fn(), [
+        '--operator',
+        'operator',
+        '--reason',
+        'restore',
+        '--apply',
+        '--yes',
+        'closed-beta-v2',
+      ]),
+    ).toEqual({ exitCode: 0 })
+    expect(fakes.getDb).toHaveBeenCalledOnce()
   })
 })

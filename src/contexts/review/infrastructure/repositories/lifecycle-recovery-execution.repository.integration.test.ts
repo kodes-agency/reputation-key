@@ -173,7 +173,7 @@ describe('Review lifecycle recovery execution repository (integration)', () => {
           correlationId: input.correlationId,
           counts: zeroRecoveryCounts,
           createdAt: new Date(now),
-          completedAt,
+          completedAt: sql`${completedAt}::timestamptz + interval '123 microseconds'`,
         })
 
         await expect(executions.begin(input)).resolves.toEqual({
@@ -186,11 +186,44 @@ describe('Review lifecycle recovery execution repository (integration)', () => {
           rowsRedacted: 12,
           legacyGoogleRepliesReconciled: 1,
         })
+        await expect(
+          executions.complete({
+            ...identity,
+            recoveryCompletedAt: new Date(completedAt.getTime() + 1),
+            recoveryReplayed: false,
+          }),
+        ).rejects.toThrow('has no exact recovery run')
+        await expect(
+          transaction.transaction((savepoint) =>
+            savepoint.execute(sql`
+              UPDATE review_lifecycle_recovery_executions
+              SET state = 'completed', recovery_replayed = false,
+                  completed_at = ${completedAt}, updated_at = clock_timestamp()
+              WHERE id = ${RUN_ID}::uuid
+            `),
+          ),
+        ).rejects.toMatchObject({
+          cause: expect.objectContaining({
+            message: expect.stringContaining('has no exact recovery run'),
+          }),
+        })
         await executions.complete({
           ...identity,
           recoveryCompletedAt: completedAt,
           recoveryReplayed: false,
         })
+        const completion = await transaction.execute(sql`
+          SELECT execution.completed_at = recovery.completed_at AS exact_completion,
+                 recovery.completed_at > ${completedAt}::timestamptz AS has_microseconds
+          FROM review_lifecycle_recovery_executions AS execution
+          JOIN recovery_runs AS recovery
+            ON recovery.id = execution.id
+           AND recovery.generation = execution.recovery_generation
+          WHERE execution.id = ${RUN_ID}::uuid
+        `)
+        expect(completion.rows).toEqual([
+          { exact_completion: true, has_microseconds: true },
+        ])
         await expect(executions.begin(input)).rejects.toThrow(
           'approval was already consumed',
         )

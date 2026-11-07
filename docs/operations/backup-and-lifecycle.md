@@ -173,15 +173,13 @@ cutover mechanism. This procedure uses the PITR sibling described by
    together with the content-free retention, Google-import, and
    external-effect-authority inventories. Follow
    [review-lifecycle-recovery-approval](review-lifecycle-recovery-approval.md)
-   for independent signing and exact-byte configuration.
-7. The checked-in composition remains inspection-only unless all three
-   restore-scoped approval values carry a current, trusted, digest-pinned
-   Ed25519 bundle for that exact report, target, recovery UUID, generation,
-   and policy. Missing, denied, stale, changed, replayed, or untrusted authority
-   refuses before mutation. With the independently reviewed bundle configured
-   only on the isolated verifier, run
-   `pnpm ops restore-verify --operator <id> --reason <change-ref> --apply --yes
-ops:restore-verify`. The authorized command, in process and without BullMQ,
+   for typed confirmation and durable recovery progress.
+7. Confirm the beta environment by typing its exact name:
+   `pnpm ops restore-verify --operator <id> --reason <change-ref> --apply --yes closed-beta-v2`.
+   A missing or different name refuses before runtime boot or mutation. The
+   command logs the environment, operator, time and correlation ID before
+   reserving or resuming the durable Review recovery receipt. No signed Review
+   approval bundle is required. The authorized command, without BullMQ,
    applies all overdue retention rules; reconciles Google import retention;
    invalidates restored sessions and verification tokens; cancels pending
    invitations, email/digest work, legacy imports, and unpublished reply
@@ -193,7 +191,7 @@ ops:restore-verify`. The authorized command, in process and without BullMQ,
    Record the authorized command's printed `run=<uuid>` and recovery
    generation; these are the only accepted serving attestation for the sibling.
    The repository executor is local implementation proof only: this step is
-   not complete until the actual signed sibling rehearsal succeeds.
+   not a substitute for an isolated data restore rehearsal.
 8. Re-run the dry run and require all counts to remain zero. Boot a temporary,
    no-public-domain web verifier from the exact signed web image with
    `RESTORE_MODE=isolated` and a service-scoped private sibling URL. Boot

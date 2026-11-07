@@ -18,8 +18,8 @@
 //        environment never reaches the live Redis, queues or bucket.
 //   2. Dry-run (default): reports retention/import backlog and every restored
 //      authentication/external-effect authority class.
-//   3. --apply: only when a separately reviewed Review cutover executor is
-//      injected, runs review purge, Google-import lifecycle, and the static
+//   3. --apply: after the operator types the environment name, runs
+//      review purge, Google-import lifecycle, and the static
 //      retention registry IN-PROCESS (never BullMQ), then atomically rotates
 //      the recovery generation and fences restored authority/outbox work.
 //      Normal composition is inspection-only and refuses before mutation.
@@ -36,6 +36,7 @@
 // wires the real repositories; the integration test wires the same against
 // the scratch database.
 
+import { CLOSED_BETA_RAILWAY_ENVIRONMENT_NAME } from '#/shared/release/railway-deployment-profile'
 import {
   isIsolatedRestoreTarget,
   isRestoreIsolated,
@@ -54,7 +55,7 @@ import type {
 export const RESTORE_VERIFY_PURGE_SUBJECT = 'reviews.purge' as const
 
 const RESTORE_VERIFY_USAGE =
-  'pnpm ops restore-verify --operator <id> [--reason <text> --apply --yes ops:restore-verify]'
+  'pnpm ops restore-verify --operator <id> [--reason <text> --apply --yes closed-beta-v2]'
 
 /**
  * The harness spec. Deliberately declares NO capability: in restore-isolated
@@ -67,6 +68,7 @@ export const RESTORE_VERIFY_SPEC: OperatorCommandSpec = {
   scope: 'global',
   mutation: true,
   destructive: true,
+  confirmation: CLOSED_BETA_RAILWAY_ENVIRONMENT_NAME,
   isolatedRestore: true,
   usage: RESTORE_VERIFY_USAGE,
 }
@@ -98,8 +100,8 @@ export type RestoreVerifyEvidenceRow = Readonly<{
 export type RestoreReviewLifecycleAuthority =
   | Readonly<{
       kind: 'inspection_only'
-      reason: 'reviewed_cutover_authority_required'
-      /** Produce the immutable aggregate-only request for independent review. */
+      reason: 'environment_confirmation_required'
+      /** Produce the immutable aggregate-only recovery report and target request. */
       prepare: (target: RestoreReviewLifecycleRuntimeTarget) => Promise<
         Readonly<{
           requestContent: string
@@ -111,8 +113,8 @@ export type RestoreReviewLifecycleAuthority =
       >
     }>
   | Readonly<{
-      kind: 'reviewed_apply'
-      /** Authenticate, re-report, and reserve the immutable one-shot authority. */
+      kind: 'confirmed_apply'
+      /** Collect evidence and reserve or resume the durable recovery receipt. */
       admit: (target: RestoreReviewLifecycleRuntimeTarget) => Promise<
         Readonly<{
           recoveryInput: RecoveryFenceInput
@@ -138,6 +140,8 @@ export type RestoreReviewLifecycleRuntimeTarget = Readonly<{
 }>
 
 export type RestoreVerifyDeps = Readonly<{
+  confirmation?: string
+  clock: () => Date
   /** The command's own env (RESTORE_MODE + DATABASE_URL are gate-checked). */
   env: RestoreSideServicesEnv &
     Readonly<{
@@ -266,9 +270,9 @@ function reportRestoreDryRun(
       `purge; Google import lifecycle backlog=${JSON.stringify(before.importLifecycle)} ` +
       `retention backlog=${JSON.stringify(before.retention)} ` +
       `recovery authority=${JSON.stringify(before.recovery)} ` +
-      (deps.reviewLifecycle.kind === 'reviewed_apply'
-        ? '— re-run with --apply --yes ops:restore-verify'
-        : '— Review apply remains unavailable until a reviewed cutover authority is injected'),
+      (deps.reviewLifecycle.kind === 'confirmed_apply'
+        ? '— re-run with --apply --yes closed-beta-v2'
+        : '— Review apply remains unavailable until the environment is confirmed with --yes closed-beta-v2'),
   )
   if (approvalPlan != null) {
     io.out(
@@ -278,7 +282,7 @@ function reportRestoreDryRun(
       `Review lifecycle recovery request SHA-256=${approvalPlan.requestSha256}: ${approvalPlan.requestContent.trimEnd()}`,
     )
     io.out(
-      'Give those exact aggregate-only artifacts to the independent approver; do not infer or self-approve an apply decision.',
+      'Confirm the environment with --apply --yes closed-beta-v2 to reserve a durable recovery receipt.',
     )
   }
 }
@@ -325,9 +329,9 @@ function reportCutoverChecklist(
   io: OperatorIO,
   evidence: ReadonlyArray<RestoreVerifyEvidenceRow>,
   recoveryResult: RecoveryFenceResult,
-  reviewedApply: Awaited<
+  confirmedApply: Awaited<
     ReturnType<
-      Extract<RestoreReviewLifecycleAuthority, { kind: 'reviewed_apply' }>['admit']
+      Extract<RestoreReviewLifecycleAuthority, { kind: 'confirmed_apply' }>['admit']
     >
   >,
 ): void {
@@ -341,7 +345,7 @@ function reportCutoverChecklist(
     `✓ recovery generation ${String(recoveryResult.generation)} ${recoveryResult.replayed ? 'replayed' : 'completed'} — run=${recoveryResult.id} counts=${JSON.stringify(recoveryResult.counts)}`,
   )
   io.out(
-    `✓ Review lifecycle approval ${reviewedApply.approvalId} consumed — bundle=${reviewedApply.approvalBundleSha256} report=${reviewedApply.reportSha256}`,
+    `✓ Review lifecycle recovery ${confirmedApply.approvalId} recorded — confirmation=${confirmedApply.approvalBundleSha256} report=${confirmedApply.reportSha256}`,
   )
 
   io.out('✓ zero expired-content row(s) remain eligible — source policy verified')
@@ -377,6 +381,10 @@ export async function runRestoreVerifyAction(
   io: OperatorIO,
 ): Promise<number> {
   if (restoreDrillRefused(deps, io)) return 1
+  if (!ctx.dryRun && deps.confirmation !== CLOSED_BETA_RAILWAY_ENVIRONMENT_NAME) {
+    io.err('REFUSED: confirm the restore environment with --yes closed-beta-v2')
+    return 1
+  }
 
   const recoveryTarget = recoveryInput(ctx, deps.env)
   if (typeof recoveryTarget === 'string') {
@@ -387,9 +395,9 @@ export async function runRestoreVerifyAction(
   io.out(`✓ ${RESTORE_ISOLATED_LOG_LINE} — restore mode active, target admitted`)
   io.out(RESTORE_VERIFY_REPLAY_NOTICE)
 
-  if (!ctx.dryRun && deps.reviewLifecycle.kind !== 'reviewed_apply') {
+  if (!ctx.dryRun && deps.reviewLifecycle.kind !== 'confirmed_apply') {
     io.err(
-      'REFUSED: Review source-content apply has no reviewed cutover authority. ' +
+      'REFUSED: Review source-content apply has no environment confirmation. ' +
         'The ordinary restore composition is inspection-only; no Review purge, ' +
         'import lifecycle, retention sweep, or recovery fence was applied.',
     )
@@ -418,14 +426,16 @@ export async function runRestoreVerifyAction(
     )
     return 0
   }
-  if (deps.reviewLifecycle.kind !== 'reviewed_apply') {
-    io.err('REFUSED: reviewed Review lifecycle apply authority is unavailable.')
+  if (deps.reviewLifecycle.kind !== 'confirmed_apply') {
+    io.err('REFUSED: confirmed Review lifecycle apply authority is unavailable.')
     return 1
   }
-  // Admission authenticates the signature, re-collects the exact frozen
-  // report, and reserves the one-shot receipt before any destructive work.
-  const reviewedApply = await deps.reviewLifecycle.admit(recoveryTarget)
-  await reviewedApply.applyReviewLifecycle()
+  io.out(
+    `restore confirmation — environment=${CLOSED_BETA_RAILWAY_ENVIRONMENT_NAME} operator=${ctx.operatorId} at=${deps.clock().toISOString()} correlation=${ctx.correlationId}`,
+  )
+  // Reserve or resume the durable receipt before any lifecycle mutation.
+  const confirmedApply = await deps.reviewLifecycle.admit(recoveryTarget)
+  await confirmedApply.applyReviewLifecycle()
   await deps.sweepGoogleImportLifecycle()
   await deps.sweepRetentionBacklog()
 
@@ -435,7 +445,7 @@ export async function runRestoreVerifyAction(
 
   if (purgeBacklogFailed(io, remaining, importLifecycleAfter, retentionAfter)) return 1
 
-  const recoveryResult = await deps.applyRecoveryFence(reviewedApply.recoveryInput)
+  const recoveryResult = await deps.applyRecoveryFence(confirmedApply.recoveryInput)
   const unfencedAuthority = await deps.inspectRecoveryFence()
   const unfencedTotal = Object.values(unfencedAuthority).reduce(
     (total, count) => total + count,
@@ -447,8 +457,19 @@ export async function runRestoreVerifyAction(
     )
     return 1
   }
-  await reviewedApply.complete(recoveryResult)
+  // Fencing can take long enough for another Review to expire. Leave the
+  // receipt resumable so the next invocation drains that content as well.
+  if (
+    purgeBacklogFailed(
+      io,
+      await deps.countExpired(),
+      importLifecycleAfter,
+      retentionAfter,
+    )
+  )
+    return 1
+  await confirmedApply.complete(recoveryResult)
 
-  reportCutoverChecklist(io, await deps.purgeEvidence(), recoveryResult, reviewedApply)
+  reportCutoverChecklist(io, await deps.purgeEvidence(), recoveryResult, confirmedApply)
   return 0
 }
