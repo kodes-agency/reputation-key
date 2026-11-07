@@ -1,3 +1,4 @@
+// The selectable version rows keep their multiline publication evidence.
 // The Versions rail: the draft, then every published version newest first.
 // Each version is one button that opens it for viewing. The draft is not a
 // button: it is where the manager already is.
@@ -98,6 +99,7 @@ function VersionTile({
   return (
     <li>
       <button
+        data-slot="picker-tile"
         type="button"
         onClick={onSelect}
         aria-label={`Version ${item.version}${item.isLive ? ', live now' : ''}, published ${date}${by ? ` by ${by}` : ''}`}

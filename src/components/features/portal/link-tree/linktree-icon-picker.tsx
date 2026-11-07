@@ -1,3 +1,4 @@
+// The upload tile shares the icon radios’ grid geometry but opens the photo dialog.
 // What a tile wears: one choice from the closed icon catalogue, or the photo
 // uploaded for it. A radio group, so the arrow keys move between the choices and
 // Tab enters and leaves it once. The dashed tile at the end is not a choice but
@@ -120,6 +121,7 @@ export function LinktreeIconPicker({
       })}
       <Named name={uploadTileLabel(isPhotoChosen)}>
         <button
+          data-slot="picker-tile"
           type="button"
           aria-label={uploadTileLabel(isPhotoChosen)}
           disabled={disabled}

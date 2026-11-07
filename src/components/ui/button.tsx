@@ -30,6 +30,8 @@ const buttonVariants = cva(
         link: 'text-link underline-offset-4 hover:underline',
         'row-name':
           'min-w-0 shrink justify-start whitespace-normal break-words text-left text-link underline-offset-4 hover:underline',
+        'scope-label':
+          'flex max-w-full min-w-0 shrink items-center justify-start gap-1 rounded-sm text-xs font-normal text-muted-foreground transition-none outline-none hover:text-foreground focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50 max-md:-ml-2 max-md:h-(--control-touch) max-md:rounded-md max-md:px-2 max-md:text-[13px] max-md:font-medium max-md:text-foreground',
       },
       size: {
         default: 'h-9 px-4 py-2 has-[>svg]:px-3 max-md:min-h-(--control-touch)',
@@ -45,6 +47,7 @@ const buttonVariants = cva(
         inline: 'h-auto p-0',
       },
       touch: { true: 'max-md:min-h-(--control-touch)' },
+      wrap: { true: 'h-auto min-h-9 whitespace-normal text-balance' },
       iconBelow: {
         sm: 'max-sm:w-(--control-touch) max-sm:px-0 max-sm:has-[>svg]:px-0',
         md: 'max-md:w-(--control-touch) max-md:px-0 max-md:has-[>svg]:px-0',
@@ -79,6 +82,7 @@ function Button({
   variant = 'default',
   size = 'default',
   touch,
+  wrap,
   iconBelow,
   asChild = false,
   pending: isPending = false,
@@ -95,7 +99,7 @@ function Button({
       data-slot="button"
       data-variant={variant}
       data-size={size}
-      className={cn(buttonVariants({ variant, size, touch, iconBelow, className }))}
+      className={cn(buttonVariants({ variant, size, touch, wrap, iconBelow, className }))}
       aria-busy={pending || undefined}
       disabled={disabled || pending || undefined}
       {...props}
