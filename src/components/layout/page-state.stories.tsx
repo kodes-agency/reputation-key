@@ -161,8 +161,10 @@ export const LoadingInbox: Story = {
       ...canvasElement.querySelectorAll('[data-loading-shape="inbox"] div'),
     ].filter(
       (element) =>
+        // A row holds its two text lines in the middle; the queue-chip strip is three skeletons.
         element.children.length === 3 &&
         element.firstElementChild?.getAttribute('data-slot') === 'skeleton' &&
+        element.children[1]?.getAttribute('data-slot') !== 'skeleton' &&
         element.lastElementChild?.getAttribute('data-slot') === 'skeleton',
     )
     expect(rows).toHaveLength(8)
