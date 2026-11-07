@@ -1,3 +1,4 @@
+// The selectable Inbox row keeps its evidence layout beside the separate bulk checkbox.
 import { Star, UserRoundCheck } from 'lucide-react'
 import type { ReactNode } from 'react'
 import { Checkbox } from '#/components/ui/checkbox'
@@ -184,6 +185,7 @@ function RowOpenButton({
   Readonly<{ view: RowView; ownerDescriptionId: string }>) {
   return (
     <button
+      data-slot="picker-tile"
       type="button"
       aria-current={isActive ? 'true' : undefined}
       aria-label={view.accessibleName}

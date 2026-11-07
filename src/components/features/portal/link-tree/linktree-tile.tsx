@@ -1,3 +1,4 @@
+// The disclosure occupies only the tile’s text, beside its separate move and menu controls.
 // One tile in the list: its icon, its name and line, the languages it is
 // written in, and a menu. Opening it shows the editor beneath. A tile guests
 // cannot see (its address is not approved) says so on the row itself, in warning
@@ -76,6 +77,7 @@ export function LinktreeTile({
         ) : null}
         <TileThumbnail link={link} />
         <button
+          data-slot="picker-tile"
           type="button"
           aria-expanded={isOpen}
           aria-controls={panelId}

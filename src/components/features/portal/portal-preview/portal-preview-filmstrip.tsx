@@ -1,3 +1,4 @@
+// The selector overlays an inert thumbnail whose page contains its own buttons.
 // The guest states beside the phone (under it on a narrow screen): arrival, after a low rating, after a high
 // one, and the note sent. Each thumbnail is the real page at a small scale, in
 // that state; choosing one shows it in the phone. Thumbnails are pictures, so
@@ -62,6 +63,7 @@ export function PortalPreviewFilmstrip({
                 </span>
               </span>
               <button
+                data-slot="picker-tile"
                 type="button"
                 aria-pressed={isActive}
                 aria-label={option.name}

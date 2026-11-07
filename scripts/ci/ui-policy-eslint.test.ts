@@ -31,6 +31,27 @@ describe('retained UI lint policies', () => {
   })
 
   it.each([
+    'src/components/features/beta-feedback/beta-feedback-choice.tsx',
+    'src/components/features/portal/property-look/focal-point-picker.tsx',
+  ])(
+    'still rejects an ordinary raw action beside a bespoke picker in %s',
+    async (filePath) => {
+      expect(await violations('<button type="button">Save</button>', filePath)).toEqual([
+        'ui-pattern/raw-button',
+      ])
+    },
+  )
+
+  it.each(['picker-tile', 'picker-handle'])(
+    'rejects a copied %s exception marker outside its named file',
+    async (slot) => {
+      expect(await violations(`<button data-slot="${slot}" />`)).toEqual([
+        'ui-pattern/raw-button',
+      ])
+    },
+  )
+
+  it.each([
     'Button',
     'IconButton',
     'SubmitButton',
