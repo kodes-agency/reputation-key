@@ -9,6 +9,7 @@
 // The stories run in development mode, so the raw message shows; the production
 // rule (generic or page sentence, never the raw text) is unit-tested in
 // `use-guarded-route-error.test.ts` against `routeErrorFacts`.
+import { playInThemes } from '../../../.storybook/play-in-themes'
 import { useEffect } from 'react'
 import { useRouter } from '@tanstack/react-router'
 import type { Meta, StoryObj } from '@storybook/react'
@@ -65,7 +66,7 @@ type Story = StoryObj<typeof GuardedRouteError>
 /** An unexpected failure keeps the page's frame, is reported, and can be retried. */
 export const UnexpectedFailure: Story = {
   args: { error: new Error('The portals query failed.') },
-  play: async ({ canvasElement, args }) => {
+  play: playInThemes(async ({ canvasElement, args }) => {
     const canvas = within(canvasElement)
     const invalidate = spyOn(storyRouter!, 'invalidate')
     expect(canvas.getByRole('heading', { name: 'Portals' })).toBeVisible()
@@ -76,12 +77,7 @@ export const UnexpectedFailure: Story = {
     await userEvent.click(canvas.getByRole('button', { name: 'Try again' }))
     expect(invalidate).toHaveBeenCalledTimes(1)
     invalidate.mockRestore()
-  },
-}
-
-export const UnexpectedFailureLight: Story = {
-  ...UnexpectedFailure,
-  parameters: { ...UnexpectedFailure.parameters, theme: 'light' },
+  }),
 }
 
 /** An expected 4xx refusal is shown but never reported: it is an outcome, not a defect. */

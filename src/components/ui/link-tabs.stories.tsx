@@ -8,6 +8,7 @@
 // A `LinkTab` is a router link, so a click would navigate the story's memory router
 // to a route it has no page for: the stories keep the view in state and stop the
 // navigation in the click handler, as a real page's view comes from its route.
+import { playInThemes } from '../../../.storybook/play-in-themes'
 import { useState } from 'react'
 import type { Meta, StoryObj } from '@storybook/react'
 import { expect, userEvent, waitFor, within } from 'storybook/test'
@@ -54,7 +55,7 @@ function PageViews({ initial }: Readonly<{ initial: View }>) {
 /** Views that are a route: a named landmark of links, the current one marked. */
 export const RouteViews: Story = {
   render: () => <PageViews initial="active" />,
-  play: async ({ canvasElement }) => {
+  play: playInThemes(async ({ canvasElement }) => {
     const canvas = within(canvasElement)
     const nav = canvas.getByRole('navigation', { name: 'Which reports' })
     // Not a tablist: nothing here swaps a panel in the same document.
@@ -65,7 +66,7 @@ export const RouteViews: Story = {
     expect(within(nav).getByRole('link', { name: /Archived\s*1/ })).not.toHaveAttribute(
       'aria-current',
     )
-  },
+  }),
 }
 
 /** Choosing a view moves `aria-current` with it, and the count stays in the name. */
@@ -145,9 +146,9 @@ export const PhoneStrip: Story = {
       'aria-current',
       'page',
     )
-    expect(nav.className).toContain('overflow-x-auto')
-    expect(nav.className).toContain('[scrollbar-width:none]')
-    expect(nav.querySelector('ul')?.className).toContain('min-w-max')
+    expect(getComputedStyle(nav).overflowX).toBe('auto')
+    expect(getComputedStyle(nav).scrollbarWidth).toBe('none')
+    expect(getComputedStyle(nav.querySelector('ul')!).minWidth).toBe('max-content')
   },
 }
 
@@ -158,14 +159,14 @@ export const PhoneStrip: Story = {
 export const StripOpensOnTheLastTab: Story = {
   parameters: { viewport: { defaultViewport: 'mobileNarrow' } },
   render: () => <PortalStrip current="History" />,
-  play: async ({ canvasElement }) => {
+  play: playInThemes(async ({ canvasElement }) => {
     const nav = portalStrip(canvasElement)
     const current = within(nav).getByRole('link', { name: 'History' })
     expect(current).toHaveAttribute('aria-current', 'page')
     await waitFor(() => expect(nav.scrollLeft).toBeGreaterThan(0))
     await waitUntilInView(nav, current)
     await waitFor(() => expect(nav.style.maskImage).not.toBe(''))
-  },
+  }),
 }
 
 /**
@@ -186,11 +187,6 @@ export const StripStaysWhereItWasScrolled: Story = {
     await waitFor(() => expect(nav.style.maskImage).not.toBe(fadedAtTheEnd))
     expect(nav.scrollLeft).toBe(0)
   },
-}
-
-export const StripOpensOnTheLastTabLight: Story = {
-  ...StripOpensOnTheLastTab,
-  parameters: { viewport: { defaultViewport: 'mobileNarrow' }, theme: 'light' },
 }
 
 const GROWN_LABEL = 'History and audit trail'
@@ -309,11 +305,12 @@ export const ComponentMode: Story = {
     )
     // No underline recipe on a pill: the chosen mode is the white chip.
     expect(canvasElement.querySelector('[data-variant="default"]')).not.toBeNull()
-    expect(canvasElement.querySelector('.border-b')).toBeNull()
+    expect(
+      getComputedStyle(canvasElement.querySelector('[data-slot="tabs-list"]')!)
+        .borderBottomWidth,
+    ).toBe('0px')
   },
 }
-
-export const RouteViewsLight: Story = { ...RouteViews, parameters: { theme: 'light' } }
 export const PanelViewsLight: Story = { ...PanelViews, parameters: { theme: 'light' } }
 export const ComponentModeLight: Story = {
   ...ComponentMode,

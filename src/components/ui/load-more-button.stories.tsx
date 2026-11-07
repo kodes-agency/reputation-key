@@ -2,6 +2,7 @@
 // spinner and "Loading…" and is aria-disabled rather than disabled, so a focused
 // button keeps its focus (the notification popover is non-modal). Dark is the
 // default theme; the light variant renders the same states on the light surface.
+import { playInThemes } from '../../../.storybook/play-in-themes'
 import type { Meta, StoryObj } from '@storybook/react'
 import { expect, fn, userEvent, within } from 'storybook/test'
 import { LoadMoreButton } from './load-more-button'
@@ -18,23 +19,18 @@ export default meta
 type Story = StoryObj<typeof LoadMoreButton>
 
 export const Default: Story = {
-  play: async ({ canvasElement, args }) => {
+  play: playInThemes(async ({ canvasElement, args }) => {
     await userEvent.click(
       within(canvasElement).getByRole('button', { name: 'Load more' }),
     )
     expect(args.onLoadMore).toHaveBeenCalledTimes(1)
-  },
-}
-
-export const DefaultLight: Story = {
-  ...Default,
-  parameters: { theme: 'light' },
+  }),
 }
 
 /** Busy, not disabled: it keeps focus, and pressing it again does nothing. */
 export const Loading: Story = {
   args: { loading: true },
-  play: async ({ canvasElement, args }) => {
+  play: playInThemes(async ({ canvasElement, args }) => {
     const button = within(canvasElement).getByRole('button', { name: /loading/i })
     button.focus()
     expect(button).toHaveFocus()
@@ -44,12 +40,7 @@ export const Loading: Story = {
     await userEvent.click(button)
     expect(args.onLoadMore).not.toHaveBeenCalled()
     expect(button).toHaveFocus()
-  },
-}
-
-export const LoadingLight: Story = {
-  ...Loading,
-  parameters: { theme: 'light' },
+  }),
 }
 
 /** After a failed attempt the same button reads "Try again". */
@@ -88,6 +79,9 @@ export const BlockInACard: Story = {
       name: 'Load more accounts',
     })
     expect(button).toHaveAttribute('data-size', 'default')
-    expect(button.className).toContain('w-full')
+    expect(button.getBoundingClientRect().width).toBeCloseTo(
+      button.parentElement!.clientWidth - 32,
+      0,
+    )
   },
 }

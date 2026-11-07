@@ -1,8 +1,6 @@
-// The metric strip, in both looks and in the states a measure can be in. The
-// Storybook Vitest project compiles no Tailwind, so the plays prove structure,
-// not geometry: the strip is a named description list, every cell is a term
-// followed by its figure, a loading cell keeps its term, and an unavailable
-// measure leaves no hollow cell behind.
+// A named description list: every measure keeps its term while loading,
+// and an unavailable measure leaves no hollow cell.
+import { playInThemes } from '../../../.storybook/play-in-themes'
 import type { Meta, StoryObj } from '@storybook/react'
 import { Star } from 'lucide-react'
 import { expect, within } from 'storybook/test'
@@ -149,19 +147,14 @@ export const Tiles: Story = {
       </Metric>
     </MetricStrip>
   ),
-  play: async ({ canvasElement }) => {
+  play: playInThemes(async ({ canvasElement }) => {
     expect(canvasElement.querySelector('dl')).toHaveAttribute('data-variant', 'tiles')
     expect(cells(canvasElement)).toHaveLength(5)
     expect(cells(canvasElement)[4]).toEqual([
       'Average time to first handling',
       'Not enough measured data',
     ])
-  },
-}
-
-export const TilesLight: Story = {
-  ...Tiles,
-  parameters: { theme: 'light' },
+  }),
 }
 
 /** In a card, which is the frame: the cells keep their hairlines and lose their own edge. */

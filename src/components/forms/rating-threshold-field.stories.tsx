@@ -1,8 +1,5 @@
-// RatingThresholdField: "how low a rating" as one field. Dark is the default theme; the
-// light variants render the same fields on the light surface (axe runs on both). The
-// Storybook Vitest project compiles no Tailwind, so the plays pin behaviour and wiring
-// (the options and their words, the Off choice, the chosen value, the spoken form), not
-// colours.
+// Rating options, the optional Off choice and spoken values in both themes.
+import { playInThemes } from '../../../.storybook/play-in-themes'
 import { useState } from 'react'
 import type { Meta, StoryObj } from '@storybook/react'
 import { expect, userEvent, within } from 'storybook/test'
@@ -60,7 +57,7 @@ const body = () => within(document.body)
 /** Five ratings, "N★ or lower" on screen and "N stars or lower" aloud; the lowest has nothing below it. */
 export const FiveRatingsOffered: Story = {
   render: () => <FiveRatings />,
-  play: async ({ canvasElement }) => {
+  play: playInThemes(async ({ canvasElement }) => {
     const canvas = within(canvasElement)
     const select = canvas.getByRole('combobox', { name: 'Private feedback threshold' })
     expect(select).toHaveTextContent('3 stars or lower')
@@ -80,18 +77,13 @@ export const FiveRatingsOffered: Story = {
 
     await userEvent.click(body().getByRole('option', { name: '1 star only' }))
     expect(select).toHaveTextContent('1 star only')
-  },
-}
-
-export const FiveRatingsOfferedLight: Story = {
-  ...FiveRatingsOffered,
-  parameters: { theme: 'light' },
+  }),
 }
 
 /** Off is the first choice where the caller offers it, and the ratings stop at four. */
 export const OffThenFourRatings: Story = {
   render: () => <PerChannel />,
-  play: async ({ canvasElement }) => {
+  play: playInThemes(async ({ canvasElement }) => {
     const canvas = within(canvasElement)
     const select = canvas.getByRole('combobox', { name: 'Low ratings: In the app' })
 
@@ -107,24 +99,17 @@ export const OffThenFourRatings: Story = {
 
     await userEvent.click(body().getByRole('option', { name: 'Off' }))
     expect(select).toHaveTextContent('Off')
-  },
-}
-
-export const OffThenFourRatingsLight: Story = {
-  ...OffThenFourRatings,
-  parameters: { theme: 'light' },
+  }),
 }
 
 /** A refused value says why, under the help. */
 export const Refused: Story = {
   render: () => <FiveRatings invalid />,
-  play: ({ canvasElement }) => {
+  play: playInThemes(({ canvasElement }) => {
     const canvas = within(canvasElement)
     const select = canvas.getByRole('combobox', { name: 'Private feedback threshold' })
 
     expect(select).toHaveAttribute('aria-invalid', 'true')
     expect(canvas.getByRole('alert')).toHaveTextContent('Choose how low a rating is')
-  },
+  }),
 }
-
-export const RefusedLight: Story = { ...Refused, parameters: { theme: 'light' } }

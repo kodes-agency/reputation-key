@@ -3,6 +3,7 @@
 // either way. The page brings its own preset list; the dashboard's four and the
 // Portal Results' five are the two in use. Dark is the default theme; the light
 // variant draws the same rows on the light surface (axe runs on both).
+import { playInThemes } from '../../../.storybook/play-in-themes'
 import { useState } from 'react'
 import type { Meta, StoryObj } from '@storybook/react'
 import { expect, fn, userEvent, waitFor, within } from 'storybook/test'
@@ -63,7 +64,7 @@ function Controlled({
 /** The page's four presets: one radio group, the current range checked. */
 export const DashboardRanges: Story = {
   render: () => <Controlled initial="90d" options={DASHBOARD} />,
-  play: async ({ canvasElement }) => {
+  play: playInThemes(async ({ canvasElement }) => {
     const canvas = within(canvasElement)
     const group = canvas.getByRole('radiogroup', { name: 'Time range' })
     const radios = within(group).getAllByRole('radio')
@@ -80,7 +81,7 @@ export const DashboardRanges: Story = {
     expect(
       canvas.getByRole('combobox', { name: 'Time range', hidden: true }),
     ).toHaveTextContent('90 days')
-  },
+  }),
 }
 
 /** Choosing a segment reports the option's value, and the choice moves. */
@@ -124,12 +125,12 @@ export const Dropdown: Story = {
 /** Portal Results keeps its own presets (7 to 90 days, All time) in the same shell. */
 export const PortalResultsPresets: Story = {
   render: () => <Controlled initial="30d" options={PORTAL_RESULTS} />,
-  play: async ({ canvasElement }) => {
+  play: playInThemes(async ({ canvasElement }) => {
     const group = within(canvasElement).getByRole('radiogroup', { name: 'Time range' })
     expect(within(group).getAllByRole('radio')).toHaveLength(5)
     expect(within(group).getByRole('radio', { name: '7 days' })).toBeVisible()
     expect(within(group).getByRole('radio', { name: '30 days' })).toBeChecked()
-  },
+  }),
 }
 
 /**
@@ -157,13 +158,4 @@ export const Phone320: Story = {
     // The segments follow: one control, one value. They are hidden on a phone.
     expect(canvas.getByRole('radio', { name: '30 days', hidden: true })).toBeChecked()
   },
-}
-
-export const DashboardRangesLight: Story = {
-  ...DashboardRanges,
-  parameters: { theme: 'light' },
-}
-export const PortalResultsPresetsLight: Story = {
-  ...PortalResultsPresets,
-  parameters: { theme: 'light' },
 }

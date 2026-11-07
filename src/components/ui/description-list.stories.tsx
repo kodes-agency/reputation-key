@@ -1,8 +1,6 @@
-// Read-only label/value rows. Dark is the default theme; the light variant renders
-// the same list on the light surface (axe runs on both). The Storybook Vitest
-// project compiles no Tailwind, so the plays pin structure (a named list, each value
-// after its term, a note under its value); the term column and the phone stacking
-// are `sm:` classes read in a browser.
+// Read-only label/value rows, with the term above its value on a phone and a
+// separate column on wider screens. Both themes use the app's CSS.
+import { playInThemes } from '../../../.storybook/play-in-themes'
 import type { Meta, StoryObj } from '@storybook/react'
 import { expect, within } from 'storybook/test'
 import { DescriptionItem, DescriptionList } from './description-list'
@@ -34,7 +32,7 @@ type Story = StoryObj<typeof DescriptionList>
 
 /** Each term is followed by its value, in the order written. */
 export const Default: Story = {
-  play: ({ canvasElement }) => {
+  play: playInThemes(({ canvasElement }) => {
     const list = within(canvasElement).getByLabelText('Google profile')
     expect(list.tagName).toBe('DL')
     const rows = [...list.querySelectorAll(':scope > div')].map((row) => [
@@ -47,12 +45,7 @@ export const Default: Story = {
       ['Address', '12 Harbour Road, Varna 9000, Bulgaria'],
       ['Title', 'Добре дошли'],
     ])
-  },
-}
-
-export const DefaultLight: Story = {
-  ...Default,
-  parameters: { theme: 'light' },
+  }),
 }
 
 /** A longer term gets the wide column. */
@@ -65,8 +58,17 @@ export const WideTerms: Story = {
     </DescriptionList>
   ),
   play: ({ canvasElement }) => {
-    const row = canvasElement.querySelector('dl > div')
-    expect(row?.className).toContain('sm:grid-cols-[10rem_minmax(0,1fr)]')
+    const term = within(canvasElement)
+      .getByText('Responsible manager')
+      .getBoundingClientRect()
+    const value = within(canvasElement).getByText('Anna Petrova').getBoundingClientRect()
+    if (window.innerWidth >= 640) {
+      expect(term.width).toBe(160)
+      expect(value.left).toBeGreaterThanOrEqual(term.right)
+      expect(value.top).toBe(term.top)
+    } else {
+      expect(value.top).toBeGreaterThanOrEqual(term.bottom)
+    }
   },
 }
 
@@ -81,17 +83,16 @@ export const Stacked: Story = {
       </DescriptionItem>
     </DescriptionList>
   ),
-  play: ({ canvasElement }) => {
-    const row = canvasElement.querySelector('dl > div')
-    expect(row?.className).not.toContain('sm:grid-cols')
+  play: playInThemes(({ canvasElement }) => {
+    const term = within(canvasElement).getByText('Email').getBoundingClientRect()
+    const value = within(canvasElement)
+      .getByText('anna@harborline.example')
+      .getBoundingClientRect()
+    expect(value.top).toBeGreaterThanOrEqual(term.bottom)
+    expect(value.left).toBe(term.left)
     expect(within(canvasElement).getByText('Email').tagName).toBe('DT')
     expect(within(canvasElement).getByText('From Google')).toBeInTheDocument()
-  },
-}
-
-export const StackedLight: Story = {
-  ...Stacked,
-  parameters: { theme: 'light' },
+  }),
 }
 
 /** The language of a value that is not the page's is marked on the value. */

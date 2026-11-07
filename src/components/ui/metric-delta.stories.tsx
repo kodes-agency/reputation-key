@@ -3,6 +3,8 @@
 // a fall reads as a fall on every page (it used to be destructive on Ratings and
 // negative on Overview). Dark is the default theme; the light variant renders the
 // same lines on the light surface, and axe checks the contrast of both.
+import { playInThemes } from '../../../.storybook/play-in-themes'
+import { expectTokenColor } from '../../../.storybook/expect-token-color'
 import type { Meta, StoryObj } from '@storybook/react'
 import { expect, within } from 'storybook/test'
 import { MetricDelta } from './metric-delta'
@@ -20,24 +22,24 @@ type Story = StoryObj<typeof MetricDelta>
 
 /** A rise: the up arrow, the positive ink, "Up" for a screen reader. */
 export const Up: Story = {
-  play: async ({ canvasElement }) => {
+  play: playInThemes(async ({ canvasElement }) => {
     const delta = canvasElement.querySelector('[data-slot="metric-delta"]')
     expect(delta).toHaveAttribute('data-direction', 'up')
     expect(delta).toHaveTextContent('Up 12.5% vs the previous 90 days')
     expect(delta?.querySelector('svg')).toHaveAttribute('aria-hidden', 'true')
-    expect(delta).toHaveClass('text-positive')
-  },
+    await expectTokenColor(delta!, '--positive')
+  }),
 }
 
 /** A fall: the down arrow and the negative ink, never the fill-grade red. */
 export const Down: Story = {
   args: { value: -3.14, unit: 'points', comparisonLabel: 'vs the previous 30 days' },
-  play: async ({ canvasElement }) => {
+  play: playInThemes(async ({ canvasElement }) => {
     const delta = canvasElement.querySelector('[data-slot="metric-delta"]')
     expect(delta).toHaveAttribute('data-direction', 'down')
     expect(delta).toHaveTextContent('Down 3.1 vs the previous 30 days')
-    expect(delta).toHaveClass('text-negative')
-  },
+    await expectTokenColor(delta!, '--negative')
+  }),
 }
 
 /** A rating change keeps its decimal, like the headline figure it qualifies. */
@@ -80,8 +82,7 @@ export const WholePoints: Story = {
 
 /**
  * Inside a sentence. Its words stand on the sentence's baseline: that is a
- * geometry the Vitest runner cannot read (no Tailwind), so it is measured in
- * `e2e/storybook-metrics/overview-tile-caption.metrics.ts`.
+ * geometry also measured in `e2e/storybook-metrics/overview-tile-caption.metrics.ts`.
  */
 export const InASentence: Story = {
   render: (args) => (
@@ -96,6 +97,3 @@ export const InASentence: Story = {
     )
   },
 }
-
-export const UpLight: Story = { ...Up, parameters: { theme: 'light' } }
-export const DownLight: Story = { ...Down, parameters: { theme: 'light' } }

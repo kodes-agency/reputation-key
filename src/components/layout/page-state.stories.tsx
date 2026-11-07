@@ -2,8 +2,8 @@
 // missing, or is not available to the person. Every route fallback and the
 // router's defaults draw it (see `route-page-state`), so a failure reads the same
 // on every page and the page keeps its title, breadcrumbs and width while it
-// loads. The Storybook Vitest project compiles no Tailwind, so the plays pin the
-// classes that produce the geometry and the landmarks the states expose.
+// loads. The plays check the rendered loading shapes, dimensions and landmarks.
+import { playInThemes } from '../../../.storybook/play-in-themes'
 import type { Meta, StoryObj } from '@storybook/react'
 import { expect, fn, userEvent, within } from 'storybook/test'
 import { PageState } from './page-state'
@@ -43,9 +43,13 @@ export const Loading: Story = {
     const busy = canvasElement.querySelector('[aria-busy="true"]')
     expect(busy).not.toBeNull()
     // The label is announced, not drawn.
-    expect(within(busy as HTMLElement).getByText('Loading People')).toHaveClass('sr-only')
+    const label = within(busy as HTMLElement).getByText('Loading People')
+    expect(label).toHaveTextContent('Loading People')
+    expect(label.getBoundingClientRect().width).toBe(1)
+    expect(label.getBoundingClientRect().height).toBe(1)
     // Same width as the dashboard-tier page it stands in for.
-    expect(canvasElement.querySelector('.max-w-\\[1200px\\]')).not.toBeNull()
+    const shell = canvasElement.querySelector('[data-loading-shape]')!.parentElement!
+    expect(getComputedStyle(shell).maxWidth).toBe('1200px')
   },
 }
 
@@ -68,7 +72,10 @@ export const LoadingList: Story = {
   args: { kind: 'loading', title: 'Staff', tier: 'dashboard', shape: 'list' },
   play: async ({ canvasElement }) => {
     expect(shapeOf(canvasElement)).toBe('list')
-    expect(canvasElement.querySelector('.rounded-lg.border')).not.toBeNull()
+    const body = canvasElement.querySelector('[data-loading-shape="list"]')!
+    const table = body.lastElementChild!
+    expect(getComputedStyle(table).borderTopWidth).toBe('1px')
+    expect(table.children).toHaveLength(7)
   },
 }
 
@@ -77,7 +84,8 @@ export const LoadingCards: Story = {
   args: { kind: 'loading', title: 'Profile', tier: 'narrow', headerLines: 1 },
   play: async ({ canvasElement }) => {
     expect(shapeOf(canvasElement)).toBe('cards')
-    expect(canvasElement.querySelector('.max-w-3xl')).not.toBeNull()
+    const shell = canvasElement.querySelector('[data-loading-shape]')!.parentElement!
+    expect(getComputedStyle(shell).maxWidth).toBe('768px')
   },
 }
 
@@ -92,9 +100,16 @@ export const LoadingSplit: Story = {
   },
   play: async ({ canvasElement }) => {
     expect(shapeOf(canvasElement)).toBe('split')
-    expect(
-      canvasElement.querySelector('.lg\\:grid-cols-\\[minmax\\(0\\,1fr\\)_21rem\\]'),
-    ).not.toBeNull()
+    const body = canvasElement.querySelector('[data-loading-shape="split"]')!
+    const form = body.children[1]!.getBoundingClientRect()
+    const preview = body.children[2]!.getBoundingClientRect()
+    if (window.innerWidth >= 1024) {
+      expect(preview.width).toBe(336)
+      expect(preview.left).toBeGreaterThanOrEqual(form.right)
+      expect(preview.top).toBe(form.top)
+    } else {
+      expect(preview.top).toBeGreaterThanOrEqual(form.bottom)
+    }
   },
 }
 
@@ -124,7 +139,8 @@ export const LoadingWorkspace: Story = {
       within(canvasElement).getByRole('heading', { level: 1, name: 'Portal' }),
     ).toBeVisible()
     // A surface draws no page gutter or shell around itself.
-    expect(canvasElement.querySelector('.overflow-y-auto')).toBeNull()
+    const body = canvasElement.querySelector('[data-loading-shape="workspace"]')!
+    expect(body.parentElement).toBe(canvasElement.firstElementChild)
   },
 }
 
@@ -141,7 +157,16 @@ export const LoadingInbox: Story = {
     expect(
       within(canvasElement).getByRole('heading', { level: 1, name: 'Inbox' }),
     ).toBeVisible()
-    expect(canvasElement.querySelectorAll('.h-\\[78px\\]').length).toBe(8)
+    const rows = [
+      ...canvasElement.querySelectorAll('[data-loading-shape="inbox"] div'),
+    ].filter(
+      (element) =>
+        element.children.length === 3 &&
+        element.firstElementChild?.getAttribute('data-slot') === 'skeleton' &&
+        element.lastElementChild?.getAttribute('data-slot') === 'skeleton',
+    )
+    expect(rows).toHaveLength(8)
+    for (const row of rows) expect(row.getBoundingClientRect().height).toBe(78)
   },
 }
 
@@ -164,9 +189,9 @@ export const LoadingWithoutHeader: Story = {
 export const LoadingCustomLabel: Story = {
   args: { kind: 'loading', title: 'Portals', label: 'Loading portals and portal groups' },
   play: async ({ canvasElement }) => {
-    expect(
-      within(canvasElement).getByText('Loading portals and portal groups'),
-    ).toHaveClass('sr-only')
+    const label = within(canvasElement).getByText('Loading portals and portal groups')
+    expect(label.getBoundingClientRect().width).toBe(1)
+    expect(label.getBoundingClientRect().height).toBe(1)
   },
 }
 
@@ -253,7 +278,7 @@ export const Unavailable: Story = {
       'This capability is switched off for the closed beta and cannot be enabled from Settings.',
     back: { to: '/properties', label: 'Back to properties' },
   },
-  play: async ({ canvasElement }) => {
+  play: playInThemes(async ({ canvasElement }) => {
     const canvas = within(canvasElement)
     expect(canvas.getByRole('heading', { level: 1, name: 'Goals' })).toBeVisible()
     expect(canvas.getByText('Goals is not part of this beta')).toBeVisible()
@@ -264,26 +289,23 @@ export const Unavailable: Story = {
       'href',
       '/properties',
     )
-  },
-}
-
-export const UnavailableLight: Story = {
-  ...Unavailable,
-  parameters: { ...Unavailable.parameters, theme: 'light' },
+  }),
 }
 
 /** The tiers: a state stands in for its page at the page's width. */
 export const NarrowTier: Story = {
   args: { kind: 'loading', title: 'Notifications', tier: 'narrow' },
   play: async ({ canvasElement }) => {
-    expect(canvasElement.querySelector('.max-w-3xl')).not.toBeNull()
+    const shell = canvasElement.querySelector('[data-loading-shape]')!.parentElement!
+    expect(getComputedStyle(shell).maxWidth).toBe('768px')
   },
 }
 
 export const StandardTier: Story = {
   args: { kind: 'loading', title: 'Property settings' },
   play: async ({ canvasElement }) => {
-    expect(canvasElement.querySelector('.max-w-5xl')).not.toBeNull()
+    const shell = canvasElement.querySelector('[data-loading-shape]')!.parentElement!
+    expect(getComputedStyle(shell).maxWidth).toBe('1024px')
   },
 }
 
@@ -301,8 +323,10 @@ export const FullBleed: Story = {
     </div>
   ),
   play: async ({ canvasElement }) => {
-    const frame = canvasElement.querySelector('.overflow-y-auto')
-    expect(frame).not.toBeNull()
-    expect(frame).toHaveClass('px-4', 'py-5', 'md:px-6', 'md:py-8')
+    const frame = canvasElement.firstElementChild!.firstElementChild!
+    const style = getComputedStyle(frame)
+    expect(style.overflowY).toBe('auto')
+    expect(style.paddingLeft).toBe(window.innerWidth < 768 ? '16px' : '24px')
+    expect(style.paddingTop).toBe(window.innerWidth < 768 ? '20px' : '32px')
   },
 }
