@@ -3,6 +3,7 @@
 // the region's own refetch. Dark is the default theme; the light variant renders
 // the same panel on the light surface (axe runs on both). The plays check the
 // announced alert, the single label, and that the button calls the retry.
+import { playInThemes } from '../../../.storybook/play-in-themes'
 import { useState } from 'react'
 import type { Meta, StoryObj } from '@storybook/react'
 import { expect, fn, userEvent, within } from 'storybook/test'
@@ -26,14 +27,14 @@ type Story = StoryObj<typeof RegionError>
  * shows is the play's own click below, not the component.)
  */
 export const Default: Story = {
-  play: async ({ canvasElement, args }) => {
+  play: playInThemes(async ({ canvasElement, args }) => {
     const canvas = within(canvasElement)
     expect(canvas.getByRole('alert')).toHaveTextContent('The goal couldn’t be loaded.')
     const retry = canvas.getByRole('button', { name: 'Try again' })
     expect(retry).not.toHaveFocus()
     await userEvent.click(retry)
     expect(args.onRetry).toHaveBeenCalledTimes(1)
-  },
+  }),
 }
 
 /** A sentence under the message says what is unaffected. */
@@ -43,20 +44,20 @@ export const WithDescription: Story = {
     message: 'Results couldn’t be loaded.',
     description: 'The portals below are unaffected.',
   },
-  play: async ({ canvasElement }) => {
+  play: playInThemes(async ({ canvasElement }) => {
     expect(
       within(canvasElement).getByText('The portals below are unaffected.'),
     ).toBeVisible()
-  },
+  }),
 }
 
 /** A rail, a card or a dialog: the same panel, tighter. */
 export const Compact: Story = {
   args: { size: 'compact', message: 'The preview couldn’t be loaded' },
   play: async ({ canvasElement }) => {
-    expect(canvasElement.querySelector('[data-slot="empty-state"]')?.className).toContain(
-      'py-6',
-    )
+    const panel = canvasElement.querySelector('[data-slot="empty-state"]')!
+    expect(getComputedStyle(panel).paddingTop).toBe('24px')
+    expect(getComputedStyle(panel).paddingBottom).toBe('24px')
   },
 }
 
@@ -116,8 +117,7 @@ export const CompactDensity: Story = {
   ],
   play: async ({ canvasElement }) => {
     const button = within(canvasElement).getByRole('button', { name: 'Try again' })
-    expect(button.className).toContain('max-md:min-h-(--control-touch)')
-    expect(button.className).not.toContain('min-h-11')
+    expect(button.getBoundingClientRect().height).toBe(window.innerWidth < 768 ? 36 : 32)
   },
 }
 
@@ -150,14 +150,4 @@ export const InlineRetryButton: StoryObj<typeof RetryButton> = {
   play: async ({ canvasElement }) => {
     expect(within(canvasElement).getByRole('button', { name: 'Try again' })).toBeVisible()
   },
-}
-
-export const DefaultLight: Story = {
-  ...Default,
-  parameters: { theme: 'light' },
-}
-
-export const CompactLight: Story = {
-  ...WithDescription,
-  parameters: { theme: 'light' },
 }

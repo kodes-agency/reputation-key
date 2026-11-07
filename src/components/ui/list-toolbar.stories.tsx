@@ -1,12 +1,6 @@
-// The parts of a list's toolbar, composed the way the Properties list and the
-// Portals overview compose them: search, a filter menu, a sort menu, the result
-// count and the one Clear control. The harness filters a small list with the
-// app's own matcher (`searchMatcher`), so what the plays prove is the behaviour a
-// list gets for free: the count says "N of M" only while the list is narrowed,
-// Clear takes the search and the filters away and leaves the sort, and its words
-// follow whether a search is in force. The Storybook Vitest project compiles no
-// Tailwind, so nothing here claims a pixel. Dark is the default theme; the light
-// variants render the same toolbar on the light surface (axe runs on both).
+// Search and filters share the app matcher: counts describe the narrowed list,
+// Clear removes the search and filters, and the chosen sort remains.
+import { playInThemes } from '../../../.storybook/play-in-themes'
 import { useState } from 'react'
 import type { Meta, StoryObj } from '@storybook/react'
 import { expect, userEvent, waitFor, within } from 'storybook/test'
@@ -135,7 +129,7 @@ const names = (canvas: ReturnType<typeof within>) =>
 
 /** Nothing narrows the list: the count says nothing and there is nothing to clear. */
 export const Resting: Story = {
-  play: async ({ canvasElement }) => {
+  play: playInThemes(async ({ canvasElement }) => {
     const canvas = within(canvasElement)
     expect(canvas.getByRole('searchbox', { name: 'Search properties' })).toHaveValue('')
     expect(canvas.getByRole('button', { name: 'Show: All' })).toBeVisible()
@@ -146,7 +140,7 @@ export const Resting: Story = {
       '',
     )
     expect(names(canvas)).toHaveLength(4)
-  },
+  }),
 }
 
 /** Typing narrows the list; the count and Clear arrive together and Clear names the search. */
@@ -292,8 +286,6 @@ export const ClearLeavesTheSort: Story = {
     expect(canvas.queryByRole('button', { name: /^Clear/ })).toBeNull()
   },
 }
-
-export const RestingLight: Story = { ...Resting, parameters: { theme: 'light' } }
 
 export const NarrowedLight: Story = {
   args: { initialQuery: 'rila', initialShow: null },

@@ -5,9 +5,9 @@
 // the action runs, refuses Escape, closes when it resolves, and says a refusal
 // once, in place, which a reopened dialog does not repeat.
 // Dark is the default theme; the light variants render the same dialogs on the
-// light surface. The Storybook Vitest project compiles no Tailwind, so the plays
-// check which variant recipe the confirm carries, not a pixel; whether that
-// recipe is readable is `token-contrast.test.ts`'s job, measured from the tokens.
+// light surface. The plays check the painted tone, scroll and pending behaviour.
+import { playInThemes } from '../../../.storybook/play-in-themes'
+import { expectTokenColor } from '../../../.storybook/expect-token-color'
 import { useState } from 'react'
 import type { Meta, StoryObj } from '@storybook/react'
 import { expect, fn, userEvent, waitFor, within } from 'storybook/test'
@@ -36,6 +36,15 @@ type Story = StoryObj<typeof ConfirmationDialog>
 
 const openDialog = (canvasElement: HTMLElement) => openAlertDialog(canvasElement, 'Open')
 
+async function expectDestructive(button: HTMLElement) {
+  await expectTokenColor(
+    button,
+    '--destructive',
+    'backgroundColor',
+    document.documentElement.style.colorScheme === 'dark' ? 0.6 : 1,
+  )
+}
+
 /** Presses the cancel and waits for the dialog to go. */
 async function keepProperty(dialog: ReturnType<typeof within>) {
   await userEvent.click(dialog.getByRole('button', { name: 'Keep property' }))
@@ -56,8 +65,7 @@ export const Neutral: Story = {
   play: async ({ canvasElement, args }) => {
     const dialog = await openDialog(canvasElement)
     const confirm = dialog.getByRole('button', { name: 'Archive' })
-    expect(confirm.className).toContain('bg-primary')
-    expect(confirm.className).not.toContain('bg-destructive')
+    await expectTokenColor(confirm, '--primary', 'backgroundColor')
     await userEvent.click(confirm)
     expect(args.onConfirm).toHaveBeenCalledTimes(1)
     // It closes when the action has resolved, not when the button was pressed.
@@ -71,8 +79,7 @@ export const Destructive: Story = {
   play: async ({ canvasElement, args }) => {
     const dialog = await openDialog(canvasElement)
     const confirm = dialog.getByRole('button', { name: 'Remove property' })
-    expect(confirm.className).toContain('bg-destructive')
-    expect(confirm.className).not.toContain('bg-primary')
+    await expectDestructive(confirm)
     await userEvent.click(confirm)
     expect(args.onConfirm).toHaveBeenCalledTimes(1)
   },
@@ -83,9 +90,7 @@ export const DestructiveLight: Story = {
   parameters: { theme: 'light' },
   play: async ({ canvasElement }) => {
     const dialog = await openDialog(canvasElement)
-    expect(dialog.getByRole('button', { name: 'Remove property' }).className).toContain(
-      'bg-destructive',
-    )
+    await expectDestructive(dialog.getByRole('button', { name: 'Remove property' }))
   },
 }
 
@@ -123,7 +128,7 @@ const slowAction = fn(
  */
 export const Pending: Story = {
   args: { ...destructiveArgs, onConfirm: slowAction },
-  play: async ({ canvasElement }) => {
+  play: playInThemes(async ({ canvasElement }) => {
     const dialog = await openDialog(canvasElement)
     await userEvent.click(dialog.getByRole('button', { name: 'Remove property' }))
     const confirm = await dialog.findByRole('button', { name: 'Removing…' })
@@ -134,12 +139,7 @@ export const Pending: Story = {
     expect(dialog.getByRole('alertdialog')).toBeVisible()
     releaseSlow()
     await waitFor(() => expect(dialog.queryByRole('alertdialog')).not.toBeInTheDocument())
-  },
-}
-
-export const PendingLight: Story = {
-  ...Pending,
-  parameters: { theme: 'light' },
+  }),
 }
 
 const refusal = () => {
@@ -153,7 +153,7 @@ const refusal = () => {
  */
 export const Refused: Story = {
   args: { ...destructiveArgs, onConfirm: fn(async () => refusal()) },
-  play: async ({ canvasElement, args }) => {
+  play: playInThemes(async ({ canvasElement, args }) => {
     const dialog = await openDialog(canvasElement)
     await userEvent.click(dialog.getByRole('button', { name: 'Remove property' }))
     await dialog.findByText('Unable to complete this action')
@@ -165,12 +165,7 @@ export const Refused: Story = {
     await userEvent.click(confirm)
     await waitFor(() => expect(args.onConfirm).toHaveBeenCalledTimes(2))
     expect(dialog.getAllByRole('alert')).toHaveLength(1)
-  },
-}
-
-export const RefusedLight: Story = {
-  ...Refused,
-  parameters: { theme: 'light' },
+  }),
 }
 
 /** Cancelling after a refusal and asking again starts clean: no old error. */
@@ -230,7 +225,7 @@ export const WithAField: Story = {
 export const TallBodyScrolls: Story = {
   render: (args) => (
     <ConfirmationDialog {...args}>
-      {Array.from({ length: 12 }, (_, index) => (
+      {Array.from({ length: 40 }, (_, index) => (
         <Input key={index} aria-label={`Field ${index + 1}`} />
       ))}
     </ConfirmationDialog>
@@ -238,8 +233,14 @@ export const TallBodyScrolls: Story = {
   play: async ({ canvasElement }) => {
     const dialog = await openDialog(canvasElement)
     const content = dialog.getByRole('alertdialog')
-    expect(content.className).toContain('max-h-[calc(100dvh-2rem)]')
-    expect(content.className).toContain('overflow-y-auto')
+    expect(content.getBoundingClientRect().height).toBeLessThanOrEqual(
+      window.innerHeight - 32,
+    )
+    expect(content.scrollHeight).toBeGreaterThan(content.clientHeight)
+    const before = content.scrollTop
+    content.scrollTop = before + 40
+    expect(content.scrollTop).toBeGreaterThan(before)
+    content.scrollTop = before
     expect(dialog.getByRole('button', { name: 'Archive' })).toBeInTheDocument()
   },
 }
@@ -254,11 +255,11 @@ export const TriggersFollowTheTone: Story = {
   ),
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
-    expect(canvas.getByRole('button', { name: 'Remove' }).className).toContain(
-      'bg-destructive',
-    )
-    expect(canvas.getByRole('button', { name: 'Archive' }).className).not.toContain(
-      'bg-destructive',
+    const remove = canvas.getByRole('button', { name: 'Remove' })
+    const archive = canvas.getByRole('button', { name: 'Archive' })
+    await expectDestructive(remove)
+    expect(getComputedStyle(archive).backgroundColor).not.toBe(
+      getComputedStyle(remove).backgroundColor,
     )
   },
 }

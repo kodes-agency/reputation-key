@@ -1,8 +1,5 @@
-// ImageSetting: the one way to set an avatar or a logo. Dark is the default theme; the
-// light variants render the same states on the light surface (axe runs on both). The
-// Storybook Vitest project compiles no Tailwind, so the plays pin behaviour and wiring
-// (Replace and Remove are words, a pending save says so on its Button, a refusal is a
-// toast and leaves the picture where it was), not placement.
+// Image setting states and actions, checked in both themes with the app stylesheet.
+import { playInThemes } from '../../../.storybook/play-in-themes'
 import type { Meta, StoryObj } from '@storybook/react'
 import { expect, fn, userEvent, waitFor, within } from 'storybook/test'
 import { ToasterDecorator } from '../../../.storybook/ToasterDecorator'
@@ -39,28 +36,24 @@ type Story = StoryObj<typeof ImageSetting>
 
 /** Nothing set yet: Upload, in words, and the limit the file is checked against. */
 export const Empty: Story = {
-  play: ({ canvasElement }) => {
+  play: playInThemes(({ canvasElement }) => {
     const canvas = within(canvasElement)
     expect(canvas.getByRole('button', { name: 'Upload logo' })).toBeEnabled()
     expect(canvas.queryByRole('button', { name: 'Remove logo' })).not.toBeInTheDocument()
     expect(canvas.getByText('JPG, PNG, WebP or GIF, up to 5 MB.')).toBeInTheDocument()
-  },
+  }),
 }
-
-export const EmptyLight: Story = { ...Empty, parameters: { theme: 'light' } }
 
 /** An image is set: Replace and Remove are always there, as words. */
 export const WithImage: Story = {
   args: { imageUrl: PICTURE },
-  play: ({ canvasElement }) => {
+  play: playInThemes(({ canvasElement }) => {
     const canvas = within(canvasElement)
     expect(canvas.getByRole('img', { name: 'Current logo' })).toBeInTheDocument()
     expect(canvas.getByRole('button', { name: 'Replace logo' })).toBeEnabled()
     expect(canvas.getByRole('button', { name: 'Remove logo' })).toBeEnabled()
-  },
+  }),
 }
-
-export const WithImageLight: Story = { ...WithImage, parameters: { theme: 'light' } }
 
 /** The same setting names its buttons for what it is. */
 export const Avatar: Story = {

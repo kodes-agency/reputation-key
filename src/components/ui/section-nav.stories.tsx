@@ -2,6 +2,8 @@
 // count and group heading (UI consistency scan: NAV-01, NAV-05, NAV-07, NAV-09,
 // FORM-07). Dark is the default theme; the light variants render the same navs on
 // the light surface (axe runs on both).
+import { playInThemes } from '../../../.storybook/play-in-themes'
+import { expectTokenColor } from '../../../.storybook/expect-token-color'
 import type { Meta, StoryObj } from '@storybook/react'
 import { Bell, Building2, Palette, Shield, User, Users } from 'lucide-react'
 import { expect, userEvent, waitFor, within } from 'storybook/test'
@@ -289,7 +291,8 @@ export const KeyboardFocus: Story = {
     const links = within(nav(canvasElement)).getAllByRole('link')
     await userEvent.tab()
     expect(links[0]).toHaveFocus()
-    expect(links[0]?.className).toContain('focus-ring')
+    expect(getComputedStyle(links[0]!).outlineStyle).toBe('solid')
+    expect(getComputedStyle(links[0]!).outlineWidth).toBe('2px')
     await userEvent.tab()
     expect(links[1]).toHaveFocus()
   },
@@ -303,14 +306,11 @@ export const Counts: Story = {
       Escalated <NavCount tone="negative">2</NavCount>
     </div>
   ),
-  play: async ({ canvasElement }) => {
+  play: playInThemes(async ({ canvasElement }) => {
     const canvas = within(canvasElement)
-    expect(canvas.getByText('12').className).toContain('tabular-nums')
-    expect(canvas.getByText('2').className).toContain('text-negative')
-  },
-}
-
-export const CountsLight: Story = {
-  ...Counts,
-  parameters: { layout: 'padded', theme: 'light' },
+    expect(getComputedStyle(canvas.getByText('12')).fontVariantNumeric).toBe(
+      'tabular-nums',
+    )
+    await expectTokenColor(canvas.getByText('2'), '--negative')
+  }),
 }

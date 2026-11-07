@@ -1,9 +1,6 @@
-// The dashed "nothing here" panel in the places the product draws it: a roomy
-// first-run or no-results panel for a page, and a compact slot inside a list, a
-// card, a rail or a dialog. Dark is the default theme; the light variants render
-// the same panels on the light surface (axe runs on both). The Storybook Vitest
-// project compiles no Tailwind, so the plays prove structure and the slot order,
-// not geometry; the size and tone recipes are pinned by `empty-state.test.ts`.
+// Roomy and compact empty regions preserve their slot order, recovery and padding.
+// Both themes use the app stylesheet and accessibility checks.
+import { playInThemes } from '../../../.storybook/play-in-themes'
 import type { Meta, StoryObj } from '@storybook/react'
 import { Globe, MapPin, SearchX } from 'lucide-react'
 import { expect, fn, userEvent, within } from 'storybook/test'
@@ -27,15 +24,16 @@ export const FirstRun: Story = {
     description: 'Create a portal to set up a guest-facing page with links.',
     action: <Button>New portal</Button>,
   },
-  play: async ({ canvasElement }) => {
+  play: playInThemes(async ({ canvasElement }) => {
     const canvas = within(canvasElement)
     const panel = canvasElement.querySelector('[data-slot="empty-state"]')
-    expect(panel?.className).toContain('py-12')
+    expect(getComputedStyle(panel!).paddingTop).toBe('48px')
+    expect(getComputedStyle(panel!).paddingBottom).toBe('48px')
     // Not an alert: nothing went wrong.
     expect(panel).not.toHaveAttribute('role')
     expect(canvas.getByText('No portals yet')).toBeVisible()
     expect(canvas.getByRole('button', { name: 'New portal' })).toBeVisible()
-  },
+  }),
 }
 
 /** No results: the recovery is clearing what narrowed the list. */
@@ -90,9 +88,9 @@ export const Compact: Story = {
     title: 'No portals in this group yet',
   },
   play: async ({ canvasElement }) => {
-    expect(canvasElement.querySelector('[data-slot="empty-state"]')?.className).toContain(
-      'py-6',
-    )
+    const panel = canvasElement.querySelector('[data-slot="empty-state"]')!
+    expect(getComputedStyle(panel).paddingTop).toBe('24px')
+    expect(getComputedStyle(panel).paddingBottom).toBe('24px')
   },
 }
 
@@ -108,6 +106,7 @@ export const CompactWithAction: Story = {
       </Button>
     ),
   },
+  play: playInThemes(),
 }
 
 /** The failure tone is an alert; RegionError adds "Try again" to it. */
@@ -117,9 +116,9 @@ export const ErrorTone: Story = {
     size: 'compact',
     title: 'The preview couldn’t be loaded',
   },
-  play: async ({ canvasElement }) => {
+  play: playInThemes(async ({ canvasElement }) => {
     expect(within(canvasElement).getByRole('alert')).toBeVisible()
-  },
+  }),
 }
 
 /** The action is an ordinary control: it is reachable and does its job. */
@@ -130,19 +129,4 @@ export const ActionIsReachable: Story = {
     await userEvent.tab()
     expect(button).toHaveFocus()
   },
-}
-
-export const FirstRunLight: Story = {
-  ...FirstRun,
-  parameters: { theme: 'light' },
-}
-
-export const CompactLight: Story = {
-  ...CompactWithAction,
-  parameters: { theme: 'light' },
-}
-
-export const ErrorToneLight: Story = {
-  ...ErrorTone,
-  parameters: { theme: 'light' },
 }

@@ -2,6 +2,8 @@
 // COLL-09). The star is the product's `--rating` gold and is decorative; the
 // number is the content and a screen reader hears "stars". Dark is the default
 // theme; the light variant renders the same figures on the light surface.
+import { playInThemes } from '../../../.storybook/play-in-themes'
+import { expectTokenColor } from '../../../.storybook/expect-token-color'
 import type { Meta, StoryObj } from '@storybook/react'
 import { expect, within } from 'storybook/test'
 import { RatingFigure } from './rating-figure'
@@ -19,13 +21,13 @@ type Story = StoryObj<typeof RatingFigure>
 
 /** The number to one decimal, one hidden star, and "stars" for a screen reader. */
 export const Default: Story = {
-  play: async ({ canvasElement }) => {
+  play: playInThemes(async ({ canvasElement }) => {
     const figure = canvasElement.querySelector('[data-slot="rating-figure"]')
     expect(figure).toHaveTextContent('4.3stars')
     expect(within(canvasElement).getByText('4.3')).toBeVisible()
     expect(figure?.querySelectorAll('svg[aria-hidden="true"]')).toHaveLength(1)
-    expect(figure?.querySelector('svg')).toHaveClass('text-rating')
-  },
+    await expectTokenColor(figure!.querySelector('svg')!, '--rating')
+  }),
 }
 
 /** A whole rating keeps its decimal, like the delta that qualifies it. */
@@ -45,14 +47,14 @@ export const Sizes: Story = {
       <RatingFigure {...args} size="lg" className="text-3xl font-semibold" />
     </div>
   ),
-  play: async ({ canvasElement }) => {
+  play: playInThemes(async ({ canvasElement }) => {
     const glyphs = [...canvasElement.querySelectorAll('svg')]
     expect(glyphs).toHaveLength(3)
-    expect(glyphs[0]).toHaveClass('size-3.5')
-    expect(glyphs[1]).toHaveClass('size-4')
-    expect(glyphs[2]).toHaveClass('size-6')
-  },
+    expect(glyphs.map((glyph) => glyph.getBoundingClientRect().width)).toEqual([
+      14, 16, 24,
+    ])
+    expect(glyphs.map((glyph) => glyph.getBoundingClientRect().height)).toEqual([
+      14, 16, 24,
+    ])
+  }),
 }
-
-export const DefaultLight: Story = { ...Default, parameters: { theme: 'light' } }
-export const SizesLight: Story = { ...Sizes, parameters: { theme: 'light' } }

@@ -1,9 +1,6 @@
-// A choice made, as a pill you press to take back: the Inbox's active filters and
-// the member invitation's assigned properties. Dark is the default theme; the
-// light variant renders the same row on the light surface (axe runs on both). The
-// Storybook Vitest project compiles no Tailwind, so the plays prove the
-// behaviour a screenshot cannot: the whole chip is the button, its name says what
-// pressing it does, and the keyboard reaches and removes it.
+// The whole chip removes its filter or assignment, by pointer or keyboard.
+// Both themes keep the same accessible name and interaction.
+import { playInThemes } from '../../../.storybook/play-in-themes'
 import { useState } from 'react'
 import type { Meta, StoryObj } from '@storybook/react'
 import { expect, userEvent, within } from 'storybook/test'
@@ -40,7 +37,7 @@ type Story = StoryObj<typeof Row>
 
 /** Every chip is one button named for its removal, not for its text alone. */
 export const Chips: Story = {
-  play: async ({ canvasElement }) => {
+  play: playInThemes(async ({ canvasElement }) => {
     const group = within(
       within(canvasElement).getByRole('group', { name: 'Chosen properties' }),
     )
@@ -52,7 +49,7 @@ export const Chips: Story = {
       'Remove Café Plaza',
       'Remove Harborline Suites',
     ])
-  },
+  }),
 }
 
 /** Pressing the chip, anywhere on it, takes it back. */
@@ -81,5 +78,3 @@ export const RemoveFromTheKeyboard: Story = {
     expect(group.queryByRole('button', { name: 'Remove Café Plaza' })).toBeNull()
   },
 }
-
-export const ChipsLight: Story = { ...Chips, parameters: { theme: 'light' } }

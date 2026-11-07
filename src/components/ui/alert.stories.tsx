@@ -5,6 +5,7 @@
 // theme; the light variants render the same notices on the light surface (axe
 // runs on both). The plays check what every notice must be: announced in the
 // role its tone earns, named, and with exactly one icon the screen reader skips.
+import { playInThemes } from '../../../.storybook/play-in-themes'
 import type { Meta, StoryObj } from '@storybook/react'
 import { expect, within } from 'storybook/test'
 import { Button } from './button'
@@ -54,10 +55,10 @@ export const Destructive: Story = {
       <AlertDescription>The address could not be saved. Try again.</AlertDescription>
     </Alert>
   ),
-  play: async ({ canvasElement }) => {
+  play: playInThemes(async ({ canvasElement }) => {
     const alert = expectTone(canvasElement, 'destructive')
     expect(alert).toHaveTextContent('Unable to complete this action')
-  },
+  }),
 }
 
 /** This needs a person, or may break something. */
@@ -70,9 +71,9 @@ export const Warning: Story = {
       </AlertDescription>
     </Alert>
   ),
-  play: async ({ canvasElement }) => {
+  play: playInThemes(async ({ canvasElement }) => {
     expectTone(canvasElement, 'warning')
-  },
+  }),
 }
 
 /** It worked. */
@@ -85,9 +86,9 @@ export const Success: Story = {
       </AlertDescription>
     </Alert>
   ),
-  play: async ({ canvasElement }) => {
+  play: playInThemes(async ({ canvasElement }) => {
     expectTone(canvasElement, 'success')
-  },
+  }),
 }
 
 /** Worth knowing, nothing to do. */
@@ -100,9 +101,9 @@ export const Info: Story = {
       </AlertDescription>
     </Alert>
   ),
-  play: async ({ canvasElement }) => {
+  play: playInThemes(async ({ canvasElement }) => {
     expectTone(canvasElement, 'info')
-  },
+  }),
 }
 
 /**
@@ -146,8 +147,3 @@ export const Plain: Story = {
     expect(alert.querySelector('svg')).toBeNull()
   },
 }
-
-export const DestructiveLight: Story = { ...Destructive, parameters: { theme: 'light' } }
-export const WarningLight: Story = { ...Warning, parameters: { theme: 'light' } }
-export const SuccessLight: Story = { ...Success, parameters: { theme: 'light' } }
-export const InfoLight: Story = { ...Info, parameters: { theme: 'light' } }

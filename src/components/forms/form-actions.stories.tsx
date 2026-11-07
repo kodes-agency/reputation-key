@@ -1,9 +1,6 @@
-// FormActions: the one row a settings group saves from. Dark is the default theme;
-// the light variants render the same row on the light surface (axe runs on both).
-// The Storybook Vitest project compiles no Tailwind, so the plays pin behaviour (Reset
-// shows only while the group holds edits, puts back the SAVED values, hands the focus
-// to the group's first field, and a refused save is read above the buttons); the
-// right alignment is a class read in a browser.
+// Save and Reset preserve the saved values, focus and refusal feedback.
+// The same interactions run in both themes with the app stylesheet.
+import { playInThemes } from '../../../.storybook/play-in-themes'
 import { useState } from 'react'
 import { useForm } from '@tanstack/react-form'
 import type { Meta, StoryObj } from '@storybook/react'
@@ -130,19 +127,17 @@ const NAME = /workspace name/i
 /** Nothing edited: the primary alone, and no Reset. */
 export const Clean: Story = {
   render: () => <Page />,
-  play: ({ canvasElement }) => {
+  play: playInThemes(({ canvasElement }) => {
     const canvas = within(canvasElement)
     expect(canvas.getByRole('button', { name: 'Save profile' })).toBeInTheDocument()
     expect(canvas.queryByRole('button', { name: 'Reset' })).toBeNull()
-  },
+  }),
 }
-
-export const CleanLight: Story = { ...Clean, parameters: { theme: 'light' } }
 
 /** An edit brings Reset before the primary; Reset puts the saved value back and keeps the focus in the group. */
 export const ResetRestoresTheSavedValue: Story = {
   render: () => <Page />,
-  play: async ({ canvasElement }) => {
+  play: playInThemes(async ({ canvasElement }) => {
     const canvas = within(canvasElement)
     const name = canvas.getByRole('textbox', { name: NAME })
     await userEvent.clear(name)
@@ -158,12 +153,7 @@ export const ResetRestoresTheSavedValue: Story = {
       expect(canvas.queryByRole('button', { name: 'Reset' })).toBeNull(),
     )
     expect(name).toHaveFocus()
-  },
-}
-
-export const ResetRestoresTheSavedValueLight: Story = {
-  ...ResetRestoresTheSavedValue,
-  parameters: { theme: 'light' },
+  }),
 }
 
 /** After a save the saved value is the new one: no Reset, and a later Reset returns to it, not to the first. */
@@ -207,7 +197,7 @@ export const RefusedSave: Story = {
       }}
     />
   ),
-  play: async ({ canvasElement }) => {
+  play: playInThemes(async ({ canvasElement }) => {
     const canvas = within(canvasElement)
     const alert = canvas.getByRole('alert')
     expect(alert).toHaveTextContent('Another workspace already uses that name')
@@ -221,12 +211,7 @@ export const RefusedSave: Story = {
     await userEvent.click(await canvas.findByRole('button', { name: 'Reset' }))
 
     expect(canvas.queryByRole('alert')).toBeNull()
-  },
-}
-
-export const RefusedSaveLight: Story = {
-  ...RefusedSave,
-  parameters: { theme: 'light' },
+  }),
 }
 
 /** While the save runs the primary is busy and Reset waits. */

@@ -5,8 +5,8 @@ import { expect, userEvent, waitFor, within } from 'storybook/test'
 
 /**
  * `triggerName` is the trigger button's accessible name; `index` picks one when
- * several rows carry the same trigger. The wait is for the dialog to be visible,
- * because it mounts through an entry animation that starts at opacity 0.
+ * several rows carry the same trigger. Wait for the entry animation before
+ * checking geometry or interacting with the settled dialog.
  */
 export async function openAlertDialog(
   canvasElement: HTMLElement,
@@ -18,5 +18,11 @@ export async function openAlertDialog(
   const dialog = within(canvasElement.ownerDocument.body)
   const alert = await dialog.findByRole('alertdialog')
   await waitFor(() => expect(alert).toBeVisible())
+  await Promise.all(
+    alert
+      .getAnimations()
+      .filter((animation) => animation.effect?.getComputedTiming().endTime !== Infinity)
+      .map((animation) => animation.finished.catch(() => undefined)),
+  )
   return dialog
 }

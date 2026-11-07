@@ -4,6 +4,7 @@
 // the raw status token off the screen); a plain tone badge is for a label such
 // as a topic's polarity. Dark is the default theme; the light variant renders
 // the same row on the light surface (axe runs on both).
+import { playInThemes } from '../../../.storybook/play-in-themes'
 import type { Meta, StoryObj } from '@storybook/react'
 import { expect, within } from 'storybook/test'
 import { Badge } from './badge'
@@ -36,12 +37,12 @@ export const Tones: Story = {
       ))}
     </div>
   ),
-  play: async ({ canvasElement }) => {
+  play: playInThemes(async ({ canvasElement }) => {
     const canvas = within(canvasElement)
     for (const [tone, label] of TONES) {
       expect(canvas.getByText(label)).toHaveAttribute('data-variant', tone)
     }
-  },
+  }),
 }
 
 /** The looks it had before the tones, unchanged. */
@@ -74,5 +75,3 @@ export const AsLink: Story = {
     expect(link).toHaveAttribute('data-variant', 'warn')
   },
 }
-
-export const TonesLight: Story = { ...Tones, parameters: { theme: 'light' } }

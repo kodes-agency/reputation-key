@@ -3,6 +3,7 @@
 // carries a verdict (the Google rating goal card will use them). Dark is the
 // default theme; the Light variants draw the same bars on the light surface, and
 // axe checks the contrast of both.
+import { playInThemes } from '../../../.storybook/play-in-themes'
 import type { Meta, StoryObj } from '@storybook/react-vite'
 import { expect, within } from 'storybook/test'
 import { ProgressBar } from './progress-bar'
@@ -28,7 +29,7 @@ type Story = StoryObj<typeof ProgressBar>
 /** A count part-way to its whole: neutral, with its range and a sentence. */
 export const Neutral: Story = {
   args: { valueText: '64 of 120 so far' },
-  play: async ({ canvasElement }) => {
+  play: playInThemes(async ({ canvasElement }) => {
     const bar = within(canvasElement).getByRole('progressbar', {
       name: 'Qualified scans so far this month',
     })
@@ -37,7 +38,7 @@ export const Neutral: Story = {
     expect(bar).toHaveAttribute('aria-valuenow', '64')
     expect(bar).toHaveAttribute('aria-valuetext', '64 of 120 so far')
     expect(bar).toHaveAttribute('data-tone', 'neutral')
-  },
+  }),
 }
 
 /** Nothing counted yet is an empty bar and a zero, not a missing one. */
@@ -80,7 +81,7 @@ export const Tones: Story = {
       ))}
     </div>
   ),
-  play: async ({ canvasElement }) => {
+  play: playInThemes(async ({ canvasElement }) => {
     const bars = within(canvasElement).getAllByRole('progressbar')
     expect(bars.map((bar) => bar.getAttribute('data-tone'))).toEqual([
       'neutral',
@@ -89,8 +90,5 @@ export const Tones: Story = {
       'negative',
       'info',
     ])
-  },
+  }),
 }
-
-export const NeutralLight: Story = { ...Neutral, parameters: { theme: 'light' } }
-export const TonesLight: Story = { ...Tones, parameters: { theme: 'light' } }
