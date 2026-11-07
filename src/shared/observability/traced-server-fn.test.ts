@@ -26,6 +26,7 @@ const EVENT_TYPE = 'test.server_command'
 beforeEach(() => {
   clearEventSchemas()
   registerEventSchema({
+    aggregate: { type: 'event', id: 'eventId' },
     type: EVENT_TYPE,
     version: 1,
     schema: z.object({ resourceId: z.string() }),

@@ -7,7 +7,7 @@
 
 import { z } from 'zod/v4'
 import { REVIEW_TOPICS_V3 } from '../review-topic-taxonomy'
-import { registerEventSchema } from './schema-registry'
+import type { EventDescriptor } from './descriptor'
 
 const aiPropertyTrendGenerationRequestedSchema = z.object({
   scheduleId: z.uuid(),
@@ -73,25 +73,29 @@ const aiGuestVoiceSummaryReadySchema = z.object({
   occurredAt: z.string(),
 })
 
-export function registerAiEventSchemas(version: number): void {
-  registerEventSchema({
+export const aiEventDescriptors = [
+  {
     type: 'ai.property_trend.generation_requested',
-    version,
+    aggregate: { type: 'schedule', id: 'scheduleId' },
+    version: 1,
     schema: aiPropertyTrendGenerationRequestedSchema,
-  })
-  registerEventSchema({
+  },
+  {
     type: 'ai.review_analysis.backfill_requested',
-    version,
+    aggregate: { type: 'review', id: 'reviewId' },
+    version: 1,
     schema: aiReviewAnalysisBackfillRequestedSchema,
-  })
-  registerEventSchema({
+  },
+  {
     type: 'ai.review_analysis.urgent_detected',
-    version,
+    aggregate: { type: 'review', id: 'reviewId' },
+    version: 1,
     schema: aiReviewUrgentDetectedSchema,
-  })
-  registerEventSchema({
+  },
+  {
     type: 'ai.guest_voice_summary.ready',
-    version,
+    aggregate: { type: 'property', id: 'propertyId' },
+    version: 1,
     schema: aiGuestVoiceSummaryReadySchema,
-  })
-}
+  },
+] as const satisfies readonly EventDescriptor[]

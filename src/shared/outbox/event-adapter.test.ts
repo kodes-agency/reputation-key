@@ -4,7 +4,6 @@ import { propertyGoogleBindingChanged } from '#/contexts/property/domain/events'
 
 import { describe, it, expect, beforeEach } from 'vitest'
 import {
-  extractAggregateId,
   OutboxPayloadError,
   toOutboxEvent,
   tryToOutboxEvent,
@@ -66,6 +65,7 @@ describe('toOutboxEvent allowlist (BQR-2.5)', () => {
   beforeEach(() => {
     clearEventSchemas()
     registerEventSchema({
+      aggregate: { type: 'review', id: 'reviewId' },
       type: 'review.created',
       version: 1,
       // BQC-1.2: identifier-only — rating is no longer in the schema.
@@ -263,50 +263,6 @@ describe('toOutboxEvent allowlist (BQR-2.5)', () => {
     ).toMatchObject({
       causationId: 'explicit-cause',
       commandId: 'explicit-command',
-    })
-  })
-
-  it.each([
-    ['reviewId', 'review'],
-    ['runId', 'run'],
-    ['replyId', 'reply'],
-    ['inboxItemId', 'inbox_item'],
-    ['monthlyResultId', 'monthly_result'],
-    ['noteId', 'note'],
-    ['scheduleId', 'schedule'],
-    ['uploadId', 'upload'],
-    ['propertyId', 'property'],
-    ['portalId', 'portal'],
-    ['portalGroupId', 'portal_group'],
-    ['portalLinkId', 'portal_link'],
-    ['portalLinkCategoryId', 'portal_link_category'],
-    ['teamId', 'team'],
-    ['staffId', 'staff'],
-    ['goalId', 'goal'],
-    ['invitationId', 'invitation'],
-    ['importJobId', 'import_job'],
-    ['connectionId', 'connection'],
-    ['scanId', 'scan'],
-    ['ratingId', 'rating'],
-    ['feedbackId', 'feedback'],
-    ['linkId', 'link'],
-    ['userId', 'user'],
-    ['memberUserId', 'member_user'],
-    ['closureLineageId', 'closure_lineage'],
-  ] as const)('derives aggregate type %s as %s', (field, type) => {
-    const id = `${type}-1`
-    expect(extractAggregateId({ eventId: 'evt-fallback', [field]: id })).toEqual({
-      id,
-      type,
-    })
-  })
-
-  it('uses the explicit event aggregate sentinel when no candidate field matches', () => {
-    expect(
-      extractAggregateId({ eventId: 'evt-fallback', resourceId: 'resource-1' }),
-    ).toEqual({
-      id: 'evt-fallback',
-      type: 'event',
     })
   })
 
@@ -810,6 +766,7 @@ describe('toOutboxEvent allowlist (BQR-2.5)', () => {
   it('rejects content-only smuggling via unregistered field names not in schema', () => {
     // Even if denylist missed a field named "comment", Zod allowlist drops it.
     registerEventSchema({
+      aggregate: { type: 'event', id: 'eventId' },
       type: 'test.smuggle',
       version: 1,
       schema: z.object({

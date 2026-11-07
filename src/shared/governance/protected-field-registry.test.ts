@@ -1,12 +1,13 @@
 // Keeps the explicit Google/provider-content field allowlist aligned with the
 // live database schema and registered durable events.
 
-import { readFileSync } from 'node:fs'
-import { join } from 'node:path'
 import { getTableColumns, getTableName, isTable } from 'drizzle-orm'
-import { describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import * as schema from '#/shared/db/schema'
 import * as outboxSchema from '#/shared/db/schema/outbox.schema'
+import { eventDescriptors } from '#/shared/events/registry.server'
+import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
+import { clearEventSchemas, isEventRegistered } from '#/shared/events/schema-registry'
 import {
   PROTECTED_FIELD_REGISTRY,
   type ProtectedFieldRule,
@@ -81,6 +82,12 @@ function registryKey([relation, field]: ProtectedFieldRule): string {
 }
 
 describe('protected-field registry', () => {
+  beforeEach(() => {
+    clearEventSchemas()
+    registerAllEventSchemas()
+  })
+  afterEach(clearEventSchemas)
+
   it('has no duplicate entries', () => {
     const keys = PROTECTED_FIELD_REGISTRY.map(registryKey)
     const duplicates = keys.filter((key, index) => keys.indexOf(key) !== index)
@@ -133,17 +140,15 @@ describe('protected-field registry', () => {
       `event payload fields missing from the registry: ${missing.join(', ')}`,
     ).toEqual([])
 
-    const registrations = readFileSync(
-      join(process.cwd(), 'src/shared/events/schema-registrations.ts'),
-      'utf8',
+    const registeredTypes = new Set(
+      eventDescriptors
+        .filter(({ type, version }) => isEventRegistered(type, version))
+        .map(({ type }) => type),
     )
     const unknown = PROTECTED_FIELD_REGISTRY.filter(([relation]) =>
       relation.startsWith('event:'),
     )
-      .filter(
-        ([relation]) =>
-          !registrations.includes(`type: '${relation.replace(/^event:/, '')}'`),
-      )
+      .filter(([relation]) => !registeredTypes.has(relation.replace(/^event:/, '')))
       .map(registryKey)
     expect(
       unknown,

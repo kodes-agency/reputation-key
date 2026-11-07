@@ -109,6 +109,7 @@ function fakeJob(envelope: ConsumerEvent): Job {
 beforeEach(() => {
   clearEventSchemas()
   registerEventSchema({
+    aggregate: { type: 'event', id: 'eventId' },
     type: TEST_EVENT_TYPE,
     version: TEST_EVENT_VERSION,
     schema: z.object({ resourceId: z.string() }),
@@ -368,6 +369,7 @@ describe('dispatcher corrections (BQC-3.6)', () => {
     // must fail and retry (a redeploy fixes it), never silently complete.
     const DURABLE_TYPE = 'review.created'
     registerEventSchema({
+      aggregate: { type: 'event', id: 'eventId' },
       type: DURABLE_TYPE,
       version: 1,
       schema: z.object({ resourceId: z.string() }),
@@ -387,6 +389,7 @@ describe('dispatcher corrections (BQC-3.6)', () => {
     // `metric.recorded` is recorded for audit and read by no consumer.
     const AUDIT_ONLY_TYPE = 'metric.recorded'
     registerEventSchema({
+      aggregate: { type: 'event', id: 'eventId' },
       type: AUDIT_ONLY_TYPE,
       version: 1,
       schema: z.object({ resourceId: z.string() }),

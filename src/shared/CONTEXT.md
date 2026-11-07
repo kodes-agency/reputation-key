@@ -174,6 +174,13 @@ Jobs, outbox delivery, health, and observability expose infrastructure mechanics
 Contexts own handler meaning, source transactions, recovery policy, content
 classification, and mutation authority.
 
+`events/*-event-descriptors.ts` and the focused event-schema files declare each
+issued fact's type, version, allowlist schema and aggregate identifier. The
+registry in `events/registry.server.ts` derives startup registrations, emitted
+versions and relay metadata from those definitions. Historical decoders stay
+available; aggregate identity never depends on unrelated identifiers in a payload.
+The existing `events/schema-registrations.ts` startup entry point remains stable.
+
 Server error logs retain validated names, codes and HTTP status, with no client
 message or domain context. The logger redacts flattened error text recursively;
 Error objects retain their content-free summaries and database facts. Client

@@ -9,48 +9,9 @@
 
 import type { OutboxEventInsert } from '#/shared/db/schema/outbox.schema'
 import type { DomainEvent } from '#/shared/events/events'
-import { isEventRegistered, validateEventPayload } from '#/shared/events/schema-registry'
-
-const PRIMARY_STAFF_ATTRIBUTED_EVENT_TYPES = new Set<string>([
-  'guest.qualified_scan.recorded',
-  'guest.qualified_scan.retracted',
-  'guest.rating.submitted',
-  'guest.rating.retracted',
-  'guest.feedback.submitted',
-  'guest.feedback.retracted',
-  'metric.recorded',
-  'metric.corrected',
-])
-
-const eventVersionFor = (event: DomainEvent): number => {
-  if (event._tag === 'guest.scan.recorded' && 'scanSource' in event) return 2
-  if (
-    (event._tag === 'guest.feedback.submitted' ||
-      event._tag === 'guest.feedback.retracted') &&
-    'responseRevision' in event
-  ) {
-    return 3
-  }
-  if (event._tag === 'integration.google_account.connected') return 3
-  if (
-    event._tag === 'portal.configuration_completeness.recorded' &&
-    event.fieldSet === 'immersive_hub'
-  ) {
-    return 3
-  }
-  if (event._tag === 'identity.member.invited') return 2
-  return (PRIMARY_STAFF_ATTRIBUTED_EVENT_TYPES.has(event._tag) &&
-    'staffAttribution' in event) ||
-    event._tag === 'portal.responsibility_became_needed' ||
-    event._tag === 'portal.responsible_managers.updated' ||
-    event._tag === 'portal.content_review.completed' ||
-    event._tag === 'portal.configuration_completeness.recorded' ||
-    event._tag === 'portal.approved_destination_ratio.recorded' ||
-    event._tag === 'portal_group.deleted' ||
-    event._tag === 'review.reply.publication_requested'
-    ? 2
-    : 1
-}
+import { getEventSchema, validateEventPayload } from '#/shared/events/schema-registry'
+import { emittedEventVersion } from '#/shared/events/registry.server'
+import { resolveEventAggregate } from '#/shared/events/descriptor'
 
 /**
  * Content fields that must NEVER appear in outbox payloads (ADR 0030).
@@ -143,9 +104,10 @@ export function withoutEnvelopeIdentifiers(payload: unknown): unknown {
  */
 export function toOutboxEvent(event: DomainEvent): Omit<OutboxEventInsert, 'id'> {
   const eventType = event._tag
-  const eventVersion = eventVersionFor(event)
+  const eventVersion = emittedEventVersion(event)
 
-  if (!isEventRegistered(eventType, eventVersion)) {
+  const descriptor = getEventSchema(eventType, eventVersion)
+  if (!descriptor) {
     throw new OutboxPayloadError(
       'unregistered',
       `Event type ${eventType}:v${eventVersion} is not registered for the outbox. ` +
@@ -206,7 +168,7 @@ export function toOutboxEvent(event: DomainEvent): Omit<OutboxEventInsert, 'id'>
   ) as string
   const propertyId =
     'propertyId' in event && event.propertyId != null ? String(event.propertyId) : null
-  const sourceAggregate = extractAggregateId(event)
+  const sourceAggregate = resolveEventAggregate(descriptor, event, event.eventId)
 
   return {
     eventType,
@@ -278,58 +240,4 @@ function normalizePayloadValues(raw: Record<string, unknown>): Record<string, un
   return Object.fromEntries(
     Object.entries(raw).map(([key, value]) => [key, normalize(value)]),
   )
-}
-
-const AGGREGATE_ID_CANDIDATES = [
-  ['reviewId', 'review'],
-  ['runId', 'run'],
-  ['replyId', 'reply'],
-  ['inboxItemId', 'inbox_item'],
-  ['monthlyResultId', 'monthly_result'],
-  ['noteId', 'note'],
-  ['scheduleId', 'schedule'],
-  ['uploadId', 'upload'],
-  ['propertyId', 'property'],
-  ['portalId', 'portal'],
-  ['portalGroupId', 'portal_group'],
-  ['portalLinkId', 'portal_link'],
-  ['portalLinkCategoryId', 'portal_link_category'],
-  ['teamId', 'team'],
-  ['staffId', 'staff'],
-  ['goalId', 'goal'],
-  ['invitationId', 'invitation'],
-  ['importJobId', 'import_job'],
-  ['connectionId', 'connection'],
-  ['scanId', 'scan'],
-  ['ratingId', 'rating'],
-  ['feedbackId', 'feedback'],
-  ['linkId', 'link'],
-  ['userId', 'user'],
-  ['memberUserId', 'member_user'],
-  ['closureLineageId', 'closure_lineage'],
-] as const
-
-export type AggregateIdentity = Readonly<{ id: string; type: string }>
-
-/**
- * Extract the primary aggregate identity from a fact or its persisted payload.
- * Candidate order preserves the existing aggregate-id priority. A fact with no
- * recognised aggregate identifier uses its event id and the explicit `event`
- * type sentinel rather than guessing from the event family.
- */
-export function extractAggregateId(
-  event: object,
-  fallbackEventId?: string,
-): AggregateIdentity {
-  const fields = event as Record<string, unknown>
-  for (const [field, type] of AGGREGATE_ID_CANDIDATES) {
-    const value = fields[field]
-    if (value != null) return { id: String(value), type }
-  }
-
-  const eventId = fallbackEventId ?? fields.eventId
-  if (typeof eventId !== 'string') {
-    throw new Error('Aggregate identity fallback requires an event id')
-  }
-  return { id: eventId, type: 'event' }
 }

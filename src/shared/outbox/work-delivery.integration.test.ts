@@ -81,6 +81,7 @@ describe('durable outbox delivery through PostgreSQL', () => {
     recoveryRunId = undefined
     clearEventSchemas()
     registerEventSchema({
+      aggregate: { type: 'event', id: 'eventId' },
       type: EVENT_TYPE,
       version: 1,
       schema: z.object({ resourceId: z.string() }),
