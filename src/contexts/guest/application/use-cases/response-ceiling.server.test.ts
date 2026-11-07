@@ -238,7 +238,7 @@ describe('atomic shared response admission', () => {
     const f = fixture(1)
     f.seed.organizationDay = 1
     const sessions = createGuestSessionManager({
-      secret: '0123456789abcdef',
+      secret: '0123456789abcdef0123456789abcdef',
       secureCookies: true,
       clock: () => now,
       randomId: () => crypto.randomUUID(),
