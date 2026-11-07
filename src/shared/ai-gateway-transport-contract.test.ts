@@ -165,9 +165,11 @@ describe('AI gateway caller-wire contract', () => {
     ).toThrow(ZodError)
   })
 
-  it('requires the exact deterministic top-12 trend candidates in canonical order', () => {
+  it('refuses the retired trend route even with canonical candidates', () => {
     const request = trendRequest()
-    expect(parseAiGatewayRouteRequest(request)).toEqual(request)
+    expect(() => parseAiGatewayRouteRequest(request)).toThrow(
+      /route binding is cross-wired/,
+    )
     expect(request.source.candidates.length).toBeGreaterThan(3)
 
     const reversed = [...request.source.candidates].reverse()
@@ -256,7 +258,7 @@ describe('AI gateway caller-wire contract', () => {
         noticeDigest: 'd80fe3b03f89697cde6c46810053248206aa3745b5f4a5522a24c1c2fdb438e1',
       },
     ]
-    for (const request of [analysisRequest(), replyRequest(), trendRequest()]) {
+    for (const request of [analysisRequest(), replyRequest()]) {
       expect(parseAiGatewayRouteRequest(request)).toEqual(request)
 
       for (const lapsed of [

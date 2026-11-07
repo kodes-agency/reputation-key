@@ -1,27 +1,4 @@
-// Historical v1 remains readable; these contract regressions deliberately pin its old execution.
-vi.mock('#/shared/ai-runtime-capability-contract', async (importOriginal) => {
-  const actual =
-    await importOriginal<typeof import('#/shared/ai-runtime-capability-contract')>()
-  const { historicalReplyRuntime } =
-    await import('#/shared/testing/historical-reply-runtime')
-  return historicalReplyRuntime(actual)
-})
-import { vi } from 'vitest'
-// The caller/route authorization survived WP2.3; the mechanism carrying it did not.
-//
-// Before the collapse this rule was enforced from an mTLS client certificate:
-// `assertAiGatewayPeerRoute` mapped a SPIFFE identity to a caller and refused
-// route/caller pairs the runtime catalogue did not declare, and
-// `ai-gateway-transport-contract.test.ts` asserted it over peer identities.
-// There is no peer and no certificate now, so that test lost its subject and was
-// deleted rather than re-pinned to a shape that no longer exists.
-//
-// The RULE is not transport trivia and did not go with it: `reply-suggestion` is
-// web-callable and `property-trend` is worker-only, and getting that wrong means
-// a process spending provider money on a route it was never authorized for. So
-// the coverage moved here, to the module that now enforces it.
-
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { AI_RUNTIME_CAPABILITIES_V1 } from '#/shared/ai-runtime-capability-contract'
 import type { AiEgressGatewayService } from '#/shared/ai-provider-control/service'
 import type { AiGatewayRouteRequestV1 } from '#/shared/ai-gateway-transport-contract'
@@ -36,6 +13,8 @@ import {
   AI_REVIEW_ROUTE_MAX_BYTES,
   AI_TREND_ROUTE_MAX_BYTES,
 } from '#/shared/ai-internal-transport-contract'
+import { replyV2Request } from '#/shared/ai-provider-control/reply-drafting-v2.test-fixtures'
+import { REPLY_DRAFTING_V2_ROUTE_MAX_BYTES } from '#/shared/reply-drafting-v2-request'
 import { MAX_AI_REVIEW_SENTENCES_V1 } from '#/shared/ai-review-source-contract'
 import { AI_REVIEW_V3_ROUTE_MAX_BYTES } from '#/shared/review-analysis-v3-request'
 import {
@@ -69,14 +48,14 @@ function recordingGateway() {
 }
 
 /**
- * A schema-VALID request per route. The adapter parses with the same strict
- * schema the wire used before it authorizes anything, so a partial object never
- * reaches the authorization branch under test — it fails parsing first.
+ * Complete request metadata lets active routes reach caller authorization.
+ * Trends retains its recorded binding to prove that retirement rejects it
+ * before the gateway is constructed.
  */
 function requestFor(route: AiGatewayRouteRequestV1['route']): AiGatewayRouteRequestV1 {
   const base =
     route === 'reply-suggestion'
-      ? replyRequest()
+      ? replyV2Request()
       : route === 'property-trend'
         ? trendRequest()
         : analysisRequest()
@@ -93,7 +72,6 @@ describe('in-process AI inference caller authorization', () => {
       [
         ['review-analysis', 'worker'],
         ['reply-suggestion', 'web'],
-        ['property-trend', 'worker'],
       ].sort(),
     )
   })
@@ -101,7 +79,6 @@ describe('in-process AI inference caller authorization', () => {
   it.each([
     ['reply-suggestion', 'web'],
     ['review-analysis', 'worker'],
-    ['property-trend', 'worker'],
   ] as const)('lets %s through from its declared caller (%s)', async (route, caller) => {
     const { seen, service } = recordingGateway()
     const port = createAiInProcessInference({
@@ -109,19 +86,13 @@ describe('in-process AI inference caller authorization', () => {
       caller,
       nowEpochMillis: () => NOW,
     })
-    const call =
-      route === 'reply-suggestion'
-        ? port.generateReply
-        : route === 'property-trend'
-          ? port.generateTrend
-          : port.analyzeReview
+    const call = route === 'reply-suggestion' ? port.generateReply : port.analyzeReview
     await call(requestFor(route) as never, new AbortController().signal)
     expect(seen).toEqual([route])
   })
 
   it.each([
     ['review-analysis', 'web'],
-    ['property-trend', 'web'],
     ['reply-suggestion', 'worker'],
   ] as const)(
     'refuses %s from %s and never reaches the gateway',
@@ -132,17 +103,35 @@ describe('in-process AI inference caller authorization', () => {
         caller,
         nowEpochMillis: () => NOW,
       })
-      const call =
-        route === 'reply-suggestion'
-          ? port.generateReply
-          : route === 'property-trend'
-            ? port.generateTrend
-            : port.analyzeReview
+      const call = route === 'reply-suggestion' ? port.generateReply : port.analyzeReview
       await expect(
         call(requestFor(route) as never, new AbortController().signal),
       ).rejects.toThrow(/caller is not authorized for route/)
-      // The refusal must precede the provider call, not follow it — an authorized
+      // The refusal must precede the provider call, not follow it — unauthorized
       // spend is exactly what this boundary exists to prevent.
+      expect(seen).toEqual([])
+    },
+  )
+})
+
+describe('retired Trends inference', () => {
+  it.each(['web', 'worker'] as const)(
+    'refuses Trends from %s before constructing the gateway',
+    async (caller) => {
+      const { seen, service } = recordingGateway()
+      const gateway = vi.fn(async () => service)
+      const port = createAiInProcessInference({
+        gateway,
+        caller,
+        nowEpochMillis: () => NOW,
+      })
+      await expect(
+        port.generateTrend(
+          requestFor('property-trend') as never,
+          new AbortController().signal,
+        ),
+      ).rejects.toThrow(/route binding is cross-wired/)
+      expect(gateway).not.toHaveBeenCalled()
       expect(seen).toEqual([])
     },
   )
@@ -208,6 +197,9 @@ describe('in-process AI inference request bound', () => {
     expect(aiGatewayRequestMaxBytes(analysisRequest())).toBe(AI_REVIEW_V3_ROUTE_MAX_BYTES)
     expect(aiGatewayRequestMaxBytes(replyRequest())).toBe(AI_REVIEW_ROUTE_MAX_BYTES)
     expect(aiGatewayRequestMaxBytes(trendRequest())).toBe(AI_TREND_ROUTE_MAX_BYTES)
+    expect(aiGatewayRequestMaxBytes(replyV2Request())).toBe(
+      REPLY_DRAFTING_V2_ROUTE_MAX_BYTES,
+    )
     expect(aiGatewayRequestMaxBytes(analysisV3Request())).toBe(
       AI_REVIEW_V3_ROUTE_MAX_BYTES,
     )

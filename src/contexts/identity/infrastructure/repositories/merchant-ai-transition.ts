@@ -150,7 +150,14 @@ export function runtimeProfilesFor(
   capabilities: ReadonlyArray<MerchantAiCapability>,
 ): CapabilityRuntimeProfileVersions {
   return capabilities.length > 0
-    ? resolveAiRuntimeCapabilitySet(capabilities)
+    ? Object.freeze({
+        ...resolveAiRuntimeCapabilitySet(
+          capabilities.filter((capability) => capability !== 'property_trends'),
+        ),
+        ...(capabilities.includes('property_trends')
+          ? { property_trends: RECORDED_RUNTIME_PROFILE_VERSIONS.property_trends[0]! }
+          : {}),
+      })
     : Object.freeze({})
 }
 

@@ -38,11 +38,7 @@ import {
 import { gateJob } from '#/shared/jobs/delayed-execution-gate'
 import type { OutboxRepository } from '#/shared/outbox'
 import { createMockLogger } from '#/shared/testing/mock-logger'
-import {
-  createAnalyzeReviewNowEnqueue,
-  createPropertyTrendEnqueue,
-} from '#/contexts/ai/infrastructure/jobs/ai-job-enqueue'
-import { handleAiPropertyTrendGenerationRequested } from '#/contexts/ai/infrastructure/outbox-consumers'
+import { createAnalyzeReviewNowEnqueue } from '#/contexts/ai/infrastructure/jobs/ai-job-enqueue'
 import { handleInvitationAcceptedInviterNotice } from '#/contexts/feed/infrastructure/invitation-accepted-inviter-notice'
 import { createImmediateEmailEnqueue } from '#/contexts/feed/infrastructure/jobs/immediate-email-enqueue'
 import { createNotificationConsumerDeps } from '#/contexts/feed/infrastructure/notification-consumer-test-fixtures'
@@ -177,33 +173,6 @@ const SCOPED_JOB_ENQUEUE: Readonly<Record<string, ScopedJobEnqueue>> = {
       publicationCycle: 1,
       initiator: { kind: 'user', id: 'manager-1' },
     })
-  }),
-  // From the durable request, not from the enqueue alone: the consumer chose
-  // what to hand the queue, and it handed over the schedule without its scope.
-  'generate-property-ai-trend': producer(async (queue) => {
-    await handleAiPropertyTrendGenerationRequested(
-      {
-        enqueuePropertyTrend: createPropertyTrendEnqueue(queue),
-        analyzeReviewEvent: async () => ({ status: 'completed' }),
-        backlog: { enqueue: async () => undefined },
-        nowEpochMillis: () => Date.parse('2026-10-11T00:00:00Z'),
-        receipts,
-      },
-      {
-        eventId: ID(6),
-        eventType: 'ai.property_trend.generation_requested',
-        eventVersion: 1,
-        payload: {
-          scheduleId: ID(7),
-          organizationId: ORGANIZATION,
-          propertyId: PROPERTY,
-        },
-        organizationId: ORGANIZATION,
-        propertyId: PROPERTY,
-        sourceContext: 'ai',
-        sourceAggregateId: ID(7),
-      },
-    )
   }),
   'ai-review-analysis-on-demand': producer(async (queue) => {
     await createAnalyzeReviewNowEnqueue(queue)({

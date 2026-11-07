@@ -300,7 +300,10 @@ function normalizeCapabilities(
   capabilities: ReadonlyArray<MerchantAiCapability>,
 ): ReadonlyArray<MerchantAiCapability> {
   for (const capability of capabilities) {
-    if (!CURRENT_CAPABILITY_SET.has(capability)) {
+    if (
+      !CURRENT_CAPABILITY_SET.has(capability) ||
+      !RUNTIME_BY_CAPABILITY.has(capability)
+    ) {
       throw new MerchantAiAuthorizationError(
         'unsupported_capability',
         `Merchant AI capability '${capability}' is not available`,
@@ -550,7 +553,7 @@ export function createMerchantAiAuthorization(deps: MerchantAiAuthorizationDeps)
         input,
         'enable',
         'enabled',
-        CURRENT_MERCHANT_AI_CAPABILITIES,
+        AI_RUNTIME_CAPABILITIES_V1.map((entry) => entry.capability),
         input.acknowledgement,
       )
     },

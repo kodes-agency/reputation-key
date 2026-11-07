@@ -117,8 +117,6 @@ export type SystemAction =
   | 'system:inbox.project_review'
   | 'system:inbox.project_guest_feedback'
   | 'system:inbox.cancel_property_reminders'
-  | 'system:ai.trend'
-  | 'system:ai.trend_schedule'
   // operator commands
   | 'system:ops'
 
@@ -202,7 +200,6 @@ const JOB_ROWS: ReadonlyArray<EntryPointRow> = [
     'property',
     true,
   ),
-  job('generate-property-ai-trend', 'system:ai.trend', 'ai.detect_trends', 'property'),
   job(
     'ai-review-analysis-backlog-drain',
     'system:ai.review_analysis_backlog_drain',
@@ -220,12 +217,6 @@ const JOB_ROWS: ReadonlyArray<EntryPointRow> = [
     'system:ai.review_analysis_on_demand',
     'ai.analyze',
     'property',
-  ),
-  job(
-    'schedule-property-ai-trends',
-    'system:ai.trend_schedule',
-    'ai.detect_trends',
-    'tenant_cross',
   ),
   job('refresh-expiring-reviews', 'system:review.refresh_sweep', 'none', 'tenant_cross'),
   job(
@@ -638,12 +629,6 @@ const CONSUMER_ROWS: ReadonlyArray<EntryPointRow> = [
     'none',
     'property',
   ),
-  consumer(
-    'ai.property-trend-consumers',
-    'system:ai.trend',
-    'ai.detect_trends',
-    'property',
-  ),
   consumer('activity.outbox-consumers', 'system:activity.record', 'none', 'organization'),
   // Its own action: 'system:goal.maintain' is the tenant-cross hourly sweep.
   consumer(
@@ -707,12 +692,6 @@ const SCHEDULE_ROWS: ReadonlyArray<EntryPointRow> = [
     'ai-guest-voice-summary-sweep-recurring',
     'system:ai.guest_voice_summary',
     'ai.analyze',
-    'tenant_cross',
-  ),
-  schedule(
-    'schedule-property-ai-trends-recurring',
-    'system:ai.trend_schedule',
-    'ai.detect_trends',
     'tenant_cross',
   ),
   schedule(

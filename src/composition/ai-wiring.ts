@@ -1,9 +1,6 @@
 import { randomUUID } from 'node:crypto'
 import { buildAiContext } from '#/contexts/ai/build'
-import {
-  createAnalyzeReviewNowEnqueue,
-  createPropertyTrendEnqueue,
-} from '#/contexts/ai/infrastructure/jobs/ai-job-enqueue'
+import { createAnalyzeReviewNowEnqueue } from '#/contexts/ai/infrastructure/jobs/ai-job-enqueue'
 import { createScheduledScopeAuthorizer } from '#/shared/jobs/delayed-execution-gate'
 import { getLogger } from '#/shared/observability/logger'
 import { createAiRuntimeProviders } from './provider-runtime'
@@ -60,9 +57,6 @@ export function wireAi(
     replyVoices: review.publicApi.aiReplyVoice,
     inference: aiRuntime.inference,
     subjectHmac: aiRuntime.subjectHmac,
-    enqueuePropertyTrend: infra.jobQueue
-      ? createPropertyTrendEnqueue(infra.jobQueue)
-      : undefined,
     enqueueReviewAnalysisNow: infra.jobQueue
       ? createAnalyzeReviewNowEnqueue(infra.jobQueue)
       : undefined,

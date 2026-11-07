@@ -48,83 +48,6 @@ export type AiAnalysisResult =
   | Readonly<{ status: 'ready'; derivative: AiAnalysisDerivative }>
   | Readonly<{ status: 'unavailable'; reason: 'language_not_supported' }>
 
-export type AiTrendWindowEvidence = Readonly<{
-  period: Readonly<{ startLocalDate: string; endLocalDate: string }>
-  textCandidateCount: number
-  analyzedCount: number
-  /** Text-bearing candidates absent from the current successful analysis set. */
-  excludedCount: number
-  /** Rating-only Reviews; deliberately outside the coverage denominator. */
-  starOnlyCount: number
-  coverageBasisPoints: number
-}>
-
-export type AiTrendModelLineage = Readonly<{
-  analysisProfileVersion: string
-  providerDeploymentProfileVersion: string
-  modelSnapshot: string
-}>
-
-export type AiTrendSelectedSignalEvidence = Readonly<{
-  signalId: string
-  baseline: Readonly<{ count: number; total: number }>
-  current: Readonly<{ count: number; total: number }>
-  changeMagnitudeBasisPoints: number
-}>
-
-export type AiTrendSupportingReview = Readonly<{
-  reviewId: ReviewId
-  window: 'baseline' | 'current'
-  localDate: string
-  /**
-   * Retained because the persisted evidence format requires it; it is not a
-   * working route. Delivery resolves the Inbox Item that opens the Review
-   * instead (`withSupportingReviewItems`).
-   */
-  href: string
-}>
-
-/**
- * Stored evidence carries `AiTrendSupportingReview`; what reaches a manager
- * carries the delivery view of it (`AiTrendReportView`).
- */
-export type AiTrendEvidence<SupportingReview = AiTrendSupportingReview> = Readonly<{
-  definitionVersion: string
-  definitionDigest: string
-  renderProfileVersion: string
-  renderProfileDigest: string
-  timezone: string
-  dataThroughLocalDate: string
-  baseline: AiTrendWindowEvidence
-  current: AiTrendWindowEvidence
-  modelLineage: readonly AiTrendModelLineage[]
-  selectedSignals: readonly AiTrendSelectedSignalEvidence[]
-  supportingReviews: readonly SupportingReview[]
-}>
-
-export type AiTrendReport = Readonly<{
-  signalKey: string
-  /**
-   * Dominant polarity of the selected signals. `stable` means no polarised
-   * signal was selected (neutral-sentiment/category shifts are material but
-   * directionless) — it never means "no material change".
-   */
-  direction: 'improving' | 'stable' | 'declining'
-  /**
-   * Absolute change in the leading signal's share between the baseline and
-   * current windows, in basis points (10000 = 100 percentage points, saturating).
-   *
-   * This is a CHANGE MAGNITUDE, never a confidence, probability or accuracy: the
-   * name matches the historical `confidence_basis_points` column only. Surfaces
-   * must label it as a change size.
-   */
-  changeMagnitudeBasisPoints: number
-  supportingReviewCount: number
-  headline?:
-    'Review signals improved' | 'Review signals need attention' | 'Notable review changes'
-  sentences?: readonly string[]
-  summary?: string
-}>
 export type AiProviderCompletion = Readonly<{
   expectedAttempt: number
   modelSnapshot: string
@@ -132,51 +55,6 @@ export type AiProviderCompletion = Readonly<{
   outputTokens: number
   completedAtEpochMillis: number
 }>
-
-export type AiTrendReportRead<SupportingReview = AiTrendSupportingReview> =
-  | Readonly<{ status: 'disabled' }>
-  | Readonly<{
-      status: 'preparing'
-      sourceEpoch: number
-      reviewAnalysisEpoch: number
-      propertyTrendsEpoch: number
-      propertyProfileVersion: number
-    }>
-  | Readonly<{
-      status: 'updating'
-      sourceEpoch: number
-      reviewAnalysisEpoch: number
-      propertyTrendsEpoch: number
-      propertyProfileVersion: number
-      evidence?: AiTrendEvidence<SupportingReview>
-    }>
-  | Readonly<{
-      status: 'insufficient_data' | 'no_material_change'
-      sourceEpoch: number
-      reviewAnalysisEpoch: number
-      propertyTrendsEpoch: number
-      propertyProfileVersion: number
-      dueLocalDate: string
-      terminalAnalysisSequence: number
-      aggregateRevision: number
-      evidence: AiTrendEvidence<SupportingReview>
-      updating: boolean
-    }>
-  | Readonly<{
-      status: 'ready'
-      sourceEpoch: number
-      reviewAnalysisEpoch: number
-      propertyTrendsEpoch: number
-      propertyProfileVersion: number
-      dueLocalDate: string
-      terminalAnalysisSequence: number
-      aggregateRevision: number
-      reportProfileVersion: string
-      report: AiTrendReport
-      evidence: AiTrendEvidence<SupportingReview>
-      updating: boolean
-      generatedAtEpochMillis: number
-    }>
 
 /** What every analysis write carries, whichever contract produced the answer. */
 type AiAnalysisWrite = Readonly<{
@@ -273,20 +151,5 @@ export type AiOutputStorePort = Readonly<{
       nowEpochMillis: number
     }>,
     deliver: (result: ReviewAnalysisReadV1) => Promise<T>,
-  ): Promise<T>
-
-  readTrendReportForDelivery<T>(
-    input: Readonly<{
-      organizationId: OrganizationId
-      actorUserId: UserId
-      propertyId: PropertyId
-      sourceEpoch: number
-      reviewAnalysisEpoch: number
-      propertyTrendsEpoch: number
-      propertyProfileVersion: number
-      reportProfileVersion: string
-      nowEpochMillis: number
-    }>,
-    deliver: (result: AiTrendReportRead) => Promise<T>,
   ): Promise<T>
 }>

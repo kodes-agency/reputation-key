@@ -70,7 +70,7 @@ export async function hasActiveMerchantAiConsent(
 ): Promise<boolean> {
   const capability =
     CAPABILITY_BY_PURPOSE[input.purpose as keyof typeof CAPABILITY_BY_PURPOSE]
-  if (!capability) return false
+  if (!capability || capability === 'property_trends') return false
   const epochColumn = sql.identifier(EPOCH_COLUMN_BY_CAPABILITY[capability])
   const served = getAiRuntimeCapability(capability)
   const fence = input.expectedFence

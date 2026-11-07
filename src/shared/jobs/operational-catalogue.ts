@@ -43,6 +43,8 @@ export const RETIRED_SCHEDULER_JOB_NAMES = Object.freeze([
   'ai-review-analysis-backfill-advance',
   'portal-upload-source-cleanup',
   'published-event-redelivery',
+  'schedule-property-ai-trends',
+  'generate-property-ai-trend',
 ] as const)
 
 /**

@@ -1,8 +1,7 @@
 // Coverage owes one settlement for every analysis sequence in
 // (analysis_start_sequence, head_sequence]. A sequence the Review writer gave
 // back (`review_ai_analysis_released_sequences`) is owed nothing, so every
-// reader of coverage subtracts it: the aggregate read, the trend scheduler, the
-// trend report read and the stall monitor. These run the real queries against
+// reader of coverage subtracts it: the aggregate read and the stall monitor. These run the real queries against
 // PostgreSQL, one Property per case:
 //
 //   RELEASED     head 5, settled 1 2 4 5, 3 released      -> nothing awaited
@@ -10,14 +9,12 @@
 //   SETTLED_TOO  head 3, settled 1 2 3, 3 also released   -> counted once
 //   BELOW_START  start 2, head 4, settled 3 4, 1 released -> outside the range
 //   NOT_ENABLED  head 4, settled 1 2 4, 3 released, but in another source epoch
-import { randomUUID } from 'node:crypto'
 import pino from 'pino'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
-import { and, eq, inArray, sql } from 'drizzle-orm'
+import { eq, sql } from 'drizzle-orm'
 import { getDb } from '#/shared/db'
 import {
   aiPropertyProcessingProfiles,
-  aiPropertyTrendSchedules,
   aiReviewAnalysisEnrollments,
   outboxEvents,
   properties,
@@ -28,20 +25,16 @@ import {
 import { createAlertAuxReader } from '#/shared/observability/alert-aux-reads'
 import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
 import { clearEventSchemas } from '#/shared/events/schema-registry'
-import { organizationId, propertyId, reviewId, userId } from '#/shared/domain/ids'
+import { organizationId, propertyId, reviewId } from '#/shared/domain/ids'
 import { seedEnabledReviewAnalysis } from '#/shared/db/testing/enabled-review-analysis-fixture'
 import { deleteTestOrganizations } from '#/shared/testing/integration-helpers'
-import { createAiOutputStoreAdapter } from './adapters/ai-output-store.adapter'
 import { createAiPropertyAggregateStoreAdapter } from './adapters/ai-property-aggregate-store.adapter'
-import { createAiPropertyTrendScheduleStore } from './adapters/ai-property-trend-schedule-store.adapter'
 
 const ORG = 'ai-released-coverage-test'
-const LEASE_OWNER = '5eed0500-0000-4000-8000-0000000000a1'
 const EMPTY_SET_DIGEST =
   'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855'
 const HOURS_PER_DAY = 24
 const NOON = 12
-const MAX_DRAIN_BATCHES = 50
 const AT = new Date('2026-09-10T12:00:00.000Z')
 const WINDOW = { startLocalDate: '2026-09-01', endLocalDate: '2026-09-30' } as const
 
@@ -86,13 +79,6 @@ const CASES = [RELEASED, LEAKED, SETTLED_TOO, BELOW_START, OTHER_EPOCH] as const
 
 const db = getDb()
 const aggregates = createAiPropertyAggregateStoreAdapter(db)
-const outputs = createAiOutputStoreAdapter(db)
-const mintedScheduleIds: string[] = []
-const schedules = createAiPropertyTrendScheduleStore(db, () => {
-  const id = randomUUID()
-  mintedScheduleIds.push(id)
-  return id
-})
 
 const propertyOf = (target: Case) => uuid('10', target.index)
 const reviewOf = (target: Case, sequence: number) => uuid(`2${target.index}`, sequence)
@@ -225,11 +211,6 @@ async function seed(target: Case, timezone: string): Promise<void> {
 
 async function clearFixture(): Promise<void> {
   await db.delete(outboxEvents).where(eq(outboxEvents.organizationId, ORG))
-  if (mintedScheduleIds.length > 0) {
-    await db
-      .delete(aiPropertyTrendSchedules)
-      .where(inArray(aiPropertyTrendSchedules.id, mintedScheduleIds))
-  }
   await db.delete(properties).where(eq(properties.organizationId, ORG))
   await deleteTestOrganizations(db, [ORG])
 }
@@ -318,53 +299,5 @@ describe.sequential('coverage subtracts released analysis sequences (PostgreSQL)
       incompletePropertyCount: baseline.reviewAnalysis.incompletePropertyCount + 2,
       pendingSettlementCount: baseline.reviewAnalysis.pendingSettlementCount + 2,
     })
-  })
-
-  it('reports the trend report as caught up only where nothing unreleased is open', async () => {
-    const read = async (target: Case) =>
-      outputs.readTrendReportForDelivery(
-        {
-          organizationId: organizationId(ORG),
-          actorUserId: userId('released-coverage-actor'),
-          propertyId: propertyId(propertyOf(target)),
-          sourceEpoch: 0,
-          reviewAnalysisEpoch: 1,
-          propertyTrendsEpoch: 1,
-          propertyProfileVersion: 1,
-          reportProfileVersion: 'property-trend-v1',
-          nowEpochMillis: AT.getTime(),
-        },
-        async (result) => result.status,
-      )
-
-    // `updating` is what a read says while analysis has not caught up and no
-    // report exists yet; `preparing` is a caught-up Property with no report.
-    await expect(read(RELEASED)).resolves.toBe('preparing')
-    await expect(read(SETTLED_TOO)).resolves.toBe('preparing')
-    await expect(read(BELOW_START)).resolves.toBe('preparing')
-    await expect(read(LEAKED)).resolves.toBe('updating')
-    await expect(read(OTHER_EPOCH)).resolves.toBe('updating')
-  })
-
-  it('schedules a trend only for Properties with no unreleased gap', async () => {
-    for (let batch = 0; batch < MAX_DRAIN_BATCHES; batch += 1) {
-      const result = await schedules.scheduleDueBatch({ leaseOwner: LEASE_OWNER })
-      if (result.status !== 'scheduled')
-        throw new Error(`Scheduler said ${result.status}`)
-      if (!result.hasMore) break
-    }
-
-    const scheduled = await db
-      .select({ propertyId: aiPropertyTrendSchedules.propertyId })
-      .from(aiPropertyTrendSchedules)
-      .where(
-        and(
-          eq(aiPropertyTrendSchedules.organizationId, ORG),
-          inArray(aiPropertyTrendSchedules.id, mintedScheduleIds),
-        ),
-      )
-    expect(scheduled.map((row) => row.propertyId).sort()).toEqual(
-      [RELEASED, SETTLED_TOO, BELOW_START].map(propertyOf).sort(),
-    )
   })
 })

@@ -180,6 +180,7 @@ function renewal(
     idGen: randomUUID,
     policy,
     authorize: async (input) => {
+      if (input.capability === 'property_trends') return 'allowed'
       const decision = checkScopedCapability(input, PURPOSE[input.capability])
       return decision.allowed
         ? 'allowed'
@@ -287,7 +288,39 @@ describe('standing renewal persistence', () => {
     ])
     expect(await sweep()).toMatchObject({ visited: 0, renewed: 0 })
   })
-  it('renews analysis alone, resets replay coverage, preserves saved drafts and leaves drafting-only heads alone', async () => {
+  it('retires trends under standing consent without replaying analysis or withdrawing saved drafts', async () => {
+    const property = await seedProperty()
+    const store = createMerchantAiAuthorizationStore(db, randomUUID)
+    const before = await store.mutate({
+      ...command(property),
+      noticeVersion: 'merchant-ai-notice-2026-11-06.v1',
+      noticeDigest: 'eb810fedbb445bf9361d03280cfa44f31c3a8a8563a905549c3a7bdaed1a88f3',
+    })
+    await seedSavedDraft(property)
+    await db.execute(sql`
+      UPDATE review_ai_analysis_heads SET head_sequence = 38
+      WHERE organization_id = ${property.organizationId}
+        AND property_id = ${property.propertyId}::uuid AND source_epoch = 0
+    `)
+
+    expect(await sweep()).toMatchObject({ visited: 1, renewed: 1, failed: 0 })
+    expect(await store.getSnapshot(property)).toMatchObject({
+      noticeVersion: POLICY.noticeVersion,
+      noticeDigest: POLICY.noticeDigest,
+      capabilities: before.capabilities,
+      authorizationLineageId: before.authorizationLineageId,
+      analysisStartSequence: before.analysisStartSequence,
+      capabilityEpochs: {
+        ...before.capabilityEpochs,
+        property_trends: before.capabilityEpochs.property_trends + 1,
+      },
+    })
+    expect(await savedDrafts(property)).toEqual([
+      { text: DRAFT_TEXT, authorship: 'ai_assisted' },
+    ])
+    expect(await sweep()).toMatchObject({ visited: 0, renewed: 0 })
+  })
+  it('renews analysis and retires trends, resets replay coverage, preserves saved drafts and leaves drafting-only heads alone', async () => {
     const analysis = await seedProperty()
     const draftingOnly = await seedProperty()
     const store = createMerchantAiAuthorizationStore(db, randomUUID)
@@ -319,6 +352,7 @@ describe('standing renewal persistence', () => {
       capabilityEpochs: {
         ...before.capabilityEpochs,
         review_analysis: before.capabilityEpochs.review_analysis + 1,
+        property_trends: before.capabilityEpochs.property_trends + 1,
       },
       analysisStartSequence: 38,
     })
@@ -349,7 +383,7 @@ describe('standing renewal persistence', () => {
       authorizationLineageId: before.authorizationLineageId,
       reviewAnalysisEpoch: before.capabilityEpochs.review_analysis + 1,
       replyDraftingEpoch: before.capabilityEpochs.reply_drafting,
-      propertyTrendsEpoch: before.capabilityEpochs.property_trends,
+      propertyTrendsEpoch: before.capabilityEpochs.property_trends + 1,
       authorizedSourceEpoch: before.authorizedSourceEpoch,
       analysisStartSequence: 38,
       stateVersion: 2,

@@ -743,6 +743,20 @@
       "when": 1798600001000,
       "tag": "0105_google_import_dispatch_index",
       "breakpoints": true
+    },
+    {
+      "idx": 106,
+      "version": "7",
+      "when": 1798700001000,
+      "tag": "0106_merchant_ai_notice_retire_trends",
+      "breakpoints": true
+    },
+    {
+      "idx": 107,
+      "version": "7",
+      "when": 1798800001000,
+      "tag": "0107_validate_merchant_ai_notice_retire_trends",
+      "breakpoints": true
     }
   ]
 }

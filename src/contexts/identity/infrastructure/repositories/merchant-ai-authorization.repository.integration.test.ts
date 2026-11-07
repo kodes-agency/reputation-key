@@ -123,6 +123,7 @@ function underServedContract(
   snapshot: MerchantAiSnapshot,
   capability: keyof MerchantAiSnapshot['capabilityEpochs'],
 ): boolean {
+  if (capability === 'property_trends') return false
   const served = getAiRuntimeCapability(capability)
   return isExecutionCompatibleWithConsent({
     capability,
@@ -201,7 +202,14 @@ function fence(
     stateVersion: snapshot.stateVersion,
     noticeDigest: snapshot.noticeDigest,
     recordedRuntimeProfileVersion: runtimeProfileVersion,
-    servedExecution: getAiRuntimeCapability(capability),
+    servedExecution:
+      capability === 'property_trends'
+        ? {
+            runtimeProfileVersion: 'property-trends-runtime-v1',
+            operationProfileVersion: 'property-trend-v1',
+            providerDeploymentProfileVersion: 'private-beta-global-v2',
+          }
+        : getAiRuntimeCapability(capability),
   }
 }
 
@@ -331,7 +339,7 @@ afterAll(async () => {
 })
 
 describe('Merchant AI authorization store', () => {
-  it('accumulates analysis and drafting changes once, retains trends, and reads streaming deployment evidence', async () => {
+  it('accumulates notice changes once, refuses retired trends, and reads streaming deployment evidence', async () => {
     const before = await store.mutate(
       command({
         noticeVersion: 'merchant-ai-notice-2026-10-30.v1',
@@ -339,9 +347,7 @@ describe('Merchant AI authorization store', () => {
       }),
     )
     for (const capability of CURRENT_MERCHANT_AI_CAPABILITIES) {
-      expect(underServedContract(before, capability)).toBe(
-        capability === 'property_trends',
-      )
+      expect(underServedContract(before, capability)).toBe(false)
       expect(
         await hasActiveMerchantAiConsent(db, {
           organizationId: ORG,
@@ -353,7 +359,7 @@ describe('Merchant AI authorization store', () => {
           }[capability],
           expectedFence: fence(before, capability),
         }),
-      ).toBe(capability === 'property_trends')
+      ).toBe(false)
     }
     const analysisHead = await advanceAnalysisHead()
     const after = await store.mutate(
@@ -365,7 +371,9 @@ describe('Merchant AI authorization store', () => {
       }),
     )
     for (const capability of CURRENT_MERCHANT_AI_CAPABILITIES) {
-      expect(underServedContract(after, capability)).toBe(true)
+      expect(underServedContract(after, capability)).toBe(
+        capability !== 'property_trends',
+      )
       expect(
         await hasActiveMerchantAiConsent(db, {
           organizationId: ORG,
@@ -377,12 +385,12 @@ describe('Merchant AI authorization store', () => {
           }[capability],
           expectedFence: fence(after, capability),
         }),
-      ).toBe(true)
+      ).toBe(capability !== 'property_trends')
     }
     expect(after.capabilityEpochs).toEqual({
       review_analysis: before.capabilityEpochs.review_analysis + 1,
       reply_drafting: before.capabilityEpochs.reply_drafting + 1,
-      property_trends: before.capabilityEpochs.property_trends,
+      property_trends: before.capabilityEpochs.property_trends + 1,
     })
     expect(after.analysisStartSequence).toBe(analysisHead)
     const again = await store.mutate(
@@ -836,7 +844,9 @@ describe('Merchant AI authorization store', () => {
     })
     expect(isMerchantAiNoticeInForce(reconsented, 'reply_drafting')).toBe(true)
     for (const capability of CURRENT_MERCHANT_AI_CAPABILITIES) {
-      expect(underServedContract(reconsented, capability)).toBe(true)
+      expect(underServedContract(reconsented, capability)).toBe(
+        capability !== 'property_trends',
+      )
     }
     // The watermark moved to the head: the replay covers that review too.
     expect(reconsented.analysisStartSequence).toBe(arrivedUnderOldConsent)
@@ -946,7 +956,7 @@ describe('Merchant AI authorization store', () => {
           propertyId: PROPERTY,
           purpose,
         }),
-      ).resolves.toBe(true)
+      ).resolves.toBe(purpose !== 'ai.detect_trends')
     }
     await expect(
       hasActiveMerchantAiConsent(db, {

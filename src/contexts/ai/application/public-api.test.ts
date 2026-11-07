@@ -4,10 +4,7 @@ import {
   EMPTY_REVIEW_ANALYSIS_REVISION_SET_DIGEST,
   isReviewAnalysisRevisionSetEvidence,
 } from './ports/ai-review-analysis-enrollment.port'
-import {
-  aiPropertyTrendGenerationRequested,
-  aiReviewAnalysisBackfillRequested,
-} from '../domain/events'
+import { aiReviewAnalysisBackfillRequested } from '../domain/events'
 import { isAiError } from '../domain/errors'
 
 describe('AI application public API', () => {
@@ -15,22 +12,6 @@ describe('AI application public API', () => {
     const occurredAt = new Date('2026-08-27T00:00:00.000Z')
     const organization = organizationId('org-ai-public-api')
     const property = propertyId('8a000000-0000-4000-8000-000000000001')
-
-    expect(
-      aiPropertyTrendGenerationRequested({
-        scheduleId: 'schedule-ai-public-api',
-        organizationId: organization,
-        propertyId: property,
-        occurredAt,
-      }),
-    ).toMatchObject({
-      _tag: 'ai.property_trend.generation_requested',
-      scheduleId: 'schedule-ai-public-api',
-      organizationId: organization,
-      propertyId: property,
-      occurredAt,
-      correlationId: null,
-    })
 
     expect(
       aiReviewAnalysisBackfillRequested({

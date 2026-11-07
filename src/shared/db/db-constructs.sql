@@ -173,6 +173,9 @@ BEGIN
     SELECT replaces_version, replaces_digest, materially_changes
       INTO prior_version, prior_digest, changed
     FROM (VALUES
+      ('merchant-ai-notice-2026-11-06.v2', 'ede9faf088b4ce52da16d194639e780ab05b0349ac896f129f05fb185f53a5f7',
+        'merchant-ai-notice-2026-11-06.v1', 'eb810fedbb445bf9361d03280cfa44f31c3a8a8563a905549c3a7bdaed1a88f3',
+        ARRAY['property_trends']::text[]),
       ('merchant-ai-notice-2026-11-06.v1', 'eb810fedbb445bf9361d03280cfa44f31c3a8a8563a905549c3a7bdaed1a88f3',
        'merchant-ai-notice-2026-11-01.v1', 'e9574380fd1ba5f4b7bd7b9899bc5e6bdf371f9d9871584f33c5c1e6131290ef',
        ARRAY['review_analysis']::text[]),

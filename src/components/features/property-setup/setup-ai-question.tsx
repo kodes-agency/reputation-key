@@ -62,8 +62,9 @@ export function SetupAiQuestion({
     >
       <QuestionnaireTitle>Turn on AI features?</QuestionnaireTitle>
       <QuestionnaireDescription>
-        RepKey can analyse reviews, draft replies and show property trends. Nothing is
-        sent to the AI provider until you agree to the data use notice on the next screen.
+        RepKey can analyse reviews, show Guest voice summaries and draft replies. Nothing
+        is sent to the AI provider until you agree to the data use notice on the next
+        screen.
       </QuestionnaireDescription>
       <QuestionnaireChoices>
         <QuestionnaireChoice

@@ -73,7 +73,9 @@ export function MerchantAiPropertyAuthorization({
     ReadonlyArray<CurrentMerchantAiCapability>
   >(
     initialSnapshot.state === 'enabled'
-      ? initialSnapshot.capabilities
+      ? initialSnapshot.capabilities.filter((id) =>
+          notice.payload.capabilities.some((entry) => entry.id === id),
+        )
       : notice.payload.capabilities.map((capability) => capability.id),
   )
 
@@ -126,7 +128,11 @@ export function MerchantAiPropertyAuthorization({
     try {
       const next = await operation()
       setSnapshot(next)
-      setSelectedCapabilities(next.capabilities)
+      setSelectedCapabilities(
+        next.capabilities.filter((id) =>
+          notice.payload.capabilities.some((entry) => entry.id === id),
+        ),
+      )
     } catch (error) {
       if (!inCard) throw error
       // The server's sentence for a refusal (a changed notice, a stale state
@@ -168,7 +174,11 @@ export function MerchantAiPropertyAuthorization({
       onToggleCapability={toggleCapability}
       onAcknowledgedChange={setAcknowledged}
       onResetSelection={() => {
-        setSelectedCapabilities(snapshot.capabilities)
+        setSelectedCapabilities(
+          snapshot.capabilities.filter((id) =>
+            notice.payload.capabilities.some((entry) => entry.id === id),
+          ),
+        )
         // The tick was given for the choice that is now put back.
         setAcknowledged(false)
       }}

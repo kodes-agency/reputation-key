@@ -1,3 +1,5 @@
+import type { Queue } from 'bullmq'
+import { reconcileJobSchedulers } from './job-schedulers'
 import { describe, expect, it } from 'vitest'
 import { JOB_FAMILY_ROWS } from '#/shared/governance/event-job-catalogue'
 import {
@@ -70,6 +72,8 @@ describe('job operational catalogue', () => {
     'ai-review-analysis-backfill-advance',
     'portal-upload-source-cleanup',
     'published-event-redelivery',
+    'schedule-property-ai-trends',
+    'generate-property-ai-trend',
   ])('retains a removal tombstone for the retired %s scheduler', (jobName) => {
     const plan = createOperationalSchedulerPlan()
 
@@ -176,4 +180,29 @@ describe('job operational catalogue', () => {
       }
     })
   })
+})
+
+it('removes a deployed Trends scheduler through the current operational plan', async () => {
+  const removed: string[] = []
+  const queue = {
+    name: 'background',
+    getJobSchedulers: async () => [
+      {
+        key: 'schedule-property-ai-trends-recurring',
+        name: 'schedule-property-ai-trends',
+      },
+      { key: 'operator-owned', name: 'operator-maintenance' },
+    ],
+    removeJobScheduler: async (key: string) => {
+      removed.push(key)
+      return true
+    },
+    upsertJobScheduler: async () => ({ id: 'next-job' }),
+  }
+  await reconcileJobSchedulers({
+    queue: queue as unknown as Queue,
+    ...createOperationalSchedulerPlan(),
+    planRecord: null,
+  })
+  expect(removed).toEqual(['schedule-property-ai-trends-recurring'])
 })
