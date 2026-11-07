@@ -158,9 +158,9 @@ export function buildGuestResponseHandlers(
           if (next === null) return
           input.setCsrfNonce(next.csrfNonce)
           input.setResponse(null)
-          // A removed response is gone, so the fresh page must not say it "remains saved".
+          // Removed and dropped responses have nothing saved to carry forward.
           input.setNotice(
-            input.currentResponse?.status === 'deleted'
+            input.currentResponse?.status === 'deleted' || input.currentResponse?.dropped
               ? 'started-over-after-removal'
               : 'started-over',
           )

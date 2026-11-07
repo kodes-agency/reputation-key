@@ -7,6 +7,21 @@ const legalBody = (file: string) =>
     .replace(/\s+/gu, ' ')
 
 describe('current notice corrections', () => {
+  it('explains unstored responses while preserving Google and limiting correction to stored responses', () => {
+    const privacy = legalBody('privacy-notice')
+    expect(privacy).toContain(
+      'During an unusually busy period or abuse, a response may not be stored because a limit has been reached.',
+    )
+    expect(privacy).toContain(
+      'The Guest still sees the normal thank-you and the same Google Review option, with the same order, timing, copy and prominence.',
+    )
+    expect(privacy).toContain(
+      'If no response was stored, there is nothing to correct or withdraw and those options are unavailable.',
+    )
+    expect(privacy).toContain('For a stored response, a Guest may correct')
+    expect(privacy).toContain('nothing to correct or withdraw')
+  })
+
   it('discloses stored Reporting copies, current AI cleanup and inactive source deletion', () => {
     const privacy = legalBody('privacy-notice')
     expect(
@@ -77,7 +92,7 @@ describe('current notice corrections', () => {
 
 describe('staff account release documents', () => {
   it.each([
-    ['privacy-notice', '3.5'],
+    ['privacy-notice', '3.6'],
     ['internal-beta-agreement', '2.6'],
     ['google-access-disclosure', '2.5'],
   ])('publishes %s version %s on the approved release date', (file, version) => {

@@ -261,6 +261,27 @@ describe('"Your response"', () => {
     expect(lastOf(seen.notices)).toBe('started-over')
   })
 
+  it('starts over from a dropped receipt without claiming anything remains saved', async () => {
+    const dropped: GuestResponseView = {
+      ...RATED,
+      dropped: true,
+      privateFeedbackEligible: false,
+      correctionDeadline: null,
+      correctionAvailable: false,
+      responseWithdrawalDeadline: null,
+      responseWithdrawalAvailable: false,
+    }
+    const { actions, handlers, seen } = harness({}, { currentResponse: dropped })
+
+    handlers.onStartOver()
+    await settle()
+
+    expect(actions.startNewResponse).toHaveBeenCalledWith({ data: SESSION })
+    expect(seen.nonces).toEqual([NEXT_NONCE])
+    expect(seen.responses).toEqual([null])
+    expect(lastOf(seen.notices)).toBe('started-over-after-removal')
+  })
+
   it('starts over from a removed response without claiming anything remains saved', async () => {
     const removed: GuestResponseView = { ...RATED, status: 'deleted', rating: null }
     const { actions, handlers, seen } = harness({}, { currentResponse: removed })

@@ -1,4 +1,5 @@
 import { shouldCountGuestVisit } from './count-guest-visit'
+import { droppedResponseView } from '../application/use-cases/response-ceiling.server'
 import { createServerFn } from '@tanstack/react-start'
 import { setResponseHeader } from '@tanstack/react-start/server'
 import { getContainer } from '#/composition'
@@ -343,6 +344,38 @@ export const submitGuestResponseFn = createServerFn({ method: 'POST' })
           throw error
         }
         try {
+          const existing = await bound.useCases.responseLifecycle.getState(
+            bound.scope,
+            bound.session.sessionId,
+          )
+          if (existing) {
+            if (existing.responseWithdrawalDeadline) {
+              const renewed = bound.useCases.guestSessions.renewUntil(
+                bound.session,
+                new Date(existing.responseWithdrawalDeadline),
+              )
+              if (renewed) setResponseHeader('Set-Cookie', [...renewed.cookies])
+            }
+            return existing
+          }
+          const admission = await bound.useCases.responseCeiling.reserve(
+            bound.scope,
+            bound.session.sessionId,
+          )
+          if (!admission.allowed) {
+            const rating =
+              bound.session.droppedResponse?.submittedAt ===
+              admission.recordedAt.toISOString()
+                ? bound.session.droppedResponse.rating
+                : data.rating
+            const remembered = bound.useCases.guestSessions.rememberDroppedResponse(
+              bound.session,
+              rating,
+              admission.recordedAt,
+            )
+            setResponseHeader('Set-Cookie', [...remembered.cookies])
+            return droppedResponseView(admission.recordedAt, rating)
+          }
           const response = await bound.useCases.responseLifecycle.submit(
             bound.scope,
             bound.session.sessionId,
@@ -447,10 +480,12 @@ export const startNewGuestResponseFn = createServerFn({ method: 'POST' })
           bound.scope,
           bound.headers,
         )
-        const response = await bound.useCases.responseLifecycle.getState(
-          bound.scope,
-          bound.session.sessionId,
-        )
+        const response =
+          (await bound.useCases.responseLifecycle.getState(
+            bound.scope,
+            bound.session.sessionId,
+          )) ??
+          (await bound.useCases.responseCeiling.getDropped(bound.scope, bound.session))
         if (!canStartNewGuestResponse(response)) return denyWithoutEnumeration()
         const issued = bound.useCases.guestSessions.issue(bound.scope)
         setResponseHeader('Set-Cookie', [...issued.cookies])
@@ -570,17 +605,23 @@ export const selectGoogleReviewFn = createServerFn({ method: 'POST' })
           },
           requiredConsents: [],
         })
-        const response = await bound.useCases.responseLifecycle.getState(
-          bound.scope,
-          bound.session.sessionId,
-        )
+        const response =
+          (await bound.useCases.responseLifecycle.getState(
+            bound.scope,
+            bound.session.sessionId,
+          )) ??
+          (await bound.useCases.responseCeiling.getDropped(bound.scope, bound.session))
         if (!isQualifiedGuestResponse(response)) {
-          if (!bound.portal.reviewGateway.skipPrivateRating || response !== null) {
+          if (
+            !response?.dropped &&
+            (!bound.portal.reviewGateway.skipPrivateRating || response !== null)
+          ) {
             return denyWithoutEnumeration()
           }
         }
         const googleReview = bound.portal.reviewGateway.googleReview
         if (googleReview.status !== 'available') return denyWithoutEnumeration()
+        if (response?.dropped) return { url: googleReview.uri }
         const qualified = await rateLimit(
           'google',
           bound.session.sessionId,

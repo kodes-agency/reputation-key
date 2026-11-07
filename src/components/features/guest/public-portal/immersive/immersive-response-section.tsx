@@ -56,7 +56,7 @@ export type ImmersiveResponseSectionProps = Readonly<{
  * `clock`, the portal's own zone and a `now` that travels with the page data.
  */
 export function ImmersiveResponseSection(props: ImmersiveResponseSectionProps) {
-  const { pack, open, onOpenChange } = props
+  const { pack, open, onOpenChange, response } = props
   const id = useId()
   return (
     <section
@@ -76,7 +76,9 @@ export function ImmersiveResponseSection(props: ImmersiveResponseSectionProps) {
             <span id={`${id}-title`} className="ih-yr__title">
               {pack.copy.responseTitle}
             </span>
-            <span className="ih-yr__summary">{pack.copy.responseSummary}</span>
+            {!response.dropped && (
+              <span className="ih-yr__summary">{pack.copy.responseSummary}</span>
+            )}
           </span>
           <ChevronDownIcon size={18} className="ih-yr__chevron" />
         </button>
