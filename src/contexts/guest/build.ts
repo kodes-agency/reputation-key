@@ -42,6 +42,8 @@ import { createFeedbackPortalAttributionLookup } from './infrastructure/feedback
 import { getPortalResponseIntegritySummary } from './application/use-cases/get-portal-response-integrity-summary'
 import { getPortalRatingLanguages } from './application/use-cases/get-portal-rating-languages'
 import { createGuestNetworkPressureStore } from './infrastructure/guest-network-pressure.store'
+import { createResponseCeilingStore } from './infrastructure/response-ceiling-store.server'
+import { createResponseCeiling } from './application/use-cases/response-ceiling.server'
 import { consumeGuestNetworkPressure } from './application/use-cases/consume-guest-network-pressure'
 import {
   createGuestObservationLossMonitor,
@@ -80,6 +82,11 @@ export const buildGuestContext = (deps: GuestContextDeps) => {
   )
   const guestObservationStore = createAtomicGuestObservationStore(deps.db)
   const guestNetworkPressureStore = createGuestNetworkPressureStore(deps.db, deps.idGen)
+  const responseCeiling = createResponseCeiling({
+    store: createResponseCeilingStore(deps.db, deps.sessionSecret),
+    clock: deps.clock,
+    logger: deps.logger,
+  })
   const guestObservationLossMonitor = createGuestObservationLossMonitor(
     deps.observationLossRedis,
   )
@@ -148,6 +155,7 @@ export const buildGuestContext = (deps: GuestContextDeps) => {
     }),
     getPublicPortal: getPublicPortal({ publicPortalLookup }),
     responseLifecycle,
+    responseCeiling,
     guestSessions,
     consumeGuestNetworkPressure: consumeGuestNetworkPressure({
       store: guestNetworkPressureStore,

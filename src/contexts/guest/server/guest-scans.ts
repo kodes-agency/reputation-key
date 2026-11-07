@@ -315,10 +315,9 @@ export const getPublicPortal = createServerFn({ method: 'GET' })
             session = selected.session
             setResponseHeader('Set-Cookie', [...selected.cookies])
           }
-          const response = await useCases.responseLifecycle.getState(
-            scope,
-            session.sessionId,
-          )
+          const response =
+            (await useCases.responseLifecycle.getState(scope, session.sessionId)) ??
+            (await useCases.responseCeiling.getDropped(scope, session))
           // The guest capability decisions the form needs up front. The
           // capability key distinguishes them even though they serve the same
           // read action. Resolved only AFTER the public_read deny above has thrown, so

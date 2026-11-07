@@ -115,6 +115,70 @@ describe('signed guest session', () => {
     expect(codec.verify(issued.cookies[0].split(';')[0], scope)).toBeNull()
   })
 
+  describe('dropped response receipts', () => {
+    it.each([1, 5])(
+      'recovers a signed rating of %i until the response deadline',
+      (rating) => {
+        const codec = manager()
+        const issued = codec.issue(scope, 'bg')
+        const submittedAt = new Date('2026-08-09T13:00:00Z')
+        const remembered = codec.rememberDroppedResponse(
+          issued.session,
+          rating,
+          submittedAt,
+        )
+        const cookieHeader = remembered.cookies[0].split(';')[0] ?? ''
+
+        expect(codec.verify(cookieHeader, scope)).toMatchObject({
+          sessionId: issued.session.sessionId,
+          csrfNonce: issued.session.csrfNonce,
+          guestLocale: 'bg',
+          expiresAt: new Date('2026-08-10T13:00:00Z'),
+          droppedResponse: { rating, submittedAt: submittedAt.toISOString() },
+        })
+        expect(
+          codec.verify(cookieHeader, {
+            ...scope,
+            portalId: 'other',
+          }),
+        ).toBeNull()
+        expect(
+          manager(new Date('2026-08-10T13:00:00Z')).verify(cookieHeader, scope),
+        ).toBeNull()
+      },
+    )
+
+    it.each([
+      { rating: 0, submittedAt: '2026-08-09T12:00:00Z' },
+      { rating: 6, submittedAt: '2026-08-09T12:00:00Z' },
+      { rating: 1.5, submittedAt: '2026-08-09T12:00:00Z' },
+      { rating: '5', submittedAt: '2026-08-09T12:00:00Z' },
+      { rating: 5, submittedAt: 'invalid' },
+      { rating: 5 },
+      null,
+    ])(
+      'ignores an invalid optional receipt %j while preserving the signed session',
+      (dropped) => {
+        const codec = manager()
+        const issued = codec.issue(scope)
+        const encodedSession = issued.cookies[0].split('=')[1]?.split('.')[0] ?? ''
+        const payload = JSON.parse(
+          Buffer.from(encodedSession, 'base64url').toString('utf8'),
+        )
+        const encoded = Buffer.from(JSON.stringify({ ...payload, dropped })).toString(
+          'base64url',
+        )
+        const signature = createHmac('sha256', '0123456789abcdef0123456789abcdef')
+          .update(encoded)
+          .digest('base64url')
+        const verified = codec.verify(`rk_guest_session=${encoded}.${signature}`, scope)
+
+        expect(verified?.sessionId).toBe(issued.session.sessionId)
+        expect(verified?.droppedResponse).toBeUndefined()
+      },
+    )
+  })
+
   it('re-signs the same recovery identity only until the domain deadline', () => {
     let now = new Date('2026-08-09T12:00:00Z')
     const codec = createGuestSessionManager({

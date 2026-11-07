@@ -82,6 +82,8 @@ export type GuestResponseExperienceInput = Readonly<{
 }>
 
 export type GuestResponseView = Readonly<{
+  /** Admission was exhausted; this receipt has no stored response to mutate. */
+  dropped?: true
   status: GuestResponse['status']
   rating: number | null
   hasPrivateFeedback: boolean
@@ -106,7 +108,7 @@ export type GuestResponseView = Readonly<{
  * amendment 2026-11-01). The switch is exhaustive, so a new status must decide here.
  */
 export function isQualifiedGuestResponse(view: GuestResponseView | null): boolean {
-  if (view === null) return false
+  if (view === null || view.dropped) return false
   switch (view.status) {
     case 'deleted':
       return false
@@ -123,7 +125,8 @@ export function isQualifiedGuestResponse(view: GuestResponseView | null): boolea
 
 /**
  * Whether the session's response admits "start over" on this device: it holds a
- * durable private rating (the shared-device case), or the guest withdrew it.
+ * durable private rating (the shared-device case), the guest withdrew it, or
+ * admission returned an unstored receipt.
  *
  * A withdrawn response is the one a session can never replace: a session takes
  * one response (`submitResponse` refuses a deleted one), so without a fresh
@@ -135,7 +138,9 @@ export function isQualifiedGuestResponse(view: GuestResponseView | null): boolea
  * refused: with nothing to end there is nothing to start over from.
  */
 export function canStartNewGuestResponse(view: GuestResponseView | null): boolean {
-  return isQualifiedGuestResponse(view) || view?.status === 'deleted'
+  return (
+    view?.dropped === true || isQualifiedGuestResponse(view) || view?.status === 'deleted'
+  )
 }
 
 export class GuestResponseLifecycleError extends Error {
