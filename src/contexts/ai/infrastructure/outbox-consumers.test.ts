@@ -28,11 +28,9 @@ import {
   type AnalyzeReviewEventResult,
 } from '../application/use-cases/analyze-review-event'
 import {
-  AI_PROPERTY_TREND_GENERATION_CONSUMER,
   AI_REVIEW_ANALYSIS_ENROLLMENT_CONSUMER,
   AI_REVIEW_ANALYSIS_CONSUMER,
   handleAiAuthorizationLifecycleChanged,
-  handleAiPropertyTrendGenerationRequested,
   handleAiReviewEvent,
   registerAiConsumers,
   type RegisterAiConsumersInput,
@@ -77,7 +75,6 @@ function event(
 
 function harness(result: AnalyzeReviewEventResult) {
   const analyzeReviewEvent = vi.fn(async () => result)
-  const enqueuePropertyTrend = vi.fn(async () => {})
   const insertReceipt = vi.fn(async () => {})
   const enqueue = vi.fn(async () => {})
   const applyAiAuthorizationLifecycle = vi.fn<
@@ -124,7 +121,6 @@ function harness(result: AnalyzeReviewEventResult) {
   const dependencies = {
     analyzeReviewEvent,
     authorizeScope,
-    enqueuePropertyTrend,
     applyAiAuthorizationLifecycle,
     advanceEnrollment,
     receipts: { insertReceipt } as unknown as OutboxRepository,
@@ -136,29 +132,11 @@ function harness(result: AnalyzeReviewEventResult) {
     dependencies,
     analyzeReviewEvent,
     authorizeScope,
-    enqueuePropertyTrend,
     applyAiAuthorizationLifecycle,
     advanceEnrollment,
     insertReceipt,
     enqueue,
     logger,
-  }
-}
-
-function trendEvent(): ConsumerEvent {
-  return {
-    eventId: EVENT_ID,
-    eventType: 'ai.property_trend.generation_requested',
-    eventVersion: 1,
-    payload: {
-      scheduleId: '71000000-0000-4000-8000-000000000204',
-      organizationId: ORGANIZATION_ID,
-      propertyId: PROPERTY_ID,
-    },
-    organizationId: ORGANIZATION_ID,
-    propertyId: PROPERTY_ID,
-    sourceContext: 'ai',
-    sourceAggregateId: '71000000-0000-4000-8000-000000000204',
   }
 }
 
@@ -531,34 +509,11 @@ describe('AI review outbox consumer', () => {
     await expect(
       handleAiReviewEvent(test.dependencies, event('review.created')),
     ).resolves.toEqual({ status: 'obsolete' })
-    expect(test.enqueuePropertyTrend).not.toHaveBeenCalled()
     expect(test.insertReceipt).toHaveBeenCalledWith(
       EVENT_ID,
       AI_REVIEW_ANALYSIS_CONSUMER,
       'obsolete',
     )
-  })
-
-  // The trend job is property-scoped: the delayed-execution gate reads the
-  // Organization and Property from the job payload, so the schedule alone is
-  // denied `missing_scope` and no trend is ever generated.
-  it('enqueues the exact scheduled trend with its scope and records its receipt', async () => {
-    const test = harness({ status: 'completed' })
-
-    await expect(
-      handleAiPropertyTrendGenerationRequested(test.dependencies, trendEvent()),
-    ).resolves.toEqual({ status: 'applied' })
-    expect(test.enqueuePropertyTrend).toHaveBeenCalledExactlyOnceWith({
-      scheduleId: '71000000-0000-4000-8000-000000000204',
-      organizationId: ORGANIZATION_ID,
-      propertyId: PROPERTY_ID,
-    })
-    expect(test.insertReceipt).toHaveBeenCalledWith(
-      EVENT_ID,
-      AI_PROPERTY_TREND_GENERATION_CONSUMER,
-      'applied',
-    )
-    expect(test.analyzeReviewEvent).not.toHaveBeenCalled()
   })
 
   it('leaves retryable events unreceipted', async () => {
@@ -571,7 +526,6 @@ describe('AI review outbox consumer', () => {
     await expect(
       handleAiReviewEvent(test.dependencies, event('review.updated')),
     ).rejects.toThrow('AI review analysis retry required: provider_unavailable')
-    expect(test.enqueuePropertyTrend).not.toHaveBeenCalled()
     expect(test.insertReceipt).not.toHaveBeenCalled()
   })
 
@@ -839,14 +793,13 @@ describe('AI consumer authorization', () => {
     resetCapabilityPolicyStore()
   })
 
-  it('gates trend generation on its platform capability and leaves the two recording consumers ungated', () => {
+  it('leaves the two recording consumers ungated', () => {
     // Enrollment records the merchant's enable, disable or revoke, and the
     // analysis consumer records that a review is owed an analysis: no stop may
     // lose either. The provider work both lead to is gated on ai.analyze
     // further on.
     const served: Readonly<Record<string, string | undefined>> = {
       [AI_REVIEW_ANALYSIS_CONSUMER]: 'none',
-      [AI_PROPERTY_TREND_GENERATION_CONSUMER]: 'ai.detect_trends',
       [AI_REVIEW_ANALYSIS_ENROLLMENT_CONSUMER]: 'none',
     }
     const routes = registrations().map(({ eventType, consumerName, module }) => ({
@@ -881,15 +834,9 @@ describe('AI consumer authorization', () => {
         AI_REVIEW_ANALYSIS_ENROLLMENT_CONSUMER,
         merchantAiChangedEvent(),
       ),
-      trends: await gateUnderStop(
-        stopped,
-        AI_PROPERTY_TREND_GENERATION_CONSUMER,
-        trendEvent(),
-      ),
     }).toEqual({
       analysis: 'allowed',
       enrollment: 'allowed',
-      trends: 'capability_disabled',
     })
   })
 

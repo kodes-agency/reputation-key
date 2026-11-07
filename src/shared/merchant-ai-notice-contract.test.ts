@@ -1,3 +1,4 @@
+import retiredTrendsPayload from './testing/fixtures/merchant-ai-notice-2026-11-06.v1.json'
 import { createHash } from 'node:crypto'
 import previousPayload from './testing/fixtures/merchant-ai-notice-2026-11-01.json'
 import { describe, expect, it } from 'vitest'
@@ -71,7 +72,7 @@ describe('Merchant AI notice contract', () => {
   })
 
   it('binds the immutable notice version and structured payload into the digest', () => {
-    expect(MERCHANT_AI_NOTICE_VERSION).toBe('merchant-ai-notice-2026-11-06.v1')
+    expect(MERCHANT_AI_NOTICE_VERSION).toBe('merchant-ai-notice-2026-11-06.v2')
     expect(MERCHANT_AI_NOTICE_DIGEST).toMatch(/^[0-9a-f]{64}$/)
     expect(MERCHANT_AI_NOTICE_DIGEST).toBe(
       noticeDigestOf(
@@ -82,7 +83,7 @@ describe('Merchant AI notice contract', () => {
       ),
     )
     expect(MERCHANT_AI_NOTICE_DIGEST).toBe(
-      'eb810fedbb445bf9361d03280cfa44f31c3a8a8563a905549c3a7bdaed1a88f3',
+      'ede9faf088b4ce52da16d194639e780ab05b0349ac896f129f05fb185f53a5f7',
     )
   })
 
@@ -121,11 +122,10 @@ describe('Merchant AI notice contract', () => {
     expect(MERCHANT_AI_NOTICE_DIGEST).not.toBe(NOTICE_2026_10_17.noticeDigest)
   })
 
-  it('serves the three capabilities, three retention rows and six risks the owner approved', () => {
+  it('serves the two active capabilities, three retention rows and six risks the owner approved', () => {
     expect(MERCHANT_AI_NOTICE_PAYLOAD.capabilities.map((entry) => entry.id)).toEqual([
       'review_analysis',
       'reply_drafting',
-      'property_trends',
     ])
     expect(MERCHANT_AI_NOTICE_PAYLOAD.capabilities[0]?.description).toBe(
       'Analyze new and materially updated eligible Google reviews, including marking a review Urgent.',
@@ -168,7 +168,7 @@ describe('Merchant AI notice contract', () => {
         ...notice,
         capabilities: ['property_trends'],
       }),
-    ).toBe(true)
+    ).toBe(false)
     expect(
       isMerchantAiNoticeInForceForCapabilities({
         ...notice,
@@ -187,6 +187,10 @@ describe('Merchant AI notice contract', () => {
       {
         noticeVersion: MERCHANT_AI_NOTICE_VERSION,
         noticeDigest: MERCHANT_AI_NOTICE_DIGEST,
+      },
+      {
+        noticeVersion: 'merchant-ai-notice-2026-11-06.v1',
+        noticeDigest: 'eb810fedbb445bf9361d03280cfa44f31c3a8a8563a905549c3a7bdaed1a88f3',
       },
       {
         noticeVersion: 'merchant-ai-notice-2026-11-01.v1',
@@ -299,4 +303,17 @@ it('states category use, daily cleanup and withdrawal limits in the served notic
     'except the stored business category',
   )
   expect(text).not.toContain('purges unpublished AI-assisted reply drafts')
+})
+
+it('preserves the previous immutable notice payload', () => {
+  expect(noticeDigestOf(retiredTrendsPayload)).toBe(
+    'eb810fedbb445bf9361d03280cfa44f31c3a8a8563a905549c3a7bdaed1a88f3',
+  )
+  expect(MERCHANT_AI_NOTICE_PAYLOAD.capabilities.map(({ id }) => id)).toEqual([
+    'review_analysis',
+    'reply_drafting',
+  ])
+  expect(
+    MERCHANT_AI_NOTICE_PAYLOAD.sections.flatMap(({ body }) => body).join(' '),
+  ).not.toMatch(/property trends?|daily property trend/i)
 })

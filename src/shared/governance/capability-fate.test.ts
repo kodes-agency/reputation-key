@@ -35,7 +35,7 @@ describe('accepted beta capability fate authority', () => {
   it('keeps each independently authorized AI operation controlled and opt-in', () => {
     expect(CAPABILITY_FATE['ai.analyze'].fate).toBe('controlled_beta')
     expect(CAPABILITY_FATE['ai.generate_reply'].fate).toBe('controlled_beta')
-    expect(CAPABILITY_FATE['ai.detect_trends'].fate).toBe('controlled_beta')
+    expect(CAPABILITY_FATE['ai.detect_trends'].fate).toBe('beta_disabled')
   })
 })
 
@@ -45,7 +45,7 @@ describe('staff account activation', () => {
     expect(CAPABILITY_FATE['staff.accounts'].authority).toContain(
       'STAFF_SCAN_TARGETS_ENABLED',
     )
-    expect(listCapabilitiesByFate('controlled_beta')).toHaveLength(14)
-    expect(listCapabilitiesByFate('beta_disabled')).toHaveLength(5)
+    expect(listCapabilitiesByFate('controlled_beta')).toHaveLength(13)
+    expect(listCapabilitiesByFate('beta_disabled')).toHaveLength(6)
   })
 })

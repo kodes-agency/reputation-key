@@ -38,16 +38,9 @@ import {
   AI_REPLY_OUTPUT_LEAKAGE_PROFILE_VERSION,
 } from '#/shared/ai-reply-output-leakage'
 import {
-  CLOSED_TREND_SIGNAL_IDS,
-  validateTrendSelection,
-  type ClosedTrendSignalId,
-  type DeterministicTrendCandidate,
-} from '#/shared/ai-property-trend-contract'
-import {
   AI_ANALYSIS_V2_OUTPUT_SCHEMA,
   AI_ANALYSIS_V2_PROVIDER_ANSWER_SCHEMA,
   AI_PERSONALIZED_REPLY_OUTPUT_SCHEMA,
-  AI_TREND_SELECTION_OUTPUT_SCHEMA,
   mergeAiAnalysisV2Duplicates,
 } from '#/shared/ai-route-output-schemas'
 import { REVIEW_ANALYSIS_V3_PROVIDER_ANSWER_SCHEMA } from '#/shared/review-analysis-v3'
@@ -100,14 +93,6 @@ import { replyCommentProblem } from '#/shared/google-provider-control/reply-comm
 import { digestAiReplyBrandDisplayName } from '#/shared/ai-reply-brand-profile.server'
 const analysisAnswerSchema = AI_ANALYSIS_V2_PROVIDER_ANSWER_SCHEMA
 const personalizedReplySchema = AI_PERSONALIZED_REPLY_OUTPUT_SCHEMA
-const trendSelectionSchema = AI_TREND_SELECTION_OUTPUT_SCHEMA
-const CLOSED_TREND_SIGNAL_ID_SET: ReadonlySet<string> = new Set<string>(
-  CLOSED_TREND_SIGNAL_IDS,
-)
-
-function isClosedTrendSignalId(value: string): value is ClosedTrendSignalId {
-  return CLOSED_TREND_SIGNAL_ID_SET.has(value)
-}
 
 /**
  * What the preparer reads of an operation profile. The live catalogue holds the
@@ -144,7 +129,11 @@ function profileFor(
       candidate.sourceRoute === request.route &&
       candidate.profileVersion === request.binding.operationProfileVersion,
   )
-  if (!profile || profile.sourceRoute === 'synthetic-canary')
+  if (
+    !profile ||
+    profile.sourceRoute === 'synthetic-canary' ||
+    profile.sourceRoute === 'property-trend'
+  )
     throw new GatewayPreparationError('policy_unavailable')
   return profile
 }
@@ -227,7 +216,7 @@ function assertClaimedProvider(
 }
 
 function createDescriptor(
-  request: AiGatewayRouteRequestV1,
+  request: Exclude<AiGatewayRouteRequestV1, { route: 'property-trend' }>,
   profile: RoutePreparationProfile,
   facts: DerivedDescriptorFacts,
   costMicros: number,
@@ -261,14 +250,7 @@ function createDescriptor(
     replyTemplateCatalogueVersion: request.binding.replyTemplateCatalogueVersion,
     replyTemplateCatalogueDigest: request.binding.replyTemplateCatalogueDigest,
   }
-  if (request.route === 'property-trend')
-    return {
-      ...common,
-      route: 'property-trend',
-      actorId: null,
-      observedContentExpiresAtEpochMillis: null,
-      redactionCountry: null,
-    }
+
   if (request.route === 'review-analysis')
     return {
       ...common,
@@ -381,6 +363,8 @@ export function createAiGatewayRoutePreparer(
     createAiProviderRegistry([createOpenAiProviderPreparation()])
   return Object.freeze({
     prepare: (request): PreparedGatewayRouteExecution => {
+      if (request.route === 'property-trend')
+        throw new GatewayPreparationError('policy_unavailable')
       const profile = profileFor(profiles, request)
       assertPreparationProfile(request, profile)
       const provider = providerFor(registry, profile)
@@ -394,10 +378,6 @@ export function createAiGatewayRoutePreparer(
         | Readonly<{ route: 'review-analysis' }>
         | (Readonly<{ route: 'review-analysis-v3' }> &
             Pick<PreparedReviewEvidence, 'redactedSentences' | 'vocabularyHints'>)
-        | Readonly<{
-            route: 'property-trend'
-            candidates: readonly DeterministicTrendCandidate[]
-          }>
         | Readonly<{
             route: 'reply-suggestion'
             operationId: string
@@ -428,144 +408,127 @@ export function createAiGatewayRoutePreparer(
             redactedReviewText: string
             rating: 1 | 2 | 3 | 4 | 5
           }>
-      if (request.route === 'property-trend') {
-        const detachedTrendPayload = structuredClone(request.source)
-        const trendCandidates = Object.freeze(
-          detachedTrendPayload.candidates.map((candidate) =>
-            Object.freeze({ ...candidate }),
-          ),
-        )
-        providerPayload = detachedTrendPayload
-        outputSchema = trendSelectionSchema
-        responseContext = Object.freeze({
-          route: 'property-trend',
-          candidates: trendCandidates,
+
+      const evaluated = languageFor(request)
+      const text = redactedText(request)
+      if (request.route === 'review-analysis' && isReviewAnalysisV3Operation(request)) {
+        const evidence = prepareReviewEvidence(request, {
+          languageTag: evaluated.tag,
+          redactedWholeText: text,
         })
-      } else {
-        const evaluated = languageFor(request)
-        const text = redactedText(request)
-        if (request.route === 'review-analysis' && isReviewAnalysisV3Operation(request)) {
-          const evidence = prepareReviewEvidence(request, {
-            languageTag: evaluated.tag,
-            redactedWholeText: text,
-          })
-          providerPayload = evidence.providerPayload
-          outputSchema = REVIEW_ANALYSIS_V3_PROVIDER_ANSWER_SCHEMA
-          responseContext = Object.freeze({
-            route: 'review-analysis-v3',
-            redactedSentences: evidence.redactedSentences,
-            vocabularyHints: evidence.vocabularyHints,
-          })
-        } else if (request.route === 'review-analysis') {
-          providerPayload = {
-            reviewText: text,
-            rating: request.source.rating,
-            languageCode: evaluated.tag,
-          }
-          outputSchema = analysisAnswerSchema
-          responseContext = Object.freeze({ route: 'review-analysis' })
-        } else {
-          if (
-            request.binding.replyLanguageVerifierDigest !==
-              AI_REPLY_LANGUAGE_VERIFIER_PROFILE_DIGEST ||
-            request.binding.languageScriptConsistencyDigest !==
-              AI_LANGUAGE_SCRIPT_CONSISTENCY_PROFILE_DIGEST ||
-            request.binding.zhOrthographyVerifierDigest !==
-              AI_ZH_ORTHOGRAPHY_PROFILE_DIGEST
-          )
-            throw new GatewayPreparationError('policy_unavailable')
-          const resolved = resolveConcreteReplyLanguage({
-            text,
-            evaluatedLanguage: evaluated,
-            detector: dependencies.replyLanguageDetector,
-          })
-          if (resolved.status === 'language_not_supported') {
-            throw new GatewayPreparationError('language_not_supported')
-          }
-          if (resolved.status !== 'resolved') {
-            throw new GatewayPreparationError('policy_unavailable')
-          }
-          // Source language and reply target are separate governed facts. The
-          // source still passes the pinned detector + metadata consistency
-          // check above, while the target is the canonical language admitted
-          // in the operation binding by the tenant-scoped application use case.
-          const admittedTarget = request.binding.concreteReplyLanguage
-          const concrete =
-            admittedTarget === null
-              ? null
-              : parseCanonicalReplyLanguageTag(admittedTarget.tag)
-          if (
-            concrete === null ||
-            concrete.templateGroup !== admittedTarget?.templateGroup
-          )
-            throw new GatewayPreparationError('policy_unavailable')
-          if (
-            request.binding.replyTemplateCatalogueVersion !==
-              AI_REPLY_TEMPLATE_CATALOGUE_VERSION ||
-            request.binding.replyTemplateCatalogueDigest !==
-              AI_REPLY_TEMPLATE_CATALOGUE_DIGEST ||
-            request.binding.outputLeakageProfileVersion !==
-              AI_REPLY_OUTPUT_LEAKAGE_PROFILE_VERSION ||
-            request.binding.outputLeakageProfileDigest !==
-              AI_REPLY_OUTPUT_LEAKAGE_PROFILE_DIGEST
-          )
-            throw new GatewayPreparationError('policy_unavailable')
-          if (
-            profile.profileVersion !== 'reply-suggestion-v1' ||
-            profile.providerDeploymentProfileVersion !==
-              AI_PROVIDER_DEPLOYMENT_PROFILE_V2.profileVersion
-          ) {
-            throw new GatewayPreparationError('policy_unavailable')
-          }
-          const fence = request.binding.capabilityFence
-          if (
-            fence.capability !== 'reply_drafting' ||
-            request.binding.sourceRevision === null ||
-            request.binding.replyBrandProfileVersion === null ||
-            request.binding.replyBrandProfileVersion === undefined ||
-            request.binding.replyBrandDisplayNameDigest === null ||
-            request.binding.replyBrandDisplayNameDigest === undefined ||
-            digestAiReplyBrandDisplayName(request.brandProfile.displayName) !==
-              request.binding.replyBrandDisplayNameDigest
-          )
-            throw new GatewayPreparationError('policy_unavailable')
-          providerPayload = {
-            replyProfileVersion: request.replyProfileVersion,
-            reviewText: text,
-            rating: request.source.rating,
-            languageCode: concrete.tag,
-            tone: request.tone,
-          }
-          outputSchema = personalizedReplySchema
-          responseContext = Object.freeze({
-            route: 'reply-suggestion',
-            operationId: request.operationId,
-            actorId: request.actorId,
-            organizationId: request.organizationId,
-            propertyId: request.propertyId,
-            reviewId: request.internalSubjectId,
-            redactionCountry: request.redactionCountry,
-            tone: request.tone,
-            sourceEpoch: request.binding.sourceEpoch,
-            sourceRevision: request.binding.sourceRevision,
-            baseReplyStateRevision: fence.baseReplyStateRevision,
-            replyDraftingEpoch: fence.replyDraftingEpoch,
-            propertyProfileVersion: request.binding.propertyProfileVersion,
-            replyBrandProfileVersion: request.binding.replyBrandProfileVersion,
-            replyBrandDisplayNameDigest: request.binding.replyBrandDisplayNameDigest,
-            brandDisplayName: request.brandProfile.displayName,
-            replyLocalFrame: request.replyLocalFrame,
-            providerDeploymentProfileVersion: profile.providerDeploymentProfileVersion,
-            operationProfileVersion: profile.profileVersion,
-            modelSnapshot: AI_PROVIDER_DEPLOYMENT_PROFILE_V2.modelSnapshot,
-            promptVersion: OPENAI_PROMPT_VERSIONS['reply-suggestion'],
-            replyProfileVersion: AI_PERSONALIZED_REPLY_PROFILE_VERSION,
-            concreteLanguage: concrete,
-            redactedReviewText: text,
-            rating: request.source.rating,
-          })
+        providerPayload = evidence.providerPayload
+        outputSchema = REVIEW_ANALYSIS_V3_PROVIDER_ANSWER_SCHEMA
+        responseContext = Object.freeze({
+          route: 'review-analysis-v3',
+          redactedSentences: evidence.redactedSentences,
+          vocabularyHints: evidence.vocabularyHints,
+        })
+      } else if (request.route === 'review-analysis') {
+        providerPayload = {
+          reviewText: text,
+          rating: request.source.rating,
+          languageCode: evaluated.tag,
         }
+        outputSchema = analysisAnswerSchema
+        responseContext = Object.freeze({ route: 'review-analysis' })
+      } else {
+        if (
+          request.binding.replyLanguageVerifierDigest !==
+            AI_REPLY_LANGUAGE_VERIFIER_PROFILE_DIGEST ||
+          request.binding.languageScriptConsistencyDigest !==
+            AI_LANGUAGE_SCRIPT_CONSISTENCY_PROFILE_DIGEST ||
+          request.binding.zhOrthographyVerifierDigest !== AI_ZH_ORTHOGRAPHY_PROFILE_DIGEST
+        )
+          throw new GatewayPreparationError('policy_unavailable')
+        const resolved = resolveConcreteReplyLanguage({
+          text,
+          evaluatedLanguage: evaluated,
+          detector: dependencies.replyLanguageDetector,
+        })
+        if (resolved.status === 'language_not_supported') {
+          throw new GatewayPreparationError('language_not_supported')
+        }
+        if (resolved.status !== 'resolved') {
+          throw new GatewayPreparationError('policy_unavailable')
+        }
+        // Source language and reply target are separate governed facts. The
+        // source still passes the pinned detector + metadata consistency
+        // check above, while the target is the canonical language admitted
+        // in the operation binding by the tenant-scoped application use case.
+        const admittedTarget = request.binding.concreteReplyLanguage
+        const concrete =
+          admittedTarget === null
+            ? null
+            : parseCanonicalReplyLanguageTag(admittedTarget.tag)
+        if (concrete === null || concrete.templateGroup !== admittedTarget?.templateGroup)
+          throw new GatewayPreparationError('policy_unavailable')
+        if (
+          request.binding.replyTemplateCatalogueVersion !==
+            AI_REPLY_TEMPLATE_CATALOGUE_VERSION ||
+          request.binding.replyTemplateCatalogueDigest !==
+            AI_REPLY_TEMPLATE_CATALOGUE_DIGEST ||
+          request.binding.outputLeakageProfileVersion !==
+            AI_REPLY_OUTPUT_LEAKAGE_PROFILE_VERSION ||
+          request.binding.outputLeakageProfileDigest !==
+            AI_REPLY_OUTPUT_LEAKAGE_PROFILE_DIGEST
+        )
+          throw new GatewayPreparationError('policy_unavailable')
+        if (
+          profile.profileVersion !== 'reply-suggestion-v1' ||
+          profile.providerDeploymentProfileVersion !==
+            AI_PROVIDER_DEPLOYMENT_PROFILE_V2.profileVersion
+        ) {
+          throw new GatewayPreparationError('policy_unavailable')
+        }
+        const fence = request.binding.capabilityFence
+        if (
+          fence.capability !== 'reply_drafting' ||
+          request.binding.sourceRevision === null ||
+          request.binding.replyBrandProfileVersion === null ||
+          request.binding.replyBrandProfileVersion === undefined ||
+          request.binding.replyBrandDisplayNameDigest === null ||
+          request.binding.replyBrandDisplayNameDigest === undefined ||
+          digestAiReplyBrandDisplayName(request.brandProfile.displayName) !==
+            request.binding.replyBrandDisplayNameDigest
+        )
+          throw new GatewayPreparationError('policy_unavailable')
+        providerPayload = {
+          replyProfileVersion: request.replyProfileVersion,
+          reviewText: text,
+          rating: request.source.rating,
+          languageCode: concrete.tag,
+          tone: request.tone,
+        }
+        outputSchema = personalizedReplySchema
+        responseContext = Object.freeze({
+          route: 'reply-suggestion',
+          operationId: request.operationId,
+          actorId: request.actorId,
+          organizationId: request.organizationId,
+          propertyId: request.propertyId,
+          reviewId: request.internalSubjectId,
+          redactionCountry: request.redactionCountry,
+          tone: request.tone,
+          sourceEpoch: request.binding.sourceEpoch,
+          sourceRevision: request.binding.sourceRevision,
+          baseReplyStateRevision: fence.baseReplyStateRevision,
+          replyDraftingEpoch: fence.replyDraftingEpoch,
+          propertyProfileVersion: request.binding.propertyProfileVersion,
+          replyBrandProfileVersion: request.binding.replyBrandProfileVersion,
+          replyBrandDisplayNameDigest: request.binding.replyBrandDisplayNameDigest,
+          brandDisplayName: request.brandProfile.displayName,
+          replyLocalFrame: request.replyLocalFrame,
+          providerDeploymentProfileVersion: profile.providerDeploymentProfileVersion,
+          operationProfileVersion: profile.profileVersion,
+          modelSnapshot: AI_PROVIDER_DEPLOYMENT_PROFILE_V2.modelSnapshot,
+          promptVersion: OPENAI_PROMPT_VERSIONS['reply-suggestion'],
+          replyProfileVersion: AI_PERSONALIZED_REPLY_PROFILE_VERSION,
+          concreteLanguage: concrete,
+          redactedReviewText: text,
+          rating: request.source.rating,
+        })
       }
+
       const safetyIdentifier = derivePropertySafetyIdentifier(
         request.route === 'reply-suggestion'
           ? {
@@ -582,10 +545,7 @@ export function createAiGatewayRoutePreparer(
               key: dependencies.safetyIdentifierKey,
             },
       )
-      const sourceBytes =
-        request.route === 'property-trend'
-          ? Buffer.from(`\u0002${canonicalizeRfc8785(request.source)}`, 'utf8')
-          : reviewSourceBytes(request)
+      const sourceBytes = reviewSourceBytes(request)
       let invocation
       try {
         invocation = provider.prepare({
@@ -653,30 +613,7 @@ export function createAiGatewayRoutePreparer(
               }),
             })
           }
-          if (responseContext.route === 'property-trend') {
-            const result = trendSelectionSchema.safeParse(rawResult)
-            if (!result.success) return null
-            let selected
-            if (!result.data.selectedSignalIds.every(isClosedTrendSignalId)) return null
-            try {
-              selected = validateTrendSelection({
-                selectedSignalIds: result.data.selectedSignalIds,
-                candidates: responseContext.candidates,
-              })
-            } catch {
-              return null
-            }
-            return Object.freeze({
-              buildResponse: (
-                receipt: AiSettlementReceiptV1,
-              ): AiGatewayRouteResponseV1 => ({
-                route: 'property-trend',
-                status: 'success',
-                result: { selectedSignalIds: [...selected] },
-                settlementReceipt: receipt,
-              }),
-            })
-          }
+
           const result = parsePersonalizedReplyDraft({
             reviewText: responseContext.redactedReviewText,
             rating: responseContext.rating,

@@ -39,15 +39,16 @@ describe('AI runtime capability contract', () => {
     )
   })
 
-  it('owns one canonical complete runtime mapping for every Merchant capability', () => {
+  it('keeps historical capability vocabulary while serving only active capabilities', () => {
     expect(CURRENT_MERCHANT_AI_CAPABILITIES).toEqual([
       'review_analysis',
       'reply_drafting',
       'property_trends',
     ])
-    expect(AI_RUNTIME_CAPABILITIES_V1.map(({ capability }) => capability)).toEqual(
-      CURRENT_MERCHANT_AI_CAPABILITIES,
-    )
+    expect(AI_RUNTIME_CAPABILITIES_V1.map(({ capability }) => capability)).toEqual([
+      'review_analysis',
+      'reply_drafting',
+    ])
     expect(AI_RUNTIME_CAPABILITIES_V1_DIGEST).toMatch(/^[0-9a-f]{64}$/)
     for (const entry of AI_RUNTIME_CAPABILITIES_V1) {
       // Execution selection currently uses one deployment for every capability.
@@ -60,7 +61,7 @@ describe('AI runtime capability contract', () => {
     }
   })
 
-  it('serves review analysis as v3 on its v2 runtime and gateway profiles, and the other two as they were', () => {
+  it('serves review analysis as v3 on its v2 runtime and gateway profiles, and drafting on its selected runtime', () => {
     expect(
       AI_RUNTIME_CAPABILITIES_V1.map((entry) => [
         entry.capability,
@@ -80,12 +81,6 @@ describe('AI runtime capability contract', () => {
         'reply-suggestion-v2',
         'reply-drafting-runtime-v2',
         'reply-suggestion-gateway-v2',
-      ],
-      [
-        'property_trends',
-        'property-trend-v1',
-        'property-trends-runtime-v1',
-        'property-trend-gateway-v1',
       ],
     ])
   })
@@ -133,20 +128,18 @@ describe('AI runtime capability contract', () => {
   })
 
   it('resolves a requested set in canonical order with no mixed mapping', () => {
-    expect(resolveAiRuntimeCapabilitySet(['property_trends', 'review_analysis'])).toEqual(
-      {
-        review_analysis: 'review-analysis-runtime-v2',
-        property_trends: 'property-trends-runtime-v1',
-      },
-    )
+    expect(resolveAiRuntimeCapabilitySet(['reply_drafting', 'review_analysis'])).toEqual({
+      review_analysis: 'review-analysis-runtime-v2',
+      reply_drafting: 'reply-drafting-runtime-v2',
+    })
   })
 
   it('rejects missing, extra, duplicate, reordered, and cross-wired entries', () => {
     const valid = AI_RUNTIME_CAPABILITIES_V1.map((entry) => ({ ...entry }))
     const candidates: unknown[] = [
-      valid.slice(0, 2),
+      valid.slice(0, 1),
       [...valid, valid[0]],
-      [valid[1], valid[0], valid[2]],
+      [valid[1], valid[0]],
       valid.map((entry, index) =>
         index === 0 ? { ...entry, purpose: 'ai.generate_reply' } : entry,
       ),
@@ -182,16 +175,16 @@ describe('AI runtime capability contract', () => {
     }
   })
 
-  it('rejects invalid capability sets and the trends-without-analysis dependency', () => {
+  it('rejects invalid and retired capability sets', () => {
     expect(() => resolveAiRuntimeCapabilitySet([])).toThrow(/at least one/i)
     expect(() =>
       resolveAiRuntimeCapabilitySet(['review_analysis', 'review_analysis']),
     ).toThrow(/duplicate/i)
     expect(() => resolveAiRuntimeCapabilitySet(['property_trends'])).toThrow(
-      /review_analysis/,
+      /unavailable capability/,
     )
     expect(() => resolveAiRuntimeCapabilitySet(['unknown' as 'review_analysis'])).toThrow(
-      /unknown capability/i,
+      /unavailable capability/i,
     )
   })
 })

@@ -1,3 +1,5 @@
+// Recorded consent vocabulary includes retired capabilities; execution is selected
+// only by the served runtime catalogue.
 export const CURRENT_MERCHANT_AI_CAPABILITIES = Object.freeze([
   'review_analysis',
   'reply_drafting',

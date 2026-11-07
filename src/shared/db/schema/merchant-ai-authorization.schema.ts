@@ -123,6 +123,8 @@ const validExecutionContract = (
             AND ${t.noticeDigest}::text = 'e9574380fd1ba5f4b7bd7b9899bc5e6bdf371f9d9871584f33c5c1e6131290ef'::text)
           OR (${t.noticeVersion}::text = 'merchant-ai-notice-2026-11-06.v1'::text
             AND ${t.noticeDigest}::text = 'eb810fedbb445bf9361d03280cfa44f31c3a8a8563a905549c3a7bdaed1a88f3'::text)
+          OR (${t.noticeVersion}::text = 'merchant-ai-notice-2026-11-06.v2'::text
+            AND ${t.noticeDigest}::text = 'ede9faf088b4ce52da16d194639e780ab05b0349ac896f129f05fb185f53a5f7'::text)
         )
         AND ${t.sourcePolicyId}::text = 'google-business-profile-source-policy-v1'::text
         AND ${t.routingPolicyVersion} = 1::integer

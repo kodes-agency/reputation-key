@@ -3,7 +3,6 @@ import {
   MERCHANT_AI_NOTICE_CHANGES,
   MERCHANT_AI_NOTICE_DIGEST,
   MERCHANT_AI_NOTICE_VERSION,
-  type MerchantAiNoticeReference,
 } from '#/shared/merchant-ai-notice-contract'
 import { analysisNoticeStillCovers } from './ai-analysis-notice-coverage'
 
@@ -11,12 +10,6 @@ const served = {
   noticeVersion: MERCHANT_AI_NOTICE_VERSION,
   noticeDigest: MERCHANT_AI_NOTICE_DIGEST,
 }
-const changeFor = (notice: MerchantAiNoticeReference) =>
-  MERCHANT_AI_NOTICE_CHANGES.find(
-    (change) =>
-      change.noticeVersion === notice.noticeVersion &&
-      change.noticeDigest === notice.noticeDigest,
-  )
 const storedUnder = (
   notice: Readonly<{ noticeVersion: string | null; noticeDigest: string | null }>,
 ) => ({
@@ -41,10 +34,22 @@ describe('analysisNoticeStillCovers', () => {
   })
 
   it('withholds an analysis stored before a notice that changed analysis', () => {
-    const servedChange = changeFor(served)!
+    const servedChange = MERCHANT_AI_NOTICE_CHANGES.find(
+      (entry) => entry.noticeVersion === 'merchant-ai-notice-2026-11-06.v1',
+    )!
     expect(servedChange.materiallyChanges).toContain('review_analysis')
     expect(analysisNoticeStillCovers(storedUnder(servedChange.replaces!), served)).toBe(
       false,
+    )
+  })
+
+  it('covers an analysis across the retirement of Trends', () => {
+    const retirement = MERCHANT_AI_NOTICE_CHANGES.find(
+      (entry) => entry.noticeVersion === 'merchant-ai-notice-2026-11-06.v2',
+    )!
+    expect(retirement.materiallyChanges).toEqual(['property_trends'])
+    expect(analysisNoticeStillCovers(storedUnder(retirement.replaces!), served)).toBe(
+      true,
     )
   })
 

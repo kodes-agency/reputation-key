@@ -27,7 +27,7 @@ export const AI_OVERVIEW_STATUS: StatusMap<AiOverviewStatus> = {
 const CAPABILITY_LABEL: Readonly<Record<string, string>> = {
   review_analysis: 'Review analysis',
   reply_drafting: 'Reply drafts',
-  property_trends: 'Trends',
+  property_trends: 'Property trends (retired)',
 }
 
 export function aiCapabilityLabel(capability: string): string {
