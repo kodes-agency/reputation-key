@@ -200,7 +200,7 @@ function harness(
         gatewayAnswer({ sentiment: 'mixed', mentions: [SLOW_CHECK_IN], urgent: null }),
       settlementReceipt: {
         version: 'ai-settlement-receipt-v1' as const,
-        receiptKid: 'receipt_v1',
+
         grantKid: 'grant_v1',
         operationId: OPERATION_ID,
         permitId: PERMIT_ID,
@@ -218,7 +218,6 @@ function harness(
         costMicros: 42,
         settledAtEpochMillis: NOW + 1_000,
         settlementState: 'settled' as const,
-        receiptSignature: 'A'.repeat(86),
       },
     }
   })

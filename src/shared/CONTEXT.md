@@ -59,6 +59,12 @@ not belong in shared contract records.
 
 Browser/server reachability is enforced by `src/shared/architecture/browser-reachability.test.ts` and `eslint.config.js`.
 
+AI settlement uses `settle(permit, outcome)` in process. The PostgreSQL admission
+authority checks the stored attempt and permit and prices usage from the stored
+provider. Unknown dispatched usage costs the reservation; proved no-dispatch
+releases it at zero. Settlement results are unsigned. Grant verification, browser
+provenance signatures, output binding and delivery deadlines remain independent.
+
 ## Authentication and runtime
 
 `auth/middleware.ts` resolves tenant context through the staged tenant resolver.

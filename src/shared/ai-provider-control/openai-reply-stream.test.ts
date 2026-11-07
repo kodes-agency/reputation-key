@@ -12,7 +12,7 @@ import { replyV2Request } from './reply-drafting-v2.test-fixtures'
 import { createVersionedHmacKeyring } from '#/shared/security/versioned-hmac-keyring'
 import {
   signAiExecutionGrant,
-  signAiSettlementReceipt,
+  parseAiSettlementReceipt,
 } from '#/shared/ai-internal-transport-contract'
 import { settledCostMicros } from '#/shared/ai-openai-provider-profile'
 import { boundedProviderEventStream } from './bounded-event-stream'
@@ -134,34 +134,30 @@ function harness(mode: Mode) {
     },
     KEYS.privateKey,
   )
-  const settle = vi.fn(async (settlement) => ({
+  const settle = vi.fn(async (permit, outcome) => ({
     status: 'settled' as const,
-    receipt: signAiSettlementReceipt(
-      {
-        version: 'ai-settlement-receipt-v1',
-        receiptKid: 'grant-v1',
-        grantKid: 'grant-v1',
-        operationId: settlement.operationId,
-        permitId: settlement.permitId,
-        attemptNumber: 1,
-        nonce: settlement.nonce,
-        requestBindingHmac: prepared.invocation.requestBindingHmac,
-        disposition: settlement.disposition,
-        reportedDisposition: settlement.reportedDisposition,
-        providerRetryable: false,
-        usageKnown: settlement.usageKnown,
-        inputTokens: settlement.inputTokens,
-        cachedInputTokens: settlement.cachedInputTokens,
-        outputTokens: settlement.outputTokens,
-        reasoningTokens: settlement.reasoningTokens,
-        costMicros: settlement.usageKnown
-          ? Number(settledCostMicros(settlement))
-          : grant.limits.costMicros,
-        settledAtEpochMillis: NOW + 1000,
-        settlementState: 'settled',
-      },
-      KEYS.privateKey,
-    ),
+    receipt: parseAiSettlementReceipt({
+      version: 'ai-settlement-receipt-v1',
+      grantKid: 'grant-v1',
+      operationId: permit.operationId,
+      permitId: permit.permitId,
+      attemptNumber: 1,
+      nonce: permit.nonce,
+      requestBindingHmac: prepared.invocation.requestBindingHmac,
+      disposition: outcome.disposition,
+      reportedDisposition: outcome.reportedDisposition,
+      providerRetryable: false,
+      usageKnown: outcome.usageKnown,
+      inputTokens: outcome.inputTokens,
+      cachedInputTokens: outcome.cachedInputTokens,
+      outputTokens: outcome.outputTokens,
+      reasoningTokens: outcome.reasoningTokens,
+      costMicros: outcome.usageKnown
+        ? Number(settledCostMicros(outcome))
+        : grant.limits.costMicros,
+      settledAtEpochMillis: NOW + 1000,
+      settlementState: 'settled',
+    }),
   }))
   const outboundFetch = vi.fn<typeof fetch>(async (_url, init) => {
     const wire = JSON.parse(Buffer.from(init!.body as Uint8Array).toString('utf8'))
@@ -215,7 +211,7 @@ describe('reply v2 streamed provider call through settlement', () => {
     )
     expect(h.outboundFetch).toHaveBeenCalledOnce()
     expect(h.settle).toHaveBeenCalledOnce()
-    expect(h.settle.mock.calls[0]![0]).toMatchObject({
+    expect(h.settle.mock.calls[0]![1]).toMatchObject({
       usageKnown: mode !== 'missing_terminal',
       inputTokens: mode === 'missing_terminal' ? 0 : 100,
       outputTokens: mode === 'missing_terminal' ? 0 : 30,

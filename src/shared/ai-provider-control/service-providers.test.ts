@@ -10,7 +10,7 @@ import { describe, expect, it, vi } from 'vitest'
 import { z } from 'zod/v4'
 import {
   signAiExecutionGrant,
-  signAiSettlementReceipt,
+  parseAiSettlementReceipt,
   type AiAdmissionDescriptorV1,
   type AiExecutionGrantV1,
   type AiSettlementRequestV1,
@@ -193,7 +193,7 @@ function outcomeOf(
   }
 }
 
-/** The receipt an authority pricing the call with `pricing` would sign. */
+/** The receipt an authority pricing the call with `pricing` returns. */
 function receiptFor(
   request: AiSettlementRequestV1,
   grant: AiExecutionGrantV1,
@@ -205,35 +205,31 @@ function receiptFor(
       : !request.usageKnown
         ? grant.limits.costMicros
         : Number(settledCostMicrosWith(pricing, request))
-  return signAiSettlementReceipt(
-    {
-      version: 'ai-settlement-receipt-v1',
-      receiptKid: 'grant-v1',
-      grantKid: grant.grantKid,
-      operationId: request.operationId,
-      permitId: request.permitId,
-      attemptNumber: request.attemptNumber,
-      nonce: request.nonce,
-      requestBindingHmac: grant.requestBindingHmac,
-      disposition: request.disposition,
-      reportedDisposition: request.reportedDisposition,
-      providerRetryable: request.providerRetryable,
-      usageKnown: request.usageKnown,
-      inputTokens: request.inputTokens,
-      cachedInputTokens: request.cachedInputTokens,
-      outputTokens: request.outputTokens,
-      reasoningTokens: request.reasoningTokens,
-      costMicros: cost,
-      settledAtEpochMillis: NOW + 2_000,
-      settlementState:
-        request.disposition === 'no_dispatch'
-          ? 'released'
-          : request.disposition === 'transport_ambiguous'
-            ? 'ambiguous'
-            : 'settled',
-    },
-    signingKeys.privateKey,
-  )
+  return parseAiSettlementReceipt({
+    version: 'ai-settlement-receipt-v1',
+    grantKid: grant.grantKid,
+    operationId: request.operationId,
+    permitId: request.permitId,
+    attemptNumber: request.attemptNumber,
+    nonce: request.nonce,
+    requestBindingHmac: grant.requestBindingHmac,
+    disposition: request.disposition,
+    reportedDisposition: request.reportedDisposition,
+    providerRetryable: request.providerRetryable,
+    usageKnown: request.usageKnown,
+    inputTokens: request.inputTokens,
+    cachedInputTokens: request.cachedInputTokens,
+    outputTokens: request.outputTokens,
+    reasoningTokens: request.reasoningTokens,
+    costMicros: cost,
+    settledAtEpochMillis: NOW + 2_000,
+    settlementState:
+      request.disposition === 'no_dispatch'
+        ? 'released'
+        : request.disposition === 'transport_ambiguous'
+          ? 'ambiguous'
+          : 'settled',
+  })
 }
 
 function lease(request: AiGatewayRouteRequestV1) {
@@ -284,9 +280,9 @@ function run(
   const prepared = preparedExecution(request, input.preparedProvider)
   const grant = signedGrant(prepared.invocation.descriptor)
   const authorize = vi.fn(async () => ({ status: 'authorized' as const, grant }))
-  const settle = vi.fn(async (settlement: AiSettlementRequestV1) => ({
+  const settle = vi.fn<AiAdmissionClient['settle']>(async (permit, outcome) => ({
     status: 'settled' as const,
-    receipt: receiptFor(settlement, grant, input.pricing),
+    receipt: receiptFor({ ...permit, ...outcome }, grant, input.pricing),
   }))
   const service = createAiEgressGatewayService({
     admission: {
@@ -392,7 +388,7 @@ describe('a call goes to the provider that prepared it, and is priced by that pr
     expect(openAi.invoke).not.toHaveBeenCalled()
   })
 
-  it('does not accept a receipt priced by another provider’s list, however well signed', async () => {
+  it('uses the authority’s settled cost without repricing in the gateway', async () => {
     const second = fakeAdapter('anthropic', SECOND_PRICES, async () =>
       outcomeOf('success'),
     )
@@ -405,7 +401,7 @@ describe('a call goes to the provider that prepared it, and is priced by that pr
         second,
       ],
       preparedProvider: 'anthropic',
-      // The authority priced it as OpenAI: the receipt cannot bind.
+      // Settlement owns pricing; adapter catalogue differences cannot override it.
       pricing: OPENAI_PRICE_CATALOGUE_V2,
     })
 
@@ -414,7 +410,18 @@ describe('a call goes to the provider that prepared it, and is priced by that pr
       new AbortController().signal,
     )
 
-    expect(response).toMatchObject({ status: 'error', code: 'operation_ambiguous' })
+    expect(response).toMatchObject({
+      status: 'success',
+      settlementReceipt: {
+        costMicros: Number(
+          settledCostMicrosWith(OPENAI_PRICE_CATALOGUE_V2, {
+            inputTokens: usage.inputTokens,
+            cachedInputTokens: usage.cachedTokens,
+            outputTokens: usage.outputTokens,
+          }),
+        ),
+      },
+    })
   })
 
   it('refuses a provider this process holds no adapter for before it asks admission for anything', async () => {

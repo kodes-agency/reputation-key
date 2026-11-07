@@ -3,10 +3,11 @@ import { describe, expect, it, vi } from 'vitest'
 import { z } from 'zod/v4'
 import {
   signAiExecutionGrant,
-  signAiSettlementReceipt,
+  parseAiSettlementReceipt,
   type AiAdmissionDescriptorV1,
   type AiExecutionGrantV1,
   type AiSettlementRequestV1,
+  type AiSettlementReceiptV1,
 } from '#/shared/ai-internal-transport-contract'
 import {
   parseAiGatewayRouteRequest,
@@ -161,44 +162,40 @@ const successOutcome: OpenAiConnectorOutcome<unknown> = {
   outboundFetchUsed: true,
 }
 
-function signedSuccessReceipt(request: AiSettlementRequestV1, grant: AiExecutionGrantV1) {
-  return signAiSettlementReceipt(
-    {
-      version: 'ai-settlement-receipt-v1',
-      receiptKid: 'grant-v1',
-      grantKid: grant.grantKid,
-      operationId: request.operationId,
-      permitId: request.permitId,
-      attemptNumber: request.attemptNumber,
-      nonce: request.nonce,
-      requestBindingHmac: grant.requestBindingHmac,
-      disposition: request.disposition,
-      reportedDisposition: request.reportedDisposition,
-      providerRetryable: request.providerRetryable,
-      usageKnown: request.usageKnown,
-      inputTokens: request.inputTokens,
-      cachedInputTokens: request.cachedInputTokens,
-      outputTokens: request.outputTokens,
-      reasoningTokens: request.reasoningTokens,
-      // Derived from the catalogue, not frozen: this fixture's fake authority
-      // is the only thing standing in for real settlement pricing, and a frozen
-      // number here is why a repricing shipped green.
-      costMicros:
-        request.disposition === 'no_dispatch'
-          ? 0
-          : request.usageKnown
-            ? Number(settledCostMicros(request))
-            : grant.limits.costMicros,
-      settledAtEpochMillis: NOW + 2_000,
-      settlementState:
-        request.disposition === 'no_dispatch'
-          ? 'released'
-          : request.disposition === 'transport_ambiguous'
-            ? 'ambiguous'
-            : 'settled',
-    },
-    signingKeys.privateKey,
-  )
+function settledReceipt(request: AiSettlementRequestV1, grant: AiExecutionGrantV1) {
+  return parseAiSettlementReceipt({
+    version: 'ai-settlement-receipt-v1',
+    grantKid: grant.grantKid,
+    operationId: request.operationId,
+    permitId: request.permitId,
+    attemptNumber: request.attemptNumber,
+    nonce: request.nonce,
+    requestBindingHmac: grant.requestBindingHmac,
+    disposition: request.disposition,
+    reportedDisposition: request.reportedDisposition,
+    providerRetryable: request.providerRetryable,
+    usageKnown: request.usageKnown,
+    inputTokens: request.inputTokens,
+    cachedInputTokens: request.cachedInputTokens,
+    outputTokens: request.outputTokens,
+    reasoningTokens: request.reasoningTokens,
+    // Derived from the catalogue, not frozen: this fixture's fake authority
+    // is the only thing standing in for real settlement pricing, and a frozen
+    // number here is why a repricing shipped green.
+    costMicros:
+      request.disposition === 'no_dispatch'
+        ? 0
+        : request.usageKnown
+          ? Number(settledCostMicros(request))
+          : grant.limits.costMicros,
+    settledAtEpochMillis: NOW + 2_000,
+    settlementState:
+      request.disposition === 'no_dispatch'
+        ? 'released'
+        : request.disposition === 'transport_ambiguous'
+          ? 'ambiguous'
+          : 'settled',
+  })
 }
 
 function sourceLease(request: AiGatewayRouteRequestV1) {
@@ -223,9 +220,9 @@ function harness(
   const authorize = vi.fn(async () => ({ status: 'authorized' as const, grant }))
   const settle = vi.fn(
     input.settle ??
-      (async (settlementRequest) => ({
+      (async (permit, outcome) => ({
         status: 'settled' as const,
-        receipt: signedSuccessReceipt(settlementRequest, grant),
+        receipt: settledReceipt({ ...permit, ...outcome }, grant),
       })),
   )
   const connector = {
@@ -259,7 +256,21 @@ function harness(
 }
 
 describe('AI gateway execution orchestration', () => {
-  it('disposes source before authorization and releases output only after a signed settlement', async () => {
+  it('passes the admitted permit and provider outcome separately to settlement', async () => {
+    const value = harness()
+    await value.service.execute(sourceLease(value.request), new AbortController().signal)
+    expect(value.settle).toHaveBeenCalledWith(
+      value.grant,
+      expect.objectContaining({
+        disposition: 'success',
+        inputTokens: 1,
+        outputTokens: 1,
+      }),
+      expect.any(AbortSignal),
+    )
+  })
+
+  it('disposes source before authorization and releases output only after authority settlement', async () => {
     const value = harness()
     value.authorize.mockImplementation(async () => {
       expect(value.request.source).toEqual({
@@ -345,6 +356,59 @@ describe('AI gateway execution orchestration', () => {
     expect(value.settle).toHaveBeenCalledTimes(1)
   })
 
+  it.each([
+    ['another operation', { operationId: '10000000-0000-4000-8000-000000000009' }],
+    ['another permit', { permitId: '10000000-0000-4000-8000-000000000009' }],
+    ['another attempt', { attemptNumber: 2 }],
+    ['another nonce', { nonce: 'AQIDBA' }],
+    ['another binding', { requestBindingHmac: 'A'.repeat(43) }],
+    ['different usage', { inputTokens: 2 }],
+    ['invalid cost', { costMicros: -1 }],
+    ['invalid state', { settlementState: 'released' }],
+  ] satisfies readonly (readonly [string, Partial<AiSettlementReceiptV1>])[])(
+    'withholds output when settlement returns %s',
+    async (_name, mutation) => {
+      const value = harness()
+      value.settle.mockImplementation(async (permit, outcome) => ({
+        status: 'settled',
+        receipt: {
+          ...settledReceipt({ ...permit, ...outcome }, value.grant),
+          ...mutation,
+        },
+      }))
+      const response = await value.service.execute(
+        sourceLease(value.request),
+        new AbortController().signal,
+      )
+      expect(response).toMatchObject({ status: 'error', code: 'operation_ambiguous' })
+      expect(JSON.stringify(response)).not.toContain('sentiment')
+      expect(value.invoke).toHaveBeenCalledOnce()
+      expect(value.settle).toHaveBeenCalledOnce()
+    },
+  )
+
+  it('withholds delivery when the authority settles after the permit deadline', async () => {
+    const value = harness()
+    value.settle.mockImplementation(async (permit, outcome) => ({
+      status: 'settled',
+      receipt: {
+        ...settledReceipt({ ...permit, ...outcome }, value.grant),
+        settledAtEpochMillis: value.grant.expiresAtEpochMillis,
+      },
+    }))
+    const response = await value.service.execute(
+      sourceLease(value.request),
+      new AbortController().signal,
+    )
+    expect(response).toMatchObject({
+      status: 'error',
+      code: 'completed_without_delivery',
+    })
+    expect(JSON.stringify(response)).not.toContain('sentiment')
+    expect(value.invoke).toHaveBeenCalledOnce()
+    expect(value.settle).toHaveBeenCalledOnce()
+  })
+
   // Complete status refusals have known zero usage and retain their retry codes.
   it.each([
     ['rate_limited', true, 20, 'provider_rate_limited'],
@@ -378,6 +442,7 @@ describe('AI gateway execution orchestration', () => {
 
       expect(response).toMatchObject({ status: 'error', code })
       expect(value.settle).toHaveBeenCalledWith(
+        value.grant,
         expect.objectContaining({ disposition, usageKnown: true }),
         expect.anything(),
       )
@@ -422,6 +487,7 @@ describe('AI gateway execution orchestration', () => {
       expect(response).toMatchObject({ status: 'error', code: 'operation_ambiguous' })
       expect(value.settle).toHaveBeenCalledTimes(1)
       expect(value.settle).toHaveBeenCalledWith(
+        value.grant,
         expect.objectContaining({ disposition, usageKnown: false }),
         expect.anything(),
       )

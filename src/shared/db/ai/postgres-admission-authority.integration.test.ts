@@ -30,6 +30,7 @@ const NOW = new Date(Date.now() - 60_000)
 const ORGANIZATION_ID = organizationId('ai-admission-test-org')
 const PROPERTY_ID = propertyId('76000000-0000-4000-8000-000000000001')
 const SIGNING_KID = 'grant-v1'
+
 const SOURCE_DIGEST = 'd'.repeat(64)
 const SOURCE_BYTES = 40
 const BINDING = { keyId: 'binding-v1', hmac: 'A'.repeat(43) } as const
@@ -175,6 +176,26 @@ describe.sequential('AI admission authority (real PostgreSQL)', () => {
     now: () => NOW,
   })
 
+  async function settle(request: AiSettlementRequestV1, grantKid: string) {
+    const { operationId, permitId, attemptNumber, nonce, ...outcome } = request
+    return authority.settle(
+      { operationId, permitId, attemptNumber, nonce, grantKid },
+      outcome,
+    )
+  }
+
+  const costWindow = async () => {
+    const [row] = await db
+      .select({
+        reservedMicros: aiOrganizationCostWindows.reservedMicros,
+        settledMicros: aiOrganizationCostWindows.settledMicros,
+      })
+      .from(aiOrganizationCostWindows)
+      .where(eq(aiOrganizationCostWindows.organizationId, ORGANIZATION_ID))
+    if (!row) throw new Error('cost window missing')
+    return row
+  }
+
   beforeAll(async () => {
     fixture = await installAiOperationFixture({
       db,
@@ -314,7 +335,7 @@ describe.sequential('AI admission authority (real PostgreSQL)', () => {
     const usage = { inputTokens: 1_000, cachedInputTokens: 200, outputTokens: 300 }
     const cost = Number(settledCostMicros(usage))
 
-    const settled = await authority.settle(
+    const settled = await settle(
       settlement({ ...subject, nonce: granted.nonce }, usage),
       SIGNING_KID,
     )
@@ -326,29 +347,95 @@ describe.sequential('AI admission authority (real PostgreSQL)', () => {
       requestBindingHmac: BINDING.hmac,
     })
     await expect(
-      authority.settle(
-        settlement({ ...subject, nonce: granted.nonce }, usage),
-        SIGNING_KID,
-      ),
+      settle(settlement({ ...subject, nonce: granted.nonce }, usage), SIGNING_KID),
     ).resolves.toMatchObject({ status: 'settled', costMicros: cost })
     await expect(
-      authority.settle(
+      settle(
         settlement({ ...subject, nonce: granted.nonce }, { ...usage, outputTokens: 301 }),
         SIGNING_KID,
       ),
     ).resolves.toEqual({ status: 'denied', code: 'settlement_conflict' })
     await expect(
-      authority.settle(
+      settle(
         settlement({ ...subject, nonce: 'someone-elses-nonce' }, usage),
         SIGNING_KID,
       ),
     ).resolves.toEqual({ status: 'denied', code: 'permit_mismatch' })
     await expect(
-      authority.settle(
-        settlement({ ...subject, nonce: granted.nonce }, usage),
-        'grant-v2',
+      settle(settlement({ ...subject, nonce: granted.nonce }, usage), 'grant-v2'),
+    ).resolves.toEqual({ status: 'denied', code: 'permit_mismatch' })
+  })
+
+  it('refuses a malformed operation ID without changing the budget', async () => {
+    const subject = await executingOperation()
+    const granted = await authority.authorizeProperty(descriptor(subject), BINDING)
+    if (granted.status !== 'admitted') throw new Error(`not admitted: ${granted.code}`)
+    const before = await costWindow()
+    await expect(
+      settle(
+        settlement(
+          { ...subject, operationId: 'not-a-uuid', nonce: granted.nonce },
+          { inputTokens: 1_000, cachedInputTokens: 200, outputTokens: 300 },
+        ),
+        SIGNING_KID,
       ),
-    ).rejects.toThrow(/key ID/)
+    ).resolves.toEqual({ status: 'denied', code: 'settlement_conflict' })
+    await expect(costWindow()).resolves.toEqual(before)
+  })
+
+  it.each(['someone-elses-nonce', 'YW5vdGhlci1ub25jZQ'])(
+    'refuses a different nonce before and after settlement without changing the budget: %s',
+    async (nonce) => {
+      const subject = await executingOperation()
+      const granted = await authority.authorizeProperty(descriptor(subject), BINDING)
+      if (granted.status !== 'admitted') throw new Error(`not admitted: ${granted.code}`)
+      const usage = { inputTokens: 1_000, cachedInputTokens: 200, outputTokens: 300 }
+      const mismatched = settlement({ ...subject, nonce }, usage)
+
+      const reserved = await costWindow()
+      await expect(settle(mismatched, SIGNING_KID)).resolves.toEqual({
+        status: 'denied',
+        code: 'permit_mismatch',
+      })
+      await expect(costWindow()).resolves.toEqual(reserved)
+
+      await expect(
+        settle(settlement({ ...subject, nonce: granted.nonce }, usage), SIGNING_KID),
+      ).resolves.toMatchObject({
+        status: 'settled',
+        costMicros: Number(settledCostMicros(usage)),
+      })
+      const settled = await costWindow()
+      await expect(settle(mismatched, SIGNING_KID)).resolves.toEqual({
+        status: 'denied',
+        code: 'permit_mismatch',
+      })
+      await expect(costWindow()).resolves.toEqual(settled)
+    },
+  )
+
+  it.each([
+    { inputTokens: -1, cachedInputTokens: 0, outputTokens: 1 },
+    { inputTokens: 1, cachedInputTokens: 2, outputTokens: 1 },
+    { inputTokens: 1.5, cachedInputTokens: 0, outputTokens: 1 },
+  ])('refuses invalid usage without settling the budget: %j', async (usage) => {
+    const subject = await executingOperation()
+    const granted = await authority.authorizeProperty(descriptor(subject), BINDING)
+    if (granted.status !== 'admitted') throw new Error(`not admitted: ${granted.code}`)
+    const before = await costWindow()
+    await expect(
+      settle(settlement({ ...subject, nonce: granted.nonce }, usage), SIGNING_KID),
+    ).resolves.toEqual({ status: 'denied', code: 'settlement_conflict' })
+    await expect(costWindow()).resolves.toEqual(before)
+    await expect(
+      db
+        .select({
+          budgetSettledAt: aiOperations.budgetSettledAt,
+          actualMicros: aiOperations.actualMicros,
+        })
+        .from(aiOperations)
+        .where(eq(aiOperations.id, subject.operationId)),
+    ).resolves.toEqual([{ budgetSettledAt: null, actualMicros: null }])
   })
 
   /** What `claimExecution` does between attempts: a new attempt, a new permit. */
@@ -387,18 +474,18 @@ describe.sequential('AI admission authority (real PostgreSQL)', () => {
         reportedDisposition,
       }
 
-      await expect(authority.settle(unknown, SIGNING_KID)).resolves.toMatchObject({
+      await expect(settle(unknown, SIGNING_KID)).resolves.toMatchObject({
         status: 'settled',
         usageKnown: false,
         costMicros: reservedMicros,
         settlementState,
       })
-      await expect(authority.settle(unknown, SIGNING_KID)).resolves.toMatchObject({
+      await expect(settle(unknown, SIGNING_KID)).resolves.toMatchObject({
         status: 'settled',
         costMicros: reservedMicros,
       })
       await expect(
-        authority.settle(
+        settle(
           settlement(
             { ...subject, nonce: granted.nonce },
             { inputTokens: 1, cachedInputTokens: 0, outputTokens: 1 },
@@ -434,7 +521,7 @@ describe.sequential('AI admission authority (real PostgreSQL)', () => {
         .where(eq(aiOperations.id, subject.operationId)),
     ).resolves.toEqual([{ actualMicros: reservedMicros }])
     await expect(
-      authority.settle(noDispatch({ ...subject, nonce: granted.nonce }), SIGNING_KID),
+      settle(noDispatch({ ...subject, nonce: granted.nonce }), SIGNING_KID),
     ).resolves.toEqual({ status: 'denied', code: 'settlement_conflict' })
   })
 
@@ -443,21 +530,10 @@ describe.sequential('AI admission authority (real PostgreSQL)', () => {
     const granted = await authority.authorizeProperty(descriptor(subject), BINDING)
     if (granted.status !== 'admitted') throw new Error(`not admitted: ${granted.code}`)
     const reservedMicros = await reservedCost(subject.operationId)
-    const costWindow = async () => {
-      const [row] = await db
-        .select({
-          reservedMicros: aiOrganizationCostWindows.reservedMicros,
-          settledMicros: aiOrganizationCostWindows.settledMicros,
-        })
-        .from(aiOrganizationCostWindows)
-        .where(eq(aiOrganizationCostWindows.organizationId, ORGANIZATION_ID))
-      if (!row) throw new Error('cost window missing')
-      return row
-    }
     const before = await costWindow()
     const results = await Promise.all(
       [100, 300].map((outputTokens) =>
-        authority.settle(
+        settle(
           settlement(
             { ...subject, nonce: granted.nonce },
             { inputTokens: 1_000, cachedInputTokens: 0, outputTokens },
@@ -490,7 +566,7 @@ describe.sequential('AI admission authority (real PostgreSQL)', () => {
     const granted = await authority.authorizeProperty(descriptor(first), BINDING)
     if (granted.status !== 'admitted') throw new Error(`not admitted: ${granted.code}`)
     await expect(
-      authority.settle(noDispatch({ ...first, nonce: granted.nonce }), SIGNING_KID),
+      settle(noDispatch({ ...first, nonce: granted.nonce }), SIGNING_KID),
     ).resolves.toMatchObject({
       status: 'settled',
       costMicros: 0,
@@ -524,10 +600,7 @@ describe.sequential('AI admission authority (real PostgreSQL)', () => {
     // The fresh admission is settled from its own usage, once.
     const usage = { inputTokens: 1_000, cachedInputTokens: 0, outputTokens: 100 }
     await expect(
-      authority.settle(
-        settlement({ ...second, nonce: regranted.nonce }, usage),
-        SIGNING_KID,
-      ),
+      settle(settlement({ ...second, nonce: regranted.nonce }, usage), SIGNING_KID),
     ).resolves.toMatchObject({
       status: 'settled',
       costMicros: Number(settledCostMicros(usage)),
@@ -535,7 +608,7 @@ describe.sequential('AI admission authority (real PostgreSQL)', () => {
     })
     // The released first attempt can no longer settle against the operation.
     await expect(
-      authority.settle(noDispatch({ ...first, nonce: granted.nonce }), SIGNING_KID),
+      settle(noDispatch({ ...first, nonce: granted.nonce }), SIGNING_KID),
     ).resolves.toEqual({ status: 'denied', code: 'permit_mismatch' })
   })
 
@@ -554,7 +627,7 @@ describe.sequential('AI admission authority (real PostgreSQL)', () => {
       const granted = await authority.authorizeProperty(descriptor(first), BINDING)
       if (granted.status !== 'admitted') throw new Error(`not admitted: ${granted.code}`)
       await expect(
-        authority.settle(
+        settle(
           {
             ...settlement(
               { ...first, nonce: granted.nonce },
@@ -590,10 +663,7 @@ describe.sequential('AI admission authority (real PostgreSQL)', () => {
     const granted = await authority.authorizeProperty(descriptor(first), BINDING)
     if (granted.status !== 'admitted') throw new Error(`not admitted: ${granted.code}`)
     const usage = { inputTokens: 1_000, cachedInputTokens: 0, outputTokens: 100 }
-    await authority.settle(
-      settlement({ ...first, nonce: granted.nonce }, usage),
-      SIGNING_KID,
-    )
+    await settle(settlement({ ...first, nonce: granted.nonce }, usage), SIGNING_KID)
 
     const second = await claimNextAttempt(first.operationId, 2)
     await expect(
