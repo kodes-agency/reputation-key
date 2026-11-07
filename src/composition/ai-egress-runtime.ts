@@ -1,41 +1,5 @@
-// Composition — the AI egress runtime, in this process.
-//
-// WP2.3. AI provider calls used to leave this process twice before they reached
-// OpenAI: once over mTLS to an `ai-execution-admission` sidecar that decided
-// whether the call was permitted and signed a grant, and once over mTLS to an
-// `ai-egress-gateway` sidecar that made the call and settled the permit. Both
-// sidecars were the factories this module now constructs —
-// `createAiExecutionAdmissionService` and `createAiEgressGatewayService` —
-// wrapped in a bootstrap, an environment scrubber, a runtime-secret consumer,
-// an mTLS server, a health server and a staged shutdown.
-//
-// WHY COLLAPSE THEM. Identical reasoning to WP2.1's Google collapse, which this
-// mirrors deliberately: the split bought process isolation between the code
-// that decides and the code that calls, and paid for it with two container
-// images, two Dockerfiles, two tsup configs, three Compose services, a private
-// CA with five mTLS variables, two SPIFFE identities, a separate Postgres role
-// on a separate connection with its own TLS module, and an Ed25519 grant
-// handshake whose job was to let two processes agree on a decision they had both
-// already computed. For one organization and six properties that is not a
-// security boundary anyone can operate.
-//
-// WHERE THE KEY LIVES NOW, and why that is not a regression. `OPENAI_API_KEY` is
-// in this process, web included. Settled by the owner on 2026-09-06 against the
-// evidence: this process already holds `ENCRYPTION_KEY`, which decrypts every
-// merchant's stored Google OAuth access and refresh tokens, and
-// `GOOGLE_CLIENT_SECRET` (`server/plugins/production-secret-guard.ts:21`,
-// `shared/config/production-secrets.ts`). A compromise here already yields
-// strictly more than an OpenAI key. The genuine asymmetry is that the key is a
-// SPEND authority, and the control that bounds spend — `route-preparer.ts`, with
-// its per-route cost ceiling, request binding, safety identifier and provenance
-// signing — survives this collapse untouched and is still the only path to the
-// provider.
-//
-// Admission now runs in process against live kill-switch and monthly budget rows.
-// At-most-once per grant still holds across web and worker through the operation
-// idempotency key. The settlement receipt remains signed and verified — it
-// removing it touches both service bodies and their orchestration tests, so it
-// is a separate step rather than a passenger on this one.
+// The gateway and admission authority run in process. PostgreSQL owns permits
+// and budget settlement; the gateway releases output only after settlement.
 
 import type { KeyObject } from 'node:crypto'
 import type { Pool } from 'pg'
@@ -100,8 +64,8 @@ function inProcessAdmissionClient(
         ? Object.freeze({ status: 'authorized' as const, grant: result.grant })
         : Object.freeze({ status: 'denied' as const, code: result.code })
     },
-    settle: async (request) => {
-      const result = await service.settle(request)
+    settle: async (permit, outcome) => {
+      const result = await service.settle(permit, outcome)
       return result.ok
         ? Object.freeze({ status: 'settled' as const, receipt: result.receipt })
         : Object.freeze({ status: 'denied' as const, code: result.code })
@@ -233,10 +197,6 @@ export function createAiEgressRuntime(
       keyInventory,
     )
 
-    // The admission authority is the same Postgres state machine the sidecar
-    // called; it just runs on this process's pool. `signingKid` is passed to the
-    // SQL because the receipt is signed inside the transaction that records the
-    // settlement, which is what made the receipt trustworthy across the wire.
     const admission = inProcessAdmissionClient(
       createAiExecutionAdmissionService({
         requestBindingKeys,

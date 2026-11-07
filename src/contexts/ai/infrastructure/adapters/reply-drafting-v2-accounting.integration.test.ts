@@ -36,6 +36,14 @@ const authority = createPostgresAiAdmissionAuthority({
   signingKid: 'grant-v1',
   now: () => NOW,
 })
+async function settle(request: AiSettlementRequestV1, grantKid: string) {
+  const { operationId, permitId, attemptNumber, nonce, ...outcome } = request
+  return authority.settle(
+    { operationId, permitId, attemptNumber, nonce, grantKid },
+    outcome,
+  )
+}
+
 let fixture: AiOperationFixture
 let root: Parameters<AiOperationStorePort['claim']>[0]
 
@@ -167,8 +175,8 @@ async function charge(operationId: string, binding: AiExecutionBinding) {
     reasoningTokens: 0,
     retryAfterSeconds: null,
   }
-  const first = await authority.settle(settlement, 'grant-v1')
-  const replay = await authority.settle(settlement, 'grant-v1')
+  const first = await settle(settlement, 'grant-v1')
+  const replay = await settle(settlement, 'grant-v1')
   expect(replay).toEqual(first)
   await operations.recordFailure({
     operationId: operationId as never,

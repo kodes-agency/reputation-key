@@ -1,7 +1,7 @@
 import * as leakage from '#/shared/ai-reply-output-leakage'
 import { createAiEgressGatewayService } from './service'
 import { createSensitiveSourceLease } from './source-lease'
-import { signAiSettlementReceipt } from '#/shared/ai-internal-transport-contract'
+import { parseAiSettlementReceipt } from '#/shared/ai-internal-transport-contract'
 import { settledCostMicros } from '#/shared/ai-openai-provider-profile'
 import type { AiAdmissionClient } from './contracts'
 import { createHash, generateKeyPairSync } from 'node:crypto'
@@ -280,32 +280,28 @@ describe('reply v2 provider preparation and acceptance', () => {
     const request = replyV2Request()
     const prepared = preparer().prepare(request)
     const rejected = 'We are sorry. Call us about the cockroaches, please.'
-    const charge = vi.fn<AiAdmissionClient['settle']>(async (settlement) => ({
+    const charge = vi.fn<AiAdmissionClient['settle']>(async (permit, outcome) => ({
       status: 'settled',
-      receipt: signAiSettlementReceipt(
-        {
-          version: 'ai-settlement-receipt-v1',
-          receiptKid: 'grant-v1',
-          grantKid: 'grant-v1',
-          operationId: settlement.operationId,
-          permitId: settlement.permitId,
-          attemptNumber: settlement.attemptNumber,
-          nonce: settlement.nonce,
-          requestBindingHmac: prepared.invocation.requestBindingHmac,
-          disposition: settlement.disposition,
-          reportedDisposition: settlement.reportedDisposition,
-          providerRetryable: settlement.providerRetryable,
-          usageKnown: settlement.usageKnown,
-          inputTokens: settlement.inputTokens,
-          cachedInputTokens: settlement.cachedInputTokens,
-          outputTokens: settlement.outputTokens,
-          reasoningTokens: settlement.reasoningTokens,
-          costMicros: Number(settledCostMicros(settlement)),
-          settledAtEpochMillis: NOW + 1_000,
-          settlementState: 'settled',
-        },
-        KEYS.privateKey,
-      ),
+      receipt: parseAiSettlementReceipt({
+        version: 'ai-settlement-receipt-v1',
+        grantKid: 'grant-v1',
+        operationId: permit.operationId,
+        permitId: permit.permitId,
+        attemptNumber: permit.attemptNumber,
+        nonce: permit.nonce,
+        requestBindingHmac: prepared.invocation.requestBindingHmac,
+        disposition: outcome.disposition,
+        reportedDisposition: outcome.reportedDisposition,
+        providerRetryable: outcome.providerRetryable,
+        usageKnown: outcome.usageKnown,
+        inputTokens: outcome.inputTokens,
+        cachedInputTokens: outcome.cachedInputTokens,
+        outputTokens: outcome.outputTokens,
+        reasoningTokens: outcome.reasoningTokens,
+        costMicros: Number(settledCostMicros(outcome)),
+        settledAtEpochMillis: NOW + 1_000,
+        settlementState: 'settled',
+      }),
     }))
     const service = createAiEgressGatewayService({
       now: () => NOW,
@@ -369,7 +365,7 @@ describe('reply v2 provider preparation and acceptance', () => {
         rewriteIssues: expect.arrayContaining(['invitation', 'avoidance']),
       })
       expect(charge).toHaveBeenCalledTimes(1)
-      expect(charge.mock.calls[0]![0]).toMatchObject({
+      expect(charge.mock.calls[0]![1]).toMatchObject({
         disposition: 'output_invalid',
         usageKnown: true,
         inputTokens: 100,

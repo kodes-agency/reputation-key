@@ -4,9 +4,9 @@ import { createVersionedHmacKeyring } from './security/versioned-hmac-keyring'
 import {
   signAiRequestBinding,
   verifyAiExecutionGrant,
-  verifyAiSettlementReceipt,
   type AiAdmissionDescriptorV1,
-  type AiSettlementRequestV1,
+  type AiSettlementOutcome,
+  type AiSettlementPermit,
 } from './ai-internal-transport-contract'
 import {
   createAiExecutionAdmissionService,
@@ -112,11 +112,14 @@ function authority(): AiAdmissionDatabaseAuthority {
       replyTokenExpiresAtEpochMillis: null,
       replyDraftExpiresAtEpochMillis: null,
     })),
-    settle: vi.fn(async (input: AiSettlementRequestV1) => ({
+    settle: vi.fn(async (permit: AiSettlementPermit, input: AiSettlementOutcome) => ({
       status: 'settled' as const,
+      version: 'ai-settlement-receipt-v1' as const,
+      ...permit,
       grantKid: 'grant-v1',
       requestBindingHmac: 'A'.repeat(43),
       disposition: input.disposition,
+      reportedDisposition: input.reportedDisposition,
       providerRetryable: input.providerRetryable,
       usageKnown: input.usageKnown,
       inputTokens: input.inputTokens,
@@ -190,7 +193,7 @@ describe('AI execution admission service', () => {
     ).resolves.toEqual({ ok: false, code: 'quota_exhausted' })
   })
 
-  it('signs the database-clock settlement and exact echoed usage', async () => {
+  it('returns the database-clock settlement and exact echoed usage', async () => {
     const database = authority()
     const service = createAiExecutionAdmissionService({
       requestBindingKeys: requestKeys,
@@ -198,28 +201,37 @@ describe('AI execution admission service', () => {
       signingPrivateKey: privateKey,
       database,
     })
-    const result = await service.settle({
-      operationId: UUIDS.operation,
-      permitId: UUIDS.permit,
-      attemptNumber: 1,
-      nonce: 'AQIDBA',
-      disposition: 'success',
-      reportedDisposition: 'success',
-      providerRetryable: false,
-      usageKnown: true,
+    const result = await service.settle(
+      {
+        operationId: UUIDS.operation,
+        permitId: UUIDS.permit,
+        attemptNumber: 1,
+        nonce: 'AQIDBA',
+        grantKid: 'grant-v1',
+      },
+      {
+        disposition: 'success',
+        reportedDisposition: 'success',
+        providerRetryable: false,
+        usageKnown: true,
+        inputTokens: 100,
+        cachedInputTokens: 25,
+        outputTokens: 20,
+        reasoningTokens: 5,
+        retryAfterSeconds: null,
+      },
+    )
+    expect(result.ok).toBe(true)
+    if (!result.ok) throw new Error('expected settled result')
+    expect(result.receipt.grantKid).toBe('grant-v1')
+    expect(result.receipt.costMicros).toBe(50_000)
+    expect(result.receipt).toMatchObject({
       inputTokens: 100,
       cachedInputTokens: 25,
       outputTokens: 20,
       reasoningTokens: 5,
-      retryAfterSeconds: null,
+      settledAtEpochMillis: 1_780_000_001_000,
     })
-    expect(result.ok).toBe(true)
-    if (!result.ok) throw new Error('expected settled result')
-    expect(result.receipt.receiptKid).toBe('grant-v1')
-    expect(result.receipt.costMicros).toBe(50_000)
-    expect(
-      verifyAiSettlementReceipt(result.receipt, new Map([['grant-v1', publicKey]])),
-    ).toBe(true)
   })
 
   it('does not translate database loss into an admission', async () => {

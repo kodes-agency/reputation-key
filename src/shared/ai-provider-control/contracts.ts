@@ -3,7 +3,8 @@ import type {
   AiAdmissionRequestV1,
   AiExecutionGrantV1,
   AiSettlementReceiptV1,
-  AiSettlementRequestV1,
+  AiSettlementPermit,
+  AiSettlementOutcome,
 } from '#/shared/ai-internal-transport-contract'
 import type {
   AiGatewayRouteRequestV1,
@@ -56,7 +57,8 @@ export type AiAdmissionClient = Readonly<{
     | Readonly<{ status: 'denied'; code: string }>
   >
   settle(
-    request: AiSettlementRequestV1,
+    permit: AiSettlementPermit,
+    outcome: AiSettlementOutcome,
     signal: AbortSignal,
   ): Promise<
     | Readonly<{ status: 'settled'; receipt: AiSettlementReceiptV1 }>
