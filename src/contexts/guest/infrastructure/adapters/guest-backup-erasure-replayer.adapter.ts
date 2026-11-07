@@ -1,14 +1,4 @@
-// LIF-01-T15 — Guest's contribution to the restore resurrection fence.
-//
-// When a cell is restored from a backup taken before an Organization purge,
-// every Guest row that purge destroyed is back: private feedback bodies,
-// ratings, permitted contact ciphertext, session pseudonyms. This replayer
-// re-applies exactly the erasure the ledger says happened.
-//
-// It deliberately reuses `drizzleGuestLifecycleWorkbench` rather than writing a
-// second delete plan. Two plans would drift, and the plan that drifted would be
-// the one that only runs after a disaster — the least exercised code in the
-// product deciding what stays behind.
+// Reuse Guest's purge plan so restore replay cannot drift from tenant erasure.
 
 import type {
   BackupErasureLedgerEntry,
@@ -32,6 +22,13 @@ export const createGuestBackupErasureReplayer = (
   context: 'guest',
   subjectClass: 'organization',
   reErase: async (tx: Tx, entry: BackupErasureLedgerEntry): Promise<number> => {
+    if (
+      entry.context !== 'guest' ||
+      entry.subjectClass !== 'organization' ||
+      entry.journalTargets
+    ) {
+      throw new Error('Guest replayer requires an Organization-scoped Guest erasure')
+    }
     const resurrected = await workbench.countTenantRows(tx, entry.organizationId)
     if (resurrected === 0) return 0
     await workbench.scrubTenantRows(tx, entry.organizationId)
