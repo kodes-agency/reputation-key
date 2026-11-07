@@ -52,6 +52,41 @@ describe('disposeResources', () => {
     expect(onError).toHaveBeenCalledWith(failure, 'first')
   })
 
+  it('still waits for peers and releases later stages when error reporting throws', async () => {
+    const order: string[] = []
+    const peer = Promise.withResolvers<void>()
+    const failure = new Error('close failed')
+    const onError = vi.fn(() => {
+      throw new Error('logger failed')
+    })
+    const disposal = disposeResources(
+      [
+        [
+          hook('failed', order, () => Promise.reject(failure)),
+          hook('peer', order, () => peer.promise),
+        ],
+        [hook('later', order)],
+      ],
+      { onError },
+    )
+    const settled = vi.fn()
+    const observed = disposal.then(settled, settled)
+
+    await new Promise((resolve) => setImmediate(resolve))
+    expect(settled).not.toHaveBeenCalled()
+    expect(order).toEqual(['failed', 'peer'])
+    peer.resolve()
+
+    await expect(disposal).resolves.toEqual({
+      timedOut: false,
+      stuck: [],
+      failed: ['failed'],
+    })
+    await observed
+    expect(order).toEqual(['failed', 'peer', 'later'])
+    expect(onError).toHaveBeenCalledWith(failure, 'failed')
+  })
+
   it('stops starting stages once the deadline expires and names what was left', async () => {
     const order: string[] = []
 
