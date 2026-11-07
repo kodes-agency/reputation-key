@@ -14,6 +14,8 @@ export const COMMANDS: Readonly<
   'db-roles': ['scripts/ops/db-roles.ts'],
   'deploy-ci-images': ['scripts/ops/deploy-ci-images.ts'],
   'disconnect-connection': ['scripts/ops/disconnect-connection.ts'],
+  'erasure-journal-export': ['scripts/ops/erasure-journal-export.ts'],
+  'erasure-journal-expiry': ['scripts/ops/erasure-journal-export.ts', 'expiry'],
   'feedback-issue': ['scripts/ops/feedback-issue.ts'],
   'feedback-layout': ['scripts/ops/feedback-layout.ts'],
   'feedback-sync': ['scripts/ops/feedback-sync.ts'],
