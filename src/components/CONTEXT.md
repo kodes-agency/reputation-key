@@ -538,7 +538,7 @@ An ordinary action in the same file still uses `Button` or `IconButton`.
 ## Server-function boundary
 
 Routes are the normal runtime import site for context server functions. A route
-creates an `Action` with `useActionMutation` or `useAction`, then passes it to the
+creates an `Action` with `useActionMutation`, then passes it to the
 component. Type-only server imports are allowed to spell those props.
 
 A component — or the single hook that owns its mutations — with five or more

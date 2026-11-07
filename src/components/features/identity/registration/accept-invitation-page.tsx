@@ -6,7 +6,7 @@
  */
 
 import { useState, useCallback, useRef } from 'react'
-import { useAction } from '#/components/hooks/use-action'
+import { useActionMutation } from '#/components/hooks/use-action-mutation'
 import { AcceptedView } from './accepted-view'
 import { InvitationListView } from './invitation-list-view'
 import type { PendingInvitation } from './shared-types'
@@ -27,7 +27,7 @@ export function AcceptInvitationPage({
   // insert (and the active-org activation) and create a duplicate membership.
   const acceptingRef = useRef(false)
 
-  const accept = useAction(acceptInvitation)
+  const accept = useActionMutation(acceptInvitation)
 
   const handleAccept = useCallback(
     async (invitationId: string) => {
@@ -37,7 +37,7 @@ export function AcceptInvitationPage({
         await accept({ data: { invitationId } })
         setAccepted(true)
       } catch {
-        // useAction retains the rejection for the shared error banner. Catching
+        // The action retains the rejection for the shared error banner. Catching
         // here prevents click callers from leaking an unhandled promise.
         acceptingRef.current = false
       }

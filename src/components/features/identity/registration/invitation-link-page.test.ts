@@ -1,4 +1,5 @@
 import { act, createElement, type ComponentProps } from 'react'
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { describe, expect, it, vi } from 'vitest'
 import { setupHookRoot } from '#/shared/testing/hook-root'
 import type { ConfirmInvitationView } from './confirm-invitation-view'
@@ -6,6 +7,10 @@ import { InvitationLinkPage } from './invitation-link-page'
 
 const view = vi.hoisted(() => ({
   current: undefined as ComponentProps<typeof ConfirmInvitationView> | undefined,
+}))
+vi.mock('@tanstack/react-router', async (original) => ({
+  ...(await original<typeof import('@tanstack/react-router')>()),
+  useRouter: () => ({ navigate: vi.fn() }),
 }))
 vi.mock('./confirm-invitation-view', () => ({
   ConfirmInvitationView: (props: ComponentProps<typeof ConfirmInvitationView>) => {
@@ -41,38 +46,48 @@ describe('invitation action feedback', () => {
       )
     const acceptInvitation = vi.fn().mockRejectedValue(acceptFailure)
     await root.render(
-      createElement(InvitationLinkPage, {
-        link: {
-          state: 'pending',
-          invitationId: 'invitation-1',
-          invitedEmail: 'manager@example.test',
-          details: {
-            organizationName: 'Example',
-            inviterName: null,
-            role: 'PropertyManager',
-            propertyNames: [],
-            expiresAt: new Date('2026-12-01'),
-          },
+      createElement(
+        QueryClientProvider,
+        {
+          client: new QueryClient({ defaultOptions: { mutations: { retry: false } } }),
         },
-        signedInEmail: 'manager@example.test',
-        acceptInvitation,
-        signOut,
-        joiningNotice: null,
-      }),
+        createElement(InvitationLinkPage, {
+          link: {
+            state: 'pending',
+            invitationId: 'invitation-1',
+            invitedEmail: 'manager@example.test',
+            details: {
+              organizationName: 'Example',
+              inviterName: null,
+              role: 'PropertyManager',
+              propertyNames: [],
+              expiresAt: new Date('2026-12-01'),
+            },
+          },
+          signedInEmail: 'manager@example.test',
+          acceptInvitation,
+          signOut,
+          joiningNotice: null,
+        }),
+      ),
     )
 
     await act(async () => controls().onSignOut())
+    await root.flush()
     expect(controls().error).toBe(signOutFailure)
     await act(async () => controls().onAccept())
+    await root.flush()
     expect(acceptInvitation).toHaveBeenCalledExactlyOnceWith({
       data: { invitationId: 'invitation-1' },
     })
     expect(controls().error).toBe(acceptFailure)
 
     await act(async () => controls().onSignOut())
+    await root.flush()
     expect(controls().signingOut).toBe(true)
     expect(controls().error).toBeNull()
     await act(async () => finishSignOut?.())
+    await root.flush()
     expect(controls().signingOut).toBe(false)
     expect(controls().error).toBe(signOutFailure)
   })

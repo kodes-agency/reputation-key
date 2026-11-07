@@ -4,7 +4,6 @@ import { createFileRoute } from '@tanstack/react-router'
 import { roleUnavailable } from '#/shared/auth/route-notice'
 import { useSuspenseQuery } from '@tanstack/react-query'
 import { useServerFn } from '@tanstack/react-start'
-import { useAction } from '#/components/hooks/use-action'
 import { PageHeader } from '#/components/layout/page-header'
 import { trailCrumbs } from '#/components/layout/page-identity'
 import { useActionMutation } from '#/components/hooks/use-action-mutation'
@@ -41,7 +40,7 @@ function IntegrationsSettings() {
   const connections = data.connections
   // getGoogleAuthUrl is a GET (generates a signed OAuth URL) — treat as an action
   // since it has a side effect (CSRF state) and the result drives a redirect.
-  const connectGoogle = useAction(useServerFn(getGoogleAuthUrl))
+  const connectGoogle = useActionMutation(useServerFn(getGoogleAuthUrl))
   // Confirmed in a dialog that stays open and says a refusal itself.
   const disconnectAction = useActionMutation(disconnectGoogle, {
     successMessage: 'Google account disconnected',

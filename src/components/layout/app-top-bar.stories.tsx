@@ -6,7 +6,7 @@
 // on click.
 //
 // notificationFns is a prop bundle (Phase-1 fn-as-prop channel). Each entry is
-// wrapped by useAction(useServerFn(...)) inside the notification hooks, so the
+// wrapped by useActionMutation(useServerFn(...)) inside the notification hooks, so the
 // story feeds plain callables cast to each fn brand — the same pattern every
 // notification/inbox story uses. No value import from #/contexts/*/server/**.
 import type { Meta, StoryObj } from '@storybook/react'

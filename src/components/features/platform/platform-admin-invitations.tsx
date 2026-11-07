@@ -1,7 +1,7 @@
 // The open Account Admin invitations of an Organization that has no Account
 // Admin (ADR 0065): the address, when it lapses, Resend and Cancel.
 //
-// Each line owns its Resend state (`useAction` over the shared Action), so a
+// Each line owns its Resend state (`useActionMutation` over the shared Action), so a
 // click disables that line's item, not every line's; the route's Action reports
 // the outcome by toast, and a refusal still rejects the call, so the click
 // settles the promise rather than leaking it. Cancel is confirmed in a
@@ -15,7 +15,8 @@ import {
   RowActionsSeparator,
 } from '#/components/ui/row-actions-menu'
 import { StatusBadge } from '#/components/ui/status-badge'
-import { useAction, type Action } from '#/components/hooks/use-action'
+import type { Action } from '#/components/hooks/use-action'
+import { useActionMutation } from '#/components/hooks/use-action-mutation'
 import type {
   OrganizationInvitationInput,
   PlatformAdminInvitationView,
@@ -47,7 +48,7 @@ function AdminInvitationLine({
   resend,
   cancel,
 }: LineProps) {
-  const resendInvitation = useAction(resend)
+  const resendInvitation = useActionMutation(resend)
   const [cancelling, setCancelling] = useState(false)
   const input = { data: { organizationId, invitationId: invitation.id } }
 
