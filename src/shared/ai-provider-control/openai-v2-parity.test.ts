@@ -54,7 +54,14 @@ import {
   OPENAI_REQUEST_SHAPE_V1_DIGEST,
 } from '#/shared/ai-operation-profiles'
 import { OPENAI_NORMALIZED_EVIDENCE_CLAIMS_DIGEST_V1 } from '#/shared/ai-openai-provider-profile'
-import { parseAiGatewayRouteRequest } from '#/shared/ai-gateway-transport-contract'
+import {
+  parseAiGatewayRouteRequest,
+  type AiGatewayRouteRequestV1,
+} from '#/shared/ai-gateway-transport-contract'
+import {
+  MERCHANT_AI_NOTICE_DIGEST,
+  MERCHANT_AI_NOTICE_VERSION,
+} from '#/shared/merchant-ai-notice-contract'
 import {
   replyRequest,
   trendRequest,
@@ -78,6 +85,7 @@ import {
 } from '#/shared/ai-reply-output-leakage'
 import { createVersionedHmacKeyring } from '#/shared/security/versioned-hmac-keyring'
 import { createAiGatewayRoutePreparer } from './route-preparer'
+import { GatewayPreparationError } from './contracts'
 import { preparableV3Request } from './review-evidence.test-fixtures'
 
 const PINNED_PROFILES = [
@@ -179,8 +187,13 @@ const PINNED_PROVIDER_LEVEL = {
     '33aebd2c6985580b83ea6ccab6b3f0157bc1a17cc3e186eae3c076bfe09ac9ef',
 } as const
 
-// Request bindings include the corrected 2026-11-06 notice digest;
-// provider bytes, profiles and limits remain unchanged.
+// Keep these request inputs fixed: a later compatible notice must not change
+// the byte-for-byte evidence for work admitted under this notice.
+const PINNED_NOTICE = {
+  noticeVersion: 'merchant-ai-notice-2026-11-06.v1',
+  noticeDigest: 'eb810fedbb445bf9361d03280cfa44f31c3a8a8563a905549c3a7bdaed1a88f3',
+} as const
+
 const PINNED_ROUTES = {
   analysis: {
     sourceDigest: '40eb9e177955783972f0271b399a23bfc949deef751adcb80db6caaa666ee3f2',
@@ -224,27 +237,6 @@ const PINNED_ROUTES = {
       'b4cb8a3a87ff7777837bcb997c816e1d3849f32f3c867af03b042f0d290f2d23',
     canonicalProviderByteLength: 2441,
   },
-  trend: {
-    sourceDigest: 'c42fb3d5198ee5e97b829f07bcccfb36ab0b823de3538d2971b29397780289db',
-    preparedDigest: 'b94879798f76a112017b37445d98fb75c2210cf82b3cf135d1fd02ea79b99d27',
-    sourceByteCount: 1456,
-    preparedByteCount: 2962,
-    providerPayloadByteCount: 1455,
-    promptCacheShard: 0,
-    limits: {
-      sourceBytes: 65536,
-      providerPayloadBytes: 65536,
-      preparedRequestBytes: 131072,
-      responseBytes: 131072,
-      outputTokens: 2048,
-      costMicros: 1267,
-    },
-    requestBindingKeyId: 'request-v1',
-    requestBindingHmac: 'vsNPIpYHnNl--TxK4eE6PEq7hbyQrqQMB3ywrJch1UU',
-    canonicalProviderBytesSha256:
-      '1ccada2805a47972a921007fc81325b31652b42dd632382239b535893ee6372e',
-    canonicalProviderByteLength: 2962,
-  },
 } as const
 
 beforeEach(() => {
@@ -282,7 +274,11 @@ function preparer() {
 }
 
 function liveAnalysis() {
-  return parseAiGatewayRouteRequest(preparableV3Request())
+  const base = preparableV3Request()
+  return parseAiGatewayRouteRequest({
+    ...base,
+    binding: { ...base.binding, ...PINNED_NOTICE },
+  })
 }
 
 function liveReply() {
@@ -291,6 +287,7 @@ function liveReply() {
     ...base,
     binding: {
       ...base.binding,
+      ...PINNED_NOTICE,
       evaluatedLanguage: 'tr-Latn',
       languageCatalogueDigest: LANGUAGE_CATALOGUE_DIGEST,
       concreteReplyLanguage: { tag: 'bg-Cyrl-BG', templateGroup: 'bg-Cyrl' },
@@ -306,6 +303,17 @@ function liveReply() {
       ...base.source,
       text: 'Konaklamamız boyunca personel çok ilgili ve yardımseverdi.',
       languageCode: 'tr-TR',
+    },
+  })
+}
+
+function underServedNotice(request: AiGatewayRouteRequestV1) {
+  return parseAiGatewayRouteRequest({
+    ...request,
+    binding: {
+      ...request.binding,
+      noticeVersion: MERCHANT_AI_NOTICE_VERSION,
+      noticeDigest: MERCHANT_AI_NOTICE_DIGEST,
     },
   })
 }
@@ -336,14 +344,28 @@ describe('OpenAI and the live profiles, as pinned at the switch-on', () => {
   })
 
   it.each([
-    ['analysis', liveAnalysis],
-    ['reply', liveReply],
-    ['trend', () => parseAiGatewayRouteRequest(trendRequest())],
+    ['analysis', liveAnalysis, PINNED_ROUTES.analysis],
+    ['reply', liveReply, PINNED_ROUTES.reply],
+    [
+      'analysis under the served notice',
+      () => underServedNotice(liveAnalysis()),
+      {
+        ...PINNED_ROUTES.analysis,
+        requestBindingHmac: '9YRKMfqP3-xz3wd4YJsTDzBjejuJphQ-jpaI3fI9bR8',
+      },
+    ],
+    [
+      'reply under the served notice',
+      () => underServedNotice(liveReply()),
+      {
+        ...PINNED_ROUTES.reply,
+        requestBindingHmac: 'HWTcL1iINdw7LW7UFT39cUTE4WrN51CJg9z1557vRfo',
+      },
+    ],
   ] as const)(
     'sends OpenAI byte for byte the %s body, under the same descriptor, limits and request binding',
-    (route, request) => {
+    (_route, request, pinned) => {
       const { invocation } = preparer().prepare(request())
-      const pinned = PINNED_ROUTES[route]
       const descriptor = invocation.descriptor
 
       expect({
@@ -361,4 +383,10 @@ describe('OpenAI and the live profiles, as pinned at the switch-on', () => {
       }).toEqual(pinned)
     },
   )
+
+  it('refuses retired Trends preparation even with its recorded operation profile', () => {
+    expect(() => preparer().prepare(trendRequest())).toThrow(
+      new GatewayPreparationError('policy_unavailable'),
+    )
+  })
 })

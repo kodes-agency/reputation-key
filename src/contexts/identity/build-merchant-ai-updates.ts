@@ -33,6 +33,7 @@ type Capabilities = Readonly<{
 
 function pauseReason(record: Capabilities, organizationId: string, propertyId: string) {
   for (const capability of record.authorization?.capabilities ?? []) {
+    if (capability === 'property_trends') continue
     const decision = checkScopedCapability(
       { organizationId, propertyId },
       PURPOSE[capability],
@@ -56,6 +57,8 @@ function renewalStore(deps: Deps) {
       redactionProfileFamily: MERCHANT_AI_REDACTION_PROFILE_FAMILY,
     },
     authorize: async (input) => {
+      // Retained grant evidence for retired processing must not pause live features.
+      if (input.capability === 'property_trends') return 'allowed'
       const decision = checkScopedCapability(input, PURPOSE[input.capability])
       return decision.allowed
         ? 'allowed'

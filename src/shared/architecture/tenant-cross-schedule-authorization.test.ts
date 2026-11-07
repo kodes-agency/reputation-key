@@ -136,12 +136,6 @@ const CANDIDATE_DECISIONS: Readonly<Record<string, CandidateDecision>> = {
   // identity.invite is core too. Recovery asks before each acceptance, the
   // only step that gives an Organization a member.
   'recover-invited-registrations': scopeAuthorizer('allowed'),
-  'schedule-property-ai-trends': {
-    kind: 'scoped_entry_point',
-    entryPoint: 'ai.property-trend-consumers',
-    reason:
-      'Writes one identifier-only schedule row and generation request per due Property and calls no provider. The request is consumed, and the trend generated, only through Property-scoped entry points gated on ai.detect_trends.',
-  },
   'google-import-claim-reaper': {
     kind: 'scoped_entry_point',
     entryPoint: 'import-gbp-property-item-v2',

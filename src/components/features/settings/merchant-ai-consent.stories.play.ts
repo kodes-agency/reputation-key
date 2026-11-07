@@ -27,7 +27,7 @@ export async function consentToAi(
   const confirmation = page.getByRole('alertdialog', { name: 'Enable AI features?' })
   await expect(confirmation).toBeVisible()
   await expect(confirmation).toHaveAccessibleDescription(
-    `You confirm the data-handling notice above and authorize review analysis, editable reply drafting, and de-identified property trends for ${propertyName}.`,
+    `You confirm the data-handling notice above and authorize review analysis and editable reply drafting for ${propertyName}.`,
   )
   await userEvent.click(page.getByRole('button', { name: /confirm & enable/i }))
 }

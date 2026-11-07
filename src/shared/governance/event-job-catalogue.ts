@@ -425,18 +425,6 @@ const DEFAULT_QUEUE_ROWS: ReadonlyArray<JobFamilyRow> = [
     { timeoutMs: 300_000 },
   ),
   job(
-    'generate-property-ai-trend',
-    'src/contexts/ai/infrastructure/jobs/generate-property-trend.job.ts',
-    {
-      queue: 'default',
-      capability: 'ai.detect_trends',
-      action: 'system:ai.trend',
-      schedule: 'none',
-      registration: 'enabled',
-    },
-    { retryBackoff: 'exponential:30000' },
-  ),
-  job(
     'ai-review-analysis-backlog-drain',
     'src/contexts/ai/infrastructure/jobs/drain-review-analysis-backlog.job.ts',
     {
@@ -474,18 +462,6 @@ const DEFAULT_QUEUE_ROWS: ReadonlyArray<JobFamilyRow> = [
       registration: 'enabled',
     },
     { retryAttempts: 1, timeoutMs: 120_000 },
-  ),
-  job(
-    'schedule-property-ai-trends',
-    'src/contexts/ai/infrastructure/jobs/schedule-property-trends.job.ts',
-    {
-      queue: 'background',
-      capability: 'ai.detect_trends',
-      action: 'system:ai.trend_schedule',
-      schedule: 'every:60000',
-      registration: 'enabled',
-    },
-    { retryBackoff: 'fixed:5000', timeoutMs: 30_000 },
   ),
   job(
     'expire-review-provider-source',

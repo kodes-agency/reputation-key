@@ -30,7 +30,6 @@ import type {
 import type { AuthorizeReviewAnalysisScope } from '../application/use-cases/drain-review-analysis-backlog'
 
 export const AI_REVIEW_ANALYSIS_CONSUMER = 'ai.analyze-review-event'
-export const AI_PROPERTY_TREND_GENERATION_CONSUMER = 'ai.generate-property-trend'
 export const AI_REVIEW_ANALYSIS_ENROLLMENT_CONSUMER = 'ai.enroll-review-analysis'
 
 // Not `.strict()`: every emitted payload also carries envelope fields
@@ -52,11 +51,6 @@ const reviewEventPayloadSchema = z.object({
   observationOrigin: z
     .enum(['ongoing', 'historical_onboarding', 'legacy_unknown'])
     .optional(),
-})
-const propertyTrendEventPayloadSchema = z.object({
-  scheduleId: z.uuid(),
-  organizationId: z.string().min(1),
-  propertyId: z.uuid(),
 })
 const merchantAiChangedPayloadSchema = z.object({
   organizationId: z.string().min(1),
@@ -93,14 +87,6 @@ export type RegisterAiConsumersInput = Readonly<{
    */
   authorizeScope?: AuthorizeReviewAnalysisScope
   nowEpochMillis: () => number
-  /**
-   * Queues one scheduled trend with the Organization and Property it belongs
-   * to: the trend job is property-scoped, and the delayed-execution gate reads
-   * that scope from the job payload.
-   */
-  enqueuePropertyTrend: (
-    request: Readonly<{ scheduleId: string; organizationId: string; propertyId: string }>,
-  ) => Promise<void>
   /**
    * Apply the Identity authorization trigger through the AI command store.
    * That store commits the enrollment intent (or exact obsolete/no-op
@@ -283,30 +269,6 @@ export async function handleAiReviewEvent(
   return { status: receiptStatus }
 }
 
-export async function handleAiPropertyTrendGenerationRequested(
-  dependencies: RegisterAiConsumersInput,
-  event: ConsumerEvent,
-): Promise<ConsumerResult> {
-  const payload = propertyTrendEventPayloadSchema.parse(event.payload)
-  if (
-    event.organizationId !== payload.organizationId ||
-    event.propertyId !== payload.propertyId
-  ) {
-    throw new Error('AI property trend event routing mismatch')
-  }
-  await dependencies.enqueuePropertyTrend({
-    scheduleId: payload.scheduleId,
-    organizationId: payload.organizationId,
-    propertyId: payload.propertyId,
-  })
-  await dependencies.receipts.insertReceipt(
-    event.eventId,
-    AI_PROPERTY_TREND_GENERATION_CONSUMER,
-    'applied',
-  )
-  return { status: 'applied' }
-}
-
 /**
  * The enrollment intent and this consumer's receipt are already committed, so
  * a failure here loses nothing: the enrollment sweep opens the replay instead.
@@ -424,11 +386,5 @@ export function registerAiConsumers(
     consumerName: 'ai.analyze-review-event',
     module: 'ai.review-analysis-consumers',
     handler: (event) => handleAiReviewEvent(dependencies, event),
-  })
-  registerConsumer({
-    eventType: 'ai.property_trend.generation_requested',
-    consumerName: 'ai.generate-property-trend',
-    module: 'ai.property-trend-consumers',
-    handler: (event) => handleAiPropertyTrendGenerationRequested(dependencies, event),
   })
 }

@@ -3,6 +3,7 @@ import { z } from 'zod/v4'
 export { canonicalizeRfc8785 } from './canonical-json'
 
 // Changelog — every entry is a new version; the newest is first.
+// 2026-11-06.v2: retire Property Trends; analysis and drafting data use is unchanged.
 // 2026-11-06: corrected analysis retention and offline quality checks; materially
 // changes review_analysis alone. Drafting and trends retain their epochs.
 // 2026-11-01: background/body-only drafting v2; materially changes reply_drafting
@@ -64,7 +65,7 @@ export { canonicalizeRfc8785 } from './canonical-json'
 // (merchant-ai-authorization.schema.ts), and a head granted under an earlier
 // version is re-granted, not rewritten. Whether it still admits AI work is
 // `isMerchantAiNoticeInForce`.
-export const MERCHANT_AI_NOTICE_VERSION = 'merchant-ai-notice-2026-11-06.v1' as const
+export const MERCHANT_AI_NOTICE_VERSION = 'merchant-ai-notice-2026-11-06.v2' as const
 
 const capabilitySchema = z
   .object({
@@ -103,7 +104,7 @@ const noticePayloadSchema = z
     title: z.string().min(1),
     summary: z.string().min(1),
     sections: z.array(sectionSchema).min(1),
-    capabilities: z.tuple([capabilitySchema, capabilitySchema, capabilitySchema]),
+    capabilities: z.tuple([capabilitySchema, capabilitySchema]),
     retentionAndRevocation: z.tuple([
       retentionRowSchema,
       retentionRowSchema,
@@ -196,7 +197,7 @@ export const MERCHANT_AI_NOTICE_PAYLOAD: MerchantAiNoticePayload = Object.freeze
       title: 'Which provider is used',
       body: Object.freeze([
         'RepKey may use OpenAI or Anthropic for review analysis and reply drafting. RepKey chooses the provider for each kind of work and may change the choice without asking you to confirm again.',
-        'Each attempt goes to one provider, and RepKey switches provider only on purpose. After a switch it may send unfinished work to the other provider and may analyse past reviews again. The two providers can judge the same review differently, so your counts and trends can shift.',
+        'Each attempt goes to one provider, and RepKey switches provider only on purpose. After a switch it may send unfinished work to the other provider and may analyse past reviews again. The two providers can judge the same review differently, so your counts and summaries can shift.',
         'Quality testing. RepKey checks analysis quality using an offline scorer on test material or answers already recorded. The scorer does not send reviews to an AI provider.',
       ]),
       links: Object.freeze([]),
@@ -205,7 +206,7 @@ export const MERCHANT_AI_NOTICE_PAYLOAD: MerchantAiNoticePayload = Object.freeze
       id: 'limits_and_retention',
       title: 'Limits, retention, and revocation',
       body: Object.freeze([
-        'Review analysis and reply suggestions accept at most 16 KiB of source and use a 70-second outer attempt deadline. Property trends accept at most 64 KiB and use a 100-second outer attempt deadline. Oversized or unsupported input is skipped rather than truncated into a different meaning.',
+        'Review analysis and reply suggestions accept at most 16 KiB of source and use a 70-second outer attempt deadline. Oversized or unsupported input is skipped rather than truncated into a different meaning.',
         'RepKey uses and shows raw review source for up to 30 days after it was last fetched from Google, and de-identified insights for up to 24 months. The results listed under "What review analysis keeps", except the stored business category, expire after 730 days and are deleted by daily cleanup. A group of similar causes expires with its newest result and is deleted by daily cleanup once no retained contribution refers to it.',
         'Turning a capability off immediately denies new work, fences in-flight results and hides its prior outputs. Turning Reply Drafting off withdraws eligible unedited AI drafts; drafts already dispatched or failed at publication can keep their text. Withdrawal immediately denies access; background processing then purges stored AI results. An already-authorized in-memory attempt is discarded by its outer deadline. Turning Review Analysis off and withdrawing authorization cover the results listed under "What review analysis keeps".',
       ]),
@@ -217,7 +218,7 @@ export const MERCHANT_AI_NOTICE_PAYLOAD: MerchantAiNoticePayload = Object.freeze
       id: 'how_results_are_used',
       title: 'How results are shown and used',
       body: Object.freeze([
-        'Summaries are built from the stored, de-identified analysis (counts, topics and causes), not from review text. RepKey writes them itself from fixed sentence patterns and calls no provider. This covers the daily property trend, the short lines at the top of Guest voice and the optional weekly email.',
+        'Summaries are built from the stored, de-identified analysis (counts, topics and causes), not from review text. RepKey writes them itself from fixed sentence patterns and calls no provider. This covers the short lines at the top of Guest voice and the optional weekly email.',
         "Guests' words. Guest voice, issue pages and the Inbox can show the words of a review with the relevant part underlined. RepKey reads them from the review text it holds when a manager opens the page. It never copies them into analysis results, summaries, alerts, emails or reports. When RepKey no longer holds a review's text, there is nothing to show.",
         'Staff. The names result has two uses: Guest voice leaves out a quote that names a person, and it can say how many reviews praise a team member by name. It never says who, and it has no such line for complaints. RepKey does not count per person, and does not score, rank or evaluate staff from reviews.',
         "Alerts and emails carry no review text. A review marked Urgent can send one alert per review revision. It goes to the managers who receive that property's review notifications, in the app and by email as each manager's settings allow. The email says only that an urgent review needs you, with a link. It gives no reason. The reason shows only inside the app. A manager's own priority choice always wins over the AI's suggestion.",
@@ -228,7 +229,7 @@ export const MERCHANT_AI_NOTICE_PAYLOAD: MerchantAiNoticePayload = Object.freeze
       id: 'human_control_and_risk',
       title: 'Human control and AI limitations',
       body: Object.freeze([
-        'AI output can be inaccurate. Review analysis and trend summaries are decision support, not facts or professional advice. An analysis can mark a review Urgent when it is not, and can miss one that is. Do not treat the Urgent alert as your only way to find a serious report.',
+        'AI output can be inaccurate. Review analysis and Guest voice summaries are decision support, not facts or professional advice. An analysis can mark a review Urgent when it is not, and can miss one that is. Do not treat the Urgent alert as your only way to find a serious report.',
         "Drafts may be prepared when a manager opens a review or asks for one. The AI provider drafts the reply body from the review text (numbered sentences), the rating, the language, the tone, and facts your property chose to share with the AI. RepKey adds the property's greeting, contact line, closing and signature locally. The draft is verified for language before it is shown; when the provider cannot produce a valid draft, a fixed application-owned localized starting point is offered instead. Suggestions remain editable and are never published without the existing separate human submit, approve, and publish workflow.",
         "AI output cannot publish a reply, change an Inbox item's status, assignment, escalation or priority, or decide anything about a person. The only message it can send on its own is an Urgent alert.",
       ]),
@@ -247,11 +248,6 @@ export const MERCHANT_AI_NOTICE_PAYLOAD: MerchantAiNoticePayload = Object.freeze
       title: 'Reply drafting',
       description:
         'Prepare an editable reply suggestion when a manager opens a review or asks for one.',
-    }),
-    Object.freeze({
-      id: 'property_trends',
-      title: 'Property trends',
-      description: 'Create daily summaries from stored de-identified review analysis.',
     }),
   ]),
   retentionAndRevocation: Object.freeze([
@@ -278,8 +274,8 @@ export const MERCHANT_AI_NOTICE_PAYLOAD: MerchantAiNoticePayload = Object.freeze
     'Automated redaction can miss unstructured personal details. It does not remove the names of staff or other guests, and the check on stored causes can miss a name written in lowercase.',
     'AI analysis and suggestions can be inaccurate.',
     'An Urgent mark can be wrong, and a serious review can be missed.',
-    'The two providers can judge the same review differently, so a change of provider can shift trends.',
-    'When RepKey analyses past reviews again, topics, counts and trends can change.',
+    'The two providers can judge the same review differently, so a change of provider can shift summaries.',
+    'When RepKey analyses past reviews again, topics, counts and summaries can change.',
     'Provider retention has no guaranteed per-request deletion date, and content a provider flags can be kept longer.',
   ]),
   ctaTemplate: 'Enable AI features',
@@ -289,7 +285,7 @@ export const MERCHANT_AI_NOTICE_PAYLOAD: MerchantAiNoticePayload = Object.freeze
 noticePayloadSchema.parse(MERCHANT_AI_NOTICE_PAYLOAD)
 
 export const MERCHANT_AI_NOTICE_DIGEST =
-  'eb810fedbb445bf9361d03280cfa44f31c3a8a8563a905549c3a7bdaed1a88f3' as const
+  'ede9faf088b4ce52da16d194639e780ab05b0349ac896f129f05fb185f53a5f7' as const
 
 /** The notice a consent was recorded under, by version and digest. */
 export type MerchantAiNoticeReference = Readonly<{
@@ -309,6 +305,16 @@ export const MERCHANT_AI_NOTICE_CHANGES: ReadonlyArray<MerchantAiNoticeChange> =
     Object.freeze({
       noticeVersion: MERCHANT_AI_NOTICE_VERSION,
       noticeDigest: MERCHANT_AI_NOTICE_DIGEST,
+      replaces: Object.freeze({
+        noticeVersion: 'merchant-ai-notice-2026-11-06.v1',
+        noticeDigest: 'eb810fedbb445bf9361d03280cfa44f31c3a8a8563a905549c3a7bdaed1a88f3',
+      }),
+      // Retirement removes processing; unchanged analysis and drafts must not replay.
+      materiallyChanges: Object.freeze(['property_trends'] as const),
+    }),
+    Object.freeze({
+      noticeVersion: 'merchant-ai-notice-2026-11-06.v1',
+      noticeDigest: 'eb810fedbb445bf9361d03280cfa44f31c3a8a8563a905549c3a7bdaed1a88f3',
       replaces: Object.freeze({
         noticeVersion: 'merchant-ai-notice-2026-11-01.v1',
         noticeDigest: 'e9574380fd1ba5f4b7bd7b9899bc5e6bdf371f9d9871584f33c5c1e6131290ef',
@@ -356,25 +362,25 @@ const SERVED_NOTICE = Object.freeze({
   noticeVersion: MERCHANT_AI_NOTICE_VERSION,
   noticeDigest: MERCHANT_AI_NOTICE_DIGEST,
 })
-const DRAFTING_NOTICES = Object.freeze([
+const ANALYSIS_NOTICES = Object.freeze([
   SERVED_NOTICE,
+  Object.freeze({
+    noticeVersion: 'merchant-ai-notice-2026-11-06.v1',
+    noticeDigest: 'eb810fedbb445bf9361d03280cfa44f31c3a8a8563a905549c3a7bdaed1a88f3',
+  }),
+])
+const DRAFTING_NOTICES = Object.freeze([
+  ...ANALYSIS_NOTICES,
   Object.freeze({
     noticeVersion: 'merchant-ai-notice-2026-11-01.v1',
     noticeDigest: 'e9574380fd1ba5f4b7bd7b9899bc5e6bdf371f9d9871584f33c5c1e6131290ef',
   }),
 ])
-const TRENDS_NOTICES = Object.freeze([
-  ...DRAFTING_NOTICES,
-  Object.freeze({
-    noticeVersion: 'merchant-ai-notice-2026-10-30.v1',
-    noticeDigest: 'dadad7b81dbda360678fc57f7265b104c7311cbc213f877f32306c53b4852a5e',
-  }),
-])
 export const MERCHANT_AI_NOTICES_IN_FORCE: Readonly<
   Record<MerchantAiCapability, ReadonlyArray<MerchantAiNoticeReference>>
 > = Object.freeze({
-  review_analysis: Object.freeze([SERVED_NOTICE]),
-  property_trends: TRENDS_NOTICES,
+  review_analysis: ANALYSIS_NOTICES,
+  property_trends: Object.freeze([SERVED_NOTICE]),
   reply_drafting: DRAFTING_NOTICES,
 })
 

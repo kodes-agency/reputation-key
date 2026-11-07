@@ -2,7 +2,7 @@
 // on-demand job family (`pnpm ops quarantine redrive`); a failed firing of an
 // active scheduled family is answered by a later success instead. It puts the
 // dead-lettered payload back on its queue with a `redriveMetadata` entry added.
-// The four AI handlers parse their payload strictly, so each is read here
+// The AI handlers parse their payload strictly, so each is read here
 // through the real redrive: a handler that refuses what the redrive adds can
 // never be repaired by it.
 
@@ -22,18 +22,9 @@ import {
   createDrainReviewAnalysisBacklogJobHandler,
   DRAIN_REVIEW_ANALYSIS_BACKLOG_JOB_NAME,
 } from './drain-review-analysis-backlog.job'
-import {
-  createGeneratePropertyTrendJobHandler,
-  GENERATE_PROPERTY_TREND_JOB_NAME,
-} from './generate-property-trend.job'
-import {
-  createSchedulePropertyTrendsJobHandler,
-  SCHEDULE_PROPERTY_TRENDS_JOB_NAME,
-} from './schedule-property-trends.job'
 
 const ORGANIZATION_ID = 'ai-job-redrive-test'
 const PROPERTY_ID = '71000000-0000-4000-8000-000000000501'
-const SCHEDULE_ID = '71000000-0000-4000-8000-000000000502'
 const REVIEW_ID = '71000000-0000-4000-8000-000000000503'
 
 type Stored = {
@@ -119,23 +110,6 @@ describe('AI job handlers after a quarantine redrive', () => {
     })
   })
 
-  it('generates the redriven Property trend', async () => {
-    const generatePropertyTrend = vi.fn(async () => ({ status: 'completed' as const }))
-    const job = await redriven(GENERATE_PROPERTY_TREND_JOB_NAME, {
-      scheduleId: SCHEDULE_ID,
-      organizationId: ORGANIZATION_ID,
-      propertyId: PROPERTY_ID,
-    })
-
-    await createGeneratePropertyTrendJobHandler({ generatePropertyTrend })(job)
-
-    expect(generatePropertyTrend).toHaveBeenCalledExactlyOnceWith({
-      scheduleId: SCHEDULE_ID,
-      organizationId: organizationId(ORGANIZATION_ID),
-      propertyId: propertyId(PROPERTY_ID),
-    })
-  })
-
   // Models an on-demand or legacy dead letter: firings of this schedule-only
   // family are no longer dead-lettered, so a new one cannot arise from a firing.
   it('runs the redriven backlog drain', async () => {
@@ -160,20 +134,6 @@ describe('AI job handlers after a quarantine redrive', () => {
 
   // Models an on-demand or legacy dead letter: firings of this schedule-only
   // family are no longer dead-lettered, so a new one cannot arise from a firing.
-  it('runs the redriven trend schedule', async () => {
-    const schedulePropertyTrends = vi.fn(async () => ({}) as never)
-    const job = await redriven(SCHEDULE_PROPERTY_TRENDS_JOB_NAME, {})
-
-    await createSchedulePropertyTrendsJobHandler({
-      idGen: () => 'lease-owner-1',
-      schedulePropertyTrends,
-    })(job)
-
-    expect(schedulePropertyTrends).toHaveBeenCalledExactlyOnceWith({
-      leaseOwner: 'lease-owner-1',
-    })
-  })
-
   // The payload still carries no authority: the marker is the one addition.
   it('still refuses any other key, and a marker that is not a redrive', async () => {
     const drainReview = vi.fn(async () => ({ status: 'not_pending' as const }))

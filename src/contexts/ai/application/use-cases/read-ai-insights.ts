@@ -1,7 +1,7 @@
 import type { AuthContext } from '#/shared/domain/auth-context'
 import type { OrganizationId, PropertyId, ReviewId } from '#/shared/domain/ids'
 import type { AiAuthorizationPort } from '../ports/ai-authorization.port'
-import type { AiOutputStorePort, AiTrendReportRead } from '../ports/ai-output-store.port'
+import type { AiOutputStorePort } from '../ports/ai-output-store.port'
 import type { PropertyProcessingProfilePort } from '../ports/property-processing-profile.port'
 import type { ReviewAnalysisReadV1 } from '../../domain/types'
 import { resolveAiReadGate } from '../ai-read-gate'
@@ -64,39 +64,6 @@ export function createReadReviewAnalysis(dependencies: ReadAiInsightsDependencie
         propertyProfileVersion: gate.profile.profileVersion,
         analysisProfileVersion:
           dependencies.reviewAnalysisProfileVersion ?? 'review-analysis-v2',
-        nowEpochMillis: dependencies.nowEpochMillis(),
-      },
-      async (result) => result,
-    )
-  }
-}
-
-export function createReadPropertyTrend(dependencies: ReadAiInsightsDependencies): (
-  input: Readonly<{
-    organizationId: OrganizationId
-    propertyId: PropertyId
-    /** The reader, authorized for the Property before anything is read. */
-    actor: AuthContext
-  }>,
-) => Promise<AiTrendReportRead> {
-  return async ({ actor, ...property }) => {
-    await requireAiPropertyReadAccess(
-      dependencies.propertyAccess,
-      actor,
-      'ai.trends.read',
-      property,
-    )
-    const gate = await resolveAiReadGate(dependencies, property, 'property_trends')
-    if (gate.status === 'disabled') return { status: 'disabled' }
-    return dependencies.outputs.readTrendReportForDelivery(
-      {
-        ...property,
-        actorUserId: actor.userId,
-        sourceEpoch: gate.authorization.authorizedSourceEpoch,
-        reviewAnalysisEpoch: gate.authorization.capabilityEpochs.review_analysis.epoch,
-        propertyTrendsEpoch: gate.authorization.capabilityEpochs.property_trends.epoch,
-        propertyProfileVersion: gate.profile.profileVersion,
-        reportProfileVersion: 'property-trend-v1',
         nowEpochMillis: dependencies.nowEpochMillis(),
       },
       async (result) => result,

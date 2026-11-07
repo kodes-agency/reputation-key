@@ -1,7 +1,7 @@
 // How AI work that is requested one item at a time becomes a queued job: the
 // job name, the identifier-only payload, and the family's retry policy.
 //
-// Both families are property-scoped, and the delayed-execution gate reads the
+// Review analysis is property-scoped, and the delayed-execution gate reads the
 // Organization and Property from the job payload alone. A job enqueued without
 // them is denied `missing_scope` before its handler runs, and nothing else
 // reports it: the scope below is what lets the work run at all.
@@ -12,38 +12,10 @@ import {
   ANALYZE_REVIEW_NOW_JOB_NAME,
   type AnalyzeReviewNowJobData,
 } from './analyze-review-now.job'
-import {
-  GENERATE_PROPERTY_TREND_JOB_NAME,
-  parseGeneratePropertyTrendJobData,
-  type GeneratePropertyTrendJobData,
-} from './generate-property-trend.job'
 
 type AiJobQueue = Readonly<{
   add(name: string, data: unknown, opts?: JobsOptions): Promise<unknown>
 }>
-
-/**
- * Queue one scheduled trend for its Property. The request is validated with
- * the schema the handler parses with, so the two cannot disagree. Only the
- * identifiers are queued: the schema also admits `redriveMetadata`, which
- * marks a quarantine redrive and is never a new job's to carry.
- */
-export const createPropertyTrendEnqueue =
-  (queue: AiJobQueue) =>
-  async (request: GeneratePropertyTrendJobData): Promise<void> => {
-    const { scheduleId, organizationId, propertyId } =
-      parseGeneratePropertyTrendJobData(request)
-    await queue.add(
-      GENERATE_PROPERTY_TREND_JOB_NAME,
-      { scheduleId, organizationId, propertyId },
-      {
-        jobId: `ai-trend-${scheduleId}`,
-        ...jobEnqueueOptions(GENERATE_PROPERTY_TREND_JOB_NAME),
-        removeOnComplete: true,
-        removeOnFail: { count: 50 },
-      },
-    )
-  }
 
 /** Queue one opened review for analysis: its identifiers and nothing else. */
 export const createAnalyzeReviewNowEnqueue =

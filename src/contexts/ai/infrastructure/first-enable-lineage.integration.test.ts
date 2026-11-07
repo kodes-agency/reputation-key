@@ -285,7 +285,7 @@ describe.sequential('Review Analysis first-enable lineage (real PostgreSQL)', ()
           {
             analyzeReviewEvent,
             receipts,
-            enqueuePropertyTrend: async () => {},
+
             backlog: { enqueue: async () => {} },
             nowEpochMillis: () => Date.now(),
           },

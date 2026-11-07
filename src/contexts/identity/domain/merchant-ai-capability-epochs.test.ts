@@ -128,7 +128,9 @@ describe('capability-specific merchant AI consent epochs', () => {
     })
   })
   it('renews analysis alone for the corrected retention and quality-testing notice', () => {
-    const notice = MERCHANT_AI_NOTICE_CHANGES[0]!
+    const notice = MERCHANT_AI_NOTICE_CHANGES.find(
+      (entry) => entry.noticeVersion === 'merchant-ai-notice-2026-11-06.v1',
+    )!
     const changes = materiallyChangedMerchantAiCapabilities(notice.replaces!, notice)
     expect(changes).toEqual(['review_analysis'])
     expect(nextMerchantAiCapabilityEpochs(current, input, false, changes)).toEqual({
@@ -150,5 +152,16 @@ describe('capability-specific merchant AI consent epochs', () => {
     expect(materiallyChangedMerchantAiCapabilities(previous.replaces!, previous)).toEqual(
       CURRENT_MERCHANT_AI_CAPABILITIES,
     )
+  })
+})
+
+it('retiring trends preserves analysis and drafting epochs during renewal', () => {
+  const notice = MERCHANT_AI_NOTICE_CHANGES[0]!
+  const changes = materiallyChangedMerchantAiCapabilities(notice.replaces!, notice)
+  expect(changes).toEqual(['property_trends'])
+  expect(nextMerchantAiCapabilityEpochs(current, input, false, changes)).toEqual({
+    review_analysis: 3,
+    reply_drafting: 5,
+    property_trends: 8,
   })
 })

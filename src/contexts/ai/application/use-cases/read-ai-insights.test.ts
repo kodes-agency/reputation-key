@@ -10,17 +10,11 @@ import { buildTestAuthContext } from '#/shared/testing/fixtures'
 import { createScopedAuthContext } from '#/shared/testing/scoped-auth-context'
 import { MERCHANT_AI_NOTICE_VERSION } from '#/shared/merchant-ai-notice-contract'
 import { AI_OPERATION_PROFILES } from '#/shared/ai-operation-profiles'
-import {
-  AI_PROPERTY_TREND_DEFINITION_DIGEST,
-  AI_PROPERTY_TREND_DEFINITION_VERSION,
-  AI_TREND_RENDER_PROFILE_DIGEST,
-  AI_TREND_RENDER_PROFILE_VERSION,
-} from '#/shared/ai-property-trend-contract'
 import type { AiMerchantAuthorizationSnapshot } from '../ports/ai-authorization.port'
-import type { AiOutputStorePort, AiTrendReportRead } from '../ports/ai-output-store.port'
+import type { AiOutputStorePort } from '../ports/ai-output-store.port'
 import type { AiPropertyProfileResult, ReviewAnalysisReadV1 } from '../../domain/types'
 import type { ReadAiInsightsDependencies } from './read-ai-insights'
-import { createReadPropertyTrend, createReadReviewAnalysis } from './read-ai-insights'
+import { createReadReviewAnalysis } from './read-ai-insights'
 
 /**
  * Both reads are admission gates in front of the output store: they decide
@@ -31,9 +25,6 @@ import { createReadPropertyTrend, createReadReviewAnalysis } from './read-ai-ins
  */
 const REVIEW_ANALYSIS_PROFILE = AI_OPERATION_PROFILES.find(
   (profile) => profile.capability === 'review_analysis',
-)!
-const PROPERTY_TREND_PROFILE = AI_OPERATION_PROFILES.find(
-  (profile) => profile.capability === 'property_trends',
 )!
 
 const NOW = Date.parse('2026-08-16T12:00:00.000Z')
@@ -71,7 +62,7 @@ const ENABLED_AUTHORIZATION: AiMerchantAuthorizationSnapshot = Object.freeze({
   capabilities: ['review_analysis', 'property_trends'],
   capabilityRuntimeProfileVersions: {
     review_analysis: REVIEW_ANALYSIS_PROFILE.capabilityRuntimeProfileVersion ?? '',
-    property_trends: PROPERTY_TREND_PROFILE.capabilityRuntimeProfileVersion ?? '',
+    property_trends: 'property-trends-runtime-v1',
   },
   // A capability enabled once and never touched again has a null change stamp.
   capabilityEpochs: {
@@ -85,8 +76,7 @@ const ENABLED_AUTHORIZATION: AiMerchantAuthorizationSnapshot = Object.freeze({
   sourcePolicyId: 'google-business-profile-source-policy-v1',
   sourceCanonicalizerDigest: SHA,
   redactionProfileFamily: 'gbp-review-global-v1',
-  providerDeploymentProfileVersion:
-    PROPERTY_TREND_PROFILE.providerDeploymentProfileVersion,
+  providerDeploymentProfileVersion: 'private-beta-global-v2',
 } as const)
 
 /**
@@ -120,12 +110,6 @@ const ANALYSIS_INPUT = Object.freeze({
   analysisSequence: 1,
 })
 
-const TREND_INPUT = Object.freeze({
-  organizationId: ORGANIZATION_ID,
-  propertyId: PROPERTY_ID,
-  actor: ADMIN,
-})
-
 const CURRENTNESS = Object.freeze({
   sourceEpoch: 0,
   sourceRevision: 1,
@@ -155,87 +139,14 @@ const ANALYSIS_READY: ReviewAnalysisReadV1 = Object.freeze({
   generatedAtEpochMillis: NOW - 60_000,
 })
 
-const TREND_PINS = Object.freeze({
-  sourceEpoch: AUTHORIZED_SOURCE_EPOCH,
-  reviewAnalysisEpoch: REVIEW_ANALYSIS_EPOCH,
-  propertyTrendsEpoch: PROPERTY_TRENDS_EPOCH,
-  propertyProfileVersion: PROPERTY_PROFILE_VERSION,
-})
-
-const TREND_PREPARING: AiTrendReportRead = Object.freeze({
-  ...TREND_PINS,
-  status: 'preparing',
-})
-const TREND_EVIDENCE = Object.freeze({
-  definitionVersion: AI_PROPERTY_TREND_DEFINITION_VERSION,
-  definitionDigest: AI_PROPERTY_TREND_DEFINITION_DIGEST,
-  renderProfileVersion: AI_TREND_RENDER_PROFILE_VERSION,
-  renderProfileDigest: AI_TREND_RENDER_PROFILE_DIGEST,
-  timezone: 'Europe/Sofia',
-  dataThroughLocalDate: '2026-08-14',
-  baseline: {
-    period: { startLocalDate: '2026-06-16', endLocalDate: '2026-07-15' },
-    textCandidateCount: 20,
-    analyzedCount: 20,
-    excludedCount: 0,
-    starOnlyCount: 2,
-    coverageBasisPoints: 10_000,
-  },
-  current: {
-    period: { startLocalDate: '2026-07-16', endLocalDate: '2026-08-14' },
-    textCandidateCount: 20,
-    analyzedCount: 20,
-    excludedCount: 0,
-    starOnlyCount: 1,
-    coverageBasisPoints: 10_000,
-  },
-  modelLineage: [],
-  selectedSignals: [],
-  supportingReviews: [],
-})
-const TREND_UPDATING: AiTrendReportRead = Object.freeze({
-  ...TREND_PINS,
-  status: 'updating',
-  evidence: TREND_EVIDENCE,
-})
-const TREND_INSUFFICIENT: AiTrendReportRead = Object.freeze({
-  ...TREND_PINS,
-  status: 'insufficient_data',
-  dueLocalDate: '2026-08-15',
-  terminalAnalysisSequence: 0,
-  aggregateRevision: 0,
-  evidence: TREND_EVIDENCE,
-  updating: false,
-})
-const TREND_READY: AiTrendReportRead = Object.freeze({
-  ...TREND_PINS,
-  status: 'ready',
-  dueLocalDate: '2026-08-15',
-  terminalAnalysisSequence: 12,
-  aggregateRevision: 5,
-  reportProfileVersion: PROPERTY_TREND_PROFILE.profileVersion,
-  report: {
-    signalKey: 'sentiment.negative.up',
-    direction: 'declining',
-    changeMagnitudeBasisPoints: 1_200,
-    supportingReviewCount: 18,
-  },
-  evidence: TREND_EVIDENCE,
-  updating: false,
-  generatedAtEpochMillis: NOW - 3_600_000,
-} as const)
-
 type AnalysisReadRequest = Parameters<AiOutputStorePort['readAnalysisForDelivery']>[0]
-type TrendReadRequest = Parameters<AiOutputStorePort['readTrendReportForDelivery']>[0]
 type AnalysisDeliver = (result: ReviewAnalysisReadV1) => Promise<ReviewAnalysisReadV1>
-type TrendDeliver = (result: AiTrendReportRead) => Promise<AiTrendReportRead>
 
 function createHarness(
   options: Readonly<{
     authorization?: AiMerchantAuthorizationSnapshot | null
     runtime?: AiPropertyProfileResult
     analysisRead?: ReviewAnalysisReadV1
-    trendRead?: AiTrendReportRead
     storeFailure?: Error
     clock?: () => number
     /** The Properties a PropertyManager reader is granted. */
@@ -255,13 +166,6 @@ function createHarness(
       return deliver(options.analysisRead ?? ANALYSIS_READY)
     },
   )
-  const readTrendReportForDelivery = vi.fn(
-    async (_request: TrendReadRequest, deliver: TrendDeliver) => {
-      if (options.storeFailure) throw options.storeFailure
-      deliveries += 1
-      return deliver(options.trendRead ?? TREND_READY)
-    },
-  )
 
   const dependencies = {
     propertyAccess: async () => options.grants ?? [],
@@ -271,7 +175,6 @@ function createHarness(
       settleEphemeralReply: vi.fn(),
       findCurrentReviewIdsByAttention: vi.fn(),
       readAnalysisForDelivery,
-      readTrendReportForDelivery,
     },
     processingProfiles: { readForAi, refreshForAi: vi.fn() },
     nowEpochMillis: options.clock ?? (() => NOW),
@@ -279,11 +182,9 @@ function createHarness(
 
   return {
     readReviewAnalysis: createReadReviewAnalysis(dependencies),
-    readPropertyTrend: createReadPropertyTrend(dependencies),
     deliveryCount: () => deliveries,
     mocks: {
       readAnalysisForDelivery,
-      readTrendReportForDelivery,
       readMerchantAuthorization,
       readForAi,
     },
@@ -360,49 +261,6 @@ describe('who may read a review analysis', () => {
     expect(harness.mocks.readAnalysisForDelivery.mock.calls[0]?.[0]).toMatchObject({
       actorUserId: MANAGER.userId,
     })
-  })
-})
-
-describe('who may read a property trend', () => {
-  it('refuses a manager with no grant on the Property before any AI state is read', async () => {
-    const harness = createHarness({ grants: [OTHER_PROPERTY_ID] })
-
-    await expect(
-      harness.readPropertyTrend({ ...TREND_INPUT, actor: MANAGER }),
-    ).rejects.toMatchObject(FORBIDDEN)
-    expect(harness.mocks.readMerchantAuthorization).not.toHaveBeenCalled()
-    expect(harness.mocks.readForAi).not.toHaveBeenCalled()
-    expect(harness.mocks.readTrendReportForDelivery).not.toHaveBeenCalled()
-  })
-
-  it('refuses a reader who belongs to another Organization', async () => {
-    const harness = createHarness()
-
-    await expect(
-      harness.readPropertyTrend({ ...TREND_INPUT, actor: FOREIGN_ADMIN }),
-    ).rejects.toMatchObject(FORBIDDEN)
-    expect(harness.mocks.readTrendReportForDelivery).not.toHaveBeenCalled()
-  })
-
-  it('refuses a Member, who reads the dashboard but holds no ai.trends.read', async () => {
-    const harness = createHarness({ grants: [PROPERTY_ID] })
-    const member = buildTestAuthContext({
-      organizationId: ORGANIZATION_ID,
-      role: 'Member',
-    })
-
-    await expect(
-      harness.readPropertyTrend({ ...TREND_INPUT, actor: member }),
-    ).rejects.toMatchObject(FORBIDDEN)
-    expect(harness.mocks.readTrendReportForDelivery).not.toHaveBeenCalled()
-  })
-
-  it('serves a manager granted the Property', async () => {
-    const harness = createHarness({ grants: [PROPERTY_ID] })
-
-    await expect(
-      harness.readPropertyTrend({ ...TREND_INPUT, actor: MANAGER }),
-    ).resolves.toBe(TREND_READY)
   })
 })
 
@@ -518,102 +376,6 @@ describe('read review analysis', () => {
         status: 'disabled',
       })
       expect(harness.mocks.readAnalysisForDelivery).not.toHaveBeenCalled()
-    })
-  })
-})
-
-describe('read property trend', () => {
-  it('reads through the store with the authorized source epoch and both capability epochs', async () => {
-    const harness = createHarness()
-
-    await expect(harness.readPropertyTrend(TREND_INPUT)).resolves.toBe(TREND_READY)
-    expect(harness.mocks.readTrendReportForDelivery).toHaveBeenCalledOnce()
-    expect(harness.mocks.readTrendReportForDelivery.mock.calls[0]?.[0]).toEqual({
-      organizationId: ORGANIZATION_ID,
-      propertyId: PROPERTY_ID,
-      actorUserId: ACTOR_USER_ID,
-      sourceEpoch: AUTHORIZED_SOURCE_EPOCH,
-      reviewAnalysisEpoch: REVIEW_ANALYSIS_EPOCH,
-      propertyTrendsEpoch: PROPERTY_TRENDS_EPOCH,
-      propertyProfileVersion: PROPERTY_PROFILE_VERSION,
-      reportProfileVersion: PROPERTY_TREND_PROFILE.profileVersion,
-      nowEpochMillis: NOW,
-    })
-  })
-
-  /**
-   * A trend report is property-scoped and pins no lineage argument, so a null
-   * lineage id must not disable it — only the review-analysis read, which does
-   * pin one, may refuse.
-   */
-  it('still reads when the authorization carries no lineage id', async () => {
-    const harness = createHarness({
-      authorization: authorizationWith({ authorizationLineageId: null }),
-    })
-
-    await expect(harness.readPropertyTrend(TREND_INPUT)).resolves.toBe(TREND_READY)
-    expect(harness.mocks.readTrendReportForDelivery).toHaveBeenCalledOnce()
-  })
-
-  it.each([
-    ['preparing', TREND_PREPARING],
-    ['updating', TREND_UPDATING],
-    ['insufficient_data', TREND_INSUFFICIENT],
-    ['ready', TREND_READY],
-  ])('forwards the %s outcome without rewriting it', async (_status, trendRead) => {
-    const harness = createHarness({ trendRead })
-
-    await expect(harness.readPropertyTrend(TREND_INPUT)).resolves.toBe(trendRead)
-  })
-
-  it('propagates store read failures instead of reporting the capability disabled', async () => {
-    const harness = createHarness({ storeFailure: new Error('trend read lease lost') })
-
-    await expect(harness.readPropertyTrend(TREND_INPUT)).rejects.toThrow(
-      'trend read lease lost',
-    )
-  })
-
-  describe('fails closed without touching the output store', () => {
-    const cases: ReadonlyArray<
-      readonly [
-        string,
-        Readonly<{
-          authorization?: AiMerchantAuthorizationSnapshot | null
-          runtime?: AiPropertyProfileResult
-        }>,
-      ]
-    > = [
-      ['no authorization row exists', { authorization: null }],
-      [
-        'authorization was never enabled',
-        { authorization: authorizationWith({ state: 'disabled' }) },
-      ],
-      [
-        'authorization was revoked',
-        { authorization: authorizationWith({ state: 'revoked' }) },
-      ],
-      [
-        'property trends is not among the granted capabilities',
-        { authorization: authorizationWith({ capabilities: ['review_analysis'] }) },
-      ],
-      [
-        'no capability is granted at all',
-        { authorization: authorizationWith({ capabilities: [] }) },
-      ],
-      ...UNAVAILABLE_RUNTIMES.map(
-        (status) =>
-          [`the processing profile is ${status}`, { runtime: { status } }] as const,
-      ),
-    ]
-
-    it.each(cases)('when %s', async (_label, options) => {
-      const harness = createHarness(options)
-
-      await expect(harness.readPropertyTrend(TREND_INPUT)).resolves.toEqual({
-        status: 'disabled',
-      })
-      expect(harness.mocks.readTrendReportForDelivery).not.toHaveBeenCalled()
     })
   })
 })
