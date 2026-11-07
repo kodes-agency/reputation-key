@@ -13,13 +13,12 @@
 //     paths — never a BullMQ enqueue; the drill has no worker and no queue.
 //   - Erasure replay is not wired: the command says so on every run.
 //
-// Ordinary composition is inspection-only. This restore-only CLI admits
-// `--apply` only when all three REVIEW_LIFECYCLE_RECOVERY_APPROVAL_* values
-// carry one exact digest-pinned, Ed25519-signed approval bundle.
+// The restore-only apply path requires the typed beta environment name;
+// the confirmation is logged with the operator and time before mutation.
 //
 // Usage:
 //   pnpm ops restore-verify --operator <id>            — dry-run report
-//   pnpm ops restore-verify --operator <id> --reason <text> --apply --yes ops:restore-verify
+//   pnpm ops restore-verify --operator <id> --reason <text> --apply --yes closed-beta-v2
 //
 // Requires DATABASE_URL (pointed at the ISOLATED restore target) and
 // RESTORE_MODE=isolated. Policy-evaluated like every operator command (the
@@ -51,18 +50,11 @@ import {
 import { runOperatorCommand } from './operator-command'
 
 async function main(): Promise<void> {
-  const result = await runOperatorCommand(RESTORE_VERIFY_SPEC, async (ctx, _args, io) => {
+  const result = await runOperatorCommand(RESTORE_VERIFY_SPEC, async (ctx, args, io) => {
     const env = getEnv()
     const { container } = ctx
-    const approvalContent = env.REVIEW_LIFECYCLE_RECOVERY_APPROVAL_BUNDLE_JSON
-    const approvalBundleSha256 = env.REVIEW_LIFECYCLE_RECOVERY_APPROVAL_BUNDLE_SHA256
-    const approvalPublicKeys = env.REVIEW_LIFECYCLE_RECOVERY_APPROVAL_PUBLIC_KEYS_JSON
     const reviewLifecycle = container.reviewMaintenanceRuntime.recovery.createAuthority({
-      ...(approvalContent === undefined ? {} : { approvalContent }),
-      ...(approvalBundleSha256 === undefined ? {} : { approvalBundleSha256 }),
-      ...(approvalPublicKeys === undefined
-        ? {}
-        : { approvalPublicKeysJson: approvalPublicKeys }),
+      environmentConfirmation: ctx.dryRun ? undefined : args.yes,
     })
 
     const retentionHandler = createRetentionSweepHandler({
@@ -74,6 +66,8 @@ async function main(): Promise<void> {
       ctx,
       {
         env,
+        confirmation: args.yes,
+        clock: container.clock,
         reviewLifecycle,
         countExpired: async () => {
           const report = await collectReviewSourceContentLifecycleReport(

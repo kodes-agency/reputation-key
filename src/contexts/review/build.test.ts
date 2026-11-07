@@ -82,7 +82,7 @@ describe('Review context build', () => {
     expect(api.maintenance.restatedRevisions).toEqual({ list: expect.any(Function) })
     expect(api.maintenance.recovery.createAuthority({})).toMatchObject({
       kind: 'inspection_only',
-      reason: 'reviewed_cutover_authority_required',
+      reason: 'environment_confirmation_required',
     })
   })
 

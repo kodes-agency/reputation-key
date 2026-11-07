@@ -1,14 +1,14 @@
-import type { KeyObject } from 'node:crypto'
 import { canonicalizeRfc8785 } from '#/shared/canonical-json'
 import { createGoogleSourceContentPolicy } from '#/shared/domain/source-content-policy'
 import {
-  authenticateReviewLifecycleRecoveryApprovalBundle,
   type ReviewLifecycleRecoveryApprovalRequest,
   type ReviewLifecycleRecoveryRuntimeTarget,
 } from '#/shared/ops/review-lifecycle-recovery-approval'
+import { CLOSED_BETA_RAILWAY_ENVIRONMENT_NAME } from '#/shared/release/railway-deployment-profile'
 import type { RecoveryFenceInput, RecoveryFenceResult } from '#/shared/ops/recovery-fence'
 import type {
   ReviewLifecycleRecoveryExecutionAuthorityInput,
+  ReviewLifecycleRecoveryExecutionIdentity,
   ReviewLifecycleRecoveryExecutionStore,
 } from '../ports/lifecycle-recovery-execution-store.port'
 import {
@@ -57,36 +57,55 @@ function sameRequest(
   return canonicalizeRfc8785(actual) === canonicalizeRfc8785(expected)
 }
 
+async function drainLifecycle(
+  runLifecycle: RunReviewSourceContentLifecycle,
+  checkpoint?: ReviewSourceContentLifecycleCheckpoint,
+  recoveryExecution?: ReviewLifecycleRecoveryExecutionIdentity,
+): Promise<void> {
+  do {
+    const result = await runLifecycle({
+      mode: 'apply',
+      batchSize: REVIEW_SOURCE_CONTENT_LIFECYCLE_MAX_BATCH_SIZE,
+      ...(checkpoint == null ? {} : { checkpoint }),
+      applyConfirmation: REVIEW_SOURCE_CONTENT_LIFECYCLE_APPLY_CONFIRMATION,
+      ...(recoveryExecution == null ? {} : { recoveryExecution }),
+    })
+    if (!result.apply.enabled) {
+      throw new Error('Review lifecycle recovery apply authority disappeared')
+    }
+    checkpoint = result.nextCheckpoint ?? undefined
+    if (checkpoint != null && result.scanned === 0) {
+      throw new Error('Review lifecycle recovery checkpoint did not advance')
+    }
+  } while (checkpoint != null)
+}
+
 /**
- * One-shot restore-only Review lifecycle executor. The signed bundle is
- * authenticated and its exact frozen report is re-collected before the first
- * durable receipt or lifecycle mutation.
+ * Restore-only lifecycle execution. The typed environment confirmation precedes
+ * admission; frozen evidence and durable checkpoints bind the original pass.
+ * A fresh expiry pass catches content that aged out while recovery was paused.
  */
 export function createRunReviewLifecycleRecoveryExecutor(
   deps: Readonly<{
-    approvalContent: string
-    approvalBundleSha256: string
-    trustedPublicKeys: ReadonlyMap<string, KeyObject>
+    environmentConfirmation?: string
     clock: () => Date
+    prepare: (target: ReviewLifecycleRecoveryRuntimeTarget) => Promise<
+      Readonly<{
+        request: ReviewLifecycleRecoveryApprovalRequest
+        authority: ReviewLifecycleRecoveryExecutionAuthorityInput
+      }>
+    >
     createRunLifecycle: CreateRunLifecycle
     executions: ReviewLifecycleRecoveryExecutionStore
   }>,
 ): RunReviewLifecycleRecoveryExecutor {
   return {
     admit: async (target) => {
-      const authenticated = authenticateReviewLifecycleRecoveryApprovalBundle({
-        content: deps.approvalContent,
-        expectedBundleSha256: deps.approvalBundleSha256,
-        trustedPublicKeys: deps.trustedPublicKeys,
-        now: deps.clock(),
-      })
-      if (!authenticated.ok) {
-        throw new Error(
-          `Review lifecycle recovery approval refused: ${authenticated.code}`,
-        )
+      if (deps.environmentConfirmation !== CLOSED_BETA_RAILWAY_ENVIRONMENT_NAME) {
+        throw new Error('Confirm the restore environment with --yes closed-beta-v2')
       }
-      const { bundle, bundleSha256 } = authenticated
-      const evaluatedAt = new Date(bundle.request.lifecycle.evaluatedAt)
+      const { request, authority } = await deps.prepare(target)
+      const evaluatedAt = new Date(request.lifecycle.evaluatedAt)
       const expectedTarget = {
         releaseSha: target.releaseSha,
         releaseManifestSha256: target.releaseManifestSha256,
@@ -94,77 +113,55 @@ export function createRunReviewLifecycleRecoveryExecutor(
         restoreDatabaseServiceName: target.restoreDatabaseServiceName,
         railwayProjectId: target.railwayProjectId,
         railwayEnvironmentId: target.railwayEnvironmentId,
-        recoveryRunId: bundle.request.target.recoveryRunId,
-        recoveryGeneration: bundle.request.target.recoveryGeneration,
+        recoveryRunId: request.target.recoveryRunId,
+        recoveryGeneration: request.target.recoveryGeneration,
       }
       const sourcePolicy = createGoogleSourceContentPolicy()
       if (
-        canonicalizeRfc8785(bundle.request.target) !==
-          canonicalizeRfc8785(expectedTarget) ||
-        bundle.request.lifecycle.sourcePolicyVersion !== sourcePolicy.policyVersion ||
-        bundle.request.lifecycle.retentionPolicyVersion !==
+        canonicalizeRfc8785(request.target) !== canonicalizeRfc8785(expectedTarget) ||
+        request.lifecycle.sourcePolicyVersion !== sourcePolicy.policyVersion ||
+        request.lifecycle.retentionPolicyVersion !==
           REVIEW_SOURCE_CONTENT_LIFECYCLE_RETENTION_POLICY_VERSION ||
-        bundle.request.lifecycle.policySha256 !== reviewLifecyclePolicySha256()
+        request.lifecycle.policySha256 !== reviewLifecyclePolicySha256()
       ) {
         throw new Error('Review lifecycle recovery approval refused: wrong_target')
       }
       const lifecycleApproval = {
-        approvalId: bundle.approval.approvalId,
-        evidenceSha256: bundle.request.lifecycle.reportSha256,
-        approvedAt: bundle.approval.approvedAt,
+        approvalId: authority.approvalId,
+        evidenceSha256: request.lifecycle.reportSha256,
+        approvedAt: authority.approvedAt.toISOString(),
       }
-      const authorizeApply: AuthorizeReviewSourceContentLifecycleApply = async (
-        input,
-      ) => {
-        if (
-          input.contract !== REVIEW_SOURCE_CONTENT_LIFECYCLE_CONTRACT ||
-          input.evaluatedAt.getTime() !== evaluatedAt.getTime() ||
-          canonicalizeRfc8785(input.scope) !==
-            canonicalizeRfc8785(bundle.request.lifecycle.scope) ||
-          (input.priorApproval != null &&
-            canonicalizeRfc8785(input.priorApproval) !==
-              canonicalizeRfc8785(lifecycleApproval))
-        ) {
-          throw new Error('Review lifecycle recovery approval continuation changed')
+      const authorizeAt =
+        (cutoff: Date): AuthorizeReviewSourceContentLifecycleApply =>
+        async (input) => {
+          if (
+            input.contract !== REVIEW_SOURCE_CONTENT_LIFECYCLE_CONTRACT ||
+            input.evaluatedAt.getTime() !== cutoff.getTime() ||
+            canonicalizeRfc8785(input.scope) !==
+              canonicalizeRfc8785(request.lifecycle.scope) ||
+            (input.priorApproval != null &&
+              canonicalizeRfc8785(input.priorApproval) !==
+                canonicalizeRfc8785(lifecycleApproval))
+          ) {
+            throw new Error('Review lifecycle recovery approval continuation changed')
+          }
+          return lifecycleApproval
         }
-        return lifecycleApproval
-      }
       const runLifecycle = deps.createRunLifecycle({
         clock: () => new Date(evaluatedAt),
-        authorizeApply,
+        authorizeApply: authorizeAt(evaluatedAt),
       })
       const identity = {
-        recoveryRunId: bundle.request.target.recoveryRunId,
-        recoveryGeneration: bundle.request.target.recoveryGeneration,
-        approvalId: bundle.approval.approvalId,
-        approvalBundleSha256: bundleSha256,
-      }
-      const authority: ReviewLifecycleRecoveryExecutionAuthorityInput = {
-        ...identity,
-        state: 'applying',
-        approverIdentity: bundle.approval.approverIdentity,
-        approvalKeyId: bundle.approval.keyId,
-        approvedAt: new Date(bundle.approval.approvedAt),
-        expiresAt: new Date(bundle.approval.expiresAt),
-        releaseSha: target.releaseSha,
-        releaseManifestSha256: target.releaseManifestSha256,
-        restorePointAt: target.restorePointAt,
-        restoreDatabaseServiceName: target.restoreDatabaseServiceName,
-        railwayProjectId: target.railwayProjectId,
-        railwayEnvironmentId: target.railwayEnvironmentId,
-        evaluatedAt,
-        sourcePolicyVersion: bundle.request.lifecycle.sourcePolicyVersion,
-        retentionPolicyVersion: bundle.request.lifecycle.retentionPolicyVersion,
-        policySha256: bundle.request.lifecycle.policySha256,
-        reportSha256: bundle.request.lifecycle.reportSha256,
-        operatorId: target.operatorId,
-        correlationId: target.correlationId,
+        recoveryRunId: request.target.recoveryRunId,
+        recoveryGeneration: request.target.recoveryGeneration,
+        approvalId: authority.approvalId,
+        approvalBundleSha256: authority.approvalBundleSha256,
       }
       let execution = await deps.executions.resume(authority)
       if (execution == null) {
         const evidence = await collectReviewLifecycleRecoveryEvidence(runLifecycle)
         const expectedRequest: ReviewLifecycleRecoveryApprovalRequest = {
-          version: bundle.request.version,
+          version: request.version,
           kind: 'review-lifecycle-recovery',
           target: expectedTarget,
           lifecycle: {
@@ -178,7 +175,7 @@ export function createRunReviewLifecycleRecoveryExecutor(
             reportSha256: evidence.sha256,
           },
         }
-        if (!sameRequest(bundle.request, expectedRequest)) {
+        if (!sameRequest(request, expectedRequest)) {
           throw new Error('Review lifecycle recovery approval refused: wrong_target')
         }
         execution = await deps.executions.begin({
@@ -191,8 +188,9 @@ export function createRunReviewLifecycleRecoveryExecutor(
         sourceReleaseSha: target.releaseSha,
         sourceManifestSha256: target.releaseManifestSha256,
         restorePointAt: target.restorePointAt,
-        operatorId: target.operatorId,
-        correlationId: target.correlationId,
+        // Retries must match both the immutable fence and receipt completion binding.
+        operatorId: authority.operatorId,
+        correlationId: authority.correlationId,
         runId: identity.recoveryRunId,
         generation: identity.recoveryGeneration,
       }
@@ -202,17 +200,16 @@ export function createRunReviewLifecycleRecoveryExecutor(
         expired: execution.reportExpired,
         approvalId: identity.approvalId,
         approvalBundleSha256: identity.approvalBundleSha256,
-        reportSha256: bundle.request.lifecycle.reportSha256,
+        reportSha256: request.lifecycle.reportSha256,
         applyReviewLifecycle: async () => {
-          if (execution.state === 'lifecycle_applied') return
-          let checkpoint: ReviewSourceContentLifecycleCheckpoint | undefined =
+          const checkpoint: ReviewSourceContentLifecycleCheckpoint | undefined =
             execution.checkpoint == null
               ? undefined
               : {
                   contract: REVIEW_SOURCE_CONTENT_LIFECYCLE_CONTRACT,
                   mode: 'apply' as const,
-                  scope: bundle.request.lifecycle.scope,
-                  evaluatedAt: bundle.request.lifecycle.evaluatedAt,
+                  scope: request.lifecycle.scope,
+                  evaluatedAt: request.lifecycle.evaluatedAt,
                   after: {
                     createdAt: execution.checkpoint.createdAt.toISOString(),
                     reviewId: execution.checkpoint.reviewId,
@@ -220,22 +217,22 @@ export function createRunReviewLifecycleRecoveryExecutor(
                   approval: lifecycleApproval,
                 }
           try {
-            do {
-              const result = await runLifecycle({
-                mode: 'apply',
-                batchSize: REVIEW_SOURCE_CONTENT_LIFECYCLE_MAX_BATCH_SIZE,
-                ...(checkpoint == null ? {} : { checkpoint }),
-                applyConfirmation: REVIEW_SOURCE_CONTENT_LIFECYCLE_APPLY_CONFIRMATION,
-                recoveryExecution: identity,
-              })
-              if (!result.apply.enabled) {
-                throw new Error('Review lifecycle recovery apply authority disappeared')
-              }
-              checkpoint = result.nextCheckpoint ?? undefined
-              if (checkpoint != null && result.scanned === 0) {
-                throw new Error('Review lifecycle recovery checkpoint did not advance')
-              }
-            } while (checkpoint != null)
+            if (execution.state !== 'lifecycle_applied') {
+              await drainLifecycle(runLifecycle, checkpoint, identity)
+            }
+            const currentCutoff = new Date(deps.clock())
+            if (currentCutoff.getTime() > evaluatedAt.getTime()) {
+              // The receipt's frozen evidence stays immutable. Age-based expiry
+              // may have advanced behind its cursor, so scan from the start at
+              // one new cutoff. Each page is atomic and safely replayable after
+              // interruption; the original durable checkpoint is never reset.
+              await drainLifecycle(
+                deps.createRunLifecycle({
+                  clock: () => new Date(currentCutoff),
+                  authorizeApply: authorizeAt(currentCutoff),
+                }),
+              )
+            }
           } catch (error) {
             await deps.executions
               .fail({
