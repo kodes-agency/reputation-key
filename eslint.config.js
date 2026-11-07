@@ -77,6 +77,56 @@ const NOT_A_UI_SOURCE = [
 const GUEST_RENDERER = 'src/components/features/guest/**'
 const ROUTE_SOURCES = ['src/routes/**/*.{ts,tsx}']
 
+// Selectable tiles, evidence rows and the focal-point handle keep their own
+// geometry. Only the marked button in each named file is exempt; an ordinary
+// raw action in the same file still fails. The guest renderer remains separate.
+const SELECTABLE_BUTTONS = [
+  // The radio cards keep their roving focus and card geometry rather than action-button styling.
+  ['src/components/features/beta-feedback/beta-feedback-choice.tsx', 'picker-tile'],
+  // The selectable account rows keep their multiline identity and active border.
+  [
+    'src/components/features/integration/google-import-manager/google-import-account-list.tsx',
+    'picker-tile',
+  ],
+  // The upload tile shares the icon radios’ grid geometry but opens the photo dialog.
+  ['src/components/features/portal/link-tree/linktree-icon-picker.tsx', 'picker-tile'],
+  // The disclosure occupies only the tile’s text, beside its separate move and menu controls.
+  ['src/components/features/portal/link-tree/linktree-tile.tsx', 'picker-tile'],
+  // The selectable version rows keep their multiline publication evidence.
+  [
+    'src/components/features/portal/portal-history/portal-versions-rail.tsx',
+    'picker-tile',
+  ],
+  // The language choices keep their selected border and inline fallback marker.
+  [
+    'src/components/features/portal/portal-new/portal-new-languages-field.tsx',
+    'picker-tile',
+  ],
+  // The selector overlays an inert thumbnail whose page contains its own buttons.
+  [
+    'src/components/features/portal/portal-preview/portal-preview-filmstrip.tsx',
+    'picker-tile',
+  ],
+  // The selectors follow measured page parts and compensate for the preview scale.
+  ['src/components/features/portal/portal-preview/preview-part-frame.tsx', 'picker-tile'],
+  // The draggable focal handle keeps its photograph-relative position and pointer capture.
+  [
+    'src/components/features/portal/property-look/focal-point-picker.tsx',
+    'picker-handle',
+  ],
+  // The selectable portal rows keep their multiline identity and separate edit link.
+  [
+    'src/components/features/portal/property-look/property-look-portals.tsx',
+    'picker-tile',
+  ],
+  // The selectable metrics keep the figure and detail layout of the surrounding summary.
+  ['src/components/features/property/property-list-summary.tsx', 'picker-tile'],
+  // The radio pills keep their wrapping layout and roving keyboard selection.
+  ['src/components/inbox/inbox-choice-chips.tsx', 'picker-tile'],
+  // The selectable Inbox row keeps its evidence layout beside the separate bulk checkbox.
+  ['src/components/inbox/inbox-list-row.tsx', 'picker-tile'],
+]
+
 const elementType = (type) => ({ element: { type } })
 const elementTypes = (...types) => ({ element: { types: { anyOf: types } } })
 const fileCategory = (categories) => ({ file: { categories } })
@@ -1012,7 +1062,7 @@ export default tseslint.config(
     plugins: { 'ui-pattern': uiPattern },
     rules: {
       'ui-pattern/important-ink': [
-        'warn',
+        'error',
         ...withMessage(
           anyString(
             String.raw`(?:^|[\s:])(?:!(?:text|decoration)-[\w()\x2f.%-]+|!(?:no-)?underline\b|(?:text|decoration)-[\w()\x2f.%-]+!|(?:no-)?underline!)(?=\s|$)`,
@@ -1032,7 +1082,7 @@ export default tseslint.config(
     plugins: { 'ui-pattern': uiPattern },
     rules: {
       'ui-pattern/palette-colour': [
-        'warn',
+        'error',
         ...withMessage(
           anyString(
             String.raw`\b(?:text|bg|border|fill|stroke|ring|from|to|via|divide|outline|decoration|shadow|accent|caret)-(?:amber|emerald|red|green|yellow|neutral|gray|grey|slate|zinc|stone|orange|lime|teal|cyan|sky|blue|indigo|violet|purple|fuchsia|pink|rose)-\d{2,3}\b`,
@@ -1090,7 +1140,7 @@ export default tseslint.config(
     plugins: { 'ui-pattern': uiPattern },
     rules: {
       'ui-pattern/control-size': [
-        'warn',
+        'error',
         ...withMessage(
           classOf(
             'Button|IconButton|SubmitButton|Input|SelectTrigger|DropdownMenuItem|RowActionsItem|ConfirmationTrigger',
@@ -1102,16 +1152,16 @@ export default tseslint.config(
     },
   },
 
-  // ACT-10. A control that acts is a Button (an IconButton, a RowActionsMenu, a
-  // ConfirmationTrigger). A selectable tile or row that is a button by design may
-  // stay: say why in a comment and disable the line.
+  // A control that acts is a Button (an IconButton, a RowActionsMenu, a
+  // ConfirmationTrigger). The named selectable controls below keep their geometry
+  // through a documented data-slot exception, never an inline rule disable.
   {
     files: UI_SOURCES,
     ignores: [...NOT_A_UI_SOURCE, 'src/components/ui/**', GUEST_RENDERER],
     plugins: { 'ui-pattern': uiPattern },
     rules: {
       'ui-pattern/raw-button': [
-        'warn',
+        'error',
         {
           selector: "JSXOpeningElement[name.name='button']",
           message:
@@ -1120,6 +1170,22 @@ export default tseslint.config(
       ],
     },
   },
+
+  // A marker is accepted only in its named file, not as a general escape hatch.
+  ...SELECTABLE_BUTTONS.map(([file, slot]) => ({
+    files: [file],
+    plugins: { 'ui-pattern': uiPattern },
+    rules: {
+      'ui-pattern/raw-button': [
+        'error',
+        {
+          selector: `JSXOpeningElement[name.name='button']:not(:has(> JSXAttribute[name.name='data-slot'][value.value='${slot}']))`,
+          message:
+            'A raw <button>. Use Button or IconButton. Only the documented selectable control with its named data-slot may stay.',
+        },
+      ],
+    },
+  })),
 
   // COLL-16. A cursor feed's "Load more" is a LoadMoreButton (aria-disabled while it
   // loads so focus stays, "Try again" after a failure).
@@ -1211,7 +1277,7 @@ export default tseslint.config(
     plugins: { 'ui-pattern': uiPattern },
     rules: {
       'ui-pattern/unavailable-redirect': [
-        'warn',
+        'error',
         {
           selector: "Property[key.name='to'][value.value='/unavailable']",
           message:
@@ -1228,7 +1294,7 @@ export default tseslint.config(
     plugins: { 'ui-pattern': uiPattern },
     rules: {
       'ui-pattern/role-denial-redirect': [
-        'warn',
+        'error',
         ...withMessage(
           [
             "IfStatement:has(CallExpression[callee.name='can']) > ThrowStatement > CallExpression[callee.name='redirect']",
