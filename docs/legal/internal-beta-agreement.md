@@ -2,14 +2,14 @@
 status: accepted
 accepted_by: Bozhidar Denev
 accepted_on: 2026-09-08
-amended_on: 2026-11-06
+amended_on: 2026-11-07
 ---
 
 # Closed Beta Participation Agreement — Reputation Key
 
 **Status:** Accepted for publication and invited-beta use
-**Effective date:** 2026-11-06
-**Version:** 2.6
+**Effective date:** 2026-11-07
+**Version:** 2.7
 **Accountable owner:** Bozhidar Denev
 
 ## 1. Parties and beta purpose
@@ -47,7 +47,7 @@ release readiness, the core product includes:
 
 Core analytics are part of the Service. There is no product option to decline
 the affected operational metrics while continuing to use the workflow. The
-accepted [Privacy Notice version 3.5](/privacy), effective 2026-11-06, forms part
+accepted [Privacy Notice version 3.6](/privacy), effective 2026-11-07, forms part
 of this agreement and states the applicable roles, legal bases, and rights
 process.
 
@@ -106,9 +106,14 @@ is not permanent exclusive ownership. Account administrators are used only for
 the explicit unowned recovery state; notices do not fan out to every Property
 Manager.
 
-Guests may use the signed response session for the documented correction and
-24-hour withdrawal windows. Contact Request is email-only if later activated;
-phone collection and Guest media remain outside the beta.
+For a stored response, Guests may use the signed response session for the
+documented correction and 24-hour withdrawal windows. During an unusually busy
+period or abuse, a response may not be stored because a limit has been reached.
+The Guest still sees the normal thank-you and the same Google Review option,
+with the same order, timing, copy and prominence. If nothing was stored,
+correction and withdrawal are unavailable. Contact Request remains unavailable
+until its separate release and privacy requirements are met; if activated, it is
+email-only. Phone collection and Guest media remain outside the beta.
 
 A business may switch a Portal to skip the private rating and show the Google
 action straight away, with no private rating or note. If Google is unavailable,
@@ -251,7 +256,7 @@ agreement does not create them.
 
 ## 9. Data handling, retention, and providers
 
-The accepted [Privacy Notice version 3.5](/privacy), effective 2026-11-06, and
+The accepted [Privacy Notice version 3.6](/privacy), effective 2026-11-07, and
 its retention and provider schedules form part of this agreement. They cover
 Participant, Google source, Portal and Guest, manager-authored, AI-derived,
 monitoring, export, backup, and independently retained evidence classes.
@@ -304,8 +309,8 @@ capability schedule are available.
 
 This agreement is accepted together with:
 
-- Privacy Notice version 3.5, effective 2026-11-06, at `/privacy`;
-- Google Business Profile Access Disclosure version 2.5, effective 2026-11-06,
+- Privacy Notice version 3.6, effective 2026-11-07, at `/privacy`;
+- Google Business Profile Access Disclosure version 2.6, effective 2026-11-07,
   at `/privacy/google-access-disclosure`;
 - the activated-capability schedule maintained in `src/shared/governance/capability-fate.ts`; and
 - the retention, provider, transfer, rights, deployment, and change rules in
@@ -318,7 +323,7 @@ invited Participant accepts the Participant obligations by joining.
 
 ## 13. Changes
 
-This agreement takes effect on 2026-11-06 and is version 2.6. It replaces version 2.5, effective 2026-11-03, which replaced version 2.4, effective 2026-11-02, which replaced version 2.3, effective 2026-11-02, which replaced version 2.2, effective 2026-11-01, which replaced
+This agreement takes effect on 2026-11-07 and is version 2.7. It replaces version 2.6, effective 2026-11-06, which replaced version 2.5, effective 2026-11-03, which replaced version 2.4, effective 2026-11-02, which replaced version 2.3, effective 2026-11-02, which replaced version 2.2, effective 2026-11-01, which replaced
 version 2.1, which took effect on 2026-10-14 and had replaced version 2.0, which
 took effect on 2026-09-08.
 
@@ -379,3 +384,13 @@ Access Disclosure 2.5, both effective 2026-11-06. It takes effect on publication
 without a waiting period, on the accountable owner's decision for the two
 closed-beta Organizations the owner controls. Existing users are not asked to
 accept again; new members continue to accept through the invitation flow.
+
+Version 2.7 (2026-11-07) explains that during an unusually busy period or abuse
+a guest response may not be stored, while the guest still sees the normal
+thank-you and the same Google Review option, and that correction and withdrawal
+apply to stored responses. It names Privacy Notice 3.6 and Google Business
+Profile Access Disclosure 2.6, both effective 2026-11-07. It takes effect on
+publication without a waiting period, on the accountable owner's decision for
+the two closed-beta Organizations the owner controls. Existing users are not
+asked to accept again; new members continue to accept through the invitation
+flow.

@@ -33,6 +33,9 @@ const mocks = vi.hoisted(() => ({
   submit: vi.fn(),
   correct: vi.fn(),
   getState: vi.fn(),
+  reserveResponse: vi.fn(),
+  getDropped: vi.fn(),
+  rememberDropped: vi.fn(),
   trackReviewLinkClick: vi.fn(),
   logError: vi.fn(),
 }))
@@ -95,6 +98,7 @@ vi.mock('#/composition', () => ({
           verify: mocks.verifySession,
           verifyCsrf: mocks.verifyCsrf,
           renewUntil: mocks.renewUntil,
+          rememberDroppedResponse: mocks.rememberDropped,
         },
         guestPublicRuntime: {
           expectedOrigin: ORIGIN,
@@ -104,6 +108,7 @@ vi.mock('#/composition', () => ({
         reportObservationLoss: mocks.reportObservationLoss,
         reportNetworkBudgetExhausted: mocks.reportNetworkBudgetExhausted,
         trackReviewLinkClick: mocks.trackReviewLinkClick,
+        responseCeiling: { reserve: mocks.reserveResponse, getDropped: mocks.getDropped },
         responseLifecycle: {
           submit: mocks.submit,
           correct: mocks.correct,
@@ -195,7 +200,10 @@ beforeEach(() => {
   mocks.consumeGuestNetworkPressure.mockResolvedValue(WITHIN)
   mocks.submit.mockResolvedValue(SUBMITTED_VIEW)
   mocks.correct.mockResolvedValue({ ...SUBMITTED_VIEW, status: 'corrected' })
-  mocks.getState.mockResolvedValue(SUBMITTED_VIEW)
+  mocks.getState.mockResolvedValue(null)
+  mocks.getDropped.mockResolvedValue(null)
+  mocks.reserveResponse.mockResolvedValue({ allowed: true, recordedAt: NOW })
+  mocks.rememberDropped.mockReturnValue({ cookies: ['dropped-cookie'] })
   mocks.trackReviewLinkClick.mockResolvedValue(undefined)
   limiter()
 })
@@ -402,6 +410,7 @@ describe('correctGuestResponseFn on a venue address', () => {
 })
 
 describe('selectGoogleReviewFn on a venue address', () => {
+  beforeEach(() => mocks.getState.mockResolvedValue(SUBMITTED_VIEW))
   const selectGoogle = () =>
     selectGoogleReviewFn({ data: { token: 'pt_live', csrfNonce: CSRF_NONCE } })
 
@@ -434,5 +443,61 @@ describe('selectGoogleReviewFn on a venue address', () => {
     expect(mocks.reportNetworkBudgetExhausted).toHaveBeenCalledExactlyOnceWith({
       action: 'google',
     })
+  })
+})
+
+describe('shared response ceiling admission', () => {
+  it('runs device, network and PostgreSQL pressure controls before reserving', async () => {
+    await submitRating()
+    expect(mocks.reserveResponse).toHaveBeenCalledExactlyOnceWith(SCOPE, SESSION_ID)
+    expect(mocks.reserveResponse.mock.invocationCallOrder[0]).toBeGreaterThan(
+      mocks.consumeGuestNetworkPressure.mock.invocationCallOrder[0]!,
+    )
+  })
+
+  it('does not spend a shared slot when the device is denied', async () => {
+    limiter({ session: EXHAUSTED })
+    await expect(submitRating()).rejects.toMatchObject({
+      name: 'GuestResponseError',
+      code: 'rate_limited',
+      status: 429,
+    })
+    expect(mocks.reserveResponse).not.toHaveBeenCalled()
+  })
+
+  it('returns a dropped receipt without writing a response and signs the browser receipt', async () => {
+    mocks.reserveResponse.mockResolvedValue({ allowed: false, recordedAt: NOW })
+    await expect(submitRating()).resolves.toMatchObject({
+      dropped: true,
+      status: 'submitted',
+      rating: 5,
+      correctionAvailable: false,
+      responseWithdrawalAvailable: false,
+      privateFeedbackEligible: false,
+      hasPrivateFeedback: false,
+    })
+    expect(mocks.submit).not.toHaveBeenCalled()
+    expect(mocks.rememberDropped).toHaveBeenCalledWith(SESSION, 5, NOW)
+    expect(mocks.setResponseHeader).toHaveBeenCalledWith('Set-Cookie', ['dropped-cookie'])
+  })
+
+  it('does not reserve again for an existing durable response', async () => {
+    mocks.getState.mockResolvedValue(SUBMITTED_VIEW)
+    await expect(submitRating()).resolves.toEqual(SUBMITTED_VIEW)
+    expect(mocks.reserveResponse).not.toHaveBeenCalled()
+    expect(mocks.submit).not.toHaveBeenCalled()
+  })
+
+  it('preserves Google navigation for a dropped response without recording a selection', async () => {
+    mocks.getDropped.mockResolvedValue({
+      dropped: true,
+      status: 'submitted',
+      rating: null,
+    })
+    await expect(
+      selectGoogleReviewFn({ data: { token: 'pt_live', csrfNonce: CSRF_NONCE } }),
+    ).resolves.toEqual({ url: 'https://g.page/r/venue' })
+    expect(mocks.trackReviewLinkClick).not.toHaveBeenCalled()
+    expect(mocks.reserveResponse).not.toHaveBeenCalled()
   })
 })

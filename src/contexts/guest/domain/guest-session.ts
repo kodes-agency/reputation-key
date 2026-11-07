@@ -16,6 +16,8 @@ import type {
 import type { GuestLocale } from '#/shared/domain/guest-locale'
 
 export interface GuestSession {
+  /** Browser-only receipt; the admission store never keeps the submitted rating. */
+  readonly droppedResponse?: Readonly<{ rating: number; submittedAt: string }>
   readonly sessionId: GuestSessionId
   readonly csrfNonce: string
   readonly portalId: PortalId

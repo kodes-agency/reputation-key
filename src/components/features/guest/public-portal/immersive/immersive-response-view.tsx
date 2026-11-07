@@ -47,6 +47,7 @@ type Stage = 'arrival' | 'rated' | 'removed'
 
 function stageOf(response: GuestResponseView | null): Stage {
   if (response === null) return 'arrival'
+  if (response.dropped) return 'rated'
   return response.status === 'deleted' || response.rating === null ? 'removed' : 'rated'
 }
 
@@ -122,7 +123,10 @@ function ResponseBody(props: ImmersiveResponseViewProps) {
       </GlassSurface>
     )
   }
-  if (response?.status === 'deleted' || response?.rating === null) {
+  if (
+    !response?.dropped &&
+    (response?.status === 'deleted' || response?.rating === null)
+  ) {
     return (
       <ImmersiveRemovedResponse
         pack={pack}

@@ -38,7 +38,7 @@ export function ImmersiveAfterRating({
   receiptHeading,
 }: ImmersiveResponseViewProps & {
   response: GuestResponseView
-  rating: number
+  rating: number | null
   receiptHeading: RefObject<HTMLHeadingElement | null>
 }) {
   const [open, setOpen] = useState(yourResponse?.initialOpen === true)

@@ -374,6 +374,8 @@ const mocks = vi.hoisted(() => ({
   addPrivateFeedback: vi.fn(),
   withdraw: vi.fn(),
   getState: vi.fn(),
+  reserveResponse: vi.fn(),
+  getDropped: vi.fn(),
   trackReviewLinkClick: vi.fn(),
   logError: vi.fn(),
   headers: vi.fn(),
@@ -446,6 +448,7 @@ vi.mock('#/composition', () => ({
           trackClick: mocks.trackSecondary,
           reportObservationLoss: mocks.reportObservationLoss,
         }),
+        responseCeiling: { reserve: mocks.reserveResponse, getDropped: mocks.getDropped },
         responseLifecycle: {
           submit: mocks.submit,
           correct: mocks.correct,
@@ -503,6 +506,8 @@ beforeEach(() => {
   mocks.rateLimiterCheck.mockResolvedValue(WITHIN)
   mocks.consumeGuestNetworkPressure.mockResolvedValue(WITHIN)
   mocks.getState.mockResolvedValue(null)
+  mocks.getDropped.mockResolvedValue(null)
+  mocks.reserveResponse.mockResolvedValue({ allowed: true, recordedAt: NOW })
 })
 
 const tap = (csrfNonce = CSRF_NONCE) =>
