@@ -15,9 +15,8 @@ import {
 } from '#/contexts/feed/application/public-api'
 
 /**
- * The two values one preference row holds. Quiet hours and the urgent bypass
- * left it in ADR 0046's 2026-09-23 amendment: they are the person's, saved
- * once for every Property rather than once per (Property, category, channel).
+ * Category switches and cadence are per Property. Quiet hours and the urgent
+ * bypass belong to the personal delivery window and its Property overrides.
  */
 export type PreferenceValues = Pick<NotificationPreference, 'enabled' | 'cadence'> &
   Readonly<{
@@ -77,12 +76,12 @@ export function preferenceRequestValues(values: PreferenceValues) {
  * not stop the next one, and different keys never wait for each other.
  */
 export function createSerialRunner() {
-  let tails: ReadonlyMap<string, Promise<unknown>> = new Map()
+  const tails = new Map<string, Promise<unknown>>()
   return {
     run<T>(key: string, task: () => Promise<T>): Promise<T> {
       const previous = tails.get(key) ?? Promise.resolve()
       const result = previous.then(task, task)
-      tails = new Map(tails).set(
+      tails.set(
         key,
         result.catch(() => undefined),
       )

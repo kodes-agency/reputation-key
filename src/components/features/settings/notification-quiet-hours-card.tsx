@@ -1,10 +1,6 @@
 // Quiet hours and the urgent bypass: one answer for every property the person
 // has, with an optional override for the property in view (ADR 0046, amended
 // 2026-09-23).
-//
-// They used to sit inside every category row, per property: a manager with 30
-// properties needed about 60 saves to stop 03:00 email, and a window set on
-// only some properties split the one daily digest in two.
 
 import { useState } from 'react'
 import { toast } from 'sonner'
@@ -96,6 +92,18 @@ export function NotificationQuietHoursCard({
   const pending = updateQuietHours.isPending
   const [overriding, setOverriding] = useState(override !== null)
   const [following, setFollowing] = useState(false)
+  const personalWindow: PersonalDeliveryWindow = {
+    quietHoursStart: settings.quietHoursStart,
+    quietHoursEnd: settings.quietHoursEnd,
+    urgentBypassEnabled: settings.urgentBypassEnabled,
+  }
+  const propertyWindow = {
+    propertyId: property.id,
+    quietHoursStart: override?.quietHoursStart ?? null,
+    quietHoursEnd: override?.quietHoursEnd ?? null,
+    urgentBypassEnabled: override?.urgentBypassEnabled ?? false,
+  }
+  const propertySaved = `Quiet hours updated for ${property.name}`
 
   // A Save is a form submit: a refusal is the editor's banner, so it is rethrown
   // to the editor. A switch or a button is an immediate action: its refusal is a
@@ -156,9 +164,9 @@ export function NotificationQuietHoursCard({
             onSave={(quietHoursStart, quietHoursEnd) =>
               saveEditor(
                 {
+                  ...personalWindow,
                   quietHoursStart,
                   quietHoursEnd,
-                  urgentBypassEnabled: settings.urgentBypassEnabled,
                 },
                 'Quiet hours updated',
               )
@@ -171,8 +179,7 @@ export function NotificationQuietHoursCard({
             onChange={(urgentBypassEnabled) =>
               save(
                 {
-                  quietHoursStart: settings.quietHoursStart,
-                  quietHoursEnd: settings.quietHoursEnd,
+                  ...personalWindow,
                   urgentBypassEnabled,
                 },
                 'Quiet hours updated',
@@ -220,12 +227,11 @@ export function NotificationQuietHoursCard({
                 onSave={(quietHoursStart, quietHoursEnd) =>
                   saveEditor(
                     {
-                      propertyId: property.id,
+                      ...propertyWindow,
                       quietHoursStart,
                       quietHoursEnd,
-                      urgentBypassEnabled: override?.urgentBypassEnabled ?? false,
                     },
-                    `Quiet hours updated for ${property.name}`,
+                    propertySaved,
                   )
                 }
               />
@@ -237,12 +243,10 @@ export function NotificationQuietHoursCard({
                 onChange={(urgentBypassEnabled) =>
                   save(
                     {
-                      propertyId: property.id,
-                      quietHoursStart: override?.quietHoursStart ?? null,
-                      quietHoursEnd: override?.quietHoursEnd ?? null,
+                      ...propertyWindow,
                       urgentBypassEnabled,
                     },
-                    `Quiet hours updated for ${property.name}`,
+                    propertySaved,
                   )
                 }
               />

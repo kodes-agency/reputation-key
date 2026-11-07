@@ -52,15 +52,18 @@ describe('mute notification category', () => {
     expect(previous).toBeNull()
   })
 
-  it('reports the row the Property had of its own, so an undo can put it back', async () => {
-    const { previous } = await muteNotificationCategory(INPUT, {
-      ...DEPS,
-      findPropertyPreference: async () => ({ enabled: true, cadence: 'immediate' }),
-      upsertEnabled: async (preference) => preference,
-    })
+  it.each([true, false])(
+    'reports an explicit %s Property setting for undo',
+    async (enabled) => {
+      const { previous } = await muteNotificationCategory(INPUT, {
+        ...DEPS,
+        findPropertyPreference: async () => ({ enabled, cadence: 'immediate' }),
+        upsertEnabled: async (preference) => preference,
+      })
 
-    expect(previous).toEqual({ enabled: true })
-  })
+      expect(previous).toEqual({ enabled })
+    },
+  )
 
   it('undoes a mute on a Property that inherited by removing the row it made', async () => {
     const deletePropertyPreference = vi.fn(async () => undefined)
@@ -81,31 +84,38 @@ describe('mute notification category', () => {
     expect(upsertEnabled).not.toHaveBeenCalled()
   })
 
-  it("undoes a mute on a Property with its own row by restoring that row's switch", async () => {
-    const upsertEnabled = vi.fn(async (preference) => preference)
-    const deletePropertyPreference = vi.fn()
+  it.each([true, false])(
+    "restores a Property's explicit %s setting without ending its override",
+    async (enabled) => {
+      const upsertEnabled = vi.fn(async (preference) => preference)
+      const deletePropertyPreference = vi.fn()
 
-    await undoNotificationCategoryMute(
-      { ...INPUT, previous: { enabled: true } },
-      { ...DEPS, upsertEnabled, deletePropertyPreference },
-    )
+      await undoNotificationCategoryMute(
+        { ...INPUT, previous: { enabled } },
+        { ...DEPS, upsertEnabled, deletePropertyPreference },
+      )
 
-    expect(upsertEnabled).toHaveBeenCalledWith(expect.objectContaining({ enabled: true }))
-    expect(deletePropertyPreference).not.toHaveBeenCalled()
-  })
+      expect(upsertEnabled).toHaveBeenCalledWith(expect.objectContaining({ enabled }))
+      expect(deletePropertyPreference).not.toHaveBeenCalled()
+    },
+  )
 
   it.each(['mandatory', 'urgent_operational'] as const)(
     'refuses to undo a mute of required %s notifications, which cannot be muted',
     async (category) => {
-      const deletePropertyPreference = vi.fn()
+      for (const previous of [null, { enabled: false }, { enabled: true }]) {
+        const deletePropertyPreference = vi.fn()
+        const upsertEnabled = vi.fn()
 
-      await expect(
-        undoNotificationCategoryMute(
-          { ...INPUT, category, previous: null },
-          { ...DEPS, upsertEnabled: vi.fn(), deletePropertyPreference },
-        ),
-      ).rejects.toMatchObject({ code: 'invalid_input' })
-      expect(deletePropertyPreference).not.toHaveBeenCalled()
+        await expect(
+          undoNotificationCategoryMute(
+            { ...INPUT, category, previous },
+            { ...DEPS, upsertEnabled, deletePropertyPreference },
+          ),
+        ).rejects.toMatchObject({ code: 'invalid_input' })
+        expect(deletePropertyPreference).not.toHaveBeenCalled()
+        expect(upsertEnabled).not.toHaveBeenCalled()
+      }
     },
   )
 
@@ -113,6 +123,7 @@ describe('mute notification category', () => {
     'rejects muting required %s in-app notifications before persistence',
     async (category) => {
       const upsertEnabled = vi.fn()
+      const findPropertyPreference = vi.fn(async () => null)
 
       await expect(
         muteNotificationCategory(
@@ -126,12 +137,13 @@ describe('mute notification category', () => {
           {
             newId: () => notificationPreferenceId('10000000-0000-4000-8000-000000000004'),
             clock: () => NOW,
-            findPropertyPreference: vi.fn(async () => null),
+            findPropertyPreference,
             upsertEnabled,
           },
         ),
       ).rejects.toMatchObject({ code: 'invalid_input' })
       expect(upsertEnabled).not.toHaveBeenCalled()
+      expect(findPropertyPreference).not.toHaveBeenCalled()
     },
   )
 })

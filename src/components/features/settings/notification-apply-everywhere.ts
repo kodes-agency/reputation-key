@@ -1,4 +1,4 @@
-// "Apply to all my properties" saves each channel of a category as the
+// Making a category the person's default saves each channel
 // person's default, one after another. Each save commits on its own, so a
 // failure part-way leaves the channels before it applied everywhere — the
 // notice has to say so rather than report that nothing happened.
@@ -30,14 +30,14 @@ export async function applyEverywhereInOrder(
     ? ['in_app', 'email']
     : ['in_app']
   const skipped: readonly NotificationChannel[] = emailAllowed ? [] : ['email']
-  let applied: readonly NotificationChannel[] = []
+  const applied: NotificationChannel[] = []
   for (const channel of channels) {
     try {
       await save(channel)
     } catch {
       return { applied, failed: channel, skipped }
     }
-    applied = [...applied, channel]
+    applied.push(channel)
   }
   return { applied, failed: null, skipped }
 }
@@ -92,21 +92,20 @@ export function setDifferentlyElsewhere(
   properties: ReadonlyArray<Readonly<{ id: string; name: string }>>,
   propertyInView: string,
 ): ReadonlyArray<SetDifferently> {
-  return properties
-    .filter((property) => property.id !== propertyInView)
-    .map((property) => {
-      const own = preferences.filter(
-        (row) => (row.propertyId as string) === property.id && row.category === category,
-      )
-      return {
-        id: property.id,
-        name: property.name,
-        own: own.length > 0,
-        muted: own.some((row) => row.channel === 'in_app' && !row.enabled),
-      }
-    })
-    .filter((property) => property.own)
-    .map(({ id, name, muted }) => ({ id, name, muted }))
+  const ownSettings = new Map<string, boolean>()
+  for (const row of preferences) {
+    if (row.category !== category) continue
+    ownSettings.set(
+      row.propertyId,
+      ownSettings.get(row.propertyId) === true ||
+        (row.channel === 'in_app' && !row.enabled),
+    )
+  }
+  return properties.flatMap(({ id, name }) =>
+    id !== propertyInView && ownSettings.has(id)
+      ? [{ id, name, muted: ownSettings.get(id) === true }]
+      : [],
+  )
 }
 
 /** "Harbor & Pine", "Harbor & Pine and Riverside Hotel", "A, B and 3 others". */
