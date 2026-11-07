@@ -125,34 +125,11 @@ describe('restore resurrection fence (LIF-01-T15)', () => {
     reErase: async () => rows,
   })
 
-  const read = (entries: readonly BackupErasureLedgerEntry[]): Tx =>
-    ({
-      execute: async () => ({
-        rows: entries.map((candidate) => ({
-          id: candidate.id,
-          subject_class: candidate.subjectClass,
-          organization_id: candidate.organizationId,
-          property_id: candidate.propertyId ?? null,
-          subject_ref: candidate.subjectRef ?? null,
-          context: candidate.context,
-          closure_lineage_id: candidate.closureLineageId,
-          lifecycle_revision: candidate.lifecycleRevision,
-          effective_erasure_at: candidate.effectiveErasureAt.toISOString(),
-          erased_row_count: candidate.erasedRowCount,
-          evidence_ref: candidate.evidenceRef,
-          hold_reference: candidate.holdReference ?? null,
-          hold_released_at: candidate.holdReleasedAt?.toISOString() ?? null,
-        })),
-      }),
-      select: () => ({
-        from: () => ({
-          where: async () => [],
-        }),
-      }),
-    }) as unknown as Tx
+  const tx = {} as Tx
 
   it('re-applies a resurrected erasure and reports the re-erased rows', async () => {
-    const result = await applyRestoreResurrectionFence(read([entry()]), {
+    const result = await applyRestoreResurrectionFence(tx, {
+      entries: [entry()],
       restorePointAt: new Date(ERASED_AT.getTime() - 60_000),
       replayers: [guestReplayer(12)],
     })
@@ -167,7 +144,8 @@ describe('restore resurrection fence (LIF-01-T15)', () => {
 
   it('fails closed when an entry has no registered replayer', async () => {
     // A partially re-erased restore must never be declared verified.
-    const result = await applyRestoreResurrectionFence(read([entry()]), {
+    const result = await applyRestoreResurrectionFence(tx, {
+      entries: [entry()],
       restorePointAt: new Date(ERASED_AT.getTime() - 60_000),
       replayers: [],
     })
@@ -178,7 +156,8 @@ describe('restore resurrection fence (LIF-01-T15)', () => {
 
   it('does not re-apply a held entry and still verifies the database', async () => {
     const held = entry({ holdReference: 'legal-hold:2026-08:counsel-4471' })
-    const result = await applyRestoreResurrectionFence(read([held]), {
+    const result = await applyRestoreResurrectionFence(tx, {
+      entries: [held],
       restorePointAt: new Date(ERASED_AT.getTime() - 60_000),
       replayers: [guestReplayer(12)],
     })
@@ -197,4 +176,81 @@ describe('restore resurrection fence (LIF-01-T15)', () => {
       ledgerRowsReErased: 0,
     })
   })
+})
+
+it('replays exported erasures even when the restored ledger is empty', async () => {
+  const tx = {
+    execute: async () => {
+      throw new Error('restored ledger must not be read')
+    },
+  } as unknown as Tx
+  const result = await applyRestoreResurrectionFence(tx, {
+    entries: [entry()],
+    restorePointAt: new Date(ERASED_AT.getTime() - 60_000),
+    replayers: [
+      { context: 'guest', subjectClass: 'organization', reErase: async () => 12 },
+    ],
+  })
+  expect(result.counts.ledgerRowsReErased).toBe(12)
+  expect(result.verified).toBe(true)
+})
+
+it('replays a pre-delete bucket intent even when the restore point follows the journal write', async () => {
+  const result = await applyRestoreResurrectionFence({} as Tx, {
+    entries: [entry({ recordedBeforeErasure: true })],
+    restorePointAt: new Date(ERASED_AT.getTime() + 60_000),
+    replayers: [
+      { context: 'guest', subjectClass: 'organization', reErase: async () => 12 },
+    ],
+  })
+  expect(result.counts.ledgerRowsReErased).toBe(12)
+})
+
+it('fails closed for a targeted batch instead of falling back to Organization erasure', async () => {
+  let organizationErased = false
+  const batch = entry({
+    recordedBeforeErasure: true,
+    journalTargets: { kind: 'purge_batch', ids: [PROPERTY] },
+  })
+  const result = await applyRestoreResurrectionFence({} as Tx, {
+    entries: [batch],
+    restorePointAt: ERASED_AT,
+    replayers: [
+      {
+        context: 'guest',
+        subjectClass: 'organization',
+        reErase: async () => {
+          organizationErased = true
+          return 12
+        },
+      },
+    ],
+  })
+  expect(result.verified).toBe(false)
+  expect(result.unreplayedEntryIds).toEqual([batch.id])
+  expect(organizationErased).toBe(false)
+})
+
+it('dispatches a bounded batch only to its matching target replayer', async () => {
+  const batch = entry({
+    recordedBeforeErasure: true,
+    journalTargets: { kind: 'purge_batch', ids: [PROPERTY] },
+  })
+  const result = await applyRestoreResurrectionFence({} as Tx, {
+    entries: [batch],
+    restorePointAt: ERASED_AT,
+    replayers: [
+      {
+        context: 'guest',
+        subjectClass: 'organization',
+        targetKind: 'purge_batch',
+        reErase: async (_tx, candidate) => {
+          expect(candidate.journalTargets?.ids).toEqual([PROPERTY])
+          return 1
+        },
+      },
+    ],
+  })
+  expect(result.verified).toBe(true)
+  expect(result.counts.ledgerRowsReErased).toBe(1)
 })

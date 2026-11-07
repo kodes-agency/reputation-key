@@ -1,25 +1,5 @@
-// LIF-01-T15 — the backup-erasure ledger and the restore resurrection fence.
-//
-// Read this file as two halves.
-//
-// The FIRST half is the ledger: an append-only record of every irreversible
-// erasure, written in the SAME transaction that performs the erasure. If the
-// erasure commits, the entry commits; if the erasure rolls back, so does the
-// entry. Anything looser and the ledger is a second source of truth that can
-// disagree with reality.
-//
-// The SECOND half is the fence. A restored cell has been rolled back in time,
-// so every erasure whose effect is AFTER the restore point has been undone —
-// the purged Organization is back, the erased Property is back, the privacy
-// subject's feedback is back. The fence re-applies those erasures before the
-// cell may be declared verified, and it is FAIL-CLOSED: an entry it could not
-// re-apply means the restored cell is NOT verified. A partially re-erased
-// restore must never be opened for traffic.
-//
-// Documented delayed-erasure / legal-hold policy (program bullet 11) is the one
-// exception, and it is an explicit deferral rather than a silent skip: a held
-// entry is reported as held, is not re-applied, and stops being held only when
-// a counsel-authorised release is appended.
+// Database receipts remain available to existing lifecycle writers. Restore replay
+// takes independent journal evidence, because a restore can lose these receipts.
 
 import { sql } from 'drizzle-orm'
 import {
@@ -57,10 +37,22 @@ export type BackupErasureLedgerAppend = Readonly<{
   holdReference?: string
 }>
 
+/** Each kind has a separate replay contract; batch membership must survive restore. */
+export const ERASURE_JOURNAL_TARGET_KINDS = [
+  'guest_response',
+  'guest_feedback',
+  'staff_participant',
+  'purge_batch',
+] as const
+export type ErasureJournalTargetKind = (typeof ERASURE_JOURNAL_TARGET_KINDS)[number]
+
 /** A ledger entry as the fence reads it, with its hold state resolved. */
 export type BackupErasureLedgerEntry = BackupErasureLedgerAppend &
   Readonly<{
     id: string
+    /** Bucket intent precedes commit, so restore must replay it regardless of timestamp. */
+    recordedBeforeErasure?: true
+    journalTargets?: Readonly<{ kind: ErasureJournalTargetKind; ids: readonly string[] }>
     /** Set once a counsel-authorised release has been appended. */
     holdReleasedAt?: Date
   }>
@@ -285,7 +277,10 @@ export function planBackupErasureReplay(
   }
   const restorePoint = restorePointAt.getTime()
   return entries.map((entry) => {
-    if (entry.effectiveErasureAt.getTime() <= restorePoint) {
+    if (
+      !entry.recordedBeforeErasure &&
+      entry.effectiveErasureAt.getTime() <= restorePoint
+    ) {
       return { entry, disposition: 'already_erased' as const }
     }
     if (entry.holdReference !== undefined && entry.holdReleasedAt === undefined) {
@@ -305,6 +300,7 @@ export function planBackupErasureReplay(
 export type BackupErasureReplayer = Readonly<{
   context: BackupErasureLedgerContext
   subjectClass: BackupErasureSubjectClass
+  targetKind?: ErasureJournalTargetKind
   /** Re-erase the entry's subject; returns the number of rows removed. */
   reErase(tx: Tx, entry: BackupErasureLedgerEntry): Promise<number>
 }>
@@ -349,8 +345,9 @@ export const RESTORE_RESURRECTION_FENCE_UNVERIFIED =
 function replayerKey(
   context: BackupErasureLedgerContext,
   subjectClass: BackupErasureSubjectClass,
+  targetKind?: ErasureJournalTargetKind,
 ): string {
-  return `${context}:${subjectClass}`
+  return `${context}:${subjectClass}:${targetKind ?? 'scope'}`
 }
 
 /**
@@ -364,19 +361,20 @@ function replayerKey(
 export async function applyRestoreResurrectionFence(
   tx: Tx,
   input: Readonly<{
+    entries: readonly BackupErasureLedgerEntry[]
     restorePointAt: Date
     replayers: readonly BackupErasureReplayer[]
   }>,
 ): Promise<RestoreResurrectionFenceResult> {
+  for (const entry of input.entries) validateBackupErasureLedgerAppend(entry)
   const registry = new Map<string, BackupErasureReplayer>()
   for (const replayer of input.replayers) {
-    registry.set(replayerKey(replayer.context, replayer.subjectClass), replayer)
+    const key = replayerKey(replayer.context, replayer.subjectClass, replayer.targetKind)
+    if (registry.has(key)) throw new Error('Duplicate erasure replayer')
+    registry.set(key, replayer)
   }
 
-  const plan = planBackupErasureReplay(
-    await readBackupErasureLedger(tx),
-    input.restorePointAt,
-  )
+  const plan = planBackupErasureReplay(input.entries, input.restorePointAt)
 
   const unreplayedEntryIds: string[] = []
   const heldEntryIds: string[] = []
@@ -394,7 +392,11 @@ export async function applyRestoreResurrectionFence(
       continue
     }
     const replayer = registry.get(
-      replayerKey(item.entry.context, item.entry.subjectClass),
+      replayerKey(
+        item.entry.context,
+        item.entry.subjectClass,
+        item.entry.journalTargets?.kind,
+      ),
     )
     if (!replayer) {
       unreplayedEntryIds.push(item.entry.id)
