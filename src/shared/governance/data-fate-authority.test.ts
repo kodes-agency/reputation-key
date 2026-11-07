@@ -1,7 +1,7 @@
 import { getTableName, isTable } from 'drizzle-orm'
 import { describe, expect, it } from 'vitest'
 import * as schema from '#/shared/db/schema'
-import { RETENTION_RULES } from '#/shared/jobs/retention-sweep.job'
+import { RETENTION_RULES } from '#/composition/retention-rules'
 import { DATA_FATE_AUTHORITY, dataFateKey } from './data-fate-authority'
 
 // Every schema module, keyed by the file name the authority records.

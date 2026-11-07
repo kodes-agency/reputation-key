@@ -1,7 +1,7 @@
 import { getTableName, isTable, type SQL } from 'drizzle-orm'
 import { getTableConfig, PgDialect, type PgTable } from 'drizzle-orm/pg-core'
 import { describe, expect, it } from 'vitest'
-import { RETENTION_RULES } from '#/shared/jobs/retention-sweep.job'
+import { RETENTION_RULES } from '#/composition/retention-rules'
 import { CONCURRENT_INDEX_REGISTRY } from '../concurrent-index-registry'
 import * as schema from '../schema/migratable'
 import type { RetentionRule } from './execute-retention-rule'

@@ -245,6 +245,15 @@ export const DATA_FATE_AUTHORITY = Object.freeze([
       'Manager corrections to Review Analysis v3 mentions: a kind and, for a changed cause, two short lowercase phrases the manager chose, never a quote or a name. They sit beside the kept answer, cascade with the analysis, and so are erased by Organization lifecycle and deleted by the retention sweep 24 months after the analysis.',
   }),
   ...rows({
+    schemaFile: 'audit-events.schema.ts',
+    exportNames: ['auditEvents'],
+    owner: 'feed',
+    disposition: 'active_authority',
+    authority: 'Content-free audit history',
+    exitCriteria:
+      'Retain for 365 days from occurrence. Source tables and their safeguards remain until verified copying and coordinated writer/read cutover.',
+  }),
+  ...rows({
     schemaFile: 'audit.ts',
     exportNames: ['auditLogs'],
     owner: 'feed',

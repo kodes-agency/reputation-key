@@ -35,6 +35,25 @@ own source review, inbox, property, portal, identity, or goal state.
   and a bulk reopen's cycles through `GroupedReopenStorePort`, which reads that
   one fact's outbox payload by id.
 
+## Audit storage
+
+`audit/` contains the server-only content-free audit contract, shared fact mapping,
+idempotent writer and bounded operator read. Feed owns the central
+`audit-events.schema.ts` table. Source identity is unique within an Organization;
+a conflicting replay fails. Unknown fields are refused, not stripped.
+`pnpm ops audit-events --operator <id> --org <id>` reads at most 100 rows within
+the last 365 days. The operator read and daily retention rule are exposed through
+`application/public-api.ts`. Composition passes the rule to the daily sweep,
+which uses occurrence time and records its result through the existing retention
+evidence and failure alert.
+
+This is an additive storage expansion: production facts still write Operational
+Action History, using the shared audit mapping. No source history has been copied
+and no existing RPC, legal hold, privacy/export contributor or lifecycle safeguard
+has been retired. Activating the writer requires verified source copying, coordinated
+policy-audit writers, privacy coverage and the published retention wording.
+See [audit operations](../../../docs/operations/audit-events.md).
+
 ## Model
 
 Recent Activity records are retained for Organization export, privacy redaction

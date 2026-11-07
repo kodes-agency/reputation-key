@@ -10,6 +10,7 @@ import {
 // makes both easier to understand."
 
 import type { Container } from './composition'
+import { RETENTION_RULES } from './composition/retention-rules'
 import { assertContainerCanBuild } from './composition/container-lifecycle'
 import { createHealthCheckHandler, JOB_NAME } from '#/shared/jobs/health-check.job'
 import { isDbHealthy } from '#/shared/health/db-probe'
@@ -458,6 +459,7 @@ export async function bootstrap(
   const retentionSweepHandler = createRetentionSweepHandler({
     db: container.db,
     clock: container.clock,
+    rules: RETENTION_RULES,
     googleImportLifecycleSweep:
       container.integrationWorkerRuntime.sweepImportLifecycle ?? undefined,
     guestContactRequestRetentionSweep: container.guestContactRequestRetentionSweep,
