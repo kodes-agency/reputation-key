@@ -410,7 +410,11 @@ describe('health checker content safety (BQC-4.3)', () => {
           locationsSuspect: 0,
           accountsDark: 0,
         },
-        reconciliation: { overdueCount: 0, oldestAgeMs: null },
+        reconciliation: {
+          overdueAfterMs: 8 * 3_600_000,
+          overdueCount: 0,
+          oldestAgeMs: null,
+        },
       },
       workers: {
         defaultQueueName: 'default',
@@ -431,6 +435,14 @@ describe('health checker content safety (BQC-4.3)', () => {
     // Reconciliation age alone; then counts, polled rows, receipts and age.
     expect(dark.select).toHaveBeenCalledTimes(1)
     expect(live.select).toHaveBeenCalledTimes(4)
+  })
+
+  it('passes the daily reconciliation window to its health read', async () => {
+    const health = await createHealthChecker(fakeDb([]), undefined, {
+      reviewReconcileWithinHours: 24,
+    }).signals.syncPush()
+
+    expect(health.reconciliation.overdueAfterMs).toBe(26 * 3_600_000)
   })
 
   it('surfaces the GBP push readiness fact from the composition root', async () => {

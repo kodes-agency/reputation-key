@@ -510,6 +510,7 @@ export function createOperationsSnapshot(
     // Readiness fact, not a DB metric: an empty GBP_PUBSUB_TOPIC means Google
     // push is dark and new reviews only arrive on the discovery sweep.
     gbpPushEnabled: getEnv().GBP_PUBSUB_TOPIC.length > 0,
+    reviewReconcileWithinHours: getEnv().REVIEW_RECONCILE_WITHIN_HOURS,
     // Same kind of readiness fact: while `notification.send_email` is open to
     // only some Organizations, rows queued while a scope was dark are an
     // expected backlog — the alert must not cry wolf about it. A per-ORG

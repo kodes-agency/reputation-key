@@ -253,6 +253,30 @@ describe('discoveryLookFor: with head checks on', () => {
 describe('discoveryLookFor: a configured reconciliation window', () => {
   const DAY_MS = 24 * HOUR_MS
 
+  it.each([HOT_MS, WARM_MS, COLD_MS])(
+    'keeps head checks before the daily deadline and goes full at its boundary (interval %i)',
+    (interval) => {
+      const input = {
+        interval,
+        headChecks: true,
+        reconcileWithinMs: DAY_MS,
+        lastReconciledAt: ago(DAY_MS - interval - 1),
+      }
+      expect(look(input)).toEqual({
+        kind: 'skip',
+        headCheck: true,
+        nextDueAt: new Date(NOW.getTime() + interval),
+      })
+      expect(look({ ...input, lastReconciledAt: ago(DAY_MS - interval) })).toEqual({
+        kind: 'full',
+        reason: 'due',
+      })
+      expect(look({ ...input, lastReconciledAt: ago(DAY_MS - interval + 1) }).kind).toBe(
+        'full',
+      )
+    },
+  )
+
   it('skips a Property reconciled ten hours ago when the window is twenty-four hours', () => {
     expect(
       look({

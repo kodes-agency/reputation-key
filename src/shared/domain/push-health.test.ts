@@ -5,6 +5,7 @@ import {
   accountPushHealth,
   classifyFirstSighting,
   locationPushHealth,
+  reconciliationOverdueAfterMs,
   summarizeLedger,
   type FirstSightingFacts,
   type LedgerSighting,
@@ -22,6 +23,16 @@ const sighting = (over: Partial<FirstSightingFacts> = {}): FirstSightingFacts =>
   sourceCreatedAt: at(-5),
   previousListingAt: null,
   ...over,
+})
+
+describe('reconciliation overdue limit', () => {
+  it.each([
+    [6, 8],
+    [12, 14],
+    [24, 26],
+  ])('gives a %ih window two hours of slack', (window, overdue) => {
+    expect(reconciliationOverdueAfterMs(window)).toBe(overdue * 3_600_000)
+  })
 })
 
 describe('classifyFirstSighting', () => {

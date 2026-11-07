@@ -525,7 +525,11 @@ const BREACHES: readonly Breach[] = [
     apply: (s) => {
       s.syncPush = {
         ...s.syncPush,
-        reconciliation: { overdueCount: 1, oldestAgeMs: 9 * 60 * 60 * 1000 },
+        reconciliation: {
+          ...s.syncPush.reconciliation,
+          overdueCount: 1,
+          oldestAgeMs: 9 * 60 * 60 * 1000,
+        },
       }
     },
   },
