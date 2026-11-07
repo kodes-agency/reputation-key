@@ -43,6 +43,58 @@ describe('execution compatibility with merchant consent', () => {
     ).toBe(false)
   })
 
+  it.each([
+    [
+      'review_analysis',
+      'review-analysis-runtime-v1',
+      'review-analysis-v2',
+      'private-beta-global-v1',
+    ],
+    [
+      'reply_drafting',
+      'reply-drafting-runtime-v1',
+      'reply-suggestion-v1',
+      'private-beta-global-v1',
+    ],
+  ] as const)(
+    'refuses retired %s execution %s / %s / %s under current consent',
+    (
+      capability,
+      runtimeProfileVersion,
+      operationProfileVersion,
+      providerDeploymentProfileVersion,
+    ) => {
+      expect(
+        isExecutionCompatibleWithConsent({
+          capability,
+          acknowledgedNotice,
+          servedExecution: {
+            runtimeProfileVersion,
+            operationProfileVersion,
+            providerDeploymentProfileVersion,
+          },
+        }),
+      ).toBe(false)
+    },
+  )
+
+  it('keeps the registered historical reply execution compatible without selecting it for new work', () => {
+    expect(getAiRuntimeCapability('reply_drafting').operationProfileVersion).toBe(
+      'reply-suggestion-v2',
+    )
+    expect(
+      isExecutionCompatibleWithConsent({
+        capability: 'reply_drafting',
+        acknowledgedNotice,
+        servedExecution: {
+          runtimeProfileVersion: 'reply-drafting-runtime-v1',
+          operationProfileVersion: 'reply-suggestion-v1',
+          providerDeploymentProfileVersion: 'private-beta-global-v2',
+        },
+      }),
+    ).toBe(true)
+  })
+
   it('requires renewal of 10-30 consent for active capabilities', () => {
     const notice = {
       noticeVersion: 'merchant-ai-notice-2026-10-30.v1',
