@@ -6,7 +6,7 @@ import type {
   GoogleProviderExecutionResult,
 } from '../../application/ports/google-authorized-provider-executor.port'
 import { integrationError } from '../../domain/errors'
-import { createSingle401RefreshExecutor } from './google-single-401-refresh-executor'
+import { createSingle401RefreshExecutor } from '../../provider/google-client.server'
 
 const AUTHORIZATION: GoogleProviderCallAuthorization = Object.freeze({
   capability: 'property.connect_gbp',

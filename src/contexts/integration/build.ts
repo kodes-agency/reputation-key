@@ -31,10 +31,8 @@ import {
   googleReviewApiNotConfigured,
   type GoogleReviewApiPort,
   type TargetedGoogleReviewReferenceResolver,
-} from '#/contexts/review/application/public-api'
-import type {
-  ReviewQueuePort,
-  TargetedGoogleReviewQueuePort,
+  type ReviewQueuePort,
+  type TargetedGoogleReviewQueuePort,
 } from '#/contexts/review/application/public-api'
 import {
   connectGoogleAccount,
@@ -71,7 +69,7 @@ import { createMyBusinessNotificationsAdapter } from './infrastructure/adapters/
 import { createGoogleReviewApiAdapter } from './infrastructure/adapters/google-review-api.adapter'
 import { createGoogleAccountManagementAdapter } from './infrastructure/adapters/google-account-management.adapter'
 import { createGoogleBusinessInformationAdapter } from './infrastructure/adapters/google-business-information.adapter'
-import { createSingle401RefreshExecutor } from './infrastructure/adapters/google-single-401-refresh-executor'
+import { createSingle401RefreshExecutor } from './provider/google-client.server'
 import type { GoogleRefreshCoordination } from './application/ports/google-refresh-coordination.port'
 import { createActiveConnectionTokenProvider } from './application/active-connection-token-provider'
 import {
@@ -136,6 +134,12 @@ import { createGoogleOrganizationClosureProvider } from './infrastructure/adapte
 import { sameAuthorizationVectorExceptCredentialGeneration } from './application/google-authorization-vector'
 import { createRefreshBoundGoogleCategories } from './application/refresh-bound-google-categories'
 import { registerGoogleCategoryRefreshConsumer } from './infrastructure/google-category-refresh-outbox-consumers'
+
+export {
+  createGoogleAuthorizedProviderExecutor,
+  createGoogleProviderCredentialAdmission,
+  permitAdmissionCode,
+} from './provider/google-client.server'
 
 export type GoogleProviderEndpoints = Readonly<{
   gbpApiBaseUrl: string

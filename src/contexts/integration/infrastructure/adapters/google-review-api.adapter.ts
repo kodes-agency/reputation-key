@@ -32,7 +32,7 @@ import {
   executeGoogleProviderRaw,
   gatewayFailureError,
   providerStatusError,
-} from './google-provider-adapter'
+} from '../../provider/google-client.server'
 import {
   executorErrorToReviewApiError,
   invalidRequest,

@@ -5,7 +5,7 @@ import {
 import type { GoogleAuthorizedProviderExecutor } from '../../application/ports/google-authorized-provider-executor.port'
 import type { GoogleProviderCallAuthorization } from '../../application/google-provider-contract'
 import { createGbpApiError } from '../../domain/gbp-api-error'
-import { executeGoogleProviderRaw } from './google-provider-adapter'
+import { executeGoogleProviderRaw } from '../../provider/google-client.server'
 import { parseGooglePerformanceResponse } from './google-performance-parser'
 import { validateGoogleProviderSuffix } from './google-resource-suffix'
 
