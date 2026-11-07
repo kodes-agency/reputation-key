@@ -193,16 +193,13 @@ const storeFact = async (
 /**
  * Storing the reviews took time (up to a page of writes) and the first read took
  * no lock, so a snapshot run may have started and another head check may have
- * written a fact since. Read the state again and decide on that: no fact while a
- * run is active, and the decision sees the newest fact as it is now. A failed
- * re-read falls back to the first state, which only costs a duplicate fact.
+ * written a fact since. Read the state again and decide on that: no fact without
+ * a completed listing or while a run is active. A failed re-read defers the fact
+ * until the next look, because the first state can no longer prove it is safe.
  */
 const storeFactIfStillClear = async (
   deps: PersistReviewHeadPageDeps,
   input: PersistReviewHeadPageInput,
-  firstNewestFact: Awaited<
-    ReturnType<ReviewHeadCheckRepository['readPersistState']>
-  >['newestFact'],
 ): Promise<boolean> => {
   try {
     const fresh = await deps.repository.readPersistState({
@@ -211,10 +208,14 @@ const storeFactIfStillClear = async (
       sourceEpoch: input.sourceEpoch,
       now: deps.clock(),
     })
-    if (fresh.snapshotActive) return false
+    if (!fresh.hasCompletedListing || fresh.snapshotActive) return false
     return storeFact(deps, input, fresh.newestFact)
   } catch {
-    return storeFact(deps, input, firstNewestFact)
+    deps.logger.warn(
+      { event: 'review_head_check_fact_not_recorded' },
+      'Review head check could not verify the head fact state',
+    )
+    return false
   }
 }
 
@@ -251,7 +252,7 @@ export const persistReviewHeadPage = async (
         'Review head check could not store some reviews',
       )
     }
-    const factWritten = await storeFactIfStillClear(deps, input, state.newestFact)
+    const factWritten = await storeFactIfStillClear(deps, input)
     return { outcome: 'stored', ...counts, factWritten }
   } catch {
     deps.logger.warn(
