@@ -3,13 +3,13 @@ status: accepted
 accepted_by: Bozhidar Denev
 accepted_on: 2026-09-08
 corrected_on: 2026-10-13
-amended_on: 2026-11-06
+amended_on: 2026-11-07
 ---
 
 # Privacy Notice — Reputation Key Closed Beta
 
 **Status:** Accepted for publication
-**Effective date:** 2026-11-06
+**Effective date:** 2026-11-07
 **Version:** 3.6
 **Accountable owner:** Bozhidar Denev
 
@@ -444,7 +444,7 @@ West); no EU deployment exists.
 
 ## 9. Changes and contact
 
-This notice takes effect on 2026-11-06 and is version 3.5. It replaces version 3.4, effective 2026-11-03, which replaced version 3.3, effective 2026-11-02, which replaced version 3.2, effective 2026-11-02, which replaced version 3.1, effective 2026-11-01, which replaced version
+This notice takes effect on 2026-11-07 and is version 3.6. It replaces version 3.5, effective 2026-11-06, which replaced version 3.4, effective 2026-11-03, which replaced version 3.3, effective 2026-11-02, which replaced version 3.2, effective 2026-11-02, which replaced version 3.1, effective 2026-11-01, which replaced version
 3.0, which took effect on 2026-10-30 and had replaced version
 2.5, which took effect on 2026-10-16 and had replaced version 2.4, which took
 effect on 2026-10-16 and had replaced version 2.3, which took
@@ -573,4 +573,4 @@ not active. It takes effect on publication without a waiting period, on the
 accountable owner's decision for the two closed-beta Organizations the owner
 controls. Existing users are not asked to accept again.
 
-Version 3.6 (2026-11-06) explains that unusually busy periods or abuse can prevent a private response from being stored while leaving thank-you and Google Review available. Correction and withdrawal apply to stored responses. The submitted rating for an unstored response remains only in the signed session cookie for no more than 24 hours; admission records contain no rating or text and follow the existing seven-day network-pressure retention. This notice takes effect on 2026-11-06 and is version 3.6. This revision takes effect with the response-admission release, without a waiting period under the accountable owner's closed-beta waiver of 2026-11-06.
+Version 3.6 (2026-11-07) explains that unusually busy periods or abuse can prevent a private response from being stored while leaving thank-you and Google Review available. Correction and withdrawal apply to stored responses. The submitted rating for an unstored response remains only in the signed session cookie for no more than 24 hours; admission records contain no rating or text and follow the existing seven-day network-pressure retention. This notice takes effect on 2026-11-07 and is version 3.6. This revision takes effect with the response-admission release, without a waiting period under the accountable owner's closed-beta waiver of 2026-11-07.

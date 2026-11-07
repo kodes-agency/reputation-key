@@ -2,14 +2,14 @@
 status: accepted
 accepted_by: Bozhidar Denev
 accepted_on: 2026-09-08
-amended_on: 2026-11-06
+amended_on: 2026-11-07
 ---
 
 # Google Business Profile Access Disclosure
 
 **Status:** Accepted for publication
-**Effective date:** 2026-11-06
-**Version:** 2.5
+**Effective date:** 2026-11-07
+**Version:** 2.6
 **Accountable owner:** Bozhidar Denev
 
 ## What access Reputation Key requests
@@ -70,8 +70,12 @@ action straight away, with no private rating or note. If Google is unavailable,
 the standard private rating journey is offered. Correction and withdrawal of an
 existing response remain available.
 
-Reputation Key records only a qualified selection of the Google action. It
-does not claim that the guest completed or published a Google review.
+Reputation Key records only a qualified selection of the Google action. It does
+not claim that the guest completed or published a Google review. During an
+unusually busy period or abuse, a private response may not be stored because a
+limit has been reached. The guest still sees the normal thank-you and the same
+Google Review option, with the same order, timing, copy and prominence. If
+nothing was stored, correction and withdrawal are unavailable.
 
 ### Property Google rating goal
 
@@ -225,7 +229,7 @@ AI purpose, or publication behavior changes.
 
 ## Changes
 
-This disclosure takes effect on 2026-11-06 and is version 2.5. It replaces version 2.4, effective 2026-11-02, which replaced version 2.3, effective 2026-11-02, which replaced version 2.2, effective 2026-11-01, which replaced
+This disclosure takes effect on 2026-11-07 and is version 2.6. It replaces version 2.5, effective 2026-11-06, which replaced version 2.4, effective 2026-11-02, which replaced version 2.3, effective 2026-11-02, which replaced version 2.2, effective 2026-11-01, which replaced
 version 2.1, which took effect on 2026-10-14 and had replaced version 2.0, which
 took effect on 2026-09-08.
 
@@ -270,3 +274,10 @@ source-expiry restrictions from disconnection. It takes effect on publication
 without a waiting period, on the accountable owner's decision for the two
 closed-beta Organizations the owner controls. Existing users are not asked to
 accept again.
+
+Version 2.6 (2026-11-07) explains that during an unusually busy period or abuse
+a private response may not be stored, while the guest still sees the normal
+thank-you and the same Google Review option; correction and withdrawal apply
+only to stored responses. It takes effect on publication without a waiting
+period, on the accountable owner's decision for the two closed-beta
+Organizations the owner controls. Existing users are not asked to accept again.
