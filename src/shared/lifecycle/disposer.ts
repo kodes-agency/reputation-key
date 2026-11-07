@@ -37,7 +37,8 @@ export async function disposeResources(
   const loop = async () => {
     for (const stage of stages) {
       if (expired) break
-      await Promise.all(
+      // A reporting failure must neither abandon peers nor skip later releases.
+      await Promise.allSettled(
         stage.map(async (hook) => {
           try {
             await hook.release()
