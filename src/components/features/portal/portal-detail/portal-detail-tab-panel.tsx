@@ -6,9 +6,8 @@
 
 import { useCapabilities } from '#/shared/hooks/useCapabilities'
 import { usePermissions } from '#/shared/hooks/usePermissions'
-import { PortalAnalyticsTab } from '../portal-analytics/portal-analytics-tab'
+import { PortalResultsScreen } from '#/contexts/reporting/portal-results/ui/portal-results-screen'
 import { PortalHistoryTab } from '../portal-history/portal-history-tab'
-import { hasUncountedScans } from '../portal-overview/portal-attention'
 import { resolveFixPeople } from '../portal-review/portal-review-checks'
 import { PortalShare } from '../portal-share/portal-share'
 import type { PortalLinkIssuance } from '../portal-workspace/portal-link-issuance'
@@ -24,7 +23,7 @@ export function PortalDetailTabPanel(props: Props) {
     case 'share':
       return <SharePanel {...props} />
     case 'results':
-      return <AnalyticsPanel {...props} />
+      return <PortalResultsScreen {...props} />
     case 'history':
       return <HistoryPanel {...props} />
   }
@@ -102,44 +101,6 @@ export function SharePanel({
             }
           : undefined
       }
-    />
-  )
-}
-
-export function AnalyticsPanel({
-  portal,
-  propertyId,
-  tokenStatus,
-  getPortalAnalytics,
-  goalLine,
-  goalLinePending,
-}: Pick<
-  PortalDetailResources,
-  | 'portal'
-  | 'propertyId'
-  | 'tokenStatus'
-  | 'getPortalAnalytics'
-  | 'goalLine'
-  | 'goalLinePending'
->) {
-  return (
-    <PortalAnalyticsTab
-      skipPrivateRating={portal.skipPrivateRating}
-      portalId={portal.id}
-      propertyId={propertyId}
-      getPortalAnalytics={getPortalAnalytics}
-      // A portal guests cannot open has nothing to count: its Results says to publish.
-      pageIsLive={portal.publicationState === 'published'}
-      publicationState={portal.publicationState}
-      // The same answer as the Portals overview's dash with "Not counted: older code".
-      scansCounted={
-        !hasUncountedScans({
-          publicationState: portal.publicationState,
-          token: tokenStatus,
-        })
-      }
-      goalLine={goalLine}
-      goalLinePending={goalLinePending}
     />
   )
 }

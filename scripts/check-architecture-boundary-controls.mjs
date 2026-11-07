@@ -19,6 +19,7 @@ const UNKNOWN_DEPENDENCY_RULES = [
   'boundaries/no-unknown',
 ]
 const BOUNDARY_RULES = [
+  'no-restricted-imports',
   'boundaries/dependencies',
   'boundaries/no-unknown-files',
   ...UNKNOWN_DEPENDENCY_RULES,
@@ -70,6 +71,82 @@ const controls = [
     file: 'src/components/boundary-negative-control.ts',
     source: "import '#/shared/db'\n",
   },
+  {
+    name: 'Portal results UI cannot import its reporting read',
+    file: 'src/contexts/reporting/portal-results/ui/portal-analytics-tab.tsx',
+    source: "import '../get-portal-analytics.server'\n",
+  },
+  {
+    name: 'Portal results UI cannot import its repository',
+    file: 'src/contexts/reporting/portal-results/ui/portal-analytics-tab.tsx',
+    source: "import '../portal-analytics.repository.server'\n",
+  },
+  {
+    name: 'Portal results contract cannot import database runtime',
+    file: 'src/contexts/reporting/portal-results/contracts.ts',
+    source: "import '#/shared/db'\n",
+  },
+  {
+    name: 'Portal results UI cannot import Drizzle',
+    file: 'src/contexts/reporting/portal-results/ui/portal-analytics-tab.tsx',
+    source: "import { sql } from 'drizzle-orm'\n",
+    expect: ['no-restricted-imports'],
+  },
+  {
+    name: 'Portal results read cannot import Drizzle',
+    file: 'src/contexts/reporting/portal-results/get-portal-analytics.server.ts',
+    source: "import { sql } from 'drizzle-orm'\n",
+    expect: ['no-restricted-imports'],
+  },
+  {
+    name: 'Portal results read cannot construct queue transport',
+    file: 'src/contexts/reporting/portal-results/get-portal-analytics.server.ts',
+    source: "import { Queue } from 'bullmq'\n",
+    expect: ['no-restricted-imports'],
+  },
+  {
+    name: 'Portal results storage cannot import React hooks',
+    file: 'src/contexts/reporting/portal-results/portal-analytics.repository.server.ts',
+    source: "import { useState } from 'react'\n",
+    expect: ['no-restricted-imports'],
+  },
+  {
+    name: 'feature server read cannot import React',
+    file: 'src/contexts/reporting/portal-results/get-portal-analytics.server.ts',
+    source: "import React from 'react'\n",
+    expect: ['no-restricted-imports'],
+  },
+  {
+    name: 'another context cannot import a feature server implementation',
+    file: 'src/contexts/review/application/boundary-negative-control.ts',
+    source: "import '#/contexts/reporting/portal-results/get-portal-analytics.server'\n",
+  },
+  {
+    name: 'feature contract cannot import its neighboring server implementation',
+    file: 'src/contexts/reporting/portal-results/contracts.ts',
+    source: "import './get-portal-analytics.server'\n",
+  },
+  {
+    name: 'feature contract cannot import application runtime',
+    file: 'src/contexts/reporting/portal-results/contracts.ts',
+    source: "import '../application/utils'\n",
+  },
+  {
+    name: 'new feature UI cannot import a server implementation',
+    file: 'src/contexts/reporting/boundary-control/ui/read.tsx',
+    source: "import '../../portal-results/get-portal-analytics.server'\n",
+  },
+  {
+    name: 'new feature server cannot import React',
+    file: 'src/contexts/portal/boundary-control/read.server.ts',
+    source: "import React from 'react'\n",
+    expect: ['no-restricted-imports'],
+  },
+  ...['domain', 'application', 'infrastructure', 'server', 'ports'].map((layer) => ({
+    name: `nested UI in ${layer} keeps its layer boundary`,
+    file: `src/contexts/reporting/${layer}/boundary-control/ui/read.tsx`,
+    source: "import '#/components/ui/button'\n",
+  })),
   {
     name: 'Nitro plugin cannot import UI',
     file: 'server/plugins/boundary-negative-control.ts',
@@ -165,6 +242,16 @@ const controls = [
 
 const allowedControls = [
   {
+    name: 'route may import a feature browser contract',
+    file: 'src/routes/boundary-positive-control.ts',
+    source: "import '#/contexts/reporting/portal-results/contracts'\n",
+  },
+  {
+    name: 'feature server implementation may import its own repository',
+    file: 'src/contexts/reporting/portal-results/get-portal-analytics.server.ts',
+    source: "import './portal-analytics.repository.server'\n",
+  },
+  {
     name: 'notification route harness may register Feed consumers',
     file: 'src/shared/testing/notification-route-test-harness.ts',
     source: "import '#/contexts/feed/infrastructure/notification-outbox-consumers'\n",
@@ -198,6 +285,33 @@ const allowedControls = [
     name: 'component may import shared UI support',
     file: 'src/components/boundary-positive-control.ts',
     source: "import '#/lib/utils'\n",
+  },
+  {
+    name: 'Portal results UI may import its browser contract and UI primitives',
+    file: 'src/contexts/reporting/portal-results/ui/portal-analytics-tab.tsx',
+    source: "import '../contracts'\nimport '#/components/ui/button'\n",
+  },
+  {
+    name: 'Portal results stories may render the goal line',
+    file: 'src/contexts/reporting/portal-results/ui/portal-analytics-tab.stories.tsx',
+    source:
+      "import '#/components/goals/portal-goal-results-line'\nimport '#/contexts/reporting/application/dto/monthly-portal-goal.types'\n",
+  },
+  {
+    name: 'Reporting build may assemble Portal results read and storage',
+    file: 'src/contexts/reporting/build.ts',
+    source:
+      "import './portal-results/get-portal-analytics.server'\nimport './portal-results/portal-analytics.repository.server'\n",
+  },
+  {
+    name: 'Reporting repositories may share Portal results SQL helpers',
+    file: 'src/contexts/reporting/infrastructure/repositories/portal-last-scans.ts',
+    source: "import '../../portal-results/portal-analytics-shared.server'\n",
+  },
+  {
+    name: 'Portal results storage may use Drizzle',
+    file: 'src/contexts/reporting/portal-results/portal-analytics.repository.server.ts',
+    source: "import { sql } from 'drizzle-orm'\n",
   },
   // ARC-03-T1: the two seams scripts/ are supposed to use.
   {

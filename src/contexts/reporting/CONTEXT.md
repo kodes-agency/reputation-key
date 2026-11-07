@@ -550,6 +550,12 @@ The caller isolates a failed side read from the primary Guest voice page.
     never split across Portals, Portal Groups or people, never shown to staff, and never a
     quota, ranking, incentive or employment input (ADR 0067).
 
+## Portal results
+
+The [Portal results map](portal-results/CONTEXT.md) follows the workspace Results
+screen to its browser contract, authenticated server function and governed SQL.
+Other Reporting features retain their existing paths.
+
 ## Interfaces and dependencies
 
 `application/public-api.ts` is the only cross-context application interface. Server functions

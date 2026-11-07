@@ -28,6 +28,9 @@ describe('readUiSources', () => {
     const paths = readUiSources().map((file) => file.path)
 
     expect(paths).toContain('src/components/ui/button.tsx')
+    expect(paths).toContain(
+      'src/contexts/reporting/portal-results/ui/portal-analytics-content.tsx',
+    )
     expect(paths.some((path) => path.startsWith('src/routes/'))).toBe(true)
   })
 

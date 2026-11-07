@@ -5,7 +5,7 @@
 // nothing until the browser has looked, so the stored range is fetched once
 // rather than the default and then it.
 import { useSyncExternalStore } from 'react'
-import { storedOverviewRange } from '../portal-analytics/portal-results-window'
+import { storedOverviewRange } from '../../../../contexts/reporting/portal-results/ui/portal-results-window'
 import {
   readOverviewRange,
   rememberOverviewRange,

@@ -5,7 +5,7 @@
 import type { GoalMetricCorrectionImpactLookup } from './ports/goal-metric-correction-impact.lookup'
 import type { CurrentGoogleReputationSnapshotStore } from './ports/current-google-reputation-snapshot.port'
 import type { PortalLifetimeAggregatePort } from './ports/portal-lifetime-aggregate.port'
-import type { PortalAnalyticsQueries } from './use-cases/query-portal-analytics'
+import type { PortalAnalyticsRepository } from './ports/portal-analytics.repository'
 import type {
   GovernedGoalMetricQuery,
   GovernedGoalMetricResult,
@@ -41,7 +41,7 @@ export type {
 
 export type MetricPublicApi = Readonly<{
   queryGoalMetric: (query: GovernedGoalMetricQuery) => Promise<GovernedGoalMetricResult>
-  portalAnalytics: PortalAnalyticsQueries
+  portalAnalytics: PortalAnalyticsRepository
   portalLifetime: PortalLifetimeReadApi
   getCurrentOnGoogle: CurrentGoogleReputationSnapshotStore['getCurrentOnGoogle']
   findGoalMetricCorrectionImpacts: GoalMetricCorrectionImpactLookup['findGoalMetricCorrectionImpacts']
@@ -165,5 +165,3 @@ export type {
 
 export type { PortalLinkTaps } from '../domain/portal-link-taps'
 export type { PortalScanPatterns } from '../domain/portal-scan-patterns'
-
-export { PORTAL_LINK_TAPS_COUNTED_SINCE } from '../domain/portal-link-taps'

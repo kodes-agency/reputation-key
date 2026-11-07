@@ -408,6 +408,10 @@ keep concept-specific children internal.
 
 Filename, feature-barrel, dependency, and 300-counted-line limits are enforced by `scripts/check-filenames.mjs` and `eslint.config.js`.
 
+Portal Results lives with its Reporting reads in
+[`src/contexts/reporting/portal-results/ui/`](../contexts/reporting/portal-results/CONTEXT.md).
+It uses the same shared UI primitives and guards as components in this directory.
+
 ## Pattern index
 
 Before adding UI, find the family here. Each one has a single implementation:

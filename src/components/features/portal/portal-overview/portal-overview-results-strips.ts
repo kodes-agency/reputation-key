@@ -6,12 +6,15 @@ import type {
   PortalResultsPropertyRow,
   PortalResultsThresholds,
 } from '#/contexts/reporting/application/public-api'
-import { measureCells, type ResultsCell } from '../portal-analytics/portal-results-cells'
+import {
+  measureCells,
+  type ResultsCell,
+} from '../../../../contexts/reporting/portal-results/ui/portal-results-cells'
 import {
   currentPeriodLabel,
   windowCaption,
   zoneTimeLabel,
-} from '../portal-analytics/portal-results-window'
+} from '../../../../contexts/reporting/portal-results/ui/portal-results-window'
 
 /** The ruled strip above the table, for one Property's Portals or for the Organization's. */
 export type OverviewStrip = Readonly<{

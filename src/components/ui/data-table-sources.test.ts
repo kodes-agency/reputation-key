@@ -44,9 +44,9 @@ const RAW_ALLOWED: Readonly<Record<string, string>> = {
     'a wizard step: the review before importing',
   'src/components/features/integration/google-import-manager/google-import-review-row.tsx':
     'a wizard step: one row of the review before importing',
-  'src/components/features/portal/portal-analytics/portal-results-series-table.tsx':
+  'src/contexts/reporting/portal-results/ui/portal-results-series-table.tsx':
     'the data table of a results chart: a report, written out for assistive technology',
-  'src/components/features/portal/portal-analytics/portal-metric-evidence-summary.tsx':
+  'src/contexts/reporting/portal-results/ui/portal-metric-evidence-summary.tsx':
     'a report of the evidence behind a metric, not a list of records',
 }
 

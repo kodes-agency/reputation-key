@@ -22,7 +22,7 @@ import {
   measureCells,
   type ResultsCell,
   type ResultsMeasuresInput,
-} from '../portal-analytics/portal-results-cells'
+} from '../../../../contexts/reporting/portal-results/ui/portal-results-cells'
 import {
   stripOf,
   totalStripOf,

@@ -10,7 +10,7 @@ import type {
   PortalRatingLanguages,
   PortalResponseIntegritySummary,
 } from '../../domain/dashboard-types'
-import type { GetPortalAnalyticsInput } from './get-portal-analytics'
+import type { GetPortalAnalyticsInput } from '../../portal-results/get-portal-analytics.server'
 import type { PortalLifetimeAggregate } from '../ports/portal-lifetime-aggregate.port'
 
 function roundedRating(value: number): number {

@@ -79,7 +79,7 @@ function infrastructureSources(): readonly SourceText[] {
   return walk(CONTEXTS_ROOT)
     .filter(
       (file) =>
-        file.includes(`${sep}infrastructure${sep}`) &&
+        (file.includes(`${sep}infrastructure${sep}`) || file.endsWith('.server.ts')) &&
         file.endsWith('.ts') &&
         !file.endsWith('.test.ts') &&
         !file.endsWith('.d.ts'),

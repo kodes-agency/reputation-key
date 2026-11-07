@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { PORTAL_RESULTS_RANGE_STORAGE_KEY } from '../portal-analytics/portal-results-window'
+import { PORTAL_RESULTS_RANGE_STORAGE_KEY } from '../../../../contexts/reporting/portal-results/ui/portal-results-window'
 import { readOverviewRange, rememberOverviewRange } from './overview-range-store'
 
 function memoryStorage(overrides: Partial<Storage> = {}): Storage {
