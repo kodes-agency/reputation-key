@@ -43,17 +43,13 @@ function Trigger({
   ComponentProps<'button'>) {
   if (placement === 'header') {
     return (
-      <button
-        type="button"
-        className="flex max-w-full min-w-0 items-center gap-1 rounded-sm text-xs text-muted-foreground outline-none hover:text-foreground focus-visible:ring-[3px] focus-visible:ring-ring/50 max-md:-ml-2 max-md:h-(--control-touch) max-md:rounded-md max-md:px-2 max-md:text-[13px] max-md:font-medium max-md:text-foreground"
-        {...props}
-      >
+      <Button type="button" variant="scope-label" size="inline" {...props}>
         <span className="truncate">{scopeLabel}</span>
         <ChevronDown
           className="size-3.5 shrink-0 text-muted-foreground"
           aria-hidden="true"
         />
-      </button>
+      </Button>
     )
   }
   return (

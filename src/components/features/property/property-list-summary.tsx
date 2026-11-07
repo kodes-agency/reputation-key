@@ -1,3 +1,4 @@
+// The selectable metrics keep the figure and detail layout of the surrounding summary.
 // The portfolio in one line (docs/plan/property-list-table.md row 10). It
 // replaces the organization setup banner: each figure the list can act on is a
 // button that shows those properties. It never names a property — the rows do.
@@ -32,6 +33,7 @@ function ShowButton({
 }>) {
   return (
     <button
+      data-slot="picker-tile"
       type="button"
       aria-pressed={active}
       onClick={() => onShow(active ? undefined : show)}
