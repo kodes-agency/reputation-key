@@ -36,8 +36,7 @@ import { recordMetric, recordMetrics } from './application/use-cases/record-metr
 import { retractMetrics } from './application/use-cases/retract-metric'
 import { registerGuestMetricConsumers } from './infrastructure/guest-outbox-consumers'
 import { queryGoalMetric } from './application/use-cases/query-goal-metric'
-import { queryPortalAnalytics } from './application/use-cases/query-portal-analytics'
-import { createPortalAnalyticsRepository } from './infrastructure/repositories/portal-analytics.repository'
+import { createPortalAnalyticsRepository } from './portal-results/portal-analytics.repository.server'
 import { createPortalResultsOverviewRepository } from './infrastructure/repositories/portal-results-overview.repository'
 import { createPortalLifetimeAggregateRepository } from './infrastructure/repositories/portal-lifetime-aggregate.repository'
 import { createGoalMetricCorrectionImpactLookup } from './infrastructure/repositories/goal-metric-correction-impact.lookup'
@@ -137,7 +136,7 @@ import type { DashboardPropertyAccess } from './application/dashboard-property-a
 import {
   getPortalAnalytics,
   type GetPortalAnalyticsDeps,
-} from './application/use-cases/get-portal-analytics'
+} from './portal-results/get-portal-analytics.server'
 import { getPortalResultsOverview } from './application/use-cases/get-portal-results-overview'
 import {
   getAttentionSignals,
@@ -185,9 +184,7 @@ export type ReportingContextBuildInput = Readonly<{
 
 function buildMetricModule(input: ReportingContextBuildInput) {
   const registry = createMetricRegistryRepository()
-  const portalAnalytics = queryPortalAnalytics(
-    createPortalAnalyticsRepository(input.db, input.clock),
-  )
+  const portalAnalytics = createPortalAnalyticsRepository(input.db, input.clock)
   const portalLifetime = createPortalLifetimeAggregateRepository(input.db, input.clock)
   const goalCorrectionImpacts = createGoalMetricCorrectionImpactLookup(input.db)
   const currentGoogleReputation = createCurrentGoogleReputationSnapshotRepository(

@@ -15,8 +15,8 @@ import type { PortalResultsTimeRange } from '#/contexts/reporting/application/pu
 import {
   PortalResultsLoadingStrip,
   PortalResultsStrip,
-} from '../portal-analytics/portal-results-strip'
-import { PORTAL_OVERVIEW_RANGES } from '../portal-analytics/portal-results-window'
+} from '../../../../contexts/reporting/portal-results/ui/portal-results-strip'
+import { PORTAL_OVERVIEW_RANGES } from '../../../../contexts/reporting/portal-results/ui/portal-results-window'
 import { INBOX_WAITING_QUEUE, inboxWaitingLabel } from './portal-overview-inbox'
 import type { PortalOverviewResultsState } from './portal-overview-results'
 import { organizationScopeLine } from './portal-overview-strip-scope'

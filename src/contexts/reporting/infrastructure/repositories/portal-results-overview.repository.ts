@@ -5,8 +5,8 @@ import { readPortalLastScans } from './portal-last-scans'
 // measure), the groups every reading sat under (counted or not), the
 // unattributed Google-open clicks, the evidence for every family and the personal
 // Portal ids. It counts exactly what a single Portal's Results view counts, through
-// the same definitions (portal-analytics-shared.ts) and the same evidence
-// statement (portal-analytics-evidence.sql.ts), so a row here can never disagree
+// the same definitions (portal-analytics-shared.server.ts) and the same evidence
+// statement (portal-analytics-evidence.server.ts), so a row here can never disagree
 // with that Portal's own Results.
 //
 // Each statement scans its big table once, filtered to the requested Portals,
@@ -32,7 +32,7 @@ import type {
   PortalResultsReadingGroup,
   PortalResultsWindow,
 } from '../../application/ports/portal-results-overview.repository'
-import { portalMetricEvidenceSql } from './portal-analytics-evidence.sql'
+import { portalMetricEvidenceSql } from '../../portal-results/portal-analytics-evidence.server'
 import {
   PORTAL_DESTINATION_CLICK_KEY,
   countedPortalReadingWhere,
@@ -44,7 +44,7 @@ import {
   portalEvidenceFamilies,
   withStatementTimeout,
   type EvidenceRow,
-} from './portal-analytics-shared'
+} from '../../portal-results/portal-analytics-shared.server'
 
 type Roster = Readonly<{
   /** Lower-cased, the way the database prints a uuid. */

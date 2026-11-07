@@ -24,7 +24,7 @@ vi.mock('../portal-share/portal-share', () => ({
     return null
   },
 }))
-vi.mock('../portal-analytics/portal-analytics-tab', () => ({
+vi.mock('../../../../contexts/reporting/portal-results/ui/portal-analytics-tab', () => ({
   PortalAnalyticsTab: (props: Recorded) => {
     results.push(props)
     return null

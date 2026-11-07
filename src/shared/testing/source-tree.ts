@@ -50,12 +50,16 @@ type UiSourceOptions = Readonly<{
   comments?: 'stripped' | 'kept'
 }>
 
-const UI_SOURCES = ['src/components', 'src/routes'] as const
+const UI_SOURCES = [
+  'src/components',
+  'src/routes',
+  'src/contexts/reporting/portal-results/ui',
+] as const
 const NOT_A_SOURCE = /\.(stories|test)\./u
 
 /**
- * The component and route sources a UI-consistency guard reads: every file under
- * `src/components` and `src/routes` that is not a story or a test, with its path and its
+ * The UI sources a consistency guard reads: components, routes and the Results
+ * feature screen, excluding stories and tests, with each source path and its
  * text, comments dropped unless the guard asks to keep them. The guards in
  * `src/components/**` each used to carry their own copy of this walk, and a change to
  * one (a new root, a new extension) missed the others.

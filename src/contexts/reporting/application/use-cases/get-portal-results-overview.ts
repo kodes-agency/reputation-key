@@ -44,6 +44,8 @@ import type {
   PortalResultsUngroupedRow,
 } from '../../domain/portal-results-overview'
 import type { TimeRangePreset } from '../dto/dashboard.dto'
+import type { PortalResultsTimeRange } from '../../portal-results/contracts'
+export type { PortalResultsTimeRange } from '../../portal-results/contracts'
 import {
   requireDashboardPropertyAccess,
   type DashboardPropertyAccess,
@@ -77,10 +79,6 @@ export type PortalResultsRosterEntry = Readonly<{
   groupId: PortalGroupId | null
   kind?: 'place' | 'personal'
 }>
-
-/** A window preset the overview can read; All Time is a lifetime figure, not a window. */
-export type PortalResultsTimeRange =
-  Exclude<TimeRangePreset, 'all'> | 'today' | 'week' | 'month' | 'last-month'
 
 export type PortalResultsPropertyZone = Readonly<{
   propertyId: PropertyId

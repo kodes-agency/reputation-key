@@ -47,7 +47,9 @@ vi.mock('#/components/features/portal/portal-detail/portal-detail-tab-panel', ()
     return screen.mounted ? null : createElement('p', null, 'Share ready')
   },
   HistoryPanel: () => (screen.mounted ? null : createElement('p', null, 'History ready')),
-  AnalyticsPanel: (props: unknown) => {
+}))
+vi.mock('#/contexts/reporting/portal-results/ui/portal-results-screen', () => ({
+  PortalResultsScreen: (props: unknown) => {
     screen.results(props)
     return createElement('p', null, 'Results ready')
   },

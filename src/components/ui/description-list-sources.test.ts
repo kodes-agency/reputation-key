@@ -27,11 +27,11 @@ const ALLOWED: Readonly<Record<string, string>> = {
     'figures with captions, a different shape: a strip of numbers',
   'src/components/inbox/inbox-shortcuts-dialog.tsx':
     'a list of key hints beside what they do, not a record read from the app',
-  'src/components/features/portal/portal-analytics/portal-results-about.tsx':
+  'src/contexts/reporting/portal-results/ui/portal-results-about.tsx':
     'a glossary: a term and its definition, in two columns, not a label and a value',
-  'src/components/features/portal/portal-analytics/portal-response-integrity-summary.tsx':
+  'src/contexts/reporting/portal-results/ui/portal-response-integrity-summary.tsx':
     'three counts with captions inside a report: a MetricStrip candidate owned by the Results surface',
-  'src/components/features/portal/portal-analytics/portal-lifetime-reconciliation-summary.tsx':
+  'src/contexts/reporting/portal-results/ui/portal-lifetime-reconciliation-summary.tsx':
     'four readings inside a disclosure: a MetricStrip candidate owned by the Results surface',
   'src/components/features/property/property-reputation-trend-chart.tsx':
     'the readout of a chart: a date and its values',

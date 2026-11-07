@@ -27,10 +27,10 @@ import {
   type PortalId,
 } from '#/shared/domain/ids'
 import { METRIC_VERSION_IDS } from '../../application/public-api'
-import { getPortalAnalytics } from '../../application/use-cases/get-portal-analytics'
+import { getPortalAnalytics } from '../../portal-results/get-portal-analytics.server'
 import { getPortalResultsOverview } from '../../application/use-cases/get-portal-results-overview'
 import { localDaysWindow, priorPeriodDates } from '../../application/utils'
-import { createPortalAnalyticsRepository } from './portal-analytics.repository'
+import { createPortalAnalyticsRepository } from '../../portal-results/portal-analytics.repository.server'
 import { createPortalResultsOverviewRepository } from './portal-results-overview.repository'
 
 const ORG = organizationId('org-portal-results-overview')

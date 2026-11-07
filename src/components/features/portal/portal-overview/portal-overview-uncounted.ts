@@ -6,7 +6,10 @@
 // sums, to which a zero adds nothing, so they stand; the note under the strip says
 // that some scans are missing from them.
 import type { PortalOverviewRow } from '#/contexts/portal/application/public-api'
-import { DASH, SCANS_NOT_COUNTED_REASON } from '../portal-analytics/portal-results-cells'
+import {
+  DASH,
+  SCANS_NOT_COUNTED_REASON,
+} from '../../../../contexts/reporting/portal-results/ui/portal-results-cells'
 import { hasUncountedScans } from './portal-attention'
 import {
   measureSlot,

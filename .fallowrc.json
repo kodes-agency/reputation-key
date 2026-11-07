@@ -361,16 +361,26 @@
         ]
       },
       {
+        "name": "portal-results-contract",
+        "patterns": ["src/contexts/reporting/portal-results/contracts.ts"]
+      },
+      {
         "name": "domain",
         "patterns": ["src/contexts/*/domain/**"]
       },
       {
         "name": "application",
-        "patterns": ["src/contexts/*/application/**"]
+        "patterns": [
+          "src/contexts/*/application/**",
+          "src/contexts/reporting/portal-results/get-portal-analytics.server.ts"
+        ]
       },
       {
         "name": "infrastructure",
-        "patterns": ["src/contexts/*/infrastructure/**"]
+        "patterns": [
+          "src/contexts/*/infrastructure/**",
+          "src/contexts/reporting/portal-results/*.server.ts"
+        ]
       },
       {
         "name": "server",
@@ -398,13 +408,18 @@
       },
       {
         "name": "components",
-        "patterns": ["src/components/**"]
+        "patterns": ["src/components/**", "src/contexts/reporting/portal-results/ui/**"]
       }
     ],
     "rules": [
       {
+        "from": "portal-results-contract",
+        "allow": ["domain", "application", "shared"]
+      },
+      {
         "from": "tests",
         "allow": [
+          "portal-results-contract",
           "tests",
           "domain",
           "application",
@@ -420,19 +435,39 @@
       },
       {
         "from": "domain",
-        "allow": ["shared", "shared-events", "test-support"]
+        "allow": ["portal-results-contract", "shared", "shared-events", "test-support"]
       },
       {
         "from": "application",
-        "allow": ["domain", "shared", "shared-events", "test-support"]
+        "allow": [
+          "portal-results-contract",
+          "domain",
+          "shared",
+          "shared-events",
+          "test-support"
+        ]
       },
       {
         "from": "infrastructure",
-        "allow": ["domain", "application", "shared", "shared-events", "test-support"]
+        "allow": [
+          "portal-results-contract",
+          "domain",
+          "application",
+          "shared",
+          "shared-events",
+          "test-support"
+        ]
       },
       {
         "from": "server",
-        "allow": ["application", "domain", "shared", "shared-events", "test-support"]
+        "allow": [
+          "portal-results-contract",
+          "application",
+          "domain",
+          "shared",
+          "shared-events",
+          "test-support"
+        ]
       },
       {
         "from": "shared-events",
@@ -444,11 +479,18 @@
       },
       {
         "from": "test-support",
-        "allow": ["domain", "application", "shared", "shared-events"]
+        "allow": [
+          "portal-results-contract",
+          "domain",
+          "application",
+          "shared",
+          "shared-events"
+        ]
       },
       {
         "from": "architecture-fixtures",
         "allow": [
+          "portal-results-contract",
           "domain",
           "application",
           "infrastructure",
@@ -460,11 +502,17 @@
       },
       {
         "from": "routes",
-        "allow": ["components", "server", "application", "shared"]
+        "allow": [
+          "portal-results-contract",
+          "components",
+          "server",
+          "application",
+          "shared"
+        ]
       },
       {
         "from": "components",
-        "allow": ["application", "server", "shared"]
+        "allow": ["portal-results-contract", "application", "server", "shared"]
       }
     ]
   },

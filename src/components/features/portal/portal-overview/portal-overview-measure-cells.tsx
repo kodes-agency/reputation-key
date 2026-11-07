@@ -14,7 +14,7 @@ import { Popover, PopoverContent } from '#/components/ui/popover'
 import { Skeleton } from '#/components/ui/skeleton'
 import { TableCell } from '#/components/ui/table'
 import { cn } from '#/lib/utils'
-import { DASH } from '../portal-analytics/portal-results-cells'
+import { DASH } from '../../../../contexts/reporting/portal-results/ui/portal-results-cells'
 import { useOverviewClasses } from './portal-overview-density'
 import type { MeasureFigure, MeasureSlot, RowMeasures } from './portal-overview-results'
 

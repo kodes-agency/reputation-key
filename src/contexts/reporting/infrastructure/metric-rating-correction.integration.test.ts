@@ -37,7 +37,7 @@ import {
 import { createGoalMetricSourceStatus } from './repositories/goal-metric-source-status'
 import { createMetricRegistryRepository } from './repositories/metric-registry.repository'
 import { createMetricRepository } from './repositories/metric.repository'
-import { createPortalAnalyticsRepository } from './repositories/portal-analytics.repository'
+import { createPortalAnalyticsRepository } from '../portal-results/portal-analytics.repository.server'
 import { createPropertyLocalDateResolver } from './repositories/property-local-date'
 
 const db = getDb()

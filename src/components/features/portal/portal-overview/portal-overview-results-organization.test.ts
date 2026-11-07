@@ -5,7 +5,7 @@ import {
   HARBOR,
   allPropertiesResults,
 } from './portal-all-properties-fixtures'
-import { resultsEvidence } from '../portal-analytics/portal-results-stories-data'
+import { resultsEvidence } from '../../../../contexts/reporting/portal-results/ui/portal-results-stories-data'
 import { indexOverviewResults } from './portal-overview-results'
 import { organizationScopeLine } from './portal-overview-strip-scope'
 
