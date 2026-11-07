@@ -158,6 +158,7 @@ describe('backup erasure ledger and restore resurrection fence (LIF-01-T15)', ()
         expect(await guestRowCount(tx, fixture.organizationId)).toBe(2)
 
         const replayed = await applyRestoreResurrectionFence(tx, {
+          entries: await readBackupErasureLedger(tx),
           restorePointAt: new Date(ERASED_AT.getTime() - 60_000),
           replayers: [createGuestBackupErasureReplayer()],
         })
@@ -175,6 +176,7 @@ describe('backup erasure ledger and restore resurrection fence (LIF-01-T15)', ()
         // Convergent: a restore that already post-dates the entry re-erases
         // nothing and reports zero, rather than double-counting.
         const converged = await applyRestoreResurrectionFence(tx, {
+          entries: await readBackupErasureLedger(tx),
           restorePointAt: new Date(ERASED_AT.getTime() + 60_000),
           replayers: [createGuestBackupErasureReplayer()],
         })
@@ -202,6 +204,7 @@ describe('backup erasure ledger and restore resurrection fence (LIF-01-T15)', ()
         // re-erase what the restore brought back. A partially re-erased restore
         // must never be declared verified.
         const result = await applyRestoreResurrectionFence(tx, {
+          entries: await readBackupErasureLedger(tx),
           restorePointAt: new Date(ERASED_AT.getTime() - 60_000),
           replayers: [],
         })
@@ -229,6 +232,7 @@ describe('backup erasure ledger and restore resurrection fence (LIF-01-T15)', ()
         const replayers = [createGuestBackupErasureReplayer()]
 
         const held = await applyRestoreResurrectionFence(tx, {
+          entries: await readBackupErasureLedger(tx),
           restorePointAt,
           replayers,
         })
@@ -245,6 +249,7 @@ describe('backup erasure ledger and restore resurrection fence (LIF-01-T15)', ()
           releasedAt: new Date('2027-03-15T00:00:00.000Z'),
         })
         const released = await applyRestoreResurrectionFence(tx, {
+          entries: await readBackupErasureLedger(tx),
           restorePointAt,
           replayers,
         })

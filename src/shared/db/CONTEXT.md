@@ -29,6 +29,17 @@ hours. Do not rely on the server default: `pool-session-time-zone.integration.te
 connects with a daylight-saving default and writes across a change. A session
 opened outside the pool (a script's own `pg.Client`) keeps the server default.
 
+## Independent erasure evidence
+
+`lifecycle/erasure-journal.server.ts` and its bucket adapter provide inactive
+write-before-delete evidence for nonrepeating erasures. The operator exports the
+existing bucket to a private local file; restore replay takes those entries
+explicitly, never the restored ledger. Existing database receipt writers remain.
+See [the journal procedure](../../../docs/operations/erasure-journal.md) for
+45-day expiry, export, idempotent replay and activation prerequisites. The restore
+verifier's local-file wiring and command-level proof remain required before any
+journal-dependent erasure is activated.
+
 ## Schema history
 
 `drizzle/meta/_journal.json` and its SQL files are the application schema history.
