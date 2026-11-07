@@ -1,3 +1,4 @@
+// The selectors follow measured page parts and compensate for the preview scale.
 // What makes the parts of the previewed page selectable (board 02): the page
 // stays an inert picture, and a layer of buttons sits over it, one on each part,
 // where the page's own pixels are. The page is not made clickable (it holds
@@ -115,6 +116,7 @@ export function PreviewPartFrame({
           const isNearTop = box.top * scale < FLAG_ROOM
           return (
             <button
+              data-slot="picker-tile"
               key={section}
               type="button"
               aria-label={partActionName(selection.canEdit, label)}

@@ -84,7 +84,7 @@ function EmptyPropertyList({
       action={
         canImport ? (
           // At 320 px the label is wider than the box, so it wraps, balanced.
-          <Button asChild className="h-auto min-h-9 whitespace-normal text-balance">
+          <Button asChild wrap>
             <Link to="/properties/import-google">
               Import your first property from Google
             </Link>

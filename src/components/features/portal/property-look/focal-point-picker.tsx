@@ -1,3 +1,4 @@
+// The draggable focal handle keeps its photograph-relative position and pointer capture.
 // The photograph with the circle that says what every page must keep in view
 // (round-4 admin boards 9 and 14: "Drag the circle onto what guests should always
 // see"). The circle is one button: drag it, or press the arrow keys (Shift for a
@@ -89,6 +90,7 @@ export function FocalPointPicker({
       />
       {disabled ? null : (
         <button
+          data-slot="picker-handle"
           type="button"
           aria-label={`Focal point: ${describeFocal(focal)}. Drag, or use the arrow keys, to move it.`}
           className="absolute grid size-7 -translate-x-1/2 -translate-y-1/2 cursor-grab touch-none place-items-center rounded-full border-2 border-white bg-black/20 shadow-md outline-none active:cursor-grabbing focus-visible:ring-[3px] focus-visible:ring-ring"

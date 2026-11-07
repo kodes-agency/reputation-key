@@ -1,3 +1,4 @@
+// The language choices keep their selected border and inline fallback marker.
 // New portal — the languages guests can read the page in. Each language is a
 // chip that switches on and off; languages the Property does not start with are
 // added from a menu. The first language chosen is the fallback.
@@ -37,6 +38,7 @@ function LanguageChip({
   const Icon = selected ? Check : Plus
   return (
     <button
+      data-slot="picker-tile"
       type="button"
       aria-pressed={selected}
       disabled={disabled}

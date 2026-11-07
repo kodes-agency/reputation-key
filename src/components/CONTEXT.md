@@ -61,8 +61,9 @@ and actions supply server state.
   are 36px there. A menu, sheet or dialog that portals out of the container says
   `data-density="compact"` itself. A small button that must stay a tap target on a
   phone is `touch` (`size="xs"`, `icon-xs`), and one whose label hides below a width
-  is `iconBelow="md"` (or `"sm"`): no caller spells `--control-touch`. A bar in a pane the
-  window does not size (the Inbox's detail pane is 472 px wide in a 1280 px window) asks the
+  is `iconBelow="md"` (or `"sm"`): no caller spells `--control-touch`. A button whose
+  label must wrap uses `wrap`, which keeps the desktop and touch minimum heights.
+  A bar in a pane the window does not size (the Inbox's detail pane is 472 px wide in a 1280 px window) asks the
   width it has instead: `iconBelow="@lg"` is the square below 32rem of its nearest `@container`
   (the bar declares it), and the label hides under the same `@max-lg:`. `Button` owns `pending` / `pendingLabel` (a
   spinner that stops for reduced motion, `aria-busy`, disabled, an optional label
@@ -435,6 +436,11 @@ way.
   number cannot grow, though one site can still be traded for another.
 - `pattern-index.test.ts` checks that every path and guard named here exists.
 
+Selectable tiles, evidence rows and the draggable focal-point handle keep their
+own geometry. The raw-button lint rule names each exception's file and
+`data-slot` (`picker-tile` or `picker-handle`); only that marked control is exempt.
+An ordinary action in the same file still uses `Button` or `IconButton`.
+
 ### Page frame and states
 
 <!-- prettier-ignore -->
@@ -488,7 +494,7 @@ way.
 <!-- prettier-ignore -->
 | Family | Import | Use it for | Variants | Differs on purpose | Guard |
 | --- | --- | --- | --- | --- | --- |
-| Button | `Button` from `#/components/ui/button`<br>`SubmitButton` from `#/components/forms/submit-button` | Every action. `pending` and `pendingLabel` own the spinner; the density (44px below `md`) is the primitive's | `variant`, `size`, `touch`, `iconBelow`; lazy `RowButton` / `SummaryButton` from `ui/button-layouts` for multiline evidence rows and a stable copy pill; `data-density="compact"` on a container | The Inbox and the top bar are compact (36px on a phone) | `ui/button-sources.test.ts` |
+| Button | `Button` from `#/components/ui/button`<br>`SubmitButton` from `#/components/forms/submit-button` | Every action. `pending` and `pendingLabel` own the spinner; the density (44px below `md`) is the primitive's | `variant` (including `scope-label` with `size="inline"` for a compact scope picker), `size`, `touch`, `wrap`, `iconBelow`; lazy `RowButton` / `SummaryButton` from `ui/button-layouts` for multiline evidence rows and a stable copy pill; `data-density="compact"` on a container | The Inbox and the top bar are compact (36px on a phone) | `ui/button-sources.test.ts` |
 | Add action | `AddAction`, `AddActionLink` from `#/components/ui/add-action` | The control that adds a thing to a list: the Plus, then a sentence-case label, in the default Button. It sits in the header's `actions`; a card or a tab that owns a list may carry its own | `AddAction` opens a dialog or a menu or runs a command, `AddActionLink` goes to a page; `size` `default`, `sm` (in a card header) | Portals repeats "New portal" in a fixed bar at the foot of a phone (`PortalPhoneNewPortalBar`); Add staff sits above its table | `ui/add-action-sources.test.ts` |
 | Icon-only control and link in text | `IconButton` from `#/components/ui/icon-button`<br>`InlineLink` from `#/components/ui/inline-link` | A control with no visible label (a required `label`, which is its name and its tooltip); a link set in a sentence | `tooltip`; `TouchInlineLink` from `ui/inline-touch-link` for a standalone touch target; `focus-ring` for a control that is not a Button | A control that opens a menu or popover shows no tooltip | `ui/button-sources.test.ts` |
 | Confirmation | `ConfirmationDialog`, `ConfirmationTrigger` from `#/components/ui/confirmation-dialog` | Every confirmation. It stays open and pending until `onConfirm` settles, then says a refusal once | `tone`: `destructive` (cannot be undone, or loses data), `neutral` (reversible) | Inbox Reject is inline (it needs a reason); a draft language, an unsent reply draft and one notification skip it | `ui/dialog-sources.test.ts` |

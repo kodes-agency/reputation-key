@@ -1,3 +1,4 @@
+// The selectable account rows keep their multiline identity and active border.
 import { Building2, ChevronRight } from 'lucide-react'
 import type { ImportAccountDto } from '#/contexts/integration/application/public-api'
 import { Alert, AlertDescription, AlertTitle } from '#/components/ui/alert'
@@ -61,6 +62,7 @@ export function GoogleImportAccountList({
               const active = selectedAccountRef === account.accountRef
               return (
                 <button
+                  data-slot="picker-tile"
                   key={account.accountRef}
                   type="button"
                   aria-pressed={active}
