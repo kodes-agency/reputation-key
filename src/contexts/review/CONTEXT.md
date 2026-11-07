@@ -577,8 +577,9 @@ customizations and custom templates, then Property hides. Template revisions and
 wordings are immutable; a save advances the current revision, while reset archives
 the scope's customization so published Reply provenance remains explainable. A
 Reply records the effective layer/ref/revision/wording plus the resolved voice
-digest and rotation choices. Legacy Property profile/template tables remain only
-for migration and current-UI compatibility and are scheduled for later cleanup.
+digest and rotation choices. Legacy Property profile/template tables are retained
+pending schema contraction, with Organization lifecycle erasure coverage; the live
+library uses the layered model.
 
 Reply voice resolves each field Property → Organization → built-in, using an
 explicit overridden-field mask so an intentional empty value differs from inherit.

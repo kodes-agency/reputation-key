@@ -59,9 +59,7 @@ export const REVIEW_ROWS: ReadonlyArray<EventFamilyRow> = [
       NOTIFICATION_REVIEW_IMPORT_OUTBOX,
     ),
   ]),
-  ev('ai.property_trend.generation_requested', [
-    durable('ai.generate-property-trend', AI_OUTBOX),
-  ]),
+  ev('ai.property_trend.generation_requested', []),
   ev('ai.review_analysis.backfill_requested', [
     durable('ai.analyze-review-event', AI_OUTBOX),
   ]),

@@ -58,14 +58,6 @@ import type { Env } from '#/shared/config/env'
 import { recordWorkerHeartbeat } from '#/shared/observability/worker-heartbeat'
 import { createScheduledScopeAuthorizer } from '#/shared/jobs/delayed-execution-gate'
 import {
-  createGeneratePropertyTrendJobHandler,
-  GENERATE_PROPERTY_TREND_JOB_NAME,
-} from '#/contexts/ai/infrastructure/jobs/generate-property-trend.job'
-import {
-  createSchedulePropertyTrendsJobHandler,
-  SCHEDULE_PROPERTY_TRENDS_JOB_NAME,
-} from '#/contexts/ai/infrastructure/jobs/schedule-property-trends.job'
-import {
   createDrainReviewAnalysisBacklogJobHandler,
   DRAIN_REVIEW_ANALYSIS_BACKLOG_JOB_NAME,
 } from '#/contexts/ai/infrastructure/jobs/drain-review-analysis-backlog.job'
@@ -380,32 +372,6 @@ export async function bootstrap(
   logger.info(
     { job: RELEASE_RESPONSE_TARGET_REMINDERS_JOB },
     'registered response-target reminder release job handler',
-  )
-
-  const generatePropertyTrendHandler = createGeneratePropertyTrendJobHandler({
-    generatePropertyTrend: container.aiWorkerRuntime.generatePropertyTrend,
-  })
-  registerCapabilityGatedJob(
-    GENERATE_PROPERTY_TREND_JOB_NAME,
-    'ai.detect_trends',
-    generatePropertyTrendHandler,
-  )
-  logger.info(
-    { job: GENERATE_PROPERTY_TREND_JOB_NAME },
-    'registered property AI trend job handler',
-  )
-  const schedulePropertyTrendsHandler = createSchedulePropertyTrendsJobHandler({
-    idGen: () => crypto.randomUUID(),
-    schedulePropertyTrends: container.aiWorkerRuntime.schedulePropertyTrends,
-  })
-  registerCapabilityGatedJob(
-    SCHEDULE_PROPERTY_TRENDS_JOB_NAME,
-    'ai.detect_trends',
-    schedulePropertyTrendsHandler,
-  )
-  logger.info(
-    { job: SCHEDULE_PROPERTY_TRENDS_JOB_NAME },
-    'registered property AI trend scheduler job handler',
   )
 
   // ── AI Review Analysis backlog (ADR 0058) ───────────────────────────

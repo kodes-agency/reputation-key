@@ -15,7 +15,7 @@ describe('Merchant AI notice change catalogue', () => {
   })
 
   it.each([
-    '../../drizzle/0100_merchant_ai_notice_retention_corrections.sql',
+    '../../drizzle/0106_merchant_ai_notice_retire_trends.sql',
     './db/db-constructs.sql',
   ])('lists the same changes in the same order in TypeScript and %s', (path) => {
     const sql = readFileSync(new URL(path, import.meta.url), 'utf8')

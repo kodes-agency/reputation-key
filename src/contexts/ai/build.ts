@@ -27,12 +27,7 @@ import {
   createGenerateReplySuggestion,
   type GenerateReplySuggestionDependencies,
 } from './application/use-cases/generate-reply-suggestion'
-import { createGeneratePropertyTrend } from './application/use-cases/generate-property-trend'
-import { createSchedulePropertyTrends } from './application/use-cases/schedule-property-trends'
-import {
-  createReadPropertyTrend,
-  createReadReviewAnalysis,
-} from './application/use-cases/read-ai-insights'
+import { createReadReviewAnalysis } from './application/use-cases/read-ai-insights'
 import type { AiPropertyAccess } from './application/ai-property-read-access'
 import { createReadGuestVoiceDetail } from './application/use-cases/read-guest-voice-detail'
 import { createReadGuestVoiceV2 } from './application/use-cases/read-guest-voice-v2'
@@ -51,7 +46,6 @@ import { createAiGuestVoiceFactsAdapter } from './infrastructure/adapters/ai-gue
 import { createAiGuestVoiceSummaryScheduleAdapter } from './infrastructure/adapters/ai-guest-voice-summary-schedule.adapter'
 import { createAiMentionCorrectionStoreAdapter } from './infrastructure/adapters/ai-mention-correction-store.adapter'
 import { findCurrentReviewIdsByIssue } from './infrastructure/adapters/ai-current-issue-review-ids'
-import { createAiPropertyTrendScheduleStore } from './infrastructure/adapters/ai-property-trend-schedule-store.adapter'
 import { createAiReviewAnalysisReceiptWriter } from './infrastructure/adapters/ai-review-analysis-receipt.adapter'
 import { createAiReviewEventStoreAdapter } from './infrastructure/adapters/ai-review-event-store.adapter'
 import { createPropertyProcessingProfileAdapter } from './infrastructure/adapters/property-processing-profile.adapter'
@@ -70,10 +64,7 @@ import {
   type RequestReviewAnalysisNowDependencies,
 } from './application/use-cases/request-review-analysis-now'
 import type { ConsumerRegistry, OutboxRepository } from '#/shared/outbox'
-import {
-  registerAiConsumers,
-  type RegisterAiConsumersInput,
-} from './infrastructure/outbox-consumers'
+import { registerAiConsumers } from './infrastructure/outbox-consumers'
 import { createReadReviewAnalysisEnrollmentReadiness } from './application/use-cases/read-review-analysis-enrollment-readiness'
 
 const unavailableInference: AiInferencePort = Object.freeze({
@@ -131,7 +122,6 @@ export type AiContextBuildInput = Readonly<{
    */
   providerChoice?: AiProviderChoicePort
   resolveReplyLanguage?: GenerateReplySuggestionDependencies['resolveReplyLanguage']
-  enqueuePropertyTrend?: RegisterAiConsumersInput['enqueuePropertyTrend']
   /** Hands one waiting review to the worker's on-demand analysis job. */
   enqueueReviewAnalysisNow?: RequestReviewAnalysisNowDependencies['enqueueReviewAnalysisNow']
   /**
@@ -158,7 +148,6 @@ export const buildAiContext = (input: AiContextBuildInput) => {
   const operations = createAiOperationStoreAdapter(input.db, input.idGen)
   const outputs = createAiOutputStoreAdapter(input.db, input.replyBrandProfiles)
   const aggregates = createAiPropertyAggregateStoreAdapter(input.db)
-  const schedules = createAiPropertyTrendScheduleStore(input.db, input.idGen)
   const calendar = createAiPropertyCalendarAdapter(input.db)
   const reviewEvents = createAiReviewEventStoreAdapter(input.db)
   const backlog = createAiReviewAnalysisBacklogAdapter(input.db)
@@ -262,15 +251,6 @@ export const buildAiContext = (input: AiContextBuildInput) => {
     nowEpochMillis,
     logger: input.logger ?? { warn: () => {} },
   })
-  const generatePropertyTrend = createGeneratePropertyTrend({
-    authorization,
-    aggregates,
-    schedules,
-    processingProfiles,
-    reviewSources: input.reviewSources,
-    nowEpochMillis,
-  })
-  const schedulePropertyTrends = createSchedulePropertyTrends({ schedules })
   const readDependencies = {
     propertyAccess: input.propertyAccess,
     authorization,
@@ -299,11 +279,7 @@ export const buildAiContext = (input: AiContextBuildInput) => {
     })
 
   const registerOutboxConsumers = (consumerRegistry: ConsumerRegistry) => {
-    if (!input.enqueuePropertyTrend) {
-      throw new Error('AI property trend queue is unavailable')
-    }
     registerAiConsumers(consumerRegistry, {
-      enqueuePropertyTrend: input.enqueuePropertyTrend,
       analyzeReviewEvent,
       applyAiAuthorizationLifecycle,
       advanceEnrollment: advanceReviewAnalysisEnrollments.advanceProperty,
@@ -352,7 +328,6 @@ export const buildAiContext = (input: AiContextBuildInput) => {
           organizationId: request.organizationId,
           nowEpochMillis: nowEpochMillis(),
         }),
-      readPropertyTrend: createReadPropertyTrend(readDependencies),
       findCurrentReviewIdsByAttention: (
         request: Omit<
           Parameters<AiOutputStorePort['findCurrentReviewIdsByAttention']>[0],
@@ -405,8 +380,7 @@ export const buildAiContext = (input: AiContextBuildInput) => {
     }),
     worker: Object.freeze({
       registerOutboxConsumers,
-      generatePropertyTrend,
-      schedulePropertyTrends,
+
       advanceReviewAnalysisEnrollments,
       drainReviewAnalysisBacklog,
       runGuestVoiceSummarySweep,
@@ -419,8 +393,6 @@ export const buildAiContext = (input: AiContextBuildInput) => {
         advanceReviewAnalysisEnrollments,
         approveReviewAnalysisEnrollment,
         readReviewAnalysisEnrollmentReadiness,
-        generatePropertyTrend,
-        schedulePropertyTrends,
       }),
     }),
   })

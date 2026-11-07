@@ -346,7 +346,6 @@ function createHarness(
       settleEphemeralReply,
       findCurrentReviewIdsByAttention: vi.fn(),
       readAnalysisForDelivery: vi.fn(),
-      readTrendReportForDelivery: vi.fn(),
     },
     admission: {
       acquire: vi.fn(async () => {

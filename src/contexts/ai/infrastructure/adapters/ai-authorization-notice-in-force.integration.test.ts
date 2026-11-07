@@ -1,15 +1,6 @@
-// What a stored Merchant AI consent is worth after the switch-on of review analysis v3
-// (2026-10-30). The notice served now changed what a merchant agrees to (a second
-// provider, what the analysis keeps, the Urgent alert), so it is the only one in force
-// (`MERCHANT_AI_NOTICES_IN_FORCE`), and the deployment profile moved with it. A deploy
-// rewrites no enablement head: a Property enabled before it reads back with the notice,
-// the deployment profile and the runtime profile it was granted under, and AI stops for
-// it, for every capability, until an AccountAdmin confirms the new notice. A grant
-// recorded under the served contract runs.
-//
-// Until 2026-10-30 the notice before it was carried forward when it changed only how
-// consent was asked (2026-10-17 beside 2026-09-15). That carry-forward ended here on
-// purpose: a consent under either lapses.
+// Stored grants retain their recorded capabilities, runtimes and deployment.
+// New execution requires a served runtime and a notice still in force for its
+// capability; historical evidence alone cannot authorize a retired capability.
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { inArray, sql } from 'drizzle-orm'
 import { getDb } from '#/shared/db'
@@ -181,8 +172,7 @@ describe('AI authorization after the switch-on (real PostgreSQL)', () => {
       NOTICE_2026_09_09,
       BEFORE,
     )
-    // The served notice with the deployment profile it replaced: not a grant the
-    // application writes, one the database admits, and the profile alone lapses it.
+    // Recorded deployment evidence does not select the runtime served for new work.
     await grantUnder(
       OLD_PROFILE_PROPERTY,
       '74000000-0000-4000-8000-000000000015',
@@ -193,7 +183,7 @@ describe('AI authorization after the switch-on (real PostgreSQL)', () => {
 
   afterAll(clear)
 
-  it('serves every capability of a consent recorded under the served notice and deployment profile', async () => {
+  it('serves active capabilities and refuses retired grants under the served notice', async () => {
     const snapshot = await authorization.readMerchantAuthorization({
       organizationId: ORGANIZATION_ID,
       propertyId: SERVED,
@@ -204,9 +194,12 @@ describe('AI authorization after the switch-on (real PostgreSQL)', () => {
       ...SERVED_NOTICE,
       providerDeploymentProfileVersion: 'private-beta-global-v2',
       capabilityRuntimeProfileVersions: { review_analysis: 'review-analysis-runtime-v2' },
+      capabilities: [...CURRENT_MERCHANT_AI_CAPABILITIES],
     })
     for (const capability of CURRENT_MERCHANT_AI_CAPABILITIES) {
-      expect(isAiAuthorizationUnderServedContract(snapshot!, capability)).toBe(true)
+      expect(isAiAuthorizationUnderServedContract(snapshot!, capability)).toBe(
+        capability !== 'property_trends',
+      )
     }
   })
 
@@ -235,7 +228,7 @@ describe('AI authorization after the switch-on (real PostgreSQL)', () => {
     },
   )
 
-  it('admits served execution under the in-force notice despite historical runtime/deployment evidence', async () => {
+  it('admits active execution but refuses retired grants despite historical runtime/deployment evidence', async () => {
     const snapshot = await authorization.readMerchantAuthorization({
       organizationId: ORGANIZATION_ID,
       propertyId: OLD_PROFILE_PROPERTY,
@@ -244,9 +237,12 @@ describe('AI authorization after the switch-on (real PostgreSQL)', () => {
     expect(snapshot).toMatchObject({
       ...SERVED_NOTICE,
       providerDeploymentProfileVersion: 'private-beta-global-v1',
+      capabilities: [...CURRENT_MERCHANT_AI_CAPABILITIES],
     })
     for (const capability of CURRENT_MERCHANT_AI_CAPABILITIES) {
-      expect(isAiAuthorizationUnderServedContract(snapshot!, capability)).toBe(true)
+      expect(isAiAuthorizationUnderServedContract(snapshot!, capability)).toBe(
+        capability !== 'property_trends',
+      )
     }
   })
 })

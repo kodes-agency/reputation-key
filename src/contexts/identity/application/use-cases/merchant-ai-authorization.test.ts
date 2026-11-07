@@ -7,7 +7,6 @@ import { resolveAiRuntimeCapabilitySet } from '#/shared/ai-runtime-capability-co
 import { planMerchantAiConsentTransition } from '../../domain/merchant-ai-authorization'
 import {
   createMerchantAiAuthorization,
-  CURRENT_MERCHANT_AI_CAPABILITIES,
   MerchantAiAuthorizationStoreError,
   type MerchantAiAuthorizationDeps,
   type MerchantAiAuthorizationStore,
@@ -17,6 +16,8 @@ import {
   type MerchantAiSnapshot,
 } from './merchant-ai-authorization'
 import type { MerchantAiDecisionDeferral } from './merchant-ai-decision-deferral'
+
+const OFFERED_CAPABILITIES = ['review_analysis', 'reply_drafting'] as const
 
 const NOW = new Date('2026-08-15T12:00:00.000Z')
 const CURRENT_ACKNOWLEDGEMENT = Object.freeze({
@@ -207,10 +208,10 @@ describe('Merchant AI authorization', () => {
 
     await expect(service.enable(baseCommand)).resolves.toMatchObject({
       state: 'enabled',
-      capabilities: CURRENT_MERCHANT_AI_CAPABILITIES,
+      capabilities: OFFERED_CAPABILITIES,
       stateVersion: 1,
     })
-    expect(authorize).toHaveBeenCalledTimes(3)
+    expect(authorize).toHaveBeenCalledTimes(2)
     // The step-up port is a reserved hook: consent never asks for a proof.
     expect(verifyStepUp).not.toHaveBeenCalled()
     expect(store.mutate).toHaveBeenCalledWith(
@@ -219,7 +220,7 @@ describe('Merchant AI authorization', () => {
         noticeVersion: MERCHANT_AI_NOTICE_VERSION,
         noticeDigest: MERCHANT_AI_NOTICE_DIGEST,
         providerDeploymentProfileVersion: 'private-beta-global-v1',
-        capabilities: CURRENT_MERCHANT_AI_CAPABILITIES,
+        capabilities: OFFERED_CAPABILITIES,
         ceremonyId: 'c0000000-0000-4000-8000-000000000001',
       }),
     )
@@ -292,15 +293,14 @@ describe('Merchant AI authorization', () => {
     ])
   })
 
-  it('rejects unknown, duplicate, empty, and dependency-invalid change sets', async () => {
+  it('rejects unknown, duplicate, empty, and retired change sets', async () => {
     const { service, store } = makeHarness({
       ...BASE_SNAPSHOT,
       state: 'enabled',
       authorizationLineageId: LINEAGE_ID,
-      capabilities: CURRENT_MERCHANT_AI_CAPABILITIES,
-      capabilityRuntimeProfileVersions: resolveAiRuntimeCapabilitySet(
-        CURRENT_MERCHANT_AI_CAPABILITIES,
-      ),
+      capabilities: OFFERED_CAPABILITIES,
+      capabilityRuntimeProfileVersions:
+        resolveAiRuntimeCapabilitySet(OFFERED_CAPABILITIES),
       capabilityEpochs: {
         review_analysis: 1,
         reply_drafting: 1,
@@ -321,7 +321,7 @@ describe('Merchant AI authorization', () => {
     })
     await expect(change([])).rejects.toMatchObject({ code: 'capabilities_required' })
     await expect(change(['property_trends'])).rejects.toMatchObject({
-      code: 'invalid_capability_dependency',
+      code: 'unsupported_capability',
     })
     expect(store.mutate).not.toHaveBeenCalled()
   })
@@ -332,9 +332,9 @@ describe('Merchant AI authorization', () => {
     await expect(
       service.change({
         ...baseCommand,
-        capabilities: ['property_trends', 'review_analysis'],
+        capabilities: ['reply_drafting', 'review_analysis'],
       }),
-    ).resolves.toMatchObject({ capabilities: ['review_analysis', 'property_trends'] })
+    ).resolves.toMatchObject({ capabilities: ['review_analysis', 'reply_drafting'] })
   })
 
   it('revokes to an empty capability set without an acknowledgement or step-up', async () => {
@@ -342,10 +342,9 @@ describe('Merchant AI authorization', () => {
       ...BASE_SNAPSHOT,
       state: 'enabled',
       authorizationLineageId: LINEAGE_ID,
-      capabilities: CURRENT_MERCHANT_AI_CAPABILITIES,
-      capabilityRuntimeProfileVersions: resolveAiRuntimeCapabilitySet(
-        CURRENT_MERCHANT_AI_CAPABILITIES,
-      ),
+      capabilities: OFFERED_CAPABILITIES,
+      capabilityRuntimeProfileVersions:
+        resolveAiRuntimeCapabilitySet(OFFERED_CAPABILITIES),
       capabilityEpochs: {
         review_analysis: 4,
         reply_drafting: 4,
@@ -389,10 +388,8 @@ function enabledSnapshot(
     propertyId,
     state: 'enabled',
     authorizationLineageId: LINEAGE_ID,
-    capabilities: CURRENT_MERCHANT_AI_CAPABILITIES,
-    capabilityRuntimeProfileVersions: resolveAiRuntimeCapabilitySet(
-      CURRENT_MERCHANT_AI_CAPABILITIES,
-    ),
+    capabilities: OFFERED_CAPABILITIES,
+    capabilityRuntimeProfileVersions: resolveAiRuntimeCapabilitySet(OFFERED_CAPABILITIES),
     capabilityEpochs: { review_analysis: 1, reply_drafting: 1, property_trends: 1 },
     authorizedSourceEpoch: 1,
     stateVersion: 1,
@@ -510,7 +507,7 @@ const ceremonyCommand = {
   organizationId: BASE_SNAPSHOT.organizationId,
   actorUserId: 'user-1',
   propertyIds: [PROPERTY_A, PROPERTY_B, PROPERTY_C],
-  capabilities: CURRENT_MERCHANT_AI_CAPABILITIES,
+  capabilities: OFFERED_CAPABILITIES,
   acknowledgement: CURRENT_ACKNOWLEDGEMENT,
   idempotencyKey: 'ceremony-0001',
   reasonCode: 'merchant_enabled',
@@ -544,7 +541,7 @@ describe('Merchant AI consent ceremony for several properties', () => {
     expect(harness.enableForProperties).toHaveBeenCalledWith(
       expect.objectContaining({
         propertyIds: [PROPERTY_A, PROPERTY_B, PROPERTY_C],
-        capabilities: CURRENT_MERCHANT_AI_CAPABILITIES,
+        capabilities: OFFERED_CAPABILITIES,
         noticeVersion: MERCHANT_AI_NOTICE_VERSION,
         noticeDigest: MERCHANT_AI_NOTICE_DIGEST,
         ceremonyId: 'c1000000-0000-4000-8000-000000000001',
@@ -553,7 +550,7 @@ describe('Merchant AI consent ceremony for several properties', () => {
     )
     // Every Property passes the same checks as a single enable.
     expect(harness.authorizeManagement).toHaveBeenCalledTimes(3)
-    expect(harness.authorize).toHaveBeenCalledTimes(9)
+    expect(harness.authorize).toHaveBeenCalledTimes(6)
     expect(harness.verifyStepUp).not.toHaveBeenCalled()
   })
 
@@ -603,7 +600,7 @@ describe('Merchant AI consent ceremony for several properties', () => {
     const capabilityDenied = makeCeremonyHarness({})
     capabilityDenied.authorize.mockImplementation(
       async ({ propertyId, capability }) =>
-        !(propertyId === PROPERTY_C && capability === 'ai.detect_trends'),
+        !(propertyId === PROPERTY_C && capability === 'ai.generate_reply'),
     )
     await expect(
       capabilityDenied.service.enableForProperties(ceremonyCommand),
@@ -660,7 +657,7 @@ describe('Merchant AI consent ceremony for several properties', () => {
       { change: { capabilities: [] }, code: 'capabilities_required' },
       {
         change: { capabilities: ['property_trends'] },
-        code: 'invalid_capability_dependency',
+        code: 'unsupported_capability',
       },
       {
         change: { capabilities: ['review_analysis', 'unknown'] },
@@ -679,12 +676,12 @@ describe('Merchant AI consent ceremony for several properties', () => {
     await service.enableForProperties({
       ...ceremonyCommand,
       propertyIds: [PROPERTY_A.toUpperCase()],
-      capabilities: ['property_trends', 'review_analysis'],
+      capabilities: ['reply_drafting', 'review_analysis'],
     })
     expect(enableForProperties).toHaveBeenCalledWith(
       expect.objectContaining({
         propertyIds: [PROPERTY_A],
-        capabilities: ['review_analysis', 'property_trends'],
+        capabilities: ['review_analysis', 'reply_drafting'],
       }),
     )
   })

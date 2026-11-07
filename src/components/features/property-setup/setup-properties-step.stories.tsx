@@ -119,7 +119,7 @@ export const ThreePropertiesOneCeremony: Story = {
     await expect(fns.enableMerchantAiForProperties).toHaveBeenCalledWith({
       data: expect.objectContaining({
         propertyIds: [BERLIN, LISBON, ATHENS],
-        capabilities: ['review_analysis', 'reply_drafting', 'property_trends'],
+        capabilities: ['review_analysis', 'reply_drafting'],
       }),
     })
     await expect(fns.updateProperty).toHaveBeenCalledWith({

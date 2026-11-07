@@ -3,7 +3,7 @@ import { canonicalizeRfc8785 } from '#/shared/merchant-ai-notice-contract'
 import type { MerchantAiCapability } from '#/shared/domain/merchant-ai-capability'
 import { AI_REVIEW_SOURCE_CONTRACT_VERSION } from '#/shared/ai-review-source-contract'
 import {
-  getAiRuntimeCapability,
+  AI_RUNTIME_CAPABILITIES_V1,
   isExecutionCompatibleWithConsent,
 } from '#/shared/ai-runtime-capability-contract'
 import type { AiMerchantAuthorizationSnapshot } from './ports/ai-authorization.port'
@@ -38,7 +38,10 @@ export function isAiAuthorizationUnderServedContract(
   >,
   capability: MerchantAiCapability,
 ): boolean {
-  const served = getAiRuntimeCapability(capability)
+  const served = AI_RUNTIME_CAPABILITIES_V1.find(
+    (entry) => entry.capability === capability,
+  )
+  if (!served) return false
   return isExecutionCompatibleWithConsent({
     capability,
     acknowledgedNotice: authorization,

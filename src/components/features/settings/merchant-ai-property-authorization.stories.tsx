@@ -17,6 +17,7 @@ import {
 } from './merchant-ai-consent.stories.play'
 import {
   MerchantAiPropertyAuthorization,
+  type MerchantAiChangeInput,
   type MerchantAiPropertyAuthorizationProps,
 } from './merchant-ai-property-authorization'
 type MerchantAiSnapshot = MerchantAiPropertyAuthorizationProps['snapshot']
@@ -56,11 +57,10 @@ const enabled: MerchantAiSnapshot = {
   ...disabled,
   state: 'enabled',
   authorizationLineageId: '20000000-0000-4000-8000-000000000001',
-  capabilities: ['review_analysis', 'reply_drafting', 'property_trends'],
+  capabilities: ['review_analysis', 'reply_drafting'],
   capabilityRuntimeProfileVersions: {
     review_analysis: 'review-analysis-runtime-v1',
     reply_drafting: 'reply-drafting-runtime-v1',
-    property_trends: 'property-trends-runtime-v1',
   },
   capabilityEpochs: {
     review_analysis: 1,
@@ -72,22 +72,11 @@ const enabled: MerchantAiSnapshot = {
   stateVersion: 1,
 }
 
-type ChangeActionInput = {
-  data: {
-    propertyId: string
-    expectedStateVersion: number
-    idempotencyKey: string
-    acknowledgement: { noticeVersion: string; noticeDigest: string }
-    capabilities: Array<'review_analysis' | 'reply_drafting' | 'property_trends'>
-  }
-}
-
 const SERVED_NOTICE = {
   noticeVersion: MERCHANT_AI_NOTICE.version,
   noticeDigest: MERCHANT_AI_NOTICE.digest,
 }
-// Anchored: the trends description itself mentions review analysis.
-const CAPABILITY_LABELS = [/^review analysis/i, /^reply drafting/i, /^property trends/i]
+const CAPABILITY_LABELS = [/^review analysis/i, /^reply drafting/i]
 // What the server says when the notice changed between reading and consenting:
 // a 409 refusal, whose sentence the section shows as written.
 const NOTICE_CHANGED =
@@ -121,7 +110,7 @@ const refusedEnableAction = fn(
     )
   },
 )
-const changeAction = fn(async (input: ChangeActionInput) => ({
+const changeAction = fn(async (input: MerchantAiChangeInput) => ({
   ...enabled,
   capabilities: input.data.capabilities,
   stateVersion: enabled.stateVersion + 1,
@@ -170,6 +159,9 @@ export const AwaitingConsent: Story = {
     enableAction.mockClear()
     const canvas = within(canvasElement)
     await expect(canvas.queryByLabelText(/password/i)).not.toBeInTheDocument()
+    await expect(
+      canvas.queryByRole('checkbox', { name: /^property trends/i }),
+    ).not.toBeInTheDocument()
     await expect(
       canvas.getByRole('checkbox', { name: AI_CONSENT_ACKNOWLEDGEMENT }),
     ).toHaveAccessibleName(
@@ -234,7 +226,7 @@ export const EnabledSelectiveControls: Story = {
   play: async ({ canvasElement }) => {
     changeAction.mockClear()
     const canvas = within(canvasElement)
-    await userEvent.click(canvas.getByLabelText(/property trends/i))
+    await userEvent.click(canvas.getByRole('checkbox', { name: /^reply drafting/i }))
     const save = canvas.getByRole('button', { name: /save feature access/i })
     await expect(save).toBeDisabled()
     await userEvent.click(
@@ -243,9 +235,18 @@ export const EnabledSelectiveControls: Story = {
     await userEvent.click(save)
     await waitFor(() => expect(changeAction).toHaveBeenCalledOnce())
     expect(changeAction.mock.calls[0]?.[0].data).toMatchObject({
-      capabilities: ['review_analysis', 'reply_drafting'],
+      capabilities: ['review_analysis'],
       acknowledgement: SERVED_NOTICE,
     })
+    await expect(
+      canvas.getByRole('checkbox', { name: /^review analysis/i }),
+    ).toBeChecked()
+    await expect(
+      canvas.getByRole('checkbox', { name: /^reply drafting/i }),
+    ).not.toBeChecked()
+    await expect(
+      canvas.getByRole('checkbox', { name: AI_CONSENT_ACKNOWLEDGEMENT }),
+    ).not.toBeChecked()
   },
 }
 
@@ -258,7 +259,7 @@ export const EnabledResetPutsTheSavedChoiceBack: Story = {
     const canvas = within(canvasElement)
     expect(canvas.queryByRole('button', { name: 'Reset' })).not.toBeInTheDocument()
 
-    await userEvent.click(canvas.getByLabelText(/property trends/i))
+    await userEvent.click(canvas.getByRole('checkbox', { name: /^reply drafting/i }))
     await userEvent.click(
       canvas.getByRole('checkbox', { name: AI_CONSENT_ACKNOWLEDGEMENT }),
     )
@@ -270,7 +271,9 @@ export const EnabledResetPutsTheSavedChoiceBack: Story = {
     ])
     await userEvent.click(canvas.getByRole('button', { name: 'Reset' }))
 
-    await expect(canvas.getByLabelText(/property trends/i)).toBeChecked()
+    for (const label of CAPABILITY_LABELS) {
+      await expect(canvas.getByRole('checkbox', { name: label })).toBeChecked()
+    }
     await expect(
       canvas.getByRole('checkbox', { name: AI_CONSENT_ACKNOWLEDGEMENT }),
     ).not.toBeChecked()
@@ -315,7 +318,6 @@ export const ReconsentAfterNoticeReversion: Story = {
     expect(changeAction.mock.calls[0]?.[0].data.capabilities).toEqual([
       'review_analysis',
       'reply_drafting',
-      'property_trends',
     ])
   },
 }
@@ -380,15 +382,14 @@ export const PausedUntilGoogleIsReconnected: Story = {
   },
 }
 
-// The 11-06 notice corrects what Review Analysis keeps and nothing else, so
-// drafting and trends consented under 11-01 stay in force.
-export const DraftingAndTrendsKeepTheirConsent: Story = {
+// Reply Drafting's data use is unchanged, so its earlier consent stays in force.
+export const DraftingKeepsItsConsent: Story = {
   args: {
     snapshot: {
       ...enabled,
       noticeVersion: 'merchant-ai-notice-2026-11-01.v1',
       noticeDigest: 'e9574380fd1ba5f4b7bd7b9899bc5e6bdf371f9d9871584f33c5c1e6131290ef',
-      capabilities: ['reply_drafting', 'property_trends'],
+      capabilities: ['reply_drafting'],
     },
   },
   play: async ({ canvasElement }) => {

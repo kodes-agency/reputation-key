@@ -45,7 +45,7 @@ describe('Merchant AI notice-in-force SQL parity', () => {
     },
   )
 
-  it('keeps drafting and trends under the preceding notice, while analysis needs renewal', async () => {
+  it('keeps analysis and drafting under the preceding notice, while retired trends needs renewal', async () => {
     const replaced = served.replaces!
     const read = async (capabilities: ReadonlyArray<MerchantAiCapability>) =>
       (
@@ -57,8 +57,9 @@ describe('Merchant AI notice-in-force SQL parity', () => {
           )} AS in_force`,
         )
       ).rows[0]?.in_force
-    expect(await read(['reply_drafting', 'property_trends'])).toBe(true)
-    expect(await read(['review_analysis'])).toBe(false)
+    expect(await read(['reply_drafting'])).toBe(true)
+    expect(await read(['reply_drafting', 'property_trends'])).toBe(false)
+    expect(await read(['review_analysis'])).toBe(true)
     expect(await read(['review_analysis', 'reply_drafting', 'property_trends'])).toBe(
       false,
     )
