@@ -6,10 +6,7 @@
 // resolves names at delivery, and no notice names another person.
 
 import { z } from 'zod/v4'
-import { registerEventSchema } from './schema-registry'
-
-/** Both facts are at their first version; `inviterId` was added in place. */
-const IDENTITY_ACCESS_EVENT_VERSION = 1
+import type { EventDescriptor } from './descriptor'
 
 /** Mirrors the request bound: one change touches at most 200 Properties. */
 const MAX_CHANGED_PROPERTIES = 200
@@ -32,16 +29,18 @@ const memberPropertyAccessChangedSchema = z.object({
   revokedPropertyIds: z.array(z.uuid()).max(MAX_CHANGED_PROPERTIES),
 })
 
-/** Register both schemas; called once from registerAllEventSchemas. */
-export function registerIdentityAccessEventSchemas(): void {
-  registerEventSchema({
+/** Both issued access facts retain their first schema version. */
+export const identityAccessEventDescriptors = [
+  {
     type: 'identity.invitation.accepted',
-    version: IDENTITY_ACCESS_EVENT_VERSION,
+    aggregate: { type: 'invitation', id: 'invitationId' },
+    version: 1,
     schema: invitationAcceptedSchema,
-  })
-  registerEventSchema({
+  },
+  {
     type: 'identity.member.property_access_changed',
-    version: IDENTITY_ACCESS_EVENT_VERSION,
+    aggregate: { type: 'user', id: 'userId' },
+    version: 1,
     schema: memberPropertyAccessChangedSchema,
-  })
-}
+  },
+] as const satisfies readonly EventDescriptor[]

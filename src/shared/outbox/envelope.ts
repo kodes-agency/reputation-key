@@ -13,7 +13,9 @@
 // Job name remains eventType; job ID remains the outbox event UUID (dedup).
 
 import type { UnpublishedEvent } from './infrastructure/outbox-repository'
-import { extractAggregateId, withoutEnvelopeIdentifiers } from './event-adapter'
+import { withoutEnvelopeIdentifiers } from './event-adapter'
+import { getEventDescriptor } from '#/shared/events/registry.server'
+import { resolveEventAggregate } from '#/shared/events/descriptor'
 
 const DURABLE_COMMAND_CLASSIFICATION = 'durable_domain_fact_required' as const
 const IDENTIFIER_ONLY_CONTENT_CLASSIFICATION = 'identifier_only' as const
@@ -88,7 +90,11 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 export function buildConsumerEvent(event: UnpublishedEvent): ConsumerEvent {
   const payload = isRecord(event.payload) ? event.payload : {}
   const consumerPayload = withoutEnvelopeIdentifiers(event.payload)
-  const { type: aggregateType } = extractAggregateId(payload, event.id)
+  const { type: aggregateType } = resolveEventAggregate(
+    getEventDescriptor(event.eventType, event.eventVersion),
+    payload,
+    event.id,
+  )
   // Rows committed before ARC-01 carry neither identifier. Their durable event
   // id is the stable compatibility fallback; new writes supply execution
   // context in the persisted payload.

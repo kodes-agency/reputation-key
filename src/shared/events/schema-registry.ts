@@ -8,28 +8,17 @@
 // only. Review text, reviewer identity, reply text, prompt content, and
 // provider output are never in event payloads.
 
-import type { z } from 'zod/v4'
-
-// ── Registry types ──────────────────────────────────────────────────
-
-export type EventSchemaEntry = Readonly<{
-  /** Event type string (e.g., 'review.received'). */
-  readonly type: string
-  /** Schema version. Incremented when the payload shape changes. */
-  readonly version: number
-  /** Zod schema for the payload. Identifier-only. */
-  readonly schema: z.ZodType<unknown>
-}>
+import type { EventDescriptor } from './descriptor'
 
 // ── Registry ────────────────────────────────────────────────────────
 
-const registry = new Map<string, EventSchemaEntry>()
+const registry = new Map<string, EventDescriptor>()
 
 /**
  * Register an event schema. Called during context build.
  * Throws if a duplicate type+version is already registered.
  */
-export function registerEventSchema(entry: EventSchemaEntry): void {
+export function registerEventSchema(entry: EventDescriptor): void {
   const key = `${entry.type}:v${entry.version}`
   if (registry.has(key)) {
     throw new Error(
@@ -44,7 +33,10 @@ export function registerEventSchema(entry: EventSchemaEntry): void {
  * Look up the schema for an event type and version.
  * Returns undefined for unknown types — the caller must reject.
  */
-function getEventSchema(type: string, version: number): EventSchemaEntry | undefined {
+export function getEventSchema(
+  type: string,
+  version: number,
+): EventDescriptor | undefined {
   return registry.get(`${type}:v${version}`)
 }
 
