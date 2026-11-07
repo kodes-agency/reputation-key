@@ -7,7 +7,8 @@ export async function expectTokenColor(
   property: 'color' | 'backgroundColor' = 'color',
   opacity = 1,
 ) {
-  await userEvent.unhover(element)
+  // A modal sets pointer-events: none on the page, which must not refuse moving the pointer away.
+  await userEvent.setup({ pointerEventsCheck: 0 }).unhover(element)
   const probe = element.ownerDocument.createElement('span')
   probe.style[property] =
     opacity === 1
