@@ -11,6 +11,7 @@ import {
 } from 'vitest'
 import { and, eq, inArray, sql } from 'drizzle-orm'
 import { createDatabase, type Database } from '#/shared/db'
+import { executeWithLastOwnerGuardDisabled } from '#/shared/db/disable-guard-triggers'
 import { capabilityExecutionControl } from '#/shared/db/schema/google-content-control.schema'
 import { getEnv } from '#/shared/config/env'
 import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
@@ -259,7 +260,9 @@ describe('public Google import commands (PostgreSQL, fake transport)', () => {
         await db
           .delete(googleConnections)
           .where(eq(googleConnections.organizationId, orgId))
-        await db.delete(member).where(eq(member.organizationId, orgId))
+        await executeWithLastOwnerGuardDisabled(db, [
+          sql`DELETE FROM member WHERE "organizationId" = ${orgId}`,
+        ])
         await db.delete(user).where(inArray(user.id, [userId, otherUserId]))
         await db
           .delete(permissionVersion)
@@ -381,10 +384,18 @@ describe('public Google import commands (PostgreSQL, fake transport)', () => {
       if (change === 'suspension') await f.suspend(true)
       await finish()
       expect(await f.commands().status(importJobId, f.actor)).toMatchObject({
+        status: change === 'reauthentication' ? 'failed' : 'cancelled',
         processedCount: 1,
-        counts: { cancelled: 1 },
+        counts: {
+          pending: 0,
+          processing: 0,
+          failed: change === 'reauthentication' ? 1 : 0,
+          cancelled: change === 'reauthentication' ? 0 : 1,
+        },
         items: [
           {
+            status: change === 'reauthentication' ? 'failed' : 'cancelled',
+            userAction: 'none',
             outcomeCode:
               change === 'reauthentication'
                 ? 'reconnect_required'
