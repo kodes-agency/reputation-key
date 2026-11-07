@@ -37,7 +37,9 @@ jobs:
   # gitleaks-action is deliberately NOT used (org license requirement) — the
   # official image is pinned by digest instead.
   secrets:
-    runs-on: ubuntu-latest
+    # Pinned: ubuntu-latest began moving to 26.04, which has no PostgreSQL 16
+    # client, so pg_dump-based checks failed there. Every workflow pins 24.04.
+    runs-on: ubuntu-24.04
     timeout-minutes: 10 # longest green run ~1 min
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -57,7 +59,7 @@ jobs:
             git /repo --config /repo/.gitleaks.toml --redact -v --log-opts="$OPTS"
 
   storybook-test:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 20 # longest green run ~14 min
     # Component-test coverage: renders every story in headless Chromium and
     # runs its play function plus axe — the hard gate for BQR-5.4 a11y.
@@ -131,7 +133,7 @@ jobs:
   # takes the full history. The format check is here to balance this job
   # against `typecheck`.
   lint:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 15 # longest green run ~4 min
 
     steps:
@@ -160,7 +162,7 @@ jobs:
   # the program is clean without its flag, so it follows the typecheck in the
   # same job.
   typecheck:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 20 # longest green run ~6 min
 
     steps:
@@ -196,7 +198,7 @@ jobs:
 
   unit:
     name: unit (${{ matrix.shard }}/4)
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 10 # longest green run ~3 min
     strategy:
       fail-fast: false
@@ -239,7 +241,7 @@ jobs:
   # 2.3 minutes behind the first and the slowest job of the pipeline.
   integration:
     name: integration (${{ matrix.shard }}/3)
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 25 # longest green run ~5 min
     strategy:
       fail-fast: false
@@ -363,7 +365,7 @@ jobs:
   # upload them: the image build's Sentry upload deletes them, and the check
   # that they are there needs them.
   probes:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 10 # longest green run ~2 min
 
     services:
@@ -464,7 +466,7 @@ jobs:
   # builder container or layer cache is used.
   image-build:
     name: image build (${{ matrix.row }})
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 25 # longest green run ~3 min
     strategy:
       fail-fast: false
@@ -540,7 +542,7 @@ jobs:
   image-scan:
     name: image scan
     needs: [image-build]
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 25 # longest green run ~4 min
     permissions:
       contents: read
@@ -765,7 +767,7 @@ jobs:
   image:
     needs: [image-build, image-scan]
     if: always()
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 10 # longest green run ~1 min
     permissions:
       contents: read
@@ -912,7 +914,7 @@ jobs:
   browser:
     name: browser (${{ matrix.shard }}/6)
     needs: [image-build]
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 25 # longest green run ~5 min
     strategy:
       fail-fast: false
@@ -1079,7 +1081,7 @@ jobs:
   # A failed, cancelled or skipped dependency cannot pass the aggregate.
   populated-upgrade:
     needs: [image-build]
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 20
     env:
       NODE_ENV: test
@@ -1189,7 +1191,7 @@ jobs:
   ci:
     needs: [lint, typecheck, unit, integration, probes, browser, populated-upgrade]
     if: always()
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 5 # longest green run ~1 min
     steps:
       - name: Require every gate to succeed
