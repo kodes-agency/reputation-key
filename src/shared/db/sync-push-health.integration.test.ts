@@ -11,7 +11,7 @@
 
 import { afterEach, describe, expect, it } from 'vitest'
 import { sql } from 'drizzle-orm'
-import { getDb } from '#/shared/db'
+import { getDb, type Database } from '#/shared/db'
 import { readSyncPushHealth } from '#/shared/db/sync-push-health'
 
 const ORG = 'org-obs-sync-push'
@@ -403,6 +403,41 @@ describe('push health read (real reads)', () => {
 })
 
 describe('reconciliation age read (real reads)', () => {
+  it('becomes overdue only after the daily window and its slack have both passed', async () => {
+    const baseline = (await readSyncPushHealth(db, false, 24)).reconciliation.overdueCount
+    const property = await seedProperty({ suffix: '32' })
+    await seedFact(property, 0, 26 * HOUR)
+
+    await db.transaction(async (tx) => {
+      for (const offsetMs of [-1, 0, 1]) {
+        await tx.execute(sql`
+          UPDATE review_google_reputation_snapshot_facts
+             SET evaluated_at = NOW() - INTERVAL '26 hours'
+                                - (${offsetMs} * INTERVAL '1 millisecond')
+           WHERE organization_id = ${ORG} AND property_id = ${property}
+        `)
+        const health = await readSyncPushHealth(tx as unknown as Database, false, 24)
+        expect(health.reconciliation.overdueCount).toBe(baseline + (offsetMs > 0 ? 1 : 0))
+      }
+    })
+  })
+
+  it('uses a daily window plus slack without letting a head fact hide an overdue listing', async () => {
+    const dailyRead = () => readSyncPushHealth(db, false, 24)
+    const baseline = (await dailyRead()).reconciliation
+    const withinSlack = await seedProperty({ suffix: '30' })
+    const overdue = await seedProperty({ suffix: '31' })
+    await seedFact(withinSlack, 0, 25 * HOUR)
+    await seedFact(overdue, 0, 27 * HOUR)
+    await seedFact(overdue, 0, 5 * MINUTE, false)
+    await seedSyncState(overdue, 'provider_rejected')
+
+    const after = (await dailyRead()).reconciliation
+    expect(after.overdueAfterMs).toBe(26 * HOUR * 60_000)
+    expect(after.overdueCount).toBe(baseline.overdueCount + 1)
+    expect(after.oldestAgeMs).toBeGreaterThanOrEqual(27 * HOUR * 60_000)
+  })
+
   it('counts a Property whose newest completed reconciliation is older than eight hours', async () => {
     const baseline = (await read()).reconciliation
     const fresh = await seedProperty({ suffix: '11' })

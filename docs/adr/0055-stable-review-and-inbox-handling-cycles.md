@@ -1163,6 +1163,30 @@ A reply observation's `content_expires_at` was written only when the row was ins
 Introduce a new `review` bounded context for external platform reviews,
 separate from the existing `integration` context.
 
+### 2026-11-07 — configured reconciliation-age limit and daily-read rollout
+
+The reconciliation-age read and its P2 alert now follow
+`REVIEW_RECONCILE_WITHIN_HOURS` plus two hours of operational slack: 8 hours at
+6, 26 hours at 24. The read carries the limit with its counts so the alert
+reports the same threshold it used. Only completed listings in the current
+source epoch count; head facts cannot clear the alert, and failed syncable
+Properties remain counted. Web and worker must use the same setting.
+
+This supersedes the fixed eight-hour alert restriction in the 2026-10-21 head
+persistence note. It does not activate daily reads: defaults remain six hours
+and dark head checks. Set the window to 24 only after persisting head checks
+have been observed, with persistent false signals resolved and Goals freshness
+verified. Compare Google calls, quota waits, UTC-hour starts and actual completed
+listing gaps before and after, following runbooks §13. The ten-minute dispatch
+spread does not prove even starts across the day. No live measurement or cadence
+activation is established by the code change.
+
+Guests retain the same actions. Once daily reads are activated, managers still
+receive push and head updates, while off-page changes can take until the next
+daily listing. Imports, failure retries, quota controls and content expiry keep
+their existing rules. Return the window to six hours before disabling head
+persistence.
+
 ## Merged from ADR 0004
 
 Introduce a new `inbox` bounded context that provides a unified triage surface

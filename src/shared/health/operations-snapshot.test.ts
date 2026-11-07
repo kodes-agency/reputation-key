@@ -13,6 +13,7 @@ import type { OutboxRepository } from '#/shared/outbox'
 import { SNAPSHOT_SECTIONS } from '#/shared/observability/metrics-schema'
 import { ZERO_SYNC_PUSH_HEALTH } from '#/shared/db/sync-push-health'
 import { getLogger } from '#/shared/observability/logger'
+import * as environment from '#/shared/config/env'
 
 const FIXED_NOW = new Date('2026-01-15T12:00:00.000Z')
 const clock = () => FIXED_NOW
@@ -195,6 +196,29 @@ describe('withBudget', () => {
 })
 
 describe('createOperationsSnapshot', () => {
+  it('uses the configured daily window for reconciliation health', async () => {
+    const env = environment.getEnv()
+    const configured = vi.spyOn(environment, 'getEnv').mockReturnValue({
+      ...env,
+      REVIEW_RECONCILE_WITHIN_HOURS: 24,
+    })
+    try {
+      const snapshot = await createOperationsSnapshot({
+        db: fakeDb([]),
+        queues: { default: null, background: null, domainEvents: null, quarantine: null },
+        redis: fakeRedis,
+        clock,
+        versions: VERSIONS,
+        runtime: RUNTIME,
+      }).read()
+
+      expect(snapshot.syncPush.reconciliation.overdueAfterMs).toBe(26 * 3_600_000)
+      expect(snapshot.degraded).not.toContain('health.syncPush')
+    } finally {
+      configured.mockRestore()
+    }
+  })
+
   it('assembles health + queues + heartbeat into one snapshot with no degraded sections', async () => {
     const reader = createOperationsSnapshot({
       db: fakeDb([UNPUBLISHED_ROW, CLAIMED_ROW, REVIEW_ROW, SYNC_ROW, PUBLICATION_ROW]),
