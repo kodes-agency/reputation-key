@@ -80,6 +80,7 @@ describe('worker observability', () => {
     async (failureKind) => {
       if (failureKind === 'malformed') {
         registerEventSchema({
+          aggregate: { type: 'event', id: 'eventId' },
           type: 'test.malformed_payload',
           version: 1,
           schema: z.object({ resourceId: z.string() }),

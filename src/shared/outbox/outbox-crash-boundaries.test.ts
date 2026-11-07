@@ -39,6 +39,7 @@ const testSchema = z.object({
 function setupSchemaRegistry() {
   clearEventSchemas()
   registerEventSchema({
+    aggregate: { type: 'event', id: 'eventId' },
     type: TEST_EVENT_TYPE,
     version: TEST_EVENT_VERSION,
     schema: testSchema,
@@ -161,6 +162,7 @@ describe('outbox crash boundaries', () => {
     it('rejects duplicate registration', () => {
       expect(() =>
         registerEventSchema({
+          aggregate: { type: 'event', id: 'eventId' },
           type: TEST_EVENT_TYPE,
           version: TEST_EVENT_VERSION,
           schema: testSchema,
@@ -203,6 +205,7 @@ describe('outbox crash boundaries', () => {
     it('allows same consumer name for different event types', () => {
       const handler = async (): Promise<{ status: 'applied' }> => ({ status: 'applied' })
       registerEventSchema({
+        aggregate: { type: 'event', id: 'eventId' },
         type: 'other.event',
         version: 1,
         schema: z.object({}),

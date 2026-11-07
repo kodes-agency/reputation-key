@@ -6,7 +6,7 @@
 // key is a producer ahead of this deploy, not a bad payload.
 
 import { z } from 'zod/v4'
-import { registerEventSchema } from './schema-registry'
+import type { EventDescriptor } from './descriptor'
 
 /**
  * Who acted, where, and when — the tail the corrected Inbox facts share, in
@@ -71,31 +71,36 @@ const inboxItemUnassignedSchema = z.object({
   occurredAt: z.string().optional(),
 })
 
-/** Register item facts; called once from registerAllEventSchemas. */
-export function registerInboxItemEventSchemas(version: number): void {
-  registerEventSchema({
+/** Item facts share the same explicit Inbox aggregate. */
+export const inboxItemEventDescriptors = [
+  {
     type: 'inbox.inbox_item.assigned',
-    version,
+    aggregate: { type: 'inbox_item', id: 'inboxItemId' },
+    version: 1,
     schema: inboxItemAssignedSchema,
-  })
-  registerEventSchema({
+  },
+  {
     type: 'inbox.inbox_item.unassigned',
-    version,
+    aggregate: { type: 'inbox_item', id: 'inboxItemId' },
+    version: 1,
     schema: inboxItemUnassignedSchema,
-  })
-  registerEventSchema({
+  },
+  {
     type: 'inbox.inbox_item.escalated',
-    version,
+    aggregate: { type: 'inbox_item', id: 'inboxItemId' },
+    version: 1,
     schema: z.object(inboxItemEventShape),
-  })
-  registerEventSchema({
+  },
+  {
     type: 'inbox.inbox_item.escalation_resolved',
-    version,
+    aggregate: { type: 'inbox_item', id: 'inboxItemId' },
+    version: 1,
     schema: z.object(inboxItemEventShape),
-  })
-  registerEventSchema({
+  },
+  {
     type: 'inbox.inbox_item.priority_changed',
-    version,
+    aggregate: { type: 'inbox_item', id: 'inboxItemId' },
+    version: 1,
     schema: inboxItemPriorityChangedSchema,
-  })
-}
+  },
+] as const satisfies readonly EventDescriptor[]

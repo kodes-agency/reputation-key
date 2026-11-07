@@ -5,7 +5,7 @@
 // state), so they live together, apart from the registration list.
 
 import { z } from 'zod/v4'
-import { registerEventSchema } from './schema-registry'
+import type { EventDescriptor } from './descriptor'
 
 const goalMonthlyResultBaseSchema = z
   .object({
@@ -133,26 +133,30 @@ const goalRatingGoalTransitionedSchema = z
     }
   })
 
-/** The Goal facts, registered together by ./schema-registrations.ts. */
-export function registerGoalEventSchemas(version: number): void {
-  registerEventSchema({
+/** Issued Goal facts and their aggregate identities. */
+export const goalEventDescriptors = [
+  {
     type: 'goal.monthly_result.closed',
-    version,
+    aggregate: { type: 'monthly_result', id: 'monthlyResultId' },
+    version: 1,
     schema: goalMonthlyResultClosedSchema,
-  })
-  registerEventSchema({
+  },
+  {
     type: 'goal.monthly_result.reconciled',
-    version,
+    aggregate: { type: 'monthly_result', id: 'monthlyResultId' },
+    version: 1,
     schema: goalMonthlyResultReconciledSchema,
-  })
-  registerEventSchema({
+  },
+  {
     type: 'goal.monthly_result.revised',
-    version,
+    aggregate: { type: 'monthly_result', id: 'monthlyResultId' },
+    version: 1,
     schema: goalMonthlyResultRevisedSchema,
-  })
-  registerEventSchema({
+  },
+  {
     type: 'goal.rating_goal.transitioned',
-    version,
+    aggregate: { type: 'property', id: 'propertyId' },
+    version: 1,
     schema: goalRatingGoalTransitionedSchema,
-  })
-}
+  },
+] as const satisfies readonly EventDescriptor[]
