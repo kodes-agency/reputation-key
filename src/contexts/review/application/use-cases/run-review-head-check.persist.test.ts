@@ -93,7 +93,7 @@ type Options = Readonly<{
   copies?: readonly HeadStoredCopy[]
   state?: ReviewHeadPersistState | Error
   /** What the second read of the state (just before the fact) answers. */
-  stateAtFact?: ReviewHeadPersistState
+  stateAtFact?: ReviewHeadPersistState | Error
   currentEpoch?: number | null
   failPersistFor?: ReadonlySet<string>
   newReviewIds?: ReadonlySet<string>
@@ -127,7 +127,10 @@ function setup(options: Options = {}) {
     readPersistState: vi.fn(async () => {
       if (options.state instanceof Error) throw options.state
       reads++
-      if (reads > 1 && options.stateAtFact) return options.stateAtFact
+      if (reads > 1 && options.stateAtFact) {
+        if (options.stateAtFact instanceof Error) throw options.stateAtFact
+        return options.stateAtFact
+      }
       return options.state ?? readyState
     }),
     recordHeadFact: vi.fn(async () => {
@@ -458,6 +461,44 @@ describe('runReviewHeadCheck: persist mode stores nothing when it must not', () 
     expect(result).toMatchObject({
       persistence: { outcome: 'stored', storedOther: 1, factWritten: false },
     })
+  })
+
+  it('writes no fact when the final snapshot-state check fails, and retries next look', async () => {
+    const { run, persist, repository, logger } = setup({
+      copies: [],
+      head: okHead([googleReview('r-1')], { totalReviewCount: 40, averageRating: 4.5 }),
+      stateAtFact: new Error('db down CANARY'),
+    })
+
+    await expect(run()).resolves.toMatchObject({
+      persistence: { outcome: 'stored', storedOther: 1, factWritten: false },
+    })
+
+    expect(persist).toHaveBeenCalledOnce()
+    expect(repository.recordHeadFact).not.toHaveBeenCalled()
+    expect(logger.warn).toHaveBeenCalledWith(
+      { event: 'review_head_check_fact_not_recorded' },
+      expect.any(String),
+    )
+    expect(JSON.stringify(logger.warn.mock.calls)).not.toContain('CANARY')
+
+    repository.readPersistState.mockResolvedValue(readyState)
+    await expect(run()).resolves.toMatchObject({
+      persistence: { outcome: 'stored', factWritten: true },
+    })
+    expect(repository.recordHeadFact).toHaveBeenCalledOnce()
+  })
+
+  it('writes no fact when the completed-listing proof disappeared during the read', async () => {
+    const { run, repository } = setup({
+      head: okHead([], { totalReviewCount: 40, averageRating: 4.5 }),
+      stateAtFact: { ...readyState, hasCompletedListing: false },
+    })
+
+    await expect(run()).resolves.toMatchObject({
+      persistence: { outcome: 'stored', factWritten: false },
+    })
+    expect(repository.recordHeadFact).not.toHaveBeenCalled()
   })
 
   it('decides the fact against the newest fact as it is just before writing', async () => {
