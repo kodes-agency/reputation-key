@@ -5,6 +5,9 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { gunzipSync } from 'node:zlib'
 import { afterAll, beforeAll, expect, it } from 'vitest'
+import { sql } from 'drizzle-orm'
+import { createGuestBackupErasureReplayer } from '#/contexts/guest/infrastructure/adapters/guest-backup-erasure-replayer.adapter'
+import { assertRestoredDatabaseVerified } from '#/shared/ops/recovery-fence'
 import { getEnv } from '#/shared/config/env'
 import { acquireTestLease, type TestLease } from '#/shared/testing/test-environment-lease'
 import {
@@ -13,6 +16,13 @@ import {
 } from '../../../scripts/ci/populated-upgrade-fixture'
 import manifest from '../../../test-fixtures/populated-upgrade/manifest.json'
 import { migrateJournal } from './migrate-journal.server'
+import { createDatabase } from './index'
+import { applyRestoreResurrectionFence } from './lifecycle/backup-erasure-ledger'
+import {
+  decodeErasureJournalExport,
+  encodeErasureJournalExport,
+  type ErasureJournalEntry,
+} from './lifecycle/erasure-journal.server'
 import { readStructure } from './structure.server'
 
 let maintenance: TestLease
@@ -189,3 +199,147 @@ it('rejects a planted migration that passes on empty rows but breaks captured te
   expect(await customerRows(target.lease)).toEqual(before)
   expect((await journal(target.lease)).length).toBe(history.entries.length - 1)
 }, 90_000)
+
+it('rolls back an interrupted pending file before commit and converges on retry', async () => {
+  const clean = await database()
+  const recovered = await database()
+  const before = await customerRows(recovered.lease)
+  const appliedBefore = await journal(recovered.lease)
+  deploy(clean.url)
+  const client = await recovered.lease.pool.connect()
+  const pid = (await client.query<{ pid: number }>('SELECT pg_backend_pid() AS pid'))
+    .rows[0]!.pid
+  client.on('error', () => {})
+  let interrupted = false
+  try {
+    await expect(
+      migrateJournal(
+        {
+          query: async (text, values) => {
+            if (text === 'COMMIT' && !interrupted) {
+              interrupted = true
+              await maintenance.pool.query('SELECT pg_terminate_backend($1)', [pid])
+              throw new Error('Upgrade connection interrupted before commit')
+            }
+            return client.query(text, values)
+          },
+        },
+        'drizzle',
+      ),
+    ).rejects.toThrow('Upgrade connection interrupted before commit')
+    expect(interrupted).toBe(true)
+  } finally {
+    client.release(true)
+  }
+  expect(await journal(recovered.lease)).toEqual(appliedBefore)
+  expect(await customerRows(recovered.lease)).toEqual(before)
+  deploy(recovered.url)
+  expect(await journal(recovered.lease)).toEqual(await journal(clean.lease))
+  expect(await customerRows(recovered.lease)).toEqual(before)
+  expect(await readStructure(recovered.url)).toBe(await readStructure(clean.url))
+  const structure = await readStructure(recovered.url)
+  deploy(recovered.url)
+  expect(await journal(recovered.lease)).toEqual(await journal(clean.lease))
+  expect(await customerRows(recovered.lease)).toEqual(before)
+  expect(await readStructure(recovered.url)).toBe(structure)
+}, 180_000)
+
+it('re-erases restored Guest data from a local journal file while preserving the other captured tenant', async () => {
+  const target = await database()
+  deploy(target.url)
+  const portals = await target.lease.pool.query<{
+    id: string
+    organization_id: string
+    property_id: string
+  }>(
+    'SELECT DISTINCT ON (organization_id) id, organization_id, property_id FROM portals ORDER BY organization_id, id',
+  )
+  expect(portals.rows.map((row) => row.organization_id)).toEqual(manifest.organizationIds)
+  const responseIds = portals.rows.map(() => randomUUID())
+  for (const [index, portal] of portals.rows.entries()) {
+    await target.lease.pool.query(
+      `INSERT INTO guest_responses (
+        id, organization_id, property_id, portal_id, status, rating,
+        response_consent, text_consent, private_feedback_threshold,
+        correction_count, submitted_at, feedback_submitted_at,
+        feedback_submission_revision, retention_deadline, created_at, updated_at
+      ) VALUES ($1, $2, $3, $4, 'submitted', 2, true, true, 3, 0,
+        clock_timestamp(), clock_timestamp(), 1,
+        clock_timestamp() + interval '700 days', clock_timestamp(), clock_timestamp())`,
+      [responseIds[index], portal.organization_id, portal.property_id, portal.id],
+    )
+    await target.lease.pool.query(
+      `INSERT INTO guest_response_private_feedback (
+        response_id, organization_id, property_id, portal_id, body,
+        submitted_at, expires_at, created_at
+      ) VALUES ($1, $2, $3, $4, 'Restored private feedback', clock_timestamp(),
+        clock_timestamp() + interval '88 days', clock_timestamp())`,
+      [responseIds[index], portal.organization_id, portal.property_id, portal.id],
+    )
+  }
+  const before = await customerRows(target.lease)
+  const feedback = async () =>
+    (
+      await target.lease.pool.query(
+        'SELECT * FROM guest_response_private_feedback ORDER BY response_id',
+      )
+    ).rows
+  const feedbackBefore = await feedback()
+  const entry: ErasureJournalEntry = {
+    id: randomUUID(),
+    recordedBeforeErasure: true,
+    subjectClass: 'organization',
+    organizationId: manifest.organizationIds[0]!,
+    context: 'guest',
+    closureLineageId: randomUUID(),
+    lifecycleRevision: 1,
+    effectiveErasureAt: new Date('2026-11-07T12:00:00.000Z'),
+    erasedRowCount: 2,
+    evidenceRef: 'guest:purge:restore-proof',
+  }
+  const folder = mkdtempSync(join(tmpdir(), 'populated-restore-'))
+  folders.push(folder)
+  const file = join(folder, 'journal.json')
+  writeFileSync(file, encodeErasureJournalExport([entry], new Date()), { mode: 0o600 })
+  const input = {
+    entries: decodeErasureJournalExport(readFileSync(file, 'utf8')).entries,
+    // The intent was durable before deletion; its timestamp cannot prove deletion.
+    restorePointAt: new Date('2026-11-07T12:00:01.000Z'),
+  }
+  const db = createDatabase(target.lease.pool)
+  const receipts = await db.execute(
+    sql`SELECT count(*)::int AS count FROM backup_erasure_ledger`,
+  )
+  expect(receipts.rows[0]).toEqual({ count: 0 })
+  await db.transaction(async (tx) => {
+    const omitted = await applyRestoreResurrectionFence(tx, { ...input, replayers: [] })
+    expect(omitted.unreplayedEntryIds).toEqual([entry.id])
+    expect(() => assertRestoredDatabaseVerified(omitted)).toThrow('is not verified')
+  })
+  expect(await customerRows(target.lease)).toEqual(before)
+  expect(await feedback()).toEqual(feedbackBefore)
+  const replay = () =>
+    db.transaction(async (tx) => {
+      const result = await applyRestoreResurrectionFence(tx, {
+        ...input,
+        replayers: [createGuestBackupErasureReplayer()],
+      })
+      assertRestoredDatabaseVerified(result)
+      return result
+    })
+  expect((await replay()).counts.ledgerRowsReErased).toBeGreaterThan(0)
+  const after = await customerRows(target.lease)
+  expect(after.slice(0, 5)).toEqual(before.slice(0, 5))
+  expect(after[5]).toEqual(
+    before[5]!.filter(
+      (row) =>
+        (row as { organization_id: string }).organization_id ===
+        manifest.organizationIds[1],
+    ),
+  )
+  expect(await feedback()).toEqual(
+    feedbackBefore.filter((row) => row.organization_id === manifest.organizationIds[1]),
+  )
+  expect((await replay()).counts.ledgerRowsReErased).toBe(0)
+  expect(await customerRows(target.lease)).toEqual(after)
+}, 150_000)
