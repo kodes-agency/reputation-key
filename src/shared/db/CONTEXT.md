@@ -242,6 +242,20 @@ and is parity-tested.
 
 ## Boundaries
 
+`pnpm ops db-roles --owner <migration-role>` reports the runtime-role posture
+using `DATABASE_URL`. An explicit `--apply` creates `repkey_app` without RLS
+bypass and `repkey_system` with bypass, and grants DML/sequence access to existing
+and future public tables owned by the migration role. The connection must be a
+database administrator for apply. The command refuses unsafe existing roles,
+runtime ownership or memberships, PUBLIC object-creation grants, and unsafe default
+privileges from any creator (including global defaults) rather than changing them.
+It verifies grants before committing. It does not set passwords,
+change service connections or enable RLS. Credentials remain operator-managed;
+only the worker may receive the system role's credentials. Request/worker scope
+wiring and restricted-role PostgreSQL proofs must precede runtime cutover.
+`db-roles.integration.test.ts` exercises the command against PostgreSQL in required
+CI, including current/future grants, role safety, idempotency and transactional rollback.
+
 Contexts import schema tables only inside their own infrastructure. Routes,
 components, domain, application, and server adapters never access the DB runtime
 directly. Tests use `db/testing/` leases and cleanup helpers; production modules
