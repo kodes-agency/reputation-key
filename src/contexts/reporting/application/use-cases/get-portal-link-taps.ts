@@ -1,7 +1,7 @@
 import type {
   GetPortalAnalyticsDeps,
   GetPortalAnalyticsInput,
-} from './get-portal-analytics'
+} from '../../portal-results/get-portal-analytics.server'
 import type { AuthContext } from '#/shared/domain/auth-context'
 import { requireDashboardPropertyAccess } from '../dashboard-property-access'
 

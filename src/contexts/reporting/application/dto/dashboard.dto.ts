@@ -2,24 +2,15 @@
 
 import { z } from 'zod/v4'
 
-export const timeRangePreset = z.enum(['7d', '30d', '60d', '90d', '180d', 'all'])
-
-export type TimeRangePreset = z.infer<typeof timeRangePreset>
+import { timeRangePreset } from '../../portal-results/contracts'
+export { timeRangePreset, getPortalAnalyticsDto } from '../../portal-results/contracts'
+export type { TimeRangePreset } from '../../portal-results/contracts'
 
 // GET dashboard data — query params
 export const getDashboardDataDto = z.object({
   propertyId: z.uuid(),
   portalId: z.uuid().optional(),
   timeRange: timeRangePreset.default('30d'),
-})
-
-// GET portal analytics — query params
-export const getPortalAnalyticsDto = z.object({
-  propertyId: z.uuid(),
-  portalId: z.uuid(),
-  timeRange: timeRangePreset.default('30d'),
-  /** Also read the equal-length window before. */
-  compare: z.boolean().default(true),
 })
 
 // GET Portals overview results — one Property's Portals, or, with no Property

@@ -13,7 +13,7 @@ import { portalGroupId, portalId, propertyId, type PropertyId } from '#/shared/d
 import {
   resultsCount,
   resultsEvidence,
-} from '../portal-analytics/portal-results-stories-data'
+} from '../../../../contexts/reporting/portal-results/ui/portal-results-stories-data'
 
 const PROPERTY = propertyId('prop-1')
 

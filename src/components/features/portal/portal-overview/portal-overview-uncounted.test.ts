@@ -5,7 +5,7 @@ import {
   type OverviewResultsIndex,
   type PortalOverviewResultsState,
 } from './portal-overview-results'
-import { SCANS_NOT_COUNTED_REASON } from '../portal-analytics/portal-results-cells'
+import { SCANS_NOT_COUNTED_REASON } from '../../../../contexts/reporting/portal-results/ui/portal-results-cells'
 import {
   portalMeasureSlot,
   sortFiguresWithoutUncounted,

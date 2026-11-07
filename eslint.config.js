@@ -66,7 +66,20 @@ const withMessage = (selectors, message) =>
   selectors.map((selector) => ({ selector, message }))
 
 // The component and route sources, as the source guards under src/components read them.
-const UI_SOURCES = ['src/components/**/*.{ts,tsx}', 'src/routes/**/*.{ts,tsx}']
+// Layer folders keep their existing classifications.
+const FEATURE_ROOT =
+  'src/contexts/*/!(domain|application|infrastructure|server|ports|queries|ui)'
+const FEATURE_UI = FEATURE_ROOT + '/ui/**/*.{ts,tsx}'
+// Server implementations anywhere in a feature except its browser ui/ folder.
+const FEATURE_SERVER = [
+  FEATURE_ROOT + '/*.server.ts',
+  FEATURE_ROOT + '/!(ui)/**/*.server.ts',
+]
+const UI_SOURCES = [
+  'src/components/**/*.{ts,tsx}',
+  'src/routes/**/*.{ts,tsx}',
+  FEATURE_UI,
+]
 const NOT_A_UI_SOURCE = [
   '**/*.test.{ts,tsx}',
   '**/*.stories.{ts,tsx}',
@@ -183,6 +196,23 @@ const DRIZZLE_IMPORTS = {
   message:
     'Drizzle imports are only allowed in infrastructure/ and shared/db/schema/. Use repository ports instead.',
 }
+// UI reaches a components feature through its barrel, never its sub-folders.
+const COMPONENT_FEATURE_DEEP_IMPORTS = {
+  group: ['#/components/features/*/*'],
+  message:
+    'Import from the feature barrel (e.g., "#/components/features/identity"), not from sub-folders. See src/components/CONTEXT.md.',
+}
+// Feature UI reads through its context's server functions.
+const SERVER_IMPLEMENTATION_IMPORTS = {
+  group: ['**/*.server', '**/*.server.*'],
+  message:
+    'Feature UI reads through context server functions, never server implementations.',
+}
+// Server code imports nothing from React, types included.
+const FRAMEWORK_IMPORTS = {
+  group: ['react', 'react/**', 'react-dom', 'react-dom/**'],
+  message: 'Server code stays framework-free.',
+}
 // React outside routes/, components/, integrations/ — business logic must be
 // framework-free.
 const REACT_IMPORTS = {
@@ -290,6 +320,7 @@ export default tseslint.config(
       'src/hooks/**/*.{ts,tsx}',
       'src/shared/hooks/**/*.{ts,tsx}',
       'src/contexts/*/ui/**/*.{ts,tsx}',
+      FEATURE_UI,
     ],
     ignores: NOT_A_UI_SOURCE,
     plugins: { local },
@@ -306,6 +337,12 @@ export default tseslint.config(
     settings: {
       'import/resolver': { typescript: { alwaysTryTypes: true } },
       'boundaries/elements': rootedElements([
+        {
+          type: 'feature-ui',
+          pattern: FEATURE_ROOT + '/ui/**',
+          capture: ['context', 'feature'],
+        },
+
         { type: 'domain', pattern: 'src/contexts/*/domain/**' },
         { type: 'application', pattern: 'src/contexts/*/application/**' },
         { type: 'application', pattern: 'src/contexts/*/ports/**' },
@@ -340,6 +377,26 @@ export default tseslint.config(
         { type: 'shared', pattern: 'src/shared/**' },
       ]),
       'boundaries/files': [
+        {
+          category: 'feature-server',
+          pattern: FEATURE_SERVER,
+          capture: ['context', 'feature'],
+        },
+        {
+          category: 'feature-contract',
+          pattern: FEATURE_ROOT + '/contracts.ts',
+          capture: ['context', 'feature'],
+        },
+        {
+          category: 'feature-test-fixtures',
+          pattern: FEATURE_ROOT + '/*.test-fixtures.ts',
+          capture: ['context', 'feature'],
+        },
+        {
+          category: 'feature-file',
+          pattern: FEATURE_ROOT + '/**/*.{ts,tsx}',
+          capture: ['context', 'feature'],
+        },
         {
           category: 'context-build',
           pattern: ['src/contexts/*/build.ts', 'src/contexts/*/build-*.ts'],
@@ -388,6 +445,64 @@ export default tseslint.config(
           message:
             'Architectural boundary violated. See src/contexts/CONTEXT.md "Dependency rules".',
           policies: [
+            // Feature ownership is captured from the direct child of a context.
+            {
+              from: elementType('feature-ui'),
+              allow: {
+                to: elementTypes(...UI, 'feature-ui', 'application', ...SHARED_SERVER),
+              },
+            },
+            {
+              from: elementType('feature-ui'),
+              allow: {
+                to: {
+                  file: {
+                    path: 'src/contexts/{{from.element.captured.context}}/server/**',
+                  },
+                },
+              },
+            },
+            {
+              from: elementTypes('routes', 'components'),
+              allow: { to: elementType('feature-ui') },
+            },
+            {
+              from: fileCategory('feature-contract'),
+              allow: { to: elementTypes('domain', ...SHARED_BROWSER) },
+            },
+            {
+              from: elementTypes('routes', 'components', 'feature-ui'),
+              allow: { to: fileCategory('feature-contract') },
+            },
+            {
+              from: { file: { path: 'src/contexts/{{to.file.captured.context}}/**' } },
+              allow: { to: fileCategory('feature-contract') },
+            },
+            {
+              from: fileCategory('feature-server'),
+              allow: { to: elementTypes(...SHARED_ALL) },
+            },
+            {
+              from: fileCategory('feature-server'),
+              allow: {
+                to: {
+                  file: {
+                    path: [
+                      'src/contexts/{{from.file.captured.context}}/{domain,application,infrastructure,server,ports}/**',
+                      'src/contexts/*/application/public-api.ts',
+                    ],
+                  },
+                },
+              },
+            },
+            {
+              from: fileCategory('feature-test-fixtures'),
+              allow: { to: elementTypes(...CONTEXT, ...SHARED_ALL, 'test-helpers') },
+            },
+            {
+              from: fileCategory('feature-test-fixtures'),
+              allow: { to: fileCategory('composition-root') },
+            },
             // Context, route and UI layers.
             { from: elementType('domain'), allow: { to: elementType('shared-domain') } },
             {
@@ -655,6 +770,28 @@ export default tseslint.config(
               from: fileCategory('story-file'),
               allow: { to: fileCategory('phone-width-helper') },
             },
+            { disallow: { to: fileCategory('feature-server') } },
+            {
+              from: fileCategory(['feature-server', 'feature-test-fixtures']),
+              allow: {
+                to: {
+                  file: {
+                    path: 'src/contexts/{{from.file.captured.context}}/{{from.file.captured.feature}}/**',
+                  },
+                },
+              },
+            },
+            {
+              from: {
+                file: {
+                  path: [
+                    'src/contexts/{{to.file.captured.context}}/{application,infrastructure,server}/**',
+                    'src/contexts/{{to.file.captured.context}}/build{,-*}.ts',
+                  ],
+                },
+              },
+              allow: { to: fileCategory('feature-server') },
+            },
           ],
         },
       ],
@@ -675,6 +812,7 @@ export default tseslint.config(
       'src/hooks/**/*.{ts,tsx}',
       'src/lib/**/*.{ts,tsx}',
       'src/contexts/*/ui/**/*.{ts,tsx}',
+      FEATURE_UI,
       'src/shared/email/**/*.{ts,tsx}',
       'src/shared/hooks/**/*.{ts,tsx}',
       'src/router.tsx',
@@ -749,6 +887,18 @@ export default tseslint.config(
     },
   },
 
+  {
+    files: FEATURE_SERVER,
+    rules: {
+      'no-restricted-imports': [
+        'error',
+        {
+          patterns: [FRAMEWORK_IMPORTS],
+        },
+      ],
+    },
+  },
+
   // ─── Allow drizzle-orm in shared/outbox/infrastructure/ (outbox repo) ──
   // PRE17A A3: The outbox repository uses Drizzle directly, same as context
   // infrastructure repos. Lives under shared/ because it's cross-context.
@@ -789,13 +939,26 @@ export default tseslint.config(
         {
           patterns: [
             // Block deep imports into feature sub-folders — must go through barrel
-            {
-              group: ['#/components/features/*/*'],
-              message:
-                'Import from the feature barrel (e.g., "#/components/features/identity"), not from sub-folders. See src/components/CONTEXT.md.',
-            },
+            COMPONENT_FEATURE_DEEP_IMPORTS,
             // React is allowed here; direct database access still is not.
             DRIZZLE_IMPORTS,
+          ],
+        },
+      ],
+    },
+  },
+
+  {
+    files: [FEATURE_UI],
+    rules: {
+      'no-restricted-imports': [
+        'error',
+        {
+          // A later block replaces the UI patterns above instead of adding to them.
+          patterns: [
+            COMPONENT_FEATURE_DEEP_IMPORTS,
+            DRIZZLE_IMPORTS,
+            SERVER_IMPLEMENTATION_IMPORTS,
           ],
         },
       ],
@@ -864,7 +1027,10 @@ export default tseslint.config(
   // legitimately use crypto (e.g. integration/application/use-cases/
   // get-google-auth-url.ts uses createHmac for OAuth state).
   {
-    files: ['src/contexts/*/application/**/*.{ts,tsx}'],
+    files: [
+      'src/contexts/*/application/**/*.{ts,tsx}',
+      FEATURE_ROOT + '/**/get-*.server.ts',
+    ],
     rules: {
       'no-restricted-imports': [
         'error',

@@ -1,3 +1,4 @@
+import { PortalResultsScreen } from '#/contexts/reporting/portal-results/ui/portal-results-screen'
 import { useQueries, useSuspenseQuery } from '@tanstack/react-query'
 import { hasFailed } from '#/components/hooks/is-retrying'
 import { useTenantScope } from '#/shared/hooks/useTenantScope'
@@ -8,7 +9,6 @@ import { usePortalLinkIssuance } from '#/components/features/portal/portal-works
 import {
   SharePanel,
   HistoryPanel,
-  AnalyticsPanel,
 } from '#/components/features/portal/portal-detail/portal-detail-tab-panel'
 import { PortalUnsavedChangesPrompt } from '#/components/features/portal/portal-detail/portal-unsaved-changes-prompt'
 import { derivePortalDetailView } from '#/components/features/portal/portal-detail/portal-detail-rules'
@@ -147,7 +147,7 @@ function PortalResultsTab() {
   const goal = usePortalGoalLine({ propertyId, portal, onResults: true })
   return (
     <PortalWorkspaceBodyFrame wide>
-      <AnalyticsPanel
+      <PortalResultsScreen
         portal={portal}
         propertyId={propertyId}
         tokenStatus={tokenStatus}

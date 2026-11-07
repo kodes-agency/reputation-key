@@ -7,7 +7,7 @@ import {
   effectiveValue,
   governedPortalWhere,
   QUALIFIED_SCAN_POLICY,
-} from './portal-analytics-shared'
+} from '../../portal-results/portal-analytics-shared.server'
 import type { PortalResultsPortal } from '../../application/ports/portal-results-overview.repository'
 
 /** Last counted qualified arrival, across the retained history, with corrections applied. */

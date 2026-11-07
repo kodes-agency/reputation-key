@@ -7,7 +7,7 @@ import type { PortalResultsTimeRange } from '#/contexts/reporting/application/pu
 import {
   PORTAL_RESULTS_RANGE_STORAGE_KEY,
   storedOverviewRange,
-} from '../portal-analytics/portal-results-window'
+} from '../../../../contexts/reporting/portal-results/ui/portal-results-window'
 
 const listeners = new Set<() => void>()
 
