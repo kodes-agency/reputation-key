@@ -14,7 +14,7 @@ import {
 } from './populated-upgrade-images'
 import { isEntryPoint } from './entry-point'
 
-async function main(): Promise<void> {
+export async function checkPopulatedUpgradeImages(): Promise<void> {
   const previous = process.env.POPULATED_UPGRADE_PREVIOUS_IMAGE
   const candidate = process.env.POPULATED_UPGRADE_NEW_IMAGE
   if (!previous || !candidate)
@@ -30,7 +30,9 @@ async function main(): Promise<void> {
       restorePopulatedUpgradeFixture(url.toString())
       const before = await upgradeCustomerRows(lease.pool)
       migrateUpgradeImage(previous, url.toString())
+      assert.deepEqual(await upgradeCustomerRows(lease.pool), before)
       await bootUpgradeImage(previous, url.toString())
+      assert.deepEqual(await upgradeCustomerRows(lease.pool), before)
       migrateUpgradeImage(candidate, url.toString())
       assert.deepEqual(await upgradeCustomerRows(lease.pool), before)
       const journal = async () =>
@@ -42,7 +44,9 @@ async function main(): Promise<void> {
       const applied = await journal()
       migrateUpgradeImage(candidate, url.toString())
       assert.deepEqual(await journal(), applied)
+      assert.deepEqual(await upgradeCustomerRows(lease.pool), before)
       await bootUpgradeImage(candidate, url.toString())
+      assert.deepEqual(await upgradeCustomerRows(lease.pool), before)
       const lastContract = Number(
         (
           await lease.pool.query(
@@ -52,6 +56,7 @@ async function main(): Promise<void> {
       )
       const previousWhen = upgradeImageJournal(previous).entries.at(-1)!.when
       await bootUpgradeImage(previous, url.toString(), lastContract <= previousWhen)
+      assert.deepEqual(await upgradeCustomerRows(lease.pool), before)
       console.log('Populated upgrade image checks passed')
     } finally {
       await lease.release()
@@ -63,7 +68,7 @@ async function main(): Promise<void> {
 }
 
 if (isEntryPoint(import.meta.url)) {
-  main().catch((error: unknown) => {
+  checkPopulatedUpgradeImages().catch((error: unknown) => {
     console.error(
       error instanceof UpgradeImageCheckError
         ? error.message

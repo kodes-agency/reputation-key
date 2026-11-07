@@ -58,11 +58,17 @@ Schema, journal, barrel, auth-mirror, DB-only construct, and deploy-runner parit
 
 `test-fixtures/populated-upgrade/` pins a synthetic two-tenant PostgreSQL dump
 and its byte digests. `populated-upgrade.integration.test.ts` restores it into
-leased databases, runs pending deploy migrations, interrupts a committed file
-and compares recovery and reapplication with an uninterrupted upgrade. A planted
-row-dependent migration must fail. CI's `populated-upgrade` gate also boots the
+leased databases, runs pending deploy migrations, interrupts a file before and
+after commit, and compares recovery and reapplication with an uninterrupted
+upgrade. A planted row-dependent migration must fail. The same restored fixture
+tests local-file erasure replay without a restored ledger, refuses an omitted
+replayer and preserves the other tenant. This is an automated component proof;
+the verifier's command-level replay wiring remains required before activation.
+CI's `populated-upgrade` gate also boots the
 released and candidate web/worker images on an internal network. Expands keep the
 released image ready; contractions must make its migration probe refuse readiness.
+Customer rows must survive every migration, reapplication and image boot, even
+when the migration journal is unchanged.
 
 ## Change loop
 
