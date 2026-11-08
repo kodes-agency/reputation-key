@@ -4,7 +4,7 @@ import { z } from 'zod/v4'
 import { authClient } from '#/shared/auth/auth-client'
 import { AuthCard, AuthFooterLink } from '#/components/layout/auth-layout'
 import { ResetPasswordForm, SetNewPasswordForm } from '#/components/features/identity'
-import { useAction } from '#/components/hooks/use-action'
+import { useActionMutation } from '#/components/hooks/use-action-mutation'
 import { InlineLink } from '#/components/ui/inline-link'
 
 // A value this page cannot read is dropped, never an error: the router reads
@@ -44,7 +44,7 @@ function ResetPasswordPage() {
 }
 
 function CompletePasswordReset({ token }: Readonly<{ token: string }>) {
-  const mutation = useAction(
+  const mutation = useActionMutation(
     async (input: { newPassword: string; confirmPassword: string }) => {
       const result = await authClient.resetPassword({
         newPassword: input.newPassword,
@@ -96,7 +96,7 @@ function CompletePasswordReset({ token }: Readonly<{ token: string }>) {
 }
 
 function RequestPasswordReset() {
-  const mutation = useAction(async (input: { email: string }) => {
+  const mutation = useActionMutation(async (input: { email: string }) => {
     const result = await authClient.requestPasswordReset({
       email: input.email,
       redirectTo: `${window.location.origin}/reset-password`,

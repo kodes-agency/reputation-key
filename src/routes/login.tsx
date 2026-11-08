@@ -9,7 +9,7 @@ import {
   resendVerificationEmail,
   signInUser,
 } from '#/contexts/identity/server/organizations'
-import { useAction, wrapAction } from '#/components/hooks/use-action'
+import { useActionMutation } from '#/components/hooks/use-action-mutation'
 import { safeReturnPath } from '#/shared/auth/safe-return-path'
 import { z } from 'zod/v4'
 import { clearTenantCacheBeforeNavigation } from '#/shared/queries/tenant-cache-transition'
@@ -36,23 +36,24 @@ function LoginPage() {
   const navigate = useNavigate()
   const router = useRouter()
   const queryClient = useQueryClient()
-  const signIn = useAction(useServerFn(signInUser))
   const resendVerification = useServerFn(resendVerificationEmail)
 
-  const mutation = wrapAction(signIn, async () => {
-    await ensureActiveOrg()
-    const { signInDestination } = await import('./-sign-in-destination')
-    const destination = await signInDestination()
-    await clearTenantCacheBeforeNavigation(queryClient, async () => {
-      await router.invalidate()
-      if (destination === '/my') {
-        await navigate({ to: '/my' })
-      } else if (search.redirect) {
-        router.history.push(search.redirect)
-      } else {
-        await navigate({ to: '/properties' })
-      }
-    })
+  const mutation = useActionMutation(useServerFn(signInUser), {
+    onSuccess: async () => {
+      await ensureActiveOrg()
+      const { signInDestination } = await import('./-sign-in-destination')
+      const destination = await signInDestination()
+      await clearTenantCacheBeforeNavigation(queryClient, async () => {
+        await router.invalidate()
+        if (destination === '/my') {
+          await navigate({ to: '/my' })
+        } else if (search.redirect) {
+          router.history.push(search.redirect)
+        } else {
+          await navigate({ to: '/properties' })
+        }
+      })
+    },
   })
 
   return (

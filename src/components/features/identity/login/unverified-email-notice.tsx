@@ -11,7 +11,7 @@
 import { Alert, AlertDescription, AlertTitle } from '#/components/ui/alert'
 import { Button } from '#/components/ui/button'
 import { FormErrorBanner } from '#/components/forms/form-error-banner'
-import { useAction } from '#/components/hooks/use-action'
+import { useActionMutation } from '#/components/hooks/use-action-mutation'
 
 type Props = Readonly<{
   /** The address that was just tried; empty before anything was submitted. */
@@ -21,7 +21,7 @@ type Props = Readonly<{
 }>
 
 export function UnverifiedEmailNotice({ email, resendVerification }: Props) {
-  const resend = useAction(resendVerification)
+  const resend = useActionMutation(resendVerification)
   const address = email || 'the address you entered'
   return (
     <div className="space-y-3">

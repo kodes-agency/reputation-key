@@ -173,8 +173,7 @@ export function useActionMutation<TInput, TOutput>(
   })
 
   // mutateAsync is stable across renders; attach fresh reactive state each render
-  // (same construction strategy as useAction in ./use-action.ts). The plain
-  // assignment is type-safe: a fn with an optional 2nd `options` arg is assignable
+  // The plain assignment is type-safe: a fn with an optional 2nd `options` arg is assignable
   // to the single-arg callable in `Action`.
   const callable: (input: TInput) => Promise<TOutput> = mutation.mutateAsync
   return Object.assign(callable, {
