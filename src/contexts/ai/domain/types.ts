@@ -1,14 +1,11 @@
 import type { ReplyDraftingV2Binding } from '#/shared/domain/reply-drafting-v2'
 import type { Brand } from '#/shared/domain/brand'
-import type { OrganizationId, PropertyId, ReviewId, UserId } from '#/shared/domain/ids'
-import type { MerchantAiCapability } from '#/shared/domain/merchant-ai-capability'
+import type { OrganizationId, PropertyId } from '#/shared/domain/ids'
 
 /** Fixed retention horizon for Review Analysis derivatives. */
 export const DERIVATIVE_RETENTION_MILLIS = 730 * 24 * 60 * 60 * 1_000
 
 export type AiOperationId = Brand<string, 'AiOperationId'>
-export type InternalAiSubjectId = Brand<string, 'InternalAiSubjectId'>
-export type InternalActorId = UserId
 
 export type AiProcessingCellResult =
   | Readonly<{
@@ -108,8 +105,6 @@ export type AiExecutionBinding = Readonly<{
 }>
 
 export type AiOperationBinding = AiExecutionBinding
-
-export type AiOperationCommand = 'analysis' | 'reply' | 'trend'
 
 export type AiOperationIdentity =
   | Readonly<{
@@ -287,16 +282,3 @@ export type ReviewAnalysisReadV1 =
         generatedAtEpochMillis: number
       }
     >
-
-export type AiCapability = MerchantAiCapability
-export type AiOwnerScope = Readonly<{
-  organizationId: OrganizationId
-  propertyId: PropertyId
-  actorId?: UserId
-}>
-export type AiReviewIdentity = Readonly<{
-  reviewId: ReviewId
-  sourceEpoch: number
-  sourceRevision: number
-  analysisSequence: number
-}>
