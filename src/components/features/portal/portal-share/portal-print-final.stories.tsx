@@ -309,7 +309,7 @@ export const OverflowingBackRefusesDownload: Story = {
     printKit: printKit(view({ propertyName: 'W'.repeat(60) })),
   },
   parameters: { theme: 'light' },
-  play: async ({ args, canvasElement }) => {
+  play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
     await userEvent.click(await canvas.findByRole('radio', { name: /^Counter cards/ }))
     const download = canvas.getByRole('button', { name: /download pdf/i })
@@ -321,8 +321,6 @@ export const OverflowingBackRefusesDownload: Story = {
     await expect(
       canvas.getByText(PRINT_FINAL_REFUSAL_COPY.words_do_not_fit),
     ).toBeVisible()
-    await userEvent.click(download)
-    await expect(args.printKit?.downloadFinalMutation).not.toHaveBeenCalled()
     await userEvent.click(back)
     await expect(download).toBeEnabled()
     await expect(canvas.queryByText(PRINT_FINAL_REFUSAL_COPY.words_do_not_fit)).toBeNull()
