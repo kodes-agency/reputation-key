@@ -1,6 +1,6 @@
-import { defineGuestCopyV2 } from './guest-copy-v2'
+import { defineGuestCopy } from './guest-copy'
 
-// French guest copy, generation 2 (schema version 3 snapshots). The form of
+// French guest copy for schema version 3 snapshots. The form of
 // address is "vous". Two choices follow from the template slots: the property
 // name never follows "de" (it would need an elision before a vowel), and the
 // deadline names the zone in brackets for the same reason. The private note is
@@ -8,7 +8,7 @@ import { defineGuestCopyV2 } from './guest-copy-v2'
 // punctuation keeps a no-break space before "?", ":" and "!". No native check
 // happens during the closed beta (owner decision 5, 2026-09-30).
 // Industry-neutral: no text names a kind of place.
-export const frV2 = defineGuestCopyV2({
+export const frCopy = defineGuestCopy({
   locale: 'fr',
   version: 'guest-ui-fr-v2',
   copy: {

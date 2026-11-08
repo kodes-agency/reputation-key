@@ -1,6 +1,6 @@
 import { useEffect, useId, useRef } from 'react'
 import type { GuestResponseView } from '#/contexts/guest/application/use-cases/guest-response-lifecycle'
-import type { GuestCopyKeyV2, GuestPortalCopyV2 } from '../language-packs/guest-copy-v2'
+import type { GuestCopyKey, GuestPortalCopy } from '../language-packs/guest-copy'
 import { ImmersiveBanner } from './immersive-banner'
 import { ChevronDownIcon, RestartIcon } from './immersive-icons'
 import type { RatingSubmission } from './immersive-rating-form'
@@ -17,15 +17,15 @@ const FAILURE_KEY = {
   'remove-note': 'responseRemoveNoteFailed',
   'remove-all': 'responseRemoveAllFailed',
   'start-over': 'startOverFailed',
-} as const satisfies Record<ResponseSectionFailure, GuestCopyKeyV2>
+} as const satisfies Record<ResponseSectionFailure, GuestCopyKey>
 
 const NOTICE_KEY = {
   'rating-updated': 'ratingUpdated',
   'note-removed': 'responseRemoveNoteDone',
-} as const satisfies Record<ResponseSectionNotice, GuestCopyKeyV2>
+} as const satisfies Record<ResponseSectionNotice, GuestCopyKey>
 
 export type ImmersiveResponseSectionProps = Readonly<{
-  pack: GuestPortalCopyV2
+  pack: GuestPortalCopy
   response: GuestResponseView
   clock: ResponseClock
   open: boolean

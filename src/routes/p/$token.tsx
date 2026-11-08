@@ -15,10 +15,7 @@ import {
   withdrawGuestResponseFn,
 } from '#/contexts/guest/server/public'
 import { getPublicPortal, recordScanFn } from '#/contexts/guest/server/guest-scans'
-import {
-  ImmersivePublicPortal,
-  type GuestPortalCopyV2,
-} from '#/components/features/guest'
+import { ImmersivePublicPortal, type GuestPortalCopy } from '#/components/features/guest'
 import { guestPageHead } from '#/components/features/guest/guest-page-head'
 import { PortalUnavailable } from '#/components/features/guest/portal-unavailable'
 import type { PortalUnavailableCopy } from '#/components/features/guest/portal-unavailable-copy'
@@ -69,7 +66,7 @@ function isUnavailablePosture(error: unknown): boolean {
  * pack that cannot be loaded fails the whole read, never to another language.
  */
 export type GuestPageData = PublicPortalLoaderData &
-  Readonly<{ pack: GuestPortalCopyV2 | null }>
+  Readonly<{ pack: GuestPortalCopy | null }>
 
 const publicPortalQuery = (token: string, locale?: GuestLocale) =>
   queryOptions({
@@ -82,8 +79,8 @@ const publicPortalQuery = (token: string, locale?: GuestLocale) =>
         // barrel would put the whole guest page in every page's first paint.
         const pack = data.immersive
           ? await (
-              await import('#/components/features/guest/public-portal/language-packs/load-guest-copy-v2')
-            ).loadGuestPortalCopyV2(
+              await import('#/components/features/guest/public-portal/language-packs/load-guest-copy')
+            ).loadGuestPortalCopy(
               data.localization.selectedLocale,
               data.localization.languagePackVersion,
             )

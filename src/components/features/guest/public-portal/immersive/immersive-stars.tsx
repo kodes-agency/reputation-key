@@ -1,22 +1,22 @@
 import { formatGuestPlural, guestCopyText } from '../guest-copy-format'
-import type { GuestPortalCopyV2 } from '../language-packs/guest-copy-v2'
+import type { GuestPortalCopy } from '../language-packs/guest-copy'
 
 export const RATING_VALUES = [1, 2, 3, 4, 5] as const
 type RatingValue = (typeof RATING_VALUES)[number]
 
 /** The pack's word for a rating: "Poor" to "Excellent". */
-export function ratingWord(pack: GuestPortalCopyV2, rating: number): string {
+export function ratingWord(pack: GuestPortalCopy, rating: number): string {
   const key = `ratingWord${rating as RatingValue}` as const
   return pack.copy[key]
 }
 
 /** "2 stars", with the locale's own plural form. */
-export function starsLabel(pack: GuestPortalCopyV2, rating: number): string {
+export function starsLabel(pack: GuestPortalCopy, rating: number): string {
   return formatGuestPlural(pack.plurals.ratingStars, rating, pack.locale)
 }
 
 /** The accessible name of one choice: "1 star, Poor". */
-export function ratingOptionName(pack: GuestPortalCopyV2, rating: number): string {
+export function ratingOptionName(pack: GuestPortalCopy, rating: number): string {
   return guestCopyText(pack, 'ratingOption', {
     stars: starsLabel(pack, rating),
     word: ratingWord(pack, rating),
@@ -52,7 +52,7 @@ export function RatingStars({
   name,
   onChange,
 }: Readonly<{
-  pack: GuestPortalCopyV2
+  pack: GuestPortalCopy
   /** 0 when nothing is chosen. */
   value: number
   name: string
@@ -86,7 +86,7 @@ export function RatingStars({
 export function ReceiptStars({
   pack,
   rating,
-}: Readonly<{ pack: GuestPortalCopyV2; rating: number }>) {
+}: Readonly<{ pack: GuestPortalCopy; rating: number }>) {
   return (
     <span role="img" aria-label={starsLabel(pack, rating)} className="ih-receipt__stars">
       {RATING_VALUES.map((position) => (

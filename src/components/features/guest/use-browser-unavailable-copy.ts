@@ -21,8 +21,8 @@ export function useBrowserUnavailableCopy(): PortalUnavailableCopy | undefined {
     let isCancelled = false
     // A dynamic import of the loader's own module: the route's critical chunk
     // must not carry a copy pack, and this loads exactly one.
-    void import('./public-portal/language-packs/load-guest-copy-v2')
-      .then((loader) => loader.loadGuestPortalCopyV2(locale))
+    void import('./public-portal/language-packs/load-guest-copy')
+      .then((loader) => loader.loadGuestPortalCopy(locale))
       .then((pack) => {
         if (!isCancelled) setCopy(unavailableCopyOf(pack))
       })

@@ -1,33 +1,33 @@
 // The copy added with the guest page review: the privacy link says the notice
 // is in English, the removed-response page can start over, a rating that cannot
 // be sent no longer claims the whole page is unavailable, and the unavailable
-// page can try again. The rest of the pack contract is in `guest-copy-v2.test.ts`.
+// page can try again. The rest of the pack contract is in `guest-copy.test.ts`.
 
 import { describe, expect, it } from 'vitest'
-import { bgV2 } from './bg-v2'
-import { deV2 } from './de-v2'
-import { enV2 } from './en-v2'
-import { esV2 } from './es-v2'
-import { frV2 } from './fr-v2'
-import { itV2 } from './it-v2'
+import { bgCopy } from './bg'
+import { deCopy } from './de'
+import { enCopy } from './en'
+import { esCopy } from './es'
+import { frCopy } from './fr'
+import { itCopy } from './it'
 
 const PACKS = [
-  { locale: 'en', pack: enV2 },
-  { locale: 'bg', pack: bgV2 },
-  { locale: 'es', pack: esV2 },
-  { locale: 'it', pack: itV2 },
-  { locale: 'fr', pack: frV2 },
-  { locale: 'de', pack: deV2 },
+  { locale: 'en', pack: enCopy },
+  { locale: 'bg', pack: bgCopy },
+  { locale: 'es', pack: esCopy },
+  { locale: 'it', pack: itCopy },
+  { locale: 'fr', pack: frCopy },
+  { locale: 'de', pack: deCopy },
 ] as const
 
 describe('the privacy notice link', () => {
   it('says in each language that the privacy notice is in English', () => {
-    expect(enV2.copy.privacyNoticeLinkInEnglish).toBe('Privacy notice (in English)')
-    expect(bgV2.copy.privacyNoticeLinkInEnglish).toMatch(/английски/)
-    expect(esV2.copy.privacyNoticeLinkInEnglish).toMatch(/inglés/)
-    expect(itV2.copy.privacyNoticeLinkInEnglish).toMatch(/inglese/)
-    expect(frV2.copy.privacyNoticeLinkInEnglish).toMatch(/anglais/)
-    expect(deV2.copy.privacyNoticeLinkInEnglish).toMatch(/Englisch/)
+    expect(enCopy.copy.privacyNoticeLinkInEnglish).toBe('Privacy notice (in English)')
+    expect(bgCopy.copy.privacyNoticeLinkInEnglish).toMatch(/английски/)
+    expect(esCopy.copy.privacyNoticeLinkInEnglish).toMatch(/inglés/)
+    expect(itCopy.copy.privacyNoticeLinkInEnglish).toMatch(/inglese/)
+    expect(frCopy.copy.privacyNoticeLinkInEnglish).toMatch(/anglais/)
+    expect(deCopy.copy.privacyNoticeLinkInEnglish).toMatch(/Englisch/)
   })
 
   it.each(PACKS)('keeps the plain link text inside it in $locale', ({ pack }) => {
@@ -49,7 +49,7 @@ describe('starting over after a removal', () => {
   )
 
   it('is "Ready for the next guest." in English', () => {
-    expect(enV2.copy.startOverDoneAfterRemoval).toBe('Ready for the next guest.')
+    expect(enCopy.copy.startOverDoneAfterRemoval).toBe('Ready for the next guest.')
   })
 })
 
@@ -63,16 +63,16 @@ describe('a rating that cannot be sent', () => {
   )
 
   it('says in English that it is the ratings that cannot be sent, not the page', () => {
-    expect(enV2.copy.ratingUnavailableTitle).toBe(
+    expect(enCopy.copy.ratingUnavailableTitle).toBe(
       'Ratings can’t be sent from here right now.',
     )
-    expect(enV2.copy.ratingUnavailableBody).toBe('Please try again later.')
+    expect(enCopy.copy.ratingUnavailableBody).toBe('Please try again later.')
   })
 })
 
 describe('the unavailable page', () => {
   it('has a retry label in every language', () => {
-    expect(enV2.copy.unavailableRetry).toBe('Try again')
+    expect(enCopy.copy.unavailableRetry).toBe('Try again')
     for (const { pack } of PACKS) {
       expect(pack.copy.unavailableRetry.length).toBeGreaterThan(0)
     }

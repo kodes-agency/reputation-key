@@ -4,7 +4,7 @@ import type { GuestLocale } from '#/shared/domain/guest-locale'
 import type { PortalVisitRecorder } from '../../portal-visit-recording'
 import { guestCopyText } from '../guest-copy-format'
 import type { SelectSecondaryLinkAction } from '../guest-response-form-types'
-import type { GuestPortalCopyV2 } from '../language-packs/guest-copy-v2'
+import type { GuestPortalCopy } from '../language-packs/guest-copy'
 import { trackedLinkHref } from '../portal-link-href'
 import { GuestHeader } from './guest-header'
 import { GuestLanguageSwitcher } from './guest-language-switcher'
@@ -25,7 +25,7 @@ export type ImmersivePublicPortalProps = Readonly<{
   /** The public channel marker, kept when the guest switches language. */
   accessArtifactId?: string
   /** The one v2 pack of the page's language. */
-  pack: GuestPortalCopyV2
+  pack: GuestPortalCopy
   immersive: PublicImmersiveLoaderData
   selectedLocale: GuestLocale
   /** Every language the portal offers, in its own order. */

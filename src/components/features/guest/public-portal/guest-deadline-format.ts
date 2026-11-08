@@ -1,5 +1,5 @@
 import { fillGuestTemplate } from './guest-copy-format'
-import type { GuestPortalCopyV2 } from './language-packs/guest-copy-v2'
+import type { GuestPortalCopy } from './language-packs/guest-copy'
 
 // Guest-facing deadlines for the v2 copy: "Until 15:32 today, Sofia time".
 //
@@ -80,10 +80,10 @@ export function describeGuestDeadline(
 
 type DeadlinePack = Readonly<{
   copy: Pick<
-    GuestPortalCopyV2['copy'],
+    GuestPortalCopy['copy'],
     'deadlineToday' | 'deadlineTomorrow' | 'deadlineDate'
   >
-  zoneNames: GuestPortalCopyV2['zoneNames']
+  zoneNames: GuestPortalCopy['zoneNames']
 }>
 
 /**

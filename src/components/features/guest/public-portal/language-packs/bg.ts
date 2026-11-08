@@ -1,11 +1,11 @@
-import { defineGuestCopyV2 } from './guest-copy-v2'
+import { defineGuestCopy } from './guest-copy'
 
-// Bulgarian guest copy, generation 2 (schema version 3 snapshots). Written to
+// Bulgarian guest copy for schema version 3 snapshots. Written to
 // read naturally in Bulgarian rather than to follow the English word for word;
 // the form of address is the polite plural (вие), as in the v1 pack. No native
 // check happens during the closed beta (owner decision 5, 2026-09-30).
 // Industry-neutral: no text names a kind of place.
-export const bgV2 = defineGuestCopyV2({
+export const bgCopy = defineGuestCopy({
   locale: 'bg',
   version: 'guest-ui-bg-v2',
   copy: {
