@@ -1,3 +1,4 @@
+import { replyScopeEffects } from '#/contexts/reputation/application/public-api'
 import { REPLY_DRAFTING_V2_PROFILE_DIGEST } from '#/shared/reply-drafting-v2-contract'
 import { resolveReplyDraftingV2Options } from '#/shared/reply-drafting-v2-request'
 import { verifyAiReplyProvenance } from '#/shared/ai-reply-provenance'
@@ -488,7 +489,11 @@ describe.sequential('AI suggested draft acceptance (real PostgreSQL)', () => {
       createdAt: NOW,
       updatedAt: NOW,
     })
-    const profiles = createPropertyProcessingProfileAdapter(db, () => NOW)
+    const profiles = createPropertyProcessingProfileAdapter(
+      db,
+      () => NOW,
+      replyScopeEffects,
+    )
     await expect(
       profiles.refreshForAi({
         organizationId: ORGANIZATION_ID,
@@ -551,9 +556,12 @@ describe.sequential('AI suggested draft acceptance (real PostgreSQL)', () => {
       })
     })
 
-    await createReviewRepository(db, () => new Date()).upsert(
-      reviewFixture(REVIEW_ID, 'ai-suggested-draft-review'),
-    )
+    await createReviewRepository(
+      db,
+      () => new Date(),
+      undefined,
+      replyScopeEffects,
+    ).upsert(reviewFixture(REVIEW_ID, 'ai-suggested-draft-review'))
     await seedSucceededReplyOperation({
       operationId: '74000000-0000-4000-8000-000000000004',
       permitId: '74000000-0000-4000-8000-000000000104',
@@ -605,9 +613,12 @@ describe.sequential('AI suggested draft acceptance (real PostgreSQL)', () => {
     const newReview = reviewId('74000000-0000-4000-8000-000000000090')
     const operationId = '74000000-0000-4000-8000-000000000091'
     const permitId = '74000000-0000-4000-8000-000000000092'
-    await createReviewRepository(db, () => new Date()).upsert(
-      reviewFixture(newReview, 'v4-spanish'),
-    )
+    await createReviewRepository(
+      db,
+      () => new Date(),
+      undefined,
+      replyScopeEffects,
+    ).upsert(reviewFixture(newReview, 'v4-spanish'))
     await seedSucceededReplyOperation({
       operationId,
       permitId,
@@ -1099,6 +1110,8 @@ describe.sequential('AI suggested draft acceptance (real PostgreSQL)', () => {
         db,
         () => new Date(),
         async () => true,
+        undefined,
+        replyScopeEffects,
       ).markPublicationAuthorized(
         pending,
         { status: 'approved' },
@@ -1149,10 +1162,14 @@ describe.sequential('AI suggested draft acceptance (real PostgreSQL)', () => {
         .update(reviews)
         .set({ sourceRevision: SOURCE_REVISION + 1 })
         .where(eq(reviews.id, REVIEW_ID))
-      await purgeAiDraftsForReview(tx, {
-        organizationId: ORGANIZATION_ID,
-        reviewId: REVIEW_ID,
-      })
+      await purgeAiDraftsForReview(
+        tx,
+        {
+          organizationId: ORGANIZATION_ID,
+          reviewId: REVIEW_ID,
+        },
+        replyScopeEffects,
+      )
     })
     await expect(
       db
@@ -1261,22 +1278,29 @@ describe.sequential('AI suggested draft acceptance (real PostgreSQL)', () => {
       permit: '74000000-0000-4000-8000-000000000110',
       erase: (id: ReturnType<typeof reviewId>) =>
         db.transaction(async (tx) => {
-          await eraseReviewSourceContent(tx, {
-            reviewId: id,
-            organizationId: ORGANIZATION_ID,
-            propertyId: PROPERTY_ID,
-            sourceEpoch: SOURCE_EPOCH,
-            expectedSourceRevision: SOURCE_REVISION,
-            state: 'provider_deleted',
-          })
+          await eraseReviewSourceContent(
+            tx,
+            {
+              reviewId: id,
+              organizationId: ORGANIZATION_ID,
+              propertyId: PROPERTY_ID,
+              sourceEpoch: SOURCE_EPOCH,
+              expectedSourceRevision: SOURCE_REVISION,
+              state: 'provider_deleted',
+            },
+            replyScopeEffects,
+          )
         }),
     },
   ])(
     'refuses to adopt a suggestion for $label and writes no draft',
     async ({ review, operation, permit, erase }) => {
-      await createReviewRepository(db, () => new Date()).upsert(
-        reviewFixture(review, `ai-suggested-draft-erased-${operation}`),
-      )
+      await createReviewRepository(
+        db,
+        () => new Date(),
+        undefined,
+        replyScopeEffects,
+      ).upsert(reviewFixture(review, `ai-suggested-draft-erased-${operation}`))
       await seedSucceededReplyOperation({
         operationId: operation,
         permitId: permit,

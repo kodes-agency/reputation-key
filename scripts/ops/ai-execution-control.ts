@@ -5,6 +5,7 @@ import { getDb } from '../../src/shared/db'
 import { aiExecutionControlHeads } from '../../src/shared/db/schema'
 import type { MerchantAiCapability } from '../../src/shared/domain/merchant-ai-capability'
 import type { AiControlScope } from '../../src/contexts/ai/application/ports/ai-control.port'
+import { reputationReplyScopeEffects } from '../../src/composition/reply-scope-effects'
 import { createAiControlAdapter } from '../../src/contexts/ai/infrastructure/adapters/ai-control.adapter'
 import { positionalArgs } from '../../src/shared/ops/operator-command'
 import { runCommandEntrypoint } from './command-entrypoint'
@@ -159,7 +160,10 @@ async function main(): Promise<void> {
         io.out(`re-run with --apply --yes ${COMMAND_NAME}`)
         return
       }
-      const after = await createAiControlAdapter(db).transition({
+      const after = await createAiControlAdapter(
+        db,
+        reputationReplyScopeEffects,
+      ).transition({
         scope: command.scope,
         providerDeploymentProfileVersion: command.providerDeploymentProfileVersion,
         expectedControlId: before.controlId,

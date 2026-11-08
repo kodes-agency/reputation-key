@@ -1,3 +1,4 @@
+import { replyScopeEffects } from '#/contexts/reputation/application/public-api'
 import { readFileSync } from 'node:fs'
 import { nextMerchantAiCapabilityEpochs } from '../../domain/merchant-ai-capability-epochs'
 import { randomUUID } from 'node:crypto'
@@ -64,7 +65,7 @@ const NOTICE_2026_11_01 = {
   noticeDigest: 'e9574380fd1ba5f4b7bd7b9899bc5e6bdf371f9d9871584f33c5c1e6131290ef',
 } as const
 
-const store = createMerchantAiAuthorizationStore(db, randomUUID)
+const store = createMerchantAiAuthorizationStore(db, randomUUID, replyScopeEffects)
 
 /** The migrations that state the notice catalogue function, oldest first. */
 const FORWARD_MIGRATIONS = [
@@ -420,7 +421,11 @@ describe('Merchant AI authorization store', () => {
         'ALTER TABLE merchant_ai_enablement ENABLE TRIGGER merchant_ai_enablement_transition_guard',
       )
       await expect(
-        createMerchantAiAuthorizationStore(held.db, randomUUID).getSnapshot({
+        createMerchantAiAuthorizationStore(
+          held.db,
+          randomUUID,
+          replyScopeEffects,
+        ).getSnapshot({
           organizationId: ORG,
           propertyId: PROPERTY,
         }),
@@ -923,7 +928,11 @@ describe('Merchant AI authorization store', () => {
         }
       }
       expect(
-        await createMerchantAiAuthorizationStore(held.db, randomUUID).getSnapshot({
+        await createMerchantAiAuthorizationStore(
+          held.db,
+          randomUUID,
+          replyScopeEffects,
+        ).getSnapshot({
           organizationId: ORG,
           propertyId: PROPERTY,
         }),
@@ -1617,7 +1626,7 @@ const EPOCH_ZERO_NOW = new Date('2026-08-19T12:00:00.000Z')
 
 describe('Merchant AI authorization store at source epoch 0', () => {
   const db = getDb()
-  const store = createMerchantAiAuthorizationStore(db, randomUUID)
+  const store = createMerchantAiAuthorizationStore(db, randomUUID, replyScopeEffects)
 
   const clear = async () => {
     // Consent evidence is append-only and the enablement row is transition

@@ -1,3 +1,4 @@
+import { replyScopeEffects } from '#/contexts/reputation/application/public-api'
 // BQC-3.3 — reply command store integration tests (real Postgres).
 //
 // Crash-boundary proof on the real database:
@@ -193,12 +194,19 @@ describe.sequential('replyCommandStore (integration)', () => {
   it('recovers the committed authorization after interruption before direct queue admission', async () => {
     // @proof REPLY_PUBLICATION_CRASH#1
     const db = getDb()
-    const reviewRepo = createReviewRepository(db, () => new Date())
+    const reviewRepo = createReviewRepository(
+      db,
+      () => new Date(),
+      undefined,
+      replyScopeEffects,
+    )
     const replyRepo = createReplyRepository(db, () => new Date())
     const store = createAtomicReplyCommandStore(
       db,
       () => new Date(),
       async () => true,
+      undefined,
+      replyScopeEffects,
     )
     const outboxRepo = createOutboxRepository(db)
     const queued: Array<Readonly<{ data: unknown; options: unknown }>> = []
@@ -300,7 +308,12 @@ describe.sequential('replyCommandStore (integration)', () => {
 
   it('cancels a queued cycle when its named PropertyManager grant is revoked before claim', async () => {
     const db = getDb()
-    const reviewRepo = createReviewRepository(db, () => new Date())
+    const reviewRepo = createReviewRepository(
+      db,
+      () => new Date(),
+      undefined,
+      replyScopeEffects,
+    )
     const replyRepo = createReplyRepository(db, () => new Date())
 
     await db.execute(sql`
@@ -337,7 +350,13 @@ describe.sequential('replyCommandStore (integration)', () => {
           permission: 'reply.manage',
         })
       ).allowed
-    const store = createAtomicReplyCommandStore(db, () => new Date(), actorAuthority)
+    const store = createAtomicReplyCommandStore(
+      db,
+      () => new Date(),
+      actorAuthority,
+      undefined,
+      replyScopeEffects,
+    )
 
     await reviewRepo.upsert(makeReview())
     const pending = makeReply({ status: 'pending_approval', submittedAt: NOW })
@@ -424,12 +443,19 @@ describe.sequential('replyCommandStore (integration)', () => {
   it('rolls back authorization and its lifecycle fact when the publication-intent insert fails', async () => {
     // @proof REPLY_PUBLICATION_CRASH#2
     const db = getDb()
-    const reviewRepo = createReviewRepository(db, () => new Date())
+    const reviewRepo = createReviewRepository(
+      db,
+      () => new Date(),
+      undefined,
+      replyScopeEffects,
+    )
     const replyRepo = createReplyRepository(db, () => new Date())
     const store = createAtomicReplyCommandStore(
       db,
       () => new Date(),
       async () => true,
+      undefined,
+      replyScopeEffects,
     )
 
     await reviewRepo.upsert(makeReview())
@@ -484,9 +510,20 @@ describe.sequential('replyCommandStore (integration)', () => {
 
   it('rolls back the state write when the outbox insert fails (no state/outbox split)', async () => {
     const db = getDb()
-    const reviewRepo = createReviewRepository(db, () => new Date())
+    const reviewRepo = createReviewRepository(
+      db,
+      () => new Date(),
+      undefined,
+      replyScopeEffects,
+    )
     const replyRepo = createReplyRepository(db, () => new Date())
-    const store = createAtomicReplyCommandStore(db, () => new Date())
+    const store = createAtomicReplyCommandStore(
+      db,
+      () => new Date(),
+      undefined,
+      undefined,
+      replyScopeEffects,
+    )
 
     await reviewRepo.upsert(makeReview())
     await replyRepo.upsert(makeReply({ status: 'draft' }))
@@ -525,8 +562,19 @@ describe.sequential('replyCommandStore (integration)', () => {
 
   it('rolls back a mirror upsert when its outbox insert fails (reply row absent)', async () => {
     const db = getDb()
-    const reviewRepo = createReviewRepository(db, () => new Date())
-    const store = createAtomicReplyCommandStore(db, () => new Date())
+    const reviewRepo = createReviewRepository(
+      db,
+      () => new Date(),
+      undefined,
+      replyScopeEffects,
+    )
+    const store = createAtomicReplyCommandStore(
+      db,
+      () => new Date(),
+      undefined,
+      undefined,
+      replyScopeEffects,
+    )
 
     await reviewRepo.upsert(makeReview())
 
@@ -576,9 +624,20 @@ describe.sequential('replyCommandStore (integration)', () => {
 
   it('commits state row and outbox row with identical eventId (happy path)', async () => {
     const db = getDb()
-    const reviewRepo = createReviewRepository(db, () => new Date())
+    const reviewRepo = createReviewRepository(
+      db,
+      () => new Date(),
+      undefined,
+      replyScopeEffects,
+    )
     const replyRepo = createReplyRepository(db, () => new Date())
-    const store = createAtomicReplyCommandStore(db, () => new Date())
+    const store = createAtomicReplyCommandStore(
+      db,
+      () => new Date(),
+      undefined,
+      undefined,
+      replyScopeEffects,
+    )
 
     await reviewRepo.upsert(makeReview())
     await replyRepo.upsert(makeReply({ status: 'draft' }))
@@ -626,9 +685,20 @@ describe.sequential('replyCommandStore (integration)', () => {
 
   it('quarantines purgeExpiredReview without erasing the review, reply, or recording a false expiry fact', async () => {
     const db = getDb()
-    const reviewRepo = createReviewRepository(db, () => new Date())
+    const reviewRepo = createReviewRepository(
+      db,
+      () => new Date(),
+      undefined,
+      replyScopeEffects,
+    )
     const replyRepo = createReplyRepository(db, () => new Date())
-    const store = createAtomicReplyCommandStore(db, () => new Date())
+    const store = createAtomicReplyCommandStore(
+      db,
+      () => new Date(),
+      undefined,
+      undefined,
+      replyScopeEffects,
+    )
 
     await reviewRepo.upsert(makeReview())
     await replyRepo.upsert(makeReply())

@@ -36,9 +36,11 @@ type Policy = Pick<
   | 'providerDeploymentProfileVersion'
   | 'redactionProfileFamily'
 >
+import type { ReplyScopeEffects } from '#/shared/db/reply-scope-effects'
 type Deps = Readonly<{
   db: Database
   idGen: () => string
+  replyEffects: ReplyScopeEffects
   policy: Policy
   authorize: (
     input: Readonly<{
@@ -135,6 +137,7 @@ async function renewInTransaction(
       reasonCode: STANDING_RENEWAL_REASON,
     },
     deps.idGen,
+    deps.replyEffects,
     true,
   )
   return { status: 'renewed' }

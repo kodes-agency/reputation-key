@@ -3,6 +3,7 @@ import { buildPropertyContext } from '#/contexts/property/build'
 import { createPropertyRepository } from '#/contexts/property/infrastructure/repositories/property.repository'
 import { getLogger } from '#/shared/observability/logger'
 import type { buildIdentityContext } from '#/contexts/identity/build'
+import { reputationReplyScopeEffects } from './reply-scope-effects'
 import type { ContextWiringInput } from './runtime'
 
 export function wireProperty(
@@ -11,6 +12,7 @@ export function wireProperty(
 ) {
   const property = buildPropertyContext({
     db,
+    replyEffects: reputationReplyScopeEffects,
     repo: createPropertyRepository(db),
     outboxRepo,
     clock,

@@ -320,10 +320,10 @@ Publish and reject from `pending_approval`, Try publishing again from a settled
 `publish_failed`, edit-and-republish from `published`, delete from a draft or a
 rejected reply that was never authorized. The use case refuses anything else
 with `invalid_transition`. The store does not trust the use case: every guarded
-write (`infrastructure/reply-write-guards.ts`) repeats the rule as its
+write (`../reputation/replies/store.server.ts`) repeats the rule as its
 compare-and-set on status, publication state and cycle, and a publication write
 also on the exact state and attempt count it read. A write that puts the text
-forward (submit, an approval, a retry, an edit) compares the Reply's state
+forward (submit, an approval, a retry, an edit) or saves a draft compares the Reply's state
 revision too: the AI draft purge (below) empties a draft in place, in the same
 status, publication state and cycle, and a submit that had read the AI text
 would otherwise hand an approver a Reply with no text. A second entry point, or
@@ -368,7 +368,7 @@ the Reply, and `domain/reply-ai-text.ts` says which command does what:
   RepKey. A claim that passes writes an attempt carrying the digest of the
   text; an attempt for the text the Reply holds now is the evidence that these
   words passed every gate while they were current
-  (`reply-write-guards.ts`, `aiTextMayBeClaimed`). A later attempt for them,
+  (`reputation/replies/store.server.ts`, `aiTextMayBeClaimed`). A later attempt for them,
   in the same cycle or in the cycle of a retry, does not wait on the adoption
   window again. Nothing else is excused: once something the text was generated
   from has changed, the claim refuses it, claimed before or not

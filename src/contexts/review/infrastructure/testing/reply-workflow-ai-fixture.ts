@@ -1,3 +1,4 @@
+import { replyScopeEffects } from '#/contexts/reputation/application/public-api'
 import { recordDraftGeneration } from '#/shared/db/ai/draft-generation-measurement'
 // Test-only: everything an AI-assisted reply is bound to, for the reply
 // workflow harness.
@@ -480,7 +481,7 @@ export function createReplyWorkflowAiFixture(
             eq(aiPropertyProcessingProfiles.propertyId, propertyId),
           ),
         )
-      await purgeAiDraftsForProfile(tx, { organizationId, propertyId })
+      await purgeAiDraftsForProfile(tx, { organizationId, propertyId }, replyScopeEffects)
       await beforeCommit?.()
     })
   }
@@ -492,7 +493,7 @@ export function createReplyWorkflowAiFixture(
    */
   async function observeReviewAgain(): Promise<void> {
     await db.transaction((tx) =>
-      purgeExpiredAiDraftsForReview(tx, { organizationId, reviewId }),
+      purgeExpiredAiDraftsForReview(tx, { organizationId, reviewId }, replyScopeEffects),
     )
   }
 

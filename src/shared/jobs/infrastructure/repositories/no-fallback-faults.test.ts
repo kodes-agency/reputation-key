@@ -1,3 +1,4 @@
+import { replyScopeEffects } from '#/contexts/reputation/application/public-api'
 // BQC-4.6 — no-fallback fault proof (real PostgreSQL + real Redis/BullMQ).
 //
 // fallow-ignore-file boundary-violation
@@ -491,7 +492,12 @@ describe('(c) provider (GBP) down (BQC-4.6)', () => {
 
   it('makes an ambiguous 5xx durable after readback without another provider write or fallback', async () => {
     if (!redisAvailable) return
-    const reviewRepo = createReviewRepository(db, () => new Date())
+    const reviewRepo = createReviewRepository(
+      db,
+      () => new Date(),
+      undefined,
+      replyScopeEffects,
+    )
     const replyRepo = createReplyRepository(db, () => new Date())
     const savedReview = await reviewRepo.upsert(makeReviewC(), NOW_C)
     expect(savedReview).toMatchObject({ sourceEpoch: 0, sourceRevision: 1 })
@@ -522,6 +528,8 @@ describe('(c) provider (GBP) down (BQC-4.6)', () => {
       db,
       () => new Date(),
       async () => true,
+      undefined,
+      replyScopeEffects,
     )
     const authorizedReply = await replyCommandStore.markPublicationAuthorized(
       pendingReply,

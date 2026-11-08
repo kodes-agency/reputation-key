@@ -45,6 +45,7 @@ import {
   collectReviewSourceContentLifecycleReport,
   REVIEW_SOURCE_CONTENT_LIFECYCLE_MAX_BATCH_SIZE,
 } from '../../src/contexts/review/application/public-api'
+import { reputationReplyScopeEffects } from '../../src/composition/reply-scope-effects'
 import { runOperatorCommand } from './operator-command'
 
 async function main(): Promise<void> {
@@ -114,6 +115,7 @@ async function main(): Promise<void> {
             container.db,
             input,
             container.integrationWorkerRuntime.completeImportsForRestore,
+            reputationReplyScopeEffects,
           ),
         purgeEvidence: async (): Promise<ReadonlyArray<RestoreVerifyEvidenceRow>> => {
           const rows = await container.db.execute(sql`

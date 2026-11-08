@@ -1,3 +1,4 @@
+import { replyScopeEffects } from '#/contexts/reputation/application/public-api'
 // The policy diagnostic as the build wires it, against real PostgreSQL.
 //
 // `explainPolicyDecisionFn` is served to any AccountAdmin (`policy.admin`), so
@@ -34,6 +35,7 @@ const OWN_CORRELATION = 'pdiag-own'
 const FOREIGN_CORRELATION = 'pdiag-foreign'
 
 const policyAdmin = buildIdentityContext({
+  replyEffects: replyScopeEffects,
   db,
   identityPort: createInMemoryIdentityPort(),
   clock: () => NOW,

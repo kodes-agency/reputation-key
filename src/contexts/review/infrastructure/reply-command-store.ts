@@ -5,7 +5,7 @@
 // guarded transition that matches no row records no fact and returns null.
 //
 // Every write carries its command's precondition as a compare-and-set
-// (reply-write-guards.ts): the snapshot must be a reply the command may start
+// (reputation/replies/store.server.ts): the snapshot must be a reply the command may start
 // from, and the row must still be that snapshot. The store does not trust the
 // use case to have checked, so a second entry point cannot skip the rule. The
 // same guard carries what the command means for AI-assisted text
@@ -20,7 +20,7 @@
 // comes from nextPublicationState (the domain authority), never from a
 // caller-supplied literal.
 
-import { and, eq, inArray, sql } from 'drizzle-orm'
+import { and, eq, sql } from 'drizzle-orm'
 import type { Database } from '#/shared/db'
 import {
   googleReplyObservationHeads,
@@ -43,18 +43,17 @@ import {
   nextPublicationCycle,
   nextPublicationState,
   type PersistedPublicationState,
-  type PublicationFailureClass,
   type PublicationStateEvent,
 } from '../domain/reply-publication-workflow'
 import { replyFromRow, replyToRow } from './mappers/reply.mapper'
 import {
-  aiTextMayBeClaimed,
-  guardedPublicationUpdate,
-  guardedReplyUpdate,
-  updateCurrentAttempt,
-  submitMeasuredReply,
-} from './reply-write-guards'
+  UNCERTAIN_ATTEMPT_OUTCOMES,
+  type ReplyWriter,
+  type UncertainSendSnapshot,
+} from '../application/ports/reply-writer.port'
+import { createReviewReplyWriter } from './reply-writer'
 import { cancelUnclaimablePublication } from './unclaimable-publication'
+import type { ReplyScopeEffects } from '#/shared/db/reply-scope-effects'
 import {
   cancelledPublication,
   replyCommandMayStart,
@@ -70,6 +69,12 @@ import {
   lockPublicationProperty,
   propertyAdmitsCycle,
 } from './publication-property-admission'
+import {
+  deleteGoogleSyncMirrors,
+  insertPublicationAttempt,
+  insertPublicationAuthorization,
+  upsertMirrorReply,
+} from '#/contexts/reputation/application/public-api'
 
 /**
  * Identity-owned, transaction-bound decision injected at composition. The
@@ -246,14 +251,6 @@ function authorizationFenceIsCurrent(
 type PublicationAttemptStart = Parameters<ReplyCommandStore['markPublicationSending']>[1]
 type PublicationAuthorizationRow = typeof replyPublicationAuthorizations.$inferSelect
 
-/** A (status, publication_state[, last error class]) an uncertain-send command
- * may start from. */
-type UncertainSendSnapshot = Readonly<{
-  status: Reply['status']
-  publicationState: PersistedPublicationState
-  lastErrorClass?: PublicationFailureClass
-}>
-
 /** D3: only a send still in flight waits out the propagation grace. */
 const DEFERRABLE_SEND: ReadonlyArray<UncertainSendSnapshot> = [
   { status: 'approved', publicationState: 'sending' },
@@ -298,86 +295,6 @@ function assertDueAfter(dueAt: Date, now: Date): void {
   ) {
     throw reviewError('invalid_input', 'Reply reconciliation must be due after now')
   }
-}
-
-/**
- * D3/D4 compare-and-set for the current attempt: the row must still have the
- * snapshot's status, publication state, cycle, attempt number and state
- * revision (and, for terminal ambiguity, its last error class). A later
- * attempt, a new cycle, a heal, a cancellation or another settlement all miss.
- */
-function uncertainAttemptWhere(reply: Reply, snapshot: UncertainSendSnapshot) {
-  return and(
-    eq(replies.id, reply.id),
-    eq(replies.organizationId, reply.organizationId),
-    eq(replies.status, snapshot.status),
-    eq(replies.publicationState, snapshot.publicationState),
-    eq(replies.publicationCycle, reply.publicationCycle),
-    eq(replies.publicationAttempts, reply.publicationAttempts),
-    eq(replies.stateRevision, reply.stateRevision),
-    snapshot.lastErrorClass
-      ? eq(replies.publicationLastErrorClass, snapshot.lastErrorClass)
-      : undefined,
-  )
-}
-
-async function casUncertainAttempt(
-  run: Pick<Database, 'update'>,
-  reply: Reply,
-  snapshot: UncertainSendSnapshot,
-  set: Record<string, unknown>,
-): Promise<Reply | null> {
-  const result = await run
-    .update(replies)
-    .set(set)
-    .where(uncertainAttemptWhere(reply, snapshot))
-    .returning()
-  return result[0] ? replyFromRow(result[0]) : null
-}
-
-/** Outcomes an uncertain attempt row can still carry. */
-const UNCERTAIN_ATTEMPT_OUTCOMES = ['sending', 'ambiguous'] as const
-
-/**
- * D4 under lock: the Reply row (same order as every other publication write,
- * Reply before attempt), then the attempt row. The permit issuer holds FOR SHARE
- * on that attempt row until its permit commits, so once this returns no permit
- * can be admitted for the attempt without this transaction seeing it.
- * Null when the snapshot lost the compare-and-set.
- */
-async function lockUncertainAttempt(
-  tx: Tx,
-  reply: Reply,
-  snapshot: UncertainSendSnapshot,
-): Promise<Readonly<{ startedAt: Date }> | null> {
-  const locked = await tx
-    .select({ id: replies.id })
-    .from(replies)
-    .where(uncertainAttemptWhere(reply, snapshot))
-    .for('update')
-    .limit(1)
-  if (!locked[0]) return null
-  const attempts = await tx
-    .select({ createdAt: replyPublicationAttempts.createdAt })
-    .from(replyPublicationAttempts)
-    .where(
-      and(
-        eq(replyPublicationAttempts.replyId, reply.id),
-        eq(replyPublicationAttempts.organizationId, reply.organizationId),
-        eq(replyPublicationAttempts.publicationCycle, reply.publicationCycle),
-        eq(replyPublicationAttempts.attemptNumber, reply.publicationAttempts),
-        inArray(replyPublicationAttempts.outcome, [...UNCERTAIN_ATTEMPT_OUTCOMES]),
-      ),
-    )
-    .for('update')
-    .limit(1)
-  if (!attempts[0]) {
-    throw reviewError(
-      'invalid_transition',
-      'Reply publication attempt evidence is missing',
-    )
-  }
-  return { startedAt: attempts[0].createdAt }
 }
 
 /**
@@ -429,7 +346,19 @@ export const createAtomicReplyCommandStore = (
   db: Database,
   clock: () => Date,
   publicationActorAuthority: ReplyPublicationActorAuthority = missingPublicationActorAuthority,
+  writer: ReplyWriter = createReviewReplyWriter(db, clock),
+  replyEffects?: ReplyScopeEffects,
 ): ReplyCommandStore => {
+  const {
+    aiTextMayBeClaimed,
+    lockReplyReview,
+    casUncertainAttempt,
+    lockUncertainAttempt,
+    guardedPublicationUpdate,
+    guardedReplyUpdate,
+    updateCurrentAttempt,
+    submitMeasuredReply,
+  } = writer
   /** Shared runner for the guarded-transition commands. */
   const transition = async (
     span: string,
@@ -529,7 +458,7 @@ export const createAtomicReplyCommandStore = (
       occurredAt,
     )
     if (!row) return null
-    await tx.insert(replyPublicationAuthorizations).values({
+    await insertPublicationAuthorization(tx, {
       organizationId: reply.organizationId,
       propertyId: intent.propertyId,
       reviewId: reply.reviewId,
@@ -555,39 +484,18 @@ export const createAtomicReplyCommandStore = (
   ) => {
     const row = replyToRow(replyToUpsert)
     const updatedAt = now ?? clock()
-    const result = await tx
-      .insert(replies)
-      .values(row)
-      .onConflictDoUpdate({
-        target: [replies.reviewId, replies.source, replies.organizationId],
-        set: {
-          text: row.text,
-          status: row.status,
-          approvedBy: row.approvedBy,
-          rejectedBy: row.rejectedBy,
-          rejectionReason: row.rejectionReason,
-          aiGenerated: row.aiGenerated,
-          stateRevision: row.stateRevision,
-          submittedAt: row.submittedAt,
-          approvedAt: row.approvedAt,
-          publishedAt: row.publishedAt,
-          // BQC-3.8: publication columns are deliberately NOT in the conflict
-          // set — a mirror refresh never clobbers an in-flight publication.
-          updatedAt,
-        },
-      })
-      .returning()
-    if (!result[0]) {
+    const saved = await upsertMirrorReply(tx, row, updatedAt)
+    if (!saved) {
       throw reviewError(
         'repo_upsert_failed',
         'Reply mirror upsert failed — no row returned',
       )
     }
-    return replyFromRow(result[0])
+    return replyFromRow(saved)
   }
 
   return {
-    submitReply: (...args) => submitMeasuredReply(db, clock, ...args),
+    submitReply: (...args) => submitMeasuredReply(...args),
     rejectReply: (reply, updates, event, now) =>
       transition('reply.commandStore.rejectReply', reply, 'reject', updates, event, now),
     // BQC-3.8: publish also persists publication_state='published' and clears
@@ -693,11 +601,13 @@ export const createAtomicReplyCommandStore = (
           // as the AI draft purge withdraws one it reaches first.
           if (!(await aiTextMayBeClaimed(tx, reply))) {
             return cancelUnclaimablePublication(
+              writer,
               tx,
               reply,
               attempt,
               at,
               'ai_draft_withdrawn',
+              replyEffects,
             )
           }
           const authorization = await readCurrentPublicationAuthorization(
@@ -708,7 +618,15 @@ export const createAtomicReplyCommandStore = (
           )
           if (!authorization) return null
           if (!propertyAdmitsCycle(property, authorization)) {
-            return cancelUnclaimablePublication(tx, reply, attempt, at, 'policy')
+            return cancelUnclaimablePublication(
+              writer,
+              tx,
+              reply,
+              attempt,
+              at,
+              'policy',
+              replyEffects,
+            )
           }
           const actorAllowed = await publicationActorAuthority(tx, {
             organizationId: authorization.organizationId,
@@ -717,7 +635,15 @@ export const createAtomicReplyCommandStore = (
             at,
           })
           if (!actorAllowed) {
-            return cancelUnclaimablePublication(tx, reply, attempt, at, 'policy')
+            return cancelUnclaimablePublication(
+              writer,
+              tx,
+              reply,
+              attempt,
+              at,
+              'policy',
+              replyEffects,
+            )
           }
           const duplicate = await tx
             .select({ id: replyPublicationAttempts.id })
@@ -755,7 +681,7 @@ export const createAtomicReplyCommandStore = (
             },
           )
           if (!claimed) return null
-          await tx.insert(replyPublicationAttempts).values({
+          await insertPublicationAttempt(tx, {
             organizationId: reply.organizationId,
             propertyId: attempt.propertyId,
             reviewId: reply.reviewId,
@@ -807,12 +733,14 @@ export const createAtomicReplyCommandStore = (
       if (reply.publicationState !== 'pending_observation') return null
       return trace('reply.commandStore.deferPendingPublicationObservation', async () => {
         const at = now ?? clock()
-        return guardedPublicationUpdate(db, reply, 'approved', ['pending_observation'], {
-          reconcileDueAt: new Date(
-            at.getTime() + PROVIDER_OBSERVATION_RECONCILE_DELAY_MS,
-          ),
-          updatedAt: at,
-        })
+        return db.transaction((tx) =>
+          guardedPublicationUpdate(tx, reply, 'approved', ['pending_observation'], {
+            reconcileDueAt: new Date(
+              at.getTime() + PROVIDER_OBSERVATION_RECONCILE_DELAY_MS,
+            ),
+            updatedAt: at,
+          }),
+        )
       })
     },
 
@@ -878,10 +806,12 @@ export const createAtomicReplyCommandStore = (
       if (!snapshot) return null
       assertDueAfter(dueAt, now)
       return trace('reply.commandStore.deferUncertainSend', () =>
-        casUncertainAttempt(db, reply, snapshot, {
-          reconcileDueAt: dueAt,
-          updatedAt: now,
-        }),
+        db.transaction((tx) =>
+          casUncertainAttempt(tx, reply, snapshot, {
+            reconcileDueAt: dueAt,
+            updatedAt: now,
+          }),
+        ),
       )
     },
 
@@ -892,10 +822,12 @@ export const createAtomicReplyCommandStore = (
       if (!snapshot) return null
       assertDueAfter(dueAt, now)
       return trace('reply.commandStore.rescheduleAmbiguousReconciliation', () =>
-        casUncertainAttempt(db, reply, snapshot, {
-          reconcileDueAt: dueAt,
-          updatedAt: now,
-        }),
+        db.transaction((tx) =>
+          casUncertainAttempt(tx, reply, snapshot, {
+            reconcileDueAt: dueAt,
+            updatedAt: now,
+          }),
+        ),
       )
     },
 
@@ -1015,7 +947,12 @@ export const createAtomicReplyCommandStore = (
         if (commands.length === 0) return 0
         const cancelled = await db.transaction(async (tx) => {
           let count = 0
-          for (const { reply, event, now } of commands) {
+          const ordered = [...commands].sort((a, b) =>
+            `${a.reply.organizationId}:${a.reply.reviewId}`.localeCompare(
+              `${b.reply.organizationId}:${b.reply.reviewId}`,
+            ),
+          )
+          for (const { reply, event, now } of ordered) {
             // Rows whose state moved on (published/failed/cancelled/purged)
             // are skipped without a fact — the batch still commits. So is a
             // row a worker claimed after the caller read it as undispatched:
@@ -1050,17 +987,13 @@ export const createAtomicReplyCommandStore = (
     mirrorSyncedReply: async (command) => {
       return trace('reply.commandStore.mirrorSyncedReply', async () => {
         const saved = await db.transaction(async (tx) => {
+          await lockReplyReview(tx, command.organizationId, command.reviewId)
           if (!command.reply) {
             // Google no longer shows a reply — remove the mirror. No fact.
-            await tx
-              .delete(replies)
-              .where(
-                and(
-                  eq(replies.reviewId, command.reviewId),
-                  eq(replies.source, 'google_sync'),
-                  eq(replies.organizationId, command.organizationId),
-                ),
-              )
+            await deleteGoogleSyncMirrors(tx, {
+              organizationId: command.organizationId,
+              reviewId: command.reviewId,
+            })
             return null
           }
           const mirrored = await mirrorUpsert(tx, command.reply, command.now)

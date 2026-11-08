@@ -1,3 +1,4 @@
+import { replyScopeEffects } from '#/contexts/reputation/application/public-api'
 // Scoped job families — what a family is enqueued with must give the
 // delayed-execution gate a scope.
 //
@@ -84,6 +85,7 @@ const producer = (enqueue: (queue: Queue) => Promise<void>): ScopedJobEnqueue =>
 
 function reviewContext(jobQueue: Queue) {
   return buildReviewContext({
+    replyEffects: replyScopeEffects,
     publicationActorAuthority: async () => true,
     replyBrandProfiles: { isCurrentAiReplyBrandProfile: async () => true },
     db: {} as never,

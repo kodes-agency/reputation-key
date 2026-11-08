@@ -1,3 +1,4 @@
+import { replyScopeEffects } from '#/contexts/reputation/application/public-api'
 import { RETENTION_RULES } from '#/shared/jobs/retention-sweep.job'
 import { executeRetentionRule } from '#/shared/db/retention/execute-retention-rule'
 import { durableConsumersFor } from '#/shared/governance/event-job-catalogue'
@@ -167,8 +168,9 @@ describe('Google import completion and follow-up crash recovery (real PostgreSQL
     lease = await acquireTestLease(getEnv().DATABASE_URL, 6)
     db = createDatabase(lease.pool)
     store = createGoogleImportV2Store(db, () => NOW, {
-      ensureImportFollowUps: createPropertyGoogleBindingStore(db).ensureImportFollowUps,
-      readReceipt: createPropertyGoogleBindingStore(db).readReceipt,
+      ensureImportFollowUps: createPropertyGoogleBindingStore(db, replyScopeEffects)
+        .ensureImportFollowUps,
+      readReceipt: createPropertyGoogleBindingStore(db, replyScopeEffects).readReceipt,
       prepareImportSync: (tx, scope) =>
         fixHistoryCutoff(tx, {
           ...scope,
@@ -218,8 +220,9 @@ describe('Google import completion and follow-up crash recovery (real PostgreSQL
     }
   })
 
-  const propertyApi = () => createPropertyGoogleBindingStore(db)
-  const snapshots = () => createReviewProviderSnapshotRepository(db, randomUUID)
+  const propertyApi = () => createPropertyGoogleBindingStore(db, replyScopeEffects)
+  const snapshots = () =>
+    createReviewProviderSnapshotRepository(db, randomUUID, replyScopeEffects)
   const sourceEpoch = {
     getSourceEpoch: async (
       org: ReturnType<typeof organizationId>,

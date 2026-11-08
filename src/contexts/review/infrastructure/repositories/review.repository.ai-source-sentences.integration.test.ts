@@ -1,3 +1,4 @@
+import { replyScopeEffects } from '#/contexts/reputation/application/public-api'
 // Review context — readForAi with the numbered sentences a v3 analysis reads.
 // Real PostgreSQL.
 
@@ -90,7 +91,7 @@ async function store(
       }
     })()
   const now = new Date()
-  const repo = createReviewRepository(getDb(), () => now)
+  const repo = createReviewRepository(getDb(), () => now, undefined, replyScopeEffects)
   await repo.upsert({
     id: REVIEW,
     organizationId: ORG,

@@ -1,3 +1,4 @@
+import { replyScopeEffects } from '#/contexts/reputation/application/public-api'
 // Burst regression for the Property source fence.
 //
 // Each import transaction and each Inbox projection takes the Property fence,
@@ -247,7 +248,13 @@ function createDispatcher(slots: number) {
 
 async function runBurst(): Promise<Outcome[]> {
   const db = drizzle(pool)
-  const importer = createAtomicReviewCommandStore(db, () => IMPORTED_AT)
+  const importer = createAtomicReviewCommandStore(
+    db,
+    () => IMPORTED_AT,
+    undefined,
+    undefined,
+    replyScopeEffects,
+  )
   const inbox = inboxDeps(db)
   const dispatcher = createDispatcher(DISPATCH_CONCURRENCY)
   const outcomes: Outcome[] = []

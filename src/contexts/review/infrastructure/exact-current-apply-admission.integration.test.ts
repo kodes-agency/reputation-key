@@ -1,3 +1,4 @@
+import { replyScopeEffects } from '#/contexts/reputation/application/public-api'
 // A Review exact-current authority holds the source fence while the consumer
 // (Inbox, for example) commits in its own transaction on a second pool client.
 //
@@ -148,7 +149,13 @@ beforeEach(async () => {
      VALUES ($1, $2, 'Exact-current reservation', 'exact-current-reservation', 'UTC')`,
     [PROPERTY, ORG],
   )
-  await createAtomicReviewCommandStore(drizzle(pool), () => OBSERVED_AT).upsertAndRecord(
+  await createAtomicReviewCommandStore(
+    drizzle(pool),
+    () => OBSERVED_AT,
+    undefined,
+    undefined,
+    replyScopeEffects,
+  ).upsertAndRecord(
     review(),
     (persisted) =>
       reviewCreated({

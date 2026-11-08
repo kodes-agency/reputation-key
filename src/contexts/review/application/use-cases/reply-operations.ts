@@ -1,3 +1,4 @@
+import { matchesExpectedReply } from '#/shared/reply-revision'
 import { storedReplyFrame } from '#/shared/domain/reply-frame'
 import type { ReplyRepository } from '../ports/reply.repository'
 import type { ReviewRepository } from '../ports/review.repository'
@@ -306,6 +307,7 @@ export type DeleteReply = ReturnType<typeof deleteReply>
 export type RetryPublish = ReturnType<typeof retryPublish>
 
 export type DraftReplyInput = Readonly<{
+  expectedReply?: import('#/shared/reply-revision').ReplyRevision | null
   reviewId: ReviewId
   text: string
   replyLanguageTag?: string
@@ -386,6 +388,10 @@ export const draftReply =
       ctx.organizationId,
     )
 
+    if (!matchesExpectedReply(existing, input.expectedReply)) {
+      throw replyChangedConcurrently()
+    }
+
     if (existing) {
       // Only a draft or a rejected reply is rewritten, and only while no
       // publication is open. A reply that is waiting for approval, being
@@ -405,6 +411,7 @@ export const draftReply =
         existing,
         {
           text: input.text,
+          ...(input.expectedReply !== undefined ? { fenceStateRevision: true } : {}),
           measurementGenerationId: input.measurementGenerationId,
           ...(input.replyLanguageTag !== undefined
             ? { replyLanguageTag: input.replyLanguageTag }

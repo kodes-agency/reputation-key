@@ -1,3 +1,4 @@
+import { replyScopeEffects } from '#/contexts/reputation/application/public-api'
 // Inbox context — an Inbox item whose Review Google deleted (S10-02).
 // Real PostgreSQL behind the real Review repository.
 //
@@ -70,7 +71,7 @@ const CLOCK_STILL_RUNNING = new Date('2026-11-01T12:00:00.000Z')
 let pool: Pool
 const db = getDb()
 const logger = createMockLogger()
-const reviewRepo = createReviewRepository(db, () => NOW)
+const reviewRepo = createReviewRepository(db, () => NOW, undefined, replyScopeEffects)
 const replyRepo = createReplyRepository(db, () => NOW)
 const commandStore = createAtomicInboxCommandStore(
   db,
