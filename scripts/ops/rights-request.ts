@@ -18,6 +18,10 @@ import { getEnv } from '../../src/shared/config/env'
 import { getDb } from '../../src/shared/db'
 import { decodeErasureJournalExport } from '../../src/shared/db/lifecycle/erasure-journal.server'
 import { createGoogleRightsExecutor } from '../../src/shared/ops/rights/google-rights-executor'
+import {
+  createInboxRightsExecutor,
+  createReviewRightsExecutor,
+} from '../../src/shared/ops/rights/review-inbox-rights-executors'
 import { runRightsExecutors } from '../../src/shared/ops/rights/rights-executor'
 import {
   describeRightsReport,
@@ -52,7 +56,11 @@ async function main(): Promise<void> {
       return runRightsExecutors({
         plan,
         io,
-        executors: [createGoogleRightsExecutor({ db: getDb() })],
+        executors: [
+          createGoogleRightsExecutor({ db: getDb() }),
+          createReviewRightsExecutor({ db: getDb() }),
+          createInboxRightsExecutor({ db: getDb() }),
+        ],
         writeExportFile: async (path, bytes) => {
           await mkdir(dirname(path), { recursive: true })
           await writeFile(path, bytes, { mode: 0o600 })
