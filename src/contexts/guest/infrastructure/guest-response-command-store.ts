@@ -1,4 +1,5 @@
 import type { Database } from '#/shared/db'
+import { createHash } from 'node:crypto'
 import { and, eq, isNull, sql } from 'drizzle-orm'
 import {
   guestResponseExperienceSnapshots,
@@ -24,6 +25,8 @@ import {
 import { primaryStaffAttributionEquals } from '#/shared/domain/primary-staff-attribution'
 import type { Clock } from '#/shared/domain/clock'
 import { ratingId } from '#/shared/domain/ids'
+import { journalBeforeErasure } from '#/shared/db/lifecycle/erasure-journal.server'
+import type { GuestWithdrawalJournal } from './guest-withdrawal-journal.server'
 
 class GuestCommandConflict extends Error {}
 
@@ -127,7 +130,46 @@ function initialIntegrityFactsMatch(
 export const createAtomicGuestResponseCommandStore = (
   db: Database,
   clock: Clock,
+  journal?: GuestWithdrawalJournal,
 ): GuestResponseCommandStore => {
+  const journalWithdrawal = async <T>(
+    response: Parameters<GuestResponseCommandStore['commitWithdrawn']>[0],
+    kind: 'guest_response' | 'guest_feedback',
+    effectiveErasureAt: Date,
+    predicate: ReturnType<typeof and>,
+    erase: () => Promise<T>,
+  ): Promise<T | 'conflict'> => {
+    if (!journal) return erase()
+    // Replay honors accepted intents even if the deletion transaction fails.
+    // A rejected session/state must therefore never produce an intent.
+    const [authorized] = await db
+      .select({ id: guestResponses.id })
+      .from(guestResponses)
+      .where(predicate)
+      .limit(1)
+    if (!authorized) return 'conflict'
+    const id = journal.idGen()
+    return journalBeforeErasure(
+      {
+        id,
+        recordedBeforeErasure: true,
+        subjectClass: 'privacy_subject',
+        organizationId: response.organizationId,
+        propertyId: response.propertyId,
+        subjectRef: createHash('sha256').update(response.id).digest('hex'),
+        context: 'guest',
+        closureLineageId: id,
+        lifecycleRevision: 1,
+        effectiveErasureAt,
+        erasedRowCount: 0,
+        evidenceRef: kind,
+        journalTargets: { kind, ids: [response.id] },
+      },
+      journal,
+      erase,
+    )
+  }
+
   const factsMatchStaffAttribution = (
     response: Parameters<GuestResponseCommandStore['commitSubmitted']>[0],
     facts: ReadonlyArray<GuestMutationFact>,
@@ -543,61 +585,64 @@ export const createAtomicGuestResponseCommandStore = (
           return 'conflict' as const
         }
         const feedbackWithdrawnAt = response.feedbackWithdrawnAt ?? clock()
-        const outcome = await db
-          .transaction(async (tx) => {
-            const updated = await tx
-              .update(guestResponses)
-              .set({
-                textConsent: false,
-                feedbackSourceEventId: null,
-                feedbackWithdrawnAt: response.feedbackWithdrawnAt,
-                updatedAt: feedbackWithdrawnAt,
+        const predicate = and(
+          eq(guestResponses.organizationId, previous.organizationId),
+          eq(guestResponses.propertyId, previous.propertyId),
+          eq(guestResponses.portalId, previous.portalId),
+          eq(guestResponses.id, previous.id),
+          sessionBindingExists(previous, response.feedbackWithdrawnAt!),
+          eq(guestResponses.status, previous.status),
+          eq(guestResponses.rating, previous.rating!),
+          eq(guestResponses.correctionCount, previous.correctionCount),
+          previous.ratingSourceEventId
+            ? eq(guestResponses.ratingSourceEventId, previous.ratingSourceEventId)
+            : isNull(guestResponses.ratingSourceEventId),
+          eq(guestResponses.feedbackSourceEventId, previous.feedbackSourceEventId!),
+          eq(guestResponses.textConsent, true),
+          isNull(guestResponses.feedbackWithdrawnAt),
+          isNull(guestResponses.deletedAt),
+        )
+        const outcome = await journalWithdrawal(
+          previous,
+          'guest_feedback',
+          feedbackWithdrawnAt,
+          predicate,
+          () =>
+            db
+              .transaction(async (tx) => {
+                const updated = await tx
+                  .update(guestResponses)
+                  .set({
+                    textConsent: false,
+                    feedbackSourceEventId: null,
+                    feedbackWithdrawnAt: response.feedbackWithdrawnAt,
+                    updatedAt: feedbackWithdrawnAt,
+                  })
+                  .where(predicate)
+                  .returning({ id: guestResponses.id })
+                if (!updated[0]) throw new GuestCommandConflict()
+                const purged = await tx
+                  .delete(guestResponsePrivateFeedback)
+                  .where(
+                    and(
+                      eq(guestResponsePrivateFeedback.responseId, previous.id),
+                      eq(
+                        guestResponsePrivateFeedback.organizationId,
+                        previous.organizationId,
+                      ),
+                      eq(guestResponsePrivateFeedback.body, previous.text!),
+                    ),
+                  )
+                  .returning({ responseId: guestResponsePrivateFeedback.responseId })
+                if (!purged[0]) throw new GuestCommandConflict()
+                await insertOutboxRow(tx, fact)
+                return 'applied' as const
               })
-              .where(
-                and(
-                  eq(guestResponses.organizationId, previous.organizationId),
-                  eq(guestResponses.propertyId, previous.propertyId),
-                  eq(guestResponses.portalId, previous.portalId),
-                  eq(guestResponses.id, previous.id),
-                  sessionBindingExists(previous, response.feedbackWithdrawnAt!),
-                  eq(guestResponses.status, previous.status),
-                  eq(guestResponses.rating, previous.rating!),
-                  eq(guestResponses.correctionCount, previous.correctionCount),
-                  previous.ratingSourceEventId
-                    ? eq(guestResponses.ratingSourceEventId, previous.ratingSourceEventId)
-                    : isNull(guestResponses.ratingSourceEventId),
-                  eq(
-                    guestResponses.feedbackSourceEventId,
-                    previous.feedbackSourceEventId!,
-                  ),
-                  eq(guestResponses.textConsent, true),
-                  isNull(guestResponses.feedbackWithdrawnAt),
-                  isNull(guestResponses.deletedAt),
-                ),
-              )
-              .returning({ id: guestResponses.id })
-            if (!updated[0]) throw new GuestCommandConflict()
-            const purged = await tx
-              .delete(guestResponsePrivateFeedback)
-              .where(
-                and(
-                  eq(guestResponsePrivateFeedback.responseId, previous.id),
-                  eq(
-                    guestResponsePrivateFeedback.organizationId,
-                    previous.organizationId,
-                  ),
-                  eq(guestResponsePrivateFeedback.body, previous.text!),
-                ),
-              )
-              .returning({ responseId: guestResponsePrivateFeedback.responseId })
-            if (!purged[0]) throw new GuestCommandConflict()
-            await insertOutboxRow(tx, fact)
-            return 'applied' as const
-          })
-          .catch((error: unknown) => {
-            if (error instanceof GuestCommandConflict) return 'conflict' as const
-            throw error
-          })
+              .catch((error: unknown) => {
+                if (error instanceof GuestCommandConflict) return 'conflict' as const
+                throw error
+              }),
+        )
         return outcome
       }),
 
@@ -607,54 +652,60 @@ export const createAtomicGuestResponseCommandStore = (
           throw new Error('Guest response withdrawal changed Staff attribution')
         }
         const deletedAt = response.deletedAt ?? clock()
-        const committed = await db.transaction(async (tx) => {
-          const deleted = await tx
-            .update(guestResponses)
-            .set({
-              status: 'deleted',
-              rating: null,
-              categoryId: null,
-              responseConsent: false,
-              textConsent: false,
-              mediaConsent: false,
-              ratingSourceEventId: null,
-              feedbackSourceEventId: null,
-              deletedAt: response.deletedAt,
-              updatedAt: deletedAt,
-            })
-            .where(
-              and(
-                eq(guestResponses.organizationId, response.organizationId),
-                eq(guestResponses.propertyId, response.propertyId),
-                eq(guestResponses.portalId, response.portalId),
-                eq(guestResponses.id, response.id),
-                sessionBindingExists(response, response.deletedAt ?? new Date(0)),
-                eq(guestResponses.correctionCount, response.correctionCount),
-                response.ratingSourceEventId
-                  ? eq(guestResponses.ratingSourceEventId, response.ratingSourceEventId)
-                  : isNull(guestResponses.ratingSourceEventId),
-                response.feedbackSourceEventId
-                  ? eq(
-                      guestResponses.feedbackSourceEventId,
-                      response.feedbackSourceEventId,
-                    )
-                  : isNull(guestResponses.feedbackSourceEventId),
-                isNull(guestResponses.deletedAt),
-              ),
-            )
-            .returning({ id: guestResponses.id })
-          if (!deleted[0]) return 'conflict' as const
-          await tx
-            .delete(guestResponsePrivateFeedback)
-            .where(
-              and(
-                eq(guestResponsePrivateFeedback.responseId, response.id),
-                eq(guestResponsePrivateFeedback.organizationId, response.organizationId),
-              ),
-            )
-          for (const fact of facts) await insertOutboxRow(tx, fact)
-          return 'applied' as const
-        })
+        const predicate = and(
+          eq(guestResponses.organizationId, response.organizationId),
+          eq(guestResponses.propertyId, response.propertyId),
+          eq(guestResponses.portalId, response.portalId),
+          eq(guestResponses.id, response.id),
+          sessionBindingExists(response, response.deletedAt ?? new Date(0)),
+          eq(guestResponses.correctionCount, response.correctionCount),
+          response.ratingSourceEventId
+            ? eq(guestResponses.ratingSourceEventId, response.ratingSourceEventId)
+            : isNull(guestResponses.ratingSourceEventId),
+          response.feedbackSourceEventId
+            ? eq(guestResponses.feedbackSourceEventId, response.feedbackSourceEventId)
+            : isNull(guestResponses.feedbackSourceEventId),
+          isNull(guestResponses.deletedAt),
+        )
+        const committed = await journalWithdrawal(
+          response,
+          'guest_response',
+          deletedAt,
+          predicate,
+          () =>
+            db.transaction(async (tx) => {
+              const deleted = await tx
+                .update(guestResponses)
+                .set({
+                  status: 'deleted',
+                  rating: null,
+                  categoryId: null,
+                  responseConsent: false,
+                  textConsent: false,
+                  mediaConsent: false,
+                  ratingSourceEventId: null,
+                  feedbackSourceEventId: null,
+                  deletedAt: response.deletedAt,
+                  updatedAt: deletedAt,
+                })
+                .where(predicate)
+                .returning({ id: guestResponses.id })
+              if (!deleted[0]) return 'conflict' as const
+              await tx
+                .delete(guestResponsePrivateFeedback)
+                .where(
+                  and(
+                    eq(guestResponsePrivateFeedback.responseId, response.id),
+                    eq(
+                      guestResponsePrivateFeedback.organizationId,
+                      response.organizationId,
+                    ),
+                  ),
+                )
+              for (const fact of facts) await insertOutboxRow(tx, fact)
+              return 'applied' as const
+            }),
+        )
         return committed
       }),
   }
