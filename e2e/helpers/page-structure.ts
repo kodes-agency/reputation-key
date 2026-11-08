@@ -1,7 +1,6 @@
 // A page's outline, asserted in the real app (UI consistency scan: FRAME-10, FORM-10).
 //
-// The source guard in src/components/ui/heading-sources.test.ts keeps a second
-// `<h1>` out of the sources, but it cannot see which components a route puts on
+// A source check can keep a second `<h1>` out of the files, but it cannot see which components a route puts on
 // one screen: the Inbox lost its heading on a phone and an Organization page
 // drew the name beside its header, each time with the sources "clean". Axe's
 // `page-has-heading-one` only asks for at least one, so the count is asserted here.
