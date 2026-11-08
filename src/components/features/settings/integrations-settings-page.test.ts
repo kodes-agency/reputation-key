@@ -1,6 +1,7 @@
 import { createElement } from 'react'
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { renderToStaticMarkup } from 'react-dom/server'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import type { Action } from '#/components/hooks/use-action'
 import type {
   GoogleAuthUrlInput,
@@ -10,6 +11,11 @@ import { IntegrationsSettingsPage } from './integrations-settings-page'
 
 type AuthorizeInput = Readonly<{ data: GoogleAuthUrlInput }>
 type DisconnectInput = Readonly<{ data: Readonly<{ connectionId: string }> }>
+
+vi.mock('@tanstack/react-router', async (original) => ({
+  ...(await original<typeof import('@tanstack/react-router')>()),
+  useRouter: () => ({ navigate: vi.fn() }),
+}))
 
 function action<TInput, TOutput>(output: TOutput): Action<TInput, TOutput> {
   return Object.assign(async (_input: TInput) => output, {
@@ -36,15 +42,19 @@ function connection(status: GoogleConnectionDto['status']): GoogleConnectionDto 
 
 const renderPageWith = (connections: readonly GoogleConnectionDto[]) =>
   renderToStaticMarkup(
-    createElement(IntegrationsSettingsPage, {
-      connections,
-      connectGoogle: action<AuthorizeInput, { url: string }>({
-        url: 'https://accounts.google.test/oauth',
+    createElement(
+      QueryClientProvider,
+      { client: new QueryClient() },
+      createElement(IntegrationsSettingsPage, {
+        connections,
+        connectGoogle: action<AuthorizeInput, { url: string }>({
+          url: 'https://accounts.google.test/oauth',
+        }),
+        disconnectGoogle: action<DisconnectInput, { connection: GoogleConnectionDto }>({
+          connection: connection('disconnected'),
+        }),
       }),
-      disconnectGoogle: action<DisconnectInput, { connection: GoogleConnectionDto }>({
-        connection: connection('disconnected'),
-      }),
-    }),
+    ),
   )
 
 const renderPage = (status: GoogleConnectionDto['status']) =>

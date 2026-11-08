@@ -43,6 +43,7 @@ import {
 } from '../testing/portal-working-copy-scenarios'
 import { createPdfKitPrintFinalRenderer } from './pdfkit-print-final-renderer'
 import { createPropertyCountryReader } from './print-kit-property-country'
+import { decodePrintQr } from './__fixtures__/decode-print-qr'
 
 const { getPool } = setupIntegrationDb({
   orgA: WORKING_COPY_ORG,
@@ -174,6 +175,7 @@ describe.sequential('Final print kit (real PostgreSQL)', () => {
     expect(rendered[0]?.qrAddress).toMatch(
       /^HTTPS:\/\/AP\.EXAMPLE\.TEST\/p\/[0-9A-Z]{20}$/u,
     )
+    expect(await decodePrintQr(file.pdf)).toBe(rendered[0]?.qrAddress)
     expect(rendered[0]?.blocks.map((block) => block.kicker)).toEqual(['Хотел Рила'])
     expect(await downloads()).toBe(1)
   })
@@ -254,6 +256,7 @@ describe.sequential('Final print kit (real PostgreSQL)', () => {
     expect(text).toMatch(/\/TrimBox \[9 9 297 441\]/u)
     expect(text).toMatch(/\/BleedBox \[0 0 306 450\]/u)
     expect(rendered[0]?.shop).toEqual({ cropMarks: false })
+    expect(await decodePrintQr(file.pdf)).toBe(rendered[0]?.qrAddress)
     expect(await downloads()).toBe(1)
   })
 

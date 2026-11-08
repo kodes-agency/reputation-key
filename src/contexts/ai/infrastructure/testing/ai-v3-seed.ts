@@ -500,6 +500,7 @@ export function createV3Seed(db: Database, ids: SeededIds, options: SeedOptions 
       // registered facts; the app registers them at boot. Idempotent.
       registerAllEventSchemas()
       await clear()
+      lastIndex = 0
       initialControls = (
         await db
           .select({

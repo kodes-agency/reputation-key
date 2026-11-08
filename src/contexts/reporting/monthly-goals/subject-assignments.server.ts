@@ -1,13 +1,21 @@
-// A subject has at most one goal per measure at a time. Forms use the same
-// no-overlap rule as creation to show the holding goal, target and end date.
+// Empty assignment windows hold nothing. Ended goals retain their subjects
+// through the last month they count; current-version selection keeps history intact.
 
 import type { GoalMetric } from '../domain/goal-program'
 import { goalSubjectIdentity, type GoalSubject } from '../domain/goal-subject'
-import { effectiveMonthTarget } from './goal-effective-month-target'
+import { effectiveMonthTarget } from '../application/goal-effective-month-target'
 import type {
   GoalProgramBundle,
   GoalSubjectAssignment,
-} from './ports/goal-program.repository'
+} from '../application/ports/goal-program.repository'
+
+/** The subjects the goal names now; earlier assignments remain historical evidence. */
+export const currentAssignments = (
+  bundle: Pick<GoalProgramBundle, 'version' | 'assignments'>,
+) =>
+  bundle.assignments.filter(
+    ({ programVersionId }) => programVersionId === bundle.version.id,
+  )
 
 export type GoalSubjectHold = Readonly<{
   subject: GoalSubject

@@ -1,3 +1,4 @@
+import { createPortalRatingGoalGuard } from '#/contexts/reporting/infrastructure/portal-rating-goal-guard'
 // Migration 0052 against real PostgreSQL: before readers stop letting a newer
 // `portal_links.label` beat the primary-language text, the wording they showed
 // is copied into that text, once, with a History row. The migration is hand
@@ -128,7 +129,10 @@ beforeEach(async () => {
      VALUES ($1, $2, 'Harbour House', 'harbour-house', 'UTC', $3, $3)`,
     [PROPERTY_A, ORG_A, CREATED_AT],
   )
-  await createAtomicPortalCommandStore(getDb()).createPortal({
+  await createAtomicPortalCommandStore(
+    getDb(),
+    createPortalRatingGoalGuard(),
+  ).createPortal({
     organizationId: ORG_A,
     portal,
     initialResponsibleManagerIds: [MANAGER],

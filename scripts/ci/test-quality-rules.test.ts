@@ -1,6 +1,6 @@
 // The rules of the test-quality gate, run on single lines and on register
 // entries written for the purpose. The gate itself
-// (scripts/check-test-quality.mjs) applies the same functions to the
+// (eslint-rules/test-quality.mjs) applies the same functions to the
 // repository; it has to stay plain JavaScript because `pnpm lint:ci` runs it
 // with bare Node, so the rules are loaded here as the module they are.
 

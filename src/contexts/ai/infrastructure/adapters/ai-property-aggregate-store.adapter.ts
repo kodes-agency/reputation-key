@@ -1,11 +1,7 @@
-import { and, desc, eq, gte, isNotNull, lte, sql } from 'drizzle-orm'
+import { and, eq, isNotNull, sql } from 'drizzle-orm'
 import type { Database } from '#/shared/db'
 import {
-  aiPropertyAggregateContributionAspects,
   aiPropertyAggregateContributions,
-  aiPropertyAggregateSettlements,
-  aiPropertyDailyAspectAggregates,
-  aiPropertyDailyAggregates,
   aiPropertyProcessingProfiles,
   aiReviewAnalyses,
   aiReviewAnalysisAspects,
@@ -17,148 +13,30 @@ import { AI_PROPERTY_CALENDAR_PROFILE_V1 } from '#/shared/ai-property-calendar-p
 import type {
   AiPropertyAnalyzedReview,
   AiPropertyAggregateStorePort,
-  AiPropertyDailyAspectCount,
   AiPropertyUnavailableReview,
 } from '../../application/ports/ai-property-aggregate-store.port'
+import { lockReviewAnalysisPropertyFence } from './review-analysis-property-fence'
 import { readLockedAggregateHead } from './ai-property-aggregate-coverage'
 import { AI_INSIGHTS_READ_BUDGET_MS, withStatementTimeout } from './ai-read-timeout'
 import {
+  dailyCountsFromReviews,
   mapAnalyzedReview,
-  mapDaily,
   mapUnavailableReview,
 } from './ai-property-aggregate-window-mappers'
 import { copyMentionsToContribution } from './ai-review-analysis-mentions'
 import { assignContributionIssueGroups } from './ai-issue-group-assignment'
+import {
+  settleReviewSequence,
+  settleWithoutContribution,
+} from './ai-property-aggregate-settlement'
 
 // Re-exported: the legacy evidence boundary is tested through this module.
 export { mapAnalyzedReview }
-import { isAspectTaxonomyV1Id, type AspectPolarityV1 } from '#/shared/aspect-taxonomy'
+import { commitAggregateHead, lockAggregateHead } from './ai-property-aggregate-head'
 import {
-  commitAggregateHead,
-  countSettledSequence,
-  lockAggregateHead,
-} from './ai-property-aggregate-head'
-import {
-  readPreviousContribution,
-  updateDailyAggregates,
   withdrawReviewContribution,
-  type AggregateTransaction,
   type Contribution,
-  type ContributionAspect,
 } from './ai-property-aggregate-contributions'
-
-type ApplyReviewAnalysisInput = Parameters<
-  AiPropertyAggregateStorePort['applyReviewAnalysis']
->[0]
-type AdvanceWithoutAnalysisInput = Parameters<
-  AiPropertyAggregateStorePort['advanceWithoutAnalysis']
->[0]
-async function readLatestReviewSettlement(
-  tx: AggregateTransaction,
-  input: Readonly<{
-    organizationId: string
-    propertyId: string
-    reviewId: string
-    sourceEpoch: number
-    reviewAnalysisEpoch: number
-  }>,
-) {
-  const [settlement] = await tx
-    .select({
-      analysisSequence: aiPropertyAggregateSettlements.analysisSequence,
-    })
-    .from(aiPropertyAggregateSettlements)
-    .where(
-      and(
-        eq(aiPropertyAggregateSettlements.organizationId, input.organizationId),
-        eq(aiPropertyAggregateSettlements.propertyId, input.propertyId),
-        eq(aiPropertyAggregateSettlements.reviewId, input.reviewId),
-        eq(aiPropertyAggregateSettlements.sourceEpoch, input.sourceEpoch),
-        eq(aiPropertyAggregateSettlements.reviewAnalysisEpoch, input.reviewAnalysisEpoch),
-      ),
-    )
-    .orderBy(desc(aiPropertyAggregateSettlements.analysisSequence))
-    .limit(1)
-  return settlement
-}
-
-async function recordAggregateSettlement(
-  tx: AggregateTransaction,
-  input: Readonly<{
-    organizationId: string
-    propertyId: string
-    reviewId: string
-    sourceEpoch: number
-    reviewAnalysisEpoch: number
-    analysisSequence: number
-  }>,
-  settledAt: Date,
-): Promise<boolean> {
-  const [inserted] = await tx
-    .insert(aiPropertyAggregateSettlements)
-    .values({
-      organizationId: input.organizationId,
-      propertyId: input.propertyId,
-      reviewId: input.reviewId,
-      sourceEpoch: input.sourceEpoch,
-      reviewAnalysisEpoch: input.reviewAnalysisEpoch,
-      analysisSequence: input.analysisSequence,
-      settledAt,
-    })
-    .onConflictDoNothing()
-    .returning({ reviewId: aiPropertyAggregateSettlements.reviewId })
-  if (inserted) return true
-
-  const [existing] = await tx
-    .select({ reviewId: aiPropertyAggregateSettlements.reviewId })
-    .from(aiPropertyAggregateSettlements)
-    .where(
-      and(
-        eq(aiPropertyAggregateSettlements.organizationId, input.organizationId),
-        eq(aiPropertyAggregateSettlements.propertyId, input.propertyId),
-        eq(aiPropertyAggregateSettlements.sourceEpoch, input.sourceEpoch),
-        eq(aiPropertyAggregateSettlements.reviewAnalysisEpoch, input.reviewAnalysisEpoch),
-        eq(aiPropertyAggregateSettlements.analysisSequence, input.analysisSequence),
-      ),
-    )
-    .limit(1)
-  if (existing?.reviewId !== input.reviewId) {
-    throw new Error('Property aggregate settlement identity conflict')
-  }
-  return false
-}
-async function settleReviewSequence(
-  tx: AggregateTransaction,
-  input: ApplyReviewAnalysisInput | AdvanceWithoutAnalysisInput,
-  settledAt: Date,
-): Promise<'new' | 'replayed' | 'stale'> {
-  const latest = await readLatestReviewSettlement(tx, input)
-  const firstSettlement = await recordAggregateSettlement(tx, input, settledAt)
-  if (latest?.analysisSequence === input.analysisSequence) return 'replayed'
-  if (latest !== undefined && latest.analysisSequence > input.analysisSequence) {
-    // A newer sequence of this review is already settled, so this one changes
-    // no day. It is a settled sequence all the same, and the ledger row just
-    // written says so.
-    if (firstSettlement) await countSettledSequence(tx, input, settledAt)
-    return 'stale'
-  }
-  return firstSettlement ? 'new' : 'replayed'
-}
-
-/**
- * Ends an apply that settled its sequence in the ledger but finds no analysis
- * or review to put on a day: the settlement is real, so the head counts it.
- */
-async function settleWithoutContribution(
-  tx: AggregateTransaction,
-  input: ApplyReviewAnalysisInput,
-  settlement: 'new' | 'replayed',
-  settledAt: Date,
-  status: 'stale' | 'unavailable',
-): Promise<{ status: 'stale' | 'unavailable' }> {
-  if (settlement === 'new') await countSettledSequence(tx, input, settledAt)
-  return { status }
-}
 
 export const createAiPropertyAggregateStoreAdapter = (
   db: Database,
@@ -166,6 +44,7 @@ export const createAiPropertyAggregateStoreAdapter = (
   return {
     async applyReviewAnalysis(input) {
       return db.transaction(async (tx) => {
+        await lockReviewAnalysisPropertyFence(tx, input)
         await tx.execute(sql`
           SELECT pg_advisory_xact_lock(
             hashtextextended(${input.organizationId} || ':' || ${input.propertyId}::text, 0)
@@ -294,41 +173,33 @@ export const createAiPropertyAggregateStoreAdapter = (
         }
         // A v3 analysis has mentions, not aspects (migration 0078).
         const mentions = analysis.analysisProfileVersion === 'review-analysis-v3'
-        const analysisAspects: readonly ContributionAspect[] =
-          analysis.status === 'ready' && !mentions
-            ? await tx
-                .select({
-                  aspect: aiReviewAnalysisAspects.aspect,
-                  polarity: aiReviewAnalysisAspects.polarity,
-                  intensity: aiReviewAnalysisAspects.intensity,
-                })
-                .from(aiReviewAnalysisAspects)
-                .where(
-                  and(
-                    eq(aiReviewAnalysisAspects.organizationId, input.organizationId),
-                    eq(aiReviewAnalysisAspects.propertyId, input.propertyId),
-                    eq(aiReviewAnalysisAspects.reviewId, input.reviewId),
-                    eq(aiReviewAnalysisAspects.sourceEpoch, input.sourceEpoch),
-                    eq(aiReviewAnalysisAspects.sourceRevision, input.sourceRevision),
-                    eq(aiReviewAnalysisAspects.analysisSequence, input.analysisSequence),
-                  ),
-                )
-                .orderBy(aiReviewAnalysisAspects.aspect)
-                .for('share')
-            : []
-        const validAnalysisAspectCount =
-          analysis.status === 'ready' && !mentions
-            ? analysisAspects.length >= 1 && analysisAspects.length <= 5
-            : analysisAspects.length === 0
-        if (!validAnalysisAspectCount) {
-          throw new Error('Property analysis aspect rows are invalid')
+        if (analysis.status === 'ready' && !mentions) {
+          const aspects = await tx
+            .select({ aspect: aiReviewAnalysisAspects.aspect })
+            .from(aiReviewAnalysisAspects)
+            .where(
+              and(
+                eq(aiReviewAnalysisAspects.organizationId, input.organizationId),
+                eq(aiReviewAnalysisAspects.propertyId, input.propertyId),
+                eq(aiReviewAnalysisAspects.reviewId, input.reviewId),
+                eq(aiReviewAnalysisAspects.sourceEpoch, input.sourceEpoch),
+                eq(aiReviewAnalysisAspects.sourceRevision, input.sourceRevision),
+                eq(aiReviewAnalysisAspects.analysisSequence, input.analysisSequence),
+              ),
+            )
+            .for('share')
+          if (
+            aspects.length > 5 ||
+            (aspects.length === 0 &&
+              analysis.analysisProfileVersion !== 'review-analysis-v1')
+          ) {
+            throw new Error('Property analysis aspect rows are invalid')
+          }
         }
         const head = await lockAggregateHead(tx, input)
         if (settlement === 'replayed') {
           return { status: 'replayed', aggregateRevision: head.aggregateRevision }
         }
-
-        const { previous, previousAspects } = await readPreviousContribution(tx, input)
 
         const aggregateRevision = head.aggregateRevision + 1
         const [inserted] = await tx
@@ -361,40 +232,6 @@ export const createAiPropertyAggregateStoreAdapter = (
           await copyMentionsToContribution(tx, input)
           await assignContributionIssueGroups(tx, input, analysis.expiresAt, appliedAt)
         }
-        if (analysisAspects.length > 0) {
-          await tx.insert(aiPropertyAggregateContributionAspects).values(
-            analysisAspects.map((aspect) => ({
-              organizationId: input.organizationId,
-              propertyId: input.propertyId,
-              reviewId: input.reviewId,
-              sourceEpoch: input.sourceEpoch,
-              sourceRevision: input.sourceRevision,
-              analysisSequence: input.analysisSequence,
-              aspect: aspect.aspect,
-              polarity: aspect.polarity,
-              intensity: aspect.intensity,
-            })),
-          )
-        }
-
-        // The daily cube is v2's. A v3 contribution is read from its mentions.
-        if (!mentions) {
-          await updateDailyAggregates({
-            tx,
-            command: input,
-            head,
-            next: {
-              contribution: currentAnalysis,
-              localDate: currentReview.localDate,
-              aspects: analysisAspects,
-            },
-            previous,
-            previousAspects,
-            aggregateRevision,
-            appliedAt,
-          })
-        }
-
         await commitAggregateHead(tx, input, head, aggregateRevision, appliedAt)
         return { status: 'applied', aggregateRevision }
       })
@@ -402,6 +239,7 @@ export const createAiPropertyAggregateStoreAdapter = (
 
     async advanceWithoutAnalysis(input) {
       return db.transaction(async (tx) => {
+        await lockReviewAnalysisPropertyFence(tx, input)
         await tx.execute(sql`
           SELECT pg_advisory_xact_lock(
             hashtextextended(${input.organizationId} || ':' || ${input.propertyId}::text, 0)
@@ -437,77 +275,6 @@ export const createAiPropertyAggregateStoreAdapter = (
         const locked = await readLockedAggregateHead(tx, input)
         if (locked === null) return null
         const { head, coverage: analysisCoverage } = locked
-        const days = await tx
-          .select()
-          .from(aiPropertyDailyAggregates)
-          .where(
-            and(
-              eq(aiPropertyDailyAggregates.organizationId, input.organizationId),
-              eq(aiPropertyDailyAggregates.propertyId, input.propertyId),
-              eq(aiPropertyDailyAggregates.sourceEpoch, input.sourceEpoch),
-              eq(
-                aiPropertyDailyAggregates.reviewAnalysisEpoch,
-                input.reviewAnalysisEpoch,
-              ),
-              eq(
-                aiPropertyDailyAggregates.propertyProfileVersion,
-                input.propertyProfileVersion,
-              ),
-              gte(aiPropertyDailyAggregates.localDate, input.startLocalDate),
-              lte(aiPropertyDailyAggregates.localDate, input.endLocalDate),
-            ),
-          )
-          .orderBy(aiPropertyDailyAggregates.localDate)
-        const dailyAspects = await tx
-          .select({
-            localDate: aiPropertyDailyAspectAggregates.localDate,
-            aspect: aiPropertyDailyAspectAggregates.aspect,
-            polarity: aiPropertyDailyAspectAggregates.polarity,
-            mentionCount: aiPropertyDailyAspectAggregates.mentionCount,
-          })
-          .from(aiPropertyDailyAspectAggregates)
-          .where(
-            and(
-              eq(aiPropertyDailyAspectAggregates.organizationId, input.organizationId),
-              eq(aiPropertyDailyAspectAggregates.propertyId, input.propertyId),
-              eq(aiPropertyDailyAspectAggregates.sourceEpoch, input.sourceEpoch),
-              eq(
-                aiPropertyDailyAspectAggregates.reviewAnalysisEpoch,
-                input.reviewAnalysisEpoch,
-              ),
-              eq(
-                aiPropertyDailyAspectAggregates.propertyProfileVersion,
-                input.propertyProfileVersion,
-              ),
-              gte(aiPropertyDailyAspectAggregates.localDate, input.startLocalDate),
-              lte(aiPropertyDailyAspectAggregates.localDate, input.endLocalDate),
-            ),
-          )
-          .orderBy(
-            aiPropertyDailyAspectAggregates.localDate,
-            aiPropertyDailyAspectAggregates.aspect,
-            aiPropertyDailyAspectAggregates.polarity,
-          )
-        const aspectCountsByDate = new Map<string, AiPropertyDailyAspectCount[]>()
-        for (const row of dailyAspects) {
-          if (
-            !isAspectTaxonomyV1Id(row.aspect) ||
-            (row.polarity !== 'positive' &&
-              row.polarity !== 'neutral' &&
-              row.polarity !== 'negative') ||
-            !Number.isSafeInteger(row.mentionCount) ||
-            row.mentionCount < 0
-          ) {
-            throw new Error('Property daily aspect aggregate is invalid')
-          }
-          const counts = aspectCountsByDate.get(row.localDate) ?? []
-          counts.push({
-            aspect: row.aspect,
-            polarity: row.polarity as AspectPolarityV1,
-            count: row.mentionCount,
-          })
-          aspectCountsByDate.set(row.localDate, counts)
-        }
         const analyzed = await tx.execute<{
           reviewId: string
           sourceRevision: number | string
@@ -554,7 +321,7 @@ export const createAiPropertyAggregateStoreAdapter = (
                 )
                 ORDER BY contribution_aspect.aspect
               )
-              FROM ai_property_aggregate_contribution_aspects AS contribution_aspect
+              FROM ai_review_analysis_aspects AS contribution_aspect
               WHERE contribution_aspect.organization_id = latest.organization_id
                 AND contribution_aspect.property_id = latest.property_id
                 AND contribution_aspect.review_id = latest.review_id
@@ -612,9 +379,7 @@ export const createAiPropertyAggregateStoreAdapter = (
             terminalAnalysisSequence: head.terminalAnalysisSequence,
           },
           coverage: analysisCoverage,
-          days: days.map((day) =>
-            mapDaily(day, Object.freeze(aspectCountsByDate.get(day.localDate) ?? [])),
-          ),
+          days: dailyCountsFromReviews(analyzedReviews),
           analyzedReviews: Object.freeze(analyzedReviews),
           unavailableReviews: Object.freeze(unavailableReviews),
         }

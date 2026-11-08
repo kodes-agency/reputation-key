@@ -40,6 +40,14 @@ An account-scoped PostgreSQL advisory lock orders the usage read and provider
 clear against subscription attempts in every process. Contention leaves the
 import follow-up owed for retry; provider calls hold no database transaction.
 
+Review list, head, single-review reads and reply writes all use this client.
+The single-review read keeps a 30-second deadline and treats an answered 404 as
+not found only after rechecking authorization. Late responses are scrubbed;
+timeouts retain unknown dispatch evidence. The Review parser owns resource
+binding, reply moderation and translation handling. Opaque cursor uses are
+released only on explicit not-sent evidence; ambiguous reply writes remain
+readback-only recovery.
+
 ## Model
 
 A GoogleConnection owns encrypted credentials and the verified Google OIDC

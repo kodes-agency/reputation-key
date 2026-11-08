@@ -5,6 +5,13 @@ The three capabilities share one build, one application interface, and one stand
 set because Goal evaluation and dashboard presentation are downstream views of the same
 metric authority.
 
+`PortalRatingGoalReadApi.findPortalRatingGoalBlockInTransaction` reads running
+rating assignments and their published collectors inside the caller's transaction.
+Portal holds the shared Property goal fence before this read and its mutation;
+Goal definition and membership writers use the same fence. The preflight and
+commit read share the rating-subject decision, including a current rating version
+while a future scans version waits. Ended goals do not hold a collector.
+
 ## Responsibilities
 
 - Record version-pinned metric readings and append-only corrections.
@@ -33,6 +40,9 @@ reuses `readGoogleNumbers` / `GoogleNumbersView` unchanged, with the real `asOf`
 and stale/disconnected `current` flag; no snapshot is null. It needs neither an
 active goal nor goal/fleet permission and performs no goal setup/history scans.
 The caller isolates a failed side read from the primary Guest voice page.
+
+The [monthly goals map](monthly-goals/CONTEXT.md) locates subject-assignment rules
+and goal-detail pages.
 
 ## Core model
 
@@ -591,7 +601,7 @@ the same lazy server module, asks `goal.create`, reads the one Program asked for
 applied) and says which page it has before anything else is read. A Property count goal
 answers `monthly` (its page is `/goals/portals`) with nothing more read. A Portal's or a
 group's count goal is read as the Monthly portal goal's page is, from its own subject
-(`application/use-cases/portal-goal-single-page.ts`): the Property's recommendation narrowed
+(`monthly-goals/get-portal-goal-page.server.ts`): the Property's recommendation narrowed
 to the subject (`narrowedRecommendation`) gives its usual, its change sheet's offers and its
 go-lives, the governed read of the subject its months, and the Property's other goals whether
 the subject already holds the other measure from next month (`otherMeasureHeld`: no "Count

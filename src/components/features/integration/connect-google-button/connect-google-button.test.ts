@@ -7,8 +7,9 @@
 // owns the request, the icon, the pending state and the failure; a place chooses the
 // label and the look.
 import { createElement } from 'react'
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { renderToStaticMarkup } from 'react-dom/server'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { ConnectGoogleButton } from './connect-google-button'
 import {
   connectFailureMessage,
@@ -17,8 +18,19 @@ import {
 
 const getAuthUrl = async () => ({ url: 'https://accounts.google.test/oauth' })
 
+vi.mock('@tanstack/react-router', async (original) => ({
+  ...(await original<typeof import('@tanstack/react-router')>()),
+  useRouter: () => ({ navigate: vi.fn() }),
+}))
+
 const render = (props: object = {}) =>
-  renderToStaticMarkup(createElement(ConnectGoogleButton, { getAuthUrl, ...props }))
+  renderToStaticMarkup(
+    createElement(
+      QueryClientProvider,
+      { client: new QueryClient() },
+      createElement(ConnectGoogleButton, { getAuthUrl, ...props }),
+    ),
+  )
 
 describe('the request', () => {
   it('starts a normal connection as an untargeted Organization-owned ceremony', () => {

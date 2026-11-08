@@ -5,8 +5,11 @@
 // subject sets get only the subject count.
 // Batch governed snapshots, including outbox completeness, for all live figures.
 
+import type { GoalListProgress } from '../../monthly-goals/contracts'
+export type { GoalListProgress } from '../../monthly-goals/contracts'
+
 import { calendarPeriodRange } from '#/shared/domain/period-range'
-import type { GoalMetric, GoalSubject } from '../../domain/goal-program'
+import type { GoalSubject } from '../../domain/goal-program'
 import { goalMonthDays, goalPace } from '../../domain/goal-pace'
 import type { GoalProgramBundle } from '../ports/goal-program.repository'
 import {
@@ -32,25 +35,6 @@ export const MAX_GOAL_LIST_PROGRESS_READS = 60
 export const GOAL_LIST_PROGRESS_CONCURRENCY = 3
 
 type CountingReading = Exclude<GoalProgressReading, Readonly<{ kind: 'not_started' }>>
-
-/** What the Goals list prints under an active goal. */
-export type GoalListProgress = Readonly<{
-  programId: string
-  metric: GoalMetric
-  /** Subjects counting this month. */
-  subjectCount: number
-  /** Whole local days still to begin after today. */
-  daysLeft: number
-  /** The one subject's month so far; null for a goal with several subjects. */
-  month: Readonly<{ reading: CountingReading; targetValue: number }> | null
-  /**
-   * Subjects below pace, for a count goal: how many of several, or 1 or 0 for
-   * a goal with one subject. Null when nothing was judged: an average, a month
-   * in its first days or expecting too few yet (`goalPace`), subjects too many
-   * to read, or figures that cannot be read.
-   */
-  belowPace: number | null
-}>
 
 export type GoalListProgressInput = Readonly<{ propertyId: string }>
 

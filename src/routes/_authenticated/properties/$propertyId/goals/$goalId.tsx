@@ -19,7 +19,7 @@ import {
   PortalGoalPage,
   focusPortalGoalPageTitle,
 } from '#/components/goals/portal-goal-page'
-import { PortalGoalSeveralPage } from '#/components/goals/portal-goal-several-page'
+import { PortalGoalSeveralPage } from '#/contexts/reporting/monthly-goals/ui/portal-goal-several-page'
 import type { PortalGoalSheetCommands } from '#/components/goals/portal-goal-sheet'
 import {
   SINGLE_GOAL_WORDS,

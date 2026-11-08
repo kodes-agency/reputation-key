@@ -16,6 +16,10 @@ import { createGuestResponseRepository } from './infrastructure/repositories/gue
 import type { GuestResponseContentFilter } from './application/ports/guest-response.repository'
 import type { LegacyFeedbackContentFilter } from './application/ports/guest-interaction.repository'
 import { createAtomicGuestResponseCommandStore } from './infrastructure/guest-response-command-store'
+import {
+  createGuestWithdrawalJournal,
+  type GuestWithdrawalJournalConfig,
+} from './infrastructure/guest-withdrawal-journal.server'
 import { createAtomicGuestObservationStore } from './infrastructure/guest-observation-store'
 import { createPortalContextResolver } from './infrastructure/resolvers/portal-context-resolver'
 import { createPublicPortalLookup } from './infrastructure/resolvers/public-portal-lookup'
@@ -71,6 +75,7 @@ type GuestContextDeps = Readonly<{
   secureCookies: boolean
   resolvePrimaryStaffAttribution: ResolvePrimaryStaffAttribution
   observationLossRedis?: GuestObservationLossRedisPort
+  withdrawalJournalConfig?: GuestWithdrawalJournalConfig
 }>
 
 export const buildGuestContext = (deps: GuestContextDeps) => {
@@ -79,6 +84,11 @@ export const buildGuestContext = (deps: GuestContextDeps) => {
   const guestResponseCommandStore = createAtomicGuestResponseCommandStore(
     deps.db,
     deps.clock,
+    createGuestWithdrawalJournal({
+      logger: deps.logger,
+      idGen: deps.idGen,
+      config: deps.withdrawalJournalConfig,
+    }),
   )
   const guestObservationStore = createAtomicGuestObservationStore(deps.db)
   const guestNetworkPressureStore = createGuestNetworkPressureStore(deps.db, deps.idGen)

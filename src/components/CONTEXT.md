@@ -406,7 +406,7 @@ tier, under } }`, see `page-identity.ts`): that gives its fallbacks their frame
 Use named exports. Export page-level feature components from the feature barrel;
 keep concept-specific children internal.
 
-Filename, feature-barrel, dependency, and 300-counted-line limits are enforced by `scripts/check-filenames.mjs` and `eslint.config.js`.
+Filename, feature-barrel, dependency, and 800-counted-line limits are enforced by `eslint.config.js`. Existing oversized files retain their no-growth ceilings in `scripts/ci/file-length.baseline.json` until their owners split them.
 
 Portal Results lives with its Reporting reads in
 [`src/contexts/reporting/portal-results/ui/`](../contexts/reporting/portal-results/CONTEXT.md).
@@ -538,7 +538,7 @@ An ordinary action in the same file still uses `Button` or `IconButton`.
 ## Server-function boundary
 
 Routes are the normal runtime import site for context server functions. A route
-creates an `Action` with `useActionMutation` or `useAction`, then passes it to the
+creates an `Action` with `useActionMutation`, then passes it to the
 component. Type-only server imports are allowed to spell those props.
 
 A component — or the single hook that owns its mutations — with five or more
@@ -547,7 +547,7 @@ drilling would obscure one cohesive workflow. Document the exception in that fil
 and add it to the checker allowlist; do not widen the exception to its whole
 feature without the same mutation density.
 
-Component/server value-import rules and their allowlist are enforced by `scripts/check-component-boundaries.mjs`; database and context-layer boundaries are enforced by `eslint.config.js` and `scripts/check-architecture-boundary-controls.mjs`.
+Component/server value-import rules and their allowlist are enforced by `eslint-rules/source-policy.mjs` through `eslint.config.js`; database and context-layer boundaries are enforced by `eslint.config.js` and `scripts/check-architecture-boundary-controls.mjs`.
 
 ## Forms
 

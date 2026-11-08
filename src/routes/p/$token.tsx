@@ -23,7 +23,7 @@ import { PortalUnavailableInBrowserLanguage } from '#/components/features/guest/
 import type { PublicPortalLoaderData } from '#/contexts/guest/server/public'
 import { guestKeys } from '#/shared/queries/query-keys'
 import { useServerFn } from '@tanstack/react-start'
-import { useAction } from '#/components/hooks/use-action'
+import { useActionMutation } from '#/components/hooks/use-action-mutation'
 
 // The public UUID is only a channel marker. The server binds it to the stable
 // address and exact live publication before it can qualify an observation.
@@ -151,10 +151,7 @@ export const Route = createFileRoute('/p/$token')({
 /**
  * Gate only — it owns no hooks beyond the query. Every other hook lives in
  * `PublicPortalView`, so the hook count cannot change when `data` flips
- * null↔loaded on a revalidation. The previous inline `if (!data) return …` guard
- * sat above five `useAction`/`useServerFn` calls and threw "Rendered more hooks
- * than during the previous render" on that transition, dropping the whole public
- * page into `errorComponent`.
+ * null↔loaded on a revalidation.
  */
 function PublicPortalPage() {
   const { token } = Route.useParams()
@@ -183,14 +180,16 @@ function PublicPortalView({
 }: Readonly<{ token: string; data: GuestPageData }>) {
   const { accessArtifact, locale } = Route.useSearch()
   const queryClient = useQueryClient()
-  const submitResponse = useAction(useServerFn(submitGuestResponseFn))
-  const correctResponse = useAction(useServerFn(correctGuestResponseFn))
-  const startNewResponseAction = useAction(useServerFn(startNewGuestResponseFn))
-  const withdrawResponse = useAction(useServerFn(withdrawGuestResponseFn))
-  const withdrawPrivateFeedback = useAction(useServerFn(withdrawPrivateFeedbackFn))
-  const submitPrivateFeedback = useAction(useServerFn(submitPrivateFeedbackFn))
-  const selectGoogleReview = useAction(useServerFn(selectGoogleReviewFn))
-  const selectSecondaryLink = useAction(useServerFn(selectSecondaryLinkFn))
+  const submitResponse = useActionMutation(useServerFn(submitGuestResponseFn))
+  const correctResponse = useActionMutation(useServerFn(correctGuestResponseFn))
+  const startNewResponseAction = useActionMutation(useServerFn(startNewGuestResponseFn))
+  const withdrawResponse = useActionMutation(useServerFn(withdrawGuestResponseFn))
+  const withdrawPrivateFeedback = useActionMutation(
+    useServerFn(withdrawPrivateFeedbackFn),
+  )
+  const submitPrivateFeedback = useActionMutation(useServerFn(submitPrivateFeedbackFn))
+  const selectGoogleReview = useActionMutation(useServerFn(selectGoogleReviewFn))
+  const selectSecondaryLink = useActionMutation(useServerFn(selectSecondaryLinkFn))
   const recordScan = useServerFn(recordScanFn)
   const { csrfNonce } = data.guestSession
 

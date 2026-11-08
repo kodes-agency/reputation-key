@@ -1,7 +1,7 @@
 // Invite an Account Admin to an Organization that has none (ADR 0065).
 //
 // One small inline form per Organization row, so it keeps its own pending and
-// error state (`useAction` over the shared Action): a refusal for one
+// error state (`useActionMutation` over the shared Action): a refusal for one
 // Organization never shows on another's row. The route's Action reports the
 // outcome by toast; this form clears its field on success and shows a refusal
 // directly above its button.
@@ -12,7 +12,8 @@ import { FormActions } from '#/components/forms/form-actions'
 import { FormTextField, type BaseFieldApi } from '#/components/forms/form-text-field'
 import { SubmitButton } from '#/components/forms/submit-button'
 import { submitHandler } from '#/components/forms/form-submit'
-import { useAction, type Action } from '#/components/hooks/use-action'
+import type { Action } from '#/components/hooks/use-action'
+import { useActionMutation } from '#/components/hooks/use-action-mutation'
 import {
   inviteOrganizationAdminInputSchema,
   type InviteOrganizationAdminInput,
@@ -35,7 +36,7 @@ export function InviteOrganizationAdminForm({
   organizationName,
   inviteAdmin,
 }: Props) {
-  const invite = useAction(inviteAdmin)
+  const invite = useActionMutation(inviteAdmin)
   const form = useForm({
     defaultValues: { email: '' },
     validators: { onSubmit: inviteFormSchema },

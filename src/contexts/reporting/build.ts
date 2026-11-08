@@ -1,3 +1,4 @@
+import { createPortalRatingGoalGuard } from './infrastructure/portal-rating-goal-guard'
 import { createGoalMetricBatchReader } from './infrastructure/repositories/goal-metric-batch-reader'
 import { findPortalRatingGoalBlock } from './application/running-portal-rating-goal'
 import { createStaffResultsReader } from './infrastructure/repositories/staff-results.reader'
@@ -88,7 +89,7 @@ import { createPortalGoalPromptDeferralStore } from './infrastructure/repositori
 import {
   readPortalGoalSinglePage,
   type PortalGoalSinglePageRequestApi,
-} from './application/use-cases/portal-goal-single-page'
+} from './monthly-goals/get-portal-goal-page.server'
 import { readGoalRecommendationCounts } from './infrastructure/adapters/goal-recommendation-readings'
 import {
   createGoalProgramProgressReader,
@@ -502,6 +503,7 @@ function buildGoalModule(
   })
 
   const portalRatingGoalRead: PortalRatingGoalReadApi = {
+    ...createPortalRatingGoalGuard(),
     findPortalRatingGoalBlock: async (
       organizationId: string,
       propertyId: string,
