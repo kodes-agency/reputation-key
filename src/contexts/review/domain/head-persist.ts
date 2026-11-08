@@ -43,15 +43,15 @@ export type HeadFactDecision =
       reason: 'changed' | 'heartbeat'
       /**
        * When Google’s numbers are stamped as read: the read time, or one
-       * millisecond past the newest fact when the read is not later, so two
-       * facts of one Property never share an instant (the Current on Google
-       * consumer refuses a tie as ambiguous).
+       * millisecond past the newest fact when the read has the same timestamp,
+       * so two facts of one Property never share an instant (the Current on
+       * Google consumer refuses a tie as ambiguous).
        */
       numbersObservedAt: Date
     }>
   | Readonly<{
       write: false
-      reason: 'unchanged' | 'no_completed_listing' | 'not_storable'
+      reason: 'unchanged' | 'superseded' | 'no_completed_listing' | 'not_storable'
     }>
 
 /** The table's own rule: zero reviews has no average, otherwise 1..10,000 with 0..5. */
@@ -82,6 +82,11 @@ export const decideHeadFact = (input: HeadFactInput): HeadFactDecision => {
     return { write: false, reason: 'not_storable' }
   }
   const newest = input.newest
+  // Persistence can finish out of acquisition order. A delayed page must never
+  // be made newer than numbers Google returned after it.
+  if (newest !== null && input.readAt.getTime() < newest.observedAt.getTime()) {
+    return { write: false, reason: 'superseded' }
+  }
   const changed =
     newest === null ||
     newest.reviewCount !== input.googleTotal ||

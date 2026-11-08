@@ -120,7 +120,30 @@ describe('decideHeadFact: when a head check stores Google’s own numbers', () =
     expect(decision).toMatchObject({ write: true, numbersObservedAt: NOW })
   })
 
-  it('stamps the fact one millisecond after the newest fact when the read is not later, so two facts never share an instant', () => {
+  it.each([
+    ['a changed count', 121, 4.6],
+    ['a changed average', 120, 4.7],
+    ['unchanged numbers', 120, 4.6],
+  ])(
+    'does not promote an older acquisition with %s past a newer fact',
+    (_label, total, average) => {
+      const decision = decideHeadFact(
+        input({
+          googleTotal: total,
+          googleAverage: average,
+          newest: {
+            reviewCount: 120,
+            averageRating: 4.6,
+            observedAt: new Date(NOW.getTime() + 1),
+          },
+        }),
+      )
+
+      expect(decision).toEqual({ write: false, reason: 'superseded' })
+    },
+  )
+
+  it('stamps the fact one millisecond after the newest fact when the acquisition timestamps tie, so two facts never share an instant', () => {
     const decision = decideHeadFact(
       input({
         googleTotal: 121,
