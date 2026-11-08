@@ -28,6 +28,7 @@ import type {
 } from './portal-print-final-parts'
 import {
   mmPt,
+  printFinalBoxFits,
   printFinalLiveArea,
   type PrintFinalBox,
 } from './portal-print-final-measures'
@@ -39,7 +40,11 @@ import {
 } from './portal-print-final-planners'
 
 export type PrintFinalProblem =
-  'gap_under_4u' | 'taller_than_live' | 'headline_over_cap' | 'subline_over_cap'
+  | 'gap_under_4u'
+  | 'taller_than_live'
+  | 'outside_live_area'
+  | 'headline_over_cap'
+  | 'subline_over_cap'
 
 export type PrintFinalPlan = Readonly<{
   face: PrintFinalFace
@@ -143,6 +148,7 @@ function problemsOf(
   planned: PlannedGroups,
   gaps: PrintFinalPlan['gapsPt'],
   unitPt: number,
+  live: PrintFinalBox,
 ): readonly PrintFinalProblem[] {
   const least = 4 * unitPt - PRINT_FINAL_GAP_TOLERANCE_PT
   const problems: PrintFinalProblem[] = []
@@ -151,6 +157,17 @@ function problemsOf(
   )
   if (short || planned.groupGapPt < least) problems.push('gap_under_4u')
   if (planned.overflowPt > PRINT_FINAL_GAP_TOLERANCE_PT) problems.push('taller_than_live')
+  const boxes = [
+    planned.code,
+    ...planned.parts.map((part) => ({
+      leftPt: part.xPt,
+      topPt: part.yPt,
+      rightPt: part.xPt + part.widthPt,
+      bottomPt: part.yPt + part.heightPt,
+    })),
+  ]
+  if (boxes.some((box) => !printFinalBoxFits(box, live)))
+    problems.push('outside_live_area')
   return [...problems, ...lineCapProblems(planned.parts)]
 }
 
@@ -166,7 +183,7 @@ export function planPrintFinalFace(input: PrintFinalPlanInput): PrintFinalPlan {
   const brand = spanOf(planned.parts.filter((p) => p.key === 'brand'))
   const message = spanOf(planned.parts.filter((p) => p.key !== 'brand'))
   const gapsPt = gapsOf(face, brand, message, planned.code)
-  const problems = problemsOf(planned, gapsPt, area.unitPt)
+  const problems = problemsOf(planned, gapsPt, area.unitPt, area.live)
   return {
     face,
     widthPt: area.widthPt,

@@ -99,3 +99,24 @@ describe('the preview’s back pages', () => {
       }
   })
 })
+
+it.each(FACES)(
+  'preview and real fonts refuse an unbreakable back name on $region $look $piece $orientation',
+  (face) => {
+    const name = 'W'.repeat(60)
+    const preview = previewFinalBackLayout({
+      face,
+      look: look(name, false),
+      logoAspect: null,
+      onPlate: false,
+    })
+    const file = layoutPrintFinalBack({
+      face,
+      brand: { kind: 'wordmark', text: 'Hotel Elegance' },
+      propertyName: name,
+      measurer,
+    })
+    expect(preview.plan.fits).toBe(false)
+    expect(file.plan.fits).toBe(false)
+  },
+)

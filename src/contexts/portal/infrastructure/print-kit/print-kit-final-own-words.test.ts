@@ -63,6 +63,13 @@ const fitOf = (
 describe.each(Object.entries(MEASURERS))(
   'own words, measured by the %s',
   (_name, measurer) => {
+    it.each(['upright', 'wide'] as const)(
+      'refuses an unbreakable 60-W headline on a %s tent',
+      (orientation) => {
+        expect(fitOf('W'.repeat(60), tent(orientation), measurer).state).toBe('refused')
+      },
+    )
+
     it('prints "Thanks for staying with us" at full size on a wide tent', () => {
       expect(fitOf('Thanks for staying with us', tent('wide'), measurer)).toMatchObject({
         state: 'full',
