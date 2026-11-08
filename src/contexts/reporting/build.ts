@@ -51,7 +51,7 @@ import {
   createGoalProgramService,
   type GoalExecutionPolicy,
   type GoalProgramRequestApi,
-} from './application/use-cases/goal-programs'
+} from './monthly-goals/goal-programs.server'
 import { withGoalProgramVisibility } from './application/use-cases/goal-program-visibility'
 import { createGoalsForSubjects } from './application/use-cases/goal-bulk-create'
 import {
@@ -59,11 +59,11 @@ import {
   type PortalGoalRecommendationRequestApi,
 } from './application/use-cases/goal-recommendation-read'
 import type { GoalRecommendationFactsPort } from './application/ports/goal-recommendation-facts.port'
-import { readMonthlyPortalGoalCard } from './application/use-cases/monthly-portal-goal-card'
+import { readMonthlyPortalGoalCard } from './monthly-goals/monthly-portal-goal-card.server'
 import {
   readMonthlyPortalGoalPage,
   type MonthlyPortalGoalRequestApi,
-} from './application/use-cases/monthly-portal-goal-page'
+} from './monthly-goals/monthly-portal-goal-page.server'
 import {
   changeMonthlyPortalGoalNow,
   deferMonthlyPortalGoalPrompt,
@@ -71,7 +71,7 @@ import {
   reviseMonthlyPortalGoal,
   setMonthlyPortalGoal,
   stopMonthlyPortalGoal,
-} from './application/use-cases/monthly-portal-goal'
+} from './monthly-goals/monthly-portal-goal.server'
 import {
   addPortalGoal,
   addPortalGoals,
@@ -79,7 +79,7 @@ import {
   type PortalGoalAddRequestApi,
 } from './application/use-cases/portal-goal-add'
 import { readPortalGoalAddOptions } from './application/use-cases/portal-goal-add-options'
-import { readMonthlyPortalGoalLine } from './application/use-cases/monthly-portal-goal-line'
+import { readMonthlyPortalGoalLine } from './monthly-goals/monthly-portal-goal-line.server'
 import { createPortalGoalPromptDeferralStore } from './infrastructure/repositories/portal-goal-prompt-deferrals.repository'
 import {
   readPortalGoalSinglePage,

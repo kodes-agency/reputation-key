@@ -1146,6 +1146,22 @@ const readArrivingHead = fn(async ({ data }: Readonly<{ data: { filter?: string 
   ),
 )
 
+/**
+ * Sonner slides a toast in and out with a transition. The phone-width check
+ * measures once the story ends, so the toast must have finished entering
+ * (or, after Open, finished leaving) first.
+ */
+async function toastSettled(toast: HTMLElement) {
+  await waitFor(() => expect(toast).toHaveAttribute('data-mounted', 'true'))
+  // A cancelled or retargeted transition rejects `finished`, so settle rather
+  // than fail, and look again: sonner can start another one after the read.
+  await waitFor(async () => {
+    const running = toast.getAnimations()
+    await Promise.allSettled(running.map((animation) => animation.finished))
+    expect(toast.getAnimations()).toHaveLength(0)
+  })
+}
+
 /** Lets sonner render anything it was asked to: it mounts toasts a task later. */
 const toastsSettled = () => new Promise((resolve) => setTimeout(resolve, 50))
 
@@ -1180,8 +1196,11 @@ export const UrgentArrivalShowsAToast: Story = {
       await expectToast('Something urgent needs you at Riverside Hotel')
     ).closest<HTMLElement>('[data-sonner-toast]')
     if (shown === null) throw new Error('the arrival is not in a toast')
+    await toastSettled(shown)
     await userEvent.click(within(shown).getByRole('button', { name: 'Open' }))
     const popover = await findOpenBellPopover()
     await popover.findByRole('link', { name: /^Escalated: feedback at Riverside Hotel,/ })
+    // Open dismisses the toast; the check measures after it has left.
+    await waitFor(() => expect(shown).not.toBeInTheDocument())
   },
 }

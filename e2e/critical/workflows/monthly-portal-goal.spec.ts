@@ -119,7 +119,7 @@ import {
   installWebVitals,
   readWebVitals,
 } from '../../helpers/web-vitals'
-import { checkInOfferOf } from '../../../src/contexts/reporting/application/use-cases/monthly-portal-goal-offer'
+import { checkInOfferOf } from '../../../src/contexts/reporting/monthly-goals/monthly-portal-goal-offer.server'
 import { checkInMonthAt } from '../../../src/contexts/reporting/domain/portal-goal-check-in'
 import { GOAL_CURRENT_MONTH_CUTOFF_DAY } from '../../../src/contexts/reporting/domain/goal-start'
 import { goalMonthDays, goalPace } from '../../../src/contexts/reporting/domain/goal-pace'

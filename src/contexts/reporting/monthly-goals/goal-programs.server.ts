@@ -7,20 +7,20 @@ import type {
   GoalProgramVersion,
   GoalScheduledStatusReason,
   GoalSubjectAssignment,
-} from '../ports/goal-program.repository'
+} from '../application/ports/goal-program.repository'
 import {
   canTransitionGoalProgram,
   type GoalMetric,
   type GoalProgramStatus,
   type GoalSubject,
   type GoalTargetSource,
-} from '../../domain/goal-program'
-import { monthKeyOf } from '../../domain/goal-start'
-import { nextRevisionStart } from '../goal-revision-start'
-import { GOAL_VERSION_REASONS } from '../goal-version-reasons'
-import { changeMonthTarget } from './goal-month-target'
-import { createGoal } from './goal-program-create'
-import { renameGoal } from './goal-program-details'
+} from '../domain/goal-program'
+import { monthKeyOf } from '../domain/goal-start'
+import { nextRevisionStart } from '../application/goal-revision-start'
+import { GOAL_VERSION_REASONS } from '../application/goal-version-reasons'
+import { changeMonthTarget } from '../application/use-cases/goal-month-target'
+import { createGoal } from '../application/use-cases/goal-program-create'
+import { renameGoal } from '../application/use-cases/goal-program-details'
 import {
   GoalProgramMaintenanceError,
   loadCaughtUpProgram,
@@ -28,7 +28,7 @@ import {
   reconcileClosedResult,
   reconcileResult,
   type GoalProgramMaintenanceStats,
-} from './goal-program-maintenance'
+} from '../application/use-cases/goal-program-maintenance'
 import {
   assertOrganizationFreeToStartGoals,
   assertRatingSubjectsAllowed,
@@ -43,7 +43,7 @@ import {
   type GoalMetricReadPort,
   type GoalProgramDependencies,
   type GoalProgramSubjectReader,
-} from './goal-program-shared'
+} from '../application/use-cases/goal-program-shared'
 
 // The command families live in flat sibling modules and the shared pieces in a
 // leaf; this module composes them behind the one service and keeps re-exporting

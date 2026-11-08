@@ -2,13 +2,13 @@ import { describe, expect, it } from 'vitest'
 import type {
   GoalMonthTargetChange,
   GoalProgramBundle,
-} from '../ports/goal-program.repository'
-import type { RecommendationDayCount } from '../../domain/goal-recommendation-types'
+} from '../application/ports/goal-program.repository'
+import type { RecommendationDayCount } from '../domain/goal-recommendation-types'
 import {
   gatherMonthlyPortalGoal,
   readMonthlyPortalGoalCard,
-} from './monthly-portal-goal-card'
-import { monthlyPortalGoalCheckInOf } from './monthly-portal-goal-check-in'
+} from './monthly-portal-goal-card.server'
+import { monthlyPortalGoalCheckInOf } from './monthly-portal-goal-check-in.server'
 import {
   DEC_1,
   NOV_1,
@@ -22,7 +22,7 @@ import {
   propertyGoal,
   readings,
   type MonthShape,
-} from './monthly-portal-goal-test-fixtures'
+} from './monthly-portal-goal.test-fixtures'
 
 const DEC_31 = new Date('2026-12-31T22:00:00.000Z')
 /** Dec 1, noon in Sofia. */

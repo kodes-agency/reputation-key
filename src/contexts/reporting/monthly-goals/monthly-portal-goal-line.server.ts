@@ -3,27 +3,27 @@
 // all Portal counts sum to governed progress. Draft, missing or uncounted Portals
 // have no line; zero contribution without an own goal also has none.
 
-import type { PortalFacts } from '../../domain/goal-recommendation-types'
+import type { PortalFacts } from '../domain/goal-recommendation-types'
 import type {
   MonthlyPortalGoalLineRequest,
   PortalGoalLineView,
-} from '../dto/monthly-portal-goal.types'
+} from '../application/dto/monthly-portal-goal.types'
 import {
   isPortalGoalMeasure,
   type PropertyCountGoal,
-} from '../monthly-portal-goal-identity'
-import type { GoalProgramBundle } from '../ports/goal-program.repository'
-import { progressOf } from './goal-progress'
-import type { GoalActor, GoalExecutionPolicy } from './goal-programs'
+} from '../application/monthly-portal-goal-identity'
+import type { GoalProgramBundle } from '../application/ports/goal-program.repository'
+import { progressOf } from '../application/use-cases/goal-progress'
+import type { GoalActor, GoalExecutionPolicy } from './goal-programs.server'
 import {
   gatherMonthlyPortalGoal,
   type MonthlyPortalGoalCardDeps,
-} from './monthly-portal-goal-card'
+} from './monthly-portal-goal-card.server'
 import {
   countingNow,
   monthCountsOf,
   type MonthlyPortalGoalOnCardContext,
-} from './monthly-portal-goal-running'
+} from './monthly-portal-goal-running.server'
 
 export type MonthlyPortalGoalLineDeps = Pick<
   MonthlyPortalGoalCardDeps,

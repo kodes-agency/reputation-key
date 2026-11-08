@@ -5,7 +5,7 @@ import type { Permission } from '#/shared/domain/permissions'
 import type {
   GoalActor,
   GoalExecutionPolicy,
-} from '../application/use-cases/goal-programs'
+} from '../monthly-goals/goal-programs.server'
 
 const mocks = vi.hoisted(() => ({
   setup: vi.fn(),

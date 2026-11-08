@@ -27,28 +27,25 @@ import {
   type GoalActor,
   type GoalExecutionPolicy,
   type GoalProgramService,
-} from '../application/use-cases/goal-programs'
+} from './goal-programs.server'
 import { progressOf } from '../application/use-cases/goal-progress'
 import {
   gatherPortalGoalFacts,
   recommendationFrom,
 } from '../application/use-cases/goal-recommendation-read'
-import { changeFactsOf } from '../application/use-cases/monthly-portal-goal-change-facts'
+import { changeFactsOf } from './monthly-portal-goal-change-facts.server'
 import {
   averageMeasureOf,
   goalChangesOf,
   goalMonthsOf,
-} from '../application/use-cases/monthly-portal-goal-history'
-import { portalGoalSheetFactsOf } from '../application/use-cases/monthly-portal-goal-offer'
+} from './monthly-portal-goal-history.server'
+import { portalGoalSheetFactsOf } from './monthly-portal-goal-offer.server'
 import {
   subjectNamesOf,
   tilesOf,
   type MonthlyPortalGoalPageDeps,
-} from '../application/use-cases/monthly-portal-goal-page'
-import {
-  monthKeyOf,
-  monthlyPortalGoalOnCard,
-} from '../application/use-cases/monthly-portal-goal-running'
+} from './monthly-portal-goal-page.server'
+import { monthKeyOf, monthlyPortalGoalOnCard } from './monthly-portal-goal-running.server'
 import {
   narrowedFor,
   portalGoalAddBasisOf,

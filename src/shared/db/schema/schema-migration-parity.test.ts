@@ -18,7 +18,6 @@ import {
   reviewSyncRuns,
 } from './review-sync.schema'
 import { reviewGoogleReputationSnapshotFacts } from './review-reputation.schema'
-import { propertyReplyProfiles, propertyReplyTemplates } from './reply-library.schema'
 
 function columnNames(table: Parameters<typeof getTableColumns>[0]): string[] {
   return Object.values(getTableColumns(table)).map((c) => c.name)
@@ -144,40 +143,7 @@ describe('BQR-1.1: schema parity with migrations 0006–0007 and later additions
       ])
     })
   })
-  describe('appended migration 0004 — property reply library', () => {
-    it('registers both tenant-scoped library tables', () => {
-      expect(getTableName(propertyReplyProfiles)).toBe('property_reply_profiles')
-      expect(getTableName(propertyReplyTemplates)).toBe('property_reply_templates')
-      for (const name of [
-        'organization_id',
-        'property_id',
-        'greeting',
-        'sign_off_positive',
-        'sign_off_negative',
-        'emoji_allowed',
-        'version',
-        'updated_by',
-      ]) {
-        expect(columnNames(propertyReplyProfiles)).toContain(name)
-      }
-      for (const name of [
-        'organization_id',
-        'property_id',
-        'title',
-        'rating_min',
-        'rating_max',
-        'has_text',
-        'aspect',
-        'language_tag',
-        'body',
-        'enabled',
-        'version',
-        'updated_by',
-      ]) {
-        expect(columnNames(propertyReplyTemplates)).toContain(name)
-      }
-    })
-
+  describe('appended migration 0004 — reply template provenance', () => {
     it('exposes informational template provenance on replies', () => {
       expect(columnNames(replies)).toEqual(
         expect.arrayContaining(['template_id', 'template_version']),

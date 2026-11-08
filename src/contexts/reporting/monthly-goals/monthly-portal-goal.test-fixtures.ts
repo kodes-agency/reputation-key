@@ -5,33 +5,36 @@ import { vi } from 'vitest'
 import type {
   RecommendationDayCount,
   RecommendationPortal,
-} from '../../domain/goal-recommendation-types'
+} from '../domain/goal-recommendation-types'
 import type {
   GoalMetricEvaluation,
   GoalSubject,
   GoalTargetSource,
-} from '../../domain/goal-program'
+} from '../domain/goal-program'
 import type {
   GoalMonthlyResult,
   GoalProgramBundle,
   GoalProgramVersion,
-} from '../ports/goal-program.repository'
+} from '../application/ports/goal-program.repository'
 import type {
   GoalRecommendationCounts,
   GoalRecommendationFactsPort,
-} from '../ports/goal-recommendation-facts.port'
+} from '../application/ports/goal-recommendation-facts.port'
 import type {
   PortalGoalPromptDeferral,
   PortalGoalPromptDeferralStore,
-} from '../ports/portal-goal-prompt-deferrals.port'
-import { GoalProgramError, type GoalActor } from './goal-program-shared'
-import type { GovernedGoalMetricResult } from './query-goal-metric'
+} from '../application/ports/portal-goal-prompt-deferrals.port'
+import {
+  GoalProgramError,
+  type GoalActor,
+} from '../application/use-cases/goal-program-shared'
+import type { GovernedGoalMetricResult } from '../application/use-cases/query-goal-metric'
 import type {
   PortalGoalCardView,
   PortalGoalOfCard,
-} from '../dto/monthly-portal-goal.types'
-import type { MonthlyPortalGoalPageDeps } from './monthly-portal-goal-page'
-import type { PortalGoalSinglePageDeps } from '../../monthly-goals/get-portal-goal-page.server'
+} from '../application/dto/monthly-portal-goal.types'
+import type { MonthlyPortalGoalPageDeps } from './monthly-portal-goal-page.server'
+import type { PortalGoalSinglePageDeps } from './get-portal-goal-page.server'
 
 export const PROPERTY_ID = 'property-1'
 export const actor: GoalActor = {
