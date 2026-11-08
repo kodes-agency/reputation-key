@@ -112,6 +112,7 @@ describe('stored analysis delivery after a notice lapses', () => {
             attention: 'low',
             issueLabel: null,
             analysisProfileVersion: 'review-analysis-v2',
+            propertyProfileVersion: 1,
             generatedAt: new Date(input.nowEpochMillis - 60_000),
             operationState: 'succeeded',
             operationCommand: 'analysis',

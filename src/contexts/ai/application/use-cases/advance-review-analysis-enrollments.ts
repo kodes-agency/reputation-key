@@ -68,6 +68,7 @@ export type AdvanceReviewAnalysisEnrollmentDependencies = Readonly<{
   enrollments: ReviewAnalysisEnrollmentStorePort
   reopen: AiReviewAnalysisReopenPort
   nowEpochMillis: () => number
+  rebuildProfiles?: () => Promise<void>
   /**
    * Records an enrollment whose advance threw. Optional so existing
    * constructions keep working; without it the failure is only counted.
@@ -215,6 +216,7 @@ export function createAdvanceReviewAnalysisEnrollments(
 
   return {
     async sweep() {
+      await dependencies.rebuildProfiles?.()
       const heads = await dependencies.enrollments.listActionable(
         AI_REVIEW_ANALYSIS_ENROLLMENT_SWEEP_BATCH_SIZE,
       )
