@@ -1,4 +1,3 @@
-import { ratingGoalMutationKeys } from './rating-goal-query-policy'
 // Changes submit only differences against the opening version. A refusal appears once
 // in the banner and refreshes the goal because the page may be stale.
 
@@ -18,6 +17,7 @@ import { RegionError } from '#/components/ui/region-error'
 import { Skeleton } from '#/components/ui/skeleton'
 import { goalKeys } from '#/shared/queries/query-keys'
 import { withRatingGoalRefusals } from './rating-goal-refusal'
+import { ratingGoalMutationKeys } from './rating-goal-query-policy'
 import type { RegionRead } from './rating-goal-section'
 import type { PortalNextStep } from './rating-goal-portal-step'
 import {

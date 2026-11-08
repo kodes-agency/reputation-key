@@ -1,4 +1,3 @@
-import { ratingGoalMutationKeys } from '#/contexts/reporting/rating-goals/ui/rating-goal-query-policy'
 // Keep the wizard lazy and mount a fresh draft per opening. Without a Radix trigger,
 // restore focus to the opener or section heading if the opener disappeared. See your
 // portal goal hands focus to that section, including after navigation.
@@ -11,6 +10,7 @@ import { RATING_GOAL_HEADING_ID } from '#/contexts/reporting/rating-goals/ui/rat
 import type { PortalNextStep } from '#/contexts/reporting/rating-goals/ui/rating-goal-portal-step'
 import type { RatingGoalRecapCommands } from '#/contexts/reporting/rating-goals/ui/rating-goal-recap'
 import type { RegionRead } from '#/contexts/reporting/rating-goals/ui/rating-goal-section'
+import { ratingGoalMutationKeys } from '#/contexts/reporting/rating-goals/ui/rating-goal-query-policy'
 import type { RatingGoalWizardIntent } from '#/contexts/reporting/rating-goals/ui/rating-goal-wizard-view'
 import {
   ratingGoalCardQuery,

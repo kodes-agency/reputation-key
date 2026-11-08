@@ -1,4 +1,3 @@
-import { ratingGoalRelatedKeys } from '#/contexts/reporting/rating-goals/ui/rating-goal-query-policy'
 import { useTenantScope } from '#/shared/hooks/useTenantScope'
 // Keep queries and server functions behind an on-demand loader import so they stay out
 // of first paint. Access requires goal.use and goal.read.
@@ -22,6 +21,7 @@ import {
 } from '#/contexts/reporting/rating-goals/ui/rating-goal-detail'
 import { RatingGoalDetailActions } from '#/contexts/reporting/rating-goals/ui/rating-goal-detail-actions'
 import { withRatingGoalRefusals } from '#/contexts/reporting/rating-goals/ui/rating-goal-refusal'
+import { ratingGoalRelatedKeys } from '#/contexts/reporting/rating-goals/ui/rating-goal-query-policy'
 import { goalPersonNames } from '#/components/goals/goal-target-marker'
 import { ratingGoalStatusBadge } from '#/contexts/reporting/rating-goals/ui/rating-goal-view'
 import { usePermissions } from '#/shared/hooks/usePermissions'
