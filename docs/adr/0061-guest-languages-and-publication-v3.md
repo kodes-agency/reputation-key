@@ -198,7 +198,7 @@ ora di {zone}`; a test covers days 1, 8 and 11.
 - **Template slots drive wording.** The property name never follows "de" in
   French (it would need an elision before a vowel), and the French deadline
   names the zone in brackets for the same reason.
-- **One loader entry per pack.** `loadGuestPortalCopyV2` reaches each pack
+- **One loader entry per pack.** `loadGuestPortalCopy` reaches each pack
   through its own dynamic import, so a request still ships one language. The
   Linktree default title is pinned beside the Linktree rules for every
   language, and a test holds it to the pack's own wording.

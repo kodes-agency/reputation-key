@@ -7,7 +7,6 @@ import {
   type OAuthCallbackQuotaCounter,
 } from '#/contexts/integration/application/oauth-callback-abuse-gate'
 import { createRedisOAuthCallbackQuotaCounter } from '#/contexts/integration/infrastructure/oauth-callback-quota-counter'
-import { assertDirectCredentialEgressAllowed } from '#/shared/config/provider-config-guards'
 import { getLogger } from '#/shared/observability/logger'
 import type { buildIdentityContext } from '#/contexts/identity/build'
 import type { buildPropertyContext } from '#/contexts/property/build'
@@ -90,7 +89,6 @@ export function wireIntegration(
       pubsubNotificationTypes: env.GBP_PUBSUB_NOTIFICATION_TYPES,
     },
     googleOAuth: options?.providers?.googleOAuth,
-    gbpApi: options?.providers?.gbpApi,
     googleAuthorizedProviderExecutor,
     googleDisconnectRevokeStore,
     ...(googleAuthorizedProviderExecutor ? { authorizeGoogleOAuthProviderCall } : {}),
@@ -109,8 +107,6 @@ export function wireIntegration(
     oauthCallbackAbuseGate,
     refreshPolicyStoreRequired: identity.policy.refreshRequired,
     googleRefreshCoordination,
-    assertDirectCredentialEgressAllowed: (operation) =>
-      assertDirectCredentialEgressAllowed(env, operation),
   })
 
   return integration

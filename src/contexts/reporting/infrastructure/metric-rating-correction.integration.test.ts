@@ -24,7 +24,6 @@ import {
   propertyId,
   ratingId,
 } from '#/shared/domain/ids'
-import type { PortalGroupPublicApi } from '#/contexts/portal/application/public-api'
 import type { GoalMetricAggregateQuery } from '../application/ports/metric.repository'
 import { recordMetrics } from '../application/use-cases/record-metric'
 import { retractMetrics } from '../application/use-cases/retract-metric'
@@ -60,14 +59,6 @@ const VERSIONS = [
   METRIC_VERSION_IDS.portalRatingCountGoal,
   METRIC_VERSION_IDS.portalRatingAverageGoal,
 ] as const
-
-const noGroups: PortalGroupPublicApi = {
-  findGroupForPortal: async () => null,
-  getGroupPortalIds: async () => [],
-  findGroupIdsByPortalIds: async () => [],
-  portalGroupBelongsToProperty: async () => false,
-  getGroupInfo: async () => null,
-}
 
 function goalQuery(
   definitionVersionId: string,
@@ -303,7 +294,7 @@ describe.sequential('Rating correction readings (integration)', () => {
   it('leaves a Goal on either measure readable after a correction, not quarantined', async () => {
     await submitRating(ORIGINAL_EVENT, ORIGINAL_STARS, ORIGINAL_AT, null)
     await submitRating(CORRECTION_EVENT, CORRECTED_STARS, CORRECTION_AT, ORIGINAL_EVENT)
-    const status = createGoalMetricSourceStatus(db, noGroups)
+    const status = createGoalMetricSourceStatus(db)
     const events = ['guest.rating.submitted', 'guest.rating.retracted']
 
     await expect(status.inspect(COUNT_QUERY, events)).resolves.toMatchObject({

@@ -4,10 +4,15 @@
 import { z } from 'zod/v4'
 import { createLocalJWKSet, jwtVerify } from 'jose'
 import type { GoogleOAuthPort } from '../../application/ports/google-oauth.port'
-import type { GoogleAuthorizedProviderExecutor } from '../../application/ports/google-authorized-provider-executor.port'
+import type {
+  GoogleAuthorizedProviderExecutor,
+  GoogleProviderExecutionResult,
+} from '../../application/ports/google-authorized-provider-executor.port'
 import type { GoogleProviderRouteDescriptor } from '#/shared/google-provider-control/route-catalogue'
 import { integrationError } from '../../domain/errors'
 import { trace } from '#/shared/observability/trace'
+import { isGbpApiError } from '../../domain/gbp-api-error'
+import { executeGoogleProviderResponse } from '../../provider/google-client.server'
 import {
   GOOGLE_BUSINESS_MANAGE_SCOPE,
   GOOGLE_EMAIL_SCOPE,
@@ -39,7 +44,6 @@ const googleJwksSchema = z.object({
   keys: z.array(googleJwkSchema).min(1).max(20),
 })
 
-const TOKEN_RESPONSE_MAX_BYTES = 64 * 1024
 const JWKS_RESPONSE_MAX_BYTES = 1024 * 1024
 const GOOGLE_PROVIDER_TIMEOUT_MS = 10_000
 const JWKS_DEFAULT_TTL_MS = 5 * 60_000
@@ -110,6 +114,45 @@ function isJsonMediaType(value: string): boolean {
   )
 }
 
+function parseCredentialResponse(
+  result: Extract<GoogleProviderExecutionResult, { ok: true }>,
+  routeKey: GoogleProviderRouteDescriptor['routeKey'],
+  errorCode: 'oauth_failed' | 'token_refresh_failed',
+): unknown {
+  try {
+    if (result.status < 200 || result.status >= 300) {
+      if (
+        routeKey === 'oauth.token.refresh' &&
+        isRevokedRefreshGrant(result.status, parseRefusalBody(result.body))
+      ) {
+        throw revokedRefreshGrantError()
+      }
+      if (routeKey === 'oauth.token.exchange' && result.status >= 500) {
+        throw ambiguousExchangeError()
+      }
+      throw integrationError(
+        errorCode,
+        `Google credential provider rejected the request with status ${result.status}`,
+      )
+    }
+    if (
+      result.headers.contentType !== null &&
+      !isJsonMediaType(result.headers.contentType)
+    ) {
+      if (routeKey === 'oauth.token.exchange') throw ambiguousExchangeError()
+      throw integrationError(errorCode, 'Google credential response was malformed')
+    }
+    try {
+      return JSON.parse(new TextDecoder().decode(result.body))
+    } catch {
+      if (routeKey === 'oauth.token.exchange') throw ambiguousExchangeError()
+      throw integrationError(errorCode, 'Google credential response was malformed')
+    }
+  } finally {
+    result.body.fill(0)
+  }
+}
+
 async function readBoundedJson(response: Response, maxBytes: number): Promise<unknown> {
   const declaredLength = response.headers.get('content-length')
   if (declaredLength && Number(declaredLength) > maxBytes) {
@@ -154,19 +197,6 @@ async function readBoundedJson(response: Response, maxBytes: number): Promise<un
   } finally {
     bytes.fill(0)
     for (const chunk of chunks) chunk.fill(0)
-  }
-}
-
-/** A bounded read of a direct refusal; an unreadable body is not a revocation. */
-async function readRefusal(response: Response): Promise<unknown> {
-  if (!OAUTH_ERROR_STATUSES.has(response.status)) {
-    await response.body?.cancel()
-    return null
-  }
-  try {
-    return await readBoundedJson(response, TOKEN_RESPONSE_MAX_BYTES)
-  } catch {
-    return null
   }
 }
 
@@ -232,25 +262,14 @@ function verifiedEmailClaim(email: unknown, emailVerified: unknown): string | nu
   return address
 }
 
-// BQC-4.3: endpoint URLs arrive via construction config from the composition
-// root's providerConfigFor mapping — no hardcoded or fallback endpoints
-// (ADR 0031/0048).
 export const createGoogleOAuthAdapter = (config: {
   clientId: string
   clientSecret: string
-  tokenUrl: string
   jwksUrl: string
-  revokeUrl: string
   clock: () => Date
   /** Governed production transport. JWKS remains the sole fixed trust read. */
   executor?: GoogleAuthorizedProviderExecutor
   nowMs?: () => number
-  /**
-   * Production guard supplied by the composition root. Credential-bearing
-   * routes call it immediately before any direct socket; production always
-   * refuses while local/test adapters remain deterministic.
-   */
-  assertDirectCredentialEgressAllowed?: (operation: string) => void
 }): GoogleOAuthPort => {
   const clock = config.clock
   const nowMs = config.nowMs ?? (() => clock().getTime())
@@ -331,62 +350,33 @@ export const createGoogleOAuthAdapter = (config: {
   ): Promise<unknown> => {
     const executor = config.executor
     if (!executor) throw new Error('Google credential executor is unavailable')
-    const result = await executor.execute(descriptor, {
-      authorization,
-      deadlineMs: nowMs() + GOOGLE_PROVIDER_TIMEOUT_MS,
-    })
-    if (!result.ok) {
+    let result
+    try {
+      result = await executeGoogleProviderResponse({
+        operation: descriptor.routeKey,
+        descriptor,
+        authorization,
+        executor,
+        nowMs,
+        timeoutMs: GOOGLE_PROVIDER_TIMEOUT_MS,
+      })
+    } catch (error) {
       if (
         descriptor.routeKey === 'oauth.token.exchange' &&
-        ['transport_error', 'deadline_exceeded', 'response_too_large'].includes(
-          result.code,
-        )
+        isGbpApiError(error) &&
+        (error.dispatch === 'unknown' ||
+          ['transport_error', 'deadline_exceeded', 'response_too_large'].includes(
+            error.executionCode ?? '',
+          ))
       ) {
         throw ambiguousExchangeError()
       }
       throw integrationError(errorCode, 'Google credential provider is unavailable')
     }
-    if (result.status < 200 || result.status >= 300) {
-      // The refusal code must be read before the body is zeroed.
-      const revoked =
-        descriptor.routeKey === 'oauth.token.refresh' &&
-        isRevokedRefreshGrant(result.status, parseRefusalBody(result.body))
-      result.body.fill(0)
-      if (revoked) throw revokedRefreshGrantError()
-      if (descriptor.routeKey === 'oauth.token.exchange' && result.status >= 500) {
-        throw ambiguousExchangeError()
-      }
-      throw integrationError(
-        errorCode,
-        `Google credential provider rejected the request with status ${result.status}`,
-      )
-    }
-    if (
-      result.headers.contentType !== null &&
-      !isJsonMediaType(result.headers.contentType)
-    ) {
-      result.body.fill(0)
-      if (descriptor.routeKey === 'oauth.token.exchange') {
-        throw ambiguousExchangeError()
-      }
-      throw integrationError(errorCode, 'Google credential response was malformed')
-    }
-    try {
-      return JSON.parse(new TextDecoder().decode(result.body))
-    } catch {
-      if (descriptor.routeKey === 'oauth.token.exchange') {
-        throw ambiguousExchangeError()
-      }
-      throw integrationError(errorCode, 'Google credential response was malformed')
-    } finally {
-      result.body.fill(0)
-    }
+    return parseCredentialResponse(result, descriptor.routeKey, errorCode)
   }
 
-  /**
-   * The three sources of a token response: an already-preserved result being
-   * revalidated, the governed executor, or the direct-egress fallback.
-   */
+  /** Recovery revalidates the preserved response without exchanging the code again. */
   const fetchTokenResponse = async (
     input: Parameters<GoogleOAuthPort['exchangeCode']>[0],
   ): Promise<unknown> => {
@@ -399,53 +389,24 @@ export const createGoogleOAuthAdapter = (config: {
         id_token: input.preservedResult.idToken,
       }
     }
-    if (config.executor) {
-      if (!input.authorization) {
-        throw integrationError(
-          'oauth_failed',
-          'Google OAuth exchange authorization is unavailable',
-        )
-      }
-      return executeCredentialJson(
-        {
-          routeKey: 'oauth.token.exchange',
-          code: input.code,
-          clientId: config.clientId,
-          clientSecret: config.clientSecret,
-          redirectUri: input.redirectUri,
-          codeVerifier: input.codeVerifier,
-        },
-        input.authorization,
-        'oauth_failed',
-      )
-    }
-    config.assertDirectCredentialEgressAllowed?.('oauth.token.exchange')
-    const response = await trace('googleOAuth.exchangeCode', () =>
-      fetch(config.tokenUrl, {
-        method: 'POST',
-        redirect: 'error',
-        signal: AbortSignal.timeout(GOOGLE_PROVIDER_TIMEOUT_MS),
-        headers: {
-          'Content-Type': 'application/x-www-form-urlencoded',
-        },
-        body: new URLSearchParams({
-          code: input.code,
-          client_id: config.clientId,
-          client_secret: config.clientSecret,
-          redirect_uri: input.redirectUri,
-          grant_type: 'authorization_code',
-          code_verifier: input.codeVerifier,
-        }),
-      }),
-    )
-    if (!response.ok) {
-      await response.body?.cancel()
+    if (!config.executor || !input.authorization) {
       throw integrationError(
         'oauth_failed',
-        `Google OAuth code exchange failed with status ${response.status}`,
+        'Google OAuth exchange authorization is unavailable',
       )
     }
-    return readBoundedJson(response, TOKEN_RESPONSE_MAX_BYTES)
+    return executeCredentialJson(
+      {
+        routeKey: 'oauth.token.exchange',
+        code: input.code,
+        clientId: config.clientId,
+        clientSecret: config.clientSecret,
+        redirectUri: input.redirectUri,
+        codeVerifier: input.codeVerifier,
+      },
+      input.authorization,
+      'oauth_failed',
+    )
   }
 
   /**
@@ -503,8 +464,7 @@ export const createGoogleOAuthAdapter = (config: {
 
     const parsed = googleTokenResponseSchema.safeParse(raw)
     if (!parsed.success) {
-      if (config.executor) throw ambiguousExchangeError()
-      throw parsed.error
+      throw ambiguousExchangeError()
     }
     const data = parsed.data
     // Scopes first: a grant without Business Profile access is the one refusal
@@ -543,55 +503,23 @@ export const createGoogleOAuthAdapter = (config: {
     refreshToken,
     authorization,
   ) => {
-    if (config.executor) {
-      if (!authorization) {
-        throw integrationError(
-          'token_refresh_failed',
-          'Google token refresh authorization is unavailable',
-        )
-      }
-      const data = googleTokenRefreshSchema.parse(
-        await executeCredentialJson(
-          {
-            routeKey: 'oauth.token.refresh',
-            refreshToken,
-            clientId: config.clientId,
-            clientSecret: config.clientSecret,
-          },
-          authorization,
-          'token_refresh_failed',
-        ),
-      )
-      return { accessToken: data.access_token, expiresIn: data.expires_in }
-    }
-    config.assertDirectCredentialEgressAllowed?.('oauth.token.refresh')
-    const response = await trace('googleOAuth.refreshToken', () =>
-      fetch(config.tokenUrl, {
-        method: 'POST',
-        redirect: 'error',
-        signal: AbortSignal.timeout(GOOGLE_PROVIDER_TIMEOUT_MS),
-        headers: {
-          'Content-Type': 'application/x-www-form-urlencoded',
-        },
-        body: new URLSearchParams({
-          refresh_token: refreshToken,
-          client_id: config.clientId,
-          client_secret: config.clientSecret,
-          grant_type: 'refresh_token',
-        }),
-      }),
-    )
-    if (!response.ok) {
-      if (isRevokedRefreshGrant(response.status, await readRefusal(response))) {
-        throw revokedRefreshGrantError()
-      }
+    if (!config.executor || !authorization) {
       throw integrationError(
         'token_refresh_failed',
-        `Google OAuth token refresh failed with status ${response.status}`,
+        'Google token refresh authorization is unavailable',
       )
     }
     const data = googleTokenRefreshSchema.parse(
-      await readBoundedJson(response, TOKEN_RESPONSE_MAX_BYTES),
+      await executeCredentialJson(
+        {
+          routeKey: 'oauth.token.refresh',
+          refreshToken,
+          clientId: config.clientId,
+          clientSecret: config.clientSecret,
+        },
+        authorization,
+        'token_refresh_failed',
+      ),
     )
     return { accessToken: data.access_token, expiresIn: data.expires_in }
   }
@@ -599,44 +527,24 @@ export const createGoogleOAuthAdapter = (config: {
   const revokeTokenWithOutcome: NonNullable<
     GoogleOAuthPort['revokeTokenWithOutcome']
   > = async (token, authorization) => {
-    if (config.executor) {
-      if (!authorization) {
-        return 'confirmed_not_sent'
-      }
-      const result = await config.executor.execute(
-        { routeKey: 'oauth.revoke', token },
-        { authorization, deadlineMs: nowMs() + GOOGLE_PROVIDER_TIMEOUT_MS },
-      )
-      if (!result.ok) {
-        return result.code === 'malformed_request' ||
-          result.code === 'admission_denied' ||
-          result.code === 'admission_mismatch'
-          ? 'confirmed_not_sent'
-          : 'cleanup_ambiguous'
-      }
-      result.body.fill(0)
-      if (result.status < 200 || result.status >= 300) {
-        return 'cleanup_ambiguous'
-      }
-      return 'confirmed_revoked'
-    }
-    config.assertDirectCredentialEgressAllowed?.('oauth.revoke')
+    if (!config.executor || !authorization) return 'confirmed_not_sent'
     try {
-      const response = await trace('googleOAuth.revokeToken', () =>
-        fetch(config.revokeUrl, {
-          method: 'POST',
-          redirect: 'error',
-          signal: AbortSignal.timeout(GOOGLE_PROVIDER_TIMEOUT_MS),
-          headers: {
-            'Content-Type': 'application/x-www-form-urlencoded',
-          },
-          body: new URLSearchParams({ token }),
-        }),
-      )
-      await response.body?.cancel()
-      return response.ok ? 'confirmed_revoked' : 'cleanup_ambiguous'
-    } catch {
-      return 'cleanup_ambiguous'
+      const result = await executeGoogleProviderResponse({
+        operation: 'oauth.revoke',
+        descriptor: { routeKey: 'oauth.revoke', token },
+        authorization,
+        executor: config.executor,
+        nowMs,
+        timeoutMs: GOOGLE_PROVIDER_TIMEOUT_MS,
+      })
+      result.body.fill(0)
+      return result.status >= 200 && result.status < 300
+        ? 'confirmed_revoked'
+        : 'cleanup_ambiguous'
+    } catch (error) {
+      return isGbpApiError(error) && error.dispatch === 'not_sent'
+        ? 'confirmed_not_sent'
+        : 'cleanup_ambiguous'
     }
   }
 

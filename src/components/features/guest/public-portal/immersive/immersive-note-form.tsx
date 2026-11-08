@@ -3,7 +3,7 @@ import type { RefObject } from 'react'
 import { submitHandler } from '#/components/forms/form-submit'
 import { guestPrivateFeedbackFormDto } from '#/contexts/guest/application/dto/guest-response-form.dto'
 import { PRIVATE_FEEDBACK_MAX_LENGTH } from '#/contexts/guest/application/dto/private-feedback.dto'
-import type { GuestPortalCopyV2 } from '../language-packs/guest-copy-v2'
+import type { GuestPortalCopy } from '../language-packs/guest-copy'
 import { ImmersiveBanner } from './immersive-banner'
 import { ImmersiveHoneypot } from './immersive-honeypot'
 
@@ -25,7 +25,7 @@ export function ImmersiveNoteForm({
   onSubmit,
   onDismiss,
 }: Readonly<{
-  pack: GuestPortalCopyV2
+  pack: GuestPortalCopy
   idPrefix: string
   initialText: string
   fieldRef: RefObject<HTMLTextAreaElement | null>

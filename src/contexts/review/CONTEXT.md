@@ -600,6 +600,9 @@ full-read window still six hours. Before writing a head reputation fact, the
 writer rechecks the completed-listing proof and active snapshot state. If that
 check fails, it defers the fact until the next look and logs
 `review_head_check_fact_not_recorded`; it never falls back to the earlier state.
+The fact decision compares acquisition times: a delayed head page cannot replace
+numbers acquired later, even when its review writes finish afterwards. Equal
+millisecond timestamps keep the existing one-millisecond tie break.
 
 Reconciliation-age health uses the configured `REVIEW_RECONCILE_WITHIN_HOURS`
 window plus two hours (8 by default, 26 for daily reads), and carries that limit

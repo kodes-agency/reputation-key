@@ -17,7 +17,7 @@ import type {
   PortalPreview,
   PortalPreviewExperience,
 } from '#/contexts/portal/application/portal-management-contracts'
-import type { GuestPortalCopyV2 } from '#/components/features/guest'
+import type { GuestPortalCopy } from '#/components/features/guest'
 import {
   ARRIVAL_STATE,
   previewStateOptions,
@@ -48,7 +48,7 @@ export type RenderPage = (
 type Props = Readonly<{
   preview: PortalPreview
   experience: PortalPreviewExperience
-  copy: GuestPortalCopyV2
+  copy: GuestPortalCopy
   locale: GuestLocale
   stateId: PreviewStateId
   onStateChange: (id: PreviewStateId) => void

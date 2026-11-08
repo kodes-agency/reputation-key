@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { GUEST_LOCALES, type GuestLocale } from '#/shared/domain/guest-locale'
-import { bgV2 } from '../language-packs/bg-v2'
-import { enV2 } from '../language-packs/en-v2'
+import { bgCopy } from '../language-packs/bg'
+import { enCopy } from '../language-packs/en'
 import {
   buildLanguageOptions,
   chipAccessibleName,
@@ -18,7 +18,7 @@ const optionsOf = (locales: readonly GuestLocale[], selected: GuestLocale = 'en'
     selectedLocale: selected,
     token: TOKEN,
     accessArtifactId: undefined,
-    copy: enV2.copy,
+    copy: enCopy.copy,
   })
 
 describe('offersLanguageChoice', () => {
@@ -68,7 +68,7 @@ describe('buildLanguageOptions', () => {
       selectedLocale: 'bg',
       token: TOKEN,
       accessArtifactId: undefined,
-      copy: bgV2.copy,
+      copy: bgCopy.copy,
     })
     expect(options[0]).toMatchObject({ nativeName: 'Български', secondaryName: null })
     expect(options[1]).toMatchObject({
@@ -83,7 +83,7 @@ describe('buildLanguageOptions', () => {
       selectedLocale: 'en',
       token: TOKEN,
       accessArtifactId: 'art_7',
-      copy: enV2.copy,
+      copy: enCopy.copy,
     })
     expect(options.map((o) => o.href)).toEqual([
       '/p/tok_abc?locale=en&accessArtifact=art_7',
@@ -105,14 +105,14 @@ describe('the chip', () => {
   })
 
   it('is named by its visible code, the word for language and the language', () => {
-    expect(chipAccessibleName('en', enV2.copy)).toBe('EN, Language: English')
-    expect(chipAccessibleName('bg', bgV2.copy)).toBe('БГ, Език: Български')
+    expect(chipAccessibleName('en', enCopy.copy)).toBe('EN, Language: English')
+    expect(chipAccessibleName('bg', bgCopy.copy)).toBe('БГ, Език: Български')
   })
 })
 
 describe('previewLanguageOptions (the admin preview’s sheet)', () => {
   const preview = (locales: readonly GuestLocale[], selected: GuestLocale = 'en') =>
-    previewLanguageOptions({ locales, selectedLocale: selected, copy: enV2.copy })
+    previewLanguageOptions({ locales, selectedLocale: selected, copy: enCopy.copy })
 
   it('lists the same rows as the page does, in the same order', () => {
     const locales: readonly GuestLocale[] = ['bg', 'en', 'de']

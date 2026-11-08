@@ -1,6 +1,6 @@
 import { GUEST_LOCALE_METADATA, type GuestLocale } from '#/shared/domain/guest-locale'
 import { guestLocaleHref } from '../guest-locale-href'
-import type { GuestPortalCopyV2 } from '../language-packs/guest-copy-v2'
+import type { GuestPortalCopy } from '../language-packs/guest-copy'
 
 /** The pack key that names each locale in the pack's own language. */
 const LANGUAGE_NAME_KEYS = {
@@ -10,12 +10,12 @@ const LANGUAGE_NAME_KEYS = {
   it: 'languageNameIt',
   fr: 'languageNameFr',
   de: 'languageNameDe',
-} as const satisfies Record<GuestLocale, keyof GuestPortalCopyV2['copy']>
+} as const satisfies Record<GuestLocale, keyof GuestPortalCopy['copy']>
 
 /** The texts of the language chip and sheet: a whole pack's copy satisfies it. */
 export type LanguageSwitcherCopy = Readonly<
   Pick<
-    GuestPortalCopyV2['copy'],
+    GuestPortalCopy['copy'],
     | 'languageChipLabel'
     | 'languageSheetTitle'
     | 'languageSheetHint'

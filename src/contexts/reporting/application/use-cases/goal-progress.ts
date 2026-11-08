@@ -94,7 +94,7 @@ export type GoalProgressInput = Readonly<{
 
 export type GoalProgressDeps = Readonly<{
   reads: Pick<GoalProgramService, 'list' | 'get'>
-  metrics: Pick<GoalMetricReadPort, 'queryGoalMetric'>
+  metrics: Pick<GoalMetricReadPort, 'queryGoalMetric' | 'queryGoalMetrics'>
   now: () => Date
 }>
 
@@ -270,14 +270,9 @@ export async function readSubjectMonth(
 ): Promise<Exclude<GoalProgressReading, Readonly<{ kind: 'not_started' }>>> {
   return readingOf(
     version,
-    await deps.metrics.queryGoalMetric({
-      organizationId: toOrganizationId(actor.organizationId),
-      propertyId: toPropertyId(version.propertyId),
-      definitionVersionId: version.metricDefinitionVersionId,
-      subject: metricSubject(subject),
-      periodStart: period.start,
-      periodEnd: period.end,
-    }),
+    await deps.metrics.queryGoalMetric(
+      subjectMonthQuery(version, subject, period, actor),
+    ),
   )
 }
 
@@ -286,14 +281,12 @@ export async function readSubjectMonth(
  * target and the same wording facts for the goal's page, a group's card and the
  * Goals list.
  */
-export async function progressOf(
-  deps: Pick<GoalProgressDeps, 'metrics'>,
+export function progressPlanOf(
   bundle: GoalProgramBundle,
   subject: GoalSubject,
   status: ShownStatus,
   now: Date,
-  actor: GoalActor,
-): Promise<GoalProgress | null> {
+) {
   const assignment = assignmentFor(bundle, subject, now)
   if (!assignment) return null
   const version = versionOf(bundle, assignment)
@@ -306,14 +299,11 @@ export async function progressOf(
     version.propertyTimezone,
     'monthly',
   )
-  const reading: GoalProgressReading = started
-    ? await readSubjectMonth(deps, version, subject, period, actor)
-    : { kind: 'not_started' }
   const { setAt, setBy } = goalTargetProvenance(bundle, version)
   // A month opens under the assignment's own version, so that is the version
   // its target falls back to.
   const month = runningMonthOf(bundle, assignment, now)
-  return {
+  const progress: GoalProgress = {
     programId: bundle.program.id,
     name: bundle.program.name,
     metric: version.metric,
@@ -325,7 +315,26 @@ export async function progressOf(
     period,
     timezone: version.propertyTimezone,
     asOf: now,
-    reading,
+    reading: { kind: 'not_started' },
+  }
+  return { progress, version, started }
+}
+
+export async function progressOf(
+  deps: Pick<GoalProgressDeps, 'metrics'>,
+  bundle: GoalProgramBundle,
+  subject: GoalSubject,
+  status: ShownStatus,
+  now: Date,
+  actor: GoalActor,
+): Promise<GoalProgress | null> {
+  const plan = progressPlanOf(bundle, subject, status, now)
+  if (!plan) return null
+  return {
+    ...plan.progress,
+    reading: plan.started
+      ? await readSubjectMonth(deps, plan.version, subject, plan.progress.period, actor)
+      : plan.progress.reading,
   }
 }
 
@@ -367,5 +376,21 @@ export function createGoalProgramProgressReader(
       }),
     )
     return read.flat()
+  }
+}
+
+export function subjectMonthQuery(
+  version: Pick<GoalProgramVersion, 'propertyId' | 'metricDefinitionVersionId'>,
+  subject: GoalSubject,
+  period: Readonly<{ start: Date; end: Date }>,
+  actor: GoalActor,
+) {
+  return {
+    organizationId: toOrganizationId(actor.organizationId),
+    propertyId: toPropertyId(version.propertyId),
+    definitionVersionId: version.metricDefinitionVersionId,
+    subject: metricSubject(subject),
+    periodStart: period.start,
+    periodEnd: period.end,
   }
 }

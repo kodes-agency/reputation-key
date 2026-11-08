@@ -102,7 +102,7 @@ separated the essential session cookie from the short-lived network marker.
 - The Consequences rule above is unchanged: the line names the essential cookie and the
   privacy-protected marker and does not claim anonymity. Each language pack carries a
   translation that names both and the absence of ads and third-party trackers, held by
-  `guest-copy-v2.test.ts`.
+  `guest-copy.test.ts`.
 - Visit recording stays independent of the acknowledgement. The notice is informational.
 - The privacy link stays the English `/privacy` page for the closed beta.
 - The printed QR kit shows only the host under the code. The token path is the code's own

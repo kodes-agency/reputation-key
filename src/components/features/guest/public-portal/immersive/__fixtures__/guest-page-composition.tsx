@@ -7,8 +7,8 @@
 
 import { useEffect, useState } from 'react'
 import type { GuestPagePreviewState } from '../../guest-page-preview-state'
-import type { GuestPortalCopyV2 } from '../../language-packs/guest-copy-v2'
-import { enV2 } from '../../language-packs/en-v2'
+import type { GuestPortalCopy } from '../../language-packs/guest-copy'
+import { enCopy } from '../../language-packs/en'
 import { ImmersiveFooterView } from '../immersive-footer'
 import { immersiveFooterCopy, type ImmersiveFooterCopy } from '../immersive-footer-copy'
 import { ImmersiveLinktree, type ImmersiveLinktreeLink } from '../immersive-linktree'
@@ -37,7 +37,7 @@ export type GuestPageCompositionProps = Readonly<{
   chrome?: AvelaChromeProps
   state?: GuestPagePreviewState
   /** The pack the rating card and the footer speak. */
-  pack?: GuestPortalCopyV2
+  pack?: GuestPortalCopy
   footerStart?: FooterStart
   footerCopy?: Partial<ImmersiveFooterCopy>
   links?: readonly ImmersiveLinktreeLink[]
@@ -69,7 +69,7 @@ export function GuestPageComposition({
   withPhoto,
   chrome,
   state = { kind: 'arrival' },
-  pack = enV2,
+  pack = enCopy,
   footerStart = 'acknowledged',
   footerCopy,
   links = LINKTREE_LINKS_EN,

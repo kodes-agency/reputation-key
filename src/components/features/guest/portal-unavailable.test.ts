@@ -14,10 +14,10 @@ import {
   type PortalUnavailableCopy,
 } from './portal-unavailable-copy'
 import { PORTAL_UNAVAILABLE_CSS } from './portal-unavailable-styles'
-import { loadGuestPortalCopyV2 } from './public-portal/language-packs/load-guest-copy-v2'
+import { loadGuestPortalCopy } from './public-portal/language-packs/load-guest-copy'
 
 const PACKS = await Promise.all(
-  GUEST_LOCALES.map((locale) => loadGuestPortalCopyV2(locale)),
+  GUEST_LOCALES.map((locale) => loadGuestPortalCopy(locale)),
 )
 const COPIES = PACKS.map(unavailableCopyOf)
 const GERMAN = COPIES.find((copy) => copy.locale === 'de') as PortalUnavailableCopy

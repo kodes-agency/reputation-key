@@ -1,12 +1,12 @@
-import { defineGuestCopyV2 } from './guest-copy-v2'
+import { defineGuestCopy } from './guest-copy'
 
-// Italian guest copy, generation 2 (schema version 3 snapshots). Sentences
+// Italian guest copy for schema version 3 snapshots. Sentences
 // address the guest as "Lei" (la sua esperienza, riprovi); buttons use the
 // neutral forms every Italian interface uses (Invia, Rimuovi, Mantieni or the
 // infinitive), never a tu imperative with a pronoun on the end. No native check happens
 // during the closed beta (owner decision 5, 2026-09-30). Industry-neutral: no
 // text names a kind of place.
-export const itV2 = defineGuestCopyV2({
+export const itCopy = defineGuestCopy({
   locale: 'it',
   version: 'guest-ui-it-v2',
   copy: {

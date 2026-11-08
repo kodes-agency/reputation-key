@@ -1,19 +1,19 @@
 import type { Meta, StoryObj } from '@storybook/react'
 import { expect, userEvent, within } from 'storybook/test'
 import { GUEST_FONT_STYLESHEET } from '#/shared/font-sets'
-import { bgV2 } from '../language-packs/bg-v2'
-import { deV2 } from '../language-packs/de-v2'
-import { enV2 } from '../language-packs/en-v2'
-import { esV2 } from '../language-packs/es-v2'
-import { frV2 } from '../language-packs/fr-v2'
-import { itV2 } from '../language-packs/it-v2'
+import { bgCopy } from '../language-packs/bg'
+import { deCopy } from '../language-packs/de'
+import { enCopy } from '../language-packs/en'
+import { esCopy } from '../language-packs/es'
+import { frCopy } from '../language-packs/fr'
+import { itCopy } from '../language-packs/it'
 import { immersiveResponseProps } from './immersive-response-preview'
 import { ImmersiveResponseView } from './immersive-response-view'
 import { ImmersiveShell } from './immersive-shell'
 
 const props = immersiveResponseProps(
   { kind: 'note-writing', rating: 2 },
-  { pack: enV2, displayName: 'Avela Resort' },
+  { pack: enCopy, displayName: 'Avela Resort' },
 )
 
 // Leave the feedback error, correction form and withdrawal confirmation open
@@ -78,8 +78,8 @@ export default meta
 type Story = StoryObj<typeof ImmersiveResponseView>
 
 export const English: Story = {}
-export const Bulgarian: Story = { args: { pack: bgV2 } }
-export const German: Story = { args: { pack: deV2 } }
-export const Spanish: Story = { args: { pack: esV2 } }
-export const French: Story = { args: { pack: frV2 } }
-export const Italian: Story = { args: { pack: itV2 } }
+export const Bulgarian: Story = { args: { pack: bgCopy } }
+export const German: Story = { args: { pack: deCopy } }
+export const Spanish: Story = { args: { pack: esCopy } }
+export const French: Story = { args: { pack: frCopy } }
+export const Italian: Story = { args: { pack: itCopy } }

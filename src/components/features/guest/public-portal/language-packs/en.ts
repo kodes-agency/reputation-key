@@ -1,9 +1,8 @@
-import { defineGuestCopyV2 } from './guest-copy-v2'
+import { defineGuestCopy } from './guest-copy'
 
-// English guest copy, generation 2 (schema version 3 snapshots). Wording
-// follows the round 4 boards G01-G12. Industry-neutral: a guest has a visit,
-// and nothing here names a kind of place.
-export const enV2 = defineGuestCopyV2({
+// English guest copy is industry-neutral: a guest has a visit, and nothing
+// here names a kind of place.
+export const enCopy = defineGuestCopy({
   locale: 'en',
   version: 'guest-ui-en-v2',
   copy: {

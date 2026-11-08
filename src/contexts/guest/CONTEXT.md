@@ -194,6 +194,10 @@ PostgreSQL integration tests cover receipt atomicity, exact deadlines, replay,
 withdrawal/reveal serialization, outbox readiness, and tenant fences.
 
 Public Portal UI lives in `src/components/features/guest/public-portal/immersive/`.
+`public-portal/language-packs/load-guest-copy.ts` loads one immutable template
+pack for the selected locale. `guest-copy.ts` defines the browser-safe copy
+contract; locale module names are plain while stored pack IDs retain their
+versions. Frozen copy from snapshot schemas 1 and 2 lives only in test fixtures.
 The response phone stories leave feedback validation, rating correction and
 withdrawal confirmation open in all six languages for the shared phone-width
 and accessibility checks.
