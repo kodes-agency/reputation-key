@@ -21,7 +21,7 @@ export type {
 export const timeRangePreset = z.enum(['7d', '30d', '60d', '90d', '180d', 'all'])
 export type TimeRangePreset = z.infer<typeof timeRangePreset>
 
-/** A window preset the overview can read; All Time is a lifetime figure, not a window. */
+/** A window preset the overview can read; All Time has no comparison window. */
 export type PortalResultsTimeRange =
   Exclude<TimeRangePreset, 'all'> | 'today' | 'week' | 'month' | 'last-month'
 
@@ -64,8 +64,6 @@ export type PortalEngagementFunnel = Readonly<{
 }>
 
 export type PortalMetricEvidence = Readonly<{
-  /** Omitted means a bounded governed period; lifetime has no time series. */
-  basis?: 'governed_period' | 'anonymous_lifetime'
   definitionVersionId: string | null
   state: MetricAvailabilityState
   verifiedThrough: Date | null
@@ -75,14 +73,6 @@ export type PortalMetricEvidence = Readonly<{
   availabilityReason: string | null
   correctionHead: Date | null
   sampleCount: number
-}>
-
-export type PortalLifetimeReconciliationState = Readonly<{
-  state: 'not_initialized' | 'awaiting_first_reconciliation' | 'reconciled'
-  projectionRevision: number | null
-  sealedThroughLocalDate: string | null
-  lastRebuiltAt: Date | null
-  lastSealedAt: Date | null
 }>
 
 /** Why a count has no prior figure although the measure has a prior window. */
@@ -163,8 +153,6 @@ export type PortalAnalyticsData = Readonly<{
   }> | null
   /** The first day qualified scans were counted, from the metric registry. */
   qualifiedScansSince: Date
-  /** Present only for the anonymous, non-comparative All Time projection. */
-  lifetimeReconciliation: PortalLifetimeReconciliationState | null
   kpis: PortalKPIs
   engagementFunnel: PortalEngagementFunnel | null
   ratingDistribution: RatingDistribution

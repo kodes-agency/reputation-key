@@ -16,9 +16,9 @@ import {
   scanEventId,
 } from '#/shared/domain/ids'
 import { recordMetric, recordMetrics } from '../application/use-cases/record-metric'
-import type { GovernedMetricVersion } from '../domain/metric-registry'
-import { createAtomicMetricCommandStore } from './metric-command-store'
-import { onScanRecordedDurably } from './record-portal-metric'
+import type { GovernedMetricVersion } from '../readings/contracts'
+import { createAtomicMetricCommandStore } from '../readings/metric-command-store.server'
+import { onScanRecordedDurably } from '../readings/record-portal-metric.server'
 import { createMetricRegistryRepository } from './repositories/metric-registry.repository'
 import { createPropertyLocalDateResolver } from './repositories/property-local-date'
 

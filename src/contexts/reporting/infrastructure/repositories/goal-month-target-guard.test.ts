@@ -10,7 +10,7 @@ import type {
   GoalProgramVersion,
   GoalSubjectAssignment,
 } from '../../application/ports/goal-program.repository'
-import { METRIC_DEFINITION_IDS, METRIC_VERSION_IDS } from '../../domain/metric-registry'
+import { METRIC_DEFINITION_IDS, METRIC_VERSION_IDS } from '../../readings/contracts'
 import { seedLockedMonthTarget } from '../testing/goal-month-target-seed'
 import { createGoalProgramRepository } from './goal-program.repository'
 

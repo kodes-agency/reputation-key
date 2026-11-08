@@ -33,7 +33,7 @@ import {
   onScanRecordedDurably,
   type RecordPortalMetricDeps,
   type RetractPortalMetricDeps,
-} from './record-portal-metric'
+} from './record-portal-metric.server'
 import type { PrimaryStaffAttributionSnapshot } from '#/shared/domain/primary-staff-attribution'
 
 type GuestMetricPayload = Readonly<{
@@ -79,6 +79,141 @@ function parseStaffAttribution(
   return { ...value, effectiveFrom, effectiveTo }
 }
 
+type GuestMetricCommon = Omit<GuestScanRecorded, '_tag' | 'scanId' | 'scanSource'> & {
+  staffAttribution: PrimaryStaffAttributionSnapshot | null
+}
+
+function parseScanRecorded(
+  payload: GuestMetricPayload,
+  common: GuestMetricCommon,
+  eventVersion: number,
+): GuestScanRecorded {
+  const scanSource = eventVersion === 1 ? payload.source : payload.scanSource
+  if (!payload.scanId || !scanSource) {
+    throw new Error('Guest scan payload is invalid')
+  }
+  return {
+    ...common,
+    _tag: 'guest.scan.recorded',
+    scanId: scanEventId(payload.scanId),
+    scanSource,
+  }
+}
+
+function parseQualifiedScanRecorded(
+  payload: GuestMetricPayload,
+  common: GuestMetricCommon,
+): GuestQualifiedScanRecorded {
+  if (!payload.qualifiedScanId || !payload.accessArtifactId) {
+    throw new Error('Guest Qualified Scan payload is invalid')
+  }
+  return {
+    ...common,
+    _tag: 'guest.qualified_scan.recorded',
+    qualifiedScanId: qualifiedScanId(payload.qualifiedScanId),
+    portalGroupId: payload.portalGroupId ? portalGroupId(payload.portalGroupId) : null,
+    accessArtifactId: portalAccessArtifactId(payload.accessArtifactId),
+  }
+}
+
+function parseQualifiedScanRetracted(
+  payload: GuestMetricPayload,
+  common: GuestMetricCommon,
+): GuestQualifiedScanRetracted {
+  if (
+    !payload.qualifiedScanId ||
+    !payload.accessArtifactId ||
+    !payload.supersedesSourceEventId
+  ) {
+    throw new Error('Guest Qualified Scan retraction payload is invalid')
+  }
+  return {
+    ...common,
+    _tag: 'guest.qualified_scan.retracted',
+    qualifiedScanId: qualifiedScanId(payload.qualifiedScanId),
+    portalGroupId: payload.portalGroupId ? portalGroupId(payload.portalGroupId) : null,
+    accessArtifactId: portalAccessArtifactId(payload.accessArtifactId),
+    supersedesSourceEventId: payload.supersedesSourceEventId,
+  }
+}
+
+function parseRatingSubmitted(
+  payload: GuestMetricPayload,
+  common: GuestMetricCommon,
+): GuestRatingSubmitted {
+  if (!payload.ratingId || typeof payload.value !== 'number') {
+    throw new Error('Guest rating payload is invalid')
+  }
+  return {
+    ...common,
+    _tag: 'guest.rating.submitted',
+    ratingId: ratingId(payload.ratingId),
+    value: payload.value,
+    supersedesSourceEventId: payload.supersedesSourceEventId ?? null,
+  }
+}
+
+function parseRatingRetracted(
+  payload: GuestMetricPayload,
+  common: GuestMetricCommon,
+): GuestRatingRetracted {
+  if (!payload.ratingId || !payload.supersedesSourceEventId) {
+    throw new Error('Guest rating retraction payload is invalid')
+  }
+  return {
+    ...common,
+    _tag: 'guest.rating.retracted',
+    ratingId: ratingId(payload.ratingId),
+    supersedesSourceEventId: payload.supersedesSourceEventId,
+  }
+}
+
+function parseFeedbackSubmitted(
+  payload: GuestMetricPayload,
+  common: GuestMetricCommon,
+): GuestFeedbackSubmitted {
+  if (!payload.feedbackId) {
+    throw new Error('Guest feedback payload is invalid')
+  }
+  return {
+    ...common,
+    _tag: 'guest.feedback.submitted',
+    feedbackId: feedbackId(payload.feedbackId),
+    ratingId: payload.ratingId ? ratingId(payload.ratingId) : null,
+  }
+}
+
+function parseFeedbackRetracted(
+  payload: GuestMetricPayload,
+  common: GuestMetricCommon,
+): GuestFeedbackRetracted {
+  if (!payload.feedbackId || !payload.supersedesSourceEventId) {
+    throw new Error('Guest feedback retraction payload is invalid')
+  }
+  return {
+    ...common,
+    _tag: 'guest.feedback.retracted',
+    feedbackId: feedbackId(payload.feedbackId),
+    supersedesSourceEventId: payload.supersedesSourceEventId,
+  }
+}
+
+function parseReviewLinkClicked(
+  payload: GuestMetricPayload,
+  common: GuestMetricCommon,
+): GuestReviewLinkClicked {
+  if (!payload.linkId) {
+    throw new Error('Guest review-link click payload is invalid')
+  }
+  return {
+    ...common,
+    _tag: 'guest.review_link.clicked',
+    linkId: portalLinkId(payload.linkId),
+    destinationKind:
+      payload.destinationKind === 'google_review' ? 'google_review' : 'secondary_link',
+  }
+}
+
 function guestMetricDomainEvent(
   event: ConsumerEvent,
 ):
@@ -116,103 +251,22 @@ function guestMetricDomainEvent(
   }
 
   switch (event.eventType) {
-    case 'guest.scan.recorded': {
-      const scanSource = event.eventVersion === 1 ? payload.source : payload.scanSource
-      if (!payload.scanId || !scanSource) {
-        throw new Error('Guest scan payload is invalid')
-      }
-      return {
-        ...common,
-        _tag: event.eventType,
-        scanId: scanEventId(payload.scanId),
-        scanSource,
-      }
-    }
+    case 'guest.scan.recorded':
+      return parseScanRecorded(payload, common, event.eventVersion)
     case 'guest.qualified_scan.recorded':
-      if (!payload.qualifiedScanId || !payload.accessArtifactId) {
-        throw new Error('Guest Qualified Scan payload is invalid')
-      }
-      return {
-        ...common,
-        _tag: event.eventType,
-        qualifiedScanId: qualifiedScanId(payload.qualifiedScanId),
-        portalGroupId: payload.portalGroupId
-          ? portalGroupId(payload.portalGroupId)
-          : null,
-        accessArtifactId: portalAccessArtifactId(payload.accessArtifactId),
-      }
+      return parseQualifiedScanRecorded(payload, common)
     case 'guest.qualified_scan.retracted':
-      if (
-        !payload.qualifiedScanId ||
-        !payload.accessArtifactId ||
-        !payload.supersedesSourceEventId
-      ) {
-        throw new Error('Guest Qualified Scan retraction payload is invalid')
-      }
-      return {
-        ...common,
-        _tag: event.eventType,
-        qualifiedScanId: qualifiedScanId(payload.qualifiedScanId),
-        portalGroupId: payload.portalGroupId
-          ? portalGroupId(payload.portalGroupId)
-          : null,
-        accessArtifactId: portalAccessArtifactId(payload.accessArtifactId),
-        supersedesSourceEventId: payload.supersedesSourceEventId,
-      }
+      return parseQualifiedScanRetracted(payload, common)
     case 'guest.rating.submitted':
-      if (!payload.ratingId || typeof payload.value !== 'number') {
-        throw new Error('Guest rating payload is invalid')
-      }
-      return {
-        ...common,
-        _tag: event.eventType,
-        ratingId: ratingId(payload.ratingId),
-        value: payload.value,
-        supersedesSourceEventId: payload.supersedesSourceEventId ?? null,
-      }
+      return parseRatingSubmitted(payload, common)
     case 'guest.rating.retracted':
-      if (!payload.ratingId || !payload.supersedesSourceEventId) {
-        throw new Error('Guest rating retraction payload is invalid')
-      }
-      return {
-        ...common,
-        _tag: event.eventType,
-        ratingId: ratingId(payload.ratingId),
-        supersedesSourceEventId: payload.supersedesSourceEventId,
-      }
+      return parseRatingRetracted(payload, common)
     case 'guest.feedback.submitted':
-      if (!payload.feedbackId) {
-        throw new Error('Guest feedback payload is invalid')
-      }
-      return {
-        ...common,
-        _tag: event.eventType,
-        feedbackId: feedbackId(payload.feedbackId),
-        ratingId: payload.ratingId ? ratingId(payload.ratingId) : null,
-      }
+      return parseFeedbackSubmitted(payload, common)
     case 'guest.feedback.retracted':
-      if (!payload.feedbackId || !payload.supersedesSourceEventId) {
-        throw new Error('Guest feedback retraction payload is invalid')
-      }
-      return {
-        ...common,
-        _tag: event.eventType,
-        feedbackId: feedbackId(payload.feedbackId),
-        supersedesSourceEventId: payload.supersedesSourceEventId,
-      }
+      return parseFeedbackRetracted(payload, common)
     case 'guest.review_link.clicked':
-      if (!payload.linkId) {
-        throw new Error('Guest review-link click payload is invalid')
-      }
-      return {
-        ...common,
-        _tag: event.eventType,
-        linkId: portalLinkId(payload.linkId),
-        destinationKind:
-          payload.destinationKind === 'google_review'
-            ? 'google_review'
-            : 'secondary_link',
-      }
+      return parseReviewLinkClicked(payload, common)
     default:
       throw new Error(`unsupported Guest metric event type: ${event.eventType}`)
   }

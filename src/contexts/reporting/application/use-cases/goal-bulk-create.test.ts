@@ -9,7 +9,7 @@ import {
   type GoalMetric,
   type GoalSubject,
 } from '../../domain/goal-program'
-import { METRIC_VERSION_IDS } from '../../domain/metric-registry'
+import { METRIC_VERSION_IDS } from '../../readings/contracts'
 import { assignmentHoldsFrom } from '../goal-subject-holds'
 import type {
   GoalAssignmentConflict,

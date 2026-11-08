@@ -5,7 +5,7 @@ import {
 } from './get-portal-analytics.server'
 import { organizationId, propertyId, portalId } from '#/shared/domain/ids'
 import { asAccountAdmin } from '#/shared/testing/authorized-reads'
-import { METRIC_VERSION_IDS, findMetricVersionById } from '../domain/metric-registry'
+import { METRIC_VERSION_IDS, findMetricVersionById } from '../readings/contracts'
 import type { SeriesReadingRow } from '../domain/portal-results-series'
 import type {
   MetricPortalMetricEvidenceSet,
@@ -36,6 +36,13 @@ export function createFakePortalMetrics(overrides?: {
   const calls: string[] = []
   return {
     calls,
+    async getPortalTotals(...args) {
+      return {
+        sums: await this.getPortalKpiSums(...args),
+        evidence: await this.getPortalMetricEvidence(...args),
+        ratingDistribution: await this.getPortalRatingDistribution(...args),
+      }
+    },
     getPortalLinkTapCounts: async () => [],
     async getPortalKpiSums() {
       calls.push('getPortalKpiSums')
@@ -130,42 +137,6 @@ export function createFakePortalVersions(
   }
 }
 
-export function createUnusedPortalLifetime() {
-  return { get: vi.fn(async () => null) }
-}
-
-export function emptyPortalLifetimeAggregate() {
-  const now = new Date('2025-06-15T12:00:00.000Z')
-  return {
-    organizationId: ORG,
-    propertyId: PROP,
-    portalId: PORT,
-    definitionVersionIds: {
-      qualifiedScans: 'qualified-scan-version',
-      privateRatings: 'private-rating-version',
-      privateFeedback: 'private-feedback-version',
-      destinationSelections: 'destination-selection-version',
-    },
-    values: {
-      qualifiedScanCount: 0,
-      privateRatingCount: 0,
-      privateRatingSum: 0,
-      privateRating1Count: 0,
-      privateRating2Count: 0,
-      privateRating3Count: 0,
-      privateRating4Count: 0,
-      privateRating5Count: 0,
-      privateFeedbackCount: 0,
-      googleReviewSelectionCount: 0,
-      secondaryLinkSelectionCount: 0,
-    },
-    sealedThroughLocalDate: null,
-    projectionRevision: 1,
-    lastRebuiltAt: now,
-    lastSealedAt: null,
-  } as const
-}
-
 type WindowSums = Readonly<{
   scans?: number
   ratingCount?: number
@@ -227,7 +198,7 @@ export async function run30Days(portalMetrics: PortalAnalyticsRepository) {
   const now = new Date('2026-10-01T12:00:00Z')
   return createAuthorizedPortalAnalytics({
     portalMetrics,
-    portalLifetime: createUnusedPortalLifetime(),
+
     responseIntegrity: createFakeResponseIntegrity(),
     portalVersions: createFakePortalVersions(),
   })({
@@ -267,7 +238,7 @@ export async function runWindowStartingBeforeMeasure(
         ratingTotal: 24,
       },
     ),
-    portalLifetime: createUnusedPortalLifetime(),
+
     responseIntegrity: createFakeResponseIntegrity(),
     portalVersions: createFakePortalVersions(),
   })({
@@ -298,7 +269,7 @@ export function resultsTabDeps(
 ) {
   return {
     portalMetrics: overrides?.metrics ?? createFakePortalMetrics(),
-    portalLifetime: createUnusedPortalLifetime(),
+
     responseIntegrity: overrides?.integrity ?? createFakeResponseIntegrity(),
     portalVersions: overrides?.versions ?? createFakePortalVersions(),
   }

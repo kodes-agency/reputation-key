@@ -7,7 +7,7 @@ import {
   type HeldTransaction,
 } from '#/shared/db/testing/held-transaction'
 import { seedCountReadings, type SeededMetric } from '../testing/goal-running-month-seed'
-import { findMetricVersionById, METRIC_VERSION_IDS } from '../../domain/metric-registry'
+import { findMetricVersionById, METRIC_VERSION_IDS } from '../../readings/contracts'
 import type { RecommendationPortal } from '../../domain/goal-recommendation-types'
 import type { GoalRecommendationCountsQuery } from '../../application/ports/goal-recommendation-facts.port'
 import { readPortalGoalRecommendation } from '../../application/use-cases/goal-recommendation-read'

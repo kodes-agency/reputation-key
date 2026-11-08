@@ -11,7 +11,7 @@ metric authority.
 - Individual Google review stars are not recorded as metric readings; current
   Google figures come from verified snapshots. Stored `property.review` readings
   and their registry entry remain until those rows are erased.
-- Maintain anonymous Portal lifetime aggregates and Current on Google snapshots. A Current on Google snapshot is ordered, and `verifiedAt` dated, by when Google's numbers were READ (the event's `numbersObservedAt`, falling back to `evaluatedAt`), so a long snapshot that completes after a fresher head fact does not replace the newer numbers.
+- Compute Portal totals from effective readings and maintain Current on Google snapshots. A Current on Google snapshot is ordered, and `verifiedAt` dated, by when Google's numbers were READ (the event's `numbersObservedAt`, falling back to `evaluatedAt`), so a long snapshot that completes after a fresher head fact does not replace the newer numbers.
 - Resolve governed metric availability, provenance, completeness, and correction impact.
 - Create, revise, assign, schedule, evaluate, and close monthly Goal Programs.
 - Produce property, fleet, staff, Portal analytics, Portals overview results, attention, and
@@ -435,7 +435,8 @@ The caller isolates a failed side read from the primary Guest voice page.
   read joins them, and the Property's active rating goal as stored (target, mode, last status,
   never a live evaluation), for its page only. RepKey's period averages stay for the Ratings
   page and the rating drop signal.
-- **Portal lifetime aggregate**: anonymous all-time values with rebuild and seal evidence.
+- **Portal All Time**: governed effective-reading totals, without a comparison or series.
+  From October 2028 the label is "Last 24 months" as Guest facts begin expiring.
 - **Portal results measures**: the five shared measures: Scans (server-verified, not raw page opens; counted from August 2026),
   Ratings, Average rating, Went to Google (Google review link opens
   only; a secondary link is not one), and private notes. The reading floors live in
@@ -625,12 +626,22 @@ Reply redaction has no session that can ask for it in the beta (both interactive
 manage replies), so that e2e case is parked and `get-dashboard-data.test.ts` holds the rule.
 
 The unified `buildReportingContext` returns one public interface, one combined outbox
-registration function, Goal maintenance, metric maintenance, and named lifecycle/export
+registration function, Goal maintenance and named lifecycle/export
 contributors. Root composition may continue exposing capability-specific aliases such as
 `metricPublicApi`, `goalPublicApi`, and `dashboardPublicApi`; they reference the same Reporting
 interface.
 
 ## Persistence
+
+`readings/contracts.ts` owns the immutable metric catalogue, stable definition
+and version IDs, source policies, consumer permissions, precision and sample
+floors. It is browser-safe and remains available through the public API's named
+exports. `readings/guest-outbox-consumers.server.ts` validates Guest facts before
+`record-portal-metric.server.ts` projects them into readings. Retractions use the
+same measure definitions as recording, so withdrawing a rating retracts its
+private value, count and average together. `metric-command-store.server.ts`
+commits readings, corrections, attribution and source receipts
+atomically. Staff-attribution column conversion lives beside that store.
 
 `infrastructure/readings/effective-readings.server.ts` owns correction-tip
 selection, effective values and retracted sample counts for dashboard, Goal and Portal reads. Raw SQL
@@ -638,8 +649,9 @@ uses its `readings`/`tip` aliases. Staff reads keep their as-of variant: only
 readings and corrections recorded strictly before the daily cutoff contribute,
 with the latest visible correction ordered by recording time and ID. Source
 status and Portal evidence still check every required projection and retraction;
-those completeness checks are independent of the effective value. Lifetime
-reconciliation retains its existing implementation until its totals cutover.
+those completeness checks are independent of the effective value. Portal All Time
+uses these same effective readings and completeness checks. The retired aggregate
+table remains only for export and tenant cleanup until schema contraction.
 
 Period reads use the concurrent index on Organization, Property, metric version
 and event time, declared in `shared/db/concurrent-index-registry.ts`. Recording
@@ -683,7 +695,7 @@ Per-Property setup reads remain active.
 Metric and Goal event modules are named `metric-events.ts` and `goal-events.ts`. Their event
 tags remain stable for outbox replay compatibility. Reporting consumes Guest, Review,
 and metric-correction facts through the shared durable consumer registry. New readings
-commit with their source receipt and lifetime contribution, without emitting
+commit with their source receipt, without emitting
 `metric.recorded`; both stored versions of that event remain decodable. Replacements
 and retractions still emit `metric.corrected` atomically. Each
 consumer holds a receipt for a fact it has finished. A fact that yields no reading is

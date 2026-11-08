@@ -2,7 +2,7 @@
 // so retired, limited or not-yet-effective versions are unavailable in both.
 
 import type { MetricKey } from '#/shared/domain/metric-keys'
-import type { GovernedMetricVersion, MetricScope } from './metric-registry'
+import type { GovernedMetricVersion, MetricScope } from '../readings/contracts'
 
 export type GoalVersionUse = Readonly<{
   /** The measure the goal asks for. */

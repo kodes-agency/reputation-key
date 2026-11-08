@@ -6,7 +6,7 @@ import {
   findMetricVersionById,
   METRIC_DEFINITION_IDS,
   METRIC_VERSION_IDS,
-} from '../../domain/metric-registry'
+} from '../../readings/contracts'
 import { acquireTestLease, type TestLease } from '#/shared/testing/test-environment-lease'
 import type {
   GoalMonthlyResult,

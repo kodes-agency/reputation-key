@@ -335,7 +335,7 @@ describe.sequential('metric Organization lifecycle contributor', () => {
     expect(persisted[0]!.evidence_ref).not.toContain(fixture.organizationId)
   })
 
-  it('verifyPurgeReadiness mutates nothing when the lifetime aggregate is reconciled', async () => {
+  it('verifyPurgeReadiness mutates nothing when Portal source facts are settled', async () => {
     const fixture = await seedTenantRows('metric-lifecycle-org')
     await requestClosure(fixture)
     await advance(fixture.organizationId, 'closing', 'closing_prepared')
@@ -357,17 +357,20 @@ describe.sequential('metric Organization lifecycle contributor', () => {
     expect(aggregateAfter.rows).toEqual(aggregateBefore.rows)
   })
 
-  it('verifyPurgeReadiness fails closed when a correction has not reached the lifetime aggregate', async () => {
+  it('verifyPurgeReadiness fails closed when a withdrawal has not reached its reading', async () => {
     const fixture = await seedTenantRows('metric-lifecycle-org')
     await requestClosure(fixture)
     await advance(fixture.organizationId, 'closing', 'closing_prepared')
-    // LIF-01 bullet 11: the anonymous total no longer matches its retained
-    // facts, so the irreversible boundary would freeze a wrong number.
     await lease.pool.query(
-      `UPDATE portal_metric_lifetime_aggregates
-       SET qualified_scan_count = 7
-       WHERE organization_id = $1`,
-      [fixture.organizationId],
+      `INSERT INTO outbox_events (
+        id, event_type, event_version, payload, organization_id, property_id,
+        source_context, source_aggregate_id, created_at
+      ) VALUES (gen_random_uuid(), 'guest.rating.retracted', 1,
+        jsonb_build_object('portalId', $3::text, 'propertyId', $2::text,
+          'organizationId', $1::text, 'occurredAt', '2026-01-01T00:00:00.000Z',
+          'supersedesSourceEventId', 'pending-rating'),
+        $1, $2::uuid, 'guest', $3::text, '2026-01-01T00:00:00.000Z')`,
+      [fixture.organizationId, fixture.propertyId, fixture.readingPortalId],
     )
     const before = await tableCounts(fixture.organizationId)
 
@@ -434,7 +437,7 @@ describe.sequential('metric Organization lifecycle contributor', () => {
       contributor.verifyPurgeReadiness(contribution(fixture, 2)),
     ).resolves.toEqual({
       outcome: 'no_data',
-      evidenceRef: 'metric:purge_readiness:v1:lifetime_parity_verified:0',
+      evidenceRef: 'metric:purge_readiness:v1:source_facts_verified:0',
     })
     await advance(fixture.organizationId, 'purge_pending', 'recovery_window_elapsed')
     await advance(fixture.organizationId, 'purging', 'irreversible_purge_authorized')

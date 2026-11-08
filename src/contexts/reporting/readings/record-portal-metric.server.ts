@@ -20,14 +20,13 @@ import type {
   PortalId,
   PropertyId,
 } from '#/shared/domain/ids'
-import type { MetricKey } from '#/shared/domain/metric-keys'
 import type { PrimaryStaffAttributionSnapshot } from '#/shared/domain/primary-staff-attribution'
 import { trace } from '#/shared/observability/trace'
 import type { AttributionQuality } from '../domain/attribution-quality'
 import type { ReadingResult } from '../domain/metric-reading'
-import { METRIC_VERSION_IDS, type SourcePolicyClass } from '../domain/metric-registry'
+import { METRIC_VERSION_IDS, type SourcePolicyClass } from './contracts'
 import { secondaryPortalLinkId } from '../domain/portal-link-attribution'
-import type { PortalDestinationKind } from '../domain/portal-lifetime-aggregate'
+import type { PortalDestinationKind } from '../domain/portal-link-attribution'
 
 /** Common shape of Guest facts that record a Portal metric. */
 export type PortalMetricEvent = Readonly<{
@@ -51,7 +50,6 @@ export type RecordPortalMetricDeps = Readonly<{
 }>
 
 export type PortalMetricHandlerOptions<E extends PortalMetricEvent> = Readonly<{
-  metricKey: MetricKey
   definitionVersionId: string
   sourcePolicy: SourcePolicyClass
   span: string
@@ -69,8 +67,7 @@ export type PortalMetricHandlerOptions<E extends PortalMetricEvent> = Readonly<{
  * truth: the Portal was in no group then. A lookup failure propagates so durable
  * delivery retries the fact instead of storing a null group as permanent truth.
  * Nothing is written before this point and the readings commit with their
- * receipt atomically, so the retry is idempotent. (#306 degraded a failure to a
- * null group while delivery was still in-process, with no retry to fall back on.)
+ * receipt atomically, so the retry is idempotent.
  */
 async function eventTimePortalGroup<E extends PortalMetricEvent>(
   options: readonly PortalMetricHandlerOptions<E>[],
@@ -228,7 +225,6 @@ export function makeDurablePortalMetricRetractionHandler<
 }
 
 const scanOptions = {
-  metricKey: 'portal.scan',
   definitionVersionId: METRIC_VERSION_IDS.portalScanAnalytics,
   sourcePolicy: 'review_solicitation_analytics_only',
   span: 'metric.event.onScanRecorded',
@@ -236,7 +232,6 @@ const scanOptions = {
 } as const
 
 const qualifiedScanOptions = {
-  metricKey: 'portal.qualified_scan',
   definitionVersionId: METRIC_VERSION_IDS.qualifiedScanGoal,
   sourcePolicy: 'first_party_guest_gateway_metric',
   span: 'metric.event.onQualifiedScanRecorded',
@@ -246,7 +241,6 @@ const qualifiedScanOptions = {
 
 const ratingOptions = [
   {
-    metricKey: 'portal.rating',
     definitionVersionId: METRIC_VERSION_IDS.portalRatingAnalytics,
     sourcePolicy: 'first_party_guest_private',
     span: 'metric.event.onRatingSubmitted',
@@ -254,7 +248,6 @@ const ratingOptions = [
     sourceReceiptConsumer: 'metric.guest-analytics',
   },
   {
-    metricKey: 'portal.rating_count',
     definitionVersionId: METRIC_VERSION_IDS.portalRatingCountGoal,
     sourcePolicy: 'first_party_guest_gateway_metric',
     span: 'metric.event.onRatingSubmitted',
@@ -262,7 +255,6 @@ const ratingOptions = [
     sourceReceiptConsumer: 'metric.guest-analytics',
   },
   {
-    metricKey: 'portal.rating_average',
     definitionVersionId: METRIC_VERSION_IDS.portalRatingAverageGoal,
     sourcePolicy: 'first_party_guest_gateway_metric',
     span: 'metric.event.onRatingSubmitted',
@@ -272,7 +264,6 @@ const ratingOptions = [
 ] as const
 
 const feedbackOptions = {
-  metricKey: 'portal.feedback',
   definitionVersionId: METRIC_VERSION_IDS.portalFeedbackAnalytics,
   sourcePolicy: 'first_party_guest_private',
   span: 'metric.event.onFeedbackSubmitted',
@@ -280,7 +271,6 @@ const feedbackOptions = {
 } as const
 
 const reviewLinkOptions = {
-  metricKey: 'portal.review_link_click',
   definitionVersionId: METRIC_VERSION_IDS.portalDestinationClickAnalytics,
   sourcePolicy: 'review_solicitation_analytics_only',
   span: 'metric.event.onReviewLinkClicked',
@@ -289,40 +279,6 @@ const reviewLinkOptions = {
     secondaryPortalLinkId(event.destinationKind, event.linkId),
   sourceReceiptConsumer: 'metric.guest-analytics',
 } as const
-
-const qualifiedScanRetractionOptions = [
-  {
-    definitionVersionId: METRIC_VERSION_IDS.qualifiedScanGoal,
-    span: 'metric.event.onQualifiedScanRetracted',
-    sourceReceiptConsumer: 'metric.guest-analytics',
-  },
-] as const
-
-const ratingRetractionOptions = [
-  {
-    definitionVersionId: METRIC_VERSION_IDS.portalRatingAnalytics,
-    span: 'metric.event.onRatingRetracted',
-    sourceReceiptConsumer: 'metric.guest-analytics',
-  },
-  {
-    definitionVersionId: METRIC_VERSION_IDS.portalRatingCountGoal,
-    span: 'metric.event.onRatingRetracted',
-    sourceReceiptConsumer: 'metric.guest-analytics',
-  },
-  {
-    definitionVersionId: METRIC_VERSION_IDS.portalRatingAverageGoal,
-    span: 'metric.event.onRatingRetracted',
-    sourceReceiptConsumer: 'metric.guest-analytics',
-  },
-] as const
-
-const feedbackRetractionOptions = [
-  {
-    definitionVersionId: METRIC_VERSION_IDS.portalFeedbackAnalytics,
-    span: 'metric.event.onFeedbackRetracted',
-    sourceReceiptConsumer: 'metric.guest-analytics',
-  },
-] as const
 
 export const onScanRecordedDurably =
   makeDurableRecordMetricHandler<GuestScanRecorded>(scanOptions)
@@ -335,12 +291,17 @@ export const onFeedbackSubmittedDurably =
 export const onReviewLinkClickedDurably =
   makeDurableRecordMetricHandler<GuestReviewLinkClicked>(reviewLinkOptions)
 export const onQualifiedScanRetractedDurably =
-  makeDurablePortalMetricRetractionHandler<GuestQualifiedScanRetracted>(
-    qualifiedScanRetractionOptions,
-  )
+  makeDurablePortalMetricRetractionHandler<GuestQualifiedScanRetracted>([
+    { ...qualifiedScanOptions, span: 'metric.event.onQualifiedScanRetracted' },
+  ])
 export const onRatingRetractedDurably =
-  makeDurablePortalMetricRetractionHandler<GuestRatingRetracted>(ratingRetractionOptions)
-export const onFeedbackRetractedDurably =
-  makeDurablePortalMetricRetractionHandler<GuestFeedbackRetracted>(
-    feedbackRetractionOptions,
+  makeDurablePortalMetricRetractionHandler<GuestRatingRetracted>(
+    ratingOptions.map((option) => ({
+      ...option,
+      span: 'metric.event.onRatingRetracted',
+    })),
   )
+export const onFeedbackRetractedDurably =
+  makeDurablePortalMetricRetractionHandler<GuestFeedbackRetracted>([
+    { ...feedbackOptions, span: 'metric.event.onFeedbackRetracted' },
+  ])

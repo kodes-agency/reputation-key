@@ -17,7 +17,7 @@ import {
   holdTransaction,
   type HeldTransaction,
 } from '#/shared/db/testing/held-transaction'
-import { METRIC_DEFINITION_IDS, METRIC_VERSION_IDS } from '../../domain/metric-registry'
+import { METRIC_DEFINITION_IDS, METRIC_VERSION_IDS } from '../../readings/contracts'
 import type { GoalProgramBundle } from '../../application/ports/goal-program.repository'
 import { createGoalProgramRepository } from './goal-program.repository'
 

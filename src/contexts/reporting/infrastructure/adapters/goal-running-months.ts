@@ -31,8 +31,8 @@ import {
 import { sql, type SQL } from 'drizzle-orm'
 import type { Tx } from '#/shared/db'
 import type { OrganizationId } from '#/shared/domain/ids'
-import { findMetricVersionById } from '../../domain/metric-registry'
-import type { MetricScope } from '../../domain/metric-registry'
+import { findMetricVersionById } from '../../readings/contracts'
+import type { MetricScope } from '../../readings/contracts'
 import { goalVersionIsUsable } from '../../domain/goal-metric-version-usable'
 import type { RunningCountMonth } from '../../domain/goal-pace'
 import {

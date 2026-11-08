@@ -31,8 +31,6 @@ const ALLOWED: Readonly<Record<string, string>> = {
     'a glossary: a term and its definition, in two columns, not a label and a value',
   'src/contexts/reporting/portal-results/ui/portal-response-integrity-summary.tsx':
     'three counts with captions inside a report: a MetricStrip candidate owned by the Results surface',
-  'src/contexts/reporting/portal-results/ui/portal-lifetime-reconciliation-summary.tsx':
-    'four readings inside a disclosure: a MetricStrip candidate owned by the Results surface',
   'src/components/features/property/property-reputation-trend-chart.tsx':
     'the readout of a chart: a date and its values',
 }

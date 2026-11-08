@@ -20,7 +20,7 @@ import {
   recommendPortalGoal,
 } from '../../domain/goal-recommendation'
 import type { RecommendationPortal } from '../../domain/goal-recommendation-types'
-import { findMetricVersionById, METRIC_VERSION_IDS } from '../../domain/metric-registry'
+import { findMetricVersionById, METRIC_VERSION_IDS } from '../../readings/contracts'
 import type { PortalGoalRecommendation } from '../dto/goal-recommendation.types'
 import type {
   GoalRecommendationCounts,

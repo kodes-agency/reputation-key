@@ -42,6 +42,21 @@ export type MetricPortalMetricEvidenceSet = Readonly<
 >
 
 export type PortalAnalyticsRepository = Readonly<{
+  /** Totals, star mix and completeness from one database snapshot. */
+  getPortalTotals(
+    organizationId: OrganizationId,
+    propertyId: PropertyId,
+    portalId: PortalId,
+    startDate: Date,
+    endDate: Date,
+  ): Promise<
+    Readonly<{
+      sums: readonly PortalMetricSumRow[]
+      evidence: MetricPortalMetricEvidenceSet
+      ratingDistribution: readonly PortalRatingBucket[]
+    }>
+  >
+
   getPortalLinkTapCounts(
     input: Readonly<{
       organizationId: OrganizationId

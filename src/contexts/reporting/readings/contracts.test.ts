@@ -3,7 +3,7 @@ import {
   METRIC_DEFINITIONS,
   METRIC_VERSION_IDS,
   findMetricVersionById,
-} from './metric-registry'
+} from './contracts'
 
 describe('MetricRegistry', () => {
   describe('catalogue', () => {
