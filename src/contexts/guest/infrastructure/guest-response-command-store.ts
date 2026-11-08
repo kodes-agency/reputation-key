@@ -178,6 +178,65 @@ export const createAtomicGuestResponseCommandStore = (
       primaryStaffAttributionEquals(response.staffAttribution, fact.staffAttribution),
     )
 
+  const withdrawResponseRows = async (
+    response: Parameters<GuestResponseCommandStore['commitWithdrawn']>[0],
+    facts: ReadonlyArray<GuestMutationFact>,
+    requireSession: boolean,
+  ) => {
+    if (!factsMatchStaffAttribution(response, facts)) {
+      throw new Error('Guest response withdrawal changed Staff attribution')
+    }
+    const deletedAt = response.deletedAt ?? clock()
+    const predicate = and(
+      eq(guestResponses.organizationId, response.organizationId),
+      eq(guestResponses.propertyId, response.propertyId),
+      eq(guestResponses.portalId, response.portalId),
+      eq(guestResponses.id, response.id),
+      requireSession
+        ? sessionBindingExists(response, response.deletedAt ?? new Date(0))
+        : undefined,
+      eq(guestResponses.correctionCount, response.correctionCount),
+      response.ratingSourceEventId
+        ? eq(guestResponses.ratingSourceEventId, response.ratingSourceEventId)
+        : isNull(guestResponses.ratingSourceEventId),
+      response.feedbackSourceEventId
+        ? eq(guestResponses.feedbackSourceEventId, response.feedbackSourceEventId)
+        : isNull(guestResponses.feedbackSourceEventId),
+      isNull(guestResponses.deletedAt),
+    )
+    return journalWithdrawal(response, 'guest_response', deletedAt, predicate, () =>
+      db.transaction(async (tx) => {
+        const deleted = await tx
+          .update(guestResponses)
+          .set({
+            status: 'deleted',
+            rating: null,
+            categoryId: null,
+            responseConsent: false,
+            textConsent: false,
+            mediaConsent: false,
+            ratingSourceEventId: null,
+            feedbackSourceEventId: null,
+            deletedAt: response.deletedAt,
+            updatedAt: deletedAt,
+          })
+          .where(predicate)
+          .returning({ id: guestResponses.id })
+        if (!deleted[0]) return 'conflict' as const
+        await tx
+          .delete(guestResponsePrivateFeedback)
+          .where(
+            and(
+              eq(guestResponsePrivateFeedback.responseId, response.id),
+              eq(guestResponsePrivateFeedback.organizationId, response.organizationId),
+            ),
+          )
+        for (const fact of facts) await insertOutboxRow(tx, fact)
+        return 'applied' as const
+      }),
+    )
+  }
+
   const lineage = (
     response: Parameters<GuestResponseCommandStore['commitSubmitted']>[0],
     facts: ReadonlyArray<GuestMutationFact>,
@@ -647,66 +706,14 @@ export const createAtomicGuestResponseCommandStore = (
       }),
 
     commitWithdrawn: (response, facts) =>
-      trace('guest.commandStore.commitWithdrawn', async () => {
-        if (!factsMatchStaffAttribution(response, facts)) {
-          throw new Error('Guest response withdrawal changed Staff attribution')
-        }
-        const deletedAt = response.deletedAt ?? clock()
-        const predicate = and(
-          eq(guestResponses.organizationId, response.organizationId),
-          eq(guestResponses.propertyId, response.propertyId),
-          eq(guestResponses.portalId, response.portalId),
-          eq(guestResponses.id, response.id),
-          sessionBindingExists(response, response.deletedAt ?? new Date(0)),
-          eq(guestResponses.correctionCount, response.correctionCount),
-          response.ratingSourceEventId
-            ? eq(guestResponses.ratingSourceEventId, response.ratingSourceEventId)
-            : isNull(guestResponses.ratingSourceEventId),
-          response.feedbackSourceEventId
-            ? eq(guestResponses.feedbackSourceEventId, response.feedbackSourceEventId)
-            : isNull(guestResponses.feedbackSourceEventId),
-          isNull(guestResponses.deletedAt),
-        )
-        const committed = await journalWithdrawal(
-          response,
-          'guest_response',
-          deletedAt,
-          predicate,
-          () =>
-            db.transaction(async (tx) => {
-              const deleted = await tx
-                .update(guestResponses)
-                .set({
-                  status: 'deleted',
-                  rating: null,
-                  categoryId: null,
-                  responseConsent: false,
-                  textConsent: false,
-                  mediaConsent: false,
-                  ratingSourceEventId: null,
-                  feedbackSourceEventId: null,
-                  deletedAt: response.deletedAt,
-                  updatedAt: deletedAt,
-                })
-                .where(predicate)
-                .returning({ id: guestResponses.id })
-              if (!deleted[0]) return 'conflict' as const
-              await tx
-                .delete(guestResponsePrivateFeedback)
-                .where(
-                  and(
-                    eq(guestResponsePrivateFeedback.responseId, response.id),
-                    eq(
-                      guestResponsePrivateFeedback.organizationId,
-                      response.organizationId,
-                    ),
-                  ),
-                )
-              for (const fact of facts) await insertOutboxRow(tx, fact)
-              return 'applied' as const
-            }),
-        )
-        return committed
+      trace('guest.commandStore.commitWithdrawn', () =>
+        withdrawResponseRows(response, facts, true),
+      ),
+
+    commitErased: (response, facts) =>
+      trace('guest.commandStore.commitErased', async () => {
+        if (!journal) throw new Error('Operator erasure requires the erasure journal')
+        return withdrawResponseRows(response, facts, false)
       }),
   }
 }
