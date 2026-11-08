@@ -496,10 +496,11 @@ the PDF and preview use the same measures and planners, checked with real fonts.
 - Print languages, wording and look come from the live publication. Draft-only
   languages and Portals without a live version cannot print. The Property country
   sets the default paper; an explicit paper choice wins.
-- `application/printing/print-download.server.ts` reads stored pictures within their recorded
+- `printing/print-download.server.ts` reads stored pictures within their recorded
   size and verifies their hash before the audited address reveal. Missing or
   changed bytes refuse the print without a disclosure. Taken-down media is omitted.
-  `application/printing/print-download.ts` holds browser-safe file and download contracts.
+  `printing/contracts.ts` holds the file and download contracts; consumers import
+  them directly rather than through the management contract entry.
 - Verified QR and NFC print codes are always shown. Missing or mismatched hashes
   fall back to the issued long address and its original channel marker. Direct
   links retain the long address with no marker; every issued URL keeps resolving.

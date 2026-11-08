@@ -5,8 +5,8 @@ import { buildTestAuthContext } from '#/shared/testing/fixtures'
 import { buildTestPortalMediaAsset } from '#/shared/testing/portal-media-fixtures'
 import { createInMemoryPortalMediaAssetRepo } from '#/shared/testing/in-memory-portal-media-asset-repo'
 import { createInMemoryObjectStore } from '#/shared/testing/in-memory-object-store'
-import type { RevealPortalAddress } from '../use-cases/reveal-portal-address'
-import { StoredObjectTooLargeError } from '../ports/storage.port'
+import type { RevealPortalAddress } from '../application/use-cases/reveal-portal-address'
+import { StoredObjectTooLargeError } from '../application/ports/storage.port'
 import { printKitDownloadOf, readPicturesThenReveal } from './print-download.server'
 
 const sha256Hex = (bytes: Uint8Array) => createHash('sha256').update(bytes).digest('hex')

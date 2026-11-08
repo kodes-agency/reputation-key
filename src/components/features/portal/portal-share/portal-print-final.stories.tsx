@@ -9,8 +9,8 @@
 import type { Meta, StoryObj } from '@storybook/react'
 import { expect, fn, userEvent, waitFor, within } from 'storybook/test'
 import type { Action } from '#/components/hooks/use-action'
+import type { PortalPrintKitDownload } from '#/contexts/portal/printing/contracts'
 import type {
-  PortalPrintKitDownload,
   PortalPrintKitLastPrint,
   PortalPrintKitView,
   PortalTokenStatus,

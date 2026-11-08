@@ -52,8 +52,8 @@ import {
 import type { PortalPublicationRepository } from '../ports/portal-publication.repository'
 import type { PortalRepository } from '../ports/portal.repository'
 import type { StoragePort } from '../ports/storage.port'
-import { readPicturesThenReveal } from '../printing/print-download.server'
-import type { PortalPrintKitFile } from '../printing/print-download'
+import { readPicturesThenReveal } from '../../printing/print-download.server'
+import type { PortalPrintKitFile } from '../../printing/contracts'
 import type { RevealPortalAddress } from './reveal-portal-address'
 
 export type CreatePortalPrintFinalDeps = RememberLastPrintDeps &
