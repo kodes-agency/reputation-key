@@ -1,3 +1,4 @@
+import { createPortalRatingGoalGuard } from './infrastructure/portal-rating-goal-guard'
 import { findPortalRatingGoalBlock } from './application/running-portal-rating-goal'
 import { createStaffResultsReader } from './infrastructure/repositories/staff-results.reader'
 import { getPortalLinkTaps } from './application/use-cases/get-portal-link-taps'
@@ -494,6 +495,7 @@ function buildGoalModule(input: ReportingContextBuildInput, metricApi: MetricPub
   })
 
   const portalRatingGoalRead: PortalRatingGoalReadApi = {
+    ...createPortalRatingGoalGuard(),
     findPortalRatingGoalBlock: async (
       organizationId: string,
       propertyId: string,

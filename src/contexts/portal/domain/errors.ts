@@ -21,6 +21,7 @@ export type PortalErrorCode =
   | 'invalid_threshold'
   | 'invalid_skip_private_rating'
   | 'running_rating_goal'
+  | 'goal_needs_collector'
   | 'invalid_url'
   | 'invalid_label'
   | 'invalid_icon'

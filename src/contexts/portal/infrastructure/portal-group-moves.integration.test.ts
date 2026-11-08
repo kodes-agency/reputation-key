@@ -1,3 +1,4 @@
+import { createPortalRatingGoalGuard } from '#/contexts/reporting/infrastructure/portal-rating-goal-guard'
 // Portal Group moves, create-with-move and the history ledger, on real
 // PostgreSQL: a mocked transaction cannot prove that a failure in the fact or a
 // stale fence rolls back both memberships, both group revisions and the ledger,
@@ -73,7 +74,7 @@ function hasDatabaseErrorCode(error: unknown, code: string): boolean {
   return false
 }
 
-const store = () => createAtomicPortalCommandStore(getDb())
+const store = () => createAtomicPortalCommandStore(getDb(), createPortalRatingGoalGuard())
 
 async function seedPortal(id: PortalId, slug: string): Promise<void> {
   const portal = buildTestPortal({
