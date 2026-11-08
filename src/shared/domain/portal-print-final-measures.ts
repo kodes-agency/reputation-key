@@ -191,6 +191,20 @@ export type PrintFinalBox = Readonly<{
   bottomPt: number
 }>
 
+/** Every ink and code edge must fit, allowing only the planners' 0.05 mm rounding. */
+export function printFinalBoxFits(box: PrintFinalBox, live: PrintFinalBox): boolean {
+  const tolerance = mmPt(0.05)
+  return (
+    Object.values(box).every(Number.isFinite) &&
+    box.leftPt <= box.rightPt &&
+    box.topPt <= box.bottomPt &&
+    box.leftPt >= live.leftPt - tolerance &&
+    box.rightPt <= live.rightPt + tolerance &&
+    box.topPt >= live.topPt - tolerance &&
+    box.bottomPt <= live.bottomPt + tolerance
+  )
+}
+
 export type PrintFinalLiveArea = Readonly<{
   widthPt: number
   heightPt: number

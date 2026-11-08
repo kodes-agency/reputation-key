@@ -43,6 +43,7 @@ import { usePrintFinalWording } from './use-print-final-wording'
 import { usePrintFinalWords, type PrintFinalWordsBlock } from './use-print-final-words'
 import { usePrintKitCode } from './use-print-kit-code'
 import { decodeBase64 } from './use-print-kit-download'
+import { previewFinalBackLayout } from './print-final-face-layout'
 
 /** A version 3 symbol, which the sample and a short print address make: the tile until the code is drawn. */
 const VERSION_3_MODULES = 29
@@ -99,9 +100,21 @@ function requestOf(portalId: string, print: PrintFinalSharePrint) {
 function refusalOf(
   check: PrintFinalShareCheck | null,
   wordsBlock: PrintFinalWordsBlock | null,
+  backFits: boolean,
 ): string | null {
   if (check?.refusal != null) return PRINT_FINAL_REFUSAL_COPY[check.refusal]
+  if (!backFits) return PRINT_FINAL_REFUSAL_COPY.words_do_not_fit
   return wordsBlock?.note ?? null
+}
+
+function usePrintFinalShopPage(print: PrintFinalSharePrint | null, face: PrintFinalFace) {
+  // A print shop's file: one page, with its margin and, where asked for, its crop marks (a tent has none).
+  const shop = print?.printer === 'print_shop' && printFinalHasShopFile(face.piece)
+  const cropMarks = print?.cropMarks ?? false
+  return useMemo(
+    () => (shop ? printFinalShopPage({ face, cropMarks }) : null),
+    [shop, face, cropMarks],
+  )
 }
 
 function useChoice() {
@@ -201,6 +214,18 @@ export function usePrintFinal(input: Input) {
     code: { address: printAddressShape(code.address), symbolModules },
     editWords: changeWords,
   })
+  const backFits = useMemo(
+    () =>
+      print?.backPage !== true ||
+      view === null ||
+      previewFinalBackLayout({
+        face,
+        look: view.look,
+        logoAspect: null,
+        onPlate: face.look === 'immersive',
+      }).plan.fits,
+    [print?.backPage, face, view],
+  )
   const wording = usePrintFinalWording({
     portalId,
     view,
@@ -214,13 +239,7 @@ export function usePrintFinal(input: Input) {
     () => printFinalSheet({ piece, orientation, look, paper }),
     [piece, orientation, look, paper],
   )
-  // A print shop's file: one page, with its margin and, where asked for, its crop marks (a tent has none).
-  const shop = print?.printer === 'print_shop' && printFinalHasShopFile(piece)
-  const cropMarks = print?.cropMarks ?? false
-  const shopPage = useMemo(
-    () => (shop ? printFinalShopPage({ face, cropMarks }) : null),
-    [shop, face, cropMarks],
-  )
+  const shopPage = usePrintFinalShopPage(print, face)
   const download = useCallback(async () => {
     if (print === null || view === null || downloadMutation === undefined) return
     try {
@@ -255,7 +274,7 @@ export function usePrintFinal(input: Input) {
     sample: input.qrAddress === null,
     tile: check?.tile ?? null,
     /** Why the server would refuse this print, in its own words (the words' own reason last); null when it would make it. */
-    refusal: refusalOf(check, wordsState.block),
+    refusal: refusalOf(check, wordsState.block, backFits),
     face,
     blocks: wordsState.blocks,
     /** The call to action: the menu checked against the print, the manager's own words and their fit. */

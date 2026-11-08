@@ -29,6 +29,16 @@ describe('wrapWords', () => {
     ])
   })
 
+  it.each(['\u00a0', '\u202f'])(
+    'preserves a no-break space when balancing two lines (%s)',
+    (space) => {
+      expect(wrapWords(`Avis sur nous${space}?`, 8, byLength)).toEqual([
+        'Avis sur',
+        `nous${space}?`,
+      ])
+    },
+  )
+
   it('returns no lines for blank text', () => {
     expect(wrapWords('   ', 10, byLength)).toEqual([])
   })

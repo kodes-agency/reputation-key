@@ -13,6 +13,7 @@ import {
 } from '#/shared/domain/portal-print-final'
 import { printFinalLiveArea } from '#/shared/domain/portal-print-final-measures'
 import { createPdfKitPrintFinalRenderer } from './pdfkit-print-final-renderer'
+import { decodePrintQr } from './__fixtures__/decode-print-qr'
 
 // The final kit's single pieces as PDFs: one face per page at its trim, the
 // words drawn in the embedded guest fonts, the address never drawn as text, and
@@ -62,6 +63,22 @@ const text = (pdf: Uint8Array) => Buffer.from(pdf).toString('latin1')
 
 describe('createPdfKitPrintFinalRenderer', () => {
   it.each(
+    (['paper', 'immersive'] as const).flatMap((look) =>
+      PRINT_FINAL_PIECES.flatMap((piece) =>
+        PRINT_FINAL_ORIENTATIONS.map((orientation) => ({
+          look,
+          piece,
+          orientation,
+          region: 'us' as const,
+        })),
+      ),
+    ),
+  )('decodes the rendered $look $piece $orientation to its issued URL', async (face) => {
+    const pdf = await renderer.render(inputFor(face))
+    expect(await decodePrintQr(pdf)).toBe(SHORT)
+  })
+
+  it.each(
     PRINT_FINAL_PIECES.flatMap((piece) =>
       PRINT_FINAL_ORIENTATIONS.map((orientation) => [piece, orientation] as const),
     ),
@@ -74,6 +91,47 @@ describe('createPdfKitPrintFinalRenderer', () => {
     expect(Number(boxes[0]?.[1])).toBeCloseTo(area.widthPt, 1)
     expect(Number(boxes[0]?.[2])).toBeCloseTo(area.heightPt, 1)
     expect(pdf).not.toContain('AP.UP.RAILWAY.APP')
+  })
+
+  it.each(
+    (['us', 'eu'] as const).flatMap((region) =>
+      (['paper', 'immersive'] as const).flatMap((look) =>
+        PRINT_FINAL_PIECES.flatMap((piece) =>
+          PRINT_FINAL_ORIENTATIONS.map((orientation) => ({
+            region,
+            look,
+            piece,
+            orientation,
+          })),
+        ),
+      ),
+    ),
+  )(
+    'refuses an unbreakable headline on $region $look $piece $orientation',
+    async (face) => {
+      const blocks = printFinalBlocks(
+        ['en'],
+        {
+          preset: 'how_did_we_do',
+          custom: { en: { headline: 'W'.repeat(60), subline: '' } },
+        },
+        {},
+        'Reception',
+      )
+      await expect(
+        renderer.render(inputFor(face, ['en'], { blocks })),
+      ).rejects.toMatchObject({ refusal: { code: 'words_do_not_fit' } })
+    },
+  )
+
+  it('refuses an unbreakable back-page name before returning a PDF', async () => {
+    await expect(
+      renderer.render(
+        inputFor(paper('counter', 'upright'), ['en'], {
+          back: { propertyName: 'W'.repeat(60) },
+        }),
+      ),
+    ).rejects.toMatchObject({ refusal: { code: 'words_do_not_fit' } })
   })
 
   it('embeds the true italic for the second-language line on the upright tent', async () => {
@@ -92,6 +150,7 @@ describe('createPdfKitPrintFinalRenderer', () => {
       inputFor(paper('counter', 'upright'), ['en'], { qrAddress: LONG, address: 'long' }),
     )
     expect(text(pdf)).toContain('/MediaBox [0 0 288 432]')
+    expect(await decodePrintQr(pdf)).toBe(LONG)
   })
 
   it('refuses a tent or a Small card on the long address before drawing', async () => {
