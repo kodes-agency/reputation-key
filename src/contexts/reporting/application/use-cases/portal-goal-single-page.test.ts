@@ -3,7 +3,7 @@ import type { GoalSubject } from '../../domain/goal-program'
 import type { GoalProgramBundle } from '../ports/goal-program.repository'
 import { GoalProgramError } from './goal-program-shared'
 import type { GovernedGoalMetricResult } from './query-goal-metric'
-import { readPortalGoalSinglePage } from './portal-goal-single-page'
+import { readPortalGoalSinglePage } from '../../monthly-goals/get-portal-goal-page.server'
 import {
   DEC_1,
   NOV_1,

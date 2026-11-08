@@ -1,24 +1,22 @@
 // Several-subject goals retain their page and history, with Stop as their only action.
 
-import type { PortalGoalSinglePageView } from '#/contexts/reporting/application/dto/portal-goal-single-page.types'
+import type { PortalGoalSeveralPageView } from '../contracts'
 import { PageHeader } from '#/components/layout/page-header'
 import { trailCrumbs } from '#/components/layout/page-identity'
 import { PageShell } from '#/components/layout/page-shell'
-import { PAGE_HEADER_ID, focusPortalGoalPageTitle } from './portal-goal-page'
-import { usePortalGoalPageActions } from './portal-goal-page-actions'
 import {
-  goalStateLine,
-  severalGoalWords,
-  severalMonthLine,
-} from './portal-goal-single-page-view'
-import type { PortalGoalStopCommands } from './portal-goal-stop-dialog'
-
-type SeveralView = Extract<PortalGoalSinglePageView, Readonly<{ kind: 'several' }>>
+  PAGE_HEADER_ID,
+  focusPortalGoalPageTitle,
+} from '#/components/goals/portal-goal-page'
+import { usePortalGoalPageActions } from '#/components/goals/portal-goal-page-actions'
+import { goalStateLine } from '#/components/goals/portal-goal-single-page-view'
+import { severalGoalWords, severalMonthLine } from './portal-goal-several-view'
+import type { PortalGoalStopCommands } from '#/components/goals/portal-goal-stop-dialog'
 
 type Props = Readonly<{
   propertyId: string
   propertyName: string
-  view: SeveralView
+  view: PortalGoalSeveralPageView
   /** `goal.cancel`: "Stop this goal". */
   canStop: boolean
   stop: PortalGoalStopCommands

@@ -4,7 +4,7 @@
 // window or open/reconciling month still counts. A stopped November goal may still
 // be selected in December while November reconciles.
 // Average, Portal and Portal Group goals are separate. All Property count goals
-// use /goals/portals; other shapes keep their own page. Browser-safe.
+// use /goals/portals; other shapes keep their own page.
 
 import type { GoalMetric, GoalSubject } from '../domain/goal-program'
 import type { PortalGoalMeasure } from '../domain/goal-recommendation-types'
@@ -12,6 +12,11 @@ import type {
   GoalProgramBundle,
   GoalProgramVersion,
 } from './ports/goal-program.repository'
+
+import {
+  assignmentHoldsFrom,
+  currentAssignments,
+} from '../monthly-goals/subject-assignments.server'
 
 const COUNT_MEASURES: ReadonlySet<GoalMetric> = new Set([
   'portal_rating_count',
@@ -21,12 +26,6 @@ const COUNT_MEASURES: ReadonlySet<GoalMetric> = new Set([
 /** Private ratings or scans: a measure a Monthly portal goal can count. */
 export const isPortalGoalMeasure = (metric: GoalMetric): metric is PortalGoalMeasure =>
   COUNT_MEASURES.has(metric)
-
-/** The current version's subjects, as the goal names them now. */
-const currentAssignments = (bundle: Pick<GoalProgramBundle, 'version' | 'assignments'>) =>
-  bundle.assignments.filter(
-    (assignment) => assignment.programVersionId === bundle.version.id,
-  )
 
 /** A Program that counts private ratings or scans: the Property's, a Portal's or a group's. */
 export type PortalCountGoal = GoalProgramBundle &
@@ -54,9 +53,8 @@ export function isPropertyCountGoal(
  * it is still open or reconciling.
  */
 function stillCounts(bundle: GoalProgramBundle, now: Date): boolean {
-  const windowOpen = currentAssignments(bundle).some(
-    ({ effectiveFrom, effectiveTo }) =>
-      effectiveTo === null || (effectiveTo > effectiveFrom && effectiveTo > now),
+  const windowOpen = currentAssignments(bundle).some((assignment) =>
+    assignmentHoldsFrom(assignment, now),
   )
   return (
     windowOpen ||
