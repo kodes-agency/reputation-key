@@ -2,19 +2,19 @@ import { getAiRuntimeCapability } from '#/shared/ai-runtime-capability-contract'
 import type { OrganizationId, PropertyId } from '#/shared/domain/ids'
 import type { LoggerPort } from '#/shared/domain/logger.port'
 import { AI_PROVIDER_DEPLOYMENT_PROFILE } from '#/shared/ai-operation-profiles'
-import type { AiAuthorizationPort } from '../ports/ai-authorization.port'
-import type { AiControlPort } from '../ports/ai-control.port'
+import type { AiAuthorizationPort } from '../application/ports/ai-authorization.port'
+import type { AiControlPort } from '../application/ports/ai-control.port'
 import type {
   ReviewAnalysisEnrollmentFence,
   ReviewAnalysisEnrollmentHead,
   ReviewAnalysisEnrollmentReconcileResult,
   ReviewAnalysisEnrollmentStorePort,
-} from '../ports/ai-review-analysis-enrollment.port'
+} from './contracts'
 import type {
   AiReviewAnalysisReopenPort,
   AiReviewAnalysisReopenResult,
-} from '../ports/ai-review-analysis-reopen.port'
-import { resolveAiExecutionStopFence } from '../ai-workflow-support'
+} from './contracts'
+import { resolveAiExecutionStopFence } from '../application/ai-workflow-support'
 
 /** Enrollment heads visited per recovery tick. */
 const AI_REVIEW_ANALYSIS_ENROLLMENT_SWEEP_BATCH_SIZE = 50

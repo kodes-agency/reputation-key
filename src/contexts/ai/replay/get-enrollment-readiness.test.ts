@@ -1,13 +1,13 @@
 import { describe, expect, it } from 'vitest'
 import { organizationId, propertyId } from '#/shared/domain/ids'
-import type { AiAuthorizationPort } from '../ports/ai-authorization.port'
-import type { AiControlPort } from '../ports/ai-control.port'
+import type { AiAuthorizationPort } from '../application/ports/ai-authorization.port'
+import type { AiControlPort } from '../application/ports/ai-control.port'
 import type {
   ReviewAnalysisEnrollmentEvidence,
   ReviewAnalysisEnrollmentStorePort,
-} from '../ports/ai-review-analysis-enrollment.port'
-import { EMPTY_REVIEW_ANALYSIS_REVISION_SET_DIGEST } from '../ports/ai-review-analysis-enrollment.port'
-import { createReadReviewAnalysisEnrollmentReadiness } from './read-review-analysis-enrollment-readiness'
+} from './contracts'
+import { EMPTY_REVIEW_ANALYSIS_REVISION_SET_DIGEST } from './contracts'
+import { createReadReviewAnalysisEnrollmentReadiness } from './get-enrollment-readiness.server'
 
 const ORGANIZATION_ID = organizationId('ai-enrollment-readiness')
 const PROPERTY_ID = propertyId('c4eff4df-b7bb-4b7a-88ea-596262f24256')

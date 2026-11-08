@@ -6,8 +6,8 @@ import type {
   AiReviewAnalysisBacklogEntry,
   AiReviewAnalysisBacklogOrigin,
   AiReviewAnalysisBacklogPort,
-} from '../../application/ports/ai-review-analysis-backlog.port'
-import type { AiAdmissionLane } from '../../domain/admission-lanes'
+} from './contracts'
+import type { AiAdmissionLane } from '../domain/admission-lanes'
 
 type BacklogRow = Readonly<{
   event_envelope_id: string

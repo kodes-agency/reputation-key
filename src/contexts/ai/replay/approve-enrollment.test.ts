@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest'
 import { organizationId } from '#/shared/domain/ids'
-import type { ReviewAnalysisEnrollmentStorePort } from '../ports/ai-review-analysis-enrollment.port'
-import { createApproveReviewAnalysisEnrollment } from './approve-review-analysis-enrollment'
+import type { ReviewAnalysisEnrollmentStorePort } from './contracts'
+import { createApproveReviewAnalysisEnrollment } from './approve-enrollment.server'
 
 const INPUT = {
   enrollmentId: '31000000-0000-4000-8000-000000000101',

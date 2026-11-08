@@ -1,6 +1,6 @@
 import type { OrganizationId, PropertyId, ReviewId } from '#/shared/domain/ids'
 import { resolveAiReadGate, type AiReadGateDependencies } from '../ai-read-gate'
-import type { AiReviewAnalysisBacklogPort } from '../ports/ai-review-analysis-backlog.port'
+import type { AiReviewAnalysisBacklogPort } from '../../replay/contracts'
 
 export type RequestReviewAnalysisNowResult = Readonly<{
   status: 'queued' | 'not_pending' | 'disabled'

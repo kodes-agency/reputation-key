@@ -3,10 +3,10 @@ import type { SQL } from 'drizzle-orm'
 import { PgDialect } from 'drizzle-orm/pg-core'
 import type { Database } from '#/shared/db'
 import { organizationId, propertyId } from '#/shared/domain/ids'
-import type { AiAuthorizationLifecycleTrigger } from '../../application/ports/ai-review-analysis-enrollment.port'
-import { createReviewAnalysisEnrollmentAdapter } from './ai-review-analysis-enrollment.adapter'
+import type { AiAuthorizationLifecycleTrigger } from '../../replay/contracts'
+import { createReviewAnalysisEnrollmentAdapter } from '../../replay/enrollment-store.server'
 
-vi.mock('./ai-enrollment-consent-refresh', () => ({
+vi.mock('../../replay/consent-refresh.server', () => ({
   preserveAnalysisEnrollment: async () => 'preserved-enrollment',
 }))
 

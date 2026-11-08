@@ -13,7 +13,7 @@
 // the feed consumers) are not bounded here. They hold no lock while waiting for
 // a client, so past the budget they only queue.
 
-import { AI_BACKLOG_DRAIN_CONCURRENCY } from '#/contexts/ai/application/use-cases/drain-review-analysis-backlog'
+import { AI_BACKLOG_DRAIN_CONCURRENCY } from '#/contexts/ai/application/public-api'
 import {
   REVIEW_EXACT_CURRENT_APPLY_CLIENTS,
   REVIEW_EXACT_CURRENT_MAX_CONCURRENT_APPLIES,

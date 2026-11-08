@@ -38,7 +38,7 @@ import {
 import { AI_REVIEW_ANALYSIS_CONSUMER } from '../outbox-consumers'
 import { createAiOperationStoreAdapter } from './ai-operation-store.adapter'
 import { createAiPropertyAggregateStoreAdapter } from './ai-property-aggregate-store.adapter'
-import { createReviewAnalysisEnrollmentAdapter } from './ai-review-analysis-enrollment.adapter'
+import { createReviewAnalysisEnrollmentAdapter } from '../../replay/enrollment-store.server'
 
 const NOW = new Date('2026-09-08T10:00:00.000Z')
 const ORGANIZATION_ID = organizationId('ai-enrollment-adapter-test-org')

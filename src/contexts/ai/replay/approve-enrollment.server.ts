@@ -1,6 +1,6 @@
 import type { OrganizationId } from '#/shared/domain/ids'
-import type { ReviewAnalysisEnrollmentStorePort } from '../ports/ai-review-analysis-enrollment.port'
-import type { ReviewAnalysisEnrollmentFence } from '../ports/ai-review-analysis-enrollment.port'
+import type { ReviewAnalysisEnrollmentStorePort } from './contracts'
+import type { ReviewAnalysisEnrollmentFence } from './contracts'
 
 export type ApproveReviewAnalysisEnrollmentInput = Readonly<{
   enrollmentId: string

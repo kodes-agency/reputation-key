@@ -44,8 +44,8 @@ import {
   createAiReviewAnalysisReopenAdapter,
   listSpentReviewAnalyses,
   reopenSpentReviewAnalyses,
-} from './ai-review-analysis-reopen.adapter'
-import { createReviewAnalysisEnrollmentAdapter } from './ai-review-analysis-enrollment.adapter'
+} from '../../replay/reopen-store.server'
+import { createReviewAnalysisEnrollmentAdapter } from '../../replay/enrollment-store.server'
 
 const NOW = new Date('2026-09-29T17:37:00.000Z')
 const LATER = new Date('2026-09-29T17:45:00.000Z')
