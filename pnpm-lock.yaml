@@ -272,9 +272,9 @@ importers:
       shadcn:
         specifier: 4.21.0
         version: 4.21.0(typescript@6.0.3)
-      spdx-expression-parse:
-        specifier: 5.0.0
-        version: 5.0.0
+      spdx-license-ids:
+        specifier: 3.0.24
+        version: 3.0.24
       storybook:
         specifier: 10.6.2
         version: 10.6.2(@types/react@19.2.18)(prettier@3.9.8)(react@19.2.8)
@@ -6749,12 +6749,6 @@ packages:
   source-map@0.7.6:
     resolution: {integrity: sha512-i5uvt8C3ikiWeNZSVZNWcfZPItFQOsYTUAOkcUPGd8DqDy1uOUikjt5dG+uRlwyvR108Fb9DOd4GvXfT0N2/uQ==}
     engines: {node: '>= 12'}
-
-  spdx-exceptions@2.5.0:
-    resolution: {integrity: sha512-PiU42r+xO4UbUS1buo3LPJkjlO7430Xn5SVAhdpzzsPHsjbYVflnnFdATgabnLude+Cqu25p6N+g2lw/PFsa4w==}
-
-  spdx-expression-parse@5.0.0:
-    resolution: {integrity: sha512-vngmw3Rgn+o2arXNbnZaj5UtOEBuWBfvaI+Wc8GFfykIhA5/vdK9/Sp/XkLv63dykz2rxKDvKEHupF5P0FORcQ==}
 
   spdx-license-ids@3.0.24:
     resolution: {integrity: sha512-cLS9TtWkIQFyLkJ3/5aFQAOHOSKTlOs/7WDut/XPSdjom1fJhUdkepeJAKXa9Y05+FabHd0sti+Et559vDtkpQ==}
@@ -13739,13 +13733,6 @@ snapshots:
   source-map@0.6.1: {}
 
   source-map@0.7.6: {}
-
-  spdx-exceptions@2.5.0: {}
-
-  spdx-expression-parse@5.0.0:
-    dependencies:
-      spdx-exceptions: 2.5.0
-      spdx-license-ids: 3.0.24
 
   spdx-license-ids@3.0.24: {}
 
