@@ -1,52 +1,58 @@
-// Authorize goal.create and apply Program visibility before reading page details
-// (ADR 0068). Property count goals redirect to /goals/portals without further reads.
-// Portal/group count goals use their own governed progress and narrowed offers;
-// an existing goal on the other measure prevents a measure switch. Average goals
-// read governed averages/sample floors without a recommendation. Several-subject
-// goals retain subject history, list progress and Stop. All shapes keep their months.
+// Authorize and apply Program visibility before reading details (ADR 0068).
+// Each page keeps its own governed figures; Stop retains due months even when
+// progress cannot be read. Historical assignments and results remain intact.
 
-import { goalMonthDays } from '../../domain/goal-pace'
-import { goalSubjectIdentity, type GoalSubject } from '../../domain/goal-subject'
-import { localDateOf } from '../../domain/local-days'
-import type { PortalGoalRecommendation } from '../dto/goal-recommendation.types'
-import type { PortalGoalPageView } from '../dto/monthly-portal-goal-page.types'
+import { goalMonthDays } from '../domain/goal-pace'
+import { goalSubjectIdentity, type GoalSubject } from '../domain/goal-subject'
+import { localDateOf } from '../domain/local-days'
+import type { PortalGoalRecommendation } from '../application/dto/goal-recommendation.types'
+import type { PortalGoalPageView } from '../application/dto/monthly-portal-goal-page.types'
 import type {
   PortalGoalAverageOfPage,
   PortalGoalSingleSubject,
   PortalGoalSinglePageView,
-} from '../dto/portal-goal-single-page.types'
-import { nextRevisionStart } from '../goal-revision-start'
-import { subjectHolds } from '../goal-subject-holds'
+} from '../application/dto/portal-goal-single-page.types'
+import { nextRevisionStart } from '../application/goal-revision-start'
+import { assignmentHoldsFrom } from './subject-assignments.server'
 import {
   isPortalCountGoal,
   portalGoalPageOf,
   type PortalCountGoal,
-} from '../monthly-portal-goal-identity'
-import type { GoalProgramBundle } from '../ports/goal-program.repository'
-import { listProgressOf } from './goal-list-progress'
-import { dueResultsForProgram } from './goal-program-shared'
+} from '../application/monthly-portal-goal-identity'
+import type { GoalProgramBundle } from '../application/ports/goal-program.repository'
+import { listProgressOf } from '../application/use-cases/goal-list-progress'
+import { dueResultsForProgram } from '../application/use-cases/goal-program-shared'
 import {
   GoalProgramError,
   type GoalActor,
   type GoalExecutionPolicy,
   type GoalProgramService,
-} from './goal-programs'
-import { progressOf } from './goal-progress'
-import { gatherPortalGoalFacts, recommendationFrom } from './goal-recommendation-read'
-import { changeFactsOf } from './monthly-portal-goal-change-facts'
+} from '../application/use-cases/goal-programs'
+import { progressOf } from '../application/use-cases/goal-progress'
+import {
+  gatherPortalGoalFacts,
+  recommendationFrom,
+} from '../application/use-cases/goal-recommendation-read'
+import { changeFactsOf } from '../application/use-cases/monthly-portal-goal-change-facts'
 import {
   averageMeasureOf,
   goalChangesOf,
   goalMonthsOf,
-} from './monthly-portal-goal-history'
-import { portalGoalSheetFactsOf } from './monthly-portal-goal-offer'
+} from '../application/use-cases/monthly-portal-goal-history'
+import { portalGoalSheetFactsOf } from '../application/use-cases/monthly-portal-goal-offer'
 import {
   subjectNamesOf,
   tilesOf,
   type MonthlyPortalGoalPageDeps,
-} from './monthly-portal-goal-page'
-import { monthKeyOf, monthlyPortalGoalOnCard } from './monthly-portal-goal-running'
-import { narrowedFor, portalGoalAddBasisOf } from './portal-goal-add-numbers'
+} from '../application/use-cases/monthly-portal-goal-page'
+import {
+  monthKeyOf,
+  monthlyPortalGoalOnCard,
+} from '../application/use-cases/monthly-portal-goal-running'
+import {
+  narrowedFor,
+  portalGoalAddBasisOf,
+} from '../application/use-cases/portal-goal-add-numbers'
 
 export type PortalGoalSinglePageDeps = MonthlyPortalGoalPageDeps &
   Readonly<{
@@ -111,10 +117,16 @@ function otherMeasureHeld(
       ? 'qualified_scans'
       : 'portal_rating_count'
   const { period } = nextRevisionStart(bundle, context.now, context.timezone)
-  const others = programs.filter(({ program }) => program.id !== bundle.program.id)
   const identity = goalSubjectIdentity(subject)
-  return subjectHolds(others, other, period.start).some(
-    (hold) => goalSubjectIdentity(hold.subject) === identity,
+  return programs.some(
+    ({ program, assignments }) =>
+      program.id !== bundle.program.id &&
+      assignments.some(
+        (assignment) =>
+          assignment.metric === other &&
+          goalSubjectIdentity(assignment.subject) === identity &&
+          assignmentHoldsFrom(assignment, period.start),
+      ),
   )
 }
 

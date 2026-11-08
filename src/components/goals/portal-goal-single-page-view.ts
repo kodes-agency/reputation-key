@@ -2,17 +2,14 @@
 // reuse the monthly page; averages retain sample-floor messaging and several-subject
 // goals retain Stop.
 
-import type { GoalMetric, GoalSubject } from '#/contexts/reporting/application/public-api'
 import type {
   PortalGoalAverageOfPage,
-  PortalGoalSeveralOfPage,
   PortalGoalSingleSubject,
 } from '#/contexts/reporting/application/dto/portal-goal-single-page.types'
-import { goalListSubjectText } from './goal-assignment-subject-label'
-import { daysLeftWords, goalLiveView } from './goal-live-view'
+import { daysLeftWords } from './goal-live-view'
 import { goalMetricLabel } from './goal-metric-label'
 import { goalFigure } from './goal-so-far'
-import { pageBodyLine, type PortalGoalTileWords } from './portal-goal-page-view'
+import type { PortalGoalTileWords } from './portal-goal-page-view'
 import { MONTH_FIGURE_UNREADABLE } from './portal-goal-running-view'
 import { dayWords, monthName } from './portal-goal-words'
 
@@ -151,71 +148,4 @@ export function goalStateLine(
   if (goal.status === 'paused') return 'Paused.'
   if (goal.status !== 'ended') return null
   return goal.endedOn === null ? 'Stopped.' : `Stopped on ${dayWords(goal.endedOn)}.`
-}
-
-/** A subject named as the read named it, back in the Goals list's shape. */
-function goalSubjectOf(subject: PortalGoalSingleSubject): GoalSubject {
-  const id = subject.key.slice(subject.key.indexOf(':') + 1)
-  switch (subject.kind) {
-    case 'property':
-      return { kind: 'property', propertyId: id }
-    case 'portal':
-      return { kind: 'portal', portalId: id }
-    case 'portal_group':
-      return { kind: 'portal_group', portalGroupId: id }
-  }
-}
-
-/**
- * L-7: a goal for several subjects as its row on the Goals page names them,
- * "Reception and 2 more" (the Property by its name, a nameless one as the row
- * says it).
- */
-function severalSubjectsWords(
-  subjects: readonly PortalGoalSingleSubject[],
-  propertyName: string,
-): string {
-  const names = new Map(subjects.map(({ key, name }) => [key, name]))
-  const nameOf = (subject: GoalSubject): string => {
-    if (subject.kind === 'property') return propertyName
-    const key =
-      subject.kind === 'portal'
-        ? `portal:${subject.portalId}`
-        : `portal_group:${subject.portalGroupId}`
-    return names.get(key) ?? (subject.kind === 'portal' ? 'Portal' : 'Group')
-  }
-  return goalListSubjectText(subjects.map(goalSubjectOf), nameOf) ?? propertyName
-}
-
-/**
- * The plain page of a goal for several subjects: its title ("Reception and 2
- * more · portal goal") and what it counts where (P-2's line for a count, L-6's
- * for the average).
- */
-export function severalGoalWords(
-  metric: GoalMetric,
-  subjects: readonly PortalGoalSingleSubject[],
-  propertyName: string,
-): Readonly<{ title: string; line: string }> {
-  const whom = severalSubjectsWords(subjects, propertyName)
-  return {
-    title: `${whom} · portal goal`,
-    line:
-      metric === 'portal_rating_average'
-        ? `The average private rating guests give at ${whom}. A month needs at least 10 ratings.`
-        : pageBodyLine(metric, [whom], propertyName),
-  }
-}
-
-/**
- * This month of a goal for several subjects, as its row on the Goals page says
- * it ("3 subjects · 1 below pace"); its first day while it waits ("Starts on
- * Dec 1."); nothing once it counts no month.
- */
-export function severalMonthLine(goal: PortalGoalSeveralOfPage): string | null {
-  if (goal.live !== null) return goalLiveView(goal.live)?.text ?? null
-  if (goal.status === 'scheduled' && goal.startsOn !== null) {
-    return `Starts on ${dayWords(goal.startsOn)}.`
-  }
-  return null
 }

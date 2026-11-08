@@ -2,45 +2,28 @@
 // The server decides states, days and numbers.
 // Days are Property-local YYYY-MM-DD; months are YYYY-MM.
 
-import type { GoalMetric } from '../../domain/goal-program'
-import type { GoalListProgress } from '../use-cases/goal-list-progress'
+import type {
+  GoalOfPage,
+  PortalGoalSingleSubject,
+  PortalGoalSeveralPageView,
+} from '../../monthly-goals/contracts'
+export type {
+  PortalGoalSingleSubject,
+  PortalGoalSeveralOfPage,
+} from '../../monthly-goals/contracts'
+
 import type { GoalProgressReading } from '../use-cases/goal-progress'
 import type {
   PortalGoalChange,
   PortalGoalPageMonth,
   PortalGoalPageView,
 } from './monthly-portal-goal-page.types'
-import type { PortalGoalChangeFacts } from './monthly-portal-goal.types'
-
-/** Whom the goal counts, and its name; null when Portal could not say it. */
-export type PortalGoalSingleSubject = Readonly<{
-  kind: 'property' | 'portal' | 'portal_group'
-  /** `portal:<id>`, `portal_group:<id>` or `property:<id>`: the subject's reads are keyed by it. */
-  key: string
-  name: string | null
-}>
 
 /** What the month so far says of an average: the governed figure, or that it needs more ratings. */
 export type PortalGoalAverageReading = Exclude<
   GoalProgressReading,
   Readonly<{ kind: 'not_started' }>
 >
-
-/** A goal's status, the day it began or will begin, and the day it was stopped. */
-type GoalOfPage = Readonly<{
-  programId: string
-  status: 'scheduled' | 'active' | 'paused' | 'ended'
-  /** Its current version's number: "goal 4.5". */
-  target: number
-  /** Scheduled: the local day its first month begins; else null. */
-  startsOn: string | null
-  /** Stopped: the local day it was stopped, when that was recorded; else null. */
-  endedOn: string | null
-  /** The latest month Stop retains, including an active goal's due but unopened month. */
-  countingMonth: Readonly<{ key: string }> | null
-  /** What a change or a stop is made against; null once it has been stopped. */
-  change: PortalGoalChangeFacts | null
-}>
 
 /** The average private rating goal on its page: its level, and this month while it counts. */
 export type PortalGoalAverageOfPage = GoalOfPage &
@@ -55,17 +38,6 @@ export type PortalGoalAverageOfPage = GoalOfPage &
       daysAfterToday: number
       reading: PortalGoalAverageReading
     }> | null
-  }>
-
-/**
- * A goal that names several subjects now, made before goals had pages of their
- * own: what it counts, and this month so far as the Goals list reads it.
- */
-export type PortalGoalSeveralOfPage = GoalOfPage &
-  Readonly<{
-    metric: GoalMetric
-    /** Active: this month so far, as its row on the Goals page says it; else null. */
-    live: GoalListProgress | null
   }>
 
 /**
@@ -99,10 +71,4 @@ export type PortalGoalSinglePageView =
       /** What changed, newest first. */
       changes: readonly PortalGoalChange[]
     }>
-  | Readonly<{
-      kind: 'several'
-      /** Each subject it counts now, by name. */
-      subjects: readonly PortalGoalSingleSubject[]
-      today: string
-      goal: PortalGoalSeveralOfPage
-    }>
+  | PortalGoalSeveralPageView
