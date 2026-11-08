@@ -61,7 +61,7 @@ export const rightsRequestCommandSpec: OperatorCommandSpec = Object.freeze({
   usage:
     'pnpm ops rights-request <access|guest-response|participant|property|organization> [replay] ' +
     '--operator <id> --org <id> [--property <id>] received=<iso> [verified=<iso> verification=<ref>] ' +
-    '[subject-ref=<sha256>] [response=<uuid>] [journal=<file> restore-point=<iso>] ' +
+    '[subject-ref=<sha256>] [response=<uuid>] [journal=<file> restore-point=<iso>] [out=<dir>] ' +
     "[--reason <text> --ticket <ref> --batch-size <n> --apply 'confirm=ERASE <SCOPE> <id>' --yes ops:rights-request]",
 })
 
@@ -81,6 +81,7 @@ export type RightsRequestPlan = Readonly<{
   confirmation?: string
   journalFile?: string
   restorePointAt?: Date
+  exportDir?: string
 }>
 
 export type RightsRequestPlanResult =
@@ -135,6 +136,7 @@ type Fields = Readonly<{
   verifiedAt?: Date | null
   restorePointAt?: Date | null
   journalFile?: string
+  exportDir?: string
   confirmation?: string
 }>
 
@@ -147,6 +149,7 @@ function readFields(args: OperatorArgs): Fields {
     verifiedAt: parseInstant(tokenValue(args, 'verified')),
     restorePointAt: parseInstant(tokenValue(args, 'restore-point')),
     journalFile: tokenValue(args, 'journal'),
+    exportDir: tokenValue(args, 'out'),
     confirmation: tokenValue(args, 'confirm'),
   }
 }
@@ -166,6 +169,9 @@ function fieldShapeError(fields: Fields): string | null {
   }
   if (fields.journalFile !== undefined && !FILE_PATH.test(fields.journalFile)) {
     return 'journal must be a local file path'
+  }
+  if (fields.exportDir !== undefined && !FILE_PATH.test(fields.exportDir)) {
+    return 'out must be a local directory path'
   }
   if (fields.receivedAt === null) return 'received must be an ISO date'
   if (fields.verifiedAt === null) return 'verified must be an ISO date'
@@ -258,6 +264,7 @@ export function planRightsRequest(
       ...(fields.verificationRef ? { verificationRef: fields.verificationRef } : {}),
       ...(fields.confirmation ? { confirmation: fields.confirmation } : {}),
       ...(fields.journalFile ? { journalFile: fields.journalFile } : {}),
+      ...(fields.exportDir ? { exportDir: fields.exportDir } : {}),
       ...(fields.restorePointAt ? { restorePointAt: fields.restorePointAt } : {}),
       ...(receivedAt
         ? { receivedAt, answerDueAt: addDays(receivedAt, ANSWER_DEADLINE_DAYS) }

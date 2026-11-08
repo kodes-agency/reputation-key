@@ -3,8 +3,8 @@
 //
 // Report is the default. Replay lists which journaled erasures a restore to a
 // given point undid. Apply is refused in production; outside production it
-// validates identity and typed confirmation, then refuses until the executors
-// for the scope are composed. The contract and its tests live in
+// validates identity and typed confirmation, then runs the executors composed
+// for the scope (below). The contract and its tests live in
 // src/shared/ops/rights/rights-request-command.ts — scripts/ sits outside the
 // unit test project, so this file is wiring only.
 //
@@ -12,9 +12,18 @@
 //   pnpm ops rights-request property replay --operator <id> --org <id> --property <id> \
 //     journal=<file> restore-point=<iso>
 
-import { readFile } from 'node:fs/promises'
+import { mkdir, readFile, writeFile } from 'node:fs/promises'
+import { dirname } from 'node:path'
+import { createReportingRightsExecutor } from '../../src/contexts/reporting/infrastructure/adapters/reporting-rights.adapter'
 import { getEnv } from '../../src/shared/config/env'
+import { getDb } from '../../src/shared/db'
 import { decodeErasureJournalExport } from '../../src/shared/db/lifecycle/erasure-journal.server'
+import { createGoogleRightsExecutor } from '../../src/shared/ops/rights/google-rights-executor'
+import {
+  createInboxRightsExecutor,
+  createReviewRightsExecutor,
+} from '../../src/shared/ops/rights/review-inbox-rights-executors'
+import { runRightsExecutors } from '../../src/shared/ops/rights/rights-executor'
 import {
   describeRightsReport,
   planRightsReplay,
@@ -45,13 +54,20 @@ async function main(): Promise<void> {
         }
         return 0
       }
-      if (plan.mode === 'apply') {
-        io.err(
-          `${rightsRequestCommandSpec.name}: no executor is composed for ${plan.scope} yet; nothing was changed`,
-        )
-        return 1
-      }
-      return 0
+      return runRightsExecutors({
+        plan,
+        io,
+        executors: [
+          createGoogleRightsExecutor({ db: getDb() }),
+          createReviewRightsExecutor({ db: getDb() }),
+          createInboxRightsExecutor({ db: getDb() }),
+          createReportingRightsExecutor(getDb(), () => new Date()),
+        ],
+        writeExportFile: async (path, bytes) => {
+          await mkdir(dirname(path), { recursive: true })
+          await writeFile(path, bytes, { mode: 0o600 })
+        },
+      })
     },
   )
   process.exit(result.exitCode)

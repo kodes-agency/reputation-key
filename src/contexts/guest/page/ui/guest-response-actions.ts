@@ -2,7 +2,7 @@
 // action with the session, then moves the page's state to what the server said.
 //
 // Pure logic with no React in it, so what a failure leaves on the screen can be
-// tested without a browser. The hook (`use-immersive-guest-response.ts`) owns the
+// tested without a browser. The hook (`use-guest-response.ts`) owns the
 // state and hands the setters in; the view only ever sees the finished props.
 //
 // Every handler first clears the last failure and notice, so at most one message
@@ -10,16 +10,16 @@
 // where it was and names the card the failure belongs to.
 
 import type { GuestResponseView } from '#/contexts/guest/application/use-cases/guest-response-lifecycle'
-import type { GuestResponseFormProps } from '../guest-response-form-types'
+import type { GuestResponseFormProps } from '#/components/features/guest/public-portal/guest-response-form-types'
 import { captureBrowserException } from '#/shared/observability/browser-exception-capture'
 import { isExpectedRefusal } from '#/shared/security/expected-refusal'
-import { isHttpsUrl } from './linktree-follow'
-import type { NoteSubmission } from './immersive-note-card'
-import type { RatingSubmission } from './immersive-rating-card'
+import { isHttpsUrl } from '#/components/features/guest/public-portal/immersive/linktree-follow'
+import type { NoteSubmission } from '#/components/features/guest/public-portal/immersive/immersive-note-card'
+import type { RatingSubmission } from '#/components/features/guest/public-portal/immersive/immersive-rating-card'
 import type {
   ImmersiveResponseFailure,
   ImmersiveResponseNotice,
-} from './immersive-response-types'
+} from '#/components/features/guest/public-portal/immersive/immersive-response-types'
 
 /** The seven server actions a live page binds, as the route hands them in. */
 export type GuestResponseActions = Pick<

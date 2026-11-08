@@ -557,7 +557,7 @@ export const ActiveTabInsideSection: Story = {
   },
 }
 
-/** A reached tenth is history; only Google’s current tenth can be kept. */
+/** Next steps follow the reached target, not what Google shows now: 4.9 offers Keep only. */
 export const ReachedFourNineNowFourEight: Story = {
   args: {
     card: cardRead({ ...CARD_REACHED, targetTenths: 49, target: 4.9, threshold: 4.85 }),
@@ -565,9 +565,9 @@ export const ReachedFourNineNowFourEight: Story = {
   },
   play: async ({ canvasElement, args }) => {
     const canvas = within(canvasElement)
-    await expect(canvas.queryByRole('button', { name: 'Keep 4.9' })).toBeNull()
-    await expect(canvas.getByRole('button', { name: 'Set your next goal' })).toBeVisible()
-    await userEvent.click(canvas.getByRole('button', { name: 'Keep 4.8' }))
-    await expect(args.onStart).toHaveBeenCalledWith({ kind: 'keep', targetTenths: 48 })
+    await expect(canvas.queryByRole('button', { name: 'Set your next goal' })).toBeNull()
+    await expect(canvas.queryByRole('button', { name: 'Keep 4.8' })).toBeNull()
+    await userEvent.click(canvas.getByRole('button', { name: 'Keep 4.9' }))
+    await expect(args.onStart).toHaveBeenCalledWith({ kind: 'keep', targetTenths: 49 })
   },
 }

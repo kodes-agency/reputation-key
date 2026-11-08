@@ -52,7 +52,11 @@ describe('publish changes while live (server functions)', () => {
   it('checks the write scope on the Portal before publishing its changes', async () => {
     mocks.publishOne.mockResolvedValue({ outcome: 'unchanged', version: 2 })
 
-    await withStartContext(() => publishPortalChanges({ data: { portalId: 'portal-1' } }))
+    await withStartContext(() =>
+      publishPortalChanges({
+        data: { portalId: 'portal-1', reviewedDigest: 'digest-1' },
+      }),
+    )
 
     expect(mocks.requirePortalResourceScope).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -61,7 +65,10 @@ describe('publish changes while live (server functions)', () => {
         capability: 'portal.write',
       }),
     )
-    expect(mocks.publishOne).toHaveBeenCalledWith({ portalId: 'portal-1' }, ACTOR)
+    expect(mocks.publishOne).toHaveBeenCalledWith(
+      { portalId: 'portal-1', reviewedDigest: 'digest-1' },
+      ACTOR,
+    )
     expect(mocks.requirePortalResourceScope.mock.invocationCallOrder[0]).toBeLessThan(
       mocks.publishOne.mock.invocationCallOrder[0]!,
     )
@@ -73,7 +80,11 @@ describe('publish changes while live (server functions)', () => {
     )
 
     await expect(
-      withStartContext(() => publishPortalChanges({ data: { portalId: 'portal-1' } })),
+      withStartContext(() =>
+        publishPortalChanges({
+          data: { portalId: 'portal-1', reviewedDigest: 'digest-1' },
+        }),
+      ),
     ).rejects.toMatchObject({ _tag: 'PortalError', code: 'forbidden', status: 403 })
     expect(mocks.publishOne).not.toHaveBeenCalled()
   })
@@ -132,7 +143,9 @@ describe('publish changes while live (server functions)', () => {
     )
 
     await expect(
-      withStartContext(() => publishPortalChanges({ data: { portalId: 'gone' } })),
+      withStartContext(() =>
+        publishPortalChanges({ data: { portalId: 'gone', reviewedDigest: 'digest-1' } }),
+      ),
     ).rejects.toMatchObject({
       _tag: 'PortalError',
       code: 'portal_not_found',

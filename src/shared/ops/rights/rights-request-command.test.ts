@@ -35,6 +35,13 @@ function plan(argv: string[], env = DEV, dryRun?: boolean) {
   return planRightsRequest(ctx, parsed.args, env)
 }
 
+describe('export directory', () => {
+  it('carries out=<dir> into the plan', () => {
+    const result = plan(['access', 'out=/tmp/export'])
+    expect(result.ok && result.plan.exportDir).toBe('/tmp/export')
+  })
+})
+
 const VERIFIED = ['verified=2026-11-01T10:00:00Z', 'verification=ticket:123']
 
 describe('planRightsRequest', () => {

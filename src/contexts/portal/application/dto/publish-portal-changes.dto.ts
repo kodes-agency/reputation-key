@@ -6,7 +6,10 @@ import { z } from 'zod/v4'
 export const MAX_PORTALS_PER_PUBLISH_BATCH = 50
 
 export const publishPortalChangesInputSchema = z
-  .object({ portalId: z.string().min(1, 'Portal ID is required') })
+  .object({
+    portalId: z.string().min(1, 'Portal ID is required'),
+    reviewedDigest: z.string().min(1, 'The reviewed version is required'),
+  })
   .strict()
 
 export const publishPortalsChangesInputSchema = z
