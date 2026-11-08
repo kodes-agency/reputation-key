@@ -6,7 +6,7 @@
 // disclosure. Axe runs on every story (`a11y.test = 'error'`).
 import type { Decorator, Meta, StoryObj } from '@storybook/react-vite'
 import { expect, within } from 'storybook/test'
-import { loadGuestPortalCopyV2 } from '#/components/features/guest'
+import { loadGuestPortalCopy } from '#/components/features/guest'
 import { GUEST_FONT_STYLESHEET } from '#/shared/font-sets'
 import { PREVIEW_DRAFT } from './__fixtures__/portal-preview-fixtures'
 import { ARRIVAL_STATE } from './portal-preview-states'
@@ -16,7 +16,7 @@ const PHONE = { width: 390, height: 844 } as const
 
 const english = PREVIEW_DRAFT.experiences.en
 if (english === undefined) throw new Error('the draft fixture has no English page')
-const pack = await loadGuestPortalCopyV2('en')
+const pack = await loadGuestPortalCopy('en')
 
 const PhoneFrame: Decorator = (Story) => (
   <div style={{ ...PHONE, maxWidth: '100%', margin: '0 auto', overflowY: 'auto' }}>

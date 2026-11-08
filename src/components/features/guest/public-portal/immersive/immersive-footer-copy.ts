@@ -1,5 +1,5 @@
 import { guestCopyText } from '../guest-copy-format'
-import type { GuestPortalCopyV2 } from '../language-packs/guest-copy-v2'
+import type { GuestPortalCopy } from '../language-packs/guest-copy'
 
 /** Every text the Immersive Hub footer shows, filled in and ready to render. */
 export type ImmersiveFooterCopy = Readonly<{
@@ -26,7 +26,7 @@ export type ImmersiveFooterCopy = Readonly<{
  * marker, and that one line does; the owner approved it for every language.
  */
 export function immersiveFooterCopy(
-  pack: GuestPortalCopyV2,
+  pack: GuestPortalCopy,
   displayName: string,
 ): ImmersiveFooterCopy {
   return {

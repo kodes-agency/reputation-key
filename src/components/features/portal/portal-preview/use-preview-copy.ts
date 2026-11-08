@@ -4,7 +4,7 @@
 import { useQuery } from '@tanstack/react-query'
 import type { GuestLocale } from '#/shared/domain/guest-locale'
 import { portalKeys } from '#/shared/queries/query-keys'
-import { loadGuestPortalCopyV2 } from '#/components/features/guest'
+import { loadGuestPortalCopy } from '#/components/features/guest'
 
 /**
  * What the preview prints a language's fixed text in when that language has no
@@ -16,9 +16,9 @@ const FALLBACK_COPY_LOCALE: GuestLocale = 'en'
 
 async function loadCopy(locale: GuestLocale) {
   try {
-    return await loadGuestPortalCopyV2(locale)
+    return await loadGuestPortalCopy(locale)
   } catch {
-    return await loadGuestPortalCopyV2(FALLBACK_COPY_LOCALE)
+    return await loadGuestPortalCopy(FALLBACK_COPY_LOCALE)
   }
 }
 

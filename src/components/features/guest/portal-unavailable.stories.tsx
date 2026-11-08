@@ -6,8 +6,8 @@ import { GUEST_FONT_STYLESHEET } from '#/shared/font-sets'
 import { PortalUnavailable } from './portal-unavailable'
 import { PortalUnavailableInBrowserLanguage } from './portal-unavailable-in-browser-language'
 import { unavailableCopyOf } from './portal-unavailable-copy'
-import { bgV2 } from './public-portal/language-packs/bg-v2'
-import { deV2 } from './public-portal/language-packs/de-v2'
+import { bgCopy } from './public-portal/language-packs/bg'
+import { deCopy } from './public-portal/language-packs/de'
 
 /** In the app the root links the guest fonts for this route; a story has no root. */
 const GuestFonts: Decorator = (Story) => (
@@ -48,7 +48,7 @@ export const G12Unavailable: Story = {
 
 /** A German visitor reads German first, the English words follow, and the button is German. */
 export const G12UnavailableInGerman: Story = {
-  args: { copy: unavailableCopyOf(deV2) },
+  args: { copy: unavailableCopyOf(deCopy) },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
     const heading = canvas.getByRole('heading', { level: 1 })
@@ -65,7 +65,7 @@ export const G12UnavailableInGerman: Story = {
 
 /** Bulgarian is one of the six, not a fixed extra: a Bulgarian visitor gets it first. */
 export const G12UnavailableInBulgarian: Story = {
-  args: { copy: unavailableCopyOf(bgV2) },
+  args: { copy: unavailableCopyOf(bgCopy) },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
     expect(canvas.getByRole('heading', { level: 1 })).toHaveTextContent(

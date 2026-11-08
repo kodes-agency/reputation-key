@@ -6,10 +6,10 @@ import { createElement } from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { describe, expect, it } from 'vitest'
 import { GUEST_LOCALES } from '#/shared/domain/guest-locale'
-import { bgV2 } from '../language-packs/bg-v2'
-import { enV2 } from '../language-packs/en-v2'
-import type { GuestPortalCopyV2 } from '../language-packs/guest-copy-v2'
-import { loadGuestPortalCopyV2 } from '../language-packs/load-guest-copy-v2'
+import { bgCopy } from '../language-packs/bg'
+import { enCopy } from '../language-packs/en'
+import type { GuestPortalCopy } from '../language-packs/guest-copy'
+import { loadGuestPortalCopy } from '../language-packs/load-guest-copy'
 import { guestCopyText } from '../guest-copy-format'
 import {
   ImmersiveFooterView,
@@ -20,12 +20,12 @@ import { immersiveFooterCopy } from './immersive-footer-copy'
 import { IMMERSIVE_FOOTER_CSS } from './immersive-footer-styles'
 
 // Every language a guest can reach, loaded the way a request loads them.
-const PACKS: readonly GuestPortalCopyV2[] = await Promise.all(
-  GUEST_LOCALES.map((locale) => loadGuestPortalCopyV2(locale)),
+const PACKS: readonly GuestPortalCopy[] = await Promise.all(
+  GUEST_LOCALES.map((locale) => loadGuestPortalCopy(locale)),
 )
 const NAME = 'Avela Resort'
 
-function render(props: Partial<ImmersiveFooterViewProps> = {}, pack = enV2) {
+function render(props: Partial<ImmersiveFooterViewProps> = {}, pack = enCopy) {
   return renderToStaticMarkup(
     createElement(ImmersiveFooterView, {
       copy: immersiveFooterCopy(pack, NAME),
@@ -59,7 +59,7 @@ describe('immersiveFooterCopy', () => {
   )
 
   it('says it in one line in English, and still discloses the cookie and the marker', () => {
-    const { visitNotice } = immersiveFooterCopy(enV2, NAME)
+    const { visitNotice } = immersiveFooterCopy(enCopy, NAME)
     expect(visitNotice).toBe(
       `${NAME} counts visits with one essential cookie and a privacy-protected marker. No ads or third-party trackers.`,
     )
@@ -81,7 +81,7 @@ describe('immersiveFooterCopy', () => {
   // other language says so in that language rather than promising a text the
   // guest cannot read.
   it('labels the privacy link plainly on an English page', () => {
-    expect(immersiveFooterCopy(enV2, NAME).privacyLink).toBe('Privacy notice')
+    expect(immersiveFooterCopy(enCopy, NAME).privacyLink).toBe('Privacy notice')
   })
 
   it.each(PACKS.filter((pack) => pack.locale !== 'en'))(
@@ -170,15 +170,15 @@ describe('ImmersiveFooterView after the notice is acknowledged', () => {
 
 describe('ImmersiveFooterView in Bulgarian', () => {
   it('shows the Bulgarian notice, labels and attribution', () => {
-    const html = render({ isNoticeVisible: true }, bgV2)
-    expect(html).toContain(guestCopyText(bgV2, 'visitNotice', { name: NAME }))
-    expect(html).toContain(`aria-label="${bgV2.copy.visitNoticeLabel}"`)
-    expect(html).toContain(bgV2.copy.privacyNoticeLinkInEnglish)
-    expect(html).toContain(bgV2.copy.visitNoticeAcknowledge)
-    expect(textOf(render({ isNoticeVisible: false }, bgV2))).toEqual([
-      bgV2.copy.privacyNoticeLinkInEnglish,
-      bgV2.copy.linkOpensNewTab,
-      bgV2.copy.footerMadeWith,
+    const html = render({ isNoticeVisible: true }, bgCopy)
+    expect(html).toContain(guestCopyText(bgCopy, 'visitNotice', { name: NAME }))
+    expect(html).toContain(`aria-label="${bgCopy.copy.visitNoticeLabel}"`)
+    expect(html).toContain(bgCopy.copy.privacyNoticeLinkInEnglish)
+    expect(html).toContain(bgCopy.copy.visitNoticeAcknowledge)
+    expect(textOf(render({ isNoticeVisible: false }, bgCopy))).toEqual([
+      bgCopy.copy.privacyNoticeLinkInEnglish,
+      bgCopy.copy.linkOpensNewTab,
+      bgCopy.copy.footerMadeWith,
     ])
   })
 })
@@ -207,7 +207,7 @@ describe('InertImmersiveFooterView (the admin preview)', () => {
   const inert = (props: Partial<Omit<ImmersiveFooterViewProps, 'onAcknowledge'>> = {}) =>
     renderToStaticMarkup(
       createElement(InertImmersiveFooterView, {
-        copy: immersiveFooterCopy(enV2, NAME),
+        copy: immersiveFooterCopy(enCopy, NAME),
         isNoticeVisible: true,
         ...props,
       }),

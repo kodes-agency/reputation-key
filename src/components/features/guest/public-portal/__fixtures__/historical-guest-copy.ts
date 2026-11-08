@@ -1,19 +1,74 @@
-import type {
-  GuestPortalCopy,
-  GuestPortalLanguagePackVersion,
-  GuestPortalLocale,
-} from './guest-language-pack-types'
+// Frozen copy evidence for snapshot schemas 1 and 2; no guest page reads it.
+import type { GuestLanguagePackVersion, GuestLocale } from '#/shared/domain/guest-locale'
 import { formatDateTime } from '#/lib/format-date-time'
 import {
   currentGuestLanguagePack,
   guestLocaleFormatTag,
 } from '#/shared/domain/guest-locale'
 
-export type {
-  GuestPortalCopy,
-  GuestPortalLanguagePackVersion,
-  GuestPortalLocale,
-} from './guest-language-pack-types'
+type HistoricalGuestPortalCopy = Readonly<{
+  locale: GuestLocale
+  version: GuestLanguagePackVersion
+  languageNavigationLabel: string
+  privacyNotice: string
+  portalLogoAlt: (organizationName: string) => string
+  gatewayUnavailableTitle: string
+  gatewayUnavailableBody: string
+  previewRatingTitle: string
+  previewRatingBody: string
+  chooseRating: string
+  ratingUpdated: string
+  ratingSubmitted: string
+  ratingSaveFailed: string
+  feedbackRequired: string
+  feedbackSent: string
+  feedbackSaveFailed: string
+  googleOpenFailed: string
+  responseWithdrawFailed: string
+  feedbackWithdrawnRatingSaved: string
+  feedbackWithdrawFailed: string
+  newResponseReady: string
+  newResponseFailed: string
+  responseWithdrawnTitle: string
+  responseWithdrawnBody: string
+  privateRatingLegend: string
+  ratingGroupLabel: string
+  ratingLabel: (rating: number) => string
+  honeypotWebsite: string
+  submitting: string
+  submitPrivateRating: string
+  privateRatingThanks: string
+  ratedExperience: (rating: number) => string
+  googleUnavailableTitle: string
+  googleUnavailableBody: string
+  googleTitle: string
+  googleBody: string
+  continueToGoogle: string
+  privateFeedbackTitle: string
+  privateFeedbackBody: string
+  privateFeedbackLabel: string
+  sending: string
+  sendPrivateFeedback: string
+  privateFeedbackReceipt: string
+  privateFeedbackWithdrawalUntil: (deadline: string) => string
+  withdrawPrivateFeedback: string
+  privateFeedbackWindowEnded: string
+  ratingCorrectionUntil: (deadline: string) => string
+  saveRatingCorrection: string
+  changePrivateRating: string
+  responseWithdrawalWindowEnded: string
+  responseWithdrawalUntil: (deadline: string) => string
+  withdrawEntireResponse: string
+  sharedDevicePrompt: string
+  startNewResponse: string
+  earlierResponseSaved: string
+  moreLinksLabel: string
+  moreFrom: (organizationName: string) => string
+  moreDestinations: string
+  analyticsLabel: string
+  analyticsBody: string
+  analyticsAcknowledge: string
+}>
 
 /**
  * Render a guest-facing deadline. The time zone is PINNED, not inherited.
@@ -26,13 +81,13 @@ export type {
  * them. UTC also matches how the rest of the app renders instants
  * (see components/inbox/utils.ts).
  */
-const formatDate = (value: string, locale: GuestPortalLocale): string =>
+const formatDate = (value: string, locale: GuestLocale): string =>
   formatDateTime(new Date(value), {
     locale: guestLocaleFormatTag(locale),
     timeZone: 'UTC',
   })
 
-const EN: GuestPortalCopy = {
+const EN: HistoricalGuestPortalCopy = {
   locale: 'en',
   version: 'guest-ui-en-v1',
   languageNavigationLabel: 'Language',
@@ -107,7 +162,7 @@ const EN: GuestPortalCopy = {
   analyticsAcknowledge: 'Got it',
 }
 
-const BG: GuestPortalCopy = {
+const BG: HistoricalGuestPortalCopy = {
   locale: 'bg',
   version: 'guest-ui-bg-v1',
   languageNavigationLabel: 'Език',
@@ -185,17 +240,18 @@ const BG: GuestPortalCopy = {
 }
 
 // Generation 1 packs only. The template-based v2 packs are loaded, one per
-// request, by `loadGuestPortalCopyV2`; a v2 id here is a wiring error.
-const PACKS: Readonly<Partial<Record<GuestPortalLanguagePackVersion, GuestPortalCopy>>> =
-  {
-    'guest-ui-en-v1': EN,
-    'guest-ui-bg-v1': BG,
-  }
+// request, by `loadGuestPortalCopy`; a v2 id here is a wiring error.
+const PACKS: Readonly<
+  Partial<Record<GuestLanguagePackVersion, HistoricalGuestPortalCopy>>
+> = {
+  'guest-ui-en-v1': EN,
+  'guest-ui-bg-v1': BG,
+}
 
-export function getGuestPortalCopy(
-  locale: GuestPortalLocale = 'en',
-  version?: GuestPortalLanguagePackVersion,
-): GuestPortalCopy {
+export function getHistoricalGuestPortalCopy(
+  locale: GuestLocale = 'en',
+  version?: GuestLanguagePackVersion,
+): HistoricalGuestPortalCopy {
   const resolved = version ?? currentGuestLanguagePack(locale)
   if (!resolved) throw new Error(`No guest language pack exists for locale ${locale}`)
   const pack = PACKS[resolved]

@@ -5,11 +5,11 @@ export { ImmersivePublicPortal } from './public-portal/immersive/immersive-publi
 // and its glass, the header, the title block, the response area the guest
 // answers in (the same view, driven by a controlled state), the Linktree and
 // the footer (each in its inert mode: nothing opens, follows or is recorded),
-// and the generation 2 copy packs (loaded one language at a time).
+// and the copy packs (loaded one language at a time).
 export { ImmersiveShell } from './public-portal/immersive/immersive-shell'
 export { glassClassName } from './public-portal/immersive/glass-surface'
-export { loadGuestPortalCopyV2 } from './public-portal/language-packs/load-guest-copy-v2'
-export type { GuestPortalCopyV2 } from './public-portal/language-packs/guest-copy-v2'
+export { loadGuestPortalCopy } from './public-portal/language-packs/load-guest-copy'
+export type { GuestPortalCopy } from './public-portal/language-packs/guest-copy'
 export { guestCopyText } from './public-portal/guest-copy-format'
 export { GuestHeader } from './public-portal/immersive/guest-header'
 export { GuestTitleBlock } from './public-portal/immersive/guest-title-block'

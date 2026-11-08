@@ -1,15 +1,15 @@
 import { createHash } from 'node:crypto'
 import { describe, expect, it } from 'vitest'
-import { getGuestPortalCopy } from './guest-language-pack'
+import { getHistoricalGuestPortalCopy } from './__fixtures__/historical-guest-copy'
 
 describe('guest Portal language packs', () => {
   it('resolves the exact immutable English and Bulgarian v1 packs', () => {
-    expect(getGuestPortalCopy('en', 'guest-ui-en-v1')).toMatchObject({
+    expect(getHistoricalGuestPortalCopy('en', 'guest-ui-en-v1')).toMatchObject({
       locale: 'en',
       version: 'guest-ui-en-v1',
       submitPrivateRating: 'Submit private rating',
     })
-    expect(getGuestPortalCopy('bg', 'guest-ui-bg-v1')).toMatchObject({
+    expect(getHistoricalGuestPortalCopy('bg', 'guest-ui-bg-v1')).toMatchObject({
       locale: 'bg',
       version: 'guest-ui-bg-v1',
       submitPrivateRating: 'Изпрати непубличната оценка',
@@ -17,19 +17,21 @@ describe('guest Portal language packs', () => {
   })
 
   it('fails closed instead of rendering copy from a different pinned locale', () => {
-    expect(() => getGuestPortalCopy('bg', 'guest-ui-en-v1')).toThrow(
+    expect(() => getHistoricalGuestPortalCopy('bg', 'guest-ui-en-v1')).toThrow(
       'Guest locale and immutable language pack do not match',
     )
   })
 
   it('defaults to the locale\u2019s current pack when none is pinned', () => {
-    expect(getGuestPortalCopy('en').version).toBe('guest-ui-en-v1')
-    expect(getGuestPortalCopy('bg').version).toBe('guest-ui-bg-v1')
-    expect(getGuestPortalCopy().locale).toBe('en')
+    expect(getHistoricalGuestPortalCopy('en').version).toBe('guest-ui-en-v1')
+    expect(getHistoricalGuestPortalCopy('bg').version).toBe('guest-ui-bg-v1')
+    expect(getHistoricalGuestPortalCopy().locale).toBe('en')
   })
 
   it('throws for a locale that has no generation 1 pack rather than showing another language', () => {
-    expect(() => getGuestPortalCopy('de')).toThrow('No guest language pack exists')
+    expect(() => getHistoricalGuestPortalCopy('de')).toThrow(
+      'No guest language pack exists',
+    )
   })
 })
 
@@ -82,8 +84,8 @@ const digestOf = (pack: object): string =>
 describe('the frozen v1 packs', () => {
   it('produce byte-identical copy to what shipped with schema versions 1 and 2', () => {
     expect({
-      en: digestOf(getGuestPortalCopy('en', 'guest-ui-en-v1')),
-      bg: digestOf(getGuestPortalCopy('bg', 'guest-ui-bg-v1')),
+      en: digestOf(getHistoricalGuestPortalCopy('en', 'guest-ui-en-v1')),
+      bg: digestOf(getHistoricalGuestPortalCopy('bg', 'guest-ui-bg-v1')),
     }).toEqual({
       en: 'f242e75323415b8af379ecfb6aa921e0a0ef14b4560a7b96cfc7e661f4fc1a69',
       bg: 'c65070bffadc3340824040f0ba8d6e28f7c6fe22ac3637873711637df722e5e1',
@@ -92,8 +94,8 @@ describe('the frozen v1 packs', () => {
 
   it('write the deadline sentences exactly as they shipped (Node 22 ICU)', () => {
     expect({
-      en: deadlinesOf(getGuestPortalCopy('en', 'guest-ui-en-v1')),
-      bg: deadlinesOf(getGuestPortalCopy('bg', 'guest-ui-bg-v1')),
+      en: deadlinesOf(getHistoricalGuestPortalCopy('en', 'guest-ui-en-v1')),
+      bg: deadlinesOf(getHistoricalGuestPortalCopy('bg', 'guest-ui-bg-v1')),
     }).toEqual({
       en: {
         privateFeedbackWithdrawalUntil:
@@ -114,7 +116,7 @@ describe('the frozen v1 packs', () => {
   })
 
   it('refuse a generation 2 pack id instead of rendering template copy as v1 copy', () => {
-    expect(() => getGuestPortalCopy('en', 'guest-ui-en-v2')).toThrow(
+    expect(() => getHistoricalGuestPortalCopy('en', 'guest-ui-en-v2')).toThrow(
       'guest-ui-en-v2 is not a generation 1 guest language pack',
     )
   })

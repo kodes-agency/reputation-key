@@ -8,9 +8,9 @@ import { GuestHeader } from '../guest-header'
 import { GuestLanguageSwitcher } from '../guest-language-switcher'
 import { GuestTitleBlock } from '../guest-title-block'
 import type { LanguageSwitcherCopy } from '../language-options'
-import { bgV2 } from '../../language-packs/bg-v2'
-import { deV2 } from '../../language-packs/de-v2'
-import { enV2 } from '../../language-packs/en-v2'
+import { bgCopy } from '../../language-packs/bg'
+import { deCopy } from '../../language-packs/de'
+import { enCopy } from '../../language-packs/en'
 import { STORY_LOGO } from './story-logo'
 
 export type AvelaLocale = 'en' | 'bg' | 'de'
@@ -18,10 +18,10 @@ export type AvelaLocale = 'en' | 'bg' | 'de'
 const PAGE: Readonly<
   Record<AvelaLocale, { copy: LanguageSwitcherCopy; title: string; logoAlt: string }>
 > = {
-  en: { copy: enV2.copy, title: 'Pool & Terrace', logoAlt: 'Avela Resort logo' },
-  bg: { copy: bgV2.copy, title: 'Басейн и тераса', logoAlt: 'Лого на Avela Resort' },
+  en: { copy: enCopy.copy, title: 'Pool & Terrace', logoAlt: 'Avela Resort logo' },
+  bg: { copy: bgCopy.copy, title: 'Басейн и тераса', logoAlt: 'Лого на Avela Resort' },
   de: {
-    copy: deV2.copy,
+    copy: deCopy.copy,
     title: 'Pool & Terrasse',
     logoAlt: 'Logo von Avela Resort',
   },
