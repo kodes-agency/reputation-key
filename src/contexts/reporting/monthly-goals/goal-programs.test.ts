@@ -1,11 +1,11 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { METRIC_VERSION_IDS } from '../../readings/contracts'
+import { METRIC_VERSION_IDS } from '../readings/contracts'
 import type {
   GoalMonthlyResult,
   GoalProgramBundle,
   GoalProgramRepository,
   GoalResultRevision,
-} from '../ports/goal-program.repository'
+} from '../application/ports/goal-program.repository'
 import {
   createGoalProgramService,
   GoalProgramError,
@@ -13,7 +13,7 @@ import {
   type GoalExecutionPolicy,
   type GoalMetricReadPort,
   type GoalProgramSubjectReader,
-} from './goal-programs'
+} from './goal-programs.server'
 
 const actor: GoalActor = {
   organizationId: 'org-1',

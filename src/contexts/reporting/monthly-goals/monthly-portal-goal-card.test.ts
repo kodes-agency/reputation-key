@@ -1,11 +1,11 @@
 import { describe, expect, it, vi } from 'vitest'
-import type { GoalProgramBundle } from '../ports/goal-program.repository'
-import type { RecommendationPortal } from '../../domain/goal-recommendation-types'
-import { GoalProgramError } from './goal-program-shared'
+import type { GoalProgramBundle } from '../application/ports/goal-program.repository'
+import type { RecommendationPortal } from '../domain/goal-recommendation-types'
+import { GoalProgramError } from '../application/use-cases/goal-program-shared'
 import {
   readMonthlyPortalGoalCard,
   type MonthlyPortalGoalCardDeps,
-} from './monthly-portal-goal-card'
+} from './monthly-portal-goal-card.server'
 import {
   AT_NOON,
   DEC_1,
@@ -27,7 +27,7 @@ import {
   runningGoal,
   withNextVersion,
   type MonthShape,
-} from './monthly-portal-goal-test-fixtures'
+} from './monthly-portal-goal.test-fixtures'
 
 const read = (deps: MonthlyPortalGoalCardDeps) =>
   readMonthlyPortalGoalCard(deps, { propertyId: PROPERTY_ID }, actor)

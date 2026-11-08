@@ -21,12 +21,12 @@ import type { GoalProgramRepository } from '../application/ports/goal-program.re
 import {
   createGoalProgramService,
   type GoalActor,
-} from '../application/use-cases/goal-programs'
+} from '../monthly-goals/goal-programs.server'
 import {
   changeMonthlyPortalGoalNow,
   keepMonthlyPortalGoal,
   setMonthlyPortalGoal,
-} from '../application/use-cases/monthly-portal-goal'
+} from '../monthly-goals/monthly-portal-goal.server'
 import { createGoalProgramRepository } from './repositories/goal-program.repository'
 
 const TIMEZONE = 'UTC'

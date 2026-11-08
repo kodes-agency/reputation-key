@@ -10,7 +10,7 @@ import {
   GoalProgramError,
   GoalProgramMaintenanceError,
   type GoalProgramDependencies,
-} from './goal-programs'
+} from '../../monthly-goals/goal-programs.server'
 
 const SERVICE_METHODS = [
   'changeMonthTarget',

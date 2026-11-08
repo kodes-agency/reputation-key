@@ -2,32 +2,35 @@
 // and recommendations (ADR 0068). Existing goals use governed progress, never
 // the recommendation's count. Read prompt deferral only for a ready offer.
 
-import type { PortalFacts } from '../../domain/goal-recommendation-types'
-import { localDateOf } from '../../domain/local-days'
-import type { PortalGoalRecommendation } from '../dto/goal-recommendation.types'
+import type { PortalFacts } from '../domain/goal-recommendation-types'
+import { localDateOf } from '../domain/local-days'
+import type { PortalGoalRecommendation } from '../application/dto/goal-recommendation.types'
 import type {
   PortalGoalCardView,
   PortalGoalFirstWeeks,
   PortalReadinessRow,
-} from '../dto/monthly-portal-goal.types'
+} from '../application/dto/monthly-portal-goal.types'
 import {
   monthlyPortalGoalOf,
   type PropertyCountGoal,
-} from '../monthly-portal-goal-identity'
-import type { GoalProgramBundle } from '../ports/goal-program.repository'
-import type { PortalGoalPromptDeferralStore } from '../ports/portal-goal-prompt-deferrals.port'
+} from '../application/monthly-portal-goal-identity'
+import type { GoalProgramBundle } from '../application/ports/goal-program.repository'
+import type { PortalGoalPromptDeferralStore } from '../application/ports/portal-goal-prompt-deferrals.port'
 import type {
   GoalActor,
   GoalExecutionPolicy,
   GoalMetricReadPort,
   GoalProgramService,
-} from './goal-programs'
+} from './goal-programs.server'
 import {
   gatherPortalGoalRecommendation,
   type PortalGoalRecommendationReads,
-} from './goal-recommendation-read'
-import { portalGoalOfferOf, portalGoalSheetFactsOf } from './monthly-portal-goal-offer'
-import { monthlyPortalGoalOnCard } from './monthly-portal-goal-running'
+} from '../application/use-cases/goal-recommendation-read'
+import {
+  portalGoalOfferOf,
+  portalGoalSheetFactsOf,
+} from './monthly-portal-goal-offer.server'
+import { monthlyPortalGoalOnCard } from './monthly-portal-goal-running.server'
 
 export type MonthlyPortalGoalCardDeps = Readonly<{
   policy: GoalExecutionPolicy

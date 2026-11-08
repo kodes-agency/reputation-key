@@ -32,7 +32,7 @@ import {
 import type { GoalProgramBundle } from '../../application/ports/goal-program.repository'
 import type { GoalProgramDependencies } from '../../application/use-cases/goal-program-shared'
 import { maintain } from '../../application/use-cases/goal-program-maintenance'
-import { createGoalProgramService } from '../../application/use-cases/goal-programs'
+import { createGoalProgramService } from '../../monthly-goals/goal-programs.server'
 import { GOAL_ORGANIZATION_LIFECYCLE_PHASES } from '../adapters/goal-organization-lifecycle.adapter'
 import { createGoalProgramRepository } from './goal-program.repository'
 

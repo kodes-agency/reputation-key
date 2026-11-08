@@ -49,7 +49,7 @@ import type {
   GoalExecutionPolicy,
   GoalMetricReadPort,
   GoalProgramService,
-} from './goal-programs'
+} from '../../monthly-goals/goal-programs.server'
 import type { GovernedGoalMetricResult } from './query-goal-metric'
 
 export type GoalProgress = Readonly<{

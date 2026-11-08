@@ -27,7 +27,7 @@ import {
   type GoalActor,
   type GoalExecutionPolicy,
   type GoalProgramService,
-} from './goal-programs'
+} from '../../monthly-goals/goal-programs.server'
 import {
   gatherPortalGoalFacts,
   recommendationFrom,

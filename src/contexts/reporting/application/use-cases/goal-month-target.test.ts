@@ -21,7 +21,7 @@ import {
   type GoalActor,
   type GoalMetricReadPort,
   type GoalProgramSubjectReader,
-} from './goal-programs'
+} from '../../monthly-goals/goal-programs.server'
 
 const actor: GoalActor = {
   organizationId: 'org-1',

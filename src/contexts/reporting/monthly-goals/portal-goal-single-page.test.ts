@@ -1,9 +1,9 @@
 import { describe, expect, it } from 'vitest'
-import type { GoalSubject } from '../../domain/goal-program'
-import type { GoalProgramBundle } from '../ports/goal-program.repository'
-import { GoalProgramError } from './goal-program-shared'
-import type { GovernedGoalMetricResult } from './query-goal-metric'
-import { readPortalGoalSinglePage } from '../../monthly-goals/get-portal-goal-page.server'
+import type { GoalSubject } from '../domain/goal-program'
+import type { GoalProgramBundle } from '../application/ports/goal-program.repository'
+import { GoalProgramError } from '../application/use-cases/goal-program-shared'
+import type { GovernedGoalMetricResult } from '../application/use-cases/query-goal-metric'
+import { readPortalGoalSinglePage } from './get-portal-goal-page.server'
 import {
   DEC_1,
   NOV_1,
@@ -19,7 +19,7 @@ import {
   propertyGoal,
   readings,
   runningGoal,
-} from './monthly-portal-goal-test-fixtures'
+} from './monthly-portal-goal.test-fixtures'
 
 const reception: GoalSubject = { kind: 'portal', portalId: 'portal-reception' }
 const rooms: GoalSubject = { kind: 'portal_group', portalGroupId: 'group-rooms' }

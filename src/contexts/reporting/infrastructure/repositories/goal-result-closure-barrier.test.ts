@@ -22,7 +22,7 @@ import {
 import {
   createGoalProgramService,
   GoalProgramError,
-} from '../../application/use-cases/goal-programs'
+} from '../../monthly-goals/goal-programs.server'
 import { queryGoalMetric } from '../../application/use-cases/query-goal-metric'
 import type { GoalMetricReadPort } from '../../application/use-cases/goal-program-shared'
 import { findMetricVersionById, METRIC_VERSION_IDS } from '../../readings/contracts'

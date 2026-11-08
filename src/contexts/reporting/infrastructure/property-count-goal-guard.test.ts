@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest'
 import type { Tx } from '#/shared/outbox/commit'
 import type { GoalProgramBundle } from '../application/ports/goal-program.repository'
-import { propertyGoal } from '../application/use-cases/monthly-portal-goal-test-fixtures'
+import { propertyGoal } from '../monthly-goals/monthly-portal-goal.test-fixtures'
 import { assignmentValues, versionValues } from './repositories/goal-program.rows'
 import { assertPropertyCountGoalAvailable } from './repositories/property-count-goal-guard'
 
