@@ -53,6 +53,10 @@ export type GoalExecutionPolicy = Readonly<{
 }>
 
 export type GoalMetricReadPort = Readonly<{
+  queryGoalMetrics?: (
+    queries: readonly GovernedGoalMetricQuery[],
+  ) => Promise<readonly GovernedGoalMetricResult[]>
+
   queryGoalMetric: (query: GovernedGoalMetricQuery) => Promise<GovernedGoalMetricResult>
   getApprovedGoalVersion?: (
     definitionVersionId: string,
@@ -175,7 +179,7 @@ export async function loadChangeableProgram(
   actor: GoalActor,
   input: Readonly<{ propertyId: string; programId: string }>,
 ): Promise<GoalProgramBundle> {
-  const current = await deps.repository.get(
+  const current = await (deps.repository.getHistory ?? deps.repository.get)(
     actor.organizationId,
     input.propertyId,
     input.programId,

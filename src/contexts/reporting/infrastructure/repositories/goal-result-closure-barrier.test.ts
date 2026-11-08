@@ -31,21 +31,12 @@ import { createGoalProgramRepository } from './goal-program.repository'
 import { createMetricRegistryRepository } from './metric-registry.repository'
 import { createAtomicMetricCommandStore } from '../../readings/metric-command-store.server'
 import { createReading } from '../../domain/metric-reading'
-import type { PortalGroupPublicApi } from '#/contexts/portal/application/public-api'
 import { createGoalOrganizationLifecycleAdapter } from '../adapters/goal-organization-lifecycle.adapter'
 
 const START = new Date('2026-09-01T00:00:00Z')
 const NOW = new Date('2026-10-04T00:00:00Z')
 const OCCURRED = new Date('2026-09-15T12:00:00Z')
 const VERSION = METRIC_VERSION_IDS.portalRatingCountGoal
-const portalGroups: PortalGroupPublicApi = {
-  findGroupForPortal: async () => null,
-  getGroupPortalIds: async () => [],
-  findGroupIdsByPortalIds: async () => [],
-  portalGroupBelongsToProperty: async () => false,
-  getGroupInfo: async () => null,
-}
-
 describe.sequential('Goal result closure barriers (integration)', () => {
   let lease: TestLease
   beforeAll(async () => {
@@ -84,7 +75,7 @@ describe.sequential('Goal result closure barriers (integration)', () => {
         }),
       )
     installPolicy()
-    const snapshot = createGoalMetricSnapshotReader(getDb(), portalGroups)
+    const snapshot = createGoalMetricSnapshotReader(getDb())
     let barrier: (() => Promise<void>) | undefined
     let commitBarrier: (() => Promise<void>) | undefined
     let clock = START

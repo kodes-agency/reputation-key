@@ -12,7 +12,7 @@
 // index route still mounts the story (no splat route needed).
 //
 // getNewCount is a prop (Phase-1 fn-as-prop channel) consumed by InboxNewBadge
-// via useAction(useServerFn(...)). useServerFn just invokes the fn directly, so
+// via useActionMutation(useServerFn(...)). useServerFn just invokes the fn directly, so
 // a plain callable cast to the fn brand resolves without RPC — the same
 // double-cast every inbox story uses. No value import from #/contexts/*/server/**.
 import type { Meta, StoryObj } from '@storybook/react'
@@ -55,7 +55,7 @@ const properties = [
   },
 ]
 
-// InboxNewBadge calls useAction(useServerFn(getNewCount)); a plain callable cast
+// InboxNewBadge calls useActionMutation(useServerFn(getNewCount)); a plain callable cast
 // to the server-fn brand resolves identically to the inbox page story.
 const lastVisitCountWithBadge = (async () => 5) as unknown as typeof getLastVisitCountFn
 const lastVisitCountZero = (async () => 0) as unknown as typeof getLastVisitCountFn

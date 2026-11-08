@@ -1,18 +1,18 @@
 import { describe, expect, it } from 'vitest'
-import { deV2 } from './de-v2'
-import { enV2 } from './en-v2'
-import { esV2 } from './es-v2'
-import { frV2 } from './fr-v2'
-import { itV2 } from './it-v2'
+import { deCopy } from './de'
+import { enCopy } from './en'
+import { esCopy } from './es'
+import { frCopy } from './fr'
+import { itCopy } from './it'
 
 // Owner question 10, ADR 0061: one spelling in every Latin-script pack, the one
 // the IANA zone id uses. Bulgarian is Cyrillic and keeps its own word.
 const LATIN_SCRIPT_PACKS = [
-  { locale: 'en', pack: enV2 },
-  { locale: 'es', pack: esV2 },
-  { locale: 'it', pack: itV2 },
-  { locale: 'fr', pack: frV2 },
-  { locale: 'de', pack: deV2 },
+  { locale: 'en', pack: enCopy },
+  { locale: 'es', pack: esCopy },
+  { locale: 'it', pack: itCopy },
+  { locale: 'fr', pack: frCopy },
+  { locale: 'de', pack: deCopy },
 ] as const
 
 describe('the spelling of Kyiv', () => {

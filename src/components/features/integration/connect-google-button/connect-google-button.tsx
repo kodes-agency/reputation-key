@@ -8,8 +8,10 @@
 import { useCallback } from 'react'
 import { Plus } from 'lucide-react'
 import { toast } from 'sonner'
-import { useAction } from '#/components/hooks/use-action'
-import { actionFailureMessage } from '#/components/hooks/use-action-mutation'
+import {
+  useActionMutation,
+  actionFailureMessage,
+} from '#/components/hooks/use-action-mutation'
 import { Button, type ButtonProps } from '#/components/ui/button'
 import type { GoogleAuthUrlInput } from '#/contexts/integration/application/public-api'
 import {
@@ -35,7 +37,7 @@ export function ConnectGoogleButton({
   size,
   disabled = false,
 }: Props) {
-  const connect = useAction(getAuthUrl)
+  const connect = useActionMutation(getAuthUrl)
 
   const handleClick = useCallback(async () => {
     try {

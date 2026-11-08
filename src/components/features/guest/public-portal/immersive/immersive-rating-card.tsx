@@ -1,6 +1,6 @@
 import { useId } from 'react'
 import { guestCopyText } from '../guest-copy-format'
-import type { GuestPortalCopyV2 } from '../language-packs/guest-copy-v2'
+import type { GuestPortalCopy } from '../language-packs/guest-copy'
 import { GlassSurface } from './glass-surface'
 import { LockIcon } from './immersive-icons'
 import { ImmersiveRatingForm, type RatingSubmission } from './immersive-rating-form'
@@ -18,7 +18,7 @@ export function ImmersiveRatingCard({
   saveFailed,
   onSubmit,
 }: Readonly<{
-  pack: GuestPortalCopyV2
+  pack: GuestPortalCopy
   displayName: string
   pending: boolean
   saveFailed: boolean

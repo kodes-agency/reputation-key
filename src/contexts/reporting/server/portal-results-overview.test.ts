@@ -54,7 +54,7 @@ vi.mock('#/shared/auth/middleware', () => ({
 }))
 vi.mock('#/shared/auth/execution-policy', () => ({
   requireExecutionAllowed: mocks.requireExecutionAllowed,
-  getExecutionPolicy: () => ({ decide: mocks.decide }),
+  createExecutionPolicy: () => ({ decide: mocks.decide }),
 }))
 vi.mock('#/shared/observability/traced-server-fn', () => ({
   tracedHandler: (handler: unknown) => handler,

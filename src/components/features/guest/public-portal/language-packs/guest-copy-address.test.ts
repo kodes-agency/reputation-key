@@ -1,12 +1,12 @@
 import { describe, expect, it } from 'vitest'
-import { deV2 } from './de-v2'
-import { esV2 } from './es-v2'
-import { frV2 } from './fr-v2'
-import { itV2 } from './it-v2'
-import type { GuestPortalCopyV2 } from './guest-copy-v2'
+import { deCopy } from './de'
+import { esCopy } from './es'
+import { frCopy } from './fr'
+import { itCopy } from './it'
+import type { GuestPortalCopy } from './guest-copy'
 
 // The form of address is fixed per language so a pack never mixes registers:
-// German Sie (round 4 board G10), French vous, Spanish usted, Italian Lei.
+// German Sie, French vous, Spanish usted, Italian Lei.
 // What is pinned: no informal pronoun or possessive, and none of the informal
 // imperatives a button or sentence would slip into (`Elige`, `Choisis`,
 // `Rimuovila`). A word the lists do not know can still get through; the native
@@ -20,56 +20,56 @@ const word = (alternatives: string) =>
   new RegExp(`(?<![\\p{L}])(?:${alternatives})(?![\\p{L}])`, 'iu')
 
 describe('the form of address', () => {
-  const text = (pack: GuestPortalCopyV2) =>
+  const text = (pack: GuestPortalCopy) =>
     [
       ...Object.values(pack.copy),
       ...Object.values(pack.plurals).flatMap((forms) => Object.values(forms)),
     ].join('\n')
 
   it('addresses the guest as Sie in German and never as du', () => {
-    expect(deV2.copy.ratingTitle).toBe('Wie hat es Ihnen gefallen?')
-    expect(text(deV2)).not.toMatch(word('du|dich|dir|dein\\p{L}*|euch|euer\\p{L}*'))
-    expect(text(deV2)).not.toMatch(
+    expect(deCopy.copy.ratingTitle).toBe('Wie hat es Ihnen gefallen?')
+    expect(text(deCopy)).not.toMatch(word('du|dich|dir|dein\\p{L}*|euch|euer\\p{L}*'))
+    expect(text(deCopy)).not.toMatch(
       /(?<![\p{L}])(?:wähle|schreibe|versuche|teile|entferne|lösche|beginne|gib|sende|speichere)(?![\p{L}])/u,
     )
-    expect(text(deV2)).toMatch(/\bIhre?[mnrs]?\b/)
+    expect(text(deCopy)).toMatch(/\bIhre?[mnrs]?\b/)
   })
 
   it('addresses the guest as vous in French and never as tu', () => {
-    expect(text(frV2)).not.toMatch(word('tu|toi|ton|ta|tes|te'))
-    expect(text(frV2)).not.toMatch(
+    expect(text(frCopy)).not.toMatch(word('tu|toi|ton|ta|tes|te'))
+    expect(text(frCopy)).not.toMatch(
       word(
         'choisis|écris|réessaie|essaie|partage|modifie|supprime|recommence|continue|ferme|ajoute|envoie|enregistre|raconte',
       ),
     )
-    expect(text(frV2)).toMatch(/\bvotre\b/i)
+    expect(text(frCopy)).toMatch(/\bvotre\b/i)
   })
 
   it('addresses the guest as usted in Spanish and never as tú', () => {
-    expect(text(esV2)).not.toMatch(word('tú|tu|tus|ti|contigo'))
-    expect(text(esV2)).not.toMatch(
+    expect(text(esCopy)).not.toMatch(word('tú|tu|tus|ti|contigo'))
+    expect(text(esCopy)).not.toMatch(
       word(
         'elige|escribe|inténtalo|intenta|vuelve|cierra|borra|elimina|continúa|revisa|añade|envía|guarda|cambia|empieza',
       ),
     )
-    expect(text(esV2)).toMatch(/\bsu\b/i)
+    expect(text(esCopy)).toMatch(/\bsu\b/i)
   })
 
   it('addresses the guest as Lei in Italian and never as tu', () => {
-    expect(text(itV2)).not.toMatch(word('tuo|tua|tuoi|tue|ti|te'))
+    expect(text(itCopy)).not.toMatch(word('tuo|tua|tuoi|tue|ti|te'))
     // Buttons such as `Invia` and `Rimuovi` are the neutral form every Italian
     // interface uses; what is ruled out is a tu imperative with a pronoun on
     // the end, or one that has a Lei form of its own.
-    expect(text(itV2)).not.toMatch(
+    expect(text(itCopy)).not.toMatch(
       word(
         'rimuovila|rimuovile|conservala|conservale|ricomincia|scrivi|riprova|scegli|aggiungi|condividi|apri',
       ),
     )
-    expect(text(itV2)).toMatch(/\bsua\b/i)
+    expect(text(itCopy)).toMatch(/\bsua\b/i)
   })
 
   it('uses the owner’s German glossary and the long words of board G10 as written', () => {
-    expect(deV2.copy).toMatchObject({
+    expect(deCopy.copy).toMatchObject({
       languageSheetHint:
         'Die Seite öffnet sich in der Sprache Ihres Telefons, wenn verfügbar.',
       ratingThanks: 'Vielen Dank.',
@@ -88,7 +88,7 @@ describe('the form of address', () => {
       languageChipLabel: 'Sprache',
       linktreeDefaultTitle: 'Nützliche Links',
     })
-    expect(deV2.copy.visitNotice).toBe(
+    expect(deCopy.copy.visitNotice).toBe(
       '{name} zählt Besuche mit einem notwendigen Cookie und einem datenschutzfreundlichen Marker. Keine Werbung, keine Tracker von Dritten.',
     )
   })

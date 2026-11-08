@@ -19,8 +19,10 @@ import type {
 } from '#/contexts/inbox/application/public-api'
 import { withFreshCommandRevision } from '../inbox/use-inbox-detail'
 
+const { navigate } = vi.hoisted(() => ({ navigate: vi.fn() }))
+
 vi.mock('@tanstack/react-router', () => ({
-  useRouter: () => ({ navigate: vi.fn() }),
+  useRouter: () => ({ navigate }),
   // `server-function-error.ts` builds its wire adapter at module load; the
   // adapter is irrelevant here, only the class and its recogniser are used.
   createSerializationAdapter: (adapter: unknown) => adapter,
@@ -39,13 +41,13 @@ type MutationOutput = Readonly<{ commandRevision: number }>
 function renderAction<TInput, TOutput>(
   fn: (input: TInput) => Promise<TOutput>,
   options?: ActionMutationOptions<TInput, TOutput>,
-): Action<TInput, TOutput> {
-  const queryClient = new QueryClient({
+  queryClient = new QueryClient({
     defaultOptions: {
       mutations: { retry: false },
       queries: { retry: false },
     },
-  })
+  }),
+): Action<TInput, TOutput> {
   let action: Action<TInput, TOutput> | undefined
 
   function Harness() {
@@ -63,6 +65,82 @@ function renderAction<TInput, TOutput>(
 
 afterEach(() => {
   vi.clearAllMocks()
+})
+
+describe('useActionMutation completion', () => {
+  it('waits for targeted invalidation before one toast, continuation and navigation', async () => {
+    const queryClient = new QueryClient()
+    const order: string[] = []
+    let release: (() => void) | undefined
+    const invalidate = vi.spyOn(queryClient, 'invalidateQueries').mockImplementation(
+      () =>
+        new Promise<void>((resolve) => {
+          release = resolve
+        }),
+    )
+    vi.mocked(toast.success).mockImplementationOnce(() => {
+      order.push('toast')
+      return 'toast-id'
+    })
+    navigate.mockImplementationOnce(async () => {
+      order.push('navigate')
+    })
+    const onSuccess = vi.fn(async () => {
+      order.push('continuation')
+    })
+    const action = renderAction(
+      async (id: string) => ({ id }),
+      {
+        invalidateKeys: [['connections']],
+        successMessage: 'Saved',
+        onSuccess,
+        navigateTo: { to: '/properties', params: ({ id }) => ({ propertyId: id }) },
+      },
+      queryClient,
+    )
+
+    const result = action('property-1')
+    await vi.waitFor(() => expect(invalidate).toHaveBeenCalledOnce())
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: ['connections'] })
+    expect(order).toEqual([])
+    release?.()
+    await expect(result).resolves.toEqual({ id: 'property-1' })
+
+    expect(order).toEqual(['toast', 'continuation', 'navigate'])
+    expect(toast.success).toHaveBeenCalledExactlyOnceWith('Saved')
+    expect(onSuccess).toHaveBeenCalledExactlyOnceWith({ id: 'property-1' }, 'property-1')
+    expect(navigate).toHaveBeenCalledExactlyOnceWith({
+      to: '/properties',
+      params: { propertyId: 'property-1' },
+    })
+  })
+
+  it('does not invalidate, toast success or navigate after a rejected command', async () => {
+    const queryClient = new QueryClient()
+    const invalidate = vi.spyOn(queryClient, 'invalidateQueries')
+    const failure = new Error('unavailable')
+    const onSuccess = vi.fn()
+    const action = renderAction(
+      async () => {
+        throw failure
+      },
+      {
+        invalidateKeys: [['connections']],
+        successMessage: 'Saved',
+        onSuccess,
+        navigateTo: { to: '/properties' },
+      },
+      queryClient,
+    )
+
+    await expect(action(undefined)).rejects.toBe(failure)
+
+    expect(invalidate).not.toHaveBeenCalled()
+    expect(toast.success).not.toHaveBeenCalled()
+    expect(toast.error).not.toHaveBeenCalled()
+    expect(onSuccess).not.toHaveBeenCalled()
+    expect(navigate).not.toHaveBeenCalled()
+  })
 })
 
 describe('useActionMutation recovery', () => {

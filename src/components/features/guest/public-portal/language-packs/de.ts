@@ -1,15 +1,14 @@
-import { defineGuestCopyV2 } from './guest-copy-v2'
+import { defineGuestCopy } from './guest-copy'
 
-// German guest copy, generation 2 (schema version 3 snapshots). The form of
+// German guest copy for schema version 3 snapshots. The form of
 // address is the formal "Sie" throughout. The wording the owner agreed in the
 // German glossary (the rating question and scale, the privacy line, the visit
 // notice, the language sheet, the Google card and the footer) is used as
-// written and pinned by `guest-copy-v2.test.ts`; it is the wording of round 4
-// board G10. The rest, including the note offer the owner reworded on
-// 2026-10-27 ("What went wrong?"), is drafted in the same register. No
+// written and pinned by `guest-copy.test.ts`. The note offer uses the same
+// register. No
 // native check happens during the closed beta (owner decision 5, 2026-09-30).
 // Industry-neutral: no text names a kind of place.
-export const deV2 = defineGuestCopyV2({
+export const deCopy = defineGuestCopy({
   locale: 'de',
   version: 'guest-ui-de-v2',
   copy: {

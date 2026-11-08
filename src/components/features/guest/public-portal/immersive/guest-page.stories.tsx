@@ -9,8 +9,8 @@
 import type { Decorator, Meta, StoryObj } from '@storybook/react'
 import { expect, waitFor, within } from 'storybook/test'
 import { GUEST_FONT_STYLESHEET } from '#/shared/font-sets'
-import { deV2 } from '../language-packs/de-v2'
-import { enV2 } from '../language-packs/en-v2'
+import { deCopy } from '../language-packs/de'
+import { enCopy } from '../language-packs/en'
 import { GuestPageComposition } from './__fixtures__/guest-page-composition'
 import { LINKTREE_LINKS_DE, LINKTREE_LINKS_NO_PHOTO } from './__fixtures__/linktree-links'
 
@@ -68,7 +68,7 @@ export const FirstVisitNoticeAppearsAfterPaint: Story = {
   },
   play: async ({ canvasElement }) => {
     const notice = await waitFor(() =>
-      within(canvasElement).getByRole('region', { name: enV2.copy.visitNoticeLabel }),
+      within(canvasElement).getByRole('region', { name: enCopy.copy.visitNoticeLabel }),
     )
     expect(notice).toBeVisible()
   },
@@ -86,9 +86,9 @@ export const GermanLongWords: Story = {
     // The German pack, with its words swapped for the longest compounds a
     // property could plausibly choose, to prove the layout holds for them.
     pack: {
-      ...deV2,
+      ...deCopy,
       copy: {
-        ...deV2.copy,
+        ...deCopy.copy,
         ratingTitle: 'Wie zufrieden waren Sie mit Ihrem Erlebnis?',
         ratingWord3: 'Zufriedenstellend',
         ratingWord4: 'Außergewöhnlich',
@@ -101,8 +101,8 @@ export const GermanLongWords: Story = {
     footerStart: 'notice',
     footerCopy: {
       privacyLink: 'Datenschutzerklärung',
-      madeWith: deV2.copy.footerMadeWith,
-      acknowledge: deV2.copy.visitNoticeAcknowledge,
+      madeWith: deCopy.copy.footerMadeWith,
+      acknowledge: deCopy.copy.visitNoticeAcknowledge,
     },
     links: LINKTREE_LINKS_DE,
     linktreeTitle: 'Wellnessbereichsöffnungszeiten',

@@ -195,3 +195,26 @@ it('projects a disabled staff target as paused while leaving the stored bundle i
     ),
   ).toMatchObject({ program: { status: 'paused' } })
 })
+
+it('scopes a history page and keeps its continuation across hidden subjects', async () => {
+  const { reads, visibility } = setup([portalOnly])
+  const next = { periodStart: new Date('2026-01-01Z'), id: 'next-result' }
+  const page = {
+    versions: [],
+    assignments: portalOnly.assignments,
+    results: portalOnly.results,
+    targetChanges: [],
+    next,
+  }
+  const history = vi.fn(async () => page)
+  const scoped = withGoalProgramVisibility({ ...reads, history }, visibility)
+  const visible = await scoped.history!(
+    { propertyId: PROPERTY_ID, programId: 'program-portal' },
+    actorWith('goal.read'),
+  )
+  expect(visible.assignments.map((row) => row.id)).toEqual([
+    'program-portal-assignment-0',
+  ])
+  expect(visible.results.map((row) => row.id)).toEqual(['program-portal-result-0'])
+  expect(visible.next).toEqual(next)
+})

@@ -8,7 +8,7 @@ import {
   unavailableCopyOf,
   type PortalUnavailableCopy,
 } from '#/components/features/guest/portal-unavailable-copy'
-import { loadGuestPortalCopyV2 } from '#/components/features/guest/public-portal/language-packs/load-guest-copy-v2'
+import { loadGuestPortalCopy } from '#/components/features/guest/public-portal/language-packs/load-guest-copy'
 import { readBrowserLanguages } from './-browser-languages'
 
 /**
@@ -22,7 +22,7 @@ export async function loadUnavailableCopy(): Promise<PortalUnavailableCopy | nul
   try {
     const locale = preferredGuestLocale(readBrowserLanguages())
     if (locale === 'en') return null
-    return unavailableCopyOf(await loadGuestPortalCopyV2(locale))
+    return unavailableCopyOf(await loadGuestPortalCopy(locale))
   } catch {
     return null
   }

@@ -1,11 +1,11 @@
-import { defineGuestCopyV2 } from './guest-copy-v2'
+import { defineGuestCopy } from './guest-copy'
 
-// Spanish guest copy, generation 2 (schema version 3 snapshots). The form of
+// Spanish guest copy for schema version 3 snapshots. The form of
 // address is the polite "usted" (su, inténtelo, elija), the counterpart of the
 // German "Sie". No native check happens during the closed beta (owner decision
 // 5, 2026-09-30). Industry-neutral: no text names a kind of place; "huésped"
 // is the word for "guest" that the owner keeps in every industry.
-export const esV2 = defineGuestCopyV2({
+export const esCopy = defineGuestCopy({
   locale: 'es',
   version: 'guest-ui-es-v2',
   copy: {

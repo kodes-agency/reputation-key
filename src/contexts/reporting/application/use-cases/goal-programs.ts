@@ -3,6 +3,7 @@
 // maintenance commands.
 import type {
   GoalProgramBundle,
+  GoalHistoryCursor,
   GoalProgramVersion,
   GoalScheduledStatusReason,
   GoalSubjectAssignment,
@@ -261,13 +262,43 @@ export function createGoalProgramService(deps: GoalProgramDependencies) {
         propertyId: input.propertyId,
         action: 'goal.read',
       })
-      const bundle = await deps.repository.get(
+      const bundle = await (deps.repository.getHistory ?? deps.repository.get)(
         actor.organizationId,
         input.propertyId,
         input.programId,
       )
       if (!bundle) throw new GoalProgramError('not_found')
       return bundle
+    },
+
+    history: async (
+      input: Readonly<{
+        propertyId: string
+        programId: string
+        limit?: number
+        after?: GoalHistoryCursor
+      }>,
+      actor: GoalActor,
+    ) => {
+      await deps.policy.authorize({
+        actor,
+        organizationId: actor.organizationId,
+        propertyId: input.propertyId,
+        action: 'goal.read',
+      })
+      if (!deps.repository.listHistory) throw new Error('Goal history reader is missing')
+      const program = await deps.repository.get(
+        actor.organizationId,
+        input.propertyId,
+        input.programId,
+      )
+      if (!program) throw new GoalProgramError('not_found')
+      return deps.repository.listHistory(
+        actor.organizationId,
+        input.propertyId,
+        input.programId,
+        input,
+      )
     },
 
     list: async (propertyId: string, actor: GoalActor) => {
@@ -383,6 +414,10 @@ export type GoalProgramRequestApi = Readonly<{
     policy: GoalExecutionPolicy,
     ...args: Parameters<GoalProgramService['get']>
   ) => ReturnType<GoalProgramService['get']>
+  history: (
+    policy: GoalExecutionPolicy,
+    ...args: Parameters<GoalProgramService['history']>
+  ) => ReturnType<GoalProgramService['history']>
   list: (
     policy: GoalExecutionPolicy,
     ...args: Parameters<GoalProgramService['list']>

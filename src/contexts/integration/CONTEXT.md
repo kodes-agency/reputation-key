@@ -30,6 +30,14 @@ Refresh reauthorizes the same scope and acquires a new permit; a refused
 retry preserves the first call's answered evidence. Feature adapters retain their
 provider schemas and product-specific error mappings.
 
+Review list, head, single-review reads and reply writes all use this client.
+The single-review read keeps a 30-second deadline and treats an answered 404 as
+not found only after rechecking authorization. Late responses are scrubbed;
+timeouts retain unknown dispatch evidence. The Review parser owns resource
+binding, reply moderation and translation handling. Opaque cursor uses are
+released only on explicit not-sent evidence; ambiguous reply writes remain
+readback-only recovery.
+
 ## Model
 
 A GoogleConnection owns encrypted credentials and the verified Google OIDC
@@ -236,3 +244,9 @@ fake provider and queue transport. Its shared fixture builds the application
 container with the production authorizers, discovery store, Property receipts,
 worker recovery and lifecycle sweep. It covers stale authority, request replay, bounded crash
 recovery, claim races, scoped discovery, partial success, cancellation and retention.
+
+Review's `infrastructure/disconnected-content-expiry.integration.test.ts` covers
+disconnect and provider revocation without renewing content clocks, retention
+before the deadline, and expiry erasure with stable identity and manager text
+preserved. The critical disconnect workflow also checks retained content after
+publication stops and after a repeated disconnect.

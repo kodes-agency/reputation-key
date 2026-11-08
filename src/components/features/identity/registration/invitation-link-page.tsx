@@ -5,7 +5,7 @@
  */
 
 import { useCallback, useRef, useState } from 'react'
-import { useAction } from '#/components/hooks/use-action'
+import { useActionMutation } from '#/components/hooks/use-action-mutation'
 import { AcceptedView } from './accepted-view'
 import { ConfirmInvitationView } from './confirm-invitation-view'
 import { InvitationLinkStateCard, InvitationStateCard } from './invitation-state-card'
@@ -32,8 +32,8 @@ export function InvitationLinkPage({
   // A double click must not send two acceptances: they race the membership
   // insert. Released on failure so the person can try again.
   const acceptingRef = useRef(false)
-  const accept = useAction(acceptInvitation)
-  const leave = useAction(signOut)
+  const accept = useActionMutation(acceptInvitation)
+  const leave = useActionMutation(signOut)
 
   const handleSignOut = useCallback(() => {
     setLastAction('leave')
@@ -48,7 +48,7 @@ export function InvitationLinkPage({
       await accept({ data: { invitationId: link.invitationId } })
       setAccepted(true)
     } catch {
-      // useAction retains the rejection for the banner; allow another attempt.
+      // The action retains the rejection for the banner; allow another attempt.
       acceptingRef.current = false
     }
   }, [accept, link])
