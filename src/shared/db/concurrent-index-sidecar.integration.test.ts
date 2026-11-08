@@ -176,6 +176,41 @@ describe('metric_readings property/portal/group index sidecar (database-04)', ()
   })
 })
 
+describe('metric_readings event-time index sidecar', () => {
+  let lease: TestLease
+
+  beforeAll(async () => {
+    lease = await acquireTestLease(getEnv().DATABASE_URL)
+  })
+
+  afterAll(async () => {
+    await lease?.release()
+  })
+
+  it('builds an unfiltered tenant, Property, metric-version and event-time index and reuses it on rerun', async () => {
+    const spec = specFor('metric_readings_org_prop_version_event_idx')
+    await lease.pool.query(`DROP INDEX CONCURRENTLY IF EXISTS "${spec.name}"`)
+
+    await expect(buildConcurrentIndex(lease.pool, spec)).resolves.toEqual({
+      name: spec.name,
+      ok: true,
+      code: 'created',
+    })
+    await expect(buildConcurrentIndex(lease.pool, spec)).resolves.toEqual({
+      name: spec.name,
+      ok: true,
+      code: 'ready',
+    })
+
+    expect(await readIndex(lease.pool, spec.name)).toEqual({
+      indisvalid: true,
+      indisready: true,
+      indexdef:
+        'CREATE INDEX metric_readings_org_prop_version_event_idx ON public.metric_readings USING btree (organization_id, property_id, definition_version_id, event_at)',
+    })
+  })
+})
+
 // The retention sweep orders every batch by its rule's timestamp. These eight
 // tables had no index a batch could use, so each batch read the whole table.
 const RETENTION_INDEXES = [

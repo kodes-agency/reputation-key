@@ -12338,6 +12338,13 @@ CREATE INDEX "metric_readings_org_prop_recorded_idx" ON "public"."metric_reading
 
 
 --
+-- Name: metric_readings_org_prop_version_event_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX "metric_readings_org_prop_version_event_idx" ON "public"."metric_readings" USING "btree" ("organization_id", "property_id", "definition_version_id", "event_at");
+
+
+--
 -- Name: metric_readings_org_property_idx; Type: INDEX; Schema: public; Owner: -
 --
 

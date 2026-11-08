@@ -78,6 +78,17 @@ export const CONCURRENT_INDEX_REGISTRY: readonly ConcurrentIndexSpec[] = Object.
     createSql: `CREATE INDEX CONCURRENTLY "metric_readings_group_only_idx"
       ON "metric_readings" ("group_id")`,
   },
+  {
+    // Governed period reads constrain tenant, Property and metric version
+    // before scanning event time; recorded_at does not bound late arrivals.
+    name: 'metric_readings_org_prop_version_event_idx',
+    table: 'metric_readings',
+    columns: ['organization_id', 'property_id', 'definition_version_id', 'event_at'],
+    unique: false,
+    hasPredicate: false,
+    createSql: `CREATE INDEX CONCURRENTLY "metric_readings_org_prop_version_event_idx"
+      ON "metric_readings" ("organization_id", "property_id", "definition_version_id", "event_at")`,
+  },
   // Retention sweep (`src/shared/jobs/retention-sweep.job.ts`). Every batch of
   // a rule, the last empty one included, is
   // `WHERE <timestamp> < $1 [AND extra] ORDER BY <timestamp> LIMIT n`
