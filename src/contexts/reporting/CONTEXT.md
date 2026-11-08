@@ -480,8 +480,11 @@ The caller isolates a failed side read from the primary Guest voice page.
   each Portal's current group) and each Property's time zone; Reporting supplies the numbers.
   The server function reads one Property, or, with none named, the whole Organization (the All
   properties page): then the roster is every Portal of every Property the caller may read for both
-  `portal.read` and `dashboard.read` and is assigned to (each asked per Property before anything is
-  read), a Property with no time zone on record is left out of the results rather than read in a
+  `portal.read` and `dashboard.read` and is assigned to. Roster filtering reads one
+  Accounts grant snapshot for both permissions and keeps each permission's own
+  scope; execution checks still run per Property, and the downstream Portal and
+  Reporting reads retain their live authorization. A Property with no time zone
+  on record is left out of the results rather than read in a
   guessed zone, and the one-read limit of 1000 Portals applies to the whole Organization (past it
   the page shows its list without results; each Property's own page still reads its own).
 - Portal link-check facts remain Portal-owned and are not projected into Reporting.
@@ -644,6 +647,29 @@ it in the same transaction; the last month still reconciles and closes.
 Single-goal page DTOs carry the latest month Stop retains, using that same due-month
 planner before hourly maintenance opens it. This calendar fact is independent of
 live progress reads and change availability, including for several subjects.
+
+Maintenance reads Programs and due results in keyset pages of 100. Programs
+advance by Organization, Property and Program id; due results by period end and
+result id. Denied, failed and raced work still advances the cursor within the
+pass and remains eligible for the next hourly run. Maintenance hydrates only the
+head, its assignments and each assignment's latest month. Request lists and cards
+use summaries: the head, the preceding effective version, the latest assignment
+of each historical subject and their two latest months, plus the latest closed and
+unsettled month of the Program, with latest revisions and target provenance. The explicit history read uses chronological keyset pages of
+at most 100 results with their pinned versions, assignments, target changes and
+latest revisions. Detail pages, the results matrix and older notification links compose those pages;
+the paged RPC applies
+the same tenant, Property and subject visibility as other Goal reads.
+
+The Goals list batches up to 60 governed live figures in one database statement,
+including subject ownership, correction tips and source completeness. Historical
+Portal Group membership is resolved inside the completeness statement; captured
+attribution, including an explicit null group, takes precedence. Single-result
+closure reads retain their repeatable-read snapshot and source-head fence.
+`goal-completeness-volume.test.ts` compares membership intervals and archive
+boundaries with Portal's real group API; `goal-list-progress-volume.test.ts`
+compares batched subject eligibility with Portal's named context and group reads.
+These parity checks keep the set-based predicates tied to Portal's authority.
 
 Closure compares the snapshot's source head in the result update, covering source
 facts, consumer receipts, readings and corrections. Guest fact commits and metric

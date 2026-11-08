@@ -13,6 +13,7 @@ import type {
   GoalProgramVersion,
   GoalSubjectAssignment,
 } from '../ports/goal-program.repository'
+import { GOAL_MAINTENANCE_PAGE_SIZE } from '../ports/goal-program.repository'
 import {
   evaluateGoalMetric,
   isGoalResultReadyToClose,
@@ -560,11 +561,38 @@ export async function reconcileClosedResult(
   return revised
 }
 
+async function* operationalPrograms(deps: GoalProgramDependencies) {
+  let page = await deps.repository.listOperational()
+  while (page.length > 0) {
+    yield* page
+    if (page.length < GOAL_MAINTENANCE_PAGE_SIZE) return
+    const last = page[page.length - 1]!.program
+    page = await deps.repository.listOperational({
+      organizationId: last.organizationId,
+      propertyId: last.propertyId,
+      id: last.id,
+    })
+  }
+}
+
+async function* dueResults(deps: GoalProgramDependencies, now: Date) {
+  let page = await deps.repository.listDueResults(now)
+  while (page.length > 0) {
+    yield* page
+    if (page.length < GOAL_MAINTENANCE_PAGE_SIZE) return
+    const last = page[page.length - 1]!
+    page = await deps.repository.listDueResults(now, {
+      periodEnd: last.periodEnd,
+      id: last.id,
+    })
+  }
+}
+
 export async function maintain(
   deps: GoalProgramDependencies,
 ): Promise<GoalProgramMaintenanceStats> {
   const now = deps.now()
-  const operational = await deps.repository.listOperational()
+  let inspected = 0
   let activated = 0
   let scheduledResults = 0
   let reconciled = 0
@@ -580,7 +608,8 @@ export async function maintain(
     failureCauses.set(cause, (failureCauses.get(cause) ?? 0) + 1)
   }
 
-  for (const original of operational) {
+  for await (const original of operationalPrograms(deps)) {
+    inspected++
     if (!(await maintenanceAuthorized(deps, original))) {
       denied++
       continue
@@ -592,8 +621,7 @@ export async function maintain(
     if (tally.failureCause !== null) recordFailure(tally.failureCause)
   }
 
-  const due = await deps.repository.listDueResults(now)
-  for (const result of due) {
+  for await (const result of dueResults(deps, now)) {
     const outcome = await reconcileDueResult(() =>
       reconcileResult(deps, {
         organizationId: result.organizationId,
@@ -612,7 +640,7 @@ export async function maintain(
   }
 
   const stats = {
-    inspected: operational.length,
+    inspected,
     activated,
     scheduledResults,
     reconciled,

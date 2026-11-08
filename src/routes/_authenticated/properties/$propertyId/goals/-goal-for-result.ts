@@ -13,3 +13,12 @@ export const goalForResult = (
 ): string | null =>
   programs.find(({ results }) => results.some(({ id }) => id === resultId))?.program.id ??
   null
+
+/** Notification links may name a month older than the current summary. */
+export async function resolveGoalForResult(
+  programs: readonly GoalWithResults[],
+  resultId: string,
+  readHistory: () => Promise<readonly GoalWithResults[]>,
+): Promise<string | null> {
+  return goalForResult(programs, resultId) ?? goalForResult(await readHistory(), resultId)
+}
