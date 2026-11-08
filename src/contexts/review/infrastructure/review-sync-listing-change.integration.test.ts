@@ -1,3 +1,4 @@
+import { replyScopeEffects } from '#/contexts/reputation/application/public-api'
 // A Google listing that changes between a snapshot run's two scans, against
 // real PostgreSQL.
 //
@@ -71,15 +72,23 @@ const db = getDb()
 let activeKeyVersion = TEST_KEY_VERSION
 let insertedTestKey = false
 
-const snapshotRepository = createReviewProviderSnapshotRepository(db, () =>
-  crypto.randomUUID(),
+const snapshotRepository = createReviewProviderSnapshotRepository(
+  db,
+  () => crypto.randomUUID(),
+  replyScopeEffects,
 )
 
 const observationWriter = createReviewProviderObservationWriter({
-  reviewRepo: createReviewRepository(db, () => new Date()),
+  reviewRepo: createReviewRepository(db, () => new Date(), undefined, replyScopeEffects),
   clock: () => new Date(),
   idGen: () => reviewId(crypto.randomUUID()),
-  commandStore: createAtomicReviewCommandStore(db, () => new Date()),
+  commandStore: createAtomicReviewCommandStore(
+    db,
+    () => new Date(),
+    undefined,
+    undefined,
+    replyScopeEffects,
+  ),
   googleReplyObservationStore: createGoogleReplyObservationStore(db),
   historyCutoffs: snapshotRepository,
 })

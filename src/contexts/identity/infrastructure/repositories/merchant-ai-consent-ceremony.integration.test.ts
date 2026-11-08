@@ -1,3 +1,4 @@
+import { replyScopeEffects } from '#/contexts/reputation/application/public-api'
 import { randomUUID } from 'node:crypto'
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 import { sql } from 'drizzle-orm'
@@ -22,7 +23,7 @@ import {
 // share one PostgreSQL database.
 const db = getDb()
 let cleanupPool: Pool
-const store = createMerchantAiAuthorizationStore(db, randomUUID)
+const store = createMerchantAiAuthorizationStore(db, randomUUID, replyScopeEffects)
 
 const ORG = '31000000-0000-4000-8000-000000000001'
 const OWNER = 'user-merchant-ai-ceremony-owner'

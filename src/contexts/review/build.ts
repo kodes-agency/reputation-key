@@ -6,6 +6,7 @@ import { admitGoogleImportSync } from './infrastructure/google-import-sync-accep
 import { randomUUID } from 'node:crypto'
 import { reviewError } from './domain/errors'
 import type { Database } from '#/shared/db'
+import type { ReplyScopeEffects } from '#/shared/db/reply-scope-effects'
 import type { ConsumerRegistry, OutboxRepository } from '#/shared/outbox'
 import type { Queue } from 'bullmq'
 import type { Pool } from 'pg'
@@ -47,6 +48,7 @@ import type { PortalAiReplyBrandProfilePublicApi } from '#/contexts/portal/appli
 import { createReviewRepository } from './infrastructure/repositories/review.repository'
 import { createReviewObservationRepository } from './infrastructure/repositories/review-observation.repository'
 import { createReplyRepository } from './infrastructure/repositories/reply.repository'
+import { createReviewReplyWriter } from './infrastructure/reply-writer'
 import { createReplyLibraryRepository } from './infrastructure/repositories/reply-library.repository'
 import {
   createAiReplyVoicePublicApi,
@@ -135,6 +137,8 @@ import { registerReplyPublicationConsumers } from './infrastructure/outbox-consu
 
 export type ReviewContextBuildInput = Readonly<{
   db: Database
+  /** Ends Replies when a Review's content is erased or outdated. */
+  replyEffects: ReplyScopeEffects
   outboxRepo: OutboxRepository
   clock: () => Date
   idGen: () => string
@@ -175,10 +179,13 @@ export type ReviewContextBuildInput = Readonly<{
  * that intentionally do not construct the full application container.
  */
 export const wireReviewSourceContentLifecycle = (
-  input: Pick<ReviewContextBuildInput, 'db' | 'clock' | 'expiryActivation'>,
+  input: Pick<
+    ReviewContextBuildInput,
+    'db' | 'clock' | 'expiryActivation' | 'replyEffects'
+  >,
 ): RunReviewSourceContentLifecycle =>
   createRunReviewSourceContentLifecycle({
-    store: createReviewSourceContentLifecycleStore(input.db),
+    store: createReviewSourceContentLifecycleStore(input.db, input.replyEffects),
     clock: input.clock,
     authorizeApply: createAuthorizeReviewExpiryApply(input.expiryActivation),
   })
@@ -304,16 +311,25 @@ function reviewPublicationLifecycle(
 }
 
 export const buildReviewContext = (input: ReviewContextBuildInput): ReviewContextApi => {
-  const reviewRepo = createReviewRepository(input.db, input.clock, input.logger)
+  const reviewRepo = createReviewRepository(
+    input.db,
+    input.clock,
+    input.logger,
+    input.replyEffects,
+  )
   const observationRepo = createReviewObservationRepository(input.db)
-  const replyRepo = createReplyRepository(input.db, input.clock)
+  const replyWriter = createReviewReplyWriter(input.db, input.clock)
+  const replyRepo = createReplyRepository(input.db, input.clock, replyWriter)
   const replyLibraryRepo = createReplyLibraryRepository(input.db, input.clock)
   const aiReplyVoice = createAiReplyVoicePublicApi({
     repository: replyLibraryRepo,
     reviews: reviewRepo,
   })
   const publicationCandidates = createPublicationReconciliationCandidateQuery(input.db)
-  const sourceContentLifecycleStore = createReviewSourceContentLifecycleStore(input.db)
+  const sourceContentLifecycleStore = createReviewSourceContentLifecycleStore(
+    input.db,
+    input.replyEffects,
+  )
   const recoveryPlanning = createReviewLifecycleRecoveryPlanningQuery(input.db)
   const recovery = createReviewLifecycleRecoveryAuthorityFactory({
     clock: input.clock,
@@ -451,6 +467,8 @@ export const buildReviewContext = (input: ReviewContextBuildInput): ReviewContex
     input.db,
     input.clock,
     input.publicationActorAuthority,
+    replyWriter,
+    input.replyEffects,
   )
   const googleReplyObservationStore = createGoogleReplyObservationStore(input.db)
   // D4: one reader of the non-dispatch evidence for the manager commands, the
@@ -507,11 +525,13 @@ export const buildReviewContext = (input: ReviewContextBuildInput): ReviewContex
         { event: 'review.provider_restatement' },
         'Google restated a review without moving its updateTime',
       ),
+    input.replyEffects,
   )
 
   const snapshotRepository = createReviewProviderSnapshotRepository(
     input.db,
     input.snapshotRunIdGen,
+    input.replyEffects,
   )
   const observationWriter = createReviewProviderObservationWriter({
     reviewRepo,
@@ -634,6 +654,7 @@ export const buildReviewContext = (input: ReviewContextBuildInput): ReviewContex
   }>): Promise<void> => {
     const { registerReviewWorkerJobs } = await import('./infrastructure/worker-runtime')
     await registerReviewWorkerJobs({
+      replyEffects: input.replyEffects,
       db: input.db,
       pool: input.workerRuntime.pool,
       registry: input.workerRuntime.registry,

@@ -12,6 +12,7 @@
 //   pnpm ops rights-request property replay --operator <id> --org <id> --property <id> \
 //     journal=<file> restore-point=<iso>
 
+import { reputationReplyScopeEffects } from '../../src/composition/reply-scope-effects'
 import { mkdir, readFile, writeFile } from 'node:fs/promises'
 import { dirname } from 'node:path'
 import { createReportingRightsExecutor } from '../../src/contexts/reporting/infrastructure/adapters/reporting-rights.adapter'
@@ -58,7 +59,10 @@ async function main(): Promise<void> {
               ? [notification]
               : [
                   createGoogleRightsExecutor({ db: getDb() }),
-                  createReviewRightsExecutor({ db: getDb() }),
+                  createReviewRightsExecutor({
+                    db: getDb(),
+                    replyEffects: reputationReplyScopeEffects,
+                  }),
                   createInboxRightsExecutor({ db: getDb() }),
                   createReportingRightsExecutor(getDb(), () => new Date()),
                   notification,

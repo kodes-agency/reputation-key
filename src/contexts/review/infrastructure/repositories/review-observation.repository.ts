@@ -15,6 +15,7 @@ import {
 import { sha256Hex } from '#/shared/domain/sha256'
 import { parseGoogleReviewComment } from '#/shared/google-review-comment'
 import type { Tx } from '#/shared/outbox/commit'
+import type { ReplyScopeEffects } from '#/shared/db/reply-scope-effects'
 import {
   purgeAiDraftsForReview,
   purgeExpiredAiDraftsForReview,
@@ -230,6 +231,8 @@ type ObservationInput = Readonly<{
    * it. Absent, the Review's time is taken as reported.
    */
   providerUpdateTimeReported?: boolean
+  /** Withdraws AI-assisted Replies this observation outdates. */
+  replyEffects?: ReplyScopeEffects
 }>
 
 /** Google's updateTime for the stored head and for this read, the latter null
@@ -416,7 +419,7 @@ async function recordOutOfOrderObservation(
   observationDigest: string,
 ): Promise<PersistedReviewObservation> {
   const materialRevision = Math.max(1, existing.sourceRevision)
-  await purgeExpiredAiDraftsForReview(tx, aiDraftScope(existing))
+  await purgeExpiredAiDraftsForReview(tx, aiDraftScope(existing), input.replyEffects)
   await tx.insert(reviewSourceObservations).values(
     sourceObservationValues({
       review: input.review,
@@ -481,6 +484,7 @@ async function writeObservedReviewRow(
   material: ReturnType<typeof compareMaterialReviewRevision>,
   observationSequence: number,
   observedAt: Date,
+  replyEffects: ReplyScopeEffects | undefined,
 ): Promise<ReviewRow> {
   const row = reviewToRow(observedReview)
   const persistedRows: ReviewRow[] =
@@ -552,7 +556,7 @@ async function writeObservedReviewRow(
     const purge = movesAiDraftBinding(existing, persistedRow)
       ? purgeAiDraftsForReview
       : purgeExpiredAiDraftsForReview
-    await purge(tx, aiDraftScope(existing))
+    await purge(tx, aiDraftScope(existing), replyEffects)
   }
   return persistedRow
 }
@@ -740,6 +744,7 @@ export async function persistReviewObservation(
     material,
     appliedSequence,
     input.observedAt,
+    input.replyEffects,
   )
 
   await insertOrRestoreMaterialRevision(tx, {

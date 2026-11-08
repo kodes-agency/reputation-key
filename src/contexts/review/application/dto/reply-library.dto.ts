@@ -1,3 +1,4 @@
+import { replyRevisionSchema } from '#/shared/reply-revision'
 import { z } from 'zod/v4'
 import {
   type ReplyVoiceField,
@@ -358,6 +359,7 @@ export const listReplyTemplatesInputSchema = z
 
 export const loadReplyTemplateInputSchema = z
   .object({
+    expectedReply: replyRevisionSchema.nullable().optional(),
     reviewId: z.uuid(),
     templateId: z.union([z.uuid(), replyLibraryRefSchema]),
     targetLanguage: replyTemplateLanguageTargetSchema,

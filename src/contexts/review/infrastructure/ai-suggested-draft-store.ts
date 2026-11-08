@@ -25,6 +25,10 @@ import { AI_PROVIDER_DEPLOYMENT_PROFILE } from '#/shared/ai-operation-profiles'
 import { replyFromRow } from './mappers/reply.mapper'
 import { assertCurrentAiDraftBinding } from './ai-draft-binding'
 import type { AiReplyVoicePublicApi } from '../application/ai-reply-voice-frame'
+import {
+  insertAdoptedAiDraft,
+  updateAdoptedAiDraft,
+} from '#/contexts/reputation/application/public-api'
 
 const REPLY_DRAFTING_RUNTIME_PROFILE = 'reply-drafting-runtime-v1'
 
@@ -375,9 +379,10 @@ export const createAiSuggestedDraftStore = (
 
         let acceptedRow: typeof replies.$inferSelect | undefined
         if (existing) {
-          ;[acceptedRow] = await tx
-            .update(replies)
-            .set({
+          acceptedRow = await updateAdoptedAiDraft(
+            tx,
+            { id: existing.id, organizationId: input.organizationId },
+            {
               text: input.text,
               replyLanguageTag: provenance.concreteLanguageTag,
               templateId: null,
@@ -408,64 +413,51 @@ export const createAiSuggestedDraftStore = (
               rejectedBy: null,
               rejectionReason: null,
               updatedAt: databaseNow,
-            })
-            .where(
-              and(
-                eq(replies.id, existing.id),
-                eq(replies.organizationId, input.organizationId),
-              ),
-            )
-            .returning()
+            },
+          )
         } else {
-          ;[acceptedRow] = await tx
-            .insert(replies)
-            .values({
-              reviewId: input.reviewId,
-              organizationId: input.organizationId,
-              text: input.text,
-              replyLanguageTag: provenance.concreteLanguageTag,
-              templateId: null,
-              templateVersion: null,
-              voiceDigest: replyVoiceDigest ?? null,
-              voiceChoices: replyV2VoiceChoices(provenance, bodyFrame),
-              status: 'draft',
-              source: 'internal',
-              createdBy: input.actorUserId,
-              approvedBy: null,
-              rejectedBy: null,
-              rejectionReason: null,
-              aiGenerated: true,
-              authorship: 'ai_assisted',
-              originOperationId: provenance.operationId,
-              originSourceEpoch: provenance.sourceEpoch,
-              originSourceRevision: provenance.sourceRevision,
-              originBaseReplyStateRevision: provenance.baseReplyStateRevision,
-              originReplyDraftingEpoch: provenance.replyDraftingEpoch,
-              originPropertyProfileVersion: provenance.propertyProfileVersion,
-              originAiProfileVersion: replyProfileVersion,
-              originReplyTemplateId: replyTemplateProvenance.templateId,
-              originReplyTemplateCatalogueVersion:
-                replyTemplateProvenance.catalogueVersion,
-              originReplyTemplateCatalogueDigest: replyTemplateProvenance.catalogueDigest,
-              originConcreteLanguageTag: provenance.concreteLanguageTag,
-              originTemplateGroup: provenance.templateGroup,
-              aiDraftExpiresAt: new Date(provenance.draftExpiresAtEpochMillis),
-              stateRevision: 1,
-              submittedAt: null,
-              approvedAt: null,
-              publishedAt: null,
-              publicationState: null,
-              publicationCycle: 0,
-              publicationAttempts: 0,
-              publicationLastErrorClass: null,
-              reconcileDueAt: null,
-              createdAt: databaseNow,
-              updatedAt: databaseNow,
-            })
-            .onConflictDoNothing({
-              target: [replies.reviewId, replies.source, replies.organizationId],
-            })
-            .returning()
+          acceptedRow = await insertAdoptedAiDraft(tx, {
+            reviewId: input.reviewId,
+            organizationId: input.organizationId,
+            text: input.text,
+            replyLanguageTag: provenance.concreteLanguageTag,
+            templateId: null,
+            templateVersion: null,
+            voiceDigest: replyVoiceDigest ?? null,
+            voiceChoices: replyV2VoiceChoices(provenance, bodyFrame),
+            status: 'draft',
+            source: 'internal',
+            createdBy: input.actorUserId,
+            approvedBy: null,
+            rejectedBy: null,
+            rejectionReason: null,
+            aiGenerated: true,
+            authorship: 'ai_assisted',
+            originOperationId: provenance.operationId,
+            originSourceEpoch: provenance.sourceEpoch,
+            originSourceRevision: provenance.sourceRevision,
+            originBaseReplyStateRevision: provenance.baseReplyStateRevision,
+            originReplyDraftingEpoch: provenance.replyDraftingEpoch,
+            originPropertyProfileVersion: provenance.propertyProfileVersion,
+            originAiProfileVersion: replyProfileVersion,
+            originReplyTemplateId: replyTemplateProvenance.templateId,
+            originReplyTemplateCatalogueVersion: replyTemplateProvenance.catalogueVersion,
+            originReplyTemplateCatalogueDigest: replyTemplateProvenance.catalogueDigest,
+            originConcreteLanguageTag: provenance.concreteLanguageTag,
+            originTemplateGroup: provenance.templateGroup,
+            aiDraftExpiresAt: new Date(provenance.draftExpiresAtEpochMillis),
+            stateRevision: 1,
+            submittedAt: null,
+            approvedAt: null,
+            publishedAt: null,
+            publicationState: null,
+            publicationCycle: 0,
+            publicationAttempts: 0,
+            publicationLastErrorClass: null,
+            reconcileDueAt: null,
+            createdAt: databaseNow,
+            updatedAt: databaseNow,
+          })
         }
         if (!acceptedRow) {
           return { status: 'rejected', reason: 'stale' } as const

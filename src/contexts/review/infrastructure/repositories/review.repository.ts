@@ -71,6 +71,7 @@ import {
   parseSafeNonnegativeInteger,
   type AiSourceDatabaseRow,
 } from './ai-source-lookup'
+import type { ReplyScopeEffects } from '#/shared/db/reply-scope-effects'
 import { persistReviewObservation } from './review-observation.repository'
 import { logTrendPopulationReadFailure } from '../trend-population-read-failure'
 import type { ReviewProviderObservationOrigin } from '../../application/ports/response-target-authority.port'
@@ -140,6 +141,7 @@ export const createReviewRepository = (
   db: Database,
   clock: () => Date,
   logger?: Pick<LoggerPort, 'warn'>,
+  replyEffects?: ReplyScopeEffects,
 ): ReviewRepository => ({
   findById: async (id: ReviewId, organizationId: OrganizationId) => {
     return trace('review.findById', async () => {
@@ -654,6 +656,7 @@ export const createReviewRepository = (
             ...(observationKey == null ? {} : { observationKey }),
             ...(observationOrigin == null ? {} : { observationOrigin }),
             ...(providerUpdateTimeReported == null ? {} : { providerUpdateTimeReported }),
+            ...(replyEffects == null ? {} : { replyEffects }),
           }),
         )
         return observation.review

@@ -1,3 +1,4 @@
+import { replyScopeEffects } from '#/contexts/reputation/application/public-api'
 // A Responsible Manager assigned in the gap of their own offboarding, against
 // real PostgreSQL and through the Property context as the worker wires it.
 //
@@ -63,6 +64,7 @@ async function listActiveManagers(): Promise<readonly ResponsibleManagerMembersh
 }
 
 const property = buildPropertyContext({
+  replyEffects: replyScopeEffects,
   db,
   repo: createPropertyRepository(db),
   outboxRepo: outbox,

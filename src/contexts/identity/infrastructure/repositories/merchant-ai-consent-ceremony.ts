@@ -27,6 +27,8 @@ import {
 // together or not at all. Every evidence row it writes shares the ceremony id
 // and the ceremony's request hash.
 
+import type { ReplyScopeEffects } from '#/shared/db/reply-scope-effects'
+
 function ceremonyRequestHash(input: MerchantAiConsentCeremonyInput): string {
   const canonicalRequest = canonicalizeRfc8785({
     organizationId: input.organizationId,
@@ -177,6 +179,7 @@ async function consentForProperty(
   propertyId: string,
   facts: CeremonyFacts,
   idGen: () => string,
+  replyEffects: ReplyScopeEffects | undefined,
 ): Promise<MerchantAiPropertyConsentResult> {
   const target = {
     organizationId: input.organizationId,
@@ -234,6 +237,7 @@ async function consentForProperty(
       requestHash: facts.requestHash,
     },
     idGen,
+    replyEffects,
   )
   return {
     propertyId,
@@ -254,6 +258,7 @@ export function runMerchantAiConsentCeremony(
   db: Database,
   input: MerchantAiConsentCeremonyInput,
   idGen: () => string,
+  replyEffects: ReplyScopeEffects | undefined,
 ): Promise<ReadonlyArray<MerchantAiPropertyConsentResult>> {
   const facts: CeremonyFacts = {
     keyPrefix: ceremonyKeyPrefix(input.idempotencyKey),
@@ -273,7 +278,7 @@ export function runMerchantAiConsentCeremony(
       try {
         results.set(
           propertyId,
-          await consentForProperty(tx, input, propertyId, facts, idGen),
+          await consentForProperty(tx, input, propertyId, facts, idGen, replyEffects),
         )
       } catch (error) {
         throw attributeRefusal(error, propertyId)

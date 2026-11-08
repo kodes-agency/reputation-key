@@ -12,6 +12,7 @@
 
 import { and, eq, inArray, sql } from 'drizzle-orm'
 import type { Database } from '#/shared/db'
+import type { ReplyScopeEffects } from '#/shared/db/reply-scope-effects'
 import { purgeAiDraftsForOrganization } from '#/shared/db/ai/ai-draft-purge'
 import {
   createOrganizationLifecycleContributorScaffold,
@@ -101,46 +102,49 @@ function count(row: Record<string, unknown> | undefined, key: string): number {
   return Number(row?.[key] ?? 0)
 }
 
-const drizzlePropertyLifecycleWorkbench: PropertyLifecycleWorkbench = Object.freeze({
-  suspendProviderAdmission: async (tx, request) => {
-    // Only `active` rows move. A Property the tenant already archived keeps
-    // its own state and its own recovery deadline, so cancelling the closure
-    // cannot silently un-archive it.
-    const fenced = await tx
-      .update(properties)
-      .set({
-        lifecycleState: CLOSING_LIFECYCLE_STATE,
-        lifecycleReason: propertyClosingLifecycleReason(request.closureLineageId),
-        lifecycleStateChangedAt: request.occurredAt,
-        lifecycleInitiatedBy: CLOSING_ACTOR,
-        updatedAt: request.occurredAt,
-      })
-      .where(
-        and(
-          eq(properties.organizationId, request.organizationId),
-          eq(properties.lifecycleState, 'active'),
-        ),
-      )
-      .returning({ id: properties.id })
-    await purgeAiDraftsForOrganization(tx, request.organizationId)
-    return fenced.length
-  },
+const drizzlePropertyLifecycleWorkbench = (
+  replyEffects: ReplyScopeEffects | undefined,
+): PropertyLifecycleWorkbench =>
+  Object.freeze({
+    suspendProviderAdmission: async (tx, request) => {
+      // Only `active` rows move. A Property the tenant already archived keeps
+      // its own state and its own recovery deadline, so cancelling the closure
+      // cannot silently un-archive it.
+      const fenced = await tx
+        .update(properties)
+        .set({
+          lifecycleState: CLOSING_LIFECYCLE_STATE,
+          lifecycleReason: propertyClosingLifecycleReason(request.closureLineageId),
+          lifecycleStateChangedAt: request.occurredAt,
+          lifecycleInitiatedBy: CLOSING_ACTOR,
+          updatedAt: request.occurredAt,
+        })
+        .where(
+          and(
+            eq(properties.organizationId, request.organizationId),
+            eq(properties.lifecycleState, 'active'),
+          ),
+        )
+        .returning({ id: properties.id })
+      await purgeAiDraftsForOrganization(tx, request.organizationId, replyEffects)
+      return fenced.length
+    },
 
-  countAdmittingProperties: async (tx, organizationId) => {
-    const admitting = await tx
-      .select({ id: properties.id })
-      .from(properties)
-      .where(
-        and(
-          eq(properties.organizationId, organizationId),
-          inArray(properties.lifecycleState, [...ADMITTING_LIFECYCLE_STATES]),
-        ),
-      )
-    return admitting.length
-  },
+    countAdmittingProperties: async (tx, organizationId) => {
+      const admitting = await tx
+        .select({ id: properties.id })
+        .from(properties)
+        .where(
+          and(
+            eq(properties.organizationId, organizationId),
+            inArray(properties.lifecycleState, [...ADMITTING_LIFECYCLE_STATES]),
+          ),
+        )
+      return admitting.length
+    },
 
-  countTenantRows: async (tx, organizationId) => {
-    const result = await tx.execute(sql`
+    countTenantRows: async (tx, organizationId) => {
+      const result = await tx.execute(sql`
         SELECT
           (
             SELECT COUNT(*)::int FROM ${properties}
@@ -156,30 +160,30 @@ const drizzlePropertyLifecycleWorkbench: PropertyLifecycleWorkbench = Object.fre
               AND ${idempotencyReceipts.payload}->>'organizationId' = ${organizationId}
           ) AS "rows"
       `)
-    return count(result.rows[0], 'rows')
-  },
+      return count(result.rows[0], 'rows')
+    },
 
-  scrubTenantRows: async (tx, organizationId) => {
-    // Operation idempotency receipts must go before their destination Property.
-    await tx
-      .delete(idempotencyReceipts)
-      .where(
-        and(
-          eq(idempotencyReceipts.scope, 'property_operation'),
-          sql`${idempotencyReceipts.payload}->>'organizationId' = ${organizationId}`,
-        ),
-      )
-    await tx
-      .delete(propertyResponsibleManagers)
-      .where(eq(propertyResponsibleManagers.organizationId, organizationId))
-    // Portal/Guest rows RESTRICT this delete until their own contexts have
-    // purged. That is deliberate: the phase throws, the lifecycle state stays
-    // at `purging`, other contexts keep their receipts, and the next pass
-    // converges. It must never become a cascade that erases another owner's
-    // rows without that owner's receipt.
-    await tx.delete(properties).where(eq(properties.organizationId, organizationId))
-  },
-})
+    scrubTenantRows: async (tx, organizationId) => {
+      // Operation idempotency receipts must go before their destination Property.
+      await tx
+        .delete(idempotencyReceipts)
+        .where(
+          and(
+            eq(idempotencyReceipts.scope, 'property_operation'),
+            sql`${idempotencyReceipts.payload}->>'organizationId' = ${organizationId}`,
+          ),
+        )
+      await tx
+        .delete(propertyResponsibleManagers)
+        .where(eq(propertyResponsibleManagers.organizationId, organizationId))
+      // Portal/Guest rows RESTRICT this delete until their own contexts have
+      // purged. That is deliberate: the phase throws, the lifecycle state stays
+      // at `purging`, other contexts keep their receipts, and the next pass
+      // converges. It must never become a cascade that erases another owner's
+      // rows without that owner's receipt.
+      await tx.delete(properties).where(eq(properties.organizationId, organizationId))
+    },
+  })
 
 function evidenceRef(
   phase: 'closing' | 'purge_readiness' | 'purge',
@@ -198,7 +202,8 @@ export const PROPERTY_PURGE_READINESS_BLOCKED =
 
 export const createPropertyOrganizationLifecycleContributor = (
   db: Database,
-  workbench: PropertyLifecycleWorkbench = drizzlePropertyLifecycleWorkbench,
+  replyEffects?: ReplyScopeEffects,
+  workbench: PropertyLifecycleWorkbench = drizzlePropertyLifecycleWorkbench(replyEffects),
 ) => {
   /**
    * Closing — STOP EFFECTS, KEEP DATA.

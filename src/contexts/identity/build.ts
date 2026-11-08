@@ -179,9 +179,11 @@ type AuthSession = Readonly<{
   ) => Promise<boolean>
 }>
 
+import type { ReplyScopeEffects } from '#/shared/db/reply-scope-effects'
 type IdentityContextDeps = Readonly<{
   staffAccounts?: StaffAccountBindings
   db: Database
+  replyEffects: ReplyScopeEffects
   identityPort: IdentityPort
   clock: Clock
   idGen: () => string
@@ -662,7 +664,7 @@ export const buildIdentityContext = (deps: IdentityContextDeps) => {
     pauseReason: merchantAiUpdates.pauseReason,
   })
   const merchantAiAuthorization = createMerchantAiAuthorization({
-    store: createMerchantAiAuthorizationStore(deps.db, deps.idGen),
+    store: createMerchantAiAuthorizationStore(deps.db, deps.idGen, deps.replyEffects),
     decisionDeferrals: merchantAiDecisionDeferrals,
     authorizeManagement: authorizeMerchantAiManagement,
     authorize: async (input) => {

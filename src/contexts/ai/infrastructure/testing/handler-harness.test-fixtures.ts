@@ -1,3 +1,4 @@
+import { replyScopeEffects } from '#/contexts/reputation/application/public-api'
 import type { AiMerchantAuthorizationSnapshot } from '#/contexts/ai/application/ports/ai-authorization.port'
 import type { AiControlHead } from '#/contexts/ai/application/ports/ai-control.port'
 import { createAiAuthorizationAdapter } from '#/contexts/ai/infrastructure/adapters/ai-authorization.adapter'
@@ -141,7 +142,7 @@ export async function createAiHandlerHarness(db: Database, seed: Seed) {
     updatedAt: now,
   })
   const authorizationAdapter = createAiAuthorizationAdapter(db)
-  const controlAdapter = createAiControlAdapter(db)
+  const controlAdapter = createAiControlAdapter(db, replyScopeEffects)
   let ids = 0
   const operationAdapter = createAiOperationStoreAdapter(db, () => {
     ids += 1

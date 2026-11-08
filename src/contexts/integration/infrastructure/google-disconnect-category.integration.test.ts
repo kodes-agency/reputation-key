@@ -1,3 +1,4 @@
+import { replyScopeEffects } from '#/contexts/reputation/application/public-api'
 import { beforeAll, beforeEach, afterAll, describe, expect, it, vi } from 'vitest'
 import { and, eq, inArray, sql } from 'drizzle-orm'
 import { getDb } from '#/shared/db'
@@ -152,7 +153,7 @@ function reconnect(
             ),
           )
       ).map((row) => row.id),
-    binding: createPropertyGoogleBindingStore(db),
+    binding: createPropertyGoogleBindingStore(db, replyScopeEffects),
     authorize: async ({ actor, connectionId, phase }) => {
       const connection = await connectionRepo.findById(actor.organizationId, connectionId)
       if (!connection || connection.status !== 'active')

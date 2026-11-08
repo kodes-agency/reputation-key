@@ -8,10 +8,10 @@ import type { Database } from '#/shared/db'
 import type { DomainEvent } from '#/shared/events/events'
 import { insertOutboxRow } from '#/shared/outbox/commit'
 import { purgeAiDraftsForReview } from '#/shared/db/ai/ai-draft-purge'
+import type { ReplyScopeEffects } from '#/shared/db/reply-scope-effects'
 import { releaseAnalysisSequence } from '#/shared/db/review-analysis-released-sequences'
 import {
   replies,
-  replyPublicationAttempts,
   replyPublicationAuthorizations,
   reviews,
 } from '#/shared/db/schema/review.schema'
@@ -42,6 +42,11 @@ import { lockReplyTruthScope } from './reply-truth-serialization'
 import { lockReviewSourceMutationScope } from './review-source-mutation-serialization'
 import type { Tx } from '#/shared/outbox/commit'
 import type { ReviewProviderObservationOrigin } from '../application/ports/response-target-authority.port'
+import {
+  returnReplyAfterGuestEdit,
+  returnReplyToDraftForSourceChange,
+  supersedeCurrentPublicationAttempt,
+} from '#/contexts/reputation/application/public-api'
 
 const SOURCE_ACTIVE_PUBLICATION_STATES = [
   'requested',
@@ -50,39 +55,6 @@ const SOURCE_ACTIVE_PUBLICATION_STATES = [
   'pending_observation',
   'ambiguous',
 ] as const
-
-type CurrentAttemptRef = Readonly<{
-  id: string
-  organizationId: string
-  publicationCycle: number
-  publicationAttempts: number
-}>
-
-/** Close the Reply's newest attempt as superseded. It stays as append-only
- * evidence of what was tried and can no longer be confirmed. A cycle no worker
- * claimed has no attempt to close. */
-async function supersedeCurrentAttempt(
-  tx: Tx,
-  reply: CurrentAttemptRef,
-  occurredAt: Date,
-): Promise<void> {
-  if (reply.publicationAttempts < 1) return
-  await tx
-    .update(replyPublicationAttempts)
-    .set({
-      outcome: 'superseded',
-      confirmedObservationRevision: null,
-      updatedAt: occurredAt,
-    })
-    .where(
-      and(
-        eq(replyPublicationAttempts.organizationId, reply.organizationId),
-        eq(replyPublicationAttempts.replyId, reply.id),
-        eq(replyPublicationAttempts.publicationCycle, reply.publicationCycle),
-        eq(replyPublicationAttempts.attemptNumber, reply.publicationAttempts),
-      ),
-    )
-}
 
 /** Settle publication work whose immutable authorization names an older
  * Review source. The attempt remains append-only evidence but can no longer
@@ -99,6 +71,7 @@ async function supersedeStaleReviewPublications(
   tx: Tx,
   review: Review,
   occurredAt: Date,
+  replyEffects: ReplyScopeEffects | undefined,
 ): Promise<void> {
   const staleRows = await tx
     .select({
@@ -142,27 +115,14 @@ async function supersedeStaleReviewPublications(
 
   let returnedToDraft = 0
   for (const stale of staleRows) {
-    await supersedeCurrentAttempt(tx, stale, occurredAt)
-    const cancelled = await tx
-      .update(replies)
-      .set({
-        status: 'draft',
-        publicationState: 'cancelled',
-        publicationLastErrorClass: null,
-        reconcileDueAt: null,
-        updatedAt: occurredAt,
-      })
-      .where(
-        and(
-          eq(replies.id, stale.id),
-          eq(replies.organizationId, stale.organizationId),
-          eq(replies.stateRevision, stale.stateRevision),
-          eq(replies.publicationCycle, stale.publicationCycle),
-          inArray(replies.publicationState, [...SOURCE_ACTIVE_PUBLICATION_STATES]),
-        ),
-      )
-      .returning({ id: replies.id })
-    if (!cancelled[0]) continue
+    await supersedeCurrentPublicationAttempt(tx, stale, occurredAt)
+    const cancelled = await returnReplyToDraftForSourceChange(
+      tx,
+      stale,
+      SOURCE_ACTIVE_PUBLICATION_STATES,
+      occurredAt,
+    )
+    if (!cancelled) continue
     returnedToDraft += 1
     await insertOutboxRow(
       tx,
@@ -178,10 +138,14 @@ async function supersedeStaleReviewPublications(
     )
   }
   if (returnedToDraft > 0) {
-    await purgeAiDraftsForReview(tx, {
-      organizationId: review.organizationId,
-      reviewId: review.id,
-    })
+    await purgeAiDraftsForReview(
+      tx,
+      {
+        organizationId: review.organizationId,
+        reviewId: review.id,
+      },
+      replyEffects,
+    )
   }
 }
 
@@ -221,25 +185,15 @@ async function takeBackReplyPutForwardBeforeGuestEdit(
   for (const row of rows) {
     const takenBack = takenBackByGuestEdit(replyFromRow(row))
     if (!takenBack) continue
-    const returned = await tx
-      .update(replies)
-      .set({
-        status: takenBack.status,
-        publicationState: takenBack.publicationState,
-        publicationLastErrorClass: null,
-        reconcileDueAt: null,
-        updatedAt: occurredAt,
-      })
-      .where(
-        and(
-          eq(replies.id, row.id),
-          eq(replies.organizationId, row.organizationId),
-          eq(replies.stateRevision, row.stateRevision),
-        ),
-      )
-      .returning({ id: replies.id })
-    if (!returned[0]) continue
-    if (takenBack.supersedesAttempt) await supersedeCurrentAttempt(tx, row, occurredAt)
+    const returned = await returnReplyAfterGuestEdit(
+      tx,
+      row,
+      { status: takenBack.status, publicationState: takenBack.publicationState },
+      occurredAt,
+    )
+    if (!returned) continue
+    if (takenBack.supersedesAttempt)
+      await supersedeCurrentPublicationAttempt(tx, row, occurredAt)
     await insertOutboxRow(
       tx,
       reviewReplyPublicationCancelled({
@@ -265,8 +219,9 @@ async function fenceRepliesWrittenForAnOlderSource(
   tx: Tx,
   observation: Pick<PersistedReviewObservation, 'review' | 'comparison'>,
   occurredAt: Date,
+  replyEffects: ReplyScopeEffects | undefined,
 ): Promise<void> {
-  await supersedeStaleReviewPublications(tx, observation.review, occurredAt)
+  await supersedeStaleReviewPublications(tx, observation.review, occurredAt, replyEffects)
   if (isGuestEdit(observation.comparison)) {
     await takeBackReplyPutForwardBeforeGuestEdit(tx, observation.review, occurredAt)
   }
@@ -378,6 +333,7 @@ async function redactJustExpiredSourceContent(
   tx: Tx,
   identity: StableReviewIdentity,
   occurredAt: Date,
+  replyEffects: ReplyScopeEffects | undefined,
 ): Promise<number> {
   const expirySequence = await allocateAnalysisSequence(
     tx,
@@ -394,14 +350,18 @@ async function redactJustExpiredSourceContent(
     change: 'source_expired',
     occurredAt,
   })
-  const erased = await eraseReviewSourceContent(tx, {
-    reviewId: identity.id,
-    organizationId: identity.organizationId,
-    propertyId: identity.propertyId,
-    sourceEpoch: identity.sourceEpoch,
-    expectedSourceRevision: identity.sourceRevision,
-    state: 'source_expired',
-  })
+  const erased = await eraseReviewSourceContent(
+    tx,
+    {
+      reviewId: identity.id,
+      organizationId: identity.organizationId,
+      propertyId: identity.propertyId,
+      sourceEpoch: identity.sourceEpoch,
+      expectedSourceRevision: identity.sourceRevision,
+      state: 'source_expired',
+    },
+    replyEffects,
+  )
   if (!erased) {
     throw reviewError('repo_upsert_failed', 'Expired Review redaction failed')
   }
@@ -417,6 +377,7 @@ type PersistObservation = (
     observationKey?: string
     observationOrigin?: ReviewProviderObservationOrigin
     providerUpdateTimeReported?: boolean
+    replyEffects?: ReplyScopeEffects
   }>,
 ) => Promise<PersistedReviewObservation>
 
@@ -451,6 +412,7 @@ export const createAtomicReviewCommandStore = (
   clock: () => Date,
   persistObservation: PersistObservation = persistReviewObservation,
   onProviderRestatement: (restatement: ProviderRestatement) => void = () => undefined,
+  replyEffects?: ReplyScopeEffects,
 ): ReviewCommandStore => {
   return {
     upsertAndRecord: async (
@@ -477,6 +439,7 @@ export const createAtomicReviewCommandStore = (
             ...(observationKey == null ? {} : { observationKey }),
             ...(observationOrigin == null ? {} : { observationOrigin }),
             ...(providerUpdateTimeReported == null ? {} : { providerUpdateTimeReported }),
+            ...(replyEffects == null ? {} : { replyEffects }),
           })
           const saved = observation.review
           if (observation.duplicate || observation.outOfOrder) {
@@ -502,7 +465,12 @@ export const createAtomicReviewCommandStore = (
                 }
               : candidateEvent
           await insertOutboxRow(tx, recordedEvent)
-          await fenceRepliesWrittenForAnOlderSource(tx, observation, updatedAt)
+          await fenceRepliesWrittenForAnOlderSource(
+            tx,
+            observation,
+            updatedAt,
+            replyEffects,
+          )
           if (firstSighting != null && recordedEvent._tag === 'review.created') {
             await insertFirstSighting(tx, saved, updatedAt, firstSighting)
           }
@@ -545,6 +513,7 @@ export const createAtomicReviewCommandStore = (
               tx,
               stableIdentity,
               occurredAt,
+              replyEffects,
             )
           }
 
@@ -570,6 +539,7 @@ export const createAtomicReviewCommandStore = (
             ...(observationKey == null ? {} : { observationKey }),
             ...(observationOrigin == null ? {} : { observationOrigin }),
             ...(providerUpdateTimeReported == null ? {} : { providerUpdateTimeReported }),
+            ...(replyEffects == null ? {} : { replyEffects }),
           })
           if (observation.duplicate || observation.outOfOrder) {
             throw reviewError(
@@ -589,7 +559,12 @@ export const createAtomicReviewCommandStore = (
             occurredAt,
           })
           await insertOutboxRow(tx, updatedEvent)
-          await fenceRepliesWrittenForAnOlderSource(tx, observation, occurredAt)
+          await fenceRepliesWrittenForAnOlderSource(
+            tx,
+            observation,
+            occurredAt,
+            replyEffects,
+          )
           return { saved: observation.review, restatement: restatementOf(observation) }
         })
         if (written.restatement) onProviderRestatement(written.restatement)

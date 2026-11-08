@@ -1,3 +1,4 @@
+import { replyScopeEffects } from '#/contexts/reputation/application/public-api'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { getDb } from '#/shared/db'
 import { clearEventSchemas } from '#/shared/events/schema-registry'
@@ -79,7 +80,13 @@ function review(id: ReviewId, ordinal: number): Omit<Review, 'createdAt' | 'upda
 }
 
 async function seedReview(id: ReviewId, ordinal: number): Promise<Review> {
-  const commandStore = createAtomicReviewCommandStore(getDb(), () => new Date())
+  const commandStore = createAtomicReviewCommandStore(
+    getDb(),
+    () => new Date(),
+    undefined,
+    undefined,
+    replyScopeEffects,
+  )
   return commandStore.upsertAndRecord(
     review(id, ordinal),
     (persisted) =>
@@ -149,14 +156,18 @@ describe('Review source-content lifecycle store (real PostgreSQL)', () => {
       [DRIFTED],
     )
     await getDb().transaction((tx) =>
-      eraseReviewSourceContent(tx, {
-        reviewId: TOMBSTONE,
-        organizationId: ORG,
-        propertyId: PROPERTY,
-        sourceEpoch: tombstone.sourceEpoch,
-        expectedSourceRevision: tombstone.sourceRevision,
-        state: 'source_expired',
-      }),
+      eraseReviewSourceContent(
+        tx,
+        {
+          reviewId: TOMBSTONE,
+          organizationId: ORG,
+          propertyId: PROPERTY,
+          sourceEpoch: tombstone.sourceEpoch,
+          expectedSourceRevision: tombstone.sourceRevision,
+          state: 'source_expired',
+        },
+        replyScopeEffects,
+      ),
     )
     await getPool().query(
       `INSERT INTO review_source_contents (
@@ -178,7 +189,7 @@ describe('Review source-content lifecycle store (real PostgreSQL)', () => {
       [TOMBSTONE, ORG],
     )
 
-    const store = createReviewSourceContentLifecycleStore(getDb())
+    const store = createReviewSourceContentLifecycleStore(getDb(), replyScopeEffects)
     const rows = await store.readInspectionBatch({
       evaluatedAt: EVALUATED_AT,
       after: null,
@@ -257,7 +268,7 @@ describe('Review source-content lifecycle store (real PostgreSQL)', () => {
 
   it('excludes Reviews created beyond the frozen report window', async () => {
     await seedReview(MATCHED, 1)
-    const store = createReviewSourceContentLifecycleStore(getDb())
+    const store = createReviewSourceContentLifecycleStore(getDb(), replyScopeEffects)
 
     const rows = await store.readInspectionBatch({
       evaluatedAt: new Date('2000-01-01T00:00:00.000Z'),
@@ -311,7 +322,7 @@ describe('Review source-content lifecycle store (real PostgreSQL)', () => {
       [ORG, PROPERTY, MATCHED, OBSERVED_AT],
     )
 
-    const store = createReviewSourceContentLifecycleStore(getDb())
+    const store = createReviewSourceContentLifecycleStore(getDb(), replyScopeEffects)
     const first = await store.applyLifecycleBatch({
       evaluatedAt: EVALUATED_AT,
       after: null,
@@ -398,7 +409,7 @@ describe('Review source-content lifecycle store (real PostgreSQL)', () => {
   it('serializes concurrent apply replays so one transition and one redaction land', async () => {
     await seedReview(MATCHED, 1)
     await markExpired(MATCHED)
-    const store = createReviewSourceContentLifecycleStore(getDb())
+    const store = createReviewSourceContentLifecycleStore(getDb(), replyScopeEffects)
     const input = {
       evaluatedAt: EVALUATED_AT,
       after: null,
@@ -426,7 +437,10 @@ describe('Review source-content lifecycle store (real PostgreSQL)', () => {
     await markExpired(MATCHED)
 
     await expect(
-      createReviewSourceContentLifecycleStore(getDb()).applyLifecycleBatch({
+      createReviewSourceContentLifecycleStore(
+        getDb(),
+        replyScopeEffects,
+      ).applyLifecycleBatch({
         evaluatedAt: new Date('2099-01-01T00:00:00.000Z'),
         after: null,
         limit: 10,
@@ -454,7 +468,7 @@ describe('Review source-content lifecycle store (real PostgreSQL)', () => {
       MATCHED,
     ])
 
-    const store = createReviewSourceContentLifecycleStore(getDb())
+    const store = createReviewSourceContentLifecycleStore(getDb(), replyScopeEffects)
     const before = await store.readInspectionBatch({
       evaluatedAt: EVALUATED_AT,
       after: null,
@@ -506,7 +520,10 @@ describe('Review source-content lifecycle store (real PostgreSQL)', () => {
     `)
     try {
       await expect(
-        createReviewSourceContentLifecycleStore(getDb()).applyLifecycleBatch({
+        createReviewSourceContentLifecycleStore(
+          getDb(),
+          replyScopeEffects,
+        ).applyLifecycleBatch({
           evaluatedAt: EVALUATED_AT,
           after: null,
           limit: 10,
@@ -587,6 +604,7 @@ describe('Review source-content lifecycle store (real PostgreSQL)', () => {
     )
     const before = await createReviewSourceContentLifecycleStore(
       getDb(),
+      replyScopeEffects,
     ).readInspectionBatch({
       evaluatedAt: EVALUATED_AT,
       after: null,
@@ -605,6 +623,7 @@ describe('Review source-content lifecycle store (real PostgreSQL)', () => {
 
     const result = await createReviewSourceContentLifecycleStore(
       getDb(),
+      replyScopeEffects,
     ).applyLifecycleBatch({
       evaluatedAt: EVALUATED_AT,
       after: null,
@@ -660,9 +679,13 @@ describe('Review source-content lifecycle store (real PostgreSQL)', () => {
     const restore = createAtomicReviewCommandStore(
       getDb(),
       () => new Date(),
+      undefined,
+      undefined,
+      replyScopeEffects,
     ).reobserveExpiredAndRecord(freshInput, REOBSERVED_AT, 'e'.repeat(64))
     const lifecycle = createReviewSourceContentLifecycleStore(
       getDb(),
+      replyScopeEffects,
     ).applyLifecycleBatch({
       evaluatedAt: EVALUATED_AT,
       after: null,

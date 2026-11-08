@@ -1,3 +1,4 @@
+import { replyScopeEffects } from '#/contexts/reputation/application/public-api'
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 import { Pool } from 'pg'
 import { getDb } from '#/shared/db'
@@ -135,7 +136,7 @@ function bindingError(code: PropertyGoogleBindingError['code']) {
 
 describe.sequential('Property Google binding store', () => {
   it('atomically creates and exactly replays a confirmed binding receipt', async () => {
-    const store = createPropertyGoogleBindingStore(db)
+    const store = createPropertyGoogleBindingStore(db, replyScopeEffects)
     const property = makeActiveProperty('1', 'location-1')
     const idempotencyKey = '20000000-0000-4000-8000-000000000001'
 
@@ -224,7 +225,7 @@ describe.sequential('Property Google binding store', () => {
   })
 
   it('records no created fact when a create is refused', async () => {
-    const store = createPropertyGoogleBindingStore(db)
+    const store = createPropertyGoogleBindingStore(db, replyScopeEffects)
     await store.createBoundProperty({
       organizationId: ORG_ID,
       idempotencyKey: '20000000-0000-4000-8000-000000000021',
@@ -249,7 +250,7 @@ describe.sequential('Property Google binding store', () => {
     expect(created.rows).toEqual([{ property_id: makeActiveProperty('21', 'x').id }])
   })
   it('reads a bounded tenant-scoped import discovery view by location suffix', async () => {
-    const store = createPropertyGoogleBindingStore(db)
+    const store = createPropertyGoogleBindingStore(db, replyScopeEffects)
     const property = makeActiveProperty('11', 'location-discovery')
     await store.createBoundProperty({
       organizationId: ORG_ID,
@@ -302,7 +303,7 @@ describe.sequential('Property Google binding store', () => {
   })
 
   it('serializes duplicate active locations across concurrent creates', async () => {
-    const store = createPropertyGoogleBindingStore(db)
+    const store = createPropertyGoogleBindingStore(db, replyScopeEffects)
     const results = await Promise.allSettled([
       store.createBoundProperty({
         organizationId: ORG_ID,
@@ -327,7 +328,7 @@ describe.sequential('Property Google binding store', () => {
   })
 
   it('relinks with source/profile CAS, confirmed profile replacement, and exact replay', async () => {
-    const store = createPropertyGoogleBindingStore(db)
+    const store = createPropertyGoogleBindingStore(db, replyScopeEffects)
     const property = makeActiveProperty('4', 'old-location')
     const disconnected = {
       ...property,
@@ -421,7 +422,7 @@ describe.sequential('Property Google binding store', () => {
   })
 
   it('disconnects then scrubs provider identity while preserving profile generations', async () => {
-    const store = createPropertyGoogleBindingStore(db)
+    const store = createPropertyGoogleBindingStore(db, replyScopeEffects)
     const property = makeActiveProperty('5', 'location-5')
     await seedTestProperty(db, property)
 
@@ -491,7 +492,7 @@ describe.sequential('Property Google binding store', () => {
   })
 
   it('replays retained deletion tombstones and sweeps only released expiries', async () => {
-    const store = createPropertyGoogleBindingStore(db)
+    const store = createPropertyGoogleBindingStore(db, replyScopeEffects)
     const deletedProperty = makeActiveProperty('6', 'location-6')
     const retainedProperty = makeActiveProperty('7', 'location-7')
     const deletedKey = '20000000-0000-4000-8000-000000000007'
@@ -655,7 +656,7 @@ describe.sequential('Property Google binding store', () => {
       }) as const
 
     it('is stored with the Property an import creates, beside the confirmed profile', async () => {
-      const store = createPropertyGoogleBindingStore(db)
+      const store = createPropertyGoogleBindingStore(db, replyScopeEffects)
       const property = makeActiveProperty('8', 'location-8')
       const withCategory = {
         ...property,
@@ -679,7 +680,7 @@ describe.sequential('Property Google binding store', () => {
     })
 
     it('is empty for a Property created with none, never an invented one', async () => {
-      const store = createPropertyGoogleBindingStore(db)
+      const store = createPropertyGoogleBindingStore(db, replyScopeEffects)
       const property = makeActiveProperty('9', 'location-9')
 
       await store.createBoundProperty({
@@ -696,7 +697,7 @@ describe.sequential('Property Google binding store', () => {
     })
 
     it('is cleared on disconnect and read afresh on reconnect without changing retained identity', async () => {
-      const store = createPropertyGoogleBindingStore(db)
+      const store = createPropertyGoogleBindingStore(db, replyScopeEffects)
       const property = {
         ...makeActiveProperty('10', 'location-10'),
         googlePrimaryCategory: 'Hotel',
@@ -739,7 +740,7 @@ describe.sequential('Property Google binding store', () => {
     it.each([false, true])(
       'keeps only a hint that disconnect has not cleared (disconnect first: %s)',
       async (disconnectFirst) => {
-        const store = createPropertyGoogleBindingStore(db)
+        const store = createPropertyGoogleBindingStore(db, replyScopeEffects)
         const held = {
           googlePrimaryCategory: 'Hotel',
           googlePrimaryCategoryUpdatedAt: CONFIRMED_AT,
@@ -774,7 +775,7 @@ describe.sequential('Property Google binding store', () => {
     )
 
     it('goes with the provider identity when it is scrubbed', async () => {
-      const store = createPropertyGoogleBindingStore(db)
+      const store = createPropertyGoogleBindingStore(db, replyScopeEffects)
       const property = {
         ...makeActiveProperty('14', 'location-14'),
         googlePrimaryCategory: 'Hotel',

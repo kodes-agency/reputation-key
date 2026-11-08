@@ -48,8 +48,6 @@ export const UNRESTRICTED_STATEMENT_BASELINE: Readonly<Record<string, number>> =
   'src/contexts/property/infrastructure/property-erase-command-store.ts#transition': 1,
   'src/contexts/reporting/infrastructure/repositories/current-google-reputation-snapshot.repository.ts#applyVerifiedSnapshot': 1,
   'src/contexts/review/infrastructure/ai-suggested-draft-store.ts#accept': 3,
-  'src/contexts/review/infrastructure/google-reply-observation-store.ts#confirmReplyOnGoogle': 1,
-  'src/contexts/review/infrastructure/google-reply-observation-store.ts#supersedeExternalCurrentAttempt': 1,
   'src/contexts/review/infrastructure/repositories/review-provider-snapshot.repository.ts#commitPage': 1,
   'src/contexts/review/infrastructure/repositories/review-provider-snapshot.repository.ts#finishConfirmationScan': 1,
   'src/contexts/review/infrastructure/repositories/review-provider-snapshot.repository.ts#finishMainScan': 1,

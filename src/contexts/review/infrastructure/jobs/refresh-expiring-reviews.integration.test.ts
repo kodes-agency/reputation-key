@@ -1,3 +1,4 @@
+import { replyScopeEffects } from '#/contexts/reputation/application/public-api'
 // Review context — the hourly refresh sweep (real PostgreSQL behind the real
 // Review, run and discovery repositories).
 //
@@ -136,14 +137,18 @@ async function insertTombstoneErasedToday(): Promise<void> {
     contentExpiresAt: clockOf(lastFetchedAt),
   })
   const erased = await db.transaction((tx) =>
-    eraseReviewSourceContent(tx, {
-      reviewId: TOMBSTONE,
-      organizationId: ORG,
-      propertyId: PROPERTY,
-      sourceEpoch: 0,
-      expectedSourceRevision: 0,
-      state: 'provider_deleted',
-    }),
+    eraseReviewSourceContent(
+      tx,
+      {
+        reviewId: TOMBSTONE,
+        organizationId: ORG,
+        propertyId: PROPERTY,
+        sourceEpoch: 0,
+        expectedSourceRevision: 0,
+        state: 'provider_deleted',
+      },
+      replyScopeEffects,
+    ),
   )
   expect(erased).toBe(true)
 }
@@ -151,7 +156,7 @@ async function insertTombstoneErasedToday(): Promise<void> {
 function sweep() {
   const refreshRunRepo = createReviewRefreshRunRepository(db)
   const handler = createRefreshExpiringReviewsHandler({
-    reviewRepo: createReviewRepository(db, () => NOW),
+    reviewRepo: createReviewRepository(db, () => NOW, undefined, replyScopeEffects),
     discoveryRepo: createReviewDiscoveryRepository(db),
     refreshRunRepo,
     clock: () => NOW,

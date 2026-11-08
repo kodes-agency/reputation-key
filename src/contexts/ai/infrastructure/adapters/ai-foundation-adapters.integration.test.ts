@@ -1,3 +1,4 @@
+import { replyScopeEffects } from '#/contexts/reputation/application/public-api'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { eq, sql } from 'drizzle-orm'
 import { getDb } from '#/shared/db'
@@ -25,7 +26,11 @@ const LINEAGE_ID = '73000000-0000-4000-8000-000000000002'
 describe('AI authorization and processing-profile adapters (real PostgreSQL)', () => {
   const db = getDb()
   const authorization = createAiAuthorizationAdapter(db)
-  const profiles = createPropertyProcessingProfileAdapter(db, () => NOW)
+  const profiles = createPropertyProcessingProfileAdapter(
+    db,
+    () => NOW,
+    replyScopeEffects,
+  )
   const calendar = createAiPropertyCalendarAdapter(db)
 
   const clear = async () => {
