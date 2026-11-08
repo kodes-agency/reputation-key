@@ -9,7 +9,7 @@ import type {
   MetricSourceReceipt,
   RecordMetricsCommand,
 } from '../ports/metric-command-store.port'
-import type { GovernedMetricVersion } from '../../domain/metric-registry'
+import type { GovernedMetricVersion } from '../../readings/contracts'
 import { createSequentialMetricCommandStore } from '#/shared/testing/sequential-metric-command-store'
 import {
   metricReadingId,
@@ -140,7 +140,7 @@ describe('recordMetric', () => {
     },
   )
 
-  it('passes the anonymous lifetime contribution only for an eligible Portal fact', async () => {
+  it('passes Portal destination metadata with a validated reading', async () => {
     const rating: GovernedMetricVersion = {
       definition: {
         ...governed.definition,
@@ -157,14 +157,14 @@ describe('recordMetric', () => {
       },
     }
     const fakes = createDeps(rating)
-    let lifetime: unknown = 'not-called'
+    let destination: unknown = 'not-called'
     const deps: RecordMetricDeps = {
       ...fakes.deps,
       commandStore: {
         ...fakes.deps.commandStore,
         recordMetrics: async (command) => {
           const [entry] = command.readings
-          lifetime = entry?.portalLifetimeFact
+          destination = entry?.destinationKind
           return entry ? [{ status: 'recorded', reading: entry.reading }] : []
         },
       },
@@ -181,14 +181,7 @@ describe('recordMetric', () => {
       }),
     )
 
-    expect(lifetime).toMatchObject({
-      destinationKind: null,
-      contribution: {
-        privateRatingCount: 1,
-        privateRatingSum: 4,
-        privateRating4Count: 1,
-      },
-    })
+    expect(destination).toBeNull()
   })
 
   it('rejects an unknown immutable version without recording a fact', async () => {

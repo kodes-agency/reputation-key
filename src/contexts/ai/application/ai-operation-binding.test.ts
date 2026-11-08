@@ -10,7 +10,7 @@ import {
 } from './ai-operation-binding'
 
 // Field-by-field pins of both bindings live with the use cases that claim them
-// (generate-reply-suggestion.test.ts, analyze-review-event.test.ts). These pin
+// (generate-suggestion-fences.integration.test.ts, analyze-review-event-fences.integration.test.ts). These pin
 // what separates the two kinds of operation.
 
 const ORGANIZATION_ID = organizationId('ai-operation-binding-test')

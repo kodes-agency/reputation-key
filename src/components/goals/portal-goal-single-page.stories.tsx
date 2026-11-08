@@ -16,11 +16,10 @@ import { toast } from 'sonner'
 import { expect, fn, userEvent, waitFor, within } from 'storybook/test'
 import { ServerFunctionError } from '#/shared/auth/server-function-error'
 import { ToasterDecorator } from '../../../.storybook/ToasterDecorator'
-import type { PortalGoalAverageCommands } from './portal-goal-average-page'
-import { PortalGoalAveragePage } from './portal-goal-average-page'
+import type { PortalGoalAverageCommands } from '#/contexts/reporting/monthly-goals/ui/portal-goal-average-page'
+import { PortalGoalAveragePage } from '#/contexts/reporting/monthly-goals/ui/portal-goal-average-page'
 import { PortalGoalPage } from './portal-goal-page'
 import { SEAVIEW, personName } from './portal-goal-page.stories.fixtures'
-import { PortalGoalSeveralPage } from './portal-goal-several-page'
 import {
   changeTexts,
   chipNames,
@@ -36,8 +35,6 @@ import {
   AVERAGE_RUNNING,
   AVERAGE_SCHEDULED,
   AVERAGE_STOPPED,
-  SEVERAL_RUNNING,
-  SEVERAL_STOPPED,
   SINGLE_RECEPTION,
   SINGLE_RECEPTION_SCANS_HELD,
   SINGLE_ROOMS,
@@ -453,66 +450,6 @@ export const GroupGoal: Story = {
       'Oct 23 · Elena set 35 a month from November (recommended)',
       'Oct 9 · Reception and Restaurant went live',
     ])
-  },
-}
-
-// ─── A goal for several subjects (PLAN PG-21) ──────────────────────────────
-
-/** An older form's goal for Reception, Spa and Rooms: whom, this month, and Stop. */
-export const SeveralSubjects: Story = {
-  render: (args) => (
-    <PortalGoalSeveralPage
-      propertyId={args.propertyId}
-      propertyName={args.propertyName}
-      view={SEVERAL_RUNNING}
-      canStop={args.canStop}
-      stop={args.stop}
-    />
-  ),
-  parameters: { viewport: { defaultViewport: 'tablet' } },
-  play: async ({ canvasElement }) => {
-    const canvas = within(canvasElement)
-    const title = 'Rooms (group) and 2 more · portal goal'
-    await expect(outline(canvasElement)).toEqual([`h1 ${title}`])
-    await expect(
-      canvas.getByText('Private ratings from Rooms (group) and 2 more at Seaview Hotel.'),
-    ).toBeVisible()
-    await expect(canvas.getByText('3 subjects · 1 below pace')).toBeVisible()
-    await expect(canvas.queryByRole('button', { name: 'Change number' })).toBeNull()
-    await userEvent.click(
-      canvas.getByRole('button', { name: `More actions for ${title}` }),
-    )
-    const body = within(document.body)
-    await userEvent.click(await body.findByRole('menuitem', { name: 'Stop this goal…' }))
-    const dialog = await body.findByRole('alertdialog', {
-      name: 'Stop this portal goal?',
-    })
-    await userEvent.click(within(dialog).getByRole('button', { name: 'Stop the goal' }))
-    await expect(stopMock).toHaveBeenCalledWith({
-      data: { propertyId: SEAVIEW.propertyId, programId: 'program-several' },
-    })
-    await expectToast('Portal goal stopped')
-    await waitFor(() => expect(onStoppedMock).toHaveBeenCalledOnce())
-  },
-}
-
-/** The same, stopped: it says so, and takes no action. */
-export const SeveralStopped: Story = {
-  render: (args) => (
-    <PortalGoalSeveralPage
-      propertyId={args.propertyId}
-      propertyName={args.propertyName}
-      view={SEVERAL_STOPPED}
-      canStop={args.canStop}
-      stop={args.stop}
-    />
-  ),
-  parameters: { viewport: { defaultViewport: 'mobileNarrow' } },
-  play: async ({ canvasElement }) => {
-    const canvas = within(canvasElement)
-    await expect(canvas.getByText('Stopped on Nov 12.')).toBeVisible()
-    await expect(canvas.queryByText(/below pace/u)).toBeNull()
-    await expect(canvas.queryByRole('button', { name: /^More actions/u })).toBeNull()
   },
 }
 

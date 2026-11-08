@@ -41,9 +41,6 @@ const REMAINING_SITES: Readonly<Record<string, number>> = {
   // The repository's port types every method `tx: Database`; the port needs a
   // transaction type of its own.
   'src/contexts/identity/infrastructure/repositories/google-content-authority.repository.ts': 1,
-  // Builds the Portal lifetime repository on the lifecycle transaction, so its
-  // own transaction is a savepoint; the repository factory needs to say so.
-  'src/contexts/reporting/infrastructure/adapters/metric-organization-lifecycle.adapter.ts': 1,
 }
 
 const TEST_FILE = /\.(?:test|spec)\.tsx?$/u

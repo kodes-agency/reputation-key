@@ -14,12 +14,12 @@ import { membersQuery, propertyQuery } from '#/routes/-queries/route-queries'
 import type { PortalGoalSinglePageView } from '#/contexts/reporting/application/dto/portal-goal-single-page.types'
 import { goalPersonNames } from '#/components/goals/goal-target-marker'
 import type { PortalGoalCommands } from '#/components/goals/portal-goal-card-ready'
-import { PortalGoalAveragePage } from '#/components/goals/portal-goal-average-page'
+import { PortalGoalAveragePage } from '#/contexts/reporting/monthly-goals/ui/portal-goal-average-page'
 import {
   PortalGoalPage,
   focusPortalGoalPageTitle,
 } from '#/components/goals/portal-goal-page'
-import { PortalGoalSeveralPage } from '#/components/goals/portal-goal-several-page'
+import { PortalGoalSeveralPage } from '#/contexts/reporting/monthly-goals/ui/portal-goal-several-page'
 import type { PortalGoalSheetCommands } from '#/components/goals/portal-goal-sheet'
 import {
   SINGLE_GOAL_WORDS,

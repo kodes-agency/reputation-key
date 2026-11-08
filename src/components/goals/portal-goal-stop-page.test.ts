@@ -10,7 +10,7 @@ import {
   SEAVIEW_PORTALS,
 } from '#/contexts/reporting/application/use-cases/monthly-portal-goal-test-fixtures'
 import { readMonthlyPortalGoalPage } from '#/contexts/reporting/application/use-cases/monthly-portal-goal-page'
-import { readPortalGoalSinglePage } from '#/contexts/reporting/application/use-cases/portal-goal-single-page'
+import { readPortalGoalSinglePage } from '#/contexts/reporting/monthly-goals/get-portal-goal-page.server'
 import { stopWords } from './portal-goal-stop-view'
 
 const JAN_1 = new Date('2026-12-31T22:00:00.000Z')

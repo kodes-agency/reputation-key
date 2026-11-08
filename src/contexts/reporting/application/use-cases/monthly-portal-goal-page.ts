@@ -2,6 +2,7 @@
 // months and changes after the current goal disappears. Show Portal rows only
 // when they sum to governed progress; isolate failures in other-goal side reads.
 
+import { currentAssignments } from '../../monthly-goals/subject-assignments.server'
 import type { LoggerPort } from '#/shared/domain/logger.port'
 import { goalSubjectIdentity, type GoalSubject } from '../../domain/goal-subject'
 import { addLocalDays, localDateOf } from '../../domain/local-days'
@@ -43,6 +44,11 @@ import { monthCountsOf } from './monthly-portal-goal-running'
 
 export type MonthlyPortalGoalPageDeps = MonthlyPortalGoalCardDeps &
   Readonly<{
+    history?: (
+      programId: string,
+      propertyId: string,
+      actor: GoalActor,
+    ) => Promise<GoalProgramBundle>
     /** The names of the other Portal goals' Portal Groups, and of Portals not listed. */
     subjectNames: Pick<GoalSubjectNameReader, 'getSubjectName'>
     /** A side read that failed: the page still draws, without it. */
@@ -159,10 +165,8 @@ export async function subjectNamesOf(
   )
   const subjects = new Map<string, Exclude<GoalSubject, Readonly<{ kind: 'property' }>>>()
   // The subjects each goal names now, as its row on the page does.
-  const current = goals.flatMap(({ assignments, version }) =>
-    assignments
-      .filter(({ programVersionId }) => programVersionId === version.id)
-      .map(({ subject }) => subject),
+  const current = goals.flatMap((bundle) =>
+    currentAssignments(bundle).map(({ subject }) => subject),
   )
   for (const subject of current) {
     if (subject.kind !== 'property') subjects.set(goalSubjectIdentity(subject), subject)
@@ -241,7 +245,15 @@ export async function readMonthlyPortalGoalPage(
   ])
   // After the card: its governed figures are the months it shows, so only a
   // month it does not show is read again.
-  const succession = successionOf(programs, goal)
+  const currentSuccession = successionOf(programs, goal)
+  const succession = deps.history
+    ? await Promise.all(
+        currentSuccession.map(async (candidate) => ({
+          ...candidate,
+          ...(await deps.history!(candidate.program.id, input.propertyId, actor)),
+        })),
+      )
+    : currentSuccession
   const shown: ShownMonths =
     card.state === 'goal'
       ? { month: card.goal.month, lastMonth: card.goal.lastMonth }

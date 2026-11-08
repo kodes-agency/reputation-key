@@ -2,7 +2,7 @@
 // calling createGoalCore. Bulk saves resolve that month once for every row;
 // the core validates the metric, checks subject overlap and writes the Program.
 
-import type { GovernedMetricVersion } from '../../domain/metric-registry'
+import type { GovernedMetricVersion } from '../../readings/contracts'
 import type {
   GoalProgramBundle,
   GoalProgramVersion,

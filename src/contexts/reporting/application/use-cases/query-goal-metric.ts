@@ -2,10 +2,7 @@ import type { OrganizationId, PropertyId } from '#/shared/domain/ids'
 import { GOAL_RECONCILIATION_DELAY_MS } from '#/shared/domain/metric-governance'
 import type { MetricKey } from '#/shared/domain/metric-keys'
 import { goalVersionIsUsable } from '../../domain/goal-metric-version-usable'
-import {
-  METRIC_VERSION_IDS,
-  type GovernedMetricVersion,
-} from '../../domain/metric-registry'
+import { METRIC_VERSION_IDS, type GovernedMetricVersion } from '../../readings/contracts'
 import type {
   GoalMetricSourceHead,
   GoalMetricSourceStatus,
@@ -161,29 +158,9 @@ function validValue(spec: GoalMetricSpec, value: number | null): boolean {
 export const queryGoalMetric =
   (deps: QueryGoalMetricDeps): QueryGoalMetric =>
   async (query) => {
-    if (
-      Number.isNaN(query.periodStart.getTime()) ||
-      Number.isNaN(query.periodEnd.getTime()) ||
-      query.periodEnd <= query.periodStart
-    ) {
-      return unavailable(query, 'invalid_period')
-    }
-
-    const spec = GOAL_METRIC_SPECS[query.definitionVersionId]
-    if (!spec) return unavailable(query, 'metric_not_beta_goal_eligible')
-
-    const governed = await deps.registry.findVersionById(query.definitionVersionId)
-    if (!governed || !governedVersionIsUsable(governed, spec, query)) {
-      return unavailable(query, 'metric_version_unavailable', spec.metricKey)
-    }
-    if (!spec.sourceActive) {
-      return unavailable(
-        query,
-        'metric_source_not_active',
-        spec.metricKey,
-        governed.version.minimumSample,
-      )
-    }
+    const prepared = await prepareGoalMetricQuery(deps.registry, query)
+    if ('state' in prepared) return prepared
+    const { spec, governed, aggregateQuery } = prepared
     if (
       !(await deps.validateSubject(query.organizationId, query.propertyId, query.subject))
     ) {
@@ -195,11 +172,6 @@ export const queryGoalMetric =
       )
     }
 
-    const aggregateQuery: GoalMetricAggregateQuery = {
-      ...query,
-      expectedMetricKey: spec.metricKey,
-      allowedSourcePolicies: governed.version.sourcePolicyAllowlist,
-    }
     const { aggregate, source, sourceHead } = await deps.readSnapshot(
       aggregateQuery,
       spec.eventTypes,
@@ -254,3 +226,39 @@ export const queryGoalMetric =
       reason: null,
     }
   }
+
+/** Eligibility shared by a single read and the live figures' set-based read. */
+export async function prepareGoalMetricQuery(
+  registry: MetricRegistryRepository,
+  query: GovernedGoalMetricQuery,
+) {
+  if (
+    Number.isNaN(query.periodStart.getTime()) ||
+    Number.isNaN(query.periodEnd.getTime()) ||
+    query.periodEnd <= query.periodStart
+  ) {
+    return unavailable(query, 'invalid_period')
+  }
+
+  const spec = GOAL_METRIC_SPECS[query.definitionVersionId]
+  if (!spec) return unavailable(query, 'metric_not_beta_goal_eligible')
+
+  const governed = await registry.findVersionById(query.definitionVersionId)
+  if (!governed || !governedVersionIsUsable(governed, spec, query)) {
+    return unavailable(query, 'metric_version_unavailable', spec.metricKey)
+  }
+  if (!spec.sourceActive) {
+    return unavailable(
+      query,
+      'metric_source_not_active',
+      spec.metricKey,
+      governed.version.minimumSample,
+    )
+  }
+  const aggregateQuery: GoalMetricAggregateQuery = {
+    ...query,
+    expectedMetricKey: spec.metricKey,
+    allowedSourcePolicies: governed.version.sourcePolicyAllowlist,
+  }
+  return { spec, governed, aggregateQuery }
+}

@@ -1,6 +1,6 @@
 // The Linktree section's writes, as actions. The only place the section touches
 // server functions (the documented link-tree exception in
-// scripts/check-component-boundaries.mjs), so the components stay presentational
+// eslint-rules/source-policy.mjs), so the components stay presentational
 // and a story can hand them stub actions.
 
 import { useState } from 'react'

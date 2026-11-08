@@ -1,3 +1,4 @@
+import { createGoogleNotificationRuntime } from './infrastructure/google-notification-runtime'
 import { createGoogleImportV2ClaimReaper } from './application/google-import-v2-claim-reaper'
 import { completeGoogleImportsForRestore } from './infrastructure/google-import-completion'
 import { registerGoogleBindingFollowUpConsumers } from './infrastructure/google-binding-follow-up-consumers'
@@ -20,7 +21,6 @@ import type {
 } from './application/ports/google-oauth.port'
 import type { OAuthStateHandleService } from './application/oauth-state-handle'
 import type { OAuthCallbackAbuseGate } from './application/oauth-callback-abuse-gate'
-import type { GbpApiPort } from './application/ports/gbp-api.port'
 import type { GoogleAuthorizedProviderExecutor } from './application/ports/google-authorized-provider-executor.port'
 import type { GoogleImportReferenceStore } from './application/ports/google-import-reference-store.port'
 import type {
@@ -44,7 +44,6 @@ import {
   handleGbpNotification,
   type HandleGbpNotification,
   createGbpSubscribeBackfill,
-  createGbpNotificationReconciliation,
   type ReconcileGbpNotificationSubscriptions,
   prepareGoogleConnectorDeparture,
 } from './application/use-cases'
@@ -233,7 +232,6 @@ type IntegrationContextDeps = Readonly<{
   /** BQC-6.1: optional deterministic adapter overrides (simulations/tests
    * inject in-memory providers; absent = the real env-driven HTTP adapters). */
   googleOAuth?: GoogleOAuthPort
-  gbpApi?: GbpApiPort
   googleAuthorizedProviderExecutor?: GoogleAuthorizedProviderExecutor
   googleDisconnectRevokeStore?: GoogleDisconnectRevokeStore
   authorizeGoogleOAuthProviderCall?: GoogleOAuthProviderCallAuthorizer
@@ -254,8 +252,6 @@ type IntegrationContextDeps = Readonly<{
   refreshPolicyStoreRequired?: () => Promise<void>
   /** Redis-backed, renewable and generation-fenced refresh coordination. */
   googleRefreshCoordination?: GoogleRefreshCoordination
-  /** Production has no escape hatch for credential-bearing OAuth sockets. */
-  assertDirectCredentialEgressAllowed?: (operation: string) => void
 }>
 
 export type IntegrationContextApi = Readonly<{
@@ -345,7 +341,6 @@ export type IntegrationContextApi = Readonly<{
       googleOAuthExchangeRecovery: ReturnType<
         typeof createGoogleOAuthExchangeRecoveryRepository
       >
-      gbpApiPort: GbpApiPort
     }>
     /** BQC-5.2: the Google review API adapter (integration-owned), typed by
      * review's port — consumed by the review context build. */
@@ -428,17 +423,10 @@ export const buildIntegrationContext = (deps: IntegrationContextDeps) => {
     createGoogleOAuthAdapter({
       clientId: deps.config.googleClientId,
       clientSecret: deps.config.googleClientSecret,
-      tokenUrl: deps.providerEndpoints.oauthTokenUrl,
       jwksUrl: deps.providerEndpoints.oauthJwksUrl,
-      revokeUrl: deps.providerEndpoints.oauthRevokeUrl,
       clock: deps.clock,
       executor: deps.googleAuthorizedProviderExecutor,
       nowMs: () => deps.clock().getTime(),
-      ...(deps.assertDirectCredentialEgressAllowed === undefined
-        ? {}
-        : {
-            assertDirectCredentialEgressAllowed: deps.assertDirectCredentialEgressAllowed,
-          }),
     })
   // One key today. The version prefix exists so a second can be added here
   // without making the rows sealed by the first unreadable.
@@ -446,17 +434,6 @@ export const buildIntegrationContext = (deps: IntegrationContextDeps) => {
     activeVersion: 'v1',
     keys: { v1: deps.config.encryptionKey },
   })
-  // Legacy-only test seam. Production no longer constructs the credential-
-  // bearing direct account adapter; notification account discovery uses the
-  // governed typed executor below.
-  const gbpApiPort: GbpApiPort =
-    deps.gbpApi ??
-    Object.freeze({
-      listAccounts: async () => {
-        throw new Error('Legacy Google account lookup is unavailable')
-      },
-    })
-
   const googleImportCompletion: Parameters<typeof createGoogleImportV2Store>[2] = {
     readReceipt: (...args) => {
       if (!deps.propertyBindingApi) throw new Error('Property receipt reader unavailable')
@@ -648,37 +625,28 @@ export const buildIntegrationContext = (deps: IntegrationContextDeps) => {
     deps.config.pubsubNotificationTypes,
   )
 
-  const manageNotificationsUseCase = manageNotifications({
-    authorizeProviderCall: async (organizationIdValue, connectionIdValue) =>
+  const {
+    management: manageNotificationsUseCase,
+    backfill: gbpSubscribeBackfill,
+    reconcile: reconcileNotificationSubscriptions,
+  } = createGoogleNotificationRuntime({
+    db: deps.db,
+    clock: deps.clock,
+    connectionRepo,
+    propertyApi: deps.propertyApi,
+    propertyBindingApi: deps.propertyBindingApi,
+    authorizeProviderCall: async (organizationIdValue, connectionIdValue, accountId) =>
       authorizeGoogleNotificationProviderCall
-        ? authorizeGoogleNotificationProviderCall(organizationIdValue, connectionIdValue)
+        ? authorizeGoogleNotificationProviderCall(
+            organizationIdValue,
+            connectionIdValue,
+            accountId,
+          )
         : { ok: false, code: 'authorization_unavailable' },
     notifications: notificationsPort,
     pubsubTopic: notificationConfig.pubsubTopic,
     notificationTypes: notificationConfig.notificationTypes,
     logger: deps.logger,
-  })
-
-  // ops:gbp-subscribe (scripts/ops/gbp-subscribe.ts) and the daily
-  // reconciliation below. Reads the repo directly rather than the
-  // listGoogleConnections use case: each caller has already authorized the
-  // organization (the operator harness as `system:ops`; the job
-  // through current delayed policy), and a system repair must not depend on a
-  // tenant's `integration.manage` grant — the same posture as
-  // ops:property-capabilities.
-  const gbpSubscribeBackfill = createGbpSubscribeBackfill({
-    listConnections: (organizationIdValue) =>
-      connectionRepo.listByOrganization(organizationIdValue, { showAll: true }),
-    subscribe: manageNotificationsUseCase.subscribe,
-  })
-  // The same backfill for every tenant, once a day (worker job
-  // reconcile-gbp-notification-subscriptions), because the operator command
-  // only reports: operator commands run without the Google provider runtime.
-  const reconcileNotificationSubscriptions = createGbpNotificationReconciliation({
-    topicConfigured: notificationConfig.pubsubTopic.length > 0,
-    listOrganizations: connectionRepo.listOrganizationIdsWithActiveConnections,
-    backfill: gbpSubscribeBackfill,
-    nowMs: () => deps.clock().getTime(),
   })
 
   let googleImportDiscovery: ReturnType<typeof createGoogleImportDiscovery> | null = null
@@ -1305,7 +1273,6 @@ export const buildIntegrationContext = (deps: IntegrationContextDeps) => {
         googleOAuthExchangeRecovery,
         encryptionPort,
         oauthPort,
-        gbpApiPort,
       },
       googleReviewApi,
       googleReviewPushTargetResolver,

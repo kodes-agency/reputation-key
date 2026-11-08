@@ -2512,9 +2512,6 @@ BEGIN
             INNER JOIN public.google_connections AS connection
               ON connection.organization_id = attempt.payload->>'organizationId'
              AND connection.id::text = attempt.payload->>'connectionId'
-            -- WP2.2: approval ceremony removed; see start_…_v1. Everything
-            -- below is the disconnect-revoke state machine, which is exactly
-            -- what this branch exists to prove.
             WHERE attempt.scope = 'google_disconnect_revoke'
               AND attempt.payload->>'cleanupWorkPermitId' = permit.id::text
               AND attempt.payload->>'organizationId' = permit.organization_id
@@ -2613,9 +2610,6 @@ BEGIN
           AND permit.route_key = 'oauth.token.exchange'
           AND EXISTS (
             SELECT 1
-            -- WP2.2: approval ceremony removed; see start_…_v1. The member and
-            -- permission joins stay — an OAuth exchange is only admissible when
-            -- initiated by a member whose permission version matches.
             FROM public.member AS member
             INNER JOIN public.permission_version AS permission
               ON permission.organization_id = permit.organization_id
@@ -3012,45 +3006,6 @@ BEGIN
                 )
               )
             )
-          )
-        ) OR (
-          -- Cleanup remains an already-authorized drain after ordinary work is
-          -- killed, membership changes, or a credential enters cleanup_only.
-          permit.route_key = 'oauth.revoke'
-          AND permit.property_id IS NULL
-          AND EXISTS (
-            SELECT 1
-            -- WP2.2: approval ceremony removed; see start_…_v1. The revoke
-            -- state machine below is the whole point of this branch — a
-            -- credential revocation may only be dispatched from a permit that
-            -- names a live, dispatching, not-yet-terminal revoke record.
-            FROM public.credential_revoke_permits AS revoke
-            INNER JOIN public.google_credential_source_operations AS source
-              ON source.id = revoke.source_operation_id
-             AND source.guard_id = revoke.guard_id
-            INNER JOIN public.google_subject_authority_guards AS guard
-              ON guard.id = revoke.guard_id
-            WHERE revoke.cleanup_work_permit_id = permit.id
-              AND revoke.state = 'dispatching'
-              AND revoke.cleanup_deadline_at > v_now
-              AND revoke.activated_at IS NOT NULL
-              AND revoke.dispatching_at IS NOT NULL
-              AND revoke.terminal_at IS NULL
-              AND revoke.token_hmac IS NULL
-              AND revoke.token_hmac_key_version IS NULL
-              AND revoke.send_authorization_expires_at IS NULL
-              AND permit.admitted_at <= revoke.dispatching_at
-              AND source.organization_id = permit.organization_id
-              AND source.connection_id IS NOT DISTINCT FROM permit.connection_id
-              AND source.source_work_permit_id <> permit.id
-              AND source.state = 'terminal'
-              AND source.provider_started_at IS NOT NULL
-              AND source.terminal_at IS NOT NULL
-              AND source.terminal_at <= revoke.dispatching_at
-              AND guard.state = 'cleanup_pending'
-              AND guard.active_source_operation_id IS NULL
-              AND guard.source_cutoff_sequence = source.sequence
-              AND guard.cleanup_deadline_at = revoke.cleanup_deadline_at
           )
         ) THEN 'started'
         ELSE 'changed'

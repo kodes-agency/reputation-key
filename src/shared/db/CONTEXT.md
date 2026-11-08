@@ -244,7 +244,11 @@ ADR 0074 names a forward-only exception to the baseline byte-copy rule:
 stated in `db-constructs.sql`, while 0001
 and 0016 remain immutable historical SQL. The transition has only its live
 27-argument signature, including the ceremony id; never recreate the retired
-26-argument overload. Construct parity checks cover the exception explicitly.
+26-argument overload. `0120` also reconciles `start_google_execution_permit`,
+removing the dormant credential-table branch while retaining live Disconnect
+receipt authorization. The three retired tables must be empty under exclusive
+locks before contraction; their enum types remain. Construct parity checks cover
+these forward-only exceptions explicitly.
 
 Never run `pnpm db:push` against a shared database; it bypasses the journal.
 
@@ -289,5 +293,20 @@ must not import them.
 Database and test-support import boundaries are enforced by `eslint.config.js` and `scripts/check-architecture-boundary-controls.mjs`.
 
 ## Verification
+
+The worker's daily retention entry point ships inactive. Only an owner-approved
+release may set `retention/scheduled-retention-activation.ts` to active, after a
+read-only trial, command-level erasure replay proof and verification that all
+backups, including Manual, meet the 30-day ceiling. The data restore rehearsal
+alone does not authorize activation. Queue data and operator enqueue confirmation
+cannot override this switch. The isolated restore command retains direct apply.
+
+Worker, trial and restore use the composed retention registry. Each static rule is
+bounded to 100 batches of 500 rows by default and resumes from remaining eligible
+rows. Capped evidence has outcome `failed`, code `retention_capped`, so the
+existing retention failure alert remains raised until a later pass drains it.
+Cleanup cannot start without evidence; one failed subject does not block others.
+Oldest-overdue and missed/interrupted sweep monitoring must be completed with the
+observability owner before activation; the capped-run alert alone does not cover it.
 
 Run the change loop for schema work. Use real PostgreSQL tests for migrations, constraints, transactions, locks, tenant isolation, and drift. Unit tests are appropriate only for pure parsing/comparison helpers.

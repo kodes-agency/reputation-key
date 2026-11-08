@@ -72,7 +72,7 @@ function metricPortalWhere(
 }
 
 async function countUnattributedClicks(
-  db: Database,
+  db: Pick<Database, 'select'>,
   tx: Tx,
   scope: SQL | undefined,
 ): Promise<number> {
@@ -93,9 +93,27 @@ async function countUnattributedClicks(
 }
 
 export const createPortalAnalyticsRepository = (
-  db: Database,
+  db: Pick<Database, 'select' | 'transaction'>,
   clock: () => Date,
 ): PortalAnalyticsRepository => ({
+  async getPortalTotals(organizationId, propertyId, portalId, startDate, endDate) {
+    assertValidPeriod(startDate, endDate)
+    const computedAt = clock()
+    return db.transaction(
+      async (tx) => {
+        const reads = createPortalAnalyticsRepository(tx, () => computedAt)
+        // Read sequentially on one connection; repeatable read pins correction and
+        // delivery heads across the sums, evidence and star distribution.
+        const args = [organizationId, propertyId, portalId, startDate, endDate] as const
+        const sums = await reads.getPortalKpiSums(...args)
+        const evidence = await reads.getPortalMetricEvidence(...args)
+        const ratingDistribution = await reads.getPortalRatingDistribution(...args)
+        return { sums, evidence, ratingDistribution }
+      },
+      { isolationLevel: 'repeatable read', accessMode: 'read only' },
+    )
+  },
+
   async getPortalLinkTapCounts(input) {
     const correctionTips = currentCorrectionTips(db)
     const value = effectiveValue(correctionTips)

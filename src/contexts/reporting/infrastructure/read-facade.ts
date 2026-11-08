@@ -14,7 +14,7 @@ import type { SQL } from 'drizzle-orm'
 import type { Database, Tx } from '#/shared/db'
 import { metricReadings, inboxItems } from '#/shared/db/schema'
 import type { OrganizationId, PropertyId, PortalId } from '#/shared/domain/ids'
-import { METRIC_VERSION_IDS, findMetricVersionById } from '../domain/metric-registry'
+import { METRIC_VERSION_IDS, findMetricVersionById } from '../readings/contracts'
 import type { MetricStatsDataState } from '../application/ports/metric-stats.port'
 
 /** Hard statement-level budget for one direct dashboard read. */

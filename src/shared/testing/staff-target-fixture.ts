@@ -9,7 +9,7 @@ import {
 import {
   METRIC_DEFINITION_IDS,
   METRIC_VERSION_IDS,
-} from '#/contexts/reporting/domain/metric-registry'
+} from '#/contexts/reporting/application/public-api'
 export async function seedStaffTarget(
   pool: Pool,
   metric: 'qualified_scans' | 'portal_rating_count' = 'qualified_scans',

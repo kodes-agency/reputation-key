@@ -7,10 +7,7 @@ import {
 // A leaf among the Goal Program modules: command and maintenance modules can
 // depend on it without a cycle. It holds the service's dependency types, its
 // error, and the builders and resolvers shared by commands.
-import {
-  METRIC_VERSION_IDS,
-  type GovernedMetricVersion,
-} from '../../domain/metric-registry'
+import { METRIC_VERSION_IDS, type GovernedMetricVersion } from '../../readings/contracts'
 import type {
   GovernedGoalMetricQuery,
   GovernedGoalMetricResult,
@@ -56,6 +53,10 @@ export type GoalExecutionPolicy = Readonly<{
 }>
 
 export type GoalMetricReadPort = Readonly<{
+  queryGoalMetrics?: (
+    queries: readonly GovernedGoalMetricQuery[],
+  ) => Promise<readonly GovernedGoalMetricResult[]>
+
   queryGoalMetric: (query: GovernedGoalMetricQuery) => Promise<GovernedGoalMetricResult>
   getApprovedGoalVersion?: (
     definitionVersionId: string,
@@ -178,7 +179,7 @@ export async function loadChangeableProgram(
   actor: GoalActor,
   input: Readonly<{ propertyId: string; programId: string }>,
 ): Promise<GoalProgramBundle> {
-  const current = await deps.repository.get(
+  const current = await (deps.repository.getHistory ?? deps.repository.get)(
     actor.organizationId,
     input.propertyId,
     input.programId,

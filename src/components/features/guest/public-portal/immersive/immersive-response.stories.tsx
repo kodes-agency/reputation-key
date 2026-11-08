@@ -10,8 +10,8 @@ import { useState } from 'react'
 import { expect, fn, userEvent, within } from 'storybook/test'
 import { GUEST_FONT_STYLESHEET } from '#/shared/font-sets'
 import type { GuestPagePreviewState } from '../guest-page-preview-state'
-import { bgV2 } from '../language-packs/bg-v2'
-import { enV2 } from '../language-packs/en-v2'
+import { bgCopy } from '../language-packs/bg'
+import { enCopy } from '../language-packs/en'
 import { ResponsePageStandIn } from './__fixtures__/response-page-stand-in'
 import { STORY_HERO_PHOTO } from './__fixtures__/story-hero-photo'
 import { immersiveResponseProps } from './immersive-response-preview'
@@ -29,10 +29,10 @@ const DISPLAY_NAME = 'Avela Resort'
 
 // A row's button is named by its own word, then the row's title: it holds the
 // text on it (WCAG 2.5.3) and still says what it changes.
-const CHANGE_BUTTON = `${enV2.copy.ratingChange} ${enV2.copy.responseChangeTitle}`
-const REMOVE_NOTE_BUTTON = `${enV2.copy.responseRemoveNoteAction} ${enV2.copy.responseRemoveNoteTitle}`
-const REMOVE_RATING_BUTTON = `${enV2.copy.responseRemoveAllAction} ${enV2.copy.responseRemoveRatingTitle}`
-const REMOVE_ALL_BUTTON = `${enV2.copy.responseRemoveAllAction} ${enV2.copy.responseRemoveAllTitle}`
+const CHANGE_BUTTON = `${enCopy.copy.ratingChange} ${enCopy.copy.responseChangeTitle}`
+const REMOVE_NOTE_BUTTON = `${enCopy.copy.responseRemoveNoteAction} ${enCopy.copy.responseRemoveNoteTitle}`
+const REMOVE_RATING_BUTTON = `${enCopy.copy.responseRemoveAllAction} ${enCopy.copy.responseRemoveRatingTitle}`
+const REMOVE_ALL_BUTTON = `${enCopy.copy.responseRemoveAllAction} ${enCopy.copy.responseRemoveAllTitle}`
 
 const PhoneFrame: Decorator = (Story) => (
   <div
@@ -174,7 +174,7 @@ function ResponsePage({
   live = false,
   section,
 }: StoryArgs) {
-  const pack = locale === 'bg' ? bgV2 : enV2
+  const pack = locale === 'bg' ? bgCopy : enCopy
   const [state, overrides] = useLiveHandlers(start, live, given)
   const props = useSectionProps(
     {
@@ -221,7 +221,7 @@ type Story = StoryObj<typeof ResponsePage>
 
 /** The Google card's top edge, in the page: after every rating it is the same place. */
 const googleCard = (canvasElement: HTMLElement) =>
-  within(canvasElement).getByRole('heading', { name: enV2.copy.googleTitle })
+  within(canvasElement).getByRole('heading', { name: enCopy.copy.googleTitle })
 
 const starTargets = (canvasElement: HTMLElement) =>
   [...canvasElement.querySelectorAll<HTMLElement>('.ih-star')].map((star) =>
@@ -233,7 +233,7 @@ export const G03RatingChosen: Story = {
   args: { state: { kind: 'arrival' } },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
-    expect(canvas.queryByText(enV2.copy.ratingThanks)).toBeNull()
+    expect(canvas.queryByText(enCopy.copy.ratingThanks)).toBeNull()
     for (const target of starTargets(canvasElement)) {
       expect(target.width).toBe(54)
       expect(target.height).toBe(54)
@@ -268,7 +268,7 @@ export const AsksForARating: Story = {
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
     await userEvent.click(canvas.getByRole('button', { name: 'Send' }))
-    expect(await canvas.findByRole('alert')).toHaveTextContent(enV2.copy.ratingChoose)
+    expect(await canvas.findByRole('alert')).toHaveTextContent(enCopy.copy.ratingChoose)
     await userEvent.click(canvas.getByRole('radio', { name: '5 stars, Excellent' }))
     expect(canvas.queryByRole('alert')).toBeNull()
   },
@@ -301,7 +301,7 @@ export const RatingSaveFailed: Story = {
   args: { state: { kind: 'arrival' }, overrides: { failure: 'rating' } },
   play: async ({ canvasElement }) => {
     expect(await within(canvasElement).findByRole('alert')).toHaveTextContent(
-      enV2.copy.ratingSaveFailed,
+      enCopy.copy.ratingSaveFailed,
     )
   },
 }
@@ -315,12 +315,12 @@ export const G04AfterLow: Story = {
     expect(canvas.getByRole('img', { name: '2 stars' })).toBeVisible()
     expect(canvas.getByText('Fair · sent')).toBeVisible()
     expect(canvas.getByRole('button', { name: /Continue to Google/ })).toBeEnabled()
-    expect(canvas.getByRole('button', { name: enV2.copy.ratingChange })).toBeVisible()
+    expect(canvas.getByRole('button', { name: enCopy.copy.ratingChange })).toBeVisible()
     // The hint is read with the button.
     expect(
       canvas.getByRole('button', { name: /Continue to Google/ }),
-    ).toHaveAccessibleDescription(enV2.copy.googleHint)
-    const note = canvas.getByRole('heading', { name: enV2.copy.noteOfferTitle })
+    ).toHaveAccessibleDescription(enCopy.copy.googleHint)
+    const note = canvas.getByRole('heading', { name: enCopy.copy.noteOfferTitle })
     expect(googleCard(canvasElement).compareDocumentPosition(note)).toBe(
       Node.DOCUMENT_POSITION_FOLLOWING,
     )
@@ -335,7 +335,7 @@ export const G05AfterHigh: Story = {
     const canvas = within(canvasElement)
     expect(canvas.getByText('Excellent · sent')).toBeVisible()
     expect(canvas.getByRole('button', { name: /Continue to Google/ })).toBeEnabled()
-    expect(canvas.queryByText(enV2.copy.noteOfferTitle)).toBeNull()
+    expect(canvas.queryByText(enCopy.copy.noteOfferTitle)).toBeNull()
     // The card follows the receipt directly, as it does after a low rating.
     const card = googleCard(canvasElement).closest('section')
     expect(card?.previousElementSibling?.className).toBe('ih-receipt')
@@ -347,12 +347,16 @@ export const NoteOpensAndCloses: Story = {
   args: { state: { kind: 'rated', rating: 3 } },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
-    await userEvent.click(canvas.getByRole('button', { name: enV2.copy.noteOfferAction }))
-    const field = canvas.getByRole('textbox', { name: enV2.copy.noteLabel })
+    await userEvent.click(
+      canvas.getByRole('button', { name: enCopy.copy.noteOfferAction }),
+    )
+    const field = canvas.getByRole('textbox', { name: enCopy.copy.noteLabel })
     expect(field).toHaveFocus()
     await userEvent.type(field, 'The towels ran out')
-    await userEvent.click(canvas.getByRole('button', { name: enV2.copy.noteDismiss }))
-    expect(canvas.getByRole('button', { name: enV2.copy.noteOfferAction })).toHaveFocus()
+    await userEvent.click(canvas.getByRole('button', { name: enCopy.copy.noteDismiss }))
+    expect(
+      canvas.getByRole('button', { name: enCopy.copy.noteOfferAction }),
+    ).toHaveFocus()
     expect(canvas.queryByRole('textbox')).toBeNull()
   },
 }
@@ -366,19 +370,19 @@ export const NoteIsSent: Story = {
   },
   play: async ({ canvasElement, args }) => {
     const canvas = within(canvasElement)
-    await userEvent.click(canvas.getByRole('button', { name: enV2.copy.noteSend }))
-    expect(await canvas.findByRole('alert')).toHaveTextContent(enV2.copy.noteRequired)
+    await userEvent.click(canvas.getByRole('button', { name: enCopy.copy.noteSend }))
+    expect(await canvas.findByRole('alert')).toHaveTextContent(enCopy.copy.noteRequired)
     // The banner is tied to the field, so the field says why it is invalid.
-    const field = canvas.getByRole('textbox', { name: enV2.copy.noteLabel })
+    const field = canvas.getByRole('textbox', { name: enCopy.copy.noteLabel })
     expect(field).toHaveAccessibleDescription(
-      `${enV2.copy.noteHint} ${enV2.copy.noteRequired}`,
+      `${enCopy.copy.noteHint} ${enCopy.copy.noteRequired}`,
     )
     expect(args.overrides?.onSubmitNote).not.toHaveBeenCalled()
     await userEvent.type(
-      canvas.getByRole('textbox', { name: enV2.copy.noteLabel }),
+      canvas.getByRole('textbox', { name: enCopy.copy.noteLabel }),
       '  Worth a look at the afternoon rounds.  ',
     )
-    await userEvent.click(canvas.getByRole('button', { name: enV2.copy.noteSend }))
+    await userEvent.click(canvas.getByRole('button', { name: enCopy.copy.noteSend }))
     expect(args.overrides?.onSubmitNote).toHaveBeenCalledTimes(1)
     expect(args.overrides?.onSubmitNote).toHaveBeenCalledWith({
       text: 'Worth a look at the afternoon rounds.',
@@ -403,12 +407,12 @@ export const G06NoteWriting: Story = {
   },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
-    expect(canvas.getByRole('textbox', { name: enV2.copy.noteLabel })).toHaveValue(
+    expect(canvas.getByRole('textbox', { name: enCopy.copy.noteLabel })).toHaveValue(
       'The pool was lovely, but the towels ran out by four and nobody came to restock them.',
     )
-    expect(canvas.getByText(enV2.copy.noteHint)).toBeVisible()
-    expect(canvas.getByRole('button', { name: enV2.copy.noteSend })).toBeEnabled()
-    expect(canvas.getByRole('button', { name: enV2.copy.noteDismiss })).toBeEnabled()
+    expect(canvas.getByText(enCopy.copy.noteHint)).toBeVisible()
+    expect(canvas.getByRole('button', { name: enCopy.copy.noteSend })).toBeEnabled()
+    expect(canvas.getByRole('button', { name: enCopy.copy.noteDismiss })).toBeEnabled()
   },
 }
 
@@ -430,12 +434,16 @@ export const G08GoogleUnavailable: Story = {
   args: { state: { kind: 'googleUnavailable', rating: 3 } },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
-    const title = canvas.getByRole('heading', { name: enV2.copy.googleUnavailableTitle })
+    const title = canvas.getByRole('heading', {
+      name: enCopy.copy.googleUnavailableTitle,
+    })
     expect(title.closest('section')?.getAttribute('role')).toBe('status')
     expect(canvas.queryByRole('button', { name: /Continue to Google/ })).toBeNull()
     expect(canvas.getByText('Your rating reached Avela Resort. Thank you.')).toBeVisible()
     // The private note still works.
-    expect(canvas.getByRole('button', { name: enV2.copy.noteOfferAction })).toBeEnabled()
+    expect(
+      canvas.getByRole('button', { name: enCopy.copy.noteOfferAction }),
+    ).toBeEnabled()
   },
 }
 
@@ -444,8 +452,8 @@ export const G11BulgarianError: Story = {
   args: { state: { kind: 'arrival' }, locale: 'bg' },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
-    await userEvent.click(canvas.getByRole('button', { name: bgV2.copy.ratingSend }))
-    expect(await canvas.findByRole('alert')).toHaveTextContent(bgV2.copy.ratingChoose)
+    await userEvent.click(canvas.getByRole('button', { name: bgCopy.copy.ratingSend }))
+    expect(await canvas.findByRole('alert')).toHaveTextContent(bgCopy.copy.ratingChoose)
     expect(canvas.getByRole('radio', { name: '1 звезда, Слабо' })).toBeVisible()
   },
 }
@@ -456,7 +464,7 @@ export const BulgarianAfterLow: Story = {
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
     expect(canvas.getByRole('img', { name: '2 звезди' })).toBeVisible()
-    expect(canvas.getByRole('heading', { name: bgV2.copy.googleTitle })).toBeVisible()
+    expect(canvas.getByRole('heading', { name: bgCopy.copy.googleTitle })).toBeVisible()
   },
 }
 
@@ -465,7 +473,7 @@ export const Sending: Story = {
   args: { state: { kind: 'arrival' }, overrides: { pending: true } },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
-    expect(canvas.getByRole('button', { name: enV2.copy.sending })).toBeDisabled()
+    expect(canvas.getByRole('button', { name: enCopy.copy.sending })).toBeDisabled()
     expect(canvas.getByRole('radio', { name: '3 stars, Good' })).toBeDisabled()
   },
 }
@@ -493,8 +501,8 @@ export const G07YourResponseOpen: Story = {
     expect(canvas.getByText('Until 15:00 today, Sofia time')).toBeVisible()
     // The note's row and the whole response's row end at the same time.
     expect(canvas.getAllByText('Until 14:00 tomorrow, Sofia time')).toHaveLength(2)
-    expect(canvas.getByText(enV2.copy.responseRemoveAllNote)).toBeVisible()
-    expect(canvas.getByText(enV2.copy.sharedDeviceBody)).toBeVisible()
+    expect(canvas.getByText(enCopy.copy.responseRemoveAllNote)).toBeVisible()
+    expect(canvas.getByText(enCopy.copy.sharedDeviceBody)).toBeVisible()
     // Every control is a 44 px target at least.
     const section = canvasElement.querySelector('.ih-yr')
     for (const button of section?.querySelectorAll('button') ?? []) {
@@ -512,12 +520,12 @@ export const OpensAndClosesByKeyboard: Story = {
     const canvas = within(canvasElement)
     const toggle = yourResponseToggle(canvas)
     expect(toggle).toHaveAttribute('aria-expanded', 'false')
-    expect(canvas.queryByText(enV2.copy.sharedDeviceTitle)).toBeNull()
+    expect(canvas.queryByText(enCopy.copy.sharedDeviceTitle)).toBeNull()
     toggle.focus()
     await userEvent.keyboard('{Enter}')
     expect(toggle).toHaveAttribute('aria-expanded', 'true')
     expect(toggle).toHaveFocus()
-    expect(canvas.getByText(enV2.copy.sharedDeviceTitle)).toBeVisible()
+    expect(canvas.getByText(enCopy.copy.sharedDeviceTitle)).toBeVisible()
     // Tab walks the rows in order: change, remove, start over. A note was not sent.
     await userEvent.tab()
     expect(
@@ -528,11 +536,13 @@ export const OpensAndClosesByKeyboard: Story = {
     await userEvent.tab()
     expect(canvas.getByRole('button', { name: REMOVE_RATING_BUTTON })).toHaveFocus()
     await userEvent.tab()
-    expect(canvas.getByRole('button', { name: enV2.copy.startOverAction })).toHaveFocus()
+    expect(
+      canvas.getByRole('button', { name: enCopy.copy.startOverAction }),
+    ).toHaveFocus()
     toggle.focus()
     await userEvent.keyboard(' ')
     expect(toggle).toHaveAttribute('aria-expanded', 'false')
-    expect(canvas.queryByText(enV2.copy.sharedDeviceTitle)).toBeNull()
+    expect(canvas.queryByText(enCopy.copy.sharedDeviceTitle)).toBeNull()
   },
 }
 
@@ -544,13 +554,13 @@ export const ReceiptChangeOpensTheForm: Story = {
     await userEvent.click(
       within(
         canvasElement.querySelector<HTMLElement>('.ih-receipt') ?? canvasElement,
-      ).getByRole('button', { name: enV2.copy.ratingChange }),
+      ).getByRole('button', { name: enCopy.copy.ratingChange }),
     )
     expect(yourResponseToggle(canvas)).toHaveAttribute('aria-expanded', 'true')
     expect(canvas.getByRole('radio', { name: '2 stars, Fair' })).toBeChecked()
     expect(canvas.getByRole('radio', { name: '2 stars, Fair' })).toHaveFocus()
     expect(
-      canvas.getByRole('button', { name: enV2.copy.responseChangeSave }),
+      canvas.getByRole('button', { name: enCopy.copy.responseChangeSave }),
     ).toBeEnabled()
   },
 }
@@ -572,7 +582,7 @@ export const ChangesTheRating: Story = {
     await userEvent.keyboard('{ArrowRight}{ArrowRight}')
     expect(canvas.getByRole('radio', { name: '4 stars, Very good' })).toBeChecked()
     await userEvent.click(
-      canvas.getByRole('button', { name: enV2.copy.responseChangeSave }),
+      canvas.getByRole('button', { name: enCopy.copy.responseChangeSave }),
     )
     expect(args.section?.handlers?.onChangeRating).toHaveBeenCalledTimes(1)
     expect(args.section?.handlers?.onChangeRating).toHaveBeenCalledWith({
@@ -582,17 +592,17 @@ export const ChangesTheRating: Story = {
     // The form is put away, and the receipt shows the new rating.
     expect(await canvas.findByText('Very good · sent')).toBeVisible()
     expect(
-      canvas.queryByRole('button', { name: enV2.copy.responseChangeSave }),
+      canvas.queryByRole('button', { name: enCopy.copy.responseChangeSave }),
     ).toBeNull()
     // The server allows one change: the row is gone, and says nothing false
     // about time. The notice takes the focus the form leaves.
-    const notice = await canvas.findByText(enV2.copy.ratingUpdated)
+    const notice = await canvas.findByText(enCopy.copy.ratingUpdated)
     expect(notice).toHaveFocus()
-    expect(canvas.queryByText(enV2.copy.windowEndedChange)).toBeNull()
+    expect(canvas.queryByText(enCopy.copy.windowEndedChange)).toBeNull()
     expect(
       canvas
         .queryAllByRole('button')
-        .filter((button) => button.textContent === enV2.copy.ratingChange),
+        .filter((button) => button.textContent === enCopy.copy.ratingChange),
     ).toHaveLength(0)
   },
 }
@@ -643,7 +653,7 @@ export const NoteRemovedNotice: Story = {
     const canvas = within(canvasElement)
     const notices = canvas.getAllByRole('status')
     expect(
-      notices.some((node) => node.textContent === enV2.copy.responseRemoveNoteDone),
+      notices.some((node) => node.textContent === enCopy.copy.responseRemoveNoteDone),
     ).toBe(true)
   },
 }
@@ -663,23 +673,25 @@ export const FullWithdrawalAsksFirst: Story = {
     // Pressing Remove… only asks. Nothing is sent, and the question is read first.
     await userEvent.click(remove())
     const group = canvas.getByRole('group', {
-      name: enV2.copy.responseRemoveAllConfirmTitle,
+      name: enCopy.copy.responseRemoveAllConfirmTitle,
     })
     expect(group).toBeVisible()
-    expect(canvas.getByText(enV2.copy.responseRemoveAllConfirmBody)).toBeVisible()
-    expect(within(group).getByText(enV2.copy.responseRemoveAllConfirmTitle)).toHaveFocus()
+    expect(canvas.getByText(enCopy.copy.responseRemoveAllConfirmBody)).toBeVisible()
+    expect(
+      within(group).getByText(enCopy.copy.responseRemoveAllConfirmTitle),
+    ).toHaveFocus()
     expect(calls()).not.toHaveBeenCalled()
 
     // Tab reaches the safe answer first.
     await userEvent.tab()
     expect(
-      canvas.getByRole('button', { name: enV2.copy.responseRemoveAllCancel }),
+      canvas.getByRole('button', { name: enCopy.copy.responseRemoveAllCancel }),
     ).toHaveFocus()
 
     // Escape means no, and focus goes back to the button that asked.
     await userEvent.keyboard('{Escape}')
     expect(
-      canvas.queryByRole('group', { name: enV2.copy.responseRemoveAllConfirmTitle }),
+      canvas.queryByRole('group', { name: enCopy.copy.responseRemoveAllConfirmTitle }),
     ).toBeNull()
     expect(remove()).toHaveFocus()
     expect(calls()).not.toHaveBeenCalled()
@@ -687,22 +699,24 @@ export const FullWithdrawalAsksFirst: Story = {
     // "Keep them" means no as well.
     await userEvent.click(remove())
     await userEvent.click(
-      canvas.getByRole('button', { name: enV2.copy.responseRemoveAllCancel }),
+      canvas.getByRole('button', { name: enCopy.copy.responseRemoveAllCancel }),
     )
     expect(
-      canvas.queryByRole('group', { name: enV2.copy.responseRemoveAllConfirmTitle }),
+      canvas.queryByRole('group', { name: enCopy.copy.responseRemoveAllConfirmTitle }),
     ).toBeNull()
     expect(calls()).not.toHaveBeenCalled()
 
     // Only "Remove both" sends it, once.
     await userEvent.click(remove())
     await userEvent.click(
-      canvas.getByRole('button', { name: enV2.copy.responseRemoveAllConfirm }),
+      canvas.getByRole('button', { name: enCopy.copy.responseRemoveAllConfirm }),
     )
     expect(calls()).toHaveBeenCalledTimes(1)
     // The section is replaced by the notice, and focus goes there, not to <body>.
     expect(
-      await canvas.findByRole('heading', { name: enV2.copy.responseRemoveAllDoneTitle }),
+      await canvas.findByRole('heading', {
+        name: enCopy.copy.responseRemoveAllDoneTitle,
+      }),
     ).toHaveFocus()
   },
 }
@@ -717,9 +731,11 @@ export const StartsOver: Story = {
   },
   play: async ({ canvasElement, args }) => {
     const canvas = within(canvasElement)
-    await userEvent.click(canvas.getByRole('button', { name: enV2.copy.startOverAction }))
+    await userEvent.click(
+      canvas.getByRole('button', { name: enCopy.copy.startOverAction }),
+    )
     expect(args.section?.handlers?.onStartOver).toHaveBeenCalledTimes(1)
-    const ready = await canvas.findByText(enV2.copy.startOverDone)
+    const ready = await canvas.findByText(enCopy.copy.startOverDone)
     expect(ready).toHaveFocus()
   },
 }
@@ -739,23 +755,25 @@ export const RemovedResponseCanStartOver: Story = {
     const canvas = within(canvasElement)
     await userEvent.click(canvas.getByRole('button', { name: REMOVE_ALL_BUTTON }))
     await userEvent.click(
-      canvas.getByRole('button', { name: enV2.copy.responseRemoveAllConfirm }),
+      canvas.getByRole('button', { name: enCopy.copy.responseRemoveAllConfirm }),
     )
     expect(
-      await canvas.findByRole('heading', { name: enV2.copy.responseRemoveAllDoneTitle }),
+      await canvas.findByRole('heading', {
+        name: enCopy.copy.responseRemoveAllDoneTitle,
+      }),
     ).toHaveFocus()
     // Nothing is left to rate or share, but the way on is there, a full-size target.
     expect(canvas.queryByRole('radio')).toBeNull()
-    expect(canvas.getByText(enV2.copy.sharedDeviceTitle)).toBeVisible()
-    const startOver = canvas.getByRole('button', { name: enV2.copy.startOverAction })
+    expect(canvas.getByText(enCopy.copy.sharedDeviceTitle)).toBeVisible()
+    const startOver = canvas.getByRole('button', { name: enCopy.copy.startOverAction })
     expect(startOver.getBoundingClientRect().height).toBeGreaterThanOrEqual(44)
 
     await userEvent.click(startOver)
     expect(args.section?.handlers?.onStartOver).toHaveBeenCalledTimes(1)
-    const ready = await canvas.findByText(enV2.copy.startOverDoneAfterRemoval)
+    const ready = await canvas.findByText(enCopy.copy.startOverDoneAfterRemoval)
     expect(ready).toHaveFocus()
     expect(ready).toHaveTextContent('Ready for the next guest.')
-    expect(canvas.queryByText(enV2.copy.startOverDone)).toBeNull()
+    expect(canvas.queryByText(enCopy.copy.startOverDone)).toBeNull()
     expect(canvas.queryByText(/remains saved/u)).toBeNull()
     expect(canvas.getByRole('radio', { name: /^1 star/u })).toBeVisible()
   },
@@ -789,8 +807,12 @@ export const RemovedStartOverFailed: Story = {
   },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
-    expect(await canvas.findByRole('alert')).toHaveTextContent(enV2.copy.startOverFailed)
-    expect(canvas.getByRole('button', { name: enV2.copy.startOverAction })).toBeEnabled()
+    expect(await canvas.findByRole('alert')).toHaveTextContent(
+      enCopy.copy.startOverFailed,
+    )
+    expect(
+      canvas.getByRole('button', { name: enCopy.copy.startOverAction }),
+    ).toBeEnabled()
   },
 }
 
@@ -806,16 +828,20 @@ export const BulgarianRemovedResponse: Story = {
     const canvas = within(canvasElement)
     await userEvent.click(
       canvas.getByRole('button', {
-        name: `${bgV2.copy.responseRemoveAllAction} ${bgV2.copy.responseRemoveAllTitle}`,
+        name: `${bgCopy.copy.responseRemoveAllAction} ${bgCopy.copy.responseRemoveAllTitle}`,
       }),
     )
     await userEvent.click(
-      canvas.getByRole('button', { name: bgV2.copy.responseRemoveAllConfirm }),
+      canvas.getByRole('button', { name: bgCopy.copy.responseRemoveAllConfirm }),
     )
     expect(
-      await canvas.findByRole('heading', { name: bgV2.copy.responseRemoveAllDoneTitle }),
+      await canvas.findByRole('heading', {
+        name: bgCopy.copy.responseRemoveAllDoneTitle,
+      }),
     ).toBeVisible()
-    expect(canvas.getByRole('button', { name: bgV2.copy.startOverAction })).toBeVisible()
+    expect(
+      canvas.getByRole('button', { name: bgCopy.copy.startOverAction }),
+    ).toBeVisible()
     const frame = canvasElement.closest('[data-testid="phone-frame"]') ?? canvasElement
     expect(frame.scrollWidth).toBeLessThanOrEqual(frame.clientWidth)
   },
@@ -830,7 +856,9 @@ export const RatingsCannotBeSentFromHere: Story = {
   args: { state: { kind: 'arrival' }, overrides: { availability: 'unavailable' } },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
-    const title = canvas.getByRole('heading', { name: enV2.copy.ratingUnavailableTitle })
+    const title = canvas.getByRole('heading', {
+      name: enCopy.copy.ratingUnavailableTitle,
+    })
     expect(title).toHaveTextContent('Ratings can’t be sent from here right now.')
     expect(title.closest('section')?.getAttribute('role')).toBe('status')
     expect(canvas.getByText('Please try again later.')).toBeVisible()
@@ -850,7 +878,7 @@ export const RemovalFailed: Story = {
   },
   play: async ({ canvasElement }) => {
     expect(await within(canvasElement).findByRole('alert')).toHaveTextContent(
-      enV2.copy.responseRemoveAllFailed,
+      enCopy.copy.responseRemoveAllFailed,
     )
   },
 }
@@ -882,11 +910,13 @@ export const WindowsEnded: Story = {
   },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
-    expect(canvas.getByText(enV2.copy.windowEndedChange)).toBeVisible()
-    expect(canvas.getByText(enV2.copy.windowEndedNote)).toBeVisible()
-    expect(canvas.getByText(enV2.copy.windowEndedAll)).toBeVisible()
+    expect(canvas.getByText(enCopy.copy.windowEndedChange)).toBeVisible()
+    expect(canvas.getByText(enCopy.copy.windowEndedNote)).toBeVisible()
+    expect(canvas.getByText(enCopy.copy.windowEndedAll)).toBeVisible()
     expect(canvas.queryByRole('button', { name: REMOVE_ALL_BUTTON })).toBeNull()
-    expect(canvas.getByRole('button', { name: enV2.copy.startOverAction })).toBeEnabled()
+    expect(
+      canvas.getByRole('button', { name: enCopy.copy.startOverAction }),
+    ).toBeEnabled()
   },
 }
 
@@ -898,7 +928,9 @@ export const BulgarianYourResponse: Story = {
     expect(canvas.getByText('До 15:00 днес, местно време в София')).toBeVisible()
     const frame = canvasElement.closest('[data-testid="phone-frame"]') ?? canvasElement
     expect(frame.scrollWidth).toBeLessThanOrEqual(frame.clientWidth)
-    expect(canvas.getByRole('button', { name: bgV2.copy.startOverAction })).toBeEnabled()
+    expect(
+      canvas.getByRole('button', { name: bgCopy.copy.startOverAction }),
+    ).toBeEnabled()
   },
 }
 

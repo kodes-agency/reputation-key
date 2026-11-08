@@ -3,7 +3,7 @@ import { organizationId, propertyId, reviewId } from '#/shared/domain/ids'
 import {
   EMPTY_REVIEW_ANALYSIS_REVISION_SET_DIGEST,
   isReviewAnalysisRevisionSetEvidence,
-} from './ports/ai-review-analysis-enrollment.port'
+} from '../replay/contracts'
 import { aiReviewAnalysisBackfillRequested } from '../domain/events'
 import { isAiError } from '../domain/errors'
 

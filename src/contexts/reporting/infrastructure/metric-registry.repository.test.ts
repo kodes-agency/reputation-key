@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { METRIC_VERSION_IDS } from '../domain/metric-registry'
+import { METRIC_VERSION_IDS } from '../readings/contracts'
 import { createMetricRegistryRepository } from './repositories/metric-registry.repository'
 
 describe('createMetricRegistryRepository', () => {

@@ -50,9 +50,9 @@ export type PortalGoalAverageChangeModel = Pick<
   'description' | 'months' | 'month' | 'unit' | 'number' | 'primary'
 > &
   Readonly<{
-    /** M-14: what an average needs. */
+    /** What an average needs. */
     status: string
-    /** S-19: "Add a note", then the field. */
+    /** "Add a note", then the field. */
     note: Readonly<{ open: boolean; text: string; limit: number }>
     submission: PortalGoalChangeSubmission | null
     /** What is said once it is saved. */
@@ -105,7 +105,7 @@ export function changedAverageDraft(
   }
 }
 
-/** S-15: "November, now" | "From Dec 1"; only the second while no month can change now. */
+/** "November, now" | "From Dec 1"; only the second while no month can change now. */
 function monthsOf(change: PortalGoalChangeFacts): PortalGoalAverageChangeModel['months'] {
   const next = {
     value: 'next',
@@ -115,7 +115,7 @@ function monthsOf(change: PortalGoalChangeFacts): PortalGoalAverageChangeModel['
   return [{ value: 'now', label: `${monthName(change.now.monthKey)}, now` }, next]
 }
 
-/** S-16, S-17 in tenths, or S-2 for a goal that has not started. */
+/** The line under the month picker, in tenths; a goal that has not started says when it starts. */
 function lineOf(when: When, context: PortalGoalAverageChangeContext): string {
   const { goal, change } = context
   const { now, nextMonthKey } = change

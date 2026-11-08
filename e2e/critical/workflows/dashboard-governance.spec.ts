@@ -160,7 +160,7 @@ test.describe('Critical workflow: dashboard governance (scoped login vs admin)',
   // (isBetaInteractiveRole), so this sign-in fails before any assertion. The
   // rule is held below e2e (see the header); this case returns with a role
   // that signs in without reply.manage. Registered, with a review-by date, in
-  // scripts/check-test-quality.mjs.
+  // eslint-rules/test-quality.mjs.
   test.skip('a login that may not manage replies sees reply state redacted', async ({
     page,
   }) => {

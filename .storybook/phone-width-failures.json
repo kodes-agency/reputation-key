@@ -9276,54 +9276,6 @@
     "checks": ["overflow"]
   },
   {
-    "storyId": "portal-analytics-results--all-time",
-    "state": "All Time",
-    "width": 320,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "portal-analytics-results--all-time",
-    "state": "All Time",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "portal-analytics-results--all-time-dark",
-    "state": "All Time Dark",
-    "width": 320,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "portal-analytics-results--all-time-dark",
-    "state": "All Time Dark",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "portal-analytics-results--busy-portal",
-    "state": "Busy Portal",
-    "width": 320,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "portal-analytics-results--busy-portal",
-    "state": "Busy Portal",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "portal-analytics-results--busy-portal-dark",
-    "state": "Busy Portal Dark",
-    "width": 320,
-    "checks": ["targets"]
-  },
-  {
-    "storyId": "portal-analytics-results--busy-portal-dark",
-    "state": "Busy Portal Dark",
-    "width": 390,
-    "checks": ["targets"]
-  },
-  {
     "storyId": "portal-analytics-results-tab--with-own-goal",
     "state": "With Own Goal",
     "width": 320,
@@ -13148,6 +13100,18 @@
   {
     "storyId": "portal-portalshare-print-kit-final-share--counter-card-back-page",
     "state": "Counter Card Back Page",
+    "width": 390,
+    "checks": ["targets"]
+  },
+  {
+    "storyId": "portal-portalshare-print-kit-final-share--overflowing-back-refuses-download",
+    "state": "Overflowing Back Refuses Download",
+    "width": 320,
+    "checks": ["targets"]
+  },
+  {
+    "storyId": "portal-portalshare-print-kit-final-share--overflowing-back-refuses-download",
+    "state": "Overflowing Back Refuses Download",
     "width": 390,
     "checks": ["targets"]
   },

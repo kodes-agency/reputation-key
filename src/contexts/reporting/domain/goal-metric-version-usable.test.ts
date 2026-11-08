@@ -3,7 +3,7 @@ import {
   findMetricVersionById,
   METRIC_VERSION_IDS,
   type GovernedMetricVersion,
-} from './metric-registry'
+} from '../readings/contracts'
 import { goalVersionIsUsable } from './goal-metric-version-usable'
 
 const governed = findMetricVersionById(METRIC_VERSION_IDS.qualifiedScanGoal)

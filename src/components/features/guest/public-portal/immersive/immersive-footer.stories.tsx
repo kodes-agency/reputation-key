@@ -7,9 +7,9 @@ import { expect, fn, userEvent, waitFor, within } from 'storybook/test'
 import { GUEST_FONT_STYLESHEET } from '#/shared/font-sets'
 import { portalVisitStorageKey } from '../../portal-visit-recording'
 import { VISIT_NOTICE_ACKNOWLEDGED_KEY } from '../../visit-notice-acknowledgement'
-import { bgV2 } from '../language-packs/bg-v2'
-import { deV2 } from '../language-packs/de-v2'
-import { enV2 } from '../language-packs/en-v2'
+import { bgCopy } from '../language-packs/bg'
+import { deCopy } from '../language-packs/de'
+import { enCopy } from '../language-packs/en'
 import { ImmersiveFooter, ImmersiveFooterView } from './immersive-footer'
 import { immersiveFooterCopy } from './immersive-footer-copy'
 import { ImmersiveShell } from './immersive-shell'
@@ -64,7 +64,7 @@ type Story = StoryObj<typeof ImmersiveFooterView>
 
 /** Board G01: the one-line notice, the privacy link and "Got it", inline at the page's end. */
 export const G01NoticeShowing: Story = {
-  args: { copy: immersiveFooterCopy(enV2, NAME) },
+  args: { copy: immersiveFooterCopy(enCopy, NAME) },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
     const notice = canvas.getByRole('region', { name: 'Visit counting' })
@@ -94,7 +94,7 @@ export const G01NoticeShowing: Story = {
 
 /** Board G04: "Privacy notice" on the left, "Made with Reputation Key" on the right. */
 export const G04Acknowledged: Story = {
-  args: { copy: immersiveFooterCopy(enV2, NAME), isNoticeVisible: false },
+  args: { copy: immersiveFooterCopy(enCopy, NAME), isNoticeVisible: false },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
     expect(canvas.queryByRole('region', { name: 'Visit counting' })).toBeNull()
@@ -110,7 +110,7 @@ export const G04Acknowledged: Story = {
 
 /** Bulgarian copy; the notice wraps inside the phone width without clipping. */
 export const Bulgarian: Story = {
-  args: { copy: immersiveFooterCopy(bgV2, NAME) },
+  args: { copy: immersiveFooterCopy(bgCopy, NAME) },
   render: (args) => (
     <ImmersiveShell brand={BRAND} heroAlt={{ value: '' }} lang="bg">
       <ImmersiveFooterView {...args} />
@@ -118,7 +118,7 @@ export const Bulgarian: Story = {
   ),
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
-    const notice = canvas.getByRole('region', { name: bgV2.copy.visitNoticeLabel })
+    const notice = canvas.getByRole('region', { name: bgCopy.copy.visitNoticeLabel })
     expect(notice.scrollWidth).toBeLessThanOrEqual(notice.clientWidth)
   },
 }
@@ -129,7 +129,7 @@ export const Bulgarian: Story = {
  * rather than running off the screen.
  */
 export const GermanSaysTheNoticeIsInEnglish: Story = {
-  args: { copy: immersiveFooterCopy(deV2, NAME) },
+  args: { copy: immersiveFooterCopy(deCopy, NAME) },
   decorators: [
     (Story) => (
       <div data-testid="narrow-phone" style={{ width: 320, margin: '0 auto' }}>
@@ -151,7 +151,7 @@ export const GermanSaysTheNoticeIsInEnglish: Story = {
       'Datenschutzhinweis (auf Englisch) (öffnet in neuem Tab)',
     )
     expect(link).toHaveAttribute('target', '_blank')
-    const notice = canvas.getByRole('region', { name: deV2.copy.visitNoticeLabel })
+    const notice = canvas.getByRole('region', { name: deCopy.copy.visitNoticeLabel })
     expect(notice.scrollWidth).toBeLessThanOrEqual(notice.clientWidth)
     const narrow = canvasElement.querySelector<HTMLElement>(
       '[data-testid="narrow-phone"]',
@@ -171,7 +171,7 @@ function liveFooter(acknowledged: boolean) {
   return (
     <ImmersiveShell brand={BRAND} heroAlt={{ value: '' }} lang="en">
       <ImmersiveFooter
-        copy={immersiveFooterCopy(enV2, NAME)}
+        copy={immersiveFooterCopy(enCopy, NAME)}
         scopeKey={SCOPE_KEY}
         sessionKey={SESSION_KEY}
         onPortalVisit={recordVisit}

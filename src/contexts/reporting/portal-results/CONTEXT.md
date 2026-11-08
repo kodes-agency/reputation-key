@@ -11,7 +11,9 @@ Reporting presentation exports remain available to the overview and other
 callers. The RPC entry stays at `../server/portal-analytics.ts`: it resolves the
 session, execution policy and Property-local period before calling Reporting.
 `get-portal-analytics.server.ts` checks Property authority and combines Portal,
-Guest, metric and lifetime reads. `portal-analytics.repository.server.ts` owns
+Guest and effective metric readings. All Time uses the same governed sums and
+evidence as bounded windows, without comparison or a time series. Its label becomes
+"Last 24 months" in October 2028 when Guest facts begin expiring. `portal-analytics.repository.server.ts` owns
 the governed SQL and rejects invalid bounded periods before database work.
 The shared SQL and policy helpers also serve the Portals overview and last-scan
 read; they remain server-only. Central schema paths are unchanged.

@@ -19,12 +19,12 @@ import {
   METRIC_VERSION_IDS,
   findMetricVersionById,
   type GovernedMetricVersion,
-} from '../domain/metric-registry'
+} from '../readings/contracts'
 
 const METRIC_PORTAL_READ_BUDGET_MS = 5_000
 
 export async function withStatementTimeout<T>(
-  db: Database,
+  db: Pick<Database, 'transaction'>,
   read: (tx: Tx) => Promise<T>,
 ): Promise<T> {
   return db.transaction(async (tx) => {

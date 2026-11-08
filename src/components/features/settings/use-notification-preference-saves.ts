@@ -8,30 +8,20 @@ import type {
   NotificationPreference,
 } from '#/contexts/feed/application/public-api'
 import {
-  preferenceRequestValues,
   applyPreferencePatch,
-  createSerialRunner,
   preferenceRowKey,
   type PreferencePatch,
   type PreferenceValues,
 } from './notification-preference-saves'
-import {
-  applyEverywhereInOrder,
-  applyEverywhereNotice,
-} from './notification-apply-everywhere'
+import { applyEverywhereNotice } from './notification-apply-everywhere'
 import { actionFailureMessage } from '#/components/hooks/use-action-mutation'
+import {
+  createNotificationPreferenceWrites,
+  type PreferenceReset,
+  type PreferenceUpdate,
+} from './notification-preference-writes'
 
-export type PreferenceUpdate = Readonly<{
-  data: Readonly<
-    {
-      propertyId: string
-      category: ConfigurableNotificationCategory
-      channel: NotificationChannel
-      /** Make this the answer for every property, now and next. */
-      applyToAllProperties?: boolean
-    } & ReturnType<typeof preferenceRequestValues>
-  >
-}>
+export type { PreferenceUpdate } from './notification-preference-writes'
 
 type Options = Readonly<{
   propertyId: string
@@ -41,17 +31,17 @@ type Options = Readonly<{
   /** Whether the Property in view may send email; "Apply to all" skips it otherwise. */
   emailAllowed: boolean
   updatePreference: Action<PreferenceUpdate, NotificationPreference>
+  resetPropertyCategory: Action<PreferenceReset, void>
 }>
 
 type RequestedRows = ReadonlyMap<string, PreferenceValues>
 
 /**
- * Preference saves that cannot undo each other. Each save is built on what the
- * previous request for its row asked for — not on the query snapshot, which
- * stays stale until the refetch lands — and a row's saves run one after
- * another, so they also land in order. Until a row's last save settles the row
- * shows what was asked for: a switch moves when it is clicked, not a round
- * trip later, and a failed save falls back to the stored row.
+ * Preference saves that cannot undo each other. Each save builds on earlier
+ * edits, successful resets and changed defaults, while
+ * React may still show the query snapshot from before it. Until a row's last
+ * save settles the row shows what was asked for: a switch moves when clicked,
+ * and a failed save falls back to the stored row.
  */
 export function useNotificationPreferenceSaves({
   propertyId,
@@ -59,8 +49,10 @@ export function useNotificationPreferenceSaves({
   categoryDefaults,
   emailAllowed,
   updatePreference,
+  resetPropertyCategory,
 }: Options) {
-  const [runner] = useState(createSerialRunner)
+  const [writes] = useState(createNotificationPreferenceWrites)
+  const snapshot = { preferences, categoryDefaults }
   const [requested, setRequested] = useState<RequestedRows>(() => new Map())
   // Handlers read the newest request synchronously; state drives the render.
   const latest = useRef<RequestedRows>(requested)
@@ -115,11 +107,7 @@ export function useNotificationPreferenceSaves({
     const values = valuesFor(category, channel, patch)
     commit(new Map(latest.current).set(key, values))
     try {
-      await runner.run(key, () =>
-        updatePreference({
-          data: { propertyId, category, channel, ...preferenceRequestValues(values) },
-        }),
-      )
+      await writes.save(snapshot, propertyId, category, channel, patch, updatePreference)
       toast.success('Notification preference updated')
       return true
     } catch (error) {
@@ -143,25 +131,41 @@ export function useNotificationPreferenceSaves({
    * This property follows it now; other properties' own settings stay (D7).
    */
   const applyToAll = async (category: ConfigurableNotificationCategory) => {
-    const outcome = await applyEverywhereInOrder(emailAllowed, (channel) => {
-      const key = preferenceRowKey(propertyId, category, channel)
-      const values = valuesFor(category, channel, {})
-      return runner.run(key, () =>
-        updatePreference({
-          data: {
-            propertyId,
-            category,
-            channel,
-            applyToAllProperties: true,
-            ...preferenceRequestValues(values),
-          },
-        }),
-      )
-    })
+    const outcome = await writes.applyToAll(
+      snapshot,
+      propertyId,
+      category,
+      emailAllowed,
+      updatePreference,
+    )
     const notice = applyEverywhereNotice(outcome)
     if (notice.tone === 'error') toast.error(notice.message)
     else toast.success(notice.message)
   }
 
-  return { preferenceFor, savePreference, applyToAll } as const
+  const resetToDefault = async (
+    category: ConfigurableNotificationCategory,
+    propertyIds: ReadonlyArray<string>,
+  ) => {
+    const { done, failed } = await writes.reset(
+      category,
+      propertyIds,
+      resetPropertyCategory,
+    )
+    if (failed) {
+      toast.error(
+        done === 0
+          ? "Couldn't reset to your default. Try again."
+          : `${done} of ${propertyIds.length} properties now follow your default; the rest couldn't be reset. Try again.`,
+      )
+      return
+    }
+    toast.success(
+      propertyIds.length === 1 && propertyIds[0] === propertyId
+        ? 'This property now follows your default'
+        : `${done} ${done === 1 ? 'property now follows' : 'properties now follow'} your default`,
+    )
+  }
+
+  return { preferenceFor, savePreference, applyToAll, resetToDefault } as const
 }

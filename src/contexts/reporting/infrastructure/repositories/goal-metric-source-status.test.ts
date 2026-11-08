@@ -1,6 +1,8 @@
 import { randomUUID } from 'node:crypto'
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 import { sql } from 'drizzle-orm'
+import { createPortalGroupPublicApi } from '#/contexts/portal/infrastructure/portal-group-public-api'
+import { createPortalGroupRepository } from '#/contexts/portal/infrastructure/repositories/portal-group.repository'
 import { getDb, type Database, type Tx } from '#/shared/db'
 import { deleteTestOrganizations } from '#/shared/testing/integration-helpers'
 import {
@@ -11,15 +13,14 @@ import {
   propertyId,
   ratingId,
 } from '#/shared/domain/ids'
-import type { PortalGroupPublicApi } from '#/contexts/portal/application/public-api'
 import type { GoalMetricAggregateQuery } from '../../application/ports/metric.repository'
 import { createGoalMetricSnapshotReader } from './goal-metric-snapshot'
 import { createGoalMetricSourceStatus } from './goal-metric-source-status'
-import { createAtomicMetricCommandStore } from '../metric-command-store'
+import { createAtomicMetricCommandStore } from '../../readings/metric-command-store.server'
 import { createMetricRegistryRepository } from './metric-registry.repository'
 import { createPropertyLocalDateResolver } from './property-local-date'
 import { recordMetrics } from '../../application/use-cases/record-metric'
-import { onRatingSubmittedDurably } from '../record-portal-metric'
+import { onRatingSubmittedDurably } from '../../readings/record-portal-metric.server'
 import { clearEventSchemas } from '#/shared/events/schema-registry'
 import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
 
@@ -39,17 +40,6 @@ const START = new Date('2026-06-01T00:00:00.000Z')
 const END = new Date('2026-07-01T00:00:00.000Z')
 const OCCURRED = new Date('2026-06-15T12:00:00.000Z')
 const DELIVERY_AT = new Date('2026-09-15T12:00:00.000Z')
-
-const portalGroups: PortalGroupPublicApi = {
-  findGroupForPortal: async (orgId, pid, asOf) =>
-    orgId === ORG && pid === PORTAL && asOf && asOf >= START && asOf < END
-      ? { id: GROUP, propertyId: PROPERTY, name: 'Front Desk' }
-      : null,
-  getGroupPortalIds: async () => [PORTAL],
-  findGroupIdsByPortalIds: async () => [GROUP],
-  portalGroupBelongsToProperty: async () => true,
-  getGroupInfo: async () => ({ id: GROUP, propertyId: PROPERTY, name: 'Front Desk' }),
-}
 
 const query = (
   subject: GoalMetricAggregateQuery['subject'],
@@ -172,12 +162,21 @@ beforeAll(async () => {
     VALUES (${GROUP}, ${ORG}, ${PROPERTY}, 'Front Desk')
     ON CONFLICT (id) DO NOTHING
   `)
+  await db.execute(sql`
+    INSERT INTO portal_group_memberships (
+      organization_id, property_id, portal_id, portal_group_id,
+      effective_from, effective_to, created_by
+    ) VALUES (${ORG}, ${PROPERTY}, ${PORTAL}, ${GROUP}, ${START}, ${END}, 'manager-1')
+  `)
 })
 
 beforeEach(clean)
 
 afterAll(async () => {
   await clean()
+  await db.execute(
+    sql`DELETE FROM portal_group_memberships WHERE organization_id = ${ORG}`,
+  )
   await db.execute(sql`DELETE FROM portal_groups WHERE id = ${GROUP}`)
   await db.execute(sql`DELETE FROM portals WHERE id = ${PORTAL}`)
   await db.execute(sql`DELETE FROM properties WHERE id = ${PROPERTY}`)
@@ -219,10 +218,7 @@ describe.sequential('Goal metric durable source status (integration)', () => {
     })
     const aggregateQuery = query({ kind: 'property', propertyId: PROPERTY })
     const eventTypes = ['guest.rating.submitted', 'guest.rating.retracted']
-    const pending = createGoalMetricSnapshotReader(gatedDb, portalGroups)(
-      aggregateQuery,
-      eventTypes,
-    )
+    const pending = createGoalMetricSnapshotReader(gatedDb)(aggregateQuery, eventTypes)
     void pending.catch(reachedProof.reject)
     try {
       await reachedProof.promise
@@ -250,7 +246,7 @@ describe.sequential('Goal metric durable source status (integration)', () => {
       source: { state: 'pending' },
     })
     await expect(
-      createGoalMetricSnapshotReader(db, portalGroups)(aggregateQuery, eventTypes),
+      createGoalMetricSnapshotReader(db)(aggregateQuery, eventTypes),
     ).resolves.toMatchObject({
       aggregate: { sum: 1 },
       source: { state: 'complete' },
@@ -258,7 +254,7 @@ describe.sequential('Goal metric durable source status (integration)', () => {
   })
 
   it('treats an empty source period as complete, not as an implicit reading', async () => {
-    const status = createGoalMetricSourceStatus(db, portalGroups)
+    const status = createGoalMetricSourceStatus(db)
     await expect(
       status.inspect(query({ kind: 'property', propertyId: PROPERTY }), [
         'guest.rating.submitted',
@@ -299,14 +295,7 @@ describe.sequential('Goal metric durable source status (integration)', () => {
     })
 
     await expect(
-      createGoalMetricSourceStatus(db, {
-        ...portalGroups,
-        findGroupForPortal: async () => ({
-          id: GROUP,
-          propertyId: PROPERTY,
-          name: 'Front Desk',
-        }),
-      }).inspect(
+      createGoalMetricSourceStatus(db).inspect(
         {
           ...query({ kind: 'portal', portalId: PORTAL }),
           periodStart: new Date('2026-09-01T00:00:00.000Z'),
@@ -322,7 +311,7 @@ describe.sequential('Goal metric durable source status (integration)', () => {
   })
 
   it('requires a durable receipt and the exact subject attribution', async () => {
-    const status = createGoalMetricSourceStatus(db, portalGroups)
+    const status = createGoalMetricSourceStatus(db)
     await insertSource(SUBMITTED_EVENT, 'guest.rating.submitted')
 
     await expect(
@@ -392,7 +381,7 @@ describe.sequential('Goal metric durable source status (integration)', () => {
   })
 
   it('requires an applied retraction to have its append-only correction', async () => {
-    const status = createGoalMetricSourceStatus(db, portalGroups)
+    const status = createGoalMetricSourceStatus(db)
     await insertSource(SUBMITTED_EVENT, 'guest.rating.submitted')
     await receipt(SUBMITTED_EVENT)
     await insertReading()
@@ -425,12 +414,7 @@ describe.sequential('Goal metric durable source status (integration)', () => {
   })
 
   it('uses Qualified Scan captured group attribution instead of current membership', async () => {
-    const status = createGoalMetricSourceStatus(db, {
-      ...portalGroups,
-      findGroupForPortal: async () => {
-        throw new Error('current membership must not reinterpret Qualified Scan facts')
-      },
-    })
+    const status = createGoalMetricSourceStatus(db)
     await insertSource(SUBMITTED_EVENT, 'guest.qualified_scan.recorded')
     await db.execute(sql`
       UPDATE outbox_events
@@ -446,15 +430,27 @@ describe.sequential('Goal metric durable source status (integration)', () => {
       WHERE id = ${READING}::uuid
     `)
 
-    await expect(
-      status.inspect(
-        {
-          ...query({ kind: 'portal_group', portalGroupId: GROUP }),
-          definitionVersionId: QUALIFIED_SCAN_VERSION,
-          expectedMetricKey: 'portal.qualified_scan',
-        },
-        ['guest.qualified_scan.recorded', 'guest.qualified_scan.retracted'],
-      ),
-    ).resolves.toMatchObject({ state: 'complete', relevantFactCount: 1 })
+    await db.execute(sql`UPDATE portal_group_memberships SET effective_to = ${OCCURRED}
+      WHERE organization_id = ${ORG} AND portal_id = ${PORTAL}`)
+    try {
+      const groups = createPortalGroupPublicApi(
+        createPortalGroupRepository(db),
+        () => END,
+      )
+      expect(await groups.findGroupForPortal(ORG, PORTAL, OCCURRED)).toBeNull()
+      await expect(
+        status.inspect(
+          {
+            ...query({ kind: 'portal_group', portalGroupId: GROUP }),
+            definitionVersionId: QUALIFIED_SCAN_VERSION,
+            expectedMetricKey: 'portal.qualified_scan',
+          },
+          ['guest.qualified_scan.recorded', 'guest.qualified_scan.retracted'],
+        ),
+      ).resolves.toMatchObject({ state: 'complete', relevantFactCount: 1 })
+    } finally {
+      await db.execute(sql`UPDATE portal_group_memberships SET effective_to = ${END}
+        WHERE organization_id = ${ORG} AND portal_id = ${PORTAL}`)
+    }
   })
 })

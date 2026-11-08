@@ -21,6 +21,7 @@ import type {
   GoalMonthlyResult,
   GoalProgramRepository,
 } from '../../application/ports/goal-program.repository'
+import { GOAL_MAINTENANCE_PAGE_SIZE } from '../../application/ports/goal-program.repository'
 import {
   goalMonthlyResultClosed,
   goalMonthlyResultReconciled,
@@ -95,7 +96,7 @@ export const createGoalMonthlyResultRepository = (
       })
     },
 
-    async listDueResults(now) {
+    async listDueResults(now, after) {
       const rows = await db
         .select()
         .from(goalMonthlyResults)
@@ -106,9 +107,14 @@ export const createGoalMonthlyResultRepository = (
               eq(goalMonthlyResults.status, 'reconciling'),
             ),
             lte(goalMonthlyResults.periodEnd, now),
+            after
+              ? sql`(${goalMonthlyResults.periodEnd}, ${goalMonthlyResults.id})
+                  > (${after.periodEnd}, ${after.id}::uuid)`
+              : undefined,
           ),
         )
         .orderBy(asc(goalMonthlyResults.periodEnd), asc(goalMonthlyResults.id))
+        .limit(GOAL_MAINTENANCE_PAGE_SIZE)
       return rows.map((row) => mapResult(row))
     },
 
