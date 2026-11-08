@@ -6,13 +6,12 @@ import { REPLY_STREAM_RESPONSE_MAX_BYTES } from '#/shared/ai-openai-stream-profi
 import { boundedProviderEventStream } from './bounded-event-stream'
 import { z } from 'zod/v4'
 import {
-  parseAiInternalJsonBytes,
-  parseAiProviderJsonBytes,
   parseAiExecutionGrant,
   verifyAiExecutionGrant,
   verifyAiRequestBinding,
   type AiExecutionGrantV1,
 } from '#/shared/ai-internal-transport-contract'
+import { parseAiInternalJsonBytes, parseAiProviderJsonBytes } from '#/shared/ai-json'
 import { canonicalizeRfc8785 } from '#/shared/merchant-ai-notice-contract'
 import type { VersionedHmacKeyring } from '#/shared/security/versioned-hmac-keyring'
 import type { PreparedInvocationBase } from './provider-contracts'

@@ -1,6 +1,6 @@
 import { createPublicKey, timingSafeEqual, type KeyObject } from 'node:crypto'
 import { z } from 'zod/v4'
-import { parseAiInternalJsonBytes } from './ai-internal-transport-contract'
+import { parseAiInternalJsonBytes } from './ai-json'
 
 const KEY_ID = /^[a-z][a-z0-9_-]{0,31}$/
 const CANONICAL_BASE64 = /^[A-Za-z0-9+/]+={0,2}$/
