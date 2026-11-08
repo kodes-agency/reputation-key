@@ -125,13 +125,6 @@ export const TENANT_PREDICATE_EXEMPTIONS: readonly TenantPredicateExemption[] = 
   },
   {
     file: 'src/contexts/identity/infrastructure/repositories/google-content-authority.repository.ts',
-    symbol: 'hasActiveCleanupWork',
-    reason:
-      'The global capability-control transaction must detect any outstanding credential cleanup across tenants before completing its fence transition.',
-    category: 'LEGITIMATE-GLOBAL',
-  },
-  {
-    file: 'src/contexts/identity/infrastructure/repositories/google-content-authority.repository.ts',
     symbol: 'listElapsedAdmittedPermitIds',
     reason:
       'The bounded global deadline sweep enumerates elapsed admitted permits across tenants so each permit can be fenced by its authority workflow.',

@@ -68,8 +68,8 @@ const MAX_SNAPSHOT_LAG_MS = 15 * 60 * 1000
  *   which this context may never do.
  * - `google_oauth_exchange` idempotency receipts are the crash boundary that
  *   briefly holds an application-encrypted provider token response.
- * - `credential_revoke_permits`, `authorization_execution_permits` and
- *   `capability_*` control rows are admission/permit internals.
+ * - `authorization_execution_permits` and `capability_*` control rows are
+ *   admission/permit internals.
  * - `google_disconnect_revoke` receipt payloads include a keyed digest of the
  *   exact token being revoked and the cleanup permit identifier; the attempt's
  *   state, outcome and timings are exported without them.

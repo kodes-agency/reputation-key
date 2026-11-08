@@ -88,9 +88,9 @@ describe('isMigrationJournalMatched', () => {
 
   it('proves why migrations must follow the compatibility release', async () => {
     const previousReady = previousRevisionReadiness(mocks.query)
-    applied(previousJournal.entries.length + 24)
+    applied(journalEntries + 1)
     await expect(previousReady()).resolves.toBe(false)
-    applied(previousJournal.entries.length + 24)
+    applied(journalEntries + 1)
     await expect(isMigrationJournalMatched()).resolves.toBe(true)
   })
 

@@ -4,8 +4,6 @@ import type { Database } from '#/shared/db'
 import {
   authorizationExecutionPermits,
   capabilityExecutionControl,
-  credentialRevokePermits,
-  googleCredentialSourceOperations,
 } from '#/shared/db/schema'
 import {
   GOOGLE_CONTENT_CAPABILITIES,
@@ -22,9 +20,6 @@ const authorizationVectorSchema = z.record(
 )
 const emergencyKillVersionRowSchema = z.object({
   emergency_kill_version: z.union([z.number(), z.string().regex(/^[0-9]+$/)]),
-})
-const countRowSchema = z.object({
-  value: z.union([z.number(), z.string().regex(/^[0-9]+$/)]),
 })
 
 /** Serializes every change to the capability controls and their generation. */
@@ -130,10 +125,6 @@ export type GoogleContentAuthorityRepository = Readonly<{
     at: Date,
   ): Promise<void>
   hasActiveCapabilityWork(
-    tx: Database,
-    capability: GoogleContentCapability,
-  ): Promise<boolean>
-  hasActiveCleanupWork(
     tx: Database,
     capability: GoogleContentCapability,
   ): Promise<boolean>
@@ -361,21 +352,6 @@ export const createGoogleContentAuthorityRepository = (
           ),
         )
       return Number(rows[0]?.value ?? 0) > 0
-    },
-
-    hasActiveCleanupWork: async (tx, capability) => {
-      const result = await tx.execute(sql`
-        SELECT COUNT(*) AS value
-        FROM ${credentialRevokePermits} revoke
-        JOIN ${googleCredentialSourceOperations} source
-          ON source.id = revoke.source_operation_id
-        JOIN ${authorizationExecutionPermits} permit
-          ON permit.id = source.source_work_permit_id
-        WHERE permit.capability = ${capability}::google_content_capability
-          AND revoke.state IN ('active', 'dispatching', 'cleanup_ambiguous')
-      `)
-      const countRow = countRowSchema.parse(result.rows[0])
-      return Number(countRow.value) > 0
     },
 
     markCapabilityDrained: async (tx, capability, at, input) => {
