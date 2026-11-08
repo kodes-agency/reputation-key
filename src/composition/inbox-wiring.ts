@@ -3,7 +3,7 @@ import { buildInboxContext } from '#/contexts/inbox/build'
 import { createInboxCommandAuthority } from '#/contexts/inbox/infrastructure/adapters/inbox-command-authority.adapter'
 import { feedbackId } from '#/shared/domain/ids'
 import { getLogger } from '#/shared/observability/logger'
-import { inboxReadyV3Of } from './inbox-ai-insights'
+import { createInboxReviewAnalysisReader } from './get-inbox-review-analysis.server'
 import type { buildIdentityContext } from '#/contexts/identity/build'
 import type { buildPropertyContext } from '#/contexts/property/build'
 import type { buildGuestContext } from '#/contexts/guest/build'
@@ -34,35 +34,10 @@ export function wireInbox(
     // (single rule, one owner).
     reviewLookup: review.publicApi,
     aiInsights: {
-      readCurrentReviewAnalysis: async (request) => {
-        const current = await review.publicApi.aiReviewSource.readCurrentSource({
-          organizationId: request.organizationId,
-          reviewId: request.reviewId,
-        })
-        if (
-          current.status === 'not_found' ||
-          current.source.propertyId !== request.propertyId
-        ) {
-          return { status: 'none' } as const
-        }
-        const analysis = await ai.publicApi.readReviewAnalysis({
-          ...request,
-          sourceEpoch: current.source.sourceEpoch,
-          sourceRevision: current.source.sourceRevision,
-          analysisSequence: current.source.analysisSequence,
-        })
-        if (analysis.status === 'ready_v3') return inboxReadyV3Of(analysis)
-        if (analysis.status !== 'ready') return analysis
-        return {
-          status: 'ready',
-          sentiment: analysis.sentiment,
-          aspects: analysis.aspects,
-          primaryCategory: analysis.primaryCategory,
-          attention: analysis.attention,
-          ...(analysis.issueLabel === null ? {} : { issueLabel: analysis.issueLabel }),
-          generatedAtEpochMillis: analysis.generatedAtEpochMillis,
-        }
-      },
+      readCurrentReviewAnalysis: createInboxReviewAnalysisReader({
+        readCurrentSource: review.publicApi.aiReviewSource.readCurrentSource,
+        readReviewAnalysis: ai.publicApi.readReviewAnalysis,
+      }),
       findCurrentReviewIdsByAttention: ai.publicApi.findCurrentReviewIdsByAttention,
       findCurrentReviewIdsByAspect: ai.publicApi.findCurrentReviewIdsByAspect,
       findCurrentReviewIdsByIssue: ai.publicApi.findCurrentReviewIdsByIssue,

@@ -1,5 +1,4 @@
-// Inbox context — use-case wiring (extracted from build.ts for line-count compliance)
-// Per architecture: "Build functions wire ports → adapters, deps → use cases."
+// Inbox use-case wiring and the request capability projection.
 
 import type { InboxRepository } from './application/ports/inbox.repository'
 import type { InboxNoteRepository } from './application/ports/inbox-note.repository'
@@ -16,7 +15,7 @@ import type { AiReviewInsightsPort } from './application/ports/ai-review-insight
 import type { PropertyLookupPort } from './application/ports/property-lookup.port'
 import type { StaffPublicApi } from '#/contexts/identity/application/public-api'
 import type { LoggerPort } from '#/shared/domain/logger.port'
-import type { InboxContextApi } from './build'
+import type { InboxPublicApi } from './application/public-api'
 import { updateInboxStatus } from './application/use-cases/update-inbox-status'
 import { bulkUpdateInboxStatus } from './application/use-cases/bulk-update-inbox-status'
 import { bulkAssignInboxItems } from './application/use-cases/bulk-assign-inbox-items'
@@ -78,7 +77,7 @@ type WireInput = Readonly<{
   idGen: () => string
 }>
 
-export function wireUseCases(input: WireInput): InboxContextApi['internal']['useCases'] {
+export function wireUseCases(input: WireInput) {
   return {
     updateInboxStatus: updateInboxStatus({
       repo: input.inboxRepo,
@@ -251,7 +250,7 @@ export function wireUseCases(input: WireInput): InboxContextApi['internal']['use
       clock: input.clock,
       logger: input.logger,
     }),
-  }
+  } as const
 }
 
 /**
@@ -260,9 +259,9 @@ export function wireUseCases(input: WireInput): InboxContextApi['internal']['use
  * exactly this set, so a request capability cannot reach one and not the other.
  */
 export function projectInboxRequestApi(
-  useCases: InboxContextApi['internal']['useCases'],
+  useCases: ReturnType<typeof wireUseCases>,
   responseTargetStore: Pick<ResponseTargetStore, 'getGoogleReviewTargetCountsByProperty'>,
-): InboxContextApi['publicApi'] {
+): InboxPublicApi {
   return Object.freeze({
     updateInboxStatus: useCases.updateInboxStatus,
     bulkUpdateInboxStatus: useCases.bulkUpdateInboxStatus,

@@ -593,6 +593,13 @@ are code-owned and therefore neither exported nor purged.
 
 ## Runtime
 
+`build-reply-use-cases.server.ts` constructs the reply workflow and layered library
+commands from the shared reply dependencies. Its explicit request projection
+keeps worker and maintenance capabilities outside `publicApi.reply`; the build's
+types derive from that wiring. The language detector remains lazy and scoped to
+one context instance. `build.ts` retains provider transport, source authorities,
+consumer registration and worker assembly.
+
 `buildReviewContext` captures Review repositories, queues, use cases, and foreign public ports in one `registerWorkerJobs` runtime contribution. Composition supplies the canonical registry/background queue and Bootstrap invokes this one method with the parsed discovery interval and whether the discovery skip rule applies; neither layer reconstructs Review job dependencies.
 
 Head persistence remains disabled by default (`REVIEW_HEAD_CHECKS=dark`), with the
