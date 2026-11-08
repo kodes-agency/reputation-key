@@ -12,10 +12,7 @@ import type {
   PropertyGoogleBindingPublicApi,
   PropertyPublicApi,
 } from '#/contexts/property/application/public-api'
-import {
-  GOOGLE_REVIEW_API_NOT_CONFIGURED_CODE,
-  type SourceContentPurge,
-} from '#/contexts/review/application/public-api'
+import { GOOGLE_REVIEW_API_NOT_CONFIGURED_CODE } from '#/contexts/review/application/public-api'
 import type { GoogleProviderEndpoints } from './build'
 import { createInMemoryQueue } from '#/shared/testing/in-memory-queue'
 import { createInMemoryGoogleOAuthPort } from '#/shared/testing/in-memory-google-oauth-port'
@@ -91,7 +88,6 @@ function buildDeps(overrides: {
     jobQueue: createInMemoryQueue(),
     propertyApi: {} as unknown as PropertyPublicApi,
     logger: createMockLogger(),
-    sourceContentPurge: {} as unknown as SourceContentPurge,
     providerEndpoints: ENDPOINTS,
     config: CONFIG,
     oauthStateHandles: {} as unknown as OAuthStateHandleService,

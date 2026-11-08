@@ -2,7 +2,8 @@
 
 import { describe, expect, it, vi } from 'vitest'
 import type { Queue } from 'bullmq'
-import { buildReviewContext } from './build'
+import { buildReviewContext, wireReviewSourceContentLifecycle } from './build'
+import { REVIEW_SOURCE_CONTENT_LIFECYCLE_APPLY_CONFIRMATION } from './application/use-cases/run-source-content-lifecycle'
 import { createMockLogger } from '#/shared/testing/mock-logger'
 import type { StaffPublicApi } from '#/contexts/identity/application/public-api'
 import { EXECUTION_POLICY_VERSION } from '#/shared/auth/execution-policy'
@@ -63,6 +64,23 @@ const SYNC_DATA = {
   connectionId: 'conn-1',
   locationName: 'locations/1',
 }
+
+it('ships operator and application maintenance wiring without expiry apply authority', async () => {
+  const { api } = setup()
+  const operatorRun = wireReviewSourceContentLifecycle({
+    db: {} as never,
+    clock: () => new Date('2026-07-18T00:00:00Z'),
+  })
+  for (const run of [operatorRun, api.maintenance.runSourceContentLifecycle]) {
+    await expect(
+      run({
+        mode: 'apply',
+        batchSize: 100,
+        applyConfirmation: REVIEW_SOURCE_CONTENT_LIFECYCLE_APPLY_CONFIRMATION,
+      }),
+    ).rejects.toMatchObject({ code: 'review_destructive_lifecycle_quarantined' })
+  }
+})
 
 const SYNC_EXECUTION = {
   capability: 'property.connect_gbp',

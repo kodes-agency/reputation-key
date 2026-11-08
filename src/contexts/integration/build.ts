@@ -105,7 +105,6 @@ import { createGooglePerformanceAdapter } from './infrastructure/adapters/google
 import { getExecutionPolicy, type DecisionRequest } from '#/shared/auth/execution-policy'
 import { createActiveMemberAuthResolver } from './infrastructure/active-member-auth.adapter'
 import { parseGbpNotificationSubscriptionConfig } from './application/notification-subscription-config'
-import type { SourceContentPurge } from '#/contexts/review/application/public-api'
 import type { PortalPublicDisplayNameDefaultPublicApi } from '#/contexts/portal/application/public-api'
 import {
   reconcileGoogleProviderRecovery,
@@ -215,10 +214,6 @@ type IntegrationContextDeps = Readonly<{
   /** Starts an imported Property's public display name as its confirmed name. */
   defaultPublicDisplayName?: PortalPublicDisplayNameDefaultPublicApi['ensureDefaultPublicDisplayName']
   logger: LoggerPort
-  /** BQC-1.7: bounded lifecycle purge of a revoked connection's source
-   * content. Constructed once by the composition root (the only layer that
-   * may import review infrastructure) and shared across contexts. */
-  sourceContentPurge: SourceContentPurge
   /** Google provider endpoint configuration resolved once by composition. */
   providerEndpoints: GoogleProviderEndpoints
   /**
@@ -972,7 +967,6 @@ export const buildIntegrationContext = (deps: IntegrationContextDeps) => {
       disconnectRevokeStore: googleDisconnectRevokeStore,
       idGen: deps.idGen,
       unsubscribeFromNotifications: manageNotificationsUseCase.unsubscribe,
-      sourceContentPurge: deps.sourceContentPurge,
       cancelGoogleImportsForConnection: googleImportV2Lifecycle
         ? async (organizationIdValue, connectionId) => {
             await googleImportV2Lifecycle.cancelConnection(

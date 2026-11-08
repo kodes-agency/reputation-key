@@ -95,11 +95,16 @@ import { createReviewFirstSightingRecorder } from './infrastructure/repositories
 import { createReviewSyncActivityRecorder } from './infrastructure/repositories/review-sync-activity.repository'
 import { createReviewSourceContentLifecycleStore } from './infrastructure/repositories/source-content-lifecycle-store.repository'
 import {
+  createAuthorizeReviewExpiryApply,
+  type ReviewExpiryActivation,
+} from './application/review-expiry-activation'
+import {
   createReviewLifecycleRecoveryExecutionRepository,
   createReviewLifecycleRecoveryPlanningQuery,
 } from './infrastructure/repositories/lifecycle-recovery-execution.repository'
 import {
   createRunReviewSourceContentLifecycle,
+  REVIEW_SOURCE_CONTENT_LIFECYCLE_APPLY_CONFIRMATION,
   type RunReviewSourceContentLifecycle,
 } from './application/use-cases/run-source-content-lifecycle'
 import {
@@ -199,18 +204,21 @@ export type ReviewContextBuildInput = Readonly<{
     'isCurrentAiReplyBrandProfile'
   >
   resolveReplyLanguage?: ResolveReplyTemplateLanguage
+  /** Absent in deployed wiring: activation requires reviewed owner evidence. */
+  expiryActivation?: ReviewExpiryActivation
 }>
 
 /**
- * Minimal Review-owned wiring seam for report-only operator/drill processes
+ * Minimal Review-owned wiring seam for operator/drill processes
  * that intentionally do not construct the full application container.
  */
 export const wireReviewSourceContentLifecycle = (
-  input: Pick<ReviewContextBuildInput, 'db' | 'clock'>,
+  input: Pick<ReviewContextBuildInput, 'db' | 'clock' | 'expiryActivation'>,
 ): RunReviewSourceContentLifecycle =>
   createRunReviewSourceContentLifecycle({
     store: createReviewSourceContentLifecycleStore(input.db),
     clock: input.clock,
+    authorizeApply: createAuthorizeReviewExpiryApply(input.expiryActivation),
   })
 
 export type ReviewContextApi = Readonly<{
@@ -688,6 +696,7 @@ export const buildReviewContext = (input: ReviewContextBuildInput): ReviewContex
     runReviewSourceContentLifecycle: createRunReviewSourceContentLifecycle({
       store: sourceContentLifecycleStore,
       clock: input.clock,
+      authorizeApply: createAuthorizeReviewExpiryApply(input.expiryActivation),
     }),
   }
 
@@ -747,6 +756,11 @@ export const buildReviewContext = (input: ReviewContextBuildInput): ReviewContex
       runTargetedFetch: useCases.runTargetedGoogleReviewFetch,
       readReviewBeforePublish: readReviewBeforePublishUseCase,
       runSourceContentLifecycle: useCases.runReviewSourceContentLifecycle,
+      ...(input.expiryActivation == null
+        ? {}
+        : {
+            expiryApplyConfirmation: REVIEW_SOURCE_CONTENT_LIFECYCLE_APPLY_CONFIRMATION,
+          }),
       reconcileReplyPublication: useCases.reconcileReplyPublication,
       dispatchEvidence,
       clock: input.clock,
