@@ -49,7 +49,7 @@ vi.mock('#/routes/-queries/route-queries', async () => {
       }),
   }
 })
-vi.mock('#/components/features/property/property-guest-voice-page', () => ({
+vi.mock('#/contexts/ai/guest-voice/ui/property-guest-voice-page', () => ({
   PropertyGuestVoicePage: (props: unknown) => {
     page.drawn(props)
     return null

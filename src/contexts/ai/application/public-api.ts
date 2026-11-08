@@ -8,7 +8,7 @@
 export type {
   GuestVoiceV2Range,
   GuestVoiceV2Response,
-} from './use-cases/read-guest-voice-v2'
+} from '../guest-voice/get-guest-voice.server'
 export type {
   ChangedItem,
   FixFirstItem,
@@ -27,7 +27,7 @@ export type {
   Change as GuestVoiceChange,
   EvidenceLevel as GuestVoiceEvidenceLevel,
   Window as GuestVoiceWindow,
-} from './read-models/guest-voice-v2'
+} from '../guest-voice/contracts'
 // The vocabulary is the v3 analysis's own (`src/shared`); the page speaks of an Urgent
 // "reason", not of a review-analysis one.
 export type { ReviewTopicV3 } from '#/shared/review-topic-taxonomy'
@@ -36,7 +36,7 @@ export type { ReviewUrgentReasonV3 as UrgentReasonV3 } from '#/shared/review-ana
 export type {
   GenerateReplySuggestionInput,
   GenerateReplySuggestionResult,
-} from './use-cases/generate-reply-suggestion'
+} from '../reply/generate-suggestion.server'
 
 export type {
   CorrectReviewMentionResult,
@@ -71,9 +71,9 @@ export type {
   GuestVoiceCauseRow,
   GuestVoiceMatchingReviewScope,
   GuestVoiceHistoryMonth,
-} from './read-models/guest-voice-v2-check-in'
+} from '../guest-voice/contracts'
 export type {
   ReadGuestVoiceDetailInput,
   ReadGuestVoiceDetail,
   GuestVoiceDetailResponse,
-} from './use-cases/read-guest-voice-detail'
+} from '../guest-voice/get-detail.server'

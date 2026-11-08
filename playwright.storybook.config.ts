@@ -25,23 +25,18 @@ import {
 //
 // ── CI ──────────────────────────────────────────────────────────────────────
 //
-// NOT wired into `.github/workflows/ci.yml`, on purpose, and that is a gap.
-// A gate nobody is made to run lets a PR that lowers a toolbar member to 28 px
-// merge with every CI check green — the failure v1's phone commit already
-// recorded: "Three separate passes found controls under the 44 px floor that
-// source review and the Storybook gate both missed" (`git show -s 2a83876c`).
-// A path-scoped CI job was written and proven (502 passed in CI mode against a
-// cold Storybook), but adding ~6 minutes of Chromium to every relevant pull
-// request and every push to main is a decision about the team's CI budget, so
-// it is held out of the tree for the product owner. Until then: run
-// `pnpm test:storybook:metrics` before merging a change the pane renders.
+// `.github/workflows/guest-quality.yml` runs `pnpm test:guest:quality` for guest
+// code, its shared renderers, styles and harness dependencies, including screens
+// colocated under the Guest and Portal contexts. It measures guest geometry and
+// reduced motion against a development build and LCP/CLS against a production
+// build. Other metrics suites remain available through `pnpm test:storybook:metrics`.
 //
 // ── Which Storybook ─────────────────────────────────────────────────────────
 //
 // Locally a running Storybook is reused, and `globalSetup` proves it serves
 // THIS checkout before a single story loads (`storybook-server.ts` says how,
 // and what review found without it). Under `CI` nothing is reused and the run
-// starts its own — the mode a CI job would use, proven cold in an isolated copy.
+// starts its own. The guest CI job serves static builds owned by that run.
 export default defineConfig({
   testDir: './e2e/storybook-metrics',
   // NOT `.spec.ts` — see the header. Helpers in the same directory

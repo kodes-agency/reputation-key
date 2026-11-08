@@ -4,7 +4,7 @@ import type {
   FixFirstItem,
   GuestVoiceV2NotEnough,
   GuestVoiceV2Ready,
-} from './guest-voice-v2'
+} from '../../guest-voice/contracts'
 import {
   liveEvidenceOf,
   withLiveEvidence,

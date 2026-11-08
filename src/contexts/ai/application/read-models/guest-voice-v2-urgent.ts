@@ -8,7 +8,7 @@
 import { groupSeriousConcerns, type ConcernGroup } from './guest-voice-v2-concerns'
 import { issueAnswerName, issueDisplayTitle } from './guest-voice-v2-titles'
 import { lastMentionedLocalDate } from './guest-voice-v2-recency'
-import type { FixFirstItem } from './guest-voice-v2'
+import type { FixFirstItem } from '../../guest-voice/contracts'
 import {
   pickUrgentEvidenceCandidates,
   type EvidenceSlot,

@@ -84,6 +84,7 @@ export type ReviewWorkerRegistrationInput = Readonly<{
   /** The publish job's read of Google before it claims a fresh publication. */
   readReviewBeforePublish: ReadReviewBeforePublish
   runSourceContentLifecycle: PurgeHandlerDependencies['runLifecycle']
+  expiryApplyConfirmation?: PurgeHandlerDependencies['scheduledApplyConfirmation']
   reconcileReplyPublication: ReconcileHandlerDependencies['reconcileReplyPublication']
   /** D4: the same non-dispatch evidence reader the manager commands use. */
   dispatchEvidence: ReplyPublicationDispatchEvidencePort
@@ -249,6 +250,7 @@ export async function registerReviewWorkerJobs(
 
   const purgeHandler = createPurgeExpiredReviewsHandler({
     runLifecycle: input.runSourceContentLifecycle,
+    scheduledApplyConfirmation: input.expiryApplyConfirmation,
     logger: input.logger,
     enqueueContinuation: async (data) => {
       if (!input.backgroundQueue || data.checkpoint == null) {

@@ -1,8 +1,8 @@
 import { useEffect, useRef, type ReactNode } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { hasFailed, isRetrying } from '#/components/hooks/is-retrying'
-import type { GuestVoiceV2View } from '#/components/features/property/guest-voice/guest-voice-v2-body'
-import type { GuestVoiceDetailNavigation } from '#/components/features/property/guest-voice/use-guest-voice-detail-navigation'
+import type { GuestVoiceV2View } from '#/contexts/ai/guest-voice/ui/guest-voice-v2-body'
+import type { GuestVoiceDetailNavigation } from '#/contexts/ai/guest-voice/ui/use-guest-voice-detail-navigation'
 import type {
   GuestVoiceDetailTarget,
   GuestVoiceV2Read,

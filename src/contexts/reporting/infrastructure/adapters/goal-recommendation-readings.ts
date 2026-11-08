@@ -9,6 +9,10 @@
 // fleet-wide range rows; quiet-Portal fallback walks can fetch/sort a year of scans.
 // A tenant/Property/version/event index would bound that work.
 
+import {
+  correctionTipJoin,
+  effectiveReadingValue,
+} from '../readings/effective-readings.server'
 import { sql, type SQL } from 'drizzle-orm'
 import type { Database } from '#/shared/db'
 import type { PortalGoalMeasure } from '../../domain/goal-recommendation-types'
@@ -18,12 +22,7 @@ import type {
   GoalRecommendationCountsQuery,
 } from '../../application/ports/goal-recommendation-facts.port'
 import { DASHBOARD_READ_BUDGET_MS, withStatementTimeout } from '../read-facade'
-import {
-  correctionTipJoin,
-  effectiveReadingValue,
-  goalCountSpecRows,
-  unreadableReading,
-} from './goal-count-readings.sql'
+import { goalCountSpecRows, unreadableReading } from './goal-count-readings.sql'
 
 const SCAN_VERSION = METRIC_VERSION_IDS.qualifiedScanGoal
 const RATING_VERSION = METRIC_VERSION_IDS.portalRatingCountGoal

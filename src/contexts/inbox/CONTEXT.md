@@ -211,6 +211,12 @@ the rail when empty, so its empty state can say where feedback comes from.
 
 ## Runtime
 
+The list panel and its selectable list live together in
+[`../reputation/inbox/ui/inbox-list.tsx`](../reputation/inbox/ui/inbox-list.tsx),
+with their Storybook states alongside. The page and the other Inbox screens
+remain in `src/components/inbox`; commands still enter through this context's
+existing server functions.
+
 Source lifecycle facts arrive through durable, apply-once consumers. Inbox-owned
 command stores atomically commit item/cycle state, receipts, history, and
 identifier-only facts. When a Review is first projected after it has already

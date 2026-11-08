@@ -26,12 +26,12 @@ import type { AiOutputStorePort } from './application/ports/ai-output-store.port
 import {
   createGenerateReplySuggestion,
   type GenerateReplySuggestionDependencies,
-} from './application/use-cases/generate-reply-suggestion'
+} from './reply/generate-suggestion.server'
 import { createReadReviewAnalysis } from './application/use-cases/read-ai-insights'
 import type { AiPropertyAccess } from './application/ai-property-read-access'
-import { createReadGuestVoiceDetail } from './application/use-cases/read-guest-voice-detail'
-import { createReadGuestVoiceV2 } from './application/use-cases/read-guest-voice-v2'
-import { createPlanGuestVoiceSummary } from './application/use-cases/plan-guest-voice-summary'
+import { createReadGuestVoiceDetail } from './guest-voice/get-detail.server'
+import { createReadGuestVoiceV2 } from './guest-voice/get-guest-voice.server'
+import { createPlanGuestVoiceSummary } from './guest-voice/plan-summary.server'
 import { createRunGuestVoiceSummarySweep } from './application/use-cases/run-guest-voice-summary-sweep'
 import { createCorrectReviewMention } from './application/use-cases/correct-review-mention'
 import { createAiAuthorizationAdapter } from './infrastructure/adapters/ai-authorization.adapter'

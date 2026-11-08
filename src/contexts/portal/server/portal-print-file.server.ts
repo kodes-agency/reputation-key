@@ -8,11 +8,8 @@ import { catchUntagged, throwContextError } from '#/shared/auth/server-errors'
 import type { AuthContext } from '#/shared/domain/auth-context'
 import { getContainer } from '#/composition'
 import { portalId } from '#/shared/domain/ids'
-import { printKitDownloadOf } from '../application/printing/print-download.server'
-import type {
-  PortalPrintKitFile,
-  PortalPrintKitDownload,
-} from '../application/printing/print-download'
+import { printKitDownloadOf } from '../printing/print-download.server'
+import type { PortalPrintKitFile, PortalPrintKitDownload } from '../printing/contracts'
 import { isPortalError, portalError } from '../domain/errors'
 import { portalErrorStatus } from './portals'
 import {

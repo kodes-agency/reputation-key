@@ -1,3 +1,7 @@
+import {
+  currentCorrectionTips,
+  effectiveValue,
+} from '../infrastructure/readings/effective-readings.server'
 // This owner pins immutable definition versions, registry consumer/source
 // policy, exact quality, current correction tips, half-open business time,
 // tenant scope, and a statement-level budget. What it shares with the batched
@@ -27,8 +31,6 @@ import {
   PORTAL_RATING_KEY,
   QUALIFIED_SCAN_POLICY,
   countedPortalReadingWhere,
-  currentCorrectionTips,
-  effectiveValue,
   foldEvidenceRows,
   governedPortalWhere,
   portalEvidenceFamilies,

@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 import { organizationId, propertyId } from '#/shared/domain/ids'
-import type { GuestVoiceSummaryPlan } from './plan-guest-voice-summary'
+import type { GuestVoiceSummaryPlan } from '../../guest-voice/plan-summary.server'
 import {
   createRunGuestVoiceSummarySweep,
   GUEST_VOICE_SUMMARY_SWEEP_LIMIT,

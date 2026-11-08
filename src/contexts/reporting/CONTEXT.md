@@ -632,6 +632,19 @@ interface.
 
 ## Persistence
 
+`infrastructure/readings/effective-readings.server.ts` owns correction-tip
+selection, effective values and retracted sample counts for dashboard, Goal and Portal reads. Raw SQL
+uses its `readings`/`tip` aliases. Staff reads keep their as-of variant: only
+readings and corrections recorded strictly before the daily cutoff contribute,
+with the latest visible correction ordered by recording time and ID. Source
+status and Portal evidence still check every required projection and retraction;
+those completeness checks are independent of the effective value. Lifetime
+reconciliation retains its existing implementation until its totals cutover.
+
+Period reads use the concurrent index on Organization, Property, metric version
+and event time, declared in `shared/db/concurrent-index-registry.ts`. Recording
+time remains a separate cutoff for staff figures and late-arrival evidence.
+
 Reporting owns the metric, Goal Program, Property Google rating goal, dashboard
 setup-checklist milestones, Portal lifetime, and Current on Google tables declared in the shared schema
 package. Repositories remain split by

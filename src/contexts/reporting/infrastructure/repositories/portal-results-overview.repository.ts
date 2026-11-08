@@ -1,3 +1,7 @@
+import {
+  currentCorrectionTips,
+  effectiveValue,
+} from '../readings/effective-readings.server'
 import { readPortalLastScans } from './portal-last-scans'
 //
 // Answers for every requested Portal in five statements, however many there
@@ -36,8 +40,6 @@ import { portalMetricEvidenceSql } from '../../portal-results/portal-analytics-e
 import {
   PORTAL_DESTINATION_CLICK_KEY,
   countedPortalReadingWhere,
-  currentCorrectionTips,
-  effectiveValue,
   foldEvidenceRows,
   governedPortalWhere,
   PORTAL_ANALYTICS_VERSION_IDS,

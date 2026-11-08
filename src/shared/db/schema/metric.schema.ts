@@ -114,6 +114,9 @@ export const metricReadings = pgTable(
     // src/shared/db/schema/db-only-constructs.ts.
     index('metric_readings_recorded_at_idx').on(t.occurredAt),
     index('metric_readings_version_event_idx').on(t.definitionVersionId, t.eventAt),
+    // metric_readings_org_prop_version_event_idx is also sidecar-owned:
+    // tenant/Property/version event-time scans need a concurrent build on
+    // this continuously written table. See ../concurrent-index-registry.ts.
     check(
       'metric_readings_attribution_quality_check',
       sql`${t.attributionQuality} IS NULL OR ${t.attributionQuality} IN ('exact', 'current_state_backfill', 'unresolved')`,

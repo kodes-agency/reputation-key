@@ -1,10 +1,5 @@
-// Source-tree traversal for static-source guard tests.
-//
-// The architecture and governance suites assert things about the SHAPE of the
-// repository — "no file in this context imports that" — which means they have
-// to enumerate files rather than import them. Seven of those suites had grown a
-// byte-identical copy of the same recursive walk; a change to one (following
-// symlinks, skipping a directory) would silently not reach the other six.
+// Shared enumeration keeps static-source guards covering the same modules as
+// screens move between component and feature folders.
 
 import { readdirSync, readFileSync } from 'node:fs'
 import { join, relative } from 'node:path'
@@ -50,16 +45,12 @@ type UiSourceOptions = Readonly<{
   comments?: 'stripped' | 'kept'
 }>
 
-const UI_SOURCES = [
-  'src/components',
-  'src/routes',
-  'src/contexts/reporting/portal-results/ui',
-] as const
+const UI_SOURCES = ['src/components', 'src/routes'] as const
 const NOT_A_SOURCE = /\.(stories|test)\./u
 
 /**
- * The UI sources a consistency guard reads: components, routes and the Results
- * feature screen, excluding stories and tests, with each source path and its
+ * The UI sources a consistency guard reads: components, routes and feature
+ * screens, excluding stories and tests, with each source path and its
  * text, comments dropped unless the guard asks to keep them. The guards in
  * `src/components/**` each used to carry their own copy of this walk, and a change to
  * one (a new root, a new extension) missed the others.
@@ -69,7 +60,13 @@ export function readUiSources({
   comments = 'stripped',
 }: UiSourceOptions = {}): SourceFile[] {
   const extension = includeTs ? /\.tsx?$/u : /\.tsx$/u
-  return UI_SOURCES.flatMap((source) => walk(join(REPO_ROOT, source)))
+  const featureScreens = walk(join(REPO_ROOT, 'src/contexts')).filter((path) =>
+    /^src\/contexts\/[^/]+\/[^/]+\/ui\//u.test(relative(REPO_ROOT, path)),
+  )
+  return [
+    ...UI_SOURCES.flatMap((source) => walk(join(REPO_ROOT, source))),
+    ...featureScreens,
+  ]
     .filter((path) => extension.test(path) && !NOT_A_SOURCE.test(path))
     .map((path) => {
       const text = readFileSync(path, 'utf8')

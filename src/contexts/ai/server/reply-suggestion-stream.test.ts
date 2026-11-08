@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { generateReplySuggestionStreamFn } from './reply-suggestion-stream'
-import { manageReplyDraftingRequests } from '../application/reply-drafting-requests'
+import { manageReplyDraftingRequests } from '../reply/requests.server'
 import type { GenerateReplySuggestionDependencies } from '../application/reply-suggestion-contract'
 
 const mocks = vi.hoisted(() => ({

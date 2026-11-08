@@ -18,7 +18,7 @@ const FILES = readUiSources({ comments: 'kept' })
  * about an empty or failed region. Everything else uses EmptyState.
  */
 const DASHED_ALLOWED: Readonly<Record<string, string>> = {
-  'src/components/features/property/guest-voice/guest-voice-rating-chart.tsx':
+  'src/contexts/ai/guest-voice/ui/guest-voice-rating-chart.tsx':
     'a chart bar marking partial calendar coverage, never an empty-state panel',
   'src/components/ui/empty-state.tsx': 'the primitive itself',
   'src/components/ui/chart.tsx': 'a dashed line style in a chart legend',
