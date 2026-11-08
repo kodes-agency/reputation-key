@@ -1,3 +1,4 @@
+import { createPortalRatingGoalGuard } from '#/contexts/reporting/infrastructure/portal-rating-goal-guard'
 // The links a Portal's Results read names (real PostgreSQL): the Portal's own, in
 // guest order, each in the Portal's primary language or else its stored label.
 
@@ -81,7 +82,10 @@ beforeEach(async () => {
     createdAt: AT,
     updatedAt: AT,
   })
-  await createAtomicPortalCommandStore(getDb()).createPortal({
+  await createAtomicPortalCommandStore(
+    getDb(),
+    createPortalRatingGoalGuard(),
+  ).createPortal({
     organizationId: ORG_A,
     portal,
     initialResponsibleManagerIds: [MANAGER],

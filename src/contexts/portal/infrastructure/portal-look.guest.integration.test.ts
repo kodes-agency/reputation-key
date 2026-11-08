@@ -1,3 +1,4 @@
+import { createPortalRatingGoalGuard } from '#/contexts/reporting/infrastructure/portal-rating-goal-guard'
 // Two Portals of one Property, one with a look of its own (ADR 0070), published
 // and served the way a guest and the print kit read them, against real PostgreSQL.
 //
@@ -96,7 +97,7 @@ const publicationRepo = () => createPortalPublicationRepository(getDb())
 async function publish(id: PortalId): Promise<void> {
   const source = await publicationRepo().loadWorkingCopy(PROPERTY.organizationId, id)
   if (!source) throw new Error('the Portal has no working copy')
-  await publishFromSource(scopeOf(id), source)
+  await publishFromSource(scopeOf(id), source, createPortalRatingGoalGuard())
 }
 
 /** The public edge, over the Portal's real live snapshot and the real image store. */
@@ -279,7 +280,7 @@ describe.sequential('making an earlier version live again', () => {
       SPA,
     )
     if (!source) throw new Error('the Portal has no working copy')
-    await republishFromSource(scopeOf(SPA), source)
+    await republishFromSource(scopeOf(SPA), source, createPortalRatingGoalGuard())
     await expect(serve(SPA)).resolves.toMatchObject({
       immersive: { brand: { accentColour: '#112233' } },
     })
@@ -291,7 +292,10 @@ describe.sequential('making an earlier version live again', () => {
     await rollbackPortalPublication({
       portalRepo: createPortalRepository(getDb()),
       publicationRepo: publicationRepo(),
-      commandStore: createAtomicPortalCommandStore(getDb()),
+      commandStore: createAtomicPortalCommandStore(
+        getDb(),
+        createPortalRatingGoalGuard(),
+      ),
       staffPublicApi: {
         getAccessiblePropertyIds: async () => null,
         getAssignedPortals: async () => [],

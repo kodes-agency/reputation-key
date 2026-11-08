@@ -1,3 +1,4 @@
+import { lockStaffTargetProperty } from '#/shared/db/staff-target-lock'
 import { portalPrintWordings } from '#/shared/db/schema/portal-print-wording.schema'
 // Portal command store — the create-Portal command.
 // Split out of portal-command-store.ts (it grew group, copy and manager parts);
@@ -114,6 +115,9 @@ export const createPortalCreateCommand = (db: Database): PortalCreateCommandStor
 
 async function commitCreate(db: Database, command: CreatePortalCommand): Promise<void> {
   await db.transaction(async (tx) => {
+    if (command.groupMembership) {
+      await lockStaffTargetProperty(tx, command.organizationId, command.portal.propertyId)
+    }
     await assertPersonalSourceFence(
       tx,
       {
