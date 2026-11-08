@@ -75,9 +75,25 @@ const setup = (input?: {
   )
   const warn = vi.fn()
   const info = vi.fn()
+  const hasOtherActiveAccountBinding = vi.fn(
+    async (_input: {
+      organizationId: typeof ORG
+      connectionId: string
+      gbpAccountId: string
+    }) => false,
+  )
   const logger = { ...createMockLogger(), warn, info }
   const useCase = manageNotifications({
+    accounts: {
+      withAccount: async (_account, run) => run(),
+      read: async () => null,
+      attempted: async () => undefined,
+      verified: async () => undefined,
+      invalidate: async () => undefined,
+    },
+    nowMs: () => 0,
     authorizeProviderCall,
+    hasOtherActiveAccountBinding,
     notifications,
     pubsubTopic: input?.pubsubTopic ?? 'projects/test/topics/gbp-reviews',
     notificationTypes: ['NEW_REVIEW'],
@@ -88,6 +104,7 @@ const setup = (input?: {
     useCase,
     notifications,
     authorizeProviderCall,
+    hasOtherActiveAccountBinding,
     warn,
     info,
   }
@@ -344,6 +361,43 @@ describe('manageNotifications', () => {
 
   describe('unsubscribe', () => {
     const NONE_UNSUBSCRIBED = { unsubscribed: 0, failed: 0, failureCodes: {} }
+
+    it('keeps a shared account publishing while clearing the last binding of another account', async () => {
+      const { useCase, notifications, hasOtherActiveAccountBinding } = setup({
+        authorizationResult: TWO_ACCOUNTS,
+      })
+      hasOtherActiveAccountBinding.mockImplementation(
+        async ({ gbpAccountId }) => gbpAccountId === ACCOUNT_ID,
+      )
+
+      await expect(useCase.unsubscribe(ORG, CONN)).resolves.toEqual({
+        outcome: 'provider_failed',
+        accounts: {
+          unsubscribed: 1,
+          failed: 1,
+          failureCodes: { account_still_bound: 1 },
+        },
+      })
+      expect(notifications.unsubscribeCalls.map((call) => call.gbpAccountId)).toEqual([
+        ACCOUNT_ID_2,
+      ])
+      expect(hasOtherActiveAccountBinding).toHaveBeenCalledWith({
+        organizationId: ORG,
+        connectionId: CONN,
+        gbpAccountId: ACCOUNT_ID,
+      })
+    })
+
+    it('does not clear an account when other bindings cannot be read', async () => {
+      const { useCase, notifications, hasOtherActiveAccountBinding } = setup()
+      hasOtherActiveAccountBinding.mockRejectedValueOnce(new Error('read unavailable'))
+
+      await expect(useCase.unsubscribe(ORG, CONN)).resolves.toMatchObject({
+        outcome: 'provider_failed',
+        accounts: { unsubscribed: 0, failed: 1 },
+      })
+      expect(notifications.unsubscribeCalls).toEqual([])
+    })
 
     it('uses the exact bound account and authorization to unsubscribe', async () => {
       const { useCase, notifications } = setup()

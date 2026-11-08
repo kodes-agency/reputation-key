@@ -184,14 +184,22 @@ describe('buildIntegrationContext provider slots (BQC-6.1)', () => {
   it('routes notification account lookup and desired-state writes through the governed executor', () => {
     const source = readFileSync(new URL('./build.ts', import.meta.url), 'utf8')
     const start = source.indexOf('const googleNotificationProviderExecutor =')
-    const end = source.indexOf('const gbpSubscribeBackfill =', start)
+    const end = source.indexOf('let googleImportDiscovery:', start)
     expect(start).toBeGreaterThanOrEqual(0)
     expect(end).toBeGreaterThan(start)
     const notificationWiring = source.slice(start, end)
     expect(notificationWiring).toContain('createSingle401RefreshExecutor')
     expect(notificationWiring).toContain('createMyBusinessNotificationsAdapter')
     expect(notificationWiring).toContain('authorization_unavailable')
+    expect(notificationWiring).toContain('notifications: notificationsPort')
     expect(notificationWiring).not.toContain('createGoogleAccountManagementAdapter')
+    const runtime = readFileSync(
+      new URL('./infrastructure/google-notification-runtime.ts', import.meta.url),
+      'utf8',
+    )
+    expect(runtime).toContain('manageNotifications({')
+    expect(runtime).toContain('notifications: deps.notifications')
+    expect(runtime).not.toContain('createGoogleAccountManagementAdapter')
     // The account targets come from active Property bindings, never discovery.
     const authorizer = readFileSync(
       new URL(

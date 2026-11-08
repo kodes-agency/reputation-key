@@ -5626,6 +5626,18 @@ CREATE TABLE "public"."google_imports" (
 
 
 --
+-- Name: google_notification_accounts; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE "public"."google_notification_accounts" (
+    "account_key" character varying(64) NOT NULL,
+    "attempted_at" timestamp with time zone,
+    "verified_at" timestamp with time zone,
+    "configuration" "text"
+);
+
+
+--
 -- Name: google_reply_observation_heads; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -9712,6 +9724,14 @@ ALTER TABLE ONLY "public"."google_imports"
 
 ALTER TABLE ONLY "public"."google_imports"
     ADD CONSTRAINT "google_imports_pkey" PRIMARY KEY ("id");
+
+
+--
+-- Name: google_notification_accounts google_notification_accounts_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY "public"."google_notification_accounts"
+    ADD CONSTRAINT "google_notification_accounts_pkey" PRIMARY KEY ("account_key");
 
 
 --

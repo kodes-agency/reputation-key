@@ -161,7 +161,7 @@ describe('the committed constructs file', () => {
           ...readMigrationDefinitions('0088_reply_drafting_v2_release'),
           ...readMigrationDefinitions('0100_merchant_ai_notice_retention_corrections'),
           ...readMigrationDefinitions('0106_merchant_ai_notice_retire_trends'),
-          ...readMigrationDefinitions('0119_drop_dormant_google_credentials'),
+          ...readMigrationDefinitions('0120_drop_dormant_google_credentials'),
         ]
           .reverse()
           .find((entry) => entry.name === name)?.definition,

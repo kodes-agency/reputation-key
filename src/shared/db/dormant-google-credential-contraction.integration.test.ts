@@ -12,7 +12,7 @@ import {
 import manifest from '../../../test-fixtures/populated-upgrade/manifest.json'
 import { migrateJournal } from './migrate-journal.server'
 
-const CONTRACTION = '0119_drop_dormant_google_credentials'
+const CONTRACTION = '0120_drop_dormant_google_credentials'
 const TABLES = [
   'credential_revoke_permits',
   'google_credential_source_operations',
