@@ -18,6 +18,7 @@ export const portalErrorStatus = (code: PortalErrorCode): number =>
       'slug_taken',
       'revision_conflict',
       'running_rating_goal',
+      'goal_needs_collector',
       'print_code_collision',
       'destination_not_approved',
       'link_limit_reached',

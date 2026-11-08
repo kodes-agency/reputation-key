@@ -4,9 +4,11 @@ import type { GoalProgramBundle } from './ports/goal-program.repository'
 
 export type PortalRatingGoalBlock = 'portal' | 'last_collector' | 'staff_scan_target'
 
+type RatingGoalProgram = Pick<GoalProgramBundle, 'program' | 'versions' | 'assignments'>
+
 /** A coming scans version does not end the private-rating month already running. */
 function ratingSubjects(
-  programs: readonly GoalProgramBundle[],
+  programs: readonly RatingGoalProgram[],
   now: Date,
 ): readonly GoalSubject[] {
   return programs.flatMap(({ program, versions, assignments }) =>
@@ -28,13 +30,17 @@ function ratingSubjects(
 }
 
 /** Refuse losing a direct subject or the last rating collector in a wider running goal. */
-export async function findPortalRatingGoalBlock(
-  programs: readonly GoalProgramBundle[],
+export async function findPortalRatingGoalBlock<Program extends RatingGoalProgram>(
+  programs: readonly Program[],
   portalId: string,
   now: Date,
   readPortals: (subject: GoalSubject) => Promise<readonly PortalRatingFact[]>,
+  checkStaffScanTargets = true,
 ): Promise<PortalRatingGoalBlock | null> {
-  if (await hasStaffScanTarget(programs, portalId, now, readPortals))
+  if (
+    checkStaffScanTargets &&
+    (await hasStaffScanTarget(programs, portalId, now, readPortals))
+  )
     return 'staff_scan_target'
   const subjects = ratingSubjects(programs, now)
   if (
@@ -44,10 +50,7 @@ export async function findPortalRatingGoalBlock(
   for (const subject of subjects) {
     if (subject.kind === 'portal') continue
     const members = await readPortals(subject)
-    const collectors =
-      subject.kind === 'property'
-        ? members.filter((portal) => portal.publicationState === 'published')
-        : members
+    const collectors = members.filter((portal) => portal.publicationState === 'published')
     if (
       collectors.some((portal) => portal.portalId === portalId) &&
       collectors.every(
@@ -61,7 +64,7 @@ export async function findPortalRatingGoalBlock(
 }
 
 async function hasStaffScanTarget(
-  programs: readonly GoalProgramBundle[],
+  programs: readonly RatingGoalProgram[],
   portalId: string,
   now: Date,
   readPortals: (subject: GoalSubject) => Promise<readonly PortalRatingFact[]>,
