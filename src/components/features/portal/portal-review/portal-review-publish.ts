@@ -21,9 +21,11 @@ export const reviewPublishStep = (
 }
 
 export type ReviewPublishDeps = Readonly<{
-  review: Pick<PortalReview, 'action' | 'publishesAsVersion'>
+  review: Pick<PortalReview, 'action' | 'publishesAsVersion' | 'reviewDigest'>
   portalId: string
-  publishChanges: (input: { data: { portalId: string } }) => Promise<{
+  publishChanges: (input: {
+    data: { portalId: string; reviewedDigest: string }
+  }) => Promise<{
     outcome: 'published' | 'unchanged'
     version: number
   }>
@@ -53,7 +55,13 @@ export async function publishReview(deps: ReviewPublishDeps): Promise<void> {
   if (step === null) return
   try {
     if (step === 'publish_changes') {
-      const result = await deps.publishChanges({ data: { portalId } })
+      if (review.reviewDigest === null) {
+        await deps.refreshReview()
+        return
+      }
+      const result = await deps.publishChanges({
+        data: { portalId, reviewedDigest: review.reviewDigest },
+      })
       notify[result.outcome === 'published' ? 'success' : 'info'](
         describePublishOutcome(result),
       )

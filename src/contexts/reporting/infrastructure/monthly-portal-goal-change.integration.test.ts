@@ -28,14 +28,14 @@ import type { GoalProgramRepository } from '../application/ports/goal-program.re
 import {
   createGoalProgramService,
   type GoalActor,
-} from '../application/use-cases/goal-programs'
+} from '../monthly-goals/goal-programs.server'
 import {
   changeMonthlyPortalGoalNow,
   reviseMonthlyPortalGoal,
   setMonthlyPortalGoal,
   stopMonthlyPortalGoal,
   type MonthlyPortalGoalChangeDeps,
-} from '../application/use-cases/monthly-portal-goal'
+} from '../monthly-goals/monthly-portal-goal.server'
 import { subjectHolds } from '../monthly-goals/subject-assignments.server'
 import { createGoalProgramRepository } from './repositories/goal-program.repository'
 

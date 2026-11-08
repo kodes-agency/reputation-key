@@ -6,34 +6,34 @@
 
 import { GOAL_RECONCILIATION_DELAY_MS } from '#/shared/domain/metric-governance'
 import { calendarPeriodRange } from '#/shared/domain/period-range'
-import { goalMonthDays, goalPace } from '../../domain/goal-pace'
-import type { PortalGoalMeasure } from '../../domain/goal-recommendation-types'
-import { addLocalDays, localDateOf } from '../../domain/local-days'
-import type { PortalGoalRecommendation } from '../dto/goal-recommendation.types'
+import { goalMonthDays, goalPace } from '../domain/goal-pace'
+import type { PortalGoalMeasure } from '../domain/goal-recommendation-types'
+import { addLocalDays, localDateOf } from '../domain/local-days'
+import type { PortalGoalRecommendation } from '../application/dto/goal-recommendation.types'
 import type {
   PortalGoalLastMonth,
   PortalGoalOfCard,
   PortalGoalPortalCount,
   PortalGoalRows,
   PortalGoalRunningMonth,
-} from '../dto/monthly-portal-goal.types'
-import { effectiveMonthTarget } from '../goal-effective-month-target'
-import type { GoalSubject } from '../../domain/goal-subject'
+} from '../application/dto/monthly-portal-goal.types'
+import { effectiveMonthTarget } from '../application/goal-effective-month-target'
+import type { GoalSubject } from '../domain/goal-subject'
 import {
   isPortalGoalMeasure,
   type PortalCountGoal,
   type PropertyCountGoal,
-} from '../monthly-portal-goal-identity'
+} from '../application/monthly-portal-goal-identity'
 import type {
   GoalMonthlyResult,
   GoalProgramBundle,
   GoalProgramVersion,
   GoalSubjectAssignment,
-} from '../ports/goal-program.repository'
-import type { GoalActor, GoalMetricReadPort } from './goal-programs'
-import { progressOf, readSubjectMonth } from './goal-progress'
-import { changeFactsOf, newGoalFromOf } from './monthly-portal-goal-change-facts'
-import { monthlyPortalGoalCheckInOf } from './monthly-portal-goal-check-in'
+} from '../application/ports/goal-program.repository'
+import type { GoalActor, GoalMetricReadPort } from './goal-programs.server'
+import { progressOf, readSubjectMonth } from '../application/use-cases/goal-progress'
+import { changeFactsOf, newGoalFromOf } from './monthly-portal-goal-change-facts.server'
+import { monthlyPortalGoalCheckInOf } from './monthly-portal-goal-check-in.server'
 
 export type MonthlyPortalGoalOnCardDeps = Readonly<{
   /** The governed read of a month so far. */

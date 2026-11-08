@@ -5,7 +5,7 @@ import type { Permission } from '#/shared/domain/permissions'
 import type {
   GoalActor,
   GoalExecutionPolicy,
-} from '../application/use-cases/goal-programs'
+} from '../monthly-goals/goal-programs.server'
 
 const mocks = vi.hoisted(() => ({
   card: vi.fn(),
@@ -73,7 +73,7 @@ import {
   reviseMonthlyPortalGoalSchema,
   stopMonthlyPortalGoalSchema,
 } from '../application/dto/monthly-portal-goal.dto'
-import { GoalProgramError } from '../application/use-cases/goal-programs'
+import { GoalProgramError } from '../monthly-goals/goal-programs.server'
 import {
   addPortalGoal,
   addPortalGoals,

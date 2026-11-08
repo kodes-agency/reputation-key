@@ -9,10 +9,7 @@ import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest'
 import { getEnv } from '#/shared/config/env'
 import type { Database } from '#/shared/db'
 import type { RightsRequestPlan } from '#/shared/ops/rights/rights-request-command'
-import {
-  purgeRightsOrganization,
-  writeRightsExport,
-} from '#/shared/ops/rights/run-rights-executors'
+import { runRightsExecutors } from '#/shared/ops/rights/rights-executor'
 import { deleteTestOrganizations } from '#/shared/testing/integration-helpers'
 import { acquireTestLease, type TestLease } from '#/shared/testing/test-environment-lease'
 import { REPORTING_PURGE_ORDER } from './reporting-rights-plan'
@@ -131,13 +128,28 @@ async function counts(organizationId: string): Promise<Record<string, number>> {
   return result
 }
 
-function plan(organizationId: string, outDir?: string): RightsRequestPlan {
+function run(
+  rightsPlan: RightsRequestPlan,
+  write: (path: string, bytes: Uint8Array) => Promise<void> = async () => {},
+) {
+  const out: string[] = []
+  const err: string[] = []
+  const exitCode = runRightsExecutors({
+    plan: rightsPlan,
+    executors: [createReportingRightsExecutor(db, () => AT)],
+    io: { out: (line) => out.push(line), err: (line) => err.push(line) },
+    writeExportFile: write,
+  })
+  return exitCode.then((code) => ({ code, out, err }))
+}
+
+function plan(organizationId: string, exportDir?: string): RightsRequestPlan {
   return {
     scope: 'organization',
     mode: 'apply',
     organizationId,
     batchSize: 50,
-    ...(outDir ? { outDir } : {}),
+    ...(exportDir ? { exportDir } : {}),
   }
 }
 
@@ -177,9 +189,8 @@ describe('reporting rights executor', () => {
     const a = await seedTenant()
     const b = await seedTenant()
     const written = new Map<string, string>()
-    await writeRightsExport(
-      [createReportingRightsExecutor(db)],
-      plan(a.organizationId, '/out'),
+    await run(
+      { ...plan(a.organizationId, '/out'), mode: 'report' },
       async (path, bytes) => {
         written.set(path, new TextDecoder().decode(bytes))
       },
@@ -190,19 +201,15 @@ describe('reporting rights executor', () => {
     expect(everything).not.toContain(b.programId)
     expect(everything).not.toContain(b.readingId)
     expect(everything).not.toContain('source_event_id')
-    expect(written.has(`/out/${a.organizationId}/reporting/manifest.json`)).toBe(true)
+    expect(written.has('/out/reporting/manifest.json')).toBe(true)
   })
 
   it('refuses to purge an active Organization and changes nothing', async () => {
     const a = await seedTenant()
     const before = await counts(a.organizationId)
-    await expect(
-      purgeRightsOrganization(
-        [createReportingRightsExecutor(db)],
-        plan(a.organizationId),
-        AT,
-      ),
-    ).rejects.toThrow(/still active/)
+    const result = await run(plan(a.organizationId))
+    expect(result.code).toBe(1)
+    expect(result.err.join('\n')).toMatch(/still active/)
     expect(await counts(a.organizationId)).toEqual(before)
   })
 
@@ -212,13 +219,12 @@ describe('reporting rights executor', () => {
     await hold(a.organizationId)
     const bBefore = await counts(b.organizationId)
 
-    const lines = await purgeRightsOrganization(
-      [createReportingRightsExecutor(db)],
-      plan(a.organizationId),
-      AT,
-    )
+    const result = await run(plan(a.organizationId))
 
-    expect(lines[0]).toMatch(/^erasure record reporting org=.* reporting:purge:v1:/u)
+    expect(result.code).toBe(0)
+    expect(result.out[0]).toMatch(
+      /^reporting: erasure record org=.* reporting:purge:v1:/u,
+    )
     expect(Object.values(await counts(a.organizationId)).every((n) => n === 0)).toBe(true)
     expect(await counts(b.organizationId)).toEqual(bBefore)
     const guard = await lease.pool.query(

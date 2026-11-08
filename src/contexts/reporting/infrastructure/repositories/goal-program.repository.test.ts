@@ -17,7 +17,7 @@ import type {
 import {
   createGoalProgramService,
   type GoalActor,
-} from '../../application/use-cases/goal-programs'
+} from '../../monthly-goals/goal-programs.server'
 import { firstFullMonthlyPeriodAtOrAfter } from '../../domain/goal-program'
 import { createGoalProgramRepository } from './goal-program.repository'
 

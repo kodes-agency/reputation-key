@@ -9,12 +9,12 @@ import type {
   Choices,
   PortalGoalMeasure,
   PortalGoalRecommendation,
-} from '../../domain/goal-recommendation-types'
+} from '../domain/goal-recommendation-types'
 import type {
   PortalGoalMeasureOffers,
   PortalGoalOffer,
   PortalGoalSheetFacts,
-} from '../dto/monthly-portal-goal.types'
+} from '../application/dto/monthly-portal-goal.types'
 
 /**
  * The three choices for `month` and `measure`: the rest of this month, or the

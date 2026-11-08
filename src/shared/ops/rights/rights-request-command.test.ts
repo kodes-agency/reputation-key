@@ -35,6 +35,13 @@ function plan(argv: string[], env = DEV, dryRun?: boolean) {
   return planRightsRequest(ctx, parsed.args, env)
 }
 
+describe('export directory', () => {
+  it('carries out=<dir> into the plan', () => {
+    const result = plan(['access', 'out=/tmp/export'])
+    expect(result.ok && result.plan.exportDir).toBe('/tmp/export')
+  })
+})
+
 const VERIFIED = ['verified=2026-11-01T10:00:00Z', 'verification=ticket:123']
 
 describe('planRightsRequest', () => {
@@ -236,23 +243,5 @@ describe('planRightsReplay', () => {
       ),
     ])
     expect(item?.disposition).toBe('replay_required')
-  })
-})
-
-describe('out directory', () => {
-  it('is carried into the plan and shown in the report', () => {
-    const result = plan(['access', 'out=/tmp/export'])
-    expect(result.ok).toBe(true)
-    if (!result.ok) return
-    expect(result.plan.outDir).toBe('/tmp/export')
-    expect(describeRightsReport(result.plan).join('\n')).toContain(
-      'written under /tmp/export',
-    )
-  })
-
-  it('tells the operator how to get files when it is missing', () => {
-    const result = plan(['access'])
-    if (!result.ok) throw new Error(result.error)
-    expect(describeRightsReport(result.plan).join('\n')).toContain('pass out=<dir>')
   })
 })

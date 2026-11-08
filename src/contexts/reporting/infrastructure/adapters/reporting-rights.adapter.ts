@@ -14,7 +14,6 @@ import { organizationId, portalId, propertyId } from '#/shared/domain/ids'
 import type {
   RightsExecutor,
   RightsExportFile,
-  RightsPurgeOutcome,
 } from '#/shared/ops/rights/rights-executor'
 import { portalMetricEvidenceSql } from '../../portal-results/portal-analytics-evidence.server'
 import {
@@ -30,6 +29,11 @@ import {
 } from './reporting-rights-plan'
 
 const CONTEXT = 'reporting'
+
+export type RightsPurgeOutcome = Readonly<{
+  deleted: Readonly<Record<string, number>>
+  evidenceRef: string
+}>
 const LOCK_TIMEOUT = '5s'
 /** Supersession chains are short; a cycle fails loudly instead of looping. */
 const MAX_CHAIN_PASSES = 64
@@ -98,7 +102,6 @@ async function readAccess(
         counts[spec.table] = records.length
         files.push({
           path: `reporting/${spec.table}.json`,
-          mediaType: 'application/json',
           bytes: encode({ table: spec.table, columns: spec.columns, records }),
         })
       }
@@ -107,7 +110,6 @@ async function readAccess(
   )
   files.push({
     path: 'reporting/manifest.json',
-    mediaType: 'application/json',
     bytes: encode({ context: CONTEXT, organizationId: organization, rowCounts: counts }),
   })
   return files
@@ -265,12 +267,46 @@ async function purge(
   return { deleted, evidenceRef: `${CONTEXT}:purge:v1:tenant_rows_deleted:${rows}` }
 }
 
-export function createReportingRightsExecutor(db: Database): RightsExecutor {
+function errorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : 'unexpected error'
+}
+
+export function createReportingRightsExecutor(
+  db: Database,
+  now: () => Date,
+): RightsExecutor {
   return Object.freeze({
-    context: CONTEXT,
-    access: (input) => readAccess(db, input.organizationId),
-    purgeOrganization: (input) =>
-      db.transaction((tx) => purge(tx, input.organizationId, input.occurredAt)),
+    name: CONTEXT,
+    scopes: ['access', 'organization'] as const,
+    async report(plan) {
+      const files = await readAccess(db, plan.organizationId)
+      const manifest = JSON.parse(
+        new TextDecoder().decode(files[files.length - 1]!.bytes),
+      ) as { rowCounts: Record<string, number> }
+      return Object.entries(manifest.rowCounts).map(([table, rows]) => `${table} ${rows}`)
+    },
+    exportFiles: (plan) => readAccess(db, plan.organizationId),
+    async apply(plan) {
+      if (plan.scope !== 'organization') {
+        return { ok: false, error: `no ${CONTEXT} purge for ${plan.scope}` }
+      }
+      try {
+        const outcome = await db.transaction((tx) =>
+          purge(tx, plan.organizationId, now()),
+        )
+        return {
+          ok: true,
+          lines: [
+            `erasure record org=${plan.organizationId} ${outcome.evidenceRef}`,
+            ...Object.entries(outcome.deleted).map(
+              ([table, rows]) => `  ${table} ${rows}`,
+            ),
+          ],
+        }
+      } catch (error) {
+        return { ok: false, error: errorMessage(error) }
+      }
+    },
   })
 }
 

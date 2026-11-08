@@ -13,7 +13,7 @@ import {
 } from '@tanstack/react-router'
 import type { PublicImmersiveLoaderData } from '#/contexts/guest/application/dto/public-portal.dto'
 import type { GuestResponseView } from '#/contexts/guest/application/use-cases/guest-response-lifecycle'
-import type { GuestResponseActions } from '../guest-response-actions'
+import type { GuestResponseActions } from '#/contexts/guest/page/ui/guest-response-actions'
 import {
   ImmersivePublicPortal,
   type ImmersivePublicPortalProps,

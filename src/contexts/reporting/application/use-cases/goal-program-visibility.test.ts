@@ -2,7 +2,10 @@ import { describe, expect, it, vi } from 'vitest'
 import type { Permission } from '#/shared/domain/permissions'
 import type { GoalSubject } from '../../domain/goal-program'
 import type { GoalProgramBundle } from '../ports/goal-program.repository'
-import { GoalProgramError, type GoalActor } from './goal-programs'
+import {
+  GoalProgramError,
+  type GoalActor,
+} from '../../monthly-goals/goal-programs.server'
 import {
   scopeGoalProgramsForMember,
   withGoalProgramVisibility,

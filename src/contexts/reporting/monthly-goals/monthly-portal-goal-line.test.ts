@@ -1,9 +1,9 @@
 import { describe, expect, it } from 'vitest'
-import type { GoalProgramBundle } from '../ports/goal-program.repository'
+import type { GoalProgramBundle } from '../application/ports/goal-program.repository'
 import {
   readMonthlyPortalGoalLine,
   type MonthlyPortalGoalLineDeps,
-} from './monthly-portal-goal-line'
+} from './monthly-portal-goal-line.server'
 import {
   NOV_22,
   PROPERTY_ID,
@@ -18,7 +18,7 @@ import {
   propertyGoal,
   readings,
   runningGoal,
-} from './monthly-portal-goal-test-fixtures'
+} from './monthly-portal-goal.test-fixtures'
 
 const RECEPTION = 'portal-reception'
 
