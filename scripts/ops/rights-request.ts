@@ -14,11 +14,16 @@
 
 import { mkdir, readFile, writeFile } from 'node:fs/promises'
 import { dirname } from 'node:path'
+import { createReportingRightsExecutor } from '../../src/contexts/reporting/infrastructure/adapters/reporting-rights.adapter'
 import { runNotificationRightsRequest } from '../../src/contexts/feed/application/public-api'
 import { getEnv } from '../../src/shared/config/env'
 import { getDb } from '../../src/shared/db'
 import { createGoogleRightsExecutor } from '../../src/shared/ops/rights/google-rights-executor'
 import { createNotificationRightsExecutor } from '../../src/shared/ops/rights/notification-rights-executor'
+import {
+  createInboxRightsExecutor,
+  createReviewRightsExecutor,
+} from '../../src/shared/ops/rights/review-inbox-rights-executors'
 import { rightsRequestCommandSpec } from '../../src/shared/ops/rights/rights-request-command'
 import { handleRightsRequest } from '../../src/shared/ops/rights/run-rights-request'
 import { runOperatorCommand } from './operator-command'
@@ -51,7 +56,13 @@ async function main(): Promise<void> {
             })
             return finalWarning
               ? [notification]
-              : [createGoogleRightsExecutor({ db: getDb() }), notification]
+              : [
+                  createGoogleRightsExecutor({ db: getDb() }),
+                  createReviewRightsExecutor({ db: getDb() }),
+                  createInboxRightsExecutor({ db: getDb() }),
+                  createReportingRightsExecutor(getDb(), () => new Date()),
+                  notification,
+                ]
           },
         },
         ctx,
