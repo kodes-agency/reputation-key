@@ -66,7 +66,7 @@
 //       binding (a failed Reply has no other command), and the claim of that
 //       cycle withdraws the Reply unless the binding is current, or its text
 //       was claimed once before and only the adoption window has passed since
-//       (reply-write-guards.ts, `aiTextMayBeClaimed`). So after any change
+//       (reputation/replies/store.server.ts, `aiTextMayBeClaimed`). So after any change
 //       this purge runs for, a failed Reply's AI text is not sent again.
 //
 // A Reply somebody was waiting on does not vanish silently. For each Reply that
@@ -88,30 +88,17 @@
 // The purge empties a draft in place. A draft whose cycle was cancelled has
 // the same status, publication state and cycle afterwards, so a reply command
 // that puts text forward (submit, approve, retry, edit) also compares the
-// state revision, which the emptying advances (reply-write-guards.ts). A draft
-// save that lands on the emptied row writes the manager's text into it, which
-// is what the empty draft is for.
+// state revision, which the emptying advances (reputation/replies/store.server.ts). A draft
+// save also names its revision, so a stale browser cannot restore withdrawn text.
 //
-// Lock order: the purge locks Reply rows and then, through the Reply revision
-// trigger, their Review rows. Approve and the worker's claim lock the Review
-// first. A purge that meets one of them on the same Reply can therefore be
-// chosen as the deadlock victim; its caller's transaction fails as a whole and
-// is safe to run again.
-//
-// The fact is built here, not by Review's constructor: the purge runs inside
-// other contexts' transactions, and shared/db may not import a context. Its
-// shape is checked against the registered event schema when it is inserted.
+// The reply writer locks each affected Review before touching its Replies.
+// Scope commands and measurement erasure remain in this caller's transaction.
 
 import { sql, type SQL } from 'drizzle-orm'
-import { newEventId } from '#/shared/domain/event-id'
 import {
-  organizationId,
-  propertyId,
-  replyId,
-  reviewId,
-  userId,
-} from '#/shared/domain/ids'
-import { insertOutboxRow } from '#/shared/outbox/commit'
+  requireReplyScopeEffects,
+  type ReplyScopeEffects,
+} from '#/shared/db/reply-scope-effects'
 import type { AiBudgetTx } from './ai-budget'
 
 type PropertyDraftScope = Readonly<{
@@ -123,16 +110,6 @@ type ReviewDraftScope = Readonly<{
   organizationId: string
   reviewId: string
 }>
-
-/** A withdrawn Reply as its cancellation fact names it: identifiers only. */
-type WithdrawnReplyRow = {
-  id: string
-  review_id: string
-  organization_id: string
-  property_id: string
-  author_id: string | null
-  occurred_at: Date | string
-}
 
 const EVERY_ORGANIZATION = sql`TRUE`
 
@@ -146,143 +123,61 @@ const inReview = (input: ReviewDraftScope): SQL => sql`
   AND reply.organization_id = ${input.organizationId}
 `
 
-async function recordWithdrawal(tx: AiBudgetTx, row: WithdrawnReplyRow): Promise<void> {
-  await insertOutboxRow(tx, {
-    _tag: 'review.reply.publication_cancelled',
-    eventId: newEventId(),
-    replyId: replyId(row.id),
-    reviewId: reviewId(row.review_id),
-    organizationId: organizationId(row.organization_id),
-    propertyId: propertyId(row.property_id),
-    authorId: row.author_id === null ? null : userId(row.author_id),
-    cause: 'ai_draft_withdrawn',
-    occurredAt: new Date(row.occurred_at),
-    correlationId: null,
-  })
-}
+const withdraw = async (
+  tx: AiBudgetTx,
+  effects: ReplyScopeEffects | undefined,
+  scope: SQL,
+): Promise<void> => requireReplyScopeEffects(effects).withdrawAiDrafts(tx, scope)
 
 /**
- * Withdraw every AI-assisted Reply in `scope` that has not been dispatched.
- * `scope` is a predicate over `reply` (replies) and `review` (its reviews row).
- * The delete returns every row it removed with its status; the second
- * statement returns only the Replies somebody was waiting on.
- *
- * The delete runs first on purpose: a confirmation that commits while it waits
- * on the row leaves `authorized` behind for the second statement's snapshot.
+ * Withdrawing first takes each Review before any measurement is touched, the
+ * order a submit follows; erasing the measurements first would hold them while
+ * waiting for a Review a submit already holds.
+ * (`reply-draft-races.integration.test.ts` fails when the order is reversed.)
  */
-async function withdrawAiDrafts(tx: AiBudgetTx, scope: SQL): Promise<void> {
-  const deleted = await tx.execute<WithdrawnReplyRow & { status: string }>(sql`
-    DELETE FROM replies AS reply
-    USING reviews AS review
-    WHERE reply.review_id = review.id
-      AND reply.organization_id = review.organization_id
-      AND reply.authorship = 'ai_assisted'
-      AND reply.publication_state IS NULL
-      AND ${scope}
-    RETURNING reply.id, reply.review_id, reply.organization_id, review.property_id,
-      reply.status::text AS status,
-      COALESCE(reply.submitted_by, reply.created_by) AS author_id,
-      transaction_timestamp() AS occurred_at
-  `)
-  const emptied = await tx.execute<WithdrawnReplyRow>(sql`
-    WITH held AS (
-      SELECT reply.id, reply.review_id, reply.organization_id, review.property_id,
-        reply.status::text AS status, reply.publication_state,
-        reply.publication_cycle, reply.publication_attempts,
-        COALESCE(reply.submitted_by, reply.created_by) AS author_id
-      FROM replies AS reply
-      INNER JOIN reviews AS review
-        ON review.id = reply.review_id
-       AND review.organization_id = reply.organization_id
-      WHERE reply.authorship = 'ai_assisted'
-        AND (
-          reply.publication_state IN ('requested', 'authorized')
-          OR (
-            reply.publication_state = 'cancelled'
-            AND reply.status IN ('draft', 'pending_approval', 'rejected')
-          )
-        )
-        AND ${scope}
-      FOR UPDATE OF reply
-    ), emptied AS (
-      UPDATE replies AS reply
-      SET status = 'draft',
-          publication_state = 'cancelled',
-          publication_last_error_class = NULL,
-          reconcile_due_at = NULL,
-          rejected_by = NULL,
-          rejection_reason = NULL,
-          text = '',
-          authorship = 'human',
-          updated_at = transaction_timestamp()
-      FROM held
-      WHERE reply.id = held.id
-        AND reply.organization_id = held.organization_id
-    ), superseded AS (
-      UPDATE reply_publication_attempts AS attempt
-      SET outcome = 'superseded',
-          confirmed_observation_revision = NULL,
-          updated_at = transaction_timestamp()
-      FROM held
-      WHERE held.publication_state IN ('requested', 'authorized')
-        AND attempt.organization_id = held.organization_id
-        AND attempt.reply_id = held.id
-        AND attempt.publication_cycle = held.publication_cycle
-        AND attempt.attempt_number = held.publication_attempts
-    )
-    SELECT id, review_id, organization_id, property_id, author_id,
-      transaction_timestamp() AS occurred_at
-    FROM held
-    WHERE publication_state IN ('requested', 'authorized')
-       OR status = 'pending_approval'
-  `)
-  const awaited = [
-    ...deleted.rows.filter((row) => row.status === 'pending_approval'),
-    ...emptied.rows,
-  ]
-  for (const row of awaited) {
-    await recordWithdrawal(tx, row)
-  }
-}
-
 async function erasePropertyDraftMeasurements(
   tx: AiBudgetTx,
   input: PropertyDraftScope,
+  effects: ReplyScopeEffects | undefined,
 ): Promise<void> {
+  await withdraw(tx, effects, inProperty(input))
   await tx.execute(
     sql`SELECT pg_advisory_xact_lock(hashtext('ai-draft-measurement'), hashtext(${input.organizationId}))`,
   )
   await tx.execute(
     sql`DELETE FROM ai_draft_measurements WHERE organization_id = ${input.organizationId} AND property_id = ${input.propertyId}::uuid`,
   )
-  await withdrawAiDrafts(tx, inProperty(input))
 }
 
 export function purgeAiDraftsForProperty(
   tx: AiBudgetTx,
   input: PropertyDraftScope,
+  effects: ReplyScopeEffects | undefined,
 ): Promise<void> {
-  return erasePropertyDraftMeasurements(tx, input)
+  return erasePropertyDraftMeasurements(tx, input, effects)
 }
 
 export function purgeAiDraftsForProfile(
   tx: AiBudgetTx,
   input: PropertyDraftScope,
+  effects: ReplyScopeEffects | undefined,
 ): Promise<void> {
-  return withdrawAiDrafts(tx, inProperty(input))
+  return withdraw(tx, effects, inProperty(input))
 }
 
 export function purgeAiDraftsForAuthorization(
   tx: AiBudgetTx,
   input: PropertyDraftScope,
+  effects: ReplyScopeEffects | undefined,
 ): Promise<void> {
-  return erasePropertyDraftMeasurements(tx, input)
+  return erasePropertyDraftMeasurements(tx, input, effects)
 }
 
 export async function purgeAiDraftsForControl(
   tx: AiBudgetTx,
   scopeKind: 'global' | 'provider_deployment_profile' | 'capability',
   scopeValue: string | null,
+  effects: ReplyScopeEffects | undefined,
 ): Promise<void> {
   if (
     scopeKind !== 'global' &&
@@ -291,21 +186,23 @@ export async function purgeAiDraftsForControl(
   ) {
     return
   }
-  await withdrawAiDrafts(tx, EVERY_ORGANIZATION)
+  await withdraw(tx, effects, EVERY_ORGANIZATION)
 }
 
 export async function purgeAiDraftsForOrganization(
   tx: AiBudgetTx,
   closingOrganizationId: string,
+  effects: ReplyScopeEffects | undefined,
 ): Promise<void> {
-  await withdrawAiDrafts(tx, sql`reply.organization_id = ${closingOrganizationId}`)
+  await withdraw(tx, effects, sql`reply.organization_id = ${closingOrganizationId}`)
 }
 
 export async function purgeAiDraftsForReview(
   tx: AiBudgetTx,
   input: ReviewDraftScope,
+  effects: ReplyScopeEffects | undefined,
 ): Promise<void> {
-  await withdrawAiDrafts(tx, inReview(input))
+  await withdraw(tx, effects, inReview(input))
 }
 
 /**
@@ -317,9 +214,11 @@ export async function purgeAiDraftsForReview(
 export function purgeExpiredAiDraftsForReview(
   tx: AiBudgetTx,
   input: ReviewDraftScope,
+  effects: ReplyScopeEffects | undefined,
 ): Promise<void> {
-  return withdrawAiDrafts(
+  return withdraw(
     tx,
+    effects,
     sql`${inReview(input)}
       AND reply.ai_draft_expires_at <= transaction_timestamp()`,
   )

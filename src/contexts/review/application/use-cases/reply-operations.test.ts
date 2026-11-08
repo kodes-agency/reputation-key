@@ -368,6 +368,58 @@ const MEMBER_CTX = { role: 'Member' as const, userId: USER_ID, organizationId: O
 // ── draftReply ──────────────────────────────────────────────────────────
 
 describe('draftReply', () => {
+  it.each([
+    null,
+    { id: REPLY_ID, stateRevision: 1 },
+    { id: replyId('51000000-0000-4000-8000-000000000021'), stateRevision: 2 },
+  ])('refuses a save from a stale browser snapshot: %j', async (expectedReply) => {
+    const existing = makeReply({ stateRevision: 2 })
+    const deps = makeDeps({ replyRepo: replyRepoWith(existing) })
+
+    await expect(
+      draftReply(deps)(
+        { reviewId: REVIEW_ID, text: 'Another tab typed this', expectedReply },
+        MANAGER_CTX,
+      ),
+    ).rejects.toMatchObject({ code: 'invalid_transition' })
+    expect(deps.replyRepo.saveDraft).not.toHaveBeenCalled()
+    expect(deps.replyRepo.createDraft).not.toHaveBeenCalled()
+  })
+
+  it('does not recreate a reply deleted since the browser read it', async () => {
+    const deps = makeDeps()
+    await expect(
+      draftReply(deps)(
+        {
+          reviewId: REVIEW_ID,
+          text: 'An old browser draft',
+          expectedReply: { id: REPLY_ID, stateRevision: 1 },
+        },
+        MANAGER_CTX,
+      ),
+    ).rejects.toMatchObject({ code: 'invalid_transition' })
+    expect(deps.replyRepo.createDraft).not.toHaveBeenCalled()
+  })
+
+  it('saves the revision the browser actually read', async () => {
+    const existing = makeReply({ stateRevision: 2 })
+    const deps = makeDeps({ replyRepo: replyRepoWith(existing) })
+    const saved = await draftReply(deps)(
+      {
+        reviewId: REVIEW_ID,
+        text: 'The current browser draft',
+        expectedReply: { id: existing.id, stateRevision: 2 },
+      },
+      MANAGER_CTX,
+    )
+    expect(saved.text).toBe('The current browser draft')
+    expect(deps.replyRepo.saveDraft).toHaveBeenCalledWith(
+      existing,
+      expect.objectContaining({ text: 'The current browser draft' }),
+      NOW,
+    )
+  })
+
   it.each(['Hello Alexandra,', 'Regards, The management'])(
     'clears persisted frame boundaries after a greeting or sign-off edit: %s',
     async (replacement) => {

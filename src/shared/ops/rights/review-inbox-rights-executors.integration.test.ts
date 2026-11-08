@@ -2,6 +2,7 @@
 // scripts/ops/rights-request.ts drives them: parse, plan, run the executors.
 // Two tenants are seeded so every case proves the other one is untouched.
 
+import { reputationReplyScopeEffects } from '#/composition/reply-scope-effects'
 import { randomUUID } from 'node:crypto'
 import { drizzle } from 'drizzle-orm/node-postgres'
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest'
@@ -294,7 +295,11 @@ async function runScript(argv: string[], options: { production?: boolean } = {})
   const exit = await runRightsExecutors({
     plan: planned.plan,
     executors: [
-      createReviewRightsExecutor({ db, now: () => NOW }),
+      createReviewRightsExecutor({
+        db,
+        now: () => NOW,
+        replyEffects: reputationReplyScopeEffects,
+      }),
       createInboxRightsExecutor({ db, now: () => NOW }),
     ],
     io: { out: (line) => out.push(line), err: (line) => err.push(line) },

@@ -1,3 +1,4 @@
+import { replyScopeEffects } from '#/contexts/reputation/application/public-api'
 // LIF-01-T12/T13/T14 — Property lifecycle contribution against real
 // PostgreSQL.
 //
@@ -252,6 +253,7 @@ describe.sequential('Property Organization lifecycle contributor', () => {
 
     const result = await createPropertyOrganizationLifecycleContributor(
       db,
+      replyScopeEffects,
     ).prepareClosing(input(fixture.organizationId, lineage, revision))
 
     expect(result).toEqual({
@@ -309,6 +311,7 @@ describe.sequential('Property Organization lifecycle contributor', () => {
 
     const result = await createPropertyOrganizationLifecycleContributor(
       db,
+      replyScopeEffects,
     ).prepareClosing(input(organizationId, lineage, revision))
 
     expect(result).toEqual({
@@ -321,7 +324,10 @@ describe.sequential('Property Organization lifecycle contributor', () => {
     const fixture = await seedFixture()
     const lineage = randomUUID()
     const revision = await seedAuthority(fixture.organizationId, lineage, 'closing')
-    const contributor = createPropertyOrganizationLifecycleContributor(db)
+    const contributor = createPropertyOrganizationLifecycleContributor(
+      db,
+      replyScopeEffects,
+    )
     const before = await counts(fixture.organizationId)
 
     await expect(
@@ -374,7 +380,10 @@ describe.sequential('Property Organization lifecycle contributor', () => {
     const lineage = randomUUID()
     const revision = await seedAuthority(fixture.organizationId, lineage, 'purging')
     const bystanderBefore = await counts(bystander.organizationId)
-    const contributor = createPropertyOrganizationLifecycleContributor(db)
+    const contributor = createPropertyOrganizationLifecycleContributor(
+      db,
+      replyScopeEffects,
+    )
 
     const first = await contributor.purge(
       input(fixture.organizationId, lineage, revision),
@@ -426,7 +435,7 @@ describe.sequential('Property Organization lifecycle contributor', () => {
     )
 
     await expect(
-      createPropertyOrganizationLifecycleContributor(db).purge(
+      createPropertyOrganizationLifecycleContributor(db, replyScopeEffects).purge(
         input(fixture.organizationId, lineage, revision),
       ),
       // Postgres 23503 by code, on the driver error Drizzle wraps. The code IS

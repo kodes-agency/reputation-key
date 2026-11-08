@@ -1,3 +1,4 @@
+import { replyScopeEffects } from '#/contexts/reputation/application/public-api'
 import { hasCurrentReplyForAi } from './repositories/unanswered-review'
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 import { Pool } from 'pg'
@@ -54,6 +55,8 @@ const createTestReplyCommandStore = () =>
     getDb(),
     () => new Date(),
     async () => true,
+    undefined,
+    replyScopeEffects,
   )
 
 let pool: Pool
@@ -174,7 +177,12 @@ async function seedReviewAndReply(input: {
   const rId = input.replyId ?? REPLY_A
   const property = input.propertyId ?? PROP_A
   const db = getDb()
-  const review = await createReviewRepository(db, () => new Date()).upsert(
+  const review = await createReviewRepository(
+    db,
+    () => new Date(),
+    undefined,
+    replyScopeEffects,
+  ).upsert(
     makeReview(id, input.externalId ?? `external-${id}`, property),
     NOW,
     sha256Hex(`review-observation:${id}`),
@@ -380,7 +388,12 @@ describe.sequential('Google reply observation authority (real PostgreSQL)', () =
     expect(await store.record(input)).toMatchObject({ duplicate: false })
 
     const later = new Date(NOW.getTime() + 1_000)
-    const advanced = await createReviewRepository(getDb(), () => new Date()).upsert(
+    const advanced = await createReviewRepository(
+      getDb(),
+      () => new Date(),
+      undefined,
+      replyScopeEffects,
+    ).upsert(
       {
         ...makeReview(REVIEW_A, `external-${REVIEW_A}`),
         text: 'A materially changed review',
@@ -417,14 +430,18 @@ describe.sequential('Google reply observation authority (real PostgreSQL)', () =
     const { review } = await seedReviewAndReply({})
     await getDb().transaction(async (tx) => {
       expect(
-        await eraseReviewSourceContent(tx, {
-          reviewId: review.id,
-          organizationId: review.organizationId,
-          propertyId: review.propertyId,
-          sourceEpoch: review.sourceEpoch,
-          expectedSourceRevision: review.sourceRevision,
-          state: 'source_expired',
-        }),
+        await eraseReviewSourceContent(
+          tx,
+          {
+            reviewId: review.id,
+            organizationId: review.organizationId,
+            propertyId: review.propertyId,
+            sourceEpoch: review.sourceEpoch,
+            expectedSourceRevision: review.sourceRevision,
+            state: 'source_expired',
+          },
+          replyScopeEffects,
+        ),
       ).toBe(true)
     })
 
@@ -1088,7 +1105,12 @@ describe.sequential('Google reply observation authority (real PostgreSQL)', () =
   it('refuses a first provider claim after the Review material revision advances', async () => {
     const { review, reply } = await seedReviewAndReply({ claim: false })
     const later = new Date(NOW.getTime() + 1_000)
-    const advanced = await createReviewRepository(getDb(), () => new Date()).upsert(
+    const advanced = await createReviewRepository(
+      getDb(),
+      () => new Date(),
+      undefined,
+      replyScopeEffects,
+    ).upsert(
       {
         ...makeReview(REVIEW_A, `external-${REVIEW_A}`),
         text: 'A materially changed review after manager authorization',
@@ -1122,6 +1144,9 @@ describe.sequential('Google reply observation authority (real PostgreSQL)', () =
     const advanced = await createAtomicReviewCommandStore(
       getDb(),
       () => new Date(),
+      undefined,
+      undefined,
+      replyScopeEffects,
     ).upsertAndRecord(
       {
         ...makeReview(REVIEW_A, `external-${REVIEW_A}`),
@@ -1405,7 +1430,7 @@ describe.sequential("a re-read of Google's reply keeps its content clock alive",
   type StoredRow = Readonly<Record<string, unknown>>
 
   const seedReview = (): Promise<Review> =>
-    createReviewRepository(getDb(), () => NOW).upsert(
+    createReviewRepository(getDb(), () => NOW, undefined, replyScopeEffects).upsert(
       makeReview(REVIEW_A, 'external-reply-clock'),
     )
 
@@ -1471,14 +1496,18 @@ describe.sequential("a re-read of Google's reply keeps its content clock alive",
 
   const erase = (review: Review): Promise<boolean> =>
     getDb().transaction((tx) =>
-      eraseReviewSourceContent(tx, {
-        reviewId: review.id,
-        organizationId: review.organizationId,
-        propertyId: review.propertyId,
-        sourceEpoch: review.sourceEpoch,
-        expectedSourceRevision: review.sourceRevision,
-        state: 'source_expired',
-      }),
+      eraseReviewSourceContent(
+        tx,
+        {
+          reviewId: review.id,
+          organizationId: review.organizationId,
+          propertyId: review.propertyId,
+          sourceEpoch: review.sourceEpoch,
+          expectedSourceRevision: review.sourceRevision,
+          state: 'source_expired',
+        },
+        replyScopeEffects,
+      ),
     )
 
   const inboxReadsAt = (now: Date) =>
@@ -1910,7 +1939,7 @@ describe.sequential('RPL evidence-chain relational fences (real PostgreSQL)', ()
 
 it('background eligibility follows local and externally observed reply truth', async () => {
   const db = getDb()
-  const repository = createReviewRepository(db, () => NOW)
+  const repository = createReviewRepository(db, () => NOW, undefined, replyScopeEffects)
   const review = await repository.upsert(makeReview(REVIEW_A, 'background-eligibility'))
   const scope = { organizationId: ORG, propertyId: PROP_A, reviewId: REVIEW_A }
   expect(await hasCurrentReplyForAi(db, scope)).toBe(false)

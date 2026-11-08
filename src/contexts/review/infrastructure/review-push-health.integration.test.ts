@@ -1,3 +1,4 @@
+import { replyScopeEffects } from '#/contexts/reputation/application/public-api'
 // Push health against real PostgreSQL: the Review writer and the targeted
 // (push) fetch record when each live Review was first seen and when its push
 // was accepted, and the pure rules (shared/domain/push-health.ts) read
@@ -53,14 +54,22 @@ let clockAt = new Date()
 let activeKeyVersion = TEST_KEY_VERSION
 let insertedTestKey = false
 
-const snapshotRepository = createReviewProviderSnapshotRepository(db, () =>
-  crypto.randomUUID(),
+const snapshotRepository = createReviewProviderSnapshotRepository(
+  db,
+  () => crypto.randomUUID(),
+  replyScopeEffects,
 )
 const writer = createReviewProviderObservationWriter({
-  reviewRepo: createReviewRepository(db, () => clockAt),
+  reviewRepo: createReviewRepository(db, () => clockAt, undefined, replyScopeEffects),
   clock: () => clockAt,
   idGen: () => reviewId(crypto.randomUUID()),
-  commandStore: createAtomicReviewCommandStore(db, () => clockAt),
+  commandStore: createAtomicReviewCommandStore(
+    db,
+    () => clockAt,
+    undefined,
+    undefined,
+    replyScopeEffects,
+  ),
   googleReplyObservationStore: createGoogleReplyObservationStore(db),
   historyCutoffs: snapshotRepository,
 })

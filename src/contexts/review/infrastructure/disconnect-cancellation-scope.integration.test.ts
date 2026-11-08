@@ -1,3 +1,4 @@
+import { replyScopeEffects } from '#/contexts/reputation/application/public-api'
 // A Google disconnect cancels only publication cycles that were never
 // dispatched. Once the worker has claimed a cycle (sending) or Google has
 // accepted the write (pending_observation), the reply may already be live, so
@@ -145,12 +146,14 @@ const pendingReply = (): Reply => ({
 /** Drives the reply to `stage` through the production commands. */
 async function replyAt(stage: 'authorized' | 'sending' | 'pending_observation') {
   const db = getDb()
-  const reviewRepo = createReviewRepository(db, () => NOW)
+  const reviewRepo = createReviewRepository(db, () => NOW, undefined, replyScopeEffects)
   const replyRepo = createReplyRepository(db, () => NOW)
   const store = createAtomicReplyCommandStore(
     db,
     () => NOW,
     async () => true,
+    undefined,
+    replyScopeEffects,
   )
   const saved = await reviewRepo.upsert(review())
   const authorized = await store.markPublicationAuthorized(
@@ -277,6 +280,8 @@ describe('what a disconnect cancellation leaves on the reply', () => {
       getDb(),
       () => NOW,
       async () => true,
+      undefined,
+      replyScopeEffects,
     ).cancelPublications([
       {
         reply: queued,

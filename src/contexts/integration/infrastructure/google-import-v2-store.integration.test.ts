@@ -1,3 +1,4 @@
+import { replyScopeEffects } from '#/contexts/reputation/application/public-api'
 import { buildGoogleImportedProperty } from '#/contexts/property/application/public-api'
 import { properties } from '#/shared/db/schema/property.schema'
 import { googleConnectionId } from '#/shared/domain/ids'
@@ -102,8 +103,9 @@ function intent(now = NOW, googlePrimaryCategory?: string | null): GoogleImportV
 describe('Google import v2 fenced store (real PostgreSQL)', () => {
   const db = getDb()
   const store = createGoogleImportV2Store(db, () => NOW, {
-    ensureImportFollowUps: createPropertyGoogleBindingStore(db).ensureImportFollowUps,
-    readReceipt: createPropertyGoogleBindingStore(db).readReceipt,
+    ensureImportFollowUps: createPropertyGoogleBindingStore(db, replyScopeEffects)
+      .ensureImportFollowUps,
+    readReceipt: createPropertyGoogleBindingStore(db, replyScopeEffects).readReceipt,
     prepareImportSync: (tx, scope) =>
       fixHistoryCutoff(tx, {
         ...scope,
@@ -141,7 +143,7 @@ describe('Google import v2 fenced store (real PostgreSQL)', () => {
     const logger = createMockLogger()
     const processor = createGoogleImportV2Processor({
       store,
-      propertyBindingApi: createPropertyGoogleBindingStore(db),
+      propertyBindingApi: createPropertyGoogleBindingStore(db, replyScopeEffects),
       authorizeGoogleImportCommand: async () => ({
         ok: false,
         code: 'authorization_changed',
@@ -166,7 +168,7 @@ describe('Google import v2 fenced store (real PostgreSQL)', () => {
   }
 
   const recordReceipt = async (destination = PROPERTY_ID) => {
-    await createPropertyGoogleBindingStore(db).createBoundProperty({
+    await createPropertyGoogleBindingStore(db, replyScopeEffects).createBoundProperty({
       organizationId: organizationId(ORG_ID),
       idempotencyKey: ITEM_ID,
       now: NOW,

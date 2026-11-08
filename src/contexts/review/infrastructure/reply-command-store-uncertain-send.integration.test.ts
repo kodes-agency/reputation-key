@@ -1,3 +1,4 @@
+import { replyScopeEffects } from '#/contexts/reputation/application/public-api'
 // D3/D4 — uncertain-send grace, ambiguous read ladder and never-dispatched
 // settlement on the real database.
 //
@@ -171,12 +172,19 @@ const publishFailed = (occurredAt: Date) =>
 /** A real authorize → claim, so the attempt row starts at STARTED_AT. */
 async function claimOneAttempt() {
   const db = getDb()
-  const reviewRepo = createReviewRepository(db, () => new Date())
+  const reviewRepo = createReviewRepository(
+    db,
+    () => new Date(),
+    undefined,
+    replyScopeEffects,
+  )
   const replyRepo = createReplyRepository(db, () => new Date())
   const store = createAtomicReplyCommandStore(
     db,
     () => new Date(),
     async () => true,
+    undefined,
+    replyScopeEffects,
   )
   const review = await reviewRepo.upsert(makeReview())
   const pending = await replyRepo.upsert(pendingReply())

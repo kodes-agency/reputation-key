@@ -1,3 +1,4 @@
+import { replyScopeEffects } from '#/contexts/reputation/application/public-api'
 import { randomUUID } from 'node:crypto'
 import { eq, sql } from 'drizzle-orm'
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
@@ -63,7 +64,7 @@ function createInvocation(
   db: Database,
   options: { now?: Date; interruptAfterPage?: boolean } = {},
 ) {
-  const store = createReviewSourceContentLifecycleStore(db)
+  const store = createReviewSourceContentLifecycleStore(db, replyScopeEffects)
   const runLifecycle = vi.fn<RunReviewSourceContentLifecycle>()
   const createRecoveryRunId = vi.fn(() => NEXT_RUN_ID)
   const loadNextRecoveryGeneration = vi.fn(
@@ -166,23 +167,31 @@ async function commitRecoveryRun(
   db: Database,
   admitted: Readonly<{ recoveryInput: RecoveryFenceInput }>,
 ) {
-  return applyRecoveryFence(db, admitted.recoveryInput, (tx, now) => {
-    const binding = createPropertyGoogleBindingStore(tx as unknown as Database)
-    return completeGoogleImportsForRestore(
-      tx,
-      {
-        ensureImportFollowUps: binding.ensureImportFollowUps,
-        readReceipt: binding.readReceipt,
-        prepareImportSync: (ownerTx, scope) =>
-          fixHistoryCutoff(ownerTx, {
-            ...scope,
-            organizationId: organizationId(scope.organizationId),
-            propertyId: propertyId(scope.propertyId),
-          }),
-      },
-      now,
-    )
-  })
+  return applyRecoveryFence(
+    db,
+    admitted.recoveryInput,
+    (tx, now) => {
+      const binding = createPropertyGoogleBindingStore(
+        tx as unknown as Database,
+        replyScopeEffects,
+      )
+      return completeGoogleImportsForRestore(
+        tx,
+        {
+          ensureImportFollowUps: binding.ensureImportFollowUps,
+          readReceipt: binding.readReceipt,
+          prepareImportSync: (ownerTx, scope) =>
+            fixHistoryCutoff(ownerTx, {
+              ...scope,
+              organizationId: organizationId(scope.organizationId),
+              propertyId: propertyId(scope.propertyId),
+            }),
+        },
+        now,
+      )
+    },
+    replyScopeEffects,
+  )
 }
 
 function restoreCommand(
@@ -197,7 +206,7 @@ function restoreCommand(
   const countExpired = async () => {
     const report = await collectReviewSourceContentLifecycleReport(
       createRunReviewSourceContentLifecycle({
-        store: createReviewSourceContentLifecycleStore(db),
+        store: createReviewSourceContentLifecycleStore(db, replyScopeEffects),
         clock,
       }),
       { mode: 'report', batchSize: 100 },

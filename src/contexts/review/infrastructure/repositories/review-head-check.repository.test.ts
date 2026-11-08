@@ -1,3 +1,4 @@
+import { replyScopeEffects } from '#/contexts/reputation/application/public-api'
 // Review context — head check repository integration tests (real PostgreSQL).
 //
 // The baseline a dark head check compares Google's newest page with: the stored
@@ -85,7 +86,7 @@ async function seed(
   externalId: string,
   over: Parameters<typeof makeReview>[1] = {},
 ): Promise<Review> {
-  return createReviewRepository(db, () => NOW).upsert(
+  return createReviewRepository(db, () => NOW, undefined, replyScopeEffects).upsert(
     makeReview(externalId, over),
     NOW,
     sha256Hex(`head-check-seed:${externalId}:${over.org ?? ORG}:${nextReview}`),

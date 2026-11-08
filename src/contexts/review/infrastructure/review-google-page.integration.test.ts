@@ -1,3 +1,4 @@
+import { replyScopeEffects } from '#/contexts/reputation/application/public-api'
 // A Review's own page on Google (`reviewReplyUrl`, "Open on Google") against
 // real PostgreSQL, through the real sync observation writer.
 //
@@ -72,7 +73,7 @@ const { getPool } = setupIntegrationDb({
 
 const db = getDb()
 let now = FIRST_FETCH
-const reviewRepo = createReviewRepository(db, () => now)
+const reviewRepo = createReviewRepository(db, () => now, undefined, replyScopeEffects)
 
 // Stable provider subjects are the snapshot's concern; this Review is always
 // found by its external id, so no subject is ever matched here.
@@ -80,7 +81,13 @@ const writer = createReviewProviderObservationWriter({
   reviewRepo: { ...reviewRepo, findStableIdentityByProviderSubjects: async () => null },
   clock: () => now,
   idGen: () => reviewId(crypto.randomUUID()),
-  commandStore: createAtomicReviewCommandStore(db, () => now),
+  commandStore: createAtomicReviewCommandStore(
+    db,
+    () => now,
+    undefined,
+    undefined,
+    replyScopeEffects,
+  ),
   googleReplyObservationStore: createGoogleReplyObservationStore(db),
   historyCutoffs: { readHistoryCutoff: async () => null },
 })
@@ -196,7 +203,7 @@ async function reviewFacts(): Promise<readonly string[]> {
   return result.rows.map((row) => row.event_type)
 }
 
-const lifecycleStore = createReviewSourceContentLifecycleStore(db)
+const lifecycleStore = createReviewSourceContentLifecycleStore(db, replyScopeEffects)
 const findingsFor = async (id: ReviewId) => {
   const rows = await lifecycleStore.readInspectionBatch({
     evaluatedAt: new Date('2027-01-01T00:00:00.000Z'),
@@ -334,14 +341,18 @@ describe.sequential("a Review's own page on Google", () => {
     const id = await observe(FIRST_FETCH, REVIEW_PAGE)
 
     const erased = await db.transaction((tx) =>
-      eraseReviewSourceContent(tx, {
-        reviewId: id,
-        organizationId: ORG,
-        propertyId: PROPERTY,
-        sourceEpoch: 0,
-        expectedSourceRevision: 1,
-        state: 'provider_deleted',
-      }),
+      eraseReviewSourceContent(
+        tx,
+        {
+          reviewId: id,
+          organizationId: ORG,
+          propertyId: PROPERTY,
+          sourceEpoch: 0,
+          expectedSourceRevision: 1,
+          state: 'provider_deleted',
+        },
+        replyScopeEffects,
+      ),
     )
     expect(erased).toBe(true)
     await expect(stored(id)).resolves.toMatchObject({

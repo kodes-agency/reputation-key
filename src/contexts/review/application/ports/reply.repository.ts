@@ -102,6 +102,8 @@ export type ConditionalReplyUpdate = Readonly<{
 /** What a manager's draft save may change. Status, rejection and authorship
  * are the store's to set. */
 export type DraftReplyContent = Readonly<{
+  /** The caller named the revision it shows, so the write must find that revision. */
+  fenceStateRevision?: boolean
   measurementGenerationId?: string | null
   text: string
   replyLanguageTag?: string | null
@@ -222,7 +224,8 @@ export type ReplyRepository = Readonly<{
    * is a compare-and-set on the `save_draft` precondition
    * (domain/reply-command-preconditions.ts): `reply` must be a draft or a
    * rejected reply with no open publication, and the row must still have its
-   * status, publication state and cycle. Null otherwise, with nothing written.
+   * status, publication state and cycle (and its state revision, when the
+   * content asks for that fence). Null otherwise, with nothing written.
    *
    * An AI-assisted reply is saved over like any other, whether or not its AI
    * draft binding is still current: a manager typing over AI text makes the

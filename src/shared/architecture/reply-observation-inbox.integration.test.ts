@@ -1,3 +1,4 @@
+import { replyScopeEffects } from '#/contexts/reputation/application/public-api'
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { Pool } from 'pg'
 import { getDb, type Database } from '#/shared/db'
@@ -1032,14 +1033,18 @@ describe.sequential('Inbox provider-observation authority (real PostgreSQL)', ()
 
       await getDb().transaction(async (tx) => {
         expect(
-          await eraseReviewSourceContent(tx, {
-            reviewId: REVIEW,
-            organizationId: ORG,
-            propertyId: PROPERTY,
-            sourceEpoch: 0,
-            expectedSourceRevision: 1,
-            state: erasedState,
-          }),
+          await eraseReviewSourceContent(
+            tx,
+            {
+              reviewId: REVIEW,
+              organizationId: ORG,
+              propertyId: PROPERTY,
+              sourceEpoch: 0,
+              expectedSourceRevision: 1,
+              state: erasedState,
+            },
+            replyScopeEffects,
+          ),
         ).toBe(true)
       })
       const redacted = await pool.query(
@@ -1086,14 +1091,18 @@ describe.sequential('Inbox provider-observation authority (real PostgreSQL)', ()
     await insertObservation(deleted)
     await getDb().transaction(async (tx) => {
       expect(
-        await eraseReviewSourceContent(tx, {
-          reviewId: REVIEW,
-          organizationId: ORG,
-          propertyId: PROPERTY,
-          sourceEpoch: 0,
-          expectedSourceRevision: 1,
-          state: 'provider_deleted',
-        }),
+        await eraseReviewSourceContent(
+          tx,
+          {
+            reviewId: REVIEW,
+            organizationId: ORG,
+            propertyId: PROPERTY,
+            sourceEpoch: 0,
+            expectedSourceRevision: 1,
+            state: 'provider_deleted',
+          },
+          replyScopeEffects,
+        ),
       ).toBe(true)
     })
     await seedDeliveryEvent(EVENT_INACTIVE_DELETED)

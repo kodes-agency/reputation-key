@@ -1,3 +1,4 @@
+import { replyScopeEffects } from '#/contexts/reputation/application/public-api'
 import { sql } from 'drizzle-orm'
 import { describe, expect, it } from 'vitest'
 import { getDb, type Database } from '#/shared/db'
@@ -364,6 +365,7 @@ describe('Review lifecycle recovery execution repository (integration)', () => {
         }
         const applied = await createReviewSourceContentLifecycleStore(
           transaction,
+          replyScopeEffects,
         ).applyLifecycleBatch({
           evaluatedAt,
           after: null,

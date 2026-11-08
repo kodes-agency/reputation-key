@@ -103,7 +103,10 @@ const unavailableSubjectHmac: AiSubjectHmacPort = Object.freeze({
   },
 })
 
+import type { ReplyScopeEffects } from '#/shared/db/reply-scope-effects'
+
 export type AiContextBuildInput = Readonly<{
+  replyEffects: ReplyScopeEffects
   db: Database
   outboxRepo: OutboxRepository
   redis: Redis | undefined
@@ -145,7 +148,7 @@ export const buildAiContext = (input: AiContextBuildInput) => {
   const nowEpochMillis = input.nowEpochMillis
   const clock = () => new Date(nowEpochMillis())
   const authorization = createAiAuthorizationAdapter(input.db)
-  const control = createAiControlAdapter(input.db)
+  const control = createAiControlAdapter(input.db, input.replyEffects)
   const operations = createAiOperationStoreAdapter(input.db, input.idGen)
   const outputs = createAiOutputStoreAdapter(input.db, input.replyBrandProfiles)
   const aggregates = createAiPropertyAggregateStoreAdapter(input.db)
@@ -154,7 +157,11 @@ export const buildAiContext = (input: AiContextBuildInput) => {
   const backlog = createAiReviewAnalysisBacklogAdapter(input.db)
   const organizationSpend = createAiOrganizationSpendAdapter(input.db)
   const enrollments = createReviewAnalysisEnrollmentAdapter(input.db, input.idGen)
-  const processingProfiles = createPropertyProcessingProfileAdapter(input.db, clock)
+  const processingProfiles = createPropertyProcessingProfileAdapter(
+    input.db,
+    clock,
+    input.replyEffects,
+  )
   const inference = input.inference ?? unavailableInference
   const admission =
     input.admission ??

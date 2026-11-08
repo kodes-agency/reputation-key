@@ -1,3 +1,4 @@
+import { replyScopeEffects } from '#/contexts/reputation/application/public-api'
 import { beforeEach, describe, expect, it } from 'vitest'
 import { createAtomicReviewCommandStore } from './review-command-store'
 import { reviewCreated, reviewUpdated } from '../domain/events'
@@ -91,7 +92,13 @@ const keyOf = (read: number) => read.toString(16).padStart(64, '0')
 /** A read whose AI source changed (or a first sighting): the recorded path. */
 function recordedRead(candidate: ReviewWrite, read: number) {
   const observedAt = candidate.lastFetchedAt!
-  return createAtomicReviewCommandStore(getDb(), () => observedAt).upsertAndRecord(
+  return createAtomicReviewCommandStore(
+    getDb(),
+    () => observedAt,
+    undefined,
+    undefined,
+    replyScopeEffects,
+  ).upsertAndRecord(
     candidate,
     (persisted) =>
       (persisted.analysisSequence === 1 ? reviewCreated : reviewUpdated)({
@@ -115,13 +122,12 @@ function recordedRead(candidate: ReviewWrite, read: number) {
 /** A read whose AI source is unchanged: the quiet refresh path the sync takes. */
 function quietRead(candidate: ReviewWrite, read: number) {
   const observedAt = candidate.lastFetchedAt!
-  return createReviewRepository(getDb(), () => observedAt).upsert(
-    candidate,
-    observedAt,
-    keyOf(read),
-    'ongoing',
-    true,
-  )
+  return createReviewRepository(
+    getDb(),
+    () => observedAt,
+    undefined,
+    replyScopeEffects,
+  ).upsert(candidate, observedAt, keyOf(read), 'ongoing', true)
 }
 
 type ObservationRow = Readonly<{
@@ -170,7 +176,10 @@ const storedReview = async () =>
 
 const lifecycleFindings = async (evaluatedAt: Date) =>
   (
-    await createReviewSourceContentLifecycleStore(getDb()).readInspectionBatch({
+    await createReviewSourceContentLifecycleStore(
+      getDb(),
+      replyScopeEffects,
+    ).readInspectionBatch({
       evaluatedAt,
       after: null,
       limit: 10,
@@ -289,14 +298,18 @@ describe('re-reading a review Google reports differently', () => {
   it('writes a row when Google shows a review whose content was erased', async () => {
     await recordedRead(readAt(0), 1)
     await getDb().transaction((tx) =>
-      eraseReviewSourceContent(tx, {
-        reviewId: REVIEW,
-        organizationId: ORG,
-        propertyId: PROPERTY,
-        sourceEpoch: 0,
-        expectedSourceRevision: 1,
-        state: 'provider_deleted',
-      }),
+      eraseReviewSourceContent(
+        tx,
+        {
+          reviewId: REVIEW,
+          organizationId: ORG,
+          propertyId: PROPERTY,
+          sourceEpoch: 0,
+          expectedSourceRevision: 1,
+          state: 'provider_deleted',
+        },
+        replyScopeEffects,
+      ),
     )
 
     await quietRead(readAt(6), 2)

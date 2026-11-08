@@ -1,3 +1,4 @@
+import { replyScopeEffects } from '#/contexts/reputation/application/public-api'
 // BQC-3.4 — inbox command store + rebuild integration tests (real Postgres).
 //
 // Crash-boundary proofs on the real database:
@@ -267,7 +268,7 @@ async function insertSourceEvent(event: DomainEvent): Promise<void> {
 }
 
 async function seedReviewRevisionOne(): Promise<void> {
-  await createReviewRepository(db, () => new Date()).upsert(
+  await createReviewRepository(db, () => new Date(), undefined, replyScopeEffects).upsert(
     makeReview({ sourceRevision: 1, analysisSequence: 1 }),
     NOW,
     'f'.repeat(64),
@@ -592,7 +593,12 @@ describe.sequential('inboxCommandStore applyOnce (integration)', () => {
   )
 
   it('anchors a human Review assignment to its current Handling Cycle', async () => {
-    const reviewRepo = createReviewRepository(db, () => new Date())
+    const reviewRepo = createReviewRepository(
+      db,
+      () => new Date(),
+      undefined,
+      replyScopeEffects,
+    )
     await reviewRepo.upsert(
       makeReview({
         sourceRevision: 1,
@@ -790,7 +796,12 @@ describe.sequential('inboxCommandStore applyOnce (integration)', () => {
   })
 
   it('lets exactly one concurrent governed Review reopen advance the canonical head', async () => {
-    const reviewRepo = createReviewRepository(db, () => new Date())
+    const reviewRepo = createReviewRepository(
+      db,
+      () => new Date(),
+      undefined,
+      replyScopeEffects,
+    )
     await reviewRepo.upsert(
       makeReview({ sourceRevision: 1, analysisSequence: 1 }),
       NOW,
@@ -1050,7 +1061,12 @@ describe.sequential('inboxCommandStore applyOnce (integration)', () => {
   })
 
   it('serializes opposite-order bulk reopen batches without a row-lock cycle', async () => {
-    const reviewRepo = createReviewRepository(db, () => new Date())
+    const reviewRepo = createReviewRepository(
+      db,
+      () => new Date(),
+      undefined,
+      replyScopeEffects,
+    )
     const firstReviewId = reviewId('4d000000-0000-0000-0000-000000000018')
     const secondReviewId = reviewId('4d000000-0000-0000-0000-000000000019')
     await reviewRepo.upsert(
@@ -1467,7 +1483,12 @@ describe.sequential('inboxCommandStore applyOnce (integration)', () => {
     const item = makeItem()
     await store.createItem(item, null, { materialReviewRevision: 1 })
 
-    await createReviewRepository(db, () => new Date()).upsert(
+    await createReviewRepository(
+      db,
+      () => new Date(),
+      undefined,
+      replyScopeEffects,
+    ).upsert(
       makeReview({
         sourceRevision: 2,
         analysisSequence: 2,
@@ -1700,7 +1721,12 @@ describe.sequential('inboxCommandStore applyOnce (integration)', () => {
       'ALTER TABLE inbox_items DROP CONSTRAINT IF EXISTS inbox_items_review_source_content_free',
     )
     try {
-      const reviewRepo = createReviewRepository(db, () => new Date())
+      const reviewRepo = createReviewRepository(
+        db,
+        () => new Date(),
+        undefined,
+        replyScopeEffects,
+      )
       await reviewRepo.upsert(
         makeReview({ sourceRevision: 1, analysisSequence: 1 }),
         NOW,
@@ -2062,7 +2088,12 @@ describe.sequential('inboxCommandStore applyOnce (integration)', () => {
 
 describe.sequential('rebuildInboxProjection (integration)', () => {
   function makeRebuild() {
-    const reviewRepo = createReviewRepository(db, () => new Date())
+    const reviewRepo = createReviewRepository(
+      db,
+      () => new Date(),
+      undefined,
+      replyScopeEffects,
+    )
     const replyRepo = createReplyRepository(db, () => new Date())
     const repo = createInboxRepository(db, stubPorts, repositoryRuntime)
     const commandStore = createAtomicInboxCommandStore(db)
