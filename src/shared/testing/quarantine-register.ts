@@ -15,7 +15,7 @@
 //
 // Quarantining a test also requires skipping it at the source with a pointer
 // to the entry — and the skip itself must be registered in
-// scripts/check-test-quality.mjs (BQC-6.9 skip register).
+// eslint-rules/test-quality.mjs (BQC-6.9 skip register).
 //
 // The register is EMPTY today — the e2e suite is green with zero
 // quarantines (BQC-6.7 promoted the full suite to a hard gate).

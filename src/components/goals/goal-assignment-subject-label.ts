@@ -34,9 +34,9 @@ const SUBJECT_ORDER: Readonly<Record<GoalSubject['kind'], number>> = {
  * name order. Null for a goal with no subject. `nameOf` gives a subject's own
  * name.
  */
-export function goalListSubjectText(
-  subjects: readonly GoalSubject[],
-  nameOf: (subject: GoalSubject) => string,
+export function goalListSubjectText<Subject extends Pick<GoalSubject, 'kind'>>(
+  subjects: readonly Subject[],
+  nameOf: (subject: Subject) => string,
 ): string | null {
   const names = subjects
     .map((subject) => ({

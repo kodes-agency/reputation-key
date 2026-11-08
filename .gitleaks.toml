@@ -145,3 +145,20 @@ paths = [
 regexes = [
   '''^0f0af46b-4ed3-4d4b-b00e-7658f5de370e$''',
 ]
+
+[[rules]]
+id = "google-resource-name"
+description = "Google account, location and review resource names"
+regex = '''(?:^|[\s"'`=])(accounts/[A-Za-z0-9][A-Za-z0-9._~-]{0,254}(?:/locations/[A-Za-z0-9][A-Za-z0-9._~-]{0,254}(?:/reviews/[A-Za-z0-9][A-Za-z0-9._~-]{0,254})?)?)(?:$|[\s"'`,;)])'''
+secretGroup = 1
+keywords = ["accounts/"]
+
+[[rules.allowlists]]
+description = "Generated synthetic provider fixtures"
+condition = "AND"
+regexTarget = "secret"
+paths = [
+  '''^test-fixtures/google-provider-identifiers-v1\.json$''',
+  '''^(test-fixtures|e2e/fixtures)/generated/(google-provider-identifiers-v1\.ts|review-provider-subject-v1\.fixture\.json)$''',
+]
+regexes = ['''^accounts/repkey-synthetic-do-not-use-''']

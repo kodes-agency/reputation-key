@@ -1,6 +1,9 @@
 // Browser-safe types for the goal card. The server decides states, days and numbers.
 // Days are Property-local YYYY-MM-DD; months are YYYY-MM.
 
+import type { PortalGoalChangeFacts } from '../../monthly-goals/contracts'
+export type { PortalGoalChangeFacts } from '../../monthly-goals/contracts'
+
 import type { PortalGoalMeasure, PortalGoalRatio } from './goal-recommendation.types'
 
 /** One published Portal's steps before the number is ready (P-4). */
@@ -200,42 +203,6 @@ export type PortalGoalLastMonth = Readonly<{
    * it is still read after that day, so no day already gone is promised.
    */
   finalOn: string | null
-}>
-
-/**
- * What a change to the goal is made against, from the plan the
- * month-target command follows: the running month while its number can still
- * change (to its last day), and the month a change from a coming month starts
- * with. The sheet sends these back with the change, so a sheet left open over
- * a change made elsewhere, or over the end of a month, is refused rather than
- * changing what it never showed.
- */
-export type PortalGoalChangeFacts = Readonly<{
-  /** The running month; null with none running (not started, or it has ended). */
-  now: Readonly<{
-    /** `YYYY-MM`. */
-    monthKey: string
-    /** The number the month is judged against now. */
-    expectedTarget: number
-    /** The version the change is made against. */
-    expectedVersion: number
-    /** The month the months after take the new number from, `YYYY-MM`. */
-    expectedFollowingMonth: string
-    /**
-     * False while a change of the other measure waits for the next month
-     * ("Count scans instead"): the months after keep it, so a change now is
-     * this month's alone.
-     */
-    appliesToFollowing: boolean
-    /** The month's first instant and the next one's (ISO), for "starts below pace". */
-    period: Readonly<{ start: string; end: string }>
-    /** The zone the month's days are drawn in. */
-    timezone: string
-  }> | null
-  /** The first month a change from a coming month counts for: "From Dec 1". */
-  nextMonthKey: string
-  /** The month the sheet opens on: this one through the 20th local day, else the next. */
-  opensOn: 'now' | 'next'
 }>
 
 /**

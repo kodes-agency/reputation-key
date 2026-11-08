@@ -6,7 +6,7 @@
 // (`scripts/e2e/guest-quality.sh` says why, and builds the right one).
 //
 // For every story `guest-stories.ts` declares, against Storybook with Tailwind
-// compiled, at 320, 375 and 768 px:
+// compiled, at 320, 375 and 768 px (or its declared fixed width):
 //
 //   1. every interactive element is >= 44 px on its smaller side (a hidden
 //      radio is judged by the label a finger presses, `pane-metrics.ts`);
@@ -29,6 +29,8 @@
 // finished is the window set to the width under test and the frame's own width
 // set to match. Everything below the frame is then laid out at that width, and
 // the viewport units the page uses (`vw`, `dvh`) answer the same window.
+// A story with a declared fixed width is opened and measured at that width,
+// so its play's viewport assertions remain in force.
 //
 // ── What this cannot see ────────────────────────────────────────────────────
 //
@@ -43,6 +45,7 @@ import {
   EXCLUDED_GUEST_TITLES,
   GUEST_PANE_SELECTOR,
   GUEST_STORY_IMPORT_PREFIXES,
+  GUEST_STORY_FIXED_WIDTHS,
   GUEST_TARGET_MIN_PX,
   GUEST_VIEWPORT_HEIGHT,
   GUEST_WIDTHS,
@@ -52,7 +55,7 @@ import { measurePane, type PaneOptions } from './pane-metrics'
 import { openStory } from './storybook-story'
 import { paneViolations } from './verdicts'
 
-/** The width every story's play was written for. */
+/** The width phone stories' plays were written for. */
 const STORY_WIDTH = 390
 const REDUCED_MOTION_WIDTH = 375
 
@@ -71,7 +74,10 @@ const FRAME_MIN_WIDTH_PX = 300
  * already as wide as the window.
  */
 async function showAtWidth(page: Page, storyId: string, width: number): Promise<void> {
-  await page.setViewportSize({ width: STORY_WIDTH, height: GUEST_VIEWPORT_HEIGHT })
+  await page.setViewportSize({
+    width: GUEST_STORY_FIXED_WIDTHS[storyId] ?? STORY_WIDTH,
+    height: GUEST_VIEWPORT_HEIGHT,
+  })
   await openStory(page, storyId)
   await page.setViewportSize({ width, height: GUEST_VIEWPORT_HEIGHT })
   await page.evaluate(
@@ -156,9 +162,10 @@ async function geometryLinesFor(
   )
 }
 
-for (const width of GUEST_WIDTHS) {
-  test.describe(`geometry at ${width} px`, () => {
-    for (const storyId of MEASURED_GUEST_STORIES) {
+for (const storyId of MEASURED_GUEST_STORIES) {
+  const fixedWidth = GUEST_STORY_FIXED_WIDTHS[storyId]
+  for (const width of fixedWidth === undefined ? GUEST_WIDTHS : [fixedWidth]) {
+    test.describe(`geometry at ${width} px`, () => {
       test(storyId, async ({ page }, testInfo) => {
         await showAtWidth(page, storyId, width)
         const lines = await geometryLinesFor(page, storyId, width, (report) =>
@@ -169,8 +176,8 @@ for (const width of GUEST_WIDTHS) {
         )
         expect(lines, lines.join('\n')).toEqual([])
       })
-    }
-  })
+    })
+  }
 }
 
 /**
@@ -272,11 +279,12 @@ function motionInPage(floor: number): ReadonlyArray<MotionFinding> {
   return found
 }
 
-test.describe(`reduced motion at ${REDUCED_MOTION_WIDTH} px`, () => {
-  for (const storyId of MEASURED_GUEST_STORIES) {
+for (const storyId of MEASURED_GUEST_STORIES) {
+  const width = GUEST_STORY_FIXED_WIDTHS[storyId] ?? REDUCED_MOTION_WIDTH
+  test.describe(`reduced motion at ${width} px`, () => {
     test(storyId, async ({ page }) => {
       await page.emulateMedia({ reducedMotion: 'reduce' })
-      await showAtWidth(page, storyId, REDUCED_MOTION_WIDTH)
+      await showAtWidth(page, storyId, width)
       const findings = await page.evaluate(motionInPage, NO_MOTION_SECONDS)
       const lines = findings.map(
         (finding) =>
@@ -284,5 +292,5 @@ test.describe(`reduced motion at ${REDUCED_MOTION_WIDTH} px`, () => {
       )
       expect(lines, lines.join('\n')).toEqual([])
     })
-  }
-})
+  })
+}

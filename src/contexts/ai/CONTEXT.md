@@ -535,7 +535,7 @@ the `provider` execution-control head. Migration 0078 admits the scopes `provide
 heads only: `resolveAiExecutionStopFence` and the budget admission check read the
 deployment-profile head (`provider:<deployment profile version>`), the fence holds exactly three
 heads, and no head is seeded for a concrete provider. It needs the binding schema in
-`ai-internal-transport-contract.ts` (at its file-length ceiling, to be split first), the stop
+`ai-internal-transport-contract.ts`, the stop
 fence, the claim and the admission check wired to it, a seeded head per provider (migration 0084
 or later, since 0078 to 0083 are taken) and a test that kills provider A while B stays eligible.
 Nothing can run on Anthropic until it is selected, so nothing is exposed today.

@@ -1,3 +1,5 @@
+import type { Tx } from '#/shared/outbox/commit'
+import type { PortalRatingGoalBlock } from './running-portal-rating-goal'
 // Reporting context — the single cross-context interface for metrics, goals,
 // and dashboard reads. Implementation modules inside this context import one
 // another directly through the normal layer rules rather than through this file.
@@ -47,6 +49,16 @@ export type MetricPublicApi = Readonly<{
 
 // Goal contracts.
 export type PortalRatingGoalReadApi = Readonly<{
+  /** Caller holds the shared Property goal fence before any Portal row lock. */
+  findPortalRatingGoalBlockInTransaction(
+    tx: Tx,
+    input: Readonly<{
+      organizationId: string
+      propertyId: string
+      portalId: string
+      at: Date
+    }>,
+  ): Promise<PortalRatingGoalBlock | null>
   findPortalRatingGoalBlock(
     organizationId: string,
     propertyId: string,

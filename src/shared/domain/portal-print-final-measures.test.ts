@@ -17,6 +17,7 @@ import {
   inPt,
   mmPt,
   printFinalLiveArea,
+  printFinalBoxFits,
   printFinalOutlinePt,
   ptMm,
 } from './portal-print-final-measures'
@@ -209,5 +210,24 @@ describe('the live area (spec 2.2)', () => {
       const area = printFinalLiveArea(face({ piece }))
       expect(area.heightPt - area.live.bottomPt).toBeGreaterThanOrEqual(area.holderPt)
     }
+  })
+})
+
+describe('ink and code box containment', () => {
+  const live = { leftPt: 10, topPt: 20, rightPt: 110, bottomPt: 220 }
+  it('allows ink on each live edge', () => {
+    expect(printFinalBoxFits(live, live)).toBe(true)
+  })
+  it.each([
+    ['left edge', { leftPt: 9 }],
+    ['top edge', { topPt: 19 }],
+    ['right edge', { rightPt: 111 }],
+    ['bottom edge', { bottomPt: 221 }],
+    ['inverted width', { leftPt: 111 }],
+    ['inverted height', { topPt: 221 }],
+    ['unknown edge', { leftPt: Number.NaN }],
+    ['unbounded edge', { bottomPt: Number.POSITIVE_INFINITY }],
+  ] as const)('refuses an invalid %s', (_, over) => {
+    expect(printFinalBoxFits({ ...live, ...over }, live)).toBe(false)
   })
 })

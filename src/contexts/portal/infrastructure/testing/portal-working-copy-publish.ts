@@ -1,3 +1,4 @@
+import type { PortalRatingGoalReadApi } from '#/contexts/reporting/application/public-api'
 // Test-only: publish a Portal from a working-copy source through the real
 // command store. Used by the suites that prove what the working-copy reader, the
 // in-transaction verification and the history comparison agree on (the History
@@ -49,6 +50,10 @@ const idTail = (value: string) => value.slice(-12)
 export async function publishFromSource(
   portal: PublishedPortal,
   source: PortalPublicationSource,
+  ratingGoalGuard: Pick<
+    PortalRatingGoalReadApi,
+    'findPortalRatingGoalBlockInTransaction'
+  >,
 ): Promise<void> {
   const snapshot = buildPortalPublicationSnapshot({
     id: `6d000000-0000-4000-8000-${idTail(portal.portalId)}`,
@@ -61,7 +66,7 @@ export async function publishFromSource(
     createdBy: PUBLISHING_MANAGER,
     createdAt: WORKING_COPY_PUBLISHED_AT,
   })
-  await createAtomicPortalCommandStore(getDb()).updatePortal({
+  await createAtomicPortalCommandStore(getDb(), ratingGoalGuard).updatePortal({
     organizationId: portal.organizationId,
     propertyId: portal.propertyId,
     portalId: portal.portalId,
@@ -119,6 +124,10 @@ const WORKING_COPY_REPUBLISHED_AT = new Date('2026-08-26T13:00:00.000Z')
 export async function republishFromSource(
   portal: PublishedPortal,
   source: PortalPublicationSource,
+  ratingGoalGuard: Pick<
+    PortalRatingGoalReadApi,
+    'findPortalRatingGoalBlockInTransaction'
+  >,
 ): Promise<void> {
   const snapshot = buildPortalPublicationSnapshot({
     id: `6d100000-0000-4000-8000-${idTail(portal.portalId)}`,
@@ -131,7 +140,7 @@ export async function republishFromSource(
     createdBy: PUBLISHING_MANAGER,
     createdAt: WORKING_COPY_REPUBLISHED_AT,
   })
-  await createAtomicPortalCommandStore(getDb()).republishPortal({
+  await createAtomicPortalCommandStore(getDb(), ratingGoalGuard).republishPortal({
     organizationId: portal.organizationId,
     propertyId: portal.propertyId,
     portalId: portal.portalId,
