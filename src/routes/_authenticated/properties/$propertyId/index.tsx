@@ -16,7 +16,7 @@ import { countBlockedPortals } from '#/components/features/portal/portal-overvie
 import {
   portalNextStepOf,
   type PortalNextStep,
-} from '#/components/goals/rating-goal-portal-step'
+} from '#/contexts/reporting/rating-goals/ui/rating-goal-portal-step'
 import { usePermissions } from '#/shared/hooks/usePermissions'
 import { useCapabilities } from '#/shared/hooks/useCapabilities'
 import { can } from '#/shared/domain/permissions'

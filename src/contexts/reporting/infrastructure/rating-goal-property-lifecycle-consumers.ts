@@ -19,7 +19,7 @@ import type { Database } from '#/shared/db'
 import { eventConsumerReceipts } from '#/shared/db/schema/outbox.schema'
 import { validateEventPayload } from '#/shared/events/schema-registry'
 import type { ConsumerEvent, ConsumerRegistry, ConsumerResult } from '#/shared/outbox'
-import type { EndArchivedPropertyRatingGoal } from '../application/use-cases/rating-goals'
+import type { EndArchivedPropertyRatingGoal } from '../rating-goals/rating-goals.server'
 
 export const RATING_GOAL_PROPERTY_ARCHIVED_CONSUMER = 'goal.on-property-archived' as const
 
