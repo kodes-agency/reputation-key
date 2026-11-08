@@ -8,24 +8,31 @@ import { PageHeader } from '#/components/layout/page-header'
 import { trailCrumbs } from '#/components/layout/page-identity'
 import { PageShell } from '#/components/layout/page-shell'
 import { Alert, AlertDescription } from '#/components/ui/alert'
-import { GoalDetailLayout, GoalTiles } from './goal-detail-layout'
-import type { PortalGoalAverageChangeCommands } from './portal-goal-average-change-sheet'
-import { PortalGoalChanges } from './portal-goal-changes'
-import { PortalGoalMonthStrip } from './portal-goal-month-strip'
-import { PAGE_HEADER_ID, focusPortalGoalPageTitle } from './portal-goal-page'
-import { usePortalGoalPageActions } from './portal-goal-page-actions'
-import { TILES_LABEL, TILES_TITLE, stripChips } from './portal-goal-page-view'
+import { GoalDetailLayout, GoalTiles } from '#/components/goals/goal-detail-layout'
+import type { PortalGoalAverageChangeCommands } from '#/components/goals/portal-goal-average-change-sheet'
+import { PortalGoalChanges } from '#/components/goals/portal-goal-changes'
+import { PortalGoalMonthStrip } from '#/components/goals/portal-goal-month-strip'
+import {
+  PAGE_HEADER_ID,
+  focusPortalGoalPageTitle,
+} from '#/components/goals/portal-goal-page'
+import { usePortalGoalPageActions } from '#/components/goals/portal-goal-page-actions'
+import {
+  TILES_LABEL,
+  TILES_TITLE,
+  stripChips,
+} from '#/components/goals/portal-goal-page-view'
 import {
   averageGoalLine,
   averageTiles,
   goalStateLine,
   singleGoalTitle,
-} from './portal-goal-single-page-view'
-import type { PortalGoalStopCommands } from './portal-goal-stop-dialog'
+} from '#/components/goals/portal-goal-single-page-view'
+import type { PortalGoalStopCommands } from '#/components/goals/portal-goal-stop-dialog'
 
 type AverageView = Extract<PortalGoalSinglePageView, Readonly<{ kind: 'average' }>>
 
-const loadSheet = () => import('./portal-goal-average-change-sheet')
+const loadSheet = () => import('#/components/goals/portal-goal-average-change-sheet')
 const AverageChangeSheet = lazy(() =>
   loadSheet().then((module) => ({ default: module.PortalGoalAverageChangeSheet })),
 )
@@ -80,8 +87,8 @@ function useAverageChangeSheet(props: Props) {
   }
   const setOpen = (next: boolean) =>
     setOpening((current) => (current === null ? null : { ...current, open: next }))
-  // F-1, F-2, F-4: the latest goal, and a fresh sheet on it that says why; a
-  // latest goal that takes no change (it was stopped) closes the sheet.
+  // Reopen on the latest goal with a notice saying why; a latest goal that takes
+  // no change (it was stopped) closes the sheet.
   const onBehind = (notice: unknown) =>
     void commands.reread().then((latest) =>
       setOpening((current) => {
