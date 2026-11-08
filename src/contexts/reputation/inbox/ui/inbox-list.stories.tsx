@@ -1,11 +1,11 @@
-// Inbox list v2 — Gmail-style multi-line rows with per-row checkbox selection
+// Inbox list — Gmail-style multi-line rows with per-row checkbox selection
 // and row click to open detail. Presentational; rows are React.memo'd. Stories
 // cover populated/empty/selected states, reply-state chips, and select +
 // row-open interactions. Items use distinct reviewer names so per-row
 // aria-labels are unambiguous.
 import type { Decorator, Meta, StoryObj } from '@storybook/react'
 import { expect, fn, userEvent, within } from 'storybook/test'
-import { InboxListV2 } from './inbox-list-v2'
+import { InboxList } from './inbox-list'
 import type { InboxItem } from '#/contexts/inbox/application/public-api'
 
 // Minimal local factory — distinct names/snippets so getBy* queries are unique.
@@ -93,14 +93,14 @@ const items: ReadonlyArray<InboxItem> = [
   }),
 ]
 
-const meta: Meta<typeof InboxListV2> = {
+const meta: Meta<typeof InboxList> = {
   title: 'Inbox/Item List',
-  component: InboxListV2,
+  component: InboxList,
   tags: ['autodocs'],
   parameters: { layout: 'centered' },
 }
 export default meta
-type Story = StoryObj<typeof InboxListV2>
+type Story = StoryObj<typeof InboxList>
 
 const baseArgs = {
   items,
