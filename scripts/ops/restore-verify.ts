@@ -37,10 +37,8 @@ import {
   applyRecoveryFence,
   inspectRecoveryFence,
 } from '../../src/shared/db/recovery/postgres-recovery-fence'
-import {
-  createRetentionSweepHandler,
-  RETENTION_RULES,
-} from '../../src/shared/jobs/retention-sweep.job'
+import { createRetentionSweepHandler } from '../../src/shared/jobs/retention-sweep.job'
+import { RETENTION_RULES } from '../../src/composition/retention-rules'
 import { countRetentionRuleCandidates } from '../../src/shared/db/retention/execute-retention-rule'
 import { retentionRuleCutoff } from '../../src/shared/db/retention/retention-cutoff'
 import {

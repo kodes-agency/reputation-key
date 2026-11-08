@@ -9,15 +9,26 @@ const fakes = vi.hoisted(() => ({
   close: vi.fn(),
   out: vi.fn(),
   err: vi.fn(),
+  execute: vi.fn(async () => ({ rows: [{ count: 2 }] })),
 }))
 
 vi.mock('../../src/contexts/review/build', () => ({
   wireReviewSourceContentLifecycle: () => fakes.runLifecycle,
 }))
-vi.mock('../../src/shared/db', () => ({ getDb: () => ({}) }))
+vi.mock('../../src/shared/db', () => ({ getDb: () => ({ execute: fakes.execute }) }))
 vi.mock('../../src/shared/jobs/retention-sweep.job', () => ({
-  RETENTION_RULES: [],
   GOOGLE_IMPORT_LIFECYCLE_RETENTION_SUBJECT: 'import',
+}))
+vi.mock('../../src/composition/retention-rules', () => ({
+  RETENTION_RULES: [
+    {
+      subject: 'audit_events',
+      table: 'audit_events',
+      keyColumns: ['id'],
+      tsColumn: 'occurred_at',
+      olderThanMs: 365 * 86400000,
+    },
+  ],
 }))
 vi.mock('../../src/shared/jobs/queue', () => ({
   createJobQueue: () => ({ add: fakes.add, close: fakes.close }),
@@ -135,5 +146,37 @@ describe('purge operator command', () => {
 
     expect(fakes.add).not.toHaveBeenCalled()
     expect(process.exit).toHaveBeenCalledWith(1)
+  })
+
+  it('refuses retention apply while scheduled retention ships inactive', async () => {
+    fakes.dryRun = false
+    process.argv = [
+      'node',
+      'enqueue-purge.ts',
+      'retention',
+      '--operator',
+      'operator',
+      '--apply',
+      '--yes',
+      'ops:purge',
+    ]
+    await main()
+    expect(fakes.add).not.toHaveBeenCalled()
+    expect(fakes.err).toHaveBeenCalledWith(expect.stringMatching(/retention is inactive/))
+    expect(process.exit).toHaveBeenCalledWith(1)
+  })
+
+  it('keeps the composed-registry trial available while apply is inactive', async () => {
+    process.argv = ['node', 'enqueue-purge.ts', 'retention', '--operator', 'operator']
+    await main()
+    expect(JSON.parse(fakes.out.mock.calls[0]![0])).toMatchObject({
+      mode: 'report',
+      scheduledApplyActive: false,
+      totalEligibleRows: 2,
+      rules: [{ subject: 'audit_events', eligibleRows: 2 }],
+    })
+    expect(fakes.execute).toHaveBeenCalledOnce()
+    expect(fakes.add).not.toHaveBeenCalled()
+    expect(process.exit).toHaveBeenCalledWith(0)
   })
 })
