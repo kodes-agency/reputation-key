@@ -22,7 +22,6 @@ import {
   bindProcessPolicies,
   registerProcessPolicyColdBoot,
 } from '#/shared/auth/process-policy-binding'
-import { createSourceContentPurge } from '#/contexts/review/infrastructure/source-content-purge'
 import { notificationEmailWebConfigProblems } from '#/contexts/feed/application/notification-email-web-config'
 import { isCapabilityJobEnabled } from '#/shared/auth/beta-capabilities'
 import { createCompositionRuntime } from './composition/runtime'
@@ -111,12 +110,6 @@ function buildContainer(
     },
     ...(options ? { options } : {}),
   })
-  // BQC-1.7: the bounded lifecycle purge implementation is review-owned
-  // infrastructure — the composition root is the only layer allowed to
-  // import it (CONTEXT.md cross-context rule). LIF-01 severs it from normal
-  // Property lifecycle; Integration still uses it for governed disconnect.
-  const sourceContentPurge = createSourceContentPurge({ db, clock })
-
   const property = wireProperty(input, identity)
   const portal = wirePortal(input, identity, property, () => reporting)
   const guest = wireGuest(input, identity, portal)
@@ -126,7 +119,6 @@ function buildContainer(
     property,
     portal,
     googleProviderAuthority,
-    sourceContentPurge,
     () => review,
   )
   const aiRuntime = buildAiRuntime(runtime)
