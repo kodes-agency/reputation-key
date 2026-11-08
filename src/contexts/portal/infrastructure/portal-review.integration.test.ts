@@ -1,3 +1,4 @@
+import { createPortalRatingGoalGuard } from '#/contexts/reporting/infrastructure/portal-rating-goal-guard'
 // Review & publish (round 4, slice 31) against real PostgreSQL: the change list
 // comes from the page-edit ledger and the pending-change fence a real write
 // leaves behind, read from the instant the newest version was published, and a
@@ -74,7 +75,7 @@ beforeEach(() => {
   registerAllEventSchemas()
 })
 
-const store = () => createAtomicPortalCommandStore(getDb())
+const store = () => createAtomicPortalCommandStore(getDb(), createPortalRatingGoalGuard())
 const publicationRepo = () => createPortalPublicationRepository(getDb())
 
 async function snapshotOfDraft(id: string, version: number, at: Date) {
