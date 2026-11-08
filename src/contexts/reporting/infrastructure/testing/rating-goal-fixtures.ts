@@ -1,4 +1,15 @@
-// In-memory doubles for the Property Google rating goal use-case tests.
+// The Property Google rating goal use-case tests: the goal repository is the
+// real one over PostgreSQL; the Property facts, Google reads and policy are
+// doubles for the ports of other contexts.
+import {
+  databaseRepository,
+  nextScenarioId,
+  RATING_GOAL_ORGANIZATION,
+  RATING_GOAL_PROPERTY,
+} from './rating-goal-database'
+
+export { holdOrganization, useRatingGoalDatabase } from './rating-goal-database'
+
 import type {
   GoogleRatingDayCount,
   GoogleRatingHistory,
@@ -12,26 +23,20 @@ import type {
   GoogleShownNumber,
   ReviewGoogleRatingReads,
 } from '#/contexts/review/application/public-api'
+import type { PropertyRatingGoal, RatingGoalChange } from '../../domain/rating-goal'
+import type { RatingGoalNotice } from '../../domain/rating-goal-notices'
 import type {
-  PropertyRatingGoal,
-  RatingGoalChange,
-  RatingGoalEvaluationMark,
-} from '../domain/rating-goal'
-import type { RatingGoalNotice } from '../domain/rating-goal-notices'
-import type {
-  PropertyRatingGoalRepository,
-  RatingGoalEvaluationWrite,
   RatingGoalNotNow,
   RatingGoalPropertyFacts,
-} from '../application/ports/property-rating-goal.repository'
+} from '../../application/ports/property-rating-goal.repository'
 import type {
   GoalActor,
   GoalExecutionPolicy,
-} from '../application/use-cases/goal-program-shared'
-import type { RatingGoalDependencies } from './rating-goal-shared.server'
+} from '../../application/use-cases/goal-program-shared'
+import type { RatingGoalDependencies } from '../../rating-goals/rating-goal-shared.server'
 
-const ORG = 'org-rating-goal'
-export const PROPERTY = '30000000-0000-4000-8000-000000000001'
+const ORG = RATING_GOAL_ORGANIZATION
+export const PROPERTY = RATING_GOAL_PROPERTY
 export const NOW = new Date('2026-10-14T12:00:00.000Z')
 export const DAY = 24 * 60 * 60 * 1000
 
@@ -68,7 +73,6 @@ export type FakeWorld = {
   lowReviews: GoogleRatingLowReview[]
   /** The star split a star-distribution read answers. */
   stars: GoogleRatingStarCount[]
-  held: boolean
   goals: PropertyRatingGoal[]
   changes: RatingGoalChange[]
   /** The notices each stored evaluation wrote as facts, in order. */
@@ -120,7 +124,6 @@ export function exampleWorld(): FakeWorld {
     shown: [],
     lowReviews: [],
     stars: [1, 2, 3, 4, 5].map((stars) => ({ stars, count: 0 })),
-    held: false,
     goals: [],
     changes: [],
     notices: [],
@@ -149,193 +152,6 @@ function recording<T extends Readonly<Record<string, AnyPortFunction>>>(
     },
   ])
   return Object.fromEntries(entries) as T
-}
-
-const sameInstant = (left: Date | null, right: Date | null): boolean =>
-  (left?.getTime() ?? null) === (right?.getTime() ?? null)
-
-/** The repository's compare-and-set: the mark is still the one the write read. */
-const markUnchangedSince = (
-  stored: RatingGoalEvaluationMark,
-  { expectedMark }: RatingGoalEvaluationWrite,
-): boolean =>
-  stored.displayedTenths === expectedMark.displayedTenths &&
-  stored.knownStatus === expectedMark.knownStatus &&
-  sameInstant(stored.belowPaceNoticedAt, expectedMark.belowPaceNoticedAt) &&
-  sameInstant(stored.tooLowNoticedAt, expectedMark.tooLowNoticedAt)
-
-const evaluationChanges = (
-  stored: RatingGoalEvaluationMark,
-  write: RatingGoalEvaluationWrite,
-): boolean =>
-  write.outcome.kind !== 'continues' ||
-  stored.status !== write.status ||
-  stored.knownStatus !== write.knownStatus ||
-  (write.displayedTenths !== null && stored.displayedTenths !== write.displayedTenths)
-
-function fakeRepository(world: FakeWorld): PropertyRatingGoalRepository {
-  const find = (predicate: (goal: PropertyRatingGoal) => boolean) =>
-    world.goals.find(predicate) ?? null
-  const replace = (goal: PropertyRatingGoal) => {
-    world.goals = world.goals.map((known) => (known.id === goal.id ? goal : known))
-  }
-  return {
-    isOrganizationHeld: async () => world.held,
-    findActive: async (org, property) =>
-      find(
-        (g) =>
-          g.organizationId === org && g.propertyId === property && g.state === 'active',
-      ),
-    findById: async (org, property, id) =>
-      find((g) => g.organizationId === org && g.propertyId === property && g.id === id),
-    listHistory: async (org, property) =>
-      world.goals.filter(
-        (g) =>
-          g.organizationId === org && g.propertyId === property && g.state !== 'active',
-      ),
-    listChanges: async (_org, _property, goalId, limit) => {
-      const log = world.changes.filter((change) => change.goalId === goalId)
-      const firstPerField = log.filter(
-        (change, index) => log.findIndex((row) => row.field === change.field) === index,
-      )
-      return { recent: [...log].reverse().slice(0, limit), firstPerField }
-    },
-    insert: async (goal) => {
-      if (
-        world.goals.some((g) => g.propertyId === goal.propertyId && g.state === 'active')
-      ) {
-        return 'active_exists'
-      }
-      world.goals = [
-        ...world.goals,
-        {
-          ...goal,
-          state: 'active',
-          endedReason: null,
-          reachedAt: null,
-          endedAt: null,
-          version: 1,
-          paceSince: goal.createdAt,
-          recapAnsweredWeek: null,
-        },
-      ]
-      return 'inserted'
-    },
-    changePlan: async (change) => {
-      const goal = find((g) => g.id === change.goalId)
-      if (!goal || goal.state !== 'active') return 'not_active'
-      if (goal.version !== change.expectedVersion) return 'version_conflict'
-      replace({
-        ...goal,
-        ...change.plan,
-        paceSince: change.paceSince,
-        lastEvaluation: change.forgetsKnownStatus
-          ? { ...goal.lastEvaluation, knownStatus: null }
-          : goal.lastEvaluation,
-        version: goal.version + 1,
-      })
-      world.changes = [...world.changes, ...change.changes]
-      return 'written'
-    },
-    markRecapAnswered: async (answer) => {
-      const goal = find(
-        (g) =>
-          g.organizationId === answer.organizationId &&
-          g.propertyId === answer.propertyId &&
-          g.id === answer.goalId,
-      )
-      if (!goal || goal.state !== 'active') return false
-      const earlier =
-        goal.recapAnsweredWeek !== null && goal.recapAnsweredWeek > answer.weekStart
-      if (!earlier) replace({ ...goal, recapAnsweredWeek: answer.weekStart })
-      return true
-    },
-    endByManager: async (end) => {
-      const goal = find((g) => g.id === end.goalId)
-      if (!goal || goal.state !== 'active') return 'not_active'
-      if (goal.version !== end.expectedVersion) return 'version_conflict'
-      replace({
-        ...goal,
-        state: 'ended',
-        endedReason: 'manager',
-        endedAt: end.endedAt,
-        version: goal.version + 1,
-      })
-      return 'written'
-    },
-    recordEvaluation: async (write) => {
-      const goal = find((g) => g.id === write.goalId)
-      if (!goal || goal.state !== 'active' || goal.version !== write.expectedVersion) {
-        return false
-      }
-      const storedAt = goal.lastEvaluation.evaluatedAt
-      if (storedAt !== null && storedAt.getTime() > write.evaluatedAt.getTime()) {
-        return false
-      }
-      if (!markUnchangedSince(goal.lastEvaluation, write)) return false
-      if (!evaluationChanges(goal.lastEvaluation, write)) return false
-      world.notices = [
-        ...world.notices,
-        ...write.notices.map((notice) => ({ ...notice, goalId: goal.id })),
-      ]
-      replace({
-        ...goal,
-        lastEvaluation: {
-          status: write.status,
-          displayedTenths: write.displayedTenths ?? goal.lastEvaluation.displayedTenths,
-          evaluatedAt: write.evaluatedAt,
-          knownStatus: write.knownStatus,
-          belowPaceNoticedAt: write.belowPaceNoticedAt,
-          tooLowNoticedAt: write.tooLowNoticedAt,
-        },
-        ...(write.outcome.kind === 'reached'
-          ? { state: 'reached' as const, reachedAt: write.evaluatedAt }
-          : {}),
-        ...(write.outcome.kind === 'ended'
-          ? {
-              state: 'ended' as const,
-              endedReason: write.outcome.reason,
-              endedAt: write.evaluatedAt,
-            }
-          : {}),
-      })
-      return true
-    },
-    listActiveGoalScopes: async (after, limit) =>
-      world.goals
-        .filter((g) => g.state === 'active' && (after === null || g.id > after.goalId))
-        .sort((left, right) => (left.id < right.id ? -1 : 1))
-        .slice(0, limit)
-        .map((g) => ({
-          goalId: g.id,
-          organizationId: g.organizationId,
-          propertyId: g.propertyId,
-        })),
-    endForArchivedProperty: async (archive) => {
-      const goal = find(
-        (g) =>
-          g.organizationId === archive.organizationId &&
-          g.propertyId === archive.propertyId &&
-          g.state === 'active' &&
-          g.sourceEpoch < archive.archivedEpoch,
-      )
-      if (!goal) return false
-      replace({
-        ...goal,
-        state: 'ended',
-        endedReason: 'property_archived',
-        endedAt: archive.endedAt,
-      })
-      return true
-    },
-    recordNotNow: async (choice) => {
-      if (world.notNow.some((known) => known.propertyId === choice.propertyId)) {
-        return false
-      }
-      world.notNow = [...world.notNow, choice]
-      return true
-    },
-  }
 }
 
 function fakeReviews(world: FakeWorld): ReviewGoogleRatingReads {
@@ -406,9 +222,8 @@ const fakePolicy = (world: FakeWorld): GoalExecutionPolicy => ({
 })
 
 export function dependencies(world: FakeWorld): RatingGoalDependencies {
-  let next = 0
   return {
-    repository: recording(world, 'repository', fakeRepository(world)),
+    repository: recording(world, 'repository', databaseRepository(world)),
     properties: recording(world, 'properties', {
       findPropertyFacts: async () => world.facts,
     }),
@@ -425,7 +240,7 @@ export function dependencies(world: FakeWorld): RatingGoalDependencies {
     }),
     reviews: recording(world, 'reviews', fakeReviews(world)),
     policy: recording(world, 'policy', fakePolicy(world)),
-    id: () => `40000000-0000-4000-8000-${String(++next).padStart(12, '0')}`,
+    id: () => nextScenarioId(),
     now: () => NOW,
   }
 }

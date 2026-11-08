@@ -1164,7 +1164,7 @@ test.describe('Critical: beta-local-1 product journeys', () => {
 
     // Revision is not exercised here. A program that has not started can be
     // revised (the change replaces the version that was waiting and keeps the
-    // start month), and goal-programs.test.ts and the repository suite cover
+    // start month), and goal-programs.integration.test.ts and the repository suite cover
     // that and the other revision rules directly.
 
     // A program that starts next month is 'scheduled' until that month begins,
