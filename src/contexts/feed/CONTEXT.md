@@ -252,7 +252,11 @@ Organization notices are never hidden.
 
 Settings controls and their serialized save hook live in
 `src/components/features/settings/notification-*.{ts,tsx}` and
-`use-notification-preference-saves.ts`. Preference reads, apply-default writes,
+`use-notification-preference-saves.ts`. Saves, two-channel defaults and
+multi-Property resets share one browser write queue per
+category in `notification-preference-writes.ts`: a reset waits for earlier saves,
+and later edits use the inherited values or new default it established. Other
+categories remain independent. Preference reads, apply-default writes,
 resets and mute Undo share their user/Organization/Property/category scope in
 `infrastructure/repositories/notification-preference.repository.ts`. Property
 quiet-window reads and clearing share their recipient scope there too. Undo
