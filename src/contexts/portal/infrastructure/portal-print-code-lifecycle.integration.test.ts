@@ -1,3 +1,4 @@
+import { createPortalRatingGoalGuard } from '#/contexts/reporting/infrastructure/portal-rating-goal-guard'
 // The life of a code's print codes on real PostgreSQL (ADR 0069 decisions 6 and 7).
 //
 // Issue and replace store both keyed hashes with the new row in one transaction;
@@ -100,7 +101,7 @@ function wire(options: Wiring = {}) {
   const db = getDb()
   const portalRepo = createPortalRepository(db)
   const portalTokenRepo = createPortalTokenRepository(db)
-  const commandStore = createAtomicPortalCommandStore(db)
+  const commandStore = createAtomicPortalCommandStore(db, createPortalRatingGoalGuard())
   const codec = options.codec ?? testPortalTokenCodec()
   const addressCipher = options.keyring === false ? null : cipher
   const reported: PrintCodeProblem[] = []
