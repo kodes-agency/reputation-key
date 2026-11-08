@@ -21,8 +21,8 @@
 //     delete it.
 
 import { sql } from 'drizzle-orm'
-import type { Database } from '#/shared/db'
 import { organizationId, portalId, propertyId } from '#/shared/domain/ids'
+import type { Database } from '#/shared/db'
 import {
   createOrganizationLifecycleContributorScaffold,
   type OrganizationLifecycleContributionRequest,
@@ -30,7 +30,12 @@ import {
 } from '#/shared/db/lifecycle/organization-lifecycle-receipt-store'
 import type { Tx } from '#/shared/outbox/commit'
 import type { OrganizationLifecycleContributor } from '#/contexts/identity/application/ports/organization-lifecycle-contributor.port'
-import { createPortalLifetimeAggregateRepository } from '../repositories/portal-lifetime-aggregate.repository'
+import { portalMetricEvidenceSql } from '../../portal-results/portal-analytics-evidence.server'
+import {
+  portalEvidenceFamilies,
+  foldEvidenceRows,
+  type EvidenceRow,
+} from '../../portal-results/portal-analytics-shared.server'
 
 const CONTEXT = 'metric' as const
 
@@ -91,26 +96,12 @@ async function countTenantRows(tx: Tx, organization: string): Promise<number> {
   return count((result.rows[0] as { rows?: unknown } | undefined)?.rows)
 }
 
-type LifetimeScopeRow = Readonly<{
-  property_id: unknown
-  portal_id: unknown
-}>
-
-async function listLifetimeScopes(
-  tx: Tx,
-  organization: string,
-): Promise<ReadonlyArray<Readonly<{ propertyId: string; portalId: string }>>> {
+async function listPortalScopes(tx: Tx, organization: string) {
   const result = await tx.execute(sql`
-    SELECT property_id::text AS property_id, portal_id::text AS portal_id
-    FROM portal_metric_lifetime_aggregates
-    WHERE organization_id = ${organization}
-    ORDER BY property_id, portal_id
+    SELECT property_id::text AS property_id, id::text AS portal_id
+    FROM portals WHERE organization_id = ${organization}
   `)
-  return (result.rows as unknown as LifetimeScopeRow[]).flatMap((row) =>
-    typeof row.property_id === 'string' && typeof row.portal_id === 'string'
-      ? [{ propertyId: row.property_id, portalId: row.portal_id }]
-      : [],
-  )
+  return result.rows as Array<{ property_id: string; portal_id: string }>
 }
 
 /**
@@ -141,53 +132,45 @@ const prepareClosing = async (
   }
 }
 
-/**
- * Purge readiness — READ ONLY, and a real blocker.
- *
- * LIF-01 bullet 11 requires corrections and withdrawals to be applied to the
- * anonymous lifetime aggregate BEFORE the matching source facts are purged.
- * `portalLifetime.inspect` is the existing read-only parity check for exactly
- * that: it recomputes sealed baseline + retained effective facts under the
- * projection lock and reports whether the stored totals match. A row that does
- * not match means a correction/withdrawal has not yet reached the aggregate,
- * so crossing the irreversible boundary would freeze a wrong anonymous total
- * and destroy the source facts needed to rebuild it.
- *
- * A blocker THROWS. The coordinator leaves the lifecycle state at `closing`,
- * no receipt is written (the phase shares this transaction), and the next pass
- * re-verifies. Reporting ready to keep things moving is never an option.
- */
+/** Pending corrections must settle before their source facts can be purged. */
 const verifyPurgeReadiness = async (
   tx: Tx,
   request: OrganizationLifecycleContributionRequest,
 ): Promise<OrganizationLifecyclePhaseOutcome> => {
   const rows = await countTenantRows(tx, request.organizationId)
-  const scopes = await listLifetimeScopes(tx, request.organizationId)
-  // The repository already runs its own reads through `tx as Database`; the
-  // savepoint it opens keeps the parity check inside this transaction, and
-  // `inspect` never writes. The clock is pinned to the supplied `occurredAt`
-  // so this phase reads no wall clock of its own.
-  const lifetime = createPortalLifetimeAggregateRepository(
-    tx as unknown as Database,
-    () => request.occurredAt,
-  )
-  let unreconciled = 0
-  for (const scope of scopes) {
-    const inspection = await lifetime.inspect({
-      organizationId: organizationId(request.organizationId),
-      propertyId: propertyId(scope.propertyId),
-      portalId: portalId(scope.portalId),
-    })
-    if (!inspection.matched) unreconciled += 1
-  }
-  if (unreconciled > 0) {
-    throw new Error(
-      `metric purge readiness blocked: ${unreconciled} portal lifetime aggregate(s) do not reflect current corrections`,
+  const scopes = await listPortalScopes(tx, request.organizationId)
+  if (scopes.length > 0) {
+    const portalIds = scopes.map((scope) => scope.portal_id)
+    const result = await tx.execute(
+      portalMetricEvidenceSql(portalEvidenceFamilies(), {
+        organizationId: organizationId(request.organizationId),
+        portalIds: portalIds.map(portalId),
+        propertyIds: [...new Set(scopes.map((scope) => scope.property_id))].map(
+          propertyId,
+        ),
+        startDate: new Date(0),
+        endDate: request.occurredAt,
+      }),
     )
+    const evidence = foldEvidenceRows(
+      result.rows as EvidenceRow[],
+      portalIds,
+      new Map(),
+      request.occurredAt,
+    )
+    if (
+      [...evidence.values()].some((families) =>
+        Object.values(families).some((family) => family.state !== 'ready'),
+      )
+    ) {
+      throw new Error(
+        'metric purge readiness blocked: Portal source facts have not settled',
+      )
+    }
   }
   return {
     outcome: outcomeFor(rows),
-    evidenceRef: evidenceRef('purge_readiness', 'lifetime_parity_verified', rows),
+    evidenceRef: evidenceRef('purge_readiness', 'source_facts_verified', rows),
   }
 }
 

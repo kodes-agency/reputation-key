@@ -3,7 +3,7 @@
 // versions fail closed and invalid events are explicitly rejected.
 
 import type { AttributionQuality } from './attribution-quality'
-import type { SourcePolicyClass } from './metric-registry'
+import type { SourcePolicyClass } from '../readings/contracts'
 import type {
   MetricReadingId,
   OrganizationId,
@@ -68,36 +68,21 @@ export type ReadingResult =
       actualSample: number
     }
 
-/**
- * Create a new metric reading.
- *
- * Idempotency: the unique key is (definition_version_id, source_event_id, target_dimension).
- * If a reading with the same key already exists, it is a duplicate.
- */
-export function createReading(params: {
-  id: MetricReadingId
-  definitionVersionId: string
-  metricKey: MetricKey
-  organizationId: OrganizationId
-  propertyId: PropertyId
-  portalGroupId?: PortalGroupId | null
-  portalId?: PortalId | null
-  portalLinkId?: string | null
-  value: number
-  numerator?: number | null
-  denominator?: number | null
-  duration?: number | null
-  sampleCount: number
-  sourceEventId: string
-  sourcePolicy: SourcePolicyClass
-  occurredAt: Date
-  propertyLocalDate: string
-  attributionQuality: AttributionQuality
-  dataQuality?: ReadingDataQuality
-  retentionClass: string
-  staffAttribution?: PrimaryStaffAttributionSnapshot | null
-  now: Date
-}): MetricReading {
+type DefaultedReadingFields =
+  | 'portalGroupId'
+  | 'portalId'
+  | 'portalLinkId'
+  | 'numerator'
+  | 'denominator'
+  | 'duration'
+  | 'dataQuality'
+  | 'staffAttribution'
+
+type CreateReadingInput = Omit<MetricReading, DefaultedReadingFields | 'recordedAt'> &
+  Partial<Pick<MetricReading, DefaultedReadingFields>> & { now: Date }
+
+/** Source idempotency is enforced by the definition version and target dimension. */
+export function createReading(params: CreateReadingInput): MetricReading {
   return {
     id: params.id,
     definitionVersionId: params.definitionVersionId,

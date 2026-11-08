@@ -28,7 +28,7 @@ import {
   findMetricVersionById,
   METRIC_DEFINITION_IDS,
   METRIC_VERSION_IDS,
-} from '../../domain/metric-registry'
+} from '../../readings/contracts'
 import type { GoalProgramBundle } from '../../application/ports/goal-program.repository'
 import type { GoalProgramDependencies } from '../../application/use-cases/goal-program-shared'
 import { maintain } from '../../application/use-cases/goal-program-maintenance'

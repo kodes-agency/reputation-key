@@ -9324,6 +9324,18 @@
     "checks": ["targets"]
   },
   {
+    "storyId": "portal-analytics-results--retained-history",
+    "state": "Retained History",
+    "width": 320,
+    "checks": ["targets"]
+  },
+  {
+    "storyId": "portal-analytics-results--retained-history",
+    "state": "Retained History",
+    "width": 390,
+    "checks": ["targets"]
+  },
+  {
     "storyId": "portal-analytics-results-tab--with-own-goal",
     "state": "With Own Goal",
     "width": 320,

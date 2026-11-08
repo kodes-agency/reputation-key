@@ -29,7 +29,6 @@ export const COMMANDS: Readonly<
   purge: ['scripts/ops/enqueue-purge.ts'],
   quarantine: ['scripts/ops/quarantine-redrive.ts'],
   queue: ['scripts/ops/queue-quarantine.ts'],
-  'rebuild-metric-projection': ['scripts/ops/rebuild-metric-projection.ts'],
   'rebuild-projection': ['scripts/ops/rebuild-projection.ts'],
   'reconcile-publication': ['scripts/ops/reconcile-publication.ts'],
   refresh: ['scripts/ops/enqueue-refresh.ts'],

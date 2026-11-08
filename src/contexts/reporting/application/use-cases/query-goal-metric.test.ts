@@ -1,9 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 import { organizationId, propertyId } from '#/shared/domain/ids'
-import {
-  METRIC_VERSION_IDS,
-  type GovernedMetricVersion,
-} from '../../domain/metric-registry'
+import { METRIC_VERSION_IDS, type GovernedMetricVersion } from '../../readings/contracts'
 import type { GoalMetricSourceStatus } from '../ports/goal-metric-source-status.port'
 import type { GoalMetricAggregate, GoalMetricSubject } from '../ports/metric.repository'
 import { queryGoalMetric } from './query-goal-metric'

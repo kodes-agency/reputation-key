@@ -16,7 +16,7 @@ import {
 import { sql, type SQL } from 'drizzle-orm'
 import type { Database } from '#/shared/db'
 import type { PortalGoalMeasure } from '../../domain/goal-recommendation-types'
-import { METRIC_VERSION_IDS } from '../../domain/metric-registry'
+import { METRIC_VERSION_IDS } from '../../readings/contracts'
 import type {
   GoalRecommendationCounts,
   GoalRecommendationCountsQuery,

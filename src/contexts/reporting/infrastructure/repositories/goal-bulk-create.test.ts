@@ -12,7 +12,7 @@ import {
 } from '../../application/use-cases/goal-bulk-create'
 import type { GoalActor } from '../../application/use-cases/goal-programs'
 import type { GoalSubject } from '../../domain/goal-program'
-import { findMetricVersionById } from '../../domain/metric-registry'
+import { findMetricVersionById } from '../../readings/contracts'
 import { createGoalProgramRepository } from './goal-program.repository'
 
 const MID_MARCH = new Date('2026-03-15T12:00:00.000Z')
