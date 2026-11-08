@@ -1,17 +1,15 @@
+import { AI_JSON_MAX_BYTES } from './ai-json'
 import { sign, verify, type KeyObject } from 'node:crypto'
 import { z } from 'zod/v4'
 import { canonicalizeRfc8785 } from './merchant-ai-notice-contract'
 import type { VersionedHmacKeyring } from './security/versioned-hmac-keyring'
 
 export const AI_REVIEW_ROUTE_MAX_BYTES = 65_536 as const
-export const AI_TREND_ROUTE_MAX_BYTES = 131_072 as const
-export const AI_AUTHORIZE_MAX_BYTES = 65_536 as const
-export const AI_SETTLE_MAX_BYTES = 16_384 as const
+export const AI_TREND_ROUTE_MAX_BYTES = AI_JSON_MAX_BYTES
 export const AI_INTERNAL_RESPONSE_MAX_BYTES = 65_536 as const
 
 const REQUEST_BINDING_AUDIENCE = 'ai-request-binding-v1'
 const GRANT_DOMAIN = 'ai-execution-grant-v1\0'
-const INTERNAL_ERROR = 'AI internal request is invalid'
 const SAFE_ID = /^[A-Za-z0-9._:@/-]{1,255}$/
 const KEY_ID = /^[a-z][a-z0-9_-]{0,31}$/
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/
@@ -19,367 +17,6 @@ const SHA256 = /^[0-9a-f]{64}$/
 const RELEASE_SHA = /^[0-9a-f]{40}$/
 const BASE64URL = /^[A-Za-z0-9_-]+$/
 const HMAC = /^[A-Za-z0-9_-]{43}$/
-
-export const AI_INTERNAL_JSON_MAX_DEPTH = 64 as const
-export const AI_INTERNAL_JSON_MAX_NODES = 10_000 as const
-
-function fail(): never {
-  throw new TypeError(INTERNAL_ERROR)
-}
-
-function hasOnlyUnicodeScalars(value: string): boolean {
-  for (let index = 0; index < value.length; index += 1) {
-    const unit = value.charCodeAt(index)
-    if (unit >= 0xd800 && unit <= 0xdbff) {
-      if (index + 1 >= value.length) return false
-      const next = value.charCodeAt(index + 1)
-      if (next < 0xdc00 || next > 0xdfff) return false
-      index += 1
-    } else if (unit >= 0xdc00 && unit <= 0xdfff) {
-      return false
-    }
-  }
-  return true
-}
-
-/**
- * `safe-integers` is the internal-transport invariant: our own services encode
- * every number as a safe integer, so anything fractional is a defect or an
- * injection. `finite-numbers` is for third-party provider bodies, which
- * legitimately echo fractional sampling parameters such as `top_p`.
- */
-export type AiJsonNumberPolicy = 'safe-integers' | 'finite-numbers'
-
-function validateParsedJson(value: unknown, numbers: AiJsonNumberPolicy): void {
-  let nodeCount = 0
-  const visit = (entry: unknown, depth: number): void => {
-    nodeCount += 1
-    if (depth > AI_INTERNAL_JSON_MAX_DEPTH || nodeCount > AI_INTERNAL_JSON_MAX_NODES) {
-      fail()
-    }
-    if (typeof entry === 'string') {
-      if (!hasOnlyUnicodeScalars(entry)) fail()
-      return
-    }
-    if (typeof entry === 'number') {
-      if (!Number.isFinite(entry)) fail()
-      if (numbers === 'safe-integers' && !Number.isSafeInteger(entry)) fail()
-      return
-    }
-    if (entry === null || typeof entry === 'boolean') return
-    if (Array.isArray(entry)) {
-      for (const child of entry) visit(child, depth + 1)
-      return
-    }
-    if (typeof entry !== 'object' || Object.getPrototypeOf(entry) !== Object.prototype) {
-      fail()
-    }
-    for (const [key, child] of Object.entries(entry)) {
-      if (!hasOnlyUnicodeScalars(key)) fail()
-      visit(child, depth + 1)
-    }
-  }
-  visit(value, 1)
-}
-
-function isJsonWhitespace(code: number): boolean {
-  return code === 0x09 || code === 0x0a || code === 0x0d || code === 0x20
-}
-
-function scanJsonNumber(raw: string, start: number): number | null {
-  let cursor = start
-  if (raw.charCodeAt(cursor) === 0x2d) cursor += 1
-  const integerStart = cursor
-  const first = raw.charCodeAt(cursor)
-  if (first === 0x30) {
-    cursor += 1
-  } else if (first >= 0x31 && first <= 0x39) {
-    cursor += 1
-    while (raw.charCodeAt(cursor) >= 0x30 && raw.charCodeAt(cursor) <= 0x39) cursor += 1
-  } else {
-    return null
-  }
-  if (cursor === integerStart) return null
-  if (raw.charCodeAt(cursor) === 0x2e) {
-    cursor += 1
-    const fractionStart = cursor
-    while (raw.charCodeAt(cursor) >= 0x30 && raw.charCodeAt(cursor) <= 0x39) cursor += 1
-    if (cursor === fractionStart) return null
-  }
-  const exponent = raw.charCodeAt(cursor)
-  if (exponent === 0x45 || exponent === 0x65) {
-    cursor += 1
-    const sign = raw.charCodeAt(cursor)
-    if (sign === 0x2b || sign === 0x2d) cursor += 1
-    const exponentStart = cursor
-    while (raw.charCodeAt(cursor) >= 0x30 && raw.charCodeAt(cursor) <= 0x39) cursor += 1
-    if (cursor === exponentStart) return null
-  }
-  return cursor
-}
-
-function scanStrictJson(raw: string): void {
-  let offset = 0
-  let nodeCount = 0
-  const skipWhitespace = () => {
-    while (offset < raw.length && isJsonWhitespace(raw.charCodeAt(offset))) offset += 1
-  }
-  const scanString = (): string => {
-    const start = offset
-    if (raw[offset] !== '"') fail()
-    offset += 1
-    while (offset < raw.length) {
-      const code = raw.charCodeAt(offset)
-      if (code === 0x22) {
-        offset += 1
-        try {
-          const value = JSON.parse(raw.slice(start, offset)) as unknown
-          if (typeof value !== 'string' || !hasOnlyUnicodeScalars(value)) fail()
-          return value
-        } catch {
-          fail()
-        }
-      }
-      if (code < 0x20) fail()
-      if (code === 0x5c) {
-        offset += 1
-        const escape = raw[offset]
-        if (escape === 'u') {
-          if (!/^[0-9a-fA-F]{4}$/u.test(raw.slice(offset + 1, offset + 5))) fail()
-          offset += 5
-          continue
-        }
-        if (escape === undefined || !'"\\/bfnrt'.includes(escape)) fail()
-      }
-      offset += 1
-    }
-    fail()
-  }
-  const scanValue = (depth: number): void => {
-    nodeCount += 1
-    if (depth > AI_INTERNAL_JSON_MAX_DEPTH || nodeCount > AI_INTERNAL_JSON_MAX_NODES) {
-      fail()
-    }
-    skipWhitespace()
-    const token = raw.charCodeAt(offset)
-    // JSON syntax bytes are public input, not secrets requiring constant-time comparison.
-    // eslint-disable-next-line security/detect-possible-timing-attacks
-    if (token === 0x22) {
-      scanString()
-      return
-    }
-    // JSON syntax bytes are public input, not secrets requiring constant-time comparison.
-    // eslint-disable-next-line security/detect-possible-timing-attacks
-    if (token === 0x7b) {
-      offset += 1
-      skipWhitespace()
-      const keys = new Set<string>()
-      if (raw.charCodeAt(offset) === 0x7d) {
-        offset += 1
-        return
-      }
-      while (offset < raw.length) {
-        skipWhitespace()
-        const key = scanString()
-        if (keys.has(key)) fail()
-        keys.add(key)
-        skipWhitespace()
-        if (raw.charCodeAt(offset) !== 0x3a) fail()
-        offset += 1
-        scanValue(depth + 1)
-        skipWhitespace()
-        if (raw.charCodeAt(offset) === 0x7d) {
-          offset += 1
-          return
-        }
-        if (raw.charCodeAt(offset) !== 0x2c) fail()
-        offset += 1
-      }
-      fail()
-    }
-    // JSON syntax bytes are public input, not secrets requiring constant-time comparison.
-    // eslint-disable-next-line security/detect-possible-timing-attacks
-    if (token === 0x5b) {
-      offset += 1
-      skipWhitespace()
-      if (raw.charCodeAt(offset) === 0x5d) {
-        offset += 1
-        return
-      }
-      while (offset < raw.length) {
-        scanValue(depth + 1)
-        skipWhitespace()
-        if (raw.charCodeAt(offset) === 0x5d) {
-          offset += 1
-          return
-        }
-        if (raw.charCodeAt(offset) !== 0x2c) fail()
-        offset += 1
-      }
-      fail()
-    }
-    let literalLength = 0
-    if (raw.startsWith('true', offset) || raw.startsWith('null', offset)) {
-      literalLength = 4
-    } else if (raw.startsWith('false', offset)) {
-      literalLength = 5
-    }
-    if (literalLength > 0) {
-      offset += literalLength
-      return
-    }
-    const numberEnd = scanJsonNumber(raw, offset)
-    if (numberEnd !== null) {
-      offset = numberEnd
-      return
-    }
-    fail()
-  }
-  scanValue(1)
-  skipWhitespace()
-  if (offset !== raw.length) fail()
-}
-
-export function parseStrictInternalJsonBytes<T>(
-  bytes: Uint8Array,
-  maxBytes: number,
-  schema: z.ZodType<T>,
-  numbers: AiJsonNumberPolicy = 'safe-integers',
-): T {
-  if (
-    !Number.isSafeInteger(maxBytes) ||
-    maxBytes < 1 ||
-    maxBytes > 8 * 1024 * 1024 ||
-    bytes.byteLength < 1 ||
-    bytes.byteLength > maxBytes ||
-    (bytes.byteLength >= 3 && bytes[0] === 0xef && bytes[1] === 0xbb && bytes[2] === 0xbf)
-  ) {
-    fail()
-  }
-  try {
-    const raw = new TextDecoder('utf-8', { fatal: true }).decode(bytes)
-    scanStrictJson(raw)
-    const value = JSON.parse(raw) as unknown
-    validateParsedJson(value, numbers)
-    return schema.parse(value)
-  } catch {
-    fail()
-  }
-}
-
-/**
- * Diagnostic twin of `parseStrictInternalJsonBytes`: names the first rule the
- * bytes violate and the JSON path that violates it, instead of the opaque
- * `fail()`. Operator and canary diagnostics only — never on a caller path.
- */
-export function explainJsonBytesRejection(
-  bytes: Uint8Array,
-  maxBytes: number,
-  numbers: AiJsonNumberPolicy = 'safe-integers',
-): string {
-  if (!Number.isSafeInteger(maxBytes) || maxBytes < 1 || maxBytes > 8 * 1024 * 1024) {
-    return `max_bytes:${maxBytes}`
-  }
-  if (bytes.byteLength < 1 || bytes.byteLength > maxBytes) {
-    return `byte_length:${bytes.byteLength}`
-  }
-  if (
-    bytes.byteLength >= 3 &&
-    bytes[0] === 0xef &&
-    bytes[1] === 0xbb &&
-    bytes[2] === 0xbf
-  ) {
-    return 'bom'
-  }
-  let raw: string
-  try {
-    raw = new TextDecoder('utf-8', { fatal: true }).decode(bytes)
-  } catch {
-    return 'utf8'
-  }
-  let scan = 'scan:ok'
-  try {
-    scanStrictJson(raw)
-  } catch {
-    scan = 'scan:fail'
-  }
-  let parsed: unknown
-  try {
-    parsed = JSON.parse(raw) as unknown
-  } catch {
-    return `${scan};parse:fail`
-  }
-  let violation = 'ok'
-  let nodeCount = 0
-  const visit = (entry: unknown, depth: number, path: string): boolean => {
-    nodeCount += 1
-    if (depth > AI_INTERNAL_JSON_MAX_DEPTH) {
-      violation = `depth:${path}`
-      return false
-    }
-    if (nodeCount > AI_INTERNAL_JSON_MAX_NODES) {
-      violation = `nodes:${path}`
-      return false
-    }
-    if (typeof entry === 'string') {
-      if (!hasOnlyUnicodeScalars(entry)) violation = `string_surrogate:${path}`
-      return violation === 'ok'
-    }
-    if (typeof entry === 'number') {
-      if (!Number.isFinite(entry)) violation = `number_not_finite:${path}`
-      else if (numbers === 'safe-integers' && !Number.isSafeInteger(entry)) {
-        violation = `number_not_integer:${path}=${String(entry)}`
-      }
-      return violation === 'ok'
-    }
-    if (entry === null || typeof entry === 'boolean') return true
-    if (Array.isArray(entry)) {
-      for (const [index, child] of entry.entries()) {
-        if (!visit(child, depth + 1, `${path}[${index}]`)) return false
-      }
-      return true
-    }
-    if (typeof entry !== 'object' || Object.getPrototypeOf(entry) !== Object.prototype) {
-      violation = `prototype:${path}`
-      return false
-    }
-    for (const [key, child] of Object.entries(entry)) {
-      if (!hasOnlyUnicodeScalars(key)) {
-        violation = `key_surrogate:${path}.${key.length}ch`
-        return false
-      }
-      if (!visit(child, depth + 1, `${path}.${key}`)) return false
-    }
-    return true
-  }
-  visit(parsed, 1, '$')
-  return `${scan};parse:ok;validate:${violation};nodes:${nodeCount}`
-}
-
-export function parseAiInternalJsonBytes<T>(
-  bytes: Uint8Array,
-  maxBytes: number,
-  schema: z.ZodType<T>,
-): T {
-  if (maxBytes > AI_TREND_ROUTE_MAX_BYTES) fail()
-  return parseStrictInternalJsonBytes(bytes, maxBytes, schema)
-}
-
-/**
- * Provider response bodies get every internal rule — byte cap, fatal UTF-8, no
- * BOM, strict scan, no duplicate keys, depth and node caps, unicode scalars —
- * except integers-only: a provider legitimately echoes fractional sampling
- * parameters (`top_p`), and rejecting those turned a valid 200 into
- * `output_invalid`.
- */
-export function parseAiProviderJsonBytes<T>(
-  bytes: Uint8Array,
-  maxBytes: number,
-  schema: z.ZodType<T>,
-): T {
-  if (maxBytes > AI_TREND_ROUTE_MAX_BYTES) fail()
-  return parseStrictInternalJsonBytes(bytes, maxBytes, schema, 'finite-numbers')
-}
 
 export const aiInternalCanonicalUuidSchema = z.string().regex(UUID)
 export const aiInternalSafeIdSchema = z.string().regex(SAFE_ID)
@@ -631,21 +268,95 @@ const canaryDescriptorSchema = z
   })
   .strict()
 
-export const aiAdmissionDescriptorSchema = z
-  .discriminatedUnion('route', [
-    reviewAnalysisDescriptorSchema,
-    replySuggestionDescriptorSchema,
-    propertyTrendDescriptorSchema,
-    canaryDescriptorSchema,
-  ])
-  .superRefine((value, context) => {
-    const issue = (message: string) => context.addIssue({ code: 'custom', message })
+const admissionDescriptorSchema = z.discriminatedUnion('route', [
+  reviewAnalysisDescriptorSchema,
+  replySuggestionDescriptorSchema,
+  propertyTrendDescriptorSchema,
+  canaryDescriptorSchema,
+])
+
+type PropertyDescriptor = Exclude<
+  z.infer<typeof admissionDescriptorSchema>,
+  { route: 'synthetic-canary' }
+>
+
+function validateReplyDescriptorProfiles(
+  value: PropertyDescriptor,
+  context: z.RefinementCtx,
+): void {
+  if (value.route === 'reply-suggestion') {
+    if (
+      value.binding.concreteReplyLanguage === null ||
+      value.binding.replyBrandProfileVersion == null ||
+      value.binding.replyBrandDisplayNameDigest == null ||
+      value.outputLeakageProfileVersion === null ||
+      value.outputLeakageProfileDigest === null ||
+      value.replyTemplateCatalogueVersion === null ||
+      value.replyTemplateCatalogueDigest === null
+    ) {
+      context.addIssue({
+        code: 'custom',
+        message: 'reply descriptor requires output profiles',
+      })
+    }
+  } else if (
+    value.binding.concreteReplyLanguage !== null ||
+    value.binding.replyBrandProfileVersion != null ||
+    value.binding.replyBrandDisplayNameDigest != null ||
+    value.outputLeakageProfileVersion !== null ||
+    value.outputLeakageProfileDigest !== null ||
+    value.replyTemplateCatalogueVersion !== null ||
+    value.replyTemplateCatalogueDigest !== null
+  ) {
+    context.addIssue({
+      code: 'custom',
+      message: 'non-reply descriptor forbids reply output profiles',
+    })
+  }
+}
+
+function validatePropertyDescriptor(
+  value: PropertyDescriptor,
+  context: z.RefinementCtx,
+): void {
+  const profileFields = [
+    'redactionProfileVersion',
+    'outputLeakageProfileVersion',
+    'outputLeakageProfileDigest',
+    'replyTemplateCatalogueVersion',
+    'replyTemplateCatalogueDigest',
+  ] as const
+  if (profileFields.some((field) => value[field] !== value.binding[field])) {
+    context.addIssue({
+      code: 'custom',
+      message: 'property descriptor profile binding is inconsistent',
+    })
+  }
+  const capabilities = {
+    'review-analysis': 'review_analysis',
+    'reply-suggestion': 'reply_drafting',
+    'property-trend': 'property_trends',
+  } as const
+  if (capabilities[value.route] !== value.binding.capabilityFence.capability) {
+    context.addIssue({
+      code: 'custom',
+      message: 'descriptor route and capability are inconsistent',
+    })
+  }
+  validateReplyDescriptorProfiles(value, context)
+}
+
+export const aiAdmissionDescriptorSchema = admissionDescriptorSchema.superRefine(
+  (value, context) => {
     if (
       value.sourceByteCount > value.limits.sourceBytes ||
       value.providerPayloadByteCount > value.limits.providerPayloadBytes ||
       value.preparedByteCount > value.limits.preparedRequestBytes
     ) {
-      issue('descriptor byte count exceeds its limit')
+      context.addIssue({
+        code: 'custom',
+        message: 'descriptor byte count exceeds its limit',
+      })
     }
     if (value.route === 'synthetic-canary') {
       if (
@@ -653,54 +364,16 @@ export const aiAdmissionDescriptorSchema = z
         value.canaryAuthorizationId !== value.canaryBinding.canaryAuthorizationId ||
         value.promptCacheShard !== 0
       ) {
-        issue('canary descriptor binding is inconsistent')
+        context.addIssue({
+          code: 'custom',
+          message: 'canary descriptor binding is inconsistent',
+        })
       }
-      return
+    } else {
+      validatePropertyDescriptor(value, context)
     }
-    if (
-      value.redactionProfileVersion !== value.binding.redactionProfileVersion ||
-      value.outputLeakageProfileVersion !== value.binding.outputLeakageProfileVersion ||
-      value.outputLeakageProfileDigest !== value.binding.outputLeakageProfileDigest ||
-      value.replyTemplateCatalogueVersion !==
-        value.binding.replyTemplateCatalogueVersion ||
-      value.replyTemplateCatalogueDigest !== value.binding.replyTemplateCatalogueDigest
-    ) {
-      issue('property descriptor profile binding is inconsistent')
-    }
-    const capability = value.binding.capabilityFence.capability
-    if (
-      (value.route === 'review-analysis' && capability !== 'review_analysis') ||
-      (value.route === 'reply-suggestion' && capability !== 'reply_drafting') ||
-      (value.route === 'property-trend' && capability !== 'property_trends')
-    ) {
-      issue('descriptor route and capability are inconsistent')
-    }
-    if (value.route === 'reply-suggestion') {
-      if (
-        value.binding.concreteReplyLanguage === null ||
-        value.binding.replyBrandProfileVersion === null ||
-        value.binding.replyBrandProfileVersion === undefined ||
-        value.binding.replyBrandDisplayNameDigest === null ||
-        value.binding.replyBrandDisplayNameDigest === undefined ||
-        value.outputLeakageProfileVersion === null ||
-        value.outputLeakageProfileDigest === null ||
-        value.replyTemplateCatalogueVersion === null ||
-        value.replyTemplateCatalogueDigest === null
-      ) {
-        issue('reply descriptor requires output profiles')
-      }
-    } else if (
-      value.binding.concreteReplyLanguage !== null ||
-      value.binding.replyBrandProfileVersion != null ||
-      value.binding.replyBrandDisplayNameDigest != null ||
-      value.outputLeakageProfileVersion !== null ||
-      value.outputLeakageProfileDigest !== null ||
-      value.replyTemplateCatalogueVersion !== null ||
-      value.replyTemplateCatalogueDigest !== null
-    ) {
-      issue('non-reply descriptor forbids reply output profiles')
-    }
-  })
+  },
+)
 
 export type AiExecutionBindingV1 = z.infer<typeof aiExecutionBindingSchema>
 export type AiCanaryExecutionBindingV1 = z.infer<typeof canaryBindingSchema>
@@ -769,7 +442,7 @@ const grantSchema = grantBaseSchema
 export type AiExecutionGrantUnsignedV1 = z.infer<typeof unsignedGrantSchema>
 export type AiExecutionGrantV1 = z.infer<typeof grantSchema>
 
-export const AI_GATEWAY_REPORTED_DISPOSITIONS = [
+const AI_GATEWAY_REPORTED_DISPOSITIONS = [
   'success',
   'no_dispatch',
   'provider_refused',
@@ -790,48 +463,68 @@ export const AI_GATEWAY_REPORTED_DISPOSITIONS = [
   'transport_ambiguous',
 ] as const
 /** What the gateway reports, plus the two outcomes only admission decides. */
-export const AI_PROVIDER_DISPOSITIONS = [
+const AI_PROVIDER_DISPOSITIONS = [
   ...AI_GATEWAY_REPORTED_DISPOSITIONS,
   'source_stale',
   'policy_denied',
 ] as const
-function validateReceiptUsage(
-  value: {
-    disposition: (typeof AI_PROVIDER_DISPOSITIONS)[number]
-    reportedDisposition: (typeof AI_GATEWAY_REPORTED_DISPOSITIONS)[number]
-    usageKnown: boolean
-    providerRetryable: boolean
-    inputTokens: number
-    cachedInputTokens: number
-    outputTokens: number
-    reasoningTokens: number
-    costMicros: number
-    settlementState: 'settled' | 'released' | 'ambiguous'
-  },
-  context: z.RefinementCtx,
-): void {
-  if (
+type SettlementUsage = Pick<
+  z.infer<typeof receiptBaseSchema>,
+  | 'disposition'
+  | 'reportedDisposition'
+  | 'usageKnown'
+  | 'providerRetryable'
+  | 'inputTokens'
+  | 'cachedInputTokens'
+  | 'outputTokens'
+  | 'reasoningTokens'
+>
+
+function hasUsageTokens(value: SettlementUsage): boolean {
+  return [
+    value.inputTokens,
+    value.cachedInputTokens,
+    value.outputTokens,
+    value.reasoningTokens,
+  ].some((count) => count !== 0)
+}
+
+function hasInconsistentRetryability(value: SettlementUsage): boolean {
+  const retryableDisposition =
+    value.reportedDisposition === 'rate_limited' ||
+    value.reportedDisposition === 'provider_unavailable'
+  if (value.providerRetryable) {
+    return value.disposition !== value.reportedDisposition || !retryableDisposition
+  }
+  return (
+    value.reportedDisposition === 'rate_limited' &&
+    value.disposition === value.reportedDisposition
+  )
+}
+
+function hasInconsistentSettlementUsage(value: SettlementUsage): boolean {
+  return (
     value.cachedInputTokens > value.inputTokens ||
     value.reasoningTokens > value.outputTokens ||
-    (!value.usageKnown &&
-      (value.inputTokens !== 0 ||
-        value.cachedInputTokens !== 0 ||
-        value.outputTokens !== 0 ||
-        value.reasoningTokens !== 0)) ||
+    (!value.usageKnown && hasUsageTokens(value)) ||
     (value.disposition === 'success' && !value.usageKnown) ||
-    (value.providerRetryable &&
-      (value.disposition !== value.reportedDisposition ||
-        (value.reportedDisposition !== 'rate_limited' &&
-          value.reportedDisposition !== 'provider_unavailable'))) ||
-    (value.reportedDisposition === 'rate_limited' &&
-      value.disposition === value.reportedDisposition &&
-      !value.providerRetryable) ||
-    value.settlementState !==
-      (value.disposition === 'no_dispatch'
-        ? 'released'
-        : value.disposition === 'transport_ambiguous'
-          ? 'ambiguous'
-          : 'settled') ||
+    hasInconsistentRetryability(value)
+  )
+}
+
+function validateReceiptUsage(
+  value: z.infer<typeof receiptBaseSchema>,
+  context: z.RefinementCtx,
+): void {
+  const expectedState =
+    value.disposition === 'no_dispatch'
+      ? 'released'
+      : value.disposition === 'transport_ambiguous'
+        ? 'ambiguous'
+        : 'settled'
+  if (
+    hasInconsistentSettlementUsage(value) ||
+    value.settlementState !== expectedState ||
     (value.disposition === 'no_dispatch' && (value.usageKnown || value.costMicros !== 0))
   ) {
     context.addIssue({ code: 'custom', message: 'receipt usage is inconsistent' })
@@ -947,7 +640,6 @@ export function parseAiSettlementReceipt(value: unknown): AiSettlementReceiptV1 
   return receiptSchema.parse(value)
 }
 
-export const aiAdmissionRequestSchema = admissionRequestSchema
 export const aiSettlementRequestSchema = z
   .object({
     operationId: canonicalUuid,
@@ -967,27 +659,10 @@ export const aiSettlementRequestSchema = z
   .strict()
   .superRefine((value, context) => {
     if (
-      value.cachedInputTokens > value.inputTokens ||
-      value.reasoningTokens > value.outputTokens ||
-      (!value.usageKnown &&
-        (value.inputTokens !== 0 ||
-          value.cachedInputTokens !== 0 ||
-          value.outputTokens !== 0 ||
-          value.reasoningTokens !== 0)) ||
-      (value.disposition === 'success' && !value.usageKnown) ||
-      (value.providerRetryable &&
-        (value.disposition !== value.reportedDisposition ||
-          (value.reportedDisposition !== 'rate_limited' &&
-            value.reportedDisposition !== 'provider_unavailable'))) ||
-      (value.reportedDisposition === 'rate_limited' &&
-        value.disposition === value.reportedDisposition &&
-        !value.providerRetryable) ||
+      hasInconsistentSettlementUsage(value) ||
       (value.disposition === 'no_dispatch' &&
         (value.usageKnown ||
-          value.inputTokens !== 0 ||
-          value.cachedInputTokens !== 0 ||
-          value.outputTokens !== 0 ||
-          value.reasoningTokens !== 0 ||
+          hasUsageTokens(value) ||
           value.retryAfterSeconds !== null)) ||
       (value.retryAfterSeconds !== null && !value.providerRetryable)
     ) {
