@@ -3,7 +3,7 @@ import type { InboxCtx } from './inbox-types'
 import {
   InboxListPanel,
   type InboxListPanelProps,
-} from '#/components/inbox/inbox-list-panel-v2'
+} from '#/contexts/reputation/inbox/ui/inbox-list'
 import { useInboxPage, type InboxPageNav } from './use-inbox-page'
 import { moveToInboxQueue, replaceInboxSearch } from './inbox-navigation'
 import type { InboxServerFns } from './types'
