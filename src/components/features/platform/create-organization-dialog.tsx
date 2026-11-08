@@ -17,7 +17,8 @@ import {
   DialogTitle,
   DialogTrigger,
 } from '#/components/ui/dialog'
-import { useAction, type Action } from '#/components/hooks/use-action'
+import type { Action } from '#/components/hooks/use-action'
+import { useActionMutation } from '#/components/hooks/use-action-mutation'
 import type {
   ProvisionOrganizationInput,
   ProvisionOrganizationResult,
@@ -75,7 +76,7 @@ function NewOrganizationBody({
   provision,
 }: Readonly<{ provision: ProvisionOrganizationAction }>) {
   // Own state over the shared Action: a fresh open starts with no result and no error.
-  const create = useAction(provision)
+  const create = useActionMutation(provision)
   const [adminEmail, setAdminEmail] = useState('')
   // The Organization is being created: Escape and the overlay wait for it.
   useDialogBusy(create.isPending)

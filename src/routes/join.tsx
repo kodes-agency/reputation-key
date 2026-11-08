@@ -22,7 +22,7 @@ import {
 } from '#/components/features/identity'
 import { JoinEntryCard } from '#/components/features/identity/registration/join-entry-card'
 import { registerMember } from '#/contexts/identity/server/organizations'
-import { useAction, wrapAction } from '#/components/hooks/use-action'
+import { useActionMutation } from '#/components/hooks/use-action-mutation'
 import { InlineLink } from '#/components/ui/inline-link'
 import { enterWorkspace } from './-join-entry'
 
@@ -56,10 +56,9 @@ function JoinPage() {
   const { link } = Route.useRouteContext()
   const navigate = useNavigate()
   const queryClient = useQueryClient()
-  const register = useAction(useServerFn(registerMember))
   // The session cookie is already set once registration returns, so a failed
   // follow-up has no form to land its error in: `enter` keeps it for the card.
-  const enter = useAction(() =>
+  const enter = useActionMutation(() =>
     enterWorkspace({
       ensureActiveOrg,
       // /join never held an authenticated match, and the _authenticated layout
@@ -77,8 +76,10 @@ function JoinPage() {
   )
   const retryEnter = () => void enter(undefined).catch(() => undefined)
 
-  const mutation = wrapAction(register, async ({ signedIn }) => {
-    if (signedIn) await enter(undefined).catch(() => undefined)
+  const mutation = useActionMutation(useServerFn(registerMember), {
+    onSuccess: async ({ signedIn }) => {
+      if (signedIn) await enter(undefined).catch(() => undefined)
+    },
   })
 
   if (link === null) {
@@ -98,7 +99,11 @@ function JoinPage() {
 
   if (link.state !== 'pending') return <InvitationLinkStateCard link={link} />
 
-  if (mutation.isSuccess && mutation.data?.signedIn === true) {
+  if (
+    enter.isPending ||
+    enter.error ||
+    (mutation.isSuccess && mutation.data?.signedIn === true)
+  ) {
     return (
       <JoinEntryCard
         staff={link.state === 'pending' && link.details.role === 'Member'}
