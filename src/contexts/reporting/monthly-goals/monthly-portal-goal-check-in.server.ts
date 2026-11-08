@@ -2,16 +2,16 @@
 // (ADR 0068). Ask only while the running month can change; Keep and any change
 // to this month's target answer it. This read writes nothing.
 
-import { monthKeyOf } from '../../domain/goal-start'
-import { monthlyCheckIn } from '../../domain/portal-goal-check-in'
-import type { PortalGoalRecommendation } from '../dto/goal-recommendation.types'
+import { monthKeyOf } from '../domain/goal-start'
+import { monthlyCheckIn } from '../domain/portal-goal-check-in'
+import type { PortalGoalRecommendation } from '../application/dto/goal-recommendation.types'
 import type {
   PortalGoalChangeFacts,
   PortalGoalCheckIn,
   PortalGoalRunningMonth,
-} from '../dto/monthly-portal-goal.types'
-import type { PropertyCountGoal } from '../monthly-portal-goal-identity'
-import { checkInOfferOf } from './monthly-portal-goal-offer'
+} from '../application/dto/monthly-portal-goal.types'
+import type { PropertyCountGoal } from '../application/monthly-portal-goal-identity'
+import { checkInOfferOf } from './monthly-portal-goal-offer.server'
 
 export type MonthlyPortalGoalCheckInContext = Readonly<{
   recommendation: PortalGoalRecommendation

@@ -77,7 +77,7 @@ export type {
   GoalResultsMatrixEvidence,
   GoalResultsMatrixRow,
 } from './goal-results-matrix'
-export { GoalProgramError } from './use-cases/goal-programs'
+export { GoalProgramError } from './use-cases/goal-program-shared'
 export type { GoalProgress, GoalProgressReading } from './use-cases/goal-progress'
 export type { GoalListProgress } from './use-cases/goal-list-progress'
 export type {

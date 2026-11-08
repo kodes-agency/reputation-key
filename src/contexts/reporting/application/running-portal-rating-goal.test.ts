@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest'
 import type { PortalRatingFact } from '#/contexts/portal/application/public-api'
 import { findPortalRatingGoalBlock } from './running-portal-rating-goal'
-import { propertyGoal } from './use-cases/monthly-portal-goal-test-fixtures'
+import { propertyGoal } from '../monthly-goals/monthly-portal-goal.test-fixtures'
 
 const now = new Date('2026-11-18T10:00:00.000Z')
 const property = propertyGoal('goal', 'portal_rating_count', { status: 'active' })

@@ -1,4 +1,4 @@
-import { ratingSubjectSkipsPrivateRating } from '../goal-rating-eligibility'
+import { ratingSubjectSkipsPrivateRating } from '../application/goal-rating-eligibility'
 // Monthly Property count goals use ordinary Programs (ADR 0068). Authorize before
 // reading. The cross-measure pre-check gives early feedback; the repository
 // repeats it under the Property definition lock for creates and revisions.
@@ -10,10 +10,10 @@ import { ratingSubjectSkipsPrivateRating } from '../goal-rating-eligibility'
 // earlier prompts; expired months are no-ops, months after next are refused.
 // Portal/group pages keep their subject and use narrowed offers. Averages keep
 // their measure and use own targets; several-subject goals retain Stop.
-import type { GoalMetric, GoalSubject } from '../../domain/goal-program'
-import { goalStartOptions, monthKeyOf } from '../../domain/goal-start'
-import type { PortalGoalMeasure } from '../../domain/goal-recommendation-types'
-import { checkInMonthAt } from '../../domain/portal-goal-check-in'
+import type { GoalMetric, GoalSubject } from '../domain/goal-program'
+import { goalStartOptions, monthKeyOf } from '../domain/goal-start'
+import type { PortalGoalMeasure } from '../domain/goal-recommendation-types'
+import { checkInMonthAt } from '../domain/portal-goal-check-in'
 import type {
   ChangeMonthlyPortalGoalNowRequest,
   DeferMonthlyPortalGoalPromptRequest,
@@ -21,8 +21,8 @@ import type {
   ReviseMonthlyPortalGoalRequest,
   SetMonthlyPortalGoalRequest,
   StopMonthlyPortalGoalRequest,
-} from '../dto/monthly-portal-goal.types'
-import type { PortalGoalRecommendation } from '../dto/goal-recommendation.types'
+} from '../application/dto/monthly-portal-goal.types'
+import type { PortalGoalRecommendation } from '../application/dto/goal-recommendation.types'
 import {
   isPortalCountGoal,
   isPortalGoalMeasure,
@@ -30,29 +30,32 @@ import {
   monthlyPortalGoalOf,
   portalGoalPageOf,
   type PropertyCountGoal,
-} from '../monthly-portal-goal-identity'
+} from '../application/monthly-portal-goal-identity'
 import type {
   GoalProgram,
   GoalProgramBundle,
   GoalProgramRepository,
-} from '../ports/goal-program.repository'
-import type { PortalGoalPromptDeferralStore } from '../ports/portal-goal-prompt-deferrals.port'
-import type { GoalMonthTargetChangeResult } from './goal-month-target'
+} from '../application/ports/goal-program.repository'
+import type { PortalGoalPromptDeferralStore } from '../application/ports/portal-goal-prompt-deferrals.port'
+import type { GoalMonthTargetChangeResult } from '../application/use-cases/goal-month-target'
 import {
   GoalProgramError,
   type GoalActor,
   type GoalExecutionPolicy,
   type GoalProgramService,
   type GoalProgramSubjectReader,
-} from './goal-programs'
+} from './goal-programs.server'
 import {
   gatherPortalGoalFacts,
   gatherPortalGoalRecommendation,
   recommendationFrom,
   type PortalGoalRecommendationReads,
-} from './goal-recommendation-read'
-import { offeredChoices } from './monthly-portal-goal-offer'
-import { narrowedFor, portalGoalAddBasisOf } from './portal-goal-add-numbers'
+} from '../application/use-cases/goal-recommendation-read'
+import { offeredChoices } from './monthly-portal-goal-offer.server'
+import {
+  narrowedFor,
+  portalGoalAddBasisOf,
+} from '../application/use-cases/portal-goal-add-numbers'
 
 /** What the goal is called, everywhere it is named. */
 export const MONTHLY_PORTAL_GOAL_NAME = 'Monthly portal goal'

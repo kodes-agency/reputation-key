@@ -7,13 +7,13 @@ import {
   defaultGoalStartMonth,
   firstFullMonthlyPeriodAtOrAfter,
   monthKeyOf,
-} from '../../domain/goal-start'
-import type { PortalGoalRecommendation } from '../dto/goal-recommendation.types'
-import type { PortalGoalChangeFacts } from '../dto/monthly-portal-goal.types'
-import { monthTargetPlan } from '../goal-month-target-plan'
-import { nextRevisionStart } from '../goal-revision-start'
-import type { PropertyCountGoal } from '../monthly-portal-goal-identity'
-import type { GoalProgramBundle } from '../ports/goal-program.repository'
+} from '../domain/goal-start'
+import type { PortalGoalRecommendation } from '../application/dto/goal-recommendation.types'
+import type { PortalGoalChangeFacts } from '../application/dto/monthly-portal-goal.types'
+import { monthTargetPlan } from '../application/goal-month-target-plan'
+import { nextRevisionStart } from '../application/goal-revision-start'
+import type { PropertyCountGoal } from '../application/monthly-portal-goal-identity'
+import type { GoalProgramBundle } from '../application/ports/goal-program.repository'
 
 /**
  * What a change is sent against, as of `now`; null once the goal has ended.

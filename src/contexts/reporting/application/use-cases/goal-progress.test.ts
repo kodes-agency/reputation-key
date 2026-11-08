@@ -15,7 +15,7 @@ import {
   MAX_GOAL_PROGRAM_PROGRESS_SUBJECTS,
   type GoalProgressDeps,
 } from './goal-progress'
-import type { GoalActor } from './goal-programs'
+import type { GoalActor } from '../../monthly-goals/goal-programs.server'
 
 const actor: GoalActor = {
   organizationId: 'org-1',
