@@ -6,10 +6,8 @@ export type OpenAiTerminalResponse = OpenAI.Responses.Response
 import { zodTextFormat } from 'openai/helpers/zod'
 import type { Dispatcher } from 'undici'
 import { z } from 'zod/v4'
-import {
-  explainJsonBytesRejection,
-  type AiExecutionGrantV1,
-} from '#/shared/ai-internal-transport-contract'
+import { type AiExecutionGrantV1 } from '#/shared/ai-internal-transport-contract'
+import { explainJsonBytesRejection } from '#/shared/ai-json'
 import { canonicalizeRfc8785 } from '#/shared/merchant-ai-notice-contract'
 import type { VersionedHmacKeyring } from '#/shared/security/versioned-hmac-keyring'
 import {
