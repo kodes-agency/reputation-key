@@ -555,5 +555,9 @@ describe('review domain events', () => {
       ...override,
     } as unknown as Parameters<typeof reviewCreated>[0]
     expect(() => reviewCreated(invalid)).toThrow(message)
+    expect(() => reviewUpdated(invalid)).toThrow(message)
+    expect(() =>
+      reviewSourceTransitioned({ ...invalid, change: 'source_expired' }),
+    ).toThrow(message)
   })
 })
