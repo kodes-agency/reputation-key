@@ -58,7 +58,7 @@ export default defineConfig({
   // `CI` is not set, and a `test.only` would narrow the gate to one story and
   // still print green. Focus a local debugging run with `--grep` instead.
   // A committed one is also refused by `lint:ci`: since 2026-10-13
-  // `scripts/check-test-quality.mjs` reads `*.metrics.ts` (it did not before,
+  // `eslint-rules/test-quality.mjs` reads `*.metrics.ts` (it did not before,
   // which is why this guard was the only one).
   forbidOnly: true,
   // No retry. Geometry is deterministic: the same classes at the same width
