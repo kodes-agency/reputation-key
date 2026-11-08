@@ -4,14 +4,20 @@ import {
   type OrganizationId,
   type PropertyId,
 } from '#/shared/domain/ids'
-import { isServablePortalMediaAsset } from '../../domain/portal-media-asset'
-import { portalError } from '../../domain/errors'
-import type { PortalPrintKitContext } from '../portal-print-kit-context'
-import type { PortalMediaAssetRepository } from '../ports/portal-media-asset.repository'
-import { StoredObjectTooLargeError, type StoragePort } from '../ports/storage.port'
-import type { RevealPortalAddress } from '../use-cases/reveal-portal-address'
-import type { PrintKitPhoto } from './print-download'
-import type { PortalPrintKitFile, PortalPrintKitDownload } from './print-download'
+import { isServablePortalMediaAsset } from '../domain/portal-media-asset'
+import { portalError } from '../domain/errors'
+import type { PortalPrintKitContext } from '../application/portal-print-kit-context'
+import type { PortalMediaAssetRepository } from '../application/ports/portal-media-asset.repository'
+import {
+  StoredObjectTooLargeError,
+  type StoragePort,
+} from '../application/ports/storage.port'
+import type { RevealPortalAddress } from '../application/use-cases/reveal-portal-address'
+import type {
+  PrintKitPhoto,
+  PortalPrintKitFile,
+  PortalPrintKitDownload,
+} from './contracts'
 
 type PrintDownloadDeps = Readonly<{
   mediaRepo: Pick<PortalMediaAssetRepository, 'findById'>
@@ -74,10 +80,7 @@ type PrintKitLook = PortalPrintKitContext['look']
  * disclosure.
  */
 export async function readPicturesThenReveal(
-  deps: Pick<
-    PrintDownloadDeps,
-    'mediaRepo' | 'objectStore' | 'sha256Hex' | 'revealAddress'
-  >,
+  deps: PrintDownloadDeps,
   look: Pick<PrintKitLook, 'hero' | 'logo'>,
   scope: Readonly<{ organizationId: OrganizationId; propertyId: PropertyId }>,
   ctx: AuthContext,
