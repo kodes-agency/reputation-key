@@ -5,7 +5,7 @@
 import type { GuestVoiceSummaryFactLine } from '../../domain/events'
 import { addDays } from '../local-date'
 import type { GuestVoiceReview } from './guest-voice-v2-facts'
-import type { GuestVoiceV2Ready } from './guest-voice-v2'
+import type { GuestVoiceV2Ready } from '../../guest-voice/contracts'
 
 /** The Property-local hours the summary may go out in: 08:00 and the two hours after it. */
 const SUMMARY_FIRST_LOCAL_HOUR = 8

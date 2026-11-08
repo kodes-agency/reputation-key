@@ -11,9 +11,12 @@ import {
   withRole,
 } from '../../../../.storybook/AuthedRouterDecorator'
 import type { getGuestVoiceV2Fn } from '#/contexts/ai/server/guest-voice-v2'
-import { LARGE_READ } from './guest-voice/guest-voice-fixtures-large'
-import { NOT_ENOUGH_READ } from './guest-voice/guest-voice-fixtures-small'
-import { RAILING_ISSUE, URGENT_READ } from './guest-voice/guest-voice-fixtures-states'
+import { LARGE_READ } from '../../../contexts/ai/guest-voice/ui/guest-voice-fixtures-large'
+import { NOT_ENOUGH_READ } from '../../../contexts/ai/guest-voice/ui/guest-voice-fixtures-small'
+import {
+  RAILING_ISSUE,
+  URGENT_READ,
+} from '../../../contexts/ai/guest-voice/ui/guest-voice-fixtures-states'
 import { overviewIssueCountText } from './overview-guest-voice-issues'
 import { OverviewGuestVoice } from './overview-guest-voice'
 

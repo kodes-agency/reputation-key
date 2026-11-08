@@ -16,7 +16,7 @@ import type {
 import type { getPropertyGooglePerformance } from '#/contexts/integration/server/google-performance'
 import type { getGuestVoiceV2Fn } from '#/contexts/ai/server/guest-voice-v2'
 import { reviewId } from '#/shared/domain/ids'
-import { LARGE_READ } from './guest-voice/guest-voice-fixtures-large'
+import { LARGE_READ } from '../../../contexts/ai/guest-voice/ui/guest-voice-fixtures-large'
 import { PropertyOverview } from './property-overview'
 import { RatingGoalCard } from '#/components/goals/rating-goal-card'
 import { PortalGoalOverview } from '#/components/goals/portal-goal-overview'

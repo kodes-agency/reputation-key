@@ -19,7 +19,11 @@ import {
   type ReviewStrengthV3,
 } from '#/shared/review-analysis-v3'
 import { locateReviewSentences } from '#/shared/review-sentences'
-import type { GuestVoiceV2Read, LatestReview, LiveEvidence } from './guest-voice-v2'
+import type {
+  GuestVoiceV2Read,
+  LatestReview,
+  LiveEvidence,
+} from '../../guest-voice/contracts'
 import type { GuestVoiceMention, GuestVoiceReview, Sense } from './guest-voice-v2-facts'
 import { senseOf, type StarValue } from './guest-voice-v2-facts'
 

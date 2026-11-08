@@ -9,7 +9,7 @@ import type {
   FixFirstItem,
   GuestsLoveItem,
   InShortLine,
-} from './guest-voice-v2'
+} from '../../guest-voice/contracts'
 
 function averageClause(mentionedAverage: number | null): string {
   return mentionedAverage === null

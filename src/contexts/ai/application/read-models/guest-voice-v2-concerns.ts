@@ -3,7 +3,7 @@ import type { ReviewUrgentReasonV3 } from '#/shared/review-analysis-v3'
 import type {
   GuestVoiceSeriousConcerns,
   UrgentConcernItem,
-} from './guest-voice-v2-check-in'
+} from '../../guest-voice/contracts'
 import type { GuestVoiceIssueGroup, GuestVoiceReview } from './guest-voice-v2-facts'
 import { primaryComplaint } from './guest-voice-v2-selection'
 import { lastMentionedLocalDate } from './guest-voice-v2-recency'
