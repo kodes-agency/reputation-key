@@ -24,6 +24,16 @@ export function wireGuest(
     resolvePrimaryStaffAttribution:
       identity.publicApi.people.resolvePrimaryStaffAttribution,
     observationLossRedis: redis,
+    withdrawalJournalConfig: {
+      RESTORE_MODE: env.RESTORE_MODE,
+      AWS_S3_REGION: env.AWS_S3_REGION,
+      AWS_S3_ACCESS_KEY: env.AWS_S3_ACCESS_KEY,
+      AWS_S3_SECRET_ACCESS_KEY: env.AWS_S3_SECRET_ACCESS_KEY,
+      AWS_S3_BUCKET_NAME: env.AWS_S3_BUCKET_NAME,
+      S3_INTERNAL_ENDPOINT: env.S3_INTERNAL_ENDPOINT,
+      S3_PRESIGN_ENDPOINT: env.S3_PRESIGN_ENDPOINT,
+      S3_FORCE_PATH_STYLE: env.S3_FORCE_PATH_STYLE,
+    },
   })
 
   return guest
