@@ -1,3 +1,4 @@
+import { replyScopeEffects } from '#/contexts/reputation/application/public-api'
 // Outbox delivery end-to-end proof (real PostgreSQL + real BullMQ/Redis).
 //
 // fallow-ignore-file boundary-violation
@@ -176,7 +177,12 @@ function makeReview(id: string, reviewedAt: Date, externalId: string): Review {
 }
 
 function makeReviewLookup(): ReviewLookupPort {
-  const reviewRepo = createReviewRepository(db, () => new Date())
+  const reviewRepo = createReviewRepository(
+    db,
+    () => new Date(),
+    undefined,
+    replyScopeEffects,
+  )
   return {
     getReviewSnippetById: async (id, orgId): Promise<ReviewSnippetResult> => {
       const row = await reviewRepo.findById(id, orgId)
@@ -219,7 +225,12 @@ const stubEnrichmentPorts = {
 }
 
 function makeReviewSourceLookup(): ReviewSourceLookupPort {
-  const reviewRepo = createReviewRepository(db, () => new Date())
+  const reviewRepo = createReviewRepository(
+    db,
+    () => new Date(),
+    undefined,
+    replyScopeEffects,
+  )
   return createReviewSourceLookupAdapter({
     findById: (id, orgId) => reviewRepo.findById(id, orgId),
     findByIds: (ids, orgId) => reviewRepo.findByIds(ids, orgId),
@@ -531,7 +542,13 @@ describe.sequential('outbox delivery end-to-end proof', () => {
   it('drains a recorded backlog exactly once', async () => {
     if (!redisAvailable || !relay) return
     const activeRelay = relay
-    const reviewStore = createAtomicReviewCommandStore(db, () => new Date())
+    const reviewStore = createAtomicReviewCommandStore(
+      db,
+      () => new Date(),
+      undefined,
+      undefined,
+      replyScopeEffects,
+    )
     const backlogEventIds: string[] = []
 
     for (let i = 0; i < BACKLOG; i++) {
@@ -578,7 +595,12 @@ describe.sequential('outbox delivery end-to-end proof', () => {
   it('closes work from an exact current reply observation exactly once', async () => {
     if (!redisAvailable || !relay) return
     const activeRelay = relay
-    const reviewRepo = createReviewRepository(db, () => new Date())
+    const reviewRepo = createReviewRepository(
+      db,
+      () => new Date(),
+      undefined,
+      replyScopeEffects,
+    )
     const savedReview = await reviewRepo.upsert(
       makeReview(OBSERVED_REVIEW, REVIEWED_AT, 'outbox-observed-review'),
     )
@@ -647,7 +669,13 @@ describe.sequential('outbox delivery end-to-end proof', () => {
   it('reports then repairs a missing live review projection', async () => {
     if (!redisAvailable || !relay) return
     const activeRelay = relay
-    const reviewStore = createAtomicReviewCommandStore(db, () => new Date())
+    const reviewStore = createAtomicReviewCommandStore(
+      db,
+      () => new Date(),
+      undefined,
+      undefined,
+      replyScopeEffects,
+    )
     const event = reviewCreated({
       reviewId: REPAIR_REVIEW,
       propertyId: PROP,

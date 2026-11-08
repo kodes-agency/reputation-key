@@ -1,3 +1,4 @@
+import { replyScopeEffects } from '#/contexts/reputation/application/public-api'
 // BQC-7.8 — ops:restore-verify integration proof (real PostgreSQL).
 //
 // fallow-ignore-file boundary-violation
@@ -131,7 +132,12 @@ async function reviewCount(): Promise<number> {
 
 /** The real deps — the same construction scripts/ops/restore-verify.ts wires. */
 function realDeps(env: RestoreVerifyDeps['env']): RestoreVerifyDeps {
-  const reviewRepo = createReviewRepository(db, () => new Date())
+  const reviewRepo = createReviewRepository(
+    db,
+    () => new Date(),
+    undefined,
+    replyScopeEffects,
+  )
   const clock = () => new Date()
   return {
     env,

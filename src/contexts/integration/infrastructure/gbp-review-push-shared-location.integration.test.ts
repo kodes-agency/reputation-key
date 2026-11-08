@@ -1,3 +1,4 @@
+import { replyScopeEffects } from '#/contexts/reputation/application/public-api'
 // One Google location held by Properties in two Organizations, against real
 // PostgreSQL: the Property rows and their bindings are written by the import's
 // own store, the lookup is Property's, and the receipt and handoff facts are
@@ -79,6 +80,7 @@ let pool: Pool
 let now = IMPORTED_AT
 
 const property = buildPropertyContext({
+  replyEffects: replyScopeEffects,
   db,
   repo: createPropertyRepository(db),
   outboxRepo: createOutboxRepository(db),

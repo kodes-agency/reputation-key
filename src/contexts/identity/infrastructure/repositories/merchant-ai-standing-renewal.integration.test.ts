@@ -1,3 +1,4 @@
+import { replyScopeEffects } from '#/contexts/reputation/application/public-api'
 import { randomUUID } from 'node:crypto'
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest'
 import { drizzle } from 'drizzle-orm/node-postgres'
@@ -176,6 +177,7 @@ function renewal(
   policy: Parameters<typeof createStandingRenewalStore>[0]['policy'] = POLICY,
 ) {
   return createStandingRenewalStore({
+    replyEffects: replyScopeEffects,
     db,
     idGen: randomUUID,
     policy,
@@ -258,7 +260,7 @@ describe('standing renewal persistence', () => {
   it('renews enabled lapsed heads separately, preserving each capability set and source; a rerun is empty', async () => {
     const a = await seedProperty()
     const b = await seedProperty()
-    const store = createMerchantAiAuthorizationStore(db, randomUUID)
+    const store = createMerchantAiAuthorizationStore(db, randomUUID, replyScopeEffects)
     const beforeA = await store.mutate(command(a))
     await store.mutate({ ...command(b), capabilities: ['reply_drafting'] })
     const ceremonyId = randomUUID()
@@ -290,7 +292,7 @@ describe('standing renewal persistence', () => {
   })
   it('retires trends under standing consent without replaying analysis or withdrawing saved drafts', async () => {
     const property = await seedProperty()
-    const store = createMerchantAiAuthorizationStore(db, randomUUID)
+    const store = createMerchantAiAuthorizationStore(db, randomUUID, replyScopeEffects)
     const before = await store.mutate({
       ...command(property),
       noticeVersion: 'merchant-ai-notice-2026-11-06.v1',
@@ -323,7 +325,7 @@ describe('standing renewal persistence', () => {
   it('renews analysis and retires trends, resets replay coverage, preserves saved drafts and leaves drafting-only heads alone', async () => {
     const analysis = await seedProperty()
     const draftingOnly = await seedProperty()
-    const store = createMerchantAiAuthorizationStore(db, randomUUID)
+    const store = createMerchantAiAuthorizationStore(db, randomUUID, replyScopeEffects)
     const before = await store.mutate({ ...command(analysis), ...PREVIOUS_NOTICE })
     const draftingBefore = await store.mutate({
       ...command(draftingOnly),
@@ -412,7 +414,9 @@ describe('standing renewal persistence', () => {
   })
   it('falls back to the longest-standing live owner after the consent author is demoted', async () => {
     const f = await seedProperty()
-    await createMerchantAiAuthorizationStore(db, randomUUID).mutate(command(f))
+    await createMerchantAiAuthorizationStore(db, randomUUID, replyScopeEffects).mutate(
+      command(f),
+    )
     await db.execute(
       sql`UPDATE member SET role = 'admin' WHERE "organizationId" = ${f.organizationId} AND "userId" = ${f.actorUserId}`,
     )
@@ -425,7 +429,7 @@ describe('standing renewal persistence', () => {
   it('never renews revoked or disabled heads', async () => {
     const revoked = await seedProperty()
     const disabled = await seedProperty()
-    const store = createMerchantAiAuthorizationStore(db, randomUUID)
+    const store = createMerchantAiAuthorizationStore(db, randomUUID, replyScopeEffects)
     await store.mutate(command(revoked))
     await store.mutate({
       ...command(revoked),
@@ -450,7 +454,7 @@ describe('standing renewal persistence', () => {
   it('skips suspended and unbound Properties without recording evidence', async () => {
     const suspended = await seedProperty()
     const unbound = await seedProperty()
-    const store = createMerchantAiAuthorizationStore(db, randomUUID)
+    const store = createMerchantAiAuthorizationStore(db, randomUUID, replyScopeEffects)
     await store.mutate(command(suspended))
     await store.mutate(command(unbound))
     initCapabilityPolicyStore(
@@ -476,7 +480,7 @@ describe('standing renewal persistence', () => {
   })
   it('preserves the analysis epoch and frontier across an immaterial notice', async () => {
     const f = await seedProperty()
-    const store = createMerchantAiAuthorizationStore(db, randomUUID)
+    const store = createMerchantAiAuthorizationStore(db, randomUUID, replyScopeEffects)
     const before = await store.mutate(command(f))
     expect(await sweep(randomUUID(), IMMATERIAL_TARGET)).toMatchObject({ renewed: 1 })
     expect(await store.getSnapshot(f)).toMatchObject({
@@ -486,7 +490,7 @@ describe('standing renewal persistence', () => {
   })
   it('is a no-op for concurrent sweeps, with one evidence row and one state advance', async () => {
     const f = await seedProperty()
-    const store = createMerchantAiAuthorizationStore(db, randomUUID)
+    const store = createMerchantAiAuthorizationStore(db, randomUUID, replyScopeEffects)
     await store.mutate(command(f))
     await Promise.all([sweep(), sweep()])
     expect(await store.getSnapshot(f)).toMatchObject({ stateVersion: 2 })
@@ -503,7 +507,7 @@ describe('standing renewal persistence', () => {
 describe('saved AI reply drafts under standing renewal', () => {
   it('keeps a saved draft when the drafting epoch, runtime and deployment are unchanged', async () => {
     const f = await seedProperty()
-    const store = createMerchantAiAuthorizationStore(db, randomUUID)
+    const store = createMerchantAiAuthorizationStore(db, randomUUID, replyScopeEffects)
     await store.mutate({ ...command(f), capabilities: ['reply_drafting'] })
     await seedSavedDraft(f)
     expect(await sweep(randomUUID(), IMMATERIAL_TARGET)).toMatchObject({ renewed: 1 })
@@ -542,7 +546,7 @@ describe('saved AI reply drafts under standing renewal', () => {
     },
   ])('withdraws a saved draft when $why', async (scenario) => {
     const f = await seedProperty()
-    const store = createMerchantAiAuthorizationStore(db, randomUUID)
+    const store = createMerchantAiAuthorizationStore(db, randomUUID, replyScopeEffects)
     served.replyDraftingRuntime = scenario.consentRuntime
     await store.mutate({
       ...command(f),
@@ -561,7 +565,7 @@ describe('saved AI reply drafts under standing renewal', () => {
 
   it('withdraws a saved draft on a merchant-made change even when no epoch moves', async () => {
     const f = await seedProperty()
-    const store = createMerchantAiAuthorizationStore(db, randomUUID)
+    const store = createMerchantAiAuthorizationStore(db, randomUUID, replyScopeEffects)
     await store.mutate({ ...command(f), capabilities: ['reply_drafting'] })
     await seedSavedDraft(f)
     await store.mutate({
@@ -582,7 +586,9 @@ describe('saved AI reply drafts under standing renewal', () => {
 describe('AI update receipts', () => {
   it('covers older automatically applied notices when the newest update is seen', async () => {
     const f = await seedProperty()
-    await createMerchantAiAuthorizationStore(db, randomUUID).mutate(command(f))
+    await createMerchantAiAuthorizationStore(db, randomUUID, replyScopeEffects).mutate(
+      command(f),
+    )
     const older = IMMATERIAL_TARGET
     await sweep(randomUUID(), older)
     await sweep()
@@ -608,7 +614,9 @@ describe('AI update receipts', () => {
 
   it('inserts idempotently per AccountAdmin and exports only the session organization', async () => {
     const f = await seedProperty()
-    await createMerchantAiAuthorizationStore(db, randomUUID).mutate(command(f))
+    await createMerchantAiAuthorizationStore(db, randomUUID, replyScopeEffects).mutate(
+      command(f),
+    )
     await sweep()
     const receipts = createMerchantAiNoticeUpdateStore(db)
     const reader = {

@@ -1,3 +1,4 @@
+import { replyScopeEffects } from '#/contexts/reputation/application/public-api'
 // The declared capability posture against the real control tables and the
 // real AI activation function. Every test runs inside one held transaction
 // that always rolls back: AI control heads only ever move forward (a trigger
@@ -185,7 +186,7 @@ describe('declared Google content posture', () => {
 })
 
 async function readAiHeads(capability: MerchantAiCapability) {
-  const heads = await createAiControlAdapter(held.db).readHeads({
+  const heads = await createAiControlAdapter(held.db, replyScopeEffects).readHeads({
     providerDeploymentProfileVersion: PROFILE,
     capability,
   })
@@ -199,7 +200,7 @@ async function readAiHeads(capability: MerchantAiCapability) {
 
 /** Fixture: the global and provider planes open, whatever other suites left. */
 async function openAiPlane(): Promise<void> {
-  const control = createAiControlAdapter(held.db)
+  const control = createAiControlAdapter(held.db, replyScopeEffects)
   const heads = await readAiHeads('review_analysis')
   for (const head of [heads.global, heads.provider]) {
     if (!head) throw new Error('AI control plane head missing from the seed')
@@ -226,7 +227,7 @@ async function operatorTransition(
 ) {
   const { capability: head } = await readAiHeads(capability)
   if (!head) throw new Error(`AI control head missing: ${capability}`)
-  const after = await createAiControlAdapter(held.db).transition({
+  const after = await createAiControlAdapter(held.db, replyScopeEffects).transition({
     scope: head.scope,
     providerDeploymentProfileVersion: PROFILE,
     expectedControlId: head.controlId,
@@ -278,7 +279,7 @@ describe('declared AI capability posture', () => {
   it('issues an activation the real control function accepts and audits', async () => {
     const killed = await operatorTransition('review_analysis', 'kill')
 
-    const after = await createAiControlAdapter(held.db).transition(
+    const after = await createAiControlAdapter(held.db, replyScopeEffects).transition(
       declaredPostureAiTransition({
         capability: 'review_analysis',
         head: killed,

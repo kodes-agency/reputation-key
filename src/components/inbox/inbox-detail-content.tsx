@@ -146,6 +146,7 @@ export function InboxDetailContent({
   // leave the other's buttons live on the same reply.
   const replyActions = useReplyActions({
     reviewId: currentItem.sourceId,
+    reply: detail?.reply,
     onReplyChanged: onReplyMutated,
   })
   const reply = detail?.reply ?? null

@@ -1,3 +1,4 @@
+import { replyScopeEffects } from '#/contexts/reputation/application/public-api'
 // The push health ledger against real PostgreSQL: the first-sighting row is
 // written in the Review's own first-insert transaction, and a push read pairs
 // with it afterwards.
@@ -109,7 +110,14 @@ async function sightings(organization: string = ORG) {
   return result.rows
 }
 
-const store = () => createAtomicReviewCommandStore(getDb(), () => SEEN_AT)
+const store = () =>
+  createAtomicReviewCommandStore(
+    getDb(),
+    () => SEEN_AT,
+    undefined,
+    undefined,
+    replyScopeEffects,
+  )
 
 function writeFirst(sighting: ReviewFirstSighting | undefined, key = '1'.repeat(64)) {
   return store().upsertAndRecord(review(), created, SEEN_AT, key, 'ongoing', sighting)

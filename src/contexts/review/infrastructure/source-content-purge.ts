@@ -22,6 +22,7 @@ import type {
   SourcePurgeResult,
 } from '../application/ports/source-content-purge.port'
 import type { ReviewSourceContentLifecycleScope } from '../application/ports/source-content-lifecycle-store.port'
+import type { ReplyScopeEffects } from '#/shared/db/reply-scope-effects'
 import { createReviewSourceContentLifecycleStore } from './repositories/source-content-lifecycle-store.repository'
 import {
   REVIEW_SOURCE_CONTENT_LIFECYCLE_APPLY_CONFIRMATION,
@@ -32,6 +33,7 @@ import {
 
 type PurgeDeps = Readonly<{
   db: Database
+  replyEffects?: ReplyScopeEffects
   clock: () => Date
   batchSize?: number
   maxBatches?: number
@@ -65,7 +67,7 @@ export const createSourceContentPurge = (deps: PurgeDeps): SourceContentPurge =>
   const runLifecycle =
     deps.runLifecycle ??
     createRunReviewSourceContentLifecycle({
-      store: createReviewSourceContentLifecycleStore(deps.db),
+      store: createReviewSourceContentLifecycleStore(deps.db, deps.replyEffects),
       clock: deps.clock,
       ...(deps.applyAdmission == null
         ? {}

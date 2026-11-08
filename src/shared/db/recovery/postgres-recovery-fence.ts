@@ -1,3 +1,7 @@
+import {
+  requireReplyScopeEffects,
+  type ReplyScopeEffects,
+} from '#/shared/db/reply-scope-effects'
 import { sql } from 'drizzle-orm'
 import type { Database } from '#/shared/db'
 import type { RecoveryFenceCounts } from '#/shared/db/schema/recovery.schema'
@@ -153,7 +157,9 @@ export async function applyRecoveryFence(
     tx: import('#/shared/outbox/commit').Tx,
     now: Date,
   ) => Promise<{ items: number; parents: number }>,
+  replyEffects: ReplyScopeEffects | undefined,
 ): Promise<RecoveryFenceResult> {
+  const replies = requireReplyScopeEffects(replyEffects)
   validateRecoveryFenceInput(input)
   return db.transaction(async (tx) => {
     await tx.execute(
@@ -252,24 +258,7 @@ export async function applyRecoveryFence(
       WHERE state IN ('prepared', 'retryable')
       RETURNING id
     `)
-    const repliesCanceled = await tx.execute(sql`
-      UPDATE replies
-      SET publication_state = 'cancelled',
-          publication_last_error_class = NULL,
-          reconcile_due_at = NULL,
-          updated_at = clock_timestamp()
-      WHERE publication_state IN ('requested', 'authorized')
-      RETURNING id
-    `)
-    const repliesAmbiguous = await tx.execute(sql`
-      UPDATE replies
-      SET publication_state = 'ambiguous',
-          publication_last_error_class = 'ambiguous',
-          reconcile_due_at = clock_timestamp(),
-          updated_at = clock_timestamp()
-      WHERE publication_state = 'sending'
-      RETURNING id
-    `)
+    const replyFence = await replies.fenceReplyPublicationsAfterRestore(tx)
 
     // Restored OAuth tokens may be older than the provider's live generation.
     // No content/reply call is allowed until a fresh OAuth reauthorization.
@@ -360,8 +349,8 @@ export async function applyRecoveryFence(
       outboxEventsFenced: outbox.rows.length,
       emailsCanceled: emails.rows.length,
       digestBatchesTerminated: digestBatches.rows.length,
-      repliesCanceled: repliesCanceled.rows.length,
-      repliesMadeAmbiguous: repliesAmbiguous.rows.length,
+      repliesCanceled: replyFence.cancelled,
+      repliesMadeAmbiguous: replyFence.ambiguous,
       googleConnectionsFenced: connections.rows.length,
       googleExecutionPermitsFenced: googlePermits.rows.length,
       googleSourceOperationsFenced: googleSources.rows.length,

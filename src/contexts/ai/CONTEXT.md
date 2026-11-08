@@ -1148,7 +1148,7 @@ They grant no authorization and are never evidence of AI authorship.
 Map item 10 was re-verified on stacked base `2add7d844`: adoption is at
 `ai-suggested-draft-store.ts:378–513` (binary receipt 495–511); first save is at
 `reply.repository.ts:580–597`; provenance clearing remains
-`reply-write-guards.ts:159–170` and `reply-set-clause.ts:30–47`; submission is
+`../reputation/replies/store.server.ts` and `reply-set-clause.ts:30–47`; submission is
 `reply-operations.ts:529–568`; confirmed observation is
 `google-reply-observation-store.ts:510–565`. The map itself starts item 10 at
 line 383. Those are base references; this change adds measurement alongside them.
@@ -1160,7 +1160,7 @@ is delegated at 932 to `reply-ai-provenance-check.ts:26`. Browser dismiss/adopt
 start at `use-reply-suggestion.ts:251/256`, composer adoption/Undo/submit at
 `use-reply-composer.ts:185/237/294`, and save/submit callbacks at
 `use-reply-actions.ts:199/214`. The first-save clearing rule remains
-`reply-ai-text.ts:65` and the write guard at `reply-write-guards.ts:168`.
+`reply-ai-text.ts:65` and the write guard at `../reputation/replies/store.server.ts`.
 
 ## Reply drafting v2 release — PR-B3b (pending owner deployment approval)
 

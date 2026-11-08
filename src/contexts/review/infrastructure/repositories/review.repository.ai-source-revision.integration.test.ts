@@ -1,3 +1,4 @@
+import { replyScopeEffects } from '#/contexts/reputation/application/public-api'
 // Review context — what readForAi serves for a row stored before the source
 // text rules gained revision 2 (`AI_SOURCE_TEXT_REVISION`). Real PostgreSQL.
 
@@ -96,7 +97,7 @@ async function store(
   text: string = TEXT,
 ) {
   const now = new Date()
-  const repo = createReviewRepository(getDb(), () => now)
+  const repo = createReviewRepository(getDb(), () => now, undefined, replyScopeEffects)
   await repo.upsert({
     id: REVIEW,
     organizationId: ORG,

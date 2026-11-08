@@ -1,3 +1,4 @@
+import { replyScopeEffects } from '#/contexts/reputation/application/public-api'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { Database } from '#/shared/db'
 import type { SQL } from 'drizzle-orm'
@@ -94,7 +95,11 @@ function harness(overrides: Record<string, unknown> = {}, connectionAvailable = 
       }
     },
   } as unknown as Database
-  return { store: createPropertyGoogleBindingStore(db), row: () => row, tx }
+  return {
+    store: createPropertyGoogleBindingStore(db, replyScopeEffects),
+    row: () => row,
+    tx,
+  }
 }
 
 const disconnect = {

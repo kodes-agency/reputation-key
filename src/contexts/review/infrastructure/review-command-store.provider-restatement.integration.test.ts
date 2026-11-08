@@ -1,3 +1,4 @@
+import { replyScopeEffects } from '#/contexts/reputation/application/public-api'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   createAtomicReviewCommandStore,
@@ -107,7 +108,13 @@ function observe(
   key: number,
   providerUpdateTimeReported?: boolean,
 ) {
-  return createAtomicReviewCommandStore(getDb(), () => OBSERVED_AT).upsertAndRecord(
+  return createAtomicReviewCommandStore(
+    getDb(),
+    () => OBSERVED_AT,
+    undefined,
+    undefined,
+    replyScopeEffects,
+  ).upsertAndRecord(
     candidate,
     announce,
     OBSERVED_AT,
@@ -290,7 +297,13 @@ describe('a review re-observed after its content expired', () => {
 
     // Erasure nulls the stored updateTime, so the net has nothing to compare:
     // a rewritten review stays a guest edit. A known limitation of a rare path.
-    const store = createAtomicReviewCommandStore(getDb(), () => OBSERVED_AT)
+    const store = createAtomicReviewCommandStore(
+      getDb(),
+      () => OBSERVED_AT,
+      undefined,
+      undefined,
+      replyScopeEffects,
+    )
     const reobserved = await store.reobserveExpiredAndRecord(
       review({ ...RESTATED, contentExpiresAt: REFRESHED_UNTIL }),
       OBSERVED_AT,
@@ -323,6 +336,7 @@ describe('a review re-observed after its content expired', () => {
         () => OBSERVED_AT,
         undefined,
         report,
+        replyScopeEffects,
       )
       await store.reobserveExpiredAndRecord(
         review({ ...RESTATED, sourceEpoch: 1, contentExpiresAt: REFRESHED_UNTIL }),
@@ -350,6 +364,7 @@ describe('the report of a review Google restated', () => {
       () => OBSERVED_AT,
       undefined,
       report,
+      replyScopeEffects,
     )
     return { report, store }
   }
@@ -409,9 +424,16 @@ describe('the report of a review Google restated', () => {
         throw new Error('the transaction fails after the observation')
       },
       report,
+      replyScopeEffects,
     )
     await observeThrough(
-      createAtomicReviewCommandStore(getDb(), () => OBSERVED_AT),
+      createAtomicReviewCommandStore(
+        getDb(),
+        () => OBSERVED_AT,
+        undefined,
+        undefined,
+        replyScopeEffects,
+      ),
       review(),
       1,
     )

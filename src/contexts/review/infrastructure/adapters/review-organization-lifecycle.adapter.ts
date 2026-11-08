@@ -21,6 +21,11 @@
 // re-reads the live lifecycle authority under a row lock, serializes concurrent
 // first attempts, and co-commits one content-free receipt with the phase work.
 
+import {
+  deleteOrganizationPublicationAttempts,
+  releaseOrganizationAttemptConfirmations,
+  replyScopeEffects,
+} from '#/contexts/reputation/application/public-api'
 import { sql } from 'drizzle-orm'
 import { canonicalizeRfc8785 } from '#/shared/canonical-json'
 import type { Database } from '#/shared/db'
@@ -190,16 +195,8 @@ async function prepareClosing(
                OR next_inventory_at IS NOT NULL
                OR error_retry_at IS NOT NULL)`,
   )
-  const cancelledPublications = await countAffected(
-    tx,
-    sql`UPDATE replies
-        SET publication_state = 'cancelled',
-            status = 'draft',
-            reconcile_due_at = NULL,
-            updated_at = GREATEST(updated_at, ${request.occurredAt}::timestamptz)
-        WHERE organization_id = ${request.organizationId}
-          AND publication_state IN ('requested', 'authorized')`,
-  )
+  const cancelledPublications =
+    await replyScopeEffects.cancelRepliesForOrganizationClosing(tx, request)
   const hasData = await hasReviewData(tx, request.organizationId)
   return outcomeFor(hasData, 'closing', request, [
     { step: 'sync_schedules_fenced', rows: fencedSyncState },
@@ -316,6 +313,7 @@ async function purge(
   request: OrganizationLifecycleContributionRequest,
 ): Promise<OrganizationLifecyclePhaseOutcome> {
   const organizationId = request.organizationId
+  await replyScopeEffects.lockOrganizationReplyReviews(tx, organizationId)
   const hasData = await hasReviewData(tx, organizationId)
 
   // `google_reply_observations` and `reply_publication_attempts` reference each
@@ -324,15 +322,7 @@ async function purge(
   // link first is the only way to delete either. `superseded` is a declared
   // attempt outcome and satisfies the `(outcome = 'confirmed') =
   // (confirmed_observation_revision IS NOT NULL)` check.
-  const releasedConfirmations = await countAffected(
-    tx,
-    sql`UPDATE reply_publication_attempts
-        SET outcome = 'superseded',
-            confirmed_observation_revision = NULL,
-            updated_at = GREATEST(updated_at, ${request.occurredAt}::timestamptz)
-        WHERE organization_id = ${organizationId}
-          AND confirmed_observation_revision IS NOT NULL`,
-  )
+  const releasedConfirmations = await releaseOrganizationAttemptConfirmations(tx, request)
   const observationHeads = await countAffected(
     tx,
     sql`DELETE FROM google_reply_observation_heads WHERE organization_id = ${organizationId}`,
@@ -342,9 +332,9 @@ async function purge(
     sql`DELETE FROM google_reply_observations WHERE organization_id = ${organizationId}`,
   )
   // Provider operation and correlation identifiers live here; the row goes.
-  const publicationAttempts = await countAffected(
+  const publicationAttempts = await deleteOrganizationPublicationAttempts(
     tx,
-    sql`DELETE FROM reply_publication_attempts WHERE organization_id = ${organizationId}`,
+    organizationId,
   )
   const sourceObservations = await countAffected(
     tx,
@@ -393,27 +383,9 @@ async function purge(
   )
   // Manager-authored Reply text and the actor identifiers around it. The row
   // survives only because a retained authorization references it.
-  const scrubbedReplies = await countAffected(
+  const scrubbedReplies = await replyScopeEffects.scrubOrganizationReplyContent(
     tx,
-    sql`UPDATE replies
-        SET text = '',
-            rejection_reason = NULL,
-            created_by = NULL,
-            submitted_by = NULL,
-            approved_by = NULL,
-            rejected_by = NULL,
-            reply_language_tag = NULL,
-            reconcile_due_at = NULL,
-            publication_last_error_class = NULL,
-            updated_at = GREATEST(updated_at, ${request.occurredAt}::timestamptz)
-        WHERE organization_id = ${organizationId}
-          AND (text <> ''
-               OR rejection_reason IS NOT NULL
-               OR created_by IS NOT NULL
-               OR submitted_by IS NOT NULL
-               OR approved_by IS NOT NULL
-               OR rejected_by IS NOT NULL
-               OR reply_language_tag IS NOT NULL)`,
+    request,
   )
   const scrubbedMaterialRevisions = await countAffected(
     tx,

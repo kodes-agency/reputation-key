@@ -56,6 +56,7 @@ export const loadReplyTemplateFn = createServerFn({ method: 'POST' })
           return await getContainer().reviewPublicApi.reply.loadTemplate(
             {
               reviewId: reviewId(data.reviewId),
+              expectedReply: data.expectedReply,
               ref: replyLibraryRefSchema.parse(
                 data.templateId.startsWith('builtin:') ||
                   data.templateId.startsWith('template:')

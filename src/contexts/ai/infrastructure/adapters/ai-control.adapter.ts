@@ -1,6 +1,7 @@
 import { inArray, sql } from 'drizzle-orm'
 import type { Database } from '#/shared/db'
 import { aiExecutionControlHeads } from '#/shared/db/schema'
+import type { ReplyScopeEffects } from '#/shared/db/reply-scope-effects'
 import { purgeAiDraftsForControl } from '#/shared/db/ai/ai-draft-purge'
 import type {
   AiControlHead,
@@ -46,7 +47,10 @@ function mapHead(row: typeof aiExecutionControlHeads.$inferSelect): AiControlHea
   }
 }
 
-export const createAiControlAdapter = (db: Database): AiControlPort => {
+export const createAiControlAdapter = (
+  db: Database,
+  replyEffects?: ReplyScopeEffects,
+): AiControlPort => {
   return {
     async readHeads(input) {
       const scopes: readonly AiControlScope[] = [
@@ -125,6 +129,7 @@ export const createAiControlAdapter = (db: Database): AiControlPort => {
             : input.scope.kind === 'capability'
               ? input.scope.capability
               : input.scope.providerDeploymentProfileVersion,
+          replyEffects,
         )
         return Object.freeze({
           scope: input.scope,
