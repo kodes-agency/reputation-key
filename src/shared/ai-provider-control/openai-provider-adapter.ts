@@ -14,6 +14,7 @@ import {
   createPreparedAiInvocation,
   type PreparedAiInvocation,
 } from './prepared-invocation'
+import { createProviderAdapter } from './provider-adapter'
 import type {
   AiProviderAdapter,
   AiProviderPreparation,
@@ -87,14 +88,5 @@ export function createOpenAiProviderPreparation(): AiProviderPreparation<Prepare
 export function createOpenAiProviderAdapter(
   connector: OpenAiConnector,
 ): AiProviderAdapter<PreparedAiInvocation> {
-  return Object.freeze({
-    ...createOpenAiProviderPreparation(),
-    invoke: (invocation, grant, outputSchema, signal, observer) =>
-      observer
-        ? connector.invoke(invocation, grant, outputSchema, signal, observer)
-        : connector.invoke(invocation, grant, outputSchema, signal),
-    readiness: () => connector.readiness?.() ?? true,
-    close: () => connector.close?.(),
-    destroy: () => connector.destroy?.(),
-  })
+  return createProviderAdapter(createOpenAiProviderPreparation(), connector)
 }
