@@ -14,7 +14,11 @@ import {
 } from '#/shared/testing/fixtures'
 import { integrationError, isIntegrationError } from '../../domain/errors'
 import type { GoogleDisconnectRevokeStore } from '../google-disconnect-revoke'
-import { reviewId } from '#/shared/domain/ids'
+import { googleConnectionId, organizationId, reviewId } from '#/shared/domain/ids'
+import { createInMemoryMyBusinessNotificationsPort } from '#/shared/testing/in-memory-mybusiness-notifications-port'
+import { createGoogleNotificationAccountUsageReader } from '../google-notification-account-usage'
+import { createGoogleNotificationProviderAuthorizer } from '../google-notification-provider-authorizer'
+import { manageNotifications } from './manage-notifications'
 import { createSourceContentPurge } from '#/contexts/review/infrastructure/source-content-purge'
 import { createRunReviewSourceContentLifecycle } from '#/contexts/review/application/use-cases/run-source-content-lifecycle'
 
@@ -48,6 +52,100 @@ const setup = () => {
 }
 
 describe('disconnectGoogleAccount', () => {
+  it('keeps a shared account subscribed until the last organization disconnects', async () => {
+    const { baseDeps, connectionRepo, outbox } = setup()
+    const first = buildTestAuthContext({ role: 'AccountAdmin' })
+    const second = buildTestAuthContext({
+      role: 'AccountAdmin',
+      organizationId: organizationId('org-second'),
+    })
+    const connectionA = buildTestGoogleConnection({
+      organizationId: first.organizationId,
+    })
+    const connectionB = buildTestGoogleConnection({
+      organizationId: second.organizationId,
+      id: googleConnectionId('e0000000-0000-0000-0000-000000000002'),
+    })
+    connectionRepo.seed([connectionA, connectionB])
+    const gbpAccountId = 'repkey-synthetic-do-not-use-account-0001'
+    const bindingReads = {
+      findLinkedPropertyIds: async () => ['10000000-0000-4000-8000-000000000001'],
+      readBinding: async (org: typeof first.organizationId) => ({
+        connectionId: org === first.organizationId ? connectionA.id : connectionB.id,
+        accountId: gbpAccountId,
+        state: 'active',
+        lifecycleState: 'active',
+        deletedAt: null,
+        sourceEpoch: 1,
+      }),
+    }
+    const notifications = createInMemoryMyBusinessNotificationsPort()
+    const management = manageNotifications({
+      accounts: {
+        withAccount: async (_account, run) => run(),
+        read: async () => null,
+        attempted: async () => undefined,
+        verified: async () => undefined,
+        invalidate: async () => undefined,
+      },
+      nowMs: () => 0,
+      authorizeProviderCall: createGoogleNotificationProviderAuthorizer({
+        ...bindingReads,
+        findConnection: connectionRepo.findById,
+        authorizeSystemCall: async (input) => ({
+          ok: true,
+          accessToken: 'access-token',
+          authorization: {
+            capability: 'property.connect_gbp',
+            organizationId: input.organizationId,
+            propertyId: input.propertyId,
+            connectionId: input.connectionId,
+            initiatorUserId: null,
+            expectedCredentialGeneration: 1,
+            authorizationVector: { propertySourceEpoch: input.sourceEpoch },
+          },
+        }),
+      }),
+      hasOtherActiveAccountBinding: createGoogleNotificationAccountUsageReader({
+        ...bindingReads,
+        listOrganizations: connectionRepo.listOrganizationIdsWithActiveConnections,
+        listConnections: (org) =>
+          connectionRepo.listByOrganization(org, { showAll: true }),
+      }),
+      notifications,
+      pubsubTopic: 'projects/test/topics/gbp-reviews',
+      notificationTypes: ['NEW_REVIEW'],
+      logger: baseDeps.logger,
+    })
+    const disconnect = disconnectGoogleAccount({
+      ...baseDeps,
+      unsubscribeFromNotifications: management.unsubscribe,
+    })
+
+    await expect(
+      disconnect({ connectionId: connectionA.id }, first),
+    ).resolves.toMatchObject({
+      status: 'disconnected',
+      encryptedRefreshToken: 'redacted',
+    })
+    expect(notifications.unsubscribeCalls).toEqual([])
+    await expect(
+      disconnect({ connectionId: connectionB.id }, second),
+    ).resolves.toMatchObject({
+      status: 'disconnected',
+      encryptedRefreshToken: 'redacted',
+    })
+    expect(notifications.unsubscribeCalls).toHaveLength(1)
+    expect(notifications.unsubscribeCalls[0]).toMatchObject({
+      gbpAccountId,
+      authorization: {
+        organizationId: second.organizationId,
+        connectionId: connectionB.id,
+      },
+    })
+    expect(outbox.byTag('integration.google_account.disconnected')).toHaveLength(2)
+  })
+
   it('redacts the signed identity and secrets, purges source content, and records a fact', async () => {
     const { baseDeps, connectionRepo, outbox } = setup()
     const ctx = buildTestAuthContext({ role: 'AccountAdmin' })

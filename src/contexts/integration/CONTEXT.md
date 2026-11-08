@@ -30,6 +30,16 @@ Refresh reauthorizes the same scope and acquires a new permit; a refused
 retry preserves the first call's answered evidence. Feature adapters retain their
 provider schemas and product-specific error mappings.
 
+Before clearing an account's push setting, notification management reads other
+active connections and their Property bindings through the named read seams.
+An active binding in any Organization retains the setting; a failed read refuses
+the clear, as does exhaustion of the 1,000-read budget. Retained accounts report
+`account_still_bound` as not cleared, so lifecycle evidence cannot claim they
+stopped. Disconnect still finishes locally.
+An account-scoped PostgreSQL advisory lock orders the usage read and provider
+clear against subscription attempts in every process. Contention leaves the
+import follow-up owed for retry; provider calls hold no database transaction.
+
 ## Model
 
 A GoogleConnection owns encrypted credentials and the verified Google OIDC
@@ -161,10 +171,14 @@ again and the SQL start predicate remains the final send fence. Notification
 management retains its own system principal through the sync authorizer.
 
 GBP push is desired state per Google account: each account bound to an active
-Property publishes to `GBP_PUBSUB_TOPIC`. An import item asserts it, and the
-daily `reconcile-gbp-notification-subscriptions` job re-asserts it for every
-organization with an active connection that current policy allows, reading each
-account's setting first and writing only on a difference, so accounts imported
+Property publishes to `GBP_PUBSUB_TOPIC`. Import follow-ups reuse successful
+verification of the same configuration for up to 24 hours across processes,
+checking each distinct account once. Failed or uncertain writes and disconnects
+invalidate that verification. The daily
+`reconcile-gbp-notification-subscriptions` job re-asserts accounts oldest attempt
+first, persisting progress before each attempt, including failures, so bounded
+runs advance across restarts. It checks current Organization policy and reads each
+account's setting first, writing only on a difference, so accounts imported
 while push was off or broken and a changed topic converge without an operator.
 
 A push names an account and a location, and no tenant. A location is unique only

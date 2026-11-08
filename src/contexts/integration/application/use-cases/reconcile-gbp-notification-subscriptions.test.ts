@@ -45,7 +45,14 @@ const setup = (
   })
   const reconcile = createGbpNotificationReconciliation({
     topicConfigured: input.topicConfigured ?? true,
-    listOrganizations,
+    listAccounts: async () =>
+      (await listOrganizations()).map((organization) => ({
+        organizationId: organization,
+        connectionId: `connection-${organization}`,
+        gbpAccountId: `account-${organization}`,
+        attemptedAt: null,
+      })),
+    recordAttempt: async () => undefined,
     backfill: { apply },
     nowMs: input.clock ?? (() => NOW_MS),
   })
@@ -76,7 +83,7 @@ describe('createGbpNotificationReconciliation', () => {
     const summary = await run(authorizeOrganization)
 
     expect(authorizeOrganization.mock.calls).toEqual([[ORG_A], [ORG_B], [ORG_C]])
-    expect(apply.mock.calls).toEqual([[ORG_A], [ORG_C]])
+    expect(apply.mock.calls.map(([org]) => org)).toEqual([ORG_A, ORG_C])
     expect(summary).toMatchObject({
       status: 'reconciled',
       organizations: 3,
@@ -179,7 +186,7 @@ describe('createGbpNotificationReconciliation', () => {
       accounts: { ...NO_ACCOUNTS, subscribed: 1 },
       retry: true,
     })
-    expect(apply.mock.calls).toEqual([[ORG_A], [ORG_B]])
+    expect(apply.mock.calls.map(([org]) => org)).toEqual([ORG_A, ORG_B])
   })
 
   it('starts no organization after its deadline and reports the rest as deferred', async () => {
@@ -198,7 +205,82 @@ describe('createGbpNotificationReconciliation', () => {
       organizationsDeferred: 2,
       retry: false,
     })
-    expect(apply.mock.calls).toEqual([[ORG_A]])
+    expect(apply.mock.calls.map(([org]) => org)).toEqual([ORG_A])
+  })
+
+  it('advances oldest accounts across bounded runs, including two accounts in one organization', async () => {
+    let now = NOW_MS
+    const attempts = new Map([
+      ['account-a', 30],
+      ['account-b', 20],
+      ['account-c', 10],
+    ])
+    const candidates = [
+      { organizationId: ORG_A, connectionId: 'connection-a', gbpAccountId: 'account-a' },
+      { organizationId: ORG_B, connectionId: 'connection-b', gbpAccountId: 'account-b' },
+      { organizationId: ORG_B, connectionId: 'connection-b', gbpAccountId: 'account-c' },
+    ]
+    const visited: string[] = []
+    const reconcile = createGbpNotificationReconciliation({
+      topicConfigured: true,
+      listAccounts: async () =>
+        candidates.map((candidate) => ({
+          ...candidate,
+          attemptedAt: attempts.get(candidate.gbpAccountId) ?? null,
+        })),
+      recordAttempt: async (account: string) => {
+        attempts.set(account, now)
+      },
+      backfill: {
+        apply: async (org, account) => {
+          visited.push(account?.gbpAccountId ?? org)
+          now += 100
+          return report(org)
+        },
+      },
+      nowMs: () => now,
+    })
+    for (let run = 0; run < 3; run += 1) {
+      await reconcile({ authorizeOrganization: allowAll, deadlineAtMs: now + 50 })
+    }
+    expect(visited).toEqual(['account-c', 'account-b', 'account-a'])
+  })
+
+  it('advances policy-denied accounts so bounded runs can reach an eligible account', async () => {
+    let now = NOW_MS
+    const attempts = new Map<string, number>()
+    const authorized: OrganizationId[] = []
+    const apply = vi.fn(async (organization: OrganizationId) => report(organization))
+    const reconcile = createGbpNotificationReconciliation({
+      topicConfigured: true,
+      listAccounts: async () =>
+        [ORG_A, ORG_B].map((organization) => ({
+          organizationId: organization,
+          connectionId: `connection-${organization}`,
+          gbpAccountId: `account-${organization}`,
+          attemptedAt: attempts.get(`account-${organization}`) ?? null,
+        })),
+      recordAttempt: async (account) => {
+        attempts.set(account, now)
+      },
+      backfill: { apply },
+      nowMs: () => now,
+    })
+    for (let run = 0; run < 2; run += 1) {
+      await reconcile({
+        authorizeOrganization: async (organization) => {
+          authorized.push(organization)
+          now += 100
+          return organization === ORG_B
+        },
+        deadlineAtMs: now + 50,
+      })
+    }
+    expect(authorized).toEqual([ORG_A, ORG_B])
+    expect(apply).toHaveBeenCalledExactlyOnceWith(ORG_B, {
+      connectionId: `connection-${ORG_B}`,
+      gbpAccountId: `account-${ORG_B}`,
+    })
   })
 
   it('reports an empty run when nobody holds an active connection', async () => {
