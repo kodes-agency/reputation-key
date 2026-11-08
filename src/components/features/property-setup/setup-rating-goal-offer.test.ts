@@ -3,7 +3,7 @@ import {
   SETUP,
   SETUP_FEW_REVIEWS,
   SETUP_KEEP_FIRST,
-} from '#/components/goals/rating-goal.stories.fixtures'
+} from '#/contexts/reporting/rating-goals/ui/rating-goal.stories.fixtures'
 import {
   importRatingGoalOffer,
   ratingGoalImportProperty,

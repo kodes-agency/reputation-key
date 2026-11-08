@@ -3,7 +3,7 @@
 // Imported by the server functions for `.validator(...)` only and by forms;
 // never re-exported from a server-function module, so these zod calls stay
 // out of first paint (#794). The read results are typed in
-// rating-goal.types.ts, which has no values.
+// rating-goals/contracts.ts, which has no values.
 //
 // The schemas check shape and range. Whether a target is above what Google
 // shows (or a kept tenth at or below it) needs Google's current number, so the

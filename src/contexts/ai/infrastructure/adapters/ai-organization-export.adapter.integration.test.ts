@@ -203,6 +203,39 @@ async function seedAnalysis(
   )
 }
 
+async function seedMention(
+  fixture: Fixture,
+  reviewId: string,
+  analysisSequence: number,
+): Promise<void> {
+  const key = [fixture.organizationId, fixture.propertyId, reviewId, analysisSequence]
+  await lease.pool.query(
+    `INSERT INTO ai_review_analysis_mentions (
+       organization_id, property_id, review_id, source_epoch, source_revision,
+       analysis_sequence, mention_ordinal, topic, polarity, strength
+     ) VALUES ($1, $2, $3, 0, 1, $4, 0, 'staff_service', 'positive', 'clear')`,
+    key,
+  )
+  for (const sentenceNumber of [3, 1]) {
+    await lease.pool.query(
+      `INSERT INTO ai_review_analysis_mention_sentences (
+         organization_id, property_id, review_id, source_epoch, source_revision,
+         analysis_sequence, mention_ordinal, sentence_number
+       ) VALUES ($1, $2, $3, 0, 1, $4, 0, $5)`,
+      [...key, sentenceNumber],
+    )
+  }
+  await lease.pool.query(
+    `INSERT INTO ai_review_analysis_mention_corrections (
+       organization_id, property_id, review_id, source_epoch, source_revision,
+       analysis_sequence, mention_ordinal, topic, kind, corrected_by,
+       created_at, updated_at
+     ) VALUES ($1, $2, $3, 0, 1, $4, 0, 'staff_service', 'remove_topic',
+               'export-test-manager', $5, $5)`,
+    [...key, new Date(ANALYZED_AT)],
+  )
+}
+
 async function seedFixture(): Promise<Fixture> {
   const suffix = randomUUID()
   const fixture: Fixture = {
@@ -326,7 +359,7 @@ async function seedFixture(): Promise<Fixture> {
     fixture.expiredOperationId,
     fixture.expiredReviewId,
     3,
-    MARKERS.operationIdempotencyKey,
+    `${MARKERS.operationIdempotencyKey}-${suffix}`,
   )
   await seedAnalysis(fixture, {
     operationId: fixture.currentOperationId,
@@ -352,6 +385,9 @@ async function seedFixture(): Promise<Fixture> {
     reviewAnalysisEpoch: 1,
     expiresAt: new Date(Date.now() - 60_000),
   })
+  await seedMention(fixture, fixture.currentReviewId, 1)
+  await seedMention(fixture, fixture.retiredReviewId, 2)
+  await seedMention(fixture, fixture.expiredReviewId, 3)
 
   for (const [localDate, epoch] of [
     [LOCAL_DATE, 1],
@@ -527,6 +563,22 @@ describe.sequential('AI Organization Export contributor', () => {
       { path: 'ai/review-analyses.csv', classification: 'retained_ai_derivative' },
       { path: 'ai/review-analyses.json', classification: 'retained_ai_derivative' },
       {
+        path: 'ai/review-analysis-mentions.csv',
+        classification: 'retained_ai_derivative',
+      },
+      {
+        path: 'ai/review-analysis-mentions.json',
+        classification: 'retained_ai_derivative',
+      },
+      {
+        path: 'ai/review-analysis-mention-corrections.csv',
+        classification: 'retained_ai_derivative',
+      },
+      {
+        path: 'ai/review-analysis-mention-corrections.json',
+        classification: 'retained_ai_derivative',
+      },
+      {
         path: 'ai/property-daily-aggregates.csv',
         classification: 'retained_ai_derivative',
       },
@@ -569,6 +621,40 @@ describe.sequential('AI Organization Export contributor', () => {
       status: 'ready',
     })
 
+    const mentions = jsonRecords(first.entries, 'ai/review-analysis-mentions.json')
+    expect(mentions).toEqual([
+      {
+        property_id: fixture.propertyId,
+        review_id: fixture.currentReviewId,
+        source_epoch: 0,
+        source_revision: '1',
+        analysis_sequence: '1',
+        mention_ordinal: 0,
+        topic: 'staff_service',
+        polarity: 'positive',
+        strength: 'clear',
+        thing: null,
+        issue: null,
+        names_person: null,
+        sentence_numbers: [1, 3],
+      },
+    ])
+    const corrections = jsonRecords(
+      first.entries,
+      'ai/review-analysis-mention-corrections.json',
+    )
+    expect(corrections).toHaveLength(1)
+    expect(corrections[0]).toMatchObject({
+      review_id: fixture.currentReviewId,
+      mention_ordinal: 0,
+      topic: 'staff_service',
+      kind: 'remove_topic',
+      replacement_thing: null,
+      replacement_issue: null,
+      replacement_issue_group_id: null,
+      corrected_by: 'export-test-manager',
+    })
+
     const aggregates = jsonRecords(first.entries, 'ai/property-daily-aggregates.json')
     expect(aggregates).toHaveLength(1)
     expect(aggregates[0]).toMatchObject({
@@ -596,6 +682,30 @@ describe.sequential('AI Organization Export contributor', () => {
     expect(archive).not.toContain(fixture.expiredReviewId)
     expect(archive).not.toContain(RETIRED_LINEAGE_ID)
     expect(archive).not.toContain(fixture.retiredScheduleId)
+  })
+
+  it('exports mentions and corrections of the requested Organization only', async () => {
+    const mine = await seedFixture()
+    const other = await seedFixture()
+    const contributor = createAiOrganizationExportContributor(db)
+
+    const { entries } = await contributor.contribute({
+      organizationId: mine.organizationId,
+      requestId: randomUUID(),
+      asOf: new Date(Date.now() - 1000),
+    })
+
+    for (const path of [
+      'ai/review-analysis-mentions.json',
+      'ai/review-analysis-mention-corrections.json',
+    ]) {
+      expect(jsonRecords(entries, path).map((record) => record.review_id)).toEqual([
+        mine.currentReviewId,
+      ])
+    }
+    const archive = archiveText(entries)
+    expect(archive).not.toContain(other.currentReviewId)
+    expect(archive).not.toContain(other.propertyId)
   })
 
   it('leaks no prompt, inference, admission or Google source material', async () => {

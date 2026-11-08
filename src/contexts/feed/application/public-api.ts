@@ -2,11 +2,10 @@
 import { createServerOnlyFn } from '@tanstack/react-start'
 import { queryAuditEvents } from '../audit/read.server'
 import { AUDIT_EVENT_RETENTION_RULE } from '../audit/retention.server'
-import {
+import type {
   createNotificationRightsPort,
-  runNotificationRights,
-  type ManualFinalWarningJob,
-  type NotificationRightsRequest,
+  ManualFinalWarningJob,
+  NotificationRightsRequest,
 } from '../rights/executor.server'
 
 export * from './activity-public-api'
@@ -18,10 +17,17 @@ export const getAuditEventRetentionRule = createServerOnlyFn(
 )
 
 export type { ManualFinalWarningJob, NotificationRightsRequest }
+// Loaded on demand so browser bundles and stories never pull in server code.
 export const runNotificationRightsRequest = createServerOnlyFn(
-  (
+  async (
     db: Parameters<typeof createNotificationRightsPort>[0],
     enqueue: (job: ManualFinalWarningJob) => Promise<void>,
     request: NotificationRightsRequest,
-  ) => runNotificationRights(createNotificationRightsPort(db, enqueue), request),
+  ) => {
+    const executor = await import('../rights/executor.server')
+    return executor.runNotificationRights(
+      executor.createNotificationRightsPort(db, enqueue),
+      request,
+    )
+  },
 )

@@ -10,16 +10,16 @@
 // The commands come in from the route (`-import-rating-goal-step.tsx`), which
 // also decides whether the viewer may set a goal at all.
 import { lazy, Suspense, useEffect, useRef, useState } from 'react'
-import type { RatingGoalSetupView } from '#/contexts/reporting/application/dto/rating-goal.types'
-import type { RegionRead } from '#/components/goals/rating-goal-section'
-import type { RatingGoalWizardProps } from '#/components/goals/rating-goal-wizard'
-import type { RatingGoalWizardIntent } from '#/components/goals/rating-goal-wizard-view'
+import type { RatingGoalSetupView } from '#/contexts/reporting/rating-goals/contracts'
+import type { RegionRead } from '#/contexts/reporting/rating-goals/ui/rating-goal-section'
+import type { RatingGoalWizardProps } from '#/contexts/reporting/rating-goals/ui/rating-goal-wizard'
+import type { RatingGoalWizardIntent } from '#/contexts/reporting/rating-goals/ui/rating-goal-wizard-view'
 import { InlineLink } from '#/components/ui/inline-link'
 import { importRatingGoalOffer } from './setup-rating-goal-offer'
 
 // The wizard is a chunk of its own, fetched only when it is offered.
 const RatingGoalWizard = lazy(() =>
-  import('#/components/goals/rating-goal-wizard').then((module) => ({
+  import('#/contexts/reporting/rating-goals/ui/rating-goal-wizard').then((module) => ({
     default: module.RatingGoalWizard,
   })),
 )

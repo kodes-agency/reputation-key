@@ -4,7 +4,7 @@ import {
   RatingGoalSweepError,
   type AuthorizeRatingGoalScope,
   type RatingGoalSweepStats,
-} from '../../application/use-cases/rating-goal-sweep'
+} from '../../rating-goals/rating-goal-sweep.server'
 import {
   createRatingGoalEvaluationJobHandler,
   RATING_GOAL_EVALUATION_JOB_NAME,
