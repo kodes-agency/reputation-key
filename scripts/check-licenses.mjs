@@ -9,8 +9,8 @@
 //   policy file   security/license-policy.json
 //   allowed       permissive set (MIT, ISC, BSD-*, Apache-2.0, 0BSD, CC0-1.0,
 //                 BlueOak-1.0.0, MIT-0, Python-2.0, Unlicense, WTFPL)
-//   expressions   "(MIT OR CC0-1.0)" passes when ANY operand is allowed;
-//                 "MIT AND ISC" passes only when EVERY operand is allowed
+//   expressions   OR permits a choice of complete license terms;
+//                 AND requires both branches, respecting SPDX grouping
 //   exceptions    { package, license, scope, owner, reason, expiresAt }
 //                   package   exact name, or trailing "*" = prefix match
 //                             (covers os/cpu-suffixed binary packages)
@@ -28,6 +28,7 @@ import { tmpdir } from 'node:os'
 import { join, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { spawnSync } from 'node:child_process'
+import { isAllowedExpression } from './license-expression.mjs'
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..')
 const POLICY_FILE = join(ROOT, 'security/license-policy.json')
@@ -96,17 +97,6 @@ function loadPolicy() {
     }
   }
   return parsed
-}
-
-// Expression rule: an OR expression passes when any operand is allowed (the
-// recipient elects that license); anything else (AND / plain) requires every
-// license identifier to be allowed.
-function isAllowedExpression(expression, allowed) {
-  const identifiers = expression.match(/[A-Za-z0-9.-]+/g) ?? []
-  const operands = identifiers.filter((id) => !['AND', 'OR', 'WITH'].includes(id))
-  if (operands.length === 0) return false
-  if (/\bOR\b/.test(expression)) return operands.some((id) => allowed.has(id))
-  return operands.every((id) => allowed.has(id))
 }
 
 const packageMatches = (pattern, name) =>

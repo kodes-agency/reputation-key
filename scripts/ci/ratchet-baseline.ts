@@ -1,5 +1,4 @@
-// Shared core of the per-file ratchet gates (check-file-length.ts,
-// check-unchecked-indexed-access.ts).
+// Baseline support for check-unchecked-indexed-access.ts.
 //
 // A baseline maps a repository path to the count that file may still carry; a
 // path that is absent may carry none. A gate fails when any file's count rises
