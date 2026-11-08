@@ -8,7 +8,7 @@ import type {
   PortalGroupId,
 } from '#/shared/domain/ids'
 import type { AttributionQuality } from './attribution-quality'
-import type { PermittedConsumer, SourcePolicyClass } from './metric-registry'
+import type { PermittedConsumer, SourcePolicyClass } from '../readings/contracts'
 import type { MetricKey } from '#/shared/domain/metric-keys'
 import type { PrimaryStaffAttributionSnapshot } from '#/shared/domain/primary-staff-attribution'
 

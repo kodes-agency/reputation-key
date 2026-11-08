@@ -147,7 +147,6 @@ export type {
   PortalKPIs,
   PortalEngagementFunnel,
   PortalMetricEvidence,
-  PortalLifetimeReconciliationState,
   PortalPriorUnavailableReason,
   PortalCountKPIValue,
   RatingComparisonWithheld,

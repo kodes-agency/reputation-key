@@ -14,9 +14,8 @@
 // which time zone each Property has, and Reporting builds each Property's
 // window itself, the way the single-Portal view does. Properties that share a
 // window share a read, so the number of statements follows the number of
-// distinct windows (time zones), never the number of Portals. All Time is not a
-// window here: a lifetime figure comes from the lifetime aggregate, not from
-// readings, and the two would disagree.
+// distinct windows (time zones), never the number of Portals. The overview
+// compares bounded windows; All Time is available on a single Portal.
 //
 // The caller passes the roster: the Portals in scope and the group each is in
 // today. Portal owns that list; Reporting owns the numbers. The caller narrows

@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 import type { GoalBulkCreateInput, GoalBulkCreateResult } from './goal-bulk-create'
-import type { GoalActor } from './goal-programs'
+import type { GoalActor } from '../../monthly-goals/goal-programs.server'
 import {
   actor,
   days,
@@ -10,7 +10,7 @@ import {
   propertyGoal,
   PROPERTY_ID,
   readings,
-} from './monthly-portal-goal-test-fixtures'
+} from '../../monthly-goals/monthly-portal-goal.test-fixtures'
 import { addPortalGoal, addPortalGoals, type PortalGoalAddDeps } from './portal-goal-add'
 
 const RECEPTION = 'portal-reception'

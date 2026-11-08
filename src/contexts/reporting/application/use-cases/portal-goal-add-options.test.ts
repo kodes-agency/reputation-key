@@ -10,7 +10,7 @@ import {
   propertyGoal,
   PROPERTY_ID,
   readings,
-} from './monthly-portal-goal-test-fixtures'
+} from '../../monthly-goals/monthly-portal-goal.test-fixtures'
 import { readPortalGoalAddOptions } from './portal-goal-add-options'
 
 // Nov 18, midday in Sofia: November is the month offered (through the 20th).

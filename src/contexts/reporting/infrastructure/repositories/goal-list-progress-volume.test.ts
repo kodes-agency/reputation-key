@@ -6,7 +6,7 @@ import {
   type HeldTransaction,
 } from '#/shared/db/testing/held-transaction'
 import type { GoalProgramBundle } from '../../application/ports/goal-program.repository'
-import type { GoalActor } from '../../application/use-cases/goal-programs'
+import type { GoalActor } from '../../monthly-goals/goal-programs.server'
 import { listProgressOf } from '../../application/use-cases/goal-list-progress'
 import { subjectMonthQuery } from '../../application/use-cases/goal-progress'
 import { queryGoalMetric } from '../../application/use-cases/query-goal-metric'
@@ -18,7 +18,7 @@ import { createGoalMetricSnapshotReader } from './goal-metric-snapshot'
 import { createMetricRegistryRepository } from './metric-registry.repository'
 import { createGoalProgramRepository } from './goal-program.repository'
 import { seedCountReadings, seedGoalMonth } from '../testing/goal-running-month-seed'
-import { METRIC_VERSION_IDS } from '../../domain/metric-registry'
+import { METRIC_VERSION_IDS } from '../../readings/contracts'
 
 describe.sequential('Goal list progress at volume (integration)', () => {
   let held: HeldTransaction | undefined

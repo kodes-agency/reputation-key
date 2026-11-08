@@ -15,18 +15,18 @@ import { getEnv } from '#/shared/config/env'
 import { getDb } from '#/shared/db'
 import { calendarPeriodRange } from '#/shared/domain/period-range'
 import { acquireTestLease, type TestLease } from '#/shared/testing/test-environment-lease'
-import { findMetricVersionById } from '../domain/metric-registry'
+import { findMetricVersionById } from '../readings/contracts'
 import { monthKeyOf } from '../domain/goal-start'
 import type { GoalProgramRepository } from '../application/ports/goal-program.repository'
 import {
   createGoalProgramService,
   type GoalActor,
-} from '../application/use-cases/goal-programs'
+} from '../monthly-goals/goal-programs.server'
 import {
   changeMonthlyPortalGoalNow,
   keepMonthlyPortalGoal,
   setMonthlyPortalGoal,
-} from '../application/use-cases/monthly-portal-goal'
+} from '../monthly-goals/monthly-portal-goal.server'
 import { createGoalProgramRepository } from './repositories/goal-program.repository'
 
 const TIMEZONE = 'UTC'

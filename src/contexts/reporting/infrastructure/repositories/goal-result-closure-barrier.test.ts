@@ -22,14 +22,14 @@ import {
 import {
   createGoalProgramService,
   GoalProgramError,
-} from '../../application/use-cases/goal-programs'
+} from '../../monthly-goals/goal-programs.server'
 import { queryGoalMetric } from '../../application/use-cases/query-goal-metric'
 import type { GoalMetricReadPort } from '../../application/use-cases/goal-program-shared'
-import { findMetricVersionById, METRIC_VERSION_IDS } from '../../domain/metric-registry'
+import { findMetricVersionById, METRIC_VERSION_IDS } from '../../readings/contracts'
 import { createGoalMetricSnapshotReader } from './goal-metric-snapshot'
 import { createGoalProgramRepository } from './goal-program.repository'
 import { createMetricRegistryRepository } from './metric-registry.repository'
-import { createAtomicMetricCommandStore } from '../metric-command-store'
+import { createAtomicMetricCommandStore } from '../../readings/metric-command-store.server'
 import { createReading } from '../../domain/metric-reading'
 import { createGoalOrganizationLifecycleAdapter } from '../adapters/goal-organization-lifecycle.adapter'
 

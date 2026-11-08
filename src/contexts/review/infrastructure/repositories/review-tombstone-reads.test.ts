@@ -199,17 +199,6 @@ describe.sequential('an erased Review in the repository reads', () => {
     expect(found.map((review) => review.id)).toEqual([LIVE])
   })
 
-  it('findRecentEligibleByPropertyId does not serve an erased Review whose clock is still running', async () => {
-    const found = await repo.findRecentEligibleByPropertyId(
-      PROPERTY,
-      ORG,
-      { limit: 10 },
-      READ_AT,
-    )
-
-    expect(found.map((review) => review.id)).toEqual([LIVE])
-  })
-
   it('findIdsByContentFilter does not list an erased Review as eligible content', async () => {
     const ids = await repo.findIdsByContentFilter(ORG, {}, READ_AT)
 

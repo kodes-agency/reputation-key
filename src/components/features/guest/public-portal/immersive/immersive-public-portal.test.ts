@@ -1,7 +1,7 @@
 // The live Immersive Hub page (round 4, slice 19), rendered to markup and read
 // back: what a guest of a schema version 3 portal is given at first byte, in
 // which order, and what must not be there. The unit project has no DOM, so the
-// bound behaviour (acting on a click) is in `guest-response-actions.test.ts`
+// bound behaviour (acting on a click) is in `src/contexts/guest/page/ui/guest-response-actions.test.ts`
 // and the browser journey in `e2e/critical/guest-portal.spec.ts`.
 
 import { describe, expect, it } from 'vitest'

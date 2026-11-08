@@ -211,11 +211,6 @@ describe('buildReportingContext', () => {
     // second instance here would be read by nothing.
     const context = build()
 
-    expect(Object.keys(context).sort()).toEqual([
-      'internal',
-      'maintenance',
-      'publicApi',
-      'worker',
-    ])
+    expect(Object.keys(context).sort()).toEqual(['internal', 'publicApi', 'worker'])
   })
 })

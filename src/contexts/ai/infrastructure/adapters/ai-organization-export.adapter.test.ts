@@ -47,6 +47,41 @@ const payload = (
   requestedAsOf: ASOF.toISOString(),
   snapshotBound: 'repeatable_read_within_15m_of_request',
   reviewAnalyses: [analysis('review-a', 1), analysis('review-b', 2)],
+  reviewAnalysisMentions: [
+    {
+      property_id: '84000000-0000-4000-8000-000000000001',
+      review_id: 'review-a',
+      source_epoch: 0,
+      source_revision: 1,
+      analysis_sequence: 1,
+      mention_ordinal: 0,
+      topic: 'service',
+      polarity: 'negative',
+      strength: 'strong',
+      thing: 'front desk',
+      issue: 'long queue',
+      names_person: null,
+      sentence_numbers: [1, 2],
+    },
+  ],
+  reviewAnalysisMentionCorrections: [
+    {
+      property_id: '84000000-0000-4000-8000-000000000001',
+      review_id: 'review-a',
+      source_epoch: 0,
+      source_revision: 1,
+      analysis_sequence: 1,
+      mention_ordinal: 0,
+      topic: 'service',
+      kind: 'change_cause',
+      replacement_thing: 'check-in',
+      replacement_issue: 'slow',
+      replacement_issue_group_id: null,
+      corrected_by: 'user-1',
+      created_at: '2026-08-27T10:00:00.000000Z',
+      updated_at: '2026-08-27T10:00:00.000000Z',
+    },
+  ],
   propertyDailyAggregates: [
     {
       property_id: '84000000-0000-4000-8000-000000000001',
@@ -188,6 +223,26 @@ describe('AI Organization Export entries', () => {
         classification: 'retained_ai_derivative',
       },
       {
+        path: 'ai/review-analysis-mentions.csv',
+        mediaType: 'text/csv',
+        classification: 'retained_ai_derivative',
+      },
+      {
+        path: 'ai/review-analysis-mentions.json',
+        mediaType: 'application/json',
+        classification: 'retained_ai_derivative',
+      },
+      {
+        path: 'ai/review-analysis-mention-corrections.csv',
+        mediaType: 'text/csv',
+        classification: 'retained_ai_derivative',
+      },
+      {
+        path: 'ai/review-analysis-mention-corrections.json',
+        mediaType: 'application/json',
+        classification: 'retained_ai_derivative',
+      },
+      {
         path: 'ai/property-daily-aggregates.csv',
         mediaType: 'text/csv',
         classification: 'retained_ai_derivative',
@@ -242,12 +297,29 @@ describe('AI Organization Export entries', () => {
     ).toHaveLength(2)
   })
 
+  it('exports mention sentence numbers and corrections without any review sentence', () => {
+    const entries = buildAiExportEntries(payload())
+
+    expect(text(entries, 'ai/review-analysis-mentions.csv').split('\n')[0]).toBe(
+      'property_id,review_id,source_epoch,source_revision,analysis_sequence,' +
+        'mention_ordinal,topic,polarity,strength,thing,issue,names_person,sentence_numbers',
+    )
+    expect(text(entries, 'ai/review-analysis-mentions.json')).toContain(
+      '"sentence_numbers":[1,2]',
+    )
+    expect(text(entries, 'ai/review-analysis-mention-corrections.json')).toContain(
+      '"kind":"change_cause"',
+    )
+  })
+
   it('counts every collection when deciding complete versus no_data', () => {
-    expect(aiExportRecordCount(payload())).toBe(4)
+    expect(aiExportRecordCount(payload())).toBe(6)
     expect(
       aiExportRecordCount(
         payload({
           reviewAnalyses: [],
+          reviewAnalysisMentions: [],
+          reviewAnalysisMentionCorrections: [],
           propertyDailyAggregates: [],
           propertyTrendOutcomes: [],
         }),

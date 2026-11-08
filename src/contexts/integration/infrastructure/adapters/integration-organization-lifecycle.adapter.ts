@@ -291,9 +291,6 @@ const READINESS_BLOCKER_FIELDS = Object.freeze([
   // A non-terminal OAuth exchange still holds application-encrypted provider
   // response material.
   'pending_exchange_attempts',
-  // A source operation that never reached terminal may still be running at the
-  // provider.
-  'pending_source_operations',
   // An unexpired discovery handle still addresses provider candidate content.
   // Its 24-hour database-enforced bound makes this drain on its own well
   // inside the recovery window, so blocking here costs nothing and refuses to
@@ -336,9 +333,6 @@ const verifyPurgeReadiness = async (
         WHERE scope = 'google_oauth_exchange'
           AND payload->>'organizationId' = ${request.organizationId}
           AND payload->>'terminalAt' IS NULL) AS pending_exchange_attempts,
-      (SELECT count(*)::int FROM google_credential_source_operations
-        WHERE organization_id = ${request.organizationId}
-          AND terminal_at IS NULL) AS pending_source_operations,
       (SELECT count(*)::int FROM google_import_discovery_records
         WHERE organization_id = ${request.organizationId}
           AND expires_at > ${request.occurredAt}) AS live_discovery_handles

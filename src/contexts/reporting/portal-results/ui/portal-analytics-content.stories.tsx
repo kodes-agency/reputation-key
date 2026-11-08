@@ -90,19 +90,28 @@ export const AllTime: Story = {
           priorSampleCount: 0,
         },
       },
-      lifetimeReconciliation: {
-        state: 'reconciled',
-        projectionRevision: 1,
-        sealedThroughLocalDate: null,
-        lastRebuiltAt: healthy.period.endAt,
-        lastSealedAt: null,
-      },
       series: null,
       localDays: null,
       comparePeriod: null,
       versionMarkers: [],
       scanPatterns: null,
     },
+  },
+}
+export const RetainedHistory: Story = {
+  args: {
+    ...AllTime.args,
+    data: {
+      ...AllTime.args!.data!,
+      period: { ...healthy.period, endAt: new Date('2028-10-01T00:00:00.000Z') },
+    },
+  },
+  play: async ({ canvas }) => {
+    await expect(canvas.getByRole('radio', { name: 'Last 24 months' })).toBeVisible()
+    await expect(canvas.queryByRole('radio', { name: 'All time' })).toBeNull()
+    await userEvent.click(canvas.getByRole('button', { name: 'More detail' }))
+    await expect(await canvas.findByText('Last 24 months, Sofia time')).toBeVisible()
+    await expect(canvas.queryByText('All-time data status')).toBeNull()
   },
 }
 const zeroKpis = {

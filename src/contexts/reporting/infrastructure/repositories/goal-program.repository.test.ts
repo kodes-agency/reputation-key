@@ -6,7 +6,7 @@ import {
   findMetricVersionById,
   METRIC_DEFINITION_IDS,
   METRIC_VERSION_IDS,
-} from '../../domain/metric-registry'
+} from '../../readings/contracts'
 import { acquireTestLease, type TestLease } from '#/shared/testing/test-environment-lease'
 import type {
   GoalMonthlyResult,
@@ -17,7 +17,7 @@ import type {
 import {
   createGoalProgramService,
   type GoalActor,
-} from '../../application/use-cases/goal-programs'
+} from '../../monthly-goals/goal-programs.server'
 import { firstFullMonthlyPeriodAtOrAfter } from '../../domain/goal-program'
 import { createGoalProgramRepository } from './goal-program.repository'
 

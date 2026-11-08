@@ -9,7 +9,7 @@ import {
   type PortalId,
 } from '#/shared/domain/ids'
 import { buildTestAuthContext } from '#/shared/testing/fixtures'
-import { METRIC_VERSION_IDS } from '../../domain/metric-registry'
+import { METRIC_VERSION_IDS } from '../../readings/contracts'
 import type {
   MetricPortalMetricEvidence,
   MetricPortalMetricEvidenceSet,

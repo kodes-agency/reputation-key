@@ -5,15 +5,15 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { getEnv } from '#/shared/config/env'
 import { getDb } from '#/shared/db'
 import { acquireTestLease, type TestLease } from '#/shared/testing/test-environment-lease'
-import { findMetricVersionById } from '../domain/metric-registry'
+import { findMetricVersionById } from '../readings/contracts'
 import type { PortalGoalMeasure } from '../domain/goal-recommendation-types'
 import { monthlyPortalGoalOf } from '../application/monthly-portal-goal-identity'
 import type { GoalProgramRepository } from '../application/ports/goal-program.repository'
 import {
   createGoalProgramService,
   type GoalActor,
-} from '../application/use-cases/goal-programs'
-import { setMonthlyPortalGoal } from '../application/use-cases/monthly-portal-goal'
+} from '../monthly-goals/goal-programs.server'
+import { setMonthlyPortalGoal } from '../monthly-goals/monthly-portal-goal.server'
 import { createGoalProgramRepository } from './repositories/goal-program.repository'
 
 const NOW = new Date('2026-10-23T09:00:00.000Z')

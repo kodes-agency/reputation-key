@@ -15,8 +15,7 @@ export const getDashboardDataDto = z.object({
 
 // GET Portals overview results — one Property's Portals, or, with no Property
 // named, every Portal of the Organization the caller may read, together. All
-// Time is not a window here: a lifetime figure comes from the lifetime
-// aggregate, not from readings, and the two would disagree.
+// Time is available on a single Portal; this overview compares bounded windows.
 export const getPortalResultsOverviewDto = z.object({
   propertyId: z.uuid().optional(),
   timeRange: z

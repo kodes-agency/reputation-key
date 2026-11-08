@@ -5,6 +5,7 @@ import type {
 import {
   correctResponse,
   createResponse,
+  deleteResponse,
   DEFAULT_FEEDBACK_WITHDRAWAL_WINDOW_MS,
   DEFAULT_RESPONSE_SESSION_WINDOW_MS,
   DEFAULT_RESPONSE_WITHDRAWAL_WINDOW_MS,
@@ -70,7 +71,7 @@ export type GuestResponseInput = Readonly<{
   mediaConsent?: boolean
 }>
 
-export type GuestResponseExperienceInput = Readonly<{
+type GuestResponseExperienceInput = Readonly<{
   portalPublicationState: 'published'
   portalPublicationSnapshotId: string
   portalPublicationVersion: number
@@ -265,8 +266,14 @@ function unwrap(result: GuestResponse | ResponseError): GuestResponse {
   return result
 }
 
+/** Verifies, outside Guest, that an operator may erase Guest data. Absent means denied. */
+export type OperatorErasureAuthority = Readonly<{
+  verify(operatorId: string): Promise<boolean>
+}>
+
 export function guestResponseLifecycle(
   deps: Readonly<{
+    operatorAuthority?: OperatorErasureAuthority
     repo: GuestResponseRepository
     clock: () => Date
     idGen: () => string
@@ -694,6 +701,34 @@ export function guestResponseLifecycle(
         throw new GuestResponseLifecycleError('response_unavailable')
       }
       return toView(deleted, deps.clock())
+    },
+
+    /**
+     * Operator-authorized erasure of one response in an explicit tenant scope.
+     * It needs no guest session and no withdrawal window. A denied operator or
+     * a response outside the scope writes nothing.
+     */
+    eraseAsOperator: async (
+      operatorId: string,
+      scope: GuestResponseScope,
+      responseId: GuestResponseId,
+    ): Promise<'erased' | 'already_erased'> => {
+      if (!(await deps.operatorAuthority?.verify(operatorId))) {
+        throw new GuestResponseLifecycleError('operator_not_authorized')
+      }
+      const current = await deps.repo.findById(scope, responseId)
+      if (!current) throw new GuestResponseLifecycleError('response_not_found')
+      if (current.status === 'deleted') return 'already_erased'
+      requireKnownFactLineage(current)
+      const deleted = unwrap(deleteResponse(current, deps.clock()))
+      const committed = await deps.commandStore.commitErased(
+        deleted,
+        withdrawalFacts(current),
+      )
+      if (committed !== 'applied') {
+        throw new GuestResponseLifecycleError('response_unavailable')
+      }
+      return 'erased'
     },
   } as const
 }

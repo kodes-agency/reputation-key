@@ -14,7 +14,7 @@ import type {
   GoalSubjectAssignment,
 } from '../../application/ports/goal-program.repository'
 import type { GoalSubject } from '../../domain/goal-program'
-import { METRIC_DEFINITION_IDS, METRIC_VERSION_IDS } from '../../domain/metric-registry'
+import { METRIC_DEFINITION_IDS, METRIC_VERSION_IDS } from '../../readings/contracts'
 import { createGoalProgramRepository } from './goal-program.repository'
 import { hasPostgresErrorCode } from './goal-program.rows'
 

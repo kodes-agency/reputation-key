@@ -7,7 +7,7 @@ import { withStartContext } from '#/shared/testing/tanstack-start-als'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { DataScope } from '#/shared/domain/data-scope'
 import type { Permission } from '#/shared/domain/permissions'
-import type { GoalActor } from '../application/use-cases/goal-programs'
+import type { GoalActor } from '../monthly-goals/goal-programs.server'
 
 const mocks = vi.hoisted(() => ({
   detail: vi.fn(),

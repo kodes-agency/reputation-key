@@ -11,7 +11,7 @@ import {
   GoalProgramMaintenanceError,
   type GoalProgramMaintenanceStats,
   type GoalProgramService,
-} from '../../application/use-cases/goal-programs'
+} from '../../monthly-goals/goal-programs.server'
 
 export const GOAL_PROGRAM_MAINTENANCE_JOB_NAME = 'goal-program.maintain' as const
 

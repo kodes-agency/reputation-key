@@ -8,8 +8,8 @@ import {
   PROPERTY_ID,
   propertyGoal,
   SEAVIEW_PORTALS,
-} from '#/contexts/reporting/application/use-cases/monthly-portal-goal-test-fixtures'
-import { readMonthlyPortalGoalPage } from '#/contexts/reporting/application/use-cases/monthly-portal-goal-page'
+} from '#/contexts/reporting/monthly-goals/monthly-portal-goal.test-fixtures'
+import { readMonthlyPortalGoalPage } from '#/contexts/reporting/monthly-goals/monthly-portal-goal-page.server'
 import { readPortalGoalSinglePage } from '#/contexts/reporting/monthly-goals/get-portal-goal-page.server'
 import { stopWords } from './portal-goal-stop-view'
 

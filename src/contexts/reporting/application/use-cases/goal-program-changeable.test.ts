@@ -10,7 +10,7 @@ import {
   createGoalProgramService,
   type GoalActor,
   type GoalProgramDependencies,
-} from './goal-programs'
+} from '../../monthly-goals/goal-programs.server'
 
 const actor: GoalActor = {
   organizationId: 'org-1',

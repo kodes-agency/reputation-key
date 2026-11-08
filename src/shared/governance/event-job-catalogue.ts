@@ -96,7 +96,7 @@ function job(
 
 const ACTIVITY_OUTBOX = 'src/contexts/feed/infrastructure/activity-outbox-consumers.ts'
 const METRIC_GUEST_OUTBOX =
-  'src/contexts/reporting/infrastructure/guest-outbox-consumers.ts'
+  'src/contexts/reporting/readings/guest-outbox-consumers.server.ts'
 const GOAL_METRIC_CORRECTION_OUTBOX =
   'src/contexts/reporting/infrastructure/metric-correction-outbox-consumers.ts'
 const REVIEW_OUTBOX = 'src/contexts/review/infrastructure/outbox-consumers.ts'

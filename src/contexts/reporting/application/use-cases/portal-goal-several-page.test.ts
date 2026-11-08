@@ -11,7 +11,7 @@ import {
   PROPERTY_ID,
   propertyGoal,
   SEAVIEW_PORTALS,
-} from './monthly-portal-goal-test-fixtures'
+} from '../../monthly-goals/monthly-portal-goal.test-fixtures'
 import { readPortalGoalSinglePage } from '../../monthly-goals/get-portal-goal-page.server'
 
 const OCT_1 = new Date('2026-09-30T21:00:00.000Z')

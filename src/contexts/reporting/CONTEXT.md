@@ -18,7 +18,7 @@ while a future scans version waits. Ended goals do not hold a collector.
 - Individual Google review stars are not recorded as metric readings; current
   Google figures come from verified snapshots. Stored `property.review` readings
   and their registry entry remain until those rows are erased.
-- Maintain anonymous Portal lifetime aggregates and Current on Google snapshots. A Current on Google snapshot is ordered, and `verifiedAt` dated, by when Google's numbers were READ (the event's `numbersObservedAt`, falling back to `evaluatedAt`), so a long snapshot that completes after a fresher head fact does not replace the newer numbers.
+- Compute Portal totals from effective readings and maintain Current on Google snapshots. A Current on Google snapshot is ordered, and `verifiedAt` dated, by when Google's numbers were READ (the event's `numbersObservedAt`, falling back to `evaluatedAt`), so a long snapshot that completes after a fresher head fact does not replace the newer numbers.
 - Resolve governed metric availability, provenance, completeness, and correction impact.
 - Create, revise, assign, schedule, evaluate, and close monthly Goal Programs.
 - Produce property, fleet, staff, Portal analytics, Portals overview results, attention, and
@@ -159,14 +159,14 @@ and goal-detail pages.
   most recently ended one that still counts a month (its window holds days after now, or a
   month of it is still open or reconciling: a goal stopped on Nov 12 is still it until
   November closes). An average and a goal for a Portal or a Portal Group never are. The
-  Goals page card (`application/use-cases/monthly-portal-goal-card.ts`) is one composed
+  Goals page card (`monthly-goals/monthly-portal-goal-card.server.ts`) is one composed
   read: it authorizes `goal.create`, reads the clock once, then the Programs the actor may
   see and the recommendation together (`gatherPortalGoalRecommendation`, which asks the
   policy nothing itself), and answers the goal by Program or the state before one: no
   Portal (or none live and no draft), draft Portals only, the first weeks (today, this
   month so far, the ready day and each published Portal's steps; a disabled Portal takes
   no row), the number ready to use, nothing counted (with the basis weeks) or an unreadable
-  recommendation. The number offered (`application/use-cases/monthly-portal-goal-offer.ts`) is
+  recommendation. The number offered (`monthly-goals/monthly-portal-goal-offer.server.ts`) is
   the recommendation's own for its default month and measure (this month through the 20th
   with what already counts, else the next; scans first when only scans came in), with what
   it stands on: the Portals in it with their counts and live days, and the live Portals that
@@ -174,7 +174,7 @@ and goal-detail pages.
   far, or an active goal's running month with its own target and the governed figure
   (`progressOf`), never the recommendation's count, or a paused or stopped goal's month it
   still counts (on Dec 1 a goal stopped in November names November). The set command
-  (`application/use-cases/monthly-portal-goal.ts`) makes an ordinary Program named "Monthly
+  (`monthly-goals/monthly-portal-goal.server.ts`) makes an ordinary Program named "Monthly
   portal goal" with the Property as its one subject, from the month the card named. It
   authorizes `goal.create`, then refuses `subject_has_goal` while any Property count goal that
   has not ended exists on either measure. The repository repeats the identity check under
@@ -199,7 +199,7 @@ and goal-detail pages.
   or more; or under half) are `goalStepDown` and `ownNumberNote` of the one grid, which
   `application/goal-number-steps.ts` hands to components with `goalStepUp`.
 - **Monthly portal goal, running** (ADR 0068;
-  `application/use-cases/monthly-portal-goal-running.ts`): the card's goal once it runs.
+  `monthly-goals/monthly-portal-goal-running.server.ts`): the card's goal once it runs.
   Its month is the governed read of the Property's month so far (`progressOf`; a stopped
   goal still counts to the end of the month it was stopped in, so that month is read the
   same way, `readSubjectMonth`, and the card says the day it was stopped, from `ended_at`,
@@ -218,10 +218,10 @@ and goal-detail pages.
   version it opened under, and is worded and its counts drawn in that measure: a change
   from a coming month ("Count scans instead") leaves the month already counting as it was.
 - **Monthly portal goal, its page** (ADR 0068;
-  `application/use-cases/monthly-portal-goal-page.ts`, `/goals/portals`): the card's read
+  `monthly-goals/monthly-portal-goal-page.server.ts`, `/goals/portals`): the card's read
   once more, authorised for `goal.create` the same way, with what the page shows beside
   it. The **line of succession** is the goal itself, then every earlier Property count goal
-  of the Property that has ended, newest end first (`monthly-portal-goal-history.ts`); with
+  of the Property that has ended, newest end first (`monthly-portal-goal-history.server.ts`); with
   no Monthly portal goal now (a stopped goal whose last month has closed) it is those ended
   goals alone, drawn under the card before a goal, so a notice or a link about one lands on
   its months. Its months are theirs together, one per month, newest first, up to 24: every
@@ -240,7 +240,7 @@ and goal-detail pages.
   leaves the page whole (`progress: null`, a name left out). Its types are
   `application/dto/monthly-portal-goal-page.types.ts`.
 - **Monthly portal goal, its month-start check-in** (ADR 0068 decision 8;
-  `domain/portal-goal-check-in.ts`, `application/use-cases/monthly-portal-goal-check-in.ts`):
+  `domain/portal-goal-check-in.ts`, `monthly-goals/monthly-portal-goal-check-in.server.ts`):
   on local days 1 to 7 of a month that is not the goal's first, while the goal runs, the
   card asks once whether the month keeps its number. It is asked only while its month is
   open (the month a change now is made against) and until a manager answers: Keep writes
@@ -267,7 +267,7 @@ and goal-detail pages.
   an earlier or the same month (a tab left open since) changes nothing, and a month after
   next month's, which no prompt names, is refused `start_month_changed`. It sets no goal: the
   Goals page's card still offers the number, and next month's prompt is shown. A Portal's
-  Results line (`application/use-cases/monthly-portal-goal-line.ts`, `goal.create`) is the
+  Results line (`monthly-goals/monthly-portal-goal-line.server.ts`, `goal.create`) is the
   card's read once more, for one Portal this month: its count toward the Monthly portal goal
   while that goal counts the month (active, or stopped with the month still counting), from
   the set read and only when every Portal's count adds up to the governed figure, as the
@@ -394,7 +394,7 @@ and goal-detail pages.
   reviews (Google's count decides that first, current or not) and current numbers; a
   reading waits for Google while its numbers are not current, show no tenth or give no
   exact average, or the review cache holds no review (an empty or expired cache). The setup
-  read also returns `setupInputs` (`application/dto/rating-goal-setup.types.ts`, rounds 3
+  read also returns `setupInputs` (`rating-goals/contracts.ts`, rounds 3
   and 4): Google's numbers, the exact average, the best calendar month of the last twelve
   and the best year with ten reviews, the reviews of the last 90 days and the busiest 30
   local dates of the last 365 (`domain/rating-goal-evidence.ts`), from which the one-screen
@@ -445,7 +445,8 @@ and goal-detail pages.
   read joins them, and the Property's active rating goal as stored (target, mode, last status,
   never a live evaluation), for its page only. RepKey's period averages stay for the Ratings
   page and the rating drop signal.
-- **Portal lifetime aggregate**: anonymous all-time values with rebuild and seal evidence.
+- **Portal All Time**: governed effective-reading totals, without a comparison or series.
+  From October 2028 the label is "Last 24 months" as Guest facts begin expiring.
 - **Portal results measures**: the five shared measures: Scans (server-verified, not raw page opens; counted from August 2026),
   Ratings, Average rating, Went to Google (Google review link opens
   only; a secondary link is not one), and private notes. The reading floors live in
@@ -567,7 +568,10 @@ and goal-detail pages.
 
 The [Portal results map](portal-results/CONTEXT.md) follows the workspace Results
 screen to its browser contract, authenticated server function and governed SQL.
-Other Reporting features retain their existing paths.
+The Google rating goal commands and reads live in `rating-goals/*.server.ts`, with
+browser-safe types in `rating-goals/contracts.ts` and screens, policies and stories
+in `rating-goals/ui/`. Existing `server/` RPC paths stay fixed. Other Reporting
+features retain their existing paths.
 
 ## Interfaces and dependencies
 
@@ -638,12 +642,22 @@ Reply redaction has no session that can ask for it in the beta (both interactive
 manage replies), so that e2e case is parked and `get-dashboard-data.test.ts` holds the rule.
 
 The unified `buildReportingContext` returns one public interface, one combined outbox
-registration function, Goal maintenance, metric maintenance, and named lifecycle/export
+registration function, Goal maintenance and named lifecycle/export
 contributors. Root composition may continue exposing capability-specific aliases such as
 `metricPublicApi`, `goalPublicApi`, and `dashboardPublicApi`; they reference the same Reporting
 interface.
 
 ## Persistence
+
+`readings/contracts.ts` owns the immutable metric catalogue, stable definition
+and version IDs, source policies, consumer permissions, precision and sample
+floors. It is browser-safe and remains available through the public API's named
+exports. `readings/guest-outbox-consumers.server.ts` validates Guest facts before
+`record-portal-metric.server.ts` projects them into readings. Retractions use the
+same measure definitions as recording, so withdrawing a rating retracts its
+private value, count and average together. `metric-command-store.server.ts`
+commits readings, corrections, attribution and source receipts
+atomically. Staff-attribution column conversion lives beside that store.
 
 `infrastructure/readings/effective-readings.server.ts` owns correction-tip
 selection, effective values and retracted sample counts for dashboard, Goal and Portal reads. Raw SQL
@@ -651,8 +665,9 @@ uses its `readings`/`tip` aliases. Staff reads keep their as-of variant: only
 readings and corrections recorded strictly before the daily cutoff contribute,
 with the latest visible correction ordered by recording time and ID. Source
 status and Portal evidence still check every required projection and retraction;
-those completeness checks are independent of the effective value. Lifetime
-reconciliation retains its existing implementation until its totals cutover.
+those completeness checks are independent of the effective value. Portal All Time
+uses these same effective readings and completeness checks. The retired aggregate
+table remains only for export and tenant cleanup until schema contraction.
 
 Period reads use the concurrent index on Organization, Property, metric version
 and event time, declared in `shared/db/concurrent-index-registry.ts`. Recording
@@ -719,7 +734,7 @@ Per-Property setup reads remain active.
 Metric and Goal event modules are named `metric-events.ts` and `goal-events.ts`. Their event
 tags remain stable for outbox replay compatibility. Reporting consumes Guest, Review,
 and metric-correction facts through the shared durable consumer registry. New readings
-commit with their source receipt and lifetime contribution, without emitting
+commit with their source receipt, without emitting
 `metric.recorded`; both stored versions of that event remain decodable. Replacements
 and retractions still emit `metric.corrected` atomically. Each
 consumer holds a receipt for a fact it has finished. A fact that yields no reading is

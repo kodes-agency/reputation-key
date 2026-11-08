@@ -90,6 +90,17 @@ describe('Are guests using it?', () => {
       'All time shows the total. Choose a range to see days and weeks.',
     ]))
 })
+it('names retained history accurately after October 2028', () => {
+  expect(
+    read({
+      localDays: null,
+      period: {
+        ...data.period,
+        endAt: new Date('2028-10-01T00:00:00.000Z'),
+      },
+    }).using.lines,
+  ).toEqual(['Last 24 months shows the total. Choose a range to see days and weeks.'])
+})
 describe('Are they happy?', () => {
   it.each([
     [1, '1 guest rated their visit'],

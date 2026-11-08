@@ -1,0 +1,296 @@
+import { getAiRuntimeCapability } from '#/shared/ai-runtime-capability-contract'
+import type { OrganizationId, PropertyId } from '#/shared/domain/ids'
+import type { LoggerPort } from '#/shared/domain/logger.port'
+import { AI_PROVIDER_DEPLOYMENT_PROFILE } from '#/shared/ai-operation-profiles'
+import type { AiAuthorizationPort } from '../application/ports/ai-authorization.port'
+import type { AiControlPort } from '../application/ports/ai-control.port'
+import type {
+  ReviewAnalysisEnrollmentFence,
+  ReviewAnalysisEnrollmentHead,
+  ReviewAnalysisEnrollmentReconcileResult,
+  ReviewAnalysisEnrollmentStorePort,
+} from './contracts'
+import type {
+  AiReviewAnalysisReopenPort,
+  AiReviewAnalysisReopenResult,
+} from './contracts'
+import { resolveAiExecutionStopFence } from '../application/ai-workflow-support'
+
+/** Enrollment heads visited per recovery tick. */
+const AI_REVIEW_ANALYSIS_ENROLLMENT_SWEEP_BATCH_SIZE = 50
+/** Abandoned analyses reopened per recovery tick; the rest wait for the next. */
+const AI_REVIEW_ANALYSIS_REOPEN_BATCH_SIZE = 50
+
+export type AdvanceReviewAnalysisEnrollmentSweepResult = Readonly<{
+  enrollmentsVisited: number
+  runtimeBlocked: number
+  replaysStarted: number
+  revisionsPinned: number
+  waitingForReplay: number
+  enrollmentsCaughtUp: number
+  enrollmentsSuperseded: number
+  enrollmentsStalled: number
+  /** Enrollments whose advance threw; each is visited again by the next tick. */
+  enrollmentsFailed: number
+  batchFull: boolean
+  /** Reviews queued again after their analysis was abandoned by a transient failure. */
+  analysesReopened: number
+  /** Reviews abandoned again after every reopen: settled as not analysable. */
+  analysesLeftUnanalysed: number
+}>
+
+/** What advancing one enrollment did. */
+export type ReviewAnalysisEnrollmentAdvance =
+  /** The authorization moved past the enrollment's fence; `marked` when this call retired it. */
+  | Readonly<{ status: 'fence_moved'; marked: boolean }>
+  /** Provider execution is dark, so the intent stays queued. */
+  | Readonly<{ status: 'runtime_blocked' }>
+  /** The Property has no queued or running enrollment. */
+  | Readonly<{ status: 'not_actionable' }>
+  | ReviewAnalysisEnrollmentReconcileResult
+
+export type AdvanceReviewAnalysisEnrollments = Readonly<{
+  sweep: () => Promise<AdvanceReviewAnalysisEnrollmentSweepResult>
+  /**
+   * Advance one Property's current enrollment now rather than at the next
+   * sweep: open its replay as soon as the intent is committed, and record it
+   * caught up as soon as its last replayed review settles. The checks are the
+   * sweep's own; the sweep stays the recovery path.
+   */
+  advanceProperty: (
+    input: Readonly<{ organizationId: OrganizationId; propertyId: PropertyId }>,
+  ) => Promise<ReviewAnalysisEnrollmentAdvance>
+}>
+
+export type AdvanceReviewAnalysisEnrollmentDependencies = Readonly<{
+  authorization: AiAuthorizationPort
+  control: AiControlPort
+  enrollments: ReviewAnalysisEnrollmentStorePort
+  reopen: AiReviewAnalysisReopenPort
+  nowEpochMillis: () => number
+  rebuildProfiles?: () => Promise<void>
+  /**
+   * Records an enrollment whose advance threw. Optional so existing
+   * constructions keep working; without it the failure is only counted.
+   */
+  logger?: Pick<LoggerPort, 'warn'>
+}>
+
+type EnrollmentTarget = Pick<
+  ReviewAnalysisEnrollmentHead,
+  'id' | 'organizationId' | 'propertyId' | 'fence'
+>
+
+function matchesFence(
+  authorization: NonNullable<
+    Awaited<ReturnType<AiAuthorizationPort['readMerchantAuthorization']>>
+  >,
+  fence: ReviewAnalysisEnrollmentFence,
+): boolean {
+  return (
+    authorization.state === 'enabled' &&
+    authorization.capabilities.includes('review_analysis') &&
+    authorization.authorizationLineageId === fence.authorizationLineageId &&
+    authorization.stateVersion === fence.authorizationStateVersion &&
+    authorization.authorizedSourceEpoch === fence.sourceEpoch &&
+    authorization.capabilityEpochs.review_analysis.epoch === fence.reviewAnalysisEpoch &&
+    authorization.reviewAnalysisStartSequence === fence.analysisStartSequence
+  )
+}
+
+function supersessionReason(
+  authorization: Awaited<ReturnType<AiAuthorizationPort['readMerchantAuthorization']>>,
+  target: EnrollmentTarget,
+): 'authorization_changed' | 'source_epoch_changed' | null {
+  if (authorization === null) return 'authorization_changed'
+  if (authorization.authorizedSourceEpoch !== target.fence.sourceEpoch) {
+    return 'source_epoch_changed'
+  }
+  return matchesFence(authorization, target.fence) ? null : 'authorization_changed'
+}
+
+/**
+ * Advance durable first-enablement intents without making the intent itself an
+ * activation switch. The exact global/provider/capability control triple must
+ * already be accepting before a replay run can open. A dark runtime therefore
+ * leaves the durable intent queued and produces no provider-bound event.
+ */
+export function createAdvanceReviewAnalysisEnrollments(
+  dependencies: AdvanceReviewAnalysisEnrollmentDependencies,
+): AdvanceReviewAnalysisEnrollments {
+  async function advance(
+    target: EnrollmentTarget,
+  ): Promise<ReviewAnalysisEnrollmentAdvance> {
+    const authorization = await dependencies.authorization.readMerchantAuthorization({
+      organizationId: target.organizationId,
+      propertyId: target.propertyId,
+    })
+    // The lifecycle event will carry an unchanged analysis epoch's enrollment
+    // forward to the new state-version fence. Until then, refuse replay without
+    // retiring its progress; a sweep can race that event after re-consent.
+    if (
+      authorization !== null &&
+      authorization.stateVersion > target.fence.authorizationStateVersion &&
+      matchesFence(authorization, {
+        ...target.fence,
+        authorizationStateVersion: authorization.stateVersion,
+      })
+    ) {
+      return { status: 'runtime_blocked' }
+    }
+    const moved = supersessionReason(authorization, target)
+    if (moved !== null) {
+      const marked = await dependencies.enrollments.markSuperseded({
+        enrollmentId: target.id,
+        organizationId: target.organizationId,
+        expectedFence: target.fence,
+        reason: moved,
+        occurredAt: new Date(dependencies.nowEpochMillis()),
+      })
+      return { status: 'fence_moved', marked }
+    }
+
+    const stopFence = await resolveAiExecutionStopFence(dependencies.control, {
+      providerDeploymentProfileVersion:
+        getAiRuntimeCapability('review_analysis').providerDeploymentProfileVersion,
+      capability: 'review_analysis',
+    })
+    if (stopFence === null) return { status: 'runtime_blocked' }
+
+    return dependencies.enrollments.reconcile({
+      enrollmentId: target.id,
+      organizationId: target.organizationId,
+      expectedFence: target.fence,
+      // Enrollment ids are UUIDs and are content-free. Reusing the durable
+      // authority id makes every replay generation traceable without
+      // introducing a non-recoverable random correlation in the sweep.
+      correlationId: target.id,
+      occurredAt: new Date(dependencies.nowEpochMillis()),
+    })
+  }
+
+  /**
+   * Advances one enrollment, or answers null after logging why it could not.
+   * Every step is idempotent and the enrollment stays actionable, so the next
+   * tick retries it. Identifiers only (AI invariant 12): the shared logger
+   * reduces an Error to its name and code, and a thrown value that is not an
+   * Error is left out.
+   */
+  async function advanceIsolated(
+    target: EnrollmentTarget,
+  ): Promise<ReviewAnalysisEnrollmentAdvance | null> {
+    try {
+      return await advance(target)
+    } catch (error) {
+      dependencies.logger?.warn(
+        {
+          ...(error instanceof Error ? { err: error } : {}),
+          enrollmentId: target.id,
+          organizationId: target.organizationId,
+          propertyId: target.propertyId,
+        },
+        'AI review analysis enrollment advance failed',
+      )
+      return null
+    }
+  }
+
+  /**
+   * The safety net under exhaustive coverage (ADR 0058): a review settled
+   * without an analysis because its operation gave up on a transient failure
+   * is queued again. Only while provider execution accepts work: under a dark
+   * runtime the reopened review could only wait in the backlog, so it waits
+   * here, without a fresh sequence, until there is something to run it.
+   */
+  async function reopenAbandoned(): Promise<AiReviewAnalysisReopenResult> {
+    const stopFence = await resolveAiExecutionStopFence(dependencies.control, {
+      providerDeploymentProfileVersion: AI_PROVIDER_DEPLOYMENT_PROFILE.profileVersion,
+      capability: 'review_analysis',
+    })
+    if (stopFence === null) return { reopened: 0, leftUnanalysed: 0 }
+    return dependencies.reopen.reopenAbandoned({
+      limit: AI_REVIEW_ANALYSIS_REOPEN_BATCH_SIZE,
+      occurredAt: new Date(dependencies.nowEpochMillis()),
+    })
+  }
+
+  return {
+    async sweep() {
+      await dependencies.rebuildProfiles?.()
+      const heads = await dependencies.enrollments.listActionable(
+        AI_REVIEW_ANALYSIS_ENROLLMENT_SWEEP_BATCH_SIZE,
+      )
+      const counts = {
+        enrollmentsVisited: heads.length,
+        runtimeBlocked: 0,
+        replaysStarted: 0,
+        revisionsPinned: 0,
+        waitingForReplay: 0,
+        enrollmentsCaughtUp: 0,
+        enrollmentsSuperseded: 0,
+        enrollmentsStalled: 0,
+        enrollmentsFailed: 0,
+        batchFull: heads.length === AI_REVIEW_ANALYSIS_ENROLLMENT_SWEEP_BATCH_SIZE,
+      }
+
+      for (const head of heads) {
+        // The oldest enrollments come first every tick, so one that cannot be
+        // advanced would otherwise stop every later Organization's enrollment,
+        // and the reopen pass below, for as long as it stays that way.
+        const result = await advanceIsolated(head)
+        if (result === null) {
+          counts.enrollmentsFailed += 1
+          continue
+        }
+        switch (result.status) {
+          case 'fence_moved':
+            if (result.marked) counts.enrollmentsSuperseded += 1
+            break
+          case 'runtime_blocked':
+            counts.runtimeBlocked += 1
+            break
+          case 'not_actionable':
+          case 'awaiting_assisted_approval':
+            // `listActionable` excludes both. Preserve the explicit outcome
+            // defensively if approval is concurrently invalidated.
+            break
+          case 'waiting_for_replay':
+            counts.waitingForReplay += 1
+            break
+          case 'replay_started':
+            counts.replaysStarted += 1
+            counts.revisionsPinned += result.pinnedRevisionCount
+            break
+          case 'caught_up':
+            counts.enrollmentsCaughtUp += 1
+            break
+          case 'superseded':
+            counts.enrollmentsSuperseded += 1
+            break
+          case 'stalled':
+            counts.enrollmentsStalled += 1
+            break
+        }
+      }
+
+      // After the enrollments, so a failing reopen pass cannot hold them back.
+      const reopened = await reopenAbandoned()
+      return {
+        ...counts,
+        analysesReopened: reopened.reopened,
+        analysesLeftUnanalysed: reopened.leftUnanalysed,
+      }
+    },
+
+    async advanceProperty(input) {
+      const current = await dependencies.enrollments.readCurrent(input)
+      if (
+        current === null ||
+        (current.state !== 'queued' && current.state !== 'running')
+      ) {
+        return { status: 'not_actionable' }
+      }
+      return advance(current)
+    },
+  }
+}

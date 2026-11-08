@@ -11,7 +11,6 @@ export type MetricEvidenceSubject =
   | 'google_opens'
 
 export type MetricEvidenceLineInput = Readonly<{
-  basis?: 'governed_period' | 'anonymous_lifetime'
   subject: MetricEvidenceSubject
   state: MetricAvailabilityState
   dataThrough: Date | null
@@ -62,10 +61,6 @@ export function metricAvailabilityDetail(reason: string | null): string {
       return 'This data needs to be refreshed.'
     case 'projection_missing':
       return 'This data is being repaired.'
-    case 'lifetime_reconciliation_pending':
-      return 'The first all-time consistency check is still finishing.'
-    case 'lifetime_projection_missing':
-      return 'All-time totals are preparing.'
     case 'destination_unattributed':
       return 'Some clicks did not record which link was opened, so Google opens cannot be counted for this period.'
     case 'below_minimum_sample':
@@ -79,11 +74,8 @@ export function metricAvailabilityDetail(reason: string | null): string {
   }
 }
 
-function insufficientDataLine(
-  subject: MetricEvidenceSubject,
-  basis: MetricEvidenceLineInput['basis'],
-): string {
-  const period = basis === 'anonymous_lifetime' ? 'the all-time aggregate' : 'this period'
+function insufficientDataLine(subject: MetricEvidenceSubject): string {
+  const period = 'this period'
   return match(subject)
     .with('reviews', () => `No eligible reviews in ${period}.`)
     .with('ratings', () => `No eligible ratings in ${period}.`)
@@ -103,24 +95,8 @@ export function metricEvidenceLine(
     evidence.state === 'insufficient_data' &&
     typeof evidence.reason === 'string' &&
     SELF_EXPLAINING_REASONS.has(evidence.reason)
-  ) {
+  )
     return null
-  }
-
-  if (evidence.basis === 'anonymous_lifetime') {
-    return match(evidence.state)
-      .with('ready', () => 'All-time aggregate')
-      .with('updating', () => 'All-time totals are being checked.')
-      .with('insufficient_data', () =>
-        insufficientDataLine(evidence.subject, evidence.basis),
-      )
-      .with(
-        'temporarily_unavailable',
-        () => 'All-time totals are temporarily unavailable.',
-      )
-      .exhaustive()
-  }
-
   return match(evidence.state)
     .with('ready', () =>
       evidence.dataThrough === null
@@ -128,9 +104,7 @@ export function metricEvidenceLine(
         : `Data through ${formatEvidenceTime(evidence.dataThrough, locale, timeZone)}`,
     )
     .with('updating', () => 'Updating; figures will appear when checks finish.')
-    .with('insufficient_data', () =>
-      insufficientDataLine(evidence.subject, evidence.basis),
-    )
+    .with('insufficient_data', () => insufficientDataLine(evidence.subject))
     .with('temporarily_unavailable', () => 'Figures are temporarily unavailable.')
     .exhaustive()
 }

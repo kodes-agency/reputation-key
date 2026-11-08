@@ -22,7 +22,7 @@ import { forecastPaceBasis } from '../domain/rating-goal-status'
 import type { RatingGoalBasis } from '../domain/rating-goal-stops'
 import { propertyWeekday } from '../domain/rating-goal-weeks'
 import type { PropertyRatingGoal } from '../domain/rating-goal'
-import type { RatingArrivalView, RatingGoalCardView } from './dto/rating-goal.types'
+import type { RatingArrivalView, RatingGoalCardView } from '../rating-goals/contracts'
 import type { RatingGoalReading } from './rating-goal-reading'
 
 export const tenthsToRating = (tenths: number): number => tenths / 10

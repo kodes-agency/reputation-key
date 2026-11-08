@@ -22,12 +22,12 @@ import {
 import type {
   AiAuthorizationLifecycleApplyResult,
   AiAuthorizationLifecycleTrigger,
-} from '../application/ports/ai-review-analysis-enrollment.port'
+} from '../replay/contracts'
 import type {
   AiReviewAnalysisBacklogOrigin,
   AiReviewAnalysisBacklogPort,
-} from '../application/ports/ai-review-analysis-backlog.port'
-import type { AuthorizeReviewAnalysisScope } from '../application/use-cases/drain-review-analysis-backlog'
+} from '../replay/contracts'
+import type { AuthorizeReviewAnalysisScope } from '../replay/drain-backlog.server'
 
 export const AI_REVIEW_ANALYSIS_CONSUMER = 'ai.analyze-review-event'
 export const AI_REVIEW_ANALYSIS_ENROLLMENT_CONSUMER = 'ai.enroll-review-analysis'

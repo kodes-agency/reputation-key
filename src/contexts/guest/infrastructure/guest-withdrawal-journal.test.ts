@@ -204,3 +204,51 @@ describe.each(paths)('%s withdrawal journal', (kind) => {
     expect(transaction).not.toHaveBeenCalled()
   })
 })
+
+describe('operator erasure journal', () => {
+  const erase = (store: ReturnType<typeof createAtomicGuestResponseCommandStore>) =>
+    store.commitErased({ ...response(), status: 'deleted', deletedAt: NOW }, [])
+
+  it('journals IDs only before the deletion transaction, with no session match', async () => {
+    const put = vi.fn().mockResolvedValue(undefined)
+    const transaction = vi.fn().mockResolvedValue('applied')
+    const store = createAtomicGuestResponseCommandStore(
+      database(transaction),
+      () => NOW,
+      { put, alert: vi.fn(), idGen: () => JOURNAL_ID },
+    )
+
+    await expect(erase(store)).resolves.toBe('applied')
+    expect(put).toHaveBeenCalledOnce()
+    expect(decodeErasureJournalEntry(put.mock.calls[0]![1]).journalTargets).toEqual({
+      kind: 'guest_response',
+      ids: [RESPONSE_ID],
+    })
+    expect(transaction).toHaveBeenCalledOnce()
+  })
+
+  it('leaves data intact when the journal cannot be written', async () => {
+    const transaction = vi.fn()
+    const alert = vi.fn()
+    const store = createAtomicGuestResponseCommandStore(
+      database(transaction),
+      () => NOW,
+      {
+        put: vi.fn().mockRejectedValue(new Error('down')),
+        alert,
+        idGen: () => JOURNAL_ID,
+      },
+    )
+
+    await expect(erase(store)).rejects.toThrow('journal write failed')
+    expect(alert).toHaveBeenCalledOnce()
+    expect(transaction).not.toHaveBeenCalled()
+  })
+
+  it('refuses to erase when no journal is configured', async () => {
+    const transaction = vi.fn()
+    const store = createAtomicGuestResponseCommandStore(database(transaction), () => NOW)
+    await expect(erase(store)).rejects.toThrow('requires the erasure journal')
+    expect(transaction).not.toHaveBeenCalled()
+  })
+})

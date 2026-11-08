@@ -30,6 +30,7 @@ import { resolvePortalContext } from './application/use-cases/resolve-portal-con
 import { getPublicPortal } from './application/use-cases/get-public-portal'
 import {
   guestResponseLifecycle,
+  type OperatorErasureAuthority,
   type ResolvePrimaryStaffAttribution,
 } from './application/use-cases/guest-response-lifecycle'
 import { createGuestSessionManager } from './server/guest-session'
@@ -76,6 +77,7 @@ type GuestContextDeps = Readonly<{
   resolvePrimaryStaffAttribution: ResolvePrimaryStaffAttribution
   observationLossRedis?: GuestObservationLossRedisPort
   withdrawalJournalConfig?: GuestWithdrawalJournalConfig
+  operatorErasureAuthority?: OperatorErasureAuthority
 }>
 
 export const buildGuestContext = (deps: GuestContextDeps) => {
@@ -134,6 +136,7 @@ export const buildGuestContext = (deps: GuestContextDeps) => {
     clock: deps.clock,
     idGen: deps.idGen,
     commandStore: guestResponseCommandStore,
+    operatorAuthority: deps.operatorErasureAuthority,
     resolvePrimaryStaffAttribution: deps.resolvePrimaryStaffAttribution,
   })
   const portalContextResolver = createPortalContextResolver(deps.portalApi)

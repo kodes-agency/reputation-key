@@ -34,6 +34,9 @@ const OWNED_TABLES = [
   'merchant_ai_enablement',
   'ai_property_processing_profiles',
   'ai_review_analyses',
+  'ai_review_analysis_mentions',
+  'ai_review_analysis_mention_sentences',
+  'ai_review_analysis_mention_corrections',
   'ai_property_daily_aggregates',
   'ai_property_review_population_daily',
   'ai_property_issue_members',
@@ -327,6 +330,30 @@ async function seedFixture(): Promise<Fixture> {
       ANALYZED_AT,
       new Date(Date.now() + 86_400_000),
     ],
+  )
+  const mentionKey = [fixture.organizationId, fixture.propertyId, fixture.reviewId]
+  await lease.pool.query(
+    `INSERT INTO ai_review_analysis_mentions (
+       organization_id, property_id, review_id, source_epoch, source_revision,
+       analysis_sequence, mention_ordinal, topic, polarity, strength
+     ) VALUES ($1, $2, $3, 0, 1, 1, 0, 'staff_service', 'positive', 'clear')`,
+    mentionKey,
+  )
+  await lease.pool.query(
+    `INSERT INTO ai_review_analysis_mention_sentences (
+       organization_id, property_id, review_id, source_epoch, source_revision,
+       analysis_sequence, mention_ordinal, sentence_number
+     ) VALUES ($1, $2, $3, 0, 1, 1, 0, 1)`,
+    mentionKey,
+  )
+  await lease.pool.query(
+    `INSERT INTO ai_review_analysis_mention_corrections (
+       organization_id, property_id, review_id, source_epoch, source_revision,
+       analysis_sequence, mention_ordinal, topic, kind, corrected_by,
+       created_at, updated_at
+     ) VALUES ($1, $2, $3, 0, 1, 1, 0, 'staff_service', 'remove_topic',
+               'purge-test-manager', $4, $4)`,
+    [...mentionKey, ANALYZED_AT],
   )
   await lease.pool.query(
     `INSERT INTO ai_property_daily_aggregates (

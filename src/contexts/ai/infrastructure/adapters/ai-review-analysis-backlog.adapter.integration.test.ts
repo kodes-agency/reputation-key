@@ -5,7 +5,7 @@ import { getDb } from '#/shared/db'
 import { aiReviewAnalysisBacklog, properties, reviews } from '#/shared/db/schema'
 import { deleteTestOrganizations } from '#/shared/testing/integration-helpers'
 import { organizationId, propertyId, reviewId } from '#/shared/domain/ids'
-import { createAiReviewAnalysisBacklogAdapter } from './ai-review-analysis-backlog.adapter'
+import { createAiReviewAnalysisBacklogAdapter } from '../../replay/backlog-store.server'
 
 const NOW = Date.parse('2026-09-15T12:00:00.000Z')
 const ORGANIZATION_ID = organizationId(`ai-backlog-${randomUUID()}`)
