@@ -51,7 +51,6 @@
     "scripts/ops/property-erase.ts",
     "scripts/ops/quarantine-redrive.ts",
     "scripts/ops/queue-quarantine.ts",
-    "scripts/ops/rebuild-metric-projection.ts",
     "scripts/ops/rebuild-projection.ts",
     "scripts/ops/repair-partial-offboarding.ts",
     "scripts/ops/reparse-review-translations.ts",

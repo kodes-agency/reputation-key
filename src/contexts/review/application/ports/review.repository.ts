@@ -110,17 +110,6 @@ export type ReviewRepository = Readonly<{
     organizationId: OrganizationId,
     options?: { limit?: number },
   ): Promise<ReadonlyArray<Review>>
-  /**
-   * BQC-1.4: serving read for recent reviews — eligible content only
-   * (a live Review whose contentExpiresAt IS NOT NULL AND > now, predicate in
-   * SQL), newest first. Operations paths use findByPropertyId instead.
-   */
-  findRecentEligibleByPropertyId(
-    propertyId: PropertyId,
-    organizationId: OrganizationId,
-    options: { limit: number },
-    now: Date,
-  ): Promise<ReadonlyArray<Review>>
   /** Every live Review of the Organization, in id order. */
   findByOrganizationId(orgId: OrganizationId): Promise<ReadonlyArray<Review>>
   /**

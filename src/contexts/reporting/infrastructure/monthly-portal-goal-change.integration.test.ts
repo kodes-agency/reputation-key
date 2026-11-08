@@ -21,21 +21,21 @@ import {
   type HeldTransaction,
 } from '#/shared/db/testing/held-transaction'
 import { calendarPeriodRange } from '#/shared/domain/period-range'
-import { findMetricVersionById } from '../domain/metric-registry'
+import { findMetricVersionById } from '../readings/contracts'
 import { monthKeyOf } from '../domain/goal-start'
 import { monthlyPortalGoalOf } from '../application/monthly-portal-goal-identity'
 import type { GoalProgramRepository } from '../application/ports/goal-program.repository'
 import {
   createGoalProgramService,
   type GoalActor,
-} from '../application/use-cases/goal-programs'
+} from '../monthly-goals/goal-programs.server'
 import {
   changeMonthlyPortalGoalNow,
   reviseMonthlyPortalGoal,
   setMonthlyPortalGoal,
   stopMonthlyPortalGoal,
   type MonthlyPortalGoalChangeDeps,
-} from '../application/use-cases/monthly-portal-goal'
+} from '../monthly-goals/monthly-portal-goal.server'
 import { subjectHolds } from '../monthly-goals/subject-assignments.server'
 import { createGoalProgramRepository } from './repositories/goal-program.repository'
 

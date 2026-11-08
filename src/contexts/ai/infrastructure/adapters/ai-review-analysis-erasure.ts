@@ -1,7 +1,7 @@
 import { sql } from 'drizzle-orm'
 import type { Tx } from '#/shared/outbox/commit'
 import { clearGooglePrimaryCategoryForProperty } from '#/shared/db/google-primary-category-purge'
-import type { AiAuthorizationLifecycleTrigger } from '../../application/ports/ai-review-analysis-enrollment.port'
+import type { AiAuthorizationLifecycleTrigger } from '../../replay/contracts'
 
 export async function eraseRetiredDerivatives(
   tx: Tx,

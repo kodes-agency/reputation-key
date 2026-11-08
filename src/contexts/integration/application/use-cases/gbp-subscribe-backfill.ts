@@ -31,6 +31,7 @@ import {
   type GbpAccountTally,
   type GbpSubscribeOutcome,
   type ManageNotificationsApi,
+  type GbpSubscribeScope,
 } from './manage-notifications'
 
 /**
@@ -103,7 +104,10 @@ export type GbpSubscribeBackfill = Readonly<{
    * it again. Sequential on purpose — a backfill must not burst GBP's
    * per-project quota.
    */
-  apply: (organizationId: OrganizationId) => Promise<GbpSubscribeBackfillReport>
+  apply: (
+    organizationId: OrganizationId,
+    scope?: GbpSubscribeScope,
+  ) => Promise<GbpSubscribeBackfillReport>
 }>
 
 export const createGbpSubscribeBackfill = (
@@ -112,12 +116,14 @@ export const createGbpSubscribeBackfill = (
   const examine = async (
     organizationId: OrganizationId,
     call: boolean,
+    scope?: GbpSubscribeScope,
   ): Promise<GbpSubscribeBackfillReport> => {
     const connections = await deps.listConnections(organizationId)
     const connectionOutcomes: GbpSubscribeConnectionReport[] = []
     let candidates = 0
 
     for (const connection of connections) {
+      if (scope?.connectionId && connection.id !== scope.connectionId) continue
       if (!isSubscribeCandidate(connection)) {
         connectionOutcomes.push({
           connectionId: connection.id,
@@ -128,7 +134,11 @@ export const createGbpSubscribeBackfill = (
         continue
       }
       candidates += 1
-      const result = call ? await deps.subscribe(organizationId, connection.id) : null
+      const result = call
+        ? await (scope
+            ? deps.subscribe(organizationId, connection.id, scope)
+            : deps.subscribe(organizationId, connection.id))
+        : null
       connectionOutcomes.push({
         connectionId: connection.id,
         status: connection.status,
@@ -140,7 +150,7 @@ export const createGbpSubscribeBackfill = (
     return {
       action: call ? 'subscribe' : 'would_subscribe',
       organizationId,
-      connections: connections.length,
+      connections: connectionOutcomes.length,
       candidates,
       counts: tally(connectionOutcomes),
       accounts: sumGbpAccountTallies([
@@ -155,7 +165,7 @@ export const createGbpSubscribeBackfill = (
 
   return {
     plan: (organizationId) => examine(organizationId, false),
-    apply: (organizationId) => examine(organizationId, true),
+    apply: (organizationId, scope) => examine(organizationId, true, scope),
   }
 }
 

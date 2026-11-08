@@ -1,3 +1,4 @@
+import type { GoogleNotificationAccountCandidate } from '../google-notification-account-candidates'
 // Integration context — the daily GBP push reconciliation.
 //
 // Why this exists: an account is subscribed to Google's Pub/Sub topic only
@@ -129,7 +130,8 @@ export const createGbpNotificationReconciliation = (
   deps: Readonly<{
     /** False when GBP_PUBSUB_TOPIC is empty. */
     topicConfigured: boolean
-    listOrganizations: () => Promise<ReadonlyArray<OrganizationId>>
+    listAccounts: () => Promise<ReadonlyArray<GoogleNotificationAccountCandidate>>
+    recordAttempt: (accountId: string) => Promise<void>
     backfill: Pick<GbpSubscribeBackfill, 'apply'>
     nowMs: () => number
   }>,
@@ -137,20 +139,40 @@ export const createGbpNotificationReconciliation = (
   return async ({ authorizeOrganization, deadlineAtMs }) => {
     if (!deps.topicConfigured) return { status: 'topic_unset' }
 
-    const organizations = await deps.listOrganizations()
+    const candidates = [...(await deps.listAccounts())].sort(
+      (left, right) =>
+        (left.attemptedAt ?? -Infinity) - (right.attemptedAt ?? -Infinity) ||
+        left.gbpAccountId.localeCompare(right.gbpAccountId) ||
+        left.organizationId.localeCompare(right.organizationId),
+    )
+    const organizations = new Set(candidates.map((candidate) => candidate.organizationId))
+    const startedOrganizations = new Set<OrganizationId>()
+    const settledAccounts = new Set<string>()
+    const policy = new Map<OrganizationId, boolean>()
     const reports: GbpSubscribeBackfillReport[] = []
     let organizationsDenied = 0
     let organizationsFailed = 0
-    let started = 0
-    for (const organization of organizations) {
+    for (const candidate of candidates) {
+      if (settledAccounts.has(candidate.gbpAccountId)) continue
+      const organization = candidate.organizationId
       if (deps.nowMs() >= deadlineAtMs) break
-      started += 1
-      if (!(await authorizeOrganization(organization))) {
-        organizationsDenied += 1
-        continue
+      startedOrganizations.add(organization)
+      if (!policy.has(organization)) {
+        policy.set(organization, await authorizeOrganization(organization))
+        if (!policy.get(organization)) organizationsDenied += 1
       }
       try {
-        reports.push(await deps.backfill.apply(organization))
+        // Advance denials and failures too, so a refused account cannot hold
+        // the front of every bounded run. This survives worker restarts.
+        await deps.recordAttempt(candidate.gbpAccountId)
+        if (!policy.get(organization)) continue
+        settledAccounts.add(candidate.gbpAccountId)
+        reports.push(
+          await deps.backfill.apply(organization, {
+            connectionId: candidate.connectionId,
+            gbpAccountId: candidate.gbpAccountId,
+          }),
+        )
       } catch {
         organizationsFailed += 1
       }
@@ -163,10 +185,10 @@ export const createGbpNotificationReconciliation = (
     ])
     return {
       status: 'reconciled',
-      organizations: organizations.length,
+      organizations: organizations.size,
       organizationsDenied,
       organizationsFailed,
-      organizationsDeferred: organizations.length - started,
+      organizationsDeferred: organizations.size - startedOrganizations.size,
       connections: reports.reduce((sum, report) => sum + report.connections, 0),
       candidates: reports.reduce((sum, report) => sum + report.candidates, 0),
       connectionOutcomes,

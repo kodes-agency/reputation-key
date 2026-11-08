@@ -75,7 +75,7 @@ export function createGoogleNotificationProviderAuthorizer(
     authorizeSystemCall: GoogleReviewSyncAuthorizer
   }>,
 ): ManageNotificationsDeps['authorizeProviderCall'] {
-  return async (organizationId, connectionIdValue) => {
+  return async (organizationId, connectionIdValue, gbpAccountId) => {
     const connectionId = googleConnectionId(connectionIdValue)
     let connection: GoogleConnection | null
     let linkedPropertyIds: ReadonlyArray<string>
@@ -102,6 +102,7 @@ export function createGoogleNotificationProviderAuthorizer(
         return UNAVAILABLE
       }
       if (!usableBinding(binding, connectionId)) continue
+      if (gbpAccountId && binding.accountId !== gbpAccountId) continue
       boundAccounts.add(binding.accountId)
       if (targetedAccounts.has(binding.accountId)) continue
       const authorized = await deps.authorizeSystemCall({

@@ -13,7 +13,7 @@ import { getEnv } from '#/shared/config/env'
 import { deleteTestOrganizations } from '#/shared/testing/integration-helpers'
 import { organizationId, portalId, propertyId } from '#/shared/domain/ids'
 import type { GoalMetricAggregateQuery } from '../application/ports/metric.repository'
-import { METRIC_VERSION_IDS } from '../domain/metric-registry'
+import { METRIC_VERSION_IDS } from '../readings/contracts'
 import { createGoalMetricSourceStatus } from './repositories/goal-metric-source-status'
 
 const ROOT = join(import.meta.dirname, '..', '..', '..', '..')

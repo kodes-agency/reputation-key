@@ -6,7 +6,7 @@
 // invents a value: an empty set of Portals is a verified nothing, a set with one
 // Portal the pipeline is still processing is "updating" as a whole.
 
-import { METRIC_VERSION_IDS } from '../../domain/metric-registry'
+import { METRIC_VERSION_IDS } from '../../readings/contracts'
 import type {
   MetricPortalMetricEvidence,
   MetricPortalMetricEvidenceSet,

@@ -7,7 +7,7 @@ import type {
   GoalSubjectAssignment,
 } from '../ports/goal-program.repository'
 import type { GoalMetric, GoalSubject } from '../../domain/goal-program'
-import { METRIC_VERSION_IDS } from '../../domain/metric-registry'
+import { METRIC_VERSION_IDS } from '../../readings/contracts'
 import type { GovernedGoalMetricResult } from './query-goal-metric'
 import {
   createGoalProgramProgressReader,
@@ -15,7 +15,7 @@ import {
   MAX_GOAL_PROGRAM_PROGRESS_SUBJECTS,
   type GoalProgressDeps,
 } from './goal-progress'
-import type { GoalActor } from './goal-programs'
+import type { GoalActor } from '../../monthly-goals/goal-programs.server'
 
 const actor: GoalActor = {
   organizationId: 'org-1',

@@ -10,13 +10,15 @@
 // cycle, and PostgreSQL aborted one side with a deadlock.
 
 import { randomUUID } from 'node:crypto'
-import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
-import { eq, sql } from 'drizzle-orm'
+import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
+import { and, eq, sql } from 'drizzle-orm'
 import { drizzle } from 'drizzle-orm/node-postgres'
 import { Pool } from 'pg'
 import { getEnv } from '#/shared/config/env'
 import { getDb } from '#/shared/db'
 import {
+  aiPropertyAggregateSettlements,
+  aiReviewAnalysisEnrollments,
   materialReviewRevisions,
   merchantAiConsentEvidence,
   merchantAiEnablement,
@@ -33,7 +35,8 @@ import {
   MERCHANT_AI_NOTICE_VERSION,
 } from '#/shared/merchant-ai-notice-contract'
 import { deleteTestOrganizations } from '#/shared/testing/integration-helpers'
-import { createReviewAnalysisEnrollmentAdapter } from './ai-review-analysis-enrollment.adapter'
+import { createReviewAnalysisEnrollmentAdapter } from '../../replay/enrollment-store.server'
+import { AI_REVIEW_ANALYSIS_REPLAY_PAGE_SIZE } from '../../replay/enrollment-candidates.server'
 
 const NOW = new Date('2026-09-29T17:37:00.000Z')
 const ORG = organizationId('ai-enrollment-lock-order-org')
@@ -416,5 +419,287 @@ describe('Review Analysis authorization lifecycle lock order', () => {
       writerNext: 'locked',
       outcome: { result: { status: 'applied' } },
     })
+  })
+})
+
+describe('Review Analysis history replay recovery', () => {
+  async function addReviews(count: number): Promise<void> {
+    for (let offset = 0; offset < count; offset += 1_000) {
+      await getDb()
+        .insert(reviews)
+        .values(
+          Array.from({ length: Math.min(1_000, count - offset) }, () => {
+            const id = randomUUID()
+            return {
+              id,
+              organizationId: ORG,
+              propertyId: PROPERTY,
+              platform: 'google' as const,
+              externalId: id,
+              reviewerName: 'Synthetic reviewer',
+              rating: 4,
+              text: 'Synthetic review content',
+              languageCode: 'en',
+              reviewedAt: NOW,
+              contentExpiresAt: new Date('2027-09-29T00:00:00.000Z'),
+              sourceEpoch: 0,
+              sourceRevision: 1,
+              analysisSequence: 0,
+              aiSourceByteLength: 24,
+              aiSourceDigest: 'a'.repeat(64),
+            }
+          }),
+        )
+    }
+  }
+
+  const reconcile = () =>
+    adapter().reconcile({
+      enrollmentId,
+      organizationId: ORG,
+      expectedFence: FENCE,
+      correlationId: enrollmentId,
+      occurredAt: NOW,
+    })
+
+  it('refreshes a changed source snapshot and emits the current revision', async () => {
+    const db = getDb()
+    await db.update(reviews).set({ sourceRevision: 2 }).where(eq(reviews.id, REVIEWS[0]))
+    await expect(reconcile()).resolves.toMatchObject({
+      status: 'replay_started',
+      pinnedRevisionCount: 3,
+    })
+    const events = await db
+      .select({ payload: outboxEvents.payload })
+      .from(outboxEvents)
+      .where(eq(outboxEvents.eventType, 'ai.review_analysis.backfill_requested'))
+    expect(events.map(({ payload }) => payload)).toContainEqual(
+      expect.objectContaining({
+        reviewId: REVIEWS[0],
+        sourceRevision: 2,
+        correlationId: enrollmentId,
+      }),
+    )
+    expect(
+      await adapter().readCurrent({ organizationId: ORG, propertyId: PROPERTY }),
+    ).toMatchObject({
+      state: 'running',
+      snapshotRevisionCount: 3,
+      enrolledRevisionCount: 3,
+    })
+  })
+
+  it('catches up an empty refreshed snapshot instead of stalling on expired sources', async () => {
+    await getDb()
+      .update(reviews)
+      .set({ contentExpiresAt: new Date(0) })
+      .where(eq(reviews.propertyId, PROPERTY))
+    await expect(reconcile()).resolves.toMatchObject({
+      status: 'caught_up',
+      eligibleRevisionCount: 0,
+    })
+  })
+
+  it('resumes after a committed page without replaying its sequences or events', async () => {
+    const db = getDb()
+    const additionalIds = Array.from(
+      { length: AI_REVIEW_ANALYSIS_REPLAY_PAGE_SIZE },
+      () => randomUUID(),
+    )
+    await db.insert(reviews).values(
+      additionalIds.map((id) => ({
+        id,
+        organizationId: ORG,
+        propertyId: PROPERTY,
+        platform: 'google' as const,
+        externalId: id,
+        reviewerName: 'Synthetic reviewer',
+        rating: 4,
+        text: 'Synthetic review content',
+        languageCode: 'en',
+        reviewedAt: NOW,
+        contentExpiresAt: new Date('2027-09-29T00:00:00.000Z'),
+        sourceEpoch: 0,
+        sourceRevision: 1,
+        analysisSequence: 0,
+        aiSourceByteLength: 24,
+        aiSourceDigest: 'a'.repeat(64),
+      })),
+    )
+    await expect(reconcile()).resolves.toMatchObject({
+      status: 'replay_started',
+      pinnedRevisionCount: AI_REVIEW_ANALYSIS_REPLAY_PAGE_SIZE,
+    })
+    const [firstPage] = await db
+      .select()
+      .from(aiReviewAnalysisEnrollments)
+      .where(eq(aiReviewAnalysisEnrollments.id, enrollmentId))
+    expect(firstPage?.enrolledRevisionCount).toBe(AI_REVIEW_ANALYSIS_REPLAY_PAGE_SIZE)
+    // A new adapter has no in-memory cursor from the first invocation.
+    await expect(reconcile()).resolves.toMatchObject({
+      status: 'replay_started',
+      pinnedRevisionCount: 3,
+    })
+    await expect(reconcile()).resolves.toEqual({ status: 'waiting_for_replay' })
+    const events = await db
+      .select({ payload: outboxEvents.payload })
+      .from(outboxEvents)
+      .where(eq(outboxEvents.organizationId, ORG))
+    const replayed = events
+      .map(({ payload }) => payload as { reviewId?: string; analysisSequence?: number })
+      .filter((payload) => payload.reviewId !== undefined)
+    expect(replayed).toHaveLength(AI_REVIEW_ANALYSIS_REPLAY_PAGE_SIZE + 3)
+    expect(new Set(replayed.map((payload) => payload.reviewId)).size).toBe(
+      replayed.length,
+    )
+    expect(new Set(replayed.map((payload) => payload.analysisSequence)).size).toBe(
+      replayed.length,
+    )
+    await db.insert(aiPropertyAggregateSettlements).values(
+      replayed.map((payload) => {
+        if (payload.reviewId === undefined || payload.analysisSequence === undefined) {
+          throw new Error('Expected a replayed review sequence')
+        }
+        return {
+          organizationId: ORG,
+          propertyId: PROPERTY,
+          reviewId: payload.reviewId,
+          sourceEpoch: 0,
+          reviewAnalysisEpoch: 1,
+          analysisSequence: payload.analysisSequence,
+          settledAt: NOW,
+        }
+      }),
+    )
+    const caughtUp = {
+      status: 'caught_up',
+      eligibleRevisionCount: replayed.length,
+      caughtUpAnalysisSequence: replayed.length,
+    }
+    await expect(reconcile()).resolves.toMatchObject(caughtUp)
+    await expect(reconcile()).resolves.toMatchObject(caughtUp)
+  })
+
+  it('rolls a failed page back, then retries from the same durable cursor', async () => {
+    const db = getDb()
+    const failingPool = drizzle(replayPool)
+    const transaction = failingPool.transaction.bind(failingPool)
+    vi.spyOn(failingPool, 'transaction').mockImplementationOnce((work) =>
+      transaction(async (tx) => {
+        await work(tx)
+        throw new Error('interrupted before commit')
+      }),
+    )
+    const failed = createReviewAnalysisEnrollmentAdapter(failingPool, randomUUID)
+    await expect(
+      failed.reconcile({
+        enrollmentId,
+        organizationId: ORG,
+        expectedFence: FENCE,
+        correlationId: enrollmentId,
+        occurredAt: NOW,
+      }),
+    ).rejects.toThrow('interrupted before commit')
+    const [head] = await db
+      .select()
+      .from(aiReviewAnalysisEnrollments)
+      .where(eq(aiReviewAnalysisEnrollments.id, enrollmentId))
+    expect(head).toMatchObject({ state: 'queued', enrolledRevisionCount: 0 })
+    await expect(reconcile()).resolves.toMatchObject({
+      status: 'replay_started',
+      pinnedRevisionCount: 3,
+    })
+  })
+  it('refreshes sources between pages without replaying the committed page', async () => {
+    const db = getDb()
+    await addReviews(AI_REVIEW_ANALYSIS_REPLAY_PAGE_SIZE)
+    await expect(reconcile()).resolves.toMatchObject({
+      pinnedRevisionCount: AI_REVIEW_ANALYSIS_REPLAY_PAGE_SIZE,
+    })
+    await db
+      .update(reviews)
+      .set({ sourceRevision: 2 })
+      .where(and(eq(reviews.propertyId, PROPERTY), eq(reviews.analysisSequence, 0)))
+    await expect(reconcile()).resolves.toMatchObject({
+      status: 'replay_started',
+      pinnedRevisionCount: 3,
+    })
+    const events = await db
+      .select({ payload: outboxEvents.payload })
+      .from(outboxEvents)
+      .where(
+        and(
+          eq(outboxEvents.organizationId, ORG),
+          eq(outboxEvents.eventType, 'ai.review_analysis.backfill_requested'),
+        ),
+      )
+    const payloads = events.map(({ payload }) => payload as { sourceRevision: number })
+    expect(payloads.filter((payload) => payload.sourceRevision === 1)).toHaveLength(
+      AI_REVIEW_ANALYSIS_REPLAY_PAGE_SIZE,
+    )
+    expect(payloads.filter((payload) => payload.sourceRevision === 2)).toHaveLength(3)
+  })
+
+  it('requires fresh approval of a changed oversized snapshot before emitting any page', async () => {
+    await addReviews(10_000)
+    await expect(reconcile()).resolves.toEqual({
+      status: 'awaiting_assisted_approval',
+      eligibleRevisionCount: 10_003,
+      safetyCeiling: 10_000,
+    })
+    const approve = (digest: string) =>
+      adapter().approveAssistedReplay({
+        enrollmentId,
+        organizationId: ORG,
+        expectedFence: FENCE,
+        approvedByOperatorId: 'synthetic-operator',
+        approvalEvidenceDigest: digest,
+        correlationId: randomUUID(),
+        occurredAt: NOW,
+      })
+    await expect(approve('a'.repeat(64))).resolves.toMatchObject({ status: 'approved' })
+    await getDb()
+      .update(reviews)
+      .set({ sourceRevision: 2 })
+      .where(eq(reviews.id, REVIEWS[0]))
+    await expect(reconcile()).resolves.toMatchObject({
+      status: 'awaiting_assisted_approval',
+    })
+    expect(
+      await adapter().readCurrent({ organizationId: ORG, propertyId: PROPERTY }),
+    ).toMatchObject({
+      state: 'awaiting_assisted_approval',
+      assistedApproval: null,
+      enrolledRevisionCount: 0,
+    })
+    await expect(approve('b'.repeat(64))).resolves.toMatchObject({ status: 'approved' })
+    await expect(reconcile()).resolves.toMatchObject({
+      status: 'replay_started',
+      pinnedRevisionCount: AI_REVIEW_ANALYSIS_REPLAY_PAGE_SIZE,
+    })
+  })
+
+  it('persists inconsistent replay evidence as needing attention', async () => {
+    const db = getDb()
+    await reconcile()
+    const [event] = await db
+      .select()
+      .from(outboxEvents)
+      .where(
+        and(
+          eq(outboxEvents.organizationId, ORG),
+          eq(outboxEvents.eventType, 'ai.review_analysis.backfill_requested'),
+        ),
+      )
+      .limit(1)
+    if (!event) throw new Error('Expected a replay event')
+    await db.insert(outboxEvents).values({ ...event, id: randomUUID() })
+    await expect(reconcile()).resolves.toEqual({
+      status: 'stalled',
+      reason: 'verification_inconsistent',
+    })
+    expect(
+      await adapter().readCurrent({ organizationId: ORG, propertyId: PROPERTY }),
+    ).toMatchObject({ state: 'stalled', terminalReason: 'verification_inconsistent' })
   })
 })

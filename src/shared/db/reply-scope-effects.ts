@@ -12,7 +12,22 @@ export type ReplyScopeEffects = Readonly<{
   fenceReplyPublicationsAfterRestore(
     tx: Tx,
   ): Promise<Readonly<{ cancelled: number; ambiguous: number }>>
+  cancelRepliesForOrganizationClosing(
+    tx: Tx,
+    request: OrganizationReplyRequest,
+  ): Promise<number>
+  scrubOrganizationReplyContent(
+    tx: Tx,
+    request: OrganizationReplyRequest,
+  ): Promise<number>
+  releaseOrganizationAttemptConfirmations(
+    tx: Tx,
+    request: OrganizationReplyRequest,
+  ): Promise<number>
+  deleteOrganizationPublicationAttempts(tx: Tx, organizationId: string): Promise<number>
 }>
+
+type OrganizationReplyRequest = Readonly<{ organizationId: string; occurredAt: Date }>
 
 /**
  * Fails closed: an entry point built without the effects stops at the first

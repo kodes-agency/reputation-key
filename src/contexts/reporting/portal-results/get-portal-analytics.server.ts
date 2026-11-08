@@ -19,10 +19,8 @@ import {
 import { priorPeriodDates } from '../application/utils'
 import { portalPeriodKpis } from '../application/use-cases/portal-period-kpis'
 import { qualifiedScansSince } from '../application/use-cases/qualified-scans-since'
-import type { PortalLifetimeAggregatePort } from '../application/ports/portal-lifetime-aggregate.port'
 import type { PortalResponseIntegritySummary } from '#/contexts/guest/application/public-api'
 import type { PortalPublicApi } from '#/contexts/portal/application/public-api'
-import { portalLifetimeAnalyticsData } from '../application/use-cases/portal-lifetime-analytics'
 import { PORTAL_RESULTS_THRESHOLDS } from '../domain/portal-results-thresholds'
 import { localDateOf } from '../domain/local-days'
 import {
@@ -56,7 +54,6 @@ type PortalScopedPeriod = Readonly<{
 
 export type GetPortalAnalyticsDeps = Readonly<{
   portalMetrics: PortalAnalyticsRepository
-  portalLifetime: Pick<PortalLifetimeAggregatePort, 'get'>
   /** Guest-owned reads over its responses, through its public API. */
   responseIntegrity: Readonly<{
     getPortalScanPatterns: PortalScanPatternsReader
@@ -106,8 +103,14 @@ export const getPortalAnalytics =
     const linkTaps = portalLinkTaps(links, tapCounts)
 
     if (timeRange === 'all') {
-      const [lifetime, responseIntegrity, ratingLanguages] = await Promise.all([
-        deps.portalLifetime.get({ organizationId, propertyId, portalId }),
+      const [totals, responseIntegrity, ratingLanguages] = await Promise.all([
+        deps.portalMetrics.getPortalTotals(
+          organizationId,
+          propertyId,
+          portalId,
+          startDate,
+          endDate,
+        ),
         deps.responseIntegrity.getPortalResponseIntegritySummary({
           ...scope,
           startAt: startDate,
@@ -119,14 +122,28 @@ export const getPortalAnalytics =
           endAt: endDate,
         }),
       ])
-      return portalLifetimeAnalyticsData(
-        input,
-        lifetime,
-        responseIntegrity,
-        ratingLanguages,
-        qualifiedScansSince(),
-        linkTaps,
+      const since = qualifiedScansSince()
+      const { kpis, engagementFunnel, ratingDetailShowable } = portalPeriodKpis(
+        { startDate, sums: totals.sums, evidence: totals.evidence },
+        null,
+        since,
       )
+      return {
+        period: { startAt: startDate, endAt: endDate, timezone: propertyTimezone },
+        localDays: null,
+        comparePeriod: null,
+        qualifiedScansSince: since,
+        kpis,
+        engagementFunnel,
+        ratingDistribution: ratingDetailShowable ? totals.ratingDistribution : [],
+        series: null,
+        versionMarkers: [],
+        ratingLanguages,
+        linkTaps,
+        scanPatterns: null,
+        thresholds: PORTAL_RESULTS_THRESHOLDS,
+        responseIntegrity,
+      }
     }
 
     // The All Time branch above never reaches the period projection. Every
@@ -282,7 +299,6 @@ export const getPortalAnalytics =
         endAt: priorPeriod.priorEndDate,
       },
       qualifiedScansSince: since,
-      lifetimeReconciliation: null,
       kpis,
       engagementFunnel,
       // A distribution would give a withheld average away.

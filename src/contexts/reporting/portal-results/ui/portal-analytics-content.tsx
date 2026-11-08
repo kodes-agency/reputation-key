@@ -1,6 +1,5 @@
 import type { PortalAnalyticsData } from '#/contexts/reporting/portal-results/contracts'
 import type { TimeRangePreset } from '#/contexts/reporting/portal-results/contracts'
-import { PortalLifetimeReconciliationSummary } from './portal-lifetime-reconciliation-summary'
 import { emptyResults } from './portal-results-empty'
 import { EmptyResultsPanel } from './portal-results-empty-panels'
 import type { PortalResultsPlace } from './portal-results-place'
@@ -31,17 +30,12 @@ export function PortalAnalyticsContent({
   })
   return (
     <div className="@container flex flex-col gap-4 md:gap-6" aria-busy={busy}>
-      {data.lifetimeReconciliation ? (
-        <PortalLifetimeReconciliationSummary
-          state={data.lifetimeReconciliation}
-          timeZone={data.period.timezone}
-        />
-      ) : null}
       <PortalResultsToolbar
         timeRange={timeRange}
         onTimeRangeChange={onTimeRangeChange}
         localDays={data.localDays}
         timezone={data.period.timezone}
+        asOf={data.period.endAt}
       />
       {place?.skipPrivateRating ? (
         <p className="text-sm text-muted-foreground">

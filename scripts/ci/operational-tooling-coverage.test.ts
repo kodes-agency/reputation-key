@@ -111,10 +111,13 @@ describe('operational tooling quality coverage', () => {
     ).resolves.toBe(2)
   })
 
-  it('runs test-quality checks across script and configuration test roots', () => {
-    const testQuality = read('scripts/check-test-quality.mjs')
-    for (const root of ['scripts', 'server', '.storybook']) {
-      expect(testQuality).toContain(`...walk(join(ROOT, '${root}'))`)
+  it('runs test-quality lint across script and configuration test roots', async () => {
+    for (const file of [
+      'scripts/example.test.ts',
+      'server/example.test.ts',
+      '.storybook/example.stories.tsx',
+    ]) {
+      await expect(ruleSeverity(file, 'test-quality/checks')).resolves.toBe(2)
     }
   })
 })

@@ -12,10 +12,10 @@ import {
   type GoalActor,
   type GoalExecutionPolicy,
   type GoalProgramRequestApi,
-} from '../application/use-cases/goal-programs'
+} from '../monthly-goals/goal-programs.server'
 import type { GoalProgressRequestApi } from '../application/use-cases/goal-progress'
 import type { GoalListProgressRequestApi } from '../application/use-cases/goal-list-progress'
-import type { MonthlyPortalGoalRequestApi } from '../application/use-cases/monthly-portal-goal-page'
+import type { MonthlyPortalGoalRequestApi } from '../monthly-goals/monthly-portal-goal-page.server'
 import type { PortalGoalAddRequestApi } from '../application/use-cases/portal-goal-add'
 import type { PortalGoalSinglePageRequestApi } from '../monthly-goals/get-portal-goal-page.server'
 

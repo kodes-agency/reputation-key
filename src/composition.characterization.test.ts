@@ -87,7 +87,6 @@ const EXPECTED_TOP_LEVEL_KEYS = [
   'jobQueue',
   'jobRegistry',
   'logger',
-  'metricMaintenanceRuntime',
   'metricPublicApi',
   'notificationAudienceAuthorizer',
   'notificationDeliverySettlement',
@@ -206,14 +205,6 @@ describe('composition characterization (BQC-5.2 parity baseline)', () => {
 
   it('does not expose simulation mutation authority on an application container', () => {
     expect(container).not.toHaveProperty('simulationRuntime')
-  })
-
-  it('keeps Metric lifetime mutations outside the public API', () => {
-    expect(Object.keys(container.metricPublicApi.portalLifetime)).toEqual(['get'])
-    expect(Object.isFrozen(container.metricPublicApi.portalLifetime)).toBe(true)
-    expect(Object.keys(container.metricMaintenanceRuntime)).toEqual([
-      'repairPortalLifetime',
-    ])
   })
 
   it('keeps the Property Google-binding store off the Property public API', () => {

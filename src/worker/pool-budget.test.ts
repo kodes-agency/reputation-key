@@ -7,7 +7,7 @@
 
 import { describe, expect, it } from 'vitest'
 import { RAILWAY_SERVICE_SETTINGS } from '#/shared/release/railway-service-settings'
-import { AI_BACKLOG_DRAIN_CONCURRENCY } from '#/contexts/ai/application/use-cases/drain-review-analysis-backlog'
+import { AI_BACKLOG_DRAIN_CONCURRENCY } from '#/contexts/ai/application/public-api'
 import {
   REVIEW_EXACT_CURRENT_APPLY_CLIENTS,
   REVIEW_EXACT_CURRENT_MAX_CONCURRENT_APPLIES,

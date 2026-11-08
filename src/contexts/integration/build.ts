@@ -1,3 +1,4 @@
+import { createGoogleNotificationRuntime } from './infrastructure/google-notification-runtime'
 import { createGoogleImportV2ClaimReaper } from './application/google-import-v2-claim-reaper'
 import { completeGoogleImportsForRestore } from './infrastructure/google-import-completion'
 import { registerGoogleBindingFollowUpConsumers } from './infrastructure/google-binding-follow-up-consumers'
@@ -43,7 +44,6 @@ import {
   handleGbpNotification,
   type HandleGbpNotification,
   createGbpSubscribeBackfill,
-  createGbpNotificationReconciliation,
   type ReconcileGbpNotificationSubscriptions,
   prepareGoogleConnectorDeparture,
 } from './application/use-cases'
@@ -625,37 +625,28 @@ export const buildIntegrationContext = (deps: IntegrationContextDeps) => {
     deps.config.pubsubNotificationTypes,
   )
 
-  const manageNotificationsUseCase = manageNotifications({
-    authorizeProviderCall: async (organizationIdValue, connectionIdValue) =>
+  const {
+    management: manageNotificationsUseCase,
+    backfill: gbpSubscribeBackfill,
+    reconcile: reconcileNotificationSubscriptions,
+  } = createGoogleNotificationRuntime({
+    db: deps.db,
+    clock: deps.clock,
+    connectionRepo,
+    propertyApi: deps.propertyApi,
+    propertyBindingApi: deps.propertyBindingApi,
+    authorizeProviderCall: async (organizationIdValue, connectionIdValue, accountId) =>
       authorizeGoogleNotificationProviderCall
-        ? authorizeGoogleNotificationProviderCall(organizationIdValue, connectionIdValue)
+        ? authorizeGoogleNotificationProviderCall(
+            organizationIdValue,
+            connectionIdValue,
+            accountId,
+          )
         : { ok: false, code: 'authorization_unavailable' },
     notifications: notificationsPort,
     pubsubTopic: notificationConfig.pubsubTopic,
     notificationTypes: notificationConfig.notificationTypes,
     logger: deps.logger,
-  })
-
-  // ops:gbp-subscribe (scripts/ops/gbp-subscribe.ts) and the daily
-  // reconciliation below. Reads the repo directly rather than the
-  // listGoogleConnections use case: each caller has already authorized the
-  // organization (the operator harness as `system:ops`; the job
-  // through current delayed policy), and a system repair must not depend on a
-  // tenant's `integration.manage` grant — the same posture as
-  // ops:property-capabilities.
-  const gbpSubscribeBackfill = createGbpSubscribeBackfill({
-    listConnections: (organizationIdValue) =>
-      connectionRepo.listByOrganization(organizationIdValue, { showAll: true }),
-    subscribe: manageNotificationsUseCase.subscribe,
-  })
-  // The same backfill for every tenant, once a day (worker job
-  // reconcile-gbp-notification-subscriptions), because the operator command
-  // only reports: operator commands run without the Google provider runtime.
-  const reconcileNotificationSubscriptions = createGbpNotificationReconciliation({
-    topicConfigured: notificationConfig.pubsubTopic.length > 0,
-    listOrganizations: connectionRepo.listOrganizationIdsWithActiveConnections,
-    backfill: gbpSubscribeBackfill,
-    nowMs: () => deps.clock().getTime(),
   })
 
   let googleImportDiscovery: ReturnType<typeof createGoogleImportDiscovery> | null = null

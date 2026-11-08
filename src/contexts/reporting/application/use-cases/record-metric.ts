@@ -16,7 +16,7 @@ import type {
   GovernedMetricVersion,
   MetricScope,
   SourcePolicyClass,
-} from '../../domain/metric-registry'
+} from '../../readings/contracts'
 import type {
   MetricCommandStore,
   MetricSourceReceipt,
@@ -24,10 +24,8 @@ import type {
 } from '../ports/metric-command-store.port'
 import type { MetricRegistryRepository } from '../ports/metric-registry.repository.port'
 import type { PrimaryStaffAttributionSnapshot } from '#/shared/domain/primary-staff-attribution'
-import {
-  portalLifetimeFactForMetric,
-  type PortalDestinationKind,
-} from '../../domain/portal-lifetime-aggregate'
+import type { PortalDestinationKind } from '../../domain/portal-link-attribution'
+import { validatePortalReading } from '../../readings/contracts'
 
 export type RecordMetricInput = Readonly<{
   organizationId: OrganizationId
@@ -122,7 +120,7 @@ type BuiltMetricEntry =
  * Validate and materialize one reading without committing it. Fanout consumers
  * build every entry first, then hand the complete set to the atomic store.
  */
-export async function buildRecordMetricEntry(
+async function buildRecordMetricEntry(
   deps: RecordMetricDeps,
   input: RecordMetricEntryInput,
 ): Promise<BuiltMetricEntry> {
@@ -196,13 +194,13 @@ export async function buildRecordMetricEntry(
     now: deps.clock(),
   })
 
-  const portalLifetimeFact = portalLifetimeFactForMetric({
+  const portalReading = validatePortalReading({
     metricKey: reading.metricKey,
     value: reading.value,
     destinationKind: input.destinationKind ?? null,
   })
-  if (portalLifetimeFact && reading.portalId === null) {
-    return reject('invalid_portal_lifetime_scope')
+  if (portalReading && reading.portalId === null) {
+    return reject('invalid_portal_scope')
   }
 
   return {
@@ -210,7 +208,10 @@ export async function buildRecordMetricEntry(
     entry: {
       reading,
       supersedesSourceEventId: input.supersedesSourceEventId ?? null,
-      portalLifetimeFact,
+      destinationKind:
+        reading.metricKey === 'portal.review_link_click'
+          ? (input.destinationKind ?? null)
+          : null,
     },
   }
 }

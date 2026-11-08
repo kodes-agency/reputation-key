@@ -17,3 +17,7 @@ Goals list's subject ordering directly from named subjects. The colocated storie
 retain their story IDs, Stop interaction and stopped state. Unit acceptance tests
 cover historical assignments, visibility, missing progress and retained months;
 PostgreSQL command suites remain under `../infrastructure/`.
+
+The monthly-goal commands (`monthly-portal-goal*.server.ts`) and the Program
+service (`goal-programs.server.ts`) live here with their unit tests; shared
+pieces such as `goal-program-shared` stay under `../application/`.

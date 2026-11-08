@@ -104,6 +104,21 @@ async function endOpenGoalPrograms(page: Page, propertyId: string) {
   }
 }
 
+/** Publishes a live Portal's changes the way the review page does: the digest it showed is handed back. */
+async function publishReviewedChanges(page: Page, portalId: string) {
+  const review = await callServerFnGet<{ reviewDigest: string | null }>(page, {
+    file: 'src/contexts/portal/server/portal-review.ts',
+    exportName: 'getPortalReview',
+    data: { portalId },
+  })
+  expect(review.reviewDigest).not.toBeNull()
+  return await callServerFn<{ outcome: string }>(page, {
+    file: 'src/contexts/portal/server/portal-publish-changes.ts',
+    exportName: 'publishPortalChanges',
+    data: { portalId, reviewedDigest: review.reviewDigest },
+  })
+}
+
 /**
  * The month after the current one on a Property's own calendar, as the
  * `YYYY-MM` key the create command takes.
@@ -540,11 +555,7 @@ test.describe('Critical: beta-local-1 product journeys', () => {
     ).toBeVisible()
 
     // Publishing Spa puts its own look live; Reception's page is untouched.
-    const spaPublished = await callServerFn<{ outcome: string }>(page, {
-      file: 'src/contexts/portal/server/portal-publish-changes.ts',
-      exportName: 'publishPortalChanges',
-      data: { portalId: spa.id },
-    })
+    const spaPublished = await publishReviewedChanges(page, spa.id)
     expect(spaPublished.outcome).toBe('published')
     const spaLive = await guestLookOf(page, spa.rawToken)
     expect(spaLive.accent).toBe(ownAccent)
@@ -561,11 +572,7 @@ test.describe('Critical: beta-local-1 product journeys', () => {
     const afterEdit = await lookOverviewOf(page, propertyId)
     expect(afterEdit.get(reception.id)?.pendingChangeCount).toBeGreaterThan(0)
     expect(afterEdit.get(spa.id)?.pendingChangeCount).toBe(0)
-    const spaNothing = await callServerFn<{ outcome: string }>(page, {
-      file: 'src/contexts/portal/server/portal-publish-changes.ts',
-      exportName: 'publishPortalChanges',
-      data: { portalId: spa.id },
-    })
+    const spaNothing = await publishReviewedChanges(page, spa.id)
     expect(spaNothing.outcome).toBe('unchanged')
 
     // The Property look page tells which portal has a look of its own.
@@ -580,11 +587,7 @@ test.describe('Critical: beta-local-1 product journeys', () => {
     ).toBeVisible()
 
     // Publishing Reception brings the new accent to Reception only.
-    const receptionPublished = await callServerFn<{ outcome: string }>(page, {
-      file: 'src/contexts/portal/server/portal-publish-changes.ts',
-      exportName: 'publishPortalChanges',
-      data: { portalId: reception.id },
-    })
+    const receptionPublished = await publishReviewedChanges(page, reception.id)
     expect(receptionPublished.outcome).toBe('published')
     const receptionAfter = await guestLookOf(page, reception.rawToken)
     expect(receptionAfter.accent).toBe(editedAccent)
@@ -606,11 +609,7 @@ test.describe('Critical: beta-local-1 product journeys', () => {
     expect(
       (await lookOverviewOf(page, propertyId)).get(spa.id)?.pendingChangeCount,
     ).toBeGreaterThan(0)
-    const spaBack = await callServerFn<{ outcome: string }>(page, {
-      file: 'src/contexts/portal/server/portal-publish-changes.ts',
-      exportName: 'publishPortalChanges',
-      data: { portalId: spa.id },
-    })
+    const spaBack = await publishReviewedChanges(page, spa.id)
     expect(spaBack.outcome).toBe('published')
     expect(await guestLookOf(page, spa.rawToken)).toEqual(receptionAfter)
   })

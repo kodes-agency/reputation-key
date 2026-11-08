@@ -24,6 +24,7 @@ const ZERO_COUNTS: RecoveryFenceCounts = Object.freeze({
   repliesMadeAmbiguous: 0,
   googleConnectionsFenced: 0,
   googleExecutionPermitsFenced: 0,
+  // Retain stored recovery-count keys when resuming older recovery runs.
   googleSourceOperationsFenced: 0,
   googleRevokePermitsFenced: 0,
   googleImportV2ParentsFenced: 0,
@@ -89,10 +90,6 @@ export async function inspectRecoveryFence(
            OR credential_use_state <> 'none') AS "googleConnectionsFenced",
       (SELECT count(*)::int FROM authorization_execution_permits
         WHERE state IN ('admitted', 'started')) AS "googleExecutionPermitsFenced",
-      (SELECT count(*)::int FROM google_credential_source_operations
-        WHERE state IN ('registered', 'provider_started', 'provider_outcome_ambiguous')) AS "googleSourceOperationsFenced",
-      (SELECT count(*)::int FROM credential_revoke_permits
-        WHERE state IN ('dormant', 'active', 'dispatching')) AS "googleRevokePermitsFenced",
       (SELECT count(*)::int FROM gbp_import_requests request
         WHERE request.status IN ('queued', 'processing')
            OR EXISTS (
@@ -282,31 +279,6 @@ export async function applyRecoveryFence(
       WHERE state IN ('admitted', 'started')
       RETURNING id
     `)
-    const googleSources = await tx.execute(sql`
-      UPDATE google_credential_source_operations
-      SET state = 'terminal',
-          terminal_at = clock_timestamp(),
-          outcome_code = 'restore_recovery_fence',
-          updated_at = clock_timestamp()
-      WHERE state IN ('registered', 'provider_started', 'provider_outcome_ambiguous')
-      RETURNING id
-    `)
-    const googleRevokes = await tx.execute(sql`
-      UPDATE credential_revoke_permits
-      SET state = CASE
-            WHEN state = 'dispatching' THEN 'cleanup_ambiguous'::credential_revoke_permit_state
-            ELSE 'confirmed_not_sent'::credential_revoke_permit_state
-          END,
-          token_hmac_key_version = NULL,
-          token_hmac = NULL,
-          send_authorization_expires_at = NULL,
-          terminal_at = clock_timestamp(),
-          outcome_code = 'restore_recovery_fence',
-          updated_at = clock_timestamp()
-      WHERE state IN ('dormant', 'active', 'dispatching')
-      RETURNING id
-    `)
-
     const googleImports = await completeImports(tx, new Date())
 
     // A restore invalidates every in-flight AI operation. Age active
@@ -353,8 +325,8 @@ export async function applyRecoveryFence(
       repliesMadeAmbiguous: replyFence.ambiguous,
       googleConnectionsFenced: connections.rows.length,
       googleExecutionPermitsFenced: googlePermits.rows.length,
-      googleSourceOperationsFenced: googleSources.rows.length,
-      googleRevokePermitsFenced: googleRevokes.rows.length,
+      googleSourceOperationsFenced: 0,
+      googleRevokePermitsFenced: 0,
       googleImportV2ParentsFenced: googleImports.parents,
       googleImportV2ItemsFenced: googleImports.items,
       aiIssuedPermitsReleased: aiReservationsReleased,

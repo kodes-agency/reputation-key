@@ -7,9 +7,9 @@ import {
 import { seedGoalMonth } from '../testing/goal-running-month-seed'
 import { createGoalProgramRepository } from './goal-program.repository'
 import { monthlyPortalGoalOf } from '../../application/monthly-portal-goal-identity'
-import { monthlyPortalGoalOnCard } from '../../application/use-cases/monthly-portal-goal-running'
+import { monthlyPortalGoalOnCard } from '../../monthly-goals/monthly-portal-goal-running.server'
 import { gatherPortalGoalRecommendation } from '../../application/use-cases/goal-recommendation-read'
-import { fakeWorld } from '../../application/use-cases/monthly-portal-goal-test-fixtures'
+import { fakeWorld } from '../../monthly-goals/monthly-portal-goal.test-fixtures'
 import { anyPortalGoalMonthClosed } from '#/components/goals/portal-goal-results-foot'
 
 describe.sequential(

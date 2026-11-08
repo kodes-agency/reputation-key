@@ -131,6 +131,7 @@ describe('durable Google binding follow-ups', () => {
     expect(deps.subscribe).toHaveBeenLastCalledWith(
       event.organizationId,
       '10000000-0000-4000-8000-000000000003',
+      { gbpAccountId: 'account', reuseVerified: true },
     )
   })
   it.each(['already_subscribed', 'topic_unset'] as const)(
@@ -152,6 +153,40 @@ describe('durable Google binding follow-ups', () => {
     )
     await handlers.displayName(event)
     expect([...acknowledgements]).toEqual([IMPORT_DISPLAY_NAME_CONSUMER])
+  })
+  it('scopes every item of a 100-item import to its own account and acknowledges every item', async () => {
+    const { deps, binding } = setup()
+    const receipts = new Set<string>()
+    deps.receipts.hasReceipt.mockImplementation(async (id, name) =>
+      receipts.has(`${id}:${name}`),
+    )
+    deps.receipts.insertReceipt.mockImplementation(async (id, name) => {
+      receipts.add(`${id}:${name}`)
+    })
+    const handlers = createGoogleBindingFollowUpHandlers(deps)
+    for (let index = 0; index < 100; index += 1) {
+      const id = `10000000-0000-4000-8000-${String(index + 100).padStart(12, '0')}`
+      binding.accountId = index < 60 ? 'account-one' : 'account-two'
+      await handlers.subscription({
+        ...event,
+        eventId: id,
+        propertyId: id,
+        sourceAggregateId: id,
+        payload: { ...(event.payload as object), propertyId: id },
+      })
+    }
+    expect(deps.subscribe).toHaveBeenCalledTimes(100)
+    expect(receipts.size).toBe(100)
+    expect(deps.subscribe.mock.calls.map((call) => call[2])).toEqual([
+      ...Array.from({ length: 60 }, () => ({
+        gbpAccountId: 'account-one',
+        reuseVerified: true,
+      })),
+      ...Array.from({ length: 40 }, () => ({
+        gbpAccountId: 'account-two',
+        reuseVerified: true,
+      })),
+    ])
   })
   it('does not acknowledge sync on Redis acceptance and retries lost deliveries', async () => {
     const { deps, handlers, acknowledgements } = setup()

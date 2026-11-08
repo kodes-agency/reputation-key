@@ -1,0 +1,307 @@
+import type {
+  GuestFeedbackRetracted,
+  GuestFeedbackSubmitted,
+  GuestQualifiedScanRecorded,
+  GuestQualifiedScanRetracted,
+  GuestRatingRetracted,
+  GuestRatingSubmitted,
+  GuestReviewLinkClicked,
+  GuestScanRecorded,
+} from '#/contexts/guest/application/public-api'
+import type {
+  RecordMetricEntryInput,
+  RecordMetrics,
+} from '../application/use-cases/record-metric'
+import type { RetractMetricCommand } from '../application/ports/metric-command-store.port'
+import type { RetractMetrics } from '../application/use-cases/retract-metric'
+import type {
+  OrganizationId,
+  PortalGroupId,
+  PortalId,
+  PropertyId,
+} from '#/shared/domain/ids'
+import type { PrimaryStaffAttributionSnapshot } from '#/shared/domain/primary-staff-attribution'
+import { trace } from '#/shared/observability/trace'
+import type { AttributionQuality } from '../domain/attribution-quality'
+import type { ReadingResult } from '../domain/metric-reading'
+import { METRIC_VERSION_IDS, type SourcePolicyClass } from './contracts'
+import { secondaryPortalLinkId } from '../domain/portal-link-attribution'
+import type { PortalDestinationKind } from '../domain/portal-link-attribution'
+
+/** Common shape of Guest facts that record a Portal metric. */
+export type PortalMetricEvent = Readonly<{
+  _tag: string
+  organizationId: OrganizationId
+  propertyId: PropertyId
+  portalId: PortalId | null
+  eventId: string
+  supersedesSourceEventId?: string | null
+  occurredAt: Date
+  staffAttribution?: PrimaryStaffAttributionSnapshot | null
+}>
+
+export type RecordPortalMetricDeps = Readonly<{
+  recordMetrics: RecordMetrics
+  findGroupForPortal: (
+    orgId: OrganizationId,
+    portalId: PortalId,
+    asOf: Date,
+  ) => Promise<{ portalGroupId: PortalGroupId } | null>
+}>
+
+export type PortalMetricHandlerOptions<E extends PortalMetricEvent> = Readonly<{
+  definitionVersionId: string
+  sourcePolicy: SourcePolicyClass
+  span: string
+  value?: (event: E) => number
+  /** Producer-owned event-time attribution must not be recomputed during replay. */
+  portalGroupId?: (event: E) => PortalGroupId | null
+  destinationKind?: (event: E) => PortalDestinationKind
+  portalLinkId?: (event: E) => string | null
+  /** Consumer receipt to commit with this source reading. */
+  sourceReceiptConsumer?: string
+}>
+
+/**
+ * The Portal's group as of occurredAt (ADR 0040). A null result is event-time
+ * truth: the Portal was in no group then. A lookup failure propagates so durable
+ * delivery retries the fact instead of storing a null group as permanent truth.
+ * Nothing is written before this point and the readings commit with their
+ * receipt atomically, so the retry is idempotent.
+ */
+async function eventTimePortalGroup<E extends PortalMetricEvent>(
+  options: readonly PortalMetricHandlerOptions<E>[],
+  deps: RecordPortalMetricDeps,
+  event: E,
+): Promise<PortalGroupId | null> {
+  const capturedGroup = options[0]?.portalGroupId
+  if (capturedGroup) return capturedGroup(event)
+  if (!event.portalId) return null
+  const group = await deps.findGroupForPortal(
+    event.organizationId,
+    event.portalId,
+    event.occurredAt,
+  )
+  return group?.portalGroupId ?? null
+}
+
+async function recordPortalMetrics<E extends PortalMetricEvent>(
+  options: readonly PortalMetricHandlerOptions<E>[],
+  deps: RecordPortalMetricDeps,
+  event: E,
+): Promise<void> {
+  // Portal facts carry portalId, so tenant/Portal attribution is exact.
+  const attributionQuality: AttributionQuality = 'exact'
+  const portalGroupId = await eventTimePortalGroup(options, deps, event)
+
+  const sourceReceiptConsumer = options[0]?.sourceReceiptConsumer
+  if (options.some((option) => option.sourceReceiptConsumer !== sourceReceiptConsumer)) {
+    throw new Error('Portal metric fanout has inconsistent receipt consumers')
+  }
+
+  const readings: RecordMetricEntryInput[] = options.map((opts) => ({
+    organizationId: event.organizationId,
+    propertyId: event.propertyId,
+    portalId: event.portalId,
+    portalGroupId,
+    definitionVersionId: opts.definitionVersionId,
+    sourceEventId: event.eventId,
+    ...(event.supersedesSourceEventId
+      ? { supersedesSourceEventId: event.supersedesSourceEventId }
+      : {}),
+    sourcePolicy: opts.sourcePolicy,
+    scope: 'portal',
+    value: opts.value ? opts.value(event) : 1,
+    sampleCount: 1,
+    occurredAt: event.occurredAt,
+    attributionQuality,
+    staffAttribution: event.staffAttribution ?? null,
+    ...(opts.portalLinkId ? { portalLinkId: opts.portalLinkId(event) } : {}),
+    ...(opts.destinationKind ? { destinationKind: opts.destinationKind(event) } : {}),
+  }))
+
+  const results: readonly ReadingResult[] = await deps.recordMetrics({
+    readings,
+    ...(sourceReceiptConsumer
+      ? {
+          sourceReceipt: {
+            eventId: event.eventId,
+            consumerName: sourceReceiptConsumer,
+          },
+        }
+      : {}),
+  })
+  if (
+    results.some(
+      (result) =>
+        result.status === 'rejected' && result.reason === 'superseded_reading_not_found',
+    )
+  ) {
+    // Ordered retry must converge before the delivery receipt is accepted.
+    throw new Error('superseded metric source reading is not available')
+  }
+}
+
+/** Persistence failures propagate so durable delivery can retry. */
+export function makeDurableRecordMetricHandler<E extends PortalMetricEvent>(
+  options: PortalMetricHandlerOptions<E>,
+) {
+  return makeDurableRecordMetricFanoutHandler([options])
+}
+
+function makeDurableRecordMetricFanoutHandler<E extends PortalMetricEvent>(
+  options: readonly PortalMetricHandlerOptions<E>[],
+) {
+  return (deps: RecordPortalMetricDeps) =>
+    async (event: E): Promise<void> =>
+      trace(`${options[0]?.span ?? 'metric.event.portalMetricFanout'}.durable`, () =>
+        recordPortalMetrics(options, deps, event),
+      )
+}
+
+export type PortalMetricRetractionEvent = Readonly<{
+  _tag: string
+  eventId: string
+  organizationId: OrganizationId
+  propertyId: PropertyId
+  portalId: PortalId
+  supersedesSourceEventId: string
+  occurredAt: Date
+  staffAttribution?: PrimaryStaffAttributionSnapshot | null
+}>
+
+export type RetractPortalMetricDeps = Readonly<{
+  retractMetrics: RetractMetrics
+}>
+
+type RetractionOption = Readonly<{
+  definitionVersionId: string
+  span: string
+  sourceReceiptConsumer?: string
+}>
+
+async function retractPortalMetrics(
+  options: readonly RetractionOption[],
+  deps: RetractPortalMetricDeps,
+  event: PortalMetricRetractionEvent,
+): Promise<void> {
+  const sourceReceiptConsumer = options[0]?.sourceReceiptConsumer
+  if (options.some((option) => option.sourceReceiptConsumer !== sourceReceiptConsumer)) {
+    throw new Error('Portal metric retraction has inconsistent receipt consumers')
+  }
+
+  const commands: RetractMetricCommand[] = options.map((option) => ({
+    organizationId: event.organizationId,
+    propertyId: event.propertyId,
+    portalId: event.portalId,
+    definitionVersionId: option.definitionVersionId,
+    sourceEventId: event.eventId,
+    supersedesSourceEventId: event.supersedesSourceEventId,
+    occurredAt: event.occurredAt,
+    staffAttribution: event.staffAttribution ?? null,
+  }))
+  const results = await deps.retractMetrics(
+    commands,
+    sourceReceiptConsumer
+      ? {
+          eventId: event.eventId,
+          consumerName: sourceReceiptConsumer,
+        }
+      : undefined,
+  )
+  if (results.some((result) => result.status === 'source_reading_not_found')) {
+    throw new Error('metric source reading is not available for retraction')
+  }
+}
+
+export function makeDurablePortalMetricRetractionHandler<
+  E extends PortalMetricRetractionEvent,
+>(options: readonly RetractionOption[]) {
+  return (deps: RetractPortalMetricDeps) =>
+    async (event: E): Promise<void> =>
+      trace(`${options[0]?.span ?? 'metric.event.portalMetricRetraction'}.durable`, () =>
+        retractPortalMetrics(options, deps, event),
+      )
+}
+
+const scanOptions = {
+  definitionVersionId: METRIC_VERSION_IDS.portalScanAnalytics,
+  sourcePolicy: 'review_solicitation_analytics_only',
+  span: 'metric.event.onScanRecorded',
+  sourceReceiptConsumer: 'metric.guest-analytics',
+} as const
+
+const qualifiedScanOptions = {
+  definitionVersionId: METRIC_VERSION_IDS.qualifiedScanGoal,
+  sourcePolicy: 'first_party_guest_gateway_metric',
+  span: 'metric.event.onQualifiedScanRecorded',
+  portalGroupId: (event: GuestQualifiedScanRecorded) => event.portalGroupId,
+  sourceReceiptConsumer: 'metric.guest-analytics',
+} as const
+
+const ratingOptions = [
+  {
+    definitionVersionId: METRIC_VERSION_IDS.portalRatingAnalytics,
+    sourcePolicy: 'first_party_guest_private',
+    span: 'metric.event.onRatingSubmitted',
+    value: (event: GuestRatingSubmitted) => event.value,
+    sourceReceiptConsumer: 'metric.guest-analytics',
+  },
+  {
+    definitionVersionId: METRIC_VERSION_IDS.portalRatingCountGoal,
+    sourcePolicy: 'first_party_guest_gateway_metric',
+    span: 'metric.event.onRatingSubmitted',
+    value: () => 1,
+    sourceReceiptConsumer: 'metric.guest-analytics',
+  },
+  {
+    definitionVersionId: METRIC_VERSION_IDS.portalRatingAverageGoal,
+    sourcePolicy: 'first_party_guest_gateway_metric',
+    span: 'metric.event.onRatingSubmitted',
+    value: (event: GuestRatingSubmitted) => event.value,
+    sourceReceiptConsumer: 'metric.guest-analytics',
+  },
+] as const
+
+const feedbackOptions = {
+  definitionVersionId: METRIC_VERSION_IDS.portalFeedbackAnalytics,
+  sourcePolicy: 'first_party_guest_private',
+  span: 'metric.event.onFeedbackSubmitted',
+  sourceReceiptConsumer: 'metric.guest-analytics',
+} as const
+
+const reviewLinkOptions = {
+  definitionVersionId: METRIC_VERSION_IDS.portalDestinationClickAnalytics,
+  sourcePolicy: 'review_solicitation_analytics_only',
+  span: 'metric.event.onReviewLinkClicked',
+  destinationKind: (event: GuestReviewLinkClicked) => event.destinationKind,
+  portalLinkId: (event: GuestReviewLinkClicked) =>
+    secondaryPortalLinkId(event.destinationKind, event.linkId),
+  sourceReceiptConsumer: 'metric.guest-analytics',
+} as const
+
+export const onScanRecordedDurably =
+  makeDurableRecordMetricHandler<GuestScanRecorded>(scanOptions)
+export const onQualifiedScanRecordedDurably =
+  makeDurableRecordMetricHandler<GuestQualifiedScanRecorded>(qualifiedScanOptions)
+export const onRatingSubmittedDurably =
+  makeDurableRecordMetricFanoutHandler<GuestRatingSubmitted>(ratingOptions)
+export const onFeedbackSubmittedDurably =
+  makeDurableRecordMetricHandler<GuestFeedbackSubmitted>(feedbackOptions)
+export const onReviewLinkClickedDurably =
+  makeDurableRecordMetricHandler<GuestReviewLinkClicked>(reviewLinkOptions)
+export const onQualifiedScanRetractedDurably =
+  makeDurablePortalMetricRetractionHandler<GuestQualifiedScanRetracted>([
+    { ...qualifiedScanOptions, span: 'metric.event.onQualifiedScanRetracted' },
+  ])
+export const onRatingRetractedDurably =
+  makeDurablePortalMetricRetractionHandler<GuestRatingRetracted>(
+    ratingOptions.map((option) => ({
+      ...option,
+      span: 'metric.event.onRatingRetracted',
+    })),
+  )
+export const onFeedbackRetractedDurably =
+  makeDurablePortalMetricRetractionHandler<GuestFeedbackRetracted>([
+    { ...feedbackOptions, span: 'metric.event.onFeedbackRetracted' },
+  ])

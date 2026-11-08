@@ -7,7 +7,7 @@ import {
 import { organizationId, portalGroupId, portalId, propertyId } from '#/shared/domain/ids'
 import { createPortalGroupPublicApi } from '#/contexts/portal/infrastructure/portal-group-public-api'
 import { createPortalGroupRepository } from '#/contexts/portal/infrastructure/repositories/portal-group.repository'
-import { METRIC_VERSION_IDS } from '../../domain/metric-registry'
+import { METRIC_VERSION_IDS } from '../../readings/contracts'
 import {
   createGoalMetricSourceStatus,
   goalMetricSourceStatusQuery,

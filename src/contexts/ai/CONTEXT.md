@@ -65,6 +65,26 @@ test files own shared test-helper imports and historical runtime mocks, and supp
 the backlog fixture with outbox delivery and logging helpers. Model, provider
 transport and draft measurement tests retain their focused coverage.
 
+## History replay
+
+`replay/` owns enrollment, backlog draining and reopening abandoned analysis.
+Its shared contract keeps the stored enrollment vocabulary; readiness maps it
+to preparing, running, caught up or needing attention without changing the
+public readiness response. Server implementations use `*.server.ts`.
+
+Enrollment pins at most 100 reviews per transaction. The authorization's
+start-sequence watermark selects remaining candidates; each committed page
+allocates newer sequences and writes its events atomically. A restart therefore
+continues with the unpinned reviews. Snapshot evidence includes both remaining
+candidates and committed pages. Source changes refresh that evidence instead
+of stalling. Changed snapshots invalidate assisted approval; a population over
+10,000 waits for fresh operator approval before any further page. Inconsistent
+replay evidence remains a durable stalled state, visible as needing attention.
+
+Property locks precede enrollment and Review locks on every page. Settlement
+and outstanding-analysis checks still govern catch-up. Worker drain budgets,
+the approval command and orphan-sequence release retain their existing roles.
+
 ## Model
 
 The active per-Property capabilities are Review Analysis and Reply Drafting.

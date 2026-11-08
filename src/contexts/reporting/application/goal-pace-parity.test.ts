@@ -11,7 +11,7 @@ import { beforeAll, describe, expect, it } from 'vitest'
 import { calendarPeriodRange } from '#/shared/domain/period-range'
 import type { GoalMetric, GoalSubject } from '../domain/goal-program'
 import { goalPace, goalsBehindPaceByProperty } from '../domain/goal-pace'
-import { METRIC_VERSION_IDS } from '../domain/metric-registry'
+import { METRIC_VERSION_IDS } from '../readings/contracts'
 import type {
   GoalProgramBundle,
   GoalProgramVersion,
@@ -19,7 +19,7 @@ import type {
 } from './ports/goal-program.repository'
 import { createGoalListProgressReader } from './use-cases/goal-list-progress'
 import type { GoalProgressDeps } from './use-cases/goal-progress'
-import type { GoalActor } from './use-cases/goal-programs'
+import type { GoalActor } from '../monthly-goals/goal-programs.server'
 import type { GovernedGoalMetricResult } from './use-cases/query-goal-metric'
 
 type CountMetric = Exclude<GoalMetric, 'portal_rating_average'>

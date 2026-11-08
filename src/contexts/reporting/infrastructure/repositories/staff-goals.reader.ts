@@ -9,8 +9,16 @@ import type {
   GovernedGoalMetricQuery,
   GovernedGoalMetricResult,
 } from '../../application/use-cases/query-goal-metric'
-import type { StaffResultsScope } from '../../application/ports/staff-results-reader.port'
-import { METRIC_VERSION_IDS } from '../../domain/metric-registry'
+import { METRIC_VERSION_IDS } from '../../readings/contracts'
+
+export type StaffResultsScope = Readonly<{
+  organizationId: string
+  propertyId: string
+  portalId: string
+  timezone: string
+  countryCode: string | null
+  groupId: string | null
+}>
 
 export const createStaffGoalsReader =
   (

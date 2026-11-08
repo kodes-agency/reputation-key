@@ -40,7 +40,7 @@ import {
   MERCHANT_AI_NOTICE_VERSION,
 } from '#/shared/merchant-ai-notice-contract'
 import { AI_PROVIDER_DEPLOYMENT_PROFILE } from '#/shared/ai-operation-profiles'
-import { createReviewAnalysisEnrollmentAdapter } from './ai-review-analysis-enrollment.adapter'
+import { createReviewAnalysisEnrollmentAdapter } from '../../replay/enrollment-store.server'
 import {
   createV3Seed,
   mentionOf,

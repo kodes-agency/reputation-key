@@ -7,6 +7,10 @@ import {
   reviewId,
   userId,
 } from '#/shared/domain/ids'
+import {
+  deleteOrganizationPublicationAttempts,
+  releaseOrganizationAttemptConfirmations,
+} from './row-commands.server'
 import { insertOutboxRow, type Tx } from '#/shared/outbox/commit'
 
 /** A withdrawn Reply as its cancellation fact names it: identifiers only. */
@@ -228,5 +232,7 @@ export const replyScopeEffects = {
   fenceReplyPublicationsAfterRestore,
   cancelRepliesForOrganizationClosing,
   scrubOrganizationReplyContent,
+  releaseOrganizationAttemptConfirmations,
+  deleteOrganizationPublicationAttempts,
   lockOrganizationReplyReviews,
 } as const

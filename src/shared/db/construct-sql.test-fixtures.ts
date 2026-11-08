@@ -120,10 +120,11 @@ export type SupersededConstructDefinition = Readonly<{
 export const SUPERSEDED_CONSTRUCT_DEFINITIONS: readonly SupersededConstructDefinition[] =
   []
 
-/** Forward-only reconciliation (0084; the notice-change helper restated by 0088); 0001 remains immutable historical SQL. */
+/** Forward-only reconciliations; 0001 remains immutable historical SQL. */
 export const FORWARD_ONLY_CONSTRUCT_DEFINITIONS = [
   'apply_merchant_ai_transition_v1',
   'merchant_ai_notice_material_changes_v1',
+  'start_google_execution_permit',
 ] as const
 
 export type MigrationCreatedConstruct = Readonly<{

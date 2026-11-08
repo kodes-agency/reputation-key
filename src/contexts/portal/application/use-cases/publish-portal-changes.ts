@@ -211,10 +211,15 @@ const planPortalRepublish =
     }
   }
 
+/**
+ * With `reviewedDigest` (what the review showed), the draft must still say
+ * exactly that: otherwise nothing is written and the manager reviews again.
+ * Callers that just wrote the draft themselves publish without it.
+ */
 export const publishPortalChanges =
   (deps: PublishPortalChangesDeps) =>
   async (
-    input: Readonly<{ portalId: string }>,
+    input: Readonly<{ portalId: string; reviewedDigest?: string }>,
     ctx: AuthContext,
   ): Promise<PublishPortalChangesResult> => {
     const plan = await planPortalRepublish(deps)(input, ctx)
@@ -222,6 +227,15 @@ export const publishPortalChanges =
       return { outcome: 'unchanged', version: plan.version }
     }
     const { command } = plan
+    if (
+      input.reviewedDigest !== undefined &&
+      input.reviewedDigest !== command.snapshot.configurationDigest
+    ) {
+      throw portalError(
+        'revision_conflict',
+        'The Portal changed after you reviewed it. Review the changes again before publishing',
+      )
+    }
     await deps.commandStore.republishPortal(command)
     return {
       outcome: 'published',

@@ -19,9 +19,9 @@ import { createReviewAnalysisContractV3 } from './application/review-analysis-co
 import { selectedReviewAnalysisContractVersion } from './application/review-analysis-runtime'
 import { createAnalyzeReviewEvent } from './application/use-cases/analyze-review-event'
 import { createAiOperationExecutionReaper } from './application/ai-operation-execution-reaper'
-import { createAdvanceReviewAnalysisEnrollments } from './application/use-cases/advance-review-analysis-enrollments'
+import { createAdvanceReviewAnalysisEnrollments } from './replay/advance-enrollments.server'
 import { createApplyAiAuthorizationLifecycle } from './application/use-cases/apply-ai-authorization-lifecycle'
-import { createApproveReviewAnalysisEnrollment } from './application/use-cases/approve-review-analysis-enrollment'
+import { createApproveReviewAnalysisEnrollment } from './replay/approve-enrollment.server'
 import type { AiOutputStorePort } from './application/ports/ai-output-store.port'
 import {
   createGenerateReplySuggestion,
@@ -50,15 +50,15 @@ import { findCurrentReviewIdsByIssue } from './infrastructure/adapters/ai-curren
 import { createAiReviewAnalysisReceiptWriter } from './infrastructure/adapters/ai-review-analysis-receipt.adapter'
 import { createAiReviewEventStoreAdapter } from './infrastructure/adapters/ai-review-event-store.adapter'
 import { createPropertyProcessingProfileAdapter } from './infrastructure/adapters/property-processing-profile.adapter'
-import { createReviewAnalysisEnrollmentAdapter } from './infrastructure/adapters/ai-review-analysis-enrollment.adapter'
-import { createAiReviewAnalysisReopenAdapter } from './infrastructure/adapters/ai-review-analysis-reopen.adapter'
+import { createReviewAnalysisEnrollmentAdapter } from './replay/enrollment-store.server'
+import { createAiReviewAnalysisReopenAdapter } from './replay/reopen-store.server'
 import { createRedisAiLaneAdmissionAdapter } from './infrastructure/adapters/ai-lane-admission.adapter'
-import { createAiReviewAnalysisBacklogAdapter } from './infrastructure/adapters/ai-review-analysis-backlog.adapter'
+import { createAiReviewAnalysisBacklogAdapter } from './replay/backlog-store.server'
 import { createAiOrganizationSpendAdapter } from './infrastructure/adapters/ai-organization-spend.adapter'
 import {
   createDrainReviewAnalysisBacklog,
   type AuthorizeReviewAnalysisScope,
-} from './application/use-cases/drain-review-analysis-backlog'
+} from './replay/drain-backlog.server'
 import { createReadReviewAnalysisProgress } from './application/use-cases/read-review-analysis-progress'
 import {
   createRequestReviewAnalysisNow,
@@ -66,7 +66,7 @@ import {
 } from './application/use-cases/request-review-analysis-now'
 import type { ConsumerRegistry, OutboxRepository } from '#/shared/outbox'
 import { registerAiConsumers } from './infrastructure/outbox-consumers'
-import { createReadReviewAnalysisEnrollmentReadiness } from './application/use-cases/read-review-analysis-enrollment-readiness'
+import { createReadReviewAnalysisEnrollmentReadiness } from './replay/get-enrollment-readiness.server'
 
 const unavailableInference: AiInferencePort = Object.freeze({
   analyzeReview: async () => ({
