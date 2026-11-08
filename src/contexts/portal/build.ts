@@ -1,3 +1,4 @@
+import type { PortalRatingGoalReadApi } from '#/contexts/reporting/application/public-api'
 import { buildPortalAddressOperations } from './build-address-operations'
 import { assertPersonalGroupTargetAvailable } from './infrastructure/personal-portal-group-guard'
 import { renamePersonalPortalLabels } from './application/use-cases/rename-personal-portal-labels'
@@ -171,12 +172,13 @@ type PortalContextDeps = Readonly<{
   storage?: StoragePort
   /** Optional image processor override (tests inject a fake decoder); absent = sharp. */
   imageProcessor?: ImageProcessorPort
-  ratingGoalGuard: UpdatePortalDeps['ratingGoalGuard']
+  ratingGoalGuard: UpdatePortalDeps['ratingGoalGuard'] &
+    Pick<PortalRatingGoalReadApi, 'findPortalRatingGoalBlockInTransaction'>
 }>
 
 export const buildPortalContext = (deps: PortalContextDeps) => {
   const portalRepo = createPortalRepository(deps.db)
-  const portalCommandStore = createAtomicPortalCommandStore(deps.db)
+  const portalCommandStore = createAtomicPortalCommandStore(deps.db, deps.ratingGoalGuard)
   const portalLinkRepo = createPortalLinkRepository(deps.db)
   const portalGroupRepo = createPortalGroupRepository(deps.db)
   const portalGroupHistoryRepo = createPortalGroupHistoryRepository(deps.db)

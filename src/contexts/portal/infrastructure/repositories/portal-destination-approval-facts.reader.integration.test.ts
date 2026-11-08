@@ -1,3 +1,4 @@
+import { createPortalRatingGoalGuard } from '#/contexts/reporting/infrastructure/portal-rating-goal-guard'
 // Which Portal an account admin is sent to for a site waiting for approval, and
 // whether the site still waits (real PostgreSQL). The notice names the Portal
 // whose links open the site, the earliest first; a site no link opens yet
@@ -75,7 +76,10 @@ async function createPortal(
     createdAt: at,
     updatedAt: at,
   })
-  await createAtomicPortalCommandStore(getDb()).createPortal({
+  await createAtomicPortalCommandStore(
+    getDb(),
+    createPortalRatingGoalGuard(),
+  ).createPortal({
     organizationId: ORG_A,
     portal,
     initialResponsibleManagerIds: [MANAGER],

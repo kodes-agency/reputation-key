@@ -1,3 +1,4 @@
+import { createPortalRatingGoalGuard } from '#/contexts/reporting/infrastructure/portal-rating-goal-guard'
 // Publish changes while live (round 4, slice 20): the live activation closes as
 // `replaced` and a new snapshot and activation open in ONE commit, under the
 // Property publication fence and the Portal fence. Real PostgreSQL, because
@@ -66,7 +67,7 @@ beforeEach(() => {
   registerAllEventSchemas()
 })
 
-const store = () => createAtomicPortalCommandStore(getDb())
+const store = () => createAtomicPortalCommandStore(getDb(), createPortalRatingGoalGuard())
 
 const readWorkingCopy = async () => {
   const source = await createPortalPublicationRepository(getDb()).loadWorkingCopy(

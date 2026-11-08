@@ -4,6 +4,7 @@
 
 import { and, eq, gte, isNull, lt } from 'drizzle-orm'
 import type { Database } from '#/shared/db'
+import { lockStaffTargetProperty } from '#/shared/db/staff-target-lock'
 import { portalGroups } from '#/shared/db/schema/portal-group.schema'
 import { portalGroupMemberships } from '#/shared/db/schema/people-access.schema'
 import { insertOutboxRow, type Tx } from '#/shared/outbox/commit'
@@ -239,6 +240,8 @@ export const createPortalGroupCommands = (db: Database): PortalGroupCommandStore
         assertCreatePortalGroupCommand(command)
         const { group } = command
         await namingGroup(async (tx) => {
+          // Take the Property fence before reserving a name, as rename does.
+          await lockStaffTargetProperty(tx, command.organizationId, group.propertyId)
           await fencePortalGroupsInOrder(
             tx,
             command.sourceGroups.map((fence) => ({
