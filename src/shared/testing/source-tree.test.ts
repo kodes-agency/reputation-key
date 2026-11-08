@@ -31,6 +31,7 @@ describe('readUiSources', () => {
     expect(paths).toContain(
       'src/contexts/reporting/portal-results/ui/portal-analytics-content.tsx',
     )
+    expect(paths).toContain('src/contexts/ai/guest-voice/ui/guest-voice-rating-chart.tsx')
     expect(paths.some((path) => path.startsWith('src/routes/'))).toBe(true)
   })
 

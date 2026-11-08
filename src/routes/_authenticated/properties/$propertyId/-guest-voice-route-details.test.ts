@@ -1,6 +1,6 @@
 import { createElement, type ComponentProps } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { HAMPTON_READ } from '#/components/features/property/guest-voice/guest-voice-fixtures-check-in'
+import { HAMPTON_READ } from '#/contexts/ai/guest-voice/ui/guest-voice-fixtures-check-in'
 import { setupHookRoot } from '#/shared/testing/hook-root'
 import { createRouteHarness } from '#/routes/route-harness'
 import { GuestVoiceRouteDetails } from './-guest-voice-route-details'

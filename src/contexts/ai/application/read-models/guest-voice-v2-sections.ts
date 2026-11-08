@@ -14,7 +14,7 @@ import type {
   IssueStatistics,
   TopicRow,
   WatchItem,
-} from './guest-voice-v2'
+} from '../../guest-voice/contracts'
 import type { GuestVoiceIssueGroup, GuestVoiceReview } from './guest-voice-v2-facts'
 import { causeCounts } from './guest-voice-v2-causes'
 import {

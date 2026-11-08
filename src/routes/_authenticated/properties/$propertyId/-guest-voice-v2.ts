@@ -7,8 +7,8 @@ import type {
   GuestVoiceV2Read,
   GuestVoiceV2Response,
 } from '#/contexts/ai/application/public-api'
-import type { GuestVoiceGoalFacts } from '#/components/features/property/guest-voice/guest-voice-rating-goal-words'
-import type { GuestVoiceV2View } from '#/components/features/property/guest-voice/guest-voice-v2-body'
+import type { GuestVoiceGoalFacts } from '#/contexts/ai/guest-voice/ui/guest-voice-rating-goal-words'
+import type { GuestVoiceV2View } from '#/contexts/ai/guest-voice/ui/guest-voice-v2-body'
 import type { RatingGoalCardView } from '#/contexts/reporting/application/dto/rating-goal.types'
 import type { GuestVoiceRange } from '#/shared/dashboard-range'
 

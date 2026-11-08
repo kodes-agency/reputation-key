@@ -5,7 +5,7 @@
 import type { ReviewPolarityV3 } from '#/shared/review-analysis-v3'
 import type { ReviewTopicV3 } from '#/shared/review-topic-taxonomy'
 import { guestVoiceTopicStatus } from '../../domain/guest-voice-topic-status'
-import type { GuestVoiceTopicAssessment } from './guest-voice-v2-check-in'
+import type { GuestVoiceTopicAssessment } from '../../guest-voice/contracts'
 import { ratingCountsOf, type RatingCounts } from '../aspect-review-evidence'
 import { senseOf, type GuestVoiceReview, type Sense } from './guest-voice-v2-facts'
 

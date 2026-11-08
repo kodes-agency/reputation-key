@@ -1,7 +1,7 @@
 import { assembleGuestVoiceV2 } from './guest-voice-v2-build'
 import { describe, expect, it } from 'vitest'
 import { GUEST_VOICE_STATISTICS_VERSION } from '../../domain/guest-voice-statistics'
-import type { GuestVoiceV2Ready } from './guest-voice-v2'
+import type { GuestVoiceV2Ready } from '../../guest-voice/contracts'
 import type { GuestVoiceReview } from './guest-voice-v2-facts'
 import {
   hasUrgentReviewThisWeek,

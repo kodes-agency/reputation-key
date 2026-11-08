@@ -20,7 +20,7 @@ import {
   MERCHANT_AI_NOTICE_DIGEST,
   MERCHANT_AI_NOTICE_VERSION,
 } from '#/shared/merchant-ai-notice-contract'
-import type { GuestVoiceSummaryPlan } from '../../application/use-cases/plan-guest-voice-summary'
+import type { GuestVoiceSummaryPlan } from '../../guest-voice/plan-summary.server'
 import {
   createAiGuestVoiceSummaryScheduleAdapter,
   guestVoiceSummaryEventId,

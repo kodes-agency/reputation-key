@@ -14,7 +14,7 @@ import type { AiGuestVoiceSummarySchedulePort } from '../ports/ai-guest-voice-su
 import type {
   GuestVoiceSummaryPlan,
   PlanGuestVoiceSummaryInput,
-} from './plan-guest-voice-summary'
+} from '../../guest-voice/plan-summary.server'
 
 /** Properties one sweep looks at. A Property not reached stays due for the next hour. */
 export const GUEST_VOICE_SUMMARY_SWEEP_LIMIT = 500

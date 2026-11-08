@@ -8,7 +8,6 @@ import {
   metricEvidenceLine,
 } from '#/components/features/dashboard/metric-availability-presentation'
 import { formatNumber } from '#/lib/format'
-import { starsText } from '#/components/features/property/guest-voice/guest-voice-words'
 import { priorName } from './portal-results-cells'
 import { quietLine } from './portal-results-empty'
 import type { PortalResultsPlace } from './portal-results-place'
@@ -142,7 +141,7 @@ function happy(data: PortalAnalyticsData): Card {
   const low = countStars(data, (row) => !starsAtLeast4(row))
   const hint = averageChange(avgRating.comparison, data)
   return card(
-    `${word}. ${starsText(average)} from ${formatNumber(ratings.value)} ${ratings.value === 1 ? 'rating' : 'ratings'}`,
+    `${word}. ${average.toFixed(1)}★ from ${formatNumber(ratings.value)} ${ratings.value === 1 ? 'rating' : 'ratings'}`,
     [`${guests(high)} gave 4 or 5★.`, `${formatNumber(low)} gave 3★ or less.`],
     hint,
     tone,

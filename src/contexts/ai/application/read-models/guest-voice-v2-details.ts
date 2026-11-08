@@ -9,7 +9,7 @@ import type {
   GuestVoiceDetailTarget,
   GuestVoiceHistoryMonth,
   GuestVoiceCauseRow,
-} from './guest-voice-v2-check-in'
+} from '../../guest-voice/contracts'
 import { groupSeriousConcerns, type ConcernGroup } from './guest-voice-v2-concerns'
 import {
   pickEvidenceCandidates,
