@@ -16,7 +16,7 @@ import type {
   RotatePortalTokenCommand,
 } from '../application/ports/portal-command-store.port'
 import { portalError } from '../domain/errors'
-import { fencePortalContent } from './portal-aggregate-fence'
+import { fencePortalRevision } from './portal-aggregate-fence'
 import { sameInstant } from './portal-command-guards'
 import { NO_SEALED_ADDRESS } from './portal-sealed-address-columns'
 import {
@@ -221,7 +221,7 @@ export const createPortalTokenCommands = (db: Database): PortalTokenCommandStore
       trace('portal.commandStore.issuePortalToken', async () => {
         assertIssueTokenCommand(command)
         await db.transaction(async (tx) => {
-          await fencePortalContent(tx, command)
+          await fencePortalRevision(tx, command)
           await tx.execute(sql`
             SELECT id FROM portal_tokens
             WHERE organization_id = ${unbrand(command.organizationId)}
@@ -271,7 +271,7 @@ export const createPortalTokenCommands = (db: Database): PortalTokenCommandStore
       trace('portal.commandStore.rotatePortalToken', async () => {
         assertRotateTokenCommand(command)
         await db.transaction(async (tx) => {
-          await fencePortalContent(tx, command)
+          await fencePortalRevision(tx, command)
           const [rotated] = await tx
             .update(portalTokens)
             .set({
@@ -333,7 +333,7 @@ export const createPortalTokenCommands = (db: Database): PortalTokenCommandStore
           if (!live) return 0
           // All Portal/token commands acquire the aggregate fence before token
           // row locks. Keeping one lock order avoids rotate-vs-revoke deadlocks.
-          await fencePortalContent(tx, command)
+          await fencePortalRevision(tx, command)
           const rows = await tx
             .update(portalTokens)
             .set({
