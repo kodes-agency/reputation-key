@@ -26,7 +26,29 @@ Scopes: `access`, `guest-response`, `participant`, `property`, `organization`.
 - **apply**: `--apply` with `verified=<iso>`, `verification=<ref>`, `--reason`,
   `--ticket`, `--yes ops:rights-request` and the exact
   `confirm=ERASE <SCOPE> <id>` text. Refused in production. Outside production
-  it validates and then refuses, because no scope's executor is composed yet.
+  it runs the executors composed so far and refuses a scope with none.
+
+## Notifications
+
+The Feed executor runs for `access`, `property` and `organization`.
+
+- **report** counts notification history, preferences and settings, says
+  whether suspension is holding optional mail (mandatory mail is never held),
+  and, for an Organization, how many account admins and former members a final
+  warning would reach. Add `export-file=<path>` to write the export (mode 0600)
+  to deliver by download link; it is never printed.
+- Reads are named and use explicit field allowlists. Delivery queues, digest
+  batches and source event ids are not exported. A row of another Organization
+  or Property stops the run.
+- **apply** on `property` deletes that Property's notifications, queued mail,
+  preferences, delivery windows and unsubscribe scopes. On `organization` it
+  deletes the Organization's rows in every notification table. Work runs in
+  bounded batches and a stopped run resumes by running again.
+- **apply** on `organization final-warning` queues the final warning instead
+  of deleting: one per current account admin and one per former member, with no
+  Property. Like the automatic warning, it names the Organization. Send it
+  before the purge; the job ids repeat safely for one
+  `verification` reference.
 
 Closing an Organization erases every Property in it: export first.
 
