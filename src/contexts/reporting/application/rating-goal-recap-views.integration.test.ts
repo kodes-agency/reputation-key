@@ -12,9 +12,12 @@ import {
   exampleWorld,
   PROPERTY,
   type FakeWorld,
-} from './use-cases/rating-goal-test-fixtures'
+  useRatingGoalDatabase,
+} from '../infrastructure/testing/rating-goal-fixtures'
 import { getRatingGoalCard } from './use-cases/rating-goal-reads'
 import { recapView } from './rating-goal-recap-views'
+
+useRatingGoalDatabase()
 
 let world: FakeWorld
 

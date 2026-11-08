@@ -1,21 +1,31 @@
-// Changing the target of a month that is still running.
+// Changing the target of a month that is still running, against PostgreSQL.
 //
-// The repository here is an in-memory stand-in that keeps the port's contract
-// for the calls the command makes: one Program, its versions, months and the
-// log of target changes. What PostgreSQL adds (the transaction, the row locks
-// and the guard on the database clock) is pinned in
-// infrastructure/repositories/goal-month-target.repository.test.ts.
-import { describe, expect, it, vi } from 'vitest'
-import type { GovernedMetricVersion } from '../../readings/contracts'
-import { METRIC_VERSION_IDS } from '../../readings/contracts'
+// The command runs on the real repository: the transaction, the row locks, the
+// guard on the database clock and the log of target changes are all PostgreSQL's.
+// Monthly results cannot be deleted, so every test runs in a savepoint of one
+// held transaction that is rolled back. The database clock decides which month
+// is running, so the months are placed around the real current month.
+import {
+  afterAll,
+  beforeAll,
+  beforeEach,
+  afterEach,
+  describe,
+  expect,
+  it,
+  vi,
+} from 'vitest'
+import type { Database } from '#/shared/db'
+import {
+  holdTransaction,
+  type HeldTransaction,
+} from '#/shared/db/testing/held-transaction'
+import { findMetricVersionById, METRIC_VERSION_IDS } from '../../readings/contracts'
 import type { GoalSubject } from '../../domain/goal-program'
+import { createGoalProgramRepository } from '../../infrastructure/repositories/goal-program.repository'
 import { monthTargetMarker } from '../goal-month-target-marker'
 import { monthTargetPlan } from '../goal-month-target-plan'
-import type {
-  GoalMonthTargetChange,
-  GoalProgramBundle,
-  GoalProgramRepository,
-} from '../ports/goal-program.repository'
+import type { GoalProgramBundle } from '../ports/goal-program.repository'
 import {
   createGoalProgramService,
   type GoalActor,
@@ -23,175 +33,154 @@ import {
   type GoalProgramSubjectReader,
 } from '../../monthly-goals/goal-programs.server'
 
+const ORGANIZATION_ID = 'org-1'
+const PROPERTY_ID = '00000000-0000-4000-8000-00000000a001'
+const LOBBY_ID = '00000000-0000-4000-8000-00000000b001'
+const POOL_ID = '00000000-0000-4000-8000-00000000b002'
+
 const actor: GoalActor = {
-  organizationId: 'org-1',
+  organizationId: ORGANIZATION_ID,
   userId: 'manager-1',
   role: 'PropertyManager',
 }
 
-const MARCH = new Date('2026-03-01T00:00:00.000Z')
-const APRIL = new Date('2026-04-01T00:00:00.000Z')
-const MARCH_15 = new Date('2026-03-15T12:00:00.000Z')
-const MARCH_20 = new Date('2026-03-20T12:00:00.000Z')
+const MINUTE_MS = 60_000
+const HALF_DAY_MS = 12 * 60 * MINUTE_MS
+const DAY_MS = 24 * 60 * MINUTE_MS
 
-const LOBBY: GoalSubject = { kind: 'portal', portalId: 'portal-lobby' }
-const POOL: GoalSubject = { kind: 'portal', portalId: 'portal-pool' }
-
-type ChangeInput = Parameters<GoalProgramRepository['changeMonthTarget']>[0]
-type ReviseInput = Parameters<GoalProgramRepository['revise']>[0]
-
-/** The stored Program as a revision leaves it, or null when the port refuses it. */
-function revised(
-  stored: GoalProgramBundle,
-  input: ReviseInput,
-): GoalProgramBundle | null {
-  if (stored.version.id !== input.expectedVersion.id) return null
-  const headHasMonths = stored.results.some(
-    (result) => result.programVersionId === input.expectedVersion.id,
-  )
-  if (input.supersedeRowlessHead && headHasMonths) return null
-  const closedAt = (window: Readonly<{ effectiveFrom: Date }>) =>
-    input.supersedeRowlessHead ? window.effectiveFrom : input.version.effectiveFrom
-  return {
-    ...stored,
-    program: {
-      ...stored.program,
-      currentVersion: input.version.version,
-      updatedAt: input.at,
-    },
-    version: input.version,
-    versions: [
-      ...stored.versions.map((known) =>
-        known.id === input.expectedVersion.id
-          ? { ...known, effectiveTo: closedAt(known) }
-          : known,
-      ),
-      input.version,
-    ],
-    assignments: [
-      ...stored.assignments.map((known) =>
-        known.programVersionId === input.expectedVersion.id && known.effectiveTo === null
-          ? { ...known, effectiveTo: closedAt(known) }
-          : known,
-      ),
-      ...input.assignments,
-    ],
-  }
+/** The first instant of the UTC month `offset` months from the current one. */
+function monthStart(offset: number): Date {
+  const now = new Date()
+  return new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + offset, 1))
 }
 
-/** The answer of the port, with the Program as the change leaves it. */
-function monthTargetChanged(
-  stored: GoalProgramBundle,
-  input: ChangeInput,
-  databaseNow: Date,
-): Readonly<{ answer: 'revision_conflict' | 'month_locked' }> | GoalProgramBundle {
-  if (
-    stored.program.status === 'ended' ||
-    stored.version.id !== input.expectedVersion.id
-  ) {
-    return { answer: 'revision_conflict' }
-  }
-  const afterRevision = input.following.revision
-    ? revised(stored, {
-        ...input.following.revision,
-        expectedVersion: input.expectedVersion,
-        actorId: input.actorId,
-        at: input.at,
+function monthKey(offset: number): string {
+  return monthStart(offset).toISOString().slice(0, 7)
+}
+
+/** The instant the local calendar month `offset` months from now begins in `timeZone`. */
+function localMonthStart(timeZone: string, offset: number): Date {
+  const wanted = monthStart(offset).getTime()
+  const offsetAt = (instant: number): number => {
+    const parts = Object.fromEntries(
+      new Intl.DateTimeFormat('en-US', {
+        timeZone,
+        hourCycle: 'h23',
+        year: 'numeric',
+        month: 'numeric',
+        day: 'numeric',
+        hour: 'numeric',
+        minute: 'numeric',
+        second: 'numeric',
       })
-    : stored
-  if (!afterRevision) return { answer: 'revision_conflict' }
-  const running = stored.results.filter(
-    (result) =>
-      result.status === 'open' &&
-      result.periodStart <= input.at &&
-      input.at < result.periodEnd,
-  )
-  const planned = new Map(input.months.map((month) => [month.monthlyResultId, month]))
-  if ([...planned.keys()].some((id) => !running.some((result) => result.id === id))) {
-    return { answer: 'month_locked' }
-  }
-  if (
-    running.some(
-      (result) => planned.get(result.id)?.storedTargetValue !== result.targetValue,
+        .formatToParts(new Date(instant))
+        .map((part) => [part.type, Number(part.value)]),
     )
-  ) {
-    return { answer: 'revision_conflict' }
+    const local = Date.UTC(
+      parts.year!,
+      parts.month! - 1,
+      parts.day!,
+      parts.hour!,
+      parts.minute!,
+      parts.second!,
+    )
+    return local - Math.floor(instant / 1000) * 1000
   }
-  // The guard reads the database clock, not the command's.
-  if (running.some((result) => databaseNow >= result.periodEnd)) {
-    return { answer: 'month_locked' }
-  }
-  const logged: readonly GoalMonthTargetChange[] = input.months.map((month) => ({
-    id: month.changeRowId,
-    organizationId: input.organizationId,
-    propertyId: input.propertyId,
-    programId: input.programId,
-    monthlyResultId: month.monthlyResultId,
-    changeId: input.changeId,
-    previousTargetValue: month.previousTargetValue,
-    newTargetValue: input.targetValue,
-    followingOutcome: input.following.outcome,
-    followingReason: input.following.reason,
-    followingVersionId: input.following.revision?.version.id ?? null,
-    note: input.note,
-    createdBy: input.actorId,
-    createdAt: input.at,
-    ...(input.targetSource ? { targetSource: input.targetSource } : {}),
-  }))
+  const first = wanted - offsetAt(wanted)
+  return new Date(wanted - offsetAt(first))
+}
+
+/** The month the goals here are set for; the months around it are named from it. */
+type Calendar = Readonly<{
+  start: Date
+  next: Date
+  key: string
+  nextKey: string
+  mid: Date
+  late: Date
+}>
+
+function calendarAt(offset: number): Calendar {
+  const start = monthStart(offset)
   return {
-    ...afterRevision,
-    results: afterRevision.results.map((result) =>
-      planned.has(result.id)
-        ? { ...result, targetValue: input.storedTargetValue, updatedAt: input.at }
-        : result,
-    ),
-    targetChanges: [...(afterRevision.targetChanges ?? []), ...logged],
+    start,
+    next: monthStart(offset + 1),
+    key: monthKey(offset),
+    nextKey: monthKey(offset + 1),
+    mid: new Date(start.getTime() + 14 * DAY_MS + HALF_DAY_MS),
+    late: new Date(start.getTime() + 19 * DAY_MS + HALF_DAY_MS),
   }
 }
 
-function setup(initialNow = MARCH_15) {
+/** The running month: the database clock agrees with the command's. */
+const RUNNING = calendarAt(0)
+const MARCH = RUNNING.start
+const APRIL = RUNNING.next
+
+const LOBBY: GoalSubject = { kind: 'portal', portalId: LOBBY_ID }
+const POOL: GoalSubject = { kind: 'portal', portalId: POOL_ID }
+
+let held: HeldTransaction | undefined
+let db: Database
+
+beforeAll(async () => {
+  held = await holdTransaction()
+  db = held.db
+})
+
+afterAll(async () => {
+  await held?.rollBack()
+})
+
+beforeEach(async () => {
+  const client = held!.client
+  await client.query('SAVEPOINT scenario')
+  await client.query(
+    `INSERT INTO properties (id, organization_id, name, slug, timezone)
+     VALUES ($1, $2, 'Month target Property', 'month-target-property', 'UTC')`,
+    [PROPERTY_ID, ORGANIZATION_ID],
+  )
+  for (const [portalId, slug] of [
+    [LOBBY_ID, 'month-target-lobby'],
+    [POOL_ID, 'month-target-pool'],
+  ] as const) {
+    await client.query(
+      `INSERT INTO portals
+         (id, organization_id, property_id, entity_type, entity_id, name, slug)
+       VALUES ($1, $2, $3, 'property', $4, $5, $5)`,
+      [portalId, ORGANIZATION_ID, PROPERTY_ID, PROPERTY_ID, slug],
+    )
+  }
+})
+
+afterEach(async () => {
+  await held!.client.query('ROLLBACK TO SAVEPOINT scenario')
+})
+
+/** A version as stored, including one a change replaced, which the read leaves out. */
+async function versionRow(programId: string, version: number) {
+  const found = await held!.client.query<{
+    targetValue: number
+    effectiveFrom: Date
+    effectiveTo: Date | null
+  }>(
+    `SELECT target_value::float8 AS "targetValue", effective_from AS "effectiveFrom",
+            effective_to AS "effectiveTo"
+       FROM goal_program_versions WHERE program_id = $1 AND version = $2`,
+    [programId, version],
+  )
+  return found.rows[0]
+}
+
+function setup(initialNow = RUNNING.mid, calendar: Calendar = RUNNING) {
   let id = 0
   let now = initialNow
-  let databaseNow: Date | null = null
-  let stored: GoalProgramBundle | null = null
-  const must = (): GoalProgramBundle => {
-    if (!stored) throw new Error('no Program is stored')
-    return stored
-  }
+  const real = createGoalProgramRepository(db)
   const repository = {
-    create: vi.fn<GoalProgramRepository['create']>(async ({ bundle }) => {
-      stored = { ...bundle, targetChanges: [] }
-      return 'created'
-    }),
-    get: vi.fn<GoalProgramRepository['get']>(async () => stored),
-    isOrganizationHeld: vi.fn<GoalProgramRepository['isOrganizationHeld']>(
-      async () => false,
-    ),
-    findAssignmentConflicts: vi.fn<GoalProgramRepository['findAssignmentConflicts']>(
-      async () => [],
-    ),
-    appendResults: vi.fn<GoalProgramRepository['appendResults']>(async ({ results }) => {
-      stored = { ...must(), results: [...must().results, ...results] }
-      return results.length
-    }),
-    changeStatus: vi.fn<GoalProgramRepository['changeStatus']>(async (input) => {
-      const program = { ...must().program, status: input.status, updatedAt: input.at }
-      stored = { ...must(), program }
-      return program
-    }),
-    revise: vi.fn<GoalProgramRepository['revise']>(async (input) => {
-      const next = revised(must(), input)
-      if (next) stored = next
-      return next !== null
-    }),
-    changeMonthTarget: vi.fn<GoalProgramRepository['changeMonthTarget']>(
-      async (input) => {
-        const next = monthTargetChanged(must(), input, databaseNow ?? input.at)
-        if ('answer' in next) return next.answer
-        stored = next
-        return 'changed'
-      },
-    ),
+    ...real,
+    get: vi.fn(real.get),
+    revise: vi.fn(real.revise),
+    changeMonthTarget: vi.fn(real.changeMonthTarget),
   }
   const metrics = {
     queryGoalMetric: vi.fn<GoalMetricReadPort['queryGoalMetric']>(async (query) => ({
@@ -206,17 +195,7 @@ function setup(initialNow = MARCH_15) {
     })),
     getApprovedGoalVersion: vi.fn<
       NonNullable<GoalMetricReadPort['getApprovedGoalVersion']>
-    >(
-      async (versionId) =>
-        ({
-          definition: { id: `definition-${versionId}` },
-          version: {
-            id: versionId,
-            minimumSample:
-              versionId === METRIC_VERSION_IDS.portalRatingAverageGoal ? 10 : 0,
-          },
-        }) as unknown as GovernedMetricVersion,
-    ),
+    >(async (versionId) => findMetricVersionById(versionId)),
   }
   const subjects = {
     getTimezone: vi.fn<GoalProgramSubjectReader['getTimezone']>(async () => 'UTC'),
@@ -226,7 +205,7 @@ function setup(initialNow = MARCH_15) {
   }
   const policy = { authorize: vi.fn(async () => undefined) }
   const service = createGoalProgramService({
-    repository: repository as unknown as GoalProgramRepository,
+    repository,
     policy,
     subjects,
     metrics,
@@ -234,34 +213,45 @@ function setup(initialNow = MARCH_15) {
     now: () => now,
   })
 
-  /** A goal of 25 ratings for March, set before the month and counting since its first day. */
+  let programId: string | null = null
+  const stored = async (): Promise<GoalProgramBundle> => {
+    if (!programId) throw new Error('no Program is stored')
+    const found = await real.get(ORGANIZATION_ID, PROPERTY_ID, programId)
+    if (!found) throw new Error('the stored Program is gone')
+    return found
+  }
+
+  /** A goal of 25 ratings for the month, set before it and counting since its first day. */
   const createGoal = async (goalSubjects: readonly GoalSubject[] = [LOBBY]) => {
     const createdAt = now
-    now = MARCH
+    now = calendar.start
     const bundle = await service.create(
       {
-        propertyId: 'property-1',
+        propertyId: PROPERTY_ID,
         name: 'March ratings',
         metric: 'portal_rating_count',
         targetValue: 25,
         subjects: goalSubjects,
-        startMonth: '2026-03',
+        startMonth: calendar.key,
       },
       actor,
     )
     now = createdAt
+    programId = bundle.program.id
     return bundle
   }
-  const change = (patch: Partial<Parameters<typeof service.changeMonthTarget>[0]> = {}) =>
+  const change = async (
+    patch: Partial<Parameters<typeof service.changeMonthTarget>[0]> = {},
+  ) =>
     service.changeMonthTarget(
       {
-        propertyId: 'property-1',
-        programId: must().program.id,
-        month: '2026-03',
+        propertyId: PROPERTY_ID,
+        programId: (await stored()).program.id,
+        month: calendar.key,
         targetValue: 20,
         expectedTarget: 25,
-        expectedVersion: must().program.currentVersion,
-        expectedFollowingMonth: '2026-04',
+        expectedVersion: (await stored()).program.currentVersion,
+        expectedFollowingMonth: calendar.nextKey,
         applyToFollowing: false,
         ...patch,
       },
@@ -275,12 +265,13 @@ function setup(initialNow = MARCH_15) {
     policy,
     createGoal,
     change,
-    stored: must,
+    stored,
+    /** Points the helpers at a goal the test set through the service itself. */
+    adopt: (bundle: GoalProgramBundle) => {
+      programId = bundle.program.id
+    },
     setNow: (next: Date) => {
       now = next
-    },
-    setDatabaseNow: (next: Date) => {
-      databaseNow = next
     },
   }
 }
@@ -300,13 +291,13 @@ describe('changeMonthTarget', () => {
     expect(policy.authorize).toHaveBeenLastCalledWith({
       actor,
       organizationId: 'org-1',
-      propertyId: 'property-1',
+      propertyId: PROPERTY_ID,
       action: 'goal.update',
     })
-    expect(stored().results).toEqual([
+    expect((await stored()).results).toEqual([
       expect.objectContaining({ id: goal.results[0]?.id, targetValue: 20 }),
     ])
-    expect(stored().targetChanges).toEqual([
+    expect((await stored()).targetChanges).toEqual([
       expect.objectContaining({
         programId: goal.program.id,
         monthlyResultId: goal.results[0]?.id,
@@ -317,11 +308,13 @@ describe('changeMonthTarget', () => {
         followingVersionId: null,
         note: 'Fewer guests in March',
         createdBy: 'manager-1',
-        createdAt: MARCH_15,
+        createdAt: RUNNING.mid,
       }),
     ])
     // The version keeps the target the goal was set with, and no version is written.
-    expect(stored().versions).toEqual([expect.objectContaining({ targetValue: 25 })])
+    expect((await stored()).versions).toEqual([
+      expect.objectContaining({ targetValue: 25 }),
+    ])
     expect(repository.revise).not.toHaveBeenCalled()
   })
 
@@ -331,7 +324,9 @@ describe('changeMonthTarget', () => {
 
     await change({ note: '   ' })
 
-    expect(stored().targetChanges).toEqual([expect.objectContaining({ note: null })])
+    expect((await stored()).targetChanges).toEqual([
+      expect.objectContaining({ note: null }),
+    ])
   })
 
   it('refuses without goal.update before it reads the goal', async () => {
@@ -360,11 +355,16 @@ describe('changeMonthTarget', () => {
       await createGoal()
 
       // The catch-up step has opened April by the time the command reads.
-      setNow(new Date('2026-04-01T00:05:00.000Z'))
+      setNow(new Date(APRIL.getTime() + 5 * MINUTE_MS))
       await expect(change()).rejects.toMatchObject(refusal('month_locked'))
 
-      expect(stored().results.map((result) => result.periodStart)).toEqual([MARCH, APRIL])
-      expect(stored().results.every((result) => result.targetValue === null)).toBe(true)
+      expect((await stored()).results.map((result) => result.periodStart)).toEqual([
+        MARCH,
+        APRIL,
+      ])
+      expect(
+        (await stored()).results.every((result) => result.targetValue === null),
+      ).toBe(true)
       expect(repository.changeMonthTarget).not.toHaveBeenCalled()
     })
 
@@ -372,64 +372,71 @@ describe('changeMonthTarget', () => {
       const { createGoal, change, service, stored, setNow } = setup()
       const goal = await createGoal()
       await service.changeStatus(
-        { propertyId: 'property-1', programId: goal.program.id, status: 'paused' },
+        { propertyId: PROPERTY_ID, programId: goal.program.id, status: 'paused' },
         actor,
       )
 
-      setNow(new Date('2026-04-01T00:05:00.000Z'))
+      setNow(new Date(APRIL.getTime() + 5 * MINUTE_MS))
       await expect(change()).rejects.toMatchObject(refusal('month_locked'))
-      expect(stored().results).toHaveLength(1)
+      expect((await stored()).results).toHaveLength(1)
     })
 
     it('refuses with month_locked when the database finds the period over', async () => {
-      // The command's clock still reads March; the database's has passed it.
-      const { createGoal, change, stored, setNow, setDatabaseNow } = setup()
+      // The command's clock still reads the goal's month; the database's has
+      // passed it, because that month is last month.
+      const lastMonth = calendarAt(-1)
+      const { createGoal, change, stored, setNow } = setup(lastMonth.mid, lastMonth)
       await createGoal()
-      setNow(new Date('2026-03-31T23:59:59.900Z'))
-      setDatabaseNow(APRIL)
+      setNow(new Date(lastMonth.next.getTime() - 100))
 
       await expect(change({ applyToFollowing: true })).rejects.toMatchObject(
         refusal('month_locked'),
       )
-      expect(stored().results[0]).toMatchObject({ targetValue: null })
-      expect(stored().versions).toHaveLength(1)
-      expect(stored().targetChanges).toEqual([])
+      expect((await stored()).results[0]).toMatchObject({ targetValue: null })
+      expect((await stored()).versions).toHaveLength(1)
+      expect((await stored()).targetChanges).toEqual([])
     })
 
     it('opens a month that has begun before it looks for the running month', async () => {
-      const { createGoal, change, stored, setNow } = setup()
+      // The goal's month is over on the database clock; the one after is running.
+      const lastMonth = calendarAt(-1)
+      const { createGoal, change, stored, setNow } = setup(lastMonth.mid, lastMonth)
       await createGoal()
 
-      // The hourly job has not opened April yet.
-      setNow(new Date('2026-04-01T00:05:00.000Z'))
-      await expect(change({ month: '2026-04' })).resolves.toMatchObject({
+      // The hourly job has not opened this month yet.
+      setNow(new Date(lastMonth.next.getTime() + 5 * MINUTE_MS))
+      await expect(
+        change({ month: lastMonth.nextKey, expectedFollowingMonth: monthKey(1) }),
+      ).resolves.toMatchObject({
         month: { previous: 25, next: 20 },
       })
 
-      expect(stored().results).toEqual([
-        expect.objectContaining({ periodStart: MARCH, targetValue: null }),
-        expect.objectContaining({ periodStart: APRIL, targetValue: 20 }),
+      expect((await stored()).results).toEqual([
+        expect.objectContaining({ periodStart: lastMonth.start, targetValue: null }),
+        expect.objectContaining({ periodStart: lastMonth.next, targetValue: 20 }),
       ])
     })
 
     it('a scheduled goal has no open month', async () => {
-      const { service, change, repository } = setup(new Date('2026-02-20T12:00:00.000Z'))
-      await service.create(
+      const { service, change, repository, adopt } = setup(calendarAt(-1).mid)
+      const scheduled = await service.create(
         {
-          propertyId: 'property-1',
+          propertyId: PROPERTY_ID,
           name: 'March ratings',
           metric: 'portal_rating_count',
           targetValue: 25,
           subjects: [LOBBY],
-          startMonth: '2026-03',
+          startMonth: RUNNING.key,
         },
         actor,
       )
 
-      await expect(change({ month: '2026-02' })).rejects.toMatchObject(
+      adopt(scheduled)
+
+      await expect(change({ month: monthKey(-1) })).rejects.toMatchObject(
         refusal('no_open_month'),
       )
-      await expect(change({ month: '2026-03' })).rejects.toMatchObject(
+      await expect(change({ month: RUNNING.key })).rejects.toMatchObject(
         refusal('no_open_month'),
       )
       expect(repository.changeMonthTarget).not.toHaveBeenCalled()
@@ -439,19 +446,19 @@ describe('changeMonthTarget', () => {
       const { createGoal, change, service, stored } = setup()
       const goal = await createGoal()
       await service.changeStatus(
-        { propertyId: 'property-1', programId: goal.program.id, status: 'paused' },
+        { propertyId: PROPERTY_ID, programId: goal.program.id, status: 'paused' },
         actor,
       )
 
       await expect(change()).resolves.toMatchObject({ month: { previous: 25, next: 20 } })
-      expect(stored().results[0]).toMatchObject({ targetValue: 20 })
+      expect((await stored()).results[0]).toMatchObject({ targetValue: 20 })
     })
 
     it('an ended goal is refused', async () => {
       const { createGoal, change, service, repository } = setup()
       const goal = await createGoal()
       await service.changeStatus(
-        { propertyId: 'property-1', programId: goal.program.id, status: 'ended' },
+        { propertyId: PROPERTY_ID, programId: goal.program.id, status: 'ended' },
         actor,
       )
 
@@ -465,12 +472,12 @@ describe('changeMonthTarget', () => {
 
       await change()
 
-      expect(stored().results.map((result) => result.targetValue)).toEqual([20, 20])
-      const logged = stored().targetChanges ?? []
+      expect((await stored()).results.map((result) => result.targetValue)).toEqual([
+        20, 20,
+      ])
+      const logged = (await stored()).targetChanges ?? []
       expect(logged.map((row) => row.monthlyResultId).sort()).toEqual(
-        stored()
-          .results.map((result) => result.id)
-          .sort(),
+        (await stored()).results.map((result) => result.id).sort(),
       )
       expect(new Set(logged.map((row) => row.changeId)).size).toBe(1)
       expect(new Set(logged.map((row) => row.id)).size).toBe(2)
@@ -498,7 +505,7 @@ describe('changeMonthTarget', () => {
       // From April the goal measures the average rating; March still counts ratings.
       await service.revise(
         {
-          propertyId: 'property-1',
+          propertyId: PROPERTY_ID,
           programId: goal.program.id,
           metric: 'portal_rating_average',
           targetValue: 4.5,
@@ -513,7 +520,7 @@ describe('changeMonthTarget', () => {
       await expect(change({ targetValue: 30 })).resolves.toMatchObject({
         month: { previous: 25, next: 30 },
       })
-      expect(stored().results[0]).toMatchObject({ targetValue: 30 })
+      expect((await stored()).results[0]).toMatchObject({ targetValue: 30 })
     })
   })
 
@@ -527,8 +534,8 @@ describe('changeMonthTarget', () => {
       await expect(change({ targetValue: 20, expectedTarget: 25 })).rejects.toMatchObject(
         refusal('revision_conflict'),
       )
-      expect(stored().results[0]).toMatchObject({ targetValue: 22 })
-      expect(stored().targetChanges).toHaveLength(1)
+      expect((await stored()).results[0]).toMatchObject({ targetValue: 22 })
+      expect((await stored()).targetChanges).toHaveLength(1)
     })
 
     it('refuses a stale expected version', async () => {
@@ -537,7 +544,7 @@ describe('changeMonthTarget', () => {
       // Another manager scheduled a change after the form opened on version 1.
       await service.revise(
         {
-          propertyId: 'property-1',
+          propertyId: PROPERTY_ID,
           programId: goal.program.id,
           metric: 'portal_rating_count',
           targetValue: 40,
@@ -549,8 +556,40 @@ describe('changeMonthTarget', () => {
       await expect(
         change({ expectedVersion: 1, applyToFollowing: true }),
       ).rejects.toMatchObject(refusal('revision_conflict'))
-      expect(stored().results[0]).toMatchObject({ targetValue: null })
-      expect(stored().version).toMatchObject({ version: 2, targetValue: 40 })
+      expect((await stored()).results[0]).toMatchObject({ targetValue: null })
+      expect((await stored()).version).toMatchObject({ version: 2, targetValue: 40 })
+    })
+
+    it('the database refuses a write whose month changed after the command read it', async () => {
+      const { createGoal, change, stored, repository } = setup()
+      await createGoal()
+      const write = repository.changeMonthTarget.getMockImplementation()
+      // Someone else's 22 lands after this save read 25, and the save still writes.
+      repository.changeMonthTarget.mockImplementationOnce(async (input) => {
+        await write?.({ ...input, targetValue: 22, storedTargetValue: 22 })
+        return write!(input)
+      })
+
+      await expect(change()).rejects.toMatchObject(refusal('revision_conflict'))
+      expect((await stored()).results[0]).toMatchObject({ targetValue: 22 })
+      expect((await stored()).targetChanges).toHaveLength(1)
+    })
+
+    it('the database refuses a write to a goal that ended after the command read it', async () => {
+      const { createGoal, change, service, stored, repository } = setup()
+      const goal = await createGoal()
+      const write = repository.changeMonthTarget.getMockImplementation()
+      repository.changeMonthTarget.mockImplementationOnce(async (input) => {
+        await service.changeStatus(
+          { propertyId: PROPERTY_ID, programId: goal.program.id, status: 'ended' },
+          actor,
+        )
+        return write!(input)
+      })
+
+      await expect(change()).rejects.toMatchObject(refusal('invalid_transition'))
+      expect((await stored()).results[0]).toMatchObject({ targetValue: null })
+      expect((await stored()).targetChanges).toEqual([])
     })
 
     it('reports a write the repository refused as a conflict', async () => {
@@ -575,8 +614,8 @@ describe('changeMonthTarget', () => {
       await expect(change({ applyToFollowing: true })).rejects.toMatchObject(
         refusal('revision_conflict'),
       )
-      expect(stored().results[0]).toMatchObject({ targetValue: null })
-      expect(stored().versions).toHaveLength(1)
+      expect((await stored()).results[0]).toMatchObject({ targetValue: null })
+      expect((await stored()).versions).toHaveLength(1)
       expect(repository.changeMonthTarget).not.toHaveBeenCalled()
     })
 
@@ -597,7 +636,7 @@ describe('changeMonthTarget', () => {
     it('applies to following months through a new version from next month, in one write', async () => {
       const { createGoal, change, stored, repository, setNow } = setup()
       const goal = await createGoal([LOBBY, POOL])
-      setNow(MARCH_20)
+      setNow(RUNNING.late)
 
       await expect(
         change({ applyToFollowing: true, note: 'Fewer guests' }),
@@ -609,7 +648,7 @@ describe('changeMonthTarget', () => {
       // One call writes the month, the log and the version together.
       expect(repository.changeMonthTarget).toHaveBeenCalledOnce()
       expect(repository.revise).not.toHaveBeenCalled()
-      const [first, second] = stored().versions
+      const [first, second] = (await stored()).versions
       expect(first).toMatchObject({
         id: goal.version.id,
         targetValue: 25,
@@ -625,12 +664,12 @@ describe('changeMonthTarget', () => {
         effectiveTo: null,
         changeReason: 'target_changed',
         createdBy: 'manager-1',
-        createdAt: MARCH_20,
+        createdAt: RUNNING.late,
       })
-      expect(stored().program.currentVersion).toBe(2)
+      expect((await stored()).program.currentVersion).toBe(2)
       expect(
-        stored()
-          .assignments.filter((assignment) => assignment.programVersionId === second?.id)
+        (await stored()).assignments
+          .filter((assignment) => assignment.programVersionId === second?.id)
           .map((assignment) => [assignment.subject, assignment.effectiveFrom]),
       ).toEqual([
         [LOBBY, APRIL],
@@ -638,7 +677,7 @@ describe('changeMonthTarget', () => {
       ])
       // The note is the change's: the log carries it, and the version records
       // only what kind of change it was.
-      expect(stored().targetChanges).toEqual([
+      expect((await stored()).targetChanges).toEqual([
         expect.objectContaining({
           followingOutcome: 'applied',
           followingVersionId: second?.id,
@@ -651,7 +690,7 @@ describe('changeMonthTarget', () => {
         }),
       ])
       // March keeps its version; only its own target moved.
-      expect(stored().results.map((result) => result.programVersionId)).toEqual([
+      expect((await stored()).results.map((result) => result.programVersionId)).toEqual([
         goal.version.id,
         goal.version.id,
       ])
@@ -660,15 +699,14 @@ describe('changeMonthTarget', () => {
     it('stores where the new target came from with the change and on the version for the months after', async () => {
       const { createGoal, change, stored, setNow } = setup()
       await createGoal([LOBBY, POOL])
-      setNow(MARCH_20)
+      setNow(RUNNING.late)
 
       await change({ applyToFollowing: true, targetSource: 'recommended' })
 
-      expect(stored().targetChanges?.map((logged) => logged.targetSource)).toEqual([
-        'recommended',
-        'recommended',
-      ])
-      expect(stored().version).toMatchObject({
+      expect(
+        (await stored()).targetChanges?.map((logged) => logged.targetSource),
+      ).toEqual(['recommended', 'recommended'])
+      expect((await stored()).version).toMatchObject({
         version: 2,
         targetValue: 20,
         targetSource: 'recommended',
@@ -682,14 +720,14 @@ describe('changeMonthTarget', () => {
 
       await change({ expectedTarget: 20, applyToFollowing: true, targetSource: 'own' })
 
-      expect(stored().version).toMatchObject({
+      expect((await stored()).version).toMatchObject({
         version: 2,
         targetValue: 20,
         targetSource: 'own',
       })
-      expect(stored().targetChanges?.map((logged) => logged.targetSource)).toEqual([
-        undefined,
-      ])
+      expect(
+        (await stored()).targetChanges?.map((logged) => logged.targetSource),
+      ).toEqual([undefined])
     })
 
     it('a failed following step leaves the month unchanged', async () => {
@@ -704,9 +742,9 @@ describe('changeMonthTarget', () => {
       await expect(change({ applyToFollowing: true })).rejects.toMatchObject(
         refusal('revision_conflict'),
       )
-      expect(stored().results[0]).toMatchObject({ targetValue: null })
-      expect(stored().versions).toHaveLength(1)
-      expect(stored().targetChanges).toEqual([])
+      expect((await stored()).results[0]).toMatchObject({ targetValue: null })
+      expect((await stored()).versions).toHaveLength(1)
+      expect((await stored()).targetChanges).toEqual([])
       expect(repository.revise).not.toHaveBeenCalled()
     })
 
@@ -716,7 +754,7 @@ describe('changeMonthTarget', () => {
       // From April: 40 ratings, for the lobby and the pool.
       await service.revise(
         {
-          propertyId: 'property-1',
+          propertyId: PROPERTY_ID,
           programId: goal.program.id,
           metric: 'portal_rating_count',
           targetValue: 40,
@@ -730,7 +768,9 @@ describe('changeMonthTarget', () => {
         following: { outcome: 'replaced_scheduled_change', startsAt: APRIL },
       })
 
-      const [inForce, replaced, head] = stored().versions
+      const { version: head, versions } = await stored()
+      const [inForce] = versions
+      const replaced = await versionRow(head.programId, 2)
       expect(inForce).toMatchObject({ targetValue: 25, effectiveTo: APRIL })
       // The replaced change keeps an empty window.
       expect(replaced).toMatchObject({
@@ -747,11 +787,11 @@ describe('changeMonthTarget', () => {
       })
       // It keeps the subjects of the change it replaces.
       expect(
-        stored()
-          .assignments.filter((assignment) => assignment.programVersionId === head?.id)
+        (await stored()).assignments
+          .filter((assignment) => assignment.programVersionId === head?.id)
           .map((assignment) => assignment.subject),
       ).toEqual([LOBBY, POOL])
-      expect(stored().targetChanges).toEqual([
+      expect((await stored()).targetChanges).toEqual([
         expect.objectContaining({
           followingOutcome: 'replaced_scheduled_change',
           followingVersionId: head?.id,
@@ -764,7 +804,7 @@ describe('changeMonthTarget', () => {
       const goal = await createGoal()
       await service.revise(
         {
-          propertyId: 'property-1',
+          propertyId: PROPERTY_ID,
           programId: goal.program.id,
           metric: 'portal_rating_average',
           targetValue: 4.5,
@@ -778,13 +818,13 @@ describe('changeMonthTarget', () => {
         following: { outcome: 'kept_scheduled_change' },
       })
 
-      expect(stored().results[0]).toMatchObject({ targetValue: 20 })
-      expect(stored().versions).toHaveLength(2)
-      expect(stored().version).toMatchObject({
+      expect((await stored()).results[0]).toMatchObject({ targetValue: 20 })
+      expect((await stored()).versions).toHaveLength(2)
+      expect((await stored()).version).toMatchObject({
         metric: 'portal_rating_average',
         targetValue: 4.5,
       })
-      expect(stored().targetChanges).toEqual([
+      expect((await stored()).targetChanges).toEqual([
         expect.objectContaining({
           followingOutcome: 'kept_scheduled_change',
           followingReason: null,
@@ -799,7 +839,7 @@ describe('changeMonthTarget', () => {
       // From April: an average of 4. For March: 4 ratings.
       await service.revise(
         {
-          propertyId: 'property-1',
+          propertyId: PROPERTY_ID,
           programId: goal.program.id,
           metric: 'portal_rating_average',
           targetValue: 4,
@@ -812,7 +852,7 @@ describe('changeMonthTarget', () => {
         month: { previous: 25, next: 4 },
         following: { outcome: 'kept_scheduled_change' },
       })
-      expect(stored().versions).toHaveLength(2)
+      expect((await stored()).versions).toHaveLength(2)
     })
 
     it('an archived Portal subject gives not_applied and the month still changes', async () => {
@@ -821,7 +861,7 @@ describe('changeMonthTarget', () => {
       // The pool's Portal was archived after the goal was set.
       subjects.subjectBelongsToProperty.mockImplementation(
         async (_organizationId, _propertyId, subject) =>
-          !(subject.kind === 'portal' && subject.portalId === 'portal-pool'),
+          !(subject.kind === 'portal' && subject.portalId === POOL_ID),
       )
 
       await expect(change({ applyToFollowing: true })).resolves.toEqual({
@@ -829,10 +869,12 @@ describe('changeMonthTarget', () => {
         following: { outcome: 'not_applied', reason: 'subject_unavailable' },
       })
 
-      expect(stored().results.map((result) => result.targetValue)).toEqual([20, 20])
+      expect((await stored()).results.map((result) => result.targetValue)).toEqual([
+        20, 20,
+      ])
       // No version is written, and no subject is dropped from the goal.
-      expect(stored().versions).toHaveLength(1)
-      expect(stored().targetChanges).toEqual([
+      expect((await stored()).versions).toHaveLength(1)
+      expect((await stored()).targetChanges).toEqual([
         expect.objectContaining({
           followingOutcome: 'not_applied',
           followingReason: 'subject_unavailable',
@@ -868,8 +910,8 @@ describe('changeMonthTarget', () => {
           month: { previous: 25, next: 20 },
           following: { outcome: 'not_applied', reason: 'metric_unavailable' },
         })
-        expect(stored().results[0]).toMatchObject({ targetValue: 20 })
-        expect(stored().versions).toHaveLength(1)
+        expect((await stored()).results[0]).toMatchObject({ targetValue: 20 })
+        expect((await stored()).versions).toHaveLength(1)
       },
     )
 
@@ -881,7 +923,7 @@ describe('changeMonthTarget', () => {
       await expect(change({ applyToFollowing: true })).resolves.toMatchObject({
         following: { outcome: 'not_applied', reason: 'metric_unavailable' },
       })
-      expect(stored().results[0]).toMatchObject({ targetValue: 20 })
+      expect((await stored()).results[0]).toMatchObject({ targetValue: 20 })
     })
 
     it('a target the months after already have is applied without a new version', async () => {
@@ -889,7 +931,7 @@ describe('changeMonthTarget', () => {
       const goal = await createGoal()
       await service.revise(
         {
-          propertyId: 'property-1',
+          propertyId: PROPERTY_ID,
           programId: goal.program.id,
           metric: 'portal_rating_count',
           targetValue: 20,
@@ -904,8 +946,8 @@ describe('changeMonthTarget', () => {
         following: { outcome: 'applied', startsAt: APRIL },
       })
 
-      expect(stored().versions).toHaveLength(2)
-      expect(stored().targetChanges).toEqual([
+      expect((await stored()).versions).toHaveLength(2)
+      expect((await stored()).targetChanges).toEqual([
         // The version was written by the earlier change, not by this one.
         expect.objectContaining({
           followingOutcome: 'applied',
@@ -920,13 +962,13 @@ describe('changeMonthTarget', () => {
       subjects.getTimezone.mockResolvedValue('Europe/Sofia')
 
       // Sofia's April begins before the UTC March ends.
-      const sofiaMay = new Date('2026-04-30T21:00:00.000Z')
+      const sofiaMay = localMonthStart('Europe/Sofia', 2)
       await expect(
-        change({ applyToFollowing: true, expectedFollowingMonth: '2026-05' }),
+        change({ applyToFollowing: true, expectedFollowingMonth: monthKey(2) }),
       ).resolves.toMatchObject({
         following: { outcome: 'applied', startsAt: sofiaMay },
       })
-      expect(stored().version).toMatchObject({
+      expect((await stored()).version).toMatchObject({
         propertyTimezone: 'Europe/Sofia',
         effectiveFrom: sofiaMay,
       })
@@ -939,12 +981,12 @@ describe('changeMonthTarget', () => {
     // The form said "from Apr 1" on a UTC calendar. New York's April begins
     // four hours after the UTC March ends: the same month, and none is skipped.
     subjects.getTimezone.mockResolvedValue('America/New_York')
-    const newYorkApril = new Date('2026-04-01T04:00:00.000Z')
+    const newYorkApril = localMonthStart('America/New_York', 1)
 
     await expect(change({ applyToFollowing: true })).resolves.toMatchObject({
       following: { outcome: 'applied', startsAt: newYorkApril },
     })
-    expect(stored().version).toMatchObject({
+    expect((await stored()).version).toMatchObject({
       propertyTimezone: 'America/New_York',
       effectiveFrom: newYorkApril,
     })
@@ -956,7 +998,7 @@ describe('changeMonthTarget', () => {
       await createGoal()
       const form = { expectedVersion: 1, expectedTarget: 25, applyToFollowing: true }
       await change(form)
-      const afterFirst = stored()
+      const afterFirst = await stored()
       repository.changeMonthTarget.mockClear()
 
       // The same form, sent again: its expected target and version are both stale.
@@ -965,7 +1007,7 @@ describe('changeMonthTarget', () => {
         following: { outcome: 'applied', startsAt: APRIL },
       })
 
-      expect(stored()).toBe(afterFirst)
+      expect(await stored()).toEqual(afterFirst)
       expect(repository.changeMonthTarget).not.toHaveBeenCalled()
       expect(repository.revise).not.toHaveBeenCalled()
     })
@@ -974,14 +1016,14 @@ describe('changeMonthTarget', () => {
       const { createGoal, change, stored, repository } = setup()
       await createGoal()
       await change()
-      const afterFirst = stored()
+      const afterFirst = await stored()
       repository.changeMonthTarget.mockClear()
 
       await expect(change()).resolves.toEqual({
         month: 'unchanged',
         following: { outcome: 'not_requested' },
       })
-      expect(stored()).toBe(afterFirst)
+      expect(await stored()).toEqual(afterFirst)
       expect(repository.changeMonthTarget).not.toHaveBeenCalled()
     })
 
@@ -1001,14 +1043,14 @@ describe('changeMonthTarget', () => {
 
       expect(repository.changeMonthTarget).not.toHaveBeenCalled()
       expect(repository.revise).toHaveBeenCalledOnce()
-      expect(stored().version).toMatchObject({
+      expect((await stored()).version).toMatchObject({
         version: 2,
         targetValue: 20,
         effectiveFrom: APRIL,
         changeReason: 'target_changed',
       })
       // The month did not change again, so the log has only the first change.
-      expect(stored().targetChanges).toHaveLength(1)
+      expect((await stored()).targetChanges).toHaveLength(1)
     })
 
     it('the same target with the months after newly asked for keeps the note on the version', async () => {
@@ -1024,12 +1066,14 @@ describe('changeMonthTarget', () => {
 
       // No month changed, so no log row can carry the note: the version does,
       // as the version of an ordinary revision would.
-      expect(stored().version).toMatchObject({
+      expect((await stored()).version).toMatchObject({
         version: 2,
         targetValue: 20,
         changeReason: 'Agreed with the GM for spring',
       })
-      expect(stored().targetChanges).toEqual([expect.objectContaining({ note: null })])
+      expect((await stored()).targetChanges).toEqual([
+        expect.objectContaining({ note: null }),
+      ])
     })
 
     it('a repeated save whose months after could not be changed answers the same again', async () => {
@@ -1038,11 +1082,11 @@ describe('changeMonthTarget', () => {
       // The pool's Portal was archived after the goal was set.
       subjects.subjectBelongsToProperty.mockImplementation(
         async (_organizationId, _propertyId, subject) =>
-          !(subject.kind === 'portal' && subject.portalId === 'portal-pool'),
+          !(subject.kind === 'portal' && subject.portalId === POOL_ID),
       )
       const form = { expectedVersion: 1, expectedTarget: 25, applyToFollowing: true }
       await change(form)
-      const afterFirst = stored()
+      const afterFirst = await stored()
       repository.changeMonthTarget.mockClear()
 
       // The month has the target now, and the months after still cannot take it.
@@ -1051,7 +1095,7 @@ describe('changeMonthTarget', () => {
         following: { outcome: 'not_applied', reason: 'subject_unavailable' },
       })
 
-      expect(stored()).toBe(afterFirst)
+      expect(await stored()).toEqual(afterFirst)
       expect(repository.changeMonthTarget).not.toHaveBeenCalled()
       expect(repository.revise).not.toHaveBeenCalled()
     })
@@ -1070,8 +1114,8 @@ describe('changeMonthTarget', () => {
         following: { outcome: 'applied', startsAt: APRIL },
       })
 
-      expect(stored().version).toMatchObject({ version: 2, targetValue: 20 })
-      expect(stored().targetChanges).toHaveLength(1)
+      expect((await stored()).version).toMatchObject({ version: 2, targetValue: 20 })
+      expect((await stored()).targetChanges).toHaveLength(1)
     })
 
     it('a save that lost to the same save sent at the same moment answers unchanged', async () => {
@@ -1090,9 +1134,9 @@ describe('changeMonthTarget', () => {
         following: { outcome: 'applied', startsAt: APRIL },
       })
 
-      expect(stored().results[0]).toMatchObject({ targetValue: 20 })
-      expect(stored().targetChanges).toHaveLength(1)
-      expect(stored().versions).toHaveLength(2)
+      expect((await stored()).results[0]).toMatchObject({ targetValue: 20 })
+      expect((await stored()).targetChanges).toHaveLength(1)
+      expect((await stored()).versions).toHaveLength(2)
       expect(repository.changeMonthTarget).toHaveBeenCalledOnce()
     })
 
@@ -1107,7 +1151,7 @@ describe('changeMonthTarget', () => {
       })
 
       await expect(change()).rejects.toMatchObject(refusal('revision_conflict'))
-      expect(stored().results[0]).toMatchObject({ targetValue: 22 })
+      expect((await stored()).results[0]).toMatchObject({ targetValue: 22 })
       expect(repository.changeMonthTarget).toHaveBeenCalledOnce()
     })
 
@@ -1118,7 +1162,7 @@ describe('changeMonthTarget', () => {
       // Another manager schedules 40 from April after this form was opened.
       await service.revise(
         {
-          propertyId: 'property-1',
+          propertyId: PROPERTY_ID,
           programId: goal.program.id,
           metric: 'portal_rating_count',
           targetValue: 40,
@@ -1130,7 +1174,7 @@ describe('changeMonthTarget', () => {
       await expect(
         change({ expectedVersion: 1, expectedTarget: 20, applyToFollowing: true }),
       ).rejects.toMatchObject(refusal('revision_conflict'))
-      expect(stored().version).toMatchObject({ version: 2, targetValue: 40 })
+      expect((await stored()).version).toMatchObject({ version: 2, targetValue: 40 })
     })
   })
 
@@ -1141,7 +1185,7 @@ describe('changeMonthTarget', () => {
 
     const revisedGoal = await service.revise(
       {
-        propertyId: 'property-1',
+        propertyId: PROPERTY_ID,
         programId: goal.program.id,
         metric: 'portal_rating_count',
         targetValue: 40,
@@ -1166,16 +1210,16 @@ describe('changeMonthTarget', () => {
       const { createGoal, change, stored, setNow } = setup()
       await createGoal()
       await change({ targetValue: 22 })
-      setNow(MARCH_20)
+      setNow(RUNNING.late)
       await change({ targetValue: 20, expectedTarget: 22 })
 
-      expect(marker(stored())).toEqual({
-        changedAt: MARCH_20,
+      expect(marker(await stored())).toEqual({
+        changedAt: RUNNING.late,
         changedBy: 'manager-1',
         startTarget: 25,
         changeCount: 2,
       })
-      expect(monthTargetPlan(stored(), MARCH_20, 'UTC')).toMatchObject({
+      expect(monthTargetPlan(await stored(), RUNNING.late, 'UTC')).toMatchObject({
         effectiveTarget: 20,
         startTarget: 25,
         changeCount: 2,
@@ -1186,7 +1230,7 @@ describe('changeMonthTarget', () => {
       const { createGoal, change, stored, setNow } = setup()
       await createGoal()
       await change({ targetValue: 20 })
-      setNow(MARCH_20)
+      setNow(RUNNING.late)
 
       await expect(change({ targetValue: 25, expectedTarget: 20 })).resolves.toEqual({
         month: { previous: 20, next: 25 },
@@ -1194,9 +1238,9 @@ describe('changeMonthTarget', () => {
       })
 
       // The month uses its version's target again and stores none of its own.
-      expect(stored().results[0]).toMatchObject({ targetValue: null })
-      expect(marker(stored())).toBeNull()
-      expect(stored().targetChanges).toEqual([
+      expect((await stored()).results[0]).toMatchObject({ targetValue: null })
+      expect(marker(await stored())).toBeNull()
+      expect((await stored()).targetChanges).toEqual([
         expect.objectContaining({ previousTargetValue: 25, newTargetValue: 20 }),
         expect.objectContaining({ previousTargetValue: 20, newTargetValue: 25 }),
       ])
@@ -1213,7 +1257,7 @@ describe('changeMonthTarget', () => {
         month: { previous: 20, next: 25 },
         following: { outcome: 'applied', startsAt: APRIL },
       })
-      expect(stored().versions).toHaveLength(1)
+      expect((await stored()).versions).toHaveLength(1)
     })
   })
 })

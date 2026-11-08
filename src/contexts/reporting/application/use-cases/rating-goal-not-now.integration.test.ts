@@ -6,8 +6,11 @@ import {
   NOW,
   PROPERTY,
   type FakeWorld,
-} from './rating-goal-test-fixtures'
+  useRatingGoalDatabase,
+} from '../../infrastructure/testing/rating-goal-fixtures'
 import { deferRatingGoal } from './rating-goal-not-now'
+
+useRatingGoalDatabase()
 
 let world: FakeWorld
 
