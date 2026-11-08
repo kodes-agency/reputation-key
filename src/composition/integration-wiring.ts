@@ -13,7 +13,6 @@ import type { buildIdentityContext } from '#/contexts/identity/build'
 import type { buildPropertyContext } from '#/contexts/property/build'
 import type { buildPortalContext } from '#/contexts/portal/build'
 import type { ReviewContextApi } from '#/contexts/review/build'
-import type { createSourceContentPurge } from '#/contexts/review/infrastructure/source-content-purge'
 import type { buildGoogleProviderAuthority } from './google-provider-authority'
 import type { ContextWiringInput } from './runtime'
 
@@ -32,7 +31,6 @@ export function wireIntegration(
   property: ReturnType<typeof buildPropertyContext>,
   portal: ReturnType<typeof buildPortalContext>,
   googleProviderAuthority: ReturnType<typeof buildGoogleProviderAuthority>,
-  sourceContentPurge: ReturnType<typeof createSourceContentPurge>,
   getReview: () => ReviewContextApi,
 ) {
   const {
@@ -91,7 +89,6 @@ export function wireIntegration(
       pubsubTopic: env.GBP_PUBSUB_TOPIC,
       pubsubNotificationTypes: env.GBP_PUBSUB_NOTIFICATION_TYPES,
     },
-    sourceContentPurge,
     googleOAuth: options?.providers?.googleOAuth,
     gbpApi: options?.providers?.gbpApi,
     googleAuthorizedProviderExecutor,
