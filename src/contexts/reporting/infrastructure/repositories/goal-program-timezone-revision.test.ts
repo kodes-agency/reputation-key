@@ -9,7 +9,7 @@ import {
   createGoalProgramService,
   type GoalActor,
   type GoalMetricReadPort,
-} from '../../application/use-cases/goal-programs'
+} from '../../monthly-goals/goal-programs.server'
 import { createGoalProgramRepository } from './goal-program.repository'
 import { readGoalMetricSourceHead } from './goal-metric-source-head'
 

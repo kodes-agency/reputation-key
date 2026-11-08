@@ -324,6 +324,7 @@ describe('getPortalReview', () => {
       },
       publishesAsVersion: 5,
       nothingToPublish: false,
+      reviewDigest: expect.stringMatching(/^[0-9a-f]{64}$/),
       canPublish: true,
       changesMayBeIncomplete: false,
     })

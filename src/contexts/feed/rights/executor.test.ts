@@ -4,6 +4,7 @@ import {
   type OperatorContext,
   type OperatorIO,
 } from '#/shared/ops/operator-command'
+import { createNotificationRightsExecutor } from '#/shared/ops/rights/notification-rights-executor'
 import {
   handleRightsRequest,
   type RightsRequestEffects,
@@ -125,23 +126,28 @@ async function runScript(
   const effects: RightsRequestEffects = {
     production,
     readFile: async () => '',
-    writeExport: async (_path, text) => {
-      exports.push(text)
+    writeExportFile: async (_path, bytes) => {
+      exports.push(Buffer.from(bytes).toString('utf8'))
     },
-    notification: (run) => runNotificationRights(port, run),
+    executors: (finalWarning) => [
+      createNotificationRightsExecutor({
+        finalWarning,
+        run: (run) => runNotificationRights(port, run),
+      }),
+    ],
   }
   const code = await handleRightsRequest(effects, ctx, parsed.args, io)
   return { code, out, err, enqueued, deleted, exports }
 }
 
-describe('notification rights through the rights-request handler', () => {
+describe('notification: rights through the rights-request handler', () => {
   it('exports preferences, history and settings for one tenant only', async () => {
-    const a = await runScript(seed(), ORG_A, ['access', 'export-file=/tmp/a.json'])
-    const b = await runScript(seed(), ORG_B, ['access', 'export-file=/tmp/b.json'])
+    const a = await runScript(seed(), ORG_A, ['access', 'out=/tmp/a'])
+    const b = await runScript(seed(), ORG_B, ['access', 'out=/tmp/b'])
 
     expect(a.code).toBe(0)
-    expect(a.out).toContain('notification notifications: 2')
-    expect(a.out).toContain('notification preferences: 1')
+    expect(a.out).toContain('notification: notifications: 2')
+    expect(a.out).toContain('notification: preferences: 1')
     expect(a.exports[0]).toContain('A1 review')
     expect(a.exports[0]).toContain('p-a1')
     expect(a.exports[0]).not.toContain('B secret')
@@ -151,20 +157,15 @@ describe('notification rights through the rights-request handler', () => {
   })
 
   it('restricts a Property run to that Property and leaves per-person settings out', async () => {
-    const result = await runScript(seed(), ORG_A, [
-      'property',
-      '--property',
-      PROPERTY_A1,
-      'export-file=/tmp/p.json',
-    ])
-    expect(result.out).toContain('notification notifications: 1')
-    expect(result.out).toContain('notification user settings: 0')
-    expect(result.exports[0]).not.toContain('A2 review')
+    const result = await runScript(seed(), ORG_A, ['property', '--property', PROPERTY_A1])
+    expect(result.out).toContain('notification: notifications: 1')
+    expect(result.out).toContain('notification: user settings: 0')
+    expect(result.exports).toEqual([])
   })
 
   it('stops the run when a read returns another tenant, before any output', async () => {
     await expect(
-      runScript(seed(), ORG_A, ['access', 'export-file=/tmp/a.json'], { tamper: true }),
+      runScript(seed(), ORG_A, ['access', 'out=/tmp/a'], { tamper: true }),
     ).rejects.toThrow('another Organization')
   })
 
@@ -182,7 +183,7 @@ describe('notification rights through the rights-request handler', () => {
   it('plans final warnings with no Property for admins and former members', async () => {
     const report = await runScript(seed(), ORG_A, ['organization'])
     expect(report.out).toContain(
-      'notification final warning: 1 account admins, 2 former members, no Property',
+      'notification: final warning: 1 account admins, 2 former members, no Property',
     )
   })
 

@@ -4,26 +4,26 @@
 // goals; closed months retain corrected results. Single-subject pages use only
 // their own history and measure. Changes and Portal go-lives are dated server facts.
 
-import type { PortalGoalRecommendation } from '../dto/goal-recommendation.types'
+import type { PortalGoalRecommendation } from '../application/dto/goal-recommendation.types'
 import type {
   PortalGoalChange,
   PortalGoalPageMeasure,
   PortalGoalPageMonth,
-} from '../dto/monthly-portal-goal-page.types'
-import { localDateOf } from '../../domain/local-days'
-import { effectiveMonthTarget } from '../goal-effective-month-target'
-import { versionNoteOf } from '../goal-version-reasons'
+} from '../application/dto/monthly-portal-goal-page.types'
+import { localDateOf } from '../domain/local-days'
+import { effectiveMonthTarget } from '../application/goal-effective-month-target'
+import { versionNoteOf } from '../application/goal-version-reasons'
 import {
   isPropertyCountGoal,
   type PropertyCountGoal,
-} from '../monthly-portal-goal-identity'
+} from '../application/monthly-portal-goal-identity'
 import type {
   GoalMonthlyResult,
   GoalProgramBundle,
   GoalProgramVersion,
-} from '../ports/goal-program.repository'
-import type { GoalActor } from './goal-programs'
-import { readSubjectMonth } from './goal-progress'
+} from '../application/ports/goal-program.repository'
+import type { GoalActor } from './goal-programs.server'
+import { readSubjectMonth } from '../application/use-cases/goal-progress'
 import {
   finalFigureOn,
   measureOf,
@@ -32,7 +32,7 @@ import {
   subjectOf,
   versionOf,
   type MonthlyPortalGoalOnCardDeps,
-} from './monthly-portal-goal-running'
+} from './monthly-portal-goal-running.server'
 
 /** The most months "Month by month" shows. */
 const MAX_MONTHS = 24

@@ -31,6 +31,7 @@ import {
 } from '#/shared/ops/operator-command'
 import { rightsRequestCommandSpec } from '#/shared/ops/rights/rights-request-command'
 import { registerAllEventSchemas } from '#/shared/events/registry.server'
+import { createNotificationRightsExecutor } from '#/shared/ops/rights/notification-rights-executor'
 import { handleRightsRequest } from '#/shared/ops/rights/run-rights-request'
 
 let lease: TestLease
@@ -465,14 +466,19 @@ describe.sequential('Notification rights reads and purge', () => {
         {
           production: false,
           readFile: async () => '',
-          writeExport: async () => {},
-          notification: (request) =>
-            runNotificationRights(
-              createNotificationRightsPort(db, async (job) => {
-                jobs.push(job)
-              }),
-              request,
-            ),
+          writeExportFile: async () => {},
+          executors: (finalWarning) => [
+            createNotificationRightsExecutor({
+              finalWarning,
+              run: (request) =>
+                runNotificationRights(
+                  createNotificationRightsPort(db, async (job) => {
+                    jobs.push(job)
+                  }),
+                  request,
+                ),
+            }),
+          ],
         },
         ctx,
         parsed.args,

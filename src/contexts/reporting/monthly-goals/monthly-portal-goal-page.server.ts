@@ -2,45 +2,45 @@
 // months and changes after the current goal disappears. Show Portal rows only
 // when they sum to governed progress; isolate failures in other-goal side reads.
 
-import { currentAssignments } from '../../monthly-goals/subject-assignments.server'
+import { currentAssignments } from './subject-assignments.server'
 import type { LoggerPort } from '#/shared/domain/logger.port'
-import { goalSubjectIdentity, type GoalSubject } from '../../domain/goal-subject'
-import { addLocalDays, localDateOf } from '../../domain/local-days'
-import type { PortalGoalRecommendation } from '../dto/goal-recommendation.types'
+import { goalSubjectIdentity, type GoalSubject } from '../domain/goal-subject'
+import { addLocalDays, localDateOf } from '../domain/local-days'
+import type { PortalGoalRecommendation } from '../application/dto/goal-recommendation.types'
 import type {
   PortalGoalPageExtras,
   PortalGoalPageRows,
   PortalGoalPageTiles,
   PortalGoalPageView,
   PortalGoalQuietFact,
-} from '../dto/monthly-portal-goal-page.types'
+} from '../application/dto/monthly-portal-goal-page.types'
 import type {
   PortalGoalOfCard,
   PortalGoalRunningMonth,
-} from '../dto/monthly-portal-goal.types'
-import type { GoalProgramBundle } from '../ports/goal-program.repository'
-import type { GoalSubjectNameReader } from './goal-bulk-create'
-import { inParallel, listProgressOf } from './goal-list-progress'
-import type { GoalActor, GoalExecutionPolicy } from './goal-programs'
+} from '../application/dto/monthly-portal-goal.types'
+import type { GoalProgramBundle } from '../application/ports/goal-program.repository'
+import type { GoalSubjectNameReader } from '../application/use-cases/goal-bulk-create'
+import { inParallel, listProgressOf } from '../application/use-cases/goal-list-progress'
+import type { GoalActor, GoalExecutionPolicy } from './goal-programs.server'
 import {
   gatherMonthlyPortalGoal,
   monthlyPortalGoalCardOf,
   type MonthlyPortalGoalCardDeps,
   type MonthlyPortalGoalCardRequestApi,
-} from './monthly-portal-goal-card'
+} from './monthly-portal-goal-card.server'
 import type {
   MonthlyPortalGoalChangeRequestApi,
   MonthlyPortalGoalPromptRequestApi,
   MonthlyPortalGoalSetRequestApi,
-} from './monthly-portal-goal'
-import type { MonthlyPortalGoalLineRequestApi } from './monthly-portal-goal-line'
+} from './monthly-portal-goal.server'
+import type { MonthlyPortalGoalLineRequestApi } from './monthly-portal-goal-line.server'
 import {
   goalChangesOf,
   goalMonthsOf,
   successionOf,
   type ShownMonths,
-} from './monthly-portal-goal-history'
-import { monthCountsOf } from './monthly-portal-goal-running'
+} from './monthly-portal-goal-history.server'
+import { monthCountsOf } from './monthly-portal-goal-running.server'
 
 export type MonthlyPortalGoalPageDeps = MonthlyPortalGoalCardDeps &
   Readonly<{

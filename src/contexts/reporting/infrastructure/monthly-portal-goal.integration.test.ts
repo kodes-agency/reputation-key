@@ -12,8 +12,8 @@ import type { GoalProgramRepository } from '../application/ports/goal-program.re
 import {
   createGoalProgramService,
   type GoalActor,
-} from '../application/use-cases/goal-programs'
-import { setMonthlyPortalGoal } from '../application/use-cases/monthly-portal-goal'
+} from '../monthly-goals/goal-programs.server'
+import { setMonthlyPortalGoal } from '../monthly-goals/monthly-portal-goal.server'
 import { createGoalProgramRepository } from './repositories/goal-program.repository'
 
 const NOW = new Date('2026-10-23T09:00:00.000Z')

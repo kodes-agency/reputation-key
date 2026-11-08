@@ -11,7 +11,7 @@ import {
   GoalProgramError,
   type GoalActor,
   type GoalExecutionPolicy,
-} from '../application/use-cases/goal-programs'
+} from '../monthly-goals/goal-programs.server'
 import type { RatingGoalRequestApi } from '../application/use-cases/rating-goals'
 import { requestActor, requestPolicy } from './goal-program-request.server'
 
