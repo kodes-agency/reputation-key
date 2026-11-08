@@ -6,13 +6,13 @@
 // Tailwind, so the plays assert what is on the page and what each button sends.
 import type { Meta, StoryObj } from '@storybook/react-vite'
 import { expect, fn, userEvent, waitFor, within } from 'storybook/test'
-import type { RatingGoalWizardProps } from '#/components/goals/rating-goal-wizard'
-import { SETUP_BETA } from '#/components/goals/rating-goal-plan.stories.fixtures'
+import type { RatingGoalWizardProps } from '#/contexts/reporting/rating-goals/ui/rating-goal-wizard'
+import { SETUP_BETA } from '#/contexts/reporting/rating-goals/ui/rating-goal-plan.stories.fixtures'
 import {
   FIXTURE_GOAL_ID,
   FIXTURE_PROPERTY_ID,
-} from '#/components/goals/rating-goal.stories.fixtures'
-import { setGoalAndLand } from '#/components/goals/rating-goal-wizard.stories.play'
+} from '#/contexts/reporting/rating-goals/ui/rating-goal.stories.fixtures'
+import { setGoalAndLand } from '#/contexts/reporting/rating-goals/ui/rating-goal-wizard.stories.play'
 import { RATING_GOAL_STEP_APPEARED, SetupRatingGoalStep } from './setup-rating-goal-step'
 
 type SetFn = RatingGoalWizardProps['setRatingGoalFn']
