@@ -35,7 +35,6 @@ const MARKERS = Object.freeze({
   propertyAddress: 'NEVER_EXPORT_PROVIDER_ADDRESS',
   exchangeCiphertext: 'NEVER_EXPORT_EXCHANGE_CIPHERTEXT',
   permitOperationKey: 'NEVER_EXPORT_PERMIT_OPERATION',
-  revokeTokenHmac: 'NEVER_EXPORT_REVOKE_TOKEN_HMAC',
   cachePayload: 'NEVER_EXPORT_PROVIDER_CACHE',
   credentialBinding: 'ab'.repeat(32),
   replayDigest: 'NeverExportReplayDigest0123456789012345678A',
@@ -51,9 +50,6 @@ type Fixture = Readonly<{
   batchId: string
   revokeAttemptId: string
   permitId: string
-  guardId: string
-  sourceOperationId: string
-  revokePermitId: string
 }>
 
 const fixtures: Fixture[] = []
@@ -73,9 +69,6 @@ async function seedFixture(): Promise<Fixture> {
     batchId: randomUUID(),
     revokeAttemptId: randomUUID(),
     permitId: randomUUID(),
-    guardId: randomUUID(),
-    sourceOperationId: randomUUID(),
-    revokePermitId: randomUUID(),
   }
   fixtures.push(fixture)
   const createdAt = new Date(Date.now() - 60_000)
@@ -261,44 +254,6 @@ async function seedFixture(): Promise<Fixture> {
       new Date(createdAt.getTime() + 60_000),
     ],
   )
-  await lease.pool.query(
-    `INSERT INTO google_subject_authority_guards (
-       id, project_client_hmac_key_version, project_client_hmac,
-       subject_hmac_key_version, subject_hmac, state
-     ) VALUES ($1, 'v1', $2, 'v1', $3, 'open')`,
-    [fixture.guardId, `project-${suffix}`, `subject-${suffix}`],
-  )
-  await lease.pool.query(
-    `INSERT INTO google_credential_source_operations (
-       id, guard_id, source_work_permit_id, organization_id, connection_id,
-       sequence, kind, state, expected_lifecycle_version, expected_access_version,
-       expected_credential_generation, operation_deadline_at, created_at, updated_at
-     ) VALUES ($1, $2, $3, $4, $5, 1, 'refresh', 'registered', 1, 1, 1, $6, $7, $7)`,
-    [
-      fixture.sourceOperationId,
-      fixture.guardId,
-      fixture.permitId,
-      fixture.organizationId,
-      fixture.connectionId,
-      new Date(Date.now() + 120_000),
-      createdAt,
-    ],
-  )
-  await lease.pool.query(
-    `INSERT INTO credential_revoke_permits (
-       id, guard_id, source_operation_id, state, token_hmac_key_version,
-       token_hmac, cleanup_deadline_at, send_authorization_expires_at,
-       activated_at, created_at, updated_at
-     ) VALUES ($1, $2, $3, 'active', 'v1', $4, $5, $5, $6, $6, $6)`,
-    [
-      fixture.revokePermitId,
-      fixture.guardId,
-      fixture.sourceOperationId,
-      MARKERS.revokeTokenHmac,
-      new Date(createdAt.getTime() + 60_000),
-      createdAt,
-    ],
-  )
   return fixture
 }
 
@@ -311,16 +266,6 @@ const ORGANIZATION_SCOPED_TABLES = [
 ] as const
 
 async function cleanupFixture(fixture: Fixture): Promise<void> {
-  await lease.pool.query('DELETE FROM credential_revoke_permits WHERE id = $1', [
-    fixture.revokePermitId,
-  ])
-  await lease.pool.query(
-    'DELETE FROM google_credential_source_operations WHERE id = $1',
-    [fixture.sourceOperationId],
-  )
-  await lease.pool.query('DELETE FROM google_subject_authority_guards WHERE id = $1', [
-    fixture.guardId,
-  ])
   await lease.pool.query(
     `DELETE FROM idempotency_receipts
      WHERE scope IN ('google_oauth_exchange', 'google_disconnect_revoke')

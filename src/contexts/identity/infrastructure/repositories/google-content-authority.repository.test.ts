@@ -33,9 +33,6 @@ beforeEach(async () => {
   resetCapabilityPolicyStore()
   initCapabilityPolicyStore(createEnvCapabilityPolicyStore(GOOGLE_POLICY_ENV))
   await db.transaction(async (tx) => {
-    await tx.execute(sql`DELETE FROM credential_revoke_permits`)
-    await tx.execute(sql`DELETE FROM google_credential_source_operations`)
-    await tx.execute(sql`DELETE FROM google_subject_authority_guards`)
     await tx.execute(sql`DELETE FROM authorization_execution_permits`)
     await tx.execute(sql`
       UPDATE capability_execution_control
@@ -55,22 +52,6 @@ afterEach(async () => {
   dynamicAuthorizationFixture = undefined
   if (!fixture) return
   await db.transaction(async (tx) => {
-    await tx.execute(sql`
-        DELETE FROM credential_revoke_permits AS revoke_permit
-        USING google_credential_source_operations AS source_operation
-        WHERE revoke_permit.source_operation_id = source_operation.id
-          AND source_operation.organization_id = ${fixture.organization}
-      `)
-    await tx.execute(sql`
-        DELETE FROM credential_revoke_permits AS revoke_permit
-        USING authorization_execution_permits AS execution_permit
-        WHERE revoke_permit.cleanup_work_permit_id = execution_permit.id
-          AND execution_permit.organization_id = ${fixture.organization}
-      `)
-    await tx.execute(sql`
-        DELETE FROM google_credential_source_operations
-        WHERE organization_id = ${fixture.organization}
-      `)
     await tx.execute(sql`
         DELETE FROM authorization_execution_permits
         WHERE organization_id = ${fixture.organization}
@@ -244,17 +225,17 @@ describe('Google Content authority repository', () => {
           },
         )
         await store.fenceActivePermits(tx, 'property.import_gbp_v2', now)
-        const [workActive, cleanupActive] = await Promise.all([
-          store.hasActiveCapabilityWork(tx, 'property.import_gbp_v2'),
-          store.hasActiveCleanupWork(tx, 'property.import_gbp_v2'),
-        ])
+        const workActive = await store.hasActiveCapabilityWork(
+          tx,
+          'property.import_gbp_v2',
+        )
         await store.markCapabilityDrained(tx, 'property.import_gbp_v2', now, {
           workDrained: !workActive,
-          cleanupDrained: !cleanupActive,
+          cleanupDrained: true,
         })
         return {
           emergencyKillVersion,
-          drained: !workActive && !cleanupActive,
+          drained: !workActive,
         }
       }),
     ).resolves.toEqual({ emergencyKillVersion: 3, drained: true })

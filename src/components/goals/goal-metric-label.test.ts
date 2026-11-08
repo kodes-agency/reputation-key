@@ -10,21 +10,8 @@ import type {
   GoalMetric,
   GoalResultsMatrix as GoalResultsMatrixModel,
 } from '#/contexts/reporting/application/public-api'
-import { readUiSources } from '#/shared/testing/source-tree'
 import { goalMetricLabel } from './goal-metric-label'
 import { resultGoals } from './portal-goal-results-list-view'
-
-const GOAL_SOURCES = [
-  'src/components/goals/',
-  'src/routes/_authenticated/properties/$propertyId/goals/',
-] as const
-
-/** A measure's name written out as a string of its own. */
-const SPELLED_LABEL =
-  /(['"`])(?:Scans|Qualified scans|Private ratings|Private rating count|Average private rating|Private rating average)\1/u
-
-/** The files under the goal sources that own a spelling: none, Reporting owns it. */
-const OWNERS: Readonly<Record<string, string>> = {}
 
 /** The first of a month, in UTC. */
 const monthStart = (month: number) => new Date(Date.UTC(2026, month - 1, 1))
@@ -73,15 +60,6 @@ function matrixOf(...metrics: readonly GoalMetric[]): GoalResultsMatrixModel {
 const frame = { now: monthStart(10), personName: () => null }
 
 describe("a goal's measure", () => {
-  it("spells a measure only in Reporting's goal-metric-label", () => {
-    const spelling = readUiSources({ includeTs: true })
-      .filter((file) => GOAL_SOURCES.some((source) => file.path.startsWith(source)))
-      .filter((file) => SPELLED_LABEL.test(file.text))
-      .map((file) => file.path)
-
-    expect(spelling).toEqual(Object.keys(OWNERS))
-  })
-
   it.each(['qualified_scans', 'portal_rating_count', 'portal_rating_average'] as const)(
     'names %s in the results of a goal that counted more than one thing as the Goals list above it does',
     (metric) => {

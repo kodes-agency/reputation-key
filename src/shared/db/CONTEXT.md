@@ -244,7 +244,11 @@ ADR 0074 names a forward-only exception to the baseline byte-copy rule:
 stated in `db-constructs.sql`, while 0001
 and 0016 remain immutable historical SQL. The transition has only its live
 27-argument signature, including the ceremony id; never recreate the retired
-26-argument overload. Construct parity checks cover the exception explicitly.
+26-argument overload. `0120` also reconciles `start_google_execution_permit`,
+removing the dormant credential-table branch while retaining live Disconnect
+receipt authorization. The three retired tables must be empty under exclusive
+locks before contraction; their enum types remain. Construct parity checks cover
+these forward-only exceptions explicitly.
 
 Never run `pnpm db:push` against a shared database; it bypasses the journal.
 

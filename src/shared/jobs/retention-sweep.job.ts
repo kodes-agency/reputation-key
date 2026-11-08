@@ -153,6 +153,25 @@ export const RETENTION_RULES: ReadonlyArray<RetentionRule> = [
     olderThanMonths: GUEST_VISIT_FACT_RETENTION_MONTHS,
   },
   {
+    // Reporting's copy of each Guest fact, kept 24 calendar months from the
+    // instant it was recorded. A correction restricts its reading's deletion
+    // and removing it alone would revive the corrected value, so each batch
+    // deletes a reading together with its corrections.
+    subject: 'metric_readings.expired',
+    table: 'metric_readings',
+    keyColumns: ['id'],
+    tsColumn: 'recorded_at',
+    olderThanMonths: GUEST_VISIT_FACT_RETENTION_MONTHS,
+    dependents: [
+      {
+        table: 'metric_corrections',
+        referenceColumn: 'reading_id',
+        keyColumn: 'id',
+        selfReferenceColumn: 'supersedes_correction_id',
+      },
+    ],
+  },
+  {
     subject: 'outbox_events.published',
     table: 'outbox_events',
     keyColumns: ['id'],
