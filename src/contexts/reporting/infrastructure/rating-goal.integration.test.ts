@@ -26,8 +26,8 @@ import {
   createArchivedPropertyRatingGoalEnder,
   createRatingGoalEvaluator,
   createRatingGoalRequestApi,
-} from '../application/use-cases/rating-goals'
-import { sweepRatingGoals } from '../application/use-cases/rating-goal-sweep'
+} from '../rating-goals/rating-goals.server'
+import { sweepRatingGoals } from '../rating-goals/rating-goal-sweep.server'
 import { registerRatingGoalEvaluationConsumer } from './rating-goal-outbox-consumers'
 import { registerRatingGoalPropertyLifecycleConsumer } from './rating-goal-property-lifecycle-consumers'
 import { createCurrentGoogleReputationSnapshotRepository } from './repositories/current-google-reputation-snapshot.repository'
@@ -252,16 +252,16 @@ describe('a Property Google rating goal on PostgreSQL', () => {
     expect(setup).toMatchObject({
       eligibility: { eligible: true },
       google: { shows: 4.3, reviewCount: 15, current: true },
-      exactAverage: 4.333,
-      exactAverageSource: 'cache',
+      exactAverage: 4.3,
+      exactAverageSource: 'google',
       offersClimb: true,
     })
-    // The page works the plan out from these: the cache's exact 65 / 15.
+    // Equal cache counts do not prove a matching Google revision.
     expect(setup.setupInputs).toMatchObject({
       reviewCount: 15,
       displayedTenths: 43,
-      exact: { num: 13, den: 3 },
-      exactSource: 'cache',
+      exact: { num: 43, den: 10 },
+      exactSource: 'google',
       reviewsLast90Days: 11,
     })
 

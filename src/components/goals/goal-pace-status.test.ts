@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { GOAL_PACE_STATUS } from './goal-pace-status'
-import { RATING_GOAL_STATUS } from './rating-goal-view'
+import { RATING_GOAL_STATUS } from '../../contexts/reporting/rating-goals/ui/rating-goal-view'
 
 describe('GOAL_PACE_STATUS', () => {
   it('names the three paces once, each with its tone', () => {
