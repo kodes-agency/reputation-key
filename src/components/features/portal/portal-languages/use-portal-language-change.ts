@@ -8,7 +8,7 @@ import type { Action } from '#/components/hooks/use-action'
 import { portalKeys } from '#/shared/queries/query-keys'
 import type { GuestLocale } from '#/shared/domain/guest-locale'
 import { usePortalDraftAutosave } from '../portal-editor/portal-draft-autosave-context'
-import type { UpdatePortalVariables } from '../shared/types'
+import type { ChangePortalLanguagesVariables } from '../shared/types'
 import { createPortalLanguageChanger } from './portal-language-change'
 import type { PortalLanguageChange } from './portal-languages-rules'
 
@@ -20,7 +20,7 @@ type LanguagePortal = Readonly<{
 
 export function usePortalLanguageChange(
   portal: LanguagePortal,
-  update: Action<UpdatePortalVariables>,
+  update: Action<ChangePortalLanguagesVariables>,
 ): (change: PortalLanguageChange) => void {
   const autosave = usePortalDraftAutosave()
   const queryClient = useQueryClient()

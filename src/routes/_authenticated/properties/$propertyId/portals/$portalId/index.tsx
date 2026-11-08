@@ -192,6 +192,7 @@ function PortalPageTab({ actions }: PortalTabActions) {
       activeTab="page"
       activeSection={section}
       autosaveUpdateMutation={actions.autosaveUpdate}
+      changeLanguagesMutation={actions.changeLanguages}
       portalGroups={data.groupsData.groups}
       organizationName={ctx.activeOrganization?.name ?? 'Your Organization'}
       issueTokenMutation={actions.issueToken}

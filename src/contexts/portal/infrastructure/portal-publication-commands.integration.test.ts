@@ -15,7 +15,7 @@ import { portalPublicationPublished, portalUpdated } from '../domain/events'
 import { portalLinkDeleted } from '../domain/portal-link-events'
 import { buildPortalPublicationSnapshot } from '../application/portal-publication-snapshot'
 import type { RepublishPortalCommand } from '../application/ports/portal-command-store.port'
-import { createAtomicPortalCommandStore } from './portal-command-store'
+import { createAtomicPortalCommandStore } from '../publication/portal-command-store.server'
 import { createPortalPublicationRepository } from './repositories/portal-publication.repository'
 import { seedPortalWorkingCopy } from './testing/portal-working-copy-seed'
 import {

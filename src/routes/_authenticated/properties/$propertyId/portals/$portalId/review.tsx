@@ -71,7 +71,7 @@ function PortalWorkspaceReview() {
   if (!portal) throw notFound()
   // The update that makes a portal live reports through the page: the portal
   // patch is silent on success.
-  const goLive = actions.autosaveUpdate
+  const goLive = actions.goLive
   const isPublishing = actions.publishChanges.isPending || goLive.isPending
 
   // The write and what it says live in publishReview; this only wires it up.

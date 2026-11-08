@@ -17,6 +17,7 @@ import type {
   CompleteReviewVariables,
   PortalPublicationState,
   PortalThemeDraft,
+  ChangePortalLanguagesVariables,
   UpdatePortalVariables,
 } from '../shared/types'
 import type {
@@ -93,6 +94,8 @@ export type PortalDetailResources = Readonly<{
    * pause is noise.
    */
   autosaveUpdateMutation: Action<UpdatePortalVariables>
+  /** The Languages section's save: the same silent acknowledgement. */
+  changeLanguagesMutation: Action<ChangePortalLanguagesVariables>
   completeReviewMutation: Action<CompleteReviewVariables, CompleteReviewResult>
   issueTokenMutation: Action<{ data: { portalId: string } }, IssuedPortalLink>
   rotateTokenMutation: Action<{ data: RotatePortalLinkInput }, IssuedPortalLink>

@@ -27,7 +27,7 @@ import {
   validatePortalLinkDestination,
 } from '../domain/approved-destination'
 import { portalCreated } from '../domain/events'
-import { createAtomicPortalCommandStore } from './portal-command-store'
+import { createAtomicPortalCommandStore } from '../publication/portal-command-store.server'
 import { createPortalApprovedDestinationRepository } from './repositories/portal-approved-destination.repository'
 import { createPortalLinkRepository } from './repositories/portal-link.repository'
 import { createPortalRepository } from './repositories/portal.repository'
