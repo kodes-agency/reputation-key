@@ -4,7 +4,7 @@
 // way out is not only in the list's row menu.
 import { useSuspenseQuery } from '@tanstack/react-query'
 import { useState } from 'react'
-import { updatePortal } from '#/contexts/portal/server/portals'
+import { restorePortal } from '#/contexts/portal/server/portals'
 import { useActionMutation } from '#/components/hooks/use-action-mutation'
 import { Button } from '#/components/ui/button'
 import { usePortalEditAccess } from '#/components/features/portal/portal-detail/use-portal-edit-access'
@@ -50,7 +50,7 @@ function ArchivedNotice({
   // The dialog shows a refusal itself, so this write toasts only its success.
   // Everything about portals follows: this one's detail and history, and the
   // lists that show it.
-  const restoreMutation = useActionMutation(updatePortal, {
+  const restoreMutation = useActionMutation(restorePortal, {
     successMessage: 'Portal restored as disabled',
     invalidateKeys: [portalKeys.list(propertyId), portalKeys.all],
   })

@@ -2,10 +2,11 @@ import type { AuthContext } from '#/shared/domain/auth-context'
 import { portalId } from '#/shared/domain/ids'
 import { loadPortalOrThrow } from '../load-accessible-portal'
 import { portalError } from '../../domain/errors'
-import { updatePortal, type UpdatePortalDeps } from './update-portal'
+import { archiveLoadedPortal } from '../../publication/portal-intents.server'
+import type { PortalIntentDeps } from '../../publication/portal-change.server'
 
 export const archivePersonalPortal =
-  (deps: UpdatePortalDeps, memberDeparture = false) =>
+  (deps: PortalIntentDeps, memberDeparture = false) =>
   async (input: Readonly<{ portalId: string }>, ctx: AuthContext) => {
     const portal = memberDeparture
       ? await deps.portalRepo.findById(ctx.organizationId, portalId(input.portalId))
@@ -21,9 +22,5 @@ export const archivePersonalPortal =
         'Only a personal Portal can be removed through Staff',
       )
     if (portal.publicationState === 'archived') return portal
-    return updatePortal({
-      ...deps,
-      personalArchive: true,
-      memberDepartureArchive: memberDeparture,
-    })({ ...input, publicationState: 'archived' }, ctx)
+    return archiveLoadedPortal(deps, ctx, portal)
   }

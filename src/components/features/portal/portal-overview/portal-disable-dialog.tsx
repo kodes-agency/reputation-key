@@ -8,7 +8,7 @@ import { ConfirmationDialog } from '#/components/ui/confirmation-dialog'
 import type { Action } from '#/components/hooks/use-action'
 
 export type PortalDisableMutation = Action<{
-  data: { portalId: string; publicationState: 'disabled' }
+  data: { portalId: string }
 }>
 
 type Props = Readonly<{
@@ -36,9 +36,7 @@ export function PortalDisableDialog({
       cancelLabel="Cancel"
       confirmLabel="Disable public page"
       pendingLabel="Disabling…"
-      onConfirm={() =>
-        disableMutation({ data: { portalId, publicationState: 'disabled' } })
-      }
+      onConfirm={() => disableMutation({ data: { portalId } })}
     />
   )
 }

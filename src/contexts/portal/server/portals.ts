@@ -12,7 +12,12 @@ import { resolveTenantContext } from '#/shared/auth/middleware'
 import { throwContextError, catchUntagged } from '#/shared/auth/server-errors'
 import { getContainer } from '#/composition'
 import { createPortalInputSchema } from '../application/dto/create-portal.dto'
-import { updatePortalInputSchema } from '../application/dto/update-portal.dto'
+import {
+  changePortalLanguagesInputSchema,
+  changePortalSlugInputSchema,
+  portalIdInputSchema,
+  updatePortalSettingsInputSchema,
+} from '../application/dto/portal-intents.dto'
 import { completeContentReviewInputSchema } from '../application/dto/complete-content-review.dto'
 import {
   portalApprovedDestinationDecisionInputSchema,
@@ -357,19 +362,133 @@ export const getPortalCreationOptions = createServerFn({ method: 'GET' })
     ),
   )
 
-// ── updatePortal ───────────────────────────────────────────────────
+// ── Portal state intents ───────────────────────────────────────────
 
-export const updatePortal = createServerFn({ method: 'POST' })
-  .validator(updatePortalInputSchema)
+export const updatePortalSettings = createServerFn({ method: 'POST' })
+  .validator(updatePortalSettingsInputSchema)
   .handler(
     commandHandler(
-      { method: 'POST', name: 'portal.updatePortal', errors: portalCommandErrors },
+      {
+        method: 'POST',
+        name: 'portal.updatePortalSettings',
+        errors: portalCommandErrors,
+      },
       async ({ data, headers }) => {
         const ctx = await resolveTenantContext(headers)
         await authorizePortalResource(ctx, data.portalId, 'portal.update', 'portal.write')
 
-        const { management: useCases } = getContainer().portalPublicApi
-        const portal = await useCases.updatePortal(data, ctx)
+        const portal =
+          await getContainer().portalPublicApi.management.updatePortalSettings(data, ctx)
+        return { portal }
+      },
+    ),
+  )
+
+export const changePortalSlug = createServerFn({ method: 'POST' })
+  .validator(changePortalSlugInputSchema)
+  .handler(
+    commandHandler(
+      { method: 'POST', name: 'portal.changePortalSlug', errors: portalCommandErrors },
+      async ({ data, headers }) => {
+        const ctx = await resolveTenantContext(headers)
+        await authorizePortalResource(ctx, data.portalId, 'portal.update', 'portal.write')
+
+        const portal = await getContainer().portalPublicApi.management.changePortalSlug(
+          data,
+          ctx,
+        )
+        return { portal }
+      },
+    ),
+  )
+
+export const changePortalLanguages = createServerFn({ method: 'POST' })
+  .validator(changePortalLanguagesInputSchema)
+  .handler(
+    commandHandler(
+      {
+        method: 'POST',
+        name: 'portal.changePortalLanguages',
+        errors: portalCommandErrors,
+      },
+      async ({ data, headers }) => {
+        const ctx = await resolveTenantContext(headers)
+        await authorizePortalResource(ctx, data.portalId, 'portal.update', 'portal.write')
+
+        const portal =
+          await getContainer().portalPublicApi.management.changePortalLanguages(data, ctx)
+        return { portal }
+      },
+    ),
+  )
+
+export const publishPortal = createServerFn({ method: 'POST' })
+  .validator(portalIdInputSchema)
+  .handler(
+    commandHandler(
+      { method: 'POST', name: 'portal.publishPortal', errors: portalCommandErrors },
+      async ({ data, headers }) => {
+        const ctx = await resolveTenantContext(headers)
+        await authorizePortalResource(ctx, data.portalId, 'portal.update', 'portal.write')
+
+        const portal = await getContainer().portalPublicApi.management.publishPortal(
+          data,
+          ctx,
+        )
+        return { portal }
+      },
+    ),
+  )
+
+export const disablePortal = createServerFn({ method: 'POST' })
+  .validator(portalIdInputSchema)
+  .handler(
+    commandHandler(
+      { method: 'POST', name: 'portal.disablePortal', errors: portalCommandErrors },
+      async ({ data, headers }) => {
+        const ctx = await resolveTenantContext(headers)
+        await authorizePortalResource(ctx, data.portalId, 'portal.update', 'portal.write')
+
+        const portal = await getContainer().portalPublicApi.management.disablePortal(
+          data,
+          ctx,
+        )
+        return { portal }
+      },
+    ),
+  )
+
+export const archivePortal = createServerFn({ method: 'POST' })
+  .validator(portalIdInputSchema)
+  .handler(
+    commandHandler(
+      { method: 'POST', name: 'portal.archivePortal', errors: portalCommandErrors },
+      async ({ data, headers }) => {
+        const ctx = await resolveTenantContext(headers)
+        await authorizePortalResource(ctx, data.portalId, 'portal.delete', 'portal.write')
+
+        const portal = await getContainer().portalPublicApi.management.archivePortal(
+          data,
+          ctx,
+        )
+        return { portal }
+      },
+    ),
+  )
+
+export const restorePortal = createServerFn({ method: 'POST' })
+  .validator(portalIdInputSchema)
+  .handler(
+    commandHandler(
+      { method: 'POST', name: 'portal.restorePortal', errors: portalCommandErrors },
+      async ({ data, headers }) => {
+        const ctx = await resolveTenantContext(headers)
+        await authorizePortalResource(ctx, data.portalId, 'portal.update', 'portal.write')
+
+        const portal = await getContainer().portalPublicApi.management.restorePortal(
+          data,
+          ctx,
+        )
         return { portal }
       },
     ),
@@ -511,27 +630,6 @@ export const getPortalHistory = createServerFn({ method: 'GET' })
         await authorizePortalResource(ctx, data.portalId, 'portal.read', 'portal.read')
 
         return await getContainer().portalPublicApi.management.getPortalHistory(data, ctx)
-      },
-    ),
-  )
-
-// ── deletePortal (legacy endpoint, recoverable archive semantics) ──
-
-export const deletePortal = createServerFn({ method: 'POST' })
-  .validator(portalIdSchema)
-  .handler(
-    commandHandler(
-      { method: 'POST', name: 'portal.deletePortal', errors: portalCommandErrors },
-      async ({ data, headers }) => {
-        const ctx = await resolveTenantContext(headers)
-        await authorizePortalResource(ctx, data.portalId, 'portal.delete', 'portal.write')
-
-        const { management: useCases } = getContainer().portalPublicApi
-        await useCases.updatePortal(
-          { portalId: data.portalId, publicationState: 'archived' },
-          ctx,
-        )
-        return { archived: true, portalId: data.portalId }
       },
     ),
   )

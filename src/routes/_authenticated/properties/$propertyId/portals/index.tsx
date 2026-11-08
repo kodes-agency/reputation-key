@@ -7,7 +7,11 @@ import { roleUnavailable } from '#/shared/auth/route-notice'
 import { useQuery, useQueryClient, useSuspenseQuery } from '@tanstack/react-query'
 import type { AuthRouteContext } from '#/routes/_authenticated'
 import { can } from '#/shared/domain/permissions'
-import { updatePortal } from '#/contexts/portal/server/portals'
+import {
+  archivePortal,
+  disablePortal,
+  restorePortal,
+} from '#/contexts/portal/server/portals'
 import {
   createPortalGroup,
   softDeletePortalGroup,
@@ -88,15 +92,15 @@ function PortalListRoute() {
     members: members.data?.members,
   })
 
-  const archiveMutation = useActionMutation(updatePortal, {
+  const archiveMutation = useActionMutation(archivePortal, {
     successMessage: 'Portal archived',
     invalidateKeys: [portalKeys.list(propertyId), portalKeys.all],
   })
-  const restoreMutation = useActionMutation(updatePortal, {
+  const restoreMutation = useActionMutation(restorePortal, {
     successMessage: 'Portal restored as Disabled',
     invalidateKeys: [portalKeys.list(propertyId), portalKeys.all],
   })
-  const disableMutation = useActionMutation(updatePortal, {
+  const disableMutation = useActionMutation(disablePortal, {
     successMessage: 'Public page disabled',
     invalidateKeys: [portalKeys.list(propertyId), portalKeys.all],
   })
