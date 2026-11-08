@@ -43,8 +43,8 @@ import type {
   RatingGoalHistoryEntry,
   RatingGoalPlanProgressView,
   RatingGoalSetupView,
-} from './dto/rating-goal.types'
-import type { RatingGoalSetupInputs } from './dto/rating-goal-setup.types'
+} from '../rating-goals/contracts'
+import type { RatingGoalSetupInputs } from '../rating-goals/contracts'
 import {
   ratingBasis,
   setupEligibility,

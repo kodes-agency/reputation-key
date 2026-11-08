@@ -14,7 +14,7 @@ import {
   type FakeWorld,
   useRatingGoalDatabase,
 } from '../infrastructure/testing/rating-goal-fixtures'
-import { getRatingGoalCard } from './use-cases/rating-goal-reads'
+import { getRatingGoalCard } from '../rating-goals/get-rating-goals.server'
 import { recapView } from './rating-goal-recap-views'
 
 useRatingGoalDatabase()

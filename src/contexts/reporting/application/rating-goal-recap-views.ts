@@ -8,7 +8,7 @@ import { weeklyPlanCount } from '../domain/rating-goal-pace'
 import { easedPace, raisedPace } from '../domain/rating-goal-pace-chips'
 import { nearestTenth } from '../domain/rating-goal-quality'
 import { weeklyRecapDue } from '../domain/rating-goal-recap'
-import type { RatingGoalRecapView } from './dto/rating-goal.types'
+import type { RatingGoalRecapView } from '../rating-goals/contracts'
 
 export type RecapFacts = Readonly<{
   status: RatingGoalStatus

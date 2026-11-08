@@ -15,7 +15,7 @@ import {
   type FakeWorld,
   useRatingGoalDatabase,
 } from '../infrastructure/testing/rating-goal-fixtures'
-import { getRatingGoalDetail } from './use-cases/rating-goal-reads'
+import { getRatingGoalDetail } from '../rating-goals/get-rating-goals.server'
 
 useRatingGoalDatabase()
 

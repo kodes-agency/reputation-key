@@ -33,7 +33,7 @@ import type {
   GoalActor,
   GoalExecutionPolicy,
 } from '../../application/use-cases/goal-program-shared'
-import type { RatingGoalDependencies } from '../../application/use-cases/rating-goal-shared'
+import type { RatingGoalDependencies } from '../../rating-goals/rating-goal-shared.server'
 
 const ORG = RATING_GOAL_ORGANIZATION
 export const PROPERTY = RATING_GOAL_PROPERTY

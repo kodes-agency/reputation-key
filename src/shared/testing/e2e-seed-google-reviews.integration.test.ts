@@ -12,7 +12,7 @@
 import { randomUUID } from 'node:crypto'
 import { afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 import { getFleetOverview } from '#/contexts/reporting/application/use-cases/get-fleet-overview'
-import { createRatingGoalEvaluator } from '#/contexts/reporting/application/use-cases/rating-goals'
+import { createRatingGoalEvaluator } from '#/contexts/reporting/rating-goals/rating-goals.server'
 import { createFleetOverviewProjectionAdapter } from '#/contexts/reporting/infrastructure/adapters/fleet-overview-projection.adapter'
 import { handleCurrentGoogleReputationSnapshot } from '#/contexts/reporting/infrastructure/current-google-reputation-outbox-consumers'
 import { handleRatingGoalEvaluation } from '#/contexts/reporting/infrastructure/rating-goal-outbox-consumers'

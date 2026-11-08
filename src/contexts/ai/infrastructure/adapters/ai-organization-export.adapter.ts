@@ -2,6 +2,14 @@ import { sql, type SQL } from 'drizzle-orm'
 import { canonicalizeRfc8785 } from '#/shared/canonical-json'
 import type { Database } from '#/shared/db'
 import { csvCell } from '#/shared/security/csv-cell'
+import {
+  REVIEW_ANALYSIS_MENTION_COLUMNS,
+  REVIEW_ANALYSIS_MENTION_CORRECTION_COLUMNS,
+  UTC_TIMESTAMP_FORMAT,
+  reviewAnalysisMentionCorrectionsQuery,
+  reviewAnalysisMentionsQuery,
+  reviewAnalysesQuery,
+} from './ai-organization-export-v3'
 // Cross-context adapter contract: src/contexts/CONTEXT.md "Dependency rules"
 // lets a foreign infrastructure/adapters/** module import the Identity port it
 // implements, and nothing else from Identity.
@@ -22,6 +30,8 @@ type ExportRecord = Readonly<Record<string, ExportValue>>
 
 export type AiOrganizationExportCollection =
   | 'review_analyses'
+  | 'review_analysis_mentions'
+  | 'review_analysis_mention_corrections'
   | 'property_daily_aggregates'
   | 'property_trend_outcomes'
   | 'draft_measurements'
@@ -34,6 +44,8 @@ export type AiOrganizationExportPayload = Readonly<{
   draftMeasurements?: readonly ExportRecord[]
   draftMeasurementLinks?: readonly ExportRecord[]
   reviewAnalyses: readonly ExportRecord[]
+  reviewAnalysisMentions?: readonly ExportRecord[]
+  reviewAnalysisMentionCorrections?: readonly ExportRecord[]
   propertyDailyAggregates: readonly ExportRecord[]
   propertyTrendOutcomes: readonly ExportRecord[]
   excludedRecordClasses: readonly Readonly<{
@@ -357,6 +369,18 @@ const EXPORT_FILES: readonly AiExportFile[] = Object.freeze([
     select: (payload) => payload.reviewAnalyses,
   },
   {
+    collection: 'review_analysis_mentions',
+    stem: 'review-analysis-mentions',
+    columns: REVIEW_ANALYSIS_MENTION_COLUMNS,
+    select: (payload) => payload.reviewAnalysisMentions ?? [],
+  },
+  {
+    collection: 'review_analysis_mention_corrections',
+    stem: 'review-analysis-mention-corrections',
+    columns: REVIEW_ANALYSIS_MENTION_CORRECTION_COLUMNS,
+    select: (payload) => payload.reviewAnalysisMentionCorrections ?? [],
+  },
+  {
     collection: 'property_daily_aggregates',
     stem: 'property-daily-aggregates',
     columns: PROPERTY_DAILY_AGGREGATE_COLUMNS,
@@ -375,7 +399,7 @@ export function aiExportRecordCount(payload: AiOrganizationExportPayload): numbe
 }
 
 /**
- * Six files: one CSV human view and one lossless JSON authority per retained
+ * One CSV human view and one lossless JSON authority per retained
  * derivative class. Every entry is `retained_ai_derivative`, the only
  * disclosure class the contract permits this context to stamp.
  */
@@ -415,8 +439,6 @@ export function buildAiExportEntries(
   })
 }
 
-const UTC_TIMESTAMP_FORMAT = 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"'
-
 async function readPayload(
   db: Database,
   organizationId: string,
@@ -455,73 +477,38 @@ async function readPayload(
       // own retention must not have lapsed.
       const reviewAnalyses = await readRows(
         snapshot,
-        sql`SELECT
-              analysis.property_id::text AS property_id,
-              analysis.review_id::text AS review_id,
-              analysis.source_epoch,
-              analysis.source_revision,
-              analysis.analysis_sequence,
-              analysis.review_analysis_epoch,
-              analysis.property_profile_version,
-              analysis.analysis_profile_version,
-              analysis.authorization_lineage_id::text AS authorization_lineage_id,
-              analysis.status,
-              analysis.unavailable_reason,
-              analysis.sentiment,
-              analysis.primary_category,
-              COALESCE((
-                SELECT jsonb_agg(
-                  jsonb_build_object(
-                    'aspect', analysis_aspect.aspect,
-                    'polarity', analysis_aspect.polarity,
-                    'intensity', analysis_aspect.intensity
-                  )
-                  ORDER BY analysis_aspect.aspect
-                )
-                FROM ai_review_analysis_aspects AS analysis_aspect
-                WHERE analysis_aspect.organization_id = analysis.organization_id
-                  AND analysis_aspect.property_id = analysis.property_id
-                  AND analysis_aspect.review_id = analysis.review_id
-                  AND analysis_aspect.source_epoch = analysis.source_epoch
-                  AND analysis_aspect.source_revision = analysis.source_revision
-                  AND analysis_aspect.analysis_sequence = analysis.analysis_sequence
-              ), '[]'::jsonb) AS aspects,
-              analysis.issue_label,
-              analysis.attention,
-              to_char(analysis.generated_at AT TIME ZONE 'UTC', ${UTC_TIMESTAMP_FORMAT}) AS generated_at,
-              to_char(analysis.expires_at AT TIME ZONE 'UTC', ${UTC_TIMESTAMP_FORMAT}) AS expires_at
-            FROM ai_review_analyses AS analysis
-            INNER JOIN merchant_ai_enablement AS merchant
-              ON merchant.organization_id = analysis.organization_id
-             AND merchant.property_id = analysis.property_id
-            INNER JOIN ai_property_processing_profiles AS profile
-              ON profile.organization_id = analysis.organization_id
-             AND profile.property_id = analysis.property_id
-            INNER JOIN reviews AS review
-              ON review.organization_id = analysis.organization_id
-             AND review.property_id = analysis.property_id
-             AND review.id = analysis.review_id
-            WHERE analysis.organization_id = ${organizationId}
-              AND merchant.state = 'enabled'
-              AND merchant.capabilities @> ARRAY['review_analysis']::text[]
-              AND analysis.authorization_lineage_id = merchant.authorization_lineage_id
-              AND analysis.review_analysis_epoch = merchant.review_analysis_epoch
-              AND analysis.source_epoch = merchant.authorized_source_epoch
-              AND analysis.analysis_sequence >= merchant.analysis_start_sequence
-              AND profile.lifecycle_state = 'active'
-              AND profile.profile_version = analysis.property_profile_version
-              AND profile.source_epoch = analysis.source_epoch
-              AND review.source_epoch = analysis.source_epoch
-              AND review.source_revision = analysis.source_revision
-              AND review.analysis_sequence = analysis.analysis_sequence
-              AND review.content_expires_at > ${asOfIso}::timestamptz
-              AND analysis.expires_at > ${asOfIso}::timestamptz`,
+        reviewAnalysesQuery(organizationId, asOfIso),
         (record) => [
           record.property_id,
           record.review_id,
           record.source_epoch,
           record.source_revision,
           record.analysis_sequence,
+        ],
+      )
+
+      const reviewAnalysisMentions = await readRows(
+        snapshot,
+        reviewAnalysisMentionsQuery(organizationId, asOfIso),
+        (record) => [
+          record.property_id,
+          record.review_id,
+          record.source_epoch,
+          record.source_revision,
+          record.analysis_sequence,
+          record.mention_ordinal,
+        ],
+      )
+      const reviewAnalysisMentionCorrections = await readRows(
+        snapshot,
+        reviewAnalysisMentionCorrectionsQuery(organizationId, asOfIso),
+        (record) => [
+          record.property_id,
+          record.review_id,
+          record.source_epoch,
+          record.source_revision,
+          record.analysis_sequence,
+          record.mention_ordinal,
         ],
       )
 
@@ -692,6 +679,8 @@ async function readPayload(
         requestedAsOf: asOfIso,
         snapshotBound: 'repeatable_read_within_15m_of_request',
         reviewAnalyses,
+        reviewAnalysisMentions,
+        reviewAnalysisMentionCorrections,
         propertyDailyAggregates,
         propertyTrendOutcomes,
         excludedRecordClasses: EXCLUDED_RECORD_CLASSES,
