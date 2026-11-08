@@ -12,6 +12,7 @@ import {
 } from '#/shared/db/schema/outbox.schema'
 import { insertOutboxRow } from '#/shared/outbox/commit'
 import { trace } from '#/shared/observability/trace'
+import type { ReplyScopeEffects } from '#/shared/db/reply-scope-effects'
 import { purgeAiDraftsForProfile } from '#/shared/db/ai/ai-draft-purge'
 import { clearGooglePrimaryCategoryForProperty } from '#/shared/db/google-primary-category-purge'
 import { lockGoogleConnectionBindingAuthority } from '#/shared/db/google-connection-binding-authority'
@@ -59,6 +60,7 @@ function isUniqueViolation(error: unknown): boolean {
 
 export const createPropertyGoogleBindingStore = (
   db: Database,
+  replyEffects?: ReplyScopeEffects,
 ): PropertyGoogleBindingStore => {
   const readReceipt: PropertyGoogleBindingStore['readReceipt'] = async (
     organizationIdValue,
@@ -389,10 +391,14 @@ export const createPropertyGoogleBindingStore = (
               )
               .returning({ id: properties.id })
             if (!updated) deny('stale_binding')
-            await purgeAiDraftsForProfile(tx, {
-              organizationId: input.organizationId,
-              propertyId: input.propertyId,
-            })
+            await purgeAiDraftsForProfile(
+              tx,
+              {
+                organizationId: input.organizationId,
+                propertyId: input.propertyId,
+              },
+              replyEffects,
+            )
             const expiresAt = new Date(
               input.now.getTime() + PROPERTY_OPERATION_RECEIPT_TTL_MS,
             )
@@ -503,10 +509,14 @@ export const createPropertyGoogleBindingStore = (
             )
             .returning()
           if (!updated) deny('stale_binding')
-          await purgeAiDraftsForProfile(tx, {
-            organizationId: input.organizationId,
-            propertyId: input.propertyId,
-          })
+          await purgeAiDraftsForProfile(
+            tx,
+            {
+              organizationId: input.organizationId,
+              propertyId: input.propertyId,
+            },
+            replyEffects,
+          )
           event = propertyGoogleBindingChanged({
             organizationId: input.organizationId,
             propertyId: input.propertyId,
@@ -579,10 +589,14 @@ export const createPropertyGoogleBindingStore = (
             )
             .returning()
           if (!updated) deny('stale_binding')
-          await purgeAiDraftsForProfile(tx, {
-            organizationId: input.organizationId,
-            propertyId: input.propertyId,
-          })
+          await purgeAiDraftsForProfile(
+            tx,
+            {
+              organizationId: input.organizationId,
+              propertyId: input.propertyId,
+            },
+            replyEffects,
+          )
           event = propertyGoogleBindingChanged({
             organizationId: input.organizationId,
             propertyId: input.propertyId,

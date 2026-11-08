@@ -30,7 +30,7 @@ import type {
   RatingGoalDetailView,
   RatingGoalMovedEvents,
   RatingGoalPlanSoFarView,
-} from './dto/rating-goal.types'
+} from '../rating-goals/contracts'
 import type { RatingGoalChangeLog } from './ports/property-rating-goal.repository'
 import type { RatingGoalReading } from './rating-goal-reading'
 

@@ -1,3 +1,4 @@
+import type { ReplyScopeEffects } from '#/shared/db/reply-scope-effects'
 // LIF-01-T11 — the complete Organization Export contributor set.
 //
 // buildOrganizationExportBundle refuses a partial set by design: a missing
@@ -126,6 +127,7 @@ export function buildOrganizationLifecycleContributors(
   db: Database,
   integration: OrganizationLifecycleContributor,
   portalObjectStore: Pick<StoragePort, 'deleteObject'>,
+  replyEffects: ReplyScopeEffects,
 ): readonly OrganizationLifecycleContributor[] {
   if (integration.context !== 'integration') {
     throw new Error('Integration lifecycle contributor is misidentified')
@@ -141,7 +143,7 @@ export function buildOrganizationLifecycleContributors(
     createMetricOrganizationLifecycleAdapter(db),
     createNotificationOrganizationLifecycleContributor(db),
     createPortalOrganizationLifecycleContributor(db, portalObjectStore),
-    createPropertyOrganizationLifecycleContributor(db),
+    createPropertyOrganizationLifecycleContributor(db, replyEffects),
     createReviewOrganizationLifecycleContributor(db),
     createStaffOrganizationLifecycleContributor(db),
   ])

@@ -94,7 +94,11 @@ function expectNoWritableSurface(canvasElement: HTMLElement): void {
  * editor independent `isSaving` flags on the same reply.
  */
 function ReplyEditorInPane(props: Omit<ComponentProps<typeof ReplyEditor>, 'actions'>) {
-  const actions = useReplyActions({ reviewId: REVIEW_ID, onReplyChanged })
+  const actions = useReplyActions({
+    reviewId: REVIEW_ID,
+    reply: props.reply,
+    onReplyChanged,
+  })
   return <ReplyEditor {...props} actions={actions} />
 }
 

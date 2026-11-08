@@ -14,8 +14,10 @@ import { createMerchantAiNoticeUpdateStore } from './infrastructure/repositories
 import { createStandingRenewalStore } from './infrastructure/repositories/merchant-ai-standing-renewal.repository'
 import { getMemberRole } from './infrastructure/repositories/manager-membership.repository'
 
+import type { ReplyScopeEffects } from '#/shared/db/reply-scope-effects'
 type Deps = Readonly<{
   db: Database
+  replyEffects: ReplyScopeEffects
   idGen: () => string
   clock: () => Date
   logger: LoggerPort
@@ -48,6 +50,7 @@ function renewalStore(deps: Deps) {
   return createStandingRenewalStore({
     db: deps.db,
     idGen: deps.idGen,
+    replyEffects: deps.replyEffects,
     policy: {
       noticeVersion: MERCHANT_AI_NOTICE.version,
       noticeDigest: MERCHANT_AI_NOTICE.digest,

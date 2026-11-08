@@ -3,7 +3,7 @@
 // The recurring job is content-free and tenant-cross: the use case lists
 // active goals by identifier and asks `authorizeScope` (the schedule's own
 // action under goal.use) about each goal's Organization and Property before it
-// reads or writes anything of theirs (application/use-cases/rating-goal-sweep.ts).
+// reads or writes anything of theirs (rating-goals/rating-goal-sweep.server.ts).
 // Counts only reach the log: tenant identifiers are never log fields.
 
 import type { Job } from 'bullmq'
@@ -12,7 +12,7 @@ import {
   RatingGoalSweepError,
   type AuthorizeRatingGoalScope,
   type RatingGoalSweepStats,
-} from '../../application/use-cases/rating-goal-sweep'
+} from '../../rating-goals/rating-goal-sweep.server'
 
 export const RATING_GOAL_EVALUATION_JOB_NAME = 'rating-goal.evaluate' as const
 

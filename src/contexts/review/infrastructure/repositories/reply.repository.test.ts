@@ -1,3 +1,4 @@
+import { replyScopeEffects } from '#/contexts/reputation/application/public-api'
 // Review context — reply repository integration tests
 // Per architecture: integration tests against real Postgres.
 // Tenant isolation test is NON-NEGOTIABLE.
@@ -121,7 +122,12 @@ async function seedReview(
   db: ReturnType<typeof getDb>,
   overrides: Partial<Review> = {},
 ): Promise<Review> {
-  const reviewRepo = createReviewRepository(db, () => new Date())
+  const reviewRepo = createReviewRepository(
+    db,
+    () => new Date(),
+    undefined,
+    replyScopeEffects,
+  )
   return reviewRepo.upsert({
     id: reviewId('3a000000-0000-0000-0000-000000000001'),
     organizationId: ORG_A,

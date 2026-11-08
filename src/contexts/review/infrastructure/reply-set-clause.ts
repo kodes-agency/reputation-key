@@ -1,6 +1,6 @@
 // Shared SET-clause builder for reply guarded updates (BQC-3.3).
 //
-// Used by every guarded reply write (reply-write-guards.ts: the reply
+// Used by every guarded reply write (reputation/replies/store.server.ts: the reply
 // repository's draft save and the atomic ReplyCommandStore), so they all apply
 // the identical field mapping.
 

@@ -1,3 +1,4 @@
+import type { ReplyScopeEffects } from '#/shared/db/reply-scope-effects'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { Database } from '#/shared/db'
 import type { RightsRequestPlan } from './rights-request-command'
@@ -36,6 +37,8 @@ const plan: RightsRequestPlan = {
   organizationId: 'org-asked',
   batchSize: 50,
 }
+
+const effects = {} as ReplyScopeEffects
 
 describe('Review and Inbox rights executors', () => {
   beforeEach(() => vi.clearAllMocks())
@@ -76,11 +79,15 @@ describe('Review and Inbox rights executors', () => {
       error: 'organization not found',
     })
 
-    const review = await createReviewRightsExecutor({ db, now: () => NOW }).apply(plan)
+    const review = await createReviewRightsExecutor({
+      db,
+      now: () => NOW,
+      replyEffects: effects,
+    }).apply(plan)
     const inbox = await createInboxRightsExecutor({ db, now: () => NOW }).apply(plan)
 
     expect(review).toEqual({ ok: true, lines: ['deleted=4 scrubbed=2'] })
     expect(inbox).toEqual({ ok: false, error: 'organization not found' })
-    expect(stores.closeReview).toHaveBeenCalledWith(db, 'org-asked', NOW)
+    expect(stores.closeReview).toHaveBeenCalledWith(db, effects, 'org-asked', NOW)
   })
 })

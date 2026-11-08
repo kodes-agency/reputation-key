@@ -9,7 +9,7 @@ import type {
 } from '#/contexts/ai/application/public-api'
 import type { GuestVoiceGoalFacts } from '#/contexts/ai/guest-voice/ui/guest-voice-rating-goal-words'
 import type { GuestVoiceV2View } from '#/contexts/ai/guest-voice/ui/guest-voice-v2-body'
-import type { RatingGoalCardView } from '#/contexts/reporting/application/dto/rating-goal.types'
+import type { RatingGoalCardView } from '#/contexts/reporting/rating-goals/contracts'
 import type { GuestVoiceRange } from '#/shared/dashboard-range'
 
 /** What the server function answers: the page, or why there is none to draw. */

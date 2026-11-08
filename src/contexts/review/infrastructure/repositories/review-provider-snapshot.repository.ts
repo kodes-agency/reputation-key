@@ -6,6 +6,7 @@ import {
 import { timingSafeEqual } from 'node:crypto'
 import { and, asc, eq, gt, inArray, lte, sql } from 'drizzle-orm'
 import type { Database } from '#/shared/db'
+import type { ReplyScopeEffects } from '#/shared/db/reply-scope-effects'
 import type { Tx } from '#/shared/outbox/commit'
 import { insertOutboxRow } from '#/shared/outbox/commit'
 import {
@@ -346,6 +347,7 @@ async function applyDeletionCandidate(
   run: RunRow,
   candidate: DeletionCandidateRow,
   lockedReview: LockedDeletionReview | undefined,
+  replyEffects: ReplyScopeEffects | undefined,
 ): Promise<DeletionCandidateOutcome> {
   if (
     lockedReview == null ||
@@ -378,14 +380,18 @@ async function applyDeletionCandidate(
     await markDeletionCandidateObserved(tx, run.id, candidate.reviewId)
     return DELETION_OBSERVED
   }
-  const erased = await eraseReviewSourceContent(tx, {
-    reviewId: reviewId(candidate.reviewId),
-    organizationId: organizationId(run.organizationId),
-    propertyId: propertyId(run.propertyId),
-    sourceEpoch: run.sourceEpoch,
-    expectedSourceRevision: candidate.expectedSourceRevision,
-    state: 'provider_deleted',
-  })
+  const erased = await eraseReviewSourceContent(
+    tx,
+    {
+      reviewId: reviewId(candidate.reviewId),
+      organizationId: organizationId(run.organizationId),
+      propertyId: propertyId(run.propertyId),
+      sourceEpoch: run.sourceEpoch,
+      expectedSourceRevision: candidate.expectedSourceRevision,
+      state: 'provider_deleted',
+    },
+    replyEffects,
+  )
   if (!erased) {
     await markDeletionCandidateObserved(tx, run.id, candidate.reviewId)
     return DELETION_OBSERVED
@@ -905,6 +911,7 @@ export async function startOrResumeSnapshot(
 export const createReviewProviderSnapshotRepository = (
   db: Database,
   idGen: () => string,
+  replyEffects?: ReplyScopeEffects,
 ): ReviewProviderSnapshotRepository => ({
   startOrResume: async (input) =>
     db.transaction((tx) => startOrResumeSnapshot(tx, idGen, input)),
@@ -1344,6 +1351,7 @@ export const createReviewProviderSnapshotRepository = (
           run,
           candidate,
           lockedReviewsById.get(candidate.reviewId),
+          replyEffects,
         )
         if (outcome.kind === 'applied') {
           applied += 1

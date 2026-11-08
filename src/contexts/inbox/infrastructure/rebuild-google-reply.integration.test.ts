@@ -1,3 +1,4 @@
+import { replyScopeEffects } from '#/contexts/reputation/application/public-api'
 // The Inbox projection rebuild reads Google's reply truth, not only RepKey's
 // replies. A reply written directly on Google exists only as a Google reply
 // observation (its head says `live`): the legacy `google_sync` row in
@@ -92,7 +93,12 @@ const noLookups = {
 }
 
 function makeRebuild(database: Database = db) {
-  const reviewRepo = createReviewRepository(database, () => NOW)
+  const reviewRepo = createReviewRepository(
+    database,
+    () => NOW,
+    undefined,
+    replyScopeEffects,
+  )
   const replyRepo = createReplyRepository(database, () => NOW)
   const repo = createInboxRepository(database, noLookups, {
     clock: () => NOW,
@@ -173,10 +179,12 @@ function makeReview(
 
 /** The review as Google serves it; returns its current material revision. */
 async function observeReview(id: ReviewId, text?: string): Promise<number> {
-  const stored = await createReviewRepository(db, () => NOW).upsert(
-    makeReview(id, text),
-    NOW,
-  )
+  const stored = await createReviewRepository(
+    db,
+    () => NOW,
+    undefined,
+    replyScopeEffects,
+  ).upsert(makeReview(id, text), NOW)
   return stored.sourceRevision
 }
 

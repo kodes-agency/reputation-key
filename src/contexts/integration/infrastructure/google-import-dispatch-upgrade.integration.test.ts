@@ -1,3 +1,4 @@
+import { replyScopeEffects } from '#/contexts/reputation/application/public-api'
 import { createOutboxRepository } from '#/shared/outbox/infrastructure/outbox-repository'
 import { buildConsumerEvent } from '#/shared/outbox/envelope'
 import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
@@ -270,8 +271,9 @@ describe('Google import dispatch populated upgrade (real PostgreSQL)', () => {
     )
     const db = drizzle(client) as unknown as Database
     const store = createGoogleImportV2Store(db, () => NOW, {
-      ensureImportFollowUps: createPropertyGoogleBindingStore(db).ensureImportFollowUps,
-      readReceipt: createPropertyGoogleBindingStore(db).readReceipt,
+      ensureImportFollowUps: createPropertyGoogleBindingStore(db, replyScopeEffects)
+        .ensureImportFollowUps,
+      readReceipt: createPropertyGoogleBindingStore(db, replyScopeEffects).readReceipt,
       prepareImportSync: (tx, scope) =>
         fixHistoryCutoff(tx, {
           ...scope,
@@ -358,7 +360,7 @@ describe('Google import dispatch populated upgrade (real PostgreSQL)', () => {
       }),
     )
     const effects = {
-      propertyBindingApi: createPropertyGoogleBindingStore(db),
+      propertyBindingApi: createPropertyGoogleBindingStore(db, replyScopeEffects),
       defaultPublicDisplayName: vi.fn(),
       subscribe: vi.fn(),
       enqueueReviewSync: vi.fn(async () => undefined),

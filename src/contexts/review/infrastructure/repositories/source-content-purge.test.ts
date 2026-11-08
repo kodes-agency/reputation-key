@@ -1,3 +1,4 @@
+import { replyScopeEffects } from '#/contexts/reputation/application/public-api'
 // REV-01 source-content erasure against real PostgreSQL.
 
 import { GOOGLE_LOCATION_PRIMARY_RESOURCE } from '#/test-fixtures/generated/google-provider-identifiers-v1'
@@ -21,6 +22,7 @@ const CONTENT_EXPIRES_AT = new Date('2026-08-16T12:00:00Z')
 
 function approvedPurge(batchSize = 100) {
   return createSourceContentPurge({
+    replyEffects: replyScopeEffects,
     db,
     clock: () => NOW,
     batchSize,
@@ -159,7 +161,12 @@ describe('source content purge (real PostgreSQL)', () => {
   afterAll(reset)
 
   it('keeps ordinary connection cleanup report-only without an apply admission', async () => {
-    const purge = createSourceContentPurge({ db, clock: () => NOW, batchSize: 2 })
+    const purge = createSourceContentPurge({
+      replyEffects: replyScopeEffects,
+      db,
+      clock: () => NOW,
+      batchSize: 2,
+    })
 
     const result = await purge.forConnection(ORG as never, CONN_A)
 
@@ -242,7 +249,11 @@ describe('source content purge (real PostgreSQL)', () => {
   })
 
   it('deletes only the Property Inbox companion rows', async () => {
-    const purge = createSourceContentPurge({ db, clock: () => NOW })
+    const purge = createSourceContentPurge({
+      replyEffects: replyScopeEffects,
+      db,
+      clock: () => NOW,
+    })
 
     const result = await purge.inboxForProperty(ORG as never, PROP_A as never)
 

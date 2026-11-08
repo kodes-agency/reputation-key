@@ -41,8 +41,10 @@ import {
   restoreProperty,
 } from './application/use-cases/property-lifecycle'
 
+import type { ReplyScopeEffects } from '#/shared/db/reply-scope-effects'
 type PropertyContextDeps = Readonly<{
   db: Database
+  replyEffects: ReplyScopeEffects
   repo: PropertyRepository
   /** Consumer receipts for the worker's outbox consumers. */
   outboxRepo: Pick<OutboxRepository, 'insertReceipt'>
@@ -57,8 +59,8 @@ type PropertyContextDeps = Readonly<{
 export const buildPropertyContext = (deps: PropertyContextDeps) => {
   // BQC-3.5: every property state mutation + fact commits atomically here.
   const commandStore = createAtomicPropertyCommandStore(deps.db)
-  const bindingApi = createPropertyGoogleBindingStore(deps.db)
-  const lifecycleStore = createPropertyLifecycleCommandStore(deps.db)
+  const bindingApi = createPropertyGoogleBindingStore(deps.db, deps.replyEffects)
+  const lifecycleStore = createPropertyLifecycleCommandStore(deps.db, deps.replyEffects)
   const responsibleManagerRepo = createPropertyResponsibleManagerRepository(deps.db)
   const managerEligibility = {
     identityPublicApi: deps.identityManagerFacts,

@@ -1,3 +1,4 @@
+import { replyScopeEffects } from '#/contexts/reputation/application/public-api'
 // Test-only: the read of Google that precedes a publish claim, as production
 // builds it, on PostgreSQL.
 //
@@ -39,12 +40,18 @@ export function createReplyPreReadForTests(
   }>,
 ): ReadReviewBeforePublish {
   const { db, clock } = input
-  const reviewRepo = createReviewRepository(db, clock)
+  const reviewRepo = createReviewRepository(db, clock, undefined, replyScopeEffects)
   const observationWriter = createReviewProviderObservationWriter({
     reviewRepo: { ...reviewRepo, findStableIdentityByProviderSubjects: async () => null },
     clock,
     idGen: input.newReviewId,
-    commandStore: createAtomicReviewCommandStore(db, clock),
+    commandStore: createAtomicReviewCommandStore(
+      db,
+      clock,
+      undefined,
+      undefined,
+      replyScopeEffects,
+    ),
     googleReplyObservationStore: createGoogleReplyObservationStore(db),
     historyCutoffs: { readHistoryCutoff: async () => null },
   })

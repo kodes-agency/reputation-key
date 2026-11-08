@@ -1,3 +1,4 @@
+import { replyScopeEffects } from '#/contexts/reputation/application/public-api'
 import { beforeEach, describe, expect, it } from 'vitest'
 import { createAtomicReviewCommandStore } from './review-command-store'
 import { createReviewResponseTargetAuthority } from './response-target-authority'
@@ -78,7 +79,13 @@ async function observe(
   observedAt: Date,
   observationKey: string,
 ) {
-  const store = createAtomicReviewCommandStore(getDb(), () => observedAt)
+  const store = createAtomicReviewCommandStore(
+    getDb(),
+    () => observedAt,
+    undefined,
+    undefined,
+    replyScopeEffects,
+  )
   const factory = candidate.sourceRevision === 1 ? reviewCreated : reviewUpdated
   return store.upsertAndRecord(
     candidate,

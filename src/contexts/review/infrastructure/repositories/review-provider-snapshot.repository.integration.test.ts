@@ -1,3 +1,4 @@
+import { replyScopeEffects } from '#/contexts/reputation/application/public-api'
 // Review provider snapshot repository against real PostgreSQL.
 //
 // `finishMainScan` was the one repository path with no coverage against a live
@@ -54,7 +55,11 @@ async function waitForDatabaseCondition(
 
 describe('review provider snapshot repository (real PostgreSQL)', () => {
   const db = getDb()
-  const repository = createReviewProviderSnapshotRepository(db, () => RUN_ID)
+  const repository = createReviewProviderSnapshotRepository(
+    db,
+    () => RUN_ID,
+    replyScopeEffects,
+  )
 
   const clear = async () => {
     await db.execute(sql`DELETE FROM review_sync_runs WHERE property_id = ${PROPERTY_ID}`)
@@ -506,7 +511,10 @@ describe('review provider snapshot repository (real PostgreSQL)', () => {
         },
       )
 
-      lifecycleApply = createReviewSourceContentLifecycleStore(db).applyLifecycleBatch({
+      lifecycleApply = createReviewSourceContentLifecycleStore(
+        db,
+        replyScopeEffects,
+      ).applyLifecycleBatch({
         evaluatedAt: STARTED_AT,
         after: null,
         limit: 10,
@@ -736,6 +744,7 @@ describe('review provider snapshot repository (real PostgreSQL)', () => {
     const importRepository = createReviewProviderSnapshotRepository(
       db,
       () => IMPORT_RUN_ID,
+      replyScopeEffects,
     )
     const resetScope = async () => {
       await db.execute(
@@ -1062,6 +1071,7 @@ describe('review provider snapshot repository (real PostgreSQL)', () => {
       const next = await createReviewProviderSnapshotRepository(
         db,
         () => FRESH_RUN_ID,
+        replyScopeEffects,
       ).startOrResume({ ...scope, observationOrigin: 'ongoing' })
 
       expect(ended.id).toBe(IMPORT_RUN_ID)
@@ -1264,6 +1274,7 @@ describe('review provider snapshot repository (real PostgreSQL)', () => {
       const later = await createReviewProviderSnapshotRepository(
         db,
         () => OTHER_RUN_ID,
+        replyScopeEffects,
       ).startOrResume({ ...scope, observationOrigin: 'historical_onboarding' })
       expect(later.id).toBe(OTHER_RUN_ID)
       await expect(repository.readHistoryCutoff(scope)).resolves.toMatchObject({

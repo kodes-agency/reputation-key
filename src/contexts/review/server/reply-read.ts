@@ -1,3 +1,4 @@
+import { replyRevisionSchema } from '#/shared/reply-revision'
 // Review context — reply shared helpers (split from reply.ts): the error-status
 // mapping and input DTOs the reply server functions share.
 
@@ -64,15 +65,11 @@ export const reviewIdDto = z.object({ reviewId: z.uuid() })
  */
 export const approveReplyDto = z.object({
   reviewId: z.uuid(),
-  expectedReply: z
-    .object({
-      id: z.uuid(),
-      stateRevision: z.number().int().positive().max(Number.MAX_SAFE_INTEGER),
-    })
-    .optional(),
+  expectedReply: replyRevisionSchema.optional(),
 })
 
 export const draftReplyDto = z.object({
+  expectedReply: replyRevisionSchema.nullable().optional(),
   reviewId: z.uuid(),
   // Google's byte rule, not a character cap: `.max(4096)` counted UTF-16 units
   // and let 2049 Cyrillic letters (4098 bytes) reach a worker that cannot send

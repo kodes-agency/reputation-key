@@ -13,6 +13,7 @@ import { canonicalizeRfc8785 } from '#/shared/merchant-ai-notice-contract'
 import { createAiAdvisoryScope } from '#/shared/ai-lock-order-v1'
 import { insertOutboxRow, type Tx } from '#/shared/outbox/commit'
 import { organizationId } from '#/shared/domain/ids'
+import type { ReplyScopeEffects } from '#/shared/db/reply-scope-effects'
 import {
   purgeAiDraftsForAuthorization,
   purgeAiDraftsForProfile,
@@ -411,6 +412,7 @@ export async function commitMerchantAiTransition(
     requestHash: string
   }>,
   idGen: () => string,
+  replyEffects: ReplyScopeEffects | undefined,
 ): Promise<MerchantAiSnapshot> {
   const { current, runtimeProfiles, authorizedSourceEpoch, requestHash } = facts
   const sourceRebound =
@@ -528,11 +530,17 @@ export async function commitMerchantAiTransition(
   `)
   const evidence = evidenceResult.rows[0] as SnapshotRow
 
-  await withdrawStaleDrafts(tx, input, current, {
-    capabilityEpochs,
-    runtimeProfiles,
-    providerDeploymentProfileVersion: input.providerDeploymentProfileVersion,
-  })
+  await withdrawStaleDrafts(
+    tx,
+    input,
+    current,
+    {
+      capabilityEpochs,
+      runtimeProfiles,
+      providerDeploymentProfileVersion: input.providerDeploymentProfileVersion,
+    },
+    replyEffects,
+  )
   if (input.state === 'enabled') {
     // The decision is made: a standing "not now" ends with the enable that
     // supersedes it, in the same transaction (a change starts from an enabled
@@ -580,16 +588,21 @@ async function withdrawStaleDrafts(
   input: MerchantAiMutationInput,
   current: MerchantAiSnapshot | null,
   next: Parameters<typeof standingRenewalKeepsSavedDrafts>[2],
+  replyEffects: ReplyScopeEffects | undefined,
 ): Promise<void> {
   if (standingRenewalKeepsSavedDrafts(input.reasonCode, current, next)) return
   const purgeDrafts =
     input.state !== 'enabled' || !input.capabilities.includes('reply_drafting')
       ? purgeAiDraftsForAuthorization
       : purgeAiDraftsForProfile
-  await purgeDrafts(tx, {
-    organizationId: input.organizationId,
-    propertyId: input.propertyId,
-  })
+  await purgeDrafts(
+    tx,
+    {
+      organizationId: input.organizationId,
+      propertyId: input.propertyId,
+    },
+    replyEffects,
+  )
 }
 
 async function requireStandingRenewalOwner(
@@ -614,6 +627,7 @@ export async function runMerchantAiMutation(
   tx: Tx,
   input: MerchantAiMutationInput,
   idGen: () => string,
+  replyEffects: ReplyScopeEffects | undefined,
   replayIsNoOp = false,
 ): Promise<MerchantAiSnapshot> {
   const requestHash = canonicalRequestHash(input)
@@ -703,5 +717,6 @@ export async function runMerchantAiMutation(
     input,
     { current, runtimeProfiles, authorizedSourceEpoch, requestHash },
     idGen,
+    replyEffects,
   )
 }

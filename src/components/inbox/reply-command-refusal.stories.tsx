@@ -155,6 +155,7 @@ function ReplyPane(): ReactNode {
   const { detail, onConfirmationOpenChange } = useHeldReplyDetail(ITEM_ID, detailAsRead)
   const actions = useReplyActions({
     reviewId: ITEM.sourceId,
+    reply: detail?.reply,
     onReplyChanged: (change) => inboxCachePolicy.onReplyChanged(queryClient, change),
   })
   const [isEditRequested, setEditRequested] = useState(false)

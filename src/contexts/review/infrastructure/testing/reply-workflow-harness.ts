@@ -1,3 +1,4 @@
+import { replyScopeEffects } from '#/contexts/reputation/application/public-api'
 // Test-only: the reply workflow as production runs it, on PostgreSQL.
 //
 // The manager commands are the real use cases over the real reply repository,
@@ -233,10 +234,22 @@ export async function createReplyWorkflowHarness(
   /** How many times the suite was reset: reply ids and cycles repeat each time. */
   let runs = 0
 
-  const reviewRepo = createReviewRepository(db, clock)
+  const reviewRepo = createReviewRepository(db, clock, undefined, replyScopeEffects)
   const replyRepo = createReplyRepository(db, clock)
-  const commandStore = createAtomicReplyCommandStore(db, clock, async () => true)
-  const reviewCommandStore = createAtomicReviewCommandStore(db, clock)
+  const commandStore = createAtomicReplyCommandStore(
+    db,
+    clock,
+    async () => true,
+    undefined,
+    replyScopeEffects,
+  )
+  const reviewCommandStore = createAtomicReviewCommandStore(
+    db,
+    clock,
+    undefined,
+    undefined,
+    replyScopeEffects,
+  )
   const observationStore = createGoogleReplyObservationStore(db)
   const storedDispatchEvidence = createReplyPublicationDispatchEvidence(db)
   let dispatchEvidenceIsDown = false

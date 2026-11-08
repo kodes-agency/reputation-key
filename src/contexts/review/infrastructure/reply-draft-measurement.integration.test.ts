@@ -1,3 +1,4 @@
+import { replyScopeEffects } from '#/contexts/reputation/application/public-api'
 import {
   purgeAiDraftsForAuthorization,
   purgeAiDraftsForControl,
@@ -290,15 +291,21 @@ it.each(['global', 'provider_deployment_profile', 'capability'] as const)(
     await harness.commands.draft(EDIT)
     const id = await currentLink()
     await getDb().transaction((tx) =>
-      purgeAiDraftsForControl(tx, scope, 'reply_drafting'),
+      purgeAiDraftsForControl(tx, scope, 'reply_drafting', replyScopeEffects),
     )
     await getDb().transaction((tx) =>
-      purgeAiDraftsForReview(tx, {
-        organizationId: WORKFLOW_ORG,
-        reviewId: WORKFLOW_REVIEW,
-      }),
+      purgeAiDraftsForReview(
+        tx,
+        {
+          organizationId: WORKFLOW_ORG,
+          reviewId: WORKFLOW_REVIEW,
+        },
+        replyScopeEffects,
+      ),
     )
-    await getDb().transaction((tx) => purgeAiDraftsForOrganization(tx, WORKFLOW_ORG))
+    await getDb().transaction((tx) =>
+      purgeAiDraftsForOrganization(tx, WORKFLOW_ORG, replyScopeEffects),
+    )
     expect(await currentLink()).toBe(id)
     expect((await measurements())[0].id).toBe(id)
   },
@@ -312,10 +319,14 @@ it.each(['authorization', 'property'] as const)(
     await getDb().transaction((tx) =>
       (scope === 'authorization'
         ? purgeAiDraftsForAuthorization
-        : purgeAiDraftsForProperty)(tx, {
-        organizationId: WORKFLOW_ORG,
-        propertyId: WORKFLOW_PROPERTY,
-      }),
+        : purgeAiDraftsForProperty)(
+        tx,
+        {
+          organizationId: WORKFLOW_ORG,
+          propertyId: WORKFLOW_PROPERTY,
+        },
+        replyScopeEffects,
+      ),
     )
     expect(await measurements()).toEqual([])
     expect(
