@@ -224,3 +224,83 @@ describe('retention executor per-run cap (BQC-3.7)', () => {
     expect(result.capped).toBe(true)
   })
 })
+
+describe('retention executor dependents', () => {
+  const PARENT_RULE: RetentionRule = {
+    subject: 'metric_readings.expired',
+    table: 'metric_readings',
+    keyColumns: ['id'],
+    tsColumn: 'recorded_at',
+    olderThanMonths: 24,
+    dependents: [
+      {
+        table: 'metric_corrections',
+        referenceColumn: 'reading_id',
+        keyColumn: 'id',
+        selfReferenceColumn: 'supersedes_correction_id',
+      },
+    ],
+  }
+
+  function fakeTransactionDb(statements: string[], dependentPasses: number[]) {
+    let batch = 0
+    const dialect = new PgDialect()
+    const tx = {
+      execute: vi.fn(async (statement: SQL) => {
+        const text = dialect.sqlToQuery(statement).sql
+        statements.push(text)
+        if (text.includes('FOR UPDATE')) {
+          batch += 1
+          return { rows: batch === 1 ? [{ id: 'r1' }, { id: 'r2' }] : [], rowCount: 0 }
+        }
+        if (text.startsWith('DELETE FROM "metric_corrections"')) {
+          return { rowCount: dependentPasses.shift() ?? 0, rows: [] }
+        }
+        return { rowCount: 2, rows: [] }
+      }),
+    }
+    const db = {
+      execute: vi.fn(),
+      transaction: vi.fn(async (run: (t: typeof tx) => Promise<number>) => run(tx)),
+    } as unknown as Database
+    return db
+  }
+
+  it('deletes corrections leaf-first, then the readings, in one transaction per batch', async () => {
+    const statements: string[] = []
+    const db = fakeTransactionDb(statements, [2, 1, 0])
+
+    const result = await executeRetentionRule(db, PARENT_RULE, {
+      cutoff: CUTOFF,
+      batchSize: 2,
+    })
+
+    expect(result).toMatchObject({ batches: 1, rowsDeleted: 2, capped: false })
+    expect(statements[0]).toContain('FOR UPDATE')
+    expect(
+      statements.filter((s) => s.startsWith('DELETE FROM "metric_corrections"')),
+    ).toHaveLength(3)
+    const readingDelete = statements.find((s) =>
+      s.startsWith('DELETE FROM "metric_readings"'),
+    )
+    expect(readingDelete).toContain('"recorded_at" < $')
+    expect(statements.indexOf(readingDelete ?? '')).toBeGreaterThan(
+      statements.lastIndexOf(
+        statements
+          .filter((s) => s.startsWith('DELETE FROM "metric_corrections"'))
+          .at(-1) ?? '',
+      ),
+    )
+  })
+
+  it('refuses dependents on a redaction or a composite key', async () => {
+    const { db } = fakeDb([])
+    await expect(
+      executeRetentionRule(
+        db,
+        { ...PARENT_RULE, keyColumns: ['a', 'b'] },
+        { cutoff: CUTOFF },
+      ),
+    ).rejects.toThrow('one key column')
+  })
+})
