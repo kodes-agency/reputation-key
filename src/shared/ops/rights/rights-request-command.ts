@@ -61,7 +61,7 @@ export const rightsRequestCommandSpec: OperatorCommandSpec = Object.freeze({
   usage:
     'pnpm ops rights-request <access|guest-response|participant|property|organization> [replay] ' +
     '--operator <id> --org <id> [--property <id>] received=<iso> [verified=<iso> verification=<ref>] ' +
-    '[subject-ref=<sha256>] [response=<uuid>] [journal=<file> restore-point=<iso>] ' +
+    '[subject-ref=<sha256>] [response=<uuid>] [journal=<file> restore-point=<iso>] [out=<dir>] ' +
     "[--reason <text> --ticket <ref> --batch-size <n> --apply 'confirm=ERASE <SCOPE> <id>' --yes ops:rights-request]",
 })
 
@@ -81,6 +81,7 @@ export type RightsRequestPlan = Readonly<{
   confirmation?: string
   journalFile?: string
   restorePointAt?: Date
+  outDir?: string
 }>
 
 export type RightsRequestPlanResult =
@@ -136,6 +137,7 @@ type Fields = Readonly<{
   restorePointAt?: Date | null
   journalFile?: string
   confirmation?: string
+  outDir?: string
 }>
 
 function readFields(args: OperatorArgs): Fields {
@@ -148,6 +150,7 @@ function readFields(args: OperatorArgs): Fields {
     restorePointAt: parseInstant(tokenValue(args, 'restore-point')),
     journalFile: tokenValue(args, 'journal'),
     confirmation: tokenValue(args, 'confirm'),
+    outDir: tokenValue(args, 'out'),
   }
 }
 
@@ -166,6 +169,9 @@ function fieldShapeError(fields: Fields): string | null {
   }
   if (fields.journalFile !== undefined && !FILE_PATH.test(fields.journalFile)) {
     return 'journal must be a local file path'
+  }
+  if (fields.outDir !== undefined && !FILE_PATH.test(fields.outDir)) {
+    return 'out must be a local directory path'
   }
   if (fields.receivedAt === null) return 'received must be an ISO date'
   if (fields.verifiedAt === null) return 'verified must be an ISO date'
@@ -258,6 +264,7 @@ export function planRightsRequest(
       ...(fields.verificationRef ? { verificationRef: fields.verificationRef } : {}),
       ...(fields.confirmation ? { confirmation: fields.confirmation } : {}),
       ...(fields.journalFile ? { journalFile: fields.journalFile } : {}),
+      ...(fields.outDir ? { outDir: fields.outDir } : {}),
       ...(fields.restorePointAt ? { restorePointAt: fields.restorePointAt } : {}),
       ...(receivedAt
         ? { receivedAt, answerDueAt: addDays(receivedAt, ANSWER_DEADLINE_DAYS) }
@@ -285,6 +292,9 @@ export function describeRightsReport(plan: RightsRequestPlan): ReadonlyArray<str
         : 'export due: pass verified=<iso> to start the seven-day export deadline',
       `export delivery: ${EXPORT_LINK_HOURS}-hour download link to a private bucket file; ` +
         `file deleted after download and within ${EXPORT_FILE_MAX_AGE_DAYS} days; never emailed as an attachment`,
+      plan.outDir
+        ? `export files are written under ${plan.outDir}`
+        : 'export files: pass out=<dir> to write them; upload them to the private bucket by hand',
     )
   }
   if (plan.scope === 'organization') {

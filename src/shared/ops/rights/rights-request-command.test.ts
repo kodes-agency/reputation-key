@@ -238,3 +238,21 @@ describe('planRightsReplay', () => {
     expect(item?.disposition).toBe('replay_required')
   })
 })
+
+describe('out directory', () => {
+  it('is carried into the plan and shown in the report', () => {
+    const result = plan(['access', 'out=/tmp/export'])
+    expect(result.ok).toBe(true)
+    if (!result.ok) return
+    expect(result.plan.outDir).toBe('/tmp/export')
+    expect(describeRightsReport(result.plan).join('\n')).toContain(
+      'written under /tmp/export',
+    )
+  })
+
+  it('tells the operator how to get files when it is missing', () => {
+    const result = plan(['access'])
+    if (!result.ok) throw new Error(result.error)
+    expect(describeRightsReport(result.plan).join('\n')).toContain('pass out=<dir>')
+  })
+})
