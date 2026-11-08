@@ -9,7 +9,7 @@ import { createServerFn } from '@tanstack/react-start'
 import { tracedHandler } from '#/shared/observability/traced-server-fn'
 // For `.validator(...)` only: never re-export these (an `export … from` would
 // keep the DTO module and its zod calls in first paint, #794). The read
-// results are typed in application/dto/rating-goal.types.ts.
+// results are typed in rating-goals/contracts.ts.
 import {
   changeRatingGoalSchema,
   endRatingGoalSchema,

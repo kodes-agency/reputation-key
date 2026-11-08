@@ -394,7 +394,7 @@ and goal-detail pages.
   reviews (Google's count decides that first, current or not) and current numbers; a
   reading waits for Google while its numbers are not current, show no tenth or give no
   exact average, or the review cache holds no review (an empty or expired cache). The setup
-  read also returns `setupInputs` (`application/dto/rating-goal-setup.types.ts`, rounds 3
+  read also returns `setupInputs` (`rating-goals/contracts.ts`, rounds 3
   and 4): Google's numbers, the exact average, the best calendar month of the last twelve
   and the best year with ten reviews, the reviews of the last 90 days and the busiest 30
   local dates of the last 365 (`domain/rating-goal-evidence.ts`), from which the one-screen
@@ -568,7 +568,10 @@ and goal-detail pages.
 
 The [Portal results map](portal-results/CONTEXT.md) follows the workspace Results
 screen to its browser contract, authenticated server function and governed SQL.
-Other Reporting features retain their existing paths.
+The Google rating goal commands and reads live in `rating-goals/*.server.ts`, with
+browser-safe types in `rating-goals/contracts.ts` and screens, policies and stories
+in `rating-goals/ui/`. Existing `server/` RPC paths stay fixed. Other Reporting
+features retain their existing paths.
 
 ## Interfaces and dependencies
 
