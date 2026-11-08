@@ -32,6 +32,8 @@ const MERGED_CONTEXT_ERASE_OWNERS: Readonly<Record<string, readonly string[]>> =
   feed: ['activity', 'notification'],
   identity: ['identity', 'staff'],
   reporting: ['dashboard', 'goal', 'metric'],
+  // Reputation's Inbox UI shares the existing Inbox data owner.
+  reputation: ['inbox'],
 }
 
 const eraseOwnersForDirectory = (directory: string): readonly string[] =>
