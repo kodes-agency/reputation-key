@@ -82,6 +82,21 @@ that way needs both, which the two built-in roles hold. Disable and Restore are 
 (`portal.update`): a PropertyManager can take a live page down and bring an archived
 Portal back to Disabled.
 
+Link, link-text and Linktree-setting commands recheck content mutability in
+`infrastructure/portal-aggregate-fence.ts`, using the state returned by the
+revision update while it holds the Portal row lock. An archived write rolls back
+before content, history or facts change. Address issue, rotation and revocation
+use the revision fence without the content restriction, preserving address
+management on archived Portals.
+
+Rating-collector changes recheck Reporting's transaction-bound goal read while
+holding the shared Property goal fence, before publication, Portal, or Group
+row locks. Skipping private ratings, disabling, archiving, or deleting cannot
+remove a direct rating-goal subject or the last published collector in a wider
+goal. Commit refusals use `goal_needs_collector`; staff scan-switch protection
+retains its own guard. Group membership and create-with-group commands acquire
+the same Property fence first.
+
 A Portal changes group in one commit: `movePortalToGroup` (and create-with-move,
 where a new group takes Portals that are in another group) ends the old
 `portal_group_memberships` row with `end_reason = 'moved_to_group'` and begins the

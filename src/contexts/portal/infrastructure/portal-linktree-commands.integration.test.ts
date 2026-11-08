@@ -1,3 +1,4 @@
+import { createPortalRatingGoalGuard } from '#/contexts/reporting/infrastructure/portal-rating-goal-guard'
 // Linktree working model (round 4, slices 10 and 44) against real PostgreSQL: the
 // link cap under the Portal row lock, the primary-language text as the only
 // name of a link (the legacy `portal_links.label` is never written), per-language texts, the section title and switch, and the pending-change rows
@@ -54,7 +55,7 @@ const { getPool } = setupIntegrationDb({
   ],
 })
 
-const store = () => createAtomicPortalCommandStore(getDb())
+const store = () => createAtomicPortalCommandStore(getDb(), createPortalRatingGoalGuard())
 
 let tickCount = 0
 const nextInstant = () => new Date(CREATED_AT.getTime() + (tickCount += 1) * 1000)
