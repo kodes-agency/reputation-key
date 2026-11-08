@@ -1,11 +1,29 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { METRIC_VERSION_IDS } from '../readings/contracts'
-import type {
-  GoalMonthlyResult,
-  GoalProgramBundle,
-  GoalProgramRepository,
-  GoalResultRevision,
-} from '../application/ports/goal-program.repository'
+// The Goal Program service on the real repository, against PostgreSQL.
+//
+// Monthly results cannot be deleted, so every test runs in a savepoint of one
+// held transaction that is rolled back. Only the ports that are not
+// persistence (policy, metric reads, Property facts) are stand-ins.
+import {
+  afterAll,
+  afterEach,
+  beforeAll,
+  beforeEach,
+  describe,
+  expect,
+  it,
+  vi,
+} from 'vitest'
+import type { Database } from '#/shared/db'
+import {
+  holdTransaction,
+  type HeldTransaction,
+} from '#/shared/db/testing/held-transaction'
+import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
+import { findMetricVersionById, METRIC_VERSION_IDS } from '../readings/contracts'
+import type { GoalProgramBundle } from '../application/ports/goal-program.repository'
+import { createGoalProgramRepository } from '../infrastructure/repositories/goal-program.repository'
+import { readGoalMetricSourceHead } from '../infrastructure/repositories/goal-metric-source-head'
+import { seedLockedMonthTarget } from '../infrastructure/testing/goal-month-target-seed'
 import {
   createGoalProgramService,
   GoalProgramError,
@@ -15,290 +33,132 @@ import {
   type GoalProgramSubjectReader,
 } from './goal-programs.server'
 
+const ORGANIZATION_ID = 'org-1'
+const PROPERTY_ID = '00000000-0000-4000-8000-00000000a001'
+const GROUP_ID = '00000000-0000-4000-8000-00000000c001'
+/** Portals 1 to 3 of the Property. */
+const portalUuid = (n: number) =>
+  `00000000-0000-4000-8000-${String(0xb000 + n).padStart(12, '0')}`
+const PORTAL_IDS = [1, 2, 3].map(portalUuid)
+
 const actor: GoalActor = {
-  organizationId: 'org-1',
+  organizationId: ORGANIZATION_ID,
   userId: 'manager-1',
   role: 'PropertyManager',
 }
 
-const governedVersion = (id: string, minimumSample: number) => ({
-  definition: {
-    id: `definition-${id}`,
-    key:
-      id === METRIC_VERSION_IDS.portalRatingAverageGoal
-        ? ('portal.rating_average' as const)
-        : id === METRIC_VERSION_IDS.portalRatingCountGoal
-          ? ('portal.rating_count' as const)
-          : ('portal.qualified_scan' as const),
-    valueKind: 'counter' as const,
-    workerDataFlag: false,
-    privacyClass: 'content_free',
-    retentionClass: 'aggregate',
-    lifecycleStatus: 'approved' as const,
-  },
-  version: {
-    id,
-    definitionId: `definition-${id}`,
-    version: 1,
-    effectiveFrom: new Date('2025-01-01T00:00:00.000Z'),
-    effectiveTo: null,
-    unit: 'count',
-    precision: 1,
-    allowedScopes: ['property', 'portal_group', 'portal'] as const,
-    minimumSample,
-    insufficientDataBehavior: 'unavailable' as const,
-    sourcePolicyAllowlist: ['first_party_guest_gateway_metric'] as const,
-    permittedConsumers: ['goal'] as const,
-    employmentDecisionEligible: false as const,
-  },
+let held: HeldTransaction | undefined
+let db: Database
+
+beforeAll(async () => {
+  registerAllEventSchemas()
+  held = await holdTransaction()
+  db = held.db
 })
+
+afterAll(async () => {
+  await held?.rollBack()
+})
+
+beforeEach(async () => {
+  const client = held!.client
+  await client.query('SAVEPOINT scenario')
+  await client.query(
+    `INSERT INTO properties (id, organization_id, name, slug, timezone)
+     VALUES ($1, $2, 'Goal Property', 'goal-programs-property', 'UTC')`,
+    [PROPERTY_ID, ORGANIZATION_ID],
+  )
+  for (const [index, portalId] of PORTAL_IDS.entries()) {
+    await client.query(
+      `INSERT INTO portals
+         (id, organization_id, property_id, entity_type, entity_id, name, slug)
+       VALUES ($1, $2, $3, 'property', $4, $5, $5)`,
+      [
+        portalId,
+        ORGANIZATION_ID,
+        PROPERTY_ID,
+        PROPERTY_ID,
+        `goal-programs-portal-${index + 1}`,
+      ],
+    )
+  }
+  await client.query(
+    `INSERT INTO portal_groups (id, organization_id, property_id, name)
+     VALUES ($1, $2, $3, 'Goal group')`,
+    [GROUP_ID, ORGANIZATION_ID, PROPERTY_ID],
+  )
+})
+
+afterEach(async () => {
+  await held!.client.query('ROLLBACK TO SAVEPOINT scenario')
+})
+
+/** Every version of a Program as stored, including the ones a change replaced. */
+async function versionWindows(programId: string) {
+  const found = await held!.client.query<{
+    version: number
+    effectiveFrom: Date
+    effectiveTo: Date | null
+  }>(
+    `SELECT version, effective_from AS "effectiveFrom", effective_to AS "effectiveTo"
+       FROM goal_program_versions WHERE program_id = $1 ORDER BY version`,
+    [programId],
+  )
+  return found.rows.map((row) => [row.version, row.effectiveFrom, row.effectiveTo])
+}
 
 function setup(initialNow = new Date('2026-03-01T00:00:00.000Z')) {
   let id = 0
   let now = initialNow
-  let organizationHeld = false
-  let created: GoalProgramBundle | null = null
-  const results = new Map<string, GoalMonthlyResult>()
-  const resultRevisions = new Map<string, GoalResultRevision>()
-  const assignmentHistory = new Map<string, GoalProgramBundle['assignments'][number]>()
-  const versionHistory = new Map<string, GoalProgramBundle['version']>()
-  const repository: GoalProgramRepository = {
-    create: vi.fn(async ({ bundle }) => {
-      created = bundle
-      for (const result of bundle.results) results.set(result.id, result)
-      for (const assignment of bundle.assignments) {
-        assignmentHistory.set(assignment.id, assignment)
-      }
-      versionHistory.set(bundle.version.id, bundle.version)
-      return 'created' as const
+  let programId: string | null = null
+  const real = createGoalProgramRepository(db)
+  const repository = {
+    ...real,
+    create: vi.fn<typeof real.create>(async (input) => {
+      const outcome = await real.create(input)
+      if (outcome === 'created') programId = input.bundle.program.id
+      return outcome
     }),
-    get: vi.fn(async () => created),
-    list: vi.fn(async () => (created ? [created] : [])),
-    listOperational: vi.fn(async () =>
-      created && ['scheduled', 'active'].includes(created.program.status)
-        ? [created]
-        : [],
+    get: vi.fn(real.get),
+    list: vi.fn(real.list),
+    listOperational: vi.fn(real.listOperational),
+    isOrganizationHeld: vi.fn(real.isOrganizationHeld),
+    changeStatus: vi.fn(real.changeStatus),
+    revise: vi.fn(real.revise),
+    rename: vi.fn(real.rename),
+    answerCheckIn: vi.fn(real.answerCheckIn),
+    findAssignmentConflicts: vi.fn(real.findAssignmentConflicts),
+    changeMonthTarget: vi.fn(real.changeMonthTarget),
+    activate: vi.fn(real.activate),
+    appendResults: vi.fn(real.appendResults),
+    listDueResults: vi.fn(real.listDueResults),
+    getDueResult: vi.fn(real.getDueResult),
+    getAssignment: vi.fn(real.getAssignment),
+    getVersion: vi.fn(real.getVersion),
+    updateResult: vi.fn<typeof real.updateResult>(async (input) =>
+      real.updateResult({
+        ...input,
+        // The metric stand-in reads no source head; closure needs the stored one.
+        sourceHead:
+          input.sourceHead ??
+          (await readGoalMetricSourceHead(
+            db,
+            {
+              ...input.result,
+              definitionVersionId: (await real.getVersion(
+                input.result.organizationId,
+                input.result.propertyId,
+                input.result.programVersionId,
+              ))!.metricDefinitionVersionId,
+            },
+            ['guest.rating.submitted', 'guest.rating.retracted'],
+          )),
+      }),
     ),
-    isOrganizationHeld: vi.fn(async () => organizationHeld),
-    changeStatus: vi.fn(async (input) => {
-      if (!created || created.program.status !== input.expectedStatus) return null
-      const program = {
-        ...created.program,
-        status: input.status,
-        statusReason: input.reason,
-        updatedAt: input.at,
-      }
-      created = { ...created, program }
-      return program
-    }),
-    revise: vi.fn(
-      async ({
-        expectedVersion,
-        version,
-        assignments,
-        supersedeRowlessHead,
-        scheduledStatusReason,
-        at,
-      }) => {
-        if (!created) return false
-        const previous = created
-        const headHasMonths = previous.results.some(
-          (result) => result.programVersionId === expectedVersion.id,
-        )
-        if (supersedeRowlessHead && headHasMonths) return false
-        // The port's contract: a replaced head keeps the empty window
-        // [from, from); a head in force closes where the new version starts.
-        const closedAt = (window: Readonly<{ effectiveFrom: Date }>) =>
-          supersedeRowlessHead ? window.effectiveFrom : version.effectiveFrom
-        created = {
-          program: {
-            ...previous.program,
-            currentVersion: version.version,
-            // The port's contract: only a Program still scheduled takes it.
-            statusReason:
-              scheduledStatusReason !== undefined &&
-              previous.program.status === 'scheduled'
-                ? scheduledStatusReason
-                : previous.program.statusReason,
-            updatedAt: at,
-          },
-          version,
-          versions: [
-            ...previous.versions.map((known) =>
-              known.id === expectedVersion.id
-                ? { ...known, effectiveTo: closedAt(known) }
-                : known,
-            ),
-            version,
-          ],
-          assignments: [
-            ...previous.assignments.map((known) =>
-              known.programVersionId === expectedVersion.id
-                ? { ...known, effectiveTo: closedAt(known) }
-                : known,
-            ),
-            ...assignments,
-          ],
-          results: previous.results,
-        }
-        for (const assignment of created.assignments) {
-          assignmentHistory.set(assignment.id, assignment)
-        }
-        for (const known of created.versions) versionHistory.set(known.id, known)
-        return true
-      },
-    ),
-    rename: vi.fn(async (input) => {
-      if (!created || created.program.status === 'ended') return null
-      // The port's contract: only while the goal still says what was read.
-      if (
-        created.program.name !== input.previousName ||
-        created.program.description !== input.previousDescription
-      ) {
-        return null
-      }
-      const program = {
-        ...created.program,
-        name: input.name,
-        description: input.description,
-        updatedAt: input.at,
-      }
-      created = { ...created, program }
-      return program
-    }),
-    // The port's contract: the answered month alone, only while the goal runs.
-    answerCheckIn: vi.fn(async ({ month }) => {
-      if (!created || created.program.status !== 'active') return false
-      created = {
-        ...created,
-        program: { ...created.program, checkInAnsweredMonth: month },
-      }
-      return true
-    }),
-    findAssignmentConflicts: vi.fn(async () => []),
-    // Its cases have a suite and a stand-in of their own (goal-month-target.test.ts).
-    changeMonthTarget: vi.fn(async () => 'changed' as const),
-    activate: vi.fn(async ({ bundle, results: newResults, at }) => {
-      const program = {
-        ...bundle.program,
-        status: 'active' as const,
-        statusReason: null,
-        updatedAt: at,
-      }
-      created = {
-        ...bundle,
-        program,
-        results: [...bundle.results, ...newResults],
-      }
-      for (const result of newResults) results.set(result.id, result)
-      return program
-    }),
-    appendResults: vi.fn(async ({ results: newResults }) => {
-      for (const result of newResults) results.set(result.id, result)
-      if (created) created = { ...created, results: [...created.results, ...newResults] }
-      return newResults.length
-    }),
-    listDueResults: vi.fn(async (at) =>
-      [...results.values()].filter(
-        (result) =>
-          result.periodEnd <= at &&
-          (result.status === 'open' || result.status === 'reconciling'),
-      ),
-    ),
-    getDueResult: vi.fn(async (organizationId, propertyId, resultId, at) => {
-      const result = results.get(resultId)
-      if (
-        !result ||
-        result.organizationId !== organizationId ||
-        result.propertyId !== propertyId ||
-        result.periodEnd > at ||
-        (result.status !== 'open' && result.status !== 'reconciling')
-      ) {
-        return null
-      }
-      return result
-    }),
-    getAssignment: vi.fn(
-      async (_org, _property, assignmentId) =>
-        assignmentHistory.get(assignmentId) ?? null,
-    ),
-    getVersion: vi.fn(
-      async (_org, _property, versionId) => versionHistory.get(versionId) ?? null,
-    ),
-    updateResult: vi.fn(async ({ result, expectedStatus }) => {
-      const current = results.get(result.id)
-      if (!current || current.status !== expectedStatus) return null
-      results.set(result.id, result)
-      return result
-    }),
-    getClosedResult: vi.fn(async (organizationId, propertyId, resultId) => {
-      const result = results.get(resultId)
-      if (
-        !result ||
-        result.status !== 'closed' ||
-        result.organizationId !== organizationId ||
-        result.propertyId !== propertyId
-      ) {
-        return null
-      }
-      const revision = resultRevisions.get(resultId) ?? null
-      return {
-        result: revision
-          ? {
-              ...result,
-              evaluation: revision.evaluation,
-              sourceCompleteThrough: revision.sourceCompleteThrough,
-              evaluationWatermark: revision.evaluationWatermark,
-              updatedAt: revision.createdAt,
-            }
-          : result,
-        revision,
-      }
-    }),
-    appendResultRevision: vi.fn(async (input) => {
-      const current = resultRevisions.get(input.head.result.id) ?? null
-      if ((current?.id ?? null) !== (input.head.revision?.id ?? null)) {
-        return { status: 'conflict' as const }
-      }
-      const same =
-        JSON.stringify(input.head.result.evaluation) ===
-          JSON.stringify(input.evaluation) &&
-        input.head.result.sourceCompleteThrough?.getTime() ===
-          input.sourceCompleteThrough?.getTime()
-      if (same) return { status: 'unchanged' as const, result: input.head.result }
-      const revision: GoalResultRevision = {
-        id: input.revisionId,
-        monthlyResultId: input.head.result.id,
-        organizationId: input.head.result.organizationId,
-        propertyId: input.head.result.propertyId,
-        revision: (current?.revision ?? 0) + 1,
-        supersedesRevisionId: current?.id ?? null,
-        evaluation: input.evaluation,
-        sourceCompleteThrough: input.sourceCompleteThrough,
-        evaluationWatermark: input.evaluationWatermark,
-        changeReason: input.changeReason,
-        createdBy: input.createdBy,
-        createdAt: input.at,
-      }
-      resultRevisions.set(input.head.result.id, revision)
-      return {
-        status: 'revised' as const,
-        result: {
-          ...input.head.result,
-          evaluation: revision.evaluation,
-          sourceCompleteThrough: revision.sourceCompleteThrough,
-          evaluationWatermark: revision.evaluationWatermark,
-          updatedAt: revision.createdAt,
-        },
-        revision,
-        outcomeChanged:
-          input.head.result.evaluation.achieved !== input.evaluation.achieved,
-        availabilityChanged:
-          input.head.result.evaluation.state !== input.evaluation.state,
-      }
-    }),
-    findClosedResultIdsForMetricImpact: vi.fn(async () => []),
-  }
+    getClosedResult: vi.fn(real.getClosedResult),
+    appendResultRevision: vi.fn(real.appendResultRevision),
+    findClosedResultIdsForMetricImpact: vi.fn(real.findClosedResultIdsForMetricImpact),
+  } satisfies Record<keyof typeof real, unknown>
   const metrics: GoalMetricReadPort = {
     queryGoalMetric: vi.fn<GoalMetricReadPort['queryGoalMetric']>(async (query) => ({
       definitionVersionId: query.definitionVersionId,
@@ -313,12 +173,7 @@ function setup(initialNow = new Date('2026-03-01T00:00:00.000Z')) {
       sourceCompleteThrough: null,
       reason: 'source_reconciling',
     })),
-    getApprovedGoalVersion: vi.fn(async (versionId) =>
-      governedVersion(
-        versionId,
-        versionId === METRIC_VERSION_IDS.portalRatingAverageGoal ? 10 : 0,
-      ),
-    ),
+    getApprovedGoalVersion: vi.fn(async (versionId) => findMetricVersionById(versionId)),
   }
   const policy: GoalExecutionPolicy = { authorize: vi.fn(async () => undefined) }
   const subjects: GoalProgramSubjectReader = {
@@ -342,14 +197,15 @@ function setup(initialNow = new Date('2026-03-01T00:00:00.000Z')) {
     repository,
     metrics,
     subjects,
-    results,
-    getCreated: () => created,
+    /** The Program the service created last, as stored. */
+    getCreated: async (): Promise<GoalProgramBundle | null> =>
+      programId ? real.get(ORGANIZATION_ID, PROPERTY_ID, programId) : null,
     setNow: (next: Date) => {
       now = next
     },
     /** The Organization's lifecycle holds it (a closure requested or in progress). */
     holdOrganization: () => {
-      organizationHeld = true
+      repository.isOrganizationHeld.mockResolvedValue(true)
     },
   }
 }
@@ -361,14 +217,14 @@ describe('canonical Goal Program service', () => {
     const { service, repository } = setup()
     const bundle = await service.create(
       {
-        propertyId: 'property-1',
+        propertyId: PROPERTY_ID,
         name: '  March ratings  ',
         metric: 'portal_rating_count',
         targetValue: 25,
         subjects: [
-          { kind: 'property', propertyId: 'property-1' },
-          { kind: 'portal_group', portalGroupId: 'group-1' },
-          { kind: 'portal', portalId: 'portal-1' },
+          { kind: 'property', propertyId: PROPERTY_ID },
+          { kind: 'portal_group', portalGroupId: GROUP_ID },
+          { kind: 'portal', portalId: portalUuid(1) },
         ],
       },
       actor,
@@ -406,11 +262,11 @@ describe('canonical Goal Program service', () => {
     })
     const bundle = await service.create(
       {
-        propertyId: 'property-1',
+        propertyId: PROPERTY_ID,
         name: 'Qualified scans',
         metric: 'qualified_scans',
         targetValue: 100,
-        subjects: [{ kind: 'portal', portalId: 'portal-1' }],
+        subjects: [{ kind: 'portal', portalId: portalUuid(1) }],
       },
       actor,
     )
@@ -430,11 +286,11 @@ describe('canonical Goal Program service', () => {
     const MID_MARCH = new Date('2026-03-15T12:00:00.000Z')
     const portalGoal = (startMonth?: string) =>
       ({
-        propertyId: 'property-1',
+        propertyId: PROPERTY_ID,
         name: 'Ratings',
         metric: 'portal_rating_count',
         targetValue: 25,
-        subjects: [{ kind: 'portal', portalId: 'portal-1' }],
+        subjects: [{ kind: 'portal', portalId: portalUuid(1) }],
         ...(startMonth === undefined ? {} : { startMonth }),
       }) as const
     const readinessOf = (
@@ -557,14 +413,14 @@ describe('canonical Goal Program service', () => {
           ],
         }),
       )
-      expect(getCreated()?.program.status).toBe('active')
+      expect((await getCreated())?.program.status).toBe('active')
     })
 
     it('create refuses a subject that already has a live goal for the metric', async () => {
       const { service, repository } = setup(MID_MARCH)
       vi.mocked(repository.findAssignmentConflicts).mockResolvedValueOnce([
         {
-          subject: { kind: 'portal', portalId: 'portal-1' },
+          subject: { kind: 'portal', portalId: portalUuid(1) },
           programId: 'program-live',
           effectiveTo: null,
         },
@@ -577,10 +433,10 @@ describe('canonical Goal Program service', () => {
       // Asked from the month the new goal would start, about every Program.
       expect(repository.findAssignmentConflicts).toHaveBeenCalledWith({
         organizationId: actor.organizationId,
-        propertyId: 'property-1',
+        propertyId: PROPERTY_ID,
         metric: 'portal_rating_count',
         effectiveFrom: MARCH.start,
-        subjects: [{ kind: 'portal', portalId: 'portal-1' }],
+        subjects: [{ kind: 'portal', portalId: portalUuid(1) }],
       })
       expect(repository.create).not.toHaveBeenCalled()
     })
@@ -698,13 +554,13 @@ describe('canonical Goal Program service', () => {
     await expect(
       service.create(
         {
-          propertyId: 'property-1',
+          propertyId: PROPERTY_ID,
           name: 'Duplicates',
           metric: 'portal_rating_count',
           targetValue: 10,
           subjects: [
-            { kind: 'portal', portalId: 'portal-1' },
-            { kind: 'portal', portalId: 'portal-1' },
+            { kind: 'portal', portalId: portalUuid(1) },
+            { kind: 'portal', portalId: portalUuid(1) },
           ],
         },
         actor,
@@ -717,11 +573,11 @@ describe('canonical Goal Program service', () => {
     await expect(
       service.create(
         {
-          propertyId: 'property-1',
+          propertyId: PROPERTY_ID,
           name: 'Member cannot create',
           metric: 'portal_rating_count',
           targetValue: 10,
-          subjects: [{ kind: 'property', propertyId: 'property-1' }],
+          subjects: [{ kind: 'property', propertyId: PROPERTY_ID }],
         },
         { ...actor, role: 'Member' },
       ),
@@ -729,7 +585,7 @@ describe('canonical Goal Program service', () => {
     expect(policy.authorize).toHaveBeenLastCalledWith({
       actor: { ...actor, role: 'Member' },
       organizationId: actor.organizationId,
-      propertyId: 'property-1',
+      propertyId: PROPERTY_ID,
       action: 'goal.create',
     })
   })
@@ -740,11 +596,11 @@ describe('canonical Goal Program service', () => {
     await expect(
       service.create(
         {
-          propertyId: 'property-1',
+          propertyId: PROPERTY_ID,
           name: 'Policy-authorized program',
           metric: 'portal_rating_count',
           targetValue: 10,
-          subjects: [{ kind: 'property', propertyId: 'property-1' }],
+          subjects: [{ kind: 'property', propertyId: PROPERTY_ID }],
         },
         { ...actor, role: 'Member' },
       ),
@@ -755,23 +611,23 @@ describe('canonical Goal Program service', () => {
     const { service, repository } = setup()
     const created = await service.create(
       {
-        propertyId: 'property-1',
+        propertyId: PROPERTY_ID,
         name: 'Monthly ratings',
         metric: 'portal_rating_count',
         targetValue: 25,
-        subjects: [{ kind: 'portal', portalId: 'portal-1' }],
+        subjects: [{ kind: 'portal', portalId: portalUuid(1) }],
       },
       actor,
     )
     const revised = await service.revise(
       {
-        propertyId: 'property-1',
+        propertyId: PROPERTY_ID,
         programId: created.program.id,
         metric: 'portal_rating_average',
         targetValue: 4.5,
         subjects: [
-          { kind: 'portal', portalId: 'portal-1' },
-          { kind: 'portal', portalId: 'portal-2' },
+          { kind: 'portal', portalId: portalUuid(1) },
+          { kind: 'portal', portalId: portalUuid(2) },
         ],
         reason: 'Use the agreed average target',
       },
@@ -801,11 +657,11 @@ describe('canonical Goal Program service', () => {
     const { service, repository, subjects, setNow } = setup()
     const created = await service.create(
       {
-        propertyId: 'property-1',
+        propertyId: PROPERTY_ID,
         name: 'Monthly ratings',
         metric: 'portal_rating_count',
         targetValue: 25,
-        subjects: [{ kind: 'portal', portalId: 'portal-1' }],
+        subjects: [{ kind: 'portal', portalId: portalUuid(1) }],
       },
       actor,
     )
@@ -814,11 +670,11 @@ describe('canonical Goal Program service', () => {
 
     const revised = await service.revise(
       {
-        propertyId: 'property-1',
+        propertyId: PROPERTY_ID,
         programId: created.program.id,
         metric: 'portal_rating_count',
         targetValue: 40,
-        subjects: [{ kind: 'portal', portalId: 'portal-1' }],
+        subjects: [{ kind: 'portal', portalId: portalUuid(1) }],
         reason: 'The property moved to Sofia time',
       },
       actor,
@@ -844,11 +700,11 @@ describe('canonical Goal Program service', () => {
     vi.mocked(subjects.getTimezone).mockResolvedValue('Europe/Sofia')
     const created = await service.create(
       {
-        propertyId: 'property-1',
+        propertyId: PROPERTY_ID,
         name: 'Monthly ratings',
         metric: 'portal_rating_count',
         targetValue: 25,
-        subjects: [{ kind: 'portal', portalId: 'portal-1' }],
+        subjects: [{ kind: 'portal', portalId: portalUuid(1) }],
       },
       actor,
     )
@@ -858,11 +714,11 @@ describe('canonical Goal Program service', () => {
 
     const revised = await service.revise(
       {
-        propertyId: 'property-1',
+        propertyId: PROPERTY_ID,
         programId: created.program.id,
         metric: 'portal_rating_count',
         targetValue: 40,
-        subjects: [{ kind: 'portal', portalId: 'portal-1' }],
+        subjects: [{ kind: 'portal', portalId: portalUuid(1) }],
         reason: 'The property moved to UTC',
       },
       actor,
@@ -879,7 +735,7 @@ describe('canonical Goal Program service', () => {
     const APRIL = new Date('2026-04-01T00:00:00.000Z')
     const MAY = new Date('2026-05-01T00:00:00.000Z')
     const MID_MARCH = new Date('2026-03-15T12:00:00.000Z')
-    const portal = (id: number) => ({ kind: 'portal' as const, portalId: `portal-${id}` })
+    const portal = (id: number) => ({ kind: 'portal' as const, portalId: portalUuid(id) })
 
     /** The next read of a measure finds its source not active yet. */
     const sourceNotActiveOnce = (metrics: GoalMetricReadPort) =>
@@ -904,7 +760,7 @@ describe('canonical Goal Program service', () => {
       if (source === 'not_active') sourceNotActiveOnce(context.metrics)
       const created = await context.service.create(
         {
-          propertyId: 'property-1',
+          propertyId: PROPERTY_ID,
           name: 'Portal scans',
           metric: 'qualified_scans',
           targetValue: 100,
@@ -917,7 +773,7 @@ describe('canonical Goal Program service', () => {
       ) =>
         context.service.revise(
           {
-            propertyId: 'property-1',
+            propertyId: PROPERTY_ID,
             programId: created.program.id,
             metric: 'qualified_scans',
             targetValue: 120,
@@ -992,13 +848,7 @@ describe('canonical Goal Program service', () => {
       expect(revisions().map(([input]) => input.version.targetValue)).toEqual([
         130, 140, 150,
       ])
-      expect(
-        revised.versions.map((known) => [
-          known.version,
-          known.effectiveFrom,
-          known.effectiveTo,
-        ]),
-      ).toEqual([
+      expect(await versionWindows(created.program.id)).toEqual([
         [1, MARCH, APRIL],
         [2, APRIL, APRIL],
         [3, APRIL, APRIL],
@@ -1062,7 +912,7 @@ describe('canonical Goal Program service', () => {
         statusReason: 'awaiting_first_full_month',
       })
       expect(revisions()[0]?.[0].scheduledStatusReason).toBe('awaiting_first_full_month')
-      expect(getCreated()?.program.statusReason).toBe('awaiting_first_full_month')
+      expect((await getCreated())?.program.statusReason).toBe('awaiting_first_full_month')
     })
 
     it('an edit before the start onto a measure that is not ready says the goal waits for its source', async () => {
@@ -1078,7 +928,7 @@ describe('canonical Goal Program service', () => {
         statusReason: 'metric_source_not_active',
       })
       expect(revisions()[0]?.[0].scheduledStatusReason).toBe('metric_source_not_active')
-      expect(getCreated()?.program.statusReason).toBe('metric_source_not_active')
+      expect((await getCreated())?.program.statusReason).toBe('metric_source_not_active')
     })
 
     it('revising a goal that has started leaves its status reason alone', async () => {
@@ -1086,7 +936,7 @@ describe('canonical Goal Program service', () => {
       setNow(MID_MARCH)
       await service.changeStatus(
         {
-          propertyId: 'property-1',
+          propertyId: PROPERTY_ID,
           programId: created.program.id,
           status: 'paused',
           reason: 'Closed for works',
@@ -1140,17 +990,17 @@ describe('canonical Goal Program service', () => {
       // nothing is left to insert, and the bundle in hand is a month behind.
       const aprilByTheJob = {
         ...created.results[0]!,
-        id: 'april-by-the-job',
+        id: '00000000-0000-4000-8000-00000000c0de',
         periodStart: APRIL,
         periodEnd: MAY,
       }
-      vi.mocked(repository.appendResults).mockResolvedValueOnce(0)
-      vi.mocked(repository.get)
-        .mockResolvedValueOnce(created)
-        .mockResolvedValueOnce({
-          ...created,
-          results: [...created.results, aprilByTheJob],
+      vi.mocked(repository.appendResults).mockImplementationOnce(async (input) => {
+        await createGoalProgramRepository(db).appendResults({
+          ...input,
+          results: [aprilByTheJob],
         })
+        return 0
+      })
 
       const revised = await revise()
 
@@ -1259,7 +1109,7 @@ describe('canonical Goal Program service', () => {
       const { service, repository, created } = await scansGoal()
       const changeStatus = (status: 'paused' | 'active', reason?: string) =>
         service.changeStatus(
-          { propertyId: 'property-1', programId: created.program.id, status, reason },
+          { propertyId: PROPERTY_ID, programId: created.program.id, status, reason },
           actor,
         )
 
@@ -1285,7 +1135,7 @@ describe('canonical Goal Program service', () => {
 
       await expect(
         service.changeStatus(
-          { propertyId: 'property-1', programId: created.program.id, status: 'ended' },
+          { propertyId: PROPERTY_ID, programId: created.program.id, status: 'ended' },
           actor,
         ),
       ).rejects.toMatchObject({ code: 'revision_conflict' })
@@ -1306,7 +1156,7 @@ describe('canonical Goal Program service', () => {
       // goal's own assignments.
       expect(repository.findAssignmentConflicts).toHaveBeenLastCalledWith({
         organizationId: 'org-1',
-        propertyId: 'property-1',
+        propertyId: PROPERTY_ID,
         excludeProgramId: created.program.id,
         metric: 'portal_rating_count',
         effectiveFrom: APRIL,
@@ -1352,7 +1202,7 @@ describe('canonical Goal Program service', () => {
       await expect(
         service.rename(
           {
-            propertyId: 'property-1',
+            propertyId: PROPERTY_ID,
             programId: created.program.id,
             name: '  Lobby scans  ',
           },
@@ -1361,11 +1211,11 @@ describe('canonical Goal Program service', () => {
       ).resolves.toMatchObject({ name: 'Lobby scans', description: null })
 
       expect(policy.authorize).toHaveBeenLastCalledWith(
-        expect.objectContaining({ action: 'goal.update', propertyId: 'property-1' }),
+        expect.objectContaining({ action: 'goal.update', propertyId: PROPERTY_ID }),
       )
       expect(repository.rename).toHaveBeenCalledWith({
         organizationId: 'org-1',
-        propertyId: 'property-1',
+        propertyId: PROPERTY_ID,
         programId: created.program.id,
         name: 'Lobby scans',
         description: null,
@@ -1376,7 +1226,7 @@ describe('canonical Goal Program service', () => {
       })
       expect(repository.revise).not.toHaveBeenCalled()
       await expect(
-        service.get({ propertyId: 'property-1', programId: created.program.id }, actor),
+        service.get({ propertyId: PROPERTY_ID, programId: created.program.id }, actor),
       ).resolves.toMatchObject({
         program: { name: 'Lobby scans', currentVersion: 1 },
         version: { id: created.version.id, version: 1, changeReason: 'created' },
@@ -1388,7 +1238,7 @@ describe('canonical Goal Program service', () => {
       const { service, created } = await scansGoal()
       const rename = (name: string, description?: string | null) =>
         service.rename(
-          { propertyId: 'property-1', programId: created.program.id, name, description },
+          { propertyId: PROPERTY_ID, programId: created.program.id, name, description },
           actor,
         )
 
@@ -1408,7 +1258,7 @@ describe('canonical Goal Program service', () => {
       const { service, repository, created } = await scansGoal()
       const rename = (name: string, description?: string | null) =>
         service.rename(
-          { propertyId: 'property-1', programId: created.program.id, name, description },
+          { propertyId: PROPERTY_ID, programId: created.program.id, name, description },
           actor,
         )
       await rename('Lobby scans', 'Counted at the desk')
@@ -1429,7 +1279,7 @@ describe('canonical Goal Program service', () => {
       const { service, repository, created } = await scansGoal()
       const rename = (name: string) =>
         service.rename(
-          { propertyId: 'property-1', programId: created.program.id, name },
+          { propertyId: PROPERTY_ID, programId: created.program.id, name },
           actor,
         )
 
@@ -1454,21 +1304,21 @@ describe('canonical Goal Program service', () => {
     const { service, repository, setNow } = setup()
     const created = await service.create(
       {
-        propertyId: 'property-1',
+        propertyId: PROPERTY_ID,
         name: 'Monthly ratings',
         metric: 'portal_rating_count',
         targetValue: 25,
-        subjects: [{ kind: 'portal', portalId: 'portal-1' }],
+        subjects: [{ kind: 'portal', portalId: portalUuid(1) }],
       },
       actor,
     )
     await service.revise(
       {
-        propertyId: 'property-1',
+        propertyId: PROPERTY_ID,
         programId: created.program.id,
         metric: 'portal_rating_average',
         targetValue: 4.5,
-        subjects: [{ kind: 'portal', portalId: 'portal-1' }],
+        subjects: [{ kind: 'portal', portalId: portalUuid(1) }],
         reason: 'Use the average next month',
       },
       actor,
@@ -1500,11 +1350,11 @@ describe('canonical Goal Program service', () => {
     const { service } = setup(new Date('2026-03-15T12:00:00.000Z'))
     const created = await service.create(
       {
-        propertyId: 'property-1',
+        propertyId: PROPERTY_ID,
         name: 'April ratings',
         metric: 'portal_rating_count',
         targetValue: 25,
-        subjects: [{ kind: 'portal', portalId: 'portal-1' }],
+        subjects: [{ kind: 'portal', portalId: portalUuid(1) }],
       },
       actor,
     )
@@ -1512,7 +1362,7 @@ describe('canonical Goal Program service', () => {
     await expect(
       service.changeStatus(
         {
-          propertyId: 'property-1',
+          propertyId: PROPERTY_ID,
           programId: created.program.id,
           status: 'active',
           reason: 'too early',
@@ -1526,17 +1376,17 @@ describe('canonical Goal Program service', () => {
     const { service, metrics, repository, setNow } = setup()
     const created = await service.create(
       {
-        propertyId: 'property-1',
+        propertyId: PROPERTY_ID,
         name: 'March ratings',
         metric: 'portal_rating_count',
         targetValue: 20,
-        subjects: [{ kind: 'portal', portalId: 'portal-1' }],
+        subjects: [{ kind: 'portal', portalId: portalUuid(1) }],
       },
       actor,
     )
     await service.changeStatus(
       {
-        propertyId: 'property-1',
+        propertyId: PROPERTY_ID,
         programId: created.program.id,
         status: 'paused',
         reason: 'Pause after the March period',
@@ -1577,14 +1427,14 @@ describe('canonical Goal Program service', () => {
   // there on every pass and the Organization would stay in `closing` for good.
   describe('an Organization whose closure the lifecycle holds', () => {
     const definition = {
-      propertyId: 'property-1',
+      propertyId: PROPERTY_ID,
       name: 'March ratings',
       metric: 'portal_rating_count' as const,
       targetValue: 20,
-      subjects: [{ kind: 'portal' as const, portalId: 'portal-1' }],
+      subjects: [{ kind: 'portal' as const, portalId: portalUuid(1) }],
     }
     const change = (programId: string, status: 'paused' | 'active' | 'ended') => ({
-      propertyId: 'property-1',
+      propertyId: PROPERTY_ID,
       programId,
       status,
     })
@@ -1660,13 +1510,13 @@ describe('canonical Goal Program service', () => {
     const { service } = setup()
     const created = await service.create(
       {
-        propertyId: 'property-1',
+        propertyId: PROPERTY_ID,
         name: 'March ratings',
         metric: 'portal_rating_count',
         targetValue: 20,
         subjects: [
-          { kind: 'portal', portalId: 'portal-1' },
-          { kind: 'portal', portalId: 'portal-2' },
+          { kind: 'portal', portalId: portalUuid(1) },
+          { kind: 'portal', portalId: portalUuid(2) },
         ],
       },
       actor,
@@ -1674,7 +1524,7 @@ describe('canonical Goal Program service', () => {
     await expect(
       service.changeStatus(
         {
-          propertyId: 'property-1',
+          propertyId: PROPERTY_ID,
           programId: created.program.id,
           status: 'ended',
           reason: 'Program archived by manager',
@@ -1683,25 +1533,59 @@ describe('canonical Goal Program service', () => {
       ),
     ).resolves.toMatchObject({ status: 'ended' })
     await expect(
-      service.get({ propertyId: 'property-1', programId: created.program.id }, actor),
+      service.get({ propertyId: PROPERTY_ID, programId: created.program.id }, actor),
     ).resolves.toMatchObject({
       program: { status: 'ended' },
-      assignments: created.assignments,
+      // Stopping closes the windows where the open month ends.
+      assignments: created.assignments.map((assignment) => ({
+        ...assignment,
+        effectiveTo: created.results[0]?.periodEnd,
+      })),
       results: created.results.map(({ id }) => ({ id })),
     })
+  })
+
+  it('stores an average goal over several subjects, one open month for each', async () => {
+    const { service, getCreated } = setup()
+
+    const created = await service.create(
+      {
+        propertyId: PROPERTY_ID,
+        name: 'March average',
+        metric: 'portal_rating_average',
+        targetValue: 4.5,
+        subjects: [
+          { kind: 'portal', portalId: portalUuid(1) },
+          { kind: 'portal', portalId: portalUuid(2) },
+          { kind: 'portal_group', portalGroupId: GROUP_ID },
+        ],
+      },
+      actor,
+    )
+
+    const stored = await getCreated()
+    expect(stored?.version).toMatchObject({
+      metric: 'portal_rating_average',
+      targetValue: 4.5,
+    })
+    expect(stored?.assignments.map(({ id }) => id).sort()).toEqual(
+      created.assignments.map(({ id }) => id).sort(),
+    )
+    expect(stored?.results).toHaveLength(3)
+    expect(stored?.results.every(({ status }) => status === 'open')).toBe(true)
   })
 
   it('activates due programs and materializes only the month that has started', async () => {
     const { service, repository, setNow } = setup(new Date('2026-03-15T12:00:00.000Z'))
     await service.create(
       {
-        propertyId: 'property-1',
+        propertyId: PROPERTY_ID,
         name: 'April ratings',
         metric: 'portal_rating_count',
         targetValue: 25,
         subjects: [
-          { kind: 'portal', portalId: 'portal-1' },
-          { kind: 'portal', portalId: 'portal-2' },
+          { kind: 'portal', portalId: portalUuid(1) },
+          { kind: 'portal', portalId: portalUuid(2) },
         ],
       },
       actor,
@@ -1723,11 +1607,11 @@ describe('canonical Goal Program service', () => {
     const { service, repository, setNow } = setup(new Date('2026-03-15T12:00:00.000Z'))
     await service.create(
       {
-        propertyId: 'property-1',
+        propertyId: PROPERTY_ID,
         name: 'April ratings',
         metric: 'portal_rating_count',
         targetValue: 25,
-        subjects: [{ kind: 'portal', portalId: 'portal-1' }],
+        subjects: [{ kind: 'portal', portalId: portalUuid(1) }],
       },
       actor,
     )
@@ -1745,11 +1629,11 @@ describe('canonical Goal Program service', () => {
       const { service, repository, setNow } = setup(new Date('2026-03-15T12:00:00.000Z'))
       await service.create(
         {
-          propertyId: 'property-1',
+          propertyId: PROPERTY_ID,
           name: 'April ratings',
           metric: 'portal_rating_count',
           targetValue: 25,
-          subjects: [{ kind: 'portal', portalId: 'portal-1' }],
+          subjects: [{ kind: 'portal', portalId: portalUuid(1) }],
         },
         actor,
       )
@@ -1783,11 +1667,11 @@ describe('canonical Goal Program service', () => {
       const { service, repository, setNow } = setup()
       await service.create(
         {
-          propertyId: 'property-1',
+          propertyId: PROPERTY_ID,
           name: 'March ratings',
           metric: 'portal_rating_count',
           targetValue: 25,
-          subjects: [{ kind: 'portal', portalId: 'portal-1' }],
+          subjects: [{ kind: 'portal', portalId: portalUuid(1) }],
         },
         actor,
       )
@@ -1831,18 +1715,19 @@ describe('canonical Goal Program service', () => {
         const { service, repository, setNow } = setup()
         await service.create(
           {
-            propertyId: 'property-1',
+            propertyId: PROPERTY_ID,
             name: 'March ratings',
             metric: 'portal_rating_count',
             targetValue: 25,
-            subjects: [{ kind: 'portal', portalId: 'portal-1' }],
+            subjects: [{ kind: 'portal', portalId: portalUuid(1) }],
           },
           actor,
         )
         setNow(new Date('2026-04-03T00:00:00.000Z'))
         // Only the due-result pass runs, and the row it reads is gone.
         vi.mocked(repository.listOperational).mockResolvedValue([])
-        vi.mocked(repository[read]).mockResolvedValue(null)
+        const missing = repository[read] as ReturnType<typeof vi.fn>
+        missing.mockResolvedValue(null)
 
         await expect(service.maintain()).rejects.toMatchObject({
           name: 'GoalProgramMaintenanceError',
@@ -1867,11 +1752,11 @@ describe('canonical Goal Program service', () => {
     const { service, repository, setNow } = setup()
     const created = await service.create(
       {
-        propertyId: 'property-1',
+        propertyId: PROPERTY_ID,
         name: 'Monthly ratings',
         metric: 'portal_rating_count',
         targetValue: 25,
-        subjects: [{ kind: 'portal', portalId: 'portal-1' }],
+        subjects: [{ kind: 'portal', portalId: portalUuid(1) }],
       },
       actor,
     )
@@ -1901,11 +1786,11 @@ describe('canonical Goal Program service', () => {
     const { service, metrics, repository, setNow } = setupResult
     const bundle = await service.create(
       {
-        propertyId: 'property-1',
+        propertyId: PROPERTY_ID,
         name: 'March ratings',
         metric: 'portal_rating_count',
         targetValue: 25,
-        subjects: [{ kind: 'portal', portalId: 'portal-1' }],
+        subjects: [{ kind: 'portal', portalId: portalUuid(1) }],
       },
       actor,
     )
@@ -1925,7 +1810,7 @@ describe('canonical Goal Program service', () => {
 
     const reconciling = await service.reconcileResult({
       organizationId: actor.organizationId,
-      propertyId: 'property-1',
+      propertyId: PROPERTY_ID,
       resultId: result.id,
     })
     expect(reconciling.status).toBe('reconciling')
@@ -1937,7 +1822,7 @@ describe('canonical Goal Program service', () => {
 
     const closed = await service.reconcileResult({
       organizationId: actor.organizationId,
-      propertyId: 'property-1',
+      propertyId: PROPERTY_ID,
       resultId: result.id,
     })
     expect(closed.status).toBe('closed')
@@ -1955,7 +1840,7 @@ describe('canonical Goal Program service', () => {
     })
     const corrected = await service.reconcileClosedResult({
       organizationId: actor.organizationId,
-      propertyId: 'property-1',
+      propertyId: PROPERTY_ID,
       resultId: result.id,
     })
     expect(corrected).toMatchObject({
@@ -1974,7 +1859,7 @@ describe('canonical Goal Program service', () => {
     await expect(
       service.reconcileClosedResult({
         organizationId: actor.organizationId,
-        propertyId: 'property-1',
+        propertyId: PROPERTY_ID,
         resultId: result.id,
       }),
     ).resolves.toMatchObject({ status: 'unchanged' })
@@ -1984,11 +1869,11 @@ describe('canonical Goal Program service', () => {
     const { service, metrics, setNow } = setup()
     const bundle = await service.create(
       {
-        propertyId: 'property-1',
+        propertyId: PROPERTY_ID,
         name: 'March ratings',
         metric: 'portal_rating_count',
         targetValue: 25,
-        subjects: [{ kind: 'portal', portalId: 'portal-1' }],
+        subjects: [{ kind: 'portal', portalId: portalUuid(1) }],
       },
       actor,
     )
@@ -2008,14 +1893,14 @@ describe('canonical Goal Program service', () => {
     await expect(
       service.reconcileResult({
         organizationId: actor.organizationId,
-        propertyId: 'property-1',
+        propertyId: PROPERTY_ID,
         resultId: result.id,
       }),
     ).resolves.toMatchObject({ status: 'reconciling', closedAt: null })
     await expect(
       service.reconcileResult({
         organizationId: actor.organizationId,
-        propertyId: 'property-1',
+        propertyId: PROPERTY_ID,
         resultId: result.id,
       }),
     ).resolves.toMatchObject({ status: 'reconciling', closedAt: null })
@@ -2033,7 +1918,7 @@ describe('canonical Goal Program service', () => {
     await expect(
       service.reconcileResult({
         organizationId: actor.organizationId,
-        propertyId: 'property-1',
+        propertyId: PROPERTY_ID,
         resultId: result.id,
       }),
     ).resolves.toMatchObject({
@@ -2047,11 +1932,11 @@ describe('canonical Goal Program service', () => {
     const { service, metrics, setNow } = setup()
     const bundle = await service.create(
       {
-        propertyId: 'property-1',
+        propertyId: PROPERTY_ID,
         name: 'March ratings',
         metric: 'portal_rating_count',
         targetValue: 25,
-        subjects: [{ kind: 'portal', portalId: 'portal-1' }],
+        subjects: [{ kind: 'portal', portalId: portalUuid(1) }],
       },
       actor,
     )
@@ -2070,13 +1955,13 @@ describe('canonical Goal Program service', () => {
 
     await service.reconcileResult({
       organizationId: actor.organizationId,
-      propertyId: 'property-1',
+      propertyId: PROPERTY_ID,
       resultId: result.id,
     })
     await expect(
       service.reconcileResult({
         organizationId: actor.organizationId,
-        propertyId: 'property-1',
+        propertyId: PROPERTY_ID,
         resultId: result.id,
       }),
     ).resolves.toMatchObject({
@@ -2091,11 +1976,11 @@ describe('canonical Goal Program service', () => {
     const { service, metrics, repository, setNow } = setup()
     const bundle = await service.create(
       {
-        propertyId: 'property-1',
+        propertyId: PROPERTY_ID,
         name: 'March ratings',
         metric: 'portal_rating_count',
         targetValue: 25,
-        subjects: [{ kind: 'portal', portalId: 'portal-1' }],
+        subjects: [{ kind: 'portal', portalId: portalUuid(1) }],
       },
       actor,
     )
@@ -2115,14 +2000,14 @@ describe('canonical Goal Program service', () => {
     await expect(
       service.reconcileResult({
         organizationId: actor.organizationId,
-        propertyId: 'property-1',
+        propertyId: PROPERTY_ID,
         resultId: result.id,
       }),
     ).resolves.toMatchObject({ status: 'reconciling' })
     await expect(
       service.reconcileResult({
         organizationId: actor.organizationId,
-        propertyId: 'property-1',
+        propertyId: PROPERTY_ID,
         resultId: result.id,
       }),
     ).resolves.toMatchObject({
@@ -2135,7 +2020,7 @@ describe('canonical Goal Program service', () => {
   })
 
   describe('which target a month is judged against', () => {
-    const PROPERTY = 'property-1'
+    const PROPERTY = PROPERTY_ID
     const DUE = new Date('2026-04-02T01:00:00.000Z')
 
     /** A March ratings goal with a version target of 25, read after March ends. */
@@ -2147,15 +2032,18 @@ describe('canonical Goal Program service', () => {
           name: 'March ratings',
           metric: 'portal_rating_count',
           targetValue: 25,
-          subjects: [{ kind: 'portal', portalId: 'portal-1' }],
+          subjects: [{ kind: 'portal', portalId: portalUuid(1) }],
         },
         actor,
       )
       const opened = bundle.results[0]
       if (!opened) throw new Error('expected monthly result')
       // Nothing in the service sets a month's own target yet, so the stored row
-      // is given one directly, as the database row would carry it.
-      context.results.set(opened.id, { ...opened, targetValue: monthTarget })
+      // is given one directly, as the database row would carry it. This March
+      // is long over on the database clock, so the target lock is stepped around.
+      if (monthTarget !== null) {
+        await seedLockedMonthTarget(held!.client, opened.id, monthTarget)
+      }
       context.setNow(DUE)
       const reference = {
         organizationId: actor.organizationId,
@@ -2253,11 +2141,11 @@ describe('canonical Goal Program service', () => {
     const { service, metrics, repository, setNow } = setupResult
     const bundle = await service.create(
       {
-        propertyId: 'property-1',
+        propertyId: PROPERTY_ID,
         name: 'March scans',
         metric: 'qualified_scans',
         targetValue: 25,
-        subjects: [{ kind: 'portal', portalId: 'portal-1' }],
+        subjects: [{ kind: 'portal', portalId: portalUuid(1) }],
       },
       actor,
     )
@@ -2275,12 +2163,12 @@ describe('canonical Goal Program service', () => {
     })
     await service.reconcileResult({
       organizationId: actor.organizationId,
-      propertyId: 'property-1',
+      propertyId: PROPERTY_ID,
       resultId: result.id,
     })
     await service.reconcileResult({
       organizationId: actor.organizationId,
-      propertyId: 'property-1',
+      propertyId: PROPERTY_ID,
       resultId: result.id,
     })
     vi.mocked(metrics.queryGoalMetric).mockResolvedValue({
@@ -2297,7 +2185,7 @@ describe('canonical Goal Program service', () => {
     await expect(
       service.reconcileClosedResult({
         organizationId: actor.organizationId,
-        propertyId: 'property-1',
+        propertyId: PROPERTY_ID,
         resultId: result.id,
       }),
     ).resolves.toMatchObject({ status: 'pending' })
@@ -2307,12 +2195,12 @@ describe('canonical Goal Program service', () => {
 
 describe('rating goals on switched Portals', () => {
   const request = {
-    propertyId: 'property-1',
+    propertyId: PROPERTY_ID,
     name: 'A goal',
     description: null,
     metric: 'portal_rating_count' as const,
     targetValue: 10,
-    subjects: [{ kind: 'portal' as const, portalId: 'portal-1' }],
+    subjects: [{ kind: 'portal' as const, portalId: portalUuid(1) }],
   }
   it.each(['portal_rating_count', 'portal_rating_average'] as const)(
     'refuses %s for a switched subject',
@@ -2338,13 +2226,13 @@ describe('rating goals on switched Portals', () => {
   )
   it('refuses a change to ratings but keeps scans available', async () => {
     const { service, subjects } = setup()
-    await service.create({ ...request, metric: 'qualified_scans' }, actor)
+    const scans = await service.create({ ...request, metric: 'qualified_scans' }, actor)
     vi.mocked(subjects.ratingSubjectsSkipPrivateRating!).mockResolvedValue(true)
     await expect(
       service.revise(
         {
-          propertyId: 'property-1',
-          programId: 'ignored',
+          propertyId: PROPERTY_ID,
+          programId: scans.program.id,
           metric: 'portal_rating_count',
           targetValue: 10,
           subjects: request.subjects,
@@ -2357,11 +2245,11 @@ describe('rating goals on switched Portals', () => {
 
 describe('rating-goal changes after its subjects skip ratings', () => {
   const input = {
-    propertyId: 'property-1',
+    propertyId: PROPERTY_ID,
     name: 'Ratings',
     metric: 'portal_rating_count' as const,
     targetValue: 10,
-    subjects: [{ kind: 'portal' as const, portalId: 'portal-1' }],
+    subjects: [{ kind: 'portal' as const, portalId: portalUuid(1) }],
   }
   it('refuses a running month target change', async () => {
     const { service, subjects } = setup()

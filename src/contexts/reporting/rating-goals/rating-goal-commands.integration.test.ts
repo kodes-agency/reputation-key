@@ -4,15 +4,19 @@ import {
   activeGoal,
   dependencies,
   exampleWorld,
+  holdOrganization,
   NOW,
   PROPERTY,
   type FakeWorld,
-} from './rating-goal.test-fixtures'
+  useRatingGoalDatabase,
+} from '../infrastructure/testing/rating-goal-fixtures'
 import {
   changeRatingGoal,
   endRatingGoal,
   setRatingGoal,
 } from './rating-goal-commands.server'
+
+useRatingGoalDatabase()
 
 let world: FakeWorld
 
@@ -225,7 +229,7 @@ describe('setting a rating goal', () => {
   })
 
   it('sets nothing while the Organization closure holds it', async () => {
-    world.held = true
+    await holdOrganization()
 
     await expect(setRatingGoal(dependencies(world), climb, actor)).rejects.toMatchObject({
       code: 'organization_closing',

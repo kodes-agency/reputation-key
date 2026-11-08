@@ -8,7 +8,8 @@ import {
   NOW,
   PROPERTY,
   type FakeWorld,
-} from './rating-goal.test-fixtures'
+  useRatingGoalDatabase,
+} from '../infrastructure/testing/rating-goal-fixtures'
 import {
   getRatingGoalCard,
   getRatingGoalDetail,
@@ -16,6 +17,11 @@ import {
   getRatingGoalSetup,
 } from './get-rating-goals.server'
 import { createRatingGoalEvaluator } from './rating-goals.server'
+
+useRatingGoalDatabase()
+
+const ACTIVE_GOAL_ID = '50000000-0000-4000-8000-0000000000a1'
+const REACHED_GOAL_ID = '50000000-0000-4000-8000-0000000000a2'
 
 let world: FakeWorld
 
@@ -321,7 +327,7 @@ describe('the detail read', () => {
     world.goals = [activeGoal({ createdAt: new Date('2026-10-05T09:00:00.000Z') })]
     world.changes = [
       {
-        id: 'change-1',
+        id: '60000000-0000-4000-8000-000000000001',
         goalId: activeGoal().id,
         organizationId: actor.organizationId,
         propertyId: PROPERTY,
@@ -656,15 +662,15 @@ describe('the detail read’s low reviews and this week’s stars', () => {
 describe('the history read', () => {
   it('lists reached and ended goals only', async () => {
     world.goals = [
-      activeGoal({ id: 'active' }),
-      activeGoal({ id: 'reached', state: 'reached', reachedAt: NOW }),
+      activeGoal({ id: ACTIVE_GOAL_ID }),
+      activeGoal({ id: REACHED_GOAL_ID, state: 'reached', reachedAt: NOW }),
     ]
 
     const history = await getRatingGoalHistory(dependencies(world), input, actor)
 
     expect(history).toEqual([
       expect.objectContaining({
-        goalId: 'reached',
+        goalId: REACHED_GOAL_ID,
         state: 'reached',
         target: 4.5,
         reachedAt: NOW.toISOString(),
