@@ -77,8 +77,6 @@ const PRESENCE_PROBE_TABLES = Object.freeze([
   'review_provider_history_cutoffs',
   'review_ai_analysis_heads',
   'review_google_reputation_snapshot_facts',
-  'property_reply_profiles',
-  'property_reply_templates',
   'organization_reply_voices',
   'property_reply_voices',
   'reply_templates',
@@ -509,15 +507,6 @@ async function purge(
     tx,
     sql`DELETE FROM organization_reply_voices WHERE organization_id = ${organizationId}`,
   )
-  // Legacy rows remain until the later cleanup migration.
-  const replyTemplates = await countAffected(
-    tx,
-    sql`DELETE FROM property_reply_templates WHERE organization_id = ${organizationId}`,
-  )
-  const replyProfiles = await countAffected(
-    tx,
-    sql`DELETE FROM property_reply_profiles WHERE organization_id = ${organizationId}`,
-  )
 
   return outcomeFor(hasData, 'purge', request, [
     { step: 'attempt_confirmations_released', rows: releasedConfirmations },
@@ -539,8 +528,6 @@ async function purge(
     { step: 'webhook_receipts_deleted', rows: webhookReceipts },
     { step: 'sync_runs_deleted', rows: syncRuns },
     { step: 'sync_state_deleted', rows: syncState },
-    { step: 'reply_templates_deleted', rows: replyTemplates },
-    { step: 'reply_profiles_deleted', rows: replyProfiles },
     { step: 'reply_template_visibility_deleted', rows: replyTemplateVisibility },
     { step: 'reply_template_wordings_deleted', rows: replyTemplateWordings },
     { step: 'reply_template_revisions_deleted', rows: replyTemplateRevisions },

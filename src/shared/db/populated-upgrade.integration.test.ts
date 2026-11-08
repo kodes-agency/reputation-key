@@ -110,6 +110,11 @@ it('upgrades the captured tenants through pending deploy migrations and converge
       to_regclass('public.google_subject_authority_guards') AS guard`,
   )
   expect(retired.rows).toEqual([{ revoke: null, source: null, guard: null }])
+  const replyLibrary = await target.lease.pool.query(
+    `SELECT to_regclass('public.property_reply_templates') AS templates,
+      to_regclass('public.property_reply_profiles') AS profiles`,
+  )
+  expect(replyLibrary.rows).toEqual([{ templates: null, profiles: null }])
   expect(await customerRows(target.lease)).toEqual(before)
   const applied = await journal(target.lease)
   const expected = JSON.parse(readFileSync('drizzle/meta/_journal.json', 'utf8')) as {

@@ -170,7 +170,15 @@ it('refuses every populated credential table atomically, then contracts only emp
       await client.query(`DELETE FROM ${table}`)
     }
 
-    await migrateJournal(client, 'drizzle')
+    // Later contractions have their own proofs; stop after this one.
+    writeFileSync(
+      join(historyFolder, 'meta/_journal.json'),
+      JSON.stringify({
+        ...history,
+        entries: history.entries.slice(0, contractionIndex + 1),
+      }),
+    )
+    await migrateJournal(client, historyFolder)
     expect(await tables()).toEqual(
       beforeTables.filter((table) => !TABLES.some((removed) => removed === table)),
     )
@@ -178,12 +186,12 @@ it('refuses every populated credential table atomically, then contracts only emp
     expect(await receipts()).toEqual(beforeReceipts)
     expect(await upgradeCustomerRows(pool)).toEqual(customerBeforeUpgrade)
     const applied = await journal()
-    expect(applied).toHaveLength(history.entries.length)
+    expect(applied).toHaveLength(contractionIndex + 1)
     expect(applied[contractionIndex]).toMatchObject({
       created_at: String(history.entries[contractionIndex]!.when),
       is_contract: true,
     })
-    await migrateJournal(client, 'drizzle')
+    await migrateJournal(client, historyFolder)
     expect(await journal()).toEqual(applied)
     expect(await receipts()).toEqual(beforeReceipts)
     expect(await upgradeCustomerRows(pool)).toEqual(customerBeforeUpgrade)

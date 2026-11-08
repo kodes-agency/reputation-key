@@ -710,8 +710,6 @@ export const DATA_FATE_AUTHORITY = Object.freeze([
     schemaFile: 'reply-library.schema.ts',
     exportNames: [
       'organizationReplyVoices',
-      'propertyReplyProfiles',
-      'propertyReplyTemplates',
       'propertyReplyVoices',
       'replyTemplateRevisions',
       'replyTemplates',

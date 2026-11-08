@@ -54,8 +54,6 @@ const REPLY_LIBRARY_SIGNER = 'LIBRARY_SIGNER_MUST_NOT_SURVIVE'
 
 /** Every Organization-scoped Review table, in child-before-parent order. */
 const REVIEW_ORG_TABLES = Object.freeze([
-  'property_reply_templates',
-  'property_reply_profiles',
   'google_reply_observation_heads',
   'google_reply_observations',
   'reply_publication_attempts',
@@ -72,8 +70,6 @@ const REVIEW_ORG_TABLES = Object.freeze([
   'review_provider_history_cutoffs',
   'material_review_revisions',
   'reviews',
-  'property_reply_templates',
-  'property_reply_profiles',
 ] as const)
 
 const db: Database = getDb()
@@ -303,25 +299,8 @@ async function insertHistoryCutoff(org: string, propertyId: string): Promise<voi
   )
 }
 
-/**
- * The Property's reply library: the manager-written voice and templates. Both
- * tables RESTRICT the Property's own delete.
- */
+/** The Property's reply library: the manager-written voices and layered templates. */
 async function insertReplyLibrary(org: string, propertyId: string): Promise<void> {
-  await pool.query(
-    `INSERT INTO property_reply_profiles (
-       organization_id, property_id, greeting, sign_off_positive, sign_off_negative,
-       escalation_contact, updated_by
-     ) VALUES ($1, $2, $3, 'Warm regards', 'Sincerely', $4, $5)`,
-    [org, propertyId, REPLY_LIBRARY_GREETING, REPLY_LIBRARY_CONTACT, MANAGER_ID],
-  )
-  await pool.query(
-    `INSERT INTO property_reply_templates (
-       organization_id, property_id, title, rating_min, rating_max, has_text,
-       language_tag, body, updated_by
-     ) VALUES ($1, $2, 'Thanks for five stars', 5, 5, true, 'en-Latn', $3, $4)`,
-    [org, propertyId, REPLY_LIBRARY_BODY, MANAGER_ID],
-  )
   await pool.query(
     `INSERT INTO organization_reply_voices (
        organization_id, contact, overridden_fields, updated_by
@@ -1019,9 +998,6 @@ describe.sequential('Review Organization lifecycle contributor (PostgreSQL)', ()
     const result = await createReviewOrganizationLifecycleContributor(db).purge(request)
 
     expect(result.outcome).toBe('complete')
-    const after = await rowCounts(ORG_ID)
-    expect(after.property_reply_profiles).toBe(0)
-    expect(after.property_reply_templates).toBe(0)
     expect(await layeredReplyLibraryCounts(ORG_ID)).toEqual({
       organization_reply_voices: 0,
       property_reply_voices: 0,
@@ -1068,9 +1044,6 @@ describe.sequential('Review Organization lifecycle contributor (PostgreSQL)', ()
     const result = await createReviewOrganizationLifecycleContributor(db).purge(request)
 
     expect(result.outcome).toBe('complete')
-    const after = await rowCounts(ORG_ID)
-    expect(after.property_reply_profiles).toBe(0)
-    expect(after.property_reply_templates).toBe(0)
     expect(await layeredReplyLibraryCounts(ORG_ID)).toEqual({
       organization_reply_voices: 0,
       property_reply_voices: 0,
@@ -1079,9 +1052,6 @@ describe.sequential('Review Organization lifecycle contributor (PostgreSQL)', ()
       reply_template_revisions: 0,
       reply_template_wordings: 0,
     })
-    const bystander = await rowCounts(OTHER_ORG_ID)
-    expect(bystander.property_reply_profiles).toBe(1)
-    expect(bystander.property_reply_templates).toBe(1)
     expect(await layeredReplyLibraryCounts(OTHER_ORG_ID)).toEqual({
       organization_reply_voices: 1,
       property_reply_voices: 1,

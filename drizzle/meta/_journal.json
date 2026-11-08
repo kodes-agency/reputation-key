@@ -848,6 +848,13 @@
       "when": 1800000001000,
       "tag": "0120_drop_dormant_google_credentials",
       "breakpoints": true
+    },
+    {
+      "idx": 121,
+      "version": "7",
+      "when": 1800000002000,
+      "tag": "0121_drop_old_reply_library_tables",
+      "breakpoints": true
     }
   ]
 }
