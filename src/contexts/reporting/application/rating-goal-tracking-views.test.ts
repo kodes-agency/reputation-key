@@ -2,7 +2,7 @@
 // next number, what is still needed, the number above the goal, when the goal
 // arrives in days, the day of the week and the last four weeks.
 import { beforeEach, describe, expect, it } from 'vitest'
-import type { RatingArrivalView } from './dto/rating-goal.types'
+import type { RatingArrivalView } from '../rating-goals/contracts'
 import {
   actor,
   activeGoal,
@@ -12,8 +12,8 @@ import {
   NOW,
   PROPERTY,
   type FakeWorld,
-} from './use-cases/rating-goal-test-fixtures'
-import { getRatingGoalCard } from './use-cases/rating-goal-reads'
+} from '../rating-goals/rating-goal.test-fixtures'
+import { getRatingGoalCard } from '../rating-goals/get-rating-goals.server'
 
 let world: FakeWorld
 
@@ -58,7 +58,7 @@ function harborlineJustSet() {
 }
 
 describe('the card’s climb', () => {
-  it('agrees with the setup’s receipt at the set (Harborline: 19 to 4.0, 81 to 4.1, 4.2 possible)', async () => {
+  it('forecasts from Google’s 3.9 while preserving the stored baseline', async () => {
     harborlineJustSet()
 
     const card = await readCard()
@@ -66,17 +66,17 @@ describe('the card’s climb', () => {
     expect(card).toMatchObject({
       forecastBasis: 'chosen_pace',
       // The next number Google can show first, then the goal.
-      next: { targetTenths: 40, target: 4, reviewsNeeded: 19 },
+      next: { targetTenths: 40, target: 4, reviewsNeeded: 24 },
       earnedTenths: null,
-      stillNeeded: 81,
-      nextUp: { targetTenths: 42, reviewsBeyondGoal: 97 },
+      stillNeeded: 87,
+      nextUp: { targetTenths: 42, reviewsBeyondGoal: 100 },
       baseline: { googleShows: 3.9, reviewCount: 261, exactAverage: 3.912 },
     })
-    expect(days(card!.forecast)).toEqual({ central: 81, fast: 60, slow: 114.44 })
-    expect(card!.nextUp!.days.num / card!.nextUp!.days.den).toBe(178)
+    expect(days(card!.forecast)).toEqual({ central: 87, fast: 65.45, slow: 124.44 })
+    expect(card!.nextUp!.days.num / card!.nextUp!.days.den).toBe(187)
   })
 
-  it('counts to the goal past a tenth Google should show soon (shown 4.3, exact 4.36)', async () => {
+  it('does not skip a tenth based on an unverified cached 4.36', async () => {
     numbers(500, 2180, 4.300000190734863)
     world.summary = { ...world.summary, sinceSet: { count: 0, sum: 0 } }
     world.goals = [
@@ -90,20 +90,20 @@ describe('the card’s climb', () => {
 
     const card = await readCard()
 
-    // Never "0 new reviews to 4.4".
+    // Google’s 4.3 remains the basis for the next tenth and the full goal.
     expect(card).toMatchObject({
       googleShowsSoon: false,
-      next: { targetTenths: 45, target: 4.5, reviewsNeeded: 180 },
-      earnedTenths: 44,
-      stillNeeded: 180,
-      // 4.6 clears its 4.7 floor at 4.7: 634 in all, 454 past the goal.
-      nextUp: { targetTenths: 46, reviewsBeyondGoal: 454 },
+      next: { targetTenths: 44, target: 4.4, reviewsNeeded: 72 },
+      earnedTenths: null,
+      stillNeeded: 300,
+      // 4.6 needs 834 in all, 534 past the goal, at the planned 4.7.
+      nextUp: { targetTenths: 46, reviewsBeyondGoal: 534 },
     })
-    expect(days(card!.forecast)).toEqual({ central: 180, fast: 117.27, slow: 333.33 })
-    expect(card!.nextUp!.days.num / card!.nextUp!.days.den).toBe(634)
+    expect(days(card!.forecast)).toEqual({ central: 300, fast: 195.45, slow: 555.56 })
+    expect(card!.nextUp!.days.num / card!.nextUp!.days.den).toBe(834)
   })
 
-  it('counts to nothing once the reviews have earned the goal and Google lags', async () => {
+  it('keeps forecasting until Google verifies an apparently earned cache target', async () => {
     numbers(100, 412, 4.0)
     world.summary = { ...world.summary, sinceSet: { count: 0, sum: 0 } }
     world.goals = [activeGoal({ targetTenths: 41, qualityTenths: 45 })]
@@ -111,11 +111,11 @@ describe('the card’s climb', () => {
     const card = await readCard()
 
     expect(card).toMatchObject({
-      googleShowsSoon: true,
-      next: null,
+      googleShowsSoon: false,
+      next: { targetTenths: 41, target: 4.1, reviewsNeeded: 12 },
       earnedTenths: null,
-      stillNeeded: 0,
-      forecast: { kind: 'earned' },
+      stillNeeded: 12,
+      forecast: { kind: 'days' },
     })
   })
 

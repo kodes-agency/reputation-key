@@ -3,7 +3,7 @@ import type {
   RatingGoalSetupChoices,
   RatingGoalSetupInputs,
   RatingGoalSetupPlanView,
-} from './dto/rating-goal-setup.types'
+} from '../rating-goals/contracts'
 import { NO_SETUP_CHOICES, workOutRatingGoal } from './rating-goal-setup-plan'
 
 const inputs = (

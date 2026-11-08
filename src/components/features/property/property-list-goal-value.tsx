@@ -12,7 +12,7 @@
 // chevron is the sidebar's, already in first paint.
 import { Link } from '@tanstack/react-router'
 import { ChevronRight } from 'lucide-react'
-import { RATING_GOAL_ARRIVAL_SEARCH } from '#/components/goals/rating-goal-arrival-search'
+import { RATING_GOAL_ARRIVAL_SEARCH } from '#/contexts/reporting/rating-goals/ui/rating-goal-arrival-search'
 import { Skeleton } from '#/components/ui/skeleton'
 import { ROW_FIGURE_LINK } from '#/components/ui/row-link'
 import { cn } from '#/lib/utils'

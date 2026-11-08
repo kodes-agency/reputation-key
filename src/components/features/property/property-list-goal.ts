@@ -2,7 +2,10 @@
 // fleet read carries (decision 13): "4.5 · On pace", "Set goal", or a dash. It
 // never evaluates the goal; the goal's own pages do.
 import type { FleetRatingGoal } from '#/contexts/reporting/application/public-api'
-import { RATING_GOAL_STATUS, ratingText } from '#/components/goals/rating-goal-view'
+import {
+  RATING_GOAL_STATUS,
+  ratingText,
+} from '#/contexts/reporting/rating-goals/ui/rating-goal-view'
 
 export type GoogleGoalCell =
   /**

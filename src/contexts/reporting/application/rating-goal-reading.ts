@@ -68,6 +68,8 @@ export type RatingGoalReading = Readonly<{
    * exact average, or the review cache holds no review.
    */
   waiting: boolean
+  /** Cache totals for the historical chart, independent of the planning basis. */
+  cacheTotals: RatingTotals
   exact: ExactAverage | null
   mix: RecentMix | null
   reviewsLast28Days: number
@@ -132,7 +134,7 @@ export async function readRatingGoalInputs(
         verifiedAt: snapshot.verifiedAt,
       }
     : null
-  const exact = google ? exactAverage(summary.all, google) : null
+  const exact = google ? exactAverage(google) : null
   const mix = recentMix(summary.mixWindow, summary.mostRecent)
   const googleCurrent = !googleIsWaiting(google, facts.googleBindingActive, now)
   // An empty or expired cache counts no review: a goal would read as below its
@@ -149,6 +151,7 @@ export async function readRatingGoalInputs(
       google?.displayedTenths == null ||
       exact === null ||
       !cacheHasReviews,
+    cacheTotals: summary.all,
     exact,
     mix,
     reviewsLast28Days: summary.countsSince[0] ?? 0,

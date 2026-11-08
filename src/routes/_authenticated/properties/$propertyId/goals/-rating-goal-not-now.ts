@@ -5,7 +5,7 @@ import {
   actionFailureMessage,
   useActionMutation,
 } from '#/components/hooks/use-action-mutation'
-import { dashboardKeys, goalKeys, propertyKeys } from '#/shared/queries/query-keys'
+import { ratingGoalMutationKeys } from '#/contexts/reporting/rating-goals/ui/rating-goal-query-policy'
 import { ratingGoalCommands } from './-rating-goal-queries'
 
 /**
@@ -27,12 +27,7 @@ export function useRatingGoalNotNowAction(
   return useActionMutation(ratingGoalCommands.deferRatingGoal, {
     successMessage: options.successMessage,
     // The checklist, the Properties list, and the goal's own reads.
-    invalidateKeys: [
-      propertyKeys.setup(propertyId),
-      propertyKeys.setupSummaries(),
-      dashboardKeys.fleets(),
-      goalKeys.ratingGoal(propertyId),
-    ],
+    invalidateKeys: [...ratingGoalMutationKeys(propertyId)],
     errorMessage: actionFailureMessage(
       "Couldn't save “Not now” for the Google rating goal.",
     ),
