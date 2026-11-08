@@ -123,6 +123,25 @@ async function publicationAttemptCount(reviewId: string): Promise<number> {
   return row?.attempts ?? 0
 }
 
+async function storedReviewContent(reviewIds: string[]) {
+  return dbQuery<{
+    id: string
+    text: string
+    source_content_state: string
+    content_expires_at: Date
+    cache_text: string
+    cache_deadline: Date
+  }>(
+    `SELECT r.id, r.text, r.source_content_state, r.content_expires_at,
+            c.text AS cache_text, c.content_expires_at AS cache_deadline
+     FROM reviews r
+     JOIN review_source_contents c ON c.review_id = r.id
+     WHERE r.organization_id = $1 AND r.id = ANY($2::uuid[])
+     ORDER BY r.id`,
+    [seed.organizationId, reviewIds],
+  )
+}
+
 test.describe('Critical workflow: disconnect stops queued protected work', () => {
   test.beforeEach(async () => {
     // A run that was killed while it held the queue leaves it paused.
@@ -248,6 +267,16 @@ test.describe('Critical workflow: disconnect stops queued protected work', () =>
         ),
       { timeoutMs: 30_000, description: 'held publish-reply job queued and unstarted' },
     )
+    const reviewIds = [controlReviewId, heldReviewId]
+    const contentBeforeDisconnect = await storedReviewContent(reviewIds)
+    expect(contentBeforeDisconnect).toHaveLength(2)
+    for (const row of contentBeforeDisconnect) {
+      expect(row.source_content_state).toBe('active')
+      expect(row.text).toBeTruthy()
+      expect(row.cache_text).toBe(row.text)
+      expect(row.cache_deadline).toEqual(row.content_expires_at)
+      expect(row.content_expires_at.getTime()).toBeGreaterThan(Date.now())
+    }
 
     // ── Disconnect, through the real server function. ──────────────────────
     await callServerFn(page, {
@@ -299,6 +328,16 @@ test.describe('Critical workflow: disconnect stops queued protected work', () =>
       publication_attempts: 0,
       text: HELD_TEXT,
     })
+
+    // Stopping publication does not erase the imported reviews or restart
+    // their fetch-based retention clock, including on a repeated disconnect.
+    expect(await storedReviewContent(reviewIds)).toEqual(contentBeforeDisconnect)
+    await callServerFn(page, {
+      file: CONNECTIONS_FILE,
+      exportName: 'disconnectGoogle',
+      data: { connectionId },
+    })
+    expect(await storedReviewContent(reviewIds)).toEqual(contentBeforeDisconnect)
 
     // The connection reads as disconnected where a manager looks for it.
     await page.goto('/settings/integrations')

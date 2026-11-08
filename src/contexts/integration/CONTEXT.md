@@ -236,3 +236,9 @@ fake provider and queue transport. Its shared fixture builds the application
 container with the production authorizers, discovery store, Property receipts,
 worker recovery and lifecycle sweep. It covers stale authority, request replay, bounded crash
 recovery, claim races, scoped discovery, partial success, cancellation and retention.
+
+Review's `infrastructure/disconnected-content-expiry.integration.test.ts` covers
+disconnect and provider revocation without renewing content clocks, retention
+before the deadline, and expiry erasure with stable identity and manager text
+preserved. The critical disconnect workflow also checks retained content after
+publication stops and after a repeated disconnect.
