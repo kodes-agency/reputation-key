@@ -12,7 +12,8 @@ import {
   exampleWorld,
   PROPERTY,
   type FakeWorld,
-} from './rating-goal.test-fixtures'
+  useRatingGoalDatabase,
+} from '../infrastructure/testing/rating-goal-fixtures'
 import {
   changeRatingGoal,
   endRatingGoal,
@@ -25,6 +26,8 @@ import {
   getRatingGoalHistory,
   getRatingGoalSetup,
 } from './get-rating-goals.server'
+
+useRatingGoalDatabase()
 
 type UseCaseRow = Readonly<{
   name: string
