@@ -1,3 +1,4 @@
+import { replyScopeEffects } from '#/contexts/reputation/application/public-api'
 // Review context — what readForAi answers when the database fails (S10-06).
 //
 // Review analysis settles every source status other than `available` and
@@ -33,6 +34,8 @@ describe('reviewRepository.readForAi when the database fails', () => {
     const repo = createReviewRepository(
       databaseThatFails('Connection terminated unexpectedly'),
       () => new Date('2026-10-14T09:00:00.000Z'),
+      undefined,
+      replyScopeEffects,
     )
 
     await expect(repo.readForAi(READ)).rejects.toThrow(

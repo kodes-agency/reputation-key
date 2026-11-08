@@ -1,3 +1,4 @@
+import { replyScopeEffects } from '#/contexts/reputation/application/public-api'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { getDb } from '#/shared/db'
 import { organizationId, propertyId, reviewId } from '#/shared/domain/ids'
@@ -75,6 +76,9 @@ async function setup() {
   const review = await createAtomicReviewCommandStore(
     db,
     () => FETCHED_AT,
+    undefined,
+    undefined,
+    replyScopeEffects,
   ).upsertAndRecord(
     {
       id: REVIEW,
@@ -164,7 +168,7 @@ async function setup() {
     oauth: { ...oauth, refreshAccessToken: refreshAtProvider },
   })
   const runLifecycle = createRunReviewSourceContentLifecycle({
-    store: createReviewSourceContentLifecycleStore(db),
+    store: createReviewSourceContentLifecycleStore(db, replyScopeEffects),
     clock,
     authorizeApply: async () => ({
       approvalId: 'test-expiry-approval',

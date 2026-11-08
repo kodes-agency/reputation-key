@@ -1,3 +1,4 @@
+import { replyScopeEffects } from '#/contexts/reputation/application/public-api'
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import { and, eq, sql } from 'drizzle-orm'
 import { getDb, type Database } from '#/shared/db'
@@ -36,7 +37,7 @@ const PROPERTY = propertyId('7b100000-0000-4000-8000-000000000001')
 const RECEIPT = '7b200000-0000-4000-8000-000000000001'
 const ACTOR = userId('category-publication-admin')
 const NOW = new Date('2026-11-06T10:00:00Z')
-const binding = createPropertyGoogleBindingStore(db)
+const binding = createPropertyGoogleBindingStore(db, replyScopeEffects)
 const admin = buildTestAuthContext({
   organizationId: ORG,
   userId: ACTOR,
@@ -108,7 +109,7 @@ async function preparePublication(action: 'create' | 'relink') {
 }
 
 function publish(action: 'create' | 'relink', database = db) {
-  const store = createPropertyGoogleBindingStore(database)
+  const store = createPropertyGoogleBindingStore(database, replyScopeEffects)
   if (action === 'create')
     return store.createBoundProperty({
       organizationId: ORG,

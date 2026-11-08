@@ -1,6 +1,8 @@
 // Review context — Drizzle reply repository implementation
 // Per architecture: factory function returning Readonly<{ method }>.
 
+import { createReviewReplyWriter } from '../reply-writer'
+import type { ReplyWriter } from '../../application/ports/reply-writer.port'
 import {
   and,
   getTableColumns,
@@ -9,7 +11,6 @@ import {
   gt,
   inArray,
   isNotNull,
-  isNull,
   lte,
   ne,
   or,
@@ -32,7 +33,7 @@ import type {
   ReplyStageRow,
   ReplyStateRow,
 } from '../../application/ports/reply.repository'
-import type { Reply, ReplySource } from '../../domain/types'
+import type { Reply } from '../../domain/types'
 import {
   propertyId as toPropertyId,
   replyId as toReplyId,
@@ -42,13 +43,7 @@ import {
   type ReplyId,
   type ReviewId,
 } from '#/shared/domain/ids'
-import { replyFromRow, replyToRow } from '../mappers/reply.mapper'
-import { guardedReplyUpdate } from '../reply-write-guards'
-import { reviewError } from '../../domain/errors'
-import {
-  hasPublicationRecord,
-  replyCommandMayStart,
-} from '../../domain/reply-command-preconditions'
+import { replyFromRow } from '../mappers/reply.mapper'
 import { trace } from '#/shared/observability/trace'
 import {
   AWAITING_REPLY_STATUSES,
@@ -133,6 +128,7 @@ async function findDuePublicationBatch(
 export const createReplyRepository = (
   db: Database,
   clock: () => Date,
+  writer: Pick<ReplyWriter, 'drafts'> = createReviewReplyWriter(db, clock),
 ): ReplyRepository => ({
   findById: async (id: ReplyId, organizationId: OrganizationId) => {
     return trace('reply.findById', async () => {
@@ -510,127 +506,5 @@ export const createReplyRepository = (
     })
   },
 
-  upsert: async (reply: Omit<Reply, 'createdAt' | 'updatedAt'>, now?: Date) => {
-    return trace('reply.upsert', async () => {
-      const row = replyToRow(reply)
-      const updatedAt = now ?? clock()
-      const result = await db
-        .insert(replies)
-        .values(row)
-        .onConflictDoUpdate({
-          target: [replies.reviewId, replies.source, replies.organizationId],
-          set: {
-            text: row.text,
-            replyLanguageTag: row.replyLanguageTag,
-            templateId: row.templateId,
-            templateVersion: row.templateVersion,
-            templateLayer: row.templateLayer,
-            templateRef: row.templateRef,
-            templateRevision: row.templateRevision,
-            templateWordingKey: row.templateWordingKey,
-            voiceDigest: row.voiceDigest,
-            voiceChoices: row.voiceChoices,
-            status: row.status,
-            approvedBy: row.approvedBy,
-            rejectedBy: row.rejectedBy,
-            rejectionReason: row.rejectionReason,
-            aiGenerated: row.aiGenerated,
-            stateRevision: row.stateRevision,
-            submittedAt: row.submittedAt,
-            approvedAt: row.approvedAt,
-            publishedAt: row.publishedAt,
-            updatedAt,
-          },
-        })
-        .returning()
-
-      if (!result[0]) {
-        throw reviewError('repo_upsert_failed', 'Reply upsert failed — no row returned')
-      }
-      return replyFromRow(result[0])
-    })
-  },
-
-  createDraft: async (reply: Omit<Reply, 'createdAt' | 'updatedAt'>) => {
-    return trace('reply.createDraft', async () => {
-      if (reply.status !== 'draft' || hasPublicationRecord(reply)) {
-        throw reviewError(
-          'invalid_input',
-          'A new reply starts as a draft with no publication',
-        )
-      }
-      // Never ON CONFLICT DO UPDATE: a reply created since the caller looked
-      // may already be submitted or confirmed, and an insert must not rewrite it.
-      const result = await db
-        .insert(replies)
-        .values(replyToRow(reply))
-        .onConflictDoNothing({
-          target: [replies.reviewId, replies.source, replies.organizationId],
-        })
-        .returning()
-      return result[0] ? replyFromRow(result[0]) : null
-    })
-  },
-
-  saveDraft: async (reply, content, now) => {
-    return trace('reply.saveDraft', async () => {
-      const updatedAt = now ?? clock()
-      // The guard is the `save_draft` precondition as a compare-and-set: a
-      // reply that is waiting for approval, being published or published
-      // matches no row, whoever calls. A save never reads the AI draft
-      // binding: a manager typing over AI text, however old, makes the reply
-      // theirs, and the guard records it as human-authored
-      // (domain/reply-ai-text.ts).
-      return db.transaction((tx) =>
-        guardedReplyUpdate(
-          tx,
-          reply,
-          'save_draft',
-          { ...content, status: 'draft', rejectedBy: null, rejectionReason: null },
-          updatedAt,
-        ),
-      )
-    })
-  },
-
-  deleteDraft: async (reply: Reply) => {
-    return trace('reply.deleteDraft', async () => {
-      // A reply that was ever authorized keeps its authorization and attempt
-      // rows (ON DELETE RESTRICT), so it is refused here, not left to fail on
-      // the foreign key.
-      if (!replyCommandMayStart('delete', reply)) return false
-      const deleted = await db
-        .delete(replies)
-        .where(
-          and(
-            eq(replies.id, reply.id),
-            eq(replies.organizationId, reply.organizationId),
-            // Still the reply that was read, and still without a publication.
-            eq(replies.status, reply.status),
-            isNull(replies.publicationState),
-            eq(replies.publicationCycle, 0),
-          ),
-        )
-        .returning({ id: replies.id })
-      return deleted.length > 0
-    })
-  },
-
-  deleteByReviewIdAndSource: async (
-    reviewId: ReviewId,
-    source: ReplySource,
-    organizationId: OrganizationId,
-  ) => {
-    return trace('reply.deleteByReviewIdAndSource', async () => {
-      await db
-        .delete(replies)
-        .where(
-          and(
-            eq(replies.reviewId, reviewId),
-            eq(replies.source, source),
-            eq(replies.organizationId, organizationId),
-          ),
-        )
-    })
-  },
+  ...writer.drafts,
 })

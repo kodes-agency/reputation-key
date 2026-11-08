@@ -11,6 +11,7 @@
 
 import { sql, type SQL } from 'drizzle-orm'
 import type { Database } from '#/shared/db'
+import type { ReplyScopeEffects } from '#/shared/db/reply-scope-effects'
 import type { Tx } from '#/shared/outbox/commit'
 
 export const REVIEW_EXPORT_VERSION = 'review-rights-export/v1'
@@ -271,7 +272,12 @@ export async function readReviewRightsExport(db: Database, organizationId: strin
  * Stops provider effects: clears the sync schedules and cancels replies that
  * were authorized but not yet sent. Replies already out stay for reconciliation.
  */
-async function fence(tx: Tx, organizationId: string, now: Date): Promise<number> {
+async function fence(
+  tx: Tx,
+  effects: ReplyScopeEffects,
+  organizationId: string,
+  now: Date,
+): Promise<number> {
   const schedules = await affected(
     tx,
     sql`UPDATE review_sync_state
@@ -282,14 +288,10 @@ async function fence(tx: Tx, organizationId: string, now: Date): Promise<number>
                OR next_inventory_at IS NOT NULL
                OR error_retry_at IS NOT NULL)`,
   )
-  const publications = await affected(
-    tx,
-    sql`UPDATE replies
-        SET publication_state = 'cancelled', status = 'draft', reconcile_due_at = NULL,
-            updated_at = GREATEST(updated_at, ${now}::timestamptz)
-        WHERE organization_id = ${organizationId}
-          AND publication_state IN ('requested', 'authorized')`,
-  )
+  const publications = await effects.cancelRepliesForOrganizationClosing(tx, {
+    organizationId,
+    occurredAt: now,
+  })
   return schedules + publications
 }
 
@@ -299,25 +301,26 @@ async function fence(tx: Tx, organizationId: string, now: Date): Promise<number>
  * constraints define for erased content. Authorizations stay: they are
  * content-free proof that a named manager authorized one publication cycle.
  */
-async function purge(tx: Tx, organizationId: string, now: Date) {
+async function purge(
+  tx: Tx,
+  effects: ReplyScopeEffects,
+  organizationId: string,
+  now: Date,
+) {
   const org = organizationId
   const scopeRows = sql`property_id IN (SELECT property_id FROM ${propertyScope(org)} AS scope)`
   let deleted = 0
   // Reply observations and publication attempts reference each other with
   // RESTRICT keys; releasing the confirmation link first lets both go.
-  await affected(
-    tx,
-    sql`UPDATE reply_publication_attempts
-        SET outcome = 'superseded', confirmed_observation_revision = NULL,
-            updated_at = GREATEST(updated_at, ${now}::timestamptz)
-        WHERE organization_id = ${org} AND confirmed_observation_revision IS NOT NULL`,
-  )
+  await effects.releaseOrganizationAttemptConfirmations(tx, {
+    organizationId: org,
+    occurredAt: now,
+  })
   // Children before parents; the snapshot run delete cascades its members and
   // deletion candidates.
   for (const table of [
     'google_reply_observation_heads',
     'google_reply_observations',
-    'reply_publication_attempts',
     'review_source_observations',
     'review_source_contents',
     'review_ai_analysis_heads',
@@ -333,18 +336,11 @@ async function purge(tx: Tx, organizationId: string, now: Date) {
       sql`DELETE FROM ${sql.identifier(table)} WHERE organization_id = ${org}`,
     )
   }
-  let scrubbed = await affected(
-    tx,
-    sql`UPDATE replies
-        SET text = '', rejection_reason = NULL, created_by = NULL, submitted_by = NULL,
-            approved_by = NULL, rejected_by = NULL, reply_language_tag = NULL,
-            reconcile_due_at = NULL, publication_last_error_class = NULL,
-            updated_at = GREATEST(updated_at, ${now}::timestamptz)
-        WHERE organization_id = ${org}
-          AND (text <> '' OR rejection_reason IS NOT NULL OR created_by IS NOT NULL
-               OR submitted_by IS NOT NULL OR approved_by IS NOT NULL
-               OR rejected_by IS NOT NULL OR reply_language_tag IS NOT NULL)`,
-  )
+  deleted += await effects.deleteOrganizationPublicationAttempts(tx, org)
+  let scrubbed = await effects.scrubOrganizationReplyContent(tx, {
+    organizationId: org,
+    occurredAt: now,
+  })
   scrubbed += await affected(
     tx,
     sql`UPDATE material_review_revisions
@@ -423,6 +419,7 @@ class ReviewNotReady extends Error {}
  */
 export async function closeReview(
   db: Database,
+  effects: ReplyScopeEffects,
   organizationId: string,
   now: Date,
 ): Promise<ReviewClosureOutcome> {
@@ -431,14 +428,14 @@ export async function closeReview(
       if (!(await organizationExists(tx, organizationId))) {
         return { ok: false, error: 'organization not found' }
       }
-      await fence(tx, organizationId, now)
+      await fence(tx, effects, organizationId, now)
       const found = await readBlockers(tx, organizationId, now)
       if (found.length > 0) {
         throw new ReviewNotReady(
           `Review is not ready to close (${found.map((b) => `${b.code}=${b.count}`).join(',')})`,
         )
       }
-      return { ok: true, ...(await purge(tx, organizationId, now)) }
+      return { ok: true, ...(await purge(tx, effects, organizationId, now)) }
     })
   } catch (error) {
     if (error instanceof ReviewNotReady) return { ok: false, error: error.message }

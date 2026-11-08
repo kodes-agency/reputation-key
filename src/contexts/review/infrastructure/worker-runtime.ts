@@ -55,6 +55,7 @@ import {
   SWEEP_REVIEW_PROVIDER_TOMBSTONES_JOB_NAME,
   type ReviewProviderLifecycleSweepJobData,
 } from './jobs/review-provider-lifecycle-sweeps.job'
+import type { ReplyScopeEffects } from '#/shared/db/reply-scope-effects'
 import { createReviewProviderSnapshotRepository } from './repositories/review-provider-snapshot.repository'
 import {
   createReconcileAmbiguousPublicationsHandler,
@@ -69,6 +70,7 @@ type ReconcileHandlerDependencies = Parameters<
 
 export type ReviewWorkerRegistrationInput = Readonly<{
   db: Database
+  replyEffects: ReplyScopeEffects
   pool: Pool
   registry: Pick<JobRegistry, 'register'>
   backgroundQueue: Pick<Queue, 'add'> | undefined
@@ -163,6 +165,7 @@ export async function registerReviewWorkerJobs(
   const reviewProviderSnapshotRepository = createReviewProviderSnapshotRepository(
     input.db,
     input.idGen,
+    input.replyEffects,
   )
   const enqueueProviderLifecycleContinuation = async (
     jobName:

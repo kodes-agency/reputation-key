@@ -1,3 +1,4 @@
+import { replyScopeEffects } from '#/contexts/reputation/application/public-api'
 // Review context build wiring and queue-admission tests.
 
 import { describe, expect, it, vi } from 'vitest'
@@ -27,6 +28,7 @@ function setup() {
     add: vi.fn(async (_name: string, _data: unknown, _options: unknown) => ({})),
   }
   const api = buildReviewContext({
+    replyEffects: replyScopeEffects,
     publicationActorAuthority: async () => true,
     replyBrandProfiles: {
       isCurrentAiReplyBrandProfile: async () => true,
@@ -69,6 +71,7 @@ const SYNC_DATA = {
 it('ships operator and application maintenance wiring without expiry apply authority', async () => {
   const { api } = setup()
   const operatorRun = wireReviewSourceContentLifecycle({
+    replyEffects: replyScopeEffects,
     db: {} as never,
     clock: () => new Date('2026-07-18T00:00:00Z'),
   })

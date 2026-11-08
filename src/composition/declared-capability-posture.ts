@@ -13,6 +13,7 @@
 // the emergency generation and every AI head exactly where they were.
 
 import type { Database } from '#/shared/db'
+import { reputationReplyScopeEffects } from './reply-scope-effects'
 import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
 import { AI_PROVIDER_DEPLOYMENT_PROFILE_V2 } from '#/shared/ai-provider-deployment-profile'
 import type { GoogleContentCapability } from '#/shared/domain/google-content-capability'
@@ -55,7 +56,7 @@ export function createDeclaredCapabilityPostureStores(
   registerAllEventSchemas()
   return {
     google: createGoogleContentAuthorityRepository(db),
-    ai: createAiControlAdapter(db),
+    ai: createAiControlAdapter(db, reputationReplyScopeEffects),
   }
 }
 

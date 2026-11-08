@@ -1,3 +1,4 @@
+import { replyScopeEffects } from '#/contexts/reputation/application/public-api'
 // Restore and a release of the Property's last Responsible Manager, at the same
 // moment, against real PostgreSQL and through the built Property context.
 //
@@ -36,6 +37,7 @@ const MANAGER_REVISION = 2
 let afterRestoreCheck: (() => Promise<unknown>) | null = null
 
 const property = buildPropertyContext({
+  replyEffects: replyScopeEffects,
   db,
   repo: createPropertyRepository(db),
   outboxRepo: createOutboxRepository(db),

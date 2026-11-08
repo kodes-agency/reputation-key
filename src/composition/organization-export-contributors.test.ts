@@ -1,3 +1,4 @@
+import { replyScopeEffects } from '#/contexts/reputation/application/public-api'
 // LIF-01-T11 — the completeness proof for the Organization Export set.
 //
 // These assertions exist because a partial set is the failure mode that would
@@ -65,6 +66,7 @@ describe('organization lifecycle contributor set', () => {
       db,
       integration,
       objectStore,
+      replyScopeEffects,
     ).map((contributor) => contributor.context)
     const expected = ORGANIZATION_LIFECYCLE_CONTEXTS.filter(
       (context) => context !== 'identity',
@@ -80,6 +82,7 @@ describe('organization lifecycle contributor set', () => {
         db,
         { context: 'portal' } as never,
         objectStore,
+        replyScopeEffects,
       ),
     ).toThrow(/misidentified/iu)
   })

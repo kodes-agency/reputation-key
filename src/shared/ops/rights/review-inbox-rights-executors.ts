@@ -18,6 +18,10 @@ import {
   readReviewRightsExport,
   readReviewRightsReport,
 } from '#/shared/db/lifecycle/review-rights-store'
+import {
+  requireReplyScopeEffects,
+  type ReplyScopeEffects,
+} from '#/shared/db/reply-scope-effects'
 import type { RightsExecutor } from './rights-executor'
 
 export const REVIEW_RIGHTS_EXPORT_PATH = 'review/rights-export.json'
@@ -28,11 +32,15 @@ export type ReviewInboxRightsDeps = Readonly<{
   now?: () => Date
 }>
 
+/** Closing Review writes Replies, so the Reply writer's effects are handed in. */
+export type ReviewRightsDeps = ReviewInboxRightsDeps &
+  Readonly<{ replyEffects?: ReplyScopeEffects }>
+
 function exportFile(path: string, payload: unknown) {
   return [{ path, bytes: Buffer.from(`${canonicalizeRfc8785(payload)}\n`, 'utf8') }]
 }
 
-export function createReviewRightsExecutor(deps: ReviewInboxRightsDeps): RightsExecutor {
+export function createReviewRightsExecutor(deps: ReviewRightsDeps): RightsExecutor {
   const now = deps.now ?? (() => new Date())
   return Object.freeze({
     name: 'review',
@@ -45,7 +53,12 @@ export function createReviewRightsExecutor(deps: ReviewInboxRightsDeps): RightsE
       )
     },
     async apply(plan) {
-      const outcome = await closeReview(deps.db, plan.organizationId, now())
+      const outcome = await closeReview(
+        deps.db,
+        requireReplyScopeEffects(deps.replyEffects),
+        plan.organizationId,
+        now(),
+      )
       return outcome.ok
         ? {
             ok: true,

@@ -1,3 +1,4 @@
+import { replyScopeEffects } from '#/contexts/reputation/application/public-api'
 import { fixHistoryCutoff } from '#/contexts/review/infrastructure/repositories/review-provider-snapshot.repository'
 import { organizationId, propertyId } from '#/shared/domain/ids'
 import { createPropertyGoogleBindingStore } from '#/contexts/property/infrastructure/property-google-binding-store'
@@ -129,8 +130,9 @@ describe('Google import durable recovery (real PostgreSQL)', () => {
     lease = await acquireTestLease(getEnv().DATABASE_URL, 6)
     db = createDatabase(lease.pool)
     store = createImportStore(db, () => NOW, {
-      ensureImportFollowUps: createPropertyGoogleBindingStore(db).ensureImportFollowUps,
-      readReceipt: createPropertyGoogleBindingStore(db).readReceipt,
+      ensureImportFollowUps: createPropertyGoogleBindingStore(db, replyScopeEffects)
+        .ensureImportFollowUps,
+      readReceipt: createPropertyGoogleBindingStore(db, replyScopeEffects).readReceipt,
       prepareImportSync: (tx, scope) =>
         fixHistoryCutoff(tx, {
           ...scope,
@@ -437,9 +439,12 @@ describe('Google import durable recovery (real PostgreSQL)', () => {
       })
       const zonedDb = createDatabase(pool)
       const zonedStore = createImportStore(zonedDb, () => NOW, {
-        ensureImportFollowUps:
-          createPropertyGoogleBindingStore(zonedDb).ensureImportFollowUps,
-        readReceipt: createPropertyGoogleBindingStore(zonedDb).readReceipt,
+        ensureImportFollowUps: createPropertyGoogleBindingStore(
+          zonedDb,
+          replyScopeEffects,
+        ).ensureImportFollowUps,
+        readReceipt: createPropertyGoogleBindingStore(zonedDb, replyScopeEffects)
+          .readReceipt,
         prepareImportSync: (tx, scope) =>
           fixHistoryCutoff(tx, {
             ...scope,

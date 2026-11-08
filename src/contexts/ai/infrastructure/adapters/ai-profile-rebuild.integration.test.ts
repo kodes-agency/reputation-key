@@ -1,3 +1,4 @@
+import { replyScopeEffects } from '#/contexts/reputation/application/public-api'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { and, eq, sql } from 'drizzle-orm'
 import { getDb, type Tx } from '#/shared/db'
@@ -21,7 +22,8 @@ const IDS = {
   idPrefix: '7b100000',
 }
 const seed = createV3Seed(db, IDS)
-const profiles = () => createPropertyProcessingProfileAdapter(db, () => new Date())
+const profiles = () =>
+  createPropertyProcessingProfileAdapter(db, () => new Date(), replyScopeEffects)
 const period = { startLocalDate: '2026-10-19', endLocalDate: '2026-10-21' }
 const scope = (version: number) => ({ ...seed.scope, propertyProfileVersion: version })
 async function facts(version: number) {

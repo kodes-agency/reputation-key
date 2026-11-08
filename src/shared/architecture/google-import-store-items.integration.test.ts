@@ -1,3 +1,4 @@
+import { replyScopeEffects } from '#/contexts/reputation/application/public-api'
 import { fixHistoryCutoff } from '#/contexts/review/infrastructure/repositories/review-provider-snapshot.repository'
 import { buildGoogleImportedProperty } from '#/contexts/property/application/public-api'
 import { organizationId, propertyId, googleConnectionId } from '#/shared/domain/ids'
@@ -216,7 +217,7 @@ describe('Google import item behaviour on the import store (real PostgreSQL)', (
   beforeAll(async () => {
     lease = await acquireTestLease(getEnv().DATABASE_URL, 6)
     db = createDatabase(lease.pool)
-    binding = createPropertyGoogleBindingStore(db)
+    binding = createPropertyGoogleBindingStore(db, replyScopeEffects)
     store = createImportStore(db, () => NOW, {
       ensureImportFollowUps: binding.ensureImportFollowUps,
       readReceipt: binding.readReceipt,

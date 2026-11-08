@@ -1,3 +1,4 @@
+import { replyScopeEffects } from '#/contexts/reputation/application/public-api'
 // What the trend population read says when the database refuses it.
 //
 // The read answers `policy_unavailable` for any database error, on purpose: its
@@ -161,6 +162,7 @@ describe('createReviewRepository readTrendPopulation when the database refuses t
       { transaction } as unknown as Database,
       () => new Date('2026-10-27T00:00:00Z'),
       { warn },
+      replyScopeEffects,
     ),
   })
 
@@ -212,6 +214,7 @@ describe('createReviewRepository readTrendPopulation when the database refuses t
       { transaction } as unknown as Database,
       () => new Date('2026-10-27T00:00:00Z'),
       { warn },
+      replyScopeEffects,
     )
 
     await expect(
@@ -227,6 +230,8 @@ describe('createReviewRepository readTrendPopulation when the database refuses t
         transaction: () => Promise.reject(new Error('refused')),
       } as unknown as Database,
       () => new Date('2026-10-27T00:00:00Z'),
+      undefined,
+      replyScopeEffects,
     )
 
     await expect(repository.readTrendPopulation(REQUEST)).resolves.toEqual({

@@ -648,4 +648,25 @@ export const TENANT_PREDICATE_EXEMPTIONS: readonly TenantPredicateExemption[] = 
       'Locks one page of review rows by the ids the content-lifecycle sweep selected across tenants, after the reply scope of each is locked under its own Organization, and returns each row with its Organization and Property.',
     category: 'LEGITIMATE-GLOBAL',
   },
+  {
+    file: 'src/contexts/reputation/replies/scope-effects.server.ts',
+    symbol: 'fenceReplyPublicationsAfterRestore',
+    reason:
+      'The existing restore recovery transaction intentionally fences in-flight Reply publications across every tenant. It runs only under the recovery authority and preserves the original cancellation and ambiguity predicates.',
+    category: 'LEGITIMATE-GLOBAL',
+  },
+  {
+    file: 'src/contexts/reputation/replies/scope-effects.server.ts',
+    symbol: 'lockReplyReviewsInScope',
+    reason:
+      'Locks Review rows before Reply effects in a caller-owned transaction. Its SQL scope comes only from named server commands: tenant-bound lifecycle and AI withdrawal scopes, or the existing global AI control and restore recovery authorities.',
+    category: 'LEGITIMATE-GLOBAL',
+  },
+  {
+    file: 'src/contexts/reputation/replies/scope-effects.server.ts',
+    symbol: 'withdrawAiDrafts',
+    reason:
+      'The existing AI control transition may withdraw stale AI drafts across tenants; Property, authorization and Review callers supply tenant predicates. Every affected Reply is correlated to its own Review tenant, and effects stay in the caller transaction.',
+    category: 'LEGITIMATE-GLOBAL',
+  },
 ] as const

@@ -6,6 +6,7 @@ import {
   properties,
 } from '#/shared/db/schema'
 import { lockAggregateHead } from './ai-property-aggregate-head'
+import type { ReplyScopeEffects } from '#/shared/db/reply-scope-effects'
 import { purgeAiDraftsForProfile } from '#/shared/db/ai/ai-draft-purge'
 import { AI_PROVIDER_DEPLOYMENT_PROFILE } from '#/shared/ai-operation-profiles'
 import type { AiPropertyProfileResult } from '../../domain/types'
@@ -38,6 +39,7 @@ function compareExpected(
 export const createPropertyProcessingProfileAdapter = (
   db: Database,
   clock: () => Date,
+  replyEffects?: ReplyScopeEffects,
 ): PropertyProcessingProfilePort => {
   const readForAi: PropertyProcessingProfilePort['readForAi'] = async (input) => {
     const [row] = await db
@@ -248,10 +250,14 @@ export const createPropertyProcessingProfileAdapter = (
             })
           }
         }
-        await purgeAiDraftsForProfile(tx, {
-          organizationId: input.organizationId,
-          propertyId: input.propertyId,
-        })
+        await purgeAiDraftsForProfile(
+          tx,
+          {
+            organizationId: input.organizationId,
+            propertyId: input.propertyId,
+          },
+          replyEffects,
+        )
       }
 
       return {

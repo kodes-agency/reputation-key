@@ -13,6 +13,7 @@ import { canonicalizeRfc8785 } from '#/shared/merchant-ai-notice-contract'
 import type { Database } from '#/shared/db'
 import { insertOutboxRow } from '#/shared/outbox/commit'
 import { organizationId } from '#/shared/domain/ids'
+import type { ReplyScopeEffects } from '#/shared/db/reply-scope-effects'
 import { purgeAiDraftsForAuthorization } from '#/shared/db/ai/ai-draft-purge'
 import { identityMerchantAiChanged } from '../../domain/events'
 import type {
@@ -117,13 +118,16 @@ export async function hasActiveMerchantAiConsent(
 export const createMerchantAiAuthorizationStore = (
   db: Database,
   idGen: () => string,
+  replyEffects?: ReplyScopeEffects,
 ): MerchantAiAuthorizationStore => {
   return {
     getSnapshot: (input) => getMerchantAiAuthorizationSnapshot(db, input),
 
-    mutate: (input) => db.transaction((tx) => runMerchantAiMutation(tx, input, idGen)),
+    mutate: (input) =>
+      db.transaction((tx) => runMerchantAiMutation(tx, input, idGen, replyEffects)),
 
-    enableForProperties: (input) => runMerchantAiConsentCeremony(db, input, idGen),
+    enableForProperties: (input) =>
+      runMerchantAiConsentCeremony(db, input, idGen, replyEffects),
 
     async restoreReset(input) {
       const requestHash = createHash('sha256')
@@ -251,10 +255,14 @@ export const createMerchantAiAuthorizationStore = (
           ).*
         `)
         const evidence = evidenceResult.rows[0] as SnapshotRow
-        await purgeAiDraftsForAuthorization(tx, {
-          organizationId: input.organizationId,
-          propertyId: input.propertyId,
-        })
+        await purgeAiDraftsForAuthorization(
+          tx,
+          {
+            organizationId: input.organizationId,
+            propertyId: input.propertyId,
+          },
+          replyEffects,
+        )
 
         const snapshot = mapSnapshot(evidence)
         const event = identityMerchantAiChanged({

@@ -13,7 +13,7 @@ import { getAiRuntimeCapability } from '#/shared/ai-runtime-capability-contract'
 //
 // The binding gates AI text on its way to Google and nothing else: submit,
 // Confirm & Publish and the publish worker's claim read it
-// (reply-write-guards.ts). Reject, delete, a retry and a draft save do not, and
+// (reputation/replies/store.server.ts). Reject, delete, a retry and a draft save do not, and
 // a draft save or an edit of a published reply makes the text the manager's own
 // (domain/reply-ai-text.ts).
 //

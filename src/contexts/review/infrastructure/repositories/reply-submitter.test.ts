@@ -1,3 +1,4 @@
+import { replyScopeEffects } from '#/contexts/reputation/application/public-api'
 // Who submitted a reply, stored with it (real PostgreSQL).
 //
 // A reply's decision and publication facts are addressed to whoever put it up
@@ -125,7 +126,9 @@ beforeAll(async () => {
 
 beforeEach(async () => {
   await clearScope()
-  await createReviewRepository(getDb(), () => NOW).upsert(review)
+  await createReviewRepository(getDb(), () => NOW, undefined, replyScopeEffects).upsert(
+    review,
+  )
 })
 
 afterAll(async () => {
@@ -146,6 +149,8 @@ describe.sequential('the submitter of a reply (integration)', () => {
       db,
       () => NOW,
       async () => true,
+      undefined,
+      replyScopeEffects,
     ).submitReply(
       draft,
       { status: 'pending_approval', submittedAt: NOW, submittedBy: SUBMITTER },
