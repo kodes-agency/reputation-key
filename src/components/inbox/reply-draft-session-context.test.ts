@@ -3,9 +3,9 @@ import { describe, expect, it } from 'vitest'
 import { renderToStaticMarkup } from 'react-dom/server'
 import {
   backgroundDraftTarget,
-  BACKGROUND_DRAFT_DWELL_MILLIS,
   ReplyDraftSessionProvider,
 } from './reply-draft-session-context'
+import { BACKGROUND_DRAFT_DWELL_MILLIS } from './reply-draft-session'
 import type { InboxItemDetailResult } from '#/contexts/inbox/application/public-api'
 import { makeInboxItem } from '../../../.storybook/in-memory/inbox-container'
 import { useStreamedReplyDraft } from './use-streamed-reply-draft'
