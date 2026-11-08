@@ -1,5 +1,5 @@
 import { z } from 'zod/v4'
-import { parseAiProviderJsonBytes } from '#/shared/ai-internal-transport-contract'
+import { parseAiProviderJsonBytes } from '#/shared/ai-json'
 import type { AiProviderOutcome } from '../provider-contracts'
 import { PROVIDER_ZERO_USAGE, providerConnectorOutcome } from '../connector-boundary'
 import type { PreparedAnthropicInvocation } from './prepared-invocation'
