@@ -6,6 +6,7 @@
  * without a re-observation making the identifier-only transition stale between
  * validation and commit.
  */
+import type { ReviewOpenTransaction } from './open-transaction'
 
 export type ReviewSourceTransitionChange = 'source_expired' | 'provider_deleted'
 
@@ -38,6 +39,9 @@ export type ReviewSourceTransitionAuthorityResult<T> =
 export type ReviewSourceTransitionAuthority = Readonly<{
   withExactCurrent<T>(
     expectation: ReviewSourceTransitionExpectation,
-    apply: (permit: ReviewCurrentSourceTransitionPermit) => Promise<T>,
+    apply: (
+      permit: ReviewCurrentSourceTransitionPermit,
+      tx: ReviewOpenTransaction,
+    ) => Promise<T>,
   ): Promise<ReviewSourceTransitionAuthorityResult<T>>
 }>

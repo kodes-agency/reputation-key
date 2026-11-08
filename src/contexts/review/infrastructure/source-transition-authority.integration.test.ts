@@ -71,10 +71,13 @@ describe('Review source-transition exact-current authority', () => {
     )
 
     expect(result).toEqual({ status: 'current', value: 'projection-committed' })
-    expect(apply).toHaveBeenCalledWith({
-      authority: 'review.current-source-transition.v1',
-      ...expectation,
-    })
+    expect(apply).toHaveBeenCalledWith(
+      {
+        authority: 'review.current-source-transition.v1',
+        ...expectation,
+      },
+      expect.anything(),
+    )
   })
 
   it.each([

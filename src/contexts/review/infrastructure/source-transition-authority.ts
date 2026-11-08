@@ -7,6 +7,8 @@ import type {
   ReviewSourceTransitionAuthority,
   ReviewSourceTransitionExpectation,
 } from '../application/ports/source-transition-authority.port'
+import type { ReviewOpenTransaction } from '../application/ports/open-transaction'
+import { lendReviewTransaction } from './open-transaction'
 import { runWithReviewExactCurrentApplyAdmission } from './exact-current-apply-admission'
 import { lockReviewSourceMutationScope } from './review-source-mutation-serialization'
 
@@ -26,7 +28,10 @@ export const createReviewSourceTransitionAuthority = (
 ): ReviewSourceTransitionAuthority => ({
   withExactCurrent: async <T>(
     expectation: ReviewSourceTransitionExpectation,
-    apply: (permit: ReviewCurrentSourceTransitionPermit) => Promise<T>,
+    apply: (
+      permit: ReviewCurrentSourceTransitionPermit,
+      tx: ReviewOpenTransaction,
+    ) => Promise<T>,
   ) =>
     runWithReviewExactCurrentApplyAdmission(db, () =>
       db.transaction(async (tx) => {
@@ -86,7 +91,10 @@ export const createReviewSourceTransitionAuthority = (
           change: expectation.change,
           occurredAt: current.sourceContentErasedAt,
         }
-        return { status: 'current' as const, value: await apply(permit) }
+        return {
+          status: 'current' as const,
+          value: await apply(permit, lendReviewTransaction(tx)),
+        }
       }),
     ),
 })
