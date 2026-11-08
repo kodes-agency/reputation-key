@@ -78,6 +78,15 @@ function setup(
     },
     encryption: { decrypt: (value) => value },
     unsubscribeFromNotifications: manageNotifications({
+      accounts: {
+        withAccount: async (_account, run) => run(),
+        read: async () => null,
+        attempted: async () => undefined,
+        verified: async () => undefined,
+        invalidate: async () => undefined,
+      },
+      nowMs: () => 0,
+      hasOtherActiveAccountBinding: async () => false,
       authorizeProviderCall,
       notifications,
       pubsubTopic: 'projects/test/topics/gbp-reviews',
