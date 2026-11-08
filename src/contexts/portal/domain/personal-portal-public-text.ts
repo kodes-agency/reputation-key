@@ -45,6 +45,7 @@ const commonWords = new Set([
   'като',
 ])
 const wordingKeys = new Set([
+  'wordmark',
   'title',
   'shortDescription',
   'heroAlt',

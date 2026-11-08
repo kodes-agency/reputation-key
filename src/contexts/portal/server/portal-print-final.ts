@@ -1,4 +1,4 @@
-// Print downloads and wording saves share the Portal scope, policy and rate-limit guards.
+// Print downloads and wording saves share scope and policy, with separate rate limits.
 
 import { createServerFn } from '@tanstack/react-start'
 import { tracedHandler } from '#/shared/observability/traced-server-fn'
@@ -35,8 +35,8 @@ export const downloadPortalPrintFinal = createServerFn({ method: 'POST' })
   )
 
 /**
- * Saves the final kit's wording for Share to open on: the same scope, right and
- * rate limit as the download beside it, and the same words rules. It makes no file.
+ * Saves wording with the download's scope, right and words rules, and its own
+ * write budget. It makes no file and discloses no address.
  */
 export const savePortalPrintWording = createServerFn({ method: 'POST' })
   .validator(savePortalPrintWordingInputSchema)
@@ -53,6 +53,7 @@ export const savePortalPrintWording = createServerFn({ method: 'POST' })
             }),
           (ctx) =>
             getContainer().portalPublicApi.management.savePortalPrintWording(data, ctx),
+          'wording',
         ),
       'POST',
       'portal.savePortalPrintWording',
