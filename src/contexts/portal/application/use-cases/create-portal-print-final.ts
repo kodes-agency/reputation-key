@@ -154,6 +154,7 @@ export const createPortalPrintFinal =
       organizationId: ctx.organizationId,
       portal,
     })
+    assertPersonalPortalPublicText(portal, { wordmark: context.look.wordmark })
     if (!isPrintKitLanguageChoice(context.locales, input.languages)) {
       throw portalError('locale_not_offered', 'Choose languages this portal offers')
     }

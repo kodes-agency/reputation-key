@@ -15,7 +15,10 @@ import type {
 } from '../application/printing/print-download'
 import { isPortalError, portalError } from '../domain/errors'
 import { portalErrorStatus } from './portals'
-import { checkPortalAddressRateLimit } from './portal-address-rate-limit.server'
+import {
+  checkPortalAddressRateLimit,
+  checkPortalPrintWordingRateLimit,
+} from './portal-address-rate-limit.server'
 
 /**
  * The Portal a print is for, as `requirePortalResourceScope` looks it up: its
@@ -42,17 +45,22 @@ function disableFileCaching(): void {
 /**
  * Runs a manager's print action behind the guards every one shares: the tenant
  * context, the caller's `authorize` (the Portal's scope and the manager's
- * rights), the address rate limit spent, then `run`; a Portal error becomes the
+ * rights), the action's rate limit spent, then `run`; a Portal error becomes the
  * context error the client reads.
  */
 export async function guardedPortalPrintAction<T>(
   authorize: (ctx: AuthContext) => Promise<unknown>,
   run: (ctx: AuthContext) => Promise<T>,
+  action: 'wording' | 'download',
 ): Promise<T> {
   const ctx = await resolveTenantContext(await headersFromContext())
   try {
     await authorize(ctx)
-    const limited = await checkPortalAddressRateLimit({
+    const checkLimit =
+      action === 'download'
+        ? checkPortalAddressRateLimit
+        : checkPortalPrintWordingRateLimit
+    const limited = await checkLimit({
       rateLimiter: getContainer().rateLimiter,
       actorId: ctx.userId,
       organizationId: ctx.organizationId,
@@ -77,7 +85,9 @@ export function downloadPortalPrintFile(
   make: (ctx: AuthContext) => Promise<PortalPrintKitFile>,
 ): Promise<PortalPrintKitDownload> {
   disableFileCaching()
-  return guardedPortalPrintAction(authorize, async (ctx) =>
-    printKitDownloadOf(await make(ctx)),
+  return guardedPortalPrintAction(
+    authorize,
+    async (ctx) => printKitDownloadOf(await make(ctx)),
+    'download',
   )
 }

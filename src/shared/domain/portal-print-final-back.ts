@@ -15,7 +15,7 @@ import type { PrintFinalFace, PrintFinalPiece } from './portal-print-final'
 import type { PrintFinalBrandBox } from './portal-print-final-brand'
 import { printFinalBrandPart, type PrintFinalBrandInput } from './portal-print-final-face'
 import {
-  mmPt,
+  printFinalBoxFits,
   printFinalLiveArea,
   type PrintFinalBox,
 } from './portal-print-final-measures'
@@ -54,7 +54,7 @@ export type PrintFinalBackPlan = Readonly<{
   parts: readonly PrintFinalPlacedPart[]
   /** Where the ink as a whole sits; null when there is nothing to print. */
   block: PrintFinalBox | null
-  /** The block fits the live height. */
+  /** Every ink box fits the live area. */
   fits: boolean
 }>
 
@@ -89,9 +89,6 @@ export function printFinalBackName(
   if (brand.kind === 'wordmark' && squash(brand.text) === squash(name)) return null
   return name
 }
-
-/** A block taller than the live area by less than this still fits: the rounding the front's planner allows too (§5.3). */
-const FIT_TOLERANCE_PT = mmPt(0.05)
 
 type Built = Readonly<{
   parts: readonly PrintFinalPart[]
@@ -153,17 +150,18 @@ export function planPrintFinalBack(
   const top =
     live.topPt + PRINT_FINAL_SPARE_TOP_SHARE * Math.max(0, liveHeightPt - stack.heightPt)
   const axis = (live.leftPt + live.rightPt) / 2
+  const placed = stack.parts.map(({ offsetPt, ...part }) => ({
+    ...part,
+    xPt: axis - part.widthPt / 2,
+    yPt: top + offsetPt,
+  }))
   return {
     face,
     widthPt: area.widthPt,
     heightPt: area.heightPt,
     unitPt,
     live,
-    parts: stack.parts.map(({ offsetPt, ...part }) => ({
-      ...part,
-      xPt: axis - part.widthPt / 2,
-      yPt: top + offsetPt,
-    })),
+    parts: placed,
     block:
       parts.length === 0
         ? null
@@ -173,7 +171,17 @@ export function planPrintFinalBack(
             rightPt: axis + stack.widthPt / 2,
             bottomPt: top + stack.heightPt,
           },
-    fits: stack.heightPt <= liveHeightPt + FIT_TOLERANCE_PT,
+    fits: placed.every((part) =>
+      printFinalBoxFits(
+        {
+          leftPt: part.xPt,
+          topPt: part.yPt,
+          rightPt: part.xPt + part.widthPt,
+          bottomPt: part.yPt + part.heightPt,
+        },
+        live,
+      ),
+    ),
   }
 }
 
