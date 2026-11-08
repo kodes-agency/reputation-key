@@ -166,7 +166,7 @@ describe('BQC-4.3: provider adapters carry no hardcoded URL and no fallback path
   it('finds the integration adapter files (guard is not vacuous)', () => {
     const names = adapterFiles.map(rel)
     expect(names).toContain(
-      'src/contexts/integration/infrastructure/adapters/gbp-api.adapter.ts',
+      'src/contexts/integration/infrastructure/adapters/google-account-management.adapter.ts',
     )
     expect(names).toContain(
       'src/contexts/integration/infrastructure/adapters/google-review-api.adapter.ts',
@@ -210,17 +210,14 @@ describe('BQC-4.3: provider adapters carry no hardcoded URL and no fallback path
     expect(violations).toEqual([])
   })
 
-  it('calls fetch from exactly two Integration modules after review fallback removal', () => {
-    // A ratchet, not an ideal. Every Google call should go through the egress
-    // gateway's executor; only the remaining credential adapters still reach
-    // the network directly. Pinning the exact set makes a new direct caller
-    // fail here instead of quietly growing the list.
+  it('calls fetch only from the OAuth JWKS trust reader', () => {
+    // Credential operations use the governed client; the signed identity's
+    // public keys remain the sole direct trust read.
     const callers = walkSource(join(SRC, 'contexts/integration'))
       .filter((file) => /\bfetch\s*\(/u.test(stripComments(readFileSync(file, 'utf-8'))))
       .map(rel)
       .sort()
     expect(callers).toEqual([
-      'src/contexts/integration/infrastructure/adapters/gbp-provider-fetch.ts',
       'src/contexts/integration/infrastructure/adapters/google-oauth.adapter.ts',
     ])
   })
@@ -228,8 +225,7 @@ describe('BQC-4.3: provider adapters carry no hardcoded URL and no fallback path
 
 describe('BQC-4.3: exactly one provider construction site per adapter factory', () => {
   const FACTORIES: ReadonlyArray<readonly [string, readonly string[]]> = [
-    // The legacy direct adapter is retained only for explicit local tooling;
-    // production source must never construct it.
+    // Credential-bearing account discovery must use the governed client.
     ['createGbpApiAdapter', []],
     // BQC-5.2: the integration build module owns the adapter (was composition).
     ['createGoogleReviewApiAdapter', ['src/contexts/integration/build.ts']],

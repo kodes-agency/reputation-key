@@ -1,6 +1,6 @@
 // Integration context — refresh Google token use case tests
 
-import { afterEach, beforeEach, describe, it, expect, vi } from 'vitest'
+import { beforeEach, describe, it, expect, vi } from 'vitest'
 import { refreshGoogleToken } from './refresh-google-token'
 import { createInMemoryGoogleConnectionRepo } from '#/shared/testing/in-memory-google-connection-repo'
 import { createInMemoryGoogleOAuthPort } from '#/shared/testing/in-memory-google-oauth-port'
@@ -10,6 +10,8 @@ import { createSequentialIntegrationCommandStore } from '#/shared/testing/sequen
 import { buildTestGoogleConnection } from '#/shared/testing/fixtures'
 import { isIntegrationError } from '../../domain/errors'
 import { organizationId, userId } from '#/shared/domain/ids'
+import type { GoogleOAuthProviderCallAuthorizer } from '../ports/google-oauth.port'
+import type { GoogleAuthorizedProviderExecutor } from '../ports/google-authorized-provider-executor.port'
 import type { GoogleRefreshCoordination } from '../ports/google-refresh-coordination.port'
 import { createGoogleOAuthAdapter } from '../../infrastructure/adapters/google-oauth.adapter'
 
@@ -306,44 +308,53 @@ describe('refreshGoogleToken', () => {
 // "Connected", nobody was told to reconnect, and sync and replies failed
 // silently for ever.
 describe('refreshGoogleToken — a grant Google no longer accepts', () => {
-  const fetchMock = vi.fn<typeof fetch>()
+  const execute = vi.fn<GoogleAuthorizedProviderExecutor['execute']>()
   const expired = new Date(FIXED_NOW.getTime() - 60 * 60 * 1000)
 
   beforeEach(() => {
-    fetchMock.mockReset()
-    vi.stubGlobal('fetch', fetchMock)
-  })
-
-  afterEach(() => {
-    vi.unstubAllGlobals()
+    execute.mockReset()
   })
 
   const tokenEndpointAnswers = (status: number, body: unknown) =>
-    fetchMock.mockImplementation(
-      async () =>
-        new Response(JSON.stringify(body), {
-          status,
-          headers: { 'Content-Type': 'application/json; charset=utf-8' },
-        }),
-    )
+    execute.mockImplementation(async () => ({
+      ok: true,
+      status,
+      headers: {
+        contentType: 'application/json; charset=utf-8',
+        cacheControl: null,
+        retryAfter: null,
+      },
+      body: new TextEncoder().encode(JSON.stringify(body)),
+    }))
 
-  /** The real OAuth adapter on its direct path, against the stubbed endpoint. */
+  const authorizeProviderCall: GoogleOAuthProviderCallAuthorizer = async (input) => ({
+    capability: 'property.import_gbp_v2',
+    organizationId: input.organizationId,
+    propertyId: null,
+    connectionId: input.connectionId,
+    initiatorUserId: input.initiatorUserId,
+    expectedCredentialGeneration: 1,
+    authorizationVector: { credentialGeneration: 1 },
+  })
+  const oauthConfig = {
+    clientId: 'rep-key-client',
+    clientSecret: 'client-secret',
+    jwksUrl: 'https://oauth.example.test/jwks',
+    clock,
+    executor: { execute },
+  }
+
+  /** Real refresh classification and command decisions, with fake provider transport. */
   const wiredToGoogle = () => {
     const { connectionRepo, commandStore, outbox, encryption } = setup()
-    const oauth = createGoogleOAuthAdapter({
-      clientId: 'rep-key-client',
-      clientSecret: 'client-secret',
-      tokenUrl: 'https://oauth.example.test/token',
-      jwksUrl: 'https://oauth.example.test/jwks',
-      revokeUrl: 'https://oauth.example.test/revoke',
-      clock,
-    })
+    const oauth = createGoogleOAuthAdapter(oauthConfig)
     const useCase = refreshGoogleToken({
       connectionRepo,
       commandStore,
       oauth,
       encryption,
       clock,
+      authorizeProviderCall,
     })
     return { useCase, connectionRepo, commandStore, outbox, oauth, encryption }
   }
@@ -397,7 +408,7 @@ describe('refreshGoogleToken — a grant Google no longer accepts', () => {
       requiresReauthorization,
     )
 
-    expect(fetchMock).toHaveBeenCalledTimes(1)
+    expect(execute).toHaveBeenCalledTimes(1)
     expect(outbox.facts).toHaveLength(1)
   })
 
@@ -439,14 +450,8 @@ describe('refreshGoogleToken — a grant Google no longer accepts', () => {
           return commandStore.requireReauthorization(command)
         },
       },
-      oauth: createGoogleOAuthAdapter({
-        clientId: 'rep-key-client',
-        clientSecret: 'client-secret',
-        tokenUrl: 'https://oauth.example.test/token',
-        jwksUrl: 'https://oauth.example.test/jwks',
-        revokeUrl: 'https://oauth.example.test/revoke',
-        clock,
-      }),
+      oauth: createGoogleOAuthAdapter(oauthConfig),
+      authorizeProviderCall,
       encryption,
       clock,
     })
