@@ -1,3 +1,4 @@
+import { hasOnlyUnicodeScalars } from './ai-json'
 import { REPLY_DRAFTING_V2_VERSIONS } from './reply-drafting-v2-schema'
 import { replyBodyIssueCodeSchema } from './reply-drafting-v2-binding'
 import { replyDraftingV2FrameSchema } from './reply-drafting-v2-frame'
@@ -54,19 +55,11 @@ function utf8ByteLength(value: string): number {
   return new TextEncoder().encode(value).byteLength
 }
 
-function hasOnlyUnicodeScalars(value: string): boolean {
-  for (let index = 0; index < value.length; index += 1) {
-    const unit = value.charCodeAt(index)
-    if (unit >= 0xd800 && unit <= 0xdbff) {
-      if (index + 1 >= value.length) return false
-      const next = value.charCodeAt(index + 1)
-      if (next < 0xdc00 || next > 0xdfff) return false
-      index += 1
-      const codePoint = (unit - 0xd800) * 0x400 + (next - 0xdc00) + 0x10000
-      if ((codePoint & 0xffff) >= 0xfffe) return false
-    } else if (unit >= 0xdc00 && unit <= 0xdfff) {
-      return false
-    } else if ((unit >= 0xfdd0 && unit <= 0xfdef) || (unit & 0xffff) >= 0xfffe) {
+function hasOnlyAllowedUnicodeScalars(value: string): boolean {
+  if (!hasOnlyUnicodeScalars(value)) return false
+  for (const scalar of value) {
+    const codePoint = scalar.codePointAt(0)!
+    if ((codePoint >= 0xfdd0 && codePoint <= 0xfdef) || (codePoint & 0xffff) >= 0xfffe) {
       return false
     }
   }
@@ -79,14 +72,16 @@ const nullableLanguageCode = z.union([
     .string()
     .refine(
       (value) =>
-        hasOnlyUnicodeScalars(value) &&
+        hasOnlyAllowedUnicodeScalars(value) &&
         [...value].length <= 64 &&
         !CONTROL_OR_FORMAT.test(value),
     ),
   z.null(),
 ])
 const reviewText = z.union([
-  z.string().refine((value) => hasOnlyUnicodeScalars(value) && !value.includes('\0')),
+  z
+    .string()
+    .refine((value) => hasOnlyAllowedUnicodeScalars(value) && !value.includes('\0')),
   z.null(),
 ])
 const reviewRating = z.union([
@@ -116,7 +111,7 @@ const reviewSentenceSchema = z
     number: z.number().int().min(1).max(MAX_AI_REVIEW_SENTENCES_V1),
     text: z
       .string()
-      .refine((value) => hasOnlyUnicodeScalars(value) && !value.includes('\0')),
+      .refine((value) => hasOnlyAllowedUnicodeScalars(value) && !value.includes('\0')),
   })
   .strict()
 
