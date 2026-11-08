@@ -89,7 +89,7 @@ import { createPortalGoalPromptDeferralStore } from './infrastructure/repositori
 import {
   readPortalGoalSinglePage,
   type PortalGoalSinglePageRequestApi,
-} from './application/use-cases/portal-goal-single-page'
+} from './monthly-goals/get-portal-goal-page.server'
 import { readGoalRecommendationCounts } from './infrastructure/adapters/goal-recommendation-readings'
 import {
   createGoalProgramProgressReader,
