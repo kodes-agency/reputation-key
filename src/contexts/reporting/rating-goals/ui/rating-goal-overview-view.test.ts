@@ -131,39 +131,33 @@ describe('overviewGoalView', () => {
 })
 
 describe('next goals after an outcome', () => {
-  const reached = { state: 'reached', targetTenths: 49 } as const
+  const reachedAt = (targetTenths: number) =>
+    ({ state: 'reached', targetTenths }) as const
 
-  it('offers keeping the current 4.8 rather than the old reached 4.9', () => {
-    expect(ratingGoalNextIntents(reached, 4.8)).toEqual([
+  it('offers a climb and Keep at 4.7 or 4.8', () => {
+    expect(ratingGoalNextIntents(reachedAt(47))).toEqual([
+      { kind: 'climb' },
+      { kind: 'keep', targetTenths: 47 },
+    ])
+    expect(ratingGoalNextIntents(reachedAt(48))).toEqual([
       { kind: 'climb' },
       { kind: 'keep', targetTenths: 48 },
     ])
   })
 
   it('offers only a climb below 4.7 and only Keep from 4.9', () => {
-    expect(ratingGoalNextIntents(reached, 4.6)).toEqual([{ kind: 'climb' }])
-    expect(ratingGoalNextIntents(reached, 4.9)).toEqual([
+    expect(ratingGoalNextIntents(reachedAt(45))).toEqual([{ kind: 'climb' }])
+    expect(ratingGoalNextIntents(reachedAt(49))).toEqual([
       { kind: 'keep', targetTenths: 49 },
     ])
-    expect(ratingGoalNextIntents(reached, 5)).toEqual([
+    expect(ratingGoalNextIntents(reachedAt(50))).toEqual([
       { kind: 'keep', targetTenths: 50 },
     ])
   })
 
-  it('never offers keeping an unverified number', () => {
-    expect(ratingGoalNextIntents(reached, null)).toEqual([{ kind: 'climb' }])
-  })
-
   it('lets a manager set a new goal after an ended goal', () => {
-    expect(ratingGoalNextIntents({ state: 'ended' }, 4.8)).toEqual([{ kind: 'climb' }])
-  })
-})
-
-it('uses a just-reached card’s Google number while setup is still loading', () => {
-  expect(
-    overviewGoalView({ ...read, card: CARD_REACHED, setup: undefined }),
-  ).toMatchObject({
-    kind: 'outcome',
-    googleShowsNow: CARD_REACHED.google?.shows,
+    expect(ratingGoalNextIntents({ state: 'ended', targetTenths: 48 })).toEqual([
+      { kind: 'climb' },
+    ])
   })
 })

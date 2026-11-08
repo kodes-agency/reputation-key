@@ -17,11 +17,7 @@ import {
   RatingGoalCardWithRecap,
   type RatingGoalRecapCommands,
 } from './rating-goal-recap'
-import {
-  ratingGoalOutcome,
-  ratingGoalOutcomeShowsNow,
-  type RatingGoalOutcomeView,
-} from './rating-goal-view'
+import { ratingGoalOutcome, type RatingGoalOutcomeView } from './rating-goal-view'
 import type { RatingGoalWizardIntent } from './rating-goal-wizard-view'
 
 /** A read as a region draws it: its data, whether it failed, and its "Try again". */
@@ -130,7 +126,7 @@ export function RatingGoalSection(props: Props) {
     return (
       <RatingGoalOutcome
         outcome={outcome}
-        googleShowsNow={ratingGoalOutcomeShowsNow(card.data, setup.data)}
+        googleShowsNow={setup.data?.google?.shows ?? null}
         canSetNext={setup.data?.eligibility.eligible !== false}
         timezone={timezone}
         now={now}

@@ -9,7 +9,6 @@ import type {
 import { initialPlan, perMonthOf28Days } from '../domain/rating-goal-climb'
 import {
   displayedTenths,
-  ratio,
   thresholdThousandths,
   type Ratio,
 } from '../domain/rating-goal-numbers'
@@ -54,14 +53,6 @@ type Detail = Readonly<{
 const thousandthsOf = (value: Ratio): number =>
   Number((2n * value.num * 1000n + value.den) / (2n * value.den))
 
-/** Count coverage permits the cache chart, but is not revision proof for a plan. */
-function chartAverage(reading: RatingGoalReading): Ratio | null {
-  const { cacheTotals, google } = reading
-  return cacheTotals.count > 0 && cacheTotals.count === google?.reviewCount
-    ? ratio(cacheTotals.sum, cacheTotals.count)
-    : null
-}
-
 /** The detail's chart starts here (Monday of the set's week − 4 weeks, a year back at most). */
 export const detailChartStart = (goal: PropertyRatingGoal, reading: RatingGoalReading) =>
   chartStart(goal.createdAt, reading.now, reading.facts.timezone)
@@ -76,7 +67,7 @@ function mondayPoints(
   startKey: string,
 ): readonly RatingGoalChartPoint[] | null {
   const { reading, reads } = detail
-  if (chartAverage(reading) === null) return null
+  if (reading.exact?.source !== 'cache') return null
   const { now } = reading
   const { timezone } = reading.facts
   const ends = new Map(
@@ -105,11 +96,11 @@ function historyLine(
   mondays: readonly RatingGoalChartPoint[] | null,
   firstDay: number,
 ): RatingGoalChartPoint[] | null {
-  const average = chartAverage(detail.reading)
-  if (mondays === null || average === null) return null
+  const { exact } = detail.reading
+  if (mondays === null || exact?.source !== 'cache') return null
   return [
     ...mondays.filter((point) => point.day >= firstDay && point.day < 0),
-    { day: 0, thousandths: thousandthsOf(average) },
+    { day: 0, thousandths: thousandthsOf(exact.value) },
   ]
 }
 
@@ -178,7 +169,6 @@ function chartView(detail: Detail): RatingGoalChartView | null {
   const start = detailChartStart(goal, reading)
   const firstDay = daysFromToday(start.key, now, timezone)
   const mondays = mondayPoints(detail, start.key)
-  const average = chartAverage(reading)
   return {
     todayKey: localDateKey(now, timezone),
     firstDay,
@@ -192,7 +182,7 @@ function chartView(detail: Detail): RatingGoalChartView | null {
         up: move.up,
       }))
       .filter((move) => move.day >= firstDay),
-    today: average === null ? null : thousandthsOf(average),
+    today: reading.exact?.source === 'cache' ? thousandthsOf(reading.exact.value) : null,
     weeks: weekCounts(detail, start.key),
   }
 }

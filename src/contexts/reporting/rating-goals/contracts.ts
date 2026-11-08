@@ -27,8 +27,9 @@ export type {
 export type RatingQualityBasis = QualityBasis
 
 /**
- * Provenance used by stored baselines and browser views. Current reads use
- * Google's figure until cache revision evidence is available.
+ * Where the exact average comes from: `cache` when RepKey holds every review
+ * Google counts, `google` when it does not and the figure is Google's own
+ * one-decimal number, so every sentence about it says "about".
  */
 export type RatingExactAverageSource = 'cache' | 'google'
 

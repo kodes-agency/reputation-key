@@ -6,11 +6,7 @@ import type {
   RatingGoalHistoryEntry,
   RatingGoalSetupView,
 } from '#/contexts/reporting/rating-goals/contracts'
-import {
-  ratingGoalOutcome,
-  ratingGoalOutcomeShowsNow,
-  type RatingGoalOutcomeView,
-} from './rating-goal-view'
+import { ratingGoalOutcome, type RatingGoalOutcomeView } from './rating-goal-view'
 import { ratingGoalStartIntent } from './rating-goal-offers'
 import type { RatingGoalWizardIntent } from './rating-goal-wizard-view'
 
@@ -53,7 +49,7 @@ export function overviewGoalView(reads: OverviewGoalReads): OverviewGoalView {
     return {
       kind: 'outcome',
       outcome,
-      googleShowsNow: ratingGoalOutcomeShowsNow(card, setup),
+      googleShowsNow: setup?.google?.shows ?? null,
       canSetNext: setup?.eligibility.eligible !== false,
     }
   }

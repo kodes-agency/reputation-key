@@ -7,7 +7,6 @@ import type {
   RatingGoalChangeView,
   RatingGoalEndedReason,
   RatingGoalHistoryEntry,
-  RatingGoalSetupView,
   RatingGoalStatus,
 } from '#/contexts/reporting/rating-goals/contracts'
 import type { StatusMap, StatusPresentation } from '#/components/ui/status-badge'
@@ -257,14 +256,4 @@ export function ratingGoalOutcome(
   now: Date,
 ): RatingGoalOutcomeView | null {
   return card === null ? recentOutcome(history, now) : outcomeFromCard(card, readAt)
-}
-
-/** Prefer the setup read; a just-reached card can supply numbers before it arrives. */
-export function ratingGoalOutcomeShowsNow(
-  card: RatingGoalCardView | null,
-  setup: RatingGoalSetupView | undefined,
-): number | null {
-  return setup === undefined
-    ? (card?.google?.shows ?? null)
-    : (setup.google?.shows ?? null)
 }

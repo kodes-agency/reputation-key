@@ -14,15 +14,13 @@ export function ratingGoalStartIntent(
     : { kind: 'climb' }
 }
 
+/** Keep is offered from 4.7 and alone from 4.9, where no higher tenth can be planned. */
 export function ratingGoalNextIntents(
-  outcome: Readonly<{ state: 'reached' | 'ended' }>,
-  googleShowsNow: number | null,
+  outcome: Readonly<{ state: 'reached' | 'ended'; targetTenths: number }>,
 ): readonly RatingGoalWizardIntent[] {
   const climb = { kind: 'climb' } as const
   if (outcome.state === 'ended') return [climb]
-  if (googleShowsNow === null) return [climb]
-  const tenths = Math.round(googleShowsNow * 10)
-  const keep = { kind: 'keep', targetTenths: tenths } as const
-  if (tenths < KEEP_FIRST_FROM_TENTHS) return [climb]
-  return tenths >= HIGHEST_TARGET_TENTHS ? [keep] : [climb, keep]
+  const keep = { kind: 'keep', targetTenths: outcome.targetTenths } as const
+  if (outcome.targetTenths < KEEP_FIRST_FROM_TENTHS) return [climb]
+  return outcome.targetTenths >= HIGHEST_TARGET_TENTHS ? [keep] : [climb, keep]
 }

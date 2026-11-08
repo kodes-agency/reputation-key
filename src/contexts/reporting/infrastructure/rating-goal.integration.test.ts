@@ -252,16 +252,16 @@ describe('a Property Google rating goal on PostgreSQL', () => {
     expect(setup).toMatchObject({
       eligibility: { eligible: true },
       google: { shows: 4.3, reviewCount: 15, current: true },
-      exactAverage: 4.3,
-      exactAverageSource: 'google',
+      exactAverage: 4.333,
+      exactAverageSource: 'cache',
       offersClimb: true,
     })
-    // Equal cache counts do not prove a matching Google revision.
+    // The page works the plan out from these: the cache's exact 65 / 15.
     expect(setup.setupInputs).toMatchObject({
       reviewCount: 15,
       displayedTenths: 43,
-      exact: { num: 43, den: 10 },
-      exactSource: 'google',
+      exact: { num: 13, den: 3 },
+      exactSource: 'cache',
       reviewsLast90Days: 11,
     })
 

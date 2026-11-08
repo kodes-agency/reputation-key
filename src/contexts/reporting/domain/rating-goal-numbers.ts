@@ -11,8 +11,8 @@
 // float32 artefact (3.9000000953674316 for 3.9), so it is read to the nearest
 // millionth first: a float32 near 5 is off by at most 2.4e-7, so this strips
 // the artefact and nothing a finer figure carries (4.4496 still shows 4.4).
-// Equal review counts do not prove the cache and Google describe the same
-// revision. Until that evidence is available, planning uses Google’s figure.
+// It never carries the exact average: that comes from the review cache when
+// the cache holds every review Google counts (ADR 0067).
 
 /** Google rounds its one-decimal number half up: 4.45 shows as 4.5. */
 export const GOOGLE_DISPLAY_ROUNDING = 'half_up' as const
@@ -35,7 +35,7 @@ export type RatingTotals = Readonly<{ count: number; sum: number }>
 
 export type ExactAverage = Readonly<{
   value: Ratio
-  /** The provenance retained by stored baselines and browser contracts. */
+  /** `cache` when the cache holds every Google review; `google` otherwise. */
   source: 'cache' | 'google'
 }>
 
@@ -110,12 +110,17 @@ export const thresholdThousandths = (targetTenths: number): number =>
   targetTenths * 100 - DISPLAY_THRESHOLD_OFFSET_THOUSANDTHS
 
 /**
- * Google's own figure is the planning basis. Cache counts alone carry no
- * revision evidence, even when they match Google's count.
+ * The average a goal plans against: the cache's sum over count when the cache
+ * holds every review Google counts, otherwise Google's own figure. Null when
+ * neither has a rating.
  */
 export function exactAverage(
+  cache: RatingTotals,
   google: Readonly<{ reviewCount: number; averageRating: number | null }>,
 ): ExactAverage | null {
+  if (cache.count > 0 && cache.count === google.reviewCount) {
+    return { value: ratio(cache.sum, cache.count), source: 'cache' }
+  }
   if (google.averageRating === null || google.reviewCount === 0) return null
   return { value: ratio(millionthsOf(google.averageRating), MILLION), source: 'google' }
 }

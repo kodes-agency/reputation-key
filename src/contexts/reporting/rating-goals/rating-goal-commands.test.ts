@@ -71,7 +71,7 @@ describe('setting a rating goal', () => {
       createdAt: NOW,
       baseline: { reviewCount: 812, googleAverage: 4.300000190734863 },
     })
-    expect(world.goals[0]!.baseline.exactAverage).toBe(4.3)
+    expect(world.goals[0]!.baseline.exactAverage).toBeCloseTo(3500 / 812, 10)
   })
 
   it.each([

@@ -60,7 +60,6 @@ const reading = (overrides: Partial<RatingGoalReading> = {}): RatingGoalReading 
   },
   googleCurrent: true,
   waiting: false,
-  cacheTotals: { count: 812, sum: 3500 },
   exact: { value: ratio(431, 100), source: 'cache' },
   mix: { value: ratio(470, 100), reviewCount: 30, basis: 'last_90_days' },
   reviewsLast28Days: 40,

@@ -42,12 +42,8 @@ function reachedSentence(
   return `Goal reached${on}: Google showed ${target}. It shows ${ratingText(googleShowsNow)} now.`
 }
 
-function NextSteps({
-  outcome,
-  googleShowsNow,
-  onStart,
-}: Pick<Props, 'outcome' | 'googleShowsNow' | 'onStart'>) {
-  return ratingGoalNextIntents(outcome, googleShowsNow).map((intent) => (
+function NextSteps({ outcome, onStart }: Pick<Props, 'outcome' | 'onStart'>) {
+  return ratingGoalNextIntents(outcome).map((intent) => (
     <Button
       key={intent.kind}
       variant={intent.kind === 'keep' ? 'outline' : 'default'}
@@ -87,11 +83,7 @@ export function RatingGoalOutcome({
         </p>
         {can('goal.create') && canSetNext ? (
           <GoalCardActions>
-            <NextSteps
-              outcome={outcome}
-              googleShowsNow={googleShowsNow}
-              onStart={onStart}
-            />
+            <NextSteps outcome={outcome} onStart={onStart} />
           </GoalCardActions>
         ) : null}
       </CardContent>

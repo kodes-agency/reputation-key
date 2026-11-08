@@ -113,17 +113,3 @@ describe('when a reading waits for Google', () => {
     expect(reading).toMatchObject({ waiting: false, reviewsLast90Days: 30 })
   })
 })
-
-it('uses Google 4.5 when ten cached reviews sum to 49 without revision evidence', async () => {
-  const reading = await readingOf(
-    { reviewCount: 10, averageRating: 4.5, verifiedAt: NOW },
-    {
-      all: { count: 10, sum: 49 },
-      mixWindow: { count: 10, sum: 49 },
-      mostRecent: { count: 10, sum: 49 },
-    },
-  )
-  expect(reading.waiting).toBe(false)
-  expect(reading.exact).toEqual({ value: { num: 9n, den: 2n }, source: 'google' })
-  expect(reading.google?.displayedTenths).toBe(45)
-})

@@ -321,8 +321,8 @@ The caller isolates a failed side read from the primary Guest voice page.
   step as decided, and sets, changes or blocks no goal. The maths is pure and exact
   (`domain/rating-goal-*.ts`, BigInt rationals): Google's number rounds half up (4.45
   shows 4.5, one named rule), so a target's threshold is five hundredths below it; the exact
-  average is Google's figure until cache revision evidence is available; matching review
-  counts alone do not prove that both sources describe the same revision; the recent mix is the last 90 days at ten reviews or more,
+  average is the cache's sum over count when the cache holds every review Google counts,
+  otherwise Google's figure; the recent mix is the last 90 days at ten reviews or more,
   else the most recent 25; reviews needed is ceil(N(θ − E)/(q − θ)) at a quality q; when a
   goal arrives is one rule for setup and tracking in exact days (`domain/rating-goal-arrival.ts`,
   round 5): a central time and a likely range (quality ± 0.1, pace ± 10%), never a month.
@@ -359,9 +359,7 @@ The caller isolates a failed side read from the primary Guest voice page.
   the busier of the last 90 days and the busiest 30, to a nice pace a day, at least 1), and
   the recommended goal is the highest within six months at 0.1★ below plan, with a central
   time and a likely range in exact day fractions (`domain/rating-goal-duration.ts`). A tenth
-  already cleared by the planning basis is never a goal. Cache counts alone cannot
-  establish that a higher tenth has been earned. The historical cache chart keeps
-  its count-coverage check separately; it is not the planning basis. Keep comes first from 4.7.
+  the cache already clears while Google lags is never a goal. Keep comes first from 4.7.
   Components import these values only from `application/` (the components boundary).
   A goal's numbers (forecast, still needed, next number) assume the planned quality
   blended with the reviews since it was set from the first one, the plan counted as 15

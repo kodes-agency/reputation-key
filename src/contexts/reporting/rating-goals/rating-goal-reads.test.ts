@@ -33,8 +33,8 @@ describe('the setup read', () => {
       eligibility: { eligible: true },
       hasActiveGoal: false,
       google: { shows: 4.3, reviewCount: 812, asOf: expect.any(String), current: true },
-      exactAverage: 4.3,
-      exactAverageSource: 'google',
+      exactAverage: 4.31,
+      exactAverageSource: 'cache',
       offerKeepFirst: false,
       setupInputs: expect.objectContaining({ displayedTenths: 43, reviewCount: 812 }),
       offersClimb: true,
@@ -76,13 +76,13 @@ describe('the setup read', () => {
     expect(setup).toMatchObject({ offerKeepFirst: true, offersClimb: false })
   })
 
-  it('offers a climb from Google 4.8 despite an unverified cache average above 4.85', async () => {
+  it('offers Keep first, and no climb, when Google shows 4.8 but 4.9 is earned (D28)', async () => {
     world.snapshot = { ...world.snapshot!, averageRating: Math.fround(4.8) }
     world.summary = { ...world.summary, all: { count: 812, sum: 3947 } } // 4.861
 
     const setup = await getRatingGoalSetup(dependencies(world), input, actor)
 
-    expect(setup).toMatchObject({ offerKeepFirst: true, offersClimb: true })
+    expect(setup).toMatchObject({ offerKeepFirst: true, offersClimb: false })
   })
 
   it('says how many reviews there are when there are fewer than ten', async () => {
@@ -170,8 +170,8 @@ describe('the setup read', () => {
     expect(setup.setupInputs).toEqual({
       reviewCount: 812,
       displayedTenths: 43,
-      exact: { num: 43, den: 10 },
-      exactSource: 'google',
+      exact: { num: 125, den: 29 }, // 3500 / 812
+      exactSource: 'cache',
       bestMonth: null,
       bestYear: null,
       // The reviews of the last 90 days: the recent mix's window.
@@ -233,16 +233,16 @@ describe('the simple card', () => {
       target: 4.5,
       threshold: 4.45,
       google: { shows: 4.3, reviewCount: 812 },
-      exactAverageSource: 'google',
+      exactAverageSource: 'cache',
       thisWeekCount: 6,
       justSet: false,
       googleShowsSoon: false,
       forecastBasis: 'actual_pace',
       forecast: { kind: 'days' },
       // 4.4 at the plan's 4.7 blended with the 9 reviews since the set (4.6458).
-      next: { targetTenths: 44, target: 4.4, reviewsNeeded: 138 },
+      next: { targetTenths: 44, target: 4.4, reviewsNeeded: 109 },
       earnedTenths: null,
-      stillNeeded: 622,
+      stillNeeded: 580,
       lastFourWeeksPerWeek: 10,
       baseline: { googleShows: 4.3, reviewCount: 790, exactAverage: 4.29 },
       // 4.6 needs new reviews averaging 4.7 or more.
@@ -250,10 +250,10 @@ describe('the simple card', () => {
       // 14 Oct 2026 is a Wednesday in Sofia.
       weekday: 3,
     })
-    // 622 reviews at the 40 of the last 28 days: 435.4 days.
+    // 580 reviews at the 40 of the last 28 days: 406 days.
     const forecast = card!.forecast
     expect(forecast?.kind === 'days' && forecast.central.num / forecast.central.den).toBe(
-      435.4,
+      406,
     )
     expect(world.goals[0]!.lastEvaluation).toMatchObject({
       status: 'on_pace',
@@ -337,12 +337,12 @@ describe('the detail read', () => {
     const detail = await getRatingGoalDetail(dependencies(world), input, actor)
 
     expect(detail).toMatchObject({
-      exactAverageSource: 'google',
+      exactAverageSource: 'cache',
       lastFourWeeksPerWeek: 7,
       // At the plan's 4.7 blended with the 9 reviews since the set (4.11 of
-      // stars): (15 × 4.7 + 41) / 24 = 4.6458; the starting average is Google’s 4.3.
-      stillNeeded: 622,
-      next: { targetTenths: 44, target: 4.4, reviewsNeeded: 138 },
+      // stars): (15 × 4.7 + 41) / 24 = 4.6458, so (3613.4 − 3500) / 0.1958.
+      stillNeeded: 580,
+      next: { targetTenths: 44, target: 4.4, reviewsNeeded: 109 },
       baseline: { googleShows: 4.3, reviewCount: 790, exactAverage: 4.29 },
       changes: [
         {
@@ -389,10 +389,10 @@ describe('the detail read', () => {
 
     const detail = await getRatingGoalDetail(dependencies(world), input, actor)
 
-    // 812 × (4.45 − 4.3) / (4.7 − 4.45) = 487.2.
+    // (812 × 4.45 − 3500) / (4.7 − 4.45) = 453.6.
     expect(detail).toMatchObject({
       qualityBasis: 'planned',
-      stillNeeded: 488,
+      stillNeeded: 454,
       plan: { qualityBasis: 'planned', assumedAverage: 4.7 },
     })
   })
@@ -400,7 +400,7 @@ describe('the detail read', () => {
   it('keeps blending from the tenth review on while new reviews clear the target', async () => {
     world.goals = [activeGoal()]
     // 20 reviews since the set at 4.55: (70.5 + 91) / 35 = 4.6143, so
-    // 812 × (4.45 − 4.3) / (4.6143 − 4.45), rounded up.
+    // (812 × 4.45 − 3500) / 0.1643 = 690.3.
     world.summary = { ...world.summary, sinceSet: { count: 20, sum: 91 } }
 
     const detail = await getRatingGoalDetail(dependencies(world), input, actor)
@@ -408,7 +408,7 @@ describe('the detail read', () => {
     expect(detail).toMatchObject({
       status: 'below_pace',
       qualityBasis: 'blended',
-      stillNeeded: 742,
+      stillNeeded: 691,
       plan: {
         sinceSet: { reviewCount: 20, average: 4.55, averageTenths: 46 },
         qualityBasis: 'blended',
@@ -456,26 +456,27 @@ describe('the detail read’s low reviews and this week’s stars', () => {
 
     const detail = await getRatingGoalDetail(dependencies(world), input, actor)
 
-    // At Google’s 4.3 with nine new reviews summing to 41, removing each low
-    // review changes both the starting average and the planned-quality blend.
+    // Goal 4.5 (from 4.45), 812 reviews at 4.3103, 9 since the set summing 41:
+    // the goal needs 579.1 at the blend 4.6458. Without the 2★ it would need
+    // 356.9 (811 at 4.3132, the blend 4.7609): it set the goal back about 222.
     expect(detail?.moved.lowReviews).toEqual([
       {
         reviewId: '60000000-0000-4000-8000-000000000001',
         at: new Date(NOW.getTime() - DAY).toISOString(),
         stars: 2,
-        setBack: 238,
+        setBack: 222,
       },
       {
         reviewId: '60000000-0000-4000-8000-000000000002',
         at: new Date(NOW.getTime() - 3 * DAY).toISOString(),
         stars: 4,
-        setBack: 80,
+        setBack: 75,
       },
       {
         reviewId: '60000000-0000-4000-8000-000000000003',
         at: new Date(NOW.getTime() - 5 * DAY).toISOString(),
         stars: 1,
-        setBack: 288,
+        setBack: 269,
       },
     ])
     expect(world.evidenceRequests).toContainEqual({
@@ -516,9 +517,9 @@ describe('the detail read’s low reviews and this week’s stars', () => {
   })
 
   it('reads no low review when none could set the goal back half a review', async () => {
-    // Google's 4.0499 is just below 4.05: fewer than half a review remain.
+    // 812 reviews at 4.3103 already clear a 4.1 goal's 4.05: nothing to set back.
     world.goals = [activeGoal({ targetTenths: 41, qualityTenths: 47 })]
-    world.snapshot = { ...world.snapshot!, averageRating: 4.0499 }
+    world.snapshot = { ...world.snapshot!, averageRating: 4.04 }
     world.lowReviews = [lowReview('1', 1, 1)]
 
     const detail = await getRatingGoalDetail(dependencies(world), input, actor)
@@ -711,17 +712,5 @@ describe('the evaluator the snapshot consumer runs', () => {
       stored: false,
       previous: { lastEvaluation: { status: 'below_pace' } },
     })
-  })
-})
-
-it('plans from Google 4.5 when ten cached reviews sum to 49', async () => {
-  world.snapshot = { reviewCount: 10, averageRating: 4.5, verifiedAt: NOW }
-  world.summary = { ...world.summary, all: { count: 10, sum: 49 } }
-  const setup = await getRatingGoalSetup(dependencies(world), input, actor)
-  expect(setup).toMatchObject({
-    exactAverage: 4.5,
-    exactAverageSource: 'google',
-    offersClimb: true,
-    setupInputs: { exact: { num: 9, den: 2 }, exactSource: 'google' },
   })
 })
