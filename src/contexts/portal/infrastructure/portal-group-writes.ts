@@ -1,3 +1,4 @@
+import { lockStaffTargetProperty } from '#/shared/db/staff-target-lock'
 import { assertPersonalGroupTarget } from './personal-portal-group-guard'
 // Portal command store — the writes the group commands share: the group fence,
 // the Portal and membership locks, ending and beginning a membership, and the
@@ -52,6 +53,7 @@ export async function fencePortalGroup(
       'Portal Group command revision must advance monotonically',
     )
   }
+  await lockStaffTargetProperty(tx, fence.organizationId, fence.propertyId)
   const [updated] = await tx
     .update(portalGroups)
     .set({ ...patch, updatedAt: fence.revision })
@@ -94,6 +96,7 @@ export async function lockSamePropertyPortal(
   }>,
   refusal: string,
 ): Promise<void> {
+  await lockStaffTargetProperty(tx, scope.organizationId, scope.propertyId)
   await tx.execute(sql`
     SELECT id FROM portals
     WHERE organization_id = ${unbrand(scope.organizationId)}

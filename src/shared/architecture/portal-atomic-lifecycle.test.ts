@@ -36,7 +36,9 @@ describe('architecture: core Portal lifecycle facts are atomic', () => {
 
   it('constructs one atomic command store in the Portal composition boundary', () => {
     const source = read('src/contexts/portal/build.ts')
-    expect(source).toContain('createAtomicPortalCommandStore(deps.db)')
+    expect(source).toContain(
+      'createAtomicPortalCommandStore(deps.db, deps.ratingGoalGuard)',
+    )
     expect(source).toContain('commandStore: portalCommandStore')
   })
 
