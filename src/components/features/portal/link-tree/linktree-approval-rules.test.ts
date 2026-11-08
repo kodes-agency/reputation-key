@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import type { PortalLinktreeDestination } from '#/contexts/portal/application/public-api'
+import type { PortalLinktreeDestination } from '#/contexts/portal/application/portal-management-contracts'
 import { LINK_APPROVAL_NAMES } from './linktree-approval-names'
 import {
   countHiddenLinks,

@@ -4,7 +4,7 @@
 // portal then has no photo, and this says so and offers another.
 import { Alert, AlertDescription } from '#/components/ui/alert'
 import { Button } from '#/components/ui/button'
-import type { PropertyLookHero } from '#/contexts/portal/application/public-api'
+import type { PropertyLookHero } from '#/contexts/portal/application/portal-management-contracts'
 import { FocalPointPicker } from '../property-look/focal-point-picker'
 import type { FocalPoint } from '../property-look/focal-point'
 import { PropertyLookMediaActions } from '../property-look/property-look-media-actions'

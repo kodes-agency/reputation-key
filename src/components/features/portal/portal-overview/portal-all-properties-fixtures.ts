@@ -2,7 +2,11 @@
 // Hospitality's three properties as board 10 prints them (3,420 scans
 // in all). Avela Resort and The Harbor Hotel are read in different zones' worth
 // of days; Forma Kitchen is the property the board shows collapsed.
-import type { PortalOverviewRow } from '#/contexts/portal/application/public-api'
+// The All properties page's rows and results for tests and stories: Avela
+// Hospitality's three properties as board 10 prints them (3,420 scans
+// in all). Avela Resort and The Harbor Hotel are read in different zones' worth
+// of days; Forma Kitchen is the property the board shows collapsed.
+import type { PortalOverviewRow } from '#/contexts/portal/application/portal-management-contracts'
 import type { PortalResultsOverview } from '#/contexts/reporting/application/public-api'
 import { portalId, propertyId } from '#/shared/domain/ids'
 import { NO_CODE, overviewGroup, overviewRow } from './portal-overview-fixtures'

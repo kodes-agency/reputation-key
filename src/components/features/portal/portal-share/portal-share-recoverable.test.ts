@@ -4,7 +4,7 @@
 
 import { describe, it, expect } from 'vitest'
 import { derivePortalShareView } from './portal-share-state'
-import type { PortalTokenStatus } from '#/contexts/portal/application/public-api'
+import type { PortalTokenStatus } from '#/contexts/portal/application/portal-management-contracts'
 
 const LIVE: PortalTokenStatus = {
   hasActiveToken: true,

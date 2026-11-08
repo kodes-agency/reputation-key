@@ -2,7 +2,7 @@
 // written in. Nothing is drawn for a portal that offers no language yet.
 
 import { useState } from 'react'
-import type { PortalLinktreeView } from '#/contexts/portal/application/public-api'
+import type { PortalLinktreeView } from '#/contexts/portal/application/portal-management-contracts'
 import type { OfferedGuestLocale } from '#/shared/domain/guest-locale'
 import { LinktreeLocaleSwitch } from './linktree-locale-switch'
 import { LinktreeTitleForm } from './linktree-title-form'

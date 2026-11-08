@@ -3,7 +3,12 @@
 // so a portal whose draft also holds someone's half-written wording or a link
 // prepared for later would send that live with the colours. The batch says so on
 // the row, and does not tick such a portal by itself.
-import type { PortalReview } from '#/contexts/portal/application/public-api'
+// What a portal's review lists as waiting, sorted into what this page did and
+// what it did not. Publishing the look publishes the portal's whole saved draft,
+// so a portal whose draft also holds someone's half-written wording or a link
+// prepared for later would send that live with the colours. The batch says so on
+// the row, and does not tick such a portal by itself.
+import type { PortalReview } from '#/contexts/portal/application/portal-management-contracts'
 
 type Change = PortalReview['changes'][number]
 

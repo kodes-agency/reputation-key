@@ -4,11 +4,16 @@
 // decide nothing about timing. Each answers with the outcome the coordinator
 // understands and what the server holds now, which the next call compares with.
 
+// The autosaved writes of a portal's own look, as plain functions: what is sent,
+// when nothing is, and what the server then holds. The editor's autosave runs
+// them (and the coordinator turns a throw into "Not saved" with a retry), so they
+// decide nothing about timing. Each answers with the outcome the coordinator
+// understands and what the server holds now, which the next call compares with.
 import type {
   PortalLookColoursInput,
   PortalLookIdentityInput,
   PortalLookPhotoInput,
-} from '#/contexts/portal/application/public-api'
+} from '#/contexts/portal/application/portal-management-contracts'
 import type { PortalDraftSaveOutcome } from '../portal-editor/portal-draft-autosave'
 import { sameFocal, type FocalPoint } from '../property-look/focal-point'
 import type { ColoursDraft } from '../property-look/property-look-colours-section'

@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 import { ServerFunctionError } from '#/shared/auth/server-function-error'
-import type { PortalTokenStatus } from '#/contexts/portal/application/public-api'
+import type { PortalTokenStatus } from '#/contexts/portal/application/portal-management-contracts'
 import {
   deriveOpenPageMode,
   openablePageAddress,

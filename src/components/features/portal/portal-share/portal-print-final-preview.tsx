@@ -10,7 +10,7 @@
 
 import { useState, type ReactNode } from 'react'
 import { Skeleton } from '#/components/ui/skeleton'
-import type { PortalPrintKitView } from '#/contexts/portal/application/public-api'
+import type { PortalPrintKitView } from '#/contexts/portal/application/portal-management-contracts'
 import {
   printFinalBackCaption,
   type PrintFinalSide,

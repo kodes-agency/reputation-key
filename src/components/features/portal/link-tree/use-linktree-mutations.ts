@@ -18,7 +18,7 @@ import {
   savePortalLinkTexts,
   updateLink,
 } from '#/contexts/portal/server/portal-links'
-import type { PortalLinktreeView } from '#/contexts/portal/application/public-api'
+import type { PortalLinktreeView } from '#/contexts/portal/application/portal-management-contracts'
 import { applyLinkOrder, isAddressWrite } from './linktree-rules'
 
 /** Which tile's address change was refused, and why: one shared action, many tiles. */

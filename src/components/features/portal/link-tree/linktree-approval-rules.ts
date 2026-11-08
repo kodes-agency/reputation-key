@@ -3,10 +3,14 @@
 // guests cannot see, and which allowed site a tile opens (to approve or turn it
 // off from the tile). The names come from linktree-approval-names.ts.
 
+// The pure rules for what a tile says about the approval of the place it opens:
+// the line under its address, the marker on its collapsed row, how many tiles
+// guests cannot see, and which allowed site a tile opens (to approve or turn it
+// off from the tile). The names come from linktree-approval-names.ts.
 import type {
   PortalLinktreeDestination,
   PortalLinktreeLink,
-} from '#/contexts/portal/application/public-api'
+} from '#/contexts/portal/application/portal-management-contracts'
 import { LINK_APPROVAL_NAMES } from './linktree-approval-names'
 
 export type LinkApprovalFact = Readonly<{ tone: 'ok' | 'warn'; text: string }>

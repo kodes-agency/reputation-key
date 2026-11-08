@@ -3,7 +3,12 @@
 // choosing a portal that is already in another group moves it, and the dialog
 // says so under the portal. Pure, so the sections and the wording are tested
 // without a dialog.
-import type { PortalOverviewRow } from '#/contexts/portal/application/public-api'
+// The portals a group dialog offers, as the checklist prints them: grouped by
+// where each portal is now ("Not in a group" first, then "In <group>"), because
+// choosing a portal that is already in another group moves it, and the dialog
+// says so under the portal. Pure, so the sections and the wording are tested
+// without a dialog.
+import type { PortalOverviewRow } from '#/contexts/portal/application/portal-management-contracts'
 
 export type ChecklistPortal = Readonly<{
   id: string

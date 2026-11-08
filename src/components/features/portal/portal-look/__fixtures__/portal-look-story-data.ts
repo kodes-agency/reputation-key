@@ -14,7 +14,7 @@ import {
   type PortalLookSources,
   type PortalLookView,
   type PropertyLookMedia,
-} from '#/contexts/portal/application/public-api'
+} from '#/contexts/portal/application/portal-management-contracts'
 import type { PortalEditorResources } from '../../portal-editor/portal-editor-types'
 import {
   action,

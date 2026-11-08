@@ -6,10 +6,18 @@
 // A portal can have its own photo, colours, or name and logo (ADR 0070). The
 // page the server read already has them, and the Property's draft reaches only
 // the parts the portal follows, so the draft is laid over those alone.
+// The preview's brand with the draft laid over it: the page follows the person's
+// edits as they make them, without waiting for the autosave and a re-read. The
+// guest page still resolves the colours itself (and falls back where it must),
+// so what is drawn is what a guest would get once the draft is published.
+//
+// A portal can have its own photo, colours, or name and logo (ADR 0070). The
+// page the server read already has them, and the Property's draft reaches only
+// the parts the portal follows, so the draft is laid over those alone.
 import type {
   PortalLookSources,
   PortalPreviewExperience,
-} from '#/contexts/portal/application/public-api'
+} from '#/contexts/portal/application/portal-management-contracts'
 import { lookFieldOf } from '#/shared/domain/portal-look-readout'
 import { followsPart, type LookPart } from './property-look-reach'
 import type { LookDraft } from './property-look-rules'

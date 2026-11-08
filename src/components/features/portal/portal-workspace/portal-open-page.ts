@@ -13,7 +13,21 @@
 // - a draft, a disabled or an archived portal: nothing, because guests cannot
 //   open it; the preview beside the editor shows the draft ("Try as guest").
 
-import type { PortalTokenStatus } from '#/contexts/portal/application/public-api'
+// "Open live page": the workspace header's way to the live guest page.
+//
+// The page's address is not kept in the clear. A manager gets it by revealing the
+// live code's sealed address (ADR 0064), which the server rate-limits and records
+// in History as a disclosure for the purpose "show". So the header offers that
+// only when it can work: the portal is live, a code is live, and the keyring
+// still holds the key that sealed it. Each other case is named for what it does:
+//
+// - live with a code whose address cannot be had again: "Get page link", which
+//   goes to Share, where the address is shown when the code is replaced;
+// - live with no code: nothing here, because the header's status line already
+//   says "no working code" and links to Share;
+// - a draft, a disabled or an archived portal: nothing, because guests cannot
+//   open it; the preview beside the editor shows the draft ("Try as guest").
+import type { PortalTokenStatus } from '#/contexts/portal/application/portal-management-contracts'
 import { actionErrorMessage } from '#/components/hooks/use-action-mutation'
 import { isServerFunctionError } from '#/shared/auth/server-function-error'
 import type { PortalDetailTab } from '../portal-detail/portal-detail-rules'

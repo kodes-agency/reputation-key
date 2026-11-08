@@ -12,7 +12,7 @@ import type {
   PortalPrintKitView,
   PortalTokenStatus,
   PrintFinalSavedWording,
-} from '#/contexts/portal/application/public-api'
+} from '#/contexts/portal/application/portal-management-contracts'
 import { AuthedRouterDecorator } from '../../../../../.storybook/AuthedRouterDecorator'
 import { PortalShare } from './portal-share'
 import type {

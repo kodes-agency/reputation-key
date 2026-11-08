@@ -10,7 +10,7 @@ import { useQuery } from '@tanstack/react-query'
 import type {
   PortalReview,
   PublishPortalsChangesResult,
-} from '#/contexts/portal/application/public-api'
+} from '#/contexts/portal/application/portal-management-contracts'
 import type { Action } from '#/components/hooks/use-action'
 import { portalKeys } from '#/shared/queries/query-keys'
 import {

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import type { PortalReview } from '#/contexts/portal/application/public-api'
+import type { PortalReview } from '#/contexts/portal/application/portal-management-contracts'
 import { describePublishOutcome, describeReviewFooter } from './portal-review-footer'
 
 type Facts = Parameters<typeof describeReviewFooter>[0]

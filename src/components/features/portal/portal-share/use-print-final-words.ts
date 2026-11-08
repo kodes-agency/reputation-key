@@ -7,7 +7,7 @@
 // after the last keystroke.
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import type { PortalPrintKitView } from '#/contexts/portal/application/public-api'
+import type { PortalPrintKitView } from '#/contexts/portal/application/portal-management-contracts'
 import type { GuestLocale } from '#/shared/domain/guest-locale'
 import type { PrintFinalFace } from '#/shared/domain/portal-print-final'
 import { choosePrintFinalTile } from '#/shared/domain/portal-print-final-code'

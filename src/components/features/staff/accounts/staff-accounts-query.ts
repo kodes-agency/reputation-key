@@ -3,7 +3,7 @@ import { useStaffFunctions, type StaffAccountFunctions } from './staff-account-f
 import { staffKeys } from '#/shared/queries/query-keys'
 import { useCapabilities } from '#/shared/hooks/useCapabilities'
 import { usePermissions } from '#/shared/hooks/usePermissions'
-import type { PortalOverviewRow } from '#/contexts/portal/application/public-api'
+import type { PortalOverviewRow } from '#/contexts/portal/application/portal-management-contracts'
 import { withStaffSetupRows } from './staff-overview-rows'
 export const staffAccountsQuery = (
   propertyId: string,

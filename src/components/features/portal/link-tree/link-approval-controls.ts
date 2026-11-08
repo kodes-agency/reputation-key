@@ -9,7 +9,7 @@ import type {
   PortalExperienceActions,
 } from '../portal-settings/portal-experience-settings-types'
 import { siteForLink, type LinkSite } from './linktree-approval-rules'
-import type { PortalLinktreeLink } from '#/contexts/portal/application/public-api'
+import type { PortalLinktreeLink } from '#/contexts/portal/application/portal-management-contracts'
 
 /** The approval actions for the whole link tree. */
 export type LinkApprovalControls = Readonly<{

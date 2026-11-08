@@ -3,7 +3,7 @@
 // the portal editor's preview, so the two phones and the editor share one read.
 
 import { keepPreviousData, useQuery } from '@tanstack/react-query'
-import type { PortalLookSources } from '#/contexts/portal/application/public-api'
+import type { PortalLookSources } from '#/contexts/portal/application/portal-management-contracts'
 import { portalKeys } from '#/shared/queries/query-keys'
 import type { PortalPreviewReader } from '../portal-preview/portal-preview-pane'
 import { usePreviewCopy } from '../portal-preview/use-preview-copy'

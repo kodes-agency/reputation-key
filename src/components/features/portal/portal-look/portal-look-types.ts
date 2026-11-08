@@ -8,7 +8,7 @@ import type {
   PortalLookIdentityInput,
   PortalLookPhotoInput,
   PortalLookSaved,
-} from '#/contexts/portal/application/public-api'
+} from '#/contexts/portal/application/portal-management-contracts'
 import type { PortalImageUploader } from '../portal-media/upload-portal-image'
 
 /** The portal a look belongs to. The server checks the pair, so neither is trusted alone. */

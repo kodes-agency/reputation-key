@@ -6,7 +6,7 @@
 // interior with a pale bed where the words go and a dark floor.
 import type { Meta, StoryObj } from '@storybook/react'
 import { expect } from 'storybook/test'
-import type { PortalPrintKitView } from '#/contexts/portal/application/public-api'
+import type { PortalPrintKitView } from '#/contexts/portal/application/portal-management-contracts'
 import type { GuestLocale } from '#/shared/domain/guest-locale'
 import { printKitFaces } from '#/shared/domain/portal-print-kit'
 import {

@@ -3,10 +3,15 @@
 // the property's, or has a pair of its own: "Set colours for this portal" starts
 // from the property's values, so nothing a guest sees moves until they are
 // edited, and the edits autosave to the draft once they can be read.
+// Colours (a portal's own look, group two): the accent and the background tint,
+// kept together because their contrast is checked as a pair. The portal follows
+// the property's, or has a pair of its own: "Set colours for this portal" starts
+// from the property's values, so nothing a guest sees moves until they are
+// edited, and the edits autosave to the draft once they can be read.
 import type {
   PortalLookColoursInput,
   PortalLookColoursView,
-} from '#/contexts/portal/application/public-api'
+} from '#/contexts/portal/application/portal-management-contracts'
 import {
   PropertyLookColoursFields,
   type ColoursDraft,

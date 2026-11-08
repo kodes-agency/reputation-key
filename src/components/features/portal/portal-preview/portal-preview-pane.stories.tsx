@@ -5,7 +5,7 @@
 // so the stories can prove that "Try as guest" asks for nothing more.
 import type { Meta, StoryObj } from '@storybook/react-vite'
 import { expect, userEvent, waitFor, within } from 'storybook/test'
-import type { PortalPreviewSource } from '#/contexts/portal/application/public-api'
+import type { PortalPreviewSource } from '#/contexts/portal/application/portal-management-contracts'
 import {
   PREVIEW_DRAFT_NO_PHOTO,
   PREVIEW_DRAFT_ONE_LANGUAGE,

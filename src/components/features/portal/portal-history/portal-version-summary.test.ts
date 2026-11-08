@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import type { PublicationContentChange } from '#/contexts/portal/application/public-api'
+import type { PublicationContentChange } from '#/contexts/portal/application/portal-management-contracts'
 import { phraseText } from './portal-history-phrase'
 import { summarizeChanges, summarizeVersion } from './portal-version-summary'
 

@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import type { PortalLinktreeLink } from '#/contexts/portal/application/public-api'
+import type { PortalLinktreeLink } from '#/contexts/portal/application/portal-management-contracts'
 import { rememberPhotos, type PhotoMemory } from './linktree-photo-rules'
 
 /**

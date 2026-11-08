@@ -1,136 +1,13 @@
 import type { createPortalRatingFacts } from './portal-rating-facts'
-export type { PortalRatingFact, PortalRatingSubject } from './portal-rating-facts'
-/**
- * Public API for external consumers (components, routes, other contexts).
- * Re-exports ports for cross-context dependency injection.
- */
+export type { PortalRatingFact } from './portal-rating-facts'
+/** Named server capabilities and facts consumed by other contexts. */
 export type { StoragePort } from './ports/storage.port'
 export { StoredObjectTooLargeError } from './ports/storage.port'
 import type { GuestLanguagePackVersion, GuestLocale } from '#/shared/domain/guest-locale'
-
 // Event re-exports — cross-context consumers must import events from public-api, not domain/events.
-export type {
-  PortalApprovedDestinationRatioRecorded,
-  PortalConfigurationCompletenessRecorded,
-  PortalContentReviewCompleted,
-  PortalDeleted,
-  PortalArchived,
-  PortalRestored,
-  PortalPublicationPublished,
-  PortalPublicationRolledBack,
-  PortalResponsibilityNeeded,
-  PortalEvent,
-  PortalAccessArtifactPublished,
-  PortalGroupDeleted,
-} from '../domain/events'
-
-export { isValidLinkDestination } from '../domain/rules'
-/** Whether the Property wrote wording for a language: the base a Portal's own lines need. */
-export { hasPropertyWording } from '../domain/property-wording'
-export type { Portal } from '../domain/types'
-/** C2: portal token existence/metadata for management surfaces — never token material. */
-export type { PortalTokenStatus } from './portal-token-status'
-export type {
-  ListPortalOverviewInput,
-  PortalOverviewRow,
-} from './use-cases/list-portal-overview'
-export type {
-  PortalPublicationHistory,
-  PortalPublicationHistoryItem,
-} from './use-cases/get-portal-publication-history'
-export type {
-  PortalLinktreeDestination,
-  PortalLinktreeDestinationState,
-  PortalLinktreeLink,
-  PortalLinktreeText,
-  PortalLinktreeView,
-} from '../domain/portal-linktree-view'
-export type {
-  PropertyLookHero,
-  PropertyLookLogo,
-  PropertyLookMedia,
-} from './property-look-media'
-export type {
-  FindDestinationApprovalFacts,
-  PortalDestinationApprovalFacts,
-} from './portal-destination-approval-facts'
-export type {
-  PortalPreview,
-  PortalPreviewExperience,
-  PortalPreviewLink,
-  PortalPreviewLinkState,
-  PortalPreviewOrigin,
-  PortalPreviewOutcome,
-  PortalPreviewSource,
-  PortalPreviewUnavailableReason,
-} from './portal-preview'
-export type {
-  PortalHistory,
-  PortalHistoryEntry,
-  GetPortalHistoryInput,
-} from './use-cases/get-portal-history'
-export type { PortalVersionItem, PortalVersions } from './use-cases/get-portal-versions'
-export type {
-  PortalVersionContent,
-  PortalVersionDetail,
-} from './use-cases/get-portal-version'
-export type { PortalVersionActor } from './portal-version-actors'
-export type {
-  PortalPrintKitLastPrint,
-  PortalPrintKitView,
-} from './portal-print-kit-context'
-export type { PrintFinalSavedWording } from '#/shared/domain/portal-print-final-wording'
-export type { PortalPrintKitDownload } from './printing/print-download'
-export type { PortalReview, PortalReviewChange } from './use-cases/get-portal-review'
-export type { PublishPortalsChangesResult } from './use-cases/publish-portal-changes'
-export type {
-  ReviewCheck,
-  ReviewCheckCode,
-  ReviewCheckStatus,
-  ReviewLanguageRow,
-  ReviewLanguageStatus,
-} from '../domain/portal-review-rules'
-export type {
-  PublicationContentChange,
-  PublicationLookFacet,
-  PublicationWordingField,
-} from '../domain/portal-publication-content'
-export type {
-  MissingPortalText,
-  PortalLanguageCoverage,
-  PortalLanguageCoverageRow,
-} from '../domain/portal-language-coverage'
-export type {
-  PortalGroupHistoryEntry,
-  PortalGroupHistoryKind,
-} from '../domain/portal-group-history'
-export type {
-  PortalHistoryCategory,
-  PortalHistoryDetail,
-  PortalHistoryFilter,
-} from '../domain/portal-history'
-export type {
-  PortalPageEditKind,
-  PortalPageEditSubject,
-} from '../domain/portal-page-edit'
-/** A Portal's own look (ADR 0070): where each group comes from, and whether a Property change reaches it. */
-export { PROPERTY_LOOK_SOURCES, facetReachesPortal } from '../domain/portal-look'
-export type {
-  PortalLookFacet,
-  PortalLookGroup,
-  PortalLookSources,
-} from '../domain/portal-look'
-export type {
-  PortalLookColoursInput,
-  PortalLookColoursView,
-  PortalLookIdentityInput,
-  PortalLookIdentityView,
-  PortalLookPhotoInput,
-  PortalLookPhotoView,
-  PortalLookSaved,
-  PortalLookSettings,
-  PortalLookView,
-} from './dto/portal-look.dto'
+export type { PortalResponsibilityNeeded } from '../domain/events'
+export type { PortalOverviewRow } from './use-cases/list-portal-overview'
+export type { PortalDestinationApprovalFacts } from './portal-destination-approval-facts'
 
 import type {
   OrganizationId,
@@ -183,8 +60,7 @@ export type PublicPortalText = Readonly<{
 /** A Portal image turned into a servable URL at read time; absent when taken down. */
 export type PublicPortalMedia = Readonly<{ url: string; width: number; height: number }>
 
-export type PublicPortalHero = PublicPortalMedia &
-  Readonly<{ focalX: number; focalY: number }>
+type PublicPortalHero = PublicPortalMedia & Readonly<{ focalX: number; focalY: number }>
 
 /**
  * What the Immersive Hub renders beyond the legacy fields, present only for a
@@ -334,7 +210,7 @@ export type PortalPublicApi = Readonly<{
   resolvePortalContext: (portalId: PortalId) => Promise<PortalContextResult | null>
 
   /**
-   * Get minimal portal info (id, name, isActive) by org + portal ID.
+   * Get minimal Portal identity, rating setting and publication state by org + id.
    * Used by staff context to resolve assigned portal details.
    */
   getPortalInfo: (
@@ -347,24 +223,6 @@ export type PortalPublicApi = Readonly<{
     name: string
     publicationState: 'draft' | 'published' | 'disabled' | 'archived'
   }> | null>
-
-  /**
-   * ARC-03-T9: every Portal belonging to a Property, by id.
-   *
-   * Published so consumers resolve Portals through this public API instead of
-   * reaching into the Portal repository.
-   */
-  listPortalIdsByProperty: (
-    orgId: OrganizationId,
-    propertyId: PropertyId,
-  ) => Promise<ReadonlyArray<PortalId>>
-
-  /** Bounded, deterministic request-time snapshot for explicit Goal assignment. */
-  listCurrentPortalIds: (
-    orgId: OrganizationId,
-    propertyId: PropertyId,
-    limit: number,
-  ) => Promise<ReadonlyArray<PortalId>>
 
   /**
    * Resolve a full public portal through a revocable opaque capability token.
@@ -409,11 +267,6 @@ export type PortalPublicApi = Readonly<{
     portalGroupId: PortalGroupId | null
     channel: PortalAccessArtifactChannel
   }> | null>
-  /**
-   * The versions that went live in `[startAt, endAt)`, oldest first: a
-   * publication or a rollback, by version number. For markers on the Results
-   * chart; identifiers and instants only, no content.
-   */
   /** Current Linktree labels and order; caller has already authorised the Property. */
   listResultsLinks: (
     orgId: OrganizationId,
@@ -427,6 +280,7 @@ export type PortalPublicApi = Readonly<{
       >
     }>
   >
+  /** Published and rolled-back versions in `[startAt, endAt)`, oldest first. */
   listPublicationActivationsBetween: (
     orgId: OrganizationId,
     propertyId: PropertyId,

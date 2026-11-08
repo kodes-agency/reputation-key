@@ -14,7 +14,7 @@ import {
 } from '#/shared/domain/guest-locale'
 import { portalKeys } from '#/shared/queries/query-keys'
 import { GUEST_FONT_STYLESHEET } from '#/shared/font-sets'
-import type { PortalPreviewOutcome } from '#/contexts/portal/application/public-api'
+import type { PortalPreviewOutcome } from '#/contexts/portal/application/portal-management-contracts'
 import { PortalPreviewBody } from '../portal-preview/portal-preview-pane'
 import { usePreviewCopy } from '../portal-preview/use-preview-copy'
 import { PHONE_SCALE } from '../portal-preview/portal-preview-stage'

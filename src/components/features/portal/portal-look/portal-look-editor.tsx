@@ -3,7 +3,12 @@
 // Everything saves to the portal's draft, which guests see once the portal is
 // published; the property's own look is untouched and keeps reaching every group
 // a portal follows.
-import type { PortalLookView } from '#/contexts/portal/application/public-api'
+// A portal's own look, edited (the Look section of an Account Admin): the three
+// groups, each following the property look until the portal is given its own.
+// Everything saves to the portal's draft, which guests see once the portal is
+// published; the property's own look is untouched and keeps reaching every group
+// a portal follows.
+import type { PortalLookView } from '#/contexts/portal/application/portal-management-contracts'
 import type { PortalEditorResources } from '../portal-editor/portal-editor-types'
 import type { PortalExperienceSettings } from '../portal-settings/portal-experience-settings-types'
 import { PortalLookColoursBlock } from './portal-look-colours-block'

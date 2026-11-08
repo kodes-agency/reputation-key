@@ -7,7 +7,7 @@
 // ramp's stops become a gradient's stops at the same points.
 
 import { useId, type CSSProperties } from 'react'
-import type { PortalPrintKitView } from '#/contexts/portal/application/public-api'
+import type { PortalPrintKitView } from '#/contexts/portal/application/portal-management-contracts'
 import { parseHexColour } from '#/shared/domain/portal-field-colour'
 import type { PrintFinalArt } from '#/shared/domain/portal-print-final-art'
 import {

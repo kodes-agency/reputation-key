@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import type { PortalGroupHistoryEntry } from '#/contexts/portal/application/public-api'
+import type { PortalGroupHistoryEntry } from '#/contexts/portal/application/portal-management-contracts'
 import { organizationId, portalGroupId, portalId, propertyId } from '#/shared/domain/ids'
 import { buildPortalGroupHistory, type HistoryNames } from './portal-group-history-view'
 

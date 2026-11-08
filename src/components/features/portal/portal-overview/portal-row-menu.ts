@@ -3,7 +3,12 @@
 // (or bringing a disabled page back), taking a live page down, and the
 // recoverable archive. Pure, so each rule that keeps an action off a role or a
 // state is tested apart from the menu.
-import type { PortalOverviewRow } from '#/contexts/portal/application/public-api'
+// What a Portal's row offers: Edit (or View) and Share as buttons, and behind
+// "more actions" the rest: where to read results and history, finishing a publish
+// (or bringing a disabled page back), taking a live page down, and the
+// recoverable archive. Pure, so each rule that keeps an action off a role or a
+// state is tested apart from the menu.
+import type { PortalOverviewRow } from '#/contexts/portal/application/portal-management-contracts'
 import { canReviewAndPublish } from '../portal-detail/portal-detail-rules'
 
 export type PortalRowAccess = Readonly<{

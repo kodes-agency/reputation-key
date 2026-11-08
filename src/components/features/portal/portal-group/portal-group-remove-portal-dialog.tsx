@@ -2,7 +2,7 @@
 // this dialog is rendered by the group's portal list, outside every menu,
 // because a dialog inside a DropdownMenu unmounts when the menu closes.
 import { ConfirmationDialog } from '#/components/ui/confirmation-dialog'
-import type { PortalOverviewRow } from '#/contexts/portal/application/public-api'
+import type { PortalOverviewRow } from '#/contexts/portal/application/portal-management-contracts'
 
 export type PortalChosenForRemoval = Readonly<{
   portalId: PortalOverviewRow['portalId']

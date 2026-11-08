@@ -6,7 +6,7 @@
 // (`usePrintKit`), which says which kit the tab shows.
 
 import { useCallback, useMemo, useState } from 'react'
-import type { PortalPrintKitView } from '#/contexts/portal/application/public-api'
+import type { PortalPrintKitView } from '#/contexts/portal/application/portal-management-contracts'
 import type { PrintFinalLastSettings } from '#/shared/domain/portal-print-final-last'
 import { printAddressShape } from '#/shared/domain/portal-print-address'
 import {

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import type { PortalLookSources } from '#/contexts/portal/application/public-api'
+import type { PortalLookSources } from '#/contexts/portal/application/portal-management-contracts'
 import { deriveFieldColour } from '#/shared/domain/portal-field-colour'
 import { previewBrandOf } from './property-look-preview-brand'
 import type { LookDraft } from './property-look-rules'

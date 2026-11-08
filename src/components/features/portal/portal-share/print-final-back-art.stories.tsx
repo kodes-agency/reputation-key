@@ -6,7 +6,7 @@
 // The pictures are drawn here, not a hotel's.
 import type { Meta, StoryObj } from '@storybook/react'
 import { expect } from 'storybook/test'
-import type { PortalPrintKitView } from '#/contexts/portal/application/public-api'
+import type { PortalPrintKitView } from '#/contexts/portal/application/portal-management-contracts'
 import { printKitFaces } from '#/shared/domain/portal-print-kit'
 import type { PrintFinalFace } from '#/shared/domain/portal-print-final'
 import { choosePrintFinalTile } from '#/shared/domain/portal-print-final-code'

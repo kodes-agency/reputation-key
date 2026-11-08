@@ -4,7 +4,7 @@
 // is missing from the page; every other tile is drawn exactly as guests get it.
 
 import type { ImmersiveLinktreeLink } from '#/components/features/guest'
-import type { PortalPreviewLink } from '#/contexts/portal/application/public-api'
+import type { PortalPreviewLink } from '#/contexts/portal/application/portal-management-contracts'
 import { TILE_PLACEHOLDER_NOTE } from './portal-preview-rules'
 
 const UNTITLED_LINK = 'Untitled link'

@@ -4,10 +4,15 @@
 // address is no longer approved is listed in the words and left out of the
 // page, as the server does. Not imported by production code.
 
+// What the History's "View" reads for the page of a version, as story data:
+// the preview fixtures drawn from each version's own details (its languages and
+// tiles), with version 3 published before the new page design. A tile whose
+// address is no longer approved is listed in the words and left out of the
+// page, as the server does. Not imported by production code.
 import type {
   PortalPreview,
   PortalPreviewOutcome,
-} from '#/contexts/portal/application/public-api'
+} from '#/contexts/portal/application/portal-management-contracts'
 import { previewOfVersion } from '../../portal-preview/__fixtures__/portal-preview-fixtures'
 import { STORY_VERSION_DETAILS } from './portal-history-stories-data'
 

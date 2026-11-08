@@ -2,12 +2,15 @@
 // versions and restore preview the History tab reads, so a story shows the
 // board's sentences exactly. Not imported by production code.
 
+// The Pool & Terrace ledger of board 08, as data for stories: the same entries,
+// versions and restore preview the History tab reads, so a story shows the
+// board's sentences exactly. Not imported by production code.
 import type {
   PortalHistoryEntry,
   PortalVersionDetail,
   PortalVersionItem,
   PortalVersions,
-} from '#/contexts/portal/application/public-api'
+} from '#/contexts/portal/application/portal-management-contracts'
 
 /** Board 08's "2 h ago" moment: 30 Sep 2026, 10:05 in Sofia (UTC+3) is 07:05 UTC. */
 export const STORY_NOW = new Date('2026-09-30T07:05:00.000Z')

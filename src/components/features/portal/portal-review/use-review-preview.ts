@@ -11,7 +11,7 @@ import type {
   PortalPreview,
   PortalPreviewExperience,
   PortalPreviewUnavailableReason,
-} from '#/contexts/portal/application/public-api'
+} from '#/contexts/portal/application/portal-management-contracts'
 import type { PortalPreviewReader } from '../portal-preview/portal-preview-pane'
 import { usePreviewCopy } from '../portal-preview/use-preview-copy'
 import { hasFailed, isRetrying } from '#/components/hooks/is-retrying'
