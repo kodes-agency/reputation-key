@@ -1,3 +1,4 @@
+import { createPortalRatingGoalGuard } from '#/contexts/reporting/infrastructure/portal-rating-goal-guard'
 // Adding a link without a category, as the Linktree editor does, against real
 // PostgreSQL. Starting the Portal's first category moves the Portal revision the
 // link command is fenced on, so this is the test that proves the use case reads
@@ -60,7 +61,9 @@ function useCase(
     portalRepo: createPortalRepository(db),
     portalLinkRepo: createPortalLinkRepository(db),
     staffPublicApi: staffApi,
-    commandStore: wrapStore(createAtomicPortalCommandStore(db)),
+    commandStore: wrapStore(
+      createAtomicPortalCommandStore(db, createPortalRatingGoalGuard()),
+    ),
     destinationRepo: createPortalApprovedDestinationRepository(db),
     destinationNetworkValidator: {
       validate: async (uri: string) => ({
@@ -116,7 +119,10 @@ beforeEach(async () => {
      VALUES ($1, $2, 'Harbour House', 'harbour-house', 'UTC', $3, $3)`,
     [PROPERTY_A, ORG_A, CREATED_AT],
   )
-  await createAtomicPortalCommandStore(getDb()).createPortal({
+  await createAtomicPortalCommandStore(
+    getDb(),
+    createPortalRatingGoalGuard(),
+  ).createPortal({
     organizationId: ORG_A,
     portal,
     initialResponsibleManagerIds: [MANAGER],

@@ -1,3 +1,4 @@
+import { createPortalRatingGoalGuard } from '#/contexts/reporting/infrastructure/portal-rating-goal-guard'
 // A Portal's own look and its publish, against PostgreSQL (ADR 0070). A save
 // takes the Property's publication lock and then the Portal row, the order
 // publish takes them, so a save waits for a publish of the same Portal to
@@ -73,7 +74,7 @@ const scope = {
   portalId: SCENARIO.portalId,
 }
 
-const store = () => createAtomicPortalCommandStore(getDb())
+const store = () => createAtomicPortalCommandStore(getDb(), createPortalRatingGoalGuard())
 
 const saveOwnAccent = () =>
   createPortalLookRepository(getDb()).savePortalLookPart({
