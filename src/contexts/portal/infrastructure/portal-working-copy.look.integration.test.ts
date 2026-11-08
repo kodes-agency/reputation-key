@@ -1,3 +1,4 @@
+import { createPortalRatingGoalGuard } from '#/contexts/reporting/infrastructure/portal-rating-goal-guard'
 // A Portal's own look (ADR 0070) in the working copy, against real PostgreSQL.
 //
 // The reader lays the Portal's `portal_look_overrides` row over its Property's
@@ -233,7 +234,11 @@ describe.sequential("a Portal's own look in the working copy (real PostgreSQL)",
       const scenario = withOwnLook(OWN_EVERYTHING_LOOK)
       await seedPortalWorkingCopy(getPool(), scenario)
 
-      await publishFromSource(scenario, await sourceOf(scenario))
+      await publishFromSource(
+        scenario,
+        await sourceOf(scenario),
+        createPortalRatingGoalGuard(),
+      )
 
       const active = await createPortalPublicationRepository(getDb()).findActiveForPortal(
         scenario.organizationId,
@@ -271,7 +276,11 @@ describe.sequential("a Portal's own look in the working copy (real PostgreSQL)",
     it('has no pending change straight after publishing, and one once the look moves', async () => {
       const scenario = withOwnLook(OWN_COLOURS_LOOK)
       await seedPortalWorkingCopy(getPool(), scenario)
-      await publishFromSource(scenario, await sourceOf(scenario))
+      await publishFromSource(
+        scenario,
+        await sourceOf(scenario),
+        createPortalRatingGoalGuard(),
+      )
       await expect(workingCopyDiffersFromLive(scenario)).resolves.toBe(false)
 
       await getPool().query(
@@ -284,7 +293,11 @@ describe.sequential("a Portal's own look in the working copy (real PostgreSQL)",
     it('shows no pending change on a Portal that owns what the Property changed', async () => {
       const scenario = withOwnLook(OWN_COLOURS_LOOK)
       await seedPortalWorkingCopy(getPool(), scenario)
-      await publishFromSource(scenario, await sourceOf(scenario))
+      await publishFromSource(
+        scenario,
+        await sourceOf(scenario),
+        createPortalRatingGoalGuard(),
+      )
 
       // The Property moves its accent and its look version, as its writer does.
       await getPool().query(
@@ -338,7 +351,9 @@ describe.sequential("a Portal's own look in the working copy (real PostgreSQL)",
 
       await getPool().query(mutation)
 
-      await expect(publishFromSource(scenario, source)).rejects.toMatchObject({
+      await expect(
+        publishFromSource(scenario, source, createPortalRatingGoalGuard()),
+      ).rejects.toMatchObject({
         code: 'revision_conflict',
       })
       const { rows } = await getPool().query(
@@ -359,7 +374,9 @@ describe.sequential("a Portal's own look in the working copy (real PostgreSQL)",
         lookVersion: 5,
       })
 
-      await expect(publishFromSource(COMPLETE_SCENARIO, source)).rejects.toMatchObject({
+      await expect(
+        publishFromSource(COMPLETE_SCENARIO, source, createPortalRatingGoalGuard()),
+      ).rejects.toMatchObject({
         code: 'revision_conflict',
       })
     })

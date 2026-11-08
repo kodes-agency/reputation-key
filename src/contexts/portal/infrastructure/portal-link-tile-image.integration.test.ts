@@ -1,3 +1,4 @@
+import { createPortalRatingGoalGuard } from '#/contexts/reporting/infrastructure/portal-rating-goal-guard'
 // The picture on a link tile (round 4, slice 42c1) against real PostgreSQL: the
 // update command writes and clears `image_asset_id`, the working model reads it
 // back, the composite foreign key keeps a tile to its own Property's assets, and
@@ -53,7 +54,7 @@ const { getPool } = setupIntegrationDb({
   ],
 })
 
-const store = () => createAtomicPortalCommandStore(getDb())
+const store = () => createAtomicPortalCommandStore(getDb(), createPortalRatingGoalGuard())
 const links = () => createPortalLinkRepository(getDb())
 
 let tickCount = 0
