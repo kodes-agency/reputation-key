@@ -18,7 +18,6 @@ import {
 import { portalError } from '../../domain/errors'
 import {
   portalArchived,
-  portalLocaleSetUpdated,
   portalPublicationPublished,
   portalRestored,
   portalUpdated,
@@ -45,7 +44,10 @@ import type { PortalPublicationSource } from '../../domain/portal-publication-so
 import { buildPortalPublicationSnapshot } from '../portal-publication-snapshot'
 import { nextPortalCommandAt } from '../portal-command-version'
 import type { PortalTokenRepository } from '../ports/portal-token.repository'
-import { derivePortalHealth } from '../../domain/portal-health'
+import {
+  buildLocaleSetFact,
+  buildPortalHealthFact,
+} from '../../publication/portal-facts.server'
 
 export type UpdatePortalDeps = Readonly<{
   ratingGoalGuard: Readonly<{
@@ -506,29 +508,17 @@ export const updatePortal =
       occurredAt,
     )
     const publicationStateChanged = existing.publicationState !== patch.publicationState
-    const localeSetChanged =
-      existing.primaryGuestLocale !== patch.primaryGuestLocale ||
-      JSON.stringify(existing.additionalGuestLocales) !==
-        JSON.stringify(patch.additionalGuestLocales)
     const health = publicationStateChanged
-      ? {
+      ? buildPortalHealthFact({
           id: deps.idGen(),
-          value: derivePortalHealth({
-            publicationState: patch.publicationState,
-            propertyAvailable: true,
-            hasActivePublicationSnapshot: patch.publicationState === 'published',
-            hasResolvablePublicAddress: patch.publicationState === 'published',
-            hasResponsibleManager:
-              patch.publicationState === 'published'
-                ? existing.responsibilityNeededSince === null
-                : false,
-            googleDestinationState:
-              patch.publicationState === 'published' ? 'verified' : 'unavailable',
-          }),
+          publicationState: patch.publicationState,
+          hasResponsibleManager:
+            patch.publicationState === 'published'
+              ? existing.responsibilityNeededSince === null
+              : false,
           sourceVersion: revision.toISOString(),
-          effectiveAt: occurredAt,
-          observedAt: occurredAt,
-        }
+          at: occurredAt,
+        })
       : undefined
     const lifecycleEvent =
       publication?.kind === 'publish'
@@ -576,17 +566,7 @@ export const updatePortal =
       publication,
       health,
       lifecycleEvent,
-      localeSetEvent: localeSetChanged
-        ? portalLocaleSetUpdated({
-            portalId: pid,
-            organizationId: ctx.organizationId,
-            propertyId: existing.propertyId,
-            primaryGuestLocale: patch.primaryGuestLocale,
-            additionalGuestLocales: patch.additionalGuestLocales,
-            sourceAggregateVersion: revision.toISOString(),
-            occurredAt,
-          })
-        : undefined,
+      localeSetEvent: buildLocaleSetFact(existing, patch, revision, occurredAt),
       event: portalUpdated({
         portalId: pid,
         organizationId: ctx.organizationId,
