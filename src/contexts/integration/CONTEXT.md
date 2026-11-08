@@ -30,6 +30,23 @@ for at most 24 hours. A confirmed import creates one durable saga, stable child
 batches of at most 100, and per-location checkpoints. The saga is the
 browser-visible job; child batches are worker checkpoints.
 
+`imports/import-store.server.ts` implements the staged single-root store on
+`google_imports` and `google_import_items`. It commits the root, all checkpoints
+and dispatch together; preserves claim, retry and receipt fences; derives progress
+with grouped item reads; and releases retention facts for every item before the
+whole import cascade in one transaction. Its 30-day clock starts when the whole
+import first becomes terminal and retries never renew it. Query indexes cover
+parent reads, recovery appointments, expiry, retention and lifecycle scopes.
+
+Production commands still use the saga store. The public-command acceptance and
+recovery suites in `src/shared/architecture/google-import-store-*.integration.test.ts`
+run the same cases against both factories, including large selections, receipt
+recovery and retention. The checkpoint suite there proves concurrent completion
+and atomic retention release. Cutover
+must wire lifecycle and isolated restore, drain old work and keep completed history
+in its original store; it does not copy history. The stored enum contracts remain
+shared with the running store.
+
 Each active item has a durable recovery appointment. The minute sweep reserves
 at most 100 due items with `FOR UPDATE SKIP LOCKED` and advances their
 appointments before attempting work. Pending redispatch preserves the dispatch

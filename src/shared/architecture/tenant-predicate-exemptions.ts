@@ -467,6 +467,27 @@ export const TENANT_PREDICATE_EXEMPTIONS: readonly TenantPredicateExemption[] = 
     category: 'PUBLIC-TOKEN',
   },
   {
+    file: 'src/contexts/integration/imports/import-store.server.ts',
+    symbol: 'listExpiredItems',
+    reason:
+      'The bounded import lifecycle sweep lists at most 100 expired checkpoints across tenants. Each result carries its Organization and retry revision for tenant-scoped receipt reconciliation and terminalization.',
+    category: 'LEGITIMATE-GLOBAL',
+  },
+  {
+    file: 'src/contexts/integration/imports/import-retention.server.ts',
+    symbol: 'listPurgeCandidates',
+    reason:
+      'The bounded retention sweep lists terminal roots past their fixed purge time across tenants. Deletion checks each selected Organization, root and deletion fence under the root lock.',
+    category: 'LEGITIMATE-GLOBAL',
+  },
+  {
+    file: 'src/contexts/integration/imports/import-dispatch-store.server.ts',
+    symbol: 'createImportDueReservation',
+    reason:
+      'Recovery reserves at most 100 due active checkpoints across tenants with SKIP LOCKED. Each appointment update and later claim or effect is scoped to the reserved Organization.',
+    category: 'LEGITIMATE-GLOBAL',
+  },
+  {
     file: 'src/contexts/integration/infrastructure/google-import-v2-store.ts',
     symbol: 'listExpiredItems',
     reason:

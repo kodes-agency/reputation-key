@@ -5638,6 +5638,93 @@ CREATE TABLE "public"."google_import_discovery_records" (
 
 
 --
+-- Name: google_import_items; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE "public"."google_import_items" (
+    "id" "uuid" NOT NULL,
+    "organization_id" character varying(255) NOT NULL,
+    "import_id" "uuid" NOT NULL,
+    "connection_id" "uuid",
+    "existing_property_id" "uuid",
+    "destination_property_id" "uuid",
+    "provider_account_suffix" character varying(255),
+    "provider_location_suffix" character varying(255),
+    "google_review_uri" character varying(2048),
+    "google_primary_category" character varying(512),
+    "expected_connection_lifecycle_version" integer,
+    "expected_connection_access_version" integer,
+    "expected_credential_generation" integer,
+    "expected_execution_policy_version" character varying(32),
+    "expected_actor_role" character varying(50),
+    "expected_permission_digest" character varying(64),
+    "expected_principal_kind" character varying(32),
+    "expected_permission_version" integer,
+    "expected_source_epoch" integer,
+    "expected_profile_version" integer,
+    "action" "public"."google_import_v2_action" NOT NULL,
+    "update_existing_profile" boolean NOT NULL,
+    "property_name" character varying(100) NOT NULL,
+    "property_address" "text",
+    "country_code" character varying(2),
+    "timezone" character varying(64) NOT NULL,
+    "status" "public"."google_import_v2_item_status" DEFAULT 'pending'::"public"."google_import_v2_item_status" NOT NULL,
+    "outcome_code" "public"."google_import_v2_outcome",
+    "invalid_profile_field" character varying(16),
+    "effect_deadline_at" timestamp with time zone NOT NULL,
+    "retry_revision" integer DEFAULT 0 NOT NULL,
+    "dispatch_epoch" integer DEFAULT 0 NOT NULL,
+    "next_dispatch_at" timestamp with time zone,
+    "highest_attempt_for_revision" integer DEFAULT 0 NOT NULL,
+    "claim_fence" "uuid",
+    "claim_lease_expires_at" timestamp with time zone,
+    "first_terminal_at" timestamp with time zone,
+    "created_at" timestamp with time zone DEFAULT "now"() NOT NULL,
+    "updated_at" timestamp with time zone DEFAULT "now"() NOT NULL,
+    CONSTRAINT "google_import_items_appointment_valid" CHECK ((("status" = ANY (ARRAY['pending'::"public"."google_import_v2_item_status", 'processing'::"public"."google_import_v2_item_status"])) = ("next_dispatch_at" IS NOT NULL))),
+    CONSTRAINT "google_import_items_attempt_fence_valid" CHECK (((("highest_attempt_for_revision" >= 0) AND ("highest_attempt_for_revision" <= 5)) AND (("claim_fence" IS NULL) = ("claim_lease_expires_at" IS NULL)) AND (("status" = 'processing'::"public"."google_import_v2_item_status") = ("claim_fence" IS NOT NULL)) AND (("status" <> 'processing'::"public"."google_import_v2_item_status") OR (("claim_fence" IS NOT NULL) AND (("highest_attempt_for_revision" >= 1) AND ("highest_attempt_for_revision" <= 5)))))),
+    CONSTRAINT "google_import_items_authorization_snapshot_valid" CHECK (((("expected_execution_policy_version" IS NULL) AND ("expected_actor_role" IS NULL) AND ("expected_permission_digest" IS NULL) AND ("expected_principal_kind" IS NULL) AND ("expected_permission_version" IS NULL)) OR ((("char_length"(("expected_execution_policy_version")::"text") >= 1) AND ("char_length"(("expected_execution_policy_version")::"text") <= 32)) AND (("char_length"(("expected_actor_role")::"text") >= 1) AND ("char_length"(("expected_actor_role")::"text") <= 50)) AND (("expected_permission_digest")::"text" ~ '^[a-f0-9]{64}$'::"text") AND (("char_length"(("expected_principal_kind")::"text") >= 1) AND ("char_length"(("expected_principal_kind")::"text") <= 32)) AND ("expected_permission_version" >= 0)))),
+    CONSTRAINT "google_import_items_checkpoint_state_valid" CHECK (((((("status" = ANY (ARRAY['pending'::"public"."google_import_v2_item_status", 'processing'::"public"."google_import_v2_item_status"])) OR ("outcome_code" = 'temporarily_unavailable'::"public"."google_import_v2_outcome")) AND ("connection_id" IS NOT NULL) AND ("provider_account_suffix" IS NOT NULL) AND ("provider_location_suffix" IS NOT NULL) AND ("expected_connection_lifecycle_version" IS NOT NULL) AND ("expected_connection_access_version" IS NOT NULL) AND ("expected_credential_generation" IS NOT NULL) AND ("expected_execution_policy_version" IS NOT NULL) AND ("expected_actor_role" IS NOT NULL) AND ("expected_permission_digest" IS NOT NULL) AND ("expected_principal_kind" IS NOT NULL) AND ("expected_permission_version" IS NOT NULL)) OR (("status" <> ALL (ARRAY['pending'::"public"."google_import_v2_item_status", 'processing'::"public"."google_import_v2_item_status"])) AND ("outcome_code" <> 'temporarily_unavailable'::"public"."google_import_v2_outcome") AND ("connection_id" IS NULL) AND ("provider_account_suffix" IS NULL) AND ("provider_location_suffix" IS NULL) AND ("google_review_uri" IS NULL) AND ("google_primary_category" IS NULL) AND ("expected_connection_lifecycle_version" IS NULL) AND ("expected_connection_access_version" IS NULL) AND ("expected_credential_generation" IS NULL) AND ("expected_execution_policy_version" IS NULL) AND ("expected_actor_role" IS NULL) AND ("expected_permission_digest" IS NULL) AND ("expected_principal_kind" IS NULL) AND ("expected_permission_version" IS NULL))) IS TRUE)),
+    CONSTRAINT "google_import_items_deadline_valid" CHECK (("effect_deadline_at" = ("created_at" + '24:00:00'::interval))),
+    CONSTRAINT "google_import_items_dispatch_epoch_valid" CHECK (("dispatch_epoch" >= 0)),
+    CONSTRAINT "google_import_items_generations_valid" CHECK ((((("expected_connection_lifecycle_version" >= 1) AND ("expected_connection_access_version" >= 1) AND ("expected_credential_generation" >= 1)) OR (("status" <> ALL (ARRAY['pending'::"public"."google_import_v2_item_status", 'processing'::"public"."google_import_v2_item_status"])) AND ("outcome_code" <> 'temporarily_unavailable'::"public"."google_import_v2_outcome") AND ("expected_connection_lifecycle_version" IS NULL) AND ("expected_connection_access_version" IS NULL) AND ("expected_credential_generation" IS NULL))) AND ("retry_revision" >= 0))),
+    CONSTRAINT "google_import_items_google_primary_category_valid" CHECK ((("google_primary_category" IS NULL) OR ((("char_length"(("google_primary_category")::"text") >= 1) AND ("char_length"(("google_primary_category")::"text") <= 512)) AND (("google_primary_category")::"text" = "btrim"(("google_primary_category")::"text"))))),
+    CONSTRAINT "google_import_items_google_review_uri_valid" CHECK ((("google_review_uri" IS NULL) OR (("google_review_uri")::"text" ~ '^https://'::"text"))),
+    CONSTRAINT "google_import_items_invalid_profile_field_valid" CHECK ((((("invalid_profile_field" IS NULL) AND (("outcome_code" IS NULL) OR (("outcome_code")::"text" <> 'tenant_profile_invalid'::"text"))) OR ((("outcome_code")::"text" = 'tenant_profile_invalid'::"text") AND (("invalid_profile_field")::"text" = ANY ((ARRAY['name'::character varying, 'timezone'::character varying, 'country'::character varying])::"text"[])))) IS TRUE)),
+    CONSTRAINT "google_import_items_profile_valid" CHECK ((((("char_length"("btrim"(("property_name")::"text")) >= 1) AND ("char_length"("btrim"(("property_name")::"text")) <= 100)) AND (("char_length"(("timezone")::"text") >= 1) AND ("char_length"(("timezone")::"text") <= 64)) AND (("country_code" IS NULL) OR (("country_code")::"text" ~ '^[A-Z]{2}$'::"text")) AND ((("action" = 'create'::"public"."google_import_v2_action") AND ("existing_property_id" IS NULL) AND ("destination_property_id" IS NOT NULL) AND ("country_code" IS NOT NULL) AND ("update_existing_profile" = true) AND ("expected_source_epoch" IS NULL) AND ("expected_profile_version" IS NULL)) OR (("action" = 'relink'::"public"."google_import_v2_action") AND ("existing_property_id" IS NOT NULL) AND ("destination_property_id" = "existing_property_id") AND ("expected_source_epoch" >= 0) AND ("expected_profile_version" >= 1)) OR (("status" <> ALL (ARRAY['pending'::"public"."google_import_v2_item_status", 'processing'::"public"."google_import_v2_item_status"])) AND ("outcome_code" <> 'temporarily_unavailable'::"public"."google_import_v2_outcome") AND ("existing_property_id" IS NULL) AND (("status" = ANY (ARRAY['imported'::"public"."google_import_v2_item_status", 'relinked'::"public"."google_import_v2_item_status", 'already_exists'::"public"."google_import_v2_item_status"])) OR ("destination_property_id" IS NULL)) AND ("expected_source_epoch" IS NULL) AND ("expected_profile_version" IS NULL)))) IS TRUE)),
+    CONSTRAINT "google_import_items_provider_reference_retention_valid" CHECK (((("status" = ANY (ARRAY['pending'::"public"."google_import_v2_item_status", 'processing'::"public"."google_import_v2_item_status"])) AND ("connection_id" IS NOT NULL) AND ("provider_account_suffix" IS NOT NULL) AND ("provider_location_suffix" IS NOT NULL)) OR (("status" <> ALL (ARRAY['pending'::"public"."google_import_v2_item_status", 'processing'::"public"."google_import_v2_item_status"])) AND (("provider_account_suffix" IS NULL) = ("provider_location_suffix" IS NULL))))),
+    CONSTRAINT "google_import_items_provider_suffix_valid" CHECK (((("provider_account_suffix" IS NULL) OR (("provider_account_suffix")::"text" !~ '[/?#[:space:][:cntrl:]]'::"text")) AND (("provider_location_suffix" IS NULL) OR (("provider_location_suffix")::"text" !~ '[/?#[:space:][:cntrl:]]'::"text")))),
+    CONSTRAINT "google_import_items_status_outcome_valid" CHECK (((("status" = ANY (ARRAY['pending'::"public"."google_import_v2_item_status", 'processing'::"public"."google_import_v2_item_status"])) AND ("outcome_code" IS NULL)) OR (("status" = 'imported'::"public"."google_import_v2_item_status") AND ("outcome_code" = 'imported'::"public"."google_import_v2_outcome")) OR (("status" = 'relinked'::"public"."google_import_v2_item_status") AND ("outcome_code" = 'relinked'::"public"."google_import_v2_outcome")) OR (("status" = 'already_exists'::"public"."google_import_v2_item_status") AND ("outcome_code" = 'already_exists'::"public"."google_import_v2_outcome")) OR (("status" = 'failed'::"public"."google_import_v2_item_status") AND (("outcome_code")::"text" = ANY (ARRAY['active_binding_conflict'::"text", 'stale_binding'::"text", 'reauthentication_required'::"text", 'reconnect_required'::"text", 'temporarily_unavailable'::"text", 'cleanup_required'::"text", 'internal_error'::"text", 'tenant_profile_invalid'::"text"]))) OR (("status" = 'cancelled'::"public"."google_import_v2_item_status") AND (("outcome_code")::"text" = ANY (ARRAY['authorization_changed'::"text", 'user_cancelled'::"text", 'policy_disabled'::"text", 'organization_suspended'::"text", 'property_suspended'::"text", 'property_deleted'::"text"]))))),
+    CONSTRAINT "google_import_items_terminal_valid" CHECK ((("outcome_code" IS NULL) OR ("first_terminal_at" IS NOT NULL)))
+);
+
+
+--
+-- Name: google_imports; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE "public"."google_imports" (
+    "id" "uuid" NOT NULL,
+    "organization_id" character varying(255) NOT NULL,
+    "request_id" "uuid" NOT NULL,
+    "initiated_by" character varying(255) NOT NULL,
+    "total_count" integer NOT NULL,
+    "wire_replay_key_version" character varying(32) NOT NULL,
+    "wire_replay_digest" character varying(43) NOT NULL,
+    "semantic_replay_key_version" character varying(32) NOT NULL,
+    "semantic_replay_digest" character varying(43) NOT NULL,
+    "deletion_fence" integer DEFAULT 0 NOT NULL,
+    "first_terminal_at" timestamp with time zone,
+    "purge_at" timestamp with time zone,
+    "created_at" timestamp with time zone DEFAULT "now"() NOT NULL,
+    "updated_at" timestamp with time zone DEFAULT "now"() NOT NULL,
+    CONSTRAINT "google_imports_counts_valid" CHECK ((("total_count" >= 1) AND ("deletion_fence" >= 0))),
+    CONSTRAINT "google_imports_replay_encoding_valid" CHECK (((("wire_replay_key_version")::"text" ~ '^[a-z][a-z0-9_-]{0,31}$'::"text") AND (("semantic_replay_key_version")::"text" ~ '^[a-z][a-z0-9_-]{0,31}$'::"text") AND (("wire_replay_digest")::"text" ~ '^[A-Za-z0-9_-]{43}$'::"text") AND (("semantic_replay_digest")::"text" ~ '^[A-Za-z0-9_-]{43}$'::"text"))),
+    CONSTRAINT "google_imports_terminal_times_valid" CHECK (((("first_terminal_at" IS NULL) = ("purge_at" IS NULL)) AND (("first_terminal_at" IS NULL) OR ("purge_at" = ("first_terminal_at" + '30 days'::interval)))))
+);
+
+
+--
 -- Name: google_reply_observation_heads; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -9725,6 +9812,46 @@ ALTER TABLE ONLY "public"."google_import_discovery_records"
 
 
 --
+-- Name: google_import_items google_import_items_org_id_key; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY "public"."google_import_items"
+    ADD CONSTRAINT "google_import_items_org_id_key" UNIQUE ("organization_id", "id");
+
+
+--
+-- Name: google_import_items google_import_items_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY "public"."google_import_items"
+    ADD CONSTRAINT "google_import_items_pkey" PRIMARY KEY ("id");
+
+
+--
+-- Name: google_imports google_imports_org_id_key; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY "public"."google_imports"
+    ADD CONSTRAINT "google_imports_org_id_key" UNIQUE ("organization_id", "id");
+
+
+--
+-- Name: google_imports google_imports_org_request_unique; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY "public"."google_imports"
+    ADD CONSTRAINT "google_imports_org_request_unique" UNIQUE ("organization_id", "request_id");
+
+
+--
+-- Name: google_imports google_imports_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY "public"."google_imports"
+    ADD CONSTRAINT "google_imports_pkey" PRIMARY KEY ("id");
+
+
+--
 -- Name: google_reply_observation_heads google_reply_observation_heads_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -11691,6 +11818,55 @@ CREATE INDEX "google_import_discovery_records_property_idx" ON "public"."google_
 --
 
 CREATE INDEX "google_import_discovery_records_scope_idx" ON "public"."google_import_discovery_records" USING "btree" ("organization_id", "user_id", "connection_id");
+
+
+--
+-- Name: google_import_items_connection_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX "google_import_items_connection_idx" ON "public"."google_import_items" USING "btree" ("organization_id", "connection_id");
+
+
+--
+-- Name: google_import_items_destination_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX "google_import_items_destination_idx" ON "public"."google_import_items" USING "btree" ("organization_id", "destination_property_id", "created_at", "id");
+
+
+--
+-- Name: google_import_items_dispatch_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX "google_import_items_dispatch_idx" ON "public"."google_import_items" USING "btree" ("next_dispatch_at", "id");
+
+
+--
+-- Name: google_import_items_existing_property_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX "google_import_items_existing_property_idx" ON "public"."google_import_items" USING "btree" ("organization_id", "existing_property_id");
+
+
+--
+-- Name: google_import_items_expired_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX "google_import_items_expired_idx" ON "public"."google_import_items" USING "btree" ("status", "effect_deadline_at", "id");
+
+
+--
+-- Name: google_import_items_parent_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX "google_import_items_parent_idx" ON "public"."google_import_items" USING "btree" ("organization_id", "import_id", "created_at", "id");
+
+
+--
+-- Name: google_imports_purge_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX "google_imports_purge_idx" ON "public"."google_imports" USING "btree" ("purge_at", "id");
 
 
 --
@@ -15010,6 +15186,30 @@ ALTER TABLE ONLY "public"."google_import_discovery_records"
 
 ALTER TABLE ONLY "public"."google_import_discovery_records"
     ADD CONSTRAINT "google_import_discovery_records_property_tenant_fk" FOREIGN KEY ("organization_id", "affected_property_id") REFERENCES "public"."properties"("organization_id", "id") ON DELETE CASCADE;
+
+
+--
+-- Name: google_import_items google_import_items_connection_tenant_fk; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY "public"."google_import_items"
+    ADD CONSTRAINT "google_import_items_connection_tenant_fk" FOREIGN KEY ("organization_id", "connection_id") REFERENCES "public"."google_connections"("organization_id", "id") ON DELETE RESTRICT;
+
+
+--
+-- Name: google_import_items google_import_items_parent_tenant_fk; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY "public"."google_import_items"
+    ADD CONSTRAINT "google_import_items_parent_tenant_fk" FOREIGN KEY ("organization_id", "import_id") REFERENCES "public"."google_imports"("organization_id", "id") ON DELETE CASCADE;
+
+
+--
+-- Name: google_import_items google_import_items_property_tenant_fk; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY "public"."google_import_items"
+    ADD CONSTRAINT "google_import_items_property_tenant_fk" FOREIGN KEY ("organization_id", "existing_property_id") REFERENCES "public"."properties"("organization_id", "id") ON DELETE RESTRICT;
 
 
 --

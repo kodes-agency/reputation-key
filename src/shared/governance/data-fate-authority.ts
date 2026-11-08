@@ -8,49 +8,8 @@
  * an explicit lifecycle decision here.
  */
 
-export type DataFateDisposition =
-  | 'active_authority'
-  | 'compatibility_read'
-  | 'quarantined_reconciliation_input'
-  | 'erasable_source_content'
-  | 'recoverable_archive'
-  | 'bounded_contraction'
-
-export type DataFateOwner =
-  | 'ai'
-  | 'feed'
-  | 'guest'
-  | 'identity'
-  | 'inbox'
-  | 'integration'
-  | 'platform'
-  | 'portal'
-  | 'property'
-  | 'reporting'
-  | 'review'
-
-export type DataFateRow = Readonly<{
-  schemaFile: string
-  exportName: string
-  owner: DataFateOwner
-  disposition: DataFateDisposition
-  /** Package or accepted authority responsible for this decision. */
-  authority: string
-  /**
-   * Required for every non-active row; names the condition that bounds it. An
-   * active row states one when its rows have a lifecycle worth recording here.
-   */
-  exitCriteria: string
-}>
-
-type DataFateGroup = Readonly<{
-  schemaFile: string
-  exportNames: ReadonlyArray<string>
-  owner: DataFateOwner
-  disposition: DataFateDisposition
-  authority: string
-  exitCriteria?: string
-}>
+import type { DataFateGroup, DataFateRow } from './data-fate-types'
+export type { DataFateDisposition, DataFateOwner, DataFateRow } from './data-fate-types'
 
 export function dataFateKey(schemaFile: string, exportName: string): string {
   return `${schemaFile}#${exportName}`
@@ -344,6 +303,15 @@ export const DATA_FATE_AUTHORITY = Object.freeze([
     owner: 'integration',
     disposition: 'active_authority',
     authority: 'GGL-01',
+  }),
+  ...rows({
+    schemaFile: 'google-import.schema.ts',
+    exportNames: ['googleImports', 'googleImportItems'],
+    owner: 'integration',
+    disposition: 'active_authority',
+    authority: 'Integration import checkpoints',
+    exitCriteria:
+      'The replacement store is not connected. Before its first writer, wire lifecycle cancellation, isolated restore and whole-import retention; remove the import and all items 30 days after its first terminal completion without renewing that deadline on retry.',
   }),
   ...rows({
     schemaFile: 'google-import-discovery.schema.ts',
