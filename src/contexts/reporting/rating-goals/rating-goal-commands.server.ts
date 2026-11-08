@@ -1,0 +1,408 @@
+// Property Google rating goal — the commands: set, change, end.
+//
+// Setting a goal needs Google's current numbers and at least ten Google
+// reviews, and refuses while the Property has an active goal. It records the
+// baselines the progress bar starts from. A climb goal's plan is its target,
+// its planned quality of new reviews (at least 0.15★ above the target's
+// threshold, as a tenth) and its pace. A change names the version its form was
+// opened on, writes one log row per changed field and no reason. Ending is
+// always allowed while the goal is active. Keeping the pace answers the Monday
+// check-in for every manager, with no version and no log row.
+// Nothing here is a deadline.
+
+import { ratioToNumber } from '../domain/rating-goal-numbers'
+import type { RatingGoalEligibility } from '../domain/rating-goal-stops'
+import {
+  changeForgetsKnownStatus,
+  paceProblem,
+  paceSinceAfter,
+  planChanges,
+  planQualityProblem,
+  ratingGoalError,
+  targetProblem,
+  type PropertyRatingGoal,
+  type RatingGoalMode,
+  type RatingGoalPlan,
+} from '../domain/rating-goal'
+import { recapWeekStart, weeklyRecapDue } from '../domain/rating-goal-recap'
+import type {
+  RatingGoalChangeResult,
+  RatingGoalEndResult,
+  RatingGoalKeepResult,
+  RatingGoalNotNowResult,
+  RatingGoalSetResult,
+} from './contracts'
+import type {
+  NewPropertyRatingGoal,
+  RatingGoalWriteResult,
+} from '../application/ports/property-rating-goal.repository'
+import { evaluateRatingGoal } from '../application/rating-goal-evaluation'
+import {
+  numbersEligibility,
+  ratingBasis,
+  setupEligibility,
+  type RatingGoalReading,
+} from '../application/rating-goal-reading'
+import { googleShowsSoonOf } from '../application/rating-goal-views'
+import type { RatingGoalPropertyInput } from './get-rating-goals.server'
+import type { GoalActor } from '../application/use-cases/goal-program-shared'
+import {
+  authorizeRatingGoal,
+  evaluateActiveRatingGoal,
+  requireReading,
+  type EvaluatedRatingGoal,
+  type RatingGoalDependencies,
+} from './rating-goal-shared.server'
+
+export type SetRatingGoalInput = Readonly<{
+  propertyId: string
+  mode: RatingGoalMode
+  targetTenths: number
+  /** The planned quality of new reviews, in tenths; null to keep. */
+  qualityTenths: number | null
+  /** The pace in tenths of a review a week; null to keep. */
+  paceTenthsPerWeek: number | null
+}>
+
+export type ChangeRatingGoalInput = Readonly<{
+  propertyId: string
+  goalId: string
+  expectedVersion: number
+  mode?: RatingGoalMode
+  targetTenths?: number
+  qualityTenths?: number | null
+  paceTenthsPerWeek?: number | null
+}>
+
+export type KeepRatingGoalPaceInput = Readonly<{
+  propertyId: string
+  goalId: string
+  /** The check-in's week, as the card showed it: last week's Monday. */
+  weekStart: string
+}>
+
+export type EndRatingGoalInput = Readonly<{
+  propertyId: string
+  goalId: string
+  expectedVersion: number
+}>
+
+/** The tenth Google shows now, when the eligibility lets a goal rely on it. */
+function currentDisplayedTenths(
+  reading: RatingGoalReading,
+  eligibility: RatingGoalEligibility,
+): number {
+  const basis = ratingBasis(reading)
+  if (!eligibility.eligible || basis === null) {
+    throw ratingGoalError('not_eligible', 'A rating goal needs Google numbers', {
+      reason: eligibility.eligible ? 'waiting_for_google' : eligibility.reason,
+    })
+  }
+  return basis.displayedTenths
+}
+
+function assertPlan(plan: RatingGoalPlan, displayed: number | null): void {
+  const problem =
+    (displayed === null
+      ? null
+      : targetProblem(plan.mode, plan.targetTenths, displayed)) ??
+    planQualityProblem(plan.mode, plan.targetTenths, plan.qualityTenths) ??
+    paceProblem(plan.mode, plan.paceTenthsPerWeek)
+  if (problem !== null) {
+    throw ratingGoalError(
+      problem,
+      `The rating goal ${problem.replace('invalid_', '')} is not allowed`,
+    )
+  }
+}
+
+function throwWriteRefusal(result: Exclude<RatingGoalWriteResult, 'written'>): never {
+  throw result === 'version_conflict'
+    ? ratingGoalError('version_conflict', 'The rating goal changed since it was opened')
+    : ratingGoalError('not_active', 'The rating goal was reached or ended')
+}
+
+/** Sets the Property's rating goal and records its baselines. */
+export async function setRatingGoal(
+  deps: RatingGoalDependencies,
+  input: SetRatingGoalInput,
+  actor: GoalActor,
+): Promise<RatingGoalSetResult> {
+  await authorizeRatingGoal(deps, actor, input.propertyId, 'goal.create')
+  if (await deps.repository.isOrganizationHeld(actor.organizationId)) {
+    throw ratingGoalError('organization_closing', 'The Organization is closing')
+  }
+  if (await deps.repository.findActive(actor.organizationId, input.propertyId)) {
+    throw ratingGoalError('goal_exists', 'This Property already has a rating goal')
+  }
+  const reading = await requireReading(
+    deps,
+    actor.organizationId,
+    input.propertyId,
+    deps.now(),
+  )
+  assertPlan(input, currentDisplayedTenths(reading, setupEligibility(reading)))
+  const goal = newGoal(deps.id(), input, actor, reading)
+  const inserted = await deps.repository.insert(goal)
+  if (inserted === 'active_exists') {
+    throw ratingGoalError('goal_exists', 'This Property already has a rating goal')
+  }
+  return { goalId: goal.id, version: 1 }
+}
+
+/**
+ * The goal a set stores: its plan, the binding it is set under, the baselines
+ * its progress starts from, and what it starts at (the tenth Google shows and
+ * the status, evaluated as any later evaluation would be).
+ */
+function newGoal(
+  id: string,
+  input: SetRatingGoalInput,
+  actor: GoalActor,
+  reading: RatingGoalReading,
+): NewPropertyRatingGoal {
+  const goal: NewPropertyRatingGoal = {
+    id,
+    organizationId: actor.organizationId,
+    propertyId: input.propertyId,
+    sourceEpoch: reading.facts.sourceEpoch,
+    mode: input.mode,
+    targetTenths: input.targetTenths,
+    qualityTenths: input.qualityTenths,
+    paceTenthsPerWeek: input.paceTenthsPerWeek,
+    baseline: {
+      reviewCount: reading.google?.reviewCount ?? 0,
+      googleAverage: reading.google?.averageRating ?? 0,
+      exactAverage: reading.exact ? ratioToNumber(reading.exact.value) : 0,
+    },
+    lastEvaluation: {
+      displayedTenths: null,
+      status: null,
+      evaluatedAt: null,
+      knownStatus: null,
+      belowPaceNoticedAt: null,
+      tooLowNoticedAt: null,
+    },
+    createdBy: actor.userId,
+    createdAt: reading.now,
+    updatedAt: reading.now,
+  }
+  const starting = evaluateRatingGoal(
+    {
+      ...goal,
+      state: 'active',
+      endedReason: null,
+      reachedAt: null,
+      endedAt: null,
+      version: 1,
+      paceSince: goal.createdAt,
+      recapAnsweredWeek: null,
+    },
+    reading,
+    null,
+  )
+  return {
+    ...goal,
+    // The status it starts in is known: the first change from it is a notice.
+    lastEvaluation: {
+      displayedTenths: starting.displayedTenths,
+      status: starting.status,
+      evaluatedAt: reading.now,
+      knownStatus: starting.status === 'waiting_for_google' ? null : starting.status,
+      belowPaceNoticedAt: null,
+      tooLowNoticedAt: null,
+    },
+  }
+}
+
+/** A field the change names, else the goal's own; nothing for a keep goal. */
+const climbValue = (
+  mode: RatingGoalMode,
+  given: number | null | undefined,
+  current: number | null,
+): number | null => (mode === 'keep' ? null : given !== undefined ? given : current)
+
+/** The plan a change leaves: a keep goal has no quality and no pace. */
+function nextPlan(
+  goal: PropertyRatingGoal,
+  input: ChangeRatingGoalInput,
+): RatingGoalPlan {
+  const mode = input.mode ?? goal.mode
+  return {
+    mode,
+    targetTenths: input.targetTenths ?? goal.targetTenths,
+    qualityTenths: climbValue(mode, input.qualityTenths, goal.qualityTenths),
+    paceTenthsPerWeek: climbValue(mode, input.paceTenthsPerWeek, goal.paceTenthsPerWeek),
+  }
+}
+
+async function loadChangeable(
+  deps: RatingGoalDependencies,
+  actor: GoalActor,
+  input: Pick<ChangeRatingGoalInput, 'propertyId' | 'goalId' | 'expectedVersion'>,
+): Promise<PropertyRatingGoal> {
+  const goal = await deps.repository.findById(
+    actor.organizationId,
+    input.propertyId,
+    input.goalId,
+  )
+  if (goal === null) throw ratingGoalError('not_found', 'Rating goal not found')
+  if (goal.state !== 'active') throwWriteRefusal('not_active')
+  if (goal.version !== input.expectedVersion) throwWriteRefusal('version_conflict')
+  return goal
+}
+
+/** Changes the target, planned quality, pace or mode of the active goal. */
+export async function changeRatingGoal(
+  deps: RatingGoalDependencies,
+  input: ChangeRatingGoalInput,
+  actor: GoalActor,
+): Promise<RatingGoalChangeResult> {
+  await authorizeRatingGoal(deps, actor, input.propertyId, 'goal.update')
+  const goal = await loadChangeable(deps, actor, input)
+  const plan = nextPlan(goal, input)
+  const changes = planChanges(goal, plan)
+  if (changes.length === 0) throw ratingGoalError('no_change', 'Nothing changed')
+  const now = deps.now()
+  const targetMoves = plan.mode !== goal.mode || plan.targetTenths !== goal.targetTenths
+  const reading = targetMoves
+    ? await requireReading(deps, actor.organizationId, input.propertyId, now)
+    : null
+  // A change keeps a running goal going; only setting one needs an active Property.
+  const displayed = reading
+    ? currentDisplayedTenths(reading, numbersEligibility(reading))
+    : null
+  assertPlan(plan, displayed)
+  const result = await deps.repository.changePlan({
+    organizationId: actor.organizationId,
+    propertyId: input.propertyId,
+    goalId: goal.id,
+    expectedVersion: input.expectedVersion,
+    plan,
+    changes: changes.map((row) => ({
+      ...row,
+      id: deps.id(),
+      goalId: goal.id,
+      organizationId: actor.organizationId,
+      propertyId: input.propertyId,
+      changedBy: actor.userId,
+      changedAt: now,
+    })),
+    changedAt: now,
+    paceSince: paceSinceAfter(goal, plan, now),
+    forgetsKnownStatus: changeForgetsKnownStatus(goal, plan),
+  })
+  if (result !== 'written') throwWriteRefusal(result)
+  return { goalId: goal.id, version: input.expectedVersion + 1 }
+}
+
+/** Ends the active goal (a manager's decision). */
+export async function endRatingGoal(
+  deps: RatingGoalDependencies,
+  input: EndRatingGoalInput,
+  actor: GoalActor,
+): Promise<RatingGoalEndResult> {
+  await authorizeRatingGoal(deps, actor, input.propertyId, 'goal.cancel')
+  const goal = await loadChangeable(deps, actor, input)
+  const result = await deps.repository.endByManager({
+    organizationId: actor.organizationId,
+    propertyId: input.propertyId,
+    goalId: goal.id,
+    expectedVersion: input.expectedVersion,
+    endedAt: deps.now(),
+  })
+  if (result !== 'written') throwWriteRefusal(result)
+  return { goalId: goal.id, ended: true }
+}
+
+/** The week the check-in open now looks back on, after the goal was evaluated; null when none is. */
+const openRecapWeek = ({
+  goal,
+  evaluation,
+  reading,
+}: EvaluatedRatingGoal): string | null =>
+  goal.state === 'active'
+    ? (weeklyRecapDue({
+        goal,
+        status: evaluation.status,
+        googleShowsSoon: googleShowsSoonOf(goal, reading),
+        now: reading.now,
+        timezone: reading.facts.timezone,
+      })?.weekStart ?? null)
+    : null
+
+/**
+ * True when Keep repeats the week already answered and that week is still the
+ * one a check-in open now looks back on. A stale tab's week is not: this
+ * week's check-in may still be unanswered, so it falls through and is refused.
+ */
+async function repeatsOpenWeek(
+  deps: RatingGoalDependencies,
+  organizationId: string,
+  goal: PropertyRatingGoal,
+  weekStart: string,
+): Promise<boolean> {
+  if (goal.recapAnsweredWeek !== weekStart) return false
+  const facts = await deps.properties.findPropertyFacts(organizationId, goal.propertyId)
+  return facts !== null && recapWeekStart(deps.now(), facts.timezone) === weekStart
+}
+
+const recapClosed = () =>
+  ratingGoalError('recap_closed', 'This week’s check-in has closed')
+
+/**
+ * Keeps the pace for this week: answers the Monday check-in it names for every
+ * manager. A repeat of the week already answered succeeds while that week is
+ * still the open check-in's; any other week, or a check-in
+ * that closed (the pace changed this week, the week ended, the status no
+ * longer asks), is refused `recap_closed`.
+ */
+export async function keepRatingGoalPace(
+  deps: RatingGoalDependencies,
+  input: KeepRatingGoalPaceInput,
+  actor: GoalActor,
+): Promise<RatingGoalKeepResult> {
+  await authorizeRatingGoal(deps, actor, input.propertyId, 'goal.update')
+  const goal = await deps.repository.findById(
+    actor.organizationId,
+    input.propertyId,
+    input.goalId,
+  )
+  if (goal === null) throw ratingGoalError('not_found', 'Rating goal not found')
+  if (goal.state !== 'active' || goal.mode !== 'climb') throwWriteRefusal('not_active')
+  const kept = { goalId: goal.id, weekStart: input.weekStart }
+  if (await repeatsOpenWeek(deps, actor.organizationId, goal, input.weekStart))
+    return kept
+  const evaluated = await evaluateActiveRatingGoal(deps, goal)
+  if (evaluated.goal.state !== 'active') throwWriteRefusal('not_active')
+  if (openRecapWeek(evaluated) !== input.weekStart) throw recapClosed()
+  const stored = await deps.repository.markRecapAnswered({
+    organizationId: actor.organizationId,
+    propertyId: input.propertyId,
+    goalId: goal.id,
+    weekStart: input.weekStart,
+  })
+  if (!stored) throwWriteRefusal('not_active')
+  return kept
+}
+
+// Deferral answers the setup step; it never creates or changes a goal.
+export async function deferRatingGoal(
+  deps: RatingGoalDependencies,
+  input: RatingGoalPropertyInput,
+  actor: GoalActor,
+): Promise<RatingGoalNotNowResult> {
+  await authorizeRatingGoal(deps, actor, input.propertyId, 'goal.create')
+  const facts = await deps.properties.findPropertyFacts(
+    actor.organizationId,
+    input.propertyId,
+  )
+  if (facts === null) throw ratingGoalError('not_found', 'Property not found')
+  await deps.repository.recordNotNow({
+    organizationId: actor.organizationId,
+    propertyId: input.propertyId,
+    chosenBy: actor.userId,
+    chosenAt: deps.now(),
+  })
+  return { propertyId: input.propertyId }
+}

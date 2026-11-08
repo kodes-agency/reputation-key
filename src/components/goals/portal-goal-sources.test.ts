@@ -13,7 +13,7 @@ import {
   HOW_TO_ASK_LINE,
   PLAN_POLICY_LINE,
   UNASKED_REVIEWS_LINE,
-} from './rating-goal-copy'
+} from '../../contexts/reporting/rating-goals/ui/rating-goal-copy'
 import {
   PORTAL_ASK_EVERY_GUEST_LINE,
   PORTAL_NO_SCAN_HINT,
