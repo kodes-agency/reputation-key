@@ -19,18 +19,15 @@ import type {
 import type { GoogleProviderRouteDescriptor } from '#/shared/google-provider-control/route-catalogue'
 import { parseReviewProviderResource } from '#/shared/review-provider-subject-contract'
 import { googleReplyTextDigest } from '#/shared/domain/google-reply-text'
-import { reportRefusedReviewPages } from './google-review-page'
 import {
-  gbpReviewItemSchema,
   isNewestUpdatedFirst,
-  mapReview,
+  parseReview,
   parseReviewsPage,
 } from './google-review-page-parse'
-import { reportReplyModeration } from './google-review-reply-moderation'
 import {
   executeGoogleProviderJson,
   executeGoogleProviderRaw,
-  gatewayFailureError,
+  executeGoogleProviderResponse,
   providerStatusError,
 } from '../../provider/google-client.server'
 import {
@@ -103,15 +100,6 @@ type ProviderContext = Readonly<{
   authorization: GoogleProviderCallAuthorization
   cursorAuthorization: GoogleReviewCursorAuthorization
 }>
-
-function withTimeout(ms: number): Readonly<{
-  signal: AbortSignal
-  clear: () => void
-}> {
-  const controller = new AbortController()
-  const timer = setTimeout(() => controller.abort(), ms)
-  return { signal: controller.signal, clear: () => clearTimeout(timer) }
-}
 
 function exactKeys(input: object, expected: readonly string[]): boolean {
   const actual = Object.keys(input).sort()
@@ -498,14 +486,6 @@ export const createGoogleReviewApiAdapter = (
     }
   }
 
-  // Accepted residual: a provider-boundary reader that must not trust anything
-  // it is handed. The code paths are an exact-key check, six identifier/range
-  // validations, and per-status provider error mapping — each one a distinct
-  // way Google or a caller can be wrong, and every one has to stay ahead of
-  // the parse. Revisit if the validation ladder is ever shared with
-  // listReviewsPage and reviews.reply — three copies would justify a
-  // validated-input type that all three parse into once.
-  // fallow-ignore-next-line complexity
   const getReview: GoogleReviewApiPort['getReview'] = async (input) => {
     const forReplyPublication = 'forReplyPublication' in input
     if (
@@ -534,67 +514,45 @@ export const createGoogleReviewApiAdapter = (
       : resolveProviderContext
     const context = await resolve(input)
     let raw: unknown
-    const timeout = withTimeout(30_000)
     try {
-      const result = await deps.executor.execute(
-        {
+      const startedAtMs = nowMs()
+      const result = await executeGoogleProviderResponse({
+        operation: 'getReview',
+        descriptor: {
           routeKey: 'reviews.get',
           accessToken: context.accessToken,
           reviewName: input.reviewName,
         },
-        {
-          authorization: context.authorization,
-          deadlineMs: nowMs() + 30_000,
-          signal: timeout.signal,
-        },
-      )
-      // The same error vocabulary as the list route: the snapshot confirmation
-      // retries by code alone and waits only as long as the hint, so a refusal
-      // that is named a retryable outage, or an outage that carries no wait,
-      // is re-run at queue speed until the run expires.
-      if (!result.ok) {
-        throw executorErrorToReviewApiError(gatewayFailureError('getReview', result))
-      }
-      if (result.status === 404) {
-        result.body.fill(0)
-        await assertAuthorizationCurrent(input, context.cursorAuthorization, resolve)
-        return { status: 'not_found' }
-      }
-      if (result.status !== 200) {
-        result.body.fill(0)
-        throw executorErrorToReviewApiError(
-          providerStatusError('getReview', result, nowMs, nowMs()),
-        )
-      }
-      if (
-        !result.headers.contentType ||
-        !JSON_CONTENT_TYPE.test(result.headers.contentType)
-      ) {
-        result.body.fill(0)
-        throw reviewApiError('provider_unavailable', true)
-      }
+        authorization: context.authorization,
+        executor: deps.executor,
+        nowMs,
+        timeoutMs: 30_000,
+      })
       try {
+        if (result.status === 404) {
+          result.body.fill(0)
+          await assertAuthorizationCurrent(input, context.cursorAuthorization, resolve)
+          return { status: 'not_found' }
+        }
+        if (result.status !== 200) {
+          throw providerStatusError('getReview', result, nowMs, startedAtMs)
+        }
+        if (
+          !result.headers.contentType ||
+          !JSON_CONTENT_TYPE.test(result.headers.contentType)
+        ) {
+          throw reviewApiError('provider_unavailable', true)
+        }
         raw = parseJsonBytes(result.body)
       } finally {
         result.body.fill(0)
       }
     } catch (error) {
       if (isGoogleReviewApiError(error)) throw error
-      throw reviewApiError('provider_unavailable', true)
-    } finally {
-      timeout.clear()
+      throw executorErrorToReviewApiError(error)
     }
     await assertAuthorizationCurrent(input, context.cursorAuthorization, resolve)
-    const parsed = gbpReviewItemSchema.safeParse(raw)
-    if (!parsed.success) throw reviewApiError('malformed_response', false)
-    const review = mapReview(parsed.data, input.locationName)
-    reportRefusedReviewPages(
-      deps.logger,
-      'reviews.get',
-      [parsed.data],
-      [review.googleReviewUrl],
-    )
-    reportReplyModeration(deps.logger, 'reviews.get', [parsed.data])
+    const review = parseReview(raw, input.locationName, deps.logger)
     return { status: 'found', review }
   }
 
