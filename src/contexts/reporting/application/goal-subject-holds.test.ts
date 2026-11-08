@@ -6,7 +6,11 @@ import type {
   GoalProgramVersion,
   GoalSubjectAssignment,
 } from './ports/goal-program.repository'
-import { assignmentHoldsFrom, holdOutlasts, subjectHolds } from './goal-subject-holds'
+import {
+  assignmentHoldsFrom,
+  holdOutlasts,
+  subjectHolds,
+} from '../monthly-goals/subject-assignments.server'
 
 const OCTOBER = new Date('2026-10-01T00:00:00.000Z')
 const NOVEMBER = new Date('2026-11-01T00:00:00.000Z')

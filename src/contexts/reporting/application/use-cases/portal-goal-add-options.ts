@@ -15,7 +15,7 @@ import type {
   PortalGoalAddOffer,
   PortalGoalAddOptions,
 } from '../dto/monthly-portal-goal-add.types'
-import { subjectHolds } from '../goal-subject-holds'
+import { subjectHolds } from '../../monthly-goals/subject-assignments.server'
 import type { GoalProgramBundle } from '../ports/goal-program.repository'
 import type { GoalSubjectNameReader } from './goal-bulk-create'
 import { inParallel } from './goal-list-progress'

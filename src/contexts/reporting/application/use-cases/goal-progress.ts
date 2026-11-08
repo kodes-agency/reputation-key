@@ -16,6 +16,10 @@
 // card), every current subject of one goal (the goal's own page), and the
 // active goals of a Property for the Goals list (goal-list-progress.ts).
 
+import type { GoalProgressReading } from '../../monthly-goals/contracts'
+export type { GoalProgressReading } from '../../monthly-goals/contracts'
+
+import { assignmentHoldsFrom } from '../../monthly-goals/subject-assignments.server'
 import { calendarPeriodRange } from '#/shared/domain/period-range'
 import {
   organizationId as toOrganizationId,
@@ -47,17 +51,6 @@ import type {
   GoalProgramService,
 } from './goal-programs'
 import type { GovernedGoalMetricResult } from './query-goal-metric'
-
-/** What the month so far says about one goal. */
-export type GoalProgressReading =
-  /** The figure counted from the first of the month to now. */
-  | Readonly<{ kind: 'live'; value: number; sampleCount: number }>
-  /** An average the ratings so far are too few to support. */
-  | Readonly<{ kind: 'too_few'; sampleCount: number; minimumSample: number }>
-  /** The metric cannot be read safely right now; never shown as a zero. */
-  | Readonly<{ kind: 'unavailable' }>
-  /** The goal is scheduled or paused, so there is no month to count yet. */
-  | Readonly<{ kind: 'not_started' }>
 
 export type GoalProgress = Readonly<{
   programId: string
@@ -142,15 +135,6 @@ type ShownStatus = GoalProgress['status']
 const isShown = (status: GoalProgramStatus): status is ShownStatus => status !== 'ended'
 
 /**
- * True while an assignment is in force or still to begin. One a later version
- * replaced has ended; one whose window ends where it starts (a plan replaced
- * or cancelled before it began) never held its subject at all.
- */
-const isOpenAt = (assignment: GoalSubjectAssignment, now: Date): boolean =>
-  assignment.effectiveTo === null ||
-  (assignment.effectiveTo > now && assignment.effectiveTo > assignment.effectiveFrom)
-
-/**
  * The assignment of this subject that is in force, else the next one to begin.
  * An assignment a later version replaced has an end date and is not offered.
  */
@@ -163,7 +147,8 @@ function assignmentFor(
   const open = bundle.assignments
     .filter(
       (assignment) =>
-        goalSubjectIdentity(assignment.subject) === identity && isOpenAt(assignment, now),
+        goalSubjectIdentity(assignment.subject) === identity &&
+        assignmentHoldsFrom(assignment, now),
     )
     .sort((left, right) => left.effectiveFrom.getTime() - right.effectiveFrom.getTime())
   const current = open.filter((assignment) => assignment.effectiveFrom <= now)
@@ -187,7 +172,7 @@ function subjectsWhere(
 
 /** Every subject with an assignment in force or still to begin, once each. */
 function currentSubjects(bundle: GoalProgramBundle, now: Date): readonly GoalSubject[] {
-  return subjectsWhere(bundle, (assignment) => isOpenAt(assignment, now))
+  return subjectsWhere(bundle, (assignment) => assignmentHoldsFrom(assignment, now))
 }
 
 /** Every subject whose assignment has begun and has not ended, once each. */
@@ -197,7 +182,8 @@ export function subjectsInForce(
 ): readonly GoalSubject[] {
   return subjectsWhere(
     bundle,
-    (assignment) => isOpenAt(assignment, now) && assignment.effectiveFrom <= now,
+    (assignment) =>
+      assignmentHoldsFrom(assignment, now) && assignment.effectiveFrom <= now,
   )
 }
 

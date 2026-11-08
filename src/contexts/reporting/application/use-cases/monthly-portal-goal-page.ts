@@ -2,6 +2,7 @@
 // months and changes after the current goal disappears. Show Portal rows only
 // when they sum to governed progress; isolate failures in other-goal side reads.
 
+import { currentAssignments } from '../../monthly-goals/subject-assignments.server'
 import type { LoggerPort } from '#/shared/domain/logger.port'
 import { goalSubjectIdentity, type GoalSubject } from '../../domain/goal-subject'
 import { addLocalDays, localDateOf } from '../../domain/local-days'
@@ -164,10 +165,8 @@ export async function subjectNamesOf(
   )
   const subjects = new Map<string, Exclude<GoalSubject, Readonly<{ kind: 'property' }>>>()
   // The subjects each goal names now, as its row on the page does.
-  const current = goals.flatMap(({ assignments, version }) =>
-    assignments
-      .filter(({ programVersionId }) => programVersionId === version.id)
-      .map(({ subject }) => subject),
+  const current = goals.flatMap((bundle) =>
+    currentAssignments(bundle).map(({ subject }) => subject),
   )
   for (const subject of current) {
     if (subject.kind !== 'property') subjects.set(goalSubjectIdentity(subject), subject)

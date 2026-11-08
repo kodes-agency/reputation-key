@@ -31,7 +31,7 @@ import type {
   PortalGoalOfCard,
 } from '../dto/monthly-portal-goal.types'
 import type { MonthlyPortalGoalPageDeps } from './monthly-portal-goal-page'
-import type { PortalGoalSinglePageDeps } from './portal-goal-single-page'
+import type { PortalGoalSinglePageDeps } from '../../monthly-goals/get-portal-goal-page.server'
 
 export const PROPERTY_ID = 'property-1'
 export const actor: GoalActor = {
