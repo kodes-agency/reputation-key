@@ -174,7 +174,6 @@ export function buildContainerCapabilities({
     inboxMaintenanceRuntime: inbox.maintenance,
     inboxRuntime: inbox.runtime,
     metricPublicApi: reporting.publicApi,
-    metricMaintenanceRuntime: reporting.maintenance,
     dashboardPublicApi: reporting.publicApi,
     goalPublicApi: reporting.publicApi,
     goalWorkerRuntime: reporting.worker,

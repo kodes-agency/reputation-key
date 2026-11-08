@@ -1,3 +1,7 @@
+import {
+  staffAttributionColumns,
+  staffAttributionFromColumns,
+} from './metric-staff-attribution.server'
 import { and, eq, isNull, or } from 'drizzle-orm'
 import type { Database } from '#/shared/db'
 import { lockMetricSource } from '#/shared/db/metric-source-lock'
@@ -18,96 +22,16 @@ import type {
   RetractMetricCommand,
   RetractMetricResult,
 } from '../application/ports/metric-command-store.port'
-import {
-  primaryStaffAttributionEquals,
-  type PrimaryStaffAttributionSnapshot,
-} from '#/shared/domain/primary-staff-attribution'
-import {
-  portalLifetimeFactForMetric,
-  type PortalLifetimeFact,
-} from '../domain/portal-lifetime-aggregate'
-import {
-  applyPortalLifetimeChanges,
-  type PortalLifetimeChange,
-} from './portal-lifetime-aggregate-store'
-
-type StaffAttributionColumns = Readonly<{
-  attributedStaffParticipantId: string | null
-  attributedStaffParticipationId: string | null
-  attributionResponsibilityId: string | null
-  staffAttributionEffectiveFrom: Date | null
-  staffAttributionEffectiveTo: Date | null
-}>
-
-const staffAttributionFromColumns = (
-  row: Partial<StaffAttributionColumns>,
-): PrimaryStaffAttributionSnapshot | null =>
-  row.attributedStaffParticipantId &&
-  row.attributedStaffParticipationId &&
-  row.attributionResponsibilityId &&
-  row.staffAttributionEffectiveFrom
-    ? {
-        staffParticipantId: row.attributedStaffParticipantId,
-        staffParticipationId: row.attributedStaffParticipationId,
-        portalResponsibilityId: row.attributionResponsibilityId,
-        effectiveFrom: row.staffAttributionEffectiveFrom,
-        effectiveTo: row.staffAttributionEffectiveTo ?? null,
-      }
-    : null
-
-const staffAttributionColumns = (
-  attribution: PrimaryStaffAttributionSnapshot | null,
-): StaffAttributionColumns => ({
-  attributedStaffParticipantId: attribution?.staffParticipantId ?? null,
-  attributedStaffParticipationId: attribution?.staffParticipationId ?? null,
-  attributionResponsibilityId: attribution?.portalResponsibilityId ?? null,
-  staffAttributionEffectiveFrom: attribution?.effectiveFrom ?? null,
-  staffAttributionEffectiveTo: attribution?.effectiveTo ?? null,
-})
-
-const portalLifetimeFactsEqual = (
-  left: PortalLifetimeFact | null | undefined,
-  right: PortalLifetimeFact | null,
-): boolean => JSON.stringify(left ?? null) === JSON.stringify(right)
+import { primaryStaffAttributionEquals } from '#/shared/domain/primary-staff-attribution'
+import { validatePortalReading } from './contracts'
 
 type MetricTx = Parameters<Parameters<Database['transaction']>[0]>[0]
-
-/** The negative lifetime contribution a superseded reading must give back. */
-function priorPortalLifetimeRetraction(
-  prior: Readonly<{
-    metricKey: string
-    exactValue: unknown
-    portalDestinationKind: string | null
-    propertyLocalDate: string | null
-  }>,
-): PortalLifetimeChange | null {
-  if (prior.exactValue === null || prior.exactValue === undefined) return null
-  const priorFact = portalLifetimeFactForMetric({
-    metricKey: prior.metricKey,
-    value: Number(prior.exactValue),
-    destinationKind:
-      prior.portalDestinationKind === 'google_review' ||
-      prior.portalDestinationKind === 'secondary_link'
-        ? prior.portalDestinationKind
-        : null,
-  })
-  if (!priorFact) return null
-  if (!prior.propertyLocalDate) {
-    throw new Error('Portal lifetime source reading has no Property-local date')
-  }
-  return {
-    fact: priorFact,
-    multiplier: -1,
-    propertyLocalDate: prior.propertyLocalDate,
-  }
-}
 
 type SupersededReadingResolution =
   | Readonly<{ kind: 'rejected' }>
   | Readonly<{
       kind: 'resolved'
       correctedReadingId: string
-      correctedPortalLifetimeChange: PortalLifetimeChange | null
     }>
 
 /**
@@ -156,9 +80,6 @@ async function resolveSupersededReading(
   const correctedStaffAttribution = priorRow
     ? staffAttributionFromColumns(priorRow)
     : null
-  const correctedPortalLifetimeChange = priorRow
-    ? priorPortalLifetimeRetraction(priorRow)
-    : null
 
   if (!correctedReadingId) return { kind: 'rejected' }
 
@@ -180,26 +101,7 @@ async function resolveSupersededReading(
   return {
     kind: 'resolved',
     correctedReadingId,
-    correctedPortalLifetimeChange,
   }
-}
-
-/** The lifetime contribution this reading must carry, cross-checked with the command. */
-function expectedPortalLifetimeFactFor(
-  command: RecordMetricCommand,
-): PortalLifetimeFact | null {
-  const expectedPortalLifetimeFact = portalLifetimeFactForMetric({
-    metricKey: command.reading.metricKey,
-    value: command.reading.value,
-    destinationKind: command.portalLifetimeFact?.destinationKind ?? null,
-  })
-  if (!portalLifetimeFactsEqual(command.portalLifetimeFact, expectedPortalLifetimeFact)) {
-    throw new Error('Portal lifetime contribution does not match its reading')
-  }
-  if (expectedPortalLifetimeFact && command.reading.portalId === null) {
-    throw new Error('Portal lifetime contribution has no Portal scope')
-  }
-  return expectedPortalLifetimeFact
 }
 
 type ReadingInsertion =
@@ -274,6 +176,10 @@ async function insertReadingOrDescribeDuplicate(
   tx: MetricTx,
   command: RecordMetricCommand,
 ): Promise<ReadingInsertion> {
+  const destinationKind =
+    command.reading.metricKey === 'portal.review_link_click'
+      ? (command.destinationKind ?? null)
+      : null
   const rows = await tx
     .insert(metricReadings)
     .values({
@@ -299,11 +205,8 @@ async function insertReadingOrDescribeDuplicate(
       propertyLocalDate: command.reading.propertyLocalDate,
       dataQuality: command.reading.dataQuality,
       retentionClass: command.reading.retentionClass,
-      portalDestinationKind: command.portalLifetimeFact?.destinationKind ?? null,
-      portalLinkId: secondaryPortalLinkId(
-        command.portalLifetimeFact?.destinationKind,
-        command.reading.portalLinkId,
-      ),
+      portalDestinationKind: destinationKind,
+      portalLinkId: secondaryPortalLinkId(destinationKind, command.reading.portalLinkId),
       ...staffAttributionColumns(command.reading.staffAttribution),
     })
     .onConflictDoNothing()
@@ -447,8 +350,14 @@ async function recordMetricEntry(
     }
   }
   const correctedReadingId = superseded?.correctedReadingId ?? null
-  const correctedPortalLifetimeChange = superseded?.correctedPortalLifetimeChange ?? null
-  const expectedPortalLifetimeFact = expectedPortalLifetimeFactFor(command)
+  const portalReading = validatePortalReading({
+    metricKey: command.reading.metricKey,
+    value: command.reading.value,
+    destinationKind: command.destinationKind,
+  })
+  if (portalReading && command.reading.portalId === null) {
+    throw new Error('Portal metric reading has no Portal scope')
+  }
   const insertion = await insertReadingOrDescribeDuplicate(tx, command)
   if (!insertion.inserted) {
     return {
@@ -465,25 +374,6 @@ async function recordMetricEntry(
       command,
       correctedReadingId,
       command.supersedesSourceEventId,
-    )
-  }
-
-  if (expectedPortalLifetimeFact && command.reading.portalId) {
-    await applyPortalLifetimeChanges(
-      tx,
-      {
-        organizationId: command.reading.organizationId,
-        propertyId: command.reading.propertyId,
-        portalId: command.reading.portalId,
-      },
-      [
-        ...(correctedPortalLifetimeChange ? [correctedPortalLifetimeChange] : []),
-        {
-          fact: expectedPortalLifetimeFact,
-          multiplier: 1,
-          propertyLocalDate: command.reading.propertyLocalDate,
-        },
-      ],
     )
   }
 
@@ -615,37 +505,6 @@ async function retractMetricEntry(
     occurredAt: command.occurredAt,
     staffAttribution: targetStaffAttribution,
   })
-  if (target[0].exactValue !== null) {
-    const fact = portalLifetimeFactForMetric({
-      metricKey: target[0].metricKey,
-      value: Number(target[0].exactValue),
-      destinationKind:
-        target[0].portalDestinationKind === 'google_review' ||
-        target[0].portalDestinationKind === 'secondary_link'
-          ? target[0].portalDestinationKind
-          : null,
-    })
-    if (fact) {
-      if (!target[0].propertyLocalDate) {
-        throw new Error('Portal lifetime source reading has no Property-local date')
-      }
-      await applyPortalLifetimeChanges(
-        tx,
-        {
-          organizationId: command.organizationId,
-          propertyId: command.propertyId,
-          portalId: command.portalId,
-        },
-        [
-          {
-            fact,
-            multiplier: -1,
-            propertyLocalDate: target[0].propertyLocalDate,
-          },
-        ],
-      )
-    }
-  }
   await insertOutboxRow(tx, event)
   return {
     status: 'retracted',

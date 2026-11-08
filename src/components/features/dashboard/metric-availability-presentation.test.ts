@@ -72,14 +72,13 @@ describe('Metric availability presentation', () => {
     expect(formatEvidenceTime(null)).toBe('—')
   })
 
-  it('labels anonymous lifetime evidence without inventing a data-through time', () => {
+  it('does not invent a data-through time for readings without one', () => {
     expect(
       metricEvidenceLine({
         ...evidence,
-        basis: 'anonymous_lifetime',
         dataThrough: null,
       }),
-    ).toBe('All-time aggregate')
+    ).toBeNull()
   })
 
   it('turns internal availability reasons into calm manager-facing detail', () => {
@@ -133,7 +132,6 @@ describe('Metric availability presentation', () => {
     ).toBeNull()
     expect(
       metricEvidenceLine({
-        basis: 'anonymous_lifetime',
         subject: 'ratings',
         state: 'insufficient_data',
         dataThrough: null,

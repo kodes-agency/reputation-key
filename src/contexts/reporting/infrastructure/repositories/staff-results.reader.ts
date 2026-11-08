@@ -11,7 +11,7 @@ import { sql } from 'drizzle-orm'
 import type { Database } from '#/shared/db'
 import { staffResultsSeries, staffResultsWindow } from '../../domain/staff-results-window'
 import { PORTAL_AVERAGE_MIN_SAMPLE } from '../../domain/portal-results-thresholds'
-import { METRIC_VERSION_IDS, findMetricVersionById } from '../../domain/metric-registry'
+import { METRIC_VERSION_IDS, findMetricVersionById } from '../../readings/contracts'
 import type { StaffResultsReader } from '../../application/ports/staff-results-reader.port'
 
 /** Only the two approved numeric measures are selectable by this reader. */

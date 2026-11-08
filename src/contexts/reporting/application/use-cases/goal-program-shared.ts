@@ -7,10 +7,7 @@ import {
 // A leaf among the Goal Program modules: command and maintenance modules can
 // depend on it without a cycle. It holds the service's dependency types, its
 // error, and the builders and resolvers shared by commands.
-import {
-  METRIC_VERSION_IDS,
-  type GovernedMetricVersion,
-} from '../../domain/metric-registry'
+import { METRIC_VERSION_IDS, type GovernedMetricVersion } from '../../readings/contracts'
 import type {
   GovernedGoalMetricQuery,
   GovernedGoalMetricResult,

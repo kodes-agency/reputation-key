@@ -10,9 +10,10 @@ import {
 import {
   makeDurablePortalMetricRetractionHandler,
   makeDurableRecordMetricHandler,
+  onRatingRetractedDurably,
   onRatingSubmittedDurably,
   onReviewLinkClickedDurably,
-} from './record-portal-metric'
+} from './record-portal-metric.server'
 
 const event = {
   _tag: 'guest.rating.submitted',
@@ -25,7 +26,6 @@ const event = {
 }
 
 const option = {
-  metricKey: 'portal.rating' as const,
   definitionVersionId: '11111111-1111-4111-8111-111111111202',
   sourcePolicy: 'first_party_guest_private' as const,
   span: 'metric.test.rating',
@@ -179,6 +179,41 @@ describe('event-time Portal Group attribution', () => {
 })
 
 describe('durable Portal metric retraction', () => {
+  it('withdraws the private rating, count and weighted average with one receipt', async () => {
+    const retractMetrics = vi
+      .fn()
+      .mockResolvedValue([
+        { status: 'retracted' },
+        { status: 'retracted' },
+        { status: 'retracted' },
+      ])
+
+    await onRatingRetractedDurably({ retractMetrics })({
+      ...retractionEvent,
+      _tag: 'guest.rating.retracted',
+      correlationId: null,
+      ratingId: ratingId('rating-1'),
+    })
+
+    expect(retractMetrics).toHaveBeenCalledExactlyOnceWith(
+      [
+        '11111111-1111-4111-8111-111111111202',
+        '11111111-1111-4111-8111-111111111302',
+        '11111111-1111-4111-8111-111111111303',
+      ].map((definitionVersionId) => ({
+        organizationId: retractionEvent.organizationId,
+        propertyId: retractionEvent.propertyId,
+        portalId: retractionEvent.portalId,
+        definitionVersionId,
+        sourceEventId: retractionEvent.eventId,
+        supersedesSourceEventId: retractionEvent.supersedesSourceEventId,
+        occurredAt: retractionEvent.occurredAt,
+        staffAttribution: null,
+      })),
+      { eventId: retractionEvent.eventId, consumerName: 'metric.guest-analytics' },
+    )
+  })
+
   it('retracts every configured metric against the superseded source', async () => {
     const retractMetrics = vi
       .fn()

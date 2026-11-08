@@ -1,5 +1,6 @@
 import { z } from 'zod/v4'
-import type { PortalDestinationKind } from './portal-lifetime-aggregate'
+import type { PortalDestinationKind } from '../readings/contracts'
+export type { PortalDestinationKind } from '../readings/contracts'
 
 const linkIdSchema = z.uuid()
 

@@ -8,7 +8,6 @@ import {
   readyEvidence,
   createFakeResponseIntegrity,
   createFakePortalVersions,
-  createUnusedPortalLifetime,
   metricsForWindows,
   run30Days,
   FOUR_RATINGS_IN_TWO_WEEKS,
@@ -309,7 +308,7 @@ describe('getPortalAnalytics: qualified scans have a first day', () => {
           },
         },
       ),
-      portalLifetime: createUnusedPortalLifetime(),
+
       responseIntegrity: createFakeResponseIntegrity(),
       portalVersions: createFakePortalVersions(),
     })({

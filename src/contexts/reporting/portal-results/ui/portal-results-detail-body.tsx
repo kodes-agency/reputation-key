@@ -31,10 +31,7 @@ export default function PortalResultsDetailBody({
       <section aria-labelledby={mixId}>
         <PortalResultsRatingMix data={data} headingId={mixId} />
       </section>
-      <PortalResultsAbout
-        data={data}
-        showEvidence={data.lifetimeReconciliation === null}
-      />
+      <PortalResultsAbout data={data} showEvidence={true} />
     </div>
   )
 }

@@ -37,11 +37,11 @@ import {
 } from '#/shared/domain/ids'
 import { METRIC_VERSION_IDS } from '../application/public-api'
 import { createPortalAnalyticsRepository } from './portal-analytics.repository.server'
-import { createAtomicMetricCommandStore } from '../infrastructure/metric-command-store'
+import { createAtomicMetricCommandStore } from '../readings/metric-command-store.server'
 import { createMetricRegistryRepository } from '../infrastructure/repositories/metric-registry.repository'
 import { createPropertyLocalDateResolver } from '../infrastructure/repositories/property-local-date'
 import { recordMetrics } from '../application/use-cases/record-metric'
-import { onQualifiedScanRecordedDurably } from '../infrastructure/record-portal-metric'
+import { onQualifiedScanRecordedDurably } from '../readings/record-portal-metric.server'
 import { clearEventSchemas } from '#/shared/events/schema-registry'
 import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
 

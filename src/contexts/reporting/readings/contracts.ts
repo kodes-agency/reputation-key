@@ -101,11 +101,11 @@ function seededEntry(
   })
 }
 
-/** Code-reviewed catalogue replacing the former database registry. */
+/** Immutable measurement policies shared by writers and readers. */
 export const METRIC_DEFINITIONS = Object.freeze([
   seededEntry(
     {
-      id: '11111111-1111-4111-8111-111111110201',
+      id: METRIC_DEFINITION_IDS.portalScan,
       key: 'portal.scan',
       valueKind: 'counter',
       workerDataFlag: false,
@@ -115,8 +115,8 @@ export const METRIC_DEFINITIONS = Object.freeze([
     },
     [
       {
-        id: '11111111-1111-4111-8111-111111111201',
-        definitionId: '11111111-1111-4111-8111-111111110201',
+        id: METRIC_VERSION_IDS.portalScanAnalytics,
+        definitionId: METRIC_DEFINITION_IDS.portalScan,
         version: 1,
         effectiveFrom: new Date('2026-08-08T03:00:00+0300'),
         effectiveTo: null,
@@ -133,7 +133,7 @@ export const METRIC_DEFINITIONS = Object.freeze([
   ),
   seededEntry(
     {
-      id: '11111111-1111-4111-8111-111111110202',
+      id: METRIC_DEFINITION_IDS.portalRating,
       key: 'portal.rating',
       valueKind: 'average',
       workerDataFlag: true,
@@ -143,8 +143,8 @@ export const METRIC_DEFINITIONS = Object.freeze([
     },
     [
       {
-        id: '11111111-1111-4111-8111-111111111202',
-        definitionId: '11111111-1111-4111-8111-111111110202',
+        id: METRIC_VERSION_IDS.portalRatingAnalytics,
+        definitionId: METRIC_DEFINITION_IDS.portalRating,
         version: 1,
         effectiveFrom: new Date('2026-08-08T03:00:00+0300'),
         effectiveTo: null,
@@ -161,7 +161,7 @@ export const METRIC_DEFINITIONS = Object.freeze([
   ),
   seededEntry(
     {
-      id: '11111111-1111-4111-8111-111111110203',
+      id: METRIC_DEFINITION_IDS.portalFeedback,
       key: 'portal.feedback',
       valueKind: 'counter',
       workerDataFlag: false,
@@ -171,8 +171,8 @@ export const METRIC_DEFINITIONS = Object.freeze([
     },
     [
       {
-        id: '11111111-1111-4111-8111-111111111203',
-        definitionId: '11111111-1111-4111-8111-111111110203',
+        id: METRIC_VERSION_IDS.portalFeedbackAnalytics,
+        definitionId: METRIC_DEFINITION_IDS.portalFeedback,
         version: 1,
         effectiveFrom: new Date('2026-08-08T03:00:00+0300'),
         effectiveTo: null,
@@ -189,7 +189,7 @@ export const METRIC_DEFINITIONS = Object.freeze([
   ),
   seededEntry(
     {
-      id: '11111111-1111-4111-8111-111111110204',
+      id: METRIC_DEFINITION_IDS.portalDestinationClick,
       key: 'portal.review_link_click',
       valueKind: 'counter',
       workerDataFlag: false,
@@ -199,8 +199,8 @@ export const METRIC_DEFINITIONS = Object.freeze([
     },
     [
       {
-        id: '11111111-1111-4111-8111-111111111204',
-        definitionId: '11111111-1111-4111-8111-111111110204',
+        id: METRIC_VERSION_IDS.portalDestinationClickAnalytics,
+        definitionId: METRIC_DEFINITION_IDS.portalDestinationClick,
         version: 1,
         effectiveFrom: new Date('2026-08-08T03:00:00+0300'),
         effectiveTo: null,
@@ -217,7 +217,7 @@ export const METRIC_DEFINITIONS = Object.freeze([
   ),
   seededEntry(
     {
-      id: '11111111-1111-4111-8111-111111110205',
+      id: METRIC_DEFINITION_IDS.propertyReview,
       key: 'property.review',
       valueKind: 'average',
       workerDataFlag: false,
@@ -227,8 +227,8 @@ export const METRIC_DEFINITIONS = Object.freeze([
     },
     [
       {
-        id: '11111111-1111-4111-8111-111111111205',
-        definitionId: '11111111-1111-4111-8111-111111110205',
+        id: METRIC_VERSION_IDS.propertyReviewDashboard,
+        definitionId: METRIC_DEFINITION_IDS.propertyReview,
         version: 1,
         effectiveFrom: new Date('2026-08-08T03:00:00+0300'),
         effectiveTo: null,
@@ -245,7 +245,7 @@ export const METRIC_DEFINITIONS = Object.freeze([
   ),
   seededEntry(
     {
-      id: '11111111-1111-4111-8111-111111110301',
+      id: METRIC_DEFINITION_IDS.qualifiedScan,
       key: 'portal.qualified_scan',
       valueKind: 'counter',
       workerDataFlag: true,
@@ -255,8 +255,8 @@ export const METRIC_DEFINITIONS = Object.freeze([
     },
     [
       {
-        id: '11111111-1111-4111-8111-111111111301',
-        definitionId: '11111111-1111-4111-8111-111111110301',
+        id: METRIC_VERSION_IDS.qualifiedScanGoal,
+        definitionId: METRIC_DEFINITION_IDS.qualifiedScan,
         version: 1,
         effectiveFrom: new Date('2026-08-01T03:00:00+0300'),
         effectiveTo: null,
@@ -280,7 +280,7 @@ export const METRIC_DEFINITIONS = Object.freeze([
   ),
   seededEntry(
     {
-      id: '11111111-1111-4111-8111-111111110302',
+      id: METRIC_DEFINITION_IDS.portalRatingCount,
       key: 'portal.rating_count',
       valueKind: 'counter',
       workerDataFlag: true,
@@ -290,8 +290,8 @@ export const METRIC_DEFINITIONS = Object.freeze([
     },
     [
       {
-        id: '11111111-1111-4111-8111-111111111302',
-        definitionId: '11111111-1111-4111-8111-111111110302',
+        id: METRIC_VERSION_IDS.portalRatingCountGoal,
+        definitionId: METRIC_DEFINITION_IDS.portalRatingCount,
         version: 1,
         effectiveFrom: new Date('2026-08-01T03:00:00+0300'),
         effectiveTo: null,
@@ -315,7 +315,7 @@ export const METRIC_DEFINITIONS = Object.freeze([
   ),
   seededEntry(
     {
-      id: '11111111-1111-4111-8111-111111110303',
+      id: METRIC_DEFINITION_IDS.portalRatingAverage,
       key: 'portal.rating_average',
       valueKind: 'average',
       workerDataFlag: true,
@@ -325,8 +325,8 @@ export const METRIC_DEFINITIONS = Object.freeze([
     },
     [
       {
-        id: '11111111-1111-4111-8111-111111111303',
-        definitionId: '11111111-1111-4111-8111-111111110303',
+        id: METRIC_VERSION_IDS.portalRatingAverageGoal,
+        definitionId: METRIC_DEFINITION_IDS.portalRatingAverage,
         version: 1,
         effectiveFrom: new Date('2026-08-01T03:00:00+0300'),
         effectiveTo: null,
@@ -363,4 +363,39 @@ const METRIC_VERSIONS_BY_ID = Object.freeze(metricVersionsById)
 
 export function findMetricVersionById(versionId: string): GovernedMetricVersion | null {
   return METRIC_VERSIONS_BY_ID[versionId] ?? null
+}
+
+export type PortalDestinationKind = 'google_review' | 'secondary_link'
+
+/** Validate the exact Guest fact shape before it can become a governed reading. */
+export function validatePortalReading(
+  input: Readonly<{
+    metricKey: string
+    value: number
+    destinationKind?: PortalDestinationKind | null
+  }>,
+): boolean {
+  const { metricKey, value, destinationKind } = input
+  const invalid = () => {
+    throw new Error('Portal metric fact is invalid')
+  }
+  switch (metricKey) {
+    case 'portal.rating':
+      if (!Number.isInteger(value) || value < 1 || value > 5 || destinationKind != null)
+        invalid()
+      return true
+    case 'portal.qualified_scan':
+    case 'portal.feedback':
+      if (value !== 1 || destinationKind != null) invalid()
+      return true
+    case 'portal.review_link_click':
+      if (
+        value !== 1 ||
+        (destinationKind !== 'google_review' && destinationKind !== 'secondary_link')
+      )
+        invalid()
+      return true
+    default:
+      return false
+  }
 }

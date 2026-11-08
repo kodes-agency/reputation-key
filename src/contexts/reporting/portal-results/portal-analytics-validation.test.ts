@@ -27,6 +27,7 @@ describe('Portal analytics persistence boundary', () => {
       const scope = [ORG, PROPERTY, PORTAL, start, end] as const
 
       for (const read of [
+        () => repository.getPortalTotals(...scope),
         () => repository.getPortalKpiSums(...scope),
         () => repository.getPortalRatingDistribution(...scope),
         () => repository.getPortalWeeklyReadings(...scope, '2026-08-01'),

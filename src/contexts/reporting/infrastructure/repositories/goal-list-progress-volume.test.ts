@@ -18,7 +18,7 @@ import { createGoalMetricSnapshotReader } from './goal-metric-snapshot'
 import { createMetricRegistryRepository } from './metric-registry.repository'
 import { createGoalProgramRepository } from './goal-program.repository'
 import { seedCountReadings, seedGoalMonth } from '../testing/goal-running-month-seed'
-import { METRIC_VERSION_IDS } from '../../domain/metric-registry'
+import { METRIC_VERSION_IDS } from '../../readings/contracts'
 
 describe.sequential('Goal list progress at volume (integration)', () => {
   let held: HeldTransaction | undefined

@@ -10,7 +10,7 @@
 // goal results are intentionally undeletable.
 
 import type { ClientBase } from 'pg'
-import { METRIC_DEFINITION_IDS, METRIC_VERSION_IDS } from '../../domain/metric-registry'
+import { METRIC_DEFINITION_IDS, METRIC_VERSION_IDS } from '../../readings/contracts'
 import { seedLockedMonthTarget } from './goal-month-target-seed'
 
 type Query = Pick<ClientBase, 'query'>

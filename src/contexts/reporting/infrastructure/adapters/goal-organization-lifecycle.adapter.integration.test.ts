@@ -15,7 +15,7 @@ import { getEnv } from '#/shared/config/env'
 import type { Database } from '#/shared/db'
 import { deleteTestOrganizations } from '#/shared/testing/integration-helpers'
 import { acquireTestLease, type TestLease } from '#/shared/testing/test-environment-lease'
-import { METRIC_DEFINITION_IDS, METRIC_VERSION_IDS } from '../../domain/metric-registry'
+import { METRIC_DEFINITION_IDS, METRIC_VERSION_IDS } from '../../readings/contracts'
 import { seedLockedMonthTargetCommitted } from '../testing/goal-month-target-seed'
 import {
   createGoalOrganizationLifecycleAdapter,

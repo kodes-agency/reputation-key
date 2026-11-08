@@ -2,10 +2,7 @@ import type { OrganizationId, PropertyId } from '#/shared/domain/ids'
 import { GOAL_RECONCILIATION_DELAY_MS } from '#/shared/domain/metric-governance'
 import type { MetricKey } from '#/shared/domain/metric-keys'
 import { goalVersionIsUsable } from '../../domain/goal-metric-version-usable'
-import {
-  METRIC_VERSION_IDS,
-  type GovernedMetricVersion,
-} from '../../domain/metric-registry'
+import { METRIC_VERSION_IDS, type GovernedMetricVersion } from '../../readings/contracts'
 import type {
   GoalMetricSourceHead,
   GoalMetricSourceStatus,

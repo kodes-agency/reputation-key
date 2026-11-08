@@ -16,11 +16,11 @@ import {
 import type { GoalMetricAggregateQuery } from '../../application/ports/metric.repository'
 import { createGoalMetricSnapshotReader } from './goal-metric-snapshot'
 import { createGoalMetricSourceStatus } from './goal-metric-source-status'
-import { createAtomicMetricCommandStore } from '../metric-command-store'
+import { createAtomicMetricCommandStore } from '../../readings/metric-command-store.server'
 import { createMetricRegistryRepository } from './metric-registry.repository'
 import { createPropertyLocalDateResolver } from './property-local-date'
 import { recordMetrics } from '../../application/use-cases/record-metric'
-import { onRatingSubmittedDurably } from '../record-portal-metric'
+import { onRatingSubmittedDurably } from '../../readings/record-portal-metric.server'
 import { clearEventSchemas } from '#/shared/events/schema-registry'
 import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
 
