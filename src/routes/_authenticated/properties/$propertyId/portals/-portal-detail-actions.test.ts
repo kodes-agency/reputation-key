@@ -21,7 +21,9 @@ vi.mock('#/contexts/portal/server/portals', () => ({
   rollbackPortalPublication: vi.fn(),
   savePortalLocalizedOverride: vi.fn(),
   savePropertyPortalBrandContent: vi.fn(),
-  updatePortal: vi.fn(),
+  updatePortalSettings: vi.fn(),
+  changePortalLanguages: vi.fn(),
+  publishPortal: vi.fn(),
 }))
 vi.mock('#/contexts/portal/server/portal-responsible-managers', () => ({
   updatePortalResponsibleManagers: vi.fn(),
@@ -128,7 +130,7 @@ describe('Portal detail actions', () => {
     seed(keys)
     const input = { data: { portalId: PORTAL_ID, name: 'New name' } }
     await actions.autosaveUpdate(input)
-    expect(portals.updatePortal).toHaveBeenCalledExactlyOnceWith(input)
+    expect(portals.updatePortalSettings).toHaveBeenCalledExactlyOnceWith(input)
     expectStale(keys)
     expect(toast.success).not.toHaveBeenCalled()
   })
@@ -138,7 +140,7 @@ describe('Portal detail actions', () => {
     const previous = { portal: { id: PORTAL_ID, name: 'Original' } }
     harness.queryClient.setQueryData(key, previous)
     let reject!: (error: Error) => void
-    vi.mocked(portals.updatePortal).mockImplementationOnce(
+    vi.mocked(portals.updatePortalSettings).mockImplementationOnce(
       () =>
         new Promise((_resolve, refused) => {
           reject = refused

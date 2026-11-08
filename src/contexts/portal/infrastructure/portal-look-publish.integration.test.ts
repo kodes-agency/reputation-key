@@ -14,7 +14,7 @@ import { userId } from '#/shared/domain/ids'
 import { setupIntegrationDb } from '#/shared/testing/integration-helpers'
 import { portalPublicationPublished, portalUpdated } from '../domain/events'
 import { buildPortalPublicationSnapshot } from '../application/portal-publication-snapshot'
-import { createAtomicPortalCommandStore } from './portal-command-store'
+import { createAtomicPortalCommandStore } from '../publication/portal-command-store.server'
 import {
   lockPortalPublicationProperty,
   lockPortalPublicationWorkingCopy,

@@ -22,7 +22,7 @@ import {
   userId,
 } from '#/shared/domain/ids'
 import { portalCreated, portalLinkCreated, portalLinkUpdated } from '../domain/events'
-import { createAtomicPortalCommandStore } from './portal-command-store'
+import { createAtomicPortalCommandStore } from '../publication/portal-command-store.server'
 import { createPortalLinkRepository } from './repositories/portal-link.repository'
 import { createPortalMediaAssetRepository } from './repositories/portal-media-asset.repository'
 

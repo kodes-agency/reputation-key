@@ -70,9 +70,9 @@ const baseArgs = {
   members: allPropertiesMembers,
   organizationName: 'Avela Hospitality',
   organizationWide: true,
-  archiveMutation: action<{ data: { portalId: string; publicationState: 'archived' } }>(),
-  restoreMutation: action<{ data: { portalId: string; publicationState: 'disabled' } }>(),
-  disableMutation: action<{ data: { portalId: string; publicationState: 'disabled' } }>(),
+  archiveMutation: action<{ data: { portalId: string } }>(),
+  restoreMutation: action<{ data: { portalId: string } }>(),
+  disableMutation: action<{ data: { portalId: string } }>(),
 }
 const withResults = { ...baseArgs, results: controls(READY) }
 

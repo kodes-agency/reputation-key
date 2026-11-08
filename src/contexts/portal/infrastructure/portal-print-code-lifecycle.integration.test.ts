@@ -28,7 +28,7 @@ import { createPortalAddressCipher } from './adapters/portal-address-cipher'
 import { createPortalAddressRepository } from './repositories/portal-address.repository'
 import { createPortalRepository } from './repositories/portal.repository'
 import { createPortalTokenRepository } from './repositories/portal-token.repository'
-import { createAtomicPortalCommandStore } from './portal-command-store'
+import { createAtomicPortalCommandStore } from '../publication/portal-command-store.server'
 import { testPortalTokenCodec } from './testing/portal-token-codec-fixture'
 
 const ORG = organizationId('org-print-lifecycle-000000000001')

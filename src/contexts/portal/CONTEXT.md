@@ -74,13 +74,13 @@ live by itself (an Organization closing keeps it): readers decide from `liveSinc
 
 Archive is the Portal's removal, so it asks `portal.delete` (an AccountAdmin), the
 permission the Portals pages offer Archive on and the one a group's archive asks.
-`updatePortal` decides that itself from what it is asked to do (a patch that names
-`publicationState: 'archived'`, alone or bundled with an edit), so the rule holds
-whichever server function carries the patch. The `updatePortal` server function asks
-the policy for `portal.update` before the use case reads the patch, so an archive sent
-that way needs both, which the two built-in roles hold. Disable and Restore are updates
-(`portal.update`): a PropertyManager can take a live page down and bring an archived
-Portal back to Disabled.
+The archive intent asks for it itself, and the archive server function asks the policy
+for `portal.delete` too, so the rule holds whichever caller carries it. Disable and Restore
+are updates (`portal.update`): a PropertyManager can take a live page down and bring an
+archived Portal back to Disabled. A Portal's state changes only through the intents in
+`publication/portal-intents.server.ts` (publish, disable, archive, restore, settings,
+address, languages), each of which commits through `commitPortalChange`; none accepts
+another intent's fields.
 
 Link, link-text and Linktree-setting commands recheck content mutability in
 `infrastructure/portal-aggregate-fence.ts`, using the state returned by the
@@ -659,7 +659,7 @@ optional, so they are never "missing". It carries
 identifiers and kinds, plus the fallback-language label of a link with a gap so a manager can
 tell which link it is, and nothing else; nothing is stored for it. Managers add only the
 languages that are offered and have a generation 2 guest copy pack, and a language change
-goes through the ordinary `updatePortal` command. The fallback language is never removed;
+goes through the languages intent. The fallback language is never removed;
 another one has to become the fallback first. There are no AI controls: the wording is
 written by hand in the Welcome and Linktree sections.
 
