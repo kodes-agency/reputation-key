@@ -1,3 +1,4 @@
+import { ratingGoalRelatedKeys } from '#/contexts/reporting/rating-goals/ui/rating-goal-query-policy'
 import { useTenantScope } from '#/shared/hooks/useTenantScope'
 // Keep queries and server functions behind an on-demand loader import so they stay out
 // of first paint. Access requires goal.use and goal.read.
@@ -9,7 +10,7 @@ import type { AuthRouteContext } from '#/routes/_authenticated'
 import { roleUnavailable } from '#/shared/auth/route-notice'
 import { can } from '#/shared/domain/permissions'
 import { useActionMutation } from '#/components/hooks/use-action-mutation'
-import { dashboardKeys, goalKeys, propertyKeys } from '#/shared/queries/query-keys'
+import { goalKeys } from '#/shared/queries/query-keys'
 import { membersQuery, propertyQuery } from '#/routes/-queries/route-queries'
 import { PageShell } from '#/components/layout/page-shell'
 import { PageHeader } from '#/components/layout/page-header'
@@ -18,11 +19,11 @@ import { StatusBadge } from '#/components/ui/status-badge'
 import {
   RatingGoalDetail,
   RatingGoalMissing,
-} from '#/components/goals/rating-goal-detail'
-import { RatingGoalDetailActions } from '#/components/goals/rating-goal-detail-actions'
-import { withRatingGoalRefusals } from '#/components/goals/rating-goal-refusal'
+} from '#/contexts/reporting/rating-goals/ui/rating-goal-detail'
+import { RatingGoalDetailActions } from '#/contexts/reporting/rating-goals/ui/rating-goal-detail-actions'
+import { withRatingGoalRefusals } from '#/contexts/reporting/rating-goals/ui/rating-goal-refusal'
 import { goalPersonNames } from '#/components/goals/goal-target-marker'
-import { ratingGoalStatusBadge } from '#/components/goals/rating-goal-view'
+import { ratingGoalStatusBadge } from '#/contexts/reporting/rating-goals/ui/rating-goal-view'
 import { usePermissions } from '#/shared/hooks/usePermissions'
 import {
   markRatingGoalReadsStale,
@@ -66,11 +67,7 @@ function useEndRatingGoal(propertyId: string) {
   return useActionMutation(withRatingGoalRefusals(ratingGoalCommands.endRatingGoal), {
     successMessage: 'Google rating goal ended',
     // The Property's setup step and its Properties list cell move with the goal.
-    invalidateKeys: [
-      propertyKeys.setup(propertyId),
-      propertyKeys.setupSummaries(),
-      dashboardKeys.fleets(),
-    ],
+    invalidateKeys: [...ratingGoalRelatedKeys(propertyId)],
     // A refusal usually means this page is behind: read the goal again.
     onError: () => void queryClient.invalidateQueries({ queryKey: family }),
     onSuccess: async () => {

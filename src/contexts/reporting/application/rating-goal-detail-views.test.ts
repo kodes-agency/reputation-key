@@ -13,8 +13,8 @@ import {
   NOW,
   PROPERTY,
   type FakeWorld,
-} from './use-cases/rating-goal-test-fixtures'
-import { getRatingGoalDetail } from './use-cases/rating-goal-reads'
+} from '../rating-goals/rating-goal.test-fixtures'
+import { getRatingGoalDetail } from '../rating-goals/get-rating-goals.server'
 
 let world: FakeWorld
 
@@ -337,4 +337,16 @@ describe('what happened', () => {
       lowSinceSet: 0,
     })
   })
+})
+
+it('keeps the cache chart separate from an unverified planning average', async () => {
+  world.snapshot = { ...world.snapshot!, reviewCount: 10, averageRating: 4.5 }
+  world.summary = { ...world.summary, all: { count: 10, sum: 49 } }
+  world.goals = [activeGoal({ targetTenths: 49, qualityTenths: 50 })]
+
+  const detail = await readDetail()
+
+  expect(detail).toMatchObject({ exactAverageSource: 'google' })
+  expect(detail?.chart?.today).toBe(4900)
+  expect(detail?.chart?.history?.at(-1)).toEqual({ day: 0, thousandths: 4900 })
 })

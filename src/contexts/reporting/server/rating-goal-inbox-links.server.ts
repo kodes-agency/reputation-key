@@ -15,7 +15,7 @@ import {
 import type {
   RatingGoalDetailRead,
   RatingGoalDetailView,
-} from '../application/dto/rating-goal.types'
+} from '../rating-goals/contracts'
 
 /** The Inbox items this viewer may open for the reviews; none without `inbox.read`. */
 async function inboxItemsFor(
