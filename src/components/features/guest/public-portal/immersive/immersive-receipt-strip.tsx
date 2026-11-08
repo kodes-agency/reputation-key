@@ -1,6 +1,6 @@
 import { type RefObject, useId } from 'react'
 import { guestCopyText } from '../guest-copy-format'
-import type { GuestPortalCopyV2 } from '../language-packs/guest-copy-v2'
+import type { GuestPortalCopy } from '../language-packs/guest-copy'
 import { ReceiptStars, ratingWord } from './immersive-stars'
 
 /**
@@ -15,7 +15,7 @@ export function ImmersiveReceiptStrip({
   onChange,
   headingRef,
 }: Readonly<{
-  pack: GuestPortalCopyV2
+  pack: GuestPortalCopy
   rating: number | null
   /** Where Change leads. Without a destination the page shows no Change. */
   onChange?: () => void

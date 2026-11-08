@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import type { GuestResponseView } from '#/contexts/guest/application/use-cases/guest-response-lifecycle'
-import { useAction } from '#/components/hooks/use-action'
+import { useActionMutation } from '#/components/hooks/use-action-mutation'
 import {
   buildGuestResponseHandlers,
   type GuestResponseActions,
@@ -45,7 +45,7 @@ export function useImmersiveGuestResponse(
   const [notice, setNotice] = useState<ImmersiveResponseNotice | null>(null)
   // The route hands in a composed callback for start-over (it also refreshes
   // the route's cache), so it is wrapped here to report whether it is pending.
-  const startNewResponse = useAction(input.actions.startNewResponse)
+  const startNewResponse = useActionMutation(input.actions.startNewResponse)
   const actions = { ...input.actions, startNewResponse }
   const pending = Object.values(actions).some((action) => action.isPending === true)
 

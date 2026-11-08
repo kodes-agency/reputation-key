@@ -9,6 +9,7 @@ import {
   changeGoalProgramStatusSchema,
   createGoalProgramSchema,
   getGoalProgressSchema,
+  getGoalProgramHistorySchema,
   goalProgramIdentitySchema,
   listGoalProgramsSchema,
 } from '../application/dto/goal-program.dto'
@@ -91,5 +92,18 @@ export const getGoalListProgress = createServerFn({ method: 'GET' })
         })),
       'GET',
       'goal.getGoalListProgress',
+    ),
+  )
+
+export const getGoalProgramHistory = createServerFn({ method: 'GET' })
+  .validator(getGoalProgramHistorySchema)
+  .handler(
+    tracedHandler(
+      async ({ data }) =>
+        withGoalPrograms((programs, policy, actor) =>
+          programs.history(policy, data, actor),
+        ),
+      'GET',
+      'goal.getGoalProgramHistory',
     ),
   )

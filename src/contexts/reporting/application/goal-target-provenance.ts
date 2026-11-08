@@ -20,6 +20,7 @@ export type GoalTargetProvenance = Readonly<{
 }>
 
 type ProvenanceSource = Readonly<{
+  targetProvenance?: Readonly<Record<string, GoalTargetProvenance>>
   versions: readonly GoalProgramVersion[]
   results: readonly Pick<GoalMonthlyResult, 'programVersionId' | 'periodStart'>[]
 }>
@@ -59,6 +60,8 @@ export function goalTargetProvenance(
   bundle: ProvenanceSource,
   version: GoalProgramVersion,
 ): GoalTargetProvenance {
+  const captured = bundle.targetProvenance?.[version.id]
+  if (captured) return captured
   const run = unchangedRun(bundle.versions, version)
   const first = run.at(0) ?? version
   // The plan the run first counts under. A replaced plan still says who set

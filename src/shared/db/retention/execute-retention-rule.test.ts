@@ -3,7 +3,7 @@
 // scheduled run cannot chase an unbounded backlog; the next scheduled run
 // continues where this one stopped.
 
-import { describe, it, expect, vi } from 'vitest'
+import { assert, describe, it, expect, vi } from 'vitest'
 import type { SQL } from 'drizzle-orm'
 import { PgDialect } from 'drizzle-orm/pg-core'
 import {
@@ -35,6 +35,55 @@ function fakeDb(rowCounts: number[], fallbackRowCount = 0) {
 }
 
 describe('retention executor per-run cap (BQC-3.7)', () => {
+  it.each([0, -1, 1.5, NaN, Infinity])(
+    'rejects an invalid batch bound %s before SQL',
+    async (bound) => {
+      const { db, execute } = fakeDb([])
+      await expect(
+        executeRetentionRule(db, RULE, { cutoff: CUTOFF, batchSize: bound }),
+      ).rejects.toThrow('batchSize must be a positive safe integer')
+      await expect(
+        executeRetentionRule(db, RULE, { cutoff: CUTOFF, maxBatches: bound }),
+      ).rejects.toThrow('maxBatches must be a positive safe integer')
+      expect(execute).not.toHaveBeenCalled()
+    },
+  )
+
+  it('rechecks expiry in the delete so a concurrently refreshed row survives', async () => {
+    const { db, execute } = fakeDb([0])
+    await executeRetentionRule(db, RULE, { cutoff: CUTOFF, batchSize: 2 })
+    const firstCall = execute.mock.calls[0]
+    assert.isDefined(firstCall)
+    const compiled = new PgDialect().sqlToQuery(firstCall[0] as SQL)
+    expect(compiled.sql).toMatch(/LIMIT \$\d+\) AND "published_at" < \$\d+/)
+    expect(compiled.params).toEqual([CUTOFF, 2, CUTOFF])
+  })
+
+  it('resumes capped work by selecting only the remaining eligible rows', async () => {
+    let remaining = 5
+    const execute = vi.fn(async () => {
+      const rowCount = Math.min(2, remaining)
+      remaining -= rowCount
+      return { rowCount, rows: [] }
+    })
+    const db = { execute } as unknown as Database
+    expect(
+      await executeRetentionRule(db, RULE, {
+        cutoff: CUTOFF,
+        batchSize: 2,
+        maxBatches: 1,
+      }),
+    ).toMatchObject({ rowsDeleted: 2, capped: true })
+    expect(
+      await executeRetentionRule(db, RULE, {
+        cutoff: CUTOFF,
+        batchSize: 2,
+        maxBatches: 2,
+      }),
+    ).toMatchObject({ rowsDeleted: 3, capped: false })
+    expect(remaining).toBe(0)
+  })
+
   it('binds runtime equality and limit values as query parameters', async () => {
     const { db, execute } = fakeDb([0])
     const runtimeScope = "org' OR TRUE --"
@@ -61,7 +110,13 @@ describe('retention executor per-run cap (BQC-3.7)', () => {
     expect(compiled.sql).not.toContain(runtimeScope)
     expect(compiled.sql).toContain('"organization_id" = $1')
     expect(compiled.sql).toContain('"property_id" = $2')
-    expect(compiled.params).toEqual([runtimeScope, 'property-runtime', 25])
+    expect(compiled.params).toEqual([
+      runtimeScope,
+      'property-runtime',
+      25,
+      runtimeScope,
+      'property-runtime',
+    ])
   })
 
   it('binds the age cutoff instead of embedding its ISO value', async () => {
@@ -74,7 +129,7 @@ describe('retention executor per-run cap (BQC-3.7)', () => {
     )
     expect(compiled.sql).not.toContain(CUTOFF.toISOString())
     expect(compiled.sql).toContain('"published_at" < $1')
-    expect(compiled.params).toEqual([CUTOFF, 25])
+    expect(compiled.params).toEqual([CUTOFF, 25, CUTOFF])
   })
 
   it('redacts protected columns without deleting the retained business row', async () => {

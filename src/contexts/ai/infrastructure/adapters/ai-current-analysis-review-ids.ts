@@ -1,16 +1,52 @@
-// The governed "which reviews currently have a live analysis" read behind the
-// Inbox filters. Moved out of the output store without changing, so that file
-// can hold the v3 analysis write beside the v2 one.
+// Governed live-analysis identifiers for Inbox filters.
 
-import { and, eq, gt, inArray, sql, type SQL } from 'drizzle-orm'
+import {
+  and,
+  eq,
+  exists,
+  gt,
+  inArray,
+  or,
+  sql,
+  type SQL,
+  type SQLWrapper,
+} from 'drizzle-orm'
 import type { Database } from '#/shared/db'
 import type { ReviewId } from '#/shared/domain/ids'
 import {
+  aiPropertyAggregateContributions,
   aiPropertyProcessingProfiles,
   aiReviewAnalyses,
   merchantAiEnablement,
   reviews,
 } from '#/shared/db/schema'
+
+// Rebuilding changes projection ownership, never the profile recorded on paid
+// operations. A read may follow that projection only for the exact source sequence.
+export function analysisMatchesProcessingProfile(
+  organizationId: string,
+  profileVersion: number | SQLWrapper,
+): SQL {
+  return and(
+    eq(aiReviewAnalyses.organizationId, organizationId),
+    or(
+      eq(aiReviewAnalyses.propertyProfileVersion, profileVersion),
+      exists(sql`(
+      SELECT 1 FROM ${aiPropertyAggregateContributions} AS projection
+      WHERE projection.organization_id = ${organizationId}
+        AND projection.organization_id = ${aiReviewAnalyses.organizationId}
+        AND projection.property_id = ${aiReviewAnalyses.propertyId}
+        AND projection.review_id = ${aiReviewAnalyses.reviewId}
+        AND projection.source_epoch = ${aiReviewAnalyses.sourceEpoch}
+        AND projection.source_revision = ${aiReviewAnalyses.sourceRevision}
+        AND projection.analysis_sequence = ${aiReviewAnalyses.analysisSequence}
+        AND projection.review_analysis_epoch = ${aiReviewAnalyses.reviewAnalysisEpoch}
+        AND projection.status = ${aiReviewAnalyses.status}
+        AND projection.property_profile_version = ${profileVersion}
+    )`),
+    ),
+  )!
+}
 
 /**
  * The governed "which reviews currently have a live analysis" query, shared by
@@ -55,8 +91,8 @@ export function findCurrentAnalysisReviewIds(
     eq(aiReviewAnalyses.analysisSequence, reviews.analysisSequence),
     gt(reviews.contentExpiresAt, now),
     eq(aiPropertyProcessingProfiles.lifecycleState, 'active'),
-    eq(
-      aiReviewAnalyses.propertyProfileVersion,
+    analysisMatchesProcessingProfile(
+      input.organizationId,
       aiPropertyProcessingProfiles.profileVersion,
     ),
     eq(aiReviewAnalyses.sourceEpoch, aiPropertyProcessingProfiles.sourceEpoch),

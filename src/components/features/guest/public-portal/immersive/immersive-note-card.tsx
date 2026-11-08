@@ -1,6 +1,6 @@
 import { type RefObject, useEffect, useId, useRef, useState } from 'react'
 import { guestCopyText } from '../guest-copy-format'
-import type { GuestPortalCopyV2 } from '../language-packs/guest-copy-v2'
+import type { GuestPortalCopy } from '../language-packs/guest-copy'
 import { CheckIcon, LockIcon, PencilIcon } from './immersive-icons'
 import { ImmersiveNoteForm, type NoteSubmission } from './immersive-note-form'
 
@@ -23,7 +23,7 @@ export function ImmersiveNoteCard({
   initial,
   onSubmit,
 }: Readonly<{
-  pack: GuestPortalCopyV2
+  pack: GuestPortalCopy
   displayName: string
   /** The server holds a note for this response. */
   sent: boolean
@@ -63,7 +63,7 @@ function SentNote({
   displayName,
   textRef,
 }: Readonly<{
-  pack: GuestPortalCopyV2
+  pack: GuestPortalCopy
   displayName: string
   textRef: RefObject<HTMLParagraphElement | null>
 }>) {
@@ -86,7 +86,7 @@ function NoteComposer({
   initial,
   onSubmit,
 }: Readonly<{
-  pack: GuestPortalCopyV2
+  pack: GuestPortalCopy
   pending: boolean
   sendFailed: boolean
   initial?: NoteDraft

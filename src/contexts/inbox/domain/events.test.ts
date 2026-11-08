@@ -7,11 +7,18 @@ import {
   inboxHandlingCycleReopened,
   inboxResponseTargetReminderDue,
   inboxItemCreated,
+  inboxItemAssigned,
+  inboxItemUnassigned,
+  inboxItemEscalated,
+  inboxItemEscalationResolved,
+  inboxNoteAdded,
+  inboxItemBulkStatusChanged,
   inboxItemStatusChanged,
 } from './events'
 import {
   feedbackId,
   inboxItemId,
+  inboxNoteId,
   organizationId,
   propertyId,
   reviewId,
@@ -243,5 +250,161 @@ describe('inbox events', () => {
 
     expect(first.eventId).not.toBe('')
     expect(first.eventId).not.toBe(second.eventId)
+  })
+})
+
+describe('Inbox fact envelopes', () => {
+  const scope = { inboxItemId: ITEM_ID, organizationId: ORG_ID, occurredAt: NOW }
+  type Metadata = {
+    propertyId?: ReturnType<typeof propertyId>
+    userId?: ReturnType<typeof userId>
+    source?: 'web' | 'import'
+    correlationId?: string
+  }
+  const cases = [
+    {
+      make: (metadata: Metadata) =>
+        inboxItemCreated({
+          ...scope,
+          sourceType: 'review',
+          sourceId: reviewId('review-1'),
+          ...metadata,
+        }),
+      fields: { sourceType: 'review', sourceId: reviewId('review-1') },
+      tag: 'inbox.inbox_item.created',
+    },
+    {
+      make: (metadata: Metadata) =>
+        inboxItemStatusChanged({
+          ...scope,
+          oldStatus: 'open',
+          newStatus: 'closed',
+          ...metadata,
+        }),
+      fields: { oldStatus: 'open', newStatus: 'closed' },
+      tag: 'inbox.inbox_item.status_changed',
+    },
+    {
+      make: (metadata: Metadata) =>
+        inboxItemAssigned({
+          ...scope,
+          userId: USER_ID,
+          assignedTo: userId('manager-2'),
+          previousAssignee: null,
+          bulkId: 'bulk-1',
+          commandRevision: 4,
+          ...metadata,
+        }),
+      fields: {
+        userId: USER_ID,
+        assignedTo: userId('manager-2'),
+        previousAssignee: null,
+        bulkId: 'bulk-1',
+        commandRevision: 4,
+      },
+      tag: 'inbox.inbox_item.assigned',
+    },
+    {
+      make: (metadata: Metadata) =>
+        inboxItemUnassigned({
+          ...scope,
+          previousAssignee: USER_ID,
+          bulkId: 'bulk-1',
+          commandRevision: 5,
+          ...metadata,
+        }),
+      fields: { previousAssignee: USER_ID, bulkId: 'bulk-1', commandRevision: 5 },
+      tag: 'inbox.inbox_item.unassigned',
+    },
+    {
+      make: (metadata: Metadata) => inboxItemEscalated({ ...scope, ...metadata }),
+      fields: {},
+      tag: 'inbox.inbox_item.escalated',
+    },
+    {
+      make: (metadata: Metadata) =>
+        inboxItemEscalationResolved({ ...scope, ...metadata }),
+      fields: {},
+      tag: 'inbox.inbox_item.escalation_resolved',
+    },
+    {
+      make: (metadata: Metadata) =>
+        inboxNoteAdded({ ...scope, noteId: inboxNoteId('note-1'), ...metadata }),
+      fields: { noteId: inboxNoteId('note-1') },
+      tag: 'inbox.inbox_note.added',
+    },
+    {
+      make: (metadata: Metadata) =>
+        inboxItemBulkStatusChanged({
+          ...scope,
+          oldStatus: 'open',
+          newStatus: 'closed',
+          bulkId: 'bulk-1',
+          ...metadata,
+        }),
+      fields: { oldStatus: 'open', newStatus: 'closed', bulkId: 'bulk-1' },
+      tag: 'inbox.inbox_item.bulk_status_changed',
+    },
+  ]
+
+  it.each(cases)(
+    'keeps the complete default and explicit envelope for $tag',
+    ({ make, fields, tag }) => {
+      for (const metadata of [
+        {},
+        {
+          propertyId: PROP_ID,
+          userId: USER_ID,
+          source: 'import' as const,
+          correlationId: 'correlation-1',
+        },
+      ]) {
+        expect(make(metadata)).toEqual({
+          _tag: tag,
+          eventId: expect.stringMatching(/^[0-9a-f-]{36}$/),
+          ...scope,
+          propertyId: null,
+          userId: null,
+          source: 'web',
+          correlationId: null,
+          ...fields,
+          ...metadata,
+        })
+      }
+    },
+  )
+})
+
+describe('Handling Cycle fact scope', () => {
+  const scope = {
+    inboxItemId: ITEM_ID,
+    organizationId: ORG_ID,
+    propertyId: PROP_ID,
+    cycleNumber: 1,
+    stateRevision: 1,
+    sourceType: 'review' as const,
+    sourceId: reviewId('review-1'),
+    sourceRevision: 1,
+    actorType: 'provider' as const,
+    userId: null,
+    triggerEventId: null,
+    occurredAt: NOW,
+  }
+  it.each([
+    { override: { cycleNumber: 0 }, message: 'cycleNumber must be positive' },
+    { override: { sourceRevision: 0 }, message: 'sourceRevision must be positive' },
+    { override: { actorType: 'user' as const }, message: 'user actor required' },
+    { override: { userId: USER_ID }, message: 'system actor required' },
+  ])('refuses $message on every cycle fact', ({ override, message }) => {
+    const args = { ...scope, ...override }
+    expect(() =>
+      inboxHandlingCycleOpened({ ...args, openReason: 'material_revision_changed' }),
+    ).toThrow(message)
+    expect(() =>
+      inboxHandlingCycleClosed({ ...args, closeReason: 'source_ineligible' }),
+    ).toThrow(message)
+    expect(() =>
+      inboxHandlingCycleReopened({ ...args, reopenReason: 'material_revision_changed' }),
+    ).toThrow(message)
   })
 })

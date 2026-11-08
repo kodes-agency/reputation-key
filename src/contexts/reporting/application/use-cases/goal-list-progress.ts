@@ -3,8 +3,7 @@
 // Only active goals have a line. Single subjects get a figure and count pace;
 // several count subjects get a below-pace count, while averages or oversized
 // subject sets get only the subject count.
-// Use bounded reads and concurrency: the faster set-based running-month read
-// omits the outbox completeness proof required here. Goals past the bound get no line.
+// Batch governed snapshots, including outbox completeness, for all live figures.
 
 import { calendarPeriodRange } from '#/shared/domain/period-range'
 import type { GoalMetric, GoalSubject } from '../../domain/goal-program'
@@ -12,7 +11,9 @@ import { goalMonthDays, goalPace } from '../../domain/goal-pace'
 import type { GoalProgramBundle } from '../ports/goal-program.repository'
 import {
   MAX_GOAL_PROGRAM_PROGRESS_SUBJECTS,
-  progressOf,
+  progressPlanOf,
+  subjectMonthQuery,
+  readingOf,
   subjectsInForce,
   type GoalProgress,
   type GoalProgressDeps,
@@ -183,16 +184,32 @@ export async function listProgressOf(
   const requests = plans.flatMap((plan) =>
     plan.reads.map((subject) => ({ plan, subject })),
   )
-  const figures = await inParallel(
-    requests,
-    GOAL_LIST_PROGRESS_CONCURRENCY,
-    ({ plan, subject }) => progressOf(deps, plan.bundle, subject, 'active', now, actor),
+  const plannedFigures = requests.flatMap(({ plan, subject }) => {
+    const figure = progressPlanOf(plan.bundle, subject, 'active', now)
+    return figure ? [{ plan, subject, figure }] : []
+  })
+  const queries = plannedFigures.map(({ subject, figure }) =>
+    subjectMonthQuery(figure.version, subject, figure.progress.period, actor),
   )
+  const readings = deps.metrics.queryGoalMetrics
+    ? await deps.metrics.queryGoalMetrics(queries)
+    : await inParallel(
+        queries,
+        GOAL_LIST_PROGRESS_CONCURRENCY,
+        deps.metrics.queryGoalMetric,
+      )
+  const figures = plannedFigures.map(({ plan, figure }, index) => {
+    const result = readings[index]
+    if (!result) throw new Error('Goal metric batch returned incomplete figures')
+    return {
+      plan,
+      progress: { ...figure.progress, reading: readingOf(figure.version, result) },
+    }
+  })
   return plans.flatMap((plan) => {
-    const read = requests.flatMap(({ plan: owner }, index) => {
-      const figure = figures[index]
-      return owner === plan && figure ? [figure] : []
-    })
+    const read = figures.flatMap(({ plan: owner, progress }) =>
+      owner === plan ? [progress] : [],
+    )
     const entry = entryOf(plan, read, now)
     return entry ? [entry] : []
   })

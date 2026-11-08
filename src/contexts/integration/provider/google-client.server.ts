@@ -483,6 +483,7 @@ type GoogleProviderRequest = Readonly<{
   authorization: GoogleProviderCallAuthorization
   executor: GoogleAuthorizedProviderExecutor
   nowMs: () => number
+  timeoutMs?: number
   signal?: AbortSignal
 }>
 
@@ -630,7 +631,8 @@ export function providerStatusError(
   })
 }
 
-export async function executeGoogleProviderRaw(
+/** OAuth owns its token/refusal formats; all calls share dispatch and deadlines. */
+export async function executeGoogleProviderResponse(
   input: GoogleProviderRequest,
 ): Promise<GoogleProviderSuccessfulResponse> {
   if (input.signal?.aborted) throw abortReason(input.signal)
@@ -640,6 +642,7 @@ export async function executeGoogleProviderRaw(
     throw createGbpApiError(input.operation, 'upstream_error', { dispatch: 'not_sent' })
   }
   let result: GoogleProviderExecutionResult
+  const timeoutMs = input.timeoutMs ?? PROVIDER_DEADLINE_MS
   const requestController = new AbortController()
   const abortFromCaller = () => requestController.abort(abortReason(input.signal!))
   input.signal?.addEventListener('abort', abortFromCaller, { once: true })
@@ -648,14 +651,14 @@ export async function executeGoogleProviderRaw(
       requestController.abort(
         new DOMException('The provider request deadline elapsed', 'TimeoutError'),
       ),
-    PROVIDER_DEADLINE_MS,
+    timeoutMs,
   )
 
   try {
     result = await awaitProviderExecution(
       input.executor.execute(input.descriptor, {
         authorization: input.authorization,
-        deadlineMs: startedAtMs + PROVIDER_DEADLINE_MS,
+        deadlineMs: startedAtMs + timeoutMs,
         signal: requestController.signal,
       }),
       requestController.signal,
@@ -672,7 +675,14 @@ export async function executeGoogleProviderRaw(
   }
 
   if (!result.ok) throw gatewayFailureError(input.operation, result)
+  return result
+}
 
+export async function executeGoogleProviderRaw(
+  input: GoogleProviderRequest,
+): Promise<GoogleProviderSuccessfulResponse> {
+  const startedAtMs = input.nowMs()
+  const result = await executeGoogleProviderResponse(input)
   const providerBodyBytes = result.body.byteLength
   try {
     if (result.status !== 200) {

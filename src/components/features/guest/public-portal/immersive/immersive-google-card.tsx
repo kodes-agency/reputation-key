@@ -1,6 +1,6 @@
 import { useId } from 'react'
 import { guestCopyText } from '../guest-copy-format'
-import type { GuestPortalCopyV2 } from '../language-packs/guest-copy-v2'
+import type { GuestPortalCopy } from '../language-packs/guest-copy'
 import { GlassSurface } from './glass-surface'
 import { ImmersiveBanner } from './immersive-banner'
 import { ArrowUpRightIcon, InfoIcon } from './immersive-icons'
@@ -23,7 +23,7 @@ export function ImmersiveGoogleCard({
   direct = false,
 }: Readonly<{
   direct?: boolean
-  pack: GuestPortalCopyV2
+  pack: GuestPortalCopy
   displayName: string
   available: boolean
   pending: boolean

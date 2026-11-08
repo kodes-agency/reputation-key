@@ -740,7 +740,7 @@ describe('AI authorization lifecycle consumer', () => {
 // The row is ungated now. The stop applies where provider work is decided: the
 // consumer asks current policy before analysing on delivery and queues what is
 // refused, and the backlog drain and the on-demand job are gated on ai.analyze
-// (review-analysis-backlog-jobs-policy.test.ts runs all of them).
+// (review-analysis-backlog-jobs-policy.integration.test.ts runs all of them).
 describe('AI consumer authorization', () => {
   const registrations = () => {
     const registry = createConsumerRegistry()

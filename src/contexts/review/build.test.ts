@@ -4,6 +4,7 @@ import { describe, expect, it, vi } from 'vitest'
 import type { Queue } from 'bullmq'
 import { buildReviewContext, wireReviewSourceContentLifecycle } from './build'
 import { REVIEW_SOURCE_CONTENT_LIFECYCLE_APPLY_CONFIRMATION } from './application/use-cases/run-source-content-lifecycle'
+import { createConsumerRegistry } from '#/shared/outbox'
 import { createMockLogger } from '#/shared/testing/mock-logger'
 import type { StaffPublicApi } from '#/contexts/identity/application/public-api'
 import { EXECUTION_POLICY_VERSION } from '#/shared/auth/execution-policy'
@@ -89,6 +90,48 @@ const SYNC_EXECUTION = {
 } as const
 
 describe('Review context build', () => {
+  it('exposes only the reply request commands, bound to their one implementation', () => {
+    const { api } = setup()
+    const useCases = api.internal.useCases
+    expect(api.publicApi.reply).toEqual({
+      draft: useCases.draftReply,
+      submit: useCases.submitReply,
+      approve: useCases.approveReply,
+      editPublished: useCases.editPublishedReply,
+      reject: useCases.rejectReply,
+      delete: useCases.deleteReply,
+      retryPublish: useCases.retryPublish,
+      checkPublication: useCases.checkReplyPublication,
+      listTemplates: useCases.listReplyTemplates,
+      loadTemplate: useCases.loadReplyTemplate,
+      checkDraft: useCases.checkReplyDraft,
+      getLibrary: useCases.getReplyLibrary,
+      saveVoice: useCases.saveReplyVoice,
+      saveTemplate: useCases.saveReplyTemplate,
+      setTemplateHidden: useCases.setReplyTemplateHidden,
+      resetTemplate: useCases.resetReplyTemplate,
+    })
+    expect(Object.isFrozen(api.publicApi.reply)).toBe(true)
+  })
+
+  it('keeps publication and lifecycle consumers registered on every container', () => {
+    for (let attempt = 0; attempt < 2; attempt += 1) {
+      const { api } = setup()
+      const registry = createConsumerRegistry()
+      api.worker.registerOutboxConsumers(registry)
+      expect(
+        registry.list().map(({ eventType, consumerName }) => [eventType, consumerName]),
+      ).toEqual([
+        ['review.reply.publication_requested', 'review.on-reply-publication-requested'],
+        [
+          'integration.google_account.disconnected',
+          'review.on-google-account-disconnected',
+        ],
+        ['property.archived', 'review.on-property-archived'],
+      ])
+    }
+  })
+
   it('exposes the Review-owned source-content lifecycle authority', () => {
     const { api } = setup()
 

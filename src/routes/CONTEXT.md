@@ -171,8 +171,8 @@ route-local `-*-fns.ts` module and pass them as a prop. Import the functions dir
 the built-artifact bundle check guards against static chunk cycles.
 
 Create mutations with `useActionMutation`, provide targeted `invalidateKeys`, and
-pass the resulting `Action` to forms/components. Silent fire-and-forget work uses
-`useAction`. Components may use type-only server imports to spell bundle/action
+pass the resulting `Action` to forms/components. Omit toast options for silent
+actions. Components may use type-only server imports to spell bundle/action
 props; runtime imports follow the component exception policy.
 
 What the route context holds is not a Query, so no key reaches it. The signed-in

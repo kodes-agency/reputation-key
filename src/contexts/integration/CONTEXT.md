@@ -30,6 +30,14 @@ Refresh reauthorizes the same scope and acquires a new permit; a refused
 retry preserves the first call's answered evidence. Feature adapters retain their
 provider schemas and product-specific error mappings.
 
+Review list, head, single-review reads and reply writes all use this client.
+The single-review read keeps a 30-second deadline and treats an answered 404 as
+not found only after rechecking authorization. Late responses are scrubbed;
+timeouts retain unknown dispatch evidence. The Review parser owns resource
+binding, reply moderation and translation handling. Opaque cursor uses are
+released only on explicit not-sent evidence; ambiguous reply writes remain
+readback-only recovery.
+
 ## Model
 
 A GoogleConnection owns encrypted credentials and the verified Google OIDC
@@ -138,10 +146,12 @@ capacity, then quota, then starts the permit; a refused permit keeps its quota
 charge until the bucket refills. Admission and egress share a local handle
 rather than a signed Redis grant.
 Completion retries only bookkeeping and preserves the provider response; the
-permit sweep and Redis lease expiry settle leftovers. OAuth exchange, refresh, revoke,
-notification, import, Review fallback, and recovery execute through governed
-routes. Durable outbox dispatch is always on; worker boot fails when delivery
-dependencies are unavailable.
+permit sweep and Redis lease expiry settle leftovers. OAuth exchange, refresh,
+revoke, notification, import, Review fallback, and recovery execute through the
+shared Google client and governed routes. Credential operations have no direct
+transport path; missing executor or authorization refuses the call. JWKS retrieval
+remains the sole direct public-key trust read. Durable outbox dispatch is always
+on; worker boot fails when delivery dependencies are unavailable.
 
 `domain/google-call-error.ts` owns provider error codes and normalizes dispatch,
 HTTP status, allowlisted Google refusal status, and retry hints. Import,
@@ -204,7 +214,7 @@ without resending the token.
 4. Browser status, retry, and cancellation address the saga root. Partial child completion remains visible rather than being rewritten as all-or-nothing success.
 5. Every credential-bearing Google operation executes in this deployment; there is no credential home or routing directory.
 6. Discovery reads Google's output-only `metadata.newReviewUri`, validates it against the approved HTTPS Google-host policy, and hands it to the Property binding effect. It is never manually entered by an administrator. Discovery also reads the location's primary category (`categories.primaryCategory.displayName`); the import item carries it, in the form `normalizeGooglePrimaryCategory` gives it, from the claimed candidate to the Property the effect creates or relinks (`gbp_import_request_items.google_primary_category`, scrubbed with the item's other provider state). It is left out of the replay digests, so a category Google moved between two attempts of one request is not a conflict. The review adapter likewise reads each review's output-only `reviewReplyUrl` and keeps it only as `https://business.google.com/n/{the review's own location}/reviews/{token}` (`normalizeGoogleReviewReplyUrl`); anything else, of any type or length, is null and counted (`reviews_reply_url_refused`, a count and the route, never a value), and never fails the page. The schema stays non-strict. It also reads each reply's output-only `reviewReplyState` and `policyViolation` (Google's moderation of the reply) as `unknown` values, maps them to a closed type in `google-review-reply-moderation.ts` (an undocumented state is `unspecified`, a code that is not an enum word is `UNKNOWN`, the code is kept only when `REJECTED`) and counts them per read (`reviews_reply_moderation`, `reviews_reply_moderation_unknown`: counts only, never a value or reply text). Nothing decides on them yet (Review CONTEXT, Model).
-7. Production credential-bearing Google adapters have no direct-socket escape hatch. OAuth exchange/refresh/revoke, legacy account lookup, notifications, and Review fallbacks fail before network access unless a governed executor owns the route; fixed-origin JWKS retrieval is the only current non-credential direct trust read.
+7. Production credential-bearing Google adapters have no direct-socket escape hatch. OAuth exchange/refresh/revoke, account and location discovery, notifications, and Review fallbacks fail before network access unless a governed executor owns the route; fixed-origin JWKS retrieval is the only current non-credential direct trust read.
 8. `GOOGLE_PROVIDER_ROUTE_POLICIES` in `src/shared/google-provider-control/route-catalogue.ts` is the exhaustive executable authority for every provider route, credential class, fixed production origin, transport, owner, recovery rule, and current repository activation state. A new route cannot compile without an explicit route-policy decision.
 9. The browser can supply only the one-use code and opaque state; it never supplies PKCE verifier or token material to a general server function.
 10. A bound callback replay carries no code verifier and can only claim that preserved response; it never re-exchanges the provider code. Claims use a 30-second lease, ciphertext expires after ten minutes, and every terminal path erases it. The five-minute provider-recovery sweep bounds abandoned ciphertext retention and records an unpreserved started exchange as ambiguous.
@@ -234,3 +244,9 @@ fake provider and queue transport. Its shared fixture builds the application
 container with the production authorizers, discovery store, Property receipts,
 worker recovery and lifecycle sweep. It covers stale authority, request replay, bounded crash
 recovery, claim races, scoped discovery, partial success, cancellation and retention.
+
+Review's `infrastructure/disconnected-content-expiry.integration.test.ts` covers
+disconnect and provider revocation without renewing content clocks, retention
+before the deadline, and expiry erasure with stable identity and manager text
+preserved. The critical disconnect workflow also checks retained content after
+publication stops and after a repeated disconnect.

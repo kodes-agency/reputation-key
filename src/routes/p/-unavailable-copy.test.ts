@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { deV2 } from '#/components/features/guest/public-portal/language-packs/de-v2'
+import { deCopy } from '#/components/features/guest/public-portal/language-packs/de'
 
 const { readBrowserLanguages } = vi.hoisted(() => ({
   readBrowserLanguages: vi.fn(),
@@ -18,9 +18,9 @@ describe('loadUnavailableCopy — the unavailable page in the visitor’s langua
     readBrowserLanguages.mockReturnValue('de-DE,de;q=0.9,en;q=0.5')
     await expect(loadUnavailableCopy()).resolves.toEqual({
       locale: 'de',
-      title: deV2.copy.unavailableTitle,
-      body: deV2.copy.unavailableBody,
-      retry: deV2.copy.unavailableRetry,
+      title: deCopy.copy.unavailableTitle,
+      body: deCopy.copy.unavailableBody,
+      retry: deCopy.copy.unavailableRetry,
     })
   })
 

@@ -23,7 +23,7 @@ import {
   immersiveResponseProps,
   previewLanguageOptions,
 } from '#/components/features/guest'
-import type { GuestPortalCopyV2 } from '#/components/features/guest'
+import type { GuestPortalCopy } from '#/components/features/guest'
 import type { GuestLocale } from '#/shared/domain/guest-locale'
 import type { PortalPreviewExperience } from '#/contexts/portal/application/portal-management-contracts'
 import {
@@ -36,7 +36,7 @@ import { PREVIEW_PAGE_HEIGHT } from './preview-phone'
 
 export type PreviewGuestPageProps = Readonly<{
   experience: PortalPreviewExperience
-  copy: GuestPortalCopyV2
+  copy: GuestPortalCopy
   locale: GuestLocale
   /** Whether the Portal offers more than one language (one shows no chip). */
   hasLanguageChip: boolean
@@ -127,7 +127,7 @@ export function PreviewGuestPage({
  */
 function responseProps(
   state: PreviewPageState,
-  pack: GuestPortalCopyV2,
+  pack: GuestPortalCopy,
   displayName: string,
   onAction: ((action: TryAsGuestAction) => void) | undefined,
 ) {

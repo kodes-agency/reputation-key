@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { goalForResult } from './-goal-for-result'
+import { goalForResult, resolveGoalForResult } from './-goal-for-result'
 
 const programs = [
   { program: { id: 'goal-a' }, results: [{ id: 'result-1' }, { id: 'result-2' }] },
@@ -16,4 +16,17 @@ describe('goalForResult', () => {
   it('finds nothing for a result this viewer cannot see, so the Goals page stays', () => {
     expect(goalForResult(programs, 'result-9')).toBeNull()
   })
+})
+
+it('resolves an older notification result through visible history when summaries omit it', async () => {
+  expect(
+    await resolveGoalForResult(
+      [{ program: { id: 'goal-a' }, results: [] }],
+      'result-2',
+      async () => programs,
+    ),
+  ).toBe('goal-a')
+  expect(
+    await resolveGoalForResult(programs, 'hidden-result', async () => programs),
+  ).toBeNull()
 })

@@ -19,7 +19,6 @@ import type { Clock } from '#/shared/domain/clock'
 import { createInMemoryQueue, type InMemoryQueue } from '#/shared/testing/in-memory-queue'
 import { createInMemoryIdentityPort } from '#/shared/testing/in-memory-identity-port'
 import { createInMemoryGoogleOAuthPort } from '#/shared/testing/in-memory-google-oauth-port'
-import { createInMemoryGbpApiPort } from '#/shared/testing/in-memory-gbp-api-port'
 import { clearEventSchemas } from '#/shared/events/schema-registry'
 import type { StoragePort } from '#/contexts/portal/application/ports/storage.port'
 
@@ -378,7 +377,6 @@ describe('provider DI slots (BQC-6.1)', () => {
   // provider overrides under test.
   function buildWithProviders(providers: {
     googleOAuth?: ReturnType<typeof createInMemoryGoogleOAuthPort>
-    gbpApi?: ReturnType<typeof createInMemoryGbpApiPort>
     storage?: StoragePort
   }): Container {
     const clock: Clock = () => FIXED_DATE
@@ -420,12 +418,11 @@ describe('provider DI slots (BQC-6.1)', () => {
   it('honors injected provider overrides without changing the container shape', () => {
     const withProviders = buildWithProviders({
       googleOAuth: createInMemoryGoogleOAuthPort(),
-      gbpApi: createInMemoryGbpApiPort(),
       storage: fakeStorage,
     })
     // Storage is observable at the container boundary — the injected fake wins.
     expect(withProviders.assetStorage).toBe(fakeStorage)
-    // googleOAuth/gbpApi thread into the integration build (proven at the
+    // googleOAuth thread into the integration build (proven at the
     // build seam in src/contexts/integration/build.test.ts); the external
     // container shape is byte-identical either way.
     expect(Object.keys(withProviders).sort()).toEqual(EXPECTED_TOP_LEVEL_KEYS)

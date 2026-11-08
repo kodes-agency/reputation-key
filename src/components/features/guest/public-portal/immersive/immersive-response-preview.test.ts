@@ -7,7 +7,7 @@ const build = (
   privateFeedbackThreshold?: number,
 ) =>
   immersiveResponseProps(state, {
-    pack: enV2,
+    pack: enCopy,
     displayName: 'Avela Resort',
     privateFeedbackThreshold,
   })
@@ -17,7 +17,7 @@ function enPack(): (typeof PACKS)[number] {
   if (!pack) throw new Error('the en pack is missing')
   return pack
 }
-const enV2 = enPack()
+const enCopy = enPack()
 
 describe('immersiveResponseProps', () => {
   it('shows the rating card on arrival, with nothing saved', () => {

@@ -204,17 +204,17 @@ export type GoalProgramBundle = Readonly<{
   program: GoalProgram
   /** Current definition head; historical versions stay addressable by result pins. */
   version: GoalProgramVersion
-  /** Immutable definition-version history used to interpret pinned results. */
+  /** Versions needed by this read; `getHistory` retains the complete definition history. */
   versions: readonly GoalProgramVersion[]
-  /** Effective-dated assignment history across every version of the Program. */
+  /** Current assignments and the latest assignment of each historical subject. */
   assignments: readonly GoalSubjectAssignment[]
-  /** Append-only monthly result history across every version of the Program. */
+  /** Recent months in summaries; complete months in an explicit history read. */
   results: readonly GoalMonthlyResult[]
-  /**
-   * Every change to a month's own target, oldest first. Read with the Program
-   * by `get` and `list`, the reads a page or a command works from; absent on
-   * the maintenance read, which never asks how a target came about.
-   */
+  /** Target origin computed across versions without hydrating the ledger. */
+  targetProvenance?: Readonly<
+    Record<string, Readonly<{ setAt: Date; setBy: string; countsFrom: Date }>>
+  >
+  /** Target changes for the months included in this read, oldest first. */
   targetChanges?: readonly GoalMonthTargetChange[]
 }>
 
@@ -238,263 +238,321 @@ export type GoalAssignmentConflict = Readonly<{
 export type GoalScheduledStatusReason =
   'metric_source_not_active' | 'awaiting_first_full_month'
 
-export type GoalProgramRepository = Readonly<{
-  /**
-   * `subject_has_goal` when a subject already holds the metric inside the new
-   * Program's window: the database's no-overlap constraint, for a conflict that
-   * appeared after the caller's own check. The Property definition lock also
-   * enforces one non-ended Property count goal across the two count measures.
-   * Averages and several-subject Programs do not reserve that identity.
-   * Nothing is written on refusal.
-   */
-  create(
-    input: Readonly<{
-      bundle: GoalProgramBundle
-      auditAction: string
-    }>,
-  ): Promise<'created' | 'subject_has_goal'>
-  get(
+export const GOAL_MAINTENANCE_PAGE_SIZE = 100
+
+export type GoalProgramMaintenanceCursor = Readonly<{
+  organizationId: string
+  propertyId: string
+  id: string
+}>
+
+export type GoalDueResultCursor = Readonly<{ periodEnd: Date; id: string }>
+
+export type GoalProgramRepository = Partial<GoalProgramCurrentReads> &
+  Readonly<{
+    /**
+     * `subject_has_goal` when a subject already holds the metric inside the new
+     * Program's window: the database's no-overlap constraint, for a conflict that
+     * appeared after the caller's own check. The Property definition lock also
+     * enforces one non-ended Property count goal across the two count measures.
+     * Averages and several-subject Programs do not reserve that identity.
+     * Nothing is written on refusal.
+     */
+    create(
+      input: Readonly<{
+        bundle: GoalProgramBundle
+        auditAction: string
+      }>,
+    ): Promise<'created' | 'subject_has_goal'>
+    get(
+      organizationId: string,
+      propertyId: string,
+      programId: string,
+    ): Promise<GoalProgramBundle | null>
+    list(
+      organizationId: string,
+      propertyId: string,
+    ): Promise<readonly GoalProgramBundle[]>
+    /**
+     * The Programs maintenance works on: scheduled and active ones, except those
+     * of an Organization the lifecycle holds (see `isOrganizationHeld`). At most
+     * GOAL_MAINTENANCE_PAGE_SIZE, ordered by Organization, Property and Program id.
+     * Advance by the last listed Program even when its work was denied or failed.
+     */
+    listOperational(
+      after?: GoalProgramMaintenanceCursor,
+    ): Promise<readonly GoalProgramBundle[]>
+    /**
+     * True while the Organization's lifecycle holds it: a closure requested or in
+     * progress, or a cancelled closure that still awaits its explicit
+     * reactivation. Goal then starts nothing in it: no Program is created,
+     * started or resumed, and maintenance activates none.
+     */
+    isOrganizationHeld(organizationId: string): Promise<boolean>
+    /**
+     * Null when the Program is no longer in `expectedStatus`, or when ending it
+     * finds its version history changed under it. Nothing is written then.
+     * `reason` is the manager's note; without one no status reason is stored.
+     *
+     * Ending an active Program opens its due months under the Program row lock,
+     * in the same transaction, before closing its version and assignments.
+     * A Program that never started (still scheduled, with no month) keeps the empty window
+     * [from, from) whenever it is ended, so its subjects are free at once. A
+     * Program that has started closes at the latest of the command time and the
+     * end of a month still open or reconciling, which stays inside its window.
+     * Ending also records who ended the Program (`actorId`) and when (`at`).
+     */
+    changeStatus(
+      input: Readonly<{
+        organizationId: string
+        propertyId: string
+        programId: string
+        expectedStatus: GoalProgramStatus
+        status: GoalProgramStatus
+        reason: string | null
+        actorId: string
+        at: Date
+      }>,
+    ): Promise<GoalProgram | null>
+    /**
+     * Write `version` as the Program's new head.
+     * Throws `subject_has_goal` if another non-ended Program holds the Property
+     * count identity when checked under the Property definition lock.
+     *
+     * `supersedeRowlessHead` says what becomes of the expected version. False:
+     * it is in force, and it and its assignments close where the new version
+     * starts. True: no month has opened under it (a goal that has not started,
+     * or a change still waiting for its month), so it is replaced, and it and
+     * its assignments keep the empty window [from, from), which holds no subject.
+     *
+     * False when the head moved; when an open or reconciling month of the
+     * expected version ends after the new version starts; or, when replacing,
+     * when any month exists under the expected version. Each means a month
+     * opened since the caller read the Program: re-read and recompute to retry.
+     *
+     * `scheduledStatusReason` is what the new plan waits for. A Program still
+     * scheduled takes it as its status reason in the same update that moves the
+     * head; a Program in any other status keeps the reason it has. Omitted
+     * leaves the reason alone.
+     */
+    revise(
+      input: Readonly<{
+        expectedVersion: GoalProgramVersion
+        version: GoalProgramVersion
+        assignments: readonly GoalSubjectAssignment[]
+        supersedeRowlessHead: boolean
+        scheduledStatusReason?: GoalScheduledStatusReason
+        actorId: string
+        at: Date
+      }>,
+    ): Promise<boolean>
+    /**
+     * Record that the month-start check-in of `month` was answered with Keep:
+     * the Program's answered month, in place. No version is written and no
+     * month's target changes, so the Program's head and status stay as they
+     * are; answering the same month again writes the same. False when the
+     * Program does not exist for the tenant or is not active.
+     */
+    answerCheckIn(
+      input: Readonly<{
+        organizationId: string
+        propertyId: string
+        programId: string
+        month: string
+      }>,
+    ): Promise<boolean>
+    /**
+     * Set a Program's name and description in place; no version is written.
+     * `previousName` and `previousDescription` are what the command read. The
+     * update applies only while the Program still says both, so a rename never
+     * undoes another one it did not see, and the audit row names exactly what
+     * was replaced. Null when the Program does not exist for the tenant, has
+     * ended, or no longer has that name and description.
+     */
+    rename(
+      input: Readonly<{
+        organizationId: string
+        propertyId: string
+        programId: string
+        name: string
+        description: string | null
+        previousName: string
+        previousDescription: string | null
+        actorId: string
+        at: Date
+      }>,
+    ): Promise<GoalProgram | null>
+    /**
+     * Give the months of a Program that are running at `at` their own target, in
+     * one transaction with the log of the change and, when `following.revision`
+     * is given, the version that carries the target into the months after.
+     *
+     * `months` are the running months the command read, each with the target it
+     * had stored then. The write applies only while the Program is not ended,
+     * `expectedVersion` is still its head, and exactly those months are open and
+     * running at `at` with those targets. Otherwise nothing is written:
+     * - `revision_conflict`: the head moved, the Program ended, another month
+     *   opened, a month's target changed, or the version could not be written;
+     * - `month_locked`: a month is no longer open, or the database refused its
+     *   new target because the period has ended on its clock.
+     */
+    changeMonthTarget(
+      input: Readonly<{
+        organizationId: string
+        propertyId: string
+        programId: string
+        expectedVersion: GoalProgramVersion
+        /** Shared by every log row of this command. */
+        changeId: string
+        months: readonly Readonly<{
+          monthlyResultId: string
+          /** The id of the log row for this month. */
+          changeRowId: string
+          /** What the month had stored when it was read: null for its version's target. */
+          storedTargetValue: number | null
+          /** The target the month was judged against until now. */
+          previousTargetValue: number
+        }>[]
+        /** The target the months are judged against from now on. */
+        targetValue: number
+        /** What the months store for it: null when it is their version's own target. */
+        storedTargetValue: number | null
+        following: Readonly<{
+          outcome: GoalMonthTargetFollowingOutcome
+          reason: GoalMonthTargetFollowingReason | null
+          /** The version to write for the months after, with what becomes of the head. */
+          revision: Readonly<{
+            version: GoalProgramVersion
+            assignments: readonly GoalSubjectAssignment[]
+            supersedeRowlessHead: boolean
+          }> | null
+        }>
+        note: string | null
+        /** Where the new target came from; stored on every log row of this change. */
+        targetSource?: GoalTargetSource | null
+        actorId: string
+        at: Date
+      }>,
+    ): Promise<'changed' | 'revision_conflict' | 'month_locked'>
+    /**
+     * The requested subjects another Program holds for the metric from
+     * `effectiveFrom`, one entry per subject (the hold that lasts longest).
+     * `excludeProgramId` leaves a Program's own assignments out.
+     */
+    findAssignmentConflicts(
+      input: Readonly<{
+        organizationId: string
+        propertyId: string
+        excludeProgramId?: string
+        metric: GoalMetric
+        effectiveFrom: Date
+        subjects: readonly GoalSubject[]
+      }>,
+    ): Promise<readonly GoalAssignmentConflict[]>
+    activate(
+      input: Readonly<{
+        bundle: GoalProgramBundle
+        results: readonly GoalMonthlyResult[]
+        at: Date
+      }>,
+    ): Promise<GoalProgram | null>
+    appendResults(
+      input: Readonly<{
+        program: GoalProgram
+        version: GoalProgramVersion
+        results: readonly GoalMonthlyResult[]
+        at: Date
+      }>,
+    ): Promise<number>
+    /** At most GOAL_MAINTENANCE_PAGE_SIZE, ordered by period end and result id. */
+    listDueResults(
+      now: Date,
+      after?: GoalDueResultCursor,
+    ): Promise<readonly GoalMonthlyResult[]>
+    getDueResult(
+      organizationId: string,
+      propertyId: string,
+      resultId: string,
+      now: Date,
+    ): Promise<GoalMonthlyResult | null>
+    getAssignment(
+      organizationId: string,
+      propertyId: string,
+      assignmentId: string,
+    ): Promise<GoalSubjectAssignment | null>
+    getVersion(
+      organizationId: string,
+      propertyId: string,
+      programVersionId: string,
+    ): Promise<GoalProgramVersion | null>
+    updateResult(
+      input: Readonly<{
+        result: GoalMonthlyResult
+        expectedStatus: GoalMonthlyResultStatus
+        /** Required for closure; captured with the governed evaluation snapshot. */
+        sourceHead?: GoalMetricSourceHead
+        /** Recheck live suspension and execution policy inside the write transaction. */
+        authorize(): Promise<void>
+      }>,
+    ): Promise<GoalMonthlyResult | null>
+    getClosedResult(
+      organizationId: string,
+      propertyId: string,
+      resultId: string,
+    ): Promise<ClosedGoalResultHead | null>
+    appendResultRevision(
+      input: Readonly<{
+        head: ClosedGoalResultHead
+        revisionId: string
+        evaluation: GoalMetricEvaluation
+        sourceCompleteThrough: Date | null
+        evaluationWatermark: Date
+        changeReason: string
+        createdBy: string
+        at: Date
+      }>,
+    ): Promise<AppendGoalResultRevisionResult>
+    /**
+     * Locates immutable closed results whose exact version, subject, and
+     * half-open period contain one Metric-owned correction impact.
+     */
+    findClosedResultIdsForMetricImpact(
+      input: FindClosedGoalResultIdsForMetricImpactInput,
+    ): Promise<readonly string[]>
+  }>
+
+export type GoalHistoryCursor = Readonly<{ periodStart: Date; id: string }>
+export type GoalProgramHistoryPage = Readonly<{
+  targetProvenance?: GoalProgramBundle['targetProvenance']
+  results: readonly GoalMonthlyResult[]
+  versions: readonly GoalProgramVersion[]
+  assignments: readonly GoalSubjectAssignment[]
+  targetChanges: readonly GoalMonthTargetChange[]
+  next: GoalHistoryCursor | null
+}>
+export type GoalProgramCurrentReads = Readonly<{
+  getHistory(
     organizationId: string,
     propertyId: string,
     programId: string,
   ): Promise<GoalProgramBundle | null>
-  list(organizationId: string, propertyId: string): Promise<readonly GoalProgramBundle[]>
-  /**
-   * The Programs maintenance works on: scheduled and active ones, except those
-   * of an Organization the lifecycle holds (see `isOrganizationHeld`).
-   */
-  listOperational(): Promise<readonly GoalProgramBundle[]>
-  /**
-   * True while the Organization's lifecycle holds it: a closure requested or in
-   * progress, or a cancelled closure that still awaits its explicit
-   * reactivation. Goal then starts nothing in it: no Program is created,
-   * started or resumed, and maintenance activates none.
-   */
-  isOrganizationHeld(organizationId: string): Promise<boolean>
-  /**
-   * Null when the Program is no longer in `expectedStatus`, or when ending it
-   * finds its version history changed under it. Nothing is written then.
-   * `reason` is the manager's note; without one no status reason is stored.
-   *
-   * Ending an active Program opens its due months under the Program row lock,
-   * in the same transaction, before closing its version and assignments.
-   * A Program that never started (still scheduled, with no month) keeps the empty window
-   * [from, from) whenever it is ended, so its subjects are free at once. A
-   * Program that has started closes at the latest of the command time and the
-   * end of a month still open or reconciling, which stays inside its window.
-   * Ending also records who ended the Program (`actorId`) and when (`at`).
-   */
-  changeStatus(
-    input: Readonly<{
-      organizationId: string
-      propertyId: string
-      programId: string
-      expectedStatus: GoalProgramStatus
-      status: GoalProgramStatus
-      reason: string | null
-      actorId: string
-      at: Date
-    }>,
-  ): Promise<GoalProgram | null>
-  /**
-   * Write `version` as the Program's new head.
-   * Throws `subject_has_goal` if another non-ended Program holds the Property
-   * count identity when checked under the Property definition lock.
-   *
-   * `supersedeRowlessHead` says what becomes of the expected version. False:
-   * it is in force, and it and its assignments close where the new version
-   * starts. True: no month has opened under it (a goal that has not started,
-   * or a change still waiting for its month), so it is replaced, and it and
-   * its assignments keep the empty window [from, from), which holds no subject.
-   *
-   * False when the head moved; when an open or reconciling month of the
-   * expected version ends after the new version starts; or, when replacing,
-   * when any month exists under the expected version. Each means a month
-   * opened since the caller read the Program: re-read and recompute to retry.
-   *
-   * `scheduledStatusReason` is what the new plan waits for. A Program still
-   * scheduled takes it as its status reason in the same update that moves the
-   * head; a Program in any other status keeps the reason it has. Omitted
-   * leaves the reason alone.
-   */
-  revise(
-    input: Readonly<{
-      expectedVersion: GoalProgramVersion
-      version: GoalProgramVersion
-      assignments: readonly GoalSubjectAssignment[]
-      supersedeRowlessHead: boolean
-      scheduledStatusReason?: GoalScheduledStatusReason
-      actorId: string
-      at: Date
-    }>,
-  ): Promise<boolean>
-  /**
-   * Record that the month-start check-in of `month` was answered with Keep:
-   * the Program's answered month, in place. No version is written and no
-   * month's target changes, so the Program's head and status stay as they
-   * are; answering the same month again writes the same. False when the
-   * Program does not exist for the tenant or is not active.
-   */
-  answerCheckIn(
-    input: Readonly<{
-      organizationId: string
-      propertyId: string
-      programId: string
-      month: string
-    }>,
-  ): Promise<boolean>
-  /**
-   * Set a Program's name and description in place; no version is written.
-   * `previousName` and `previousDescription` are what the command read. The
-   * update applies only while the Program still says both, so a rename never
-   * undoes another one it did not see, and the audit row names exactly what
-   * was replaced. Null when the Program does not exist for the tenant, has
-   * ended, or no longer has that name and description.
-   */
-  rename(
-    input: Readonly<{
-      organizationId: string
-      propertyId: string
-      programId: string
-      name: string
-      description: string | null
-      previousName: string
-      previousDescription: string | null
-      actorId: string
-      at: Date
-    }>,
-  ): Promise<GoalProgram | null>
-  /**
-   * Give the months of a Program that are running at `at` their own target, in
-   * one transaction with the log of the change and, when `following.revision`
-   * is given, the version that carries the target into the months after.
-   *
-   * `months` are the running months the command read, each with the target it
-   * had stored then. The write applies only while the Program is not ended,
-   * `expectedVersion` is still its head, and exactly those months are open and
-   * running at `at` with those targets. Otherwise nothing is written:
-   * - `revision_conflict`: the head moved, the Program ended, another month
-   *   opened, a month's target changed, or the version could not be written;
-   * - `month_locked`: a month is no longer open, or the database refused its
-   *   new target because the period has ended on its clock.
-   */
-  changeMonthTarget(
-    input: Readonly<{
-      organizationId: string
-      propertyId: string
-      programId: string
-      expectedVersion: GoalProgramVersion
-      /** Shared by every log row of this command. */
-      changeId: string
-      months: readonly Readonly<{
-        monthlyResultId: string
-        /** The id of the log row for this month. */
-        changeRowId: string
-        /** What the month had stored when it was read: null for its version's target. */
-        storedTargetValue: number | null
-        /** The target the month was judged against until now. */
-        previousTargetValue: number
-      }>[]
-      /** The target the months are judged against from now on. */
-      targetValue: number
-      /** What the months store for it: null when it is their version's own target. */
-      storedTargetValue: number | null
-      following: Readonly<{
-        outcome: GoalMonthTargetFollowingOutcome
-        reason: GoalMonthTargetFollowingReason | null
-        /** The version to write for the months after, with what becomes of the head. */
-        revision: Readonly<{
-          version: GoalProgramVersion
-          assignments: readonly GoalSubjectAssignment[]
-          supersedeRowlessHead: boolean
-        }> | null
-      }>
-      note: string | null
-      /** Where the new target came from; stored on every log row of this change. */
-      targetSource?: GoalTargetSource | null
-      actorId: string
-      at: Date
-    }>,
-  ): Promise<'changed' | 'revision_conflict' | 'month_locked'>
-  /**
-   * The requested subjects another Program holds for the metric from
-   * `effectiveFrom`, one entry per subject (the hold that lasts longest).
-   * `excludeProgramId` leaves a Program's own assignments out.
-   */
-  findAssignmentConflicts(
-    input: Readonly<{
-      organizationId: string
-      propertyId: string
-      excludeProgramId?: string
-      metric: GoalMetric
-      effectiveFrom: Date
-      subjects: readonly GoalSubject[]
-    }>,
-  ): Promise<readonly GoalAssignmentConflict[]>
-  activate(
-    input: Readonly<{
-      bundle: GoalProgramBundle
-      results: readonly GoalMonthlyResult[]
-      at: Date
-    }>,
-  ): Promise<GoalProgram | null>
-  appendResults(
-    input: Readonly<{
-      program: GoalProgram
-      version: GoalProgramVersion
-      results: readonly GoalMonthlyResult[]
-      at: Date
-    }>,
-  ): Promise<number>
-  listDueResults(now: Date): Promise<readonly GoalMonthlyResult[]>
-  getDueResult(
+  getSummary(
     organizationId: string,
     propertyId: string,
-    resultId: string,
-    now: Date,
-  ): Promise<GoalMonthlyResult | null>
-  getAssignment(
+    programId: string,
+  ): Promise<GoalProgramBundle | null>
+  listSummaries(
     organizationId: string,
     propertyId: string,
-    assignmentId: string,
-  ): Promise<GoalSubjectAssignment | null>
-  getVersion(
+  ): Promise<readonly GoalProgramBundle[]>
+  listHistory(
     organizationId: string,
     propertyId: string,
-    programVersionId: string,
-  ): Promise<GoalProgramVersion | null>
-  updateResult(
-    input: Readonly<{
-      result: GoalMonthlyResult
-      expectedStatus: GoalMonthlyResultStatus
-      /** Required for closure; captured with the governed evaluation snapshot. */
-      sourceHead?: GoalMetricSourceHead
-      /** Recheck live suspension and execution policy inside the write transaction. */
-      authorize(): Promise<void>
+    programId: string,
+    input?: Readonly<{
+      limit?: number
+      after?: GoalHistoryCursor
+      includeProvenance?: boolean
     }>,
-  ): Promise<GoalMonthlyResult | null>
-  getClosedResult(
-    organizationId: string,
-    propertyId: string,
-    resultId: string,
-  ): Promise<ClosedGoalResultHead | null>
-  appendResultRevision(
-    input: Readonly<{
-      head: ClosedGoalResultHead
-      revisionId: string
-      evaluation: GoalMetricEvaluation
-      sourceCompleteThrough: Date | null
-      evaluationWatermark: Date
-      changeReason: string
-      createdBy: string
-      at: Date
-    }>,
-  ): Promise<AppendGoalResultRevisionResult>
-  /**
-   * Locates immutable closed results whose exact version, subject, and
-   * half-open period contain one Metric-owned correction impact.
-   */
-  findClosedResultIdsForMetricImpact(
-    input: FindClosedGoalResultIdsForMetricImpactInput,
-  ): Promise<readonly string[]>
+  ): Promise<GoalProgramHistoryPage>
 }>

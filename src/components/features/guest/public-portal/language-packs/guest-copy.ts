@@ -1,0 +1,169 @@
+import type { GuestLanguagePackV2, GuestLocale } from '#/shared/domain/guest-locale'
+
+// The key set of guest copy packs carried by schema version 3 snapshots.
+// A pack is plain JSON: text with `{placeholder}` slots
+// and plural forms keyed by CLDR category, never functions, so the server can
+// hand exactly one pack to the browser inside the page data.
+//
+// The values are the placeholders each text may use. A pack test holds every
+// locale to this table, so a placeholder can be neither dropped nor invented
+// in one language. The copy is industry-neutral on purpose: a guest has a
+// "visit", never a "stay", and no text names a kind of place.
+
+export type GuestCopyPlaceholder =
+  'name' | 'word' | 'stars' | 'time' | 'date' | 'zone' | 'count'
+
+export const GUEST_COPY_PLACEHOLDERS = {
+  // Page chrome: language chip and sheet, footer, visit notice, logo.
+  languageChipLabel: [],
+  languageSheetTitle: [],
+  languageSheetHint: [],
+  languageSheetClose: [],
+  languageCurrent: [],
+  // Each guest locale named in this pack's language: the sheet's second line.
+  languageNameEn: [],
+  languageNameBg: [],
+  languageNameEs: [],
+  languageNameIt: [],
+  languageNameFr: [],
+  languageNameDe: [],
+  privacyNoticeLink: [],
+  // The same link on a page that is not in English: the notice itself is English.
+  privacyNoticeLinkInEnglish: [],
+  footerMadeWith: [],
+  logoAlt: ['name'],
+  // The footer's one-line notice (ADR 0044): it names the essential cookie and
+  // the privacy-protected marker, and promises no ads or third-party trackers.
+  visitNotice: ['name'],
+  visitNoticeLabel: [],
+  visitNoticeAcknowledge: [],
+  // The rating card.
+  ratingTitle: [],
+  ratingWord1: [],
+  ratingWord2: [],
+  ratingWord3: [],
+  ratingWord4: [],
+  ratingWord5: [],
+  ratingScaleLow: [],
+  ratingScaleHigh: [],
+  ratingGroupLabel: [],
+  ratingOption: ['stars', 'word'],
+  ratingChoose: [],
+  ratingSend: [],
+  ratingPrivacyLine: ['name'],
+  ratingSaveFailed: [],
+  sending: [],
+  honeypotLabel: [],
+  errorGeneric: [],
+  // After a rating.
+  ratingThanks: [],
+  ratingSentTitle: [],
+  ratingSentSummary: ['word'],
+  ratingChange: [],
+  ratingUpdated: [],
+  // The Google card.
+  googleTitle: [],
+  googleBody: [],
+  googleDirectBody: [],
+  googleAction: [],
+  googleOpensLabel: [],
+  googleHint: [],
+  googleUnavailableTitle: [],
+  googleUnavailableBody: ['name'],
+  googleOpenFailed: [],
+  // The private note.
+  noteOfferTitle: [],
+  noteOfferBody: [],
+  noteOfferAction: [],
+  noteLabel: [],
+  noteHint: [],
+  noteSend: [],
+  noteDismiss: [],
+  noteRequired: [],
+  noteSent: ['name'],
+  noteSendFailed: [],
+  // "Your response": change, remove or start over.
+  responseTitle: [],
+  responseSummary: [],
+  responseChangeTitle: [],
+  responseChangeSave: [],
+  responseRemoveNoteTitle: [],
+  responseRemoveNoteAction: [],
+  responseRemoveNoteDone: [],
+  responseRemoveNoteFailed: [],
+  responseRemoveAllTitle: [],
+  responseRemoveAllNote: [],
+  responseRemoveAllAction: [],
+  responseRemoveAllConfirmTitle: [],
+  responseRemoveAllConfirmBody: [],
+  responseRemoveAllConfirm: [],
+  responseRemoveAllCancel: [],
+  responseRemoveAllDoneTitle: [],
+  responseRemoveAllDoneBody: [],
+  responseRemoveAllFailed: [],
+  // The same, for a response that has no note: only a rating to remove.
+  responseRemoveRatingTitle: [],
+  responseRemoveRatingConfirmTitle: [],
+  responseRemoveRatingConfirmBody: [],
+  responseRemoveRatingConfirm: [],
+  responseRemoveRatingCancel: [],
+  // Deadlines: today, tomorrow, or a named day, always in the portal's zone.
+  deadlineToday: ['time', 'zone'],
+  deadlineTomorrow: ['time', 'zone'],
+  deadlineDate: ['date', 'time', 'zone'],
+  windowEndedChange: [],
+  windowEndedNote: [],
+  windowEndedAll: [],
+  // Shared devices.
+  sharedDeviceTitle: [],
+  sharedDeviceBody: [],
+  startOverAction: [],
+  startOverDone: [],
+  // After a guest removed their whole response, so nothing earlier "remains saved".
+  startOverDoneAfterRemoval: [],
+  startOverFailed: [],
+  // The Linktree and the page that has nothing to show.
+  linktreeDefaultTitle: [],
+  linkOpensNewTab: [],
+  unavailableTitle: [],
+  unavailableBody: [],
+  unavailableRetry: [],
+  // The in-page card when only the rating cannot be sent and the rest of the page works.
+  ratingUnavailableTitle: [],
+  ratingUnavailableBody: [],
+} as const satisfies Readonly<Record<string, readonly GuestCopyPlaceholder[]>>
+
+export const GUEST_PLURAL_PLACEHOLDERS = {
+  ratingStars: ['count'],
+} as const satisfies Readonly<Record<string, readonly GuestCopyPlaceholder[]>>
+
+export type GuestCopyKey = keyof typeof GUEST_COPY_PLACEHOLDERS
+export type GuestPluralKey = keyof typeof GUEST_PLURAL_PLACEHOLDERS
+
+/** The placeholders one key's text takes, as an object type of the values to fill in. */
+export type GuestCopyValues<K extends GuestCopyKey> = Readonly<
+  Record<(typeof GUEST_COPY_PLACEHOLDERS)[K][number], string | number>
+>
+
+/** Text per CLDR plural category; `other` is always written. */
+export type GuestPluralForms = Readonly<
+  Partial<Record<Intl.LDMLPluralRule, string>> & { other: string }
+>
+
+export type GuestPortalCopy = Readonly<{
+  locale: GuestLocale
+  version: GuestLanguagePackV2
+  copy: Readonly<Record<GuestCopyKey, string>>
+  plurals: Readonly<Record<GuestPluralKey, GuestPluralForms>>
+  /** Place names by IANA zone id, for the zones the product offers; others print the id's own place name. */
+  zoneNames: Readonly<Record<string, string>>
+}>
+
+/** Freezes a pack so one request can never change the copy another request reads. */
+export function defineGuestCopy(pack: GuestPortalCopy): GuestPortalCopy {
+  for (const forms of Object.values(pack.plurals)) Object.freeze(forms)
+  Object.freeze(pack.copy)
+  Object.freeze(pack.plurals)
+  Object.freeze(pack.zoneNames)
+  return Object.freeze(pack)
+}

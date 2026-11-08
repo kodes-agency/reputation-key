@@ -98,6 +98,7 @@ function harness(
     reconcileStatus?: Awaited<ReturnType<ReviewAnalysisEnrollmentStorePort['reconcile']>>
     currentEnrollment?: ReviewAnalysisEnrollmentEvidence | null
     reopened?: Awaited<ReturnType<AiReviewAnalysisReopenPort['reopenAbandoned']>>
+    rebuildProfiles?: () => Promise<void>
     heads?: readonly ReviewAnalysisEnrollmentHead[]
     reconcileOutcomes?: ReadonlyArray<Error | ReviewAnalysisEnrollmentReconcileResult>
   }> = {},
@@ -181,6 +182,7 @@ function harness(
       reopen: { reopenAbandoned },
       nowEpochMillis: () => NOW.getTime(),
       logger: { warn },
+      rebuildProfiles: options.rebuildProfiles,
     }),
     warn,
     readMerchantAuthorization,
@@ -192,6 +194,14 @@ function harness(
 }
 
 describe('advance Review Analysis first-enablement enrollment', () => {
+  it('runs pending profile rebuilds from the recurring sweep even without enrollment work', async () => {
+    const rebuildProfiles = vi.fn(async () => {})
+    const test = harness({ heads: [], rebuildProfiles })
+    await test.advance.sweep()
+    expect(rebuildProfiles).toHaveBeenCalledOnce()
+    expect(test.reconcile).not.toHaveBeenCalled()
+  })
+
   it('keeps enrollment queued while live provider execution is dark', async () => {
     const test = harness({ controlsEnabled: false })
 

@@ -1,12 +1,12 @@
 import { afterEach, describe, expect, it } from 'vitest'
 import { GUEST_LOCALES, guestLocaleFormatTag } from '#/shared/domain/guest-locale'
 import { describeGuestDeadline, formatGuestDeadline } from './guest-deadline-format'
-import { bgV2 } from './language-packs/bg-v2'
-import { deV2 } from './language-packs/de-v2'
-import { enV2 } from './language-packs/en-v2'
-import { esV2 } from './language-packs/es-v2'
-import { frV2 } from './language-packs/fr-v2'
-import { itV2 } from './language-packs/it-v2'
+import { bgCopy } from './language-packs/bg'
+import { deCopy } from './language-packs/de'
+import { enCopy } from './language-packs/en'
+import { esCopy } from './language-packs/es'
+import { frCopy } from './language-packs/fr'
+import { itCopy } from './language-packs/it'
 
 // 12:32 UTC = 15:32 in Sofia (UTC+3 in summer), 14:32 in Europe/Berlin.
 const NOW = '2026-09-30T09:00:00.000Z'
@@ -83,29 +83,29 @@ describe('describeGuestDeadline', () => {
 })
 
 describe('formatGuestDeadline', () => {
-  const at = (pack: typeof enV2, deadline: string, zone: string, tag: string): string =>
+  const at = (pack: typeof enCopy, deadline: string, zone: string, tag: string): string =>
     formatGuestDeadline(pack, deadline, NOW, zone, tag)
 
   it('fills the today, tomorrow and date templates in English', () => {
-    expect(at(enV2, '2026-09-30T12:32:00.000Z', 'Europe/Sofia', 'en')).toBe(
+    expect(at(enCopy, '2026-09-30T12:32:00.000Z', 'Europe/Sofia', 'en')).toBe(
       'Until 15:32 today, Sofia time',
     )
-    expect(at(enV2, '2026-10-01T11:32:00.000Z', 'Europe/Sofia', 'en')).toBe(
+    expect(at(enCopy, '2026-10-01T11:32:00.000Z', 'Europe/Sofia', 'en')).toBe(
       'Until 14:32 tomorrow, Sofia time',
     )
-    expect(at(enV2, '2026-10-04T09:05:00.000Z', 'Europe/Sofia', 'en')).toBe(
+    expect(at(enCopy, '2026-10-04T09:05:00.000Z', 'Europe/Sofia', 'en')).toBe(
       'Until Oct 4, 2026, 12:05, Sofia time',
     )
   })
 
   it('fills the templates of the Bulgarian pack, zone name and all', () => {
-    expect(at(bgV2, '2026-09-30T12:32:00.000Z', 'Europe/Sofia', 'bg-BG')).toBe(
+    expect(at(bgCopy, '2026-09-30T12:32:00.000Z', 'Europe/Sofia', 'bg-BG')).toBe(
       'До 15:32 днес, местно време в София',
     )
-    expect(at(bgV2, '2026-10-01T11:32:00.000Z', 'Europe/Sofia', 'bg-BG')).toBe(
+    expect(at(bgCopy, '2026-10-01T11:32:00.000Z', 'Europe/Sofia', 'bg-BG')).toBe(
       'До 14:32 утре, местно време в София',
     )
-    expect(at(bgV2, '2026-10-04T09:05:00.000Z', 'Europe/Sofia', 'bg-BG')).toBe(
+    expect(at(bgCopy, '2026-10-04T09:05:00.000Z', 'Europe/Sofia', 'bg-BG')).toBe(
       'До 4.10.2026 г., 12:05, местно време в София',
     )
   })
@@ -115,7 +115,7 @@ describe('formatGuestDeadline', () => {
   it.each([
     [
       'es',
-      esV2,
+      esCopy,
       [
         'Hasta hoy a las 15:32, hora de Sofía',
         'Hasta mañana a las 14:32, hora de Sofía',
@@ -124,7 +124,7 @@ describe('formatGuestDeadline', () => {
     ],
     [
       'it',
-      itV2,
+      itCopy,
       [
         'Fino alle 15:32 di oggi, ora di Sofia',
         'Fino alle 14:32 di domani, ora di Sofia',
@@ -133,7 +133,7 @@ describe('formatGuestDeadline', () => {
     ],
     [
       'fr',
-      frV2,
+      frCopy,
       [
         'Jusqu’à 15:32 aujourd’hui, heure locale (Sofia)',
         'Jusqu’à 14:32 demain, heure locale (Sofia)',
@@ -142,7 +142,7 @@ describe('formatGuestDeadline', () => {
     ],
     [
       'de',
-      deV2,
+      deCopy,
       [
         'Bis heute, 15:32 Uhr, Ortszeit Sofia',
         'Bis morgen, 14:32 Uhr, Ortszeit Sofia',
@@ -162,10 +162,10 @@ describe('formatGuestDeadline', () => {
   )
 
   it('names a zone that starts with a vowel in brackets in French, so no elision is needed', () => {
-    expect(at(frV2, '2026-09-30T12:32:00.000Z', 'Europe/Athens', 'fr')).toBe(
+    expect(at(frCopy, '2026-09-30T12:32:00.000Z', 'Europe/Athens', 'fr')).toBe(
       'Jusqu’à 15:32 aujourd’hui, heure locale (Athènes)',
     )
-    expect(at(frV2, '2026-09-30T12:32:00.000Z', 'Europe/Istanbul', 'fr')).toBe(
+    expect(at(frCopy, '2026-09-30T12:32:00.000Z', 'Europe/Istanbul', 'fr')).toBe(
       'Jusqu’à 15:32 aujourd’hui, heure locale (Istanbul)',
     )
   })
@@ -178,24 +178,24 @@ describe('formatGuestDeadline', () => {
     ['2026-10-11T09:05:00.000Z', 'Scadenza: 11 ott 2026, ore 12:05, ora di Sofia'],
   ])('writes the Italian date of %s without an article before it', (deadline, line) => {
     const now = '2026-09-28T09:00:00.000Z'
-    expect(formatGuestDeadline(itV2, deadline, now, 'Europe/Sofia', 'it')).toBe(line)
+    expect(formatGuestDeadline(itCopy, deadline, now, 'Europe/Sofia', 'it')).toBe(line)
   })
 
   // UTC is a zone name, not a place, so the templates print "local time UTC".
   // That is accepted wording for the rare Portal on UTC or a fixed offset, and
   // is pinned here so a change to it is a decision.
   it('prints UTC and fixed offsets through the same template as a place', () => {
-    expect(at(deV2, '2026-09-30T12:32:00.000Z', 'UTC', 'de')).toBe(
+    expect(at(deCopy, '2026-09-30T12:32:00.000Z', 'UTC', 'de')).toBe(
       'Bis heute, 12:32 Uhr, Ortszeit UTC',
     )
-    expect(at(frV2, '2026-09-30T12:32:00.000Z', 'Etc/GMT-3', 'fr')).toBe(
+    expect(at(frCopy, '2026-09-30T12:32:00.000Z', 'Etc/GMT-3', 'fr')).toBe(
       'Jusqu’à 15:32 aujourd’hui, heure locale (UTC+3)',
     )
   })
 
   it('falls back to the place name of the zone id when the pack has no name for it', () => {
-    expect(bgV2.zoneNames['America/Los_Angeles']).toBeUndefined()
-    expect(at(bgV2, '2026-09-30T12:00:00.000Z', 'America/Los_Angeles', 'bg-BG')).toBe(
+    expect(bgCopy.zoneNames['America/Los_Angeles']).toBeUndefined()
+    expect(at(bgCopy, '2026-09-30T12:00:00.000Z', 'America/Los_Angeles', 'bg-BG')).toBe(
       'До 05:00 днес, местно време в Los Angeles',
     )
   })
@@ -209,7 +209,12 @@ describe('formatGuestDeadline', () => {
 
     it.each(GUEST_LOCALES)('is identical in every runtime zone for %s', (locale) => {
       const render = () =>
-        at(enV2, '2026-10-04T09:05:00.000Z', 'Europe/Sofia', guestLocaleFormatTag(locale))
+        at(
+          enCopy,
+          '2026-10-04T09:05:00.000Z',
+          'Europe/Sofia',
+          guestLocaleFormatTag(locale),
+        )
       const results = [
         'UTC',
         'America/Los_Angeles',
@@ -224,7 +229,7 @@ describe('formatGuestDeadline', () => {
 
     it.each(GUEST_LOCALES)('joins date and time with our own glue for %s', (locale) => {
       const tag = guestLocaleFormatTag(locale)
-      const text = at(enV2, '2026-10-04T09:05:00.000Z', 'Europe/Sofia', tag)
+      const text = at(enCopy, '2026-10-04T09:05:00.000Z', 'Europe/Sofia', tag)
       // WebKit would write "Oct 4, 2026 at 12:05" from one date-time call; the
       // engine only writes the date here and the pack's template adds the rest.
       const date = new Intl.DateTimeFormat(tag, {
