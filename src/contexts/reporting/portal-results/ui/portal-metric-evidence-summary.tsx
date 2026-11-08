@@ -19,7 +19,7 @@ export function PortalMetricEvidenceSummary({
 }) {
   return (
     <details className="rounded-lg border bg-muted/20 p-4">
-      <summary className="cursor-pointer text-sm font-semibold tracking-tight">
+      <summary className="cursor-pointer text-sm font-semibold tracking-tight max-md:-my-3 max-md:py-3">
         Data status
       </summary>
       <p className="mt-2 text-xs text-muted-foreground">
