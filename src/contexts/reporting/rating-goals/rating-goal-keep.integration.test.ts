@@ -14,9 +14,13 @@ import {
   activeGoal,
   dependencies,
   exampleWorld,
+  NOW,
   PROPERTY,
   type FakeWorld,
-} from './rating-goal.test-fixtures'
+  useRatingGoalDatabase,
+} from '../infrastructure/testing/rating-goal-fixtures'
+
+useRatingGoalDatabase()
 
 const LAST_WEEK = '2026-10-05'
 
@@ -109,7 +113,7 @@ describe('keeping the pace for this week', () => {
     ]
     await expect(keep()).rejects.toMatchObject({ code: 'not_active' })
 
-    world.goals = [activeGoal({ state: 'ended', endedReason: 'manager' })]
+    world.goals = [activeGoal({ state: 'ended', endedReason: 'manager', endedAt: NOW })]
     await expect(keep()).rejects.toMatchObject({ code: 'not_active' })
   })
 
