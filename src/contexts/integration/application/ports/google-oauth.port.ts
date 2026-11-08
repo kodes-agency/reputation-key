@@ -41,7 +41,7 @@ export type GoogleOAuthExchangeInput = Readonly<{
   redirectUri: string
   codeVerifier: string
   oidcNonce: string
-  /** Required by the governed production executor; direct test adapters ignore it. */
+  /** Required for a new exchange; preserved recovery makes no provider call. */
   authorization?: GoogleProviderCallAuthorization
   /**
    * Recovery path: validate an already encrypted-and-reloaded response without
