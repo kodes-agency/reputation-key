@@ -18,10 +18,7 @@ import { getContainer } from '#/composition'
 import { headersFromContext } from '#/shared/auth/headers'
 import { resolveTenantContext } from '#/shared/auth/middleware'
 import type { AuthContext } from '#/shared/domain/auth-context'
-import {
-  getExecutionPolicy,
-  requireExecutionAllowed,
-} from '#/shared/auth/execution-policy'
+import { requireExecutionAllowed } from '#/shared/auth/execution-policy'
 import { throwContextError, catchUntagged } from '#/shared/auth/server-errors'
 import { HTTP_STATUS } from '#/shared/http/status'
 import { portalGroupId, portalId, propertyId } from '#/shared/domain/ids'
@@ -31,8 +28,11 @@ import type {
   PortalResultsTimeRange,
 } from '../application/public-api'
 import { isDashboardError } from '../domain/dashboard-errors'
-import { getAccessiblePropertyIdsForPermission } from '#/shared/domain/property-access'
-import { organizationRoster, readablePropertyIds } from './portal-results-roster'
+import {
+  organizationRoster,
+  readablePropertyIds,
+  rosterAccess,
+} from './portal-results-roster'
 import { dashboardErrorStatus } from './dashboard-error-status'
 
 /** A refusal Portal tagged while listing its own Portals. Reporting does not import Portal's
@@ -125,9 +125,12 @@ async function readOrganization(request: OverviewRequest, ctx: AuthContext) {
   } = getContainer()
   const organizationId = ctx.organizationId
   const observedAt = clock()
+  const { assignedIds, policy } = await rosterAccess(ctx, (orgId, userId, orgWide) =>
+    identityPublicApi.people.getAccessiblePropertyIds(orgId, userId, orgWide),
+  )
   const allowed = (action: 'portal.read' | 'dashboard.read') => async (id: string) =>
     (
-      await getExecutionPolicy().decide({
+      await policy.decide({
         principal: { kind: 'user', ctx },
         action,
         capability: action === 'portal.read' ? 'portal.read' : undefined,
@@ -137,15 +140,8 @@ async function readOrganization(request: OverviewRequest, ctx: AuthContext) {
         now: observedAt,
       })
     ).allowed
-  // D6-001: non-admin callers may only read their assigned Properties. Asked once
-  // for the whole Organization (null: an Organization-wide caller), then applied
-  // by membership, so no Property costs a lookup of its own.
-  const assignedIds = await getAccessiblePropertyIdsForPermission(
-    (orgId, userId, orgWide) =>
-      identityPublicApi.people.getAccessiblePropertyIds(orgId, userId, orgWide),
-    ctx,
-    'dashboard.read',
-  )
+  // The dashboard scope narrows the candidates; both permissions then use the
+  // same Accounts grant snapshot without widening either permission's scope.
   const assigned = new Set<string>(assignedIds ?? [])
   const inScope = (id: string): boolean => assignedIds === null || assigned.has(id)
   const candidateIds = (

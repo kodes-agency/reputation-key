@@ -1,7 +1,5 @@
 import { sql } from 'drizzle-orm'
 import type { Database } from '#/shared/db'
-import type { PortalGroupPublicApi } from '#/contexts/portal/application/public-api'
-import { portalId } from '#/shared/domain/ids'
 import type {
   GoalMetricSourceStatus,
   GoalMetricSourceStatusPort,
@@ -16,10 +14,12 @@ type SourceRow = Readonly<{
   reading_portal_id: unknown
   reading_group_id: unknown
   correction_present: unknown
+  expected_group_id: unknown
   replacement_correction_present: unknown
 }>
 
 type ParsedSourceRow = Readonly<{
+  expectedGroupId: string | null
   eventId: string
   eventType: string
   portalId: string
@@ -65,6 +65,8 @@ function parseRow(row: SourceRow): ParsedSourceRow | null {
   const occurredAt = new Date(occurred)
   if (Number.isNaN(occurredAt.getTime())) return null
   return {
+    expectedGroupId:
+      typeof row.expected_group_id === 'string' ? row.expected_group_id : null,
     eventId: row.event_id,
     eventType: row.event_type,
     portalId: portal,
@@ -97,73 +99,6 @@ function parseSourceRows(rawRows: readonly SourceRow[]): ParseOutcome {
     parsed.push(row)
   }
   return { kind: 'parsed', rows: parsed }
-}
-
-type GroupScope =
-  | Readonly<{ kind: 'included'; expectedGroupId: string | null }>
-  | Readonly<{ kind: 'excluded' }>
-  | Readonly<{ kind: 'unavailable' }>
-
-/**
- * Group membership for one fact: captured attribution wins, otherwise the
- * Portal's group as of the fact. An unanswerable lookup is not an exclusion.
- */
-async function resolveGroupScope(
-  portalGroups: PortalGroupPublicApi,
-  organizationId: Parameters<PortalGroupPublicApi['findGroupForPortal']>[0],
-  targetGroupId: string,
-  row: ParsedSourceRow,
-): Promise<GroupScope> {
-  if (row.hasCapturedPortalGroup) {
-    if (row.capturedPortalGroupId !== targetGroupId) return { kind: 'excluded' }
-    return { kind: 'included', expectedGroupId: row.capturedPortalGroupId }
-  }
-  let group
-  try {
-    group = await portalGroups.findGroupForPortal(
-      organizationId,
-      portalId(row.portalId),
-      row.occurredAt,
-    )
-  } catch {
-    return { kind: 'unavailable' }
-  }
-  if (!group || group.id !== targetGroupId) return { kind: 'excluded' }
-  return { kind: 'included', expectedGroupId: group.id }
-}
-
-type RelevantOutcome =
-  | Readonly<{ kind: 'relevant'; rows: readonly RelevantSourceRow[] }>
-  | Readonly<{ kind: 'unavailable'; relevantFactCount: number }>
-
-/** Narrow the parsed facts to the ones the queried subject actually covers. */
-async function selectRelevantRows(
-  query: GoalMetricAggregateQuery,
-  portalGroups: PortalGroupPublicApi,
-  parsed: readonly ParsedSourceRow[],
-): Promise<RelevantOutcome> {
-  const relevant: RelevantSourceRow[] = []
-  for (const row of parsed) {
-    if (query.subject.kind === 'portal' && row.portalId !== query.subject.portalId) {
-      continue
-    }
-    if (query.subject.kind === 'portal_group') {
-      const scope = await resolveGroupScope(
-        portalGroups,
-        query.organizationId,
-        query.subject.portalGroupId,
-        row,
-      )
-      if (scope.kind === 'unavailable') {
-        return { kind: 'unavailable', relevantFactCount: relevant.length + 1 }
-      }
-      if (scope.kind === 'excluded') continue
-      relevant.push({ ...row, expectedGroupId: scope.expectedGroupId })
-      continue
-    }
-    relevant.push({ ...row, expectedGroupId: null })
-  }
-  return { kind: 'relevant', rows: relevant }
 }
 
 /** The first governance failure an applied fact exhibits, or null when settled. */
@@ -206,34 +141,51 @@ function evaluateRelevantRows(
     : result('complete', relevant.length, 0, null)
 }
 
-export const createGoalMetricSourceStatus = (
-  db: Pick<Database, 'execute'>,
-  portalGroups: PortalGroupPublicApi,
-): GoalMetricSourceStatusPort => {
-  return {
-    inspect: async (query, eventTypes) => {
-      if (eventTypes.length === 0) return result('unavailable', 0, 0, 'no_source')
-      const eventTypeSql = sql.join(
-        eventTypes.map((eventType) => sql`${eventType}`),
-        sql`, `,
-      )
-      const raw = await db.execute(sql`
+export function goalMetricSourceStatusQuery(
+  query: GoalMetricAggregateQuery,
+  eventTypes: readonly string[],
+) {
+  const eventTypeSql = sql.join(
+    eventTypes.map((eventType) => sql`${eventType}`),
+    sql`, `,
+  )
+  return sql`
         SELECT
           source.id::text AS event_id,
           source.event_type,
           source.payload,
+          CASE WHEN source.payload ? 'portalGroupId' THEN source.payload ->> 'portalGroupId'
+          ELSE (
+            SELECT membership.portal_group_id::text
+            FROM portal_group_memberships AS membership
+            JOIN portal_groups AS groups ON groups.id = membership.portal_group_id
+              AND groups.organization_id = membership.organization_id
+              AND groups.property_id = membership.property_id
+            WHERE membership.organization_id = source.organization_id
+              AND membership.property_id = source.property_id::uuid
+              AND membership.portal_id::text = source.payload ->> 'portalId'
+              AND membership.effective_from <= (source.payload ->> 'occurredAt')::timestamptz
+              AND (membership.effective_to IS NULL OR membership.effective_to > (source.payload ->> 'occurredAt')::timestamptz)
+              AND (groups.deleted_at IS NULL OR groups.deleted_at > (source.payload ->> 'occurredAt')::timestamptz)
+            ORDER BY membership.effective_from DESC
+            LIMIT 1
+          ) END AS expected_group_id,
           receipt.status AS receipt_status,
           (
             SELECT reading.portal_id::text
             FROM metric_readings AS reading
-            WHERE reading.definition_version_id = ${query.definitionVersionId}::uuid
+            WHERE reading.organization_id = source.organization_id
+              AND reading.property_id = source.property_id::uuid
+              AND reading.definition_version_id = ${query.definitionVersionId}::uuid
               AND reading.source_event_id = source.id::text
             LIMIT 1
           ) AS reading_portal_id,
           (
             SELECT reading.group_id::text
             FROM metric_readings AS reading
-            WHERE reading.definition_version_id = ${query.definitionVersionId}::uuid
+            WHERE reading.organization_id = source.organization_id
+              AND reading.property_id = source.property_id::uuid
+              AND reading.definition_version_id = ${query.definitionVersionId}::uuid
               AND reading.source_event_id = source.id::text
             LIMIT 1
           ) AS reading_group_id,
@@ -275,24 +227,31 @@ export const createGoalMetricSourceStatus = (
           AND (source.payload ->> 'occurredAt')::timestamptz >= ${query.periodStart}
           AND (source.payload ->> 'occurredAt')::timestamptz < ${query.periodEnd}
         ORDER BY source.created_at, source.id
-      `)
-
-      const parsed = parseSourceRows(raw.rows as SourceRow[])
-      if (parsed.kind === 'invalid') {
-        return result('quarantined', parsed.relevantFactCount, 0, 'invalid_source_fact')
-      }
-
-      const relevant = await selectRelevantRows(query, portalGroups, parsed.rows)
-      if (relevant.kind === 'unavailable') {
-        return result(
-          'unavailable',
-          relevant.relevantFactCount,
-          0,
-          'source_attribution_unavailable',
-        )
-      }
-
-      return evaluateRelevantRows(relevant.rows, query.subject.kind === 'portal_group')
-    },
-  }
+      `
 }
+
+export function evaluateGoalMetricSourceRows(
+  query: GoalMetricAggregateQuery,
+  rawRows: readonly SourceRow[],
+): GoalMetricSourceStatus {
+  const parsed = parseSourceRows(rawRows)
+  if (parsed.kind === 'invalid')
+    return result('quarantined', parsed.relevantFactCount, 0, 'invalid_source_fact')
+  const relevant = parsed.rows.filter((row) => {
+    if (query.subject.kind === 'portal') return row.portalId === query.subject.portalId
+    if (query.subject.kind === 'portal_group')
+      return row.expectedGroupId === query.subject.portalGroupId
+    return true
+  })
+  return evaluateRelevantRows(relevant, query.subject.kind === 'portal_group')
+}
+
+export const createGoalMetricSourceStatus = (
+  db: Pick<Database, 'execute'>,
+): GoalMetricSourceStatusPort => ({
+  async inspect(query, eventTypes) {
+    if (eventTypes.length === 0) return result('unavailable', 0, 0, 'no_source')
+    const raw = await db.execute(goalMetricSourceStatusQuery(query, eventTypes))
+    return evaluateGoalMetricSourceRows(query, raw.rows as SourceRow[])
+  },
+})

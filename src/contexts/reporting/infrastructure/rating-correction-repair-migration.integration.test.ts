@@ -12,7 +12,6 @@ import { getDb } from '#/shared/db'
 import { getEnv } from '#/shared/config/env'
 import { deleteTestOrganizations } from '#/shared/testing/integration-helpers'
 import { organizationId, portalId, propertyId } from '#/shared/domain/ids'
-import type { PortalGroupPublicApi } from '#/contexts/portal/application/public-api'
 import type { GoalMetricAggregateQuery } from '../application/ports/metric.repository'
 import { METRIC_VERSION_IDS } from '../domain/metric-registry'
 import { createGoalMetricSourceStatus } from './repositories/goal-metric-source-status'
@@ -57,14 +56,6 @@ const ids = (caseNumber: number) => ({
   replacement: `73000000-0000-4000-8${caseNumber}00-000000000a02`,
   withdrawal: `73000000-0000-4000-8${caseNumber}00-000000000a03`,
 })
-
-const noGroups: PortalGroupPublicApi = {
-  findGroupForPortal: async () => null,
-  getGroupPortalIds: async () => [],
-  findGroupIdsByPortalIds: async () => [],
-  portalGroupBelongsToProperty: async () => false,
-  getGroupInfo: async () => null,
-}
 
 let pool: Pool
 const db = getDb()
@@ -334,7 +325,7 @@ describe.sequential('migration 0055 (retract replaced rating readings)', () => {
       periodStart: new Date('2026-09-01T00:00:00.000Z'),
       periodEnd: new Date('2026-10-01T00:00:00.000Z'),
     }
-    const status = createGoalMetricSourceStatus(db, noGroups)
+    const status = createGoalMetricSourceStatus(db)
     const events = ['guest.rating.submitted', 'guest.rating.retracted']
 
     await expect(status.inspect(query, events)).resolves.toMatchObject({

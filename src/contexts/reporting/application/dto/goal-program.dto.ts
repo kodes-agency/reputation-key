@@ -52,6 +52,11 @@ export const goalProgramIdentitySchema = z.object({
   programId: uuid,
 })
 
+export const getGoalProgramHistorySchema = goalProgramIdentitySchema.extend({
+  limit: z.number().int().min(1).max(100).optional(),
+  after: z.object({ periodStart: z.coerce.date(), id: uuid }).optional(),
+})
+
 export const listGoalProgramsSchema = z.object({ propertyId: uuid })
 
 /** The goals that target one subject, read live for the month so far. */
