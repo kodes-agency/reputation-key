@@ -1,9 +1,9 @@
 import type {
-  GuestCopyKeyV2,
+  GuestCopyKey,
   GuestCopyValues,
   GuestPluralForms,
-  GuestPortalCopyV2,
-} from './language-packs/guest-copy-v2'
+  GuestPortalCopy,
+} from './language-packs/guest-copy'
 
 const PLACEHOLDER = /\{([a-zA-Z]+)\}/g
 
@@ -39,13 +39,13 @@ export function formatGuestPlural(
   return fillGuestTemplate(forms[category] ?? forms.other, { count })
 }
 
-type CopyArguments<K extends GuestCopyKeyV2> = keyof GuestCopyValues<K> extends never
+type CopyArguments<K extends GuestCopyKey> = keyof GuestCopyValues<K> extends never
   ? []
   : [values: GuestCopyValues<K>]
 
 /** One text of a pack, with its placeholders filled in and type-checked per key. */
-export function guestCopyText<K extends GuestCopyKeyV2>(
-  pack: GuestPortalCopyV2,
+export function guestCopyText<K extends GuestCopyKey>(
+  pack: GuestPortalCopy,
   key: K,
   ...args: CopyArguments<K>
 ): string {

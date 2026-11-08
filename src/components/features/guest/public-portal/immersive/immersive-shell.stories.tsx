@@ -5,7 +5,7 @@
 // styles (link colour, theme class, line breaking) and does not inherit them.
 import type { Meta, StoryObj } from '@storybook/react'
 import { expect, within } from 'storybook/test'
-import { enV2 } from '../language-packs/en-v2'
+import { enCopy } from '../language-packs/en'
 import { ArrivalStandIn } from './__fixtures__/arrival-stand-in'
 import { LINKTREE_LINKS_NO_PHOTO } from './__fixtures__/linktree-links'
 import { PhoneFrame } from './__fixtures__/phone-frame'
@@ -25,7 +25,7 @@ const meta: Meta<typeof ImmersiveShell> = {
     height: 'container',
     heroAlt: { value: 'The colonnade pool at dusk, under an old olive tree' },
     brand: { ...CHAMPAGNE, hero: STORY_HERO_PHOTO },
-    children: <ArrivalStandIn footerCopy={immersiveFooterCopy(enV2, 'Avela Resort')} />,
+    children: <ArrivalStandIn footerCopy={immersiveFooterCopy(enCopy, 'Avela Resort')} />,
   },
 }
 export default meta
@@ -68,7 +68,7 @@ export const G09NoPhoto: Story = {
     children: (
       <ArrivalStandIn
         displayName="Avela Resort"
-        footerCopy={immersiveFooterCopy(enV2, 'Avela Resort')}
+        footerCopy={immersiveFooterCopy(enCopy, 'Avela Resort')}
         links={LINKTREE_LINKS_NO_PHOTO}
       />
     ),

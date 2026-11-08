@@ -16,7 +16,7 @@ import { Skeleton } from '#/components/ui/skeleton'
 import type { GuestLocale } from '#/shared/domain/guest-locale'
 import { portalKeys } from '#/shared/queries/query-keys'
 import { patchedBrand, type BrandPatches } from '../portal-look/portal-look-preview-patch'
-import type { GuestPortalCopyV2 } from '#/components/features/guest'
+import type { GuestPortalCopy } from '#/components/features/guest'
 import { GUEST_FONT_STYLESHEET } from '#/shared/font-sets'
 import type {
   PortalPreviewExperience,
@@ -162,7 +162,7 @@ export type PortalPreviewBodyProps = Readonly<{
   isRetrying?: boolean
   isPending: boolean
   data: PortalPreviewOutcome | undefined
-  copyData: GuestPortalCopyV2 | undefined
+  copyData: GuestPortalCopy | undefined
   experience: PortalPreviewExperience | undefined
   onRetry: () => void
   locale: GuestLocale

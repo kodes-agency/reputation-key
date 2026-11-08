@@ -1,10 +1,7 @@
 import type { ReactNode } from 'react'
 import type { GuestResponseView } from '#/contexts/guest/application/use-cases/guest-response-lifecycle'
 import type { PublicGoogleReviewDestination } from '#/contexts/portal/application/public-api'
-import type {
-  GuestPortalLanguagePackVersion,
-  GuestPortalLocale,
-} from './guest-language-pack'
+import type { GuestLanguagePackVersion, GuestLocale } from '#/shared/domain/guest-locale'
 
 export type GuestResponseAction<TInput, TResult> = ((input: {
   data: TInput
@@ -40,8 +37,8 @@ type GuestPrivateFeedbackPayload = Readonly<{
 export type GuestResponseFormProps = Readonly<{
   token: string
   csrfNonce: string
-  locale?: GuestPortalLocale
-  languagePackVersion?: GuestPortalLanguagePackVersion
+  locale?: GuestLocale
+  languagePackVersion?: GuestLanguagePackVersion
   /** Browser display needs availability only; the server returns the URI after selection. */
   googleReview: Readonly<{ status: PublicGoogleReviewDestination['status'] }>
   secondaryLinks?: (csrfNonce: string) => ReactNode

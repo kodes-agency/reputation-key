@@ -6,8 +6,8 @@ import { createElement } from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { GUEST_LOCALES, type GuestLocale } from '#/shared/domain/guest-locale'
 import type { GuestPagePreviewState } from '../../guest-page-preview-state'
-import type { GuestPortalCopyV2 } from '../../language-packs/guest-copy-v2'
-import { loadGuestPortalCopyV2 } from '../../language-packs/load-guest-copy-v2'
+import type { GuestPortalCopy } from '../../language-packs/guest-copy'
+import { loadGuestPortalCopy } from '../../language-packs/load-guest-copy'
 import { immersiveResponseProps } from '../immersive-response-preview'
 import {
   ImmersiveResponseView,
@@ -16,10 +16,10 @@ import {
 
 export const RATINGS = [1, 2, 3, 4, 5] as const
 // Loaded the way a request loads them: a locale module is imported by the
-// loader alone (`load-guest-copy-v2.test.ts` holds the codebase to that).
+// loader alone (`load-guest-copy.test.ts` holds the codebase to that).
 // Every language a guest can reach: the ADR 0044 proof must hold in each.
-export const PACKS: readonly GuestPortalCopyV2[] = await Promise.all(
-  GUEST_LOCALES.map((locale) => loadGuestPortalCopyV2(locale)),
+export const PACKS: readonly GuestPortalCopy[] = await Promise.all(
+  GUEST_LOCALES.map((locale) => loadGuestPortalCopy(locale)),
 )
 
 /**
@@ -73,7 +73,7 @@ export const DISPLAY_NAME = 'Avela Resort'
 
 /** Renders the response view for a controlled state, as a preview or a story would. */
 export function renderResponse(
-  pack: GuestPortalCopyV2,
+  pack: GuestPortalCopy,
   state: GuestPagePreviewState,
   overrides: Partial<ImmersiveResponseViewProps> = {},
   threshold?: number,

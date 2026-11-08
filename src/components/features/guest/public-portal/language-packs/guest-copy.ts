@@ -1,7 +1,7 @@
 import type { GuestLanguagePackV2, GuestLocale } from '#/shared/domain/guest-locale'
 
-// The key set of the v2 guest copy packs (generation 2, carried by schema
-// version 3 snapshots). A pack is plain JSON: text with `{placeholder}` slots
+// The key set of guest copy packs carried by schema version 3 snapshots.
+// A pack is plain JSON: text with `{placeholder}` slots
 // and plural forms keyed by CLDR category, never functions, so the server can
 // hand exactly one pack to the browser inside the page data.
 //
@@ -13,7 +13,7 @@ import type { GuestLanguagePackV2, GuestLocale } from '#/shared/domain/guest-loc
 export type GuestCopyPlaceholder =
   'name' | 'word' | 'stars' | 'time' | 'date' | 'zone' | 'count'
 
-export const GUEST_COPY_V2_PLACEHOLDERS = {
+export const GUEST_COPY_PLACEHOLDERS = {
   // Page chrome: language chip and sheet, footer, visit notice, logo.
   languageChipLabel: [],
   languageSheetTitle: [],
@@ -133,16 +133,16 @@ export const GUEST_COPY_V2_PLACEHOLDERS = {
   ratingUnavailableBody: [],
 } as const satisfies Readonly<Record<string, readonly GuestCopyPlaceholder[]>>
 
-export const GUEST_PLURAL_V2_PLACEHOLDERS = {
+export const GUEST_PLURAL_PLACEHOLDERS = {
   ratingStars: ['count'],
 } as const satisfies Readonly<Record<string, readonly GuestCopyPlaceholder[]>>
 
-export type GuestCopyKeyV2 = keyof typeof GUEST_COPY_V2_PLACEHOLDERS
-export type GuestPluralKeyV2 = keyof typeof GUEST_PLURAL_V2_PLACEHOLDERS
+export type GuestCopyKey = keyof typeof GUEST_COPY_PLACEHOLDERS
+export type GuestPluralKey = keyof typeof GUEST_PLURAL_PLACEHOLDERS
 
 /** The placeholders one key's text takes, as an object type of the values to fill in. */
-export type GuestCopyValues<K extends GuestCopyKeyV2> = Readonly<
-  Record<(typeof GUEST_COPY_V2_PLACEHOLDERS)[K][number], string | number>
+export type GuestCopyValues<K extends GuestCopyKey> = Readonly<
+  Record<(typeof GUEST_COPY_PLACEHOLDERS)[K][number], string | number>
 >
 
 /** Text per CLDR plural category; `other` is always written. */
@@ -150,17 +150,17 @@ export type GuestPluralForms = Readonly<
   Partial<Record<Intl.LDMLPluralRule, string>> & { other: string }
 >
 
-export type GuestPortalCopyV2 = Readonly<{
+export type GuestPortalCopy = Readonly<{
   locale: GuestLocale
   version: GuestLanguagePackV2
-  copy: Readonly<Record<GuestCopyKeyV2, string>>
-  plurals: Readonly<Record<GuestPluralKeyV2, GuestPluralForms>>
+  copy: Readonly<Record<GuestCopyKey, string>>
+  plurals: Readonly<Record<GuestPluralKey, GuestPluralForms>>
   /** Place names by IANA zone id, for the zones the product offers; others print the id's own place name. */
   zoneNames: Readonly<Record<string, string>>
 }>
 
 /** Freezes a pack so one request can never change the copy another request reads. */
-export function defineGuestCopyV2(pack: GuestPortalCopyV2): GuestPortalCopyV2 {
+export function defineGuestCopy(pack: GuestPortalCopy): GuestPortalCopy {
   for (const forms of Object.values(pack.plurals)) Object.freeze(forms)
   Object.freeze(pack.copy)
   Object.freeze(pack.plurals)
