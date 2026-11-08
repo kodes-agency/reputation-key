@@ -2,7 +2,7 @@
 // next number, what is still needed, the number above the goal, when the goal
 // arrives in days, the day of the week and the last four weeks.
 import { beforeEach, describe, expect, it } from 'vitest'
-import type { RatingArrivalView } from './dto/rating-goal.types'
+import type { RatingArrivalView } from '../rating-goals/contracts'
 import {
   actor,
   activeGoal,
@@ -12,8 +12,8 @@ import {
   NOW,
   PROPERTY,
   type FakeWorld,
-} from './use-cases/rating-goal-test-fixtures'
-import { getRatingGoalCard } from './use-cases/rating-goal-reads'
+} from '../rating-goals/rating-goal.test-fixtures'
+import { getRatingGoalCard } from '../rating-goals/get-rating-goals.server'
 
 let world: FakeWorld
 

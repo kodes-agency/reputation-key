@@ -10,7 +10,7 @@ import {
   NOW,
   PROPERTY,
   type FakeWorld,
-} from './use-cases/rating-goal-test-fixtures'
+} from '../rating-goals/rating-goal.test-fixtures'
 import { readRatingGoalInputs, setupEligibility } from './rating-goal-reading'
 
 const HOUR = 60 * 60 * 1000
