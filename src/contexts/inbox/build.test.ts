@@ -93,5 +93,19 @@ describe('buildInboxContext', () => {
 
     expect(registry.listFor('review.created')).toHaveLength(1)
     expect(registry.listFor('property.archived')).toHaveLength(1)
+    expect(
+      registry.list().map(({ eventType, consumerName }) => [eventType, consumerName]),
+    ).toEqual([
+      ['review.created', 'inbox.on-review-created'],
+      ['review.expired', 'inbox.on-review-expired'],
+      ['review.updated', 'inbox.on-review-updated'],
+      ['review.source_transitioned', 'inbox.on-review-source-transitioned'],
+      ['review.reply.published', 'inbox.on-reply-published'],
+      ['review.reply.observed', 'inbox.on-reply-observed'],
+      ['review.reply.submitted', 'inbox.on-reply-submitted'],
+      ['guest.feedback.submitted', 'inbox.on-guest-feedback-submitted'],
+      ['guest.feedback.retracted', 'inbox.on-guest-feedback-retracted'],
+      ['property.archived', 'inbox.on-property-archived'],
+    ])
   })
 })

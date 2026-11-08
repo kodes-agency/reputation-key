@@ -23,6 +23,16 @@ import type {
 } from './types'
 import type { ResponseTargetKind, ResponseTargetReminderKind } from './response-target'
 
+type InboxItemFactInput<Event> = Omit<
+  Event,
+  '_tag' | 'correlationId' | 'eventId' | 'userId' | 'source' | 'propertyId'
+> & {
+  userId?: UserId
+  source?: 'web' | 'import'
+  propertyId?: PropertyId
+  correlationId?: string | null
+}
+
 export type InboxItemCreated = Readonly<{
   _tag: 'inbox.inbox_item.created'
   eventId: string
@@ -37,15 +47,7 @@ export type InboxItemCreated = Readonly<{
   correlationId: string | null
 }>
 export const inboxItemCreated = (
-  args: Omit<
-    InboxItemCreated,
-    '_tag' | 'correlationId' | 'eventId' | 'userId' | 'source' | 'propertyId'
-  > & {
-    userId?: UserId
-    source?: 'web' | 'import'
-    propertyId?: PropertyId
-    correlationId?: string | null
-  },
+  args: InboxItemFactInput<InboxItemCreated>,
 ): InboxItemCreated => {
   assert(args.occurredAt instanceof Date, 'occurredAt must be Date')
   assert(args.inboxItemId !== '', 'inboxItemId required')
@@ -74,15 +76,7 @@ export type InboxItemStatusChanged = Readonly<{
   correlationId: string | null
 }>
 export const inboxItemStatusChanged = (
-  args: Omit<
-    InboxItemStatusChanged,
-    '_tag' | 'correlationId' | 'eventId' | 'userId' | 'source' | 'propertyId'
-  > & {
-    userId?: UserId
-    source?: 'web' | 'import'
-    propertyId?: PropertyId
-    correlationId?: string | null
-  },
+  args: InboxItemFactInput<InboxItemStatusChanged>,
 ): InboxItemStatusChanged => {
   assert(args.occurredAt instanceof Date, 'occurredAt must be Date')
   assert(
@@ -122,15 +116,7 @@ export type InboxItemAssigned = Readonly<{
   correlationId: string | null
 }>
 export const inboxItemAssigned = (
-  args: Omit<
-    InboxItemAssigned,
-    '_tag' | 'correlationId' | 'eventId' | 'userId' | 'source' | 'propertyId'
-  > & {
-    userId?: UserId
-    source?: 'web' | 'import'
-    propertyId?: PropertyId
-    correlationId?: string | null
-  },
+  args: InboxItemFactInput<InboxItemAssigned>,
 ): InboxItemAssigned => {
   assert(args.occurredAt instanceof Date, 'occurredAt must be Date')
   assert(args.userId, 'userId required')
@@ -162,15 +148,7 @@ export type InboxItemUnassigned = Readonly<{
   correlationId: string | null
 }>
 export const inboxItemUnassigned = (
-  args: Omit<
-    InboxItemUnassigned,
-    '_tag' | 'correlationId' | 'eventId' | 'userId' | 'source' | 'propertyId'
-  > & {
-    userId?: UserId
-    source?: 'web' | 'import'
-    propertyId?: PropertyId
-    correlationId?: string | null
-  },
+  args: InboxItemFactInput<InboxItemUnassigned>,
 ): InboxItemUnassigned => {
   assert(args.occurredAt instanceof Date, 'occurredAt must be Date')
   return {
@@ -196,15 +174,7 @@ export type InboxItemEscalated = Readonly<{
   correlationId: string | null
 }>
 export const inboxItemEscalated = (
-  args: Omit<
-    InboxItemEscalated,
-    '_tag' | 'correlationId' | 'eventId' | 'userId' | 'source' | 'propertyId'
-  > & {
-    userId?: UserId
-    source?: 'web' | 'import'
-    propertyId?: PropertyId
-    correlationId?: string | null
-  },
+  args: InboxItemFactInput<InboxItemEscalated>,
 ): InboxItemEscalated => {
   assert(args.occurredAt instanceof Date, 'occurredAt must be Date')
   return {
@@ -230,15 +200,7 @@ export type InboxItemEscalationResolved = Readonly<{
   correlationId: string | null
 }>
 export const inboxItemEscalationResolved = (
-  args: Omit<
-    InboxItemEscalationResolved,
-    '_tag' | 'correlationId' | 'eventId' | 'userId' | 'source' | 'propertyId'
-  > & {
-    userId?: UserId
-    source?: 'web' | 'import'
-    propertyId?: PropertyId
-    correlationId?: string | null
-  },
+  args: InboxItemFactInput<InboxItemEscalationResolved>,
 ): InboxItemEscalationResolved => {
   assert(args.occurredAt instanceof Date, 'occurredAt must be Date')
   return {
@@ -267,15 +229,7 @@ export type InboxNoteAdded = Readonly<{
 // BQC-3.4: events carry the note ID, never the note text — notes remain
 // context-owned content (BQC-3.4 / ADR 0030); readers fetch via the note repo.
 export const inboxNoteAdded = (
-  args: Omit<
-    InboxNoteAdded,
-    '_tag' | 'correlationId' | 'eventId' | 'userId' | 'source' | 'propertyId'
-  > & {
-    userId?: UserId
-    source?: 'web' | 'import'
-    propertyId?: PropertyId
-    correlationId?: string | null
-  },
+  args: InboxItemFactInput<InboxNoteAdded>,
 ): InboxNoteAdded => {
   assert(args.occurredAt instanceof Date, 'occurredAt must be Date')
   return {
@@ -304,15 +258,7 @@ export type InboxItemBulkStatusChanged = Readonly<{
   correlationId: string | null
 }>
 export const inboxItemBulkStatusChanged = (
-  args: Omit<
-    InboxItemBulkStatusChanged,
-    '_tag' | 'correlationId' | 'eventId' | 'userId' | 'source' | 'propertyId'
-  > & {
-    userId?: UserId
-    source?: 'web' | 'import'
-    propertyId?: PropertyId
-    correlationId?: string | null
-  },
+  args: InboxItemFactInput<InboxItemBulkStatusChanged>,
 ): InboxItemBulkStatusChanged => {
   assert(args.occurredAt instanceof Date, 'occurredAt must be Date')
   assert(
@@ -500,31 +446,29 @@ type HandlingCycleFactScope = Readonly<{
   correlationId?: string | null
 }>
 
-export type InboxHandlingCycleOpened = Readonly<{
-  _tag: 'inbox.handling_cycle.opened'
-  eventId: string
-  inboxItemId: InboxItemId
-  cycleNumber: number
-  stateRevision: number
-  organizationId: OrganizationId
-  propertyId: PropertyId
-  sourceType: SourceType
-  sourceId: ReviewId | FeedbackId
-  sourceRevision: number
-  actorType: HandlingCycleActorType
-  userId: UserId | null
-  triggerEventId: string | null
-  openReason: Exclude<HandlingCycleOpenReason, 'manual_reopen'>
-  /**
-   * Opened by the same command that created the item: the source already had
-   * this revision before the Inbox first showed the item, so no one saw an
-   * earlier one change.
-   */
-  openedWithItem: boolean
-  source: 'import'
-  occurredAt: Date
-  correlationId: string | null
-}>
+function assertHandlingCycleFactScope(args: HandlingCycleFactScope): void {
+  assert(args.occurredAt instanceof Date, 'occurredAt must be Date')
+  assert(args.cycleNumber > 0, 'cycleNumber must be positive')
+  assert(args.sourceRevision > 0, 'sourceRevision must be positive')
+  assert(args.actorType !== 'user' || args.userId !== null, 'user actor required')
+  assert(args.actorType === 'user' || args.userId === null, 'system actor required')
+}
+
+type HandlingCycleFact = Omit<HandlingCycleFactScope, 'correlationId'> &
+  Readonly<{ eventId: string; correlationId: string | null }>
+
+export type InboxHandlingCycleOpened = HandlingCycleFact &
+  Readonly<{
+    _tag: 'inbox.handling_cycle.opened'
+    openReason: Exclude<HandlingCycleOpenReason, 'manual_reopen'>
+    /**
+     * Opened by the same command that created the item: the source already had
+     * this revision before the Inbox first showed the item, so no one saw an
+     * earlier one change.
+     */
+    openedWithItem: boolean
+    source: 'import'
+  }>
 
 export const inboxHandlingCycleOpened = (
   args: HandlingCycleFactScope &
@@ -533,11 +477,7 @@ export const inboxHandlingCycleOpened = (
       openedWithItem?: boolean
     }>,
 ): InboxHandlingCycleOpened => {
-  assert(args.occurredAt instanceof Date, 'occurredAt must be Date')
-  assert(args.cycleNumber > 0, 'cycleNumber must be positive')
-  assert(args.sourceRevision > 0, 'sourceRevision must be positive')
-  assert(args.actorType !== 'user' || args.userId !== null, 'user actor required')
-  assert(args.actorType === 'user' || args.userId === null, 'system actor required')
+  assertHandlingCycleFactScope(args)
   return {
     _tag: 'inbox.handling_cycle.opened',
     eventId: newEventId(),
@@ -548,25 +488,12 @@ export const inboxHandlingCycleOpened = (
   }
 }
 
-export type InboxHandlingCycleClosed = Readonly<{
-  _tag: 'inbox.handling_cycle.closed'
-  eventId: string
-  inboxItemId: InboxItemId
-  cycleNumber: number
-  stateRevision: number
-  organizationId: OrganizationId
-  propertyId: PropertyId
-  sourceType: SourceType
-  sourceId: ReviewId | FeedbackId
-  sourceRevision: number
-  actorType: HandlingCycleActorType
-  userId: UserId | null
-  triggerEventId: string | null
-  closeReason: HandlingCycleCloseReason
-  source: 'web' | 'import'
-  occurredAt: Date
-  correlationId: string | null
-}>
+export type InboxHandlingCycleClosed = HandlingCycleFact &
+  Readonly<{
+    _tag: 'inbox.handling_cycle.closed'
+    closeReason: HandlingCycleCloseReason
+    source: 'web' | 'import'
+  }>
 
 export const inboxHandlingCycleClosed = (
   args: HandlingCycleFactScope &
@@ -576,11 +503,7 @@ export const inboxHandlingCycleClosed = (
       correlationId?: string | null
     }>,
 ): InboxHandlingCycleClosed => {
-  assert(args.occurredAt instanceof Date, 'occurredAt must be Date')
-  assert(args.cycleNumber > 0, 'cycleNumber must be positive')
-  assert(args.sourceRevision > 0, 'sourceRevision must be positive')
-  assert(args.actorType !== 'user' || args.userId !== null, 'user actor required')
-  assert(args.actorType === 'user' || args.userId === null, 'system actor required')
+  assertHandlingCycleFactScope(args)
   return {
     _tag: 'inbox.handling_cycle.closed',
     eventId: newEventId(),
@@ -602,27 +525,14 @@ export type HandlingCycleReopenReason =
   | 'provider_reply_diverged'
   | 'material_revision_changed'
 
-export type InboxHandlingCycleReopened = Readonly<{
-  _tag: 'inbox.handling_cycle.reopened'
-  eventId: string
-  inboxItemId: InboxItemId
-  cycleNumber: number
-  stateRevision: number
-  organizationId: OrganizationId
-  propertyId: PropertyId
-  sourceType: SourceType
-  sourceId: ReviewId | FeedbackId
-  sourceRevision: number
-  actorType: HandlingCycleActorType
-  userId: UserId | null
-  triggerEventId: string | null
-  reopenReason: HandlingCycleReopenReason
-  /** The bulk reopen command this belongs to; its completion fact covers it. */
-  bulkId: string | null
-  source: 'web' | 'import'
-  occurredAt: Date
-  correlationId: string | null
-}>
+export type InboxHandlingCycleReopened = HandlingCycleFact &
+  Readonly<{
+    _tag: 'inbox.handling_cycle.reopened'
+    reopenReason: HandlingCycleReopenReason
+    /** The bulk reopen command this belongs to; its completion fact covers it. */
+    bulkId: string | null
+    source: 'web' | 'import'
+  }>
 
 export const inboxHandlingCycleReopened = (
   args: HandlingCycleFactScope &
@@ -633,11 +543,7 @@ export const inboxHandlingCycleReopened = (
       correlationId?: string | null
     }>,
 ): InboxHandlingCycleReopened => {
-  assert(args.occurredAt instanceof Date, 'occurredAt must be Date')
-  assert(args.cycleNumber > 0, 'cycleNumber must be positive')
-  assert(args.sourceRevision > 0, 'sourceRevision must be positive')
-  assert(args.actorType !== 'user' || args.userId !== null, 'user actor required')
-  assert(args.actorType === 'user' || args.userId === null, 'system actor required')
+  assertHandlingCycleFactScope(args)
   return {
     _tag: 'inbox.handling_cycle.reopened',
     eventId: newEventId(),

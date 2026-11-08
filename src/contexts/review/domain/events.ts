@@ -23,6 +23,27 @@ const PUBLICATION_CANCELLATION_CAUSES = new Set([
   'ai_draft_withdrawn',
 ])
 
+function assertReviewSourceVersion(
+  args: Pick<
+    ReviewCreated,
+    'occurredAt' | 'sourceEpoch' | 'sourceRevision' | 'analysisSequence'
+  >,
+): void {
+  assert(args.occurredAt instanceof Date, 'occurredAt must be a Date')
+  assert(
+    Number.isSafeInteger(args.sourceEpoch) && args.sourceEpoch >= 0,
+    'sourceEpoch must be a nonnegative safe integer',
+  )
+  assert(
+    Number.isSafeInteger(args.sourceRevision) && args.sourceRevision > 0,
+    'sourceRevision must be a positive safe integer',
+  )
+  assert(
+    Number.isSafeInteger(args.analysisSequence) && args.analysisSequence > 0,
+    'analysisSequence must be a positive safe integer',
+  )
+}
+
 export type ReviewObservationOrigin =
   'ongoing' | 'historical_onboarding' | 'legacy_unknown'
 
@@ -52,19 +73,7 @@ export const reviewCreated = (
     correlationId?: string | null
   },
 ): ReviewCreated => {
-  assert(args.occurredAt instanceof Date, 'occurredAt must be a Date')
-  assert(
-    Number.isSafeInteger(args.sourceEpoch) && args.sourceEpoch >= 0,
-    'sourceEpoch must be a nonnegative safe integer',
-  )
-  assert(
-    Number.isSafeInteger(args.sourceRevision) && args.sourceRevision > 0,
-    'sourceRevision must be a positive safe integer',
-  )
-  assert(
-    Number.isSafeInteger(args.analysisSequence) && args.analysisSequence > 0,
-    'analysisSequence must be a positive safe integer',
-  )
+  assertReviewSourceVersion(args)
   return {
     ...args,
     _tag: 'review.created',
@@ -94,19 +103,7 @@ export const reviewUpdated = (
     correlationId?: string | null
   },
 ): ReviewUpdated => {
-  assert(args.occurredAt instanceof Date, 'occurredAt must be a Date')
-  assert(
-    Number.isSafeInteger(args.sourceEpoch) && args.sourceEpoch >= 0,
-    'sourceEpoch must be a nonnegative safe integer',
-  )
-  assert(
-    Number.isSafeInteger(args.sourceRevision) && args.sourceRevision > 0,
-    'sourceRevision must be a positive safe integer',
-  )
-  assert(
-    Number.isSafeInteger(args.analysisSequence) && args.analysisSequence > 0,
-    'analysisSequence must be a positive safe integer',
-  )
+  assertReviewSourceVersion(args)
   return {
     ...args,
     _tag: 'review.updated',
@@ -157,19 +154,7 @@ export const reviewSourceTransitioned = (
     correlationId?: string | null
   },
 ): ReviewSourceTransitioned => {
-  assert(args.occurredAt instanceof Date, 'occurredAt must be a Date')
-  assert(
-    Number.isSafeInteger(args.sourceEpoch) && args.sourceEpoch >= 0,
-    'sourceEpoch must be a nonnegative safe integer',
-  )
-  assert(
-    Number.isSafeInteger(args.sourceRevision) && args.sourceRevision > 0,
-    'sourceRevision must be a positive safe integer',
-  )
-  assert(
-    Number.isSafeInteger(args.analysisSequence) && args.analysisSequence > 0,
-    'analysisSequence must be a positive safe integer',
-  )
+  assertReviewSourceVersion(args)
   return {
     ...args,
     _tag: 'review.source_transitioned',

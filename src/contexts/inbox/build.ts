@@ -30,10 +30,6 @@ import type { ResponseTargetStore } from './application/ports/response-target.st
 import type { ResponseTargetPolicyStore } from './application/ports/response-target-policy.store'
 import type { RestatedRevisionTargetExclusions } from './application/ports/restated-revision-target-exclusion.port'
 import type { ReviewLookupPort } from './application/ports/review-lookup.port'
-import type { ReviewSourceLookupPort } from './application/ports/review-source-lookup.port'
-import type { FeedbackLookupPort } from './application/ports/feedback-lookup.port'
-import type { PropertyLookupPort } from './application/ports/property-lookup.port'
-import type { ReplyLookupPort } from './application/ports/reply-lookup.port'
 import type { AiReviewInsightsPort } from './application/ports/ai-review-insights.port'
 import type {
   FeedbackLookupSource,
@@ -41,34 +37,9 @@ import type {
   ReplyLookupSource,
   ReviewSourceLookupSource,
 } from './application/ports/lookup-sources.port'
-import type { UpdateInboxStatus } from './application/use-cases/update-inbox-status'
-import type { BulkUpdateInboxStatus } from './application/use-cases/bulk-update-inbox-status'
-import type { BulkAssignInboxItems } from './application/use-cases/bulk-assign-inbox-items'
-import type { EscalateInboxItem } from './application/use-cases/escalate-inbox-item'
-import type { ResolveEscalation } from './application/use-cases/resolve-escalation'
-import type { SetInboxItemPriority } from './application/use-cases/set-inbox-item-priority'
-import type { AssignInboxItem } from './application/use-cases/assign-inbox-item'
-import type { GetInboxItems } from './application/use-cases/get-inbox-items'
-import type { AddInboxNote } from './application/use-cases/add-inbox-note'
-import type { GetLastVisitCount } from './application/use-cases/get-last-visit-count'
-import type { StampLastInboxView } from './application/use-cases/stamp-last-inbox-view'
-import type { GetInboxItemDetail } from './application/use-cases/get-inbox-item-detail'
-import type { CheckInboxReviewOnGoogle } from './application/use-cases/check-inbox-review-on-google'
-import type { GetInboxNotes } from './application/use-cases/get-inbox-notes'
-import type { GetInboxItemHistory } from './application/use-cases/get-inbox-item-history'
-import type { GetInboxQueueCounts } from './application/use-cases/get-inbox-queue-counts'
-import type { GetInboxPropertyCounts } from './application/use-cases/get-inbox-property-counts'
-import type { GetReviewInboxItemIds } from './application/use-cases/get-review-inbox-item-ids'
+import type { InboxPublicApi } from './application/public-api'
+import type { GetInboxResponseTarget } from './application/use-cases/get-response-targets'
 import type { RebuildInboxProjection } from './application/use-cases/rebuild-inbox-projection'
-import type { MarkFeedbackHandled } from './application/use-cases/mark-feedback-handled'
-import type { CorrectFeedbackHandlingOutcome } from './application/use-cases/correct-feedback-handling-outcome'
-import type {
-  GetInboxResponseTarget,
-  GetGoogleReviewTargetAnalytics,
-  GetPrivateFeedbackTargetAnalytics,
-  GetResponseTargetPolicySettings,
-} from './application/use-cases/get-response-targets'
-import type { SetResponseTargetPolicy } from './application/use-cases/set-response-target-policy'
 import type { ReleaseDueResponseTargetReminders } from './application/use-cases/release-response-target-reminders'
 import { createInboxRepository } from './infrastructure/repositories/inbox.repository'
 import { createInboxNoteRepository } from './infrastructure/repositories/inbox-note.repository'
@@ -135,70 +106,8 @@ export type InboxContextBuildInput = Readonly<{
   authorizeCommand: InboxCommandAuthority
 }>
 
-type InboxUseCases = Readonly<{
-  updateInboxStatus: UpdateInboxStatus
-  bulkUpdateInboxStatus: BulkUpdateInboxStatus
-  bulkAssignInboxItems: BulkAssignInboxItems
-  escalateInboxItem: EscalateInboxItem
-  resolveEscalation: ResolveEscalation
-  setInboxItemPriority: SetInboxItemPriority
-  assignInboxItem: AssignInboxItem
-  getInboxItems: GetInboxItems
-  addInboxNote: AddInboxNote
-  getLastVisitCount: GetLastVisitCount
-  stampLastInboxView: StampLastInboxView
-  getInboxItemDetail: GetInboxItemDetail
-  checkInboxReviewOnGoogle: CheckInboxReviewOnGoogle
-  getInboxNotes: GetInboxNotes
-  getInboxItemHistory: GetInboxItemHistory
-  getInboxQueueCounts: GetInboxQueueCounts
-  getInboxPropertyCounts: GetInboxPropertyCounts
-  getReviewInboxItemIds: GetReviewInboxItemIds
-  rebuildInboxProjection: RebuildInboxProjection
-  markFeedbackHandled: MarkFeedbackHandled
-  correctFeedbackHandlingOutcome: CorrectFeedbackHandlingOutcome
-  getInboxResponseTarget: GetInboxResponseTarget
-  getGoogleReviewTargetAnalytics: GetGoogleReviewTargetAnalytics
-  getPrivateFeedbackTargetAnalytics: GetPrivateFeedbackTargetAnalytics
-  getResponseTargetPolicySettings: GetResponseTargetPolicySettings
-  setResponseTargetPolicy: SetResponseTargetPolicy
-  releaseDueResponseTargetReminders: ReleaseDueResponseTargetReminders
-}>
-
-type InboxRequestApi = Readonly<
-  Pick<
-    InboxUseCases,
-    | 'updateInboxStatus'
-    | 'bulkUpdateInboxStatus'
-    | 'bulkAssignInboxItems'
-    | 'escalateInboxItem'
-    | 'resolveEscalation'
-    | 'setInboxItemPriority'
-    | 'assignInboxItem'
-    | 'getInboxItems'
-    | 'addInboxNote'
-    | 'getLastVisitCount'
-    | 'stampLastInboxView'
-    | 'getInboxItemDetail'
-    | 'checkInboxReviewOnGoogle'
-    | 'getInboxNotes'
-    | 'getInboxItemHistory'
-    | 'getInboxQueueCounts'
-    | 'getInboxPropertyCounts'
-    | 'getReviewInboxItemIds'
-    | 'markFeedbackHandled'
-    | 'correctFeedbackHandlingOutcome'
-    | 'getGoogleReviewTargetAnalytics'
-    | 'getPrivateFeedbackTargetAnalytics'
-    | 'getResponseTargetPolicySettings'
-    | 'setResponseTargetPolicy'
-  > & {
-    getGoogleReviewTargetCountsByProperty: ResponseTargetStore['getGoogleReviewTargetCountsByProperty']
-  }
->
-
 export type InboxContextApi = Readonly<{
-  publicApi: InboxRequestApi
+  publicApi: InboxPublicApi
   /** Event and cross-context workflow capabilities. These are deliberately
    * separate from request handlers and operator repair commands. */
   lifecycle: Readonly<{
@@ -236,54 +145,15 @@ export type InboxContextApi = Readonly<{
     feedbackHandlingStore: FeedbackHandlingStore
     responseTargetStore: ResponseTargetStore
     responseTargetPolicyStore: ResponseTargetPolicyStore
-    useCases: InboxUseCases
+    useCases: ReturnType<typeof wireUseCases>
   }>
 }>
 
 export const buildInboxContext = (input: InboxContextBuildInput): InboxContextApi => {
-  // Cross-context lookup ports — the inbox build adapts the foreign-owned
-  // sources (injected structurally) into its own lookup contracts.
-  const feedbackLookup: FeedbackLookupPort = createFeedbackLookupAdapter({
-    findResponseSnippetsByIds: (ids, orgId) =>
-      input.sources.feedback.findResponseSnippetsByIds(ids, orgId),
-    findEligibleResponseIds: (orgId, filter) =>
-      input.sources.feedback.findEligibleResponseIds(orgId, filter),
-    findLegacyFeedbackSnippetsByIds: (ids, orgId) =>
-      input.sources.feedback.findLegacyFeedbackSnippetsByIds(ids, orgId),
-    findEligibleLegacyFeedbackIds: (orgId, filter) =>
-      input.sources.feedback.findEligibleLegacyFeedbackIds(orgId, filter),
-  })
-  const propertyLookup: PropertyLookupPort = createPropertyLookupAdapter({
-    getPropertyName: (orgId, pid) => input.sources.property.getPropertyName(orgId, pid),
-    getPropertyNames: (orgId, pids) =>
-      input.sources.property.getPropertyNames(orgId, pids),
-    getPropertyReplyLanguage: input.sources.property.getPropertyReplyLanguage
-      ? (orgId, pid) => input.sources.property.getPropertyReplyLanguage!(orgId, pid)
-      : undefined,
-    getGoogleReviewDestination: input.sources.property.getGoogleReviewDestination
-      ? (orgId, pid) => input.sources.property.getGoogleReviewDestination!(orgId, pid)
-      : undefined,
-  })
-  const replyLookup: ReplyLookupPort = createReplyLookupAdapter({
-    findByReviewId: (id, orgId) => input.sources.reply.findByReviewId(id, orgId),
-    getCurrentGoogleReplyByReviewId: (id, orgId) =>
-      input.sources.reply.getCurrentGoogleReplyByReviewId(id, orgId),
-    findMilestonesByReviewIds: (ids, orgId) =>
-      input.sources.reply.findMilestonesByReviewIds(ids, orgId),
-    findCurrentGoogleReplyHeadsByReviewIds: (ids, orgId) =>
-      input.sources.reply.findCurrentGoogleReplyHeadsByReviewIds(ids, orgId),
-    findStatesByReviewIds: (ids, orgId) =>
-      input.sources.reply.findStatesByReviewIds(ids, orgId),
-    findReviewIdsByReplyStage: (orgId, propertyIds) =>
-      input.sources.reply.findReviewIdsByReplyStage(orgId, propertyIds),
-  })
-  // BQC-3.4: projection source metadata (review.updated consumer + rebuild).
-  const reviewSourceLookup: ReviewSourceLookupPort = createReviewSourceLookupAdapter({
-    findById: (id, orgId) => input.sources.review.findById(id, orgId),
-    findByIds: (ids, orgId) => input.sources.review.findByIds(ids, orgId),
-    findByOrganizationId: (orgId) => input.sources.review.findByOrganizationId(orgId),
-    findByPropertyId: (pid, orgId) => input.sources.review.findByPropertyId(pid, orgId),
-  })
+  const feedbackLookup = createFeedbackLookupAdapter(input.sources.feedback)
+  const propertyLookup = createPropertyLookupAdapter(input.sources.property)
+  const replyLookup = createReplyLookupAdapter(input.sources.reply)
+  const reviewSourceLookup = createReviewSourceLookupAdapter(input.sources.review)
   const replyObservationAuthority = createReplyObservationAuthorityAdapter(
     input.sources.replyObservationAuthority,
   )
@@ -357,7 +227,7 @@ export const buildInboxContext = (input: InboxContextBuildInput): InboxContextAp
     clock: input.clock,
     idGen: input.idGen,
   })
-  const publicApi: InboxRequestApi = projectInboxRequestApi(useCases, responseTargetStore)
+  const publicApi: InboxPublicApi = projectInboxRequestApi(useCases, responseTargetStore)
   const lifecycle = Object.freeze({
     getInboxResponseTarget: useCases.getInboxResponseTarget,
   })
