@@ -21,7 +21,7 @@ import {
   portalUpdated,
 } from '../domain/events'
 import { portalToRow } from './mappers/portal.mapper'
-import { createAtomicPortalCommandStore } from './portal-command-store'
+import { createAtomicPortalCommandStore } from '../publication/portal-command-store.server'
 
 const ORG = organizationId('org-collector-fence-a')
 const OTHER_ORG = organizationId('org-collector-fence-b')

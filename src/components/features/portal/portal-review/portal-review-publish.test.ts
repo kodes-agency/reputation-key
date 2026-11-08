@@ -71,7 +71,7 @@ describe('publishReview', () => {
     await publishReview(deps)
 
     expect(deps.goLive).toHaveBeenCalledWith({
-      data: { portalId: PORTAL_ID, publicationState: 'published' },
+      data: { portalId: PORTAL_ID },
     })
     expect(deps.publishChanges).not.toHaveBeenCalled()
     expect(deps.notify.success).toHaveBeenCalledWith('Version 1 is live')

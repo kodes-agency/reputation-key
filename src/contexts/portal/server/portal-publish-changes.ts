@@ -1,7 +1,7 @@
 // Portal context — publish changes while live (server functions).
 // Thin: resolve auth, check each Portal's scope and the write capability, call
 // the use case, translate errors. A Portal that is not live goes live through
-// `updatePortal`; these are for a Portal that already is.
+// `publishPortal`; these are for a Portal that already is.
 
 import { createServerFn } from '@tanstack/react-start'
 import { z } from 'zod/v4'

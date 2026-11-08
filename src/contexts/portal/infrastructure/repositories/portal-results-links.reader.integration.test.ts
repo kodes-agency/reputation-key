@@ -10,7 +10,7 @@ import { clearEventSchemas } from '#/shared/events/schema-registry'
 import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
 import { organizationId, portalId, propertyId, userId } from '#/shared/domain/ids'
 import { portalCreated } from '../../domain/events'
-import { createAtomicPortalCommandStore } from '../portal-command-store'
+import { createAtomicPortalCommandStore } from '../../publication/portal-command-store.server'
 import { createPortalResultsLinksReader } from './portal-results-links.reader'
 
 const ORG_A = organizationId('org-resultlinks-000-0000-000000000001')

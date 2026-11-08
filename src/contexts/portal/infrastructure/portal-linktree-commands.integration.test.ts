@@ -27,7 +27,7 @@ import {
   portalLocaleSetUpdated,
   portalUpdated,
 } from '../domain/events'
-import { createAtomicPortalCommandStore } from './portal-command-store'
+import { createAtomicPortalCommandStore } from '../publication/portal-command-store.server'
 
 const ORG_A = organizationId('org-linktree-0000-0000-000000000001')
 const ORG_B = organizationId('org-linktree-0000-0000-000000000002')

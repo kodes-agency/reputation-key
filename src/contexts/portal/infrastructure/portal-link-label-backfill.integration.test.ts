@@ -16,7 +16,7 @@ import { clearEventSchemas } from '#/shared/events/schema-registry'
 import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
 import { organizationId, portalId, propertyId, userId } from '#/shared/domain/ids'
 import { portalCreated } from '../domain/events'
-import { createAtomicPortalCommandStore } from './portal-command-store'
+import { createAtomicPortalCommandStore } from '../publication/portal-command-store.server'
 
 const ORG_A = organizationId('org-lblbf-0000-0000-000000000001')
 const ORG_B = organizationId('org-lblbf-0000-0000-000000000002')

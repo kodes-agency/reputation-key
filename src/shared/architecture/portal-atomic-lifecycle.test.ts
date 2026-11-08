@@ -8,7 +8,7 @@ import { EVENT_FAMILY_ROWS } from '#/shared/governance/event-job-catalogue'
 
 const CORE_USE_CASES = [
   'src/contexts/portal/application/use-cases/create-portal.ts',
-  'src/contexts/portal/application/use-cases/update-portal.ts',
+  'src/contexts/portal/publication/portal-change.server.ts',
   'src/contexts/portal/application/use-cases/soft-delete-portal.ts',
   'src/contexts/portal/application/use-cases/update-link.ts',
   'src/contexts/portal/application/use-cases/delete-link.ts',
