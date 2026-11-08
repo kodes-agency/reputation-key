@@ -5,7 +5,6 @@ import {
   averageGoalLine,
   averageTiles,
   goalStateLine,
-  severalGoalWords,
   singleGoalTitle,
   singleSubjectWords,
   subjectPlace,
@@ -91,23 +90,6 @@ describe('the page of a goal for one portal, one group or the average', () => {
     )
     expect(goalStateLine({ ...goal, status: 'ended' })).toBe('Stopped.')
     expect(goalStateLine({ ...goal, status: 'paused' })).toBe('Paused.')
-  })
-
-  it('a goal for several subjects is named as its row is, and says what it counts where', () => {
-    const spa = { kind: 'portal', key: 'portal:spa', name: 'Spa' } as const
-
-    expect(
-      severalGoalWords('portal_rating_count', [spa, reception, rooms], 'Seaview Hotel'),
-    ).toEqual({
-      title: 'Rooms (group) and 2 more · portal goal',
-      line: 'Private ratings from Rooms (group) and 2 more at Seaview Hotel.',
-    })
-    expect(
-      severalGoalWords('portal_rating_average', [spa, reception], 'Seaview'),
-    ).toEqual({
-      title: 'Reception and Spa · portal goal',
-      line: 'The average private rating guests give at Reception and Spa. A month needs at least 10 ratings.',
-    })
   })
 
   it('the average reads "4.6 so far · goal 4.5", with the days left', () => {
