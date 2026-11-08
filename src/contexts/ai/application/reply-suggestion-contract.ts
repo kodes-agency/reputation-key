@@ -32,7 +32,7 @@ export type GenerateReplySuggestionInput = Readonly<{
   /** Trusted in-process observer, never accepted from request JSON. */
   onProgress?: import('#/shared/reply-drafting-progress').ReplyDraftingProgressSink
   onIdentity?: (
-    identity: import('./reply-drafting-requests').DraftingRequestIdentity,
+    identity: import('../reply/requests.server').DraftingRequestIdentity,
   ) => void
   /** Explicitly request the governed local catalogue without AI admission or execution. */
   templateOnly?: boolean

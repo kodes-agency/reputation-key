@@ -9,7 +9,7 @@ import type {
   GuestVoiceRatingTrend,
   GuestVoiceRatingMonth,
   RatingTrendPeriod,
-} from './guest-voice-v2-check-in'
+} from '../../guest-voice/contracts'
 import type { Period } from './guest-voice-v2-join'
 import { calendarMonths } from './guest-voice-v2-recency'
 

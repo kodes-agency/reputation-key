@@ -1,0 +1,343 @@
+// Transient Guest voice display contracts; recorded analysis versions remain independent.
+import type {
+  ReviewUrgentReasonV3,
+  ReviewUrgentReasonV3 as UrgentReasonV3,
+} from '#/shared/review-analysis-v3'
+import type { ReviewTopicV3 } from '#/shared/review-topic-taxonomy'
+import type { GuestVoiceTopicStatus } from '../domain/guest-voice-topic-status'
+import type { GUEST_VOICE_STATISTICS_VERSION } from '../domain/guest-voice-statistics'
+export type { GuestVoiceTopicStatus } from '../domain/guest-voice-topic-status'
+
+/** The windows the statistics engine chooses between. */
+export type Window = '30d' | '90d' | '180d' | '365d'
+export type Change = 'rising' | 'falling' | 'steady' | 'unknown'
+export type EvidenceLevel = 'not_enough' | 'early' | 'likely'
+
+/** What is known of one issue (or one topic) over the window, worked out by the engine. */
+export type IssueStatistics = Readonly<{
+  /** Reviews with text that name it. */
+  reviewCount: number
+  /** Reviews with text in the window: the "of 128" in "19 of 128". */
+  textReviewCount: number
+  /** Every review in the window, those with only stars included. */
+  allReviewCount: number
+  /** "19 of 128" (`shareText`). */
+  shareText: string
+  /** Null under 20 reviews with text: counts first, percentages only above that. */
+  sharePercent: number | null
+  /** Average stars of the reviews that name it, and of every other review. */
+  mentionedAverage: number | null
+  othersAverage: number | null
+  gap: number | null
+  /** "Worth up to": share of every review x the gap, to the nearest 0.05 stars. */
+  upTo: number | null
+  change: Change
+  evidenceLevel: EvidenceLevel
+}>
+
+/**
+ * One quote, read live: the text and where, in it, the cited sentences are. A review whose
+ * original analysis names a person anywhere is never one: the read leaves it out, so
+ * nothing here can be asked to hide a name.
+ */
+export type LiveEvidence = Readonly<{
+  inboxItemId: string
+  /** A day (`2026-10-18`) or an instant; the page prints the day. */
+  reviewedAt: string
+  rating: 1 | 2 | 3 | 4 | 5
+  text: string
+  /** Character offsets into `text`, one range per cited sentence. */
+  sentenceRanges: readonly Readonly<{ start: number; end: number }>[]
+}> // response-only; never persisted in AI storage
+
+export type GuestVoiceBasis = Readonly<{
+  textReviewCount: number
+  starOnlyCount: number
+  analysedTextReviewCount: number
+}>
+export type GuestVoiceWindowContext = Readonly<{
+  window: Window
+  startLocalDate: string
+  endLocalDate: string
+  dataThroughLocalDate: string
+  provisional: boolean
+  basis: GuestVoiceBasis
+}>
+export type UrgentConcernItem = Readonly<{
+  key: string
+  issueId: string | null
+  topic: ReviewTopicV3 | null
+  title: string
+  urgentReason: ReviewUrgentReasonV3
+  reviewCount: number
+  lastReportedLocalDate: string
+}>
+export type GuestVoiceSeriousConcerns = Readonly<{
+  items: readonly UrgentConcernItem[]
+  groupCount: number
+  reviewCount: number
+  remainingGroupCount: number
+  remainingReviewCount: number
+  coverage: 'complete' | 'provisional'
+}>
+export type RatingTrendPeriod = Readonly<{
+  startLocalDate: string
+  endLocalDate: string
+  reviewCount: number
+  averageStars: number | null
+  happyReviewCount: number
+}>
+export type GuestVoiceRatingMonth = RatingTrendPeriod &
+  Readonly<{
+    month: string
+    partialStart: boolean
+    partialEnd: boolean
+  }>
+export type GuestVoiceRatingTrend = Readonly<{
+  methodVersion: 'guest-voice-rating-trend-v1'
+  population: 'current_reviews_with_text'
+  months: readonly GuestVoiceRatingMonth[]
+  before: RatingTrendPeriod
+  recent: RatingTrendPeriod
+  verdict: 'improving' | 'steady' | 'slipping' | 'not_enough'
+  reason: 'assessed' | 'too_few_reviews' | 'analysis_incomplete'
+}>
+export type GuestVoiceTopicAssessment = Readonly<{
+  status: GuestVoiceTopicStatus
+  mentionedReviewCount: number
+  happyReviewCount: number
+  mixedReviewCount: number
+  unhappyReviewCount: number
+  neutralOnlyReviewCount: number
+  happyShare: number | null
+}>
+export type GuestVoiceDetailTarget =
+  | Readonly<{ kind: 'issue'; issueId: string; sense: 'complaint' | 'praise' }>
+  | Readonly<{ kind: 'concern'; issueId: string | null; reason: ReviewUrgentReasonV3 }>
+  | Readonly<{ kind: 'topic'; topic: ReviewTopicV3 }>
+
+/** Scope for the existing issue/polarity/day or urgent Inbox search. No review-id filter. */
+export type GuestVoiceMatchingReviewScope = Readonly<{
+  startLocalDate: string
+  endLocalDate: string
+  issueId: string | null
+  sense: 'complaint' | 'praise' | null
+}>
+export type GuestVoiceHistoryMonth = Readonly<{
+  month: string
+  reviewCount: number
+  textReviews: number
+  startLocalDate: string
+  endLocalDate: string
+  partialStart: boolean
+  partialEnd: boolean
+}>
+export type GuestVoiceCauseRow = Readonly<{
+  issueId: string | null
+  cause: string | null
+  title: string
+  reviewCount: number
+}>
+export type GuestVoiceConcernDrawer = Readonly<{
+  kind: 'concern'
+  target: Extract<GuestVoiceDetailTarget, { kind: 'concern' }>
+  title: string
+  reason: ReviewUrgentReasonV3
+  reviewCount: number
+  lastReportedLocalDate: string
+  context: GuestVoiceWindowContext
+  liveEvidence: readonly LiveEvidence[]
+  monthlySeries: readonly GuestVoiceHistoryMonth[]
+  matchingReviews: GuestVoiceMatchingReviewScope
+}>
+export type GuestVoiceTopicDrawer = Readonly<{
+  kind: 'topic'
+  topic: ReviewTopicV3
+  assessment: GuestVoiceTopicAssessment
+  context: GuestVoiceWindowContext
+  likedCauses: readonly GuestVoiceCauseRow[]
+  dislikedCauses: readonly GuestVoiceCauseRow[]
+  linkedConcerns: readonly UrgentConcernItem[]
+}>
+export type GuestVoiceDetailRead =
+  | Readonly<{
+      status: 'ready'
+      drawer: IssueDrawer | GuestVoiceConcernDrawer | GuestVoiceTopicDrawer
+    }>
+  | Readonly<{ status: 'not_found' | 'disabled' | 'preparing' | 'refresh_required' }>
+
+export type IssueDrawer = Readonly<{
+  kind: 'issue'
+  sense: 'complaint' | 'praise'
+  context: GuestVoiceWindowContext
+  lastMentionedLocalDate: string
+  commentComparison: Readonly<{
+    population: 'current_analysed_comments'
+    mentionedCount: number
+    otherCount: number
+    mentionedAverage: number | null
+    othersAverage: number | null
+  }>
+  linkedConcerns: readonly UrgentConcernItem[]
+  matchingReviews: GuestVoiceMatchingReviewScope
+  historyCoverage: 'twelve_months' | 'window_only'
+  issueId: string
+  title: string
+  topic: ReviewTopicV3
+  definition: string
+  hidden: boolean
+  statistics: IssueStatistics
+  /** Available history, oldest first; window-only when a bounded read cannot cover twelve months. */
+  twelveMonthSeries: readonly (GuestVoiceHistoryMonth &
+    Readonly<{ complaintReviews: number }>)[]
+  causes: readonly Readonly<{ cause: string; reviewCount: number }>[]
+  liveEvidence: readonly LiveEvidence[]
+}>
+
+export type InShortLine = Readonly<{
+  kind: 'fix_first' | 'protect' | 'change'
+  text: string
+  issueId: string | null
+  topic: ReviewTopicV3
+}>
+
+export type FixFirstItem = Readonly<{
+  answerName: string
+  lastMentionedLocalDate: string
+  issueId: string
+  title: string
+  topic: ReviewTopicV3
+  causes: readonly string[]
+  urgentReason: UrgentReasonV3 | null
+  statistics: IssueStatistics
+  /**
+   * One live quote, the evidence underlined, for the card. The contract keeps
+   * the page content-free and reads quotes only for the drawer; the agreed design puts
+   * one on each card ("in guests' own words"). Null or absent: the card has none, as
+   * for a review that names a person or whose text has gone.
+   */
+  quote?: LiveEvidence | null
+}>
+
+export type GuestsLoveItem = Readonly<{
+  answerName: string
+  lastMentionedLocalDate: string
+  issueId: string
+  title: string
+  topic: ReviewTopicV3
+  statistics: IssueStatistics
+  /** As `FixFirstItem.quote`. */
+  quote?: LiveEvidence | null
+}>
+
+export type StaffPraiseLine = Readonly<{
+  reviewCount: number
+  inboxHref: string
+}> | null
+
+export type WatchItem = Readonly<{
+  answerName: string
+  lastMentionedLocalDate: string
+  issueId: string
+  title: string
+  topic: ReviewTopicV3
+  reviewCount: 1 | 2
+}>
+
+export type ChangedItem = Readonly<{
+  answerName: string
+  lastMentionedLocalDate: string
+  issueId: string
+  title: string
+  topic: ReviewTopicV3
+  change: Exclude<Change, 'steady' | 'unknown'>
+  evidenceLevel: 'likely'
+  statistics: IssueStatistics
+  /**
+   * Whether the reviews that moved praise it or complain about it: a rise is
+   * good news for praise and bad news for a complaint, and the page says which.
+   */
+  polarity: 'complaint' | 'praise'
+}>
+
+export type TopicRow = Readonly<{
+  assessment: GuestVoiceTopicAssessment
+  topic: ReviewTopicV3
+  praiseReviews: number
+  complaintReviews: number
+  neutralReviews: number
+  statistics: IssueStatistics
+}>
+
+export type GuestVoiceV2Ready = Readonly<{
+  status: 'ready'
+  readModelVersion: 'guest-voice-read-v2'
+  checkInVersion: 'guest-voice-check-in-v1'
+  /** The engine that worked the figures out (`GUEST_VOICE_STATISTICS_VERSION`). */
+  statisticsVersion: typeof GUEST_VOICE_STATISTICS_VERSION
+  window: Window
+  startLocalDate: string
+  endLocalDate: string
+  dataThroughLocalDate: string
+  provisional: boolean
+  /**
+   * What the window holds, so the page can name it: "Last 90 days, chosen because
+   * it holds 128 reviews with text". The statistics carry these per issue, and a page with
+   * no issue at all still has to say them.
+   */
+  basis: GuestVoiceBasis
+  ratingTrend: GuestVoiceRatingTrend
+  seriousConcerns: GuestVoiceSeriousConcerns
+  sectionTotals: Readonly<{ fixFirst: number; guestsLove: number; watch: number }>
+  remainingCounts: Readonly<{ fixFirst: number; guestsLove: number; watch: number }>
+  inShort: readonly InShortLine[]
+  urgent: readonly FixFirstItem[]
+  /**
+   * Urgent reviews in the window that no card above stands for: the analysis
+   * found the risk but no problem to put under an issue, or there are more than the page
+   * has room for. They are on the page as a count and in the Inbox, never dropped;
+   * absent when there are none.
+   */
+  urgentOtherCount?: number
+  fixFirst: readonly FixFirstItem[]
+  guestsLove: readonly GuestsLoveItem[]
+  staffPraise: StaffPraiseLine
+  watch: readonly WatchItem[]
+  whatChanged: readonly ChangedItem[]
+  everyTopic: readonly TopicRow[]
+}>
+
+/**
+ * A recent review, for a property too young to show patterns. `text` is null when
+ * the review names a person or has changed or gone: the row then has its stars, its day
+ * and the way to the Inbox.
+ */
+export type LatestReview = Readonly<{
+  inboxItemId: string
+  reviewedAt: string
+  rating: 1 | 2 | 3 | 4 | 5
+  text: string | null
+}>
+
+/**
+ * Under about 10 reviews with text in 12 months there are no patterns to spot:
+ * the page says so and shows the latest reviews (decision Q7).
+ */
+export type GuestVoiceV2NotEnough = Readonly<{
+  status: 'not_enough_reviews'
+  context: GuestVoiceWindowContext
+  seriousConcerns: GuestVoiceSeriousConcerns
+  allReviewCount: number
+  /** Number of previews actually accessible after live resolution, at most three. */
+  latestReviewCount: number
+  readModelVersion: 'guest-voice-read-v2'
+  checkInVersion: 'guest-voice-check-in-v1'
+  /** Reviews with text in the last 12 months. */
+  textReviewCount: number
+  latestReviews: readonly LatestReview[]
+}>
+
+export type GuestVoiceV2Read = GuestVoiceV2Ready | GuestVoiceV2NotEnough
+
+export type { ReviewTopicV3 } from '#/shared/review-topic-taxonomy'
+export type { Window as GuestVoiceWindow }

@@ -20,7 +20,7 @@ import { Skeleton } from '#/components/ui/skeleton'
 import { cn } from '#/lib/utils'
 import { aiKeys } from '#/shared/queries/query-keys'
 import { usePermissions } from '#/shared/hooks/usePermissions'
-import { issueReviewsSearch } from './guest-voice/guest-voice-links'
+import { issueReviewsSearch } from '../../../contexts/ai/guest-voice/ui/guest-voice-links'
 import {
   OVERVIEW_GUEST_VOICE_RANGE,
   overviewIssueCountText,

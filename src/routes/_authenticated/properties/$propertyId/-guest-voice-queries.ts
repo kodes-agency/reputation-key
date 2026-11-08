@@ -5,7 +5,7 @@ import type {
 } from '#/contexts/ai/application/public-api'
 import type { GuestVoiceRange } from '#/shared/dashboard-range'
 import { aiKeys, dashboardKeys } from '#/shared/queries/query-keys'
-import { detailTargetKey } from '#/components/features/property/guest-voice/guest-voice-detail-navigation'
+import { detailTargetKey } from '#/contexts/ai/guest-voice/ui/guest-voice-detail-navigation'
 import { guestVoiceFns } from './-guest-voice-fns'
 
 export const propertyGuestVoiceV2Query = (propertyId: string, range: GuestVoiceRange) =>

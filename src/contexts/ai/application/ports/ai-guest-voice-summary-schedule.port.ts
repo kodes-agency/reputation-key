@@ -1,5 +1,5 @@
 import type { OrganizationId, PropertyId } from '#/shared/domain/ids'
-import type { GuestVoiceSummaryPlan } from '../use-cases/plan-guest-voice-summary'
+import type { GuestVoiceSummaryPlan } from '../../guest-voice/plan-summary.server'
 
 /** A Property whose Guest voice summary may be due: it is its Monday morning. */
 export type DueGuestVoiceSummary = Readonly<{
