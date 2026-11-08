@@ -25,7 +25,7 @@ import type {
   GoalProgramRepository,
 } from '../../application/ports/goal-program.repository'
 import { GOAL_MAINTENANCE_PAGE_SIZE } from '../../application/ports/goal-program.repository'
-import { holdOutlasts } from '../../application/goal-subject-holds'
+import { holdOutlasts } from '../../monthly-goals/subject-assignments.server'
 import { goalSubjectIdentity } from '../../domain/goal-program'
 import { createGoalMonthTargetRepository } from './goal-month-target.repository'
 import { createGoalMonthlyResultRepository } from './goal-monthly-result.repository'

@@ -10,7 +10,7 @@ import {
   type GoalSubject,
 } from '../../domain/goal-program'
 import { METRIC_VERSION_IDS } from '../../domain/metric-registry'
-import { assignmentHoldsFrom } from '../goal-subject-holds'
+import { assignmentHoldsFrom } from '../../monthly-goals/subject-assignments.server'
 import type {
   GoalAssignmentConflict,
   GoalProgramBundle,
