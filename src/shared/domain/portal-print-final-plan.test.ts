@@ -258,3 +258,37 @@ describe('the photo (spec 6.2)', () => {
     expect(printFinalPhotoPixelsFor(wide, 150).heightPx).toBe(638)
   })
 })
+
+describe('live-area containment', () => {
+  it.each(['upright', 'wide'] as const)(
+    'refuses over-wide ink on a %s face',
+    (orientation) => {
+      const p = plan(face({ orientation }), [part('headline', 500, 8)])
+      expect(p.fits).toBe(false)
+    },
+  )
+
+  it.each(['upright', 'wide'] as const)(
+    'refuses a code box outside a %s face',
+    (orientation) => {
+      const f = face({ orientation })
+      const code = printFinalCodeBlock(f, PRINT_FINAL_MEASURES.us.counter, 1)
+      for (const dimension of ['widthPt', 'heightPt'] as const) {
+        const p = planPrintFinalFace({
+          face: f,
+          parts: SMALL_WORDS,
+          code: { ...code, [dimension]: mmPt(500) },
+        })
+        expect(p.fits, dimension).toBe(false)
+      }
+    },
+  )
+
+  it.each([Number.NaN, Number.POSITIVE_INFINITY, -1])(
+    'refuses invalid ink dimensions (%s)',
+    (widthPt) => {
+      const p = plan(face(), [{ ...part('headline', 50, 8), widthPt }])
+      expect(p.fits).toBe(false)
+    },
+  )
+})

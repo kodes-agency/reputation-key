@@ -29,6 +29,8 @@ describe('personal Portal public wording', () => {
     'Polly Smith',
     'Ask POLLY',
     'Help from Smith',
+    { look: { wordmark: 'POLLY' } },
+    { brandProfile: { wordmark: 'Smith' } },
     { en: { title: 'Polly', shortDescription: null } },
     { links: [{ texts: { en: { label: 'Smith', line: null } } }] },
   ])('refuses a name in public wording %j', (text) => {

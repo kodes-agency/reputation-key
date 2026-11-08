@@ -496,6 +496,15 @@ the PDF and preview use the same measures and planners, checked with real fonts.
 - Print languages, wording and look come from the live publication. Draft-only
   languages and Portals without a live version cannot print. The Property country
   sets the default paper; an explicit paper choice wins.
+- The shared planner checks every ink and code box against all four live-area
+  edges, including unbreakable words at the smallest headline. Preview and PDF
+  keep the same refusal, including the optional back when selected. Rendered PDFs
+  are independently rasterized and QR-decoded to the issued address in tests.
+  Offer checks visit every occurrence; personal Portal
+  wording and wordmarks keep staff names private, including a live print's look.
+- Wording saves have their own actor and Organization write budgets. They never
+  spend the address-download budgets; authorization still precedes either limit,
+  and print files remain uncacheable even on refusal.
 - `printing/print-download.server.ts` reads stored pictures within their recorded
   size and verifies their hash before the audited address reveal. Missing or
   changed bytes refuse the print without a disclosure. Taken-down media is omitted.
