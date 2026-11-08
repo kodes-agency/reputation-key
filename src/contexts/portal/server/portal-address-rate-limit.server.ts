@@ -21,17 +21,37 @@ type Input = Readonly<{
 export async function checkPortalAddressRateLimit(
   input: Input,
 ): Promise<PortalError | null> {
-  const refusal = portalError(
-    'rate_limited',
+  return checkPortalRateLimit(
+    input,
+    'address-reveal',
     'Too many downloads. Please wait a little before trying again.',
   )
+}
+
+/** Wording saves never disclose an address or spend a download's budget. */
+export async function checkPortalPrintWordingRateLimit(
+  input: Input,
+): Promise<PortalError | null> {
+  return checkPortalRateLimit(
+    input,
+    'print-wording',
+    'Too many saves. Please wait a little before trying again.',
+  )
+}
+
+async function checkPortalRateLimit(
+  input: Input,
+  action: 'address-reveal' | 'print-wording',
+  message: string,
+): Promise<PortalError | null> {
+  const refusal = portalError('rate_limited', message)
   const actor = await input.rateLimiter.check(
-    `portal:address-reveal:actor:${input.organizationId}:${input.actorId}`,
+    `portal:${action}:actor:${input.organizationId}:${input.actorId}`,
     ACTOR_LIMIT,
   )
   if (!actor.allowed) return refusal
   const organization = await input.rateLimiter.check(
-    `portal:address-reveal:organization:${input.organizationId}`,
+    `portal:${action}:organization:${input.organizationId}`,
     ORGANIZATION_LIMIT,
   )
   return organization.allowed ? null : refusal

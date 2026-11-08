@@ -20,6 +20,7 @@ import { PortalShare } from './portal-share'
 import type { DownloadPrintFinalInput } from './portal-print-kit-types'
 import type { IssuedPortalLink, PortalShareMutations } from './portal-share-types'
 import { DARK_LOGO, PHOTO } from './print-final-story-fixtures'
+import { PRINT_FINAL_REFUSAL_COPY } from '#/shared/domain/portal-print-final-refusals'
 
 const QR_ADDRESS = 'HTTPS://AP.UP.RAILWAY.APP/p/7K3QZ0VD9MWX4HT2BN6R'
 const issuedLink: IssuedPortalLink = {
@@ -299,6 +300,32 @@ export const CounterCardBackPage: Story = {
         data: expect.objectContaining({ piece: 'counter', backPage: true }),
       }),
     )
+  },
+}
+
+export const OverflowingBackRefusesDownload: Story = {
+  args: {
+    ...baseArgs,
+    printKit: printKit(view({ propertyName: 'W'.repeat(60) })),
+  },
+  parameters: { theme: 'light' },
+  play: async ({ args, canvasElement }) => {
+    const canvas = within(canvasElement)
+    await userEvent.click(await canvas.findByRole('radio', { name: /^Counter cards/ }))
+    const download = canvas.getByRole('button', { name: /download pdf/i })
+    await expect(download).toBeEnabled()
+    await userEvent.click(canvas.getByText('More options'))
+    const back = canvas.getByRole('checkbox', { name: 'Print a back page' })
+    await userEvent.click(back)
+    await expect(download).toBeDisabled()
+    await expect(
+      canvas.getByText(PRINT_FINAL_REFUSAL_COPY.words_do_not_fit),
+    ).toBeVisible()
+    await userEvent.click(download)
+    await expect(args.printKit?.downloadFinalMutation).not.toHaveBeenCalled()
+    await userEvent.click(back)
+    await expect(download).toBeEnabled()
+    await expect(canvas.queryByText(PRINT_FINAL_REFUSAL_COPY.words_do_not_fit)).toBeNull()
   },
 }
 

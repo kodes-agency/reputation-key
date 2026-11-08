@@ -39,6 +39,8 @@ const LOGO_BYTES = Buffer.from('logo image bytes')
 const PRINTED_AT = new Date('2026-10-25T09:30:00.000Z')
 
 type Options = Readonly<{
+  personal?: boolean
+  wordmark?: string
   accessible?: readonly PropertyId[]
   live?: boolean
   revealFailure?: ReturnType<typeof portalError>
@@ -49,7 +51,11 @@ type Options = Readonly<{
 }>
 
 async function setup(options: Options = {}) {
-  const portal = buildTestPortal({ name: 'Reception' })
+  const portal = buildTestPortal(
+    options.personal
+      ? { kind: 'personal', name: 'Polly Smith', publicName: 'Reception' }
+      : { name: 'Reception' },
+  )
   const portalRepo = createInMemoryPortalRepo()
   portalRepo.seed([portal])
   const mediaRepo = createInMemoryPortalMediaAssetRepo()
@@ -109,9 +115,19 @@ async function setup(options: Options = {}) {
           : ({
               id: 'snapshot-1',
               version: 1,
-              configuration: immersiveConfiguration(
-                options.localeSet === undefined ? {} : { localeSet: options.localeSet },
-              ),
+              configuration: immersiveConfiguration({
+                ...(options.localeSet === undefined
+                  ? {}
+                  : { localeSet: options.localeSet }),
+                ...(options.wordmark === undefined
+                  ? {}
+                  : {
+                      brandProfile: {
+                        ...immersiveConfiguration().brandProfile,
+                        wordmark: options.wordmark,
+                      },
+                    }),
+              }),
             } as PortalPublicationSnapshot),
     },
     mediaRepo,
@@ -176,6 +192,28 @@ describe('createPortalPrintFinal', () => {
     expect(input?.title).toBe('Reception table tents')
     expect(input?.photo).not.toBeNull()
     expect(input?.logo).not.toBeNull()
+  })
+
+  it('refuses a personal name in a live wordmark before revealing or rendering', async () => {
+    const { portal, make, reveal, rendered, wordingRepo, lastPrintRepo } = await setup({
+      personal: true,
+      wordmark: 'POLLY',
+    })
+    await expect(make(tents(portal.id), buildTestAuthContext())).rejects.toMatchObject({
+      code: 'personal_portal_name_private',
+    })
+    expect(reveal).not.toHaveBeenCalled()
+    expect(rendered).toEqual([])
+    expect(wordingRepo.saved()).toEqual([])
+    expect(lastPrintRepo.recorded()).toEqual([])
+  })
+
+  it('keeps a neutral personal print and the manager-only name in its file name', async () => {
+    const { portal, make, rendered } = await setup({ personal: true })
+    const file = await make(tents(portal.id), buildTestAuthContext())
+    expect(rendered[0]?.wordmark).toBe('HARBOR')
+    expect(rendered[0]?.personalName).toBe('Polly Smith')
+    expect(file.fileName).toBe('Polly Smith - Table tents.pdf')
   })
 
   it('passes the spares and a count a sheet the manager asked for', async () => {
@@ -658,23 +696,26 @@ describe('createPortalPrintFinal', () => {
     ])
   })
 
-  it('refuses own words that offer something for the review, before the address is read', async () => {
-    const { portal, make, reveal } = await setup()
+  it.each(['Get 10% off', 'Feel free to tell us; free dessert'])(
+    'refuses own words that offer something for the review, before the address is read (%s)',
+    async (headline) => {
+      const { portal, make, reveal } = await setup()
 
-    await expect(
-      make(
-        tents(portal.id, {
-          customWords: { en: { headline: 'Get 10% off', subline: '' } },
-        }),
-        buildTestAuthContext(),
-      ),
-    ).rejects.toMatchObject({
-      code: 'print_format_not_offered',
-      message: PRINT_FINAL_REFUSAL_COPY.remove_offer,
-      context: { cause: 'remove_offer' },
-    })
-    expect(reveal).not.toHaveBeenCalled()
-  })
+      await expect(
+        make(
+          tents(portal.id, {
+            customWords: { en: { headline, subline: '' } },
+          }),
+          buildTestAuthContext(),
+        ),
+      ).rejects.toMatchObject({
+        code: 'print_format_not_offered',
+        message: PRINT_FINAL_REFUSAL_COPY.remove_offer,
+        context: { cause: 'remove_offer' },
+      })
+      expect(reveal).not.toHaveBeenCalled()
+    },
+  )
 
   it('remembers the manager’s own words with the print, only the languages that changed', async () => {
     const { portal, make, lastPrintRepo } = await setup()

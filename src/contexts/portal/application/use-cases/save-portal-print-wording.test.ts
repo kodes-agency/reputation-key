@@ -143,24 +143,27 @@ describe('savePortalPrintWording', () => {
     ).resolves.toMatchObject({ customWords: { en: { headline: sixty } } })
   })
 
-  it('refuses own words that offer something for the review, as the download does', async () => {
-    const { portal, save, wordingRepo } = setup()
+  it.each(['Get 10% off', 'Feel free to tell us; free dessert'])(
+    'refuses own words that offer something for the review, as the download does (%s)',
+    async (headline) => {
+      const { portal, save, wordingRepo } = setup()
 
-    await expect(
-      save(
-        parsed({
-          portalId: portal.id,
-          callToAction: 'how_did_we_do',
-          customWords: { en: { headline: 'Get 10% off', subline: '' } },
-        }),
-        ctx,
-      ),
-    ).rejects.toMatchObject({
-      code: 'print_format_not_offered',
-      context: { cause: 'remove_offer' },
-    })
-    expect(wordingRepo.saved()).toEqual([])
-  })
+      await expect(
+        save(
+          parsed({
+            portalId: portal.id,
+            callToAction: 'how_did_we_do',
+            customWords: { en: { headline, subline: '' } },
+          }),
+          ctx,
+        ),
+      ).rejects.toMatchObject({
+        code: 'print_format_not_offered',
+        context: { cause: 'remove_offer' },
+      })
+      expect(wordingRepo.saved()).toEqual([])
+    },
+  )
 
   it('refuses a caller who may not update the Portal', async () => {
     const { portal, save, wordingRepo } = setup()

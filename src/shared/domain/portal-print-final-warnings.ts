@@ -52,10 +52,12 @@ function tokensOf(text: string): readonly Token[] {
 }
 
 /** Where the phrase starts in the tokens, or -1. */
-function findPhrase(tokens: readonly Token[], phrase: string): number {
+function findPhrase(tokens: readonly Token[], phrase: string, from = 0): number {
   const words = phrase.split(' ')
-  return tokens.findIndex((_, start) =>
-    words.every((word, offset) => tokens[start + offset]?.folded === word),
+  return tokens.findIndex(
+    (_, start) =>
+      start >= from &&
+      words.every((word, offset) => tokens[start + offset]?.folded === word),
   )
 }
 
@@ -104,18 +106,25 @@ function freeThing(
   words: PrintFinalWarningWords,
 ): string | null {
   for (const free of words.free) {
-    const at = findPhrase(tokens, free)
-    if (at < 0) continue
     const length = free.split(' ').length
-    const after = tokens[at + length]
-    const before = tokens[at - 1]
-    const thing = [after, before].find(
-      (token) => token !== undefined && words.things.includes(token.folded),
-    )
-    if (thing !== undefined)
-      return thing === after
-        ? `${tokens[at]?.typed} ${thing.typed}`
-        : `${thing.typed} ${tokens[at]?.typed}`
+    for (
+      let at = findPhrase(tokens, free);
+      at >= 0;
+      at = findPhrase(tokens, free, at + 1)
+    ) {
+      const after = tokens[at + length]
+      const before = tokens[at - 1]
+      const thing = [after, before].find(
+        (token) => token !== undefined && words.things.includes(token.folded),
+      )
+      if (thing !== undefined) {
+        const typed = tokens
+          .slice(at, at + length)
+          .map((token) => token.typed)
+          .join(' ')
+        return thing === after ? `${typed} ${thing.typed}` : `${thing.typed} ${typed}`
+      }
+    }
   }
   return null
 }

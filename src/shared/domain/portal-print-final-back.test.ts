@@ -238,3 +238,15 @@ describe('planPrintFinalBack against the back-side board', () => {
     },
   )
 })
+
+describe('back-page containment', () => {
+  it.each(CARDS.map((f) => [nameOf(f), f] as const))(
+    '%s refuses ink wider than the live area',
+    (_, f) => {
+      const plan = planPrintFinalBack(f, [
+        { key: 'name', widthPt: mmPt(500), heightPt: mmPt(5) },
+      ])
+      expect(plan.fits).toBe(false)
+    },
+  )
+})

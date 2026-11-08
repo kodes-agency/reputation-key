@@ -15,7 +15,7 @@ export function wrapWords(
   const lines = fillWords(text, maxWidth, measure)
   if (lines.length !== 2) return lines
   return balancedPair(
-    text.split(/\s+/u).filter((word) => word !== ''),
+    text.split(BREAKING_SPACE).filter((word) => word !== ''),
     measure,
   )
 }
