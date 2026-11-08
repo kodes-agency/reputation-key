@@ -140,7 +140,11 @@ describe('retention sweep job (BQC-1.6)', () => {
       [
         expect.anything(),
         monthsRule,
-        { cutoff: new Date('2024-07-17T12:00:00Z'), batchSize: 500 },
+        {
+          cutoff: new Date('2024-07-17T12:00:00Z'),
+          batchSize: 500,
+          onBatch: expect.any(Function),
+        },
       ],
     ])
   })
@@ -227,11 +231,11 @@ describe('retention sweep job (BQC-1.6)', () => {
       expect.objectContaining({ subject: 'a.old', capped: true }),
       expect.stringMatching(/batch cap/i),
     )
-    // The run still closes as completed — the next scheduled run continues.
+    // The overdue alert stays raised until a later pass drains the backlog.
     expect(closeRetentionRun).toHaveBeenCalledWith(
       expect.anything(),
       'run-a.old',
-      expect.objectContaining({ outcome: 'completed' }),
+      expect.objectContaining({ outcome: 'failed', errorCode: 'retention_capped' }),
     )
   })
 
@@ -310,7 +314,7 @@ describe('retention sweep job (BQC-1.6)', () => {
       `run-${GOOGLE_IMPORT_LIFECYCLE_RETENTION_SUBJECT}`,
       expect.objectContaining({
         outcome: 'failed',
-        errorCode: 'receipt release backlog',
+        errorCode: 'retention_failed',
       }),
     )
   })
@@ -424,7 +428,7 @@ describe('retention sweep job (BQC-1.6)', () => {
       `run-${REVIEW_SUPERSEDED_OBSERVATION_RETENTION_SUBJECT}`,
       expect.objectContaining({
         outcome: 'failed',
-        errorCode: 'observation store unavailable',
+        errorCode: 'retention_failed',
       }),
     )
   })
@@ -453,7 +457,7 @@ describe('retention sweep job (BQC-1.6)', () => {
       `run-${GUEST_CONTACT_REQUEST_RETENTION_SUBJECT}`,
       expect.objectContaining({
         outcome: 'failed',
-        errorCode: 'contact purge unavailable',
+        errorCode: 'retention_failed',
       }),
     )
   })
