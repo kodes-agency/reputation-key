@@ -41,6 +41,7 @@ import { createAiOutputStoreAdapter } from './infrastructure/adapters/ai-output-
 import { createPropertyVocabularyContextAdapter } from './infrastructure/adapters/property-vocabulary-context.adapter'
 import { createOperatorProviderChoice } from './infrastructure/adapters/ai-provider-choice.adapter'
 import { createAiPropertyCalendarAdapter } from './infrastructure/adapters/ai-property-calendar.adapter'
+import { createAiProfileRebuild } from './infrastructure/adapters/ai-profile-rebuild'
 import { createAiPropertyAggregateStoreAdapter } from './infrastructure/adapters/ai-property-aggregate-store.adapter'
 import { createAiGuestVoiceFactsAdapter } from './infrastructure/adapters/ai-guest-voice-facts.adapter'
 import { createAiGuestVoiceSummaryScheduleAdapter } from './infrastructure/adapters/ai-guest-voice-summary-schedule.adapter'
@@ -197,6 +198,7 @@ export const buildAiContext = (input: AiContextBuildInput) => {
     control,
     enrollments,
     reopen: createAiReviewAnalysisReopenAdapter(input.db),
+    rebuildProfiles: createAiProfileRebuild(input.db, input.logger).sweep,
     nowEpochMillis,
     logger: input.logger,
   })
