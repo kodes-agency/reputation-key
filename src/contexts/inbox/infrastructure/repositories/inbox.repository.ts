@@ -23,6 +23,7 @@ import {
 } from 'drizzle-orm'
 import type { SQL } from 'drizzle-orm'
 import type { Database } from '#/shared/db'
+import type { Tx } from '#/shared/outbox/commit'
 import type { LoggerPort } from '#/shared/domain/logger.port'
 import { inboxHandlingCycleHeads, inboxItems } from '#/shared/db/schema/inbox.schema'
 import type {
@@ -191,9 +192,10 @@ export const createInboxRepository = (
       sourceType: SourceType,
       sourceId: string,
       orgId: OrganizationId,
+      tx?: Tx,
     ) => {
       return trace('inbox.findBySource', async () => {
-        const rows = await db
+        const rows = await (tx ?? db)
           .select()
           .from(inboxItems)
           .where(
