@@ -28,6 +28,19 @@ describe('the warning list (spec 5.8)', () => {
     expect(say('20 % de remise', 'fr')).toBe('block offer 20 % de remise')
   })
 
+  it.each(GUEST_LOCALES)('checks later free-word occurrences in %s', (locale) => {
+    const { free, things } = PRINT_FINAL_WARNING_WORDS[locale]
+    for (const word of free) {
+      for (const thing of things) {
+        for (const offer of [`${word} ${thing}`, `${thing} ${word}`]) {
+          expect(
+            printFinalTextWarning(`${word} · hello again · ${offer}`, locale),
+          ).toMatchObject({ kind: 'block', topic: 'offer' })
+        }
+      }
+    }
+  })
+
   it('only asks about a lone "free", "gift" or "win", and lets the print go', () => {
     expect(say('Feel free to say how we did')).toBe('warn offer_word free')
     expect(say('It was a win-win')).toBe('warn offer_word win')

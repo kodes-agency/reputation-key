@@ -1,6 +1,6 @@
 // Portal context — the final print kit's "Save wording" server function
 // (2026-10-27). Invokes the real handler: it is guarded exactly as the download
-// beside it (the Portal's scope and the right to update it, then the address rate
+// beside it (the Portal's scope and the right to update it, then the wording write rate
 // limit), and nothing reaches the use case on any refusal. It makes no file, so it
 // has nothing to mark uncacheable.
 
@@ -14,6 +14,7 @@ const mocks = vi.hoisted(() => ({
   requireExecutionAllowed: vi.fn(),
   resolvePortalManagementScope: vi.fn(),
   savePortalPrintWording: vi.fn(),
+  createPortalPrintFinal: vi.fn(),
   check: vi.fn(),
   setResponseHeader: vi.fn(),
 }))
@@ -43,6 +44,7 @@ vi.mock('#/composition', () => ({
       management: {
         resolvePortalManagementScope: mocks.resolvePortalManagementScope,
         savePortalPrintWording: mocks.savePortalPrintWording,
+        createPortalPrintFinal: mocks.createPortalPrintFinal,
       },
     },
   })),
@@ -64,7 +66,10 @@ vi.mock('#/shared/observability/logger', async (importOriginal) => {
   }
 })
 
-import { savePortalPrintWording } from '#/contexts/portal/server/portal-print-final'
+import {
+  downloadPortalPrintFinal,
+  savePortalPrintWording,
+} from '#/contexts/portal/server/portal-print-final'
 
 const CTX = { userId: 'user-1', organizationId: 'org-1', role: 'AccountAdmin' } as const
 const INPUT = {
@@ -112,13 +117,56 @@ describe('savePortalPrintWording handler (executable)', () => {
     })
   })
 
-  it('spends the same rate limit as the download, actor first', async () => {
+  it('limits wording writes separately, actor first', async () => {
     await withStartContext(() => savePortalPrintWording({ data: INPUT }))
 
     expect(mocks.check.mock.calls.map(([key]) => key)).toEqual([
-      'portal:address-reveal:actor:org-1:user-1',
-      'portal:address-reveal:organization:org-1',
+      'portal:print-wording:actor:org-1:user-1',
+      'portal:print-wording:organization:org-1',
     ])
+  })
+
+  it('allows a download after 30 saves while further saves are limited', async () => {
+    const counts = new Map<string, number>()
+    mocks.check.mockImplementation(
+      async (key: string, budget: { maxRequests: number }) => {
+        const count = (counts.get(key) ?? 0) + 1
+        counts.set(key, count)
+        return { ...ALLOWED, allowed: count <= budget.maxRequests }
+      },
+    )
+    mocks.createPortalPrintFinal.mockResolvedValue({
+      fileName: 'card.pdf',
+      contentType: 'application/pdf',
+      pdf: new Uint8Array([37, 80, 68, 70]),
+    })
+    for (let i = 0; i < 30; i += 1) {
+      await withStartContext(() => savePortalPrintWording({ data: INPUT }))
+    }
+    await expect(
+      withStartContext(() => savePortalPrintWording({ data: INPUT })),
+    ).rejects.toMatchObject({ code: 'rate_limited', status: 429 })
+    await withStartContext(() =>
+      downloadPortalPrintFinal({
+        data: {
+          portalId: INPUT.portalId,
+          piece: 'counter',
+          orientation: 'upright',
+          look: 'paper',
+          printer: 'my_printer',
+          quantity: 1,
+          fillSpares: false,
+          languages: ['en'],
+          callToAction: 'how_was_stay',
+        },
+      }),
+    )
+    expect(mocks.savePortalPrintWording).toHaveBeenCalledTimes(30)
+    expect(mocks.createPortalPrintFinal).toHaveBeenCalledTimes(1)
+    expect(mocks.setResponseHeader).toHaveBeenCalledWith(
+      'Cache-Control',
+      'private, no-store, max-age=0',
+    )
   })
 
   it('does not spend the rate limit or save when the policy denies the caller', async () => {
