@@ -104,6 +104,7 @@ export const REVIEW_LIVE_WITH_CHANGES: PortalReview = {
   live: { version: 5, activatedAt: '2026-09-29T10:00:00.000Z', activatedBy: GEORGI },
   publishesAsVersion: 6,
   nothingToPublish: false,
+  reviewDigest: 'reviewed-digest',
   canPublish: true,
   changes: [
     {
