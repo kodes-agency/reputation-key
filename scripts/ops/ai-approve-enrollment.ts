@@ -8,6 +8,7 @@ import { getDb } from '../../src/shared/db'
 import { organizationId, propertyId } from '../../src/shared/domain/ids'
 import { createApproveReviewAnalysisEnrollment } from '../../src/contexts/ai/application/use-cases/approve-review-analysis-enrollment'
 import { createReviewAnalysisEnrollmentAdapter } from '../../src/contexts/ai/infrastructure/adapters/ai-review-analysis-enrollment.adapter'
+import { runCommandEntrypoint } from './command-entrypoint'
 import { runOperatorCommand } from './operator-command'
 
 const COMMAND_NAME = 'ops:ai-approve-enrollment'
@@ -157,8 +158,4 @@ const main = async (): Promise<void> => {
   process.exit(result.exitCode)
 }
 
-void main().catch((error: unknown) => {
-  const message = error instanceof Error ? error.message : String(error)
-  process.stderr.write(`${COMMAND_NAME} failed: ${message}\n`)
-  process.exit(1)
-})
+void runCommandEntrypoint(COMMAND_NAME, main)

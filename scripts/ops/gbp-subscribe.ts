@@ -25,6 +25,7 @@
 // Requires DATABASE_URL + QUEUE_REDIS_URL (composition wires the job queue).
 
 import { createGbpSubscribeOperatorAction } from '../../src/contexts/integration/application/use-cases/gbp-subscribe-backfill'
+import { runCommandEntrypoint } from './command-entrypoint'
 import { runOperatorCommand } from './operator-command'
 
 const COMMAND_NAME = 'ops:gbp-subscribe'
@@ -48,8 +49,4 @@ async function main(): Promise<void> {
   process.exit(result.exitCode)
 }
 
-void main().catch((error: unknown) => {
-  const message = error instanceof Error ? error.message : String(error)
-  process.stderr.write(`${COMMAND_NAME} failed: ${message}\n`)
-  process.exit(1)
-})
+void runCommandEntrypoint(COMMAND_NAME, main)
