@@ -8,7 +8,7 @@ import type {
 } from '#/shared/domain/portal-print-final'
 import type { PrintFinalCodeRefusal } from '#/shared/domain/portal-print-final-code'
 import type { PrintFinalFramings } from '#/shared/domain/portal-print-final-framing'
-import type { PrintKitPhoto } from '../printing/print-download'
+import type { PrintKitPhoto } from '../../printing/contracts'
 
 /**
  * Office sheets: how many pieces the manager needs, whether the last sheet's
