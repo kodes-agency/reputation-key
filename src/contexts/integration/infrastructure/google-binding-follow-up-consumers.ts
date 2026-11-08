@@ -98,6 +98,7 @@ export function createGoogleBindingFollowUpHandlers(deps: FollowUpDeps) {
       const result = await deps.subscribe(
         organizationId(payload.organizationId),
         binding.connectionId,
+        { gbpAccountId: binding.accountId, reuseVerified: true },
       )
       // An account with no topic configured has no subscription obligation.
       // Partial/provider/coordination failures remain owed for redelivery.
