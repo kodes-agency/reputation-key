@@ -841,6 +841,13 @@
       "when": 1799900002000,
       "tag": "0119_google_notification_accounts",
       "breakpoints": true
+    },
+    {
+      "idx": 120,
+      "version": "7",
+      "when": 1800000001000,
+      "tag": "0120_drop_dormant_google_credentials",
+      "breakpoints": true
     }
   ]
 }

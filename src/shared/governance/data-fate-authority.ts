@@ -286,13 +286,7 @@ export const DATA_FATE_AUTHORITY = Object.freeze([
   }),
   ...rows({
     schemaFile: 'google-content-control.schema.ts',
-    exportNames: [
-      'authorizationExecutionPermits',
-      'capabilityExecutionControl',
-      'credentialRevokePermits',
-      'googleCredentialSourceOperations',
-      'googleSubjectAuthorityGuards',
-    ],
+    exportNames: ['authorizationExecutionPermits', 'capabilityExecutionControl'],
     owner: 'integration',
     disposition: 'active_authority',
     authority: 'SAFE-04/GGL-01',

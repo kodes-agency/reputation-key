@@ -3170,9 +3170,6 @@ BEGIN
             INNER JOIN public.google_connections AS connection
               ON connection.organization_id = attempt.payload->>'organizationId'
              AND connection.id::text = attempt.payload->>'connectionId'
-            -- WP2.2: approval ceremony removed; see start_…_v1. Everything
-            -- below is the disconnect-revoke state machine, which is exactly
-            -- what this branch exists to prove.
             WHERE attempt.scope = 'google_disconnect_revoke'
               AND attempt.payload->>'cleanupWorkPermitId' = permit.id::text
               AND attempt.payload->>'organizationId' = permit.organization_id
@@ -3271,9 +3268,6 @@ BEGIN
           AND permit.route_key = 'oauth.token.exchange'
           AND EXISTS (
             SELECT 1
-            -- WP2.2: approval ceremony removed; see start_…_v1. The member and
-            -- permission joins stay — an OAuth exchange is only admissible when
-            -- initiated by a member whose permission version matches.
             FROM public.member AS member
             INNER JOIN public.permission_version AS permission
               ON permission.organization_id = permit.organization_id
@@ -3670,45 +3664,6 @@ BEGIN
                 )
               )
             )
-          )
-        ) OR (
-          -- Cleanup remains an already-authorized drain after ordinary work is
-          -- killed, membership changes, or a credential enters cleanup_only.
-          permit.route_key = 'oauth.revoke'
-          AND permit.property_id IS NULL
-          AND EXISTS (
-            SELECT 1
-            -- WP2.2: approval ceremony removed; see start_…_v1. The revoke
-            -- state machine below is the whole point of this branch — a
-            -- credential revocation may only be dispatched from a permit that
-            -- names a live, dispatching, not-yet-terminal revoke record.
-            FROM public.credential_revoke_permits AS revoke
-            INNER JOIN public.google_credential_source_operations AS source
-              ON source.id = revoke.source_operation_id
-             AND source.guard_id = revoke.guard_id
-            INNER JOIN public.google_subject_authority_guards AS guard
-              ON guard.id = revoke.guard_id
-            WHERE revoke.cleanup_work_permit_id = permit.id
-              AND revoke.state = 'dispatching'
-              AND revoke.cleanup_deadline_at > v_now
-              AND revoke.activated_at IS NOT NULL
-              AND revoke.dispatching_at IS NOT NULL
-              AND revoke.terminal_at IS NULL
-              AND revoke.token_hmac IS NULL
-              AND revoke.token_hmac_key_version IS NULL
-              AND revoke.send_authorization_expires_at IS NULL
-              AND permit.admitted_at <= revoke.dispatching_at
-              AND source.organization_id = permit.organization_id
-              AND source.connection_id IS NOT DISTINCT FROM permit.connection_id
-              AND source.source_work_permit_id <> permit.id
-              AND source.state = 'terminal'
-              AND source.provider_started_at IS NOT NULL
-              AND source.terminal_at IS NOT NULL
-              AND source.terminal_at <= revoke.dispatching_at
-              AND guard.state = 'cleanup_pending'
-              AND guard.active_source_operation_id IS NULL
-              AND guard.source_cutoff_sequence = source.sequence
-              AND guard.cleanup_deadline_at = revoke.cleanup_deadline_at
           )
         ) THEN 'started'
         ELSE 'changed'
@@ -5185,32 +5140,6 @@ CREATE TABLE "public"."capability_execution_control" (
 
 
 --
--- Name: credential_revoke_permits; Type: TABLE; Schema: public; Owner: -
---
-
-CREATE TABLE "public"."credential_revoke_permits" (
-    "id" "uuid" DEFAULT "gen_random_uuid"() NOT NULL,
-    "guard_id" "uuid" NOT NULL,
-    "source_operation_id" "uuid" NOT NULL,
-    "cleanup_work_permit_id" "uuid",
-    "state" "public"."credential_revoke_permit_state" NOT NULL,
-    "token_hmac_key_version" character varying(50),
-    "token_hmac" character varying(128),
-    "cleanup_deadline_at" timestamp with time zone NOT NULL,
-    "send_authorization_expires_at" timestamp with time zone,
-    "activated_at" timestamp with time zone,
-    "dispatching_at" timestamp with time zone,
-    "terminal_at" timestamp with time zone,
-    "outcome_code" character varying(100),
-    "created_at" timestamp with time zone DEFAULT "now"() NOT NULL,
-    "updated_at" timestamp with time zone DEFAULT "now"() NOT NULL,
-    CONSTRAINT "credential_revoke_permits_hmac_pair_check" CHECK ((("token_hmac_key_version" IS NULL) = ("token_hmac" IS NULL))),
-    CONSTRAINT "credential_revoke_permits_send_window_check" CHECK ((("send_authorization_expires_at" IS NULL) OR ("send_authorization_expires_at" <= "cleanup_deadline_at"))),
-    CONSTRAINT "credential_revoke_permits_state_check" CHECK (((("state" = 'dormant'::"public"."credential_revoke_permit_state") AND ("token_hmac" IS NULL) AND ("send_authorization_expires_at" IS NULL) AND ("dispatching_at" IS NULL) AND ("terminal_at" IS NULL)) OR (("state" = 'active'::"public"."credential_revoke_permit_state") AND ("token_hmac" IS NOT NULL) AND ("send_authorization_expires_at" IS NOT NULL) AND ("activated_at" IS NOT NULL) AND ("dispatching_at" IS NULL) AND ("terminal_at" IS NULL)) OR (("state" = 'dispatching'::"public"."credential_revoke_permit_state") AND ("token_hmac" IS NULL) AND ("send_authorization_expires_at" IS NULL) AND ("dispatching_at" IS NOT NULL) AND ("terminal_at" IS NULL)) OR (("state" = ANY (ARRAY['consumed_no_revoke'::"public"."credential_revoke_permit_state", 'confirmed_not_sent'::"public"."credential_revoke_permit_state", 'confirmed_revoked'::"public"."credential_revoke_permit_state", 'cleanup_ambiguous'::"public"."credential_revoke_permit_state", 'provider_reset_confirmed'::"public"."credential_revoke_permit_state"])) AND ("token_hmac" IS NULL) AND ("send_authorization_expires_at" IS NULL) AND ("terminal_at" IS NOT NULL))))
-);
-
-
---
 -- Name: event_consumer_receipts; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -5577,34 +5506,6 @@ CREATE TABLE "public"."google_connections" (
 
 
 --
--- Name: google_credential_source_operations; Type: TABLE; Schema: public; Owner: -
---
-
-CREATE TABLE "public"."google_credential_source_operations" (
-    "id" "uuid" DEFAULT "gen_random_uuid"() NOT NULL,
-    "guard_id" "uuid" NOT NULL,
-    "source_work_permit_id" "uuid" NOT NULL,
-    "organization_id" character varying(255) NOT NULL,
-    "connection_id" "uuid",
-    "sequence" bigint NOT NULL,
-    "kind" "public"."google_credential_source_kind" NOT NULL,
-    "state" "public"."google_credential_source_state" NOT NULL,
-    "expected_lifecycle_version" bigint NOT NULL,
-    "expected_access_version" bigint NOT NULL,
-    "expected_credential_generation" bigint NOT NULL,
-    "operation_deadline_at" timestamp with time zone NOT NULL,
-    "provider_started_at" timestamp with time zone,
-    "terminal_at" timestamp with time zone,
-    "outcome_code" character varying(100),
-    "created_at" timestamp with time zone DEFAULT "now"() NOT NULL,
-    "updated_at" timestamp with time zone DEFAULT "now"() NOT NULL,
-    CONSTRAINT "google_credential_source_operations_deadline_check" CHECK (("operation_deadline_at" > "created_at")),
-    CONSTRAINT "google_credential_source_operations_sequence_check" CHECK (("sequence" >= 1)),
-    CONSTRAINT "google_credential_source_operations_state_check" CHECK (((("state" = 'registered'::"public"."google_credential_source_state") AND ("provider_started_at" IS NULL) AND ("terminal_at" IS NULL)) OR (("state" = ANY (ARRAY['provider_started'::"public"."google_credential_source_state", 'provider_outcome_ambiguous'::"public"."google_credential_source_state"])) AND ("provider_started_at" IS NOT NULL) AND ("terminal_at" IS NULL)) OR (("state" = ANY (ARRAY['terminal'::"public"."google_credential_source_state", 'provider_reset_terminal'::"public"."google_credential_source_state"])) AND ("terminal_at" IS NOT NULL))))
-);
-
-
---
 -- Name: google_import_discovery_records; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -5813,28 +5714,6 @@ CREATE TABLE "public"."google_reply_observations" (
     CONSTRAINT "google_reply_observations_semantics_valid" CHECK ((((("resolution")::"text" = 'confirmed_on_google'::"text") AND (("state")::"text" = 'live'::"text") AND (("change")::"text" <> 'deleted'::"text") AND (("provenance")::"text" = 'repkey_confirmed'::"text") AND ("matched_reply_id" IS NOT NULL) AND ("matched_publication_cycle" IS NOT NULL) AND ("matched_attempt_number" IS NOT NULL)) OR ((("resolution")::"text" = 'external_current_live'::"text") AND (("state")::"text" = 'live'::"text") AND (("change")::"text" <> 'deleted'::"text") AND (("provenance")::"text" = 'external_or_unknown'::"text") AND ("matched_reply_id" IS NULL) AND ("matched_publication_cycle" IS NULL) AND ("matched_attempt_number" IS NULL)) OR ((("resolution")::"text" = 'diverged'::"text") AND (("state")::"text" = 'live'::"text") AND (("change")::"text" <> 'deleted'::"text") AND (("provenance")::"text" = 'external_or_unknown'::"text") AND ("matched_reply_id" IS NULL) AND ("matched_publication_cycle" IS NULL) AND ("matched_attempt_number" IS NULL)) OR ((("resolution")::"text" = 'absent'::"text") AND (("state")::"text" = 'absent'::"text") AND (("change")::"text" = 'deleted'::"text") AND (("provenance")::"text" = 'none'::"text") AND ("matched_reply_id" IS NULL) AND ("matched_publication_cycle" IS NULL) AND ("matched_attempt_number" IS NULL)) OR ((("resolution")::"text" = 'unchanged'::"text") AND (("change")::"text" = 'unchanged'::"text") AND (((("state")::"text" = 'absent'::"text") AND (("provenance")::"text" = 'none'::"text")) OR ((("state")::"text" = 'live'::"text") AND (("provenance")::"text" = 'external_or_unknown'::"text"))) AND ("matched_reply_id" IS NULL) AND ("matched_publication_cycle" IS NULL) AND ("matched_attempt_number" IS NULL)))),
     CONSTRAINT "google_reply_observations_source_valid" CHECK ((("source")::"text" = ANY ((ARRAY['provider_snapshot'::character varying, 'targeted_reconciliation'::character varying])::"text"[]))),
     CONSTRAINT "google_reply_observations_state_valid" CHECK ((("state")::"text" = ANY ((ARRAY['live'::character varying, 'absent'::character varying])::"text"[])))
-);
-
-
---
--- Name: google_subject_authority_guards; Type: TABLE; Schema: public; Owner: -
---
-
-CREATE TABLE "public"."google_subject_authority_guards" (
-    "id" "uuid" DEFAULT "gen_random_uuid"() NOT NULL,
-    "project_client_hmac_key_version" character varying(50) NOT NULL,
-    "project_client_hmac" character varying(128) NOT NULL,
-    "subject_hmac_key_version" character varying(50) NOT NULL,
-    "subject_hmac" character varying(128) NOT NULL,
-    "generation" bigint DEFAULT 0 NOT NULL,
-    "next_sequence" bigint DEFAULT 1 NOT NULL,
-    "source_cutoff_sequence" bigint,
-    "active_source_operation_id" "uuid",
-    "state" "public"."google_subject_authority_guard_state" DEFAULT 'open'::"public"."google_subject_authority_guard_state" NOT NULL,
-    "cleanup_deadline_at" timestamp with time zone,
-    "created_at" timestamp with time zone DEFAULT "now"() NOT NULL,
-    "updated_at" timestamp with time zone DEFAULT "now"() NOT NULL,
-    CONSTRAINT "google_subject_authority_guards_sequence_check" CHECK ((("next_sequence" >= 1) AND (("source_cutoff_sequence" IS NULL) OR ("source_cutoff_sequence" < "next_sequence"))))
 );
 
 
@@ -9616,14 +9495,6 @@ ALTER TABLE ONLY "public"."capability_execution_control"
 
 
 --
--- Name: credential_revoke_permits credential_revoke_permits_pkey; Type: CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY "public"."credential_revoke_permits"
-    ADD CONSTRAINT "credential_revoke_permits_pkey" PRIMARY KEY ("id");
-
-
---
 -- Name: event_consumer_receipts event_consumer_receipts_event_id_consumer_name_pk; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -9808,14 +9679,6 @@ ALTER TABLE ONLY "public"."google_connections"
 
 
 --
--- Name: google_credential_source_operations google_credential_source_operations_pkey; Type: CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY "public"."google_credential_source_operations"
-    ADD CONSTRAINT "google_credential_source_operations_pkey" PRIMARY KEY ("id");
-
-
---
 -- Name: google_import_discovery_records google_import_discovery_records_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -9885,14 +9748,6 @@ ALTER TABLE ONLY "public"."google_reply_observation_heads"
 
 ALTER TABLE ONLY "public"."google_reply_observations"
     ADD CONSTRAINT "google_reply_observations_pkey" PRIMARY KEY ("id");
-
-
---
--- Name: google_subject_authority_guards google_subject_authority_guards_pkey; Type: CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY "public"."google_subject_authority_guards"
-    ADD CONSTRAINT "google_subject_authority_guards_pkey" PRIMARY KEY ("id");
 
 
 --
@@ -11561,13 +11416,6 @@ CREATE INDEX "beta_feedback_triage_work_queue_idx" ON "public"."beta_feedback_tr
 
 
 --
--- Name: credential_revoke_permits_active_idx; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE INDEX "credential_revoke_permits_active_idx" ON "public"."credential_revoke_permits" USING "btree" ("guard_id", "state", "cleanup_deadline_at");
-
-
---
 -- Name: email_queue_due_idx; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -11799,27 +11647,6 @@ CREATE INDEX "google_connections_status_idx" ON "public"."google_connections" US
 
 
 --
--- Name: google_credential_source_operations_active_idx; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE INDEX "google_credential_source_operations_active_idx" ON "public"."google_credential_source_operations" USING "btree" ("guard_id", "state", "operation_deadline_at");
-
-
---
--- Name: google_credential_source_operations_guard_sequence_key; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE UNIQUE INDEX "google_credential_source_operations_guard_sequence_key" ON "public"."google_credential_source_operations" USING "btree" ("guard_id", "sequence");
-
-
---
--- Name: google_credential_source_operations_one_active_idx; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE UNIQUE INDEX "google_credential_source_operations_one_active_idx" ON "public"."google_credential_source_operations" USING "btree" ("guard_id") WHERE ("state" = ANY (ARRAY['registered'::"public"."google_credential_source_state", 'provider_started'::"public"."google_credential_source_state", 'provider_outcome_ambiguous'::"public"."google_credential_source_state"]));
-
-
---
 -- Name: google_import_discovery_records_expiry_idx; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -11929,20 +11756,6 @@ CREATE UNIQUE INDEX "google_reply_observations_revision_key" ON "public"."google
 --
 
 CREATE INDEX "google_reply_observations_scope_idx" ON "public"."google_reply_observations" USING "btree" ("organization_id", "property_id", "review_id", "observation_revision");
-
-
---
--- Name: google_subject_authority_guards_active_idx; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE INDEX "google_subject_authority_guards_active_idx" ON "public"."google_subject_authority_guards" USING "btree" ("state", "cleanup_deadline_at");
-
-
---
--- Name: google_subject_authority_guards_subject_key; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE UNIQUE INDEX "google_subject_authority_guards_subject_key" ON "public"."google_subject_authority_guards" USING "btree" ("project_client_hmac_key_version", "project_client_hmac", "subject_hmac_key_version", "subject_hmac");
 
 
 --
@@ -15008,30 +14821,6 @@ ALTER TABLE ONLY "public"."beta_feedback_triage_transitions"
 
 
 --
--- Name: credential_revoke_permits credential_revoke_permits_cleanup_work_permit_id_authorization_; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY "public"."credential_revoke_permits"
-    ADD CONSTRAINT "credential_revoke_permits_cleanup_work_permit_id_authorization_" FOREIGN KEY ("cleanup_work_permit_id") REFERENCES "public"."authorization_execution_permits"("id") ON DELETE RESTRICT;
-
-
---
--- Name: credential_revoke_permits credential_revoke_permits_guard_id_google_subject_authority_gua; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY "public"."credential_revoke_permits"
-    ADD CONSTRAINT "credential_revoke_permits_guard_id_google_subject_authority_gua" FOREIGN KEY ("guard_id") REFERENCES "public"."google_subject_authority_guards"("id") ON DELETE RESTRICT;
-
-
---
--- Name: credential_revoke_permits credential_revoke_permits_source_operation_id_google_credential; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY "public"."credential_revoke_permits"
-    ADD CONSTRAINT "credential_revoke_permits_source_operation_id_google_credential" FOREIGN KEY ("source_operation_id") REFERENCES "public"."google_credential_source_operations"("id") ON DELETE RESTRICT;
-
-
---
 -- Name: event_consumer_receipts event_consumer_receipts_event_id_outbox_events_id_fk; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -15181,22 +14970,6 @@ ALTER TABLE ONLY "public"."goal_subject_assignments"
 
 ALTER TABLE ONLY "public"."goal_subject_assignments"
     ADD CONSTRAINT "goal_subject_assignments_version_fk" FOREIGN KEY ("organization_id", "property_id", "program_id", "program_version_id", "metric_key") REFERENCES "public"."goal_program_versions"("organization_id", "property_id", "program_id", "id", "metric_key") ON DELETE RESTRICT;
-
-
---
--- Name: google_credential_source_operations google_credential_source_operations_guard_id_google_subject_aut; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY "public"."google_credential_source_operations"
-    ADD CONSTRAINT "google_credential_source_operations_guard_id_google_subject_aut" FOREIGN KEY ("guard_id") REFERENCES "public"."google_subject_authority_guards"("id") ON DELETE RESTRICT;
-
-
---
--- Name: google_credential_source_operations google_credential_source_operations_source_work_permit_id_autho; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY "public"."google_credential_source_operations"
-    ADD CONSTRAINT "google_credential_source_operations_source_work_permit_id_autho" FOREIGN KEY ("source_work_permit_id") REFERENCES "public"."authorization_execution_permits"("id") ON DELETE RESTRICT;
 
 
 --
