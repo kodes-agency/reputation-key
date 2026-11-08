@@ -40,7 +40,7 @@ export type ReplyPublicationDispatchEvidencePort = Readonly<{
 export const REPLY_PERMIT_START_DEADLINE_MS = 10_000
 /** AUTHORIZATION_PERMIT_OPERATION_DEADLINE_MS (authorization-execution-permit.ts:47), and `v_now + interval '30 seconds'` in start_google_execution_permit (db-constructs.sql:2387). */
 export const REPLY_PERMIT_OPERATION_DEADLINE_MS = 30_000
-/** PROVIDER_DEADLINE_MS, src/contexts/integration/infrastructure/adapters/google-provider-adapter.ts:15 — the executor's own call deadline; the gateway refuses to fetch once it has passed. */
+/** PROVIDER_DEADLINE_MS in Integration's provider/google-client.server.ts — the executor's own call deadline; the gateway refuses to fetch once it has passed. */
 export const REPLY_PROVIDER_CALL_DEADLINE_MS = 15_000
 /**
  * Floor for the window. Both instants are application clocks, possibly on

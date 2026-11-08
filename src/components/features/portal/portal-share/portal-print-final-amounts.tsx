@@ -10,7 +10,7 @@ import { FormSelectField } from '#/components/forms/form-select-field'
 import { Checkbox } from '#/components/ui/checkbox'
 import { Input } from '#/components/ui/input'
 import { Label } from '#/components/ui/label'
-import type { PortalPrintKitView } from '#/contexts/portal/application/public-api'
+import type { PortalPrintKitView } from '#/contexts/portal/application/portal-management-contracts'
 import {
   PRINT_FINAL_BACK_HELP,
   PRINT_FINAL_BACK_LABEL,

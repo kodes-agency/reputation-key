@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import type { PortalTokenStatus } from '#/contexts/portal/application/public-api'
+import type { PortalTokenStatus } from '#/contexts/portal/application/portal-management-contracts'
 import {
   hasSomethingToPublish,
   workspaceStatus,

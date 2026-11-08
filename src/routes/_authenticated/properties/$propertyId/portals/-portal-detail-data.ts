@@ -21,7 +21,10 @@ import { listPortalGroups } from '#/contexts/portal/server/portal-groups'
 import { listPortalResponsibleManagers } from '#/contexts/portal/server/portal-responsible-managers'
 import { portalKeys } from '#/shared/queries/query-keys'
 import { membersQuery, propertyQuery } from '#/routes/-queries/route-queries'
-import type { Portal, PortalTokenStatus } from '#/contexts/portal/application/public-api'
+import type {
+  Portal,
+  PortalTokenStatus,
+} from '#/contexts/portal/application/portal-management-contracts'
 
 export type PortalQueryResult = Readonly<{
   portal: Portal | null

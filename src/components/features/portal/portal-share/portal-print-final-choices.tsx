@@ -17,7 +17,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '#/components/ui/select'
-import type { PortalPrintKitView } from '#/contexts/portal/application/public-api'
+import type { PortalPrintKitView } from '#/contexts/portal/application/portal-management-contracts'
 import { PRINT_KIT_PAPERS, type PrintKitPaper } from '#/shared/domain/portal-print-kit'
 import {
   PRINT_FINAL_LOOKS,

@@ -4,7 +4,7 @@
 // button: it is where the manager already is.
 
 import { ShieldCheck } from 'lucide-react'
-import type { PortalVersions } from '#/contexts/portal/application/public-api'
+import type { PortalVersions } from '#/contexts/portal/application/portal-management-contracts'
 import { PAGE_GUTTER_X } from '#/components/layout/page-shell'
 import { RegionError } from '#/components/ui/region-error'
 import { Skeleton } from '#/components/ui/skeleton'

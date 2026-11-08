@@ -4,7 +4,7 @@
 // is written by hand in the Welcome and Linktree sections (no AI translation).
 
 import type { Action } from '#/components/hooks/use-action'
-import type { PortalLanguageCoverage } from '#/contexts/portal/application/public-api'
+import type { PortalLanguageCoverage } from '#/contexts/portal/application/portal-management-contracts'
 import type { GuestLocale } from '#/shared/domain/guest-locale'
 import type { UpdatePortalVariables } from '../shared/types'
 import { PortalLanguageAddMenu } from './portal-language-add-menu'

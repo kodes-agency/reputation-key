@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import type { PortalReviewChange } from '#/contexts/portal/application/public-api'
+import type { PortalReviewChange } from '#/contexts/portal/application/portal-management-contracts'
 import { phraseText } from '../portal-history/portal-history-phrase'
 import { describeReviewChange, type ReviewChangeLine } from './portal-review-changes'
 

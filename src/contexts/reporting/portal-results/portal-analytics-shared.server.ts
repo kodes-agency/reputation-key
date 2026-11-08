@@ -1,14 +1,14 @@
 //
 // One Portal's Results view and the batched Portals overview must count the
 // same things the same way, so the definitions they share live here: which
-// metric versions and source policies are admitted, how the current correction
-// for a reading is found, what makes a reading a Google open or a valid rating,
+// metric versions and source policies are admitted, what makes a reading a
+// Google open or a valid rating,
 // and how one family's evidence row becomes a state.
 // TRAP: `metricReadings.occurredAt` is the INGESTION column (`recorded_at`);
 // the guest-action time is `metricReadings.eventAt`.
 
 import type { Database, Tx } from '#/shared/db'
-import { metricCorrections, metricReadings } from '#/shared/db/schema'
+import { metricReadings } from '#/shared/db/schema'
 import { and, eq, inArray, isNotNull, or, sql, type SQL } from 'drizzle-orm'
 import type {
   MetricPortalMetricEvidence,
@@ -225,37 +225,6 @@ function isPortalMetricFamily(value: unknown): value is PortalMetricFamily {
     value === 'privateFeedback' ||
     value === 'reviewLinkClicks'
   )
-}
-
-export function currentCorrectionTips(db: Database) {
-  return db
-    .select({
-      readingId: metricCorrections.readingId,
-      kind: metricCorrections.kind,
-      exactDelta: metricCorrections.exactDelta,
-      replacementValue: metricCorrections.replacementValue,
-    })
-    .from(metricCorrections)
-    .where(
-      sql`NOT EXISTS (
-        SELECT 1
-        FROM metric_corrections AS successor
-        WHERE successor.supersedes_correction_id = ${metricCorrections.id}
-      )`,
-    )
-    .as('portal_metric_correction_tips')
-}
-
-export type CorrectionTips = ReturnType<typeof currentCorrectionTips>
-
-export function effectiveValue(correctionTips: CorrectionTips) {
-  return sql<number>`CASE
-    WHEN ${correctionTips.kind} = 'retract' THEN NULL
-    WHEN ${correctionTips.kind} = 'replace' THEN ${correctionTips.replacementValue}
-    WHEN ${correctionTips.kind} = 'adjust'
-      THEN ${metricReadings.exactValue} + ${correctionTips.exactDelta}
-    ELSE ${metricReadings.exactValue}
-  END`
 }
 
 /** A reading that passes every governed-quality test, inside the given scope. */

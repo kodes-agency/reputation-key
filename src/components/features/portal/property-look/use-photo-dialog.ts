@@ -7,7 +7,7 @@
 // presses the button again the same bytes are not sent twice.
 
 import { useRef, useState } from 'react'
-import type { PropertyLookHero } from '#/contexts/portal/application/public-api'
+import type { PropertyLookHero } from '#/contexts/portal/application/portal-management-contracts'
 import type { OfferedGuestLocale } from '#/shared/domain/guest-locale'
 import { allImageChecksPass } from '../portal-media/image-checks'
 import { useImagePicker } from '../portal-media/use-image-picker'

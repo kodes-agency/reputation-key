@@ -2,7 +2,10 @@
 // what choosing a photo or an icon saves. A tile wears an icon or a photo, never
 // both, so choosing an icon over a photo takes the photo off in the same write.
 
-import type { PortalLinktreeLink } from '#/contexts/portal/application/public-api'
+// Portal editor — the pure rules for a tile's photo: where it is shown from, and
+// what choosing a photo or an icon saves. A tile wears an icon or a photo, never
+// both, so choosing an icon over a photo takes the photo off in the same write.
+import type { PortalLinktreeLink } from '#/contexts/portal/application/portal-management-contracts'
 import { portalMediaPublicPath } from '#/shared/domain/portal-media'
 import type { PortalLinkIconKey } from '#/shared/domain/portal-link-icon'
 

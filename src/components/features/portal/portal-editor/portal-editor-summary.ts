@@ -2,11 +2,14 @@
 // manager needs to know about a section without opening it. Pure and separate
 // from the navigation so the words are pinned by a test, not by JSX.
 
+// The one quiet line under each section name in the editor's list — what a
+// manager needs to know about a section without opening it. Pure and separate
+// from the navigation so the words are pinned by a test, not by JSX.
 import {
   hasPropertyWording,
   PROPERTY_LOOK_SOURCES,
   type PortalLookSources,
-} from '#/contexts/portal/application/public-api'
+} from '#/contexts/portal/application/portal-management-contracts'
 import { countHiddenLinks } from '../link-tree/linktree-approval-rules'
 import type { PortalGroupView } from '../portal-group/portal-group-types'
 import type { PortalEditorResources } from './portal-editor-types'

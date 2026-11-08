@@ -1,7 +1,7 @@
 // What a portal's own look editor decides without a screen: the words for what a
 // portal follows, its photo's languages and descriptions, and what each write sends.
 import { describe, expect, it } from 'vitest'
-import { PROPERTY_LOOK_SOURCES } from '#/contexts/portal/application/public-api'
+import { PROPERTY_LOOK_SOURCES } from '#/contexts/portal/application/portal-management-contracts'
 import {
   coloursAreUnchanged,
   coloursDraftOf,

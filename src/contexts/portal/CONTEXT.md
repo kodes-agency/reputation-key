@@ -9,6 +9,16 @@ Action journey is primary; optional secondary links are a subordinate link tree.
 The context also owns publication lifecycle, Portal Groups, responsible-manager
 assignment, and governed access artifacts.
 
+## Entry points
+
+- `application/public-api.ts` exposes the named cross-context server capabilities
+  and facts. `application/portal-management-contracts.ts` contains the browser-safe
+  management types and pure rules used by screens.
+- RPC calls stay in `server/`; management screens stay in
+  `src/components/features/portal/`. Neither imports the context build at runtime.
+- `build.ts` composes request management separately from worker jobs. Portal and
+  Guest retain separate builds.
+
 ## Boundaries
 
 - Guest resolves public Portal data through `PortalPublicApi`; Goal reads group
@@ -292,19 +302,27 @@ never walks a counter; an address the manager typed must be free. There are no
 place types: the dialog asks for a name, a group, languages and what to start
 from.
 
-The editor no longer shows categories. `getPortalLinktree` reads the whole
-section (switch, written titles, and each link in guest order with its texts,
-icon and the approval of its destination), and a link is created without a
-category: it joins the Portal's last category, and the first link starts one,
-which no guest sees (publishing flattens categories). It has a fixed neutral
-title, because a category row needs one. The category is built only after the link's label, icon, cap and destination have
-passed and is committed in the link's own transaction (`startCategory` on the
-create command), so a refused link leaves neither it nor its fact behind. Re-ordering still saves one category's order, so the
-editor moves a tile only among those of its own (older) category. The category
-management commands (create, rename, delete, reorder) are retired: nothing calls
-them, and a category is only ever the one a first link starts. Categories made
-before round 4 stay in the working copy (the editor moves a tile within its own
-category); the v3 builder flattens them.
+The editor hides category headings, but categories still determine link behaviour.
+`getPortalLinktree` reads the section's switch, titles and links in guest order
+with their texts, icons and destination approvals. `LinktreeSection` renders
+`LinkTree`, whose `planLinkMove` permits moves only within a category;
+`useLinktreeMutations` calls `server/portal-links.ts`'s `reorderLinks`, which
+authorizes both the Portal and category before the command saves that category's
+order. The browser contract retains `categoryId` through the
+`application/public-api.ts` type exports.
+
+Creating a link without a category joins the Portal's last category or starts
+one with a neutral title. `create-link.ts` builds it only after the label, icon,
+cap and destination pass, then commits it with the link (`startCategory`) and
+the category-created fact imported through `domain/events.ts`. A refused link
+leaves neither the category nor its fact behind.
+
+Publication also depends on categories: `readPortalWorkingCopy` in
+`infrastructure/portal-working-copy.reader.ts`, used by the publication repository
+and commands, orders by category sort key, category id, link sort key and link id.
+`resolvePortalPublication` preserves that sequence in the flat guest Linktree.
+Keep category rows, references, events and sort keys while these editor and
+publication paths use them; removing headings did not remove their ordering role.
 
 The eligible creator is the initial Portal Responsible Manager (by default; the
 dialog may name other eligible managers, or nobody). Multiple eligible
@@ -478,10 +496,11 @@ the PDF and preview use the same measures and planners, checked with real fonts.
 - Print languages, wording and look come from the live publication. Draft-only
   languages and Portals without a live version cannot print. The Property country
   sets the default paper; an explicit paper choice wins.
-- `application/printing/print-download.server.ts` reads stored pictures within their recorded
+- `printing/print-download.server.ts` reads stored pictures within their recorded
   size and verifies their hash before the audited address reveal. Missing or
   changed bytes refuse the print without a disclosure. Taken-down media is omitted.
-  `application/printing/print-download.ts` holds browser-safe file and download contracts.
+  `printing/contracts.ts` holds the file and download contracts; consumers import
+  them directly rather than through the management contract entry.
 - Verified QR and NFC print codes are always shown. Missing or mismatched hashes
   fall back to the issued long address and its original channel marker. Direct
   links retain the long address with no marker; every issued URL keeps resolving.
@@ -560,8 +579,8 @@ lookup and ask the policy on the id they were given), a destination id, or the
 `portalIds` of a group to join. A malformed one from a caller the policy admits still
 fails as a database error and a sanitized 500.
 
-`publicApi.management` is Portal's request surface (`docs/standards.md` §3.1). Its
-exceptions to that section's rules:
+`publicApi.management` is Portal's request surface (`docs/standards.md` §3.1).
+Its scope reads are the exceptions to that section's rules:
 
 - Five members are reads of `portal-scope.repository.ts` published as they are, not
   application functions: `resolvePortalManagementScope`,
@@ -570,15 +589,15 @@ exceptions to that section's rules:
   caller and decide nothing. The four `resolve…` reads answer for an id of any
   Organization, which is why `server/property-scope.ts` compares the Organization
   before it asks the policy; the list is scoped by the Organization it is given.
-- `revalidatePortalApprovedDestinations` is the worker's control, the same function as
-  `worker.revalidateApprovedDestinations`. It takes its scope decision from its caller,
-  and no server function calls it. It runs every 15 minutes and is due for every
-  website destination validated 10 minutes ago or earlier (never a phone number or email
-  address, which has nothing to check); the public edge serves an approval up
-  to 30 minutes old, which leaves room for a run that starts up to 10 minutes late
-  (`approved-destination-age.ts`, `approved-destination-age.test.ts`). That holds only
-  while a run can take everything that is due. See [Destination revalidation](#destination-revalidation)
-  for paging, retry scheduling and the lag alert.
+
+`worker.revalidateApprovedDestinations` is available only on the worker surface.
+It takes its scope decision from its caller. It runs every 15 minutes and is due for every
+website destination validated 10 minutes ago or earlier (never a phone number or email
+address, which has nothing to check); the public edge serves an approval up
+to 30 minutes old, which leaves room for a run that starts up to 10 minutes late
+(`approved-destination-age.ts`, `approved-destination-age.test.ts`). That holds only
+while a run can take everything that is due. See [Destination revalidation](#destination-revalidation)
+for paging, retry scheduling and the lag alert.
 
 `findDestinationApprovalNotificationFacts` (the Portal public API, read by Feed) is
 what the notice that a site is waiting for an account admin needs: the site's state

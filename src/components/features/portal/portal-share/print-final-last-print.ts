@@ -3,7 +3,11 @@
 // last printed and what the print was, and, for an Immersive print, what became
 // of the photo since. Copy only, in one place, so each line is tested as written.
 
-import type { PortalPrintKitLastPrint } from '#/contexts/portal/application/public-api'
+// What the Last printed notice says (final design spec §11, the boards
+// share-desktop-light, share-desktop-dark and share-phone): when the Portal was
+// last printed and what the print was, and, for an Immersive print, what became
+// of the photo since. Copy only, in one place, so each line is tested as written.
+import type { PortalPrintKitLastPrint } from '#/contexts/portal/application/portal-management-contracts'
 import { formatShortDate, type DisplayZone, type InstantInput } from '#/lib/format'
 import { PRINT_FINAL_PAPER_NAMES } from '#/shared/domain/portal-print-final-share'
 import { printFinalLanguageNames } from '#/shared/domain/portal-print-final-how-to'

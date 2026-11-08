@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { previewFinalImmersiveFace } from '#/components/features/portal/portal-share/print-final-face-layout'
 import type { PreviewFinalPhoto } from '#/components/features/portal/portal-share/use-print-final-pictures'
-import type { PortalPrintKitView } from '#/contexts/portal/application/public-api'
+import type { PortalPrintKitView } from '#/contexts/portal/application/portal-management-contracts'
 import type { GuestLocale } from '#/shared/domain/guest-locale'
 import { printFinalBlocks } from '#/shared/domain/portal-print-final-languages'
 import {

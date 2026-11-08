@@ -5,7 +5,7 @@ import { useState } from 'react'
 import type {
   PortalLinktreeLink,
   PortalLinktreeView,
-} from '#/contexts/portal/application/public-api'
+} from '#/contexts/portal/application/portal-management-contracts'
 import type { OfferedGuestLocale } from '#/shared/domain/guest-locale'
 import type { PortalLinkIconKey } from '#/shared/domain/portal-link-icon'
 import { LinkAddressForm } from './link-address-form'

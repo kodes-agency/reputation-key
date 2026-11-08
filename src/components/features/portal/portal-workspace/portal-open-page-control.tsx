@@ -5,7 +5,13 @@
 // `PortalLinkIssuanceProvider`, which is why the layout hands it over as an
 // element rather than reading the state itself.
 
-import type { PortalTokenStatus } from '#/contexts/portal/application/public-api'
+// The header's live-page slot ("Open live page" or "Get page link"): decides
+// what to offer (`deriveOpenPageMode`) and reads the address the manager
+// already holds from the workspace's issuance state, so a code made here opens
+// with no reveal. Rendered inside
+// `PortalLinkIssuanceProvider`, which is why the layout hands it over as an
+// element rather than reading the state itself.
+import type { PortalTokenStatus } from '#/contexts/portal/application/portal-management-contracts'
 import type { PortalDetailTab } from '../portal-detail/portal-detail-rules'
 import type { PortalShareMutations } from '../portal-share/portal-share-types'
 import type { PortalPublicationState } from '../shared/types'

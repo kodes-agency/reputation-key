@@ -5,7 +5,7 @@
 // the cache holds the truth, saved or rolled back, and the asks are dropped.
 
 import { useState } from 'react'
-import type { PortalLinktreeLink } from '#/contexts/portal/application/public-api'
+import type { PortalLinktreeLink } from '#/contexts/portal/application/portal-management-contracts'
 import type { PortalLinkIconKey } from '#/shared/domain/portal-link-icon'
 import { applyIconChoices, type IconChoices } from './linktree-photo-rules'
 import { applyLinkOrder, type LinkOrderPlan } from './linktree-rules'

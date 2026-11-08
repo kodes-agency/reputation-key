@@ -27,7 +27,7 @@ import {
   CollapsibleTrigger,
 } from '#/components/ui/collapsible'
 import { cn } from '#/lib/utils'
-import { hasPropertyWording } from '#/contexts/portal/application/public-api'
+import { hasPropertyWording } from '#/contexts/portal/application/portal-management-contracts'
 import { adminLanguageCode, type OfferedGuestLocale } from '#/shared/domain/guest-locale'
 import { languageDisplayName } from '../portal-languages/portal-languages-rules'
 import { PortalLocalizedOverrideForm } from './portal-localized-override-form'

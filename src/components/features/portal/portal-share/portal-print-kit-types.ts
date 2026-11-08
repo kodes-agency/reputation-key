@@ -1,8 +1,6 @@
 import type { Action } from '#/components/hooks/use-action'
-import type {
-  PortalPrintKitDownload,
-  PortalPrintKitView,
-} from '#/contexts/portal/application/public-api'
+import type { PortalPrintKitDownload } from '#/contexts/portal/printing/contracts'
+import type { PortalPrintKitView } from '#/contexts/portal/application/portal-management-contracts'
 import type { GuestLocale } from '#/shared/domain/guest-locale'
 import type { PrintKitPaper } from '#/shared/domain/portal-print-kit'
 import type {

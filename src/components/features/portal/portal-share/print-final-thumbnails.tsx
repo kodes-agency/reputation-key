@@ -5,7 +5,13 @@
 // Inline styles on purpose, as the preview's: a colour or size this specific
 // would otherwise reach the first-paint stylesheet.
 
-import type { PortalPrintKitView } from '#/contexts/portal/application/public-api'
+// The small pictures on the final Print cards section's radio cards (the boards
+// share-desktop-light and share-desktop-dark): each piece drawn in its current
+// orientation at one scale, the chosen one in the chosen look; and each look as
+// a little wide card. They are decorative: each card's title and line name it.
+// Inline styles on purpose, as the preview's: a colour or size this specific
+// would otherwise reach the first-paint stylesheet.
+import type { PortalPrintKitView } from '#/contexts/portal/application/portal-management-contracts'
 import type {
   PrintFinalLook,
   PrintFinalOrientation,

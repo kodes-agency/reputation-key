@@ -3,7 +3,12 @@
 // focus point follows the person's hand at once instead of after the autosave and
 // the read that follows it. The guest page still resolves the colours itself, so
 // what is drawn is what a guest would get once the portal is published.
-import type { PortalPreviewExperience } from '#/contexts/portal/application/public-api'
+// What the editor's phone shows of a look edit before the draft is read again: the
+// edit laid over the brand the preview last read, so a colour, a wordmark or the
+// focus point follows the person's hand at once instead of after the autosave and
+// the read that follows it. The guest page still resolves the colours itself, so
+// what is drawn is what a guest would get once the portal is published.
+import type { PortalPreviewExperience } from '#/contexts/portal/application/portal-management-contracts'
 import { lookFieldOf } from '#/shared/domain/portal-look-readout'
 import type { FocalPoint } from '../property-look/focal-point'
 import type { ColoursDraft } from '../property-look/property-look-colours-section'

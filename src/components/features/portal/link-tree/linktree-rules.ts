@@ -15,7 +15,7 @@ import {
   type GuestLocale,
   type OfferedGuestLocale,
 } from '#/shared/domain/guest-locale'
-import type { PortalLinktreeLink } from '#/contexts/portal/application/public-api'
+import type { PortalLinktreeLink } from '#/contexts/portal/application/portal-management-contracts'
 
 const isOffered = (locale: GuestLocale): locale is OfferedGuestLocale =>
   (OFFERED_GUEST_LOCALES as ReadonlyArray<GuestLocale>).includes(locale)

@@ -3,7 +3,7 @@
 // it owns, as facts, and who changes it. No control is drawn only to be disabled.
 import { Link } from '@tanstack/react-router'
 import { Palette } from 'lucide-react'
-import type { PortalLookSources } from '#/contexts/portal/application/public-api'
+import type { PortalLookSources } from '#/contexts/portal/application/portal-management-contracts'
 import { Button } from '#/components/ui/button'
 import { DescriptionItem, DescriptionList } from '#/components/ui/description-list'
 import { lookFactsOf } from './portal-look-surface'

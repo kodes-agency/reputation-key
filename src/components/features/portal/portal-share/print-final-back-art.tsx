@@ -9,7 +9,17 @@
 // stylesheet is built by scanning `src/` for class names, and a measure this
 // specific would land in every page's.
 
-import type { PortalPrintKitView } from '#/contexts/portal/application/public-api'
+// A card's back page in the Share tab's preview (final design spec §10.4), drawn
+// from the layout the PDF draws from (`usePrintFinalDrawnBack`): the logo, on its
+// cream plate where the front has one, or the wordmark, and the property's name,
+// each where the file puts its ink. Paper is plain paper; Immersive stands on the
+// front's ground and washes with no photo (`PrintFinalImmersiveArt`). On a sheet's
+// reverse the Immersive ground runs into its bleed.
+//
+// Inline styles on purpose, as the rest of the print preview's: the first-paint
+// stylesheet is built by scanning `src/` for class names, and a measure this
+// specific would land in every page's.
+import type { PortalPrintKitView } from '#/contexts/portal/application/portal-management-contracts'
 import { PRINT_FINAL_DEFAULT_FRAMING } from '#/shared/domain/portal-print-final-framing'
 import type { PrintFinalBleed } from '#/shared/domain/portal-print-final-layers'
 import { PRINT_KIT_PAPER } from '#/shared/domain/portal-print-kit-palette'

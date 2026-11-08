@@ -11,7 +11,7 @@
 import type { ReactNode } from 'react'
 import { Label } from '#/components/ui/label'
 import { RadioGroupItem } from '#/components/ui/radio-group'
-import type { PortalPrintKitView } from '#/contexts/portal/application/public-api'
+import type { PortalPrintKitView } from '#/contexts/portal/application/portal-management-contracts'
 import type {
   PrintKitPaper,
   PrintKitSize,

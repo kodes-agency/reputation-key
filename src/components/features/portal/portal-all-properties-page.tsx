@@ -11,7 +11,7 @@ import { useCapabilities } from '#/shared/hooks/useCapabilities'
 // read results gets the list without them.
 import { PageShell } from '#/components/layout/page-shell'
 import { PageHeader } from '#/components/layout/page-header'
-import type { PortalOverviewRow } from '#/contexts/portal/application/public-api'
+import type { PortalOverviewRow } from '#/contexts/portal/application/portal-management-contracts'
 import {
   PortalAllPropertiesNewPortal,
   type NewPortalProperty,

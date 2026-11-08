@@ -2,7 +2,10 @@
 // review read already settled (`canPublish` is the same question the server
 // asks before it publishes), so the button is never one the server refuses.
 
-import type { PortalReview } from '#/contexts/portal/application/public-api'
+// What the review page's footer says and offers. Pure: it reads the facts the
+// review read already settled (`canPublish` is the same question the server
+// asks before it publishes), so the button is never one the server refuses.
+import type { PortalReview } from '#/contexts/portal/application/portal-management-contracts'
 
 export type ReviewFooterFacts = Pick<
   PortalReview,

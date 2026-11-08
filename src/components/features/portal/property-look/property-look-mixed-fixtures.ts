@@ -2,10 +2,14 @@
 // "Avela Resort" with portals that follow the look, portals with their own photo
 // or colours, and two that have all of it. The page, its media and its batch
 // stories all draw this one Property.
+// Story data for a Property whose portals have parts of their own (ADR 0070):
+// "Avela Resort" with portals that follow the look, portals with their own photo
+// or colours, and two that have all of it. The page, its media and its batch
+// stories all draw this one Property.
 import type {
   PortalLookSources,
   PortalReview,
-} from '#/contexts/portal/application/public-api'
+} from '#/contexts/portal/application/portal-management-contracts'
 import { readyReview } from './property-look-page-fixtures'
 import type { AffectedPortalRow } from './property-look-rules'
 

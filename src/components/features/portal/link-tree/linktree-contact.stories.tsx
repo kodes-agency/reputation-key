@@ -10,7 +10,7 @@ import { expect, fn, userEvent, waitFor, within } from 'storybook/test'
 import type {
   PortalLinktreeLink,
   PortalLinktreeView,
-} from '#/contexts/portal/application/public-api'
+} from '#/contexts/portal/application/portal-management-contracts'
 import { PortalDraftAutosaveProvider } from '../portal-editor/portal-draft-autosave-context'
 import type { LinkApprovalControls } from './link-approval-controls'
 import { LinkTree } from './link-tree'

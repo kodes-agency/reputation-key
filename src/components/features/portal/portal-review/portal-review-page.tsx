@@ -10,7 +10,7 @@
 
 import { useRef, useState } from 'react'
 import { PAGE_GUTTER_X } from '#/components/layout/page-shell'
-import type { PortalReview } from '#/contexts/portal/application/public-api'
+import type { PortalReview } from '#/contexts/portal/application/portal-management-contracts'
 import { cn } from '#/lib/utils'
 import type { GuestLocale } from '#/shared/domain/guest-locale'
 import type { PortalDetailTab } from '../portal-detail/portal-detail-rules'

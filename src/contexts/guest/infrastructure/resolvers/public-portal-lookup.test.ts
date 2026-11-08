@@ -8,8 +8,6 @@ function createPortalApiStub(
   return {
     resolvePortalContext: async () => null,
     getPortalInfo: async () => null,
-    listCurrentPortalIds: async () => [],
-    listPortalIdsByProperty: async () => [],
     listResultsLinks: async () => ({ enabled: true, rows: [] }),
     listPublicationActivationsBetween: async () => [],
     listPortalRatingFacts: async () => [],

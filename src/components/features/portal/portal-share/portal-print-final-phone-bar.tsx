@@ -8,7 +8,7 @@
 import { useState } from 'react'
 import { Button } from '#/components/ui/button'
 import { Sheet, SheetContent, SheetTitle } from '#/components/ui/sheet'
-import type { PortalPrintKitView } from '#/contexts/portal/application/public-api'
+import type { PortalPrintKitView } from '#/contexts/portal/application/portal-management-contracts'
 import { PortalPrintFinalPreview } from './portal-print-final-preview'
 import {
   PrintFinalDownloadButton,

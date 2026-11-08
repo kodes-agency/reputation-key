@@ -8,7 +8,7 @@ import { googleCallError } from '../../domain/google-call-error'
 import {
   executeGoogleProviderJson,
   executeGoogleProviderRaw,
-} from './google-provider-adapter'
+} from '../../provider/google-client.server'
 
 const settingSchema = z
   .object({

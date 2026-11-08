@@ -9,12 +9,12 @@
 import type { Meta, StoryObj } from '@storybook/react'
 import { expect, fn, userEvent, waitFor, within } from 'storybook/test'
 import type { Action } from '#/components/hooks/use-action'
+import type { PortalPrintKitDownload } from '#/contexts/portal/printing/contracts'
 import type {
-  PortalPrintKitDownload,
   PortalPrintKitLastPrint,
   PortalPrintKitView,
   PortalTokenStatus,
-} from '#/contexts/portal/application/public-api'
+} from '#/contexts/portal/application/portal-management-contracts'
 import { AuthedRouterDecorator } from '../../../../../.storybook/AuthedRouterDecorator'
 import { PortalShare } from './portal-share'
 import type { DownloadPrintFinalInput } from './portal-print-kit-types'

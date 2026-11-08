@@ -10,7 +10,7 @@ import { visiblePortals } from './visible-portals'
 // (search matches them too), the order of the Properties, and one page count
 // across all of them.
 import { searchMatcher } from '#/components/property/property-search'
-import type { PortalOverviewRow } from '#/contexts/portal/application/public-api'
+import type { PortalOverviewRow } from '#/contexts/portal/application/portal-management-contracts'
 import { attentionRank, needsAttention, portalAttention } from './portal-attention'
 import { compareProperties } from './portal-overview-order'
 import type { OrganizationSortFigures } from './portal-overview-results'

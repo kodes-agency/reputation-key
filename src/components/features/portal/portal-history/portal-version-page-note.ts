@@ -3,7 +3,11 @@
 // (the live rules). The dialog says so, so a tile in the list that is missing
 // from the phone is not a mystery.
 
-import type { PortalVersionDetail } from '#/contexts/portal/application/public-api'
+// The page and the words of a version can differ: the words list every tile the
+// version published, the page draws only those whose address is still approved
+// (the live rules). The dialog says so, so a tile in the list that is missing
+// from the phone is not a mystery.
+import type { PortalVersionDetail } from '#/contexts/portal/application/portal-management-contracts'
 
 export const TILES_LEFT_OUT_NOTE =
   'Tiles whose address is no longer approved are left out of the page.'

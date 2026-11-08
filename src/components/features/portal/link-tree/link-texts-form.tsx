@@ -9,7 +9,7 @@ import {
   LINK_TEXT_LINE_MAX_LENGTH,
   linkTextsFormSchema,
 } from '#/contexts/portal/application/dto/portal-linktree.dto'
-import type { PortalLinktreeLink } from '#/contexts/portal/application/public-api'
+import type { PortalLinktreeLink } from '#/contexts/portal/application/portal-management-contracts'
 import { FormTextField, type BaseFieldApi } from '#/components/forms/form-text-field'
 import { FieldGroup } from '#/components/ui/field'
 import {
