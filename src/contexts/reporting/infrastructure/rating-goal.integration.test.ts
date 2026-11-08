@@ -21,7 +21,7 @@ import { createConsumerRegistry, type ConsumerEvent } from '#/shared/outbox'
 import type {
   GoalActor,
   GoalExecutionPolicy,
-} from '../application/use-cases/goal-programs'
+} from '../monthly-goals/goal-programs.server'
 import {
   createArchivedPropertyRatingGoalEnder,
   createRatingGoalEvaluator,

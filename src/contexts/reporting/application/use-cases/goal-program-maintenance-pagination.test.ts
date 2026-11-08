@@ -3,8 +3,12 @@ import {
   createGoalProgramService,
   GoalProgramError,
   type GoalProgramDependencies,
-} from './goal-programs'
-import { propertyGoal, NOV_1, DEC_1 } from './monthly-portal-goal-test-fixtures'
+} from '../../monthly-goals/goal-programs.server'
+import {
+  propertyGoal,
+  NOV_1,
+  DEC_1,
+} from '../../monthly-goals/monthly-portal-goal.test-fixtures'
 
 const now = new Date('2026-12-02T12:00:00Z')
 

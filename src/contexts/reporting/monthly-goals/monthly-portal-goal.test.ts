@@ -1,17 +1,20 @@
 import { describe, expect, it, vi } from 'vitest'
-import type { GoalMetric, GoalSubject } from '../../domain/goal-program'
+import type { GoalMetric, GoalSubject } from '../domain/goal-program'
 import type {
   RecommendationDayCount,
   RecommendationPortal,
-} from '../../domain/goal-recommendation-types'
-import { setMonthlyPortalGoalSchema } from '../dto/monthly-portal-goal.dto'
-import type { SetMonthlyPortalGoalRequest } from '../dto/monthly-portal-goal.types'
+} from '../domain/goal-recommendation-types'
+import { setMonthlyPortalGoalSchema } from '../application/dto/monthly-portal-goal.dto'
+import type { SetMonthlyPortalGoalRequest } from '../application/dto/monthly-portal-goal.types'
 import type {
   GoalProgramBundle,
   GoalProgramVersion,
-} from '../ports/goal-program.repository'
-import type { GoalRecommendationFactsPort } from '../ports/goal-recommendation-facts.port'
-import { GoalProgramError, type GoalActor } from './goal-program-shared'
+} from '../application/ports/goal-program.repository'
+import type { GoalRecommendationFactsPort } from '../application/ports/goal-recommendation-facts.port'
+import {
+  GoalProgramError,
+  type GoalActor,
+} from '../application/use-cases/goal-program-shared'
 import {
   MONTHLY_PORTAL_GOAL_NAME,
   changeMonthlyPortalGoalNow,
@@ -24,16 +27,16 @@ import {
   type MonthlyPortalGoalKeepDeps,
   type MonthlyPortalGoalPromptDeps,
   type MonthlyPortalGoalSetDeps,
-} from './monthly-portal-goal'
-import { readMonthlyPortalGoalCard } from './monthly-portal-goal-card'
-import { monthlyPortalGoalOf } from '../monthly-portal-goal-identity'
+} from './monthly-portal-goal.server'
+import { readMonthlyPortalGoalCard } from './monthly-portal-goal-card.server'
+import { monthlyPortalGoalOf } from '../application/monthly-portal-goal-identity'
 import {
   days as localDays,
   fakeWorld as seaviewWorld,
   portal as livePortal,
   propertyGoal,
   readings as dayReadings,
-} from './monthly-portal-goal-test-fixtures'
+} from './monthly-portal-goal.test-fixtures'
 
 const PROPERTY_ID = 'property-1'
 const actor: GoalActor = {

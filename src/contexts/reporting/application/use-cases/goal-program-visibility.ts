@@ -9,7 +9,7 @@ import {
   GoalProgramError,
   type GoalActor,
   type GoalProgramService,
-} from './goal-programs'
+} from '../../monthly-goals/goal-programs.server'
 
 /** The Portals an actor is responsible for at a Property, and their Portal Groups. */
 export type GoalProgramVisibilityPort = (
