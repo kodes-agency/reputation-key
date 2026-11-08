@@ -39,7 +39,7 @@ import type {
   RatingSetupAverageView,
   RatingSetupGoalView,
   RatingSetupPaceView,
-} from './dto/rating-goal-setup.types'
+} from '../rating-goals/contracts'
 
 export {
   OWN_PACE_MIN_TENTHS,

@@ -26,8 +26,8 @@ import {
   createArchivedPropertyRatingGoalEnder,
   createRatingGoalEvaluator,
   createRatingGoalRequestApi,
-} from '../application/use-cases/rating-goals'
-import { sweepRatingGoals } from '../application/use-cases/rating-goal-sweep'
+} from '../rating-goals/rating-goals.server'
+import { sweepRatingGoals } from '../rating-goals/rating-goal-sweep.server'
 import { registerRatingGoalEvaluationConsumer } from './rating-goal-outbox-consumers'
 import { registerRatingGoalPropertyLifecycleConsumer } from './rating-goal-property-lifecycle-consumers'
 import { createCurrentGoogleReputationSnapshotRepository } from './repositories/current-google-reputation-snapshot.repository'
