@@ -8060,57 +8060,6 @@ CREATE TABLE "public"."property_rating_goals" (
 
 
 --
--- Name: property_reply_profiles; Type: TABLE; Schema: public; Owner: -
---
-
-CREATE TABLE "public"."property_reply_profiles" (
-    "id" "uuid" DEFAULT "gen_random_uuid"() NOT NULL,
-    "organization_id" character varying(255) NOT NULL,
-    "property_id" "uuid" NOT NULL,
-    "greeting" character varying(120) NOT NULL,
-    "sign_off_positive" character varying(200) NOT NULL,
-    "sign_off_negative" character varying(200) NOT NULL,
-    "emoji_allowed" boolean DEFAULT false NOT NULL,
-    "escalation_contact" character varying(200),
-    "version" integer DEFAULT 1 NOT NULL,
-    "updated_by" character varying(255) NOT NULL,
-    "created_at" timestamp with time zone DEFAULT "now"() NOT NULL,
-    "updated_at" timestamp with time zone DEFAULT "now"() NOT NULL,
-    CONSTRAINT "property_reply_profiles_version_positive" CHECK (("version" >= 1))
-);
-
-
---
--- Name: property_reply_templates; Type: TABLE; Schema: public; Owner: -
---
-
-CREATE TABLE "public"."property_reply_templates" (
-    "id" "uuid" DEFAULT "gen_random_uuid"() NOT NULL,
-    "organization_id" character varying(255) NOT NULL,
-    "property_id" "uuid" NOT NULL,
-    "title" character varying(120) NOT NULL,
-    "rating_min" smallint NOT NULL,
-    "rating_max" smallint NOT NULL,
-    "has_text" boolean NOT NULL,
-    "aspect" character varying(40),
-    "open_label" character varying(80),
-    "language_tag" character varying(35) NOT NULL,
-    "body" "text" NOT NULL,
-    "enabled" boolean DEFAULT true NOT NULL,
-    "version" integer DEFAULT 1 NOT NULL,
-    "updated_by" character varying(255) NOT NULL,
-    "created_at" timestamp with time zone DEFAULT "now"() NOT NULL,
-    "updated_at" timestamp with time zone DEFAULT "now"() NOT NULL,
-    CONSTRAINT "property_reply_templates_aspect_valid" CHECK ((("aspect" IS NULL) OR (("aspect")::"text" = ANY ((ARRAY['service'::character varying, 'staff'::character varying, 'quality'::character varying, 'value'::character varying, 'cleanliness'::character varying, 'wait_time'::character varying, 'atmosphere'::character varying, 'location'::character varying, 'accessibility'::character varying, 'other'::character varying, 'room'::character varying, 'food_and_drink'::character varying, 'noise'::character varying, 'wifi_and_tech'::character varying, 'check_in_out'::character varying, 'parking'::character varying, 'amenities'::character varying, 'events'::character varying])::"text"[])))),
-    CONSTRAINT "property_reply_templates_body_valid" CHECK ((("char_length"("btrim"("body")) > 0) AND ("char_length"("body") <= 4096))),
-    CONSTRAINT "property_reply_templates_language_tag_valid" CHECK ((("language_tag")::"text" ~ '^(en-Latn|es-Latn|fr-Latn|de-Latn|pt-Latn|it-Latn|nl-Latn|pl-Latn|tr-Latn|uk-Cyrl|ru-Cyrl|ar-Arab|he-Hebr|hi-Deva|bn-Beng|ta-Taml|th-Thai|vi-Latn|id-Latn|zh-Hans|zh-Hant|ja-Jpan|ko-Kore|bg-Cyrl)(-(001|002|003|005|009|011|013|014|015|017|018|019|021|029|030|034|035|039|053|054|057|061|142|143|145|150|151|154|155|202|419|AC|AD|AE|AF|AG|AI|AL|AM|AO|AQ|AR|AS|AT|AU|AW|AX|AZ|BA|BB|BD|BE|BF|BG|BH|BI|BJ|BL|BM|BN|BO|BQ|BR|BS|BT|BV|BW|BY|BZ|CA|CC|CD|CF|CG|CH|CI|CK|CL|CM|CN|CO|CP|CQ|CR|CU|CV|CW|CX|CY|CZ|DE|DG|DJ|DK|DM|DO|DZ|EA|EC|EE|EG|EH|ER|ES|ET|EU|EZ|FI|FJ|FK|FM|FO|FR|GA|GB|GD|GE|GF|GG|GH|GI|GL|GM|GN|GP|GQ|GR|GS|GT|GU|GW|GY|HK|HM|HN|HR|HT|HU|IC|ID|IE|IL|IM|IN|IO|IQ|IR|IS|IT|JE|JM|JO|JP|KE|KG|KH|KI|KM|KN|KP|KR|KW|KY|KZ|LA|LB|LC|LI|LK|LR|LS|LT|LU|LV|LY|MA|MC|MD|ME|MF|MG|MH|MK|ML|MM|MN|MO|MP|MQ|MR|MS|MT|MU|MV|MW|MX|MY|MZ|NA|NC|NE|NF|NG|NI|NL|NO|NP|NR|NU|NZ|OM|PA|PE|PF|PG|PH|PK|PL|PM|PN|PR|PS|PT|PW|PY|QA|QO|RE|RO|RS|RU|RW|SA|SB|SC|SD|SE|SG|SH|SI|SJ|SK|SL|SM|SN|SO|SR|SS|ST|SV|SX|SY|SZ|TA|TC|TD|TF|TG|TH|TJ|TK|TL|TM|TN|TO|TR|TT|TV|TW|TZ|UA|UG|UM|UN|US|UY|UZ|VA|VC|VE|VG|VI|VN|VU|WF|WS|XA|XB|XK|YE|YT|ZA|ZM|ZW))?$'::"text")),
-    CONSTRAINT "property_reply_templates_rating_valid" CHECK (((("rating_min" >= 1) AND ("rating_min" <= 5)) AND (("rating_max" >= 1) AND ("rating_max" <= 5)) AND ("rating_min" <= "rating_max"))),
-    CONSTRAINT "property_reply_templates_title_nonempty" CHECK (("char_length"("btrim"(("title")::"text")) > 0)),
-    CONSTRAINT "property_reply_templates_version_positive" CHECK (("version" >= 1))
-);
-
-
---
 -- Name: property_reply_voices; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -10580,22 +10529,6 @@ ALTER TABLE ONLY "public"."property_rating_goals"
 
 ALTER TABLE ONLY "public"."property_rating_goals"
     ADD CONSTRAINT "property_rating_goals_pkey" PRIMARY KEY ("id");
-
-
---
--- Name: property_reply_profiles property_reply_profiles_pkey; Type: CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY "public"."property_reply_profiles"
-    ADD CONSTRAINT "property_reply_profiles_pkey" PRIMARY KEY ("id");
-
-
---
--- Name: property_reply_templates property_reply_templates_pkey; Type: CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY "public"."property_reply_templates"
-    ADD CONSTRAINT "property_reply_templates_pkey" PRIMARY KEY ("id");
 
 
 --
@@ -13338,41 +13271,6 @@ CREATE UNIQUE INDEX "property_rating_goals_one_active_idx" ON "public"."property
 --
 
 CREATE INDEX "property_rating_goals_property_idx" ON "public"."property_rating_goals" USING "btree" ("organization_id", "property_id", "created_at");
-
-
---
--- Name: property_reply_profiles_property_unique; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE UNIQUE INDEX "property_reply_profiles_property_unique" ON "public"."property_reply_profiles" USING "btree" ("organization_id", "property_id");
-
-
---
--- Name: property_reply_profiles_scope_id_key; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE UNIQUE INDEX "property_reply_profiles_scope_id_key" ON "public"."property_reply_profiles" USING "btree" ("organization_id", "property_id", "id");
-
-
---
--- Name: property_reply_templates_applicable_idx; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE INDEX "property_reply_templates_applicable_idx" ON "public"."property_reply_templates" USING "btree" ("organization_id", "property_id", "enabled", "has_text", "rating_min", "rating_max");
-
-
---
--- Name: property_reply_templates_property_title_unique; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE UNIQUE INDEX "property_reply_templates_property_title_unique" ON "public"."property_reply_templates" USING "btree" ("organization_id", "property_id", "title");
-
-
---
--- Name: property_reply_templates_scope_id_key; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE UNIQUE INDEX "property_reply_templates_scope_id_key" ON "public"."property_reply_templates" USING "btree" ("organization_id", "property_id", "id");
 
 
 --
@@ -16154,22 +16052,6 @@ ALTER TABLE ONLY "public"."property_rating_goal_deferrals"
 
 ALTER TABLE ONLY "public"."property_rating_goals"
     ADD CONSTRAINT "property_rating_goals_property_fk" FOREIGN KEY ("organization_id", "property_id") REFERENCES "public"."properties"("organization_id", "id") ON DELETE RESTRICT;
-
-
---
--- Name: property_reply_profiles property_reply_profiles_property_tenant_fk; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY "public"."property_reply_profiles"
-    ADD CONSTRAINT "property_reply_profiles_property_tenant_fk" FOREIGN KEY ("organization_id", "property_id") REFERENCES "public"."properties"("organization_id", "id") ON DELETE RESTRICT;
-
-
---
--- Name: property_reply_templates property_reply_templates_property_tenant_fk; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY "public"."property_reply_templates"
-    ADD CONSTRAINT "property_reply_templates_property_tenant_fk" FOREIGN KEY ("organization_id", "property_id") REFERENCES "public"."properties"("organization_id", "id") ON DELETE RESTRICT;
 
 
 --

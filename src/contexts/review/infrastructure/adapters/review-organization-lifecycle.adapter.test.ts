@@ -210,8 +210,6 @@ describe('Review Organization lifecycle contributor', () => {
       'reply_publication_attempts',
       'review_provider_subjects',
       'review_provider_history_cutoffs',
-      'property_reply_profiles',
-      'property_reply_templates',
       'idempotency_receipts',
       'review_sync_state',
     ]) {
