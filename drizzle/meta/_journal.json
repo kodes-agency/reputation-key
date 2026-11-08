@@ -778,6 +778,62 @@
       "when": 1799100001000,
       "tag": "0110_audit_events_retention_index",
       "breakpoints": true
+    },
+    {
+      "idx": 111,
+      "version": "7",
+      "when": 1799200001000,
+      "tag": "0111_google_import_checkpoints",
+      "breakpoints": true
+    },
+    {
+      "idx": 112,
+      "version": "7",
+      "when": 1799300001000,
+      "tag": "0112_google_imports_purge_index",
+      "breakpoints": true
+    },
+    {
+      "idx": 113,
+      "version": "7",
+      "when": 1799400001000,
+      "tag": "0113_google_import_items_parent_index",
+      "breakpoints": true
+    },
+    {
+      "idx": 114,
+      "version": "7",
+      "when": 1799500001000,
+      "tag": "0114_google_import_items_dispatch_index",
+      "breakpoints": true
+    },
+    {
+      "idx": 115,
+      "version": "7",
+      "when": 1799600001000,
+      "tag": "0115_google_import_items_expired_index",
+      "breakpoints": true
+    },
+    {
+      "idx": 116,
+      "version": "7",
+      "when": 1799700001000,
+      "tag": "0116_google_import_items_connection_index",
+      "breakpoints": true
+    },
+    {
+      "idx": 117,
+      "version": "7",
+      "when": 1799800001000,
+      "tag": "0117_google_import_items_existing_property_index",
+      "breakpoints": true
+    },
+    {
+      "idx": 118,
+      "version": "7",
+      "when": 1799900001000,
+      "tag": "0118_google_import_items_destination_index",
+      "breakpoints": true
     }
   ]
 }
