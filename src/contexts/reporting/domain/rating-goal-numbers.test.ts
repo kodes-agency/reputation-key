@@ -52,29 +52,28 @@ describe('the number Google shows', () => {
 })
 
 describe('the exact average a goal plans against', () => {
-  it('takes the cache sum over count when the cache holds every Google review', () => {
-    const exact = exactAverage(
-      { count: 261, sum: 1021 },
-      { reviewCount: 261, averageRating: 3.9000000953674316 },
-    )
+  it('uses Google without revision evidence even when the review counts match', () => {
+    const exact = exactAverage({ reviewCount: 261, averageRating: 3.9000000953674316 })
 
-    expect(exact).toEqual({ value: ratio(1021, 261), source: 'cache' })
-    expect(ratioToNumber(exact!.value)).toBeCloseTo(3.9119, 4)
+    expect(exact).toEqual({ value: ratio(39, 10), source: 'google' })
+    expect(ratioToNumber(exact!.value)).toBe(3.9)
   })
 
-  it("falls back to Google's figure when the cache is short of Google's count", () => {
-    const exact = exactAverage(
-      { count: 250, sum: 1000 },
-      { reviewCount: 261, averageRating: 3.9000000953674316 },
-    )
+  it('uses the supplied Google figure for ten reviews', () => {
+    expect(exactAverage({ reviewCount: 10, averageRating: 4.5 })).toEqual({
+      value: ratio(45, 10),
+      source: 'google',
+    })
+  })
+
+  it("reads Google's decimal figure without float32 artefacts", () => {
+    const exact = exactAverage({ reviewCount: 261, averageRating: 3.9000000953674316 })
 
     expect(exact).toEqual({ value: ratio(3900, 1000), source: 'google' })
   })
 
   it('has no basis when neither the cache nor Google has a rating', () => {
-    expect(
-      exactAverage({ count: 0, sum: 0 }, { reviewCount: 0, averageRating: null }),
-    ).toBeNull()
+    expect(exactAverage({ reviewCount: 0, averageRating: null })).toBeNull()
   })
 })
 

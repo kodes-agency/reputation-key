@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { GuestVoiceV2Read } from '#/contexts/ai/application/public-api'
-import type { RatingGoalCardView } from '#/contexts/reporting/application/dto/rating-goal.types'
+import type { RatingGoalCardView } from '#/contexts/reporting/rating-goals/contracts'
 import {
   guestVoiceGoalOf,
   guestVoiceReasonOf,

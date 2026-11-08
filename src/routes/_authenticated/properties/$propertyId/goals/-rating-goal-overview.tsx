@@ -3,8 +3,8 @@
 
 import { useEffect, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { RatingGoalOverview } from '#/components/goals/rating-goal-overview'
-import type { PortalNextStep } from '#/components/goals/rating-goal-portal-step'
+import { RatingGoalOverview } from '#/contexts/reporting/rating-goals/ui/rating-goal-overview'
+import type { PortalNextStep } from '#/contexts/reporting/rating-goals/ui/rating-goal-portal-step'
 import { usePermissions } from '#/shared/hooks/usePermissions'
 import { ratingGoalHistoryQuery, ratingGoalSetupQuery } from './-rating-goal-queries'
 import {

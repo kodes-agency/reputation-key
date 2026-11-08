@@ -107,12 +107,12 @@ import {
   createArchivedPropertyRatingGoalEnder,
   createRatingGoalEvaluator,
   createRatingGoalRequestApi,
-} from './application/use-cases/rating-goals'
+} from './rating-goals/rating-goals.server'
 import { registerRatingGoalEvaluationConsumer } from './infrastructure/rating-goal-outbox-consumers'
 import {
   sweepRatingGoals,
   type AuthorizeRatingGoalScope,
-} from './application/use-cases/rating-goal-sweep'
+} from './rating-goals/rating-goal-sweep.server'
 import {
   createRatingGoalEvaluationJobHandler,
   RATING_GOAL_EVALUATION_JOB_NAME,
