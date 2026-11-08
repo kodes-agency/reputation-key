@@ -12,13 +12,13 @@ vi.mock('#/shared/events/schema-registry', () => ({
   validateEventPayload: mocks.validateEventPayload,
 }))
 
-// ARC-03-T7: the consumers register on the registry they are handed, so the
+// Consumers register on the registry they are handed, so the
 // spy is a stand-in registry rather than a mocked module export.
 const consumerRegistry = {
   registerConsumer: mocks.registerConsumer,
 } as unknown as ConsumerRegistry
 
-import { registerGuestMetricConsumers } from './guest-outbox-consumers'
+import { registerGuestMetricConsumers } from './guest-outbox-consumers.server'
 
 const common = {
   organizationId: 'org-1',
@@ -258,6 +258,112 @@ describe('Guest metric durable consumers', () => {
     ).rejects.toBe(lookupFailure)
     expect(recordMetrics).not.toHaveBeenCalled()
   })
+
+  it.each([
+    { eventType: 'guest.scan.recorded', payload: { scanSource: 'qr' } },
+    { eventType: 'guest.scan.recorded', payload: { scanId: 'scan-1' } },
+    {
+      eventType: 'guest.qualified_scan.recorded',
+      payload: { accessArtifactId: 'artifact-1' },
+    },
+    {
+      eventType: 'guest.qualified_scan.recorded',
+      payload: { qualifiedScanId: 'scan-1' },
+    },
+    {
+      eventType: 'guest.qualified_scan.retracted',
+      payload: { qualifiedScanId: 'scan-1', accessArtifactId: 'artifact-1' },
+    },
+    { eventType: 'guest.rating.submitted', payload: { value: 3 } },
+    {
+      eventType: 'guest.rating.submitted',
+      payload: { ratingId: 'rating-1', value: '3' },
+    },
+    { eventType: 'guest.rating.retracted', payload: { ratingId: 'rating-1' } },
+    { eventType: 'guest.feedback.submitted', payload: {} },
+    { eventType: 'guest.feedback.retracted', payload: { feedbackId: 'feedback-1' } },
+    { eventType: 'guest.review_link.clicked', payload: {} },
+  ])(
+    'refuses an incomplete $eventType before writing or settling it',
+    async ({ eventType, payload }) => {
+      const recordMetrics = vi.fn()
+      const retractMetrics = vi.fn()
+      registerGuestMetricConsumers(consumerRegistry, {
+        recordMetrics,
+        retractMetrics,
+        findGroupForPortal: vi.fn(),
+      })
+      const registration = mocks.registerConsumer.mock.calls
+        .map(([value]) => value)
+        .find((value) => value.eventType === eventType)
+      await expect(
+        registration.handler({
+          eventId: 'invalid-event',
+          eventType,
+          eventVersion: 2,
+          payload: { ...common, ...payload },
+          organizationId: common.organizationId,
+          propertyId: common.propertyId,
+          sourceContext: 'guest',
+          sourceAggregateId: 'source-1',
+        }),
+      ).rejects.toThrow('payload is invalid')
+      expect(recordMetrics).not.toHaveBeenCalled()
+      expect(retractMetrics).not.toHaveBeenCalled()
+    },
+  )
+
+  it.each([
+    {
+      payload: { organizationId: 'another-organization' },
+      expectedError: 'Guest metric envelope attribution does not match its payload',
+    },
+    {
+      payload: { propertyId: 'another-property' },
+      expectedError: 'Guest metric envelope attribution does not match its payload',
+    },
+    {
+      payload: { occurredAt: 'invalid' },
+      expectedError: 'Guest metric event occurredAt is invalid',
+    },
+    {
+      payload: { staffAttribution: { effectiveFrom: 'invalid', effectiveTo: null } },
+      expectedError: 'Guest metric Staff attribution interval is invalid',
+    },
+    {
+      payload: {
+        staffAttribution: {
+          effectiveFrom: common.occurredAt,
+          effectiveTo: common.occurredAt,
+        },
+      },
+      expectedError: 'Guest metric Staff attribution interval is invalid',
+    },
+  ])(
+    'refuses invalid common attribution before projecting: $payload',
+    async ({ payload, expectedError }) => {
+      const recordMetrics = vi.fn()
+      registerGuestMetricConsumers(consumerRegistry, {
+        recordMetrics,
+        retractMetrics: vi.fn(),
+        findGroupForPortal: vi.fn(),
+      })
+      const registration = mocks.registerConsumer.mock.calls[3]![0]
+      await expect(
+        registration.handler({
+          eventId: 'invalid-attribution',
+          eventType: 'guest.rating.submitted',
+          eventVersion: 1,
+          payload: { ...common, ratingId: 'rating-1', value: 3, ...payload },
+          organizationId: common.organizationId,
+          propertyId: common.propertyId,
+          sourceContext: 'guest',
+          sourceAggregateId: 'rating-1',
+        }),
+      ).rejects.toThrow(expectedError)
+      expect(recordMetrics).not.toHaveBeenCalled()
+    },
+  )
 
   it.each([
     { eventVersion: 1, sourceField: { source: 'qr' as const } },

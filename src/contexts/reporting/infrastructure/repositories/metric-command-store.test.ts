@@ -1,3 +1,4 @@
+import { createPortalAnalyticsRepository } from '../../portal-results/portal-analytics.repository.server'
 import { randomUUID } from 'node:crypto'
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest'
 import { Pool } from 'pg'
@@ -20,8 +21,7 @@ import {
   type MetricReading,
   type ReadingResult,
 } from '../../domain/metric-reading'
-import { portalLifetimeFactForMetric } from '../../domain/portal-lifetime-aggregate'
-import { createAtomicMetricCommandStore } from '../metric-command-store'
+import { createAtomicMetricCommandStore } from '../../readings/metric-command-store.server'
 import type {
   GuestReviewLinkClicked,
   GuestQualifiedScanRecorded,
@@ -32,7 +32,7 @@ import { createPropertyLocalDateResolver } from './property-local-date'
 import {
   onQualifiedScanRecordedDurably,
   onReviewLinkClickedDurably,
-} from '../record-portal-metric'
+} from '../../readings/record-portal-metric.server'
 
 const ORG_ID = organizationId('org-metriccmd-0000-0000-0000-000000000001')
 const PROP_ID = propertyId('4d000000-0000-0000-0000-000000000001')
@@ -333,16 +333,20 @@ describe.sequential('metricCommandStore (integration)', () => {
         [sourceEvent.eventId],
       )
       expect(receipts.rows).toEqual([{ status: 'applied' }])
-      const lifetime = await pool.query(
-        `SELECT google_review_selection_count::int AS google_review_selection_count, secondary_link_selection_count::int AS secondary_link_selection_count FROM portal_metric_lifetime_aggregates WHERE portal_id = $1`,
-        [PORTAL_ID],
+      const destinationCounts = await createPortalAnalyticsRepository(
+        db,
+        () => QUALIFIED_AT,
+      ).getPortalKpiSums(
+        ORG_ID,
+        PROP_ID,
+        PORTAL_ID,
+        new Date(0),
+        new Date('2027-01-01T00:00:00.000Z'),
       )
-      expect(lifetime.rows).toEqual([
-        {
-          google_review_selection_count: destinationKind === 'google_review' ? 1 : 0,
-          secondary_link_selection_count: destinationKind === 'secondary_link' ? 1 : 0,
-        },
-      ])
+      expect(
+        destinationCounts.find((row) => row.metricKey === 'portal.review_link_click')
+          ?.total ?? 0,
+      ).toBe(destinationKind === 'google_review' ? 1 : 0)
       if (expectedLinkId) {
         await expect(
           pool.query(
@@ -365,20 +369,15 @@ describe.sequential('metricCommandStore (integration)', () => {
       value: 1,
       definitionVersionId: '11111111-1111-4111-8111-111111111204',
     })
-    const fact = portalLifetimeFactForMetric({
-      metricKey: original.metricKey,
-      value: 1,
-      destinationKind: 'secondary_link',
-    })
     await store.recordMetric({
       reading: original,
-      portalLifetimeFact: fact,
+      destinationKind: 'secondary_link',
     })
     const otherLinkReading = { ...original, portalLinkId: randomUUID() }
     await expect(
       store.recordMetric({
         reading: otherLinkReading,
-        portalLifetimeFact: fact,
+        destinationKind: 'secondary_link',
       }),
     ).rejects.toThrow('Duplicate metric reading Portal link does not match')
     const wrongReplacement = {
@@ -389,7 +388,7 @@ describe.sequential('metricCommandStore (integration)', () => {
     await expect(
       store.recordMetric({
         reading: wrongReplacement,
-        portalLifetimeFact: fact,
+        destinationKind: 'secondary_link',
         supersedesSourceEventId: original.sourceEventId,
       }),
     ).rejects.toThrow('Replacement metric Portal link does not match its source reading')
@@ -400,7 +399,7 @@ describe.sequential('metricCommandStore (integration)', () => {
     }
     await store.recordMetric({
       reading: replacement,
-      portalLifetimeFact: fact,
+      destinationKind: 'secondary_link',
       supersedesSourceEventId: original.sourceEventId,
     })
     const rows = await pool.query(
@@ -416,7 +415,7 @@ describe.sequential('metricCommandStore (integration)', () => {
       (
         await store.recordMetric({
           reading: original,
-          portalLifetimeFact: fact,
+          destinationKind: 'secondary_link',
         })
       ).status,
     ).toBe('duplicate')
@@ -584,11 +583,7 @@ describe.sequential('metricCommandStore (integration)', () => {
         })
         return {
           reading,
-          portalLifetimeFact: portalLifetimeFactForMetric({
-            metricKey: reading.metricKey,
-            value: reading.value,
-            destinationKind: null,
-          }),
+          destinationKind: null,
         }
       })
     }
@@ -711,11 +706,7 @@ describe.sequential('metricCommandStore (integration)', () => {
       })
       return {
         reading,
-        portalLifetimeFact: portalLifetimeFactForMetric({
-          metricKey: reading.metricKey,
-          value: reading.value,
-          destinationKind: null,
-        }),
+        destinationKind: null,
       }
     })
     await store.recordMetrics({ readings: originalEntries })

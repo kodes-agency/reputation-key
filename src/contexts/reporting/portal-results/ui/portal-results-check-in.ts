@@ -1,3 +1,4 @@
+import { allTimeLabel } from './portal-results-window'
 import type {
   PortalAnalyticsData,
   PortalCountKPIValue,
@@ -89,7 +90,9 @@ function using(data: PortalAnalyticsData, place?: PortalResultsPlace): Card {
   return card(
     `${scans.value >= 10 ? 'Yes, ' : ''}${guests(scans.value)} ${action}`,
     data.localDays === null
-      ? ['All time shows the total. Choose a range to see days and weeks.']
+      ? [
+          `${allTimeLabel(data.period.endAt)} shows the total. Choose a range to see days and weeks.`,
+        ]
       : [],
     change(scans, data),
   )

@@ -4,7 +4,7 @@ import { metricReadings } from '#/shared/db/schema/metric.schema'
 import { metricReadingId, organizationId, propertyId } from '#/shared/domain/ids'
 import { insertOutboxRow } from '#/shared/outbox/commit'
 import { createReading } from '../domain/metric-reading'
-import { createAtomicMetricCommandStore } from './metric-command-store'
+import { createAtomicMetricCommandStore } from './metric-command-store.server'
 
 vi.mock('#/shared/outbox/commit', () => ({ insertOutboxRow: vi.fn() }))
 

@@ -7,7 +7,7 @@ import type {
   GoalSubjectAssignment,
 } from '../ports/goal-program.repository'
 import type { GoalMetric, GoalSubject } from '../../domain/goal-program'
-import { METRIC_VERSION_IDS } from '../../domain/metric-registry'
+import { METRIC_VERSION_IDS } from '../../readings/contracts'
 import type { GovernedGoalMetricResult } from './query-goal-metric'
 import type { GoalProgressDeps } from './goal-progress'
 import {

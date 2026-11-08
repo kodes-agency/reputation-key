@@ -1,7 +1,7 @@
 import type { MetricReading, ReadingResult } from '../../domain/metric-reading'
 import type { OrganizationId, PortalId, PropertyId } from '#/shared/domain/ids'
 import type { PrimaryStaffAttributionSnapshot } from '#/shared/domain/primary-staff-attribution'
-import type { PortalLifetimeFact } from '../../domain/portal-lifetime-aggregate'
+import type { PortalDestinationKind } from '../../domain/portal-link-attribution'
 
 export type MetricSourceReceipt = Readonly<{
   eventId: string
@@ -9,13 +9,13 @@ export type MetricSourceReceipt = Readonly<{
 }>
 
 /**
- * Commits the reading, source receipt and lifetime contribution atomically.
+ * Commits the reading and source receipt atomically.
  * Replacements also retract the prior reading and emit a correction fact.
  */
 export type RecordMetricCommand = Readonly<{
   reading: MetricReading
   supersedesSourceEventId?: string | null
-  portalLifetimeFact?: PortalLifetimeFact | null
+  destinationKind?: PortalDestinationKind | null
   /** Optional source-consumer receipt committed with the reading. */
   sourceReceipt?: MetricSourceReceipt
 }>

@@ -9,7 +9,6 @@ import {
   readyEvidence,
   createFakeResponseIntegrity,
   createFakePortalVersions,
-  emptyPortalLifetimeAggregate,
   SOFIA_START,
   SOFIA_END,
   SOFIA_PRIOR_START,
@@ -22,42 +21,51 @@ beforeEach(() => vi.setSystemTime(new Date('2026-10-15T12:00:00Z')))
 afterEach(() => vi.useRealTimers())
 
 describe('getPortalAnalytics: All Time counts Google selections only', () => {
-  type LifetimeValues = Record<
-    keyof ReturnType<typeof emptyPortalLifetimeAggregate>['values'],
-    number
-  >
-  function lifetimeWith(overrides: Partial<LifetimeValues>) {
-    const aggregate = emptyPortalLifetimeAggregate()
-    return { ...aggregate, values: { ...aggregate.values, ...overrides } }
-  }
-
-  async function runAllTime(aggregate: ReturnType<typeof lifetimeWith>) {
-    return createAuthorizedPortalAnalytics({
-      portalMetrics: createFakePortalMetrics(),
-      portalLifetime: { get: vi.fn(async () => aggregate) },
-      responseIntegrity: createFakeResponseIntegrity(),
-      portalVersions: createFakePortalVersions(),
-    })({
-      organizationId: ORG,
-      propertyId: PROP,
-      portalId: PORT,
-      startDate: new Date(0),
-      endDate: new Date(),
-      timeRange: 'all',
-      propertyTimezone: 'UTC',
-    })
+  async function runAllTime(
+    values: Readonly<{
+      qualifiedScanCount?: number
+      privateRatingCount?: number
+      privateRatingSum?: number
+      googleReviewSelectionCount?: number
+      secondaryLinkSelectionCount?: number
+      privateRating4Count?: number
+      privateRating5Count?: number
+    }>,
+  ) {
+    return runResultsTab(
+      resultsTabDeps({
+        metrics: createFakePortalMetrics({
+          kpiSums: [
+            {
+              metricKey: 'portal.qualified_scan',
+              total: values.qualifiedScanCount ?? 0,
+              count: values.qualifiedScanCount ?? 0,
+            },
+            {
+              metricKey: 'portal.rating',
+              total: values.privateRatingSum ?? 0,
+              count: values.privateRatingCount ?? 0,
+            },
+            {
+              metricKey: 'portal.review_link_click',
+              total: values.googleReviewSelectionCount ?? 0,
+              count: values.googleReviewSelectionCount ?? 0,
+            },
+          ],
+        }),
+      }),
+      { startDate: new Date(0), timeRange: 'all' },
+    )
   }
 
   it('leaves secondary-link selections out of Google opens and the funnel', async () => {
-    const result = await runAllTime(
-      lifetimeWith({
-        qualifiedScanCount: 30,
-        privateRatingCount: 6,
-        privateRatingSum: 27,
-        googleReviewSelectionCount: 4,
-        secondaryLinkSelectionCount: 9,
-      }),
-    )
+    const result = await runAllTime({
+      qualifiedScanCount: 30,
+      privateRatingCount: 6,
+      privateRatingSum: 27,
+      googleReviewSelectionCount: 4,
+      secondaryLinkSelectionCount: 9,
+    })
 
     expect(result.kpis.googleOpens.value).toBe(4)
     expect(result.kpis.googleOpens.priorValue).toBeNull()
@@ -70,14 +78,12 @@ describe('getPortalAnalytics: All Time counts Google selections only', () => {
   })
 
   it('holds the all-time average back below five ratings too', async () => {
-    const result = await runAllTime(
-      lifetimeWith({
-        privateRatingCount: 4,
-        privateRatingSum: 18,
-        privateRating4Count: 2,
-        privateRating5Count: 2,
-      }),
-    )
+    const result = await runAllTime({
+      privateRatingCount: 4,
+      privateRatingSum: 18,
+      privateRating4Count: 2,
+      privateRating5Count: 2,
+    })
 
     expect(result.kpis.avgRating.value).toBeNull()
     expect(result.kpis.avgRating.sampleCount).toBe(4)
@@ -288,7 +294,6 @@ describe('getPortalAnalytics: the Results tab', () => {
     const deps = resultsTabDeps()
     const result = await createAuthorizedPortalAnalytics({
       ...deps,
-      portalLifetime: { get: vi.fn(async () => emptyPortalLifetimeAggregate()) },
     })({
       organizationId: ORG,
       propertyId: PROP,

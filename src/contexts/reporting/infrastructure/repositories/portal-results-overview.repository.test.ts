@@ -567,7 +567,6 @@ describe('Portal results overview repository (integration)', () => {
     const resultsView = getPortalAnalytics({
       propertyAccess,
       portalMetrics: single(),
-      portalLifetime: { get: async () => null },
       responseIntegrity: {
         getPortalScanPatterns: async () => [],
         getPortalResponseIntegritySummary: async () => ({

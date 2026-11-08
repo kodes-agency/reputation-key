@@ -12,7 +12,7 @@ import type { MetricStatsPort } from '../../application/ports/metric-stats.port'
 import { getDb, type Database } from '#/shared/db'
 import { setupIntegrationDb } from '#/shared/testing/integration-helpers'
 import { organizationId, propertyId, portalId } from '#/shared/domain/ids'
-import { METRIC_VERSION_IDS } from '../../domain/metric-registry'
+import { METRIC_VERSION_IDS } from '../../readings/contracts'
 
 const MS_PER_DAY = 86_400_000
 

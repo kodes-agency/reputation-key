@@ -4,7 +4,7 @@
 // Portal results read it here so a window that opens before it is never shown
 // as a verified zero, and the client never keeps a copy of the date.
 
-import { METRIC_VERSION_IDS, findMetricVersionById } from '../../domain/metric-registry'
+import { METRIC_VERSION_IDS, findMetricVersionById } from '../../readings/contracts'
 
 const QUALIFIED_SCANS_SINCE: Date = (() => {
   const registered = findMetricVersionById(METRIC_VERSION_IDS.qualifiedScanGoal)

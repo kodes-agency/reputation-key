@@ -1,4 +1,4 @@
-import type { GovernedMetricVersion } from '../../domain/metric-registry'
+import type { GovernedMetricVersion } from '../../readings/contracts'
 
 export type MetricRegistryRepository = Readonly<{
   findVersionById(definitionVersionId: string): Promise<GovernedMetricVersion | null>

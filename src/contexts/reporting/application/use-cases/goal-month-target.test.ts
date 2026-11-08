@@ -6,8 +6,8 @@
 // and the guard on the database clock) is pinned in
 // infrastructure/repositories/goal-month-target.repository.test.ts.
 import { describe, expect, it, vi } from 'vitest'
-import type { GovernedMetricVersion } from '../../domain/metric-registry'
-import { METRIC_VERSION_IDS } from '../../domain/metric-registry'
+import type { GovernedMetricVersion } from '../../readings/contracts'
+import { METRIC_VERSION_IDS } from '../../readings/contracts'
 import type { GoalSubject } from '../../domain/goal-program'
 import { monthTargetMarker } from '../goal-month-target-marker'
 import { monthTargetPlan } from '../goal-month-target-plan'

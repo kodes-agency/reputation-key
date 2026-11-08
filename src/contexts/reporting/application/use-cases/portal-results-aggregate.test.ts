@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { portalId } from '#/shared/domain/ids'
-import { METRIC_VERSION_IDS } from '../../domain/metric-registry'
+import { METRIC_VERSION_IDS } from '../../readings/contracts'
 import type {
   MetricPortalMetricEvidence,
   MetricPortalMetricEvidenceSet,

@@ -19,7 +19,7 @@ import {
   type SeededSubject,
 } from '../testing/goal-running-month-seed'
 import type { GoalMetricSubject } from '../../application/ports/metric.repository'
-import { findMetricVersionById, METRIC_VERSION_IDS } from '../../domain/metric-registry'
+import { findMetricVersionById, METRIC_VERSION_IDS } from '../../readings/contracts'
 import { createMetricRepository } from '../repositories/metric.repository'
 import { readRunningCountMonths } from './goal-running-months'
 

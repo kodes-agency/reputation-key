@@ -13,7 +13,7 @@ import {
   type GoalSubject,
   type GoalTargetSource,
 } from '../../domain/goal-program'
-import type { GovernedMetricVersion } from '../../domain/metric-registry'
+import type { GovernedMetricVersion } from '../../readings/contracts'
 import { effectiveMonthTarget } from '../goal-effective-month-target'
 import { monthTargetPlan, type GoalMonthTargetPlan } from '../goal-month-target-plan'
 import { GOAL_VERSION_REASONS } from '../goal-version-reasons'

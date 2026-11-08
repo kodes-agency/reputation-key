@@ -78,7 +78,7 @@ export const RESULTS_HEALTHY: PortalAnalyticsData = {
     compareEnd: '2026-08-31',
   },
   qualifiedScansSince: new Date('2026-08-01T00:00:00.000Z'),
-  lifetimeReconciliation: null,
+
   kpis: {
     scans: resultsCount(412, 381),
     ratings: resultsCount(118, 103),

@@ -11,7 +11,7 @@ import { beforeAll, describe, expect, it } from 'vitest'
 import { calendarPeriodRange } from '#/shared/domain/period-range'
 import type { GoalMetric, GoalSubject } from '../domain/goal-program'
 import { goalPace, goalsBehindPaceByProperty } from '../domain/goal-pace'
-import { METRIC_VERSION_IDS } from '../domain/metric-registry'
+import { METRIC_VERSION_IDS } from '../readings/contracts'
 import type {
   GoalProgramBundle,
   GoalProgramVersion,

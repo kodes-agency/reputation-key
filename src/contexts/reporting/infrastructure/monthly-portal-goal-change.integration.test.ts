@@ -21,7 +21,7 @@ import {
   type HeldTransaction,
 } from '#/shared/db/testing/held-transaction'
 import { calendarPeriodRange } from '#/shared/domain/period-range'
-import { findMetricVersionById } from '../domain/metric-registry'
+import { findMetricVersionById } from '../readings/contracts'
 import { monthKeyOf } from '../domain/goal-start'
 import { monthlyPortalGoalOf } from '../application/monthly-portal-goal-identity'
 import type { GoalProgramRepository } from '../application/ports/goal-program.repository'

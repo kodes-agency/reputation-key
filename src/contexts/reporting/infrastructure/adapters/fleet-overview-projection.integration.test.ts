@@ -7,7 +7,7 @@ import {
   holdTransaction,
   type HeldTransaction,
 } from '#/shared/db/testing/held-transaction'
-import { METRIC_VERSION_IDS, findMetricVersionById } from '../../domain/metric-registry'
+import { METRIC_VERSION_IDS, findMetricVersionById } from '../../readings/contracts'
 import { getFleetOverview } from '../../application/use-cases/get-fleet-overview'
 import { seedCountReadings, seedGoalMonth } from '../testing/goal-running-month-seed'
 import { createFleetOverviewProjectionAdapter } from './fleet-overview-projection.adapter'

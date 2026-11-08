@@ -13,7 +13,7 @@ import {
 } from '#/shared/testing/staff-account-fixture'
 import { createStaffSelfReader } from '#/contexts/identity/infrastructure/adapters/staff-self.reader'
 import { createStaffResultsReader } from './staff-results.reader'
-import { METRIC_VERSION_IDS } from '../../domain/metric-registry'
+import { METRIC_VERSION_IDS } from '../../readings/contracts'
 
 let lease: TestLease
 let db: Database
