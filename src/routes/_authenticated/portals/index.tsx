@@ -14,7 +14,12 @@ import {
 } from '@tanstack/react-query'
 import type { AuthRouteContext } from '#/routes/_authenticated'
 import { can } from '#/shared/domain/permissions'
-import { listPortalOverview, updatePortal } from '#/contexts/portal/server/portals'
+import {
+  archivePortal,
+  disablePortal,
+  restorePortal,
+  listPortalOverview,
+} from '#/contexts/portal/server/portals'
 import { getPortalResultsOverviewFn } from '#/contexts/reporting/server/portal-results-overview'
 import type { PortalResultsTimeRange } from '#/contexts/reporting/application/public-api'
 import { PortalAllPropertiesPage } from '#/components/features/portal/portal-all-properties-page'
@@ -118,15 +123,15 @@ function AllPropertiesRoute() {
     [properties],
   )
 
-  const archiveMutation = useActionMutation(updatePortal, {
+  const archiveMutation = useActionMutation(archivePortal, {
     successMessage: 'Portal archived',
     invalidateKeys: [portalKeys.all],
   })
-  const restoreMutation = useActionMutation(updatePortal, {
+  const restoreMutation = useActionMutation(restorePortal, {
     successMessage: 'Portal restored as Disabled',
     invalidateKeys: [portalKeys.all],
   })
-  const disableMutation = useActionMutation(updatePortal, {
+  const disableMutation = useActionMutation(disablePortal, {
     successMessage: 'Public page disabled',
     invalidateKeys: [portalKeys.all],
   })

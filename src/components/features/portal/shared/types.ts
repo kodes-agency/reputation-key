@@ -38,13 +38,17 @@ export type UpdatePortalVariables = {
   data: {
     portalId: string
     name?: string
-    slug?: string
     description?: string | null
     heroImageUrl?: null
     theme?: PortalThemeDraft
     privateFeedbackThreshold?: number
     skipPrivateRating?: boolean
-    publicationState?: PortalPublicationState
+  }
+}
+
+export type ChangePortalLanguagesVariables = {
+  data: {
+    portalId: string
     primaryGuestLocale?: OfferedGuestLocale
     additionalGuestLocales?: OfferedGuestLocale[]
   }

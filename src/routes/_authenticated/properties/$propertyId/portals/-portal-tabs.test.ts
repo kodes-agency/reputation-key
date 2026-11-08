@@ -72,7 +72,9 @@ vi.mock('#/contexts/portal/server/portals', () => ({
   rotatePortalToken: vi.fn(),
   savePortalLocalizedOverride: vi.fn(),
   savePropertyPortalBrandContent: vi.fn(),
-  updatePortal: vi.fn(),
+  updatePortalSettings: vi.fn(),
+  changePortalLanguages: vi.fn(),
+  publishPortal: vi.fn(),
 }))
 vi.mock('#/contexts/portal/server/portal-publish-changes', () => ({
   publishPortalChanges: vi.fn(),

@@ -1,14 +1,18 @@
-// Portal context — update portal DTO
+// Portal context — inputs of the Portal state intents
 
 import { z } from 'zod/v4'
 import { MAX_ADDITIONAL_GUEST_LOCALES } from '#/shared/domain/guest-locale'
 import { offeredGuestLocaleSchema } from '#/shared/guest-locale-schemas'
 
-export const updatePortalInputSchema = z
+const portalIdField = z.string().min(1, 'Portal ID is required')
+
+export const portalIdInputSchema = z.object({ portalId: portalIdField }).strict()
+export type PortalIdInput = z.infer<typeof portalIdInputSchema>
+
+export const updatePortalSettingsInputSchema = z
   .object({
-    portalId: z.string().min(1, 'Portal ID is required'),
+    portalId: portalIdField,
     name: z.string().min(1).max(100).optional(),
-    slug: z.string().min(2, 'Must be at least 2 characters').max(64).optional(),
     description: z.string().max(500).nullable().optional(),
     privateFeedbackThreshold: z.number().int().min(1).max(5).optional(),
     skipPrivateRating: z.boolean().optional(),
@@ -22,13 +26,27 @@ export const updatePortalInputSchema = z
         textColor: z.string().optional(),
       })
       .optional(),
-    publicationState: z.enum(['draft', 'published', 'disabled', 'archived']).optional(),
+  })
+  .strict()
+export type UpdatePortalSettingsInput = z.infer<typeof updatePortalSettingsInputSchema>
+
+export const changePortalSlugInputSchema = z
+  .object({
+    portalId: portalIdField,
+    slug: z.string().min(2, 'Must be at least 2 characters').max(64),
+  })
+  .strict()
+export type ChangePortalSlugInput = z.infer<typeof changePortalSlugInputSchema>
+
+export const changePortalLanguagesInputSchema = z
+  .object({
+    portalId: portalIdField,
     primaryGuestLocale: offeredGuestLocaleSchema.optional(),
     additionalGuestLocales: z
       .array(offeredGuestLocaleSchema)
       // Bounded by the catalogue, not by what is offered today, so offering a
       // locale later needs no schema change. Excluding the primary locale is
-      // enforced by the use case: a refinement here would break `.pick()` in
+      // enforced by the intent: a refinement here would break `.pick()` in
       // the edit form.
       .max(MAX_ADDITIONAL_GUEST_LOCALES)
       .refine((locales) => new Set(locales).size === locales.length, {
@@ -37,5 +55,4 @@ export const updatePortalInputSchema = z
       .optional(),
   })
   .strict()
-
-export type UpdatePortalInput = z.infer<typeof updatePortalInputSchema>
+export type ChangePortalLanguagesInput = z.infer<typeof changePortalLanguagesInputSchema>

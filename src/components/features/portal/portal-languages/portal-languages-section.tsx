@@ -6,7 +6,7 @@
 import type { Action } from '#/components/hooks/use-action'
 import type { PortalLanguageCoverage } from '#/contexts/portal/application/portal-management-contracts'
 import type { GuestLocale } from '#/shared/domain/guest-locale'
-import type { UpdatePortalVariables } from '../shared/types'
+import type { ChangePortalLanguagesVariables } from '../shared/types'
 import { PortalLanguageAddMenu } from './portal-language-add-menu'
 import { PortalLanguageRow } from './portal-language-row'
 import {
@@ -27,7 +27,7 @@ type Props = Readonly<{
   }>
   propertyId: string
   coverage: PortalLanguageCoverage | undefined
-  update: Action<UpdatePortalVariables>
+  update: Action<ChangePortalLanguagesVariables>
   canEdit: boolean
 }>
 

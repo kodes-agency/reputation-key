@@ -16,7 +16,7 @@ import { buildPortalPublicationSnapshot } from '../../application/portal-publica
 import { workingCopyMatchesSnapshot } from '../../application/portal-working-copy-match'
 import type { PortalPublicationSource } from '../../domain/portal-publication-source'
 import { portalPublicationPublished, portalUpdated } from '../../domain/events'
-import { createAtomicPortalCommandStore } from '../portal-command-store'
+import { createAtomicPortalCommandStore } from '../../publication/portal-command-store.server'
 import { createPortalPublicationRepository } from '../repositories/portal-publication.repository'
 
 const PUBLISHING_MANAGER = userId('manager-workingcopy-0000000000001')

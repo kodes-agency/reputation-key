@@ -4,12 +4,12 @@ import { createPortalRatingGoalGuard } from '#/contexts/reporting/infrastructure
 // composition only builds closures.
 import { describe, expect, it } from 'vitest'
 import type { Database } from '#/shared/db'
-import { createAtomicPortalCommandStore } from './portal-command-store'
-import { createPortalGroupCommands } from './portal-group-commands'
-import { createPortalLinkCommands } from './portal-link-commands'
-import { createPortalLinktreeCommands } from './portal-linktree-commands'
-import { createPortalPublicationCommands } from './portal-publication-commands'
-import { createPortalTokenCommands } from './portal-token-commands'
+import { createAtomicPortalCommandStore } from './portal-command-store.server'
+import { createPortalGroupCommands } from '../infrastructure/portal-group-commands'
+import { createPortalLinkCommands } from '../infrastructure/portal-link-commands'
+import { createPortalLinktreeCommands } from '../infrastructure/portal-linktree-commands'
+import { createPortalPublicationCommands } from '../infrastructure/portal-publication-commands'
+import { createPortalTokenCommands } from '../infrastructure/portal-token-commands'
 
 const db = {} as Database
 

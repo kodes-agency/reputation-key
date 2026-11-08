@@ -12,7 +12,12 @@ import type { PortalErrorCode } from '#/contexts/portal/domain/errors'
 import { portalErrorStatus } from '#/contexts/portal/server/portals'
 import { throwContextError } from '#/shared/auth/server-errors'
 import { createPortalInputSchema } from '#/contexts/portal/application/dto/create-portal.dto'
-import { updatePortalInputSchema } from '#/contexts/portal/application/dto/update-portal.dto'
+import {
+  changePortalLanguagesInputSchema,
+  changePortalSlugInputSchema,
+  portalIdInputSchema,
+  updatePortalSettingsInputSchema,
+} from '#/contexts/portal/application/dto/portal-intents.dto'
 
 // ── Error → HTTP status mapping (production code) ─────────────────
 
@@ -281,35 +286,56 @@ describe('createPortal input validation', () => {
   )
 })
 
-describe('updatePortal input validation', () => {
+describe('portal intent input validation', () => {
   it('accepts update with portalId only', () => {
-    const result = updatePortalInputSchema.safeParse({
+    const result = updatePortalSettingsInputSchema.safeParse({
       portalId: 'portal-123',
     })
     expect(result.success).toBe(true)
   })
 
-  it('accepts update with all fields', () => {
-    const result = updatePortalInputSchema.safeParse({
+  it('accepts a settings update with every setting', () => {
+    const result = updatePortalSettingsInputSchema.safeParse({
       portalId: 'portal-123',
       name: 'Updated Name',
-      slug: 'updated-slug',
       description: 'Updated description',
       theme: { primaryColor: '#FF5500' },
-      publicationState: 'disabled',
+      privateFeedbackThreshold: 4,
+      skipPrivateRating: true,
     })
     expect(result.success).toBe(true)
+  })
+
+  it('refuses a state change or an address inside a settings update', () => {
+    for (const extra of [{ publicationState: 'archived' }, { slug: 'new-slug' }]) {
+      expect(
+        updatePortalSettingsInputSchema.safeParse({ portalId: 'portal-123', ...extra })
+          .success,
+      ).toBe(false)
+    }
+  })
+
+  it('needs an address for the slug intent and a portal for the state intents', () => {
+    expect(changePortalSlugInputSchema.safeParse({ portalId: 'p' }).success).toBe(false)
+    expect(
+      changePortalSlugInputSchema.safeParse({ portalId: 'p', slug: 'a-b' }).success,
+    ).toBe(true)
+    expect(portalIdInputSchema.safeParse({ portalId: 'p' }).success).toBe(true)
+    expect(
+      portalIdInputSchema.safeParse({ portalId: 'p', publicationState: 'archived' })
+        .success,
+    ).toBe(false)
   })
 
   it('rejects update without portalId', () => {
-    const result = updatePortalInputSchema.safeParse({
+    const result = updatePortalSettingsInputSchema.safeParse({
       name: 'Test',
     })
     expect(result.success).toBe(false)
   })
 
   it('accepts null description (to clear it)', () => {
-    const result = updatePortalInputSchema.safeParse({
+    const result = updatePortalSettingsInputSchema.safeParse({
       portalId: 'portal-123',
       description: null,
     })
@@ -319,13 +345,13 @@ describe('updatePortal input validation', () => {
   it('accepts every guest language as manager input', () => {
     for (const locale of ['en', 'es', 'it', 'fr', 'de', 'bg']) {
       expect(
-        updatePortalInputSchema.safeParse({
+        changePortalLanguagesInputSchema.safeParse({
           portalId: 'portal-123',
           primaryGuestLocale: locale,
         }).success,
       ).toBe(true)
       expect(
-        updatePortalInputSchema.safeParse({
+        changePortalLanguagesInputSchema.safeParse({
           portalId: 'portal-123',
           additionalGuestLocales: [locale],
         }).success,
@@ -336,13 +362,13 @@ describe('updatePortal input validation', () => {
   it('still refuses a locale outside the catalogue as manager input', () => {
     for (const locale of ['pt', 'DE', 'de-AT']) {
       expect(
-        updatePortalInputSchema.safeParse({
+        changePortalLanguagesInputSchema.safeParse({
           portalId: 'portal-123',
           primaryGuestLocale: locale,
         }).success,
       ).toBe(false)
       expect(
-        updatePortalInputSchema.safeParse({
+        changePortalLanguagesInputSchema.safeParse({
           portalId: 'portal-123',
           additionalGuestLocales: [locale],
         }).success,
@@ -352,20 +378,20 @@ describe('updatePortal input validation', () => {
 
   it('keeps additional locales unique', () => {
     expect(
-      updatePortalInputSchema.safeParse({
+      changePortalLanguagesInputSchema.safeParse({
         portalId: 'portal-123',
         primaryGuestLocale: 'en',
         additionalGuestLocales: ['bg'],
       }).success,
     ).toBe(true)
     expect(
-      updatePortalInputSchema.safeParse({
+      changePortalLanguagesInputSchema.safeParse({
         portalId: 'portal-123',
         additionalGuestLocales: ['bg', 'bg'],
       }).success,
     ).toBe(false)
     expect(
-      updatePortalInputSchema.safeParse({
+      changePortalLanguagesInputSchema.safeParse({
         portalId: 'portal-123',
         additionalGuestLocales: ['en', 'bg', 'en', 'bg', 'en', 'bg'],
       }).success,
@@ -374,13 +400,13 @@ describe('updatePortal input validation', () => {
 
   it('accepts hero removal but rejects a caller-supplied hero URL', () => {
     expect(
-      updatePortalInputSchema.safeParse({
+      updatePortalSettingsInputSchema.safeParse({
         portalId: 'portal-123',
         heroImageUrl: null,
       }).success,
     ).toBe(true)
     expect(
-      updatePortalInputSchema.safeParse({
+      updatePortalSettingsInputSchema.safeParse({
         portalId: 'portal-123',
         heroImageUrl: 'https://attacker.example/image.png',
       }).success,
