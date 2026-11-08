@@ -16,10 +16,10 @@ import type { PortalDisableMutation } from './portal-disable-dialog'
  */
 export type PortalArchiveMutations = Readonly<{
   archiveMutation: Action<{
-    data: { portalId: string; publicationState: 'archived' }
+    data: { portalId: string }
   }>
   restoreMutation: Action<{
-    data: { portalId: string; publicationState: 'disabled' }
+    data: { portalId: string }
   }>
   disableMutation?: PortalDisableMutation
 }>
@@ -60,8 +60,8 @@ export function PortalArchiveDialog({
       pendingLabel={restoring ? 'Restoring…' : 'Archiving…'}
       onConfirm={() =>
         restoring
-          ? restoreMutation({ data: { portalId, publicationState: 'disabled' } })
-          : archiveMutation({ data: { portalId, publicationState: 'archived' } })
+          ? restoreMutation({ data: { portalId } })
+          : archiveMutation({ data: { portalId } })
       }
     />
   )

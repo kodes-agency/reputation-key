@@ -25,7 +25,7 @@ import {
 } from '../application/use-cases/resolve-public-portal-token'
 import { createPortalMediaAssetRepository } from './repositories/portal-media-asset.repository'
 import { createPortalPublicationRepository } from './repositories/portal-publication.repository'
-import { createAtomicPortalCommandStore } from './portal-command-store'
+import { createAtomicPortalCommandStore } from '../publication/portal-command-store.server'
 import { buildTestAuthContext } from '#/shared/testing/fixtures'
 import { createPortalRepository } from './repositories/portal.repository'
 import {

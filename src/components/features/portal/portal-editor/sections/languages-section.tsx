@@ -6,7 +6,7 @@ import { PortalLanguagesSection } from '../../portal-languages/portal-languages-
 import type { PortalEditorSectionProps } from '../portal-editor-types'
 
 export function LanguagesSection({ resources, canEdit }: PortalEditorSectionProps) {
-  const { portal, propertyId, languageCoverage, autosaveUpdateMutation } = resources
+  const { portal, propertyId, languageCoverage, changeLanguagesMutation } = resources
   return (
     <PortalEditorSectionFrame
       section="languages"
@@ -16,7 +16,7 @@ export function LanguagesSection({ resources, canEdit }: PortalEditorSectionProp
         portal={portal}
         propertyId={propertyId}
         coverage={languageCoverage}
-        update={autosaveUpdateMutation}
+        update={changeLanguagesMutation}
         canEdit={canEdit}
       />
     </PortalEditorSectionFrame>

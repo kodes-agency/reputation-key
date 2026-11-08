@@ -18,7 +18,8 @@ const mocks = vi.hoisted(() => ({
   resolvePortalManagementScope: vi.fn(),
   getPortalPublicationHistory: vi.fn(),
   getPortalHistory: vi.fn(),
-  updatePortal: vi.fn(),
+  publishPortal: vi.fn(),
+  archivePortal: vi.fn(),
   rotatePortalToken: vi.fn(),
   softDeletePortal: vi.fn(),
 }))
@@ -61,7 +62,8 @@ vi.mock('#/composition', () => ({
         resolvePortalManagementScope: mocks.resolvePortalManagementScope,
         getPortalPublicationHistory: mocks.getPortalPublicationHistory,
         getPortalHistory: mocks.getPortalHistory,
-        updatePortal: mocks.updatePortal,
+        publishPortal: mocks.publishPortal,
+        archivePortal: mocks.archivePortal,
         rotatePortalToken: mocks.rotatePortalToken,
         softDeletePortal: mocks.softDeletePortal,
       },
@@ -87,13 +89,13 @@ vi.mock('#/shared/observability/logger', async (importOriginal) => {
 })
 
 import {
-  deletePortal,
+  archivePortal,
   getPortalHistory,
   getPortalPublicationHistory,
   listPortalOverview,
   listPortals,
   rotatePortalToken,
-  updatePortal,
+  publishPortal,
 } from '#/contexts/portal/server/portals'
 
 const TEST_CTX = {
@@ -108,11 +110,8 @@ const deniedResourceProbes: readonly [
 ][] = [
   [
     'publication',
-    async () =>
-      updatePortal({
-        data: { portalId: 'portal-p2', publicationState: 'published' },
-      }),
-    mocks.updatePortal,
+    async () => publishPortal({ data: { portalId: 'portal-p2' } }),
+    mocks.publishPortal,
   ],
   [
     'token rotation',
@@ -121,8 +120,8 @@ const deniedResourceProbes: readonly [
   ],
   [
     'archive',
-    async () => deletePortal({ data: { portalId: 'portal-p2' } }),
-    mocks.softDeletePortal,
+    async () => archivePortal({ data: { portalId: 'portal-p2' } }),
+    mocks.archivePortal,
   ],
 ]
 const propertyDisabled = () =>
@@ -277,18 +276,15 @@ describe('listPortals handler (executable)', () => {
     },
   )
 
-  it('treats the legacy delete endpoint as recoverable archive', async () => {
-    mocks.updatePortal.mockResolvedValue({
+  it('archives through the archive intent, recoverably', async () => {
+    mocks.archivePortal.mockResolvedValue({
       id: 'portal-p2',
       publicationState: 'archived',
     })
 
-    await withStartContext(() => deletePortal({ data: { portalId: 'portal-p2' } }))
+    await withStartContext(() => archivePortal({ data: { portalId: 'portal-p2' } }))
 
-    expect(mocks.updatePortal).toHaveBeenCalledWith(
-      { portalId: 'portal-p2', publicationState: 'archived' },
-      TEST_CTX,
-    )
+    expect(mocks.archivePortal).toHaveBeenCalledWith({ portalId: 'portal-p2' }, TEST_CTX)
     expect(mocks.softDeletePortal).not.toHaveBeenCalled()
   })
 })

@@ -137,8 +137,8 @@ async function seedLivePortal(
   })
   await callServerFn(page, {
     file: 'src/contexts/portal/server/portals.ts',
-    exportName: 'updatePortal',
-    data: { portalId: portal.id, publicationState: 'published' },
+    exportName: 'publishPortal',
+    data: { portalId: portal.id },
   })
   // A published Portal is only served while Portal Health says so, and health is
   // projected by a worker AFTER the publish commits; without this wait the guest
