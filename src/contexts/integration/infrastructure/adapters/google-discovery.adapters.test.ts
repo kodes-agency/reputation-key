@@ -7,7 +7,7 @@ import { isGbpApiError } from '../../domain/gbp-api-error'
 import type { GoogleAuthorizedProviderExecutor } from '../../application/ports/google-authorized-provider-executor.port'
 import { createGoogleAccountManagementAdapter } from './google-account-management.adapter'
 import { createGoogleBusinessInformationAdapter } from './google-business-information.adapter'
-import { createSingle401RefreshExecutor } from './google-single-401-refresh-executor'
+import { createSingle401RefreshExecutor } from '../../provider/google-client.server'
 import { googleConnectionId, organizationId } from '#/shared/domain/ids'
 
 const PRIMARY_ACCOUNT_ID =

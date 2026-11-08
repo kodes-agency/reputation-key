@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 import type { Database } from '#/shared/db'
-import { createGoogleProviderCredentialAdmission } from './google-credential-provider-admission.adapter'
+import { createGoogleProviderCredentialAdmission } from '../../provider/google-client.server'
 import { googleConnectionId, organizationId } from '#/shared/domain/ids'
 import type { GoogleProviderCallAuthorization } from '../../application/google-provider-contract'
 

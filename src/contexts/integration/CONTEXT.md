@@ -22,6 +22,14 @@ retrieval, and Pub/Sub subscription management.
 - Organization export answers what state the Integration is in, never what Google
   told RepKey. Export and lifecycle contributors stay outside `publicApi`.
 
+`provider/google-client.server.ts` owns the shared provider-call stages: credential
+liveness, request-bound permits, one refreshed 401 retry, response parsing and
+error classification. The governed egress gateway performs fetch and Redis-backed
+admission. Composition imports the provider construction helpers through `build.ts`.
+Refresh reauthorizes the same scope and acquires a new permit; a refused
+retry preserves the first call's answered evidence. Feature adapters retain their
+provider schemas and product-specific error mappings.
+
 ## Model
 
 A GoogleConnection owns encrypted credentials and the verified Google OIDC

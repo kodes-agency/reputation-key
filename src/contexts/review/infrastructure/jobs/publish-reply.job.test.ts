@@ -10,9 +10,11 @@ import {
 } from '#/test-fixtures/generated/google-provider-identifiers-v1'
 import { createHash } from 'node:crypto'
 import { describe, it, expect, vi } from 'vitest'
-import { createGoogleAuthorizedProviderExecutor } from '#/contexts/integration/infrastructure/adapters/google-authorized-provider-executor.adapter'
+import {
+  createGoogleAuthorizedProviderExecutor,
+  createSingle401RefreshExecutor,
+} from '#/contexts/integration/provider/google-client.server'
 import { createGoogleReviewApiAdapter } from '#/contexts/integration/infrastructure/adapters/google-review-api.adapter'
-import { createSingle401RefreshExecutor } from '#/contexts/integration/infrastructure/adapters/google-single-401-refresh-executor'
 import { integrationError } from '#/contexts/integration/domain/errors'
 import {
   createReplyPublicationProviderCall,

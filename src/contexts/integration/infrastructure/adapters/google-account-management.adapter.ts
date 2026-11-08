@@ -5,7 +5,7 @@ import type {
 } from '../../application/google-provider-contract'
 import type { GoogleAuthorizedProviderExecutor } from '../../application/ports/google-authorized-provider-executor.port'
 import { createGbpApiError } from '../../domain/gbp-api-error'
-import { executeGoogleProviderJson } from './google-provider-adapter'
+import { executeGoogleProviderJson } from '../../provider/google-client.server'
 import { parseGoogleProviderResourceSuffix } from './google-resource-suffix'
 
 const accountSchema = z
