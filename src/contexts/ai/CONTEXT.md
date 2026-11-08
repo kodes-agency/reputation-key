@@ -46,6 +46,12 @@ export and stored provenance; they confer no execution authority.
 Both active capabilities require AccountAdmin authorization, live access, notice
 coverage, provider policy, platform gates and runtime admission controls.
 
+Operators stop or drain all AI calls with `pnpm ops ai-control kill global` or
+`drain global`. Persisted provider and capability heads remain in admission and
+in-flight generation fences. The command retains scoped inspection and restoration
+for recovery; capability restoration still requires a release revision. Deploy
+activation uses the existing control adapter and never lifts an operator stop.
+
 Merchant authorization follows the acknowledged notice, independently of the
 runtime/deployment recorded as historical evidence (ADR 0074). The shared pure
 `isExecutionCompatibleWithConsent` requires an in-force version/digest and an
