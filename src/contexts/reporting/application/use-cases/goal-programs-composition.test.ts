@@ -17,6 +17,7 @@ const SERVICE_METHODS = [
   'changeStatus',
   'create',
   'get',
+  'history',
   'list',
   'maintain',
   'reconcileClosedResult',

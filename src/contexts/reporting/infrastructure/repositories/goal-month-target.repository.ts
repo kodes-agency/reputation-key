@@ -36,7 +36,7 @@ type ReviseInTx = (
 /** A month is no longer open, or the database refused its new target. */
 class GoalMonthTargetLocked extends Error {}
 
-function mapTargetChange(
+export function mapTargetChange(
   row: typeof goalMonthTargetChanges.$inferSelect,
 ): GoalMonthTargetChange {
   return {

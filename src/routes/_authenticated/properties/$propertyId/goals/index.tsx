@@ -1,6 +1,11 @@
 import { createFileRoute, Navigate } from '@tanstack/react-router'
 import { roleUnavailable } from '#/shared/auth/route-notice'
-import { queryOptions, useQuery, useSuspenseQuery } from '@tanstack/react-query'
+import {
+  queryOptions,
+  useQuery,
+  useSuspenseQuery,
+  type QueryClient,
+} from '@tanstack/react-query'
 import type { AuthRouteContext } from '#/routes/_authenticated'
 import { can } from '#/shared/domain/permissions'
 import { isBetaInteractiveRole } from '#/shared/domain/beta-interactive-role'
@@ -21,7 +26,7 @@ import { goalAssignmentSubjectLabel } from '#/components/goals/goal-assignment-s
 import { portalNextStepOf } from '#/components/goals/rating-goal-portal-step'
 import { PortalGoalResultsLinks } from '#/components/goals/portal-goal-results-links'
 import { usePermissions } from '#/shared/hooks/usePermissions'
-import { goalForResult } from './-goal-for-result'
+import { goalForResult, resolveGoalForResult } from './-goal-for-result'
 import { RatingGoalPanel } from './-rating-goal-panel'
 import { PortalGoalExtras } from './-portal-goal-extras'
 import { PortalGoalPanel } from './-portal-goal-panel'
@@ -37,6 +42,29 @@ const goalsQuery = (propertyId: string) =>
     queryFn: () => listGoalPrograms({ data: { propertyId } }),
     staleTime: 30_000,
   })
+const goalResultQuery = (
+  propertyId: string,
+  result: string | undefined,
+  queryClient: QueryClient,
+) => {
+  const findResultGoal = async () => {
+    if (result === undefined) return null
+    const summary = await queryClient.ensureQueryData(goalsQuery(propertyId))
+    return resolveGoalForResult(summary.programs, result, async () => {
+      const queries = await import('./-portal-goal-queries')
+      return (
+        await queryClient.ensureQueryData(
+          queries.portalGoalResultsQueries(propertyId, queryClient).goals,
+        )
+      ).programs
+    })
+  }
+  return queryOptions({
+    queryKey: [...goalKeys.list({ propertyId, model: 'program' }), 'result', result],
+    queryFn: findResultGoal,
+    staleTime: 30_000,
+  })
+}
 // Read progress separately so a slow figure does not block the goal list.
 const goalsLiveQuery = (propertyId: string) =>
   queryOptions({
@@ -69,7 +97,8 @@ export const Route = createFileRoute('/_authenticated/properties/$propertyId/goa
     }
   },
   validateSearch: goalListSearchSchema,
-  loader: async ({ params: { propertyId }, context }) => {
+  loaderDeps: ({ search }) => ({ result: search.result }),
+  loader: async ({ params: { propertyId }, context, deps }) => {
     await Promise.all([
       context.queryClient.ensureQueryData(goalsQuery(propertyId)),
       context.queryClient.ensureQueryData(subjectNamesQuery(propertyId)),
@@ -82,12 +111,18 @@ export const Route = createFileRoute('/_authenticated/properties/$propertyId/goa
         ),
       ),
     ])
+    if (deps.result !== undefined) {
+      await context.queryClient.ensureQueryData(
+        goalResultQuery(propertyId, deps.result, context.queryClient),
+      )
+    }
   },
   component: GoalsRoute,
 })
 
 function GoalsRoute() {
   const { propertyId } = Route.useParams()
+  const { queryClient } = Route.useRouteContext()
   const { view, result, start } = Route.useSearch()
   const navigate = Route.useNavigate()
   const { can: canDo } = usePermissions()
@@ -96,7 +131,14 @@ function GoalsRoute() {
   const { data: subjectNames } = useSuspenseQuery(subjectNamesQuery(propertyId))
   const live = useQuery({ ...goalsLiveQuery(propertyId), retry: false })
   const liveByProgram = new Map(live.data?.goals.map((goal) => [goal.programId, goal]))
-  const goalId = result === undefined ? null : goalForResult(data.programs, result)
+  const resultGoal = useQuery({
+    ...goalResultQuery(propertyId, result, queryClient),
+    enabled: result !== undefined,
+  })
+  const goalId =
+    result === undefined
+      ? null
+      : (goalForResult(data.programs, result) ?? resultGoal.data ?? null)
   if (goalId !== null) {
     return (
       <Navigate

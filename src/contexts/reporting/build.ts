@@ -1,3 +1,4 @@
+import { createGoalMetricBatchReader } from './infrastructure/repositories/goal-metric-batch-reader'
 import { findPortalRatingGoalBlock } from './application/running-portal-rating-goal'
 import { createStaffResultsReader } from './infrastructure/repositories/staff-results.reader'
 import { getPortalLinkTaps } from './application/use-cases/get-portal-link-taps'
@@ -192,7 +193,7 @@ function buildMetricModule(input: ReportingContextBuildInput) {
   )
   const commandStore = createAtomicMetricCommandStore(input.db, input.idGen)
   const readGoalMetric = queryGoalMetric({
-    readSnapshot: createGoalMetricSnapshotReader(input.db, input.portalGroupApi),
+    readSnapshot: createGoalMetricSnapshotReader(input.db),
     registry,
     validateSubject: async (orgId, propertyId, subject) => {
       switch (subject.kind) {
@@ -249,6 +250,7 @@ function buildMetricModule(input: ReportingContextBuildInput) {
   return {
     publicApi: {
       queryGoalMetric: readGoalMetric,
+      queryGoalMetrics: createGoalMetricBatchReader(input.db, registry, input.clock),
       portalAnalytics,
       portalLifetime: Object.freeze({ get: portalLifetime.get }),
       getCurrentOnGoogle: currentGoogleReputation.getCurrentOnGoogle,
@@ -279,7 +281,10 @@ function buildMetricModule(input: ReportingContextBuildInput) {
   } as const
 }
 
-function buildGoalModule(input: ReportingContextBuildInput, metricApi: MetricPublicApi) {
+function buildGoalModule(
+  input: ReportingContextBuildInput,
+  metricApi: ReturnType<typeof buildMetricModule>['publicApi'],
+) {
   const goalProgramRepo = createGoalProgramRepository(input.db, input.idGen)
   const monthlyResultNotificationFacts = createMonthlyResultNotificationFactsLookup(
     input.db,
@@ -400,6 +405,8 @@ function buildGoalModule(input: ReportingContextBuildInput, metricApi: MetricPub
         readMonthlyPortalGoalPage(
           {
             ...monthlyPortalGoalReads(policy),
+            history: (programId, propertyId, actor) =>
+              readGoalPrograms(policy).get({ programId, propertyId }, actor),
             subjectNames: goalProgramSubjects,
             logger: input.logger,
           },
@@ -485,6 +492,7 @@ function buildGoalModule(input: ReportingContextBuildInput, metricApi: MetricPub
       buildGoalPrograms(policy).changeMonthTarget(...args),
     get: (policy, ...args) => readGoalPrograms(policy).get(...args),
     list: (policy, ...args) => readGoalPrograms(policy).list(...args),
+    history: (policy, ...args) => readGoalPrograms(policy).history!(...args),
     progress: (policy, ...args) => readGoalProgress(policy)(...args),
     programProgress: (policy, ...args) => readGoalProgramProgress(policy)(...args),
     listProgress: (policy, ...args) => readGoalListProgress(policy)(...args),
@@ -499,7 +507,7 @@ function buildGoalModule(input: ReportingContextBuildInput, metricApi: MetricPub
       propertyId: string,
       portalId: string,
     ) => {
-      const programs = await goalProgramRepo.list(organizationId, propertyId)
+      const programs = await goalProgramRepo.listSummaries(organizationId, propertyId)
       return findPortalRatingGoalBlock(programs, portalId, input.clock(), (subject) =>
         input.portalApi.listPortalRatingFacts(
           toOrganizationId(organizationId),
