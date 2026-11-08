@@ -4,7 +4,6 @@ import type {
   GoogleOAuthPort,
   GoogleOAuthProviderCallAuthorizer,
 } from '#/contexts/integration/application/ports/google-oauth.port'
-import type { GbpApiPort } from '#/contexts/integration/application/ports/gbp-api.port'
 import type { GoogleAuthorizedProviderExecutor } from '#/contexts/integration/application/ports/google-authorized-provider-executor.port'
 import type { GoogleImportReferenceStore } from '#/contexts/integration/application/ports/google-import-reference-store.port'
 import type { GoogleImportContentAuthorizer } from '#/contexts/integration/application/google-import-command-authorizer'
@@ -34,7 +33,6 @@ import type { AiGatewayCaller } from '#/shared/ai-gateway-transport-contract'
  */
 export type ProviderOverrides = Readonly<{
   googleOAuth?: GoogleOAuthPort
-  gbpApi?: GbpApiPort
   googleAuthorizedProviderExecutor?: GoogleAuthorizedProviderExecutor
   authorizeGoogleOAuthProviderCall?: GoogleOAuthProviderCallAuthorizer
   googleImportReferences?: GoogleImportReferenceStore

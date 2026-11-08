@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { createGoogleEgressGateway } from '#/shared/google-provider-control/egress-gateway'
 import { exportJWK, generateKeyPair, SignJWT } from 'jose'
 import { createGoogleOAuthAdapter } from './google-oauth.adapter'
 import type { GoogleAuthorizedProviderExecutor } from '../../application/ports/google-authorized-provider-executor.port'
@@ -13,6 +14,34 @@ const CONFIG = {
   jwksUrl: 'https://oauth.example.test/jwks',
   revokeUrl: 'https://oauth.example.test/revoke',
   clock: () => new Date(),
+  executor: {
+    execute: async (descriptor, options) => {
+      const gateway = createGoogleEgressGateway({
+        nowMs: () => options.deadlineMs - 10_000,
+        bindCredential: () => '1'.repeat(64),
+        routeTarget: {
+          kind: 'local_sandbox',
+          simulatorOrigin: 'https://oauth.example.test',
+        },
+        admission: {
+          start: async () => ({
+            ok: true,
+            handle: {
+              expiresAtMs: options.deadlineMs,
+              permitCompletion: new Promise<void>(() => undefined),
+              complete: async () => true,
+            },
+          }),
+        },
+        fetch: (...args) => fetch(...args),
+      })
+      return gateway.execute({
+        permitId: 'test-oauth-permit',
+        descriptor,
+        deadlineMs: options.deadlineMs,
+      })
+    },
+  } satisfies GoogleAuthorizedProviderExecutor,
 }
 
 const jsonResponse = (value: unknown, init: ResponseInit = {}) =>
@@ -90,6 +119,7 @@ describe('createGoogleOAuthAdapter', () => {
 
     const result = await createGoogleOAuthAdapter(CONFIG).exchangeCode({
       contractVersion: 'v2',
+      authorization,
       code: 'authorization-code',
       redirectUri: 'https://app.example.test/api/auth/google/callback',
       codeVerifier: 'pkce-verifier',
@@ -106,7 +136,9 @@ describe('createGoogleOAuthAdapter', () => {
     const tokenRequest = fetchMock.mock.calls[0]!
     expect(tokenRequest[0]).toBe(CONFIG.tokenUrl)
     expect(tokenRequest[1]).toMatchObject({ method: 'POST', redirect: 'error' })
-    expect(String(tokenRequest[1]?.body)).toContain('code_verifier=pkce-verifier')
+    expect(await new Response(tokenRequest[1]?.body).text()).toContain(
+      'code_verifier=pkce-verifier',
+    )
     expect(fetchMock.mock.calls[1]![1]).toMatchObject({ redirect: 'error' })
   })
 
@@ -136,6 +168,7 @@ describe('createGoogleOAuthAdapter', () => {
     await expect(
       adapter.exchangeCode({
         contractVersion: 'v2',
+        authorization,
         code: 'one-use-code',
         redirectUri: 'https://app.example.test/api/auth/google/callback',
         codeVerifier: 'pkce-verifier',
@@ -190,6 +223,7 @@ describe('createGoogleOAuthAdapter', () => {
         .mockResolvedValueOnce(jsonResponse(jwks))
       return createGoogleOAuthAdapter(CONFIG).exchangeCode({
         contractVersion: 'v2',
+        authorization,
         code: 'authorization-code',
         redirectUri: 'https://app.example.test/api/auth/google/callback',
         codeVerifier: 'pkce-verifier',
@@ -248,6 +282,7 @@ describe('createGoogleOAuthAdapter', () => {
       )
       return createGoogleOAuthAdapter(CONFIG).exchangeCode({
         contractVersion: 'v2',
+        authorization,
         code: 'authorization-code',
         redirectUri: 'https://app.example.test/api/auth/google/callback',
         codeVerifier: 'pkce-verifier',
@@ -300,6 +335,7 @@ describe('createGoogleOAuthAdapter', () => {
     await expect(
       createGoogleOAuthAdapter(CONFIG).exchangeCode({
         contractVersion: 'v2',
+        authorization,
         code: 'authorization-code',
         redirectUri: 'https://app.example.test/api/auth/google/callback',
         codeVerifier: 'pkce-verifier',
@@ -319,6 +355,7 @@ describe('createGoogleOAuthAdapter', () => {
     await expect(
       createGoogleOAuthAdapter(CONFIG).exchangeCode({
         contractVersion: 'v2',
+        authorization,
         code: 'authorization-code',
         redirectUri: 'https://app.example.test/api/auth/google/callback',
         codeVerifier: 'pkce-verifier',
@@ -344,6 +381,7 @@ describe('createGoogleOAuthAdapter', () => {
       )
       .mockResolvedValueOnce(jsonResponse(missingIat.jwks))
     const input = {
+      authorization,
       contractVersion: 'v2' as const,
       code: 'authorization-code',
       redirectUri: 'https://app.example.test/api/auth/google/callback',
@@ -392,6 +430,7 @@ describe('createGoogleOAuthAdapter', () => {
       .mockResolvedValueOnce(new Response(null, { status: 503 }))
     const adapter = createGoogleOAuthAdapter({ ...CONFIG, clock: () => now })
     const input = {
+      authorization,
       contractVersion: 'v2' as const,
       code: 'authorization-code',
       redirectUri: 'https://app.example.test/api/auth/google/callback',
@@ -415,27 +454,22 @@ describe('createGoogleOAuthAdapter', () => {
         headers: { 'content-length': String(64 * 1024 + 1) },
       }),
     )
-
     await expect(
       createGoogleOAuthAdapter(CONFIG).exchangeCode({
         contractVersion: 'v2',
+        authorization,
         code: 'authorization-code',
         redirectUri: 'https://app.example.test/api/auth/google/callback',
         codeVerifier: 'pkce-verifier',
         oidcNonce: 'oidc-nonce',
       }),
-    ).rejects.toMatchObject({ code: 'oauth_failed' })
+    ).rejects.toThrow('outcome is ambiguous')
+    expect(fetchMock).toHaveBeenCalledOnce()
   })
 
-  it('checks the credential egress boundary before every token or revoke socket', async () => {
-    const refusal = new Error('credential gateway required')
-    const assertDirectCredentialEgressAllowed = vi.fn(() => {
-      throw refusal
-    })
-    const adapter = createGoogleOAuthAdapter({
-      ...CONFIG,
-      assertDirectCredentialEgressAllowed,
-    })
+  it('refuses missing authorization before every token or revoke operation', async () => {
+    const execute = vi.fn<GoogleAuthorizedProviderExecutor['execute']>()
+    const adapter = createGoogleOAuthAdapter({ ...CONFIG, executor: { execute } })
 
     await expect(
       adapter.exchangeCode({
@@ -445,15 +479,17 @@ describe('createGoogleOAuthAdapter', () => {
         codeVerifier: 'pkce-verifier',
         oidcNonce: 'oidc-nonce',
       }),
-    ).rejects.toBe(refusal)
-    await expect(adapter.refreshAccessToken('refresh-token')).rejects.toBe(refusal)
-    await expect(adapter.revokeToken('refresh-token')).rejects.toBe(refusal)
-
-    expect(assertDirectCredentialEgressAllowed.mock.calls).toEqual([
-      ['oauth.token.exchange'],
-      ['oauth.token.refresh'],
-      ['oauth.revoke'],
-    ])
+    ).rejects.toMatchObject({ code: 'oauth_failed' })
+    await expect(adapter.refreshAccessToken('refresh-token')).rejects.toMatchObject({
+      code: 'token_refresh_failed',
+    })
+    await expect(adapter.revokeTokenWithOutcome!('refresh-token')).resolves.toBe(
+      'confirmed_not_sent',
+    )
+    await expect(adapter.revokeToken('refresh-token')).rejects.toMatchObject({
+      code: 'oauth_failed',
+    })
+    expect(execute).not.toHaveBeenCalled()
     expect(fetchMock).not.toHaveBeenCalled()
   })
 
@@ -507,11 +543,11 @@ describe('createGoogleOAuthAdapter', () => {
     await expect(
       adapter.exchangeCode({
         contractVersion: 'v2',
+        authorization,
         code: 'authorization-code',
         redirectUri: 'https://app.example.test/api/auth/google/callback',
         codeVerifier: 'pkce-verifier',
         oidcNonce: 'oidc-nonce',
-        authorization,
       }),
     ).resolves.toMatchObject({ accessToken: 'access-token' })
     await expect(
@@ -546,11 +582,11 @@ describe('createGoogleOAuthAdapter', () => {
     await expect(
       adapter.exchangeCode({
         contractVersion: 'v2',
+        authorization,
         code: 'single-use-code',
         redirectUri: 'https://app.example.test/api/auth/google/callback',
         codeVerifier: 'pkce-verifier',
         oidcNonce: 'oidc-nonce',
-        authorization,
       }),
     ).rejects.toThrow('outcome is ambiguous')
     expect(fetchMock).not.toHaveBeenCalled()
@@ -595,11 +631,11 @@ describe('createGoogleOAuthAdapter', () => {
       await expect(
         adapter.exchangeCode({
           contractVersion: 'v2',
+          authorization,
           code: 'single-use-code',
           redirectUri: 'https://app.example.test/api/auth/google/callback',
           codeVerifier: 'pkce-verifier',
           oidcNonce: 'oidc-nonce',
-          authorization,
         }),
       ).rejects.toThrow('outcome is ambiguous')
       expect([...responseBody].every((byte) => byte === 0)).toBe(true)
@@ -727,7 +763,7 @@ describe('Google OAuth refresh refusals', () => {
     ).rejects.toMatchObject({ code: 'token_refresh_failed' })
   })
 
-  it('reads the direct refresh answer the same way', async () => {
+  it('reads refresh refusals through the compiled provider transport the same way', async () => {
     const adapter = createGoogleOAuthAdapter(CONFIG)
     fetchMock
       .mockResolvedValueOnce(
@@ -743,13 +779,19 @@ describe('Google OAuth refresh refusals', () => {
         jsonResponse({ error: 'unauthorized_client' }, { status: 400 }),
       )
 
-    await expect(adapter.refreshAccessToken('refresh-token')).rejects.toMatchObject({
+    await expect(
+      adapter.refreshAccessToken('refresh-token', authorization),
+    ).rejects.toMatchObject({
       code: 'reauthorization_required',
     })
-    await expect(adapter.refreshAccessToken('refresh-token')).rejects.toMatchObject({
+    await expect(
+      adapter.refreshAccessToken('refresh-token', authorization),
+    ).rejects.toMatchObject({
       code: 'token_refresh_failed',
     })
-    await expect(adapter.refreshAccessToken('refresh-token')).rejects.toMatchObject({
+    await expect(
+      adapter.refreshAccessToken('refresh-token', authorization),
+    ).rejects.toMatchObject({
       code: 'token_refresh_failed',
     })
   })
