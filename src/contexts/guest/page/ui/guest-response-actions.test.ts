@@ -7,9 +7,13 @@ import {
 import type {
   ImmersiveResponseFailure,
   ImmersiveResponseNotice,
-} from './immersive-response-types'
+} from '#/components/features/guest/public-portal/immersive/immersive-response-types'
 import { setBrowserExceptionCapture } from '#/shared/observability/browser-exception-capture'
-import { NONCE, RATED, TOKEN } from './__fixtures__/immersive-public-portal-fixtures'
+import {
+  NONCE,
+  RATED,
+  TOKEN,
+} from '#/components/features/guest/public-portal/immersive/__fixtures__/immersive-public-portal-fixtures'
 
 const SESSION = { token: TOKEN, csrfNonce: NONCE }
 const NEXT_NONCE = '22222222-2222-4222-8222-222222222222'

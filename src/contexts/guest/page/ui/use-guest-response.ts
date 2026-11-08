@@ -9,7 +9,7 @@ import type {
   ImmersiveResponseFailure,
   ImmersiveResponseNotice,
   ImmersiveResponseViewProps,
-} from './immersive-response-types'
+} from '#/components/features/guest/public-portal/immersive/immersive-response-types'
 
 /** The part of the response view's props the session decides; the page adds the pack and the name. */
 export type ImmersiveSessionProps = Omit<
@@ -29,7 +29,7 @@ export type ImmersiveSessionProps = Omit<
  * handlers. The state lives here and the calls in `buildGuestResponseHandlers`,
  * so the view never sees an action.
  */
-export function useImmersiveGuestResponse(
+export function useGuestResponse(
   input: Readonly<{
     token: string
     csrfNonce: string
