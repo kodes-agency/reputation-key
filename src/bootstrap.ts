@@ -454,9 +454,9 @@ export async function bootstrap(
   )
 
   // ── Retention sweep (BQC-1.6: bounded, evidence-backed, daily) ──────
-  const { createRetentionSweepHandler, JOB_NAME: RETENTION_SWEEP_JOB_NAME } =
+  const { createScheduledRetentionSweepHandler, JOB_NAME: RETENTION_SWEEP_JOB_NAME } =
     await import('#/shared/jobs/retention-sweep.job')
-  const retentionSweepHandler = createRetentionSweepHandler({
+  const retentionSweepHandler = createScheduledRetentionSweepHandler({
     db: container.db,
     clock: container.clock,
     rules: RETENTION_RULES,
