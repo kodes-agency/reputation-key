@@ -1,7 +1,4 @@
 import { storedReplyFrame } from '#/shared/domain/reply-frame'
-// Review context — reply lifecycle use cases
-// Draft, submit, approve, reject, edit-resubmit, delete, retry.
-
 import type { ReplyRepository } from '../ports/reply.repository'
 import type { ReviewRepository } from '../ports/review.repository'
 import type { ReplyQueuePort } from '../ports/reply-queue.port'
@@ -22,14 +19,11 @@ import {
   requireAccessibleReview,
   requireReplyManager as requireManager,
 } from './reply-access'
-import { replyCommentProblem } from '#/shared/google-provider-control/reply-comment'
-import { checkReplyText } from '#/shared/reply-library/reply-checks'
-import { BUILTIN_REPLY_VOICE, resolveVoice } from '#/shared/reply-library/reply-voice'
 import {
-  mapReplyLanguageMetadata,
-  parseCanonicalReplyLanguageTag,
-} from '#/shared/reply-language-catalogue'
-import { assertReplySlotsFilled, replyTextProblemMessage } from '../../domain/rules'
+  assertReplyContentPublishable,
+  assertReplyTextSendable,
+} from '../reply-content-policy'
+import { assertReplySlotsFilled } from '../../domain/rules'
 import { assertReplyCommandMayStart } from '../../domain/reply-command-preconditions'
 import {
   buildIdempotencyKey,
@@ -54,7 +48,6 @@ export type ReplyDeps = Readonly<{
   replyRepo: ReplyRepository
   reviewRepo: ReviewRepository
   queue: ReplyQueuePort
-  /** BQC-3.3: atomic reply state mutation and outbox facts. */
   commandStore: ReplyCommandStore
   /** Atomic verification and persistence seam for browser-held AI suggestions. */
   aiSuggestedDraftStore?: AiSuggestedDraftStore
@@ -305,55 +298,6 @@ async function reconcileUncertainPublicationBeforeRetry(
   throw reviewError('invalid_transition', WONT_SEND_AGAIN)
 }
 
-/**
- * Refuse, synchronously and in words, any text the provider route would refuse
- * at compile time. Without this, draft/submit/approve accepted text the worker
- * could never send (route-catalogue.ts `reviews.reply`), and the failure only
- * surfaced as a publication nobody could explain.
- */
-function assertReplyTextSendable(text: string): void {
-  const problem = replyCommentProblem(text)
-  if (problem !== null)
-    throw reviewError('invalid_reply', replyTextProblemMessage(problem))
-}
-
-async function assertReplyTextSafe(
-  deps: ReplyDeps,
-  reply: Reply,
-  review: Review,
-): Promise<void> {
-  const mappedReviewLanguage = mapReplyLanguageMetadata(review.languageCode)
-  const languageGroup =
-    (reply.replyLanguageTag
-      ? parseCanonicalReplyLanguageTag(reply.replyLanguageTag)?.templateGroup
-      : undefined) ??
-    (mappedReviewLanguage.status === 'supported'
-      ? mappedReviewLanguage.language?.templateGroup
-      : undefined) ??
-    'en-Latn'
-  const snapshot = await deps.replyLibrary?.loadSnapshot(
-    review.organizationId,
-    review.propertyId,
-  )
-  const voice = snapshot
-    ? resolveVoice(BUILTIN_REPLY_VOICE, snapshot.accountVoice, snapshot.propertyVoice)
-    : null
-  const findings = checkReplyText({
-    text: reply.text,
-    kind: 'final_reply',
-    rating: review.rating,
-    reviewKind: review.text == null || review.text.trim() === '' ? 'rating_only' : 'text',
-    languageGroup,
-    privacyMode: voice?.privacyMode.value ?? false,
-    emojiAllowed: voice?.emojiMode.value === 'positive',
-  }).blocks
-  if (findings.length > 0) {
-    throw reviewError('invalid_reply', 'Reply failed required safety checks', {
-      findingCodes: findings.map(({ code }) => code),
-    })
-  }
-}
-
 export type DraftReply = ReturnType<typeof draftReply>
 export type SubmitReply = ReturnType<typeof submitReply>
 export type ApproveReply = ReturnType<typeof approveReply>
@@ -553,15 +497,10 @@ export const submitReply =
       'No draft reply found for this review',
     )
     assertReplyCommandMayStart('submit', reply)
-    // Stored text is checked again: a draft saved under the old character cap
-    // can still be too long in bytes.
-    assertReplyTextSendable(reply.text)
-    assertReplySlotsFilled(reply.text)
-    await assertReplyTextSafe(deps, reply, review)
+    await assertReplyContentPublishable(deps.replyLibrary, reply, review)
     await assertCurrentAiDraftBinding(deps, ctx, reply, 'submit')
 
     const now = deps.clock()
-    // BQC-3.3: guarded status update and submitted fact commit in one transaction.
     const submitted = await commitTransition(reply, 'pending_approval', now, () =>
       deps.commandStore.submitReply(
         reply,
@@ -609,10 +548,7 @@ export const approveReply =
   async (input: ApproveReplyInput, ctx: AuthContext): Promise<Reply> => {
     // D6-001: scope reply mutations to the caller's assigned properties.
     const { reply, review } = await requireAccessibleReply(deps, ctx, input.reviewId)
-    // Approval is the move out of `pending_approval` and nothing else. A reply
-    // that failed to publish is sent again by retryPublish, which first proves
-    // that an attempt of unknown outcome never reached Google (Invariant 9);
-    // approving it here would skip that proof.
+    // Failed publications require retry's non-dispatch proof, never re-approval.
     assertReplyCommandMayStart('approve', reply)
     // The manager confirms the reply they read, not whatever is stored by now.
     // A reply that was rejected, rewritten and submitted again while the
@@ -630,9 +566,7 @@ export const approveReply =
       throw replyChangedConcurrently()
     }
     await assertPropertyAcceptsPublication(deps, review)
-    assertReplyTextSendable(reply.text)
-    assertReplySlotsFilled(reply.text)
-    await assertReplyTextSafe(deps, reply, review)
+    await assertReplyContentPublishable(deps.replyLibrary, reply, review)
     await assertCurrentAiDraftBinding(deps, ctx, reply, 'approve')
 
     return authorizeAndEnqueuePublication(
@@ -641,11 +575,7 @@ export const approveReply =
       reply,
       review,
       async (now, publicationIntent) => {
-        // BQC-3.3: guarded status update + approved fact commit in one tx. The
-        // durable review.reply.approved outbox row is the recovery record if the
-        // process crashes before the enqueue below.
-        // BQC-3.8: the same write authorizes the publication cycle —
-        // publication_state='authorized', attempts/last-error/reconcile-due reset.
+        // The approved fact and cycle commit together before queue admission.
         const approvedResult = await commitTransition(reply, 'approved', now, () =>
           deps.commandStore.markPublicationAuthorized(
             reply,
@@ -678,17 +608,8 @@ export type EditPublishedReplyInput = Readonly<{
   text: string
 }>
 
-/**
- * Edit the text of a PUBLISHED internal reply and republish it. The write
- * re-enters the durable publication machine (published → approved with a
- * fresh cycle), the review.reply.updated fact records the edit atomically,
- * and the existing publish job performs the provider upsert — the GBP reply
- * update is an upsert, so republishing can never duplicate the reply.
- *
- * No-ops when the trimmed text equals the current text (no write, no enqueue).
- * Mirrors are read-only: editing a google_sync reply is not supported here
- * (external edits happen in the GBP UI and sync back to the mirror).
- */
+/** Republish an internal reply in a new cycle; identical trimmed text is a no-op.
+ * Google mirrors are read-only and change only through provider observations. */
 export const editPublishedReply =
   (deps: ReplyDeps) =>
   async (input: EditPublishedReplyInput, ctx: AuthContext): Promise<Reply> => {
@@ -716,7 +637,7 @@ export const editPublishedReply =
     await assertPropertyAcceptsPublication(deps, review)
     // The edit, not the stored text, is what reaches Google: it passes the same
     // safety check as an approval.
-    await assertReplyTextSafe(deps, { ...reply, text }, review)
+    await assertReplyContentPublishable(deps.replyLibrary, { ...reply, text }, review)
 
     return authorizeAndEnqueuePublication(
       deps,
@@ -724,9 +645,7 @@ export const editPublishedReply =
       reply,
       review,
       async (now, publicationIntent) => {
-        // Guarded edit: text + status → approved + a fresh publication cycle +
-        // the review.reply.updated fact — one transaction. The committed updated
-        // fact is the recovery record if the process crashes before the enqueue.
+        // Commit the edited text, cycle and fact before queue admission.
         const updatedResult = await commitTransition(reply, 'approved', now, () =>
           deps.commandStore.editPublishedReply(reply, {
             text,
@@ -763,7 +682,6 @@ export const rejectReply =
     assertReplyCommandMayStart('reject', reply)
 
     const now = deps.clock()
-    // BQC-3.3: guarded status update + rejected fact commit in one tx.
     const updated = await commitTransition(reply, 'rejected', now, () =>
       deps.commandStore.rejectReply(
         reply,
@@ -844,11 +762,8 @@ export const retryPublish =
     // approval would otherwise be published here with no approver and no
     // approved fact: approval is approveReply's move.
     assertReplyCommandMayStart('retry_publication', retryable)
-    // Stored text is checked again, as submit and approval check it: a retry
-    // authorizes the text as it stands, and must not reserve a cycle for text
-    // the worker cannot send or that still holds an unfilled slot.
-    assertReplyTextSendable(retryable.text)
-    assertReplySlotsFilled(retryable.text)
+    // A new cycle must satisfy the current content and privacy policy too.
+    await assertReplyContentPublishable(deps.replyLibrary, retryable, review)
 
     return authorizeAndEnqueuePublication(
       deps,
@@ -856,9 +771,7 @@ export const retryPublish =
       retryable,
       review,
       async (now, publicationIntent) => {
-        // BQC-3.8: re-authorization starts a NEW publication cycle
-        // (publication_state='authorized', attempts/error/reconcile-due reset).
-        // No new lifecycle fact — re-approval reuses the approved state.
+        // A retry keeps the approval and authorizes a new publication cycle.
         const backToApprovedResult = await commitTransition(
           retryable,
           'approved',

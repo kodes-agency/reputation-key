@@ -25,8 +25,11 @@ describe('retired Review islands stay contracted', () => {
       'src/contexts/review/application/use-cases/run-review-provider-snapshot.ts',
     )
     const sync = source('src/contexts/review/application/use-cases/sync-reviews.ts')
-    const replies = source(
+    const replyOperations = source(
       'src/contexts/review/application/use-cases/reply-operations.ts',
+    )
+    const replyContentPolicy = source(
+      'src/contexts/review/application/reply-content-policy.ts',
     )
     const inboxCursor = source('src/contexts/inbox/application/inbox-cursor.ts')
     const inboxCommandStore = source(
@@ -37,7 +40,8 @@ describe('retired Review islands stay contracted', () => {
     expect(snapshot).toContain('provider_rate_limited')
     expect(sync).toContain('defaultReviewLifecycle')
     expect(sync).toContain('computeReviewContentHash')
-    expect(replies).toContain("reviewError('invalid_reply'")
+    expect(replyOperations).toContain("from '../reply-content-policy'")
+    expect(replyContentPolicy).toContain("reviewError('invalid_reply'")
     expect(inboxCursor).toContain('decodeInboxCursor')
     expect(inboxCommandStore).toContain("inboxError('revision_conflict'")
   })
