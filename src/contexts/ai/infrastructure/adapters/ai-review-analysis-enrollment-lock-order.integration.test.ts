@@ -45,6 +45,7 @@ const REVIEWS = [
   '75000000-0000-4000-8000-000000000013',
 ] as const
 const APPLICATION_NAME = 'rk-enrollment-replay-order'
+const WRITER_APPLICATION_NAME = 'rk-enrollment-replay-writer'
 const FENCE = {
   authorizationLineageId: LINEAGE,
   authorizationStateVersion: 1,
@@ -251,7 +252,11 @@ beforeAll(() => {
     max: 2,
     application_name: APPLICATION_NAME,
   })
-  writerPool = new Pool({ connectionString: getEnv().DATABASE_URL, max: 2 })
+  writerPool = new Pool({
+    connectionString: getEnv().DATABASE_URL,
+    max: 2,
+    application_name: WRITER_APPLICATION_NAME,
+  })
 })
 
 afterAll(async () => {
@@ -274,33 +279,75 @@ beforeEach(async () => {
 async function raceWriter<T>(
   writer: ConcurrentWriter,
   run: () => Promise<T>,
+  waitForLock = waitForReplayToQueueOnALock,
 ): Promise<Readonly<{ writerNext: string; outcome: { result: T } | { error: string } }>> {
   const client = await writerPool.connect()
+  let outcome: Promise<{ result: T } | { error: string }> | undefined
+  let writerNext: string
   try {
     await client.query('BEGIN')
     await client.query(`SET LOCAL lock_timeout = ${WAIT_LIMIT_MS}`)
     await client.query(writer.lockProperty, [ORG, PROPERTY])
-    const outcome = run().then(
+    outcome = run().then(
       (result) => ({ result }),
       (error: unknown) => ({ error: errorCode(error) }),
     )
-    await waitForReplayToQueueOnALock()
+    await waitForLock()
     const next = writer.lockNext()
-    const writerNext = await client.query(next.statement, next.values).then(
+    writerNext = await client.query(next.statement, next.values).then(
       () => 'locked',
       (error: unknown) => errorCode(error),
     )
-    await client.query('ROLLBACK')
-    return { writerNext, outcome: await outcome }
   } finally {
-    client.release()
+    try {
+      await client.query('ROLLBACK')
+    } finally {
+      client.release()
+    }
+    // Let the contender finish after releasing the writer's locks, including
+    // when observation failed, before the next test removes its fixture.
+    await outcome
   }
+  return { writerNext, outcome: await outcome }
 }
 
 const adapter = () =>
   createReviewAnalysisEnrollmentAdapter(drizzle(replayPool), randomUUID)
 
 describe('Review Analysis enrollment replay lock order', () => {
+  it('rolls the writer back when lock observation fails, then permits another race', async () => {
+    await expect(
+      raceWriter(
+        reviewImport,
+        async () => 'unused',
+        async () => {
+          throw new Error('lock observation failed')
+        },
+      ),
+    ).rejects.toThrow('lock observation failed')
+
+    const openTransactions = await replayPool.query<{ count: number }>(
+      `SELECT count(*)::int AS count FROM pg_stat_activity
+       WHERE application_name = $1 AND state = 'idle in transaction'`,
+      [WRITER_APPLICATION_NAME],
+    )
+    expect(openTransactions.rows).toEqual([{ count: 0 }])
+
+    const race = await raceWriter(reviewImport, () =>
+      adapter().reconcile({
+        enrollmentId,
+        organizationId: ORG,
+        expectedFence: FENCE,
+        correlationId: enrollmentId,
+        occurredAt: NOW,
+      }),
+    )
+    expect(race).toMatchObject({
+      writerNext: 'locked',
+      outcome: { result: { status: 'replay_started', pinnedRevisionCount: 3 } },
+    })
+  })
+
   it.each([
     ['a review import that locks a candidate review', reviewImport],
     ['an authorization change that locks the enrollment', authorizationChange],

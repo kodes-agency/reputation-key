@@ -1,31 +1,28 @@
+import type { ReviewAnalysisSourceInput } from '#/contexts/ai/application/ports/ai-inference.port'
+import {
+  createAiHandlerHarness,
+  useAiHandlerDatabase,
+} from '#/contexts/ai/infrastructure/testing/handler-harness.test-fixtures'
+const handlerDatabase = useAiHandlerDatabase()
 // The review analysis use case under the v3 contract, the one the live runtime
 // catalogue selects since the switch-on (2026-10-30). The skeleton is the one
-// analyze-review-event.test.ts covers for the retired v2 contract; this file shows
-// what the v3 contract does differently. Everything here is invented: no review text
-// of a real guest, no provider, no database.
+// analyze-review-event.integration.test.ts covers for the retired v2 contract; this file shows
+// what the v3 contract does differently, using synthetic text and a fake provider.
 
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { organizationId, propertyId, reviewId } from '#/shared/domain/ids'
-import {
-  MERCHANT_AI_NOTICE_DIGEST,
-  MERCHANT_AI_NOTICE_VERSION,
-} from '#/shared/merchant-ai-notice-contract'
+import { parseAiGatewayRouteRequest } from '#/shared/ai-gateway-transport-contract'
 import {
   AI_REVIEW_LANGUAGE_ICU_VERSION,
   AI_REVIEW_LANGUAGE_UNICODE_VERSION,
 } from '#/shared/ai-review-language-catalogue'
+import { organizationId, propertyId, reviewId } from '#/shared/domain/ids'
 import { AI_REVIEW_LANGUAGE_REGION_NODE_VERSION } from '#/shared/generated/ai-review-language-canonical-regions-v1'
 import {
   REVIEW_ANALYSIS_NORMALIZATION_DIGEST,
   REVIEW_ANALYSIS_NORMALIZATION_VERSION,
 } from '#/shared/review-analysis-v3-normalizer'
-import { parseAiGatewayRouteRequest } from '#/shared/ai-gateway-transport-contract'
 import { resolveReviewPropertyContext } from '#/shared/review-vocabulary-hints'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { AiOperationId } from '../../domain/types'
-import type {
-  AiOperationRecord,
-  AiOperationStorePort,
-} from '../ports/ai-operation-store.port'
 import type { AiProviderChoicePort } from '../ports/ai-provider-choice.port'
 import { createReviewAnalysisContractV3 } from '../review-analysis-contract-v3'
 import {
@@ -132,7 +129,7 @@ const LOVELY_ROOM = Object.freeze({
   names_person: null,
 })
 
-function harness(
+async function harness(
   options: Readonly<{
     result?: unknown
     rating?: 1 | 2 | 3 | 4 | 5
@@ -146,39 +143,24 @@ function harness(
     category?: string | null
   }> = {},
 ) {
-  let claimed: AiOperationRecord | undefined
-  const claim = vi.fn<AiOperationStorePort['claim']>(async (request) => {
-    claimed = {
-      id: OPERATION_ID,
-      identity: request.identity,
-      binding: request.binding,
-      idempotencyKey: request.idempotencyKey,
-      requestFingerprint: request.requestFingerprint,
-      sourceProvenance: null,
-      state: 'pending',
-      executionAttempt: 0,
-      executionPermitId: null,
-      nextAttemptAtEpochMillis: null,
-      failureCode: null,
-      createdAtEpochMillis: request.nowEpochMillis,
-      updatedAtEpochMillis: request.nowEpochMillis,
-      expiresAtEpochMillis: request.expiresAtEpochMillis,
-    }
-    return { status: 'created', operation: claimed }
+  const persistence = await createAiHandlerHarness(handlerDatabase(), {
+    organizationId: ORGANIZATION_ID,
+    propertyId: PROPERTY_ID,
+    operationId: OPERATION_ID,
+    permitId: PERMIT_ID,
+    lineageId: LINEAGE_ID,
+    now: NOW,
+    capability: 'review_analysis',
+    consentNotice: options.consentNotice,
+    runtimeProfile: options.runtimeProfile,
+    providerDeployment: options.providerDeployment,
   })
-  const claimExecution = vi.fn<AiOperationStorePort['claimExecution']>(async () => {
-    if (!claimed) return null
-    claimed = {
-      ...claimed,
-      state: 'executing',
-      executionAttempt: claimed.executionAttempt + 1,
-      executionPermitId: PERMIT_ID,
-    }
-    return claimed
+  const { claim, recordFailure, markDelivered } = persistence.operations
+  const storeAnalysisV3 = vi.fn(async (_request: unknown) => {
+    if (options.stored === false) return false
+    await persistence.patchOperation({ state: 'succeeded_pending_delivery' })
+    return true
   })
-  const recordFailure = vi.fn<AiOperationStorePort['recordFailure']>(async () => true)
-  const markDelivered = vi.fn<AiOperationStorePort['markDelivered']>(async () => true)
-  const storeAnalysisV3 = vi.fn(async (_request: unknown) => options.stored !== false)
   const storeAnalysis = vi.fn(async () => true)
   const applyReviewAnalysis = vi.fn(async () => ({
     status: 'applied' as const,
@@ -191,7 +173,9 @@ function harness(
   // The live gateway serves a v3 binding (`parseAiGatewayRouteRequest` accepts the
   // request the use case builds: a test below parses it), so the mock reads what
   // the use case put in the request and answers.
-  const analyzeReview = vi.fn(async (_request: unknown) => {
+  const analyzeReview = vi.fn(async (request: ReviewAnalysisSourceInput) => {
+    const admission = await persistence.settleProviderOperation(request.operationId)
+    if (!admission.ok) throw new Error('synthetic provider budget refused')
     return {
       route: 'review-analysis' as const,
       status: 'success' as const,
@@ -202,9 +186,9 @@ function harness(
         version: 'ai-settlement-receipt-v1' as const,
 
         grantKid: 'grant_v1',
-        operationId: OPERATION_ID,
-        permitId: PERMIT_ID,
-        attemptNumber: 1,
+        operationId: request.operationId,
+        permitId: request.permitId,
+        attemptNumber: request.attemptNumber,
         nonce: 'AQIDBA',
         requestBindingHmac: 'A'.repeat(43),
         disposition: 'success' as const,
@@ -248,62 +232,16 @@ function harness(
   const readGooglePrimaryCategory = vi.fn(async () =>
     options.category === undefined ? 'Hotel' : options.category,
   )
-  const controlScopes = [
-    { kind: 'global' },
-    {
-      kind: 'provider_deployment_profile',
-      providerDeploymentProfileVersion: 'private-beta-global-v2',
-    },
-    { kind: 'capability', capability: 'review_analysis' },
-  ]
   const dependencies = {
     contract: createReviewAnalysisContractV3({
       outputs: { storeAnalysisV3 } as never,
       vocabularyContext: { readGooglePrimaryCategory },
       providerChoice: { chooseForReviewAnalysis },
     }),
-    authorization: {
-      readMerchantAuthorization: vi.fn(async () => ({
-        organizationId: ORGANIZATION_ID,
-        propertyId: PROPERTY_ID,
-        state: 'enabled' as const,
-        stateVersion: 1,
-        authorizationLineageId: LINEAGE_ID,
-        authorizedSourceEpoch: 2,
-        capabilities: ['review_analysis'] as const,
-        capabilityRuntimeProfileVersions: {
-          review_analysis: options.runtimeProfile ?? 'review-analysis-runtime-v2',
-        },
-        capabilityEpochs: {
-          review_analysis: { epoch: 1, changedAtEpochMillis: NOW },
-          reply_drafting: { epoch: 1, changedAtEpochMillis: NOW },
-          property_trends: { epoch: 1, changedAtEpochMillis: NOW },
-        },
-        reviewAnalysisStartSequence: 1,
-        noticeVersion: options.consentNotice?.noticeVersion ?? MERCHANT_AI_NOTICE_VERSION,
-        noticeDigest: options.consentNotice?.noticeDigest ?? MERCHANT_AI_NOTICE_DIGEST,
-        sourcePolicyId: 'google-business-profile-source-policy-v1',
-        sourceCanonicalizerDigest: SHA,
-        redactionProfileFamily: 'gbp-review-global-v1',
-        providerDeploymentProfileVersion:
-          options.providerDeployment ?? 'private-beta-global-v2',
-      })),
-    },
-    control: {
-      readHeads: vi.fn(async () =>
-        controlScopes.map((scope, index) => ({
-          scope,
-          controlId: `72000000-0000-4000-8000-00000000011${index + 1}`,
-          generation: 1,
-          executionState: 'enabled' as const,
-          admissionState: 'accepting' as const,
-          updatedAtEpochMillis: NOW,
-        })),
-      ),
-      transition: vi.fn(),
-    },
+    authorization: persistence.authorization,
+    control: persistence.control,
     inference: { analyzeReview, generateReply: vi.fn(), generateTrend: vi.fn() },
-    operations: { claim, claimExecution, recordFailure, markDelivered },
+    operations: persistence.operations,
     outputs: { storeAnalysis, storeAnalysisV3 },
     aggregates: { applyReviewAnalysis, advanceWithoutAnalysis, readWindow: vi.fn() },
     admission: {
@@ -349,6 +287,7 @@ function harness(
     nowEpochMillis: () => NOW,
   } as unknown as AnalyzeReviewEventDependencies
   return {
+    persistence,
     analyze: createAnalyzeReviewEvent(dependencies),
     mocks: {
       claim,
@@ -368,7 +307,7 @@ function harness(
 
 describe('the review analysis use case under the v3 contract', () => {
   it('sends a request the live gateway transport accepts: the catalogue serves it', async () => {
-    const { analyze, mocks } = harness()
+    const { analyze, mocks } = await harness()
 
     expect(await analyze(input)).toEqual({ status: 'completed' })
 
@@ -377,7 +316,7 @@ describe('the review analysis use case under the v3 contract', () => {
   })
 
   it('claims the operation under the lineage v3 requires, calls the provider with the evidence request, and stores the derived analysis', async () => {
-    const { analyze, mocks } = harness()
+    const { analyze, mocks } = await harness()
 
     const result = await analyze(input)
 
@@ -436,7 +375,7 @@ describe('the review analysis use case under the v3 contract', () => {
   })
 
   it('uses served execution while retaining older runtime/deployment evidence unchanged', async () => {
-    const { analyze, mocks } = harness({
+    const { analyze, mocks } = await harness({
       runtimeProfile: 'review-analysis-runtime-v1',
       providerDeployment: 'private-beta-global-v1',
     })
@@ -482,7 +421,7 @@ describe('the review analysis use case under the v3 contract', () => {
       urgentReason: null,
     },
   ])('derives the attention with the v2 formula: $name', async (scenario) => {
-    const { analyze, mocks } = harness({
+    const { analyze, mocks } = await harness({
       result: gatewayAnswer(scenario.answer),
       rating: scenario.rating,
     })
@@ -498,7 +437,7 @@ describe('the review analysis use case under the v3 contract', () => {
   })
 
   it('records what the normalizer did on the stored analysis', async () => {
-    const { analyze, mocks } = harness({
+    const { analyze, mocks } = await harness({
       result: gatewayAnswer(
         { sentiment: 'negative', mentions: [SLOW_CHECK_IN], urgent: null },
         ['mentions_merged', 'sentence_refs_repaired'],
@@ -563,7 +502,7 @@ describe('the review analysis use case under the v3 contract', () => {
   ])(
     'does not serve a consent recorded under $name, and asks no provider',
     async (scenario) => {
-      const { analyze, mocks } = harness(scenario.options)
+      const { analyze, mocks } = await harness(scenario.options)
 
       expect(await analyze(input)).toEqual({ status: 'terminal' })
 
@@ -592,7 +531,7 @@ describe('the review analysis use case under the v3 contract', () => {
       code: 'provider_unavailable',
     },
   ])('waits within the horizon when $name, and claims nothing', async (scenario) => {
-    const { analyze, mocks } = harness({ choice: scenario.choice })
+    const { analyze, mocks } = await harness({ choice: scenario.choice })
 
     const result = await analyze(input)
 
@@ -602,7 +541,7 @@ describe('the review analysis use case under the v3 contract', () => {
   })
 
   it('keeps preparation refusals runnable past the horizon and resumes after recovery', async () => {
-    const { analyze, mocks } = harness({
+    const { analyze, mocks } = await harness({
       choice: { status: 'unavailable', code: 'provider_unavailable' },
     })
     const elapsed = {
@@ -628,7 +567,7 @@ describe('the review analysis use case under the v3 contract', () => {
   })
 
   it('waits when the source gave no numbered sentences', async () => {
-    const { analyze, mocks } = harness({ sentences: undefined })
+    const { analyze, mocks } = await harness({ sentences: undefined })
 
     expect(await analyze(input)).toMatchObject({
       status: 'retry',
@@ -638,7 +577,7 @@ describe('the review analysis use case under the v3 contract', () => {
   })
 
   it('uses the generic hints for a Property with no category', async () => {
-    const { analyze, mocks } = harness({ category: null })
+    const { analyze, mocks } = await harness({ category: null })
 
     await analyze(input)
 
@@ -648,7 +587,7 @@ describe('the review analysis use case under the v3 contract', () => {
   })
 
   it('records a charged output_invalid when the gateway returns an answer that is not the normalized contract', async () => {
-    const { analyze, mocks } = harness({
+    const { analyze, mocks } = await harness({
       result: { sentiment: 'positive', mentions: [] },
     })
 
@@ -664,7 +603,7 @@ describe('the review analysis use case under the v3 contract', () => {
   })
 
   it('reports a generation change when the store refuses the write', async () => {
-    const { analyze, mocks } = harness({ stored: false })
+    const { analyze, mocks } = await harness({ stored: false })
 
     expect(await analyze(input)).toEqual({ status: 'generation_changed' })
 

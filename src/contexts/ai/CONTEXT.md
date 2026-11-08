@@ -54,6 +54,17 @@ analysis version strings are unchanged. Server-function entry paths stay under
 `server/`. Language-script and Chinese-orthography verifiers remain reachable
 through reply-language verification and local-template acceptance.
 
+## Handler tests
+
+Analysis, reply drafting and backlog-policy integration suites share the
+PostgreSQL harness in `infrastructure/testing/handler-harness.test-fixtures.ts`.
+It uses the production consent, control, operation and budget adapters. Each
+example rolls back its rows and global control transitions, including on failure.
+Feature fixtures supply synthetic source snapshots and provider responses. Integration
+test files own shared test-helper imports and historical runtime mocks, and supply
+the backlog fixture with outbox delivery and logging helpers. Model, provider
+transport and draft measurement tests retain their focused coverage.
+
 ## Model
 
 The active per-Property capabilities are Review Analysis and Reply Drafting.
