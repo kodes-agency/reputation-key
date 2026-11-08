@@ -303,6 +303,8 @@ export const DATA_FATE_AUTHORITY = Object.freeze([
     owner: 'integration',
     disposition: 'active_authority',
     authority: 'GGL-01',
+    exitCriteria:
+      'Nothing writes these tables since imports moved to the single-root import tables. They keep pre-cutover history for the closure and export contributors until their contraction migration drops them.',
   }),
   ...rows({
     schemaFile: 'google-import.schema.ts',
@@ -311,7 +313,7 @@ export const DATA_FATE_AUTHORITY = Object.freeze([
     disposition: 'active_authority',
     authority: 'Integration import checkpoints',
     exitCriteria:
-      'The replacement store is not connected. Before its first writer, wire lifecycle cancellation, isolated restore and whole-import retention; remove the import and all items 30 days after its first terminal completion without renewing that deadline on retry.',
+      'Lifecycle cancellation, isolated restore and whole-import retention run on these tables; remove the import and all items 30 days after its first terminal completion without renewing that deadline on retry.',
   }),
   ...rows({
     schemaFile: 'google-import-discovery.schema.ts',

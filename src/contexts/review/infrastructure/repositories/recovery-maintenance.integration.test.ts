@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto'
 import { eq, sql } from 'drizzle-orm'
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
-import { completeGoogleImportsForRestore } from '#/contexts/integration/infrastructure/google-import-completion'
+import { completeImportsForRestore } from '#/contexts/integration/imports/import-completion.server'
 import { createPropertyGoogleBindingStore } from '#/contexts/property/infrastructure/property-google-binding-store'
 import { getEnv } from '#/shared/config/env'
 import { createDatabase, type Database } from '#/shared/db'
@@ -168,7 +168,7 @@ async function commitRecoveryRun(
 ) {
   return applyRecoveryFence(db, admitted.recoveryInput, (tx, now) => {
     const binding = createPropertyGoogleBindingStore(tx as unknown as Database)
-    return completeGoogleImportsForRestore(
+    return completeImportsForRestore(
       tx,
       {
         ensureImportFollowUps: binding.ensureImportFollowUps,

@@ -138,7 +138,7 @@ const CANDIDATE_DECISIONS: Readonly<Record<string, CandidateDecision>> = {
   'recover-invited-registrations': scopeAuthorizer('allowed'),
   'google-import-claim-reaper': {
     kind: 'scoped_entry_point',
-    entryPoint: 'import-gbp-property-item-v2',
+    entryPoint: 'import-gbp-property-item',
     reason:
       'Recovery only: releases or closes import item claims whose worker died, through the store compare-and-set helpers. It starts no import and calls no provider; a released item is imported only by the Organization-scoped item job.',
   },

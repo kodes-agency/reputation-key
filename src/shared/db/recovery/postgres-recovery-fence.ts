@@ -89,16 +89,16 @@ export async function inspectRecoveryFence(
         WHERE state IN ('registered', 'provider_started', 'provider_outcome_ambiguous')) AS "googleSourceOperationsFenced",
       (SELECT count(*)::int FROM credential_revoke_permits
         WHERE state IN ('dormant', 'active', 'dispatching')) AS "googleRevokePermitsFenced",
-      (SELECT count(*)::int FROM gbp_import_requests request
-        WHERE request.status IN ('queued', 'processing')
+      (SELECT count(*)::int FROM google_imports parent
+        WHERE parent.first_terminal_at IS NULL
            OR EXISTS (
-             SELECT 1 FROM gbp_import_request_items item
-             WHERE item.organization_id = request.organization_id
-               AND item.import_job_id = request.id
+             SELECT 1 FROM google_import_items item
+             WHERE item.organization_id = parent.organization_id
+               AND item.import_id = parent.id
                AND (item.status IN ('pending', 'processing')
                  OR item.outcome_code = 'temporarily_unavailable')
            )) AS "googleImportV2ParentsFenced",
-      (SELECT count(*)::int FROM gbp_import_request_items
+      (SELECT count(*)::int FROM google_import_items
         WHERE status IN ('pending', 'processing')
            OR outcome_code = 'temporarily_unavailable') AS "googleImportV2ItemsFenced",
       (SELECT count(*)::int FROM ai_operations

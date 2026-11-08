@@ -97,6 +97,7 @@ export type SystemAction =
   | 'system:ai.review_analysis_enrollment'
   | 'system:permit.start_deadline_fence'
   | 'system:property.import_claim_reap'
+  | 'system:property.import_retired'
   | 'system:integration.gbp_subscription_reconcile'
   | 'system:goal.reconcile'
   | 'system:goal.maintain'
@@ -187,12 +188,13 @@ const JOB_ROWS: ReadonlyArray<EntryPointRow> = [
   job('portal-media-sweep', 'system:portal.media_sweep', 'none', 'tenant_cross', true),
   job('health-check', 'system:health.check', 'none', 'none'),
   job(
-    'import-gbp-property-item-v2',
+    'import-gbp-property-item',
     'system:property.import_v2',
     'property.import_gbp_v2',
     'organization',
     true,
   ),
+  job('import-gbp-property-item-v2', 'system:property.import_retired', 'none', 'none'),
   job(
     'sync-property-reviews',
     'system:review.sync',

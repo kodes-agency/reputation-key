@@ -401,8 +401,8 @@ export const EVENT_FAMILY_ROWS: ReadonlyArray<EventFamilyRow> = [
 
 const DEFAULT_QUEUE_ROWS: ReadonlyArray<JobFamilyRow> = [
   job(
-    'import-gbp-property-item-v2',
-    'src/contexts/integration/infrastructure/jobs/import-gbp-property-item-v2.job.ts',
+    'import-gbp-property-item',
+    'src/contexts/integration/infrastructure/jobs/import-gbp-property-item.job.ts',
     {
       queue: 'default',
       capability: 'property.import_gbp_v2',
@@ -411,6 +411,17 @@ const DEFAULT_QUEUE_ROWS: ReadonlyArray<JobFamilyRow> = [
       registration: 'enabled',
     },
     { retryAttempts: 5, retryBackoff: 'exponential:30000' },
+  ),
+  job(
+    'import-gbp-property-item-v2',
+    'src/contexts/integration/infrastructure/jobs/retired-import-item.job.ts',
+    {
+      queue: 'default',
+      capability: 'none',
+      action: 'system:property.import_retired',
+      schedule: 'none',
+      registration: 'quarantined',
+    },
   ),
   job(
     'sync-property-reviews',

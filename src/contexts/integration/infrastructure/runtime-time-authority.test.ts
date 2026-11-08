@@ -8,7 +8,14 @@ const read = (path: string): string => readFileSync(join(ROOT, path), 'utf8')
 describe('Integration infrastructure time authority', () => {
   it('does not read ambient mutation or polling time in retained stores', () => {
     for (const path of [
-      'src/contexts/integration/infrastructure/google-import-v2-store.ts',
+      'src/contexts/integration/imports/import-store.server.ts',
+      'src/contexts/integration/imports/import-claims.server.ts',
+      'src/contexts/integration/imports/import-completion.server.ts',
+      'src/contexts/integration/imports/import-dispatch-store.server.ts',
+      'src/contexts/integration/imports/import-lifecycle-store.server.ts',
+      'src/contexts/integration/imports/import-progress-store.server.ts',
+      'src/contexts/integration/imports/import-retention.server.ts',
+      'src/contexts/integration/imports/import-retry.server.ts',
       'src/contexts/integration/infrastructure/integration-command-store.ts',
       'src/contexts/integration/infrastructure/repositories/google-connection.repository.ts',
     ]) {
@@ -27,6 +34,6 @@ describe('Integration infrastructure time authority', () => {
     expect(build).toMatch(
       /createAtomicIntegrationCommandStore\(\s*deps\.db,\s*deps\.clock,?\s*\)/u,
     )
-    expect(build).toContain('createGoogleImportV2Store(deps.db, deps.clock, {')
+    expect(build).toMatch(/createImportStore\(\s*deps\.db,\s*deps\.clock,/u)
   })
 })

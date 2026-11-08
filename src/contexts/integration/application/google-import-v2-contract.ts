@@ -5,7 +5,7 @@ export const GOOGLE_PROPERTY_IMPORT_REQUESTED_EVENT =
   'integration.property_import.requested' as const
 export const PROPERTY_IMPORT_RETENTION_RELEASED_EVENT =
   'integration.property_import.retention_released' as const
-export const GOOGLE_PROPERTY_IMPORT_ITEM_JOB = 'import-gbp-property-item-v2' as const
+export const GOOGLE_PROPERTY_IMPORT_ITEM_JOB = 'import-gbp-property-item' as const
 export const GOOGLE_PROPERTY_IMPORT_CONTRACT_VERSION = 3 as const
 
 export type IntegrationPropertyImportRequestedV1 = Readonly<{
@@ -118,7 +118,7 @@ export type ImportItemTerminalWrite = Readonly<{
 /**
  * `temporarily_unavailable` is the one outcome whose item stays retryable, so it
  * is the one that must keep its retry state: the items table accepts it no other
- * way (`gbp_import_request_items_profile_valid`).
+ * way (`google_import_items_profile_valid`).
  */
 export function retainsRetryState(outcomeCode: ImportOutcomeCode): boolean {
   return outcomeCode === 'temporarily_unavailable'

@@ -37,8 +37,8 @@ import {
   IMPORT_DISPLAY_NAME_CONSUMER,
   IMPORT_SUBSCRIPTION_CONSUMER,
   IMPORT_REVIEW_SYNC_CONSUMER,
-} from './google-binding-follow-up-consumers'
-import { completeGoogleImportsForRestore } from './google-import-completion'
+} from '../infrastructure/google-binding-follow-up-consumers'
+import { completeImportsForRestore } from './import-completion.server'
 import { fixHistoryCutoff } from '#/contexts/review/infrastructure/repositories/review-provider-snapshot.repository'
 import { organizationId, propertyId } from '#/shared/domain/ids'
 import { createPropertyGoogleBindingStore } from '#/contexts/property/infrastructure/property-google-binding-store'
@@ -48,17 +48,14 @@ import { and, eq, inArray, sql } from 'drizzle-orm'
 import { createDatabase, type Database } from '#/shared/db'
 import { getEnv } from '#/shared/config/env'
 import { googleConnections } from '#/shared/db/schema/google-connection.schema'
-import {
-  gbpImportRequestItems,
-  gbpImportRequests,
-} from '#/shared/db/schema/google-import-v2.schema'
+import { googleImportItems, googleImports } from '#/shared/db/schema/google-import.schema'
 import { idempotencyReceipts, outboxEvents } from '#/shared/db/schema/outbox.schema'
 import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
 import { deleteTestOrganizations } from '#/shared/testing/integration-helpers'
 import { acquireTestLease, type TestLease } from '#/shared/testing/test-environment-lease'
 import type { GoogleImportV2Intent } from '../application/ports/google-import-v2-store.port'
 import { createGoogleImportV2Lifecycle } from '../application/google-import-v2-lifecycle'
-import { createGoogleImportV2Store } from './google-import-v2-store'
+import { createImportStore } from './import-store.server'
 
 const NOW = new Date('2026-10-20T10:00:00.000Z')
 const ORG_A = 'google-import-completion-a'
@@ -125,7 +122,7 @@ function intent(organizationId = ORG_A, count = 1, now = NOW): GoogleImportV2Int
 describe('Google import completion and follow-up crash recovery (real PostgreSQL)', () => {
   let lease: TestLease
   let db: Database
-  let store: ReturnType<typeof createGoogleImportV2Store>
+  let store: ReturnType<typeof createImportStore>
 
   async function clearWork() {
     await db
@@ -133,9 +130,7 @@ describe('Google import completion and follow-up crash recovery (real PostgreSQL
       .where(
         sql`${idempotencyReceipts.payload}->>'organizationId' IN (${ORG_A}, ${ORG_B})`,
       )
-    await db
-      .delete(gbpImportRequests)
-      .where(inArray(gbpImportRequests.organizationId, ORGS))
+    await db.delete(googleImports).where(inArray(googleImports.organizationId, ORGS))
     await db
       .delete(propertyPortalBrandContents)
       .where(inArray(propertyPortalBrandContents.organizationId, ORGS))
@@ -150,15 +145,15 @@ describe('Google import completion and follow-up crash recovery (real PostgreSQL
 
   async function commit(organizationId = ORG_A, count = 1, now = NOW) {
     const work = intent(organizationId, count, now)
-    await expect(store.commitIntent(work)).resolves.toBe('committed')
+    await expect(store.commitImport(work)).resolves.toBe('committed')
     return work
   }
 
   async function readItem(itemId: string) {
     const [item] = await db
       .select()
-      .from(gbpImportRequestItems)
-      .where(eq(gbpImportRequestItems.id, itemId))
+      .from(googleImportItems)
+      .where(eq(googleImportItems.id, itemId))
     if (!item) throw new Error('missing recovery fixture')
     return item
   }
@@ -166,7 +161,7 @@ describe('Google import completion and follow-up crash recovery (real PostgreSQL
   beforeAll(async () => {
     lease = await acquireTestLease(getEnv().DATABASE_URL, 6)
     db = createDatabase(lease.pool)
-    store = createGoogleImportV2Store(db, () => NOW, {
+    store = createImportStore(db, () => NOW, {
       ensureImportFollowUps: createPropertyGoogleBindingStore(db).ensureImportFollowUps,
       readReceipt: createPropertyGoogleBindingStore(db).readReceipt,
       prepareImportSync: (tx, scope) =>
@@ -449,7 +444,7 @@ describe('Google import completion and follow-up crash recovery (real PostgreSQL
       // blocked behind the worker before the Property transaction is committed.
       await vi.waitFor(async () => {
         const blocked = await lease.pool.query(
-          "SELECT count(*)::int AS count FROM pg_stat_activity WHERE datname = current_database() AND wait_event_type = 'Lock' AND query LIKE '%gbp_import_request_items%'",
+          "SELECT count(*)::int AS count FROM pg_stat_activity WHERE datname = current_database() AND wait_event_type = 'Lock' AND (query LIKE '%google_import_items%' OR query LIKE '%google_imports%')",
         )
         expect(blocked.rows[0].count).toBeGreaterThan(0)
       })
@@ -769,7 +764,7 @@ describe('Google import completion and follow-up crash recovery (real PostgreSQL
     const work = await commit()
     await createProperty(work)
     await db.transaction((tx) =>
-      completeGoogleImportsForRestore(
+      completeImportsForRestore(
         tx,
         {
           readReceipt: propertyApi().readReceipt,
@@ -841,7 +836,7 @@ describe('Google import completion and follow-up crash recovery (real PostgreSQL
       rowsDeleted: 1,
     })
   })
-  it('reduces restored active parent counters even when every item is already terminal', async () => {
+  it('starts the retention clock of a restored import whose items are all terminal', async () => {
     const work = await commit()
     await createProperty(work)
     await store.reconcileFromReceipt({
@@ -850,18 +845,11 @@ describe('Google import completion and follow-up crash recovery (real PostgreSQL
       now: NOW,
     })
     await db
-      .update(gbpImportRequests)
-      .set({
-        status: 'processing',
-        processedCount: 0,
-        importedCount: 0,
-        pendingCount: 1,
-        firstTerminalAt: null,
-        purgeAt: null,
-      })
-      .where(eq(gbpImportRequests.id, work.id))
+      .update(googleImports)
+      .set({ firstTerminalAt: null, purgeAt: null })
+      .where(eq(googleImports.id, work.id))
     await db.transaction((tx) =>
-      completeGoogleImportsForRestore(
+      completeImportsForRestore(
         tx,
         {
           readReceipt: propertyApi().readReceipt,
@@ -881,5 +869,16 @@ describe('Google import completion and follow-up crash recovery (real PostgreSQL
       processedCount: 1,
       counts: { pending: 0, imported: 1 },
     })
+    const [parent] = await db
+      .select({
+        purgeAt: googleImports.purgeAt,
+        expectedPurgeAt:
+          sql<Date | null>`${googleImports.firstTerminalAt} + interval '30 days'`.mapWith(
+            googleImports.purgeAt,
+          ),
+      })
+      .from(googleImports)
+      .where(eq(googleImports.id, work.id))
+    expect(parent?.purgeAt).toEqual(parent?.expectedPurgeAt)
   })
 })

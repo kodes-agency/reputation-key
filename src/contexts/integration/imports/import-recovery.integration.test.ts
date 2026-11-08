@@ -8,10 +8,7 @@ import { Pool } from 'pg'
 import { createDatabase, type Database } from '#/shared/db'
 import { getEnv } from '#/shared/config/env'
 import { googleConnections } from '#/shared/db/schema/google-connection.schema'
-import {
-  gbpImportRequestItems,
-  gbpImportRequests,
-} from '#/shared/db/schema/google-import-v2.schema'
+import { googleImportItems, googleImports } from '#/shared/db/schema/google-import.schema'
 import { idempotencyReceipts, outboxEvents } from '#/shared/db/schema/outbox.schema'
 import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
 import { deleteTestOrganizations } from '#/shared/testing/integration-helpers'
@@ -19,7 +16,7 @@ import { acquireTestLease, type TestLease } from '#/shared/testing/test-environm
 import type { GoogleImportV2ItemJobData } from '../application/ports/gbp-queue.port'
 import type { GoogleImportV2Intent } from '../application/ports/google-import-v2-store.port'
 import { createGoogleImportV2ClaimReaper } from '../application/google-import-v2-claim-reaper'
-import { createGoogleImportV2Store } from './google-import-v2-store'
+import { createImportStore } from './import-store.server'
 
 const NOW = new Date('2026-10-20T10:00:00.000Z')
 const ORG_A = 'google-import-recovery-a'
@@ -86,7 +83,7 @@ function intent(organizationId = ORG_A, count = 1, now = NOW): GoogleImportV2Int
 describe('Google import durable recovery (real PostgreSQL)', () => {
   let lease: TestLease
   let db: Database
-  let store: ReturnType<typeof createGoogleImportV2Store>
+  let store: ReturnType<typeof createImportStore>
 
   async function clearWork() {
     await db
@@ -94,23 +91,21 @@ describe('Google import durable recovery (real PostgreSQL)', () => {
       .where(
         sql`${idempotencyReceipts.payload}->>'organizationId' IN (${ORG_A}, ${ORG_B})`,
       )
-    await db
-      .delete(gbpImportRequests)
-      .where(inArray(gbpImportRequests.organizationId, ORGS))
+    await db.delete(googleImports).where(inArray(googleImports.organizationId, ORGS))
     await db.delete(outboxEvents).where(inArray(outboxEvents.organizationId, ORGS))
   }
 
   async function commit(organizationId = ORG_A, count = 1, now = NOW) {
     const work = intent(organizationId, count, now)
-    await expect(store.commitIntent(work)).resolves.toBe('committed')
+    await expect(store.commitImport(work)).resolves.toBe('committed')
     return work
   }
 
   async function readItem(itemId: string) {
     const [item] = await db
       .select()
-      .from(gbpImportRequestItems)
-      .where(eq(gbpImportRequestItems.id, itemId))
+      .from(googleImportItems)
+      .where(eq(googleImportItems.id, itemId))
     if (!item) throw new Error('missing recovery fixture')
     return item
   }
@@ -133,7 +128,7 @@ describe('Google import durable recovery (real PostgreSQL)', () => {
   beforeAll(async () => {
     lease = await acquireTestLease(getEnv().DATABASE_URL, 6)
     db = createDatabase(lease.pool)
-    store = createGoogleImportV2Store(db, () => NOW, {
+    store = createImportStore(db, () => NOW, {
       ensureImportFollowUps: createPropertyGoogleBindingStore(db).ensureImportFollowUps,
       readReceipt: createPropertyGoogleBindingStore(db).readReceipt,
       prepareImportSync: (tx, scope) =>
@@ -227,10 +222,9 @@ describe('Google import durable recovery (real PostgreSQL)', () => {
     const client = await lease.pool.connect()
     try {
       await client.query('BEGIN')
-      await client.query(
-        'SELECT id FROM gbp_import_request_items WHERE id = $1 FOR UPDATE',
-        [heldItem.id],
-      )
+      await client.query('SELECT id FROM google_import_items WHERE id = $1 FOR UPDATE', [
+        heldItem.id,
+      ])
       const [left, right] = await Promise.all([
         store.reserveDueItems(NOW, 100),
         store.reserveDueItems(NOW, 100),
@@ -261,36 +255,6 @@ describe('Google import durable recovery (real PostgreSQL)', () => {
     await expect(store.reserveDueItems(NOW, 101)).rejects.toThrow(
       'google import recovery limit must be between 1 and 100',
     )
-  })
-
-  it('reserves untouched legacy NULL appointments before an earlier failed batch becomes due again', async () => {
-    const failing = intent(ORG_A, 100)
-    await expect(
-      store.commitIntent({
-        ...failing,
-        items: failing.items.map((item, index) => ({
-          ...item,
-          id: `83000000-0000-4000-8000-${String(index + 1).padStart(12, '0')}`,
-        })),
-      }),
-    ).resolves.toBe('committed')
-    const healthy = intent(ORG_B)
-    const healthyId = '84000000-0000-4000-8000-000000000001'
-    await expect(
-      store.commitIntent({
-        ...healthy,
-        items: [{ ...healthy.items[0]!, id: healthyId }],
-      }),
-    ).resolves.toBe('committed')
-    await db
-      .update(gbpImportRequestItems)
-      .set({ nextDispatchAt: null })
-      .where(inArray(gbpImportRequestItems.organizationId, ORGS))
-    const failedBatch = await store.reserveDueItems(NOW, 100)
-    expect(failedBatch).toHaveLength(100)
-    expect(failedBatch.every((item) => item.organizationId === ORG_A)).toBe(true)
-    const later = await store.reserveDueItems(minuteAfter(NOW), 100)
-    expect(later[0]).toMatchObject({ itemId: healthyId, organizationId: ORG_B })
   })
 
   it('recovers an empty queue and keeps an earlier delivery valid over several sweeps', async () => {
@@ -409,7 +373,7 @@ describe('Google import durable recovery (real PostgreSQL)', () => {
     await commit(ORG_A, 1)
     const healthy = await commit(ORG_B, 1, new Date(NOW.getTime() + 1))
     await db
-      .update(gbpImportRequestItems)
+      .update(googleImportItems)
       .set({
         status: 'processing',
         highestAttemptForRevision: 5,
@@ -417,15 +381,7 @@ describe('Google import durable recovery (real PostgreSQL)', () => {
         claimLeaseExpiresAt: NOW,
         nextDispatchAt: NOW,
       })
-      .where(eq(gbpImportRequestItems.organizationId, ORG_A))
-    await db
-      .update(gbpImportRequests)
-      .set({
-        status: 'processing',
-        pendingCount: 0,
-        processingCount: sql`${gbpImportRequests.totalCount}`,
-      })
-      .where(eq(gbpImportRequests.organizationId, ORG_A))
+      .where(eq(googleImportItems.organizationId, ORG_A))
     const deliveries: GoogleImportV2ItemJobData[] = []
     const processItem = vi.fn(async () => {
       throw new Error('receipt unavailable')
@@ -459,8 +415,8 @@ describe('Google import durable recovery (real PostgreSQL)', () => {
     ])
     const poisonedRows = await db
       .select()
-      .from(gbpImportRequestItems)
-      .where(eq(gbpImportRequestItems.organizationId, ORG_A))
+      .from(googleImportItems)
+      .where(eq(googleImportItems.organizationId, ORG_A))
     expect(poisonedRows).toHaveLength(101)
     expect(poisonedRows.every((item) => item.nextDispatchAt! > minuteAfter(NOW))).toBe(
       true,
@@ -480,7 +436,7 @@ describe('Google import durable recovery (real PostgreSQL)', () => {
         max: 1,
       })
       const zonedDb = createDatabase(pool)
-      const zonedStore = createGoogleImportV2Store(zonedDb, () => NOW, {
+      const zonedStore = createImportStore(zonedDb, () => NOW, {
         ensureImportFollowUps:
           createPropertyGoogleBindingStore(zonedDb).ensureImportFollowUps,
         readReceipt: createPropertyGoogleBindingStore(zonedDb).readReceipt,
@@ -549,26 +505,16 @@ describe('Google import durable recovery (real PostgreSQL)', () => {
 
             const [parent] = await zonedDb
               .select({
-                status: gbpImportRequests.status,
-                processedCount: gbpImportRequests.processedCount,
-                pendingCount: gbpImportRequests.pendingCount,
-                processingCount: gbpImportRequests.processingCount,
-                cancelledCount: gbpImportRequests.cancelledCount,
-                firstTerminalAt: gbpImportRequests.firstTerminalAt,
-                purgeAt: gbpImportRequests.purgeAt,
+                firstTerminalAt: googleImports.firstTerminalAt,
+                purgeAt: googleImports.purgeAt,
                 expectedPurgeAt:
-                  sql<Date | null>`${gbpImportRequests.firstTerminalAt} + interval '30 days'`.mapWith(
-                    gbpImportRequests.purgeAt,
+                  sql<Date | null>`${googleImports.firstTerminalAt} + interval '30 days'`.mapWith(
+                    googleImports.purgeAt,
                   ),
               })
-              .from(gbpImportRequests)
-              .where(eq(gbpImportRequests.id, work.id))
+              .from(googleImports)
+              .where(eq(googleImports.id, work.id))
             expect(parent).toMatchObject({
-              status: index === 0 ? 'processing' : 'cancelled',
-              processedCount: index + 1,
-              pendingCount: 1 - index,
-              processingCount: 0,
-              cancelledCount: index + 1,
               firstTerminalAt: index === 0 ? null : at,
             })
             expect(parent?.purgeAt).toEqual(parent?.expectedPurgeAt)
