@@ -13,6 +13,8 @@ export function wirePortal(
 ) {
   const portal = buildPortalContext({
     ratingGoalGuard: {
+      findPortalRatingGoalBlockInTransaction: (...args) =>
+        getReporting().publicApi.findPortalRatingGoalBlockInTransaction(...args),
       findRunningRatingGoalBlock: (...args) =>
         getReporting().publicApi.findPortalRatingGoalBlock(...args),
     },

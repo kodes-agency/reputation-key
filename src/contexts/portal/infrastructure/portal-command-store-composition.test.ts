@@ -1,3 +1,4 @@
+import { createPortalRatingGoalGuard } from '#/contexts/reporting/infrastructure/portal-rating-goal-guard'
 // F3: the Portal command store is composed from per-family command modules
 // behind the one PortalCommandStore port. No database is touched here: the
 // composition only builds closures.
@@ -52,7 +53,9 @@ describe('Portal command store composition', () => {
   })
 
   it('the atomic store exposes every command of the port once', () => {
-    const keys = Object.keys(createAtomicPortalCommandStore(db)).sort()
+    const keys = Object.keys(
+      createAtomicPortalCommandStore(db, createPortalRatingGoalGuard()),
+    ).sort()
     expect(keys).toEqual(
       [...CORE, ...LINK, ...LINKTREE, ...GROUP, ...TOKEN, ...PUBLICATION].sort(),
     )
