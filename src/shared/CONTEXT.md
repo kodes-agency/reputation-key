@@ -69,6 +69,14 @@ not belong in shared contract records.
 
 Browser/server reachability is enforced by `src/shared/architecture/browser-reachability.test.ts` and `eslint.config.js`.
 
+Strict AI JSON parsing lives in `ai-json.ts`, independently of admission and
+gateway schemas. It accepts a typed `parse` function and preserves byte, UTF-8,
+duplicate-key, Unicode, depth, node and number-policy checks for provider bodies
+and key material. Parsing and diagnostics share their parsed-value checks; the
+gateway adds its noncharacter restriction to the common Unicode scalar check.
+Admission grants and request-binding keys still have runtime callers. Identity uses the bare `provider-source` advisory scope; its bytes and
+PostgreSQL hash input must stay stable.
+
 AI settlement uses `settle(permit, outcome)` in process. The PostgreSQL admission
 authority checks the stored attempt and permit and prices usage from the stored
 provider. Unknown dispatched usage costs the reservation; proved no-dispatch
