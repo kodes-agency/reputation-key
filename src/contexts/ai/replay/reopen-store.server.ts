@@ -6,13 +6,13 @@ import {
   MAX_AI_REVIEW_SOURCE_RAW_BYTES_V1,
 } from '#/shared/ai-review-source-contract'
 import { insertOutboxRow } from '#/shared/outbox/commit'
-import { aiReviewAnalysisBackfillRequested } from '../../domain/events'
+import { aiReviewAnalysisBackfillRequested } from '../domain/events'
 import {
   AI_REVIEW_ANALYSIS_MAX_REOPENS,
   AI_REVIEW_ANALYSIS_REOPEN_CODES,
-} from '../../domain/review-analysis-reopen'
-import type { AiReviewAnalysisReopenPort } from '../../application/ports/ai-review-analysis-reopen.port'
-import { lockReviewAnalysisPropertyFence } from './review-analysis-property-fence'
+} from '../domain/review-analysis-reopen'
+import type { AiReviewAnalysisReopenPort } from './contracts'
+import { lockReviewAnalysisPropertyFence } from '../infrastructure/adapters/review-analysis-property-fence'
 
 type Tx = Parameters<Parameters<Database['transaction']>[0]>[0]
 type Row = Readonly<Record<string, unknown>>

@@ -2,7 +2,7 @@ import type {
   AiAuthorizationLifecycleApplyResult,
   AiAuthorizationLifecycleTrigger,
   ReviewAnalysisEnrollmentStorePort,
-} from '../ports/ai-review-analysis-enrollment.port'
+} from '../../replay/contracts'
 
 export type ApplyAiAuthorizationLifecycleInput = AiAuthorizationLifecycleTrigger
 

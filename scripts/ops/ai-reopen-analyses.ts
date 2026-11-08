@@ -16,7 +16,7 @@ import { createAiControlAdapter } from '../../src/contexts/ai/infrastructure/ada
 import {
   listSpentReviewAnalyses,
   reopenSpentReviewAnalyses,
-} from '../../src/contexts/ai/infrastructure/adapters/ai-review-analysis-reopen.adapter'
+} from '../../src/contexts/ai/application/public-api'
 import {
   aiReopenAnalysesCommandSpec,
   planAiReopenAnalyses,

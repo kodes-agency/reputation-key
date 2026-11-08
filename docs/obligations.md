@@ -93,7 +93,7 @@ The current notice wording follows these code paths:
   failed-publication records can keep their text
   (`src/shared/db/ai/ai-draft-purge.ts`). Authorization withdrawal fences access
   in `src/contexts/identity/infrastructure/repositories/merchant-ai-transition.ts`; its outbox event later purges stored results
-  through `src/contexts/ai/infrastructure/adapters/ai-review-analysis-enrollment.adapter.ts`.
+  through `src/contexts/ai/replay/enrollment-store.server.ts`.
 - The category is AI context as well as a vocabulary selector
   (`src/shared/review-vocabulary-hints.ts`,
   `resolveReviewPropertyContext`), and is displayed during Google import

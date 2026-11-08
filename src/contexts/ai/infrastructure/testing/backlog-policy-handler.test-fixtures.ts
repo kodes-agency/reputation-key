@@ -30,12 +30,12 @@ import type {
   AiReviewAnalysisBacklogEntry,
   AiReviewAnalysisBacklogOrigin,
   AiReviewAnalysisBacklogPort,
-} from '#/contexts/ai/application/ports/ai-review-analysis-backlog.port'
+} from '#/contexts/ai/replay/contracts'
 import {
   createAnalyzeReviewEvent,
   type AnalyzeReviewEventDependencies,
 } from '#/contexts/ai/application/use-cases/analyze-review-event'
-import { createDrainReviewAnalysisBacklog } from '#/contexts/ai/application/use-cases/drain-review-analysis-backlog'
+import { createDrainReviewAnalysisBacklog } from '#/contexts/ai/replay/drain-backlog.server'
 import {
   ANALYZE_REVIEW_NOW_JOB_NAME,
   createAnalyzeReviewNowJobHandler,

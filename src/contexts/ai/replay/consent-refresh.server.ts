@@ -1,6 +1,6 @@
 import { sql } from 'drizzle-orm'
 import type { Database } from '#/shared/db'
-import type { AiAuthorizationLifecycleTrigger } from '../../application/ports/ai-review-analysis-enrollment.port'
+import type { AiAuthorizationLifecycleTrigger } from './contracts'
 
 type Tx = Parameters<Parameters<Database['transaction']>[0]>[0]
 

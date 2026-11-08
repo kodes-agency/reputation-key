@@ -2,17 +2,19 @@ import { sql } from 'drizzle-orm'
 import type { Database } from '#/shared/db'
 import { organizationId, propertyId, reviewId } from '#/shared/domain/ids'
 import { insertOutboxRow } from '#/shared/outbox/commit'
-import { aiReviewAnalysisBackfillRequested } from '../../domain/events'
-import type { ReviewAnalysisEnrollmentFence } from '../../application/ports/ai-review-analysis-enrollment.port'
-import { ANALYSABLE_REVIEW_SQL } from './ai-review-analysis-reopen.adapter'
-import { lockReviewAnalysisPropertyFence } from './review-analysis-property-fence'
+import { aiReviewAnalysisBackfillRequested } from '../domain/events'
+import type { ReviewAnalysisEnrollmentFence } from './contracts'
+import { ANALYSABLE_REVIEW_SQL } from './reopen-store.server'
+import { lockReviewAnalysisPropertyFence } from '../infrastructure/adapters/review-analysis-property-fence'
 
 type Tx = Parameters<Parameters<Database['transaction']>[0]>[0]
 type Row = Readonly<Record<string, unknown>>
 type Scope = Readonly<{ organizationId: string; propertyId: string }>
 
 /** Enrollment states a reconcile can move into a replay. */
-const REPLAYABLE_STATES = new Set(['queued', 'awaiting_assisted_approval'])
+const REPLAYABLE_STATES = new Set(['queued', 'running', 'awaiting_assisted_approval'])
+
+export const AI_REVIEW_ANALYSIS_REPLAY_PAGE_SIZE = 100
 
 function integer(value: unknown, field: string, minimum: number): number {
   const parsed = typeof value === 'string' ? Number(value) : value
@@ -43,8 +45,29 @@ export function eligibleReviewsSql(
 /** Count and digest of the eligible revision set an enrollment pins. */
 export async function eligibleRevisionSnapshot(
   tx: Tx,
-  input: Scope & Readonly<{ sourceEpoch: number; analysisStartSequence: number }>,
+  input: Scope &
+    Readonly<{
+      sourceEpoch: number
+      analysisStartSequence: number
+      enrollmentId?: string
+    }>,
 ): Promise<{ count: number; digest: string }> {
+  // Sequence allocation removes a candidate from the remaining set. Include
+  // committed pages in the snapshot so restarting never loses their evidence.
+  const pinned =
+    input.enrollmentId === undefined
+      ? sql``
+      : sql`
+    UNION
+    SELECT event.payload->>'reviewId' AS review_id,
+           (event.payload->>'sourceRevision')::bigint AS source_revision
+    FROM outbox_events AS event
+    WHERE event.organization_id = ${input.organizationId}
+      AND event.property_id = ${input.propertyId}
+      AND event.payload->>'correlationId' = ${input.enrollmentId}
+      AND (event.payload->>'sourceEpoch')::bigint = ${input.sourceEpoch}
+      AND event.event_type = 'ai.review_analysis.backfill_requested'
+  `
   const result = await tx.execute(sql`
     SELECT count(*)::bigint AS count,
            encode(
@@ -52,8 +75,8 @@ export async function eligibleRevisionSnapshot(
                convert_to(
                  COALESCE(
                    string_agg(
-                     review.id::text || ':' || review.source_revision::text,
-                     ',' ORDER BY review.id
+                     population.review_id || ':' || population.source_revision::text,
+                     ',' ORDER BY population.review_id
                    ),
                    ''
                  ),
@@ -62,7 +85,11 @@ export async function eligibleRevisionSnapshot(
              ),
              'hex'
            ) AS digest
-    ${eligibleReviewsSql(input)}
+    FROM (
+      SELECT review.id::text AS review_id, review.source_revision
+      ${eligibleReviewsSql(input)}
+      ${pinned}
+    ) AS population
   `)
   const row = result.rows[0] as Row | undefined
   if (!row) throw new Error('Review Analysis enrollment snapshot returned no row')
@@ -70,16 +97,11 @@ export async function eligibleRevisionSnapshot(
 }
 
 /**
- * Take the Property fence before the enrollment row when this reconcile may
- * replay. The replay locks its candidate reviews and allocates their sequences
- * under the fence, and every Review writer and authorization change locks the
- * Property first. Locking the enrollment and reviews first deadlocked an
- * import running while Review Analysis was being enabled (closed beta,
- * 2026-09-29).
+ * Take the Property fence before the enrollment row and candidate reviews,
+ * matching Review writers and authorization changes.
  *
  * The read is unlocked: an enrollment's Property never changes, and a row
- * already running or terminal never replays again, so it does not queue behind
- * an import for a fence it will not use.
+ * terminal never replays again, so it needs no Property fence.
  */
 export async function lockPropertyBeforeReplay(
   tx: Tx,
@@ -99,8 +121,9 @@ export async function lockPropertyBeforeReplay(
 }
 
 /**
- * Pin every candidate review to a fresh analysis sequence and request its
- * backfill, correlated to the enrollment. Returns the number replayed. The
+ * Pin one page to fresh sequences and request its backfill. The start-sequence
+ * predicate is the durable cursor: committed reviews cannot be selected again.
+ * Returns the number replayed. The
  * fence is taken again first, a no-op once `lockPropertyBeforeReplay` holds it,
  * so candidates are never locked ahead of the Property.
  */
@@ -123,6 +146,7 @@ export async function replayEnrollmentCandidates(
       analysisStartSequence: fence.analysisStartSequence,
     })}
     ORDER BY review.id
+    LIMIT ${AI_REVIEW_ANALYSIS_REPLAY_PAGE_SIZE}
     FOR UPDATE
   `)
   for (const raw of candidates.rows) {

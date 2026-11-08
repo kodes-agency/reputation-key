@@ -1,14 +1,15 @@
 import { getAiRuntimeCapability } from '#/shared/ai-runtime-capability-contract'
 import type { OrganizationId, PropertyId } from '#/shared/domain/ids'
-import type { AiAuthorizationPort } from '../ports/ai-authorization.port'
-import type { AiControlPort } from '../ports/ai-control.port'
+import type { AiAuthorizationPort } from '../application/ports/ai-authorization.port'
+import type { AiControlPort } from '../application/ports/ai-control.port'
 import type {
   ReviewAnalysisEnrollmentEvidence,
   ReviewAnalysisEnrollmentFence,
   ReviewAnalysisEnrollmentStorePort,
-} from '../ports/ai-review-analysis-enrollment.port'
-import { isReviewAnalysisRevisionSetEvidence } from '../ports/ai-review-analysis-enrollment.port'
-import { resolveAiExecutionStopFence } from '../ai-workflow-support'
+} from './contracts'
+import { isReviewAnalysisRevisionSetEvidence } from './contracts'
+import { resolveAiExecutionStopFence } from '../application/ai-workflow-support'
+import { reviewAnalysisReplayState } from './state'
 
 export type ReviewAnalysisEnrollmentReadiness =
   | Readonly<{ status: 'disabled' }>
@@ -142,11 +143,15 @@ export function createReadReviewAnalysisEnrollmentReadiness(
     if (evidence === null || !sameFence(evidence.fence, fence)) {
       return { status: 'preparing', reason: 'trigger_pending' }
     }
-    if (evidence.state === 'superseded') {
-      return { status: 'unavailable', reason: 'enrollment_superseded' }
-    }
-    if (evidence.state === 'stalled') {
-      return { status: 'unavailable', reason: 'enrollment_stalled' }
+    const replayState = reviewAnalysisReplayState(evidence.state)
+    if (replayState === 'needs_attention') {
+      return {
+        status: 'unavailable',
+        reason:
+          evidence.state === 'superseded'
+            ? 'enrollment_superseded'
+            : 'enrollment_stalled',
+      }
     }
     if (evidence.state === 'awaiting_assisted_approval') {
       return {
@@ -169,7 +174,7 @@ export function createReadReviewAnalysisEnrollmentReadiness(
     if (evidence.state === 'queued') {
       return { status: 'preparing', reason: 'enrollment_queued' }
     }
-    if (evidence.state === 'running') {
+    if (replayState === 'running') {
       return { status: 'preparing', reason: 'enrollment_running' }
     }
 
