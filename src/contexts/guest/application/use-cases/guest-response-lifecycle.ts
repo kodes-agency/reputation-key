@@ -71,7 +71,7 @@ export type GuestResponseInput = Readonly<{
   mediaConsent?: boolean
 }>
 
-export type GuestResponseExperienceInput = Readonly<{
+type GuestResponseExperienceInput = Readonly<{
   portalPublicationState: 'published'
   portalPublicationSnapshotId: string
   portalPublicationVersion: number
