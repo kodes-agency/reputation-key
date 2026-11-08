@@ -42,6 +42,22 @@ private bucket by hand and delete the local copy.
   connection still holds a credential, an import item is in flight, or a
   revoke or exchange is unfinished: an Organization admin first uses
   Disconnect in Settings, Integrations, which revokes the grant.
+- **reporting** (`access`, `organization`): covers goal, metric and dashboard records (goal programs, versions,
+  assignments, monthly results and revisions, rating goals, metric readings and
+  corrections, Google snapshots, Portal lifetime totals, setup milestones).
+
+  - **Access**: `access` or `organization` with `out=<dir>` writes one JSON file
+    per table under `<dir>/reporting/`, plus a manifest of row
+    counts. Only allowlisted columns leave; a row from another Organization
+    aborts the export. Upload the files to the private bucket by hand.
+  - **Organization purge**: `organization --apply` refuses an Organization that is
+    still active (suspend it first), pauses its active goals, refuses while a
+    goal is being evaluated or Portal source facts have not settled, then deletes
+    its rows in one transaction and prints an erasure record (context, evidence
+    line, rows per table, no content). The monthly-result delete guard is off
+    only inside that transaction, under a five-second lock timeout, and a
+    rollback restores it. Property, guest-response and participant scopes have no
+    Reporting executor.
 
 - **review** (`access`, `organization`): exports manager-authored replies with
   their template and AI provenance, publication authorizations and attempts,
