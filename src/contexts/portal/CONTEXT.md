@@ -302,19 +302,27 @@ never walks a counter; an address the manager typed must be free. There are no
 place types: the dialog asks for a name, a group, languages and what to start
 from.
 
-The editor no longer shows categories. `getPortalLinktree` reads the whole
-section (switch, written titles, and each link in guest order with its texts,
-icon and the approval of its destination), and a link is created without a
-category: it joins the Portal's last category, and the first link starts one,
-which no guest sees (publishing flattens categories). It has a fixed neutral
-title, because a category row needs one. The category is built only after the link's label, icon, cap and destination have
-passed and is committed in the link's own transaction (`startCategory` on the
-create command), so a refused link leaves neither it nor its fact behind. Re-ordering still saves one category's order, so the
-editor moves a tile only among those of its own (older) category. The category
-management commands (create, rename, delete, reorder) are retired: nothing calls
-them, and a category is only ever the one a first link starts. Categories made
-before round 4 stay in the working copy (the editor moves a tile within its own
-category); the v3 builder flattens them.
+The editor hides category headings, but categories still determine link behaviour.
+`getPortalLinktree` reads the section's switch, titles and links in guest order
+with their texts, icons and destination approvals. `LinktreeSection` renders
+`LinkTree`, whose `planLinkMove` permits moves only within a category;
+`useLinktreeMutations` calls `server/portal-links.ts`'s `reorderLinks`, which
+authorizes both the Portal and category before the command saves that category's
+order. The browser contract retains `categoryId` through the
+`application/public-api.ts` type exports.
+
+Creating a link without a category joins the Portal's last category or starts
+one with a neutral title. `create-link.ts` builds it only after the label, icon,
+cap and destination pass, then commits it with the link (`startCategory`) and
+the category-created fact imported through `domain/events.ts`. A refused link
+leaves neither the category nor its fact behind.
+
+Publication also depends on categories: `readPortalWorkingCopy` in
+`infrastructure/portal-working-copy.reader.ts`, used by the publication repository
+and commands, orders by category sort key, category id, link sort key and link id.
+`resolvePortalPublication` preserves that sequence in the flat guest Linktree.
+Keep category rows, references, events and sort keys while these editor and
+publication paths use them; removing headings did not remove their ordering role.
 
 The eligible creator is the initial Portal Responsible Manager (by default; the
 dialog may name other eligible managers, or nobody). Multiple eligible
