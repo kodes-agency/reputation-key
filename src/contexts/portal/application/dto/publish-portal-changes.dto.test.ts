@@ -6,15 +6,20 @@ import {
 } from './publish-portal-changes.dto'
 
 describe('publish changes while live: input', () => {
-  it('names one Portal and nothing else', () => {
+  it('names one Portal and the reviewed version, and nothing else', () => {
+    const input = { portalId: 'p1', reviewedDigest: 'd1' }
+    expect(publishPortalChangesInputSchema.safeParse(input).success).toBe(true)
     expect(publishPortalChangesInputSchema.safeParse({ portalId: 'p1' }).success).toBe(
-      true,
-    )
-    expect(publishPortalChangesInputSchema.safeParse({ portalId: '' }).success).toBe(
       false,
     )
     expect(
-      publishPortalChangesInputSchema.safeParse({ portalId: 'p1', slug: 'x' }).success,
+      publishPortalChangesInputSchema.safeParse({ ...input, portalId: '' }).success,
+    ).toBe(false)
+    expect(
+      publishPortalChangesInputSchema.safeParse({ ...input, reviewedDigest: '' }).success,
+    ).toBe(false)
+    expect(
+      publishPortalChangesInputSchema.safeParse({ ...input, slug: 'x' }).success,
     ).toBe(false)
   })
 

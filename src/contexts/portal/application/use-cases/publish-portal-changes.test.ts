@@ -266,6 +266,37 @@ describe('publishPortalChanges', () => {
     expect(JSON.stringify(harness.outbox.facts)).not.toContain(DESTINATION.uri)
   })
 
+  it('publishes when the reviewed digest is the one the draft produces now', async () => {
+    const harness = setup({ draftSlug: 'new-address' })
+    const ctx = manager()
+    await harness.useCase({ portalId: harness.portal.id }, ctx)
+    const reviewedDigest = harness.commands[0]!.snapshot.configurationDigest
+
+    const again = setup({ draftSlug: 'new-address' })
+    const result = await again.useCase(
+      { portalId: again.portal.id, reviewedDigest },
+      manager(),
+    )
+
+    expect(result).toMatchObject({
+      outcome: 'published',
+      configurationDigest: reviewedDigest,
+    })
+    expect(again.commands).toHaveLength(1)
+  })
+
+  it('refuses and writes nothing when the draft no longer says what was reviewed', async () => {
+    const harness = setup({ draftSlug: 'new-address' })
+
+    await expect(
+      harness.useCase(
+        { portalId: harness.portal.id, reviewedDigest: 'digest-of-an-earlier-draft' },
+        manager(),
+      ),
+    ).rejects.toMatchObject({ code: 'revision_conflict' })
+    expect(harness.commands).toEqual([])
+  })
+
   it('does nothing when nothing is pending', async () => {
     const harness = setup()
 
