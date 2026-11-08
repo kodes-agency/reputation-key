@@ -23,6 +23,15 @@ export const GUEST_STORY_IMPORT_PREFIXES: ReadonlyArray<string> = [
 export const GUEST_WIDTHS = [320, 375, 768] as const
 export type GuestWidth = (typeof GUEST_WIDTHS)[number]
 
+/**
+ * These stories are measured only at their play's required width. WideViewport
+ * asserts a 1024 px frame and a 480 px column, which cannot hold on a phone or
+ * at 768 px. The other shell stories still cover all three shared widths.
+ */
+export const GUEST_STORY_FIXED_WIDTHS: Readonly<Record<string, number>> = {
+  'features-guest-immersiveshell--wide-viewport': 1024,
+}
+
 /** Tall enough for the footer of a whole page to be in view on a phone. */
 export const GUEST_VIEWPORT_HEIGHT = 844
 
@@ -96,6 +105,13 @@ export const MEASURED_GUEST_STORIES: ReadonlyArray<string> = [
   'features-guest-immersiveresponse--removal-failed',
   'features-guest-immersiveresponse--windows-ended',
   'features-guest-immersiveresponse--bulgarian-your-response',
+  // Features/Guest/ImmersiveResponsePhone
+  'features-guest-immersiveresponsephone--english',
+  'features-guest-immersiveresponsephone--bulgarian',
+  'features-guest-immersiveresponsephone--german',
+  'features-guest-immersiveresponsephone--spanish',
+  'features-guest-immersiveresponsephone--french',
+  'features-guest-immersiveresponsephone--italian',
   // Features/Guest/ImmersiveLinktree
   'features-guest-immersivelinktree--before-a-rating',
   'features-guest-immersivelinktree--tap-before-a-rating-is-plain-navigation',
@@ -103,6 +119,7 @@ export const MEASURED_GUEST_STORIES: ReadonlyArray<string> = [
   'features-guest-immersivelinktree--phone-and-email-tiles',
   'features-guest-immersivelinktree--phone-tile-after-a-rating',
   'features-guest-immersivelinktree--modified-click-leaves-the-tap-to-the-browser',
+  'features-guest-immersivelinktree--rejected-tap-still-navigates',
   'features-guest-immersivelinktree--german-with-fallback',
   'features-guest-immersivelinktree--long-words-at-three-twenty',
   'features-guest-immersivelinktree--three-links',
