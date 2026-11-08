@@ -240,6 +240,7 @@ export function readyReview(portalId: string, version = 4): PortalReview {
     },
     publishesAsVersion: version,
     nothingToPublish: false,
+    reviewDigest: 'reviewed-digest',
     canPublish: true,
     changes: [
       {
