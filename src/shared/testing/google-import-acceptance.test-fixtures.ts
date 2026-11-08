@@ -63,9 +63,14 @@ export function createGoogleImportAcceptanceFixture(input: {
             ],
           }
           break
-        case 'business-information.locations.list':
+        case 'business-information.locations.list': {
+          const offset = Number(descriptor.pageToken ?? 0)
+          const page = locationIds.slice(offset, offset + 100)
           payload = {
-            locations: locationIds.map((id, index) => ({
+            ...(offset + page.length < locationIds.length
+              ? { nextPageToken: String(offset + page.length) }
+              : {}),
+            locations: page.map((id, index) => ({
               name: `locations/${id}`,
               title: `Import cafe ${index + 1}`,
               storefrontAddress: { regionCode: 'US' },
@@ -73,6 +78,7 @@ export function createGoogleImportAcceptanceFixture(input: {
             })),
           }
           break
+        }
         default:
           throw new Error('Unexpected provider route in import acceptance test')
       }
@@ -142,10 +148,28 @@ export function createGoogleImportAcceptanceFixture(input: {
     )
     const account = accounts.items[0]
     if (!account) throw new Error('Provider account was not discovered')
-    const candidates = await discovery.listCandidates(
+    const firstPage = await discovery.listCandidates(
       { connectionId: actorConnectionId(), accountRef: account.accountRef },
       manager,
     )
+    const pages = [firstPage]
+    let cursorRef = firstPage.nextCursor
+    while (
+      cursorRef &&
+      pages.reduce((total, page) => total + page.items.length, 0) < count
+    ) {
+      const page = await discovery.listCandidates(
+        { connectionId: actorConnectionId(), cursorRef },
+        manager,
+      )
+      pages.push(page)
+      cursorRef = page.nextCursor
+    }
+    const candidates = {
+      ...firstPage,
+      items: pages.flatMap((page) => page.items),
+      nextCursor: cursorRef,
+    }
     return {
       accounts,
       candidates,
@@ -190,6 +214,9 @@ export function createGoogleImportAcceptanceFixture(input: {
     connectionId,
     accountId,
     locationIds,
+    addLocations: (count: number) => {
+      locationIds.push(...Array.from({ length: count }, () => randomUUID()))
+    },
     queue,
     commands,
     selection,
