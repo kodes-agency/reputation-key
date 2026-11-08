@@ -214,7 +214,7 @@ describe.each(THEMES)('$name theme tones', (theme) => {
 // the tint of a failed notice in the light theme, so a field error in a muted
 // well failed AA. `--negative` is the text-grade red and clears 4.5:1 on every
 // surface a message lands on, in both themes. The fill-grade token is no longer
-// used as text anywhere in the source (`tone-sources.test.ts` keeps it so).
+// used as text anywhere in the source (the `fill-grade-red-text` lint rule keeps it so).
 const ERROR_TEXT_SURFACES = [
   '--background',
   '--card',
