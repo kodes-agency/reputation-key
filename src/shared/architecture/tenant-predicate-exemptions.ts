@@ -47,6 +47,13 @@ export type TenantPredicateExemption = Readonly<{
 
 export const TENANT_PREDICATE_EXEMPTIONS: readonly TenantPredicateExemption[] = [
   {
+    file: 'src/contexts/ai/infrastructure/adapters/ai-profile-rebuild.ts',
+    symbol: 'listPendingProfileRebuilds',
+    reason:
+      'The bounded worker sweep enumerates rolled profile identifiers across tenants. Each rebuild locks its Property and rechecks the tenant, source, active profile and merchant authorization before mutation.',
+    category: 'LEGITIMATE-GLOBAL',
+  },
+  {
     file: 'src/contexts/ai/infrastructure/adapters/ai-operation-store.adapter.ts',
     symbol: 'claim',
     reason:

@@ -19,7 +19,10 @@ import {
   insertAnalysisMentions,
   readReadyAnalysisV3,
 } from './ai-review-analysis-mentions'
-import { findCurrentAnalysisReviewIds } from './ai-current-analysis-review-ids'
+import {
+  analysisMatchesProcessingProfile,
+  findCurrentAnalysisReviewIds,
+} from './ai-current-analysis-review-ids'
 import { currentness } from './ai-review-analysis-currentness'
 import { raiseUrgentAlert } from './ai-urgent-alert'
 import { analysisNoticeStillCovers } from './ai-analysis-notice-coverage'
@@ -625,6 +628,7 @@ export const createAiOutputStoreAdapter = (
         const [analysis] = await tx
           .select({
             status: aiReviewAnalyses.status,
+            propertyProfileVersion: aiReviewAnalyses.propertyProfileVersion,
             sentiment: aiReviewAnalyses.sentiment,
             primaryCategory: aiReviewAnalyses.primaryCategory,
             attention: aiReviewAnalyses.attention,
@@ -661,7 +665,10 @@ export const createAiOutputStoreAdapter = (
               eq(aiReviewAnalyses.analysisSequence, input.analysisSequence),
               eq(aiReviewAnalyses.authorizationLineageId, input.authorizationLineageId),
               eq(aiReviewAnalyses.reviewAnalysisEpoch, input.reviewAnalysisEpoch),
-              eq(aiReviewAnalyses.propertyProfileVersion, input.propertyProfileVersion),
+              analysisMatchesProcessingProfile(
+                input.organizationId,
+                input.propertyProfileVersion,
+              ),
               gt(aiReviewAnalyses.expiresAt, now),
             ),
           )
@@ -682,7 +689,7 @@ export const createAiOutputStoreAdapter = (
             analysis.operationSourceRevision === input.sourceRevision,
             analysis.operationAnalysisSequence === input.analysisSequence,
             analysis.operationAuthorizationLineageId === input.authorizationLineageId,
-            analysis.operationPropertyProfileVersion === input.propertyProfileVersion,
+            analysis.operationPropertyProfileVersion === analysis.propertyProfileVersion,
             analysisNoticeStillCovers(analysis, authorization),
             analysis.operationSourcePolicyId === authorization.sourcePolicyId,
             analysis.operationRedactionProfileVersion ===
