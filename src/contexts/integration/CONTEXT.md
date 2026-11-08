@@ -30,6 +30,14 @@ Refresh reauthorizes the same scope and acquires a new permit; a refused
 retry preserves the first call's answered evidence. Feature adapters retain their
 provider schemas and product-specific error mappings.
 
+Review list, head, single-review reads and reply writes all use this client.
+The single-review read keeps a 30-second deadline and treats an answered 404 as
+not found only after rechecking authorization. Late responses are scrubbed;
+timeouts retain unknown dispatch evidence. The Review parser owns resource
+binding, reply moderation and translation handling. Opaque cursor uses are
+released only on explicit not-sent evidence; ambiguous reply writes remain
+readback-only recovery.
+
 ## Model
 
 A GoogleConnection owns encrypted credentials and the verified Google OIDC
