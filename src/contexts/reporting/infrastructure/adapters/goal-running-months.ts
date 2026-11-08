@@ -24,6 +24,10 @@
 // spelled once in `goal-count-readings.sql.ts`, which the recommended number's
 // read shares.
 
+import {
+  correctionTipJoin,
+  effectiveReadingValue,
+} from '../readings/effective-readings.server'
 import { sql, type SQL } from 'drizzle-orm'
 import type { Tx } from '#/shared/db'
 import type { OrganizationId } from '#/shared/domain/ids'
@@ -32,8 +36,6 @@ import type { MetricScope } from '../../domain/metric-registry'
 import { goalVersionIsUsable } from '../../domain/goal-metric-version-usable'
 import type { RunningCountMonth } from '../../domain/goal-pace'
 import {
-  correctionTipJoin,
-  effectiveReadingValue,
   GOAL_COUNT_SPECS,
   goalCountSpecRows,
   unreadableReading,

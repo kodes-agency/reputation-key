@@ -3,12 +3,11 @@
 // Two set-based reads count a Portal goal measure straight from the readings:
 // the running months behind "below pace" (`goal-running-months.ts`) and the
 // Monthly portal goal's recommended number (`goal-recommendation-readings.ts`).
-// Both must count a reading as the goal's own page does (`queryGoalAggregate`):
-// at its latest correction, and not at all when the governed read would
-// quarantine it. So both take these fragments, and neither spells them.
+// Both use the shared effective-reading SQL for correction values and
+// these fragments for the Goal catalogue and quarantine policy.
 //
 // The fragments name fixed aliases: `readings` (metric_readings), `tip` (its
-// latest correction, from `correctionTipJoin`) and `spec` (a row of the
+// latest correction, from the shared `correctionTipJoin`) and `spec` (a row of the
 // `goalCountSpecRows` VALUES list: version_id, metric_key, source_policies).
 
 import { sql, type SQL } from 'drizzle-orm'
@@ -53,24 +52,6 @@ export const goalCountSpecRows: SQL = sql.join(
   ),
   sql`, `,
 )
-
-/** Joins `tip`, the reading's latest correction (none when it has none). */
-export const correctionTipJoin: SQL = sql`
-  LEFT JOIN metric_corrections AS tip
-    ON tip.reading_id = readings.id
-    AND NOT EXISTS (
-      SELECT 1 FROM metric_corrections AS successor
-      WHERE successor.supersedes_correction_id = tip.id
-    )
-`
-
-/** The reading's value at its latest correction; NULL once retracted. */
-export const effectiveReadingValue: SQL = sql`CASE tip.kind
-    WHEN 'retract' THEN NULL
-    WHEN 'replace' THEN tip.replacement_value
-    WHEN 'adjust' THEN readings.exact_value + tip.exact_delta
-    ELSE readings.exact_value
-  END`
 
 /**
  * Whether the governed read would quarantine the reading: an approximate or
