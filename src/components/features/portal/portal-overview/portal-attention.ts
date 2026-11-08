@@ -5,7 +5,14 @@
 // single quiet line for it? A Portal that is live and needs nothing gets no
 // line at all. Pure, so the rules are readable, and testable, apart from the
 // table that shows them.
-import type { PortalOverviewRow } from '#/contexts/portal/application/public-api'
+// What, if anything, a Portal needs from its manager, for the Portals overview.
+//
+// Status is not the point of the overview (round-4 owner decision), so this
+// answers one question per Portal: is there something to say, and what is the
+// single quiet line for it? A Portal that is live and needs nothing gets no
+// line at all. Pure, so the rules are readable, and testable, apart from the
+// table that shows them.
+import type { PortalOverviewRow } from '#/contexts/portal/application/portal-management-contracts'
 
 export type PortalAttentionInput = Pick<
   PortalOverviewRow,

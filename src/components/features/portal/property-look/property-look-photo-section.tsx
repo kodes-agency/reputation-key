@@ -6,7 +6,7 @@
 // for the permission to use it.
 import { useState, type ReactNode } from 'react'
 import { ImageOff, ImagePlus } from 'lucide-react'
-import type { PropertyLookHero } from '#/contexts/portal/application/public-api'
+import type { PropertyLookHero } from '#/contexts/portal/application/portal-management-contracts'
 import { Button } from '#/components/ui/button'
 import type { OfferedGuestLocale } from '#/shared/domain/guest-locale'
 import type { PortalImageUploader } from '../portal-media/upload-portal-image'

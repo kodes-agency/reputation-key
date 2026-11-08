@@ -16,7 +16,7 @@ import { GUEST_LOCALE_METADATA, type GuestLocale } from '#/shared/domain/guest-l
 import type {
   PortalPreview,
   PortalPreviewExperience,
-} from '#/contexts/portal/application/public-api'
+} from '#/contexts/portal/application/portal-management-contracts'
 import type { GuestPortalCopyV2 } from '#/components/features/guest'
 import {
   ARRIVAL_STATE,

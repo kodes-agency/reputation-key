@@ -13,7 +13,7 @@ import { FormErrorBanner } from '#/components/forms/form-error-banner'
 import { submitForm, submitHandler } from '#/components/forms/form-submit'
 import { FormTextField, type BaseFieldApi } from '#/components/forms/form-text-field'
 import { updateLinkInputSchema } from '#/contexts/portal/application/dto/portal-link.dto'
-import type { PortalLinktreeLink } from '#/contexts/portal/application/public-api'
+import type { PortalLinktreeLink } from '#/contexts/portal/application/portal-management-contracts'
 import {
   isSavedLinkAddress,
   LINK_ADDRESS_FIELD,

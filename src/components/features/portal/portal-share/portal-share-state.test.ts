@@ -20,7 +20,7 @@ import {
   describeMadeCode,
   directPortalAddress,
 } from './portal-share-state'
-import type { PortalTokenStatus } from '#/contexts/portal/application/public-api'
+import type { PortalTokenStatus } from '#/contexts/portal/application/portal-management-contracts'
 
 const NO_TOKEN: PortalTokenStatus = {
   hasActiveToken: false,

@@ -1,7 +1,9 @@
 // The words of the restore confirmation that depend on numbers, kept apart
 // from the component so each case is a plain test.
 
-import type { PortalVersionDetail } from '#/contexts/portal/application/public-api'
+// The words of the restore confirmation that depend on numbers, kept apart
+// from the component so each case is a plain test.
+import type { PortalVersionDetail } from '#/contexts/portal/application/portal-management-contracts'
 
 export const draftLine = (count: number): string =>
   count === 0

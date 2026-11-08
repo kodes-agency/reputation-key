@@ -15,7 +15,7 @@ import { EmptyState } from '#/components/ui/empty-state'
 import type {
   PortalLinktreeLink,
   PortalLinktreeView,
-} from '#/contexts/portal/application/public-api'
+} from '#/contexts/portal/application/portal-management-contracts'
 import type { PortalLinkIconKey } from '#/shared/domain/portal-link-icon'
 import { usePortalDraftAutosave } from '../portal-editor/portal-draft-autosave-context'
 import { LinkAddForm } from './link-add-form'

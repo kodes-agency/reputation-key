@@ -3,7 +3,7 @@
 // are pinned here rather than left to whatever the JSX happens to interpolate.
 
 import { describe, expect, it } from 'vitest'
-import { PROPERTY_LOOK_SOURCES } from '#/contexts/portal/application/public-api'
+import { PROPERTY_LOOK_SOURCES } from '#/contexts/portal/application/portal-management-contracts'
 import {
   countLanguagesWithoutWording,
   findPortalGroup,

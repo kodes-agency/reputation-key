@@ -5,7 +5,7 @@
 // after the last keystroke (`usePrintFinalWords` settles them).
 
 import { useMemo } from 'react'
-import type { PortalPrintKitView } from '#/contexts/portal/application/public-api'
+import type { PortalPrintKitView } from '#/contexts/portal/application/portal-management-contracts'
 import type { GuestLocale } from '#/shared/domain/guest-locale'
 import type { PrintTextBlock } from '#/shared/domain/portal-print-kit'
 import type { PrintFinalFace } from '#/shared/domain/portal-print-final'

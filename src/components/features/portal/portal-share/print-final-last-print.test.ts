@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import type { PortalPrintKitLastPrint } from '#/contexts/portal/application/public-api'
+import type { PortalPrintKitLastPrint } from '#/contexts/portal/application/portal-management-contracts'
 import type { PrintFinalLastSettings } from '#/shared/domain/portal-print-final-last'
 import { printFinalLastNotice } from './print-final-last-print'
 

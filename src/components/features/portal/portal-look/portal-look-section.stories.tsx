@@ -8,7 +8,7 @@ import { useMemo, useState, useSyncExternalStore } from 'react'
 import type { Meta, StoryObj } from '@storybook/react-vite'
 import { expect, fn, userEvent, waitFor, within } from 'storybook/test'
 import { openAlertDialog } from '#/components/ui/confirmation-dialog.stories.open'
-import type { PortalLookView } from '#/contexts/portal/application/public-api'
+import type { PortalLookView } from '#/contexts/portal/application/portal-management-contracts'
 import { ServerFunctionError } from '#/shared/auth/server-function-error'
 import {
   AuthedRouterDecorator,

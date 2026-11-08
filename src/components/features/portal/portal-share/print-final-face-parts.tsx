@@ -10,7 +10,7 @@
 // specific would land in every page's.
 
 import type { CSSProperties } from 'react'
-import type { PortalPrintKitView } from '#/contexts/portal/application/public-api'
+import type { PortalPrintKitView } from '#/contexts/portal/application/portal-management-contracts'
 import { PRINT_FINAL_PLATE } from '#/shared/domain/portal-print-final-brand'
 import {
   printFinalToneColour,

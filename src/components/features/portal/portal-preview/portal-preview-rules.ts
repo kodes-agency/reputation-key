@@ -1,10 +1,12 @@
 // What the pane says when it has no page to draw. Pure, so the wording is
 // pinned by a test and not by JSX.
 
+// What the pane says when it has no page to draw. Pure, so the wording is
+// pinned by a test and not by JSX.
 import type {
   PortalPreviewLinkState,
   PortalPreviewUnavailableReason,
-} from '#/contexts/portal/application/public-api'
+} from '#/contexts/portal/application/portal-management-contracts'
 import { LINK_APPROVAL_NAMES } from '../link-tree/linktree-approval-names'
 
 export type PreviewUnavailableNote = Readonly<{ title: string; body: string }>

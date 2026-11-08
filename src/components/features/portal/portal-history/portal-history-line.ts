@@ -2,10 +2,13 @@
 // Pure: the view draws the pieces, this decides the words. Page edits have
 // their own module (portal-history-edit-line.ts).
 
+// One History entry as a sentence: who did what, and the detail after the dot.
+// Pure: the view draws the pieces, this decides the words. Page edits have
+// their own module (portal-history-edit-line.ts).
 import type {
   PortalHistoryEntry,
   PortalHistoryDetail,
-} from '#/contexts/portal/application/public-api'
+} from '#/contexts/portal/application/portal-management-contracts'
 import { describePageEditLine } from './portal-history-edit-line'
 import type { HistoryLine } from './portal-history-line-types'
 import { plain, strong, type Phrase } from './portal-history-phrase'

@@ -4,7 +4,7 @@
 // guest pages show it in place of the wordmark.
 import { useState } from 'react'
 import { ImagePlus } from 'lucide-react'
-import type { PropertyLookLogo } from '#/contexts/portal/application/public-api'
+import type { PropertyLookLogo } from '#/contexts/portal/application/portal-management-contracts'
 import { Button } from '#/components/ui/button'
 import type { PortalImageUploader } from '../portal-media/upload-portal-image'
 import { LazyPropertyLookLogoDialog } from './property-look-lazy-dialogs'

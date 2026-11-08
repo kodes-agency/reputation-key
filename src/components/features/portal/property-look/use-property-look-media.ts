@@ -10,7 +10,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type { Action } from '#/components/hooks/use-action'
-import type { PropertyLookMedia } from '#/contexts/portal/application/public-api'
+import type { PropertyLookMedia } from '#/contexts/portal/application/portal-management-contracts'
 import type { OfferedGuestLocale } from '#/shared/domain/guest-locale'
 import type { PortalDraftAutosave } from '../portal-editor/portal-draft-autosave'
 import { usePortalDraftAutosave } from '../portal-editor/portal-draft-autosave-context'

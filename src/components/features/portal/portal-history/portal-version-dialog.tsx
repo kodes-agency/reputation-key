@@ -6,7 +6,7 @@
 // it as `confirmation`).
 
 import type { ReactNode } from 'react'
-import type { PortalVersionDetail } from '#/contexts/portal/application/public-api'
+import type { PortalVersionDetail } from '#/contexts/portal/application/portal-management-contracts'
 import { Button } from '#/components/ui/button'
 import { DescriptionItem, DescriptionList } from '#/components/ui/description-list'
 import { RegionError } from '#/components/ui/region-error'

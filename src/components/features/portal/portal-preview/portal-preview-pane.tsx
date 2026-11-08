@@ -22,7 +22,7 @@ import type {
   PortalPreviewExperience,
   PortalPreviewOutcome,
   PortalPreviewSource,
-} from '#/contexts/portal/application/public-api'
+} from '#/contexts/portal/application/portal-management-contracts'
 import { previewStateOptions, type PreviewStateId } from './portal-preview-states'
 import { previewPartOf, stateIdForPart, type PreviewSelection } from './preview-parts'
 import { describeUnavailable, type PublishedPreviewSource } from './portal-preview-rules'

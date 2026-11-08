@@ -1,7 +1,7 @@
 import { createFileRoute } from '@tanstack/react-router'
 import { ZodError } from 'zod/v4'
 import { resolvePublicPortalLink } from '#/contexts/guest/server/guest-scans'
-import { isValidLinkDestination } from '#/contexts/portal/application/public-api'
+import { isValidLinkDestination } from '#/contexts/portal/application/portal-management-contracts'
 import { getLogger } from '#/shared/observability/logger'
 import { captureObservabilityException } from '#/shared/observability/telemetry'
 import { isExpectedRefusal } from '#/shared/security/expected-refusal'

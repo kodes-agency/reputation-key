@@ -3,10 +3,14 @@
 // what the filmstrip draws; the machine moves between the same states when a
 // manager clicks through the page, and writes nothing anywhere.
 
+// The guest page states the preview can show, and the small state machine
+// behind "Try as guest". Pure: no React, no server. The static states are
+// what the filmstrip draws; the machine moves between the same states when a
+// manager clicks through the page, and writes nothing anywhere.
 import type {
   PortalPreviewOrigin,
   PortalPreviewSource,
-} from '#/contexts/portal/application/public-api'
+} from '#/contexts/portal/application/portal-management-contracts'
 import type { GuestPagePreviewState } from '#/components/features/guest'
 
 /**

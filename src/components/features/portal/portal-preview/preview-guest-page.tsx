@@ -25,7 +25,7 @@ import {
 } from '#/components/features/guest'
 import type { GuestPortalCopyV2 } from '#/components/features/guest'
 import type { GuestLocale } from '#/shared/domain/guest-locale'
-import type { PortalPreviewExperience } from '#/contexts/portal/application/public-api'
+import type { PortalPreviewExperience } from '#/contexts/portal/application/portal-management-contracts'
 import {
   guestPreviewState,
   type PreviewPageState,

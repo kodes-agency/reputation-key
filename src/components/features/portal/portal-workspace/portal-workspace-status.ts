@@ -8,7 +8,16 @@
 // It stays one line, not a panel (round-4 owner decision): "Live · no working
 // code", where the problem is a link to the place that puts it right.
 
-import type { PortalTokenStatus } from '#/contexts/portal/application/public-api'
+// What the workspace header's one quiet line adds when guests cannot open a live
+// portal. It asks the Portals list's own attention rule (`portalAttention`), so
+// a portal reads the same in its workspace as in the list, and keeps only the
+// issues that stop guests: the property is unavailable, there is no version to
+// show, or no code works. The rest (no responsible manager, the Google link)
+// leave the page reachable, so they do not change a line that says "Live".
+//
+// It stays one line, not a panel (round-4 owner decision): "Live · no working
+// code", where the problem is a link to the place that puts it right.
+import type { PortalTokenStatus } from '#/contexts/portal/application/portal-management-contracts'
 import { describePortalStatus } from '../portal-detail/portal-detail-rules'
 import {
   portalAttention,

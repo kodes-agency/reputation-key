@@ -1,5 +1,5 @@
 import type { Action } from '#/components/hooks/use-action'
-import type { PortalTokenStatus } from '#/contexts/portal/application/public-api'
+import type { PortalTokenStatus } from '#/contexts/portal/application/portal-management-contracts'
 import type { PortalPublicationState } from '../shared/types'
 import type { PortalPrintKitResources } from './portal-print-kit-types'
 

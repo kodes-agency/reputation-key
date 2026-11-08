@@ -2,7 +2,7 @@
 // parts of their own (ADR 0070): what the look still reaches, and what the line
 // and the preview say about the rest.
 import { describe, expect, it } from 'vitest'
-import type { PortalLookSources } from '#/contexts/portal/application/public-api'
+import type { PortalLookSources } from '#/contexts/portal/application/portal-management-contracts'
 import {
   affectedPortals,
   defaultPreviewPortal,

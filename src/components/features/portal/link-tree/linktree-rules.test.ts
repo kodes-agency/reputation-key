@@ -14,7 +14,7 @@ import {
   toLinktreeTitlesInput,
   titlesFormValues,
 } from './linktree-rules'
-import type { PortalLinktreeLink } from '#/contexts/portal/application/public-api'
+import type { PortalLinktreeLink } from '#/contexts/portal/application/portal-management-contracts'
 
 const link = (
   id: string,

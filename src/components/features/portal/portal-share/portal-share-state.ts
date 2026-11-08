@@ -2,7 +2,10 @@
 // descriptions of what is on screen: which blocks show, what the code block says
 // about when it was made, and what the screen reader is told.
 
-import type { PortalTokenStatus } from '#/contexts/portal/application/public-api'
+// Every branch behind the Share tab lives here so the components stay flat
+// descriptions of what is on screen: which blocks show, what the code block says
+// about when it was made, and what the screen reader is told.
+import type { PortalTokenStatus } from '#/contexts/portal/application/portal-management-contracts'
 import type { PortalShareMutations, PortalShareProps } from './portal-share-types'
 import { formatDate } from '#/lib/format'
 import { describeGraceCutoff } from './portal-share-guidance'

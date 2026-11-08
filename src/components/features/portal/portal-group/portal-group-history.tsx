@@ -21,7 +21,7 @@ import {
   TimelineIndicator,
   TimelineItem,
 } from '#/components/ui/timeline'
-import type { PortalGroupHistoryEntry } from '#/contexts/portal/application/public-api'
+import type { PortalGroupHistoryEntry } from '#/contexts/portal/application/portal-management-contracts'
 import {
   buildPortalGroupHistory,
   type HistoryFrame,

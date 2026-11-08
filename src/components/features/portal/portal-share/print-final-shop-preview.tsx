@@ -4,7 +4,12 @@
 // It stands where the manager's own printer's first sheet stands, and follows
 // the Front and Back control the face above it follows.
 
-import type { PortalPrintKitView } from '#/contexts/portal/application/public-api'
+// The print shop's page under the face in the Share tab's preview (final design
+// spec §10.3 and §11.7): "Your file · page 1 of 1", the page the PDF makes with
+// its print margin, its crop marks where they are on, and a line on what it is.
+// It stands where the manager's own printer's first sheet stands, and follows
+// the Front and Back control the face above it follows.
+import type { PortalPrintKitView } from '#/contexts/portal/application/portal-management-contracts'
 import {
   printFinalShopPageCaption,
   printFinalShopPageHeading,

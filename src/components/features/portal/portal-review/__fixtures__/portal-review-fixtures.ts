@@ -2,7 +2,13 @@
 // 5, a German link label missing, four languages) and the variations a manager
 // can meet. Built on the preview fixtures so the phones draw the same page.
 
-import type { PortalReview, ReviewCheck } from '#/contexts/portal/application/public-api'
+// Story data for Review & publish: board 05's portal (two changes since version
+// 5, a German link label missing, four languages) and the variations a manager
+// can meet. Built on the preview fixtures so the phones draw the same page.
+import type {
+  PortalReview,
+  ReviewCheck,
+} from '#/contexts/portal/application/portal-management-contracts'
 import type { PortalData } from '../../shared/types'
 
 export const REVIEW_PROPERTY_ID = '0b6f8a52-4c2e-4d61-9a55-2f1d3c7e9b10'

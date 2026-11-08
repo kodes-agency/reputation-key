@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import type {
   MissingPortalText,
   ReviewCheck,
-} from '#/contexts/portal/application/public-api'
+} from '#/contexts/portal/application/portal-management-contracts'
 import { phraseText } from '../portal-history/portal-history-phrase'
 import {
   describeFixerLine,

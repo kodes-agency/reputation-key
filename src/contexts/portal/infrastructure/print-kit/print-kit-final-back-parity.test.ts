@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { previewFinalBackLayout } from '#/components/features/portal/portal-share/print-final-face-layout'
-import type { PortalPrintKitView } from '#/contexts/portal/application/public-api'
+import type { PortalPrintKitView } from '#/contexts/portal/application/portal-management-contracts'
 import {
   PRINT_FINAL_ORIENTATIONS,
   type PrintFinalFace,

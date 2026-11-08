@@ -4,7 +4,12 @@
 // now to the chosen one: when the chosen version is earlier a change "comes
 // back", when it is later the chosen version brings it.
 
-import type { PublicationContentChange } from '#/contexts/portal/application/public-api'
+// What making a version live again changes for guests, one line per change, in
+// the words a manager reads. The changes come from the same comparison as a
+// version's summary (`diffPublicationContent`), read from the version guests see
+// now to the chosen one: when the chosen version is earlier a change "comes
+// back", when it is later the chosen version brings it.
+import type { PublicationContentChange } from '#/contexts/portal/application/portal-management-contracts'
 import { GUEST_LOCALE_METADATA, type GuestLocale } from '#/shared/domain/guest-locale'
 import { nativeLanguage, plain, quoted, type Phrase } from './portal-history-phrase'
 import { WORDING_NAME, lookNames, tile } from './portal-version-summary'

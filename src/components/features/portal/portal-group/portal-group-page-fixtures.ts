@@ -1,7 +1,10 @@
 // "Pool side" at Avela Resort as board 13 draws it, for stories: three portals,
 // a September goal at 209 of 250 on the last day of the month, and a history of a
 // creation (with a portal that moved in from Wellness) and a rename.
-import type { PortalGroupHistoryEntry } from '#/contexts/portal/application/public-api'
+// "Pool side" at Avela Resort as board 13 draws it, for stories: three portals,
+// a September goal at 209 of 250 on the last day of the month, and a history of a
+// creation (with a portal that moved in from Wellness) and a rename.
+import type { PortalGroupHistoryEntry } from '#/contexts/portal/application/portal-management-contracts'
 import type { GoalProgress } from '#/contexts/reporting/application/public-api'
 import { organizationId, portalGroupId, portalId, propertyId } from '#/shared/domain/ids'
 import { rows } from '../portal-list-page-stories-data'

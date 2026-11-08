@@ -1,4 +1,4 @@
-import type { PortalOverviewRow } from '#/contexts/portal/application/public-api'
+import type { PortalOverviewRow } from '#/contexts/portal/application/portal-management-contracts'
 import { portalId, portalGroupId, propertyId } from '#/shared/domain/ids'
 import type { StaffMember } from './staff-account-view'
 /** An interrupted setup stays repairable even before it has created a Portal. */

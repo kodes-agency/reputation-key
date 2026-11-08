@@ -4,11 +4,16 @@
 // tab's sentence builder is reused, so a change reads the same here as it does
 // in the ledger once it is published.
 
+// The change list of Review & publish as sentences. The review read says what
+// part of the page changed, who changed it and the wording before and after;
+// this decides the words. Pure: the page draws the pieces and the History
+// tab's sentence builder is reused, so a change reads the same here as it does
+// in the ledger once it is published.
 import type {
   PortalPageEditKind,
   PortalPageEditSubject,
   PortalReviewChange,
-} from '#/contexts/portal/application/public-api'
+} from '#/contexts/portal/application/portal-management-contracts'
 import type { GuestLocale } from '#/shared/domain/guest-locale'
 import { describePageEditLine } from '../portal-history/portal-history-edit-line'
 import { plain, strong, type Phrase } from '../portal-history/portal-history-phrase'
