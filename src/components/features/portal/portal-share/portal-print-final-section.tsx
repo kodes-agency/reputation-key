@@ -6,7 +6,7 @@ import { Button } from '#/components/ui/button'
 import { RegionError } from '#/components/ui/region-error'
 import { Skeleton } from '#/components/ui/skeleton'
 import { useIsBelowLarge } from '#/components/hooks/use-mobile'
-import type { PortalPrintKitView } from '#/contexts/portal/application/public-api'
+import type { PortalPrintKitView } from '#/contexts/portal/application/portal-management-contracts'
 import {
   printFinalHowToSteps,
   printFinalSummary,

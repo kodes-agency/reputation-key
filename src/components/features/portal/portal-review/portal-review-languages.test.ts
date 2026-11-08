@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import type { ReviewLanguageRow } from '#/contexts/portal/application/public-api'
+import type { ReviewLanguageRow } from '#/contexts/portal/application/portal-management-contracts'
 import { describeReviewLanguage } from './portal-review-languages'
 
 const row = (over: Partial<ReviewLanguageRow> = {}): ReviewLanguageRow => ({

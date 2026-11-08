@@ -12,7 +12,7 @@ import type {
   PortalLookPhotoInput,
   PortalLookPhotoView,
   PropertyLookHero,
-} from '#/contexts/portal/application/public-api'
+} from '#/contexts/portal/application/portal-management-contracts'
 import type { OfferedGuestLocale } from '#/shared/domain/guest-locale'
 import type { PortalImageUploader } from '../portal-media/upload-portal-image'
 import { CENTRE_FOCAL, type FocalPoint } from '../property-look/focal-point'

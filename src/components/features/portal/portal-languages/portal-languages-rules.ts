@@ -14,7 +14,7 @@ import {
 import type {
   MissingPortalText,
   PortalLanguageCoverageRow,
-} from '#/contexts/portal/application/public-api'
+} from '#/contexts/portal/application/portal-management-contracts'
 
 /** A Portal's languages: the fallback first, then the others in the order they were added. */
 export type PortalLanguageSet = Readonly<{

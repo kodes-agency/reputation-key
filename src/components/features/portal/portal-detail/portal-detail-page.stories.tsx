@@ -23,7 +23,7 @@ import type {
   CompleteReviewVariables,
   UpdatePortalVariables,
 } from '../shared/types'
-import type { PortalTokenStatus } from '#/contexts/portal/application/public-api'
+import type { PortalTokenStatus } from '#/contexts/portal/application/portal-management-contracts'
 import type { getPortalHistory } from '#/contexts/portal/server/portals'
 import type {
   getPortalVersion,

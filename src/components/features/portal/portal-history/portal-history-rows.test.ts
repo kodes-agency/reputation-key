@@ -4,7 +4,7 @@ import type {
   PortalHistoryEntry,
   PortalVersionItem,
   PortalVersions,
-} from '#/contexts/portal/application/public-api'
+} from '#/contexts/portal/application/portal-management-contracts'
 import { buildHistoryRows, draftStateOf, type HistoryRow } from './portal-history-rows'
 
 const T = (days: number) =>

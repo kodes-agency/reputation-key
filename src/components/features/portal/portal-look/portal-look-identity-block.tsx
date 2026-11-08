@@ -9,7 +9,7 @@ import type {
   PortalLookIdentityInput,
   PortalLookIdentityView,
   PropertyLookLogo,
-} from '#/contexts/portal/application/public-api'
+} from '#/contexts/portal/application/portal-management-contracts'
 import { PropertyLookLogoField } from '../property-look/property-look-logo-field'
 import { PropertyLookWordmarkField } from '../property-look/property-look-wordmark-field'
 import { PortalLookBlock } from './portal-look-block'

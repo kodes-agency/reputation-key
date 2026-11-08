@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest'
 import {
   PROPERTY_LOOK_SOURCES,
   type PortalLookSources,
-} from '#/contexts/portal/application/public-api'
+} from '#/contexts/portal/application/portal-management-contracts'
 import {
   FACTS_NOTE,
   hasOwnLook,

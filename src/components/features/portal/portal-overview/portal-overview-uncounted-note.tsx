@@ -3,7 +3,12 @@
 // some out has to say so, or a manager with an older printed code reads a low number
 // as guests not coming. One Portal is named and linked to Share, where its code is
 // replaced; more than one are counted, because each row already says so.
-import type { PortalOverviewRow } from '#/contexts/portal/application/public-api'
+// Under the results strip: the Portals whose scans are not in its figures. Their
+// own rows print a dash for scans; the strip adds Portals up, and a sum that leaves
+// some out has to say so, or a manager with an older printed code reads a low number
+// as guests not coming. One Portal is named and linked to Share, where its code is
+// replaced; more than one are counted, because each row already says so.
+import type { PortalOverviewRow } from '#/contexts/portal/application/portal-management-contracts'
 import { FixLink } from './portal-issues-popover'
 import { portalLineLinkClass } from './portal-line-link'
 

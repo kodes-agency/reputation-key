@@ -5,7 +5,7 @@
 
 import { useEffect, useRef } from 'react'
 import { Check, Undo2 } from 'lucide-react'
-import type { PortalVersionDetail } from '#/contexts/portal/application/public-api'
+import type { PortalVersionDetail } from '#/contexts/portal/application/portal-management-contracts'
 import { FormErrorBanner } from '#/components/forms/form-error-banner'
 import { Button } from '#/components/ui/button'
 import { formatHistoryTime } from './portal-history-time'

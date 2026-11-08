@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import type { PortalLinktreeLink } from '#/contexts/portal/application/public-api'
+import type { PortalLinktreeLink } from '#/contexts/portal/application/portal-management-contracts'
 import {
   applyIconChoices,
   iconChoiceWrite,

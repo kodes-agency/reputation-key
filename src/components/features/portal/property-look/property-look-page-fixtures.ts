@@ -4,7 +4,7 @@ import type {
   PortalReview,
   PropertyLookMedia,
   PublishPortalsChangesResult,
-} from '#/contexts/portal/application/public-api'
+} from '#/contexts/portal/application/portal-management-contracts'
 import { PREVIEW_STORY_PHOTO } from '../portal-preview/__fixtures__/portal-preview-fixtures'
 import type { PortalImageUploader } from '../portal-media/upload-portal-image'
 import type { AffectedPortalRow } from './property-look-rules'

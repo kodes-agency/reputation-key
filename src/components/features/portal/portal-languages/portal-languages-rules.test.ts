@@ -15,7 +15,7 @@ import {
 import type {
   MissingPortalText,
   PortalLanguageCoverageRow,
-} from '#/contexts/portal/application/public-api'
+} from '#/contexts/portal/application/portal-management-contracts'
 
 // A fixture registry, so the rules are pinned whatever packs the live registry
 // has shipped: en and bg are offered with a generation 2 pack, es is offered but

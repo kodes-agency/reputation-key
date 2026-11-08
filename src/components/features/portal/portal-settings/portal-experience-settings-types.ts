@@ -2,7 +2,7 @@ import type { Action } from '#/components/hooks/use-action'
 import type {
   PortalLookSettings,
   PropertyLookMedia,
-} from '#/contexts/portal/application/public-api'
+} from '#/contexts/portal/application/portal-management-contracts'
 import type { GuestLocale, OfferedGuestLocale } from '#/shared/domain/guest-locale'
 
 export type PortalExperienceSettings = Readonly<{

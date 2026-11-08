@@ -7,7 +7,7 @@ import { visiblePortals } from './visible-portals'
 // tested without a table, and the table only draws what this decides.
 import { personInitials } from '#/components/inbox/person-initials'
 import { searchMatcher } from '#/components/property/property-search'
-import type { PortalOverviewRow } from '#/contexts/portal/application/public-api'
+import type { PortalOverviewRow } from '#/contexts/portal/application/portal-management-contracts'
 import {
   GUEST_LOCALE_METADATA,
   adminLanguageCode,

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import type { PortalLookSources } from '#/contexts/portal/application/public-api'
+import type { PortalLookSources } from '#/contexts/portal/application/portal-management-contracts'
 import {
   describeLookHeader,
   describeOwnPhoto,

@@ -15,7 +15,7 @@ import {
 import type {
   MissingPortalText,
   PortalLanguageCoverageRow,
-} from '#/contexts/portal/application/public-api'
+} from '#/contexts/portal/application/portal-management-contracts'
 import type { GuestLocale } from '#/shared/domain/guest-locale'
 import { PortalLanguageMenu } from './portal-language-menu'
 import {

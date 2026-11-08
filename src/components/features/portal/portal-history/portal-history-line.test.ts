@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import type {
   PortalHistoryDetail,
   PortalHistoryEntry,
-} from '#/contexts/portal/application/public-api'
+} from '#/contexts/portal/application/portal-management-contracts'
 import { phraseText, plain, type Phrase } from './portal-history-phrase'
 import { describeHistoryEntry } from './portal-history-line'
 

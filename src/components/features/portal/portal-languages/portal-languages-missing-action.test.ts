@@ -4,7 +4,7 @@
 // gap is never a dead end.
 
 import { describe, expect, it } from 'vitest'
-import type { MissingPortalText } from '#/contexts/portal/application/public-api'
+import type { MissingPortalText } from '#/contexts/portal/application/portal-management-contracts'
 import { missingTextAction } from './portal-languages-rules'
 
 const gap = (

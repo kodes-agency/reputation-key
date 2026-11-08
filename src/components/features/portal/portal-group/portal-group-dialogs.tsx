@@ -9,7 +9,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '#/components/ui/dialog'
-import type { PortalOverviewRow } from '#/contexts/portal/application/public-api'
+import type { PortalOverviewRow } from '#/contexts/portal/application/portal-management-contracts'
 import { PortalGroupAddForm } from './portal-group-add-form'
 import { PortalGroupCreateForm } from './portal-group-create-form'
 import type { PortalGroupMutations, PortalGroupRef } from './portal-group-mutations'

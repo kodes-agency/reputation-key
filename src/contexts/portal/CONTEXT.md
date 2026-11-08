@@ -9,6 +9,16 @@ Action journey is primary; optional secondary links are a subordinate link tree.
 The context also owns publication lifecycle, Portal Groups, responsible-manager
 assignment, and governed access artifacts.
 
+## Entry points
+
+- `application/public-api.ts` exposes the named cross-context server capabilities
+  and facts. `application/portal-management-contracts.ts` contains the browser-safe
+  management types and pure rules used by screens.
+- RPC calls stay in `server/`; management screens stay in
+  `src/components/features/portal/`. Neither imports the context build at runtime.
+- `build.ts` composes request management separately from worker jobs. Portal and
+  Guest retain separate builds.
+
 ## Boundaries
 
 - Guest resolves public Portal data through `PortalPublicApi`; Goal reads group
@@ -560,8 +570,8 @@ lookup and ask the policy on the id they were given), a destination id, or the
 `portalIds` of a group to join. A malformed one from a caller the policy admits still
 fails as a database error and a sanitized 500.
 
-`publicApi.management` is Portal's request surface (`docs/standards.md` §3.1). Its
-exceptions to that section's rules:
+`publicApi.management` is Portal's request surface (`docs/standards.md` §3.1).
+Its scope reads are the exceptions to that section's rules:
 
 - Five members are reads of `portal-scope.repository.ts` published as they are, not
   application functions: `resolvePortalManagementScope`,
@@ -570,15 +580,15 @@ exceptions to that section's rules:
   caller and decide nothing. The four `resolve…` reads answer for an id of any
   Organization, which is why `server/property-scope.ts` compares the Organization
   before it asks the policy; the list is scoped by the Organization it is given.
-- `revalidatePortalApprovedDestinations` is the worker's control, the same function as
-  `worker.revalidateApprovedDestinations`. It takes its scope decision from its caller,
-  and no server function calls it. It runs every 15 minutes and is due for every
-  website destination validated 10 minutes ago or earlier (never a phone number or email
-  address, which has nothing to check); the public edge serves an approval up
-  to 30 minutes old, which leaves room for a run that starts up to 10 minutes late
-  (`approved-destination-age.ts`, `approved-destination-age.test.ts`). That holds only
-  while a run can take everything that is due. See [Destination revalidation](#destination-revalidation)
-  for paging, retry scheduling and the lag alert.
+
+`worker.revalidateApprovedDestinations` is available only on the worker surface.
+It takes its scope decision from its caller. It runs every 15 minutes and is due for every
+website destination validated 10 minutes ago or earlier (never a phone number or email
+address, which has nothing to check); the public edge serves an approval up
+to 30 minutes old, which leaves room for a run that starts up to 10 minutes late
+(`approved-destination-age.ts`, `approved-destination-age.test.ts`). That holds only
+while a run can take everything that is due. See [Destination revalidation](#destination-revalidation)
+for paging, retry scheduling and the lag alert.
 
 `findDestinationApprovalNotificationFacts` (the Portal public API, read by Feed) is
 what the notice that a site is waiting for an account admin needs: the site's state

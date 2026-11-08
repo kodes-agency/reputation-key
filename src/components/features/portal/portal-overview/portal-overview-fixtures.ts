@@ -1,7 +1,10 @@
 // Overview rows for tests and stories. One builder, so a field added to
 // `PortalOverviewRow` is added once, and every fixture says only what it cares
 // about: the default is a live, healthy Portal with a working code and a manager.
-import type { PortalOverviewRow } from '#/contexts/portal/application/public-api'
+// Overview rows for tests and stories. One builder, so a field added to
+// `PortalOverviewRow` is added once, and every fixture says only what it cares
+// about: the default is a live, healthy Portal with a working code and a manager.
+import type { PortalOverviewRow } from '#/contexts/portal/application/portal-management-contracts'
 import { portalGroupId, portalId, propertyId } from '#/shared/domain/ids'
 
 const WORKING_CODE: PortalOverviewRow['token'] = {

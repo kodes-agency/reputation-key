@@ -29,7 +29,7 @@ import type {
   PortalLinktreeView,
   PortalPublicationHistory,
   PortalTokenStatus,
-} from '#/contexts/portal/application/public-api'
+} from '#/contexts/portal/application/portal-management-contracts'
 import type { PortalDetailTab } from './portal-detail-rules'
 import type {
   MakeVersionLiveAction,

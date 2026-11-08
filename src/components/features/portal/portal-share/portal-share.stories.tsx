@@ -5,7 +5,7 @@ import { expect, fn, userEvent, waitFor, within } from 'storybook/test'
 import { PortalShare } from './portal-share'
 import { ServerFunctionError } from '#/shared/auth/server-function-error'
 import type { Action } from '#/components/hooks/use-action'
-import type { PortalTokenStatus } from '#/contexts/portal/application/public-api'
+import type { PortalTokenStatus } from '#/contexts/portal/application/portal-management-contracts'
 import {
   AuthedRouterDecorator,
   withPermissions,

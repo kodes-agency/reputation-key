@@ -8,7 +8,7 @@
 import { useState } from 'react'
 import { ShieldCheck, TriangleAlert } from 'lucide-react'
 import { Button } from '#/components/ui/button'
-import type { PortalLinktreeDestination } from '#/contexts/portal/application/public-api'
+import type { PortalLinktreeDestination } from '#/contexts/portal/application/portal-management-contracts'
 import { DestinationTurnOff } from '../portal-settings/destination-turn-off'
 import type { LinkSiteControls } from './link-approval-controls'
 import { describeLinkApproval } from './linktree-approval-rules'

@@ -10,7 +10,7 @@ import {
   adminLanguageCode,
   type GuestLocale,
 } from '#/shared/domain/guest-locale'
-import type { PortalPreviewSource } from '#/contexts/portal/application/public-api'
+import type { PortalPreviewSource } from '#/contexts/portal/application/portal-management-contracts'
 
 type Props = Readonly<{
   locales: readonly GuestLocale[]

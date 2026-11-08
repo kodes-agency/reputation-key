@@ -11,7 +11,7 @@ import { openAlertDialog } from '#/components/ui/confirmation-dialog.stories.ope
 import type {
   PortalLinktreeLink,
   PortalLinktreeView,
-} from '#/contexts/portal/application/public-api'
+} from '#/contexts/portal/application/portal-management-contracts'
 import { PortalDraftAutosaveProvider } from '../portal-editor/portal-draft-autosave-context'
 import type { PortalApprovedDestinationList } from '../portal-settings/portal-experience-settings-types'
 import type { LinkApprovalControls } from './link-approval-controls'

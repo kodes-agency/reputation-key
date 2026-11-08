@@ -6,7 +6,7 @@
 import { createElement } from 'react'
 import { renderToString } from 'react-dom/server'
 import { describe, expect, it, vi } from 'vitest'
-import type { PortalPrintKitView } from '#/contexts/portal/application/public-api'
+import type { PortalPrintKitView } from '#/contexts/portal/application/portal-management-contracts'
 import type { PrintFinalSavedWording } from '#/shared/domain/portal-print-final-wording'
 import { usePrintFinalWording } from './use-print-final-wording'
 

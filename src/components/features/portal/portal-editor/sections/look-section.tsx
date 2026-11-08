@@ -7,7 +7,7 @@
 // only the property's look, as before.
 import { lazy, Suspense } from 'react'
 import { Skeleton } from '#/components/ui/skeleton'
-import { PROPERTY_LOOK_SOURCES } from '#/contexts/portal/application/public-api'
+import { PROPERTY_LOOK_SOURCES } from '#/contexts/portal/application/portal-management-contracts'
 import { usePortalEditAccess } from '../../portal-detail/use-portal-edit-access'
 import { PortalLookFacts } from '../../portal-look/portal-look-facts'
 import { PropertyLookLink } from '../../portal-look/portal-look-property-link'

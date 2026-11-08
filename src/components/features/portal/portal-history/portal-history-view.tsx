@@ -7,7 +7,7 @@ import type { ReactNode } from 'react'
 import type {
   PortalVersionDetail,
   PortalVersions,
-} from '#/contexts/portal/application/public-api'
+} from '#/contexts/portal/application/portal-management-contracts'
 import { RegionError } from '#/components/ui/region-error'
 import { PortalHistoryLedger } from './portal-history-ledger'
 import type { HistoryFilterKey, HistoryRow } from './portal-history-rows'

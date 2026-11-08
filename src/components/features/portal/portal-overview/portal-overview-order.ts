@@ -5,7 +5,14 @@
 // Archived Portals follow the others in either direction, and a Portal with no
 // figure to sort by (still processing, a draft, or no results yet) follows those
 // with one: there is nothing to say it belongs at either end.
-import type { PortalOverviewRow } from '#/contexts/portal/application/public-api'
+// How the Portals overview orders what it lists: Portals inside a group, and
+// the groups themselves. Pure, and generic over what it orders so the view that
+// builds the page and this ordering do not depend on each other.
+//
+// Archived Portals follow the others in either direction, and a Portal with no
+// figure to sort by (still processing, a draft, or no results yet) follows those
+// with one: there is nothing to say it belongs at either end.
+import type { PortalOverviewRow } from '#/contexts/portal/application/portal-management-contracts'
 import { attentionRank, type PortalAttention } from './portal-attention'
 import type {
   OrganizationSortFigures,

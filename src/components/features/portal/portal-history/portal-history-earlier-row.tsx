@@ -2,7 +2,7 @@
 // All, folded into one line so a long history reads as the recent past first.
 
 import { History } from 'lucide-react'
-import type { PortalVersionItem } from '#/contexts/portal/application/public-api'
+import type { PortalVersionItem } from '#/contexts/portal/application/portal-management-contracts'
 import { Button } from '#/components/ui/button'
 import {
   TimelineConnector,

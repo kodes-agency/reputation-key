@@ -11,7 +11,7 @@
 // save asks for it again: the next visit opens on the words just saved.
 
 import { useCallback, useRef, useState } from 'react'
-import type { PortalPrintKitView } from '#/contexts/portal/application/public-api'
+import type { PortalPrintKitView } from '#/contexts/portal/application/portal-management-contracts'
 import {
   printFinalOpeningWording,
   printFinalWordingIsSaved,

@@ -12,7 +12,7 @@ import { cn } from '#/lib/utils'
 import type {
   PortalReview,
   ReviewLanguageRow,
-} from '#/contexts/portal/application/public-api'
+} from '#/contexts/portal/application/portal-management-contracts'
 import { PhraseView } from '../portal-history/portal-phrase-view'
 import {
   describeFixLink,

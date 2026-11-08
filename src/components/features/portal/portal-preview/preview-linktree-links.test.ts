@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import type { PortalPreviewLink } from '#/contexts/portal/application/public-api'
+import type { PortalPreviewLink } from '#/contexts/portal/application/portal-management-contracts'
 import { previewLinktreeLink } from './preview-linktree-links'
 
 const READY: PortalPreviewLink = {

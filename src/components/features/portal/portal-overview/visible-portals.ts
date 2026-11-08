@@ -1,4 +1,4 @@
-import type { PortalOverviewRow } from '#/contexts/portal/application/public-api'
+import type { PortalOverviewRow } from '#/contexts/portal/application/portal-management-contracts'
 export function visiblePortals(
   rows: readonly PortalOverviewRow[],
 ): readonly PortalOverviewRow[] {

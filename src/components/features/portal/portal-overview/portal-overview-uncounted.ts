@@ -5,7 +5,14 @@
 // last, as one still processing does) and say so. Group and Property figures are
 // sums, to which a zero adds nothing, so they stand; the note under the strip says
 // that some scans are missing from them.
-import type { PortalOverviewRow } from '#/contexts/portal/application/public-api'
+// A live Portal whose code predates scan counting has scans nobody counted. The
+// read still answers for it, with a zero, and a zero is a number: the rule of this
+// table is "a dash with its reason, never a zero that was not counted". These turn
+// that Portal's figure into the dash, take it out of the scans sort (no figure sorts
+// last, as one still processing does) and say so. Group and Property figures are
+// sums, to which a zero adds nothing, so they stand; the note under the strip says
+// that some scans are missing from them.
+import type { PortalOverviewRow } from '#/contexts/portal/application/portal-management-contracts'
 import {
   DASH,
   SCANS_NOT_COUNTED_REASON,

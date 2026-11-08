@@ -6,7 +6,7 @@
 // reverse draws it in every cell, with the front's bleed.
 
 import { useMemo } from 'react'
-import type { PortalPrintKitView } from '#/contexts/portal/application/public-api'
+import type { PortalPrintKitView } from '#/contexts/portal/application/portal-management-contracts'
 import type { PrintFinalFace } from '#/shared/domain/portal-print-final'
 import {
   printFinalBackArt,
