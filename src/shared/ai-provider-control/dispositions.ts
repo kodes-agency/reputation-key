@@ -1,8 +1,6 @@
 import { z } from 'zod/v4'
-import {
-  parseAiProviderJsonBytes,
-  type AiSettlementRequestV1,
-} from '#/shared/ai-internal-transport-contract'
+import { type AiSettlementRequestV1 } from '#/shared/ai-internal-transport-contract'
+import { parseAiProviderJsonBytes } from '#/shared/ai-json'
 import type { OpenAiConnectorOutcome } from './contracts'
 
 export type OpenAiProviderDisposition = AiSettlementRequestV1['disposition']
