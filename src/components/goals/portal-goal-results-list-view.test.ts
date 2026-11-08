@@ -108,6 +108,20 @@ describe('resultGoals: the goals', () => {
     expect(new Set(goals.map(({ key }) => key)).size).toBe(2)
   })
 
+  it('keeps apart two Portals that share a name, by what they are rather than what they are called', () => {
+    const rows = ['a', 'b'].map((id) =>
+      resultRow(`result-${id}`, {
+        scope: 'portal',
+        subject: { kind: 'portal', portalId: `portal-${id}` },
+        subjectName: 'Lobby',
+      }),
+    )
+    const goals = goalsOf({ months: [monthOf('2026-07', rows)] })
+
+    expect(goals).toHaveLength(2)
+    expect(goals.map(({ subject }) => subject)).toEqual(['Lobby', 'Lobby'])
+  })
+
   it('names the Property’s goal before a Portal’s, as the matrix does', () => {
     const both = [
       octoberGoal('Reception ratings', reception),
