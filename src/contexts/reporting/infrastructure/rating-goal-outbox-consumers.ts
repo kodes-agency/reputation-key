@@ -17,7 +17,7 @@ import type { Database } from '#/shared/db'
 import { eventConsumerReceipts } from '#/shared/db/schema/outbox.schema'
 import { validateEventPayload } from '#/shared/events/schema-registry'
 import type { ConsumerEvent, ConsumerRegistry, ConsumerResult } from '#/shared/outbox'
-import type { EvaluatePropertyRatingGoal } from '../application/use-cases/rating-goals'
+import type { EvaluatePropertyRatingGoal } from '../rating-goals/rating-goals.server'
 
 export const RATING_GOAL_EVALUATION_CONSUMER = 'goal.google-rating-evaluation' as const
 

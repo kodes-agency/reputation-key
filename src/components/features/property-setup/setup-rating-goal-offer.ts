@@ -3,9 +3,9 @@
 // import skips it and the setup strip reminds per Property), and only once
 // Google's numbers for the new Property are in and a goal can be set. Until
 // then it says nothing; the setup strip reminds later.
-import type { RatingGoalSetupView } from '#/contexts/reporting/application/dto/rating-goal.types'
-import { ratingGoalStartIntent } from '#/components/goals/rating-goal-overview-view'
-import type { RatingGoalWizardIntent } from '#/components/goals/rating-goal-wizard-view'
+import type { RatingGoalSetupView } from '#/contexts/reporting/rating-goals/contracts'
+import { ratingGoalStartIntent } from '#/contexts/reporting/rating-goals/ui/rating-goal-offers'
+import type { RatingGoalWizardIntent } from '#/contexts/reporting/rating-goals/ui/rating-goal-wizard-view'
 import type { SetupImportedProperty } from './property-setup-contract'
 
 export type ImportRatingGoalOffer =

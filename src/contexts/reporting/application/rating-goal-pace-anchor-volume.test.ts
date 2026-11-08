@@ -182,6 +182,10 @@ function readingOn(
     },
     googleCurrent: true,
     waiting: false,
+    cacheTotals: {
+      count: property.count + sinceSet.count,
+      sum: property.sum + sinceSet.sum,
+    },
     exact: { value: exact, source: 'cache' },
     mix: null,
     reviewsLast28Days: total(days.slice(Math.max(0, day - 28), day)).count,
