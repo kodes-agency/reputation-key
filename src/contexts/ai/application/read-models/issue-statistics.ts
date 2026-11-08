@@ -14,7 +14,7 @@ import {
   starsOfMentioned,
   type RatingCounts,
 } from '../aspect-review-evidence'
-import type { IssueStatistics } from './guest-voice-v2'
+import type { IssueStatistics } from '../../guest-voice/contracts'
 
 /** How many reviews gave 1, 2, 3, 4 and 5 stars. */
 export type StarCounts = RatingCounts

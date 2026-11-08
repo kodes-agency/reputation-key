@@ -121,6 +121,12 @@ export async function executeRetentionRule(
 ): Promise<RetentionExecution> {
   const batchSize = options.batchSize ?? 500
   const maxBatches = options.maxBatches ?? DEFAULT_MAX_BATCHES_PER_RUN
+  if (!Number.isSafeInteger(batchSize) || batchSize < 1) {
+    throw new Error('batchSize must be a positive safe integer')
+  }
+  if (!Number.isSafeInteger(maxBatches) || maxBatches < 1) {
+    throw new Error('maxBatches must be a positive safe integer')
+  }
   const keys = sql.join(
     rule.keyColumns.map((column) => sql.identifier(column)),
     sql`, `,
@@ -143,7 +149,7 @@ export async function executeRetentionRule(
             rule.redactColumns.map((column) => sql`${sql.identifier(column)} = NULL`),
             sql`, `,
           )} WHERE (${keys}) IN (${candidates}) AND ${predicate} RETURNING ${keys}`
-        : sql`DELETE FROM ${table} WHERE (${keys}) IN (${candidates}) RETURNING ${keys}`
+        : sql`DELETE FROM ${table} WHERE (${keys}) IN (${candidates}) AND ${predicate} RETURNING ${keys}`
     const result = await db.execute(statement)
     const count = result.rowCount ?? 0
     if (count === 0) break

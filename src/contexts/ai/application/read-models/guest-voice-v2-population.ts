@@ -10,7 +10,7 @@ import type {
 } from '#/contexts/review/application/public-api'
 import { chooseEvidenceWindow } from '../../domain/guest-voice-statistics'
 import { addDays } from '../local-date'
-import type { Window } from './guest-voice-v2'
+import type { Window } from '../../guest-voice/contracts'
 
 const WINDOW_DAYS: Readonly<Record<Window, number>> = {
   '30d': 30,

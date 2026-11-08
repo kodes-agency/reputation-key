@@ -1,6 +1,11 @@
+import {
+  currentCorrectionTips,
+  effectiveValue,
+  effectiveSampleCount,
+} from '../readings/effective-readings.server'
 import { and, eq, gte, inArray, isNotNull, lt, sql } from 'drizzle-orm'
 import type { Database } from '#/shared/db'
-import { metricCorrections, metricReadings } from '#/shared/db/schema/metric.schema'
+import { metricReadings } from '#/shared/db/schema/metric.schema'
 import type {
   GoalMetricAggregateQuery,
   MetricRepository,
@@ -66,23 +71,7 @@ export function goalMetricAggregateQuery(
   db: Pick<Database, 'select'>,
   query: GoalMetricAggregateQuery,
 ) {
-  const correctionTips = db
-    .select({
-      readingId: metricCorrections.readingId,
-      kind: metricCorrections.kind,
-      exactDelta: metricCorrections.exactDelta,
-      replacementValue: metricCorrections.replacementValue,
-      recordedAt: metricCorrections.recordedAt,
-    })
-    .from(metricCorrections)
-    .where(
-      sql`NOT EXISTS (
-            SELECT 1
-            FROM metric_corrections AS successor
-            WHERE successor.supersedes_correction_id = ${metricCorrections.id}
-          )`,
-    )
-    .as('goal_metric_correction_tips')
+  const correctionTips = currentCorrectionTips(db)
 
   const conditions = [
     eq(metricReadings.organizationId, unbrand(query.organizationId)),
@@ -103,16 +92,8 @@ export function goalMetricAggregateQuery(
       break
   }
 
-  const effectiveValue = sql<number>`CASE
-        WHEN ${correctionTips.kind} = 'retract' THEN NULL
-        WHEN ${correctionTips.kind} = 'replace' THEN ${correctionTips.replacementValue}
-        WHEN ${correctionTips.kind} = 'adjust' THEN ${metricReadings.exactValue} + ${correctionTips.exactDelta}
-        ELSE ${metricReadings.exactValue}
-      END`
-  const effectiveSampleCount = sql<number>`CASE
-        WHEN ${correctionTips.kind} = 'retract' THEN 0
-        ELSE ${metricReadings.sampleCount}
-      END`
+  const value = effectiveValue(correctionTips)
+  const sampleCount = effectiveSampleCount(correctionTips)
   const sourceAllowed =
     query.allowedSourcePolicies.length > 0
       ? inArray(metricReadings.sourcePolicy, [...query.allowedSourcePolicies])
@@ -120,34 +101,29 @@ export function goalMetricAggregateQuery(
 
   return db
     .select({
-      sum: sql<number>`COALESCE(SUM(${effectiveValue}), 0)`.as('sum'),
-      weightedSum:
-        sql<number>`COALESCE(SUM(${effectiveValue} * ${effectiveSampleCount}), 0)`.as(
-          'weightedSum',
-        ),
-      sampleCount: sql<number>`COALESCE(SUM(${effectiveSampleCount}), 0)`.as(
-        'sampleCount',
+      sum: sql<number>`COALESCE(SUM(${value}), 0)`.as('sum'),
+      weightedSum: sql<number>`COALESCE(SUM(${value} * ${sampleCount}), 0)`.as(
+        'weightedSum',
       ),
-      readingCount: sql<number>`CAST(COUNT(${effectiveValue}) AS INTEGER)`.as(
-        'readingCount',
-      ),
-      approximateCount: sql<number>`CAST(COUNT(${effectiveValue}) FILTER (
+      sampleCount: sql<number>`COALESCE(SUM(${sampleCount}), 0)`.as('sampleCount'),
+      readingCount: sql<number>`CAST(COUNT(${value}) AS INTEGER)`.as('readingCount'),
+      approximateCount: sql<number>`CAST(COUNT(${value}) FILTER (
             WHERE ${metricReadings.dataQuality} = 'approximate'
           ) AS INTEGER)`.as('approximateCount'),
-      updatingCount: sql<number>`CAST(COUNT(${effectiveValue}) FILTER (
+      updatingCount: sql<number>`CAST(COUNT(${value}) FILTER (
             WHERE ${metricReadings.dataQuality} IN ('delayed', 'reconciling')
           ) AS INTEGER)`.as('updatingCount'),
-      invalidQualityCount: sql<number>`CAST(COUNT(${effectiveValue}) FILTER (
+      invalidQualityCount: sql<number>`CAST(COUNT(${value}) FILTER (
             WHERE ${metricReadings.dataQuality} IS NULL
                OR ${metricReadings.dataQuality} NOT IN ('exact', 'approximate', 'delayed', 'reconciling')
           ) AS INTEGER)`.as('invalidQualityCount'),
-      invalidSampleCount: sql<number>`CAST(COUNT(${effectiveValue}) FILTER (
+      invalidSampleCount: sql<number>`CAST(COUNT(${value}) FILTER (
             WHERE ${metricReadings.sampleCount} IS NULL OR ${metricReadings.sampleCount} < 0
           ) AS INTEGER)`.as('invalidSampleCount'),
-      invalidSourceCount: sql<number>`CAST(COUNT(${effectiveValue}) FILTER (
+      invalidSourceCount: sql<number>`CAST(COUNT(${value}) FILTER (
             WHERE ${metricReadings.sourcePolicy} IS NULL OR NOT (${sourceAllowed})
           ) AS INTEGER)`.as('invalidSourceCount'),
-      invalidDefinitionCount: sql<number>`CAST(COUNT(${effectiveValue}) FILTER (
+      invalidDefinitionCount: sql<number>`CAST(COUNT(${value}) FILTER (
             WHERE ${metricReadings.metricKey} <> ${query.expectedMetricKey}
           ) AS INTEGER)`.as('invalidDefinitionCount'),
       correctionHead: sql<unknown>`MAX(${correctionTips.recordedAt})`.as(

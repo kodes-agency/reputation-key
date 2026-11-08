@@ -2384,7 +2384,7 @@ no dated snapshot).
   `pnpm ops ai-control inspect provider private-beta-global-v1`. Migration 0083
   seeds the head of the new profile as enabled and accepting, whatever the earlier
   head holds, so a stop put on the earlier profile on purpose (an incident, a
-  drain) is not carried over. If it is stopped, kill `provider private-beta-global-v2`
+  drain) is not carried over. If it is stopped, run `pnpm ops ai-control kill global`
   right after the migration (Kill switch, below).
 
 **Release:** Web before the worker, as on 2026-10-17: a worker built before this
@@ -2436,21 +2436,21 @@ and no quote shows a person's name.
 inside Railway's network, with `--operator <id> --reason <text> --ticket <ref>
 --apply --yes ops:ai-control` after the positional arguments:
 
-- one capability: `pnpm ops ai-control kill capability review_analysis private-beta-global-v2 ...`
-  (also `reply_drafting`, `property_trends`);
-- the whole profile: `pnpm ops ai-control kill provider private-beta-global-v2 ...`;
-- everything: `pnpm ops ai-control kill global ...`;
+- stop all AI calls: `pnpm ops ai-control kill global ...`;
+- drain all AI calls: `pnpm ops ai-control drain global ...`;
 - read the state first or afterwards: `pnpm ops ai-control inspect global`,
   `inspect provider private-beta-global-v2`, `inspect capability review_analysis private-beta-global-v2`.
 
-A killed capability refuses new work before it is claimed; analyses already stored
-stay and are still read (Guest voice, Inbox chips). Reverse it with `restore`
-(section 25 gives its arguments). The `BETA_CAPABILITIES_OFF` list of section 11 is
-the other stop.
+A global stop refuses new work before it is claimed; analyses already stored
+stay and are still read (Guest voice, Inbox chips). Reverse it with `restore global`.
+Provider and capability heads still fence in-flight work, and scoped `inspect`
+and `restore` remain available for persisted stops (section 25 gives the capability
+restore arguments). New provider or capability `kill` and `drain` commands are
+refused. The `BETA_CAPABILITIES_OFF` list of section 11 is the other stop.
 
 **Rollback:** Recovery is forward-only (section 28): an earlier image is refused
 by the migrated schema, and the attempt is not free. To go back to v2 behaviour
-without data loss, kill the capability (above), then ship a code-only revert as a
+without data loss, stop all AI calls (above), then ship a code-only revert as a
 new forward commit that keeps `drizzle/` and the schema and restores the previous
 profile, notice and runtime constants. Two things a revert cannot undo: a Property
 that re-consented has had its v2 derivatives and its previous-epoch corrections
@@ -2460,7 +2460,7 @@ once a Property is confirmed, the way back is forward, not a restore.
 
 **Verification:** A confirmed Property's enablement head reads the new contract;
 a new review is analysed under `review-analysis-v3` on `gpt-6-luna` (the operation
-row names the profile, the model and a cost); a killed capability answers
+row names the profile, the model and a cost); a global stop answers
 "stopped" and an `inspect` shows `killed`/`draining`; Guest voice and the Overview
 row draw from the same read. Reply drafting and property trends moved to
 `gpt-6-luna` with the deployment profile although only review analysis was

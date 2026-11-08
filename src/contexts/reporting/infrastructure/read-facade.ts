@@ -4,10 +4,15 @@
 // Client TanStack Query stale times own caching; a server cache would duplicate
 // the authoritative read model.
 
+import {
+  currentCorrectionTips,
+  effectiveValue,
+  effectiveSampleCount,
+} from './readings/effective-readings.server'
 import { and, count, eq, gte, inArray, isNotNull, lt, or, sql } from 'drizzle-orm'
 import type { SQL } from 'drizzle-orm'
 import type { Database, Tx } from '#/shared/db'
-import { metricCorrections, metricReadings, inboxItems } from '#/shared/db/schema'
+import { metricReadings, inboxItems } from '#/shared/db/schema'
 import type { OrganizationId, PropertyId, PortalId } from '#/shared/domain/ids'
 import { METRIC_VERSION_IDS, findMetricVersionById } from '../domain/metric-registry'
 import type { MetricStatsDataState } from '../application/ports/metric-stats.port'
@@ -123,33 +128,9 @@ export async function readMetricAggregates(
   scope: SQL | undefined,
 ): Promise<readonly MetricAggregateRow[]> {
   const rows = await withStatementTimeout(db, DASHBOARD_READ_BUDGET_MS, (tx) => {
-    const correctionTips = tx
-      .select({
-        readingId: metricCorrections.readingId,
-        kind: metricCorrections.kind,
-        exactDelta: metricCorrections.exactDelta,
-        replacementValue: metricCorrections.replacementValue,
-      })
-      .from(metricCorrections)
-      .where(
-        sql`NOT EXISTS (
-          SELECT 1
-          FROM metric_corrections AS successor
-          WHERE successor.supersedes_correction_id = ${metricCorrections.id}
-        )`,
-      )
-      .as('dashboard_metric_correction_tips')
-    const effectiveValue = sql<number>`CASE
-      WHEN ${correctionTips.kind} = 'retract' THEN NULL
-      WHEN ${correctionTips.kind} = 'replace' THEN ${correctionTips.replacementValue}
-      WHEN ${correctionTips.kind} = 'adjust'
-        THEN ${metricReadings.exactValue} + ${correctionTips.exactDelta}
-      ELSE ${metricReadings.exactValue}
-    END`
-    const effectiveSampleCount = sql<number>`CASE
-      WHEN ${correctionTips.kind} = 'retract' THEN 0
-      ELSE ${metricReadings.sampleCount}
-    END`
+    const correctionTips = currentCorrectionTips(tx)
+    const value = effectiveValue(correctionTips)
+    const sampleCount = effectiveSampleCount(correctionTips)
     const cataloguePolicy = or(
       ...DASHBOARD_PORTAL_ANALYTICS.map(({ definition, version }) =>
         and(
@@ -167,11 +148,11 @@ export async function readMetricAggregates(
       cataloguePolicy,
     )
     const governedEffectiveValue = sql<number>`CASE
-      WHEN ${governedSource} THEN ${effectiveValue}
+      WHEN ${governedSource} THEN ${value}
       ELSE NULL
     END`
     const governedSampleCount = sql<number>`CASE
-      WHEN ${governedSource} THEN ${effectiveSampleCount}
+      WHEN ${governedSource} THEN ${sampleCount}
       ELSE 0
     END`
 

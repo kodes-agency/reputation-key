@@ -1,3 +1,7 @@
+import {
+  asOfCorrectionTipJoin,
+  effectiveReadingValue,
+} from '../readings/effective-readings.server'
 import { createStaffGoalsReader } from './staff-goals.reader'
 import type {
   GovernedGoalMetricQuery,
@@ -15,10 +19,10 @@ function metricPolicy(versionId: string) {
   const governed = findMetricVersionById(versionId)
   if (!governed?.version.permittedConsumers.includes('staff_self'))
     throw new Error('Staff metric consumer is not approved')
-  return sql`r.definition_version_id = ${versionId} AND r.source_policy IN (${sql.join(
+  return sql`readings.definition_version_id = ${versionId} AND readings.source_policy IN (${sql.join(
     governed.version.sourcePolicyAllowlist.map((value) => sql`${value}`),
     sql`, `,
-  )}) AND r.data_quality = 'exact' AND r.attribution_quality <> 'unresolved'`
+  )}) AND readings.data_quality = 'exact' AND readings.attribution_quality <> 'unresolved'`
 }
 
 /** Correction and projection cutoff fixes a day's rating figure, including late arrivals. */
@@ -30,14 +34,14 @@ function readingsSql(
   end: Date,
   cutoff: Date | null,
 ) {
-  return sql`SELECT r.portal_id, r.event_at, CASE WHEN c.kind = 'retract' THEN NULL WHEN c.kind = 'replace' THEN c.replacement_value WHEN c.kind = 'adjust' THEN r.exact_value + c.exact_delta ELSE r.exact_value END AS value
-    FROM metric_readings r
-    LEFT JOIN LATERAL (SELECT kind, replacement_value, exact_delta FROM metric_corrections c WHERE c.reading_id = r.id AND (${cutoff}::timestamptz IS NULL OR c.recorded_at < ${cutoff}::timestamptz) ORDER BY c.recorded_at DESC, c.id DESC LIMIT 1) c ON true
-    WHERE r.organization_id = ${scope.organizationId} AND r.property_id = ${scope.propertyId}::uuid AND r.portal_id IN (${sql.join(
+  return sql`SELECT readings.portal_id, readings.event_at, ${effectiveReadingValue} AS value
+    FROM metric_readings AS readings
+    ${asOfCorrectionTipJoin(cutoff)}
+    WHERE readings.organization_id = ${scope.organizationId} AND readings.property_id = ${scope.propertyId}::uuid AND readings.portal_id IN (${sql.join(
       portalIds.map((id) => sql`${id}::uuid`),
       sql`, `,
     )})
-      AND ${metricPolicy(version)} AND r.event_at >= ${start} AND r.event_at < ${end} AND (${cutoff}::timestamptz IS NULL OR r.recorded_at < ${cutoff}::timestamptz)`
+      AND ${metricPolicy(version)} AND readings.event_at >= ${start} AND readings.event_at < ${end} AND (${cutoff}::timestamptz IS NULL OR readings.recorded_at < ${cutoff}::timestamptz)`
 }
 
 export function createStaffResultsReader(

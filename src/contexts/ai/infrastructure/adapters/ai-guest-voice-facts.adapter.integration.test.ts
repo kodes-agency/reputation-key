@@ -14,9 +14,9 @@ import { joinWindows } from '../../application/read-models/guest-voice-v2-join'
 import {
   createReadGuestVoiceV2,
   type GuestVoiceV2Response,
-} from '../../application/use-cases/read-guest-voice-v2'
-import { createReadGuestVoiceDetail } from '../../application/use-cases/read-guest-voice-detail'
-import type { ReadGuestVoiceV2Dependencies } from '../../application/use-cases/read-guest-voice-v2'
+} from '../../guest-voice/get-guest-voice.server'
+import { createReadGuestVoiceDetail } from '../../guest-voice/get-detail.server'
+import type { ReadGuestVoiceV2Dependencies } from '../../guest-voice/get-guest-voice.server'
 import { createAiAuthorizationAdapter } from './ai-authorization.adapter'
 import { createAiPropertyCalendarAdapter } from './ai-property-calendar.adapter'
 import { createAiGuestVoiceFactsAdapter } from './ai-guest-voice-facts.adapter'

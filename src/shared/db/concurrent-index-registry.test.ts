@@ -3,6 +3,18 @@ import { CONCURRENT_INDEX_REGISTRY } from './concurrent-index-registry'
 import { DB_ONLY_CONSTRUCTS } from './schema/db-only-constructs'
 
 describe('concurrent index registry', () => {
+  it('supports tenant and Property metric-version reads bounded by event time', () => {
+    expect(CONCURRENT_INDEX_REGISTRY).toContainEqual(
+      expect.objectContaining({
+        name: 'metric_readings_org_prop_version_event_idx',
+        table: 'metric_readings',
+        columns: ['organization_id', 'property_id', 'definition_version_id', 'event_at'],
+        unique: false,
+        hasPredicate: false,
+      }),
+    )
+  })
+
   it('gives every entry a unique name', () => {
     const names = CONCURRENT_INDEX_REGISTRY.map((spec) => spec.name)
     expect(new Set(names).size).toBe(names.length)

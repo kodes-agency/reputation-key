@@ -35,6 +35,25 @@ Reply publication, Portal/Guest data, metrics, goals, or notifications.
 - Lifecycle export and purge contributors are never on `publicApi`; composing one
   does not arm its irreversible phase.
 
+## Reply and Guest voice feature paths
+
+Reply generation lives in `reply/generate-suggestion.server.ts`. Language and
+local-template decisions are in `reply/language.server.ts`; request joining,
+stream progress and identity fences are in `reply/requests.server.ts`, with
+admission/rewrite helpers and measurements beside them. The Inbox composer stays
+Reputation-owned and reads the named AI public contract. The prompt still treats
+guest accounts as unverified and never states a reported problem as fact.
+
+Guest voice has one browser-safe `guest-voice/contracts.ts` and its screens,
+Storybook states and UI tests in `guest-voice/ui/`. Authenticated page/detail
+reads use `get-guest-voice.server.ts`, `get-detail.server.ts` and the shared
+`get-read-context.server.ts`. The page and Monday summary share period, baseline
+and population assembly in `period.server.ts`; statistics and pure read-model
+helpers remain in their existing domain/application files. Recorded display and
+analysis version strings are unchanged. Server-function entry paths stay under
+`server/`. Language-script and Chinese-orthography verifiers remain reachable
+through reply-language verification and local-template acceptance.
+
 ## Model
 
 The active per-Property capabilities are Review Analysis and Reply Drafting.
@@ -45,6 +64,12 @@ export and stored provenance; they confer no execution authority.
 
 Both active capabilities require AccountAdmin authorization, live access, notice
 coverage, provider policy, platform gates and runtime admission controls.
+
+Operators stop or drain all AI calls with `pnpm ops ai-control kill global` or
+`drain global`. Persisted provider and capability heads remain in admission and
+in-flight generation fences. The command retains scoped inspection and restoration
+for recovery; capability restoration still requires a release revision. Deploy
+activation uses the existing control adapter and never lifts an operator stop.
 
 Merchant authorization follows the acknowledged notice, independently of the
 runtime/deployment recorded as historical evidence (ADR 0074). The shared pure
@@ -133,7 +158,7 @@ of the aggregates and the Trend. Nothing logs, counts or alerts on it: the
 marker is the only trace, and `SELECT count(*) FROM reviews WHERE
 ai_source_byte_length = 16385 AND source_content_state = 'active'` sizes the
 decision. A reply suggestion for such a review answers `source_changed`
-(`generate-reply-suggestion.ts` maps every status but `available` to it), which
+(`reply/generate-suggestion.server.ts` maps every status but `available` to it), which
 the author sees as a retryable failure, so the Inbox shows a suggestion button
 that cannot succeed for it. Whether the AI should ever read such a review is a
 product question: leave it skipped (today), or truncate it at a scalar boundary
@@ -730,7 +755,7 @@ switch-on (2026-10-30) the only one: the route reads it once. A Property whose r
 analysis gets the page; any other gets a reason instead (`hasV3Analyses`: a ready v3 contribution
 under the Property's current epochs): "being prepared", or "AI analysis is off" when AI is off or
 the consent was recorded under a notice no longer in force. Its types are
-`application/read-models/guest-voice-v2.ts`, content-free except `LiveEvidence`. The read joins two
+`guest-voice/contracts.ts`, content-free except `LiveEvidence`. The read joins two
 answers (`read-models/guest-voice-v2-join.ts`). Review says which reviews the Property has now
 (`readTrendPopulation`: two years in one read, the last year alone and no
 change claimed when that is too full, 90 days when the year is). The analysis side
@@ -802,7 +827,7 @@ clipboard copy belongs to pure UI functions; summaries use fixed topics and
 unique topic counts, never titles or causes.
 
 `readGuestVoiceDetail` and `getGuestVoiceDetailFn` now provide live issue,
-concern and topic reads. `guest-voice-read-context.ts` shares Property admission,
+concern and topic reads. `guest-voice/get-read-context.server.ts` shares Property admission,
 AI/served-contract gates, local calendar, bounded population reads and current
 revision/sequence/day joins with the page. Details accept Property/range/current
 ISO bounds/target; stale bounds return `refresh_required`, unknown targets
@@ -987,9 +1012,9 @@ Re-verified map items 1–6 on the supplied stacked base `af57b9c36` (current im
 | Map item                                   | Authority                                                                                                                                                                                                      |
 | ------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | 1 — profile/prompt/schema/provenance       | `src/shared/reply-drafting-v2-profile.ts:22`, `src/shared/reply-drafting-v2-schema.ts:24`, `src/shared/ai-reply-provenance.ts:151`                                                                             |
-| 2 — numbered input/options/binding         | `src/shared/reply-drafting-v2-request.ts:152`, `src/contexts/ai/application/reply-drafting-v2-workflow.ts:72`, `src/shared/ai-provider-control/reply-drafting-v2.ts:248`                                       |
+| 2 — numbered input/options/binding         | `src/shared/reply-drafting-v2-request.ts:152`, `src/contexts/ai/reply/workflow.server.ts:72`, `src/shared/ai-provider-control/reply-drafting-v2.ts:248`                                                        |
 | 3 — effort/output/reservation bounds       | `src/shared/reply-drafting-v2-profile.ts:22`, `src/shared/db/ai/ai-budget.ts:96`                                                                                                                               |
-| 4 — lint/one independently charged rewrite | `src/shared/reply-drafting-v2-contract.ts:89`, `src/contexts/ai/application/reply-drafting-v2-workflow.ts:44`, `src/contexts/ai/infrastructure/adapters/reply-rewrite-parent.ts:16`                            |
+| 4 — lint/one independently charged rewrite | `src/shared/reply-drafting-v2-contract.ts:89`, `src/contexts/ai/reply/workflow.server.ts:44`, `src/contexts/ai/infrastructure/adapters/reply-rewrite-parent.ts:16`                                             |
 | 5 — Spanish/historical readers/schema      | `src/shared/reply-drafting-v2-contract.ts:89`, `src/shared/ai-reply-provenance.ts:151`, `src/shared/db/schema/reply-ai-provenance-check.ts:4`, `drizzle/0085_reply_drafting_v2_contract.sql:1`                 |
 | 6 — frame choice/usage/adoption            | `src/contexts/review/application/ai-reply-v2-frame.ts:21`, `src/contexts/review/infrastructure/repositories/ai-frame-reservation.ts:156`, `src/contexts/review/infrastructure/ai-suggested-draft-store.ts:481` |
 
@@ -1062,7 +1087,7 @@ Re-verified map items 7–8 against origin/main `cf1e33c66` (B1 merged):
 | 7 — authenticated POST / cancellation                   | `src/contexts/ai/server/reply-suggestion-stream.ts:32`, `src/contexts/ai/server/reply-progress-stream.server.ts:16`                                                                    |
 | 7 — safe incremental metadata / bounded provider stream | `src/shared/ai-provider-control/reply-progress-parser.ts:15`, `src/shared/ai-provider-control/bounded-event-stream.ts:2`, `src/shared/ai-provider-control/openai-stream-response.ts:7` |
 | 7 — v2-only request attestation / deployment            | `src/shared/ai-openai-stream-profile.ts:32`, `src/shared/reply-drafting-v2-profile.ts:25`, `drizzle/0086_reply_drafting_progress.sql:1`                                                |
-| 8 — lane / active actor ownership / identity            | `src/contexts/ai/application/reply-drafting-requests.ts:20`, `src/contexts/ai/infrastructure/adapters/ai-operation-store.adapter.ts:851`                                               |
+| 8 — lane / active actor ownership / identity            | `src/contexts/ai/reply/requests.server.ts:20`, `src/contexts/ai/infrastructure/adapters/ai-operation-store.adapter.ts:851`                                                             |
 | 8 — authoritative local/Google reply eligibility        | `src/contexts/review/infrastructure/repositories/unanswered-review.ts:11`                                                                                                              |
 
 ## Invariants
@@ -1094,7 +1119,7 @@ The first-enablement Review Analysis enrollment replay and the sweep's reopen pa
 
 ## Text-free draft measurement — live (B3a, 2026-10-31)
 
-`application/reply-drafting-measurement.ts` observes both served contracts, once per
+`reply/measurement.server.ts` observes both served contracts, once per
 logical root request; the separately admitted rewrite remains a provider attempt.
 The content-free recorder is `shared/db/ai/draft-generation-measurement.ts`.
 Generation rows and Reply revision links are tenant-exportable and cascade from

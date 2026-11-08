@@ -412,6 +412,36 @@ describe('runReviewHeadCheck: persist mode and the head fact', () => {
     expect(repository.recordHeadFact).toHaveBeenCalledOnce()
   })
 
+  it('does not overwrite newer numbers acquired while this page was being stored', async () => {
+    const { run, persist, repository } = setup({
+      copies: [],
+      head: okHead([googleReview('r-1')], { totalReviewCount: 40, averageRating: 4.5 }),
+      stateAtFact: {
+        ...readyState,
+        newestFact: {
+          reviewCount: 41,
+          averageRating: 4.6,
+          observedAt: new Date(T0.getTime() + 200),
+        },
+      },
+    })
+
+    const result = await run()
+
+    expect(persist).toHaveBeenCalledOnce()
+    expect(repository.readPersistState).toHaveBeenCalledTimes(2)
+    expect(repository.recordHeadFact).not.toHaveBeenCalled()
+    expect(result).toMatchObject({
+      persistence: { outcome: 'stored', storedOther: 1, factWritten: false },
+    })
+
+    // A later acquisition can still write: superseding one page latches no failure.
+    await expect(run()).resolves.toMatchObject({
+      persistence: { outcome: 'stored', factWritten: true },
+    })
+    expect(repository.recordHeadFact).toHaveBeenCalledOnce()
+  })
+
   it('reports the fact as not written, and does not throw, when it cannot be recorded', async () => {
     const { run, logger } = setup({
       head: okHead([googleReview('r-1')], { totalReviewCount: 130, averageRating: 4.7 }),

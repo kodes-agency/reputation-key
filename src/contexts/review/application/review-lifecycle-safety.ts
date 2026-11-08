@@ -1,16 +1,9 @@
-/**
- * SAFE-03 containment for the legacy Review lifecycle.
- *
- * The expand schema and repository now separate erasable provider content
- * while preserving stable Review/Reply identity. Recurring apply still stays
- * unavailable until production shadow parity and the reviewed cutover are
- * recorded; local implementation proof cannot grant that authority.
- */
+/** Local implementation tests cannot authorize production erasure. */
 export const REVIEW_DESTRUCTIVE_LIFECYCLE_QUARANTINE = Object.freeze({
   owner: 'review-context',
   reason: 'external Review lifecycle shadow parity and cutover are not approved',
   releaseCondition:
-    'REV-01 external zero-difference shadow window, restore evidence, and explicit activation approval',
+    'external zero-difference shadow window, passing isolated restore and command-level erasure replay proof, verified backups within 30 days including the Manual backup, and explicit owner approval of the first apply',
   releaseDecision: 'explicit-reviewed-cutover',
 } as const)
 

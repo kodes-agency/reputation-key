@@ -3,14 +3,14 @@
 // of what the store read and what Review counted: it decides what is ranked, what is only
 // watched, what guests love and what moved, and which reviews could be quoted for each
 // card. It reads no text and calls no model.
-import type { GuestVoiceWindowContext } from './guest-voice-v2-check-in'
+import type { GuestVoiceWindowContext } from '../../guest-voice/contracts'
 import type { AiTrendPopulationReview } from '#/contexts/review/application/public-api'
 import { buildRatingTrend } from './guest-voice-v2-rating-trend'
 import { groupSeriousConcerns, seriousConcerns } from './guest-voice-v2-concerns'
 import { GUEST_VOICE_STATISTICS_VERSION } from '../../domain/guest-voice-statistics'
 import { REVIEW_ANALYSIS_V3_VERSIONS } from '#/shared/review-analysis-v3'
 import type { WindowPopulation } from './guest-voice-v2-join'
-import type { GuestVoiceV2Ready, Window } from './guest-voice-v2'
+import type { GuestVoiceV2Ready, Window } from '../../guest-voice/contracts'
 import { pickEvidenceCandidates, type EvidenceSlot } from './guest-voice-v2-evidence'
 import type { GuestVoiceIssueGroup, GuestVoiceReview } from './guest-voice-v2-facts'
 import { inShortLines } from './guest-voice-v2-in-short'

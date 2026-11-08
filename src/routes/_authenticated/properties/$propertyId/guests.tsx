@@ -3,7 +3,7 @@ import { createFileRoute } from '@tanstack/react-router'
 import { roleUnavailable } from '#/shared/auth/route-notice'
 import { keepPreviousData, useQuery, useSuspenseQuery } from '@tanstack/react-query'
 import { z } from 'zod/v4'
-import { PropertyGuestVoicePage } from '#/components/features/property/property-guest-voice-page'
+import { PropertyGuestVoicePage } from '#/contexts/ai/guest-voice/ui/property-guest-voice-page'
 import { propertyQuery } from '#/routes/-queries/route-queries'
 import type { AuthRouteContext } from '#/routes/_authenticated'
 import { can } from '#/shared/domain/permissions'
@@ -24,7 +24,7 @@ import {
   propertyGuestVoiceGoogleQuery,
 } from './-guest-voice-queries'
 import { GuestVoiceRouteDetails } from './-guest-voice-route-details'
-import { useGuestVoiceDetailNavigation } from '#/components/features/property/guest-voice/use-guest-voice-detail-navigation'
+import { useGuestVoiceDetailNavigation } from '#/contexts/ai/guest-voice/ui/use-guest-voice-detail-navigation'
 import { RoutePending } from '#/components/layout/route-page-state'
 
 export const propertyGuestsSearchSchema = z.object({

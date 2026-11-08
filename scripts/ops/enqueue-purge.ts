@@ -4,9 +4,8 @@
 // at execution). Handlers are never invoked directly.
 //
 // DESTRUCTIVE: retention deletes expired data (bounded, evidence-writing), so
-// --apply requires the typed confirmation --yes ops:purge. Review targets run
-// the content-free report/shadow authority only; even an enqueued invocation
-// has no destructive apply authority until the reviewed REV-01 cutover.
+// --apply requires the typed confirmation --yes ops:purge. Review apply also
+// needs the worker's separately approved lifecycle authority; it ships absent.
 //
 // Usage:
 //   pnpm ops purge <target> --operator <id>            — dry-run report
@@ -22,16 +21,19 @@
 // an enqueued apply is re-authorized by the BQC-3 dispatch gate at execution.
 // Runbook §10: purge requires operator confirmation + evidence report.
 
+import { resolve } from 'node:path'
+import { pathToFileURL } from 'node:url'
 import { createJobQueue } from '../../src/shared/jobs/queue'
 import { jobEnqueueOptions } from '../../src/shared/jobs/job-policy'
 import { positionalArgs } from '../../src/shared/ops/operator-command'
 import { getDb } from '../../src/shared/db'
-import {
-  GOOGLE_IMPORT_LIFECYCLE_RETENTION_SUBJECT,
-  RETENTION_RULES,
-} from '../../src/shared/jobs/retention-sweep.job'
+import { GOOGLE_IMPORT_LIFECYCLE_RETENTION_SUBJECT } from '../../src/shared/jobs/retention-sweep.job'
+import { RETENTION_RULES } from '../../src/composition/retention-rules'
+import { SCHEDULED_RETENTION_ACTIVE } from '../../src/shared/db/retention/scheduled-retention-activation'
 import { buildRetentionRuleReport } from '../../src/shared/db/retention/report-retention-rules'
 import { wireReviewSourceContentLifecycle } from '../../src/contexts/review/build'
+import { collectReviewSourceContentLifecycleReport } from '../../src/contexts/review/application/use-cases/collect-source-content-lifecycle-report'
+import { REVIEW_SOURCE_CONTENT_LIFECYCLE_APPLY_CONFIRMATION } from '../../src/contexts/review/application/use-cases/run-source-content-lifecycle'
 import { runOperatorCommand } from './operator-command'
 
 const TARGETS = {
@@ -63,7 +65,7 @@ function usage(): never {
   process.exit(1)
 }
 
-async function main(): Promise<void> {
+export async function main(): Promise<void> {
   const [target] = positionalArgs(process.argv.slice(2))
   if (!target || !(target in TARGETS)) usage()
   const { jobName, capability, lifecycleMode } = TARGETS[target as Target]
@@ -90,6 +92,7 @@ async function main(): Promise<void> {
               {
                 target,
                 coverage: 'static_rule_registry',
+                scheduledApplyActive: SCHEDULED_RETENTION_ACTIVE,
                 separatelyInspectedSubjects: [GOOGLE_IMPORT_LIFECYCLE_RETENTION_SUBJECT],
                 ...report,
               },
@@ -98,7 +101,9 @@ async function main(): Promise<void> {
             ),
           )
           io.out(
-            'report is content-free and read-only; re-run with --apply --yes ops:purge to enqueue the bounded apply',
+            SCHEDULED_RETENTION_ACTIVE
+              ? 'report is content-free and read-only; re-run with --apply --yes ops:purge to enqueue the bounded apply'
+              : 'report is content-free and read-only; scheduled retention is inactive pending an owner-approved activation release',
           )
           io.out(
             'Google import lifecycle backlog is no longer reported: the compatibility surface was deleted with its five tables.',
@@ -109,7 +114,7 @@ async function main(): Promise<void> {
           db: getDb(),
           clock: () => new Date(),
         })
-        const report = await runLifecycle({
+        const report = await collectReviewSourceContentLifecycleReport(runLifecycle, {
           mode: lifecycleMode ?? 'report',
           batchSize: 100,
         })
@@ -120,6 +125,20 @@ async function main(): Promise<void> {
         return
       }
 
+      if (target === 'reviews-shadow') {
+        io.err(
+          'Shadow inspection is read-only. Use the reviews target for approved expiry apply.',
+        )
+        return 1
+      }
+
+      if (target === 'retention' && !SCHEDULED_RETENTION_ACTIVE) {
+        io.err(
+          'Scheduled retention is inactive; an owner-approved activation release is required before apply.',
+        )
+        return 1
+      }
+
       const queue = createJobQueue('background')
       if (!queue) {
         io.err('QUEUE_REDIS_URL is not configured — cannot reach the background queue.')
@@ -128,7 +147,12 @@ async function main(): Promise<void> {
       try {
         const job = await queue.add(
           jobName,
-          lifecycleMode == null ? {} : { mode: lifecycleMode },
+          lifecycleMode == null
+            ? {}
+            : {
+                mode: 'apply',
+                applyConfirmation: REVIEW_SOURCE_CONTENT_LIFECYCLE_APPLY_CONFIRMATION,
+              },
           jobEnqueueOptions(jobName),
         )
         io.out(
@@ -149,7 +173,9 @@ async function main(): Promise<void> {
   process.exit(result.exitCode)
 }
 
-main().catch((err) => {
-  console.error('ops:purge failed', err)
-  process.exit(1)
-})
+if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1])).href) {
+  main().catch(() => {
+    console.error('ops:purge failed')
+    process.exit(1)
+  })
+}

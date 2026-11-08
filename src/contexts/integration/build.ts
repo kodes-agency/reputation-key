@@ -20,7 +20,6 @@ import type {
 } from './application/ports/google-oauth.port'
 import type { OAuthStateHandleService } from './application/oauth-state-handle'
 import type { OAuthCallbackAbuseGate } from './application/oauth-callback-abuse-gate'
-import type { GbpApiPort } from './application/ports/gbp-api.port'
 import type { GoogleAuthorizedProviderExecutor } from './application/ports/google-authorized-provider-executor.port'
 import type { GoogleImportReferenceStore } from './application/ports/google-import-reference-store.port'
 import type {
@@ -105,7 +104,6 @@ import { createGooglePerformanceAdapter } from './infrastructure/adapters/google
 import { getExecutionPolicy, type DecisionRequest } from '#/shared/auth/execution-policy'
 import { createActiveMemberAuthResolver } from './infrastructure/active-member-auth.adapter'
 import { parseGbpNotificationSubscriptionConfig } from './application/notification-subscription-config'
-import type { SourceContentPurge } from '#/contexts/review/application/public-api'
 import type { PortalPublicDisplayNameDefaultPublicApi } from '#/contexts/portal/application/public-api'
 import {
   reconcileGoogleProviderRecovery,
@@ -215,10 +213,6 @@ type IntegrationContextDeps = Readonly<{
   /** Starts an imported Property's public display name as its confirmed name. */
   defaultPublicDisplayName?: PortalPublicDisplayNameDefaultPublicApi['ensureDefaultPublicDisplayName']
   logger: LoggerPort
-  /** BQC-1.7: bounded lifecycle purge of a revoked connection's source
-   * content. Constructed once by the composition root (the only layer that
-   * may import review infrastructure) and shared across contexts. */
-  sourceContentPurge: SourceContentPurge
   /** Google provider endpoint configuration resolved once by composition. */
   providerEndpoints: GoogleProviderEndpoints
   /**
@@ -238,7 +232,6 @@ type IntegrationContextDeps = Readonly<{
   /** BQC-6.1: optional deterministic adapter overrides (simulations/tests
    * inject in-memory providers; absent = the real env-driven HTTP adapters). */
   googleOAuth?: GoogleOAuthPort
-  gbpApi?: GbpApiPort
   googleAuthorizedProviderExecutor?: GoogleAuthorizedProviderExecutor
   googleDisconnectRevokeStore?: GoogleDisconnectRevokeStore
   authorizeGoogleOAuthProviderCall?: GoogleOAuthProviderCallAuthorizer
@@ -259,8 +252,6 @@ type IntegrationContextDeps = Readonly<{
   refreshPolicyStoreRequired?: () => Promise<void>
   /** Redis-backed, renewable and generation-fenced refresh coordination. */
   googleRefreshCoordination?: GoogleRefreshCoordination
-  /** Production has no escape hatch for credential-bearing OAuth sockets. */
-  assertDirectCredentialEgressAllowed?: (operation: string) => void
 }>
 
 export type IntegrationContextApi = Readonly<{
@@ -350,7 +341,6 @@ export type IntegrationContextApi = Readonly<{
       googleOAuthExchangeRecovery: ReturnType<
         typeof createGoogleOAuthExchangeRecoveryRepository
       >
-      gbpApiPort: GbpApiPort
     }>
     /** BQC-5.2: the Google review API adapter (integration-owned), typed by
      * review's port — consumed by the review context build. */
@@ -433,17 +423,10 @@ export const buildIntegrationContext = (deps: IntegrationContextDeps) => {
     createGoogleOAuthAdapter({
       clientId: deps.config.googleClientId,
       clientSecret: deps.config.googleClientSecret,
-      tokenUrl: deps.providerEndpoints.oauthTokenUrl,
       jwksUrl: deps.providerEndpoints.oauthJwksUrl,
-      revokeUrl: deps.providerEndpoints.oauthRevokeUrl,
       clock: deps.clock,
       executor: deps.googleAuthorizedProviderExecutor,
       nowMs: () => deps.clock().getTime(),
-      ...(deps.assertDirectCredentialEgressAllowed === undefined
-        ? {}
-        : {
-            assertDirectCredentialEgressAllowed: deps.assertDirectCredentialEgressAllowed,
-          }),
     })
   // One key today. The version prefix exists so a second can be added here
   // without making the rows sealed by the first unreadable.
@@ -451,17 +434,6 @@ export const buildIntegrationContext = (deps: IntegrationContextDeps) => {
     activeVersion: 'v1',
     keys: { v1: deps.config.encryptionKey },
   })
-  // Legacy-only test seam. Production no longer constructs the credential-
-  // bearing direct account adapter; notification account discovery uses the
-  // governed typed executor below.
-  const gbpApiPort: GbpApiPort =
-    deps.gbpApi ??
-    Object.freeze({
-      listAccounts: async () => {
-        throw new Error('Legacy Google account lookup is unavailable')
-      },
-    })
-
   const googleImportCompletion: Parameters<typeof createGoogleImportV2Store>[2] = {
     readReceipt: (...args) => {
       if (!deps.propertyBindingApi) throw new Error('Property receipt reader unavailable')
@@ -972,7 +944,6 @@ export const buildIntegrationContext = (deps: IntegrationContextDeps) => {
       disconnectRevokeStore: googleDisconnectRevokeStore,
       idGen: deps.idGen,
       unsubscribeFromNotifications: manageNotificationsUseCase.unsubscribe,
-      sourceContentPurge: deps.sourceContentPurge,
       cancelGoogleImportsForConnection: googleImportV2Lifecycle
         ? async (organizationIdValue, connectionId) => {
             await googleImportV2Lifecycle.cancelConnection(
@@ -1311,7 +1282,6 @@ export const buildIntegrationContext = (deps: IntegrationContextDeps) => {
         googleOAuthExchangeRecovery,
         encryptionPort,
         oauthPort,
-        gbpApiPort,
       },
       googleReviewApi,
       googleReviewPushTargetResolver,
