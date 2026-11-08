@@ -1,10 +1,12 @@
+import {
+  currentCorrectionTips,
+  effectiveValue,
+} from '../readings/effective-readings.server'
 import { and, eq, gt, inArray, lt, sql } from 'drizzle-orm'
 import type { Database, Tx } from '#/shared/db'
 import { metricReadings } from '#/shared/db/schema'
 import type { OrganizationId } from '#/shared/domain/ids'
 import {
-  currentCorrectionTips,
-  effectiveValue,
   governedPortalWhere,
   QUALIFIED_SCAN_POLICY,
 } from '../../portal-results/portal-analytics-shared.server'
