@@ -924,25 +924,31 @@ review's current one answers not found, writing nothing, even before the use cas
 asks through a plain function fetched with its first use (`routes/_authenticated/-inbox-fns.ts`),
 so the stub stays out of the first-paint closure.
 
-The aggregate head counts every sequence the settlement ledger settles for its
-profile generation, including one a newer sequence of the same review had
-already superseded, so coverage can complete. A head that is the only head of
-its epoch is set to the ledger's count each time it counts, so one that missed a
-sequence earlier is corrected by the next settlement of its Property; a rolled
-profile generation has a sibling head, counts only its own settlements, and is
-never set from the ledger, which spans generations. A review whose newest
-sequence settles without an analysis (deleted at Google, expired, its text
-removed, its analysis abandoned) is withdrawn from the daily aggregates, so a
-day counts only reviews analysed at their current sequence. A Trend schedule the
-head has moved past is stale, not retried. The Trend scheduler, the Trend store
-and the Trend report read take coverage from the head's count too, as the Trend
-run does, never from the ledger: a rolled generation is not scheduled and does
-not read caught up until it is rebuilt. Two kinds of data written before
-those corrections are not repaired by the code: a head short of the ledger, and
-a review that stayed in its days after it was deleted. `docs/operations/runbooks.md`
-§22 gives a read-only statement that finds each, and a statement that recounts
-the first; the second is not withdrawn, and what it holds is de-identified
-insight data under the 24-month retention of `docs/obligations.md` §2.
+`ai-property-aggregate-settlement.ts` owns ledger identity, replay and stale-sequence
+decisions. The aggregate adapter holds the Property advisory lock and supplies its
+transaction, so ledger writes, contribution changes and coverage updates commit together.
+The ledger identity deliberately excludes the processing profile version; coverage
+remains specific to each profile's head.
+
+The aggregate head counts every settled sequence, including superseded sequences.
+An epoch's only head reconciles its count with the ledger on each settlement.
+A processing-profile rollover creates a new, incomplete head in the profile
+transaction. `ai-profile-rebuild.ts` resumes bounded batches from the recurring
+enrollment sweep, using contributions still assigned to older profiles as durable
+pending work. It takes Review's Property fence before the aggregate advisory lock,
+then rechecks the active source, merchant authorization and profile. Each batch
+moves effective contributions to the new profile and recomputes their local dates;
+mentions, corrections and operation provenance stay attached to the same sequences.
+Inbox reads and filters accept the rebuilt projection of that exact sequence while
+retaining the profile recorded on its paid operation.
+Coverage excludes pending effective contributions until rebuilding converges. No
+provider work or replay of the current profile population is started.
+
+A newer no-result settlement withdraws the review's contributions across profiles
+so an interrupted rebuild cannot resurrect them. Legacy daily/aspect projection
+writers are retired; retained legacy window reads derive counts and aspects from
+current contributions and stored analysis evidence. The historical drift queries
+in `docs/operations/runbooks.md` §22 remain available for older data.
 
 Coverage owes a settlement for every sequence after the authorization's start
 up to the Review head, except the ones Review gave back. The Review writer
