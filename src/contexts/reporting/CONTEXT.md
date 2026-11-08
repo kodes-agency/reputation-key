@@ -5,6 +5,13 @@ The three capabilities share one build, one application interface, and one stand
 set because Goal evaluation and dashboard presentation are downstream views of the same
 metric authority.
 
+`PortalRatingGoalReadApi.findPortalRatingGoalBlockInTransaction` reads running
+rating assignments and their published collectors inside the caller's transaction.
+Portal holds the shared Property goal fence before this read and its mutation;
+Goal definition and membership writers use the same fence. The preflight and
+commit read share the rating-subject decision, including a current rating version
+while a future scans version waits. Ended goals do not hold a collector.
+
 ## Responsibilities
 
 - Record version-pinned metric readings and append-only corrections.

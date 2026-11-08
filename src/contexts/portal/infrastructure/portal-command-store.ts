@@ -1,4 +1,10 @@
 import { assertStaffScanSwitch } from './staff-scan-switch-guard'
+import {
+  assertPortalCollectorChange,
+  assertPortalCollectorAvailable,
+} from './portal-collector-guard'
+import type { PortalRatingGoalReadApi } from '#/contexts/reporting/application/public-api'
+import { lockStaffTargetProperty } from '#/shared/db/staff-target-lock'
 // Atomic Portal command store (ARC-01).
 //
 // Portal state, responsibility/token side effects, and every required durable
@@ -420,7 +426,13 @@ function assertDeleteCommand(command: DeletePortalCommand): void {
   }
 }
 
-export const createAtomicPortalCommandStore = (db: Database): PortalCommandStore => {
+export const createAtomicPortalCommandStore = (
+  db: Database,
+  ratingGoalGuard: Pick<
+    PortalRatingGoalReadApi,
+    'findPortalRatingGoalBlockInTransaction'
+  >,
+): PortalCommandStore => {
   /** A transaction whose address collision is the refusal the use case's own check gives. */
   const addressing = <T>(run: (tx: Tx) => Promise<T>): Promise<T> =>
     refusingWhenTaken(() => db.transaction(run), PORTAL_SLUG_UNIQUE, slugTaken)
@@ -436,6 +448,8 @@ export const createAtomicPortalCommandStore = (db: Database): PortalCommandStore
       trace('portal.commandStore.updatePortal', async () => {
         assertUpdateCommand(command)
         await addressing(async (tx) => {
+          // Goal fence, publication fence, then Portal and owned rows.
+          await lockStaffTargetProperty(tx, command.organizationId, command.propertyId)
           await assertStaffScanSwitch(tx, command)
           if (command.publication?.kind === 'publish') {
             await lockPortalPublicationProperty(
@@ -445,6 +459,7 @@ export const createAtomicPortalCommandStore = (db: Database): PortalCommandStore
             )
           }
           const settingsBefore = await readPortalSettings(tx, command)
+          await assertPortalCollectorChange(tx, command, settingsBefore, ratingGoalGuard)
           const reconcileLinkTexts = await watchPrimaryLocaleChange(tx, command)
           const [updated] = await tx
             .update(portals)
@@ -581,6 +596,17 @@ export const createAtomicPortalCommandStore = (db: Database): PortalCommandStore
       trace('portal.commandStore.deletePortal', async () => {
         assertDeleteCommand(command)
         const revoked = await db.transaction(async (tx) => {
+          await lockStaffTargetProperty(tx, command.organizationId, command.propertyId)
+          await assertPortalCollectorAvailable(
+            tx,
+            {
+              organizationId: command.organizationId,
+              propertyId: command.propertyId,
+              portalId: command.portalId,
+              at: command.occurredAt,
+            },
+            ratingGoalGuard,
+          )
           const [deleted] = await tx
             .update(portals)
             .set({ deletedAt: command.occurredAt, updatedAt: command.revision })
