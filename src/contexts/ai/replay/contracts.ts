@@ -1,4 +1,5 @@
-import type { OrganizationId, PropertyId } from '#/shared/domain/ids'
+import type { OrganizationId, PropertyId, ReviewId } from '#/shared/domain/ids'
+import { AI_ADMISSION_IN_FLIGHT, type AiAdmissionLane } from '../domain/admission-lanes'
 
 export const AI_REVIEW_ANALYSIS_ENROLLMENT_SAFETY_CEILING = 10_000
 export const EMPTY_REVIEW_ANALYSIS_REVISION_SET_DIGEST =
@@ -209,3 +210,167 @@ export type ReviewAnalysisEnrollmentStorePort = Readonly<{
     input: Readonly<{ organizationId: OrganizationId; propertyId: PropertyId }>,
   ): Promise<ReviewAnalysisEnrollmentEvidence | null>
 }>
+/** Why an analysis event waits in the backlog instead of running on delivery. */
+export type AiReviewAnalysisBacklogOrigin =
+  | 'historical_onboarding'
+  | 'backfill'
+  /**
+   * A live event that could not run when it was delivered: its background lane
+   * was busy, current policy refused its Organization or Property, or an AI
+   * execution control was stopped.
+   */
+  | 'deferred_live'
+
+export type AiReviewAnalysisBacklogEntry = Readonly<{
+  eventEnvelopeId: string
+  organizationId: OrganizationId
+  propertyId: PropertyId
+  reviewId: ReviewId
+  sourceEpoch: number
+  sourceRevision: number
+  analysisSequence: number
+  origin: AiReviewAnalysisBacklogOrigin
+  priority: AiAdmissionLane
+  attempts: number
+  /** When the drainer first picked this entry; anchors its operation horizon. */
+  firstStartedAtEpochMillis: number
+}>
+
+export type AiReviewAnalysisBacklogProgress = Readonly<{
+  /** Waiting for their turn in the lane. */
+  queued: number
+  /** Claimed by a drainer right now. */
+  inProgress: number
+  /** Reviews with a ready analysis under the given fence. */
+  analysed: number
+  /** Reviews whose analysis settled, with or without a result. */
+  settled: number
+}>
+
+export type AiReviewAnalysisBacklogPort = Readonly<{
+  /** Idempotent by origin event. */
+  enqueue(
+    input: Readonly<{
+      eventEnvelopeId: string
+      organizationId: OrganizationId
+      propertyId: PropertyId
+      reviewId: ReviewId
+      sourceEpoch: number
+      sourceRevision: number
+      analysisSequence: number
+      origin: AiReviewAnalysisBacklogOrigin
+      nowEpochMillis: number
+    }>,
+  ): Promise<void>
+  /**
+   * Claim ready entries: at most `perProperty` for each property, newest review
+   * first (interactive-priority entries ahead of the rest), and at most
+   * `limit` in total. A claim expires after `leaseMillis`, so a crashed drainer
+   * cannot strand an entry.
+   */
+  claimReady(
+    input: Readonly<{
+      nowEpochMillis: number
+      leaseMillis: number
+      perProperty: number
+      limit: number
+    }>,
+  ): Promise<ReadonlyArray<AiReviewAnalysisBacklogEntry>>
+  /**
+   * Claim the newest waiting entry for one review and mark it interactive.
+   * Null when the review has nothing waiting or its entry is already claimed.
+   */
+  claimForReview(
+    input: Readonly<{
+      organizationId: OrganizationId
+      propertyId: PropertyId
+      reviewId: ReviewId
+      nowEpochMillis: number
+      leaseMillis: number
+    }>,
+  ): Promise<AiReviewAnalysisBacklogEntry | null>
+  /** The analysis settled (any outcome); the entry is done. */
+  complete(
+    input: Readonly<{ eventEnvelopeId: string; organizationId: OrganizationId }>,
+  ): Promise<void>
+  /** Return a claimed entry to the queue until `nextAttemptAtEpochMillis`. */
+  reschedule(
+    input: Readonly<{
+      eventEnvelopeId: string
+      organizationId: OrganizationId
+      nextAttemptAtEpochMillis: number
+      nowEpochMillis: number
+    }>,
+  ): Promise<void>
+  /**
+   * Return a claimed entry to the queue until `nextAttemptAtEpochMillis`
+   * without its work having been tried: current policy refused it, or an AI
+   * execution control was stopped. Unlike `reschedule` it counts no attempt,
+   * and it clears the entry's first start, so the operation horizon begins
+   * when a drainer next takes it: time spent held by a stop is not a stuck
+   * attempt.
+   */
+  release(
+    input: Readonly<{
+      eventEnvelopeId: string
+      organizationId: OrganizationId
+      nextAttemptAtEpochMillis: number
+      nowEpochMillis: number
+    }>,
+  ): Promise<void>
+  readProgress(
+    input: Readonly<{
+      organizationId: OrganizationId
+      propertyId: PropertyId
+      sourceEpoch: number
+      reviewAnalysisEpoch: number
+    }>,
+  ): Promise<AiReviewAnalysisBacklogProgress>
+  /** Whether a review has analysis waiting in the backlog. */
+  hasPendingForReview(
+    input: Readonly<{
+      organizationId: OrganizationId
+      propertyId: PropertyId
+      reviewId: ReviewId
+    }>,
+  ): Promise<boolean>
+}>
+export type AiReviewAnalysisReopenResult = Readonly<{
+  /** Reviews given a fresh analysis sequence and a backfill event. */
+  reopened: number
+  /**
+   * Reviews that would qualify but have used every reopen: they stay settled
+   * as not analysable. Reported on every sweep so they are never silent.
+   */
+  leftUnanalysed: number
+}>
+
+export type AiReviewAnalysisReopenPort = Readonly<{
+  /**
+   * Reopen text reviews whose current analysis settled without a result
+   * because its operation gave up for a reason that says nothing about the
+   * review (ADR 0058). Each gets a fresh analysis sequence and an
+   * `ai.review_analysis.backfill_requested` event, in one transaction per
+   * Property, so it is queued again through the ordinary path. At most
+   * `limit` reviews per call.
+   */
+  reopenAbandoned(
+    input: Readonly<{ limit: number; occurredAt: Date }>,
+  ): Promise<AiReviewAnalysisReopenResult>
+}>
+
+/** How long a drainer owns a claimed entry before another may take it. */
+export const AI_BACKLOG_CLAIM_LEASE_MILLIS = 3 * 60_000
+/**
+ * Provider calls one drain runs at once. It equals an organization's
+ * background in-flight budget, so one organization's import can use the whole
+ * drain. It stays below the worker's database pool: an analysis holds a client
+ * only for one short transaction at a time, never across its provider call.
+ */
+export const AI_BACKLOG_DRAIN_CONCURRENCY = AI_ADMISSION_IN_FLIGHT.organization.background
+/**
+ * A drain keeps claiming rounds for this long, then leaves the rest to the
+ * next tick. It stays under the worker's 25-second shutdown budget, so a
+ * deploy rarely interrupts a round.
+ */
+export const AI_BACKLOG_DRAIN_TIME_BUDGET_MILLIS = 20_000

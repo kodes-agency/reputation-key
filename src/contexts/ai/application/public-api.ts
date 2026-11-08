@@ -77,3 +77,12 @@ export type {
   ReadGuestVoiceDetail,
   GuestVoiceDetailResponse,
 } from '../guest-voice/get-detail.server'
+
+// Operator commands and the worker reach history replay only through here.
+export { AI_BACKLOG_DRAIN_CONCURRENCY } from '../replay/contracts'
+export { createApproveReviewAnalysisEnrollment } from '../replay/approve-enrollment.server'
+export { createReviewAnalysisEnrollmentAdapter } from '../replay/enrollment-store.server'
+export {
+  listSpentReviewAnalyses,
+  reopenSpentReviewAnalyses,
+} from '../replay/reopen-store.server'

@@ -1,5 +1,5 @@
-import { eraseRetiredDerivatives } from './ai-review-analysis-erasure'
-import { preserveAnalysisEnrollment } from './ai-enrollment-consent-refresh'
+import { eraseRetiredDerivatives } from '../infrastructure/adapters/ai-review-analysis-erasure'
+import { preserveAnalysisEnrollment } from './consent-refresh.server'
 import { and, eq, inArray, sql } from 'drizzle-orm'
 import type { Database } from '#/shared/db'
 import { aiReviewAnalysisEnrollments, eventConsumerReceipts } from '#/shared/db/schema'
@@ -12,15 +12,16 @@ import type {
   ReviewAnalysisEnrollmentFence,
   ReviewAnalysisEnrollmentReconcileResult,
   ReviewAnalysisEnrollmentStorePort,
-} from '../../application/ports/ai-review-analysis-enrollment.port'
-import { AI_REVIEW_ANALYSIS_ENROLLMENT_SAFETY_CEILING } from '../../application/ports/ai-review-analysis-enrollment.port'
-import { enrollmentOwesAnalysis } from './ai-review-analysis-reopen.adapter'
+} from './contracts'
+import { AI_REVIEW_ANALYSIS_ENROLLMENT_SAFETY_CEILING } from './contracts'
+import { enrollmentOwesAnalysis } from './reopen-store.server'
 import {
   eligibleRevisionSnapshot,
   lockPropertyBeforeReplay,
   replayEnrollmentCandidates,
-} from './ai-review-analysis-enrollment-replay'
-import { lockPropertyForAuthorizationChange } from './review-analysis-property-fence'
+} from './enrollment-candidates.server'
+import { lockPropertyForAuthorizationChange } from '../infrastructure/adapters/review-analysis-property-fence'
+import { planReplaySnapshot } from './snapshot'
 
 type Tx = Parameters<Parameters<Database['transaction']>[0]>[0]
 type Row = Readonly<Record<string, unknown>>
@@ -540,22 +541,23 @@ export const createReviewAnalysisEnrollmentAdapter = (
         }
       }
 
-      if (enrollmentState === 'running') {
-        return reconcileRunning(tx, row, input, storedFence)
-      }
-
       const expectedSnapshot = await eligibleRevisionSnapshot(tx, {
         organizationId: String(row.organization_id),
         propertyId: String(row.property_id),
         sourceEpoch: storedFence.sourceEpoch,
         analysisStartSequence: storedFence.analysisStartSequence,
+        enrollmentId: input.enrollmentId,
       })
-      if (
-        expectedSnapshot.count !==
-          safeInteger(row.snapshot_revision_count, 'snapshot count') ||
-        expectedSnapshot.digest !== String(row.snapshot_revision_set_digest)
-      ) {
-        const terminalAt = new Date(
+      const snapshotPlan = planReplaySnapshot(
+        {
+          count: safeInteger(row.snapshot_revision_count, 'snapshot count'),
+          digest: String(row.snapshot_revision_set_digest),
+        },
+        expectedSnapshot,
+        safeInteger(row.safety_ceiling, 'safety ceiling', 1),
+      )
+      if (snapshotPlan.status === 'refresh') {
+        const capturedAt = new Date(
           Math.max(
             input.occurredAt.getTime(),
             epochMillis(row.snapshot_captured_at, 'snapshot capture time'),
@@ -564,15 +566,68 @@ export const createReviewAnalysisEnrollmentAdapter = (
         await tx
           .update(aiReviewAnalysisEnrollments)
           .set({
-            state: 'stalled',
-            terminalReason: 'verification_inconsistent',
-            terminalAt,
-            updatedAt: terminalAt,
+            state: snapshotPlan.assistedApprovalRequired
+              ? 'awaiting_assisted_approval'
+              : enrollmentState,
+            snapshotRevisionCount: expectedSnapshot.count,
+            snapshotRevisionSetDigest: expectedSnapshot.digest,
+            snapshotCapturedAt: capturedAt,
+            assistedApprovalRequired: snapshotPlan.assistedApprovalRequired,
+            assistedApprovedAt: null,
+            assistedApprovedBy: null,
+            assistedApprovalEvidenceDigest: null,
+            assistedApprovalCorrelationId: null,
+            updatedAt: capturedAt,
           })
-          .where(eq(aiReviewAnalysisEnrollments.id, input.enrollmentId))
-        return { status: 'stalled', reason: 'verification_inconsistent' }
+          .where(
+            and(
+              eq(aiReviewAnalysisEnrollments.id, input.enrollmentId),
+              eq(aiReviewAnalysisEnrollments.organizationId, input.organizationId),
+            ),
+          )
+        if (snapshotPlan.assistedApprovalRequired) {
+          return {
+            status: 'awaiting_assisted_approval',
+            eligibleRevisionCount: expectedSnapshot.count,
+            safetyCeiling: safeInteger(row.safety_ceiling, 'safety ceiling', 1),
+          }
+        }
       }
-      if (expectedSnapshot.count === 0) return catchUp(tx, row, input.occurredAt)
+
+      const currentRow: Row = {
+        ...row,
+        snapshot_revision_count: expectedSnapshot.count,
+        snapshot_revision_set_digest: expectedSnapshot.digest,
+      }
+      const enrolled = safeInteger(row.enrolled_revision_count, 'enrolled count')
+      if (expectedSnapshot.count === enrolled) {
+        if (enrollmentState !== 'running')
+          return catchUp(tx, currentRow, input.occurredAt)
+        const result = await reconcileRunning(tx, currentRow, input, storedFence)
+        if (result.status === 'stalled') {
+          const terminalAt = new Date(
+            Math.max(
+              input.occurredAt.getTime(),
+              epochMillis(row.snapshot_captured_at, 'snapshot capture time'),
+            ),
+          )
+          await tx
+            .update(aiReviewAnalysisEnrollments)
+            .set({
+              state: 'stalled',
+              terminalReason: result.reason,
+              terminalAt,
+              updatedAt: terminalAt,
+            })
+            .where(
+              and(
+                eq(aiReviewAnalysisEnrollments.id, input.enrollmentId),
+                eq(aiReviewAnalysisEnrollments.organizationId, input.organizationId),
+              ),
+            )
+        }
+        return result
+      }
 
       const pinnedRevisionCount = await replayEnrollmentCandidates(tx, {
         scope: {
@@ -590,10 +645,15 @@ export const createReviewAnalysisEnrollmentAdapter = (
         .update(aiReviewAnalysisEnrollments)
         .set({
           state: 'running',
-          enrolledRevisionCount: pinnedRevisionCount,
+          enrolledRevisionCount: enrolled + pinnedRevisionCount,
           updatedAt,
         })
-        .where(eq(aiReviewAnalysisEnrollments.id, input.enrollmentId))
+        .where(
+          and(
+            eq(aiReviewAnalysisEnrollments.id, input.enrollmentId),
+            eq(aiReviewAnalysisEnrollments.organizationId, input.organizationId),
+          ),
+        )
       return {
         status: 'replay_started',
         runId: input.enrollmentId,

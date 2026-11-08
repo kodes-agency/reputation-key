@@ -1,37 +1,27 @@
+import {
+  AI_BACKLOG_CLAIM_LEASE_MILLIS,
+  AI_BACKLOG_DRAIN_CONCURRENCY,
+  AI_BACKLOG_DRAIN_TIME_BUDGET_MILLIS,
+} from './contracts'
 import type { OrganizationId, PropertyId, ReviewId } from '#/shared/domain/ids'
 import type { LoggerPort } from '#/shared/domain/logger.port'
 import {
   AI_ADMISSION_IN_FLIGHT,
   AI_ON_DEMAND_ANALYSIS_INTERACTIVE_HEADROOM,
   type AiAdmissionLane,
-} from '../../domain/admission-lanes'
+} from '../domain/admission-lanes'
 import type {
   AiReviewAnalysisBacklogEntry,
   AiReviewAnalysisBacklogPort,
-} from '../ports/ai-review-analysis-backlog.port'
+} from './contracts'
 import {
   AI_BACKFILL_OPERATION_HORIZON_MILLIS,
   type AnalyzeReviewEventInput,
   type AnalyzeReviewEventResult,
-} from './analyze-review-event'
+} from '../application/use-cases/analyze-review-event'
 
-/** How long a drainer owns a claimed entry before another may take it. */
-export const AI_BACKLOG_CLAIM_LEASE_MILLIS = 3 * 60_000
-/**
- * Provider calls one drain runs at once. It equals an organization's
- * background in-flight budget, so one organization's import can use the whole
- * drain. It stays below the worker's database pool: an analysis holds a client
- * only for one short transaction at a time, never across its provider call.
- */
-export const AI_BACKLOG_DRAIN_CONCURRENCY = AI_ADMISSION_IN_FLIGHT.organization.background
 /** Entries claimed per round: a property's in-flight share, for up to three properties. */
 const AI_BACKLOG_DRAIN_ROUND_LIMIT = 3 * AI_ADMISSION_IN_FLIGHT.property.background
-/**
- * A drain keeps claiming rounds for this long, then leaves the rest to the
- * next tick. It stays under the worker's 25-second shutdown budget, so a
- * deploy rarely interrupts a round.
- */
-export const AI_BACKLOG_DRAIN_TIME_BUDGET_MILLIS = 20_000
 /** Spacing after an unexpected failure, so a poisoned entry cannot spin. */
 const FAILURE_RETRY_DELAY_MILLIS = 60_000
 const DEFERRED_RETRY_DELAY_MILLIS = 30_000

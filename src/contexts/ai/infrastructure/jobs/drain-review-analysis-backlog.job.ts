@@ -4,7 +4,7 @@ import { redriveMetadataSchema } from '#/shared/jobs/failure-quarantine'
 import type {
   AuthorizeReviewAnalysisScope,
   DrainReviewAnalysisBacklog,
-} from '../../application/use-cases/drain-review-analysis-backlog'
+} from '../../replay/drain-backlog.server'
 
 /**
  * Recurring drain of Review Analysis waiting for the background lane

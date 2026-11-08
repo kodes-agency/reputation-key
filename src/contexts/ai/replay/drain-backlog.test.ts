@@ -4,21 +4,21 @@ import type { OrganizationId, PropertyId } from '#/shared/domain/ids'
 import {
   AI_ADMISSION_IN_FLIGHT,
   AI_ON_DEMAND_ANALYSIS_INTERACTIVE_HEADROOM,
-} from '../../domain/admission-lanes'
+} from '../domain/admission-lanes'
 import type {
   AiReviewAnalysisBacklogEntry,
   AiReviewAnalysisBacklogPort,
-} from '../ports/ai-review-analysis-backlog.port'
+} from './contracts'
 import {
   AI_BACKFILL_OPERATION_HORIZON_MILLIS,
   type AnalyzeReviewEventResult,
-} from './analyze-review-event'
+} from '../application/use-cases/analyze-review-event'
 import {
   AI_BACKLOG_CLAIM_LEASE_MILLIS,
   AI_BACKLOG_DRAIN_CONCURRENCY,
   AI_BACKLOG_DRAIN_TIME_BUDGET_MILLIS,
-  createDrainReviewAnalysisBacklog,
-} from './drain-review-analysis-backlog'
+} from './contracts'
+import { createDrainReviewAnalysisBacklog } from './drain-backlog.server'
 
 const NOW = Date.parse('2026-09-15T12:00:00.000Z')
 const ORGANIZATION_ID = organizationId('drain-backlog-org')

@@ -1,16 +1,16 @@
 import { describe, expect, it, vi } from 'vitest'
 import { organizationId, propertyId } from '#/shared/domain/ids'
-import type { AiAuthorizationPort } from '../ports/ai-authorization.port'
-import type { AiControlPort } from '../ports/ai-control.port'
+import type { AiAuthorizationPort } from '../application/ports/ai-authorization.port'
+import type { AiControlPort } from '../application/ports/ai-control.port'
 import type {
   ReviewAnalysisEnrollmentEvidence,
   ReviewAnalysisEnrollmentHead,
   ReviewAnalysisEnrollmentReconcileResult,
   ReviewAnalysisEnrollmentStorePort,
-} from '../ports/ai-review-analysis-enrollment.port'
-import { EMPTY_REVIEW_ANALYSIS_REVISION_SET_DIGEST } from '../ports/ai-review-analysis-enrollment.port'
-import type { AiReviewAnalysisReopenPort } from '../ports/ai-review-analysis-reopen.port'
-import { createAdvanceReviewAnalysisEnrollments } from './advance-review-analysis-enrollments'
+} from './contracts'
+import { EMPTY_REVIEW_ANALYSIS_REVISION_SET_DIGEST } from './contracts'
+import type { AiReviewAnalysisReopenPort } from './contracts'
+import { createAdvanceReviewAnalysisEnrollments } from './advance-enrollments.server'
 
 const ORGANIZATION_ID = organizationId('ai-enrollment-test')
 const PROPERTY_ID = propertyId('8f5508e5-2030-4f11-84aa-529e6bc7f93d')
