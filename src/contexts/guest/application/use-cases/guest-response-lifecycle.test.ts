@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { GuestResponse, GuestResponseStatus } from '../../domain/guest-response'
+import type { GuestMutationFact } from '../ports/guest-response-command-store.port'
 import type {
   GuestResponseRepository,
   GuestResponseScope,
@@ -17,6 +18,7 @@ import {
   guestResponseLifecycle,
   isQualifiedGuestResponse,
   type GuestResponseView,
+  type OperatorErasureAuthority,
 } from './guest-response-lifecycle'
 import { createRecordedOutbox } from '#/shared/testing/recorded-outbox'
 import type { PrimaryStaffAttributionSnapshot } from '#/shared/domain/primary-staff-attribution'
@@ -88,7 +90,10 @@ function memoryRepo(): GuestResponseRepository & {
   }
 }
 
-function harness(clock: () => Date = () => new Date('2026-08-09T12:00:00Z')) {
+function harness(
+  clock: () => Date = () => new Date('2026-08-09T12:00:00Z'),
+  operatorAuthority?: OperatorErasureAuthority,
+) {
   const repo = memoryRepo()
   let sequence = 10
   const outbox = createRecordedOutbox()
@@ -241,6 +246,20 @@ function harness(clock: () => Date = () => new Date('2026-08-09T12:00:00Z')) {
       await outbox.record(fact)
       return 'applied' as const
     },
+    commitErased: async (
+      response: GuestResponse,
+      facts: ReadonlyArray<GuestMutationFact>,
+    ) => {
+      const index = repo.responses.findIndex((row) => row.id === response.id)
+      if (index < 0) return 'conflict' as const
+      repo.responses[index] = {
+        ...response,
+        ratingSourceEventId: null,
+        feedbackSourceEventId: null,
+      }
+      for (const fact of facts) await outbox.record(fact)
+      return 'applied' as const
+    },
     commitWithdrawn: async (
       response: GuestResponse,
       facts: Parameters<
@@ -263,6 +282,7 @@ function harness(clock: () => Date = () => new Date('2026-08-09T12:00:00Z')) {
     clock,
     idGen: () => `00000000-0000-4000-8000-${String(sequence++).padStart(12, '0')}`,
     commandStore,
+    operatorAuthority,
     resolvePrimaryStaffAttribution: async () => {
       staffAttributionResolutionCount += 1
       return resolvedStaffAttribution
@@ -1041,5 +1061,73 @@ describe('canStartNewGuestResponse', () => {
   it('widens nothing else: a withdrawn response still qualifies for no Google or link action', () => {
     expect(isQualifiedGuestResponse(view('deleted', null))).toBe(false)
     expect(isQualifiedGuestResponse(view('deleted', 2))).toBe(false)
+  })
+})
+
+describe('operator erasure', () => {
+  const sessionId = guestSessionId('00000000-0000-4000-8000-000000000003')
+  const allow: OperatorErasureAuthority = { verify: async (id) => id === 'operator-1' }
+
+  it('erases after the withdrawal window and retracts the readings', async () => {
+    let now = new Date('2026-08-09T12:00:00.000Z')
+    const { lifecycle, rawLifecycle, repo, outbox } = harness(() => now, allow)
+    await lifecycle.submit(scope, sessionId, { rating: 3, responseConsent: true })
+    const original = outbox.byTag('guest.rating.submitted')[0]!
+    now = new Date('2026-08-12T12:00:00.000Z')
+    await expect(lifecycle.withdraw(scope, sessionId)).rejects.toMatchObject({
+      code: 'response_withdrawal_expired',
+    })
+
+    await expect(
+      rawLifecycle.eraseAsOperator('operator-1', scope, repo.responses[0]!.id),
+    ).resolves.toBe('erased')
+
+    expect(repo.responses[0]).toMatchObject({ status: 'deleted', rating: null })
+    expect(outbox.byTag('guest.rating.retracted')).toMatchObject([
+      { supersedesSourceEventId: original.eventId },
+    ])
+  })
+
+  it.each([undefined, allow])(
+    'writes nothing for a denied operator',
+    async (authority) => {
+      const { lifecycle, rawLifecycle, repo, outbox } = harness(undefined, authority)
+      await lifecycle.submit(scope, sessionId, { rating: 3, responseConsent: true })
+
+      await expect(
+        rawLifecycle.eraseAsOperator('someone-else', scope, repo.responses[0]!.id),
+      ).rejects.toMatchObject({ code: 'operator_not_authorized' })
+
+      expect(repo.responses[0]).toMatchObject({ status: 'submitted', rating: 3 })
+      expect(outbox.byTag('guest.rating.retracted')).toHaveLength(0)
+    },
+  )
+
+  it('writes nothing for a subject outside the tenant scope', async () => {
+    const { lifecycle, rawLifecycle, repo, outbox } = harness(undefined, allow)
+    await lifecycle.submit(scope, sessionId, { rating: 3, responseConsent: true })
+
+    await expect(
+      rawLifecycle.eraseAsOperator(
+        'operator-1',
+        { ...scope, organizationId: organizationId('other-org') },
+        repo.responses[0]!.id,
+      ),
+    ).rejects.toMatchObject({ code: 'response_not_found' })
+
+    expect(repo.responses[0]).toMatchObject({ status: 'submitted' })
+    expect(outbox.byTag('guest.rating.retracted')).toHaveLength(0)
+  })
+
+  it('is idempotent for an already erased response', async () => {
+    const { lifecycle, rawLifecycle, repo, outbox } = harness(undefined, allow)
+    await lifecycle.submit(scope, sessionId, { rating: 3, responseConsent: true })
+    const id = repo.responses[0]!.id
+    await rawLifecycle.eraseAsOperator('operator-1', scope, id)
+
+    await expect(rawLifecycle.eraseAsOperator('operator-1', scope, id)).resolves.toBe(
+      'already_erased',
+    )
+    expect(outbox.byTag('guest.rating.retracted')).toHaveLength(1)
   })
 })

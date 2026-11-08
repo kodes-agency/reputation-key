@@ -56,4 +56,12 @@ export type GuestResponseCommandStore = Readonly<{
     response: GuestResponse,
     facts: ReadonlyArray<GuestMutationFact>,
   ): Promise<'applied' | 'conflict'>
+  /**
+   * Operator erasure: the same atomic delete as a withdrawal without the guest
+   * session match. Refused unless the erasure journal is configured.
+   */
+  commitErased(
+    response: GuestResponse,
+    facts: ReadonlyArray<GuestMutationFact>,
+  ): Promise<'applied' | 'conflict'>
 }>
