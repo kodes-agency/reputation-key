@@ -14,6 +14,7 @@
 
 import { mkdir, readFile, writeFile } from 'node:fs/promises'
 import { dirname } from 'node:path'
+import { createReportingRightsExecutor } from '../../src/contexts/reporting/infrastructure/adapters/reporting-rights.adapter'
 import { getEnv } from '../../src/shared/config/env'
 import { getDb } from '../../src/shared/db'
 import { decodeErasureJournalExport } from '../../src/shared/db/lifecycle/erasure-journal.server'
@@ -60,6 +61,7 @@ async function main(): Promise<void> {
           createGoogleRightsExecutor({ db: getDb() }),
           createReviewRightsExecutor({ db: getDb() }),
           createInboxRightsExecutor({ db: getDb() }),
+          createReportingRightsExecutor(getDb(), () => new Date()),
         ],
         writeExportFile: async (path, bytes) => {
           await mkdir(dirname(path), { recursive: true })
