@@ -5,7 +5,7 @@
 // instead of leaving it for the reconciliation sweep: the manager it names has
 // lost current authority, its Property is no longer active at its source
 // epoch, or it holds AI-assisted text the last gate refuses
-// (reply-write-guards.ts, `aiTextMayBeClaimed`).
+// (reputation/replies/store.server.ts, `aiTextMayBeClaimed`).
 //
 // The first two are policy stops: the cycle is cancelled, the Reply returns to
 // draft with its text, and a manager submits it again when the Property or the
@@ -22,6 +22,7 @@
 // with nobody told.
 
 import { purgeAiDraftsForReview } from '#/shared/db/ai/ai-draft-purge'
+import type { ReplyScopeEffects } from '#/shared/db/reply-scope-effects'
 import { insertOutboxRow, type Tx } from '#/shared/outbox/commit'
 import type { Reply } from '../domain/types'
 import {
@@ -31,7 +32,7 @@ import {
 import { cancelledPublication } from '../domain/reply-command-preconditions'
 import { replyAuthor } from '../domain/reply-author'
 import type { PublicationAttemptStart } from '../application/ports/reply-command-store.port'
-import { guardedPublicationUpdate, updateCurrentAttempt } from './reply-write-guards'
+import type { ReplyWriter } from '../application/ports/reply-writer.port'
 
 /** Why the claim ends the cycle instead of taking it. */
 export type UnclaimableCause = Extract<
@@ -46,11 +47,13 @@ export type UnclaimableCause = Extract<
  * null, the claim's own answer for a cycle it did not take.
  */
 export async function cancelUnclaimablePublication(
+  { guardedPublicationUpdate, updateCurrentAttempt }: ReplyWriter,
   tx: Tx,
   reply: Reply,
   attempt: Pick<PublicationAttemptStart, 'propertyId'>,
   at: Date,
   cause: UnclaimableCause,
+  replyEffects: ReplyScopeEffects | undefined,
 ): Promise<null> {
   const cancellation = cancelledPublication(reply)
   if (!cancellation) return null
@@ -89,10 +92,14 @@ export async function cancelUnclaimablePublication(
   if (cause === 'ai_draft_withdrawn') {
     // The row is now one the purge empties (a draft after a cancelled cycle).
     // It records no second fact: the one above told the people waiting.
-    await purgeAiDraftsForReview(tx, {
-      organizationId: cancelled.organizationId,
-      reviewId: cancelled.reviewId,
-    })
+    await purgeAiDraftsForReview(
+      tx,
+      {
+        organizationId: cancelled.organizationId,
+        reviewId: cancelled.reviewId,
+      },
+      replyEffects,
+    )
   }
   return null
 }

@@ -1,3 +1,4 @@
+import { replyScopeEffects } from '#/contexts/reputation/application/public-api'
 // The Review writer allocates an AI-analysis sequence before it knows whether
 // the observation will be applied. A replayed observation, or one older than
 // what is stored, is not applied: no Review takes the number and no event
@@ -148,7 +149,13 @@ beforeEach(async () => {
 
 describe('the Review writer gives back a sequence it did not use', () => {
   it('releases nothing when every observation is applied', async () => {
-    const store = createAtomicReviewCommandStore(getDb(), () => new Date())
+    const store = createAtomicReviewCommandStore(
+      getDb(),
+      () => new Date(),
+      undefined,
+      undefined,
+      replyScopeEffects,
+    )
 
     await store.upsertAndRecord(
       review(),
@@ -171,7 +178,13 @@ describe('the Review writer gives back a sequence it did not use', () => {
   })
 
   it('releases the sequence of a replayed observation, so head = announced + released', async () => {
-    const store = createAtomicReviewCommandStore(getDb(), () => new Date())
+    const store = createAtomicReviewCommandStore(
+      getDb(),
+      () => new Date(),
+      undefined,
+      undefined,
+      replyScopeEffects,
+    )
     await store.upsertAndRecord(
       review(),
       announce,
@@ -207,7 +220,13 @@ describe('the Review writer gives back a sequence it did not use', () => {
   })
 
   it('releases the sequence of an out-of-order observation and still records its history', async () => {
-    const store = createAtomicReviewCommandStore(getDb(), () => new Date())
+    const store = createAtomicReviewCommandStore(
+      getDb(),
+      () => new Date(),
+      undefined,
+      undefined,
+      replyScopeEffects,
+    )
     await store.upsertAndRecord(
       review({ sourceUpdatedAt: new Date('2026-08-03T12:00:00.000Z') }),
       announce,
@@ -253,6 +272,7 @@ describe('the Review writer gives back a sequence it did not use', () => {
       () => new Date(),
       undefined,
       report,
+      replyScopeEffects,
     )
     await store.upsertAndRecord(
       review(),
@@ -294,6 +314,8 @@ describe('the Review writer gives back a sequence it did not use', () => {
       async () => {
         throw new Error('observation could not be stored')
       },
+      undefined,
+      replyScopeEffects,
     )
 
     await expect(

@@ -63,6 +63,7 @@ export type LoadReplyTemplate = (
     reviewId: ReviewId
     ref: ReplyLibraryRef
     targetLanguage: ReplyTemplateLanguageTarget
+    expectedReply?: import('#/shared/reply-revision').ReplyRevision | null
     excludeWordingKeys?: readonly string[]
   }>,
   ctx: AuthContext,
@@ -334,6 +335,7 @@ export const loadReplyTemplate =
       {
         reviewId: review.id,
         text: replyText,
+        expectedReply: input.expectedReply,
         replyLanguageTag: languageGroup,
         templateLayer: template.layer,
         templateRef: template.ref,

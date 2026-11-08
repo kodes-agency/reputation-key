@@ -1,3 +1,4 @@
+import { replyScopeEffects } from '#/contexts/reputation/application/public-api'
 // `requests.updateOrganization` as the build wires it, against real PostgreSQL.
 //
 // The server function calls this instance and nothing else, so it must do what
@@ -25,6 +26,7 @@ const saveOrganization = vi.fn(async (_data: Record<string, unknown>) => {})
 const deleteAssetObject = vi.fn(async (_key: string) => {})
 
 const requests = buildIdentityContext({
+  replyEffects: replyScopeEffects,
   db,
   identityPort: createInMemoryIdentityPort(),
   clock: () => new Date('2026-07-17T12:00:00Z'),

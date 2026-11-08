@@ -1,5 +1,6 @@
 import { and, asc, eq, gt, inArray, lte, or, sql } from 'drizzle-orm'
 import type { Database } from '#/shared/db'
+import type { ReplyScopeEffects } from '#/shared/db/reply-scope-effects'
 import {
   googleReplyObservationHeads,
   googleReplyObservations,
@@ -26,6 +27,7 @@ import { reviewSourceTransitioned } from '../../domain/events'
 import { eraseReviewSourceContent } from '../review-source-content-store'
 import { lockReplyTruthScope } from '../reply-truth-serialization'
 import { REVIEW_SOURCE_CONTENT_LIFECYCLE_RETENTION_POLICY_VERSION } from '../../application/use-cases/run-source-content-lifecycle'
+import { deleteGoogleSyncMirrors } from '#/contexts/reputation/application/public-api'
 
 const MAX_INSPECTION_PAGE_SIZE = 101
 const MAX_APPLY_PAGE_SIZE = 100
@@ -367,6 +369,7 @@ async function applyLifecycleToReview(
     evaluatedAt: Date
     propertyEpochs: ReadonlyMap<string, number>
   }>,
+  replyEffects: ReplyScopeEffects | undefined,
 ): Promise<LifecycleApplyDelta> {
   if (!lockedRowMatchesScope(row, context.scope)) return NO_LIFECYCLE_CHANGE
 
@@ -379,17 +382,21 @@ async function applyLifecycleToReview(
     row.sourceContentState !== 'active' && inspection.shadowFindings.length > 0
 
   if (shouldExpire || shouldRepairTombstone) {
-    const erased = await eraseReviewSourceContent(tx, {
-      reviewId: reviewId(row.id),
-      organizationId: organizationId(row.organizationId),
-      propertyId: propertyId(row.propertyId),
-      sourceEpoch: row.sourceEpoch,
-      expectedSourceRevision: row.sourceRevision,
-      state:
-        row.sourceContentState === 'provider_deleted'
-          ? 'provider_deleted'
-          : 'source_expired',
-    })
+    const erased = await eraseReviewSourceContent(
+      tx,
+      {
+        reviewId: reviewId(row.id),
+        organizationId: organizationId(row.organizationId),
+        propertyId: propertyId(row.propertyId),
+        sourceEpoch: row.sourceEpoch,
+        expectedSourceRevision: row.sourceRevision,
+        state:
+          row.sourceContentState === 'provider_deleted'
+            ? 'provider_deleted'
+            : 'source_expired',
+      },
+      replyEffects,
+    )
     if (!erased) {
       throw new Error('Review changed during lifecycle batch apply')
     }
@@ -425,19 +432,13 @@ async function applyLifecycleToReview(
     row.sourceContentState === 'active' &&
     inspection.shadowFindings.includes('active_google_sync_reply_redundant')
   ) {
-    const reconciled = await tx
-      .delete(replies)
-      .where(
-        and(
-          eq(replies.organizationId, row.organizationId),
-          eq(replies.reviewId, row.id),
-          eq(replies.source, 'google_sync'),
-        ),
-      )
-      .returning({ id: replies.id })
+    const reconciled = await deleteGoogleSyncMirrors(tx, {
+      organizationId: row.organizationId,
+      reviewId: row.id,
+    })
     return {
-      rowsRedacted: reconciled.length > 0 ? 1 : 0,
-      legacyGoogleRepliesReconciled: reconciled.length,
+      rowsRedacted: reconciled > 0 ? 1 : 0,
+      legacyGoogleRepliesReconciled: reconciled,
     }
   }
   return NO_LIFECYCLE_CHANGE
@@ -513,6 +514,7 @@ async function recordSourceExpiredFact(
  */
 export const createReviewSourceContentLifecycleStore = (
   db: Database,
+  replyEffects?: ReplyScopeEffects,
 ): ReviewSourceContentLifecycleStore => {
   const readInspectionBatch = async (
     {
@@ -809,6 +811,7 @@ export const createReviewSourceContentLifecycleStore = (
             lockedById.get(candidate.id)!,
             inspectionById.get(reviewId(candidate.id))!,
             { scope, evaluatedAt: effectiveEvaluatedAt, propertyEpochs },
+            replyEffects,
           )
           rowsRedacted += delta.rowsRedacted
           legacyGoogleRepliesReconciled += delta.legacyGoogleRepliesReconciled

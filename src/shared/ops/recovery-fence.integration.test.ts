@@ -1,3 +1,4 @@
+import { replyScopeEffects } from '#/contexts/reputation/application/public-api'
 import { completeGoogleImportsForRestore } from '#/contexts/integration/infrastructure/google-import-completion'
 import { createPropertyGoogleBindingStore } from '#/contexts/property/infrastructure/property-google-binding-store'
 import { fixHistoryCutoff } from '#/contexts/review/infrastructure/repositories/review-provider-snapshot.repository'
@@ -45,9 +46,11 @@ describe('restore recovery fence (REG-04, integration)', () => {
             {
               ensureImportFollowUps: createPropertyGoogleBindingStore(
                 transaction as unknown as Database,
+                replyScopeEffects,
               ).ensureImportFollowUps,
               readReceipt: createPropertyGoogleBindingStore(
                 transaction as unknown as Database,
+                replyScopeEffects,
               ).readReceipt,
               prepareImportSync: (ownerTx, scope) =>
                 fixHistoryCutoff(ownerTx, {
@@ -214,7 +217,12 @@ describe('restore recovery fence (REG-04, integration)', () => {
           operatorId: 'restore-proof@example.com',
           correlationId: 'restore-proof-correlation',
         }
-        const first = await applyRecoveryFence(transaction, input, completeImports)
+        const first = await applyRecoveryFence(
+          transaction,
+          input,
+          completeImports,
+          replyScopeEffects,
+        )
         expect(first.replayed).toBe(false)
         expect(first.generation).toBeGreaterThanOrEqual(1)
         expect(first.counts.outboxEventsFenced).toBeGreaterThanOrEqual(1)
@@ -331,7 +339,12 @@ describe('restore recovery fence (REG-04, integration)', () => {
         expect(replayBefore.sessionsInvalidated).toBeGreaterThanOrEqual(1)
         expect(replayBefore.outboxEventsFenced).toBeGreaterThanOrEqual(1)
 
-        const replay = await applyRecoveryFence(transaction, input, completeImports)
+        const replay = await applyRecoveryFence(
+          transaction,
+          input,
+          completeImports,
+          replyScopeEffects,
+        )
         expect(replay).toMatchObject({
           id: first.id,
           generation: first.generation,
@@ -358,6 +371,7 @@ describe('restore recovery fence (REG-04, integration)', () => {
               sourceReleaseSha: 'c'.repeat(40),
             },
             completeImports,
+            replyScopeEffects,
           ),
         ).rejects.toThrow(/identity, generation, or source binding conflicts/)
         await expect(
@@ -368,6 +382,7 @@ describe('restore recovery fence (REG-04, integration)', () => {
               operatorId: 'different-operator@example.com',
             },
             completeImports,
+            replyScopeEffects,
           ),
         ).rejects.toThrow(/identity, generation, or source binding conflicts/)
 

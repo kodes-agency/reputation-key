@@ -1,3 +1,4 @@
+import { replyScopeEffects } from '#/contexts/reputation/application/public-api'
 // The v3 seed in `adopt` mode, read the way an end-to-end stack reads it (PostgreSQL): Review
 // counts the Property's reviews for Guest voice 2.0 from its own source cache, and serves a
 // review's words only from a row that holds a location and a retention date. So the seed
@@ -86,7 +87,12 @@ describe.sequential(
       adopt: true,
       externalLocationId: GOOGLE_LOCATION_PRIMARY_RESOURCE,
     })
-    const reviewsStore = createReviewRepository(db, () => new Date())
+    const reviewsStore = createReviewRepository(
+      db,
+      () => new Date(),
+      undefined,
+      replyScopeEffects,
+    )
 
     async function removeProperty(): Promise<void> {
       await db.execute(
@@ -159,7 +165,11 @@ describe.sequential(
       const read = createReadGuestVoiceV2({
         propertyAccess: async () => [],
         authorization: createAiAuthorizationAdapter(db),
-        processingProfiles: createPropertyProcessingProfileAdapter(db, () => new Date()),
+        processingProfiles: createPropertyProcessingProfileAdapter(
+          db,
+          () => new Date(),
+          replyScopeEffects,
+        ),
         calendar: createAiPropertyCalendarAdapter(db),
         facts: createAiGuestVoiceFactsAdapter(db),
         reviewSources: { readTrendPopulation: reviewsStore.readTrendPopulation },

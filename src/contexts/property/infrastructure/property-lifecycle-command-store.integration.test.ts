@@ -1,3 +1,4 @@
+import { replyScopeEffects } from '#/contexts/reputation/application/public-api'
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 import { sql } from 'drizzle-orm'
 import { getDb } from '#/shared/db'
@@ -103,7 +104,7 @@ describe('Property lifecycle command store atomicity', () => {
   it('preserves one stable row while co-committing archive and its durable fact', async () => {
     const event = archiveEvent()
 
-    await createPropertyLifecycleCommandStore(db).transitionLifecycle(
+    await createPropertyLifecycleCommandStore(db, replyScopeEffects).transitionLifecycle(
       archiveCommand(event),
     )
 
@@ -149,7 +150,9 @@ describe('Property lifecycle command store atomicity', () => {
     `)
 
     await expect(
-      createPropertyLifecycleCommandStore(db).transitionLifecycle(archiveCommand(event)),
+      createPropertyLifecycleCommandStore(db, replyScopeEffects).transitionLifecycle(
+        archiveCommand(event),
+      ),
     ).rejects.toMatchObject({ cause: { code: '23505' } })
 
     const result = await db.execute(sql`

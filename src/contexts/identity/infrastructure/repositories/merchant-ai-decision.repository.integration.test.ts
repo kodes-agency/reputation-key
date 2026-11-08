@@ -1,3 +1,4 @@
+import { replyScopeEffects } from '#/contexts/reputation/application/public-api'
 import { randomUUID } from 'node:crypto'
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 import { sql } from 'drizzle-orm'
@@ -33,7 +34,11 @@ const FIRST_DEFERRAL = new Date('2026-09-15T08:00:00.000Z')
 const LATER = new Date('2026-09-16T08:00:00.000Z')
 
 const deferrals = createMerchantAiDecisionDeferralStore(db)
-const authorizations = createMerchantAiAuthorizationStore(db, randomUUID)
+const authorizations = createMerchantAiAuthorizationStore(
+  db,
+  randomUUID,
+  replyScopeEffects,
+)
 
 function enableCommand(propertyId: string, idempotencyKey: string) {
   return {

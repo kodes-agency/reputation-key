@@ -1,3 +1,4 @@
+import { replyScopeEffects } from '#/contexts/reputation/application/public-api'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   createAtomicReviewCommandStore,
@@ -118,6 +119,7 @@ describe('a review stored with a provider envelope glued to its text', () => {
       () => new Date(),
       undefined,
       report,
+      replyScopeEffects,
     )
     const split = { text: 'Ок', translatedText: 'Ok' }
     await store.upsertAndRecord(
@@ -200,6 +202,7 @@ describe('a review whose glued text Google never updated', () => {
       () => new Date(),
       undefined,
       report,
+      replyScopeEffects,
     )
     const split = { text: 'Ок', translatedText: 'Ok' }
     const observe = (

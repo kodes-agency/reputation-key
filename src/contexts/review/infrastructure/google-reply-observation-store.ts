@@ -3,7 +3,7 @@ import {
   carryDraftMeasurement,
   publishDraftMeasurement,
 } from '#/shared/db/ai/draft-measurement-lineage'
-import { and, desc, eq, inArray, or, sql } from 'drizzle-orm'
+import { and, desc, eq, sql } from 'drizzle-orm'
 import type { Database } from '#/shared/db'
 import {
   googleReplyObservationHeads,
@@ -37,6 +37,13 @@ import {
   reviewReplyPublicationCancelled,
   reviewReplyPublished,
 } from '../domain/events'
+import {
+  cancelReplyAtProviderTruth,
+  confirmPublicationAttempt,
+  confirmReplyPublished,
+  deleteGoogleSyncMirrors,
+  supersedePublicationAttemptById,
+} from '#/contexts/reputation/application/public-api'
 import { lockReplyTruthScope } from './reply-truth-serialization'
 import { assertObservationFence } from './google-reply-observation-fence'
 import { renewHeadContentClock } from './google-reply-observation-clock'
@@ -310,14 +317,6 @@ function settlesLegacyUnattributedAttempt(
   )
 }
 
-const cancelledReplySet = (observedAt: Date) => ({
-  status: 'draft' as const,
-  publicationState: 'cancelled' as const,
-  publicationLastErrorClass: null,
-  reconcileDueAt: null,
-  updatedAt: observedAt,
-})
-
 function providerTruthCancellationFact(
   input: RecordGoogleReplyObservation,
   internal: InternalReplyRow,
@@ -344,57 +343,36 @@ async function supersedeExternalCurrentAttempt(
   internal: InternalReplyRow,
   attempt: PublicationAttemptRow,
 ): Promise<DomainEvent> {
-  const cancelled = await tx
-    .update(replies)
-    .set(cancelledReplySet(input.observedAt))
-    .where(
-      and(
-        eq(replies.id, internal.id),
-        eq(replies.organizationId, input.organizationId),
-        eq(replies.publicationCycle, attempt.publicationCycle),
-        eq(replies.publicationAttempts, attempt.attemptNumber),
-        inArray(replies.status, [...CLAIMABLE_PUBLICATION_STATUSES]),
-        // Terminal ambiguity only stopped automatic checks; its attempt is as
-        // uncertain as before (outcome `ambiguous`), and confirmReplyOnGoogle
-        // already accepts it. Without it, a different reply on Google made
-        // "Check Google again" (D5) and every snapshot import of the Review
-        // throw here. Any other terminal row already says what happened and
-        // has no attempt this decision could supersede.
-        or(
-          inArray(replies.publicationState, [...UNCERTAIN_PUBLICATION_STATES]),
-          and(
-            eq(replies.publicationState, 'terminal'),
-            eq(replies.publicationLastErrorClass, 'ambiguous'),
-          ),
-        ),
-      ),
-    )
-    .returning({ id: replies.id })
-  if (!cancelled[0]) {
+  // Terminal ambiguity only stopped automatic checks; its attempt is as
+  // uncertain as before (outcome `ambiguous`), and confirmReplyOnGoogle
+  // already accepts it. Without it, a different reply on Google made
+  // "Check Google again" (D5) and every snapshot import of the Review
+  // throw here. Any other terminal row already says what happened and
+  // has no attempt this decision could supersede.
+  const cancelled = await cancelReplyAtProviderTruth(tx, {
+    kind: 'in_flight',
+    id: internal.id,
+    organizationId: input.organizationId,
+    observedAt: input.observedAt,
+    publicationCycle: attempt.publicationCycle,
+    publicationAttempts: attempt.attemptNumber,
+    statuses: CLAIMABLE_PUBLICATION_STATUSES,
+    uncertainStates: UNCERTAIN_PUBLICATION_STATES,
+    includeTerminalAmbiguity: true,
+  })
+  if (!cancelled) {
     throw reviewError(
       'invalid_transition',
       'Reply changed while recording an external current Google reply',
     )
   }
-  const superseded = await tx
-    .update(replyPublicationAttempts)
-    .set({
-      outcome: 'superseded',
-      confirmedObservationRevision: null,
-      updatedAt: input.observedAt,
-    })
-    .where(
-      and(
-        eq(replyPublicationAttempts.id, attempt.id),
-        inArray(replyPublicationAttempts.outcome, [
-          'sending',
-          'provider_outcome_pending',
-          'ambiguous',
-        ]),
-      ),
-    )
-    .returning({ id: replyPublicationAttempts.id })
-  if (!superseded[0]) {
+  const superseded = await supersedePublicationAttemptById(
+    tx,
+    attempt,
+    ['sending', 'provider_outcome_pending', 'ambiguous'],
+    input.observedAt,
+  )
+  if (!superseded) {
     throw reviewError(
       'invalid_transition',
       'Publication attempt changed while recording external provider truth',
@@ -416,22 +394,15 @@ async function cancelZeroAttemptAuthorization(
   internal: InternalReplyRow,
   authorization: Readonly<{ publicationCycle: number }>,
 ): Promise<DomainEvent> {
-  const cancelled = await tx
-    .update(replies)
-    .set(cancelledReplySet(input.observedAt))
-    .where(
-      and(
-        eq(replies.id, internal.id),
-        eq(replies.organizationId, input.organizationId),
-        eq(replies.publicationCycle, authorization.publicationCycle),
-        eq(replies.publicationAttempts, 0),
-        eq(replies.stateRevision, internal.stateRevision),
-        eq(replies.status, 'approved'),
-        eq(replies.publicationState, 'authorized'),
-      ),
-    )
-    .returning({ id: replies.id })
-  if (!cancelled[0]) {
+  const cancelled = await cancelReplyAtProviderTruth(tx, {
+    kind: 'zero_attempt_authorization',
+    id: internal.id,
+    organizationId: input.organizationId,
+    observedAt: input.observedAt,
+    publicationCycle: authorization.publicationCycle,
+    stateRevision: internal.stateRevision,
+  })
+  if (!cancelled) {
     throw reviewError(
       'invalid_transition',
       'Reply changed while superseding its zero-attempt authorization',
@@ -451,21 +422,18 @@ async function settleLegacyUnattributedAttempt(
   internal: InternalReplyRow,
   publicationTarget: GoogleReplyPublicationTarget,
 ): Promise<DomainEvent> {
-  const settled = await tx
-    .update(replies)
-    .set(cancelledReplySet(input.observedAt))
-    .where(
-      and(
-        eq(replies.id, internal.id),
-        eq(replies.organizationId, input.organizationId),
-        eq(replies.publicationCycle, publicationTarget.publicationCycle),
-        eq(replies.publicationAttempts, publicationTarget.attemptNumber),
-        inArray(replies.status, [...CLAIMABLE_PUBLICATION_STATUSES]),
-        inArray(replies.publicationState, [...UNCERTAIN_PUBLICATION_STATES]),
-      ),
-    )
-    .returning({ id: replies.id })
-  if (!settled[0]) {
+  const settled = await cancelReplyAtProviderTruth(tx, {
+    kind: 'in_flight',
+    id: internal.id,
+    organizationId: input.organizationId,
+    observedAt: input.observedAt,
+    publicationCycle: publicationTarget.publicationCycle,
+    publicationAttempts: publicationTarget.attemptNumber,
+    statuses: CLAIMABLE_PUBLICATION_STATUSES,
+    uncertainStates: UNCERTAIN_PUBLICATION_STATES,
+    includeTerminalAmbiguity: false,
+  })
+  if (!settled) {
     throw reviewError(
       'invalid_transition',
       'Legacy publication changed while recording provider truth',
@@ -483,41 +451,23 @@ async function confirmReplyOnGoogle(
   attempt: PublicationAttemptRow,
   observationRevision: number,
 ): Promise<DomainEvent> {
-  const confirmed = await tx
-    .update(replies)
-    .set({
-      status: 'published',
-      publicationState: 'published',
-      publishedAt: input.observedAt,
-      reconcileDueAt: null,
-      updatedAt: input.observedAt,
-    })
-    .where(
-      and(
-        eq(replies.id, internal.id),
-        eq(replies.organizationId, input.organizationId),
-        eq(replies.publicationCycle, attempt.publicationCycle),
-        inArray(replies.status, [...CLAIMABLE_PUBLICATION_STATUSES]),
-        inArray(replies.publicationState, [...UNCERTAIN_PUBLICATION_STATES, 'terminal']),
-      ),
-    )
-    .returning({ id: replies.id, stateRevision: replies.stateRevision })
-  if (!confirmed[0]) {
+  const confirmed = await confirmReplyPublished(tx, {
+    id: internal.id,
+    organizationId: input.organizationId,
+    observedAt: input.observedAt,
+    publicationCycle: attempt.publicationCycle,
+    statuses: CLAIMABLE_PUBLICATION_STATUSES,
+    publicationStates: [...UNCERTAIN_PUBLICATION_STATES, 'terminal'],
+  })
+  if (!confirmed) {
     throw reviewError(
       'invalid_transition',
       'Reply changed while confirming the Google observation',
     )
   }
-  await carryDraftMeasurement(tx, internal, confirmed[0])
-  await publishDraftMeasurement(tx, confirmed[0])
-  await tx
-    .update(replyPublicationAttempts)
-    .set({
-      outcome: 'confirmed',
-      confirmedObservationRevision: observationRevision,
-      updatedAt: input.observedAt,
-    })
-    .where(eq(replyPublicationAttempts.id, attempt.id))
+  await carryDraftMeasurement(tx, internal, confirmed)
+  await publishDraftMeasurement(tx, confirmed)
+  await confirmPublicationAttempt(tx, attempt, observationRevision, input.observedAt)
   return reviewReplyPublished({
     replyId: replyId(internal.id),
     reviewId: input.reviewId,
@@ -856,15 +806,10 @@ export const createGoogleReplyObservationStore = (
           // reply text now has one lifecycle owner. Remove any legacy mirror
           // after the governed observation is durable so it cannot become a
           // stale second source of provider truth.
-          await tx
-            .delete(replies)
-            .where(
-              and(
-                eq(replies.organizationId, input.organizationId),
-                eq(replies.reviewId, input.reviewId),
-                eq(replies.source, 'google_sync'),
-              ),
-            )
+          await deleteGoogleSyncMirrors(tx, {
+            organizationId: input.organizationId,
+            reviewId: input.reviewId,
+          })
 
           const cancellationFact = await settleSupersededPublication(
             tx,

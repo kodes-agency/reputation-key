@@ -1,3 +1,4 @@
+import { replyScopeEffects } from '#/contexts/reputation/application/public-api'
 // Property context — build.ts tests
 // Tests the PublicApi behavior and build wiring.
 
@@ -88,6 +89,7 @@ const runtimeDeps = {
 describe('PropertyPublicApi', () => {
   it('returns one standard publicApi/internal boundary for every cross-context seam', () => {
     const context = buildPropertyContext({
+      replyEffects: replyScopeEffects,
       db: {} as never,
       repo: createInMemoryPropertyRepo(),
       clock: () => new Date('2026-08-28T00:00:00.000Z'),
@@ -119,6 +121,7 @@ describe('PropertyPublicApi', () => {
 
   it('keeps the Google-binding store its own capability, off publicApi', () => {
     const context = buildPropertyContext({
+      replyEffects: replyScopeEffects,
       db: {} as never,
       repo: createInMemoryPropertyRepo(),
       clock: () => new Date('2026-08-28T00:00:00.000Z'),
@@ -145,6 +148,7 @@ describe('PropertyPublicApi', () => {
   it('publishes no raw Google-reference mutator on publicApi', () => {
     const repo = createInMemoryPropertyRepo()
     const context = buildPropertyContext({
+      replyEffects: replyScopeEffects,
       db: {} as never,
       repo,
       clock: () => new Date('2026-08-28T00:00:00.000Z'),
@@ -165,6 +169,7 @@ describe('PropertyPublicApi', () => {
       releaseRetentionFromEvent,
     } as unknown as PropertyGoogleBindingStore)
     const context = buildPropertyContext({
+      replyEffects: replyScopeEffects,
       db: {} as never,
       repo: createInMemoryPropertyRepo(),
       clock: () => new Date('2026-08-28T00:00:00.000Z'),
@@ -211,6 +216,7 @@ describe('PropertyPublicApi', () => {
     const staffPublicApi = createStubStaffApi()
 
     const { publicApi } = buildPropertyContext({
+      replyEffects: replyScopeEffects,
       db: {} as never,
       repo,
       clock,
@@ -234,6 +240,7 @@ describe('PropertyPublicApi', () => {
     const staffPublicApi = createStubStaffApi()
 
     const { publicApi } = buildPropertyContext({
+      replyEffects: replyScopeEffects,
       db: {} as never,
       repo,
       clock,
@@ -263,6 +270,7 @@ describe('PropertyPublicApi', () => {
     })
     repo.seed([sofia, newYork])
     const { publicApi } = buildPropertyContext({
+      replyEffects: replyScopeEffects,
       db: {} as never,
       repo,
       clock: () => new Date('2026-08-28T00:00:00.000Z'),
@@ -297,6 +305,7 @@ describe('PropertyPublicApi', () => {
     })
     repo.seed([active, archived])
     const { publicApi } = buildPropertyContext({
+      replyEffects: replyScopeEffects,
       db: {} as never,
       repo,
       clock: () => new Date('2026-08-28T00:00:00.000Z'),
@@ -325,6 +334,7 @@ describe('PropertyPublicApi', () => {
     repo.seed([prop])
     const managerId = userId('admin-1')
     const { publicApi } = buildPropertyContext({
+      replyEffects: replyScopeEffects,
       db: {} as never,
       repo,
       clock: () => new Date('2025-01-01'),
@@ -365,6 +375,7 @@ describe('PropertyPublicApi', () => {
     const manager = userId('manager-1')
     const grantedPropertyIds = { current: [prop.id] as ReadonlyArray<typeof prop.id> }
     const { publicApi } = buildPropertyContext({
+      replyEffects: replyScopeEffects,
       db: {} as never,
       repo,
       clock: () => new Date('2025-01-01'),
@@ -414,6 +425,7 @@ describe('PropertyPublicApi', () => {
     })
     repo.seed([archived])
     const { publicApi } = buildPropertyContext({
+      replyEffects: replyScopeEffects,
       db: {} as never,
       repo,
       clock: () => new Date('2025-01-01'),
@@ -447,6 +459,7 @@ describe('PropertyPublicApi', () => {
     })
     repo.seed([linked])
     const { publicApi } = buildPropertyContext({
+      replyEffects: replyScopeEffects,
       db: {} as never,
       repo,
       clock: () => new Date('2025-01-01'),
@@ -485,6 +498,7 @@ describe('PropertyPublicApi', () => {
     })
     repo.seed([linked, first])
     const { publicApi } = buildPropertyContext({
+      replyEffects: replyScopeEffects,
       db: {} as never,
       repo,
       clock: () => new Date('2025-01-01'),
@@ -534,6 +548,7 @@ describe('PropertyPublicApi', () => {
       const scoped = createInMemoryPropertyRepo()
       scoped.seed(properties)
       return buildPropertyContext({
+        replyEffects: replyScopeEffects,
         db: {} as never,
         repo: scoped,
         clock: () => new Date('2025-01-01'),
