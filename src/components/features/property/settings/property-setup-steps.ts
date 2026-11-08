@@ -4,7 +4,7 @@ import type {
   PropertySetupStep,
   PropertySetupStepKey,
 } from '#/contexts/reporting/application/public-api'
-import { RATING_GOAL_ARRIVAL_SEARCH } from '#/components/goals/rating-goal-arrival-search'
+import { RATING_GOAL_ARRIVAL_SEARCH } from '#/contexts/reporting/rating-goals/ui/rating-goal-arrival-search'
 import type { PropertySettingsSectionKey } from './property-settings-sections'
 
 const STEP_LABEL: Readonly<Record<PropertySetupStepKey, string>> = {
