@@ -13152,6 +13152,18 @@
     "checks": ["targets"]
   },
   {
+    "storyId": "portal-portalshare-print-kit-final-share--overflowing-back-refuses-download",
+    "state": "Overflowing Back Refuses Download",
+    "width": 320,
+    "checks": ["targets"]
+  },
+  {
+    "storyId": "portal-portalshare-print-kit-final-share--overflowing-back-refuses-download",
+    "state": "Overflowing Back Refuses Download",
+    "width": 390,
+    "checks": ["targets"]
+  },
+  {
     "storyId": "portal-portalshare-print-kit-final-share--download-sends-the-choice",
     "state": "Download Sends The Choice",
     "width": 320,
