@@ -1,5 +1,6 @@
 import { z } from 'zod/v4'
 import { providerRequestProfileOf } from '#/shared/ai-provider-attestations'
+import { createProviderAdapter } from '../provider-adapter'
 import type {
   AiProviderAdapter,
   AiProviderConnection,
@@ -50,12 +51,5 @@ export function createAnthropicProviderPreparation(): AiProviderPreparation<Prep
 export function createAnthropicProviderAdapter(
   connector: AiProviderConnection<PreparedAnthropicInvocation>,
 ): AiProviderAdapter<PreparedAnthropicInvocation> {
-  return Object.freeze({
-    ...createAnthropicProviderPreparation(),
-    invoke: (invocation, grant, outputSchema, signal) =>
-      connector.invoke(invocation, grant, outputSchema, signal),
-    readiness: () => connector.readiness?.() ?? true,
-    close: () => connector.close?.(),
-    destroy: () => connector.destroy?.(),
-  })
+  return createProviderAdapter(createAnthropicProviderPreparation(), connector)
 }
