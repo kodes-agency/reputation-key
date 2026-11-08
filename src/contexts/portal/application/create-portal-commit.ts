@@ -6,7 +6,7 @@ import type { AuthContext } from '#/shared/domain/auth-context'
 import { propertyId } from '#/shared/domain/ids'
 import { buildPortal } from '../domain/constructors'
 import { portalCreated, portalResponsibilityNeeded } from '../domain/events'
-import { derivePortalHealth } from '../domain/portal-health'
+import { buildPortalHealthFact } from '../publication/portal-facts.server'
 import type { NewPortalLocales } from '../domain/portal-new-locales'
 import type { Portal, PortalGroup, PortalId } from '../domain/types'
 import type { UserId } from '#/shared/domain/ids'
@@ -102,19 +102,12 @@ export function buildCreatePortalCommand(
     ...(plan.personalPortal?.sourceFence
       ? { personalSourceFence: plan.personalPortal.sourceFence }
       : {}),
-    health: {
+    health: buildPortalHealthFact({
       id: deps.entityIdGen(),
-      value: derivePortalHealth({
-        publicationState: portal.publicationState,
-        propertyAvailable: true,
-        hasActivePublicationSnapshot: false,
-        hasResolvablePublicAddress: false,
-        hasResponsibleManager: hasManager,
-        googleDestinationState: 'unavailable',
-      }),
+      publicationState: portal.publicationState,
+      hasResponsibleManager: hasManager,
       sourceVersion: portal.updatedAt.toISOString(),
-      effectiveAt: portal.createdAt,
-      observedAt: portal.createdAt,
-    },
+      at: portal.createdAt,
+    }),
   }
 }
