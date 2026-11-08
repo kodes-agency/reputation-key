@@ -2,7 +2,7 @@ import { createHmac } from 'node:crypto'
 import { describe, expect, it, vi } from 'vitest'
 import { organizationId, googleConnectionId } from '#/shared/domain/ids'
 import type { GoogleProviderCallAuthorization } from '../../application/google-provider-contract'
-import { createGoogleAuthorizedProviderExecutor } from './google-authorized-provider-executor.adapter'
+import { createGoogleAuthorizedProviderExecutor } from '../../provider/google-client.server'
 
 const authorization: GoogleProviderCallAuthorization = Object.freeze({
   capability: 'property.import_gbp_v2',

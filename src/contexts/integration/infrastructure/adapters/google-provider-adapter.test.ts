@@ -26,7 +26,7 @@ import {
 import {
   executeGoogleProviderJson,
   executeGoogleProviderRaw,
-} from './google-provider-adapter'
+} from '../../provider/google-client.server'
 
 const NOW_MS = 1_800_000_000_000
 const ORG_ID = organizationId('org-1')

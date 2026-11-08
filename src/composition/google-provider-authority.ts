@@ -30,10 +30,10 @@ import { createGoogleContentAuthorizer } from '#/contexts/integration/infrastruc
 import {
   permitAdmissionCode,
   createGoogleAuthorizedProviderExecutor,
-} from '#/contexts/integration/infrastructure/adapters/google-authorized-provider-executor.adapter'
+  createGoogleProviderCredentialAdmission,
+} from '#/contexts/integration/build'
 import { createDurableGoogleImportReferenceStore } from '#/contexts/integration/infrastructure/durable-import-reference-store'
 import { createGoogleDisconnectRevokeRepository } from '#/contexts/integration/infrastructure/repositories/google-disconnect-revoke.repository'
-import { createGoogleProviderCredentialAdmission } from '#/contexts/integration/infrastructure/adapters/google-credential-provider-admission.adapter'
 import {
   createOAuthStateHandleService,
   type OAuthStateHandleService,

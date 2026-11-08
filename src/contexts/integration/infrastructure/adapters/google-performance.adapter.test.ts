@@ -3,7 +3,7 @@ import { googleConnectionId, organizationId, propertyId } from '#/shared/domain/
 import type { GoogleAuthorizedProviderExecutor } from '../../application/ports/google-authorized-provider-executor.port'
 import { isGbpApiError } from '../../domain/gbp-api-error'
 import { createGooglePerformanceAdapter } from './google-performance.adapter'
-import { createSingle401RefreshExecutor } from './google-single-401-refresh-executor'
+import { createSingle401RefreshExecutor } from '../../provider/google-client.server'
 
 const input = Object.freeze({
   organizationId: organizationId('organization-1'),
