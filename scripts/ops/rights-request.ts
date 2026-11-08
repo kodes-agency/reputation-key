@@ -16,62 +16,63 @@ import { reputationReplyScopeEffects } from '../../src/composition/reply-scope-e
 import { mkdir, readFile, writeFile } from 'node:fs/promises'
 import { dirname } from 'node:path'
 import { createReportingRightsExecutor } from '../../src/contexts/reporting/infrastructure/adapters/reporting-rights.adapter'
+import { runNotificationRightsRequest } from '../../src/contexts/feed/application/public-api'
 import { getEnv } from '../../src/shared/config/env'
 import { getDb } from '../../src/shared/db'
-import { decodeErasureJournalExport } from '../../src/shared/db/lifecycle/erasure-journal.server'
 import { createGoogleRightsExecutor } from '../../src/shared/ops/rights/google-rights-executor'
+import { createNotificationRightsExecutor } from '../../src/shared/ops/rights/notification-rights-executor'
 import {
   createInboxRightsExecutor,
   createReviewRightsExecutor,
 } from '../../src/shared/ops/rights/review-inbox-rights-executors'
-import { runRightsExecutors } from '../../src/shared/ops/rights/rights-executor'
-import {
-  describeRightsReport,
-  planRightsReplay,
-  planRightsRequest,
-  rightsRequestCommandSpec,
-} from '../../src/shared/ops/rights/rights-request-command'
+import { rightsRequestCommandSpec } from '../../src/shared/ops/rights/rights-request-command'
+import { handleRightsRequest } from '../../src/shared/ops/rights/run-rights-request'
 import { runOperatorCommand } from './operator-command'
 
 async function main(): Promise<void> {
   const result = await runOperatorCommand(
     rightsRequestCommandSpec,
     async (ctx, args, io) => {
-      const production = getEnv().NODE_ENV === 'production'
-      const planned = planRightsRequest(ctx, args, { production })
-      if (!planned.ok) {
-        io.err(`${rightsRequestCommandSpec.name}: ${planned.error}`)
-        return 1
-      }
-      const { plan } = planned
-      for (const line of describeRightsReport(plan)) io.out(line)
-
-      if (plan.mode === 'replay' && plan.journalFile) {
-        const journal = decodeErasureJournalExport(
-          await readFile(plan.journalFile, 'utf8'),
-        )
-        for (const item of planRightsReplay(plan, journal.entries)) {
-          io.out(`${item.journalId} ${item.scope} ${item.disposition}`)
-        }
-        return 0
-      }
-      return runRightsExecutors({
-        plan,
-        io,
-        executors: [
-          createGoogleRightsExecutor({ db: getDb() }),
-          createReviewRightsExecutor({
-            db: getDb(),
-            replyEffects: reputationReplyScopeEffects,
-          }),
-          createInboxRightsExecutor({ db: getDb() }),
-          createReportingRightsExecutor(getDb(), () => new Date()),
-        ],
-        writeExportFile: async (path, bytes) => {
-          await mkdir(dirname(path), { recursive: true })
-          await writeFile(path, bytes, { mode: 0o600 })
+      const queue = ctx.container.jobQueue
+      return handleRightsRequest(
+        {
+          production: getEnv().NODE_ENV === 'production',
+          readFile: (path) => readFile(path, 'utf8'),
+          writeExportFile: async (path, bytes) => {
+            await mkdir(dirname(path), { recursive: true })
+            await writeFile(path, bytes, { mode: 0o600 })
+          },
+          executors: (finalWarning) => {
+            const notification = createNotificationRightsExecutor({
+              finalWarning,
+              run: (run) =>
+                runNotificationRightsRequest(
+                  ctx.container.db,
+                  async (job) => {
+                    if (!queue) throw new Error('The job queue is not configured')
+                    await queue.add(job.name, job.data, { jobId: job.jobId })
+                  },
+                  run,
+                ),
+            })
+            return finalWarning
+              ? [notification]
+              : [
+                  createGoogleRightsExecutor({ db: getDb() }),
+                  createReviewRightsExecutor({
+                    db: getDb(),
+                    replyEffects: reputationReplyScopeEffects,
+                  }),
+                  createInboxRightsExecutor({ db: getDb() }),
+                  createReportingRightsExecutor(getDb(), () => new Date()),
+                  notification,
+                ]
+          },
         },
-      })
+        ctx,
+        args,
+        io,
+      )
     },
   )
   process.exit(result.exitCode)
