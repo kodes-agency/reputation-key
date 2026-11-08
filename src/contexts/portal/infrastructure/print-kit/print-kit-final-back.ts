@@ -9,7 +9,10 @@
 // prepared once and drawn in every cell of a sheet, so the page that holds it, a
 // print shop's second page or a sheet's reverse, can be added when it is drawn.
 
-import type { PrintFinalRenderInput } from '../../application/ports/portal-print-final-renderer.port'
+import {
+  PrintFinalRenderRefusal,
+  type PrintFinalRenderInput,
+} from '../../application/ports/portal-print-final-renderer.port'
 import { printFinalBackArt } from '#/shared/domain/portal-print-final-art'
 import {
   layoutPrintFinalBack,
@@ -64,6 +67,9 @@ export function prepareFinalBack(
     propertyName: input.propertyName,
     measurer: pdfFinalMeasurer(doc, fonts),
   })
+  if (!layout.plan.fits) {
+    throw new PrintFinalRenderRefusal({ code: 'words_do_not_fit', moduleMm: null })
+  }
   const { palette, colours } = front.look
   // A sheet draws one back many times: its grain is made once.
   const art =
