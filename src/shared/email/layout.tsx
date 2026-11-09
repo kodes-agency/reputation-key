@@ -86,9 +86,9 @@ export const EMAIL_PALETTE = {
   },
 } as const
 
-/** System stack: webfonts are unreliable in mail clients, so Satoshi is a hint. */
+/** System stack: webfonts are unreliable in mail clients, so Plus Jakarta Sans is a hint. */
 const EMAIL_FONT_STACK =
-  "'Satoshi', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif"
+  "'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif"
 
 /** Brand footer line, rendered in the HTML footer and every plain-text twin. */
 export const EMAIL_SIGNATURE = 'Reputation Key · reputationkey.app'

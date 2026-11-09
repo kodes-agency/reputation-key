@@ -24,16 +24,16 @@ describe('getSecurityHeaders', () => {
     expect(csp).toContain("form-action 'self'")
   })
 
-  it('authorizes a per-response script nonce and the declared font origins', () => {
+  it('authorizes a per-response script nonce and serves fonts from our own origin only', () => {
     const csp = getSecurityHeaders({
       isProduction: false,
       cspNonce: 'bqc-csp-nonce',
     })['Content-Security-Policy']
 
     expect(csp).toContain("script-src 'self' 'nonce-bqc-csp-nonce'")
-    expect(csp).toContain("style-src 'self' 'unsafe-inline' https://api.fontshare.com")
-    expect(csp).toContain("font-src 'self' https://cdn.fontshare.com;")
-    expect(csp).not.toMatch(/googleapis|gstatic/)
+    expect(csp).toContain("style-src 'self' 'unsafe-inline';")
+    expect(csp).toContain("font-src 'self';")
+    expect(csp).not.toMatch(/googleapis|gstatic|fontshare/)
   })
 
   it('allows only the configured browser-upload origin for connections', () => {

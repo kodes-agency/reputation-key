@@ -27,28 +27,28 @@ colors:
   signal-green-muted: '#1A3328'
 typography:
   body:
-    fontFamily: 'Satoshi, Satoshi Fallback, Inter, system-ui, -apple-system, sans-serif'
+    fontFamily: 'Plus Jakarta Sans, Plus Jakarta Sans Fallback, system-ui, -apple-system, sans-serif'
     fontSize: '0.9375rem'
     fontWeight: 400
     lineHeight: 1.55
   label:
-    fontFamily: 'Satoshi, Satoshi Fallback, Inter, system-ui, -apple-system, sans-serif'
+    fontFamily: 'Plus Jakarta Sans, Plus Jakarta Sans Fallback, system-ui, -apple-system, sans-serif'
     fontSize: '0.8125rem'
     fontWeight: 500
     lineHeight: 1.4
     letterSpacing: '0.01em'
   title:
-    fontFamily: 'Satoshi, Satoshi Fallback, Inter, system-ui, -apple-system, sans-serif'
+    fontFamily: 'Plus Jakarta Sans, Plus Jakarta Sans Fallback, system-ui, -apple-system, sans-serif'
     fontSize: '1.125rem'
     fontWeight: 600
     lineHeight: 1.25
   headline:
-    fontFamily: 'Satoshi, Satoshi Fallback, Inter, system-ui, -apple-system, sans-serif'
+    fontFamily: 'Plus Jakarta Sans, Plus Jakarta Sans Fallback, system-ui, -apple-system, sans-serif'
     fontSize: 'clamp(1.25rem, 1.1rem + 0.75vw, 1.5rem)'
     fontWeight: 600
     lineHeight: 1.2
   display:
-    fontFamily: 'Plus Jakarta Sans, Plus Jakarta Sans Fallback, Satoshi, system-ui, sans-serif'
+    fontFamily: 'Plus Jakarta Sans, Plus Jakarta Sans Fallback, system-ui, sans-serif'
     fontSize: 'clamp(1.5rem, 1.2rem + 1.5vw, 2.25rem)'
     fontWeight: 700
     lineHeight: 1.15
@@ -168,30 +168,30 @@ A restrained palette built on tinted violet-graphite neutrals with one deliberat
 
 ## 3. Typography
 
-**Display Font:** Plus Jakarta Sans (with a size-adjusted local fallback, then Satoshi)
-**Body Font:** Satoshi (with a size-adjusted local fallback, then Inter, system-ui)
+**Display Font:** Plus Jakarta Sans (with a size-adjusted local fallback, then system-ui)
+**Body Font:** Plus Jakarta Sans (with a size-adjusted local fallback, then system-ui)
 **Mono Font:** JetBrains Mono (with a size-adjusted local fallback, then Fira Code, ui-monospace)
 
-**Where they come from.** Plus Jakarta Sans and JetBrains Mono are SIL OFL 1.1 and self-hosted from `public/fonts/app/` (Fontsource woff2, unmodified, in unicode-range subsets: latin, latin-ext, vietnamese, and Cyrillic and Greek where the family has them, because review text arrives in any language), behind one stylesheet, `app-fonts.css`, that sits outside the Vite pipeline so the bundle budget does not count it. Satoshi is the exception. Its Free Font License allows web use but forbids distributing or uploading the files, and this repository is public, so it stays on Fontshare: the root document preconnects to `api.fontshare.com` and `cdn.fontshare.com` and links the Fontshare stylesheet. Fontshare serves Satoshi at 400, 500 and 700 only; 600 draws the 700 file. No Google font host is used, and the CSP allows only the two Fontshare origins besides `'self'`. `src/shared/font-sets.ts` owns the links.
+**Where they come from.** Plus Jakarta Sans (400, 500, 600, 700) and JetBrains Mono (400, 500) are SIL OFL 1.1 and self-hosted from `public/fonts/app/` (Fontsource woff2, unmodified, in unicode-range subsets: latin, latin-ext, vietnamese, and Cyrillic and Greek where the family has them, because review text arrives in any language), behind one stylesheet, `app-fonts.css`, that sits outside the Vite pipeline so the bundle budget does not count it. Nothing is loaded from a font CDN, and the CSP allows only `'self'` for styles and fonts. `src/shared/font-sets.ts` owns the links.
 
-**No jump on swap.** Each of the three families has a local fallback face in `app-fonts.css` (`Satoshi Fallback`, `Plus Jakarta Sans Fallback`, `JetBrains Mono Fallback`), a local Arial (Courier New for the mono) with `size-adjust`, `ascent-override`, `descent-override` and `line-gap-override` computed from the font files' mean advance width and line metrics, and listed right after its web font in the `--font-*` stacks in `src/styles.css`. So `font-display: swap` replaces text without moving it. Where no Arial exists (stock Android) the face is skipped and the next family in the stack is used, unadjusted. When Satoshi's files change, re-measure.
+**No jump on swap.** Each of the two families has a local fallback face in `app-fonts.css` (`Plus Jakarta Sans Fallback`, `JetBrains Mono Fallback`), a local Arial (Courier New for the mono) with `size-adjust`, `ascent-override`, `descent-override` and `line-gap-override` computed from the font files' mean advance width and line metrics, and listed right after its web font in the `--font-*` stacks in `src/styles.css`. So `font-display: swap` replaces text without moving it. Where no Arial exists (stock Android) the face is skipped and the next family in the stack is used, unadjusted. When the font files change, re-measure.
 
-**Character:** Satoshi carries the system — geometric but warm, highly legible at body sizes, with enough character at larger weights to serve headings. Plus Jakarta Sans steps in for display moments where more personality is warranted. The pairing is subtle: both are geometric sans families, separated by weight and proportion, not category. JetBrains Mono anchors data with precision.
+**Character:** Plus Jakarta Sans carries the system — geometric but warm, highly legible at body sizes, with enough character at larger weights to serve headings and display moments alike. JetBrains Mono anchors data with precision.
 
 ### Hierarchy
 
 - **Display** (700, clamp(1.5rem, 1.2rem + 1.5vw, 2.25rem), 1.15): Page titles, hero sections. Plus Jakarta Sans. Tracking at -0.01em for tightness at scale. Ceiling at 2.25rem — this is a tool, not a billboard.
-- **Headline** (600, clamp(1.25rem, 1.1rem + 0.75vw, 1.5rem), 1.2): Section headings, card titles. Satoshi. The workhorse heading.
-- **Title** (600, 1.125rem, 1.25): Panel headings, dialog titles, sidebar sections. Satoshi. Fixed size — consistent across viewports.
-- **Body** (400, 0.9375rem / 15px, 1.55): All body copy. Max line length 65-75ch where prose is present. Satoshi. The 15px base size optimizes for data-dense interfaces without sacrificing readability.
-- **Label** (500, 0.8125rem / 13px, 1.4, 0.01em tracking): Captions, metadata, timestamps. Satoshi in medium weight for legibility at small sizes.
+- **Headline** (600, clamp(1.25rem, 1.1rem + 0.75vw, 1.5rem), 1.2): Section headings, card titles. Plus Jakarta Sans. The workhorse heading.
+- **Title** (600, 1.125rem, 1.25): Panel headings, dialog titles, sidebar sections. Plus Jakarta Sans. Fixed size — consistent across viewports.
+- **Body** (400, 0.9375rem / 15px, 1.55): All body copy. Max line length 65-75ch where prose is present. Plus Jakarta Sans. The 15px base size optimizes for data-dense interfaces without sacrificing readability.
+- **Label** (500, 0.8125rem / 13px, 1.4, 0.01em tracking): Captions, metadata, timestamps. Plus Jakarta Sans in medium weight for legibility at small sizes.
 - **Mono** (500, 0.875rem / 14px, 1.4): Metrics, codes, table data. JetBrains Mono. Slightly smaller than body for tabular density.
 
 ### Named Rules
 
 **The Fixed Scale Rule.** Product UI uses fixed rem sizes, not fluid clamps. Headings that shrink in sidebars or data panels look broken, not responsive. The only exceptions are Display and Headline, which use conservative clamps for page-level hierarchy.
 
-**The Three-Family Cap.** Satoshi, Plus Jakarta Sans, JetBrains Mono. No fourth font. One well-tuned sans with weight contrast carries more authority than three competing faces. The one exception is the guest surface, below.
+**The Two-Family Cap.** Plus Jakarta Sans, JetBrains Mono. No third font. One well-tuned sans with weight contrast carries more authority than competing faces. The one exception is the guest surface, below.
 
 ### Guest surface exception
 
@@ -207,7 +207,7 @@ The public guest page (`/p/$token`, the Immersive Hub) is not product UI. It is 
 - **Display:** Cormorant Garamond (600, and 500 italic), `--font-guest-display`.
 - **Body:** Ysabeau Office (400, 600), `--font-guest-body`.
 
-Both are SIL OFL 1.1 and self-hosted from `public/fonts/guest/` in four subsets (latin, latin-ext, cyrillic, cyrillic-ext), so a guest's phone contacts no font CDN. Each has a local fallback face sized to it (`size-adjust`, `ascent-override`, `descent-override`), measured against Times New Roman (Cormorant Garamond) and Arial (Ysabeau Office), so on macOS, iOS, Windows and Linux with Liberation fonts the swap from `font-display: swap` does not move the layout. Stock Android carries neither, so there the fallback resolves to Georgia or the generic serif and to `system-ui` unadjusted, and the swap can shift lines; adding measured Noto Serif and Roboto faces is a follow-up. `/p/$token` opts in through its loader (`fontSet: 'guest'`, derived from the snapshot's guest surface, `src/shared/font-sets.ts`); the root document then links `guest-fonts.css` and preloads the above-the-fold pair, in the Cyrillic subset for Bulgarian. Every other page, including login, `/privacy`, invites and guest pages published before the Immersive Hub (snapshot v1/v2), keeps Satoshi, Plus Jakarta Sans and JetBrains Mono from the app set (Fontshare for Satoshi, `public/fonts/app/` for the other two). The root document links one set per page. A surface with no guest loader data, such as the unavailable page or an admin live preview of the guest look, links `GUEST_FONT_STYLESHEET` itself (as the Storybook story does), or declares the set another way, rather than changing this rule.
+Both are SIL OFL 1.1 and self-hosted from `public/fonts/guest/` in four subsets (latin, latin-ext, cyrillic, cyrillic-ext), so a guest's phone contacts no font CDN. Each has a local fallback face sized to it (`size-adjust`, `ascent-override`, `descent-override`), measured against Times New Roman (Cormorant Garamond) and Arial (Ysabeau Office), so on macOS, iOS, Windows and Linux with Liberation fonts the swap from `font-display: swap` does not move the layout. Stock Android carries neither, so there the fallback resolves to Georgia or the generic serif and to `system-ui` unadjusted, and the swap can shift lines; adding measured Noto Serif and Roboto faces is a follow-up. `/p/$token` opts in through its loader (`fontSet: 'guest'`, derived from the snapshot's guest surface, `src/shared/font-sets.ts`); the root document then links `guest-fonts.css` and preloads the above-the-fold pair, in the Cyrillic subset for Bulgarian. Every other page, including login, `/privacy`, invites and guest pages published before the Immersive Hub (snapshot v1/v2), keeps Plus Jakarta Sans and JetBrains Mono from the app set, both self-hosted from `public/fonts/app/`. The root document links one set per page. A surface with no guest loader data, such as the unavailable page or an admin live preview of the guest look, links `GUEST_FONT_STYLESHEET` itself (as the Storybook story does), or declares the set another way, rather than changing this rule.
 
 ## 4. Elevation
 
@@ -311,8 +311,8 @@ In light mode, the same tonal stack inverts: near-white backgrounds step from pa
 - **Do** communicate depth through tonal layering (Obsidian → Surface → Elevated). A lighter surface reads as elevation.
 - **Do** use the 6px radius for buttons and inputs, 12px for cards. Consistency in shape vocabulary builds trust.
 - **Do** keep body text at 15px with 1.55 line-height. The slight increase over 14px matters for readability in data-dense screens.
-- **Do** use Satoshi at 500-600 weight for labels and headings. The medium weights carry enough presence without bold's aggression.
-- **Do** respect the three-font cap: Satoshi, Plus Jakarta Sans, JetBrains Mono. No fourth family.
+- **Do** use Plus Jakarta Sans at 500-600 weight for labels and headings. The medium weights carry enough presence without bold's aggression.
+- **Do** respect the two-family cap: Plus Jakarta Sans, JetBrains Mono. No third family.
 - **Do** keep animations to 150ms ease-out for micro-interactions, 200ms for layout transitions. Motion is state feedback, not decoration.
 - **Do** respect `prefers-reduced-motion` — all transitions become instant.
 
