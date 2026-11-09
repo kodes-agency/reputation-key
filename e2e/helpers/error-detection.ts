@@ -508,14 +508,12 @@ export function attachErrorDetection(
 }
 
 /**
- * BQC-6.1 hermeticity: the app font set is linked by RootDocument from external
- * CDNs (src/shared/font-sets.ts: api.fontshare.com, fonts.googleapis.com —
- * binaries from cdn.fontshare.com / fonts.gstatic.com). Tests must never depend
- * on real network: fontshare returned 500 in CI once and gated a green suite
- * (#274), and its TLS handshakes from CI runners took 5-25 s, which times out
- * `goto` and the networkidle waits. The four hosts get an empty stylesheet;
- * glyph rendering is irrelevant to every assertion. Guest (Immersive Hub) pages
- * self-host their fonts under /fonts/guest and are not affected.
+ * BQC-6.1 hermeticity: tests must never depend on real network. The app and
+ * guest font sets are self-hosted (src/shared/font-sets.ts), so no page asks a
+ * font CDN for anything; if one ever does, the Google hosts get an empty
+ * stylesheet instead of a slow real fetch, and glyph rendering is irrelevant to
+ * every assertion. Fontshare is not stubbed: the page fixture fails the test
+ * that requests it.
  *
  * The pattern is anchored at the scheme and terminated at the authority
  * delimiter so it matches the HOST and nothing else: an unanchored alternation
@@ -524,7 +522,10 @@ export function attachErrorDetection(
  * an empty stylesheet.
  */
 export const FONT_HOST_PATTERN =
-  /^https?:\/\/(?:api\.fontshare\.com|cdn\.fontshare\.com|fonts\.googleapis\.com|fonts\.gstatic\.com)(?:[:/?#]|$)/
+  /^https?:\/\/(?:fonts\.googleapis\.com|fonts\.gstatic\.com)(?:[:/?#]|$)/
+
+/** Fontshare served the old app face; nothing may request it any more. */
+const FONTSHARE_HOST_PATTERN = /^https?:\/\/(?:[^/?#]+\.)?fontshare\.com(?:[:/?#]|$)/
 
 export async function stubFontHosts(context: BrowserContext): Promise<void> {
   await context.route(FONT_HOST_PATTERN, (route) =>
@@ -572,7 +573,15 @@ export const test = base.extend<
     const collector = attachErrorDetection(page, {
       extraAllowlist: extraErrorAllowlist,
     })
+    const fontshareRequests: string[] = []
+    const onRequest = (request: Request): void => {
+      if (FONTSHARE_HOST_PATTERN.test(request.url()))
+        fontshareRequests.push(request.url())
+    }
+    page.on('request', onRequest)
     await use(page)
+    page.off('request', onRequest)
+    expect(fontshareRequests, 'expected zero requests to fontshare.com').toEqual([])
     await collector.assertEmpty(testInfo)
   },
 })
