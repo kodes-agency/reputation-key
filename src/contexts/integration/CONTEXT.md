@@ -150,6 +150,26 @@ that section's rules:
 
 ## Runtime
 
+`build.ts` is wiring only: repositories, adapters, the queue and the public groups.
+Three feature runtimes hold the rest of the construction:
+
+- `imports/import-runtime.server.ts` builds the import lifecycle, item processor,
+  discovery and transaction around one import command authorizer.
+- `performance/google-performance-runtime.server.ts` builds live Performance:
+  authorizer, single-401-refresh provider read and lease. Nothing is stored; it is
+  off unless the binding API, executor, content authority, principal keys and
+  lease service are all present. It also owns
+  `GOOGLE_PERFORMANCE_LIVE_DEPENDENCY_DESCRIPTORS`, which the architecture test
+  checks against the real call site.
+- `review-sync/google-review-sync-runtime.server.ts` builds the governed Google
+  review API, the push-target resolver and the system authority the notification
+  path shares with review sync.
+
+Dispatch evidence and recovery stay in the import stores and the claim reaper:
+the dispatch consumer is registered by `build.ts` through the outbox registry, and
+the retired `import-gbp-property-item-v2` job stays registered so old deliveries
+drain.
+
 `application/google-import-command-authorizer.ts` reauthorizes import provider
 calls against current membership and command authority after a credential refresh.
 `application/google-authorization-vector.ts` owns vector construction and the

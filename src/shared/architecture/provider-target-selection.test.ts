@@ -228,7 +228,10 @@ describe('BQC-4.3: exactly one provider construction site per adapter factory', 
     // Credential-bearing account discovery must use the governed client.
     ['createGbpApiAdapter', []],
     // BQC-5.2: the integration build module owns the adapter (was composition).
-    ['createGoogleReviewApiAdapter', ['src/contexts/integration/build.ts']],
+    [
+      'createGoogleReviewApiAdapter',
+      ['src/contexts/integration/review-sync/google-review-sync-runtime.server.ts'],
+    ],
     ['createMyBusinessNotificationsAdapter', ['src/contexts/integration/build.ts']],
     ['createGoogleOAuthAdapter', ['src/contexts/integration/build.ts']],
   ]
