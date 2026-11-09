@@ -5,6 +5,7 @@ import {
   foreignKey,
   integer,
   index,
+  pgEnum,
   pgTable,
   text,
   timestamp,
@@ -15,12 +16,42 @@ import {
 import { createdAtColumn, updatedAtColumn } from '../columns'
 import { googleConnections } from './google-connection.schema'
 import { properties } from './property.schema'
+
 // The enum names are persisted contracts shared with the running import store.
-import {
-  googleImportV2ActionEnum,
-  googleImportV2ItemStatusEnum,
-  googleImportV2OutcomeEnum,
-} from './google-import-v2.schema'
+export const googleImportV2ItemStatusEnum = pgEnum('google_import_v2_item_status', [
+  'pending',
+  'processing',
+  'imported',
+  'relinked',
+  'already_exists',
+  'failed',
+  'cancelled',
+])
+
+export const googleImportV2ActionEnum = pgEnum('google_import_v2_action', [
+  'create',
+  'relink',
+])
+
+export const googleImportV2OutcomeEnum = pgEnum('google_import_v2_outcome', [
+  'imported',
+  'relinked',
+  'already_exists',
+  'active_binding_conflict',
+  'stale_binding',
+  'reauthentication_required',
+  'reconnect_required',
+  'authorization_changed',
+  'user_cancelled',
+  'policy_disabled',
+  'organization_suspended',
+  'property_suspended',
+  'property_deleted',
+  'temporarily_unavailable',
+  'cleanup_required',
+  'internal_error',
+  'tenant_profile_invalid',
+])
 
 const timestamptz = (name: string) => timestamp(name, { withTimezone: true })
 

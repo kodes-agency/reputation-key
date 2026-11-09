@@ -38,8 +38,6 @@ type Fixture = Readonly<{
   siblingPropertyId: string
   importId: string
   connectionId: string
-  sagaId: string
-  batchId: string
   permitId: string
 }>
 
@@ -57,8 +55,6 @@ async function seed(options: { live: boolean }): Promise<Fixture> {
     siblingPropertyId: randomUUID(),
     importId: randomUUID(),
     connectionId: randomUUID(),
-    sagaId: randomUUID(),
-    batchId: randomUUID(),
     permitId: randomUUID(),
   }
   fixtures.push(fixture)
@@ -114,73 +110,6 @@ async function seed(options: { live: boolean }): Promise<Fixture> {
     [fixture.siblingPropertyId, fixture.organizationId, `sibling-${suffix}`, CREATED_AT],
   )
   await seedGoogleImport(fixture)
-  await q(
-    `INSERT INTO gbp_import_sagas (
-       id, organization_id, request_id, initiated_by, total_count, batch_count,
-       wire_replay_key_version, wire_replay_digest,
-       semantic_replay_key_version, semantic_replay_digest, created_at, updated_at
-     ) VALUES ($1, $2, $3, $4, 2, 1, 'wire_v1', $5, 'semantic_v1', $5, $6, $6)`,
-    [
-      fixture.sagaId,
-      fixture.organizationId,
-      randomUUID(),
-      fixture.userId,
-      MARKERS.replayDigest,
-      CREATED_AT,
-    ],
-  )
-  await q(
-    `INSERT INTO gbp_import_requests (
-       id, organization_id, request_id, initiated_by, saga_id, batch_ordinal,
-       status, total_count, processed_count, pending_count, processing_count,
-       imported_count, wire_replay_key_version, wire_replay_digest,
-       semantic_replay_key_version, semantic_replay_digest, created_at, updated_at
-     ) VALUES ($1, $2, $3, $4, $5, 0, $8, 2, $9, $10, 0, $9,
-               'wire_v1', $6, 'semantic_v1', $6, $7, $7)`,
-    [
-      fixture.batchId,
-      fixture.organizationId,
-      randomUUID(),
-      fixture.userId,
-      fixture.sagaId,
-      MARKERS.replayDigest,
-      CREATED_AT,
-      'processing',
-      options.live ? 1 : 2,
-      options.live ? 1 : 0,
-    ],
-  )
-  const itemStatuses = options.live ? ['imported', 'pending'] : ['imported', 'imported']
-  for (const status of itemStatuses) {
-    await q(
-      `INSERT INTO gbp_import_request_items (
-         id, organization_id, import_job_id, connection_id,
-         destination_property_id, provider_account_suffix,
-         provider_location_suffix, expected_connection_lifecycle_version,
-         expected_connection_access_version, expected_credential_generation,
-         action, update_existing_profile, property_name, country_code, timezone, status,
-         outcome_code, first_terminal_at, effect_deadline_at,
-         created_at, updated_at
-       ) VALUES (
-         $1, $2, $3, $4, $5, $11, $11, 1, 1, 1,
-         'create', true, 'Imported Location', 'US', 'UTC', $6, $7,
-         $8, $9, $10, $10
-       )`,
-      [
-        randomUUID(),
-        fixture.organizationId,
-        fixture.batchId,
-        fixture.connectionId,
-        randomUUID(),
-        status,
-        status === 'imported' ? 'imported' : null,
-        status === 'imported' ? CREATED_AT : null,
-        new Date(CREATED_AT.getTime() + 86_400_000),
-        CREATED_AT,
-        MARKERS.providerSuffix,
-      ],
-    )
-  }
   await q(
     `INSERT INTO idempotency_receipts (scope, key, payload, recorded_at)
      VALUES ('google_disconnect_revoke', $1, jsonb_build_object(
@@ -309,54 +238,11 @@ async function seedGoogleImport(fixture: Fixture): Promise<void> {
   }
 }
 
-/** A new-store import and an old-store batch holding only the Property's items. */
+/** An import holding only the Property's item. */
 async function seedSoloImports(fixture: Fixture, propertyId: string): Promise<void> {
   const soloImportId = randomUUID()
   await insertGoogleImport(fixture, soloImportId)
   await insertGoogleItem(fixture, soloImportId, propertyId)
-  const soloBatchId = randomUUID()
-  await lease.pool.query(
-    `INSERT INTO gbp_import_requests (
-       id, organization_id, request_id, initiated_by, saga_id, batch_ordinal,
-       status, total_count, processed_count, pending_count, processing_count,
-       imported_count, wire_replay_key_version, wire_replay_digest,
-       semantic_replay_key_version, semantic_replay_digest, created_at, updated_at
-     ) VALUES ($1, $2, $3, $4, $5, 1, 'processing', 1, 1, 0, 0, 1,
-               'wire_v1', $6, 'semantic_v1', $6, $7, $7)`,
-    [
-      soloBatchId,
-      fixture.organizationId,
-      randomUUID(),
-      fixture.userId,
-      fixture.sagaId,
-      MARKERS.replayDigest,
-      CREATED_AT,
-    ],
-  )
-  await lease.pool.query(
-    `INSERT INTO gbp_import_request_items (
-       id, organization_id, import_job_id, connection_id,
-       destination_property_id, provider_account_suffix,
-       provider_location_suffix, expected_connection_lifecycle_version,
-       expected_connection_access_version, expected_credential_generation,
-       action, update_existing_profile, property_name, country_code, timezone, status,
-       outcome_code, first_terminal_at, effect_deadline_at,
-       created_at, updated_at
-     ) VALUES ($1, $2, $3, $4, $5, $9, $9, 1, 1, 1,
-               'create', true, 'Imported Location', 'US', 'UTC', 'imported', 'imported',
-               $6, $7, $8, $8)`,
-    [
-      randomUUID(),
-      fixture.organizationId,
-      soloBatchId,
-      fixture.connectionId,
-      propertyId,
-      CREATED_AT,
-      new Date(CREATED_AT.getTime() + 86_400_000),
-      CREATED_AT,
-      MARKERS.providerSuffix,
-    ],
-  )
 }
 
 async function cleanup(fixture: Fixture): Promise<void> {
@@ -370,9 +256,6 @@ async function cleanup(fixture: Fixture): Promise<void> {
     'authorization_execution_permits',
     'google_import_items',
     'google_imports',
-    'gbp_import_request_items',
-    'gbp_import_requests',
-    'gbp_import_sagas',
     'google_connections',
     'properties',
   ]) {
@@ -387,9 +270,6 @@ async function cleanup(fixture: Fixture): Promise<void> {
 
 const TENANT_TABLES = [
   'google_connections',
-  'gbp_import_sagas',
-  'gbp_import_requests',
-  'gbp_import_request_items',
   'google_imports',
   'google_import_items',
   'authorization_execution_permits',
@@ -544,13 +424,7 @@ describe.sequential('Google rights executor through the rights-request command',
     const first = await runScript(apply(asked.organizationId))
     expect(first.exit).toBe(0)
 
-    for (const table of [
-      'google_import_items',
-      'google_imports',
-      'gbp_import_request_items',
-      'gbp_import_requests',
-      'gbp_import_sagas',
-    ]) {
+    for (const table of ['google_import_items', 'google_imports']) {
       expect(await rowCount(table, asked.organizationId)).toBe(0)
     }
     const connection = await lease.pool.query(
@@ -625,7 +499,7 @@ describe.sequential('Google rights executor through the rights-request command',
       (sum: number, row: { item_count: number }) => sum + row.item_count,
       0,
     )
-    expect(total).toBe(3)
+    expect(total).toBe(2)
     expect(
       payload.importItems.some(
         (row: { import_job_id: string }) => row.import_job_id === asked.importId,
@@ -635,7 +509,7 @@ describe.sequential('Google rights executor through the rights-request command',
     for (const secret of Object.values(MARKERS)) expect(file).not.toContain(secret)
   })
 
-  it("erases one Property's import items in both stores and prunes emptied parents", async () => {
+  it("erases one Property's import items and prunes emptied parents", async () => {
     const asked = await seed({ live: false })
     await seedSoloImports(asked, asked.propertyId)
     const items = (table: string, column: string, propertyId: string) =>
@@ -657,8 +531,7 @@ describe.sequential('Google rights executor through the rights-request command',
 
     const report = await runScript(propertyArgs([]))
     expect(report.exit).toBe(0)
-    expect(report.out.join('\n')).toContain('google_import_items=2')
-    expect(report.out.join('\n')).toContain('import_items=1')
+    expect(report.out.join('\n')).toContain('import_items=2')
 
     const result = await runScript(
       propertyArgs([
@@ -685,18 +558,8 @@ describe.sequential('Google rights executor through the rights-request command',
         asked.siblingPropertyId,
       ),
     ).toBe(1)
-    expect(
-      await items(
-        'gbp_import_request_items',
-        'destination_property_id',
-        asked.propertyId,
-      ),
-    ).toBe(0)
     // The shared import keeps its parent for the sibling; the solo import is gone.
     expect(await rowCount('google_imports', asked.organizationId)).toBe(1)
-    // The solo batch is pruned; the original batch still holds the other items.
-    expect(await rowCount('gbp_import_requests', asked.organizationId)).toBe(1)
-    expect(await rowCount('gbp_import_request_items', asked.organizationId)).toBe(2)
   })
 
   it('refuses to erase a Property with an import item in flight', async () => {
