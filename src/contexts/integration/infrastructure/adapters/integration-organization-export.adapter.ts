@@ -27,6 +27,7 @@ export type IntegrationOrganizationExportPayload = Readonly<{
   googleConnections: readonly ExportRecord[]
   importSagas: readonly ExportRecord[]
   importBatches: readonly ExportRecord[]
+  imports: readonly ExportRecord[]
   importItemStateCounts: readonly ExportRecord[]
   disconnectCleanupAttempts: readonly ExportRecord[]
   excludedRecordClasses: readonly Readonly<{
@@ -61,8 +62,8 @@ const MAX_SNAPSHOT_LAG_MS = 15 * 60 * 1000
  * - `google_connections.google_subject`, `google_account_email` and `scopes` are
  *   the Google-controlled identity of the grant, its display label, and the exact
  *   provider authority it carries. None is a fact about the tenant's own records.
- * - `gbp_import_request_items` is read only as **counts grouped by state**. Its
- *   rows carry `provider_account_suffix`, `provider_location_suffix` and
+ * - `gbp_import_request_items` and `google_import_items` are read only as
+ *   **counts grouped by state**. Their rows carry `provider_account_suffix`, `provider_location_suffix` and
  *   `google_review_uri`: provider-controlled identifiers and a Google-owned
  *   destination URI. A per-item file would put a location id in the archive,
  *   which this context may never do.
@@ -73,8 +74,8 @@ const MAX_SNAPSHOT_LAG_MS = 15 * 60 * 1000
  * - `google_disconnect_revoke` receipt payloads include a keyed digest of the
  *   exact token being revoked and the cleanup permit identifier; the attempt's
  *   state, outcome and timings are exported without them.
- * - `gbp_import_sagas` / `gbp_import_requests` replay key versions and digests
- *   are keyed idempotency material, not lifecycle status.
+ * - `gbp_import_sagas` / `gbp_import_requests` / `google_imports` replay key
+ *   versions and digests are keyed idempotency material, not lifecycle status.
  * - `google_import_discovery_records` are pre-confirmation provider candidate
  *   pages behind HMAC handles — raw Google-controlled content with a 24-hour
  *   bound, copied for one browser session and never a tenant record.
@@ -235,6 +236,7 @@ type IntegrationExportCollection =
   | 'googleConnections'
   | 'importSagas'
   | 'importBatches'
+  | 'imports'
   | 'importItemStateCounts'
   | 'disconnectCleanupAttempts'
 
@@ -243,6 +245,7 @@ const CSV_COLLECTIONS: readonly (readonly [string, IntegrationExportCollection])
     ['google_connection', 'googleConnections'],
     ['import_saga', 'importSagas'],
     ['import_batch', 'importBatches'],
+    ['import', 'imports'],
     ['import_item_state_count', 'importItemStateCounts'],
     ['disconnect_cleanup_attempt', 'disconnectCleanupAttempts'],
   ])
@@ -378,22 +381,60 @@ async function readPayload(
         (record) => [record.created_at, record.id],
       )
 
+      const imports = await readRows(
+        snapshot,
+        sql`SELECT
+              parent.id::text AS id,
+              parent.request_id::text AS request_id,
+              parent.initiated_by,
+              parent.total_count,
+              to_char(parent.first_terminal_at AT TIME ZONE 'UTC', ${UTC_TIMESTAMP_FORMAT}) AS first_terminal_at,
+              to_char(parent.purge_at AT TIME ZONE 'UTC', ${UTC_TIMESTAMP_FORMAT}) AS purge_at,
+              to_char(parent.created_at AT TIME ZONE 'UTC', ${UTC_TIMESTAMP_FORMAT}) AS created_at,
+              to_char(parent.updated_at AT TIME ZONE 'UTC', ${UTC_TIMESTAMP_FORMAT}) AS updated_at
+            FROM google_imports AS parent
+            WHERE parent.organization_id = ${organizationId}`,
+        (record) => [record.created_at, record.id],
+      )
+
       // Per-item rows carry provider account/location suffixes and the
       // Google-owned review URI, so the archive gets the shape of the work —
       // how many items reached which state — and never the provider handles.
       const importItemStateCounts = await readRows(
         snapshot,
         sql`SELECT
-              item.import_job_id::text AS import_job_id,
-              item.status::text AS status,
-              item.action::text AS action,
-              item.outcome_code::text AS outcome_code,
-              count(*)::int AS item_count,
-              to_char(min(item.created_at) AT TIME ZONE 'UTC', ${UTC_TIMESTAMP_FORMAT}) AS first_created_at,
-              to_char(max(item.updated_at) AT TIME ZONE 'UTC', ${UTC_TIMESTAMP_FORMAT}) AS last_updated_at
-            FROM gbp_import_request_items AS item
-            WHERE item.organization_id = ${organizationId}
-            GROUP BY item.import_job_id, item.status, item.action, item.outcome_code`,
+              grouped.import_job_id,
+              grouped.status,
+              grouped.action,
+              grouped.outcome_code,
+              grouped.item_count,
+              grouped.first_created_at,
+              grouped.last_updated_at
+            FROM (
+              SELECT
+                item.import_job_id::text AS import_job_id,
+                item.status::text AS status,
+                item.action::text AS action,
+                item.outcome_code::text AS outcome_code,
+                count(*)::int AS item_count,
+                to_char(min(item.created_at) AT TIME ZONE 'UTC', ${UTC_TIMESTAMP_FORMAT}) AS first_created_at,
+                to_char(max(item.updated_at) AT TIME ZONE 'UTC', ${UTC_TIMESTAMP_FORMAT}) AS last_updated_at
+              FROM gbp_import_request_items AS item
+              WHERE item.organization_id = ${organizationId}
+              GROUP BY item.import_job_id, item.status, item.action, item.outcome_code
+              UNION ALL
+              SELECT
+                item.import_id::text AS import_job_id,
+                item.status::text AS status,
+                item.action::text AS action,
+                item.outcome_code::text AS outcome_code,
+                count(*)::int AS item_count,
+                to_char(min(item.created_at) AT TIME ZONE 'UTC', ${UTC_TIMESTAMP_FORMAT}) AS first_created_at,
+                to_char(max(item.updated_at) AT TIME ZONE 'UTC', ${UTC_TIMESTAMP_FORMAT}) AS last_updated_at
+              FROM google_import_items AS item
+              WHERE item.organization_id = ${organizationId}
+              GROUP BY item.import_id, item.status, item.action, item.outcome_code
+            ) AS grouped`,
         (record) => [
           record.import_job_id,
           record.status,
@@ -432,6 +473,7 @@ async function readPayload(
         googleConnections,
         importSagas,
         importBatches,
+        imports,
         importItemStateCounts,
         disconnectCleanupAttempts,
         excludedRecordClasses: EXCLUDED_RECORD_CLASSES,

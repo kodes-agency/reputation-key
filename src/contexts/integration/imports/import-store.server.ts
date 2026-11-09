@@ -7,8 +7,10 @@ import type {
   GoogleImportV2Intent,
   GoogleImportV2Store,
 } from '../application/ports/google-import-v2-store.port'
-import type { GoogleImportCompletionDeps } from '../infrastructure/google-import-completion'
-import { completeImportItem } from './import-completion.server'
+import {
+  completeImportItem,
+  type GoogleImportCompletionDeps,
+} from './import-completion.server'
 import {
   createImportClaims,
   AUTHORIZATION_SNAPSHOT_COLUMNS,
@@ -28,7 +30,7 @@ import {
 } from './import-store-helpers.server'
 
 /** The root, every checkpoint and the dispatch fact either all commit or none do. */
-async function commitImport(
+async function insertImport(
   db: Database,
   intent: GoogleImportV2Intent,
 ): Promise<'committed' | 'conflict'> {
@@ -88,7 +90,6 @@ async function commitImport(
   }
 }
 
-/** Compatible with the running commands while storage is proved before cutover. */
 export function createImportStore(
   db: Database,
   clock: Clock,
@@ -147,28 +148,7 @@ export function createImportStore(
         },
       }
     },
-    commitIntent: (intent) => commitImport(db, intent),
-    commitSaga: (intent) => {
-      const batches = [...intent.batches].sort((a, b) => a.ordinal - b.ordinal)
-      const first = batches[0]
-      if (
-        !first ||
-        batches.some(
-          (batch, index) =>
-            batch.ordinal !== index ||
-            batch.items.length < 1 ||
-            batch.items.length > 100 ||
-            (index < batches.length - 1 && batch.items.length !== 100),
-        )
-      ) {
-        throw importCommitContractError('invalid Google import saga batch plan')
-      }
-      return commitImport(db, {
-        ...intent,
-        items: batches.flatMap((batch) => batch.items),
-        outboxEventId: first.outboxEventId,
-      })
-    },
+    commitImport: (intent) => insertImport(db, intent),
     reconcileFromReceipt: (input) =>
       db.transaction((tx) =>
         completeImportItem(tx, completion, { ...input, authority: { kind: 'receipt' } }),

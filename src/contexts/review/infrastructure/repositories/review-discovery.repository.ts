@@ -53,10 +53,7 @@ import { googleConnections } from '#/shared/db/schema/google-connection.schema'
 import { propertyIsSyncable } from '#/shared/db/syncable-property'
 import { reviewSyncState } from '#/shared/db/schema/review-sync.schema'
 import { reviewGoogleReputationSnapshotFacts } from '#/shared/db/schema/review-reputation.schema'
-import {
-  gbpImportRequestItems,
-  gbpImportRequests,
-} from '#/shared/db/schema/google-import-v2.schema'
+import { googleImportItems } from '#/shared/db/schema/google-import.schema'
 import type {
   ReviewDiscoveryCandidate,
   ReviewDiscoveryRepository,
@@ -67,7 +64,6 @@ import { trace } from '#/shared/observability/trace'
 const DISCOVERY_SOURCE = 'google'
 
 /** Import parent/item statuses that mean "this import has not settled yet". */
-const IN_FLIGHT_PARENT_STATUSES = ['queued', 'processing'] as const
 const IN_FLIGHT_ITEM_STATUSES = ['pending', 'processing'] as const
 
 const NOTHING_PULLED = { pulledForward: 0, skippedRecent: 0, skippedBackoff: 0 } as const
@@ -115,29 +111,21 @@ export const createReviewDiscoveryRepository = (
 ): ReviewDiscoveryRepository => ({
   findDuePropertiesBatch: async (due, cursor, limit) =>
     trace('review.discovery.findDuePropertiesBatch', async () => {
-      // Unsettled GBP import for this property. BOTH the parent request and
-      // the item must still be in flight: a cancelled or failed parent can
-      // leave items behind, and stale rows must never park a property
-      // forever. `destination_property_id` covers a create whose property row
-      // already exists; `existing_property_id` covers a relink. A create
-      // whose destination row is not written yet has no property to poll.
+      // Unsettled GBP import for this property. A pending or processing item
+      // is in flight whatever its import: terminal items and deleted imports
+      // leave nothing behind, so stale rows never park a property forever.
+      // `destination_property_id` covers a create whose property row already
+      // exists; `existing_property_id` covers a relink. A create whose
+      // destination row is not written yet has no property to poll.
       const inFlightImport = db
         .select({ one: sql`1` })
-        .from(gbpImportRequestItems)
-        .innerJoin(
-          gbpImportRequests,
-          and(
-            eq(gbpImportRequests.id, gbpImportRequestItems.importJobId),
-            eq(gbpImportRequests.organizationId, gbpImportRequestItems.organizationId),
-          ),
-        )
+        .from(googleImportItems)
         .where(
           and(
-            inArray(gbpImportRequests.status, IN_FLIGHT_PARENT_STATUSES),
-            inArray(gbpImportRequestItems.status, IN_FLIGHT_ITEM_STATUSES),
+            inArray(googleImportItems.status, IN_FLIGHT_ITEM_STATUSES),
             or(
-              eq(gbpImportRequestItems.destinationPropertyId, properties.id),
-              eq(gbpImportRequestItems.existingPropertyId, properties.id),
+              eq(googleImportItems.destinationPropertyId, properties.id),
+              eq(googleImportItems.existingPropertyId, properties.id),
             ),
           ),
         )
