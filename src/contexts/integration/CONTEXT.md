@@ -64,9 +64,8 @@ whole import cascade in one transaction. Its 30-day clock starts when the whole
 import first becomes terminal and retries never renew it. Query indexes cover
 parent reads, recovery appointments, expiry, retention and lifecycle scopes.
 
-Imports completed before the move stay in `gbp_import_requests`,
-`gbp_import_request_items` and `gbp_import_sagas`. Nothing writes those tables
-any more and history was not copied; they wait for their contraction migration.
+The earlier import tables (`gbp_import_requests`, `gbp_import_request_items`
+and `gbp_import_sagas`) are gone; history in them was not copied.
 The public-command acceptance and recovery suites in
 `src/shared/architecture/google-import-store-*.integration.test.ts` run against
 the store, including large selections, receipt recovery and retention. The

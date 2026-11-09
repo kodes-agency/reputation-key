@@ -1,9 +1,11 @@
 import { describe, expect, it, vi } from 'vitest'
 import type { Database } from '#/shared/db'
 import { BACKUP_ERASURE_LEDGER_CONTEXTS } from '#/shared/db/schema/backup-erasure-ledger.schema'
+import { createNotificationRightsReplayers } from '#/contexts/feed/rights/replayer.server'
 import { createRightsJournal } from '#/shared/ops/rights/rights-journal'
-import { composeRightsExecutors } from './rights-executors'
+import { composeRightsExecutors, composeRightsReplayers } from './rights-executors'
 
+const NOTIFICATION_REPLAYERS = createNotificationRightsReplayers()
 const deps = {
   db: {} as Database,
   journal: createRightsJournal(undefined),
@@ -11,12 +13,15 @@ const deps = {
 }
 
 describe('composeRightsExecutors', () => {
-  it('composes the five context executors in order', () => {
+  it('composes the eight context executors in order', () => {
     expect(composeRightsExecutors(deps, false).map(({ name }) => name)).toEqual([
       'google-integration',
       'review',
       'inbox',
+      'guest',
       'reporting',
+      'ai',
+      'activity',
       'notification',
       'staff-participant',
     ])
@@ -47,9 +52,29 @@ describe('composeRightsExecutors', () => {
       'google-integration',
       'review',
       'inbox',
+      'guest',
       'reporting',
+      'ai',
+      'activity',
       'notification',
     ])
+  })
+
+  it('registers a replayer for every journaled context and erasing scope', () => {
+    const registered = composeRightsReplayers({
+      ...deps,
+      notificationReplayers: NOTIFICATION_REPLAYERS,
+    }).map(({ context, subjectClass }) => `${context}:${subjectClass}`)
+    const needed = composeRightsExecutors(deps, false).flatMap((executor) =>
+      executor.scopes
+        .filter((scope) => scope === 'organization' || scope === 'property')
+        .flatMap((scope) =>
+          executor.journalContexts.map((context) => `${context}:${scope}`),
+        ),
+    )
+    expect(needed.length).toBeGreaterThan(0)
+    for (const key of needed) expect(registered).toContain(key)
+    expect(new Set(registered).size).toBe(registered.length)
   })
 })
 
@@ -59,5 +84,13 @@ describe('participant scope', () => {
       .filter(({ scopes }) => scopes.includes('participant'))
       .map(({ name }) => name)
     expect(covering).toEqual(['staff-participant'])
+  })
+
+  it('registers a replayer so a restore cannot bring a participant back', () => {
+    const registered = composeRightsReplayers({
+      ...deps,
+      notificationReplayers: NOTIFICATION_REPLAYERS,
+    }).map(({ context, targetKind }) => `${context}:${targetKind}`)
+    expect(registered).toContain('staff:staff_participant')
   })
 })

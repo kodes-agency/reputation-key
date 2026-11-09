@@ -11,6 +11,7 @@ import {
   getNotificationUserSettings,
 } from './read.server'
 import { purgeNotificationRightsData } from './purge.server'
+import { createNotificationRightsReplayers } from './replayer.server'
 import {
   buildManualFinalWarningJobs,
   createNotificationRightsPort,
@@ -35,10 +36,7 @@ import { createNotificationRightsExecutor } from '#/shared/ops/rights/notificati
 import { handleRightsRequest } from '#/shared/ops/rights/run-rights-request'
 import { createRightsJournal } from '#/shared/ops/rights/rights-journal'
 import { canonicalizeRfc8785 } from '#/shared/canonical-json'
-import {
-  applyRestoreResurrectionFence,
-  type BackupErasureReplayer,
-} from '#/shared/db/lifecycle/backup-erasure-ledger'
+import { applyRestoreResurrectionFence } from '#/shared/db/lifecycle/backup-erasure-ledger'
 import { decodeErasureJournalEntry } from '#/shared/db/lifecycle/erasure-journal.server'
 import type { Tx } from '#/shared/outbox/commit'
 
@@ -369,32 +367,13 @@ function capturingJournal() {
   }
 }
 
-/** Re-erases through the production purge, inside the fence's transaction. */
-const notificationReplayer = (
-  subjectClass: BackupErasureReplayer['subjectClass'],
-): BackupErasureReplayer => ({
-  context: 'notification',
-  subjectClass,
-  reErase: async (tx, entry) => {
-    const counts = await purgeNotificationRightsData(
-      tx,
-      {
-        organizationId: entry.organizationId,
-        ...(entry.propertyId ? { propertyId: entry.propertyId } : {}),
-      },
-      50,
-    )
-    return Object.values(counts).reduce((sum, n) => sum + n, 0)
-  },
-})
-
 async function replayThroughFence(entryBytes: string) {
   const entry = decodeErasureJournalEntry(entryBytes)
   return db.transaction((raw) =>
     applyRestoreResurrectionFence(raw as unknown as Tx, {
       entries: [entry],
       restorePointAt: new Date(entry.effectiveErasureAt.getTime() - 60_000),
-      replayers: [notificationReplayer('property'), notificationReplayer('organization')],
+      replayers: createNotificationRightsReplayers(),
     }),
   )
 }

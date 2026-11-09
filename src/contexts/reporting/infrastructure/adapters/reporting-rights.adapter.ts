@@ -9,12 +9,18 @@
 
 import { sql } from 'drizzle-orm'
 import type { Database } from '#/shared/db'
+import type {
+  BackupErasureLedgerContext,
+  BackupErasureLedgerEntry,
+  BackupErasureReplayer,
+} from '#/shared/db/lifecycle/backup-erasure-ledger'
 import type { Tx } from '#/shared/outbox/commit'
 import { organizationId, portalId, propertyId } from '#/shared/domain/ids'
 import type {
   RightsExecutor,
   RightsExportFile,
 } from '#/shared/ops/rights/rights-executor'
+import type { RightsRequestPlan } from '#/shared/ops/rights/rights-request-command'
 import { portalMetricEvidenceSql } from '../../portal-results/portal-analytics-evidence.server'
 import {
   foldEvidenceRows,
@@ -24,6 +30,7 @@ import {
 import {
   MONTHLY_RESULT_GUARD,
   REPORTING_EXPORT_TABLES,
+  REPORTING_ORGANIZATION_ONLY_TABLES,
   REPORTING_PURGE_ORDER,
   type ReportingExportTable,
 } from './reporting-rights-plan'
@@ -48,7 +55,18 @@ function encode(value: unknown): Uint8Array {
   return new TextEncoder().encode(`${JSON.stringify(value, encodeValue, 2)}\n`)
 }
 
-function selectTable(spec: ReportingExportTable, organization: string) {
+/** The Property a request is limited to; absent for an Organization request. */
+type PropertyFilter = string | undefined
+
+/** `AND property_id = …` for a Property request, nothing for an Organization one. */
+const propertyClause = (property: PropertyFilter) =>
+  property ? sql`AND property_id = ${property}` : sql``
+
+function selectTable(
+  spec: ReportingExportTable,
+  organization: string,
+  property: PropertyFilter,
+) {
   const columns = sql.join(
     spec.columns.map((column) => sql`t.${sql.identifier(column)}`),
     sql`, `,
@@ -65,12 +83,14 @@ function selectTable(spec: ReportingExportTable, organization: string) {
       FROM ${sql.identifier(spec.table)} t
       JOIN metric_readings r ON r.id = t.reading_id
       WHERE r.organization_id = ${organization}
+        ${property ? sql`AND r.property_id = ${property}` : sql``}
       ORDER BY ${order}`
   }
   return sql`
     SELECT ${columns}, t.organization_id AS tenant_organization_id
     FROM ${sql.identifier(spec.table)} t
     WHERE t.organization_id = ${organization}
+      ${property ? sql`AND t.property_id = ${property}` : sql``}
     ORDER BY ${order}`
 }
 
@@ -91,13 +111,15 @@ export function projectTenantRows(
 async function readAccess(
   db: Database,
   organization: string,
+  property?: string,
 ): Promise<readonly RightsExportFile[]> {
   const files: RightsExportFile[] = []
   const counts: Record<string, number> = {}
   await db.transaction(
     async (tx) => {
       for (const spec of REPORTING_EXPORT_TABLES) {
-        const result = await tx.execute(selectTable(spec, organization))
+        if (property && REPORTING_ORGANIZATION_ONLY_TABLES.includes(spec.table)) continue
+        const result = await tx.execute(selectTable(spec, organization, property))
         const records = projectTenantRows(spec, result.rows as Row[], organization)
         counts[spec.table] = records.length
         files.push({
@@ -132,21 +154,35 @@ function count(value: unknown): number {
 }
 
 /** Pause the goals that would otherwise keep opening months. */
-async function fencePrograms(tx: Tx, organization: string, at: Date): Promise<void> {
+async function fencePrograms(
+  tx: Tx,
+  organization: string,
+  at: Date,
+  property: PropertyFilter,
+): Promise<void> {
   await tx.execute(sql`
     UPDATE goal_programs
-    SET status = 'paused', status_reason = 'organization_closure_fence', updated_at = ${at}
+    SET status = 'paused',
+        status_reason = ${property ? 'property_erasure_fence' : 'organization_closure_fence'},
+        updated_at = ${at}
     WHERE organization_id = ${organization} AND status = 'active'
+      ${propertyClause(property)}
   `)
 }
 
-async function assertNoLiveGoalWork(tx: Tx, organization: string): Promise<void> {
+async function assertNoLiveGoalWork(
+  tx: Tx,
+  organization: string,
+  property: PropertyFilter,
+): Promise<void> {
   const result = await tx.execute(sql`
     SELECT
       (SELECT count(*) FROM goal_programs
-        WHERE organization_id = ${organization} AND status = 'active') AS active_programs,
+        WHERE organization_id = ${organization} AND status = 'active'
+          ${propertyClause(property)}) AS active_programs,
       (SELECT count(*) FROM goal_monthly_results
-        WHERE organization_id = ${organization} AND status = 'reconciling') AS reconciling
+        WHERE organization_id = ${organization} AND status = 'reconciling'
+          ${propertyClause(property)}) AS reconciling
   `)
   const row = result.rows[0] as { active_programs?: unknown; reconciling?: unknown }
   if (count(row.active_programs) > 0 || count(row.reconciling) > 0) {
@@ -158,11 +194,13 @@ async function assertPortalFactsSettled(
   tx: Tx,
   organization: string,
   at: Date,
+  property: PropertyFilter,
 ): Promise<void> {
   const scopes = (
     await tx.execute(sql`
       SELECT property_id::text AS property_id, id::text AS portal_id
       FROM portals WHERE organization_id = ${organization}
+        ${propertyClause(property)}
     `)
   ).rows as Array<{ property_id: string; portal_id: string }>
   if (scopes.length === 0) return
@@ -205,13 +243,19 @@ async function drainChain(tx: Tx, statement: () => ReturnType<typeof sql>) {
   throw new Error('a supersession chain did not drain')
 }
 
-async function deleteTable(tx: Tx, table: string, organization: string): Promise<number> {
+async function deleteTable(
+  tx: Tx,
+  table: string,
+  organization: string,
+  property: PropertyFilter,
+): Promise<number> {
   if (table === 'goal_result_revisions') {
     return drainChain(
       tx,
       () => sql`
         DELETE FROM goal_result_revisions AS target
         WHERE target.organization_id = ${organization}
+          ${property ? sql`AND target.property_id = ${property}` : sql``}
           AND NOT EXISTS (
             SELECT 1 FROM goal_result_revisions AS successor
             WHERE successor.supersedes_revision_id = target.id
@@ -225,6 +269,7 @@ async function deleteTable(tx: Tx, table: string, organization: string): Promise
         DELETE FROM metric_corrections AS correction
         WHERE correction.reading_id IN (
           SELECT id FROM metric_readings WHERE organization_id = ${organization}
+            ${propertyClause(property)}
         )
         AND NOT EXISTS (
           SELECT 1 FROM metric_corrections AS successor
@@ -233,18 +278,49 @@ async function deleteTable(tx: Tx, table: string, organization: string): Promise
     )
   }
   const result = await tx.execute(
-    sql`DELETE FROM ${sql.identifier(table)} WHERE organization_id = ${organization}`,
+    sql`DELETE FROM ${sql.identifier(table)} WHERE organization_id = ${organization}
+        ${propertyClause(property)}`,
   )
   return result.rowCount ?? 0
 }
 
-/** Every readiness refusal the purge gives, in the order it gives them. */
-async function assertReadyToPurge(tx: Tx, organization: string, at: Date): Promise<void> {
+/** The Property is the Organization's: its row, or goal and metric rows that name it. */
+async function assertPropertyInOrganization(
+  tx: Tx,
+  organization: string,
+  property: string,
+): Promise<void> {
+  const result = await tx.execute(sql`
+    SELECT 1 AS present FROM properties
+      WHERE organization_id = ${organization} AND id = ${property}
+    UNION ALL
+    SELECT 1 FROM goal_programs
+      WHERE organization_id = ${organization} AND property_id = ${property}
+    UNION ALL
+    SELECT 1 FROM metric_readings
+      WHERE organization_id = ${organization} AND property_id = ${property}
+    LIMIT 1
+  `)
+  if (result.rows.length === 0) throw new Error('Property not found')
+}
+
+/**
+ * Every readiness refusal the purge gives, in the order it gives them. An
+ * Organization purge waits for the Organization's lifecycle hold; a Property
+ * request runs while the Organization is active.
+ */
+async function assertReadyToPurge(
+  tx: Tx,
+  organization: string,
+  at: Date,
+  property: PropertyFilter,
+): Promise<void> {
   await tx.execute(sql.raw(`SET LOCAL lock_timeout = '${LOCK_TIMEOUT}'`))
-  await assertHeld(tx, organization)
-  await fencePrograms(tx, organization, at)
-  await assertNoLiveGoalWork(tx, organization)
-  await assertPortalFactsSettled(tx, organization, at)
+  if (property) await assertPropertyInOrganization(tx, organization, property)
+  else await assertHeld(tx, organization)
+  await fencePrograms(tx, organization, at, property)
+  await assertNoLiveGoalWork(tx, organization, property)
+  await assertPortalFactsSettled(tx, organization, at, property)
 }
 
 class PurgeProbeRolledBack extends Error {}
@@ -257,10 +333,11 @@ async function purgeRefusal(
   db: Database,
   organization: string,
   at: Date,
+  property: PropertyFilter,
 ): Promise<string | null> {
   try {
     await db.transaction(async (tx) => {
-      await assertReadyToPurge(tx, organization, at)
+      await assertReadyToPurge(tx, organization, at, property)
       throw new PurgeProbeRolledBack()
     })
     return null
@@ -273,8 +350,9 @@ async function purge(
   tx: Tx,
   organization: string,
   at: Date,
+  property?: string,
 ): Promise<RightsPurgeOutcome> {
-  await assertReadyToPurge(tx, organization, at)
+  await assertReadyToPurge(tx, organization, at, property)
 
   await tx.execute(
     sql`ALTER TABLE ${sql.identifier(MONTHLY_RESULT_GUARD.table)}
@@ -284,7 +362,8 @@ async function purge(
   // rollback restores the guard.
   const deleted: Record<string, number> = {}
   for (const table of REPORTING_PURGE_ORDER) {
-    deleted[table] = await deleteTable(tx, table, organization)
+    if (property && REPORTING_ORGANIZATION_ONLY_TABLES.includes(table)) continue
+    deleted[table] = await deleteTable(tx, table, organization, property)
   }
   await tx.execute(
     sql`ALTER TABLE ${sql.identifier(MONTHLY_RESULT_GUARD.table)}
@@ -298,37 +377,50 @@ function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : 'unexpected error'
 }
 
+const propertyOf = (plan: RightsRequestPlan): PropertyFilter =>
+  plan.scope === 'property' ? plan.propertyId : undefined
+
+/** Why a plan's scope cannot be purged here, or null. */
+function purgeScope(plan: RightsRequestPlan): string | null {
+  if (plan.scope === 'organization') return null
+  if (plan.scope !== 'property') return `no ${CONTEXT} purge for ${plan.scope}`
+  return plan.propertyId ? null : '--property is required'
+}
+
 export function createReportingRightsExecutor(
   db: Database,
   now: () => Date,
 ): RightsExecutor {
   return Object.freeze({
     name: CONTEXT,
-    scopes: ['access', 'organization'] as const,
-    journalContexts: ['goal', 'metric', 'dashboard'] as const,
+    scopes: ['access', 'organization', 'property'] as const,
+    journalContexts: REPORTING_JOURNAL_CONTEXTS,
     async preflight(plan) {
       if (plan.scope === 'access') return { ok: true }
-      if (plan.scope !== 'organization') {
-        return { ok: false, error: `no ${CONTEXT} purge for ${plan.scope}` }
-      }
-      const refusal = await purgeRefusal(db, plan.organizationId, now())
-      return refusal ? { ok: false, error: refusal } : { ok: true }
+      const refusal = await purgeScope(plan)
+      if (refusal) return { ok: false, error: refusal }
+      const purgeError = await purgeRefusal(
+        db,
+        plan.organizationId,
+        now(),
+        propertyOf(plan),
+      )
+      return purgeError ? { ok: false, error: purgeError } : { ok: true }
     },
     async report(plan) {
-      const files = await readAccess(db, plan.organizationId)
+      const files = await readAccess(db, plan.organizationId, propertyOf(plan))
       const manifest = JSON.parse(
         new TextDecoder().decode(files[files.length - 1]!.bytes),
       ) as { rowCounts: Record<string, number> }
       return Object.entries(manifest.rowCounts).map(([table, rows]) => `${table} ${rows}`)
     },
-    exportFiles: (plan) => readAccess(db, plan.organizationId),
+    exportFiles: (plan) => readAccess(db, plan.organizationId, propertyOf(plan)),
     async apply(plan) {
-      if (plan.scope !== 'organization') {
-        return { ok: false, error: `no ${CONTEXT} purge for ${plan.scope}` }
-      }
+      const refusal = purgeScope(plan)
+      if (refusal) return { ok: false, error: refusal }
       try {
         const outcome = await db.transaction((tx) =>
-          purge(tx, plan.organizationId, now()),
+          purge(tx, plan.organizationId, now(), propertyOf(plan)),
         )
         return {
           ok: true,
@@ -344,6 +436,36 @@ export function createReportingRightsExecutor(
       }
     },
   })
+}
+
+const REPORTING_JOURNAL_CONTEXTS = [
+  'goal',
+  'metric',
+  'dashboard',
+] as const satisfies ReadonlyArray<BackupErasureLedgerContext>
+
+/** Re-purge an Organization's Reporting rows in a restored cell, once per journal context. */
+export function createReportingRightsReplayers(
+  now: () => Date,
+): ReadonlyArray<BackupErasureReplayer> {
+  return REPORTING_JOURNAL_CONTEXTS.flatMap((context) =>
+    (['organization', 'property'] as const).map((subjectClass) => ({
+      context,
+      subjectClass,
+      async reErase(tx: Tx, entry: BackupErasureLedgerEntry) {
+        if (subjectClass === 'property' && !entry.propertyId) {
+          throw new Error('journal entry has no Property')
+        }
+        const outcome = await purge(
+          tx,
+          entry.organizationId,
+          now(),
+          subjectClass === 'property' ? entry.propertyId : undefined,
+        )
+        return Object.values(outcome.deleted).reduce((sum, n) => sum + n, 0)
+      },
+    })),
+  )
 }
 
 /** Exported so tests can exercise the purge body against a recording transaction. */

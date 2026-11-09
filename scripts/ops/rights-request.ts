@@ -17,6 +17,7 @@ import { mkdir, readFile, writeFile } from 'node:fs/promises'
 import { dirname } from 'node:path'
 import { runNotificationRightsRequest } from '../../src/contexts/feed/application/public-api'
 import { getEnv } from '../../src/shared/config/env'
+import { parseOperatorIdentities } from '../../src/shared/auth/execution-policy'
 import { getDb } from '../../src/shared/db'
 import { createRightsJournal } from '../../src/shared/ops/rights/rights-journal'
 import { rightsRequestCommandSpec } from '../../src/shared/ops/rights/rights-request-command'
@@ -43,6 +44,12 @@ async function main(): Promise<void> {
               {
                 db: getDb(),
                 journal,
+                operator: {
+                  id: ctx.operatorId,
+                  authority: {
+                    verify: async (id) => parseOperatorIdentities(getEnv()).has(id),
+                  },
+                },
                 runNotification: (run) =>
                   runNotificationRightsRequest(
                     ctx.container.db,
