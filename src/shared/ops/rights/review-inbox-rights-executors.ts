@@ -16,6 +16,7 @@ import type {
 import {
   closeInbox,
   closeInboxInTx,
+  INBOX_RIGHTS_TABLES,
   inboxClosureRefusal,
   readInboxRightsExport,
   readInboxRightsReport,
@@ -24,6 +25,7 @@ import {
 import {
   closeReview,
   closeReviewInTx,
+  REVIEW_RIGHTS_TABLES,
   reviewClosureRefusal,
   type ReviewRightsTarget,
   readReviewRightsExport,
@@ -71,6 +73,7 @@ export function createReviewRightsExecutor(deps: ReviewRightsDeps): RightsExecut
     name: 'review',
     scopes: ['access', 'organization', 'property'] as const,
     journalContexts: ['review'] as const,
+    tables: REVIEW_RIGHTS_TABLES,
     async preflight(plan) {
       if (plan.scope === 'property' && !plan.propertyId) {
         return { ok: false, error: '--property is required' }
@@ -116,6 +119,7 @@ export function createInboxRightsExecutor(deps: ReviewInboxRightsDeps): RightsEx
     name: 'inbox',
     scopes: ['access', 'organization', 'property'] as const,
     journalContexts: ['inbox'] as const,
+    tables: INBOX_RIGHTS_TABLES,
     async preflight(plan) {
       if (plan.scope === 'property' && !plan.propertyId) {
         return { ok: false, error: '--property is required' }

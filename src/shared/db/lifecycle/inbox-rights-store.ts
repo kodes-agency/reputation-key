@@ -51,7 +51,23 @@ const REPORT_TABLES = Object.freeze([
   'inbox_response_target_organization_policies',
   'inbox_private_feedback_target_property_overrides',
   'inbox_user_views',
+  // Deleted with their item through ON DELETE CASCADE.
+  'inbox_assignment_history',
+  'inbox_escalation_history',
+  'inbox_priority_history',
+  'inbox_handling_cycle_heads',
+  'inbox_handling_cycle_response_targets',
+  'inbox_handling_cycle_transitions',
+  'inbox_feedback_handling_outcomes',
+  'inbox_response_target_exclusions',
+  'inbox_response_target_reminders',
 ] as const)
+
+/** Tables the report counts and the closure deletes, cascade children included. */
+export const INBOX_RIGHTS_TABLES = Object.freeze({
+  organization: REPORT_TABLES,
+  property: REPORT_TABLES.filter((table) => !ORGANIZATION_ONLY_TABLES.includes(table)),
+})
 
 /** One Organization, or one Property inside it. */
 export type InboxRightsScope = Readonly<{ organizationId: string; propertyId?: string }>

@@ -26,6 +26,7 @@ function executor(
     name,
     scopes: ['access', 'organization'],
     journalContexts: ['review'],
+    tables: { organization: [], property: [] },
     report: vi.fn(async () => [`${name} report`]),
     exportFiles: vi.fn(async () => [
       { path: `${name}/data.json`, bytes: Buffer.from('{}') },

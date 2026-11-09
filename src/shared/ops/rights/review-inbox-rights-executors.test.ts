@@ -12,11 +12,13 @@ const stores = vi.hoisted(() => ({
   readInboxRightsReport: vi.fn(),
 }))
 vi.mock('#/shared/db/lifecycle/review-rights-store', () => ({
+  REVIEW_RIGHTS_TABLES: { organization: [], property: [] },
   closeReview: stores.closeReview,
   readReviewRightsExport: stores.readReviewRightsExport,
   readReviewRightsReport: stores.readReviewRightsReport,
 }))
 vi.mock('#/shared/db/lifecycle/inbox-rights-store', () => ({
+  INBOX_RIGHTS_TABLES: { organization: [], property: [] },
   closeInbox: stores.closeInbox,
   readInboxRightsExport: stores.readInboxRightsExport,
   readInboxRightsReport: stores.readInboxRightsReport,

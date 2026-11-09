@@ -32,6 +32,7 @@ import {
 } from '#/shared/ops/operator-command'
 import { rightsRequestCommandSpec } from '#/shared/ops/rights/rights-request-command'
 import { registerAllEventSchemas } from '#/shared/events/registry.server'
+import { NOTIFICATION_RIGHTS_TABLES } from '../domain/notification-rights-tables'
 import { createNotificationRightsExecutor } from '#/shared/ops/rights/notification-rights-executor'
 import { handleRightsRequest } from '#/shared/ops/rights/run-rights-request'
 import { createRightsJournal } from '#/shared/ops/rights/rights-journal'
@@ -321,6 +322,7 @@ async function runRights(
       executors: (finalWarning) => [
         createNotificationRightsExecutor({
           finalWarning,
+          tables: NOTIFICATION_RIGHTS_TABLES,
           run: (request) =>
             runNotificationRights(
               createNotificationRightsPort(db, async (job) => {
@@ -643,6 +645,7 @@ describe.sequential('Notification rights reads and purge', () => {
           executors: (finalWarning) => [
             createNotificationRightsExecutor({
               finalWarning,
+              tables: NOTIFICATION_RIGHTS_TABLES,
               run: (request) =>
                 runNotificationRights(
                   createNotificationRightsPort(db, async (job) => {
@@ -689,6 +692,12 @@ describe.sequential('Notification rights reads and purge', () => {
           'notification: preferences: 2',
           'notification: user settings: 1',
         ]),
+      )
+      expect(org.out).toContain(
+        'notification: held by purge: notification_digest_batch_members=2 notification_digest_batches=1 ' +
+          'notification_email_queue=2 notifications=3 notification_preferences=2 ' +
+          'notification_category_defaults=1 notification_property_delivery_windows=2 ' +
+          'notification_user_settings=1 notification_unsubscribe_scopes=2',
       )
       expect(property.out).toEqual(
         expect.arrayContaining([

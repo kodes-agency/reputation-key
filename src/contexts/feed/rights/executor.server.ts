@@ -28,7 +28,11 @@ import {
 } from './read.server'
 import type { NotificationRightsScope } from './read.server'
 import type { RightsRow, ScopedRightsRow } from './fields'
-import { purgeNotificationRightsData, type NotificationPurgeCounts } from './purge.server'
+import {
+  countNotificationRightsData,
+  purgeNotificationRightsData,
+  type NotificationPurgeCounts,
+} from './purge.server'
 
 export type ManualFinalWarningJob = Readonly<{
   name: typeof INSERT_NOTIFICATION_JOB_NAME
@@ -61,6 +65,8 @@ export type NotificationRightsPort = Readonly<{
   emailStop: (organizationId: string) => Promise<OrganizationEmailStop>
   /** The Organization's name, so the notice can say which one it is about. */
   organizationPayload: (organizationId: string) => Promise<NotificationPayload>
+  /** Rows a purge of the scope deletes, per table. */
+  held: (scope: NotificationRightsScope) => Promise<NotificationPurgeCounts>
   purge: (
     scope: NotificationRightsScope,
     batchSize: number,
@@ -193,11 +199,15 @@ async function report(
 ): Promise<NotificationRightsResult> {
   const data = await readAll(port, request)
   const stop = await port.emailStop(request.organizationId)
+  const stored = await port.held(scopeOf(request))
   const held = SAMPLE_CATEGORIES.filter((category) => isEmailStopped(stop, category))
   const lines = [
     `notifications: ${data.history.length}`,
     `preferences: ${data.preferences.length}`,
     `user settings: ${data.userSettings.length}`,
+    `held by purge: ${Object.entries(stored)
+      .map(([table, rows]) => `${table}=${rows}`)
+      .join(' ')}`,
     `optional mail: ${stop === 'none' ? 'flowing' : 'held'} (stop=${stop}; mandatory mail ${
       held.includes('mandatory') ? 'held' : 'still sent'
     })`,
@@ -300,6 +310,7 @@ export function createNotificationRightsPort(
     emailStop: createNotificationOrganizationEmailStopReader(db),
     organizationPayload: (organizationId) =>
       buildOrganizationPayload(names, brandOrganization(organizationId)),
+    held: (scope) => countNotificationRightsData(db, scope),
     purge: (scope, batchSize) => purgeNotificationRightsData(db, scope, batchSize),
     enqueue,
   }
