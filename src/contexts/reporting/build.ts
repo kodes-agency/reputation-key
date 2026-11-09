@@ -134,6 +134,7 @@ import {
   getPortalAnalytics,
   type GetPortalAnalyticsDeps,
 } from './portal-results/get-portal-analytics.server'
+import { SCHEDULED_RETENTION_ACTIVE } from '#/shared/db/retention/scheduled-retention-activation'
 import { getPortalResultsOverview } from './application/use-cases/get-portal-results-overview'
 import {
   getAttentionSignals,
@@ -603,6 +604,7 @@ function buildDashboardModule(
   })
   const getDashboard = getDashboardData({ repo: dashboardRepo, propertyAccess })
   const getPortal = getPortalAnalytics({
+    retentionActive: SCHEDULED_RETENTION_ACTIVE,
     portalMetrics,
     responseIntegrity: input.guestResponseIntegrity,
     portalVersions: input.portalApi,

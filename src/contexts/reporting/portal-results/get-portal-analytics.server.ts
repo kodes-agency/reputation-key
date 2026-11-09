@@ -53,6 +53,7 @@ type PortalScopedPeriod = Readonly<{
 }>
 
 export type GetPortalAnalyticsDeps = Readonly<{
+  retentionActive?: boolean
   portalMetrics: PortalAnalyticsRepository
   /** Guest-owned reads over its responses, through its public API. */
   responseIntegrity: Readonly<{
@@ -129,6 +130,7 @@ export const getPortalAnalytics =
         since,
       )
       return {
+        retentionActive: deps.retentionActive ?? false,
         period: { startAt: startDate, endAt: endDate, timezone: propertyTimezone },
         localDays: null,
         comparePeriod: null,
@@ -288,6 +290,7 @@ export const getPortalAnalytics =
       )
 
     return {
+      retentionActive: deps.retentionActive ?? false,
       period: { startAt: startDate, endAt: endDate, timezone: propertyTimezone },
       localDays: {
         ...days,

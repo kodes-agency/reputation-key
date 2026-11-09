@@ -29,9 +29,8 @@ export const PORTAL_RESULTS_RANGES: ReadonlyArray<{
   label: RANGE_PRESET_LABELS[value],
 }))
 
-/** Guest facts begin reaching their retention boundary in October 2028. */
-export function allTimeLabel(asOf: Date): string {
-  return asOf >= new Date('2028-10-01T00:00:00.000Z') ? 'Last 24 months' : 'All time'
+export function allTimeLabel(retentionActive = false): string {
+  return retentionActive ? 'Last 24 months' : 'All time'
 }
 
 /** Where the range is remembered: one viewing preference for every Results surface. */
@@ -157,10 +156,10 @@ export function windowFooter(
   days: LocalDays | null,
   timezone: string,
   comparisonMinSample: number,
-  asOf: Date,
+  retentionActive = false,
 ): string {
   const zone = zoneTimeLabel(timezone)
-  if (days === null) return `${allTimeLabel(asOf)}, ${zone}`
+  if (days === null) return `${allTimeLabel(retentionActive)}, ${zone}`
   const current = formatDayRange(days.start, days.end)
   if (days.compareStart === null || days.compareEnd === null) {
     return `${current}, ${zone}`

@@ -17,6 +17,8 @@ Goals list's subject ordering directly from named subjects. The colocated storie
 retain their story IDs, Stop interaction and stopped state. Unit acceptance tests
 cover historical assignments, visibility, missing progress and retained months;
 PostgreSQL command suites remain under `../infrastructure/`.
+History scopes subjects before pagination, including the continuation and target
+provenance; an invisible Program is not found, as in the detail read.
 
 The monthly-goal commands (`monthly-portal-goal*.server.ts`) and the Program
 service (`goal-programs.server.ts`) live here with their unit tests; shared
