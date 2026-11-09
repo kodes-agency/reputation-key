@@ -427,6 +427,15 @@ describe.sequential('Notification rights reads and purge', () => {
       propertyId: a.propertyId,
     })
     expect(property).toHaveLength(1)
+    // The Organization-wide default has no Property and is not part of this read.
+    await lease.pool.query(
+      `INSERT INTO notification_preferences (
+         id, user_id, organization_id, property_id, category, channel, enabled,
+         cadence, created_at, updated_at
+       ) VALUES ($1, $2, $3, NULL, 'workflow_collaboration', 'email', true, 'immediate', $4, $4)
+       ON CONFLICT DO NOTHING`,
+      [randomUUID(), b.userId, b.organizationId, new Date()],
+    )
     expect(
       await getNotificationPreferences(db, { organizationId: b.organizationId }),
     ).toHaveLength(2)

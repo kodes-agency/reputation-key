@@ -390,6 +390,20 @@ export const TENANT_PREDICATE_EXEMPTIONS: readonly TenantPredicateExemption[] = 
     category: 'TENANT-CHECKED',
   },
   {
+    file: 'src/contexts/feed/preferences/copy-category-defaults.server.ts',
+    symbol: 'countCategoryDefaultsToCopy',
+    reason:
+      'An operator count across every Organization of category defaults without a matching preference row; it returns two numbers and no row content.',
+    category: 'LEGITIMATE-GLOBAL',
+  },
+  {
+    file: 'src/contexts/feed/preferences/copy-category-defaults.server.ts',
+    symbol: 'copyCategoryDefaultsToPreferences',
+    reason:
+      'An operator copy in bounded batches across every Organization; each default is written to a row with the same user, Organization, category and channel, and only counts are reported.',
+    category: 'LEGITIMATE-GLOBAL',
+  },
+  {
     file: 'src/contexts/feed/infrastructure/repositories/notification-delivery-lag.repository.ts',
     symbol: 'readSendableImmediateEmailRows',
     reason:

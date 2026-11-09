@@ -2,7 +2,7 @@ import {
   isLowRatingThreshold,
   type LowRatingThreshold,
 } from '../../domain/notification-low-ratings'
-import { and, eq } from 'drizzle-orm'
+import { and, eq, isNotNull, isNull } from 'drizzle-orm'
 import type { Database } from '#/shared/db'
 import {
   notificationCategoryDefaults,
@@ -35,7 +35,8 @@ import {
 import { notificationError } from '../../domain/notification-errors'
 import { isPreferenceDisableable } from '../../domain/notification-policy'
 
-type PreferenceRow = typeof notificationPreferences.$inferSelect
+type StoredPreferenceRow = typeof notificationPreferences.$inferSelect
+type PreferenceRow = StoredPreferenceRow & { propertyId: string }
 type CategoryDefaultRow = typeof notificationCategoryDefaults.$inferSelect
 type DeliveryWindowRow = typeof notificationPropertyDeliveryWindows.$inferSelect
 type UserSettingsRow = typeof notificationUserSettings.$inferSelect
@@ -43,6 +44,21 @@ type UserSettingsRow = typeof notificationUserSettings.$inferSelect
 /** A stored Low-ratings threshold; anything else, and every other category, is none. */
 const maxRatingOf = (value: number | null): LowRatingThreshold | null =>
   isLowRatingThreshold(value) ? value : null
+
+/** A row with a Property is that Property's own answer; one without is the person's default. */
+const isPropertyRow = (row: StoredPreferenceRow): row is PreferenceRow =>
+  row.propertyId !== null
+
+/** The row answered last; the first wins a tie, and either may be absent. */
+const newerAnswer = <T extends { updatedAt: Date }>(
+  first: T | undefined,
+  second: T | undefined,
+): T | undefined =>
+  first && second
+    ? second.updatedAt > first.updatedAt
+      ? second
+      : first
+    : (first ?? second)
 
 const preferenceFromRow = (row: PreferenceRow): NotificationPreference => {
   const category = row.category as NotificationCategory
@@ -64,7 +80,9 @@ const preferenceFromRow = (row: PreferenceRow): NotificationPreference => {
   }
 }
 
-const categoryDefaultFromRow = (row: CategoryDefaultRow): NotificationCategoryDefault => {
+const categoryDefaultFromRow = (
+  row: Omit<CategoryDefaultRow, 'id'>,
+): NotificationCategoryDefault => {
   const category = row.category as ConfigurableNotificationCategory
   const channel = row.channel as NotificationChannel
   return {
@@ -148,6 +166,20 @@ const preferenceScope = (
     channel === undefined ? undefined : eq(notificationPreferences.channel, channel),
   )
 
+const defaultScope = (
+  userId: string,
+  orgId: string,
+  category?: string,
+  channel?: string,
+) =>
+  and(
+    eq(notificationPreferences.userId, userId),
+    eq(notificationPreferences.organizationId, orgId),
+    isNull(notificationPreferences.propertyId),
+    category === undefined ? undefined : eq(notificationPreferences.category, category),
+    channel === undefined ? undefined : eq(notificationPreferences.channel, channel),
+  )
+
 const propertyWindowScope = (userId: string, orgId: string, propertyId?: string) =>
   and(
     eq(notificationPropertyDeliveryWindows.userId, userId),
@@ -189,7 +221,7 @@ export const createNotificationPreferenceRepository = (db: Database) => {
       .from(notificationPreferences)
       .where(preferenceScope(userId, orgId, propertyId, category, channel))
       .limit(1)
-    if (!rows[0]) return null
+    if (!rows[0] || !isPropertyRow(rows[0])) return null
     const preference = preferenceFromRow(rows[0])
     return {
       enabled: preference.enabled,
@@ -198,26 +230,48 @@ export const createNotificationPreferenceRepository = (db: Database) => {
     }
   }
 
+  // The person's default is the preference row with no Property. Until the
+  // earlier table is dropped, it is read too, and the newer answer wins: a
+  // default not yet copied is still found, and one written by a release that
+  // only knew the earlier table is not hidden by a stale copy. A tie goes to
+  // the preference row.
+  const storedCategoryDefault = async (
+    userId: string,
+    orgId: string,
+    category: string,
+    channel: string,
+  ): Promise<NotificationCategoryDefault | null> => {
+    const [[own], [earlier]] = await Promise.all([
+      db
+        .select()
+        .from(notificationPreferences)
+        .where(defaultScope(userId, orgId, category, channel))
+        .limit(1),
+      db
+        .select()
+        .from(notificationCategoryDefaults)
+        .where(
+          and(
+            eq(notificationCategoryDefaults.userId, userId),
+            eq(notificationCategoryDefaults.organizationId, orgId),
+            eq(notificationCategoryDefaults.category, category),
+            eq(notificationCategoryDefaults.channel, channel),
+          ),
+        )
+        .limit(1),
+    ])
+    const winner = newerAnswer(own, earlier)
+    return winner ? categoryDefaultFromRow(winner) : null
+  }
+
   const categoryDefault = async (
     userId: string,
     orgId: string,
     category: string,
     channel: string,
   ): Promise<CategoryPreferenceValues | null> => {
-    const rows = await db
-      .select()
-      .from(notificationCategoryDefaults)
-      .where(
-        and(
-          eq(notificationCategoryDefaults.userId, userId),
-          eq(notificationCategoryDefaults.organizationId, orgId),
-          eq(notificationCategoryDefaults.category, category),
-          eq(notificationCategoryDefaults.channel, channel),
-        ),
-      )
-      .limit(1)
-    if (!rows[0]) return null
-    const stored = categoryDefaultFromRow(rows[0])
+    const stored = await storedCategoryDefault(userId, orgId, category, channel)
+    if (!stored) return null
     return {
       enabled: stored.enabled,
       cadence: stored.cadence,
@@ -282,7 +336,7 @@ export const createNotificationPreferenceRepository = (db: Database) => {
         set,
       })
       .returning()
-    if (!rows[0])
+    if (!rows[0] || !isPropertyRow(rows[0]))
       throw notificationError('insert_failed', 'Preference UPSERT returned no row')
     return preferenceFromRow(rows[0])
   }
@@ -412,6 +466,36 @@ export const createNotificationPreferenceRepository = (db: Database) => {
             },
           })
           .returning()
+        // The same answer as a preference row with no Property: what reads use.
+        await tx
+          .insert(notificationPreferences)
+          .values({
+            userId: categoryDefaultRow.userId as string,
+            organizationId: categoryDefaultRow.organizationId as string,
+            propertyId: null,
+            category: categoryDefaultRow.category,
+            channel: categoryDefaultRow.channel,
+            enabled: categoryDefaultRow.enabled,
+            cadence: categoryDefaultRow.cadence,
+            maxRating: categoryDefaultRow.maxRating ?? null,
+            createdAt: categoryDefaultRow.createdAt,
+            updatedAt: categoryDefaultRow.updatedAt,
+          })
+          .onConflictDoUpdate({
+            target: [
+              notificationPreferences.userId,
+              notificationPreferences.organizationId,
+              notificationPreferences.category,
+              notificationPreferences.channel,
+            ],
+            targetWhere: isNull(notificationPreferences.propertyId),
+            set: {
+              enabled: categoryDefaultRow.enabled,
+              cadence: categoryDefaultRow.cadence,
+              maxRating: categoryDefaultRow.maxRating ?? null,
+              updatedAt: categoryDefaultRow.updatedAt,
+            },
+          })
         // The Property the answer was given at follows it now, so its own row
         // goes. Every other Property's own row stays until explicitly reset.
         await tx
@@ -446,25 +530,36 @@ export const createNotificationPreferenceRepository = (db: Database) => {
           and(
             eq(notificationPreferences.userId, userId),
             eq(notificationPreferences.organizationId, orgId),
+            isNotNull(notificationPreferences.propertyId),
           ),
         )
-      return rows.map(preferenceFromRow)
+      return rows.filter(isPropertyRow).map(preferenceFromRow)
     },
 
     findCategoryDefaults: async (
       userId: string,
       orgId: string,
     ): Promise<NotificationCategoryDefault[]> => {
-      const rows = await db
-        .select()
-        .from(notificationCategoryDefaults)
-        .where(
-          and(
-            eq(notificationCategoryDefaults.userId, userId),
-            eq(notificationCategoryDefaults.organizationId, orgId),
+      const [own, earlier] = await Promise.all([
+        db.select().from(notificationPreferences).where(defaultScope(userId, orgId)),
+        db
+          .select()
+          .from(notificationCategoryDefaults)
+          .where(
+            and(
+              eq(notificationCategoryDefaults.userId, userId),
+              eq(notificationCategoryDefaults.organizationId, orgId),
+            ),
           ),
-        )
-      return rows.map(categoryDefaultFromRow)
+      ])
+      const key = (row: { category: string; channel: string }) =>
+        `${row.category}:${row.channel}`
+      const earlierByKey = new Map(earlier.map((row) => [key(row), row]))
+      const merged = own.map((row) => newerAnswer(row, earlierByKey.get(key(row)))!)
+      const covered = new Set(own.map(key))
+      return [...merged, ...earlier.filter((row) => !covered.has(key(row)))].map(
+        categoryDefaultFromRow,
+      )
     },
 
     findPropertyDeliveryWindows: async (
