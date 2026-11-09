@@ -1,18 +1,10 @@
-import { useEffect, useState } from 'react'
 import {
-  createReplyAutosaveCoordinator,
-  isReloadSafe,
   type ReplyAutosaveState,
   type ReplyAutosaveStatus,
   type ReplyDraftSnapshot,
 } from './reply-autosave-coordinator'
 
 export type { ReplyAutosaveState, ReplyAutosaveStatus, ReplyDraftSnapshot }
-
-type SaveDraft = (
-  snapshot: ReplyDraftSnapshot,
-  provenanceToken?: string,
-) => Promise<unknown>
 
 /** The slice of the coordinator one mount of the composer owns. */
 type AutosaveLifecycle = Readonly<{
@@ -48,33 +40,5 @@ export function attachReplyAutosave(
     coordinator.flushOnTeardown()
     unsubscribe()
     coordinator.dispose()
-  }
-}
-
-export function useReplyAutosave(initial: ReplyDraftSnapshot, saveDraft: SaveDraft) {
-  const [state, setState] = useState<ReplyAutosaveState>({
-    status: 'idle',
-    error: null,
-  })
-  const [coordinator] = useState(() =>
-    createReplyAutosaveCoordinator({
-      initial,
-      save: saveDraft,
-      onState: setState,
-    }),
-  )
-
-  useEffect(() => coordinator.setSave(saveDraft), [coordinator, saveDraft])
-  useEffect(() => attachReplyAutosave(coordinator, setState), [coordinator])
-
-  return {
-    status: state.status,
-    error: state.error,
-    reloadSafe: isReloadSafe(state.status),
-    schedule: coordinator.schedule,
-    flush: coordinator.flush,
-    acceptAiDraft: coordinator.acceptAiDraft,
-    retry: coordinator.retry,
-    invalidate: coordinator.invalidate,
   }
 }
