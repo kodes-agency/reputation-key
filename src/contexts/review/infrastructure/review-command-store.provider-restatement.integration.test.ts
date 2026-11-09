@@ -291,6 +291,90 @@ describe('a review Google restated at an unmoved updateTime', () => {
   })
 })
 
+describe('the content row through a restatement and an edit', () => {
+  const contentOf = async () =>
+    (
+      await getPool().query<{
+        text: string
+        rating: number
+        source_revision: string
+        ai_source_byte_length: number
+        ai_source_digest: string
+      }>(
+        `SELECT text, rating, source_revision::text AS source_revision,
+                ai_source_byte_length, ai_source_digest
+           FROM review_source_contents WHERE review_id = $1 AND organization_id = $2`,
+        [REVIEW, ORG],
+      )
+    ).rows[0]
+
+  it('moves the revision and the AI source digest only when the guest edits', async () => {
+    await observe(review(), 1)
+    expect(await contentOf()).toEqual({
+      text: 'Original review',
+      rating: 4,
+      source_revision: '1',
+      ai_source_byte_length: 15,
+      ai_source_digest: 'a'.repeat(64),
+    })
+
+    await observe(
+      review({ ...RESTATED, aiSourceByteLength: 38, aiSourceDigest: 'b'.repeat(64) }),
+      2,
+    )
+    // Restated: the words follow Google, the revision stays.
+    expect(await contentOf()).toMatchObject({
+      text: RESTATED.text,
+      rating: 3,
+      source_revision: '1',
+    })
+
+    await observe(
+      review({
+        rating: 2,
+        text: 'The guest rewrote it',
+        sourceUpdatedAt: UPDATED_ONE_MS_LATER,
+        aiSourceByteLength: 20,
+        aiSourceDigest: 'c'.repeat(64),
+      }),
+      3,
+    )
+    expect(await contentOf()).toEqual({
+      text: 'The guest rewrote it',
+      rating: 2,
+      source_revision: '2',
+      ai_source_byte_length: 20,
+      ai_source_digest: 'c'.repeat(64),
+    })
+  })
+
+  it('serves the same revision, digest and byte length from the content row as from the review', async () => {
+    await observe(review(), 1)
+    await observe(
+      review({
+        rating: 2,
+        text: 'The guest rewrote it',
+        sourceUpdatedAt: UPDATED_ONE_MS_LATER,
+        aiSourceByteLength: 20,
+        aiSourceDigest: 'c'.repeat(64),
+      }),
+      2,
+    )
+
+    const both = await getPool().query(
+      `SELECT r.source_revision = c.source_revision AS same_revision,
+              r.ai_source_digest = c.ai_source_digest AS same_digest,
+              r.ai_source_byte_length = c.ai_source_byte_length AS same_length
+         FROM reviews r JOIN review_source_contents c ON c.review_id = r.id
+        WHERE r.id = $1`,
+      [REVIEW],
+    )
+    expect(both.rows).toEqual([
+      { same_revision: true, same_digest: true, same_length: true },
+    ])
+  })
+})
+
 describe('a review re-observed after its content expired', () => {
   it('cannot tell a restatement from an edit once erasure took the stored updateTime', async () => {
     await observe(review({ contentExpiresAt: EXPIRED_AT }), 1)

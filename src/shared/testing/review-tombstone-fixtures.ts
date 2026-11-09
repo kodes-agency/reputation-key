@@ -50,9 +50,15 @@ const DEFAULT_REVIEWED_AT = new Date('2026-05-01T12:00:00.000Z')
 const DEFAULT_LOCATION = 'locations/tombstone-fixtures'
 const DIGEST_ZEROES = '0'.repeat(64)
 
-/** An active Review row as the sync stores it: provider values and both clocks set. */
+/**
+ * An active Review row as the sync stores it: provider values and both clocks
+ * set, with its content row. A Review without a content clock holds nothing to
+ * serve, so it gets no content row. The content row goes with the Review when
+ * the Review is deleted.
+ */
 export async function insertLiveReview(db: Query, seed: LiveReviewSeed): Promise<void> {
   const reviewedAt = seed.reviewedAt ?? DEFAULT_REVIEWED_AT
+  const lastFetchedAt = seed.lastFetchedAt ?? reviewedAt
   await db.query(
     `INSERT INTO reviews (
        id, organization_id, property_id, platform, external_id,
@@ -74,7 +80,34 @@ export async function insertLiveReview(db: Query, seed: LiveReviewSeed): Promise
       seed.rating ?? 5,
       seed.text ?? 'A live review',
       reviewedAt,
-      seed.lastFetchedAt ?? reviewedAt,
+      lastFetchedAt,
+      seed.contentExpiresAt,
+      seed.sourceRevision ?? 0,
+      DIGEST_ZEROES,
+    ],
+  )
+  if (seed.contentExpiresAt == null) return
+  await db.query(
+    `INSERT INTO review_source_contents (
+       review_id, organization_id, property_id, platform, external_id,
+       external_location_id, google_connection_id, reviewer_name, rating, text,
+       reviewed_at, first_fetched_at, last_fetched_at, content_expires_at,
+       source_epoch, source_revision, ai_source_byte_length, ai_source_digest
+     ) VALUES (
+       $1, $2, $3, 'google', $4, $5, $6, 'Jane Doe', $7, $8,
+       $9, $10, $10, $11, 0, $12, 1, $13
+     )`,
+    [
+      seed.id,
+      seed.organizationId,
+      seed.propertyId,
+      seed.externalId,
+      seed.externalLocationId ?? DEFAULT_LOCATION,
+      seed.googleConnectionId ?? null,
+      seed.rating ?? 5,
+      seed.text ?? 'A live review',
+      reviewedAt,
+      lastFetchedAt,
       seed.contentExpiresAt,
       seed.sourceRevision ?? 0,
       DIGEST_ZEROES,
@@ -134,4 +167,5 @@ export async function eraseKeepingContentClock(
   if (erased.rowCount !== 1) {
     throw new Error(`Review ${input.id} was not found, so it could not be erased`)
   }
+  await db.query(`DELETE FROM review_source_contents WHERE review_id = $1`, [input.id])
 }
