@@ -15,7 +15,14 @@ const IDS = [
   '64000000-0000-4000-8000-000000000002',
   '64000000-0000-4000-8000-000000000003',
   '64000000-0000-4000-8000-000000000004',
+  '64000000-0000-4000-8000-000000000005',
+  '64000000-0000-4000-8000-000000000006',
+  '64000000-0000-4000-8000-000000000007',
+  '64000000-0000-4000-8000-000000000008',
 ] as const
+
+const RESPONSE_TTL_MS = 10 * 60_000
+const APPLY_LEASE_MS = 30_000
 
 const facts = (id: string) => ({
   id,
@@ -208,6 +215,139 @@ describe('PostgreSQL Google OAuth exchange recovery repository', () => {
       encryptedResult: null,
       responseExpiresAt: null,
       applyLeaseExpiresAt: null,
+    })
+  })
+
+  const scope = { organizationId: ORGANIZATION_ID, initiatorUserId: USER_ID }
+  const readPayload = async (id: string) => {
+    const [row] = await db
+      .select({ payload: idempotencyReceipts.payload })
+      .from(idempotencyReceipts)
+      .where(
+        and(
+          eq(idempotencyReceipts.scope, 'google_oauth_exchange'),
+          eq(idempotencyReceipts.key, id),
+        ),
+      )
+      .limit(1)
+    return row?.payload
+  }
+  const preserve = async (id: string, at: Date = NOW) => {
+    await store.begin({ ...facts(id), now: at })
+    await store.markProviderStarted({ id, ...scope, now: at })
+    await store.preserveSuccessfulResult({
+      id,
+      ...scope,
+      encryptedResult: 'ciphertext-only',
+      now: at,
+    })
+  }
+
+  it('claims a preserved response until the instant before its expiry and erases it at expiry', async () => {
+    const attempt = facts(IDS[4])
+    await preserve(attempt.id)
+
+    await expect(
+      store.claimPreservedResult({
+        id: attempt.id,
+        ...scope,
+        now: new Date(NOW.getTime() + RESPONSE_TTL_MS - 1),
+      }),
+    ).resolves.toMatchObject({ ok: true })
+
+    const expired = facts(IDS[5])
+    await preserve(expired.id)
+    await expect(
+      store.claimPreservedResult({
+        id: expired.id,
+        ...scope,
+        now: new Date(NOW.getTime() + RESPONSE_TTL_MS),
+      }),
+    ).resolves.toMatchObject({ ok: false, code: 'expired' })
+    await expect(readPayload(expired.id)).resolves.toMatchObject({
+      state: 'expired',
+      encryptedResult: null,
+      responseExpiresAt: null,
+      applyLeaseExpiresAt: null,
+      outcomeCode: 'response_expired',
+    })
+    await expect(
+      store.claimPreservedResult({
+        id: expired.id,
+        ...scope,
+        now: new Date(NOW.getTime() + 1_000),
+      }),
+    ).resolves.toMatchObject({ ok: false, code: 'expired' })
+  })
+
+  it('never lets an apply lease outlive the preserved response', async () => {
+    const attempt = facts(IDS[6])
+    await preserve(attempt.id)
+    const claimedAt = new Date(NOW.getTime() + RESPONSE_TTL_MS - 5_000)
+
+    await expect(
+      store.claimPreservedResult({ id: attempt.id, ...scope, now: claimedAt }),
+    ).resolves.toMatchObject({ ok: true })
+
+    const payload = (await readPayload(attempt.id)) as {
+      applyLeaseExpiresAt: string
+      responseExpiresAt: string
+    }
+    expect(payload.applyLeaseExpiresAt).toBe(payload.responseExpiresAt)
+    expect(APPLY_LEASE_MS).toBeGreaterThan(5_000)
+    await expect(
+      store.releaseClaim({
+        id: attempt.id,
+        ...scope,
+        outcomeCode: 'apply_retry',
+        now: new Date(NOW.getTime() + RESPONSE_TTL_MS),
+      }),
+    ).resolves.toMatchObject({ ok: false, code: 'invalid_transition' })
+  })
+
+  it('refuses a foreign organization or user without touching the preserved response', async () => {
+    const attempt = facts(IDS[7])
+    await preserve(attempt.id)
+    const foreign = [
+      { organizationId: 'safe04-oauth-recovery-other-org', initiatorUserId: USER_ID },
+      { organizationId: ORGANIZATION_ID, initiatorUserId: 'safe04-other-user' },
+    ]
+
+    for (const who of foreign) {
+      await expect(
+        store.claimPreservedResult({ id: attempt.id, ...who, now: NOW }),
+      ).resolves.toMatchObject({ ok: false, code: 'scope_mismatch' })
+      await expect(
+        store.discardClaim({ id: attempt.id, ...who, outcomeCode: 'x', now: NOW }),
+      ).resolves.toMatchObject({ ok: false })
+    }
+    await expect(readPayload(attempt.id)).resolves.toMatchObject({
+      state: 'response_preserved',
+      encryptedResult: 'ciphertext-only',
+    })
+    await expect(
+      store.claimPreservedResult({ id: attempt.id, ...scope, now: NOW }),
+    ).resolves.toMatchObject({ ok: true })
+  })
+
+  it('sweeps an unclaimed preserved response only after its expiry', async () => {
+    const attempt = facts(IDS[3])
+    await preserve(attempt.id)
+
+    await expect(
+      store.expire({ now: new Date(NOW.getTime() + RESPONSE_TTL_MS - 1), limit: 100 }),
+    ).resolves.toEqual({ expired: 0 })
+    await expect(readPayload(attempt.id)).resolves.toMatchObject({
+      state: 'response_preserved',
+      encryptedResult: 'ciphertext-only',
+    })
+
+    await expect(
+      store.expire({ now: new Date(NOW.getTime() + RESPONSE_TTL_MS + 1), limit: 100 }),
+    ).resolves.toEqual({ expired: 1 })
+    await expect(readPayload(attempt.id)).resolves.toMatchObject({
+      encryptedResult: null,
+      responseExpiresAt: null,
     })
   })
 
