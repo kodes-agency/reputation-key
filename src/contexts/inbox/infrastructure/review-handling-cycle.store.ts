@@ -257,9 +257,9 @@ export const createReviewHandlingCycleStore = (
       return rows[0] ? sourceHeadFromRow(rows[0]) : null
     })
   },
-  findHead: async (itemId, orgId) => {
+  findHead: async (itemId, orgId, tx) => {
     return trace('inbox.handlingCycle.findHead', async () => {
-      const rows = await db
+      const rows = await (tx ?? db)
         .select()
         .from(inboxHandlingCycleHeads)
         .where(
