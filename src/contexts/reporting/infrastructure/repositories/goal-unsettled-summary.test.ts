@@ -10,7 +10,7 @@ import { monthlyPortalGoalOf } from '../../application/monthly-portal-goal-ident
 import { monthlyPortalGoalOnCard } from '../../monthly-goals/monthly-portal-goal-running.server'
 import { gatherPortalGoalRecommendation } from '../../application/use-cases/goal-recommendation-read'
 import { fakeWorld } from '../../monthly-goals/monthly-portal-goal.test-fixtures'
-import { anyPortalGoalMonthClosed } from '#/components/goals/portal-goal-results-foot'
+import { anyPortalGoalMonthClosed } from '#/contexts/reporting/monthly-goals/ui/portal-goal-results-foot'
 
 describe.sequential(
   'Stopped Goal summaries with older unsettled months (integration)',

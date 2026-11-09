@@ -11,7 +11,7 @@ import type {
   GoalResultsMatrix as GoalResultsMatrixModel,
 } from '#/contexts/reporting/application/public-api'
 import { goalMetricLabel } from './goal-metric-label'
-import { resultGoals } from './portal-goal-results-list-view'
+import { resultGoals } from '../../contexts/reporting/monthly-goals/ui/portal-goal-results-list-view'
 
 /** The first of a month, in UTC. */
 const monthStart = (month: number) => new Date(Date.UTC(2026, month - 1, 1))

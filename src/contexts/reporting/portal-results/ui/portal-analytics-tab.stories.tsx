@@ -6,7 +6,7 @@ import type { Meta, StoryObj } from '@storybook/react-vite'
 import { expect, fn, userEvent, waitFor, within } from 'storybook/test'
 import { AuthedRouterDecorator } from '../../../../../.storybook/AuthedRouterDecorator'
 import type { PortalGoalLineView } from '#/contexts/reporting/application/dto/monthly-portal-goal.types'
-import { PortalGoalResultsLine } from '#/components/goals/portal-goal-results-line'
+import { PortalGoalResultsLine } from '#/contexts/reporting/monthly-goals/ui/portal-goal-results-line'
 import { PortalAnalyticsTab } from './portal-analytics-tab'
 import { RESULTS_HEALTHY } from './portal-results-stories-data'
 
