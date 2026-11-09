@@ -21,6 +21,11 @@ import {
   createGuestRightsExecutor,
   type GuestRightsExecutorDeps,
 } from '#/contexts/guest/infrastructure/adapters/guest-rights.adapter'
+import type { StoragePort } from '#/contexts/portal/application/ports/storage.port'
+import {
+  createPortalErasureReplayers,
+  createPortalRightsExecutor,
+} from '#/contexts/portal/infrastructure/adapters/portal-rights.adapter'
 import {
   createReportingRightsExecutor,
   createReportingRightsReplayers,
@@ -45,6 +50,7 @@ import { reputationReplyScopeEffects } from './reply-scope-effects'
 export type RightsExecutorsDeps = Readonly<{
   db: Database
   runNotification: NotificationRightsExecutorDeps['run']
+  portalObjectStore: Pick<StoragePort, 'deleteObject'>
   /** The named operator for guest-response erasure; absent means that apply is denied. */
   operator?: GuestRightsExecutorDeps['operator']
   now?: () => Date
@@ -61,6 +67,7 @@ export function composeRightsExecutors(
     run: deps.runNotification,
   })
   if (finalWarning) return [notification]
+  if (!deps.portalObjectStore) throw new Error('Portal image store is required')
   return [
     createGoogleRightsExecutor({ db: deps.db, now }),
     createReviewRightsExecutor({
@@ -76,6 +83,11 @@ export function composeRightsExecutors(
       operator: deps.operator,
     }),
     createReportingRightsExecutor(deps.db, now),
+    createPortalRightsExecutor({
+      db: deps.db,
+      objectStore: deps.portalObjectStore,
+      now,
+    }),
     createAiRightsExecutor(deps.db, now),
     createActivityRightsExecutor(deps.db),
     notification,
@@ -99,6 +111,7 @@ export function composeRightsReplayers(
     createGuestBackupErasureReplayer(),
     createGuestPropertyErasureReplayer(),
     ...createReportingRightsReplayers(now),
+    ...createPortalErasureReplayers(),
     ...createAiErasureReplayers(now),
     ...createActivityErasureReplayers(),
     ...deps.notificationReplayers,
