@@ -26,9 +26,9 @@ own source review, inbox, property, portal, identity, or goal state.
 - The notification audience may read Goal monthly-result facts only through
   Goal's application public API.
 - Whether a notice's work still waits is asked of the context that owns it,
-  through `application/notification-work-state.ts` (container
-  `notificationWorkerRuntime.workState`, passed to the insert, immediate-email
-  and digest jobs): Inbox's lookups, Review's reply state through
+  through `application/notification-work-state.ts` (built into the delivery
+  processors in `infrastructure/jobs/notification-delivery-processors.ts`, which
+  pass it to the insert, immediate-email and digest jobs): Inbox's lookups, Review's reply state through
   `ReplyWorkStateLookupPort` (`review.lookups.reply.findStatesByReviewIds`,
   internal replies only), Portal Health, responsibility, and the Organization
   lifecycle. Feed reads the Property lifecycle through `ActivePropertyLookup`
