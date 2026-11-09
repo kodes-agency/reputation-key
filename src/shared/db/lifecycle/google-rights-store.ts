@@ -55,6 +55,18 @@ const PURGE_DELETE_TABLES = Object.freeze([
   'google_import_discovery_records',
 ] as const)
 
+/** Tables the report counts and the closure deletes from or scrubs. */
+export const GOOGLE_RIGHTS_TABLES = Object.freeze({
+  scrubbed: ['google_connections', 'authorization_execution_permits'],
+  organization: [
+    ...PURGE_DELETE_TABLES,
+    'google_connections',
+    'idempotency_receipts',
+    'authorization_execution_permits',
+  ],
+  property: ['google_import_items', 'google_imports'],
+})
+
 const BLOCKER_CODES = Object.freeze([
   'live_connections',
   'in_flight_import_items',
@@ -83,12 +95,29 @@ async function footprint(tx: Tx, organizationId: string) {
       (SELECT count(*)::int FROM google_connections
         WHERE organization_id = ${organizationId}) AS connections,
       (SELECT count(*)::int FROM google_imports
-        WHERE organization_id = ${organizationId}) AS imports
+        WHERE organization_id = ${organizationId}) AS imports,
+      (SELECT count(*)::int FROM google_import_items
+        WHERE organization_id = ${organizationId}) AS import_items,
+      (SELECT count(*)::int FROM google_import_discovery_records
+        WHERE organization_id = ${organizationId}) AS discovery_records,
+      (SELECT count(*)::int FROM idempotency_receipts
+        WHERE scope IN ('google_oauth_exchange', 'gbp_import_item_retry', 'google_import_discovery')
+          AND payload->>'organizationId' = ${organizationId}) AS deleted_receipts,
+      (SELECT count(*)::int FROM idempotency_receipts
+        WHERE scope = 'google_disconnect_revoke'
+          AND payload->>'organizationId' = ${organizationId}) AS disconnect_attempts,
+      (SELECT count(*)::int FROM authorization_execution_permits
+        WHERE organization_id = ${organizationId}) AS permits
   `)
   const row = result.rows[0] as Row | undefined
   return {
     connections: count(row, 'connections'),
     imports: count(row, 'imports'),
+    importItems: count(row, 'import_items'),
+    discoveryRecords: count(row, 'discovery_records'),
+    deletedReceipts: count(row, 'deleted_receipts'),
+    disconnectAttempts: count(row, 'disconnect_attempts'),
+    permits: count(row, 'permits'),
   }
 }
 
@@ -103,10 +132,26 @@ async function propertyFootprint(tx: Tx, organizationId: string, propertyId: str
         WHERE organization_id = ${organizationId}
           AND (destination_property_id = ${propertyId}
             OR existing_property_id = ${propertyId})
-          AND status IN ('pending', 'processing')) AS in_flight_import_items
+          AND status IN ('pending', 'processing')) AS in_flight_import_items,
+      (SELECT count(*)::int FROM google_imports AS parent
+        WHERE parent.organization_id = ${organizationId}
+          AND EXISTS (
+            SELECT 1 FROM google_import_items AS item
+            WHERE item.organization_id = parent.organization_id
+              AND item.import_id = parent.id
+              AND (item.destination_property_id = ${propertyId}
+                OR item.existing_property_id = ${propertyId}))
+          AND NOT EXISTS (
+            SELECT 1 FROM google_import_items AS item
+            WHERE item.organization_id = parent.organization_id
+              AND item.import_id = parent.id
+              AND item.destination_property_id IS DISTINCT FROM ${propertyId}
+              AND item.existing_property_id IS DISTINCT FROM ${propertyId})
+      ) AS emptied_imports
   `)
   const row = result.rows[0] as Row | undefined
   return {
+    emptiedImports: count(row, 'emptied_imports'),
     importItems: count(row, 'import_items'),
     inFlight: count(row, 'in_flight_import_items'),
   }
@@ -316,7 +361,9 @@ export async function readGoogleRightsReport(
       const held = await footprint(tx, organizationId)
       const found = await blockers(tx, organizationId, now)
       return [
-        `connections=${held.connections} imports=${held.imports}`,
+        `connections=${held.connections} imports=${held.imports} import_items=${held.importItems} ` +
+          `import_discovery_records=${held.discoveryRecords} purged_receipts=${held.deletedReceipts} ` +
+          `disconnect_attempts=${held.disconnectAttempts} execution_permits=${held.permits}`,
         found.length === 0
           ? 'closure blockers: none'
           : `closure blockers: ${found.map((b) => `${b.code}=${b.count}`).join(',')}`,
@@ -398,7 +445,7 @@ export async function readGoogleRightsPropertyReport(
     async (tx) => {
       const held = await propertyFootprint(tx, organizationId, propertyId)
       return [
-        `import_items=${held.importItems}`,
+        `import_items=${held.importItems} imports_emptied=${held.emptiedImports}`,
         held.inFlight === 0
           ? 'erasure blockers: none'
           : `erasure blockers: in_flight_import_items=${held.inFlight}`,

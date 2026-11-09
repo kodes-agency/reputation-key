@@ -19,6 +19,15 @@ import {
 
 const CONTEXT = 'activity'
 
+const ACTIVITY_RIGHTS_TABLES = Object.freeze({
+  organization: [
+    'recent_activity_entries',
+    'recent_activity_replay_facts',
+    'recent_activity_actor_label_redactions',
+  ],
+  property: ['recent_activity_entries', 'recent_activity_replay_facts'],
+})
+
 function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : 'unexpected error'
 }
@@ -174,6 +183,10 @@ export function createActivityRightsExecutor(db: Database): RightsExecutor {
     name: CONTEXT,
     scopes: ['property', 'organization'] as const,
     journalContexts: [CONTEXT] as const,
+    tables: {
+      organization: ACTIVITY_RIGHTS_TABLES.organization,
+      property: ACTIVITY_RIGHTS_TABLES.property,
+    },
     async preflight(plan) {
       if (plan.scope !== 'organization' && plan.scope !== 'property') {
         return { ok: false, error: `no ${CONTEXT} erasure for ${plan.scope}` }

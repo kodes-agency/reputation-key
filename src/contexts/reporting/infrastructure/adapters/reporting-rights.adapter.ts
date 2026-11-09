@@ -395,6 +395,12 @@ export function createReportingRightsExecutor(
     name: CONTEXT,
     scopes: ['access', 'organization', 'property'] as const,
     journalContexts: REPORTING_JOURNAL_CONTEXTS,
+    tables: {
+      organization: REPORTING_PURGE_ORDER,
+      property: REPORTING_PURGE_ORDER.filter(
+        (table) => !REPORTING_ORGANIZATION_ONLY_TABLES.includes(table),
+      ),
+    },
     async preflight(plan) {
       if (plan.scope === 'access') return { ok: true }
       const refusal = await purgeScope(plan)

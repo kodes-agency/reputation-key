@@ -3,7 +3,7 @@
 // warning. The context owns the reads, allowlists and tenant checks; this
 // module only fits its run function to the executor contract.
 
-import type { RightsExecutor } from './rights-executor'
+import type { RightsExecutor, RightsTableCoverage } from './rights-executor'
 
 export const NOTIFICATION_RIGHTS_EXPORT_PATH = 'notification/notification-rights.json'
 
@@ -26,6 +26,8 @@ export type NotificationRightsExecutorDeps = Readonly<{
   run: (run: NotificationRightsRun) => Promise<NotificationRightsOutcome>
   /** Apply on an Organization queues final warnings instead of purging. */
   finalWarning: boolean
+  /** The tables the context's purge deletes from, which its report counts. */
+  tables: RightsTableCoverage
 }>
 
 export function createNotificationRightsExecutor(
@@ -47,6 +49,7 @@ export function createNotificationRightsExecutor(
     name: 'notification',
     scopes: ['access', 'property', 'organization'] as const,
     journalContexts: ['notification'] as const,
+    tables: deps.tables,
     // The only refusal apply gives before it touches a row; later failures are
     // runtime errors that the runner reports with the executors already applied.
     async preflight(plan) {

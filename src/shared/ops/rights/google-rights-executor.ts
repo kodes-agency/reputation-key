@@ -20,6 +20,7 @@ import {
   eraseGoogleIntegrationForProperty,
   eraseGoogleIntegrationForPropertyInTx,
   scrubRestoredGoogleIntegrationInTx,
+  GOOGLE_RIGHTS_TABLES,
   googleClosureRefusal,
   googlePropertyErasureRefusal,
   readGoogleRightsExport,
@@ -44,6 +45,7 @@ export function createGoogleRightsExecutor(
     name: 'google-integration',
     scopes: ['access', 'organization', 'property'] as const,
     journalContexts: ['integration'] as const,
+    tables: GOOGLE_RIGHTS_TABLES,
     async preflight(plan) {
       if (plan.scope === 'property') {
         if (!plan.propertyId) return { ok: false, error: '--property is required' }

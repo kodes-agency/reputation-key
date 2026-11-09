@@ -8,6 +8,7 @@ import type {
   NotificationRightsRequest,
 } from '../rights/executor.server'
 
+export { NOTIFICATION_RIGHTS_TABLES } from '../domain/notification-rights-tables'
 export * from './activity-public-api'
 export * from './notification-public-api'
 

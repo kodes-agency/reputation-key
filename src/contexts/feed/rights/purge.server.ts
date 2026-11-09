@@ -10,6 +10,10 @@ type PurgeStep = Readonly<{
 const org = (scope: NotificationRightsScope) =>
   sql`organization_id = ${scope.organizationId}`
 
+/** The tables each scope's steps delete from, in step order. */
+export const notificationPurgeTables = (scope: 'organization' | 'property') =>
+  (scope === 'property' ? PROPERTY_STEPS : ORGANIZATION_STEPS).map((step) => step.table)
+
 /** Children first, so no row is left pointing at a deleted parent. */
 const ORGANIZATION_STEPS: readonly PurgeStep[] = [
   { table: 'notification_digest_batch_members', predicate: org },
@@ -44,6 +48,22 @@ const PROPERTY_STEPS: readonly PurgeStep[] = [
 ]
 
 export type NotificationPurgeCounts = Readonly<Record<string, number>>
+
+/** Rows held per table that a purge of the scope deletes, with the same predicates. */
+export async function countNotificationRightsData(
+  db: Pick<Database, 'execute'>,
+  scope: NotificationRightsScope,
+): Promise<NotificationPurgeCounts> {
+  const steps = scope.propertyId ? PROPERTY_STEPS : ORGANIZATION_STEPS
+  const counts: Record<string, number> = {}
+  for (const step of steps) {
+    const result = await db.execute(sql`
+      SELECT count(*)::int AS held FROM ${sql.identifier(step.table)}
+       WHERE ${step.predicate(scope as Required<NotificationRightsScope>)}`)
+    counts[step.table] = Number((result.rows[0] as { held: unknown } | undefined)?.held)
+  }
+  return counts
+}
 
 /**
  * Delete the scope's rows in bounded batches, one statement per batch. Each

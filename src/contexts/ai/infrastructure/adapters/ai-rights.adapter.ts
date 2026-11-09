@@ -32,6 +32,20 @@ const ORGANIZATION_ONLY_TABLES: ReadonlySet<string> = new Set([
   'ai_organization_cost_windows',
 ])
 
+/** Deleted with their parent rows through ON DELETE CASCADE; the report counts them. */
+const AI_CASCADE_TABLES = Object.freeze([
+  'ai_draft_measurement_links',
+  'ai_review_analysis_aspects',
+  'ai_review_analysis_mentions',
+  'ai_review_analysis_mention_sentences',
+  'ai_review_analysis_mention_corrections',
+  'ai_property_aggregate_contribution_aspects',
+  'ai_property_aggregate_contribution_mentions',
+  'ai_property_daily_aspect_aggregates',
+] as const)
+
+const AI_REPORT_TABLES = Object.freeze([...AI_PURGE_DELETE_TABLES, ...AI_CASCADE_TABLES])
+
 type CountRow = Record<string, unknown>
 
 function errorMessage(error: unknown): string {
@@ -180,6 +194,17 @@ export async function aiRightsEraseInTransaction(
     : erasePropertyRows(tx, organization, property, at)
 }
 
+/** The rows of a report table in scope; the links hang off their measurement. */
+function reportScope(table: string, organization: string, property: string | null) {
+  const own =
+    property === null
+      ? sql`organization_id = ${organization}`
+      : sql`organization_id = ${organization} AND property_id = ${property}::uuid`
+  return table === 'ai_draft_measurement_links'
+    ? sql`generation_id IN (SELECT id FROM ai_draft_measurements WHERE ${own})`
+    : own
+}
+
 async function reportCounts(
   db: Database,
   organization: string,
@@ -188,15 +213,11 @@ async function reportCounts(
   const lines: string[] = []
   await db.transaction(
     async (tx) => {
-      for (const table of AI_PURGE_DELETE_TABLES) {
+      for (const table of AI_REPORT_TABLES) {
         if (property !== null && ORGANIZATION_ONLY_TABLES.has(table)) continue
         const result = await tx.execute(
-          property === null
-            ? sql`SELECT count(*) AS n FROM ${sql.identifier(table)}
-                  WHERE organization_id = ${organization}`
-            : sql`SELECT count(*) AS n FROM ${sql.identifier(table)}
-                  WHERE organization_id = ${organization}
-                    AND property_id = ${property}::uuid`,
+          sql`SELECT count(*) AS n FROM ${sql.identifier(table)}
+              WHERE ${reportScope(table, organization, property)}`,
         )
         lines.push(`${table} ${count((result.rows[0] as CountRow).n)}`)
       }
@@ -240,6 +261,10 @@ export function createAiRightsExecutor(db: Database, now: () => Date): RightsExe
     name: CONTEXT,
     scopes: ['property', 'organization'] as const,
     journalContexts: [CONTEXT] as const,
+    tables: {
+      organization: AI_REPORT_TABLES,
+      property: AI_REPORT_TABLES.filter((table) => !ORGANIZATION_ONLY_TABLES.has(table)),
+    },
     async preflight(plan) {
       if (plan.scope !== 'organization' && plan.scope !== 'property') {
         return { ok: false, error: `no ${CONTEXT} erasure for ${plan.scope}` }

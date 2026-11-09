@@ -746,11 +746,19 @@ describe.sequential('Google rights executor through the rights-request command',
             propertyId,
           ])
           expect(report.exit).toBe(0)
-          expect(report.out).toContain('google-integration: import_items=2')
+          expect(report.out).toContain(
+            'google-integration: import_items=2 imports_emptied=1',
+          )
           expect(report.out).toContain('google-integration: erasure blockers: none')
         }
         const org = await runScript(['organization', '--org', fixture.organizationId])
-        expect(org.out).toContain('google-integration: connections=1 imports=3')
+        expect(org.out).toEqual(
+          expect.arrayContaining([
+            expect.stringMatching(
+              /^google-integration: connections=1 imports=3 import_items=\d+ import_discovery_records=\d+ purged_receipts=\d+ disconnect_attempts=\d+ execution_permits=\d+$/,
+            ),
+          ]),
+        )
         expect(org.out).toContain('google-integration: closure blockers: none')
       }
     })

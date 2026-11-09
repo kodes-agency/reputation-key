@@ -27,6 +27,7 @@ import {
   createGuestPropertyErasureReplayer,
 } from './guest-backup-erasure-replayer.adapter'
 import { createGuestResponseErasureReplayer } from './guest-response-erasure-replayer.adapter'
+import { GUEST_PURGE_PLAN } from './guest-organization-lifecycle.adapter'
 import { createGuestRightsExecutor } from './guest-rights.adapter'
 
 const AT = new Date('2026-08-01T00:00:00.000Z')
@@ -339,8 +340,17 @@ describe('guest rights executor', () => {
         'guest: undelivered guest facts 0',
       ]),
     )
-    // The purge counts responses, receipts, pressure records and the legacy mirrors.
-    expect(organization.out).toContain('guest: tenant rows 14')
+    // The report counts every table of the purge, children and legacy mirrors included.
+    const counted = organization.out.filter((line) =>
+      GUEST_PURGE_PLAN.some((table) => line.startsWith(`guest: ${table} `)),
+    )
+    expect(counted).toHaveLength(GUEST_PURGE_PLAN.length)
+    expect(
+      counted.reduce(
+        (sum, line) => sum + Number(line.slice(line.lastIndexOf(' ') + 1)),
+        0,
+      ),
+    ).toBeGreaterThanOrEqual(14)
     expect(await snapshot(first.organizationId)).toBe(before)
     expect(await rowTotal(other.organizationId)).toBe(22)
   })

@@ -195,6 +195,7 @@ export function createPortalRightsExecutor(
     name: CONTEXT,
     scopes: ['organization', 'property'] as const,
     journalContexts: ['portal'] as const,
+    tables: { organization: PORTAL_PURGE_PLAN, property: PORTAL_PURGE_PLAN },
     async preflight(plan) {
       if (plan.scope === 'property' && !plan.propertyId) {
         return { ok: false, error: '--property is required' }

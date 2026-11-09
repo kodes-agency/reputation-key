@@ -43,7 +43,7 @@ const DIRECT_TABLE_NAMES = Object.freeze([
   'guest_network_pressure_records',
 ] as const)
 
-const GUEST_PROPERTY_ERASE_PLAN = Object.freeze([
+export const GUEST_PROPERTY_ERASE_PLAN = Object.freeze([
   ...DIRECT_TABLE_NAMES,
   'idempotency_receipts',
 ] as const)

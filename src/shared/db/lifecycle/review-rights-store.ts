@@ -49,7 +49,11 @@ export const REVIEW_EXCLUDED_RECORD_CLASSES = Object.freeze([
 
 type Row = Readonly<Record<string, unknown>>
 
-/** Review tables scoped directly by `organization_id` that hold tenant content. */
+/**
+ * Every Review table an erasure deletes from or scrubs, so a report sizes the
+ * whole closure. Snapshot members and deletion candidates go by cascade from
+ * their run; the others are named in `purge` or in the Reply effects.
+ */
 const PRESENCE_TABLES = Object.freeze([
   'reviews',
   'replies',
@@ -61,10 +65,32 @@ const PRESENCE_TABLES = Object.freeze([
   'property_reply_voices',
   'reply_templates',
   'reply_template_visibility',
+  'reply_template_revisions',
+  'reply_template_wordings',
+  'google_reply_observation_heads',
+  'google_reply_observations',
+  'review_source_observations',
+  'review_source_contents',
+  'review_ai_analysis_released_sequences',
+  'review_first_sightings',
+  'review_provider_subjects',
+  'review_provider_snapshot_members',
+  'review_provider_deletion_candidates',
+  'reply_publication_attempts',
+  'material_review_revisions',
+  'review_sync_state',
+  'review_sync_runs',
+  'idempotency_receipts',
 ] as const)
 
 /** Tables with no Property column: a Property request does not touch them. */
 const ORGANIZATION_ONLY_TABLES: ReadonlyArray<string> = ['organization_reply_voices']
+
+export const REVIEW_RIGHTS_TABLES = Object.freeze({
+  scrubbed: ['reviews', 'replies', 'material_review_revisions'],
+  organization: PRESENCE_TABLES,
+  property: PRESENCE_TABLES.filter((table) => !ORGANIZATION_ONLY_TABLES.includes(table)),
+})
 
 const BLOCKER_CODES = Object.freeze([
   'active_reply_publications',
@@ -129,6 +155,42 @@ function toCount(row: Row | undefined, field: string): number {
 
 async function affected(tx: Tx, statement: SQL): Promise<number> {
   return (await tx.execute(statement)).rowCount ?? 0
+}
+
+/** The rows of a report table that the scope's erasure reaches. */
+function presenceFilter(
+  scope: ReviewRightsScope,
+  table: (typeof PRESENCE_TABLES)[number],
+): SQL {
+  const properties = sql`property_id IN (SELECT property_id FROM ${scopeProperties(scope)} AS scope)`
+  switch (table) {
+    case 'replies':
+      return scopedReviews(scope)
+    case 'review_sync_state':
+    case 'review_sync_runs':
+      return properties
+    case 'idempotency_receipts':
+      return sql`scope = 'gbp_webhook'
+        AND payload->>'resolvedPropertyId' IN (SELECT property_id FROM ${scopeProperties(scope)} AS scope)`
+    case 'review_provider_snapshot_members':
+    case 'review_provider_deletion_candidates':
+      return sql`run_id IN (SELECT id FROM review_provider_snapshot_runs WHERE ${scopedRows(scope)})`
+    case 'reply_template_visibility':
+      return scope.propertyId
+        ? sql`organization_id = ${scope.organizationId}
+            AND (property_id = ${scope.propertyId}
+              OR template_id IN (SELECT id FROM reply_templates WHERE ${scopedRows(scope)}))`
+        : scopedRows(scope)
+    case 'reply_template_revisions':
+      return sql`template_id IN (SELECT id FROM reply_templates WHERE ${scopedRows(scope)})`
+    case 'reply_template_wordings':
+      return sql`revision_id IN (
+        SELECT revision.id FROM reply_template_revisions AS revision
+        JOIN reply_templates AS template ON template.id = revision.template_id
+        WHERE ${aliasedScope(scope, 'template')})`
+    default:
+      return scopedRows(scope)
+  }
 }
 
 async function organizationExists(tx: Tx, organizationId: string): Promise<boolean> {
@@ -216,7 +278,7 @@ export async function readReviewRightsReport(
       const held: string[] = []
       for (const table of PRESENCE_TABLES) {
         if (scope.propertyId && ORGANIZATION_ONLY_TABLES.includes(table)) continue
-        const rows = table === 'replies' ? scopedReviews(scope) : scopedRows(scope)
+        const rows = presenceFilter(scope, table)
         const result = await tx.execute(
           sql`SELECT count(*)::int AS held FROM ${sql.identifier(table)}
               WHERE ${rows}`,

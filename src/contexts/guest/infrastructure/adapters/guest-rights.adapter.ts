@@ -20,6 +20,7 @@ import {
   propertyId,
 } from '#/shared/domain/ids'
 import type { RightsExecutor } from '#/shared/ops/rights/rights-executor'
+import type { Tx } from '#/shared/outbox/commit'
 import {
   GuestResponseLifecycleError,
   guestResponseLifecycle,
@@ -30,11 +31,16 @@ import { createGuestResponseRepository } from '../repositories/guest-response.re
 import { createGuestOrganizationExportContributor } from './guest-organization-export.adapter'
 import {
   drizzleGuestLifecycleWorkbench,
+  GUEST_PURGE_PLAN,
   GUEST_PURGE_READINESS_BLOCKED,
 } from './guest-organization-lifecycle.adapter'
-import { createGuestPropertyEraseContributor } from './guest-property-erase.adapter'
+import {
+  createGuestPropertyEraseContributor,
+  GUEST_PROPERTY_ERASE_PLAN,
+} from './guest-property-erase.adapter'
 import {
   countGuestLegacyPropertyRows,
+  GUEST_LEGACY_PROPERTY_TABLES,
   eraseGuestLegacyPropertyRows,
 } from './guest-property-legacy-rows'
 
@@ -54,6 +60,29 @@ function errorMessage(error: unknown): string {
     : error instanceof Error
       ? error.message
       : 'unexpected error'
+}
+
+/** One count per table of the Organization purge, so the report sizes the whole plan. */
+async function countOrganizationPlanRows(
+  tx: Tx,
+  organization: string,
+): Promise<ReadonlyArray<Readonly<{ table: string; rowCount: number }>>> {
+  const counts: Array<Readonly<{ table: string; rowCount: number }>> = []
+  for (const table of GUEST_PURGE_PLAN) {
+    const scope =
+      table === 'idempotency_receipts'
+        ? sql`scope IN ('guest_qualified_scan', 'guest_destination_action')
+              AND payload->>'organizationId' = ${organization}`
+        : sql`organization_id = ${organization}`
+    const result = await tx.execute(
+      sql`SELECT COUNT(*)::int AS "rows" FROM ${sql.identifier(table)} WHERE ${scope}`,
+    )
+    counts.push({
+      table,
+      rowCount: Number((result.rows[0] as { rows?: number } | undefined)?.rows ?? 0),
+    })
+  }
+  return counts
 }
 
 export function createGuestRightsExecutor(deps: GuestRightsExecutorDeps): RightsExecutor {
@@ -151,6 +180,10 @@ export function createGuestRightsExecutor(deps: GuestRightsExecutorDeps): Rights
     name: CONTEXT,
     scopes: ['access', 'guest-response', 'property', 'organization'] as const,
     journalContexts: ['guest'] as const,
+    tables: {
+      organization: GUEST_PURGE_PLAN,
+      property: [...GUEST_PROPERTY_ERASE_PLAN, ...GUEST_LEGACY_PROPERTY_TABLES],
+    },
     async preflight(plan) {
       let refusal: string | null = null
       if (plan.scope === 'guest-response') {
@@ -188,10 +221,13 @@ export function createGuestRightsExecutor(deps: GuestRightsExecutorDeps): Rights
           await undeliveredLine(plan.organizationId),
         ]
       }
-      const rows = await db.transaction((tx) =>
-        workbench.countTenantRows(tx, plan.organizationId),
+      const counts = await db.transaction((tx) =>
+        countOrganizationPlanRows(tx, plan.organizationId),
       )
-      return [`tenant rows ${rows}`, await undeliveredLine(plan.organizationId)]
+      return [
+        ...counts.map(({ table, rowCount }) => `${table} ${rowCount}`),
+        await undeliveredLine(plan.organizationId),
+      ]
     },
     async exportFiles(plan) {
       const contribution = await exportContributor.contribute({

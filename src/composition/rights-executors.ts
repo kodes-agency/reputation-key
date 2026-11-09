@@ -12,6 +12,7 @@ import {
   createActivityErasureReplayers,
   createActivityRightsExecutor,
 } from '#/contexts/feed/infrastructure/adapters/activity-rights.adapter'
+import { NOTIFICATION_RIGHTS_TABLES } from '#/contexts/feed/application/public-api'
 import type { BackupErasureReplayer } from '#/shared/db/lifecycle/backup-erasure-ledger'
 import {
   createGuestBackupErasureReplayer,
@@ -64,6 +65,7 @@ export function composeRightsExecutors(
   const now = deps.now ?? (() => new Date())
   const notification = createNotificationRightsExecutor({
     finalWarning,
+    tables: NOTIFICATION_RIGHTS_TABLES,
     run: deps.runNotification,
   })
   if (finalWarning) return [notification]

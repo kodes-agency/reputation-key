@@ -22,9 +22,22 @@ export type RightsApplyOutcome =
 export type RightsPreflightOutcome =
   Readonly<{ ok: true }> | Readonly<{ ok: false; error: string }>
 
+/**
+ * The tables an executor's report counts and its apply deletes or scrubs, rows
+ * that go by cascade included. The coverage gate joins these to the data-fate
+ * authority.
+ */
+export type RightsTableCoverage = Readonly<{
+  organization: ReadonlyArray<string>
+  property: ReadonlyArray<string>
+  /** Tables updated in place, so no cascade fires from them. */
+  scrubbed?: ReadonlyArray<string>
+}>
+
 export type RightsExecutor = Readonly<{
   name: string
   scopes: ReadonlyArray<RightsRequestScope>
+  tables: RightsTableCoverage
   /** Lifecycle contexts whose erasure this executor journals before it applies. */
   journalContexts: ReadonlyArray<BackupErasureLedgerContext>
   /**
