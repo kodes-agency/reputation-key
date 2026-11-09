@@ -23,8 +23,8 @@ import {
 } from '#/shared/domain/ids'
 import { portalCreated, portalLinkCreated, portalLinkUpdated } from '../domain/events'
 import { createAtomicPortalCommandStore } from '../publication/portal-command-store.server'
-import { createPortalLinkRepository } from './repositories/portal-link.repository'
-import { createPortalMediaAssetRepository } from './repositories/portal-media-asset.repository'
+import { createPortalLinkRepository } from '../infrastructure/repositories/portal-link.repository'
+import { createPortalMediaAssetRepository } from '../infrastructure/repositories/portal-media-asset.repository'
 
 const ORG_A = organizationId('org-tileimg-0000-0000-000000000001')
 const ORG_B = organizationId('org-tileimg-0000-0000-000000000002')

@@ -16,13 +16,13 @@ import type {
   RotatePortalTokenCommand,
 } from '../application/ports/portal-command-store.port'
 import { portalError } from '../domain/errors'
-import { fencePortalRevision } from './portal-aggregate-fence'
-import { sameInstant } from './portal-command-guards'
-import { NO_SEALED_ADDRESS } from './portal-sealed-address-columns'
+import { fencePortalRevision } from '../infrastructure/portal-aggregate-fence'
+import { sameInstant } from '../infrastructure/portal-command-guards'
+import { NO_SEALED_ADDRESS } from '../infrastructure/portal-sealed-address-columns'
 import {
   areWellFormedPrintCodeHashes,
   refusingPrintCodeCollision,
-} from './portal-print-code-hashes'
+} from '../infrastructure/portal-print-code-hashes'
 
 export type PortalTokenCommandStore = Pick<
   PortalCommandStore,
