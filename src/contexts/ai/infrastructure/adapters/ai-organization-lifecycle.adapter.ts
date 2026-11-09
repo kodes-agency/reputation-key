@@ -201,7 +201,7 @@ const verifyPurgeReadiness = async (
  * operation records they reference. Erasure also removes enrollment and
  * aggregate heads so a later sweep cannot rebuild the derivative.
  */
-const PURGE_DELETE_TABLES = Object.freeze([
+export const AI_PURGE_DELETE_TABLES = Object.freeze([
   'ai_draft_measurements',
   'ai_review_analysis_backlog',
   'ai_review_analysis_enrollments',
@@ -239,6 +239,27 @@ const PURGE_DELETE_TABLES = Object.freeze([
  * The Property's Google category hint is cleared with the results that used it.
  * Source Reviews stay Review's to purge; consent evidence remains with Identity.
  */
+export const eraseAiOrganizationRows = async (
+  tx: Tx,
+  organizationId: string,
+): Promise<number> => {
+  await tx.execute(
+    sql`SELECT pg_advisory_xact_lock(hashtext('ai-draft-measurement'), hashtext(${organizationId}))`,
+  )
+  let deleted = 0
+  for (const table of AI_PURGE_DELETE_TABLES) {
+    const result = await tx.execute(
+      sql`DELETE FROM ${sql.identifier(table)}
+          WHERE organization_id = ${organizationId}
+          RETURNING 1`,
+    )
+    deleted += result.rows.length
+  }
+
+  await clearGooglePrimaryCategoryForOrganization(tx, organizationId)
+  return deleted
+}
+
 const purge = async (
   tx: Tx,
   request: OrganizationLifecycleContributionRequest,
@@ -246,21 +267,7 @@ const purge = async (
   // Probed BEFORE the deletes and inclusive of the retained consent evidence,
   // so a replay after a rolled-back attempt reports the same outcome.
   const footprint = await aiFootprint(tx, request.organizationId)
-
-  await tx.execute(
-    sql`SELECT pg_advisory_xact_lock(hashtext('ai-draft-measurement'), hashtext(${request.organizationId}))`,
-  )
-  let deleted = 0
-  for (const table of PURGE_DELETE_TABLES) {
-    const result = await tx.execute(
-      sql`DELETE FROM ${sql.identifier(table)}
-          WHERE organization_id = ${request.organizationId}
-          RETURNING 1`,
-    )
-    deleted += result.rows.length
-  }
-
-  await clearGooglePrimaryCategoryForOrganization(tx, request.organizationId)
+  const deleted = await eraseAiOrganizationRows(tx, request.organizationId)
 
   return footprint === 0
     ? { outcome: 'no_data', evidenceRef: evidenceRef('purge', request, [0]) }

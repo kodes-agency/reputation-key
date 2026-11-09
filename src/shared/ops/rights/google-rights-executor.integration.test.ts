@@ -9,18 +9,15 @@ import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest'
 import { getEnv } from '#/shared/config/env'
 import type { Database } from '#/shared/db'
 import { executeWithLastOwnerGuardDisabled } from '#/shared/db/disable-guard-triggers'
-import {
-  applyRestoreResurrectionFence,
-  type BackupErasureReplayer,
-} from '#/shared/db/lifecycle/backup-erasure-ledger'
+import { applyRestoreResurrectionFence } from '#/shared/db/lifecycle/backup-erasure-ledger'
 import { decodeErasureJournalEntry } from '#/shared/db/lifecycle/erasure-journal.server'
-import { eraseGoogleIntegrationForPropertyInTx } from '#/shared/db/lifecycle/google-rights-store'
 import { deleteTestOrganizations } from '#/shared/testing/integration-helpers'
 import { acquireTestLease, type TestLease } from '#/shared/testing/test-environment-lease'
 import { parseOperatorArgs, type OperatorContext } from '../operator-command'
 import {
   GOOGLE_RIGHTS_EXPORT_PATH,
   createGoogleRightsExecutor,
+  createGoogleRightsReplayers,
 } from './google-rights-executor'
 import { runRightsExecutors } from './rights-executor'
 import { createRightsJournal, type RightsJournalStore } from './rights-journal'
@@ -45,8 +42,6 @@ type Fixture = Readonly<{
   siblingPropertyId: string
   importId: string
   connectionId: string
-  sagaId: string
-  batchId: string
   permitId: string
 }>
 
@@ -64,8 +59,6 @@ async function seed(options: { live: boolean }): Promise<Fixture> {
     siblingPropertyId: randomUUID(),
     importId: randomUUID(),
     connectionId: randomUUID(),
-    sagaId: randomUUID(),
-    batchId: randomUUID(),
     permitId: randomUUID(),
   }
   fixtures.push(fixture)
@@ -121,73 +114,6 @@ async function seed(options: { live: boolean }): Promise<Fixture> {
     [fixture.siblingPropertyId, fixture.organizationId, `sibling-${suffix}`, CREATED_AT],
   )
   await seedGoogleImport(fixture)
-  await q(
-    `INSERT INTO gbp_import_sagas (
-       id, organization_id, request_id, initiated_by, total_count, batch_count,
-       wire_replay_key_version, wire_replay_digest,
-       semantic_replay_key_version, semantic_replay_digest, created_at, updated_at
-     ) VALUES ($1, $2, $3, $4, 2, 1, 'wire_v1', $5, 'semantic_v1', $5, $6, $6)`,
-    [
-      fixture.sagaId,
-      fixture.organizationId,
-      randomUUID(),
-      fixture.userId,
-      MARKERS.replayDigest,
-      CREATED_AT,
-    ],
-  )
-  await q(
-    `INSERT INTO gbp_import_requests (
-       id, organization_id, request_id, initiated_by, saga_id, batch_ordinal,
-       status, total_count, processed_count, pending_count, processing_count,
-       imported_count, wire_replay_key_version, wire_replay_digest,
-       semantic_replay_key_version, semantic_replay_digest, created_at, updated_at
-     ) VALUES ($1, $2, $3, $4, $5, 0, $8, 2, $9, $10, 0, $9,
-               'wire_v1', $6, 'semantic_v1', $6, $7, $7)`,
-    [
-      fixture.batchId,
-      fixture.organizationId,
-      randomUUID(),
-      fixture.userId,
-      fixture.sagaId,
-      MARKERS.replayDigest,
-      CREATED_AT,
-      'processing',
-      options.live ? 1 : 2,
-      options.live ? 1 : 0,
-    ],
-  )
-  const itemStatuses = options.live ? ['imported', 'pending'] : ['imported', 'imported']
-  for (const status of itemStatuses) {
-    await q(
-      `INSERT INTO gbp_import_request_items (
-         id, organization_id, import_job_id, connection_id,
-         destination_property_id, provider_account_suffix,
-         provider_location_suffix, expected_connection_lifecycle_version,
-         expected_connection_access_version, expected_credential_generation,
-         action, update_existing_profile, property_name, country_code, timezone, status,
-         outcome_code, first_terminal_at, effect_deadline_at,
-         created_at, updated_at
-       ) VALUES (
-         $1, $2, $3, $4, $5, $11, $11, 1, 1, 1,
-         'create', true, 'Imported Location', 'US', 'UTC', $6, $7,
-         $8, $9, $10, $10
-       )`,
-      [
-        randomUUID(),
-        fixture.organizationId,
-        fixture.batchId,
-        fixture.connectionId,
-        randomUUID(),
-        status,
-        status === 'imported' ? 'imported' : null,
-        status === 'imported' ? CREATED_AT : null,
-        new Date(CREATED_AT.getTime() + 86_400_000),
-        CREATED_AT,
-        MARKERS.providerSuffix,
-      ],
-    )
-  }
   await q(
     `INSERT INTO idempotency_receipts (scope, key, payload, recorded_at)
      VALUES ('google_disconnect_revoke', $1, jsonb_build_object(
@@ -316,59 +242,11 @@ async function seedGoogleImport(fixture: Fixture): Promise<void> {
   }
 }
 
-/** A new-store import and an old-store batch holding only the Property's items. */
-async function seedSoloImports(
-  fixture: Fixture,
-  propertyId: string,
-  batchOrdinal = 1,
-): Promise<void> {
+/** An import holding only the Property's item. */
+async function seedSoloImports(fixture: Fixture, propertyId: string): Promise<void> {
   const soloImportId = randomUUID()
   await insertGoogleImport(fixture, soloImportId)
   await insertGoogleItem(fixture, soloImportId, propertyId)
-  const soloBatchId = randomUUID()
-  await lease.pool.query(
-    `INSERT INTO gbp_import_requests (
-       id, organization_id, request_id, initiated_by, saga_id, batch_ordinal,
-       status, total_count, processed_count, pending_count, processing_count,
-       imported_count, wire_replay_key_version, wire_replay_digest,
-       semantic_replay_key_version, semantic_replay_digest, created_at, updated_at
-     ) VALUES ($1, $2, $3, $4, $5, $8, 'processing', 1, 1, 0, 0, 1,
-               'wire_v1', $6, 'semantic_v1', $6, $7, $7)`,
-    [
-      soloBatchId,
-      fixture.organizationId,
-      randomUUID(),
-      fixture.userId,
-      fixture.sagaId,
-      MARKERS.replayDigest,
-      CREATED_AT,
-      batchOrdinal,
-    ],
-  )
-  await lease.pool.query(
-    `INSERT INTO gbp_import_request_items (
-       id, organization_id, import_job_id, connection_id,
-       destination_property_id, provider_account_suffix,
-       provider_location_suffix, expected_connection_lifecycle_version,
-       expected_connection_access_version, expected_credential_generation,
-       action, update_existing_profile, property_name, country_code, timezone, status,
-       outcome_code, first_terminal_at, effect_deadline_at,
-       created_at, updated_at
-     ) VALUES ($1, $2, $3, $4, $5, $9, $9, 1, 1, 1,
-               'create', true, 'Imported Location', 'US', 'UTC', 'imported', 'imported',
-               $6, $7, $8, $8)`,
-    [
-      randomUUID(),
-      fixture.organizationId,
-      soloBatchId,
-      fixture.connectionId,
-      propertyId,
-      CREATED_AT,
-      new Date(CREATED_AT.getTime() + 86_400_000),
-      CREATED_AT,
-      MARKERS.providerSuffix,
-    ],
-  )
 }
 
 async function cleanup(fixture: Fixture): Promise<void> {
@@ -382,9 +260,6 @@ async function cleanup(fixture: Fixture): Promise<void> {
     'authorization_execution_permits',
     'google_import_items',
     'google_imports',
-    'gbp_import_request_items',
-    'gbp_import_requests',
-    'gbp_import_sagas',
     'google_connections',
     'properties',
   ]) {
@@ -399,9 +274,6 @@ async function cleanup(fixture: Fixture): Promise<void> {
 
 const TENANT_TABLES = [
   'google_connections',
-  'gbp_import_sagas',
-  'gbp_import_requests',
-  'gbp_import_request_items',
   'google_imports',
   'google_import_items',
   'authorization_execution_permits',
@@ -562,13 +434,7 @@ describe.sequential('Google rights executor through the rights-request command',
     const first = await runScript(apply(asked.organizationId))
     expect(first.exit).toBe(0)
 
-    for (const table of [
-      'google_import_items',
-      'google_imports',
-      'gbp_import_request_items',
-      'gbp_import_requests',
-      'gbp_import_sagas',
-    ]) {
+    for (const table of ['google_import_items', 'google_imports']) {
       expect(await rowCount(table, asked.organizationId)).toBe(0)
     }
     const connection = await lease.pool.query(
@@ -643,7 +509,7 @@ describe.sequential('Google rights executor through the rights-request command',
       (sum: number, row: { item_count: number }) => sum + row.item_count,
       0,
     )
-    expect(total).toBe(3)
+    expect(total).toBe(2)
     expect(
       payload.importItems.some(
         (row: { import_job_id: string }) => row.import_job_id === asked.importId,
@@ -653,7 +519,7 @@ describe.sequential('Google rights executor through the rights-request command',
     for (const secret of Object.values(MARKERS)) expect(file).not.toContain(secret)
   })
 
-  it("erases one Property's import items in both stores and prunes emptied parents", async () => {
+  it("erases one Property's import items and prunes emptied parents", async () => {
     const asked = await seed({ live: false })
     await seedSoloImports(asked, asked.propertyId)
     const items = (table: string, column: string, propertyId: string) =>
@@ -675,8 +541,7 @@ describe.sequential('Google rights executor through the rights-request command',
 
     const report = await runScript(propertyArgs([]))
     expect(report.exit).toBe(0)
-    expect(report.out.join('\n')).toContain('google_import_items=2')
-    expect(report.out.join('\n')).toContain('import_items=1')
+    expect(report.out.join('\n')).toContain('import_items=2')
 
     const result = await runScript(
       propertyArgs([
@@ -703,18 +568,8 @@ describe.sequential('Google rights executor through the rights-request command',
         asked.siblingPropertyId,
       ),
     ).toBe(1)
-    expect(
-      await items(
-        'gbp_import_request_items',
-        'destination_property_id',
-        asked.propertyId,
-      ),
-    ).toBe(0)
     // The shared import keeps its parent for the sibling; the solo import is gone.
     expect(await rowCount('google_imports', asked.organizationId)).toBe(1)
-    // The solo batch is pruned; the original batch still holds the other items.
-    expect(await rowCount('gbp_import_requests', asked.organizationId)).toBe(1)
-    expect(await rowCount('gbp_import_request_items', asked.organizationId)).toBe(2)
   })
 
   it('refuses to erase a Property with an import item in flight', async () => {
@@ -750,11 +605,11 @@ describe.sequential('Google rights executor through the rights-request command',
     async function seedTenant(live: boolean): Promise<Tenant> {
       const fixture = await seed({ live })
       await seedSoloImports(fixture, fixture.propertyId)
-      await seedSoloImports(fixture, fixture.siblingPropertyId, 2)
+      await seedSoloImports(fixture, fixture.siblingPropertyId)
       return { fixture }
     }
 
-    /** B's items in both stores with the parents they hang on. */
+    /** B's import items with the imports they hang on. */
     async function propertySnapshot(fixture: Fixture, propertyId: string) {
       const parts: string[] = []
       const queries: ReadonlyArray<readonly [string, string]> = [
@@ -770,18 +625,6 @@ describe.sequential('Google rights executor through the rights-request command',
              SELECT import_id FROM google_import_items
              WHERE organization_id = $1 AND destination_property_id = $2)`,
         ],
-        [
-          'gbp_import_request_items',
-          `SELECT to_jsonb(t.*)::text AS row FROM gbp_import_request_items AS t
-           WHERE t.organization_id = $1 AND t.destination_property_id = $2`,
-        ],
-        [
-          'gbp_import_requests',
-          `SELECT to_jsonb(p.*)::text AS row FROM gbp_import_requests AS p
-           WHERE p.organization_id = $1 AND p.id IN (
-             SELECT import_job_id FROM gbp_import_request_items
-             WHERE organization_id = $1 AND destination_property_id = $2)`,
-        ],
       ]
       for (const [label, query] of queries) {
         const result = await lease.pool.query(query, [fixture.organizationId, propertyId])
@@ -791,14 +634,10 @@ describe.sequential('Google rights executor through the rights-request command',
       return parts.join('\n')
     }
 
-    /** The connection, sagas, permits and receipts a Property erase never touches. */
+    /** The connection, permits and receipts a Property erase never touches. */
     async function controlSnapshot(fixture: Fixture): Promise<string> {
       const parts: string[] = []
-      for (const table of [
-        'google_connections',
-        'gbp_import_sagas',
-        'authorization_execution_permits',
-      ]) {
+      for (const table of ['google_connections', 'authorization_execution_permits']) {
         const result = await lease.pool.query(
           `SELECT to_jsonb(t.*)::text AS row FROM ${table} AS t
            WHERE organization_id = $1 ORDER BY 1`,
@@ -875,12 +714,7 @@ describe.sequential('Google rights executor through the rights-request command',
 
     async function captureRows(fixture: Fixture) {
       const captured: Array<readonly [string, ReadonlyArray<unknown>]> = []
-      for (const table of [
-        'google_imports',
-        'gbp_import_requests',
-        'google_import_items',
-        'gbp_import_request_items',
-      ]) {
+      for (const table of ['google_imports', 'google_import_items']) {
         const result = await lease.pool.query(
           `SELECT to_jsonb(t.*) AS row FROM ${table} AS t WHERE organization_id = $1`,
           [fixture.organizationId],
@@ -896,20 +730,7 @@ describe.sequential('Google rights executor through the rights-request command',
         return rows.length > 0
       }).length
 
-    const googleReplayer: BackupErasureReplayer = {
-      context: 'integration',
-      subjectClass: 'property',
-      async reErase(tx, entry) {
-        if (!entry.propertyId) throw new Error('journal entry has no Property')
-        const outcome = await eraseGoogleIntegrationForPropertyInTx(
-          tx,
-          entry.organizationId,
-          entry.propertyId,
-        )
-        if (!outcome.ok) throw new Error(outcome.error)
-        return outcome.deleted
-      },
-    }
+    const googleReplayers = createGoogleRightsReplayers(() => NOW)
 
     it('reports the counts of each Property and each Organization', async () => {
       const asked = await seedTenant(false)
@@ -925,15 +746,11 @@ describe.sequential('Google rights executor through the rights-request command',
             propertyId,
           ])
           expect(report.exit).toBe(0)
-          expect(report.out).toContain(
-            'google-integration: import_items=1 google_import_items=2',
-          )
+          expect(report.out).toContain('google-integration: import_items=2')
           expect(report.out).toContain('google-integration: erasure blockers: none')
         }
         const org = await runScript(['organization', '--org', fixture.organizationId])
-        expect(org.out).toContain(
-          'google-integration: connections=1 import_batches=3 imports=3',
-        )
+        expect(org.out).toContain('google-integration: connections=1 imports=3')
         expect(org.out).toContain('google-integration: closure blockers: none')
       }
     })
@@ -975,7 +792,7 @@ describe.sequential('Google rights executor through the rights-request command',
         applyRestoreResurrectionFence(tx, {
           entries,
           restorePointAt: new Date(NOW.getTime() - 86_400_000),
-          replayers: [googleReplayer],
+          replayers: googleReplayers,
         }),
       )
 
@@ -987,6 +804,58 @@ describe.sequential('Google rights executor through the rights-request command',
       expect(replayed.whole).toBe(after.whole)
       expect(replayed.b).toBe(before.b)
       expect(replayed.control).toBe(before.control)
+      expect(await snapshot(other.fixture.organizationId)).toBe(otherBefore)
+    })
+
+    it('scrubs credentials a restore brings back when an Organization closure is replayed', async () => {
+      const asked = await seedTenant(false)
+      const other = await seedTenant(false)
+      const { fixture } = asked
+      const otherBefore = await snapshot(other.fixture.organizationId)
+      const restoreSet = await captureRows(fixture)
+      const journal = journalStore()
+
+      const result = await runScript(apply(fixture.organizationId), {
+        journalStore: journal.store,
+      })
+
+      expect(result.exit).toBe(0)
+      const erased = await snapshot(fixture.organizationId)
+      const entries = [...journal.puts.values()].map(decodeErasureJournalEntry)
+      expect(entries).toHaveLength(1)
+      expect(entries[0]).toMatchObject({
+        context: 'integration',
+        subjectClass: 'organization',
+      })
+
+      await restoreRows(restoreSet)
+      await lease.pool.query(
+        `UPDATE google_connections
+         SET google_subject = $2, encrypted_access_token = $3,
+             encrypted_refresh_token = $4, credential_use_state = 'active',
+             status = 'active', connected_by = $5
+         WHERE organization_id = $1`,
+        [
+          fixture.organizationId,
+          MARKERS.googleSubject,
+          MARKERS.accessToken,
+          MARKERS.refreshToken,
+          fixture.userId,
+        ],
+      )
+      expect(await snapshot(fixture.organizationId)).not.toBe(erased)
+
+      const fence = await db.transaction((tx) =>
+        applyRestoreResurrectionFence(tx, {
+          entries,
+          restorePointAt: new Date(NOW.getTime() - 86_400_000),
+          replayers: googleReplayers,
+        }),
+      )
+
+      expect(fence.verified).toBe(true)
+      expect(fence.counts.ledgerEntriesReapplied).toBe(1)
+      expect(await snapshot(fixture.organizationId)).toBe(erased)
       expect(await snapshot(other.fixture.organizationId)).toBe(otherBefore)
     })
 

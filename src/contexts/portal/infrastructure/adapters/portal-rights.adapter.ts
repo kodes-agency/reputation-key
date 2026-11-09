@@ -13,6 +13,7 @@
 import { sql, type SQL } from 'drizzle-orm'
 import type { Database } from '#/shared/db'
 import type { Tx } from '#/shared/outbox/commit'
+import type { BackupErasureReplayer } from '#/shared/db/lifecycle/backup-erasure-ledger'
 import type {
   RightsExecutor,
   RightsExportFile,
@@ -242,4 +243,32 @@ export function createPortalRightsExecutor(
       }
     },
   })
+}
+
+/** Re-erase an Organization's or Property's Portal rows in a restored cell. */
+export function createPortalErasureReplayers(): ReadonlyArray<BackupErasureReplayer> {
+  return [
+    {
+      context: CONTEXT,
+      subjectClass: 'organization',
+      async reErase(tx, entry) {
+        const outcome = await erasePortalScopeInTx(tx, {
+          organizationId: entry.organizationId,
+        })
+        return outcome.total
+      },
+    },
+    {
+      context: CONTEXT,
+      subjectClass: 'property',
+      async reErase(tx, entry) {
+        if (!entry.propertyId) throw new Error('journal entry has no Property')
+        const outcome = await erasePortalScopeInTx(tx, {
+          organizationId: entry.organizationId,
+          propertyId: entry.propertyId,
+        })
+        return outcome.total
+      },
+    },
+  ]
 }

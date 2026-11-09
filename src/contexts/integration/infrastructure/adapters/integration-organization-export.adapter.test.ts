@@ -48,8 +48,6 @@ const payload = (
     connection('a1', '2026-08-01T00:00:00.000000Z'),
     connection('b2', '2026-08-02T00:00:00.000000Z'),
   ],
-  importSagas: [],
-  importBatches: [],
   imports: [],
   importItemStateCounts: [
     {

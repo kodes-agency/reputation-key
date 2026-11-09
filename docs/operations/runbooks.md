@@ -1500,14 +1500,12 @@ nullable, no backfill) and `0038` (`notification_digest_batches.provider_request
 nullable). All are additive or narrowing; every row the old index admitted
 satisfies the new one.
 
-**Required before the release that retires the old import tables: imports idle.**
-That release stops writing `gbp_import_requests`, `gbp_import_request_items` and
-`gbp_import_sagas`, and the restore fence counts only `google_imports` and
-`google_import_items`. A worker on it completes a delivery still queued under the
-retired item job name without doing the work, so any item still `pending` or
-`processing` in the old tables would stay that way for good. Deploy it alone, after
-this read-only check returns 0 in both columns on the beta database (read through
-the Railway SSH recipe, counts only) and the queue holds no `import-gbp-property-item-v2`
+**Required before the release that drops the old import tables: imports idle.**
+Migration `0124` drops the three retired import tables and the enum only they used.
+It locks them and refuses to run while any item is `pending` or `processing`, or any
+root is `queued` or `processing`, but the check is also made first, read-only, on the
+beta database (read through the Railway SSH recipe, counts only). Deploy it alone,
+after this returns 0 in both columns and the queue holds no `import-gbp-property-item-v2`
 delivery that still needs work:
 
 ```sql
@@ -1517,9 +1515,9 @@ SELECT
 ```
 
 If either is not 0, wait for the imports to finish or let their owners cancel them
-in the app; do not edit the rows by hand. Finished history in the old tables is
-purged by the daily import lifecycle sweep after its 30 days, so the old tables
-empty by themselves until the drop migration ships.
+in the app; do not edit the rows by hand. The finished history in those tables goes
+with the drop. A worker on the release still completes a delivery queued under the
+retired item job name without doing the work.
 
 **Order: web first, then the worker.** `pnpm ops deploy-ci-images` rolls web,
 then the worker, then provider Redis, each settling healthy at its digest before

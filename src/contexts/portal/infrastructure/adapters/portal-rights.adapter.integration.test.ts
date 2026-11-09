@@ -8,10 +8,7 @@ import { drizzle } from 'drizzle-orm/node-postgres'
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest'
 import { getEnv } from '#/shared/config/env'
 import type { Database } from '#/shared/db'
-import {
-  applyRestoreResurrectionFence,
-  type BackupErasureReplayer,
-} from '#/shared/db/lifecycle/backup-erasure-ledger'
+import { applyRestoreResurrectionFence } from '#/shared/db/lifecycle/backup-erasure-ledger'
 import { decodeErasureJournalEntry } from '#/shared/db/lifecycle/erasure-journal.server'
 import { portalMediaObjectKey } from '#/shared/domain/portal-media'
 import { createInMemoryObjectStore } from '#/shared/testing/in-memory-object-store'
@@ -28,7 +25,10 @@ import {
   rightsRequestCommandSpec,
 } from '#/shared/ops/rights/rights-request-command'
 import { PORTAL_PURGE_PLAN } from './portal-organization-lifecycle.adapter'
-import { createPortalRightsExecutor, erasePortalScopeInTx } from './portal-rights.adapter'
+import {
+  createPortalErasureReplayers,
+  createPortalRightsExecutor,
+} from './portal-rights.adapter'
 
 const NOW = new Date('2026-11-08T12:00:00.000Z')
 const OCCURRED_AT = new Date('2027-01-15T00:00:00.000Z')
@@ -498,19 +498,6 @@ const organizationArgs = (organizationId: string, apply: boolean) => [
 
 const CLEANUP_ORDER = ['work_items', ...PORTAL_PURGE_PLAN, 'properties'] as const
 
-const portalReplayer: BackupErasureReplayer = {
-  context: 'portal',
-  subjectClass: 'property',
-  async reErase(tx, entry) {
-    if (!entry.propertyId) throw new Error('journal entry has no Property')
-    const outcome = await erasePortalScopeInTx(tx, {
-      organizationId: entry.organizationId,
-      propertyId: entry.propertyId,
-    })
-    return outcome.total
-  },
-}
-
 const storedKeys = () => [...objectStore.objects().keys()]
 const keyOf = (property: Property) => portalMediaObjectKey(property.mediaAssetId)
 
@@ -610,7 +597,7 @@ describe.sequential('Portal rights executor through the rights-request command',
       applyRestoreResurrectionFence(tx, {
         entries,
         restorePointAt: new Date(NOW.getTime() - 86_400_000),
-        replayers: [portalReplayer],
+        replayers: createPortalErasureReplayers(),
       }),
     )
 

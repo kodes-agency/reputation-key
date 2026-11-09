@@ -46,8 +46,7 @@ type Fixture = Readonly<{
   memberId: string
   propertyId: string
   connectionId: string
-  sagaId: string
-  batchId: string
+  importId: string
   revokeAttemptId: string
   permitId: string
 }>
@@ -65,8 +64,7 @@ async function seedFixture(): Promise<Fixture> {
     memberId: `integration-export-member-${suffix}`,
     propertyId: randomUUID(),
     connectionId: randomUUID(),
-    sagaId: randomUUID(),
-    batchId: randomUUID(),
+    importId: randomUUID(),
     revokeAttemptId: randomUUID(),
     permitId: randomUUID(),
   }
@@ -116,73 +114,7 @@ async function seedFixture(): Promise<Fixture> {
     [fixture.propertyId, fixture.organizationId, `export-${suffix}`, createdAt],
   )
 
-  await lease.pool.query(
-    `INSERT INTO gbp_import_sagas (
-       id, organization_id, request_id, initiated_by, total_count, batch_count,
-       wire_replay_key_version, wire_replay_digest,
-       semantic_replay_key_version, semantic_replay_digest, created_at, updated_at
-     ) VALUES ($1, $2, $3, $4, 2, 1, 'wire_v1', $5, 'semantic_v1', $5, $6, $6)`,
-    [
-      fixture.sagaId,
-      fixture.organizationId,
-      randomUUID(),
-      fixture.userId,
-      MARKERS.replayDigest,
-      createdAt,
-    ],
-  )
-  await lease.pool.query(
-    `INSERT INTO gbp_import_requests (
-       id, organization_id, request_id, initiated_by, saga_id, batch_ordinal,
-       status, total_count, processed_count, pending_count, processing_count,
-       imported_count, wire_replay_key_version, wire_replay_digest,
-       semantic_replay_key_version, semantic_replay_digest, created_at, updated_at
-     ) VALUES ($1, $2, $3, $4, $5, 0, 'processing', 2, 1, 1, 0, 1,
-               'wire_v1', $6, 'semantic_v1', $6, $7, $7)`,
-    [
-      fixture.batchId,
-      fixture.organizationId,
-      randomUUID(),
-      fixture.userId,
-      fixture.sagaId,
-      MARKERS.replayDigest,
-      createdAt,
-    ],
-  )
-  // Per-item rows carry the provider suffixes and the Google review URI; the
-  // export must aggregate them into state counts and drop the handles.
-  for (const status of ['imported', 'pending'] as const) {
-    await lease.pool.query(
-      `INSERT INTO gbp_import_request_items (
-         id, organization_id, import_job_id, connection_id,
-         destination_property_id, provider_account_suffix,
-         provider_location_suffix, google_review_uri,
-         expected_connection_lifecycle_version, expected_connection_access_version,
-         expected_credential_generation, action, update_existing_profile,
-         property_name, property_address, country_code, timezone, status,
-         outcome_code, first_terminal_at, effect_deadline_at, created_at, updated_at
-       ) VALUES (
-         $1, $2, $3, $4, $5, $6, $7, $8, 1, 1, 1, 'create', true,
-         'Imported Location', $9, 'US', 'UTC', $10, $11, $12, $13, $14, $14
-       )`,
-      [
-        randomUUID(),
-        fixture.organizationId,
-        fixture.batchId,
-        fixture.connectionId,
-        randomUUID(),
-        MARKERS.providerAccountSuffix,
-        MARKERS.providerLocationSuffix,
-        MARKERS.googleReviewUri,
-        MARKERS.propertyAddress,
-        status,
-        status === 'imported' ? 'imported' : null,
-        status === 'imported' ? createdAt : null,
-        new Date(createdAt.getTime() + 86_400_000),
-        createdAt,
-      ],
-    )
-  }
+  await seedImport(fixture)
 
   await lease.pool.query(
     `INSERT INTO idempotency_receipts (scope, key, payload, recorded_at)
@@ -257,8 +189,10 @@ async function seedFixture(): Promise<Fixture> {
   return fixture
 }
 
-async function seedSingleRootImport(fixture: Fixture): Promise<string> {
-  const importId = randomUUID()
+// Per-item rows carry the provider suffixes and the Google review URI; the
+// export must aggregate them into state counts and drop the handles.
+async function seedImport(fixture: Fixture): Promise<void> {
+  const importId = fixture.importId
   const createdAt = new Date(Date.now() - 30_000)
   await lease.pool.query(
     `INSERT INTO google_imports (
@@ -323,15 +257,11 @@ async function seedSingleRootImport(fixture: Fixture): Promise<string> {
       new Date(createdAt.getTime() + 86_400_000),
     ],
   )
-  return importId
 }
 
 const ORGANIZATION_SCOPED_TABLES = [
   'google_import_items',
   'google_imports',
-  'gbp_import_request_items',
-  'gbp_import_requests',
-  'gbp_import_sagas',
   'properties',
   'google_connections',
 ] as const
@@ -436,10 +366,7 @@ describe.sequential('Integration Organization Export contributor', () => {
           connected_by: fixture.userId,
         },
       ],
-      importSagas: [{ id: fixture.sagaId, total_count: 2, batch_count: 1 }],
-      importBatches: [
-        { id: fixture.batchId, status: 'processing', imported_count: 1, total_count: 2 },
-      ],
+      imports: [{ id: fixture.importId, total_count: 2 }],
       disconnectCleanupAttempts: [
         {
           id: fixture.revokeAttemptId,
@@ -451,7 +378,7 @@ describe.sequential('Integration Organization Export contributor', () => {
     // The item plane arrives as counts by state, never as per-location rows.
     expect(payload.importItemStateCounts).toEqual([
       {
-        import_job_id: fixture.batchId,
+        import_job_id: fixture.importId,
         status: 'imported',
         action: 'create',
         outcome_code: 'imported',
@@ -460,7 +387,7 @@ describe.sequential('Integration Organization Export contributor', () => {
         last_updated_at: expect.any(String),
       },
       {
-        import_job_id: fixture.batchId,
+        import_job_id: fixture.importId,
         status: 'pending',
         action: 'create',
         outcome_code: null,
@@ -586,9 +513,9 @@ describe.sequential('Integration Organization Export contributor', () => {
     ).rejects.toThrow(/snapshot window is unavailable/)
   })
 
-  it('exports an import made on the single-root store as status and counts only', async () => {
+  it('exports an import as status and counts only', async () => {
     const fixture = await seedFixture()
-    const importId = await seedSingleRootImport(fixture)
+    const importId = fixture.importId
 
     const contribution = await createIntegrationOrganizationExportContributor(
       db,

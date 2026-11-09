@@ -14,9 +14,12 @@
 
 import { canonicalizeRfc8785 } from '#/shared/canonical-json'
 import type { Database } from '#/shared/db'
+import type { BackupErasureReplayer } from '#/shared/db/lifecycle/backup-erasure-ledger'
 import {
   closeGoogleIntegration,
   eraseGoogleIntegrationForProperty,
+  eraseGoogleIntegrationForPropertyInTx,
+  scrubRestoredGoogleIntegrationInTx,
   googleClosureRefusal,
   googlePropertyErasureRefusal,
   readGoogleRightsExport,
@@ -93,4 +96,43 @@ export function createGoogleRightsExecutor(
         : outcome
     },
   })
+}
+
+/**
+ * Re-erase Google data in a restored cell. A Property entry deletes its import
+ * items; an Organization entry scrubs credentials the restore brought back,
+ * which the live closure would refuse.
+ */
+export function createGoogleRightsReplayers(
+  now: () => Date = () => new Date(),
+): ReadonlyArray<BackupErasureReplayer> {
+  return [
+    {
+      context: 'integration',
+      subjectClass: 'property',
+      async reErase(tx, entry) {
+        if (!entry.propertyId) throw new Error('journal entry has no Property')
+        const outcome = await eraseGoogleIntegrationForPropertyInTx(
+          tx,
+          entry.organizationId,
+          entry.propertyId,
+        )
+        if (!outcome.ok) throw new Error(outcome.error)
+        return outcome.deleted
+      },
+    },
+    {
+      context: 'integration',
+      subjectClass: 'organization',
+      async reErase(tx, entry) {
+        const outcome = await scrubRestoredGoogleIntegrationInTx(
+          tx,
+          entry.organizationId,
+          now(),
+        )
+        if (!outcome.ok) throw new Error(outcome.error)
+        return outcome.deleted + outcome.scrubbed
+      },
+    },
+  ]
 }
