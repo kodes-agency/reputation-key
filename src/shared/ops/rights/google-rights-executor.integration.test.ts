@@ -9,18 +9,15 @@ import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest'
 import { getEnv } from '#/shared/config/env'
 import type { Database } from '#/shared/db'
 import { executeWithLastOwnerGuardDisabled } from '#/shared/db/disable-guard-triggers'
-import {
-  applyRestoreResurrectionFence,
-  type BackupErasureReplayer,
-} from '#/shared/db/lifecycle/backup-erasure-ledger'
+import { applyRestoreResurrectionFence } from '#/shared/db/lifecycle/backup-erasure-ledger'
 import { decodeErasureJournalEntry } from '#/shared/db/lifecycle/erasure-journal.server'
-import { eraseGoogleIntegrationForPropertyInTx } from '#/shared/db/lifecycle/google-rights-store'
 import { deleteTestOrganizations } from '#/shared/testing/integration-helpers'
 import { acquireTestLease, type TestLease } from '#/shared/testing/test-environment-lease'
 import { parseOperatorArgs, type OperatorContext } from '../operator-command'
 import {
   GOOGLE_RIGHTS_EXPORT_PATH,
   createGoogleRightsExecutor,
+  createGoogleRightsReplayers,
 } from './google-rights-executor'
 import { runRightsExecutors } from './rights-executor'
 import { createRightsJournal, type RightsJournalStore } from './rights-journal'
@@ -733,20 +730,7 @@ describe.sequential('Google rights executor through the rights-request command',
         return rows.length > 0
       }).length
 
-    const googleReplayer: BackupErasureReplayer = {
-      context: 'integration',
-      subjectClass: 'property',
-      async reErase(tx, entry) {
-        if (!entry.propertyId) throw new Error('journal entry has no Property')
-        const outcome = await eraseGoogleIntegrationForPropertyInTx(
-          tx,
-          entry.organizationId,
-          entry.propertyId,
-        )
-        if (!outcome.ok) throw new Error(outcome.error)
-        return outcome.deleted
-      },
-    }
+    const googleReplayers = createGoogleRightsReplayers(() => NOW)
 
     it('reports the counts of each Property and each Organization', async () => {
       const asked = await seedTenant(false)
@@ -808,7 +792,7 @@ describe.sequential('Google rights executor through the rights-request command',
         applyRestoreResurrectionFence(tx, {
           entries,
           restorePointAt: new Date(NOW.getTime() - 86_400_000),
-          replayers: [googleReplayer],
+          replayers: googleReplayers,
         }),
       )
 
@@ -820,6 +804,58 @@ describe.sequential('Google rights executor through the rights-request command',
       expect(replayed.whole).toBe(after.whole)
       expect(replayed.b).toBe(before.b)
       expect(replayed.control).toBe(before.control)
+      expect(await snapshot(other.fixture.organizationId)).toBe(otherBefore)
+    })
+
+    it('scrubs credentials a restore brings back when an Organization closure is replayed', async () => {
+      const asked = await seedTenant(false)
+      const other = await seedTenant(false)
+      const { fixture } = asked
+      const otherBefore = await snapshot(other.fixture.organizationId)
+      const restoreSet = await captureRows(fixture)
+      const journal = journalStore()
+
+      const result = await runScript(apply(fixture.organizationId), {
+        journalStore: journal.store,
+      })
+
+      expect(result.exit).toBe(0)
+      const erased = await snapshot(fixture.organizationId)
+      const entries = [...journal.puts.values()].map(decodeErasureJournalEntry)
+      expect(entries).toHaveLength(1)
+      expect(entries[0]).toMatchObject({
+        context: 'integration',
+        subjectClass: 'organization',
+      })
+
+      await restoreRows(restoreSet)
+      await lease.pool.query(
+        `UPDATE google_connections
+         SET google_subject = $2, encrypted_access_token = $3,
+             encrypted_refresh_token = $4, credential_use_state = 'active',
+             status = 'active', connected_by = $5
+         WHERE organization_id = $1`,
+        [
+          fixture.organizationId,
+          MARKERS.googleSubject,
+          MARKERS.accessToken,
+          MARKERS.refreshToken,
+          fixture.userId,
+        ],
+      )
+      expect(await snapshot(fixture.organizationId)).not.toBe(erased)
+
+      const fence = await db.transaction((tx) =>
+        applyRestoreResurrectionFence(tx, {
+          entries,
+          restorePointAt: new Date(NOW.getTime() - 86_400_000),
+          replayers: googleReplayers,
+        }),
+      )
+
+      expect(fence.verified).toBe(true)
+      expect(fence.counts.ledgerEntriesReapplied).toBe(1)
+      expect(await snapshot(fixture.organizationId)).toBe(erased)
       expect(await snapshot(other.fixture.organizationId)).toBe(otherBefore)
     })
 

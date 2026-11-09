@@ -280,12 +280,19 @@ const purge = async (
   tx: Tx,
   request: OrganizationLifecycleContributionRequest,
 ): Promise<OrganizationLifecyclePhaseOutcome> => {
-  const organization = request.organizationId
   assertNoActiveOperationalHistoryLegalHold(
-    await countActiveLegalHolds(tx, organization),
+    await countActiveLegalHolds(tx, request.organizationId),
     'purge',
   )
+  return activityPurgeOutcome(
+    await eraseActivityOrganizationRows(tx, request.organizationId),
+  )
+}
 
+export const eraseActivityOrganizationRows = async (
+  tx: Tx,
+  organization: string,
+): Promise<ActivityLifecycleProjectionCounts> => {
   const entries = await tx
     .delete(recentActivityEntries)
     .where(eq(recentActivityEntries.organizationId, organization))
@@ -301,11 +308,11 @@ const purge = async (
     .where(eq(recentActivityActorLabelRedactions.organizationId, organization))
     .returning({ actorSubjectId: recentActivityActorLabelRedactions.actorSubjectId })
 
-  return activityPurgeOutcome({
+  return {
     entries: entries.length,
     replayFacts: replayFacts.length,
     actorLabelRedactions: actorLabelRedactions.length,
-  })
+  }
 }
 
 /**

@@ -105,9 +105,9 @@ const SELECTABLE_BUTTONS = [
     'picker-tile',
   ],
   // The upload tile shares the icon radios’ grid geometry but opens the photo dialog.
-  ['src/components/features/portal/link-tree/linktree-icon-picker.tsx', 'picker-tile'],
+  ['src/contexts/portal/editor/ui/link-tree/linktree-icon-picker.tsx', 'picker-tile'],
   // The disclosure occupies only the tile’s text, beside its separate move and menu controls.
-  ['src/components/features/portal/link-tree/linktree-tile.tsx', 'picker-tile'],
+  ['src/contexts/portal/editor/ui/link-tree/linktree-tile.tsx', 'picker-tile'],
   // The selectable version rows keep their multiline publication evidence.
   [
     'src/components/features/portal/portal-history/portal-versions-rail.tsx',

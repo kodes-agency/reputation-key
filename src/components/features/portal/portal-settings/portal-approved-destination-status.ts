@@ -1,5 +1,5 @@
 import type { StatusMap } from '#/components/ui/status-badge'
-import { LINK_APPROVAL_NAMES } from '../link-tree/linktree-approval-names'
+import { LINK_APPROVAL_NAMES } from '#/contexts/portal/editor/ui/link-tree/linktree-approval-names'
 import type { PortalApprovedDestinationList } from './portal-experience-settings-types'
 
 type Site = PortalApprovedDestinationList['destinations'][number]

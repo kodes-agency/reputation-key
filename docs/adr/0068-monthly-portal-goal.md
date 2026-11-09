@@ -241,9 +241,10 @@ how the goals are drawn, and nothing else in them.
    step that gave it its first Portal caller. A
    shared part imports no `rating-goal-*` or `portal-goal-*` module and no
    server context, and says no product word: a goal passes in its own words, so
-   the other goal's words cannot come out (`goal-shared-sources.test.ts`). The
+   the other goal's words cannot come out. The
    Portal goal's own sources still import nothing of the Google rating goal and
-   say none of its words or lines (`portal-goal-sources.test.ts`). Names,
+   say none of its words or lines. Source-text tests no longer enforce
+   either rule; code review does. Names,
    calendar months against Mon–Sun weeks, notices, Overview slots, server
    modules and query keys stay apart, and no number of one goal is derived from
    the other (decision 13).

@@ -15,9 +15,9 @@ import {
   withRole,
 } from '../../../../../.storybook/AuthedRouterDecorator'
 import { ToasterDecorator } from '../../../../../.storybook/ToasterDecorator'
-import { PortalEditor } from '../portal-editor/portal-editor'
-import { PortalDraftAutosaveProvider } from '../portal-editor/portal-draft-autosave-context'
-import { PortalDraftSaveStatus } from '../portal-editor/portal-draft-save-status'
+import { PortalEditor } from '#/contexts/portal/editor/ui/portal-editor'
+import { PortalDraftAutosaveProvider } from '#/contexts/portal/editor/ui/portal-draft-autosave-context'
+import { PortalDraftSaveStatus } from '#/contexts/portal/editor/ui/portal-draft-save-status'
 import type { PortalImageUploader } from '../portal-media/upload-portal-image'
 import { makeImageFile, uploadingTo } from '../property-look/property-look-page-fixtures'
 import {

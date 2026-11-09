@@ -9,7 +9,7 @@
 // published; the property's own look is untouched and keeps reaching every group
 // a portal follows.
 import type { PortalLookView } from '#/contexts/portal/application/portal-management-contracts'
-import type { PortalEditorResources } from '../portal-editor/portal-editor-types'
+import type { PortalEditorResources } from '#/contexts/portal/editor/ui/portal-editor-types'
 import type { PortalExperienceSettings } from '../portal-settings/portal-experience-settings-types'
 import { PortalLookColoursBlock } from './portal-look-colours-block'
 import { PortalLookIdentityBlock } from './portal-look-identity-block'

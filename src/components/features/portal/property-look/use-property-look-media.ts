@@ -12,8 +12,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import type { Action } from '#/components/hooks/use-action'
 import type { PropertyLookMedia } from '#/contexts/portal/application/portal-management-contracts'
 import type { OfferedGuestLocale } from '#/shared/domain/guest-locale'
-import type { PortalDraftAutosave } from '../portal-editor/portal-draft-autosave'
-import { usePortalDraftAutosave } from '../portal-editor/portal-draft-autosave-context'
+import { usePortalDraftAutosave } from '#/contexts/portal/editor/ui/portal-draft-autosave-context'
 import type { FocalPoint } from './focal-point'
 
 const FOCAL_KEY = 'photo-focal'
@@ -33,19 +32,6 @@ export type PropertyLookMediaSaves = Readonly<{
   saveHero: Action<{ data: PropertyHeroWrite }, Saved>
   saveLogo: Action<{ data: { propertyId: string; assetId: string | null } }, Saved>
 }>
-
-/**
- * Run a deliberate write once the focal autosave has finished. A focal write
- * still waiting out its debounce, or in flight, would otherwise reach the server
- * after the new photograph and put the old one back.
- */
-export async function afterPendingAutosaves<T>(
-  autosave: Pick<PortalDraftAutosave, 'flush'>,
-  write: () => Promise<T>,
-): Promise<T> {
-  await autosave.flush()
-  return write()
-}
 
 const focalOf = (media: PropertyLookMedia): FocalPoint | null =>
   media.hero ? { x: media.hero.focalX, y: media.hero.focalY } : null
@@ -105,8 +91,9 @@ export function usePropertyLookMedia(
 
   const saveHero = useCallback(
     async (write: Omit<PropertyHeroWrite, 'propertyId'>) => {
-      const result = await afterPendingAutosaves(autosave, () =>
-        savesRef.current.saveHero({ data: { propertyId, ...write } }),
+      const result = await autosave.write(
+        () => savesRef.current.saveHero({ data: { propertyId, ...write } }),
+        { replaces: [FOCAL_KEY] },
       )
       land(result.media)
     },

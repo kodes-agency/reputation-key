@@ -19,7 +19,7 @@ import { Button } from '#/components/ui/button'
 import {
   PortalDraftAutosaveProvider,
   usePortalDraftAutosave,
-} from '../portal-editor/portal-draft-autosave-context'
+} from '#/contexts/portal/editor/ui/portal-draft-autosave-context'
 import { PortalUnsavedChangesPrompt } from './portal-unsaved-changes-prompt'
 
 const saveSpy = fn(async () => undefined)

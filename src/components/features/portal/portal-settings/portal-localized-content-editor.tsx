@@ -32,7 +32,7 @@ import { adminLanguageCode, type OfferedGuestLocale } from '#/shared/domain/gues
 import { languageDisplayName } from '../portal-languages/portal-languages-rules'
 import { PortalLocalizedOverrideForm } from './portal-localized-override-form'
 import { PortalPropertyContentForm } from './portal-property-content-form'
-import { portalPropertyContentDraftKey } from '../portal-editor/portal-draft-keys'
+import { portalPropertyContentDraftKey } from '#/contexts/portal/editor/ui/portal-draft-keys'
 import type {
   PortalExperienceActions,
   PortalExperienceSettings,

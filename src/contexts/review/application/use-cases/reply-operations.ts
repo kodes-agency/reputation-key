@@ -357,6 +357,16 @@ export const draftReply =
     const review = await requireAccessibleReview(deps, ctx, input.reviewId)
     const now = deps.clock()
 
+    // Accepting an AI draft overwrites the stored one like any save, so the
+    // same fence applies before either path writes.
+    const existing = await deps.replyRepo.findInternalByReviewId(
+      input.reviewId,
+      ctx.organizationId,
+    )
+    if (!matchesExpectedReply(existing, input.expectedReply)) {
+      throw replyChangedConcurrently()
+    }
+
     if (input.provenanceToken !== undefined) {
       if (!deps.aiSuggestedDraftStore) {
         throw reviewError(
@@ -381,15 +391,6 @@ export const draftReply =
             ? 'ai_suggestion_expired'
             : 'ai_suggestion_stale'
       throw reviewError(code, 'AI suggestion can no longer be accepted')
-    }
-
-    const existing = await deps.replyRepo.findInternalByReviewId(
-      input.reviewId,
-      ctx.organizationId,
-    )
-
-    if (!matchesExpectedReply(existing, input.expectedReply)) {
-      throw replyChangedConcurrently()
     }
 
     if (existing) {
@@ -719,6 +720,7 @@ export const rejectReply =
 
 export type DeleteReplyInput = Readonly<{
   reviewId: ReviewId
+  expectedReply?: import('#/shared/reply-revision').ReplyRevision | null
 }>
 
 export const deleteReply =
@@ -733,6 +735,12 @@ export const deleteReply =
     // reply for them, and the manager is told why instead of meeting the
     // foreign key as an unexplained failure.
     assertReplyCommandMayStart('delete', reply)
+
+    // The draft on the manager's screen, not the one just read: a colleague's
+    // newer draft is not deleted by a screen that never showed it.
+    if (!matchesExpectedReply(reply, input.expectedReply)) {
+      throw replyChangedConcurrently()
+    }
 
     const deleted = await deps.replyRepo.deleteDraft(reply)
     if (!deleted) throw replyChangedConcurrently()
