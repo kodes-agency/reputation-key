@@ -19,12 +19,12 @@ import { expect, vi } from 'vitest'
 import type { BetaNotificationTriggerMatrixRow } from '#/contexts/feed/application/beta-notification-trigger-matrix'
 import type { EscalationResolutionLookupPort } from '#/contexts/feed/application/ports/escalation-resolution-lookup.port'
 import type { NotificationRepositoryPort } from '#/contexts/feed/application/ports/notification-repository.port'
-import { registerAiGuestVoiceSummaryNoticeConsumer } from '#/contexts/feed/infrastructure/ai-guest-voice-summary-notice-consumers'
-import { registerAiUrgentReviewNoticeConsumer } from '#/contexts/feed/infrastructure/ai-urgent-review-notice-consumers'
+import { registerAiGuestVoiceSummaryNoticeConsumer } from '#/contexts/feed/infrastructure/goal-notice-routes'
+import { registerAiUrgentReviewNoticeConsumer } from '#/contexts/feed/infrastructure/goal-notice-routes'
 import { registerAssignmentReleaseNotificationConsumer } from '#/contexts/feed/infrastructure/assignment-release-outbox-consumers'
 import { registerBulkAssignmentNotificationConsumer } from '#/contexts/feed/infrastructure/bulk-assignment-outbox-consumers'
 import { registerEscalationResolutionNotificationConsumer } from '#/contexts/feed/infrastructure/escalation-resolution-outbox-consumers'
-import { registerGoalNotificationConsumer } from '#/contexts/feed/infrastructure/goal-outbox-consumers'
+import { registerGoalNotificationConsumer } from '#/contexts/feed/infrastructure/goal-notice-routes'
 import { registerHandlingCycleNotificationConsumers } from '#/contexts/feed/infrastructure/handling-cycle-outbox-consumers'
 import {
   registerIdentityAccountNotificationConsumers,
@@ -48,7 +48,7 @@ import { registerPortalDestinationNotificationConsumer } from '#/contexts/feed/i
 import { registerPortalHealthNotificationConsumer } from '#/contexts/feed/infrastructure/portal-health-outbox-consumers'
 import { registerPortalNotificationConsumers } from '#/contexts/feed/infrastructure/portal-outbox-consumers'
 import { registerPropertyNotificationConsumers } from '#/contexts/feed/infrastructure/property-outbox-consumers'
-import { registerRatingGoalNoticeConsumer } from '#/contexts/feed/infrastructure/rating-goal-notice-consumers'
+import { registerRatingGoalNoticeConsumer } from '#/contexts/feed/infrastructure/goal-notice-routes'
 import { registerResponseTargetNotificationConsumer } from '#/contexts/feed/infrastructure/response-target-outbox-consumers'
 import {
   registerReviewImportNotificationConsumers,

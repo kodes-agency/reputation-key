@@ -1,4 +1,4 @@
-// The account, integration, Portal and Property routes, from their real
+// The account, integration, Portal, Property, goal and AI routes, from their real
 // producers through the dispatcher into PostgreSQL.
 import { randomUUID } from 'node:crypto'
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest'
@@ -19,6 +19,7 @@ import type { Database } from '#/shared/db'
 import {
   eventConsumerReceipts,
   notificationEmailQueue,
+  notificationPreferences,
   notifications,
   outboxEvents,
   properties,
@@ -31,6 +32,7 @@ import { toOutboxEvent } from '#/shared/outbox/event-adapter'
 import { buildConsumerEvent } from '#/shared/outbox/envelope'
 import { deleteTestOrganizations, seedOrgs } from '#/shared/testing/integration-helpers'
 import {
+  ADMIN,
   PRODUCED_FACTS,
   ORG,
   PROPERTY,
@@ -47,7 +49,7 @@ import { createNoticeWriter } from './consumers.server'
 
 const NOW = new Date('2026-09-02T09:00:00.000Z')
 
-describe.sequential('account, integration, Portal and Property notices', () => {
+describe.sequential('account, integration, Portal, Property, goal and AI notices', () => {
   let lease: TestLease
   let db: Database
 
@@ -115,6 +117,9 @@ describe.sequential('account, integration, Portal and Property notices', () => {
       .delete(notificationEmailQueue)
       .where(eq(notificationEmailQueue.organizationId, ORG))
     await db.delete(notifications).where(eq(notifications.organizationId, ORG))
+    await db
+      .delete(notificationPreferences)
+      .where(eq(notificationPreferences.organizationId, ORG))
     await db.delete(outboxEvents).where(eq(outboxEvents.organizationId, ORG))
   }
 
@@ -133,6 +138,16 @@ describe.sequential('account, integration, Portal and Property notices', () => {
   })
   beforeEach(async () => {
     await clear()
+    // Guest voice is opt-in: the manager has asked for it.
+    await db.insert(notificationPreferences).values({
+      userId: ADMIN,
+      organizationId: ORG,
+      propertyId: PROPERTY,
+      category: 'guest_voice',
+      channel: 'in_app',
+      enabled: true,
+      cadence: 'immediate',
+    })
     initCapabilityPolicyStore(
       createEnvCapabilityPolicyStore({ BETA_ALLOWLIST_ORGS: ORG }),
     )
@@ -196,6 +211,31 @@ describe.sequential('account, integration, Portal and Property notices', () => {
       eventType: 'integration.google_account.reauthorization_required',
       consumerName: 'notification.on-google-reauthorization-required',
       type: 'integration.reauthorization_required',
+    },
+    {
+      eventType: 'goal.monthly_result.closed',
+      consumerName: 'notification.on-goal-monthly-result-closed',
+      type: 'goal.completed',
+    },
+    {
+      eventType: 'goal.monthly_result.revised',
+      consumerName: 'notification.on-goal-monthly-result-revised',
+      type: 'goal.result_revised',
+    },
+    {
+      eventType: 'goal.rating_goal.transitioned',
+      consumerName: 'notification.on-rating-goal-transitioned',
+      type: 'goal.rating_below_pace',
+    },
+    {
+      eventType: 'ai.review_analysis.urgent_detected',
+      consumerName: 'notification.on-ai-review-urgent-detected',
+      type: 'review.ai_urgent_detected',
+    },
+    {
+      eventType: 'ai.guest_voice_summary.ready',
+      consumerName: 'notification.on-ai-guest-voice-summary-ready',
+      type: 'guest_voice.summary',
     },
   ] as const
 

@@ -9,8 +9,8 @@ import {
   guestVoiceSummaryResourceId,
   handleAiGuestVoiceSummaryReady,
   ON_AI_GUEST_VOICE_SUMMARY_READY_CONSUMER,
-  registerAiGuestVoiceSummaryNoticeConsumer,
-} from './ai-guest-voice-summary-notice-consumers'
+} from '../notify/goals.server'
+import { registerAiGuestVoiceSummaryNoticeConsumer } from './goal-notice-routes'
 import { parseNotificationPayload } from '../domain/notification-payload'
 import { renderNotification } from '../domain/notification-templates'
 

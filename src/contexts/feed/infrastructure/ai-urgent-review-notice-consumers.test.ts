@@ -10,8 +10,8 @@ import {
   handleAiReviewUrgentDetected,
   ON_AI_REVIEW_URGENT_DETECTED_CONSUMER,
   PROJECTION_HORIZON_MS,
-  registerAiUrgentReviewNoticeConsumer,
-} from './ai-urgent-review-notice-consumers'
+} from '../notify/goals.server'
+import { registerAiUrgentReviewNoticeConsumer } from './goal-notice-routes'
 import { createNotificationConsumerDeps } from './notification-consumer-test-fixtures'
 import { parseNotificationPayload } from '../domain/notification-payload'
 import { renderNotification } from '../domain/notification-templates'
