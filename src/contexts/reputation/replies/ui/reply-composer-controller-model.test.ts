@@ -4,13 +4,13 @@
 
 import { describe, expect, it, vi } from 'vitest'
 import type { InboxItemDetailResult } from '#/contexts/inbox/application/public-api'
-import { installInboxCacheHarness } from './inbox-cache-test-harness'
+import { installInboxCacheHarness } from '#/components/inbox/inbox-cache-test-harness'
 import {
   createReplyComposerController,
   type ReplyAiPort,
 } from './reply-composer-controller'
-import type { ReplyComposerInput } from './reply-suggestion-contract'
-import { useReplyActions } from './use-reply-actions'
+import type { ReplyComposerInput } from '#/components/inbox/reply-suggestion-contract'
+import { useReplyActions } from '#/components/inbox/use-reply-actions'
 
 vi.mock('@tanstack/react-router', () => ({
   useRouter: () => ({ navigate: vi.fn() }),

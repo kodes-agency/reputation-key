@@ -5,7 +5,7 @@ import {
   inboxCachePolicy,
   observeReplyPublication,
   polledReplyPublicationChanged,
-} from './inbox-cache-policy'
+} from '#/components/inbox/inbox-cache-policy'
 
 // The change detection `useReplyPublicationChangeDetection` runs after every
 // detail read: which transitions refresh the lists and queue counts (D8).

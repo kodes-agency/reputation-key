@@ -4,7 +4,7 @@ import { ConfirmationDialog } from '#/components/ui/confirmation-dialog'
 import type { ReplyDraftCheckDto } from '#/contexts/review/application/dto/reply-library.dto'
 import { ReplyDraftCheckAlerts } from './reply-draft-check-alerts'
 import type { ReplyOnScreen } from './reply-message-actions'
-import { useReplyConfirmationHold } from './use-reply-confirmation-hold'
+import { useReplyConfirmationHold } from '#/contexts/reputation/replies/ui/use-reply-confirmation-hold'
 
 type PublishActionProps = Readonly<{
   approvable: ReplyOnScreen | null

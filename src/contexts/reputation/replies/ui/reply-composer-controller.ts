@@ -4,14 +4,14 @@ import {
   AUTO_DETECT_REVIEW_LANGUAGE,
   defaultReplyLanguageTag,
   targetForReplyLanguage,
-} from './reply-language-options'
+} from '#/components/inbox/reply-language-options'
 import { createReplyAutosaveCoordinator } from './reply-autosave-coordinator'
 import { attachReplyAutosave } from './use-reply-autosave'
 import type { ReplyAutosaveState, ReplyDraftSnapshot } from './use-reply-autosave'
-import type { ReplyDraftAdoption } from './reply-draft-origin'
-import type { ReplyAssistScope } from './reply-suggestion-contract'
+import type { ReplyDraftAdoption } from '#/components/inbox/reply-draft-origin'
+import type { ReplyAssistScope } from '#/components/inbox/reply-suggestion-contract'
 import type { LoadedReplyTemplate } from './use-reply-template'
-import type { ReplyComposerInput } from './reply-suggestion-contract'
+import type { ReplyComposerInput } from '#/components/inbox/reply-suggestion-contract'
 import {
   adoptionRevealsReviewLanguage,
   assistTargetFor,

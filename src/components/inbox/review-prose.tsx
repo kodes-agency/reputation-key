@@ -1,7 +1,7 @@
 import {
   useReplyDraftSession,
   useDraftSessionSnapshot,
-} from './reply-draft-session-context'
+} from '#/contexts/reputation/replies/ui/reply-draft-session-context'
 import { Fragment, type ReactNode } from 'react'
 import { cn } from '#/lib/utils'
 import type { MentionSense } from './review-cause-view'

@@ -65,7 +65,7 @@ export type ReplyActions = Readonly<{
     measurementGenerationId?: string | null,
   ) => Promise<unknown>
   submitReply: (
-    metric?: import('./reply-measurement').BrowserDraftEditMetric,
+    metric?: import('#/contexts/reputation/replies/ui/reply-measurement').BrowserDraftEditMetric,
   ) => Promise<unknown>
   deleteDraft: () => Promise<unknown>
   /**

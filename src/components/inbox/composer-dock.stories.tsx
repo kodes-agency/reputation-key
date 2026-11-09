@@ -25,7 +25,7 @@ import { useComposerSaveStateReport } from './composer-mode-row'
 import { ReplyComposer } from './reply-composer'
 import { ReplyComposerFooter } from './reply-composer-footer'
 import type { ComposerMode } from './reply-composer'
-import type { ReplyAutosaveStatus } from './use-reply-autosave'
+import type { ReplyAutosaveStatus } from '#/contexts/reputation/replies/ui/use-reply-autosave'
 import type { ReactNode } from 'react'
 
 const REPLY_FIELD = 'Reply text'

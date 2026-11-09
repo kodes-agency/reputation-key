@@ -28,8 +28,8 @@ import {
   languageDisplayName,
   type ReviewLanguageReadiness,
 } from './reply-language-options'
-import type { ReplyLanguageChoices } from './use-reply-composer'
-import type { ReplyAssistScope } from './use-reply-suggestion'
+import type { ReplyLanguageChoices } from '#/contexts/reputation/replies/ui/use-reply-composer'
+import type { ReplyAssistScope } from '#/contexts/reputation/replies/ui/use-reply-suggestion'
 import { IconButton } from '#/components/ui/icon-button'
 import { cn } from '#/lib/utils'
 
