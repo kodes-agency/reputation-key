@@ -1,8 +1,7 @@
 import { cn } from '#/lib/utils'
 
-// A loading block draws the border grey, not `bg-accent`: that is the purple
-// tint `--accent-muted`, which is 1.03:1 on a dark card and made the loading
-// state vanish. The pairing is measured in `token-contrast.test.ts`.
+// A loading block draws the border grey, not `bg-accent`: that is the purple tint
+// `--accent-muted`, 1.03:1 on a dark card, which made the loading state vanish.
 function Skeleton({
   className,
   variant,

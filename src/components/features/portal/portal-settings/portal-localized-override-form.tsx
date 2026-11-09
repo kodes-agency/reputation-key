@@ -7,7 +7,7 @@ import { FieldGroup } from '#/components/ui/field'
 import { portalLocalizedOverrideFormInputSchema } from '#/contexts/portal/application/dto/portal-experience.dto'
 import type { OfferedGuestLocale } from '#/shared/domain/guest-locale'
 import type { PortalExperienceActions } from './portal-experience-settings-types'
-import { usePortalFormAutosave } from '../portal-editor/use-portal-form-autosave'
+import { usePortalFormAutosave } from '#/contexts/portal/editor/ui/use-portal-form-autosave'
 
 /**
  * This portal's own welcome line and link preview in one language. Part of the

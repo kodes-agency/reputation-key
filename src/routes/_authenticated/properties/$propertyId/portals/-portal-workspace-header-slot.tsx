@@ -12,8 +12,8 @@ import {
   describePendingChanges,
   type PortalDetailTab,
 } from '#/components/features/portal/portal-detail/portal-detail-rules'
-import type { PortalEditorSection } from '#/components/features/portal/portal-editor/portal-editor-sections'
-import { PortalDraftSaveStatus } from '#/components/features/portal/portal-editor/portal-draft-save-status'
+import type { PortalEditorSection } from '#/contexts/portal/editor/ui/portal-editor-sections'
+import { PortalDraftSaveStatus } from '#/contexts/portal/editor/ui/portal-draft-save-status'
 import { PortalOpenPageControl } from '#/components/features/portal/portal-workspace/portal-open-page-control'
 import { PortalWorkspaceHeader } from '#/components/features/portal/portal-workspace/portal-workspace-header'
 import {

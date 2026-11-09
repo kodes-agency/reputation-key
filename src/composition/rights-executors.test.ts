@@ -1,24 +1,34 @@
 import { describe, expect, it, vi } from 'vitest'
 import type { Database } from '#/shared/db'
 import { BACKUP_ERASURE_LEDGER_CONTEXTS } from '#/shared/db/schema/backup-erasure-ledger.schema'
+import { createNotificationRightsReplayers } from '#/contexts/feed/rights/replayer.server'
+import { createRightsJournal } from '#/shared/ops/rights/rights-journal'
 import { composeRightsExecutors, composeRightsReplayers } from './rights-executors'
 
-import { createNotificationRightsReplayers } from '#/contexts/feed/rights/replayer.server'
-
 const NOTIFICATION_REPLAYERS = createNotificationRightsReplayers()
-const deps = { db: {} as Database, runNotification: vi.fn() }
+const deps = {
+  db: {} as Database,
+  journal: createRightsJournal(undefined),
+  runNotification: vi.fn(),
+  portalObjectStore: { deleteObject: vi.fn() },
+}
 
 describe('composeRightsExecutors', () => {
-  it('composes the eight context executors in order', () => {
+  it('composes every context executor in order', () => {
     expect(composeRightsExecutors(deps, false).map(({ name }) => name)).toEqual([
       'google-integration',
       'review',
       'inbox',
       'guest',
       'reporting',
+      'portal',
       'ai',
       'activity',
+      'identity-grants',
+      'staff',
+      'property',
       'notification',
+      'staff-participant',
     ])
   })
 
@@ -29,7 +39,9 @@ describe('composeRightsExecutors', () => {
   })
 
   it('journals every executor under known lifecycle contexts', () => {
+    // The participant executor journals each batch with the ids it names.
     for (const executor of composeRightsExecutors(deps, false)) {
+      if (executor.name === 'staff-participant') continue
       expect(executor.journalContexts.length).toBeGreaterThan(0)
       for (const context of executor.journalContexts) {
         expect(BACKUP_ERASURE_LEDGER_CONTEXTS).toContain(context)
@@ -47,10 +59,39 @@ describe('composeRightsExecutors', () => {
       'inbox',
       'guest',
       'reporting',
+      'portal',
       'ai',
       'activity',
+      'staff',
       'notification',
     ])
+  })
+
+  it('covers the property scope with every Property erasure executor', () => {
+    const covering = composeRightsExecutors(deps, false)
+      .filter(({ scopes }) => scopes.includes('property'))
+      .map(({ name }) => name)
+    expect(covering).toEqual([
+      'google-integration',
+      'review',
+      'inbox',
+      'guest',
+      'reporting',
+      'portal',
+      'ai',
+      'activity',
+      'identity-grants',
+      'property',
+      'notification',
+    ])
+  })
+
+  it('refuses to silently omit Portal when the image store is missing', () => {
+    const { portalObjectStore: _store, ...withoutStore } = deps
+    expect(() =>
+      // @ts-expect-error A caller without Portal's required effect must fail closed.
+      composeRightsExecutors(withoutStore, false),
+    ).toThrow('Portal image store is required')
   })
 
   it('registers a replayer for every journaled context and erasing scope', () => {
@@ -68,5 +109,22 @@ describe('composeRightsExecutors', () => {
     expect(needed.length).toBeGreaterThan(0)
     for (const key of needed) expect(registered).toContain(key)
     expect(new Set(registered).size).toBe(registered.length)
+  })
+})
+
+describe('participant scope', () => {
+  it('is covered by the participant executor alone', () => {
+    const covering = composeRightsExecutors(deps, false)
+      .filter(({ scopes }) => scopes.includes('participant'))
+      .map(({ name }) => name)
+    expect(covering).toEqual(['staff-participant'])
+  })
+
+  it('registers a replayer so a restore cannot bring a participant back', () => {
+    const registered = composeRightsReplayers({
+      ...deps,
+      notificationReplayers: NOTIFICATION_REPLAYERS,
+    }).map(({ context, targetKind }) => `${context}:${targetKind}`)
+    expect(registered).toContain('staff:staff_participant')
   })
 })

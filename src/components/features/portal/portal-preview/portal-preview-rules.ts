@@ -7,7 +7,7 @@ import type {
   PortalPreviewLinkState,
   PortalPreviewUnavailableReason,
 } from '#/contexts/portal/application/portal-management-contracts'
-import { LINK_APPROVAL_NAMES } from '../link-tree/linktree-approval-names'
+import { LINK_APPROVAL_NAMES } from '#/contexts/portal/editor/ui/link-tree/linktree-approval-names'
 
 export type PreviewUnavailableNote = Readonly<{ title: string; body: string }>
 

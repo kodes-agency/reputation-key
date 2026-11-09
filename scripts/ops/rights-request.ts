@@ -18,6 +18,7 @@ import { composeRightsExecutors } from '../../src/composition/rights-executors'
 import { mkdir, readFile, writeFile } from 'node:fs/promises'
 import { dirname } from 'node:path'
 import { runNotificationRightsRequest } from '../../src/contexts/feed/application/public-api'
+import { createS3StorageAdapter } from '../../src/contexts/portal/infrastructure/adapters/s3-storage.adapter'
 import { getEnv } from '../../src/shared/config/env'
 import { parseOperatorIdentities } from '../../src/shared/auth/execution-policy'
 import { getDb } from '../../src/shared/db'
@@ -31,7 +32,9 @@ async function main(): Promise<void> {
   const result = await runOperatorCommand(
     rightsRequestCommandSpec,
     async (ctx, args, io) => {
+      const env = getEnv()
       const queue = ctx.container.jobQueue
+      const journal = createRightsJournal(undefined)
       return handleRightsRequest(
         {
           environment: process.env,
@@ -40,12 +43,22 @@ async function main(): Promise<void> {
             await mkdir(dirname(path), { recursive: true })
             await writeFile(path, bytes, { mode: 0o600 })
           },
-          journal: createRightsJournal(undefined),
+          journal,
           subjectRefusal: (plan) => rightsSubjectRefusal(getDb(), plan),
           executors: (finalWarning) =>
             composeRightsExecutors(
               {
                 db: getDb(),
+                journal,
+                portalObjectStore: createS3StorageAdapter({
+                  accessKey: env.AWS_S3_ACCESS_KEY,
+                  secretKey: env.AWS_S3_SECRET_ACCESS_KEY,
+                  bucketName: env.AWS_S3_BUCKET_NAME,
+                  region: env.AWS_S3_REGION,
+                  internalEndpoint: env.S3_INTERNAL_ENDPOINT,
+                  presignEndpoint: env.S3_PRESIGN_ENDPOINT,
+                  forcePathStyle: env.S3_FORCE_PATH_STYLE,
+                }),
                 operator: {
                   id: ctx.operatorId,
                   authority: {

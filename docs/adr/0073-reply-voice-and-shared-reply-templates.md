@@ -213,6 +213,5 @@ customizes or hides one.
 On 2026-10-30 the owner dropped agency adoption: the workbook import, the voice table,
 sets and the star-only queue. So the consequence that the import script is rewritten no
 longer applies. The import script and the per-Property template and profile code are
-removed; the layered library and the reply voice are unchanged. The
-`property_reply_templates` and `property_reply_profiles` tables stay in the schema for
-now.
+removed; the layered library and the reply voice are unchanged. Migration 0121 dropped
+the `property_reply_templates` and `property_reply_profiles` tables.

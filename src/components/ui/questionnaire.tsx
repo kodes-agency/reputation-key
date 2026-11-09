@@ -1,11 +1,8 @@
-// Vendored from shadcn/ui (https://ui.shadcn.com/docs/components/questionnaire),
-// `apps/v4/registry/bases/radix/ui/questionnaire.tsx`, fetched 2026-09-15. MIT
-// licensed. The behaviour lives in the pinned npm package `@shadcn/react@0.3.1`;
-// this file is the styled wrapper.
-//
-// Local changes: the registry's `cn-*` style hooks are replaced by this app's
-// new-york classes, the icon placeholder by lucide's check, and the button
-// import by `#/components/ui/button`. Composition and exports are unchanged.
+// Vendored from shadcn/ui (`apps/v4/registry/bases/radix/ui/questionnaire.tsx`), MIT
+// licensed. The behaviour lives in the pinned npm package `@shadcn/react@0.3.1`; this
+// file is the styled wrapper. Local changes: the registry's `cn-*` style hooks are
+// replaced by this app's classes, the icon placeholder by lucide's check, and the
+// button import by `#/components/ui/button`.
 
 import * as React from 'react'
 import { Questionnaire as QuestionnairePrimitive } from '@shadcn/react/questionnaire'

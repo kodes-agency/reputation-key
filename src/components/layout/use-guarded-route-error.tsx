@@ -1,24 +1,18 @@
 // The guarded half of a route error boundary, in one place.
 //
-// The router's default error component does four things every boundary must:
+// Every boundary must:
 //
-//   - shows `publicErrorMessage`, which is generic in production (BQC-7.6: no raw
-//     SQL, path or secret text in the DOM) and a page-written sentence if the
-//     page gave one;
-//   - reports an unexpected failure with `captureBrowserException`, and stays
-//     quiet for an expected 4xx refusal;
-//   - sends a 401 to /login, because that is an expired session under an open
-//     page, not a failure;
-//   - offers "Try again", which re-runs the route's loaders (`useReadRetry`: in a
-//     tab whose code is older than the server's, loads the page afresh instead);
-//   - loads the page afresh when the failure means this tab's code is older than
-//     the server's (a read the server refused, a chunk a deploy removed), once,
-//     and says nothing of it: that is not a failure of the page.
+//   - show `publicErrorMessage`, generic in production (no raw SQL, path or secret
+//     text in the DOM) unless the page gave a sentence;
+//   - report an unexpected failure with `captureBrowserException`, and stay quiet
+//     for an expected 4xx refusal;
+//   - send a 401 to /login: an expired session under an open page is not a failure;
+//   - offer "Try again", which re-runs the route's loaders (`useReadRetry`);
+//   - load the page afresh, once and silently, when the failure means this tab's
+//     code is older than the server's (a refused read, a chunk a deploy removed).
 //
-// Route-level error components (Portal list, All properties, Portal workspace)
-// used to render `errorMessage(error)` and nothing else, so they lost all four.
-// They, and the router default, now take their behaviour from here and keep only
-// their own frame (title, breadcrumbs, tier). PageState builds on this hook.
+// Boundaries take this behaviour from here and keep only their own frame (title,
+// breadcrumbs, tier). PageState builds on this hook.
 import { useEffect } from 'react'
 import { Navigate, useRouter } from '@tanstack/react-router'
 import { useQueryClient } from '@tanstack/react-query'
@@ -50,10 +44,7 @@ export type RouteErrorFacts = Readonly<{
   report: boolean
 }>
 
-/**
- * What a boundary should do about `error`. Pure, so it is unit-tested without a
- * router; `isProduction` is passed in (the hook passes `import.meta.env.PROD`).
- */
+/** What a boundary should do about `error`. Pure; `isProduction` is passed in. */
 export function routeErrorFacts(
   error: unknown,
   isProduction: boolean,
@@ -78,12 +69,9 @@ export type GuardedRouteError = Readonly<{
 }>
 
 /**
- * Guard a route error component. Reports the error once per error, and returns
- * what to render. When `signedOut` is true render `<SignedOutRedirect />` and
- * nothing else.
- *
- * `fallback` is a static sentence for the page ("Portals could not be loaded.")
- * shown where the raw message may not be.
+ * Guard a route error component: reports the error once and returns what to render.
+ * When `signedOut` is true render `<SignedOutRedirect />` and nothing else.
+ * `fallback` is a static sentence shown where the raw message may not be.
  */
 export function useGuardedRouteError(
   error: unknown,
@@ -99,15 +87,13 @@ export function useGuardedRouteError(
 
   const queryClient = useQueryClient()
   useEffect(() => {
-    // A refusal wins over the shell's memory: the next navigation and Try again
-    // ask the server afresh instead of opening the shell on what it refused.
+    // A refusal wins over the shell's memory: later reads ask the server afresh.
     if (refused) invalidateShellContext(queryClient)
   }, [error, refused, queryClient])
 
   useEffect(() => {
-    // A failure of stale code is cured by the current code, not reported. If
-    // the guard refuses now (this release already reloaded a moment ago) or a
-    // mutation is in flight, the tab stays armed and the next navigation asks.
+    // Stale code is cured by reloading, not reported. If the guard refuses (just
+    // reloaded, or a mutation is in flight) the tab stays armed for the next navigation.
     if (staleTab.reloadForFailure(error) === 'reloading') return
     if (report) captureBrowserException(error)
   }, [error, report])

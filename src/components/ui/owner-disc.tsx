@@ -1,8 +1,7 @@
-// The mark for whoever holds a thing: a 20 px disc with a person's initials, or
-// a person glyph when there is nothing to draw. Hoisted from the inbox owner
-// control (plan v2.1 row 4) so the portal's responsible managers wear the same
-// mark. Initials come from `personInitials` (`inbox/person-initials.ts`), which
-// returns `null` — never a placeholder letter — when a name has none.
+// The mark for whoever holds a thing: a 20 px disc with a person's initials, or a
+// person glyph when there is nothing to draw. Initials come from `personInitials`
+// (`inbox/person-initials.ts`), which returns `null`, never a placeholder letter,
+// when a name has none.
 import { UserRound, UserRoundCheck } from 'lucide-react'
 import { cn } from '#/lib/utils'
 import type { ReactNode } from 'react'

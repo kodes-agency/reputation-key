@@ -16,7 +16,7 @@ import type { Action } from '#/components/hooks/use-action'
 import type { PortalShareMutations } from '../portal-share/portal-share-types'
 import type { PortalDetailTab } from '../portal-detail/portal-detail-rules'
 import type { PortalReadOnlyReason } from '../portal-detail/portal-edit-access'
-import type { PortalEditorSection } from '../portal-editor/portal-editor-sections'
+import type { PortalEditorSection } from '#/contexts/portal/editor/ui/portal-editor-sections'
 import type { WorkspaceBackTarget } from './portal-workspace-origin'
 import type { WorkspaceStatusProblem } from './portal-workspace-status'
 

@@ -635,22 +635,33 @@ Property resolvable. Sibling Properties in the same Organization are
 byte-identical, and independently retained managerial work (replies to reviews
 of other Properties, org-level `audit_logs`) is untouched.
 
-The tombstone is not yet content-free. The Property contributor does not scrub
-the archive note (`lifecycle_reason`, 3 to 500 characters of free text an
-AccountAdmin typed) or the Google binding: the account and location suffixes,
-the Organization connection reference, the binding state (still `active` when
-the Property was never disconnected) and the review URI. Because the
-per-Organization unique index on the location suffix leaves out only rows with
-`deleted_at` set, the erased Property's Google location also cannot be imported
-into that Organization again (`location_already_bound`).
+**Tombstone rule (owner decision).** An erased Property keeps a minimal
+tombstone: the Property id, its Organization, the erase date
+(`lifecycle_state_changed_at`) and `lifecycle_reason` set to `erased on
+request`. Nothing in it is about a person. The erase also clears the archive
+note, the initiating user, the profile confirmation and the Google binding in
+the same statement: the account and location suffixes, the Organization
+connection reference, the binding state (now `unbound`), the review URI and its
+pin, and the primary category. The source epoch moves by one, which fences late
+sync writes prepared against the old binding. Because the location suffix is
+gone, the per-Organization unique index no longer holds it, and a later
+reconnect of the same Google location creates a fresh Property instead of
+answering `location_already_bound`.
+
+The Google executor owns the rest of the Google footprint (the Property's
+import items and the parents they leave empty); the Property erase does not
+repeat it. The Google connection itself belongs to the Organization and stays.
 
 **Not yet armed.** `scripts/ops/property-erase.ts` refuses `--apply` and says so.
 Only the Guest and Property erase contributors exist; the remaining fourteen
-contexts, the container composition and the job registration are pending. So is
-one owner decision: whether the erase clears the archive note and the Google
-binding from the tombstone, and with them the block on importing the location
-again. It changes which stored data an erase removes, so it is not made in
-code until it is decided.
+contexts, the container composition and the job registration are pending.
+
+**Manual rights script.** `pnpm ops rights-request property` also runs the
+Property scope through executors that wrap these bodies: the Google executor
+(import items), the Identity grants executor and the Property executor
+(tombstone). Each journals its context before it applies and has a replayer, so
+a restore that brings the Property back is erased again. Apply stays refused in
+production.
 
 ---
 

@@ -18,13 +18,30 @@ import {
   createGuestPropertyErasureReplayer,
 } from '#/contexts/guest/infrastructure/adapters/guest-backup-erasure-replayer.adapter'
 import {
+  createIdentityPropertyRightsExecutor,
+  createStaffOrganizationRightsExecutor,
+  identityPropertyErasureReplayer,
+  staffOrganizationErasureReplayer,
+} from '#/contexts/identity/infrastructure/adapters/identity-rights.adapter'
+import {
+  createPropertyRightsExecutor,
+  propertyErasureReplayer,
+} from '#/contexts/property/infrastructure/adapters/property-rights.adapter'
+import {
   createGuestRightsExecutor,
   type GuestRightsExecutorDeps,
 } from '#/contexts/guest/infrastructure/adapters/guest-rights.adapter'
+import type { StoragePort } from '#/contexts/portal/application/ports/storage.port'
+import {
+  createPortalErasureReplayers,
+  createPortalRightsExecutor,
+} from '#/contexts/portal/infrastructure/adapters/portal-rights.adapter'
 import {
   createReportingRightsExecutor,
   createReportingRightsReplayers,
 } from '#/contexts/reporting/infrastructure/adapters/reporting-rights.adapter'
+import { createStaffParticipantErasureReplayer } from '#/contexts/identity/infrastructure/adapters/staff-participant-erasure-replayer.adapter'
+import { createStaffParticipantRightsExecutor } from '#/contexts/identity/infrastructure/adapters/staff-participant-rights.adapter'
 import {
   createGoogleRightsExecutor,
   createGoogleRightsReplayers,
@@ -40,11 +57,14 @@ import {
   createReviewRightsReplayers,
 } from '#/shared/ops/rights/review-inbox-rights-executors'
 import type { RightsExecutor } from '#/shared/ops/rights/rights-executor'
+import type { RightsJournal } from '#/shared/ops/rights/rights-journal'
 import { reputationReplyScopeEffects } from './reply-scope-effects'
 
 export type RightsExecutorsDeps = Readonly<{
   db: Database
+  journal: RightsJournal
   runNotification: NotificationRightsExecutorDeps['run']
+  portalObjectStore: Pick<StoragePort, 'deleteObject'>
   /** The named operator for guest-response erasure; absent means that apply is denied. */
   operator?: GuestRightsExecutorDeps['operator']
   now?: () => Date
@@ -61,6 +81,7 @@ export function composeRightsExecutors(
     run: deps.runNotification,
   })
   if (finalWarning) return [notification]
+  if (!deps.portalObjectStore) throw new Error('Portal image store is required')
   return [
     createGoogleRightsExecutor({ db: deps.db, now }),
     createReviewRightsExecutor({
@@ -76,9 +97,18 @@ export function composeRightsExecutors(
       operator: deps.operator,
     }),
     createReportingRightsExecutor(deps.db, now),
+    createPortalRightsExecutor({
+      db: deps.db,
+      objectStore: deps.portalObjectStore,
+      now,
+    }),
     createAiRightsExecutor(deps.db, now),
     createActivityRightsExecutor(deps.db),
+    createIdentityPropertyRightsExecutor(deps.db),
+    createStaffOrganizationRightsExecutor(deps.db),
+    createPropertyRightsExecutor(deps.db, now),
     notification,
+    createStaffParticipantRightsExecutor({ db: deps.db, journal: deps.journal, now }),
   ]
 }
 
@@ -99,8 +129,13 @@ export function composeRightsReplayers(
     createGuestBackupErasureReplayer(),
     createGuestPropertyErasureReplayer(),
     ...createReportingRightsReplayers(now),
+    ...createPortalErasureReplayers(),
     ...createAiErasureReplayers(now),
     ...createActivityErasureReplayers(),
+    identityPropertyErasureReplayer,
+    staffOrganizationErasureReplayer,
+    propertyErasureReplayer,
+    createStaffParticipantErasureReplayer(),
     ...deps.notificationReplayers,
   ]
 }

@@ -6,12 +6,10 @@ import { createLink } from '@tanstack/react-router'
 // TanStack's `Link` marks itself `aria-current="page"` and `data-status="active"`
 // whenever the location is at or below its path, and sets them after every prop,
 // so a caller cannot unset them. A nav draws its own active row from a test that
-// fits its routes (the sidebar's section regex, the editor's `?section=`), so the
-// two disagreed: the Dashboard link was announced as the current page on every
-// Property page while one row was drawn active. NavLink keeps the router's address,
+// fits its routes, so the two disagree. NavLink keeps the router's address,
 // preloading and click handling, drops its current/active marks, and applies the
-// nav's answer once to `aria-current`. Style a row from `aria-[current=page]` and
-// what is drawn and what is announced cannot drift.
+// nav's answer once to `aria-current`. Style a row from `aria-[current=page]`
+// and what is drawn and what is announced cannot drift.
 
 type NavAnchorProps = ComponentProps<'a'> & {
   /** Whether this link is the page the person is on, as the nav decided it. */

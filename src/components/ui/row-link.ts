@@ -1,7 +1,4 @@
-// How a row of a list or a table opens things (UI consistency scan: COLL-20).
-// The convention was the Properties and Portals lists' own, copied as a local
-// `FOCUS_RING` into three files and contradicted by a third list that drew its
-// counts in the link purple.
+// How a row of a list or a table opens things.
 //
 // - A row has one way in: its name, a link in the accent ink (`styles.css` gives
 //   every plain anchor that default), underlined on hover. `ROW_NAME_LINK` adds

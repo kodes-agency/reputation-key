@@ -8,12 +8,9 @@ import {
 import { THEME_MODE_OPTIONS } from './theme-mode-options'
 
 /**
- * The theme control inside the account menu: the same Light / Dark / System
- * pill as `ThemeModeControl`. A menu is not a place for a plain
- * radio group (Radix prevents Tab inside it, so the group could not be reached
- * from the keyboard), so the segments are menu radio items: arrow keys move
- * through them with the rest of the menu and Enter or Space chooses. Choosing
- * leaves the menu open so the change can be seen.
+ * The theme control inside the account menu. Radix prevents Tab inside a menu, so a
+ * plain radio group would be unreachable by keyboard; the segments are menu radio
+ * items (arrows move, Enter or Space chooses). Choosing leaves the menu open.
  */
 export function ThemeModeMenuControl() {
   const { mode, setMode } = useThemeMode()

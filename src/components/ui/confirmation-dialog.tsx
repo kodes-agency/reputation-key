@@ -1,52 +1,37 @@
 // The confirm-and-act shell: a trigger, a question, Cancel, and one confirm
 // action. Every confirmation in the app is this, not a hand-assembled
-// AlertDialog (UI consistency scan: SURF-02, SURF-03, ACT-17, FORM-02).
+// AlertDialog.
 //
-// Tone. `tone` is the colour of the confirm button and nothing else, and the
-// last cue before the click, so it must not vary for the same kind of action.
-// `destructive` is for an action the person cannot take back or that loses data
-// (remove a member, delete a link, remove a Property, disconnect Google, end a
-// goal). A reversible one (archive, restore, disable a public page, turn off AI
-// features) stays `neutral`, and so does its menu item: a red item that opens a
-// primary-coloured confirm contradicts itself. Reversible means the app has the
+// `tone` is the colour of the confirm button and nothing else. `destructive` is
+// for an action the person cannot take back or that loses data; a reversible one
+// stays `neutral`, and so does its menu item (a red item opening a
+// primary-coloured confirm contradicts itself). Reversible means the app has the
 // way back: a portal group has no restore, so archiving one is `destructive`. A
-// trigger follows the same rule: a destructive confirm is started from a
-// destructive Button (`ConfirmationTrigger`), a neutral one from an outline
-// Button, or a plain Button when it is the page's affirmative action (Restore,
-// Enable).
+// destructive confirm is started from a destructive Button
+// (`ConfirmationTrigger`), a neutral one from an outline Button, or a plain
+// Button when it is the page's affirmative action.
 //
-// What does not confirm (owner decision 3). Only a low-blast action the person
-// can undo on the spot skips this dialog:
-//   - removing a language from a draft,
-//   - deleting an unsent reply draft,
-//   - dismissing one notification.
-// Everything else that destructs confirms here, and a deliberate difference is
-// listed, not assumed: the Inbox's Reject opens its reason field inline beside
-// the reply.
+// Only a low-blast action the person can undo on the spot skips this dialog
+// (removing a language from a draft, deleting an unsent reply draft, dismissing
+// one notification).
 //
-// The pending contract. Confirming runs `onConfirm`; until it settles the
-// dialog stays open, its confirm is a pending Button, Cancel is disabled and
-// Escape is refused (dialog-dismissal.ts). It closes when `onConfirm` resolves.
-// When it rejects the dialog stays open and says so once, in a banner directly
-// above the actions, because the person pressed the button here and expects the
-// answer here. A mutation behind this dialog therefore passes no `errorMessage`:
-// a toast as well would tell them twice. The error is held by the dialog's body,
-// which mounts when it opens, so a reopened dialog never greets with an old one.
-// That is also its limit: a dialog drawn inside something its own refusal
-// re-reads is unmounted with it, and the sentence goes too. Such a caller keeps
-// what the dialog is drawn in as it was until the dialog closes, and reports
-// its opening and closing through `onOpenChange` to do so (the Inbox's reply
-// confirmations, `inbox/use-reply-confirmation-hold.ts`).
+// Pending contract: until `onConfirm` settles the dialog stays open, its confirm
+// is a pending Button, Cancel is disabled and Escape is refused
+// (dialog-dismissal.ts). When it rejects the dialog stays open and says so once,
+// in a banner above the actions, so a mutation behind it passes no
+// `errorMessage` (a toast as well would tell them twice). The error is held by
+// the dialog's body, which mounts when it opens, so a reopened dialog never
+// greets with an old one. A dialog drawn inside something its own refusal
+// re-reads is unmounted with it; such a caller holds that surface still until
+// the dialog closes, via `onOpenChange`.
 //
-// Two ways to open it, and the types make a caller pick one: pass a `trigger`
-// and it opens itself, or pass `open` with `onOpenChange` and the caller owns it.
-// That is how a menu item asks, because a dialog rendered inside a DropdownMenu
-// unmounts with the menu, so its state has to live above it. Passing neither is
-// a type error: such a dialog could never open.
+// Two ways to open it, and the types make a caller pick one: pass a `trigger`,
+// or pass `open` with `onOpenChange` and own the state (a dialog rendered inside
+// a DropdownMenu unmounts with the menu, so its state must live above it).
 //
-// Fields. `children` is the body between the question and the actions (an
-// archive note, a reason, a choice of how). `confirmDisabled` holds the confirm
-// back until they are valid, and Enter in a field confirms like the button does.
+// `children` is the body between the question and the actions.
+// `confirmDisabled` holds the confirm back until the fields are valid, and
+// Enter in a field confirms like the button does.
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { FormErrorBanner } from '#/components/forms/form-error-banner'
 import {

@@ -9,8 +9,8 @@ import {
   portalWorkspaceTitle,
   type PortalDetailTab,
 } from '#/components/features/portal/portal-detail/portal-detail-rules'
-import type { PortalEditorSection } from '#/components/features/portal/portal-editor/portal-editor-sections'
-import { PortalDraftAutosaveProvider } from '#/components/features/portal/portal-editor/portal-draft-autosave-context'
+import type { PortalEditorSection } from '#/contexts/portal/editor/ui/portal-editor-sections'
+import { PortalDraftAutosaveProvider } from '#/contexts/portal/editor/ui/portal-draft-autosave-context'
 import { PortalLinkIssuanceProvider } from '#/components/features/portal/portal-workspace/portal-link-issuance'
 import { isWorkspaceReviewRoute } from '#/components/features/portal/portal-workspace/portal-workspace-route'
 import { PortalWorkspaceShell } from '#/components/features/portal/portal-workspace/portal-workspace-shell'

@@ -214,9 +214,19 @@ export function createAdvanceReviewAnalysisEnrollments(
     })
   }
 
+  async function rebuildProfilesIsolated(): Promise<void> {
+    try {
+      await dependencies.rebuildProfiles?.()
+    } catch (error) {
+      dependencies.logger?.warn(
+        error instanceof Error ? { err: error } : {},
+        'AI profile rebuild failed',
+      )
+    }
+  }
+
   return {
     async sweep() {
-      await dependencies.rebuildProfiles?.()
       const heads = await dependencies.enrollments.listActionable(
         AI_REVIEW_ANALYSIS_ENROLLMENT_SWEEP_BATCH_SIZE,
       )
@@ -272,6 +282,10 @@ export function createAdvanceReviewAnalysisEnrollments(
             break
         }
       }
+
+      // After the enrollments, so a failing or slow rebuild cannot hold them
+      // back; a failure waits for the next tick.
+      await rebuildProfilesIsolated()
 
       // After the enrollments, so a failing reopen pass cannot hold them back.
       const reopened = await reopenAbandoned()

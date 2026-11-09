@@ -280,7 +280,12 @@ export function useReplyActions(input: Input): ReplyActions {
       }),
     deleteDraft: () =>
       revisionFence.enqueue(async () => {
-        const deleted = await del({ data: { reviewId } })
+        const deleted = await del({
+          data: {
+            reviewId,
+            expectedReply: revisionFence.beforeWrite(replyRevisionOnScreen(input.reply)),
+          },
+        })
         revisionFence.didDelete()
         return deleted
       }),

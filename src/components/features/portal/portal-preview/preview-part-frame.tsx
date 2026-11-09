@@ -19,8 +19,8 @@ import {
   type ReactNode,
 } from 'react'
 import { cn } from '#/lib/utils'
-import { PORTAL_EDITOR_SECTION_ICONS } from '../portal-editor/portal-editor-section-icons'
-import { PORTAL_EDITOR_SECTION_LABELS } from '../portal-editor/portal-editor-sections'
+import { PORTAL_EDITOR_SECTION_ICONS } from '#/contexts/portal/editor/ui/portal-editor-section-icons'
+import { PORTAL_EDITOR_SECTION_LABELS } from '#/contexts/portal/editor/ui/portal-editor-sections'
 import {
   livePartBoxes,
   measurePartBoxes,

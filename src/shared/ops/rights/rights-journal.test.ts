@@ -38,6 +38,40 @@ describe('rights journal', () => {
     expect(new Set(ids).size).toBe(3)
   })
 
+  it('names the batch ids in its entry and keys it by them', async () => {
+    const writes: string[] = []
+    const journal = createRightsJournal({
+      put: async (_key, bytes) => {
+        writes.push(bytes)
+      },
+      alert: vi.fn(),
+    })
+    const participant = {
+      ...plan,
+      scope: 'participant' as const,
+      subjectRef: 'a'.repeat(64),
+    }
+    const first = '22222222-2222-4222-8222-222222222222'
+    const second = '33333333-3333-4333-8333-333333333333'
+
+    await journal.runBatch(
+      participant,
+      'staff',
+      { kind: 'staff_participant', ids: [first] },
+      async () => 1,
+    )
+    await journal.runBatch(
+      participant,
+      'staff',
+      { kind: 'staff_participant', ids: [second] },
+      async () => 1,
+    )
+
+    const entries = writes.map(decodeErasureJournalEntry)
+    expect(entries.map((entry) => entry.journalTargets?.ids)).toEqual([[first], [second]])
+    expect(entries[0]!.id).not.toBe(entries[1]!.id)
+  })
+
   it('fails closed without a store', async () => {
     const journal = createRightsJournal(undefined)
 

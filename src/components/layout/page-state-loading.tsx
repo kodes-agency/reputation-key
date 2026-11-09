@@ -5,22 +5,18 @@ import { Skeleton } from '#/components/ui/skeleton'
 import type { LoadingShape } from './page-identity'
 import { PAGE_GUTTER_X } from './page-shell'
 
-// The loading state's bodies: one placeholder per kind of page, so a slow load
-// holds the place of the content that replaces it (the same columns, the same
-// first block) instead of one generic slab. `PageState` picks the shape from the
-// page's identity (`loadingShapeOf`, page-identity) and draws the header above it.
+// The loading state's bodies: one placeholder per kind of page, holding the place
+// of the content that replaces it. `PageState` picks the shape (`loadingShapeOf`).
 //
-// Two shapes are not a body below a header: the workspace and the Inbox are
-// full-bleed surfaces that own their frame, so they draw their own header, tabs
-// and panes and `PageState` puts neither a `PageShell` nor a gutter around them.
+// The workspace and the Inbox are full-bleed surfaces that own their frame: they
+// draw their own header, tabs and panes, with no `PageShell` or gutter around them.
 //
 // These stay free of feature code: they sit in the first-paint closure with every
-// route fallback. The breakpoints of the two surfaces are the surfaces' own, so
-// they are spelled in classes here and must change with them: the portal editor
-// splits at `@4xl`, widens its preview at `@6xl` and shows its section column at
-// `@7xl` (`portal-editor`, `section-nav-styles`); the Inbox shows its queue rail
-// from `@min-[1022px]`, the width of a rail, a list and a detail pane at their
-// minimums, which is the floor `use-inbox-compact-layout` measures beside the sidebar.
+// route fallback. The two surfaces' breakpoints are spelled in classes here and
+// must change with them: the portal editor splits at `@4xl`, widens its preview at
+// `@6xl` and shows its section column at `@7xl` (`portal-editor`,
+// `section-nav-styles`); the Inbox shows its queue rail from `@min-[1022px]`, the
+// floor `use-inbox-compact-layout` measures beside the sidebar.
 
 type BodyProps = Readonly<{
   /** What a screen reader hears while the page loads. */
@@ -131,13 +127,10 @@ function HeaderTitle({ title }: Readonly<{ title: string }>) {
 }
 
 /**
- * The workspace header's way back while it loads: the box of the loaded control
- * (the Button classes the BackLink draws, pulled 8 px into the gutter like it)
- * around the arrow's room and the same words, kept invisible. The block is then
- * as wide as the loaded one in whatever font the platform draws the label, so the
- * title beside it does not move when the header arrives; a fixed 140 px block put
- * it 7 px off in Linux Chromium. Below `sm` the loaded control is the arrow alone,
- * a tap target wide, and so is this. It takes no pointer, so no hover state shows.
+ * The workspace header's way back while it loads: the loaded control's box around
+ * the arrow's room and the same invisible words, so it is as wide as the loaded one
+ * in any font and the title beside it does not move (a fixed width did). Below `sm`
+ * the loaded control is the arrow alone, and so is this. It takes no pointer.
  */
 function WorkspaceBackPlaceholder() {
   return (
@@ -156,11 +149,9 @@ function WorkspaceBackPlaceholder() {
 }
 
 /**
- * The Portal workspace while it loads: the editor's own header band, tab strip
- * and body, so the page does not jump from a centred column to an edge-to-edge
- * editor. The measures are the loaded header's (a 65 px band, a 37 px strip, a
- * 288 px section column, a 26 or 30 rem preview), and the way back is the loaded
- * control's own box (`WorkspaceBackPlaceholder`).
+ * The Portal workspace while it loads: the editor's own header band, tab strip and
+ * body, with the loaded measures (65 px band, 37 px strip, 288 px section column,
+ * 26 or 30 rem preview), so the page does not jump to an edge-to-edge editor.
  */
 function WorkspaceBody({ title, label }: BodyProps & Readonly<{ title?: string }>) {
   return (
@@ -243,10 +234,9 @@ function InboxRowPlaceholder() {
 }
 
 /**
- * The Inbox (and a Property's Reviews) while it loads: queue rail, list and
- * detail pane in a container, the rail from `@min-[1022px]` (the Inbox's own
- * floor, `use-inbox-compact-layout`). Below that the list stands alone with the
- * queues as a strip of chips above it, as the compact layout does (on a phone the header row is the scope, and the queue's name is read, not drawn).
+ * The Inbox (and a Property's Reviews) while it loads: queue rail, list and detail
+ * pane, the rail from `@min-[1022px]`. Below that the list stands alone with the
+ * queues as a strip of chips above it, as the compact layout does.
  */
 function InboxBody({ title, label }: BodyProps & Readonly<{ title?: string }>) {
   return (

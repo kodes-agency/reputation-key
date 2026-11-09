@@ -1,5 +1,5 @@
 import { useTenantScope } from '#/shared/hooks/useTenantScope'
-// Inbox route v2 — three-panel email-style layout
+// Inbox route: three-panel email-style layout
 import { createFileRoute, getRouteApi } from '@tanstack/react-router'
 import { roleUnavailable } from '#/shared/auth/route-notice'
 import { useQuery } from '@tanstack/react-query'
