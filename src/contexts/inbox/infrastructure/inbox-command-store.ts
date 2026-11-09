@@ -55,6 +55,7 @@ import {
   inboxItemUnassigned,
   type InboxBulkReopenedCycle,
 } from '../domain/events'
+import { inTransaction } from './inbox-command-transaction'
 import { inboxItemToInsertRow } from './mappers/inbox.mapper'
 import { inboxNoteFromRow, inboxNoteToInsertRow } from './mappers/inbox-note.mapper'
 import {
@@ -1318,9 +1319,10 @@ export const createAtomicInboxCommandStore = (
     event: DomainEvent | null,
     at: Date,
     appendHistory?: (tx: Tx, row: InboxItem) => Promise<void>,
+    lent?: Tx,
   ): Promise<InboxItem> => {
     return trace(span, async () => {
-      const saved = await db.transaction(async (tx) => {
+      return inTransaction(db, lent, async (tx) => {
         await assertCommandAuthority(
           tx,
           item.organizationId,
@@ -1332,14 +1334,13 @@ export const createAtomicInboxCommandStore = (
         if (event) await insertOutboxRow(tx, event)
         return row
       })
-      return saved
     })
   }
 
   return {
-    releaseAssignmentsForUser: async (input) => {
+    releaseAssignmentsForUser: async (input, lent) => {
       return trace('inbox.commandStore.releaseAssignmentsForUser', async () => {
-        const released = await db.transaction(async (tx) => {
+        const released = await inTransaction(db, lent, async (tx) => {
           const candidates = await tx
             .select({ id: inboxItems.id })
             .from(inboxItems)
@@ -1360,9 +1361,9 @@ export const createAtomicInboxCommandStore = (
       })
     },
 
-    releaseIneligibleAssignmentsForUser: async (input) => {
+    releaseIneligibleAssignmentsForUser: async (input, lent) => {
       return trace('inbox.commandStore.releaseIneligibleAssignmentsForUser', async () => {
-        const released = await db.transaction(async (tx) => {
+        const released = await inTransaction(db, lent, async (tx) => {
           const candidates = await tx
             .select({
               id: inboxItems.id,
@@ -1449,9 +1450,9 @@ export const createAtomicInboxCommandStore = (
       })
     },
 
-    createItem: async (item, event, reviewCycleAnchor) => {
+    createItem: async (item, event, reviewCycleAnchor, lent) => {
       return trace('inbox.commandStore.createItem', async () => {
-        const result = await db.transaction(async (tx) => {
+        return inTransaction(db, lent, async (tx) => {
           const inserted = await insertItemIdempotent(tx, item, reviewCycleAnchor)
           if (inserted.created && event) {
             await insertOutboxRow(tx, event)
@@ -1459,13 +1460,12 @@ export const createAtomicInboxCommandStore = (
           }
           return inserted
         })
-        return result
       })
     },
 
-    createReviewItemAnsweredOnGoogle: async (item, anchor, observation) => {
+    createReviewItemAnsweredOnGoogle: async (item, anchor, observation, lent) => {
       return trace('inbox.commandStore.createReviewItemAnsweredOnGoogle', () =>
-        db.transaction((tx) =>
+        inTransaction(db, lent, (tx) =>
           insertReviewItemAnsweredOnGoogle(
             tx,
             { item, anchor, observation, now: clock() },
@@ -1475,7 +1475,7 @@ export const createAtomicInboxCommandStore = (
       )
     },
 
-    reopenReviewCycle: async (command) => {
+    reopenReviewCycle: async (command, lent) => {
       return trace('inbox.commandStore.reopenReviewCycle', async () => {
         const { item, fact, expected, now } = command
         const actorId = webActorId(fact)
@@ -1498,7 +1498,7 @@ export const createAtomicInboxCommandStore = (
           )
         }
 
-        const saved = await db.transaction(async (tx) => {
+        return inTransaction(db, lent, async (tx) => {
           const headRows = await tx
             .select()
             .from(inboxHandlingCycleHeads)
@@ -1700,11 +1700,10 @@ export const createAtomicInboxCommandStore = (
           }
           return itemFromRow(updatedItem)
         })
-        return saved
       })
     },
 
-    bulkUpdateStatus: async (items, perItemEvents, governance, reviewResponseTargets) => {
+    bulkUpdateStatus: async (items, perItemEvents, governance, responseTargets, lent) => {
       return trace('inbox.commandStore.bulkUpdateStatus', async () => {
         if (items.length === 0 && perItemEvents.length === 0) {
           return { updated: 0, results: [] }
@@ -1757,7 +1756,7 @@ export const createAtomicInboxCommandStore = (
           )
         }
         const now = first.occurredAt
-        const result = await db.transaction(async (tx) => {
+        return inTransaction(db, lent, async (tx) => {
           // Each row is revision-fenced, while all row changes and per-item
           // facts still commit atomically as one bulk command.
           const commandOrganizationId = items[0]?.organizationId
@@ -1852,7 +1851,7 @@ export const createAtomicInboxCommandStore = (
                 reason: governance.reason,
                 explanation,
                 bulkId: first.bulkId,
-                responseTarget: reviewResponseTargets?.get(item.id),
+                responseTarget: responseTargets?.get(item.id),
                 now,
               }),
             )
@@ -1887,11 +1886,10 @@ export const createAtomicInboxCommandStore = (
             ),
           }
         })
-        return result
       })
     },
 
-    bulkAssign: async (command) => {
+    bulkAssign: async (command, lent) => {
       return trace('inbox.commandStore.bulkAssign', async () => {
         const { items, assignedTo, actorId, bulkId, occurredAt } = command
         const itemIds = items.map((item) => item.id)
@@ -1907,7 +1905,7 @@ export const createAtomicInboxCommandStore = (
           throw inboxError('invalid_input', 'Inbox bulk assignment command is invalid')
         }
 
-        const result = await db.transaction(async (tx) => {
+        return inTransaction(db, lent, async (tx) => {
           const ordered = [...items].sort((left, right) =>
             left.id.localeCompare(right.id),
           )
@@ -2042,14 +2040,13 @@ export const createAtomicInboxCommandStore = (
             })),
           }
         })
-        return result
       })
     },
 
-    assign: async (item, updates, event, now) => {
+    assign: async (item, updates, event, now, lent) => {
       return trace('inbox.commandStore.assign', async () => {
         const stamp = now ?? clock()
-        const saved = await db.transaction(async (tx) => {
+        return inTransaction(db, lent, async (tx) => {
           const actorId = webActorId(event)
           const touchesAnotherAssignee =
             actorId !== null &&
@@ -2108,11 +2105,10 @@ export const createAtomicInboxCommandStore = (
           }
           return row
         })
-        return saved
       })
     },
 
-    escalate: (item, updates, event, now) => {
+    escalate: (item, updates, event, now, lent) => {
       const stamp = now ?? clock()
       return transition(
         'inbox.commandStore.escalate',
@@ -2134,10 +2130,11 @@ export const createAtomicInboxCommandStore = (
             actorUserId: updates.escalatedBy,
             occurredAt: stamp,
           }),
+        lent,
       )
     },
 
-    setPriority: async (item, updates, event, now) => {
+    setPriority: async (item, updates, event, now, lent) => {
       // Fail closed: `transition()` re-authorizes the actor its fact names, and
       // a fact naming no web actor would run no authority check at all.
       guardPriorityCommand(item, updates, event)
@@ -2155,10 +2152,11 @@ export const createAtomicInboxCommandStore = (
             actorUserId: updates.setBy,
             occurredAt: stamp,
           }),
+        lent,
       )
     },
 
-    resolveEscalation: (item, updates, event, now) => {
+    resolveEscalation: (item, updates, event, now, lent) => {
       const stamp = now ?? clock()
       return transition(
         'inbox.commandStore.resolveEscalation',
@@ -2178,12 +2176,13 @@ export const createAtomicInboxCommandStore = (
             actorUserId: updates.resolvedBy,
             occurredAt: stamp,
           }),
+        lent,
       )
     },
 
-    addNote: async (item, note, event) => {
+    addNote: async (item, note, event, lent) => {
       return trace('inbox.commandStore.addNote', async () => {
-        const saved = await db.transaction(async (tx) => {
+        return inTransaction(db, lent, async (tx) => {
           await assertCommandAuthority(
             tx,
             item.organizationId,
@@ -2206,13 +2205,12 @@ export const createAtomicInboxCommandStore = (
           await insertOutboxRow(tx, event)
           return inboxNoteFromRow(result[0])
         })
-        return saved
       })
     },
 
-    applySourceCreatedOnce: async (command) => {
+    applySourceCreatedOnce: async (command, lent) => {
       return trace('inbox.commandStore.applySourceCreatedOnce', async () => {
-        const outcome = await db.transaction(async (tx) => {
+        return inTransaction(db, lent, async (tx) => {
           // Reserved before anything is created. A fact that supersedes this
           // one (a withdrawal handled first) settles the delivery under the
           // same key, so exactly one of the two wins: a delivery that was
@@ -2255,14 +2253,13 @@ export const createAtomicInboxCommandStore = (
           for (const fact of inserted.openingFacts) await insertOutboxRow(tx, fact)
           return 'applied' as const
         })
-        return outcome
       })
     },
 
-    applyReviewProjectionOnce: async (command) => {
+    applyReviewProjectionOnce: async (command, lent) => {
       return trace('inbox.commandStore.applyReviewProjectionOnce', async () => {
         assertReviewProjectionCommand(command)
-        const outcome = await db.transaction(async (tx) => {
+        return inTransaction(db, lent, async (tx) => {
           if (!(await reserveReceiptRow(tx, command.eventId, command.consumerName))) {
             return 'duplicate' as const
           }
@@ -2356,11 +2353,10 @@ export const createAtomicInboxCommandStore = (
           }
           return outcome
         })
-        return outcome
       })
     },
 
-    applySourceWithdrawnOnce: async (command) => {
+    applySourceWithdrawnOnce: async (command, lent) => {
       return trace('inbox.commandStore.applySourceWithdrawnOnce', async () => {
         if (
           command.fact.inboxItemId !== command.item.id ||
@@ -2375,7 +2371,7 @@ export const createAtomicInboxCommandStore = (
             'Source withdrawal fact does not match the Inbox command',
           )
         }
-        const outcome = await db.transaction(async (tx) => {
+        return inTransaction(db, lent, async (tx) => {
           if (!(await reserveReceiptRow(tx, command.eventId, command.consumerName))) {
             return 'applied' as const
           }
@@ -2464,11 +2460,10 @@ export const createAtomicInboxCommandStore = (
           await insertOutboxRow(tx, lifecycleFact)
           return 'applied' as const
         })
-        return outcome
       })
     },
 
-    applyReviewSourceTransitionedOnce: async (command) => {
+    applyReviewSourceTransitionedOnce: async (command, lent) => {
       return trace('inbox.commandStore.applyReviewSourceTransitionedOnce', async () => {
         const { closeFact, item } = command
         if (
@@ -2486,7 +2481,7 @@ export const createAtomicInboxCommandStore = (
           )
         }
 
-        await db.transaction(async (tx) => {
+        await inTransaction(db, lent, async (tx) => {
           if (!(await reserveReceiptRow(tx, command.eventId, command.consumerName)))
             return
 
@@ -2548,9 +2543,9 @@ export const createAtomicInboxCommandStore = (
       })
     },
 
-    applyReplyObservedOnce: async (command) => {
+    applyReplyObservedOnce: async (command, lent) => {
       return trace('inbox.commandStore.applyReplyObservedOnce', async () => {
-        await db.transaction(async (tx) => {
+        await inTransaction(db, lent, async (tx) => {
           if (!(await reserveReceiptRow(tx, command.eventId, command.consumerName)))
             return
 
@@ -2596,9 +2591,9 @@ export const createAtomicInboxCommandStore = (
     settleSupersededDelivery: (eventId, consumerName, organizationId) =>
       settleSupersededDeliveryRow(db, eventId, consumerName, organizationId),
 
-    recordReceipt: async (eventId, consumerName, status) => {
+    recordReceipt: async (eventId, consumerName, status, lent) => {
       return trace('inbox.commandStore.recordReceipt', async () => {
-        await db.transaction(async (tx) => {
+        await inTransaction(db, lent, async (tx) => {
           await insertReceiptRow(tx, eventId, consumerName, status)
         })
       })

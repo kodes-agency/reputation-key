@@ -683,6 +683,200 @@ describe.sequential('Inbox provider-observation authority (real PostgreSQL)', ()
     })
   })
 
+  it('commits the Inbox write in the Review transaction, so the fence outlives it', async () => {
+    await seed()
+    await insertObservation(live)
+    await seedDeliveryEvent(EVENT_LIVE)
+    const deps = consumerDeps()
+    let applied!: () => void
+    const appliedInbox = new Promise<void>((resolve) => {
+      applied = resolve
+    })
+    let allowReturn!: () => void
+    const returnAllowed = new Promise<void>((resolve) => {
+      allowReturn = resolve
+    })
+    const consumer = handleInboxReplyObserved(
+      {
+        ...deps,
+        commandStore: {
+          ...deps.commandStore,
+          applyReplyObservedOnce: async (cmd, tx) => {
+            const outcome = await deps.commandStore.applyReplyObservedOnce(cmd, tx)
+            applied()
+            await returnAllowed
+            return outcome
+          },
+        },
+      },
+      observedEvent(EVENT_LIVE, live),
+    )
+    await appliedInbox
+
+    let writerSettled = false
+    const writer = createGoogleReplyObservationStore(getDb())
+      .record({
+        organizationId: ORG,
+        propertyId: PROPERTY,
+        reviewId: REVIEW,
+        sourceEpoch: 0,
+        materialReviewRevision: 1,
+        readGeneration: 2,
+        observationKey: 'f'.repeat(64),
+        source: 'provider_snapshot',
+        observedText: 'newer provider reply',
+        providerUpdatedAt: new Date('2026-08-20T12:05:00.000Z'),
+        observedAt: new Date('2026-08-20T12:05:00.000Z'),
+        contentExpiresAt: new Date('2026-09-20T12:05:00.000Z'),
+      })
+      .finally(() => {
+        writerSettled = true
+      })
+    await vi.waitFor(async () => {
+      const waiting = await pool.query(
+        `SELECT count(*)::int AS n
+         FROM pg_locks
+         WHERE locktype = 'advisory'
+           AND granted = false
+           AND database = (SELECT oid FROM pg_database WHERE datname = current_database())`,
+      )
+      expect(waiting.rows[0].n).toBeGreaterThanOrEqual(1)
+    })
+
+    // The Inbox command has run, yet nothing it wrote is visible: it shares
+    // Review's still-open transaction instead of committing on its own.
+    const outside = await pool.query(
+      `SELECT i.status,
+              (SELECT count(*)::int FROM event_consumer_receipts
+               WHERE event_id = $2 AND consumer_name = 'inbox.on-reply-observed') AS receipts
+       FROM inbox_items i WHERE i.id = $1`,
+      [ITEM, EVENT_LIVE],
+    )
+    expect(outside.rows[0]).toMatchObject({ status: 'open', receipts: 0 })
+    expect(writerSettled).toBe(false)
+
+    allowReturn()
+    await expect(consumer).resolves.toEqual({ status: 'applied' })
+    await expect(writer).resolves.toMatchObject({ observationRevision: 2 })
+    const committed = await pool.query(
+      `SELECT i.status, r.status AS receipt_status
+       FROM inbox_items i
+       JOIN event_consumer_receipts r
+         ON r.event_id = $2 AND r.consumer_name = 'inbox.on-reply-observed'
+       WHERE i.id = $1`,
+      [ITEM, EVENT_LIVE],
+    )
+    expect(committed.rows[0]).toMatchObject({
+      status: 'closed',
+      receipt_status: 'applied',
+    })
+  })
+
+  it('takes the head lock before the item on the lent transaction without deadlocking', async () => {
+    const item = await seed()
+    await insertObservation(live)
+    await seedDeliveryEvent(EVENT_LIVE)
+    expect(await applyObservation(item, EVENT_LIVE, live)).toBe('applied')
+
+    const newerLive: Observation = {
+      revision: 2,
+      state: 'live',
+      change: 'edited',
+      resolution: 'external_current_live',
+      provenance: 'external_or_unknown',
+    }
+    await insertObservation(newerLive)
+    await seedDeliveryEvent(EVENT_LOCK_ORDER)
+
+    const cycleStore = createReviewHandlingCycleStore(getDb())
+    const closedHead = await cycleStore.findHead(ITEM, ORG)
+    if (closedHead === null) throw new Error('seeded Handling Cycle is missing')
+
+    const waitingOnHeads = async (atLeast: number) =>
+      vi.waitFor(
+        async () => {
+          const waiting = await pool.query(
+            `SELECT count(*)::int AS n
+             FROM pg_stat_activity
+             WHERE datname = current_database()
+               AND wait_event_type = 'Lock'
+               AND query LIKE '%inbox_handling_cycle_heads%'`,
+          )
+          expect(waiting.rows[0].n).toBeGreaterThanOrEqual(atLeast)
+        },
+        { timeout: 5_000 },
+      )
+
+    const blocker = await pool.connect()
+    let blockerOpen = false
+    let reopen: ReturnType<typeof cycleStore.startNext> | null = null
+    let observedClose: ReturnType<typeof handleInboxReplyObserved> | null = null
+    try {
+      await blocker.query('BEGIN')
+      blockerOpen = true
+      await blocker.query(
+        `SELECT inbox_item_id
+         FROM inbox_handling_cycle_heads
+         WHERE inbox_item_id = $1 AND organization_id = $2
+         FOR UPDATE`,
+        [ITEM, ORG],
+      )
+      reopen = cycleStore.startNext({
+        inboxItemId: ITEM,
+        organizationId: ORG,
+        expected: {
+          cycleNumber: closedHead.currentCycleNumber,
+          materialReviewRevision: closedHead.currentMaterialReviewRevision,
+          stateRevision: closedHead.stateRevision,
+        },
+        materialReviewRevision: 1,
+        openedReason: 'manual_reopen',
+        manualReopenReason: 'internal_follow_up_still_needed',
+        manualReopenExplanation: null,
+        openedBy: MANUAL_REOPEN_ACTOR,
+        openedAt: OBSERVED_AT,
+        responseTarget: responseTargetPermit(1),
+      })
+      await waitingOnHeads(1)
+      observedClose = handleInboxReplyObserved(
+        consumerDeps(),
+        observedEvent(EVENT_LOCK_ORDER, newerLive),
+      )
+      await waitingOnHeads(2)
+
+      await blocker.query('COMMIT')
+      blockerOpen = false
+      await expect(Promise.all([reopen, observedClose])).resolves.toMatchObject([
+        { head: { currentCycleNumber: 2, status: 'open' } },
+        { status: 'applied' },
+      ])
+    } finally {
+      if (blockerOpen) await blocker.query('ROLLBACK')
+      blocker.release()
+      await Promise.allSettled([
+        ...(reopen ? [reopen] : []),
+        ...(observedClose ? [observedClose] : []),
+      ])
+    }
+
+    const current = await pool.query(
+      `SELECT i.status, h.current_cycle_number, h.status AS head_status,
+              r.status AS receipt_status
+       FROM inbox_items i
+       JOIN inbox_handling_cycle_heads h ON h.inbox_item_id = i.id
+       JOIN event_consumer_receipts r
+         ON r.event_id = $2 AND r.consumer_name = 'inbox.on-reply-observed'
+       WHERE i.id = $1`,
+      [ITEM, EVENT_LOCK_ORDER],
+    )
+    expect(current.rows[0]).toMatchObject({
+      status: 'closed',
+      current_cycle_number: '2',
+      head_status: 'closed',
+      receipt_status: 'applied',
+    })
+  })
+
   it('serializes a manual cycle reopen before an observed close without deadlocking', async () => {
     const item = await seed()
     await insertObservation(live)

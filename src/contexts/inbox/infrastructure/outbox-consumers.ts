@@ -23,6 +23,10 @@ import type { ReviewHandlingCycleStore } from '../application/ports/review-handl
 import type { ReplyObservationAuthorityPort } from '../application/ports/reply-observation-authority.port'
 import type { SourceTransitionAuthorityPort } from '../application/ports/source-transition-authority.port'
 import type { ReviewResponseTargetAuthorityPort } from '../application/ports/review-response-target-authority.port'
+import {
+  borrowReviewTransaction,
+  lentTransactionArgs,
+} from '../application/ports/review-open-transaction'
 import type { InboxItemId } from '#/shared/domain/ids'
 import type { LoggerPort } from '#/shared/domain/logger.port'
 import { createInboxItem as buildInboxItem } from '../domain/constructors'
@@ -142,7 +146,7 @@ async function handleInboxReviewProjection(
       eventSourceRevision: payload.sourceRevision,
       eventKind,
     },
-    async (projection) => {
+    async (projection, reviewTx) => {
       const initialRevision = projection.revisions[0]
       const built = buildInboxItem({
         id: deps.idGen(),
@@ -157,22 +161,25 @@ async function handleInboxReviewProjection(
       })
       if (built.isErr()) throw built.error
       const item = built.value
-      return deps.commandStore.applyReviewProjectionOnce({
-        eventId: event.eventId,
-        consumerName,
-        eventKind,
-        item,
-        fact: inboxItemCreated({
-          inboxItemId: item.id,
-          organizationId: item.organizationId,
-          propertyId: item.propertyId,
-          sourceType: item.sourceType,
-          sourceId: item.sourceId,
-          occurredAt: item.createdAt,
-        }),
-        projection,
-        now: deps.clock(),
-      })
+      return deps.commandStore.applyReviewProjectionOnce(
+        {
+          eventId: event.eventId,
+          consumerName,
+          eventKind,
+          item,
+          fact: inboxItemCreated({
+            inboxItemId: item.id,
+            organizationId: item.organizationId,
+            propertyId: item.propertyId,
+            sourceType: item.sourceType,
+            sourceId: item.sourceId,
+            occurredAt: item.createdAt,
+          }),
+          projection,
+          now: deps.clock(),
+        },
+        ...lentTransactionArgs(reviewTx),
+      )
     },
   )
   if (authority.status === 'obsolete') {
@@ -269,11 +276,12 @@ export async function handleInboxReviewSourceTransitioned(
       change: payload.change,
       occurredAt: transitionedAt,
     },
-    async () => {
+    async (_permit, reviewTx) => {
+      const lent = borrowReviewTransaction(reviewTx)
       // Resolve the projection while Review holds the stable-source fence.
       // A current transition may overtake review.created, so absence is
       // retryable; an obsolete transition is handled outside the callback.
-      const item = await deps.inboxRepo.findBySource('review', unbrand(rId), orgId)
+      const item = await deps.inboxRepo.findBySource('review', unbrand(rId), orgId, lent)
       if (!item) {
         throw inboxError(
           'not_found',
@@ -284,22 +292,25 @@ export async function handleInboxReviewSourceTransitioned(
         throw new Error('Review source transition Property does not match Inbox item')
       }
 
-      return deps.commandStore.applyReviewSourceTransitionedOnce({
-        eventId: event.eventId,
-        consumerName: ON_REVIEW_SOURCE_TRANSITIONED,
-        item,
-        transitionedAt,
-        closeIfOpen: true,
-        closeReason: 'source_ineligible',
-        closeFact: inboxItemStatusChanged({
-          inboxItemId: item.id,
-          organizationId: item.organizationId,
-          propertyId: item.propertyId,
-          oldStatus: 'open',
-          newStatus: 'closed',
-          occurredAt: transitionedAt,
-        }),
-      })
+      return deps.commandStore.applyReviewSourceTransitionedOnce(
+        {
+          eventId: event.eventId,
+          consumerName: ON_REVIEW_SOURCE_TRANSITIONED,
+          item,
+          transitionedAt,
+          closeIfOpen: true,
+          closeReason: 'source_ineligible',
+          closeFact: inboxItemStatusChanged({
+            inboxItemId: item.id,
+            organizationId: item.organizationId,
+            propertyId: item.propertyId,
+            oldStatus: 'open',
+            newStatus: 'closed',
+            occurredAt: transitionedAt,
+          }),
+        },
+        lent,
+      )
     },
   )
   if (authority.status === 'obsolete') {
@@ -407,20 +418,21 @@ export async function handleInboxReplyObserved(
       matchedPublicationCycle: payload.matchedPublicationCycle,
       occurredAt,
     },
-    async (currentObservation) => {
+    async (currentObservation, reviewTx) => {
+      const lent = borrowReviewTransaction(reviewTx)
       // The observed fact may overtake review.created because durable
       // consumers run concurrently. Only an obsolete Review head is a final
       // no-op: a current head with no Inbox projection must remain retryable.
       // Resolve the item while Review holds its observation fence so a later
       // head cannot replace this permit before the Inbox transaction commits.
-      const item = await deps.inboxRepo.findBySource('review', unbrand(rId), orgId)
+      const item = await deps.inboxRepo.findBySource('review', unbrand(rId), orgId, lent)
       if (!item) {
         throw inboxError(
           'not_found',
           'Current reply observation is waiting for its Review Inbox item',
         )
       }
-      const cycleHead = await deps.handlingCycleStore.findHead(item.id, orgId)
+      const cycleHead = await deps.handlingCycleStore.findHead(item.id, orgId, lent)
       if (cycleHead === null) {
         throw inboxError(
           'not_found',
@@ -450,31 +462,35 @@ export async function handleInboxReplyObserved(
           event.eventId,
           ON_REPLY_OBSERVED,
           'obsolete',
+          lent,
         )
         return 'obsolete' as const
       }
-      return deps.commandStore.applyReplyObservedOnce({
-        eventId: event.eventId,
-        consumerName: ON_REPLY_OBSERVED,
-        item,
-        currentObservation,
-        closeFact: inboxItemStatusChanged({
-          inboxItemId: item.id,
-          organizationId: item.organizationId,
-          propertyId: item.propertyId,
-          oldStatus: 'open',
-          newStatus: 'closed',
-          occurredAt: currentObservation.observedAt,
-        }),
-        reopenFact: inboxItemStatusChanged({
-          inboxItemId: item.id,
-          organizationId: item.organizationId,
-          propertyId: item.propertyId,
-          oldStatus: 'closed',
-          newStatus: 'open',
-          occurredAt: currentObservation.observedAt,
-        }),
-      })
+      return deps.commandStore.applyReplyObservedOnce(
+        {
+          eventId: event.eventId,
+          consumerName: ON_REPLY_OBSERVED,
+          item,
+          currentObservation,
+          closeFact: inboxItemStatusChanged({
+            inboxItemId: item.id,
+            organizationId: item.organizationId,
+            propertyId: item.propertyId,
+            oldStatus: 'open',
+            newStatus: 'closed',
+            occurredAt: currentObservation.observedAt,
+          }),
+          reopenFact: inboxItemStatusChanged({
+            inboxItemId: item.id,
+            organizationId: item.organizationId,
+            propertyId: item.propertyId,
+            oldStatus: 'closed',
+            newStatus: 'open',
+            occurredAt: currentObservation.observedAt,
+          }),
+        },
+        lent,
+      )
     },
   )
   if (authority.status === 'obsolete') {

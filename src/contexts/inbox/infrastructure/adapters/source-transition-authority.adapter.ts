@@ -6,5 +6,5 @@ export const createSourceTransitionAuthorityAdapter = (
   source: ReviewSourceTransitionAuthority,
 ): SourceTransitionAuthorityPort => ({
   withExactCurrent: (expectation, apply) =>
-    source.withExactCurrent(expectation, (permit) => apply(permit)),
+    source.withExactCurrent(expectation, (permit, tx) => apply(permit, tx)),
 })

@@ -233,6 +233,7 @@ describe('Review reply-observation exact-current admission', () => {
         observedAt: NOW,
         providerReplyUpdatedAt: providerUpdatedAt,
       }),
+      expect.anything(),
     )
   })
 })

@@ -611,12 +611,6 @@ async function registerNotificationJobs(
   registerCapabilityGatedJob: CapabilityGatedJobRegistrar,
 ): Promise<void> {
   const logger = container.logger
-  const { createInsertNotificationHandler, INSERT_NOTIFICATION_JOB_NAME } =
-    await import('#/contexts/feed/infrastructure/jobs/insert-notification.job')
-  const { createNotificationDbUserLookupAdapter: createNotifUserLookup } =
-    await import('#/contexts/feed/infrastructure/adapters/notification-db-user-lookup.adapter')
-  const { notificationId, notificationEmailId } = await import('#/shared/domain/ids')
-  const notifUserLookup = createNotifUserLookup(container.db)
   // Outbound email transport is chosen ONCE, here, and logged loudly. Before
   // this the real Resend adapter was constructed unconditionally, so a local
   // boot with a real key in .env mailed real inboxes, and a boot with the
@@ -662,58 +656,28 @@ async function registerNotificationJobs(
     }
     return activeOneClickUnsubscribeKeyVersion(unsubscribeKeys)
   }
-  const { createNotificationPropertyScopeResolver } =
-    await import('#/contexts/feed/infrastructure/repositories/notification-property-scope.repository')
-  const { createNotificationOrganizationScopeResolver } =
-    await import('#/contexts/feed/infrastructure/repositories/notification-organization-scope.repository')
-  const resolveNotificationProperty = createNotificationPropertyScopeResolver(
-    container.pool,
-  )
-  // A closure request stops optional email: nothing sets an Organization
-  // suspension any more, so the email paths read the lifecycle authority.
-  const { createNotificationOrganizationEmailStopReader } =
-    await import('#/contexts/feed/infrastructure/repositories/notification-organization-email-stop.repository')
-  const notificationOrganizationEmailStop = createNotificationOrganizationEmailStopReader(
-    container.db,
-  )
-  // ADR 0046 r.3: the organization fallback timezone plus property display
-  // names for digest grouping.
-  const resolveNotificationOrgScope = createNotificationOrganizationScopeResolver(
-    container.pool,
-  )
-  const authorizeUrgentNotification = createScheduledScopeAuthorizer(
-    'system:notification.email_urgent',
-  )
-  // The insert handler must be able to dispatch the immediate email itself:
-  // the queue row alone is inert, so an urgent notification would sit pending
-  // until a digest sweep. The capability is org-gated at execution, so
-  // enqueuing here is safe even when a tenant has email disabled.
-  const { createImmediateEmailEnqueue, createQuietHoursRelease } =
-    await import('#/contexts/feed/infrastructure/jobs/immediate-email-enqueue')
-  const insertNotifHandler = createInsertNotificationHandler({
-    notificationRepo: container.notificationWorkerRuntime.notificationRepo,
-    emailRepo: container.notificationWorkerRuntime.emailRepo,
-    preferenceRepo: container.notificationWorkerRuntime.preferenceRepo,
-    clock: container.clock,
-    idGen: () => notificationId(crypto.randomUUID()),
-    emailIdGen: () => notificationEmailId(crypto.randomUUID()),
-    logger: container.logger,
-    authorizeAudience: container.notificationAudienceAuthorizer,
-    workState: container.notificationWorkerRuntime.workState,
-    deliverySettlement: container.notificationDeliverySettlement,
-    organizationEmailStop: notificationOrganizationEmailStop,
-    ratingForRouting: container.notificationWorkerRuntime.ratingForRouting,
-    enqueueImmediateEmail: container.jobQueue
-      ? createImmediateEmailEnqueue(container.jobQueue, 'notification:urgent-enqueue')
-      : undefined,
+  const processors = container.notificationDelivery.createProcessors({
+    pool: container.pool,
+    jobQueue: container.jobQueue,
+    emailSender: notifEmailSender,
+    baseUrl: notifBaseUrl,
+    oneClickUnsubscribeUrl: notificationUnsubscribeUrl,
+    activeOneClickUnsubscribeKeyVersion: notificationUnsubscribeKeyVersion,
+    authorizeUrgentScope: createScheduledScopeAuthorizer(
+      'system:notification.email_urgent',
+    ),
+    authorizeDigestScope: createScheduledScopeAuthorizer(
+      'system:notification.email_digest',
+    ),
+    // The sweep's Organization leg recovers mandatory mail, which is gated by
+    // its own action rather than by the beta email allowlist.
+    authorizeMandatoryScope: createScheduledScopeAuthorizer(
+      'system:notification.email_mandatory',
+    ),
   })
-  container.jobRegistry.register(INSERT_NOTIFICATION_JOB_NAME, async (job) => {
-    await insertNotifHandler(
-      job as import('bullmq').Job<
-        import('#/contexts/feed/infrastructure/jobs/insert-notification.job').InsertNotificationJobData
-      >,
-    )
-  })
+  const { INSERT_NOTIFICATION_JOB_NAME } =
+    await import('#/contexts/feed/infrastructure/jobs/insert-notification.job')
+  container.jobRegistry.register(INSERT_NOTIFICATION_JOB_NAME, processors.insert)
   logger.info(
     { job: INSERT_NOTIFICATION_JOB_NAME },
     'registered insert-notification job handler',
@@ -726,7 +690,8 @@ async function registerNotificationJobs(
   // has recorded its receipt.
   const { JOB_NAME: RECONCILE_MISSING_NOTIFICATIONS_JOB_NAME } =
     await import('#/contexts/feed/infrastructure/jobs/reconcile-missing-notifications.job')
-  const reconcileMissingNotifications = container.reconcileMissingNotificationsHandler
+  const reconcileMissingNotifications =
+    container.notificationDelivery.reconcileMissingNotificationsHandler
   if (reconcileMissingNotifications) {
     container.jobRegistry.register(
       RECONCILE_MISSING_NOTIFICATIONS_JOB_NAME,
@@ -751,81 +716,26 @@ async function registerNotificationJobs(
   // remnants could not be acknowledged as delivered. The transport decision
   // logged above is orthogonal: the gate decides whether the JOB may run,
   // while the transport decides where an admitted job's mail goes.
-  const { createUrgentEmailJobHandler, MANDATORY_EMAIL_JOB_NAME, URGENT_EMAIL_JOB_NAME } =
-    await import('#/contexts/feed/infrastructure/jobs/urgent-email.job')
-  const urgentEmailHandler = createUrgentEmailJobHandler({
-    emailRepo: container.notificationWorkerRuntime.emailRepo,
-    notifRepo: container.notificationWorkerRuntime.notificationRepo,
-    userLookup: notifUserLookup,
-    emailSender: notifEmailSender,
-    logger: container.logger,
-    clock: container.clock,
-    preferenceRepo: container.notificationWorkerRuntime.preferenceRepo,
-    resolvePropertyScope: resolveNotificationProperty,
-    resolveOrganizationScope: resolveNotificationOrgScope,
-    authorizeScope: authorizeUrgentNotification,
-    organizationEmailStop: notificationOrganizationEmailStop,
-    isRecipientEligible: container.notificationWorkerRuntime.recipientStanding,
-    workState: container.notificationWorkerRuntime.workState,
-    baseUrl: notifBaseUrl,
-    oneClickUnsubscribeUrl: notificationUnsubscribeUrl,
-    // Quiet hours end on the minute; the hourly sweep is only the fallback.
-    scheduleRelease: container.jobQueue
-      ? createQuietHoursRelease(container.jobQueue, container.clock)
-      : undefined,
-  })
-  const runUrgentEmail = async (job: import('bullmq').Job) => {
-    await urgentEmailHandler(
-      job as import('bullmq').Job<
-        import('#/contexts/feed/infrastructure/jobs/urgent-email.job').UrgentEmailJobData
-      >,
-    )
-  }
-  registerCapabilityGatedJob(
-    URGENT_EMAIL_JOB_NAME,
-    'notification.send_email',
-    runUrgentEmail,
-  )
   // One processor, two names: the mandatory name carries the core capability
   // the beta allowlist does not gate, so an account/security notice leaves
   // even for an Organization ordinary product mail is still dark for.
+  const { MANDATORY_EMAIL_JOB_NAME, URGENT_EMAIL_JOB_NAME } =
+    await import('#/contexts/feed/infrastructure/jobs/urgent-email.job')
+  registerCapabilityGatedJob(
+    URGENT_EMAIL_JOB_NAME,
+    'notification.send_email',
+    processors.email,
+  )
   registerCapabilityGatedJob(
     MANDATORY_EMAIL_JOB_NAME,
     'notification.send_mandatory_email',
-    runUrgentEmail,
+    processors.email,
   )
-
-  const { createDigestNotificationJobHandler, DIGEST_JOB_NAME } =
+  const { DIGEST_JOB_NAME } =
     await import('#/contexts/feed/infrastructure/jobs/digest-notification.job')
-  const digestHandler = createDigestNotificationJobHandler({
-    pool: container.pool,
-    emailRepo: container.notificationWorkerRuntime.emailRepo,
-    notifRepo: container.notificationWorkerRuntime.notificationRepo,
-    userLookup: notifUserLookup,
-    emailSender: notifEmailSender,
-    logger: container.logger,
-    clock: container.clock,
-    batchIdGen: () => crypto.randomUUID(),
-    preferenceRepo: container.notificationWorkerRuntime.preferenceRepo,
-    resolveOrganizationScope: resolveNotificationOrgScope,
-    resolvePropertyScope: resolveNotificationProperty,
-    organizationEmailStop: notificationOrganizationEmailStop,
-    authorizeScope: createScheduledScopeAuthorizer('system:notification.email_digest'),
-    // The sweep's Organization leg recovers mandatory mail, which is gated by
-    // its own action rather than by the beta email allowlist.
-    authorizeMandatoryScope: createScheduledScopeAuthorizer(
-      'system:notification.email_mandatory',
-    ),
-    isRecipientEligible: container.notificationWorkerRuntime.recipientStanding,
-    workState: container.notificationWorkerRuntime.workState,
-    baseUrl: notifBaseUrl,
-    activeOneClickUnsubscribeKeyVersion: notificationUnsubscribeKeyVersion,
-    oneClickUnsubscribeUrl: notificationUnsubscribeUrl,
-    enqueueImmediate: container.jobQueue
-      ? createImmediateEmailEnqueue(container.jobQueue, 'notification:delivery-sweep')
-      : async () => {},
-  })
-  registerCapabilityGatedJob(DIGEST_JOB_NAME, 'notification.send_email', async (job) => {
-    await digestHandler(job as import('bullmq').Job<void>)
-  })
+  registerCapabilityGatedJob(
+    DIGEST_JOB_NAME,
+    'notification.send_email',
+    processors.digest,
+  )
 }

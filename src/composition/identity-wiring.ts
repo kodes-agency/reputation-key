@@ -87,8 +87,8 @@ export function wireIdentity(
             ctx,
           ),
         publish: async (portalIdValue, ctx) => {
-          await getPortal().publicApi.management.updatePortal(
-            { portalId: portalIdValue, publicationState: 'published' },
+          await getPortal().publicApi.management.publishPortal(
+            { portalId: portalIdValue },
             ctx,
           )
         },

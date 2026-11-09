@@ -11,6 +11,7 @@ import { getEnv } from '#/shared/config/env'
 import { googleConnections } from '#/shared/db/schema/google-connection.schema'
 import { googleImportItems, googleImports } from '#/shared/db/schema/google-import.schema'
 import { idempotencyReceipts, outboxEvents } from '#/shared/db/schema/outbox.schema'
+import { workItems } from '#/shared/db/schema/work-items.schema'
 import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
 import { deleteTestOrganizations } from '#/shared/testing/integration-helpers'
 import { acquireTestLease, type TestLease } from '#/shared/testing/test-environment-lease'
@@ -93,6 +94,7 @@ describe('Google import durable recovery (real PostgreSQL)', () => {
         sql`${idempotencyReceipts.payload}->>'organizationId' IN (${ORG_A}, ${ORG_B})`,
       )
     await db.delete(googleImports).where(inArray(googleImports.organizationId, ORGS))
+    await db.delete(workItems).where(inArray(workItems.organizationId, ORGS))
     await db.delete(outboxEvents).where(inArray(outboxEvents.organizationId, ORGS))
   }
 

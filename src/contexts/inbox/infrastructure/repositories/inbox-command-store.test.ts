@@ -55,6 +55,7 @@ import {
 } from '#/contexts/review/domain/events'
 import { guestFeedbackRetracted } from '#/contexts/guest/domain/events'
 import { createInboxRepository } from './inbox.repository'
+import { createReviewHandlingCycleStore } from '../review-handling-cycle.store'
 import { createReviewRepository } from '#/contexts/review/infrastructure/repositories/review.repository'
 import { createReplyRepository } from '#/contexts/review/infrastructure/repositories/reply.repository'
 import {
@@ -2606,5 +2607,133 @@ describe.sequential('inboxCommandStore setPriority (integration)', () => {
       code: '23514',
       constraint: 'inbox_items_manager_priority_stamped',
     })
+  })
+})
+
+describe.sequential('inboxCommandStore lent transaction (integration)', () => {
+  class OuterRollback extends Error {}
+
+  const sourceEvent = () =>
+    reviewCreated({
+      reviewId: REVIEW_A,
+      propertyId: PROP_A,
+      organizationId: ORG_A,
+      platform: 'google',
+      sourceEpoch: 0,
+      sourceRevision: 1,
+      analysisSequence: 1,
+      occurredAt: NOW,
+    })
+
+  it('rolls the item, its fact and the receipt back with the outer transaction', async () => {
+    await seedReviewRevisionOne()
+    const store = createAtomicInboxCommandStore(db)
+    const source = sourceEvent()
+    await insertSourceEvent(source)
+    const item = makeItem()
+    const fact = createdFact(item)
+
+    await expect(
+      db.transaction(async (tx) => {
+        const outcome = await store.applySourceCreatedOnce(
+          { eventId: source.eventId, consumerName: CONSUMER, item, fact },
+          tx,
+        )
+        expect(outcome).toBe('applied')
+        throw new OuterRollback()
+      }),
+    ).rejects.toBeInstanceOf(OuterRollback)
+
+    const items = await pool.query(
+      'SELECT 1 FROM inbox_items WHERE organization_id = $1',
+      [ORG_A],
+    )
+    const facts = await pool.query(
+      `SELECT 1 FROM outbox_events WHERE id = $1 AND event_type = 'inbox.inbox_item.created'`,
+      [fact.eventId],
+    )
+    const receipts = await pool.query(
+      'SELECT 1 FROM event_consumer_receipts WHERE event_id = $1 AND consumer_name = $2',
+      [source.eventId, CONSUMER],
+    )
+    expect([items.rowCount, facts.rowCount, receipts.rowCount]).toEqual([0, 0, 0])
+  })
+
+  it('commits the item, fact and receipt when the outer transaction commits', async () => {
+    await seedReviewRevisionOne()
+    const store = createAtomicInboxCommandStore(db)
+    const source = sourceEvent()
+    await insertSourceEvent(source)
+    const item = makeItem()
+    const fact = createdFact(item)
+
+    await db.transaction(async (tx) => {
+      await store.applySourceCreatedOnce(
+        { eventId: source.eventId, consumerName: CONSUMER, item, fact },
+        tx,
+      )
+    })
+
+    const items = await pool.query(
+      'SELECT 1 FROM inbox_items WHERE organization_id = $1',
+      [ORG_A],
+    )
+    const receipts = await pool.query(
+      'SELECT status FROM event_consumer_receipts WHERE event_id = $1',
+      [source.eventId],
+    )
+    expect(items.rowCount).toBe(1)
+    expect(receipts.rows).toEqual([{ status: 'applied' }])
+  })
+
+  it('reads through the lent transaction see the outer writes that other connections do not', async () => {
+    await seedReviewRevisionOne()
+    const store = createAtomicInboxCommandStore(db)
+    const repo = createInboxRepository(db, stubPorts, repositoryRuntime)
+    const cycles = createReviewHandlingCycleStore(db)
+    const item = makeItem()
+
+    await expect(
+      db.transaction(async (tx) => {
+        await store.createItem(item, createdFact(item), { materialReviewRevision: 1 }, tx)
+
+        expect((await repo.findBySource('review', item.sourceId, ORG_A, tx))?.id).toBe(
+          item.id,
+        )
+        expect((await cycles.findHead(item.id, ORG_A, tx))?.currentCycleNumber).toBe(1)
+        expect(await repo.findBySource('review', item.sourceId, ORG_A)).toBeNull()
+        expect(await cycles.findHead(item.id, ORG_A)).toBeNull()
+        throw new OuterRollback()
+      }),
+    ).rejects.toBeInstanceOf(OuterRollback)
+
+    expect(await repo.findBySource('review', item.sourceId, ORG_A)).toBeNull()
+  })
+
+  it('lets a later command see an earlier one in the same lent transaction', async () => {
+    await seedReviewRevisionOne()
+    const store = createAtomicInboxCommandStore(db)
+    const item = makeItem()
+
+    const assigned = await db.transaction(async (tx) => {
+      await store.createItem(item, null, { materialReviewRevision: 1 }, tx)
+      return store.assign(
+        item,
+        { assignedTo: USER_A },
+        inboxItemAssigned({
+          inboxItemId: item.id,
+          organizationId: ORG_A,
+          propertyId: PROP_A,
+          userId: USER_A,
+          assignedTo: USER_A,
+          source: 'web',
+          occurredAt: NOW,
+        }),
+        NOW,
+        tx,
+      )
+    })
+
+    expect(assigned.assignedTo).toBe(USER_A)
   })
 })

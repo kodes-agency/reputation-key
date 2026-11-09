@@ -1,15 +1,19 @@
-import { isDraftWaiting } from './reply-draft-session'
 import {
-  useStreamedReplyDraft,
-  useRestoreStreamedReplyDraft,
-} from './use-streamed-reply-draft'
+  createAssistRequests,
+  isDraftWaiting,
+  type AssistRequests,
+} from './reply-draft-session'
+import {
+  useReplyDraftSession,
+  useDraftSessionSnapshot,
+  useRestoreDraftSession,
+} from './reply-draft-session-context'
 import { createDraftMeasurementSession, measuredDraftSnapshot } from './reply-measurement'
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import type { ReplyDraftSnapshot } from './use-reply-autosave'
 import {
   isReplySuggestionVerifiable,
   retryPendingReply,
-  type PendingReplyRequest,
   type ReplyAssistScope,
   replySuggestionFixTarget,
   replySuggestionOffersTemplate,
@@ -83,22 +87,239 @@ function requestIdentity(
   return `${templateOnly ? 'template' : 'ai'}:${tone}:${target.kind}:${trigger ?? 'draft'}:${maxWords ?? 'standard'}`
 }
 
-export function useReplySuggestion(input: Input) {
-  const stream = useStreamedReplyDraft(input.onGenerate)
-  const [tone, setTone] = useState<ReplyTone>(stream.initialTone)
-  const [{ isGenerating, isAdopting }, setActivity] = useState({
-    isGenerating: false,
-    isAdopting: false,
-  })
-  const [error, setError] = useState<string | null>(null)
-  const [errorFixTarget, setErrorFixTarget] = useState<ReplySuggestionFixTarget | null>(
-    null,
+function pendingSuggestion(
+  result: Extract<ReplySuggestionResult, { status: 'ready' | 'fallback' }>,
+  draft: ReplyDraftSnapshot,
+): PendingReplySuggestion {
+  if (result.status === 'ready') {
+    return { draft, kind: 'personalized', provenanceToken: result.provenanceToken }
+  }
+  return {
+    draft,
+    kind: 'local_fallback',
+    provenanceToken: null,
+    reason: result.reason,
+    languageSource: result.languageSource,
+  }
+}
+
+type AssistTrigger = 'draft' | 'try_again' | 'shorter' | 'tone'
+type AssistLength = Readonly<{ length: 'short'; maxWords: number }>
+
+type AssistHooks = Readonly<{
+  input: Input
+  assist: AssistRequests
+  generate: ReplySuggestionGenerate | undefined
+  measurement: ReturnType<typeof createDraftMeasurementSession>
+  showResult: AssistRun['showResult']
+  showRefusal: AssistRun['showRefusal']
+  showFailure: () => void
+  endSpinner: () => void
+  /** Called once a request is accepted, before it runs. */
+  onStart: (tone: ReplyTone) => void
+}>
+
+type AssistParams = Readonly<{
+  requestedTone: ReplyTone
+  templateOnly: boolean
+  scope: ReplyAssistScope | undefined
+  explicitTrigger: AssistTrigger | undefined
+  options: AssistLength | undefined
+}>
+
+function startAssist(hooks: AssistHooks, params: AssistParams): Promise<void> {
+  const { input, assist, generate, measurement, onStart, ...rest } = hooks
+  const { requestedTone, templateOnly, scope, explicitTrigger, options } = params
+  const target = scope ? scope.target : input.target
+  if (!generate || !target) return Promise.resolve()
+  const identity = requestIdentity(
+    requestedTone,
+    target,
+    templateOnly,
+    explicitTrigger,
+    options?.maxWords,
   )
-  const [suggestion, setSuggestion] = useState<PendingReplySuggestion | null>(null)
+  // A repeated click while the same draft is being written joins it
+  // instead of racing it: the later answer would otherwise win.
+  const joined = assist.joined(identity)
+  if (joined) return joined
+  const pending = assist.pending(identity)
+  const trigger = measurement.request(
+    requestedTone,
+    pending?.trigger ?? explicitTrigger,
+    templateOnly,
+  )
+  const idempotencyKey = pending?.key ?? crypto.randomUUID()
+  const requestSequence = assist.begin(identity, {
+    key: idempotencyKey,
+    trigger,
+    args: [requestedTone, templateOnly, scope, explicitTrigger, options],
+  })
+  const baseRevision = input.revision.current
+  const baseDraft = scope ? scope.draft : input.draft
+  onStart(requestedTone)
+  const promise = runAssist({
+    ...rest,
+    input,
+    assist,
+    generate,
+    measurement,
+    identity,
+    requestSequence,
+    idempotencyKey,
+    trigger,
+    baseRevision,
+    baseDraft,
+    target,
+    requestedTone,
+    templateOnly,
+    options,
+  })
+  assist.track(identity, promise)
+  return promise
+}
+
+type AssistRun = Readonly<{
+  input: Input
+  assist: AssistRequests
+  generate: ReplySuggestionGenerate
+  measurement: ReturnType<typeof createDraftMeasurementSession>
+  identity: string
+  requestSequence: number
+  idempotencyKey: string
+  trigger: ReturnType<ReturnType<typeof createDraftMeasurementSession>['request']>
+  baseRevision: number
+  baseDraft: ReplyDraftSnapshot
+  target: ReplyLanguageTarget
+  requestedTone: ReplyTone
+  templateOnly: boolean
+  options: Readonly<{ length: 'short'; maxWords: number }> | undefined
+  showResult: (
+    result: Extract<ReplySuggestionResult, { status: 'ready' | 'fallback' }>,
+    baseDraft: ReplyDraftSnapshot,
+    target: ReplyLanguageTarget,
+  ) => void
+  showRefusal: (
+    result: Extract<ReplySuggestionResult, { status: 'unavailable' }>,
+    templateOnly: boolean,
+  ) => void
+  showFailure: () => void
+  endSpinner: () => void
+}>
+
+async function runAssist(deps: AssistRun): Promise<void> {
+  const {
+    input,
+    assist,
+    generate,
+    measurement,
+    identity,
+    requestSequence,
+    idempotencyKey,
+    trigger,
+    baseRevision,
+    baseDraft,
+    target,
+    requestedTone,
+    templateOnly,
+    options,
+    showResult,
+    showRefusal,
+    showFailure,
+    endSpinner,
+  } = deps
+  try {
+    // The flush is a SAVE, not a generation, and it has its own failure
+    // message. Inside the generation `try` a rejected save printed "The
+    // draft suggestion could not be generated" while the composer head
+    // printed `Not saved` — two accounts of one event, and the actionable
+    // one was the one the error line did not give. The autosave channel
+    // already says what went wrong and offers `Try saving again`, so this
+    // returns and lets it speak. The request still ends as a failure: its
+    // key goes, so the next click is a new draft, and the `finally` below
+    // releases `inFlight` and, for its owner, the spinner.
+    try {
+      await input.onFlush(input.draft)
+    } catch {
+      assist.forget(identity)
+      return
+    }
+    if (!assist.isCurrent(requestSequence)) return
+    const result = await generate(
+      requestedTone,
+      target,
+      templateOnly,
+      idempotencyKey,
+      trigger,
+      ...(options ? ([options] as const) : []),
+    )
+    // Busy is the only answer that keeps the key: the retry belongs to
+    // the same request. Everything else finished that request, so the
+    // next click (including Regenerate) is a new draft.
+    if (result.status !== 'unavailable' || result.code !== 'busy') {
+      assist.forget(identity)
+    }
+    if (!assist.isCurrent(requestSequence) || baseRevision !== input.revision.current)
+      return measurement.discard(result)
+    if (result.status === 'unavailable') return showRefusal(result, templateOnly)
+    showResult(result, baseDraft, target)
+  } catch {
+    assist.forget(identity)
+    // Typing or dismissal retires thrown failures as well as returned refusals.
+    if (assist.isCurrent(requestSequence)) {
+      showFailure()
+    }
+  } finally {
+    assist.finish(identity)
+    if (assist.ownsSpinner(requestSequence)) endSpinner()
+  }
+}
+
+type AssistOutcome = Readonly<{
+  error: string | null
+  errorFixTarget: ReplySuggestionFixTarget | null
   /** Set when our own AI capacity is busy; the retry time the server gave. */
-  const [busyUntil, setBusyUntil] = useState<number | null>(null)
+  busyUntil: number | null
   /** The last refusal leaves the governed template as a sound, explicit choice. */
-  const [offersTemplate, setOffersTemplate] = useState(false)
+  offersTemplate: boolean
+}>
+
+const NO_OUTCOME: AssistOutcome = {
+  error: null,
+  errorFixTarget: null,
+  busyUntil: null,
+  offersTemplate: false,
+}
+
+/** What the composer says about the last request that did not produce a draft. */
+function useAssistOutcome() {
+  const [outcome, setOutcome] = useState(NO_OUTCOME)
+  const setError = useCallback(
+    (error: string) => setOutcome((current) => ({ ...current, error })),
+    [],
+  )
+  const clearError = useCallback(
+    () => setOutcome((current) => ({ ...current, error: null, errorFixTarget: null })),
+    [],
+  )
+  const clearOutcome = useCallback(() => setOutcome(NO_OUTCOME), [])
+  const showRefusal = useCallback(
+    (
+      result: Extract<ReplySuggestionResult, { status: 'unavailable' }>,
+      templateOnly: boolean,
+    ) =>
+      setOutcome({
+        error: replySuggestionUnavailableMessage(result.code),
+        errorFixTarget: replySuggestionFixTarget(result.code),
+        offersTemplate: !templateOnly && replySuggestionOffersTemplate(result.code),
+        busyUntil: result.code === 'busy' ? (result.retryAfterEpochMillis ?? null) : null,
+      }),
+    [],
+  )
+  return { outcome, setError, clearError, clearOutcome, showRefusal }
+}
+
+function useDraftMeasurement(input: Input, assist: AssistRequests) {
   const [measurement] = useState(() =>
     createDraftMeasurementSession(
       input.onMeasure,
@@ -107,39 +328,35 @@ export function useReplySuggestion(input: Input) {
     ),
   )
   useEffect(() => measurement.setEmitter(input.onMeasure), [measurement, input.onMeasure])
-  const sequence = useRef(0)
-  const idempotencyKeys = useRef(new Map<string, PendingReplyRequest>())
-  const inFlight = useRef<Readonly<{ identity: string; promise: Promise<void> }> | null>(
-    null,
-  )
-  /**
-   * Which request currently owns `isGenerating`, which is NOT the same question
-   * as which request's ANSWER still counts.
-   *
-   * `sequence` is bumped by three things — a new request, `dismiss()`, and
-   * unmount — because all three retire a pending answer. Clearing the spinner on
-   * `requestSequence === sequence.current` therefore skipped whenever a request
-   * was superseded by a dismiss, and `updateDraft` calls `ai.dismiss()` on every
-   * keystroke while the textarea stays enabled during generation
-   * (`reply-editor-compose.tsx` omits `isGenerating` from its `disabled` list on
-   * purpose). One character typed before the draft landed left `isGenerating`
-   * true for the life of the mount: `busy` disabled every assist control and
-   * `canSubmit` — which reads `!ai.isGenerating` — refused the reply for good.
-   *
-   * Only a new REQUEST takes ownership, and it re-raises the flag itself, so the
-   * owner may always clear unconditionally. A click that joins the request in
-   * flight (`inFlight`) is not a new request: it takes nothing, and the owner's
-   * `finally` clears the flag for both.
-   */
-  const generatingRequest = useRef(0)
-
   useEffect(() => {
     const detach = measurement.attach()
     return () => {
-      sequence.current += 1
+      assist.reset()
       detach()
     }
-  }, [measurement])
+  }, [measurement, assist])
+  return measurement
+}
+
+export function useReplySuggestion(input: Input) {
+  const session = useReplyDraftSession()?.session
+  const draftState = useDraftSessionSnapshot(session)
+  const [localAssist] = useState(createAssistRequests)
+  const assist = session?.assist ?? localAssist
+  const { onGenerate: legacyGenerate } = input
+  const generate = useMemo(
+    () => (session ? session.generate(legacyGenerate) : legacyGenerate),
+    [session, legacyGenerate],
+  )
+  const stream = useMemo(() => ({ session, state: draftState }), [session, draftState])
+  const [tone, setTone] = useState<ReplyTone>(draftState.options?.tone ?? 'professional')
+  const [{ isGenerating, isAdopting }, setActivity] = useState({
+    isGenerating: false,
+    isAdopting: false,
+  })
+  const [suggestion, setSuggestion] = useState<PendingReplySuggestion | null>(null)
+  const { outcome, setError, clearError, clearOutcome, showRefusal } = useAssistOutcome()
+  const measurement = useDraftMeasurement(input, assist)
 
   const showResult = useCallback(
     (
@@ -161,23 +378,9 @@ export function useReplySuggestion(input: Input) {
         text: result.replyText,
         languageTag: verifiedLanguageTag,
       })
-      setSuggestion(
-        result.status === 'ready'
-          ? {
-              draft: nextDraft,
-              kind: 'personalized',
-              provenanceToken: result.provenanceToken,
-            }
-          : {
-              draft: nextDraft,
-              kind: 'local_fallback',
-              provenanceToken: null,
-              reason: result.reason,
-              languageSource: result.languageSource,
-            },
-      )
+      setSuggestion(pendingSuggestion(result, nextDraft))
     },
-    [measurement],
+    [measurement, setError],
   )
 
   const request = useCallback(
@@ -185,116 +388,49 @@ export function useReplySuggestion(input: Input) {
       requestedTone: ReplyTone = tone,
       templateOnly = false,
       scope?: ReplyAssistScope,
-      explicitTrigger?: 'draft' | 'try_again' | 'shorter' | 'tone',
-      options?: Readonly<{ length: 'short'; maxWords: number }>,
-    ): Promise<void> => {
-      const target = scope ? scope.target : input.target
-      const onGenerate = stream.generate
-      if (!onGenerate || !target) return Promise.resolve()
-      const identity = requestIdentity(
-        requestedTone,
-        target,
-        templateOnly,
-        explicitTrigger,
-        options?.maxWords,
-      )
-      // A repeated click while the same draft is being written joins it
-      // instead of racing it: the later answer would otherwise win.
-      if (inFlight.current?.identity === identity) return inFlight.current.promise
-      const pending = idempotencyKeys.current.get(identity)
-      const trigger = measurement.request(
-        requestedTone,
-        pending?.trigger ?? explicitTrigger,
-        templateOnly,
-      )
-      const requestSequence = ++sequence.current
-      generatingRequest.current = requestSequence
-      const baseRevision = input.revision.current
-      const baseDraft = scope ? scope.draft : input.draft
-      const idempotencyKey = pending?.key ?? crypto.randomUUID()
-      idempotencyKeys.current.set(identity, {
-        key: idempotencyKey,
-        trigger,
-        args: [requestedTone, templateOnly, scope, explicitTrigger, options],
-      })
-      setTone(requestedTone)
-      stream.session?.reveal()
-      setActivity((current) => ({ ...current, isGenerating: true }))
-      setSuggestion(null)
-      setError(null)
-      setErrorFixTarget(null)
-      setBusyUntil(null)
-      setOffersTemplate(false)
-      const run = async () => {
-        try {
-          // The flush is a SAVE, not a generation, and it has its own failure
-          // message. Inside the generation `try` a rejected save printed "The
-          // draft suggestion could not be generated" while the composer head
-          // printed `Not saved` — two accounts of one event, and the actionable
-          // one was the one the error line did not give. The autosave channel
-          // already says what went wrong and offers `Try saving again`, so this
-          // returns and lets it speak. The request still ends as a failure: its
-          // key goes, so the next click is a new draft, and the `finally` below
-          // releases `inFlight` and, for its owner, the spinner.
-          try {
-            await input.onFlush(input.draft)
-          } catch {
-            idempotencyKeys.current.delete(identity)
-            return
-          }
-          if (requestSequence !== sequence.current) return
-          const result = await onGenerate(
-            requestedTone,
-            target,
-            templateOnly,
-            idempotencyKey,
-            trigger,
-            ...(options ? ([options] as const) : []),
-          )
-          // Busy is the only answer that keeps the key: the retry belongs to
-          // the same request. Everything else finished that request, so the
-          // next click (including Regenerate) is a new draft.
-          if (result.status !== 'unavailable' || result.code !== 'busy') {
-            idempotencyKeys.current.delete(identity)
-          }
-          if (
-            requestSequence !== sequence.current ||
-            baseRevision !== input.revision.current
-          )
-            return measurement.discard(result)
-          if (result.status === 'unavailable') {
-            setError(replySuggestionUnavailableMessage(result.code))
-            setErrorFixTarget(replySuggestionFixTarget(result.code))
-            setOffersTemplate(!templateOnly && replySuggestionOffersTemplate(result.code))
-            if (result.code === 'busy' && result.retryAfterEpochMillis !== null) {
-              setBusyUntil(result.retryAfterEpochMillis)
-            }
-            return
-          }
-          showResult(result, baseDraft, target)
-        } catch {
-          idempotencyKeys.current.delete(identity)
-          // Typing or dismissal retires thrown failures as well as returned refusals.
-          if (requestSequence === sequence.current) {
-            setError('The draft suggestion could not be generated. Try again.')
-          }
-        } finally {
-          if (inFlight.current?.identity === identity) inFlight.current = null
-          if (generatingRequest.current === requestSequence)
-            setActivity((current) => ({ ...current, isGenerating: false }))
-        }
-      }
-      const promise = run()
-      inFlight.current = { identity, promise }
-      return promise
-    },
-    [input, tone, measurement, stream, showResult],
+      explicitTrigger?: AssistTrigger,
+      options?: AssistLength,
+    ): Promise<void> =>
+      startAssist(
+        {
+          input,
+          assist,
+          generate,
+          measurement,
+          showResult,
+          showRefusal,
+          onStart: (startedTone) => {
+            setTone(startedTone)
+            session?.reveal()
+            setActivity((current) => ({ ...current, isGenerating: true }))
+            setSuggestion(null)
+            clearOutcome()
+          },
+          showFailure: () =>
+            setError('The draft suggestion could not be generated. Try again.'),
+          endSpinner: () =>
+            setActivity((current) => ({ ...current, isGenerating: false })),
+        },
+        { requestedTone, templateOnly, scope, explicitTrigger, options },
+      ),
+    [
+      input,
+      tone,
+      measurement,
+      session,
+      generate,
+      assist,
+      showResult,
+      showRefusal,
+      clearOutcome,
+      setError,
+    ],
   )
 
-  useRestoreStreamedReplyDraft({
-    stream,
-    isGenerating,
-    suggestion,
+  useRestoreDraftSession({
+    session,
+    state: draftState,
+    isBusy: isGenerating || suggestion !== null,
     restore: (result, options) => {
       measurement.request(options.tone, options.trigger)
       setTone(options.tone)
@@ -305,7 +441,7 @@ export function useReplySuggestion(input: Input) {
       )
     },
     retire: () => {
-      sequence.current += 1
+      assist.retire()
       setSuggestion(null)
       setActivity((current) => ({ ...current, isGenerating: false }))
       measurement.dismiss(false)
@@ -318,37 +454,31 @@ export function useReplySuggestion(input: Input) {
   const dismiss = useCallback(
     (explicit = true) => {
       measurement.dismiss(explicit)
-      stream.session?.dismiss()
-      sequence.current += 1
-      inFlight.current = null
-      idempotencyKeys.current.clear()
+      session?.dismiss()
+      assist.reset()
       setSuggestion(null)
-      setError(null)
-      setErrorFixTarget(null)
-      setBusyUntil(null)
-      setOffersTemplate(false)
+      clearOutcome()
       setActivity((current) => ({ ...current, isGenerating: false }))
     },
-    [measurement, stream.session],
+    [measurement, session, assist, clearOutcome],
   )
 
   const adopt = useCallback(async () => {
     if (suggestion === null || isAdopting) return
     setActivity((current) => ({ ...current, isAdopting: true }))
-    setError(null)
-    setErrorFixTarget(null)
+    clearError()
     try {
       await input.onAccept(suggestion.draft, suggestion.provenanceToken)
       input.onAdopt(suggestion.draft, suggestion.kind)
       measurement.adopt()
-      stream.session?.dismiss()
+      session?.dismiss()
       setSuggestion(null)
     } catch {
       setError('The suggested draft could not be saved. Try again.')
     } finally {
       setActivity((current) => ({ ...current, isAdopting: false }))
     }
-  }, [input, isAdopting, suggestion, measurement, stream.session])
+  }, [input, isAdopting, suggestion, measurement, session, clearError, setError])
 
   return {
     restoreMeasurement: measurement.restore,
@@ -360,16 +490,16 @@ export function useReplySuggestion(input: Input) {
       setActivity((current) => ({ ...current, isGenerating: false }))
     },
     isGenerating,
-    isWaiting: isDraftWaiting(Boolean(stream.session), isGenerating, stream.state),
+    isWaiting: isDraftWaiting(Boolean(session), isGenerating, draftState),
     isAdopting,
-    error,
-    errorFixTarget,
-    busyUntil,
-    offersTemplate,
+    error: outcome.error,
+    errorFixTarget: outcome.errorFixTarget,
+    busyUntil: outcome.busyUntil,
+    offersTemplate: outcome.offersTemplate,
     suggestion,
     request,
     requestTemplate,
-    retry: () => retryPendingReply(idempotencyKeys.current, request),
+    retry: () => retryPendingReply(assist.latest(), request),
     requestAi: (tone?: ReplyTone, trigger?: Parameters<typeof request>[3]) =>
       request(tone, false, undefined, trigger),
     adopt,

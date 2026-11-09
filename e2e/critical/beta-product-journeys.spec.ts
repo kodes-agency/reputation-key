@@ -316,15 +316,15 @@ test.describe('Critical: beta-local-1 product journeys', () => {
     expect(grouped.group.id).toBeTruthy()
 
     // Publishing has an ORDERED chain of preconditions, and the journey walks
-    // it. `createPortal` has no publicationState field, so `updatePortal` is
+    // it. `createPortal` has no publicationState field, so `publishPortal` is
     // the only route to 'published' and owns every one of them.
     //
     // First: a Portal with no public address cannot be published — there would
     // be nothing for a guest to arrive at.
     const addressDenial = await callServerFnExpectError(page, {
       file: 'src/contexts/portal/server/portals.ts',
-      exportName: 'updatePortal',
-      data: { portalId: created.portal.id, publicationState: 'published' },
+      exportName: 'publishPortal',
+      data: { portalId: created.portal.id },
     })
     expect(addressDenial.message ?? '').toContain(
       'Create the Portal public address before publishing',
@@ -395,16 +395,20 @@ test.describe('Critical: beta-local-1 product journeys', () => {
     // seeded Portal, whose approval is fixture-provisioned, in "P1 Portal
     // management and opaque public URL survive reload" above.
 
+    await callServerFn(page, {
+      file: 'src/contexts/portal/server/portals.ts',
+      exportName: 'updatePortalSettings',
+      data: {
+        portalId: created.portal.id,
+        description: 'Published through the real Portal command.',
+      },
+    })
     const published = await callServerFn<{
       portal: { id: string; publicationState: string }
     }>(page, {
       file: 'src/contexts/portal/server/portals.ts',
-      exportName: 'updatePortal',
-      data: {
-        portalId: created.portal.id,
-        description: 'Published through the real Portal command.',
-        publicationState: 'published',
-      },
+      exportName: 'publishPortal',
+      data: { portalId: created.portal.id },
     })
     expect(published.portal.publicationState).toBe('published')
     const rotated = await callServerFn<{
@@ -723,7 +727,7 @@ test.describe('Critical: beta-local-1 product journeys', () => {
     )
     const portalMutationDenial = await callServerFnExpectError(page, {
       file: 'src/contexts/portal/server/portals.ts',
-      exportName: 'updatePortal',
+      exportName: 'updatePortalSettings',
       data: {
         portalId: seed.p3PortalId,
         description: 'This cross-tenant mutation must remain inert.',
@@ -1164,7 +1168,7 @@ test.describe('Critical: beta-local-1 product journeys', () => {
 
     // Revision is not exercised here. A program that has not started can be
     // revised (the change replaces the version that was waiting and keeps the
-    // start month), and goal-programs.test.ts and the repository suite cover
+    // start month), and goal-programs.integration.test.ts and the repository suite cover
     // that and the other revision rules directly.
 
     // A program that starts next month is 'scheduled' until that month begins,
@@ -1709,11 +1713,17 @@ test.describe('Critical: beta-local-1 product journeys', () => {
     // broken password repairs it on the way out.
     try {
       await signIn(page, seed.email, seed.password, BASE_ORIGIN, '/settings/security')
+      await waitForHydration(page)
       await page.getByLabel('Current password').fill(seed.password)
       await page.getByLabel('New password', { exact: true }).fill(temporaryPassword)
       await page.getByLabel('Confirm new password').fill(temporaryPassword)
       await clickWhenReady(page.getByRole('button', { name: 'Update password' }))
       await expect(page.getByText('Password updated')).toBeVisible()
+      // The form resets after the save resolves; a refill before that is wiped
+      // and the second submit would send nothing.
+      await expect(page.getByLabel('Current password')).toHaveValue('')
+      await expect(page.getByLabel('New password', { exact: true })).toHaveValue('')
+      await expect(page.getByLabel('Confirm new password')).toHaveValue('')
       await page.getByLabel('Current password').fill(temporaryPassword)
       await page.getByLabel('New password', { exact: true }).fill(seed.password)
       await page.getByLabel('Confirm new password').fill(seed.password)

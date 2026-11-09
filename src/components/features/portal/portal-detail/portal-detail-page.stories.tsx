@@ -294,6 +294,7 @@ const baseArgs = {
     })),
   },
   autosaveUpdateMutation: idleMutation,
+  changeLanguagesMutation: idleMutation,
   completeReviewMutation,
   tokenStatus,
   issueTokenMutation,

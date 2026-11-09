@@ -4,6 +4,7 @@
 // closes private feedback.
 // Escalation is a separate, orthogonal action.
 
+import { lentTransactionArgs } from '../ports/review-open-transaction'
 import type { InboxRepository } from '../ports/inbox.repository'
 import type {
   InboxCommandStore,
@@ -106,20 +107,23 @@ async function reopenUnderResponseTargetAuthority(
       reviewId: item.sourceId,
       sourceEpoch: source.sourceEpoch,
     },
-    (permit) => {
+    (permit, reviewTx) => {
       if (permit.materialReviewRevision !== head.currentSourceRevision) {
         throw inboxError(
           'revision_conflict',
           'Review Material Revision changed; reload and retry',
         )
       }
-      return deps.commandStore.reopenReviewCycle({
-        ...command,
-        responseTarget: {
-          reviewAuthority: permit,
-          targetStart: { basis: 'operational_reopen', at: now },
+      return deps.commandStore.reopenReviewCycle(
+        {
+          ...command,
+          responseTarget: {
+            reviewAuthority: permit,
+            targetStart: { basis: 'operational_reopen', at: now },
+          },
         },
-      })
+        ...lentTransactionArgs(reviewTx),
+      )
     },
   )
   if (authority.status === 'obsolete') {

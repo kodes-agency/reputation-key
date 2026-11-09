@@ -28,7 +28,7 @@ import {
 } from '../domain/events'
 import type { PortalLookOverride } from '../domain/portal-look'
 import type { Portal } from '../domain/types'
-import { createAtomicPortalCommandStore } from './portal-command-store'
+import { createAtomicPortalCommandStore } from '../publication/portal-command-store.server'
 import { planPortalContentCopy } from '../application/portal-content-copy'
 import type { CreatePortalCommand } from '../application/ports/portal-command-store.port'
 import { createPortalLinkRepository } from './repositories/portal-link.repository'

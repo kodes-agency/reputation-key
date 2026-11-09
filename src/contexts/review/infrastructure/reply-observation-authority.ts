@@ -13,6 +13,8 @@ import type {
   ReviewReplyObservationAuthority,
   ReviewReplyObservationExpectation,
 } from '../application/ports/reply-observation-authority.port'
+import type { ReviewOpenTransaction } from '../application/ports/open-transaction'
+import { lendReviewTransaction } from './open-transaction'
 import { lockReplyTruthScope } from './reply-truth-serialization'
 import {
   isSourceEpochCarry,
@@ -214,7 +216,10 @@ export const createReviewReplyObservationAuthority = (
 ): ReviewReplyObservationAuthority => ({
   withExactCurrent: async <T>(
     expectation: ReviewReplyObservationExpectation,
-    apply: (permit: ReviewCurrentReplyObservationPermit) => Promise<T>,
+    apply: (
+      permit: ReviewCurrentReplyObservationPermit,
+      tx: ReviewOpenTransaction,
+    ) => Promise<T>,
   ) =>
     runWithReviewExactCurrentApplyAdmission(db, () =>
       db.transaction(async (tx) => {
@@ -259,7 +264,10 @@ export const createReviewReplyObservationAuthority = (
           responseTargetStartAt: current.responseTargetStartAt,
           rating: current.rating,
         }
-        return { status: 'current' as const, value: await apply(permit) }
+        return {
+          status: 'current' as const,
+          value: await apply(permit, lendReviewTransaction(tx)),
+        }
       }),
     ),
 })

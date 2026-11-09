@@ -6,6 +6,7 @@
 // those facts through the outbox relay.
 
 import type { InboxItemId, OrganizationId, UserId } from '#/shared/domain/ids'
+import type { Tx } from '#/shared/outbox/commit'
 import type {
   HandlingCycleActorType,
   HandlingCycleCloseReason,
@@ -179,6 +180,7 @@ export type InboxCommandStore = Readonly<{
       actorId: UserId | null
       at: Date
     }>,
+    tx?: Tx,
   ): Promise<Readonly<{ released: number }>>
 
   /**
@@ -195,6 +197,7 @@ export type InboxCommandStore = Readonly<{
       actorId: UserId
       at: Date
     }>,
+    tx?: Tx,
   ): Promise<Readonly<{ released: number }>>
 
   /**
@@ -209,6 +212,7 @@ export type InboxCommandStore = Readonly<{
     item: InboxItem,
     event: InboxItemCreated | null,
     cycleAnchor?: HandlingCycleCreationAnchor | ReviewCycleCreationAnchor,
+    tx?: Tx,
   ): Promise<CreateItemResult>
 
   /**
@@ -226,6 +230,7 @@ export type InboxCommandStore = Readonly<{
     item: InboxItem,
     anchor: ReviewCycleCreationAnchor,
     observation: CurrentReplyObservationPermit,
+    tx?: Tx,
   ): Promise<CreateItemResult>
 
   /**
@@ -234,7 +239,10 @@ export type InboxCommandStore = Readonly<{
    * head-before-item transaction. A still-assigned manager is retained only
    * while their source-specific Property authority remains current.
    */
-  reopenReviewCycle(command: ReopenReviewHandlingCycleCommand): Promise<InboxItem>
+  reopenReviewCycle(
+    command: ReopenReviewHandlingCycleCommand,
+    tx?: Tx,
+  ): Promise<InboxItem>
 
   /**
    * One transaction preauthorizes the complete reopen set, applies one CAS per
@@ -247,6 +255,7 @@ export type InboxCommandStore = Readonly<{
     perItemEvents: ReadonlyArray<InboxItemBulkStatusChanged>,
     governance: BulkReopenGovernance,
     reviewResponseTargets?: ReadonlyMap<string, ReviewCycleTargetAnchor>,
+    tx?: Tx,
   ): Promise<BulkStatusStoreResult>
 
   /**
@@ -255,7 +264,7 @@ export type InboxCommandStore = Readonly<{
    * authority for the complete set, then commits every row/history/per-item
    * fact and one content-free completion fact in one transaction.
    */
-  bulkAssign(command: BulkAssignmentCommand): Promise<BulkAssignmentStoreResult>
+  bulkAssign(command: BulkAssignmentCommand, tx?: Tx): Promise<BulkAssignmentStoreResult>
 
   /**
    * Assignment update + assigned/unassigned fact in one transaction
@@ -268,6 +277,7 @@ export type InboxCommandStore = Readonly<{
     updates: Readonly<{ assignedTo: UserId | null }>,
     event: InboxItemAssigned | InboxItemUnassigned | null,
     now?: Date,
+    tx?: Tx,
   ): Promise<InboxItem>
 
   /** Set the escalation flag + escalated fact in one transaction. */
@@ -276,6 +286,7 @@ export type InboxCommandStore = Readonly<{
     updates: Readonly<{ escalatedBy: UserId }>,
     event: InboxItemEscalated,
     now?: Date,
+    tx?: Tx,
   ): Promise<InboxItem>
 
   /** Clear the escalation flag + escalation_resolved fact in one transaction. */
@@ -284,6 +295,7 @@ export type InboxCommandStore = Readonly<{
     updates: Readonly<{ resolvedBy: UserId }>,
     event: InboxItemEscalationResolved,
     now?: Date,
+    tx?: Tx,
   ): Promise<InboxItem>
 
   /**
@@ -298,10 +310,16 @@ export type InboxCommandStore = Readonly<{
     updates: Readonly<{ priority: InboxPriority | null; setBy: UserId }>,
     event: InboxItemPriorityChanged,
     now?: Date,
+    tx?: Tx,
   ): Promise<InboxItem>
 
   /** Note insert + inbox.inbox_note.added fact (note ID, never text) in one transaction. */
-  addNote(item: InboxItem, note: InboxNote, event: InboxNoteAdded): Promise<InboxNote>
+  addNote(
+    item: InboxItem,
+    note: InboxNote,
+    event: InboxNoteAdded,
+    tx?: Tx,
+  ): Promise<InboxNote>
 
   // ── Projection applyOnce (durable consumers) ──────────────────────
   // Each co-commits the projection state change, any outbox fact, and the
@@ -311,17 +329,21 @@ export type InboxCommandStore = Readonly<{
   /** Source event: idempotent create + created fact + receipt. */
   applySourceCreatedOnce(
     command: ApplySourceCreatedCommand,
+    tx?: Tx,
   ): Promise<'applied' | 'duplicate'>
   applyReviewProjectionOnce(
     command: ApplyReviewProjectionCommand,
+    tx?: Tx,
   ): Promise<'applied' | 'duplicate'>
   /** Guest feedback withdrawal: close its metadata-only work item. */
   applySourceWithdrawnOnce(
     command: ApplySourceWithdrawnCommand,
+    tx?: Tx,
   ): Promise<'applied' | 'obsolete'>
   /** Review source transition: scrub legacy content, close open work, and receipt. */
   applyReviewSourceTransitionedOnce(
     command: ApplyReviewSourceTransitionedCommand,
+    tx?: Tx,
   ): Promise<'applied'>
   /**
    * Apply a Review-issued exact-current permit: atomically close or reopen the
@@ -329,6 +351,7 @@ export type InboxCommandStore = Readonly<{
    */
   applyReplyObservedOnce(
     command: ApplyReplyObservedCommand,
+    tx?: Tx,
   ): Promise<'applied' | 'obsolete'>
   /**
    * Receipt-only write for apply paths with no state change (obsolete
@@ -339,6 +362,7 @@ export type InboxCommandStore = Readonly<{
     eventId: string,
     consumerName: string,
     status: ApplyReceiptStatus,
+    tx?: Tx,
   ): Promise<void>
   /**
    * Settle as obsolete a delivery that a later fact supersedes (a submission

@@ -28,11 +28,12 @@ const ROOT = process.cwd()
 const ROOTS = ['src', 'services', 'scripts'] as const
 
 const PORTAL_INFRASTRUCTURE = join('src', 'contexts', 'portal', 'infrastructure')
+const PORTAL_PUBLICATION = join('src', 'contexts', 'portal', 'publication')
 const READERS = [
   join(PORTAL_INFRASTRUCTURE, 'repositories', 'portal-publication.repository.ts'),
   join(PORTAL_INFRASTRUCTURE, 'repositories', 'portal-access-artifact.repository.ts'),
-  join(PORTAL_INFRASTRUCTURE, 'portal-command-store.ts'),
-  join(PORTAL_INFRASTRUCTURE, 'portal-token-commands.ts'),
+  join(PORTAL_PUBLICATION, 'portal-command-store.server.ts'),
+  join(PORTAL_PUBLICATION, 'portal-token-commands.server.ts'),
   join(PORTAL_INFRASTRUCTURE, 'repositories', 'portal-address.repository.ts'),
 ] as const
 

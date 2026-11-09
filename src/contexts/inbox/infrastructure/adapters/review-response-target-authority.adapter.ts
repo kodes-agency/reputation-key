@@ -6,9 +6,9 @@ export const createReviewResponseTargetAuthorityAdapter = (
   source: ReviewResponseTargetAuthority,
 ): ReviewResponseTargetAuthorityPort => ({
   withExactCurrent: (expectation, apply) =>
-    source.withExactCurrent(expectation, (permit) => apply(permit)),
+    source.withExactCurrent(expectation, (permit, tx) => apply(permit, tx)),
   withExactCurrentBatch: (expectations, apply) =>
-    source.withExactCurrentBatch(expectations, (permits) => apply(permits)),
+    source.withExactCurrentBatch(expectations, (permits, tx) => apply(permits, tx)),
   withInboxProjection: (expectation, apply) =>
-    source.withInboxProjection(expectation, (permit) => apply(permit)),
+    source.withInboxProjection(expectation, (permit, tx) => apply(permit, tx)),
 })

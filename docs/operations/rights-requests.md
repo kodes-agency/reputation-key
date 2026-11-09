@@ -76,6 +76,28 @@ private bucket by hand and delete the local copy.
   rows are not exported. On closure it cancels open reminders and deletes the
   items with their history, the policy and the per-Property overrides.
 
+- **notification** (`access`, `property`, `organization`): see below.
+
+### Notifications
+
+- **report** counts notification history, preferences and settings, says
+  whether suspension is holding optional mail (mandatory mail is never held),
+  and, for an Organization, how many account admins and former members a final
+  warning would reach. For `access` and `organization`, `out=<dir>` writes
+  `notification/notification-rights.json`; the export is never printed.
+- Reads are named and use explicit field allowlists. Delivery queues, digest
+  batches and source event ids are not exported. A row of another Organization
+  or Property stops the run.
+- **apply** on `property` deletes that Property's notifications, queued mail,
+  preferences, delivery windows and unsubscribe scopes. On `organization` it
+  deletes the Organization's rows in every notification table. Work runs in
+  bounded batches and a stopped run resumes by running again.
+- **apply** on `organization final-warning` runs only this executor and queues the final warning instead
+  of deleting: one per current account admin and one per former member, with no
+  Property. Like the automatic warning, it names the Organization. Send it
+  before the purge; the job ids repeat safely for one
+  `verification` reference.
+
 Closing an Organization erases every Property in it: export first.
 
 The older `privacy-request` and `property-erase` commands stay until apply is

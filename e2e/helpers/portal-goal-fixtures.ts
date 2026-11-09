@@ -135,8 +135,8 @@ export async function seedPortalGoalProperty(
     })
     await callServerFn(page, {
       file: PORTALS,
-      exportName: 'updatePortal',
-      data: { portalId: portal.id, publicationState: 'published' },
+      exportName: 'publishPortal',
+      data: { portalId: portal.id },
     })
     portals.push({ id: portal.id, name })
   }

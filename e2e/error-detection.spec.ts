@@ -211,3 +211,40 @@ gatedTest.describe('error detection — end-to-end gate proof (injection)', () =
     },
   )
 })
+
+// ── Font-host stub covers every browser context ────────────────────
+// The stub used to be routed on the fixture page only, so pages from
+// `browser.newContext()` fetched the real font hosts over the network.
+gatedTest.describe('font hosts are stubbed in every context', () => {
+  const FONT_URL = 'https://api.fontshare.com/v2/css?f[]=satoshi@400&display=swap'
+
+  async function fontResponse(page: Page) {
+    const response = await page.goto(FONT_URL)
+    return { status: response?.status(), body: await response?.text() }
+  }
+
+  gatedTest('default page gets the stub', async ({ page }) => {
+    expect(await fontResponse(page)).toEqual({ status: 200, body: '' })
+  })
+
+  gatedTest('page from a new context gets the stub', async ({ browser }) => {
+    const context = await browser.newContext()
+    try {
+      const page = await context.newPage()
+      expect(await fontResponse(page)).toEqual({ status: 200, body: '' })
+      const second = await context.newPage()
+      expect(await fontResponse(second)).toEqual({ status: 200, body: '' })
+    } finally {
+      await context.close()
+    }
+  })
+
+  gatedTest('browser.newPage gets the stub', async ({ browser }) => {
+    const page = await browser.newPage()
+    try {
+      expect(await fontResponse(page)).toEqual({ status: 200, body: '' })
+    } finally {
+      await page.close()
+    }
+  })
+})

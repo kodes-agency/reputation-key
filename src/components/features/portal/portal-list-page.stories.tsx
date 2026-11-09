@@ -345,10 +345,7 @@ export const RecoverableLifecycle: Story = {
   },
 }
 
-const disableSpy = fn(
-  async (_input: { data: { portalId: string; publicationState: 'disabled' } }) =>
-    undefined,
-)
+const disableSpy = fn(async (_input: { data: { portalId: string } }) => undefined)
 
 /** A live page is taken down from the row's menu, after a confirmation. */
 export const DisablesALivePage: Story = {
@@ -379,7 +376,7 @@ export const DisablesALivePage: Story = {
     await userEvent.click(dialog.getByRole('button', { name: 'Disable public page' }))
     await waitFor(() =>
       expect(disableSpy).toHaveBeenCalledWith({
-        data: { portalId: 'p-reception', publicationState: 'disabled' },
+        data: { portalId: 'p-reception' },
       }),
     )
   },
