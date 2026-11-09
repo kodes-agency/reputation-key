@@ -4,6 +4,14 @@
 
 import { randomUUID } from 'node:crypto'
 import type { Database } from '#/shared/db'
+import {
+  createAiErasureReplayers,
+  createAiRightsExecutor,
+} from '#/contexts/ai/infrastructure/adapters/ai-rights.adapter'
+import {
+  createActivityErasureReplayers,
+  createActivityRightsExecutor,
+} from '#/contexts/feed/infrastructure/adapters/activity-rights.adapter'
 import type { BackupErasureReplayer } from '#/shared/db/lifecycle/backup-erasure-ledger'
 import {
   createGuestBackupErasureReplayer,
@@ -78,6 +86,8 @@ export function composeRightsExecutors(
       operator: deps.operator,
     }),
     createReportingRightsExecutor(deps.db, now),
+    createAiRightsExecutor(deps.db, now),
+    createActivityRightsExecutor(deps.db),
     createIdentityPropertyRightsExecutor(deps.db),
     createStaffOrganizationRightsExecutor(deps.db),
     createPropertyRightsExecutor(deps.db, now),
@@ -102,6 +112,8 @@ export function composeRightsReplayers(
     createGuestBackupErasureReplayer(),
     createGuestPropertyErasureReplayer(),
     ...createReportingRightsReplayers(now),
+    ...createAiErasureReplayers(now),
+    ...createActivityErasureReplayers(),
     identityPropertyErasureReplayer,
     staffOrganizationErasureReplayer,
     propertyErasureReplayer,
