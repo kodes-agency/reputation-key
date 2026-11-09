@@ -1713,11 +1713,17 @@ test.describe('Critical: beta-local-1 product journeys', () => {
     // broken password repairs it on the way out.
     try {
       await signIn(page, seed.email, seed.password, BASE_ORIGIN, '/settings/security')
+      await waitForHydration(page)
       await page.getByLabel('Current password').fill(seed.password)
       await page.getByLabel('New password', { exact: true }).fill(temporaryPassword)
       await page.getByLabel('Confirm new password').fill(temporaryPassword)
       await clickWhenReady(page.getByRole('button', { name: 'Update password' }))
       await expect(page.getByText('Password updated')).toBeVisible()
+      // The form resets after the save resolves; a refill before that is wiped
+      // and the second submit would send nothing.
+      await expect(page.getByLabel('Current password')).toHaveValue('')
+      await expect(page.getByLabel('New password', { exact: true })).toHaveValue('')
+      await expect(page.getByLabel('Confirm new password')).toHaveValue('')
       await page.getByLabel('Current password').fill(temporaryPassword)
       await page.getByLabel('New password', { exact: true }).fill(seed.password)
       await page.getByLabel('Confirm new password').fill(seed.password)
