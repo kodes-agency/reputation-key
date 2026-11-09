@@ -25,7 +25,7 @@ import {
 //
 // ── CI ──────────────────────────────────────────────────────────────────────
 //
-// `.github/workflows/guest-quality.yml` runs `pnpm test:guest:quality` for guest
+// The `guest-quality` job in `.github/workflows/ci.yml` runs `pnpm test:guest:quality` for guest
 // code, its shared renderers, styles and harness dependencies, including screens
 // colocated under the Guest and Portal contexts. It measures guest geometry and
 // reduced motion against a development build and LCP/CLS against a production
