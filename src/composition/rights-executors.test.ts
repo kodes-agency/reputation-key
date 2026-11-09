@@ -12,6 +12,9 @@ describe('composeRightsExecutors', () => {
       'review',
       'inbox',
       'reporting',
+      'identity-grants',
+      'staff',
+      'property',
       'notification',
     ])
   })
@@ -40,6 +43,19 @@ describe('composeRightsExecutors', () => {
       'review',
       'inbox',
       'reporting',
+      'staff',
+      'notification',
+    ])
+  })
+
+  it('covers the property scope with the Google, grant and Property executors', () => {
+    const covering = composeRightsExecutors(deps, false)
+      .filter(({ scopes }) => scopes.includes('property'))
+      .map(({ name }) => name)
+    expect(covering).toEqual([
+      'google-integration',
+      'identity-grants',
+      'property',
       'notification',
     ])
   })
