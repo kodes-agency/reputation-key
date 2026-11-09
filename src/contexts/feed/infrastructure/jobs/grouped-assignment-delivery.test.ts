@@ -10,7 +10,10 @@ import { describe, expect, it, vi } from 'vitest'
 import { inboxItemId, organizationId, propertyId, userId } from '#/shared/domain/ids'
 import type { HandlingCycleNotificationFacts } from '../../application/ports/notification-inbox-item-lookup.port'
 import { createNotificationWorkState } from '../../application/notification-work-state'
-import { createUrgentEmailJobHandler, type UrgentEmailJobData } from './urgent-email.job'
+import {
+  createSendEmailsHandler,
+  type SendEmailJobData,
+} from '../../email/send-emails.server'
 import {
   loadItems,
   type DigestEntryDeps,
@@ -80,7 +83,7 @@ describe('the immediate email of a grouped assignment', () => {
     emailRepo: {
       findById: vi.fn(async () => entry),
       markSuppressed: vi.fn(async () => {}),
-      markAttemptStarted: vi.fn(async () => {}),
+      freezeProviderRequest: vi.fn(async (_id, _org, _prop, request) => request),
       markAccepted: vi.fn(async () => {}),
       recordEmailUnsubscribeScope: vi.fn(async () => {}),
       isAddressSuppressed: vi.fn(async () => false),
@@ -122,14 +125,14 @@ describe('the immediate email of a grouped assignment', () => {
   it('counts only the items still assigned to the recipient', async () => {
     const built = deps()
 
-    await createUrgentEmailJobHandler(
-      built as unknown as Parameters<typeof createUrgentEmailJobHandler>[0],
+    await createSendEmailsHandler(
+      built as unknown as Parameters<typeof createSendEmailsHandler>[0],
     )({
       data: {
         notificationEmailId: entry.id as string,
         organizationId: ORG as string,
         propertyId: PROPERTY as string,
-      } as unknown as UrgentEmailJobData,
+      } as unknown as SendEmailJobData,
     })
 
     expect(built.emailSender.send.mock.calls[0]![0].subject).toContain(

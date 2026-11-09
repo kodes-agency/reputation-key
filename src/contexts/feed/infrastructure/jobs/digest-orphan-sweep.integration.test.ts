@@ -187,7 +187,7 @@ describe.sequential(
       })
     })
 
-    it('leaves a row alone until its retry is due, and once its retry budget is spent', async () => {
+    it('leaves a row alone until its retry is due, then retries it however often it has failed', async () => {
       await settleWhileRedisIsDown()
       await db
         .update(notificationEmailQueue)
@@ -203,10 +203,11 @@ describe.sequential(
         .update(notificationEmailQueue)
         .set({ retryCount: 5, nextAttemptAt: null })
         .where(eq(notificationEmailQueue.id, EMAIL))
-      const exhausted = await runDigestSweep(LATER)
+      const afterManyFailures = await runDigestSweep(LATER)
 
       expect(notYetDue.enqueueImmediate).not.toHaveBeenCalled()
-      expect(exhausted.enqueueImmediate).not.toHaveBeenCalled()
+      // Only the retry horizon retires an immediate row, not a count.
+      expect(afterManyFailures.enqueueImmediate).toHaveBeenCalledTimes(1)
     })
   },
 )

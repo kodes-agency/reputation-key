@@ -5,8 +5,14 @@
 // acceptance-lag alert deliberately ignores quiet-hours holds.
 
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { createUrgentEmailJobHandler } from './urgent-email.job'
-import { entry, fakeDeps, job, ORG, PROPERTY } from './urgent-email-job-test-deps'
+import { createSendEmailsHandler } from './send-emails.server'
+import {
+  entry,
+  fakeDeps,
+  job,
+  ORG,
+  PROPERTY,
+} from '../infrastructure/jobs/send-emails-test-deps'
 
 // 15:00Z is 17:00 in Sofia; the window 16:00–07:30 ends at 05:30Z tomorrow.
 const QUIET_UNTIL = new Date('2026-01-16T05:30:00.000Z')
@@ -29,8 +35,8 @@ describe('an immediate email held by quiet hours', () => {
   })
 
   const run = () =>
-    createUrgentEmailJobHandler(
-      deps as unknown as Parameters<typeof createUrgentEmailJobHandler>[0],
+    createSendEmailsHandler(
+      deps as unknown as Parameters<typeof createSendEmailsHandler>[0],
     )(job)
 
   it('schedules its own release for the minute the window ends', async () => {
@@ -56,6 +62,32 @@ describe('an immediate email held by quiet hours', () => {
     expect(deps.logger.warn).toHaveBeenCalledWith(
       expect.objectContaining({ until: QUIET_UNTIL.toISOString() }),
       'Quiet-hours release not scheduled; the hourly sweep will release the email',
+    )
+  })
+
+  it('holds a retry whose window starts before it runs, and sends nothing', async () => {
+    deps.emailRepo.findById.mockResolvedValue({
+      ...entry,
+      status: 'failed' as const,
+      retryCount: 1,
+      attemptedAt: new Date('2026-01-15T13:50:00.000Z'),
+      providerRequest: {
+        to: 'manager@example.com',
+        subject: 'Frozen subject',
+        html: '<p>frozen</p>',
+        text: 'frozen',
+        headers: {},
+        replyTo: null,
+      },
+    })
+
+    await run()
+
+    expect(deps.emailSender.send).not.toHaveBeenCalled()
+    expect(deps.emailRepo.markDelayed).toHaveBeenCalled()
+    expect(deps.scheduleRelease).toHaveBeenCalledWith(
+      expect.objectContaining({ notificationEmailId: entry.id }),
+      QUIET_UNTIL,
     )
   })
 })

@@ -3,7 +3,7 @@
 // otherwise.
 
 import { vi } from 'vitest'
-import type { UrgentEmailJobData } from './urgent-email.job'
+import type { SendEmailJobData } from '../../email/send-emails.server'
 import {
   buildNotification,
   buildNotificationEmail,
@@ -47,7 +47,7 @@ export const job = {
     capability: 'notification.send_email',
     policyVersionAtEnqueue: 'test',
     initiator: { kind: 'system', id: 'test' },
-  } as unknown as UrgentEmailJobData,
+  } as unknown as SendEmailJobData,
 }
 
 export function fakeDeps() {
@@ -62,7 +62,7 @@ export function fakeDeps() {
     emailRepo: {
       findById: vi.fn(async (): Promise<NotificationEmail | null> => entry),
       markAccepted: vi.fn(async () => {}),
-      markAttemptStarted: vi.fn(async () => {}),
+      freezeProviderRequest: vi.fn(async (_id, _org, _prop, request) => request),
       markDelayed: vi.fn(async () => {}),
       markFailed: vi.fn(async () => {}),
       markSuppressed: vi.fn(async () => {}),
