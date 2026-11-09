@@ -279,6 +279,17 @@ export function createReplyAutosaveCoordinator(
       lastSaved = null
     },
     /**
+     * Drop every edit that has not reached `save` yet (a running debounce, a
+     * snapshot parked behind a save in flight) and return the latest of them.
+     * A save already in flight is left to land. Silent: no status changes.
+     */
+    discardUnsent(): ReplyDraftSnapshot | null {
+      const latest = scheduled ?? pending
+      cancelTimer()
+      pending = null
+      return latest
+    },
+    /**
      * The server holds no draft any more (the manager deleted it): drop every
      * queued or failed snapshot, forget the confirmed copy, and show no status.
      */
