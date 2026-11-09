@@ -279,6 +279,18 @@ export function createReplyAutosaveCoordinator(
       lastSaved = null
     },
     /**
+     * The server holds no draft any more (the manager deleted it): drop every
+     * queued or failed snapshot, forget the confirmed copy, and show no status.
+     */
+    reset() {
+      cancelTimer()
+      pending = null
+      failed = null
+      generation += 1
+      lastSaved = null
+      emit('idle')
+    },
+    /**
      * Send the latest unsaved text on teardown, wherever it currently sits.
      *
      * It is in one of two places. A keystroke inside the 700 ms debounce is in

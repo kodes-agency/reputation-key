@@ -319,34 +319,52 @@ describe('navigation teardown', () => {
   })
 })
 
-// Today's behaviour, recorded and not endorsed: Delete draft removes the reply
-// on the server and leaves the composer exactly as it was.
+// Delete draft removes the reply on the server and empties the box to match.
 describe('a saved draft deleted while the composer stays open', () => {
-  it('passes the deletion through and changes nothing in the box or in autosave', async () => {
+  it('empties the box, shows no Saved state and drops the undo history', async () => {
+    const { controller, actions } = openComposer()
+    controller.typeText('Thanks for the kind words.')
+    await vi.advanceTimersByTimeAsync(DEBOUNCE_MS)
+
+    await controller.deleteDraft(actions.deleteDraft)
+
+    const after = controller.getSnapshot()
+    expect(replyServer.deleteReplyFn).toHaveBeenCalledTimes(1)
+    expect(after.draft.text).toBe('')
+    expect(after.autosave).toEqual({ status: 'idle', error: null })
+    expect(after.history).toEqual([])
+    controller.undo()
+    expect(controller.getSnapshot().draft.text).toBe('')
+  })
+
+  it('leaves the box and autosave alone when the delete fails', async () => {
     const { controller, actions } = openComposer()
     controller.typeText('Thanks for the kind words.')
     await vi.advanceTimersByTimeAsync(DEBOUNCE_MS)
     const before = controller.getSnapshot()
+    replyServer.deleteReplyFn.mockRejectedValueOnce(new Error('delete failed'))
 
-    await controller.deleteDraft(actions.deleteDraft)
+    await expect(controller.deleteDraft(actions.deleteDraft)).rejects.toThrow(
+      'delete failed',
+    )
 
-    expect(replyServer.deleteReplyFn).toHaveBeenCalledTimes(1)
     expect(controller.getSnapshot()).toBe(before)
     expect(before.draft.text).toBe('Thanks for the kind words.')
     expect(before.autosave.status).toBe('saved')
   })
 
-  it('submits the deleted text without saving it again', async () => {
+  it('does not treat the deleted text as saved when it is typed again', async () => {
     const { controller, actions } = openComposer()
     controller.typeText('Thanks for the kind words.')
     await vi.advanceTimersByTimeAsync(DEBOUNCE_MS)
     await controller.deleteDraft(actions.deleteDraft)
     replyServer.draftReplyFn.mockClear()
 
-    await controller.submit()
+    controller.typeText('Thanks for the kind words.')
+    await vi.advanceTimersByTimeAsync(DEBOUNCE_MS)
 
-    expect(replyServer.draftReplyFn).not.toHaveBeenCalled()
-    expect(replyServer.submitReplyFn).toHaveBeenCalledTimes(1)
+    expect(savedTexts()).toEqual(['Thanks for the kind words.'])
+    expect(controller.getSnapshot().autosave.status).toBe('saved')
   })
 
   it('saves further typing as a new draft', async () => {
@@ -356,10 +374,10 @@ describe('a saved draft deleted while the composer stays open', () => {
     await controller.deleteDraft(actions.deleteDraft)
     replyServer.draftReplyFn.mockClear()
 
-    controller.typeText('Thanks for the kind words, truly.')
+    controller.typeText('Thanks, truly.')
     await vi.advanceTimersByTimeAsync(DEBOUNCE_MS)
 
-    expect(savedTexts()).toEqual(['Thanks for the kind words, truly.'])
+    expect(savedTexts()).toEqual(['Thanks, truly.'])
     expect(controller.getSnapshot().autosave.status).toBe('saved')
   })
 })
