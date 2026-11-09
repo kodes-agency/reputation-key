@@ -354,6 +354,13 @@ export function createGoalProgramCurrentReads(db: Database): GoalProgramCurrentR
     },
     async listHistory(organizationId, propertyId, programId, input = {}) {
       const limit = Math.max(1, Math.min(100, Math.trunc(input.limit ?? 100)))
+      const subjects = input.subjects?.map((subject) => {
+        if (subject.kind === 'property')
+          return sql`(assignment.subject_kind = 'property' AND assignment.property_subject_id = ${subject.propertyId}::uuid)`
+        if (subject.kind === 'portal')
+          return sql`(assignment.subject_kind = 'portal' AND assignment.portal_id = ${subject.portalId}::uuid)`
+        return sql`(assignment.subject_kind = 'portal_group' AND assignment.portal_group_id = ${subject.portalGroupId}::uuid)`
+      })
       const pageIds = await db.execute(sql`
           SELECT latest.id FROM goal_subject_assignments AS assignment
           CROSS JOIN LATERAL (
@@ -367,6 +374,7 @@ export function createGoalProgramCurrentReads(db: Database): GoalProgramCurrentR
           WHERE assignment.organization_id = ${organizationId}
             AND assignment.property_id = ${propertyId}::uuid
             AND assignment.program_id = ${programId}::uuid
+            ${subjects ? sql`AND (${subjects.length ? sql.join(subjects, sql` OR `) : sql`false`})` : sql``}
           ORDER BY latest.period_start DESC, latest.id DESC LIMIT ${limit + 1}
       `)
       const idsToRead = pageIds.rows.map((row) => String(row['id']))
