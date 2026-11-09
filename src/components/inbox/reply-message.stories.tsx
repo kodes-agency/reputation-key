@@ -50,7 +50,7 @@ import {
   REPLY_CHECK_COPY,
   replyCheckMutationOptions,
 } from './reply-check-feedback'
-import type { GoogleReviewLink } from './google-review-link'
+import type { GoogleReviewLink } from '../../contexts/reputation/inbox/ui/google-review-link'
 import { openConfirmation } from './reply-editor.stories.play'
 import { ReplyMessage } from './reply-message'
 import { REPLY_CHIP_WORDS } from './reply-state-copy'

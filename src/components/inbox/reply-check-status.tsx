@@ -1,7 +1,7 @@
 import { cn } from '#/lib/utils'
-import { GoogleLinkedText } from './google-review-anchor'
-import type { GoogleReviewLink } from './google-review-link'
-import { MESSAGE_PROSE_CLASS } from './guest-message'
+import { GoogleLinkedText } from '../../contexts/reputation/inbox/ui/google-review-anchor'
+import type { GoogleReviewLink } from '../../contexts/reputation/inbox/ui/google-review-link'
+import { MESSAGE_PROSE_CLASS } from '../../contexts/reputation/inbox/ui/guest-message'
 import type { ReactNode } from 'react'
 
 /**

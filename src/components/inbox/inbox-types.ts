@@ -1,4 +1,4 @@
-import type { InboxCurrentUser } from './inbox-case-toolbar-props'
+import type { InboxCurrentUser } from '../../contexts/reputation/inbox/ui/inbox-case-toolbar-props'
 
 export type InboxCtx = Readonly<{
   /**

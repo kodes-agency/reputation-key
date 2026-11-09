@@ -2,7 +2,7 @@ import {
   effectiveInboxPriority,
   type InboxItem,
 } from '#/contexts/inbox/application/public-api'
-import type { InboxCurrentUser } from './inbox-case-toolbar-props'
+import type { InboxCurrentUser } from '../../contexts/reputation/inbox/ui/inbox-case-toolbar-props'
 import { resolveInboxOwner, type InboxAssignmentOption } from './inbox-owner-view'
 import { replyStateRowLabel } from './reply-state-copy'
 import { formatCompactAge } from './utils'

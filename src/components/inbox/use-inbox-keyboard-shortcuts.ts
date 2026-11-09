@@ -9,7 +9,7 @@
 // handler is what the tests drive.
 import { useEffect, useRef } from 'react'
 import type { InboxItem } from '#/contexts/inbox/application/public-api'
-import { isEscalationActive } from './inbox-case-toolbar-props'
+import { isEscalationActive } from '../../contexts/reputation/inbox/ui/inbox-case-toolbar-props'
 
 /**
  * What `e` needs to behave exactly like the case toolbar's Escalate / Resolve

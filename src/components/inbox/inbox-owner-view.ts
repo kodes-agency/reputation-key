@@ -1,4 +1,4 @@
-import type { InboxCurrentUser } from './inbox-case-toolbar-props'
+import type { InboxCurrentUser } from '../../contexts/reputation/inbox/ui/inbox-case-toolbar-props'
 import { personInitials } from './person-initials'
 
 export type InboxAssignmentOption = Readonly<{

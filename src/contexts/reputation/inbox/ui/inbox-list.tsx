@@ -23,7 +23,7 @@ import {
   InboxListError,
   InboxListSkeleton,
 } from '#/components/inbox/inbox-list-states'
-import type { InboxCurrentUser } from '#/components/inbox/inbox-case-toolbar-props'
+import type { InboxCurrentUser } from '#/contexts/reputation/inbox/ui/inbox-case-toolbar-props'
 import { InboxListRow } from '#/components/inbox/inbox-list-row'
 
 export interface InboxListPanelProps {

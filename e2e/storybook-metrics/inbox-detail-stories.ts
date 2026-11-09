@@ -35,7 +35,7 @@ import {
   type MeasuredStory,
 } from './story-matrix'
 
-export { INBOX_STORY_IMPORT_PREFIX, VIEWPORTS } from './story-matrix'
+export { INBOX_STORY_IMPORT_PREFIXES, VIEWPORTS } from './story-matrix'
 export type { MeasuredStory, StoryWidth } from './story-matrix'
 
 const TOOLBAR = 'inbox-case-toolbar--'

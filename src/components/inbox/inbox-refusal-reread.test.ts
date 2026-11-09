@@ -27,11 +27,11 @@ import type {
 } from '#/contexts/inbox/application/public-api'
 import { inboxKeys } from '#/shared/queries/query-keys'
 import { isExpectedRefusal } from '#/shared/security/expected-refusal'
-import { submitFeedbackHandlingDecision } from './feedback-handling-submit'
+import { submitFeedbackHandlingDecision } from '../../contexts/reputation/inbox/ui/feedback-handling-submit'
 import { installInboxCacheHarness } from './inbox-cache-test-harness'
-import { createInboxItemStatusObserver } from './inbox-item-status-observer'
+import { createInboxItemStatusObserver } from '../../contexts/reputation/inbox/ui/inbox-item-status-observer'
 import type { InboxServerFns } from './types'
-import { useFeedbackHandlingMutations } from './use-feedback-handling-mutations'
+import { useFeedbackHandlingMutations } from '../../contexts/reputation/inbox/ui/use-feedback-handling-mutations'
 import { useReplyActions, type ReplyActions } from './use-reply-actions'
 
 vi.mock('@tanstack/react-router', () => ({

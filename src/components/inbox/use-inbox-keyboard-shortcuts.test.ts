@@ -5,7 +5,7 @@ import {
   type InboxShortcutInput,
 } from './use-inbox-keyboard-shortcuts'
 import type { InboxItem } from '#/contexts/inbox/application/public-api'
-import { isCaseToolbarShown } from './inbox-case-toolbar-props'
+import { isCaseToolbarShown } from '../../contexts/reputation/inbox/ui/inbox-case-toolbar-props'
 
 // Only the three fields the handler reads — the same partial-fixture shape
 // inbox-cache-policy.test.ts uses for an InboxItem. The overrides are spelled

@@ -23,13 +23,13 @@
 import type { Meta, StoryObj } from '@storybook/react'
 import { expect, userEvent, waitFor, within } from 'storybook/test'
 import { feedbackId, userId } from '#/shared/domain/ids'
-import { FeedbackHandlingPrimary } from './feedback-handling-primary'
-import { InboxDetailContent } from './inbox-detail-content'
+import { FeedbackHandlingPrimary } from '#/contexts/reputation/inbox/ui/feedback-handling-primary'
+import { InboxDetailContent } from '#/contexts/reputation/inbox/ui/inbox-detail-content'
 import { makeInboxItem } from '../../../.storybook/in-memory/inbox-container'
 import { mockServerFn } from '../../../.storybook/mocks/mock-action'
 import { withRole, withPermissions } from '../../../.storybook/AuthedRouterDecorator'
-import type { InboxHistoryEntry } from './inbox-thread-model'
-import type { InboxDetailFns } from './types'
+import type { InboxHistoryEntry } from '#/contexts/reputation/inbox/ui/inbox-thread-model'
+import type { InboxDetailFns } from '#/components/inbox/types'
 import type { InboxDetailState } from './use-inbox-detail'
 import type {
   addInboxNoteFn,
