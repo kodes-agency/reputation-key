@@ -88,9 +88,7 @@ const EXPECTED_TOP_LEVEL_KEYS = [
   'jobRegistry',
   'logger',
   'metricPublicApi',
-  'notificationAudienceAuthorizer',
-  'notificationDeliverySettlement',
-  'notificationWorkerRuntime',
+  'notificationDelivery',
   'operationsSnapshot',
   'opsQueues',
   'outboxRepo',
@@ -102,9 +100,6 @@ const EXPECTED_TOP_LEVEL_KEYS = [
   'providerEphemeralReadiness',
   'providerEphemeralRedis',
   'rateLimiter',
-  // Self-heals inbox items whose notification never got written, so a swallowed
-  // in-process bus failure stops being permanent data loss.
-  'reconcileMissingNotificationsHandler',
   'redis',
   'refreshPolicyStore',
   'refreshReviewProviderSubjectKeys',

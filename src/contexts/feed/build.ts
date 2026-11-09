@@ -120,7 +120,10 @@ import { createNotificationFeedReads } from './application/notification-feed-rea
 import { toNotificationView } from './application/notification-view'
 import type { OneClickUnsubscribeTarget } from './application/one-click-unsubscribe-token'
 import { assertBetaNotificationTriggerMatrix } from './application/beta-notification-trigger-matrix'
-import { createNotificationDeliveryRuntime } from './application/notification-delivery-runtime'
+import {
+  createNotificationDeliveryProcessors,
+  type NotificationDeliveryWorkerInput,
+} from './infrastructure/jobs/notification-delivery-processors'
 import type { MonthlyResultNotificationFactsLookup } from '#/contexts/reporting/application/public-api'
 import {
   withBetaOutboxNotificationDelivery,
@@ -420,9 +423,8 @@ const buildNotificationFeed = (input: NotificationBuildInput) => {
     : undefined
   const ratingForRouting = createReviewRatingForRouting(input.db, input.reviewRatings)
 
-  // Surfaced on the container as `notificationDeliverySettlement`. It was
-  // defined here but never exposed, so bootstrap built the insert-notification
-  // handler without it and every outbox-delivered notification threw.
+  // Handed to the insert-notification processor: without it every
+  // outbox-delivered notification throws.
   const deliverySettlement = createNotificationDeliverySettlement({
     db: input.db,
     clock: input.clock,
@@ -859,19 +861,34 @@ const buildNotificationFeed = (input: NotificationBuildInput) => {
   return {
     publicApi,
     worker: Object.freeze({ registerOutboxConsumers }),
-    // ARC-03-T12: one named delivery capability replaces the root's reach into
-    // Notification's private repository trio and loose handlers.
-    delivery: createNotificationDeliveryRuntime({
-      repos: { notificationRepo, emailRepo, preferenceRepo: prefRepo },
-      handlers: {
-        handleResendEvent,
-        authorizeAudience,
-        recipientStanding,
-        workState,
-        deliverySettlement,
-        ratingForRouting,
-        reconcileMissingNotificationsHandler: reconcileMissingNotificationsHandler(),
-      },
+    delivery: Object.freeze({
+      repos: Object.freeze({ notificationRepo, emailRepo, preferenceRepo: prefRepo }),
+      handleResendEvent,
+      authorizeAudience,
+      recipientStanding,
+      workState,
+      deliverySettlement,
+      ratingForRouting,
+      /** Builds the worker's insert, email and digest processors. */
+      createProcessors: (worker: NotificationDeliveryWorkerInput) =>
+        createNotificationDeliveryProcessors(
+          {
+            db: input.db,
+            notificationRepo,
+            emailRepo,
+            preferenceRepo: prefRepo,
+            userLookup,
+            recipientStanding,
+            workState,
+            authorizeAudience,
+            deliverySettlement,
+            ratingForRouting,
+            clock: input.clock,
+            logger: input.logger,
+          },
+          worker,
+        ),
+      reconcileMissingNotificationsHandler: reconcileMissingNotificationsHandler(),
     }),
   } as const
 }
