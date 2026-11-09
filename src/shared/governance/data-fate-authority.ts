@@ -292,15 +292,6 @@ export const DATA_FATE_AUTHORITY = Object.freeze([
     authority: 'SAFE-04/GGL-01',
   }),
   ...rows({
-    schemaFile: 'google-import-v2.schema.ts',
-    exportNames: ['gbpImportRequestItems', 'gbpImportRequests', 'gbpImportSagas'],
-    owner: 'integration',
-    disposition: 'active_authority',
-    authority: 'GGL-01',
-    exitCriteria:
-      'Nothing writes these tables since imports moved to the single-root import tables. They keep pre-cutover history for the closure and export contributors until their contraction migration drops them.',
-  }),
-  ...rows({
     schemaFile: 'google-import.schema.ts',
     exportNames: ['googleImports', 'googleImportItems'],
     owner: 'integration',

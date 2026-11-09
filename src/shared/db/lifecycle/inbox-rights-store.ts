@@ -38,6 +38,12 @@ export const INBOX_EXCLUDED_RECORD_CLASSES = Object.freeze([
 
 type Row = Readonly<Record<string, unknown>>
 
+/** Tables with no Property column: a Property request does not touch them. */
+const ORGANIZATION_ONLY_TABLES: ReadonlyArray<string> = [
+  'inbox_response_target_organization_policies',
+  'inbox_user_views',
+]
+
 const REPORT_TABLES = Object.freeze([
   'inbox_items',
   'inbox_handling_cycles',
@@ -46,6 +52,28 @@ const REPORT_TABLES = Object.freeze([
   'inbox_private_feedback_target_property_overrides',
   'inbox_user_views',
 ] as const)
+
+/** One Organization, or one Property inside it. */
+export type InboxRightsScope = Readonly<{ organizationId: string; propertyId?: string }>
+
+/** An Organization id or a scope, so the Organization entry points keep their shape. */
+export type InboxRightsTarget = string | InboxRightsScope
+
+const scopeOf = (target: InboxRightsTarget): InboxRightsScope =>
+  typeof target === 'string' ? { organizationId: target } : target
+
+/** Rows of a table that has `organization_id` and `property_id` columns. */
+const scopedRows = (scope: InboxRightsScope) =>
+  scope.propertyId
+    ? sql`organization_id = ${scope.organizationId} AND property_id = ${scope.propertyId}`
+    : sql`organization_id = ${scope.organizationId}`
+
+/** Item children that carry no Property column of their own. */
+const scopedItemChildren = (scope: InboxRightsScope) =>
+  scope.propertyId
+    ? sql`organization_id = ${scope.organizationId}
+        AND inbox_item_id IN (SELECT id FROM inbox_items WHERE ${scopedRows(scope)})`
+    : sql`organization_id = ${scope.organizationId}`
 
 function toCount(row: Row | undefined, field: string): number {
   const value = Number(row?.[field])
@@ -62,27 +90,44 @@ async function organizationExists(tx: Tx, organizationId: string): Promise<boole
   return result.rows.length > 0
 }
 
+/** The Property belongs to the Organization: its row, or an item that names it. */
+async function scopeExists(tx: Tx, scope: InboxRightsScope): Promise<boolean> {
+  if (!scope.propertyId) return organizationExists(tx, scope.organizationId)
+  const result = await tx.execute(sql`
+    SELECT 1 AS present FROM properties
+      WHERE organization_id = ${scope.organizationId} AND id = ${scope.propertyId}
+    UNION ALL
+    SELECT 1 FROM inbox_items WHERE ${scopedRows(scope)}
+    LIMIT 1`)
+  return result.rows.length > 0
+}
+
+const notFound = (scope: InboxRightsScope) =>
+  scope.propertyId ? 'property not found' : 'organization not found'
+
 /** Counts only. */
 export async function readInboxRightsReport(
   db: Database,
-  organizationId: string,
+  target: InboxRightsTarget,
 ): Promise<ReadonlyArray<string>> {
+  const scope = scopeOf(target)
   return db.transaction(
     async (tx) => {
-      if (!(await organizationExists(tx, organizationId))) {
-        return ['organization not found']
-      }
+      if (!(await scopeExists(tx, scope))) return [notFound(scope)]
       const held: string[] = []
       for (const table of REPORT_TABLES) {
+        if (scope.propertyId && ORGANIZATION_ONLY_TABLES.includes(table)) continue
+        const rows =
+          table === 'inbox_notes' ? scopedItemChildren(scope) : scopedRows(scope)
         const result = await tx.execute(
           sql`SELECT count(*)::int AS held FROM ${sql.identifier(table)}
-              WHERE organization_id = ${organizationId}`,
+              WHERE ${rows}`,
         )
         held.push(`${table}=${toCount(result.rows[0] as Row | undefined, 'held')}`)
       }
       const reminders = await tx.execute(
         sql`SELECT count(*)::int AS held FROM inbox_response_target_reminders
-            WHERE organization_id = ${organizationId}
+            WHERE ${scopedRows(scope)}
               AND delivered_at IS NULL AND cancelled_at IS NULL`,
       )
       return [
@@ -206,56 +251,65 @@ async function affected(tx: Tx, statement: SQL): Promise<number> {
 /** The reason a closure would be refused, or null. Writes nothing. */
 export async function inboxClosureRefusal(
   db: Database,
-  organizationId: string,
+  target: InboxRightsTarget,
 ): Promise<string | null> {
+  const scope = scopeOf(target)
   return db.transaction(
-    async (tx) =>
-      (await organizationExists(tx, organizationId)) ? null : 'organization not found',
+    async (tx) => ((await scopeExists(tx, scope)) ? null : notFound(scope)),
     { isolationLevel: 'repeatable read', accessMode: 'read only' },
   )
 }
 
 /**
- * Cancels schedulable reminders, then deletes the Organization's items and the
- * rows that are not children of an item. Handling history, cycles, targets,
- * reminders, exclusions, notes and outcomes go with their item through
- * ON DELETE CASCADE, the only delete their immutability triggers accept.
- * Runs inside the caller's transaction.
+ * Cancels schedulable reminders, then deletes the scope's items and, for an
+ * Organization, the rows that are not children of an item. Handling history,
+ * cycles, targets, reminders, exclusions, notes and outcomes go with their item
+ * through ON DELETE CASCADE, the only delete their immutability triggers
+ * accept. A Property request keeps the Organization's policies and personal
+ * views and takes that Property's overrides. Runs inside the caller's
+ * transaction.
  */
 export async function closeInboxInTx(
   tx: Tx,
-  organizationId: string,
+  target: InboxRightsTarget,
   now: Date,
 ): Promise<InboxClosureOutcome> {
-  if (!(await organizationExists(tx, organizationId))) {
-    return { ok: false, error: 'organization not found' }
-  }
+  const scope = scopeOf(target)
+  if (!(await scopeExists(tx, scope))) return { ok: false, error: notFound(scope) }
   await affected(
     tx,
     sql`UPDATE inbox_response_target_reminders
         SET cancelled_at = ${now}, updated_at = GREATEST(updated_at, ${now}::timestamptz)
-        WHERE organization_id = ${organizationId}
+        WHERE ${scopedRows(scope)}
           AND delivered_at IS NULL AND cancelled_at IS NULL`,
   )
   let deleted = 0
-  for (const table of [
-    'inbox_items',
-    'inbox_response_target_organization_policies',
-    'inbox_private_feedback_target_property_overrides',
-    'inbox_user_views',
-  ] as const) {
+  for (const table of scope.propertyId
+    ? PROPERTY_PURGE_TABLES
+    : ORGANIZATION_PURGE_TABLES) {
     deleted += await affected(
       tx,
-      sql`DELETE FROM ${sql.identifier(table)} WHERE organization_id = ${organizationId}`,
+      sql`DELETE FROM ${sql.identifier(table)} WHERE ${scopedRows(scope)}`,
     )
   }
   return { ok: true, deleted }
 }
 
+const PROPERTY_PURGE_TABLES = [
+  'inbox_items',
+  'inbox_private_feedback_target_property_overrides',
+] as const
+
+const ORGANIZATION_PURGE_TABLES = [
+  ...PROPERTY_PURGE_TABLES,
+  'inbox_response_target_organization_policies',
+  'inbox_user_views',
+] as const
+
 export async function closeInbox(
   db: Database,
-  organizationId: string,
+  target: InboxRightsTarget,
   now: Date,
 ): Promise<InboxClosureOutcome> {
-  return db.transaction((tx) => closeInboxInTx(tx, organizationId, now))
+  return db.transaction((tx) => closeInboxInTx(tx, target, now))
 }

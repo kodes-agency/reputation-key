@@ -55,9 +55,28 @@ function seedOf(
     plan.organizationId,
     plan.propertyId ?? '',
     plan.subjectRef ?? '',
+    plan.responseId ?? '',
     plan.verificationRef ?? '',
     plan.receivedAt?.toISOString() ?? '',
   ].join('|')
+}
+
+/** A response has no verified subject, so its id stands in as the subject reference. */
+function guestResponseEntry(
+  base: Omit<ErasureJournalEntry, 'subjectClass'>,
+  plan: RightsRequestPlan,
+): ErasureJournalEntry | { error: string } {
+  if (!plan.propertyId) return { error: '--property is required to journal this apply' }
+  if (!plan.responseId)
+    return { error: 'response=<uuid> is required to journal this apply' }
+  return {
+    ...base,
+    subjectClass: 'privacy_subject',
+    propertyId: plan.propertyId,
+    subjectRef:
+      plan.subjectRef ?? createHash('sha256').update(plan.responseId).digest('hex'),
+    journalTargets: { kind: 'guest_response', ids: [plan.responseId] },
+  }
 }
 
 export function rightsJournalEntry(
@@ -84,6 +103,7 @@ export function rightsJournalEntry(
       ? { ...base, subjectClass: 'property', propertyId: plan.propertyId }
       : { error: '--property is required to journal a Property apply' }
   }
+  if (plan.scope === 'guest-response') return guestResponseEntry(base, plan)
   return plan.subjectRef
     ? { ...base, subjectClass: 'privacy_subject', subjectRef: plan.subjectRef }
     : { error: 'subject-ref=<sha256> is required to journal this apply' }
