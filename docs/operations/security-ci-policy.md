@@ -492,6 +492,11 @@ be rewritten away, and judging it on every run would keep `main` red. History
 is covered by the weekly run. A finding in a scanned range fails the job; the
 log lists rule, file, line and commit, with the secret redacted.
 
+Findings the weekly run has already judged are listed in `.gitleaksignore` by exact
+fingerprint (`commit:file:rule:line`), so any new finding still turns the run red.
+The first run (2026-11-09) found 142 `google-resource-name` matches in old tests
+and docs; every one was a synthetic fixture, not a real Google identifier.
+
 The allowlists clear known placeholders. Two generated artifacts
 (`.fallow/cache.bin`, `graphify-out/graph.json`) are skipped by path to keep
 scans short. Every other entry needs **both** a path and a value: content
