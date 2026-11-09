@@ -5,7 +5,7 @@
 // and erases a person's data is covered by tests that run. Three modes:
 //
 //   report  the default; reads nothing it cannot name and writes nothing
-//   apply   --apply with typed confirmation; refused in production
+//   apply   --apply with typed confirmation; refused unless the database is local
 //   replay  plans the re-erasure of an exported journal against a restore point
 //
 // The subject is named by the SHA-256 of a verified identifier, never the
@@ -185,6 +185,9 @@ function scopeError(
   fields: Fields,
 ): string | null {
   if (scope === 'property' && !ctx.propertyId) return '--property is required'
+  if ((scope === 'access' || scope === 'organization') && ctx.propertyId) {
+    return `--property is not accepted for ${scope}: it covers the whole Organization`
+  }
   if (scope === 'guest-response') {
     if (!ctx.propertyId) return '--property is required'
     if (!fields.responseId) return 'response=<uuid> is required'
@@ -208,7 +211,7 @@ function applyError(
   environment: RightsRequestEnvironment,
 ): string | null {
   if (environment.production) {
-    return 'apply is disabled in production; run report or replay'
+    return 'apply is disabled in production and on any database that is not local; run report or replay'
   }
   if (scope === 'access') return 'access is a report; it has no apply mode'
   if (!fields.verifiedAt || !fields.verificationRef) {
@@ -302,7 +305,7 @@ export function describeRightsReport(plan: RightsRequestPlan): ReadonlyArray<str
   if (plan.mode === 'report' && plan.scope !== 'access') {
     lines.push(
       `to execute: add --apply, verified=<iso> verification=<ref> and ` +
-        `'confirm=${rightsConfirmationText(plan.scope, plan)}' (refused in production)`,
+        `'confirm=${rightsConfirmationText(plan.scope, plan)}' (refused unless the database is local)`,
     )
   }
   return lines

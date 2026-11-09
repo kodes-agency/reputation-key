@@ -6,6 +6,7 @@ import type {
   BackupErasureReplayer,
 } from '#/shared/db/lifecycle/backup-erasure-ledger'
 import {
+  guestContactRequests,
   guestResponsePrivateFeedback,
   guestResponses,
 } from '#/shared/db/schema/guest.schema'
@@ -63,7 +64,17 @@ export const createGuestResponseErasureReplayer = (): BackupErasureReplayer => (
         ),
       )
       .returning({ id: guestResponsePrivateFeedback.responseId })
-    return erased.length + feedback.length
+    // The reveal audits of the contact go with it through their foreign key.
+    const contact = await tx
+      .delete(guestContactRequests)
+      .where(
+        and(
+          eq(guestContactRequests.organizationId, entry.organizationId),
+          inArray(guestContactRequests.responseId, ids),
+        ),
+      )
+      .returning({ id: guestContactRequests.id })
+    return erased.length + feedback.length + contact.length
   },
 })
 

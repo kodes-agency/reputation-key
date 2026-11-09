@@ -6519,7 +6519,7 @@ CREATE TABLE "public"."notification_preferences" (
     "id" "uuid" DEFAULT "gen_random_uuid"() NOT NULL,
     "user_id" character varying(255) NOT NULL,
     "organization_id" character varying(255) NOT NULL,
-    "property_id" "uuid" NOT NULL,
+    "property_id" "uuid",
     "category" character varying(40) NOT NULL,
     "channel" character varying(16) NOT NULL,
     "enabled" boolean DEFAULT true NOT NULL,
@@ -12192,6 +12192,13 @@ CREATE INDEX "notification_email_queue_immediate_acceptance_health_idx" ON "publ
 --
 
 CREATE INDEX "notification_preferences_org_property_idx" ON "public"."notification_preferences" USING "btree" ("organization_id", "property_id");
+
+
+--
+-- Name: notification_prefs_default_scope_unique; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX "notification_prefs_default_scope_unique" ON "public"."notification_preferences" USING "btree" ("user_id", "organization_id", "category", "channel") WHERE ("property_id" IS NULL);
 
 
 --

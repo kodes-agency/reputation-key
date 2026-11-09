@@ -329,7 +329,8 @@ async function readPayload(
               to_char(created_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS created_at,
               to_char(updated_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS updated_at
             FROM notification_preferences
-            WHERE organization_id = ${organizationId}`,
+            WHERE organization_id = ${organizationId}
+              AND property_id IS NOT NULL`,
       )
       const userSettings = await readRows(
         snapshot,

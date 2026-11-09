@@ -5,6 +5,7 @@
 // field allowlists are exercised without one. A row that belongs to another
 // Organization or Property than the request stops the run before any output.
 
+import { createHash } from 'node:crypto'
 import { canonicalizeRfc8785 } from '#/shared/canonical-json'
 import type { Database } from '#/shared/db'
 import { organizationId as brandOrganization, unbrand } from '#/shared/domain/ids'
@@ -94,7 +95,9 @@ const SAMPLE_CATEGORIES: readonly NotificationCategory[] = [
 function scopeOf(request: NotificationRightsRequest): NotificationRightsScope {
   return {
     organizationId: request.organizationId,
-    ...(request.propertyId ? { propertyId: request.propertyId } : {}),
+    ...(request.scope === 'property' && request.propertyId
+      ? { propertyId: request.propertyId }
+      : {}),
   }
 }
 
@@ -111,7 +114,12 @@ function tenantChecked(
     if (row.organizationId !== request.organizationId) {
       throw new Error('Notification rights read returned a row of another Organization')
     }
-    if (propertyBound && request.propertyId && row.propertyId !== request.propertyId) {
+    if (
+      propertyBound &&
+      request.scope === 'property' &&
+      request.propertyId &&
+      row.propertyId !== request.propertyId
+    ) {
       throw new Error('Notification rights read returned a row of another Property')
     }
   }
@@ -131,6 +139,9 @@ export function buildManualFinalWarningJobs(input: {
   formerMembers: readonly Readonly<{ userId: string; removalEventId: string }>[]
 }): readonly ManualFinalWarningJob[] {
   const eventId = `manual-final-warning:${input.organizationId}:${input.requestRef}`
+  // The request ref is free text and may carry ':', which BullMQ refuses in a
+  // custom job id, so the id carries a digest of the event id instead.
+  const jobScope = `manual-final-warning-${createHash('sha256').update(eventId).digest('hex').slice(0, 32)}`
   const base = {
     organizationId: input.organizationId,
     propertyId: null,
@@ -144,14 +155,14 @@ export function buildManualFinalWarningJobs(input: {
   return [
     ...[...admins].map((userId) => ({
       name: INSERT_NOTIFICATION_JOB_NAME as typeof INSERT_NOTIFICATION_JOB_NAME,
-      jobId: `${eventId}-${userId}`,
+      jobId: `${jobScope}-${userId}`,
       data: { ...base, userId, audience: { kind: 'account_admin' } as const },
     })),
     ...input.formerMembers
       .filter((member) => !admins.has(member.userId))
       .map((member) => ({
         name: INSERT_NOTIFICATION_JOB_NAME as typeof INSERT_NOTIFICATION_JOB_NAME,
-        jobId: `${eventId}-${member.userId}`,
+        jobId: `${jobScope}-${member.userId}`,
         data: {
           ...base,
           userId: member.userId,

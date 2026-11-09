@@ -2,6 +2,10 @@
 import { createServerOnlyFn } from '@tanstack/react-start'
 import { queryAuditEvents } from '../audit/read.server'
 import { AUDIT_EVENT_RETENTION_RULE } from '../audit/retention.server'
+import {
+  copyCategoryDefaultsToPreferences,
+  countCategoryDefaultsToCopy,
+} from '../preferences/copy-category-defaults.server'
 import type {
   createNotificationRightsPort,
   ManualFinalWarningJob,
@@ -12,6 +16,12 @@ export * from './activity-public-api'
 export * from './notification-public-api'
 
 export const readAuditEvents = createServerOnlyFn(queryAuditEvents)
+export const copyNotificationCategoryDefaults = createServerOnlyFn(
+  copyCategoryDefaultsToPreferences,
+)
+export const countNotificationCategoryDefaultsToCopy = createServerOnlyFn(
+  countCategoryDefaultsToCopy,
+)
 export const getAuditEventRetentionRule = createServerOnlyFn(
   () => AUDIT_EVENT_RETENTION_RULE,
 )
@@ -31,3 +41,8 @@ export const runNotificationRightsRequest = createServerOnlyFn(
     )
   },
 )
+
+export const loadNotificationRightsReplayers = createServerOnlyFn(async () => {
+  const replayer = await import('../rights/replayer.server')
+  return replayer.createNotificationRightsReplayers()
+})

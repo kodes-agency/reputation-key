@@ -876,6 +876,13 @@
       "when": 1800000005000,
       "tag": "0124_drop_old_google_import_tables",
       "breakpoints": true
+    },
+    {
+      "idx": 125,
+      "version": "7",
+      "when": 1800000006000,
+      "tag": "0125_notification_default_preference_rows",
+      "breakpoints": true
     }
   ]
 }
